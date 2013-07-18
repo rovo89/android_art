@@ -61,7 +61,7 @@ class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
 
  protected:
 
-  LargeObjectSpace(const std::string& name);
+  explicit LargeObjectSpace(const std::string& name);
 
   // Approximate number of bytes which have been allocated into the space.
   size_t num_bytes_allocated_;
@@ -91,7 +91,7 @@ class LargeObjectMapSpace : public LargeObjectSpace {
   bool Contains(const mirror::Object* obj) const NO_THREAD_SAFETY_ANALYSIS;
 
 private:
-  LargeObjectMapSpace(const std::string& name);
+  explicit LargeObjectMapSpace(const std::string& name);
   virtual ~LargeObjectMapSpace() {}
 
   // Used to ensure mutual exclusion when the allocation spaces data structures are being modified.

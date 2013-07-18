@@ -103,8 +103,7 @@ class HeapBitmap {
   void ReplaceObjectSet(SpaceSetMap* old_set, SpaceSetMap* new_set)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  HeapBitmap(Heap* heap) : heap_(heap) {
-  }
+  explicit HeapBitmap(Heap* heap) : heap_(heap) {}
 
  private:
 

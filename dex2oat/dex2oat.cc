@@ -456,7 +456,7 @@ class WatchDog {
   } while (false)
 
  public:
-  WatchDog(bool is_watch_dog_enabled) {
+  explicit WatchDog(bool is_watch_dog_enabled) {
     is_watch_dog_enabled_ = is_watch_dog_enabled;
     if (!is_watch_dog_enabled_) {
       return;

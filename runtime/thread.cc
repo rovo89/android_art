@@ -1219,7 +1219,7 @@ void Thread::NotifyLocked(Thread* self) {
 
 class CountStackDepthVisitor : public StackVisitor {
  public:
-  CountStackDepthVisitor(Thread* thread)
+  explicit CountStackDepthVisitor(Thread* thread)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(thread, NULL),
         depth_(0), skip_depth_(0), skipping_(true) {}

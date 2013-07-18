@@ -36,7 +36,7 @@ template <class Value> class Histogram {
   const size_t kInitialBucketCount;
 
  public:
-  Histogram(std::string);
+  explicit Histogram(std::string);
   void AddValue(Value);
   void CreateHistogram();
   void Reset();

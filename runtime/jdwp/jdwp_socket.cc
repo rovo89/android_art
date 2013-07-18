@@ -46,7 +46,7 @@ struct JdwpSocketState : public JdwpNetStateBase {
   uint16_t listenPort;
   int     listenSock;         /* listen for connection from debugger */
 
-  JdwpSocketState(JdwpState* state) : JdwpNetStateBase(state) {
+  explicit JdwpSocketState(JdwpState* state) : JdwpNetStateBase(state) {
     listenPort  = 0;
     listenSock  = -1;
   }

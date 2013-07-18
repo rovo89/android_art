@@ -33,7 +33,7 @@ class ArenaBitVector {
 
     class Iterator {
       public:
-        Iterator(ArenaBitVector* bit_vector)
+        explicit Iterator(ArenaBitVector* bit_vector)
           : p_bits_(bit_vector),
             bit_storage_(bit_vector->GetRawStorage()),
             bit_index_(0),

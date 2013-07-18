@@ -244,7 +244,7 @@ class SpaceSetMap {
     }
   }
 
-  SpaceSetMap(const std::string& name) : name_(name) {}
+  explicit SpaceSetMap(const std::string& name) : name_(name) {}
   ~SpaceSetMap() {}
 
   Objects& GetObjects() {

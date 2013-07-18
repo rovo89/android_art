@@ -32,7 +32,7 @@ struct CompilationUnit;
 
 class DexCompilationUnit {
  public:
-  DexCompilationUnit(CompilationUnit* cu);
+  explicit DexCompilationUnit(CompilationUnit* cu);
 
   DexCompilationUnit(CompilationUnit* cu, jobject class_loader, ClassLinker* class_linker,
                      const DexFile& dex_file, const DexFile::CodeItem* code_item,

@@ -70,8 +70,7 @@ static const bool kCountJavaLangRefs = false;
 
 class SetFingerVisitor {
  public:
-  SetFingerVisitor(MarkSweep* const mark_sweep) : mark_sweep_(mark_sweep) {
-  }
+  explicit SetFingerVisitor(MarkSweep* const mark_sweep) : mark_sweep_(mark_sweep) {}
 
   void operator ()(void* finger) const {
     mark_sweep_->SetFinger(reinterpret_cast<Object*>(finger));
@@ -521,10 +520,7 @@ void MarkSweep::MarkConcurrentRoots() {
 
 class CheckObjectVisitor {
  public:
-  CheckObjectVisitor(MarkSweep* const mark_sweep)
-      : mark_sweep_(mark_sweep) {
-
-  }
+  explicit CheckObjectVisitor(MarkSweep* const mark_sweep) : mark_sweep_(mark_sweep) {}
 
   void operator ()(const Object* obj, const Object* ref, MemberOffset offset, bool is_static) const
       NO_THREAD_SAFETY_ANALYSIS {
@@ -564,8 +560,7 @@ void MarkSweep::BindLiveToMarkBitmap(space::ContinuousSpace* space) {
 
 class ScanObjectVisitor {
  public:
-  ScanObjectVisitor(MarkSweep* const mark_sweep) : mark_sweep_(mark_sweep) {
-  }
+  explicit ScanObjectVisitor(MarkSweep* const mark_sweep) : mark_sweep_(mark_sweep) {}
 
   // TODO: Fixme when anotatalysis works with visitors.
   void operator ()(const Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
@@ -610,8 +605,7 @@ void MarkSweep::ScanGrayObjects(byte minimum_age) {
 
 class CheckBitmapVisitor {
  public:
-  CheckBitmapVisitor(MarkSweep* mark_sweep) : mark_sweep_(mark_sweep) {
-  }
+  explicit CheckBitmapVisitor(MarkSweep* mark_sweep) : mark_sweep_(mark_sweep) {}
 
   void operator ()(const Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
     if (kDebugLocking) {
@@ -803,9 +797,7 @@ struct SweepCallbackContext {
 
 class CheckpointMarkThreadRoots : public Closure {
  public:
-  CheckpointMarkThreadRoots(MarkSweep* mark_sweep) : mark_sweep_(mark_sweep) {
-
-  }
+  explicit CheckpointMarkThreadRoots(MarkSweep* mark_sweep) : mark_sweep_(mark_sweep) {}
 
   virtual void Run(Thread* thread) NO_THREAD_SAFETY_ANALYSIS {
     // Note: self is not necessarily equal to thread since thread may be suspended.
@@ -1084,8 +1076,7 @@ void MarkSweep::ScanRoot(const Object* obj) {
 
 class MarkObjectVisitor {
  public:
-  MarkObjectVisitor(MarkSweep* const mark_sweep) : mark_sweep_(mark_sweep) {
-  }
+  explicit MarkObjectVisitor(MarkSweep* const mark_sweep) : mark_sweep_(mark_sweep) {}
 
   // TODO: Fixme when anotatalysis works with visitors.
   void operator ()(const Object* /* obj */, const Object* ref, const MemberOffset& /* offset */,
@@ -1153,9 +1144,7 @@ class MarkStackChunk : public Task {
 
   class MarkObjectParallelVisitor {
    public:
-    MarkObjectParallelVisitor(MarkStackChunk* chunk_task) : chunk_task_(chunk_task) {
-
-    }
+    explicit MarkObjectParallelVisitor(MarkStackChunk* chunk_task) : chunk_task_(chunk_task) {}
 
     void operator ()(const Object* /* obj */, const Object* ref,
                      const MemberOffset& /* offset */, bool /* is_static */) const {

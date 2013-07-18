@@ -117,8 +117,8 @@ class ModUnionClearCardVisitor {
 
 class ModUnionScanImageRootVisitor {
  public:
-  ModUnionScanImageRootVisitor(collector::MarkSweep* const mark_sweep) : mark_sweep_(mark_sweep) {
-  }
+  explicit ModUnionScanImageRootVisitor(collector::MarkSweep* const mark_sweep)
+      : mark_sweep_(mark_sweep) {}
 
   void operator ()(const Object* root) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)

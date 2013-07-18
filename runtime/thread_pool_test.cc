@@ -25,8 +25,7 @@ namespace art {
 
 class CountTask : public Task {
  public:
-  CountTask(AtomicInteger* count) : count_(count), verbose_(false) {
-  }
+  explicit CountTask(AtomicInteger* count) : count_(count), verbose_(false) {}
 
   void Run(Thread* self) {
     if (verbose_) {
@@ -61,7 +60,7 @@ int32_t ThreadPoolTest::num_threads = 4;
 TEST_F(ThreadPoolTest, CheckRun) {
   Thread* self = Thread::Current();
   ThreadPool thread_pool(num_threads);
-  AtomicInteger count = 0;
+  AtomicInteger count(0);
   static const int32_t num_tasks = num_threads * 4;
   for (int32_t i = 0; i < num_tasks; ++i) {
     thread_pool.AddTask(self, new CountTask(&count));
@@ -76,7 +75,7 @@ TEST_F(ThreadPoolTest, CheckRun) {
 TEST_F(ThreadPoolTest, StopStart) {
   Thread* self = Thread::Current();
   ThreadPool thread_pool(num_threads);
-  AtomicInteger count = 0;
+  AtomicInteger count(0);
   static const int32_t num_tasks = num_threads * 4;
   for (int32_t i = 0; i < num_tasks; ++i) {
     thread_pool.AddTask(self, new CountTask(&count));
@@ -88,7 +87,7 @@ TEST_F(ThreadPoolTest, StopStart) {
   thread_pool.StartWorkers(self);
   usleep(200);
   thread_pool.StopWorkers(self);
-  AtomicInteger bad_count = 0;
+  AtomicInteger bad_count(0);
   thread_pool.AddTask(self, new CountTask(&bad_count));
   usleep(200);
   // Ensure that the task added after the workers were stopped doesn't get run.
@@ -133,7 +132,7 @@ class TreeTask : public Task {
 TEST_F(ThreadPoolTest, RecursiveTest) {
   Thread* self = Thread::Current();
   ThreadPool thread_pool(num_threads);
-  AtomicInteger count = 0;
+  AtomicInteger count(0);
   static const int depth = 8;
   thread_pool.AddTask(self, new TreeTask(&thread_pool, &count, depth));
   thread_pool.StartWorkers(self);

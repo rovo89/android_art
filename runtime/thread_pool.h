@@ -76,7 +76,7 @@ class ThreadPool {
   // after running it, it is the caller's responsibility.
   void AddTask(Thread* self, Task* task);
 
-  ThreadPool(size_t num_threads);
+  explicit ThreadPool(size_t num_threads);
   virtual ~ThreadPool();
 
   // Wait for all tasks currently on queue to get completed.
@@ -161,7 +161,7 @@ class WorkStealingWorker : public ThreadPoolWorker {
 
 class WorkStealingThreadPool : public ThreadPool {
  public:
-  WorkStealingThreadPool(size_t num_threads);
+  explicit WorkStealingThreadPool(size_t num_threads);
   virtual ~WorkStealingThreadPool();
 
  private:

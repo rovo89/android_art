@@ -1814,7 +1814,7 @@ void Dbg::GetChildThreadGroups(JDWP::ObjectId thread_group_id, std::vector<JDWP:
 static int GetStackDepth(Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   struct CountStackDepthVisitor : public StackVisitor {
-    CountStackDepthVisitor(Thread* thread)
+    explicit CountStackDepthVisitor(Thread* thread)
         : StackVisitor(thread, NULL), depth(0) {}
 
     // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
@@ -2458,7 +2458,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
   //
 
   struct SingleStepStackVisitor : public StackVisitor {
-    SingleStepStackVisitor(Thread* thread)
+    explicit SingleStepStackVisitor(Thread* thread)
         EXCLUSIVE_LOCKS_REQUIRED(Locks::breakpoint_lock_)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
         : StackVisitor(thread, NULL) {

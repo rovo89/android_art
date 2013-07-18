@@ -643,7 +643,7 @@ inline void X86Assembler::EmitOperandSizeOverride() {
 // Slowpath entered when Thread::Current()->_exception is non-null
 class X86ExceptionSlowPath : public SlowPath {
  public:
-  X86ExceptionSlowPath(size_t stack_adjust) : stack_adjust_(stack_adjust) {}
+  explicit X86ExceptionSlowPath(size_t stack_adjust) : stack_adjust_(stack_adjust) {}
   virtual void Emit(Assembler *sp_asm);
  private:
   const size_t stack_adjust_;

@@ -49,11 +49,9 @@ class HeapBitmap;
 // cleared between GC phases, reducing the number of dirty cards that need to be scanned.
 class ModUnionTable {
  public:
-  ModUnionTable(Heap* heap) : heap_(heap) {
-  }
+  explicit ModUnionTable(Heap* heap) : heap_(heap) {}
 
-  virtual ~ModUnionTable() {
-  }
+  virtual ~ModUnionTable() {}
 
   // Clear cards which map to a memory range of a space. This doesn't immediately update the
   // mod-union table, as updating the mod-union table may have an associated cost, such as
@@ -86,7 +84,7 @@ class ModUnionTable {
 // Reference caching implementation. Caches references pointing to alloc space(s) for each card.
 class ModUnionTableReferenceCache : public ModUnionTable {
  public:
-  ModUnionTableReferenceCache(Heap* heap) : ModUnionTable(heap) {}
+  explicit ModUnionTableReferenceCache(Heap* heap) : ModUnionTable(heap) {}
   virtual ~ModUnionTableReferenceCache() {}
 
   // Clear and store cards for a space.
@@ -122,7 +120,7 @@ class ModUnionTableReferenceCache : public ModUnionTable {
 // Card caching implementation. Keeps track of which cards we cleared and only this information.
 class ModUnionTableCardCache : public ModUnionTable {
  public:
-  ModUnionTableCardCache(Heap* heap) : ModUnionTable(heap) {}
+  explicit ModUnionTableCardCache(Heap* heap) : ModUnionTable(heap) {}
   virtual ~ModUnionTableCardCache() {}
 
   // Clear and store cards for a space.

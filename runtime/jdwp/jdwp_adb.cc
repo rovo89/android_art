@@ -54,7 +54,7 @@ namespace JDWP {
 
 struct JdwpAdbState : public JdwpNetStateBase {
  public:
-  JdwpAdbState(JdwpState* state) : JdwpNetStateBase(state) {
+  explicit JdwpAdbState(JdwpState* state) : JdwpNetStateBase(state) {
     control_sock_ = -1;
     shutting_down_ = false;
 

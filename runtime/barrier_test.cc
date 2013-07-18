@@ -69,9 +69,9 @@ TEST_F(BarrierTest, CheckWait) {
   Thread* self = Thread::Current();
   ThreadPool thread_pool(num_threads);
   Barrier barrier(0);
-  AtomicInteger count1 = 0;
-  AtomicInteger count2 = 0;
-  AtomicInteger count3 = 0;
+  AtomicInteger count1(0);
+  AtomicInteger count2(0);
+  AtomicInteger count3(0);
   for (int32_t i = 0; i < num_threads; ++i) {
     thread_pool.AddTask(self, new CheckWaitTask(&barrier, &count1, &count2, &count3));
   }
@@ -126,7 +126,7 @@ TEST_F(BarrierTest, CheckPass) {
   Thread* self = Thread::Current();
   ThreadPool thread_pool(num_threads);
   Barrier barrier(0);
-  AtomicInteger count = 0;
+  AtomicInteger count(0);
   const int32_t num_tasks = num_threads * 4;
   const int32_t num_sub_tasks = 128;
   for (int32_t i = 0; i < num_tasks; ++i) {
