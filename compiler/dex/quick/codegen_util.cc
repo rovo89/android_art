@@ -61,7 +61,7 @@ void Mir2Lir::NopLIR( LIR* lir) {
 
 void Mir2Lir::SetMemRefType(LIR* lir, bool is_load, int mem_type) {
   uint64_t *mask_ptr;
-  uint64_t mask = ENCODE_MEM;;
+  uint64_t mask = ENCODE_MEM;
   DCHECK(GetTargetInstFlags(lir->opcode) & (IS_LOAD | IS_STORE));
   if (is_load) {
     mask_ptr = &lir->use_mask;

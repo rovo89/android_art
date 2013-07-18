@@ -208,8 +208,7 @@ LIR* MipsMir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src1, int value) {
     case kOpAdd:
       if (IS_SIMM16(value)) {
         opcode = kMipsAddiu;
-      }
-      else {
+      } else {
         short_form = false;
         opcode = kMipsAddu;
       }
@@ -218,8 +217,7 @@ LIR* MipsMir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src1, int value) {
       if (IS_SIMM16((-value))) {
         value = -value;
         opcode = kMipsAddiu;
-      }
-      else {
+      } else {
         short_form = false;
         opcode = kMipsSubu;
       }
@@ -239,8 +237,7 @@ LIR* MipsMir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src1, int value) {
     case kOpAnd:
       if (IS_UIMM16((value))) {
         opcode = kMipsAndi;
-      }
-      else {
+      } else {
         short_form = false;
         opcode = kMipsAnd;
       }
@@ -248,8 +245,7 @@ LIR* MipsMir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src1, int value) {
     case kOpOr:
       if (IS_UIMM16((value))) {
         opcode = kMipsOri;
-      }
-      else {
+      } else {
         short_form = false;
         opcode = kMipsOr;
       }
@@ -257,8 +253,7 @@ LIR* MipsMir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src1, int value) {
     case kOpXor:
       if (IS_UIMM16((value))) {
         opcode = kMipsXori;
-      }
-      else {
+      } else {
         short_form = false;
         opcode = kMipsXor;
       }

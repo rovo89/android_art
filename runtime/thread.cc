@@ -1666,7 +1666,11 @@ static const EntryPointInfo gThreadEntryPointInfo[] = {
 void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset, size_t size_of_pointers) {
   CHECK_EQ(size_of_pointers, 4U); // TODO: support 64-bit targets.
 
-#define DO_THREAD_OFFSET(x) if (offset == static_cast<uint32_t>(OFFSETOF_VOLATILE_MEMBER(Thread, x))) { os << # x; return; }
+#define DO_THREAD_OFFSET(x) \
+    if (offset == static_cast<uint32_t>(OFFSETOF_VOLATILE_MEMBER(Thread, x))) { \
+      os << # x; \
+      return; \
+    }
   DO_THREAD_OFFSET(state_and_flags_);
   DO_THREAD_OFFSET(card_table_);
   DO_THREAD_OFFSET(exception_);
