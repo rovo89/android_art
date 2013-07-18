@@ -193,7 +193,7 @@ void ArmMir2Lir::GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias,
   }
   NewLIR0(kThumb2Fmstat);
   ConditionCode ccode = static_cast<ConditionCode>(mir->dalvikInsn.arg[0]);
-  switch(ccode) {
+  switch (ccode) {
     case kCondEq:
     case kCondNe:
       break;

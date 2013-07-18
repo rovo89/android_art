@@ -184,7 +184,7 @@ static Dbg::HpsgWhat gDdmNhsgWhat;
 static ObjectRegistry* gRegistry = NULL;
 
 // Recent allocation tracking.
-static Mutex gAllocTrackerLock DEFAULT_MUTEX_ACQUIRED_AFTER ("AllocTracker lock");
+static Mutex gAllocTrackerLock DEFAULT_MUTEX_ACQUIRED_AFTER("AllocTracker lock");
 AllocRecord* Dbg::recent_allocation_records_ PT_GUARDED_BY(gAllocTrackerLock) = NULL; // TODO: CircularBuffer<AllocRecord>
 static size_t gAllocRecordMax GUARDED_BY(gAllocTrackerLock) = 0;
 static size_t gAllocRecordHead GUARDED_BY(gAllocTrackerLock) = 0;
@@ -2761,7 +2761,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
     VLOG(jdwp) << "    Control has returned from event thread";
 
     /* wait for thread to re-suspend itself */
-    SuspendThread(thread_id, false /* request_suspension */ );
+    SuspendThread(thread_id, false /* request_suspension */);
     self->TransitionFromSuspendedToRunnable();
   }
 

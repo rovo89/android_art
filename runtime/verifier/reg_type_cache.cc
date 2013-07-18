@@ -377,7 +377,7 @@ const RegType& RegTypeCache::FromUninitialized(const RegType& uninit_type) {
     entry = new UnresolvedReferenceType(descriptor.c_str(), entries_.size());
   } else {
     mirror::Class* klass = uninit_type.GetClass();
-    if(uninit_type.IsUninitializedThisReference() && !klass->IsFinal()) {
+    if (uninit_type.IsUninitializedThisReference() && !klass->IsFinal()) {
       // For uninitialized "this reference" look for reference types that are not precise.
       for (size_t i = primitive_count_; i < entries_.size(); i++) {
         RegType* cur_entry = entries_[i];

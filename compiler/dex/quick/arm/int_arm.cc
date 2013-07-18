@@ -129,7 +129,7 @@ void ArmMir2Lir::GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1,
   int32_t low_reg = rl_src1.low_reg;
   int32_t high_reg = rl_src1.high_reg;
 
-  switch(ccode) {
+  switch (ccode) {
     case kCondEq:
     case kCondNe:
       LIR* target;
@@ -270,7 +270,7 @@ void ArmMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
   rl_src2 = LoadValueWide(rl_src2, kCoreReg);
   OpRegReg(kOpCmp, rl_src1.high_reg, rl_src2.high_reg);
-  switch(ccode) {
+  switch (ccode) {
     case kCondEq:
       OpCondBranch(kCondNe, not_taken);
       break;
@@ -436,7 +436,7 @@ bool ArmMir2Lir::SmallLiteralDivide(Instruction::Code dalvik_opcode,
   int r_hi = AllocTemp();
   int r_lo = AllocTemp();
   NewLIR4(kThumb2Smull, r_lo, r_hi, r_magic, rl_src.low_reg);
-  switch(pattern) {
+  switch (pattern) {
     case Divide3:
       OpRegRegRegShift(kOpSub, rl_result.low_reg, r_hi,
                rl_src.low_reg, EncodeShift(kArmAsr, 31));
@@ -1002,7 +1002,7 @@ void ArmMir2Lir::GenShiftImmOpLong(Instruction::Code opcode,
     return;
   }
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  switch(opcode) {
+  switch (opcode) {
     case Instruction::SHL_LONG:
     case Instruction::SHL_LONG_2ADDR:
       if (shift_amount == 1) {
@@ -1090,7 +1090,7 @@ void ArmMir2Lir::GenArithImmOpLong(Instruction::Code opcode,
   int32_t mod_imm_hi = ModifiedImmediate(val_hi);
 
   // Only a subset of add/sub immediate instructions set carry - so bail if we don't fit
-  switch(opcode) {
+  switch (opcode) {
     case Instruction::ADD_LONG:
     case Instruction::ADD_LONG_2ADDR:
     case Instruction::SUB_LONG:

@@ -137,7 +137,7 @@ namespace art {
       AllNodesIterator(MIRGraph* mir_graph, bool is_iterative)
           : DataflowIterator(mir_graph, is_iterative, 0, 0, false) {
         all_nodes_iterator_ =
-            new (mir_graph->GetArena()) GrowableArray<BasicBlock*>::Iterator (mir_graph->GetBlockList());
+            new (mir_graph->GetArena()) GrowableArray<BasicBlock*>::Iterator(mir_graph->GetBlockList());
       }
 
       void Reset() {

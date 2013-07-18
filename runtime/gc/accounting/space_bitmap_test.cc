@@ -46,7 +46,7 @@ class BitmapVerify {
       begin_(begin),
       end_(end) {}
 
-  void operator ()(const mirror::Object* obj) {
+  void operator()(const mirror::Object* obj) {
     EXPECT_TRUE(obj >= begin_);
     EXPECT_TRUE(obj <= end_);
     EXPECT_TRUE(bitmap_->Test(obj) == ((reinterpret_cast<uintptr_t>(obj) & 0xF) != 0));

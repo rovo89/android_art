@@ -178,7 +178,7 @@ void BaseMutex::RecordContention(uint64_t blocked_tid, uint64_t owner_tid, uint6
     do {
       slot = cur_content_log_entry_;
       new_slot = (slot + 1) % kContentionLogSize;
-    } while(!cur_content_log_entry_.CompareAndSwap(slot, new_slot));
+    } while (!cur_content_log_entry_.CompareAndSwap(slot, new_slot));
     contention_log_[new_slot].blocked_tid = blocked_tid;
     contention_log_[new_slot].owner_tid = owner_tid;
     contention_log_[new_slot].count = 1;
@@ -312,7 +312,7 @@ void Mutex::ExclusiveLock(Thread* self) {
         }
         android_atomic_dec(&num_contenders_);
       }
-    } while(!done);
+    } while (!done);
     DCHECK_EQ(state_, 1);
     exclusive_owner_ = SafeGetTid(self);
 #else
@@ -344,7 +344,7 @@ bool Mutex::ExclusiveTryLock(Thread* self) {
       } else {
         return false;
       }
-    } while(!done);
+    } while (!done);
     DCHECK_EQ(state_, 1);
     exclusive_owner_ = SafeGetTid(self);
 #else
@@ -404,7 +404,7 @@ void Mutex::ExclusiveUnlock(Thread* self) {
         _exit(1);
       }
     }
-  } while(!done);
+  } while (!done);
 #else
     CHECK_MUTEX_CALL(pthread_mutex_unlock, (&mutex_));
 #endif
@@ -513,7 +513,7 @@ void ReaderWriterMutex::ExclusiveLock(Thread* self) {
       }
       android_atomic_dec(&num_pending_writers_);
     }
-  } while(!done);
+  } while (!done);
   DCHECK_EQ(state_, -1);
   exclusive_owner_ = SafeGetTid(self);
 #else
@@ -545,7 +545,7 @@ void ReaderWriterMutex::ExclusiveUnlock(Thread* self) {
     } else {
       LOG(FATAL) << "Unexpected state_:" << cur_state << " for " << name_;
     }
-  } while(!done);
+  } while (!done);
 #else
   CHECK_MUTEX_CALL(pthread_rwlock_unlock, (&rwlock_));
 #endif
@@ -583,7 +583,7 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, int64_t ms, int32
       }
       android_atomic_dec(&num_pending_writers_);
     }
-  } while(!done);
+  } while (!done);
   exclusive_owner_ = SafeGetTid(self);
 #else
   timespec ts;
@@ -616,7 +616,7 @@ bool ReaderWriterMutex::SharedTryLock(Thread* self) {
       // Owner holds it exclusively.
       return false;
     }
-  } while(!done);
+  } while (!done);
 #else
   int result = pthread_rwlock_tryrdlock(&rwlock_);
   if (result == EBUSY) {

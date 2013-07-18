@@ -66,7 +66,7 @@ class AtomicStack {
         // Stack overflow.
         return false;
       }
-    } while(!back_index_.compare_and_swap(index, index + 1));
+    } while (!back_index_.compare_and_swap(index, index + 1));
     begin_[index] = value;
     return true;
   }

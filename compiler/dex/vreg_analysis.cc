@@ -160,7 +160,7 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb) {
       if ((mir->dalvikInsn.opcode == Instruction::RETURN) ||
           (mir->dalvikInsn.opcode == Instruction::RETURN_WIDE) ||
           (mir->dalvikInsn.opcode == Instruction::RETURN_OBJECT)) {
-        switch(cu_->shorty[0]) {
+        switch (cu_->shorty[0]) {
             case 'I':
               changed |= SetCore(ssa_rep->uses[0], true);
               break;

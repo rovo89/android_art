@@ -83,7 +83,7 @@ class ArenaBitVector {
                    OatBitMapKind kind = kBitMapMisc);
     ~ArenaBitVector() {};
 
-    static void* operator new( size_t size, ArenaAllocator* arena) {
+    static void* operator new(size_t size, ArenaAllocator* arena) {
       return arena->NewMem(sizeof(ArenaBitVector), true, ArenaAllocator::kAllocGrowableBitMap);
     }
     static void operator delete(void* p) {};  // Nop.

@@ -969,11 +969,11 @@ static inline const Instruction* FindNextInstructionFollowingException(Thread* s
       return JValue(); /* Handled in caller. */ \
     } \
   } else { \
-    inst = inst-> next_function (); \
+    inst = inst->next_function(); \
   }
 
 static void UnexpectedOpcode(const Instruction* inst, MethodHelper& mh)
-  __attribute__ ((cold, noreturn, noinline));
+  __attribute__((cold, noreturn, noinline));
 
 static void UnexpectedOpcode(const Instruction* inst, MethodHelper& mh)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -989,7 +989,7 @@ static void UnexpectedOpcode(const Instruction* inst, MethodHelper& mh)
 template<bool do_access_check>
 static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
                       ShadowFrame& shadow_frame, JValue result_register)
-    NO_THREAD_SAFETY_ANALYSIS __attribute__ ((hot));
+    NO_THREAD_SAFETY_ANALYSIS __attribute__((hot));
 
 template<bool do_access_check>
 static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
@@ -1254,7 +1254,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
         if (UNLIKELY(s == NULL)) {
           HANDLE_PENDING_EXCEPTION();
         } else {
-          shadow_frame.SetVRegReference( inst->VRegA_21c(), s);
+          shadow_frame.SetVRegReference(inst->VRegA_21c(), s);
           inst = inst->Next_2xx();
         }
         break;
@@ -1265,7 +1265,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
         if (UNLIKELY(s == NULL)) {
           HANDLE_PENDING_EXCEPTION();
         } else {
-          shadow_frame.SetVRegReference( inst->VRegA_31c(), s);
+          shadow_frame.SetVRegReference(inst->VRegA_31c(), s);
           inst = inst->Next_3xx();
         }
         break;

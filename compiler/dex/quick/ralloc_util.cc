@@ -1021,8 +1021,7 @@ void Mir2Lir::DoPromotion() {
 
   if (!(cu_->disable_opt & (1 << kPromoteRegs))) {
     // Promote FpRegs
-    for (int i = 0; (i < num_regs) &&
-            (FpRegs[i].count >= promotion_threshold ); i++) {
+    for (int i = 0; (i < num_regs) && (FpRegs[i].count >= promotion_threshold); i++) {
       int p_map_idx = SRegToPMap(FpRegs[i].s_reg);
       if (promotion_map_[p_map_idx].fp_location != kLocPhysReg) {
         int reg = AllocPreservedFPReg(FpRegs[i].s_reg,

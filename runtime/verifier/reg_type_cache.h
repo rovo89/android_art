@@ -44,7 +44,7 @@ class RegTypeCache {
   }
   ~RegTypeCache();
   static void Init() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if(!RegTypeCache::primitive_initialized_) {
+    if (!RegTypeCache::primitive_initialized_) {
       CHECK_EQ(RegTypeCache::primitive_count_, 0);
       CreatePrimitiveTypes();
       CHECK_EQ(RegTypeCache::primitive_count_, kNumPrimitives);

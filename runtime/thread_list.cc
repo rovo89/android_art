@@ -468,7 +468,7 @@ void ThreadList::WaitForOtherNonDaemonThreadsToExit() {
       // Wait for another thread to exit before re-checking.
       thread_exit_cond_.Wait(self);
     }
-  } while(!all_threads_are_daemons);
+  } while (!all_threads_are_daemons);
 }
 
 void ThreadList::SuspendAllDaemonThreads() {

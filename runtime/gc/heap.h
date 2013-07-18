@@ -70,7 +70,7 @@ namespace space {
 
 class AgeCardVisitor {
  public:
-  byte operator ()(byte card) const {
+  byte operator()(byte card) const {
     if (card == accounting::CardTable::kCardDirty) {
       return card - 1;
     } else {

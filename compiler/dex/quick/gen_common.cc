@@ -279,7 +279,7 @@ void Mir2Lir::GenFilledNewArray(CallInfo* info) {
     int r_dst = AllocTemp();
     int r_idx = AllocTemp();
     int r_val = INVALID_REG;
-    switch(cu_->instruction_set) {
+    switch (cu_->instruction_set) {
       case kThumb2:
         r_val = TargetReg(kLr);
         break;
@@ -1311,7 +1311,7 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
         GenImmedCheck(kCondEq, TargetReg(kArg1), 0, kThrowDivZero);
       }
       // NOTE: callout here is not a safepoint
-      CallHelper(r_tgt, func_offset, false /* not a safepoint */ );
+      CallHelper(r_tgt, func_offset, false /* not a safepoint */);
       if (op == kOpDiv)
         rl_result = GetReturn(false);
       else

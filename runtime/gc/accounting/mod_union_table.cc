@@ -44,8 +44,8 @@ class MarkIfReachesAllocspaceVisitor {
   }
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
-  void operator ()(const Object* obj, const Object* ref, const MemberOffset& /* offset */,
-                   bool /* is_static */) const {
+  void operator()(const Object* obj, const Object* ref, const MemberOffset& /* offset */,
+                  bool /* is_static */) const {
     // TODO: Optimize?
     // TODO: C++0x auto
     const std::vector<space::ContinuousSpace*>& spaces = heap_->GetContinuousSpaces();
@@ -70,7 +70,7 @@ class ModUnionVisitor {
       bitmap_(bitmap) {
   }
 
-  void operator ()(const Object* obj) const
+  void operator()(const Object* obj) const
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
                             Locks::mutator_lock_) {
     DCHECK(obj != NULL);
@@ -90,7 +90,7 @@ class ModUnionClearCardSetVisitor {
     : cleared_cards_(cleared_cards) {
   }
 
-  inline void operator ()(byte* card, byte expected_value, byte new_value) const {
+  inline void operator()(byte* card, byte expected_value, byte new_value) const {
     if (expected_value == CardTable::kCardDirty) {
       cleared_cards_->insert(card);
     }
@@ -106,7 +106,7 @@ class ModUnionClearCardVisitor {
     : cleared_cards_(cleared_cards) {
   }
 
-  void operator ()(byte* card, byte expected_card, byte new_card) const {
+  void operator()(byte* card, byte expected_card, byte new_card) const {
     if (expected_card == CardTable::kCardDirty) {
       cleared_cards_->push_back(card);
     }
@@ -120,7 +120,7 @@ class ModUnionScanImageRootVisitor {
   explicit ModUnionScanImageRootVisitor(collector::MarkSweep* const mark_sweep)
       : mark_sweep_(mark_sweep) {}
 
-  void operator ()(const Object* root) const
+  void operator()(const Object* root) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(root != NULL);
@@ -147,8 +147,8 @@ class AddToReferenceArrayVisitor {
   }
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
-  void operator ()(const Object* obj, const Object* ref, const MemberOffset& /* offset */,
-                     bool /* is_static */) const {
+  void operator()(const Object* obj, const Object* ref, const MemberOffset& /* offset */,
+                  bool /* is_static */) const {
     // Only add the reference if it is non null and fits our criteria.
     if (ref != NULL && mod_union_table_->AddReference(obj, ref)) {
       references_->push_back(ref);
@@ -168,7 +168,7 @@ class ModUnionReferenceVisitor {
       references_(references) {
   }
 
-  void operator ()(const Object* obj) const
+  void operator()(const Object* obj) const
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
     DCHECK(obj != NULL);
     // We don't have an early exit since we use the visitor pattern, an early
@@ -191,8 +191,8 @@ class CheckReferenceVisitor {
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
   // TODO: Fixme when anotatalysis works with visitors.
-  void operator ()(const Object* obj, const Object* ref, const MemberOffset& /* offset */,
-                   bool /* is_static */) const
+  void operator()(const Object* obj, const Object* ref, const MemberOffset& /* offset */,
+                  bool /* is_static */) const
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
     Heap* heap = mod_union_table_->GetHeap();
     if (ref != NULL && mod_union_table_->AddReference(obj, ref) &&
@@ -216,13 +216,13 @@ class CheckReferenceVisitor {
 
 class ModUnionCheckReferences {
  public:
-  explicit ModUnionCheckReferences (ModUnionTableReferenceCache* mod_union_table,
-                                    const std::set<const Object*>& references)
+  explicit ModUnionCheckReferences(ModUnionTableReferenceCache* mod_union_table,
+                                   const std::set<const Object*>& references)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       : mod_union_table_(mod_union_table), references_(references) {
   }
 
-  void operator ()(const Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
+  void operator()(const Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
     Locks::heap_bitmap_lock_->AssertSharedHeld(Thread::Current());
     DCHECK(obj != NULL);
     CheckReferenceVisitor visitor(mod_union_table_, references_);
@@ -333,7 +333,7 @@ void ModUnionTableReferenceCache::MarkReferences(collector::MarkSweep* mark_swee
   typedef SafeMap<const byte*, std::vector<const mirror::Object*> >::const_iterator It;
   for (It it = references_.begin(); it != references_.end(); ++it) {
     typedef std::vector<const mirror::Object*>::const_iterator It2;
-    for (It2 it_ref = it->second.begin(); it_ref != it->second.end(); ++it_ref ) {
+    for (It2 it_ref = it->second.begin(); it_ref != it->second.end(); ++it_ref) {
       mark_sweep->MarkRoot(*it_ref);
       ++count;
     }

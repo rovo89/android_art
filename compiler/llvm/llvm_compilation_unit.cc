@@ -114,7 +114,7 @@ LlvmCompilationUnit::LlvmCompilationUnit(const CompilerLLVM* compiler_llvm, size
   irb_.reset(new IRBuilder(*context_, *module_, *intrinsic_helper_));
 
   // We always need a switch case, so just use a normal function.
-  switch(GetInstructionSet()) {
+  switch (GetInstructionSet()) {
   default:
     runtime_support_.reset(new RuntimeSupportBuilder(*context_, *module_, *irb_));
     break;

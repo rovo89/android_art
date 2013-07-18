@@ -185,12 +185,12 @@ void StackVisitor::SetVReg(mirror::AbstractMethod* m, uint16_t vreg, uint32_t ne
 }
 
 uintptr_t StackVisitor::GetGPR(uint32_t reg) const {
-  DCHECK (cur_quick_frame_ != NULL) << "This is a quick frame routine";
+  DCHECK(cur_quick_frame_ != NULL) << "This is a quick frame routine";
   return context_->GetGPR(reg);
 }
 
 void StackVisitor::SetGPR(uint32_t reg, uintptr_t value) {
-  DCHECK (cur_quick_frame_ != NULL) << "This is a quick frame routine";
+  DCHECK(cur_quick_frame_ != NULL) << "This is a quick frame routine";
   context_->SetGPR(reg, value);
 }
 
@@ -341,7 +341,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
         }
         cur_depth_++;
         cur_shadow_frame_ = cur_shadow_frame_->GetLink();
-      } while(cur_shadow_frame_ != NULL);
+      } while (cur_shadow_frame_ != NULL);
     }
     if (include_transitions) {
       bool should_continue = VisitFrame();

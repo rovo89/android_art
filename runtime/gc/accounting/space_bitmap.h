@@ -103,7 +103,7 @@ class SpaceBitmap {
         : bitmap_(bitmap) {
     }
 
-    void operator ()(mirror::Object* obj) const {
+    void operator()(mirror::Object* obj) const {
       bitmap_->Clear(obj);
     }
    private:
@@ -112,7 +112,7 @@ class SpaceBitmap {
 
   template <typename Visitor>
   void VisitRange(uintptr_t visit_begin, uintptr_t visit_end, const Visitor& visitor) const {
-    for (; visit_begin < visit_end; visit_begin += kAlignment ) {
+    for (; visit_begin < visit_end; visit_begin += kAlignment) {
       visitor(reinterpret_cast<mirror::Object*>(visit_begin));
     }
   }
