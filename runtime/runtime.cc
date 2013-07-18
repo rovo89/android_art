@@ -566,7 +566,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       Trace::SetDefaultClockSource(kProfilerClockSourceDual);
     } else if (option == "-small") {
       parsed->small_mode_ = true;
-    }else if (option == "-sea_ir") {
+    } else if (option == "-sea_ir") {
       parsed->sea_ir_mode_ = true;
     } else if (StartsWith(option, "-small-mode-methods-max:")) {
       parsed->small_mode_method_threshold_ = ParseIntegerOrDie(option);

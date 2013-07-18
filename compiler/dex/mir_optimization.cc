@@ -20,27 +20,23 @@
 
 namespace art {
 
-static unsigned int Predecessors(BasicBlock* bb)
-{
+static unsigned int Predecessors(BasicBlock* bb) {
   return bb->predecessors->Size();
 }
 
 /* Setup a constant value for opcodes thare have the DF_SETS_CONST attribute */
-void MIRGraph::SetConstant(int32_t ssa_reg, int value)
-{
+void MIRGraph::SetConstant(int32_t ssa_reg, int value) {
   is_constant_v_->SetBit(ssa_reg);
   constant_values_[ssa_reg] = value;
 }
 
-void MIRGraph::SetConstantWide(int ssa_reg, int64_t value)
-{
+void MIRGraph::SetConstantWide(int ssa_reg, int64_t value) {
   is_constant_v_->SetBit(ssa_reg);
   constant_values_[ssa_reg] = Low32Bits(value);
   constant_values_[ssa_reg + 1] = High32Bits(value);
 }
 
-void MIRGraph::DoConstantPropogation(BasicBlock* bb)
-{
+void MIRGraph::DoConstantPropogation(BasicBlock* bb) {
   MIR* mir;
 
   for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
@@ -96,8 +92,7 @@ void MIRGraph::DoConstantPropogation(BasicBlock* bb)
   /* TODO: implement code to handle arithmetic operations */
 }
 
-void MIRGraph::PropagateConstants()
-{
+void MIRGraph::PropagateConstants() {
   is_constant_v_ = new (arena_) ArenaBitVector(arena_, GetNumSSARegs(), false);
   constant_values_ = static_cast<int*>(arena_->NewMem(sizeof(int) * GetNumSSARegs(), true,
                                                       ArenaAllocator::kAllocDFInfo));
@@ -108,8 +103,7 @@ void MIRGraph::PropagateConstants()
 }
 
 /* Advance to next strictly dominated MIR node in an extended basic block */
-static MIR* AdvanceMIR(BasicBlock** p_bb, MIR* mir)
-{
+static MIR* AdvanceMIR(BasicBlock** p_bb, MIR* mir) {
   BasicBlock* bb = *p_bb;
   if (mir != NULL) {
     mir = mir->next;
@@ -133,8 +127,7 @@ static MIR* AdvanceMIR(BasicBlock** p_bb, MIR* mir)
  * opcodes or incoming arcs.  However, if the result of the invoke is not
  * used, a move-result may not be present.
  */
-MIR* MIRGraph::FindMoveResult(BasicBlock* bb, MIR* mir)
-{
+MIR* MIRGraph::FindMoveResult(BasicBlock* bb, MIR* mir) {
   BasicBlock* tbb = bb;
   mir = AdvanceMIR(&tbb, mir);
   while (mir != NULL) {
@@ -154,8 +147,7 @@ MIR* MIRGraph::FindMoveResult(BasicBlock* bb, MIR* mir)
   return mir;
 }
 
-static BasicBlock* NextDominatedBlock(BasicBlock* bb)
-{
+static BasicBlock* NextDominatedBlock(BasicBlock* bb) {
   if (bb->block_type == kDead) {
     return NULL;
   }
@@ -169,8 +161,7 @@ static BasicBlock* NextDominatedBlock(BasicBlock* bb)
   return bb;
 }
 
-static MIR* FindPhi(BasicBlock* bb, int ssa_name)
-{
+static MIR* FindPhi(BasicBlock* bb, int ssa_name) {
   for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     if (static_cast<int>(mir->dalvikInsn.opcode) == kMirOpPhi) {
       for (int i = 0; i < mir->ssa_rep->num_uses; i++) {
@@ -183,8 +174,7 @@ static MIR* FindPhi(BasicBlock* bb, int ssa_name)
   return NULL;
 }
 
-static SelectInstructionKind SelectKind(MIR* mir)
-{
+static SelectInstructionKind SelectKind(MIR* mir) {
   switch (mir->dalvikInsn.opcode) {
     case Instruction::MOVE:
     case Instruction::MOVE_OBJECT:
@@ -206,15 +196,13 @@ static SelectInstructionKind SelectKind(MIR* mir)
   return kSelectNone;
 }
 
-int MIRGraph::GetSSAUseCount(int s_reg)
-{
+int MIRGraph::GetSSAUseCount(int s_reg) {
   return raw_use_counts_.Get(s_reg);
 }
 
 
 /* Do some MIR-level extended basic block optimizations */
-bool MIRGraph::BasicBlockOpt(BasicBlock* bb)
-{
+bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
   if (bb->block_type == kDead) {
     return true;
   }
@@ -474,8 +462,7 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb)
   return true;
 }
 
-void MIRGraph::NullCheckEliminationInit(struct BasicBlock* bb)
-{
+void MIRGraph::NullCheckEliminationInit(struct BasicBlock* bb) {
   if (bb->data_flow_info != NULL) {
     bb->data_flow_info->ending_null_check_v =
         new (arena_) ArenaBitVector(arena_, GetNumSSARegs(), false, kBitMapNullCheck);
@@ -483,8 +470,7 @@ void MIRGraph::NullCheckEliminationInit(struct BasicBlock* bb)
 }
 
 /* Collect stats on number of checks removed */
-void MIRGraph::CountChecks(struct BasicBlock* bb)
-{
+void MIRGraph::CountChecks(struct BasicBlock* bb) {
   if (bb->data_flow_info != NULL) {
     for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
       if (mir->ssa_rep == NULL) {
@@ -508,8 +494,7 @@ void MIRGraph::CountChecks(struct BasicBlock* bb)
 }
 
 /* Try to make common case the fallthrough path */
-static bool LayoutBlocks(struct BasicBlock* bb)
-{
+static bool LayoutBlocks(struct BasicBlock* bb) {
   // TODO: For now, just looking for direct throws.  Consider generalizing for profile feedback
   if (!bb->explicit_throw) {
     return false;
@@ -556,8 +541,7 @@ static bool LayoutBlocks(struct BasicBlock* bb)
 }
 
 /* Combine any basic blocks terminated by instructions that we now know can't throw */
-bool MIRGraph::CombineBlocks(struct BasicBlock* bb)
-{
+bool MIRGraph::CombineBlocks(struct BasicBlock* bb) {
   // Loop here to allow combining a sequence of blocks
   while (true) {
     // Check termination conditions
@@ -625,8 +609,7 @@ bool MIRGraph::CombineBlocks(struct BasicBlock* bb)
 }
 
 /* Eliminate unnecessary null checks for a basic block. */
-bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb)
-{
+bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb) {
   if (bb->data_flow_info == NULL) return false;
 
   /*
@@ -770,8 +753,7 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb)
   return changed;
 }
 
-void MIRGraph::NullCheckElimination()
-{
+void MIRGraph::NullCheckElimination() {
   if (!(cu_->disable_opt & (1 << kNullCheckElimination))) {
     DCHECK(temp_ssa_register_v_ != NULL);
     AllNodesIterator iter(this, false /* not iterative */);
@@ -789,8 +771,7 @@ void MIRGraph::NullCheckElimination()
   }
 }
 
-void MIRGraph::BasicBlockCombine()
-{
+void MIRGraph::BasicBlockCombine() {
   PreOrderDfsIterator iter(this, false /* not iterative */);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     CombineBlocks(bb);
@@ -800,8 +781,7 @@ void MIRGraph::BasicBlockCombine()
   }
 }
 
-void MIRGraph::CodeLayout()
-{
+void MIRGraph::CodeLayout() {
   if (cu_->enable_debug & (1 << kDebugVerifyDataflow)) {
     VerifyDataflow();
   }
@@ -814,8 +794,7 @@ void MIRGraph::CodeLayout()
   }
 }
 
-void MIRGraph::DumpCheckStats()
-{
+void MIRGraph::DumpCheckStats() {
   Checkstats* stats =
       static_cast<Checkstats*>(arena_->NewMem(sizeof(Checkstats), true,
                                               ArenaAllocator::kAllocDFInfo));
@@ -840,8 +819,7 @@ void MIRGraph::DumpCheckStats()
   }
 }
 
-bool MIRGraph::BuildExtendedBBList(struct BasicBlock* bb)
-{
+bool MIRGraph::BuildExtendedBBList(struct BasicBlock* bb) {
   if (bb->visited) return false;
   if (!((bb->block_type == kEntryBlock) || (bb->block_type == kDalvikByteCode)
       || (bb->block_type == kExitBlock))) {
@@ -871,8 +849,7 @@ bool MIRGraph::BuildExtendedBBList(struct BasicBlock* bb)
 }
 
 
-void MIRGraph::BasicBlockOptimization()
-{
+void MIRGraph::BasicBlockOptimization() {
   if (!(cu_->disable_opt & (1 << kBBOpt))) {
     DCHECK_EQ(cu_->num_compiler_temps, 0);
     ClearAllVisitedFlags();

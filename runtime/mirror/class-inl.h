@@ -75,7 +75,7 @@ inline AbstractMethod* Class::GetDirectMethod(int32_t i) const
 }
 
 inline void Class::SetDirectMethod(uint32_t i, AbstractMethod* f)  // TODO: uint16_t
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_){
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ObjectArray<AbstractMethod>* direct_methods =
       GetFieldObject<ObjectArray<AbstractMethod>*>(
           OFFSET_OF_OBJECT_MEMBER(Class, direct_methods_), false);
@@ -308,13 +308,13 @@ inline size_t Class::NumInstanceFields() const {
 }
 
 inline Field* Class::GetInstanceField(uint32_t i) const  // TODO: uint16_t
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_){
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK_NE(NumInstanceFields(), 0U);
   return GetIFields()->Get(i);
 }
 
 inline void Class::SetInstanceField(uint32_t i, Field* f)  // TODO: uint16_t
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_){
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ObjectArray<Field>* ifields= GetFieldObject<ObjectArray<Field>*>(
       OFFSET_OF_OBJECT_MEMBER(Class, ifields_), false);
   ifields->Set(i, f);

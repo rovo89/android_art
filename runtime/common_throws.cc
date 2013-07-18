@@ -169,7 +169,7 @@ void ThrowIllegalAccessErrorFinalField(const mirror::AbstractMethod* referrer,
                  msg.str().c_str());
 }
 
-void ThrowIllegalAccessError(mirror::Class* referrer, const char* fmt, ...){
+void ThrowIllegalAccessError(mirror::Class* referrer, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
   ThrowException(NULL, "Ljava/lang/IllegalAccessError;", referrer, fmt, &args);
@@ -222,7 +222,7 @@ void ThrowIncompatibleClassChangeErrorField(const mirror::Field* resolved_field,
                  msg.str().c_str());
 }
 
-void ThrowIncompatibleClassChangeError(const mirror::Class* referrer, const char* fmt, ...){
+void ThrowIncompatibleClassChangeError(const mirror::Class* referrer, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
   ThrowException(NULL, "Ljava/lang/IncompatibleClassChangeError;", referrer, fmt, &args);

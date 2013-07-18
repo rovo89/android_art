@@ -27,8 +27,7 @@ namespace art {
  * Load an immediate value into a fixed or temp register.  Target
  * register is clobbered, and marked in_use.
  */
-LIR* Mir2Lir::LoadConstant(int r_dest, int value)
-{
+LIR* Mir2Lir::LoadConstant(int r_dest, int value) {
   if (IsTemp(r_dest)) {
     Clobber(r_dest);
     MarkInUse(r_dest);
@@ -41,8 +40,7 @@ LIR* Mir2Lir::LoadConstant(int r_dest, int value)
  * promoted floating point register, also copy a zero into the int/ref identity of
  * that sreg.
  */
-void Mir2Lir::Workaround7250540(RegLocation rl_dest, int zero_reg)
-{
+void Mir2Lir::Workaround7250540(RegLocation rl_dest, int zero_reg) {
   if (rl_dest.fp) {
     int pmap_index = SRegToPMap(rl_dest.s_reg_low);
     if (promotion_map_[pmap_index].fp_location == kLocPhysReg) {
@@ -77,14 +75,12 @@ void Mir2Lir::Workaround7250540(RegLocation rl_dest, int zero_reg)
 }
 
 /* Load a word at base + displacement.  Displacement must be word multiple */
-LIR* Mir2Lir::LoadWordDisp(int rBase, int displacement, int r_dest)
-{
+LIR* Mir2Lir::LoadWordDisp(int rBase, int displacement, int r_dest) {
   return LoadBaseDisp(rBase, displacement, r_dest, kWord,
                       INVALID_SREG);
 }
 
-LIR* Mir2Lir::StoreWordDisp(int rBase, int displacement, int r_src)
-{
+LIR* Mir2Lir::StoreWordDisp(int rBase, int displacement, int r_src) {
   return StoreBaseDisp(rBase, displacement, r_src, kWord);
 }
 
@@ -93,8 +89,7 @@ LIR* Mir2Lir::StoreWordDisp(int rBase, int displacement, int r_src)
  * using this routine, as it doesn't perform any bookkeeping regarding
  * register liveness.  That is the responsibility of the caller.
  */
-void Mir2Lir::LoadValueDirect(RegLocation rl_src, int r_dest)
-{
+void Mir2Lir::LoadValueDirect(RegLocation rl_src, int r_dest) {
   rl_src = UpdateLoc(rl_src);
   if (rl_src.location == kLocPhysReg) {
     OpRegCopy(r_dest, rl_src.low_reg);
@@ -112,8 +107,7 @@ void Mir2Lir::LoadValueDirect(RegLocation rl_src, int r_dest)
  * register.  Should be used when loading to a fixed register (for example,
  * loading arguments to an out of line call.
  */
-void Mir2Lir::LoadValueDirectFixed(RegLocation rl_src, int r_dest)
-{
+void Mir2Lir::LoadValueDirectFixed(RegLocation rl_src, int r_dest) {
   Clobber(r_dest);
   MarkInUse(r_dest);
   LoadValueDirect(rl_src, r_dest);
@@ -125,8 +119,7 @@ void Mir2Lir::LoadValueDirectFixed(RegLocation rl_src, int r_dest)
  * register liveness.  That is the responsibility of the caller.
  */
 void Mir2Lir::LoadValueDirectWide(RegLocation rl_src, int reg_lo,
-             int reg_hi)
-{
+             int reg_hi) {
   rl_src = UpdateLocWide(rl_src);
   if (rl_src.location == kLocPhysReg) {
     OpRegCopyWide(reg_lo, reg_hi, rl_src.low_reg, rl_src.high_reg);
@@ -146,8 +139,7 @@ void Mir2Lir::LoadValueDirectWide(RegLocation rl_src, int reg_lo,
  * loading arguments to an out of line call.
  */
 void Mir2Lir::LoadValueDirectWideFixed(RegLocation rl_src, int reg_lo,
-                                       int reg_hi)
-{
+                                       int reg_hi) {
   Clobber(reg_lo);
   Clobber(reg_hi);
   MarkInUse(reg_lo);
@@ -155,8 +147,7 @@ void Mir2Lir::LoadValueDirectWideFixed(RegLocation rl_src, int reg_lo,
   LoadValueDirectWide(rl_src, reg_lo, reg_hi);
 }
 
-RegLocation Mir2Lir::LoadValue(RegLocation rl_src, RegisterClass op_kind)
-{
+RegLocation Mir2Lir::LoadValue(RegLocation rl_src, RegisterClass op_kind) {
   rl_src = EvalLoc(rl_src, op_kind, false);
   if (IsInexpensiveConstant(rl_src) || rl_src.location != kLocPhysReg) {
     LoadValueDirect(rl_src, rl_src.low_reg);
@@ -166,8 +157,7 @@ RegLocation Mir2Lir::LoadValue(RegLocation rl_src, RegisterClass op_kind)
   return rl_src;
 }
 
-void Mir2Lir::StoreValue(RegLocation rl_dest, RegLocation rl_src)
-{
+void Mir2Lir::StoreValue(RegLocation rl_dest, RegLocation rl_src) {
   /*
    * Sanity checking - should never try to store to the same
    * ssa name during the compilation of a single instruction
@@ -222,8 +212,7 @@ void Mir2Lir::StoreValue(RegLocation rl_dest, RegLocation rl_src)
   }
 }
 
-RegLocation Mir2Lir::LoadValueWide(RegLocation rl_src, RegisterClass op_kind)
-{
+RegLocation Mir2Lir::LoadValueWide(RegLocation rl_src, RegisterClass op_kind) {
   DCHECK(rl_src.wide);
   rl_src = EvalLoc(rl_src, op_kind, false);
   if (IsInexpensiveConstant(rl_src) || rl_src.location != kLocPhysReg) {
@@ -235,8 +224,7 @@ RegLocation Mir2Lir::LoadValueWide(RegLocation rl_src, RegisterClass op_kind)
   return rl_src;
 }
 
-void Mir2Lir::StoreValueWide(RegLocation rl_dest, RegLocation rl_src)
-{
+void Mir2Lir::StoreValueWide(RegLocation rl_dest, RegLocation rl_src) {
   /*
    * Sanity checking - should never try to store to the same
    * ssa name during the compilation of a single instruction
@@ -299,13 +287,11 @@ void Mir2Lir::StoreValueWide(RegLocation rl_dest, RegLocation rl_src)
 }
 
 /* Utilities to load the current Method* */
-void Mir2Lir::LoadCurrMethodDirect(int r_tgt)
-{
+void Mir2Lir::LoadCurrMethodDirect(int r_tgt) {
   LoadValueDirectFixed(mir_graph_->GetMethodLoc(), r_tgt);
 }
 
-RegLocation Mir2Lir::LoadCurrMethod()
-{
+RegLocation Mir2Lir::LoadCurrMethod() {
   return LoadValue(mir_graph_->GetMethodLoc(), kCoreReg);
 }
 

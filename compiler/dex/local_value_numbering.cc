@@ -19,8 +19,7 @@
 namespace art {
 
 
-uint16_t LocalValueNumbering::GetValueNumber(MIR* mir)
-{
+uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
   uint16_t res = NO_VALUE;
   uint16_t opcode = mir->dalvikInsn.opcode;
   switch (opcode) {

@@ -452,43 +452,37 @@ class MIRGraph {
     return ssa_subscripts_->Get(ssa_reg);
   }
 
-  RegLocation GetRawSrc(MIR* mir, int num)
-  {
+  RegLocation GetRawSrc(MIR* mir, int num) {
     DCHECK(num < mir->ssa_rep->num_uses);
     RegLocation res = reg_location_[mir->ssa_rep->uses[num]];
     return res;
   }
 
-  RegLocation GetRawDest(MIR* mir)
-  {
+  RegLocation GetRawDest(MIR* mir) {
     DCHECK_GT(mir->ssa_rep->num_defs, 0);
     RegLocation res = reg_location_[mir->ssa_rep->defs[0]];
     return res;
   }
 
-  RegLocation GetDest(MIR* mir)
-  {
+  RegLocation GetDest(MIR* mir) {
     RegLocation res = GetRawDest(mir);
     DCHECK(!res.wide);
     return res;
   }
 
-  RegLocation GetSrc(MIR* mir, int num)
-  {
+  RegLocation GetSrc(MIR* mir, int num) {
     RegLocation res = GetRawSrc(mir, num);
     DCHECK(!res.wide);
     return res;
   }
 
-  RegLocation GetDestWide(MIR* mir)
-  {
+  RegLocation GetDestWide(MIR* mir) {
     RegLocation res = GetRawDest(mir);
     DCHECK(res.wide);
     return res;
   }
 
-  RegLocation GetSrcWide(MIR* mir, int low)
-  {
+  RegLocation GetSrcWide(MIR* mir, int low) {
     RegLocation res = GetRawSrc(mir, low);
     DCHECK(res.wide);
     return res;

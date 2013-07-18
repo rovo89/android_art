@@ -356,14 +356,14 @@ CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet 
       jni_compiler_(NULL),
       compiler_enable_auto_elf_loading_(NULL),
       compiler_get_method_code_addr_(NULL),
-      support_boot_image_fixup_(true)
-{
+      support_boot_image_fixup_(true) {
+
   CHECK_PTHREAD_CALL(pthread_key_create, (&tls_key_, NULL), "compiler tls key");
 
   // TODO: more work needed to combine initializations and allow per-method backend selection
   typedef void (*InitCompilerContextFn)(CompilerDriver&);
   InitCompilerContextFn init_compiler_context;
-  if (compiler_backend_ == kPortable){
+  if (compiler_backend_ == kPortable) {
     // Initialize compiler_context_
     init_compiler_context = reinterpret_cast<void (*)(CompilerDriver&)>(ArtInitCompilerContext);
     compiler_ = reinterpret_cast<CompilerFn>(ArtCompileMethod);
@@ -1411,10 +1411,7 @@ class ParallelCompilationManager {
           begin_(begin),
           end_(end),
           callback_(callback),
-          stripe_(stripe)
-    {
-
-    }
+          stripe_(stripe) {}
 
     virtual void Run(Thread* self) {
       for (size_t i = begin_; i < end_; i += stripe_) {
@@ -2095,7 +2092,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
           }
           if (!is_black_listed) {
             LOG(INFO) << "Initializing: " << descriptor;
-            if (StringPiece(descriptor) == "Ljava/lang/Void;"){
+            if (StringPiece(descriptor) == "Ljava/lang/Void;") {
               // Hand initialize j.l.Void to avoid Dex file operations in un-started runtime.
               mirror::ObjectArray<mirror::Field>* fields = klass->GetSFields();
               CHECK_EQ(fields->GetLength(), 1);

@@ -49,8 +49,7 @@ void LargeObjectSpace::CopyLiveToMarked() {
 
 LargeObjectMapSpace::LargeObjectMapSpace(const std::string& name)
     : LargeObjectSpace(name),
-      lock_("large object map space lock", kAllocSpaceLock)
-{
+      lock_("large object map space lock", kAllocSpaceLock) {
 
 }
 
@@ -274,7 +273,7 @@ mirror::Object* FreeListSpace::Alloc(Thread* self, size_t num_bytes) {
   return reinterpret_cast<mirror::Object*>(addr);
 }
 
-void FreeListSpace::Dump(std::ostream& os) const{
+void FreeListSpace::Dump(std::ostream& os) const {
   os << GetName() << " -"
      << " begin: " << reinterpret_cast<void*>(Begin())
      << " end: " << reinterpret_cast<void*>(End());

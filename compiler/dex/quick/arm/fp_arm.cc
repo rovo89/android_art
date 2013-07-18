@@ -21,8 +21,7 @@
 namespace art {
 
 void ArmMir2Lir::GenArithOpFloat(Instruction::Code opcode, RegLocation rl_dest,
-                                 RegLocation rl_src1, RegLocation rl_src2)
-{
+                                 RegLocation rl_src1, RegLocation rl_src2) {
   int op = kThumbBkpt;
   RegLocation rl_result;
 
@@ -68,8 +67,7 @@ void ArmMir2Lir::GenArithOpFloat(Instruction::Code opcode, RegLocation rl_dest,
 }
 
 void ArmMir2Lir::GenArithOpDouble(Instruction::Code opcode,
-                                  RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
-{
+                                  RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
   int op = kThumbBkpt;
   RegLocation rl_result;
 
@@ -117,8 +115,7 @@ void ArmMir2Lir::GenArithOpDouble(Instruction::Code opcode,
 }
 
 void ArmMir2Lir::GenConversion(Instruction::Code opcode,
-                               RegLocation rl_dest, RegLocation rl_src)
-{
+                               RegLocation rl_dest, RegLocation rl_src) {
   int op = kThumbBkpt;
   int src_reg;
   RegLocation rl_result;
@@ -176,8 +173,7 @@ void ArmMir2Lir::GenConversion(Instruction::Code opcode,
 }
 
 void ArmMir2Lir::GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias,
-                                     bool is_double)
-{
+                                     bool is_double) {
   LIR* target = &block_label_list_[bb->taken->id];
   RegLocation rl_src1;
   RegLocation rl_src2;
@@ -229,8 +225,7 @@ void ArmMir2Lir::GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias,
 
 
 void ArmMir2Lir::GenCmpFP(Instruction::Code opcode, RegLocation rl_dest,
-                          RegLocation rl_src1, RegLocation rl_src2)
-{
+                          RegLocation rl_src1, RegLocation rl_src2) {
   bool is_double = false;
   int default_result = -1;
   RegLocation rl_result;
@@ -288,8 +283,7 @@ void ArmMir2Lir::GenCmpFP(Instruction::Code opcode, RegLocation rl_dest,
   StoreValue(rl_dest, rl_result);
 }
 
-void ArmMir2Lir::GenNegFloat(RegLocation rl_dest, RegLocation rl_src)
-{
+void ArmMir2Lir::GenNegFloat(RegLocation rl_dest, RegLocation rl_src) {
   RegLocation rl_result;
   rl_src = LoadValue(rl_src, kFPReg);
   rl_result = EvalLoc(rl_dest, kFPReg, true);
@@ -297,8 +291,7 @@ void ArmMir2Lir::GenNegFloat(RegLocation rl_dest, RegLocation rl_src)
   StoreValue(rl_dest, rl_result);
 }
 
-void ArmMir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src)
-{
+void ArmMir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src) {
   RegLocation rl_result;
   rl_src = LoadValueWide(rl_src, kFPReg);
   rl_result = EvalLoc(rl_dest, kFPReg, true);

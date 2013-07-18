@@ -104,7 +104,7 @@ static void WorkAroundJniBugsForJobject(intptr_t* arg_ptr) {
 }
 
 extern "C" const void* artWorkAroundAppJniBugs(Thread* self, intptr_t* sp)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_){
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(Thread::Current() == self);
   // TODO: this code is specific to ARM
   // On entry the stack pointed by sp is:

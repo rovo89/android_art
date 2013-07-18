@@ -22,8 +22,7 @@
 namespace art {
 
 void MipsMir2Lir::GenArithOpFloat(Instruction::Code opcode,
-                                  RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
-{
+                                  RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
   int op = kMipsNop;
   RegLocation rl_result;
 
@@ -69,8 +68,7 @@ void MipsMir2Lir::GenArithOpFloat(Instruction::Code opcode,
 }
 
 void MipsMir2Lir::GenArithOpDouble(Instruction::Code opcode,
-                                   RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
-{
+                                   RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
   int op = kMipsNop;
   RegLocation rl_result;
 
@@ -117,8 +115,7 @@ void MipsMir2Lir::GenArithOpDouble(Instruction::Code opcode,
 }
 
 void MipsMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
-                                RegLocation rl_src)
-{
+                                RegLocation rl_src) {
   int op = kMipsNop;
   int src_reg;
   RegLocation rl_result;
@@ -175,8 +172,7 @@ void MipsMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
 }
 
 void MipsMir2Lir::GenCmpFP(Instruction::Code opcode, RegLocation rl_dest,
-                           RegLocation rl_src1, RegLocation rl_src2)
-{
+                           RegLocation rl_src1, RegLocation rl_src2) {
   bool wide = true;
   int offset = -1; // Make gcc happy.
 
@@ -215,13 +211,11 @@ void MipsMir2Lir::GenCmpFP(Instruction::Code opcode, RegLocation rl_dest,
 }
 
 void MipsMir2Lir::GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir,
-                                bool gt_bias, bool is_double)
-{
+                                bool gt_bias, bool is_double) {
   UNIMPLEMENTED(FATAL) << "Need codegen for fused fp cmp branch";
 }
 
-void MipsMir2Lir::GenNegFloat(RegLocation rl_dest, RegLocation rl_src)
-{
+void MipsMir2Lir::GenNegFloat(RegLocation rl_dest, RegLocation rl_src) {
   RegLocation rl_result;
   rl_src = LoadValue(rl_src, kCoreReg);
   rl_result = EvalLoc(rl_dest, kCoreReg, true);
@@ -229,8 +223,7 @@ void MipsMir2Lir::GenNegFloat(RegLocation rl_dest, RegLocation rl_src)
   StoreValue(rl_dest, rl_result);
 }
 
-void MipsMir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src)
-{
+void MipsMir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src) {
   RegLocation rl_result;
   rl_src = LoadValueWide(rl_src, kCoreReg);
   rl_result = EvalLoc(rl_dest, kCoreReg, true);
@@ -239,8 +232,7 @@ void MipsMir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src)
   StoreValueWide(rl_dest, rl_result);
 }
 
-bool MipsMir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min)
-{
+bool MipsMir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min) {
   // TODO: need Mips implementation
   return false;
 }

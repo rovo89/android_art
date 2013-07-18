@@ -36,26 +36,22 @@ static int FpRegs[] = {r_F0, r_F1, r_F2, r_F3, r_F4, r_F5, r_F6, r_F7,
 static int fp_temps[] = {r_F0, r_F1, r_F2, r_F3, r_F4, r_F5, r_F6, r_F7,
                          r_F8, r_F9, r_F10, r_F11, r_F12, r_F13, r_F14, r_F15};
 
-RegLocation MipsMir2Lir::LocCReturn()
-{
+RegLocation MipsMir2Lir::LocCReturn() {
   RegLocation res = MIPS_LOC_C_RETURN;
   return res;
 }
 
-RegLocation MipsMir2Lir::LocCReturnWide()
-{
+RegLocation MipsMir2Lir::LocCReturnWide() {
   RegLocation res = MIPS_LOC_C_RETURN_WIDE;
   return res;
 }
 
-RegLocation MipsMir2Lir::LocCReturnFloat()
-{
+RegLocation MipsMir2Lir::LocCReturnFloat() {
   RegLocation res = MIPS_LOC_C_RETURN_FLOAT;
   return res;
 }
 
-RegLocation MipsMir2Lir::LocCReturnDouble()
-{
+RegLocation MipsMir2Lir::LocCReturnDouble() {
   RegLocation res = MIPS_LOC_C_RETURN_DOUBLE;
   return res;
 }
@@ -86,28 +82,24 @@ int MipsMir2Lir::TargetReg(SpecialTargetRegister reg) {
 }
 
 // Create a double from a pair of singles.
-int MipsMir2Lir::S2d(int low_reg, int high_reg)
-{
+int MipsMir2Lir::S2d(int low_reg, int high_reg) {
   return MIPS_S2D(low_reg, high_reg);
 }
 
 // Return mask to strip off fp reg flags and bias.
-uint32_t MipsMir2Lir::FpRegMask()
-{
+uint32_t MipsMir2Lir::FpRegMask() {
   return MIPS_FP_REG_MASK;
 }
 
 // True if both regs single, both core or both double.
-bool MipsMir2Lir::SameRegType(int reg1, int reg2)
-{
+bool MipsMir2Lir::SameRegType(int reg1, int reg2) {
   return (MIPS_REGTYPE(reg1) == MIPS_REGTYPE(reg2));
 }
 
 /*
  * Decode the register id.
  */
-uint64_t MipsMir2Lir::GetRegMaskCommon(int reg)
-{
+uint64_t MipsMir2Lir::GetRegMaskCommon(int reg) {
   uint64_t seed;
   int shift;
   int reg_id;
@@ -123,14 +115,12 @@ uint64_t MipsMir2Lir::GetRegMaskCommon(int reg)
   return (seed << shift);
 }
 
-uint64_t MipsMir2Lir::GetPCUseDefEncoding()
-{
+uint64_t MipsMir2Lir::GetPCUseDefEncoding() {
   return ENCODE_MIPS_REG_PC;
 }
 
 
-void MipsMir2Lir::SetupTargetResourceMasks(LIR* lir)
-{
+void MipsMir2Lir::SetupTargetResourceMasks(LIR* lir) {
   DCHECK_EQ(cu_->instruction_set, kMips);
 
   // Mips-specific resource map setup here.
@@ -162,8 +152,7 @@ static const char *mips_reg_name[MIPS_REG_COUNT] = {
  * Interpret a format string and build a string no longer than size
  * See format key in Assemble.c.
  */
-std::string MipsMir2Lir::BuildInsnString(const char *fmt, LIR *lir, unsigned char* base_addr)
-{
+std::string MipsMir2Lir::BuildInsnString(const char *fmt, LIR *lir, unsigned char* base_addr) {
   std::string buf;
   int i;
   const char *fmt_end = &fmt[strlen(fmt)];
@@ -255,8 +244,7 @@ std::string MipsMir2Lir::BuildInsnString(const char *fmt, LIR *lir, unsigned cha
 }
 
 // FIXME: need to redo resource maps for MIPS - fix this at that time
-void MipsMir2Lir::DumpResourceMask(LIR *mips_lir, uint64_t mask, const char *prefix)
-{
+void MipsMir2Lir::DumpResourceMask(LIR *mips_lir, uint64_t mask, const char *prefix) {
   char buf[256];
   buf[0] = 0;
 
@@ -306,8 +294,7 @@ void MipsMir2Lir::DumpResourceMask(LIR *mips_lir, uint64_t mask, const char *pre
  * machinery is in place, always spill lr.
  */
 
-void MipsMir2Lir::AdjustSpillMask()
-{
+void MipsMir2Lir::AdjustSpillMask() {
   core_spill_mask_ |= (1 << r_RA);
   num_core_spills_++;
 }
@@ -318,13 +305,11 @@ void MipsMir2Lir::AdjustSpillMask()
  * include any holes in the mask.  Associate holes with
  * Dalvik register INVALID_VREG (0xFFFFU).
  */
-void MipsMir2Lir::MarkPreservedSingle(int s_reg, int reg)
-{
+void MipsMir2Lir::MarkPreservedSingle(int s_reg, int reg) {
   LOG(FATAL) << "No support yet for promoted FP regs";
 }
 
-void MipsMir2Lir::FlushRegWide(int reg1, int reg2)
-{
+void MipsMir2Lir::FlushRegWide(int reg1, int reg2) {
   RegisterInfo* info1 = GetRegInfo(reg1);
   RegisterInfo* info2 = GetRegInfo(reg2);
   DCHECK(info1 && info2 && info1->pair && info2->pair &&
@@ -345,8 +330,7 @@ void MipsMir2Lir::FlushRegWide(int reg1, int reg2)
   }
 }
 
-void MipsMir2Lir::FlushReg(int reg)
-{
+void MipsMir2Lir::FlushReg(int reg) {
   RegisterInfo* info = GetRegInfo(reg);
   if (info->live && info->dirty) {
     info->dirty = false;
@@ -361,8 +345,7 @@ bool MipsMir2Lir::IsFpReg(int reg) {
 }
 
 /* Clobber all regs that might be used by an external C call */
-void MipsMir2Lir::ClobberCalleeSave()
-{
+void MipsMir2Lir::ClobberCalleeSave() {
   Clobber(r_ZERO);
   Clobber(r_AT);
   Clobber(r_V0);
@@ -404,29 +387,25 @@ void MipsMir2Lir::ClobberCalleeSave()
   Clobber(r_F15);
 }
 
-RegLocation MipsMir2Lir::GetReturnWideAlt()
-{
+RegLocation MipsMir2Lir::GetReturnWideAlt() {
   UNIMPLEMENTED(FATAL) << "No GetReturnWideAlt for MIPS";
   RegLocation res = LocCReturnWide();
   return res;
 }
 
-RegLocation MipsMir2Lir::GetReturnAlt()
-{
+RegLocation MipsMir2Lir::GetReturnAlt() {
   UNIMPLEMENTED(FATAL) << "No GetReturnAlt for MIPS";
   RegLocation res = LocCReturn();
   return res;
 }
 
-MipsMir2Lir::RegisterInfo* MipsMir2Lir::GetRegInfo(int reg)
-{
+MipsMir2Lir::RegisterInfo* MipsMir2Lir::GetRegInfo(int reg) {
   return MIPS_FPREG(reg) ? &reg_pool_->FPRegs[reg & MIPS_FP_REG_MASK]
             : &reg_pool_->core_regs[reg];
 }
 
 /* To be used when explicitly managing register use */
-void MipsMir2Lir::LockCallTemps()
-{
+void MipsMir2Lir::LockCallTemps() {
   LockTemp(rMIPS_ARG0);
   LockTemp(rMIPS_ARG1);
   LockTemp(rMIPS_ARG2);
@@ -434,16 +413,14 @@ void MipsMir2Lir::LockCallTemps()
 }
 
 /* To be used when explicitly managing register use */
-void MipsMir2Lir::FreeCallTemps()
-{
+void MipsMir2Lir::FreeCallTemps() {
   FreeTemp(rMIPS_ARG0);
   FreeTemp(rMIPS_ARG1);
   FreeTemp(rMIPS_ARG2);
   FreeTemp(rMIPS_ARG3);
 }
 
-void MipsMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind)
-{
+void MipsMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
 #if ANDROID_SMP != 0
   NewLIR1(kMipsSync, 0 /* Only stype currently supported */);
 #endif
@@ -454,8 +431,7 @@ void MipsMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind)
  * high reg in next byte.
  */
 int MipsMir2Lir::AllocTypedTempPair(bool fp_hint,
-                  int reg_class)
-{
+                  int reg_class) {
   int high_reg;
   int low_reg;
   int res = 0;
@@ -473,17 +449,14 @@ int MipsMir2Lir::AllocTypedTempPair(bool fp_hint,
   return res;
 }
 
-int MipsMir2Lir::AllocTypedTemp(bool fp_hint, int reg_class)
-{
-  if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg))
-{
+int MipsMir2Lir::AllocTypedTemp(bool fp_hint, int reg_class) {
+  if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg)) {
     return AllocTempFloat();
 }
   return AllocTemp();
 }
 
-void MipsMir2Lir::CompilerInitializeRegAlloc()
-{
+void MipsMir2Lir::CompilerInitializeRegAlloc() {
   int num_regs = sizeof(core_regs)/sizeof(*core_regs);
   int num_reserved = sizeof(ReservedRegs)/sizeof(*ReservedRegs);
   int num_temps = sizeof(core_temps)/sizeof(*core_temps);
@@ -518,8 +491,7 @@ void MipsMir2Lir::CompilerInitializeRegAlloc()
   }
 }
 
-void MipsMir2Lir::FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free)
-{
+void MipsMir2Lir::FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free) {
   if ((rl_free.low_reg != rl_keep.low_reg) && (rl_free.low_reg != rl_keep.high_reg) &&
     (rl_free.high_reg != rl_keep.low_reg) && (rl_free.high_reg != rl_keep.high_reg)) {
     // No overlap, free both
@@ -533,14 +505,12 @@ void MipsMir2Lir::FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free)
  * ensure that all branch instructions can be restarted if
  * there is a trap in the shadow.  Allocate a temp register.
  */
-int MipsMir2Lir::LoadHelper(int offset)
-{
+int MipsMir2Lir::LoadHelper(int offset) {
   LoadWordDisp(rMIPS_SELF, offset, r_T9);
   return r_T9;
 }
 
-void MipsMir2Lir::SpillCoreRegs()
-{
+void MipsMir2Lir::SpillCoreRegs() {
   if (num_core_spills_ == 0) {
     return;
   }
@@ -555,8 +525,7 @@ void MipsMir2Lir::SpillCoreRegs()
   }
 }
 
-void MipsMir2Lir::UnSpillCoreRegs()
-{
+void MipsMir2Lir::UnSpillCoreRegs() {
   if (num_core_spills_ == 0) {
     return;
   }
@@ -571,8 +540,7 @@ void MipsMir2Lir::UnSpillCoreRegs()
   OpRegImm(kOpAdd, rMIPS_SP, frame_size_);
 }
 
-bool MipsMir2Lir::IsUnconditionalBranch(LIR* lir)
-{
+bool MipsMir2Lir::IsUnconditionalBranch(LIR* lir) {
   return (lir->opcode == kMipsB);
 }
 
@@ -592,18 +560,15 @@ Mir2Lir* MipsCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
   return new MipsMir2Lir(cu, mir_graph, arena);
 }
 
-uint64_t MipsMir2Lir::GetTargetInstFlags(int opcode)
-{
+uint64_t MipsMir2Lir::GetTargetInstFlags(int opcode) {
   return MipsMir2Lir::EncodingMap[opcode].flags;
 }
 
-const char* MipsMir2Lir::GetTargetInstName(int opcode)
-{
+const char* MipsMir2Lir::GetTargetInstName(int opcode) {
   return MipsMir2Lir::EncodingMap[opcode].name;
 }
 
-const char* MipsMir2Lir::GetTargetInstFmt(int opcode)
-{
+const char* MipsMir2Lir::GetTargetInstFmt(int opcode) {
   return MipsMir2Lir::EncodingMap[opcode].fmt;
 }
 

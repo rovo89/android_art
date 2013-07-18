@@ -22,8 +22,7 @@ namespace art {
 
 /* This file contains codegen for the Thumb ISA. */
 
-static int EncodeImmSingle(int value)
-{
+static int EncodeImmSingle(int value) {
   int res;
   int bit_a =  (value & 0x80000000) >> 31;
   int not_bit_b = (value & 0x40000000) >> 30;
@@ -48,8 +47,7 @@ static int EncodeImmSingle(int value)
  * Determine whether value can be encoded as a Thumb2 floating point
  * immediate.  If not, return -1.  If so return encoded 8-bit value.
  */
-static int EncodeImmDouble(int64_t value)
-{
+static int EncodeImmDouble(int64_t value) {
   int res;
   int bit_a = (value & 0x8000000000000000ll) >> 63;
   int not_bit_b = (value & 0x4000000000000000ll) >> 62;
@@ -70,8 +68,7 @@ static int EncodeImmDouble(int64_t value)
   return res;
 }
 
-LIR* ArmMir2Lir::LoadFPConstantValue(int r_dest, int value)
-{
+LIR* ArmMir2Lir::LoadFPConstantValue(int r_dest, int value) {
   DCHECK(ARM_SINGLEREG(r_dest));
   if (value == 0) {
     // TODO: we need better info about the target CPU.  a vector exclusive or
@@ -98,8 +95,7 @@ LIR* ArmMir2Lir::LoadFPConstantValue(int r_dest, int value)
   return load_pc_rel;
 }
 
-static int LeadingZeros(uint32_t val)
-{
+static int LeadingZeros(uint32_t val) {
   uint32_t alt;
   int n;
   int count;
@@ -121,8 +117,7 @@ static int LeadingZeros(uint32_t val)
  * Determine whether value can be encoded as a Thumb2 modified
  * immediate.  If not, return -1.  If so, return i:imm3:a:bcdefgh form.
  */
-int ArmMir2Lir::ModifiedImmediate(uint32_t value)
-{
+int ArmMir2Lir::ModifiedImmediate(uint32_t value) {
    int z_leading;
    int z_trailing;
    uint32_t b0 = value & 0xff;
@@ -151,23 +146,19 @@ int ArmMir2Lir::ModifiedImmediate(uint32_t value)
    return value | ((0x8 + z_leading) << 7); /* [01000..11111]:bcdefgh */
 }
 
-bool ArmMir2Lir::InexpensiveConstantInt(int32_t value)
-{
+bool ArmMir2Lir::InexpensiveConstantInt(int32_t value) {
   return (ModifiedImmediate(value) >= 0) || (ModifiedImmediate(~value) >= 0);
 }
 
-bool ArmMir2Lir::InexpensiveConstantFloat(int32_t value)
-{
+bool ArmMir2Lir::InexpensiveConstantFloat(int32_t value) {
   return EncodeImmSingle(value) >= 0;
 }
 
-bool ArmMir2Lir::InexpensiveConstantLong(int64_t value)
-{
+bool ArmMir2Lir::InexpensiveConstantLong(int64_t value) {
   return InexpensiveConstantInt(High32Bits(value)) && InexpensiveConstantInt(Low32Bits(value));
 }
 
-bool ArmMir2Lir::InexpensiveConstantDouble(int64_t value)
-{
+bool ArmMir2Lir::InexpensiveConstantDouble(int64_t value) {
   return EncodeImmDouble(value) >= 0;
 }
 
@@ -179,8 +170,7 @@ bool ArmMir2Lir::InexpensiveConstantDouble(int64_t value)
  * 1) r_dest is freshly returned from AllocTemp or
  * 2) The codegen is under fixed register usage
  */
-LIR* ArmMir2Lir::LoadConstantNoClobber(int r_dest, int value)
-{
+LIR* ArmMir2Lir::LoadConstantNoClobber(int r_dest, int value) {
   LIR* res;
   int mod_imm;
 
@@ -214,23 +204,20 @@ LIR* ArmMir2Lir::LoadConstantNoClobber(int r_dest, int value)
   return res;
 }
 
-LIR* ArmMir2Lir::OpUnconditionalBranch(LIR* target)
-{
+LIR* ArmMir2Lir::OpUnconditionalBranch(LIR* target) {
   LIR* res = NewLIR1(kThumbBUncond, 0 /* offset to be patched  during assembly*/);
   res->target = target;
   return res;
 }
 
-LIR* ArmMir2Lir::OpCondBranch(ConditionCode cc, LIR* target)
-{
+LIR* ArmMir2Lir::OpCondBranch(ConditionCode cc, LIR* target) {
   LIR* branch = NewLIR2(kThumb2BCond, 0 /* offset to be patched */,
                         ArmConditionEncoding(cc));
   branch->target = target;
   return branch;
 }
 
-LIR* ArmMir2Lir::OpReg(OpKind op, int r_dest_src)
-{
+LIR* ArmMir2Lir::OpReg(OpKind op, int r_dest_src) {
   ArmOpcode opcode = kThumbBkpt;
   switch (op) {
     case kOpBlx:
@@ -243,8 +230,7 @@ LIR* ArmMir2Lir::OpReg(OpKind op, int r_dest_src)
 }
 
 LIR* ArmMir2Lir::OpRegRegShift(OpKind op, int r_dest_src1, int r_src2,
-                               int shift)
-{
+                               int shift) {
   bool thumb_form = ((shift == 0) && ARM_LOWREG(r_dest_src1) && ARM_LOWREG(r_src2));
   ArmOpcode opcode = kThumbBkpt;
   switch (op) {
@@ -358,14 +344,12 @@ LIR* ArmMir2Lir::OpRegRegShift(OpKind op, int r_dest_src1, int r_src2,
   }
 }
 
-LIR* ArmMir2Lir::OpRegReg(OpKind op, int r_dest_src1, int r_src2)
-{
+LIR* ArmMir2Lir::OpRegReg(OpKind op, int r_dest_src1, int r_src2) {
   return OpRegRegShift(op, r_dest_src1, r_src2, 0);
 }
 
 LIR* ArmMir2Lir::OpRegRegRegShift(OpKind op, int r_dest, int r_src1,
-                                  int r_src2, int shift)
-{
+                                  int r_src2, int shift) {
   ArmOpcode opcode = kThumbBkpt;
   bool thumb_form = (shift == 0) && ARM_LOWREG(r_dest) && ARM_LOWREG(r_src1) &&
       ARM_LOWREG(r_src2);
@@ -430,13 +414,11 @@ LIR* ArmMir2Lir::OpRegRegRegShift(OpKind op, int r_dest, int r_src1,
   }
 }
 
-LIR* ArmMir2Lir::OpRegRegReg(OpKind op, int r_dest, int r_src1, int r_src2)
-{
+LIR* ArmMir2Lir::OpRegRegReg(OpKind op, int r_dest, int r_src1, int r_src2) {
   return OpRegRegRegShift(op, r_dest, r_src1, r_src2, 0);
 }
 
-LIR* ArmMir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src1, int value)
-{
+LIR* ArmMir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src1, int value) {
   LIR* res;
   bool neg = (value < 0);
   int abs_value = (neg) ? -value : value;
@@ -560,8 +542,7 @@ LIR* ArmMir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src1, int value)
 }
 
 /* Handle Thumb-only variants here - otherwise punt to OpRegRegImm */
-LIR* ArmMir2Lir::OpRegImm(OpKind op, int r_dest_src1, int value)
-{
+LIR* ArmMir2Lir::OpRegImm(OpKind op, int r_dest_src1, int value) {
   bool neg = (value < 0);
   int abs_value = (neg) ? -value : value;
   bool short_form = (((abs_value & 0xff) == abs_value) && ARM_LOWREG(r_dest_src1));
@@ -605,8 +586,7 @@ LIR* ArmMir2Lir::OpRegImm(OpKind op, int r_dest_src1, int value)
   }
 }
 
-LIR* ArmMir2Lir::LoadConstantWide(int r_dest_lo, int r_dest_hi, int64_t value)
-{
+LIR* ArmMir2Lir::LoadConstantWide(int r_dest_lo, int r_dest_hi, int64_t value) {
   LIR* res = NULL;
   int32_t val_lo = Low32Bits(value);
   int32_t val_hi = High32Bits(value);
@@ -656,8 +636,7 @@ int ArmMir2Lir::EncodeShift(int code, int amount) {
 }
 
 LIR* ArmMir2Lir::LoadBaseIndexed(int rBase, int r_index, int r_dest,
-                                 int scale, OpSize size)
-{
+                                 int scale, OpSize size) {
   bool all_low_regs = ARM_LOWREG(rBase) && ARM_LOWREG(r_index) && ARM_LOWREG(r_dest);
   LIR* load;
   ArmOpcode opcode = kThumbBkpt;
@@ -721,8 +700,7 @@ LIR* ArmMir2Lir::LoadBaseIndexed(int rBase, int r_index, int r_dest,
 }
 
 LIR* ArmMir2Lir::StoreBaseIndexed(int rBase, int r_index, int r_src,
-                                  int scale, OpSize size)
-{
+                                  int scale, OpSize size) {
   bool all_low_regs = ARM_LOWREG(rBase) && ARM_LOWREG(r_index) && ARM_LOWREG(r_src);
   LIR* store = NULL;
   ArmOpcode opcode = kThumbBkpt;
@@ -787,8 +765,7 @@ LIR* ArmMir2Lir::StoreBaseIndexed(int rBase, int r_index, int r_src,
  * performing null check, incoming MIR can be null.
  */
 LIR* ArmMir2Lir::LoadBaseDispBody(int rBase, int displacement, int r_dest,
-                                  int r_dest_hi, OpSize size, int s_reg)
-{
+                                  int r_dest_hi, OpSize size, int s_reg) {
   LIR* load = NULL;
   ArmOpcode opcode = kThumbBkpt;
   bool short_form = false;
@@ -908,14 +885,12 @@ LIR* ArmMir2Lir::LoadBaseDispBody(int rBase, int displacement, int r_dest,
 }
 
 LIR* ArmMir2Lir::LoadBaseDisp(int rBase, int displacement, int r_dest,
-                              OpSize size, int s_reg)
-{
+                              OpSize size, int s_reg) {
   return LoadBaseDispBody(rBase, displacement, r_dest, -1, size, s_reg);
 }
 
 LIR* ArmMir2Lir::LoadBaseDispWide(int rBase, int displacement, int r_dest_lo,
-                                  int r_dest_hi, int s_reg)
-{
+                                  int r_dest_hi, int s_reg) {
   return LoadBaseDispBody(rBase, displacement, r_dest_lo, r_dest_hi, kLong, s_reg);
 }
 
@@ -1024,19 +999,16 @@ LIR* ArmMir2Lir::StoreBaseDispBody(int rBase, int displacement,
 }
 
 LIR* ArmMir2Lir::StoreBaseDisp(int rBase, int displacement, int r_src,
-                               OpSize size)
-{
+                               OpSize size) {
   return StoreBaseDispBody(rBase, displacement, r_src, -1, size);
 }
 
 LIR* ArmMir2Lir::StoreBaseDispWide(int rBase, int displacement,
-                                   int r_src_lo, int r_src_hi)
-{
+                                   int r_src_lo, int r_src_hi) {
   return StoreBaseDispBody(rBase, displacement, r_src_lo, r_src_hi, kLong);
 }
 
-LIR* ArmMir2Lir::OpFpRegCopy(int r_dest, int r_src)
-{
+LIR* ArmMir2Lir::OpFpRegCopy(int r_dest, int r_src) {
   int opcode;
   DCHECK_EQ(ARM_DOUBLEREG(r_dest), ARM_DOUBLEREG(r_src));
   if (ARM_DOUBLEREG(r_dest)) {
@@ -1056,36 +1028,31 @@ LIR* ArmMir2Lir::OpFpRegCopy(int r_dest, int r_src)
   return res;
 }
 
-LIR* ArmMir2Lir::OpThreadMem(OpKind op, int thread_offset)
-{
+LIR* ArmMir2Lir::OpThreadMem(OpKind op, int thread_offset) {
   LOG(FATAL) << "Unexpected use of OpThreadMem for Arm";
   return NULL;
 }
 
-LIR* ArmMir2Lir::OpMem(OpKind op, int rBase, int disp)
-{
+LIR* ArmMir2Lir::OpMem(OpKind op, int rBase, int disp) {
   LOG(FATAL) << "Unexpected use of OpMem for Arm";
   return NULL;
 }
 
 LIR* ArmMir2Lir::StoreBaseIndexedDisp(int rBase, int r_index, int scale,
                                       int displacement, int r_src, int r_src_hi, OpSize size,
-                                      int s_reg)
-{
+                                      int s_reg) {
   LOG(FATAL) << "Unexpected use of StoreBaseIndexedDisp for Arm";
   return NULL;
 }
 
-LIR* ArmMir2Lir::OpRegMem(OpKind op, int r_dest, int rBase, int offset)
-{
+LIR* ArmMir2Lir::OpRegMem(OpKind op, int r_dest, int rBase, int offset) {
   LOG(FATAL) << "Unexpected use of OpRegMem for Arm";
   return NULL;
 }
 
 LIR* ArmMir2Lir::LoadBaseIndexedDisp(int rBase, int r_index, int scale,
                                      int displacement, int r_dest, int r_dest_hi, OpSize size,
-                                     int s_reg)
-{
+                                     int s_reg) {
   LOG(FATAL) << "Unexpected use of LoadBaseIndexedDisp for Arm";
   return NULL;
 }

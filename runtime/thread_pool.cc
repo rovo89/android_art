@@ -60,7 +60,7 @@ void* ThreadPoolWorker::Callback(void* arg) {
   return NULL;
 }
 
-void ThreadPool::AddTask(Thread* self, Task* task){
+void ThreadPool::AddTask(Thread* self, Task* task) {
   MutexLock mu(self, task_queue_lock_);
   tasks_.push_back(task);
   // If we have any waiters, signal one.
@@ -173,7 +173,7 @@ void ThreadPool::Wait(Thread* self, bool do_work, bool may_hold_locks) {
   }
 }
 
-size_t ThreadPool::GetTaskCount(Thread* self){
+size_t ThreadPool::GetTaskCount(Thread* self) {
   MutexLock mu(self, task_queue_lock_);
   return tasks_.size();
 }

@@ -26,8 +26,7 @@ namespace art {
  * load/store utilities here, or target-dependent genXX() handlers
  * when necessary.
  */
-void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list)
-{
+void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list) {
   RegLocation rl_src[3];
   RegLocation rl_dest = mir_graph_->GetBadLoc();
   RegLocation rl_result = mir_graph_->GetBadLoc();
@@ -659,8 +658,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
 }
 
 // Process extended MIR instructions
-void Mir2Lir::HandleExtendedMethodMIR(BasicBlock* bb, MIR* mir)
-{
+void Mir2Lir::HandleExtendedMethodMIR(BasicBlock* bb, MIR* mir) {
   switch (static_cast<ExtendedMIROpcode>(mir->dalvikInsn.opcode)) {
     case kMirOpCopy: {
       RegLocation rl_src = mir_graph_->GetSrc(mir, 0);
@@ -692,8 +690,7 @@ void Mir2Lir::HandleExtendedMethodMIR(BasicBlock* bb, MIR* mir)
 }
 
 // Handle the content in each basic block.
-bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb)
-{
+bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
   if (bb->block_type == kDead) return false;
   current_dalvik_offset_ = bb->start_offset;
   MIR* mir;
@@ -787,8 +784,7 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb)
   return false;
 }
 
-void Mir2Lir::SpecialMIR2LIR(SpecialCaseHandler special_case)
-{
+void Mir2Lir::SpecialMIR2LIR(SpecialCaseHandler special_case) {
   // Find the first DalvikByteCode block.
   int num_reachable_blocks = mir_graph_->GetNumReachableBlocks();
   BasicBlock*bb = NULL;
@@ -817,8 +813,7 @@ void Mir2Lir::SpecialMIR2LIR(SpecialCaseHandler special_case)
   GenSpecialCase(bb, mir, special_case);
 }
 
-void Mir2Lir::MethodMIR2LIR()
-{
+void Mir2Lir::MethodMIR2LIR() {
   // Hold the labels of each block.
   block_label_list_ =
       static_cast<LIR*>(arena_->NewMem(sizeof(LIR) * mir_graph_->GetNumBlocks(), true,

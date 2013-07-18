@@ -41,8 +41,7 @@ namespace art {
  *
  */
 void MipsMir2Lir::GenCmpLong(RegLocation rl_dest, RegLocation rl_src1,
-                             RegLocation rl_src2)
-{
+                             RegLocation rl_src2) {
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
   rl_src2 = LoadValueWide(rl_src2, kCoreReg);
   int t0 = AllocTemp();
@@ -63,8 +62,7 @@ void MipsMir2Lir::GenCmpLong(RegLocation rl_dest, RegLocation rl_src1,
 }
 
 LIR* MipsMir2Lir::OpCmpBranch(ConditionCode cond, int src1, int src2,
-                              LIR* target)
-{
+                              LIR* target) {
   LIR* branch;
   MipsOpCode slt_op;
   MipsOpCode br_op;
@@ -131,8 +129,7 @@ LIR* MipsMir2Lir::OpCmpBranch(ConditionCode cond, int src1, int src2,
 }
 
 LIR* MipsMir2Lir::OpCmpImmBranch(ConditionCode cond, int reg,
-                                 int check_value, LIR* target)
-{
+                                 int check_value, LIR* target) {
   LIR* branch;
   if (check_value != 0) {
     // TUNING: handle s16 & kCondLt/Mi case using slti
@@ -164,8 +161,7 @@ LIR* MipsMir2Lir::OpCmpImmBranch(ConditionCode cond, int reg,
   return branch;
 }
 
-LIR* MipsMir2Lir::OpRegCopyNoInsert(int r_dest, int r_src)
-{
+LIR* MipsMir2Lir::OpRegCopyNoInsert(int r_dest, int r_src) {
   if (MIPS_FPREG(r_dest) || MIPS_FPREG(r_src))
     return OpFpRegCopy(r_dest, r_src);
   LIR* res = RawLIR(current_dalvik_offset_, kMipsMove,
@@ -176,16 +172,14 @@ LIR* MipsMir2Lir::OpRegCopyNoInsert(int r_dest, int r_src)
   return res;
 }
 
-LIR* MipsMir2Lir::OpRegCopy(int r_dest, int r_src)
-{
+LIR* MipsMir2Lir::OpRegCopy(int r_dest, int r_src) {
   LIR *res = OpRegCopyNoInsert(r_dest, r_src);
   AppendLIR(res);
   return res;
 }
 
 void MipsMir2Lir::OpRegCopyWide(int dest_lo, int dest_hi, int src_lo,
-                                int src_hi)
-{
+                                int src_hi) {
   bool dest_fp = MIPS_FPREG(dest_lo) && MIPS_FPREG(dest_hi);
   bool src_fp = MIPS_FPREG(src_lo) && MIPS_FPREG(src_hi);
   assert(MIPS_FPREG(src_lo) == MIPS_FPREG(src_hi));
@@ -215,26 +209,22 @@ void MipsMir2Lir::OpRegCopyWide(int dest_lo, int dest_hi, int src_lo,
   }
 }
 
-void MipsMir2Lir::GenSelect(BasicBlock* bb, MIR* mir)
-{
+void MipsMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
   UNIMPLEMENTED(FATAL) << "Need codegen for select";
 }
 
-void MipsMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir)
-{
+void MipsMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
   UNIMPLEMENTED(FATAL) << "Need codegen for fused long cmp branch";
 }
 
 LIR* MipsMir2Lir::GenRegMemCheck(ConditionCode c_code,
-                    int reg1, int base, int offset, ThrowKind kind)
-{
+                    int reg1, int base, int offset, ThrowKind kind) {
   LOG(FATAL) << "Unexpected use of GenRegMemCheck for Arm";
   return NULL;
 }
 
 RegLocation MipsMir2Lir::GenDivRem(RegLocation rl_dest, int reg1, int reg2,
-                                    bool is_div)
-{
+                                    bool is_div) {
   NewLIR4(kMipsDiv, r_HI, r_LO, reg1, reg2);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   if (is_div) {
@@ -246,8 +236,7 @@ RegLocation MipsMir2Lir::GenDivRem(RegLocation rl_dest, int reg1, int reg2,
 }
 
 RegLocation MipsMir2Lir::GenDivRemLit(RegLocation rl_dest, int reg1, int lit,
-                                       bool is_div)
-{
+                                       bool is_div) {
   int t_reg = AllocTemp();
   NewLIR3(kMipsAddiu, t_reg, r_ZERO, lit);
   NewLIR4(kMipsDiv, r_HI, r_LO, reg1, t_reg);
@@ -261,13 +250,11 @@ RegLocation MipsMir2Lir::GenDivRemLit(RegLocation rl_dest, int reg1, int lit,
   return rl_result;
 }
 
-void MipsMir2Lir::OpLea(int rBase, int reg1, int reg2, int scale, int offset)
-{
+void MipsMir2Lir::OpLea(int rBase, int reg1, int reg2, int scale, int offset) {
   LOG(FATAL) << "Unexpected use of OpLea for Arm";
 }
 
-void MipsMir2Lir::OpTlsCmp(int offset, int val)
-{
+void MipsMir2Lir::OpTlsCmp(int offset, int val) {
   LOG(FATAL) << "Unexpected use of OpTlsCmp for Arm";
 }
 
@@ -286,22 +273,19 @@ LIR* MipsMir2Lir::OpPcRelLoad(int reg, LIR* target) {
   return NULL;
 }
 
-LIR* MipsMir2Lir::OpVldm(int rBase, int count)
-{
+LIR* MipsMir2Lir::OpVldm(int rBase, int count) {
   LOG(FATAL) << "Unexpected use of OpVldm for Mips";
   return NULL;
 }
 
-LIR* MipsMir2Lir::OpVstm(int rBase, int count)
-{
+LIR* MipsMir2Lir::OpVstm(int rBase, int count) {
   LOG(FATAL) << "Unexpected use of OpVstm for Mips";
   return NULL;
 }
 
 void MipsMir2Lir::GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
                                                 RegLocation rl_result, int lit,
-                                                int first_bit, int second_bit)
-{
+                                                int first_bit, int second_bit) {
   int t_reg = AllocTemp();
   OpRegRegImm(kOpLsl, t_reg, rl_src.low_reg, second_bit - first_bit);
   OpRegRegReg(kOpAdd, rl_result.low_reg, rl_src.low_reg, t_reg);
@@ -311,8 +295,7 @@ void MipsMir2Lir::GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
   }
 }
 
-void MipsMir2Lir::GenDivZeroCheck(int reg_lo, int reg_hi)
-{
+void MipsMir2Lir::GenDivZeroCheck(int reg_lo, int reg_hi) {
   int t_reg = AllocTemp();
   OpRegRegReg(kOpOr, t_reg, reg_lo, reg_hi);
   GenImmedCheck(kCondEq, t_reg, 0, kThrowDivZero);
@@ -320,41 +303,35 @@ void MipsMir2Lir::GenDivZeroCheck(int reg_lo, int reg_hi)
 }
 
 // Test suspend flag, return target of taken suspend branch
-LIR* MipsMir2Lir::OpTestSuspend(LIR* target)
-{
+LIR* MipsMir2Lir::OpTestSuspend(LIR* target) {
   OpRegImm(kOpSub, rMIPS_SUSPEND, 1);
   return OpCmpImmBranch((target == NULL) ? kCondEq : kCondNe, rMIPS_SUSPEND, 0, target);
 }
 
 // Decrement register and branch on condition
-LIR* MipsMir2Lir::OpDecAndBranch(ConditionCode c_code, int reg, LIR* target)
-{
+LIR* MipsMir2Lir::OpDecAndBranch(ConditionCode c_code, int reg, LIR* target) {
   OpRegImm(kOpSub, reg, 1);
   return OpCmpImmBranch(c_code, reg, 0, target);
 }
 
 bool MipsMir2Lir::SmallLiteralDivide(Instruction::Code dalvik_opcode,
-                                     RegLocation rl_src, RegLocation rl_dest, int lit)
-{
+                                     RegLocation rl_src, RegLocation rl_dest, int lit) {
   LOG(FATAL) << "Unexpected use of smallLiteralDive in Mips";
   return false;
 }
 
-LIR* MipsMir2Lir::OpIT(ConditionCode cond, const char* guide)
-{
+LIR* MipsMir2Lir::OpIT(ConditionCode cond, const char* guide) {
   LOG(FATAL) << "Unexpected use of OpIT in Mips";
   return NULL;
 }
 
 void MipsMir2Lir::GenMulLong(RegLocation rl_dest, RegLocation rl_src1,
-                             RegLocation rl_src2)
-{
+                             RegLocation rl_src2) {
   LOG(FATAL) << "Unexpected use of GenMulLong for Mips";
 }
 
 void MipsMir2Lir::GenAddLong(RegLocation rl_dest, RegLocation rl_src1,
-                             RegLocation rl_src2)
-{
+                             RegLocation rl_src2) {
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
   rl_src2 = LoadValueWide(rl_src2, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
@@ -376,8 +353,7 @@ void MipsMir2Lir::GenAddLong(RegLocation rl_dest, RegLocation rl_src1,
 }
 
 void MipsMir2Lir::GenSubLong(RegLocation rl_dest, RegLocation rl_src1,
-                             RegLocation rl_src2)
-{
+                             RegLocation rl_src2) {
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
   rl_src2 = LoadValueWide(rl_src2, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
@@ -398,8 +374,7 @@ void MipsMir2Lir::GenSubLong(RegLocation rl_dest, RegLocation rl_src1,
   StoreValueWide(rl_dest, rl_result);
 }
 
-void MipsMir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src)
-{
+void MipsMir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
   rl_src = LoadValueWide(rl_src, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   /*
@@ -420,20 +395,17 @@ void MipsMir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src)
 }
 
 void MipsMir2Lir::GenAndLong(RegLocation rl_dest, RegLocation rl_src1,
-                             RegLocation rl_src2)
-{
+                             RegLocation rl_src2) {
   LOG(FATAL) << "Unexpected use of GenAndLong for Mips";
 }
 
 void MipsMir2Lir::GenOrLong(RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2)
-{
+                            RegLocation rl_src2) {
   LOG(FATAL) << "Unexpected use of GenOrLong for Mips";
 }
 
 void MipsMir2Lir::GenXorLong(RegLocation rl_dest, RegLocation rl_src1,
-                             RegLocation rl_src2)
-{
+                             RegLocation rl_src2) {
   LOG(FATAL) << "Unexpected use of GenXorLong for Mips";
 }
 
@@ -441,8 +413,7 @@ void MipsMir2Lir::GenXorLong(RegLocation rl_dest, RegLocation rl_src1,
  * Generate array load
  */
 void MipsMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
-                          RegLocation rl_index, RegLocation rl_dest, int scale)
-{
+                          RegLocation rl_index, RegLocation rl_dest, int scale) {
   RegisterClass reg_class = oat_reg_class_by_size(size);
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   int data_offset;
@@ -513,8 +484,7 @@ void MipsMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
  *
  */
 void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
-                          RegLocation rl_index, RegLocation rl_src, int scale)
-{
+                          RegLocation rl_index, RegLocation rl_src, int scale) {
   RegisterClass reg_class = oat_reg_class_by_size(size);
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   int data_offset;
@@ -586,8 +556,7 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
  *
  */
 void MipsMir2Lir::GenArrayObjPut(int opt_flags, RegLocation rl_array,
-                             RegLocation rl_index, RegLocation rl_src, int scale)
-{
+                             RegLocation rl_index, RegLocation rl_src, int scale) {
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   int data_offset = mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value();
 
@@ -643,15 +612,13 @@ void MipsMir2Lir::GenArrayObjPut(int opt_flags, RegLocation rl_array,
 }
 
 void MipsMir2Lir::GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
-                                    RegLocation rl_src1, RegLocation rl_shift)
-{
+                                    RegLocation rl_src1, RegLocation rl_shift) {
   // Default implementation is just to ignore the constant case.
   GenShiftOpLong(opcode, rl_dest, rl_src1, rl_shift);
 }
 
 void MipsMir2Lir::GenArithImmOpLong(Instruction::Code opcode,
-                                    RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
-{
+                                    RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
   // Default - bail to non-const handler.
   GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2);
 }

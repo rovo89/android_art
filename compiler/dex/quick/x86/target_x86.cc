@@ -45,26 +45,22 @@ namespace art {
 #endif
 };
 
-RegLocation X86Mir2Lir::LocCReturn()
-{
+RegLocation X86Mir2Lir::LocCReturn() {
   RegLocation res = X86_LOC_C_RETURN;
   return res;
 }
 
-RegLocation X86Mir2Lir::LocCReturnWide()
-{
+RegLocation X86Mir2Lir::LocCReturnWide() {
   RegLocation res = X86_LOC_C_RETURN_WIDE;
   return res;
 }
 
-RegLocation X86Mir2Lir::LocCReturnFloat()
-{
+RegLocation X86Mir2Lir::LocCReturnFloat() {
   RegLocation res = X86_LOC_C_RETURN_FLOAT;
   return res;
 }
 
-RegLocation X86Mir2Lir::LocCReturnDouble()
-{
+RegLocation X86Mir2Lir::LocCReturnDouble() {
   RegLocation res = X86_LOC_C_RETURN_DOUBLE;
   return res;
 }
@@ -95,28 +91,24 @@ int X86Mir2Lir::TargetReg(SpecialTargetRegister reg) {
 }
 
 // Create a double from a pair of singles.
-int X86Mir2Lir::S2d(int low_reg, int high_reg)
-{
+int X86Mir2Lir::S2d(int low_reg, int high_reg) {
   return X86_S2D(low_reg, high_reg);
 }
 
 // Return mask to strip off fp reg flags and bias.
-uint32_t X86Mir2Lir::FpRegMask()
-{
+uint32_t X86Mir2Lir::FpRegMask() {
   return X86_FP_REG_MASK;
 }
 
 // True if both regs single, both core or both double.
-bool X86Mir2Lir::SameRegType(int reg1, int reg2)
-{
+bool X86Mir2Lir::SameRegType(int reg1, int reg2) {
   return (X86_REGTYPE(reg1) == X86_REGTYPE(reg2));
 }
 
 /*
  * Decode the register id.
  */
-uint64_t X86Mir2Lir::GetRegMaskCommon(int reg)
-{
+uint64_t X86Mir2Lir::GetRegMaskCommon(int reg) {
   uint64_t seed;
   int shift;
   int reg_id;
@@ -131,8 +123,7 @@ uint64_t X86Mir2Lir::GetRegMaskCommon(int reg)
   return (seed << shift);
 }
 
-uint64_t X86Mir2Lir::GetPCUseDefEncoding()
-{
+uint64_t X86Mir2Lir::GetPCUseDefEncoding() {
   /*
    * FIXME: might make sense to use a virtual resource encoding bit for pc.  Might be
    * able to clean up some of the x86/Arm_Mips differences
@@ -141,8 +132,7 @@ uint64_t X86Mir2Lir::GetPCUseDefEncoding()
   return 0ULL;
 }
 
-void X86Mir2Lir::SetupTargetResourceMasks(LIR* lir)
-{
+void X86Mir2Lir::SetupTargetResourceMasks(LIR* lir) {
   DCHECK_EQ(cu_->instruction_set, kX86);
 
   // X86-specific resource map setup here.
@@ -263,8 +253,7 @@ std::string X86Mir2Lir::BuildInsnString(const char *fmt, LIR *lir, unsigned char
   return buf;
 }
 
-void X86Mir2Lir::DumpResourceMask(LIR *x86LIR, uint64_t mask, const char *prefix)
-{
+void X86Mir2Lir::DumpResourceMask(LIR *x86LIR, uint64_t mask, const char *prefix) {
   char buf[256];
   buf[0] = 0;
 
@@ -317,16 +306,14 @@ void X86Mir2Lir::AdjustSpillMask() {
  * include any holes in the mask.  Associate holes with
  * Dalvik register INVALID_VREG (0xFFFFU).
  */
-void X86Mir2Lir::MarkPreservedSingle(int v_reg, int reg)
-{
+void X86Mir2Lir::MarkPreservedSingle(int v_reg, int reg) {
   UNIMPLEMENTED(WARNING) << "MarkPreservedSingle";
 #if 0
   LOG(FATAL) << "No support yet for promoted FP regs";
 #endif
 }
 
-void X86Mir2Lir::FlushRegWide(int reg1, int reg2)
-{
+void X86Mir2Lir::FlushRegWide(int reg1, int reg2) {
   RegisterInfo* info1 = GetRegInfo(reg1);
   RegisterInfo* info2 = GetRegInfo(reg2);
   DCHECK(info1 && info2 && info1->pair && info2->pair &&
@@ -347,8 +334,7 @@ void X86Mir2Lir::FlushRegWide(int reg1, int reg2)
   }
 }
 
-void X86Mir2Lir::FlushReg(int reg)
-{
+void X86Mir2Lir::FlushReg(int reg) {
   RegisterInfo* info = GetRegInfo(reg);
   if (info->live && info->dirty) {
     info->dirty = false;
@@ -363,8 +349,7 @@ bool X86Mir2Lir::IsFpReg(int reg) {
 }
 
 /* Clobber all regs that might be used by an external C call */
-void X86Mir2Lir::ClobberCalleeSave()
-{
+void X86Mir2Lir::ClobberCalleeSave() {
   Clobber(rAX);
   Clobber(rCX);
   Clobber(rDX);
@@ -382,8 +367,7 @@ RegLocation X86Mir2Lir::GetReturnWideAlt() {
   return res;
 }
 
-RegLocation X86Mir2Lir::GetReturnAlt()
-{
+RegLocation X86Mir2Lir::GetReturnAlt() {
   RegLocation res = LocCReturn();
   res.low_reg = rDX;
   Clobber(rDX);
@@ -391,15 +375,13 @@ RegLocation X86Mir2Lir::GetReturnAlt()
   return res;
 }
 
-X86Mir2Lir::RegisterInfo* X86Mir2Lir::GetRegInfo(int reg)
-{
+X86Mir2Lir::RegisterInfo* X86Mir2Lir::GetRegInfo(int reg) {
   return X86_FPREG(reg) ? &reg_pool_->FPRegs[reg & X86_FP_REG_MASK]
                     : &reg_pool_->core_regs[reg];
 }
 
 /* To be used when explicitly managing register use */
-void X86Mir2Lir::LockCallTemps()
-{
+void X86Mir2Lir::LockCallTemps() {
   LockTemp(rX86_ARG0);
   LockTemp(rX86_ARG1);
   LockTemp(rX86_ARG2);
@@ -407,16 +389,14 @@ void X86Mir2Lir::LockCallTemps()
 }
 
 /* To be used when explicitly managing register use */
-void X86Mir2Lir::FreeCallTemps()
-{
+void X86Mir2Lir::FreeCallTemps() {
   FreeTemp(rX86_ARG0);
   FreeTemp(rX86_ARG1);
   FreeTemp(rX86_ARG2);
   FreeTemp(rX86_ARG3);
 }
 
-void X86Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind)
-{
+void X86Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
 #if ANDROID_SMP != 0
   // TODO: optimize fences
   NewLIR0(kX86Mfence);
@@ -427,8 +407,7 @@ void X86Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind)
  * high reg in next byte.
  */
 int X86Mir2Lir::AllocTypedTempPair(bool fp_hint,
-                          int reg_class)
-{
+                          int reg_class) {
   int high_reg;
   int low_reg;
   int res = 0;
@@ -485,8 +464,7 @@ void X86Mir2Lir::CompilerInitializeRegAlloc() {
 }
 
 void X86Mir2Lir::FreeRegLocTemps(RegLocation rl_keep,
-                     RegLocation rl_free)
-{
+                     RegLocation rl_free) {
   if ((rl_free.low_reg != rl_keep.low_reg) && (rl_free.low_reg != rl_keep.high_reg) &&
       (rl_free.high_reg != rl_keep.low_reg) && (rl_free.high_reg != rl_keep.high_reg)) {
     // No overlap, free both
@@ -525,8 +503,7 @@ void X86Mir2Lir::UnSpillCoreRegs() {
   }
 }
 
-bool X86Mir2Lir::IsUnconditionalBranch(LIR* lir)
-{
+bool X86Mir2Lir::IsUnconditionalBranch(LIR* lir) {
   return (lir->opcode == kX86Jmp8 || lir->opcode == kX86Jmp32);
 }
 
@@ -547,24 +524,20 @@ Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
 }
 
 // Not used in x86
-int X86Mir2Lir::LoadHelper(int offset)
-{
+int X86Mir2Lir::LoadHelper(int offset) {
   LOG(FATAL) << "Unexpected use of LoadHelper in x86";
   return INVALID_REG;
 }
 
-uint64_t X86Mir2Lir::GetTargetInstFlags(int opcode)
-{
+uint64_t X86Mir2Lir::GetTargetInstFlags(int opcode) {
   return X86Mir2Lir::EncodingMap[opcode].flags;
 }
 
-const char* X86Mir2Lir::GetTargetInstName(int opcode)
-{
+const char* X86Mir2Lir::GetTargetInstName(int opcode) {
   return X86Mir2Lir::EncodingMap[opcode].name;
 }
 
-const char* X86Mir2Lir::GetTargetInstFmt(int opcode)
-{
+const char* X86Mir2Lir::GetTargetInstFmt(int opcode) {
   return X86Mir2Lir::EncodingMap[opcode].fmt;
 }
 

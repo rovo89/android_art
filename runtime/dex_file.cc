@@ -252,7 +252,7 @@ DexFile::~DexFile() {
 
 class ScopedJniMonitorLock {
  public:
-  ScopedJniMonitorLock(JNIEnv* env, jobject locked) : env_(env), locked_(locked){
+  ScopedJniMonitorLock(JNIEnv* env, jobject locked) : env_(env), locked_(locked) {
     env->MonitorEnter(locked_);
   }
   ~ScopedJniMonitorLock() {

@@ -25,8 +25,7 @@ namespace art {
 
 
 /* Return the position of an ssa name within the argument list */
-int ArmMir2Lir::InPosition(int s_reg)
-{
+int ArmMir2Lir::InPosition(int s_reg) {
   int v_reg = mir_graph_->SRegToVReg(s_reg);
   return v_reg - cu_->num_regs;
 }
@@ -36,8 +35,7 @@ int ArmMir2Lir::InPosition(int s_reg)
  * there.  NOTE: all live arg registers must be locked prior to this call
  * to avoid having them allocated as a temp by downstream utilities.
  */
-RegLocation ArmMir2Lir::ArgLoc(RegLocation loc)
-{
+RegLocation ArmMir2Lir::ArgLoc(RegLocation loc) {
   int arg_num = InPosition(loc.s_reg_low);
   if (loc.wide) {
     if (arg_num == 2) {
@@ -66,8 +64,7 @@ RegLocation ArmMir2Lir::ArgLoc(RegLocation loc)
  * the frame, we can't use the normal LoadValue() because it assumed
  * a proper frame - and we're frameless.
  */
-RegLocation ArmMir2Lir::LoadArg(RegLocation loc)
-{
+RegLocation ArmMir2Lir::LoadArg(RegLocation loc) {
   if (loc.location == kLocDalvikFrame) {
     int start = (InPosition(loc.s_reg_low) + 1) * sizeof(uint32_t);
     loc.low_reg = AllocTemp();
@@ -82,8 +79,7 @@ RegLocation ArmMir2Lir::LoadArg(RegLocation loc)
 }
 
 /* Lock any referenced arguments that arrive in registers */
-void ArmMir2Lir::LockLiveArgs(MIR* mir)
-{
+void ArmMir2Lir::LockLiveArgs(MIR* mir) {
   int first_in = cu_->num_regs;
   const int num_arg_regs = 3;  // TODO: generalize & move to RegUtil.cc
   for (int i = 0; i < mir->ssa_rep->num_uses; i++) {
@@ -97,8 +93,7 @@ void ArmMir2Lir::LockLiveArgs(MIR* mir)
 
 /* Find the next MIR, which may be in a following basic block */
 // TODO: should this be a utility in mir_graph?
-MIR* ArmMir2Lir::GetNextMir(BasicBlock** p_bb, MIR* mir)
-{
+MIR* ArmMir2Lir::GetNextMir(BasicBlock** p_bb, MIR* mir) {
   BasicBlock* bb = *p_bb;
   MIR* orig_mir = mir;
   while (bb != NULL) {
@@ -123,8 +118,7 @@ MIR* ArmMir2Lir::GetNextMir(BasicBlock** p_bb, MIR* mir)
 
 /* Used for the "verbose" listing */
 //TODO:  move to common code
-void ArmMir2Lir::GenPrintLabel(MIR* mir)
-{
+void ArmMir2Lir::GenPrintLabel(MIR* mir) {
   /* Mark the beginning of a Dalvik instruction for line tracking */
   char* inst_str = cu_->verbose ?
      mir_graph_->GetDalvikDisassembly(mir) : NULL;
@@ -132,8 +126,7 @@ void ArmMir2Lir::GenPrintLabel(MIR* mir)
 }
 
 MIR* ArmMir2Lir::SpecialIGet(BasicBlock** bb, MIR* mir,
-                             OpSize size, bool long_or_double, bool is_object)
-{
+                             OpSize size, bool long_or_double, bool is_object) {
   int field_offset;
   bool is_volatile;
   uint32_t field_idx = mir->dalvikInsn.vC;
@@ -158,8 +151,7 @@ MIR* ArmMir2Lir::SpecialIGet(BasicBlock** bb, MIR* mir,
 }
 
 MIR* ArmMir2Lir::SpecialIPut(BasicBlock** bb, MIR* mir,
-                             OpSize size, bool long_or_double, bool is_object)
-{
+                             OpSize size, bool long_or_double, bool is_object) {
   int field_offset;
   bool is_volatile;
   uint32_t field_idx = mir->dalvikInsn.vC;
@@ -192,8 +184,7 @@ MIR* ArmMir2Lir::SpecialIPut(BasicBlock** bb, MIR* mir,
   return GetNextMir(bb, mir);
 }
 
-MIR* ArmMir2Lir::SpecialIdentity(MIR* mir)
-{
+MIR* ArmMir2Lir::SpecialIdentity(MIR* mir) {
   RegLocation rl_src;
   RegLocation rl_dest;
   bool wide = (mir->ssa_rep->num_uses == 2);
@@ -225,8 +216,7 @@ MIR* ArmMir2Lir::SpecialIdentity(MIR* mir)
  * Special-case code genration for simple non-throwing leaf methods.
  */
 void ArmMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
-                                SpecialCaseHandler special_case)
-{
+                                SpecialCaseHandler special_case) {
    current_dalvik_offset_ = mir->offset;
    MIR* next_mir = NULL;
    switch (special_case) {
@@ -319,8 +309,7 @@ void ArmMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
  *   cbnz  r_idx, lp
  */
 void ArmMir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
-                                 RegLocation rl_src)
-{
+                                 RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   if (cu_->verbose) {
     DumpSparseSwitchTable(table);
@@ -369,8 +358,7 @@ void ArmMir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
 
 
 void ArmMir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
-                                 RegLocation rl_src)
-{
+                                 RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   if (cu_->verbose) {
     DumpPackedSwitchTable(table);
@@ -427,8 +415,7 @@ void ArmMir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
  *
  * Total size is 4+(width * size + 1)/2 16-bit code units.
  */
-void ArmMir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src)
-{
+void ArmMir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   // Add the table to the list - we'll process it later
   FillArrayData *tab_rec =
@@ -480,8 +467,7 @@ void ArmMir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src)
  * preserved.
  *
  */
-void ArmMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src)
-{
+void ArmMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
   FlushAllRegs();
   DCHECK_EQ(LW_SHAPE_THIN, 0);
   LoadValueDirectFixed(rl_src, r0);  // Get obj
@@ -515,8 +501,7 @@ void ArmMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src)
  * a zero recursion count, it's safe to punch it back to the
  * initial, unlock thin state with a store word.
  */
-void ArmMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src)
-{
+void ArmMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
   DCHECK_EQ(LW_SHAPE_THIN, 0);
   FlushAllRegs();
   LoadValueDirectFixed(rl_src, r0);  // Get obj
@@ -541,8 +526,7 @@ void ArmMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src)
   GenMemBarrier(kStoreLoad);
 }
 
-void ArmMir2Lir::GenMoveException(RegLocation rl_dest)
-{
+void ArmMir2Lir::GenMoveException(RegLocation rl_dest) {
   int ex_offset = Thread::ExceptionOffset().Int32Value();
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   int reset_reg = AllocTemp();
@@ -556,8 +540,7 @@ void ArmMir2Lir::GenMoveException(RegLocation rl_dest)
 /*
  * Mark garbage collection card. Skip if the value we're storing is null.
  */
-void ArmMir2Lir::MarkGCCard(int val_reg, int tgt_addr_reg)
-{
+void ArmMir2Lir::MarkGCCard(int val_reg, int tgt_addr_reg) {
   int reg_card_base = AllocTemp();
   int reg_card_no = AllocTemp();
   LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, NULL);
@@ -571,8 +554,7 @@ void ArmMir2Lir::MarkGCCard(int val_reg, int tgt_addr_reg)
   FreeTemp(reg_card_no);
 }
 
-void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
-{
+void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
   int spill_count = num_core_spills_ + num_fp_spills_;
   /*
    * On entry, r0, r1, r2 & r3 are live.  Let the register allocation
@@ -624,8 +606,7 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
   FreeTemp(r3);
 }
 
-void ArmMir2Lir::GenExitSequence()
-{
+void ArmMir2Lir::GenExitSequence() {
   int spill_count = num_core_spills_ + num_fp_spills_;
   /*
    * In the exit path, r0/r1 are live - make sure they aren't

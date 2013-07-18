@@ -220,7 +220,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
                                        llvm_compilation_unit));
   } else
 #endif
-  {
+  { // NOLINT(whitespace/braces)
     switch (compiler.GetInstructionSet()) {
       case kThumb2:
         cu->cg.reset(ArmCodeGenerator(cu.get(), cu->mir_graph.get(), &cu->arena)); break;

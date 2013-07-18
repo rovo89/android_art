@@ -38,8 +38,7 @@ using namespace runtime_support;
 RuntimeSupportBuilder::RuntimeSupportBuilder(::llvm::LLVMContext& context,
                                              ::llvm::Module& module,
                                              IRBuilder& irb)
-    : context_(context), module_(module), irb_(irb)
-{
+    : context_(context), module_(module), irb_(irb) {
   memset(target_runtime_support_func_, 0, sizeof(target_runtime_support_func_));
 #define GET_RUNTIME_SUPPORT_FUNC_DECL(ID, NAME) \
   do { \

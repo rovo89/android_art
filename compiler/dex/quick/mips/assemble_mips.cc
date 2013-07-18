@@ -457,8 +457,7 @@ const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
  * NOTE: An out-of-range bal isn't supported because it should
  * never happen with the current PIC model.
  */
-void MipsMir2Lir::ConvertShortToLongBranch(LIR* lir)
-{
+void MipsMir2Lir::ConvertShortToLongBranch(LIR* lir) {
   // For conditional branches we'll need to reverse the sense
   bool unconditional = false;
   int opcode = lir->opcode;
@@ -513,8 +512,7 @@ void MipsMir2Lir::ConvertShortToLongBranch(LIR* lir)
  * instruction.  In those cases we will try to substitute a new code
  * sequence or request that the trace be shortened and retried.
  */
-AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr)
-{
+AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
   LIR *lir;
   AssemblerStatus res = kSuccess;  // Assume success
 
@@ -708,8 +706,7 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr)
   return res;
 }
 
-int MipsMir2Lir::GetInsnSize(LIR* lir)
-{
+int MipsMir2Lir::GetInsnSize(LIR* lir) {
   return EncodingMap[lir->opcode].size;
 }
 

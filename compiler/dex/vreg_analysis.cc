@@ -72,8 +72,7 @@ bool MIRGraph::SetHigh(int index, bool is_high) {
  * as it doesn't propagate.  We're guaranteed at least one pass through
  * the cfg.
  */
-bool MIRGraph::InferTypeAndSize(BasicBlock* bb)
-{
+bool MIRGraph::InferTypeAndSize(BasicBlock* bb) {
   MIR *mir;
   bool changed = false;   // Did anything change?
 
@@ -333,8 +332,7 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb)
 
 static const char* storage_name[] = {" Frame ", "PhysReg", " Spill "};
 
-void MIRGraph::DumpRegLocTable(RegLocation* table, int count)
-{
+void MIRGraph::DumpRegLocTable(RegLocation* table, int count) {
   //FIXME: Quick-specific.  Move to Quick (and make a generic version for MIRGraph?
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu_->cg.get());
   if (cg != NULL) {
@@ -374,8 +372,7 @@ static const RegLocation fresh_loc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
  * allocation is done on the fly.  We also do some initialization and
  * type inference here.
  */
-void MIRGraph::BuildRegLocations()
-{
+void MIRGraph::BuildRegLocations() {
   int i;
   RegLocation* loc;
 

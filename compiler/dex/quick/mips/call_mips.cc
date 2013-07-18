@@ -24,8 +24,7 @@
 namespace art {
 
 void MipsMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
-                                 SpecialCaseHandler special_case)
-{
+                                 SpecialCaseHandler special_case) {
     // TODO
 }
 
@@ -61,8 +60,7 @@ void MipsMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
  *
  */
 void MipsMir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
-                                  RegLocation rl_src)
-{
+                                  RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   if (cu_->verbose) {
     DumpSparseSwitchTable(table);
@@ -142,8 +140,7 @@ void MipsMir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
  * done:
  */
 void MipsMir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
-                                  RegLocation rl_src)
-{
+                                  RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   if (cu_->verbose) {
     DumpPackedSwitchTable(table);
@@ -227,8 +224,7 @@ void MipsMir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
  *
  * Total size is 4+(width * size + 1)/2 16-bit code units.
  */
-void MipsMir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src)
-{
+void MipsMir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   // Add the table to the list - we'll process it later
   FillArrayData *tab_rec =
@@ -270,8 +266,7 @@ void MipsMir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src)
 /*
  * TODO: implement fast path to short-circuit thin-lock case
  */
-void MipsMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src)
-{
+void MipsMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
   FlushAllRegs();
   LoadValueDirectFixed(rl_src, rMIPS_ARG0);  // Get obj
   LockCallTemps();  // Prepare for explicit register usage
@@ -286,8 +281,7 @@ void MipsMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src)
 /*
  * TODO: implement fast path to short-circuit thin-lock case
  */
-void MipsMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src)
-{
+void MipsMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
   FlushAllRegs();
   LoadValueDirectFixed(rl_src, rMIPS_ARG0);  // Get obj
   LockCallTemps();  // Prepare for explicit register usage
@@ -299,8 +293,7 @@ void MipsMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src)
   MarkSafepointPC(call_inst);
 }
 
-void MipsMir2Lir::GenMoveException(RegLocation rl_dest)
-{
+void MipsMir2Lir::GenMoveException(RegLocation rl_dest) {
   int ex_offset = Thread::ExceptionOffset().Int32Value();
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   int reset_reg = AllocTemp();
@@ -314,8 +307,7 @@ void MipsMir2Lir::GenMoveException(RegLocation rl_dest)
 /*
  * Mark garbage collection card. Skip if the value we're storing is null.
  */
-void MipsMir2Lir::MarkGCCard(int val_reg, int tgt_addr_reg)
-{
+void MipsMir2Lir::MarkGCCard(int val_reg, int tgt_addr_reg) {
   int reg_card_base = AllocTemp();
   int reg_card_no = AllocTemp();
   LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, NULL);
@@ -328,8 +320,7 @@ void MipsMir2Lir::MarkGCCard(int val_reg, int tgt_addr_reg)
   FreeTemp(reg_card_base);
   FreeTemp(reg_card_no);
 }
-void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
-{
+void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
   int spill_count = num_core_spills_ + num_fp_spills_;
   /*
    * On entry, rMIPS_ARG0, rMIPS_ARG1, rMIPS_ARG2 & rMIPS_ARG3 are live.  Let the register
@@ -375,8 +366,7 @@ void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
   FreeTemp(rMIPS_ARG3);
 }
 
-void MipsMir2Lir::GenExitSequence()
-{
+void MipsMir2Lir::GenExitSequence() {
   /*
    * In the exit path, rMIPS_RET0/rMIPS_RET1 are live - make sure they aren't
    * allocated by the register utilities as temps.

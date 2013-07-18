@@ -29,8 +29,7 @@ namespace art {
 #define LDLD_DISTANCE 4
 #define LD_LATENCY 2
 
-static bool IsDalvikRegisterClobbered(LIR* lir1, LIR* lir2)
-{
+static bool IsDalvikRegisterClobbered(LIR* lir1, LIR* lir2) {
   int reg1Lo = DECODE_ALIAS_INFO_REG(lir1->alias_info);
   int reg1Hi = reg1Lo + DECODE_ALIAS_INFO_WIDE(lir1->alias_info);
   int reg2Lo = DECODE_ALIAS_INFO_REG(lir2->alias_info);
@@ -40,8 +39,7 @@ static bool IsDalvikRegisterClobbered(LIR* lir1, LIR* lir2)
 }
 
 /* Convert a more expensive instruction (ie load) into a move */
-void Mir2Lir::ConvertMemOpIntoMove(LIR* orig_lir, int dest, int src)
-{
+void Mir2Lir::ConvertMemOpIntoMove(LIR* orig_lir, int dest, int src) {
   /* Insert a move to replace the load */
   LIR* move_lir;
   move_lir = OpRegCopyNoInsert(dest, src);
@@ -72,8 +70,7 @@ void Mir2Lir::ConvertMemOpIntoMove(LIR* orig_lir, int dest, int src)
  *   1) They are must-aliases
  *   2) The memory location is not written to in between
  */
-void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir)
-{
+void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
   LIR* this_lir;
 
   if (head_lir == tail_lir) return;
@@ -268,8 +265,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir)
  * Perform a pass of bottom-up walk, from the second instruction in the
  * superblock, to try to hoist loads to earlier slots.
  */
-void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir)
-{
+void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
   LIR* this_lir, *check_lir;
   /*
    * Store the list of independent instructions that can be hoisted past.
@@ -447,8 +443,7 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir)
   }
 }
 
-void Mir2Lir::ApplyLocalOptimizations(LIR* head_lir, LIR* tail_lir)
-{
+void Mir2Lir::ApplyLocalOptimizations(LIR* head_lir, LIR* tail_lir) {
   if (!(cu_->disable_opt & (1 << kLoadStoreElimination))) {
     ApplyLoadStoreElimination(head_lir, tail_lir);
   }
@@ -462,8 +457,7 @@ void Mir2Lir::ApplyLocalOptimizations(LIR* head_lir, LIR* tail_lir)
  * Note: new redundant branches may be inserted later, and we'll
  * use a check in final instruction assembly to nop those out.
  */
-void Mir2Lir::RemoveRedundantBranches()
-{
+void Mir2Lir::RemoveRedundantBranches() {
   LIR* this_lir;
 
   for (this_lir = first_lir_insn_; this_lir != last_lir_insn_; this_lir = NEXT_LIR(this_lir)) {
