@@ -52,7 +52,14 @@
 #include "UniquePtr.h"
 #include "utils.h"
 
-using namespace art::mirror;
+using ::art::mirror::AbstractMethod;
+using ::art::mirror::Class;
+using ::art::mirror::DexCache;
+using ::art::mirror::EntryPointFromInterpreter;
+using ::art::mirror::Field;
+using ::art::mirror::Object;
+using ::art::mirror::ObjectArray;
+using ::art::mirror::String;
 
 namespace art {
 

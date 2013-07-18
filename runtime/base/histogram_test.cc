@@ -20,7 +20,7 @@
 
 #include <sstream>
 
-using namespace art;
+namespace art {
 
 //Simple usage:
 //  Histogram *hist = new Histogram("SimplePercentiles");
@@ -266,3 +266,5 @@ TEST(Histtest, SpikyValues) {
   hist->PrintConfidenceIntervals(stream, 0.99);
   EXPECT_EQ(expected, stream.str());
 }
+
+} // namespace art

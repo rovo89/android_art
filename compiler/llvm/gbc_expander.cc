@@ -30,8 +30,6 @@
 #include "dex/compiler_ir.h"
 #include "dex/mir_graph.h"
 #include "dex/quick/mir_to_lir.h"
-using art::kMIRIgnoreNullCheck;
-using art::kMIRIgnoreRangeCheck;
 
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/IR/Intrinsics.h>
@@ -44,13 +42,78 @@ using art::kMIRIgnoreRangeCheck;
 #include <map>
 #include <utility>
 
-using namespace art::llvm;
-
-using art::llvm::IntrinsicHelper;
+using ::art::kMIRIgnoreNullCheck;
+using ::art::kMIRIgnoreRangeCheck;
+using ::art::llvm::IRBuilder;
+using ::art::llvm::IntrinsicHelper;
+using ::art::llvm::JType;
+using ::art::llvm::RuntimeSupportBuilder;
+using ::art::llvm::kBoolean;
+using ::art::llvm::kByte;
+using ::art::llvm::kChar;
+using ::art::llvm::kDouble;
+using ::art::llvm::kFloat;
+using ::art::llvm::kInt;
+using ::art::llvm::kLikely;
+using ::art::llvm::kLong;
+using ::art::llvm::kObject;
+using ::art::llvm::kShort;
+using ::art::llvm::kTBAAConstJObject;
+using ::art::llvm::kTBAAHeapArray;
+using ::art::llvm::kTBAAHeapInstance;
+using ::art::llvm::kTBAAHeapStatic;
+using ::art::llvm::kTBAARegister;
+using ::art::llvm::kTBAARuntimeInfo;
+using ::art::llvm::kTBAAShadowFrame;
+using ::art::llvm::kUnlikely;
+using ::art::llvm::kVoid;
+using ::art::llvm::runtime_support::AllocArray;
+using ::art::llvm::runtime_support::AllocArrayWithAccessCheck;
+using ::art::llvm::runtime_support::AllocObject;
+using ::art::llvm::runtime_support::AllocObjectWithAccessCheck;
+using ::art::llvm::runtime_support::CheckAndAllocArray;
+using ::art::llvm::runtime_support::CheckAndAllocArrayWithAccessCheck;
+using ::art::llvm::runtime_support::CheckCast;
+using ::art::llvm::runtime_support::CheckPutArrayElement;
+using ::art::llvm::runtime_support::FillArrayData;
+using ::art::llvm::runtime_support::FindCatchBlock;
+using ::art::llvm::runtime_support::FindDirectMethodWithAccessCheck;
+using ::art::llvm::runtime_support::FindInterfaceMethod;
+using ::art::llvm::runtime_support::FindInterfaceMethodWithAccessCheck;
+using ::art::llvm::runtime_support::FindStaticMethodWithAccessCheck;
+using ::art::llvm::runtime_support::FindSuperMethodWithAccessCheck;
+using ::art::llvm::runtime_support::FindVirtualMethodWithAccessCheck;
+using ::art::llvm::runtime_support::Get32Instance;
+using ::art::llvm::runtime_support::Get32Static;
+using ::art::llvm::runtime_support::Get64Instance;
+using ::art::llvm::runtime_support::Get64Static;
+using ::art::llvm::runtime_support::GetObjectInstance;
+using ::art::llvm::runtime_support::GetObjectStatic;
+using ::art::llvm::runtime_support::InitializeStaticStorage;
+using ::art::llvm::runtime_support::InitializeType;
+using ::art::llvm::runtime_support::InitializeTypeAndVerifyAccess;
+using ::art::llvm::runtime_support::IsAssignable;
+using ::art::llvm::runtime_support::ResolveString;
+using ::art::llvm::runtime_support::RuntimeId;
+using ::art::llvm::runtime_support::Set32Instance;
+using ::art::llvm::runtime_support::Set32Static;
+using ::art::llvm::runtime_support::Set64Instance;
+using ::art::llvm::runtime_support::Set64Static;
+using ::art::llvm::runtime_support::SetObjectInstance;
+using ::art::llvm::runtime_support::SetObjectStatic;
+using ::art::llvm::runtime_support::ThrowDivZeroException;
+using ::art::llvm::runtime_support::ThrowException;
+using ::art::llvm::runtime_support::ThrowIndexOutOfBounds;
+using ::art::llvm::runtime_support::ThrowNullPointerException;
+using ::art::llvm::runtime_support::ThrowStackOverflowException;
+using ::art::llvm::runtime_support::art_d2i;
+using ::art::llvm::runtime_support::art_d2l;
+using ::art::llvm::runtime_support::art_f2i;
+using ::art::llvm::runtime_support::art_f2l;
 
 namespace art {
 extern char RemapShorty(char shortyType);
-};
+}  // namespace art
 
 namespace {
 
@@ -101,8 +164,7 @@ class GBCExpanderPass : public llvm::FunctionPass {
   // Helper function for GBC expansion
   //----------------------------------------------------------------------------
 
-  llvm::Value* ExpandToRuntime(runtime_support::RuntimeId rt,
-                               llvm::CallInst& inst);
+  llvm::Value* ExpandToRuntime(RuntimeId rt, llvm::CallInst& inst);
 
   uint64_t LV2UInt(llvm::Value* lv) {
     return llvm::cast<llvm::ConstantInt>(lv)->getZExtValue();
@@ -580,8 +642,7 @@ void GBCExpanderPass::UpdatePhiInstruction(llvm::BasicBlock* old_basic_block,
   }
 }
 
-llvm::Value* GBCExpanderPass::ExpandToRuntime(runtime_support::RuntimeId rt,
-                                              llvm::CallInst& inst) {
+llvm::Value* GBCExpanderPass::ExpandToRuntime(RuntimeId rt, llvm::CallInst& inst) {
   // Some GBC intrinsic can directly replace with IBC runtime. "Directly" means
   // the arguments passed to the GBC intrinsic are as the same as IBC runtime
   // function, therefore only called function is needed to change.
@@ -633,7 +694,7 @@ GBCExpanderPass::EmitStackOverflowCheck(llvm::Instruction* first_non_alloca) {
 
   // If stack overflow, throw exception.
   irb_.SetInsertPoint(block_exception);
-  irb_.CreateCall(irb_.GetRuntime(runtime_support::ThrowStackOverflowException));
+  irb_.CreateCall(irb_.GetRuntime(ThrowStackOverflowException));
 
   // Unwind.
   llvm::Type* ret_type = func->getReturnType();
@@ -1541,7 +1602,7 @@ void GBCExpanderPass::Expand_HLArrayPut(llvm::CallInst& call_inst,
   llvm::Value* array_elem_addr = EmitArrayGEP(array_addr, index_value, elem_jty);
 
   if (elem_jty == kObject) { // If put an object, check the type, and mark GC card table.
-    llvm::Function* runtime_func = irb_.GetRuntime(runtime_support::CheckPutArrayElement);
+    llvm::Function* runtime_func = irb_.GetRuntime(CheckPutArrayElement);
 
     irb_.CreateCall2(runtime_func, new_value, array_addr);
 
@@ -1575,11 +1636,11 @@ llvm::Value* GBCExpanderPass::Expand_HLIGet(llvm::CallInst& call_inst,
     llvm::Function* runtime_func;
 
     if (field_jty == kObject) {
-      runtime_func = irb_.GetRuntime(runtime_support::GetObjectInstance);
+      runtime_func = irb_.GetRuntime(GetObjectInstance);
     } else if (field_jty == kLong || field_jty == kDouble) {
-      runtime_func = irb_.GetRuntime(runtime_support::Get64Instance);
+      runtime_func = irb_.GetRuntime(Get64Instance);
     } else {
-      runtime_func = irb_.GetRuntime(runtime_support::Get32Instance);
+      runtime_func = irb_.GetRuntime(Get32Instance);
     }
 
     llvm::ConstantInt* field_idx_value = irb_.getInt32(field_idx);
@@ -1643,11 +1704,11 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
     }
 
     if (field_jty == kObject) {
-      runtime_func = irb_.GetRuntime(runtime_support::SetObjectInstance);
+      runtime_func = irb_.GetRuntime(SetObjectInstance);
     } else if (field_jty == kLong || field_jty == kDouble) {
-      runtime_func = irb_.GetRuntime(runtime_support::Set64Instance);
+      runtime_func = irb_.GetRuntime(Set64Instance);
     } else {
-      runtime_func = irb_.GetRuntime(runtime_support::Set32Instance);
+      runtime_func = irb_.GetRuntime(Set32Instance);
     }
 
     llvm::Value* field_idx_value = irb_.getInt32(field_idx);
@@ -1701,8 +1762,7 @@ llvm::Value* GBCExpanderPass::EmitLoadConstantClass(uint32_t dex_pc,
 
     llvm::Value* thread_object_addr = irb_.Runtime().EmitGetCurrentThread();
 
-    llvm::Function* runtime_func =
-      irb_.GetRuntime(runtime_support::InitializeTypeAndVerifyAccess);
+    llvm::Function* runtime_func = irb_.GetRuntime(InitializeTypeAndVerifyAccess);
 
     EmitUpdateDexPC(dex_pc);
 
@@ -1741,7 +1801,7 @@ llvm::Value* GBCExpanderPass::EmitLoadConstantClass(uint32_t dex_pc,
     // Failback routine to load the class object
     irb_.SetInsertPoint(block_load_class);
 
-    llvm::Function* runtime_func = irb_.GetRuntime(runtime_support::InitializeType);
+    llvm::Function* runtime_func = irb_.GetRuntime(InitializeType);
 
     llvm::Constant* type_idx_value = irb_.getInt32(type_idx);
 
@@ -1796,7 +1856,7 @@ llvm::Value* GBCExpanderPass::EmitLoadStaticStorage(uint32_t dex_pc,
   // Failback routine to load the class object
   irb_.SetInsertPoint(block_load_static);
 
-  llvm::Function* runtime_func = irb_.GetRuntime(runtime_support::InitializeStaticStorage);
+  llvm::Function* runtime_func = irb_.GetRuntime(InitializeStaticStorage);
 
   llvm::Constant* type_idx_value = irb_.getInt32(type_idx);
 
@@ -1846,11 +1906,11 @@ llvm::Value* GBCExpanderPass::Expand_HLSget(llvm::CallInst& call_inst,
     llvm::Function* runtime_func;
 
     if (field_jty == kObject) {
-      runtime_func = irb_.GetRuntime(runtime_support::GetObjectStatic);
+      runtime_func = irb_.GetRuntime(GetObjectStatic);
     } else if (field_jty == kLong || field_jty == kDouble) {
-      runtime_func = irb_.GetRuntime(runtime_support::Get64Static);
+      runtime_func = irb_.GetRuntime(Get64Static);
     } else {
-      runtime_func = irb_.GetRuntime(runtime_support::Get32Static);
+      runtime_func = irb_.GetRuntime(Get32Static);
     }
 
     llvm::Constant* field_idx_value = irb_.getInt32(field_idx);
@@ -1928,11 +1988,11 @@ void GBCExpanderPass::Expand_HLSput(llvm::CallInst& call_inst,
     llvm::Function* runtime_func;
 
     if (field_jty == kObject) {
-      runtime_func = irb_.GetRuntime(runtime_support::SetObjectStatic);
+      runtime_func = irb_.GetRuntime(SetObjectStatic);
     } else if (field_jty == kLong || field_jty == kDouble) {
-      runtime_func = irb_.GetRuntime(runtime_support::Set64Static);
+      runtime_func = irb_.GetRuntime(Set64Static);
     } else {
-      runtime_func = irb_.GetRuntime(runtime_support::Set32Static);
+      runtime_func = irb_.GetRuntime(Set32Static);
     }
 
     if (field_jty == kFloat) {
@@ -2029,7 +2089,7 @@ llvm::Value* GBCExpanderPass::Expand_ConstString(llvm::CallInst& call_inst) {
     // String is not resolved yet, resolve it now.
     irb_.SetInsertPoint(block_str_resolve);
 
-    llvm::Function* runtime_func = irb_.GetRuntime(runtime_support::ResolveString);
+    llvm::Function* runtime_func = irb_.GetRuntime(ResolveString);
 
     llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
@@ -2141,7 +2201,7 @@ void GBCExpanderPass::Expand_HLCheckCast(llvm::CallInst& call_inst) {
 
   EmitUpdateDexPC(dex_pc);
 
-  irb_.CreateCall2(irb_.GetRuntime(runtime_support::CheckCast),
+  irb_.CreateCall2(irb_.GetRuntime(CheckCast),
                    type_object_addr, object_type_object_addr);
 
   EmitGuard_ExceptionLandingPad(dex_pc);
@@ -2209,7 +2269,7 @@ llvm::Value* GBCExpanderPass::Expand_InstanceOf(llvm::CallInst& call_inst) {
   // Test: Is the object instantiated from the subclass of the given class?
   irb_.SetInsertPoint(block_test_sub_class);
   llvm::Value* result =
-    irb_.CreateCall2(irb_.GetRuntime(runtime_support::IsAssignable),
+    irb_.CreateCall2(irb_.GetRuntime(IsAssignable),
                      type_object_addr, object_type_object_addr);
   irb_.CreateBr(block_cont);
 
@@ -2232,9 +2292,9 @@ llvm::Value* GBCExpanderPass::Expand_NewInstance(llvm::CallInst& call_inst) {
   if (driver_->CanAccessInstantiableTypeWithoutChecks(dex_compilation_unit_->GetDexMethodIndex(),
                                                       *dex_compilation_unit_->GetDexFile(),
                                                       type_idx)) {
-    runtime_func = irb_.GetRuntime(runtime_support::AllocObject);
+    runtime_func = irb_.GetRuntime(AllocObject);
   } else {
-    runtime_func = irb_.GetRuntime(runtime_support::AllocObjectWithAccessCheck);
+    runtime_func = irb_.GetRuntime(AllocObjectWithAccessCheck);
   }
 
   llvm::Constant* type_index_value = irb_.getInt32(type_idx);
@@ -2373,7 +2433,7 @@ void GBCExpanderPass::Expand_HLFillArrayData(llvm::CallInst& call_inst) {
 
     // NOTE: We will check for the NullPointerException in the runtime.
 
-    llvm::Function* runtime_func = irb_.GetRuntime(runtime_support::FillArrayData);
+    llvm::Function* runtime_func = irb_.GetRuntime(FillArrayData);
 
     llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
@@ -2402,12 +2462,12 @@ llvm::Value* GBCExpanderPass::EmitAllocNewArray(uint32_t dex_pc,
 
   if (is_filled_new_array) {
     runtime_func = skip_access_check ?
-      irb_.GetRuntime(runtime_support::CheckAndAllocArray) :
-      irb_.GetRuntime(runtime_support::CheckAndAllocArrayWithAccessCheck);
+      irb_.GetRuntime(CheckAndAllocArray) :
+      irb_.GetRuntime(CheckAndAllocArrayWithAccessCheck);
   } else {
     runtime_func = skip_access_check ?
-      irb_.GetRuntime(runtime_support::AllocArray) :
-      irb_.GetRuntime(runtime_support::AllocArrayWithAccessCheck);
+      irb_.GetRuntime(AllocArray) :
+      irb_.GetRuntime(AllocArrayWithAccessCheck);
   }
 
   llvm::Constant* type_index_value = irb_.getInt32(type_idx);
@@ -2437,26 +2497,26 @@ EmitCallRuntimeForCalleeMethodObjectAddr(uint32_t callee_method_idx,
 
   switch (invoke_type) {
   case art::kStatic:
-    runtime_func = irb_.GetRuntime(runtime_support::FindStaticMethodWithAccessCheck);
+    runtime_func = irb_.GetRuntime(FindStaticMethodWithAccessCheck);
     break;
 
   case art::kDirect:
-    runtime_func = irb_.GetRuntime(runtime_support::FindDirectMethodWithAccessCheck);
+    runtime_func = irb_.GetRuntime(FindDirectMethodWithAccessCheck);
     break;
 
   case art::kVirtual:
-    runtime_func = irb_.GetRuntime(runtime_support::FindVirtualMethodWithAccessCheck);
+    runtime_func = irb_.GetRuntime(FindVirtualMethodWithAccessCheck);
     break;
 
   case art::kSuper:
-    runtime_func = irb_.GetRuntime(runtime_support::FindSuperMethodWithAccessCheck);
+    runtime_func = irb_.GetRuntime(FindSuperMethodWithAccessCheck);
     break;
 
   case art::kInterface:
     if (is_fast_path) {
-      runtime_func = irb_.GetRuntime(runtime_support::FindInterfaceMethod);
+      runtime_func = irb_.GetRuntime(FindInterfaceMethod);
     } else {
-      runtime_func = irb_.GetRuntime(runtime_support::FindInterfaceMethodWithAccessCheck);
+      runtime_func = irb_.GetRuntime(FindInterfaceMethodWithAccessCheck);
     }
     break;
   }
@@ -2518,7 +2578,7 @@ void GBCExpanderPass::EmitGuard_DivZeroException(uint32_t dex_pc,
 
   irb_.SetInsertPoint(block_exception);
   EmitUpdateDexPC(dex_pc);
-  irb_.CreateCall(irb_.GetRuntime(runtime_support::ThrowDivZeroException));
+  irb_.CreateCall(irb_.GetRuntime(ThrowDivZeroException));
   EmitBranchExceptionLandingPad(dex_pc);
 
   irb_.SetInsertPoint(block_continue);
@@ -2557,7 +2617,7 @@ void GBCExpanderPass::EmitGuard_NullPointerException(uint32_t dex_pc,
 
     irb_.SetInsertPoint(block_exception);
     EmitUpdateDexPC(dex_pc);
-    irb_.CreateCall(irb_.GetRuntime(runtime_support::ThrowNullPointerException),
+    irb_.CreateCall(irb_.GetRuntime(ThrowNullPointerException),
                     irb_.getInt32(dex_pc));
     EmitBranchExceptionLandingPad(dex_pc);
 
@@ -2603,7 +2663,7 @@ GBCExpanderPass::EmitGuard_ArrayIndexOutOfBoundsException(uint32_t dex_pc,
     irb_.SetInsertPoint(block_exception);
 
     EmitUpdateDexPC(dex_pc);
-    irb_.CreateCall2(irb_.GetRuntime(runtime_support::ThrowIndexOutOfBounds), index, array_len);
+    irb_.CreateCall2(irb_.GetRuntime(ThrowIndexOutOfBounds), index, array_len);
     EmitBranchExceptionLandingPad(dex_pc);
 
     irb_.SetInsertPoint(block_continue);
@@ -2720,7 +2780,7 @@ llvm::BasicBlock* GBCExpanderPass::GetLandingPadBasicBlock(uint32_t dex_pc) {
   llvm::Value* ti_offset_value = irb_.getInt32(ti_offset);
 
   llvm::Value* catch_handler_index_value =
-    irb_.CreateCall2(irb_.GetRuntime(runtime_support::FindCatchBlock),
+    irb_.CreateCall2(irb_.GetRuntime(FindCatchBlock),
                      method_object_addr, ti_offset_value);
 
   // Switch instruction (Go to unwind basic block by default)
@@ -2825,14 +2885,14 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
 
     //==- Exception --------------------------------------------------------==//
     case IntrinsicHelper::ThrowException: {
-      return ExpandToRuntime(runtime_support::ThrowException, call_inst);
+      return ExpandToRuntime(ThrowException, call_inst);
     }
     case IntrinsicHelper::HLThrowException: {
       uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
 
       EmitUpdateDexPC(dex_pc);
 
-      irb_.CreateCall(irb_.GetRuntime(runtime_support::ThrowException),
+      irb_.CreateCall(irb_.GetRuntime(ThrowException),
                       call_inst.getArgOperand(0));
 
       EmitGuard_ExceptionLandingPad(dex_pc);
@@ -2845,16 +2905,16 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
       return irb_.Runtime().EmitIsExceptionPending();
     }
     case IntrinsicHelper::FindCatchBlock: {
-      return ExpandToRuntime(runtime_support::FindCatchBlock, call_inst);
+      return ExpandToRuntime(FindCatchBlock, call_inst);
     }
     case IntrinsicHelper::ThrowDivZeroException: {
-      return ExpandToRuntime(runtime_support::ThrowDivZeroException, call_inst);
+      return ExpandToRuntime(ThrowDivZeroException, call_inst);
     }
     case IntrinsicHelper::ThrowNullPointerException: {
-      return ExpandToRuntime(runtime_support::ThrowNullPointerException, call_inst);
+      return ExpandToRuntime(ThrowNullPointerException, call_inst);
     }
     case IntrinsicHelper::ThrowIndexOutOfBounds: {
-      return ExpandToRuntime(runtime_support::ThrowIndexOutOfBounds, call_inst);
+      return ExpandToRuntime(ThrowIndexOutOfBounds, call_inst);
     }
 
     //==- Const String -----------------------------------------------------==//
@@ -2865,7 +2925,7 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
       return Expand_LoadStringFromDexCache(call_inst.getArgOperand(0));
     }
     case IntrinsicHelper::ResolveString: {
-      return ExpandToRuntime(runtime_support::ResolveString, call_inst);
+      return ExpandToRuntime(ResolveString, call_inst);
     }
 
     //==- Const Class ------------------------------------------------------==//
@@ -2873,13 +2933,13 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
       return Expand_ConstClass(call_inst);
     }
     case IntrinsicHelper::InitializeTypeAndVerifyAccess: {
-      return ExpandToRuntime(runtime_support::InitializeTypeAndVerifyAccess, call_inst);
+      return ExpandToRuntime(InitializeTypeAndVerifyAccess, call_inst);
     }
     case IntrinsicHelper::LoadTypeFromDexCache: {
       return Expand_LoadTypeFromDexCache(call_inst.getArgOperand(0));
     }
     case IntrinsicHelper::InitializeType: {
-      return ExpandToRuntime(runtime_support::InitializeType, call_inst);
+      return ExpandToRuntime(InitializeType, call_inst);
     }
 
     //==- Lock -------------------------------------------------------------==//
@@ -2894,22 +2954,22 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
 
     //==- Cast -------------------------------------------------------------==//
     case IntrinsicHelper::CheckCast: {
-      return ExpandToRuntime(runtime_support::CheckCast, call_inst);
+      return ExpandToRuntime(CheckCast, call_inst);
     }
     case IntrinsicHelper::HLCheckCast: {
       Expand_HLCheckCast(call_inst);
       return NULL;
     }
     case IntrinsicHelper::IsAssignable: {
-      return ExpandToRuntime(runtime_support::IsAssignable, call_inst);
+      return ExpandToRuntime(IsAssignable, call_inst);
     }
 
     //==- Alloc ------------------------------------------------------------==//
     case IntrinsicHelper::AllocObject: {
-      return ExpandToRuntime(runtime_support::AllocObject, call_inst);
+      return ExpandToRuntime(AllocObject, call_inst);
     }
     case IntrinsicHelper::AllocObjectWithAccessCheck: {
-      return ExpandToRuntime(runtime_support::AllocObjectWithAccessCheck, call_inst);
+      return ExpandToRuntime(AllocObjectWithAccessCheck, call_inst);
     }
 
     //==- Instance ---------------------------------------------------------==//
@@ -2931,17 +2991,17 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
       return EmitLoadArrayLength(call_inst.getArgOperand(0));
     }
     case IntrinsicHelper::AllocArray: {
-      return ExpandToRuntime(runtime_support::AllocArray, call_inst);
+      return ExpandToRuntime(AllocArray, call_inst);
     }
     case IntrinsicHelper::AllocArrayWithAccessCheck: {
-      return ExpandToRuntime(runtime_support::AllocArrayWithAccessCheck,
+      return ExpandToRuntime(AllocArrayWithAccessCheck,
                              call_inst);
     }
     case IntrinsicHelper::CheckAndAllocArray: {
-      return ExpandToRuntime(runtime_support::CheckAndAllocArray, call_inst);
+      return ExpandToRuntime(CheckAndAllocArray, call_inst);
     }
     case IntrinsicHelper::CheckAndAllocArrayWithAccessCheck: {
-      return ExpandToRuntime(runtime_support::CheckAndAllocArrayWithAccessCheck,
+      return ExpandToRuntime(CheckAndAllocArrayWithAccessCheck,
                              call_inst);
     }
     case IntrinsicHelper::ArrayGet: {
@@ -3029,14 +3089,14 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
       return NULL;
     }
     case IntrinsicHelper::CheckPutArrayElement: {
-      return ExpandToRuntime(runtime_support::CheckPutArrayElement, call_inst);
+      return ExpandToRuntime(CheckPutArrayElement, call_inst);
     }
     case IntrinsicHelper::FilledNewArray: {
       Expand_FilledNewArray(call_inst);
       return NULL;
     }
     case IntrinsicHelper::FillArrayData: {
-      return ExpandToRuntime(runtime_support::FillArrayData, call_inst);
+      return ExpandToRuntime(FillArrayData, call_inst);
     }
     case IntrinsicHelper::HLFillArrayData: {
       Expand_HLFillArrayData(call_inst);
@@ -3052,13 +3112,13 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
     case IntrinsicHelper::InstanceFieldGetByte:
     case IntrinsicHelper::InstanceFieldGetChar:
     case IntrinsicHelper::InstanceFieldGetShort: {
-      return ExpandToRuntime(runtime_support::Get32Instance, call_inst);
+      return ExpandToRuntime(Get32Instance, call_inst);
     }
     case IntrinsicHelper::InstanceFieldGetWide: {
-      return ExpandToRuntime(runtime_support::Get64Instance, call_inst);
+      return ExpandToRuntime(Get64Instance, call_inst);
     }
     case IntrinsicHelper::InstanceFieldGetObject: {
-      return ExpandToRuntime(runtime_support::GetObjectInstance, call_inst);
+      return ExpandToRuntime(GetObjectInstance, call_inst);
     }
     case IntrinsicHelper::InstanceFieldGetFast: {
       return Expand_IGetFast(call_inst.getArgOperand(0),
@@ -3107,13 +3167,13 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
     case IntrinsicHelper::InstanceFieldPutByte:
     case IntrinsicHelper::InstanceFieldPutChar:
     case IntrinsicHelper::InstanceFieldPutShort: {
-      return ExpandToRuntime(runtime_support::Set32Instance, call_inst);
+      return ExpandToRuntime(Set32Instance, call_inst);
     }
     case IntrinsicHelper::InstanceFieldPutWide: {
-      return ExpandToRuntime(runtime_support::Set64Instance, call_inst);
+      return ExpandToRuntime(Set64Instance, call_inst);
     }
     case IntrinsicHelper::InstanceFieldPutObject: {
-      return ExpandToRuntime(runtime_support::SetObjectInstance, call_inst);
+      return ExpandToRuntime(SetObjectInstance, call_inst);
     }
     case IntrinsicHelper::InstanceFieldPutFast: {
       Expand_IPutFast(call_inst.getArgOperand(0),
@@ -3178,13 +3238,13 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
     case IntrinsicHelper::StaticFieldGetByte:
     case IntrinsicHelper::StaticFieldGetChar:
     case IntrinsicHelper::StaticFieldGetShort: {
-      return ExpandToRuntime(runtime_support::Get32Static, call_inst);
+      return ExpandToRuntime(Get32Static, call_inst);
     }
     case IntrinsicHelper::StaticFieldGetWide: {
-      return ExpandToRuntime(runtime_support::Get64Static, call_inst);
+      return ExpandToRuntime(Get64Static, call_inst);
     }
     case IntrinsicHelper::StaticFieldGetObject: {
-      return ExpandToRuntime(runtime_support::GetObjectStatic, call_inst);
+      return ExpandToRuntime(GetObjectStatic, call_inst);
     }
     case IntrinsicHelper::StaticFieldGetFast: {
       return Expand_SGetFast(call_inst.getArgOperand(0),
@@ -3233,13 +3293,13 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
     case IntrinsicHelper::StaticFieldPutByte:
     case IntrinsicHelper::StaticFieldPutChar:
     case IntrinsicHelper::StaticFieldPutShort: {
-      return ExpandToRuntime(runtime_support::Set32Static, call_inst);
+      return ExpandToRuntime(Set32Static, call_inst);
     }
     case IntrinsicHelper::StaticFieldPutWide: {
-      return ExpandToRuntime(runtime_support::Set64Static, call_inst);
+      return ExpandToRuntime(Set64Static, call_inst);
     }
     case IntrinsicHelper::StaticFieldPutObject: {
-      return ExpandToRuntime(runtime_support::SetObjectStatic, call_inst);
+      return ExpandToRuntime(SetObjectStatic, call_inst);
     }
     case IntrinsicHelper::StaticFieldPutFast: {
       Expand_SPutFast(call_inst.getArgOperand(0),
@@ -3304,7 +3364,7 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
       return Expand_LoadClassSSBFromDexCache(call_inst.getArgOperand(0));
     }
     case IntrinsicHelper::InitializeAndLoadClassSSB: {
-      return ExpandToRuntime(runtime_support::InitializeStaticStorage, call_inst);
+      return ExpandToRuntime(InitializeStaticStorage, call_inst);
     }
 
     //==- High-level Array -------------------------------------------------==//
@@ -3449,19 +3509,19 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
 
     //==- Invoke -----------------------------------------------------------==//
     case IntrinsicHelper::FindStaticMethodWithAccessCheck: {
-      return ExpandToRuntime(runtime_support::FindStaticMethodWithAccessCheck, call_inst);
+      return ExpandToRuntime(FindStaticMethodWithAccessCheck, call_inst);
     }
     case IntrinsicHelper::FindDirectMethodWithAccessCheck: {
-      return ExpandToRuntime(runtime_support::FindDirectMethodWithAccessCheck, call_inst);
+      return ExpandToRuntime(FindDirectMethodWithAccessCheck, call_inst);
     }
     case IntrinsicHelper::FindVirtualMethodWithAccessCheck: {
-      return ExpandToRuntime(runtime_support::FindVirtualMethodWithAccessCheck, call_inst);
+      return ExpandToRuntime(FindVirtualMethodWithAccessCheck, call_inst);
     }
     case IntrinsicHelper::FindSuperMethodWithAccessCheck: {
-      return ExpandToRuntime(runtime_support::FindSuperMethodWithAccessCheck, call_inst);
+      return ExpandToRuntime(FindSuperMethodWithAccessCheck, call_inst);
     }
     case IntrinsicHelper::FindInterfaceMethodWithAccessCheck: {
-      return ExpandToRuntime(runtime_support::FindInterfaceMethodWithAccessCheck, call_inst);
+      return ExpandToRuntime(FindInterfaceMethodWithAccessCheck, call_inst);
     }
     case IntrinsicHelper::GetSDCalleeMethodObjAddrFast: {
       return Expand_GetSDCalleeMethodObjAddrFast(call_inst.getArgOperand(0));
@@ -3471,7 +3531,7 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
                 call_inst.getArgOperand(0), call_inst.getArgOperand(1));
     }
     case IntrinsicHelper::GetInterfaceCalleeMethodObjAddrFast: {
-      return ExpandToRuntime(runtime_support::FindInterfaceMethod, call_inst);
+      return ExpandToRuntime(FindInterfaceMethod, call_inst);
     }
     case IntrinsicHelper::InvokeRetVoid:
     case IntrinsicHelper::InvokeRetBoolean:
@@ -3500,16 +3560,16 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
       return Expand_DivRem(call_inst, /* is_div */false, kLong);
     }
     case IntrinsicHelper::D2L: {
-      return ExpandToRuntime(runtime_support::art_d2l, call_inst);
+      return ExpandToRuntime(art_d2l, call_inst);
     }
     case IntrinsicHelper::D2I: {
-      return ExpandToRuntime(runtime_support::art_d2i, call_inst);
+      return ExpandToRuntime(art_d2i, call_inst);
     }
     case IntrinsicHelper::F2L: {
-      return ExpandToRuntime(runtime_support::art_f2l, call_inst);
+      return ExpandToRuntime(art_f2l, call_inst);
     }
     case IntrinsicHelper::F2I: {
-      return ExpandToRuntime(runtime_support::art_f2i, call_inst);
+      return ExpandToRuntime(art_f2i, call_inst);
     }
 
     //==- High-level Static ------------------------------------------------==//

@@ -35,7 +35,30 @@
 #include "runtime_support.h"
 #include "sirt_ref.h"
 
-using namespace art::mirror;
+using ::art::mirror::AbstractMethod;
+using ::art::mirror::AbstractMethodClass;
+using ::art::mirror::CharArray;
+using ::art::mirror::Class;
+using ::art::mirror::ClassClass;
+using ::art::mirror::ClassLoader;
+using ::art::mirror::Constructor;
+using ::art::mirror::DexCache;
+using ::art::mirror::DoubleArray;
+using ::art::mirror::Field;
+using ::art::mirror::FieldClass;
+using ::art::mirror::IfTable;
+using ::art::mirror::IntArray;
+using ::art::mirror::LongArray;
+using ::art::mirror::Method;
+using ::art::mirror::Object;
+using ::art::mirror::ObjectArray;
+using ::art::mirror::Proxy;
+using ::art::mirror::ShortArray;
+using ::art::mirror::StackTraceElement;
+using ::art::mirror::StaticStorageBase;
+using ::art::mirror::String;
+using ::art::mirror::StringClass;
+using ::art::mirror::Throwable;
 
 namespace art {
 

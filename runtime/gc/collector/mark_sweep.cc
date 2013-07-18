@@ -50,7 +50,10 @@
 #include "thread_list.h"
 #include "verifier/method_verifier.h"
 
-using namespace art::mirror;
+using ::art::mirror::Class;
+using ::art::mirror::Field;
+using ::art::mirror::Object;
+using ::art::mirror::ObjectArray;
 
 namespace art {
 namespace gc {
