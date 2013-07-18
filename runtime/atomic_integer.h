@@ -58,11 +58,11 @@ class AtomicInteger {
     return android_atomic_and(-value, &value_);
   }
 
-  int32_t operator ++ () {
+  int32_t operator++ () {
     return android_atomic_inc(&value_) + 1;
   }
 
-  int32_t operator -- () {
+  int32_t operator-- () {
     return android_atomic_dec(&value_) - 1;
   }
 

@@ -258,11 +258,11 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb) {
         }
       }
 
-      for (int i=0; ssa_rep->fp_use && i< ssa_rep->num_uses; i++) {
+      for (int i = 0; ssa_rep->fp_use && i< ssa_rep->num_uses; i++) {
         if (ssa_rep->fp_use[i])
           changed |= SetFp(ssa_rep->uses[i], true);
         }
-      for (int i=0; ssa_rep->fp_def && i< ssa_rep->num_defs; i++) {
+      for (int i = 0; ssa_rep->fp_def && i< ssa_rep->num_defs; i++) {
         if (ssa_rep->fp_def[i])
           changed |= SetFp(ssa_rep->defs[i], true);
         }
@@ -373,13 +373,10 @@ static const RegLocation fresh_loc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
  * type inference here.
  */
 void MIRGraph::BuildRegLocations() {
-  int i;
-  RegLocation* loc;
-
   /* Allocate the location map */
-  loc = static_cast<RegLocation*>(arena_->NewMem(GetNumSSARegs() * sizeof(*loc), true,
-                                                 ArenaAllocator::kAllocRegAlloc));
-  for (i=0; i < GetNumSSARegs(); i++) {
+  RegLocation* loc = static_cast<RegLocation*>(arena_->NewMem(GetNumSSARegs() * sizeof(*loc), true,
+                                                              ArenaAllocator::kAllocRegAlloc));
+  for (int i = 0; i < GetNumSSARegs(); i++) {
     loc[i] = fresh_loc;
     loc[i].s_reg_low = i;
     loc[i].is_const = is_constant_v_->IsBitSet(i);
@@ -388,7 +385,7 @@ void MIRGraph::BuildRegLocations() {
   /* Patch up the locations for Method* and the compiler temps */
   loc[method_sreg_].location = kLocCompilerTemp;
   loc[method_sreg_].defined = true;
-  for (i = 0; i < cu_->num_compiler_temps; i++) {
+  for (int i = 0; i < cu_->num_compiler_temps; i++) {
     CompilerTemp* ct = compiler_temps_.Get(i);
     loc[ct->s_reg].location = kLocCompilerTemp;
     loc[ct->s_reg].defined = true;
@@ -458,7 +455,7 @@ void MIRGraph::BuildRegLocations() {
    * base Dalvik virtual register.  Once we add a better register
    * allocator, remove this remapping.
    */
-  for (i=0; i < GetNumSSARegs(); i++) {
+  for (int i = 0; i < GetNumSSARegs(); i++) {
     if (reg_location_[i].location != kLocCompilerTemp) {
       int orig_sreg = reg_location_[i].s_reg_low;
       reg_location_[i].orig_sreg = orig_sreg;

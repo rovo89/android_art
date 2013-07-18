@@ -1022,19 +1022,19 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb) {
       if (df_attributes & DF_UA) {
         num_uses++;
         if (df_attributes & DF_A_WIDE) {
-          num_uses ++;
+          num_uses++;
         }
       }
       if (df_attributes & DF_UB) {
         num_uses++;
         if (df_attributes & DF_B_WIDE) {
-          num_uses ++;
+          num_uses++;
         }
       }
       if (df_attributes & DF_UC) {
         num_uses++;
         if (df_attributes & DF_C_WIDE) {
-          num_uses ++;
+          num_uses++;
         }
       }
     }

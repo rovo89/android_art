@@ -146,7 +146,7 @@ const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
                  kFmtUnused, -1, -1, kFmtUnused, -1, -1, kFmtBitBlt, 25, 21,
                  kFmtBitBlt, 20, 16, IS_QUAD_OP | REG_DEF01 | REG_USE23,
                  "div", "!2r,!3r", 4),
-#if __mips_isa_rev>=2
+#if __mips_isa_rev >= 2
     ENCODING_MAP(kMipsExt, 0x7c000000,
                  kFmtBitBlt, 20, 16, kFmtBitBlt, 25, 21, kFmtBitBlt, 10, 6,
                  kFmtBitBlt, 15, 11, IS_QUAD_OP | REG_DEF0 | REG_USE1,
@@ -240,7 +240,7 @@ const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
                  kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0, kFmtBitBlt, 25, 21,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_USE02 | IS_STORE,
                  "sb", "!0r,!1d(!2r)", 4),
-#if __mips_isa_rev>=2
+#if __mips_isa_rev >= 2
     ENCODING_MAP(kMipsSeb, 0x7c000420,
                  kFmtBitBlt, 15, 11, kFmtBitBlt, 20, 16, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
