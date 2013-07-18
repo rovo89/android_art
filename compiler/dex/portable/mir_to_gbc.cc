@@ -1500,7 +1500,7 @@ bool MirConverter::ConvertMIRNode(MIR* mir, BasicBlock* bb,
       res = true;
   }
   return res;
-}
+}  // NOLINT(readability/fn_size)
 
 void MirConverter::SetDexOffset(int32_t offset) {
   current_dalvik_offset_ = offset;

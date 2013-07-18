@@ -645,6 +645,11 @@ class _FunctionState(object):
       filename: The name of the current file.
       linenum: The number of the line to check.
     """
+    # BEGIN android-added
+    if not self.in_a_function:
+      return
+    # END android-added
+
     if Match(r'T(EST|est)', self.current_function):
       base_trigger = self._TEST_TRIGGER
     else:

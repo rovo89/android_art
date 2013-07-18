@@ -655,7 +655,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     default:
       LOG(FATAL) << "Unexpected opcode: " << opcode;
   }
-}
+}  // NOLINT(readability/fn_size)
 
 // Process extended MIR instructions
 void Mir2Lir::HandleExtendedMethodMIR(BasicBlock* bb, MIR* mir) {

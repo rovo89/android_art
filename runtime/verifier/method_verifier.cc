@@ -2696,7 +2696,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   DCHECK(insn_flags_[*start_guess].IsOpcode());
 
   return true;
-}
+} // NOLINT(readability/fn_size)
 
 const RegType& MethodVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
   const char* descriptor = dex_file_->StringByTypeIdx(class_idx);

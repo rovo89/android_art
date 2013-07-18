@@ -25,8 +25,7 @@
 namespace art {
 namespace x86 {
 
-DisassemblerX86::DisassemblerX86() {
-}
+DisassemblerX86::DisassemblerX86() {}
 
 size_t DisassemblerX86::Dump(std::ostream& os, const uint8_t* begin) {
   return DumpInstruction(os, begin);
@@ -745,7 +744,7 @@ DISASSEMBLER_ENTRY(cmp,
                      prefixed_opcode.str().c_str())
      << args.str() << '\n';
   return instr - begin_instr;
-}
+} // NOLINT(readability/fn_size)
 
 }  // namespace x86
 }  // namespace art

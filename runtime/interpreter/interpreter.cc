@@ -2964,7 +2964,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
         UnexpectedOpcode(inst, mh);
     }
   }
-}
+}  // NOLINT(readability/fn_size)
 
 static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
                       ShadowFrame& shadow_frame, JValue result_register)

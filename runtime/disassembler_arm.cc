@@ -1034,7 +1034,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
 
   os << StringPrintf("%p: %08x\t%-7s ", instr_ptr, instr, opcode.str().c_str()) << args.str() << '\n';
   return 4;
-}
+}  // NOLINT(readability/fn_size)
 
 size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) {
   uint16_t instr = ReadU16(instr_ptr);
