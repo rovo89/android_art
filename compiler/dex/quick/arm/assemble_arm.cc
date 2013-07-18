@@ -1007,7 +1007,6 @@ AssemblerStatus ArmMir2Lir::AssembleInstructions(uintptr_t start_addr) {
   AssemblerStatus res = kSuccess;  // Assume success
 
   for (lir = first_lir_insn_; lir != NULL; lir = NEXT_LIR(lir)) {
-
     if (lir->opcode < 0) {
       /* 1 means padding is needed */
       if ((lir->opcode == kPseudoPseudoAlign4) && (lir->operands[0] == 1)) {

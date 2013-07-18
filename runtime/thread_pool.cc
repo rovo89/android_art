@@ -180,10 +180,7 @@ size_t ThreadPool::GetTaskCount(Thread* self) {
 
 WorkStealingWorker::WorkStealingWorker(ThreadPool* thread_pool, const std::string& name,
                                        size_t stack_size)
-    : ThreadPoolWorker(thread_pool, name, stack_size),
-      task_(NULL) {
-
-}
+    : ThreadPoolWorker(thread_pool, name, stack_size), task_(NULL) {}
 
 void WorkStealingWorker::Run() {
   Thread* self = Thread::Current();
@@ -254,9 +251,7 @@ void WorkStealingWorker::Run() {
   }
 }
 
-WorkStealingWorker::~WorkStealingWorker() {
-
-}
+WorkStealingWorker::~WorkStealingWorker() {}
 
 WorkStealingThreadPool::WorkStealingThreadPool(size_t num_threads)
     : ThreadPool(0),
@@ -288,8 +283,6 @@ WorkStealingTask* WorkStealingThreadPool::FindTaskToStealFrom(Thread* self) {
   return NULL;
 }
 
-WorkStealingThreadPool::~WorkStealingThreadPool() {
-
-}
+WorkStealingThreadPool::~WorkStealingThreadPool() {}
 
 }  // namespace art

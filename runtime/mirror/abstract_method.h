@@ -497,13 +497,9 @@ class MANAGED AbstractMethod : public Object {
   DISALLOW_IMPLICIT_CONSTRUCTORS(AbstractMethod);
 };
 
-class MANAGED Method : public AbstractMethod {
+class MANAGED Method : public AbstractMethod {};
 
-};
-
-class MANAGED Constructor : public AbstractMethod {
-
-};
+class MANAGED Constructor : public AbstractMethod {};
 
 class MANAGED AbstractMethodClass : public Class {
  private:

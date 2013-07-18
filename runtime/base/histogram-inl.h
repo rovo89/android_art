@@ -212,7 +212,6 @@ inline double Histogram<Value>::Percentile(double per) const {
   DCHECK_GT(cumulative_perc_.size(), 0ull);
   size_t idx, upper_idx = 0, lower_idx = 0;
   for (idx = 0; idx < cumulative_perc_.size(); idx++) {
-
     if (per <= cumulative_perc_[idx]) {
       upper_idx = idx;
       break;

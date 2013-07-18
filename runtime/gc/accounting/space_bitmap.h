@@ -174,6 +174,7 @@ class SpaceBitmap {
     const size_t index = OffsetToIndex(offset);
     return &bitmap_begin_[index];
   }
+
  private:
   // TODO: heap_end_ is initialized so that the heap bitmap is empty, this doesn't require the -1,
   // however, we document that this is expected on heap_end_

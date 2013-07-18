@@ -30,7 +30,6 @@ namespace art {
 // Designed to be simple and used with timing logger in art.
 
 template <class Value> class Histogram {
-
   const double kAdjust;
   const Value kBucketWidth;
   const size_t kInitialBucketCount;

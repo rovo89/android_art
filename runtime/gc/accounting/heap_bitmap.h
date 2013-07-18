@@ -106,7 +106,6 @@ class HeapBitmap {
   explicit HeapBitmap(Heap* heap) : heap_(heap) {}
 
  private:
-
   const Heap* const heap_;
 
   void AddContinuousSpaceBitmap(SpaceBitmap* bitmap);

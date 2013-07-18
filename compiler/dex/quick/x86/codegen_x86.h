@@ -24,7 +24,6 @@ namespace art {
 
 class X86Mir2Lir : public Mir2Lir {
   public:
-
     X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
 
     // Required for target - codegen helpers.

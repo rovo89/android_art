@@ -40,7 +40,6 @@ inline void HeapBitmap::Visit(const Visitor& visitor) {
     SpaceSetMap* set = *it;
     set->Visit(visitor);
   }
-
 }
 
 }  // namespace accounting

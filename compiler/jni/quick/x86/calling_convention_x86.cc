@@ -159,7 +159,6 @@ size_t X86JniCallingConvention::NumberOfOutgoingStackArgs() {
   // count JNIEnv* and return pc (pushed after Method*)
   size_t total_args = static_args + param_args + 2;
   return total_args;
-
 }
 
 }  // namespace x86

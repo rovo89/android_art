@@ -166,7 +166,6 @@ void LlvmCompilationUnit::DumpBitcodeToString(std::string& str_buffer) {
 }
 
 bool LlvmCompilationUnit::Materialize() {
-
   const bool kDumpBitcode = false;
   if (kDumpBitcode) {
     // Dump the bitcode for debugging

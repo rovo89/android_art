@@ -1402,7 +1402,6 @@ class ParallelCompilationManager {
   }
 
  private:
-
   class ForAllClosure : public Task {
    public:
     ForAllClosure(ParallelCompilationManager* manager, size_t begin, size_t end, Callback* callback,
@@ -1423,6 +1422,7 @@ class ParallelCompilationManager {
     virtual void Finalize() {
       delete this;
     }
+
    private:
     const ParallelCompilationManager* const manager_;
     const size_t begin_;

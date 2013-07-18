@@ -554,7 +554,6 @@ class StackVisitor {
   static void DescribeStack(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
-
   instrumentation::InstrumentationStackFrame GetInstrumentationStackFrame(uint32_t depth) const;
 
   void SanityCheckFrame() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -567,6 +566,7 @@ class StackVisitor {
   size_t num_frames_;
   // Depth of the frame we're currently at.
   size_t cur_depth_;
+
  protected:
   Context* const context_;
 };
@@ -638,6 +638,7 @@ class VmapTable {
     spill_shifts--;  // wind back one as we want the last match
     return spill_shifts;
   }
+
  private:
   const uint16_t* table_;
 };

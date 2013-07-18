@@ -78,6 +78,6 @@ class AtomicInteger {
   volatile int32_t value_;
 };
 
-}
+}  // namespace art
 
 #endif  // ART_RUNTIME_ATOMIC_INTEGER_H_

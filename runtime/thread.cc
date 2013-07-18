@@ -2067,9 +2067,7 @@ class ReferenceMapVisitor : public StackVisitor {
 
 class RootCallbackVisitor {
  public:
-  RootCallbackVisitor(RootVisitor* visitor, void* arg) : visitor_(visitor), arg_(arg) {
-
-  }
+  RootCallbackVisitor(RootVisitor* visitor, void* arg) : visitor_(visitor), arg_(arg) {}
 
   void operator()(const mirror::Object* obj, size_t, const StackVisitor*) const {
     visitor_(obj, arg_);

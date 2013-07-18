@@ -307,7 +307,6 @@ void ElfWriterMclinker::AddRuntimeInputs(const std::string& android_root, bool i
   // TODO: ownership of libm_lib_input?
   mcld::Input* libm_lib_input_input = ir_builder_->ReadInput(libm_lib, libm_lib);
   CHECK(libm_lib_input_input != NULL);
-
 }
 #endif
 

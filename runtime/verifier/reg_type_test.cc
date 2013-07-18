@@ -414,7 +414,6 @@ TEST_F(RegTypeReferenceTest, Dump) {
   EXPECT_EQ(expected, unresolved_merged.Dump());
 }
 
-
 TEST_F(RegTypeReferenceTest, JavalangString) {
   // Add a class to the cache then look for the same class and make sure it is  a
   // Hit the second time. Then check for the same effect when using
@@ -433,8 +432,8 @@ TEST_F(RegTypeReferenceTest, JavalangString) {
   const RegType& ref_type_unintialized = cache.Uninitialized(ref_type, 0110ull);
   EXPECT_TRUE(ref_type_unintialized.IsUninitializedReference());
   EXPECT_FALSE(ref_type_unintialized.IsUnresolvedAndUninitializedReference());
-
 }
+
 TEST_F(RegTypeReferenceTest, JavalangObject) {
   // Add a class to the cache then look for the same class and make sure it is  a
   // Hit the second time. Then I am checking for the same effect when using
@@ -474,7 +473,6 @@ TEST_F(RegTypeReferenceTest, Merging) {
 
 
 TEST_F(RegTypeTest, ConstPrecision) {
-
   // Tests creating primitive types types.
   ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache_new(true);

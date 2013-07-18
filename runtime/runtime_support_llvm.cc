@@ -50,7 +50,6 @@
 using namespace art;
 
 extern "C" {
-
 class ShadowFrameCopyVisitor : public StackVisitor {
  public:
   explicit ShadowFrameCopyVisitor(Thread* self) : StackVisitor(self, NULL), prev_frame_(NULL),
@@ -844,5 +843,4 @@ void art_portable_proxy_invoke_handler_from_code(mirror::AbstractMethod* proxy_m
 void art_portable_constructor_barrier() {
   LOG(FATAL) << "Implemented by IRBuilder.";
 }
-
 }  // extern "C"

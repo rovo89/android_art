@@ -320,13 +320,11 @@ bool Class::IsFieldClass() const {
   Class* java_lang_Class = GetClass();
   Class* java_lang_reflect_Field = java_lang_Class->GetInstanceField(0)->GetClass();
   return this == java_lang_reflect_Field;
-
 }
 
 bool Class::IsMethodClass() const {
   return (this == AbstractMethod::GetMethodClass()) ||
-      (this == AbstractMethod::GetConstructorClass());
-
+          (this == AbstractMethod::GetConstructorClass());
 }
 
 void Class::SetClassLoader(ClassLoader* new_class_loader) {

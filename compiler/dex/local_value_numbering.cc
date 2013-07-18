@@ -509,7 +509,6 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
         AdvanceMemoryVersion(NO_VALUE, field_ref);
       }
       break;
-
   }
   return res;
 }

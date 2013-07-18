@@ -60,7 +60,6 @@ class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
   size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs);
 
  protected:
-
   explicit LargeObjectSpace(const std::string& name);
 
   // Approximate number of bytes which have been allocated into the space.
@@ -165,6 +164,7 @@ class FreeListSpace : public LargeObjectSpace {
       DCHECK(m_previous == NULL ||
             (m_previous != NULL && m_previous + m_previous->GetSize() / kAlignment == this));
     }
+
    private:
     size_t m_size;
     Chunk* m_previous;

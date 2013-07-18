@@ -254,7 +254,6 @@ void RegisterLine::CopyResultRegister2(uint32_t vdst) {
     SetRegisterTypeWide(vdst, type_l, type_h);  // also sets the high
     result_[0] = verifier_->GetRegTypeCache()->Undefined().GetId();
     result_[1] = verifier_->GetRegTypeCache()->Undefined().GetId();
-
   }
 }
 

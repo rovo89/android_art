@@ -41,7 +41,6 @@ namespace art {
    */
   class DataflowIterator {
     public:
-
       virtual ~DataflowIterator() {}
 
       // Return the next BasicBlock* to visit.
@@ -81,7 +80,6 @@ namespace art {
       GrowableArray<int>* block_id_list_;
       int idx_;
       bool changed_;
-
   }; // DataflowIterator
 
   class ReachableNodesIterator : public DataflowIterator {
@@ -106,7 +104,6 @@ namespace art {
 
   class PostOrderDfsIterator : public DataflowIterator {
     public:
-
       PostOrderDfsIterator(MIRGraph* mir_graph, bool is_iterative)
           : DataflowIterator(mir_graph, is_iterative, 0,
                              mir_graph->GetNumReachableBlocks(), false) {

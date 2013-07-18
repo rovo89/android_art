@@ -30,7 +30,6 @@ namespace art {
  */
 class ArenaBitVector {
   public:
-
     class Iterator {
       public:
         explicit Iterator(ArenaBitVector* bit_vector)

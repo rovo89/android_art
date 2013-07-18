@@ -309,6 +309,7 @@ class ConflictType : public RegType {
 
   // Destroy the singleton instance.
   static void Destroy();
+
  private:
   ConflictType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
@@ -338,6 +339,7 @@ class UndefinedType : public RegType {
 
   // Destroy the singleton instance.
   static void Destroy();
+
  private:
   UndefinedType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
@@ -875,6 +877,7 @@ class UnresolvedSuperClass : public UnresolvedType {
   }
 
   std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  private:
   void CheckInvariants() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -909,6 +912,7 @@ class UnresolvedMergedType : public UnresolvedType {
   }
 
   std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  private:
   void CheckInvariants() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

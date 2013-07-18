@@ -219,7 +219,6 @@ class IRBuilder : public LLVMIRBuilder {
   ::llvm::Value* CreatePtrDisp(::llvm::Value* base,
                              ::llvm::Value* offset,
                              ::llvm::PointerType* ret_ty) {
-
     ::llvm::Value* base_int = CreatePtrToInt(base, getPtrEquivIntTy());
     ::llvm::Value* result_int = CreateAdd(base_int, offset);
     ::llvm::Value* result = CreateIntToPtr(result_int, ret_ty);
@@ -232,7 +231,6 @@ class IRBuilder : public LLVMIRBuilder {
                              ::llvm::Value* count,
                              ::llvm::Value* offset,
                              ::llvm::PointerType* ret_ty) {
-
     ::llvm::Value* block_offset = CreateMul(bs, count);
     ::llvm::Value* total_offset = CreateAdd(block_offset, offset);
 

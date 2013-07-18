@@ -804,7 +804,6 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks) {
 
       if (bb->successor_block_list.block_list_type == kPackedSwitch ||
           bb->successor_block_list.block_list_type == kSparseSwitch) {
-
         GrowableArray<SuccessorBlockInfo*>::Iterator iter(bb->successor_block_list.blocks);
 
         succ_id = 0;

@@ -280,4 +280,4 @@ extern "C" JNIEXPORT jint JNICALL Java_ReferenceMap_refmap(JNIEnv*, jobject, jin
   return count + 1;
 }
 
-}
+}  // namespace art

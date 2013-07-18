@@ -105,9 +105,7 @@ class TreeTask : public Task {
   TreeTask(ThreadPool* const thread_pool, AtomicInteger* count, int depth)
       : thread_pool_(thread_pool),
         count_(count),
-        depth_(depth) {
-
-  }
+        depth_(depth) {}
 
   void Run(Thread* self) {
     if (depth_ > 1) {

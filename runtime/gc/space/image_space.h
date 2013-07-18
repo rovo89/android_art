@@ -78,7 +78,6 @@ class ImageSpace : public MemMapSpace {
   void Dump(std::ostream& os) const;
 
  private:
-
   // Tries to initialize an ImageSpace from the given image path,
   // returning NULL on error.
   //

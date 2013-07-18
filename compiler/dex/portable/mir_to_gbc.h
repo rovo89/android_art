@@ -41,7 +41,6 @@ Backend* PortableCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_gr
                                llvm::LlvmCompilationUnit* const llvm_compilation_unit);
 
 class MirConverter : public Backend {
-
   public:
     // TODO: flesh out and integrate into new world order.
     MirConverter(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena,
