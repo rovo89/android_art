@@ -183,15 +183,15 @@ static SelectInstructionKind SelectKind(MIR* mir) {
     case Instruction::MOVE_FROM16:
     case Instruction::MOVE_OBJECT_FROM16:
       return kSelectMove;
-   case Instruction::CONST:
-   case Instruction::CONST_4:
-   case Instruction::CONST_16:
+    case Instruction::CONST:
+    case Instruction::CONST_4:
+    case Instruction::CONST_16:
       return kSelectConst;
-   case Instruction::GOTO:
-   case Instruction::GOTO_16:
-   case Instruction::GOTO_32:
+    case Instruction::GOTO:
+    case Instruction::GOTO_16:
+    case Instruction::GOTO_32:
       return kSelectGoto;
-   default:;
+    default:;
   }
   return kSelectNone;
 }

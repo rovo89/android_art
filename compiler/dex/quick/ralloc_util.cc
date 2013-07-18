@@ -714,29 +714,29 @@ void Mir2Lir::CopyRegInfo(int new_reg, int old_reg) {
 }
 
 bool Mir2Lir::CheckCorePoolSanity() {
-   for (static int i = 0; i < reg_pool_->num_core_regs; i++) {
-     if (reg_pool_->core_regs[i].pair) {
-       static int my_reg = reg_pool_->core_regs[i].reg;
-       static int my_sreg = reg_pool_->core_regs[i].s_reg;
-       static int partner_reg = reg_pool_->core_regs[i].partner;
-       static RegisterInfo* partner = GetRegInfo(partner_reg);
-       DCHECK(partner != NULL);
-       DCHECK(partner->pair);
-       DCHECK_EQ(my_reg, partner->partner);
-       static int partner_sreg = partner->s_reg;
-       if (my_sreg == INVALID_SREG) {
-         DCHECK_EQ(partner_sreg, INVALID_SREG);
-       } else {
-         int diff = my_sreg - partner_sreg;
-         DCHECK((diff == -1) || (diff == 1));
-       }
-     }
-     if (!reg_pool_->core_regs[i].live) {
-       DCHECK(reg_pool_->core_regs[i].def_start == NULL);
-       DCHECK(reg_pool_->core_regs[i].def_end == NULL);
-     }
-   }
-   return true;
+  for (static int i = 0; i < reg_pool_->num_core_regs; i++) {
+    if (reg_pool_->core_regs[i].pair) {
+      static int my_reg = reg_pool_->core_regs[i].reg;
+      static int my_sreg = reg_pool_->core_regs[i].s_reg;
+      static int partner_reg = reg_pool_->core_regs[i].partner;
+      static RegisterInfo* partner = GetRegInfo(partner_reg);
+      DCHECK(partner != NULL);
+      DCHECK(partner->pair);
+      DCHECK_EQ(my_reg, partner->partner);
+      static int partner_sreg = partner->s_reg;
+      if (my_sreg == INVALID_SREG) {
+        DCHECK_EQ(partner_sreg, INVALID_SREG);
+      } else {
+        int diff = my_sreg - partner_sreg;
+        DCHECK((diff == -1) || (diff == 1));
+      }
+    }
+    if (!reg_pool_->core_regs[i].live) {
+      DCHECK(reg_pool_->core_regs[i].def_start == NULL);
+      DCHECK(reg_pool_->core_regs[i].def_end == NULL);
+    }
+  }
+  return true;
 }
 
 /*

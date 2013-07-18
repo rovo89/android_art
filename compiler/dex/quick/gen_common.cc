@@ -180,24 +180,24 @@ void Mir2Lir::GenIntToLong(RegLocation rl_dest, RegLocation rl_src) {
 
 void Mir2Lir::GenIntNarrowing(Instruction::Code opcode, RegLocation rl_dest,
                               RegLocation rl_src) {
-   rl_src = LoadValue(rl_src, kCoreReg);
-   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-   OpKind op = kOpInvalid;
-   switch (opcode) {
-     case Instruction::INT_TO_BYTE:
-       op = kOp2Byte;
+  rl_src = LoadValue(rl_src, kCoreReg);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  OpKind op = kOpInvalid;
+  switch (opcode) {
+    case Instruction::INT_TO_BYTE:
+      op = kOp2Byte;
+      break;
+    case Instruction::INT_TO_SHORT:
+       op = kOp2Short;
        break;
-     case Instruction::INT_TO_SHORT:
-        op = kOp2Short;
-        break;
-     case Instruction::INT_TO_CHAR:
-        op = kOp2Char;
-        break;
-     default:
-       LOG(ERROR) << "Bad int conversion type";
-   }
-   OpRegReg(op, rl_result.low_reg, rl_src.low_reg);
-   StoreValue(rl_dest, rl_result);
+    case Instruction::INT_TO_CHAR:
+       op = kOp2Char;
+       break;
+    default:
+      LOG(ERROR) << "Bad int conversion type";
+  }
+  OpRegReg(op, rl_result.low_reg, rl_src.low_reg);
+  StoreValue(rl_dest, rl_result);
 }
 
 /*

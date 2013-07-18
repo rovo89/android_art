@@ -118,32 +118,32 @@ static int LeadingZeros(uint32_t val) {
  * immediate.  If not, return -1.  If so, return i:imm3:a:bcdefgh form.
  */
 int ArmMir2Lir::ModifiedImmediate(uint32_t value) {
-   int z_leading;
-   int z_trailing;
-   uint32_t b0 = value & 0xff;
+  int z_leading;
+  int z_trailing;
+  uint32_t b0 = value & 0xff;
 
-   /* Note: case of value==0 must use 0:000:0:0000000 encoding */
-   if (value <= 0xFF)
-     return b0;  // 0:000:a:bcdefgh
-   if (value == ((b0 << 16) | b0))
-     return (0x1 << 8) | b0; /* 0:001:a:bcdefgh */
-   if (value == ((b0 << 24) | (b0 << 16) | (b0 << 8) | b0))
-     return (0x3 << 8) | b0; /* 0:011:a:bcdefgh */
-   b0 = (value >> 8) & 0xff;
-   if (value == ((b0 << 24) | (b0 << 8)))
-     return (0x2 << 8) | b0; /* 0:010:a:bcdefgh */
-   /* Can we do it with rotation? */
-   z_leading = LeadingZeros(value);
-   z_trailing = 32 - LeadingZeros(~value & (value - 1));
-   /* A run of eight or fewer active bits? */
-   if ((z_leading + z_trailing) < 24)
-     return -1;  /* No - bail */
-   /* left-justify the constant, discarding msb (known to be 1) */
-   value <<= z_leading + 1;
-   /* Create bcdefgh */
-   value >>= 25;
-   /* Put it all together */
-   return value | ((0x8 + z_leading) << 7); /* [01000..11111]:bcdefgh */
+  /* Note: case of value==0 must use 0:000:0:0000000 encoding */
+  if (value <= 0xFF)
+    return b0;  // 0:000:a:bcdefgh
+  if (value == ((b0 << 16) | b0))
+    return (0x1 << 8) | b0; /* 0:001:a:bcdefgh */
+  if (value == ((b0 << 24) | (b0 << 16) | (b0 << 8) | b0))
+    return (0x3 << 8) | b0; /* 0:011:a:bcdefgh */
+  b0 = (value >> 8) & 0xff;
+  if (value == ((b0 << 24) | (b0 << 8)))
+    return (0x2 << 8) | b0; /* 0:010:a:bcdefgh */
+  /* Can we do it with rotation? */
+  z_leading = LeadingZeros(value);
+  z_trailing = 32 - LeadingZeros(~value & (value - 1));
+  /* A run of eight or fewer active bits? */
+  if ((z_leading + z_trailing) < 24)
+    return -1;  /* No - bail */
+  /* left-justify the constant, discarding msb (known to be 1) */
+  value <<= z_leading + 1;
+  /* Create bcdefgh */
+  value >>= 25;
+  /* Put it all together */
+  return value | ((0x8 + z_leading) << 7); /* [01000..11111]:bcdefgh */
 }
 
 bool ArmMir2Lir::InexpensiveConstantInt(int32_t value) {

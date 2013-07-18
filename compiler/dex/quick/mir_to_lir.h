@@ -208,14 +208,14 @@ class Mir2Lir : public Backend {
       LIR *def_end;               // Ending inst in last def sequence.
     };
 
-   struct RegisterPool {
-      int num_core_regs;
-      RegisterInfo *core_regs;
-      int next_core_reg;
-      int num_fp_regs;
-      RegisterInfo *FPRegs;
-      int next_fp_reg;
-    };
+    struct RegisterPool {
+       int num_core_regs;
+       RegisterInfo *core_regs;
+       int next_core_reg;
+       int num_fp_regs;
+       RegisterInfo *FPRegs;
+       int next_fp_reg;
+     };
 
     struct PromotionMap {
       RegLocationType core_location:3;

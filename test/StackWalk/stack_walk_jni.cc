@@ -31,8 +31,8 @@
 namespace art {
 
 #define REG(mh, reg_bitmap, reg) \
-  (((reg) < mh.GetCodeItem()->registers_size_) && \
-   ((*((reg_bitmap) + (reg)/8) >> ((reg) % 8) ) & 0x01))
+    (((reg) < mh.GetCodeItem()->registers_size_) && \
+     ((*((reg_bitmap) + (reg)/8) >> ((reg) % 8) ) & 0x01))
 
 #define CHECK_REGS(...) if (!IsShadowFrame()) { \
     int t[] = {__VA_ARGS__}; \

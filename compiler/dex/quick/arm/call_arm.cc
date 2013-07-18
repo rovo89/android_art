@@ -217,63 +217,63 @@ MIR* ArmMir2Lir::SpecialIdentity(MIR* mir) {
  */
 void ArmMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
                                 SpecialCaseHandler special_case) {
-   current_dalvik_offset_ = mir->offset;
-   MIR* next_mir = NULL;
-   switch (special_case) {
-     case kNullMethod:
-       DCHECK(mir->dalvikInsn.opcode == Instruction::RETURN_VOID);
-       next_mir = mir;
-       break;
-     case kConstFunction:
-       ArmMir2Lir::GenPrintLabel(mir);
-       LoadConstant(rARM_RET0, mir->dalvikInsn.vB);
-       next_mir = GetNextMir(&bb, mir);
-       break;
-     case kIGet:
-       next_mir = SpecialIGet(&bb, mir, kWord, false, false);
-       break;
-     case kIGetBoolean:
-     case kIGetByte:
-       next_mir = SpecialIGet(&bb, mir, kUnsignedByte, false, false);
-       break;
-     case kIGetObject:
-       next_mir = SpecialIGet(&bb, mir, kWord, false, true);
-       break;
-     case kIGetChar:
-       next_mir = SpecialIGet(&bb, mir, kUnsignedHalf, false, false);
-       break;
-     case kIGetShort:
-       next_mir = SpecialIGet(&bb, mir, kSignedHalf, false, false);
-       break;
-     case kIGetWide:
-       next_mir = SpecialIGet(&bb, mir, kLong, true, false);
-       break;
-     case kIPut:
-       next_mir = SpecialIPut(&bb, mir, kWord, false, false);
-       break;
-     case kIPutBoolean:
-     case kIPutByte:
-       next_mir = SpecialIPut(&bb, mir, kUnsignedByte, false, false);
-       break;
-     case kIPutObject:
-       next_mir = SpecialIPut(&bb, mir, kWord, false, true);
-       break;
-     case kIPutChar:
-       next_mir = SpecialIPut(&bb, mir, kUnsignedHalf, false, false);
-       break;
-     case kIPutShort:
-       next_mir = SpecialIPut(&bb, mir, kSignedHalf, false, false);
-       break;
-     case kIPutWide:
-       next_mir = SpecialIPut(&bb, mir, kLong, true, false);
-       break;
-     case kIdentity:
-       next_mir = SpecialIdentity(mir);
-       break;
-     default:
-       return;
-   }
-   if (next_mir != NULL) {
+  current_dalvik_offset_ = mir->offset;
+  MIR* next_mir = NULL;
+  switch (special_case) {
+    case kNullMethod:
+      DCHECK(mir->dalvikInsn.opcode == Instruction::RETURN_VOID);
+      next_mir = mir;
+      break;
+    case kConstFunction:
+      ArmMir2Lir::GenPrintLabel(mir);
+      LoadConstant(rARM_RET0, mir->dalvikInsn.vB);
+      next_mir = GetNextMir(&bb, mir);
+      break;
+    case kIGet:
+      next_mir = SpecialIGet(&bb, mir, kWord, false, false);
+      break;
+    case kIGetBoolean:
+    case kIGetByte:
+      next_mir = SpecialIGet(&bb, mir, kUnsignedByte, false, false);
+      break;
+    case kIGetObject:
+      next_mir = SpecialIGet(&bb, mir, kWord, false, true);
+      break;
+    case kIGetChar:
+      next_mir = SpecialIGet(&bb, mir, kUnsignedHalf, false, false);
+      break;
+    case kIGetShort:
+      next_mir = SpecialIGet(&bb, mir, kSignedHalf, false, false);
+      break;
+    case kIGetWide:
+      next_mir = SpecialIGet(&bb, mir, kLong, true, false);
+      break;
+    case kIPut:
+      next_mir = SpecialIPut(&bb, mir, kWord, false, false);
+      break;
+    case kIPutBoolean:
+    case kIPutByte:
+      next_mir = SpecialIPut(&bb, mir, kUnsignedByte, false, false);
+      break;
+    case kIPutObject:
+      next_mir = SpecialIPut(&bb, mir, kWord, false, true);
+      break;
+    case kIPutChar:
+      next_mir = SpecialIPut(&bb, mir, kUnsignedHalf, false, false);
+      break;
+    case kIPutShort:
+      next_mir = SpecialIPut(&bb, mir, kSignedHalf, false, false);
+      break;
+    case kIPutWide:
+      next_mir = SpecialIPut(&bb, mir, kLong, true, false);
+      break;
+    case kIdentity:
+      next_mir = SpecialIdentity(mir);
+      break;
+    default:
+      return;
+  }
+  if (next_mir != NULL) {
     current_dalvik_offset_ = next_mir->offset;
     if (special_case != kIdentity) {
       ArmMir2Lir::GenPrintLabel(next_mir);
