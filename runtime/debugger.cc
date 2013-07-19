@@ -3071,7 +3071,7 @@ void Dbg::DdmSendChunk(uint32_t type, const std::vector<uint8_t>& bytes) {
   DdmSendChunk(type, bytes.size(), &bytes[0]);
 }
 
-void Dbg::DdmSendChunkV(uint32_t type, const struct iovec* iov, int iov_count) {
+void Dbg::DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count) {
   if (gJdwpState == NULL) {
     VLOG(jdwp) << "Debugger thread not active, ignoring DDM send: " << type;
   } else {

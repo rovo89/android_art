@@ -70,7 +70,7 @@ class JdwpNetStateBase {
   void Close();
 
   ssize_t WritePacket(ExpandBuf* pReply);
-  ssize_t WriteBufferedPacket(const iovec* iov, int iov_count);
+  ssize_t WriteBufferedPacket(const std::vector<iovec>& iov);
 
   int clientSock; // Active connection to debugger.
 

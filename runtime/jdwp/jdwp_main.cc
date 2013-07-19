@@ -132,16 +132,16 @@ ssize_t JdwpNetStateBase::WritePacket(ExpandBuf* pReply) {
 /*
  * Write a buffered packet. Grabs a mutex to assure atomicity.
  */
-ssize_t JdwpNetStateBase::WriteBufferedPacket(const iovec* iov, int iov_count) {
+ssize_t JdwpNetStateBase::WriteBufferedPacket(const std::vector<iovec>& iov) {
   MutexLock mu(Thread::Current(), socket_lock_);
-  return TEMP_FAILURE_RETRY(writev(clientSock, iov, iov_count));
+  return TEMP_FAILURE_RETRY(writev(clientSock, &iov[0], iov.size()));
 }
 
 bool JdwpState::IsConnected() {
   return netState != NULL && netState->IsConnected();
 }
 
-void JdwpState::SendBufferedRequest(uint32_t type, const iovec* iov, int iov_count) {
+void JdwpState::SendBufferedRequest(uint32_t type, const std::vector<iovec>& iov) {
   if (netState->clientSock < 0) {
     // Can happen with some DDMS events.
     VLOG(jdwp) << "Not sending JDWP packet: no debugger attached!";
@@ -149,12 +149,12 @@ void JdwpState::SendBufferedRequest(uint32_t type, const iovec* iov, int iov_cou
   }
 
   size_t expected = 0;
-  for (int i = 0; i < iov_count; ++i) {
+  for (size_t i = 0; i < iov.size(); ++i) {
     expected += iov[i].iov_len;
   }
 
   errno = 0;
-  ssize_t actual = netState->WriteBufferedPacket(iov, iov_count);
+  ssize_t actual = netState->WriteBufferedPacket(iov);
   if (static_cast<size_t>(actual) != expected) {
     PLOG(ERROR) << StringPrintf("Failed to send JDWP packet %c%c%c%c to debugger (%d of %d)",
                                 static_cast<uint8_t>(type >> 24),
