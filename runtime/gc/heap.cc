@@ -210,7 +210,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     mark_sweep_collectors_.push_back(new collector::StickyMarkSweep(this, concurrent));
   }
 
-  CHECK(max_allowed_footprint_ != 0);
+  CHECK_NE(max_allowed_footprint_, 0U);
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() exiting";
   }

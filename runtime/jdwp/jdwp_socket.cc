@@ -218,7 +218,7 @@ bool JdwpSocketState::Accept() {
     return false;       /* you're not listening! */
   }
 
-  CHECK(clientSock == -1);      /* must not already be talking */
+  CHECK_EQ(clientSock, -1);      /* must not already be talking */
 
   addrlen = sizeof(addr);
   do {
@@ -348,7 +348,7 @@ bool JdwpSocketState::Establish(const JdwpOptions* options) {
 bool JdwpSocketState::ProcessIncoming() {
   int readCount;
 
-  CHECK(clientSock != -1);
+  CHECK_NE(clientSock, -1);
 
   if (!HaveFullPacket()) {
     /* read some more, looping until we have data */

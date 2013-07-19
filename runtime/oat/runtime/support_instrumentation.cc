@@ -51,7 +51,7 @@ extern "C" uint64_t artInstrumentationMethodExitFromCode(Thread* self, mirror::A
   *sp = callee_save;
   uintptr_t* return_pc = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp) +
                                                       callee_save->GetReturnPcOffsetInBytes());
-  CHECK(*return_pc == 0);
+  CHECK_EQ(*return_pc, 0U);
   self->SetTopOfStack(sp, 0);
   self->VerifyStack();
   instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();

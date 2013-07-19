@@ -131,8 +131,8 @@ DlMallocSpace::DlMallocSpace(const std::string& name, MemMap* mem_map, void* msp
   size_t bitmap_index = bitmap_index_++;
 
   static const uintptr_t kGcCardSize = static_cast<uintptr_t>(accounting::CardTable::kCardSize);
-  CHECK(reinterpret_cast<uintptr_t>(mem_map->Begin()) % kGcCardSize == 0);
-  CHECK(reinterpret_cast<uintptr_t>(mem_map->End()) % kGcCardSize == 0);
+  CHECK_EQ(reinterpret_cast<uintptr_t>(mem_map->Begin()) % kGcCardSize, 0U);
+  CHECK_EQ(reinterpret_cast<uintptr_t>(mem_map->End()) % kGcCardSize, 0U);
   live_bitmap_.reset(accounting::SpaceBitmap::Create(
       StringPrintf("allocspace %s live-bitmap %d", name.c_str(), static_cast<int>(bitmap_index)),
       Begin(), Capacity()));
