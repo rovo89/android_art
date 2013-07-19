@@ -157,7 +157,7 @@ int JdwpAdbState::ReceiveClientFd() {
   cmsg->cmsg_len   = msg.msg_controllen;
   cmsg->cmsg_level = SOL_SOCKET;
   cmsg->cmsg_type  = SCM_RIGHTS;
-  ((int*)(void*)CMSG_DATA(cmsg))[0] = -1;
+  (reinterpret_cast<int*>(CMSG_DATA(cmsg)))[0] = -1;
 
   int rc = TEMP_FAILURE_RETRY(recvmsg(control_sock_, &msg, 0));
 
@@ -170,7 +170,7 @@ int JdwpAdbState::ReceiveClientFd() {
     return -1;
   }
 
-  return ((int*)(void*)CMSG_DATA(cmsg))[0];
+  return (reinterpret_cast<int*>(CMSG_DATA(cmsg)))[0];
 }
 
 /*

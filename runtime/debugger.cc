@@ -3281,7 +3281,7 @@ class HeapChunkContext {
             const size_t kMaxFreeLen = 2 * kPageSize;
             void* freeStart = startOfNextMemoryChunk_;
             void* freeEnd = start;
-            size_t freeLen = (char*)freeEnd - (char*)freeStart;
+            size_t freeLen = reinterpret_cast<char*>(freeEnd) - reinterpret_cast<char*>(freeStart);
             if (!native || freeLen < kMaxFreeLen) {
                 AppendChunk(HPSG_STATE(SOLIDITY_FREE, 0), freeStart, freeLen);
                 flush = false;
@@ -3302,7 +3302,7 @@ class HeapChunkContext {
     // allocation then the first sizeof(size_t) may belong to it.
     const size_t dlMallocOverhead = sizeof(size_t);
     AppendChunk(state, start, used_bytes + dlMallocOverhead);
-    startOfNextMemoryChunk_ = (char*)start + used_bytes + dlMallocOverhead;
+    startOfNextMemoryChunk_ = reinterpret_cast<char*>(start) + used_bytes + dlMallocOverhead;
   }
 
   void AppendChunk(uint8_t state, void* ptr, size_t length)

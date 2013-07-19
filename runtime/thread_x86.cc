@@ -73,7 +73,7 @@ void Thread::InitCpu() {
   entry.d = seg_32bit;
   entry.g = limit_in_pages;
 
-  entry_number = i386_set_ldt(LDT_AUTO_ALLOC, (ldt_entry*)(void*)(&entry), 1);
+  entry_number = i386_set_ldt(LDT_AUTO_ALLOC, reinterpret_cast<ldt_entry*>(&entry), 1);
   if (entry_number == -1) {
     PLOG(FATAL) << "i386_set_ldt failed";
   }

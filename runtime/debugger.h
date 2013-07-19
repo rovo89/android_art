@@ -417,7 +417,7 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
-  static void DdmBroadcast(bool) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static void DdmBroadcast(bool connect) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostThreadStartOrStop(Thread*, uint32_t)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

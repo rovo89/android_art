@@ -319,7 +319,7 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
   size_t total_objects_allocated = GetObjectsAllocatedEver();
   size_t total_bytes_allocated = GetBytesAllocatedEver();
   if (total_duration != 0) {
-    const double total_seconds = double(total_duration / 1000) / 1000000.0;
+    const double total_seconds = static_cast<double>(total_duration / 1000) / 1000000.0;
     os << "Total time spent in GC: " << PrettyDuration(total_duration) << "\n";
     os << "Mean GC size throughput: "
        << PrettySize(GetBytesFreedEver() / total_seconds) << "/s\n";

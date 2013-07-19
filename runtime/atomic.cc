@@ -34,7 +34,7 @@ static const size_t kSwapMutexCount = 32;
 static std::vector<Mutex*>* gSwapMutexes;
 
 static Mutex& GetSwapMutex(const volatile int64_t* addr) {
-  return *(*gSwapMutexes)[((unsigned)(void*)(addr) >> 3U) % kSwapMutexCount];
+  return *(*gSwapMutexes)[(reinterpret_cast<unsigned>(addr) >> 3U) % kSwapMutexCount];
 }
 #endif
 
