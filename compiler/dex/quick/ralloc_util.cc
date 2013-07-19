@@ -507,7 +507,7 @@ void Mir2Lir::NullifyRange(LIR *start, LIR *finish, int s_reg1, int s_reg2) {
   if (start && finish) {
     LIR *p;
     DCHECK_EQ(s_reg1, s_reg2);
-    for (p = start; ;p = p->next) {
+    for (p = start; ; p = p->next) {
       NopLIR(p);
       if (p == finish)
         break;

@@ -46,7 +46,6 @@ void TimingLogger::AddSplit(const std::string &label) {
 uint64_t TimingLogger::GetTotalNs() const {
   return times_.back() - times_.front();
 }
-;
 
 void TimingLogger::Dump(std::ostream &os) const {
   uint64_t largest_time = 0;

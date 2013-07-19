@@ -33,7 +33,7 @@ class PartialMarkSweep : public MarkSweep {
   explicit PartialMarkSweep(Heap* heap, bool is_concurrent, const std::string& name_prefix = "");
   ~PartialMarkSweep() {}
 
-protected:
+ protected:
   // Bind the live bits to the mark bits of bitmaps for spaces that aren't collected for partial
   // collections, ie the Zygote space. Also mark this space is immune.
   virtual void BindBitmaps() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

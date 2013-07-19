@@ -191,9 +191,9 @@ static SelectInstructionKind SelectKind(MIR* mir) {
     case Instruction::GOTO_16:
     case Instruction::GOTO_32:
       return kSelectGoto;
-    default:;
+    default:
+      return kSelectNone;
   }
-  return kSelectNone;
 }
 
 int MIRGraph::GetSSAUseCount(int s_reg) {

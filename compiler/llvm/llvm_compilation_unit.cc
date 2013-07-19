@@ -19,7 +19,7 @@
 // #define  stat64    stat
 // #define  fstat64   fstat
 // #define  lstat64   lstat
-// 
+//
 // which causes grief. bionic probably should not do that.
 #include <llvm/Target/TargetLibraryInfo.h>
 

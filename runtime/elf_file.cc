@@ -22,23 +22,23 @@
 
 namespace art {
 
-ElfFile::ElfFile() :
-  file_(NULL),
-  writable_(false),
-  program_header_only_(false),
-  header_(NULL),
-  base_address_(NULL),
-  program_headers_start_(NULL),
-  section_headers_start_(NULL),
-  dynamic_program_header_(NULL),
-  dynamic_section_start_(NULL),
-  symtab_section_start_(NULL),
-  dynsym_section_start_(NULL),
-  strtab_section_start_(NULL),
-  dynstr_section_start_(NULL),
-  hash_section_start_(NULL),
-  symtab_symbol_table_(NULL),
-  dynsym_symbol_table_(NULL) {}
+ElfFile::ElfFile()
+  : file_(NULL),
+    writable_(false),
+    program_header_only_(false),
+    header_(NULL),
+    base_address_(NULL),
+    program_headers_start_(NULL),
+    section_headers_start_(NULL),
+    dynamic_program_header_(NULL),
+    dynamic_section_start_(NULL),
+    symtab_section_start_(NULL),
+    dynsym_section_start_(NULL),
+    strtab_section_start_(NULL),
+    dynstr_section_start_(NULL),
+    hash_section_start_(NULL),
+    symtab_symbol_table_(NULL),
+    dynsym_symbol_table_(NULL) {}
 
 ElfFile* ElfFile::Open(File* file, bool writable, bool program_header_only) {
   UniquePtr<ElfFile> elf_file(new ElfFile());

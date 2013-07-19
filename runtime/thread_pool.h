@@ -30,7 +30,7 @@ namespace art {
 class ThreadPool;
 
 class Task : public Closure {
-public:
+ public:
   // Called when references reaches 0.
   virtual void Finalize() { }
 };

@@ -461,7 +461,7 @@ void Mir2Lir::InstallFillArrayData() {
 }
 
 static int AssignLiteralOffsetCommon(LIR* lir, int offset) {
-  for (;lir != NULL; lir = lir->next) {
+  for (; lir != NULL; lir = lir->next) {
     lir->offset = offset;
     offset += 4;
   }

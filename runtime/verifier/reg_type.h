@@ -200,7 +200,7 @@ class RegType {
   bool IsJavaLangObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsArrayTypes() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsObjectArrayTypes() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  Primitive::Type GetPrimitiveType() const ;
+  Primitive::Type GetPrimitiveType() const;
   bool IsJavaLangObjectArray() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsInstantiableTypes() const;
   const std::string& GetDescriptor() const {

@@ -34,7 +34,7 @@ class StickyMarkSweep : public PartialMarkSweep {
   explicit StickyMarkSweep(Heap* heap, bool is_concurrent, const std::string& name_prefix = "");
   ~StickyMarkSweep() {}
 
-protected:
+ protected:
   // Bind the live bits to the mark bits of bitmaps for all spaces, all spaces other than the
   // alloc space will be marked as immune.
   void BindBitmaps() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
