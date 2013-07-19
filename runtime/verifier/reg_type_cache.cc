@@ -399,7 +399,7 @@ const RegType& RegTypeCache::FromUninitialized(const RegType& uninit_type) {
     } else {
       return Conflict();
     }
- }
+  }
   entries_.push_back(entry);
   return *entry;
 }

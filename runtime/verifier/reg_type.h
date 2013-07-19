@@ -497,7 +497,7 @@ class LongLoType : public Cat2Type {
   static LongLoType* CreateInstance(mirror::Class* klass, const std::string& descriptor,
                                     uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-   static LongLoType* GetInstance();
+  static LongLoType* GetInstance();
   static void Destroy();
  private:
   LongLoType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)

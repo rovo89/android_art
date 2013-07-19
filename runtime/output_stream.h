@@ -26,9 +26,9 @@
 namespace art {
 
 enum Whence {
- kSeekSet = SEEK_SET,
- kSeekCurrent = SEEK_CUR,
- kSeekEnd = SEEK_END,
+  kSeekSet = SEEK_SET,
+  kSeekCurrent = SEEK_CUR,
+  kSeekEnd = SEEK_END,
 };
 
 class OutputStream {
@@ -41,9 +41,9 @@ class OutputStream {
     return location_;
   }
 
- virtual bool WriteFully(const void* buffer, int64_t byte_count) = 0;
+  virtual bool WriteFully(const void* buffer, int64_t byte_count) = 0;
 
- virtual off_t Seek(off_t offset, Whence whence) = 0;
+  virtual off_t Seek(off_t offset, Whence whence) = 0;
 
  private:
   const std::string location_;

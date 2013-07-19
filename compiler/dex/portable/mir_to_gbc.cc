@@ -1179,11 +1179,11 @@ bool MirConverter::ConvertMIRNode(MIR* mir, BasicBlock* bb,
       ConvertNewInstance(vB, rl_dest);
       break;
 
-   case Instruction::MOVE_EXCEPTION:
+    case Instruction::MOVE_EXCEPTION:
       ConvertMoveException(rl_dest);
       break;
 
-   case Instruction::THROW:
+    case Instruction::THROW:
       ConvertThrow(rl_src[0]);
       /*
        * If this throw is standalone, terminate.

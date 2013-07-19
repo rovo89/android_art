@@ -246,7 +246,7 @@ class CommonTest : public testing::Test {
 #if GCC_VERSION >= 40303
     __builtin___clear_cache(reinterpret_cast<void*>(base), reinterpret_cast<void*>(base + len));
 #else
-   LOG(FATAL) << "UNIMPLEMENTED: cache flush";
+    LOG(FATAL) << "UNIMPLEMENTED: cache flush";
 #endif
   }
 

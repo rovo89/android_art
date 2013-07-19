@@ -542,120 +542,120 @@ class MIRGraph {
    * IsDebugBuild sanity check: keep track of the Dex PCs for catch entries so that later on
    * we can verify that all catch entries have native PC entries.
    */
-   std::set<uint32_t> catches_;
+  std::set<uint32_t> catches_;
 
-   // TODO: make these private.
-   RegLocation* reg_location_;                         // Map SSA names to location.
-   GrowableArray<CompilerTemp*> compiler_temps_;
-   SafeMap<unsigned int, unsigned int> block_id_map_;  // Block collapse lookup cache.
+  // TODO: make these private.
+  RegLocation* reg_location_;                         // Map SSA names to location.
+  GrowableArray<CompilerTemp*> compiler_temps_;
+  SafeMap<unsigned int, unsigned int> block_id_map_;  // Block collapse lookup cache.
 
-   static const int oat_data_flow_attributes_[kMirOpLast];
-   static const char* extended_mir_op_names_[kMirOpLast - kMirOpFirst];
+  static const int oat_data_flow_attributes_[kMirOpLast];
+  static const char* extended_mir_op_names_[kMirOpLast - kMirOpFirst];
 
  private:
-   int FindCommonParent(int block1, int block2);
-   void ComputeSuccLineIn(ArenaBitVector* dest, const ArenaBitVector* src1,
-                          const ArenaBitVector* src2);
-   void HandleLiveInUse(ArenaBitVector* use_v, ArenaBitVector* def_v,
-                        ArenaBitVector* live_in_v, int dalvik_reg_id);
-   void HandleDef(ArenaBitVector* def_v, int dalvik_reg_id);
-   void CompilerInitializeSSAConversion();
-   bool DoSSAConversion(BasicBlock* bb);
-   bool InvokeUsesMethodStar(MIR* mir);
-   int ParseInsn(const uint16_t* code_ptr, DecodedInstruction* decoded_instruction);
-   bool ContentIsInsn(const uint16_t* code_ptr);
-   BasicBlock* SplitBlock(unsigned int code_offset, BasicBlock* orig_block,
-                          BasicBlock** immed_pred_block_p);
-   BasicBlock* FindBlock(unsigned int code_offset, bool split, bool create,
+  int FindCommonParent(int block1, int block2);
+  void ComputeSuccLineIn(ArenaBitVector* dest, const ArenaBitVector* src1,
+                         const ArenaBitVector* src2);
+  void HandleLiveInUse(ArenaBitVector* use_v, ArenaBitVector* def_v,
+                       ArenaBitVector* live_in_v, int dalvik_reg_id);
+  void HandleDef(ArenaBitVector* def_v, int dalvik_reg_id);
+  void CompilerInitializeSSAConversion();
+  bool DoSSAConversion(BasicBlock* bb);
+  bool InvokeUsesMethodStar(MIR* mir);
+  int ParseInsn(const uint16_t* code_ptr, DecodedInstruction* decoded_instruction);
+  bool ContentIsInsn(const uint16_t* code_ptr);
+  BasicBlock* SplitBlock(unsigned int code_offset, BasicBlock* orig_block,
                          BasicBlock** immed_pred_block_p);
-   void ProcessTryCatchBlocks();
-   BasicBlock* ProcessCanBranch(BasicBlock* cur_block, MIR* insn, int cur_offset, int width,
-                                int flags, const uint16_t* code_ptr, const uint16_t* code_end);
-   void ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, int cur_offset, int width, int flags);
-   BasicBlock* ProcessCanThrow(BasicBlock* cur_block, MIR* insn, int cur_offset, int width,
-                               int flags, ArenaBitVector* try_block_addr, const uint16_t* code_ptr,
-                               const uint16_t* code_end);
-   int AddNewSReg(int v_reg);
-   void HandleSSAUse(int* uses, int dalvik_reg, int reg_index);
-   void HandleSSADef(int* defs, int dalvik_reg, int reg_index);
-   void DataFlowSSAFormat35C(MIR* mir);
-   void DataFlowSSAFormat3RC(MIR* mir);
-   bool FindLocalLiveIn(BasicBlock* bb);
-   void ClearAllVisitedFlags();
-   bool CountUses(struct BasicBlock* bb);
-   bool InferTypeAndSize(BasicBlock* bb);
-   bool VerifyPredInfo(BasicBlock* bb);
-   BasicBlock* NeedsVisit(BasicBlock* bb);
-   BasicBlock* NextUnvisitedSuccessor(BasicBlock* bb);
-   void MarkPreOrder(BasicBlock* bb);
-   void RecordDFSOrders(BasicBlock* bb);
-   void ComputeDFSOrders();
-   void ComputeDefBlockMatrix();
-   void ComputeDomPostOrderTraversal(BasicBlock* bb);
-   void ComputeDominators();
-   void InsertPhiNodes();
-   void DoDFSPreOrderSSARename(BasicBlock* block);
-   void SetConstant(int32_t ssa_reg, int value);
-   void SetConstantWide(int ssa_reg, int64_t value);
-   int GetSSAUseCount(int s_reg);
-   bool BasicBlockOpt(BasicBlock* bb);
-   bool EliminateNullChecks(BasicBlock* bb);
-   void NullCheckEliminationInit(BasicBlock* bb);
-   bool BuildExtendedBBList(struct BasicBlock* bb);
-   bool FillDefBlockMatrix(BasicBlock* bb);
-   void InitializeDominationInfo(BasicBlock* bb);
-   bool ComputeblockIDom(BasicBlock* bb);
-   bool ComputeBlockDominators(BasicBlock* bb);
-   bool SetDominators(BasicBlock* bb);
-   bool ComputeBlockLiveIns(BasicBlock* bb);
-   bool InsertPhiNodeOperands(BasicBlock* bb);
-   bool ComputeDominanceFrontier(BasicBlock* bb);
-   void DoConstantPropogation(BasicBlock* bb);
-   void CountChecks(BasicBlock* bb);
-   bool CombineBlocks(BasicBlock* bb);
+  BasicBlock* FindBlock(unsigned int code_offset, bool split, bool create,
+                        BasicBlock** immed_pred_block_p);
+  void ProcessTryCatchBlocks();
+  BasicBlock* ProcessCanBranch(BasicBlock* cur_block, MIR* insn, int cur_offset, int width,
+                               int flags, const uint16_t* code_ptr, const uint16_t* code_end);
+  void ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, int cur_offset, int width, int flags);
+  BasicBlock* ProcessCanThrow(BasicBlock* cur_block, MIR* insn, int cur_offset, int width,
+                              int flags, ArenaBitVector* try_block_addr, const uint16_t* code_ptr,
+                              const uint16_t* code_end);
+  int AddNewSReg(int v_reg);
+  void HandleSSAUse(int* uses, int dalvik_reg, int reg_index);
+  void HandleSSADef(int* defs, int dalvik_reg, int reg_index);
+  void DataFlowSSAFormat35C(MIR* mir);
+  void DataFlowSSAFormat3RC(MIR* mir);
+  bool FindLocalLiveIn(BasicBlock* bb);
+  void ClearAllVisitedFlags();
+  bool CountUses(struct BasicBlock* bb);
+  bool InferTypeAndSize(BasicBlock* bb);
+  bool VerifyPredInfo(BasicBlock* bb);
+  BasicBlock* NeedsVisit(BasicBlock* bb);
+  BasicBlock* NextUnvisitedSuccessor(BasicBlock* bb);
+  void MarkPreOrder(BasicBlock* bb);
+  void RecordDFSOrders(BasicBlock* bb);
+  void ComputeDFSOrders();
+  void ComputeDefBlockMatrix();
+  void ComputeDomPostOrderTraversal(BasicBlock* bb);
+  void ComputeDominators();
+  void InsertPhiNodes();
+  void DoDFSPreOrderSSARename(BasicBlock* block);
+  void SetConstant(int32_t ssa_reg, int value);
+  void SetConstantWide(int ssa_reg, int64_t value);
+  int GetSSAUseCount(int s_reg);
+  bool BasicBlockOpt(BasicBlock* bb);
+  bool EliminateNullChecks(BasicBlock* bb);
+  void NullCheckEliminationInit(BasicBlock* bb);
+  bool BuildExtendedBBList(struct BasicBlock* bb);
+  bool FillDefBlockMatrix(BasicBlock* bb);
+  void InitializeDominationInfo(BasicBlock* bb);
+  bool ComputeblockIDom(BasicBlock* bb);
+  bool ComputeBlockDominators(BasicBlock* bb);
+  bool SetDominators(BasicBlock* bb);
+  bool ComputeBlockLiveIns(BasicBlock* bb);
+  bool InsertPhiNodeOperands(BasicBlock* bb);
+  bool ComputeDominanceFrontier(BasicBlock* bb);
+  void DoConstantPropogation(BasicBlock* bb);
+  void CountChecks(BasicBlock* bb);
+  bool CombineBlocks(BasicBlock* bb);
 
-   CompilationUnit* const cu_;
-   GrowableArray<int>* ssa_base_vregs_;
-   GrowableArray<int>* ssa_subscripts_;
-   // Map original Dalvik virtual reg i to the current SSA name.
-   int* vreg_to_ssa_map_;            // length == method->registers_size
-   int* ssa_last_defs_;              // length == method->registers_size
-   ArenaBitVector* is_constant_v_;   // length == num_ssa_reg
-   int* constant_values_;            // length == num_ssa_reg
-   // Use counts of ssa names.
-   GrowableArray<uint32_t> use_counts_;      // Weighted by nesting depth
-   GrowableArray<uint32_t> raw_use_counts_;  // Not weighted
-   unsigned int num_reachable_blocks_;
-   GrowableArray<int>* dfs_order_;
-   GrowableArray<int>* dfs_post_order_;
-   GrowableArray<int>* dom_post_order_traversal_;
-   int* i_dom_list_;
-   ArenaBitVector** def_block_matrix_;    // num_dalvik_register x num_blocks.
-   ArenaBitVector* temp_block_v_;
-   ArenaBitVector* temp_dalvik_register_v_;
-   ArenaBitVector* temp_ssa_register_v_;  // num_ssa_regs.
-   static const int kInvalidEntry = -1;
-   GrowableArray<BasicBlock*> block_list_;
-   ArenaBitVector* try_block_addr_;
-   BasicBlock* entry_block_;
-   BasicBlock* exit_block_;
-   BasicBlock* cur_block_;
-   int num_blocks_;
-   const DexFile::CodeItem* current_code_item_;
-   SafeMap<unsigned int, BasicBlock*> block_map_; // FindBlock lookup cache.
-   std::vector<DexCompilationUnit*> m_units_;     // List of methods included in this graph
-   typedef std::pair<int, int> MIRLocation;       // Insert point, (m_unit_ index, offset)
-   std::vector<MIRLocation> method_stack_;        // Include stack
-   int current_method_;
-   int current_offset_;
-   int def_count_;                                // Used to estimate size of ssa name storage.
-   int* opcode_count_;                            // Dex opcode coverage stats.
-   int num_ssa_regs_;                             // Number of names following SSA transformation.
-   std::vector<BasicBlock*> extended_basic_blocks_; // Heads of block "traces".
-   int method_sreg_;
-   unsigned int attributes_;
-   Checkstats* checkstats_;
-   ArenaAllocator* arena_;
+  CompilationUnit* const cu_;
+  GrowableArray<int>* ssa_base_vregs_;
+  GrowableArray<int>* ssa_subscripts_;
+  // Map original Dalvik virtual reg i to the current SSA name.
+  int* vreg_to_ssa_map_;            // length == method->registers_size
+  int* ssa_last_defs_;              // length == method->registers_size
+  ArenaBitVector* is_constant_v_;   // length == num_ssa_reg
+  int* constant_values_;            // length == num_ssa_reg
+  // Use counts of ssa names.
+  GrowableArray<uint32_t> use_counts_;      // Weighted by nesting depth
+  GrowableArray<uint32_t> raw_use_counts_;  // Not weighted
+  unsigned int num_reachable_blocks_;
+  GrowableArray<int>* dfs_order_;
+  GrowableArray<int>* dfs_post_order_;
+  GrowableArray<int>* dom_post_order_traversal_;
+  int* i_dom_list_;
+  ArenaBitVector** def_block_matrix_;    // num_dalvik_register x num_blocks.
+  ArenaBitVector* temp_block_v_;
+  ArenaBitVector* temp_dalvik_register_v_;
+  ArenaBitVector* temp_ssa_register_v_;  // num_ssa_regs.
+  static const int kInvalidEntry = -1;
+  GrowableArray<BasicBlock*> block_list_;
+  ArenaBitVector* try_block_addr_;
+  BasicBlock* entry_block_;
+  BasicBlock* exit_block_;
+  BasicBlock* cur_block_;
+  int num_blocks_;
+  const DexFile::CodeItem* current_code_item_;
+  SafeMap<unsigned int, BasicBlock*> block_map_; // FindBlock lookup cache.
+  std::vector<DexCompilationUnit*> m_units_;     // List of methods included in this graph
+  typedef std::pair<int, int> MIRLocation;       // Insert point, (m_unit_ index, offset)
+  std::vector<MIRLocation> method_stack_;        // Include stack
+  int current_method_;
+  int current_offset_;
+  int def_count_;                                // Used to estimate size of ssa name storage.
+  int* opcode_count_;                            // Dex opcode coverage stats.
+  int num_ssa_regs_;                             // Number of names following SSA transformation.
+  std::vector<BasicBlock*> extended_basic_blocks_; // Heads of block "traces".
+  int method_sreg_;
+  unsigned int attributes_;
+  Checkstats* checkstats_;
+  ArenaAllocator* arena_;
 };
 
 }  // namespace art

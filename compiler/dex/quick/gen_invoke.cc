@@ -877,7 +877,7 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
       OpRegReg(kOpCmp, rl_idx.low_reg, reg_max);
       FreeTemp(reg_max);
       OpCondBranch(kCondCs, launch_pad);
-   }
+    }
   } else {
     if (range_check) {
       reg_max = AllocTemp();
