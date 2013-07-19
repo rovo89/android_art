@@ -114,10 +114,7 @@ class Operand {
 
   friend class MipsAssembler;
 
-  // TODO: Remove the #if when Mac OS build server no longer uses GCC 4.2.*.
-#if GCC_VERSION >= 40300
   DISALLOW_COPY_AND_ASSIGN(Operand);
-#endif
 };
 
 
@@ -193,10 +190,7 @@ class Address : public Operand {
  private:
   Address() {}
 
-  // TODO: Remove the #if when Mac OS build server no longer uses GCC 4.2.*.
-#if GCC_VERSION >= 40300
   DISALLOW_COPY_AND_ASSIGN(Address);
-#endif
 };
 
 #endif

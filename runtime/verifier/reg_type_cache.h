@@ -152,12 +152,12 @@ class RegTypeCache {
   static void CreatePrimitiveTypes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Whether or not we're allowed to load classes.
   const bool can_load_classes_;
-  DISALLOW_COPY_AND_ASSIGN(RegTypeCache);
   mirror::Class* ResolveClass(const char* descriptor, mirror::ClassLoader* loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void ClearException();
   bool MatchDescriptor(size_t idx, const char* descriptor, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  DISALLOW_COPY_AND_ASSIGN(RegTypeCache);
 };
 
 }  // namespace verifier

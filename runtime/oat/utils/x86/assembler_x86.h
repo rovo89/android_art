@@ -42,10 +42,7 @@ class Immediate {
  private:
   const int32_t value_;
 
-  // TODO: Remove the #if when Mac OS build server no longer uses GCC 4.2.*.
-#if GCC_VERSION >= 40300
   DISALLOW_COPY_AND_ASSIGN(Immediate);
-#endif
 };
 
 
@@ -133,10 +130,7 @@ class Operand {
 
   friend class X86Assembler;
 
-  // TODO: Remove the #if when Mac OS build server no longer uses GCC 4.2.*.
-#if GCC_VERSION >= 40300
   DISALLOW_COPY_AND_ASSIGN(Operand);
-#endif
 };
 
 
@@ -212,10 +206,7 @@ class Address : public Operand {
  private:
   Address() {}
 
-  // TODO: Remove the #if when Mac OS build server no longer uses GCC 4.2.*.
-#if GCC_VERSION >= 40300
   DISALLOW_COPY_AND_ASSIGN(Address);
-#endif
 };
 
 
