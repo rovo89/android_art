@@ -30,9 +30,11 @@
 
 namespace art {
 
+#if defined(__APPLE__)
+
 // This works on Mac OS 10.6 but hasn't been tested on older releases.
 struct __attribute__((__may_alias__)) darwin_pthread_mutex_t {
-  long padding0;  // NOLINT(runtime/int)
+  long padding0;  // NOLINT(runtime/int) exact match to darwin type
   int padding1;
   uint32_t padding2;
   int16_t padding3;
@@ -43,7 +45,7 @@ struct __attribute__((__may_alias__)) darwin_pthread_mutex_t {
 };
 
 struct __attribute__((__may_alias__)) darwin_pthread_rwlock_t {
-  long padding0;  // NOLINT(runtime/int)
+  long padding0;  // NOLINT(runtime/int) exact match to darwin type
   pthread_mutex_t padding1;
   int padding2;
   pthread_cond_t padding3;
@@ -53,6 +55,10 @@ struct __attribute__((__may_alias__)) darwin_pthread_rwlock_t {
   pthread_t darwin_pthread_rwlock_owner;
   // ...other stuff we don't care about.
 };
+
+#endif  // __APPLE__
+
+#if defined(__GLIBC__)
 
 struct __attribute__((__may_alias__)) glibc_pthread_mutex_t {
   int32_t padding0[2];
@@ -69,6 +75,8 @@ struct __attribute__((__may_alias__)) glibc_pthread_rwlock_t {
   int writer;
   // ...other stuff we don't care about.
 };
+
+#endif  // __GLIBC__
 
 #if ART_USE_FUTEXES
 static bool ComputeRelativeTimeSpec(timespec* result_ts, const timespec& lhs, const timespec& rhs) {
