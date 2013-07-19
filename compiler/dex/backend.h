@@ -24,12 +24,12 @@ namespace art {
 
 class Backend {
   public:
-    virtual ~Backend() {};
+    virtual ~Backend() {}
     virtual void Materialize() = 0;
     virtual CompiledMethod* GetCompiledMethod() = 0;
 
   protected:
-    explicit Backend(ArenaAllocator* arena) : arena_(arena) {};
+    explicit Backend(ArenaAllocator* arena) : arena_(arena) {}
     ArenaAllocator* const arena_;
 };  // Class Backend
 

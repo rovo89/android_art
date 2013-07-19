@@ -259,7 +259,7 @@ static int gMallocLeakZygoteChild = 0;
 
 static void EnableDebugger() {}
 static void EnableKeepCapabilities() {}
-static void DropCapabilitiesBoundingSet() {};
+static void DropCapabilitiesBoundingSet() {}
 static void SetCapabilities(int64_t, int64_t) {}
 static void SetSchedulerPolicy() {}
 

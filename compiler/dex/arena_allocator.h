@@ -83,7 +83,7 @@ struct MemStats {
      void Dump(std::ostream& os) const {
        arena_.DumpMemStats(os);
      }
-     explicit MemStats(const ArenaAllocator &arena) : arena_(arena) {};
+     explicit MemStats(const ArenaAllocator &arena) : arena_(arena) {}
   private:
     const ArenaAllocator &arena_;
 }; // MemStats

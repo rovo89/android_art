@@ -38,9 +38,9 @@ class DexCompiler {
   DexCompiler(art::CompilerDriver& compiler,
               const DexCompilationUnit& unit)
     : driver_(compiler),
-      unit_(unit) {};
+      unit_(unit) {}
 
-  ~DexCompiler() {};
+  ~DexCompiler() {}
 
   void Compile();
 
