@@ -100,6 +100,24 @@ enum HeapVerificationMode {
 };
 const HeapVerificationMode kDesiredHeapVerification = kNoHeapVerification;
 
+// This comes from ActivityManager and needs to be kept in sync.
+enum ProcessState {
+  PROCESS_STATE_PERSISTENT = 0,
+  PROCESS_STATE_PERSISTENT_UI = 1,
+  PROCESS_STATE_TOP = 2,
+  PROCESS_STATE_IMPORTANT_FOREGROUND = 3,
+  PROCESS_STATE_IMPORTANT_BACKGROUND = 4,
+  PROCESS_STATE_BACKUP = 5,
+  PROCESS_STATE_HEAVY_WEIGHT = 6,
+  PROCESS_STATE_SERVICE = 7,
+  PROCESS_STATE_RECEIVER = 8,
+  PROCESS_STATE_HOME = 9,
+  PROCESS_STATE_LAST_ACTIVITY = 10,
+  PROCESS_STATE_CACHED_ACTIVITY = 11,
+  PROCESS_STATE_CACHED_ACTIVITY_CLIENT = 12,
+  PROCESS_STATE_CACHED_EMPTY = 13,
+};
+
 class Heap {
  public:
   static const size_t kDefaultInitialSize = 2 * MB;
@@ -363,6 +381,9 @@ class Heap {
                              collector::GcType gc_type)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
+  // Update process state to let the heap know which type of GC to do.
+  void UpdateProcessState(ProcessState process_state);
+
   // DEPRECATED: Should remove in "near" future when support for multiple image spaces is added.
   // Assumes there is only one image space.
   space::ImageSpace* GetImageSpace() const;
@@ -527,6 +548,9 @@ class Heap {
 
   // Bytes which are allocated and managed by native code but still need to be accounted for.
   AtomicInteger native_bytes_allocated_;
+
+  // Current process state, updated by activity manager.
+  ProcessState process_state_;
 
   // Heap verification flags.
   const bool verify_missing_card_marks_;
