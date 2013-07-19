@@ -27,10 +27,10 @@
  * [This is an unlikely "natural" value, since it would be 30 non-ref instance
  * fields followed by 2 ref instance fields.]
  */
-#define CLASS_WALK_SUPER ((unsigned int)(3))
-#define CLASS_BITS_PER_WORD (sizeof(unsigned long int) * 8)
+#define CLASS_WALK_SUPER 3U
+#define CLASS_BITS_PER_WORD (sizeof(uint32_t) * 8)
 #define CLASS_OFFSET_ALIGNMENT 4
-#define CLASS_HIGH_BIT ((unsigned int)1 << (CLASS_BITS_PER_WORD - 1))
+#define CLASS_HIGH_BIT (1U << (CLASS_BITS_PER_WORD - 1))
 /*
  * Given an offset, return the bit number which would encode that offset.
  * Local use only.

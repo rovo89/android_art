@@ -334,14 +334,14 @@ endif
 .PHONY: cpplint-art
 cpplint-art:
 	./art/tools/cpplint.py \
-	    --filter=-,+build/header_guard,+whitespace/braces,+whitespace/comma,+runtime/explicit,+whitespace/newline,+whitespace/parens,+build/namespaces,+readability/fn_size,+whitespace/operators,+readability/braces,+whitespace/indent,+whitespace/blank_line,+whitespace/end_of_line,+whitespace/labels,+whitespace/semicolon,+legal/copyright,+readability/casting,+readability/check,+readability/constructors \
+	    --filter=-,+build/header_guard,+whitespace/braces,+whitespace/comma,+runtime/explicit,+whitespace/newline,+whitespace/parens,+build/namespaces,+readability/fn_size,+whitespace/operators,+readability/braces,+whitespace/indent,+whitespace/blank_line,+whitespace/end_of_line,+whitespace/labels,+whitespace/semicolon,+legal/copyright,+readability/casting,+readability/check,+readability/constructors,+runtime/arrays,+runtime/int,+runtime/virtual \
 	    $(shell find art -name *.h -o -name *$(ART_CPP_EXTENSION) | grep -v art/compiler/llvm/generated/)
 
 # "mm cpplint-art-aspirational" to see warnings we would like to fix
 .PHONY: cpplint-art-aspirational
 cpplint-art-aspirational:
 	./art/tools/cpplint.py \
-	    --filter=-whitespace/comments,-whitespace/line_length,-build/include,-readability/function,-readability/streams,-readability/todo,-runtime/references \
+	    --filter=-whitespace/comments,-whitespace/line_length,-build/include,-readability/function,-readability/streams,-readability/todo,-runtime/references,-runtime/threadsafe_fn \
 	    $(shell find art -name *.h -o -name *$(ART_CPP_EXTENSION) | grep -v art/compiler/llvm/generated/)
 
 ########################################################################

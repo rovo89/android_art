@@ -47,7 +47,7 @@ class ElfWriter {
 
  protected:
   ElfWriter(const CompilerDriver& driver, File* elf_file);
-  ~ElfWriter();
+  virtual ~ElfWriter();
 
   virtual bool Write(std::vector<uint8_t>& oat_contents,
                      const std::vector<const DexFile*>& dex_files,
