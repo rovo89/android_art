@@ -448,10 +448,10 @@ LIR* ArmMir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src1, int value) {
       return NewLIR3(kThumb2RorRRI5, r_dest, r_src1, value);
     case kOpAdd:
       if (ARM_LOWREG(r_dest) && (r_src1 == r13sp) &&
-        (value <= 1020) && ((value & 0x3)==0)) {
+        (value <= 1020) && ((value & 0x3) == 0)) {
         return NewLIR3(kThumbAddSpRel, r_dest, r_src1, value >> 2);
       } else if (ARM_LOWREG(r_dest) && (r_src1 == r15pc) &&
-          (value <= 1020) && ((value & 0x3)==0)) {
+          (value <= 1020) && ((value & 0x3) == 0)) {
         return NewLIR3(kThumbAddPcRel, r_dest, r_src1, value >> 2);
       }
       // Note: intentional fallthrough

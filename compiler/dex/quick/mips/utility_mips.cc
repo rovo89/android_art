@@ -301,7 +301,7 @@ LIR* MipsMir2Lir::OpRegReg(OpKind op, int r_dest_src1, int r_src2) {
     case kOpXor:
       return OpRegRegReg(op, r_dest_src1, r_dest_src1, r_src2);
     case kOp2Byte:
-#if __mips_isa_rev>=2
+#if __mips_isa_rev >= 2
       res = NewLIR2(kMipsSeb, r_dest_src1, r_src2);
 #else
       res = OpRegRegImm(kOpLsl, r_dest_src1, r_src2, 24);
@@ -309,7 +309,7 @@ LIR* MipsMir2Lir::OpRegReg(OpKind op, int r_dest_src1, int r_src2) {
 #endif
       return res;
     case kOp2Short:
-#if __mips_isa_rev>=2
+#if __mips_isa_rev >= 2
       res = NewLIR2(kMipsSeh, r_dest_src1, r_src2);
 #else
       res = OpRegRegImm(kOpLsl, r_dest_src1, r_src2, 16);

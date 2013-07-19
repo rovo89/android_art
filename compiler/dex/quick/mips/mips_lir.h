@@ -323,7 +323,7 @@ enum MipsOpCode {
   kMipsBnez,  // bnez s,o [000101] s[25..21] [00000] o[15..0].
   kMipsBne,   // bne s,t,o [000101] s[25..21] t[20..16] o[15..0].
   kMipsDiv,   // div s,t [000000] s[25..21] t[20..16] [0000000000011010].
-#if __mips_isa_rev>=2
+#if __mips_isa_rev >= 2
   kMipsExt,   // ext t,s,p,z [011111] s[25..21] t[20..16] z[15..11] p[10..6] [000000].
 #endif
   kMipsJal,   // jal t [000011] t[25..0].
@@ -348,7 +348,7 @@ enum MipsOpCode {
   kMipsOri,   // ori t,s,imm16 [001001] s[25..21] t[20..16] imm16[15..0].
   kMipsPref,  // pref h,o(b) [101011] b[25..21] h[20..16] o[15..0].
   kMipsSb,    // sb t,o(b) [101000] b[25..21] t[20..16] o[15..0].
-#if __mips_isa_rev>=2
+#if __mips_isa_rev >= 2
   kMipsSeb,   // seb d,t [01111100000] t[20..16] d[15..11] [10000100000].
   kMipsSeh,   // seh d,t [01111100000] t[20..16] d[15..11] [11000100000].
 #endif

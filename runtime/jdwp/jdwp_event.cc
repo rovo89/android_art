@@ -1070,7 +1070,7 @@ void JdwpState::DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count) {
   Thread* self = Thread::Current();
   bool safe_to_release_mutator_lock_over_send = !Locks::mutator_lock_->IsExclusiveHeld(self);
   if (safe_to_release_mutator_lock_over_send) {
-    for (size_t i=0; i < kMutatorLock; ++i) {
+    for (size_t i = 0; i < kMutatorLock; ++i) {
       if (self->GetHeldMutex(static_cast<LockLevel>(i)) != NULL) {
         safe_to_release_mutator_lock_over_send = false;
         break;

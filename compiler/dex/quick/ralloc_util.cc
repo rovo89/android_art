@@ -28,12 +28,11 @@ namespace art {
  * live until it is either explicitly killed or reallocated.
  */
 void Mir2Lir::ResetRegPool() {
-  int i;
-  for (i=0; i < reg_pool_->num_core_regs; i++) {
+  for (int i = 0; i < reg_pool_->num_core_regs; i++) {
     if (reg_pool_->core_regs[i].is_temp)
       reg_pool_->core_regs[i].in_use = false;
   }
-  for (i=0; i < reg_pool_->num_fp_regs; i++) {
+  for (int i = 0; i < reg_pool_->num_fp_regs; i++) {
     if (reg_pool_->FPRegs[i].is_temp)
       reg_pool_->FPRegs[i].in_use = false;
   }
@@ -48,8 +47,7 @@ void Mir2Lir::ResetRegPool() {
   * Note: num_regs may be zero.
   */
 void Mir2Lir::CompilerInitPool(RegisterInfo* regs, int* reg_nums, int num) {
-  int i;
-  for (i=0; i < num; i++) {
+  for (int i = 0; i < num; i++) {
     regs[i].reg = reg_nums[i];
     regs[i].in_use = false;
     regs[i].is_temp = false;
@@ -81,8 +79,7 @@ void Mir2Lir::DumpFpRegPool() {
 }
 
 void Mir2Lir::ClobberSRegBody(RegisterInfo* p, int num_regs, int s_reg) {
-  int i;
-  for (i=0; i< num_regs; i++) {
+  for (int i = 0; i< num_regs; i++) {
     if (p[i].s_reg == s_reg) {
       if (p[i].is_temp) {
         p[i].live = false;
@@ -271,9 +268,8 @@ int Mir2Lir::AllocPreservedFPReg(int s_reg, bool double_start) {
 
 int Mir2Lir::AllocTempBody(RegisterInfo* p, int num_regs, int* next_temp,
                            bool required) {
-  int i;
   int next = *next_temp;
-  for (i=0; i< num_regs; i++) {
+  for (int i = 0; i< num_regs; i++) {
     if (next >= num_regs)
       next = 0;
     if (p[next].is_temp && !p[next].in_use && !p[next].live) {
@@ -286,7 +282,7 @@ int Mir2Lir::AllocTempBody(RegisterInfo* p, int num_regs, int* next_temp,
     next++;
   }
   next = *next_temp;
-  for (i=0; i< num_regs; i++) {
+  for (int i = 0; i< num_regs; i++) {
     if (next >= num_regs)
       next = 0;
     if (p[next].is_temp && !p[next].in_use) {
@@ -315,7 +311,7 @@ int Mir2Lir::AllocTempDouble() {
   int next = reg_pool_->next_fp_reg & ~0x1;
 
   // First try to avoid allocating live registers
-  for (int i=0; i < num_regs; i+=2) {
+  for (int i = 0; i < num_regs; i+=2) {
     if (next >= num_regs)
       next = 0;
     if ((p[next].is_temp && !p[next].in_use && !p[next].live) &&
@@ -337,7 +333,7 @@ int Mir2Lir::AllocTempDouble() {
   next = reg_pool_->next_fp_reg & ~0x1;
 
   // No choice - find a pair and kill it.
-  for (int i=0; i < num_regs; i+=2) {
+  for (int i = 0; i < num_regs; i+=2) {
     if (next >= num_regs)
       next = 0;
     if (p[next].is_temp && !p[next].in_use && p[next+1].is_temp &&
@@ -380,10 +376,9 @@ int Mir2Lir::AllocTempFloat() {
 }
 
 Mir2Lir::RegisterInfo* Mir2Lir::AllocLiveBody(RegisterInfo* p, int num_regs, int s_reg) {
-  int i;
   if (s_reg == -1)
     return NULL;
-  for (i=0; i < num_regs; i++) {
+  for (int i = 0; i < num_regs; i++) {
     if (p[i].live && (p[i].s_reg == s_reg)) {
       if (p[i].is_temp)
         p[i].in_use = true;
@@ -419,8 +414,7 @@ Mir2Lir::RegisterInfo* Mir2Lir::AllocLive(int s_reg, int reg_class) {
 void Mir2Lir::FreeTemp(int reg) {
   RegisterInfo* p = reg_pool_->core_regs;
   int num_regs = reg_pool_->num_core_regs;
-  int i;
-  for (i=0; i< num_regs; i++) {
+  for (int i = 0; i< num_regs; i++) {
     if (p[i].reg == reg) {
       if (p[i].is_temp) {
         p[i].in_use = false;
@@ -431,7 +425,7 @@ void Mir2Lir::FreeTemp(int reg) {
   }
   p = reg_pool_->FPRegs;
   num_regs = reg_pool_->num_fp_regs;
-  for (i=0; i< num_regs; i++) {
+  for (int i = 0; i< num_regs; i++) {
     if (p[i].reg == reg) {
       if (p[i].is_temp) {
         p[i].in_use = false;
@@ -446,15 +440,14 @@ void Mir2Lir::FreeTemp(int reg) {
 Mir2Lir::RegisterInfo* Mir2Lir::IsLive(int reg) {
   RegisterInfo* p = reg_pool_->core_regs;
   int num_regs = reg_pool_->num_core_regs;
-  int i;
-  for (i=0; i< num_regs; i++) {
+  for (int i = 0; i< num_regs; i++) {
     if (p[i].reg == reg) {
       return p[i].live ? &p[i] : NULL;
     }
   }
   p = reg_pool_->FPRegs;
   num_regs = reg_pool_->num_fp_regs;
-  for (i=0; i< num_regs; i++) {
+  for (int i = 0; i< num_regs; i++) {
     if (p[i].reg == reg) {
       return p[i].live ? &p[i] : NULL;
     }
@@ -485,8 +478,7 @@ bool Mir2Lir::IsDirty(int reg) {
 void Mir2Lir::LockTemp(int reg) {
   RegisterInfo* p = reg_pool_->core_regs;
   int num_regs = reg_pool_->num_core_regs;
-  int i;
-  for (i=0; i< num_regs; i++) {
+  for (int i = 0; i< num_regs; i++) {
     if (p[i].reg == reg) {
       DCHECK(p[i].is_temp);
       p[i].in_use = true;
@@ -496,7 +488,7 @@ void Mir2Lir::LockTemp(int reg) {
   }
   p = reg_pool_->FPRegs;
   num_regs = reg_pool_->num_fp_regs;
-  for (i=0; i< num_regs; i++) {
+  for (int i = 0; i< num_regs; i++) {
     if (p[i].reg == reg) {
       DCHECK(p[i].is_temp);
       p[i].in_use = true;
@@ -598,29 +590,26 @@ void Mir2Lir::ResetDefLocWide(RegLocation rl) {
 }
 
 void Mir2Lir::ResetDefTracking() {
-  int i;
-  for (i=0; i< reg_pool_->num_core_regs; i++) {
+  for (int i = 0; i< reg_pool_->num_core_regs; i++) {
     ResetDefBody(&reg_pool_->core_regs[i]);
   }
-  for (i=0; i< reg_pool_->num_fp_regs; i++) {
+  for (int i = 0; i< reg_pool_->num_fp_regs; i++) {
     ResetDefBody(&reg_pool_->FPRegs[i]);
   }
 }
 
 void Mir2Lir::ClobberAllRegs() {
-  int i;
-  for (i=0; i< reg_pool_->num_core_regs; i++) {
+  for (int i = 0; i< reg_pool_->num_core_regs; i++) {
     ClobberBody(&reg_pool_->core_regs[i]);
   }
-  for (i=0; i< reg_pool_->num_fp_regs; i++) {
+  for (int i = 0; i< reg_pool_->num_fp_regs; i++) {
     ClobberBody(&reg_pool_->FPRegs[i]);
   }
 }
 
 // Make sure nothing is live and dirty
 void Mir2Lir::FlushAllRegsBody(RegisterInfo* info, int num_regs) {
-  int i;
-  for (i=0; i < num_regs; i++) {
+  for (int i = 0; i < num_regs; i++) {
     if (info[i].live && info[i].dirty) {
       if (info[i].pair) {
         FlushRegWide(info[i].reg, info[i].partner);
