@@ -1046,10 +1046,10 @@ void JdwpState::DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count) {
    * "Wrap" the contents of the iovec with a JDWP/DDMS header.  We do
    * this by creating a new copy of the vector with space for the header.
    */
-  iovec wrapiov[iov_count+1];  // NOLINT(runtime/arrays) iov_count < 10
+  std::vector<iovec> wrapiov;
+  wrapiov.push_back(iovec());
   for (int i = 0; i < iov_count; i++) {
-    wrapiov[i+1].iov_base = iov[i].iov_base;
-    wrapiov[i+1].iov_len = iov[i].iov_len;
+    wrapiov.push_back(iov[i]);
     dataLen += iov[i].iov_len;
   }
 
@@ -1080,11 +1080,11 @@ void JdwpState::DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count) {
   if (safe_to_release_mutator_lock_over_send) {
     // Change state to waiting to allow GC, ... while we're sending.
     self->TransitionFromRunnableToSuspended(kWaitingForDebuggerSend);
-    SendBufferedRequest(type, wrapiov, iov_count + 1);
+    SendBufferedRequest(type, wrapiov);
     self->TransitionFromSuspendedToRunnable();
   } else {
     // Send and possibly block GC...
-    SendBufferedRequest(type, wrapiov, iov_count + 1);
+    SendBufferedRequest(type, wrapiov);
   }
 }
 
