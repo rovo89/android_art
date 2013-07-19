@@ -297,7 +297,7 @@ bool JdwpAdbState::Accept() {
 bool JdwpAdbState::ProcessIncoming() {
   int readCount;
 
-  CHECK(clientSock != -1);
+  CHECK_NE(clientSock, -1);
 
   if (!HaveFullPacket()) {
     /* read some more, looping until we have data */
@@ -371,7 +371,7 @@ bool JdwpAdbState::ProcessIncoming() {
           LOG(INFO) << "Ignoring second debugger -- accepting and dropping";
           close(sock);
         } else {
-          CHECK(control_sock_ == -1);
+          CHECK_EQ(control_sock_, -1);
           /*
            * Remote side most likely went away, so our next read
            * on clientSock will fail and throw us out of the loop.

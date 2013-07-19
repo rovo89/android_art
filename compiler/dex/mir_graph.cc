@@ -543,7 +543,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
   if (current_method_ == 0) {
     DCHECK(entry_block_ == NULL);
     DCHECK(exit_block_ == NULL);
-    DCHECK(num_blocks_ == 0);
+    DCHECK_EQ(num_blocks_, 0);
     entry_block_ = NewMemBB(kEntryBlock, num_blocks_++);
     exit_block_ = NewMemBB(kExitBlock, num_blocks_++);
     block_list_.Insert(entry_block_);

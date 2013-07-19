@@ -125,7 +125,7 @@ bool LargeObjectMapSpace::Contains(const mirror::Object* obj) const {
 }
 
 FreeListSpace* FreeListSpace::Create(const std::string& name, byte* requested_begin, size_t size) {
-  CHECK(size % kAlignment == 0);
+  CHECK_EQ(size % kAlignment, 0U);
   MemMap* mem_map = MemMap::MapAnonymous(name.c_str(), requested_begin, size,
                                          PROT_READ | PROT_WRITE);
   CHECK(mem_map != NULL) << "Failed to allocate large object space mem map";

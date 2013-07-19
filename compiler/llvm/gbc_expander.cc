@@ -873,7 +873,7 @@ llvm::Value* GBCExpanderPass::EmitInvoke(llvm::CallInst& call_inst) {
         break;
 
       case art::kVirtual:
-        DCHECK(vtable_idx != -1);
+        DCHECK_NE(vtable_idx, -1);
         callee_method_object_addr =
             EmitLoadVirtualCalleeMethodObjectAddr(vtable_idx, this_addr);
         break;
@@ -1073,7 +1073,7 @@ void GBCExpanderPass::Expand_FilledNewArray(llvm::CallInst& call_inst) {
   uint32_t element_jty =
     llvm::cast<llvm::ConstantInt>(call_inst.getArgOperand(1))->getZExtValue();
 
-  DCHECK(call_inst.getNumArgOperands() > 2);
+  DCHECK_GT(call_inst.getNumArgOperands(), 2U);
   unsigned num_elements = (call_inst.getNumArgOperands() - 2);
 
   bool is_elem_int_ty = (static_cast<JType>(element_jty) == kInt);
@@ -3698,7 +3698,7 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
                                 irb_.getJDoubleTy());
     }
     case IntrinsicHelper::ConstObj: {
-      CHECK(LV2UInt(call_inst.getArgOperand(0)) == 0);
+      CHECK_EQ(LV2UInt(call_inst.getArgOperand(0)), 0U);
       return irb_.getJNull();
     }
 

@@ -121,8 +121,8 @@ void ArmMir2Lir::GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1,
                                           int64_t val, ConditionCode ccode) {
   int32_t val_lo = Low32Bits(val);
   int32_t val_hi = High32Bits(val);
-  DCHECK(ModifiedImmediate(val_lo) >= 0);
-  DCHECK(ModifiedImmediate(val_hi) >= 0);
+  DCHECK_GE(ModifiedImmediate(val_lo), 0);
+  DCHECK_GE(ModifiedImmediate(val_hi), 0);
   LIR* taken = &block_label_list_[bb->taken->id];
   LIR* not_taken = &block_label_list_[bb->fall_through->id];
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
