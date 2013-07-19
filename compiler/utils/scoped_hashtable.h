@@ -19,8 +19,8 @@
 #include <map>
 #include <list>
 
-#ifndef SCOPED_HASHTABLE_
-#define SCOPED_HASHTABLE_
+#ifndef ART_COMPILER_UTILS_SCOPED_HASHTABLE_H_
+#define ART_COMPILER_UTILS_SCOPED_HASHTABLE_H_
 
 namespace utils {
 template <typename K, typename V>
@@ -68,4 +68,4 @@ class ScopedHashtable {
 };
 } // end namespace utils
 
-#endif
+#endif  // ART_COMPILER_UTILS_SCOPED_HASHTABLE_H_

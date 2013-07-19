@@ -2301,7 +2301,6 @@ void ClassLinker::VerifyClass(mirror::Class* klass) {
 
 bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, mirror::Class* klass,
                                           mirror::Class::Status& oat_file_class_status) {
-
   // If we're compiling, we can only verify the class using the oat file if
   // we are not compiling the image or if the class we're verifying is not part of
   // the app.  In other words, we will only check for preverification of bootclasspath
