@@ -1046,7 +1046,7 @@ void JdwpState::DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count) {
    * "Wrap" the contents of the iovec with a JDWP/DDMS header.  We do
    * this by creating a new copy of the vector with space for the header.
    */
-  iovec wrapiov[iov_count+1];
+  iovec wrapiov[iov_count+1];  // NOLINT(runtime/arrays) iov_count < 10
   for (int i = 0; i < iov_count; i++) {
     wrapiov[i+1].iov_base = iov[i].iov_base;
     wrapiov[i+1].iov_len = iov[i].iov_len;

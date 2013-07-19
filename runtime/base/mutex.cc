@@ -32,7 +32,7 @@ namespace art {
 
 // This works on Mac OS 10.6 but hasn't been tested on older releases.
 struct __attribute__((__may_alias__)) darwin_pthread_mutex_t {
-  long padding0;
+  long padding0;  // NOLINT(runtime/int)
   int padding1;
   uint32_t padding2;
   int16_t padding3;
@@ -43,7 +43,7 @@ struct __attribute__((__may_alias__)) darwin_pthread_mutex_t {
 };
 
 struct __attribute__((__may_alias__)) darwin_pthread_rwlock_t {
-  long padding0;
+  long padding0;  // NOLINT(runtime/int)
   pthread_mutex_t padding1;
   int padding2;
   pthread_cond_t padding3;
@@ -72,7 +72,7 @@ struct __attribute__((__may_alias__)) glibc_pthread_rwlock_t {
 
 #if ART_USE_FUTEXES
 static bool ComputeRelativeTimeSpec(timespec* result_ts, const timespec& lhs, const timespec& rhs) {
-  const long int one_sec = 1000 * 1000 * 1000;  // one second in nanoseconds.
+  const int32_t one_sec = 1000 * 1000 * 1000;  // one second in nanoseconds.
   result_ts->tv_sec = lhs.tv_sec - rhs.tv_sec;
   result_ts->tv_nsec = lhs.tv_nsec - rhs.tv_nsec;
   if (result_ts->tv_nsec < 0) {
