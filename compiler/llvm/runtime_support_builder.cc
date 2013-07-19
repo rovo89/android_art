@@ -43,7 +43,7 @@ RuntimeSupportBuilder::RuntimeSupportBuilder(::llvm::LLVMContext& context,
 #define GET_RUNTIME_SUPPORT_FUNC_DECL(ID, NAME) \
   do { \
     ::llvm::Function* fn = module_.getFunction(#NAME); \
-    DCHECK_NE(fn, (void*)NULL) << "Function not found: " << #NAME; \
+    DCHECK(fn != NULL) << "Function not found: " << #NAME; \
     runtime_support_func_decls_[runtime_support::ID] = fn; \
   } while (0);
 

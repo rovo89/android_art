@@ -123,7 +123,7 @@ void MemmoveWords(void* dst, const void* src, size_t n) {
 
     // Check for leftovers.  Either we finished exactly, or we have one remaining 16-bit chunk.
     if ((n & 0x02) != 0) {
-      *(uint16_t*)d = *(uint16_t*)s;
+      *reinterpret_cast<uint16_t*>(d) = *reinterpret_cast<const uint16_t*>(s);
     }
   } else {
     // Copy backward, starting at the end.

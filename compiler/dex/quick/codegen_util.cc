@@ -190,10 +190,10 @@ void Mir2Lir::DumpLIRInsn(LIR* lir, unsigned char* base_addr) {
   }
 
   if (lir->use_mask && (!lir->flags.is_nop || dump_nop)) {
-    DUMP_RESOURCE_MASK(DumpResourceMask((LIR*) lir, lir->use_mask, "use"));
+    DUMP_RESOURCE_MASK(DumpResourceMask(lir, lir->use_mask, "use"));
   }
   if (lir->def_mask && (!lir->flags.is_nop || dump_nop)) {
-    DUMP_RESOURCE_MASK(DumpResourceMask((LIR*) lir, lir->def_mask, "def"));
+    DUMP_RESOURCE_MASK(DumpResourceMask(lir, lir->def_mask, "def"));
   }
 }
 

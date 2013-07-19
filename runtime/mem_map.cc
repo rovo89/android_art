@@ -192,7 +192,8 @@ bool MemMap::ProtectRegion(uint8_t* addr, size_t length, int prot) {
    * (The address must be page-aligned, the length doesn't need to be,
    * but we do need to ensure we cover the same range.)
    */
-  uint8_t* alignAddr = (uint8_t*) ((uintptr_t) addr & ~(kPageSize-1));
+  uint8_t* alignAddr = reinterpret_cast<uint8_t*>(RoundDown(reinterpret_cast<uintptr_t>(addr),
+                                                            kPageSize));
   size_t alignLength = length + (addr - alignAddr);
 
   if (mprotect(alignAddr, alignLength, prot) == 0) {

@@ -1113,7 +1113,7 @@ bool Mir2Lir::GenInlinedCurrentThread(CallInfo* info) {
     LoadWordDisp(TargetReg(kSelf), offset, rl_result.low_reg);
   } else {
     CHECK(cu_->instruction_set == kX86);
-    ((X86Mir2Lir*)this)->OpRegThreadMem(kOpMov, rl_result.low_reg, offset);
+    reinterpret_cast<X86Mir2Lir*>(this)->OpRegThreadMem(kOpMov, rl_result.low_reg, offset);
   }
   StoreValue(rl_dest, rl_result);
   return true;

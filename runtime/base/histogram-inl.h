@@ -66,7 +66,7 @@ template <class Value> inline size_t Histogram<Value>::FindBucket(Value val) {
   // dividing the value by the bucket width.
   DCHECK_GE(val, min_);
   DCHECK_LE(val, max_);
-  size_t bucket_idx = static_cast<size_t>((double)(val - min_) / bucket_width_);
+  size_t bucket_idx = static_cast<size_t>(static_cast<double>(val - min_) / bucket_width_);
   DCHECK_GE(bucket_idx, 0ul);
   DCHECK_LE(bucket_idx, bucket_count_);
   return bucket_idx;

@@ -473,7 +473,7 @@ void Instrumentation::PushInstrumentationStackFrame(Thread* self, mirror::Object
   size_t frame_id = StackVisitor::ComputeNumFrames(self);
   std::deque<instrumentation::InstrumentationStackFrame>* stack = self->GetInstrumentationStack();
   if (kVerboseInstrumentation) {
-    LOG(INFO) << "Entering " << PrettyMethod(method) << " from PC " << (void*)lr;
+    LOG(INFO) << "Entering " << PrettyMethod(method) << " from PC " << reinterpret_cast<void*>(lr);
   }
   instrumentation::InstrumentationStackFrame instrumentation_frame(this_object, method, lr,
                                                                    frame_id, interpreter_entry);
@@ -530,7 +530,8 @@ uint64_t Instrumentation::PopInstrumentationStackFrame(Thread* self, uintptr_t* 
         (static_cast<uint64_t>(*return_pc) << 32);
   } else {
     if (kVerboseInstrumentation) {
-      LOG(INFO) << "Returning from " << PrettyMethod(method) << " to PC " << (void*)(*return_pc);
+      LOG(INFO) << "Returning from " << PrettyMethod(method)
+                << " to PC " << reinterpret_cast<void*>(*return_pc);
     }
     return *return_pc;
   }

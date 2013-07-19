@@ -72,7 +72,7 @@ namespace hprof {
 #define U2_TO_BUF_BE(buf, offset, value) \
     do { \
       unsigned char* buf_ = (unsigned char*)(buf); \
-      int offset_ = (int)(offset); \
+      int offset_ = static_cast<int>(offset); \
       uint16_t value_ = (uint16_t)(value); \
       buf_[offset_ + 0] = (unsigned char)(value_ >>  8); \
       buf_[offset_ + 1] = (unsigned char)(value_      ); \
@@ -81,7 +81,7 @@ namespace hprof {
 #define U4_TO_BUF_BE(buf, offset, value) \
     do { \
       unsigned char* buf_ = (unsigned char*)(buf); \
-      int offset_ = (int)(offset); \
+      int offset_ = static_cast<int>(offset); \
       uint32_t value_ = (uint32_t)(value); \
       buf_[offset_ + 0] = (unsigned char)(value_ >> 24); \
       buf_[offset_ + 1] = (unsigned char)(value_ >> 16); \
@@ -92,7 +92,7 @@ namespace hprof {
 #define U8_TO_BUF_BE(buf, offset, value) \
     do { \
       unsigned char* buf_ = (unsigned char*)(buf); \
-      int offset_ = (int)(offset); \
+      int offset_ = static_cast<int>(offset); \
       uint64_t value_ = (uint64_t)(value); \
       buf_[offset_ + 0] = (unsigned char)(value_ >> 56); \
       buf_[offset_ + 1] = (unsigned char)(value_ >> 48); \
@@ -222,7 +222,7 @@ class HprofRecord {
         return UNIQUE_ERROR;
       }
       nb = fwrite(body_, 1, length_, fp_);
-      if (nb != (int)length_) {
+      if (nb != static_cast<int>(length_)) {
         return UNIQUE_ERROR;
       }
 
@@ -984,9 +984,9 @@ int Hprof::DumpHeapObject(mirror::Object* obj) {
         if (size == 1) {
           rec->AddU1List((const uint8_t*)aobj->GetRawData(sizeof(uint8_t)), length);
         } else if (size == 2) {
-          rec->AddU2List((const uint16_t*)(void*)aobj->GetRawData(sizeof(uint16_t)), length);
+          rec->AddU2List((const uint16_t*)aobj->GetRawData(sizeof(uint16_t)), length);
         } else if (size == 4) {
-          rec->AddU4List((const uint32_t*)(void*)aobj->GetRawData(sizeof(uint32_t)), length);
+          rec->AddU4List((const uint32_t*)aobj->GetRawData(sizeof(uint32_t)), length);
         } else if (size == 8) {
           rec->AddU8List((const uint64_t*)aobj->GetRawData(sizeof(uint64_t)), length);
         }
