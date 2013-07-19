@@ -950,16 +950,13 @@ void Mir2Lir::Materialize() {
   /* Allocate Registers using simple local allocation scheme */
   SimpleRegAlloc();
 
-  //FIXME: re-enable by retrieving from mir_graph
-  SpecialCaseHandler special_case = kNoHandler;
-
-  if (special_case != kNoHandler) {
+  if (mir_graph_->IsSpecialCase()) {
       /*
        * Custom codegen for special cases.  If for any reason the
        * special codegen doesn't succeed, first_lir_insn_ will
        * set to NULL;
        */
-      SpecialMIR2LIR(special_case);
+      SpecialMIR2LIR(mir_graph_->GetSpecialCase());
     }
 
   /* Convert MIR to LIR, etc. */

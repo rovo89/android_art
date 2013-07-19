@@ -107,6 +107,7 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       method_sreg_(0),
       attributes_(METHOD_IS_LEAF),  // Start with leaf assumption, change on encountering invoke.
       checkstats_(NULL),
+      special_case_(kNoHandler),
       arena_(arena) {
   try_block_addr_ = new (arena_) ArenaBitVector(arena_, 0, true /* expandable */);
 }
@@ -590,9 +591,6 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
   bool* dead_pattern =
       static_cast<bool*>(arena_->NewMem(sizeof(bool) * num_patterns, true,
                                         ArenaAllocator::kAllocMisc));
-  SpecialCaseHandler special_case = kNoHandler;
-  // FIXME - wire this up
-  (void)special_case;
   int pattern_pos = 0;
 
   /* Parse all instructions and put them into containing basic blocks */
@@ -614,12 +612,12 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
     /* Possible simple method? */
     if (live_pattern) {
       live_pattern = false;
-      special_case = kNoHandler;
+      special_case_ = kNoHandler;
       for (int i = 0; i < num_patterns; i++) {
         if (!dead_pattern[i]) {
           if (special_patterns[i].opcodes[pattern_pos] == opcode) {
             live_pattern = true;
-            special_case = special_patterns[i].handler_code;
+            special_case_ = special_patterns[i].handler_code;
           } else {
              dead_pattern[i] = true;
           }
