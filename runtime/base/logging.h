@@ -215,10 +215,7 @@ class HexDump {
   size_t byte_count_;
   bool show_actual_addresses_;
 
-  // TODO: Remove the #if when Mac OS build server no longer uses GCC 4.2.*.
-#if GCC_VERSION >= 40300
   DISALLOW_COPY_AND_ASSIGN(HexDump);
-#endif
 };
 std::ostream& operator<<(std::ostream& os, const HexDump& rhs);
 
@@ -240,10 +237,7 @@ class Dumpable {
  private:
   T& value_;
 
-// TODO: Remove the #if when Mac OS build server no longer uses GCC 4.2.*.
-#if GCC_VERSION >= 40300
   DISALLOW_COPY_AND_ASSIGN(Dumpable);
-#endif
 };
 
 template<typename T>
@@ -266,10 +260,7 @@ class MutatorLockedDumpable {
  private:
   T& value_;
 
-// TODO: Remove the #if when Mac OS build server no longer uses GCC 4.2.*.
-#if GCC_VERSION >= 40300
   DISALLOW_COPY_AND_ASSIGN(MutatorLockedDumpable);
-#endif
 };
 
 template<typename T>
