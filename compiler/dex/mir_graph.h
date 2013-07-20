@@ -509,6 +509,14 @@ class MIRGraph {
     return reg_location_[method_sreg_];
   }
 
+  bool IsSpecialCase() {
+    return special_case_ != kNoHandler;
+  }
+
+  SpecialCaseHandler GetSpecialCase() {
+    return special_case_;
+  }
+
   void BasicBlockCombine();
   void CodeLayout();
   void DumpCheckStats();
@@ -655,6 +663,7 @@ class MIRGraph {
   int method_sreg_;
   unsigned int attributes_;
   Checkstats* checkstats_;
+  SpecialCaseHandler special_case_;
   ArenaAllocator* arena_;
 };
 
