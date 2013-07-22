@@ -1032,7 +1032,6 @@ static int dex2oat(int argc, char** argv) {
     return EXIT_SUCCESS;
   }
 
-#if ART_USE_PORTABLE_COMPILER  // We currently only generate symbols on Portable
   // If we don't want to strip in place, copy from unstripped location to stripped location.
   // We need to strip after image creation because FixupElf needs to use .strtab.
   if (oat_unstripped != oat_stripped) {
@@ -1054,6 +1053,7 @@ static int dex2oat(int argc, char** argv) {
     LOG(INFO) << "Oat file copied successfully (stripped): " << oat_stripped;
   }
 
+#if ART_USE_PORTABLE_COMPILER  // We currently only generate symbols on Portable
   // Strip unneeded sections for target
   off_t seek_actual = lseek(oat_file->Fd(), 0, SEEK_SET);
   CHECK_EQ(0, seek_actual);
