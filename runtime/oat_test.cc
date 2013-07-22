@@ -74,10 +74,11 @@ TEST_F(OatTest, WriteRead) {
 #else
   CompilerBackend compiler_backend = kQuick;
 #endif
-  compiler_driver_.reset(new CompilerDriver(compiler_backend, kThumb2, false, NULL, 2, true, true));
+  compiler_driver_.reset(new CompilerDriver(compiler_backend, kThumb2, false, NULL, 2, true));
   jobject class_loader = NULL;
   if (compile) {
-    compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath());
+    TimingLogger timings("OatTest::WriteRead", false);
+    compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), timings);
   }
 
   ScopedObjectAccess soa(Thread::Current());
@@ -99,7 +100,8 @@ TEST_F(OatTest, WriteRead) {
   ASSERT_TRUE(success_elf);
 
   if (compile) {  // OatWriter strips the code, regenerate to compare
-    compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath());
+    TimingLogger timings("CommonTest::WriteRead", false);
+    compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), timings);
   }
   UniquePtr<OatFile> oat_file(OatFile::Open(tmp.GetFilename(), tmp.GetFilename(), NULL, false));
   ASSERT_TRUE(oat_file.get() != NULL);

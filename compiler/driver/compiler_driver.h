@@ -72,15 +72,16 @@ class CompilerDriver {
   // classes.
   explicit CompilerDriver(CompilerBackend compiler_backend, InstructionSet instruction_set,
                           bool image, DescriptorSet* image_classes,
-                          size_t thread_count, bool dump_stats, bool dump_timings);
+                          size_t thread_count, bool dump_stats);
 
   ~CompilerDriver();
 
-  void CompileAll(jobject class_loader, const std::vector<const DexFile*>& dex_files)
+  void CompileAll(jobject class_loader, const std::vector<const DexFile*>& dex_files,
+                  TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Compile a single Method
-  void CompileOne(const mirror::AbstractMethod* method)
+  void CompileOne(const mirror::AbstractMethod* method, TimingLogger& timings)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   InstructionSet GetInstructionSet() const {
@@ -362,7 +363,6 @@ class CompilerDriver {
   UniquePtr<AOTCompilationStats> stats_;
 
   bool dump_stats_;
-  bool dump_timings_;
 
   typedef void (*CompilerCallbackFn)(CompilerDriver& driver);
   typedef MutexLock* (*CompilerMutexLockFn)(CompilerDriver& driver);

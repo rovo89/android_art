@@ -335,7 +335,7 @@ extern "C" void compilerLLVMSetBitcodeFileName(art::CompilerDriver& driver,
 
 CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet instruction_set,
                                bool image, DescriptorSet* image_classes,
-                               size_t thread_count, bool dump_stats, bool dump_timings)
+                               size_t thread_count, bool dump_stats)
     : compiler_backend_(compiler_backend),
       instruction_set_(instruction_set),
       freezing_constructor_lock_("freezing constructor lock"),
@@ -347,7 +347,6 @@ CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet 
       start_ns_(0),
       stats_(new AOTCompilationStats),
       dump_stats_(dump_stats),
-      dump_timings_(dump_timings),
       compiler_library_(NULL),
       compiler_(NULL),
       compiler_context_(NULL),
@@ -495,20 +494,12 @@ const std::vector<uint8_t>* CompilerDriver::CreateInterpreterToQuickEntry() cons
 }
 
 void CompilerDriver::CompileAll(jobject class_loader,
-                                const std::vector<const DexFile*>& dex_files) {
+                                const std::vector<const DexFile*>& dex_files,
+                                TimingLogger& timings) {
   DCHECK(!Runtime::Current()->IsStarted());
-
   UniquePtr<ThreadPool> thread_pool(new ThreadPool(thread_count_));
-  TimingLogger timings("compiler", false);
-
   PreCompile(class_loader, dex_files, *thread_pool.get(), timings);
-
   Compile(class_loader, dex_files, *thread_pool.get(), timings);
-
-  if (dump_timings_ && timings.GetTotalNs() > MsToNs(1000)) {
-    LOG(INFO) << Dumpable<TimingLogger>(timings);
-  }
-
   if (dump_stats_) {
     stats_->Dump();
   }
@@ -537,7 +528,7 @@ static bool IsDexToDexCompilationAllowed(mirror::ClassLoader* class_loader,
   return klass->IsVerified();
 }
 
-void CompilerDriver::CompileOne(const mirror::AbstractMethod* method) {
+void CompilerDriver::CompileOne(const mirror::AbstractMethod* method, TimingLogger& timings) {
   DCHECK(!Runtime::Current()->IsStarted());
   Thread* self = Thread::Current();
   jobject jclass_loader;
@@ -560,7 +551,6 @@ void CompilerDriver::CompileOne(const mirror::AbstractMethod* method) {
   dex_files.push_back(dex_file);
 
   UniquePtr<ThreadPool> thread_pool(new ThreadPool(1U));
-  TimingLogger timings("CompileOne", false);
   PreCompile(jclass_loader, dex_files, *thread_pool.get(), timings);
 
   uint32_t method_idx = method->GetDexMethodIndex();

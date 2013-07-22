@@ -349,7 +349,7 @@ class CommonTest : public testing::Test {
       class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
       compiler_driver_.reset(new CompilerDriver(compiler_backend, instruction_set,
                                                 true, new CompilerDriver::DescriptorSet,
-                                                2, true, true));
+                                                2, true));
     }
     // We typically don't generate an image in unit tests, disable this optimization by default.
     compiler_driver_->SetSupportBootImageFixup(false);
@@ -473,7 +473,8 @@ class CommonTest : public testing::Test {
 
   void CompileMethod(mirror::AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(method != NULL);
-    compiler_driver_->CompileOne(method);
+    TimingLogger timings("CommonTest::CompileMethod", false);
+    compiler_driver_->CompileOne(method, timings);
     MakeExecutable(method);
   }
 
