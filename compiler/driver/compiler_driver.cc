@@ -335,8 +335,7 @@ extern "C" void compilerLLVMSetBitcodeFileName(art::CompilerDriver& driver,
 
 CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet instruction_set,
                                bool image, DescriptorSet* image_classes,
-                               size_t thread_count, bool support_debugging,
-                               bool dump_stats, bool dump_timings)
+                               size_t thread_count, bool dump_stats, bool dump_timings)
     : compiler_backend_(compiler_backend),
       instruction_set_(instruction_set),
       freezing_constructor_lock_("freezing constructor lock"),
@@ -345,7 +344,6 @@ CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet 
       image_(image),
       image_classes_(image_classes),
       thread_count_(thread_count),
-      support_debugging_(support_debugging),
       start_ns_(0),
       stats_(new AOTCompilationStats),
       dump_stats_(dump_stats),

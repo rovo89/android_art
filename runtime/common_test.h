@@ -349,7 +349,7 @@ class CommonTest : public testing::Test {
       class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
       compiler_driver_.reset(new CompilerDriver(compiler_backend, instruction_set,
                                                 true, new CompilerDriver::DescriptorSet,
-                                                2, false, true, true));
+                                                2, true, true));
     }
     // We typically don't generate an image in unit tests, disable this optimization by default.
     compiler_driver_->SetSupportBootImageFixup(false);

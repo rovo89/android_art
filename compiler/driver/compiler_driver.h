@@ -72,8 +72,7 @@ class CompilerDriver {
   // classes.
   explicit CompilerDriver(CompilerBackend compiler_backend, InstructionSet instruction_set,
                           bool image, DescriptorSet* image_classes,
-                          size_t thread_count, bool support_debugging,
-                          bool dump_stats, bool dump_timings);
+                          size_t thread_count, bool dump_stats, bool dump_timings);
 
   ~CompilerDriver();
 
@@ -83,10 +82,6 @@ class CompilerDriver {
   // Compile a single Method
   void CompileOne(const mirror::AbstractMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  bool IsDebuggingSupported() {
-    return support_debugging_;
-  }
 
   InstructionSet GetInstructionSet() const {
     return instruction_set_;
@@ -362,7 +357,6 @@ class CompilerDriver {
   UniquePtr<DescriptorSet> image_classes_;
 
   size_t thread_count_;
-  bool support_debugging_;
   uint64_t start_ns_;
 
   UniquePtr<AOTCompilationStats> stats_;
