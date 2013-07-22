@@ -83,8 +83,8 @@ static void Usage(const char* fmt, ...) {
   UsageError("      containing a classes.dex file to compile.");
   UsageError("      Example: --zip-fd=5");
   UsageError("");
-  UsageError("  --zip-location=<zip-location>: specifies a symbolic name for the file corresponding");
-  UsageError("      to the file descriptor specified by --zip-fd.");
+  UsageError("  --zip-location=<zip-location>: specifies a symbolic name for the file");
+  UsageError("      corresponding to the file descriptor specified by --zip-fd.");
   UsageError("      Example: --zip-location=/system/app/Calculator.apk");
   UsageError("");
   UsageError("  --oat-file=<file.oat>: specifies the oat output destination via a filename.");
@@ -148,8 +148,11 @@ static void Usage(const char* fmt, ...) {
 
 class Dex2Oat {
  public:
-  static bool Create(Dex2Oat** p_dex2oat, Runtime::Options& options, CompilerBackend compiler_backend,
-                     InstructionSet instruction_set, size_t thread_count)
+  static bool Create(Dex2Oat** p_dex2oat,
+                     Runtime::Options& options,
+                     CompilerBackend compiler_backend,
+                     InstructionSet instruction_set,
+                     size_t thread_count)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_) {
     if (!CreateRuntime(options, instruction_set)) {
       *p_dex2oat = NULL;
@@ -161,13 +164,15 @@ class Dex2Oat {
 
   ~Dex2Oat() {
     delete runtime_;
-    LOG(INFO) << "dex2oat took " << PrettyDuration(NanoTime() - start_ns_) << " (threads: " << thread_count_ << ")";
+    LOG(INFO) << "dex2oat took " << PrettyDuration(NanoTime() - start_ns_)
+              << " (threads: " << thread_count_ << ")";
   }
 
 
-  // Reads the class names (java.lang.Object) and returns as set of class descriptors (Ljava/lang/Object;)
+  // Reads the class names (java.lang.Object) and returns a set of descriptors (Ljava/lang/Object;)
   CompilerDriver::DescriptorSet* ReadImageClassesFromFile(const char* image_classes_filename) {
-    UniquePtr<std::ifstream> image_classes_file(new std::ifstream(image_classes_filename, std::ifstream::in));
+    UniquePtr<std::ifstream> image_classes_file(new std::ifstream(image_classes_filename,
+                                                                  std::ifstream::in));
     if (image_classes_file.get() == NULL) {
       LOG(ERROR) << "Failed to open image classes file " << image_classes_filename;
       return NULL;
@@ -191,8 +196,9 @@ class Dex2Oat {
     return image_classes.release();
   }
 
-  // Reads the class names (java.lang.Object) and returns as set of class descriptors (Ljava/lang/Object;)
-  CompilerDriver::DescriptorSet* ReadImageClassesFromZip(const std::string& zip_filename, const char* image_classes_filename) {
+  // Reads the class names (java.lang.Object) and returns a set of descriptors (Ljava/lang/Object;)
+  CompilerDriver::DescriptorSet* ReadImageClassesFromZip(const std::string& zip_filename,
+                                                         const char* image_classes_filename) {
     UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(zip_filename));
     if (zip_archive.get() == NULL) {
       LOG(ERROR) << "Failed to open zip file " << zip_filename;
@@ -224,7 +230,7 @@ class Dex2Oat {
                                       bool image,
                                       UniquePtr<CompilerDriver::DescriptorSet>& image_classes,
                                       bool dump_stats,
-                                      bool dump_timings)
+                                      TimingLogger& timings)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // SirtRef and ClassLoader creation needs to come after Runtime::Create
     jobject class_loader = NULL;
@@ -248,8 +254,7 @@ class Dex2Oat {
                                                         image,
                                                         image_classes.release(),
                                                         thread_count_,
-                                                        dump_stats,
-                                                        dump_timings));
+                                                        dump_stats));
 
     if (compiler_backend_ == kPortable) {
       driver->SetBitcodeFileName(bitcode_filename);
@@ -258,7 +263,8 @@ class Dex2Oat {
 
     Thread::Current()->TransitionFromRunnableToSuspended(kNative);
 
-    driver->CompileAll(class_loader, dex_files);
+    timings.AddSplit("dex2oat Setup");
+    driver->CompileAll(class_loader, dex_files, timings);
 
     Thread::Current()->TransitionFromSuspendedToRunnable();
 
@@ -294,11 +300,13 @@ class Dex2Oat {
       LOG(ERROR) << "Failed to create oat file " << oat_file->GetPath();
       return NULL;
     }
+    timings.AddSplit("dex2oat OatWriter");
 
     if (!driver->WriteElf(android_root, is_host, dex_files, oat_contents, oat_file)) {
       LOG(ERROR) << "Failed to write ELF file " << oat_file->GetPath();
       return NULL;
     }
+    timings.AddSplit("dex2oat ElfWriter");
 
     return driver.release();
   }
@@ -333,7 +341,9 @@ class Dex2Oat {
   }
 
  private:
-  explicit Dex2Oat(Runtime* runtime, CompilerBackend compiler_backend, InstructionSet instruction_set,
+  explicit Dex2Oat(Runtime* runtime,
+                   CompilerBackend compiler_backend,
+                   InstructionSet instruction_set,
                    size_t thread_count)
       : compiler_backend_(compiler_backend),
         instruction_set_(instruction_set),
@@ -365,7 +375,8 @@ class Dex2Oat {
 
   // Appends to dex_files any elements of class_path that it doesn't already
   // contain. This will open those dex files as necessary.
-  static void OpenClassPathFiles(const std::string& class_path, std::vector<const DexFile*>& dex_files) {
+  static void OpenClassPathFiles(const std::string& class_path,
+                                 std::vector<const DexFile*>& dex_files) {
     std::vector<std::string> parsed;
     Split(class_path, ':', parsed);
     // Take Locks::mutator_lock_ so that lock ordering on the ClassLinker::dex_lock_ is maintained.
@@ -384,7 +395,8 @@ class Dex2Oat {
   }
 
   // Returns true if dex_files has a dex with the named location.
-  static bool DexFilesContains(const std::vector<const DexFile*>& dex_files, const std::string& location) {
+  static bool DexFilesContains(const std::vector<const DexFile*>& dex_files,
+                               const std::string& location) {
     for (size_t i = 0; i < dex_files.size(); ++i) {
       if (dex_files[i]->GetLocation() == location) {
         return true;
@@ -564,6 +576,8 @@ const unsigned int WatchDog::kWatchDogWarningSeconds;
 const unsigned int WatchDog::kWatchDogTimeoutSeconds;
 
 static int dex2oat(int argc, char** argv) {
+  TimingLogger timings("compiler", false);
+
   InitLogging(argv);
 
   // Skip over argv[0].
@@ -937,7 +951,7 @@ static int dex2oat(int argc, char** argv) {
                                                                   image,
                                                                   image_classes,
                                                                   dump_stats,
-                                                                  dump_timings));
+                                                                  timings));
 
   if (compiler.get() == NULL) {
     LOG(ERROR) << "Failed to create oat file: " << oat_location;
@@ -959,7 +973,7 @@ static int dex2oat(int argc, char** argv) {
   // | alloc spaces |
   // +--------------+
   //
-  // There are several constraints on the loading of the imag and boot.oat.
+  // There are several constraints on the loading of the image and boot.oat.
   //
   // 1. The image is expected to be loaded at an absolute address and
   // contains Objects with absolute pointers within the image.
@@ -977,7 +991,7 @@ static int dex2oat(int argc, char** argv) {
   //
   // 1. We have already created that oat file above with
   // CreateOatFile. Originally this was just our own proprietary file
-  // but now it is contained within an ELF dynamic object (aka .so
+  // but now it is contained within an ELF dynamic object (aka an .so
   // file). The Compiler returned by CreateOatFile provides
   // PatchInformation for references to oat code and Methods that need
   // to be update once we know where the oat file will be located
@@ -1003,6 +1017,7 @@ static int dex2oat(int argc, char** argv) {
                                                            oat_unstripped,
                                                            oat_location,
                                                            *compiler.get());
+    timings.AddSplit("dex2oat ImageWriter");
     Thread::Current()->TransitionFromSuspendedToRunnable();
     LOG(INFO) << "Image written successfully: " << image_filename;
     if (!image_creation_success) {
@@ -1011,9 +1026,13 @@ static int dex2oat(int argc, char** argv) {
   }
 
   if (is_host) {
+    if (dump_timings && timings.GetTotalNs() > MsToNs(1000)) {
+      LOG(INFO) << Dumpable<TimingLogger>(timings);
+    }
     return EXIT_SUCCESS;
   }
 
+#if ART_USE_PORTABLE_COMPILER  // We currently only generate symbols on Portable
   // If we don't want to strip in place, copy from unstripped location to stripped location.
   // We need to strip after image creation because FixupElf needs to use .strtab.
   if (oat_unstripped != oat_stripped) {
@@ -1031,6 +1050,7 @@ static int dex2oat(int argc, char** argv) {
       CHECK(write_ok);
     }
     oat_file.reset(out.release());
+    timings.AddSplit("dex2oat OatFile copy");
     LOG(INFO) << "Oat file copied successfully (stripped): " << oat_stripped;
   }
 
@@ -1038,11 +1058,18 @@ static int dex2oat(int argc, char** argv) {
   off_t seek_actual = lseek(oat_file->Fd(), 0, SEEK_SET);
   CHECK_EQ(0, seek_actual);
   ElfStripper::Strip(oat_file.get());
+  timings.AddSplit("dex2oat ElfStripper");
 
   // We wrote the oat file successfully, and want to keep it.
   LOG(INFO) << "Oat file written successfully (stripped): " << oat_location;
+#endif // ART_USE_PORTABLE_COMPILER
+
+  if (dump_timings && timings.GetTotalNs() > MsToNs(1000)) {
+    LOG(INFO) << Dumpable<TimingLogger>(timings);
+  }
   return EXIT_SUCCESS;
 }
+
 
 } // namespace art
 

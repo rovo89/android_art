@@ -45,7 +45,8 @@ TEST_F(ImageTest, WriteRead) {
     {
       jobject class_loader = NULL;
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-      compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath());
+      TimingLogger timings("ImageTest::WriteRead", false);
+      compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), timings);
 
       ScopedObjectAccess soa(Thread::Current());
       VectorOutputStream output_stream(tmp_elf.GetFilename(), oat_contents);
