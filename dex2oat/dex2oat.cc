@@ -149,14 +149,13 @@ static void Usage(const char* fmt, ...) {
 class Dex2Oat {
  public:
   static bool Create(Dex2Oat** p_dex2oat, Runtime::Options& options, CompilerBackend compiler_backend,
-                     InstructionSet instruction_set, size_t thread_count, bool support_debugging)
+                     InstructionSet instruction_set, size_t thread_count)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_) {
     if (!CreateRuntime(options, instruction_set)) {
       *p_dex2oat = NULL;
       return false;
     }
-    *p_dex2oat = new Dex2Oat(Runtime::Current(), compiler_backend, instruction_set, thread_count,
-                             support_debugging);
+    *p_dex2oat = new Dex2Oat(Runtime::Current(), compiler_backend, instruction_set, thread_count);
     return true;
   }
 
@@ -249,7 +248,6 @@ class Dex2Oat {
                                                         image,
                                                         image_classes.release(),
                                                         thread_count_,
-                                                        support_debugging_,
                                                         dump_stats,
                                                         dump_timings));
 
@@ -336,12 +334,11 @@ class Dex2Oat {
 
  private:
   explicit Dex2Oat(Runtime* runtime, CompilerBackend compiler_backend, InstructionSet instruction_set,
-                   size_t thread_count, bool support_debugging)
+                   size_t thread_count)
       : compiler_backend_(compiler_backend),
         instruction_set_(instruction_set),
         runtime_(runtime),
         thread_count_(thread_count),
-        support_debugging_(support_debugging),
         start_ns_(NanoTime()) {
   }
 
@@ -402,7 +399,6 @@ class Dex2Oat {
 
   Runtime* runtime_;
   size_t thread_count_;
-  bool support_debugging_;
   uint64_t start_ns_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Dex2Oat);
@@ -596,7 +592,6 @@ static int dex2oat(int argc, char** argv) {
   std::string android_root;
   std::vector<const char*> runtime_args;
   int thread_count = sysconf(_SC_NPROCESSORS_CONF);
-  bool support_debugging = false;
 #if defined(ART_USE_PORTABLE_COMPILER)
   CompilerBackend compiler_backend = kPortable;
 #else
@@ -643,8 +638,6 @@ static int dex2oat(int argc, char** argv) {
       if (!ParseInt(oat_fd_str, &oat_fd)) {
         Usage("could not parse --oat-fd argument '%s' as an integer", oat_fd_str);
       }
-    } else if (option == "-g") {
-      support_debugging = true;
     } else if (option == "--watch-dog") {
       watch_dog_enabled = true;
     } else if (option == "--no-watch-dog") {
@@ -866,8 +859,7 @@ static int dex2oat(int argc, char** argv) {
 
 
   Dex2Oat* p_dex2oat;
-  if (!Dex2Oat::Create(&p_dex2oat, options, compiler_backend, instruction_set, thread_count,
-                       support_debugging)) {
+  if (!Dex2Oat::Create(&p_dex2oat, options, compiler_backend, instruction_set, thread_count)) {
     LOG(ERROR) << "Failed to create dex2oat";
     return EXIT_FAILURE;
   }
