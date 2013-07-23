@@ -99,6 +99,7 @@ bool Instruction::HasVRegB() const {
     case k22s: return true;
     case k22t: return true;
     case k22x: return true;
+    case k23x: return true;
     case k32x: return true;
     default: return false;
   }
@@ -147,6 +148,7 @@ int32_t Instruction::VRegB() const {
     case k22s: return VRegB_22s();
     case k22t: return VRegB_22t();
     case k22x: return VRegB_22x();
+    case k23x: return VRegB_23x();
     case k32x: return VRegB_32x();
     default: LOG(FATAL) << "Tried to access vB of instruction " << Name() <<
         " which has no B operand.";

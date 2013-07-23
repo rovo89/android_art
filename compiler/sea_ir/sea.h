@@ -23,13 +23,11 @@
 
 #include "dex_file.h"
 #include "dex_instruction.h"
-#include "sea_ir/instruction_tools.h"
+#include "instruction_tools.h"
+#include "instruction_nodes.h"
 #include "utils/scoped_hashtable.h"
 
-
 namespace sea_ir {
-
-#define NO_REGISTER             (-1)
 
 // Reverse post-order numbering constants
 enum RegionNumbering {
@@ -38,93 +36,23 @@ enum RegionNumbering {
 };
 
 class Region;
+
 class InstructionNode;
 class PhiInstructionNode;
+class SignatureNode;
 
-class SeaNode {
- public:
-  explicit SeaNode():id_(GetNewId()), string_id_(), successors_(), predecessors_() {
-    std::stringstream ss;
-    ss << id_;
-    string_id_.append(ss.str());
-  }
-  // Adds CFG predecessors and successors to each block.
-  void AddSuccessor(Region* successor);
-  void AddPredecessor(Region* predecesor);
-
-  std::vector<sea_ir::Region*>* GetSuccessors() {
-    return &successors_;
-  }
-  std::vector<sea_ir::Region*>* GetPredecessors() {
-    return &predecessors_;
-  }
-  // Returns the id of the current block as string
-  const std::string& StringId() const {
-    return string_id_;
-  }
-  // Appends to @result a dot language formatted string representing the node and
-  //    (by convention) outgoing edges, so that the composition of theToDot() of all nodes
-  //    builds a complete dot graph, but without prolog ("digraph {") and epilog ("}").
-  virtual void ToDot(std::string& result) const = 0;
-
-  virtual ~SeaNode() {}
-
- protected:
-  static int GetNewId() {
-    return current_max_node_id_++;
-  }
-
-  const int id_;
-  std::string string_id_;
-  std::vector<sea_ir::Region*> successors_;    // CFG successor nodes (regions)
-  std::vector<sea_ir::Region*> predecessors_;  // CFG predecessor nodes (instructions/regions)
-
- private:
-  static int current_max_node_id_;
-};
-
-class InstructionNode: public SeaNode {
- public:
-  explicit InstructionNode(const art::Instruction* in):
-    SeaNode(), instruction_(in), de_def_(false) {}
-  // Returns the Dalvik instruction around which this InstructionNode is wrapped.
-  const art::Instruction* GetInstruction() const {
-    DCHECK(NULL != instruction_) << "Tried to access NULL instruction in an InstructionNode.";
-    return instruction_;
-  }
-  // Returns the register that is defined by the current instruction, or NO_REGISTER otherwise.
-  virtual int GetResultRegister() const;
-  // Returns the set of registers defined by the current instruction.
-  virtual std::vector<int> GetDefinitions() const;
-  // Returns the set of register numbers that are used by the instruction.
-  virtual std::vector<int> GetUses();
-  // Appends to @result the .dot string representation of the instruction.
-  void ToDot(std::string& result) const;
-  // Mark the current instruction as a dowward exposed definition.
-  void MarkAsDEDef();
-  // Rename the use of @reg_no to refer to the instruction @definition,
-  // essentially creating SSA form.
-  void RenameToSSA(int reg_no, InstructionNode* definition) {
-    definition_edges_.insert(std::pair<int, InstructionNode*>(reg_no, definition));
-  }
-
- private:
-  const art::Instruction* const instruction_;
-  std::map<int, InstructionNode* > definition_edges_;
-  bool de_def_;
-};
-
+// A SignatureNode is a declaration of one parameter in the function signature.
+// This class is used to provide place-holder definitions to which instructions
+// can return from the GetSSAUses() calls, instead of having missing SSA edges.
 class SignatureNode: public InstructionNode {
  public:
-  explicit SignatureNode(unsigned int start_register, unsigned int count):
+  explicit SignatureNode(unsigned int parameter_register):
       InstructionNode(NULL), defined_regs_() {
-    for (unsigned int crt_offset = 0; crt_offset < count; crt_offset++) {
-      defined_regs_.push_back(start_register - crt_offset);
-    }
+    defined_regs_.push_back(parameter_register);
   }
 
   void ToDot(std::string& result) const {
-    result += StringId() +"[label=\"signature:";
+    result += StringId() +" [label=\"signature:";
     std::stringstream vector_printer;
     if (!defined_regs_.empty()) {
       for (unsigned int crt_el = 0; crt_el < defined_regs_.size()-1; crt_el++) {
@@ -147,10 +75,14 @@ class SignatureNode: public InstructionNode {
     return std::vector<int>();
   }
 
+  void Accept(IRVisitor* v) {
+    v->Visit(this);
+    v->Traverse(this);
+  }
+
  private:
   std::vector<int> defined_regs_;
 };
-
 
 class PhiInstructionNode: public InstructionNode {
  public:
@@ -159,11 +91,11 @@ class PhiInstructionNode: public InstructionNode {
   // Appends to @result the .dot string representation of the instruction.
   void ToDot(std::string& result) const;
   // Returns the register on which this phi-function is used.
-  int GetRegisterNumber() {
+  int GetRegisterNumber() const {
     return register_no_;
   }
 
-  // Rename the use of @reg_no to refer to the instruction @definition.
+  // Renames the use of @reg_no to refer to the instruction @definition.
   // Phi-functions are different than normal instructions in that they
   // have multiple predecessor regions; this is why RenameToSSA has
   // the additional parameter specifying that @parameter_id is the incoming
@@ -174,27 +106,40 @@ class PhiInstructionNode: public InstructionNode {
     if (definition_edges_.size() < predecessor_id+1) {
       definition_edges_.resize(predecessor_id+1, NULL);
     }
-
     if (NULL == definition_edges_.at(predecessor_id)) {
-      definition_edges_[predecessor_id] = new std::map<int, InstructionNode*>();
+      definition_edges_[predecessor_id] = new std::vector<InstructionNode*>();
     }
-    definition_edges_[predecessor_id]->insert(std::pair<int, InstructionNode*>(reg_no, definition));
+    definition_edges_[predecessor_id]->push_back(definition);
+  }
+
+  // Returns the instruction that defines the phi register from predecessor
+  // on position @predecessor_pos. Note that the return value is vector<> just
+  // for consistency with the return value of GetSSAUses() on regular instructions,
+  // The returned vector should always have a single element because the IR is SSA.
+  std::vector<InstructionNode*>* GetSSAUses(int predecessor_pos) {
+    return definition_edges_.at(predecessor_pos);
+  }
+
+  void Accept(IRVisitor* v) {
+    v->Visit(this);
+    v->Traverse(this);
   }
 
  private:
   int register_no_;
-  std::vector<std::map<int, InstructionNode*>*> definition_edges_;
+  std::vector<std::vector<InstructionNode*>*> definition_edges_;
 };
 
+// This class corresponds to a basic block in traditional compiler IRs.
+// The dataflow analysis relies on this class both during execution and
+// for storing its results.
 class Region : public SeaNode {
  public:
   explicit Region():
-    SeaNode(), reaching_defs_size_(0), rpo_(NOT_VISITED), idom_(NULL),
-    idominated_set_(), df_(), phi_set_() {}
-
+    SeaNode(), successors_(), predecessors_(), reaching_defs_size_(0),
+    rpo_(NOT_VISITED), idom_(NULL), idominated_set_(), df_(), phi_set_() {}
   // Adds @instruction as an instruction node child in the current region.
-  void AddChild(sea_ir::InstructionNode* insttruction);
-
+  void AddChild(sea_ir::InstructionNode* instruction);
   // Returns the last instruction node child of the current region.
   // This child has the CFG successors pointing to the new regions.
   SeaNode* GetLastChild() const;
@@ -207,10 +152,8 @@ class Region : public SeaNode {
   //    builds a complete dot graph (without prolog and epilog though).
   virtual void ToDot(std::string& result) const;
   // Computes Downward Exposed Definitions for the current node.
-
   void ComputeDownExposedDefs();
   const std::map<int, sea_ir::InstructionNode*>* GetDownExposedDefs() const;
-
   // Performs one iteration of the reaching definitions algorithm
   // and returns true if the reaching definitions set changed.
   bool UpdateReachingDefs();
@@ -240,7 +183,6 @@ class Region : public SeaNode {
   const std::set<Region*>* GetIDominatedSet() {
     return &idominated_set_;
   }
-
   // Adds @df_reg to the dominance frontier of the current region.
   void AddToDominanceFrontier(Region* df_reg) {
     df_.insert(df_reg);
@@ -266,7 +208,31 @@ class Region : public SeaNode {
   void SetPhiDefinitionsForUses(const utils::ScopedHashtable<int, InstructionNode*>* scoped_table,
       Region* predecessor);
 
+  void Accept(IRVisitor* v) {
+    v->Visit(this);
+    v->Traverse(this);
+  }
+
+  void AddSuccessor(Region* successor) {
+    DCHECK(successor) << "Tried to add NULL successor to SEA node.";
+    successors_.push_back(successor);
+    return;
+  }
+  void AddPredecessor(Region* predecessor) {
+    DCHECK(predecessor) << "Tried to add NULL predecessor to SEA node.";
+    predecessors_.push_back(predecessor);
+  }
+
+  std::vector<sea_ir::Region*>* GetSuccessors() {
+    return &successors_;
+  }
+  std::vector<sea_ir::Region*>* GetPredecessors() {
+    return &predecessors_;
+  }
+
  private:
+  std::vector<sea_ir::Region*> successors_;    // CFG successor nodes (regions)
+  std::vector<sea_ir::Region*> predecessors_;  // CFG predecessor nodes (instructions/regions)
   std::vector<sea_ir::InstructionNode*> instructions_;
   std::map<int, sea_ir::InstructionNode*> de_defs_;
   std::map<int, std::set<sea_ir::InstructionNode*>* > reaching_defs_;
@@ -283,28 +249,49 @@ class Region : public SeaNode {
   std::vector<PhiInstructionNode*> phi_instructions_;
 };
 
-class SeaGraph {
+// A SeaGraph instance corresponds to a source code function.
+// Its main point is to encapsulate the SEA IR representation of it
+// and acts as starting point for visitors (ex: during code generation).
+class SeaGraph: IVisitable {
  public:
   static SeaGraph* GetCurrentGraph();
 
   void CompileMethod(const art::DexFile::CodeItem* code_item,
       uint32_t class_def_idx, uint32_t method_idx, const art::DexFile& dex_file);
+  // Returns all regions corresponding to this SeaGraph.
+  std::vector<Region*>* GetRegions() {
+    return &regions_;
+  }
   // Returns a string representation of the region and its Instruction children.
   void DumpSea(std::string filename) const;
   // Recursively computes the reverse postorder value for @crt_bb and successors.
   static void ComputeRPO(Region* crt_bb, int& crt_rpo);
   // Returns the "lowest common ancestor" of @i and @j in the dominator tree.
   static Region* Intersect(Region* i, Region* j);
+  //Returns the vector of parameters of the function.
+  std::vector<SignatureNode*>* GetParameterNodes() {
+    return &parameters_;
+  }
+  uint32_t class_def_idx_;
+  uint32_t method_idx_;
 
  private:
+  SeaGraph(): class_def_idx_(0), method_idx_(0), regions_(), parameters_() {
+  }
   // Registers @childReg as a region belonging to the SeaGraph instance.
   void AddRegion(Region* childReg);
   // Returns new region and registers it with the  SeaGraph instance.
   Region* GetNewRegion();
+  // Adds a (formal) parameter node to the vector of parameters of the function.
+  void AddParameterNode(SignatureNode* parameterNode) {
+    parameters_.push_back(parameterNode);
+  }
   // Adds a CFG edge from @src node to @dst node.
   void AddEdge(Region* src, Region* dst) const;
-  // Builds the non-SSA sea-ir representation of the function @code_item from @dex_file.
-  void BuildMethodSeaGraph(const art::DexFile::CodeItem* code_item, const art::DexFile& dex_file);
+  // Builds the non-SSA sea-ir representation of the function @code_item from @dex_file
+  // with class id @class_def_idx and method id @method_idx.
+  void BuildMethodSeaGraph(const art::DexFile::CodeItem* code_item,
+      const art::DexFile& dex_file, uint32_t class_def_idx, uint32_t method_idx);
   // Computes immediate dominators for each region.
   // Precondition: ComputeMethodSeaGraph()
   void ComputeIDominators();
@@ -322,15 +309,28 @@ class SeaGraph {
   // Cooper & Torczon, "Engineering a Compiler", second edition, page 499.
   // Precondition: ComputeIDominators()
   void ComputeDominanceFrontier();
-
+  // Converts the IR to semi-pruned SSA form.
   void ConvertToSSA();
+  // Performs the renaming phase of the SSA transformation during ConvertToSSA() execution.
+  void RenameAsSSA();
   // Identifies the definitions corresponding to uses for region @node
   // by using the scoped hashtable of names @ scoped_table.
   void RenameAsSSA(Region* node, utils::ScopedHashtable<int, InstructionNode*>* scoped_table);
-  void RenameAsSSA();
+
+  virtual void Accept(IRVisitor* visitor) {
+    visitor->Initialize(this);
+    visitor->Visit(this);
+    visitor->Traverse(this);
+  }
+
+  virtual ~SeaGraph() {}
+  // Generate LLVM IR for the method.
+  // Precondition: ConvertToSSA().
+  void GenerateLLVM();
 
   static SeaGraph graph_;
   std::vector<Region*> regions_;
+  std::vector<SignatureNode*> parameters_;
 };
 } // end namespace sea_ir
 #endif  // ART_COMPILER_SEA_IR_SEA_H_
