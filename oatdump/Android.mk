@@ -28,9 +28,11 @@ ifeq ($(ART_BUILD_TARGET_DEBUG),true)
   $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),,,target,debug))
 endif
 
-ifeq ($(ART_BUILD_HOST_NDEBUG),true)
-  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),,,host,ndebug))
-endif
-ifeq ($(ART_BUILD_HOST_DEBUG),true)
-  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),,,host,debug))
+ifeq ($(WITH_HOST_DALVIK),true)
+  ifeq ($(ART_BUILD_HOST_NDEBUG),true)
+    $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),,,host,ndebug))
+  endif
+  ifeq ($(ART_BUILD_HOST_DEBUG),true)
+    $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),,,host,debug))
+  endif
 endif
