@@ -338,6 +338,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->heap_max_free_ = gc::Heap::kDefaultMaxFree;
   parsed->heap_target_utilization_ = gc::Heap::kDefaultTargetUtilization;
   parsed->heap_growth_limit_ = 0;  // 0 means no growth limit.
+  // Default to number of processors minus one since the main GC thread also does work.
+  parsed->heap_gc_threads_ = sysconf(_SC_NPROCESSORS_CONF) - 1;
   parsed->stack_size_ = 0; // 0 means default.
 
   parsed->is_compiler_ = false;
@@ -472,6 +474,9 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         return NULL;
       }
       parsed->heap_target_utilization_ = value;
+    } else if (StartsWith(option, "-XX:HeapGCThreads=")) {
+      parsed->heap_gc_threads_ =
+          ParseMemoryOption(option.substr(strlen("-XX:HeapGCThreads=")).c_str(), 1024);
     } else if (StartsWith(option, "-Xss")) {
       size_t size = ParseMemoryOption(option.substr(strlen("-Xss")).c_str(), 1);
       if (size == 0) {
@@ -829,7 +834,8 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
                        options->heap_target_utilization_,
                        options->heap_maximum_size_,
                        options->image_,
-                       options->is_concurrent_gc_enabled_);
+                       options->is_concurrent_gc_enabled_,
+                       options->heap_gc_threads_);
 
   BlockSignals();
   InitPlatformSignalHandlers();

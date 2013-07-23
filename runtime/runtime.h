@@ -92,6 +92,7 @@ class Runtime {
     size_t heap_initial_size_;
     size_t heap_maximum_size_;
     size_t heap_growth_limit_;
+    size_t heap_gc_threads_;
     size_t heap_min_free_;
     size_t heap_max_free_;
     double heap_target_utilization_;

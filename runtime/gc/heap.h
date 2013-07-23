@@ -136,7 +136,8 @@ class Heap {
   // ImageWriter output.
   explicit Heap(size_t initial_size, size_t growth_limit, size_t min_free,
                 size_t max_free, double target_utilization, size_t capacity,
-                const std::string& original_image_file_name, bool concurrent_gc);
+                const std::string& original_image_file_name, bool concurrent_gc,
+                size_t num_gc_threads);
 
   ~Heap();
 
@@ -497,6 +498,9 @@ class Heap {
   // What kind of concurrency behavior is the runtime after? True for concurrent mark sweep GC,
   // false for stop-the-world mark sweep.
   const bool concurrent_gc_;
+
+  // How many GC threads we may use for garbage collection.
+  const bool num_gc_threads_;
 
   // If we have a zygote space.
   bool have_zygote_space_;
