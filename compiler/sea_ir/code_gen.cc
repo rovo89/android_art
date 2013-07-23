@@ -66,10 +66,7 @@ void CodeGenPrepassVisitor::Visit(SeaGraph* graph) {
   std::vector<llvm::Type*> parameter_types(parameters->size(),
       llvm::Type::getInt32Ty(*llvm_data_->context_));
   // Build llvm function name.
-  std::string function_name = "class=";
-  std::stringstream ss;
-  ss << graph->class_def_idx_ << "_method=" << graph->method_idx_;
-  function_name.append(ss.str());
+  std::string function_name = art::StringPrintf("class=%d_method=%d", graph->class_def_idx_, graph->method_idx_);
 
   // Build llvm function type and parameters.
   llvm::FunctionType *function_type = llvm::FunctionType::get(
@@ -82,10 +79,7 @@ void CodeGenPrepassVisitor::Visit(SeaGraph* graph) {
       param_id != llvm_data_->function_->arg_size(); ++arg_it, ++param_id) {
     DCHECK(parameters->size() > param_id) << "Insufficient parameters for function signature";
     // Build parameter register name for LLVM IR clarity.
-    std::stringstream ss;
-    ss << "r" << parameters->at(param_id);
-    std::string arg_name;
-    arg_name.append(ss.str());
+    std::string arg_name = art::StringPrintf("r%d", parameters->at(param_id));
     arg_it->setName(arg_name);
     SignatureNode* parameter = parameters->at(param_id);
     llvm_data_->AddValue(parameter, arg_it);
@@ -187,10 +181,7 @@ void CodeGenVisitor::Visit(InvokeStaticInstructionNode* invoke) {
   std::string instr = invoke->GetInstruction()->DumpString(NULL);
   std::cout << "6.Instruction: " << instr << std::endl;
   // TODO: Build callee llvm function name.
-  std::string function_name = "class=";
-  std::stringstream ss;
-  ss << 0 << "_method=" << 1;
-  function_name.append(ss.str());
+  std::string function_name = art::StringPrintf("class=%d_method=%d", 0, 1);
   llvm::Function *callee = llvm_data_->module_.getFunction(function_name);
   // TODO: Add proper checking of the matching between formal and actual signature.
   DCHECK(NULL != callee);

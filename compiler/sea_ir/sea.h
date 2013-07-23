@@ -137,7 +137,7 @@ class Region : public SeaNode {
  public:
   explicit Region():
     SeaNode(), successors_(), predecessors_(), reaching_defs_size_(0),
-    rpo_(NOT_VISITED), idom_(NULL), idominated_set_(), df_(), phi_set_() {}
+    rpo_number_(NOT_VISITED), idom_(NULL), idominated_set_(), df_(), phi_set_() {}
   // Adds @instruction as an instruction node child in the current region.
   void AddChild(sea_ir::InstructionNode* instruction);
   // Returns the last instruction node child of the current region.
@@ -161,11 +161,11 @@ class Region : public SeaNode {
   std::map<int, std::set<sea_ir::InstructionNode*>* >* GetReachingDefs();
 
   void SetRPO(int rpo) {
-    rpo_ = rpo;
+    rpo_number_ = rpo;
   }
 
   int GetRPO() {
-    return rpo_;
+    return rpo_number_;
   }
 
   void SetIDominator(Region* dom) {
@@ -237,7 +237,7 @@ class Region : public SeaNode {
   std::map<int, sea_ir::InstructionNode*> de_defs_;
   std::map<int, std::set<sea_ir::InstructionNode*>* > reaching_defs_;
   int reaching_defs_size_;
-  int rpo_;
+  int rpo_number_;                              // reverse postorder number of the region
   // Immediate dominator node.
   Region* idom_;
   // The set of nodes immediately dominated by the region.

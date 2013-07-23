@@ -17,6 +17,8 @@
 #ifndef ART_COMPILER_SEA_IR_SEA_NODE_H_
 #define ART_COMPILER_SEA_IR_SEA_NODE_H_
 
+#include "runtime/base/stringprintf.h"
+
 namespace sea_ir {
 class Region;
 class IRVisitor;
@@ -38,9 +40,7 @@ class IVisitable {
 class SeaNode: public IVisitable {
  public:
   explicit SeaNode():id_(GetNewId()), string_id_() {
-    std::stringstream ss;
-    ss << id_;
-    string_id_.append(ss.str());
+    string_id_ = art::StringPrintf("%", id_);
   }
   // Adds CFG predecessors and successors to each block.
   void AddSuccessor(Region* successor);

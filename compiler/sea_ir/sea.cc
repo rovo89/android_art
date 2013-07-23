@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+#include "runtime/base/stringprintf.h"
 #include "file_output_stream.h"
 #include "instruction_tools.h"
 #include "sea.h"
@@ -492,9 +492,7 @@ SeaNode* Region::GetLastChild() const {
 
 void Region::ToDot(std::string& result) const {
   result += "\n// Region: \n" + StringId() + " [label=\"region " + StringId() + "(rpo=";
-  std::stringstream ss;
-  ss << rpo_;
-  result.append(ss.str());
+  result += art::StringPrintf("%", rpo_number_);
   if (NULL != GetIDominator()) {
     result += " dom=" + GetIDominator()->StringId();
   }
@@ -712,9 +710,7 @@ void InstructionNode::ToDot(std::string& result) const {
       def_it != definition_edges_.end(); def_it++) {
     if (NULL != def_it->second) {
       result += def_it->second->StringId() + " -> " + StringId() +"[color=red,label=\"";
-      std::stringstream ss;
-      ss << def_it->first;
-      result.append(ss.str());
+      result.append(art::StringPrintf("%", def_it->first));
       result += "\"] ; // ssa edge\n";
     }
   }
@@ -763,9 +759,7 @@ std::vector<int> InstructionNode::GetUses() {
 void PhiInstructionNode::ToDot(std::string& result) const {
   result += "// PhiInstruction: \n" + StringId() +
       " [label=\"" + "PHI(";
-  std::stringstream phi_reg_stream;
-  phi_reg_stream << register_no_;
-  result.append(phi_reg_stream.str());
+  result += art::StringPrintf("%d", register_no_);
   result += ")\"";
   result += "];\n";
 
@@ -775,9 +769,7 @@ void PhiInstructionNode::ToDot(std::string& result) const {
     for (std::vector<InstructionNode* >::const_iterator def_it = defs_from_pred->begin();
         def_it != defs_from_pred->end(); def_it++) {
         result += (*def_it)->StringId() + " -> " + StringId() +"[color=red,label=\"vR = ";
-        std::stringstream ss;
-        ss << GetRegisterNumber();
-        result.append(ss.str());
+        result += StringPrintf("%d", GetRegisterNumber());
         result += "\"] ; // phi-ssa edge\n";
     }
   }
