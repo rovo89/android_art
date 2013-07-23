@@ -46,29 +46,17 @@ class SignatureNode;
 // can return from the GetSSAUses() calls, instead of having missing SSA edges.
 class SignatureNode: public InstructionNode {
  public:
-  explicit SignatureNode(unsigned int parameter_register):
-      InstructionNode(NULL), defined_regs_() {
-    defined_regs_.push_back(parameter_register);
-  }
+  explicit SignatureNode(unsigned int parameter_register):InstructionNode(NULL),
+    parameter_register_(parameter_register) { }
 
   void ToDot(std::string& result) const {
     result += StringId() +" [label=\"signature:";
-    std::stringstream vector_printer;
-    if (!defined_regs_.empty()) {
-      for (unsigned int crt_el = 0; crt_el < defined_regs_.size()-1; crt_el++) {
-        vector_printer << defined_regs_[crt_el] <<",";
-      }
-      vector_printer << defined_regs_[defined_regs_.size()-1] <<";";
-    }
+    result += art::StringPrintf("r%d", GetResultRegister());
     result += "\"] // signature node\n";
   }
 
-  std::vector<int> GetDefinitions() const {
-    return defined_regs_;
-  }
-
   int GetResultRegister() const {
-    return NO_REGISTER;
+    return parameter_register_;
   }
 
   std::vector<int> GetUses() {
@@ -81,7 +69,7 @@ class SignatureNode: public InstructionNode {
   }
 
  private:
-  std::vector<int> defined_regs_;
+  unsigned int parameter_register_;
 };
 
 class PhiInstructionNode: public InstructionNode {

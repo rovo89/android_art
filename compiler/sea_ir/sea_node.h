@@ -17,7 +17,7 @@
 #ifndef ART_COMPILER_SEA_IR_SEA_NODE_H_
 #define ART_COMPILER_SEA_IR_SEA_NODE_H_
 
-#include "runtime/base/stringprintf.h"
+#include "base/stringprintf.h"
 
 namespace sea_ir {
 class Region;
@@ -40,7 +40,7 @@ class IVisitable {
 class SeaNode: public IVisitable {
  public:
   explicit SeaNode():id_(GetNewId()), string_id_() {
-    string_id_ = art::StringPrintf("%", id_);
+    string_id_ = art::StringPrintf("%d", id_);
   }
   // Adds CFG predecessors and successors to each block.
   void AddSuccessor(Region* successor);
@@ -71,10 +71,10 @@ class SeaNode: public IVisitable {
   std::string string_id_;
 
  private:
+  static int current_max_node_id_;
   // Creating new instances of sea node objects should not be done through copy or assignment
   // operators because that would lead to duplication of their unique ids.
   DISALLOW_COPY_AND_ASSIGN(SeaNode);
-  static int current_max_node_id_;
 };
 } // end namespace sea_ir
 #endif  // ART_COMPILER_SEA_IR_SEA_NODE_H_
