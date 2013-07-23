@@ -60,7 +60,7 @@ class SeaNode: public IVisitable {
   //    builds a complete dot graph, but without prolog ("digraph {") and epilog ("}").
   virtual void ToDot(std::string& result) const = 0;
 
-  virtual ~SeaNode() {}
+  virtual ~SeaNode() { }
 
  protected:
   static int GetNewId() {
@@ -71,6 +71,9 @@ class SeaNode: public IVisitable {
   std::string string_id_;
 
  private:
+  // Creating new instances of sea node objects should not be done through copy or assignment
+  // operators because that would lead to duplication of their unique ids.
+  DISALLOW_COPY_AND_ASSIGN(SeaNode);
   static int current_max_node_id_;
 };
 } // end namespace sea_ir
