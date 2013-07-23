@@ -78,15 +78,6 @@ clean-oat-target:
 	adb shell rm system/app/*.odex
 	adb shell rm data/run-test/test-*/dalvik-cache/*@classes.dex
 
-########################################################################
-# darwin build
-
-# we aren't building most of art on darwin right now, but we do need to build new dalvikvm
-ifeq ($(HOST_OS),darwin)
-art_dont_bother := true
-include $(art_path)/dalvikvm/Android.mk
-endif
-
 ifneq ($(art_dont_bother),true)
 
 ########################################################################

@@ -222,12 +222,14 @@ endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
   $(eval $(call build-libart-compiler,target,debug))
 endif
-# We always build dex2oat and dependencies, even if the host build is otherwise disabled, since they are used to cross compile for the target.
-ifeq ($(ART_BUILD_NDEBUG),true)
-  $(eval $(call build-libart-compiler,host,ndebug))
-endif
-ifeq ($(ART_BUILD_DEBUG),true)
-  $(eval $(call build-libart-compiler,host,debug))
+ifeq ($(WITH_HOST_DALVIK),true)
+  # We always build dex2oat and dependencies, even if the host build is otherwise disabled, since they are used to cross compile for the target.
+  ifeq ($(ART_BUILD_NDEBUG),true)
+    $(eval $(call build-libart-compiler,host,ndebug))
+  endif
+  ifeq ($(ART_BUILD_DEBUG),true)
+    $(eval $(call build-libart-compiler,host,debug))
+  endif
 endif
 
 # Rule to build /system/lib/libcompiler_rt.a
