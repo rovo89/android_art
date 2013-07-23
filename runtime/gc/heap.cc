@@ -66,10 +66,11 @@ const double Heap::kDefaultTargetUtilization = 0.5;
 
 Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max_free,
            double target_utilization, size_t capacity,
-           const std::string& original_image_file_name, bool concurrent_gc)
+           const std::string& original_image_file_name, bool concurrent_gc, size_t num_gc_threads)
     : alloc_space_(NULL),
       card_table_(NULL),
       concurrent_gc_(concurrent_gc),
+      num_gc_threads_(num_gc_threads),
       have_zygote_space_(false),
       reference_queue_lock_(NULL),
       is_gc_running_(false),
@@ -196,7 +197,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   gc_complete_cond_.reset(new ConditionVariable("GC complete condition variable",
                                                 *gc_complete_lock_));
 
-  // Create the reference queue lock, this is required so for parrallel object scanning in the GC.
+  // Create the reference queue lock, this is required so for parallel object scanning in the GC.
   reference_queue_lock_ = new Mutex("reference queue lock");
 
   last_gc_time_ns_ = NanoTime();
@@ -217,10 +218,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
 }
 
 void Heap::CreateThreadPool() {
-  // TODO: Make sysconf(_SC_NPROCESSORS_CONF) be a helper function?
-  // Use the number of processors - 1 since the thread doing the GC does work while its waiting for
-  // workers to complete.
-  thread_pool_.reset(new ThreadPool(1)); // new ThreadPool(sysconf(_SC_NPROCESSORS_CONF) - 1));
+  thread_pool_.reset(new ThreadPool(num_gc_threads_));
 }
 
 void Heap::DeleteThreadPool() {
