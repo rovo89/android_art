@@ -366,9 +366,11 @@ ifeq ($(ART_BUILD_TARGET_DEBUG),true)
 endif
 
 # We always build dex2oat and dependencies, even if the host build is otherwise disabled, since they are used to cross compile for the target.
-ifeq ($(ART_BUILD_NDEBUG),true)
-  $(eval $(call build-libart,host,ndebug))
-endif
-ifeq ($(ART_BUILD_DEBUG),true)
-  $(eval $(call build-libart,host,debug))
+ifeq ($(WITH_HOST_DALVIK),true)
+  ifeq ($(ART_BUILD_NDEBUG),true)
+    $(eval $(call build-libart,host,ndebug))
+  endif
+  ifeq ($(ART_BUILD_DEBUG),true)
+    $(eval $(call build-libart,host,debug))
+  endif
 endif
