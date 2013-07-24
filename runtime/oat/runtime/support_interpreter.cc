@@ -115,6 +115,10 @@ extern "C" void artInterpreterToQuickEntry(Thread* self, MethodHelper& mh,
                                            ShadowFrame* shadow_frame, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::AbstractMethod* method = shadow_frame->GetMethod();
+  // Ensure static methods are initialized.
+  if (method->IsStatic()) {
+    Runtime::Current()->GetClassLinker()->EnsureInitialized(method->GetDeclaringClass(), true, true);
+  }
   uint16_t arg_offset = (code_item == NULL) ? 0 : code_item->registers_size_ - code_item->ins_size_;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArray(shadow_frame, arg_offset);
