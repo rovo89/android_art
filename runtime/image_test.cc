@@ -41,7 +41,6 @@ class ImageTest : public CommonTest {
 TEST_F(ImageTest, WriteRead) {
   ScratchFile tmp_elf;
   {
-    std::vector<uint8_t> oat_contents;
     {
       jobject class_loader = NULL;
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -49,17 +48,14 @@ TEST_F(ImageTest, WriteRead) {
       compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), timings);
 
       ScopedObjectAccess soa(Thread::Current());
-      VectorOutputStream output_stream(tmp_elf.GetFilename(), oat_contents);
-      bool success_oat = OatWriter::Create(output_stream, class_linker->GetBootClassPath(),
-                                           0, 0, "", *compiler_driver_.get());
-      ASSERT_TRUE(success_oat);
-
-      bool success_elf = compiler_driver_->WriteElf(GetTestAndroidRoot(),
-                                                    !kIsTargetBuild,
-                                                    class_linker->GetBootClassPath(),
-                                                    oat_contents,
-                                                    tmp_elf.GetFile());
-      ASSERT_TRUE(success_elf);
+      OatWriter oat_writer(class_linker->GetBootClassPath(),
+                           0, 0, "", compiler_driver_.get());
+      bool success = compiler_driver_->WriteElf(GetTestAndroidRoot(),
+                                                !kIsTargetBuild,
+                                                class_linker->GetBootClassPath(),
+                                                oat_writer,
+                                                tmp_elf.GetFile());
+      ASSERT_TRUE(success);
     }
   }
   // Workound bug that mcld::Linker::emit closes tmp_elf by reopening as tmp_oat.

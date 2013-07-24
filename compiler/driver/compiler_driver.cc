@@ -2343,13 +2343,13 @@ bool CompilerDriver::RequiresConstructorBarrier(Thread* self, const DexFile* dex
 bool CompilerDriver::WriteElf(const std::string& android_root,
                               bool is_host,
                               const std::vector<const art::DexFile*>& dex_files,
-                              std::vector<uint8_t>& oat_contents,
+                              OatWriter& oat_writer,
                               art::File* file)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(ART_USE_PORTABLE_COMPILER)
-  return art::ElfWriterMclinker::Create(file, oat_contents, dex_files, android_root, is_host, *this);
+  return art::ElfWriterMclinker::Create(file, oat_writer, dex_files, android_root, is_host, *this);
 #else
-  return art::ElfWriterQuick::Create(file, oat_contents, dex_files, android_root, is_host, *this);
+  return art::ElfWriterQuick::Create(file, oat_writer, dex_files, android_root, is_host, *this);
 #endif
 }
 void CompilerDriver::InstructionSetToLLVMTarget(InstructionSet instruction_set,

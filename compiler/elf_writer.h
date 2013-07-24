@@ -33,6 +33,7 @@ namespace art {
 class CompilerDriver;
 class DexFile;
 class ElfFile;
+class OatWriter;
 
 class ElfWriter {
  public:
@@ -49,7 +50,7 @@ class ElfWriter {
   ElfWriter(const CompilerDriver& driver, File* elf_file);
   virtual ~ElfWriter();
 
-  virtual bool Write(std::vector<uint8_t>& oat_contents,
+  virtual bool Write(OatWriter& oat_writer,
                      const std::vector<const DexFile*>& dex_files,
                      const std::string& android_root,
                      bool is_host)
