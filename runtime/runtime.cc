@@ -134,10 +134,10 @@ Runtime::~Runtime() {
   delete java_vm_;
   Thread::Shutdown();
   QuasiAtomic::Shutdown();
+  verifier::MethodVerifier::Shutdown();
   // TODO: acquire a static mutex on Runtime to avoid racing.
   CHECK(instance_ == NULL || instance_ == this);
   instance_ = NULL;
-  verifier::MethodVerifier::Shutdown();
 }
 
 struct AbortState {

@@ -2240,18 +2240,8 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
     CHECK(compiled_method != NULL);
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {
-    // In small mode we only compile image classes.
-    bool dont_compile = (Runtime::Current()->IsSmallMode() &&
-                         ((image_classes_.get() == NULL) || (image_classes_->size() == 0)));
-
-    // Don't compile class initializers, ever.
-    if (((access_flags & kAccConstructor) != 0) && ((access_flags & kAccStatic) != 0)) {
-      dont_compile = true;
-    } else if (code_item->insns_size_in_code_units_ < Runtime::Current()->GetSmallModeMethodDexSizeLimit()) {
-    // Do compile small methods.
-      dont_compile = false;
-    }
-    if (!dont_compile) {
+    bool compile = verifier::MethodVerifier::IsCandidateForCompilation(code_item, access_flags);
+    if (compile) {
       CompilerFn compiler = compiler_;
 #ifdef ART_SEA_IR_MODE
       bool use_sea = Runtime::Current()->IsSeaIRMode();

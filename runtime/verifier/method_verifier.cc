@@ -282,7 +282,9 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, mirror::DexCache* dex_ca
       new_instance_count_(0),
       monitor_enter_count_(0),
       can_load_classes_(can_load_classes),
-      allow_soft_failures_(allow_soft_failures) {
+      allow_soft_failures_(allow_soft_failures),
+      has_check_casts_(false),
+      has_virtual_or_interface_invokes_(false) {
 }
 
 void MethodVerifier::FindLocksAtDexPc(mirror::AbstractMethod* m, uint32_t dex_pc,
@@ -470,6 +472,13 @@ bool MethodVerifier::ComputeWidthsAndCountOps() {
       new_instance_count++;
     } else if (opcode == Instruction::MONITOR_ENTER) {
       monitor_enter_count++;
+    } else if (opcode == Instruction::CHECK_CAST) {
+      has_check_casts_ = true;
+    } else if ((inst->Opcode() == Instruction::INVOKE_VIRTUAL) ||
+              (inst->Opcode() ==  Instruction::INVOKE_VIRTUAL_RANGE) ||
+              (inst->Opcode() == Instruction::INVOKE_INTERFACE) ||
+              (inst->Opcode() == Instruction::INVOKE_INTERFACE_RANGE)) {
+      has_virtual_or_interface_invokes_ = true;
     }
     size_t inst_size = inst->SizeInCodeUnits();
     insn_flags_[dex_pc].SetLengthInCodeUnits(inst_size);
@@ -1002,27 +1011,37 @@ bool MethodVerifier::VerifyCodeFlow() {
     return false;
   }
 
-  /* Generate a register map and add it to the method. */
-  UniquePtr<const std::vector<uint8_t> > map(GenerateGcMap());
-  if (map.get() == NULL) {
-    DCHECK_NE(failures_.size(), 0U);
-    return false;  // Not a real failure, but a failure to encode
-  }
-  if (kIsDebugBuild) {
-    VerifyGcMap(*map);
-  }
-  MethodReference ref(dex_file_, dex_method_idx_);
-  const std::vector<uint8_t>* dex_gc_map = CreateLengthPrefixedDexGcMap(*(map.get()));
-  verifier::MethodVerifier::SetDexGcMap(ref, *dex_gc_map);
+  // Compute information for compiler.
+  if (Runtime::Current()->IsCompiler()) {
+    MethodReference ref(dex_file_, dex_method_idx_);
+    bool compile = IsCandidateForCompilation(code_item_, method_access_flags_);
+    if (compile) {
+      /* Generate a register map and add it to the method. */
+      UniquePtr<const std::vector<uint8_t> > map(GenerateGcMap());
+      if (map.get() == NULL) {
+        DCHECK_NE(failures_.size(), 0U);
+        return false;  // Not a real failure, but a failure to encode
+      }
+      if (kIsDebugBuild) {
+        VerifyGcMap(*map);
+      }
+      const std::vector<uint8_t>* dex_gc_map = CreateLengthPrefixedDexGcMap(*(map.get()));
+      verifier::MethodVerifier::SetDexGcMap(ref, *dex_gc_map);
+    }
 
-  MethodVerifier::MethodSafeCastSet* method_to_safe_casts = GenerateSafeCastSet();
-  if (method_to_safe_casts != NULL) {
-    SetSafeCastMap(ref, method_to_safe_casts);
-  }
+    if (has_check_casts_) {
+      MethodVerifier::MethodSafeCastSet* method_to_safe_casts = GenerateSafeCastSet();
+      if(method_to_safe_casts != NULL ) {
+        SetSafeCastMap(ref, method_to_safe_casts);
+      }
+    }
 
-  MethodVerifier::PcToConcreteMethodMap* pc_to_concrete_method = GenerateDevirtMap();
-  if (pc_to_concrete_method != NULL) {
-    SetDevirtMap(ref, pc_to_concrete_method);
+    if (has_virtual_or_interface_invokes_) {
+      MethodVerifier::PcToConcreteMethodMap* pc_to_concrete_method = GenerateDevirtMap();
+      if(pc_to_concrete_method != NULL ) {
+        SetDevirtMap(ref, pc_to_concrete_method);
+      }
+    }
   }
   return true;
 }
@@ -3948,6 +3967,7 @@ void MethodVerifier::VerifyGcMap(const std::vector<uint8_t>& data) {
 }
 
 void MethodVerifier::SetDexGcMap(MethodReference ref, const std::vector<uint8_t>& gc_map) {
+  DCHECK(Runtime::Current()->IsCompiler());
   {
     WriterMutexLock mu(Thread::Current(), *dex_gc_maps_lock_);
     DexGcMapTable::iterator it = dex_gc_maps_->find(ref);
@@ -3962,6 +3982,7 @@ void MethodVerifier::SetDexGcMap(MethodReference ref, const std::vector<uint8_t>
 
 
 void  MethodVerifier::SetSafeCastMap(MethodReference ref, const MethodSafeCastSet* cast_set) {
+  DCHECK(Runtime::Current()->IsCompiler());
   MutexLock mu(Thread::Current(), *safecast_map_lock_);
   SafeCastMap::iterator it = safecast_map_->find(ref);
   if (it != safecast_map_->end()) {
@@ -3970,10 +3991,11 @@ void  MethodVerifier::SetSafeCastMap(MethodReference ref, const MethodSafeCastSe
   }
 
   safecast_map_->Put(ref, cast_set);
-  CHECK(safecast_map_->find(ref) != safecast_map_->end());
+  DCHECK(safecast_map_->find(ref) != safecast_map_->end());
 }
 
 bool MethodVerifier::IsSafeCast(MethodReference ref, uint32_t pc) {
+  DCHECK(Runtime::Current()->IsCompiler());
   MutexLock mu(Thread::Current(), *safecast_map_lock_);
   SafeCastMap::const_iterator it = safecast_map_->find(ref);
   if (it == safecast_map_->end()) {
@@ -3986,6 +4008,7 @@ bool MethodVerifier::IsSafeCast(MethodReference ref, uint32_t pc) {
 }
 
 const std::vector<uint8_t>* MethodVerifier::GetDexGcMap(MethodReference ref) {
+  DCHECK(Runtime::Current()->IsCompiler());
   ReaderMutexLock mu(Thread::Current(), *dex_gc_maps_lock_);
   DexGcMapTable::const_iterator it = dex_gc_maps_->find(ref);
   if (it == dex_gc_maps_->end()) {
@@ -3998,6 +4021,7 @@ const std::vector<uint8_t>* MethodVerifier::GetDexGcMap(MethodReference ref) {
 
 void  MethodVerifier::SetDevirtMap(MethodReference ref,
                                    const PcToConcreteMethodMap* devirt_map) {
+  DCHECK(Runtime::Current()->IsCompiler());
   WriterMutexLock mu(Thread::Current(), *devirt_maps_lock_);
   DevirtualizationMapTable::iterator it = devirt_maps_->find(ref);
   if (it != devirt_maps_->end()) {
@@ -4006,11 +4030,12 @@ void  MethodVerifier::SetDevirtMap(MethodReference ref,
   }
 
   devirt_maps_->Put(ref, devirt_map);
-  CHECK(devirt_maps_->find(ref) != devirt_maps_->end());
+  DCHECK(devirt_maps_->find(ref) != devirt_maps_->end());
 }
 
 const MethodReference* MethodVerifier::GetDevirtMap(const MethodReference& ref,
                                                                     uint32_t dex_pc) {
+  DCHECK(Runtime::Current()->IsCompiler());
   ReaderMutexLock mu(Thread::Current(), *devirt_maps_lock_);
   DevirtualizationMapTable::const_iterator it = devirt_maps_->find(ref);
   if (it == devirt_maps_->end()) {
@@ -4070,6 +4095,24 @@ std::vector<int32_t> MethodVerifier::DescribeVRegs(uint32_t dex_pc) {
   return result;
 }
 
+bool MethodVerifier::IsCandidateForCompilation(const DexFile::CodeItem* code_item,
+                                               const uint32_t access_flags) {
+  // Don't compile class initializers, ever.
+  if (((access_flags & kAccConstructor) != 0) && ((access_flags & kAccStatic) != 0)) {
+    return false;
+  }
+
+  const Runtime* runtime = Runtime::Current();
+  if (runtime->IsSmallMode() && runtime->UseCompileTimeClassPath()) {
+    // In Small mode, we only compile small methods.
+    const uint32_t code_size = code_item->insns_size_in_code_units_;
+    return (code_size < runtime->GetSmallModeMethodDexSizeLimit());
+  } else {
+    // In normal mode, we compile everything.
+    return true;
+  }
+}
+
 ReaderWriterMutex* MethodVerifier::dex_gc_maps_lock_ = NULL;
 MethodVerifier::DexGcMapTable* MethodVerifier::dex_gc_maps_ = NULL;
 
@@ -4083,65 +4126,79 @@ Mutex* MethodVerifier::rejected_classes_lock_ = NULL;
 MethodVerifier::RejectedClassesTable* MethodVerifier::rejected_classes_ = NULL;
 
 void MethodVerifier::Init() {
-  dex_gc_maps_lock_ = new ReaderWriterMutex("verifier GC maps lock");
-  Thread* self = Thread::Current();
-  {
-    WriterMutexLock mu(self, *dex_gc_maps_lock_);
-    dex_gc_maps_ = new MethodVerifier::DexGcMapTable;
-  }
+  if (Runtime::Current()->IsCompiler()) {
+    dex_gc_maps_lock_ = new ReaderWriterMutex("verifier GC maps lock");
+    Thread* self = Thread::Current();
+    {
+      WriterMutexLock mu(self, *dex_gc_maps_lock_);
+      dex_gc_maps_ = new MethodVerifier::DexGcMapTable;
+    }
 
-  safecast_map_lock_ = new Mutex("verifier Cast Elision lock");
-  {
-    MutexLock mu(self, *safecast_map_lock_);
-    safecast_map_ = new MethodVerifier::SafeCastMap();
-  }
+    safecast_map_lock_ = new Mutex("verifier Cast Elision lock");
+    {
+      MutexLock mu(self, *safecast_map_lock_);
+      safecast_map_ = new MethodVerifier::SafeCastMap();
+    }
 
-  devirt_maps_lock_ = new ReaderWriterMutex("verifier Devirtualization lock");
+    devirt_maps_lock_ = new ReaderWriterMutex("verifier Devirtualization lock");
 
-  {
-    WriterMutexLock mu(self, *devirt_maps_lock_);
-    devirt_maps_ = new MethodVerifier::DevirtualizationMapTable();
-  }
+    {
+      WriterMutexLock mu(self, *devirt_maps_lock_);
+      devirt_maps_ = new MethodVerifier::DevirtualizationMapTable();
+    }
 
-  rejected_classes_lock_ = new Mutex("verifier rejected classes lock");
-  {
-    MutexLock mu(self, *rejected_classes_lock_);
-    rejected_classes_ = new MethodVerifier::RejectedClassesTable;
+    rejected_classes_lock_ = new Mutex("verifier rejected classes lock");
+    {
+      MutexLock mu(self, *rejected_classes_lock_);
+      rejected_classes_ = new MethodVerifier::RejectedClassesTable;
+    }
   }
   art::verifier::RegTypeCache::Init();
 }
 
 void MethodVerifier::Shutdown() {
-  Thread* self = Thread::Current();
-  {
-    WriterMutexLock mu(self, *dex_gc_maps_lock_);
-    STLDeleteValues(dex_gc_maps_);
-    delete dex_gc_maps_;
-    dex_gc_maps_ = NULL;
-  }
-  delete dex_gc_maps_lock_;
-  dex_gc_maps_lock_ = NULL;
+  if (Runtime::Current()->IsCompiler()) {
+    Thread* self = Thread::Current();
+    {
+      WriterMutexLock mu(self, *dex_gc_maps_lock_);
+      STLDeleteValues(dex_gc_maps_);
+      delete dex_gc_maps_;
+      dex_gc_maps_ = NULL;
+    }
+    delete dex_gc_maps_lock_;
+    dex_gc_maps_lock_ = NULL;
 
-  {
-    WriterMutexLock mu(self, *devirt_maps_lock_);
-    STLDeleteValues(devirt_maps_);
-    delete devirt_maps_;
-    devirt_maps_ = NULL;
-  }
-  delete devirt_maps_lock_;
-  devirt_maps_lock_ = NULL;
+    {
+      MutexLock mu(self, *safecast_map_lock_);
+      STLDeleteValues(safecast_map_);
+      delete safecast_map_;
+      safecast_map_ = NULL;
+    }
+    delete safecast_map_lock_;
+    safecast_map_lock_ = NULL;
 
-  {
-    MutexLock mu(self, *rejected_classes_lock_);
-    delete rejected_classes_;
-    rejected_classes_ = NULL;
+    {
+      WriterMutexLock mu(self, *devirt_maps_lock_);
+      STLDeleteValues(devirt_maps_);
+      delete devirt_maps_;
+      devirt_maps_ = NULL;
+    }
+    delete devirt_maps_lock_;
+    devirt_maps_lock_ = NULL;
+
+    {
+      MutexLock mu(self, *rejected_classes_lock_);
+      delete rejected_classes_;
+      rejected_classes_ = NULL;
+    }
+    delete rejected_classes_lock_;
+    rejected_classes_lock_ = NULL;
   }
-  delete rejected_classes_lock_;
-  rejected_classes_lock_ = NULL;
   verifier::RegTypeCache::ShutDown();
 }
 
 void MethodVerifier::AddRejectedClass(ClassReference ref) {
+  DCHECK(Runtime::Current()->IsCompiler());
   {
     MutexLock mu(Thread::Current(), *rejected_classes_lock_);
     rejected_classes_->insert(ref);
@@ -4150,6 +4207,7 @@ void MethodVerifier::AddRejectedClass(ClassReference ref) {
 }
 
 bool MethodVerifier::IsClassRejected(ClassReference ref) {
+  DCHECK(Runtime::Current()->IsCompiler());
   MutexLock mu(Thread::Current(), *rejected_classes_lock_);
   return (rejected_classes_->find(ref) != rejected_classes_->end());
 }

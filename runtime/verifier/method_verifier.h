@@ -237,6 +237,9 @@ class MethodVerifier {
   // Describe VRegs at the given dex pc.
   std::vector<int32_t> DescribeVRegs(uint32_t dex_pc);
 
+  static bool IsCandidateForCompilation(const DexFile::CodeItem* code_item,
+                                        const uint32_t access_flags);
+
  private:
   // Adds the given string to the beginning of the last failure message.
   void PrependToLastFailMessage(std::string);
@@ -654,7 +657,7 @@ class MethodVerifier {
         LOCKS_EXCLUDED(devirt_maps_lock_);
   typedef std::set<ClassReference> RejectedClassesTable;
   static Mutex* rejected_classes_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  static RejectedClassesTable* rejected_classes_;
+  static RejectedClassesTable* rejected_classes_ GUARDED_BY(rejected_classes_lock_);
 
   static void AddRejectedClass(ClassReference ref)
       LOCKS_EXCLUDED(rejected_classes_lock_);
@@ -717,6 +720,13 @@ class MethodVerifier {
   // Converts soft failures to hard failures when false. Only false when the compiler isn't
   // running and the verifier is called from the class linker.
   const bool allow_soft_failures_;
+
+  // Indicates if the method being verified contains at least one check-cast instruction.
+  bool has_check_casts_;
+
+  // Indicates if the method being verified contains at least one invoke-virtual/range
+  // or invoke-interface/range.
+  bool has_virtual_or_interface_invokes_;
 };
 std::ostream& operator<<(std::ostream& os, const MethodVerifier::FailureKind& rhs);
 
