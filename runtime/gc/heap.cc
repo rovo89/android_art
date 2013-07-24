@@ -424,7 +424,7 @@ mirror::Object* Heap::AllocObject(Thread* self, mirror::Class* c, size_t byte_co
   mirror::Object* obj = NULL;
   size_t size = 0;
   uint64_t allocation_start = 0;
-  if (measure_allocation_time_) {
+  if (UNLIKELY(measure_allocation_time_)) {
     allocation_start = NanoTime() / kTimeAdjust;
   }
 
@@ -432,7 +432,9 @@ mirror::Object* Heap::AllocObject(Thread* self, mirror::Class* c, size_t byte_co
   // Zygote resulting in it being prematurely freed.
   // We can only do this for primive objects since large objects will not be within the card table
   // range. This also means that we rely on SetClass not dirtying the object's card.
-  if (byte_count >= large_object_threshold_ && have_zygote_space_ && c->IsPrimitiveArray()) {
+  bool large_object_allocation =
+      byte_count >= large_object_threshold_ && have_zygote_space_ && c->IsPrimitiveArray();
+  if (UNLIKELY(large_object_allocation)) {
     size = RoundUp(byte_count, kPageSize);
     obj = Allocate(self, large_object_space_, size);
     // Make sure that our large object didn't get placed anywhere within the space interval or else
@@ -465,35 +467,33 @@ mirror::Object* Heap::AllocObject(Thread* self, mirror::Class* c, size_t byte_co
     }
     VerifyObject(obj);
 
-    if (measure_allocation_time_) {
+    if (UNLIKELY(measure_allocation_time_)) {
       total_allocation_time_.fetch_add(NanoTime() / kTimeAdjust - allocation_start);
     }
 
     return obj;
-  }
-  std::ostringstream oss;
-  int64_t total_bytes_free = GetFreeMemory();
-  uint64_t alloc_space_size = alloc_space_->GetBytesAllocated();
-  uint64_t large_object_size = large_object_space_->GetObjectsAllocated();
-  oss << "Failed to allocate a " << byte_count << " byte allocation with " << total_bytes_free
-      << " free bytes; allocation space size " << alloc_space_size
-      << "; large object space size " << large_object_size;
-  // If the allocation failed due to fragmentation, print out the largest continuous allocation.
-  if (total_bytes_free >= byte_count) {
-    size_t max_contiguous_allocation = 0;
-    // TODO: C++0x auto
-    typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-    for (It it = continuous_spaces_.begin(), end = continuous_spaces_.end(); it != end; ++it) {
-      space::ContinuousSpace* space = *it;
-      if (space->IsDlMallocSpace()) {
-        space->AsDlMallocSpace()->Walk(MSpaceChunkCallback, &max_contiguous_allocation);
+  } else {
+    std::ostringstream oss;
+    int64_t total_bytes_free = GetFreeMemory();
+    oss << "Failed to allocate a " << byte_count << " byte allocation with " << total_bytes_free
+        << " free bytes";
+    // If the allocation failed due to fragmentation, print out the largest continuous allocation.
+    if (!large_object_allocation && total_bytes_free >= byte_count) {
+      size_t max_contiguous_allocation = 0;
+      // TODO: C++0x auto
+      typedef std::vector<space::ContinuousSpace*>::const_iterator It;
+      for (It it = continuous_spaces_.begin(), end = continuous_spaces_.end(); it != end; ++it) {
+        space::ContinuousSpace* space = *it;
+        if (space->IsDlMallocSpace()) {
+          space->AsDlMallocSpace()->Walk(MSpaceChunkCallback, &max_contiguous_allocation);
+        }
       }
+      oss << "; failed due to fragmentation (largest possible contiguous allocation "
+          <<  max_contiguous_allocation << " bytes)";
     }
-    oss << "; failed due to fragmentation (largest possible contiguous allocation "
-        <<  max_contiguous_allocation << " bytes)";
+    self->ThrowOutOfMemoryError(oss.str().c_str());
+    return NULL;
   }
-  self->ThrowOutOfMemoryError(oss.str().c_str());
-  return NULL;
 }
 
 bool Heap::IsHeapAddress(const mirror::Object* obj) {
