@@ -1814,10 +1814,6 @@ class CatchBlockStackVisitor : public StackVisitor {
       }
     } else {
       CHECK(!is_deoptimization_);
-      if (instrumentation_frames_to_pop_ > 0) {
-        // Don't pop the instrumentation frame of the catch handler.
-        instrumentation_frames_to_pop_--;
-      }
       if (kDebugExceptionDelivery) {
         const DexFile& dex_file = *catch_method->GetDeclaringClass()->GetDexCache()->GetDexFile();
         int line_number = dex_file.GetLineNumFromPC(catch_method, handler_dex_pc_);
@@ -1831,7 +1827,10 @@ class CatchBlockStackVisitor : public StackVisitor {
     instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
     for (size_t i = 0; i < instrumentation_frames_to_pop_; ++i) {
       // We pop the instrumentation stack here so as not to corrupt it during the stack walk.
-      instrumentation->PopMethodForUnwind(self_, is_deoptimization_);
+      if (i != instrumentation_frames_to_pop_ - 1 || self_->GetInstrumentationStack()->front().method_ != catch_method) {
+        // Don't pop the instrumentation frame of the catch handler.
+        instrumentation->PopMethodForUnwind(self_, is_deoptimization_);
+      }
     }
     if (!is_deoptimization_) {
       instrumentation->ExceptionCaughtEvent(self_, throw_location_, catch_method, handler_dex_pc_,
