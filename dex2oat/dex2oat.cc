@@ -230,7 +230,7 @@ class Dex2Oat {
                                       bool image,
                                       UniquePtr<CompilerDriver::DescriptorSet>& image_classes,
                                       bool dump_stats,
-                                      TimingLogger& timings)
+                                      base::TimingLogger& timings)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // SirtRef and ClassLoader creation needs to come after Runtime::Create
     jobject class_loader = NULL;
@@ -263,11 +263,11 @@ class Dex2Oat {
 
     Thread::Current()->TransitionFromRunnableToSuspended(kNative);
 
-    timings.AddSplit("dex2oat Setup");
     driver->CompileAll(class_loader, dex_files, timings);
 
     Thread::Current()->TransitionFromSuspendedToRunnable();
 
+    timings.NewSplit("dex2oat OatWriter");
     std::string image_file_location;
     uint32_t image_file_location_oat_checksum = 0;
     uint32_t image_file_location_oat_data_begin = 0;
@@ -287,13 +287,11 @@ class Dex2Oat {
                          image_file_location_oat_data_begin,
                          image_file_location,
                          driver.get());
-    timings.AddSplit("dex2oat OatWriter");
 
     if (!driver->WriteElf(android_root, is_host, dex_files, oat_writer, oat_file)) {
       LOG(ERROR) << "Failed to write ELF file " << oat_file->GetPath();
       return NULL;
     }
-    timings.AddSplit("dex2oat ElfWriter");
 
     return driver.release();
   }
@@ -563,7 +561,7 @@ const unsigned int WatchDog::kWatchDogWarningSeconds;
 const unsigned int WatchDog::kWatchDogTimeoutSeconds;
 
 static int dex2oat(int argc, char** argv) {
-  TimingLogger timings("compiler", false);
+  base::TimingLogger timings("compiler", false, false);
 
   InitLogging(argv);
 
@@ -928,6 +926,7 @@ static int dex2oat(int argc, char** argv) {
     }
   }
 
+  timings.StartSplit("dex2oat Setup");
   UniquePtr<const CompilerDriver> compiler(dex2oat->CreateOatFile(boot_image_option,
                                                                   host_prefix.get(),
                                                                   android_root,
@@ -998,13 +997,13 @@ static int dex2oat(int argc, char** argv) {
   // Elf32_Phdr.p_vaddr values by the desired base address.
   //
   if (image) {
+    timings.NewSplit("dex2oat ImageWriter");
     Thread::Current()->TransitionFromRunnableToSuspended(kNative);
     bool image_creation_success = dex2oat->CreateImageFile(image_filename,
                                                            image_base,
                                                            oat_unstripped,
                                                            oat_location,
                                                            *compiler.get());
-    timings.AddSplit("dex2oat ImageWriter");
     Thread::Current()->TransitionFromSuspendedToRunnable();
     if (!image_creation_success) {
       return EXIT_FAILURE;
@@ -1014,7 +1013,7 @@ static int dex2oat(int argc, char** argv) {
 
   if (is_host) {
     if (dump_timings && timings.GetTotalNs() > MsToNs(1000)) {
-      LOG(INFO) << Dumpable<TimingLogger>(timings);
+      LOG(INFO) << Dumpable<base::TimingLogger>(timings);
     }
     return EXIT_SUCCESS;
   }
@@ -1022,6 +1021,7 @@ static int dex2oat(int argc, char** argv) {
   // If we don't want to strip in place, copy from unstripped location to stripped location.
   // We need to strip after image creation because FixupElf needs to use .strtab.
   if (oat_unstripped != oat_stripped) {
+    timings.NewSplit("dex2oat OatFile copy");
     oat_file.reset();
     UniquePtr<File> in(OS::OpenFile(oat_unstripped.c_str(), false));
     UniquePtr<File> out(OS::OpenFile(oat_stripped.c_str(), true));
@@ -1036,23 +1036,25 @@ static int dex2oat(int argc, char** argv) {
       CHECK(write_ok);
     }
     oat_file.reset(out.release());
-    timings.AddSplit("dex2oat OatFile copy");
     LOG(INFO) << "Oat file copied successfully (stripped): " << oat_stripped;
   }
 
 #if ART_USE_PORTABLE_COMPILER  // We currently only generate symbols on Portable
+  timings.NewSplit("dex2oat ElfStripper");
   // Strip unneeded sections for target
   off_t seek_actual = lseek(oat_file->Fd(), 0, SEEK_SET);
   CHECK_EQ(0, seek_actual);
   ElfStripper::Strip(oat_file.get());
-  timings.AddSplit("dex2oat ElfStripper");
+
 
   // We wrote the oat file successfully, and want to keep it.
   LOG(INFO) << "Oat file written successfully (stripped): " << oat_location;
 #endif // ART_USE_PORTABLE_COMPILER
 
+  timings.EndSplit();
+
   if (dump_timings && timings.GetTotalNs() > MsToNs(1000)) {
-    LOG(INFO) << Dumpable<TimingLogger>(timings);
+    LOG(INFO) << Dumpable<base::TimingLogger>(timings);
   }
   return EXIT_SUCCESS;
 }

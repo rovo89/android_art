@@ -1131,7 +1131,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
               << PrettySize(total_memory) << ", " << "paused " << pause_string.str()
               << " total " << PrettyDuration((duration / 1000) * 1000);
     if (VLOG_IS_ON(heap)) {
-      LOG(INFO) << Dumpable<base::NewTimingLogger>(collector->GetTimings());
+      LOG(INFO) << Dumpable<base::TimingLogger>(collector->GetTimings());
     }
   }
 
@@ -1149,7 +1149,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   return gc_type;
 }
 
-void Heap::UpdateAndMarkModUnion(collector::MarkSweep* mark_sweep, base::NewTimingLogger& timings,
+void Heap::UpdateAndMarkModUnion(collector::MarkSweep* mark_sweep, base::TimingLogger& timings,
                                  collector::GcType gc_type) {
   if (gc_type == collector::kGcTypeSticky) {
     // Don't need to do anything for mod union table in this case since we are only scanning dirty
@@ -1441,7 +1441,7 @@ void Heap::SwapStacks() {
   }
 }
 
-void Heap::ProcessCards(base::NewTimingLogger& timings) {
+void Heap::ProcessCards(base::TimingLogger& timings) {
   // Clear cards and keep track of cards cleared in the mod-union table.
   typedef std::vector<space::ContinuousSpace*>::iterator It;
   for (It it = continuous_spaces_.begin(), end = continuous_spaces_.end(); it != end; ++it) {

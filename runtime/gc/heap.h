@@ -379,7 +379,7 @@ class Heap {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Update and mark mod union table based on gc type.
-  void UpdateAndMarkModUnion(collector::MarkSweep* mark_sweep, base::NewTimingLogger& timings,
+  void UpdateAndMarkModUnion(collector::MarkSweep* mark_sweep, base::TimingLogger& timings,
                              collector::GcType gc_type)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
@@ -472,7 +472,7 @@ class Heap {
   void SwapStacks();
 
   // Clear cards and update the mod union table.
-  void ProcessCards(base::NewTimingLogger& timings);
+  void ProcessCards(base::TimingLogger& timings);
 
   // All-known continuous spaces, where objects lie within fixed bounds.
   std::vector<space::ContinuousSpace*> continuous_spaces_;

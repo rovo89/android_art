@@ -78,11 +78,11 @@ class CompilerDriver {
   ~CompilerDriver();
 
   void CompileAll(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                  TimingLogger& timings)
+                  base::TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Compile a single Method
-  void CompileOne(const mirror::AbstractMethod* method, TimingLogger& timings)
+  void CompileOne(const mirror::AbstractMethod* method, base::TimingLogger& timings)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   InstructionSet GetInstructionSet() const {
@@ -284,42 +284,42 @@ class CompilerDriver {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void PreCompile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                  ThreadPool& thread_pool, TimingLogger& timings)
+                  ThreadPool& thread_pool, base::TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  void LoadImageClasses(TimingLogger& timings);
+  void LoadImageClasses(base::TimingLogger& timings);
 
   // Attempt to resolve all type, methods, fields, and strings
   // referenced from code in the dex file following PathClassLoader
   // ordering semantics.
   void Resolve(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-               ThreadPool& thread_pool, TimingLogger& timings)
+               ThreadPool& thread_pool, base::TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
   void ResolveDexFile(jobject class_loader, const DexFile& dex_file,
-                      ThreadPool& thread_pool, TimingLogger& timings)
+                      ThreadPool& thread_pool, base::TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   void Verify(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-              ThreadPool& thread_pool, TimingLogger& timings);
+              ThreadPool& thread_pool, base::TimingLogger& timings);
   void VerifyDexFile(jobject class_loader, const DexFile& dex_file,
-                     ThreadPool& thread_pool, TimingLogger& timings)
+                     ThreadPool& thread_pool, base::TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   void InitializeClasses(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                         ThreadPool& thread_pool, TimingLogger& timings)
+                         ThreadPool& thread_pool, base::TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
   void InitializeClasses(jobject class_loader, const DexFile& dex_file,
-                         ThreadPool& thread_pool, TimingLogger& timings)
+                         ThreadPool& thread_pool, base::TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_, compiled_classes_lock_);
 
-  void UpdateImageClasses(TimingLogger& timings);
+  void UpdateImageClasses(base::TimingLogger& timings);
   static void FindClinitImageClassesCallback(mirror::Object* object, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void Compile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-               ThreadPool& thread_pool, TimingLogger& timings);
+               ThreadPool& thread_pool, base::TimingLogger& timings);
   void CompileDexFile(jobject class_loader, const DexFile& dex_file,
-                      ThreadPool& thread_pool, TimingLogger& timings)
+                      ThreadPool& thread_pool, base::TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
   void CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
                      InvokeType invoke_type, uint32_t class_def_idx, uint32_t method_idx,
