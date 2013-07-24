@@ -1981,7 +1981,7 @@ static const char* class_initializer_black_list[] = {
   "Ljavax/security/cert/X509Certificate$1;", // Calls VMClassLoader.getBootClassPathSize.
   "Ljavax/microedition/khronos/egl/EGL10;", // Requires EGLContext.
   "Ljavax/microedition/khronos/egl/EGLContext;", // Requires com.google.android.gles_jni.EGLImpl.
-  "Ljavax/net/ssl/HttpsURLConnection;", // Calls SSLSocketFactory.getDefault -> java.security.Security.getProperty.
+  "Ljavax/net/ssl/HttpsURLConnection$DefaultHolder;", // Calls VMClassLoader.getBootClassPathSize().
   "Ljavax/xml/datatype/DatatypeConstants;", // Calls OsConstants.initConstants.
   "Ljavax/xml/datatype/FactoryFinder;", // Calls OsConstants.initConstants.
   "Ljavax/xml/namespace/QName;", // Calls OsConstants.initConstants.
