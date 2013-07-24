@@ -999,28 +999,29 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
     return JValue();
   }
   self->VerifyStack();
-  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
-  const uint16_t* const insns = code_item->insns_;
+  instrumentation::Instrumentation* const instrumentation = Runtime::Current()->GetInstrumentation();
 
   // As the 'this' object won't change during the execution of current code, we
   // want to cache it in local variables. Nevertheless, in order to let the
   // garbage collector access it, we store it into sirt references.
   SirtRef<Object> this_object_ref(self, shadow_frame.GetThisObject(code_item->ins_size_));
 
-  const Instruction* inst = Instruction::At(insns + shadow_frame.GetDexPC());
-  if (inst->GetDexPc(insns) == 0) {  // We are entering the method as opposed to deoptimizing..
+  uint32_t dex_pc = shadow_frame.GetDexPC();
+  if (LIKELY(dex_pc == 0)) {  // We are entering the method as opposed to deoptimizing..
     if (UNLIKELY(instrumentation->HasMethodEntryListeners())) {
       instrumentation->MethodEnterEvent(self, this_object_ref.get(),
                                         shadow_frame.GetMethod(), 0);
     }
   }
+  const uint16_t* const insns = code_item->insns_;
+  const Instruction* inst = Instruction::At(insns + dex_pc);
   while (true) {
+    dex_pc = inst->GetDexPc(insns);
+    shadow_frame.SetDexPC(dex_pc);
     if (UNLIKELY(self->TestAllFlags())) {
       CheckSuspend(self);
     }
-    const uint32_t dex_pc = inst->GetDexPc(insns);
-    shadow_frame.SetDexPC(dex_pc);
-    if (instrumentation->HasDexPcListeners()) {
+    if (UNLIKELY(instrumentation->HasDexPcListeners())) {
       instrumentation->DexPcMovedEvent(self, this_object_ref.get(),
                                        shadow_frame.GetMethod(), dex_pc);
     }
@@ -1186,8 +1187,8 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::CONST_4: {
         PREAMBLE();
-        uint32_t dst = inst->VRegA_11n();
-        int32_t val = inst->VRegB_11n();
+        uint4_t dst = inst->VRegA_11n();
+        int4_t val = inst->VRegB_11n();
         shadow_frame.SetVReg(dst, val);
         if (val == 0) {
           shadow_frame.SetVRegReference(dst, NULL);
@@ -1197,8 +1198,8 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::CONST_16: {
         PREAMBLE();
-        uint32_t dst = inst->VRegA_21s();
-        int32_t val = inst->VRegB_21s();
+        uint8_t dst = inst->VRegA_21s();
+        int16_t val = inst->VRegB_21s();
         shadow_frame.SetVReg(dst, val);
         if (val == 0) {
           shadow_frame.SetVRegReference(dst, NULL);
@@ -1208,7 +1209,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::CONST: {
         PREAMBLE();
-        uint32_t dst = inst->VRegA_31i();
+        uint8_t dst = inst->VRegA_31i();
         int32_t val = inst->VRegB_31i();
         shadow_frame.SetVReg(dst, val);
         if (val == 0) {
@@ -1219,7 +1220,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::CONST_HIGH16: {
         PREAMBLE();
-        uint32_t dst = inst->VRegA_21h();
+        uint8_t dst = inst->VRegA_21h();
         int32_t val = static_cast<int32_t>(inst->VRegB_21h() << 16);
         shadow_frame.SetVReg(dst, val);
         if (val == 0) {
@@ -2532,7 +2533,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
         break;
       case Instruction::ADD_INT_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVReg(vregA,
                              shadow_frame.GetVReg(vregA) +
                              shadow_frame.GetVReg(inst->VRegB_12x()));
@@ -2541,7 +2542,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::SUB_INT_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVReg(vregA,
                              shadow_frame.GetVReg(vregA) -
                              shadow_frame.GetVReg(inst->VRegB_12x()));
@@ -2550,7 +2551,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::MUL_INT_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVReg(vregA,
                              shadow_frame.GetVReg(vregA) *
                              shadow_frame.GetVReg(inst->VRegB_12x()));
@@ -2559,7 +2560,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::DIV_INT_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         DoIntDivide(shadow_frame, vregA, shadow_frame.GetVReg(vregA),
                     shadow_frame.GetVReg(inst->VRegB_12x()));
         inst = inst->Next_1xx();
@@ -2567,7 +2568,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::REM_INT_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         DoIntRemainder(shadow_frame, vregA, shadow_frame.GetVReg(vregA),
                        shadow_frame.GetVReg(inst->VRegB_12x()));
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_1xx);
@@ -2575,7 +2576,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::SHL_INT_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVReg(vregA,
                              shadow_frame.GetVReg(vregA) <<
                              (shadow_frame.GetVReg(inst->VRegB_12x()) & 0x1f));
@@ -2584,7 +2585,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::SHR_INT_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVReg(vregA,
                              shadow_frame.GetVReg(vregA) >>
                              (shadow_frame.GetVReg(inst->VRegB_12x()) & 0x1f));
@@ -2593,7 +2594,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::USHR_INT_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVReg(vregA,
                              static_cast<uint32_t>(shadow_frame.GetVReg(vregA)) >>
                              (shadow_frame.GetVReg(inst->VRegB_12x()) & 0x1f));
@@ -2602,7 +2603,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::AND_INT_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVReg(vregA,
                              shadow_frame.GetVReg(vregA) &
                              shadow_frame.GetVReg(inst->VRegB_12x()));
@@ -2611,7 +2612,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::OR_INT_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVReg(vregA,
                              shadow_frame.GetVReg(vregA) |
                              shadow_frame.GetVReg(inst->VRegB_12x()));
@@ -2620,7 +2621,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::XOR_INT_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVReg(vregA,
                              shadow_frame.GetVReg(vregA) ^
                              shadow_frame.GetVReg(inst->VRegB_12x()));
@@ -2629,7 +2630,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::ADD_LONG_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegLong(vregA,
                                  shadow_frame.GetVRegLong(vregA) +
                                  shadow_frame.GetVRegLong(inst->VRegB_12x()));
@@ -2638,7 +2639,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::SUB_LONG_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegLong(vregA,
                                  shadow_frame.GetVRegLong(vregA) -
                                  shadow_frame.GetVRegLong(inst->VRegB_12x()));
@@ -2647,7 +2648,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::MUL_LONG_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegLong(vregA,
                                  shadow_frame.GetVRegLong(vregA) *
                                  shadow_frame.GetVRegLong(inst->VRegB_12x()));
@@ -2656,7 +2657,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::DIV_LONG_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         DoLongDivide(shadow_frame, vregA, shadow_frame.GetVRegLong(vregA),
                     shadow_frame.GetVRegLong(inst->VRegB_12x()));
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_1xx);
@@ -2664,7 +2665,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::REM_LONG_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         DoLongRemainder(shadow_frame, vregA, shadow_frame.GetVRegLong(vregA),
                         shadow_frame.GetVRegLong(inst->VRegB_12x()));
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_1xx);
@@ -2672,7 +2673,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::AND_LONG_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegLong(vregA,
                                  shadow_frame.GetVRegLong(vregA) &
                                  shadow_frame.GetVRegLong(inst->VRegB_12x()));
@@ -2681,7 +2682,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::OR_LONG_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegLong(vregA,
                                  shadow_frame.GetVRegLong(vregA) |
                                  shadow_frame.GetVRegLong(inst->VRegB_12x()));
@@ -2690,7 +2691,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::XOR_LONG_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegLong(vregA,
                                  shadow_frame.GetVRegLong(vregA) ^
                                  shadow_frame.GetVRegLong(inst->VRegB_12x()));
@@ -2699,7 +2700,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::SHL_LONG_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegLong(vregA,
                                  shadow_frame.GetVRegLong(vregA) <<
                                  (shadow_frame.GetVReg(inst->VRegB_12x()) & 0x3f));
@@ -2708,7 +2709,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::SHR_LONG_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegLong(vregA,
                                  shadow_frame.GetVRegLong(vregA) >>
                                  (shadow_frame.GetVReg(inst->VRegB_12x()) & 0x3f));
@@ -2717,7 +2718,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::USHR_LONG_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegLong(vregA,
                                  static_cast<uint64_t>(shadow_frame.GetVRegLong(vregA)) >>
                                  (shadow_frame.GetVReg(inst->VRegB_12x()) & 0x3f));
@@ -2726,7 +2727,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::ADD_FLOAT_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegFloat(vregA,
                                   shadow_frame.GetVRegFloat(vregA) +
                                   shadow_frame.GetVRegFloat(inst->VRegB_12x()));
@@ -2735,7 +2736,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::SUB_FLOAT_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegFloat(vregA,
                                   shadow_frame.GetVRegFloat(vregA) -
                                   shadow_frame.GetVRegFloat(inst->VRegB_12x()));
@@ -2744,7 +2745,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::MUL_FLOAT_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegFloat(vregA,
                                   shadow_frame.GetVRegFloat(vregA) *
                                   shadow_frame.GetVRegFloat(inst->VRegB_12x()));
@@ -2753,7 +2754,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::DIV_FLOAT_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegFloat(vregA,
                                   shadow_frame.GetVRegFloat(vregA) /
                                   shadow_frame.GetVRegFloat(inst->VRegB_12x()));
@@ -2762,7 +2763,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::REM_FLOAT_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegFloat(vregA,
                                   fmodf(shadow_frame.GetVRegFloat(vregA),
                                         shadow_frame.GetVRegFloat(inst->VRegB_12x())));
@@ -2771,7 +2772,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::ADD_DOUBLE_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegDouble(vregA,
                                    shadow_frame.GetVRegDouble(vregA) +
                                    shadow_frame.GetVRegDouble(inst->VRegB_12x()));
@@ -2780,7 +2781,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::SUB_DOUBLE_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegDouble(vregA,
                                    shadow_frame.GetVRegDouble(vregA) -
                                    shadow_frame.GetVRegDouble(inst->VRegB_12x()));
@@ -2789,7 +2790,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::MUL_DOUBLE_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegDouble(vregA,
                                    shadow_frame.GetVRegDouble(vregA) *
                                    shadow_frame.GetVRegDouble(inst->VRegB_12x()));
@@ -2798,7 +2799,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::DIV_DOUBLE_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegDouble(vregA,
                                    shadow_frame.GetVRegDouble(vregA) /
                                    shadow_frame.GetVRegDouble(inst->VRegB_12x()));
@@ -2807,7 +2808,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::REM_DOUBLE_2ADDR: {
         PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
+        uint4_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegDouble(vregA,
                                    fmod(shadow_frame.GetVRegDouble(vregA),
                                         shadow_frame.GetVRegDouble(inst->VRegB_12x())));
