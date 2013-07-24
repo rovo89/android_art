@@ -22,17 +22,16 @@ namespace art {
 namespace verifier {
 
 std::string InstructionFlags::ToString() const {
-  char encoding[7];
+  char encoding[6];
   if (!IsOpcode()) {
-    strncpy(encoding, "XXXXXX", sizeof(encoding));
+    strncpy(encoding, "XXXXX", sizeof(encoding));
   } else {
-    strncpy(encoding, "------", sizeof(encoding));
-    if (IsVisited())               encoding[kVisited] = 'V';
-    if (IsChanged())               encoding[kChanged] = 'C';
-    if (IsInTry())                 encoding[kInTry] = 'T';
-    if (IsBranchTarget())          encoding[kBranchTarget] = 'B';
+    strncpy(encoding, "-----", sizeof(encoding));
+    if (IsInTry())        encoding[kInTry] = 'T';
+    if (IsBranchTarget()) encoding[kBranchTarget] = 'B';
     if (IsCompileTimeInfoPoint())  encoding[kCompileTimeInfoPoint] = 'G';
-    if (IsReturn())                encoding[kReturn] = 'R';
+    if (IsVisited())      encoding[kVisited] = 'V';
+    if (IsChanged())      encoding[kChanged] = 'C';
   }
   return encoding;
 }

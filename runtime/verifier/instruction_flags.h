@@ -93,21 +93,6 @@ class InstructionFlags {
     return IsVisited() || IsChanged();
   }
 
-  void SetReturn() {
-    flags_ |= 1 << kReturn;
-  }
-  void ClearReturn() {
-    flags_ &= ~(1 << kReturn);
-  }
-  bool IsReturn() const {
-    return (flags_ & (1 << kReturn)) != 0;
-  }
-
-  void SetCompileTimeInfoPointAndReturn() {
-    SetCompileTimeInfoPoint();
-    SetReturn();
-  }
-
   std::string ToString() const;
 
  private:
@@ -123,8 +108,6 @@ class InstructionFlags {
     kBranchTarget = 3,
     // Location of interest to the compiler for GC maps and verifier based method sharpening.
     kCompileTimeInfoPoint = 4,
-    // A return instruction.
-    kReturn = 5,
   };
 
   // Size of instruction in code units.
