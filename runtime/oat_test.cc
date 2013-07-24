@@ -83,21 +83,17 @@ TEST_F(OatTest, WriteRead) {
 
   ScopedObjectAccess soa(Thread::Current());
   ScratchFile tmp;
-  std::vector<uint8_t> oat_contents;
-  VectorOutputStream output_stream(tmp.GetFilename(), oat_contents);
-  bool success_oat = OatWriter::Create(output_stream,
-                                       class_linker->GetBootClassPath(),
-                                       42U,
-                                       4096U,
-                                       "lue.art",
-                                       *compiler_driver_.get());
-  ASSERT_TRUE(success_oat);
-  bool success_elf = compiler_driver_->WriteElf(GetTestAndroidRoot(),
-                                                !kIsTargetBuild,
-                                                class_linker->GetBootClassPath(),
-                                                oat_contents,
-                                                tmp.GetFile());
-  ASSERT_TRUE(success_elf);
+  OatWriter oat_writer(class_linker->GetBootClassPath(),
+                       42U,
+                       4096U,
+                       "lue.art",
+                       compiler_driver_.get());
+  bool success = compiler_driver_->WriteElf(GetTestAndroidRoot(),
+                                            !kIsTargetBuild,
+                                            class_linker->GetBootClassPath(),
+                                            oat_writer,
+                                            tmp.GetFile());
+  ASSERT_TRUE(success);
 
   if (compile) {  // OatWriter strips the code, regenerate to compare
     TimingLogger timings("CommonTest::WriteRead", false);

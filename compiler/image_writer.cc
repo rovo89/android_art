@@ -85,6 +85,10 @@ bool ImageWriter::Write(const std::string& image_filename,
     return false;
   }
   oat_file_ = OatFile::OpenWritable(oat_file.get(), oat_location);
+  if (oat_file_ == NULL) {
+    LOG(ERROR) << "Failed to open writable oat file " << oat_filename << " for " << oat_location;
+    return false;
+  }
   class_linker->RegisterOatFile(*oat_file_);
   interpreter_to_interpreter_entry_offset_ = oat_file_->GetOatHeader().GetInterpreterToInterpreterEntryOffset();
   interpreter_to_quick_entry_offset_ = oat_file_->GetOatHeader().GetInterpreterToQuickEntryOffset();

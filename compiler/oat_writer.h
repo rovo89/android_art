@@ -62,23 +62,25 @@ class OutputStream;
 //
 class OatWriter {
  public:
-  // Write an oat file. Returns true on success, false on failure.
-  static bool Create(OutputStream& out,
-                     const std::vector<const DexFile*>& dex_files,
-                     uint32_t image_file_location_oat_checksum,
-                     uint32_t image_file_location_oat_begin,
-                     const std::string& image_file_location,
-                     const CompilerDriver& compiler)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
- private:
   OatWriter(const std::vector<const DexFile*>& dex_files,
             uint32_t image_file_location_oat_checksum,
             uint32_t image_file_location_oat_begin,
             const std::string& image_file_location,
             const CompilerDriver* compiler) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  const OatHeader& GetOatHeader() const {
+    return *oat_header_;
+  }
+
+  size_t GetSize() const {
+    return size_;
+  }
+
+  bool Write(OutputStream& out);
+
   ~OatWriter();
 
+ private:
   size_t InitOatHeader();
   size_t InitOatDexFiles(size_t offset);
   size_t InitDexFiles(size_t offset);
@@ -101,17 +103,17 @@ class OatWriter {
                            uint32_t method_idx, const DexFile*)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool Write(OutputStream& out);
-  bool WriteTables(OutputStream& out);
-  size_t WriteCode(OutputStream& out);
-  size_t WriteCodeDexFiles(OutputStream& out, size_t offset);
-  size_t WriteCodeDexFile(OutputStream& out, size_t offset, size_t& oat_class_index,
-                          const DexFile& dex_file);
-  size_t WriteCodeClassDef(OutputStream& out, size_t offset, size_t oat_class_index,
-                           const DexFile& dex_file, const DexFile::ClassDef& class_def);
-  size_t WriteCodeMethod(OutputStream& out, size_t offset, size_t oat_class_index,
-                         size_t class_def_method_index, bool is_static, uint32_t method_idx,
-                         const DexFile& dex_file);
+  bool WriteTables(OutputStream& out, const size_t file_offset);
+  size_t WriteCode(OutputStream& out, const size_t file_offset);
+  size_t WriteCodeDexFiles(OutputStream& out, const size_t file_offset, size_t relative_offset);
+  size_t WriteCodeDexFile(OutputStream& out, const size_t file_offset, size_t relative_offset,
+                          size_t& oat_class_index, const DexFile& dex_file);
+  size_t WriteCodeClassDef(OutputStream& out, const size_t file_offset, size_t relative_offset,
+                           size_t oat_class_index, const DexFile& dex_file,
+                           const DexFile::ClassDef& class_def);
+  size_t WriteCodeMethod(OutputStream& out, const size_t file_offset, size_t relative_offset,
+                         size_t oat_class_index, size_t class_def_method_index, bool is_static,
+                         uint32_t method_idx, const DexFile& dex_file);
 
   void ReportWriteFailure(const char* what, uint32_t method_idx, const DexFile& dex_file,
                           OutputStream& out) const;
@@ -121,7 +123,7 @@ class OatWriter {
     explicit OatDexFile(size_t offset, const DexFile& dex_file);
     size_t SizeOf() const;
     void UpdateChecksum(OatHeader& oat_header) const;
-    bool Write(OatWriter* oat_writer, OutputStream& out) const;
+    bool Write(OatWriter* oat_writer, OutputStream& out, const size_t file_offset) const;
 
     // Offset of start of OatDexFile from beginning of OatHeader. It is
     // used to validate file position when writing.
@@ -145,7 +147,7 @@ class OatWriter {
     size_t GetOatMethodOffsetsOffsetFromOatClass(size_t class_def_method_index_) const;
     size_t SizeOf() const;
     void UpdateChecksum(OatHeader& oat_header) const;
-    bool Write(OatWriter* oat_writer, OutputStream& out) const;
+    bool Write(OatWriter* oat_writer, OutputStream& out, const size_t file_offset) const;
 
     // Offset of start of OatClass from beginning of OatHeader. It is
     // used to validate file position when writing. For Portable, it
@@ -166,6 +168,9 @@ class OatWriter {
 
   // note OatFile does not take ownership of the DexFiles
   const std::vector<const DexFile*>* dex_files_;
+
+  // Size required for Oat data structures.
+  size_t size_;
 
   // dependencies on the image.
   uint32_t image_file_location_oat_checksum_;
