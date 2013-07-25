@@ -87,4 +87,12 @@ int Thread::GetNativePriority() {
   return managed_priority;
 }
 
+void Thread::SetUpAlternateSignalStack() {
+  // Bionic does this for us.
+}
+
+void Thread::TearDownAlternateSignalStack() {
+  // Bionic does this for us.
+}
+
 }  // namespace art

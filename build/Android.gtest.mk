@@ -57,6 +57,11 @@ TEST_COMMON_SRC_FILES := \
 	compiler/elf_writer_test.cc \
 	compiler/jni/jni_compiler_test.cc
 
+ifeq ($(ART_SEA_IR_MODE),true)
+TEST_COMMON_SRC_FILES += \
+	compiler/utils/scoped_hashtable_test.cc
+endif
+
 TEST_TARGET_SRC_FILES := \
 	$(TEST_COMMON_SRC_FILES)
 

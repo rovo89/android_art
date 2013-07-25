@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_JDWP_JDWP_H_
 #define ART_RUNTIME_JDWP_JDWP_H_
 
+#include "atomic_integer.h"
 #include "base/mutex.h"
 #include "jdwp/jdwp_bits.h"
 #include "jdwp/jdwp_constants.h"
@@ -319,9 +320,8 @@ struct JdwpState {
   int64_t last_activity_time_ms_;
 
   // Global counters and a mutex to protect them.
-  Mutex serial_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  uint32_t request_serial_ GUARDED_BY(serial_lock_);
-  uint32_t event_serial_ GUARDED_BY(serial_lock_);
+  AtomicInteger request_serial_;
+  AtomicInteger event_serial_;
 
   // Linked list of events requested by the debugger (breakpoints, class prep, etc).
   Mutex event_list_lock_;

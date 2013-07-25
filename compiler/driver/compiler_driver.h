@@ -39,6 +39,7 @@ namespace art {
 class AOTCompilationStats;
 class ParallelCompilationManager;
 class DexCompilationUnit;
+class OatWriter;
 class TimingLogger;
 
 enum CompilerBackend {
@@ -192,7 +193,7 @@ class CompilerDriver {
   bool WriteElf(const std::string& android_root,
                 bool is_host,
                 const std::vector<const DexFile*>& dex_files,
-                std::vector<uint8_t>& oat_contents,
+                OatWriter& oat_writer,
                 File* file);
 
   // TODO: move to a common home for llvm helpers once quick/portable are merged

@@ -36,7 +36,7 @@ static void* StartJdwpThread(void* arg);
  * JdwpNetStateBase class implementation
  */
 JdwpNetStateBase::JdwpNetStateBase(JdwpState* state)
-    : state_(state), socket_lock_("JdwpNetStateBase lock", kJdwpSerialSocketLock) {
+    : state_(state), socket_lock_("JdwpNetStateBase lock", kJdwpSocketLock) {
   clientSock = -1;
   wake_pipe_[0] = -1;
   wake_pipe_[1] = -1;
@@ -185,7 +185,6 @@ void JdwpState::SendRequest(ExpandBuf* pReq) {
  * packets to the debugger.
  */
 uint32_t JdwpState::NextRequestSerial() {
-  MutexLock mu(Thread::Current(), serial_lock_);
   return request_serial_++;
 }
 
@@ -194,7 +193,6 @@ uint32_t JdwpState::NextRequestSerial() {
  * message type EventRequest.Set.
  */
 uint32_t JdwpState::NextEventSerial() {
-  MutexLock mu(Thread::Current(), serial_lock_);
   return event_serial_++;
 }
 
@@ -211,7 +209,6 @@ JdwpState::JdwpState(const JdwpOptions* options)
       attach_lock_("JDWP attach lock", kJdwpAttachLock),
       attach_cond_("JDWP attach condition variable", attach_lock_),
       last_activity_time_ms_(0),
-      serial_lock_("JDWP serial lock", kJdwpSerialSocketLock),
       request_serial_(0x10000000),
       event_serial_(0x20000000),
       event_list_lock_("JDWP event list lock", kJdwpEventListLock),
@@ -248,14 +245,30 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
     LOG(FATAL) << "Unknown transport: " << options->transport;
   }
 
-  /*
-   * Grab a mutex or two before starting the thread.  This ensures they
-   * won't signal the cond var before we're waiting.
-   */
-  {
+  if (!options->suspend) {
+    /*
+     * Grab a mutex before starting the thread.  This ensures they
+     * won't signal the cond var before we're waiting.
+     */
     MutexLock thread_start_locker(self, state->thread_start_lock_);
-    const bool should_suspend = options->suspend;
-    if (!should_suspend) {
+    /*
+     * We have bound to a port, or are trying to connect outbound to a
+     * debugger.  Create the JDWP thread and let it continue the mission.
+     */
+    CHECK_PTHREAD_CALL(pthread_create, (&state->pthread_, NULL, StartJdwpThread, state.get()), "JDWP thread");
+
+    /*
+     * Wait until the thread finishes basic initialization.
+     * TODO: cond vars should be waited upon in a loop
+     */
+    state->thread_start_cond_.Wait(self);
+  } else {
+    {
+      /*
+       * Grab a mutex before starting the thread.  This ensures they
+       * won't signal the cond var before we're waiting.
+       */
+      MutexLock thread_start_locker(self, state->thread_start_lock_);
       /*
        * We have bound to a port, or are trying to connect outbound to a
        * debugger.  Create the JDWP thread and let it continue the mission.
@@ -267,47 +280,33 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
        * TODO: cond vars should be waited upon in a loop
        */
       state->thread_start_cond_.Wait(self);
-    } else {
-      {
-        /*
-         * We have bound to a port, or are trying to connect outbound to a
-         * debugger.  Create the JDWP thread and let it continue the mission.
-         */
-        CHECK_PTHREAD_CALL(pthread_create, (&state->pthread_, NULL, StartJdwpThread, state.get()), "JDWP thread");
-
-        /*
-         * Wait until the thread finishes basic initialization.
-         * TODO: cond vars should be waited upon in a loop
-         */
-        state->thread_start_cond_.Wait(self);
-
-        /*
-         * For suspend=y, wait for the debugger to connect to us or for us to
-         * connect to the debugger.
-         *
-         * The JDWP thread will signal us when it connects successfully or
-         * times out (for timeout=xxx), so we have to check to see what happened
-         * when we wake up.
-         */
-        {
-          ScopedThreadStateChange tsc(self, kWaitingForDebuggerToAttach);
-          MutexLock attach_locker(self, state->attach_lock_);
-          state->attach_cond_.Wait(self);
-        }
-      }
-      if (!state->IsActive()) {
-        LOG(ERROR) << "JDWP connection failed";
-        return NULL;
-      }
-
-      LOG(INFO) << "JDWP connected";
-
-      /*
-       * Ordinarily we would pause briefly to allow the debugger to set
-       * breakpoints and so on, but for "suspend=y" the VM init code will
-       * pause the VM when it sends the VM_START message.
-       */
     }
+
+    /*
+     * For suspend=y, wait for the debugger to connect to us or for us to
+     * connect to the debugger.
+     *
+     * The JDWP thread will signal us when it connects successfully or
+     * times out (for timeout=xxx), so we have to check to see what happened
+     * when we wake up.
+     */
+    {
+      ScopedThreadStateChange tsc(self, kWaitingForDebuggerToAttach);
+      MutexLock attach_locker(self, state->attach_lock_);
+      state->attach_cond_.Wait(self);
+    }
+    if (!state->IsActive()) {
+      LOG(ERROR) << "JDWP connection failed";
+      return NULL;
+    }
+
+    LOG(INFO) << "JDWP connected";
+
+    /*
+     * Ordinarily we would pause briefly to allow the debugger to set
+     * breakpoints and so on, but for "suspend=y" the VM init code will
+     * pause the VM when it sends the VM_START message.
+     */
   }
 
   return state.release();

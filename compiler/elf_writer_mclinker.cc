@@ -36,7 +36,9 @@
 #include "mirror/abstract_method.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/object-inl.h"
+#include "oat_writer.h"
 #include "scoped_thread_state_change.h"
+#include "vector_output_stream.h"
 
 namespace art {
 
@@ -46,19 +48,25 @@ ElfWriterMclinker::ElfWriterMclinker(const CompilerDriver& driver, File* elf_fil
 ElfWriterMclinker::~ElfWriterMclinker() {}
 
 bool ElfWriterMclinker::Create(File* elf_file,
-                               std::vector<uint8_t>& oat_contents,
+                               OatWriter& oat_writer,
                                const std::vector<const DexFile*>& dex_files,
                                const std::string& android_root,
                                bool is_host,
                                const CompilerDriver& driver) {
   ElfWriterMclinker elf_writer(driver, elf_file);
-  return elf_writer.Write(oat_contents, dex_files, android_root, is_host);
+  return elf_writer.Write(oat_writer, dex_files, android_root, is_host);
 }
 
-bool ElfWriterMclinker::Write(std::vector<uint8_t>& oat_contents,
+bool ElfWriterMclinker::Write(OatWriter& oat_writer,
                               const std::vector<const DexFile*>& dex_files,
                               const std::string& android_root,
                               bool is_host) {
+  std::vector<uint8_t> oat_contents;
+  oat_contents.reserve(oat_writer.GetSize());
+  VectorOutputStream output_stream("oat contents", oat_contents);
+  CHECK(oat_writer.Write(output_stream));
+  CHECK_EQ(oat_writer.GetSize(), oat_contents.size());
+
   Init();
   AddOatInput(oat_contents);
 #if defined(ART_USE_PORTABLE_COMPILER)
@@ -68,6 +76,7 @@ bool ElfWriterMclinker::Write(std::vector<uint8_t>& oat_contents,
   if (!Link()) {
     return false;
   }
+  oat_contents.clear();
 #if defined(ART_USE_PORTABLE_COMPILER)
   FixupOatMethodOffsets(dex_files);
 #endif

@@ -216,43 +216,6 @@ static size_t FixStackSize(size_t stack_size) {
   return stack_size;
 }
 
-static void SigAltStack(stack_t* new_stack, stack_t* old_stack) {
-  if (sigaltstack(new_stack, old_stack) == -1) {
-    PLOG(FATAL) << "sigaltstack failed";
-  }
-}
-
-static void SetUpAlternateSignalStack() {
-  // Create and set an alternate signal stack.
-  stack_t ss;
-  ss.ss_sp = new uint8_t[SIGSTKSZ];
-  ss.ss_size = SIGSTKSZ;
-  ss.ss_flags = 0;
-  CHECK(ss.ss_sp != NULL);
-  SigAltStack(&ss, NULL);
-
-  // Double-check that it worked.
-  ss.ss_sp = NULL;
-  SigAltStack(NULL, &ss);
-  VLOG(threads) << "Alternate signal stack is " << PrettySize(ss.ss_size) << " at " << ss.ss_sp;
-}
-
-static void TearDownAlternateSignalStack() {
-  // Get the pointer so we can free the memory.
-  stack_t ss;
-  SigAltStack(NULL, &ss);
-  uint8_t* allocated_signal_stack = reinterpret_cast<uint8_t*>(ss.ss_sp);
-
-  // Tell the kernel to stop using it.
-  ss.ss_sp = NULL;
-  ss.ss_flags = SS_DISABLE;
-  ss.ss_size = SIGSTKSZ; // Avoid ENOMEM failure with Mac OS' buggy libc.
-  SigAltStack(&ss, NULL);
-
-  // Free it.
-  delete[] allocated_signal_stack;
-}
-
 void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_size, bool is_daemon) {
   CHECK(java_peer != NULL);
   Thread* self = static_cast<JNIEnvExt*>(env)->self;
@@ -1851,10 +1814,6 @@ class CatchBlockStackVisitor : public StackVisitor {
       }
     } else {
       CHECK(!is_deoptimization_);
-      if (instrumentation_frames_to_pop_ > 0) {
-        // Don't pop the instrumentation frame of the catch handler.
-        instrumentation_frames_to_pop_--;
-      }
       if (kDebugExceptionDelivery) {
         const DexFile& dex_file = *catch_method->GetDeclaringClass()->GetDexCache()->GetDexFile();
         int line_number = dex_file.GetLineNumFromPC(catch_method, handler_dex_pc_);
@@ -1868,7 +1827,10 @@ class CatchBlockStackVisitor : public StackVisitor {
     instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
     for (size_t i = 0; i < instrumentation_frames_to_pop_; ++i) {
       // We pop the instrumentation stack here so as not to corrupt it during the stack walk.
-      instrumentation->PopMethodForUnwind(self_, is_deoptimization_);
+      if (i != instrumentation_frames_to_pop_ - 1 || self_->GetInstrumentationStack()->front().method_ != catch_method) {
+        // Don't pop the instrumentation frame of the catch handler.
+        instrumentation->PopMethodForUnwind(self_, is_deoptimization_);
+      }
     }
     if (!is_deoptimization_) {
       instrumentation->ExceptionCaughtEvent(self_, throw_location_, catch_method, handler_dex_pc_,

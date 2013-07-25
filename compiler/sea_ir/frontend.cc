@@ -47,7 +47,6 @@ static CompiledMethod* CompileMethodWithSeaIr(CompilerDriver& compiler,
   return NULL;
 }
 
-
 CompiledMethod* SeaIrCompileOneMethod(CompilerDriver& compiler,
                                  const CompilerBackend backend,
                                  const DexFile::CodeItem* code_item,

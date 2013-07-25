@@ -2641,36 +2641,36 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
    *        because it changes work_line_ when performing peephole optimization
    *        and this change should not be used in those cases.
    */
-    if ((opcode_flags & Instruction::kContinue) != 0) {
-      uint32_t next_insn_idx = work_insn_idx_ + CurrentInsnFlags()->GetLengthInCodeUnits();
-      if (next_insn_idx >= code_item_->insns_size_in_code_units_) {
-        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Execution can walk off end of code area";
-        return false;
-      }
-      // The only way to get to a move-exception instruction is to get thrown there. Make sure the
-      // next instruction isn't one.
-      if (!CheckNotMoveException(code_item_->insns_, next_insn_idx)) {
-        return false;
-      }
-      if (NULL != fallthrough_line.get()) {
-        // Make workline consistent with fallthrough computed from peephole optimization.
-        work_line_->CopyFromLine(fallthrough_line.get());
-      }
-      RegisterLine* next_line = reg_table_.GetLine(next_insn_idx);
-      if (next_line != NULL) {
-        // Merge registers into what we have for the next instruction,
-        // and set the "changed" flag if needed.
-        if (!UpdateRegisters(next_insn_idx, work_line_.get())) {
-          return false;
-        }
-      } else {
-        /*
-         * We're not recording register data for the next instruction, so we don't know what the
-         * prior state was. We have to assume that something has changed and re-evaluate it.
-         */
-        insn_flags_[next_insn_idx].SetChanged();
-      }
+  if ((opcode_flags & Instruction::kContinue) != 0) {
+    uint32_t next_insn_idx = work_insn_idx_ + CurrentInsnFlags()->GetLengthInCodeUnits();
+    if (next_insn_idx >= code_item_->insns_size_in_code_units_) {
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Execution can walk off end of code area";
+      return false;
     }
+    // The only way to get to a move-exception instruction is to get thrown there. Make sure the
+    // next instruction isn't one.
+    if (!CheckNotMoveException(code_item_->insns_, next_insn_idx)) {
+      return false;
+    }
+    if (NULL != fallthrough_line.get()) {
+      // Make workline consistent with fallthrough computed from peephole optimization.
+      work_line_->CopyFromLine(fallthrough_line.get());
+    }
+    RegisterLine* next_line = reg_table_.GetLine(next_insn_idx);
+    if (next_line != NULL) {
+      // Merge registers into what we have for the next instruction,
+      // and set the "changed" flag if needed.
+      if (!UpdateRegisters(next_insn_idx, work_line_.get())) {
+        return false;
+      }
+    } else {
+      /*
+       * We're not recording register data for the next instruction, so we don't know what the
+       * prior state was. We have to assume that something has changed and re-evaluate it.
+       */
+      insn_flags_[next_insn_idx].SetChanged();
+    }
+  }
 
   /* If we're returning from the method, make sure monitor stack is empty. */
   if ((opcode_flags & Instruction::kReturn) != 0) {
@@ -3695,7 +3695,7 @@ const RegType& MethodVerifier::GetDeclaringClass() {
 }
 
 void MethodVerifier::ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bits,
-                                    size_t* log2_max_gc_pc) {
+                                       size_t* log2_max_gc_pc) {
   size_t local_gc_points = 0;
   size_t max_insn = 0;
   size_t max_ref_reg = -1;

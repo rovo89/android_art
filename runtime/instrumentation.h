@@ -284,7 +284,7 @@ struct InstrumentationStackFrame {
   mirror::AbstractMethod* method_;
   const uintptr_t return_pc_;
   const size_t frame_id_;
-  bool interpreter_entry_;
+  const bool interpreter_entry_;
 };
 
 }  // namespace instrumentation

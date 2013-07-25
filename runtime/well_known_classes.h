@@ -29,6 +29,8 @@ class Class;
 // them up. Similar to libcore's JniConstants (except there's no overlap, so
 // we keep them separate).
 
+jmethodID CacheMethod(JNIEnv* env, jclass c, bool is_static, const char* name, const char* signature);
+
 struct WellKnownClasses {
   static void InitClasses(JNIEnv* env);
   static void Init(JNIEnv* env);  // Run before native methods are registered.
@@ -49,6 +51,7 @@ struct WellKnownClasses {
   static jclass java_lang_reflect_Proxy;
   static jclass java_lang_RuntimeException;
   static jclass java_lang_StackOverflowError;
+  static jclass java_lang_System;
   static jclass java_lang_Thread;
   static jclass java_lang_ThreadGroup;
   static jclass java_lang_Thread$UncaughtExceptionHandler;
@@ -75,6 +78,7 @@ struct WellKnownClasses {
   static jmethodID java_lang_reflect_InvocationHandler_invoke;
   static jmethodID java_lang_Runtime_nativeLoad;
   static jmethodID java_lang_Short_valueOf;
+  static jmethodID java_lang_System_runFinalization;
   static jmethodID java_lang_Thread_init;
   static jmethodID java_lang_Thread_run;
   static jmethodID java_lang_Thread$UncaughtExceptionHandler_uncaughtException;

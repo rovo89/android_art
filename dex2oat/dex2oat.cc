@@ -282,27 +282,14 @@ class Dex2Oat {
       }
     }
 
-    std::vector<uint8_t> oat_contents;
-    // TODO: change ElfWriterQuick to not require the creation of oat_contents. The old pre-mclinker
-    //       OatWriter streamed directly to disk. The new could can be adapted to do it as follows:
-    // 1.) use first pass of OatWriter to calculate size of oat structure,
-    // 2.) call ElfWriterQuick with pointer to OatWriter instead of contents,
-    // 3.) have ElfWriterQuick call back to OatWriter to stream generate the output directly in
-    //     place in the elf file.
-    oat_contents.reserve(5 * MB);
-    VectorOutputStream vector_output_stream(oat_file->GetPath(), oat_contents);
-    if (!OatWriter::Create(vector_output_stream,
-                           dex_files,
-                           image_file_location_oat_checksum,
-                           image_file_location_oat_data_begin,
-                           image_file_location,
-                           *driver.get())) {
-      LOG(ERROR) << "Failed to create oat file " << oat_file->GetPath();
-      return NULL;
-    }
+    OatWriter oat_writer(dex_files,
+                         image_file_location_oat_checksum,
+                         image_file_location_oat_data_begin,
+                         image_file_location,
+                         driver.get());
     timings.AddSplit("dex2oat OatWriter");
 
-    if (!driver->WriteElf(android_root, is_host, dex_files, oat_contents, oat_file)) {
+    if (!driver->WriteElf(android_root, is_host, dex_files, oat_writer, oat_file)) {
       LOG(ERROR) << "Failed to write ELF file " << oat_file->GetPath();
       return NULL;
     }
@@ -1019,10 +1006,10 @@ static int dex2oat(int argc, char** argv) {
                                                            *compiler.get());
     timings.AddSplit("dex2oat ImageWriter");
     Thread::Current()->TransitionFromSuspendedToRunnable();
-    LOG(INFO) << "Image written successfully: " << image_filename;
     if (!image_creation_success) {
       return EXIT_FAILURE;
     }
+    LOG(INFO) << "Image written successfully: " << image_filename;
   }
 
   if (is_host) {
@@ -1032,7 +1019,6 @@ static int dex2oat(int argc, char** argv) {
     return EXIT_SUCCESS;
   }
 
-#if ART_USE_PORTABLE_COMPILER  // We currently only generate symbols on Portable
   // If we don't want to strip in place, copy from unstripped location to stripped location.
   // We need to strip after image creation because FixupElf needs to use .strtab.
   if (oat_unstripped != oat_stripped) {
@@ -1054,6 +1040,7 @@ static int dex2oat(int argc, char** argv) {
     LOG(INFO) << "Oat file copied successfully (stripped): " << oat_stripped;
   }
 
+#if ART_USE_PORTABLE_COMPILER  // We currently only generate symbols on Portable
   // Strip unneeded sections for target
   off_t seek_actual = lseek(oat_file->Fd(), 0, SEEK_SET);
   CHECK_EQ(0, seek_actual);

@@ -164,12 +164,6 @@ LIBART_COMMON_SRC_FILES += \
 	oat/runtime/support_throw.cc \
 	oat/runtime/support_interpreter.cc
 
-ifeq ($(ART_SEA_IR_MODE),true)
-LIBART_COMMON_SRC_FILES += \
-	compiler/sea_ir/sea.cc \
-	compiler/sea_ir/instruction_tools.cc
-endif
-
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
 	base/logging_android.cc \

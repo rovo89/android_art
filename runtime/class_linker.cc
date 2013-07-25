@@ -2301,13 +2301,31 @@ void ClassLinker::VerifyClass(mirror::Class* klass) {
 
 bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, mirror::Class* klass,
                                           mirror::Class::Status& oat_file_class_status) {
-  if (!Runtime::Current()->IsStarted()) {
-    return false;
+  // If we're compiling, we can only verify the class using the oat file if
+  // we are not compiling the image or if the class we're verifying is not part of
+  // the app.  In other words, we will only check for preverification of bootclasspath
+  // classes.
+  if (Runtime::Current()->IsCompiler()) {
+    // Are we compiling the bootclasspath?
+    if (!Runtime::Current()->UseCompileTimeClassPath()) {
+      return false;
+    }
+    // We are compiling an app (not the image).
+
+    // Is this an app class? (I.e. not a bootclasspath class)
+    if (klass->GetClassLoader() != NULL) {
+      return false;
+    }
   }
-  if (Runtime::Current()->UseCompileTimeClassPath()) {
-    return false;
-  }
+
+
   const OatFile* oat_file = FindOpenedOatFileForDexFile(dex_file);
+  // Make this work with gtests, which do not set up the image properly.
+  // TODO: we should clean up gtests to set up the image path properly.
+  if (Runtime::Current()->IsCompiler() && (oat_file == NULL)) {
+    return false;
+  }
+
   CHECK(oat_file != NULL) << dex_file.GetLocation() << " " << PrettyClass(klass);
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());
   CHECK(oat_dex_file != NULL) << dex_file.GetLocation() << " " << PrettyClass(klass);
@@ -2321,7 +2339,7 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, mirror::Class
   oat_file_class_status = oat_class->GetStatus();
   if (oat_file_class_status == mirror::Class::kStatusVerified ||
       oat_file_class_status == mirror::Class::kStatusInitialized) {
-    return true;
+      return true;
   }
   if (oat_file_class_status == mirror::Class::kStatusRetryVerificationAtRuntime) {
     // Compile time verification failed with a soft error. Compile time verification can fail

@@ -40,7 +40,7 @@ class ElfWriterMclinker : public ElfWriter {
  public:
   // Write an ELF file. Returns true on success, false on failure.
   static bool Create(File* file,
-                     std::vector<uint8_t>& oat_contents,
+                     OatWriter& oat_writer,
                      const std::vector<const DexFile*>& dex_files,
                      const std::string& android_root,
                      bool is_host,
@@ -48,7 +48,7 @@ class ElfWriterMclinker : public ElfWriter {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  protected:
-  virtual bool Write(std::vector<uint8_t>& oat_contents,
+  virtual bool Write(OatWriter& oat_writer,
                      const std::vector<const DexFile*>& dex_files,
                      const std::string& android_root,
                      bool is_host)

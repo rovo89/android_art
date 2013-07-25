@@ -618,6 +618,9 @@ class PACKED(4) Thread {
   void InitPthreadKeySelf();
   void InitStackHwm();
 
+  void SetUpAlternateSignalStack();
+  void TearDownAlternateSignalStack();
+
   void NotifyLocked(Thread* self) EXCLUSIVE_LOCKS_REQUIRED(wait_mutex_);
 
   static void ThreadExitCallback(void* arg);

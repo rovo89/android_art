@@ -112,7 +112,6 @@ class Space {
   bool IsZygoteSpace() const {
     return GetType() == kSpaceTypeZygoteSpace;
   }
-  DlMallocSpace* AsZygoteSpace();
 
   // Does this space hold large objects and implement the large object space abstraction?
   bool IsLargeObjectSpace() const {

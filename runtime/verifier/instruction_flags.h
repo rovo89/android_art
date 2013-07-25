@@ -97,12 +97,17 @@ class InstructionFlags {
 
  private:
   enum {
-    kInTry,
-    kBranchTarget,
-    kCompileTimeInfoPoint,  // Location of interest to the compiler for GC maps and
-                            // verifier based method sharpening.
-    kVisited,
-    kChanged,
+    // The instruction has been visited and unless IsChanged() verified.
+    kVisited = 0,
+    // Register type information flowing into the instruction changed and so the instruction must be
+    // reprocessed.
+    kChanged = 1,
+    // Instruction is contained within a try region.
+    kInTry = 2,
+    // Instruction is the target of a branch (ie the start of a basic block).
+    kBranchTarget = 3,
+    // Location of interest to the compiler for GC maps and verifier based method sharpening.
+    kCompileTimeInfoPoint = 4,
   };
 
   // Size of instruction in code units.

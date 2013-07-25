@@ -215,6 +215,7 @@ class Instruction {
   }
 
   // VRegA
+  bool HasVRegA() const;
   int32_t VRegA() const;
   int8_t VRegA_10t() const;
   uint8_t VRegA_10x() const;
@@ -242,6 +243,7 @@ class Instruction {
   uint8_t VRegA_51l() const;
 
   // VRegB
+  bool HasVRegB() const;
   int32_t VRegB() const;
   int4_t VRegB_11n() const;
   uint4_t VRegB_12x() const;
@@ -264,6 +266,7 @@ class Instruction {
   uint64_t VRegB_51l() const;  // vB_wide
 
   // VRegC
+  bool HasVRegC() const;
   int32_t VRegC() const;
   int8_t VRegC_22b() const;
   uint16_t VRegC_22c() const;
@@ -287,6 +290,12 @@ class Instruction {
     DCHECK_LT(static_cast<uint16_t>(opcode), 256u);
     uint16_t* insns = reinterpret_cast<uint16_t*>(this);
     insns[0] = (insns[0] & 0xff00) | static_cast<uint16_t>(opcode);
+  }
+
+  void SetVRegA_10x(uint8_t val) {
+    DCHECK(FormatOf(Opcode()) == k10x);
+    uint16_t* insns = reinterpret_cast<uint16_t*>(this);
+    insns[0] = (val << 8) | (insns[0] & 0x00ff);
   }
 
   void SetVRegB_3rc(uint16_t val) {

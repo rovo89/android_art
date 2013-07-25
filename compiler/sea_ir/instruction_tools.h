@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-
+#include "sea.h"
 #include "dex_instruction.h"
 
 #ifndef ART_COMPILER_SEA_IR_INSTRUCTION_TOOLS_H_
 #define ART_COMPILER_SEA_IR_INSTRUCTION_TOOLS_H_
+
 
 // Note: This file has content cannibalized for SEA_IR from the MIR implementation,
 //       to avoid having a dependence on MIR.
