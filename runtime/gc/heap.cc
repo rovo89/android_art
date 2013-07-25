@@ -150,16 +150,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     }
   }
 
-  // Allocate the large object space.
-  const bool kUseFreeListSpaceForLOS  = false;
-  if (kUseFreeListSpaceForLOS) {
-    large_object_space_ = space::FreeListSpace::Create("large object space", NULL, capacity);
-  } else {
-    large_object_space_ = space::LargeObjectMapSpace::Create("large object space");
-  }
-  CHECK(large_object_space_ != NULL) << "Failed to create large object space";
-  AddDiscontinuousSpace(large_object_space_);
-
   alloc_space_ = space::DlMallocSpace::Create(Runtime::Current()->IsZygote() ? "zygote space" : "alloc space",
                                               initial_size,
                                               growth_limit, capacity,
@@ -167,6 +157,16 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   CHECK(alloc_space_ != NULL) << "Failed to create alloc space";
   alloc_space_->SetFootprintLimit(alloc_space_->Capacity());
   AddContinuousSpace(alloc_space_);
+
+  // Allocate the large object space.
+  const bool kUseFreeListSpaceForLOS = false;
+  if (kUseFreeListSpaceForLOS) {
+    large_object_space_ = space::FreeListSpace::Create("large object space", NULL, capacity);
+  } else {
+    large_object_space_ = space::LargeObjectMapSpace::Create("large object space");
+  }
+  CHECK(large_object_space_ != NULL) << "Failed to create large object space";
+  AddDiscontinuousSpace(large_object_space_);
 
   // Compute heap capacity. Continuous spaces are sorted in order of Begin().
   byte* heap_begin = continuous_spaces_.front()->Begin();
@@ -448,8 +448,7 @@ mirror::Object* Heap::AllocObject(Thread* self, mirror::Class* c, size_t byte_co
   DCHECK_GE(byte_count, sizeof(mirror::Object));
 
   mirror::Object* obj = NULL;
-  size_t size = 0;
-  size_t bytes_allocated;
+  size_t bytes_allocated = 0;
   uint64_t allocation_start = 0;
   if (UNLIKELY(kMeasureAllocationTime)) {
     allocation_start = NanoTime() / kTimeAdjust;
@@ -457,14 +456,12 @@ mirror::Object* Heap::AllocObject(Thread* self, mirror::Class* c, size_t byte_co
 
   // We need to have a zygote space or else our newly allocated large object can end up in the
   // Zygote resulting in it being prematurely freed.
-  // We can only do this for primive objects since large objects will not be within the card table
+  // We can only do this for primitive objects since large objects will not be within the card table
   // range. This also means that we rely on SetClass not dirtying the object's card.
   bool large_object_allocation =
       byte_count >= large_object_threshold_ && have_zygote_space_ && c->IsPrimitiveArray();
   if (UNLIKELY(large_object_allocation)) {
-    size = RoundUp(byte_count, kPageSize);
-    obj = Allocate(self, large_object_space_, size, &bytes_allocated);
-    DCHECK(obj == NULL || size == bytes_allocated);
+    obj = Allocate(self, large_object_space_, byte_count, &bytes_allocated);
     // Make sure that our large object didn't get placed anywhere within the space interval or else
     // it breaks the immune range.
     DCHECK(obj == NULL ||
@@ -472,9 +469,6 @@ mirror::Object* Heap::AllocObject(Thread* self, mirror::Class* c, size_t byte_co
            reinterpret_cast<byte*>(obj) >= continuous_spaces_.back()->End());
   } else {
     obj = Allocate(self, alloc_space_, byte_count, &bytes_allocated);
-    DCHECK(obj == NULL || size <= bytes_allocated);
-    size = bytes_allocated;
-
     // Ensure that we did not allocate into a zygote space.
     DCHECK(obj == NULL || !have_zygote_space_ || !FindSpaceFromObject(obj, false)->IsZygoteSpace());
   }
@@ -484,12 +478,12 @@ mirror::Object* Heap::AllocObject(Thread* self, mirror::Class* c, size_t byte_co
 
     // Record allocation after since we want to use the atomic add for the atomic fence to guard
     // the SetClass since we do not want the class to appear NULL in another thread.
-    RecordAllocation(size, obj);
+    RecordAllocation(bytes_allocated, obj);
 
     if (Dbg::IsAllocTrackingEnabled()) {
       Dbg::RecordAllocation(c, byte_count);
     }
-    if (static_cast<size_t>(num_bytes_allocated_) >= concurrent_start_bytes_) {
+    if (UNLIKELY(static_cast<size_t>(num_bytes_allocated_) >= concurrent_start_bytes_)) {
       // The SirtRef is necessary since the calls in RequestConcurrentGC are a safepoint.
       SirtRef<mirror::Object> ref(self, obj);
       RequestConcurrentGC(self);

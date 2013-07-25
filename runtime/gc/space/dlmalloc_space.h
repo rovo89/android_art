@@ -79,7 +79,7 @@ class DlMallocSpace : public MemMapSpace, public AllocSpace {
 
   // Perform a mspace_inspect_all which calls back for each allocation chunk. The chunk may not be
   // in use, indicated by num_bytes equaling zero.
-  void Walk(WalkCallback callback, void* arg);
+  void Walk(WalkCallback callback, void* arg) LOCKS_EXCLUDED(lock_);
 
   // Returns the number of bytes that the space has currently obtained from the system. This is
   // greater or equal to the amount of live data in the space.

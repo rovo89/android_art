@@ -45,9 +45,8 @@ inline mirror::Object* DlMallocSpace::AllocWithoutGrowthLocked(size_t num_bytes,
             << ") not in bounds of allocation space " << *this;
     }
     size_t allocation_size = AllocationSizeNonvirtual(result);
-    if (bytes_allocated != NULL) {
-      *bytes_allocated = allocation_size;
-    }
+    DCHECK(bytes_allocated != NULL);
+    *bytes_allocated = allocation_size;
     num_bytes_allocated_ += allocation_size;
     total_bytes_allocated_ += allocation_size;
     ++total_objects_allocated_;

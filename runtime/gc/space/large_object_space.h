@@ -85,7 +85,7 @@ class LargeObjectMapSpace : public LargeObjectSpace {
   size_t AllocationSize(const mirror::Object* obj);
   mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated);
   size_t Free(Thread* self, mirror::Object* ptr);
-  void Walk(DlMallocSpace::WalkCallback, void* arg);
+  void Walk(DlMallocSpace::WalkCallback, void* arg) LOCKS_EXCLUDED(lock_);
   // TODO: disabling thread safety analysis as this may be called when we already hold lock_.
   bool Contains(const mirror::Object* obj) const NO_THREAD_SAFETY_ANALYSIS;
 
@@ -103,7 +103,6 @@ class LargeObjectMapSpace : public LargeObjectSpace {
 };
 
 // A continuous large object space with a free-list to handle holes.
-// TODO: this implementation is buggy.
 class FreeListSpace : public LargeObjectSpace {
  public:
   virtual ~FreeListSpace();
@@ -113,7 +112,7 @@ class FreeListSpace : public LargeObjectSpace {
   mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated);
   size_t Free(Thread* self, mirror::Object* obj);
   bool Contains(const mirror::Object* obj) const;
-  void Walk(DlMallocSpace::WalkCallback callback, void* arg);
+  void Walk(DlMallocSpace::WalkCallback callback, void* arg) LOCKS_EXCLUDED(lock_);
 
   // Address at which the space begins.
   byte* Begin() const {
@@ -135,57 +134,100 @@ class FreeListSpace : public LargeObjectSpace {
  private:
   static const size_t kAlignment = kPageSize;
 
-  class Chunk {
+  class AllocationHeader {
    public:
-    static const size_t kFreeFlag = 0x80000000;
+    // Returns the allocation size, includes the header.
+    size_t AllocationSize() const {
+      return alloc_size_;
+    }
 
-    struct SortBySize {
-      bool operator()(const Chunk* a, const Chunk* b) const {
-        return a->GetSize() < b->GetSize();
+    // Updates the allocation size in the header, the allocation size includes the header itself.
+    void SetAllocationSize(size_t size) {
+      DCHECK(IsAligned<kPageSize>(size));
+      alloc_size_ = size;
+    }
+
+    bool IsFree() const {
+      return AllocationSize() == 0;
+    }
+
+    // Returns the previous free allocation header by using the prev_free_ member to figure out
+    // where it is. If prev free is 0 then we just return ourself.
+    AllocationHeader* GetPrevFreeAllocationHeader() {
+      return reinterpret_cast<AllocationHeader*>(reinterpret_cast<uintptr_t>(this) - prev_free_);
+    }
+
+    // Returns the address of the object associated with this allocation header.
+    mirror::Object* GetObjectAddress() {
+      return reinterpret_cast<mirror::Object*>(reinterpret_cast<uintptr_t>(this) + sizeof(*this));
+    }
+
+    // Returns the next allocation header after the object associated with this allocation header.
+    AllocationHeader* GetNextAllocationHeader() {
+      DCHECK_NE(alloc_size_, 0U);
+      return reinterpret_cast<AllocationHeader*>(reinterpret_cast<uintptr_t>(this) + alloc_size_);
+    }
+
+    // Returns how many free bytes there is before the block.
+    size_t GetPrevFree() const {
+      return prev_free_;
+    }
+
+    // Update the size of the free block prior to the allocation.
+    void SetPrevFree(size_t prev_free) {
+      DCHECK(IsAligned<kPageSize>(prev_free));
+      prev_free_ = prev_free;
+    }
+
+    // Finds and returns the next non free allocation header after ourself.
+    // TODO: Optimize, currently O(n) for n free following pages.
+    AllocationHeader* GetNextNonFree();
+
+    // Used to implement best fit object allocation. Each allocation has an AllocationHeader which
+    // contains the size of the previous free block preceding it. Implemented in such a way that we
+    // can also find the iterator for any allocation header pointer.
+    class SortByPrevFree {
+     public:
+      bool operator()(const AllocationHeader* a, const AllocationHeader* b) const {
+        if (a->GetPrevFree() < b->GetPrevFree()) return true;
+        if (a->GetPrevFree() > b->GetPrevFree()) return false;
+        if (a->AllocationSize() < b->AllocationSize()) return true;
+        if (a->AllocationSize() > b->AllocationSize()) return false;
+        return reinterpret_cast<uintptr_t>(a) < reinterpret_cast<uintptr_t>(b);
       }
     };
 
-    bool IsFree() const {
-      return (m_size & kFreeFlag) != 0;
-    }
-
-    void SetSize(size_t size, bool is_free = false) {
-      m_size = size | (is_free ? kFreeFlag : 0);
-    }
-
-    size_t GetSize() const {
-      return m_size & (kFreeFlag - 1);
-    }
-
-    Chunk* GetPrevious() {
-      return m_previous;
-    }
-
-    void SetPrevious(Chunk* previous) {
-      m_previous = previous;
-      DCHECK(m_previous == NULL ||
-            (m_previous != NULL && m_previous + m_previous->GetSize() / kAlignment == this));
-    }
-
    private:
-    size_t m_size;
-    Chunk* m_previous;
+    // Contains the size of the previous free block, if 0 then the memory preceding us is an
+    // allocation.
+    size_t prev_free_;
+
+    // Allocation size of this object, 0 means that the allocation header is free memory.
+    size_t alloc_size_;
+
+    friend class FreeListSpace;
   };
 
   FreeListSpace(const std::string& name, MemMap* mem_map, byte* begin, byte* end);
-  void AddFreeChunk(void* address, size_t size, Chunk* previous) EXCLUSIVE_LOCKS_REQUIRED(lock_);
-  Chunk* ChunkFromAddr(void* address) EXCLUSIVE_LOCKS_REQUIRED(lock_);
-  void* AddrFromChunk(Chunk* chunk) EXCLUSIVE_LOCKS_REQUIRED(lock_);
-  void RemoveFreeChunk(Chunk* chunk) EXCLUSIVE_LOCKS_REQUIRED(lock_);
-  Chunk* GetNextChunk(Chunk* chunk);
 
-  typedef std::multiset<Chunk*, Chunk::SortBySize> FreeChunks;
+  // Removes header from the free blocks set by finding the corresponding iterator and erasing it.
+  void RemoveFreePrev(AllocationHeader* header) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+
+  // Finds the allocation header corresponding to obj.
+  AllocationHeader* GetAllocationHeader(const mirror::Object* obj);
+
+  typedef std::set<AllocationHeader*, AllocationHeader::SortByPrevFree,
+                   accounting::GCAllocator<AllocationHeader*> > FreeBlocks;
+
   byte* const begin_;
   byte* const end_;
+
+  // There is not footer for any allocations at the end of the space, so we keep track of how much
+  // free space there is at the end manually.
   UniquePtr<MemMap> mem_map_;
   Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  std::vector<Chunk> chunks_ GUARDED_BY(lock_);
-  FreeChunks free_chunks_ GUARDED_BY(lock_);
+  size_t free_end_ GUARDED_BY(lock_);
+  FreeBlocks free_blocks_ GUARDED_BY(lock_);
 };
 
 }  // namespace space
