@@ -103,7 +103,9 @@ struct ReferenceMap2Visitor : public StackVisitor {
       //   0024: move-object v3, v2
       //   0025: goto 0013
       // Detaled dex instructions for ReferenceMap.java are at the end of this function.
-      CHECK_REGS_CONTAIN_REFS(8, 3, 2, 1);  // v8: this, v3: y, v2: y, v1: x
+      //CHECK_REGS_CONTAIN_REFS(8, 3, 2, 1);  // v8: this, v3: y, v2: y, v1: x
+      // We eliminate the non-live registers at a return, so only v3 is live:
+      CHECK_REGS_CONTAIN_REFS(3);  // v3: y
 
       ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToFirstNativeSafepointPc(0x18U)));
       CHECK(ref_bitmap);
@@ -188,7 +190,7 @@ struct ReferenceMap2Visitor : public StackVisitor {
 //0:[Unknown],1:[Reference: java.lang.Object[]],2:[Zero],3:[Reference: java.lang.Object],4:[32-bit Constant: 2],5:[Unknown],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
 //      |0010: +invoke-virtual-quick {v8, v7}, [000c] // vtable #000c
 
-//0:[Conflict],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Reference: java.lang.Object],4:[32-bit Constant: 2],5:[Conflict],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
+//0:[Conflict],1:[Conflict],2:[Conflict],3:[Reference: java.lang.Object],4:[Conflict],5:[Conflict],6:[Conflict],7:[Conflict],8:[Conflict],
 //      |0013: return-object v3
 //      |0014: move-exception v0
 
