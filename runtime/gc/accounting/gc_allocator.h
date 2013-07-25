@@ -46,12 +46,10 @@ namespace accounting {
     // Used internally by STL data structures.
     template <class U>
     GCAllocatorImpl(const GCAllocatorImpl<U>& alloc) throw() {
-
     }
 
     // Used internally by STL data structures.
     GCAllocatorImpl() throw() {
-
     }
 
     // Enables an allocator for objects of one type to allocate storage for objects of another type.
