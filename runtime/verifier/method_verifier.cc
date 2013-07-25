@@ -566,10 +566,8 @@ bool MethodVerifier::VerifyInstructions() {
     /* Flag instructions that are garbage collection points */
     // All invoke points are marked as "Throw" points already.
     // We are relying on this to also count all the invokes as interesting.
-    if (inst->IsBranch() || inst->IsSwitch() || inst->IsThrow()) {
+    if (inst->IsBranch() || inst->IsSwitch() || inst->IsThrow() || inst->IsReturn()) {
       insn_flags_[dex_pc].SetCompileTimeInfoPoint();
-    } else if (inst->IsReturn()) {
-      insn_flags_[dex_pc].SetCompileTimeInfoPointAndReturn();
     }
     dex_pc += inst->SizeInCodeUnits();
     inst = inst->Next();
@@ -2658,20 +2656,6 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       // Make workline consistent with fallthrough computed from peephole optimization.
       work_line_->CopyFromLine(fallthrough_line.get());
     }
-    if (insn_flags_[next_insn_idx].IsReturn()) {
-      // For returns we only care about the operand to the return, all other registers are dead.
-      const Instruction* ret_inst = Instruction::At(code_item_->insns_ + next_insn_idx);
-      Instruction::Code opcode = ret_inst->Opcode();
-      if ((opcode == Instruction::RETURN_VOID) || (opcode == Instruction::RETURN_VOID_BARRIER)) {
-        work_line_->MarkAllRegistersAsConflicts();
-      } else {
-        if (opcode == Instruction::RETURN_WIDE) {
-          work_line_->MarkAllRegistersAsConflictsExceptWide(ret_inst->VRegA_11x());
-        } else {
-          work_line_->MarkAllRegistersAsConflictsExcept(ret_inst->VRegA_11x());
-        }
-      }
-    }
     RegisterLine* next_line = reg_table_.GetLine(next_insn_idx);
     if (next_line != NULL) {
       // Merge registers into what we have for the next instruction,
@@ -3659,24 +3643,7 @@ bool MethodVerifier::UpdateRegisters(uint32_t next_insn, const RegisterLine* mer
      * there's nothing to "merge". Copy the registers over and mark it as changed. (This is the
      * only way a register can transition out of "unknown", so this is not just an optimization.)
      */
-    if (!insn_flags_[next_insn].IsReturn()) {
-      target_line->CopyFromLine(merge_line);
-    } else {
-      // For returns we only care about the operand to the return, all other registers are dead.
-      // Initialize them as conflicts so they don't add to GC and deoptimization information.
-      const Instruction* ret_inst = Instruction::At(code_item_->insns_ + next_insn);
-      Instruction::Code opcode = ret_inst->Opcode();
-      if ((opcode == Instruction::RETURN_VOID) || (opcode == Instruction::RETURN_VOID_BARRIER)) {
-        target_line->MarkAllRegistersAsConflicts();
-      } else {
-        target_line->CopyFromLine(merge_line);
-        if (opcode == Instruction::RETURN_WIDE) {
-          target_line->MarkAllRegistersAsConflictsExceptWide(ret_inst->VRegA_11x());
-        } else {
-          target_line->MarkAllRegistersAsConflictsExcept(ret_inst->VRegA_11x());
-        }
-      }
-    }
+    target_line->CopyFromLine(merge_line);
   } else {
     UniquePtr<RegisterLine> copy(gDebugVerify ? new RegisterLine(target_line->NumRegs(), this) : NULL);
     if (gDebugVerify) {
