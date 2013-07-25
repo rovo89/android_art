@@ -107,6 +107,18 @@ static inline uint32_t High32Bits(uint64_t value) {
   return static_cast<uint32_t>(value >> 32);
 }
 
+// A static if which determines whether to return type A or B based on the condition boolean.
+template <const bool condition, typename A, typename B>
+struct TypeStaticIf {
+  typedef A value;
+};
+
+// Specialization to handle the false case.
+template <typename A, typename B>
+struct TypeStaticIf<false, A,  B> {
+  typedef B value;
+};
+
 template<typename T>
 static inline T RoundDown(T x, int n) {
   CHECK(IsPowerOfTwo(n));

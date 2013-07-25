@@ -18,6 +18,7 @@
 #define ART_RUNTIME_GC_ACCOUNTING_SPACE_BITMAP_H_
 
 #include "locks.h"
+#include "gc_allocator.h"
 #include "globals.h"
 #include "mem_map.h"
 #include "UniquePtr.h"
@@ -205,7 +206,9 @@ class SpaceBitmap {
 // Like a bitmap except it keeps track of objects using sets.
 class SpaceSetMap {
  public:
-  typedef std::set<const mirror::Object*> Objects;
+  typedef std::set<
+      const mirror::Object*, std::less<const mirror::Object*>,
+      GCAllocator<const mirror::Object*> > Objects;
 
   bool IsEmpty() const {
     return contained_.empty();

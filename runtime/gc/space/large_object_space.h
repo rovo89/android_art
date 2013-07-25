@@ -17,7 +17,7 @@
 #ifndef ART_RUNTIME_GC_SPACE_LARGE_OBJECT_SPACE_H_
 #define ART_RUNTIME_GC_SPACE_LARGE_OBJECT_SPACE_H_
 
-
+#include "gc/accounting/gc_allocator.h"
 #include "dlmalloc_space.h"
 #include "safe_map.h"
 #include "space.h"
@@ -95,8 +95,10 @@ class LargeObjectMapSpace : public LargeObjectSpace {
 
   // Used to ensure mutual exclusion when the allocation spaces data structures are being modified.
   mutable Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  std::vector<mirror::Object*> large_objects_ GUARDED_BY(lock_);
-  typedef SafeMap<mirror::Object*, MemMap*> MemMaps;
+  std::vector<mirror::Object*,
+      accounting::GCAllocator<mirror::Object*> > large_objects_ GUARDED_BY(lock_);
+  typedef SafeMap<mirror::Object*, MemMap*, std::less<mirror::Object*>,
+      accounting::GCAllocator<std::pair<const mirror::Object*, MemMap*> > > MemMaps;
   MemMaps mem_maps_ GUARDED_BY(lock_);
 };
 
