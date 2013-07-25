@@ -123,7 +123,7 @@ TEST_F(SpaceTest, ZygoteSpace) {
 
     // Make sure that the zygote space isn't directly at the start of the space.
     space->Alloc(self, 1U * MB);
-    space = space->CreateZygoteSpace();
+    space = space->CreateZygoteSpace("alloc space");
 
     // Make space findable to the heap, will also delete space when runtime is cleaned up
     AddContinuousSpace(space);

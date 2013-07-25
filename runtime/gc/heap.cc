@@ -147,7 +147,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   CHECK(large_object_space_ != NULL) << "Failed to create large object space";
   AddDiscontinuousSpace(large_object_space_);
 
-  alloc_space_ = space::DlMallocSpace::Create("alloc space",
+  alloc_space_ = space::DlMallocSpace::Create(Runtime::Current()->IsZygote() ? "zygote space" : "alloc space",
                                               initial_size,
                                               growth_limit, capacity,
                                               requested_alloc_space_begin);
@@ -958,7 +958,7 @@ void Heap::PreZygoteFork() {
   // Turns the current alloc space into a Zygote space and obtain the new alloc space composed
   // of the remaining available heap memory.
   space::DlMallocSpace* zygote_space = alloc_space_;
-  alloc_space_ = zygote_space->CreateZygoteSpace();
+  alloc_space_ = zygote_space->CreateZygoteSpace("alloc space");
   alloc_space_->SetFootprintLimit(alloc_space_->Capacity());
 
   // Change the GC retention policy of the zygote space to only collect when full.
@@ -1917,6 +1917,28 @@ void Heap::RegisterNativeFree(int bytes) {
         break;
       }
   } while (!native_bytes_allocated_.compare_and_swap(expected_size, new_size));
+}
+
+int64_t Heap::GetTotalMemory() const {
+  int64_t ret = 0;
+  typedef std::vector<space::ContinuousSpace*>::const_iterator It;
+  for (It it = continuous_spaces_.begin(), end = continuous_spaces_.end(); it != end; ++it) {
+    space::ContinuousSpace* space = *it;
+    if (space->IsImageSpace()) {
+      // Currently don't include the image space.
+    } else if (space->IsDlMallocSpace()) {
+      // Zygote or alloc space
+      ret += space->AsDlMallocSpace()->GetFootprint();
+    }
+  }
+  typedef std::vector<space::DiscontinuousSpace*>::const_iterator It2;
+  for (It2 it = discontinuous_spaces_.begin(), end = discontinuous_spaces_.end(); it != end; ++it) {
+    space::DiscontinuousSpace* space = *it;
+    if (space->IsLargeObjectSpace()) {
+      ret += space->AsLargeObjectSpace()->GetBytesAllocated();
+    }
+  }
+  return ret;
 }
 
 }  // namespace gc

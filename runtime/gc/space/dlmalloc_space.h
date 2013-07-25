@@ -73,6 +73,10 @@ class DlMallocSpace : public MemMapSpace, public AllocSpace {
   // in use, indicated by num_bytes equaling zero.
   void Walk(WalkCallback callback, void* arg);
 
+  // Returns the number of bytes that the space has currently obtained from the system. This is
+  // greater or equal to the amount of live data in the space.
+  size_t GetFootprint();
+
   // Returns the number of bytes that the heap is allowed to obtain from the system via MoreCore.
   size_t GetFootprintLimit();
 
@@ -113,7 +117,7 @@ class DlMallocSpace : public MemMapSpace, public AllocSpace {
   void SwapBitmaps();
 
   // Turn ourself into a zygote space and return a new alloc space which has our unused memory.
-  DlMallocSpace* CreateZygoteSpace();
+  DlMallocSpace* CreateZygoteSpace(const char* alloc_space_name);
 
   uint64_t GetBytesAllocated() const {
     return num_bytes_allocated_;
