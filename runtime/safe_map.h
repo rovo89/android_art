@@ -18,6 +18,7 @@
 #define ART_RUNTIME_SAFE_MAP_H_
 
 #include <map>
+#include <memory>
 
 #include "base/logging.h"
 
@@ -25,10 +26,11 @@ namespace art {
 
 // Equivalent to std::map, but without operator[] and its bug-prone semantics (in particular,
 // the implicit insertion of a default-constructed value on failed lookups).
-template <typename K, typename V, typename Comparator = std::less<K> >
+template <typename K, typename V, typename Comparator = std::less<K>,
+          typename Allocator = std::allocator<std::pair<const K, V> > >
 class SafeMap {
  private:
-  typedef SafeMap<K, V, Comparator> Self;
+  typedef SafeMap<K, V, Comparator, Allocator> Self;
 
  public:
   typedef typename ::std::map<K, V, Comparator>::iterator iterator;
@@ -87,7 +89,7 @@ class SafeMap {
   }
 
  private:
-  ::std::map<K, V, Comparator> map_;
+  ::std::map<K, V, Comparator, Allocator> map_;
 };
 
 template <typename K, typename V, typename Comparator>

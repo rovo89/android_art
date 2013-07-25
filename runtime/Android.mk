@@ -47,6 +47,7 @@ LIBART_COMMON_SRC_FILES := \
 	file_output_stream.cc \
 	gc/allocator/dlmalloc.cc \
 	gc/accounting/card_table.cc \
+	gc/accounting/gc_allocator.cc \
 	gc/accounting/heap_bitmap.cc \
 	gc/accounting/mod_union_table.cc \
 	gc/accounting/space_bitmap.cc \

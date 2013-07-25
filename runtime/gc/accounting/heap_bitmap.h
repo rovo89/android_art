@@ -18,6 +18,7 @@
 #define ART_RUNTIME_GC_ACCOUNTING_HEAP_BITMAP_H_
 
 #include "base/logging.h"
+#include "gc_allocator.h"
 #include "locks.h"
 #include "space_bitmap.h"
 
@@ -30,6 +31,9 @@ namespace accounting {
 
 class HeapBitmap {
  public:
+  typedef std::vector<SpaceBitmap*, GCAllocator<SpaceBitmap*> > SpaceBitmapVector;
+  typedef std::vector<SpaceSetMap*, GCAllocator<SpaceSetMap*> > SpaceSetMapVector;
+
   bool Test(const mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     SpaceBitmap* bitmap = GetContinuousSpaceBitmap(obj);
     if (LIKELY(bitmap != NULL)) {
@@ -63,7 +67,7 @@ class HeapBitmap {
 
   SpaceBitmap* GetContinuousSpaceBitmap(const mirror::Object* obj) {
     // TODO: C++0x auto
-    typedef std::vector<SpaceBitmap*>::iterator It;
+    typedef SpaceBitmapVector::iterator It;
     for (It it = continuous_space_bitmaps_.begin(), end = continuous_space_bitmaps_.end();
         it != end; ++it) {
       SpaceBitmap* bitmap = *it;
@@ -76,7 +80,7 @@ class HeapBitmap {
 
   SpaceSetMap* GetDiscontinuousSpaceObjectSet(const mirror::Object* obj) {
     // TODO: C++0x auto
-    typedef std::vector<SpaceSetMap*>::iterator It;
+    typedef SpaceSetMapVector::iterator It;
     for (It it = discontinuous_space_sets_.begin(), end = discontinuous_space_sets_.end();
         it != end; ++it) {
       SpaceSetMap* set = *it;
@@ -112,10 +116,10 @@ class HeapBitmap {
   void AddDiscontinuousObjectSet(SpaceSetMap* set);
 
   // Bitmaps covering continuous spaces.
-  std::vector<SpaceBitmap*> continuous_space_bitmaps_;
+  SpaceBitmapVector continuous_space_bitmaps_;
 
   // Sets covering discontinuous spaces.
-  std::vector<SpaceSetMap*> discontinuous_space_sets_;
+  SpaceSetMapVector discontinuous_space_sets_;
 
   friend class art::gc::Heap;
 };

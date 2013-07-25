@@ -90,6 +90,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       num_bytes_allocated_(0),
       native_bytes_allocated_(0),
       process_state_(PROCESS_STATE_TOP),
+      gc_memory_overhead_(0),
       verify_missing_card_marks_(false),
       verify_system_weaks_(false),
       verify_pre_gc_heap_(false),
@@ -177,7 +178,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   card_table_.reset(accounting::CardTable::Create(heap_begin, heap_capacity));
   CHECK(card_table_.get() != NULL) << "Failed to create card table";
 
-  image_mod_union_table_.reset(new accounting::ModUnionTableToZygoteAllocspace(this));
+  image_mod_union_table_.reset(new accounting::ModUnionTableCardCache(this));
   CHECK(image_mod_union_table_.get() != NULL) << "Failed to create image mod-union table";
 
   zygote_mod_union_table_.reset(new accounting::ModUnionTableCardCache(this));
@@ -273,6 +274,18 @@ void Heap::AddContinuousSpace(space::ContinuousSpace* space) {
   }
 }
 
+void Heap::RegisterGCAllocation(size_t bytes) {
+  if (this != NULL) {
+    gc_memory_overhead_.fetch_add(bytes);
+  }
+}
+
+void Heap::RegisterGCDeAllocation(size_t bytes) {
+  if (this != NULL) {
+    gc_memory_overhead_.fetch_sub(bytes);
+  }
+}
+
 void Heap::AddDiscontinuousSpace(space::DiscontinuousSpace* space) {
   WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
   DCHECK(space != NULL);
@@ -333,6 +346,7 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
   }
   os << "Total mutator paused time: " << PrettyDuration(total_paused_time) << "\n";
   os << "Total time waiting for GC to complete: " << PrettyDuration(total_wait_time_) << "\n";
+  os << "Approximate GC data structures memory overhead: " << gc_memory_overhead_;
 }
 
 Heap::~Heap() {
@@ -1128,6 +1142,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
     // Wake anyone who may have been waiting for the GC to complete.
     gc_complete_cond_->Broadcast(self);
   }
+
   // Inform DDMS that a GC completed.
   ATRACE_END();
   Dbg::GcDidFinish();

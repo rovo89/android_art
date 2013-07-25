@@ -86,7 +86,7 @@ class ModUnionVisitor {
 
 class ModUnionClearCardSetVisitor {
  public:
-  explicit ModUnionClearCardSetVisitor(std::set<byte*>* const cleared_cards)
+  explicit ModUnionClearCardSetVisitor(ModUnionTable::CardSet* const cleared_cards)
     : cleared_cards_(cleared_cards) {
   }
 
@@ -97,7 +97,7 @@ class ModUnionClearCardSetVisitor {
   }
 
  private:
-  std::set<byte*>* const cleared_cards_;
+  ModUnionTable::CardSet* const cleared_cards_;
 };
 
 class ModUnionClearCardVisitor {

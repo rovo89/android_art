@@ -24,7 +24,7 @@ namespace accounting {
 
 void HeapBitmap::ReplaceBitmap(SpaceBitmap* old_bitmap, SpaceBitmap* new_bitmap) {
   // TODO: C++0x auto
-  typedef std::vector<SpaceBitmap*>::iterator It;
+  typedef SpaceBitmapVector::iterator It;
   for (It it = continuous_space_bitmaps_.begin(), end = continuous_space_bitmaps_.end();
       it != end; ++it) {
     if (*it == old_bitmap) {
@@ -37,7 +37,7 @@ void HeapBitmap::ReplaceBitmap(SpaceBitmap* old_bitmap, SpaceBitmap* new_bitmap)
 
 void HeapBitmap::ReplaceObjectSet(SpaceSetMap* old_set, SpaceSetMap* new_set) {
   // TODO: C++0x auto
-  typedef std::vector<SpaceSetMap*>::iterator It;
+  typedef SpaceSetMapVector::iterator It;
   for (It it = discontinuous_space_sets_.begin(), end = discontinuous_space_sets_.end();
       it != end; ++it) {
     if (*it == old_set) {
@@ -52,7 +52,7 @@ void HeapBitmap::AddContinuousSpaceBitmap(accounting::SpaceBitmap* bitmap) {
   DCHECK(bitmap != NULL);
 
   // Check for interval overlap.
-  typedef std::vector<SpaceBitmap*>::iterator It;
+  typedef SpaceBitmapVector::iterator It;
   for (It it = continuous_space_bitmaps_.begin(), end = continuous_space_bitmaps_.end();
       it != end; ++it) {
     SpaceBitmap* bitmap = *it;
@@ -71,14 +71,14 @@ void HeapBitmap::AddDiscontinuousObjectSet(SpaceSetMap* set) {
 
 void HeapBitmap::Walk(SpaceBitmap::Callback* callback, void* arg) {
   // TODO: C++0x auto
-  typedef std::vector<SpaceBitmap*>::iterator It;
+  typedef SpaceBitmapVector::iterator It;
   for (It it = continuous_space_bitmaps_.begin(), end = continuous_space_bitmaps_.end();
       it != end; ++it) {
     SpaceBitmap* bitmap = *it;
     bitmap->Walk(callback, arg);
   }
   // TODO: C++0x auto
-  typedef std::vector<SpaceSetMap*>::iterator It2;
+  typedef SpaceSetMapVector::iterator It2;
   DCHECK(discontinuous_space_sets_.begin() !=  discontinuous_space_sets_.end());
   for (It2 it = discontinuous_space_sets_.begin(), end = discontinuous_space_sets_.end();
       it != end; ++it) {

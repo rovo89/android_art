@@ -24,6 +24,7 @@
 #include "atomic_integer.h"
 #include "base/timing_logger.h"
 #include "gc/accounting/atomic_stack.h"
+#include "gc/accounting/gc_allocator.h"
 #include "gc/accounting/card_table.h"
 #include "gc/collector/gc_type.h"
 #include "globals.h"
@@ -206,6 +207,10 @@ class Heap {
   double GetTargetHeapUtilization() const {
     return target_utilization_;
   }
+
+  // Data structure memory usage tracking.
+  void RegisterGCAllocation(size_t bytes);
+  void RegisterGCDeAllocation(size_t bytes);
 
   // Set target ideal heap utilization ratio, implements
   // dalvik.system.VMRuntime.setTargetHeapUtilization.
@@ -551,6 +556,9 @@ class Heap {
 
   // Current process state, updated by activity manager.
   ProcessState process_state_;
+
+  // Data structure GC overhead.
+  AtomicInteger gc_memory_overhead_;
 
   // Heap verification flags.
   const bool verify_missing_card_marks_;
