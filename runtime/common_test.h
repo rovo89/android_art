@@ -473,7 +473,7 @@ class CommonTest : public testing::Test {
 
   void CompileMethod(mirror::AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(method != NULL);
-    TimingLogger timings("CommonTest::CompileMethod", false);
+    base::TimingLogger timings("CommonTest::CompileMethod", false, false);
     compiler_driver_->CompileOne(method, timings);
     MakeExecutable(method);
   }

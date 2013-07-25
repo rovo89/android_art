@@ -26,27 +26,8 @@
 
 namespace art {
 
-class CumulativeLogger;
-
-class TimingLogger {
- public:
-  explicit TimingLogger(const std::string& name, bool precise);
-  void AddSplit(const std::string& label);
-  void Dump(std::ostream& os) const;
-  void Reset();
-  uint64_t GetTotalNs() const;
-
- protected:
-  const std::string name_;
-  const bool precise_;
-  std::vector<uint64_t> times_;
-  std::vector<std::string> labels_;
-
-  friend class CumulativeLogger;
-};
-
 namespace base {
-  class NewTimingLogger;
+  class TimingLogger;
 }  // namespace base
 
 class CumulativeLogger {
@@ -62,8 +43,7 @@ class CumulativeLogger {
   // Allow the name to be modified, particularly when the cumulative logger is a field within a
   // parent class that is unable to determine the "name" of a sub-class.
   void SetName(const std::string& name);
-  void AddLogger(const TimingLogger& logger) LOCKS_EXCLUDED(lock_);
-  void AddNewLogger(const base::NewTimingLogger& logger) LOCKS_EXCLUDED(lock_);
+  void AddLogger(const base::TimingLogger& logger) LOCKS_EXCLUDED(lock_);
 
  private:
   void AddPair(const std::string &label, uint64_t delta_time)
@@ -84,16 +64,15 @@ class CumulativeLogger {
 namespace base {
 
 // A replacement to timing logger that know when a split starts for the purposes of logging.
-// TODO: replace uses of TimingLogger with base::NewTimingLogger.
-class NewTimingLogger {
+class TimingLogger {
  public:
-  explicit NewTimingLogger(const char* name, bool precise, bool verbose);
+  explicit TimingLogger(const char* name, bool precise, bool verbose);
 
   // Clears current splits and labels.
   void Reset();
 
   // Starts a split, a split shouldn't be in progress.
-  void StartSplit(const char* new_split_label);
+  void StartSplit(const char*  new_split_label);
 
   // Ends the current split and starts the one given by the label.
   void NewSplit(const char* new_split_label);
@@ -111,7 +90,7 @@ class NewTimingLogger {
 
  protected:
   // The name of the timing logger.
-  const std::string name_;
+  const char* name_;
 
   // Do we want to print the exactly recorded split (true) or round down to the time unit being
   // used (false).
@@ -130,7 +109,7 @@ class NewTimingLogger {
   std::vector<std::pair<uint64_t, const char*> > splits_;
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(NewTimingLogger);
+  DISALLOW_COPY_AND_ASSIGN(TimingLogger);
 };
 
 }  // namespace base

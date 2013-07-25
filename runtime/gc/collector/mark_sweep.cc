@@ -1509,7 +1509,7 @@ void MarkSweep::FinishPhase() {
 
   // Update the cumulative loggers.
   cumulative_timings_.Start();
-  cumulative_timings_.AddNewLogger(timings_);
+  cumulative_timings_.AddLogger(timings_);
   cumulative_timings_.End();
 
   // Clear all of the spaces' mark bitmaps.

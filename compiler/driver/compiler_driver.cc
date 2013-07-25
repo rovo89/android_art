@@ -495,7 +495,7 @@ const std::vector<uint8_t>* CompilerDriver::CreateInterpreterToQuickEntry() cons
 
 void CompilerDriver::CompileAll(jobject class_loader,
                                 const std::vector<const DexFile*>& dex_files,
-                                TimingLogger& timings) {
+                                base::TimingLogger& timings) {
   DCHECK(!Runtime::Current()->IsStarted());
   UniquePtr<ThreadPool> thread_pool(new ThreadPool(thread_count_));
   PreCompile(class_loader, dex_files, *thread_pool.get(), timings);
@@ -528,7 +528,7 @@ static bool IsDexToDexCompilationAllowed(mirror::ClassLoader* class_loader,
   return klass->IsVerified();
 }
 
-void CompilerDriver::CompileOne(const mirror::AbstractMethod* method, TimingLogger& timings) {
+void CompilerDriver::CompileOne(const mirror::AbstractMethod* method, base::TimingLogger& timings) {
   DCHECK(!Runtime::Current()->IsStarted());
   Thread* self = Thread::Current();
   jobject jclass_loader;
@@ -572,7 +572,7 @@ void CompilerDriver::CompileOne(const mirror::AbstractMethod* method, TimingLogg
 }
 
 void CompilerDriver::Resolve(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                             ThreadPool& thread_pool, TimingLogger& timings) {
+                             ThreadPool& thread_pool, base::TimingLogger& timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
@@ -581,7 +581,7 @@ void CompilerDriver::Resolve(jobject class_loader, const std::vector<const DexFi
 }
 
 void CompilerDriver::PreCompile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                                ThreadPool& thread_pool, TimingLogger& timings) {
+                                ThreadPool& thread_pool, base::TimingLogger& timings) {
   LoadImageClasses(timings);
 
   Resolve(class_loader, dex_files, thread_pool, timings);
@@ -666,12 +666,13 @@ static bool RecordImageClassesVisitor(mirror::Class* klass, void* arg)
 }
 
 // Make a list of descriptors for classes to include in the image
-void CompilerDriver::LoadImageClasses(TimingLogger& timings)
+void CompilerDriver::LoadImageClasses(base::TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_) {
   if (image_classes_.get() == NULL) {
     return;
   }
 
+  timings.NewSplit("LoadImageClasses");
   // Make a first class to load all classes explicitly listed in the file
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
@@ -726,7 +727,6 @@ void CompilerDriver::LoadImageClasses(TimingLogger& timings)
   class_linker->VisitClasses(RecordImageClassesVisitor, image_classes_.get());
 
   CHECK_NE(image_classes_->size(), 0U);
-  timings.AddSplit("LoadImageClasses");
 }
 
 static void MaybeAddToImageClasses(mirror::Class* klass, CompilerDriver::DescriptorSet* image_classes)
@@ -758,10 +758,12 @@ void CompilerDriver::FindClinitImageClassesCallback(mirror::Object* object, void
   MaybeAddToImageClasses(object->GetClass(), compiler_driver->image_classes_.get());
 }
 
-void CompilerDriver::UpdateImageClasses(TimingLogger& timings) {
+void CompilerDriver::UpdateImageClasses(base::TimingLogger& timings) {
   if (image_classes_.get() == NULL) {
     return;
   }
+
+  timings.NewSplit("UpdateImageClasses");
 
   // Update image_classes_ with classes for objects created by <clinit> methods.
   Thread* self = Thread::Current();
@@ -772,7 +774,6 @@ void CompilerDriver::UpdateImageClasses(TimingLogger& timings) {
   heap->FlushAllocStack();
   heap->GetLiveBitmap()->Walk(FindClinitImageClassesCallback, this);
   self->EndAssertNoThreadSuspension(old_cause);
-  timings.AddSplit("UpdateImageClasses");
 }
 
 void CompilerDriver::RecordClassStatus(ClassReference ref, CompiledClass* compiled_class) {
@@ -1551,22 +1552,22 @@ static void ResolveType(const ParallelCompilationManager* manager, size_t type_i
 }
 
 void CompilerDriver::ResolveDexFile(jobject class_loader, const DexFile& dex_file,
-                                    ThreadPool& thread_pool, TimingLogger& timings) {
+                                    ThreadPool& thread_pool, base::TimingLogger& timings) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
   // TODO: we could resolve strings here, although the string table is largely filled with class
   //       and method names.
 
+  timings.NewSplit(strdup(("Resolve " + dex_file.GetLocation() + " Types").c_str()));
   ParallelCompilationManager context(class_linker, class_loader, this, &dex_file, thread_pool);
   context.ForAll(0, dex_file.NumTypeIds(), ResolveType, thread_count_);
-  timings.AddSplit("Resolve " + dex_file.GetLocation() + " Types");
 
+  timings.NewSplit(strdup(("Resolve " + dex_file.GetLocation() + " MethodsAndFields").c_str()));
   context.ForAll(0, dex_file.NumClassDefs(), ResolveClassFieldsAndMethods, thread_count_);
-  timings.AddSplit("Resolve " + dex_file.GetLocation() + " MethodsAndFields");
 }
 
 void CompilerDriver::Verify(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                            ThreadPool& thread_pool, TimingLogger& timings) {
+                            ThreadPool& thread_pool, base::TimingLogger& timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
@@ -1620,11 +1621,11 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
 }
 
 void CompilerDriver::VerifyDexFile(jobject class_loader, const DexFile& dex_file,
-                                   ThreadPool& thread_pool, TimingLogger& timings) {
+                                   ThreadPool& thread_pool, base::TimingLogger& timings) {
+  timings.NewSplit(strdup(("Verify " + dex_file.GetLocation()).c_str()));
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   ParallelCompilationManager context(class_linker, class_loader, this, &dex_file, thread_pool);
   context.ForAll(0, dex_file.NumClassDefs(), VerifyClass, thread_count_);
-  timings.AddSplit("Verify " + dex_file.GetLocation());
 }
 
 static const char* class_initializer_black_list[] = {
@@ -2116,7 +2117,8 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
 }
 
 void CompilerDriver::InitializeClasses(jobject jni_class_loader, const DexFile& dex_file,
-                                       ThreadPool& thread_pool, TimingLogger& timings) {
+                                       ThreadPool& thread_pool, base::TimingLogger& timings) {
+  timings.NewSplit(strdup(("InitializeNoClinit " + dex_file.GetLocation()).c_str()));
 #ifndef NDEBUG
   for (size_t i = 0; i < arraysize(class_initializer_black_list); ++i) {
     const char* descriptor = class_initializer_black_list[i];
@@ -2126,12 +2128,11 @@ void CompilerDriver::InitializeClasses(jobject jni_class_loader, const DexFile& 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   ParallelCompilationManager context(class_linker, jni_class_loader, this, &dex_file, thread_pool);
   context.ForAll(0, dex_file.NumClassDefs(), InitializeClass, thread_count_);
-  timings.AddSplit("InitializeNoClinit " + dex_file.GetLocation());
 }
 
 void CompilerDriver::InitializeClasses(jobject class_loader,
                                        const std::vector<const DexFile*>& dex_files,
-                                       ThreadPool& thread_pool, TimingLogger& timings) {
+                                       ThreadPool& thread_pool, base::TimingLogger& timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
@@ -2140,7 +2141,7 @@ void CompilerDriver::InitializeClasses(jobject class_loader,
 }
 
 void CompilerDriver::Compile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                       ThreadPool& thread_pool, TimingLogger& timings) {
+                       ThreadPool& thread_pool, base::TimingLogger& timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
@@ -2220,10 +2221,10 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
 }
 
 void CompilerDriver::CompileDexFile(jobject class_loader, const DexFile& dex_file,
-                                    ThreadPool& thread_pool, TimingLogger& timings) {
+                                    ThreadPool& thread_pool, base::TimingLogger& timings) {
+  timings.NewSplit(strdup(("Compile " + dex_file.GetLocation()).c_str()));
   ParallelCompilationManager context(NULL, class_loader, this, &dex_file, thread_pool);
   context.ForAll(0, dex_file.NumClassDefs(), CompilerDriver::CompileClass, thread_count_);
-  timings.AddSplit("Compile " + dex_file.GetLocation());
 }
 
 void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
