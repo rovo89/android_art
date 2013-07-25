@@ -1981,7 +1981,6 @@ static const char* class_initializer_black_list[] = {
   "Ljavax/security/cert/X509Certificate$1;", // Calls VMClassLoader.getBootClassPathSize.
   "Ljavax/microedition/khronos/egl/EGL10;", // Requires EGLContext.
   "Ljavax/microedition/khronos/egl/EGLContext;", // Requires com.google.android.gles_jni.EGLImpl.
-  "Ljavax/net/ssl/HttpsURLConnection$DefaultHolder;", // Calls VMClassLoader.getBootClassPathSize().
   "Ljavax/xml/datatype/DatatypeConstants;", // Calls OsConstants.initConstants.
   "Ljavax/xml/datatype/FactoryFinder;", // Calls OsConstants.initConstants.
   "Ljavax/xml/namespace/QName;", // Calls OsConstants.initConstants.
@@ -2071,11 +2070,14 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
       }
       if (!klass->IsInitialized()) {
         if (can_init_static_fields) {
-          bool is_black_listed = false;
-          for (size_t i = 0; i < arraysize(class_initializer_black_list); ++i) {
-            if (StringPiece(descriptor) == class_initializer_black_list[i]) {
-              is_black_listed = true;
-              break;
+          // NoPreloadHolder inner class implies this should not be initialized early.
+          bool is_black_listed = StringPiece(descriptor).ends_with("$NoPreloadHolder;");
+          if (!is_black_listed) {
+            for (size_t i = 0; i < arraysize(class_initializer_black_list); ++i) {
+              if (StringPiece(descriptor) == class_initializer_black_list[i]) {
+                is_black_listed = true;
+                break;
+              }
             }
           }
           if (!is_black_listed) {
