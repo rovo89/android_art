@@ -172,7 +172,9 @@ void BaseMutex::CheckSafeToWait(Thread* self) {
   }
 }
 
-void BaseMutex::RecordContention(uint64_t blocked_tid, uint64_t owner_tid, uint64_t milli_time_blocked) {
+void BaseMutex::RecordContention(uint64_t blocked_tid,
+                                 uint64_t owner_tid,
+                                 uint64_t milli_time_blocked) {
 #if CONTENTION_LOGGING
   ++contention_count_;
   wait_time_ += static_cast<uint32_t>(milli_time_blocked);  // May overflow.
@@ -201,7 +203,8 @@ void BaseMutex::DumpContention(std::ostream& os) const {
   if (contention_count == 0) {
     os << "never contended";
   } else {
-    os << "contended " << contention_count << " times, average wait of contender " << (wait_time / contention_count) << "ms";
+    os << "contended " << contention_count
+       << " times, average wait of contender " << (wait_time / contention_count) << "ms";
     SafeMap<uint64_t, size_t> most_common_blocker;
     SafeMap<uint64_t, size_t> most_common_blocked;
     typedef SafeMap<uint64_t, size_t>::const_iterator It;
@@ -314,7 +317,9 @@ void Mutex::ExclusiveLock(Thread* self) {
         ScopedContentionRecorder scr(this, GetExclusiveOwnerTid(), SafeGetTid(self));
         android_atomic_inc(&num_contenders_);
         if (futex(&state_, FUTEX_WAIT, 1, NULL, NULL, 0) != 0) {
-          if (errno != EAGAIN) {
+          // EAGAIN and EINTR both indicate a spurious failure, try again from the beginning.
+          // We don't use TEMP_FAILURE_RETRY so we can intentionally retry to acquire the lock.
+          if ((errno != EAGAIN) && (errno != EINTR)) {
             PLOG(FATAL) << "futex wait failed for " << name_;
           }
         }
@@ -515,7 +520,9 @@ void ReaderWriterMutex::ExclusiveLock(Thread* self) {
       ScopedContentionRecorder scr(this, GetExclusiveOwnerTid(), SafeGetTid(self));
       android_atomic_inc(&num_pending_writers_);
       if (futex(&state_, FUTEX_WAIT, cur_state, NULL, NULL, 0) != 0) {
-        if (errno != EAGAIN) {
+        // EAGAIN and EINTR both indicate a spurious failure, try again from the beginning.
+        // We don't use TEMP_FAILURE_RETRY so we can intentionally retry to acquire the lock.
+        if ((errno != EAGAIN) && (errno != EINTR)) {
           PLOG(FATAL) << "futex wait failed for " << name_;
         }
       }
@@ -585,7 +592,10 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, int64_t ms, int32
         if (errno == ETIMEDOUT) {
           android_atomic_dec(&num_pending_writers_);
           return false;  // Timed out.
-        } else if (errno != EAGAIN && errno != EINTR) {
+        } else if ((errno != EAGAIN) && (errno != EINTR)) {
+          // EAGAIN and EINTR both indicate a spurious failure,
+          // recompute the relative time out from now and try again.
+          // We don't use TEMP_FAILURE_RETRY so we can recompute rel_ts;
           PLOG(FATAL) << "timed futex wait failed for " << name_;
         }
       }
@@ -838,7 +848,7 @@ void ConditionVariable::TimedWait(Thread* self, int64_t ms, int32_t ns) {
   if (futex(&sequence_, FUTEX_WAIT, cur_sequence, &rel_ts, NULL, 0) != 0) {
     if (errno == ETIMEDOUT) {
       // Timed out we're done.
-    } else if ((errno == EINTR) || (errno == EAGAIN)) {
+    } else if ((errno == EAGAIN) || (errno == EINTR)) {
       // A signal or ConditionVariable::Signal/Broadcast has come in.
     } else {
       PLOG(FATAL) << "timed futex wait failed for " << name_;
