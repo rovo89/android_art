@@ -68,7 +68,9 @@ static void CheckMapRequest(byte*, size_t) { }
 #endif
 
 MemMap* MemMap::MapAnonymous(const char* name, byte* addr, size_t byte_count, int prot) {
-  CHECK_NE(0U, byte_count);
+  if (byte_count == 0) {
+    return new MemMap(name, NULL, 0, NULL, 0, prot);
+  }
   size_t page_aligned_byte_count = RoundUp(byte_count, kPageSize);
   CheckMapRequest(addr, page_aligned_byte_count);
 
@@ -102,9 +104,11 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* addr, size_t byte_count, in
 
 MemMap* MemMap::MapFileAtAddress(byte* addr, size_t byte_count,
                                  int prot, int flags, int fd, off_t start, bool reuse) {
-  CHECK_NE(0U, byte_count);
   CHECK_NE(0, prot);
   CHECK_NE(0, flags & (MAP_SHARED | MAP_PRIVATE));
+  if (byte_count == 0) {
+    return new MemMap("file", NULL, 0, NULL, 0, prot);
+  }
   // Adjust 'offset' to be page-aligned as required by mmap.
   int page_offset = start % kPageSize;
   off_t page_aligned_offset = start - page_offset;
@@ -153,10 +157,15 @@ MemMap::MemMap(const std::string& name, byte* begin, size_t size, void* base_beg
                size_t base_size, int prot)
     : name_(name), begin_(begin), size_(size), base_begin_(base_begin), base_size_(base_size),
       prot_(prot) {
-  CHECK(begin_ != NULL);
-  CHECK_NE(size_, 0U);
-  CHECK(base_begin_ != NULL);
-  CHECK_NE(base_size_, 0U);
+  if (size_ == 0) {
+    CHECK(begin_ == NULL);
+    CHECK(base_begin_ == NULL);
+    CHECK_EQ(base_size_, 0U);
+  } else {
+    CHECK(begin_ != NULL);
+    CHECK(base_begin_ != NULL);
+    CHECK_NE(base_size_, 0U);
+  }
 };
 
 void MemMap::UnMapAtEnd(byte* new_end) {

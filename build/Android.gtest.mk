@@ -39,6 +39,7 @@ TEST_COMMON_SRC_FILES := \
 	runtime/indirect_reference_table_test.cc \
 	runtime/intern_table_test.cc \
 	runtime/jni_internal_test.cc \
+	runtime/mem_map_test.cc \
 	runtime/mirror/dex_cache_test.cc \
 	runtime/mirror/object_test.cc \
 	runtime/oat/utils/arm/managed_register_arm_test.cc \
