@@ -30,9 +30,9 @@ namespace verifier {
  */
 enum RegisterMapFormat {
   kRegMapFormatUnknown = 0,
-  kRegMapFormatNone = 1,      // Indicates no map data follows.
-  kRegMapFormatCompact8 = 2,  // Compact layout, 8-bit addresses.
-  kRegMapFormatCompact16 = 3, // Compact layout, 16-bit addresses.
+  kRegMapFormatNone = 1,       // Indicates no map data follows.
+  kRegMapFormatCompact8 = 2,   // Compact layout, 8-bit addresses.
+  kRegMapFormatCompact16 = 3,  // Compact layout, 16-bit addresses.
 };
 
 // Lightweight wrapper for Dex PC to reference bit maps.

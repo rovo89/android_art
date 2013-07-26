@@ -167,7 +167,7 @@ inline void ReaderWriterMutex::SharedUnlock(Thread* self) {
     if (LIKELY(cur_state > 0)) {
       // Reduce state by 1.
       done = android_atomic_release_cas(cur_state, cur_state - 1, &state_) == 0;
-      if (done && (cur_state - 1) == 0) { // cas may fail due to noise?
+      if (done && (cur_state - 1) == 0) {  // cas may fail due to noise?
         if (num_pending_writers_ > 0 || num_pending_readers_ > 0) {
           // Wake any exclusive waiters as there are now no readers.
           futex(&state_, FUTEX_WAKE, -1, NULL, NULL, 0);

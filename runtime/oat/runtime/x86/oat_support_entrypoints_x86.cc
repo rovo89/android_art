@@ -165,16 +165,16 @@ void InitEntryPoints(EntryPoints* points) {
   points->pUnlockObjectFromCode = art_quick_unlock_object_from_code;
 
   // Math
-  //points->pCmpgDouble = NULL; // Not needed on x86.
-  //points->pCmpgFloat = NULL; // Not needed on x86.
-  //points->pCmplDouble = NULL; // Not needed on x86.
-  //points->pCmplFloat = NULL; // Not needed on x86.
+  // points->pCmpgDouble = NULL;  // Not needed on x86.
+  // points->pCmpgFloat = NULL;  // Not needed on x86.
+  // points->pCmplDouble = NULL;  // Not needed on x86.
+  // points->pCmplFloat = NULL;  // Not needed on x86.
   points->pFmod = art_quick_fmod_from_code;
   points->pL2d = art_quick_l2d_from_code;
   points->pFmodf = art_quick_fmodf_from_code;
   points->pL2f = art_quick_l2f_from_code;
-  //points->pD2iz = NULL; // Not needed on x86.
-  //points->pF2iz = NULL; // Not needed on x86.
+  // points->pD2iz = NULL;  // Not needed on x86.
+  // points->pF2iz = NULL;  // Not needed on x86.
   points->pIdivmod = art_quick_idivmod_from_code;
   points->pD2l = art_quick_d2l_from_code;
   points->pF2l = art_quick_f2l_from_code;

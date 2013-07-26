@@ -507,7 +507,7 @@ LIR* ArmMir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src1, int value) {
       alt_opcode = kThumb2EorRRR;
       break;
     case kOpMul:
-      //TUNING: power of 2, shift & add
+      // TUNING: power of 2, shift & add
       mod_imm = -1;
       alt_opcode = kThumb2MulRRR;
       break;
@@ -662,7 +662,7 @@ LIR* ArmMir2Lir::LoadBaseIndexed(int rBase, int r_index, int r_dest,
   }
 
   switch (size) {
-    case kDouble: // fall-through
+    case kDouble:  // fall-through
     case kSingle:
       reg_ptr = AllocTemp();
       if (scale) {
@@ -726,7 +726,7 @@ LIR* ArmMir2Lir::StoreBaseIndexed(int rBase, int r_index, int r_src,
   }
 
   switch (size) {
-    case kDouble: // fall-through
+    case kDouble:  // fall-through
     case kSingle:
       reg_ptr = AllocTemp();
       if (scale) {

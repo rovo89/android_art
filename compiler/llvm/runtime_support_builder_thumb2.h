@@ -31,7 +31,7 @@ class RuntimeSupportBuilderThumb2 : public RuntimeSupportBuilderARM {
   virtual void EmitLockObject(::llvm::Value* object);
 };
 
-} // namespace llvm
-} // namespace art
+}  // namespace llvm
+}  // namespace art
 
 #endif  // ART_COMPILER_LLVM_RUNTIME_SUPPORT_BUILDER_THUMB2_H_

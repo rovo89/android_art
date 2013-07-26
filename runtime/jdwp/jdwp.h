@@ -152,7 +152,7 @@ struct JdwpState {
    * events at the same time, so we grab a mutex in the "set" call, and
    * release it in the "clear" call.
    */
-  //ObjectId GetWaitForEventThread();
+  // ObjectId GetWaitForEventThread();
   void SetWaitForEventThread(ObjectId threadId);
   void ClearWaitForEventThread();
 
@@ -291,7 +291,7 @@ struct JdwpState {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SendBufferedRequest(uint32_t type, const std::vector<iovec>& iov);
 
- public: // TODO: fix privacy
+ public:  // TODO: fix privacy
   const JdwpOptions* options_;
 
  private:
@@ -308,7 +308,7 @@ struct JdwpState {
  private:
   bool run;
 
- public: // TODO: fix privacy
+ public:  // TODO: fix privacy
   JdwpNetStateBase* netState;
 
  private:
@@ -326,7 +326,7 @@ struct JdwpState {
   // Linked list of events requested by the debugger (breakpoints, class prep, etc).
   Mutex event_list_lock_;
   JdwpEvent* event_list_ GUARDED_BY(event_list_lock_);
-  int event_list_size_ GUARDED_BY(event_list_lock_); // Number of elements in event_list_.
+  int event_list_size_ GUARDED_BY(event_list_lock_);  // Number of elements in event_list_.
 
   // Used to synchronize suspension of the event thread (to avoid receiving "resume"
   // events before the thread has finished suspending itself).

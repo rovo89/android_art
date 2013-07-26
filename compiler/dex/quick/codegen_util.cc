@@ -1063,4 +1063,4 @@ void Mir2Lir::InsertLIRAfter(LIR* current_lir, LIR* new_lir) {
 }
 
 
-} // namespace art
+}  // namespace art

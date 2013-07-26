@@ -198,7 +198,7 @@ int Mir2Lir::AllocPreservedSingle(int s_reg, bool even) {
  * s_reg<=sX[even] & (s_reg+1)<= sX+1.
  */
 int Mir2Lir::AllocPreservedDouble(int s_reg) {
-  int res = -1; // Assume failure
+  int res = -1;  // Assume failure
   int v_reg = mir_graph_->SRegToVReg(s_reg);
   int p_map_idx = SRegToPMap(s_reg);
   if (promotion_map_[p_map_idx+1].fp_location == kLocPhysReg) {
@@ -303,7 +303,7 @@ int Mir2Lir::AllocTempBody(RegisterInfo* p, int num_regs, int* next_temp,
   return -1;  // No register available
 }
 
-//REDO: too many assumptions.
+// REDO: too many assumptions.
 int Mir2Lir::AllocTempDouble() {
   RegisterInfo* p = reg_pool_->FPRegs;
   int num_regs = reg_pool_->num_fp_regs;
@@ -629,7 +629,7 @@ void Mir2Lir::FlushAllRegs() {
 }
 
 
-//TUNING: rewrite all of this reg stuff.  Probably use an attribute table
+// TUNING: rewrite all of this reg stuff.  Probably use an attribute table
 bool Mir2Lir::RegClassMatches(int reg_class, int reg) {
   if (reg_class == kAnyReg) {
     return true;
@@ -917,7 +917,7 @@ void Mir2Lir::CountRefs(RefCounts* core_counts, RefCounts* fp_counts) {
     RegLocation loc = mir_graph_->reg_location_[i];
     RefCounts* counts = loc.fp ? fp_counts : core_counts;
     int p_map_idx = SRegToPMap(loc.s_reg_low);
-    //Don't count easily regenerated immediates
+    // Don't count easily regenerated immediates
     if (loc.fp || !IsInexpensiveConstant(loc)) {
       counts[p_map_idx].count += mir_graph_->GetUseCount(i);
     }
@@ -1152,7 +1152,7 @@ int Mir2Lir::GetSRegHi(int lowSreg) {
 }
 
 bool Mir2Lir::oat_live_out(int s_reg) {
-  //For now.
+  // For now.
   return true;
 }
 

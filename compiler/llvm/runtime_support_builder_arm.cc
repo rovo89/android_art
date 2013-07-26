@@ -52,7 +52,7 @@ char LDRSTRSuffixByType(art::llvm::IRBuilder& irb, Type* type) {
   }
 }
 
-} // namespace
+}  // namespace
 
 namespace art {
 namespace llvm {
@@ -135,5 +135,5 @@ void RuntimeSupportBuilderARM::EmitUnlockObject(Value* object) {
   irb_.CreateCall(func);
 }
 
-} // namespace llvm
-} // namespace art
+}  // namespace llvm
+}  // namespace art

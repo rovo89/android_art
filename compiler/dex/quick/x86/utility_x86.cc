@@ -61,7 +61,7 @@ bool X86Mir2Lir::InexpensiveConstantLong(int64_t value) {
 }
 
 bool X86Mir2Lir::InexpensiveConstantDouble(int64_t value) {
-  return false; // TUNING
+  return false;  // TUNING
 }
 
 /*
@@ -135,7 +135,7 @@ LIR* X86Mir2Lir::OpRegImm(OpKind op, int r_dest_src1, int value) {
     case kOpAdd: opcode = byte_imm ? kX86Add32RI8 : kX86Add32RI; break;
     case kOpOr:  opcode = byte_imm ? kX86Or32RI8  : kX86Or32RI;  break;
     case kOpAdc: opcode = byte_imm ? kX86Adc32RI8 : kX86Adc32RI; break;
-    //case kOpSbb: opcode = kX86Sbb32RI; break;
+    // case kOpSbb: opcode = kX86Sbb32RI; break;
     case kOpAnd: opcode = byte_imm ? kX86And32RI8 : kX86And32RI; break;
     case kOpSub: opcode = byte_imm ? kX86Sub32RI8 : kX86Sub32RI; break;
     case kOpXor: opcode = byte_imm ? kX86Xor32RI8 : kX86Xor32RI; break;
@@ -221,7 +221,7 @@ LIR* X86Mir2Lir::OpRegMem(OpKind op, int r_dest, int rBase,
 LIR* X86Mir2Lir::OpRegRegReg(OpKind op, int r_dest, int r_src1,
                  int r_src2) {
   if (r_dest != r_src1 && r_dest != r_src2) {
-    if (op == kOpAdd) { // lea special case, except can't encode rbp as base
+    if (op == kOpAdd) {  // lea special case, except can't encode rbp as base
       if (r_src1 == r_src2) {
         OpRegCopy(r_dest, r_src1);
         return OpRegImm(kOpLsl, r_dest, 1);
@@ -279,11 +279,11 @@ LIR* X86Mir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src,
     }
   }
   if (r_dest != r_src) {
-    if (false && op == kOpLsl && value >= 0 && value <= 3) { // lea shift special case
+    if (false && op == kOpLsl && value >= 0 && value <= 3) {  // lea shift special case
       // TODO: fix bug in LEA encoding when disp == 0
       return NewLIR5(kX86Lea32RA, r_dest,  r5sib_no_base /* base */,
                      r_src /* index */, value /* scale */, 0 /* disp */);
-    } else if (op == kOpAdd) { // lea add special case
+    } else if (op == kOpAdd) {  // lea add special case
       return NewLIR5(kX86Lea32RA, r_dest, r_src /* base */,
                      r4sib_no_index /* index */, 0 /* scale */, value /* disp */);
     }

@@ -113,5 +113,5 @@ namespace llvm {
 }
 
 
-} // namespace llvm
-} // namespace art
+}  // namespace llvm
+}  // namespace art

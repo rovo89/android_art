@@ -148,7 +148,7 @@ extern "C" const void* artWorkAroundAppJniBugs(Thread* self, intptr_t* sp)
       }
     } else {
       if (reg_num == 2) {
-        arg_ptr++; // move through register arguments
+        arg_ptr++;  // move through register arguments
         reg_num++;
       } else if (reg_num == 3) {
         arg_ptr = sp + 8;  // skip to outgoing stack arguments

@@ -137,7 +137,7 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
   // .dynsym
   uint32_t dynsym_alignment = sizeof(llvm::ELF::Elf32_Word);
   uint32_t dynsym_offset = expected_offset = RoundUp(expected_offset, dynsym_alignment);
-  const uint8_t SYM_UNDEF       = 0; // aka STN_UNDEF
+  const uint8_t SYM_UNDEF       = 0;  // aka STN_UNDEF
   const uint8_t SYM_OATDATA     = 1;
   const uint8_t SYM_OATEXEC     = 2;
   const uint8_t SYM_OATLASTWORD = 3;
@@ -510,7 +510,7 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
   section_headers[SH_HASH].sh_link      = SH_DYNSYM;
   section_headers[SH_HASH].sh_info      = 0;
   section_headers[SH_HASH].sh_addralign = hash_alignment;
-  section_headers[SH_HASH].sh_entsize   = sizeof(llvm::ELF::Elf32_Word); // This is Elf32_Word even on 64-bit
+  section_headers[SH_HASH].sh_entsize   = sizeof(llvm::ELF::Elf32_Word);  // This is Elf32_Word even on 64-bit
 
   section_headers[SH_RODATA].sh_name      = shstrtab_rodata_offset;
   section_headers[SH_RODATA].sh_type      = llvm::ELF::SHT_PROGBITS;

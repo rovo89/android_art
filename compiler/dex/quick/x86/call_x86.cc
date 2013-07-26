@@ -87,7 +87,7 @@ void X86Mir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
   rl_src = LoadValue(rl_src, kCoreReg);
   int start_of_method_reg = AllocTemp();
   // Materialize a pointer to the switch table
-  //NewLIR0(kX86Bkpt);
+  // NewLIR0(kX86Bkpt);
   NewLIR1(kX86StartOfMethod, start_of_method_reg);
   int low_key = s4FromSwitchData(&table[2]);
   int keyReg;

@@ -58,7 +58,7 @@ class TestPredicate {
  public:
   bool IsMarked(const mirror::Object* s) const {
     bool erased = false;
-    typedef std::vector<const mirror::String*>::iterator It; // TODO: C++0x auto
+    typedef std::vector<const mirror::String*>::iterator It;  // TODO: C++0x auto
     for (It it = expected_.begin(), end = expected_.end(); it != end; ++it) {
       if (*it == s) {
         expected_.erase(it);

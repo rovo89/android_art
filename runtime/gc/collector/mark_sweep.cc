@@ -61,7 +61,7 @@ namespace collector {
 
 // Performance options.
 static const bool kParallelMarkStack = true;
-static const bool kDisableFinger = true; // TODO: Fix, bit rotten.
+static const bool kDisableFinger = true;  // TODO: Fix, bit rotten.
 static const bool kUseMarkStackPrefetch = true;
 
 // Profiling and information flags.
@@ -1253,7 +1253,7 @@ void MarkSweep::ProcessMarkStackParallel() {
   thread_pool->StartWorkers(self);
   thread_pool->Wait(self, true, true);
   mark_stack_->Reset();
-  //LOG(INFO) << "Idle wait time " << PrettyDuration(thread_pool->GetWaitTime());
+  // LOG(INFO) << "Idle wait time " << PrettyDuration(thread_pool->GetWaitTime());
   CHECK_EQ(work_chunks_created_, work_chunks_deleted_) << " some of the work chunks were leaked";
 }
 

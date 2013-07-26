@@ -40,7 +40,7 @@ void InternTable::DumpForSigQuit(std::ostream& os) const {
 
 void InternTable::VisitRoots(RootVisitor* visitor, void* arg, bool clean_dirty) {
   MutexLock mu(Thread::Current(), intern_table_lock_);
-  typedef Table::const_iterator It; // TODO: C++0x auto
+  typedef Table::const_iterator It;  // TODO: C++0x auto
   for (It it = strong_interns_.begin(), end = strong_interns_.end(); it != end; ++it) {
     visitor(it->second, arg);
   }
@@ -52,7 +52,7 @@ void InternTable::VisitRoots(RootVisitor* visitor, void* arg, bool clean_dirty) 
 
 mirror::String* InternTable::Lookup(Table& table, mirror::String* s, uint32_t hash_code) {
   intern_table_lock_.AssertHeld(Thread::Current());
-  typedef Table::const_iterator It; // TODO: C++0x auto
+  typedef Table::const_iterator It;  // TODO: C++0x auto
   for (It it = table.find(hash_code), end = table.end(); it != end; ++it) {
     mirror::String* existing_string = it->second;
     if (existing_string->Equals(s)) {
@@ -75,7 +75,7 @@ void InternTable::RegisterStrong(mirror::String* s) {
 
 void InternTable::Remove(Table& table, const mirror::String* s, uint32_t hash_code) {
   intern_table_lock_.AssertHeld(Thread::Current());
-  typedef Table::iterator It; // TODO: C++0x auto
+  typedef Table::iterator It;  // TODO: C++0x auto
   for (It it = table.find(hash_code), end = table.end(); it != end; ++it) {
     if (it->second == s) {
       table.erase(it);
@@ -166,7 +166,7 @@ bool InternTable::ContainsWeak(mirror::String* s) {
 
 void InternTable::SweepInternTableWeaks(IsMarkedTester is_marked, void* arg) {
   MutexLock mu(Thread::Current(), intern_table_lock_);
-  typedef Table::iterator It; // TODO: C++0x auto
+  typedef Table::iterator It;  // TODO: C++0x auto
   for (It it = weak_interns_.begin(), end = weak_interns_.end(); it != end;) {
     mirror::Object* object = it->second;
     if (!is_marked(object, arg)) {

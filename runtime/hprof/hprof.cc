@@ -641,7 +641,7 @@ class Hprof {
 
     // U4: low word of the 64-bit time.
     U4_TO_BUF_BE(buf, 0, (uint32_t)(nowMs & 0xffffffffULL));
-    fwrite(buf, 1, sizeof(uint32_t), header_fp_); //xxx fix the time
+    fwrite(buf, 1, sizeof(uint32_t), header_fp_);  // xxx fix the time
   }
 
   void WriteStackTraces() {
@@ -665,7 +665,7 @@ class Hprof {
 
   uint32_t gc_thread_serial_number_;
   uint8_t gc_scan_state_;
-  HprofHeapId current_heap_; // Which heap we're currently dumping.
+  HprofHeapId current_heap_;  // Which heap we're currently dumping.
   size_t objects_in_segment_;
 
   FILE* header_fp_;
@@ -805,7 +805,7 @@ int Hprof::MarkRootObject(const mirror::Object* obj, jobject jniObj) {
     rec->AddU1(heapTag);
     rec->AddId((HprofObjectId)obj);
     rec->AddU4(gc_thread_serial_number_);
-    rec->AddU4((uint32_t)-1);    //xxx
+    rec->AddU4((uint32_t)-1);    // xxx
     break;
 
   case HPROF_CLASS_DUMP:
@@ -834,7 +834,7 @@ static int StackTraceSerialNumber(const mirror::Object* /*obj*/) {
 
 int Hprof::DumpHeapObject(mirror::Object* obj) {
   HprofRecord* rec = &current_record_;
-  HprofHeapId desiredHeap = false ? HPROF_HEAP_ZYGOTE : HPROF_HEAP_APP; // TODO: zygote objects?
+  HprofHeapId desiredHeap = false ? HPROF_HEAP_ZYGOTE : HPROF_HEAP_APP;  // TODO: zygote objects?
 
   if (objects_in_segment_ >= OBJECTS_PER_SEGMENT || rec->Size() >= BYTES_PER_SEGMENT) {
     StartNewHeapDumpSegment();
@@ -876,7 +876,7 @@ int Hprof::DumpHeapObject(mirror::Object* obj) {
       // obj is a ClassObject.
       size_t sFieldCount = thisClass->NumStaticFields();
       if (sFieldCount != 0) {
-        int byteLength = sFieldCount*sizeof(JValue); // TODO bogus; fields are packed
+        int byteLength = sFieldCount*sizeof(JValue);  // TODO bogus; fields are packed
         // Create a byte array to reflect the allocation of the
         // StaticField array at the end of this class.
         rec->AddU1(HPROF_PRIMITIVE_ARRAY_DUMP);
@@ -901,14 +901,14 @@ int Hprof::DumpHeapObject(mirror::Object* obj) {
       if (thisClass->IsClassClass()) {
         // ClassObjects have their static fields appended, so aren't all the same size.
         // But they're at least this size.
-        rec->AddU4(sizeof(mirror::Class)); // instance size
+        rec->AddU4(sizeof(mirror::Class));  // instance size
       } else if (thisClass->IsArrayClass() || thisClass->IsPrimitive()) {
         rec->AddU4(0);
       } else {
-        rec->AddU4(thisClass->GetObjectSize()); // instance size
+        rec->AddU4(thisClass->GetObjectSize());  // instance size
       }
 
-      rec->AddU2(0); // empty const pool
+      rec->AddU2(0);  // empty const pool
 
       FieldHelper fh;
 
@@ -1041,7 +1041,7 @@ int Hprof::DumpHeapObject(mirror::Object* obj) {
 
 void Hprof::VisitRoot(const mirror::Object* obj) {
   uint32_t threadId = 0;  // TODO
-  /*RootType*/ size_t type = 0; // TODO
+  /*RootType*/ size_t type = 0;  // TODO
 
   static const HprofHeapTag xlate[] = {
     HPROF_ROOT_UNKNOWN,

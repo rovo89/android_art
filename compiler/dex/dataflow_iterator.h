@@ -80,7 +80,7 @@ namespace art {
       GrowableArray<int>* block_id_list_;
       int idx_;
       bool changed_;
-  }; // DataflowIterator
+  };  // DataflowIterator
 
   class ReachableNodesIterator : public DataflowIterator {
     public:

@@ -109,7 +109,7 @@ class LlvmCompilationUnit {
   UniquePtr< ::llvm::LLVMContext> context_;
   UniquePtr<IRBuilder> irb_;
   UniquePtr<RuntimeSupportBuilder> runtime_support_;
-  ::llvm::Module* module_; // Managed by context_
+  ::llvm::Module* module_;  // Managed by context_
   UniquePtr<IntrinsicHelper> intrinsic_helper_;
   UniquePtr<LLVMInfo> llvm_info_;
   CompilerDriver* driver_;
@@ -132,7 +132,7 @@ class LlvmCompilationUnit {
   friend class CompilerLLVM;  // For LlvmCompilationUnit constructor
 };
 
-} // namespace llvm
-} // namespace art
+}  // namespace llvm
+}  // namespace art
 
 #endif  // ART_COMPILER_LLVM_LLVM_COMPILATION_UNIT_H_

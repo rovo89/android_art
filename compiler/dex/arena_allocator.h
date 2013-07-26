@@ -86,7 +86,7 @@ struct MemStats {
      explicit MemStats(const ArenaAllocator &arena) : arena_(arena) {}
   private:
     const ArenaAllocator &arena_;
-}; // MemStats
+};  // MemStats
 
 }  // namespace art
 

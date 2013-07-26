@@ -126,7 +126,7 @@ LogMessageData::LogMessageData(const char* file, int line, LogSeverity severity,
 
 LogMessage::~LogMessage() {
   if (data_->severity < gMinimumLogSeverity) {
-    return; // No need to format something we're not going to output.
+    return;  // No need to format something we're not going to output.
   }
 
   // Finish constructing the message.

@@ -62,22 +62,22 @@ bool ElfFixup::Fixup(File* file, uintptr_t oat_data_begin) {
 }
 
 // MIPS seems to break the rules d_val vs d_ptr even though their values are between DT_LOPROC and DT_HIPROC
-#define DT_MIPS_RLD_VERSION  0x70000001 // d_val
-#define DT_MIPS_TIME_STAMP   0x70000002 // d_val
-#define DT_MIPS_ICHECKSUM    0x70000003 // d_val
-#define DT_MIPS_IVERSION     0x70000004 // d_val
-#define DT_MIPS_FLAGS        0x70000005 // d_val
-#define DT_MIPS_BASE_ADDRESS 0x70000006 // d_ptr
-#define DT_MIPS_CONFLICT     0x70000008 // d_ptr
-#define DT_MIPS_LIBLIST      0x70000009 // d_ptr
-#define DT_MIPS_LOCAL_GOTNO  0x7000000A // d_val
-#define DT_MIPS_CONFLICTNO   0x7000000B // d_val
-#define DT_MIPS_LIBLISTNO    0x70000010 // d_val
-#define DT_MIPS_SYMTABNO     0x70000011 // d_val
-#define DT_MIPS_UNREFEXTNO   0x70000012 // d_val
-#define DT_MIPS_GOTSYM       0x70000013 // d_val
-#define DT_MIPS_HIPAGENO     0x70000014 // d_val
-#define DT_MIPS_RLD_MAP      0x70000016 // d_ptr
+#define DT_MIPS_RLD_VERSION  0x70000001  // d_val
+#define DT_MIPS_TIME_STAMP   0x70000002  // d_val
+#define DT_MIPS_ICHECKSUM    0x70000003  // d_val
+#define DT_MIPS_IVERSION     0x70000004  // d_val
+#define DT_MIPS_FLAGS        0x70000005  // d_val
+#define DT_MIPS_BASE_ADDRESS 0x70000006  // d_ptr
+#define DT_MIPS_CONFLICT     0x70000008  // d_ptr
+#define DT_MIPS_LIBLIST      0x70000009  // d_ptr
+#define DT_MIPS_LOCAL_GOTNO  0x7000000A  // d_val
+#define DT_MIPS_CONFLICTNO   0x7000000B  // d_val
+#define DT_MIPS_LIBLISTNO    0x70000010  // d_val
+#define DT_MIPS_SYMTABNO     0x70000011  // d_val
+#define DT_MIPS_UNREFEXTNO   0x70000012  // d_val
+#define DT_MIPS_GOTSYM       0x70000013  // d_val
+#define DT_MIPS_HIPAGENO     0x70000014  // d_val
+#define DT_MIPS_RLD_MAP      0x70000016  // d_ptr
 
 bool ElfFixup::FixupDynamic(ElfFile& elf_file, uintptr_t base_address) {
   // TODO: C++0x auto.

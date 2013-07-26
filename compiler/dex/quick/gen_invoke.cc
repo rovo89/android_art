@@ -428,22 +428,22 @@ static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
       cg->LoadValueDirectFixed(rl_arg, cg->TargetReg(kArg1));
       break;
     }
-    case 1: // Is "this" null? [use kArg1]
+    case 1:  // Is "this" null? [use kArg1]
       cg->GenNullCheck(info->args[0].s_reg_low, cg->TargetReg(kArg1), info->opt_flags);
       // get this->klass_ [use kArg1, set kInvokeTgt]
       cg->LoadWordDisp(cg->TargetReg(kArg1), mirror::Object::ClassOffset().Int32Value(),
                        cg->TargetReg(kInvokeTgt));
       break;
-    case 2: // Get this->klass_->vtable [usr kInvokeTgt, set kInvokeTgt]
+    case 2:  // Get this->klass_->vtable [usr kInvokeTgt, set kInvokeTgt]
       cg->LoadWordDisp(cg->TargetReg(kInvokeTgt), mirror::Class::VTableOffset().Int32Value(),
                        cg->TargetReg(kInvokeTgt));
       break;
-    case 3: // Get target method [use kInvokeTgt, set kArg0]
+    case 3:  // Get target method [use kInvokeTgt, set kArg0]
       cg->LoadWordDisp(cg->TargetReg(kInvokeTgt), (method_idx * 4) +
                        mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value(),
                        cg->TargetReg(kArg0));
       break;
-    case 4: // Get the compiled code address [uses kArg0, sets kInvokeTgt]
+    case 4:  // Get the compiled code address [uses kArg0, sets kInvokeTgt]
       if (cu->instruction_set != kX86) {
         cg->LoadWordDisp(cg->TargetReg(kArg0),
                          mirror::AbstractMethod::GetEntryPointFromCompiledCodeOffset().Int32Value(),
@@ -649,7 +649,7 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
   DCHECK_LE(info->num_arg_words, 5);
   if (info->num_arg_words > 3) {
     int32_t next_use = 3;
-    //Detect special case of wide arg spanning arg3/arg4
+    // Detect special case of wide arg spanning arg3/arg4
     RegLocation rl_use0 = info->args[0];
     RegLocation rl_use1 = info->args[1];
     RegLocation rl_use2 = info->args[2];
@@ -789,7 +789,7 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
                                direct_code, direct_method, type);
       OpRegRegImm(kOpAdd, TargetReg(kArg3), TargetReg(kSp), start_offset);
       LIR* ld = OpVldm(TargetReg(kArg3), regs_left);
-      //TUNING: loosen barrier
+      // TUNING: loosen barrier
       ld->def_mask = ENCODE_ALL;
       SetMemRefType(ld, true /* is_load */, kDalvikReg);
       call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
@@ -1086,7 +1086,7 @@ bool Mir2Lir::GenInlinedStringCompareTo(CallInfo* info) {
   int r_tgt = (cu_->instruction_set != kX86) ?
       LoadHelper(ENTRYPOINT_OFFSET(pStringCompareTo)) : 0;
   GenNullCheck(rl_this.s_reg_low, reg_this, info->opt_flags);
-  //TUNING: check if rl_cmp.s_reg_low is already null checked
+  // TUNING: check if rl_cmp.s_reg_low is already null checked
   LIR* launch_pad = RawLIR(0, kPseudoIntrinsicRetry, reinterpret_cast<uintptr_t>(info));
   intrinsic_launchpads_.Insert(launch_pad);
   OpCmpImmBranch(kCondEq, reg_cmp, 0, launch_pad);

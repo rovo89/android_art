@@ -145,7 +145,7 @@ LIR* MipsMir2Lir::OpCmpImmBranch(ConditionCode cond, int reg,
     case kCondGe: opc = kMipsBgez; break;
     case kCondGt: opc = kMipsBgtz; break;
     case kCondLe: opc = kMipsBlez; break;
-    //case KCondMi:
+    // case KCondMi:
     case kCondLt: opc = kMipsBltz; break;
     case kCondNe: opc = kMipsBnez; break;
     default:
@@ -513,7 +513,7 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   int reg_len = INVALID_REG;
   if (needs_range_check) {
     reg_len = AllocTemp();
-    //NOTE: max live temps(4) here.
+    // NOTE: max live temps(4) here.
     /* Get len */
     LoadWordDisp(rl_array.low_reg, len_offset, reg_len);
   }
@@ -521,7 +521,7 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   OpRegImm(kOpAdd, reg_ptr, data_offset);
   /* at this point, reg_ptr points to array, 2 live temps */
   if ((size == kLong) || (size == kDouble)) {
-    //TUNING: specific wide routine that can handle fp regs
+    // TUNING: specific wide routine that can handle fp regs
     if (scale) {
       int r_new_index = AllocTemp();
       OpRegRegImm(kOpLsl, r_new_index, rl_index.low_reg, scale);

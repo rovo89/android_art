@@ -117,7 +117,7 @@ MIR* ArmMir2Lir::GetNextMir(BasicBlock** p_bb, MIR* mir) {
 }
 
 /* Used for the "verbose" listing */
-//TODO:  move to common code
+// TODO:  move to common code
 void ArmMir2Lir::GenPrintLabel(MIR* mir) {
   /* Mark the beginning of a Dalvik instruction for line tracking */
   char* inst_str = cu_->verbose ?
@@ -475,7 +475,7 @@ void ArmMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
   GenNullCheck(rl_src.s_reg_low, r0, opt_flags);
   LoadWordDisp(rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), r2);
   NewLIR3(kThumb2Ldrex, r1, r0,
-          mirror::Object::MonitorOffset().Int32Value() >> 2); // Get object->lock
+          mirror::Object::MonitorOffset().Int32Value() >> 2);  // Get object->lock
   // Align owner
   OpRegImm(kOpLsl, r2, LW_LOCK_OWNER_SHIFT);
   // Is lock unheld on lock or held by us (==thread_id) on unlock?
@@ -507,7 +507,7 @@ void ArmMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
   LoadValueDirectFixed(rl_src, r0);  // Get obj
   LockCallTemps();  // Prepare for explicit register usage
   GenNullCheck(rl_src.s_reg_low, r0, opt_flags);
-  LoadWordDisp(r0, mirror::Object::MonitorOffset().Int32Value(), r1); // Get lock
+  LoadWordDisp(r0, mirror::Object::MonitorOffset().Int32Value(), r1);  // Get lock
   LoadWordDisp(rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), r2);
   // Is lock unheld on lock or held by us (==thread_id) on unlock?
   OpRegRegImm(kOpAnd, r3, r1,

@@ -299,7 +299,7 @@ class ToStr {
 // The members of this struct are the valid arguments to VLOG and VLOG_IS_ON in code,
 // and the "-verbose:" command line argument.
 struct LogVerbosity {
-  bool class_linker; // Enabled with "-verbose:class".
+  bool class_linker;  // Enabled with "-verbose:class".
   bool compiler;
   bool heap;
   bool gc;
@@ -307,7 +307,7 @@ struct LogVerbosity {
   bool jni;
   bool monitor;
   bool startup;
-  bool third_party_jni; // Enabled with "-verbose:third-party-jni".
+  bool third_party_jni;  // Enabled with "-verbose:third-party-jni".
   bool threads;
 };
 

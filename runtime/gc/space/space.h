@@ -36,7 +36,7 @@ namespace gc {
 
 namespace accounting {
   class SpaceBitmap;
-} // namespace accounting
+}  // namespace accounting
 
 class Heap;
 

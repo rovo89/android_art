@@ -477,7 +477,7 @@ void MipsMir2Lir::CompilerInitializeRegAlloc() {
   // Keep special registers from being allocated
   for (int i = 0; i < num_reserved; i++) {
     if (NO_SUSPEND && (ReservedRegs[i] == rMIPS_SUSPEND)) {
-      //To measure cost of suspend check
+      // To measure cost of suspend check
       continue;
     }
     MarkInUse(ReservedRegs[i]);
@@ -572,4 +572,4 @@ const char* MipsMir2Lir::GetTargetInstFmt(int opcode) {
   return MipsMir2Lir::EncodingMap[opcode].fmt;
 }
 
-} // namespace art
+}  // namespace art

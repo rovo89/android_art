@@ -80,5 +80,5 @@ Value* RuntimeSupportBuilderX86::EmitSetCurrentThread(Value*) {
 }
 
 
-} // namespace llvm
-} // namespace art
+}  // namespace llvm
+}  // namespace art

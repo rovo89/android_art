@@ -232,7 +232,7 @@ void ReferenceTable::Dump(std::ostream& os, const Table& entries) {
 }
 
 void ReferenceTable::VisitRoots(RootVisitor* visitor, void* arg) {
-  typedef Table::const_iterator It; // TODO: C++0x auto
+  typedef Table::const_iterator It;  // TODO: C++0x auto
   for (It it = entries_.begin(), end = entries_.end(); it != end; ++it) {
     visitor(*it, arg);
   }

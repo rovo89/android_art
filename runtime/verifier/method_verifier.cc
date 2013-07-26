@@ -318,7 +318,7 @@ void MethodVerifier::FindLocksAtDexPc(mirror::AbstractMethod* m, uint32_t dex_pc
 
 void MethodVerifier::FindLocksAtDexPc() {
   CHECK(monitor_enter_dex_pcs_ != NULL);
-  CHECK(code_item_ != NULL); // This only makes sense for methods with code.
+  CHECK(code_item_ != NULL);  // This only makes sense for methods with code.
 
   // Strictly speaking, we ought to be able to get away with doing a subset of the full method
   // verification. In practice, the phase we want relies on data structures set up by all the
@@ -337,7 +337,7 @@ mirror::Field* MethodVerifier::FindAccessedFieldAtDexPc(mirror::AbstractMethod* 
 }
 
 mirror::Field* MethodVerifier::FindAccessedFieldAtDexPc(uint32_t dex_pc) {
-  CHECK(code_item_ != NULL); // This only makes sense for methods with code.
+  CHECK(code_item_ != NULL);  // This only makes sense for methods with code.
 
   // Strictly speaking, we ought to be able to get away with doing a subset of the full method
   // verification. In practice, the phase we want relies on data structures set up by all the
@@ -365,7 +365,7 @@ mirror::AbstractMethod* MethodVerifier::FindInvokedMethodAtDexPc(mirror::Abstrac
 }
 
 mirror::AbstractMethod* MethodVerifier::FindInvokedMethodAtDexPc(uint32_t dex_pc) {
-  CHECK(code_item_ != NULL); // This only makes sense for methods with code.
+  CHECK(code_item_ != NULL);  // This only makes sense for methods with code.
 
   // Strictly speaking, we ought to be able to get away with doing a subset of the full method
   // verification. In practice, the phase we want relies on data structures set up by all the
@@ -1149,7 +1149,7 @@ bool MethodVerifier::SetTypesFromSignature() {
   size_t expected_args = code_item_->ins_size_;   /* long/double count as two */
 
   DCHECK_GE(arg_start, 0);      /* should have been verified earlier */
-  //Include the "this" pointer.
+  // Include the "this" pointer.
   size_t cur_arg = 0;
   if (!IsStatic()) {
     // If this is a constructor for a class other than java.lang.Object, mark the first ("this")
@@ -1235,7 +1235,7 @@ bool MethodVerifier::SetTypesFromSignature() {
   bool result;
   if (IsPrimitiveDescriptor(descriptor[0]) || descriptor[0] == 'V') {
     result = descriptor[1] == '\0';
-  } else if (descriptor[0] == '[') { // single/multi-dimensional array of object/primitive
+  } else if (descriptor[0] == '[') {  // single/multi-dimensional array of object/primitive
     size_t i = 0;
     do {
       i++;
@@ -1384,7 +1384,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   // interested in is itself a monitor-enter instruction (which is a likely place
   // for a thread to be suspended).
   if (monitor_enter_dex_pcs_ != NULL && work_insn_idx_ == interesting_dex_pc_) {
-    monitor_enter_dex_pcs_->clear(); // The new work line is more accurate than the previous one.
+    monitor_enter_dex_pcs_->clear();  // The new work line is more accurate than the previous one.
     for (size_t i = 0; i < work_line_->GetMonitorEnterCount(); ++i) {
       monitor_enter_dex_pcs_->push_back(work_line_->GetMonitorEnterDexPc(i));
     }
@@ -2806,7 +2806,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   DCHECK(insn_flags_[*start_guess].IsOpcode());
 
   return true;
-} // NOLINT(readability/fn_size)
+}  // NOLINT(readability/fn_size)
 
 const RegType& MethodVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
   const char* descriptor = dex_file_->StringByTypeIdx(class_idx);
@@ -3344,7 +3344,7 @@ mirror::Field* MethodVerifier::GetStaticField(int field_idx) {
   const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
   // Check access to class
   const RegType& klass_type = ResolveClassAndCheckAccess(field_id.class_idx_);
-  if (klass_type.IsConflict()) { // bad class
+  if (klass_type.IsConflict()) {  // bad class
     AppendToLastFailMessage(StringPrintf(" in attempt to access static field %d (%s) in %s",
                                          field_idx, dex_file_->GetFieldName(field_id),
                                          dex_file_->GetFieldDeclaringClassDescriptor(field_id)));

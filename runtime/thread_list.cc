@@ -474,7 +474,7 @@ void ThreadList::WaitForOtherNonDaemonThreadsToExit() {
 void ThreadList::SuspendAllDaemonThreads() {
   Thread* self = Thread::Current();
   MutexLock mu(self, *Locks::thread_list_lock_);
-  { // Tell all the daemons it's time to suspend.
+  {  // Tell all the daemons it's time to suspend.
     MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
     for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
       Thread* thread = *it;
@@ -591,7 +591,7 @@ uint32_t ThreadList::AllocThreadId(Thread* self) {
   for (size_t i = 0; i < allocated_ids_.size(); ++i) {
     if (!allocated_ids_[i]) {
       allocated_ids_.set(i);
-      return i + 1; // Zero is reserved to mean "invalid".
+      return i + 1;  // Zero is reserved to mean "invalid".
     }
   }
   LOG(FATAL) << "Out of internal thread ids";
@@ -600,7 +600,7 @@ uint32_t ThreadList::AllocThreadId(Thread* self) {
 
 void ThreadList::ReleaseThreadId(Thread* self, uint32_t id) {
   MutexLock mu(self, allocated_ids_lock_);
-  --id; // Zero is reserved to mean "invalid".
+  --id;  // Zero is reserved to mean "invalid".
   DCHECK(allocated_ids_[id]) << id;
   allocated_ids_.reset(id);
 }

@@ -1473,7 +1473,7 @@ static int oatdump(int argc, char** argv) {
   return EXIT_SUCCESS;
 }
 
-} // namespace art
+}  // namespace art
 
 int main(int argc, char** argv) {
   return art::oatdump(argc, argv);

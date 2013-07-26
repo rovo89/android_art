@@ -553,7 +553,7 @@ void ArmMir2Lir::CompilerInitializeRegAlloc() {
   // Keep special registers from being allocated
   for (int i = 0; i < num_reserved; i++) {
     if (NO_SUSPEND && (ReservedRegs[i] == rARM_SUSPEND)) {
-      //To measure cost of suspend check
+      // To measure cost of suspend check
       continue;
     }
     MarkInUse(ReservedRegs[i]);

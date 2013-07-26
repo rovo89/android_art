@@ -46,12 +46,12 @@
 #endif
 
 #if defined(__APPLE__)
-#include "AvailabilityMacros.h" // For MAC_OS_X_VERSION_MAX_ALLOWED
+#include "AvailabilityMacros.h"  // For MAC_OS_X_VERSION_MAX_ALLOWED
 #include <sys/syscall.h>
 #endif
 
-#include <corkscrew/backtrace.h> // For DumpNativeStack.
-#include <corkscrew/demangle.h> // For DumpNativeStack.
+#include <corkscrew/backtrace.h>  // For DumpNativeStack.
+#include <corkscrew/demangle.h>  // For DumpNativeStack.
 
 #if defined(__linux__)
 #include <linux/unistd.h>
@@ -73,7 +73,7 @@ pid_t GetTid() {
 std::string GetThreadName(pid_t tid) {
   std::string result;
   if (ReadFileToString(StringPrintf("/proc/self/task/%d/comm", tid), &result)) {
-    result.resize(result.size() - 1); // Lose the trailing '\n'.
+    result.resize(result.size() - 1);  // Lose the trailing '\n'.
   } else {
     result = "<unknown>";
   }
@@ -253,7 +253,7 @@ std::string PrettyDescriptor(const std::string& descriptor) {
   // Reference or primitive?
   if (*c == 'L') {
     // "[[La/b/C;" -> "a.b.C[][]".
-    c++; // Skip the 'L'.
+    c++;  // Skip the 'L'.
   } else {
     // "[[B" -> "byte[][]".
     // To make life easier, we make primitives look like unqualified
@@ -267,7 +267,7 @@ std::string PrettyDescriptor(const std::string& descriptor) {
     case 'J': c = "long;"; break;
     case 'S': c = "short;"; break;
     case 'Z': c = "boolean;"; break;
-    case 'V': c = "void;"; break; // Used when decoding return types.
+    case 'V': c = "void;"; break;  // Used when decoding return types.
     default: return descriptor;
     }
   }
@@ -339,7 +339,7 @@ std::string PrettyArguments(const char* signature) {
   std::string result;
   result += '(';
   CHECK_EQ(*signature, '(');
-  ++signature; // Skip the '('.
+  ++signature;  // Skip the '('.
   while (*signature != ')') {
     size_t argument_length = 0;
     while (signature[argument_length] == '[') {
@@ -358,7 +358,7 @@ std::string PrettyArguments(const char* signature) {
     signature += argument_length;
   }
   CHECK_EQ(*signature, ')');
-  ++signature; // Skip the ')'.
+  ++signature;  // Skip the ')'.
   result += ')';
   return result;
 }
@@ -366,7 +366,7 @@ std::string PrettyArguments(const char* signature) {
 std::string PrettyReturnType(const char* signature) {
   const char* return_type = strchr(signature, ')');
   CHECK(return_type != NULL);
-  ++return_type; // Skip ')'.
+  ++return_type;  // Skip ')'.
   return PrettyDescriptor(return_type);
 }
 
@@ -664,10 +664,10 @@ std::string JniLongName(const mirror::AbstractMethod* m) {
 
 // Helper for IsValidPartOfMemberNameUtf8(), a bit vector indicating valid low ascii.
 uint32_t DEX_MEMBER_VALID_LOW_ASCII[4] = {
-  0x00000000, // 00..1f low control characters; nothing valid
-  0x03ff2010, // 20..3f digits and symbols; valid: '0'..'9', '$', '-'
-  0x87fffffe, // 40..5f uppercase etc.; valid: 'A'..'Z', '_'
-  0x07fffffe  // 60..7f lowercase etc.; valid: 'a'..'z'
+  0x00000000,  // 00..1f low control characters; nothing valid
+  0x03ff2010,  // 20..3f digits and symbols; valid: '0'..'9', '$', '-'
+  0x87fffffe,  // 40..5f uppercase etc.; valid: 'A'..'Z', '_'
+  0x07fffffe   // 60..7f lowercase etc.; valid: 'a'..'z'
 };
 
 // Helper for IsValidPartOfMemberNameUtf8(); do not call directly.
@@ -826,7 +826,7 @@ bool IsValidClassName(const char* s, ClassNameType type, char separator) {
    * name.
    */
 
-  bool sepOrFirst = true; // first character or just encountered a separator.
+  bool sepOrFirst = true;  // first character or just encountered a separator.
   for (;;) {
     uint8_t c = (uint8_t) *s;
     switch (c) {
@@ -1002,7 +1002,7 @@ std::string GetSchedulerGroupName(pid_t tid) {
     Split(cgroup_fields[1], ',', cgroups);
     for (size_t i = 0; i < cgroups.size(); ++i) {
       if (cgroups[i] == "cpu") {
-        return cgroup_fields[2].substr(1); // Skip the leading slash.
+        return cgroup_fields[2].substr(1);  // Skip the leading slash.
       }
     }
   }
@@ -1060,7 +1060,7 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix, bool inclu
 
   const size_t MAX_DEPTH = 32;
   UniquePtr<backtrace_frame_t[]> frames(new backtrace_frame_t[MAX_DEPTH]);
-  size_t ignore_count = 2; // Don't include unwind_backtrace_thread or DumpNativeStack.
+  size_t ignore_count = 2;  // Don't include unwind_backtrace_thread or DumpNativeStack.
   ssize_t frame_count = unwind_backtrace_thread(tid, frames.get(), ignore_count, MAX_DEPTH);
   if (frame_count == -1) {
     os << prefix << "(unwind_backtrace_thread failed for thread " << tid << ")\n";
@@ -1207,7 +1207,7 @@ std::string GetDalvikCacheFilenameOrDie(const std::string& location) {
   if (location[0] != '/') {
     LOG(FATAL) << "Expected path in location to be absolute: "<< location;
   }
-  std::string cache_file(location, 1); // skip leading slash
+  std::string cache_file(location, 1);  // skip leading slash
   if (!IsValidDexFilename(location)) {
     cache_file += "/";
     cache_file += DexFile::kClassesDex;

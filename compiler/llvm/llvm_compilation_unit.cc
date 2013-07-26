@@ -134,7 +134,7 @@ LlvmCompilationUnit::LlvmCompilationUnit(const CompilerLLVM* compiler_llvm, size
 
 
 LlvmCompilationUnit::~LlvmCompilationUnit() {
-  ::llvm::LLVMContext* llvm_context = context_.release(); // Managed by llvm_info_
+  ::llvm::LLVMContext* llvm_context = context_.release();  // Managed by llvm_info_
   CHECK(llvm_context != NULL);
 }
 
@@ -274,9 +274,9 @@ bool LlvmCompilationUnit::MaterializeToRawOStream(::llvm::raw_ostream& out_strea
   ::llvm::PassManagerBuilder pm_builder;
   // TODO: Use inliner after we can do IPO.
   pm_builder.Inliner = NULL;
-  //pm_builder.Inliner = ::llvm::createFunctionInliningPass();
-  //pm_builder.Inliner = ::llvm::createAlwaysInlinerPass();
-  //pm_builder.Inliner = ::llvm::createPartialInliningPass();
+  // pm_builder.Inliner = ::llvm::createFunctionInliningPass();
+  // pm_builder.Inliner = ::llvm::createAlwaysInlinerPass();
+  // pm_builder.Inliner = ::llvm::createPartialInliningPass();
   pm_builder.OptLevel = 3;
   pm_builder.DisableSimplifyLibCalls = 1;
   pm_builder.DisableUnitAtATime = 1;
@@ -338,5 +338,5 @@ void LlvmCompilationUnit::CheckCodeAlign(uint32_t align) const {
 }
 
 
-} // namespace llvm
-} // namespace art
+}  // namespace llvm
+}  // namespace art

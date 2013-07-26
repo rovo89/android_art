@@ -121,5 +121,5 @@ class InstructionTools {
   static bool IsDefinition(const art::Instruction* instruction);
   static const int instruction_attributes_[];
 };
-} // end namespace sea_ir
+}  // namespace sea_ir
 #endif  // ART_COMPILER_SEA_IR_INSTRUCTION_TOOLS_H_

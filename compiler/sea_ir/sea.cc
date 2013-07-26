@@ -153,16 +153,16 @@ Region* SeaGraph::Intersect(Region* i, Region* j) {
   while (finger1 != finger2) {
     while (finger1->GetRPO() > finger2->GetRPO()) {
       DCHECK(NULL != finger1);
-      finger1 = finger1->GetIDominator(); // should have: finger1 != NULL
+      finger1 = finger1->GetIDominator();  // should have: finger1 != NULL
       DCHECK(NULL != finger1);
     }
     while (finger1->GetRPO() < finger2->GetRPO()) {
       DCHECK(NULL != finger2);
-      finger2 = finger2->GetIDominator(); // should have: finger1 != NULL
+      finger2 = finger2->GetIDominator();  // should have: finger1 != NULL
       DCHECK(NULL != finger2);
     }
   }
-  return finger1; // finger1 should be equal to finger2 at this point.
+  return finger1;  // finger1 should be equal to finger2 at this point.
 }
 
 void SeaGraph::ComputeDownExposedDefs() {
@@ -248,7 +248,7 @@ void SeaGraph::BuildMethodSeaGraph(const art::DexFile::CodeItem* code_item,
         int32_t offset = inst->GetTargetOffset();
         std::map<const uint16_t*, Region*>::iterator it = target_regions.find(&code[i + offset]);
         DCHECK(it != target_regions.end());
-        AddEdge(r, it->second); // Add edge to branch target.
+        AddEdge(r, it->second);  // Add edge to branch target.
       }
 
       std::map<const uint16_t*, Region*>::iterator it = target_regions.find(&code[i]);
@@ -257,7 +257,7 @@ void SeaGraph::BuildMethodSeaGraph(const art::DexFile::CodeItem* code_item,
         Region* nextRegion = it->second;
         if (last_node->GetInstruction()->IsBranch()
             && last_node->GetInstruction()->CanFlowThrough()) {
-          AddEdge(r, it->second); // Add flow-through edge.
+          AddEdge(r, it->second);  // Add flow-through edge.
         }
         r = nextRegion;
       }
@@ -421,7 +421,7 @@ void SeaGraph::CompileMethod(const art::DexFile::CodeItem* code_item,
   uint32_t class_def_idx, uint32_t method_idx, const art::DexFile& dex_file) {
   // Two passes: Builds the intermediate structure (non-SSA) of the sea-ir for the function.
   BuildMethodSeaGraph(code_item, dex_file, class_def_idx, method_idx);
-  //Pass: Compute reverse post-order of regions.
+  // Pass: Compute reverse post-order of regions.
   ComputeRPO();
   // Multiple passes: compute immediate dominators.
   ComputeIDominators();
@@ -502,14 +502,14 @@ void Region::ToDot(std::string& result) const {
   for (std::vector<PhiInstructionNode*>::const_iterator cit = phi_instructions_.begin();
       cit != phi_instructions_.end(); cit++) {
     (*cit)->ToDot(result);
-    result += StringId() + " -> " + (*cit)->StringId() + "; // phi-function \n";
+    result += StringId() + " -> " + (*cit)->StringId() + ";  // phi-function \n";
   }
 
   // Save instruction nodes.
   for (std::vector<InstructionNode*>::const_iterator cit = instructions_.begin();
       cit != instructions_.end(); cit++) {
     (*cit)->ToDot(result);
-    result += StringId() + " -> " + (*cit)->StringId() + "; // region -> instruction \n";
+    result += StringId() + " -> " + (*cit)->StringId() + ";  // region -> instruction \n";
   }
 
   for (std::vector<Region*>::const_iterator cit = successors_.begin(); cit != successors_.end();
@@ -527,14 +527,14 @@ void Region::ToDot(std::string& result) const {
         reaching_set_it++) {
       result += (*reaching_set_it)->StringId() +
          " -> " + StringId() +
-         " [style=dotted]; // Reaching def.\n";
+         " [style=dotted];  // Reaching def.\n";
     }
   }
   // Save dominance frontier.
   for (std::set<Region*>::const_iterator cit = df_.begin(); cit != df_.end(); cit++) {
     result += StringId() +
         " -> " + (*cit)->StringId() +
-        " [color=gray]; // Dominance frontier.\n";
+        " [color=gray];  // Dominance frontier.\n";
   }
   result += "// End Region.\n";
 }
@@ -711,7 +711,7 @@ void InstructionNode::ToDot(std::string& result) const {
     if (NULL != def_it->second) {
       result += def_it->second->StringId() + " -> " + StringId() +"[color=red,label=\"";
       result += art::StringPrintf("%d", def_it->first);
-      result += "\"] ; // ssa edge\n";
+      result += "\"] ;  // ssa edge\n";
     }
   }
 }
@@ -740,7 +740,7 @@ std::vector<int> InstructionNode::GetDefinitions() const {
 }
 
 std::vector<int> InstructionNode::GetUses() {
-  std::vector<int> uses; // Using vector<> instead of set<> because order matters.
+  std::vector<int> uses;  // Using vector<> instead of set<> because order matters.
   if (!InstructionTools::IsDefinition(instruction_) && (instruction_->HasVRegA())) {
     int vA = instruction_->VRegA();
     uses.push_back(vA);
@@ -770,8 +770,8 @@ void PhiInstructionNode::ToDot(std::string& result) const {
         def_it != defs_from_pred->end(); def_it++) {
         result += (*def_it)->StringId() + " -> " + StringId() +"[color=red,label=\"vR = ";
         result += art::StringPrintf("%d", GetRegisterNumber());
-        result += "\"] ; // phi-ssa edge\n";
+        result += "\"] ;  // phi-ssa edge\n";
     }
   }
 }
-} // end namespace sea_ir
+}  // namespace sea_ir

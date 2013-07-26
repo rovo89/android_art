@@ -59,7 +59,7 @@ void SpaceBitmap::VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end,
                                    const FingerVisitor& finger_visitor) const {
   DCHECK_LT(visit_begin, visit_end);
 
-  const size_t word_span = kAlignment * kBitsPerWord; // Equals IndexToOffset(1).
+  const size_t word_span = kAlignment * kBitsPerWord;  // Equals IndexToOffset(1).
   const size_t bit_index_start = (visit_begin - heap_begin_) / kAlignment;
   const size_t bit_index_end = (visit_end - heap_begin_ - 1) / kAlignment;
 

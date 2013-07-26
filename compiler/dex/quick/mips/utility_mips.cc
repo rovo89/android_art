@@ -63,7 +63,7 @@ bool MipsMir2Lir::InexpensiveConstantLong(int64_t value) {
 }
 
 bool MipsMir2Lir::InexpensiveConstantDouble(int64_t value) {
-  return false; // TUNING
+  return false;  // TUNING
 }
 
 /*

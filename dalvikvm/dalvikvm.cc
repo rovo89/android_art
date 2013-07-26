@@ -205,7 +205,7 @@ static int dalvikvm(int argc, char** argv) {
   return rc;
 }
 
-} // namespace art
+}  // namespace art
 
 int main(int argc, char** argv) {
   return art::dalvikvm(argc, argv);

@@ -103,7 +103,7 @@ class CodeGenPrepassVisitor: public CodeGenPassVisitor {
   void Visit(ConstInstructionNode* instruction) { }
   void Visit(ReturnInstructionNode* instruction) { }
   void Visit(IfNeInstructionNode* instruction) { }
-  //void Visit(AddIntLitInstructionNode* instruction) { }
+  // void Visit(AddIntLitInstructionNode* instruction) { }
   void Visit(MoveResultInstructionNode* instruction) { }
   void Visit(InvokeStaticInstructionNode* instruction) { }
   void Visit(AddIntInstructionNode* instruction) { }
@@ -122,7 +122,7 @@ class CodeGenPostpassVisitor: public CodeGenPassVisitor {
   void Visit(ConstInstructionNode* instruction) { }
   void Visit(ReturnInstructionNode* instruction) { }
   void Visit(IfNeInstructionNode* instruction) { }
-  //void Visit(AddIntLitInstructionNode* instruction) { }
+  // void Visit(AddIntLitInstructionNode* instruction) { }
   void Visit(MoveResultInstructionNode* instruction) { }
   void Visit(InvokeStaticInstructionNode* instruction) { }
   void Visit(AddIntInstructionNode* instruction) { }
@@ -141,7 +141,7 @@ class CodeGenVisitor: public CodeGenPassVisitor {
   void Visit(ConstInstructionNode* instruction);
   void Visit(ReturnInstructionNode* instruction);
   void Visit(IfNeInstructionNode* instruction);
-  //void Visit(AddIntLitInstructionNode* instruction);
+  // void Visit(AddIntLitInstructionNode* instruction);
   void Visit(MoveResultInstructionNode* instruction);
   void Visit(InvokeStaticInstructionNode* instruction);
   void Visit(AddIntInstructionNode* instruction);
@@ -149,5 +149,5 @@ class CodeGenVisitor: public CodeGenPassVisitor {
   void Visit(IfEqzInstructionNode* instruction);
   void Visit(PhiInstructionNode* region) { }
 };
-} // end namespace sea_ir
+}  // namespace sea_ir
 #endif  // ART_COMPILER_SEA_IR_CODE_GEN_H_

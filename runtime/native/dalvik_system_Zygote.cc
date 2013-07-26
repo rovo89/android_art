@@ -492,7 +492,7 @@ static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArra
     SetSchedulerPolicy();
 
 #if defined(HAVE_ANDROID_OS)
-    { // NOLINT(whitespace/braces)
+    {  // NOLINT(whitespace/braces)
       const char* se_info_c_str = NULL;
       UniquePtr<ScopedUtfChars> se_info;
       if (java_se_info != NULL) {

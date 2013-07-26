@@ -57,7 +57,7 @@ void InitializeLLVM() {
   llvm::llvm_start_multithreaded();
 
   // NOTE: Uncomment following line to show the time consumption of LLVM passes
-  //llvm::TimePassesIsEnabled = true;
+  // llvm::TimePassesIsEnabled = true;
 
   // Initialize LLVM target-specific options.
   art::llvm::InitialBackendOptions();
@@ -96,7 +96,7 @@ void InitializeLLVM() {
 // Two reasons: (1) the order of the destruction of static objects, or
 //              (2) dlopen/dlclose side-effect on static objects.
 
-} // anonymous namespace
+}  // anonymous namespace
 
 
 namespace art {
@@ -171,8 +171,8 @@ CompileNativeMethod(DexCompilationUnit* dex_compilation_unit) {
 }
 
 
-} // namespace llvm
-} // namespace art
+}  // namespace llvm
+}  // namespace art
 
 inline static art::llvm::CompilerLLVM* ContextOf(art::CompilerDriver& driver) {
   void *compiler_context = driver.GetCompilerContext();

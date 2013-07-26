@@ -87,7 +87,7 @@ static void UnimplementedEntryPoint() {
 #endif
 
 void Thread::InitFunctionPointers() {
-#if !defined(__APPLE__) // The Mac GCC is too old to accept this code.
+#if !defined(__APPLE__)  // The Mac GCC is too old to accept this code.
   // Insert a placeholder so we can easily tell if we call an unimplemented entry point.
   uintptr_t* begin = reinterpret_cast<uintptr_t*>(&entrypoints_);
   uintptr_t* end = reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(begin) + sizeof(entrypoints_));
@@ -572,7 +572,7 @@ void Thread::FullSuspendCheck() {
 }
 
 Thread* Thread::SuspendForDebugger(jobject peer, bool request_suspension, bool* timed_out) {
-  static const useconds_t kTimeoutUs = 30 * 1000000; // 30s.
+  static const useconds_t kTimeoutUs = 30 * 1000000;  // 30s.
   useconds_t total_delay_us = 0;
   useconds_t delay_us = 0;
   bool did_suspend_request = false;
@@ -725,7 +725,7 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
   // Grab the scheduler stats for this thread.
   std::string scheduler_stats;
   if (ReadFileToString(StringPrintf("/proc/self/task/%d/schedstat", tid), &scheduler_stats)) {
-    scheduler_stats.resize(scheduler_stats.size() - 1); // Lose the trailing '\n'.
+    scheduler_stats.resize(scheduler_stats.size() - 1);  // Lose the trailing '\n'.
   } else {
     scheduler_stats = "0 0 0";
   }
@@ -1297,7 +1297,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (method_trace_ == NULL || dex_pc_trace_ == NULL) {
-      return true; // We're probably trying to fillInStackTrace for an OutOfMemoryError.
+      return true;  // We're probably trying to fillInStackTrace for an OutOfMemoryError.
     }
     if (skip_depth_ > 0) {
       skip_depth_--;
@@ -1452,7 +1452,7 @@ void Thread::ThrowNewExceptionV(const ThrowLocation& throw_location,
 
 void Thread::ThrowNewException(const ThrowLocation& throw_location, const char* exception_class_descriptor,
                                const char* msg) {
-  AssertNoPendingException(); // Callers should either clear or call ThrowNewWrappedException.
+  AssertNoPendingException();  // Callers should either clear or call ThrowNewWrappedException.
   ThrowNewWrappedException(throw_location, exception_class_descriptor, msg);
 }
 
@@ -1557,7 +1557,7 @@ void Thread::ThrowOutOfMemoryError(const char* msg) {
     ThrowNewException(throw_location, "Ljava/lang/OutOfMemoryError;", msg);
     throwing_OutOfMemoryError_ = false;
   } else {
-    Dump(LOG(ERROR)); // The pre-allocated OOME has no stack, so help out and log one.
+    Dump(LOG(ERROR));  // The pre-allocated OOME has no stack, so help out and log one.
     SetException(throw_location, Runtime::Current()->GetPreAllocatedOutOfMemoryError());
   }
 }
@@ -1664,7 +1664,7 @@ static const EntryPointInfo gThreadEntryPointInfo[] = {
 #undef ENTRY_POINT_INFO
 
 void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset, size_t size_of_pointers) {
-  CHECK_EQ(size_of_pointers, 4U); // TODO: support 64-bit targets.
+  CHECK_EQ(size_of_pointers, 4U);  // TODO: support 64-bit targets.
 
 #define DO_THREAD_OFFSET(x) \
     if (offset == static_cast<uint32_t>(OFFSETOF_VOLATILE_MEMBER(Thread, x))) { \
@@ -1680,8 +1680,8 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset, size_t size_of_
   DO_THREAD_OFFSET(stack_end_);
   DO_THREAD_OFFSET(suspend_count_);
   DO_THREAD_OFFSET(thin_lock_id_);
-  //DO_THREAD_OFFSET(top_of_managed_stack_);
-  //DO_THREAD_OFFSET(top_of_managed_stack_pc_);
+  // DO_THREAD_OFFSET(top_of_managed_stack_);
+  // DO_THREAD_OFFSET(top_of_managed_stack_pc_);
   DO_THREAD_OFFSET(top_sirt_);
 #undef DO_THREAD_OFFSET
 
@@ -2012,7 +2012,7 @@ class ReferenceMapVisitor : public StackVisitor {
         CHECK(native_gc_map != NULL) << PrettyMethod(m);
         mh_.ChangeMethod(m);
         const DexFile::CodeItem* code_item = mh_.GetCodeItem();
-        DCHECK(code_item != NULL) << PrettyMethod(m); // Can't be NULL or how would we compile its instructions?
+        DCHECK(code_item != NULL) << PrettyMethod(m);  // Can't be NULL or how would we compile its instructions?
         NativePcOffsetToReferenceMap map(native_gc_map);
         size_t num_regs = std::min(map.RegWidth() * 8,
                                    static_cast<size_t>(code_item->registers_size_));

@@ -92,7 +92,7 @@ class RuntimeSupportBuilder {
 };
 
 
-} // namespace llvm
-} // namespace art
+}  // namespace llvm
+}  // namespace art
 
 #endif  // ART_COMPILER_LLVM_RUNTIME_SUPPORT_BUILDER_H_

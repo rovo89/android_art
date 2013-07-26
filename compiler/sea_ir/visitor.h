@@ -59,7 +59,7 @@ class IRVisitor {
   virtual void Visit(ConstInstructionNode* instruction) = 0;
   virtual void Visit(ReturnInstructionNode* instruction) = 0;
   virtual void Visit(IfNeInstructionNode* instruction) = 0;
-  //virtual void Visit(AddIntLitInstructionNode* instruction) = 0;
+  // virtual void Visit(AddIntLitInstructionNode* instruction) = 0;
   virtual void Visit(MoveResultInstructionNode* instruction) = 0;
   virtual void Visit(InvokeStaticInstructionNode* instruction) = 0;
   virtual void Visit(AddIntInstructionNode* instruction) = 0;
@@ -90,5 +90,5 @@ class IRVisitor {
  protected:
   std::vector<Region*> ordered_regions_;
 };
-} // end namespace sea_ir
+}  // namespace sea_ir
 #endif  // ART_COMPILER_SEA_IR_VISITOR_H_

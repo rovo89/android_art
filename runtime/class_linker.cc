@@ -1422,7 +1422,7 @@ size_t ClassLinker::SizeOfClass(const DexFile& dex_file,
   // follow with reference fields which must be contiguous at start
   size += (num_ref * sizeof(uint32_t));
   // if there are 64-bit fields to add, make sure they are aligned
-  if (num_64 != 0 && size != RoundUp(size, 8)) { // for 64-bit alignment
+  if (num_64 != 0 && size != RoundUp(size, 8)) {  // for 64-bit alignment
     if (num_32 != 0) {
       // use an available 32-bit field for padding
       num_32--;
@@ -3476,7 +3476,7 @@ bool ClassLinker::LinkFields(SirtRef<mirror::Class>& klass, bool is_static) {
     Primitive::Type type = fh.GetTypeAsPrimitiveType();
     bool isPrimitive = type != Primitive::kPrimNot;
     if (isPrimitive) {
-      break; // past last reference, move on to the next phase
+      break;  // past last reference, move on to the next phase
     }
     grouped_and_sorted_fields.pop_front();
     num_reference_fields++;
@@ -3554,7 +3554,7 @@ bool ClassLinker::LinkFields(SirtRef<mirror::Class>& klass, bool is_static) {
     bool is_primitive = type != Primitive::kPrimNot;
     if (StringPiece(ClassHelper(klass.get(), this).GetDescriptor()) == "Ljava/lang/ref/Reference;" &&
         StringPiece(fh.GetName()) == "referent") {
-      is_primitive = true; // We lied above, so we have to expect a lie here.
+      is_primitive = true;  // We lied above, so we have to expect a lie here.
     }
     if (is_primitive) {
       if (!seen_non_ref) {

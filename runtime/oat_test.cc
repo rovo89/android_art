@@ -160,7 +160,7 @@ TEST_F(OatTest, OatHeaderIsValid) {
     char* magic = const_cast<char*>(oat_header.GetMagic());
     strcpy(magic, "");  // bad magic
     ASSERT_FALSE(oat_header.IsValid());
-    strcpy(magic, "oat\n000"); // bad version
+    strcpy(magic, "oat\n000");  // bad version
     ASSERT_FALSE(oat_header.IsValid());
 }
 

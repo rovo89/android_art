@@ -20,7 +20,7 @@
 #include "thread.h"
 #include "utils.h"
 
-//#include <valgrind/memcheck.h>
+// #include <valgrind/memcheck.h>
 #include <valgrind.h>
 
 namespace art {
@@ -49,7 +49,7 @@ class ValgrindDlMallocSpace : public DlMallocSpace {
   virtual mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes) {
     void* obj_with_rdz = DlMallocSpace::AllocWithGrowth(self, num_bytes + (2 * kValgrindRedZoneBytes));
     if (obj_with_rdz != NULL) {
-      //VALGRIND_MAKE_MEM_UNDEFINED();
+      // VALGRIND_MAKE_MEM_UNDEFINED();
       mirror::Object* result = reinterpret_cast<mirror::Object*>(reinterpret_cast<byte*>(obj_with_rdz) +
                                                                  kValgrindRedZoneBytes);
       VALGRIND_MEMPOOL_ALLOC(GetMspace(), result, num_bytes);

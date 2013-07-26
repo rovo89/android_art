@@ -1030,7 +1030,7 @@ static JdwpError TR_Frames(JdwpState*, Request& request, ExpandBuf* pReply)
   }
 
   if (actual_frame_count <= 0) {
-    return ERR_THREAD_NOT_SUSPENDED; // 0 means no managed frames (which means "in native").
+    return ERR_THREAD_NOT_SUSPENDED;  // 0 means no managed frames (which means "in native").
   }
 
   if (start_frame > actual_frame_count) {
@@ -1315,7 +1315,7 @@ static JdwpError ER_Set(JdwpState* state, Request& request, ExpandBuf* pReply)
     case MK_EXCEPTION_ONLY:
       {
         // Modifies EK_EXCEPTION events,
-        mod.exceptionOnly.refTypeId = request.ReadRefTypeId(); // null => all exceptions.
+        mod.exceptionOnly.refTypeId = request.ReadRefTypeId();  // null => all exceptions.
         mod.exceptionOnly.caught = request.ReadEnum1<uint8_t>("caught");
         mod.exceptionOnly.uncaught = request.ReadEnum1<uint8_t>("uncaught");
       }
@@ -1622,7 +1622,7 @@ static const JdwpHandlerMap gHandlers[] = {
   { 17,   1,  COR_ReflectedType, "ClassObjectReference.ReflectedType" },
 
   /* Event command set (64) */
-  { 64, 100,  NULL, "Event.Composite" }, // sent from VM to debugger, never received by VM
+  { 64, 100,  NULL, "Event.Composite" },  // sent from VM to debugger, never received by VM
 
   { 199,  1,  DDM_Chunk,        "DDM.Chunk" },
 };

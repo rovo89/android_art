@@ -972,23 +972,23 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
       }
     }
     switch (dalvik_format) {
-      case Instruction::k11n: // Add one immediate from vB
+      case Instruction::k11n:  // Add one immediate from vB
       case Instruction::k21s:
       case Instruction::k31i:
       case Instruction::k21h:
         str.append(StringPrintf(", #%d", insn.vB));
         break;
-      case Instruction::k51l: // Add one wide immediate
+      case Instruction::k51l:  // Add one wide immediate
         str.append(StringPrintf(", #%lld", insn.vB_wide));
         break;
-      case Instruction::k21c: // One register, one string/type/method index
+      case Instruction::k21c:  // One register, one string/type/method index
       case Instruction::k31c:
         str.append(StringPrintf(", index #%d", insn.vB));
         break;
-      case Instruction::k22c: // Two registers, one string/type/method index
+      case Instruction::k22c:  // Two registers, one string/type/method index
         str.append(StringPrintf(", index #%d", insn.vC));
         break;
-      case Instruction::k22s: // Add one immediate from vC
+      case Instruction::k22s:  // Add one immediate from vC
       case Instruction::k22b:
         str.append(StringPrintf(", #%d", insn.vC));
         break;
@@ -1154,4 +1154,4 @@ BasicBlock* MIRGraph::NewMemBB(BBType block_type, int block_id) {
   return bb;
 }
 
-} // namespace art
+}  // namespace art

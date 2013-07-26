@@ -273,7 +273,7 @@ struct RegLocation {
   unsigned fp:1;        // Floating point?
   unsigned core:1;      // Non-floating point?
   unsigned ref:1;       // Something GC cares about.
-  unsigned high_word:1; // High word of pair?
+  unsigned high_word:1;  // High word of pair?
   unsigned home:1;      // Does this represent the home location?
   uint8_t low_reg;      // First physical register.
   uint8_t high_reg;     // 2nd physical register (if wide).
@@ -650,7 +650,7 @@ class MIRGraph {
   BasicBlock* cur_block_;
   int num_blocks_;
   const DexFile::CodeItem* current_code_item_;
-  SafeMap<unsigned int, BasicBlock*> block_map_; // FindBlock lookup cache.
+  SafeMap<unsigned int, BasicBlock*> block_map_;  // FindBlock lookup cache.
   std::vector<DexCompilationUnit*> m_units_;     // List of methods included in this graph
   typedef std::pair<int, int> MIRLocation;       // Insert point, (m_unit_ index, offset)
   std::vector<MIRLocation> method_stack_;        // Include stack
@@ -659,7 +659,7 @@ class MIRGraph {
   int def_count_;                                // Used to estimate size of ssa name storage.
   int* opcode_count_;                            // Dex opcode coverage stats.
   int num_ssa_regs_;                             // Number of names following SSA transformation.
-  std::vector<BasicBlock*> extended_basic_blocks_; // Heads of block "traces".
+  std::vector<BasicBlock*> extended_basic_blocks_;  // Heads of block "traces".
   int method_sreg_;
   unsigned int attributes_;
   Checkstats* checkstats_;

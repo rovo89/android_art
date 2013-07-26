@@ -241,7 +241,7 @@ bool MIRGraph::ComputeDominanceFrontier(BasicBlock* bb) {
   /* Calculate DF_up */
   ArenaBitVector::Iterator bv_iterator(bb->i_dominated);
   while (true) {
-    //TUNING: hot call to BitVectorIteratorNext
+    // TUNING: hot call to BitVectorIteratorNext
     int dominated_idx = bv_iterator.Next();
     if (dominated_idx == -1) {
       break;
@@ -249,7 +249,7 @@ bool MIRGraph::ComputeDominanceFrontier(BasicBlock* bb) {
     BasicBlock* dominated_bb = GetBasicBlock(dominated_idx);
     ArenaBitVector::Iterator df_iterator(dominated_bb->dom_frontier);
     while (true) {
-      //TUNING: hot call to BitVectorIteratorNext
+      // TUNING: hot call to BitVectorIteratorNext
       int df_up_idx = df_iterator.Next();
       if (df_up_idx == -1) {
         break;
@@ -530,7 +530,7 @@ void MIRGraph::InsertPhiNodes() {
         BasicBlock* def_bb = GetBasicBlock(idx);
 
         /* Merge the dominance frontier to tmp_blocks */
-        //TUNING: hot call to Union().
+        // TUNING: hot call to Union().
         if (def_bb->dom_frontier != NULL) {
           tmp_blocks->Union(def_bb->dom_frontier);
         }
@@ -568,7 +568,7 @@ void MIRGraph::InsertPhiNodes() {
       phi->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpPhi);
       phi->dalvikInsn.vA = dalvik_reg;
       phi->offset = phi_bb->start_offset;
-      phi->m_unit_index = 0; // Arbitrarily assign all Phi nodes to outermost method.
+      phi->m_unit_index = 0;  // Arbitrarily assign all Phi nodes to outermost method.
       PrependMIR(phi_bb, phi);
     }
   }

@@ -83,7 +83,7 @@ extern "C" uint64_t artInterpreterEntry(mirror::AbstractMethod* method, Thread* 
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
   uint16_t num_regs = code_item->registers_size_;
   void* memory = alloca(ShadowFrame::ComputeSize(num_regs));
-  ShadowFrame* shadow_frame(ShadowFrame::Create(num_regs, NULL, // No last shadow coming from quick.
+  ShadowFrame* shadow_frame(ShadowFrame::Create(num_regs, NULL,  // No last shadow coming from quick.
                                                 method, 0, memory));
   size_t first_arg_reg = code_item->registers_size_ - code_item->ins_size_;
   BuildShadowFrameVisitor shadow_frame_builder(mh, sp, *shadow_frame, first_arg_reg);

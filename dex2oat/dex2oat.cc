@@ -849,7 +849,7 @@ static int dex2oat(int argc, char** argv) {
 
 #if ART_SMALL_MODE
   options.push_back(std::make_pair("-small", reinterpret_cast<void*>(NULL)));
-#endif // ART_SMALL_MODE
+#endif  // ART_SMALL_MODE
 
 
 #ifdef ART_SEA_IR_MODE
@@ -1049,7 +1049,7 @@ static int dex2oat(int argc, char** argv) {
 
   // We wrote the oat file successfully, and want to keep it.
   LOG(INFO) << "Oat file written successfully (stripped): " << oat_location;
-#endif // ART_USE_PORTABLE_COMPILER
+#endif  // ART_USE_PORTABLE_COMPILER
 
   timings.EndSplit();
 
@@ -1060,7 +1060,7 @@ static int dex2oat(int argc, char** argv) {
 }
 
 
-} // namespace art
+}  // namespace art
 
 int main(int argc, char** argv) {
   return art::dex2oat(argc, argv);

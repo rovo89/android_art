@@ -23,7 +23,7 @@
 
 namespace art {
 
-//FIXME: restore "static" when usage uncovered
+// FIXME: restore "static" when usage uncovered
 /*static*/ int core_regs[] = {
   rAX, rCX, rDX, rBX, rX86_SP, rBP, rSI, rDI
 #ifdef TARGET_REX_SUPPORT
@@ -541,4 +541,4 @@ const char* X86Mir2Lir::GetTargetInstFmt(int opcode) {
   return X86Mir2Lir::EncodingMap[opcode].fmt;
 }
 
-} // namespace art
+}  // namespace art

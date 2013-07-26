@@ -259,7 +259,7 @@ void MipsMir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
 
   // And go...
   ClobberCalleeSave();
-  LIR* call_inst = OpReg(kOpBlx, r_tgt); // ( array*, fill_data* )
+  LIR* call_inst = OpReg(kOpBlx, r_tgt);  // ( array*, fill_data* )
   MarkSafepointPC(call_inst);
 }
 

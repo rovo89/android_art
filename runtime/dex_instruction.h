@@ -82,7 +82,7 @@ class Instruction {
   // TODO: the code layout below is deliberate to avoid this enum being picked up by
   //       generate-operator-out.py.
   enum Code
-  { // NOLINT(whitespace/braces)
+  {  // NOLINT(whitespace/braces)
 #define INSTRUCTION_ENUM(opcode, cname, p, f, r, i, a, v) cname = opcode,
 #include "dex_instruction_list.h"
     DEX_INSTRUCTION_LIST(INSTRUCTION_ENUM)
@@ -124,7 +124,7 @@ class Instruction {
     kThrow    = 0x08,  // could cause an exception to be thrown
     kReturn   = 0x10,  // returns, no additional statements
     kInvoke   = 0x20,  // a flavor of invoke
-    kUnconditional = 0x40, // unconditional branch
+    kUnconditional = 0x40,  // unconditional branch
   };
 
   enum VerifyFlag {

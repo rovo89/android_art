@@ -217,7 +217,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
   EXPECT_EQ(22, trace_array->Get(1)->GetLineNumber());
 
 #if !defined(ART_USE_PORTABLE_COMPILER)
-  thread->SetTopOfStack(NULL, 0); // Disarm the assertion that no code is running when we detach.
+  thread->SetTopOfStack(NULL, 0);  // Disarm the assertion that no code is running when we detach.
 #else
   thread->PopShadowFrame();
   thread->PopShadowFrame();

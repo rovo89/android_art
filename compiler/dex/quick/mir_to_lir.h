@@ -157,7 +157,7 @@ Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
 #define ENCODE_ALL              (~0ULL)
 #define ENCODE_MEM              (ENCODE_DALVIK_REG | ENCODE_LITERAL | \
                                  ENCODE_HEAP_REF | ENCODE_MUST_NOT_ALIAS)
-//TODO: replace these macros
+// TODO: replace these macros
 #define SLOW_FIELD_PATH (cu_->enable_debug & (1 << kDebugSlowFieldPath))
 #define SLOW_INVOKE_PATH (cu_->enable_debug & (1 << kDebugSlowInvokePath))
 #define SLOW_STRING_PATH (cu_->enable_debug & (1 << kDebugSlowStringPath))
@@ -726,7 +726,7 @@ class Mir2Lir : public Backend {
     GrowableArray<LIR*> throw_launchpads_;
     GrowableArray<LIR*> suspend_launchpads_;
     GrowableArray<LIR*> intrinsic_launchpads_;
-    SafeMap<unsigned int, LIR*> boundary_map_; // boundary lookup cache.
+    SafeMap<unsigned int, LIR*> boundary_map_;  // boundary lookup cache.
     /*
      * Holds mapping from native PC to dex PC for safepoints where we may deoptimize.
      * Native PC is on the return address of the safepointed operation.  Dex PC is for

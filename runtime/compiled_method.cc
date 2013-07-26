@@ -121,7 +121,7 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
   DCHECK_EQ(vmap_table.size(),
             static_cast<uint32_t>(__builtin_popcount(core_spill_mask)
                                   + __builtin_popcount(fp_spill_mask)));
-  CHECK_LE(vmap_table.size(), (1U << 16) - 1); // length must fit in 2^16-1
+  CHECK_LE(vmap_table.size(), (1U << 16) - 1);  // length must fit in 2^16-1
 
   std::vector<uint32_t> length_prefixed_mapping_table;
   length_prefixed_mapping_table.push_back(mapping_table.size());

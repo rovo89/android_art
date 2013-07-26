@@ -419,37 +419,37 @@ class ScopedCheck {
       std::string msg;
       for (const char* fmt = fmt0; *fmt;) {
         char ch = *fmt++;
-        if (ch == 'B') { // jbyte
+        if (ch == 'B') {  // jbyte
           jbyte b = va_arg(ap, int);
           if (b >= 0 && b < 10) {
             StringAppendF(&msg, "%d", b);
           } else {
             StringAppendF(&msg, "%#x (%d)", b, b);
           }
-        } else if (ch == 'C') { // jchar
+        } else if (ch == 'C') {  // jchar
           jchar c = va_arg(ap, int);
           if (c < 0x7f && c >= ' ') {
             StringAppendF(&msg, "U+%x ('%c')", c, c);
           } else {
             StringAppendF(&msg, "U+%x", c);
           }
-        } else if (ch == 'F' || ch == 'D') { // jfloat, jdouble
+        } else if (ch == 'F' || ch == 'D') {  // jfloat, jdouble
           StringAppendF(&msg, "%g", va_arg(ap, double));
-        } else if (ch == 'I' || ch == 'S') { // jint, jshort
+        } else if (ch == 'I' || ch == 'S') {  // jint, jshort
           StringAppendF(&msg, "%d", va_arg(ap, int));
-        } else if (ch == 'J') { // jlong
+        } else if (ch == 'J') {  // jlong
           StringAppendF(&msg, "%lld", va_arg(ap, jlong));
-        } else if (ch == 'Z') { // jboolean
+        } else if (ch == 'Z') {  // jboolean
           StringAppendF(&msg, "%s", va_arg(ap, int) ? "true" : "false");
-        } else if (ch == 'V') { // void
+        } else if (ch == 'V') {  // void
           msg += "void";
-        } else if (ch == 'v') { // JavaVM*
+        } else if (ch == 'v') {  // JavaVM*
           JavaVM* vm = va_arg(ap, JavaVM*);
           StringAppendF(&msg, "(JavaVM*)%p", vm);
-        } else if (ch == 'E') { // JNIEnv*
+        } else if (ch == 'E') {  // JNIEnv*
           JNIEnv* env = va_arg(ap, JNIEnv*);
           StringAppendF(&msg, "(JNIEnv*)%p", env);
-        } else if (ch == 'L' || ch == 'a' || ch == 's') { // jobject, jarray, jstring
+        } else if (ch == 'L' || ch == 'a' || ch == 's') {  // jobject, jarray, jstring
           // For logging purposes, these are identical.
           jobject o = va_arg(ap, jobject);
           if (o == NULL) {
@@ -457,10 +457,10 @@ class ScopedCheck {
           } else {
             StringAppendF(&msg, "%p", o);
           }
-        } else if (ch == 'b') { // jboolean (JNI-style)
+        } else if (ch == 'b') {  // jboolean (JNI-style)
           jboolean b = va_arg(ap, int);
           msg += (b ? "JNI_TRUE" : "JNI_FALSE");
-        } else if (ch == 'c') { // jclass
+        } else if (ch == 'c') {  // jclass
           jclass jc = va_arg(ap, jclass);
           mirror::Class* c = reinterpret_cast<mirror::Class*>(Thread::Current()->DecodeJObject(jc));
           if (c == NULL) {
@@ -475,34 +475,34 @@ class ScopedCheck {
               StringAppendF(&msg, " (%p)", jc);
             }
           }
-        } else if (ch == 'f') { // jfieldID
+        } else if (ch == 'f') {  // jfieldID
           jfieldID fid = va_arg(ap, jfieldID);
           mirror::Field* f = reinterpret_cast<mirror::Field*>(fid);
           msg += PrettyField(f);
           if (!entry) {
             StringAppendF(&msg, " (%p)", fid);
           }
-        } else if (ch == 'z') { // non-negative jsize
+        } else if (ch == 'z') {  // non-negative jsize
           // You might expect jsize to be size_t, but it's not; it's the same as jint.
           // We only treat this specially so we can do the non-negative check.
           // TODO: maybe this wasn't worth it?
           jint i = va_arg(ap, jint);
           StringAppendF(&msg, "%d", i);
-        } else if (ch == 'm') { // jmethodID
+        } else if (ch == 'm') {  // jmethodID
           jmethodID mid = va_arg(ap, jmethodID);
           mirror::AbstractMethod* m = reinterpret_cast<mirror::AbstractMethod*>(mid);
           msg += PrettyMethod(m);
           if (!entry) {
             StringAppendF(&msg, " (%p)", mid);
           }
-        } else if (ch == 'p') { // void* ("pointer")
+        } else if (ch == 'p') {  // void* ("pointer")
           void* p = va_arg(ap, void*);
           if (p == NULL) {
             msg += "NULL";
           } else {
             StringAppendF(&msg, "(void*) %p", p);
           }
-        } else if (ch == 'r') { // jint (release mode)
+        } else if (ch == 'r') {  // jint (release mode)
           jint releaseMode = va_arg(ap, jint);
           if (releaseMode == 0) {
             msg += "0";
@@ -513,7 +513,7 @@ class ScopedCheck {
           } else {
             StringAppendF(&msg, "invalid release mode %d", releaseMode);
           }
-        } else if (ch == 'u') { // const char* (Modified UTF-8)
+        } else if (ch == 'u') {  // const char* (Modified UTF-8)
           const char* utf = va_arg(ap, const char*);
           if (utf == NULL) {
             msg += "NULL";
@@ -573,11 +573,11 @@ class ScopedCheck {
         } else if (ch == 'z') {
           CheckLengthPositive(va_arg(ap, jsize));
         } else if (strchr("BCISZbfmpEv", ch) != NULL) {
-          va_arg(ap, uint32_t); // Skip this argument.
+          va_arg(ap, uint32_t);  // Skip this argument.
         } else if (ch == 'D' || ch == 'F') {
-          va_arg(ap, double); // Skip this argument.
+          va_arg(ap, double);  // Skip this argument.
         } else if (ch == 'J') {
-          va_arg(ap, uint64_t); // Skip this argument.
+          va_arg(ap, uint64_t);  // Skip this argument.
         } else if (ch == '.') {
         } else {
           LOG(FATAL) << "Unknown check format specifier: " << ch;
@@ -797,7 +797,7 @@ class ScopedCheck {
       // Don't check here; we allow nested gets.
       threadEnv->critical++;
       break;
-    case kFlag_CritRelease: // this is a "release" call
+    case kFlag_CritRelease:  // this is a "release" call
       threadEnv->critical--;
       if (threadEnv->critical < 0) {
         JniAbortF(function_name_, "thread %s called too many critical releases", ToStr<Thread>(*self).c_str());
@@ -1007,7 +1007,7 @@ struct GuardedCopy {
       memcpy(buf, &pExtra->magic, 4);
       JniAbortF(functionName,
           "guard magic does not match (found 0x%02x%02x%02x%02x) -- incorrect data pointer %p?",
-          buf[3], buf[2], buf[1], buf[0], dataBuf); // Assumes little-endian.
+          buf[3], buf[2], buf[1], buf[0], dataBuf);  // Assumes little-endian.
     }
 
     size_t len = pExtra->original_length;
@@ -1529,7 +1529,7 @@ CALL(void, Void, , , VOID_RETURN, "V");
   }
 
   static jstring NewStringUTF(JNIEnv* env, const char* bytes) {
-    CHECK_JNI_ENTRY(kFlag_NullableUtf, "Eu", env, bytes); // TODO: show pointer and truncate string.
+    CHECK_JNI_ENTRY(kFlag_NullableUtf, "Eu", env, bytes);  // TODO: show pointer and truncate string.
     return CHECK_JNI_EXIT("s", baseEnv(env)->NewStringUTF(env, bytes));
   }
 
@@ -1547,11 +1547,11 @@ CALL(void, Void, , , VOID_RETURN, "V");
         *isCopy = JNI_TRUE;
       }
     }
-    return CHECK_JNI_EXIT("u", result); // TODO: show pointer and truncate string.
+    return CHECK_JNI_EXIT("u", result);  // TODO: show pointer and truncate string.
   }
 
   static void ReleaseStringUTFChars(JNIEnv* env, jstring string, const char* utf) {
-    CHECK_JNI_ENTRY(kFlag_ExcepOkay | kFlag_Release, "Esu", env, string, utf); // TODO: show pointer and truncate string.
+    CHECK_JNI_ENTRY(kFlag_ExcepOkay | kFlag_Release, "Esu", env, string, utf);  // TODO: show pointer and truncate string.
     if (sc.ForceCopy()) {
       GuardedCopy::Check(__FUNCTION__, utf, false);
       utf = reinterpret_cast<const char*>(GuardedCopy::Destroy(const_cast<char*>(utf)));
@@ -1681,7 +1681,7 @@ PRIMITIVE_ARRAY_FUNCTIONS(jdouble, Double, 'D');
   static jint MonitorEnter(JNIEnv* env, jobject obj) {
     CHECK_JNI_ENTRY(kFlag_Default, "EL", env, obj);
     if (!sc.CheckInstance(ScopedCheck::kObject, obj)) {
-      return JNI_ERR; // Only for jni_internal_test. Real code will have aborted already.
+      return JNI_ERR;  // Only for jni_internal_test. Real code will have aborted already.
     }
     return CHECK_JNI_EXIT("I", baseEnv(env)->MonitorEnter(env, obj));
   }
@@ -1689,7 +1689,7 @@ PRIMITIVE_ARRAY_FUNCTIONS(jdouble, Double, 'D');
   static jint MonitorExit(JNIEnv* env, jobject obj) {
     CHECK_JNI_ENTRY(kFlag_Default | kFlag_ExcepOkay, "EL", env, obj);
     if (!sc.CheckInstance(ScopedCheck::kObject, obj)) {
-      return JNI_ERR; // Only for jni_internal_test. Real code will have aborted already.
+      return JNI_ERR;  // Only for jni_internal_test. Real code will have aborted already.
     }
     return CHECK_JNI_EXIT("I", baseEnv(env)->MonitorExit(env, obj));
   }

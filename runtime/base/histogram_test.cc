@@ -22,16 +22,16 @@
 
 namespace art {
 
-//Simple usage:
-//  Histogram *hist = new Histogram("SimplePercentiles");
-//  Percentile PerValue
-//  hist->AddValue(121);
-//  hist->AddValue(132);
-//  hist->AddValue(140);
-//  hist->AddValue(145);
-//  hist->AddValue(155);
-//  hist->CreateHistogram();
-//  PerValue = hist->PercentileVal(0.50); finds the 50th percentile(median).
+// Simple usage:
+//   Histogram *hist = new Histogram("SimplePercentiles");
+//   Percentile PerValue
+//   hist->AddValue(121);
+//   hist->AddValue(132);
+//   hist->AddValue(140);
+//   hist->AddValue(145);
+//   hist->AddValue(155);
+//   hist->CreateHistogram();
+//   PerValue = hist->PercentileVal(0.50); finds the 50th percentile(median).
 
 TEST(Histtest, MeanTest) {
   UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("MeanTest"));
@@ -105,7 +105,7 @@ TEST(Histtest, UpdateRange) {
   hist->AddValue(110);
   hist->AddValue(121);
   hist->AddValue(132);
-  hist->AddValue(140);  //Median  value
+  hist->AddValue(140);  // Median  value
   hist->AddValue(145);
   hist->AddValue(155);
   hist->AddValue(163);
@@ -148,7 +148,7 @@ TEST(Histtest, Reset) {
   hist->AddValue(110);
   hist->AddValue(121);
   hist->AddValue(132);
-  hist->AddValue(140);  //Median  value
+  hist->AddValue(140);  // Median  value
   hist->AddValue(145);
   hist->AddValue(155);
   hist->AddValue(163);
@@ -188,7 +188,7 @@ TEST(Histtest, MultipleCreateHist) {
   hist->AddValue(110);
   hist->AddValue(121);
   hist->AddValue(132);
-  hist->AddValue(140);  //Median  value
+  hist->AddValue(140);  // Median  value
   hist->AddValue(145);
   hist->AddValue(155);
   hist->AddValue(163);
@@ -265,4 +265,4 @@ TEST(Histtest, SpikyValues) {
   EXPECT_EQ(expected, stream.str());
 }
 
-} // namespace art
+}  // namespace art

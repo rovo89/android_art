@@ -77,7 +77,7 @@ void RuntimeSupportBuilderThumb2::EmitLockObject(Value* object) {
   irb_.CreateBr(basic_block_cont);
 
   irb_.SetInsertPoint(basic_block_cont);
-  { // Memory barrier
+  {  // Memory barrier
     FunctionType* asm_ty = FunctionType::get(/*Result=*/Type::getVoidTy(context_),
                                               /*isVarArg=*/false);
     InlineAsm* func = InlineAsm::get(asm_ty, "dmb sy", "", true);
@@ -86,5 +86,5 @@ void RuntimeSupportBuilderThumb2::EmitLockObject(Value* object) {
 }
 
 
-} // namespace llvm
-} // namespace art
+}  // namespace llvm
+}  // namespace art

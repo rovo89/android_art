@@ -174,7 +174,7 @@ void MipsMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
 void MipsMir2Lir::GenCmpFP(Instruction::Code opcode, RegLocation rl_dest,
                            RegLocation rl_src1, RegLocation rl_src2) {
   bool wide = true;
-  int offset = -1; // Make gcc happy.
+  int offset = -1;  // Make gcc happy.
 
   switch (opcode) {
     case Instruction::CMPL_FLOAT:
@@ -237,4 +237,4 @@ bool MipsMir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min) {
   return false;
 }
 
-} //  namespace art
+}  // namespace art

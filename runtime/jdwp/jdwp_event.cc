@@ -248,7 +248,7 @@ void JdwpState::UnregisterEventById(uint32_t requestId) {
     pEvent = pEvent->next;
   }
 
-  //LOGD("Odd: no match when removing event reqId=0x%04x", requestId);
+  // ALOGD("Odd: no match when removing event reqId=0x%04x", requestId);
 }
 
 /*
@@ -679,7 +679,7 @@ bool JdwpState::PostVMStart() {
 
   ExpandBuf* pReq = eventPrep();
   {
-    MutexLock mu(Thread::Current(), event_list_lock_); // probably don't need this here
+    MutexLock mu(Thread::Current(), event_list_lock_);  // probably don't need this here
 
     VLOG(jdwp) << "EVENT: " << EK_VM_START;
     VLOG(jdwp) << "  suspend_policy=" << suspend_policy;
@@ -773,7 +773,7 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
       FindMatchingEvents(EK_METHOD_EXIT, &basket, match_list, &match_count);
 
       // TODO: match EK_METHOD_EXIT_WITH_RETURN_VALUE too; we need to include the 'value', though.
-      //FindMatchingEvents(EK_METHOD_EXIT_WITH_RETURN_VALUE, &basket, match_list, &match_count);
+      // FindMatchingEvents(EK_METHOD_EXIT_WITH_RETURN_VALUE, &basket, match_list, &match_count);
     }
     if (match_count != 0) {
       VLOG(jdwp) << "EVENT: " << match_list[0]->eventKind << "(" << match_count << " total) "

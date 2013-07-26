@@ -74,7 +74,7 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
   std::string name(PrettyMethod(shadow_frame->GetMethod()));
   if (name == "java.lang.Class java.lang.Class.forName(java.lang.String)") {
     std::string descriptor(DotToDescriptor(shadow_frame->GetVRegReference(arg_offset)->AsString()->ToModifiedUtf8().c_str()));
-    ClassLoader* class_loader = NULL; // shadow_frame.GetMethod()->GetDeclaringClass()->GetClassLoader();
+    ClassLoader* class_loader = NULL;  // shadow_frame.GetMethod()->GetDeclaringClass()->GetClassLoader();
     Class* found = Runtime::Current()->GetClassLinker()->FindClass(descriptor.c_str(),
                                                                    class_loader);
     CHECK(found != NULL) << "Class.forName failed in un-started runtime for class: "
@@ -659,7 +659,7 @@ static inline void DoIGetQuick(Thread* self, ShadowFrame& shadow_frame,
     return;
   }
   MemberOffset field_offset(inst->VRegC_22c());
-  const bool is_volatile = false; // iget-x-quick only on non volatile fields.
+  const bool is_volatile = false;  // iget-x-quick only on non volatile fields.
   const uint32_t vregA = inst->VRegA_22c();
   switch (field_type) {
     case Primitive::kPrimInt:
@@ -752,7 +752,7 @@ static inline void DoIPutQuick(Thread* self, ShadowFrame& shadow_frame,
     return;
   }
   MemberOffset field_offset(inst->VRegC_22c());
-  const bool is_volatile = false; // iput-x-quick only on non volatile fields.
+  const bool is_volatile = false;  // iput-x-quick only on non volatile fields.
   const uint32_t vregA = inst->VRegA_22c();
   switch (field_type) {
     case Primitive::kPrimInt:

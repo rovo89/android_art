@@ -42,7 +42,7 @@ void Field::ResetClass() {
 
 void Field::SetOffset(MemberOffset num_bytes) {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
-#if 0 // TODO enable later in boot and under !NDEBUG
+#if 0  // TODO enable later in boot and under !NDEBUG
   FieldHelper fh(this);
   Primitive::Type type = fh.GetTypeAsPrimitiveType();
   if (type == Primitive::kPrimDouble || type == Primitive::kPrimLong) {

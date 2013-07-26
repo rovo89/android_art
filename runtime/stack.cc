@@ -134,7 +134,7 @@ size_t StackVisitor::GetNativePcOffset() const {
 
 uint32_t StackVisitor::GetVReg(mirror::AbstractMethod* m, uint16_t vreg, VRegKind kind) const {
   if (cur_quick_frame_ != NULL) {
-    DCHECK(context_ != NULL); // You can't reliably read registers without a context.
+    DCHECK(context_ != NULL);  // You can't reliably read registers without a context.
     DCHECK(m == GetMethod());
     const VmapTable vmap_table(m->GetVmapTableRaw());
     uint32_t vmap_offset;
@@ -146,7 +146,7 @@ uint32_t StackVisitor::GetVReg(mirror::AbstractMethod* m, uint16_t vreg, VRegKin
       return GetGPR(vmap_table.ComputeRegister(spill_mask, vmap_offset, kind));
     } else {
       const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
-      DCHECK(code_item != NULL) << PrettyMethod(m); // Can't be NULL or how would we compile its instructions?
+      DCHECK(code_item != NULL) << PrettyMethod(m);  // Can't be NULL or how would we compile its instructions?
       size_t frame_size = m->GetFrameSizeInBytes();
       return GetVReg(cur_quick_frame_, code_item, m->GetCoreSpillMask(), m->GetFpSpillMask(),
                      frame_size, vreg);
@@ -159,7 +159,7 @@ uint32_t StackVisitor::GetVReg(mirror::AbstractMethod* m, uint16_t vreg, VRegKin
 void StackVisitor::SetVReg(mirror::AbstractMethod* m, uint16_t vreg, uint32_t new_value,
                            VRegKind kind) {
   if (cur_quick_frame_ != NULL) {
-    DCHECK(context_ != NULL); // You can't reliably write registers without a context.
+    DCHECK(context_ != NULL);  // You can't reliably write registers without a context.
     DCHECK(m == GetMethod());
     const VmapTable vmap_table(m->GetVmapTableRaw());
     uint32_t vmap_offset;
@@ -171,7 +171,7 @@ void StackVisitor::SetVReg(mirror::AbstractMethod* m, uint16_t vreg, uint32_t ne
       SetGPR(reg, new_value);
     } else {
       const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
-      DCHECK(code_item != NULL) << PrettyMethod(m); // Can't be NULL or how would we compile its instructions?
+      DCHECK(code_item != NULL) << PrettyMethod(m);  // Can't be NULL or how would we compile its instructions?
       uint32_t core_spills = m->GetCoreSpillMask();
       uint32_t fp_spills = m->GetFpSpillMask();
       size_t frame_size = m->GetFrameSizeInBytes();

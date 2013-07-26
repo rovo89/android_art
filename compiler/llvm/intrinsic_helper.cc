@@ -174,5 +174,5 @@ IntrinsicHelper::IntrinsicHelper(::llvm::LLVMContext& context,
   return;
 }
 
-} // namespace llvm
-} // namespace art
+}  // namespace llvm
+}  // namespace art

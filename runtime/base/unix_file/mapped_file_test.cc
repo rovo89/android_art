@@ -212,7 +212,7 @@ TEST_F(MappedFileTest, WriteMappedReadWrite) {
   EXPECT_EQ(0, memcmp(kContent.c_str(), file.data(), kContent.size()));
 }
 
-#if 0 // death tests don't work on android yet
+#if 0  // death tests don't work on android yet
 
 class MappedFileDeathTest : public MappedFileTest {};
 

@@ -228,7 +228,7 @@ static bool InflateToMemory(uint8_t* begin, size_t size,
     }
   } while (zerr == Z_OK);
 
-  DCHECK_EQ(zerr, Z_STREAM_END); // other errors should've been caught
+  DCHECK_EQ(zerr, Z_STREAM_END);  // other errors should've been caught
 
   // paranoia
   if (zstream->Get().total_out != uncompressed_length) {

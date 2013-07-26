@@ -845,7 +845,7 @@ bool MIRGraph::BuildExtendedBBList(struct BasicBlock* bb) {
       bb = NextDominatedBlock(bb);
     }
   }
-  return false; // Not iterative - return value will be ignored
+  return false;  // Not iterative - return value will be ignored
 }
 
 

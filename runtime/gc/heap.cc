@@ -523,7 +523,7 @@ bool Heap::IsHeapAddress(const mirror::Object* obj) {
 }
 
 bool Heap::IsLiveObjectLocked(const mirror::Object* obj) {
-  //Locks::heap_bitmap_lock_->AssertReaderHeld(Thread::Current());
+  // Locks::heap_bitmap_lock_->AssertReaderHeld(Thread::Current());
   if (obj == NULL) {
     return false;
   }

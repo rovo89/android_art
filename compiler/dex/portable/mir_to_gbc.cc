@@ -1648,7 +1648,7 @@ bool MirConverter::BlockBitcodeConversion(BasicBlock* bb) {
   if (bb->block_type == kEntryBlock) {
     SetMethodInfo();
 
-    { // Allocate shadowframe.
+    {  // Allocate shadowframe.
       art::llvm::IntrinsicHelper::IntrinsicId id =
               art::llvm::IntrinsicHelper::AllocaShadowFrame;
       ::llvm::Function* func = intrinsic_helper_->GetIntrinsicFunction(id);
@@ -1656,7 +1656,7 @@ bool MirConverter::BlockBitcodeConversion(BasicBlock* bb) {
       irb_->CreateCall(func, entries);
     }
 
-    { // Store arguments to vregs.
+    {  // Store arguments to vregs.
       uint16_t arg_reg = cu_->num_regs;
 
       ::llvm::Function::arg_iterator arg_iter(func_->arg_begin());
@@ -1666,7 +1666,7 @@ bool MirConverter::BlockBitcodeConversion(BasicBlock* bb) {
       uint32_t shorty_size = strlen(shorty);
       CHECK_GE(shorty_size, 1u);
 
-      ++arg_iter; // skip method object
+      ++arg_iter;  // skip method object
 
       if ((cu_->access_flags & kAccStatic) == 0) {
         SetVregOnValue(arg_iter, arg_reg);

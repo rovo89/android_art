@@ -276,5 +276,5 @@ void RuntimeSupportBuilder::EmitMarkGCCard(::llvm::Value* value, ::llvm::Value* 
 }
 
 
-} // namespace llvm
-} // namespace art
+}  // namespace llvm
+}  // namespace art

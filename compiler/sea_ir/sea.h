@@ -256,7 +256,7 @@ class SeaGraph: IVisitable {
   static void ComputeRPO(Region* crt_bb, int& crt_rpo);
   // Returns the "lowest common ancestor" of @i and @j in the dominator tree.
   static Region* Intersect(Region* i, Region* j);
-  //Returns the vector of parameters of the function.
+  // Returns the vector of parameters of the function.
   std::vector<SignatureNode*>* GetParameterNodes() {
     return &parameters_;
   }
@@ -320,5 +320,5 @@ class SeaGraph: IVisitable {
   std::vector<Region*> regions_;
   std::vector<SignatureNode*> parameters_;
 };
-} // end namespace sea_ir
+}  // namespace sea_ir
 #endif  // ART_COMPILER_SEA_IR_SEA_H_

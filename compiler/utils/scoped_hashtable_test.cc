@@ -65,4 +65,4 @@ TEST_F(ScopedHashtableTest, Basics) {
   EXPECT_TRUE(NULL == sht.Lookup(2));
 }
 
-} // end namespace art
+}  // namespace art

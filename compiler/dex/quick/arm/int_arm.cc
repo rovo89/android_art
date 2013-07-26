@@ -49,7 +49,7 @@ LIR* ArmMir2Lir::OpIT(ConditionCode ccode, const char* guide) {
   int cond_bit = code & 1;
   int alt_bit = cond_bit ^ 1;
 
-  //Note: case fallthroughs intentional
+  // Note: case fallthroughs intentional
   switch (strlen(guide)) {
     case 3:
       mask1 = (guide[2] == 'T') ? cond_bit : alt_bit;
@@ -107,7 +107,7 @@ void ArmMir2Lir::GenCmpLong(RegLocation rl_dest, RegLocation rl_src1,
 
   target1 = NewLIR0(kPseudoTargetLabel);
 
-  RegLocation rl_temp = LocCReturn(); // Just using as template, will change
+  RegLocation rl_temp = LocCReturn();  // Just using as template, will change
   rl_temp.low_reg = t_reg;
   StoreValue(rl_dest, rl_temp);
   FreeTemp(t_reg);
@@ -207,13 +207,13 @@ void ArmMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
       OpRegRegImm(kOpRsub, rl_result.low_reg, rl_src.low_reg, 1);
       OpIT(kCondCc, "");
       LoadConstant(rl_result.low_reg, 0);
-      GenBarrier(); // Add a scheduling barrier to keep the IT shadow intact
+      GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
     } else if (InexpensiveConstantInt(true_val) && InexpensiveConstantInt(false_val)) {
       OpRegImm(kOpCmp, rl_src.low_reg, 0);
       OpIT(kCondEq, "E");
       LoadConstant(rl_result.low_reg, true_val);
       LoadConstant(rl_result.low_reg, false_val);
-      GenBarrier(); // Add a scheduling barrier to keep the IT shadow intact
+      GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
     } else {
       // Unlikely case - could be tuned.
       int t_reg1 = AllocTemp();
@@ -224,7 +224,7 @@ void ArmMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
       OpIT(kCondEq, "E");
       OpRegCopy(rl_result.low_reg, t_reg1);
       OpRegCopy(rl_result.low_reg, t_reg2);
-      GenBarrier(); // Add a scheduling barrier to keep the IT shadow intact
+      GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
     }
   } else {
     // MOVE case
@@ -239,7 +239,7 @@ void ArmMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
     l1->flags.is_nop = false;  // Make sure this instruction isn't optimized away
     LIR* l2 = OpRegCopy(rl_result.low_reg, rl_false.low_reg);
     l2->flags.is_nop = false;  // Make sure this instruction isn't optimized away
-    GenBarrier(); // Add a scheduling barrier to keep the IT shadow intact
+    GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
   }
   StoreValue(rl_dest, rl_result);
 }
@@ -716,7 +716,7 @@ void ArmMir2Lir::GenMulLong(RegLocation rl_dest, RegLocation rl_src1,
       }
     }
     FreeTemp(tmp1);
-    rl_result = GetReturnWide(false); // Just using as a template.
+    rl_result = GetReturnWide(false);  // Just using as a template.
     rl_result.low_reg = res_lo;
     rl_result.high_reg = res_hi;
     StoreValueWide(rl_dest, rl_result);
@@ -883,7 +883,7 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   int reg_len = INVALID_REG;
   if (needs_range_check) {
     reg_len = AllocTemp();
-    //NOTE: max live temps(4) here.
+    // NOTE: max live temps(4) here.
     /* Get len */
     LoadWordDisp(rl_array.low_reg, len_offset, reg_len);
   }

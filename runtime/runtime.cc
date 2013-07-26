@@ -63,7 +63,7 @@
 #include "verifier/method_verifier.h"
 #include "well_known_classes.h"
 
-#include "JniConstants.h" // Last to avoid LOG redefinition in ics-mr1-plus-art.
+#include "JniConstants.h"  // Last to avoid LOG redefinition in ics-mr1-plus-art.
 
 namespace art {
 
@@ -340,7 +340,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->heap_growth_limit_ = 0;  // 0 means no growth limit.
   // Default to number of processors minus one since the main GC thread also does work.
   parsed->heap_gc_threads_ = sysconf(_SC_NPROCESSORS_CONF) - 1;
-  parsed->stack_size_ = 0; // 0 means default.
+  parsed->stack_size_ = 0;  // 0 means default.
 
   parsed->is_compiler_ = false;
   parsed->is_zygote_ = false;
@@ -352,23 +352,23 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
 
   parsed->hook_vfprintf_ = vfprintf;
   parsed->hook_exit_ = exit;
-  parsed->hook_abort_ = NULL; // We don't call abort(3) by default; see Runtime::Abort.
+  parsed->hook_abort_ = NULL;  // We don't call abort(3) by default; see Runtime::Abort.
 
   parsed->small_mode_ = false;
   parsed->small_mode_method_threshold_ = Runtime::kDefaultSmallModeMethodThreshold;
   parsed->small_mode_method_dex_size_limit_ = Runtime::kDefaultSmallModeMethodDexSizeLimit;
 
   parsed->sea_ir_mode_ = false;
-//  gLogVerbosity.class_linker = true; // TODO: don't check this in!
-//  gLogVerbosity.compiler = true; // TODO: don't check this in!
-//  gLogVerbosity.heap = true; // TODO: don't check this in!
-//  gLogVerbosity.gc = true; // TODO: don't check this in!
-//  gLogVerbosity.jdwp = true; // TODO: don't check this in!
-//  gLogVerbosity.jni = true; // TODO: don't check this in!
-//  gLogVerbosity.monitor = true; // TODO: don't check this in!
-//  gLogVerbosity.startup = true; // TODO: don't check this in!
-//  gLogVerbosity.third_party_jni = true; // TODO: don't check this in!
-//  gLogVerbosity.threads = true; // TODO: don't check this in!
+//  gLogVerbosity.class_linker = true;  // TODO: don't check this in!
+//  gLogVerbosity.compiler = true;  // TODO: don't check this in!
+//  gLogVerbosity.heap = true;  // TODO: don't check this in!
+//  gLogVerbosity.gc = true;  // TODO: don't check this in!
+//  gLogVerbosity.jdwp = true;  // TODO: don't check this in!
+//  gLogVerbosity.jni = true;  // TODO: don't check this in!
+//  gLogVerbosity.monitor = true;  // TODO: don't check this in!
+//  gLogVerbosity.startup = true;  // TODO: don't check this in!
+//  gLogVerbosity.third_party_jni = true;  // TODO: don't check this in!
+//  gLogVerbosity.threads = true;  // TODO: don't check this in!
 
   parsed->method_trace_ = false;
   parsed->method_trace_file_ = "/data/method-trace-file.bin";
@@ -582,7 +582,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         // TODO: print usage via vfprintf
         LOG(ERROR) << "Unrecognized option " << option;
         // TODO: this should exit, but for now tolerate unknown options
-        //return NULL;
+        // return NULL;
       }
     }
   }
@@ -613,7 +613,7 @@ bool Runtime::Create(const Options& options, bool ignore_unrecognized) {
   if (Runtime::instance_ != NULL) {
     return false;
   }
-  InitLogging(NULL); // Calls Locks::Init() as a side effect.
+  InitLogging(NULL);  // Calls Locks::Init() as a side effect.
   instance_ = new Runtime;
   if (!instance_->Init(options, ignore_unrecognized)) {
     delete instance_;
@@ -1036,7 +1036,7 @@ int32_t Runtime::GetStat(int kind) {
     return 0;  // backward compatibility
   default:
     LOG(FATAL) << "Unknown statistic " << kind;
-    return -1; // unreachable
+    return -1;  // unreachable
   }
 }
 

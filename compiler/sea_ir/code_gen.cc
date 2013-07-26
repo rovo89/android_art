@@ -111,7 +111,7 @@ void CodeGenVisitor::Visit(Region* region) {
 
 void CodeGenVisitor::Visit(InstructionNode* instruction) {
   std::string instr = instruction->GetInstruction()->DumpString(NULL);
-  DCHECK(0); // This whole function is useful only during development.
+  DCHECK(0);  // This whole function is useful only during development.
 }
 void CodeGenVisitor::Visit(ConstInstructionNode* instruction) {
   std::string instr = instruction->GetInstruction()->DumpString(NULL);
@@ -270,4 +270,4 @@ void CodeGenPostpassVisitor::Visit(SignatureNode* signature) {
   DCHECK_EQ(signature->GetDefinitions().size(), 1u) << "Signature nodes must correspond to a single parameter register.";
 }
 
-} // end namespace sea_ir
+}  // namespace sea_ir

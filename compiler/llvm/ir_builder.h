@@ -482,7 +482,7 @@ class IRBuilder : public LLVMIRBuilder {
 };
 
 
-} // namespace llvm
-} // namespace art
+}  // namespace llvm
+}  // namespace art
 
 #endif  // ART_COMPILER_LLVM_IR_BUILDER_H_

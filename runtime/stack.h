@@ -514,7 +514,7 @@ class StackVisitor {
                            uint32_t core_spills, uint32_t fp_spills,
                            size_t frame_size, int reg) {
     DCHECK_EQ(frame_size & (kStackAlignment - 1), 0U);
-    int num_spills = __builtin_popcount(core_spills) + __builtin_popcount(fp_spills) + 1; // Filler.
+    int num_spills = __builtin_popcount(core_spills) + __builtin_popcount(fp_spills) + 1;  // Filler.
     int num_ins = code_item->ins_size_;
     int num_regs = code_item->registers_size_ - num_ins;
     int locals_start = frame_size - ((num_spills + num_regs) * sizeof(uint32_t));
@@ -525,7 +525,7 @@ class StackVisitor {
     } else if (reg < num_regs) {
       return locals_start + (reg * sizeof(uint32_t));        // Dalvik local reg.
     } else {
-      return frame_size + ((reg - num_regs) * sizeof(uint32_t)) + sizeof(uint32_t); // Dalvik in.
+      return frame_size + ((reg - num_regs) * sizeof(uint32_t)) + sizeof(uint32_t);  // Dalvik in.
     }
   }
 
@@ -543,7 +543,7 @@ class StackVisitor {
 
   StackIndirectReferenceTable* GetCurrentSirt() const {
     mirror::AbstractMethod** sp = GetCurrentQuickFrame();
-    ++sp; // Skip Method*; SIRT comes next;
+    ++sp;  // Skip Method*; SIRT comes next;
     return reinterpret_cast<StackIndirectReferenceTable*>(sp);
   }
 
