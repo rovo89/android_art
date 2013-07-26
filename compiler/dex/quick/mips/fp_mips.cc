@@ -16,8 +16,8 @@
 
 #include "codegen_mips.h"
 #include "dex/quick/mir_to_lir-inl.h"
+#include "entrypoints/quick/quick_entrypoints.h"
 #include "mips_lir.h"
-#include "oat/runtime/oat_support_entrypoints.h"
 
 namespace art {
 

@@ -28,7 +28,7 @@
 #include "base/macros.h"
 #include "globals.h"
 #include "jvalue.h"
-#include "oat/runtime/oat_support_entrypoints.h"
+#include "entrypoints/quick/quick_entrypoints.h"
 #include "locks.h"
 #include "offsets.h"
 #include "root_visitor.h"
@@ -775,7 +775,7 @@ class PACKED(4) Thread {
  public:
   // Runtime support function pointers
   // TODO: move this near the top, since changing its offset requires all oats to be recompiled!
-  EntryPoints entrypoints_;
+  QuickEntryPoints entrypoints_;
 
  private:
   // How many times has our pthread key's destructor been called?

@@ -30,6 +30,7 @@
 #include <iostream>
 #include <list>
 
+#include "arch/context.h"
 #include "base/mutex.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
@@ -50,7 +51,6 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/stack_trace_element.h"
 #include "monitor.h"
-#include "oat/runtime/context.h"
 #include "object_utils.h"
 #include "reflection.h"
 #include "runtime.h"
@@ -1686,7 +1686,7 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset, size_t size_of_
 #undef DO_THREAD_OFFSET
 
   size_t entry_point_count = arraysize(gThreadEntryPointInfo);
-  CHECK_EQ(entry_point_count * size_of_pointers, sizeof(EntryPoints));
+  CHECK_EQ(entry_point_count * size_of_pointers, sizeof(QuickEntryPoints));
   uint32_t expected_offset = OFFSETOF_MEMBER(Thread, entrypoints_);
   for (size_t i = 0; i < entry_point_count; ++i) {
     CHECK_EQ(gThreadEntryPointInfo[i].offset, expected_offset) << gThreadEntryPointInfo[i].name;

@@ -28,11 +28,11 @@
 #include <limits>
 #include <vector>
 
+#include "arch/arm/registers_arm.h"
+#include "arch/mips/registers_mips.h"
+#include "arch/x86/registers_x86.h"
 #include "atomic.h"
 #include "class_linker.h"
-#include "constants_arm.h"
-#include "constants_mips.h"
-#include "constants_x86.h"
 #include "debugger.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/heap.h"

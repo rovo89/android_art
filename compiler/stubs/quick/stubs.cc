@@ -16,11 +16,11 @@
 
 #include "stubs/stubs.h"
 
+#include "entrypoints/quick/quick_entrypoints.h"
 #include "jni_internal.h"
-#include "oat/runtime/oat_support_entrypoints.h"
-#include "oat/utils/arm/assembler_arm.h"
-#include "oat/utils/mips/assembler_mips.h"
-#include "oat/utils/x86/assembler_x86.h"
+#include "utils/arm/assembler_arm.h"
+#include "utils/mips/assembler_mips.h"
+#include "utils/x86/assembler_x86.h"
 #include "sirt_ref.h"
 #include "stack_indirect_reference_table.h"
 

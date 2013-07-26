@@ -16,11 +16,11 @@
 
 #include "dex/compiler_ir.h"
 #include "dex_file-inl.h"
+#include "entrypoints/quick/quick_entrypoints.h"
 #include "invoke_type.h"
 #include "mirror/array.h"
 #include "mirror/string.h"
 #include "mir_to_lir-inl.h"
-#include "oat/runtime/oat_support_entrypoints.h"
 #include "x86/codegen_x86.h"
 
 namespace art {

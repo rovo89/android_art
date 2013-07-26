@@ -76,6 +76,13 @@ LIBART_COMPILER_SRC_FILES := \
 	llvm/runtime_support_builder_x86.cc \
 	stubs/portable/stubs.cc \
 	stubs/quick/stubs.cc \
+	utils/arm/assembler_arm.cc \
+	utils/arm/managed_register_arm.cc \
+	utils/assembler.cc \
+	utils/mips/assembler_mips.cc \
+	utils/mips/managed_register_mips.cc \
+	utils/x86/assembler_x86.cc \
+	utils/x86/managed_register_x86.cc \
 	elf_fixup.cc \
 	elf_stripper.cc \
 	elf_writer.cc \

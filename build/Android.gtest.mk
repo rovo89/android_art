@@ -17,6 +17,11 @@
 LOCAL_PATH := art
 
 TEST_COMMON_SRC_FILES := \
+	compiler/driver/compiler_driver_test.cc \
+	compiler/elf_writer_test.cc \
+	compiler/jni/jni_compiler_test.cc \
+	compiler/utils/arm/managed_register_arm_test.cc \
+	compiler/utils/x86/managed_register_x86_test.cc \
 	runtime/barrier_test.cc \
 	runtime/base/histogram_test.cc \
 	runtime/base/mutex_test.cc \
@@ -41,8 +46,6 @@ TEST_COMMON_SRC_FILES := \
 	runtime/jni_internal_test.cc \
 	runtime/mirror/dex_cache_test.cc \
 	runtime/mirror/object_test.cc \
-	runtime/oat/utils/arm/managed_register_arm_test.cc \
-	runtime/oat/utils/x86/managed_register_x86_test.cc \
 	runtime/oat_test.cc \
 	runtime/output_stream_test.cc \
 	runtime/reference_table_test.cc \
@@ -52,10 +55,7 @@ TEST_COMMON_SRC_FILES := \
 	runtime/utils_test.cc \
 	runtime/verifier/method_verifier_test.cc \
 	runtime/verifier/reg_type_test.cc \
-	runtime/zip_archive_test.cc \
-	compiler/driver/compiler_driver_test.cc \
-	compiler/elf_writer_test.cc \
-	compiler/jni/jni_compiler_test.cc
+	runtime/zip_archive_test.cc
 
 ifeq ($(ART_SEA_IR_MODE),true)
 TEST_COMMON_SRC_FILES += \
@@ -67,7 +67,7 @@ TEST_TARGET_SRC_FILES := \
 
 TEST_HOST_SRC_FILES := \
 	$(TEST_COMMON_SRC_FILES) \
-	runtime/oat/utils/x86/assembler_x86_test.cc
+	compiler/utils/x86/assembler_x86_test.cc
 
 ART_HOST_TEST_EXECUTABLES :=
 ART_TARGET_TEST_EXECUTABLES :=
