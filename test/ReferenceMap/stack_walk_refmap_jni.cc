@@ -168,71 +168,71 @@ struct ReferenceMap2Visitor : public StackVisitor {
 //      |0001: const/4 v7, #int 0 // #0
 //      |0002: const/4 v6, #int 1 // #1
 //
-//0:[Unknown],1:[Unknown],2:[Unknown],3:[Unknown],4:[32-bit Constant: 2],5:[Unknown],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
-//      |0003: new-array v1, v4, [Ljava/lang/Object; // type@0007
+// 0:[Unknown],1:[Unknown],2:[Unknown],3:[Unknown],4:[32-bit Constant: 2],5:[Unknown],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
+//      |0003: new-array v1, v4, [Ljava/lang/Object;  // type@0007
 //      |0005: const/4 v2, #int 0 // #0
 
-//0:[Unknown],1:[Reference: java.lang.Object[]],2:[Zero],3:[Unknown],4:[32-bit Constant: 2],5:[Unknown],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
-//      |0006: new-instance v3, Ljava/lang/Object; // type@0003
+// 0:[Unknown],1:[Reference: java.lang.Object[]],2:[Zero],3:[Unknown],4:[32-bit Constant: 2],5:[Unknown],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
+//      |0006: new-instance v3, Ljava/lang/Object;  // type@0003
 
-//[Unknown],1:[Reference: java.lang.Object[]],2:[Zero],3:[Uninitialized Reference: java.lang.Object],4:[32-bit Constant: 2],5:[Unknown],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
+// [Unknown],1:[Reference: java.lang.Object[]],2:[Zero],3:[Uninitialized Reference: java.lang.Object],4:[32-bit Constant: 2],5:[Unknown],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
 //      |0008: +invoke-object-init/range {}, Ljava/lang/Object;.<init>:()V // method@0005
 //      |000b: const/4 v4, #int 2 // #2
 
-//0:[Unknown],1:[Reference: java.lang.Object[]],2:[Zero],3:[Reference: java.lang.Object],4:[32-bit Constant: 2],5:[Unknown],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
+// 0:[Unknown],1:[Reference: java.lang.Object[]],2:[Zero],3:[Reference: java.lang.Object],4:[32-bit Constant: 2],5:[Unknown],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
 //      |000c: aput-object v3, v1, v4
 
-//0:[Unknown],1:[Reference: java.lang.Object[]],2:[Zero],3:[Reference: java.lang.Object],4:[32-bit Constant: 2],5:[Unknown],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
+// 0:[Unknown],1:[Reference: java.lang.Object[]],2:[Zero],3:[Reference: java.lang.Object],4:[32-bit Constant: 2],5:[Unknown],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
 //      |000e: aput-object v3, v1, v6
 
-//0:[Unknown],1:[Reference: java.lang.Object[]],2:[Zero],3:[Reference: java.lang.Object],4:[32-bit Constant: 2],5:[Unknown],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
+// 0:[Unknown],1:[Reference: java.lang.Object[]],2:[Zero],3:[Reference: java.lang.Object],4:[32-bit Constant: 2],5:[Unknown],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
 //      |0010: +invoke-virtual-quick {v8, v7}, [000c] // vtable #000c
 
-//0:[Conflict],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Reference: java.lang.Object],4:[32-bit Constant: 2],5:[Conflict],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
+// 0:[Conflict],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Reference: java.lang.Object],4:[32-bit Constant: 2],5:[Conflict],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
 //      |0013: return-object v3
 //      |0014: move-exception v0
 
-//0:[Reference: java.lang.Exception],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Conflict],4:[32-bit Constant: 2],5:[Unknown],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
+// 0:[Reference: java.lang.Exception],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Conflict],4:[32-bit Constant: 2],5:[Unknown],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
 //      |0015: if-nez v2, 001f // +000a
 //      |0017: const/4 v4, #int 1 // #1
 
-//0:[Reference: java.lang.Exception],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Conflict],4:[32-bit Constant: 1],5:[Unknown],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
-//      |0018: new-instance v5, Ljava/lang/Object; // type@0003
+// 0:[Reference: java.lang.Exception],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Conflict],4:[32-bit Constant: 1],5:[Unknown],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
+//      |0018: new-instance v5, Ljava/lang/Object;  // type@0003
 
-//0:[Reference: java.lang.Exception],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Conflict],4:[32-bit Constant: 1],5:[Uninitialized Reference: java.lang.Object],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
+// 0:[Reference: java.lang.Exception],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Conflict],4:[32-bit Constant: 1],5:[Uninitialized Reference: java.lang.Object],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
 //      |001a: +invoke-object-init/range {}, Ljava/lang/Object;.<init>:()V // method@0005
 
-//0:[Reference: java.lang.Exception],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Conflict],4:[32-bit Constant: 1],5:[Reference: java.lang.Object],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
+// 0:[Reference: java.lang.Exception],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Conflict],4:[32-bit Constant: 1],5:[Reference: java.lang.Object],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
 //      |001d: aput-object v5, v1, v4
 
-//0:[Reference: java.lang.Exception],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Conflict],4:[32-bit Constant: 2],5:[Conflict],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
+// 0:[Reference: java.lang.Exception],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Conflict],4:[32-bit Constant: 2],5:[Conflict],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
 //      |001f: aput-object v2, v1, v6
 
-//0:[Reference: java.lang.Exception],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Conflict],4:[32-bit Constant: 2],5:[Conflict],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
+// 0:[Reference: java.lang.Exception],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Conflict],4:[32-bit Constant: 2],5:[Conflict],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
 //      |0021: +invoke-virtual-quick {v8, v7}, [000c] // vtable #000c
 //      |0024: move-object v3, v2
 
-//0:[Reference: java.lang.Exception],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Reference: java.lang.Object],4:[32-bit Constant: 2],5:[Conflict],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
+// 0:[Reference: java.lang.Exception],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Reference: java.lang.Object],4:[32-bit Constant: 2],5:[Conflict],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
 //      |0025: goto 0013 // -0012
 //      |0026: move-exception v4
 
-//0:[Conflict],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Conflict],4:[Reference: java.lang.Throwable],5:[Conflict],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
+// 0:[Conflict],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Conflict],4:[Reference: java.lang.Throwable],5:[Conflict],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
 //      |0027: aput-object v2, v1, v6
 
-//0:[Conflict],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Conflict],4:[Reference: java.lang.Throwable],5:[Conflict],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
+// 0:[Conflict],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Conflict],4:[Reference: java.lang.Throwable],5:[Conflict],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
 //      |0029: +invoke-virtual-quick {v8, v7}, [000c] // vtable #000c
 
-//0:[Conflict],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Conflict],4:[Reference: java.lang.Throwable],5:[Conflict],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
+// 0:[Conflict],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Conflict],4:[Reference: java.lang.Throwable],5:[Conflict],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
 //      |002c: throw v4
 //      |002d: move-exception v4
 //      |002e: move-object v2, v3
 
-//0:[Unknown],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Reference: java.lang.Object],4:[Reference: java.lang.Throwable],5:[Unknown],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
+// 0:[Unknown],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Reference: java.lang.Object],4:[Reference: java.lang.Throwable],5:[Unknown],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
 //      |002f: goto 0027 // -0008
 //      |0030: move-exception v0
 //      |0031: move-object v2, v3
 
-//0:[Reference: java.lang.Exception],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Reference: java.lang.Object],4:[32-bit Constant: 2],5:[Unknown],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
+// 0:[Reference: java.lang.Exception],1:[Reference: java.lang.Object[]],2:[Reference: java.lang.Object],3:[Reference: java.lang.Object],4:[32-bit Constant: 2],5:[Unknown],6:[32-bit Constant: 1],7:[Zero],8:[Reference: ReferenceMap],
 //      |0032: goto 0015 // -001d
 //      catches       : 3
 //        0x0006 - 0x000b

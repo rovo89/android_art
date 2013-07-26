@@ -49,7 +49,7 @@ int64_t art_d2l(double d) {
     return static_cast<int64_t>(0x7fffffffffffffffULL);
   } else if (d <= kMinLong) {
     return static_cast<int64_t>(0x8000000000000000ULL);
-  } else if (d != d)  { // NaN case
+  } else if (d != d)  {  // NaN case
     return 0;
   } else {
     return static_cast<int64_t>(d);
@@ -63,7 +63,7 @@ int64_t art_f2l(float f) {
     return static_cast<int64_t>(0x7fffffffffffffffULL);
   } else if (f <= kMinLong) {
     return static_cast<int64_t>(0x8000000000000000ULL);
-  } else if (f != f) { // NaN case
+  } else if (f != f) {  // NaN case
     return 0;
   } else {
     return static_cast<int64_t>(f);
@@ -77,7 +77,7 @@ int32_t art_d2i(double d) {
     return static_cast<int32_t>(0x7fffffffUL);
   } else if (d <= kMinInt) {
     return static_cast<int32_t>(0x80000000UL);
-  } else if (d != d)  { // NaN case
+  } else if (d != d)  {  // NaN case
     return 0;
   } else {
     return static_cast<int32_t>(d);
@@ -91,7 +91,7 @@ int32_t art_f2i(float f) {
     return static_cast<int32_t>(0x7fffffffUL);
   } else if (f <= kMinInt) {
     return static_cast<int32_t>(0x80000000UL);
-  } else if (f != f) { // NaN case
+  } else if (f != f) {  // NaN case
     return 0;
   } else {
     return static_cast<int32_t>(f);

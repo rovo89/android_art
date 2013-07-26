@@ -196,6 +196,6 @@ template<typename T> void UNUSED(const T&) {}
 #define SHARED_TRYLOCK_FUNCTION(...)
 #define UNLOCK_FUNCTION(...)
 
-#endif // defined(__SUPPORT_TS_ANNOTATION__)
+#endif  // defined(__SUPPORT_TS_ANNOTATION__)
 
 #endif  // ART_RUNTIME_BASE_MACROS_H_

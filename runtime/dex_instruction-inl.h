@@ -131,7 +131,7 @@ inline uint16_t Instruction::VRegA_32x() const {
 
 inline uint4_t Instruction::VRegA_35c() const {
   DCHECK_EQ(FormatOf(Opcode()), k35c);
-  return InstB(); // This is labeled A in the spec.
+  return InstB();  // This is labeled A in the spec.
 }
 
 inline uint8_t Instruction::VRegA_3rc() const {
@@ -295,7 +295,7 @@ inline void Instruction::GetArgs(uint32_t arg[5]) const {
    * method constant (or equivalent) is always in vB.
    */
   uint16_t regList = Fetch16(2);
-  uint4_t count = InstB(); // This is labeled A in the spec.
+  uint4_t count = InstB();  // This is labeled A in the spec.
 
   /*
    * Copy the argument registers into the arg[] array, and
@@ -310,13 +310,13 @@ inline void Instruction::GetArgs(uint32_t arg[5]) const {
     case 3: arg[2] = (regList >> 8) & 0x0f;
     case 2: arg[1] = (regList >> 4) & 0x0f;
     case 1: arg[0] = regList & 0x0f; break;
-    case 0: break; // Valid, but no need to do anything.
+    case 0: break;  // Valid, but no need to do anything.
     default:
       LOG(ERROR) << "Invalid arg count in 35c (" << count << ")";
       return;
   }
 }
 
-} // namespace art
+}  // namespace art
 
 #endif  // ART_RUNTIME_DEX_INSTRUCTION_INL_H_

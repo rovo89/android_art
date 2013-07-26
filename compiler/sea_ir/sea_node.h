@@ -76,5 +76,5 @@ class SeaNode: public IVisitable {
   // operators because that would lead to duplication of their unique ids.
   DISALLOW_COPY_AND_ASSIGN(SeaNode);
 };
-} // end namespace sea_ir
+}  // namespace sea_ir
 #endif  // ART_COMPILER_SEA_IR_SEA_NODE_H_

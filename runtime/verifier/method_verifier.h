@@ -70,17 +70,17 @@ std::ostream& operator<<(std::ostream& os, const MethodType& rhs);
  * to be rewritten to fail at runtime.
  */
 enum VerifyError {
-  VERIFY_ERROR_BAD_CLASS_HARD, // VerifyError; hard error that skips compilation.
-  VERIFY_ERROR_BAD_CLASS_SOFT, // VerifyError; soft error that verifies again at runtime.
+  VERIFY_ERROR_BAD_CLASS_HARD,  // VerifyError; hard error that skips compilation.
+  VERIFY_ERROR_BAD_CLASS_SOFT,  // VerifyError; soft error that verifies again at runtime.
 
-  VERIFY_ERROR_NO_CLASS,       // NoClassDefFoundError.
-  VERIFY_ERROR_NO_FIELD,       // NoSuchFieldError.
-  VERIFY_ERROR_NO_METHOD,      // NoSuchMethodError.
-  VERIFY_ERROR_ACCESS_CLASS,   // IllegalAccessError.
-  VERIFY_ERROR_ACCESS_FIELD,   // IllegalAccessError.
-  VERIFY_ERROR_ACCESS_METHOD,  // IllegalAccessError.
-  VERIFY_ERROR_CLASS_CHANGE,   // IncompatibleClassChangeError.
-  VERIFY_ERROR_INSTANTIATION,  // InstantiationError.
+  VERIFY_ERROR_NO_CLASS,        // NoClassDefFoundError.
+  VERIFY_ERROR_NO_FIELD,        // NoSuchFieldError.
+  VERIFY_ERROR_NO_METHOD,       // NoSuchMethodError.
+  VERIFY_ERROR_ACCESS_CLASS,    // IllegalAccessError.
+  VERIFY_ERROR_ACCESS_FIELD,    // IllegalAccessError.
+  VERIFY_ERROR_ACCESS_METHOD,   // IllegalAccessError.
+  VERIFY_ERROR_CLASS_CHANGE,    // IncompatibleClassChangeError.
+  VERIFY_ERROR_INSTANTIATION,   // InstantiationError.
 };
 std::ostream& operator<<(std::ostream& os, const VerifyError& rhs);
 

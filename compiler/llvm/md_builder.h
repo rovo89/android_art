@@ -65,7 +65,7 @@ class MDBuilder : public LLVMMDBuilder {
 };
 
 
-} // namespace llvm
-} // namespace art
+}  // namespace llvm
+}  // namespace art
 
 #endif  // ART_COMPILER_LLVM_MD_BUILDER_H_

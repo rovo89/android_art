@@ -56,8 +56,8 @@
 
 namespace art {
 
-static const size_t kMaxAllocRecordStackDepth = 16; // Max 255.
-static const size_t kDefaultNumAllocRecords = 64*1024; // Must be a power of 2.
+static const size_t kMaxAllocRecordStackDepth = 16;  // Max 255.
+static const size_t kDefaultNumAllocRecords = 64*1024;  // Must be a power of 2.
 
 struct AllocRecordStackTraceElement {
   mirror::AbstractMethod* method;
@@ -72,7 +72,7 @@ struct AllocRecord {
   mirror::Class* type;
   size_t byte_count;
   uint16_t thin_lock_id;
-  AllocRecordStackTraceElement stack[kMaxAllocRecordStackDepth]; // Unused entries have NULL method.
+  AllocRecordStackTraceElement stack[kMaxAllocRecordStackDepth];  // Unused entries have NULL method.
 
   size_t GetDepth() {
     size_t depth = 0;
@@ -104,7 +104,7 @@ struct SingleStepControl {
   JDWP::JdwpStepDepth step_depth;
 
   const mirror::AbstractMethod* method;
-  int32_t line_number; // Or -1 for native methods.
+  int32_t line_number;  // Or -1 for native methods.
   std::set<uint32_t> dex_pcs;
   int stack_depth;
 };
@@ -185,7 +185,7 @@ static ObjectRegistry* gRegistry = NULL;
 
 // Recent allocation tracking.
 static Mutex gAllocTrackerLock DEFAULT_MUTEX_ACQUIRED_AFTER("AllocTracker lock");
-AllocRecord* Dbg::recent_allocation_records_ PT_GUARDED_BY(gAllocTrackerLock) = NULL; // TODO: CircularBuffer<AllocRecord>
+AllocRecord* Dbg::recent_allocation_records_ PT_GUARDED_BY(gAllocTrackerLock) = NULL;  // TODO: CircularBuffer<AllocRecord>
 static size_t gAllocRecordMax GUARDED_BY(gAllocTrackerLock) = 0;
 static size_t gAllocRecordHead GUARDED_BY(gAllocTrackerLock) = 0;
 static size_t gAllocRecordCount GUARDED_BY(gAllocTrackerLock) = 0;
@@ -600,7 +600,7 @@ std::string Dbg::GetClassName(JDWP::RefTypeId class_id) {
     return StringPrintf("invalid object %p", reinterpret_cast<void*>(class_id));
   }
   if (!o->IsClass()) {
-    return StringPrintf("non-class %p", o); // This is only used for debugging output anyway.
+    return StringPrintf("non-class %p", o);  // This is only used for debugging output anyway.
   }
   return DescriptorToName(ClassHelper(o->AsClass()).GetDescriptor());
 }
@@ -1861,7 +1861,7 @@ JDWP::JdwpError Dbg::GetThreadFrames(JDWP::ObjectId thread_id, size_t start_fram
     // annotalysis.
     virtual bool VisitFrame() NO_THREAD_SAFETY_ANALYSIS {
       if (GetMethod()->IsRuntimeMethod()) {
-        return true; // The debugger can't do anything useful with a frame that has no Method*.
+        return true;  // The debugger can't do anything useful with a frame that has no Method*.
       }
       if (depth_ >= start_frame_ + frame_count_) {
         return false;
@@ -2511,14 +2511,14 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
         }
         // Otherwise, if we're already in a valid range for this line,
         // just keep going (shouldn't really happen)...
-      } else if (context->last_pc_valid) { // and the line number is new
+      } else if (context->last_pc_valid) {  // and the line number is new
         // Add everything from the last entry up until here to the set
         for (uint32_t dex_pc = context->last_pc; dex_pc < address; ++dex_pc) {
           gSingleStepControl.dex_pcs.insert(dex_pc);
         }
         context->last_pc_valid = false;
       }
-      return false; // There may be multiple entries for any given line.
+      return false;  // There may be multiple entries for any given line.
     }
 
     // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
@@ -2655,7 +2655,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
     }
     if (suspend_count > 1) {
       LOG(ERROR) << *targetThread << " suspend count too deep for method invocation: " << suspend_count;
-      return JDWP::ERR_THREAD_SUSPENDED; // Probably not expected here.
+      return JDWP::ERR_THREAD_SUSPENDED;  // Probably not expected here.
     }
 
     JDWP::JdwpError status;
@@ -3033,7 +3033,7 @@ void Dbg::DdmSetThreadNotification(bool enable) {
     }
     {
       ScopedObjectAccess soa(self);
-      typedef std::list<Thread*>::const_iterator It; // TODO: C++0x auto
+      typedef std::list<Thread*>::const_iterator It;  // TODO: C++0x auto
       for (It it = threads.begin(), end = threads.end(); it != end; ++it) {
         Dbg::DdmSendThreadNotification(*it, CHUNK_TYPE("THCR"));
       }
@@ -3144,11 +3144,11 @@ void Dbg::DdmSendHeapInfo(HpifWhen reason) {
   gc::Heap* heap = Runtime::Current()->GetHeap();
   std::vector<uint8_t> bytes;
   JDWP::Append4BE(bytes, heap_count);
-  JDWP::Append4BE(bytes, 1); // Heap id (bogus; we only have one heap).
+  JDWP::Append4BE(bytes, 1);  // Heap id (bogus; we only have one heap).
   JDWP::Append8BE(bytes, MilliTime());
   JDWP::Append1BE(bytes, reason);
-  JDWP::Append4BE(bytes, heap->GetMaxMemory()); // Max allowed heap size in bytes.
-  JDWP::Append4BE(bytes, heap->GetTotalMemory()); // Current heap size in bytes.
+  JDWP::Append4BE(bytes, heap->GetMaxMemory());  // Max allowed heap size in bytes.
+  JDWP::Append4BE(bytes, heap->GetTotalMemory());  // Current heap size in bytes.
   JDWP::Append4BE(bytes, heap->GetBytesAllocated());
   JDWP::Append4BE(bytes, heap->GetObjectsAllocated());
   CHECK_EQ(bytes.size(), 4U + (heap_count * (4 + 8 + 1 + 4 + 4 + 4 + 4)));
@@ -3207,11 +3207,11 @@ class HeapChunkContext {
     }
 
     // Start a new HPSx chunk.
-    JDWP::Write4BE(&p_, 1); // Heap id (bogus; we only have one heap).
-    JDWP::Write1BE(&p_, 8); // Size of allocation unit, in bytes.
+    JDWP::Write4BE(&p_, 1);  // Heap id (bogus; we only have one heap).
+    JDWP::Write1BE(&p_, 8);  // Size of allocation unit, in bytes.
 
-    JDWP::Write4BE(&p_, reinterpret_cast<uintptr_t>(chunk_ptr)); // virtual address of segment start.
-    JDWP::Write4BE(&p_, 0); // offset of this piece (relative to the virtual address).
+    JDWP::Write4BE(&p_, reinterpret_cast<uintptr_t>(chunk_ptr));  // virtual address of segment start.
+    JDWP::Write4BE(&p_, 0);  // offset of this piece (relative to the virtual address).
     // [u4]: length of piece, in allocation units
     // We won't know this until we're done, so save the offset and stuff in a dummy value.
     pieceLenField_ = p_;
@@ -3414,7 +3414,7 @@ void Dbg::DdmSendHeapSegments(bool native) {
 
   // First, send a heap start chunk.
   uint8_t heap_id[4];
-  JDWP::Set4BE(&heap_id[0], 1); // Heap id (bogus; we only have one heap).
+  JDWP::Set4BE(&heap_id[0], 1);  // Heap id (bogus; we only have one heap).
   Dbg::DdmSendChunk(native ? CHUNK_TYPE("NHST") : CHUNK_TYPE("HPST"), sizeof(heap_id), heap_id);
 
   // Send a series of heap segment chunks.
@@ -3600,7 +3600,7 @@ class StringTable {
   }
 
   size_t IndexOf(const char* s) const {
-    typedef std::set<std::string>::const_iterator It; // TODO: C++0x auto
+    typedef std::set<std::string>::const_iterator It;  // TODO: C++0x auto
     It it = table_.find(s);
     if (it == table_.end()) {
       LOG(FATAL) << "IndexOf(\"" << s << "\") failed";
@@ -3613,7 +3613,7 @@ class StringTable {
   }
 
   void WriteTo(std::vector<uint8_t>& bytes) const {
-    typedef std::set<std::string>::const_iterator It; // TODO: C++0x auto
+    typedef std::set<std::string>::const_iterator It;  // TODO: C++0x auto
     for (It it = table_.begin(); it != table_.end(); ++it) {
       const char* s = (*it).c_str();
       size_t s_len = CountModifiedUtf8Chars(s);
@@ -3730,7 +3730,7 @@ jbyteArray Dbg::GetRecentAllocations() {
     // (2b) number of source file name strings
     JDWP::Append2BE(bytes, gAllocRecordCount);
     size_t string_table_offset = bytes.size();
-    JDWP::Append4BE(bytes, 0); // We'll patch this later...
+    JDWP::Append4BE(bytes, 0);  // We'll patch this later...
     JDWP::Append2BE(bytes, class_names.Size());
     JDWP::Append2BE(bytes, method_names.Size());
     JDWP::Append2BE(bytes, filenames.Size());

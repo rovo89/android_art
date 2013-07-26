@@ -62,7 +62,7 @@ class DexFile {
   // Raw header_item.
   struct Header {
     uint8_t magic_[8];
-    uint32_t checksum_; // See also location_checksum_
+    uint32_t checksum_;  // See also location_checksum_
     uint8_t signature_[kSha1DigestSize];
     uint32_t file_size_;  // size of entire file
     uint32_t header_size_;  // offset to start of next section

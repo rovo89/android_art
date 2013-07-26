@@ -31,8 +31,8 @@ namespace runtime_support {
     MAX_ID
   };
 
-} // namespace runtime_support
-} // namespace llvm
-} // namespace art
+}  // namespace runtime_support
+}  // namespace llvm
+}  // namespace art
 
 #endif  // ART_COMPILER_LLVM_RUNTIME_SUPPORT_LLVM_FUNC_H_

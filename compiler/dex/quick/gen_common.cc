@@ -547,7 +547,7 @@ void Mir2Lir::HandleThrowLaunchPads() {
       case kThrowNullPointer:
         func_offset = ENTRYPOINT_OFFSET(pThrowNullPointerFromCode);
         break;
-      case kThrowConstantArrayBounds: // v1 is length reg (for Arm/Mips), v2 constant index
+      case kThrowConstantArrayBounds:  // v1 is length reg (for Arm/Mips), v2 constant index
         // v1 holds the constant array index.  Mips/Arm uses v2 for length, x86 reloads.
         if (target_x86) {
           OpRegMem(kOpMov, TargetReg(kArg1), v1, mirror::Array::LengthOffset().Int32Value());
@@ -792,7 +792,7 @@ void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
       *cu_->dex_file, string_idx) || SLOW_STRING_PATH) {
     // slow path, resolve string if not in dex cache
     FlushAllRegs();
-    LockCallTemps(); // Using explicit registers
+    LockCallTemps();  // Using explicit registers
     LoadCurrMethodDirect(TargetReg(kArg2));
     LoadWordDisp(TargetReg(kArg2),
                  mirror::AbstractMethod::DexCacheStringsOffset().Int32Value(), TargetReg(kArg0));
@@ -951,7 +951,7 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
       // Not resolved
       // Call out to helper, which will return resolved type in kRet0
       CallRuntimeHelperImm(ENTRYPOINT_OFFSET(pInitializeTypeFromCode), type_idx, true);
-      OpRegCopy(TargetReg(kArg2), TargetReg(kRet0)); // Align usage with fast path
+      OpRegCopy(TargetReg(kArg2), TargetReg(kRet0));  // Align usage with fast path
       LoadValueDirectFixed(rl_src, TargetReg(kArg0));  /* reload Ref */
       // Rejoin code paths
       LIR* hop_target = NewLIR0(kPseudoTargetLabel);
@@ -1090,7 +1090,7 @@ void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_
       // InitializeTypeFromCode(idx, method)
       CallRuntimeHelperImmReg(ENTRYPOINT_OFFSET(pInitializeTypeFromCode), type_idx, TargetReg(kArg1),
                               true);
-      OpRegCopy(class_reg, TargetReg(kRet0)); // Align usage with fast path
+      OpRegCopy(class_reg, TargetReg(kRet0));  // Align usage with fast path
       // Rejoin code paths
       LIR* hop_target = NewLIR0(kPseudoTargetLabel);
       hop_branch->target = hop_target;
@@ -1167,7 +1167,7 @@ void Mir2Lir::GenLong3Addr(OpKind first_op, OpKind second_op, RegLocation rl_des
 
 void Mir2Lir::GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
                              RegLocation rl_src1, RegLocation rl_shift) {
-  int func_offset = -1; // Make gcc happy
+  int func_offset = -1;  // Make gcc happy
 
   switch (opcode) {
     case Instruction::SHL_LONG:

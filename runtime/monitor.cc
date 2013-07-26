@@ -698,7 +698,7 @@ bool Monitor::MonitorExit(Thread* self, mirror::Object* obj) {
   volatile int32_t* thinp = obj->GetRawLockWordAddress();
 
   DCHECK(self != NULL);
-  //DCHECK_EQ(self->GetState(), kRunnable);
+  // DCHECK_EQ(self->GetState(), kRunnable);
   DCHECK(obj != NULL);
 
   /*
@@ -918,7 +918,7 @@ void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::O
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
   CHECK(code_item != NULL) << PrettyMethod(m);
   if (code_item->tries_size_ == 0) {
-    return; // No "tries" implies no synchronization, so no held locks to report.
+    return;  // No "tries" implies no synchronization, so no held locks to report.
   }
 
   // Ask the verifier for the dex pcs of all the monitor-enter instructions corresponding to
@@ -979,7 +979,7 @@ void MonitorList::Add(Monitor* m) {
 
 void MonitorList::SweepMonitorList(IsMarkedTester is_marked, void* arg) {
   MutexLock mu(Thread::Current(), monitor_list_lock_);
-  typedef std::list<Monitor*>::iterator It; // TODO: C++0x auto
+  typedef std::list<Monitor*>::iterator It;  // TODO: C++0x auto
   It it = list_.begin();
   while (it != list_.end()) {
     Monitor* m = *it;

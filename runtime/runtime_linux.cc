@@ -245,7 +245,7 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
   OsInfo os_info;
   const char* cmd_line = GetCmdLine();
   if (cmd_line == NULL) {
-    cmd_line = "<unset>"; // Because no-one called InitLogging.
+    cmd_line = "<unset>";  // Because no-one called InitLogging.
   }
   pid_t tid = GetTid();
   std::string thread_name(GetThreadName(tid));

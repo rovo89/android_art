@@ -1299,7 +1299,7 @@ bool DexFileVerifier::CheckIntraSection() {
 }
 
 bool DexFileVerifier::CheckOffsetToTypeMap(uint32_t offset, uint16_t type) {
-  typedef SafeMap<uint32_t, uint16_t>::iterator It; // TODO: C++0x auto
+  typedef SafeMap<uint32_t, uint16_t>::iterator It;  // TODO: C++0x auto
   It it = offset_to_type_map_.find(offset);
   if (it == offset_to_type_map_.end()) {
     LOG(ERROR) << StringPrintf("No data map entry found @ %x; expected %x", offset, type);

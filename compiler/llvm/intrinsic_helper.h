@@ -151,7 +151,7 @@ class IntrinsicHelper {
   ::llvm::DenseMap<const ::llvm::Function*, IntrinsicId> intrinsic_funcs_map_;
 };
 
-} // namespace llvm
-} // namespace art
+}  // namespace llvm
+}  // namespace art
 
 #endif  // ART_COMPILER_LLVM_INTRINSIC_HELPER_H_

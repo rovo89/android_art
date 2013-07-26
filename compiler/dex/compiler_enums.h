@@ -48,7 +48,7 @@ enum SpecialTargetRegister {
 };
 
 enum RegLocationType {
-  kLocDalvikFrame = 0, // Normal Dalvik register
+  kLocDalvikFrame = 0,  // Normal Dalvik register
   kLocPhysReg,
   kLocCompilerTemp,
   kLocInvalid
@@ -249,20 +249,20 @@ enum X86ConditionCode {
   kX86CondC   = kX86CondB,  // carry
 
   kX86CondNb  = 0x3,    // not-below
-  kX86CondAe  = kX86CondNb, // above-equal
-  kX86CondNc  = kX86CondNb, // not-carry
+  kX86CondAe  = kX86CondNb,  // above-equal
+  kX86CondNc  = kX86CondNb,  // not-carry
 
   kX86CondZ   = 0x4,    // zero
   kX86CondEq  = kX86CondZ,  // equal
 
   kX86CondNz  = 0x5,    // not-zero
-  kX86CondNe  = kX86CondNz, // not-equal
+  kX86CondNe  = kX86CondNz,  // not-equal
 
   kX86CondBe  = 0x6,    // below-equal
-  kX86CondNa  = kX86CondBe, // not-above
+  kX86CondNa  = kX86CondBe,  // not-above
 
   kX86CondNbe = 0x7,    // not-below-equal
-  kX86CondA   = kX86CondNbe,// above
+  kX86CondA   = kX86CondNbe,  // above
 
   kX86CondS   = 0x8,    // sign
   kX86CondNs  = 0x9,    // not-sign
@@ -277,13 +277,13 @@ enum X86ConditionCode {
   kX86CondNge = kX86CondL,  // not-greater-equal
 
   kX86CondNl  = 0xd,    // not-less-than
-  kX86CondGe  = kX86CondNl, // not-greater-equal
+  kX86CondGe  = kX86CondNl,  // not-greater-equal
 
   kX86CondLe  = 0xe,    // less-than-equal
-  kX86CondNg  = kX86CondLe, // not-greater
+  kX86CondNg  = kX86CondLe,  // not-greater
 
   kX86CondNle = 0xf,    // not-less-than
-  kX86CondG   = kX86CondNle,// greater
+  kX86CondG   = kX86CondNle,  // greater
 };
 
 std::ostream& operator<<(std::ostream& os, const X86ConditionCode& kind);
@@ -349,7 +349,7 @@ enum OpFeatureFlags {
   kIsIT,
   kMemLoad,
   kMemStore,
-  kPCRelFixup, // x86 FIXME: add NEEDS_FIXUP to instruction attributes.
+  kPCRelFixup,  // x86 FIXME: add NEEDS_FIXUP to instruction attributes.
   kRegDef0,
   kRegDef1,
   kRegDefA,

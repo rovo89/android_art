@@ -126,5 +126,5 @@ IRBuilder::IRBuilder(::llvm::LLVMContext& context, ::llvm::Module& module,
 }
 
 
-} // namespace llvm
-} // namespace art
+}  // namespace llvm
+}  // namespace art

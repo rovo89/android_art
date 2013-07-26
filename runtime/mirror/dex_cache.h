@@ -172,7 +172,7 @@ class MANAGED DexCache : public Object {
   ObjectArray<String>* strings_;
   uint32_t dex_file_;
 
-  friend struct art::DexCacheOffsets; // for verifying offset information
+  friend struct art::DexCacheOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(DexCache);
 };
 

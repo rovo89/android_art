@@ -171,7 +171,7 @@ const RegType& RegTypeCache::From(mirror::ClassLoader* loader, const char* descr
   if (klass != NULL) {
     // Class resolved, first look for the class in the list of entries
     // Class was not found, must create new type.
-    //To pass the verification, the type should be imprecise,
+    // To pass the verification, the type should be imprecise,
     // instantiable or an interface with the precise type set to false.
     DCHECK(!precise || klass->IsInstantiable());
     // Create a precise type if:

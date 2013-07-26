@@ -69,20 +69,20 @@ using ::art::mirror::Throwable;
 
 namespace art {
 
-static const size_t kMonitorsInitial = 32; // Arbitrary.
-static const size_t kMonitorsMax = 4096; // Arbitrary sanity check.
+static const size_t kMonitorsInitial = 32;  // Arbitrary.
+static const size_t kMonitorsMax = 4096;  // Arbitrary sanity check.
 
-static const size_t kLocalsInitial = 64; // Arbitrary.
-static const size_t kLocalsMax = 512; // Arbitrary sanity check.
+static const size_t kLocalsInitial = 64;  // Arbitrary.
+static const size_t kLocalsMax = 512;  // Arbitrary sanity check.
 
-static const size_t kPinTableInitial = 16; // Arbitrary.
-static const size_t kPinTableMax = 1024; // Arbitrary sanity check.
+static const size_t kPinTableInitial = 16;  // Arbitrary.
+static const size_t kPinTableMax = 1024;  // Arbitrary sanity check.
 
-static size_t gGlobalsInitial = 512; // Arbitrary.
-static size_t gGlobalsMax = 51200; // Arbitrary sanity check. (Must fit in 16 bits.)
+static size_t gGlobalsInitial = 512;  // Arbitrary.
+static size_t gGlobalsMax = 51200;  // Arbitrary sanity check. (Must fit in 16 bits.)
 
-static const size_t kWeakGlobalsInitial = 16; // Arbitrary.
-static const size_t kWeakGlobalsMax = 51200; // Arbitrary sanity check. (Must fit in 16 bits.)
+static const size_t kWeakGlobalsInitial = 16;  // Arbitrary.
+static const size_t kWeakGlobalsMax = 51200;  // Arbitrary sanity check. (Must fit in 16 bits.)
 
 static jweak AddWeakGlobalReference(ScopedObjectAccess& soa, Object* obj)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -591,7 +591,7 @@ class Libraries {
   }
 
  private:
-  typedef SafeMap<std::string, SharedLibrary*>::const_iterator It; // TODO: C++0x auto
+  typedef SafeMap<std::string, SharedLibrary*>::const_iterator It;  // TODO: C++0x auto
 
   SafeMap<std::string, SharedLibrary*> libraries_;
 };
@@ -1796,7 +1796,7 @@ class JNI {
     String* s = soa.Decode<String*>(java_string);
     size_t byte_count = s->GetUtfLength();
     char* bytes = new char[byte_count + 1];
-    CHECK(bytes != NULL); // bionic aborts anyway.
+    CHECK(bytes != NULL);  // bionic aborts anyway.
     const uint16_t* chars = s->GetCharArray()->GetData() + s->GetOffset();
     ConvertUtf16ToModifiedUtf8(bytes, chars, s->GetLength());
     bytes[byte_count] = '\0';
@@ -2705,7 +2705,7 @@ JavaVMExt::JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options)
       check_jni_abort_hook(NULL),
       check_jni_abort_hook_data(NULL),
       check_jni(false),
-      force_copy(false), // TODO: add a way to enable this
+      force_copy(false),  // TODO: add a way to enable this
       trace(options->jni_trace_),
       work_around_app_jni_bugs(false),
       pins_lock("JNI pin table lock", kPinTableLock),

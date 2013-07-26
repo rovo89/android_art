@@ -30,7 +30,7 @@ class LDSymbol;
 class Linker;
 class LinkerConfig;
 class Module;
-} // namespace mcld
+}  // namespace mcld
 
 namespace art {
 

@@ -66,6 +66,6 @@ class ScopedHashtable {
  private:
   std::list<std::map<K, V> > scopes;
 };
-} // end namespace utils
+}  // namespace utils
 
 #endif  // ART_COMPILER_UTILS_SCOPED_HASHTABLE_H_

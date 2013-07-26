@@ -57,7 +57,7 @@ enum LockLevel {
   kMutatorLock,
   kZygoteCreationLock,
 
-  kLockLevelCount // Must come last.
+  kLockLevelCount  // Must come last.
 };
 std::ostream& operator<<(std::ostream& os, const LockLevel& rhs);
 

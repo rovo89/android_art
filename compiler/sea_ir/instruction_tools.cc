@@ -794,4 +794,4 @@ const int InstructionTools::instruction_attributes_[] = {
   // FF UNUSED_FF
   DF_NOP
 };
-} // end namespace sea_ir
+}  // namespace sea_ir

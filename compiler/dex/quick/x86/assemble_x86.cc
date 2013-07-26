@@ -474,7 +474,7 @@ int X86Mir2Lir::GetInsnSize(LIR* lir) {
         return ComputeSize(entry, lir->operands[1], 0x12345678, true);
       } else {
         DCHECK(entry->opcode == kX86PcRelAdr);
-        return 5; // opcode with reg + 4 byte immediate
+        return 5;  // opcode with reg + 4 byte immediate
       }
     case kMacro:
       DCHECK_EQ(lir->opcode, static_cast<int>(kX86StartOfMethod));
@@ -1342,7 +1342,7 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(uintptr_t start_addr) {
       case kShiftRegImm:  // lir operands - 0: reg, 1: immediate
         EmitShiftRegImm(entry, lir->operands[0], lir->operands[1]);
         break;
-      case kShiftRegCl: // lir operands - 0: reg, 1: cl
+      case kShiftRegCl:  // lir operands - 0: reg, 1: cl
         EmitShiftRegCl(entry, lir->operands[0], lir->operands[1]);
         break;
       case kRegCond:  // lir operands - 0: reg, 1: condition

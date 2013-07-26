@@ -380,7 +380,7 @@ if (!func___art_type_list) {
 func___art_type_list = Function::Create(
  /*Type=*/FuncTy_0,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"__art_type_list", mod); // (external, no body)
+ /*Name=*/"__art_type_list", mod);  // (external, no body)
 func___art_type_list->setCallingConv(CallingConv::C);
 }
 AttributeSet func___art_type_list_PAL;
@@ -391,7 +391,7 @@ if (!func_art_portable_get_current_thread_from_code) {
 func_art_portable_get_current_thread_from_code = Function::Create(
  /*Type=*/FuncTy_3,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_get_current_thread_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_get_current_thread_from_code", mod);  // (external, no body)
 func_art_portable_get_current_thread_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_get_current_thread_from_code_PAL;
@@ -402,7 +402,7 @@ if (!func_art_portable_set_current_thread_from_code) {
 func_art_portable_set_current_thread_from_code = Function::Create(
  /*Type=*/FuncTy_4,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_set_current_thread_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_set_current_thread_from_code", mod);  // (external, no body)
 func_art_portable_set_current_thread_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_set_current_thread_from_code_PAL;
@@ -413,7 +413,7 @@ if (!func_art_portable_lock_object_from_code) {
 func_art_portable_lock_object_from_code = Function::Create(
  /*Type=*/FuncTy_5,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_lock_object_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_lock_object_from_code", mod);  // (external, no body)
 func_art_portable_lock_object_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_lock_object_from_code_PAL;
@@ -424,7 +424,7 @@ if (!func_art_portable_unlock_object_from_code) {
 func_art_portable_unlock_object_from_code = Function::Create(
  /*Type=*/FuncTy_5,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_unlock_object_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_unlock_object_from_code", mod);  // (external, no body)
 func_art_portable_unlock_object_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_unlock_object_from_code_PAL;
@@ -435,7 +435,7 @@ if (!func_art_portable_test_suspend_from_code) {
 func_art_portable_test_suspend_from_code = Function::Create(
  /*Type=*/FuncTy_6,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_test_suspend_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_test_suspend_from_code", mod);  // (external, no body)
 func_art_portable_test_suspend_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_test_suspend_from_code_PAL;
@@ -446,7 +446,7 @@ if (!func_art_portable_push_shadow_frame_from_code) {
 func_art_portable_push_shadow_frame_from_code = Function::Create(
  /*Type=*/FuncTy_7,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_push_shadow_frame_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_push_shadow_frame_from_code", mod);  // (external, no body)
 func_art_portable_push_shadow_frame_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_push_shadow_frame_from_code_PAL;
@@ -457,7 +457,7 @@ if (!func_art_portable_pop_shadow_frame_from_code) {
 func_art_portable_pop_shadow_frame_from_code = Function::Create(
  /*Type=*/FuncTy_8,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_pop_shadow_frame_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_pop_shadow_frame_from_code", mod);  // (external, no body)
 func_art_portable_pop_shadow_frame_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_pop_shadow_frame_from_code_PAL;
@@ -468,7 +468,7 @@ if (!func_art_portable_get_and_clear_exception) {
 func_art_portable_get_and_clear_exception = Function::Create(
  /*Type=*/FuncTy_4,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_get_and_clear_exception", mod); // (external, no body)
+ /*Name=*/"art_portable_get_and_clear_exception", mod);  // (external, no body)
 func_art_portable_get_and_clear_exception->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_get_and_clear_exception_PAL;
@@ -479,7 +479,7 @@ if (!func_art_portable_throw_div_zero_from_code) {
 func_art_portable_throw_div_zero_from_code = Function::Create(
  /*Type=*/FuncTy_9,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_throw_div_zero_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_throw_div_zero_from_code", mod);  // (external, no body)
 func_art_portable_throw_div_zero_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_throw_div_zero_from_code_PAL;
@@ -490,7 +490,7 @@ if (!func_art_portable_throw_array_bounds_from_code) {
 func_art_portable_throw_array_bounds_from_code = Function::Create(
  /*Type=*/FuncTy_10,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_throw_array_bounds_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_throw_array_bounds_from_code", mod);  // (external, no body)
 func_art_portable_throw_array_bounds_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_throw_array_bounds_from_code_PAL;
@@ -501,7 +501,7 @@ if (!func_art_portable_throw_no_such_method_from_code) {
 func_art_portable_throw_no_such_method_from_code = Function::Create(
  /*Type=*/FuncTy_11,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_throw_no_such_method_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_throw_no_such_method_from_code", mod);  // (external, no body)
 func_art_portable_throw_no_such_method_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_throw_no_such_method_from_code_PAL;
@@ -512,7 +512,7 @@ if (!func_art_portable_throw_null_pointer_exception_from_code) {
 func_art_portable_throw_null_pointer_exception_from_code = Function::Create(
  /*Type=*/FuncTy_11,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_throw_null_pointer_exception_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_throw_null_pointer_exception_from_code", mod);  // (external, no body)
 func_art_portable_throw_null_pointer_exception_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_throw_null_pointer_exception_from_code_PAL;
@@ -523,7 +523,7 @@ if (!func_art_portable_throw_stack_overflow_from_code) {
 func_art_portable_throw_stack_overflow_from_code = Function::Create(
  /*Type=*/FuncTy_9,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_throw_stack_overflow_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_throw_stack_overflow_from_code", mod);  // (external, no body)
 func_art_portable_throw_stack_overflow_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_throw_stack_overflow_from_code_PAL;
@@ -534,7 +534,7 @@ if (!func_art_portable_throw_exception_from_code) {
 func_art_portable_throw_exception_from_code = Function::Create(
  /*Type=*/FuncTy_6,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_throw_exception_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_throw_exception_from_code", mod);  // (external, no body)
 func_art_portable_throw_exception_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_throw_exception_from_code_PAL;
@@ -545,7 +545,7 @@ if (!func_art_portable_find_catch_block_from_code) {
 func_art_portable_find_catch_block_from_code = Function::Create(
  /*Type=*/FuncTy_12,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_find_catch_block_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_find_catch_block_from_code", mod);  // (external, no body)
 func_art_portable_find_catch_block_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_find_catch_block_from_code_PAL;
@@ -556,7 +556,7 @@ if (!func_art_portable_alloc_object_from_code) {
 func_art_portable_alloc_object_from_code = Function::Create(
  /*Type=*/FuncTy_13,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_alloc_object_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_alloc_object_from_code", mod);  // (external, no body)
 func_art_portable_alloc_object_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_alloc_object_from_code_PAL;
@@ -567,7 +567,7 @@ if (!func_art_portable_alloc_object_from_code_with_access_check) {
 func_art_portable_alloc_object_from_code_with_access_check = Function::Create(
  /*Type=*/FuncTy_13,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_alloc_object_from_code_with_access_check", mod); // (external, no body)
+ /*Name=*/"art_portable_alloc_object_from_code_with_access_check", mod);  // (external, no body)
 func_art_portable_alloc_object_from_code_with_access_check->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_alloc_object_from_code_with_access_check_PAL;
@@ -578,7 +578,7 @@ if (!func_art_portable_alloc_array_from_code) {
 func_art_portable_alloc_array_from_code = Function::Create(
  /*Type=*/FuncTy_14,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_alloc_array_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_alloc_array_from_code", mod);  // (external, no body)
 func_art_portable_alloc_array_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_alloc_array_from_code_PAL;
@@ -589,7 +589,7 @@ if (!func_art_portable_alloc_array_from_code_with_access_check) {
 func_art_portable_alloc_array_from_code_with_access_check = Function::Create(
  /*Type=*/FuncTy_14,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_alloc_array_from_code_with_access_check", mod); // (external, no body)
+ /*Name=*/"art_portable_alloc_array_from_code_with_access_check", mod);  // (external, no body)
 func_art_portable_alloc_array_from_code_with_access_check->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_alloc_array_from_code_with_access_check_PAL;
@@ -600,7 +600,7 @@ if (!func_art_portable_check_and_alloc_array_from_code) {
 func_art_portable_check_and_alloc_array_from_code = Function::Create(
  /*Type=*/FuncTy_14,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_check_and_alloc_array_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_check_and_alloc_array_from_code", mod);  // (external, no body)
 func_art_portable_check_and_alloc_array_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_check_and_alloc_array_from_code_PAL;
@@ -611,7 +611,7 @@ if (!func_art_portable_check_and_alloc_array_from_code_with_access_check) {
 func_art_portable_check_and_alloc_array_from_code_with_access_check = Function::Create(
  /*Type=*/FuncTy_14,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_check_and_alloc_array_from_code_with_access_check", mod); // (external, no body)
+ /*Name=*/"art_portable_check_and_alloc_array_from_code_with_access_check", mod);  // (external, no body)
 func_art_portable_check_and_alloc_array_from_code_with_access_check->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_check_and_alloc_array_from_code_with_access_check_PAL;
@@ -622,7 +622,7 @@ if (!func_art_portable_find_instance_field_from_code) {
 func_art_portable_find_instance_field_from_code = Function::Create(
  /*Type=*/FuncTy_15,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_find_instance_field_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_find_instance_field_from_code", mod);  // (external, no body)
 func_art_portable_find_instance_field_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_find_instance_field_from_code_PAL;
@@ -633,7 +633,7 @@ if (!func_art_portable_find_static_field_from_code) {
 func_art_portable_find_static_field_from_code = Function::Create(
  /*Type=*/FuncTy_15,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_find_static_field_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_find_static_field_from_code", mod);  // (external, no body)
 func_art_portable_find_static_field_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_find_static_field_from_code_PAL;
@@ -644,7 +644,7 @@ if (!func_art_portable_find_static_method_from_code_with_access_check) {
 func_art_portable_find_static_method_from_code_with_access_check = Function::Create(
  /*Type=*/FuncTy_16,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_find_static_method_from_code_with_access_check", mod); // (external, no body)
+ /*Name=*/"art_portable_find_static_method_from_code_with_access_check", mod);  // (external, no body)
 func_art_portable_find_static_method_from_code_with_access_check->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_find_static_method_from_code_with_access_check_PAL;
@@ -655,7 +655,7 @@ if (!func_art_portable_find_direct_method_from_code_with_access_check) {
 func_art_portable_find_direct_method_from_code_with_access_check = Function::Create(
  /*Type=*/FuncTy_16,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_find_direct_method_from_code_with_access_check", mod); // (external, no body)
+ /*Name=*/"art_portable_find_direct_method_from_code_with_access_check", mod);  // (external, no body)
 func_art_portable_find_direct_method_from_code_with_access_check->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_find_direct_method_from_code_with_access_check_PAL;
@@ -666,7 +666,7 @@ if (!func_art_portable_find_virtual_method_from_code_with_access_check) {
 func_art_portable_find_virtual_method_from_code_with_access_check = Function::Create(
  /*Type=*/FuncTy_16,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_find_virtual_method_from_code_with_access_check", mod); // (external, no body)
+ /*Name=*/"art_portable_find_virtual_method_from_code_with_access_check", mod);  // (external, no body)
 func_art_portable_find_virtual_method_from_code_with_access_check->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_find_virtual_method_from_code_with_access_check_PAL;
@@ -677,7 +677,7 @@ if (!func_art_portable_find_super_method_from_code_with_access_check) {
 func_art_portable_find_super_method_from_code_with_access_check = Function::Create(
  /*Type=*/FuncTy_16,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_find_super_method_from_code_with_access_check", mod); // (external, no body)
+ /*Name=*/"art_portable_find_super_method_from_code_with_access_check", mod);  // (external, no body)
 func_art_portable_find_super_method_from_code_with_access_check->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_find_super_method_from_code_with_access_check_PAL;
@@ -688,7 +688,7 @@ if (!func_art_portable_find_interface_method_from_code_with_access_check) {
 func_art_portable_find_interface_method_from_code_with_access_check = Function::Create(
  /*Type=*/FuncTy_16,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_find_interface_method_from_code_with_access_check", mod); // (external, no body)
+ /*Name=*/"art_portable_find_interface_method_from_code_with_access_check", mod);  // (external, no body)
 func_art_portable_find_interface_method_from_code_with_access_check->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_find_interface_method_from_code_with_access_check_PAL;
@@ -699,7 +699,7 @@ if (!func_art_portable_find_interface_method_from_code) {
 func_art_portable_find_interface_method_from_code = Function::Create(
  /*Type=*/FuncTy_16,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_find_interface_method_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_find_interface_method_from_code", mod);  // (external, no body)
 func_art_portable_find_interface_method_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_find_interface_method_from_code_PAL;
@@ -710,7 +710,7 @@ if (!func_art_portable_initialize_static_storage_from_code) {
 func_art_portable_initialize_static_storage_from_code = Function::Create(
  /*Type=*/FuncTy_13,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_initialize_static_storage_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_initialize_static_storage_from_code", mod);  // (external, no body)
 func_art_portable_initialize_static_storage_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_initialize_static_storage_from_code_PAL;
@@ -721,7 +721,7 @@ if (!func_art_portable_initialize_type_from_code) {
 func_art_portable_initialize_type_from_code = Function::Create(
  /*Type=*/FuncTy_13,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_initialize_type_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_initialize_type_from_code", mod);  // (external, no body)
 func_art_portable_initialize_type_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_initialize_type_from_code_PAL;
@@ -732,7 +732,7 @@ if (!func_art_portable_initialize_type_and_verify_access_from_code) {
 func_art_portable_initialize_type_and_verify_access_from_code = Function::Create(
  /*Type=*/FuncTy_13,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_initialize_type_and_verify_access_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_initialize_type_and_verify_access_from_code", mod);  // (external, no body)
 func_art_portable_initialize_type_and_verify_access_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_initialize_type_and_verify_access_from_code_PAL;
@@ -743,7 +743,7 @@ if (!func_art_portable_resolve_string_from_code) {
 func_art_portable_resolve_string_from_code = Function::Create(
  /*Type=*/FuncTy_17,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_resolve_string_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_resolve_string_from_code", mod);  // (external, no body)
 func_art_portable_resolve_string_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_resolve_string_from_code_PAL;
@@ -754,7 +754,7 @@ if (!func_art_portable_set32_static_from_code) {
 func_art_portable_set32_static_from_code = Function::Create(
  /*Type=*/FuncTy_18,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_set32_static_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_set32_static_from_code", mod);  // (external, no body)
 func_art_portable_set32_static_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_set32_static_from_code_PAL;
@@ -765,7 +765,7 @@ if (!func_art_portable_set64_static_from_code) {
 func_art_portable_set64_static_from_code = Function::Create(
  /*Type=*/FuncTy_19,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_set64_static_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_set64_static_from_code", mod);  // (external, no body)
 func_art_portable_set64_static_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_set64_static_from_code_PAL;
@@ -776,7 +776,7 @@ if (!func_art_portable_set_obj_static_from_code) {
 func_art_portable_set_obj_static_from_code = Function::Create(
  /*Type=*/FuncTy_20,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_set_obj_static_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_set_obj_static_from_code", mod);  // (external, no body)
 func_art_portable_set_obj_static_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_set_obj_static_from_code_PAL;
@@ -787,7 +787,7 @@ if (!func_art_portable_get32_static_from_code) {
 func_art_portable_get32_static_from_code = Function::Create(
  /*Type=*/FuncTy_21,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_get32_static_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_get32_static_from_code", mod);  // (external, no body)
 func_art_portable_get32_static_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_get32_static_from_code_PAL;
@@ -798,7 +798,7 @@ if (!func_art_portable_get64_static_from_code) {
 func_art_portable_get64_static_from_code = Function::Create(
  /*Type=*/FuncTy_22,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_get64_static_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_get64_static_from_code", mod);  // (external, no body)
 func_art_portable_get64_static_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_get64_static_from_code_PAL;
@@ -809,7 +809,7 @@ if (!func_art_portable_get_obj_static_from_code) {
 func_art_portable_get_obj_static_from_code = Function::Create(
  /*Type=*/FuncTy_23,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_get_obj_static_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_get_obj_static_from_code", mod);  // (external, no body)
 func_art_portable_get_obj_static_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_get_obj_static_from_code_PAL;
@@ -820,7 +820,7 @@ if (!func_art_portable_set32_instance_from_code) {
 func_art_portable_set32_instance_from_code = Function::Create(
  /*Type=*/FuncTy_24,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_set32_instance_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_set32_instance_from_code", mod);  // (external, no body)
 func_art_portable_set32_instance_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_set32_instance_from_code_PAL;
@@ -831,7 +831,7 @@ if (!func_art_portable_set64_instance_from_code) {
 func_art_portable_set64_instance_from_code = Function::Create(
  /*Type=*/FuncTy_25,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_set64_instance_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_set64_instance_from_code", mod);  // (external, no body)
 func_art_portable_set64_instance_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_set64_instance_from_code_PAL;
@@ -842,7 +842,7 @@ if (!func_art_portable_set_obj_instance_from_code) {
 func_art_portable_set_obj_instance_from_code = Function::Create(
  /*Type=*/FuncTy_26,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_set_obj_instance_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_set_obj_instance_from_code", mod);  // (external, no body)
 func_art_portable_set_obj_instance_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_set_obj_instance_from_code_PAL;
@@ -853,7 +853,7 @@ if (!func_art_portable_get32_instance_from_code) {
 func_art_portable_get32_instance_from_code = Function::Create(
  /*Type=*/FuncTy_20,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_get32_instance_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_get32_instance_from_code", mod);  // (external, no body)
 func_art_portable_get32_instance_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_get32_instance_from_code_PAL;
@@ -864,7 +864,7 @@ if (!func_art_portable_get64_instance_from_code) {
 func_art_portable_get64_instance_from_code = Function::Create(
  /*Type=*/FuncTy_27,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_get64_instance_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_get64_instance_from_code", mod);  // (external, no body)
 func_art_portable_get64_instance_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_get64_instance_from_code_PAL;
@@ -875,7 +875,7 @@ if (!func_art_portable_get_obj_instance_from_code) {
 func_art_portable_get_obj_instance_from_code = Function::Create(
  /*Type=*/FuncTy_13,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_get_obj_instance_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_get_obj_instance_from_code", mod);  // (external, no body)
 func_art_portable_get_obj_instance_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_get_obj_instance_from_code_PAL;
@@ -886,7 +886,7 @@ if (!func_art_portable_decode_jobject_in_thread) {
 func_art_portable_decode_jobject_in_thread = Function::Create(
  /*Type=*/FuncTy_28,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_decode_jobject_in_thread", mod); // (external, no body)
+ /*Name=*/"art_portable_decode_jobject_in_thread", mod);  // (external, no body)
 func_art_portable_decode_jobject_in_thread->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_decode_jobject_in_thread_PAL;
@@ -897,7 +897,7 @@ if (!func_art_portable_fill_array_data_from_code) {
 func_art_portable_fill_array_data_from_code = Function::Create(
  /*Type=*/FuncTy_29,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_fill_array_data_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_fill_array_data_from_code", mod);  // (external, no body)
 func_art_portable_fill_array_data_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_fill_array_data_from_code_PAL;
@@ -908,7 +908,7 @@ if (!func_art_portable_is_assignable_from_code) {
 func_art_portable_is_assignable_from_code = Function::Create(
  /*Type=*/FuncTy_30,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_is_assignable_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_is_assignable_from_code", mod);  // (external, no body)
 func_art_portable_is_assignable_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_is_assignable_from_code_PAL;
@@ -919,7 +919,7 @@ if (!func_art_portable_check_cast_from_code) {
 func_art_portable_check_cast_from_code = Function::Create(
  /*Type=*/FuncTy_5,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_check_cast_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_check_cast_from_code", mod);  // (external, no body)
 func_art_portable_check_cast_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_check_cast_from_code_PAL;
@@ -930,7 +930,7 @@ if (!func_art_portable_check_put_array_element_from_code) {
 func_art_portable_check_put_array_element_from_code = Function::Create(
  /*Type=*/FuncTy_5,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_check_put_array_element_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_check_put_array_element_from_code", mod);  // (external, no body)
 func_art_portable_check_put_array_element_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_check_put_array_element_from_code_PAL;
@@ -941,7 +941,7 @@ if (!func_art_d2l) {
 func_art_d2l = Function::Create(
  /*Type=*/FuncTy_31,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_d2l", mod); // (external, no body)
+ /*Name=*/"art_d2l", mod);  // (external, no body)
 func_art_d2l->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_d2l_PAL;
@@ -952,7 +952,7 @@ if (!func_art_d2i) {
 func_art_d2i = Function::Create(
  /*Type=*/FuncTy_32,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_d2i", mod); // (external, no body)
+ /*Name=*/"art_d2i", mod);  // (external, no body)
 func_art_d2i->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_d2i_PAL;
@@ -963,7 +963,7 @@ if (!func_art_f2l) {
 func_art_f2l = Function::Create(
  /*Type=*/FuncTy_33,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_f2l", mod); // (external, no body)
+ /*Name=*/"art_f2l", mod);  // (external, no body)
 func_art_f2l->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_f2l_PAL;
@@ -974,7 +974,7 @@ if (!func_art_f2i) {
 func_art_f2i = Function::Create(
  /*Type=*/FuncTy_34,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_f2i", mod); // (external, no body)
+ /*Name=*/"art_f2i", mod);  // (external, no body)
 func_art_f2i->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_f2i_PAL;
@@ -985,7 +985,7 @@ if (!func_art_portable_jni_method_start) {
 func_art_portable_jni_method_start = Function::Create(
  /*Type=*/FuncTy_35,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_jni_method_start", mod); // (external, no body)
+ /*Name=*/"art_portable_jni_method_start", mod);  // (external, no body)
 func_art_portable_jni_method_start->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_jni_method_start_PAL;
@@ -996,7 +996,7 @@ if (!func_art_portable_jni_method_start_synchronized) {
 func_art_portable_jni_method_start_synchronized = Function::Create(
  /*Type=*/FuncTy_30,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_jni_method_start_synchronized", mod); // (external, no body)
+ /*Name=*/"art_portable_jni_method_start_synchronized", mod);  // (external, no body)
 func_art_portable_jni_method_start_synchronized->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_jni_method_start_synchronized_PAL;
@@ -1007,7 +1007,7 @@ if (!func_art_portable_jni_method_end) {
 func_art_portable_jni_method_end = Function::Create(
  /*Type=*/FuncTy_15,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_jni_method_end", mod); // (external, no body)
+ /*Name=*/"art_portable_jni_method_end", mod);  // (external, no body)
 func_art_portable_jni_method_end->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_jni_method_end_PAL;
@@ -1018,7 +1018,7 @@ if (!func_art_portable_jni_method_end_synchronized) {
 func_art_portable_jni_method_end_synchronized = Function::Create(
  /*Type=*/FuncTy_36,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_jni_method_end_synchronized", mod); // (external, no body)
+ /*Name=*/"art_portable_jni_method_end_synchronized", mod);  // (external, no body)
 func_art_portable_jni_method_end_synchronized->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_jni_method_end_synchronized_PAL;
@@ -1029,7 +1029,7 @@ if (!func_art_portable_jni_method_end_with_reference) {
 func_art_portable_jni_method_end_with_reference = Function::Create(
  /*Type=*/FuncTy_37,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_jni_method_end_with_reference", mod); // (external, no body)
+ /*Name=*/"art_portable_jni_method_end_with_reference", mod);  // (external, no body)
 func_art_portable_jni_method_end_with_reference->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_jni_method_end_with_reference_PAL;
@@ -1040,7 +1040,7 @@ if (!func_art_portable_jni_method_end_with_reference_synchronized) {
 func_art_portable_jni_method_end_with_reference_synchronized = Function::Create(
  /*Type=*/FuncTy_38,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_jni_method_end_with_reference_synchronized", mod); // (external, no body)
+ /*Name=*/"art_portable_jni_method_end_with_reference_synchronized", mod);  // (external, no body)
 func_art_portable_jni_method_end_with_reference_synchronized->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_jni_method_end_with_reference_synchronized_PAL;
@@ -1051,7 +1051,7 @@ if (!func_art_portable_is_exception_pending_from_code) {
 func_art_portable_is_exception_pending_from_code = Function::Create(
  /*Type=*/FuncTy_39,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_is_exception_pending_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_is_exception_pending_from_code", mod);  // (external, no body)
 func_art_portable_is_exception_pending_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_is_exception_pending_from_code_PAL;
@@ -1062,7 +1062,7 @@ if (!func_art_portable_mark_gc_card_from_code) {
 func_art_portable_mark_gc_card_from_code = Function::Create(
  /*Type=*/FuncTy_5,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_mark_gc_card_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_mark_gc_card_from_code", mod);  // (external, no body)
 func_art_portable_mark_gc_card_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_mark_gc_card_from_code_PAL;
@@ -1073,7 +1073,7 @@ if (!func_art_portable_proxy_invoke_handler_from_code) {
 func_art_portable_proxy_invoke_handler_from_code = Function::Create(
  /*Type=*/FuncTy_40,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_portable_proxy_invoke_handler_from_code", mod); // (external, no body)
+ /*Name=*/"art_portable_proxy_invoke_handler_from_code", mod);  // (external, no body)
 func_art_portable_proxy_invoke_handler_from_code->setCallingConv(CallingConv::C);
 }
 AttributeSet func_art_portable_proxy_invoke_handler_from_code_PAL;
@@ -1092,5 +1092,5 @@ return mod;
 
 }
 
-} // namespace llvm
-} // namespace art
+}  // namespace llvm
+}  // namespace art

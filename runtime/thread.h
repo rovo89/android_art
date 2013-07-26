@@ -580,7 +580,7 @@ class PACKED(4) Thread {
   friend class ThreadList;  // For ~Thread and Destroy.
 
   void CreatePeer(const char* name, bool as_daemon, jobject thread_group);
-  friend class Runtime; // For CreatePeer.
+  friend class Runtime;  // For CreatePeer.
 
   // Avoid use, callers should use SetState. Used only by SignalCatcher::HandleSigQuit, ~Thread and
   // Dbg::Disconnected.
@@ -590,7 +590,7 @@ class PACKED(4) Thread {
     return old_state;
   }
   friend class SignalCatcher;  // For SetStateUnsafe.
-  friend class Dbg;  // For SetStateUnsafe.
+  friend class Dbg;  // F or SetStateUnsafe.
 
   void VerifyStackImpl() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -600,7 +600,7 @@ class PACKED(4) Thread {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Out-of-line conveniences for debugging in gdb.
-  static Thread* CurrentFromGdb(); // Like Thread::Current.
+  static Thread* CurrentFromGdb();  // Like Thread::Current.
   // Like Thread::Dump(std::cerr).
   void DumpFromGdb() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

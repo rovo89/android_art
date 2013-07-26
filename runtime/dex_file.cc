@@ -234,7 +234,7 @@ const DexFile* DexFile::OpenMemory(const byte* base,
                                    const std::string& location,
                                    uint32_t location_checksum,
                                    MemMap* mem_map) {
-  CHECK_ALIGNED(base, 4); // various dex file structures must be word aligned
+  CHECK_ALIGNED(base, 4);  // various dex file structures must be word aligned
   UniquePtr<DexFile> dex_file(new DexFile(base, size, location, location_checksum, mem_map));
   if (!dex_file->Init()) {
     return NULL;

@@ -62,7 +62,7 @@ CompiledMethod* SeaIrCompileOneMethod(CompilerDriver& compiler,
 #if defined(ART_USE_PORTABLE_COMPILER)
                        , llvm_compilation_unit
 #endif
-                       ); // NOLINT
+                       );  // NOLINT
 }
 
 extern "C" art::CompiledMethod*
@@ -79,4 +79,4 @@ extern "C" art::CompiledMethod*
 }
 #endif
 
-} // end namespace art
+}  // namespace art

@@ -111,6 +111,6 @@ class DexCompilationUnit {
   std::string symbol_;
 };
 
-} // namespace art
+}  // namespace art
 
 #endif  // ART_COMPILER_DRIVER_DEX_COMPILATION_UNIT_H_

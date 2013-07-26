@@ -127,4 +127,4 @@ extern "C" JNIEXPORT jint JNICALL Java_StackWalk2_refmap2(JNIEnv*, jobject, jint
   return count + 1;
 }
 
-} // namespace art
+}  // namespace art

@@ -219,7 +219,7 @@ enum X86NativeRegisterPool {
  */
 enum X86OpCode {
   kX86First = 0,
-  kX8632BitData = kX86First, // data [31..0].
+  kX8632BitData = kX86First,  // data [31..0].
   kX86Bkpt,
   kX86Nop,
   // Define groups of binary operations
@@ -322,12 +322,12 @@ enum X86OpCode {
   Binary0fOpCode(kX86Movss),
   kX86MovssMR,
   kX86MovssAR,
-  Binary0fOpCode(kX86Cvtsi2sd), // int to double
-  Binary0fOpCode(kX86Cvtsi2ss), // int to float
-  Binary0fOpCode(kX86Cvttsd2si),// truncating double to int
-  Binary0fOpCode(kX86Cvttss2si),// truncating float to int
-  Binary0fOpCode(kX86Cvtsd2si), // rounding double to int
-  Binary0fOpCode(kX86Cvtss2si), // rounding float to int
+  Binary0fOpCode(kX86Cvtsi2sd),  // int to double
+  Binary0fOpCode(kX86Cvtsi2ss),  // int to float
+  Binary0fOpCode(kX86Cvttsd2si),  // truncating double to int
+  Binary0fOpCode(kX86Cvttss2si),  // truncating float to int
+  Binary0fOpCode(kX86Cvtsd2si),  // rounding double to int
+  Binary0fOpCode(kX86Cvtss2si),  // rounding float to int
   Binary0fOpCode(kX86Ucomisd),  // unordered double compare
   Binary0fOpCode(kX86Ucomiss),  // unordered float compare
   Binary0fOpCode(kX86Comisd),   // double compare
@@ -338,8 +338,8 @@ enum X86OpCode {
   Binary0fOpCode(kX86Addss),    // float add
   Binary0fOpCode(kX86Mulsd),    // double multiply
   Binary0fOpCode(kX86Mulss),    // float multiply
-  Binary0fOpCode(kX86Cvtsd2ss), // double to float
-  Binary0fOpCode(kX86Cvtss2sd), // float to double
+  Binary0fOpCode(kX86Cvtsd2ss),  // double to float
+  Binary0fOpCode(kX86Cvtss2sd),  // float to double
   Binary0fOpCode(kX86Subsd),    // double subtract
   Binary0fOpCode(kX86Subss),    // float subtract
   Binary0fOpCode(kX86Divsd),    // double divide
@@ -347,13 +347,13 @@ enum X86OpCode {
   kX86PsrlqRI,                  // right shift of floating point registers
   kX86PsllqRI,                  // left shift of floating point registers
   Binary0fOpCode(kX86Movdxr),   // move into xmm from gpr
-  kX86MovdrxRR, kX86MovdrxMR, kX86MovdrxAR,// move into reg from xmm
-  kX86Set8R, kX86Set8M, kX86Set8A,// set byte depending on condition operand
+  kX86MovdrxRR, kX86MovdrxMR, kX86MovdrxAR,  // move into reg from xmm
+  kX86Set8R, kX86Set8M, kX86Set8A,  // set byte depending on condition operand
   kX86Mfence,                   // memory barrier
   Binary0fOpCode(kX86Imul16),   // 16bit multiply
   Binary0fOpCode(kX86Imul32),   // 32bit multiply
-  kX86CmpxchgRR, kX86CmpxchgMR, kX86CmpxchgAR,// compare and exchange
-  kX86LockCmpxchgRR, kX86LockCmpxchgMR, kX86LockCmpxchgAR,// locked compare and exchange
+  kX86CmpxchgRR, kX86CmpxchgMR, kX86CmpxchgAR,  // compare and exchange
+  kX86LockCmpxchgRR, kX86LockCmpxchgMR, kX86LockCmpxchgAR,  // locked compare and exchange
   Binary0fOpCode(kX86Movzx8),   // zero-extend 8-bit value
   Binary0fOpCode(kX86Movzx16),  // zero-extend 16-bit value
   Binary0fOpCode(kX86Movsx8),   // sign-extend 8-bit value
@@ -383,9 +383,9 @@ enum X86EncodingKind {
   kNullary,                                // Opcode that takes no arguments.
   kReg, kMem, kArray,                      // R, M and A instruction kinds.
   kMemReg, kArrayReg, kThreadReg,          // MR, AR and TR instruction kinds.
-  kRegReg, kRegMem, kRegArray, kRegThread, // RR, RM, RA and RT instruction kinds.
+  kRegReg, kRegMem, kRegArray, kRegThread,  // RR, RM, RA and RT instruction kinds.
   kRegRegStore,                            // RR following the store modrm reg-reg encoding rather than the load.
-  kRegImm, kMemImm, kArrayImm, kThreadImm, // RI, MI, AI and TI instruction kinds.
+  kRegImm, kMemImm, kArrayImm, kThreadImm,  // RI, MI, AI and TI instruction kinds.
   kRegRegImm, kRegMemImm, kRegArrayImm,    // RRI, RMI and RAI instruction kinds.
   kMovRegImm,                              // Shorter form move RI.
   kShiftRegImm, kShiftMemImm, kShiftArrayImm,  // Shift opcode with immediate.
@@ -407,13 +407,13 @@ struct X86EncodingMap {
   uint8_t prefix1;       // non-zero => a prefix byte
   uint8_t prefix2;       // non-zero => a second prefix byte
   uint8_t opcode;        // 1 byte opcode
-  uint8_t extra_opcode1; // possible extra opcode byte
-  uint8_t extra_opcode2; // possible second extra opcode byte
+  uint8_t extra_opcode1;  // possible extra opcode byte
+  uint8_t extra_opcode2;  // possible second extra opcode byte
   // 3bit opcode that gets encoded in the register bits of the modrm byte, use determined by the
   // encoding kind
   uint8_t modrm_opcode;
   uint8_t ax_opcode;  // non-zero => shorter encoding for AX as a destination
-  uint8_t immediate_bytes; // number of bytes of immediate
+  uint8_t immediate_bytes;  // number of bytes of immediate
   } skeleton;
   const char *name;
   const char* fmt;

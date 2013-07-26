@@ -220,7 +220,7 @@ void Instruction::Decode(uint32_t &vA, uint32_t &vB, uint64_t &vB_wide, uint32_t
       break;
     case k11n:       // op vA, #+B
       vA = INST_A(insn);
-      vB = (int32_t) (INST_B(insn) << 28) >> 28; // sign extend 4-bit value
+      vB = (int32_t) (INST_B(insn) << 28) >> 28;  // sign extend 4-bit value
       break;
     case k11x:       // op vAA
       vA = INST_AA(insn);
@@ -302,7 +302,7 @@ void Instruction::Decode(uint32_t &vA, uint32_t &vB, uint64_t &vB_wide, uint32_t
         uint16_t regList;
         int count;
 
-        vA = INST_B(insn); // This is labeled A in the spec.
+        vA = INST_B(insn);  // This is labeled A in the spec.
         vB = FETCH(1);
         regList = FETCH(2);
 
@@ -321,7 +321,7 @@ void Instruction::Decode(uint32_t &vA, uint32_t &vB, uint64_t &vB_wide, uint32_t
         case 3: arg[2] = (regList >> 8) & 0x0f;
         case 2: arg[1] = (regList >> 4) & 0x0f;
         case 1: vC = arg[0] = regList & 0x0f; break;
-        case 0: break; // Valid, but no need to do anything.
+        case 0: break;  // Valid, but no need to do anything.
         default:
           LOG(ERROR) << "Invalid arg count in 35c (" << count << ")";
           return;
@@ -561,7 +561,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
               }
               os << "v" << arg[i];
             }
-            os << "}, // vtable@" << method_idx;
+            os << "},  // vtable@" << method_idx;
             break;
           }  // else fall-through
         default:

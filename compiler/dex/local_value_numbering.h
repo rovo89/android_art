@@ -137,6 +137,6 @@ class LocalValueNumbering {
   std::set<uint16_t> null_checked_;
 };
 
-} // namespace art
+}  // namespace art
 
 #endif  // ART_COMPILER_DEX_LOCAL_VALUE_NUMBERING_H_

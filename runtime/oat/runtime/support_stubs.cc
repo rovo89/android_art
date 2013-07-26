@@ -116,7 +116,7 @@ extern "C" const void* artPortableResolutionTrampoline(mirror::AbstractMethod* c
     if (LIKELY(called_class->IsInitialized())) {
       code = called->GetEntryPointFromCompiledCode();
       // TODO: remove this after we solve the link issue.
-      { // for lazy link.
+      {  // for lazy link.
         if (code == NULL) {
           code = linker->GetOatCodeFor(called);
         }
@@ -130,7 +130,7 @@ extern "C" const void* artPortableResolutionTrampoline(mirror::AbstractMethod* c
         // No trampoline for non-static methods.
         code = called->GetEntryPointFromCompiledCode();
         // TODO: remove this after we solve the link issue.
-        { // for lazy link.
+        {  // for lazy link.
           if (code == NULL) {
             code = linker->GetOatCodeFor(called);
           }

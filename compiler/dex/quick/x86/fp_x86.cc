@@ -373,4 +373,4 @@ bool X86Mir2Lir::GenInlinedSqrt(CallInfo* info) {
 
 
 
-} //  namespace art
+}  // namespace art

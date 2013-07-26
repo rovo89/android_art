@@ -424,7 +424,7 @@ class MarkSweep : public GarbageCollector {
 
   bool clear_soft_references_;
 
-  friend class AddIfReachesAllocSpaceVisitor; // Used by mod-union table.
+  friend class AddIfReachesAllocSpaceVisitor;  // Used by mod-union table.
   friend class CheckBitmapVisitor;
   friend class CheckObjectVisitor;
   friend class CheckReferenceVisitor;

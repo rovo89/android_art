@@ -88,7 +88,7 @@ CardTable::CardTable(MemMap* mem_map, byte* biased_begin, size_t offset)
 void CardTable::ClearSpaceCards(space::ContinuousSpace* space) {
   // TODO: clear just the range of the table that has been modified
   byte* card_start = CardFromAddr(space->Begin());
-  byte* card_end = CardFromAddr(space->End()); // Make sure to round up.
+  byte* card_end = CardFromAddr(space->End());  // Make sure to round up.
   memset(reinterpret_cast<void*>(card_start), kCardClean, card_end - card_start);
 }
 

@@ -328,8 +328,8 @@ class ClassLinker {
   const void* GetOatCodeFor(const DexFile& dex_file, uint32_t method_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  pid_t GetClassesLockOwner(); // For SignalCatcher.
-  pid_t GetDexLockOwner(); // For SignalCatcher.
+  pid_t GetClassesLockOwner();  // For SignalCatcher.
+  pid_t GetDexLockOwner();  // For SignalCatcher.
 
   bool IsDirty() const {
     return is_dirty_;

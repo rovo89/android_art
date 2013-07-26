@@ -333,7 +333,7 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb) {
 static const char* storage_name[] = {" Frame ", "PhysReg", " Spill "};
 
 void MIRGraph::DumpRegLocTable(RegLocation* table, int count) {
-  //FIXME: Quick-specific.  Move to Quick (and make a generic version for MIRGraph?
+  // FIXME: Quick-specific.  Move to Quick (and make a generic version for MIRGraph?
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu_->cg.get());
   if (cg != NULL) {
     for (int i = 0; i < count; i++) {

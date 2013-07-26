@@ -72,37 +72,37 @@ extern "C" void ArtUnInitQuickCompilerContext(art::CompilerDriver& compiler) {
 }
 
 /* Default optimizer/debug setting for the compiler. */
-static uint32_t kCompilerOptimizerDisableFlags = 0 | // Disable specific optimizations
+static uint32_t kCompilerOptimizerDisableFlags = 0 |  // Disable specific optimizations
   (1 << kLoadStoreElimination) |
-  //(1 << kLoadHoisting) |
-  //(1 << kSuppressLoads) |
-  //(1 << kNullCheckElimination) |
-  //(1 << kPromoteRegs) |
-  //(1 << kTrackLiveTemps) |
-  //(1 << kSafeOptimizations) |
-  //(1 << kBBOpt) |
-  //(1 << kMatch) |
-  //(1 << kPromoteCompilerTemps) |
+  // (1 << kLoadHoisting) |
+  // (1 << kSuppressLoads) |
+  // (1 << kNullCheckElimination) |
+  // (1 << kPromoteRegs) |
+  // (1 << kTrackLiveTemps) |
+  // (1 << kSafeOptimizations) |
+  // (1 << kBBOpt) |
+  // (1 << kMatch) |
+  // (1 << kPromoteCompilerTemps) |
   0;
 
 static uint32_t kCompilerDebugFlags = 0 |     // Enable debug/testing modes
-  //(1 << kDebugDisplayMissingTargets) |
-  //(1 << kDebugVerbose) |
-  //(1 << kDebugDumpCFG) |
-  //(1 << kDebugSlowFieldPath) |
-  //(1 << kDebugSlowInvokePath) |
-  //(1 << kDebugSlowStringPath) |
-  //(1 << kDebugSlowestFieldPath) |
-  //(1 << kDebugSlowestStringPath) |
-  //(1 << kDebugExerciseResolveMethod) |
-  //(1 << kDebugVerifyDataflow) |
-  //(1 << kDebugShowMemoryUsage) |
-  //(1 << kDebugShowNops) |
-  //(1 << kDebugCountOpcodes) |
-  //(1 << kDebugDumpCheckStats) |
-  //(1 << kDebugDumpBitcodeFile) |
-  //(1 << kDebugVerifyBitcode) |
-  //(1 << kDebugShowSummaryMemoryUsage) |
+  // (1 << kDebugDisplayMissingTargets) |
+  // (1 << kDebugVerbose) |
+  // (1 << kDebugDumpCFG) |
+  // (1 << kDebugSlowFieldPath) |
+  // (1 << kDebugSlowInvokePath) |
+  // (1 << kDebugSlowStringPath) |
+  // (1 << kDebugSlowestFieldPath) |
+  // (1 << kDebugSlowestStringPath) |
+  // (1 << kDebugExerciseResolveMethod) |
+  // (1 << kDebugVerifyDataflow) |
+  // (1 << kDebugShowMemoryUsage) |
+  // (1 << kDebugShowNops) |
+  // (1 << kDebugCountOpcodes) |
+  // (1 << kDebugDumpCheckStats) |
+  // (1 << kDebugDumpBitcodeFile) |
+  // (1 << kDebugVerifyBitcode) |
+  // (1 << kDebugShowSummaryMemoryUsage) |
   0;
 
 static CompiledMethod* CompileMethod(CompilerDriver& compiler,
@@ -277,7 +277,7 @@ CompiledMethod* CompileOneMethod(CompilerDriver& compiler,
 #if defined(ART_USE_PORTABLE_COMPILER)
                        , llvm_compilation_unit
 #endif
-                       ); // NOLINT(whitespace/parens)
+                       );  // NOLINT(whitespace/parens)
 }
 
 }  // namespace art

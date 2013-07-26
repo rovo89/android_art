@@ -102,7 +102,7 @@ class LLVMInfo {
 
   private:
     UniquePtr< ::llvm::LLVMContext> llvm_context_;
-    ::llvm::Module* llvm_module_; // Managed by context_.
+    ::llvm::Module* llvm_module_;  // Managed by context_.
     UniquePtr<art::llvm::IntrinsicHelper> intrinsic_helper_;
     UniquePtr<art::llvm::IRBuilder> ir_builder_;
 };

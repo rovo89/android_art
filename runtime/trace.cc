@@ -75,11 +75,11 @@ namespace art {
 // All values are stored in little-endian order.
 
 enum TraceAction {
-    kTraceMethodEnter = 0x00,      // method entry
-    kTraceMethodExit = 0x01,       // method exit
-    kTraceUnroll = 0x02,     // method exited by exception unrolling
+    kTraceMethodEnter = 0x00,       // method entry
+    kTraceMethodExit = 0x01,        // method exit
+    kTraceUnroll = 0x02,            // method exited by exception unrolling
     // 0x03 currently unused
-    kTraceMethodActionMask = 0x03, // two bits
+    kTraceMethodActionMask = 0x03,  // two bits
 };
 
 static const char     kTraceTokenChar             = '*';
@@ -87,8 +87,8 @@ static const uint16_t kTraceHeaderLength          = 32;
 static const uint32_t kTraceMagicValue            = 0x574f4c53;
 static const uint16_t kTraceVersionSingleClock    = 2;
 static const uint16_t kTraceVersionDualClock      = 3;
-static const uint16_t kTraceRecordSizeSingleClock = 10; // using v2
-static const uint16_t kTraceRecordSizeDualClock   = 14; // using v3 with two timestamps
+static const uint16_t kTraceRecordSizeSingleClock = 10;  // using v2
+static const uint16_t kTraceRecordSizeDualClock   = 14;  // using v3 with two timestamps
 
 #if defined(HAVE_POSIX_CLOCKS)
 ProfilerClockSource Trace::default_clock_source_ = kProfilerClockSourceDual;
@@ -487,7 +487,7 @@ void Trace::GetVisitedMethods(size_t buf_size,
 
 void Trace::DumpMethodList(std::ostream& os,
                            const std::set<mirror::AbstractMethod*>& visited_methods) {
-  typedef std::set<mirror::AbstractMethod*>::const_iterator It; // TODO: C++0x auto
+  typedef std::set<mirror::AbstractMethod*>::const_iterator It;  // TODO: C++0x auto
   MethodHelper mh;
   for (It it = visited_methods.begin(); it != visited_methods.end(); ++it) {
     mirror::AbstractMethod* method = *it;

@@ -400,7 +400,7 @@ void Mutex::ExclusiveUnlock(Thread* self) {
       exclusive_owner_ = 0;
       // Change state to 0.
       done = android_atomic_release_cas(cur_state, 0, &state_) == 0;
-      if (done) { // Spurious fail?
+      if (done) {  // Spurious fail?
         // Wake a contender
         if (num_contenders_ > 0) {
           futex(&state_, FUTEX_WAKE, 1, NULL, NULL, 0);
@@ -478,7 +478,7 @@ ReaderWriterMutex::ReaderWriterMutex(const char* name, LockLevel level)
 #if ART_USE_FUTEXES
     , state_(0), exclusive_owner_(0), num_pending_readers_(0), num_pending_writers_(0)
 #endif
-{ // NOLINT(whitespace/braces)
+{  // NOLINT(whitespace/braces)
 #if !ART_USE_FUTEXES
   CHECK_MUTEX_CALL(pthread_rwlock_init, (&rwlock_, NULL));
 #endif
@@ -551,7 +551,7 @@ void ReaderWriterMutex::ExclusiveUnlock(Thread* self) {
       exclusive_owner_ = 0;
       // Change state from -1 to 0.
       done = android_atomic_release_cas(-1, 0, &state_) == 0;
-      if (done) { // cmpxchg may fail due to noise?
+      if (done) {  // cmpxchg may fail due to noise?
         // Wake any waiters.
         if (num_pending_readers_ > 0 || num_pending_writers_ > 0) {
           futex(&state_, FUTEX_WAKE, -1, NULL, NULL, 0);
@@ -756,7 +756,7 @@ void ConditionVariable::Broadcast(Thread* self) {
   DCHECK_EQ(guard_.GetExclusiveOwnerTid(), SafeGetTid(self));
 #if ART_USE_FUTEXES
   if (num_waiters_ > 0) {
-    android_atomic_inc(&sequence_); // Indicate the broadcast occurred.
+    android_atomic_inc(&sequence_);  // Indicate the broadcast occurred.
     bool done = false;
     do {
       int32_t cur_sequence = sequence_;
@@ -782,7 +782,7 @@ void ConditionVariable::Signal(Thread* self) {
   guard_.AssertExclusiveHeld(self);
 #if ART_USE_FUTEXES
   if (num_waiters_ > 0) {
-    android_atomic_inc(&sequence_); // Indicate a signal occurred.
+    android_atomic_inc(&sequence_);  // Indicate a signal occurred.
     // Futex wake 1 waiter who will then come and in contend on mutex. It'd be nice to requeue them
     // to avoid this, however, requeueing can only move all waiters.
     int num_woken = futex(&sequence_, FUTEX_WAKE, 1, NULL, NULL, 0);

@@ -270,7 +270,7 @@ mirror::Object* BoxPrimitive(Primitive::Type src_class, const JValue& value) {
 static std::string UnboxingFailureKind(mirror::AbstractMethod* m, int index, mirror::Field* f)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (m != NULL && index != -1) {
-    ++index; // Humans count from 1.
+    ++index;  // Humans count from 1.
     return StringPrintf("method %s argument %d", PrettyMethod(m, false).c_str(), index);
   }
   if (f != NULL) {

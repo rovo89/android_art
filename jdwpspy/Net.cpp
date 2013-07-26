@@ -510,7 +510,7 @@ static void dumpPacket(const unsigned char* packetBuf, const char* srcName,
         printf("%s   --> %s\n", prefix, getCommandName(cmdSet, cmd));
     } else {
         std::ostringstream ss;
-        ss << "TODO"; // get access to the operator<<, or regenerate it for jdwpspy?
+        ss << "TODO";  // get access to the operator<<, or regenerate it for jdwpspy?
         printf("%s REPLY   dataLen=%-5u id=0x%08x flags=0x%02x err=%d (%s) [%02d:%02d]\n",
             prefix, dataLen, id, flags, error, ss.str().c_str(), min,sec);
     }

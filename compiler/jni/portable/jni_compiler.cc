@@ -148,8 +148,8 @@ CompiledMethod* JniCompiler::Compile() {
 
   // Variables for GetElementPtr
   ::llvm::Value* gep_index[] = {
-    irb_.getInt32(0), // No displacement for shadow frame pointer
-    irb_.getInt32(1), // SIRT
+    irb_.getInt32(0),  // No displacement for shadow frame pointer
+    irb_.getInt32(1),  // SIRT
     NULL,
   };
 
@@ -185,7 +185,7 @@ CompiledMethod* JniCompiler::Compile() {
   }
 
   ::llvm::Value* saved_local_ref_cookie;
-  { // JniMethodStart
+  {  // JniMethodStart
     RuntimeId func_id = is_synchronized ? JniMethodStartSynchronized
                                         : JniMethodStart;
     ::llvm::SmallVector< ::llvm::Value*, 2> args;
@@ -200,7 +200,7 @@ CompiledMethod* JniCompiler::Compile() {
   // Call!!!
   ::llvm::Value* retval = irb_.CreateCall(code_addr, args);
 
-  { // JniMethodEnd
+  {  // JniMethodEnd
     bool is_return_ref = return_shorty == 'L';
     RuntimeId func_id =
         is_return_ref ? (is_synchronized ? JniMethodEndWithReferenceSynchronized
@@ -281,7 +281,7 @@ void JniCompiler::CreateFunction(const std::string& func_name) {
   // Get argument type
   std::vector< ::llvm::Type*> args_type;
 
-  args_type.push_back(irb_.getJObjectTy()); // method object pointer
+  args_type.push_back(irb_.getJObjectTy());  // method object pointer
 
   if (!is_static || is_native_function) {
     // "this" object pointer for non-static
@@ -296,5 +296,5 @@ void JniCompiler::CreateFunction(const std::string& func_name) {
   return ::llvm::FunctionType::get(ret_type, args_type, false);
 }
 
-} // namespace llvm
-} // namespace art
+}  // namespace llvm
+}  // namespace art

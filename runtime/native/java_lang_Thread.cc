@@ -85,7 +85,7 @@ static jint Thread_nativeGetStatus(JNIEnv* env, jobject java_thread, jboolean ha
     case kSuspended:                      return kJavaRunnable;
     // Don't add a 'default' here so the compiler can spot incompatible enum changes.
   }
-  return -1; // Unreachable.
+  return -1;  // Unreachable.
 }
 
 static jboolean Thread_nativeHoldsLock(JNIEnv* env, jobject java_thread, jobject java_object) {

@@ -32,7 +32,7 @@ union PACKED(4) JValue {
 
   int8_t GetB() const { return b; }
   void SetB(int8_t new_b) {
-    i = ((static_cast<int32_t>(new_b) << 24) >> 24); // Sign-extend.
+    i = ((static_cast<int32_t>(new_b) << 24) >> 24);  // Sign-extend.
   }
 
   uint16_t GetC() const { return c; }
@@ -55,7 +55,7 @@ union PACKED(4) JValue {
 
   int16_t GetS() const { return s; }
   void SetS(int16_t new_s) {
-    i = ((static_cast<int32_t>(new_s) << 16) >> 16); // Sign-extend.
+    i = ((static_cast<int32_t>(new_s) << 16) >> 16);  // Sign-extend.
   }
 
   uint8_t GetZ() const { return z; }

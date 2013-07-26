@@ -95,7 +95,7 @@ const std::vector<uint8_t>* CreateInterpreterToQuickEntry() {
 
   return entry_stub.release();
 }
-} // namespace arm
+}  // namespace arm
 
 namespace mips {
 const std::vector<uint8_t>* CreateQuickResolutionTrampoline() {
@@ -126,7 +126,7 @@ const std::vector<uint8_t>* CreateQuickResolutionTrampoline() {
   __ LoadFromOffset(kLoadWord, T9, S1, ENTRYPOINT_OFFSET(pQuickResolutionTrampolineFromCode));
   __ Move(A3, S1);  // Pass Thread::Current() in A3
   __ Move(A2, SP);  // Pass SP for Method** callee_addr
-  __ Jalr(T9); // Call to resolution trampoline (method_idx, receiver, sp, Thread*)
+  __ Jalr(T9);  // Call to resolution trampoline (method_idx, receiver, sp, Thread*)
 
   // Restore registers which may have been modified by GC
   __ LoadFromOffset(kLoadWord, A0, SP, 0);
@@ -144,7 +144,7 @@ const std::vector<uint8_t>* CreateQuickResolutionTrampoline() {
   __ LoadFromOffset(kLoadWord, RA, SP, 60);
   __ AddConstant(SP, SP, 64);
 
-  __ Move(T9, V0); // Put method's code in T9
+  __ Move(T9, V0);  // Put method's code in T9
   __ Jr(T9);  // Leaf call to method's code
 
   __ Break();
@@ -187,7 +187,7 @@ const std::vector<uint8_t>* CreateInterpreterToQuickEntry() {
 
   return entry_stub.release();
 }
-} // namespace mips
+}  // namespace mips
 
 namespace x86 {
 const std::vector<uint8_t>* CreateQuickResolutionTrampoline() {
@@ -258,6 +258,6 @@ const std::vector<uint8_t>* CreateInterpreterToQuickEntry() {
 
   return entry_stub.release();
 }
-} // namespace x86
+}  // namespace x86
 
-} // namespace art
+}  // namespace art

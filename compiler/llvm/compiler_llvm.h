@@ -97,7 +97,7 @@ class CompilerLLVM {
 };
 
 
-} // namespace llvm
-} // namespace art
+}  // namespace llvm
+}  // namespace art
 
 #endif  // ART_COMPILER_LLVM_COMPILER_LLVM_H_

@@ -43,7 +43,7 @@ class ThreadList {
   void DumpLocked(std::ostream& os)  // For thread suspend timeout dumps.
       EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  pid_t GetLockOwner(); // For SignalCatcher.
+  pid_t GetLockOwner();  // For SignalCatcher.
 
   // Thread suspension support.
   void ResumeAll()
@@ -102,7 +102,7 @@ class ThreadList {
   Thread* FindThreadByThinLockId(uint32_t thin_lock_id);
 
  private:
-  typedef std::list<Thread*>::const_iterator It; // TODO: C++0x auto
+  typedef std::list<Thread*>::const_iterator It;  // TODO: C++0x auto
 
   uint32_t AllocThreadId(Thread* self);
   void ReleaseThreadId(Thread* self, uint32_t id) LOCKS_EXCLUDED(allocated_ids_lock_);

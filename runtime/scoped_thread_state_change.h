@@ -179,7 +179,7 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
     uint32_t cookie = Env()->local_ref_cookie;
     IndirectRef ref = locals.Add(cookie, obj);
 
-#if 0 // TODO: fix this to understand PushLocalFrame, so we can turn it on.
+#if 0  // TODO: fix this to understand PushLocalFrame, so we can turn it on.
     if (Env()->check_jni) {
       size_t entry_count = locals.Capacity();
       if (entry_count > 16) {

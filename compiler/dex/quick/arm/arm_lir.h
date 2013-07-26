@@ -239,7 +239,7 @@ enum ArmShiftEncodings {
  */
 enum ArmOpcode {
   kArmFirst = 0,
-  kArm16BitData = kArmFirst, // DATA   [0] rd[15..0].
+  kArm16BitData = kArmFirst,  // DATA   [0] rd[15..0].
   kThumbAdcRR,       // adc   [0100000101] rm[5..3] rd[2..0].
   kThumbAddRRI3,     // add(1)  [0001110] imm_3[8..6] rn[5..3] rd[2..0]*/
   kThumbAddRI8,      // add(2)  [00110] rd[10..8] imm_8[7..0].
@@ -332,12 +332,12 @@ enum ArmOpcode {
   kThumb2VcvtDF,     // vcvt.F32.F64 vd, vm [1110111010110111] vd[15..12] [10111100] vm[3..0].
   kThumb2Vsqrts,     // vsqrt.f32 vd, vm [1110111010110001] vd[15..12] [10101100] vm[3..0].
   kThumb2Vsqrtd,     // vsqrt.f64 vd, vm [1110111010110001] vd[15..12] [10111100] vm[3..0].
-  kThumb2MovImmShift,// mov(T2) rd, #<const> [11110] i [00001001111] imm3 rd[11..8] imm8.
+  kThumb2MovImmShift,  // mov(T2) rd, #<const> [11110] i [00001001111] imm3 rd[11..8] imm8.
   kThumb2MovImm16,   // mov(T3) rd, #<const> [11110] i [0010100] imm4 [0] imm3 rd[11..8] imm8.
   kThumb2StrRRI12,   // str(Imm,T3) rd,[rn,#imm12] [111110001100] rn[19..16] rt[15..12] imm12[11..0].
   kThumb2LdrRRI12,   // str(Imm,T3) rd,[rn,#imm12] [111110001100] rn[19..16] rt[15..12] imm12[11..0].
-  kThumb2StrRRI8Predec, // str(Imm,T4) rd,[rn,#-imm8] [111110000100] rn[19..16] rt[15..12] [1100] imm[7..0]*/
-  kThumb2LdrRRI8Predec, // ldr(Imm,T4) rd,[rn,#-imm8] [111110000101] rn[19..16] rt[15..12] [1100] imm[7..0]*/
+  kThumb2StrRRI8Predec,  // str(Imm,T4) rd,[rn,#-imm8] [111110000100] rn[19..16] rt[15..12] [1100] imm[7..0]*/
+  kThumb2LdrRRI8Predec,  // ldr(Imm,T4) rd,[rn,#-imm8] [111110000101] rn[19..16] rt[15..12] [1100] imm[7..0]*/
   kThumb2Cbnz,       // cbnz rd,<label> [101110] i [1] imm5[7..3] rn[2..0].
   kThumb2Cbz,        // cbn rd,<label> [101100] i [1] imm5[7..3] rn[2..0].
   kThumb2AddRRI12,   // add rd, rn, #imm12 [11110] i [100000] rn[19..16] [0] imm3[14..12] rd[11..8] imm8[7..0].
@@ -364,9 +364,9 @@ enum ArmOpcode {
   kThumb2StrhRRR,    // str rt,[rn,rm,LSL #imm] [111110000010] rn[19-16] rt[15-12] [000000] imm[5-4] rm[3-0].
   kThumb2StrbRRR,    // str rt,[rn,rm,LSL #imm] [111110000000] rn[19-16] rt[15-12] [000000] imm[5-4] rm[3-0].
   kThumb2LdrhRRI12,  // ldrh rt,[rn,#imm12] [111110001011] rt[15..12] rn[19..16] imm12[11..0].
-  kThumb2LdrshRRI12, // ldrsh rt,[rn,#imm12] [111110011011] rt[15..12] rn[19..16] imm12[11..0].
+  kThumb2LdrshRRI12,  // ldrsh rt,[rn,#imm12] [111110011011] rt[15..12] rn[19..16] imm12[11..0].
   kThumb2LdrbRRI12,  // ldrb rt,[rn,#imm12] [111110001001] rt[15..12] rn[19..16] imm12[11..0].
-  kThumb2LdrsbRRI12, // ldrsb rt,[rn,#imm12] [111110011001] rt[15..12] rn[19..16] imm12[11..0].
+  kThumb2LdrsbRRI12,  // ldrsb rt,[rn,#imm12] [111110011001] rt[15..12] rn[19..16] imm12[11..0].
   kThumb2StrhRRI12,  // strh rt,[rn,#imm12] [111110001010] rt[15..12] rn[19..16] imm12[11..0].
   kThumb2StrbRRI12,  // strb rt,[rn,#imm12] [111110001000] rt[15..12] rn[19..16] imm12[11..0].
   kThumb2Pop,        // pop   [1110100010111101] list[15-0]*/
@@ -403,7 +403,7 @@ enum ArmOpcode {
   kThumb2Fmstat,     // fmstat [11101110111100011111101000010000].
   kThumb2Vcmpd,      // vcmp [111011101] D [11011] rd[15-12] [1011] E [1] M [0] rm[3-0].
   kThumb2Vcmps,      // vcmp [111011101] D [11010] rd[15-12] [1011] E [1] M [0] rm[3-0].
-  kThumb2LdrPcRel12, // ldr rd,[pc,#imm12] [1111100011011111] rt[15-12] imm12[11-0].
+  kThumb2LdrPcRel12,  // ldr rd,[pc,#imm12] [1111100011011111] rt[15-12] imm12[11-0].
   kThumb2BCond,      // b<c> [1110] S cond[25-22] imm6[21-16] [10] J1 [0] J2 imm11[10..0].
   kThumb2Vmovd_RR,   // vmov [111011101] D [110000] vd[15-12 [101101] M [0] vm[3-0].
   kThumb2Vmovs_RR,   // vmov [111011101] D [110000] vd[15-12 [101001] M [0] vm[3-0].
@@ -415,8 +415,8 @@ enum ArmOpcode {
   kThumb2Vabss,      // vabs.f32 [111011101] D [110000] rd[15-12] [1010110] M [0] vm[3-0].
   kThumb2Vnegd,      // vneg.f64 [111011101] D [110000] rd[15-12] [1011110] M [0] vm[3-0].
   kThumb2Vnegs,      // vneg.f32 [111011101] D [110000] rd[15-12] [1010110] M [0] vm[3-0].
-  kThumb2Vmovs_IMM8, // vmov.f32 [111011101] D [11] imm4h[19-16] vd[15-12] [10100000] imm4l[3-0].
-  kThumb2Vmovd_IMM8, // vmov.f64 [111011101] D [11] imm4h[19-16] vd[15-12] [10110000] imm4l[3-0].
+  kThumb2Vmovs_IMM8,  // vmov.f32 [111011101] D [11] imm4h[19-16] vd[15-12] [10100000] imm4l[3-0].
+  kThumb2Vmovd_IMM8,  // vmov.f64 [111011101] D [11] imm4h[19-16] vd[15-12] [10110000] imm4l[3-0].
   kThumb2Mla,        // mla [111110110000] rn[19-16] ra[15-12] rd[7-4] [0000] rm[3-0].
   kThumb2Umull,      // umull [111110111010] rn[19-16], rdlo[15-12] rdhi[11-8] [0000] rm[3-0].
   kThumb2Ldrex,      // ldrex [111010000101] rn[19-16] rt[11-8] [1111] imm8[7-0].
@@ -425,7 +425,7 @@ enum ArmOpcode {
   kThumb2Bfi,        // bfi [111100110110] rn[19-16] [0] imm3[14-12] rd[11-8] imm2[7-6] [0] msb[4-0].
   kThumb2Bfc,        // bfc [11110011011011110] [0] imm3[14-12] rd[11-8] imm2[7-6] [0] msb[4-0].
   kThumb2Dmb,        // dmb [1111001110111111100011110101] option[3-0].
-  kThumb2LdrPcReln12,// ldr rd,[pc,-#imm12] [1111100011011111] rt[15-12] imm12[11-0].
+  kThumb2LdrPcReln12,  // ldr rd,[pc,-#imm12] [1111100011011111] rt[15-12] imm12[11-0].
   kThumb2Stm,        // stm <list> [111010010000] rn[19-16] 000 rl[12-0].
   kThumbUndefined,   // undefined [11011110xxxxxxxx].
   kThumb2VPopCS,     // vpop <list of callee save fp singles (s16+).
@@ -436,8 +436,8 @@ enum ArmOpcode {
   kThumb2MovImm16H,  // similar to kThumb2MovImm16, but target high hw.
   kThumb2AddPCR,     // Thumb2 2-operand add with hard-coded PC target.
   kThumb2Adr,        // Special purpose encoding of ADR for switch tables.
-  kThumb2MovImm16LST,// Special purpose version for switch table use.
-  kThumb2MovImm16HST,// Special purpose version for switch table use.
+  kThumb2MovImm16LST,  // Special purpose version for switch table use.
+  kThumb2MovImm16HST,  // Special purpose version for switch table use.
   kThumb2LdmiaWB,    // ldmia  [111010011001[ rn[19..16] mask[15..0].
   kThumb2SubsRRI12,  // setflags encoding.
   kThumb2OrrRRRs,    // orrx [111010100101] rn[19..16] [0000] rd[11..8] [0000] rm[3..0].
@@ -445,7 +445,7 @@ enum ArmOpcode {
   kThumb2Pop1,       // t3 encoding of pop.
   kThumb2RsubRRR,    // rsb [111010111101] rn[19..16] [0000] rd[11..8] [0000] rm[3..0].
   kThumb2Smull,      // smull [111110111000] rn[19-16], rdlo[15-12] rdhi[11-8] [0000] rm[3-0].
-  kThumb2LdrdPcRel8, // ldrd rt, rt2, pc +-/1024.
+  kThumb2LdrdPcRel8,  // ldrd rt, rt2, pc +-/1024.
   kThumb2LdrdI8,     // ldrd rt, rt2, [rn +-/1024].
   kThumb2StrdI8,     // strd rt, rt2, [rn +-/1024].
   kArmLast,
@@ -485,7 +485,7 @@ struct ArmEncodingMap {
   struct {
     ArmEncodingKind kind;
     int end;   // end for kFmtBitBlt, 1-bit slice end for FP regs.
-    int start; // start for kFmtBitBlt, 4-bit slice end for FP regs.
+    int start;  // start for kFmtBitBlt, 4-bit slice end for FP regs.
   } field_loc[4];
   ArmOpcode opcode;
   uint64_t flags;

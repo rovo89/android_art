@@ -439,7 +439,7 @@ bool GBCExpanderPass::runOnFunction(llvm::Function& func) {
   shadow_frame_ = NULL;
   old_shadow_frame_ = NULL;
   func_ = &func;
-  changed_ = false; // Assume unchanged
+  changed_ = false;  // Assume unchanged
 
   shadow_frame_vreg_addresses_.resize(dex_compilation_unit_->GetCodeItem()->registers_size_, NULL);
   basic_blocks_.resize(dex_compilation_unit_->GetCodeItem()->insns_size_in_code_units_);
@@ -456,7 +456,7 @@ bool GBCExpanderPass::runOnFunction(llvm::Function& func) {
   }
 
   // Insert stack overflow check
-  InsertStackOverflowCheck(func); // TODO: Use intrinsic.
+  InsertStackOverflowCheck(func);  // TODO: Use intrinsic.
 
   // Rewrite the intrinsics
   RewriteFunction();
@@ -565,7 +565,7 @@ void GBCExpanderPass::RewriteFunction() {
         llvm::PHINode *phi = llvm::dyn_cast<llvm::PHINode>(inst_iter);
 
         if (!phi) {
-          break; // Meet non-phi instruction.  Done.
+          break;  // Meet non-phi instruction.  Done.
         }
 
         if (handler_phi[phi] == NULL) {
@@ -611,7 +611,7 @@ void GBCExpanderPass::UpdatePhiInstruction(llvm::BasicBlock* old_basic_block,
   llvm::TerminatorInst* term_inst = new_basic_block->getTerminator();
 
   if (!term_inst) {
-    return; // No terminating instruction in new_basic_block.  Nothing to do.
+    return;  // No terminating instruction in new_basic_block.  Nothing to do.
   }
 
   // Iterate every succeeding basic block
@@ -627,7 +627,7 @@ void GBCExpanderPass::UpdatePhiInstruction(llvm::BasicBlock* old_basic_block,
       llvm::PHINode *phi = llvm::dyn_cast<llvm::PHINode>(inst_iter);
 
       if (!phi) {
-        break; // Meet non-phi instruction.  Done.
+        break;  // Meet non-phi instruction.  Done.
       }
 
       // Update the incoming block of this phi instruction
@@ -895,7 +895,7 @@ llvm::Value* GBCExpanderPass::EmitInvoke(llvm::CallInst& call_inst) {
   // Load the actual parameter
   std::vector<llvm::Value*> args;
 
-  args.push_back(callee_method_object_addr); // method object for callee
+  args.push_back(callee_method_object_addr);  // method object for callee
 
   for (uint32_t i = 3; i < call_inst.getNumArgOperands(); ++i) {
     args.push_back(call_inst.getArgOperand(i));
@@ -1378,9 +1378,9 @@ void GBCExpanderPass::Expand_SetVReg(llvm::Value* entry_idx,
     DCHECK(shadow_frame_ != NULL);
 
     llvm::Value* gep_index[] = {
-      irb_.getInt32(0), // No pointer displacement
-      irb_.getInt32(1), // VRegs
-      entry_idx // Pointer field
+      irb_.getInt32(0),  // No pointer displacement
+      irb_.getInt32(1),  // VRegs
+      entry_idx  // Pointer field
     };
 
     // A shadow frame address must dominate every use in the function so we
@@ -1601,7 +1601,7 @@ void GBCExpanderPass::Expand_HLArrayPut(llvm::CallInst& call_inst,
 
   llvm::Value* array_elem_addr = EmitArrayGEP(array_addr, index_value, elem_jty);
 
-  if (elem_jty == kObject) { // If put an object, check the type, and mark GC card table.
+  if (elem_jty == kObject) {  // If put an object, check the type, and mark GC card table.
     llvm::Function* runtime_func = irb_.GetRuntime(CheckPutArrayElement);
 
     irb_.CreateCall2(runtime_func, new_value, array_addr);
@@ -1744,7 +1744,7 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
       irb_.CreateMemoryBarrier(art::kLoadLoad);
     }
 
-    if (field_jty == kObject) { // If put an object, mark the GC card table.
+    if (field_jty == kObject) {  // If put an object, mark the GC card table.
       EmitMarkGCCard(new_value, object_addr);
     }
   }
@@ -2050,7 +2050,7 @@ void GBCExpanderPass::Expand_HLSput(llvm::CallInst& call_inst,
       irb_.CreateMemoryBarrier(art::kStoreLoad);
     }
 
-    if (field_jty == kObject) { // If put an object, mark the GC card table.
+    if (field_jty == kObject) {  // If put an object, mark the GC card table.
       EmitMarkGCCard(new_value, static_storage_addr);
     }
   }
@@ -2368,8 +2368,8 @@ llvm::Value* GBCExpanderPass::Expand_HLFilledNewArray(llvm::CallInst& call_inst)
     const char* type_desc =
         dex_compilation_unit_->GetDexFile()->StringByTypeIdx(type_idx, &type_desc_len);
 
-    DCHECK_GE(type_desc_len, 2u); // should be guaranteed by verifier
-    DCHECK_EQ(type_desc[0], '['); // should be guaranteed by verifier
+    DCHECK_GE(type_desc_len, 2u);  // should be guaranteed by verifier
+    DCHECK_EQ(type_desc[0], '[');  // should be guaranteed by verifier
     bool is_elem_int_ty = (type_desc[1] == 'I');
 
     uint32_t alignment;
@@ -2683,10 +2683,10 @@ llvm::FunctionType* GBCExpanderPass::GetFunctionType(llvm::Type* ret_type, uint3
   // Get argument type
   std::vector<llvm::Type*> args_type;
 
-  args_type.push_back(irb_.getJObjectTy()); // method object pointer
+  args_type.push_back(irb_.getJObjectTy());  // method object pointer
 
   if (!is_static) {
-    args_type.push_back(irb_.getJType('L')); // "this" object pointer
+    args_type.push_back(irb_.getJType('L'));  // "this" object pointer
   }
 
   for (uint32_t i = 1; i < shorty_size; ++i) {
@@ -2732,11 +2732,11 @@ int32_t GBCExpanderPass::GetTryItemOffset(uint32_t dex_pc) {
     } else if (dex_pc >= end) {
       min = mid + 1;
     } else {
-      return mid; // found
+      return mid;  // found
     }
   }
 
-  return -1; // not found
+  return -1;  // not found
 }
 
 llvm::BasicBlock* GBCExpanderPass::GetLandingPadBasicBlock(uint32_t dex_pc) {
@@ -2744,7 +2744,7 @@ llvm::BasicBlock* GBCExpanderPass::GetLandingPadBasicBlock(uint32_t dex_pc) {
   int32_t ti_offset = GetTryItemOffset(dex_pc);
 
   if (ti_offset == -1) {
-    return NULL; // No landing pad is available for this address.
+    return NULL;  // No landing pad is available for this address.
   }
 
   // Check for the existing landing pad basic block
@@ -3783,7 +3783,7 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
     //==- Unknown Cases ----------------------------------------------------==//
     case IntrinsicHelper::MaxIntrinsicId:
     case IntrinsicHelper::UnknownId:
-    //default:
+    // default:
       // NOTE: "default" is intentionally commented so that C/C++ compiler will
       // give some warning on unmatched cases.
       // NOTE: We should not implement these cases.
@@ -3793,7 +3793,7 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
   return NULL;
 }  // NOLINT(readability/fn_size)
 
-} // anonymous namespace
+}  // anonymous namespace
 
 namespace art {
 namespace llvm {
@@ -3804,5 +3804,5 @@ CreateGBCExpanderPass(const IntrinsicHelper& intrinsic_helper, IRBuilder& irb,
   return new GBCExpanderPass(intrinsic_helper, irb, driver, dex_compilation_unit);
 }
 
-} // namespace llvm
-} // namespace art
+}  // namespace llvm
+}  // namespace art

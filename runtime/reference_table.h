@@ -53,7 +53,7 @@ class ReferenceTable {
   typedef std::vector<const mirror::Object*> Table;
   static void Dump(std::ostream& os, const Table& entries)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  friend class IndirectReferenceTable; // For Dump.
+  friend class IndirectReferenceTable;  // For Dump.
 
   std::string name_;
   Table entries_;

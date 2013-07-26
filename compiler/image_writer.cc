@@ -119,7 +119,7 @@ bool ImageWriter::Write(const std::string& image_filename,
     return false;
   }
 #ifndef NDEBUG
-  { // NOLINT(whitespace/braces)
+  {  // NOLINT(whitespace/braces)
     ScopedObjectAccess soa(Thread::Current());
     CheckNonImageClassesRemoved();
   }
@@ -397,7 +397,7 @@ void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_d
 
   // leave space for the header, but do not write it yet, we need to
   // know where image_roots is going to end up
-  image_end_ += RoundUp(sizeof(ImageHeader), 8); // 64-bit-alignment
+  image_end_ += RoundUp(sizeof(ImageHeader), 8);  // 64-bit-alignment
 
   {
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
@@ -462,7 +462,7 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object* object, void* arg) {
   DCHECK_LT(offset + n, image_writer->image_->Size());
   memcpy(dst, src, n);
   Object* copy = reinterpret_cast<Object*>(dst);
-  copy->SetField32(Object::MonitorOffset(), 0, false); // We may have inflated the lock during compilation.
+  copy->SetField32(Object::MonitorOffset(), 0, false);  // We may have inflated the lock during compilation.
   image_writer->FixupObject(obj, copy);
 }
 

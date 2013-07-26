@@ -133,7 +133,7 @@ struct Rm {
 std::ostream& operator<<(std::ostream& os, const Rm& r) {
   os << r.rm;
   if (r.shift != 0) {
-    os << "-shift-" << r.shift; // TODO
+    os << "-shift-" << r.shift;  // TODO
   }
   return os;
 }
@@ -185,16 +185,16 @@ void DisassemblerArm::DumpArm(std::ostream& os, const uint8_t* instr_ptr) {
   std::ostringstream args;
   switch (op1) {
     case 0:
-    case 1: // Data processing instructions.
+    case 1:  // Data processing instructions.
       {
-        if ((instruction & 0x0ff000f0) == 0x01200070) { // BKPT
+        if ((instruction & 0x0ff000f0) == 0x01200070) {  // BKPT
           opcode = "bkpt";
           uint32_t imm12 = (instruction >> 8) & 0xfff;
           uint32_t imm4 = (instruction & 0xf);
           args << '#' << ((imm12 << 4) | imm4);
           break;
         }
-        if ((instruction & 0x0fffffd0) == 0x012fff10) { // BX and BLX (register)
+        if ((instruction & 0x0fffffd0) == 0x012fff10) {  // BX and BLX (register)
           opcode = (((instruction >> 5) & 1) ? "blx" : "bx");
           args << ArmRegister(instruction & 0xf);
           break;
@@ -203,7 +203,7 @@ void DisassemblerArm::DumpArm(std::ostream& os, const uint8_t* instr_ptr) {
         bool s = (instruction & (1 << 20)) != 0;
         uint32_t op = (instruction >> 21) & 0xf;
         opcode = kDataProcessingOperations[op];
-        bool implicit_s = ((op & ~3) == 8); // TST, TEQ, CMP, and CMN.
+        bool implicit_s = ((op & ~3) == 8);  // TST, TEQ, CMP, and CMN.
         if (implicit_s) {
           // Rd is unused (and not shown), and we don't show the 's' suffix either.
         } else {
@@ -219,7 +219,7 @@ void DisassemblerArm::DumpArm(std::ostream& os, const uint8_t* instr_ptr) {
         }
       }
       break;
-    case 2: // Load/store word and unsigned byte.
+    case 2:  // Load/store word and unsigned byte.
       {
         bool p = (instruction & (1 << 24)) != 0;
         bool b = (instruction & (1 << 22)) != 0;
@@ -249,7 +249,7 @@ void DisassemblerArm::DumpArm(std::ostream& os, const uint8_t* instr_ptr) {
         }
       }
       break;
-    case 4: // Load/store multiple.
+    case 4:  // Load/store multiple.
       {
         bool p = (instruction & (1 << 24)) != 0;
         bool u = (instruction & (1 << 23)) != 0;
@@ -259,12 +259,12 @@ void DisassemblerArm::DumpArm(std::ostream& os, const uint8_t* instr_ptr) {
         args << ArmRegister(instruction, 16) << (w ? "!" : "") << ", " << RegisterList(instruction);
       }
       break;
-    case 5: // Branch/branch with link.
+    case 5:  // Branch/branch with link.
       {
         bool bl = (instruction & (1 << 24)) != 0;
         opcode = (bl ? "bl" : "b");
         int32_t imm26 = (instruction & 0xffffff) << 2;
-        int32_t imm32 = (imm26 << 6) >> 6; // Sign extend.
+        int32_t imm32 = (imm26 << 6) >> 6;  // Sign extend.
         DumpBranchTarget(args, instr_ptr + 8, imm32);
       }
       break;
@@ -344,10 +344,10 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
           }
           args << RegisterList(instr);
         }
-      } else if ((op2 & 0x64) == 4) { // 00x x1xx
+      } else if ((op2 & 0x64) == 4) {  // 00x x1xx
         uint32_t op3 = (instr >> 23) & 3;
         uint32_t op4 = (instr >> 20) & 3;
-        //uint32_t op5 = (instr >> 4) & 0xF;
+        // uint32_t op5 = (instr >> 4) & 0xF;
         ArmRegister Rn(instr, 16);
         ArmRegister Rt(instr, 12);
         uint32_t imm8 = instr & 0xFF;
@@ -495,8 +495,8 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
         uint32_t op3 = (instr >> 20) & 0x3F;
         uint32_t coproc = (instr >> 8) & 0xF;
         uint32_t op4 = (instr >> 4) & 0x1;
-        if ((op3 == 2 || op3 == 2 || op3 == 6 || op3 == 7) || // 00x1x
-            (op3 >= 8 && op3 <= 15) || (op3 >= 16 && op3 <= 31)) { // 001xxx, 01xxxx
+        if ((op3 == 2 || op3 == 2 || op3 == 6 || op3 == 7) ||  // 00x1x
+            (op3 >= 8 && op3 <= 15) || (op3 >= 16 && op3 <= 31)) {  // 001xxx, 01xxxx
           // Extension register load/store instructions
           // |111|1|110|00000|0000|1111|110|000000000|
           // |5 3|2|109|87654|3  0|54 2|10 |87 54   0|
@@ -519,13 +519,13 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             uint32_t d = (S == 0 ? ((Vd << 1) | D) : (Vd | (D << 4)));
             if (P == 0 && U == 0 && W == 0) {
               // TODO: 64bit transfers between ARM core and extension registers.
-            } else if (P == 0 && U == 1 && Rn.r == 13) { // VPOP
+            } else if (P == 0 && U == 1 && Rn.r == 13) {  // VPOP
               opcode << "vpop" << (S == 0 ? ".f64" : ".f32");
               args << d << " .. " << (d + imm8);
             } else if (P == 1 && W == 0) {  // VLDR
               opcode << "vldr" << (S == 0 ? ".f64" : ".f32");
               args << d << ", [" << Rn << ", #" << imm8 << "]";
-            } else { // VLDM
+            } else {  // VLDM
               opcode << "vldm" << (S == 0 ? ".f64" : ".f32");
               args << Rn << ", " << d << " .. " << (d + imm8);
             }
@@ -553,7 +553,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
               uint32_t Vm = instr & 0xF;
               bool dp_operation = sz == 1;
               switch (opc2) {
-                case 0x1: // Vneg/Vsqrt
+                case 0x1:  // Vneg/Vsqrt
                   //  1110 11101 D 11 0001 dddd 101s o1M0 mmmm
                   opcode << (opc3 == 1 ? "vneg" : "vsqrt") << (dp_operation ? ".f64" : ".f32");
                   if (dp_operation) {
@@ -562,7 +562,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
                     args << "f" << ((Vd << 1) | D) << ", " << "f" << ((Vm << 1) | M);
                   }
                   break;
-                case 0x4: case 0x5:  { // Vector compare
+                case 0x4: case 0x5:  {  // Vector compare
                   // 1110 11101 D 11 0100 dddd 101 sE1M0 mmmm
                   opcode << (opc3 == 1 ? "vcmp" : "vcmpe") << (dp_operation ? ".f64" : ".f32");
                   if (dp_operation) {
@@ -733,7 +733,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
         // |111|10| op2   |    |1|op3|op4 |        |
 
         uint32_t op3 = (instr >> 12) & 7;
-        //uint32_t op4 = (instr >> 8) & 0xF;
+        // uint32_t op4 = (instr >> 8) & 0xF;
         switch (op3) {
           case 0:
             if ((op2 & 0x38) != 0x38) {
@@ -852,7 +852,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
           // |---|--|---|---|-|----|----|------|------|
           // |111|11|000|op3|0|    |    |  op4 |      |
           uint32_t op3 = (instr >> 21) & 7;
-          //uint32_t op4 = (instr >> 6) & 0x3F;
+          // uint32_t op4 = (instr >> 6) & 0x3F;
           switch (op3) {
             case 0x0: case 0x4: {
               // STRB Rt,[Rn,#+/-imm8]     - 111 11 00 0 0 00 0 nnnn tttt 1 PUWii ii iiii
@@ -931,7 +931,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
 
           break;
         }
-        case 0x03: case 0x0B: case 0x13: case 0x1B: { // 00xx011
+        case 0x03: case 0x0B: case 0x13: case 0x1B: {  // 00xx011
           // Load halfword
           // |111|11|10|0 0|00|0|0000|1111|110000|000000|
           // |5 3|21|09|8 7|65|4|3  0|5  2|10   6|5    0|
@@ -975,7 +975,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
           }
           break;
         }
-        case 0x05: case 0x0D: case 0x15: case 0x1D: { // 00xx101
+        case 0x05: case 0x0D: case 0x15: case 0x1D: {  // 00xx101
           // Load word
           // |111|11|10|0 0|00|0|0000|1111|110000|000000|
           // |5 3|21|09|8 7|65|4|3  0|5  2|10   6|5    0|
@@ -1286,7 +1286,7 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
             // Flesh out the base "it" opcode with the specific collection of 't's and 'e's,
             // and store up the actual condition codes we'll want to add to the next few opcodes.
             size_t count = 3 - CTZ(mask);
-            it_conditions_.resize(count + 2); // Plus the implicit 't', plus the "" for the IT itself.
+            it_conditions_.resize(count + 2);  // Plus the implicit 't', plus the "" for the IT itself.
             for (size_t i = 0; i < count; ++i) {
               bool positive_cond = ((first_cond & 1) != 0);
               bool positive_mask = ((mask & (1 << (3 - i))) != 0);
@@ -1298,10 +1298,10 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
                 it_conditions_[i] = kConditionCodeNames[first_cond ^ 1];
               }
             }
-            it_conditions_[count] = kConditionCodeNames[first_cond]; // The implicit 't'.
+            it_conditions_[count] = kConditionCodeNames[first_cond];  // The implicit 't'.
 
-            it_conditions_[count + 1] = ""; // No condition code for the IT itself...
-            DumpCond(args, first_cond); // ...because it's considered an argument.
+            it_conditions_[count + 1] = "";  // No condition code for the IT itself...
+            DumpCond(args, first_cond);  // ...because it's considered an argument.
           }
           break;
         }
@@ -1312,7 +1312,7 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
         ((instr & 0xE000) == 0x8000)) {
       // Load/store single data item
       uint16_t opA = instr >> 12;
-      //uint16_t opB = (instr >> 9) & 7;
+      // uint16_t opB = (instr >> 9) & 7;
       switch (opA) {
         case 0x6: {
           // STR Rt, [Rn, #imm] - 01100 iiiii nnn ttt

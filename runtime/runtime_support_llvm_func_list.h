@@ -79,4 +79,4 @@
   V(JniMethodEndWithReferenceSynchronized, art_portable_jni_method_end_with_reference_synchronized)
 
 #endif  // ART_RUNTIME_RUNTIME_SUPPORT_LLVM_FUNC_LIST_H_
-#undef ART_RUNTIME_RUNTIME_SUPPORT_LLVM_FUNC_LIST_H_ // the guard in this file is just for cpplint
+#undef ART_RUNTIME_RUNTIME_SUPPORT_LLVM_FUNC_LIST_H_  // the guard in this file is just for cpplint

@@ -744,7 +744,7 @@ DISASSEMBLER_ENTRY(cmp,
                      prefixed_opcode.str().c_str())
      << args.str() << '\n';
   return instr - begin_instr;
-} // NOLINT(readability/fn_size)
+}  // NOLINT(readability/fn_size)
 
 }  // namespace x86
 }  // namespace art

@@ -40,7 +40,7 @@ class RuntimeSupportBuilderARM : public RuntimeSupportBuilder {
   virtual void EmitUnlockObject(::llvm::Value* object);
 };
 
-} // namespace llvm
-} // namespace art
+}  // namespace llvm
+}  // namespace art
 
 #endif  // ART_COMPILER_LLVM_RUNTIME_SUPPORT_BUILDER_ARM_H_

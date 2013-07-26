@@ -240,12 +240,12 @@ Instruction* DexCompiler::CompileCheckCast(Instruction* inst, uint32_t dex_pc) {
   // We are modifying 4 consecutive bytes.
   ScopedDexWriteAccess sdwa(GetModifiableDexFile(), inst, 4u);
   inst->SetOpcode(Instruction::NOP);
-  inst->SetVRegA_10x(0u); // keep compliant with verifier.
+  inst->SetVRegA_10x(0u);  // keep compliant with verifier.
   // Get to next instruction which is the second half of check-cast and replace
   // it by a NOP.
   inst = const_cast<Instruction*>(inst->Next());
   inst->SetOpcode(Instruction::NOP);
-  inst->SetVRegA_10x(0u); // keep compliant with verifier.
+  inst->SetVRegA_10x(0u);  // keep compliant with verifier.
   return inst;
 }
 

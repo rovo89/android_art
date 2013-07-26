@@ -58,7 +58,7 @@ TEST_F(RegTypeTest, Pairs) {
   const RegType& precise_const = cache.FromCat1Const(static_cast<int32_t>(val >> 32), true);
   const RegType& long_lo = cache.LongLo();
   const RegType& long_hi = cache.LongHi();
-  //Check sanity of types.
+  // Check sanity of types.
   EXPECT_TRUE(precise_lo.IsLowHalf());
   EXPECT_FALSE(precise_hi.IsLowHalf());
   EXPECT_FALSE(precise_lo.IsHighHalf());

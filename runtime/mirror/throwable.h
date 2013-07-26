@@ -59,7 +59,7 @@ class MANAGED Throwable : public Object {
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   Throwable* cause_;
   String* detail_message_;
-  Object* stack_state_; // Note this is Java volatile:
+  Object* stack_state_;  // Note this is Java volatile:
   Object* stack_trace_;
   Object* suppressed_exceptions_;
 

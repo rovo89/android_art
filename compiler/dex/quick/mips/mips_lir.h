@@ -155,7 +155,7 @@ enum MipsResourceEncodingPos {
   kMipsGPReg0   = 0,
   kMipsRegSP    = 29,
   kMipsRegLR    = 31,
-  kMipsFPReg0   = 32, // only 16 fp regs supported currently.
+  kMipsFPReg0   = 32,  // only 16 fp regs supported currently.
   kMipsFPRegEnd   = 48,
   kMipsRegHI    = kMipsFPRegEnd,
   kMipsRegLO,
@@ -248,7 +248,7 @@ enum MipsNativeRegisterPool {
   r_DF5 = r_F10 + MIPS_FP_DOUBLE,
   r_DF6 = r_F12 + MIPS_FP_DOUBLE,
   r_DF7 = r_F14 + MIPS_FP_DOUBLE,
-#if 0 // TODO: expand resource mask to enable use of all MIPS fp registers.
+#if 0  // TODO: expand resource mask to enable use of all MIPS fp registers.
   r_DF8 = r_F16 + MIPS_FP_DOUBLE,
   r_DF9 = r_F18 + MIPS_FP_DOUBLE,
   r_DF10 = r_F20 + MIPS_FP_DOUBLE,
@@ -305,8 +305,8 @@ enum MipsShiftEncodings {
  */
 enum MipsOpCode {
   kMipsFirst = 0,
-  kMips32BitData = kMipsFirst, // data [31..0].
-  kMipsAddiu, // addiu t,s,imm16 [001001] s[25..21] t[20..16] imm16[15..0].
+  kMips32BitData = kMipsFirst,  // data [31..0].
+  kMipsAddiu,  // addiu t,s,imm16 [001001] s[25..21] t[20..16] imm16[15..0].
   kMipsAddu,  // add d,s,t [000000] s[25..21] t[20..16] d[15..11] [00000100001].
   kMipsAnd,   // and d,s,t [000000] s[25..21] t[20..16] d[15..11] [00000100100].
   kMipsAndi,  // andi t,s,imm16 [001100] s[25..21] t[20..16] imm16[15..0].
@@ -366,31 +366,31 @@ enum MipsOpCode {
   kMipsSw,    // sw t,o(b) [101011] b[25..21] t[20..16] o[15..0].
   kMipsXor,   // xor d,s,t [000000] s[25..21] t[20..16] d[15..11] [00000100110].
   kMipsXori,  // xori t,s,imm16 [001110] s[25..21] t[20..16] imm16[15..0].
-  kMipsFadds, // add.s d,s,t [01000110000] t[20..16] s[15..11] d[10..6] [000000].
-  kMipsFsubs, // sub.s d,s,t [01000110000] t[20..16] s[15..11] d[10..6] [000001].
-  kMipsFmuls, // mul.s d,s,t [01000110000] t[20..16] s[15..11] d[10..6] [000010].
-  kMipsFdivs, // div.s d,s,t [01000110000] t[20..16] s[15..11] d[10..6] [000011].
-  kMipsFaddd, // add.d d,s,t [01000110001] t[20..16] s[15..11] d[10..6] [000000].
-  kMipsFsubd, // sub.d d,s,t [01000110001] t[20..16] s[15..11] d[10..6] [000001].
-  kMipsFmuld, // mul.d d,s,t [01000110001] t[20..16] s[15..11] d[10..6] [000010].
-  kMipsFdivd, // div.d d,s,t [01000110001] t[20..16] s[15..11] d[10..6] [000011].
-  kMipsFcvtsd,// cvt.s.d d,s [01000110001] [00000] s[15..11] d[10..6] [100000].
-  kMipsFcvtsw,// cvt.s.w d,s [01000110100] [00000] s[15..11] d[10..6] [100000].
-  kMipsFcvtds,// cvt.d.s d,s [01000110000] [00000] s[15..11] d[10..6] [100001].
-  kMipsFcvtdw,// cvt.d.w d,s [01000110100] [00000] s[15..11] d[10..6] [100001].
-  kMipsFcvtws,// cvt.w.d d,s [01000110000] [00000] s[15..11] d[10..6] [100100].
-  kMipsFcvtwd,// cvt.w.d d,s [01000110001] [00000] s[15..11] d[10..6] [100100].
-  kMipsFmovs, // mov.s d,s [01000110000] [00000] s[15..11] d[10..6] [000110].
-  kMipsFmovd, // mov.d d,s [01000110001] [00000] s[15..11] d[10..6] [000110].
-  kMipsFlwc1, // lwc1 t,o(b) [110001] b[25..21] t[20..16] o[15..0].
-  kMipsFldc1, // ldc1 t,o(b) [110101] b[25..21] t[20..16] o[15..0].
-  kMipsFswc1, // swc1 t,o(b) [111001] b[25..21] t[20..16] o[15..0].
-  kMipsFsdc1, // sdc1 t,o(b) [111101] b[25..21] t[20..16] o[15..0].
+  kMipsFadds,  // add.s d,s,t [01000110000] t[20..16] s[15..11] d[10..6] [000000].
+  kMipsFsubs,  // sub.s d,s,t [01000110000] t[20..16] s[15..11] d[10..6] [000001].
+  kMipsFmuls,  // mul.s d,s,t [01000110000] t[20..16] s[15..11] d[10..6] [000010].
+  kMipsFdivs,  // div.s d,s,t [01000110000] t[20..16] s[15..11] d[10..6] [000011].
+  kMipsFaddd,  // add.d d,s,t [01000110001] t[20..16] s[15..11] d[10..6] [000000].
+  kMipsFsubd,  // sub.d d,s,t [01000110001] t[20..16] s[15..11] d[10..6] [000001].
+  kMipsFmuld,  // mul.d d,s,t [01000110001] t[20..16] s[15..11] d[10..6] [000010].
+  kMipsFdivd,  // div.d d,s,t [01000110001] t[20..16] s[15..11] d[10..6] [000011].
+  kMipsFcvtsd,  // cvt.s.d d,s [01000110001] [00000] s[15..11] d[10..6] [100000].
+  kMipsFcvtsw,  // cvt.s.w d,s [01000110100] [00000] s[15..11] d[10..6] [100000].
+  kMipsFcvtds,  // cvt.d.s d,s [01000110000] [00000] s[15..11] d[10..6] [100001].
+  kMipsFcvtdw,  // cvt.d.w d,s [01000110100] [00000] s[15..11] d[10..6] [100001].
+  kMipsFcvtws,  // cvt.w.d d,s [01000110000] [00000] s[15..11] d[10..6] [100100].
+  kMipsFcvtwd,  // cvt.w.d d,s [01000110001] [00000] s[15..11] d[10..6] [100100].
+  kMipsFmovs,  // mov.s d,s [01000110000] [00000] s[15..11] d[10..6] [000110].
+  kMipsFmovd,  // mov.d d,s [01000110001] [00000] s[15..11] d[10..6] [000110].
+  kMipsFlwc1,  // lwc1 t,o(b) [110001] b[25..21] t[20..16] o[15..0].
+  kMipsFldc1,  // ldc1 t,o(b) [110101] b[25..21] t[20..16] o[15..0].
+  kMipsFswc1,  // swc1 t,o(b) [111001] b[25..21] t[20..16] o[15..0].
+  kMipsFsdc1,  // sdc1 t,o(b) [111101] b[25..21] t[20..16] o[15..0].
   kMipsMfc1,  // mfc1 t,s [01000100000] t[20..16] s[15..11] [00000000000].
   kMipsMtc1,  // mtc1 t,s [01000100100] t[20..16] s[15..11] [00000000000].
-  kMipsDelta, // Psuedo for ori t, s, <label>-<label>.
-  kMipsDeltaHi, // Pseudo for lui t, high16(<label>-<label>).
-  kMipsDeltaLo, // Pseudo for ori t, s, low16(<label>-<label>).
+  kMipsDelta,  // Psuedo for ori t, s, <label>-<label>.
+  kMipsDeltaHi,  // Pseudo for lui t, high16(<label>-<label>).
+  kMipsDeltaLo,  // Pseudo for ori t, s, low16(<label>-<label>).
   kMipsCurrPC,  // jal to .+8 to materialize pc.
   kMipsSync,    // sync kind [000000] [0000000000000000] s[10..6] [001111].
   kMipsUndefined,  // undefined [011001xxxxxxxxxxxxxxxx].
@@ -412,7 +412,7 @@ struct MipsEncodingMap {
   struct {
     MipsEncodingKind kind;
     int end;   // end for kFmtBitBlt, 1-bit slice end for FP regs.
-    int start; // start for kFmtBitBlt, 4-bit slice end for FP regs.
+    int start;  // start for kFmtBitBlt, 4-bit slice end for FP regs.
   } field_loc[4];
   MipsOpCode opcode;
   uint64_t flags;
@@ -425,7 +425,7 @@ extern MipsEncodingMap EncodingMap[kMipsLast];
 
 #define IS_UIMM16(v) ((0 <= (v)) && ((v) <= 65535))
 #define IS_SIMM16(v) ((-32768 <= (v)) && ((v) <= 32766))
-#define IS_SIMM16_2WORD(v) ((-32764 <= (v)) && ((v) <= 32763)) // 2 offsets must fit.
+#define IS_SIMM16_2WORD(v) ((-32764 <= (v)) && ((v) <= 32763))  // 2 offsets must fit.
 
 }  // namespace art
 

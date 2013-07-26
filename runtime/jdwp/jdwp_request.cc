@@ -140,7 +140,7 @@ JdwpTypeTag Request::ReadTypeTag() {
 
 JdwpLocation Request::ReadLocation() {
   JdwpLocation location;
-  memset(&location, 0, sizeof(location)); // Allows memcmp(3) later.
+  memset(&location, 0, sizeof(location));  // Allows memcmp(3) later.
   location.type_tag = ReadTypeTag();
   location.class_id = ReadObjectId("class");
   location.method_id = ReadMethodId();

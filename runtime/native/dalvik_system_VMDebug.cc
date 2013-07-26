@@ -101,12 +101,12 @@ static void VMDebug_stopMethodTracing(JNIEnv*, jclass) {
 
 static void VMDebug_startEmulatorTracing(JNIEnv*, jclass) {
   UNIMPLEMENTED(WARNING);
-  //dvmEmulatorTraceStart();
+  // dvmEmulatorTraceStart();
 }
 
 static void VMDebug_stopEmulatorTracing(JNIEnv*, jclass) {
   UNIMPLEMENTED(WARNING);
-  //dvmEmulatorTraceStop();
+  // dvmEmulatorTraceStop();
 }
 
 static jboolean VMDebug_isDebuggerConnected(JNIEnv*, jclass) {

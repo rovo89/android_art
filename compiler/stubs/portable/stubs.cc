@@ -55,7 +55,7 @@ const std::vector<uint8_t>* CreatePortableResolutionTrampoline() {
 
   return resolution_trampoline.release();
 }
-} // namespace arm
+}  // namespace arm
 
 namespace mips {
 const std::vector<uint8_t>* CreatePortableResolutionTrampoline() {
@@ -72,7 +72,7 @@ const std::vector<uint8_t>* CreatePortableResolutionTrampoline() {
                     ENTRYPOINT_OFFSET(pPortableResolutionTrampolineFromCode));
   __ Move(A3, S1);  // Pass Thread::Current() in A3
   __ Move(A2, SP);  // Pass SP for Method** callee_addr
-  __ Jalr(T9); // Call to resolution trampoline (callee, receiver, callee_addr, Thread*)
+  __ Jalr(T9);  // Call to resolution trampoline (callee, receiver, callee_addr, Thread*)
 
   // Restore frame, argument registers, and RA.
   __ LoadFromOffset(kLoadWord, A0, SP, 0);
@@ -84,9 +84,9 @@ const std::vector<uint8_t>* CreatePortableResolutionTrampoline() {
 
   Label resolve_fail;
   __ EmitBranch(V0, ZERO, &resolve_fail, true);
-  __ Jr(V0); // If V0 != 0 tail call method's code
+  __ Jr(V0);  // If V0 != 0 tail call method's code
   __ Bind(&resolve_fail, false);
-  __ Jr(RA); // Return to caller to handle exception
+  __ Jr(RA);  // Return to caller to handle exception
 
   assembler->EmitSlowPaths();
   size_t cs = assembler->CodeSize();
@@ -96,7 +96,7 @@ const std::vector<uint8_t>* CreatePortableResolutionTrampoline() {
 
   return resolution_trampoline.release();
 }
-} // namespace mips
+}  // namespace mips
 
 namespace x86 {
 const std::vector<uint8_t>* CreatePortableResolutionTrampoline() {
@@ -132,6 +132,6 @@ const std::vector<uint8_t>* CreatePortableResolutionTrampoline() {
 
   return resolution_trampoline.release();
 }
-} // namespace x86
+}  // namespace x86
 
-} // namespace art
+}  // namespace art

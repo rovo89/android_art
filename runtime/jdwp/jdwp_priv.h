@@ -72,9 +72,9 @@ class JdwpNetStateBase {
   ssize_t WritePacket(ExpandBuf* pReply);
   ssize_t WriteBufferedPacket(const std::vector<iovec>& iov);
 
-  int clientSock; // Active connection to debugger.
+  int clientSock;  // Active connection to debugger.
 
-  int wake_pipe_[2]; // Used to break out of select.
+  int wake_pipe_[2];  // Used to break out of select.
 
   uint8_t input_buffer_[8192];
   size_t input_count_;

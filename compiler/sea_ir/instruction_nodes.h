@@ -144,7 +144,7 @@ class UnnamedConstInstructionNode: public ConstInstructionNode {
         std::stringstream ss;
         ss << def_it->first;
         result.append(ss.str());
-        result += "\"] ; // ssa edge\n";
+        result += "\"] ;  // ssa edge\n";
       }
     }
   }
@@ -179,7 +179,7 @@ class MoveResultInstructionNode: public InstructionNode {
  public:
   explicit MoveResultInstructionNode(const art::Instruction* inst): InstructionNode(inst) { }
   std::vector<int> GetUses() {
-    std::vector<int> uses; // Using vector<> instead of set<> because order matters.
+    std::vector<int> uses;  // Using vector<> instead of set<> because order matters.
     uses.push_back(RETURN_REGISTER);
     return uses;
   }
@@ -246,5 +246,5 @@ class IfEqzInstructionNode: public InstructionNode {
     v->Traverse(this);
   }
 };
-} // end namespace sea_ir
+}  // namespace sea_ir
 #endif  // ART_COMPILER_SEA_IR_INSTRUCTION_NODES_H_

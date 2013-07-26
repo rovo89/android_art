@@ -309,7 +309,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
 }
 
 void IndirectReferenceTable::VisitRoots(RootVisitor* visitor, void* arg) {
-  typedef IndirectReferenceTable::iterator It; // TODO: C++0x auto
+  typedef IndirectReferenceTable::iterator It;  // TODO: C++0x auto
   for (It it = begin(), end = this->end(); it != end; ++it) {
     visitor(**it, arg);
   }

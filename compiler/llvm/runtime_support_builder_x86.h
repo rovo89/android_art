@@ -36,7 +36,7 @@ class RuntimeSupportBuilderX86 : public RuntimeSupportBuilder {
   virtual ::llvm::Value* EmitSetCurrentThread(::llvm::Value* thread);
 };
 
-} // namespace llvm
-} // namespace art
+}  // namespace llvm
+}  // namespace art
 
 #endif  // ART_COMPILER_LLVM_RUNTIME_SUPPORT_BUILDER_X86_H_

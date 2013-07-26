@@ -60,4 +60,4 @@ const std::string& DexCompilationUnit::GetSymbol() {
   return symbol_;
 }
 
-} // namespace art
+}  // namespace art

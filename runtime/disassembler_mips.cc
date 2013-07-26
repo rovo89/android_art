@@ -59,13 +59,13 @@ static const MipsInstruction gMipsInstructions[] = {
   { kRTypeMask, 6, "srlv", "DTS", },
   { kRTypeMask, 7, "srav", "DTS", },
   { kRTypeMask, 8, "jr", "S", },
-  { kRTypeMask | (0x1f << 11), 9 | (31 << 11), "jalr", "S", }, // rd = 31 is implicit.
-  { kRTypeMask, 9, "jalr", "DS", }, // General case.
+  { kRTypeMask | (0x1f << 11), 9 | (31 << 11), "jalr", "S", },  // rd = 31 is implicit.
+  { kRTypeMask, 9, "jalr", "DS", },  // General case.
   { kRTypeMask | (0x1f << 6), 10, "movz", "DST", },
   { kRTypeMask | (0x1f << 6), 11, "movn", "DST", },
-  { kRTypeMask, 12, "syscall", "", }, // TODO: code
-  { kRTypeMask, 13, "break", "", }, // TODO: code
-  { kRTypeMask, 15, "sync", "", }, // TODO: type
+  { kRTypeMask, 12, "syscall", "", },  // TODO: code
+  { kRTypeMask, 13, "break", "", },  // TODO: code
+  { kRTypeMask, 15, "sync", "", },  // TODO: type
   { kRTypeMask, 16, "mfhi", "D", },
   { kRTypeMask, 17, "mthi", "S", },
   { kRTypeMask, 18, "mflo", "D", },
@@ -99,7 +99,7 @@ static const MipsInstruction gMipsInstructions[] = {
   { kSpecial2Mask | 0xffff, (28 << kOpcodeShift) | 2, "mul", "DST" },
   { kSpecial2Mask | 0xffff, (28 << kOpcodeShift) | 4, "msub", "ST" },
   { kSpecial2Mask | 0xffff, (28 << kOpcodeShift) | 5, "msubu", "ST" },
-  { kSpecial2Mask | 0x3f, (28 << kOpcodeShift) | 0x3f, "sdbbp", "" }, // TODO: code
+  { kSpecial2Mask | 0x3f, (28 << kOpcodeShift) | 0x3f, "sdbbp", "" },  // TODO: code
 
   // J-type instructions.
   { kJTypeMask, 2 << kOpcodeShift, "j", "L" },
@@ -171,17 +171,17 @@ static uint32_t ReadU32(const uint8_t* ptr) {
 static void DumpMips(std::ostream& os, const uint8_t* instr_ptr) {
   uint32_t instruction = ReadU32(instr_ptr);
 
-  uint32_t rs = (instruction >> 21) & 0x1f; // I-type, R-type.
-  uint32_t rt = (instruction >> 16) & 0x1f; // I-type, R-type.
-  uint32_t rd = (instruction >> 11) & 0x1f; // R-type.
-  uint32_t sa = (instruction >>  6) & 0x1f; // R-type.
+  uint32_t rs = (instruction >> 21) & 0x1f;  // I-type, R-type.
+  uint32_t rt = (instruction >> 16) & 0x1f;  // I-type, R-type.
+  uint32_t rd = (instruction >> 11) & 0x1f;  // R-type.
+  uint32_t sa = (instruction >>  6) & 0x1f;  // R-type.
 
   std::string opcode;
   std::ostringstream args;
 
   // TODO: remove this!
   uint32_t op = (instruction >> 26) & 0x3f;
-  uint32_t function = (instruction & 0x3f); // R-type.
+  uint32_t function = (instruction & 0x3f);  // R-type.
   opcode = StringPrintf("op=%d fn=%d", op, function);
 
   for (size_t i = 0; i < arraysize(gMipsInstructions); ++i) {
@@ -189,22 +189,22 @@ static void DumpMips(std::ostream& os, const uint8_t* instr_ptr) {
       opcode = gMipsInstructions[i].name;
       for (const char* args_fmt = gMipsInstructions[i].args_fmt; *args_fmt; ++args_fmt) {
         switch (*args_fmt) {
-          case 'A': // sa (shift amount).
+          case 'A':  // sa (shift amount).
             args << sa;
             break;
-          case 'B': // Branch offset.
+          case 'B':  // Branch offset.
             {
               int32_t offset = static_cast<int16_t>(instruction & 0xffff);
               offset <<= 2;
-              offset += 4; // Delay slot.
+              offset += 4;  // Delay slot.
               args << StringPrintf("%p  ; %+d", instr_ptr + offset, offset);
             }
             break;
           case 'D': args << 'r' << rd; break;
           case 'd': args << 'f' << rd; break;
-          case 'f': // Floating point "fmt".
+          case 'f':  // Floating point "fmt".
             {
-              size_t fmt = (instruction >> 21) & 0x7; // TODO: other fmts?
+              size_t fmt = (instruction >> 21) & 0x7;  // TODO: other fmts?
               switch (fmt) {
                 case 0: opcode += ".s"; break;
                 case 1: opcode += ".d"; break;
@@ -213,16 +213,16 @@ static void DumpMips(std::ostream& os, const uint8_t* instr_ptr) {
                 case 6: opcode += ".ps"; break;
                 default: opcode += ".?"; break;
               }
-              continue; // No ", ".
+              continue;  // No ", ".
             }
             break;
-          case 'I': // Upper 16-bit immediate.
+          case 'I':  // Upper 16-bit immediate.
             args << reinterpret_cast<void*>((instruction & 0xffff) << 16);
             break;
-          case 'i': // Sign-extended lower 16-bit immediate.
+          case 'i':  // Sign-extended lower 16-bit immediate.
             args << static_cast<int16_t>(instruction & 0xffff);
             break;
-          case 'L': // Jump label.
+          case 'L':  // Jump label.
             {
               // TODO: is this right?
               uint32_t instr_index = (instruction & 0x1ffffff);
@@ -231,7 +231,7 @@ static void DumpMips(std::ostream& os, const uint8_t* instr_ptr) {
               args << reinterpret_cast<void*>(target);
             }
             break;
-          case 'O': // +x(rs)
+          case 'O':  // +x(rs)
             {
               int32_t offset = static_cast<int16_t>(instruction & 0xffff);
               args << StringPrintf("%+d(r%d)", offset, rs);

@@ -97,8 +97,8 @@ inline JType GetJTypeFromShorty(char shorty_jty) {
   }
 }
 
-} // namespace llvm
-} // namespace art
+}  // namespace llvm
+}  // namespace art
 
 
 #endif  // ART_COMPILER_LLVM_BACKEND_TYPES_H_
