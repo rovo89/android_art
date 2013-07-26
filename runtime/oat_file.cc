@@ -197,46 +197,98 @@ bool OatFile::Setup() {
   }
   const byte* oat = Begin();
   oat += sizeof(OatHeader);
-  oat += GetOatHeader().GetImageFileLocationSize();
+  if (oat > End()) {
+    LOG(ERROR) << "In oat file " << GetLocation() << " found truncated OatHeader";
+    return false;
+  }
 
-  CHECK_LE(oat, End())
-    << reinterpret_cast<const void*>(Begin())
-    << "+" << sizeof(OatHeader)
-    << "+" << GetOatHeader().GetImageFileLocationSize()
-    << "<=" << reinterpret_cast<const void*>(End())
-    << " " << GetLocation();
+  oat += GetOatHeader().GetImageFileLocationSize();
+  if (oat > End()) {
+    LOG(ERROR) << "In oat file " << GetLocation() << " found truncated image file location: "
+               << reinterpret_cast<const void*>(Begin())
+               << "+" << sizeof(OatHeader)
+               << "+" << GetOatHeader().GetImageFileLocationSize()
+               << "<=" << reinterpret_cast<const void*>(End());
+    return false;
+  }
+
   for (size_t i = 0; i < GetOatHeader().GetDexFileCount(); i++) {
     size_t dex_file_location_size = *reinterpret_cast<const uint32_t*>(oat);
-    CHECK_GT(dex_file_location_size, 0U) << GetLocation();
+    if (dex_file_location_size == 0U) {
+      LOG(ERROR) << "In oat file " << GetLocation() << " found OatDexFile # " << i
+                 << " with empty location name";
+      return false;
+    }
     oat += sizeof(dex_file_location_size);
-    CHECK_LT(oat, End()) << GetLocation();
+    if (oat > End()) {
+      LOG(ERROR) << "In oat file " << GetLocation() << " found OatDexFile # " << i
+                 << " truncated after dex file location size";
+      return false;
+    }
 
     const char* dex_file_location_data = reinterpret_cast<const char*>(oat);
     oat += dex_file_location_size;
-    CHECK_LT(oat, End()) << GetLocation();
+    if (oat > End()) {
+      LOG(ERROR) << "In oat file " << GetLocation() << " found OatDexFile # " << i
+                 << " with truncated dex file location";
+      return false;
+    }
 
     std::string dex_file_location(dex_file_location_data, dex_file_location_size);
 
     uint32_t dex_file_checksum = *reinterpret_cast<const uint32_t*>(oat);
     oat += sizeof(dex_file_checksum);
-    CHECK_LT(oat, End()) << GetLocation();
+    if (oat > End()) {
+      LOG(ERROR) << "In oat file " << GetLocation() << " found OatDexFile # " << i
+                 << " for "<< dex_file_location
+                 << " truncated after dex file checksum";
+      return false;
+    }
 
     uint32_t dex_file_offset = *reinterpret_cast<const uint32_t*>(oat);
-    CHECK_GT(dex_file_offset, 0U) << GetLocation();
-    CHECK_LT(dex_file_offset, Size()) << GetLocation();
+    if (dex_file_offset == 0U) {
+      LOG(ERROR) << "In oat file " << GetLocation() << " found OatDexFile # " << i
+                 << " for "<< dex_file_location
+                 << " with zero dex file offset";
+      return false;
+    }
+    if (dex_file_offset > Size()) {
+      LOG(ERROR) << "In oat file " << GetLocation() << " found OatDexFile # " << i
+                 << " for "<< dex_file_location
+                 << " with dex file offset" << dex_file_offset << " > " << Size();
+      return false;
+    }
     oat += sizeof(dex_file_offset);
-    CHECK_LT(oat, End()) << GetLocation();
+    if (oat > End()) {
+      LOG(ERROR) << "In oat file " << GetLocation() << " found OatDexFile # " << i
+                 << " for "<< dex_file_location
+                 << " truncated after dex file offset";
+      return false;
+    }
 
     const uint8_t* dex_file_pointer = Begin() + dex_file_offset;
-    CHECK(DexFile::IsMagicValid(dex_file_pointer))
-        << GetLocation() << " " << dex_file_pointer;
-    CHECK(DexFile::IsVersionValid(dex_file_pointer))
-        << GetLocation() << " "  << dex_file_pointer;
+    if (!DexFile::IsMagicValid(dex_file_pointer)) {
+      LOG(ERROR) << "In oat file " << GetLocation() << " found OatDexFile # " << i
+                 << " for "<< dex_file_location
+                 << " with invalid dex file magic: " << dex_file_pointer;
+      return false;
+    }
+    if (!DexFile::IsVersionValid(dex_file_pointer)) {
+      LOG(ERROR) << "In oat file " << GetLocation() << " found OatDexFile # " << i
+                 << " for "<< dex_file_location
+                 << " with invalid dex file version: " << dex_file_pointer;
+      return false;
+    }
     const DexFile::Header* header = reinterpret_cast<const DexFile::Header*>(dex_file_pointer);
     const uint32_t* methods_offsets_pointer = reinterpret_cast<const uint32_t*>(oat);
 
     oat += (sizeof(*methods_offsets_pointer) * header->class_defs_size_);
-    CHECK_LE(oat, End()) << GetLocation();
+    if (oat > End()) {
+      LOG(ERROR) << "In oat file " << GetLocation() << " found OatDexFile # " << i
+                 << " for "<< dex_file_location
+                 << " with truncated method offsets";
+      return false;
+    }
 
     oat_dex_files_.Put(dex_file_location, new OatDexFile(this,
                                                          dex_file_location,
@@ -361,10 +413,12 @@ OatFile::OatMethod::OatMethod(const byte* base,
 #ifndef NDEBUG
   if (mapping_table_offset_ != 0) {  // implies non-native, non-stub code
     if (vmap_table_offset_ == 0) {
-      DCHECK_EQ(0U, static_cast<uint32_t>(__builtin_popcount(core_spill_mask_) + __builtin_popcount(fp_spill_mask_)));
+      DCHECK_EQ(0U, static_cast<uint32_t>(__builtin_popcount(core_spill_mask_) +
+                                          __builtin_popcount(fp_spill_mask_)));
     } else {
       const uint16_t* vmap_table_ = reinterpret_cast<const uint16_t*>(begin_ + vmap_table_offset_);
-      DCHECK_EQ(vmap_table_[0], static_cast<uint32_t>(__builtin_popcount(core_spill_mask_) + __builtin_popcount(fp_spill_mask_)));
+      DCHECK_EQ(vmap_table_[0], static_cast<uint32_t>(__builtin_popcount(core_spill_mask_) +
+                                                      __builtin_popcount(fp_spill_mask_)));
     }
   } else {
     DCHECK_EQ(vmap_table_offset_, 0U);
@@ -405,7 +459,7 @@ void OatFile::OatMethod::LinkMethod(mirror::AbstractMethod* method) const {
   method->SetFpSpillMask(fp_spill_mask_);
   method->SetMappingTable(GetMappingTable());
   method->SetVmapTable(GetVmapTable());
-  method->SetNativeGcMap(GetNativeGcMap());  // Note, used by native methods in work around JNI mode.
+  method->SetNativeGcMap(GetNativeGcMap());  // Used by native methods in work around JNI mode.
 }
 
 }  // namespace art
