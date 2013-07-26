@@ -528,9 +528,13 @@ bool MethodVerifier::ScanTryCatchBlocks() {
       }
       const Instruction* inst = Instruction::At(code_item_->insns_ + dex_pc);
       if (inst->Opcode() != Instruction::MOVE_EXCEPTION) {
+#if 0
+        // FIXME: this did not cause a hard failure w/ the Dalvik verifier, and code exists
+        // in the wild that trips this.  Restore the check based on future dex versioning.
         Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "exception handler doesn't start with move-exception ("
                                           << dex_pc << ")";
         return false;
+#endif
       }
       insn_flags_[dex_pc].SetBranchTarget();
       // Ensure exception types are resolved so that they don't need resolution to be delivered,
