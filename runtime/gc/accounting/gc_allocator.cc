@@ -15,18 +15,21 @@
  */
 
 #include "gc_allocator.h"
+#include "gc/allocator/dlmalloc.h"
 #include "gc/heap.h"
 #include "runtime.h"
 
 namespace art {
 namespace gc {
 namespace accounting {
-  void RegisterGCAllocation(size_t bytes) {
+  void* RegisterGCAllocation(size_t bytes) {
     Runtime::Current()->GetHeap()->RegisterGCAllocation(bytes);
+    return malloc(bytes);
   }
 
-  void RegisterGCDeAllocation(size_t bytes) {
+  void RegisterGCDeAllocation(void* p, size_t bytes) {
     Runtime::Current()->GetHeap()->RegisterGCDeAllocation(bytes);
+    free(p);
   }
 }
 }

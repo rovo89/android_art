@@ -24,7 +24,6 @@
 #include "atomic_integer.h"
 #include "base/timing_logger.h"
 #include "gc/accounting/atomic_stack.h"
-#include "gc/accounting/gc_allocator.h"
 #include "gc/accounting/card_table.h"
 #include "gc/collector/gc_type.h"
 #include "globals.h"

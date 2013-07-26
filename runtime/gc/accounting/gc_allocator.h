@@ -17,7 +17,6 @@
 #ifndef ART_RUNTIME_GC_ACCOUNTING_GC_ALLOCATOR_H_
 #define ART_RUNTIME_GC_ACCOUNTING_GC_ALLOCATOR_H_
 
-#include "gc/allocator/dlmalloc.h"
 #include "utils.h"
 
 #include <cstdlib>
@@ -27,8 +26,8 @@
 namespace art {
 namespace gc {
 namespace accounting {
-  void RegisterGCAllocation(size_t bytes);
-  void RegisterGCDeAllocation(size_t bytes);
+  void* RegisterGCAllocation(size_t bytes);
+  void RegisterGCDeAllocation(void* p, size_t bytes);
 
   static const bool kMeasureGCMemoryOverhead = false;
 
@@ -60,14 +59,12 @@ namespace accounting {
     };
 
     pointer allocate(size_type n, const_pointer hint = 0) {
-      RegisterGCAllocation(n * sizeof(T));
-      return reinterpret_cast<pointer>(malloc(n * sizeof(T)));
+      return reinterpret_cast<pointer>(RegisterGCAllocation(n * sizeof(T)));
     }
 
     template <typename PT>
     void deallocate(PT p, size_type n) {
-      RegisterGCDeAllocation(n * sizeof(T));
-      free(p);
+      RegisterGCDeAllocation(p, n * sizeof(T));
     }
   };
 
