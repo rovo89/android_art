@@ -30,7 +30,7 @@ class IVisitable {
 };
 
 // This abstract class provides the essential services that
-// we want each SEA IR element should have.
+// we want each SEA IR element to have.
 // At the moment, these are:
 // - an id and corresponding string representation.
 // - a .dot graph language representation for .dot output.
@@ -42,6 +42,7 @@ class SeaNode: public IVisitable {
   explicit SeaNode():id_(GetNewId()), string_id_() {
     string_id_ = art::StringPrintf("%d", id_);
   }
+
   // Adds CFG predecessors and successors to each block.
   void AddSuccessor(Region* successor);
   void AddPredecessor(Region* predecesor);
@@ -58,7 +59,7 @@ class SeaNode: public IVisitable {
   // Appends to @result a dot language formatted string representing the node and
   //    (by convention) outgoing edges, so that the composition of theToDot() of all nodes
   //    builds a complete dot graph, but without prolog ("digraph {") and epilog ("}").
-  virtual void ToDot(std::string& result) const = 0;
+  virtual void ToDot(std::string& result, const art::DexFile& dex_file) const = 0;
 
   virtual ~SeaNode() { }
 

@@ -50,7 +50,7 @@ class InstructionNode: public SeaNode {
   // Returns the set of register numbers that are used by the instruction.
   virtual std::vector<int> GetUses();
   // Appends to @result the .dot string representation of the instruction.
-  virtual void ToDot(std::string& result) const;
+  virtual void ToDot(std::string& result, const art::DexFile& dex_file) const;
   // Mark the current instruction as a downward exposed definition.
   void MarkAsDEDef();
   // Rename the use of @reg_no to refer to the instruction @definition,
@@ -126,7 +126,7 @@ class UnnamedConstInstructionNode: public ConstInstructionNode {
     return value_;
   }
 
-  void ToDot(std::string& result) const {
+  void ToDot(std::string& result, const art::DexFile& dex_file) const {
     std::ostringstream sstream;
     sstream << GetConstValue();
     const std::string value_as_string(sstream.str());
@@ -140,11 +140,9 @@ class UnnamedConstInstructionNode: public ConstInstructionNode {
     for (std::map<int, InstructionNode* >::const_iterator def_it = definition_edges_.begin();
         def_it != definition_edges_.end(); def_it++) {
       if (NULL != def_it->second) {
-        result += def_it->second->StringId() + " -> " + StringId() +"[color=red,label=\"";
-        std::stringstream ss;
-        ss << def_it->first;
-        result.append(ss.str());
-        result += "\"] ;  // ssa edge\n";
+        result += def_it->second->StringId() + " -> " + StringId() +"[color=gray,label=\"";
+        result += art::StringPrintf("vR = %d", def_it->first);
+        result += "\"] ; // ssa edge\n";
       }
     }
   }

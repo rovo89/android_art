@@ -40,7 +40,7 @@ static CompiledMethod* CompileMethodWithSeaIr(CompilerDriver& compiler,
   // NOTE: Instead of keeping the convention from the Dalvik frontend.cc
   //       and silencing the cpplint.py warning, I just corrected the formatting.
   VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
-  sea_ir::SeaGraph* sg = sea_ir::SeaGraph::GetCurrentGraph();
+  sea_ir::SeaGraph* sg = sea_ir::SeaGraph::GetCurrentGraph(dex_file);
   sg->CompileMethod(code_item, class_def_idx, method_idx, dex_file);
   sg->DumpSea("/tmp/temp.dot");
   CHECK(0 && "No SEA compiled function exists yet.");

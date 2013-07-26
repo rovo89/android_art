@@ -27,7 +27,6 @@
 
 namespace sea_ir {
 
-SeaGraph SeaGraph::graph_;
 int SeaNode::current_max_node_id_ = 0;
 
 void IRVisitor::Traverse(Region* region) {
@@ -51,16 +50,16 @@ void IRVisitor::Traverse(SeaGraph* graph) {
   }
 }
 
-SeaGraph* SeaGraph::GetCurrentGraph() {
-  return &sea_ir::SeaGraph::graph_;
+SeaGraph* SeaGraph::GetCurrentGraph(const art::DexFile& dex_file) {
+  return new SeaGraph(dex_file);
 }
 
 void SeaGraph::DumpSea(std::string filename) const {
   LOG(INFO) << "Starting to write SEA string to file.";
   std::string result;
-  result += "digraph seaOfNodes {\n";
+  result += "digraph seaOfNodes {\ncompound=true\n";
   for (std::vector<Region*>::const_iterator cit = regions_.begin(); cit != regions_.end(); cit++) {
-    (*cit)->ToDot(result);
+    (*cit)->ToDot(result, dex_file_);
   }
   result += "}\n";
   art::File* file = art::OS::OpenFile(filename.c_str(), true, true);
@@ -490,33 +489,48 @@ SeaNode* Region::GetLastChild() const {
   return NULL;
 }
 
-void Region::ToDot(std::string& result) const {
-  result += "\n// Region: \n" + StringId() + " [label=\"region " + StringId() + "(rpo=";
+void Region::ToDot(std::string& result, const art::DexFile& dex_file) const {
+  result += "\n// Region: \nsubgraph " + StringId() + " { label=\"region " + StringId() + "(rpo=";
   result += art::StringPrintf("%d", rpo_number_);
   if (NULL != GetIDominator()) {
     result += " dom=" + GetIDominator()->StringId();
   }
-  result += ")\"];\n";
+  result += ")\";\n";
+
+  for (std::vector<PhiInstructionNode*>::const_iterator cit = phi_instructions_.begin();
+        cit != phi_instructions_.end(); cit++) {
+    result += (*cit)->StringId() +";\n";
+  }
+
+  for (std::vector<InstructionNode*>::const_iterator cit = instructions_.begin();
+        cit != instructions_.end(); cit++) {
+      result += (*cit)->StringId() +";\n";
+      // result += StringId() + " -> " + (*cit)->StringId() + "; // region -> instruction \n";
+    }
+
+  result += "} // End Region.\n";
 
   // Save phi-nodes.
   for (std::vector<PhiInstructionNode*>::const_iterator cit = phi_instructions_.begin();
       cit != phi_instructions_.end(); cit++) {
-    (*cit)->ToDot(result);
-    result += StringId() + " -> " + (*cit)->StringId() + ";  // phi-function \n";
+    (*cit)->ToDot(result, dex_file);
+    // result += StringId() + " -> " + (*cit)->StringId() + "; // region -> phi-function \n";
   }
 
   // Save instruction nodes.
   for (std::vector<InstructionNode*>::const_iterator cit = instructions_.begin();
       cit != instructions_.end(); cit++) {
-    (*cit)->ToDot(result);
-    result += StringId() + " -> " + (*cit)->StringId() + ";  // region -> instruction \n";
+    (*cit)->ToDot(result, dex_file);
+    //result += StringId() + " -> " + (*cit)->StringId() + "; // region -> instruction \n";
   }
 
   for (std::vector<Region*>::const_iterator cit = successors_.begin(); cit != successors_.end();
       cit++) {
     DCHECK(NULL != *cit) << "Null successor found for SeaNode" << GetLastChild()->StringId() << ".";
-    result += GetLastChild()->StringId() + " -> " + (*cit)->StringId() + ";\n\n";
+    result += GetLastChild()->StringId() + " -> " + (*cit)->GetLastChild()->StringId() +
+         "[lhead=" + (*cit)->StringId() + ", " + "ltail=" + StringId() + "];\n\n";
   }
+  /*
   // Save reaching definitions.
   for (std::map<int, std::set<sea_ir::InstructionNode*>* >::const_iterator cit =
       reaching_defs_.begin();
@@ -536,7 +550,7 @@ void Region::ToDot(std::string& result) const {
         " -> " + (*cit)->StringId() +
         " [color=gray];  // Dominance frontier.\n";
   }
-  result += "// End Region.\n";
+  */
 }
 
 void Region::ComputeDownExposedDefs() {
@@ -698,9 +712,9 @@ std::vector<InstructionNode*> InstructionNode::Create(const art::Instruction* in
   return sea_instructions;
 }
 
-void InstructionNode::ToDot(std::string& result) const {
+void InstructionNode::ToDot(std::string& result, const art::DexFile& dex_file) const {
   result += "// Instruction ("+StringId()+"): \n" + StringId() +
-      " [label=\"" + instruction_->DumpString(NULL) + "\"";
+      " [label=\"" + instruction_->DumpString(&dex_file) + "\"";
   if (de_def_) {
     result += "style=bold";
   }
@@ -709,9 +723,9 @@ void InstructionNode::ToDot(std::string& result) const {
   for (std::map<int, InstructionNode* >::const_iterator def_it = definition_edges_.begin();
       def_it != definition_edges_.end(); def_it++) {
     if (NULL != def_it->second) {
-      result += def_it->second->StringId() + " -> " + StringId() +"[color=red,label=\"";
-      result += art::StringPrintf("%d", def_it->first);
-      result += "\"] ;  // ssa edge\n";
+      result += def_it->second->StringId() + " -> " + StringId() +"[color=gray,label=\"";
+      result += art::StringPrintf("vR = %d", def_it->first);
+      result += "\"] ; // ssa edge\n";
     }
   }
 }
@@ -756,7 +770,7 @@ std::vector<int> InstructionNode::GetUses() {
   return uses;
 }
 
-void PhiInstructionNode::ToDot(std::string& result) const {
+void PhiInstructionNode::ToDot(std::string& result, const art::DexFile& dex_file) const {
   result += "// PhiInstruction: \n" + StringId() +
       " [label=\"" + "PHI(";
   result += art::StringPrintf("%d", register_no_);
@@ -768,7 +782,7 @@ void PhiInstructionNode::ToDot(std::string& result) const {
     std::vector<InstructionNode*>* defs_from_pred = *pred_it;
     for (std::vector<InstructionNode* >::const_iterator def_it = defs_from_pred->begin();
         def_it != defs_from_pred->end(); def_it++) {
-        result += (*def_it)->StringId() + " -> " + StringId() +"[color=red,label=\"vR = ";
+        result += (*def_it)->StringId() + " -> " + StringId() +"[color=gray,label=\"vR = ";
         result += art::StringPrintf("%d", GetRegisterNumber());
         result += "\"] ;  // phi-ssa edge\n";
     }
