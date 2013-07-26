@@ -281,9 +281,7 @@ class Instruction {
 
   // Returns the opcode field of the instruction.
   Code Opcode() const {
-    const uint16_t* insns = reinterpret_cast<const uint16_t*>(this);
-    int opcode = *insns & 0xFF;
-    return static_cast<Code>(opcode);
+    return static_cast<Code>(Fetch16(0) & 0xFF);
   }
 
   void SetOpcode(Code opcode) {
