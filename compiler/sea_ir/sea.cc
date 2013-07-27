@@ -505,7 +505,6 @@ void Region::ToDot(std::string& result, const art::DexFile& dex_file) const {
   for (std::vector<InstructionNode*>::const_iterator cit = instructions_.begin();
         cit != instructions_.end(); cit++) {
       result += (*cit)->StringId() +";\n";
-      // result += StringId() + " -> " + (*cit)->StringId() + "; // region -> instruction \n";
     }
 
   result += "} // End Region.\n";
@@ -514,14 +513,12 @@ void Region::ToDot(std::string& result, const art::DexFile& dex_file) const {
   for (std::vector<PhiInstructionNode*>::const_iterator cit = phi_instructions_.begin();
       cit != phi_instructions_.end(); cit++) {
     (*cit)->ToDot(result, dex_file);
-    // result += StringId() + " -> " + (*cit)->StringId() + "; // region -> phi-function \n";
   }
 
   // Save instruction nodes.
   for (std::vector<InstructionNode*>::const_iterator cit = instructions_.begin();
       cit != instructions_.end(); cit++) {
     (*cit)->ToDot(result, dex_file);
-    //result += StringId() + " -> " + (*cit)->StringId() + "; // region -> instruction \n";
   }
 
   for (std::vector<Region*>::const_iterator cit = successors_.begin(); cit != successors_.end();
@@ -530,27 +527,6 @@ void Region::ToDot(std::string& result, const art::DexFile& dex_file) const {
     result += GetLastChild()->StringId() + " -> " + (*cit)->GetLastChild()->StringId() +
          "[lhead=" + (*cit)->StringId() + ", " + "ltail=" + StringId() + "];\n\n";
   }
-  /*
-  // Save reaching definitions.
-  for (std::map<int, std::set<sea_ir::InstructionNode*>* >::const_iterator cit =
-      reaching_defs_.begin();
-      cit != reaching_defs_.end(); cit++) {
-    for (std::set<sea_ir::InstructionNode*>::const_iterator
-        reaching_set_it = (*cit).second->begin();
-        reaching_set_it != (*cit).second->end();
-        reaching_set_it++) {
-      result += (*reaching_set_it)->StringId() +
-         " -> " + StringId() +
-         " [style=dotted];  // Reaching def.\n";
-    }
-  }
-  // Save dominance frontier.
-  for (std::set<Region*>::const_iterator cit = df_.begin(); cit != df_.end(); cit++) {
-    result += StringId() +
-        " -> " + (*cit)->StringId() +
-        " [color=gray];  // Dominance frontier.\n";
-  }
-  */
 }
 
 void Region::ComputeDownExposedDefs() {
