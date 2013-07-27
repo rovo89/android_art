@@ -605,6 +605,9 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
       opcode_count_[static_cast<int>(opcode)]++;
     }
 
+    /* Terminate when the data section is seen */
+    if (width == 0)
+      break;
 
     /* Possible simple method? */
     if (live_pattern) {
@@ -623,6 +626,9 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
     pattern_pos++;
     }
 
+    AppendMIR(cur_block, insn);
+
+    code_ptr += width;
     int flags = Instruction::FlagsOf(insn->dalvikInsn.opcode);
 
     int df_flags = oat_data_flow_attributes_[insn->dalvikInsn.opcode];
@@ -630,50 +636,6 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
     if (df_flags & DF_HAS_DEFS) {
       def_count_ += (df_flags & DF_A_WIDE) ? 2 : 1;
     }
-
-    // Check for inline data block signatures
-    if (opcode == Instruction::NOP) {
-      const uint16_t* tmp_code_ptr = code_ptr;
-      int tmp_width = 0;
-      uint16_t raw_instruction = *tmp_code_ptr;
-      bool embedded_data_block = true;
-      if (raw_instruction == 0x0000) {
-        // Could be an aligning nop - see if an embedded data block follows.
-        tmp_code_ptr++;
-        tmp_width++;
-        raw_instruction = *tmp_code_ptr;
-      }
-      if (raw_instruction == Instruction::kSparseSwitchSignature) {
-         tmp_width += (tmp_code_ptr[1] * 4) + 2;
-      } else if (raw_instruction == Instruction::kPackedSwitchSignature) {
-         tmp_width += (tmp_code_ptr[1] * 2) + 4;
-      } else if (raw_instruction == Instruction::kArrayDataSignature) {
-         int element_width = tmp_code_ptr[1];
-         int num_elements = tmp_code_ptr[2] + (tmp_code_ptr[3] << 16);
-         tmp_width += (((num_elements * element_width) + 1) / 2) + 4;
-      } else {
-        // Just a normal nop - process as usual.
-        embedded_data_block = false;
-        AppendMIR(cur_block, insn);
-      }
-      if (embedded_data_block) {
-        width = tmp_width;
-        DCHECK(cur_block->fall_through == NULL);
-        DCHECK(cur_block->taken == NULL);
-        // No fallthrough for this block
-        flags = 0;
-        df_flags = 0;
-        // If there's more code following, make sure there's a basic block to attach it to.
-        if ((code_ptr + width) < code_end) {
-          FindBlock(current_offset_ + width, /* split */ false, /* create */ true,
-                    /* immed_pred_block_p */ NULL);
-        }
-      }
-    } else {
-      AppendMIR(cur_block, insn);
-    }
-
-    code_ptr += width;
 
     if (flags & Instruction::kBranch) {
       cur_block = ProcessCanBranch(cur_block, insn, current_offset_,
