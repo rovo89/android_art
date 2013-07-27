@@ -237,7 +237,8 @@ void SeaGraph::BuildMethodSeaGraph(const art::DexFile::CodeItem* code_item,
   sea_ir::InstructionNode* node = NULL;
   while (i < size_in_code_units) {
     const art::Instruction* inst = art::Instruction::At(&code[i]);
-    std::vector<InstructionNode*> sea_instructions_for_dalvik = sea_ir::InstructionNode::Create(inst);
+    std::vector<InstructionNode*> sea_instructions_for_dalvik =
+        sea_ir::InstructionNode::Create(inst);
     for (std::vector<InstructionNode*>::const_iterator cit = sea_instructions_for_dalvik.begin();
         sea_instructions_for_dalvik.end() != cit; ++cit) {
       last_node = node;
@@ -249,7 +250,6 @@ void SeaGraph::BuildMethodSeaGraph(const art::DexFile::CodeItem* code_item,
         DCHECK(it != target_regions.end());
         AddEdge(r, it->second);  // Add edge to branch target.
       }
-
       std::map<const uint16_t*, Region*>::iterator it = target_regions.find(&code[i]);
       if (target_regions.end() != it) {
         // Get the already created region because this is a branch target.
@@ -331,7 +331,8 @@ void SeaGraph::ConvertToSSA() {
     int global = *globals_it;
     // Copy the set, because we will modify the worklist as we go.
     std::set<Region*> worklist((*(blocks.find(global))).second);
-    for (std::set<Region*>::const_iterator b_it = worklist.begin(); b_it != worklist.end(); b_it++) {
+    for (std::set<Region*>::const_iterator b_it = worklist.begin();
+        b_it != worklist.end(); b_it++) {
       std::set<Region*>* df = (*b_it)->GetDominanceFrontier();
       for (std::set<Region*>::const_iterator df_it = df->begin(); df_it != df->end(); df_it++) {
         if ((*df_it)->InsertPhiFor(global)) {
@@ -560,7 +561,8 @@ bool Region::UpdateReachingDefs() {
       pred_it != predecessors_.end(); pred_it++) {
     // The reaching_defs variable will contain reaching defs __for current predecessor only__
     std::map<int, std::set<sea_ir::InstructionNode*>* > reaching_defs;
-    std::map<int, std::set<sea_ir::InstructionNode*>* >* pred_reaching = (*pred_it)->GetReachingDefs();
+    std::map<int, std::set<sea_ir::InstructionNode*>* >* pred_reaching =
+        (*pred_it)->GetReachingDefs();
     const std::map<int, InstructionNode*>* de_defs = (*pred_it)->GetDownExposedDefs();
 
     // The definitions from the reaching set of the predecessor
@@ -578,7 +580,8 @@ bool Region::UpdateReachingDefs() {
 
     // Now we combine the reaching map coming from the current predecessor (reaching_defs)
     // with the accumulated set from all predecessors so far (from new_reaching).
-    std::map<int, std::set<sea_ir::InstructionNode*>*>::iterator reaching_it = reaching_defs.begin();
+    std::map<int, std::set<sea_ir::InstructionNode*>*>::iterator reaching_it =
+        reaching_defs.begin();
     for (; reaching_it != reaching_defs.end(); reaching_it++) {
       std::map<int, std::set<sea_ir::InstructionNode*>*>::iterator crt_entry =
           new_reaching.find(reaching_it->first);
@@ -598,7 +601,8 @@ bool Region::UpdateReachingDefs() {
   // TODO: Find formal proof.
   int old_size = 0;
   if (-1 == reaching_defs_size_) {
-    std::map<int, std::set<sea_ir::InstructionNode*>*>::iterator reaching_it = reaching_defs_.begin();
+    std::map<int, std::set<sea_ir::InstructionNode*>*>::iterator reaching_it =
+        reaching_defs_.begin();
     for (; reaching_it != reaching_defs_.end(); reaching_it++) {
       old_size += (*reaching_it).second->size();
     }
@@ -753,7 +757,8 @@ void PhiInstructionNode::ToDot(std::string& result, const art::DexFile& dex_file
   result += ")\"";
   result += "];\n";
 
-  for (std::vector<std::vector<InstructionNode*>*>::const_iterator pred_it = definition_edges_.begin();
+  for (std::vector<std::vector<InstructionNode*>*>::const_iterator pred_it =
+      definition_edges_.begin();
       pred_it != definition_edges_.end(); pred_it++) {
     std::vector<InstructionNode*>* defs_from_pred = *pred_it;
     for (std::vector<InstructionNode* >::const_iterator def_it = defs_from_pred->begin();
