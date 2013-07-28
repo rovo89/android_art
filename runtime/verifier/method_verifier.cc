@@ -526,12 +526,6 @@ bool MethodVerifier::ScanTryCatchBlocks() {
         Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "exception handler starts at bad address (" << dex_pc << ")";
         return false;
       }
-      const Instruction* inst = Instruction::At(code_item_->insns_ + dex_pc);
-      if (inst->Opcode() != Instruction::MOVE_EXCEPTION) {
-        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "exception handler doesn't start with move-exception ("
-                                          << dex_pc << ")";
-        return false;
-      }
       insn_flags_[dex_pc].SetBranchTarget();
       // Ensure exception types are resolved so that they don't need resolution to be delivered,
       // unresolved exception types will be ignored by exception delivery
