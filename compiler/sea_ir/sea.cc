@@ -705,8 +705,8 @@ void InstructionNode::ToDotSSAEdges(std::string& result) const {
 
   // SSA used-by:
   if (DotConversion::SaveUseEdges()) {
-    for (std::vector<InstructionNode*>::const_iterator cit = used_in_.begin(); cit != used_in_.end();
-        cit++) {
+    for (std::vector<InstructionNode*>::const_iterator cit = used_in_.begin();
+        cit != used_in_.end(); cit++) {
       result += (*cit)->StringId() + " -> " + StringId() + "[color=gray,label=\"";
       result += "\"] ; // SSA used-by edge\n";
     }

@@ -43,7 +43,7 @@ class DotConversion {
   }
 
  private:
-  static const bool save_use_edges_ =  false; // TODO: Enable per-sea graph configuration.
+  static const bool save_use_edges_ =  false;  // TODO: Enable per-sea graph configuration.
 };
 
 class Region;
