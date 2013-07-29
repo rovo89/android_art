@@ -154,16 +154,11 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
   /*
    * Add a local reference for an object to the indirect reference table associated with the
    * current stack frame.  When the native function returns, the reference will be discarded.
-   * Part of the ScopedJniThreadState as native code shouldn't be working on raw Object* without
-   * having transitioned its state.
    *
-   * We need to allow the same reference to be added multiple times.
+   * We need to allow the same reference to be added multiple times, and cope with NULL.
    *
-   * This will be called on otherwise unreferenced objects.  We cannot do GC allocations here, and
+   * This will be called on otherwise unreferenced objects. We cannot do GC allocations here, and
    * it's best if we don't grab a mutex.
-   *
-   * Returns the local reference (currently just the same pointer that was
-   * passed in), or NULL on failure.
    */
   template<typename T>
   T AddLocalReference(mirror::Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

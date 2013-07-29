@@ -833,11 +833,7 @@ class JNI {
       return NULL;
     }
     ScopedObjectAccess soa(env);
-    IndirectReferenceTable& locals = soa.Env()->locals;
-
-    uint32_t cookie = soa.Env()->local_ref_cookie;
-    IndirectRef ref = locals.Add(cookie, soa.Decode<Object*>(obj));
-    return reinterpret_cast<jobject>(ref);
+    return soa.AddLocalReference<jobject>(soa.Decode<Object*>(obj));
   }
 
   static void DeleteLocalRef(JNIEnv* env, jobject obj) {

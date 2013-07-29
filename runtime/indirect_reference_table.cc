@@ -237,7 +237,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
     mirror::Object* direct_pointer = reinterpret_cast<mirror::Object*>(iref);
     idx = Find(direct_pointer, bottomIndex, topIndex, table_);
     if (idx == -1) {
-      LOG(WARNING) << "trying to work around app JNI bugs, but didn't find " << iref << " in table!";
+      LOG(WARNING) << "Trying to work around app JNI bugs, but didn't find " << iref << " in table!";
       return false;
     }
   }
