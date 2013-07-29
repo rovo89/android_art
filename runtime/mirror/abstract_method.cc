@@ -20,6 +20,7 @@
 #include "base/stringpiece.h"
 #include "class-inl.h"
 #include "dex_file-inl.h"
+#include "dex_instruction.h"
 #include "gc/accounting/card_table-inl.h"
 #include "interpreter/interpreter.h"
 #include "jni_internal.h"
@@ -225,7 +226,8 @@ uintptr_t AbstractMethod::ToNativePc(const uint32_t dex_pc) const {
   return 0;
 }
 
-uint32_t AbstractMethod::FindCatchBlock(Class* exception_type, uint32_t dex_pc) const {
+uint32_t AbstractMethod::FindCatchBlock(Class* exception_type, uint32_t dex_pc,
+                                        bool* has_no_move_exception) const {
   MethodHelper mh(this);
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
   // Iterate over the catch handlers associated with dex_pc
@@ -242,7 +244,11 @@ uint32_t AbstractMethod::FindCatchBlock(Class* exception_type, uint32_t dex_pc) 
       LOG(WARNING) << "Unresolved exception class when finding catch block: "
           << mh.GetTypeDescriptorFromTypeIdx(iter_type_idx);
     } else if (iter_exception_type->IsAssignableFrom(exception_type)) {
-      return it.GetHandlerAddress();
+      uint32_t found_dex_pc = it.GetHandlerAddress();
+      const Instruction* first_catch_instr =
+          Instruction::At(&mh.GetCodeItem()->insns_[found_dex_pc]);
+      *has_no_move_exception = (first_catch_instr->Opcode() != Instruction::MOVE_EXCEPTION);
+      return found_dex_pc;
     }
   }
   // Handler not found

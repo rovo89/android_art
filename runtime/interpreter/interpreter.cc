@@ -975,7 +975,9 @@ static inline const Instruction* FindNextInstructionFollowingException(Thread* s
   self->VerifyStack();
   ThrowLocation throw_location;
   mirror::Throwable* exception = self->GetException(&throw_location);
-  uint32_t found_dex_pc = shadow_frame.GetMethod()->FindCatchBlock(exception->GetClass(), dex_pc);
+  bool clear_exception;
+  uint32_t found_dex_pc = shadow_frame.GetMethod()->FindCatchBlock(exception->GetClass(), dex_pc,
+                                                                   &clear_exception);
   if (found_dex_pc == DexFile::kDexNoIndex) {
     instrumentation->MethodUnwindEvent(self, this_object_ref.get(),
                                        shadow_frame.GetMethod(), dex_pc);
@@ -984,6 +986,9 @@ static inline const Instruction* FindNextInstructionFollowingException(Thread* s
     instrumentation->ExceptionCaughtEvent(self, throw_location,
                                           shadow_frame.GetMethod(),
                                           found_dex_pc, exception);
+    if (clear_exception) {
+      self->ClearException();
+    }
     return Instruction::At(insns + found_dex_pc);
   }
 }
