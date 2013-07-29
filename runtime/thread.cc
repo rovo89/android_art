@@ -1709,7 +1709,7 @@ class CatchBlockStackVisitor : public StackVisitor {
         self_(self), exception_(exception), is_deoptimization_(is_deoptimization),
         to_find_(is_deoptimization ? NULL : exception->GetClass()), throw_location_(throw_location),
         handler_quick_frame_(NULL), handler_quick_frame_pc_(0), handler_dex_pc_(0),
-        native_method_count_(0),
+        native_method_count_(0), clear_exception_(false),
         method_tracing_active_(is_deoptimization ||
                                Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()),
         instrumentation_frames_to_pop_(0), top_shadow_frame_(NULL), prev_shadow_frame_(NULL) {
@@ -1754,7 +1754,7 @@ class CatchBlockStackVisitor : public StackVisitor {
       dex_pc = GetDexPc();
     }
     if (dex_pc != DexFile::kDexNoIndex) {
-      uint32_t found_dex_pc = method->FindCatchBlock(to_find_, dex_pc);
+      uint32_t found_dex_pc = method->FindCatchBlock(to_find_, dex_pc, &clear_exception_);
       if (found_dex_pc != DexFile::kDexNoIndex) {
         handler_dex_pc_ = found_dex_pc;
         handler_quick_frame_pc_ = method->ToNativePc(found_dex_pc);
@@ -1820,8 +1820,13 @@ class CatchBlockStackVisitor : public StackVisitor {
         LOG(INFO) << "Handler: " << PrettyMethod(catch_method) << " (line: " << line_number << ")";
       }
     }
-    // Put exception back in root set and clear throw location.
-    self_->SetException(ThrowLocation(), exception_);
+    if (clear_exception_) {
+      // Exception was cleared as part of delivery.
+      DCHECK(!self_->IsExceptionPending());
+    } else {
+      // Put exception back in root set with clear throw location.
+      self_->SetException(ThrowLocation(), exception_);
+    }
     self_->EndAssertNoThreadSuspension(last_no_assert_suspension_cause_);
     // Do instrumentation events after allowing thread suspension again.
     instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
@@ -1864,6 +1869,8 @@ class CatchBlockStackVisitor : public StackVisitor {
   uint32_t handler_dex_pc_;
   // Number of native methods passed in crawl (equates to number of SIRTs to pop)
   uint32_t native_method_count_;
+  // Should the exception be cleared as the catch block has no move-exception?
+  bool clear_exception_;
   // Is method tracing active?
   const bool method_tracing_active_;
   // Support for nesting no thread suspension checks.
