@@ -129,7 +129,6 @@ LIBART_COMMON_SRC_FILES := \
 	trace.cc \
 	utf.cc \
 	utils.cc \
-	vector_output_stream.cc \
 	verifier/dex_gc_map.cc \
 	verifier/instruction_flags.cc \
 	verifier/method_verifier.cc \

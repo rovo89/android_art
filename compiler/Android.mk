@@ -88,7 +88,8 @@ LIBART_COMPILER_SRC_FILES := \
 	elf_writer.cc \
 	elf_writer_quick.cc \
 	image_writer.cc \
-	oat_writer.cc
+	oat_writer.cc \
+	vector_output_stream.cc
 
 ifeq ($(ART_SEA_IR_MODE),true)
 LIBART_COMPILER_SRC_FILES += \
