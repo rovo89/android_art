@@ -1022,14 +1022,18 @@ void ClassLinker::InitFromImageCallback(mirror::Object* obj, void* arg) {
     return;
   }
 
-  // Set entry points to interpreter for methods in interpreter only mode.
   if (obj->IsMethod()) {
     mirror::AbstractMethod* method = obj->AsMethod();
+    // Set entry points to interpreter for methods in interpreter only mode.
     if (Runtime::Current()->GetInstrumentation()->InterpretOnly() && !method->IsNative()) {
       method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterEntry);
       if (method != Runtime::Current()->GetResolutionMethod()) {
         method->SetEntryPointFromCompiledCode(GetInterpreterEntryPoint());
       }
+    }
+    // Populate native method pointer with jni lookup stub.
+    if (method->IsNative()) {
+      method->UnregisterNative(Thread::Current());
     }
   }
 }
@@ -1523,6 +1527,13 @@ const OatFile::OatMethod ClassLinker::GetOatMethodFor(const mirror::AbstractMeth
 // Special case to get oat code without overwriting a trampoline.
 const void* ClassLinker::GetOatCodeFor(const mirror::AbstractMethod* method) {
   CHECK(!method->IsAbstract()) << PrettyMethod(method);
+  if (method->IsProxyMethod()) {
+#if !defined(ART_USE_PORTABLE_COMPILER)
+    return reinterpret_cast<void*>(art_quick_proxy_invoke_handler);
+#else
+    return reinterpret_cast<void*>(art_portable_proxy_invoke_handler);
+#endif
+  }
   const void* result = GetOatMethodFor(method).GetCode();
   if (result == NULL) {
     // No code? You must mean to go into the interpreter.
