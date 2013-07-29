@@ -14,28 +14,12 @@
  * limitations under the License.
  */
 
-#include "asm_support.h"
+#include "asm_support_arm.S"
 
     /* Deliver the given exception */
     .extern artDeliverExceptionFromCode
     /* Deliver an exception pending on a thread */
     .extern artDeliverPendingException
-
-.macro ENTRY name
-    .type \name, #function
-    .global \name
-    /* Cache alignment for function entry */
-    .balign 16
-\name:
-    .cfi_startproc
-    .fnstart
-.endm
-
-.macro END name
-    .fnend
-    .cfi_endproc
-    .size \name, .-\name
-.endm
 
     /*
      * Macro that sets up the callee save frame to conform with
@@ -247,53 +231,6 @@ INVOKE_TRAMPOLINE art_quick_invoke_super_trampoline_with_access_check, artInvoke
 INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
 
     /*
-     * Portable invocation stub.
-     * On entry:
-     *   r0 = method pointer
-     *   r1 = argument array or NULL for no argument methods
-     *   r2 = size of argument array in bytes
-     *   r3 = (managed) thread pointer
-     *   [sp] = JValue* result
-     *   [sp + 4] = result type char
-     */
-ENTRY art_portable_invoke_stub
-    push   {r0, r4, r5, r9, r11, lr}       @ spill regs
-    .save  {r0, r4, r5, r9, r11, lr}
-    .pad #24
-    .cfi_adjust_cfa_offset 24
-    .cfi_rel_offset r0, 0
-    .cfi_rel_offset r4, 4
-    .cfi_rel_offset r5, 8
-    .cfi_rel_offset r9, 12
-    .cfi_rel_offset r11, 16
-    .cfi_rel_offset lr, 20
-    mov    r11, sp                         @ save the stack pointer
-    .cfi_def_cfa_register r11
-    mov    r9, r3                          @ move managed thread pointer into r9
-    mov    r4, #SUSPEND_CHECK_INTERVAL     @ reset r4 to suspend check interval
-    add    r5, r2, #16                     @ create space for method pointer in frame
-    and    r5, #0xFFFFFFF0                 @ align frame size to 16 bytes
-    sub    sp, r5                          @ reserve stack space for argument array
-    add    r0, sp, #4                      @ pass stack pointer + method ptr as dest for memcpy
-    bl     memcpy                          @ memcpy (dest, src, bytes)
-    ldr    r0, [r11]                       @ restore method*
-    ldr    r1, [sp, #4]                    @ copy arg value for r1
-    ldr    r2, [sp, #8]                    @ copy arg value for r2
-    ldr    r3, [sp, #12]                   @ copy arg value for r3
-    mov    ip, #0                          @ set ip to 0
-    str    ip, [sp]                        @ store NULL for method* at bottom of frame
-    add    sp, #16                         @ first 4 args are not passed on stack for portable
-    ldr    ip, [r0, #METHOD_CODE_OFFSET]   @ get pointer to the code
-    blx    ip                              @ call the method
-    mov    sp, r11                         @ restore the stack pointer
-    ldr    ip, [sp, #24]                   @ load the result pointer
-    strd   r0, [ip]                        @ store r0/r1 into result pointer
-    pop    {r0, r4, r5, r9, r11, lr}       @ restore spill regs
-    .cfi_adjust_cfa_offset -24
-    bx     lr
-END art_portable_invoke_stub
-
-    /*
      * Quick invocation stub.
      * On entry:
      *   r0 = method pointer
@@ -351,30 +288,6 @@ ENTRY art_quick_do_long_jump
     mov  r1, #0
     bx   r2               @ do long jump
 END art_quick_do_long_jump
-
-    /*
-     * Entry point of native methods when JNI bug compatibility is enabled.
-     */
-    .extern artWorkAroundAppJniBugs
-ENTRY art_quick_work_around_app_jni_bugs
-    @ save registers that may contain arguments and LR that will be crushed by a call
-    push {r0-r3, lr}
-    .save {r0-r3, lr}
-    .cfi_adjust_cfa_offset 16
-    .cfi_rel_offset r0, 0
-    .cfi_rel_offset r1, 4
-    .cfi_rel_offset r2, 8
-    .cfi_rel_offset r3, 12
-    sub sp, #12      @ 3 words of space for alignment
-    mov r0, r9       @ pass Thread::Current
-    mov r1, sp       @ pass SP
-    bl  artWorkAroundAppJniBugs  @ (Thread*, SP)
-    add sp, #12      @ rewind stack
-    mov r12, r0      @ save target address
-    pop {r0-r3, lr}  @ restore possibly modified argument registers
-    .cfi_adjust_cfa_offset -16
-    bx  r12          @ tail call into JNI routine
-END art_quick_work_around_app_jni_bugs
 
     /*
      * Entry from managed code that calls artHandleFillArrayDataFromCode and delivers exception on
@@ -906,20 +819,6 @@ ENTRY art_quick_test_suspend
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
 END art_quick_test_suspend
 
-    .extern artPortableProxyInvokeHandler
-ENTRY art_portable_proxy_invoke_handler
-    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    str     r0, [sp, #0]           @ place proxy method at bottom of frame
-    mov     r2, r9                 @ pass Thread::Current
-    mov     r3, sp                 @ pass SP
-    blx     artPortableProxyInvokeHandler  @ (Method* proxy method, receiver, Thread*, SP)
-    ldr     r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
-    ldr     lr,  [sp, #44]         @ restore lr
-    add     sp,  #48               @ pop frame
-    .cfi_adjust_cfa_offset -48
-    bx      lr                     @ return
-END art_portable_proxy_invoke_handler
-
     /*
      * Called by managed code that is attempting to call a method on a proxy class. On entry
      * r0 holds the proxy method and r1 holds the receiver; r2 and r3 may contain arguments. The
@@ -1043,30 +942,6 @@ ENTRY art_quick_abstract_method_error_stub
     mov    r2, sp         @ pass SP
     b      artThrowAbstractMethodErrorFromCode  @ (Method*, Thread*, SP)
 END art_quick_abstract_method_error_stub
-
-    /*
-     * Jni dlsym lookup stub.
-     */
-    .extern artFindNativeMethod
-ENTRY art_jni_dlsym_lookup_stub
-    push   {r0, r1, r2, r3, lr}           @ spill regs
-    .save  {r0, r1, r2, r3, lr}
-    .pad #20
-    .cfi_adjust_cfa_offset 20
-    sub    sp, #12                        @ pad stack pointer to align frame
-    .pad #12
-    .cfi_adjust_cfa_offset 12
-    mov    r0, r9                         @ pass Thread::Current
-    blx    artFindNativeMethod            @ (Thread*)
-    mov    r12, r0                        @ save result in r12
-    add    sp, #12                        @ restore stack pointer
-    .cfi_adjust_cfa_offset -12
-    pop    {r0, r1, r2, r3, lr}           @ restore regs
-    .cfi_adjust_cfa_offset -20
-    cmp    r12, #0                        @ is method code null?
-    bxne   r12                            @ if non-null, tail call to method's code
-    bx     lr                             @ otherwise, return to caller to handle exception
-END art_jni_dlsym_lookup_stub
 
     /*
      * Signed 64-bit integer multiply.

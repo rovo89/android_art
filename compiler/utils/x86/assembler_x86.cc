@@ -1837,7 +1837,7 @@ void X86ExceptionSlowPath::Emit(Assembler *sasm) {
   }
   // Pass exception as argument in EAX
   __ fs()->movl(EAX, Address::Absolute(Thread::ExceptionOffset()));
-  __ fs()->call(Address::Absolute(ENTRYPOINT_OFFSET(pDeliverException)));
+  __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(pDeliverException)));
   // this call should never return
   __ int3();
 #undef __

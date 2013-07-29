@@ -118,8 +118,6 @@ LIBART_COMMON_SRC_FILES := \
 	reference_table.cc \
 	reflection.cc \
 	runtime.cc \
-	runtime_support.cc \
-	runtime_support_llvm.cc \
 	signal_catcher.cc \
 	stack.cc \
 	thread.cc \
@@ -143,6 +141,21 @@ LIBART_COMMON_SRC_FILES += \
 	arch/arm/registers_arm.cc \
 	arch/x86/registers_x86.cc \
 	arch/mips/registers_mips.cc \
+	entrypoints/entrypoint_utils.cc \
+	entrypoints/jni/jni_entrypoints.cc \
+	entrypoints/math_entrypoints.cc \
+	entrypoints/portable/portable_alloc_entrypoints.cc \
+	entrypoints/portable/portable_cast_entrypoints.cc \
+	entrypoints/portable/portable_dexcache_entrypoints.cc \
+	entrypoints/portable/portable_field_entrypoints.cc \
+	entrypoints/portable/portable_fillarray_entrypoints.cc \
+	entrypoints/portable/portable_invoke_entrypoints.cc \
+	entrypoints/portable/portable_jni_entrypoints.cc \
+	entrypoints/portable/portable_lock_entrypoints.cc \
+	entrypoints/portable/portable_proxy_entrypoints.cc \
+	entrypoints/portable/portable_stub_entrypoints.cc \
+	entrypoints/portable/portable_thread_entrypoints.cc \
+	entrypoints/portable/portable_throw_entrypoints.cc \
 	entrypoints/quick/quick_alloc_entrypoints.cc \
 	entrypoints/quick/quick_cast_entrypoints.cc \
 	entrypoints/quick/quick_deoptimization_entrypoints.cc \
@@ -171,39 +184,35 @@ LIBART_TARGET_SRC_FILES := \
 ifeq ($(TARGET_ARCH),arm)
 LIBART_TARGET_SRC_FILES += \
 	arch/arm/context_arm.cc.arm \
+	arch/arm/entrypoints_init_arm.cc \
+	arch/arm/jni_entrypoints_arm.S \
+	arch/arm/portable_entrypoints_arm.S \
 	arch/arm/quick_entrypoints_arm.S \
-	arch/arm/quick_entrypoints_init_arm.cc
+	arch/arm/thread_arm.cc
 else # TARGET_ARCH != arm
 ifeq ($(TARGET_ARCH),x86)
 LIBART_TARGET_SRC_FILES += \
 	arch/x86/context_x86.cc \
-	arch/x86/quick_entrypoints_init_x86.cc \
-	arch/x86/quick_entrypoints_x86.S
+	arch/x86/entrypoints_init_x86.cc \
+	arch/x86/jni_entrypoints_x86.S \
+	arch/x86/portable_entrypoints_x86.S \
+	arch/x86/quick_entrypoints_x86.S \
+	arch/x86/thread_x86.cc
 else # TARGET_ARCH != x86
 ifeq ($(TARGET_ARCH),mips)
 LIBART_TARGET_SRC_FILES += \
 	arch/mips/context_mips.cc \
-	arch/mips/quick_entrypoints_init_mips.cc \
-	arch/mips/quick_entrypoints_mips.S
+	arch/mips/entrypoints_init_mips.cc \
+	arch/mips/jni_entrypoints_mips.S \
+	arch/mips/portable_entrypoints_mips.S \
+	arch/mips/quick_entrypoints_mips.S \
+	arch/mips/thread_mips.cc
 else # TARGET_ARCH != mips
 $(error unsupported TARGET_ARCH=$(TARGET_ARCH))
 endif # TARGET_ARCH != mips
 endif # TARGET_ARCH != x86
 endif # TARGET_ARCH != arm
 
-ifeq ($(TARGET_ARCH),arm)
-LIBART_TARGET_SRC_FILES += thread_arm.cc
-else # TARGET_ARCH != arm
-ifeq ($(TARGET_ARCH),x86)
-LIBART_TARGET_SRC_FILES += thread_x86.cc
-else # TARGET_ARCH != x86
-ifeq ($(TARGET_ARCH),mips)
-LIBART_TARGET_SRC_FILES += thread_mips.cc
-else # TARGET_ARCH != mips
-$(error unsupported TARGET_ARCH=$(TARGET_ARCH))
-endif # TARGET_ARCH != mips
-endif # TARGET_ARCH != x86
-endif # TARGET_ARCH != arm
 
 LIBART_HOST_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
@@ -215,14 +224,11 @@ LIBART_HOST_SRC_FILES := \
 ifeq ($(HOST_ARCH),x86)
 LIBART_HOST_SRC_FILES += \
 	arch/x86/context_x86.cc \
-	arch/x86/quick_entrypoints_init_x86.cc \
-	arch/x86/quick_entrypoints_x86.S
-else # HOST_ARCH != x86
-$(error unsupported HOST_ARCH=$(HOST_ARCH))
-endif # HOST_ARCH != x86
-
-ifeq ($(HOST_ARCH),x86)
-LIBART_HOST_SRC_FILES += thread_x86.cc
+	arch/x86/entrypoints_init_x86.cc \
+	arch/x86/jni_entrypoints_x86.S \
+	arch/x86/portable_entrypoints_x86.S \
+	arch/x86/quick_entrypoints_x86.S \
+	arch/x86/thread_x86.cc
 else # HOST_ARCH != x86
 $(error unsupported HOST_ARCH=$(HOST_ARCH))
 endif # HOST_ARCH != x86

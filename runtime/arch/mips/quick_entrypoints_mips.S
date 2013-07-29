@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "asm_support.h"
+#include "asm_support_mips.S"
 
     .set noreorder
     .balign 4
@@ -23,25 +23,6 @@
     .extern artDeliverExceptionFromCode
     /* Deliver an exception pending on a thread */
     .extern artDeliverPendingExceptionFromCode
-
-    /* Cache alignment for function entry */
-.macro ENTRY name
-    .type \name, %function
-    .global \name
-    .balign 16
-\name:
-    .cfi_startproc
-.endm
-
-.macro END name
-    .cfi_endproc
-    .size \name, .-\name
-.endm
-
-    /* Generates $gp for function calls */
-.macro GENERATE_GLOBAL_POINTER
-    .cpload $t9
-.endm
 
     /*
      * Macro that sets up the callee save frame to conform with
@@ -481,39 +462,6 @@ END art_quick_invoke_stub
     .size art_portable_invoke_stub, .-art_portable_invoke_stub
 
     /*
-     * Entry point of native methods when JNI bug compatibility is enabled.
-     */
-    .extern artWorkAroundAppJniBugs
-ENTRY art_quick_work_around_app_jni_bugs
-    GENERATE_GLOBAL_POINTER
-    # save registers that may contain arguments and LR that will be crushed by a call
-    addiu    $sp, $sp, -32
-    .cfi_adjust_cfa_offset 32
-    sw       $ra, 28($sp)
-    .cfi_rel_offset 31, 28
-    sw       $a3, 24($sp)
-    .cfi_rel_offset 7, 28
-    sw       $a2, 20($sp)
-    .cfi_rel_offset 6, 28
-    sw       $a1, 16($sp)
-    .cfi_rel_offset 5, 28
-    sw       $a0, 12($sp)
-    .cfi_rel_offset 4, 28
-    move     $a0, rSELF       # pass Thread::Current
-    jal      artWorkAroundAppJniBugs  # (Thread*, $sp)
-    move     $a1, $sp         # pass $sp
-    move     $t9, $v0         # save target address
-    lw       $a0, 12($sp)
-    lw       $a1, 16($sp)
-    lw       $a2, 20($sp)
-    lw       $a3, 24($sp)
-    lw       $ra, 28($sp)
-    jr       $t9              # tail call into JNI routine
-    addiu    $sp, $sp, 32
-    .cfi_adjust_cfa_offset -32
-END art_quick_work_around_app_jni_bugs
-
-    /*
      * Entry from managed code that calls artHandleFillArrayDataFromCode and delivers exception on
      * failure.
      */
@@ -912,20 +860,6 @@ ENTRY art_quick_test_suspend
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
 END art_quick_test_suspend
 
-    .extern artPortableProxyInvokeHandler
-ENTRY art_portable_proxy_invoke_handler
-    GENERATE_GLOBAL_POINTER
-    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    sw      $a0, 0($sp)            # place proxy method at bottom of frame
-    move    $a2, rSELF             # pass Thread::Current
-    jal     artPortableProxyInvokeHandler  # (Method* proxy method, receiver, Thread*, SP)
-    move    $a3, $sp               # pass $sp
-    lw      $ra, 60($sp)           # restore $ra
-    jr      $ra
-    addiu   $sp, $sp, 64           # pop frame
-    .cfi_adjust_cfa_offset -64
-END art_portable_proxy_invoke_handler
-
     /*
      * Called by managed code that is attempting to call a method on a proxy class. On entry
      * r0 holds the proxy method; r1, r2 and r3 may contain arguments.
@@ -1044,17 +978,6 @@ ENTRY art_quick_deoptimize
 END art_quick_deoptimize
 
     /*
-     * Portable abstract method error stub. $a0 contains method* on entry. SP unused in portable.
-     */
-    .extern artThrowAbstractMethodErrorFromCode
-ENTRY art_portable_abstract_method_error_stub
-    GENERATE_GLOBAL_POINTER
-    la       $t9, artThrowAbstractMethodErrorFromCode
-    jr       $t9            # (Method*, Thread*, SP)
-    move     $a1, $s1       # pass Thread::Current
-END art_portable_abstract_method_error_stub
-
-    /*
      * Quick abstract method error stub. $a0 contains method* on entry.
      */
 ENTRY art_quick_abstract_method_error_stub
@@ -1065,42 +988,6 @@ ENTRY art_quick_abstract_method_error_stub
     jr       $t9            # (Method*, Thread*, SP)
     move     $a2, $sp       # pass SP
 END art_quick_abstract_method_error_stub
-
-    /*
-     * Jni dlsym lookup stub.
-     */
-    .extern artFindNativeMethod
-ENTRY art_jni_dlsym_lookup_stub
-    GENERATE_GLOBAL_POINTER
-    addiu $sp, $sp, -32          # leave room for $a0, $a1, $a2, $a3, and $ra
-    .cfi_adjust_cfa_offset 32
-    sw     $ra, 16($sp)
-    .cfi_rel_offset 31, 16
-    sw     $a3, 12($sp)
-    .cfi_rel_offset 7, 12
-    sw     $a2, 8($sp)
-    .cfi_rel_offset 6, 8
-    sw     $a1, 4($sp)
-    .cfi_rel_offset 5, 4
-    sw     $a0, 0($sp)
-    .cfi_rel_offset 4, 0
-    jal   artFindNativeMethod   # (Thread*)
-    move  $a0, $s1              # pass Thread::Current()
-    lw    $a0, 0($sp)           # restore registers from stack
-    lw    $a1, 4($sp)
-    lw    $a2, 8($sp)
-    lw    $a3, 12($sp)
-    lw    $ra, 16($sp)
-    beq   $v0, $zero, no_native_code_found
-    addiu $sp, $sp, 32          # restore the stack
-    .cfi_adjust_cfa_offset -32
-    move  $t9, $v0              # put method code result in $t9
-    jr    $t9                   # leaf call to method's code
-    nop
-no_native_code_found:
-    jr    $ra
-    nop
-END art_jni_dlsym_lookup_stub
 
     /*
      * Long integer shift.  This is different from the generic 32/64-bit

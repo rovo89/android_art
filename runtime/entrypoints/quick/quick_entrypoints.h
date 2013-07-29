@@ -20,15 +20,15 @@
 #include "dex_file-inl.h"
 #include "runtime.h"
 
-#define ENTRYPOINT_OFFSET(x) \
-    (static_cast<uintptr_t>(OFFSETOF_MEMBER(Thread, entrypoints_)) + \
+#define QUICK_ENTRYPOINT_OFFSET(x) \
+    (static_cast<uintptr_t>(OFFSETOF_MEMBER(Thread, quick_entrypoints_)) + \
         static_cast<uintptr_t>(OFFSETOF_MEMBER(QuickEntryPoints, x)))
 
 namespace art {
 namespace mirror {
-class AbstractMethod;
-class Class;
-class Object;
+  class AbstractMethod;
+  class Class;
+  class Object;
 }  // namespace mirror
 class DvmDex;
 class MethodHelper;
@@ -123,8 +123,6 @@ struct PACKED(4) QuickEntryPoints {
   void* (*pMemcpy)(void*, const void*, size_t);
 
   // Invocation
-  const void* (*pPortableResolutionTrampolineFromCode)(mirror::AbstractMethod*, mirror::Object*,
-                                                       mirror::AbstractMethod**, Thread*);
   const void* (*pQuickResolutionTrampolineFromCode)(mirror::AbstractMethod*, mirror::Object*,
                                                     mirror::AbstractMethod**, Thread*);
   void (*pInvokeDirectTrampolineWithAccessCheck)(uint32_t, void*);
@@ -166,9 +164,6 @@ extern mirror::Object* JniMethodEndWithReferenceSynchronized(jobject result,
                                                              uint32_t saved_local_ref_cookie,
                                                              jobject locked, Thread* self)
     SHARED_LOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
-
-// Initialize an entry point data structure, architecture specific.
-void InitEntryPoints(QuickEntryPoints* points);
 
 }  // namespace art
 

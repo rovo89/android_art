@@ -26,9 +26,10 @@
 #include <string>
 
 #include "base/macros.h"
+#include "entrypoints/portable/portable_entrypoints.h"
+#include "entrypoints/quick/quick_entrypoints.h"
 #include "globals.h"
 #include "jvalue.h"
-#include "entrypoints/quick/quick_entrypoints.h"
 #include "locks.h"
 #include "offsets.h"
 #include "root_visitor.h"
@@ -773,9 +774,10 @@ class PACKED(4) Thread {
   Closure* checkpoint_function_;
 
  public:
-  // Runtime support function pointers
+  // Entrypoint function pointers
   // TODO: move this near the top, since changing its offset requires all oats to be recompiled!
-  QuickEntryPoints entrypoints_;
+  QuickEntryPoints quick_entrypoints_;
+  PortableEntryPoints portable_entrypoints_;
 
  private:
   // How many times has our pthread key's destructor been called?

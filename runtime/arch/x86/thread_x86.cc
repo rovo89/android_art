@@ -19,7 +19,7 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 
-#include "asm_support.h"
+#include "asm_support_x86.h"
 #include "base/macros.h"
 #include "thread.h"
 #include "thread_list.h"

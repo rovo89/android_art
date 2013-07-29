@@ -34,7 +34,8 @@ const std::vector<uint8_t>* CreatePortableResolutionTrampoline() {
   RegList save = (1 << R0) | (1 << R1) | (1 << R2) | (1 << R3) | (1 << LR);
 
   __ PushList(save);
-  __ LoadFromOffset(kLoadWord, R12, TR, ENTRYPOINT_OFFSET(pPortableResolutionTrampolineFromCode));
+  __ LoadFromOffset(kLoadWord, R12, TR,
+                    PORTABLE_ENTRYPOINT_OFFSET(pPortableResolutionTrampolineFromCode));
   __ mov(R3, ShifterOperand(TR));  // Pass Thread::Current() in R3
   __ mov(R2, ShifterOperand(SP));  // Pass sp for Method** callee_addr
   __ IncreaseFrameSize(12);         // 3 words of space for alignment
@@ -69,7 +70,7 @@ const std::vector<uint8_t>* CreatePortableResolutionTrampoline() {
   __ StoreToOffset(kStoreWord, A0, SP, 0);
 
   __ LoadFromOffset(kLoadWord, T9, S1,
-                    ENTRYPOINT_OFFSET(pPortableResolutionTrampolineFromCode));
+                    PORTABLE_ENTRYPOINT_OFFSET(pPortableResolutionTrampolineFromCode));
   __ Move(A3, S1);  // Pass Thread::Current() in A3
   __ Move(A2, SP);  // Pass SP for Method** callee_addr
   __ Jalr(T9);  // Call to resolution trampoline (callee, receiver, callee_addr, Thread*)
@@ -112,7 +113,7 @@ const std::vector<uint8_t>* CreatePortableResolutionTrampoline() {
   __ pushl(ECX);  // pass receiver
   __ pushl(EAX);  // pass called
   // Call to resolve method.
-  __ Call(ThreadOffset(ENTRYPOINT_OFFSET(pPortableResolutionTrampolineFromCode)),
+  __ Call(ThreadOffset(PORTABLE_ENTRYPOINT_OFFSET(pPortableResolutionTrampolineFromCode)),
           X86ManagedRegister::FromCpuRegister(ECX));
   __ leave();
 

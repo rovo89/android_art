@@ -52,7 +52,7 @@ extern "C" int artHandleFillArrayDataFromCode(mirror::Array* array,
     ThrowLocation throw_location = self->GetCurrentLocationForThrow();
     self->ThrowNewExceptionF(throw_location, "Ljava/lang/ArrayIndexOutOfBoundsException;",
                              "failed FILL_ARRAY_DATA; length=%d, index=%d",
-                             array->GetLength(), payload->element_count);
+                             array->GetLength(), payload->element_count - 1);
     return -1;  // Error
   }
   uint32_t size_in_bytes = payload->element_count * payload->element_width;

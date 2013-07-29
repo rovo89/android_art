@@ -58,10 +58,7 @@
 #include "object_utils.h"
 #include "os.h"
 #include "runtime.h"
-#include "runtime_support.h"
-#if defined(ART_USE_PORTABLE_COMPILER)
-#include "runtime_support_llvm.h"
-#endif
+#include "entrypoints/entrypoint_utils.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
 #include "sirt_ref.h"

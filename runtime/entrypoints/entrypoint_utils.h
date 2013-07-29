@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_RUNTIME_SUPPORT_H_
-#define ART_RUNTIME_RUNTIME_SUPPORT_H_
+#ifndef ART_RUNTIME_ENTRYPOINTS_ENTRYPOINT_UTILS_H_
+#define ART_RUNTIME_ENTRYPOINTS_ENTRYPOINT_UTILS_H_
 
 #include "class_linker.h"
 #include "common_throws.h"
@@ -41,13 +41,6 @@ extern "C" void art_quick_instrumentation_exit_from_code();
 extern "C" void art_quick_interpreter_entry(void*);
 extern "C" void art_quick_proxy_invoke_handler();
 extern "C" void art_work_around_app_jni_bugs();
-
-extern "C" double art_l2d(int64_t l);
-extern "C" float art_l2f(int64_t l);
-extern "C" int64_t art_d2l(double d);
-extern "C" int32_t art_d2i(double d);
-extern "C" int64_t art_f2l(float f);
-extern "C" int32_t art_f2i(float f);
 
 namespace art {
 namespace mirror {
@@ -416,4 +409,4 @@ static inline void* GetJniDlsymLookupStub() {
 
 }  // namespace art
 
-#endif  // ART_RUNTIME_RUNTIME_SUPPORT_H_
+#endif  // ART_RUNTIME_ENTRYPOINTS_ENTRYPOINT_UTILS_H_

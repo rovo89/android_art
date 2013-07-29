@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Android Open Source Project
+ * Copyright (C) 2011 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,14 +14,16 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_RUNTIME_SUPPORT_LLVM_H_
-#define ART_RUNTIME_RUNTIME_SUPPORT_LLVM_H_
+#include "thread.h"
 
-extern "C" {
-//----------------------------------------------------------------------------
-// Runtime Support Function Lookup Callback
-//----------------------------------------------------------------------------
-void* art_portable_find_runtime_support_func(void* context, const char* name);
-}  // extern "C"
+#include "asm_support_mips.h"
+#include "base/logging.h"
 
-#endif  // ART_RUNTIME_RUNTIME_SUPPORT_LLVM_H_
+namespace art {
+
+void Thread::InitCpu() {
+  CHECK_EQ(THREAD_FLAGS_OFFSET, OFFSETOF_MEMBER(Thread, state_and_flags_));
+  CHECK_EQ(THREAD_EXCEPTION_OFFSET, OFFSETOF_MEMBER(Thread, exception_));
+}
+
+}  // namespace art

@@ -988,7 +988,7 @@ void MipsExceptionSlowPath::Emit(Assembler* sasm) {
   // Don't care about preserving A0 as this call won't return
   __ Move(A0, scratch_.AsCoreRegister());
   // Set up call to Thread::Current()->pDeliverException
-  __ LoadFromOffset(kLoadWord, T9, S1, ENTRYPOINT_OFFSET(pDeliverException));
+  __ LoadFromOffset(kLoadWord, T9, S1, QUICK_ENTRYPOINT_OFFSET(pDeliverException));
   __ Jr(T9);
   // Call never returns
   __ Break();

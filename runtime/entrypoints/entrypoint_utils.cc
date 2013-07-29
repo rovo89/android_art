@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "runtime_support.h"
+#include "entrypoints/entrypoint_utils.h"
 
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
@@ -29,74 +29,6 @@
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
 #include "well_known_classes.h"
-
-double art_l2d(int64_t l) {
-  return static_cast<double>(l);
-}
-
-float art_l2f(int64_t l) {
-  return static_cast<float>(l);
-}
-
-/*
- * Float/double conversion requires clamping to min and max of integer form.  If
- * target doesn't support this normally, use these.
- */
-int64_t art_d2l(double d) {
-  static const double kMaxLong = static_cast<double>(static_cast<int64_t>(0x7fffffffffffffffULL));
-  static const double kMinLong = static_cast<double>(static_cast<int64_t>(0x8000000000000000ULL));
-  if (d >= kMaxLong) {
-    return static_cast<int64_t>(0x7fffffffffffffffULL);
-  } else if (d <= kMinLong) {
-    return static_cast<int64_t>(0x8000000000000000ULL);
-  } else if (d != d)  {  // NaN case
-    return 0;
-  } else {
-    return static_cast<int64_t>(d);
-  }
-}
-
-int64_t art_f2l(float f) {
-  static const float kMaxLong = static_cast<float>(static_cast<int64_t>(0x7fffffffffffffffULL));
-  static const float kMinLong = static_cast<float>(static_cast<int64_t>(0x8000000000000000ULL));
-  if (f >= kMaxLong) {
-    return static_cast<int64_t>(0x7fffffffffffffffULL);
-  } else if (f <= kMinLong) {
-    return static_cast<int64_t>(0x8000000000000000ULL);
-  } else if (f != f) {  // NaN case
-    return 0;
-  } else {
-    return static_cast<int64_t>(f);
-  }
-}
-
-int32_t art_d2i(double d) {
-  static const double kMaxInt = static_cast<double>(static_cast<int32_t>(0x7fffffffUL));
-  static const double kMinInt = static_cast<double>(static_cast<int32_t>(0x80000000UL));
-  if (d >= kMaxInt) {
-    return static_cast<int32_t>(0x7fffffffUL);
-  } else if (d <= kMinInt) {
-    return static_cast<int32_t>(0x80000000UL);
-  } else if (d != d)  {  // NaN case
-    return 0;
-  } else {
-    return static_cast<int32_t>(d);
-  }
-}
-
-int32_t art_f2i(float f) {
-  static const float kMaxInt = static_cast<float>(static_cast<int32_t>(0x7fffffffUL));
-  static const float kMinInt = static_cast<float>(static_cast<int32_t>(0x80000000UL));
-  if (f >= kMaxInt) {
-    return static_cast<int32_t>(0x7fffffffUL);
-  } else if (f <= kMinInt) {
-    return static_cast<int32_t>(0x80000000UL);
-  } else if (f != f) {  // NaN case
-    return 0;
-  } else {
-    return static_cast<int32_t>(f);
-  }
-}
 
 namespace art {
 

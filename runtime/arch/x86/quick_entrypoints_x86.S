@@ -14,76 +14,7 @@
  * limitations under the License.
  */
 
-#include "asm_support.h"
-
-#if defined(__APPLE__)
-    // Mac OS' as(1) doesn't let you name macro parameters.
-    #define MACRO0(macro_name) .macro macro_name
-    #define MACRO1(macro_name, macro_arg1) .macro macro_name
-    #define MACRO2(macro_name, macro_arg1, macro_args2) .macro macro_name
-    #define MACRO3(macro_name, macro_arg1, macro_args2, macro_args3) .macro macro_name
-    #define END_MACRO .endmacro
-
-    // Mac OS' as(1) uses $0, $1, and so on for macro arguments, and function names
-    // are mangled with an extra underscore prefix. The use of $x for arguments
-    // mean that literals need to be represented with $$x in macros.
-    #define SYMBOL(name) _ ## name
-    #define VAR(name,index) SYMBOL($index)
-    #define REG_VAR(name,index) %$index
-    #define CALL_MACRO(name,index) $index
-    #define LITERAL(value) $value
-    #define MACRO_LITERAL(value) $$value
-#else
-    // Regular gas(1) lets you name macro parameters.
-    #define MACRO0(macro_name) .macro macro_name
-    #define MACRO1(macro_name, macro_arg1) .macro macro_name macro_arg1
-    #define MACRO2(macro_name, macro_arg1, macro_arg2) .macro macro_name macro_arg1, macro_arg2
-    #define MACRO3(macro_name, macro_arg1, macro_arg2, macro_arg3) .macro macro_name macro_arg1, macro_arg2, macro_arg3
-    #define END_MACRO .endm
-
-    // Regular gas(1) uses \argument_name for macro arguments.
-    // We need to turn on alternate macro syntax so we can use & instead or the preprocessor
-    // will screw us by inserting a space between the \ and the name. Even in this mode there's
-    // no special meaning to $, so literals are still just $x. The use of altmacro means % is a
-    // special character meaning care needs to be taken when passing registers as macro arguments.
-    .altmacro
-    #define SYMBOL(name) name
-    #define VAR(name,index) name&
-    #define REG_VAR(name,index) %name
-    #define CALL_MACRO(name,index) name&
-    #define LITERAL(value) $value
-    #define MACRO_LITERAL(value) $value
-#endif
-
-    /* Cache alignment for function entry */
-MACRO0(ALIGN_FUNCTION_ENTRY)
-    .balign 16
-END_MACRO
-
-MACRO1(DEFINE_FUNCTION, c_name)
-    .type VAR(c_name, 0), @function
-    .globl VAR(c_name, 0)
-    ALIGN_FUNCTION_ENTRY
-VAR(c_name, 0):
-    .cfi_startproc
-END_MACRO
-
-MACRO1(END_FUNCTION, c_name)
-    .cfi_endproc
-    .size \c_name, .-\c_name
-END_MACRO
-
-MACRO1(PUSH, reg)
-  pushl REG_VAR(reg, 0)
-  .cfi_adjust_cfa_offset 4
-  .cfi_rel_offset REG_VAR(reg, 0), 0
-END_MACRO
-
-MACRO1(POP, reg)
-  popl REG_VAR(reg,0)
-  .cfi_adjust_cfa_offset -4
-  .cfi_restore REG_VAR(reg,0)
-END_MACRO
+#include "asm_support_x86.S"
 
     /*
      * Macro that sets up the callee save frame to conform with
@@ -300,55 +231,6 @@ INVOKE_TRAMPOLINE art_quick_invoke_static_trampoline_with_access_check, artInvok
 INVOKE_TRAMPOLINE art_quick_invoke_direct_trampoline_with_access_check, artInvokeDirectTrampolineWithAccessCheck
 INVOKE_TRAMPOLINE art_quick_invoke_super_trampoline_with_access_check, artInvokeSuperTrampolineWithAccessCheck
 INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
-
-    /*
-     * Portable invocation stub.
-     * On entry:
-     *   [sp] = return address
-     *   [sp + 4] = method pointer
-     *   [sp + 8] = argument array or NULL for no argument methods
-     *   [sp + 12] = size of argument array in bytes
-     *   [sp + 16] = (managed) thread pointer
-     *   [sp + 20] = JValue* result
-     *   [sp + 24] = result type char
-     */
-DEFINE_FUNCTION art_portable_invoke_stub
-    PUSH ebp                      // save ebp
-    PUSH ebx                      // save ebx
-    mov %esp, %ebp                // copy value of stack pointer into base pointer
-    .cfi_def_cfa_register ebp
-    mov 20(%ebp), %ebx            // get arg array size
-    addl LITERAL(28), %ebx        // reserve space for return addr, method*, ebx, and ebp in frame
-    andl LITERAL(0xFFFFFFF0), %ebx    // align frame size to 16 bytes
-    subl LITERAL(12), %ebx        // remove space for return address, ebx, and ebp
-    subl %ebx, %esp               // reserve stack space for argument array
-    lea  4(%esp), %eax            // use stack pointer + method ptr as dest for memcpy
-    pushl 20(%ebp)                // push size of region to memcpy
-    pushl 16(%ebp)                // push arg array as source of memcpy
-    pushl %eax                    // push stack pointer as destination of memcpy
-    call SYMBOL(memcpy)           // (void*, const void*, size_t)
-    addl LITERAL(12), %esp        // pop arguments to memcpy
-    mov 12(%ebp), %eax            // move method pointer into eax
-    mov %eax, (%esp)              // push method pointer onto stack
-    call *METHOD_CODE_OFFSET(%eax) // call the method
-    mov %ebp, %esp                // restore stack pointer
-    POP ebx                       // pop ebx
-    POP ebp                       // pop ebp
-    mov 20(%esp), %ecx            // get result pointer
-    cmpl LITERAL(68), 24(%esp)    // test if result type char == 'D'
-    je return_double_portable
-    cmpl LITERAL(70), 24(%esp)    // test if result type char == 'F'
-    je return_float_portable
-    mov %eax, (%ecx)              // store the result
-    mov %edx, 4(%ecx)             // store the other half of the result
-    ret
-return_double_portable:
-    fstpl (%ecx)                  // store the floating point result as double
-    ret
-return_float_portable:
-    fstps (%ecx)                  // store the floating point result as float
-    ret
-END_FUNCTION art_portable_invoke_stub
 
     /*
      * Quick invocation stub.
@@ -920,22 +802,6 @@ DEFINE_FUNCTION art_quick_get_obj_static_from_code
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 END_FUNCTION art_quick_get_obj_static_from_code
 
-DEFINE_FUNCTION art_portable_proxy_invoke_handler
-    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME   // save frame and Method*
-    PUSH esp                      // pass SP
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    .cfi_adjust_cfa_offset 4
-    PUSH ecx                      // pass receiver
-    PUSH eax                      // pass proxy method
-    call SYMBOL(artPortableProxyInvokeHandler) // (proxy method, receiver, Thread*, SP)
-    movd %eax, %xmm0              // place return value also into floating point return value
-    movd %edx, %xmm1
-    punpckldq %xmm1, %xmm0
-    addl LITERAL(44), %esp        // pop arguments
-    .cfi_adjust_cfa_offset -44
-    ret
-END_FUNCTION art_portable_proxy_invoke_handler
-
 DEFINE_FUNCTION art_quick_proxy_invoke_handler
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME   // save frame and Method*
     PUSH esp                      // pass SP
@@ -1054,24 +920,6 @@ DEFINE_FUNCTION art_quick_deoptimize
 END_FUNCTION art_quick_deoptimize
 
     /*
-     * Portable abstract method error stub. method* is at %esp + 4 on entry.
-     */
-DEFINE_FUNCTION art_portable_abstract_method_error_stub
-    PUSH ebp
-    movl %esp, %ebp               // Remember SP.
-    .cfi_def_cfa_register ebp
-    subl LITERAL(12), %esp        // Align stack.
-    PUSH esp                      // Pass sp (not used).
-    pushl %fs:THREAD_SELF_OFFSET  // Pass Thread::Current().
-    pushl 8(%ebp)                 // Pass Method*.
-    call SYMBOL(artThrowAbstractMethodErrorFromCode)  // (Method*, Thread*, SP)
-    leave                         // Restore the stack and %ebp.
-    .cfi_def_cfa esp, 4
-    .cfi_restore ebp
-    ret                           // Return to caller to handle pending exception.
-END_FUNCTION art_portable_abstract_method_error_stub
-
-    /*
      * Quick abstract method error stub. %eax contains method* on entry.
      */
 DEFINE_FUNCTION art_quick_abstract_method_error_stub
@@ -1085,24 +933,6 @@ DEFINE_FUNCTION art_quick_abstract_method_error_stub
     call SYMBOL(artThrowAbstractMethodErrorFromCode)  // (Method*, Thread*, SP)
     int3                          // Unreachable.
 END_FUNCTION art_quick_abstract_method_error_stub
-
-    /*
-     * Portable resolution trampoline.
-     */
-DEFINE_FUNCTION art_jni_dlsym_lookup_stub
-    subl LITERAL(8), %esp         // align stack
-    .cfi_adjust_cfa_offset 8
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    .cfi_adjust_cfa_offset 4
-    call SYMBOL(artFindNativeMethod)  // (Thread*)
-    addl LITERAL(12), %esp        // restore the stack
-    .cfi_adjust_cfa_offset -12
-    cmpl LITERAL(0), %eax         // check if returned method code is null
-    je no_native_code_found       // if null, jump to return to handle
-    jmp *%eax                     // otherwise, tail call to intended method
-no_native_code_found:
-    ret
-END_FUNCTION art_jni_dlsym_lookup_stub
 
     /*
      * String's indexOf.

@@ -471,7 +471,7 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
     direct_method = 0;
   }
   int trampoline = (cu->instruction_set == kX86) ? 0
-      : ENTRYPOINT_OFFSET(pInvokeInterfaceTrampoline);
+      : QUICK_ENTRYPOINT_OFFSET(pInvokeInterfaceTrampoline);
 
   if (direct_method != 0) {
     switch (state) {
@@ -555,7 +555,7 @@ static int NextStaticCallInsnSP(CompilationUnit* cu, CallInfo* info,
                                 uint32_t method_idx,
                                 uintptr_t unused, uintptr_t unused2,
                                 InvokeType unused3) {
-  int trampoline = ENTRYPOINT_OFFSET(pInvokeStaticTrampolineWithAccessCheck);
+  int trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeStaticTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
 
@@ -563,7 +563,7 @@ static int NextDirectCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
                                 const MethodReference& target_method,
                                 uint32_t method_idx, uintptr_t unused,
                                 uintptr_t unused2, InvokeType unused3) {
-  int trampoline = ENTRYPOINT_OFFSET(pInvokeDirectTrampolineWithAccessCheck);
+  int trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeDirectTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
 
@@ -571,7 +571,7 @@ static int NextSuperCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
                                const MethodReference& target_method,
                                uint32_t method_idx, uintptr_t unused,
                                uintptr_t unused2, InvokeType unused3) {
-  int trampoline = ENTRYPOINT_OFFSET(pInvokeSuperTrampolineWithAccessCheck);
+  int trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeSuperTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
 
@@ -579,7 +579,7 @@ static int NextVCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
                            const MethodReference& target_method,
                            uint32_t method_idx, uintptr_t unused,
                            uintptr_t unused2, InvokeType unused3) {
-  int trampoline = ENTRYPOINT_OFFSET(pInvokeVirtualTrampolineWithAccessCheck);
+  int trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeVirtualTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
 
@@ -589,7 +589,7 @@ static int NextInterfaceCallInsnWithAccessCheck(CompilationUnit* cu,
                                                 uint32_t unused,
                                                 uintptr_t unused2, uintptr_t unused3,
                                                 InvokeType unused4) {
-  int trampoline = ENTRYPOINT_OFFSET(pInvokeInterfaceTrampolineWithAccessCheck);
+  int trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeInterfaceTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
 
@@ -773,14 +773,14 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
     // Generate memcpy
     OpRegRegImm(kOpAdd, TargetReg(kArg0), TargetReg(kSp), outs_offset);
     OpRegRegImm(kOpAdd, TargetReg(kArg1), TargetReg(kSp), start_offset);
-    CallRuntimeHelperRegRegImm(ENTRYPOINT_OFFSET(pMemcpy), TargetReg(kArg0),
+    CallRuntimeHelperRegRegImm(QUICK_ENTRYPOINT_OFFSET(pMemcpy), TargetReg(kArg0),
                                TargetReg(kArg1), (info->num_arg_words - 3) * 4, false);
   } else {
     if (info->num_arg_words >= 20) {
       // Generate memcpy
       OpRegRegImm(kOpAdd, TargetReg(kArg0), TargetReg(kSp), outs_offset);
       OpRegRegImm(kOpAdd, TargetReg(kArg1), TargetReg(kSp), start_offset);
-      CallRuntimeHelperRegRegImm(ENTRYPOINT_OFFSET(pMemcpy), TargetReg(kArg0),
+      CallRuntimeHelperRegRegImm(QUICK_ENTRYPOINT_OFFSET(pMemcpy), TargetReg(kArg0),
                                  TargetReg(kArg1), (info->num_arg_words - 3) * 4, false);
     } else {
       // Use vldm/vstm pair using kArg3 as a temp
@@ -1047,7 +1047,7 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   } else {
     LoadValueDirectFixed(rl_start, reg_start);
   }
-  int r_tgt = (cu_->instruction_set != kX86) ? LoadHelper(ENTRYPOINT_OFFSET(pIndexOf)) : 0;
+  int r_tgt = (cu_->instruction_set != kX86) ? LoadHelper(QUICK_ENTRYPOINT_OFFSET(pIndexOf)) : 0;
   GenNullCheck(rl_obj.s_reg_low, reg_ptr, info->opt_flags);
   LIR* launch_pad = RawLIR(0, kPseudoIntrinsicRetry, reinterpret_cast<uintptr_t>(info));
   intrinsic_launchpads_.Insert(launch_pad);
@@ -1056,7 +1056,7 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   if (cu_->instruction_set != kX86) {
     OpReg(kOpBlx, r_tgt);
   } else {
-    OpThreadMem(kOpBlx, ENTRYPOINT_OFFSET(pIndexOf));
+    OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(pIndexOf));
   }
   LIR* resume_tgt = NewLIR0(kPseudoTargetLabel);
   launch_pad->operands[2] = reinterpret_cast<uintptr_t>(resume_tgt);
@@ -1084,7 +1084,7 @@ bool Mir2Lir::GenInlinedStringCompareTo(CallInfo* info) {
   LoadValueDirectFixed(rl_this, reg_this);
   LoadValueDirectFixed(rl_cmp, reg_cmp);
   int r_tgt = (cu_->instruction_set != kX86) ?
-      LoadHelper(ENTRYPOINT_OFFSET(pStringCompareTo)) : 0;
+      LoadHelper(QUICK_ENTRYPOINT_OFFSET(pStringCompareTo)) : 0;
   GenNullCheck(rl_this.s_reg_low, reg_this, info->opt_flags);
   // TUNING: check if rl_cmp.s_reg_low is already null checked
   LIR* launch_pad = RawLIR(0, kPseudoIntrinsicRetry, reinterpret_cast<uintptr_t>(info));
@@ -1094,7 +1094,7 @@ bool Mir2Lir::GenInlinedStringCompareTo(CallInfo* info) {
   if (cu_->instruction_set != kX86) {
     OpReg(kOpBlx, r_tgt);
   } else {
-    OpThreadMem(kOpBlx, ENTRYPOINT_OFFSET(pStringCompareTo));
+    OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(pStringCompareTo));
   }
   launch_pad->operands[2] = 0;  // No return possible
   // Record that we've already inlined & null checked
@@ -1409,20 +1409,20 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
       int trampoline = 0;
       switch (info->type) {
       case kInterface:
-        trampoline = fast_path ? ENTRYPOINT_OFFSET(pInvokeInterfaceTrampoline)
-            : ENTRYPOINT_OFFSET(pInvokeInterfaceTrampolineWithAccessCheck);
+        trampoline = fast_path ? QUICK_ENTRYPOINT_OFFSET(pInvokeInterfaceTrampoline)
+            : QUICK_ENTRYPOINT_OFFSET(pInvokeInterfaceTrampolineWithAccessCheck);
         break;
       case kDirect:
-        trampoline = ENTRYPOINT_OFFSET(pInvokeDirectTrampolineWithAccessCheck);
+        trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeDirectTrampolineWithAccessCheck);
         break;
       case kStatic:
-        trampoline = ENTRYPOINT_OFFSET(pInvokeStaticTrampolineWithAccessCheck);
+        trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeStaticTrampolineWithAccessCheck);
         break;
       case kSuper:
-        trampoline = ENTRYPOINT_OFFSET(pInvokeSuperTrampolineWithAccessCheck);
+        trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeSuperTrampolineWithAccessCheck);
         break;
       case kVirtual:
-        trampoline = ENTRYPOINT_OFFSET(pInvokeVirtualTrampolineWithAccessCheck);
+        trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeVirtualTrampolineWithAccessCheck);
         break;
       default:
         LOG(FATAL) << "Unexpected invoke type";

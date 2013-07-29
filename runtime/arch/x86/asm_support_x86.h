@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 The Android Open Source Project
+ * Copyright (C) 2013 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,14 @@
  * limitations under the License.
  */
 
-#include "thread.h"
+#ifndef ART_RUNTIME_ARCH_X86_ASM_SUPPORT_X86_H_
+#define ART_RUNTIME_ARCH_X86_ASM_SUPPORT_X86_H_
 
 #include "asm_support.h"
-#include "base/macros.h"
 
-namespace art {
+// Offset of field Thread::self_ verified in InitCpu
+#define THREAD_SELF_OFFSET 40
+// Offset of field Thread::exception_ verified in InitCpu
+#define THREAD_EXCEPTION_OFFSET 12
 
-void Thread::InitCpu() {
-  CHECK_EQ(THREAD_FLAGS_OFFSET, OFFSETOF_MEMBER(Thread, state_and_flags_));
-  CHECK_EQ(THREAD_EXCEPTION_OFFSET, OFFSETOF_MEMBER(Thread, exception_));
-}
-
-}  // namespace art
+#endif  // ART_RUNTIME_ARCH_X86_ASM_SUPPORT_X86_H_

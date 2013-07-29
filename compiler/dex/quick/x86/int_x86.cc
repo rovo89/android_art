@@ -532,7 +532,7 @@ void X86Mir2Lir::GenArrayObjPut(int opt_flags, RegLocation rl_array,
 
   // Get the array's class.
   LoadWordDisp(r_array, mirror::Object::ClassOffset().Int32Value(), r_array_class);
-  CallRuntimeHelperRegReg(ENTRYPOINT_OFFSET(pCanPutArrayElementFromCode), r_value,
+  CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(pCanPutArrayElementFromCode), r_value,
                           r_array_class, true);
   // Redo LoadValues in case they didn't survive the call.
   LoadValueDirectFixed(rl_array, r_array);  // Reload array

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 The Android Open Source Project
+ * Copyright (C) 2012 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-#include "thread.h"
+#ifndef ART_RUNTIME_ENTRYPOINTS_MATH_ENTRYPOINTS_H_
+#define ART_RUNTIME_ENTRYPOINTS_MATH_ENTRYPOINTS_H_
 
-#include "asm_support.h"
-#include "base/macros.h"
+#include <stdint.h>
 
-namespace art {
+extern "C" double art_l2d(int64_t l);
+extern "C" float art_l2f(int64_t l);
+extern "C" int64_t art_d2l(double d);
+extern "C" int32_t art_d2i(double d);
+extern "C" int64_t art_f2l(float f);
+extern "C" int32_t art_f2i(float f);
 
-void Thread::InitCpu() {
-  CHECK_EQ(THREAD_FLAGS_OFFSET, OFFSETOF_MEMBER(Thread, state_and_flags_));
-  CHECK_EQ(THREAD_EXCEPTION_OFFSET, OFFSETOF_MEMBER(Thread, exception_));
-}
-
-}  // namespace art
+#endif  // ART_RUNTIME_ENTRYPOINTS_MATH_ENTRYPOINTS_H_

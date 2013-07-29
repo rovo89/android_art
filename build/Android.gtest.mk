@@ -34,6 +34,7 @@ TEST_COMMON_SRC_FILES := \
 	runtime/dex_file_test.cc \
 	runtime/dex_instruction_visitor_test.cc \
 	runtime/dex_method_iterator_test.cc \
+	runtime/entrypoints/math_entrypoints_test.cc \
 	runtime/exception_test.cc \
 	runtime/gc/accounting/space_bitmap_test.cc \
 	runtime/gc/heap_test.cc \
@@ -50,7 +51,6 @@ TEST_COMMON_SRC_FILES := \
 	runtime/oat_test.cc \
 	runtime/output_stream_test.cc \
 	runtime/reference_table_test.cc \
-	runtime/runtime_support_test.cc \
 	runtime/runtime_test.cc \
 	runtime/thread_pool_test.cc \
 	runtime/utils_test.cc \

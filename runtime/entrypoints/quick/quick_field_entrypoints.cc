@@ -16,10 +16,10 @@
 
 #include "callee_save_frame.h"
 #include "dex_file-inl.h"
+#include "entrypoints/entrypoint_utils.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/field-inl.h"
-#include "runtime_support.h"
 
 #include <stdint.h>
 

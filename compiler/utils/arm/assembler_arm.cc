@@ -1884,7 +1884,7 @@ void ArmExceptionSlowPath::Emit(Assembler* sasm) {
   // Don't care about preserving R0 as this call won't return
   __ mov(R0, ShifterOperand(scratch_.AsCoreRegister()));
   // Set up call to Thread::Current()->pDeliverException
-  __ LoadFromOffset(kLoadWord, R12, TR, ENTRYPOINT_OFFSET(pDeliverException));
+  __ LoadFromOffset(kLoadWord, R12, TR, QUICK_ENTRYPOINT_OFFSET(pDeliverException));
   __ blx(R12);
   // Call never returns
   __ bkpt(0);

@@ -15,9 +15,9 @@
  */
 
 #include "callee_save_frame.h"
+#include "entrypoints/entrypoint_utils.h"
 #include "mirror/object.h"
 #include "object_utils.h"
-#include "runtime_support.h"
 #include "thread.h"
 #include "well_known_classes.h"
 

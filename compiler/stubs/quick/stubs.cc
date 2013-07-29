@@ -46,7 +46,7 @@ const std::vector<uint8_t>* CreateQuickResolutionTrampoline() {
   // TODO: enable when GetCalleeSaveMethod is available at stub generation time
   // DCHECK_EQ(save, Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetCoreSpillMask());
   __ PushList(save);
-  __ LoadFromOffset(kLoadWord, R12, TR, ENTRYPOINT_OFFSET(pQuickResolutionTrampolineFromCode));
+  __ LoadFromOffset(kLoadWord, R12, TR, QUICK_ENTRYPOINT_OFFSET(pQuickResolutionTrampolineFromCode));
   __ mov(R3, ShifterOperand(TR));  // Pass Thread::Current() in R3
   __ IncreaseFrameSize(8);         // 2 words of space for alignment
   __ mov(R2, ShifterOperand(SP));  // Pass SP
@@ -71,7 +71,7 @@ const std::vector<uint8_t>* CreateQuickResolutionTrampoline() {
 const std::vector<uint8_t>* CreateInterpreterToInterpreterEntry() {
   UniquePtr<ArmAssembler> assembler(static_cast<ArmAssembler*>(Assembler::Create(kArm)));
 
-  __ LoadFromOffset(kLoadWord, PC, R0, ENTRYPOINT_OFFSET(pInterpreterToInterpreterEntry));
+  __ LoadFromOffset(kLoadWord, PC, R0, QUICK_ENTRYPOINT_OFFSET(pInterpreterToInterpreterEntry));
   __ bkpt(0);
 
   size_t cs = assembler->CodeSize();
@@ -85,7 +85,7 @@ const std::vector<uint8_t>* CreateInterpreterToInterpreterEntry() {
 const std::vector<uint8_t>* CreateInterpreterToQuickEntry() {
   UniquePtr<ArmAssembler> assembler(static_cast<ArmAssembler*>(Assembler::Create(kArm)));
 
-  __ LoadFromOffset(kLoadWord, PC, R0, ENTRYPOINT_OFFSET(pInterpreterToQuickEntry));
+  __ LoadFromOffset(kLoadWord, PC, R0, QUICK_ENTRYPOINT_OFFSET(pInterpreterToQuickEntry));
   __ bkpt(0);
 
   size_t cs = assembler->CodeSize();
@@ -123,7 +123,7 @@ const std::vector<uint8_t>* CreateQuickResolutionTrampoline() {
   __ StoreToOffset(kStoreWord, A2, SP, 8);
   __ StoreToOffset(kStoreWord, A1, SP, 4);
 
-  __ LoadFromOffset(kLoadWord, T9, S1, ENTRYPOINT_OFFSET(pQuickResolutionTrampolineFromCode));
+  __ LoadFromOffset(kLoadWord, T9, S1, QUICK_ENTRYPOINT_OFFSET(pQuickResolutionTrampolineFromCode));
   __ Move(A3, S1);  // Pass Thread::Current() in A3
   __ Move(A2, SP);  // Pass SP for Method** callee_addr
   __ Jalr(T9);  // Call to resolution trampoline (method_idx, receiver, sp, Thread*)
@@ -161,7 +161,7 @@ const std::vector<uint8_t>* CreateQuickResolutionTrampoline() {
 const std::vector<uint8_t>* CreateInterpreterToInterpreterEntry() {
   UniquePtr<MipsAssembler> assembler(static_cast<MipsAssembler*>(Assembler::Create(kMips)));
 
-  __ LoadFromOffset(kLoadWord, T9, A0, ENTRYPOINT_OFFSET(pInterpreterToInterpreterEntry));
+  __ LoadFromOffset(kLoadWord, T9, A0, QUICK_ENTRYPOINT_OFFSET(pInterpreterToInterpreterEntry));
   __ Jr(T9);
   __ Break();
 
@@ -176,7 +176,7 @@ const std::vector<uint8_t>* CreateInterpreterToInterpreterEntry() {
 const std::vector<uint8_t>* CreateInterpreterToQuickEntry() {
   UniquePtr<MipsAssembler> assembler(static_cast<MipsAssembler*>(Assembler::Create(kMips)));
 
-  __ LoadFromOffset(kLoadWord, T9, A0, ENTRYPOINT_OFFSET(pInterpreterToInterpreterEntry));
+  __ LoadFromOffset(kLoadWord, T9, A0, QUICK_ENTRYPOINT_OFFSET(pInterpreterToInterpreterEntry));
   __ Jr(T9);
   __ Break();
 
@@ -208,7 +208,7 @@ const std::vector<uint8_t>* CreateQuickResolutionTrampoline() {
   __ pushl(EAX);              // pass Method*
 
   // Call to resolve method.
-  __ Call(ThreadOffset(ENTRYPOINT_OFFSET(pQuickResolutionTrampolineFromCode)),
+  __ Call(ThreadOffset(QUICK_ENTRYPOINT_OFFSET(pQuickResolutionTrampolineFromCode)),
           X86ManagedRegister::FromCpuRegister(ECX));
 
   __ movl(EDI, EAX);  // save code pointer in EDI
@@ -236,7 +236,7 @@ const std::vector<uint8_t>* CreateQuickResolutionTrampoline() {
 const std::vector<uint8_t>* CreateInterpreterToInterpreterEntry() {
   UniquePtr<X86Assembler> assembler(static_cast<X86Assembler*>(Assembler::Create(kX86)));
 
-  __ fs()->jmp(Address::Absolute(ThreadOffset(ENTRYPOINT_OFFSET(pInterpreterToInterpreterEntry))));
+  __ fs()->jmp(Address::Absolute(ThreadOffset(QUICK_ENTRYPOINT_OFFSET(pInterpreterToInterpreterEntry))));
 
   size_t cs = assembler->CodeSize();
   UniquePtr<std::vector<uint8_t> > entry_stub(new std::vector<uint8_t>(cs));
@@ -249,7 +249,7 @@ const std::vector<uint8_t>* CreateInterpreterToInterpreterEntry() {
 const std::vector<uint8_t>* CreateInterpreterToQuickEntry() {
   UniquePtr<X86Assembler> assembler(static_cast<X86Assembler*>(Assembler::Create(kX86)));
 
-  __ fs()->jmp(Address::Absolute(ThreadOffset(ENTRYPOINT_OFFSET(pInterpreterToQuickEntry))));
+  __ fs()->jmp(Address::Absolute(ThreadOffset(QUICK_ENTRYPOINT_OFFSET(pInterpreterToQuickEntry))));
 
   size_t cs = assembler->CodeSize();
   UniquePtr<std::vector<uint8_t> > entry_stub(new std::vector<uint8_t>(cs));

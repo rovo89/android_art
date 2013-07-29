@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-#include "runtime_support.h"
+#include "math_entrypoints.h"
 
 #include "common_test.h"
 #include <limits>
 
 namespace art {
 
-class RuntimeSupportTest : public CommonTest {};
+class MathEntrypointsTest : public CommonTest {};
 
-TEST_F(RuntimeSupportTest, DoubleToLong) {
+TEST_F(MathEntrypointsTest, DoubleToLong) {
   EXPECT_EQ(std::numeric_limits<int64_t>::max(), art_d2l(1.85e19));
   EXPECT_EQ(std::numeric_limits<int64_t>::min(), art_d2l(-1.85e19));
   EXPECT_EQ(0LL, art_d2l(0));
@@ -35,7 +35,7 @@ TEST_F(RuntimeSupportTest, DoubleToLong) {
   EXPECT_EQ(-100LL, art_d2l(-100.0));
 }
 
-TEST_F(RuntimeSupportTest, FloatToLong) {
+TEST_F(MathEntrypointsTest, FloatToLong) {
   EXPECT_EQ(std::numeric_limits<int64_t>::max(), art_f2l(1.85e19));
   EXPECT_EQ(std::numeric_limits<int64_t>::min(), art_f2l(-1.85e19));
   EXPECT_EQ(0LL, art_f2l(0));
@@ -47,7 +47,7 @@ TEST_F(RuntimeSupportTest, FloatToLong) {
   EXPECT_EQ(-100LL, art_f2l(-100.0));
 }
 
-TEST_F(RuntimeSupportTest, DoubleToInt) {
+TEST_F(MathEntrypointsTest, DoubleToInt) {
   EXPECT_EQ(std::numeric_limits<int32_t>::max(), art_d2i(4.3e9));
   EXPECT_EQ(std::numeric_limits<int32_t>::min(), art_d2i(-4.3e9));
   EXPECT_EQ(0L, art_d2i(0));
@@ -59,7 +59,7 @@ TEST_F(RuntimeSupportTest, DoubleToInt) {
   EXPECT_EQ(-100L, art_d2i(-100.0));
 }
 
-TEST_F(RuntimeSupportTest, FloatToInt) {
+TEST_F(MathEntrypointsTest, FloatToInt) {
   EXPECT_EQ(std::numeric_limits<int32_t>::max(), art_f2i(4.3e9));
   EXPECT_EQ(std::numeric_limits<int32_t>::min(), art_f2i(-4.3e9));
   EXPECT_EQ(0L, art_f2i(0));
