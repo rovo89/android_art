@@ -692,6 +692,27 @@ std::vector<InstructionNode*> InstructionNode::Create(const art::Instruction* in
   return sea_instructions;
 }
 
+void InstructionNode::ToDotSSAEdges(std::string& result) const {
+  // SSA definitions:
+  for (std::map<int, InstructionNode*>::const_iterator def_it = definition_edges_.begin();
+      def_it != definition_edges_.end(); def_it++) {
+    if (NULL != def_it->second) {
+      result += def_it->second->StringId() + " -> " + StringId() + "[color=gray,label=\"";
+      result += art::StringPrintf("vR = %d", def_it->first);
+      result += "\"] ; // ssa edge\n";
+    }
+  }
+
+  // SSA used-by:
+  if (DotConversion::SaveUseEdges()) {
+    for (std::vector<InstructionNode*>::const_iterator cit = used_in_.begin(); cit != used_in_.end();
+        cit++) {
+      result += (*cit)->StringId() + " -> " + StringId() + "[color=gray,label=\"";
+      result += "\"] ; // SSA used-by edge\n";
+    }
+  }
+}
+
 void InstructionNode::ToDot(std::string& result, const art::DexFile& dex_file) const {
   result += "// Instruction ("+StringId()+"): \n" + StringId() +
       " [label=\"" + instruction_->DumpString(&dex_file) + "\"";
@@ -699,15 +720,8 @@ void InstructionNode::ToDot(std::string& result, const art::DexFile& dex_file) c
     result += "style=bold";
   }
   result += "];\n";
-  // SSA definitions:
-  for (std::map<int, InstructionNode* >::const_iterator def_it = definition_edges_.begin();
-      def_it != definition_edges_.end(); def_it++) {
-    if (NULL != def_it->second) {
-      result += def_it->second->StringId() + " -> " + StringId() +"[color=gray,label=\"";
-      result += art::StringPrintf("vR = %d", def_it->first);
-      result += "\"] ; // ssa edge\n";
-    }
-  }
+
+  ToDotSSAEdges(result);
 }
 
 void InstructionNode::MarkAsDEDef() {
@@ -756,17 +770,6 @@ void PhiInstructionNode::ToDot(std::string& result, const art::DexFile& dex_file
   result += art::StringPrintf("%d", register_no_);
   result += ")\"";
   result += "];\n";
-
-  for (std::vector<std::vector<InstructionNode*>*>::const_iterator pred_it =
-      definition_edges_.begin();
-      pred_it != definition_edges_.end(); pred_it++) {
-    std::vector<InstructionNode*>* defs_from_pred = *pred_it;
-    for (std::vector<InstructionNode* >::const_iterator def_it = defs_from_pred->begin();
-        def_it != defs_from_pred->end(); def_it++) {
-        result += (*def_it)->StringId() + " -> " + StringId() +"[color=gray,label=\"vR = ";
-        result += art::StringPrintf("%d", GetRegisterNumber());
-        result += "\"] ;  // phi-ssa edge\n";
-    }
-  }
+  ToDotSSAEdges(result);
 }
 }  // namespace sea_ir
