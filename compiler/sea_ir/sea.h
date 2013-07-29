@@ -35,6 +35,17 @@ enum RegionNumbering {
   VISITING = -2
 };
 
+// Stores options for turning a SEA IR graph to a .dot file.
+class DotConversion {
+ public:
+  static bool SaveUseEdges() {
+    return save_use_edges_;
+  }
+
+ private:
+  static const bool save_use_edges_ =  false; // TODO: Enable per-sea graph configuration.
+};
+
 class Region;
 
 class InstructionNode;
@@ -53,6 +64,7 @@ class SignatureNode: public InstructionNode {
     result += StringId() +" [label=\"signature:";
     result += art::StringPrintf("r%d", GetResultRegister());
     result += "\"] // signature node\n";
+    ToDotSSAEdges(result);
   }
 
   int GetResultRegister() const {
@@ -98,6 +110,7 @@ class PhiInstructionNode: public InstructionNode {
       definition_edges_[predecessor_id] = new std::vector<InstructionNode*>();
     }
     definition_edges_[predecessor_id]->push_back(definition);
+    definition->AddSSAUse(this);
   }
 
   // Returns the instruction that defines the phi register from predecessor

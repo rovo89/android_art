@@ -57,6 +57,7 @@ class InstructionNode: public SeaNode {
   // essentially creating SSA form.
   void RenameToSSA(int reg_no, InstructionNode* definition) {
     definition_edges_.insert(std::pair<int, InstructionNode*>(reg_no, definition));
+    definition->AddSSAUse(this);
   }
   // Returns the ordered set of Instructions that define the input operands of this instruction.
   // Precondition: SeaGraph.ConvertToSSA().
@@ -67,6 +68,10 @@ class InstructionNode: public SeaNode {
       ssa_uses.push_back((*definition_edges_.find(*cit)).second);
     }
     return ssa_uses;
+  }
+
+  virtual void AddSSAUse(InstructionNode* use) {
+    used_in_.push_back(use);
   }
 
   void Accept(IRVisitor* v) {
@@ -85,11 +90,14 @@ class InstructionNode: public SeaNode {
 
  protected:
   explicit InstructionNode(const art::Instruction* in):
-      SeaNode(), instruction_(in), de_def_(false), region_(NULL) { }
+      SeaNode(), instruction_(in), used_in_(), de_def_(false), region_(NULL) { }
+  void ToDotSSAEdges(std::string& result) const;
 
  protected:
   const art::Instruction* const instruction_;
   std::map<int, InstructionNode* > definition_edges_;
+  // Stores pointers to instructions that use the result of the current instruction.
+  std::vector<InstructionNode*> used_in_;
   bool de_def_;
   Region* region_;
 };
@@ -136,15 +144,7 @@ class UnnamedConstInstructionNode: public ConstInstructionNode {
       result += "style=bold";
     }
     result += "];\n";
-    // SSA definitions:
-    for (std::map<int, InstructionNode* >::const_iterator def_it = definition_edges_.begin();
-        def_it != definition_edges_.end(); def_it++) {
-      if (NULL != def_it->second) {
-        result += def_it->second->StringId() + " -> " + StringId() +"[color=gray,label=\"";
-        result += art::StringPrintf("vR = %d", def_it->first);
-        result += "\"] ; // ssa edge\n";
-      }
-    }
+    ToDotSSAEdges(result);
   }
 
  private:
