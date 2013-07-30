@@ -154,8 +154,10 @@ class AllocSpace {
   // Number of objects allocated since the space was created.
   virtual uint64_t GetTotalObjectsAllocated() const = 0;
 
-  // Allocate num_bytes without allowing growth.
-  virtual mirror::Object* Alloc(Thread* self, size_t num_bytes) = 0;
+  // Allocate num_bytes without allowing growth. If the allocation
+  // succeeds, the output parameter bytes_allocated will be set to the
+  // actually allocated bytes which is >= num_bytes.
+  virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated) = 0;
 
   // Return the storage space required by obj.
   virtual size_t AllocationSize(const mirror::Object* obj) = 0;
