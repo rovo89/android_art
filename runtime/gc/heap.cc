@@ -524,31 +524,42 @@ bool Heap::IsHeapAddress(const mirror::Object* obj) {
 
 bool Heap::IsLiveObjectLocked(const mirror::Object* obj) {
   // Locks::heap_bitmap_lock_->AssertReaderHeld(Thread::Current());
-  if (obj == NULL) {
+  if (obj == NULL || UNLIKELY(!IsAligned<kObjectAlignment>(obj))) {
     return false;
   }
-  if (UNLIKELY(!IsAligned<kObjectAlignment>(obj))) {
-    return false;
-  }
-  space::ContinuousSpace* cont_space = FindContinuousSpaceFromObject(obj, true);
-  if (cont_space != NULL) {
-    if (cont_space->GetLiveBitmap()->Test(obj)) {
+  space::ContinuousSpace* c_space = FindContinuousSpaceFromObject(obj, true);
+  space::DiscontinuousSpace* d_space = NULL;
+  if (c_space != NULL) {
+    if (c_space->GetLiveBitmap()->Test(obj)) {
       return true;
     }
   } else {
-    space::DiscontinuousSpace* disc_space = FindDiscontinuousSpaceFromObject(obj, true);
-    if (disc_space != NULL) {
-      if (disc_space->GetLiveObjects()->Test(obj)) {
+    d_space = FindDiscontinuousSpaceFromObject(obj, true);
+    if (d_space != NULL) {
+      if (d_space->GetLiveObjects()->Test(obj)) {
         return true;
       }
     }
   }
+  // This is covering the allocation/live stack swapping that is done without mutators suspended.
   for (size_t i = 0; i < 5; ++i) {
     if (allocation_stack_->Contains(const_cast<mirror::Object*>(obj)) ||
         live_stack_->Contains(const_cast<mirror::Object*>(obj))) {
       return true;
     }
     NanoSleep(MsToNs(10));
+  }
+  // We need to check the bitmaps again since there is a race where we mark something as live and
+  // then clear the stack containing it.
+  if (c_space != NULL) {
+    if (c_space->GetLiveBitmap()->Test(obj)) {
+      return true;
+    }
+  } else {
+    d_space = FindDiscontinuousSpaceFromObject(obj, true);
+    if (d_space != NULL && d_space->GetLiveObjects()->Test(obj)) {
+      return true;
+    }
   }
   return false;
 }
@@ -1229,10 +1240,10 @@ class VerifyReferenceVisitor {
         if (bitmap != NULL && bitmap->Test(obj)) {
           LOG(ERROR) << "Object " << obj << " found in live bitmap";
         }
-        if (alloc_stack->Contains(const_cast<mirror::Object*>(obj))) {
+        if (alloc_stack->ContainsSorted(const_cast<mirror::Object*>(obj))) {
           LOG(ERROR) << "Object " << obj << " found in allocation stack";
         }
-        if (live_stack->Contains(const_cast<mirror::Object*>(obj))) {
+        if (live_stack->ContainsSorted(const_cast<mirror::Object*>(obj))) {
           LOG(ERROR) << "Object " << obj << " found in live stack";
         }
         // Attempt to see if the card table missed the reference.
@@ -1252,10 +1263,10 @@ class VerifyReferenceVisitor {
       } else {
         LOG(ERROR) << "Root references dead object " << ref << "\nRef type " << PrettyTypeOf(ref);
       }
-      if (alloc_stack->Contains(const_cast<mirror::Object*>(ref))) {
+      if (alloc_stack->ContainsSorted(const_cast<mirror::Object*>(ref))) {
         LOG(ERROR) << "Reference " << ref << " found in allocation stack!";
       }
-      if (live_stack->Contains(const_cast<mirror::Object*>(ref))) {
+      if (live_stack->ContainsSorted(const_cast<mirror::Object*>(ref))) {
         LOG(ERROR) << "Reference " << ref << " found in live stack!";
       }
       heap_->image_mod_union_table_->Dump(LOG(ERROR) << "Image mod-union table: ");
@@ -1345,8 +1356,8 @@ class VerifyReferenceCardVisitor {
         // Card should be either kCardDirty if it got re-dirtied after we aged it, or
         // kCardDirty - 1 if it didnt get touched since we aged it.
         accounting::ObjectStack* live_stack = heap_->live_stack_.get();
-        if (live_stack->Contains(const_cast<mirror::Object*>(ref))) {
-          if (live_stack->Contains(const_cast<mirror::Object*>(obj))) {
+        if (live_stack->ContainsSorted(const_cast<mirror::Object*>(ref))) {
+          if (live_stack->ContainsSorted(const_cast<mirror::Object*>(obj))) {
             LOG(ERROR) << "Object " << obj << " found in live stack";
           }
           if (heap_->GetLiveBitmap()->Test(obj)) {
