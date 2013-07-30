@@ -14,6 +14,9 @@
 # limitations under the License.
 #
 
+ifndef ANDROID_COMMON_MK
+ANDROID_COMMON_MK = true
+
 # These can be overridden via the environment or by editing to
 # enable/disable certain build configuration.
 #
@@ -163,11 +166,8 @@ ifneq ($(filter 4.6 4.6.%, $(TARGET_GCC_VERSION)),)
 else
   # Warn if not using GCC 4.6 for target builds when not doing a top-level or 'mma' build.
   ifneq ($(ONE_SHOT_MAKEFILE),)
-    ifneq ($(ART_THREAD_SAFETY_CHECK_WARNING),true)
-      # Enable target GCC 4.6 with: export TARGET_GCC_VERSION_EXP=4.6
-      $(info Using target GCC $(TARGET_GCC_VERSION) disables thread-safety checks.)
-      ART_THREAD_SAFETY_CHECK_WARNING := true
-    endif
+    # Enable target GCC 4.6 with: export TARGET_GCC_VERSION_EXP=4.6
+    $(info Using target GCC $(TARGET_GCC_VERSION) disables thread-safety checks.)
   endif
 endif
 # We build with GCC 4.6 on the host.
@@ -219,3 +219,5 @@ ifeq ($(ART_BUILD_HOST_DEBUG),true)
   ART_BUILD_HOST := true
   ART_BUILD_DEBUG := true
 endif
+
+endif # ANDROID_COMMON_MK
