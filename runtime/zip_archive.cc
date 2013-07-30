@@ -259,6 +259,10 @@ bool ZipEntry::ExtractToFile(File& file) {
 }
 
 bool ZipEntry::ExtractToMemory(uint8_t* begin, size_t size) {
+  // If size is zero, data offset will be meaningless, so bail out early.
+  if (size == 0) {
+    return true;
+  }
   off_t data_offset = GetDataOffset();
   if (data_offset == -1) {
     LOG(WARNING) << "Zip: data_offset=" << data_offset;
