@@ -32,7 +32,7 @@ struct iovec;
 
 namespace art {
 namespace mirror {
-class AbstractMethod;
+  class ArtMethod;
 }  // namespace mirror
 class Thread;
 

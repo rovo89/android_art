@@ -28,7 +28,7 @@ namespace art {
   class DexFile;
   class DexCompilationUnit;
   namespace mirror {
-    class AbstractMethod;
+    class ArtMethod;
     class ClassLoader;
     class DexCache;
   }  // namespace mirror

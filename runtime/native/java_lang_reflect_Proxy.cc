@@ -31,8 +31,8 @@ static jclass Proxy_generateProxy(JNIEnv* env, jclass, jstring javaName,
   mirror::ObjectArray<mirror::Class>* interfaces =
       soa.Decode<mirror::ObjectArray<mirror::Class>*>(javaInterfaces);
   mirror::ClassLoader* loader = soa.Decode<mirror::ClassLoader*>(javaLoader);
-  mirror::ObjectArray<mirror::AbstractMethod>* methods =
-      soa.Decode<mirror::ObjectArray<mirror::AbstractMethod>*>(javaMethods);
+  mirror::ObjectArray<mirror::ArtMethod>* methods =
+      soa.Decode<mirror::ObjectArray<mirror::ArtMethod>*>(javaMethods);
   mirror::ObjectArray<mirror::ObjectArray<mirror::Class> >* throws =
       soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class> >*>(javaThrows);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -41,7 +41,7 @@ static jclass Proxy_generateProxy(JNIEnv* env, jclass, jstring javaName,
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Proxy, generateProxy, "(Ljava/lang/String;[Ljava/lang/Class;Ljava/lang/ClassLoader;[Ljava/lang/reflect/Method;[[Ljava/lang/Class;)Ljava/lang/Class;"),
+  NATIVE_METHOD(Proxy, generateProxy, "(Ljava/lang/String;[Ljava/lang/Class;Ljava/lang/ClassLoader;[Ljava/lang/reflect/ArtMethod;[[Ljava/lang/Class;)Ljava/lang/Class;"),
 };
 
 void register_java_lang_reflect_Proxy(JNIEnv* env) {

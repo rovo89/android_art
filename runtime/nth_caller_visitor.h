@@ -17,7 +17,7 @@
 #ifndef ART_RUNTIME_NTH_CALLER_VISITOR_H_
 #define ART_RUNTIME_NTH_CALLER_VISITOR_H_
 
-#include "mirror/abstract_method.h"
+#include "mirror/art_method.h"
 #include "locks.h"
 #include "stack.h"
 
@@ -31,7 +31,7 @@ struct NthCallerVisitor : public StackVisitor {
         count(0), caller(NULL) {}
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::AbstractMethod* m = GetMethod();
+    mirror::ArtMethod* m = GetMethod();
     bool do_count = false;
     if (m == NULL || m->IsRuntimeMethod()) {
       // Upcall.
@@ -53,7 +53,7 @@ struct NthCallerVisitor : public StackVisitor {
   const size_t n;
   const bool include_runtime_and_upcalls_;
   size_t count;
-  mirror::AbstractMethod* caller;
+  mirror::ArtMethod* caller;
 };
 
 }  // namespace art

@@ -43,14 +43,13 @@
 #include "leb128.h"
 #include "oat.h"
 #include "oat_file.h"
+#include "mirror/art_field-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache-inl.h"
-#include "mirror/field-inl.h"
 #include "mirror/iftable-inl.h"
-#include "mirror/abstract_method.h"
-#include "mirror/abstract_method-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/proxy.h"
@@ -145,15 +144,12 @@ const char* ClassLinker::class_roots_descriptors_[] = {
   "Ljava/lang/String;",
   "Ljava/lang/DexCache;",
   "Ljava/lang/ref/Reference;",
-  "Ljava/lang/reflect/Constructor;",
-  "Ljava/lang/reflect/Field;",
-  "Ljava/lang/reflect/AbstractMethod;",
-  "Ljava/lang/reflect/Method;",
+  "Ljava/lang/reflect/ArtField;",
+  "Ljava/lang/reflect/ArtMethod;",
   "Ljava/lang/reflect/Proxy;",
   "[Ljava/lang/String;",
-  "[Ljava/lang/reflect/AbstractMethod;",
-  "[Ljava/lang/reflect/Field;",
-  "[Ljava/lang/reflect/Method;",
+  "[Ljava/lang/reflect/ArtField;",
+  "[Ljava/lang/reflect/ArtMethod;",
   "Ljava/lang/ClassLoader;",
   "Ljava/lang/Throwable;",
   "Ljava/lang/ClassNotFoundException;",
@@ -292,56 +288,38 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   java_lang_DexCache->SetStatus(mirror::Class::kStatusResolved);
 
   // Constructor, Field, Method, and AbstractMethod are necessary so that FindClass can link members.
-  SirtRef<mirror::Class> java_lang_reflect_Field(self, AllocClass(self, java_lang_Class.get(),
-                                                          sizeof(mirror::FieldClass)));
-  CHECK(java_lang_reflect_Field.get() != NULL);
-  java_lang_reflect_Field->SetObjectSize(sizeof(mirror::Field));
-  SetClassRoot(kJavaLangReflectField, java_lang_reflect_Field.get());
-  java_lang_reflect_Field->SetStatus(mirror::Class::kStatusResolved);
-  mirror::Field::SetClass(java_lang_reflect_Field.get());
+  SirtRef<mirror::Class> java_lang_reflect_ArtField(self, AllocClass(self, java_lang_Class.get(),
+                                                                     sizeof(mirror::ArtFieldClass)));
+  CHECK(java_lang_reflect_ArtField.get() != NULL);
+  java_lang_reflect_ArtField->SetObjectSize(sizeof(mirror::ArtField));
+  SetClassRoot(kJavaLangReflectArtField, java_lang_reflect_ArtField.get());
+  java_lang_reflect_ArtField->SetStatus(mirror::Class::kStatusResolved);
+  mirror::ArtField::SetClass(java_lang_reflect_ArtField.get());
 
-  SirtRef<mirror::Class> java_lang_reflect_AbstractMethod(self, AllocClass(self, java_lang_Class.get(),
-                                                                           sizeof(mirror::AbstractMethodClass)));
-  CHECK(java_lang_reflect_AbstractMethod.get() != NULL);
-  java_lang_reflect_AbstractMethod->SetObjectSize(sizeof(mirror::AbstractMethod));
-  SetClassRoot(kJavaLangReflectAbstractMethod, java_lang_reflect_AbstractMethod.get());
-  java_lang_reflect_AbstractMethod->SetStatus(mirror::Class::kStatusResolved);
+  SirtRef<mirror::Class> java_lang_reflect_ArtMethod(self, AllocClass(self, java_lang_Class.get(),
+                                                                      sizeof(mirror::ArtMethodClass)));
+  CHECK(java_lang_reflect_ArtMethod.get() != NULL);
+  java_lang_reflect_ArtMethod->SetObjectSize(sizeof(mirror::ArtMethod));
+  SetClassRoot(kJavaLangReflectArtMethod, java_lang_reflect_ArtMethod.get());
+  java_lang_reflect_ArtMethod->SetStatus(mirror::Class::kStatusResolved);
 
-  SirtRef<mirror::Class> java_lang_reflect_Constructor(self, AllocClass(self, java_lang_Class.get(),
-                                                                        sizeof(mirror::AbstractMethodClass)));
-  CHECK(java_lang_reflect_Constructor.get() != NULL);
-  java_lang_reflect_Constructor->SetObjectSize(sizeof(mirror::Constructor));
-  java_lang_reflect_Constructor->SetSuperClass(java_lang_reflect_AbstractMethod.get());
-  SetClassRoot(kJavaLangReflectConstructor, java_lang_reflect_Constructor.get());
-  java_lang_reflect_Constructor->SetStatus(mirror::Class::kStatusResolved);
-
-  SirtRef<mirror::Class> java_lang_reflect_Method(self, AllocClass(self, java_lang_Class.get(),
-                                                                   sizeof(mirror::AbstractMethodClass)));
-  CHECK(java_lang_reflect_Method.get() != NULL);
-  java_lang_reflect_Method->SetObjectSize(sizeof(mirror::Method));
-  java_lang_reflect_Method->SetSuperClass(java_lang_reflect_AbstractMethod.get());
-  SetClassRoot(kJavaLangReflectMethod, java_lang_reflect_Method.get());
-  java_lang_reflect_Method->SetStatus(mirror::Class::kStatusResolved);
-
-  mirror::AbstractMethod::SetClasses(java_lang_reflect_Constructor.get(),
-                                     java_lang_reflect_Method.get());
+  mirror::ArtMethod::SetClass(java_lang_reflect_ArtMethod.get());
 
   // Set up array classes for string, field, method
-  SirtRef<mirror::Class> object_array_string(self, AllocClass(self, java_lang_Class.get(), sizeof(mirror::Class)));
+  SirtRef<mirror::Class> object_array_string(self, AllocClass(self, java_lang_Class.get(),
+                                                              sizeof(mirror::Class)));
   object_array_string->SetComponentType(java_lang_String.get());
   SetClassRoot(kJavaLangStringArrayClass, object_array_string.get());
 
-  SirtRef<mirror::Class> object_array_abstract_method(self, AllocClass(self, java_lang_Class.get(), sizeof(mirror::Class)));
-  object_array_abstract_method->SetComponentType(java_lang_reflect_AbstractMethod.get());
-  SetClassRoot(kJavaLangReflectAbstractMethodArrayClass, object_array_abstract_method.get());
+  SirtRef<mirror::Class> object_array_art_method(self, AllocClass(self, java_lang_Class.get(),
+                                                                  sizeof(mirror::Class)));
+  object_array_art_method->SetComponentType(java_lang_reflect_ArtMethod.get());
+  SetClassRoot(kJavaLangReflectArtMethodArrayClass, object_array_art_method.get());
 
-  SirtRef<mirror::Class> object_array_field(self, AllocClass(self, java_lang_Class.get(), sizeof(mirror::Class)));
-  object_array_field->SetComponentType(java_lang_reflect_Field.get());
-  SetClassRoot(kJavaLangReflectFieldArrayClass, object_array_field.get());
-
-  SirtRef<mirror::Class> object_array_method(self, AllocClass(self, java_lang_Class.get(), sizeof(mirror::Class)));
-  object_array_method->SetComponentType(java_lang_reflect_Method.get());
-  SetClassRoot(kJavaLangReflectMethodArrayClass, object_array_method.get());
+  SirtRef<mirror::Class> object_array_art_field(self, AllocClass(self, java_lang_Class.get(),
+                                                                 sizeof(mirror::Class)));
+  object_array_art_field->SetComponentType(java_lang_reflect_ArtField.get());
+  SetClassRoot(kJavaLangReflectArtFieldArrayClass, object_array_art_field.get());
 
   // Setup boot_class_path_ and register class_path now that we can use AllocObjectArray to create
   // DexCache instances. Needs to be after String, Field, Method arrays since AllocDexCache uses
@@ -422,42 +400,29 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   kh.ChangeClass(object_array_class.get());
   CHECK_EQ(java_lang_Cloneable, kh.GetDirectInterface(0));
   CHECK_EQ(java_io_Serializable, kh.GetDirectInterface(1));
-  // Run Class, Constructor, Field, and Method through FindSystemClass. This initializes their
+  // Run Class, ArtField, and ArtMethod through FindSystemClass. This initializes their
   // dex_cache_ fields and register them in classes_.
   mirror::Class* Class_class = FindSystemClass("Ljava/lang/Class;");
   CHECK_EQ(java_lang_Class.get(), Class_class);
 
-  java_lang_reflect_AbstractMethod->SetStatus(mirror::Class::kStatusNotReady);
-  mirror::Class* Abstract_method_class = FindSystemClass("Ljava/lang/reflect/AbstractMethod;");
-  CHECK_EQ(java_lang_reflect_AbstractMethod.get(), Abstract_method_class);
+  java_lang_reflect_ArtMethod->SetStatus(mirror::Class::kStatusNotReady);
+  mirror::Class* Art_method_class = FindSystemClass("Ljava/lang/reflect/ArtMethod;");
+  CHECK_EQ(java_lang_reflect_ArtMethod.get(), Art_method_class);
 
-  // Method extends AbstractMethod so must reset after.
-  java_lang_reflect_Method->SetStatus(mirror::Class::kStatusNotReady);
-  mirror::Class* Method_class = FindSystemClass("Ljava/lang/reflect/Method;");
-  CHECK_EQ(java_lang_reflect_Method.get(), Method_class);
-
-  // Constructor extends AbstractMethod so must reset after.
-  java_lang_reflect_Constructor->SetStatus(mirror::Class::kStatusNotReady);
-  mirror::Class* Constructor_class = FindSystemClass("Ljava/lang/reflect/Constructor;");
-  CHECK_EQ(java_lang_reflect_Constructor.get(), Constructor_class);
-
-  java_lang_reflect_Field->SetStatus(mirror::Class::kStatusNotReady);
-  mirror::Class* Field_class = FindSystemClass("Ljava/lang/reflect/Field;");
-  CHECK_EQ(java_lang_reflect_Field.get(), Field_class);
+  java_lang_reflect_ArtField->SetStatus(mirror::Class::kStatusNotReady);
+  mirror::Class* Art_field_class = FindSystemClass("Ljava/lang/reflect/ArtField;");
+  CHECK_EQ(java_lang_reflect_ArtField.get(), Art_field_class);
 
   mirror::Class* String_array_class = FindSystemClass(class_roots_descriptors_[kJavaLangStringArrayClass]);
   CHECK_EQ(object_array_string.get(), String_array_class);
 
-  mirror::Class* Abstract_method_array_class =
-      FindSystemClass(class_roots_descriptors_[kJavaLangReflectAbstractMethodArrayClass]);
-  CHECK_EQ(object_array_abstract_method.get(), Abstract_method_array_class);
+  mirror::Class* Art_method_array_class =
+      FindSystemClass(class_roots_descriptors_[kJavaLangReflectArtMethodArrayClass]);
+  CHECK_EQ(object_array_art_method.get(), Art_method_array_class);
 
-  mirror::Class* Field_array_class = FindSystemClass(class_roots_descriptors_[kJavaLangReflectFieldArrayClass]);
-  CHECK_EQ(object_array_field.get(), Field_array_class);
-
-  mirror::Class* Method_array_class =
-      FindSystemClass(class_roots_descriptors_[kJavaLangReflectMethodArrayClass]);
-  CHECK_EQ(object_array_method.get(), Method_array_class);
+  mirror::Class* Art_field_array_class =
+      FindSystemClass(class_roots_descriptors_[kJavaLangReflectArtFieldArrayClass]);
+  CHECK_EQ(object_array_art_field.get(), Art_field_array_class);
 
   // End of special init trickery, subsequent classes may be loaded via FindSystemClass.
 
@@ -516,31 +481,31 @@ void ClassLinker::FinishInit() {
 
   const DexFile& java_lang_dex = *java_lang_ref_Reference->GetDexCache()->GetDexFile();
 
-  mirror::Field* pendingNext = java_lang_ref_Reference->GetInstanceField(0);
+  mirror::ArtField* pendingNext = java_lang_ref_Reference->GetInstanceField(0);
   FieldHelper fh(pendingNext, this);
   CHECK_STREQ(fh.GetName(), "pendingNext");
   CHECK_EQ(java_lang_dex.GetFieldId(pendingNext->GetDexFieldIndex()).type_idx_,
            java_lang_ref_Reference->GetDexTypeIndex());
 
-  mirror::Field* queue = java_lang_ref_Reference->GetInstanceField(1);
+  mirror::ArtField* queue = java_lang_ref_Reference->GetInstanceField(1);
   fh.ChangeField(queue);
   CHECK_STREQ(fh.GetName(), "queue");
   CHECK_EQ(java_lang_dex.GetFieldId(queue->GetDexFieldIndex()).type_idx_,
            java_lang_ref_ReferenceQueue->GetDexTypeIndex());
 
-  mirror::Field* queueNext = java_lang_ref_Reference->GetInstanceField(2);
+  mirror::ArtField* queueNext = java_lang_ref_Reference->GetInstanceField(2);
   fh.ChangeField(queueNext);
   CHECK_STREQ(fh.GetName(), "queueNext");
   CHECK_EQ(java_lang_dex.GetFieldId(queueNext->GetDexFieldIndex()).type_idx_,
            java_lang_ref_Reference->GetDexTypeIndex());
 
-  mirror::Field* referent = java_lang_ref_Reference->GetInstanceField(3);
+  mirror::ArtField* referent = java_lang_ref_Reference->GetInstanceField(3);
   fh.ChangeField(referent);
   CHECK_STREQ(fh.GetName(), "referent");
   CHECK_EQ(java_lang_dex.GetFieldId(referent->GetDexFieldIndex()).type_idx_,
            GetClassRoot(kJavaLangObject)->GetDexTypeIndex());
 
-  mirror::Field* zombie = java_lang_ref_FinalizerReference->GetInstanceField(2);
+  mirror::ArtField* zombie = java_lang_ref_FinalizerReference->GetInstanceField(2);
   fh.ChangeField(zombie);
   CHECK_STREQ(fh.GetName(), "zombie");
   CHECK_EQ(java_lang_dex.GetFieldId(zombie->GetDexFieldIndex()).type_idx_,
@@ -958,8 +923,8 @@ static void InitFromImageCallbackCommon(mirror::Object* obj, ClassLinker* class_
     ClassHelper kh(klass, class_linker);
     mirror::Class* existing = class_linker->InsertClass(kh.GetDescriptor(), klass, true);
     DCHECK(existing == NULL) << kh.GetDescriptor();
-  } else if (interpret_only_mode && obj->IsMethod()) {
-    mirror::AbstractMethod* method = obj->AsMethod();
+  } else if (interpret_only_mode && obj->IsArtMethod()) {
+    mirror::ArtMethod* method = obj->AsArtMethod();
     if (!method->IsNative()) {
       method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterBridge);
       if (method != Runtime::Current()->GetResolutionMethod()) {
@@ -1027,8 +992,7 @@ void ClassLinker::InitFromImage() {
 
   // Set classes on AbstractMethod early so that IsMethod tests can be performed during the live
   // bitmap walk.
-  mirror::AbstractMethod::SetClasses(GetClassRoot(kJavaLangReflectConstructor),
-                                     GetClassRoot(kJavaLangReflectMethod));
+  mirror::ArtMethod::SetClass(GetClassRoot(kJavaLangReflectArtMethod));
 
   // reinit clases_ table
   {
@@ -1049,7 +1013,7 @@ void ClassLinker::InitFromImage() {
   array_iftable_ = GetClassRoot(kObjectArrayClass)->GetIfTable();
   DCHECK(array_iftable_ == GetClassRoot(kBooleanArrayClass)->GetIfTable());
   // String class root was set above
-  mirror::Field::SetClass(GetClassRoot(kJavaLangReflectField));
+  mirror::ArtField::SetClass(GetClassRoot(kJavaLangReflectArtField));
   mirror::BooleanArray::SetArrayClass(GetClassRoot(kBooleanArrayClass));
   mirror::ByteArray::SetArrayClass(GetClassRoot(kByteArrayClass));
   mirror::CharArray::SetArrayClass(GetClassRoot(kCharArrayClass));
@@ -1132,8 +1096,8 @@ void ClassLinker::VisitClassesWithoutClassesLock(ClassVisitor* visitor, void* ar
 ClassLinker::~ClassLinker() {
   mirror::Class::ResetClass();
   mirror::String::ResetClass();
-  mirror::Field::ResetClass();
-  mirror::AbstractMethod::ResetClasses();
+  mirror::ArtField::ResetClass();
+  mirror::ArtMethod::ResetClass();
   mirror::BooleanArray::ResetArrayClass();
   mirror::ByteArray::ResetArrayClass();
   mirror::CharArray::ResetArrayClass();
@@ -1172,13 +1136,13 @@ mirror::DexCache* ClassLinker::AllocDexCache(Thread* self, const DexFile& dex_fi
   if (types.get() == NULL) {
     return NULL;
   }
-  SirtRef<mirror::ObjectArray<mirror::AbstractMethod> >
-      methods(self, AllocAbstractMethodArray(self, dex_file.NumMethodIds()));
+  SirtRef<mirror::ObjectArray<mirror::ArtMethod> >
+      methods(self, AllocArtMethodArray(self, dex_file.NumMethodIds()));
   if (methods.get() == NULL) {
     return NULL;
   }
-  SirtRef<mirror::ObjectArray<mirror::Field> >
-      fields(self, AllocFieldArray(self, dex_file.NumFieldIds()));
+  SirtRef<mirror::ObjectArray<mirror::ArtField> >
+      fields(self, AllocArtFieldArray(self, dex_file.NumFieldIds()));
   if (fields.get() == NULL) {
     return NULL;
   }
@@ -1214,16 +1178,12 @@ mirror::Class* ClassLinker::AllocClass(Thread* self, size_t class_size) {
   return AllocClass(self, GetClassRoot(kJavaLangClass), class_size);
 }
 
-mirror::Field* ClassLinker::AllocField(Thread* self) {
-  return down_cast<mirror::Field*>(GetClassRoot(kJavaLangReflectField)->AllocObject(self));
+mirror::ArtField* ClassLinker::AllocArtField(Thread* self) {
+  return down_cast<mirror::ArtField*>(GetClassRoot(kJavaLangReflectArtField)->AllocObject(self));
 }
 
-mirror::Method* ClassLinker::AllocMethod(Thread* self) {
-  return down_cast<mirror::Method*>(GetClassRoot(kJavaLangReflectMethod)->AllocObject(self));
-}
-
-mirror::Constructor* ClassLinker::AllocConstructor(Thread* self) {
-  return down_cast<mirror::Constructor*>(GetClassRoot(kJavaLangReflectConstructor)->AllocObject(self));
+mirror::ArtMethod* ClassLinker::AllocArtMethod(Thread* self) {
+  return down_cast<mirror::ArtMethod*>(GetClassRoot(kJavaLangReflectArtMethod)->AllocObject(self));
 }
 
 mirror::ObjectArray<mirror::StackTraceElement>* ClassLinker::AllocStackTraceElementArray(Thread* self,
@@ -1364,14 +1324,10 @@ mirror::Class* ClassLinker::DefineClass(const StringPiece& descriptor,
       klass.reset(GetClassRoot(kJavaLangString));
     } else if (descriptor == "Ljava/lang/DexCache;") {
       klass.reset(GetClassRoot(kJavaLangDexCache));
-    } else if (descriptor == "Ljava/lang/reflect/Field;") {
-      klass.reset(GetClassRoot(kJavaLangReflectField));
-    } else if (descriptor == "Ljava/lang/reflect/AbstractMethod;") {
-      klass.reset(GetClassRoot(kJavaLangReflectAbstractMethod));
-    } else if (descriptor == "Ljava/lang/reflect/Constructor;") {
-      klass.reset(GetClassRoot(kJavaLangReflectConstructor));
-    } else if (descriptor == "Ljava/lang/reflect/Method;") {
-      klass.reset(GetClassRoot(kJavaLangReflectMethod));
+    } else if (descriptor == "Ljava/lang/reflect/ArtField;") {
+      klass.reset(GetClassRoot(kJavaLangReflectArtField));
+    } else if (descriptor == "Ljava/lang/reflect/ArtMethod;") {
+      klass.reset(GetClassRoot(kJavaLangReflectArtMethod));
     } else {
       klass.reset(AllocClass(self, SizeOfClass(dex_file, dex_class_def)));
     }
@@ -1519,7 +1475,7 @@ static uint32_t GetOatMethodIndexFromMethodIndex(const DexFile& dex_file, uint32
   return 0;
 }
 
-const OatFile::OatMethod ClassLinker::GetOatMethodFor(const mirror::AbstractMethod* method) {
+const OatFile::OatMethod ClassLinker::GetOatMethodFor(const mirror::ArtMethod* method) {
   // Although we overwrite the trampoline of non-static methods, we may get here via the resolution
   // method for direct methods (or virtual methods made direct).
   mirror::Class* declaring_class = method->GetDeclaringClass();
@@ -1553,7 +1509,7 @@ const OatFile::OatMethod ClassLinker::GetOatMethodFor(const mirror::AbstractMeth
 }
 
 // Special case to get oat code without overwriting a trampoline.
-const void* ClassLinker::GetOatCodeFor(const mirror::AbstractMethod* method) {
+const void* ClassLinker::GetOatCodeFor(const mirror::ArtMethod* method) {
   CHECK(!method->IsAbstract()) << PrettyMethod(method);
   if (method->IsProxyMethod()) {
 #if !defined(ART_USE_PORTABLE_COMPILER)
@@ -1580,7 +1536,7 @@ const void* ClassLinker::GetOatCodeFor(const DexFile& dex_file, uint32_t method_
 }
 
 // Returns true if the method must run with interpreter, false otherwise.
-static bool NeedsInterpreter(const mirror::AbstractMethod* method, const void* code) {
+static bool NeedsInterpreter(const mirror::ArtMethod* method, const void* code) {
   if (code == NULL) {
     // No code: need interpreter.
     return true;
@@ -1617,7 +1573,7 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
   }
   // Link the code of methods skipped by LinkCode
   for (size_t method_index = 0; it.HasNextDirectMethod(); ++method_index, it.Next()) {
-    mirror::AbstractMethod* method = klass->GetDirectMethod(method_index);
+    mirror::ArtMethod* method = klass->GetDirectMethod(method_index);
     if (!method->IsStatic()) {
       // Only update static methods.
       continue;
@@ -1633,7 +1589,7 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
   // Ignore virtual methods on the iterator.
 }
 
-static void LinkCode(SirtRef<mirror::AbstractMethod>& method, const OatFile::OatClass* oat_class,
+static void LinkCode(SirtRef<mirror::ArtMethod>& method, const OatFile::OatClass* oat_class,
                      uint32_t method_index)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Method shouldn't have already been linked.
@@ -1707,18 +1663,18 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   ClassDataItemIterator it(dex_file, class_data);
   Thread* self = Thread::Current();
   if (it.NumStaticFields() != 0) {
-    klass->SetSFields(AllocFieldArray(self, it.NumStaticFields()));
+    klass->SetSFields(AllocArtFieldArray(self, it.NumStaticFields()));
   }
   if (it.NumInstanceFields() != 0) {
-    klass->SetIFields(AllocFieldArray(self, it.NumInstanceFields()));
+    klass->SetIFields(AllocArtFieldArray(self, it.NumInstanceFields()));
   }
   for (size_t i = 0; it.HasNextStaticField(); i++, it.Next()) {
-    SirtRef<mirror::Field> sfield(self, AllocField(self));
+    SirtRef<mirror::ArtField> sfield(self, AllocArtField(self));
     klass->SetStaticField(i, sfield.get());
     LoadField(dex_file, it, klass, sfield);
   }
   for (size_t i = 0; it.HasNextInstanceField(); i++, it.Next()) {
-    SirtRef<mirror::Field> ifield(self, AllocField(self));
+    SirtRef<mirror::ArtField> ifield(self, AllocArtField(self));
     klass->SetInstanceField(i, ifield.get());
     LoadField(dex_file, it, klass, ifield);
   }
@@ -1731,15 +1687,15 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   // Load methods.
   if (it.NumDirectMethods() != 0) {
     // TODO: append direct methods to class object
-    klass->SetDirectMethods(AllocAbstractMethodArray(self, it.NumDirectMethods()));
+    klass->SetDirectMethods(AllocArtMethodArray(self, it.NumDirectMethods()));
   }
   if (it.NumVirtualMethods() != 0) {
     // TODO: append direct methods to class object
-    klass->SetVirtualMethods(AllocMethodArray(self, it.NumVirtualMethods()));
+    klass->SetVirtualMethods(AllocArtMethodArray(self, it.NumVirtualMethods()));
   }
   size_t class_def_method_index = 0;
   for (size_t i = 0; it.HasNextDirectMethod(); i++, it.Next()) {
-    SirtRef<mirror::AbstractMethod> method(self, LoadMethod(self, dex_file, it, klass));
+    SirtRef<mirror::ArtMethod> method(self, LoadMethod(self, dex_file, it, klass));
     klass->SetDirectMethod(i, method.get());
     if (oat_class.get() != NULL) {
       LinkCode(method, oat_class.get(), class_def_method_index);
@@ -1748,7 +1704,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
     class_def_method_index++;
   }
   for (size_t i = 0; it.HasNextVirtualMethod(); i++, it.Next()) {
-    SirtRef<mirror::AbstractMethod> method(self, LoadMethod(self, dex_file, it, klass));
+    SirtRef<mirror::ArtMethod> method(self, LoadMethod(self, dex_file, it, klass));
     klass->SetVirtualMethod(i, method.get());
     DCHECK_EQ(class_def_method_index, it.NumDirectMethods() + i);
     if (oat_class.get() != NULL) {
@@ -1760,27 +1716,22 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
 }
 
 void ClassLinker::LoadField(const DexFile& /*dex_file*/, const ClassDataItemIterator& it,
-                            SirtRef<mirror::Class>& klass, SirtRef<mirror::Field>& dst) {
+                            SirtRef<mirror::Class>& klass, SirtRef<mirror::ArtField>& dst) {
   uint32_t field_idx = it.GetMemberIndex();
   dst->SetDexFieldIndex(field_idx);
   dst->SetDeclaringClass(klass.get());
   dst->SetAccessFlags(it.GetMemberAccessFlags());
 }
 
-mirror::AbstractMethod* ClassLinker::LoadMethod(Thread* self, const DexFile& dex_file,
+mirror::ArtMethod* ClassLinker::LoadMethod(Thread* self, const DexFile& dex_file,
                                                 const ClassDataItemIterator& it,
                                                 SirtRef<mirror::Class>& klass) {
   uint32_t dex_method_idx = it.GetMemberIndex();
   const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_idx);
   StringPiece method_name(dex_file.GetMethodName(method_id));
 
-  mirror::AbstractMethod* dst = NULL;
-  if (method_name == "<init>") {
-    dst = AllocConstructor(self);
-  } else {
-    dst = AllocMethod(self);
-  }
-  DCHECK(dst->IsMethod()) << PrettyDescriptor(dst->GetClass());
+  mirror::ArtMethod* dst = AllocArtMethod(self);
+  DCHECK(dst->IsArtMethod()) << PrettyDescriptor(dst->GetClass());
 
   const char* old_cause = self->StartAssertNoThreadSuspension("LoadMethod");
   dst->SetDexMethodIndex(dex_method_idx);
@@ -1824,7 +1775,7 @@ mirror::AbstractMethod* ClassLinker::LoadMethod(Thread* self, const DexFile& dex
   dst->SetDexCacheResolvedTypes(klass->GetDexCache()->GetResolvedTypes());
   dst->SetDexCacheInitializedStaticStorage(klass->GetDexCache()->GetInitializedStaticStorage());
 
-  CHECK(dst->IsMethod());
+  CHECK(dst->IsArtMethod());
 
   self->EndAssertNoThreadSuspension(old_cause);
   return dst;
@@ -1918,7 +1869,7 @@ mirror::DexCache* ClassLinker::FindDexCache(const DexFile& dex_file) const {
   return NULL;
 }
 
-void ClassLinker::FixupDexCaches(mirror::AbstractMethod* resolution_method) const {
+void ClassLinker::FixupDexCaches(mirror::ArtMethod* resolution_method) const {
   ReaderMutexLock mu(Thread::Current(), dex_lock_);
   for (size_t i = 0; i != dex_caches_.size(); ++i) {
     dex_caches_[i]->Fixup(resolution_method);
@@ -2007,12 +1958,10 @@ mirror::Class* ClassLinker::CreateArrayClass(const std::string& descriptor,
       new_class.reset(GetClassRoot(kObjectArrayClass));
     } else if (descriptor == class_roots_descriptors_[kJavaLangStringArrayClass]) {
       new_class.reset(GetClassRoot(kJavaLangStringArrayClass));
-    } else if (descriptor == class_roots_descriptors_[kJavaLangReflectAbstractMethodArrayClass]) {
-      new_class.reset(GetClassRoot(kJavaLangReflectAbstractMethodArrayClass));
-    } else if (descriptor == class_roots_descriptors_[kJavaLangReflectFieldArrayClass]) {
-      new_class.reset(GetClassRoot(kJavaLangReflectFieldArrayClass));
-    } else if (descriptor == class_roots_descriptors_[kJavaLangReflectMethodArrayClass]) {
-      new_class.reset(GetClassRoot(kJavaLangReflectMethodArrayClass));
+    } else if (descriptor == class_roots_descriptors_[kJavaLangReflectArtMethodArrayClass]) {
+      new_class.reset(GetClassRoot(kJavaLangReflectArtMethodArrayClass));
+    } else if (descriptor == class_roots_descriptors_[kJavaLangReflectArtFieldArrayClass]) {
+      new_class.reset(GetClassRoot(kJavaLangReflectArtFieldArrayClass));
     } else if (descriptor == "[C") {
       new_class.reset(GetClassRoot(kCharArrayClass));
     } else if (descriptor == "[I") {
@@ -2428,7 +2377,7 @@ void ClassLinker::ResolveClassExceptionHandlerTypes(const DexFile& dex_file, mir
 }
 
 void ClassLinker::ResolveMethodExceptionHandlerTypes(const DexFile& dex_file,
-                                                     mirror::AbstractMethod* method) {
+                                                     mirror::ArtMethod* method) {
   // similar to DexVerifier::ScanTryCatchBlocks and dex2oat's ResolveExceptionsForMethod.
   const DexFile::CodeItem* code_item = dex_file.GetCodeItem(method->GetCodeItemOffset());
   if (code_item == NULL) {
@@ -2457,14 +2406,14 @@ void ClassLinker::ResolveMethodExceptionHandlerTypes(const DexFile& dex_file,
   }
 }
 
-static void CheckProxyConstructor(mirror::AbstractMethod* constructor);
-static void CheckProxyMethod(mirror::AbstractMethod* method,
-                             SirtRef<mirror::AbstractMethod>& prototype);
+static void CheckProxyConstructor(mirror::ArtMethod* constructor);
+static void CheckProxyMethod(mirror::ArtMethod* method,
+                             SirtRef<mirror::ArtMethod>& prototype);
 
 mirror::Class* ClassLinker::CreateProxyClass(mirror::String* name,
                                              mirror::ObjectArray<mirror::Class>* interfaces,
                                              mirror::ClassLoader* loader,
-                                             mirror::ObjectArray<mirror::AbstractMethod>* methods,
+                                             mirror::ObjectArray<mirror::ArtMethod>* methods,
                                              mirror::ObjectArray<mirror::ObjectArray<mirror::Class> >* throws) {
   Thread* self = Thread::Current();
   SirtRef<mirror::Class> klass(self, AllocClass(self, GetClassRoot(kJavaLangClass),
@@ -2484,30 +2433,30 @@ mirror::Class* ClassLinker::CreateProxyClass(mirror::String* name,
   klass->SetDexTypeIndex(DexFile::kDexNoIndex16);
 
   // Instance fields are inherited, but we add a couple of static fields...
-  klass->SetSFields(AllocFieldArray(self, 2));
+  klass->SetSFields(AllocArtFieldArray(self, 2));
   // 1. Create a static field 'interfaces' that holds the _declared_ interfaces implemented by
   // our proxy, so Class.getInterfaces doesn't return the flattened set.
-  SirtRef<mirror::Field> interfaces_sfield(self, AllocField(self));
+  SirtRef<mirror::ArtField> interfaces_sfield(self, AllocArtField(self));
   klass->SetStaticField(0, interfaces_sfield.get());
   interfaces_sfield->SetDexFieldIndex(0);
   interfaces_sfield->SetDeclaringClass(klass.get());
   interfaces_sfield->SetAccessFlags(kAccStatic | kAccPublic | kAccFinal);
   // 2. Create a static field 'throws' that holds exceptions thrown by our methods.
-  SirtRef<mirror::Field> throws_sfield(self, AllocField(self));
+  SirtRef<mirror::ArtField> throws_sfield(self, AllocArtField(self));
   klass->SetStaticField(1, throws_sfield.get());
   throws_sfield->SetDexFieldIndex(1);
   throws_sfield->SetDeclaringClass(klass.get());
   throws_sfield->SetAccessFlags(kAccStatic | kAccPublic | kAccFinal);
 
   // Proxies have 1 direct method, the constructor
-  klass->SetDirectMethods(AllocAbstractMethodArray(self, 1));
+  klass->SetDirectMethods(AllocArtMethodArray(self, 1));
   klass->SetDirectMethod(0, CreateProxyConstructor(self, klass, proxy_class));
 
   // Create virtual method using specified prototypes
   size_t num_virtual_methods = methods->GetLength();
-  klass->SetVirtualMethods(AllocMethodArray(self, num_virtual_methods));
+  klass->SetVirtualMethods(AllocArtMethodArray(self, num_virtual_methods));
   for (size_t i = 0; i < num_virtual_methods; ++i) {
-    SirtRef<mirror::AbstractMethod> prototype(self, methods->Get(i));
+    SirtRef<mirror::ArtMethod> prototype(self, methods->Get(i));
     klass->SetVirtualMethod(i, CreateProxyMethod(self, klass, prototype));
   }
 
@@ -2532,7 +2481,7 @@ mirror::Class* ClassLinker::CreateProxyClass(mirror::String* name,
     CHECK(klass->GetIFields() == NULL);
     CheckProxyConstructor(klass->GetDirectMethod(0));
     for (size_t i = 0; i < num_virtual_methods; ++i) {
-      SirtRef<mirror::AbstractMethod> prototype(self, methods->Get(i));
+      SirtRef<mirror::ArtMethod> prototype(self, methods->Get(i));
       CheckProxyMethod(klass->GetVirtualMethod(i), prototype);
     }
 
@@ -2559,8 +2508,8 @@ std::string ClassLinker::GetDescriptorForProxy(const mirror::Class* proxy_class)
   return DotToDescriptor(name->ToModifiedUtf8().c_str());
 }
 
-mirror::AbstractMethod* ClassLinker::FindMethodForProxy(const mirror::Class* proxy_class,
-                                                        const mirror::AbstractMethod* proxy_method) {
+mirror::ArtMethod* ClassLinker::FindMethodForProxy(const mirror::Class* proxy_class,
+                                                        const mirror::ArtMethod* proxy_method) {
   DCHECK(proxy_class->IsProxyClass());
   DCHECK(proxy_method->IsProxyMethod());
   // Locate the dex cache of the original interface/Object
@@ -2577,31 +2526,31 @@ mirror::AbstractMethod* ClassLinker::FindMethodForProxy(const mirror::Class* pro
   }
   CHECK(dex_cache != NULL);
   uint32_t method_idx = proxy_method->GetDexMethodIndex();
-  mirror::AbstractMethod* resolved_method = dex_cache->GetResolvedMethod(method_idx);
+  mirror::ArtMethod* resolved_method = dex_cache->GetResolvedMethod(method_idx);
   CHECK(resolved_method != NULL);
   return resolved_method;
 }
 
 
-mirror::AbstractMethod* ClassLinker::CreateProxyConstructor(Thread* self,
-                                                            SirtRef<mirror::Class>& klass,
-                                                            mirror::Class* proxy_class) {
+mirror::ArtMethod* ClassLinker::CreateProxyConstructor(Thread* self,
+                                                       SirtRef<mirror::Class>& klass,
+                                                       mirror::Class* proxy_class) {
   // Create constructor for Proxy that must initialize h
-  mirror::ObjectArray<mirror::AbstractMethod>* proxy_direct_methods =
+  mirror::ObjectArray<mirror::ArtMethod>* proxy_direct_methods =
       proxy_class->GetDirectMethods();
-  CHECK_EQ(proxy_direct_methods->GetLength(), 15);
-  mirror::AbstractMethod* proxy_constructor = proxy_direct_methods->Get(2);
+  CHECK_EQ(proxy_direct_methods->GetLength(), 16);
+  mirror::ArtMethod* proxy_constructor = proxy_direct_methods->Get(2);
   // Clone the existing constructor of Proxy (our constructor would just invoke it so steal its
   // code_ too)
-  mirror::AbstractMethod* constructor =
-      down_cast<mirror::AbstractMethod*>(proxy_constructor->Clone(self));
+  mirror::ArtMethod* constructor =
+      down_cast<mirror::ArtMethod*>(proxy_constructor->Clone(self));
   // Make this constructor public and fix the class to be our Proxy version
   constructor->SetAccessFlags((constructor->GetAccessFlags() & ~kAccProtected) | kAccPublic);
   constructor->SetDeclaringClass(klass.get());
   return constructor;
 }
 
-static void CheckProxyConstructor(mirror::AbstractMethod* constructor)
+static void CheckProxyConstructor(mirror::ArtMethod* constructor)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   CHECK(constructor->IsConstructor());
   MethodHelper mh(constructor);
@@ -2610,15 +2559,15 @@ static void CheckProxyConstructor(mirror::AbstractMethod* constructor)
   DCHECK(constructor->IsPublic());
 }
 
-mirror::AbstractMethod* ClassLinker::CreateProxyMethod(Thread* self, SirtRef<mirror::Class>& klass,
-                                                       SirtRef<mirror::AbstractMethod>& prototype) {
+mirror::ArtMethod* ClassLinker::CreateProxyMethod(Thread* self, SirtRef<mirror::Class>& klass,
+                                                       SirtRef<mirror::ArtMethod>& prototype) {
   // Ensure prototype is in dex cache so that we can use the dex cache to look up the overridden
   // prototype method
   prototype->GetDeclaringClass()->GetDexCache()->SetResolvedMethod(prototype->GetDexMethodIndex(),
                                                                    prototype.get());
   // We steal everything from the prototype (such as DexCache, invoke stub, etc.) then specialize
   // as necessary
-  mirror::AbstractMethod* method = down_cast<mirror::AbstractMethod*>(prototype->Clone(self));
+  mirror::ArtMethod* method = down_cast<mirror::ArtMethod*>(prototype->Clone(self));
 
   // Set class to be the concrete proxy class and clear the abstract flag, modify exceptions to
   // the intersection of throw exceptions as defined in Proxy
@@ -2627,7 +2576,7 @@ mirror::AbstractMethod* ClassLinker::CreateProxyMethod(Thread* self, SirtRef<mir
 
   // At runtime the method looks like a reference and argument saving method, clone the code
   // related parameters from this method.
-  mirror::AbstractMethod* refs_and_args =
+  mirror::ArtMethod* refs_and_args =
       Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs);
   method->SetCoreSpillMask(refs_and_args->GetCoreSpillMask());
   method->SetFpSpillMask(refs_and_args->GetFpSpillMask());
@@ -2638,8 +2587,8 @@ mirror::AbstractMethod* ClassLinker::CreateProxyMethod(Thread* self, SirtRef<mir
   return method;
 }
 
-static void CheckProxyMethod(mirror::AbstractMethod* method,
-                             SirtRef<mirror::AbstractMethod>& prototype)
+static void CheckProxyMethod(mirror::ArtMethod* method,
+                             SirtRef<mirror::ArtMethod>& prototype)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Basic sanity
   CHECK(!prototype->IsFinal());
@@ -2669,7 +2618,7 @@ bool ClassLinker::InitializeClass(mirror::Class* klass, bool can_run_clinit, boo
 
   Thread* self = Thread::Current();
 
-  mirror::AbstractMethod* clinit = NULL;
+  mirror::ArtMethod* clinit = NULL;
   {
     // see JLS 3rd edition, 12.4.2 "Detailed Initialization Procedure" for the locking protocol
     ObjectLock lock(self, klass);
@@ -2842,7 +2791,7 @@ bool ClassLinker::ValidateSuperClassDescriptors(const mirror::Class* klass) {
       klass->GetClassLoader() != klass->GetSuperClass()->GetClassLoader()) {
     const mirror::Class* super = klass->GetSuperClass();
     for (int i = super->GetVTable()->GetLength() - 1; i >= 0; --i) {
-      const mirror::AbstractMethod* method = klass->GetVTable()->Get(i);
+      const mirror::ArtMethod* method = klass->GetVTable()->Get(i);
       if (method != super->GetVTable()->Get(i) &&
           !IsSameMethodSignatureInDifferentClassContexts(method, super, klass)) {
         ThrowLinkageError(klass, "Class %s method %s resolves differently in superclass %s",
@@ -2857,7 +2806,7 @@ bool ClassLinker::ValidateSuperClassDescriptors(const mirror::Class* klass) {
     mirror::Class* interface = iftable->GetInterface(i);
     if (klass->GetClassLoader() != interface->GetClassLoader()) {
       for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
-        const mirror::AbstractMethod* method = iftable->GetMethodArray(i)->Get(j);
+        const mirror::ArtMethod* method = iftable->GetMethodArray(i)->Get(j);
         if (!IsSameMethodSignatureInDifferentClassContexts(method, interface,
                                                            method->GetDeclaringClass())) {
           ThrowLinkageError(klass, "Class %s method %s resolves differently in interface %s",
@@ -2874,7 +2823,7 @@ bool ClassLinker::ValidateSuperClassDescriptors(const mirror::Class* klass) {
 
 // Returns true if classes referenced by the signature of the method are the
 // same classes in klass1 as they are in klass2.
-bool ClassLinker::IsSameMethodSignatureInDifferentClassContexts(const mirror::AbstractMethod* method,
+bool ClassLinker::IsSameMethodSignatureInDifferentClassContexts(const mirror::ArtMethod* method,
                                                                 const mirror::Class* klass1,
                                                                 const mirror::Class* klass2) {
   if (klass1 == klass2) {
@@ -2969,7 +2918,7 @@ bool ClassLinker::EnsureInitialized(mirror::Class* c, bool can_run_clinit, bool 
 }
 
 void ClassLinker::ConstructFieldMap(const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
-                                    mirror::Class* c, SafeMap<uint32_t, mirror::Field*>& field_map) {
+                                    mirror::Class* c, SafeMap<uint32_t, mirror::ArtField*>& field_map) {
   mirror::ClassLoader* cl = c->GetClassLoader();
   const byte* class_data = dex_file.GetClassData(dex_class_def);
   ClassDataItemIterator it(dex_file, class_data);
@@ -2997,7 +2946,7 @@ bool ClassLinker::InitializeStaticFields(mirror::Class* klass) {
 
   if (it.HasNext()) {
     // We reordered the fields, so we need to be able to map the field indexes to the right fields.
-    SafeMap<uint32_t, mirror::Field*> field_map;
+    SafeMap<uint32_t, mirror::ArtField*> field_map;
     ConstructFieldMap(dex_file, *dex_class_def, klass, field_map);
     for (size_t i = 0; it.HasNext(); i++, it.Next()) {
       it.ReadValueToField(field_map.Get(i));
@@ -3161,17 +3110,17 @@ bool ClassLinker::LinkVirtualMethods(SirtRef<mirror::Class>& klass) {
     size_t actual_count = klass->GetSuperClass()->GetVTable()->GetLength();
     CHECK_LE(actual_count, max_count);
     // TODO: do not assign to the vtable field until it is fully constructed.
-    SirtRef<mirror::ObjectArray<mirror::AbstractMethod> >
+    SirtRef<mirror::ObjectArray<mirror::ArtMethod> >
       vtable(self, klass->GetSuperClass()->GetVTable()->CopyOf(self, max_count));
     // See if any of our virtual methods override the superclass.
     MethodHelper local_mh(NULL, this);
     MethodHelper super_mh(NULL, this);
     for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
-      mirror::AbstractMethod* local_method = klass->GetVirtualMethodDuringLinking(i);
+      mirror::ArtMethod* local_method = klass->GetVirtualMethodDuringLinking(i);
       local_mh.ChangeMethod(local_method);
       size_t j = 0;
       for (; j < actual_count; ++j) {
-        mirror::AbstractMethod* super_method = vtable->Get(j);
+        mirror::ArtMethod* super_method = vtable->Get(j);
         super_mh.ChangeMethod(super_method);
         if (local_mh.HasSameNameAndSignature(&super_mh)) {
           if (klass->CanAccessMember(super_method->GetDeclaringClass(), super_method->GetAccessFlags())) {
@@ -3215,10 +3164,10 @@ bool ClassLinker::LinkVirtualMethods(SirtRef<mirror::Class>& klass) {
       ThrowClassFormatError(klass.get(), "Too many methods: %d", num_virtual_methods);
       return false;
     }
-    SirtRef<mirror::ObjectArray<mirror::AbstractMethod> >
-        vtable(self, AllocMethodArray(self, num_virtual_methods));
+    SirtRef<mirror::ObjectArray<mirror::ArtMethod> >
+        vtable(self, AllocArtMethodArray(self, num_virtual_methods));
     for (size_t i = 0; i < num_virtual_methods; ++i) {
-      mirror::AbstractMethod* virtual_method = klass->GetVirtualMethodDuringLinking(i);
+      mirror::ArtMethod* virtual_method = klass->GetVirtualMethodDuringLinking(i);
       vtable->Set(i, virtual_method);
       virtual_method->SetMethodIndex(i & 0xFFFF);
     }
@@ -3328,19 +3277,19 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<mirror::Class>& klass,
   if (klass->IsInterface()) {
     return true;
   }
-  std::vector<mirror::AbstractMethod*> miranda_list;
+  std::vector<mirror::ArtMethod*> miranda_list;
   MethodHelper vtable_mh(NULL, this);
   MethodHelper interface_mh(NULL, this);
   for (size_t i = 0; i < ifcount; ++i) {
     mirror::Class* interface = iftable->GetInterface(i);
     size_t num_methods = interface->NumVirtualMethods();
     if (num_methods > 0) {
-      mirror::ObjectArray<mirror::AbstractMethod>* method_array =
-          AllocMethodArray(self, num_methods);
+      mirror::ObjectArray<mirror::ArtMethod>* method_array =
+          AllocArtMethodArray(self, num_methods);
       iftable->SetMethodArray(i, method_array);
-      mirror::ObjectArray<mirror::AbstractMethod>* vtable = klass->GetVTableDuringLinking();
+      mirror::ObjectArray<mirror::ArtMethod>* vtable = klass->GetVTableDuringLinking();
       for (size_t j = 0; j < num_methods; ++j) {
-        mirror::AbstractMethod* interface_method = interface->GetVirtualMethod(j);
+        mirror::ArtMethod* interface_method = interface->GetVirtualMethod(j);
         interface_mh.ChangeMethod(interface_method);
         int32_t k;
         // For each method listed in the interface's method list, find the
@@ -3352,7 +3301,7 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<mirror::Class>& klass,
         // those don't end up in the virtual method table, so it shouldn't
         // matter which direction we go.  We walk it backward anyway.)
         for (k = vtable->GetLength() - 1; k >= 0; --k) {
-          mirror::AbstractMethod* vtable_method = vtable->Get(k);
+          mirror::ArtMethod* vtable_method = vtable->Get(k);
           vtable_mh.ChangeMethod(vtable_method);
           if (interface_mh.HasSameNameAndSignature(&vtable_mh)) {
             if (!vtable_method->IsAbstract() && !vtable_method->IsPublic()) {
@@ -3367,9 +3316,9 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<mirror::Class>& klass,
           }
         }
         if (k < 0) {
-          SirtRef<mirror::AbstractMethod> miranda_method(self, NULL);
+          SirtRef<mirror::ArtMethod> miranda_method(self, NULL);
           for (size_t mir = 0; mir < miranda_list.size(); mir++) {
-            mirror::AbstractMethod* mir_method = miranda_list[mir];
+            mirror::ArtMethod* mir_method = miranda_list[mir];
             vtable_mh.ChangeMethod(mir_method);
             if (interface_mh.HasSameNameAndSignature(&vtable_mh)) {
               miranda_method.reset(miranda_list[mir]);
@@ -3378,7 +3327,7 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<mirror::Class>& klass,
           }
           if (miranda_method.get() == NULL) {
             // point the interface table at a phantom slot
-            miranda_method.reset(down_cast<mirror::AbstractMethod*>(interface_method->Clone(self)));
+            miranda_method.reset(down_cast<mirror::ArtMethod*>(interface_method->Clone(self)));
             miranda_list.push_back(miranda_method.get());
           }
           method_array->Set(j, miranda_method.get());
@@ -3390,17 +3339,17 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<mirror::Class>& klass,
     int old_method_count = klass->NumVirtualMethods();
     int new_method_count = old_method_count + miranda_list.size();
     klass->SetVirtualMethods((old_method_count == 0)
-                             ? AllocMethodArray(self, new_method_count)
+                             ? AllocArtMethodArray(self, new_method_count)
                              : klass->GetVirtualMethods()->CopyOf(self, new_method_count));
 
-    SirtRef<mirror::ObjectArray<mirror::AbstractMethod> >
+    SirtRef<mirror::ObjectArray<mirror::ArtMethod> >
         vtable(self, klass->GetVTableDuringLinking());
     CHECK(vtable.get() != NULL);
     int old_vtable_count = vtable->GetLength();
     int new_vtable_count = old_vtable_count + miranda_list.size();
     vtable.reset(vtable->CopyOf(self, new_vtable_count));
     for (size_t i = 0; i < miranda_list.size(); ++i) {
-      mirror::AbstractMethod* method = miranda_list[i];
+      mirror::ArtMethod* method = miranda_list[i];
       // Leave the declaring class alone as type indices are relative to it
       method->SetAccessFlags(method->GetAccessFlags() | kAccMiranda);
       method->SetMethodIndex(0xFFFF & (old_vtable_count + i));
@@ -3411,7 +3360,7 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<mirror::Class>& klass,
     klass->SetVTable(vtable.get());
   }
 
-  mirror::ObjectArray<mirror::AbstractMethod>* vtable = klass->GetVTableDuringLinking();
+  mirror::ObjectArray<mirror::ArtMethod>* vtable = klass->GetVTableDuringLinking();
   for (int i = 0; i < vtable->GetLength(); ++i) {
     CHECK(vtable->Get(i) != NULL);
   }
@@ -3439,7 +3388,7 @@ struct LinkFieldsComparator {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : fh_(fh) {}
   // No thread safety analysis as will be called from STL. Checked lock held in constructor.
-  bool operator()(const mirror::Field* field1, const mirror::Field* field2)
+  bool operator()(const mirror::ArtField* field1, const mirror::ArtField* field2)
       NO_THREAD_SAFETY_ANALYSIS {
     // First come reference fields, then 64-bit, and finally 32-bit
     fh_->ChangeField(field1);
@@ -3471,7 +3420,7 @@ bool ClassLinker::LinkFields(SirtRef<mirror::Class>& klass, bool is_static) {
   size_t num_fields =
       is_static ? klass->NumStaticFields() : klass->NumInstanceFields();
 
-  mirror::ObjectArray<mirror::Field>* fields =
+  mirror::ObjectArray<mirror::ArtField>* fields =
       is_static ? klass->GetSFields() : klass->GetIFields();
 
   // Initialize size and field_offset
@@ -3493,7 +3442,7 @@ bool ClassLinker::LinkFields(SirtRef<mirror::Class>& klass, bool is_static) {
 
   // we want a relatively stable order so that adding new fields
   // minimizes disruption of C++ version such as Class and Method.
-  std::deque<mirror::Field*> grouped_and_sorted_fields;
+  std::deque<mirror::ArtField*> grouped_and_sorted_fields;
   for (size_t i = 0; i < num_fields; i++) {
     grouped_and_sorted_fields.push_back(fields->Get(i));
   }
@@ -3506,7 +3455,7 @@ bool ClassLinker::LinkFields(SirtRef<mirror::Class>& klass, bool is_static) {
   size_t current_field = 0;
   size_t num_reference_fields = 0;
   for (; current_field < num_fields; current_field++) {
-    mirror::Field* field = grouped_and_sorted_fields.front();
+    mirror::ArtField* field = grouped_and_sorted_fields.front();
     fh.ChangeField(field);
     Primitive::Type type = fh.GetTypeAsPrimitiveType();
     bool isPrimitive = type != Primitive::kPrimNot;
@@ -3525,7 +3474,7 @@ bool ClassLinker::LinkFields(SirtRef<mirror::Class>& klass, bool is_static) {
   // into place.  If we can't find one, we'll have to pad it.
   if (current_field != num_fields && !IsAligned<8>(field_offset.Uint32Value())) {
     for (size_t i = 0; i < grouped_and_sorted_fields.size(); i++) {
-      mirror::Field* field = grouped_and_sorted_fields[i];
+      mirror::ArtField* field = grouped_and_sorted_fields[i];
       fh.ChangeField(field);
       Primitive::Type type = fh.GetTypeAsPrimitiveType();
       CHECK(type != Primitive::kPrimNot);  // should only be working on primitive types
@@ -3546,7 +3495,7 @@ bool ClassLinker::LinkFields(SirtRef<mirror::Class>& klass, bool is_static) {
   // finish assigning field offsets to all fields.
   DCHECK(current_field == num_fields || IsAligned<8>(field_offset.Uint32Value()));
   while (!grouped_and_sorted_fields.empty()) {
-    mirror::Field* field = grouped_and_sorted_fields.front();
+    mirror::ArtField* field = grouped_and_sorted_fields.front();
     grouped_and_sorted_fields.pop_front();
     fh.ChangeField(field);
     Primitive::Type type = fh.GetTypeAsPrimitiveType();
@@ -3576,12 +3525,12 @@ bool ClassLinker::LinkFields(SirtRef<mirror::Class>& klass, bool is_static) {
   // non-reference fields, and all double-wide fields are aligned.
   bool seen_non_ref = false;
   for (size_t i = 0; i < num_fields; i++) {
-    mirror::Field* field = fields->Get(i);
+    mirror::ArtField* field = fields->Get(i);
     if (false) {  // enable to debug field layout
       LOG(INFO) << "LinkFields: " << (is_static ? "static" : "instance")
                 << " class=" << PrettyClass(klass.get())
                 << " field=" << PrettyField(field)
-                << " offset=" << field->GetField32(MemberOffset(mirror::Field::OffsetOffset()),
+                << " offset=" << field->GetField32(MemberOffset(mirror::ArtField::OffsetOffset()),
                                                    false);
     }
     fh.ChangeField(field);
@@ -3644,14 +3593,14 @@ void ClassLinker::CreateReferenceOffsets(SirtRef<mirror::Class>& klass, bool is_
   size_t num_reference_fields =
       is_static ? klass->NumReferenceStaticFieldsDuringLinking()
                 : klass->NumReferenceInstanceFieldsDuringLinking();
-  const mirror::ObjectArray<mirror::Field>* fields =
+  const mirror::ObjectArray<mirror::ArtField>* fields =
       is_static ? klass->GetSFields() : klass->GetIFields();
   // All of the fields that contain object references are guaranteed
   // to be at the beginning of the fields list.
   for (size_t i = 0; i < num_reference_fields; ++i) {
     // Note that byte_offset is the offset from the beginning of
     // object, not the offset into instance data
-    const mirror::Field* field = fields->Get(i);
+    const mirror::ArtField* field = fields->Get(i);
     MemberOffset byte_offset = field->GetOffsetDuringLinking();
     CHECK_EQ(byte_offset.Uint32Value() & (CLASS_OFFSET_ALIGNMENT - 1), 0U);
     if (CLASS_CAN_ENCODE_OFFSET(byte_offset.Uint32Value())) {
@@ -3716,15 +3665,15 @@ mirror::Class* ClassLinker::ResolveType(const DexFile& dex_file,
   return resolved;
 }
 
-mirror::AbstractMethod* ClassLinker::ResolveMethod(const DexFile& dex_file,
+mirror::ArtMethod* ClassLinker::ResolveMethod(const DexFile& dex_file,
                                                    uint32_t method_idx,
                                                    mirror::DexCache* dex_cache,
                                                    mirror::ClassLoader* class_loader,
-                                                   const mirror::AbstractMethod* referrer,
+                                                   const mirror::ArtMethod* referrer,
                                                    InvokeType type) {
   DCHECK(dex_cache != NULL);
   // Check for hit in the dex cache.
-  mirror::AbstractMethod* resolved = dex_cache->GetResolvedMethod(method_idx);
+  mirror::ArtMethod* resolved = dex_cache->GetResolvedMethod(method_idx);
   if (resolved != NULL) {
     return resolved;
   }
@@ -3863,13 +3812,13 @@ mirror::AbstractMethod* ClassLinker::ResolveMethod(const DexFile& dex_file,
   }
 }
 
-mirror::Field* ClassLinker::ResolveField(const DexFile& dex_file,
+mirror::ArtField* ClassLinker::ResolveField(const DexFile& dex_file,
                                          uint32_t field_idx,
                                          mirror::DexCache* dex_cache,
                                          mirror::ClassLoader* class_loader,
                                          bool is_static) {
   DCHECK(dex_cache != NULL);
-  mirror::Field* resolved = dex_cache->GetResolvedField(field_idx);
+  mirror::ArtField* resolved = dex_cache->GetResolvedField(field_idx);
   if (resolved != NULL) {
     return resolved;
   }
@@ -3903,12 +3852,12 @@ mirror::Field* ClassLinker::ResolveField(const DexFile& dex_file,
   return resolved;
 }
 
-mirror::Field* ClassLinker::ResolveFieldJLS(const DexFile& dex_file,
+mirror::ArtField* ClassLinker::ResolveFieldJLS(const DexFile& dex_file,
                                             uint32_t field_idx,
                                             mirror::DexCache* dex_cache,
                                             mirror::ClassLoader* class_loader) {
   DCHECK(dex_cache != NULL);
-  mirror::Field* resolved = dex_cache->GetResolvedField(field_idx);
+  mirror::ArtField* resolved = dex_cache->GetResolvedField(field_idx);
   if (resolved != NULL) {
     return resolved;
   }
@@ -3930,7 +3879,7 @@ mirror::Field* ClassLinker::ResolveFieldJLS(const DexFile& dex_file,
   return resolved;
 }
 
-const char* ClassLinker::MethodShorty(uint32_t method_idx, mirror::AbstractMethod* referrer,
+const char* ClassLinker::MethodShorty(uint32_t method_idx, mirror::ArtMethod* referrer,
                                       uint32_t* length) {
   mirror::Class* declaring_class = referrer->GetDeclaringClass();
   mirror::DexCache* dex_cache = declaring_class->GetDexCache();

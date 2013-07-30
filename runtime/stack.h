@@ -28,8 +28,8 @@
 namespace art {
 
 namespace mirror {
-class AbstractMethod;
-class Object;
+  class ArtMethod;
+  class Object;
 }  // namespace mirror
 
 class Context;
@@ -66,7 +66,7 @@ class ShadowFrame {
 
   // Create ShadowFrame in heap for deoptimization.
   static ShadowFrame* Create(uint32_t num_vregs, ShadowFrame* link,
-                             mirror::AbstractMethod* method, uint32_t dex_pc) {
+                             mirror::ArtMethod* method, uint32_t dex_pc) {
     uint8_t* memory = new uint8_t[ComputeSize(num_vregs)];
     ShadowFrame* sf = new (memory) ShadowFrame(num_vregs, link, method, dex_pc, true);
     return sf;
@@ -74,7 +74,7 @@ class ShadowFrame {
 
   // Create ShadowFrame for interpreter using provided memory.
   static ShadowFrame* Create(uint32_t num_vregs, ShadowFrame* link,
-                             mirror::AbstractMethod* method, uint32_t dex_pc, void* memory) {
+                             mirror::ArtMethod* method, uint32_t dex_pc, void* memory) {
     ShadowFrame* sf = new (memory) ShadowFrame(num_vregs, link, method, dex_pc, true);
     return sf;
   }
@@ -195,7 +195,7 @@ class ShadowFrame {
     }
   }
 
-  mirror::AbstractMethod* GetMethod() const {
+  mirror::ArtMethod* GetMethod() const {
     DCHECK_NE(method_, static_cast<void*>(NULL));
     return method_;
   }
@@ -206,7 +206,7 @@ class ShadowFrame {
 
   ThrowLocation GetCurrentLocationForThrow() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetMethod(mirror::AbstractMethod* method) {
+  void SetMethod(mirror::ArtMethod* method) {
 #if defined(ART_USE_PORTABLE_COMPILER)
     DCHECK_NE(method, static_cast<void*>(NULL));
     method_ = method;
@@ -248,7 +248,7 @@ class ShadowFrame {
   }
 
  private:
-  ShadowFrame(uint32_t num_vregs, ShadowFrame* link, mirror::AbstractMethod* method,
+  ShadowFrame(uint32_t num_vregs, ShadowFrame* link, mirror::ArtMethod* method,
               uint32_t dex_pc, bool has_reference_array)
       : number_of_vregs_(num_vregs), link_(link), method_(method), dex_pc_(dex_pc) {
     if (has_reference_array) {
@@ -285,9 +285,9 @@ class ShadowFrame {
   ShadowFrame* link_;
 #if defined(ART_USE_PORTABLE_COMPILER)
   // TODO: make const in the portable case.
-  mirror::AbstractMethod* method_;
+  mirror::ArtMethod* method_;
 #else
-  mirror::AbstractMethod* const method_;
+  mirror::ArtMethod* const method_;
 #endif
   uint32_t dex_pc_;
   uint32_t vregs_[0];
@@ -323,11 +323,11 @@ class PACKED(4) ManagedStack {
     return link_;
   }
 
-  mirror::AbstractMethod** GetTopQuickFrame() const {
+  mirror::ArtMethod** GetTopQuickFrame() const {
     return top_quick_frame_;
   }
 
-  void SetTopQuickFrame(mirror::AbstractMethod** top) {
+  void SetTopQuickFrame(mirror::ArtMethod** top) {
     DCHECK(top_shadow_frame_ == NULL);
     top_quick_frame_ = top;
   }
@@ -385,7 +385,7 @@ class PACKED(4) ManagedStack {
  private:
   ManagedStack* link_;
   ShadowFrame* top_shadow_frame_;
-  mirror::AbstractMethod** top_quick_frame_;
+  mirror::ArtMethod** top_quick_frame_;
   uintptr_t top_quick_frame_pc_;
 };
 
@@ -402,7 +402,7 @@ class StackVisitor {
   void WalkStack(bool include_transitions = false)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::AbstractMethod* GetMethod() const {
+  mirror::ArtMethod* GetMethod() const {
     if (cur_shadow_frame_ != NULL) {
       return cur_shadow_frame_->GetMethod();
     } else if (cur_quick_frame_ != NULL) {
@@ -450,16 +450,16 @@ class StackVisitor {
     return num_frames_;
   }
 
-  uint32_t GetVReg(mirror::AbstractMethod* m, uint16_t vreg, VRegKind kind) const
+  uint32_t GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetVReg(mirror::AbstractMethod* m, uint16_t vreg, uint32_t new_value, VRegKind kind)
+  void SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_value, VRegKind kind)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uintptr_t GetGPR(uint32_t reg) const;
   void SetGPR(uint32_t reg, uintptr_t value);
 
-  uint32_t GetVReg(mirror::AbstractMethod** cur_quick_frame, const DexFile::CodeItem* code_item,
+  uint32_t GetVReg(mirror::ArtMethod** cur_quick_frame, const DexFile::CodeItem* code_item,
                    uint32_t core_spills, uint32_t fp_spills, size_t frame_size,
                    uint16_t vreg) const {
     int offset = GetVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg);
@@ -533,7 +533,7 @@ class StackVisitor {
     return cur_quick_frame_pc_;
   }
 
-  mirror::AbstractMethod** GetCurrentQuickFrame() const {
+  mirror::ArtMethod** GetCurrentQuickFrame() const {
     return cur_quick_frame_;
   }
 
@@ -542,7 +542,7 @@ class StackVisitor {
   }
 
   StackIndirectReferenceTable* GetCurrentSirt() const {
-    mirror::AbstractMethod** sp = GetCurrentQuickFrame();
+    mirror::ArtMethod** sp = GetCurrentQuickFrame();
     ++sp;  // Skip Method*; SIRT comes next;
     return reinterpret_cast<StackIndirectReferenceTable*>(sp);
   }
@@ -560,7 +560,7 @@ class StackVisitor {
 
   Thread* const thread_;
   ShadowFrame* cur_shadow_frame_;
-  mirror::AbstractMethod** cur_quick_frame_;
+  mirror::ArtMethod** cur_quick_frame_;
   uintptr_t cur_quick_frame_pc_;
   // Lazily computed, number of frames in the stack.
   size_t num_frames_;

@@ -20,10 +20,10 @@
 #include "class_linker-inl.h"
 #include "dex_file.h"
 #include "monitor.h"
-#include "mirror/abstract_method.h"
+#include "mirror/art_field.h"
+#include "mirror/art_method.h"
 #include "mirror/class.h"
 #include "mirror/dex_cache.h"
-#include "mirror/field.h"
 #include "mirror/iftable.h"
 #include "mirror/string.h"
 
@@ -256,11 +256,11 @@ class ClassHelper {
 class FieldHelper {
  public:
   FieldHelper() : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), field_(NULL) {}
-  explicit FieldHelper(const mirror::Field* f) : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), field_(f) {}
-  FieldHelper(const mirror::Field* f, ClassLinker* l)
+  explicit FieldHelper(const mirror::ArtField* f) : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), field_(f) {}
+  FieldHelper(const mirror::ArtField* f, ClassLinker* l)
       : class_linker_(l), dex_cache_(NULL), dex_file_(NULL), field_(f) {}
 
-  void ChangeField(const mirror::Field* new_f) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void ChangeField(const mirror::ArtField* new_f) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(new_f != NULL);
     if (dex_cache_ != NULL) {
       mirror::DexCache* new_f_dex_cache = new_f->GetDeclaringClass()->GetDexCache();
@@ -366,7 +366,7 @@ class FieldHelper {
   ClassLinker* class_linker_;
   mirror::DexCache* dex_cache_;
   const DexFile* dex_file_;
-  const mirror::Field* field_;
+  const mirror::ArtField* field_;
   std::string declaring_class_descriptor_;
 
   DISALLOW_COPY_AND_ASSIGN(FieldHelper);
@@ -378,21 +378,21 @@ class MethodHelper {
      : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), method_(NULL), shorty_(NULL),
        shorty_len_(0) {}
 
-  explicit MethodHelper(const mirror::AbstractMethod* m)
+  explicit MethodHelper(const mirror::ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), method_(NULL), shorty_(NULL),
         shorty_len_(0) {
     SetMethod(m);
   }
 
-  MethodHelper(const mirror::AbstractMethod* m, ClassLinker* l)
+  MethodHelper(const mirror::ArtMethod* m, ClassLinker* l)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : class_linker_(l), dex_cache_(NULL), dex_file_(NULL), method_(NULL), shorty_(NULL),
         shorty_len_(0) {
     SetMethod(m);
   }
 
-  void ChangeMethod(mirror::AbstractMethod* new_m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void ChangeMethod(mirror::ArtMethod* new_m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(new_m != NULL);
     if (dex_cache_ != NULL) {
       mirror::Class* klass = new_m->GetDeclaringClass();
@@ -411,7 +411,7 @@ class MethodHelper {
     shorty_ = NULL;
   }
 
-  const mirror::AbstractMethod* GetMethod() const {
+  const mirror::ArtMethod* GetMethod() const {
     return method_;
   }
 
@@ -653,11 +653,11 @@ class MethodHelper {
  private:
   // Set the method_ field, for proxy methods looking up the interface method via the resolved
   // methods table.
-  void SetMethod(const mirror::AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void SetMethod(const mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (method != NULL) {
       mirror::Class* klass = method->GetDeclaringClass();
       if (UNLIKELY(klass->IsProxyClass())) {
-        mirror::AbstractMethod* interface_method =
+        mirror::ArtMethod* interface_method =
             method->GetDexCacheResolvedMethods()->Get(method->GetDexMethodIndex());
         DCHECK(interface_method != NULL);
         DCHECK(interface_method == GetClassLinker()->FindMethodForProxy(klass, method));
@@ -679,7 +679,7 @@ class MethodHelper {
   ClassLinker* class_linker_;
   mirror::DexCache* dex_cache_;
   const DexFile* dex_file_;
-  const mirror::AbstractMethod* method_;
+  const mirror::ArtMethod* method_;
   const char* shorty_;
   uint32_t shorty_len_;
 

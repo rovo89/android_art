@@ -16,17 +16,17 @@
 
 #include "callee_save_frame.h"
 #include "instrumentation.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/object-inl.h"
 #include "runtime.h"
 #include "thread-inl.h"
 
 namespace art {
 
-extern "C" const void* artInstrumentationMethodEntryFromCode(mirror::AbstractMethod* method,
+extern "C" const void* artInstrumentationMethodEntryFromCode(mirror::ArtMethod* method,
                                                              mirror::Object* this_object,
                                                              Thread* self,
-                                                             mirror::AbstractMethod** sp,
+                                                             mirror::ArtMethod** sp,
                                                              uintptr_t lr)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);
@@ -39,7 +39,7 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(mirror::AbstractMet
   return result;
 }
 
-extern "C" uint64_t artInstrumentationMethodExitFromCode(Thread* self, mirror::AbstractMethod** sp,
+extern "C" uint64_t artInstrumentationMethodExitFromCode(Thread* self, mirror::ArtMethod** sp,
                                                          uint64_t gpr_result, uint64_t fpr_result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // TODO: use FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly) not the hand inlined below.
@@ -47,7 +47,7 @@ extern "C" uint64_t artInstrumentationMethodExitFromCode(Thread* self, mirror::A
   //       stack.
   // Be aware the store below may well stomp on an incoming argument.
   Locks::mutator_lock_->AssertSharedHeld(self);
-  mirror::AbstractMethod* callee_save = Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsOnly);
+  mirror::ArtMethod* callee_save = Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsOnly);
   *sp = callee_save;
   uintptr_t* return_pc = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp) +
                                                       callee_save->GetReturnPcOffsetInBytes());

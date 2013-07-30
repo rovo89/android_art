@@ -33,8 +33,8 @@
 #include "driver/compiler_driver.h"
 #include "elf_file.h"
 #include "globals.h"
-#include "mirror/abstract_method.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_method.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/object-inl.h"
 #include "oat_writer.h"
 #include "scoped_thread_state_change.h"
@@ -353,7 +353,7 @@ void ElfWriterMclinker::FixupOatMethodOffsets(const std::vector<const DexFile*>&
     const DexFile& dex_file = it.GetDexFile();
     uint32_t method_idx = it.GetMemberIndex();
     InvokeType invoke_type = it.GetInvokeType();
-    mirror::AbstractMethod* method = NULL;
+    mirror::ArtMethod* method = NULL;
     if (compiler_driver_->IsImage()) {
       ClassLinker* linker = Runtime::Current()->GetClassLinker();
       mirror::DexCache* dex_cache = linker->FindDexCache(dex_file);

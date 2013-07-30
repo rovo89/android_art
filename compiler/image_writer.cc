@@ -35,12 +35,12 @@
 #include "globals.h"
 #include "image.h"
 #include "intern_table.h"
+#include "mirror/art_field-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache-inl.h"
-#include "mirror/field-inl.h"
-#include "mirror/abstract_method-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "oat.h"
@@ -52,11 +52,11 @@
 #include "UniquePtr.h"
 #include "utils.h"
 
-using ::art::mirror::AbstractMethod;
+using ::art::mirror::ArtField;
+using ::art::mirror::ArtMethod;
 using ::art::mirror::Class;
 using ::art::mirror::DexCache;
 using ::art::mirror::EntryPointFromInterpreter;
-using ::art::mirror::Field;
 using ::art::mirror::Object;
 using ::art::mirror::ObjectArray;
 using ::art::mirror::String;
@@ -257,7 +257,7 @@ void ImageWriter::PruneNonImageClasses() {
   }
 
   // Clear references to removed classes from the DexCaches.
-  AbstractMethod* resolution_method = runtime->GetResolutionMethod();
+  ArtMethod* resolution_method = runtime->GetResolutionMethod();
   typedef Set::const_iterator CacheIt;  // TODO: C++0x auto
   for (CacheIt it = dex_caches_.begin(), end = dex_caches_.end(); it != end; ++it) {
     DexCache* dex_cache = *it;
@@ -269,13 +269,13 @@ void ImageWriter::PruneNonImageClasses() {
       }
     }
     for (size_t i = 0; i < dex_cache->NumResolvedMethods(); i++) {
-      AbstractMethod* method = dex_cache->GetResolvedMethod(i);
+      ArtMethod* method = dex_cache->GetResolvedMethod(i);
       if (method != NULL && !IsImageClass(method->GetDeclaringClass())) {
         dex_cache->SetResolvedMethod(i, resolution_method);
       }
     }
     for (size_t i = 0; i < dex_cache->NumResolvedFields(); i++) {
-      Field* field = dex_cache->GetResolvedField(i);
+      ArtField* field = dex_cache->GetResolvedField(i);
       if (field != NULL && !IsImageClass(field->GetDeclaringClass())) {
         dex_cache->SetResolvedField(i, NULL);
       }
@@ -487,8 +487,8 @@ void ImageWriter::FixupObject(const Object* orig, Object* copy) {
     FixupClass(orig->AsClass(), down_cast<Class*>(copy));
   } else if (orig->IsObjectArray()) {
     FixupObjectArray(orig->AsObjectArray<Object>(), down_cast<ObjectArray<Object>*>(copy));
-  } else if (orig->IsMethod()) {
-    FixupMethod(orig->AsMethod(), down_cast<AbstractMethod*>(copy));
+  } else if (orig->IsArtMethod()) {
+    FixupMethod(orig->AsArtMethod(), down_cast<ArtMethod*>(copy));
   } else {
     FixupInstanceFields(orig, copy);
   }
@@ -499,7 +499,7 @@ void ImageWriter::FixupClass(const Class* orig, Class* copy) {
   FixupStaticFields(orig, copy);
 }
 
-void ImageWriter::FixupMethod(const AbstractMethod* orig, AbstractMethod* copy) {
+void ImageWriter::FixupMethod(const ArtMethod* orig, ArtMethod* copy) {
   FixupInstanceFields(orig, copy);
 
   // OatWriter replaces the code_ with an offset value. Here we re-adjust to a pointer relative to
@@ -614,9 +614,9 @@ void ImageWriter::FixupFields(const Object* orig,
                                      ? klass->NumReferenceStaticFields()
                                      : klass->NumReferenceInstanceFields());
       for (size_t i = 0; i < num_reference_fields; ++i) {
-        Field* field = (is_static
-                        ? klass->GetStaticField(i)
-                        : klass->GetInstanceField(i));
+        ArtField* field = (is_static
+                           ? klass->GetStaticField(i)
+                           : klass->GetInstanceField(i));
         MemberOffset field_offset = field->GetOffset();
         const Object* ref = orig->GetFieldObject<const Object*>(field_offset, false);
         // Use SetFieldPtr to avoid card marking since we are writing to the image.
@@ -626,7 +626,7 @@ void ImageWriter::FixupFields(const Object* orig,
   }
   if (!is_static && orig->IsReferenceInstance()) {
     // Fix-up referent, that isn't marked as an object field, for References.
-    Field* field = orig->GetClass()->FindInstanceField("referent", "Ljava/lang/Object;");
+    ArtField* field = orig->GetClass()->FindInstanceField("referent", "Ljava/lang/Object;");
     MemberOffset field_offset = field->GetOffset();
     const Object* ref = orig->GetFieldObject<const Object*>(field_offset, false);
     // Use SetFieldPtr to avoid card marking since we are writing to the image.
@@ -634,16 +634,16 @@ void ImageWriter::FixupFields(const Object* orig,
   }
 }
 
-static AbstractMethod* GetTargetMethod(const CompilerDriver::PatchInformation* patch)
+static ArtMethod* GetTargetMethod(const CompilerDriver::PatchInformation* patch)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   DexCache* dex_cache = class_linker->FindDexCache(patch->GetDexFile());
-  AbstractMethod* method = class_linker->ResolveMethod(patch->GetDexFile(),
-                                               patch->GetTargetMethodIdx(),
-                                               dex_cache,
-                                               NULL,
-                                               NULL,
-                                               patch->GetTargetInvokeType());
+  ArtMethod* method = class_linker->ResolveMethod(patch->GetDexFile(),
+                                                  patch->GetTargetMethodIdx(),
+                                                  dex_cache,
+                                                  NULL,
+                                                  NULL,
+                                                  patch->GetTargetInvokeType());
   CHECK(method != NULL)
     << patch->GetDexFile().GetLocation() << " " << patch->GetTargetMethodIdx();
   CHECK(!method->IsRuntimeMethod())
@@ -664,7 +664,7 @@ void ImageWriter::PatchOatCodeAndMethods() {
   const Patches& code_to_patch = compiler_driver_.GetCodeToPatch();
   for (size_t i = 0; i < code_to_patch.size(); i++) {
     const CompilerDriver::PatchInformation* patch = code_to_patch[i];
-    AbstractMethod* target = GetTargetMethod(patch);
+    ArtMethod* target = GetTargetMethod(patch);
     uint32_t code = reinterpret_cast<uint32_t>(class_linker->GetOatCodeFor(target));
     uint32_t code_base = reinterpret_cast<uint32_t>(&oat_file_->GetOatHeader());
     uint32_t code_offset = code - code_base;
@@ -674,7 +674,7 @@ void ImageWriter::PatchOatCodeAndMethods() {
   const Patches& methods_to_patch = compiler_driver_.GetMethodsToPatch();
   for (size_t i = 0; i < methods_to_patch.size(); i++) {
     const CompilerDriver::PatchInformation* patch = methods_to_patch[i];
-    AbstractMethod* target = GetTargetMethod(patch);
+    ArtMethod* target = GetTargetMethod(patch);
     SetPatchLocation(patch, reinterpret_cast<uint32_t>(GetImageAddress(target)));
   }
 

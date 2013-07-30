@@ -20,8 +20,8 @@
 #include "gc/collector/mark_sweep.h"
 
 #include "gc/heap.h"
+#include "mirror/art_field.h"
 #include "mirror/class.h"
-#include "mirror/field.h"
 #include "mirror/object_array.h"
 
 namespace art {
@@ -136,8 +136,8 @@ inline void MarkSweep::VisitFieldsReferences(const mirror::Object* obj, uint32_t
                                      ? klass->NumReferenceStaticFields()
                                      : klass->NumReferenceInstanceFields());
       for (size_t i = 0; i < num_reference_fields; ++i) {
-        mirror::Field* field = (is_static ? klass->GetStaticField(i)
-                                          : klass->GetInstanceField(i));
+        mirror::ArtField* field = (is_static ? klass->GetStaticField(i)
+                                   : klass->GetInstanceField(i));
         MemberOffset field_offset = field->GetOffset();
         const mirror::Object* ref = obj->GetFieldObject<const mirror::Object*>(field_offset, false);
         visitor(obj, ref, field_offset, is_static);

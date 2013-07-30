@@ -22,9 +22,9 @@
 #include "base/unix_file/fd_file.h"
 #include "elf_file.h"
 #include "oat.h"
+#include "mirror/art_method.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class.h"
-#include "mirror/abstract_method.h"
-#include "mirror/abstract_method-inl.h"
 #include "mirror/object-inl.h"
 #include "os.h"
 #include "utils.h"
@@ -453,7 +453,7 @@ uint32_t OatFile::OatMethod::GetCodeSize() const {
 #endif
 }
 
-void OatFile::OatMethod::LinkMethod(mirror::AbstractMethod* method) const {
+void OatFile::OatMethod::LinkMethod(mirror::ArtMethod* method) const {
   CHECK(method != NULL);
   method->SetEntryPointFromCompiledCode(GetCode());
   method->SetFrameSizeInBytes(frame_size_in_bytes_);

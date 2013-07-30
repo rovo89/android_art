@@ -16,7 +16,7 @@
 
 #include "dex_cache.h"
 
-#include "abstract_method-inl.h"
+#include "art_method-inl.h"
 #include "base/logging.h"
 #include "class_linker.h"
 #include "gc/accounting/card_table-inl.h"
@@ -35,8 +35,8 @@ void DexCache::Init(const DexFile* dex_file,
                     String* location,
                     ObjectArray<String>* strings,
                     ObjectArray<Class>* resolved_types,
-                    ObjectArray<AbstractMethod>* resolved_methods,
-                    ObjectArray<Field>* resolved_fields,
+                    ObjectArray<ArtMethod>* resolved_methods,
+                    ObjectArray<ArtField>* resolved_fields,
                     ObjectArray<StaticStorageBase>* initialized_static_storage) {
   CHECK(dex_file != NULL);
   CHECK(location != NULL);
@@ -58,7 +58,7 @@ void DexCache::Init(const DexFile* dex_file,
   Runtime* runtime = Runtime::Current();
   if (runtime->HasResolutionMethod()) {
     // Initialize the resolve methods array to contain trampolines for resolution.
-    AbstractMethod* trampoline = runtime->GetResolutionMethod();
+    ArtMethod* trampoline = runtime->GetResolutionMethod();
     size_t length = resolved_methods->GetLength();
     for (size_t i = 0; i < length; i++) {
       resolved_methods->SetWithoutChecks(i, trampoline);
@@ -66,10 +66,10 @@ void DexCache::Init(const DexFile* dex_file,
   }
 }
 
-void DexCache::Fixup(AbstractMethod* trampoline) {
+void DexCache::Fixup(ArtMethod* trampoline) {
   // Fixup the resolve methods array to contain trampoline for resolution.
   CHECK(trampoline != NULL);
-  ObjectArray<AbstractMethod>* resolved_methods = GetResolvedMethods();
+  ObjectArray<ArtMethod>* resolved_methods = GetResolvedMethods();
   size_t length = resolved_methods->GetLength();
   for (size_t i = 0; i < length; i++) {
     if (resolved_methods->GetWithoutChecks(i) == NULL) {

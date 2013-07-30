@@ -20,10 +20,10 @@
 #include "dex_instruction-inl.h"
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_field-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
-#include "mirror/field-inl.h"
 
 namespace art {
 namespace optimizer {

@@ -32,8 +32,11 @@ jclass WellKnownClasses::java_lang_ClassNotFoundException;
 jclass WellKnownClasses::java_lang_Daemons;
 jclass WellKnownClasses::java_lang_Error;
 jclass WellKnownClasses::java_lang_Object;
-jclass WellKnownClasses::java_lang_reflect_InvocationHandler;
 jclass WellKnownClasses::java_lang_reflect_AbstractMethod;
+jclass WellKnownClasses::java_lang_reflect_ArtMethod;
+jclass WellKnownClasses::java_lang_reflect_Constructor;
+jclass WellKnownClasses::java_lang_reflect_Field;
+jclass WellKnownClasses::java_lang_reflect_Method;
 jclass WellKnownClasses::java_lang_reflect_Proxy;
 jclass WellKnownClasses::java_lang_RuntimeException;
 jclass WellKnownClasses::java_lang_StackOverflowError;
@@ -61,7 +64,7 @@ jmethodID WellKnownClasses::java_lang_Integer_valueOf;
 jmethodID WellKnownClasses::java_lang_Long_valueOf;
 jmethodID WellKnownClasses::java_lang_ref_FinalizerReference_add;
 jmethodID WellKnownClasses::java_lang_ref_ReferenceQueue_add;
-jmethodID WellKnownClasses::java_lang_reflect_InvocationHandler_invoke;
+jmethodID WellKnownClasses::java_lang_reflect_Proxy_invoke;
 jmethodID WellKnownClasses::java_lang_Runtime_nativeLoad;
 jmethodID WellKnownClasses::java_lang_Short_valueOf;
 jmethodID WellKnownClasses::java_lang_System_runFinalization = NULL;
@@ -83,6 +86,8 @@ jfieldID WellKnownClasses::java_lang_Thread_nativePeer;
 jfieldID WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup;
 jfieldID WellKnownClasses::java_lang_ThreadGroup_name;
 jfieldID WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup;
+jfieldID WellKnownClasses::java_lang_reflect_AbstractMethod_artMethod;
+jfieldID WellKnownClasses::java_lang_reflect_Field_artField;
 jfieldID WellKnownClasses::java_lang_reflect_Proxy_h;
 jfieldID WellKnownClasses::java_nio_DirectByteBuffer_capacity;
 jfieldID WellKnownClasses::java_nio_DirectByteBuffer_effectiveDirectAddress;
@@ -121,7 +126,7 @@ static jmethodID CachePrimitiveBoxingMethod(JNIEnv* env, char prim_name, const c
                      StringPrintf("(%c)L%s;", prim_name, boxed_name).c_str());
 }
 
-void WellKnownClasses::InitClasses(JNIEnv* env) {
+void WellKnownClasses::Init(JNIEnv* env) {
   com_android_dex_Dex = CacheClass(env, "com/android/dex/Dex");
   dalvik_system_PathClassLoader = CacheClass(env, "dalvik/system/PathClassLoader");
   java_lang_ClassLoader = CacheClass(env, "java/lang/ClassLoader");
@@ -129,8 +134,11 @@ void WellKnownClasses::InitClasses(JNIEnv* env) {
   java_lang_Daemons = CacheClass(env, "java/lang/Daemons");
   java_lang_Object = CacheClass(env, "java/lang/Object");
   java_lang_Error = CacheClass(env, "java/lang/Error");
-  java_lang_reflect_InvocationHandler = CacheClass(env, "java/lang/reflect/InvocationHandler");
   java_lang_reflect_AbstractMethod = CacheClass(env, "java/lang/reflect/AbstractMethod");
+  java_lang_reflect_ArtMethod = CacheClass(env, "java/lang/reflect/ArtMethod");
+  java_lang_reflect_Constructor = CacheClass(env, "java/lang/reflect/Constructor");
+  java_lang_reflect_Field = CacheClass(env, "java/lang/reflect/Field");
+  java_lang_reflect_Method = CacheClass(env, "java/lang/reflect/Method");
   java_lang_reflect_Proxy = CacheClass(env, "java/lang/reflect/Proxy");
   java_lang_RuntimeException = CacheClass(env, "java/lang/RuntimeException");
   java_lang_StackOverflowError = CacheClass(env, "java/lang/StackOverflowError");
@@ -142,10 +150,6 @@ void WellKnownClasses::InitClasses(JNIEnv* env) {
   java_nio_DirectByteBuffer = CacheClass(env, "java/nio/DirectByteBuffer");
   org_apache_harmony_dalvik_ddmc_Chunk = CacheClass(env, "org/apache/harmony/dalvik/ddmc/Chunk");
   org_apache_harmony_dalvik_ddmc_DdmServer = CacheClass(env, "org/apache/harmony/dalvik/ddmc/DdmServer");
-}
-
-void WellKnownClasses::Init(JNIEnv* env) {
-  InitClasses(env);
 
   com_android_dex_Dex_create = CacheMethod(env, com_android_dex_Dex, true, "create", "(Ljava/nio/ByteBuffer;)Lcom/android/dex/Dex;");
   java_lang_ClassNotFoundException_init = CacheMethod(env, java_lang_ClassNotFoundException, false, "<init>", "(Ljava/lang/String;Ljava/lang/Throwable;)V");
@@ -160,7 +164,7 @@ void WellKnownClasses::Init(JNIEnv* env) {
   ScopedLocalRef<jclass> java_lang_ref_ReferenceQueue(env, env->FindClass("java/lang/ref/ReferenceQueue"));
   java_lang_ref_ReferenceQueue_add = CacheMethod(env, java_lang_ref_ReferenceQueue.get(), true, "add", "(Ljava/lang/ref/Reference;)V");
 
-  java_lang_reflect_InvocationHandler_invoke = CacheMethod(env, java_lang_reflect_InvocationHandler, false, "invoke", "(Ljava/lang/Object;Ljava/lang/reflect/Method;[Ljava/lang/Object;)Ljava/lang/Object;");
+  java_lang_reflect_Proxy_invoke = CacheMethod(env, java_lang_reflect_Proxy, true, "invoke", "(Ljava/lang/reflect/Proxy;Ljava/lang/reflect/ArtMethod;[Ljava/lang/Object;)Ljava/lang/Object;");
   java_lang_Thread_init = CacheMethod(env, java_lang_Thread, false, "<init>", "(Ljava/lang/ThreadGroup;Ljava/lang/String;IZ)V");
   java_lang_Thread_run = CacheMethod(env, java_lang_Thread, false, "run", "()V");
   java_lang_Thread$UncaughtExceptionHandler_uncaughtException = CacheMethod(env, java_lang_Thread$UncaughtExceptionHandler, false, "uncaughtException", "(Ljava/lang/Thread;Ljava/lang/Throwable;)V");
@@ -179,6 +183,8 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_ThreadGroup_mainThreadGroup = CacheField(env, java_lang_ThreadGroup, true, "mainThreadGroup", "Ljava/lang/ThreadGroup;");
   java_lang_ThreadGroup_name = CacheField(env, java_lang_ThreadGroup, false, "name", "Ljava/lang/String;");
   java_lang_ThreadGroup_systemThreadGroup = CacheField(env, java_lang_ThreadGroup, true, "systemThreadGroup", "Ljava/lang/ThreadGroup;");
+  java_lang_reflect_AbstractMethod_artMethod = CacheField(env, java_lang_reflect_AbstractMethod, false, "artMethod", "Ljava/lang/reflect/ArtMethod;");
+  java_lang_reflect_Field_artField = CacheField(env, java_lang_reflect_Field, false, "artField", "Ljava/lang/reflect/ArtField;");
   java_lang_reflect_Proxy_h = CacheField(env, java_lang_reflect_Proxy, false, "h", "Ljava/lang/reflect/InvocationHandler;");
   java_nio_DirectByteBuffer_capacity = CacheField(env, java_nio_DirectByteBuffer, false, "capacity", "I");
   java_nio_DirectByteBuffer_effectiveDirectAddress = CacheField(env, java_nio_DirectByteBuffer, false, "effectiveDirectAddress", "J");

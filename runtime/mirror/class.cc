@@ -16,13 +16,13 @@
 
 #include "class.h"
 
-#include "abstract_method-inl.h"
+#include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "class-inl.h"
 #include "class_linker.h"
 #include "class_loader.h"
 #include "dex_cache.h"
 #include "dex_file-inl.h"
-#include "field-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "object-inl.h"
 #include "object_array-inl.h"
@@ -63,7 +63,7 @@ void Class::SetStatus(Status new_status) {
     // Stash current exception.
     Thread* self = Thread::Current();
     SirtRef<mirror::Object> old_throw_this_object(self, NULL);
-    SirtRef<mirror::AbstractMethod> old_throw_method(self, NULL);
+    SirtRef<mirror::ArtMethod> old_throw_method(self, NULL);
     SirtRef<mirror::Throwable> old_exception(self, NULL);
     uint32_t old_throw_dex_pc;
     {
@@ -316,24 +316,23 @@ bool Class::IsThrowableClass() const {
   return WellKnownClasses::ToClass(WellKnownClasses::java_lang_Throwable)->IsAssignableFrom(this);
 }
 
-bool Class::IsFieldClass() const {
+bool Class::IsArtFieldClass() const {
   Class* java_lang_Class = GetClass();
-  Class* java_lang_reflect_Field = java_lang_Class->GetInstanceField(0)->GetClass();
-  return this == java_lang_reflect_Field;
+  Class* java_lang_reflect_ArtField = java_lang_Class->GetInstanceField(0)->GetClass();
+  return this == java_lang_reflect_ArtField;
 }
 
-bool Class::IsMethodClass() const {
-  return (this == AbstractMethod::GetMethodClass()) ||
-          (this == AbstractMethod::GetConstructorClass());
+bool Class::IsArtMethodClass() const {
+  return this == ArtMethod::GetJavaLangReflectArtMethod();
 }
 
 void Class::SetClassLoader(ClassLoader* new_class_loader) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), new_class_loader, false);
 }
 
-AbstractMethod* Class::FindInterfaceMethod(const StringPiece& name, const StringPiece& signature) const {
+ArtMethod* Class::FindInterfaceMethod(const StringPiece& name, const StringPiece& signature) const {
   // Check the current class before checking the interfaces.
-  AbstractMethod* method = FindDeclaredVirtualMethod(name, signature);
+  ArtMethod* method = FindDeclaredVirtualMethod(name, signature);
   if (method != NULL) {
     return method;
   }
@@ -349,9 +348,9 @@ AbstractMethod* Class::FindInterfaceMethod(const StringPiece& name, const String
   return NULL;
 }
 
-AbstractMethod* Class::FindInterfaceMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
+ArtMethod* Class::FindInterfaceMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
   // Check the current class before checking the interfaces.
-  AbstractMethod* method = FindDeclaredVirtualMethod(dex_cache, dex_method_idx);
+  ArtMethod* method = FindDeclaredVirtualMethod(dex_cache, dex_method_idx);
   if (method != NULL) {
     return method;
   }
@@ -368,10 +367,10 @@ AbstractMethod* Class::FindInterfaceMethod(const DexCache* dex_cache, uint32_t d
 }
 
 
-AbstractMethod* Class::FindDeclaredDirectMethod(const StringPiece& name, const StringPiece& signature) const {
+ArtMethod* Class::FindDeclaredDirectMethod(const StringPiece& name, const StringPiece& signature) const {
   MethodHelper mh;
   for (size_t i = 0; i < NumDirectMethods(); ++i) {
-    AbstractMethod* method = GetDirectMethod(i);
+    ArtMethod* method = GetDirectMethod(i);
     mh.ChangeMethod(method);
     if (name == mh.GetName() && signature == mh.GetSignature()) {
       return method;
@@ -380,10 +379,10 @@ AbstractMethod* Class::FindDeclaredDirectMethod(const StringPiece& name, const S
   return NULL;
 }
 
-AbstractMethod* Class::FindDeclaredDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
+ArtMethod* Class::FindDeclaredDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
   if (GetDexCache() == dex_cache) {
     for (size_t i = 0; i < NumDirectMethods(); ++i) {
-      AbstractMethod* method = GetDirectMethod(i);
+      ArtMethod* method = GetDirectMethod(i);
       if (method->GetDexMethodIndex() == dex_method_idx) {
         return method;
       }
@@ -392,9 +391,9 @@ AbstractMethod* Class::FindDeclaredDirectMethod(const DexCache* dex_cache, uint3
   return NULL;
 }
 
-AbstractMethod* Class::FindDirectMethod(const StringPiece& name, const StringPiece& signature) const {
+ArtMethod* Class::FindDirectMethod(const StringPiece& name, const StringPiece& signature) const {
   for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
-    AbstractMethod* method = klass->FindDeclaredDirectMethod(name, signature);
+    ArtMethod* method = klass->FindDeclaredDirectMethod(name, signature);
     if (method != NULL) {
       return method;
     }
@@ -402,9 +401,9 @@ AbstractMethod* Class::FindDirectMethod(const StringPiece& name, const StringPie
   return NULL;
 }
 
-AbstractMethod* Class::FindDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
+ArtMethod* Class::FindDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
   for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
-    AbstractMethod* method = klass->FindDeclaredDirectMethod(dex_cache, dex_method_idx);
+    ArtMethod* method = klass->FindDeclaredDirectMethod(dex_cache, dex_method_idx);
     if (method != NULL) {
       return method;
     }
@@ -412,11 +411,11 @@ AbstractMethod* Class::FindDirectMethod(const DexCache* dex_cache, uint32_t dex_
   return NULL;
 }
 
-AbstractMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name,
+ArtMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name,
                                          const StringPiece& signature) const {
   MethodHelper mh;
   for (size_t i = 0; i < NumVirtualMethods(); ++i) {
-    AbstractMethod* method = GetVirtualMethod(i);
+    ArtMethod* method = GetVirtualMethod(i);
     mh.ChangeMethod(method);
     if (name == mh.GetName() && signature == mh.GetSignature()) {
       return method;
@@ -425,10 +424,10 @@ AbstractMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name,
   return NULL;
 }
 
-AbstractMethod* Class::FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
+ArtMethod* Class::FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
   if (GetDexCache() == dex_cache) {
     for (size_t i = 0; i < NumVirtualMethods(); ++i) {
-      AbstractMethod* method = GetVirtualMethod(i);
+      ArtMethod* method = GetVirtualMethod(i);
       if (method->GetDexMethodIndex() == dex_method_idx) {
         return method;
       }
@@ -437,9 +436,9 @@ AbstractMethod* Class::FindDeclaredVirtualMethod(const DexCache* dex_cache, uint
   return NULL;
 }
 
-AbstractMethod* Class::FindVirtualMethod(const StringPiece& name, const StringPiece& signature) const {
+ArtMethod* Class::FindVirtualMethod(const StringPiece& name, const StringPiece& signature) const {
   for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
-    AbstractMethod* method = klass->FindDeclaredVirtualMethod(name, signature);
+    ArtMethod* method = klass->FindDeclaredVirtualMethod(name, signature);
     if (method != NULL) {
       return method;
     }
@@ -447,9 +446,9 @@ AbstractMethod* Class::FindVirtualMethod(const StringPiece& name, const StringPi
   return NULL;
 }
 
-AbstractMethod* Class::FindVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
+ArtMethod* Class::FindVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
   for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
-    AbstractMethod* method = klass->FindDeclaredVirtualMethod(dex_cache, dex_method_idx);
+    ArtMethod* method = klass->FindDeclaredVirtualMethod(dex_cache, dex_method_idx);
     if (method != NULL) {
       return method;
     }
@@ -457,12 +456,12 @@ AbstractMethod* Class::FindVirtualMethod(const DexCache* dex_cache, uint32_t dex
   return NULL;
 }
 
-Field* Class::FindDeclaredInstanceField(const StringPiece& name, const StringPiece& type) {
+ArtField* Class::FindDeclaredInstanceField(const StringPiece& name, const StringPiece& type) {
   // Is the field in this class?
   // Interfaces are not relevant because they can't contain instance fields.
   FieldHelper fh;
   for (size_t i = 0; i < NumInstanceFields(); ++i) {
-    Field* f = GetInstanceField(i);
+    ArtField* f = GetInstanceField(i);
     fh.ChangeField(f);
     if (name == fh.GetName() && type == fh.GetTypeDescriptor()) {
       return f;
@@ -471,10 +470,10 @@ Field* Class::FindDeclaredInstanceField(const StringPiece& name, const StringPie
   return NULL;
 }
 
-Field* Class::FindDeclaredInstanceField(const DexCache* dex_cache, uint32_t dex_field_idx) {
+ArtField* Class::FindDeclaredInstanceField(const DexCache* dex_cache, uint32_t dex_field_idx) {
   if (GetDexCache() == dex_cache) {
     for (size_t i = 0; i < NumInstanceFields(); ++i) {
-      Field* f = GetInstanceField(i);
+      ArtField* f = GetInstanceField(i);
       if (f->GetDexFieldIndex() == dex_field_idx) {
         return f;
       }
@@ -483,11 +482,11 @@ Field* Class::FindDeclaredInstanceField(const DexCache* dex_cache, uint32_t dex_
   return NULL;
 }
 
-Field* Class::FindInstanceField(const StringPiece& name, const StringPiece& type) {
+ArtField* Class::FindInstanceField(const StringPiece& name, const StringPiece& type) {
   // Is the field in this class, or any of its superclasses?
   // Interfaces are not relevant because they can't contain instance fields.
   for (Class* c = this; c != NULL; c = c->GetSuperClass()) {
-    Field* f = c->FindDeclaredInstanceField(name, type);
+    ArtField* f = c->FindDeclaredInstanceField(name, type);
     if (f != NULL) {
       return f;
     }
@@ -495,11 +494,11 @@ Field* Class::FindInstanceField(const StringPiece& name, const StringPiece& type
   return NULL;
 }
 
-Field* Class::FindInstanceField(const DexCache* dex_cache, uint32_t dex_field_idx) {
+ArtField* Class::FindInstanceField(const DexCache* dex_cache, uint32_t dex_field_idx) {
   // Is the field in this class, or any of its superclasses?
   // Interfaces are not relevant because they can't contain instance fields.
   for (Class* c = this; c != NULL; c = c->GetSuperClass()) {
-    Field* f = c->FindDeclaredInstanceField(dex_cache, dex_field_idx);
+    ArtField* f = c->FindDeclaredInstanceField(dex_cache, dex_field_idx);
     if (f != NULL) {
       return f;
     }
@@ -507,11 +506,11 @@ Field* Class::FindInstanceField(const DexCache* dex_cache, uint32_t dex_field_id
   return NULL;
 }
 
-Field* Class::FindDeclaredStaticField(const StringPiece& name, const StringPiece& type) {
+ArtField* Class::FindDeclaredStaticField(const StringPiece& name, const StringPiece& type) {
   DCHECK(type != NULL);
   FieldHelper fh;
   for (size_t i = 0; i < NumStaticFields(); ++i) {
-    Field* f = GetStaticField(i);
+    ArtField* f = GetStaticField(i);
     fh.ChangeField(f);
     if (name == fh.GetName() && type == fh.GetTypeDescriptor()) {
       return f;
@@ -520,10 +519,10 @@ Field* Class::FindDeclaredStaticField(const StringPiece& name, const StringPiece
   return NULL;
 }
 
-Field* Class::FindDeclaredStaticField(const DexCache* dex_cache, uint32_t dex_field_idx) {
+ArtField* Class::FindDeclaredStaticField(const DexCache* dex_cache, uint32_t dex_field_idx) {
   if (dex_cache == GetDexCache()) {
     for (size_t i = 0; i < NumStaticFields(); ++i) {
-      Field* f = GetStaticField(i);
+      ArtField* f = GetStaticField(i);
       if (f->GetDexFieldIndex() == dex_field_idx) {
         return f;
       }
@@ -532,13 +531,13 @@ Field* Class::FindDeclaredStaticField(const DexCache* dex_cache, uint32_t dex_fi
   return NULL;
 }
 
-Field* Class::FindStaticField(const StringPiece& name, const StringPiece& type) {
+ArtField* Class::FindStaticField(const StringPiece& name, const StringPiece& type) {
   // Is the field in this class (or its interfaces), or any of its
   // superclasses (or their interfaces)?
   ClassHelper kh;
   for (Class* k = this; k != NULL; k = k->GetSuperClass()) {
     // Is the field in this class?
-    Field* f = k->FindDeclaredStaticField(name, type);
+    ArtField* f = k->FindDeclaredStaticField(name, type);
     if (f != NULL) {
       return f;
     }
@@ -555,11 +554,11 @@ Field* Class::FindStaticField(const StringPiece& name, const StringPiece& type) 
   return NULL;
 }
 
-Field* Class::FindStaticField(const DexCache* dex_cache, uint32_t dex_field_idx) {
+ArtField* Class::FindStaticField(const DexCache* dex_cache, uint32_t dex_field_idx) {
   ClassHelper kh;
   for (Class* k = this; k != NULL; k = k->GetSuperClass()) {
     // Is the field in this class?
-    Field* f = k->FindDeclaredStaticField(dex_cache, dex_field_idx);
+    ArtField* f = k->FindDeclaredStaticField(dex_cache, dex_field_idx);
     if (f != NULL) {
       return f;
     }
@@ -576,12 +575,12 @@ Field* Class::FindStaticField(const DexCache* dex_cache, uint32_t dex_field_idx)
   return NULL;
 }
 
-Field* Class::FindField(const StringPiece& name, const StringPiece& type) {
+ArtField* Class::FindField(const StringPiece& name, const StringPiece& type) {
   // Find a field using the JLS field resolution order
   ClassHelper kh;
   for (Class* k = this; k != NULL; k = k->GetSuperClass()) {
     // Is the field in this class?
-    Field* f = k->FindDeclaredInstanceField(name, type);
+    ArtField* f = k->FindDeclaredInstanceField(name, type);
     if (f != NULL) {
       return f;
     }
@@ -602,11 +601,11 @@ Field* Class::FindField(const StringPiece& name, const StringPiece& type) {
   return NULL;
 }
 
-static void SetPreverifiedFlagOnMethods(mirror::ObjectArray<mirror::AbstractMethod>* methods)
+static void SetPreverifiedFlagOnMethods(mirror::ObjectArray<mirror::ArtMethod>* methods)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (methods != NULL) {
     for (int32_t index = 0, end = methods->GetLength(); index < end; ++index) {
-      mirror::AbstractMethod* method = methods->GetWithoutChecks(index);
+      mirror::ArtMethod* method = methods->GetWithoutChecks(index);
       DCHECK(method != NULL);
       method->SetPreverified();
     }

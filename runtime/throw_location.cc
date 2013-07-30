@@ -16,7 +16,7 @@
 
 #include "throw_location.h"
 
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "object_utils.h"

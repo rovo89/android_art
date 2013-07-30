@@ -15,17 +15,17 @@
  */
 
 #include "entrypoints/entrypoint_utils.h"
-#include "mirror/abstract_method-inl.h"
-#include "mirror/field-inl.h"
+#include "mirror/art_field-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/object-inl.h"
 
 namespace art {
 
 extern "C" int32_t art_portable_set32_static_from_code(uint32_t field_idx,
-                                                       mirror::AbstractMethod* referrer,
+                                                       mirror::ArtMethod* referrer,
                                                        int32_t new_value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx,
+  mirror::ArtField* field = FindFieldFast(field_idx,
                                referrer,
                                StaticPrimitiveWrite,
                                sizeof(uint32_t));
@@ -47,10 +47,10 @@ extern "C" int32_t art_portable_set32_static_from_code(uint32_t field_idx,
 }
 
 extern "C" int32_t art_portable_set64_static_from_code(uint32_t field_idx,
-                                                       mirror::AbstractMethod* referrer,
+                                                       mirror::ArtMethod* referrer,
                                                        int64_t new_value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(uint64_t));
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     field->Set64(field->GetDeclaringClass(), new_value);
     return 0;
@@ -69,11 +69,11 @@ extern "C" int32_t art_portable_set64_static_from_code(uint32_t field_idx,
 }
 
 extern "C" int32_t art_portable_set_obj_static_from_code(uint32_t field_idx,
-                                                         mirror::AbstractMethod* referrer,
+                                                         mirror::ArtMethod* referrer,
                                                          mirror::Object* new_value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx, referrer, StaticObjectWrite,
-                                       sizeof(mirror::Object*));
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, StaticObjectWrite,
+                                          sizeof(mirror::Object*));
   if (LIKELY(field != NULL)) {
     field->SetObj(field->GetDeclaringClass(), new_value);
     return 0;
@@ -88,9 +88,9 @@ extern "C" int32_t art_portable_set_obj_static_from_code(uint32_t field_idx,
 }
 
 extern "C" int32_t art_portable_get32_static_from_code(uint32_t field_idx,
-                                                       mirror::AbstractMethod* referrer)
+                                                       mirror::ArtMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(uint32_t));
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     return field->Get32(field->GetDeclaringClass());
   }
@@ -103,9 +103,9 @@ extern "C" int32_t art_portable_get32_static_from_code(uint32_t field_idx,
 }
 
 extern "C" int64_t art_portable_get64_static_from_code(uint32_t field_idx,
-                                                       mirror::AbstractMethod* referrer)
+                                                       mirror::ArtMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(uint64_t));
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     return field->Get64(field->GetDeclaringClass());
   }
@@ -118,10 +118,10 @@ extern "C" int64_t art_portable_get64_static_from_code(uint32_t field_idx,
 }
 
 extern "C" mirror::Object* art_portable_get_obj_static_from_code(uint32_t field_idx,
-                                                                 mirror::AbstractMethod* referrer)
+                                                                 mirror::ArtMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx, referrer, StaticObjectRead,
-                                       sizeof(mirror::Object*));
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, StaticObjectRead,
+                                          sizeof(mirror::Object*));
   if (LIKELY(field != NULL)) {
     return field->GetObj(field->GetDeclaringClass());
   }
@@ -134,10 +134,10 @@ extern "C" mirror::Object* art_portable_get_obj_static_from_code(uint32_t field_
 }
 
 extern "C" int32_t art_portable_set32_instance_from_code(uint32_t field_idx,
-                                                         mirror::AbstractMethod* referrer,
+                                                         mirror::ArtMethod* referrer,
                                                          mirror::Object* obj, uint32_t new_value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite, sizeof(uint32_t));
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     field->Set32(obj, new_value);
     return 0;
@@ -152,10 +152,10 @@ extern "C" int32_t art_portable_set32_instance_from_code(uint32_t field_idx,
 }
 
 extern "C" int32_t art_portable_set64_instance_from_code(uint32_t field_idx,
-                                                         mirror::AbstractMethod* referrer,
+                                                         mirror::ArtMethod* referrer,
                                                          mirror::Object* obj, int64_t new_value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite, sizeof(uint64_t));
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     field->Set64(obj, new_value);
     return 0;
@@ -170,12 +170,12 @@ extern "C" int32_t art_portable_set64_instance_from_code(uint32_t field_idx,
 }
 
 extern "C" int32_t art_portable_set_obj_instance_from_code(uint32_t field_idx,
-                                                           mirror::AbstractMethod* referrer,
+                                                           mirror::ArtMethod* referrer,
                                                            mirror::Object* obj,
                                                            mirror::Object* new_value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx, referrer, InstanceObjectWrite,
-                                       sizeof(mirror::Object*));
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstanceObjectWrite,
+                                          sizeof(mirror::Object*));
   if (LIKELY(field != NULL)) {
     field->SetObj(obj, new_value);
     return 0;
@@ -190,10 +190,10 @@ extern "C" int32_t art_portable_set_obj_instance_from_code(uint32_t field_idx,
 }
 
 extern "C" int32_t art_portable_get32_instance_from_code(uint32_t field_idx,
-                                                         mirror::AbstractMethod* referrer,
+                                                         mirror::ArtMethod* referrer,
                                                          mirror::Object* obj)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead, sizeof(uint32_t));
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     return field->Get32(obj);
   }
@@ -206,10 +206,10 @@ extern "C" int32_t art_portable_get32_instance_from_code(uint32_t field_idx,
 }
 
 extern "C" int64_t art_portable_get64_instance_from_code(uint32_t field_idx,
-                                                         mirror::AbstractMethod* referrer,
+                                                         mirror::ArtMethod* referrer,
                                                          mirror::Object* obj)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead, sizeof(uint64_t));
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     return field->Get64(obj);
   }
@@ -222,11 +222,11 @@ extern "C" int64_t art_portable_get64_instance_from_code(uint32_t field_idx,
 }
 
 extern "C" mirror::Object* art_portable_get_obj_instance_from_code(uint32_t field_idx,
-                                                                   mirror::AbstractMethod* referrer,
+                                                                   mirror::ArtMethod* referrer,
                                                                    mirror::Object* obj)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx, referrer, InstanceObjectRead,
-                                       sizeof(mirror::Object*));
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstanceObjectRead,
+                                          sizeof(mirror::Object*));
   if (LIKELY(field != NULL)) {
     return field->GetObj(obj);
   }

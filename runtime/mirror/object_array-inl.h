@@ -20,8 +20,8 @@
 #include "object_array.h"
 
 #include "gc/heap.h"
+#include "mirror/art_field.h"
 #include "mirror/class.h"
-#include "mirror/field.h"
 #include "runtime.h"
 #include "thread.h"
 

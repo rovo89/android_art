@@ -20,7 +20,7 @@
 #include "dex_instruction-inl.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "interpreter/interpreter.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/object-inl.h"
 #include "object_utils.h"
 #include "scoped_thread_state_change.h"
@@ -52,7 +52,7 @@ class PortableArgumentVisitor {
 #define PORTABLE_STACK_ARG_SKIP 0
 #endif
 
-  PortableArgumentVisitor(MethodHelper& caller_mh, mirror::AbstractMethod** sp)
+  PortableArgumentVisitor(MethodHelper& caller_mh, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) :
     caller_mh_(caller_mh),
     args_in_regs_(ComputeArgsInRegs(caller_mh)),
@@ -140,7 +140,7 @@ class PortableArgumentVisitor {
 // Visits arguments on the stack placing them into the shadow frame.
 class BuildPortableShadowFrameVisitor : public PortableArgumentVisitor {
  public:
-  BuildPortableShadowFrameVisitor(MethodHelper& caller_mh, mirror::AbstractMethod** sp,
+  BuildPortableShadowFrameVisitor(MethodHelper& caller_mh, mirror::ArtMethod** sp,
       ShadowFrame& sf, size_t first_arg_reg) :
     PortableArgumentVisitor(caller_mh, sp), sf_(sf), cur_reg_(first_arg_reg) { }
   virtual void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -176,8 +176,8 @@ class BuildPortableShadowFrameVisitor : public PortableArgumentVisitor {
   DISALLOW_COPY_AND_ASSIGN(BuildPortableShadowFrameVisitor);
 };
 
-extern "C" uint64_t artPortableToInterpreterBridge(mirror::AbstractMethod* method, Thread* self,
-                                                mirror::AbstractMethod** sp)
+extern "C" uint64_t artPortableToInterpreterBridge(mirror::ArtMethod* method, Thread* self,
+                                                   mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Ensure we don't get thread suspension until the object arguments are safely in the shadow
   // frame.
@@ -225,7 +225,7 @@ extern "C" uint64_t artPortableToInterpreterBridge(mirror::AbstractMethod* metho
 // to jobjects.
 class BuildPortableArgumentVisitor : public PortableArgumentVisitor {
  public:
-  BuildPortableArgumentVisitor(MethodHelper& caller_mh, mirror::AbstractMethod** sp,
+  BuildPortableArgumentVisitor(MethodHelper& caller_mh, mirror::ArtMethod** sp,
                                ScopedObjectAccessUnchecked& soa, std::vector<jvalue>& args) :
     PortableArgumentVisitor(caller_mh, sp), soa_(soa), args_(args) {}
 
@@ -269,9 +269,9 @@ class BuildPortableArgumentVisitor : public PortableArgumentVisitor {
 // which is responsible for recording callee save registers. We explicitly place into jobjects the
 // incoming reference arguments (so they survive GC). We invoke the invocation handler, which is a
 // field within the proxy object, which will box the primitive arguments and deal with error cases.
-extern "C" uint64_t artPortableProxyInvokeHandler(mirror::AbstractMethod* proxy_method,
+extern "C" uint64_t artPortableProxyInvokeHandler(mirror::ArtMethod* proxy_method,
                                                   mirror::Object* receiver,
-                                                  Thread* self, mirror::AbstractMethod** sp)
+                                                  Thread* self, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Ensure we don't get thread suspension until the object arguments are safely in jobjects.
   const char* old_cause =
@@ -292,7 +292,7 @@ extern "C" uint64_t artPortableProxyInvokeHandler(mirror::AbstractMethod* proxy_
   args.erase(args.begin());
 
   // Convert proxy method into expected interface method.
-  mirror::AbstractMethod* interface_method = proxy_method->FindOverriddenMethod();
+  mirror::ArtMethod* interface_method = proxy_method->FindOverriddenMethod();
   DCHECK(interface_method != NULL);
   DCHECK(!interface_method->IsProxyMethod()) << PrettyMethod(interface_method);
   jobject interface_method_jobj = soa.AddLocalReference<jobject>(interface_method);
@@ -306,13 +306,13 @@ extern "C" uint64_t artPortableProxyInvokeHandler(mirror::AbstractMethod* proxy_
 }
 
 // Lazily resolve a method for portable. Called by stub code.
-extern "C" const void* artPortableResolutionTrampoline(mirror::AbstractMethod* called,
+extern "C" const void* artPortableResolutionTrampoline(mirror::ArtMethod* called,
                                                        mirror::Object* receiver,
                                                        Thread* thread,
-                                                       mirror::AbstractMethod** called_addr)
+                                                       mirror::ArtMethod** called_addr)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   uint32_t dex_pc;
-  mirror::AbstractMethod* caller = thread->GetCurrentMethod(&dex_pc);
+  mirror::ArtMethod* caller = thread->GetCurrentMethod(&dex_pc);
 
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   InvokeType invoke_type;

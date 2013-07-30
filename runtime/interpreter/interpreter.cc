@@ -28,26 +28,27 @@
 #include "gc/accounting/card_table-inl.h"
 #include "invoke_arg_array_builder.h"
 #include "nth_caller_visitor.h"
+#include "mirror/art_field-inl.h"
+#include "mirror/art_method.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
-#include "mirror/field-inl.h"
-#include "mirror/abstract_method.h"
-#include "mirror/abstract_method-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "object_utils.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
+#include "well_known_classes.h"
 
-using ::art::mirror::AbstractMethod;
+using ::art::mirror::ArtField;
+using ::art::mirror::ArtMethod;
 using ::art::mirror::Array;
 using ::art::mirror::BooleanArray;
 using ::art::mirror::ByteArray;
 using ::art::mirror::CharArray;
 using ::art::mirror::Class;
 using ::art::mirror::ClassLoader;
-using ::art::mirror::Field;
 using ::art::mirror::IntArray;
 using ::art::mirror::LongArray;
 using ::art::mirror::Object;
@@ -82,22 +83,22 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     result->SetL(found);
   } else if (name == "java.lang.Object java.lang.Class.newInstance()") {
     Class* klass = shadow_frame->GetVRegReference(arg_offset)->AsClass();
-    AbstractMethod* c = klass->FindDeclaredDirectMethod("<init>", "()V");
+    ArtMethod* c = klass->FindDeclaredDirectMethod("<init>", "()V");
     CHECK(c != NULL);
-    Object* obj = klass->AllocObject(self);
-    CHECK(obj != NULL);
-    EnterInterpreterFromInvoke(self, c, obj, NULL, NULL);
-    result->SetL(obj);
+    SirtRef<Object> obj(self, klass->AllocObject(self));
+    CHECK(obj.get() != NULL);
+    EnterInterpreterFromInvoke(self, c, obj.get(), NULL, NULL);
+    result->SetL(obj.get());
   } else if (name == "java.lang.reflect.Field java.lang.Class.getDeclaredField(java.lang.String)") {
     // Special managed code cut-out to allow field lookup in a un-started runtime that'd fail
     // going the reflective Dex way.
     Class* klass = shadow_frame->GetVRegReference(arg_offset)->AsClass();
     String* name = shadow_frame->GetVRegReference(arg_offset + 1)->AsString();
-    Field* found = NULL;
+    ArtField* found = NULL;
     FieldHelper fh;
-    ObjectArray<Field>* fields = klass->GetIFields();
+    ObjectArray<ArtField>* fields = klass->GetIFields();
     for (int32_t i = 0; i < fields->GetLength() && found == NULL; ++i) {
-      Field* f = fields->Get(i);
+      ArtField* f = fields->Get(i);
       fh.ChangeField(f);
       if (name->Equals(fh.GetName())) {
         found = f;
@@ -106,7 +107,7 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     if (found == NULL) {
       fields = klass->GetSFields();
       for (int32_t i = 0; i < fields->GetLength() && found == NULL; ++i) {
-        Field* f = fields->Get(i);
+        ArtField* f = fields->Get(i);
         fh.ChangeField(f);
         if (name->Equals(fh.GetName())) {
           found = f;
@@ -118,7 +119,14 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
       << name->ToModifiedUtf8() << " class=" << PrettyDescriptor(klass);
     // TODO: getDeclaredField calls GetType once the field is found to ensure a
     //       NoClassDefFoundError is thrown if the field's type cannot be resolved.
-    result->SetL(found);
+    Class* jlr_Field = self->DecodeJObject(WellKnownClasses::java_lang_reflect_Field)->AsClass();
+    SirtRef<Object> field(self, jlr_Field->AllocObject(self));
+    CHECK(field.get() != NULL);
+    ArtMethod* c = jlr_Field->FindDeclaredDirectMethod("<init>", "(Ljava/lang/reflect/ArtField;)V");
+    uint32_t args[1];
+    args[0] = reinterpret_cast<uint32_t>(found);
+    EnterInterpreterFromInvoke(self, c, field.get(), args, NULL);
+    result->SetL(field.get());
   } else if (name == "void java.lang.System.arraycopy(java.lang.Object, int, java.lang.Object, int, int)") {
     // Special case array copying without initializing System.
     Class* ctype = shadow_frame->GetVRegReference(arg_offset)->GetClass()->GetComponentType();
@@ -153,7 +161,7 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
 }
 
 // Hand select a number of methods to be run in a not yet started runtime without using JNI.
-static void UnstartedRuntimeJni(Thread* self, AbstractMethod* method,
+static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
                                 Object* receiver, uint32_t* args, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   std::string name(PrettyMethod(method));
@@ -215,7 +223,7 @@ static void UnstartedRuntimeJni(Thread* self, AbstractMethod* method,
   }
 }
 
-static void InterpreterJni(Thread* self, AbstractMethod* method, StringPiece shorty,
+static void InterpreterJni(Thread* self, ArtMethod* method, StringPiece shorty,
                            Object* receiver, uint32_t* args, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // TODO: The following enters JNI code using a typedef-ed function rather than the JNI compiler,
@@ -417,8 +425,8 @@ static bool DoInvoke(Thread* self, ShadowFrame& shadow_frame,
   uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
   uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
   Object* receiver = (type == kStatic) ? NULL : shadow_frame.GetVRegReference(vregC);
-  AbstractMethod* method = FindMethodFromCode(method_idx, receiver, shadow_frame.GetMethod(), self,
-                                              do_access_check, type);
+  ArtMethod* method = FindMethodFromCode(method_idx, receiver, shadow_frame.GetMethod(), self,
+                                         do_access_check, type);
   if (UNLIKELY(method == NULL)) {
     CHECK(self->IsExceptionPending());
     result->SetJ(0);
@@ -438,7 +446,7 @@ static bool DoInvoke(Thread* self, ShadowFrame& shadow_frame,
     num_ins = code_item->ins_size_;
   } else {
     DCHECK(method->IsNative() || method->IsProxyMethod());
-    num_regs = num_ins = AbstractMethod::NumArgRegisters(mh.GetShorty());
+    num_regs = num_ins = ArtMethod::NumArgRegisters(mh.GetShorty());
     if (!method->IsStatic()) {
       num_regs++;
       num_ins++;
@@ -510,7 +518,7 @@ static bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
   }
   uint32_t vtable_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
   // TODO: use ObjectArray<T>::GetWithoutChecks ?
-  AbstractMethod* method = receiver->GetClass()->GetVTable()->Get(vtable_idx);
+  ArtMethod* method = receiver->GetClass()->GetVTable()->Get(vtable_idx);
   if (UNLIKELY(method == NULL)) {
     CHECK(self->IsExceptionPending());
     result->SetJ(0);
@@ -530,7 +538,7 @@ static bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
     num_ins = code_item->ins_size_;
   } else {
     DCHECK(method->IsNative() || method->IsProxyMethod());
-    num_regs = num_ins = AbstractMethod::NumArgRegisters(mh.GetShorty());
+    num_regs = num_ins = ArtMethod::NumArgRegisters(mh.GetShorty());
     if (!method->IsStatic()) {
       num_regs++;
       num_ins++;
@@ -601,9 +609,9 @@ static inline bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
                               const Instruction* inst) {
   bool is_static = (find_type == StaticObjectRead) || (find_type == StaticPrimitiveRead);
   uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
-  Field* f = FindFieldFromCode(field_idx, shadow_frame.GetMethod(), self,
-                               find_type, Primitive::FieldSize(field_type),
-                               do_access_check);
+  ArtField* f = FindFieldFromCode(field_idx, shadow_frame.GetMethod(), self,
+                                  find_type, Primitive::FieldSize(field_type),
+                                  do_access_check);
   if (UNLIKELY(f == NULL)) {
     CHECK(self->IsExceptionPending());
     return false;
@@ -695,9 +703,9 @@ static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
                               const Instruction* inst) {
   bool is_static = (find_type == StaticObjectWrite) || (find_type == StaticPrimitiveWrite);
   uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
-  Field* f = FindFieldFromCode(field_idx, shadow_frame.GetMethod(), self,
-                               find_type, Primitive::FieldSize(field_type),
-                               do_access_check);
+  ArtField* f = FindFieldFromCode(field_idx, shadow_frame.GetMethod(), self,
+                                  find_type, Primitive::FieldSize(field_type),
+                                  do_access_check);
   if (UNLIKELY(f == NULL)) {
     CHECK(self->IsExceptionPending());
     return false;
@@ -3052,7 +3060,7 @@ static inline JValue Execute(Thread* self, MethodHelper& mh, const DexFile::Code
   }
 }
 
-void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Object* receiver,
+void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receiver,
                                 uint32_t* args, JValue* result) {
   DCHECK_EQ(self, Thread::Current());
   if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEnd())) {
@@ -3072,7 +3080,7 @@ void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Object* re
     return;
   } else {
     DCHECK(method->IsNative());
-    num_regs = num_ins = AbstractMethod::NumArgRegisters(mh.GetShorty());
+    num_regs = num_ins = ArtMethod::NumArgRegisters(mh.GetShorty());
     if (!method->IsStatic()) {
       num_regs++;
       num_ins++;
@@ -3172,7 +3180,7 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh
     return;
   }
 
-  AbstractMethod* method = shadow_frame->GetMethod();
+  ArtMethod* method = shadow_frame->GetMethod();
   if (method->IsStatic() && !method->GetDeclaringClass()->IsInitializing()) {
     if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(method->GetDeclaringClass(),
                                                                  true, true)) {

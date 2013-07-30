@@ -81,8 +81,9 @@ Field name is cantTouchThis
  Field type is int
  Access flags are 0x11
   cantTouchThis is 77
-  setAccessible is always true
   cantTouchThis is now 99
+  public final int Target.cantTouchThis accessible=false
+  public final int Target.cantTouchThis accessible=true
   cantTouchThis is now 87
   cantTouchThis is now 88
 cons modifiers=1
@@ -92,6 +93,8 @@ myMethod (I)I
  arg=17 anInt=7
 ReflectTest done!
 public method
+static java.lang.Object java.util.Collections.checkType(java.lang.Object,java.lang.Class) accessible=false
+static java.lang.Object java.util.Collections.checkType(java.lang.Object,java.lang.Class) accessible=true
 checkType invoking null
 checkType got expected exception
 calling const-class FieldNoisyInitUser.class
@@ -113,3 +116,7 @@ MethodNoisyInit is initializing
 generic field: java.util.List<java.lang.String>
 generic method fancyMethod params='[1] java.util.ArrayList<java.lang.String>' ret='java.util.Map<java.lang.Integer, java.lang.String>'
 generic ctor Main params='[1] java.util.ArrayList<java.lang.Integer>'
+fields are unique
+fields are .equals
+methods are unique
+methods are .equals

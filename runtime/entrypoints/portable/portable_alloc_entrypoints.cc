@@ -15,27 +15,27 @@
  */
 
 #include "entrypoints/entrypoint_utils.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/object-inl.h"
 
 namespace art {
 
 extern "C" mirror::Object* art_portable_alloc_object_from_code(uint32_t type_idx,
-                                                               mirror::AbstractMethod* referrer,
+                                                               mirror::ArtMethod* referrer,
                                                                Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return AllocObjectFromCode(type_idx, referrer, thread, false);
 }
 
 extern "C" mirror::Object* art_portable_alloc_object_from_code_with_access_check(uint32_t type_idx,
-                                                                                 mirror::AbstractMethod* referrer,
+                                                                                 mirror::ArtMethod* referrer,
                                                                                  Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return AllocObjectFromCode(type_idx, referrer, thread, true);
 }
 
 extern "C" mirror::Object* art_portable_alloc_array_from_code(uint32_t type_idx,
-                                                              mirror::AbstractMethod* referrer,
+                                                              mirror::ArtMethod* referrer,
                                                               uint32_t length,
                                                               Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -43,7 +43,7 @@ extern "C" mirror::Object* art_portable_alloc_array_from_code(uint32_t type_idx,
 }
 
 extern "C" mirror::Object* art_portable_alloc_array_from_code_with_access_check(uint32_t type_idx,
-                                                                                mirror::AbstractMethod* referrer,
+                                                                                mirror::ArtMethod* referrer,
                                                                                 uint32_t length,
                                                                                 Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -51,7 +51,7 @@ extern "C" mirror::Object* art_portable_alloc_array_from_code_with_access_check(
 }
 
 extern "C" mirror::Object* art_portable_check_and_alloc_array_from_code(uint32_t type_idx,
-                                                                        mirror::AbstractMethod* referrer,
+                                                                        mirror::ArtMethod* referrer,
                                                                         uint32_t length,
                                                                         Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -59,7 +59,7 @@ extern "C" mirror::Object* art_portable_check_and_alloc_array_from_code(uint32_t
 }
 
 extern "C" mirror::Object* art_portable_check_and_alloc_array_from_code_with_access_check(uint32_t type_idx,
-                                                                                          mirror::AbstractMethod* referrer,
+                                                                                          mirror::ArtMethod* referrer,
                                                                                           uint32_t length,
                                                                                           Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

@@ -24,9 +24,9 @@
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "gc/space/space.h"
+#include "mirror/art_field-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
-#include "mirror/field-inl.h"
-#include "mirror/abstract_method-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/throwable.h"
@@ -44,7 +44,7 @@ namespace art {
 static void JniAbort(const char* jni_function_name, const char* msg) {
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
-  mirror::AbstractMethod* current_method = self->GetCurrentMethod(NULL);
+  mirror::ArtMethod* current_method = self->GetCurrentMethod(NULL);
 
   std::ostringstream os;
   os << "JNI DETECTED ERROR IN APPLICATION: " << msg;
@@ -131,7 +131,7 @@ static const char* gBuiltInPrefixes[] = {
   NULL
 };
 
-static bool ShouldTrace(JavaVMExt* vm, const mirror::AbstractMethod* method)
+static bool ShouldTrace(JavaVMExt* vm, const mirror::ArtMethod* method)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // If both "-Xcheck:jni" and "-Xjnitrace:" are enabled, we print trace messages
   // when a native method that matches the -Xjnitrace argument calls a JNI function
@@ -204,7 +204,7 @@ class ScopedCheck {
    */
   void CheckFieldType(jobject java_object, jfieldID fid, char prim, bool isStatic)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::Field* f = CheckFieldID(fid);
+    mirror::ArtField* f = CheckFieldID(fid);
     if (f == NULL) {
       return;
     }
@@ -259,7 +259,7 @@ class ScopedCheck {
       return;
     }
 
-    mirror::Field* f = CheckFieldID(fid);
+    mirror::ArtField* f = CheckFieldID(fid);
     if (f == NULL) {
       return;
     }
@@ -286,7 +286,7 @@ class ScopedCheck {
    */
   void CheckSig(jmethodID mid, const char* expectedType, bool isStatic)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::AbstractMethod* m = CheckMethodID(mid);
+    mirror::ArtMethod* m = CheckMethodID(mid);
     if (m == NULL) {
       return;
     }
@@ -313,7 +313,7 @@ class ScopedCheck {
   void CheckStaticFieldID(jclass java_class, jfieldID fid)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::Class* c = soa_.Decode<mirror::Class*>(java_class);
-    const mirror::Field* f = CheckFieldID(fid);
+    const mirror::ArtField* f = CheckFieldID(fid);
     if (f == NULL) {
       return;
     }
@@ -334,7 +334,7 @@ class ScopedCheck {
    */
   void CheckStaticMethod(jclass java_class, jmethodID mid)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const mirror::AbstractMethod* m = CheckMethodID(mid);
+    const mirror::ArtMethod* m = CheckMethodID(mid);
     if (m == NULL) {
       return;
     }
@@ -354,7 +354,7 @@ class ScopedCheck {
    */
   void CheckVirtualMethod(jobject java_object, jmethodID mid)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const mirror::AbstractMethod* m = CheckMethodID(mid);
+    const mirror::ArtMethod* m = CheckMethodID(mid);
     if (m == NULL) {
       return;
     }
@@ -404,7 +404,7 @@ class ScopedCheck {
   void Check(bool entry, const char* fmt0, ...) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     va_list ap;
 
-    const mirror::AbstractMethod* traceMethod = NULL;
+    const mirror::ArtMethod* traceMethod = NULL;
     if (has_method_ && (!soa_.Vm()->trace.empty() || VLOG_IS_ON(third_party_jni))) {
       // We need to guard some of the invocation interface's calls: a bad caller might
       // use DetachCurrentThread or GetEnv on a thread that's not yet attached.
@@ -477,7 +477,7 @@ class ScopedCheck {
           }
         } else if (ch == 'f') {  // jfieldID
           jfieldID fid = va_arg(ap, jfieldID);
-          mirror::Field* f = reinterpret_cast<mirror::Field*>(fid);
+          mirror::ArtField* f = reinterpret_cast<mirror::ArtField*>(fid);
           msg += PrettyField(f);
           if (!entry) {
             StringAppendF(&msg, " (%p)", fid);
@@ -490,7 +490,7 @@ class ScopedCheck {
           StringAppendF(&msg, "%d", i);
         } else if (ch == 'm') {  // jmethodID
           jmethodID mid = va_arg(ap, jmethodID);
-          mirror::AbstractMethod* m = reinterpret_cast<mirror::AbstractMethod*>(mid);
+          mirror::ArtMethod* m = reinterpret_cast<mirror::ArtMethod*>(mid);
           msg += PrettyMethod(m);
           if (!entry) {
             StringAppendF(&msg, " (%p)", mid);
@@ -700,13 +700,13 @@ class ScopedCheck {
     }
   }
 
-  mirror::Field* CheckFieldID(jfieldID fid) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::ArtField* CheckFieldID(jfieldID fid) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (fid == NULL) {
       JniAbortF(function_name_, "jfieldID was NULL");
       return NULL;
     }
-    mirror::Field* f = soa_.DecodeField(fid);
-    if (!Runtime::Current()->GetHeap()->IsHeapAddress(f) || !f->IsField()) {
+    mirror::ArtField* f = soa_.DecodeField(fid);
+    if (!Runtime::Current()->GetHeap()->IsHeapAddress(f) || !f->IsArtField()) {
       Runtime::Current()->GetHeap()->DumpSpaces();
       JniAbortF(function_name_, "invalid jfieldID: %p", fid);
       return NULL;
@@ -714,13 +714,13 @@ class ScopedCheck {
     return f;
   }
 
-  mirror::AbstractMethod* CheckMethodID(jmethodID mid) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::ArtMethod* CheckMethodID(jmethodID mid) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (mid == NULL) {
       JniAbortF(function_name_, "jmethodID was NULL");
       return NULL;
     }
-    mirror::AbstractMethod* m = soa_.DecodeMethod(mid);
-    if (!Runtime::Current()->GetHeap()->IsHeapAddress(m) || !m->IsMethod()) {
+    mirror::ArtMethod* m = soa_.DecodeMethod(mid);
+    if (!Runtime::Current()->GetHeap()->IsHeapAddress(m) || !m->IsArtMethod()) {
       Runtime::Current()->GetHeap()->DumpSpaces();
       JniAbortF(function_name_, "invalid jmethodID: %p", mid);
       return NULL;

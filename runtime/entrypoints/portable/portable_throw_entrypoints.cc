@@ -16,7 +16,7 @@
 
 #include "dex_instruction.h"
 #include "entrypoints/entrypoint_utils.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/object-inl.h"
 
 namespace art {
@@ -68,7 +68,7 @@ extern "C" void* art_portable_get_and_clear_exception(Thread* self)
   return exception;
 }
 
-extern "C" int32_t art_portable_find_catch_block_from_code(mirror::AbstractMethod* current_method,
+extern "C" int32_t art_portable_find_catch_block_from_code(mirror::ArtMethod* current_method,
                                                            uint32_t ti_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread* self = Thread::Current();  // TODO: make an argument.

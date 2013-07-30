@@ -16,7 +16,7 @@
 
 #include "throwable.h"
 
-#include "abstract_method-inl.h"
+#include "art_method-inl.h"
 #include "class-inl.h"
 #include "dex_file-inl.h"
 #include "gc/accounting/card_table-inl.h"
@@ -65,7 +65,7 @@ std::string Throwable::Dump() const {
     IntArray* pc_trace = down_cast<IntArray*>(method_trace->Get(depth));
     MethodHelper mh;
     for (int32_t i = 0; i < depth; ++i) {
-      AbstractMethod* method = down_cast<AbstractMethod*>(method_trace->Get(i));
+      ArtMethod* method = down_cast<ArtMethod*>(method_trace->Get(i));
       mh.ChangeMethod(method);
       uint32_t dex_pc = pc_trace->Get(i);
       int32_t line_number = mh.GetLineNumFromDexPC(dex_pc);

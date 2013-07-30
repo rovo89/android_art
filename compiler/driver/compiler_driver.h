@@ -99,7 +99,7 @@ class CompilerDriver {
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Compile a single Method
-  void CompileOne(const mirror::AbstractMethod* method, base::TimingLogger& timings)
+  void CompileOne(const mirror::ArtMethod* method, base::TimingLogger& timings)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   InstructionSet GetInstructionSet() const {
@@ -301,7 +301,7 @@ class CompilerDriver {
   // Compute constant code and method pointers when possible
   void GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type,
                                      mirror::Class* referrer_class,
-                                     mirror::AbstractMethod* method,
+                                     mirror::ArtMethod* method,
                                      uintptr_t& direct_code, uintptr_t& direct_method,
                                      bool update_stats)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -425,7 +425,7 @@ class CompilerDriver {
   CompilerEnableAutoElfLoadingFn compiler_enable_auto_elf_loading_;
 
   typedef const void* (*CompilerGetMethodCodeAddrFn)
-      (const CompilerDriver& driver, const CompiledMethod* cm, const mirror::AbstractMethod* method);
+      (const CompilerDriver& driver, const CompiledMethod* cm, const mirror::ArtMethod* method);
   CompilerGetMethodCodeAddrFn compiler_get_method_code_addr_;
 
   bool support_boot_image_fixup_;

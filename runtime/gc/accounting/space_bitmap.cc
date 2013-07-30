@@ -17,8 +17,8 @@
 #include "base/logging.h"
 #include "dex_file-inl.h"
 #include "heap_bitmap.h"
+#include "mirror/art_field-inl.h"
 #include "mirror/class-inl.h"
-#include "mirror/field-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "object_utils.h"
@@ -182,10 +182,10 @@ static void WalkInstanceFields(SpaceBitmap* visited, SpaceBitmap::Callback* call
     WalkInstanceFields(visited, callback, obj, super, arg);
   }
   // Walk instance fields
-  mirror::ObjectArray<mirror::Field>* fields = klass->GetIFields();
+  mirror::ObjectArray<mirror::ArtField>* fields = klass->GetIFields();
   if (fields != NULL) {
     for (int32_t i = 0; i < fields->GetLength(); i++) {
-      mirror::Field* field = fields->Get(i);
+      mirror::ArtField* field = fields->Get(i);
       FieldHelper fh(field);
       if (!fh.IsPrimitiveType()) {
         mirror::Object* value = field->GetObj(obj);
@@ -212,10 +212,10 @@ static void WalkFieldsInOrder(SpaceBitmap* visited, SpaceBitmap::Callback* callb
   WalkInstanceFields(visited, callback, obj, klass, arg);
   // Walk static fields of a Class
   if (obj->IsClass()) {
-    mirror::ObjectArray<mirror::Field>* fields = klass->GetSFields();
+    mirror::ObjectArray<mirror::ArtField>* fields = klass->GetSFields();
     if (fields != NULL) {
       for (int32_t i = 0; i < fields->GetLength(); i++) {
-        mirror::Field* field = fields->Get(i);
+        mirror::ArtField* field = fields->Get(i);
         FieldHelper fh(field);
         if (!fh.IsPrimitiveType()) {
           mirror::Object* value = field->GetObj(NULL);

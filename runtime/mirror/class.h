@@ -63,9 +63,9 @@ class StringPiece;
 
 namespace mirror {
 
+class ArtField;
 class ClassLoader;
 class DexCache;
-class Field;
 class IfTable;
 
 // Type for the InitializedStaticStorage table. Currently the Class
@@ -341,9 +341,9 @@ class MANAGED Class : public StaticStorageBase {
 
   bool IsThrowableClass() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsFieldClass() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool IsArtFieldClass() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsMethodClass() const;
+  bool IsArtMethodClass() const;
 
   Class* GetComponentType() const {
     return GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Class, component_type_), false);
@@ -502,42 +502,42 @@ class MANAGED Class : public StaticStorageBase {
 
   void SetDexCache(DexCache* new_dex_cache) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  ObjectArray<AbstractMethod>* GetDirectMethods() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ObjectArray<ArtMethod>* GetDirectMethods() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetDirectMethods(ObjectArray<AbstractMethod>* new_direct_methods)
+  void SetDirectMethods(ObjectArray<ArtMethod>* new_direct_methods)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  AbstractMethod* GetDirectMethod(int32_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ArtMethod* GetDirectMethod(int32_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetDirectMethod(uint32_t i, AbstractMethod* f)  // TODO: uint16_t
+  void SetDirectMethod(uint32_t i, ArtMethod* f)  // TODO: uint16_t
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns the number of static, private, and constructor methods.
   size_t NumDirectMethods() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  ObjectArray<AbstractMethod>* GetVirtualMethods() const
+  ObjectArray<ArtMethod>* GetVirtualMethods() const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetVirtualMethods(ObjectArray<AbstractMethod>* new_virtual_methods)
+  void SetVirtualMethods(ObjectArray<ArtMethod>* new_virtual_methods)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns the number of non-inherited virtual methods.
   size_t NumVirtualMethods() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  AbstractMethod* GetVirtualMethod(uint32_t i) const
+  ArtMethod* GetVirtualMethod(uint32_t i) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  AbstractMethod* GetVirtualMethodDuringLinking(uint32_t i) const
+  ArtMethod* GetVirtualMethodDuringLinking(uint32_t i) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetVirtualMethod(uint32_t i, AbstractMethod* f)  // TODO: uint16_t
+  void SetVirtualMethod(uint32_t i, ArtMethod* f)  // TODO: uint16_t
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  ObjectArray<AbstractMethod>* GetVTable() const;
+  ObjectArray<ArtMethod>* GetVTable() const;
 
-  ObjectArray<AbstractMethod>* GetVTableDuringLinking() const;
+  ObjectArray<ArtMethod>* GetVTableDuringLinking() const;
 
-  void SetVTable(ObjectArray<AbstractMethod>* new_vtable)
+  void SetVTable(ObjectArray<ArtMethod>* new_vtable)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static MemberOffset VTableOffset() {
@@ -546,51 +546,51 @@ class MANAGED Class : public StaticStorageBase {
 
   // Given a method implemented by this class but potentially from a super class, return the
   // specific implementation method for this class.
-  AbstractMethod* FindVirtualMethodForVirtual(AbstractMethod* method) const
+  ArtMethod* FindVirtualMethodForVirtual(ArtMethod* method) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Given a method implemented by this class' super class, return the specific implementation
   // method for this class.
-  AbstractMethod* FindVirtualMethodForSuper(AbstractMethod* method) const
+  ArtMethod* FindVirtualMethodForSuper(ArtMethod* method) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Given a method implemented by this class, but potentially from a
   // super class or interface, return the specific implementation
   // method for this class.
-  AbstractMethod* FindVirtualMethodForInterface(AbstractMethod* method) const
+  ArtMethod* FindVirtualMethodForInterface(ArtMethod* method) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE;
 
-  AbstractMethod* FindInterfaceMethod(const StringPiece& name, const StringPiece& descriptor) const
+  ArtMethod* FindInterfaceMethod(const StringPiece& name, const StringPiece& descriptor) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  AbstractMethod* FindInterfaceMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
+  ArtMethod* FindInterfaceMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  AbstractMethod* FindVirtualMethodForVirtualOrInterface(AbstractMethod* method) const
+  ArtMethod* FindVirtualMethodForVirtualOrInterface(ArtMethod* method) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  AbstractMethod* FindDeclaredVirtualMethod(const StringPiece& name, const StringPiece& signature) const
+  ArtMethod* FindDeclaredVirtualMethod(const StringPiece& name, const StringPiece& signature) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  AbstractMethod* FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
+  ArtMethod* FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  AbstractMethod* FindVirtualMethod(const StringPiece& name, const StringPiece& descriptor) const
+  ArtMethod* FindVirtualMethod(const StringPiece& name, const StringPiece& descriptor) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  AbstractMethod* FindVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
+  ArtMethod* FindVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  AbstractMethod* FindDeclaredDirectMethod(const StringPiece& name, const StringPiece& signature) const
+  ArtMethod* FindDeclaredDirectMethod(const StringPiece& name, const StringPiece& signature) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  AbstractMethod* FindDeclaredDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
+  ArtMethod* FindDeclaredDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  AbstractMethod* FindDirectMethod(const StringPiece& name, const StringPiece& signature) const
+  ArtMethod* FindDirectMethod(const StringPiece& name, const StringPiece& signature) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  AbstractMethod* FindDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
+  ArtMethod* FindDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   int32_t GetIfTableCount() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -600,16 +600,16 @@ class MANAGED Class : public StaticStorageBase {
   void SetIfTable(IfTable* new_iftable) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get instance fields of the class (See also GetSFields).
-  ObjectArray<Field>* GetIFields() const;
+  ObjectArray<ArtField>* GetIFields() const;
 
-  void SetIFields(ObjectArray<Field>* new_ifields) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetIFields(ObjectArray<ArtField>* new_ifields) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   size_t NumInstanceFields() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Field* GetInstanceField(uint32_t i) const  // TODO: uint16_t
+  ArtField* GetInstanceField(uint32_t i) const  // TODO: uint16_t
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetInstanceField(uint32_t i, Field* f)  // TODO: uint16_t
+  void SetInstanceField(uint32_t i, ArtField* f)  // TODO: uint16_t
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns the number of instance fields containing reference types.
@@ -662,15 +662,15 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   // Gets the static fields of the class.
-  ObjectArray<Field>* GetSFields() const;
+  ObjectArray<ArtField>* GetSFields() const;
 
-  void SetSFields(ObjectArray<Field>* new_sfields) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetSFields(ObjectArray<ArtField>* new_sfields) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   size_t NumStaticFields() const;
 
-  Field* GetStaticField(uint32_t i) const;  // TODO: uint16_t
+  ArtField* GetStaticField(uint32_t i) const;  // TODO: uint16_t
 
-  void SetStaticField(uint32_t i, Field* f);  // TODO: uint16_t
+  void SetStaticField(uint32_t i, ArtField* f);  // TODO: uint16_t
 
   uint32_t GetReferenceStaticOffsets() const {
     return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, reference_static_offsets_), false);
@@ -679,37 +679,37 @@ class MANAGED Class : public StaticStorageBase {
   void SetReferenceStaticOffsets(uint32_t new_reference_offsets);
 
   // Find a static or instance field using the JLS resolution order
-  Field* FindField(const StringPiece& name, const StringPiece& type)
+  ArtField* FindField(const StringPiece& name, const StringPiece& type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Finds the given instance field in this class or a superclass.
-  Field* FindInstanceField(const StringPiece& name, const StringPiece& type)
+  ArtField* FindInstanceField(const StringPiece& name, const StringPiece& type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Finds the given instance field in this class or a superclass, only searches classes that
   // have the same dex cache.
-  Field* FindInstanceField(const DexCache* dex_cache, uint32_t dex_field_idx)
+  ArtField* FindInstanceField(const DexCache* dex_cache, uint32_t dex_field_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Field* FindDeclaredInstanceField(const StringPiece& name, const StringPiece& type)
+  ArtField* FindDeclaredInstanceField(const StringPiece& name, const StringPiece& type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Field* FindDeclaredInstanceField(const DexCache* dex_cache, uint32_t dex_field_idx)
+  ArtField* FindDeclaredInstanceField(const DexCache* dex_cache, uint32_t dex_field_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Finds the given static field in this class or a superclass.
-  Field* FindStaticField(const StringPiece& name, const StringPiece& type)
+  ArtField* FindStaticField(const StringPiece& name, const StringPiece& type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Finds the given static field in this class or superclass, only searches classes that
   // have the same dex cache.
-  Field* FindStaticField(const DexCache* dex_cache, uint32_t dex_field_idx)
+  ArtField* FindStaticField(const DexCache* dex_cache, uint32_t dex_field_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Field* FindDeclaredStaticField(const StringPiece& name, const StringPiece& type)
+  ArtField* FindDeclaredStaticField(const StringPiece& name, const StringPiece& type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Field* FindDeclaredStaticField(const DexCache* dex_cache, uint32_t dex_field_idx)
+  ArtField* FindDeclaredStaticField(const DexCache* dex_cache, uint32_t dex_field_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   pid_t GetClinitThreadId() const {
@@ -768,7 +768,7 @@ class MANAGED Class : public StaticStorageBase {
   DexCache* dex_cache_;
 
   // static, private, and <init> methods
-  ObjectArray<AbstractMethod>* direct_methods_;
+  ObjectArray<ArtMethod>* direct_methods_;
 
   // instance fields
   //
@@ -780,7 +780,7 @@ class MANAGED Class : public StaticStorageBase {
   // All instance fields that refer to objects are guaranteed to be at
   // the beginning of the field list.  num_reference_instance_fields_
   // specifies the number of reference fields.
-  ObjectArray<Field>* ifields_;
+  ObjectArray<ArtField>* ifields_;
 
   // The interface table (iftable_) contains pairs of a interface class and an array of the
   // interface methods. There is one pair per interface supported by this class.  That means one
@@ -799,7 +799,7 @@ class MANAGED Class : public StaticStorageBase {
   String* name_;
 
   // Static fields
-  ObjectArray<Field>* sfields_;
+  ObjectArray<ArtField>* sfields_;
 
   // The superclass, or NULL if this is java.lang.Object, an interface or primitive type.
   Class* super_class_;
@@ -808,13 +808,13 @@ class MANAGED Class : public StaticStorageBase {
   Class* verify_error_class_;
 
   // virtual methods defined in this class; invoked through vtable
-  ObjectArray<AbstractMethod>* virtual_methods_;
+  ObjectArray<ArtMethod>* virtual_methods_;
 
   // Virtual method table (vtable), for use by "invoke-virtual".  The vtable from the superclass is
   // copied in, and virtual methods from our class either replace those from the super or are
   // appended. For abstract classes, methods may be created in the vtable that aren't in
   // virtual_ methods_ for miranda methods.
-  ObjectArray<AbstractMethod>* vtable_;
+  ObjectArray<ArtMethod>* vtable_;
 
   // access flags; low 16 bits are defined by VM spec
   uint32_t access_flags_;

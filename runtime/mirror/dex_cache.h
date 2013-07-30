@@ -17,7 +17,7 @@
 #ifndef ART_RUNTIME_MIRROR_DEX_CACHE_H_
 #define ART_RUNTIME_MIRROR_DEX_CACHE_H_
 
-#include "abstract_method.h"
+#include "art_method.h"
 #include "class.h"
 #include "object.h"
 #include "object_array.h"
@@ -32,8 +32,8 @@ union JValue;
 
 namespace mirror {
 
+class ArtField;
 class Class;
-class Field;
 
 class MANAGED DexCacheClass : public Class {
  private:
@@ -46,12 +46,12 @@ class MANAGED DexCache : public Object {
             String* location,
             ObjectArray<String>* strings,
             ObjectArray<Class>* types,
-            ObjectArray<AbstractMethod>* methods,
-            ObjectArray<Field>* fields,
+            ObjectArray<ArtMethod>* methods,
+            ObjectArray<ArtField>* fields,
             ObjectArray<StaticStorageBase>* initialized_static_storage)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void Fixup(AbstractMethod* trampoline) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void Fixup(ArtMethod* trampoline) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   String* GetLocation() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetFieldObject<String*>(OFFSET_OF_OBJECT_MEMBER(DexCache, location_), false);
@@ -110,20 +110,20 @@ class MANAGED DexCache : public Object {
     GetResolvedTypes()->Set(type_idx, resolved);
   }
 
-  AbstractMethod* GetResolvedMethod(uint32_t method_idx) const
+  ArtMethod* GetResolvedMethod(uint32_t method_idx) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetResolvedMethod(uint32_t method_idx, AbstractMethod* resolved)
+  void SetResolvedMethod(uint32_t method_idx, ArtMethod* resolved)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     GetResolvedMethods()->Set(method_idx, resolved);
   }
 
-  Field* GetResolvedField(uint32_t field_idx) const
+  ArtField* GetResolvedField(uint32_t field_idx) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetResolvedFields()->Get(field_idx);
   }
 
-  void SetResolvedField(uint32_t field_idx, Field* resolved)
+  void SetResolvedField(uint32_t field_idx, ArtField* resolved)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     GetResolvedFields()->Set(field_idx, resolved);
   }
@@ -139,14 +139,14 @@ class MANAGED DexCache : public Object {
         OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_types_), false);
   }
 
-  ObjectArray<AbstractMethod>* GetResolvedMethods() const
+  ObjectArray<ArtMethod>* GetResolvedMethods() const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject< ObjectArray<AbstractMethod>* >(ResolvedMethodsOffset(), false);
+    return GetFieldObject< ObjectArray<ArtMethod>* >(ResolvedMethodsOffset(), false);
   }
 
-  ObjectArray<Field>* GetResolvedFields() const
+  ObjectArray<ArtField>* GetResolvedFields() const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject< ObjectArray<Field>* >(ResolvedFieldsOffset(), false);
+    return GetFieldObject< ObjectArray<ArtField>* >(ResolvedFieldsOffset(), false);
   }
 
   ObjectArray<StaticStorageBase>* GetInitializedStaticStorage() const
@@ -166,8 +166,8 @@ class MANAGED DexCache : public Object {
  private:
   ObjectArray<StaticStorageBase>* initialized_static_storage_;
   String* location_;
-  ObjectArray<Object>* resolved_fields_;
-  ObjectArray<AbstractMethod>* resolved_methods_;
+  ObjectArray<ArtField>* resolved_fields_;
+  ObjectArray<ArtMethod>* resolved_methods_;
   ObjectArray<Class>* resolved_types_;
   ObjectArray<String>* strings_;
   uint32_t dex_file_;

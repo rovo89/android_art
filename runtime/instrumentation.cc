@@ -23,9 +23,9 @@
 #include "class_linker.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
-#include "mirror/abstract_method-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 #include "nth_caller_visitor.h"
@@ -55,7 +55,7 @@ bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
   }
   bool is_initialized = klass->IsInitialized();
   for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
-    mirror::AbstractMethod* method = klass->GetDirectMethod(i);
+    mirror::ArtMethod* method = klass->GetDirectMethod(i);
     if (!method->IsAbstract()) {
       const void* new_code;
       if (uninstall) {
@@ -77,7 +77,7 @@ bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
     }
   }
   for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
-    mirror::AbstractMethod* method = klass->GetVirtualMethod(i);
+    mirror::ArtMethod* method = klass->GetVirtualMethod(i);
     if (!method->IsAbstract()) {
       const void* new_code;
       if (uninstall) {
@@ -109,7 +109,7 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
           instrumentation_exit_pc_(instrumentation_exit_pc), last_return_pc_(0) {}
 
     virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-      mirror::AbstractMethod* m = GetMethod();
+      mirror::ArtMethod* m = GetMethod();
       if (GetCurrentQuickFrame() == NULL) {
         if (kVerboseInstrumentation) {
           LOG(INFO) << "  Ignoring a shadow frame. Frame " << GetFrameId()
@@ -169,7 +169,7 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
   for (It it = thread->GetInstrumentationStack()->rbegin(),
        end = thread->GetInstrumentationStack()->rend(); it != end; ++it) {
     mirror::Object* this_object = (*it).this_object_;
-    mirror::AbstractMethod* method = (*it).method_;
+    mirror::ArtMethod* method = (*it).method_;
     uint32_t dex_pc = visitor.dex_pcs_.back();
     visitor.dex_pcs_.pop_back();
     instrumentation->MethodEnterEvent(thread, this_object, method, dex_pc);
@@ -193,7 +193,7 @@ static void InstrumentationRestoreStack(Thread* thread, void* arg)
       if (instrumentation_stack_->size() == 0) {
         return false;  // Stop.
       }
-      mirror::AbstractMethod* m = GetMethod();
+      mirror::ArtMethod* m = GetMethod();
       if (GetCurrentQuickFrame() == NULL) {
         if (kVerboseInstrumentation) {
           LOG(INFO) << "  Ignoring a shadow frame. Frame " << GetFrameId() << " Method=" << PrettyMethod(m);
@@ -379,7 +379,7 @@ void Instrumentation::ConfigureStubs(bool require_entry_exit_stubs, bool require
   }
 }
 
-void Instrumentation::UpdateMethodsCode(mirror::AbstractMethod* method, const void* code) const {
+void Instrumentation::UpdateMethodsCode(mirror::ArtMethod* method, const void* code) const {
   if (LIKELY(!instrumentation_stubs_installed_)) {
     method->SetEntryPointFromCompiledCode(code);
   } else {
@@ -391,7 +391,7 @@ void Instrumentation::UpdateMethodsCode(mirror::AbstractMethod* method, const vo
   }
 }
 
-const void* Instrumentation::GetQuickCodeFor(const mirror::AbstractMethod* method) const {
+const void* Instrumentation::GetQuickCodeFor(const mirror::ArtMethod* method) const {
   Runtime* runtime = Runtime::Current();
   if (LIKELY(!instrumentation_stubs_installed_)) {
     const void* code = method->GetEntryPointFromCompiledCode();
@@ -405,7 +405,7 @@ const void* Instrumentation::GetQuickCodeFor(const mirror::AbstractMethod* metho
 }
 
 void Instrumentation::MethodEnterEventImpl(Thread* thread, mirror::Object* this_object,
-                                           const mirror::AbstractMethod* method,
+                                           const mirror::ArtMethod* method,
                                            uint32_t dex_pc) const {
   typedef std::list<InstrumentationListener*>::const_iterator It;  // TODO: C++0x auto
   It it = method_entry_listeners_.begin();
@@ -420,7 +420,7 @@ void Instrumentation::MethodEnterEventImpl(Thread* thread, mirror::Object* this_
 }
 
 void Instrumentation::MethodExitEventImpl(Thread* thread, mirror::Object* this_object,
-                                          const mirror::AbstractMethod* method,
+                                          const mirror::ArtMethod* method,
                                           uint32_t dex_pc, const JValue& return_value) const {
   typedef std::list<InstrumentationListener*>::const_iterator It;  // TODO: C++0x auto
   It it = method_exit_listeners_.begin();
@@ -435,7 +435,7 @@ void Instrumentation::MethodExitEventImpl(Thread* thread, mirror::Object* this_o
 }
 
 void Instrumentation::MethodUnwindEvent(Thread* thread, mirror::Object* this_object,
-                                        const mirror::AbstractMethod* method,
+                                        const mirror::ArtMethod* method,
                                         uint32_t dex_pc) const {
   if (have_method_unwind_listeners_) {
     typedef std::list<InstrumentationListener*>::const_iterator It;  // TODO: C++0x auto
@@ -447,7 +447,7 @@ void Instrumentation::MethodUnwindEvent(Thread* thread, mirror::Object* this_obj
 }
 
 void Instrumentation::DexPcMovedEventImpl(Thread* thread, mirror::Object* this_object,
-                                          const mirror::AbstractMethod* method,
+                                          const mirror::ArtMethod* method,
                                           uint32_t dex_pc) const {
   // TODO: STL copy-on-write collection? The copy below is due to the debug listener having an
   // action where it can remove itself as a listener and break the iterator. The copy only works
@@ -461,7 +461,7 @@ void Instrumentation::DexPcMovedEventImpl(Thread* thread, mirror::Object* this_o
 }
 
 void Instrumentation::ExceptionCaughtEvent(Thread* thread, const ThrowLocation& throw_location,
-                                           mirror::AbstractMethod* catch_method,
+                                           mirror::ArtMethod* catch_method,
                                            uint32_t catch_dex_pc,
                                            mirror::Throwable* exception_object) {
   if (have_exception_caught_listeners_) {
@@ -489,7 +489,7 @@ static void CheckStackDepth(Thread* self, const InstrumentationStackFrame& instr
 }
 
 void Instrumentation::PushInstrumentationStackFrame(Thread* self, mirror::Object* this_object,
-                                                    mirror::AbstractMethod* method,
+                                                    mirror::ArtMethod* method,
                                                     uintptr_t lr, bool interpreter_entry) {
   // We have a callee-save frame meaning this value is guaranteed to never be 0.
   size_t frame_id = StackVisitor::ComputeNumFrames(self);
@@ -516,7 +516,7 @@ uint64_t Instrumentation::PopInstrumentationStackFrame(Thread* self, uintptr_t* 
   *return_pc = instrumentation_frame.return_pc_;
   CheckStackDepth(self, instrumentation_frame, 0);
 
-  mirror::AbstractMethod* method = instrumentation_frame.method_;
+  mirror::ArtMethod* method = instrumentation_frame.method_;
   char return_shorty = MethodHelper(method).GetShorty()[0];
   JValue return_value;
   if (return_shorty == 'V') {
@@ -567,7 +567,7 @@ void Instrumentation::PopMethodForUnwind(Thread* self, bool is_deoptimization) c
   // TODO: bring back CheckStackDepth(self, instrumentation_frame, 2);
   stack->pop_front();
 
-  mirror::AbstractMethod* method = instrumentation_frame.method_;
+  mirror::ArtMethod* method = instrumentation_frame.method_;
   if (is_deoptimization) {
     if (kVerboseInstrumentation) {
       LOG(INFO) << "Popping for deoptimization " << PrettyMethod(method);

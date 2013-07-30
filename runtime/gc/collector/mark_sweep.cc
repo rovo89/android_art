@@ -37,11 +37,11 @@
 #include "jni_internal.h"
 #include "monitor.h"
 #include "mark_sweep-inl.h"
+#include "mirror/art_field.h"
+#include "mirror/art_field-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache.h"
-#include "mirror/field.h"
-#include "mirror/field-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array.h"
 #include "mirror/object_array-inl.h"
@@ -50,8 +50,8 @@
 #include "thread_list.h"
 #include "verifier/method_verifier.h"
 
+using ::art::mirror::ArtField;
 using ::art::mirror::Class;
-using ::art::mirror::Field;
 using ::art::mirror::Object;
 using ::art::mirror::ObjectArray;
 
@@ -1072,11 +1072,11 @@ void MarkSweep::CheckReference(const Object* obj, const Object* ref, MemberOffse
 
         const Class* klass = is_static ? obj->AsClass() : obj->GetClass();
         DCHECK(klass != NULL);
-        const ObjectArray<Field>* fields = is_static ? klass->GetSFields() : klass->GetIFields();
+        const ObjectArray<ArtField>* fields = is_static ? klass->GetSFields() : klass->GetIFields();
         DCHECK(fields != NULL);
         bool found = false;
         for (int32_t i = 0; i < fields->GetLength(); ++i) {
-          const Field* cur = fields->Get(i);
+          const ArtField* cur = fields->Get(i);
           if (cur->GetOffset().Int32Value() == offset.Int32Value()) {
             LOG(WARNING) << "Field referencing the alloc space was " << PrettyField(cur);
             found = true;

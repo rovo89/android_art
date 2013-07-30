@@ -29,11 +29,11 @@
 #include "indenter.h"
 #include "intern_table.h"
 #include "leb128.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_field-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
-#include "mirror/field-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "object_utils.h"
@@ -139,7 +139,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
     }
     previous_direct_method_idx = method_idx;
     InvokeType type = it.GetMethodInvokeType(class_def);
-    mirror::AbstractMethod* method =
+    mirror::ArtMethod* method =
         linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, NULL, type);
     if (method == NULL) {
       DCHECK(Thread::Current()->IsExceptionPending());
@@ -181,7 +181,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
     }
     previous_virtual_method_idx = method_idx;
     InvokeType type = it.GetMethodInvokeType(class_def);
-    mirror::AbstractMethod* method =
+    mirror::ArtMethod* method =
         linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, NULL, type);
     if (method == NULL) {
       DCHECK(Thread::Current()->IsExceptionPending());
@@ -225,7 +225,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx,
                                                          mirror::ClassLoader* class_loader,
                                                          uint32_t class_def_idx,
                                                          const DexFile::CodeItem* code_item,
-                                                         mirror::AbstractMethod* method,
+                                                         mirror::ArtMethod* method,
                                                          uint32_t method_access_flags,
                                                          bool allow_soft_failures) {
   MethodVerifier::FailureKind result = kNoFailure;
@@ -266,7 +266,7 @@ void MethodVerifier::VerifyMethodAndDump(std::ostream& os, uint32_t dex_method_i
                                          const DexFile* dex_file, mirror::DexCache* dex_cache,
                                          mirror::ClassLoader* class_loader, uint32_t class_def_idx,
                                          const DexFile::CodeItem* code_item,
-                                         mirror::AbstractMethod* method,
+                                         mirror::ArtMethod* method,
                                          uint32_t method_access_flags) {
   MethodVerifier verifier(dex_file, dex_cache, class_loader, class_def_idx, code_item,
                           dex_method_idx, method, method_access_flags, true, true);
@@ -279,7 +279,7 @@ void MethodVerifier::VerifyMethodAndDump(std::ostream& os, uint32_t dex_method_i
 MethodVerifier::MethodVerifier(const DexFile* dex_file, mirror::DexCache* dex_cache,
                                mirror::ClassLoader* class_loader, uint32_t class_def_idx,
                                const DexFile::CodeItem* code_item,
-                               uint32_t dex_method_idx, mirror::AbstractMethod* method,
+                               uint32_t dex_method_idx, mirror::ArtMethod* method,
                                uint32_t method_access_flags, bool can_load_classes,
                                bool allow_soft_failures)
     : reg_types_(can_load_classes),
@@ -305,7 +305,7 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, mirror::DexCache* dex_ca
       has_virtual_or_interface_invokes_(false) {
 }
 
-void MethodVerifier::FindLocksAtDexPc(mirror::AbstractMethod* m, uint32_t dex_pc,
+void MethodVerifier::FindLocksAtDexPc(mirror::ArtMethod* m, uint32_t dex_pc,
                                       std::vector<uint32_t>& monitor_enter_dex_pcs) {
   MethodHelper mh(m);
   MethodVerifier verifier(&mh.GetDexFile(), mh.GetDexCache(), mh.GetClassLoader(),
@@ -327,7 +327,7 @@ void MethodVerifier::FindLocksAtDexPc() {
   Verify();
 }
 
-mirror::Field* MethodVerifier::FindAccessedFieldAtDexPc(mirror::AbstractMethod* m,
+mirror::ArtField* MethodVerifier::FindAccessedFieldAtDexPc(mirror::ArtMethod* m,
                                                         uint32_t dex_pc) {
   MethodHelper mh(m);
   MethodVerifier verifier(&mh.GetDexFile(), mh.GetDexCache(), mh.GetClassLoader(),
@@ -336,7 +336,7 @@ mirror::Field* MethodVerifier::FindAccessedFieldAtDexPc(mirror::AbstractMethod* 
   return verifier.FindAccessedFieldAtDexPc(dex_pc);
 }
 
-mirror::Field* MethodVerifier::FindAccessedFieldAtDexPc(uint32_t dex_pc) {
+mirror::ArtField* MethodVerifier::FindAccessedFieldAtDexPc(uint32_t dex_pc) {
   CHECK(code_item_ != NULL);  // This only makes sense for methods with code.
 
   // Strictly speaking, we ought to be able to get away with doing a subset of the full method
@@ -355,7 +355,7 @@ mirror::Field* MethodVerifier::FindAccessedFieldAtDexPc(uint32_t dex_pc) {
   return GetQuickFieldAccess(inst, register_line);
 }
 
-mirror::AbstractMethod* MethodVerifier::FindInvokedMethodAtDexPc(mirror::AbstractMethod* m,
+mirror::ArtMethod* MethodVerifier::FindInvokedMethodAtDexPc(mirror::ArtMethod* m,
                                                                  uint32_t dex_pc) {
   MethodHelper mh(m);
   MethodVerifier verifier(&mh.GetDexFile(), mh.GetDexCache(), mh.GetClassLoader(),
@@ -364,7 +364,7 @@ mirror::AbstractMethod* MethodVerifier::FindInvokedMethodAtDexPc(mirror::Abstrac
   return verifier.FindInvokedMethodAtDexPc(dex_pc);
 }
 
-mirror::AbstractMethod* MethodVerifier::FindInvokedMethodAtDexPc(uint32_t dex_pc) {
+mirror::ArtMethod* MethodVerifier::FindInvokedMethodAtDexPc(uint32_t dex_pc) {
   CHECK(code_item_ != NULL);  // This only makes sense for methods with code.
 
   // Strictly speaking, we ought to be able to get away with doing a subset of the full method
@@ -2113,7 +2113,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
                        inst->Opcode() == Instruction::INVOKE_SUPER_RANGE);
       bool is_super =  (inst->Opcode() == Instruction::INVOKE_SUPER ||
                         inst->Opcode() == Instruction::INVOKE_SUPER_RANGE);
-      mirror::AbstractMethod* called_method = VerifyInvocationArgs(inst, METHOD_VIRTUAL,
+      mirror::ArtMethod* called_method = VerifyInvocationArgs(inst, METHOD_VIRTUAL,
                                                                    is_range, is_super);
       const char* descriptor;
       if (called_method == NULL) {
@@ -2136,7 +2136,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::INVOKE_DIRECT:
     case Instruction::INVOKE_DIRECT_RANGE: {
       bool is_range = (inst->Opcode() == Instruction::INVOKE_DIRECT_RANGE);
-      mirror::AbstractMethod* called_method = VerifyInvocationArgs(inst, METHOD_DIRECT,
+      mirror::ArtMethod* called_method = VerifyInvocationArgs(inst, METHOD_DIRECT,
                                                                    is_range, false);
       const char* return_type_descriptor;
       bool is_constructor;
@@ -2203,7 +2203,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::INVOKE_STATIC:
     case Instruction::INVOKE_STATIC_RANGE: {
         bool is_range = (inst->Opcode() == Instruction::INVOKE_STATIC_RANGE);
-        mirror::AbstractMethod* called_method = VerifyInvocationArgs(inst,
+        mirror::ArtMethod* called_method = VerifyInvocationArgs(inst,
                                                                      METHOD_STATIC,
                                                                      is_range,
                                                                      false);
@@ -2228,7 +2228,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::INVOKE_INTERFACE:
     case Instruction::INVOKE_INTERFACE_RANGE: {
       bool is_range =  (inst->Opcode() == Instruction::INVOKE_INTERFACE_RANGE);
-      mirror::AbstractMethod* abs_method = VerifyInvocationArgs(inst,
+      mirror::ArtMethod* abs_method = VerifyInvocationArgs(inst,
                                                                 METHOD_INTERFACE,
                                                                 is_range,
                                                                 false);
@@ -2536,7 +2536,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::INVOKE_VIRTUAL_QUICK:
     case Instruction::INVOKE_VIRTUAL_RANGE_QUICK: {
       bool is_range = (inst->Opcode() == Instruction::INVOKE_VIRTUAL_RANGE_QUICK);
-      mirror::AbstractMethod* called_method = VerifyInvokeVirtualQuickArgs(inst, is_range);
+      mirror::ArtMethod* called_method = VerifyInvokeVirtualQuickArgs(inst, is_range);
       if (called_method != NULL) {
         const char* descriptor = MethodHelper(called_method).GetReturnTypeDescriptor();
         const RegType& return_type = reg_types_.FromDescriptor(class_loader_, descriptor, false);
@@ -2871,7 +2871,7 @@ const RegType& MethodVerifier::GetCaughtExceptionType() {
   return *common_super;
 }
 
-mirror::AbstractMethod* MethodVerifier::ResolveMethodAndCheckAccess(uint32_t dex_method_idx,
+mirror::ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(uint32_t dex_method_idx,
                                                                     MethodType method_type) {
   const DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx);
   const RegType& klass_type = ResolveClassAndCheckAccess(method_id.class_idx_);
@@ -2886,7 +2886,7 @@ mirror::AbstractMethod* MethodVerifier::ResolveMethodAndCheckAccess(uint32_t dex
   }
   mirror::Class* klass = klass_type.GetClass();
   const RegType& referrer = GetDeclaringClass();
-  mirror::AbstractMethod* res_method = dex_cache_->GetResolvedMethod(dex_method_idx);
+  mirror::ArtMethod* res_method = dex_cache_->GetResolvedMethod(dex_method_idx);
   if (res_method == NULL) {
     const char* name = dex_file_->GetMethodName(method_id);
     std::string signature(dex_file_->CreateMethodSignature(method_id.proto_idx_, NULL));
@@ -2963,14 +2963,14 @@ mirror::AbstractMethod* MethodVerifier::ResolveMethodAndCheckAccess(uint32_t dex
   return res_method;
 }
 
-mirror::AbstractMethod* MethodVerifier::VerifyInvocationArgs(const Instruction* inst,
+mirror::ArtMethod* MethodVerifier::VerifyInvocationArgs(const Instruction* inst,
                                                              MethodType method_type,
                                                              bool is_range,
                                                              bool is_super) {
   // Resolve the method. This could be an abstract or concrete method depending on what sort of call
   // we're making.
   const uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
-  mirror::AbstractMethod* res_method = ResolveMethodAndCheckAccess(method_idx, method_type);
+  mirror::ArtMethod* res_method = ResolveMethodAndCheckAccess(method_idx, method_type);
   if (res_method == NULL) {  // error or class is unresolved
     return NULL;
   }
@@ -3078,7 +3078,7 @@ mirror::AbstractMethod* MethodVerifier::VerifyInvocationArgs(const Instruction* 
   }
 }
 
-mirror::AbstractMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction* inst,
+mirror::ArtMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction* inst,
                                                               RegisterLine* reg_line,
                                                               bool is_range) {
   DCHECK(inst->Opcode() == Instruction::INVOKE_VIRTUAL_QUICK ||
@@ -3103,19 +3103,19 @@ mirror::AbstractMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction*
   if (this_class == NULL) {
     return NULL;
   }
-  mirror::ObjectArray<mirror::AbstractMethod>* vtable = this_class->GetVTable();
+  mirror::ObjectArray<mirror::ArtMethod>* vtable = this_class->GetVTable();
   CHECK(vtable != NULL);
   uint16_t vtable_index = is_range ? inst->VRegB_3rc() : inst->VRegB_35c();
   CHECK(vtable_index < vtable->GetLength());
-  mirror::AbstractMethod* res_method = vtable->Get(vtable_index);
+  mirror::ArtMethod* res_method = vtable->Get(vtable_index);
   CHECK(!Thread::Current()->IsExceptionPending());
   return res_method;
 }
 
-mirror::AbstractMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instruction* inst,
+mirror::ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instruction* inst,
                                                                      bool is_range) {
   DCHECK(Runtime::Current()->IsStarted());
-  mirror::AbstractMethod* res_method = GetQuickInvokedMethod(inst, work_line_.get(),
+  mirror::ArtMethod* res_method = GetQuickInvokedMethod(inst, work_line_.get(),
                                                              is_range);
   if (res_method == NULL) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Cannot infer method from " << inst->Name();
@@ -3368,7 +3368,7 @@ void MethodVerifier::VerifyAPut(const Instruction* inst,
   }
 }
 
-mirror::Field* MethodVerifier::GetStaticField(int field_idx) {
+mirror::ArtField* MethodVerifier::GetStaticField(int field_idx) {
   const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
   // Check access to class
   const RegType& klass_type = ResolveClassAndCheckAccess(field_id.class_idx_);
@@ -3381,7 +3381,7 @@ mirror::Field* MethodVerifier::GetStaticField(int field_idx) {
   if (klass_type.IsUnresolvedTypes()) {
     return NULL;  // Can't resolve Class so no more to do here, will do checking at runtime.
   }
-  mirror::Field* field = Runtime::Current()->GetClassLinker()->ResolveFieldJLS(*dex_file_,
+  mirror::ArtField* field = Runtime::Current()->GetClassLinker()->ResolveFieldJLS(*dex_file_,
                                                                                field_idx,
                                                                                dex_cache_,
                                                                                class_loader_);
@@ -3405,7 +3405,7 @@ mirror::Field* MethodVerifier::GetStaticField(int field_idx) {
   }
 }
 
-mirror::Field* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_idx) {
+mirror::ArtField* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_idx) {
   const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
   // Check access to class
   const RegType& klass_type = ResolveClassAndCheckAccess(field_id.class_idx_);
@@ -3418,7 +3418,7 @@ mirror::Field* MethodVerifier::GetInstanceField(const RegType& obj_type, int fie
   if (klass_type.IsUnresolvedTypes()) {
     return NULL;  // Can't resolve Class so no more to do here
   }
-  mirror::Field* field = Runtime::Current()->GetClassLinker()->ResolveFieldJLS(*dex_file_,
+  mirror::ArtField* field = Runtime::Current()->GetClassLinker()->ResolveFieldJLS(*dex_file_,
                                                                                field_idx,
                                                                                dex_cache_,
                                                                                class_loader_);
@@ -3471,7 +3471,7 @@ mirror::Field* MethodVerifier::GetInstanceField(const RegType& obj_type, int fie
 void MethodVerifier::VerifyISGet(const Instruction* inst, const RegType& insn_type,
                                  bool is_primitive, bool is_static) {
   uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
-  mirror::Field* field;
+  mirror::ArtField* field;
   if (is_static) {
     field = GetStaticField(field_idx);
   } else {
@@ -3525,7 +3525,7 @@ void MethodVerifier::VerifyISGet(const Instruction* inst, const RegType& insn_ty
 void MethodVerifier::VerifyISPut(const Instruction* inst, const RegType& insn_type,
                                  bool is_primitive, bool is_static) {
   uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
-  mirror::Field* field;
+  mirror::ArtField* field;
   if (is_static) {
     field = GetStaticField(field_idx);
   } else {
@@ -3567,13 +3567,13 @@ void MethodVerifier::VerifyISPut(const Instruction* inst, const RegType& insn_ty
 
 // Look for an instance field with this offset.
 // TODO: we may speed up the search if offsets are sorted by doing a quick search.
-static mirror::Field* FindInstanceFieldWithOffset(const mirror::Class* klass,
+static mirror::ArtField* FindInstanceFieldWithOffset(const mirror::Class* klass,
                                                   uint32_t field_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  const mirror::ObjectArray<mirror::Field>* instance_fields = klass->GetIFields();
+  const mirror::ObjectArray<mirror::ArtField>* instance_fields = klass->GetIFields();
   if (instance_fields != NULL) {
     for (int32_t i = 0, e = instance_fields->GetLength(); i < e; ++i) {
-      mirror::Field* field = instance_fields->Get(i);
+      mirror::ArtField* field = instance_fields->Get(i);
       if (field->GetOffset().Uint32Value() == field_offset) {
         return field;
       }
@@ -3589,7 +3589,7 @@ static mirror::Field* FindInstanceFieldWithOffset(const mirror::Class* klass,
 
 // Returns the access field of a quick field access (iget/iput-quick) or NULL
 // if it cannot be found.
-mirror::Field* MethodVerifier::GetQuickFieldAccess(const Instruction* inst,
+mirror::ArtField* MethodVerifier::GetQuickFieldAccess(const Instruction* inst,
                                                    RegisterLine* reg_line) {
   DCHECK(inst->Opcode() == Instruction::IGET_QUICK ||
          inst->Opcode() == Instruction::IGET_WIDE_QUICK ||
@@ -3624,7 +3624,7 @@ mirror::Field* MethodVerifier::GetQuickFieldAccess(const Instruction* inst,
 void MethodVerifier::VerifyIGetQuick(const Instruction* inst, const RegType& insn_type,
                                      bool is_primitive) {
   DCHECK(Runtime::Current()->IsStarted());
-  mirror::Field* field = GetQuickFieldAccess(inst, work_line_.get());
+  mirror::ArtField* field = GetQuickFieldAccess(inst, work_line_.get());
   if (field == NULL) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Cannot infer field from " << inst->Name();
     return;
@@ -3668,7 +3668,7 @@ void MethodVerifier::VerifyIGetQuick(const Instruction* inst, const RegType& ins
 void MethodVerifier::VerifyIPutQuick(const Instruction* inst, const RegType& insn_type,
                                      bool is_primitive) {
   DCHECK(Runtime::Current()->IsStarted());
-  mirror::Field* field = GetQuickFieldAccess(inst, work_line_.get());
+  mirror::ArtField* field = GetQuickFieldAccess(inst, work_line_.get());
   if (field == NULL) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Cannot infer field from " << inst->Name();
     return;
@@ -3922,7 +3922,7 @@ MethodVerifier::PcToConcreteMethodMap* MethodVerifier::GenerateDevirtMap() {
       // We can't devirtualize abstract classes except on arrays of abstract classes.
       continue;
     }
-    mirror::AbstractMethod* abstract_method =
+    mirror::ArtMethod* abstract_method =
         dex_cache_->GetResolvedMethod(is_range ? inst->VRegB_3rc() : inst->VRegB_35c());
     if (abstract_method == NULL) {
       // If the method is not found in the cache this means that it was never found
@@ -3930,7 +3930,7 @@ MethodVerifier::PcToConcreteMethodMap* MethodVerifier::GenerateDevirtMap() {
       continue;
     }
     // Find the concrete method.
-    mirror::AbstractMethod* concrete_method = NULL;
+    mirror::ArtMethod* concrete_method = NULL;
     if (is_interface) {
       concrete_method = reg_type.GetClass()->FindVirtualMethodForInterface(abstract_method);
     }

@@ -22,7 +22,7 @@
 
 #include "common_test.h"
 #include "invoke_arg_array_builder.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
@@ -43,7 +43,8 @@ class JniInternalTest : public CommonTest {
 
     vm_->AttachCurrentThread(&env_, NULL);
 
-    ScopedLocalRef<jclass> aioobe(env_, env_->FindClass("java/lang/ArrayIndexOutOfBoundsException"));
+    ScopedLocalRef<jclass> aioobe(env_,
+                                  env_->FindClass("java/lang/ArrayIndexOutOfBoundsException"));
     CHECK(aioobe.get() != NULL);
     aioobe_ = reinterpret_cast<jclass>(env_->NewGlobalRef(aioobe.get()));
 
@@ -51,7 +52,8 @@ class JniInternalTest : public CommonTest {
     CHECK(ase.get() != NULL);
     ase_ = reinterpret_cast<jclass>(env_->NewGlobalRef(ase.get()));
 
-    ScopedLocalRef<jclass> sioobe(env_, env_->FindClass("java/lang/StringIndexOutOfBoundsException"));
+    ScopedLocalRef<jclass> sioobe(env_,
+                                  env_->FindClass("java/lang/StringIndexOutOfBoundsException"));
     CHECK(sioobe.get() != NULL);
     sioobe_ = reinterpret_cast<jclass>(env_->NewGlobalRef(sioobe.get()));
   }
@@ -76,7 +78,7 @@ class JniInternalTest : public CommonTest {
     CommonTest::TearDown();
   }
 
-  void DoCompile(mirror::AbstractMethod*& method,
+  void DoCompile(mirror::ArtMethod*& method,
                  mirror::Object*& receiver,
                  bool is_static, const char* method_name,
                  const char* method_signature)
@@ -95,7 +97,8 @@ class JniInternalTest : public CommonTest {
       CompileVirtualMethod(class_loader.get(), class_name, method_name, method_signature);
     }
 
-    mirror::Class* c = class_linker_->FindClass(DotToDescriptor(class_name).c_str(), class_loader.get());
+    mirror::Class* c = class_linker_->FindClass(DotToDescriptor(class_name).c_str(),
+                                                class_loader.get());
     CHECK(c != NULL);
 
     method = is_static ? c->FindDirectMethod(method_name, method_signature)
@@ -111,7 +114,7 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeNopMethod(bool is_static) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::AbstractMethod* method;
+    mirror::ArtMethod* method;
     mirror::Object* receiver;
     DoCompile(method, receiver, is_static, "nop", "()V");
 
@@ -127,7 +130,7 @@ class JniInternalTest : public CommonTest {
 
   void InvokeIdentityByteMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::AbstractMethod* method;
+    mirror::ArtMethod* method;
     mirror::Object* receiver;
     DoCompile(method, receiver, is_static, "identity", "(I)I");
 
@@ -163,7 +166,7 @@ class JniInternalTest : public CommonTest {
 
   void InvokeIdentityIntMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::AbstractMethod* method;
+    mirror::ArtMethod* method;
     mirror::Object* receiver;
     DoCompile(method, receiver, is_static, "identity", "(I)I");
 
@@ -199,7 +202,7 @@ class JniInternalTest : public CommonTest {
 
   void InvokeIdentityDoubleMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::AbstractMethod* method;
+    mirror::ArtMethod* method;
     mirror::Object* receiver;
     DoCompile(method, receiver, is_static, "identity", "(D)D");
 
@@ -243,7 +246,7 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumIntIntMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::AbstractMethod* method;
+    mirror::ArtMethod* method;
     mirror::Object* receiver;
     DoCompile(method, receiver, is_static, "sum", "(II)I");
 
@@ -289,7 +292,7 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumIntIntIntMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::AbstractMethod* method;
+    mirror::ArtMethod* method;
     mirror::Object* receiver;
     DoCompile(method, receiver, is_static, "sum", "(III)I");
 
@@ -340,7 +343,7 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumIntIntIntIntMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::AbstractMethod* method;
+    mirror::ArtMethod* method;
     mirror::Object* receiver;
     DoCompile(method, receiver, is_static, "sum", "(IIII)I");
 
@@ -396,7 +399,7 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumIntIntIntIntIntMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::AbstractMethod* method;
+    mirror::ArtMethod* method;
     mirror::Object* receiver;
     DoCompile(method, receiver, is_static, "sum", "(IIIII)I");
 
@@ -457,7 +460,7 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumDoubleDoubleMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::AbstractMethod* method;
+    mirror::ArtMethod* method;
     mirror::Object* receiver;
     DoCompile(method, receiver, is_static, "sum", "(DD)D");
 
@@ -523,7 +526,7 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumDoubleDoubleDoubleMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::AbstractMethod* method;
+    mirror::ArtMethod* method;
     mirror::Object* receiver;
     DoCompile(method, receiver, is_static, "sum", "(DDD)D");
 
@@ -578,7 +581,7 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumDoubleDoubleDoubleDoubleMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::AbstractMethod* method;
+    mirror::ArtMethod* method;
     mirror::Object* receiver;
     DoCompile(method, receiver, is_static, "sum", "(DDDD)D");
 
@@ -642,7 +645,7 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumDoubleDoubleDoubleDoubleDoubleMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::AbstractMethod* method;
+    mirror::ArtMethod* method;
     mirror::Object* receiver;
     DoCompile(method, receiver, is_static, "sum", "(DDDDD)D");
 
@@ -891,6 +894,11 @@ TEST_F(JniInternalTest, GetMethodID) {
   method = env_->GetMethodID(jlstring, "valueOf", "(I)Ljava/lang/String;");
   EXPECT_EQ(static_cast<jmethodID>(NULL), method);
   EXPECT_EXCEPTION(jlnsme);
+
+  // Check that GetMethodID for java.lang.NoSuchMethodError.<init>(String) finds the constructor
+  method = env_->GetMethodID(jlnsme, "<init>", "(Ljava/lang/String;)V");
+  EXPECT_NE(static_cast<jmethodID>(NULL), method);
+  EXPECT_FALSE(env_->ExceptionCheck());
 }
 
 TEST_F(JniInternalTest, GetStaticMethodID) {
@@ -933,6 +941,9 @@ TEST_F(JniInternalTest, FromReflectedField_ToReflectedField) {
   // ...and back again.
   jfieldID fid2 = env_->FromReflectedField(field);
   ASSERT_TRUE(fid2 != NULL);
+  // Make sure we can actually use it.
+  jstring s = env_->NewStringUTF("poop");
+  ASSERT_EQ(4, env_->GetIntField(s, fid2));
 }
 
 TEST_F(JniInternalTest, FromReflectedMethod_ToReflectedMethod) {
@@ -948,6 +959,13 @@ TEST_F(JniInternalTest, FromReflectedMethod_ToReflectedMethod) {
   // ...and back again.
   jmethodID mid2 = env_->FromReflectedMethod(method);
   ASSERT_TRUE(mid2 != NULL);
+  // Make sure we can actually use it.
+  jstring s = env_->NewStringUTF("poop");
+  // TODO: this should return 4, but the runtime skips the method
+  // invoke because the runtime isn't started. In the future it would
+  // be nice to use interpretter for things like this. This still does
+  // validate that we have a sane jmethodID value.
+  ASSERT_EQ(0, env_->CallIntMethod(s, mid2));
 }
 
 void BogusMethod() {
@@ -986,7 +1004,13 @@ TEST_F(JniInternalTest, RegisterNatives) {
   env_->UnregisterNatives(jlobject);
 }
 
-#define EXPECT_PRIMITIVE_ARRAY(new_fn, get_region_fn, set_region_fn, get_elements_fn, release_elements_fn, scalar_type, expected_class_descriptor) \
+#define EXPECT_PRIMITIVE_ARRAY(new_fn, \
+                               get_region_fn, \
+                               set_region_fn, \
+                               get_elements_fn, \
+                               release_elements_fn, \
+                               scalar_type, \
+                               expected_class_descriptor) \
   jsize size = 4; \
   /* Allocate an array and check it has the right type and length. */ \
   scalar_type ## Array a = env_->new_fn(size); \
@@ -1017,47 +1041,60 @@ TEST_F(JniInternalTest, RegisterNatives) {
   env_->set_region_fn(a, 0, size, &src_buf[0]); \
   /* Copy back only part. */ \
   env_->get_region_fn(a, 1, size - 2, &dst_buf[1]); \
-  EXPECT_NE(memcmp(&src_buf[0], &dst_buf[0], size * sizeof(scalar_type)), 0) << "short copy equal"; \
+  EXPECT_NE(memcmp(&src_buf[0], &dst_buf[0], size * sizeof(scalar_type)), 0) \
+    << "short copy equal"; \
   /* Copy the missing pieces. */ \
   env_->get_region_fn(a, 0, 1, &dst_buf[0]); \
   env_->get_region_fn(a, size - 1, 1, &dst_buf[size - 1]); \
-  EXPECT_EQ(memcmp(&src_buf[0], &dst_buf[0], size * sizeof(scalar_type)), 0) << "fixed copy not equal"; \
+  EXPECT_EQ(memcmp(&src_buf[0], &dst_buf[0], size * sizeof(scalar_type)), 0) \
+    << "fixed copy not equal"; \
   /* Copy back the whole array. */ \
   env_->get_region_fn(a, 0, size, &dst_buf[0]); \
-  EXPECT_EQ(memcmp(&src_buf[0], &dst_buf[0], size * sizeof(scalar_type)), 0) << "full copy not equal"; \
+  EXPECT_EQ(memcmp(&src_buf[0], &dst_buf[0], size * sizeof(scalar_type)), 0) \
+    << "full copy not equal"; \
   /* GetPrimitiveArrayCritical */ \
   void* v = env_->GetPrimitiveArrayCritical(a, NULL); \
-  EXPECT_EQ(memcmp(&src_buf[0], v, size * sizeof(scalar_type)), 0) << "GetPrimitiveArrayCritical not equal"; \
+  EXPECT_EQ(memcmp(&src_buf[0], v, size * sizeof(scalar_type)), 0) \
+    << "GetPrimitiveArrayCritical not equal"; \
   env_->ReleasePrimitiveArrayCritical(a, v, 0); \
   /* GetXArrayElements */ \
   scalar_type* xs = env_->get_elements_fn(a, NULL); \
-  EXPECT_EQ(memcmp(&src_buf[0], xs, size * sizeof(scalar_type)), 0) << # get_elements_fn " not equal"; \
+  EXPECT_EQ(memcmp(&src_buf[0], xs, size * sizeof(scalar_type)), 0) \
+    << # get_elements_fn " not equal"; \
   env_->release_elements_fn(a, xs, 0); \
   EXPECT_EQ(reinterpret_cast<uintptr_t>(v), reinterpret_cast<uintptr_t>(xs))
 
 TEST_F(JniInternalTest, BooleanArrays) {
-  EXPECT_PRIMITIVE_ARRAY(NewBooleanArray, GetBooleanArrayRegion, SetBooleanArrayRegion, GetBooleanArrayElements, ReleaseBooleanArrayElements, jboolean, "[Z");
+  EXPECT_PRIMITIVE_ARRAY(NewBooleanArray, GetBooleanArrayRegion, SetBooleanArrayRegion,
+                         GetBooleanArrayElements, ReleaseBooleanArrayElements, jboolean, "[Z");
 }
 TEST_F(JniInternalTest, ByteArrays) {
-  EXPECT_PRIMITIVE_ARRAY(NewByteArray, GetByteArrayRegion, SetByteArrayRegion, GetByteArrayElements, ReleaseByteArrayElements, jbyte, "[B");
+  EXPECT_PRIMITIVE_ARRAY(NewByteArray, GetByteArrayRegion, SetByteArrayRegion,
+                         GetByteArrayElements, ReleaseByteArrayElements, jbyte, "[B");
 }
 TEST_F(JniInternalTest, CharArrays) {
-  EXPECT_PRIMITIVE_ARRAY(NewCharArray, GetCharArrayRegion, SetCharArrayRegion, GetCharArrayElements, ReleaseCharArrayElements, jchar, "[C");
+  EXPECT_PRIMITIVE_ARRAY(NewCharArray, GetCharArrayRegion, SetCharArrayRegion,
+                         GetCharArrayElements, ReleaseCharArrayElements, jchar, "[C");
 }
 TEST_F(JniInternalTest, DoubleArrays) {
-  EXPECT_PRIMITIVE_ARRAY(NewDoubleArray, GetDoubleArrayRegion, SetDoubleArrayRegion, GetDoubleArrayElements, ReleaseDoubleArrayElements, jdouble, "[D");
+  EXPECT_PRIMITIVE_ARRAY(NewDoubleArray, GetDoubleArrayRegion, SetDoubleArrayRegion,
+                         GetDoubleArrayElements, ReleaseDoubleArrayElements, jdouble, "[D");
 }
 TEST_F(JniInternalTest, FloatArrays) {
-  EXPECT_PRIMITIVE_ARRAY(NewFloatArray, GetFloatArrayRegion, SetFloatArrayRegion, GetFloatArrayElements, ReleaseFloatArrayElements, jfloat, "[F");
+  EXPECT_PRIMITIVE_ARRAY(NewFloatArray, GetFloatArrayRegion, SetFloatArrayRegion,
+                         GetFloatArrayElements, ReleaseFloatArrayElements, jfloat, "[F");
 }
 TEST_F(JniInternalTest, IntArrays) {
-  EXPECT_PRIMITIVE_ARRAY(NewIntArray, GetIntArrayRegion, SetIntArrayRegion, GetIntArrayElements, ReleaseIntArrayElements, jint, "[I");
+  EXPECT_PRIMITIVE_ARRAY(NewIntArray, GetIntArrayRegion, SetIntArrayRegion,
+                         GetIntArrayElements, ReleaseIntArrayElements, jint, "[I");
 }
 TEST_F(JniInternalTest, LongArrays) {
-  EXPECT_PRIMITIVE_ARRAY(NewLongArray, GetLongArrayRegion, SetLongArrayRegion, GetLongArrayElements, ReleaseLongArrayElements, jlong, "[J");
+  EXPECT_PRIMITIVE_ARRAY(NewLongArray, GetLongArrayRegion, SetLongArrayRegion,
+                         GetLongArrayElements, ReleaseLongArrayElements, jlong, "[J");
 }
 TEST_F(JniInternalTest, ShortArrays) {
-  EXPECT_PRIMITIVE_ARRAY(NewShortArray, GetShortArrayRegion, SetShortArrayRegion, GetShortArrayElements, ReleaseShortArrayElements, jshort, "[S");
+  EXPECT_PRIMITIVE_ARRAY(NewShortArray, GetShortArrayRegion, SetShortArrayRegion,
+                         GetShortArrayElements, ReleaseShortArrayElements, jshort, "[S");
 }
 
 TEST_F(JniInternalTest, NewObjectArray) {
@@ -1437,7 +1474,8 @@ TEST_F(JniInternalTest, DeleteLocalRef) {
     CheckJniAbortCatcher check_jni_abort_catcher;
     env_->DeleteLocalRef(s);
 
-    std::string expected(StringPrintf("native code passing in reference to invalid local reference: %p", s));
+    std::string expected(StringPrintf("native code passing in reference to "
+                                      "invalid local reference: %p", s));
     check_jni_abort_catcher.Check(expected.c_str());
   }
 
@@ -1520,7 +1558,8 @@ TEST_F(JniInternalTest, DeleteGlobalRef) {
     CheckJniAbortCatcher check_jni_abort_catcher;
     env_->DeleteGlobalRef(o);
 
-    std::string expected(StringPrintf("native code passing in reference to invalid global reference: %p", o));
+    std::string expected(StringPrintf("native code passing in reference to "
+                                      "invalid global reference: %p", o));
     check_jni_abort_catcher.Check(expected.c_str());
   }
 
@@ -1564,7 +1603,8 @@ TEST_F(JniInternalTest, DeleteWeakGlobalRef) {
     CheckJniAbortCatcher check_jni_abort_catcher;
     env_->DeleteWeakGlobalRef(o);
 
-    std::string expected(StringPrintf("native code passing in reference to invalid weak global reference: %p", o));
+    std::string expected(StringPrintf("native code passing in reference to "
+                                      "invalid weak global reference: %p", o));
     check_jni_abort_catcher.Check(expected.c_str());
   }
 
@@ -1588,7 +1628,7 @@ TEST_F(JniInternalTest, StaticMainMethod) {
   mirror::Class* klass = class_linker_->FindClass("LMain;", class_loader.get());
   ASSERT_TRUE(klass != NULL);
 
-  mirror::AbstractMethod* method = klass->FindDirectMethod("main", "([Ljava/lang/String;)V");
+  mirror::ArtMethod* method = klass->FindDirectMethod("main", "([Ljava/lang/String;)V");
   ASSERT_TRUE(method != NULL);
 
   ArgArray arg_array(NULL, 0);

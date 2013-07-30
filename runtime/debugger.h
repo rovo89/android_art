@@ -32,7 +32,7 @@
 
 namespace art {
 namespace mirror {
-class AbstractMethod;
+class ArtMethod;
 class Class;
 class Object;
 class Throwable;
@@ -64,7 +64,7 @@ struct DebugInvokeReq {
   mirror::Object* receiver_;      /* not used for ClassType.InvokeMethod */
   mirror::Object* thread_;
   mirror::Class* class_;
-  mirror::AbstractMethod* method_;
+  mirror::ArtMethod* method_;
   uint32_t arg_count_;
   uint64_t* arg_values_;   /* will be NULL if arg_count_ == 0 */
   uint32_t options_;
@@ -324,11 +324,11 @@ class Dbg {
     kMethodEntry    = 0x04,
     kMethodExit     = 0x08,
   };
-  static void PostLocationEvent(const mirror::AbstractMethod* method, int pcOffset,
+  static void PostLocationEvent(const mirror::ArtMethod* method, int pcOffset,
                                 mirror::Object* thisPtr, int eventFlags)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostException(Thread* thread, const ThrowLocation& throw_location,
-                            mirror::AbstractMethod* catch_method,
+                            mirror::ArtMethod* catch_method,
                             uint32_t catch_dex_pc, mirror::Throwable* exception)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostThreadStart(Thread* t)
@@ -339,7 +339,7 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void UpdateDebugger(Thread* thread, mirror::Object* this_object,
-                             const mirror::AbstractMethod* method, uint32_t new_dex_pc)
+                             const mirror::ArtMethod* method, uint32_t new_dex_pc)
       LOCKS_EXCLUDED(Locks::breakpoint_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

@@ -32,7 +32,7 @@ class Class;
 jmethodID CacheMethod(JNIEnv* env, jclass c, bool is_static, const char* name, const char* signature);
 
 struct WellKnownClasses {
-  static void InitClasses(JNIEnv* env);
+ public:
   static void Init(JNIEnv* env);  // Run before native methods are registered.
   static void LateInit(JNIEnv* env);  // Run after native methods are registered.
 
@@ -46,8 +46,11 @@ struct WellKnownClasses {
   static jclass java_lang_Daemons;
   static jclass java_lang_Error;
   static jclass java_lang_Object;
-  static jclass java_lang_reflect_InvocationHandler;
   static jclass java_lang_reflect_AbstractMethod;
+  static jclass java_lang_reflect_ArtMethod;
+  static jclass java_lang_reflect_Constructor;
+  static jclass java_lang_reflect_Field;
+  static jclass java_lang_reflect_Method;
   static jclass java_lang_reflect_Proxy;
   static jclass java_lang_RuntimeException;
   static jclass java_lang_StackOverflowError;
@@ -75,7 +78,7 @@ struct WellKnownClasses {
   static jmethodID java_lang_Long_valueOf;
   static jmethodID java_lang_ref_FinalizerReference_add;
   static jmethodID java_lang_ref_ReferenceQueue_add;
-  static jmethodID java_lang_reflect_InvocationHandler_invoke;
+  static jmethodID java_lang_reflect_Proxy_invoke;
   static jmethodID java_lang_Runtime_nativeLoad;
   static jmethodID java_lang_Short_valueOf;
   static jmethodID java_lang_System_runFinalization;
@@ -87,6 +90,8 @@ struct WellKnownClasses {
   static jmethodID org_apache_harmony_dalvik_ddmc_DdmServer_broadcast;
   static jmethodID org_apache_harmony_dalvik_ddmc_DdmServer_dispatch;
 
+  static jfieldID java_lang_reflect_AbstractMethod_artMethod;
+  static jfieldID java_lang_reflect_Field_artField;
   static jfieldID java_lang_reflect_Proxy_h;
   static jfieldID java_lang_Thread_daemon;
   static jfieldID java_lang_Thread_group;

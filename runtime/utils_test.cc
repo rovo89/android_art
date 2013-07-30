@@ -130,7 +130,7 @@ TEST_F(UtilsTest, PrettyField) {
 
   mirror::Class* java_lang_String = class_linker_->FindSystemClass("Ljava/lang/String;");
 
-  mirror::Field* f;
+  mirror::ArtField* f;
   f = java_lang_String->FindDeclaredInstanceField("count", "I");
   EXPECT_EQ("int java.lang.String.count", PrettyField(f));
   EXPECT_EQ("java.lang.String.count", PrettyField(f, false));
@@ -199,7 +199,7 @@ TEST_F(UtilsTest, JniShortName_JniLongName) {
   ScopedObjectAccess soa(Thread::Current());
   mirror::Class* c = class_linker_->FindSystemClass("Ljava/lang/String;");
   ASSERT_TRUE(c != NULL);
-  mirror::AbstractMethod* m;
+  mirror::ArtMethod* m;
 
   m = c->FindVirtualMethod("charAt", "(I)C");
   ASSERT_TRUE(m != NULL);
