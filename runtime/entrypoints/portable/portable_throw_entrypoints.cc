@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "dex_instruction.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/object-inl.h"
@@ -116,6 +117,11 @@ extern "C" int32_t art_portable_find_catch_block_from_code(mirror::AbstractMetho
                                                                    current_method,
                                                                    catch_dex_pc,
                                                                    exception);
+    // If the catch block has no move-exception then clear the exception for it.
+    const Instruction* first_catch_instr = Instruction::At(&mh.GetCodeItem()->insns_[catch_dex_pc]);
+    if (first_catch_instr->Opcode() != Instruction::MOVE_EXCEPTION) {
+      self->ClearException();
+    }
   }
   return result;
 }
