@@ -2819,8 +2819,10 @@ const RegType& MethodVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
     dex_cache_->SetResolvedType(class_idx, result.GetClass());
   }
   // Check if access is allowed. Unresolved types use xxxWithAccessCheck to
-  // check at runtime if access is allowed and so pass here.
-  if (!result.IsUnresolvedTypes() && !referrer.IsUnresolvedTypes() && !referrer.CanAccess(result)) {
+  // check at runtime if access is allowed and so pass here. If result is
+  // primitive, skip the access check.
+  if (result.IsNonZeroReferenceTypes() && !result.IsUnresolvedTypes() &&
+      !referrer.IsUnresolvedTypes() && !referrer.CanAccess(result)) {
     Fail(VERIFY_ERROR_ACCESS_CLASS) << "illegal class access: '"
                                     << referrer << "' -> '" << result << "'";
   }
@@ -3310,25 +3312,56 @@ void MethodVerifier::VerifyAPut(const Instruction* inst,
     } else if (!array_type.IsArrayTypes()) {
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "not array type " << array_type << " with aput";
     } else {
-      /* verify the class */
       const RegType& component_type = reg_types_.GetComponentType(array_type, class_loader_);
-      if (!component_type.IsReferenceTypes() && !is_primitive) {
-        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "primitive array type " << array_type
-            << " source for aput-object";
-      } else if (component_type.IsNonZeroReferenceTypes() && is_primitive) {
-        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "reference array type " << array_type
-            << " source for category 1 aput";
-      } else if (is_primitive && !insn_type.Equals(component_type) &&
-                 !((insn_type.IsInteger() && component_type.IsFloat()) ||
-                   (insn_type.IsLong() && component_type.IsDouble()))) {
-        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "array type " << array_type
-            << " incompatible with aput of type " << insn_type;
+      if (is_primitive) {
+        // Primitive array assignability rules are weaker than regular assignability rules.
+        bool instruction_compatible;
+        bool value_compatible;
+        const RegType& value_type = work_line_->GetRegisterType(inst->VRegA_23x());
+        if (component_type.IsNonZeroReferenceTypes()) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "reference array type " << array_type
+              << " source for category 1 aput";
+          return;
+        } else if (component_type.IsIntegralTypes()) {
+          instruction_compatible = insn_type.IsIntegralTypes();
+          value_compatible = value_type.IsIntegralTypes();
+        } else if (component_type.IsFloat()) {
+          instruction_compatible = insn_type.IsInteger();  // no aput-float, so expect aput-int
+          value_compatible = value_type.IsFloatTypes();
+        } else if (component_type.IsLong()) {
+          instruction_compatible = insn_type.IsLong();
+          value_compatible = value_type.IsLongTypes();
+        } else if (component_type.IsDouble()) {
+          instruction_compatible = insn_type.IsLong();  // no aput-double, so expect aput-long
+          value_compatible = value_type.IsDoubleTypes();
+        } else {
+          instruction_compatible = false;  // reference array with primitive store
+          value_compatible = false;  // unused
+        }
+        if (!instruction_compatible) {
+          // This is a global failure rather than a class change failure as the instructions and
+          // the descriptors for the type should have been consistent within the same file at
+          // compile time
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected array to be of type '" << insn_type
+                                            << "' but found type '" << component_type
+                                            << "' in aput";
+          return;
+        }
+        if (!value_compatible) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unexpected value in v" << inst->VRegA_23x()
+              << " of type " << value_type << " but expected " << component_type << " for aput";
+          return;
+        }
       } else {
-        // The instruction agrees with the type of array, confirm the value to be stored does too
-        // Note: we use the instruction type (rather than the component type) for aput-object as
-        // incompatible classes will be caught at runtime as an array store exception
-        work_line_->VerifyRegisterType(inst->VRegA_23x(),
-                                       is_primitive ? component_type : insn_type);
+        if (!component_type.IsReferenceTypes()) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "primitive array type " << array_type
+              << " source for aput-object";
+        } else {
+          // The instruction agrees with the type of array, confirm the value to be stored does too
+          // Note: we use the instruction type (rather than the component type) for aput-object as
+          // incompatible classes will be caught at runtime as an array store exception
+          work_line_->VerifyRegisterType(inst->VRegA_23x(), insn_type);
+        }
       }
     }
   }
@@ -3756,6 +3789,10 @@ bool MethodVerifier::UpdateRegisters(uint32_t next_insn, const RegisterLine* mer
     if (!insn_flags_[next_insn].IsReturn()) {
       target_line->CopyFromLine(merge_line);
     } else {
+      // Verify that the monitor stack is empty on return.
+      if (!merge_line->VerifyMonitorStackEmpty()) {
+        return false;
+      }
       // For returns we only care about the operand to the return, all other registers are dead.
       // Initialize them as conflicts so they don't add to GC and deoptimization information.
       const Instruction* ret_inst = Instruction::At(code_item_->insns_ + next_insn);
