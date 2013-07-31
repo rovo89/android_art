@@ -209,8 +209,8 @@ void DexCompiler::Compile() {
 
 void DexCompiler::CompileReturnVoid(Instruction* inst, uint32_t dex_pc) {
   DCHECK(inst->Opcode() == Instruction::RETURN_VOID);
-  // Are we compiling a constructor ?
-  if ((unit_.GetAccessFlags() & kAccConstructor) == 0) {
+  // Are we compiling a non-clinit constructor?
+  if (!unit_.IsConstructor() || unit_.IsStatic()) {
     return;
   }
   // Do we need a constructor barrier ?
