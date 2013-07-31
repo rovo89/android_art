@@ -60,6 +60,8 @@ namespace gc {
 static const uint64_t kSlowGcThreshold = MsToNs(100);
 // When to create a log message about a long pause, 5ms.
 static const uint64_t kLongGcPauseThreshold = MsToNs(5);
+static const bool kGCALotMode = false;
+static const size_t kGcAlotInterval = KB;
 static const bool kDumpGcPerformanceOnShutdown = false;
 // Minimum amount of remaining bytes before a concurrent GC is triggered.
 static const size_t kMinConcurrentRemainingBytes = 128 * KB;
@@ -100,7 +102,13 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       min_remaining_space_for_sticky_gc_(1 * MB),
       last_trim_time_ms_(0),
       allocation_rate_(0),
-      max_allocation_stack_size_(kDesiredHeapVerification > kNoHeapVerification? KB : MB),
+      /* For GC a lot mode, we limit the allocations stacks to be kGcAlotInterval allocations. This
+       * causes a lot of GC since we do a GC for alloc whenever the stack is full. When heap
+       * verification is enabled, we limit the size of allocation stacks to speed up their
+       * searching.
+       */
+      max_allocation_stack_size_(kGCALotMode ? kGcAlotInterval
+          : (kDesiredHeapVerification > kNoHeapVerification) ? KB : MB),
       reference_referent_offset_(0),
       reference_queue_offset_(0),
       reference_queueNext_offset_(0),
