@@ -20,6 +20,7 @@
 
 #include <set>
 
+#include "arch/context.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
@@ -37,7 +38,6 @@
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/throwable.h"
-#include "oat/runtime/context.h"
 #include "object_utils.h"
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"

@@ -111,13 +111,6 @@ LIBART_COMMON_SRC_FILES := \
 	native/org_apache_harmony_dalvik_ddmc_DdmVmInternal.cc \
 	native/sun_misc_Unsafe.cc \
 	oat.cc \
-	oat/utils/arm/assembler_arm.cc \
-	oat/utils/arm/managed_register_arm.cc \
-	oat/utils/assembler.cc \
-	oat/utils/mips/assembler_mips.cc \
-	oat/utils/mips/managed_register_mips.cc \
-	oat/utils/x86/assembler_x86.cc \
-	oat/utils/x86/managed_register_x86.cc \
 	oat_file.cc \
 	offsets.cc \
 	os_linux.cc \
@@ -125,8 +118,6 @@ LIBART_COMMON_SRC_FILES := \
 	reference_table.cc \
 	reflection.cc \
 	runtime.cc \
-	runtime_support.cc \
-	runtime_support_llvm.cc \
 	signal_catcher.cc \
 	stack.cc \
 	thread.cc \
@@ -136,7 +127,6 @@ LIBART_COMMON_SRC_FILES := \
 	trace.cc \
 	utf.cc \
 	utils.cc \
-	vector_output_stream.cc \
 	verifier/dex_gc_map.cc \
 	verifier/instruction_flags.cc \
 	verifier/method_verifier.cc \
@@ -147,23 +137,41 @@ LIBART_COMMON_SRC_FILES := \
 	zip_archive.cc
 
 LIBART_COMMON_SRC_FILES += \
-	oat/runtime/context.cc \
-	oat/runtime/support_alloc.cc \
-	oat/runtime/support_cast.cc \
-	oat/runtime/support_deoptimize.cc \
-	oat/runtime/support_dexcache.cc \
-	oat/runtime/support_field.cc \
-	oat/runtime/support_fillarray.cc \
-	oat/runtime/support_instrumentation.cc \
-	oat/runtime/support_invoke.cc \
-	oat/runtime/support_jni.cc \
-	oat/runtime/support_locks.cc \
-	oat/runtime/support_math.cc \
-	oat/runtime/support_proxy.cc \
-	oat/runtime/support_stubs.cc \
-	oat/runtime/support_thread.cc \
-	oat/runtime/support_throw.cc \
-	oat/runtime/support_interpreter.cc
+	arch/context.cc \
+	arch/arm/registers_arm.cc \
+	arch/x86/registers_x86.cc \
+	arch/mips/registers_mips.cc \
+	entrypoints/entrypoint_utils.cc \
+	entrypoints/jni/jni_entrypoints.cc \
+	entrypoints/math_entrypoints.cc \
+	entrypoints/portable/portable_alloc_entrypoints.cc \
+	entrypoints/portable/portable_cast_entrypoints.cc \
+	entrypoints/portable/portable_dexcache_entrypoints.cc \
+	entrypoints/portable/portable_field_entrypoints.cc \
+	entrypoints/portable/portable_fillarray_entrypoints.cc \
+	entrypoints/portable/portable_invoke_entrypoints.cc \
+	entrypoints/portable/portable_jni_entrypoints.cc \
+	entrypoints/portable/portable_lock_entrypoints.cc \
+	entrypoints/portable/portable_proxy_entrypoints.cc \
+	entrypoints/portable/portable_stub_entrypoints.cc \
+	entrypoints/portable/portable_thread_entrypoints.cc \
+	entrypoints/portable/portable_throw_entrypoints.cc \
+	entrypoints/quick/quick_alloc_entrypoints.cc \
+	entrypoints/quick/quick_cast_entrypoints.cc \
+	entrypoints/quick/quick_deoptimization_entrypoints.cc \
+	entrypoints/quick/quick_dexcache_entrypoints.cc \
+	entrypoints/quick/quick_field_entrypoints.cc \
+	entrypoints/quick/quick_fillarray_entrypoints.cc \
+	entrypoints/quick/quick_instrumentation_entrypoints.cc \
+	entrypoints/quick/quick_interpreter_entrypoints.cc \
+	entrypoints/quick/quick_invoke_entrypoints.cc \
+	entrypoints/quick/quick_jni_entrypoints.cc \
+	entrypoints/quick/quick_lock_entrypoints.cc \
+	entrypoints/quick/quick_math_entrypoints.cc \
+	entrypoints/quick/quick_proxy_entrypoints.cc \
+	entrypoints/quick/quick_stub_entrypoints.cc \
+	entrypoints/quick/quick_thread_entrypoints.cc \
+	entrypoints/quick/quick_throw_entrypoints.cc
 
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
@@ -175,40 +183,36 @@ LIBART_TARGET_SRC_FILES := \
 
 ifeq ($(TARGET_ARCH),arm)
 LIBART_TARGET_SRC_FILES += \
-	oat/runtime/arm/context_arm.cc.arm \
-	oat/runtime/arm/oat_support_entrypoints_arm.cc \
-	oat/runtime/arm/runtime_support_arm.S
+	arch/arm/context_arm.cc.arm \
+	arch/arm/entrypoints_init_arm.cc \
+	arch/arm/jni_entrypoints_arm.S \
+	arch/arm/portable_entrypoints_arm.S \
+	arch/arm/quick_entrypoints_arm.S \
+	arch/arm/thread_arm.cc
 else # TARGET_ARCH != arm
 ifeq ($(TARGET_ARCH),x86)
 LIBART_TARGET_SRC_FILES += \
-	oat/runtime/x86/context_x86.cc \
-	oat/runtime/x86/oat_support_entrypoints_x86.cc \
-	oat/runtime/x86/runtime_support_x86.S
+	arch/x86/context_x86.cc \
+	arch/x86/entrypoints_init_x86.cc \
+	arch/x86/jni_entrypoints_x86.S \
+	arch/x86/portable_entrypoints_x86.S \
+	arch/x86/quick_entrypoints_x86.S \
+	arch/x86/thread_x86.cc
 else # TARGET_ARCH != x86
 ifeq ($(TARGET_ARCH),mips)
 LIBART_TARGET_SRC_FILES += \
-	oat/runtime/mips/context_mips.cc \
-	oat/runtime/mips/oat_support_entrypoints_mips.cc \
-	oat/runtime/mips/runtime_support_mips.S
+	arch/mips/context_mips.cc \
+	arch/mips/entrypoints_init_mips.cc \
+	arch/mips/jni_entrypoints_mips.S \
+	arch/mips/portable_entrypoints_mips.S \
+	arch/mips/quick_entrypoints_mips.S \
+	arch/mips/thread_mips.cc
 else # TARGET_ARCH != mips
 $(error unsupported TARGET_ARCH=$(TARGET_ARCH))
 endif # TARGET_ARCH != mips
 endif # TARGET_ARCH != x86
 endif # TARGET_ARCH != arm
 
-ifeq ($(TARGET_ARCH),arm)
-LIBART_TARGET_SRC_FILES += thread_arm.cc
-else # TARGET_ARCH != arm
-ifeq ($(TARGET_ARCH),x86)
-LIBART_TARGET_SRC_FILES += thread_x86.cc
-else # TARGET_ARCH != x86
-ifeq ($(TARGET_ARCH),mips)
-LIBART_TARGET_SRC_FILES += thread_mips.cc
-else # TARGET_ARCH != mips
-$(error unsupported TARGET_ARCH=$(TARGET_ARCH))
-endif # TARGET_ARCH != mips
-endif # TARGET_ARCH != x86
-endif # TARGET_ARCH != arm
 
 LIBART_HOST_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
@@ -219,15 +223,12 @@ LIBART_HOST_SRC_FILES := \
 
 ifeq ($(HOST_ARCH),x86)
 LIBART_HOST_SRC_FILES += \
-	oat/runtime/x86/context_x86.cc \
-	oat/runtime/x86/oat_support_entrypoints_x86.cc \
-	oat/runtime/x86/runtime_support_x86.S
-else # HOST_ARCH != x86
-$(error unsupported HOST_ARCH=$(HOST_ARCH))
-endif # HOST_ARCH != x86
-
-ifeq ($(HOST_ARCH),x86)
-LIBART_HOST_SRC_FILES += thread_x86.cc
+	arch/x86/context_x86.cc \
+	arch/x86/entrypoints_init_x86.cc \
+	arch/x86/jni_entrypoints_x86.S \
+	arch/x86/portable_entrypoints_x86.S \
+	arch/x86/quick_entrypoints_x86.S \
+	arch/x86/thread_x86.cc
 else # HOST_ARCH != x86
 $(error unsupported HOST_ARCH=$(HOST_ARCH))
 endif # HOST_ARCH != x86

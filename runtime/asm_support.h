@@ -30,29 +30,4 @@
 // Offset of field Method::entry_point_from_compiled_code_
 #define METHOD_CODE_OFFSET 40
 
-#if defined(__arm__)
-// Register holding suspend check count down.
-#define rSUSPEND r4
-// Register holding Thread::Current().
-#define rSELF r9
-// Offset of field Thread::suspend_count_ verified in InitCpu
-#define THREAD_FLAGS_OFFSET 0
-// Offset of field Thread::exception_ verified in InitCpu
-#define THREAD_EXCEPTION_OFFSET 12
-#elif defined(__mips__)
-// Register holding suspend check count down.
-#define rSUSPEND $s0
-// Register holding Thread::Current().
-#define rSELF $s1
-// Offset of field Thread::suspend_count_ verified in InitCpu
-#define THREAD_FLAGS_OFFSET 0
-// Offset of field Thread::exception_ verified in InitCpu
-#define THREAD_EXCEPTION_OFFSET 12
-#elif defined(__i386__)
-// Offset of field Thread::self_ verified in InitCpu
-#define THREAD_SELF_OFFSET 40
-// Offset of field Thread::exception_ verified in InitCpu
-#define THREAD_EXCEPTION_OFFSET 12
-#endif
-
 #endif  // ART_RUNTIME_ASM_SUPPORT_H_

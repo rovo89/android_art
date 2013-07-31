@@ -72,7 +72,7 @@ class MANAGED Array : public Object {
 
   bool IsValidIndex(int32_t index) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (UNLIKELY(index < 0 || index >= GetLength())) {
+    if (UNLIKELY(static_cast<uint32_t>(index) >= static_cast<uint32_t>(GetLength()))) {
       ThrowArrayIndexOutOfBoundsException(index);
       return false;
     }

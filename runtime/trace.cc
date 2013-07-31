@@ -29,14 +29,14 @@
 #include "mirror/dex_cache.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
-#if !defined(ART_USE_PORTABLE_COMPILER)
-#include "oat/runtime/oat_support_entrypoints.h"
-#endif
 #include "object_utils.h"
 #include "os.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
 #include "thread_list.h"
+#if !defined(ART_USE_PORTABLE_COMPILER)
+#include "entrypoints/quick/quick_entrypoints.h"
+#endif
 
 namespace art {
 

@@ -30,7 +30,7 @@
 #include "mirror/object-inl.h"
 #include "nth_caller_visitor.h"
 #if !defined(ART_USE_PORTABLE_COMPILER)
-#include "oat/runtime/oat_support_entrypoints.h"
+#include "entrypoints/quick/quick_entrypoints.h"
 #endif
 #include "object_utils.h"
 #include "os.h"

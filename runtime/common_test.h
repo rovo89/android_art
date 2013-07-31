@@ -31,6 +31,7 @@
 #include "class_linker.h"
 #include "compiler/driver/compiler_driver.h"
 #include "dex_file-inl.h"
+#include "entrypoints/entrypoint_utils.h"
 #include "gc/heap.h"
 #include "gtest/gtest.h"
 #include "instruction_set.h"
@@ -39,7 +40,6 @@
 #include "object_utils.h"
 #include "os.h"
 #include "runtime.h"
-#include "runtime_support.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
 #include "thread.h"
@@ -473,7 +473,8 @@ class CommonTest : public testing::Test {
 
   void CompileMethod(mirror::AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(method != NULL);
-    TimingLogger timings("CommonTest::CompileMethod", false);
+    base::TimingLogger timings("CommonTest::CompileMethod", false, false);
+    timings.StartSplit("CompileOne");
     compiler_driver_->CompileOne(method, timings);
     MakeExecutable(method);
   }

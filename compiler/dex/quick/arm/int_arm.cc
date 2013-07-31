@@ -19,8 +19,8 @@
 #include "arm_lir.h"
 #include "codegen_arm.h"
 #include "dex/quick/mir_to_lir-inl.h"
+#include "entrypoints/quick/quick_entrypoints.h"
 #include "mirror/array.h"
-#include "oat/runtime/oat_support_entrypoints.h"
 
 namespace art {
 
@@ -665,7 +665,7 @@ void ArmMir2Lir::GenMulLong(RegLocation rl_dest, RegLocation rl_src1,
      */
     RegLocation rl_result;
     if (BadOverlap(rl_src1, rl_dest) || (BadOverlap(rl_src2, rl_dest))) {
-      int func_offset = ENTRYPOINT_OFFSET(pLmul);
+      int func_offset = QUICK_ENTRYPOINT_OFFSET(pLmul);
       FlushAllRegs();
       CallRuntimeHelperRegLocationRegLocation(func_offset, rl_src1, rl_src2, false);
       rl_result = GetReturnWide(false);
@@ -956,7 +956,7 @@ void ArmMir2Lir::GenArrayObjPut(int opt_flags, RegLocation rl_array,
 
   // Get the array's class.
   LoadWordDisp(r_array, mirror::Object::ClassOffset().Int32Value(), r_array_class);
-  CallRuntimeHelperRegReg(ENTRYPOINT_OFFSET(pCanPutArrayElementFromCode), r_value,
+  CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(pCanPutArrayElementFromCode), r_value,
                           r_array_class, true);
   // Redo LoadValues in case they didn't survive the call.
   LoadValueDirectFixed(rl_array, r_array);  // Reload array

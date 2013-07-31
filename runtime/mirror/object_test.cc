@@ -26,6 +26,7 @@
 #include "class_linker-inl.h"
 #include "common_test.h"
 #include "dex_file.h"
+#include "entrypoints/entrypoint_utils.h"
 #include "field-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/heap.h"
@@ -33,7 +34,6 @@
 #include "abstract_method-inl.h"
 #include "object-inl.h"
 #include "object_array-inl.h"
-#include "runtime_support.h"
 #include "sirt_ref.h"
 #include "UniquePtr.h"
 

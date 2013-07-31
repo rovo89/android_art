@@ -148,7 +148,7 @@ void X86Mir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
   NewLIR1(kX86StartOfMethod, rX86_ARG2);
   NewLIR2(kX86PcRelAdr, rX86_ARG1, reinterpret_cast<uintptr_t>(tab_rec));
   NewLIR2(kX86Add32RR, rX86_ARG1, rX86_ARG2);
-  CallRuntimeHelperRegReg(ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode), rX86_ARG0,
+  CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode), rX86_ARG0,
                           rX86_ARG1, true);
 }
 
@@ -165,7 +165,7 @@ void X86Mir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
   NewLIR3(kX86LockCmpxchgMR, rCX, mirror::Object::MonitorOffset().Int32Value(), rDX);
   LIR* branch = NewLIR2(kX86Jcc8, 0, kX86CondEq);
   // If lock is held, go the expensive route - artLockObjectFromCode(self, obj);
-  CallRuntimeHelperReg(ENTRYPOINT_OFFSET(pLockObjectFromCode), rCX, true);
+  CallRuntimeHelperReg(QUICK_ENTRYPOINT_OFFSET(pLockObjectFromCode), rCX, true);
   branch->target = NewLIR0(kPseudoTargetLabel);
 }
 
@@ -185,7 +185,7 @@ void X86Mir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
   LIR* branch2 = NewLIR1(kX86Jmp8, 0);
   branch->target = NewLIR0(kPseudoTargetLabel);
   // Otherwise, go the expensive route - UnlockObjectFromCode(obj);
-  CallRuntimeHelperReg(ENTRYPOINT_OFFSET(pUnlockObjectFromCode), rAX, true);
+  CallRuntimeHelperReg(QUICK_ENTRYPOINT_OFFSET(pUnlockObjectFromCode), rAX, true);
   branch2->target = NewLIR0(kPseudoTargetLabel);
 }
 

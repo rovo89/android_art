@@ -49,7 +49,8 @@ void X86Mir2Lir::GenArithOpFloat(Instruction::Code opcode,
     case Instruction::REM_FLOAT_2ADDR:
     case Instruction::REM_FLOAT:
       FlushAllRegs();   // Send everything to home location
-      CallRuntimeHelperRegLocationRegLocation(ENTRYPOINT_OFFSET(pFmodf), rl_src1, rl_src2, false);
+      CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(pFmodf), rl_src1, rl_src2,
+                                              false);
       rl_result = GetReturn(true);
       StoreValue(rl_dest, rl_result);
       return;
@@ -99,7 +100,8 @@ void X86Mir2Lir::GenArithOpDouble(Instruction::Code opcode,
     case Instruction::REM_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE:
       FlushAllRegs();   // Send everything to home location
-      CallRuntimeHelperRegLocationRegLocation(ENTRYPOINT_OFFSET(pFmod), rl_src1, rl_src2, false);
+      CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(pFmod), rl_src1, rl_src2,
+                                              false);
       rl_result = GetReturnWide(true);
       StoreValueWide(rl_dest, rl_result);
       return;
@@ -196,17 +198,17 @@ void X86Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
       return;
     }
     case Instruction::LONG_TO_DOUBLE:
-      GenConversionCall(ENTRYPOINT_OFFSET(pL2d), rl_dest, rl_src);
+      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pL2d), rl_dest, rl_src);
       return;
     case Instruction::LONG_TO_FLOAT:
       // TODO: inline by using memory as a 64-bit source. Be careful about promoted registers.
-      GenConversionCall(ENTRYPOINT_OFFSET(pL2f), rl_dest, rl_src);
+      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pL2f), rl_dest, rl_src);
       return;
     case Instruction::FLOAT_TO_LONG:
-      GenConversionCall(ENTRYPOINT_OFFSET(pF2l), rl_dest, rl_src);
+      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pF2l), rl_dest, rl_src);
       return;
     case Instruction::DOUBLE_TO_LONG:
-      GenConversionCall(ENTRYPOINT_OFFSET(pD2l), rl_dest, rl_src);
+      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pD2l), rl_dest, rl_src);
       return;
     default:
       LOG(INFO) << "Unexpected opcode: " << opcode;

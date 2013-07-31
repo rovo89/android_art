@@ -25,13 +25,13 @@
 #include "dex_file-inl.h"
 #include "driver/compiler_driver.h"
 #include "disassembler.h"
+#include "entrypoints/quick/quick_entrypoints.h"
 #include "jni_internal.h"
-#include "oat/runtime/oat_support_entrypoints.h"
-#include "oat/utils/assembler.h"
-#include "oat/utils/managed_register.h"
-#include "oat/utils/arm/managed_register_arm.h"
-#include "oat/utils/mips/managed_register_mips.h"
-#include "oat/utils/x86/managed_register_x86.h"
+#include "utils/assembler.h"
+#include "utils/managed_register.h"
+#include "utils/arm/managed_register_arm.h"
+#include "utils/mips/managed_register_mips.h"
+#include "utils/x86/managed_register_x86.h"
 #include "thread.h"
 #include "UniquePtr.h"
 
@@ -172,8 +172,8 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   //    can occur. The result is the saved JNI local state that is restored by the exit call. We
   //    abuse the JNI calling convention here, that is guaranteed to support passing 2 pointer
   //    arguments.
-  uintptr_t jni_start = is_synchronized ? ENTRYPOINT_OFFSET(pJniMethodStartSynchronized)
-                                        : ENTRYPOINT_OFFSET(pJniMethodStart);
+  uintptr_t jni_start = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(pJniMethodStartSynchronized)
+                                        : QUICK_ENTRYPOINT_OFFSET(pJniMethodStart);
   main_jni_conv->ResetIterator(FrameOffset(main_out_arg_size));
   FrameOffset locked_object_sirt_offset(0);
   if (is_synchronized) {
@@ -304,13 +304,13 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   uintptr_t jni_end;
   if (reference_return) {
     // Pass result.
-    jni_end = is_synchronized ? ENTRYPOINT_OFFSET(pJniMethodEndWithReferenceSynchronized)
-                              : ENTRYPOINT_OFFSET(pJniMethodEndWithReference);
+    jni_end = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(pJniMethodEndWithReferenceSynchronized)
+                              : QUICK_ENTRYPOINT_OFFSET(pJniMethodEndWithReference);
     SetNativeParameter(jni_asm.get(), end_jni_conv.get(), end_jni_conv->ReturnRegister());
     end_jni_conv->Next();
   } else {
-    jni_end = is_synchronized ? ENTRYPOINT_OFFSET(pJniMethodEndSynchronized)
-                              : ENTRYPOINT_OFFSET(pJniMethodEnd);
+    jni_end = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(pJniMethodEndSynchronized)
+                              : QUICK_ENTRYPOINT_OFFSET(pJniMethodEnd);
   }
   // Pass saved local reference state.
   if (end_jni_conv->IsCurrentParamOnStack()) {

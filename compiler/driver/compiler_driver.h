@@ -48,6 +48,12 @@ enum CompilerBackend {
   kNoBackend
 };
 
+enum DexToDexCompilationLevel {
+  kDontDexToDexCompile,   // Only meaning wrt image time interpretation.
+  kRequired,              // Dex-to-dex compilation required for correctness.
+  kOptimize               // Perform required transformation and peep-hole optimizations.
+};
+
 // Thread-local storage compiler worker threads
 class CompilerTls {
   public:
@@ -78,11 +84,11 @@ class CompilerDriver {
   ~CompilerDriver();
 
   void CompileAll(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                  TimingLogger& timings)
+                  base::TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Compile a single Method
-  void CompileOne(const mirror::AbstractMethod* method, TimingLogger& timings)
+  void CompileOne(const mirror::AbstractMethod* method, base::TimingLogger& timings)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   InstructionSet GetInstructionSet() const {
@@ -284,47 +290,47 @@ class CompilerDriver {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void PreCompile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                  ThreadPool& thread_pool, TimingLogger& timings)
+                  ThreadPool& thread_pool, base::TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  void LoadImageClasses(TimingLogger& timings);
+  void LoadImageClasses(base::TimingLogger& timings);
 
   // Attempt to resolve all type, methods, fields, and strings
   // referenced from code in the dex file following PathClassLoader
   // ordering semantics.
   void Resolve(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-               ThreadPool& thread_pool, TimingLogger& timings)
+               ThreadPool& thread_pool, base::TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
   void ResolveDexFile(jobject class_loader, const DexFile& dex_file,
-                      ThreadPool& thread_pool, TimingLogger& timings)
+                      ThreadPool& thread_pool, base::TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   void Verify(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-              ThreadPool& thread_pool, TimingLogger& timings);
+              ThreadPool& thread_pool, base::TimingLogger& timings);
   void VerifyDexFile(jobject class_loader, const DexFile& dex_file,
-                     ThreadPool& thread_pool, TimingLogger& timings)
+                     ThreadPool& thread_pool, base::TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   void InitializeClasses(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                         ThreadPool& thread_pool, TimingLogger& timings)
+                         ThreadPool& thread_pool, base::TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
   void InitializeClasses(jobject class_loader, const DexFile& dex_file,
-                         ThreadPool& thread_pool, TimingLogger& timings)
+                         ThreadPool& thread_pool, base::TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_, compiled_classes_lock_);
 
-  void UpdateImageClasses(TimingLogger& timings);
+  void UpdateImageClasses(base::TimingLogger& timings);
   static void FindClinitImageClassesCallback(mirror::Object* object, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void Compile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-               ThreadPool& thread_pool, TimingLogger& timings);
+               ThreadPool& thread_pool, base::TimingLogger& timings);
   void CompileDexFile(jobject class_loader, const DexFile& dex_file,
-                      ThreadPool& thread_pool, TimingLogger& timings)
+                      ThreadPool& thread_pool, base::TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
   void CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
                      InvokeType invoke_type, uint32_t class_def_idx, uint32_t method_idx,
                      jobject class_loader, const DexFile& dex_file,
-                     bool allow_dex_to_dex_compilation)
+                     DexToDexCompilationLevel dex_to_dex_compilation_level)
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
   static void CompileClass(const ParallelCompilationManager* context, size_t class_def_index)
@@ -375,12 +381,19 @@ class CompilerDriver {
                                         uint32_t access_flags, InvokeType invoke_type,
                                         uint32_t class_dex_idx, uint32_t method_idx,
                                         jobject class_loader, const DexFile& dex_file);
+
+  typedef void (*DexToDexCompilerFn)(CompilerDriver& driver,
+                                     const DexFile::CodeItem* code_item,
+                                     uint32_t access_flags, InvokeType invoke_type,
+                                     uint32_t class_dex_idx, uint32_t method_idx,
+                                     jobject class_loader, const DexFile& dex_file,
+                                     DexToDexCompilationLevel dex_to_dex_compilation_level);
   CompilerFn compiler_;
 #ifdef ART_SEA_IR_MODE
   CompilerFn sea_ir_compiler_;
 #endif
 
-  CompilerFn dex_to_dex_compiler_;
+  DexToDexCompilerFn dex_to_dex_compiler_;
 
   void* compiler_context_;
 

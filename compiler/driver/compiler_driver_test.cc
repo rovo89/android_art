@@ -36,7 +36,8 @@ namespace art {
 class CompilerDriverTest : public CommonTest {
  protected:
   void CompileAll(jobject class_loader) LOCKS_EXCLUDED(Locks::mutator_lock_) {
-    TimingLogger timings("CompilerDriverTest::CompileAll", false);
+    base::TimingLogger timings("CompilerDriverTest::CompileAll", false, false);
+    timings.StartSplit("CompileAll");
     compiler_driver_->CompileAll(class_loader,
                                  Runtime::Current()->GetCompileTimeClassPath(class_loader),
                                  timings);

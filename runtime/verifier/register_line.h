@@ -141,6 +141,13 @@ class RegisterLine {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
+   * Update all registers to be Conflict except vsrc.
+   */
+  void MarkAllRegistersAsConflicts();
+  void MarkAllRegistersAsConflictsExcept(uint32_t vsrc);
+  void MarkAllRegistersAsConflictsExceptWide(uint32_t vsrc);
+
+  /*
    * Check constraints on constructor return. Specifically, make sure that the "this" argument got
    * initialized.
    * The "this" argument to <init> uses code offset kUninitThisArgAddr, which puts it at the start
