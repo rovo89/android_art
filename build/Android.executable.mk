@@ -58,7 +58,7 @@ define build-art-executable
   LOCAL_MODULE_TAGS := optional
   LOCAL_SRC_FILES := $$(art_source)
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime $$(art_c_includes)
-  LOCAL_SHARED_LIBRARIES := $$(art_shared_libraries) # libnativehelper
+  LOCAL_SHARED_LIBRARIES += $$(art_shared_libraries) # libnativehelper
 
   ifeq ($$(art_ndebug_or_debug),ndebug)
     LOCAL_MODULE := $$(art_executable)
@@ -89,10 +89,6 @@ define build-art-executable
     LOCAL_SHARED_LIBRARIES += libart
   else # debug
     LOCAL_SHARED_LIBRARIES += libartd
-  endif
-
-  ifeq ($$(art_target_or_host),target)
-    LOCAL_SHARED_LIBRARIES += libstlport
   endif
 
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk

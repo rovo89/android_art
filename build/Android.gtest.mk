@@ -106,9 +106,9 @@ define build-art-test
   endif
   LOCAL_SRC_FILES := $$(art_gtest_filename) runtime/common_test.cc
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime art/compiler
-  LOCAL_SHARED_LIBRARIES := libartd-compiler libartd
+  LOCAL_SHARED_LIBRARIES += libartd-compiler libartd
   # dex2oatd is needed to go libartd-compiler and libartd
-  LOCAL_REQUIRED_MODULES := dex2oatd 
+  LOCAL_REQUIRED_MODULES := dex2oatd
 
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.gtest.mk
@@ -123,7 +123,7 @@ define build-art-test
   ifeq ($$(art_target_or_host),target)
     LOCAL_CLANG := $(ART_TARGET_CLANG)
     LOCAL_CFLAGS += $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)
-    LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libstlport libz libcutils
+    LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libz libcutils
     LOCAL_STATIC_LIBRARIES += libgtest
     LOCAL_MODULE_PATH := $(ART_NATIVETEST_OUT)
     include $(LLVM_DEVICE_BUILD_MK)
