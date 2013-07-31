@@ -116,25 +116,10 @@ MIRGraph::~MIRGraph() {
   STLDeleteElements(&m_units_);
 }
 
-bool MIRGraph::ContentIsInsn(const uint16_t* code_ptr) {
-  uint16_t instr = *code_ptr;
-  Instruction::Code opcode = static_cast<Instruction::Code>(instr & 0xff);
-  /*
-   * Since the low 8-bit in metadata may look like NOP, we need to check
-   * both the low and whole sub-word to determine whether it is code or data.
-   */
-  return (opcode != Instruction::NOP || instr == 0);
-}
-
 /*
  * Parse an instruction, return the length of the instruction
  */
 int MIRGraph::ParseInsn(const uint16_t* code_ptr, DecodedInstruction* decoded_instruction) {
-  // Don't parse instruction data
-  if (!ContentIsInsn(code_ptr)) {
-    return 0;
-  }
-
   const Instruction* instruction = Instruction::At(code_ptr);
   *decoded_instruction = DecodedInstruction(instruction);
 
@@ -349,11 +334,8 @@ BasicBlock* MIRGraph::ProcessCanBranch(BasicBlock* cur_block, MIR* insn, int cur
     cur_block->fall_through = fallthrough_block;
     fallthrough_block->predecessors->Insert(cur_block);
   } else if (code_ptr < code_end) {
-    /* Create a fallthrough block for real instructions (incl. NOP) */
-    if (ContentIsInsn(code_ptr)) {
-      FindBlock(cur_offset + width, /* split */ false, /* create */ true,
+    FindBlock(cur_offset + width, /* split */ false, /* create */ true,
                 /* immed_pred_block_p */ NULL);
-    }
   }
   return cur_block;
 }
@@ -478,7 +460,7 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, int cur_
 
   if (insn->dalvikInsn.opcode == Instruction::THROW) {
     cur_block->explicit_throw = true;
-    if ((code_ptr < code_end) && ContentIsInsn(code_ptr)) {
+    if (code_ptr < code_end) {
       // Force creation of new block following THROW via side-effect
       FindBlock(cur_offset + width, /* split */ false, /* create */ true,
                 /* immed_pred_block_p */ NULL);
@@ -605,9 +587,6 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
       opcode_count_[static_cast<int>(opcode)]++;
     }
 
-    /* Terminate when the data section is seen */
-    if (width == 0)
-      break;
 
     /* Possible simple method? */
     if (live_pattern) {
@@ -626,9 +605,6 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
     pattern_pos++;
     }
 
-    AppendMIR(cur_block, insn);
-
-    code_ptr += width;
     int flags = Instruction::FlagsOf(insn->dalvikInsn.opcode);
 
     int df_flags = oat_data_flow_attributes_[insn->dalvikInsn.opcode];
@@ -636,6 +612,33 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
     if (df_flags & DF_HAS_DEFS) {
       def_count_ += (df_flags & DF_A_WIDE) ? 2 : 1;
     }
+
+    // Check for inline data block signatures
+    if (opcode == Instruction::NOP) {
+      // A simple NOP will have a width of 1 at this point, embedded data NOP > 1.
+      if ((width == 1) && ((current_offset_ & 0x1) == 0x1) && ((code_end - code_ptr) > 1)) {
+        // Could be an aligning nop.  If an embedded data NOP follows, treat pair as single unit.
+        uint16_t following_raw_instruction = code_ptr[1];
+        if ((following_raw_instruction == Instruction::kSparseSwitchSignature) ||
+            (following_raw_instruction == Instruction::kPackedSwitchSignature) ||
+            (following_raw_instruction == Instruction::kArrayDataSignature)) {
+          width += Instruction::At(code_ptr + 1)->SizeInCodeUnits();
+        }
+      }
+      if (width == 1) {
+        // It is a simple nop - treat normally.
+        AppendMIR(cur_block, insn);
+      } else {
+        DCHECK(cur_block->fall_through == NULL);
+        DCHECK(cur_block->taken == NULL);
+        // Unreachable instruction, mark for no continuation.
+        flags &= ~Instruction::kContinue;
+      }
+    } else {
+      AppendMIR(cur_block, insn);
+    }
+
+    code_ptr += width;
 
     if (flags & Instruction::kBranch) {
       cur_block = ProcessCanBranch(cur_block, insn, current_offset_,
@@ -653,10 +656,8 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
          * Create a fallthrough block for real instructions
          * (incl. NOP).
          */
-        if (ContentIsInsn(code_ptr)) {
-            FindBlock(current_offset_ + width, /* split */ false, /* create */ true,
-                      /* immed_pred_block_p */ NULL);
-        }
+         FindBlock(current_offset_ + width, /* split */ false, /* create */ true,
+                   /* immed_pred_block_p */ NULL);
       }
     } else if (flags & Instruction::kThrow) {
       cur_block = ProcessCanThrow(cur_block, insn, current_offset_, width, flags, try_block_addr_,
