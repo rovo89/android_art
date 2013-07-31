@@ -77,6 +77,7 @@ enum debugControlVector {
   kDebugDumpBitcodeFile,
   kDebugVerifyBitcode,
   kDebugShowSummaryMemoryUsage,
+  kDebugShowFilterStats,
 };
 
 class LLVMInfo {

@@ -63,15 +63,25 @@ class Runtime {
  public:
   typedef std::vector<std::pair<std::string, const void*> > Options;
 
-  // In small mode, apps with fewer than this number of methods will be compiled
-  // anyways.
-  // TODO: come up with a reasonable default.
-  static const size_t kDefaultSmallModeMethodThreshold = 0;
+  enum CompilerFilter {
+    kInterpretOnly,       // Compile nothing.
+    kDeferCompilation,    // Temporary minimal compilation, will redo during device idle time.
+    kSpace,               // Maximize space savings.
+    kBalanced,            // Try to get the best performance return on compilation investment.
+    kSpeed                // Compile all methods.
+  };
 
-  // In small mode, methods smaller than this dex op count limit will get compiled
-  // anyways.
-  // TODO: come up with a reasonable default.
-  static const size_t kDefaultSmallModeMethodDexSizeLimit = 300;
+  // Guide heuristics to determine whether to compile method if profile data not available.
+#if ART_SMALL_MODE
+  static const CompilerFilter kDefaultCompilerFilter = kInterpretOnly;
+#else
+  static const CompilerFilter kDefaultCompilerFilter = kSpeed;
+#endif
+  static const size_t kDefaultHugeMethodThreshold = 6000;
+  static const size_t kDefaultLargeMethodThreshold = 1000;
+  static const size_t kDefaultSmallMethodThreshold = 200;
+  static const size_t kDefaultTinyMethodThreshold = 10;
+  static const size_t kDefaultNumDexMethodsThreshold = 900;
 
   class ParsedOptions {
    public:
@@ -108,11 +118,12 @@ class Runtime {
     void (*hook_exit_)(jint status);
     void (*hook_abort_)();
     std::vector<std::string> properties_;
-    bool small_mode_;
-
-    size_t small_mode_method_threshold_;
-    size_t small_mode_method_dex_size_limit_;
-
+    CompilerFilter compiler_filter_;
+    size_t huge_method_threshold_;
+    size_t large_method_threshold_;
+    size_t small_method_threshold_;
+    size_t tiny_method_threshold_;
+    size_t num_dex_methods_threshold_;
     bool sea_ir_mode_;
 
    private:
@@ -145,21 +156,32 @@ class Runtime {
     sea_ir_mode_ = sea_ir_mode;
   }
 
-  bool IsSmallMode() const {
-      return small_mode_;
+  CompilerFilter GetCompilerFilter() const {
+    return compiler_filter_;
   }
 
-
-  void SetSmallMode(bool small_mode) {
-      small_mode_ = small_mode;
+  void SetCompilerFilter(CompilerFilter compiler_filter) {
+    compiler_filter_ = compiler_filter;
   }
 
-  size_t GetSmallModeMethodThreshold() const {
-      return small_mode_method_threshold_;
+  size_t GetHugeMethodThreshold() const {
+    return huge_method_threshold_;
   }
 
-  size_t GetSmallModeMethodDexSizeLimit() const {
-      return small_mode_method_dex_size_limit_;
+  size_t GetLargeMethodThreshold() const {
+    return large_method_threshold_;
+  }
+
+  size_t GetSmallMethodThreshold() const {
+    return small_method_threshold_;
+  }
+
+  size_t GetTinyMethodThreshold() const {
+    return tiny_method_threshold_;
+  }
+
+  size_t GetNumDexMethodsThreshold() const {
+      return num_dex_methods_threshold_;
   }
 
   const std::string& GetHostPrefix() const {
@@ -384,9 +406,12 @@ class Runtime {
   bool is_zygote_;
   bool is_concurrent_gc_enabled_;
 
-  bool small_mode_;
-  size_t small_mode_method_threshold_;
-  size_t small_mode_method_dex_size_limit_;
+  CompilerFilter compiler_filter_;
+  size_t huge_method_threshold_;
+  size_t large_method_threshold_;
+  size_t small_method_threshold_;
+  size_t tiny_method_threshold_;
+  size_t num_dex_methods_threshold_;
 
   bool sea_ir_mode_;
 

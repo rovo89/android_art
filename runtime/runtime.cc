@@ -355,9 +355,12 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->hook_exit_ = exit;
   parsed->hook_abort_ = NULL;  // We don't call abort(3) by default; see Runtime::Abort.
 
-  parsed->small_mode_ = false;
-  parsed->small_mode_method_threshold_ = Runtime::kDefaultSmallModeMethodThreshold;
-  parsed->small_mode_method_dex_size_limit_ = Runtime::kDefaultSmallModeMethodDexSizeLimit;
+  parsed->compiler_filter_ = Runtime::kDefaultCompilerFilter;
+  parsed->huge_method_threshold_ = Runtime::kDefaultHugeMethodThreshold;
+  parsed->large_method_threshold_ = Runtime::kDefaultLargeMethodThreshold;
+  parsed->small_method_threshold_ = Runtime::kDefaultSmallMethodThreshold;
+  parsed->tiny_method_threshold_ = Runtime::kDefaultTinyMethodThreshold;
+  parsed->num_dex_methods_threshold_ = Runtime::kDefaultNumDexMethodsThreshold;
 
   parsed->sea_ir_mode_ = false;
 //  gLogVerbosity.class_linker = true;  // TODO: don't check this in!
@@ -572,14 +575,28 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       Trace::SetDefaultClockSource(kProfilerClockSourceWall);
     } else if (option == "-Xprofile:dualclock") {
       Trace::SetDefaultClockSource(kProfilerClockSourceDual);
-    } else if (option == "-small") {
-      parsed->small_mode_ = true;
+    } else if (option == "-compiler-filter:interpret-only") {
+      parsed->compiler_filter_ = kInterpretOnly;
+    } else if (option == "-compiler-filter:defer-compilation") {
+      parsed->compiler_filter_ = kDeferCompilation;
+    } else if (option == "-compiler-filter:space") {
+      parsed->compiler_filter_ = kSpace;
+    } else if (option == "-compiler-filter:balanced") {
+      parsed->compiler_filter_ = kBalanced;
+    } else if (option == "-compiler-filter:speed") {
+      parsed->compiler_filter_ = kSpeed;
     } else if (option == "-sea_ir") {
       parsed->sea_ir_mode_ = true;
-    } else if (StartsWith(option, "-small-mode-methods-max:")) {
-      parsed->small_mode_method_threshold_ = ParseIntegerOrDie(option);
-    } else if (StartsWith(option, "-small-mode-methods-size-max:")) {
-      parsed->small_mode_method_dex_size_limit_ = ParseIntegerOrDie(option);
+    } else if (StartsWith(option, "-huge-method-max:")) {
+      parsed->huge_method_threshold_ = ParseIntegerOrDie(option);
+    } else if (StartsWith(option, "-large-method-max:")) {
+      parsed->large_method_threshold_ = ParseIntegerOrDie(option);
+    } else if (StartsWith(option, "-small-method-max:")) {
+      parsed->small_method_threshold_ = ParseIntegerOrDie(option);
+    } else if (StartsWith(option, "-tiny-method-max:")) {
+      parsed->tiny_method_threshold_ = ParseIntegerOrDie(option);
+    } else if (StartsWith(option, "-num-dex-methods-max:")) {
+      parsed->num_dex_methods_threshold_ = ParseIntegerOrDie(option);
     } else {
       if (!ignore_unrecognized) {
         // TODO: print usage via vfprintf
@@ -809,9 +826,12 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   is_zygote_ = options->is_zygote_;
   is_concurrent_gc_enabled_ = options->is_concurrent_gc_enabled_;
 
-  small_mode_ = options->small_mode_;
-  small_mode_method_threshold_ = options->small_mode_method_threshold_;
-  small_mode_method_dex_size_limit_ = options->small_mode_method_dex_size_limit_;
+  compiler_filter_ = options->compiler_filter_;
+  huge_method_threshold_ = options->huge_method_threshold_;
+  large_method_threshold_ = options->large_method_threshold_;
+  small_method_threshold_ = options->small_method_threshold_;
+  tiny_method_threshold_ = options->tiny_method_threshold_;
+  num_dex_methods_threshold_ = options->num_dex_methods_threshold_;
 
   sea_ir_mode_ = options->sea_ir_mode_;
   vfprintf_ = options->hook_vfprintf_;

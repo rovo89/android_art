@@ -609,6 +609,28 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
   oat_location_option_string += oat_cache_filename;
   const char* oat_location_option = oat_location_option_string.c_str();
 
+  std::string oat_compiler_filter_string("-compiler-filter:");
+  switch (Runtime::Current()->GetCompilerFilter()) {
+    case Runtime::kInterpretOnly:
+      oat_compiler_filter_string += "interpret-only";
+      break;
+    case Runtime::kDeferCompilation:
+      oat_compiler_filter_string += "defer-compilation";
+      break;
+    case Runtime::kSpace:
+      oat_compiler_filter_string += "space";
+      break;
+    case Runtime::kBalanced:
+      oat_compiler_filter_string += "balanced";
+      break;
+    case Runtime::kSpeed:
+      oat_compiler_filter_string += "speed";
+      break;
+    default:
+      LOG(FATAL) << "Unexpected case.";
+  }
+  const char* oat_compiler_filter_option = oat_compiler_filter_string.c_str();
+
   // fork and exec dex2oat
   pid_t pid = fork();
   if (pid == 0) {
@@ -622,6 +644,7 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
                        << " --runtime-arg -Xmx64m"
                        << " --runtime-arg -classpath"
                        << " --runtime-arg " << class_path
+                       << " --runtime-arg " << oat_compiler_filter_option
 #if !defined(ART_TARGET)
                        << " --host"
 #endif
@@ -635,6 +658,7 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
           "--runtime-arg", "-Xmx64m",
           "--runtime-arg", "-classpath",
           "--runtime-arg", class_path,
+          "--runtime-arg", oat_compiler_filter_option,
 #if !defined(ART_TARGET)
           "--host",
 #endif

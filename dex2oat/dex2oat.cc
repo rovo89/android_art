@@ -847,11 +847,6 @@ static int dex2oat(int argc, char** argv) {
     options.push_back(std::make_pair(runtime_args[i], reinterpret_cast<void*>(NULL)));
   }
 
-#if ART_SMALL_MODE
-  options.push_back(std::make_pair("-small", reinterpret_cast<void*>(NULL)));
-#endif  // ART_SMALL_MODE
-
-
 #ifdef ART_SEA_IR_MODE
   options.push_back(std::make_pair("-sea_ir", reinterpret_cast<void*>(NULL)));
 #endif
@@ -910,18 +905,19 @@ static int dex2oat(int argc, char** argv) {
     }
   }
 
-  // If we're in small mode, but the program is small, turn off small mode.
-  // It doesn't make a difference for the boot image, so let's skip the check
-  // altogether.
-  if (Runtime::Current()->IsSmallMode() && !image) {
+  /*
+   * If we're not in interpret-only mode, go ahead and compile small applications. Don't
+   * bother to check if we're doing the image.
+   */
+  if (!image && (Runtime::Current()->GetCompilerFilter() != Runtime::kInterpretOnly)) {
     size_t num_methods = 0;
     for (size_t i = 0; i != dex_files.size(); ++i) {
       const DexFile* dex_file = dex_files[i];
       CHECK(dex_file != NULL);
       num_methods += dex_file->NumMethodIds();
     }
-    if (num_methods <= Runtime::Current()->GetSmallModeMethodThreshold()) {
-      Runtime::Current()->SetSmallMode(false);
+    if (num_methods <= Runtime::Current()->GetNumDexMethodsThreshold()) {
+      Runtime::Current()->SetCompilerFilter(Runtime::kSpeed);
       LOG(INFO) << "Below method threshold, compiling anyways";
     }
   }
