@@ -17,14 +17,6 @@
 #ifndef ART_COMPILER_SEA_IR_VISITOR_H_
 #define ART_COMPILER_SEA_IR_VISITOR_H_
 
-#include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Module.h"
-#include "llvm/Analysis/Verifier.h"
-// TODO: Separating the root visitor from the code_gen visitor
-// would allow me to not include llvm headers here.
-
-
 namespace sea_ir {
 
 class SeaGraph;
@@ -66,7 +58,7 @@ class IRVisitor {
   virtual void Visit(GotoInstructionNode* instruction) = 0;
   virtual void Visit(IfEqzInstructionNode* instruction) = 0;
 
-  // Note: This favor of visitor separates the traversal functions from the actual visiting part
+  // Note: This flavor of visitor separates the traversal functions from the actual visiting part
   //       so that the Visitor subclasses don't duplicate code and can't get the traversal wrong.
   //       The disadvantage is the increased number of functions (and calls).
   virtual void Traverse(SeaGraph* graph);

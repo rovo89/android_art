@@ -18,6 +18,7 @@
 #include "instruction_tools.h"
 #include "sea.h"
 #include "code_gen.h"
+#include "types/type_inference.h"
 
 #define MAX_REACHING_DEF_ITERERATIONS (10)
 // TODO: When development is done, this define should not
@@ -191,10 +192,12 @@ void SeaGraph::ComputeReachingDefs() {
 
 
 void SeaGraph::BuildMethodSeaGraph(const art::DexFile::CodeItem* code_item,
-    const art::DexFile& dex_file, uint32_t class_def_idx, uint32_t method_idx) {
+    const art::DexFile& dex_file, uint32_t class_def_idx,
+    uint32_t method_idx, uint32_t method_access_flags) {
+  code_item_ = code_item;
   class_def_idx_ = class_def_idx;
   method_idx_ = method_idx;
-
+  method_access_flags_ = method_access_flags;
   const uint16_t* code = code_item->insns_;
   const size_t size_in_code_units = code_item->insns_size_in_code_units_;
   // This maps target instruction pointers to their corresponding region objects.
@@ -225,8 +228,9 @@ void SeaGraph::BuildMethodSeaGraph(const art::DexFile::CodeItem* code_item,
   // Insert one SignatureNode per function argument,
   // to serve as placeholder definitions in dataflow analysis.
   for (unsigned int crt_offset = 0; crt_offset < code_item->ins_size_; crt_offset++) {
+    int position = crt_offset;  // TODO: Is this the correct offset in the signature?
     SignatureNode* parameter_def_node =
-        new sea_ir::SignatureNode(code_item->registers_size_ - 1 - crt_offset);
+        new sea_ir::SignatureNode(code_item->registers_size_ - 1 - crt_offset, position);
     AddParameterNode(parameter_def_node);
     r->AddChild(parameter_def_node);
   }
@@ -260,12 +264,7 @@ void SeaGraph::BuildMethodSeaGraph(const art::DexFile::CodeItem* code_item,
         }
         r = nextRegion;
       }
-      bool definesRegister = (0 != InstructionTools::instruction_attributes_[inst->Opcode()]
-          && (1 << kDA));
-      LOG(INFO)<< inst->GetDexPc(code) << "*** " << inst->DumpString(&dex_file)
-      << " region:" <<r->StringId() << "Definition?" << definesRegister << std::endl;
-      r->AddChild(node);
-      }
+    }
     i += inst->SizeInCodeUnits();
   }
 }
@@ -417,10 +416,10 @@ void SeaGraph::GenerateLLVM() {
   code_gen_postpass_visitor.Write(std::string("my_file.llvm"));
 }
 
-void SeaGraph::CompileMethod(const art::DexFile::CodeItem* code_item,
-  uint32_t class_def_idx, uint32_t method_idx, const art::DexFile& dex_file) {
+void SeaGraph::CompileMethod(const art::DexFile::CodeItem* code_item, uint32_t class_def_idx,
+    uint32_t method_idx, uint32_t method_access_flags, const art::DexFile& dex_file) {
   // Two passes: Builds the intermediate structure (non-SSA) of the sea-ir for the function.
-  BuildMethodSeaGraph(code_item, dex_file, class_def_idx, method_idx);
+  BuildMethodSeaGraph(code_item, dex_file, class_def_idx, method_idx, method_access_flags);
   // Pass: Compute reverse post-order of regions.
   ComputeRPO();
   // Multiple passes: compute immediate dominators.
@@ -433,6 +432,9 @@ void SeaGraph::CompileMethod(const art::DexFile::CodeItem* code_item,
   ComputeDominanceFrontier();
   // Two Passes: Phi node insertion.
   ConvertToSSA();
+  // Pass: type inference
+  TypeInference ti = TypeInference();
+  ti.ComputeTypes(this);
   // Pass: Generate LLVM IR.
   GenerateLLVM();
 }
