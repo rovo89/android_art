@@ -49,7 +49,8 @@ void ArmMir2Lir::GenArithOpFloat(Instruction::Code opcode, RegLocation rl_dest,
     case Instruction::REM_FLOAT_2ADDR:
     case Instruction::REM_FLOAT:
       FlushAllRegs();   // Send everything to home location
-      CallRuntimeHelperRegLocationRegLocation(ENTRYPOINT_OFFSET(pFmodf), rl_src1, rl_src2, false);
+      CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(pFmodf), rl_src1, rl_src2,
+                                              false);
       rl_result = GetReturn(true);
       StoreValue(rl_dest, rl_result);
       return;
@@ -91,7 +92,8 @@ void ArmMir2Lir::GenArithOpDouble(Instruction::Code opcode,
     case Instruction::REM_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE:
       FlushAllRegs();   // Send everything to home location
-      CallRuntimeHelperRegLocationRegLocation(ENTRYPOINT_OFFSET(pFmod), rl_src1, rl_src2, false);
+      CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(pFmod), rl_src1, rl_src2,
+                                              false);
       rl_result = GetReturnWide(true);
       StoreValueWide(rl_dest, rl_result);
       return;
@@ -140,16 +142,16 @@ void ArmMir2Lir::GenConversion(Instruction::Code opcode,
       op = kThumb2VcvtDI;
       break;
     case Instruction::LONG_TO_DOUBLE:
-      GenConversionCall(ENTRYPOINT_OFFSET(pL2d), rl_dest, rl_src);
+      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pL2d), rl_dest, rl_src);
       return;
     case Instruction::FLOAT_TO_LONG:
-      GenConversionCall(ENTRYPOINT_OFFSET(pF2l), rl_dest, rl_src);
+      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pF2l), rl_dest, rl_src);
       return;
     case Instruction::LONG_TO_FLOAT:
-      GenConversionCall(ENTRYPOINT_OFFSET(pL2f), rl_dest, rl_src);
+      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pL2f), rl_dest, rl_src);
       return;
     case Instruction::DOUBLE_TO_LONG:
-      GenConversionCall(ENTRYPOINT_OFFSET(pD2l), rl_dest, rl_src);
+      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pD2l), rl_dest, rl_src);
       return;
     default:
       LOG(FATAL) << "Unexpected opcode: " << opcode;
@@ -315,7 +317,7 @@ bool ArmMir2Lir::GenInlinedSqrt(CallInfo* info) {
   branch = NewLIR2(kThumbBCond, 0, kArmCondEq);
   ClobberCalleeSave();
   LockCallTemps();  // Using fixed registers
-  int r_tgt = LoadHelper(ENTRYPOINT_OFFSET(pSqrt));
+  int r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pSqrt));
   NewLIR3(kThumb2Fmrrd, r0, r1, S2d(rl_src.low_reg, rl_src.high_reg));
   NewLIR1(kThumbBlxR, r_tgt);
   NewLIR3(kThumb2Fmdrr, S2d(rl_result.low_reg, rl_result.high_reg), r0, r1);

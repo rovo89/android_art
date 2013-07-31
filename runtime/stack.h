@@ -20,7 +20,7 @@
 #include "dex_file.h"
 #include "instrumentation.h"
 #include "base/macros.h"
-#include "oat/runtime/context.h"
+#include "arch/context.h"
 
 #include <stdint.h>
 #include <string>

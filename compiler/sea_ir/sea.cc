@@ -27,7 +27,6 @@
 
 namespace sea_ir {
 
-SeaGraph SeaGraph::graph_;
 int SeaNode::current_max_node_id_ = 0;
 
 void IRVisitor::Traverse(Region* region) {
@@ -51,16 +50,16 @@ void IRVisitor::Traverse(SeaGraph* graph) {
   }
 }
 
-SeaGraph* SeaGraph::GetCurrentGraph() {
-  return &sea_ir::SeaGraph::graph_;
+SeaGraph* SeaGraph::GetCurrentGraph(const art::DexFile& dex_file) {
+  return new SeaGraph(dex_file);
 }
 
 void SeaGraph::DumpSea(std::string filename) const {
   LOG(INFO) << "Starting to write SEA string to file.";
   std::string result;
-  result += "digraph seaOfNodes {\n";
+  result += "digraph seaOfNodes {\ncompound=true\n";
   for (std::vector<Region*>::const_iterator cit = regions_.begin(); cit != regions_.end(); cit++) {
-    (*cit)->ToDot(result);
+    (*cit)->ToDot(result, dex_file_);
   }
   result += "}\n";
   art::File* file = art::OS::OpenFile(filename.c_str(), true, true);
@@ -238,7 +237,8 @@ void SeaGraph::BuildMethodSeaGraph(const art::DexFile::CodeItem* code_item,
   sea_ir::InstructionNode* node = NULL;
   while (i < size_in_code_units) {
     const art::Instruction* inst = art::Instruction::At(&code[i]);
-    std::vector<InstructionNode*> sea_instructions_for_dalvik = sea_ir::InstructionNode::Create(inst);
+    std::vector<InstructionNode*> sea_instructions_for_dalvik =
+        sea_ir::InstructionNode::Create(inst);
     for (std::vector<InstructionNode*>::const_iterator cit = sea_instructions_for_dalvik.begin();
         sea_instructions_for_dalvik.end() != cit; ++cit) {
       last_node = node;
@@ -250,7 +250,6 @@ void SeaGraph::BuildMethodSeaGraph(const art::DexFile::CodeItem* code_item,
         DCHECK(it != target_regions.end());
         AddEdge(r, it->second);  // Add edge to branch target.
       }
-
       std::map<const uint16_t*, Region*>::iterator it = target_regions.find(&code[i]);
       if (target_regions.end() != it) {
         // Get the already created region because this is a branch target.
@@ -332,7 +331,8 @@ void SeaGraph::ConvertToSSA() {
     int global = *globals_it;
     // Copy the set, because we will modify the worklist as we go.
     std::set<Region*> worklist((*(blocks.find(global))).second);
-    for (std::set<Region*>::const_iterator b_it = worklist.begin(); b_it != worklist.end(); b_it++) {
+    for (std::set<Region*>::const_iterator b_it = worklist.begin();
+        b_it != worklist.end(); b_it++) {
       std::set<Region*>* df = (*b_it)->GetDominanceFrontier();
       for (std::set<Region*>::const_iterator df_it = df->begin(); df_it != df->end(); df_it++) {
         if ((*df_it)->InsertPhiFor(global)) {
@@ -490,53 +490,44 @@ SeaNode* Region::GetLastChild() const {
   return NULL;
 }
 
-void Region::ToDot(std::string& result) const {
-  result += "\n// Region: \n" + StringId() + " [label=\"region " + StringId() + "(rpo=";
+void Region::ToDot(std::string& result, const art::DexFile& dex_file) const {
+  result += "\n// Region: \nsubgraph " + StringId() + " { label=\"region " + StringId() + "(rpo=";
   result += art::StringPrintf("%d", rpo_number_);
   if (NULL != GetIDominator()) {
     result += " dom=" + GetIDominator()->StringId();
   }
-  result += ")\"];\n";
+  result += ")\";\n";
+
+  for (std::vector<PhiInstructionNode*>::const_iterator cit = phi_instructions_.begin();
+        cit != phi_instructions_.end(); cit++) {
+    result += (*cit)->StringId() +";\n";
+  }
+
+  for (std::vector<InstructionNode*>::const_iterator cit = instructions_.begin();
+        cit != instructions_.end(); cit++) {
+      result += (*cit)->StringId() +";\n";
+    }
+
+  result += "} // End Region.\n";
 
   // Save phi-nodes.
   for (std::vector<PhiInstructionNode*>::const_iterator cit = phi_instructions_.begin();
       cit != phi_instructions_.end(); cit++) {
-    (*cit)->ToDot(result);
-    result += StringId() + " -> " + (*cit)->StringId() + ";  // phi-function \n";
+    (*cit)->ToDot(result, dex_file);
   }
 
   // Save instruction nodes.
   for (std::vector<InstructionNode*>::const_iterator cit = instructions_.begin();
       cit != instructions_.end(); cit++) {
-    (*cit)->ToDot(result);
-    result += StringId() + " -> " + (*cit)->StringId() + ";  // region -> instruction \n";
+    (*cit)->ToDot(result, dex_file);
   }
 
   for (std::vector<Region*>::const_iterator cit = successors_.begin(); cit != successors_.end();
       cit++) {
     DCHECK(NULL != *cit) << "Null successor found for SeaNode" << GetLastChild()->StringId() << ".";
-    result += GetLastChild()->StringId() + " -> " + (*cit)->StringId() + ";\n\n";
+    result += GetLastChild()->StringId() + " -> " + (*cit)->GetLastChild()->StringId() +
+         "[lhead=" + (*cit)->StringId() + ", " + "ltail=" + StringId() + "];\n\n";
   }
-  // Save reaching definitions.
-  for (std::map<int, std::set<sea_ir::InstructionNode*>* >::const_iterator cit =
-      reaching_defs_.begin();
-      cit != reaching_defs_.end(); cit++) {
-    for (std::set<sea_ir::InstructionNode*>::const_iterator
-        reaching_set_it = (*cit).second->begin();
-        reaching_set_it != (*cit).second->end();
-        reaching_set_it++) {
-      result += (*reaching_set_it)->StringId() +
-         " -> " + StringId() +
-         " [style=dotted];  // Reaching def.\n";
-    }
-  }
-  // Save dominance frontier.
-  for (std::set<Region*>::const_iterator cit = df_.begin(); cit != df_.end(); cit++) {
-    result += StringId() +
-        " -> " + (*cit)->StringId() +
-        " [color=gray];  // Dominance frontier.\n";
-  }
-  result += "// End Region.\n";
 }
 
 void Region::ComputeDownExposedDefs() {
@@ -570,7 +561,8 @@ bool Region::UpdateReachingDefs() {
       pred_it != predecessors_.end(); pred_it++) {
     // The reaching_defs variable will contain reaching defs __for current predecessor only__
     std::map<int, std::set<sea_ir::InstructionNode*>* > reaching_defs;
-    std::map<int, std::set<sea_ir::InstructionNode*>* >* pred_reaching = (*pred_it)->GetReachingDefs();
+    std::map<int, std::set<sea_ir::InstructionNode*>* >* pred_reaching =
+        (*pred_it)->GetReachingDefs();
     const std::map<int, InstructionNode*>* de_defs = (*pred_it)->GetDownExposedDefs();
 
     // The definitions from the reaching set of the predecessor
@@ -588,7 +580,8 @@ bool Region::UpdateReachingDefs() {
 
     // Now we combine the reaching map coming from the current predecessor (reaching_defs)
     // with the accumulated set from all predecessors so far (from new_reaching).
-    std::map<int, std::set<sea_ir::InstructionNode*>*>::iterator reaching_it = reaching_defs.begin();
+    std::map<int, std::set<sea_ir::InstructionNode*>*>::iterator reaching_it =
+        reaching_defs.begin();
     for (; reaching_it != reaching_defs.end(); reaching_it++) {
       std::map<int, std::set<sea_ir::InstructionNode*>*>::iterator crt_entry =
           new_reaching.find(reaching_it->first);
@@ -608,7 +601,8 @@ bool Region::UpdateReachingDefs() {
   // TODO: Find formal proof.
   int old_size = 0;
   if (-1 == reaching_defs_size_) {
-    std::map<int, std::set<sea_ir::InstructionNode*>*>::iterator reaching_it = reaching_defs_.begin();
+    std::map<int, std::set<sea_ir::InstructionNode*>*>::iterator reaching_it =
+        reaching_defs_.begin();
     for (; reaching_it != reaching_defs_.end(); reaching_it++) {
       old_size += (*reaching_it).second->size();
     }
@@ -698,22 +692,36 @@ std::vector<InstructionNode*> InstructionNode::Create(const art::Instruction* in
   return sea_instructions;
 }
 
-void InstructionNode::ToDot(std::string& result) const {
+void InstructionNode::ToDotSSAEdges(std::string& result) const {
+  // SSA definitions:
+  for (std::map<int, InstructionNode*>::const_iterator def_it = definition_edges_.begin();
+      def_it != definition_edges_.end(); def_it++) {
+    if (NULL != def_it->second) {
+      result += def_it->second->StringId() + " -> " + StringId() + "[color=gray,label=\"";
+      result += art::StringPrintf("vR = %d", def_it->first);
+      result += "\"] ; // ssa edge\n";
+    }
+  }
+
+  // SSA used-by:
+  if (DotConversion::SaveUseEdges()) {
+    for (std::vector<InstructionNode*>::const_iterator cit = used_in_.begin();
+        cit != used_in_.end(); cit++) {
+      result += (*cit)->StringId() + " -> " + StringId() + "[color=gray,label=\"";
+      result += "\"] ; // SSA used-by edge\n";
+    }
+  }
+}
+
+void InstructionNode::ToDot(std::string& result, const art::DexFile& dex_file) const {
   result += "// Instruction ("+StringId()+"): \n" + StringId() +
-      " [label=\"" + instruction_->DumpString(NULL) + "\"";
+      " [label=\"" + instruction_->DumpString(&dex_file) + "\"";
   if (de_def_) {
     result += "style=bold";
   }
   result += "];\n";
-  // SSA definitions:
-  for (std::map<int, InstructionNode* >::const_iterator def_it = definition_edges_.begin();
-      def_it != definition_edges_.end(); def_it++) {
-    if (NULL != def_it->second) {
-      result += def_it->second->StringId() + " -> " + StringId() +"[color=red,label=\"";
-      result += art::StringPrintf("%d", def_it->first);
-      result += "\"] ;  // ssa edge\n";
-    }
-  }
+
+  ToDotSSAEdges(result);
 }
 
 void InstructionNode::MarkAsDEDef() {
@@ -756,22 +764,12 @@ std::vector<int> InstructionNode::GetUses() {
   return uses;
 }
 
-void PhiInstructionNode::ToDot(std::string& result) const {
+void PhiInstructionNode::ToDot(std::string& result, const art::DexFile& dex_file) const {
   result += "// PhiInstruction: \n" + StringId() +
       " [label=\"" + "PHI(";
   result += art::StringPrintf("%d", register_no_);
   result += ")\"";
   result += "];\n";
-
-  for (std::vector<std::vector<InstructionNode*>*>::const_iterator pred_it = definition_edges_.begin();
-      pred_it != definition_edges_.end(); pred_it++) {
-    std::vector<InstructionNode*>* defs_from_pred = *pred_it;
-    for (std::vector<InstructionNode* >::const_iterator def_it = defs_from_pred->begin();
-        def_it != defs_from_pred->end(); def_it++) {
-        result += (*def_it)->StringId() + " -> " + StringId() +"[color=red,label=\"vR = ";
-        result += art::StringPrintf("%d", GetRegisterNumber());
-        result += "\"] ;  // phi-ssa edge\n";
-    }
-  }
+  ToDotSSAEdges(result);
 }
 }  // namespace sea_ir

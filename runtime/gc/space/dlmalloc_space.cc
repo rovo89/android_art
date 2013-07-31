@@ -286,7 +286,7 @@ void DlMallocSpace::SetGrowthLimit(size_t growth_limit) {
   }
 }
 
-DlMallocSpace* DlMallocSpace::CreateZygoteSpace() {
+DlMallocSpace* DlMallocSpace::CreateZygoteSpace(const char* alloc_space_name) {
   end_ = reinterpret_cast<byte*>(RoundUp(reinterpret_cast<uintptr_t>(end_), kPageSize));
   DCHECK(IsAligned<accounting::CardTable::kCardSize>(begin_));
   DCHECK(IsAligned<accounting::CardTable::kCardSize>(end_));
@@ -316,20 +316,19 @@ DlMallocSpace* DlMallocSpace::CreateZygoteSpace() {
   VLOG(heap) << "Size " << GetMemMap()->Size();
   VLOG(heap) << "GrowthLimit " << PrettySize(growth_limit);
   VLOG(heap) << "Capacity " << PrettySize(capacity);
-  UniquePtr<MemMap> mem_map(MemMap::MapAnonymous(GetName(), End(), capacity, PROT_READ | PROT_WRITE));
+  UniquePtr<MemMap> mem_map(MemMap::MapAnonymous(alloc_space_name, End(), capacity, PROT_READ | PROT_WRITE));
   void* mspace = CreateMallocSpace(end_, starting_size, initial_size);
   // Protect memory beyond the initial size.
   byte* end = mem_map->Begin() + starting_size;
   if (capacity - initial_size > 0) {
-    CHECK_MEMORY_CALL(mprotect, (end, capacity - initial_size, PROT_NONE), name_.c_str());
+    CHECK_MEMORY_CALL(mprotect, (end, capacity - initial_size, PROT_NONE), alloc_space_name);
   }
   DlMallocSpace* alloc_space =
-      new DlMallocSpace(name_, mem_map.release(), mspace, end_, end, growth_limit);
+      new DlMallocSpace(alloc_space_name, mem_map.release(), mspace, end_, end, growth_limit);
   live_bitmap_->SetHeapLimit(reinterpret_cast<uintptr_t>(End()));
   CHECK_EQ(live_bitmap_->HeapLimit(), reinterpret_cast<uintptr_t>(End()));
   mark_bitmap_->SetHeapLimit(reinterpret_cast<uintptr_t>(End()));
   CHECK_EQ(mark_bitmap_->HeapLimit(), reinterpret_cast<uintptr_t>(End()));
-  name_ += "-zygote-transformed";
   VLOG(heap) << "zygote space creation done";
   return alloc_space;
 }
@@ -447,6 +446,11 @@ void DlMallocSpace::Walk(void(*callback)(void *start, void *end, size_t num_byte
   MutexLock mu(Thread::Current(), lock_);
   mspace_inspect_all(mspace_, callback, arg);
   callback(NULL, NULL, 0, arg);  // Indicate end of a space.
+}
+
+size_t DlMallocSpace::GetFootprint() {
+  MutexLock mu(Thread::Current(), lock_);
+  return mspace_footprint(mspace_);
 }
 
 size_t DlMallocSpace::GetFootprintLimit() {

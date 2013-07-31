@@ -66,7 +66,8 @@ void CodeGenPrepassVisitor::Visit(SeaGraph* graph) {
   std::vector<llvm::Type*> parameter_types(parameters->size(),
       llvm::Type::getInt32Ty(*llvm_data_->context_));
   // Build llvm function name.
-  std::string function_name = art::StringPrintf("class=%d_method=%d", graph->class_def_idx_, graph->method_idx_);
+  std::string function_name = art::StringPrintf(
+      "class=%d_method=%d", graph->class_def_idx_, graph->method_idx_);
 
   // Build llvm function type and parameters.
   llvm::FunctionType *function_type = llvm::FunctionType::get(
@@ -259,15 +260,18 @@ void CodeGenPostpassVisitor::Visit(PhiInstructionNode* phi) {
 
 void CodeGenVisitor::Visit(SignatureNode* signature) {
   std::cout << "Signature: ;" << "Id:" << signature->StringId() << std::endl;
-  DCHECK_EQ(signature->GetDefinitions().size(), 1u) << "Signature nodes must correspond to a single parameter register.";
+  DCHECK_EQ(signature->GetDefinitions().size(), 1u) <<
+      "Signature nodes must correspond to a single parameter register.";
 }
 void CodeGenPrepassVisitor::Visit(SignatureNode* signature) {
   std::cout << "Signature: ;" << "Id:" << signature->StringId() << std::endl;
-  DCHECK_EQ(signature->GetDefinitions().size(), 1u) << "Signature nodes must correspond to a single parameter register.";
+  DCHECK_EQ(signature->GetDefinitions().size(), 1u) <<
+      "Signature nodes must correspond to a single parameter register.";
 }
 void CodeGenPostpassVisitor::Visit(SignatureNode* signature) {
   std::cout << "Signature: ;" << "Id:" << signature->StringId() << std::endl;
-  DCHECK_EQ(signature->GetDefinitions().size(), 1u) << "Signature nodes must correspond to a single parameter register.";
+  DCHECK_EQ(signature->GetDefinitions().size(), 1u) <<
+      "Signature nodes must correspond to a single parameter register.";
 }
 
 }  // namespace sea_ir

@@ -35,6 +35,17 @@ enum RegionNumbering {
   VISITING = -2
 };
 
+// Stores options for turning a SEA IR graph to a .dot file.
+class DotConversion {
+ public:
+  static bool SaveUseEdges() {
+    return save_use_edges_;
+  }
+
+ private:
+  static const bool save_use_edges_ =  false;  // TODO: Enable per-sea graph configuration.
+};
+
 class Region;
 
 class InstructionNode;
@@ -49,10 +60,11 @@ class SignatureNode: public InstructionNode {
   explicit SignatureNode(unsigned int parameter_register):InstructionNode(NULL),
     parameter_register_(parameter_register) { }
 
-  void ToDot(std::string& result) const {
+  void ToDot(std::string& result, const art::DexFile& dex_file) const {
     result += StringId() +" [label=\"signature:";
     result += art::StringPrintf("r%d", GetResultRegister());
     result += "\"] // signature node\n";
+    ToDotSSAEdges(result);
   }
 
   int GetResultRegister() const {
@@ -77,7 +89,7 @@ class PhiInstructionNode: public InstructionNode {
   explicit PhiInstructionNode(int register_no):
     InstructionNode(NULL), register_no_(register_no), definition_edges_() {}
   // Appends to @result the .dot string representation of the instruction.
-  void ToDot(std::string& result) const;
+  void ToDot(std::string& result, const art::DexFile& dex_file) const;
   // Returns the register on which this phi-function is used.
   int GetRegisterNumber() const {
     return register_no_;
@@ -98,6 +110,7 @@ class PhiInstructionNode: public InstructionNode {
       definition_edges_[predecessor_id] = new std::vector<InstructionNode*>();
     }
     definition_edges_[predecessor_id]->push_back(definition);
+    definition->AddSSAUse(this);
   }
 
   // Returns the instruction that defines the phi register from predecessor
@@ -125,7 +138,9 @@ class Region : public SeaNode {
  public:
   explicit Region():
     SeaNode(), successors_(), predecessors_(), reaching_defs_size_(0),
-    rpo_number_(NOT_VISITED), idom_(NULL), idominated_set_(), df_(), phi_set_() {}
+    rpo_number_(NOT_VISITED), idom_(NULL), idominated_set_(), df_(), phi_set_() {
+    string_id_ = "cluster_" + string_id_;
+  }
   // Adds @instruction as an instruction node child in the current region.
   void AddChild(sea_ir::InstructionNode* instruction);
   // Returns the last instruction node child of the current region.
@@ -138,7 +153,7 @@ class Region : public SeaNode {
   // Appends to @result a dot language formatted string representing the node and
   //    (by convention) outgoing edges, so that the composition of theToDot() of all nodes
   //    builds a complete dot graph (without prolog and epilog though).
-  virtual void ToDot(std::string& result) const;
+  virtual void ToDot(std::string& result, const art::DexFile& dex_file) const;
   // Computes Downward Exposed Definitions for the current node.
   void ComputeDownExposedDefs();
   const std::map<int, sea_ir::InstructionNode*>* GetDownExposedDefs() const;
@@ -242,7 +257,7 @@ class Region : public SeaNode {
 // and acts as starting point for visitors (ex: during code generation).
 class SeaGraph: IVisitable {
  public:
-  static SeaGraph* GetCurrentGraph();
+  static SeaGraph* GetCurrentGraph(const art::DexFile&);
 
   void CompileMethod(const art::DexFile::CodeItem* code_item,
       uint32_t class_def_idx, uint32_t method_idx, const art::DexFile& dex_file);
@@ -264,7 +279,8 @@ class SeaGraph: IVisitable {
   uint32_t method_idx_;
 
  private:
-  SeaGraph(): class_def_idx_(0), method_idx_(0), regions_(), parameters_() {
+  explicit SeaGraph(const art::DexFile& df):
+    class_def_idx_(0), method_idx_(0), regions_(), parameters_(), dex_file_(df) {
   }
   // Registers @childReg as a region belonging to the SeaGraph instance.
   void AddRegion(Region* childReg);
@@ -319,6 +335,7 @@ class SeaGraph: IVisitable {
   static SeaGraph graph_;
   std::vector<Region*> regions_;
   std::vector<SignatureNode*> parameters_;
+  const art::DexFile& dex_file_;
 };
 }  // namespace sea_ir
 #endif  // ART_COMPILER_SEA_IR_SEA_H_

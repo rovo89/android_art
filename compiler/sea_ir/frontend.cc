@@ -40,7 +40,7 @@ static CompiledMethod* CompileMethodWithSeaIr(CompilerDriver& compiler,
   // NOTE: Instead of keeping the convention from the Dalvik frontend.cc
   //       and silencing the cpplint.py warning, I just corrected the formatting.
   VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
-  sea_ir::SeaGraph* sg = sea_ir::SeaGraph::GetCurrentGraph();
+  sea_ir::SeaGraph* sg = sea_ir::SeaGraph::GetCurrentGraph(dex_file);
   sg->CompileMethod(code_item, class_def_idx, method_idx, dex_file);
   sg->DumpSea("/tmp/temp.dot");
   CHECK(0 && "No SEA compiled function exists yet.");
@@ -57,8 +57,8 @@ CompiledMethod* SeaIrCompileOneMethod(CompilerDriver& compiler,
                                  jobject class_loader,
                                  const DexFile& dex_file,
                                  llvm::LlvmCompilationUnit* llvm_compilation_unit) {
-  return CompileMethodWithSeaIr(compiler, backend, code_item, access_flags, invoke_type, class_def_idx,
-                       method_idx, class_loader, dex_file
+  return CompileMethodWithSeaIr(compiler, backend, code_item, access_flags, invoke_type,
+      class_def_idx, method_idx, class_loader, dex_file
 #if defined(ART_USE_PORTABLE_COMPILER)
                        , llvm_compilation_unit
 #endif
@@ -71,7 +71,8 @@ extern "C" art::CompiledMethod*
                           uint32_t access_flags, art::InvokeType invoke_type,
                           uint32_t class_def_idx, uint32_t method_idx, jobject class_loader,
                           const art::DexFile& dex_file) {
-  // TODO: check method fingerprint here to determine appropriate backend type.  Until then, use build default
+  // TODO: Check method fingerprint here to determine appropriate backend type.
+  //       Until then, use build default
   art::CompilerBackend backend = compiler.GetCompilerBackend();
   return art::SeaIrCompileOneMethod(compiler, backend, code_item, access_flags, invoke_type,
                                class_def_idx, method_idx, class_loader, dex_file,

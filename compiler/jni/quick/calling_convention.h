@@ -18,9 +18,9 @@
 #define ART_COMPILER_JNI_QUICK_CALLING_CONVENTION_H_
 
 #include <vector>
-#include "oat/utils/managed_register.h"
 #include "stack_indirect_reference_table.h"
 #include "thread.h"
+#include "utils/managed_register.h"
 
 namespace art {
 

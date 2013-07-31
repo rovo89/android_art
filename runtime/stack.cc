@@ -16,7 +16,6 @@
 
 #include "stack.h"
 
-#include "oat/runtime/context.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object.h"

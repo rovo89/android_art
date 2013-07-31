@@ -47,7 +47,7 @@ class AtomicStack {
     DCHECK(begin_ != NULL);
     front_index_ = 0;
     back_index_ = 0;
-    is_sorted_ = true;
+    debug_is_sorted_ = true;
     int result = madvise(begin_, sizeof(T) * capacity_, MADV_DONTNEED);
     if (result == -1) {
       PLOG(WARNING) << "madvise failed";
@@ -58,8 +58,10 @@ class AtomicStack {
 
   // Returns false if we overflowed the stack.
   bool AtomicPushBack(const T& value) {
+    if (kIsDebugBuild) {
+      debug_is_sorted_ = false;
+    }
     int32_t index;
-    is_sorted_ = false;
     do {
       index = back_index_;
       if (UNLIKELY(static_cast<size_t>(index) >= capacity_)) {
@@ -72,7 +74,9 @@ class AtomicStack {
   }
 
   void PushBack(const T& value) {
-    is_sorted_ = false;
+    if (kIsDebugBuild) {
+      debug_is_sorted_ = false;
+    }
     int32_t index = back_index_;
     DCHECK_LT(static_cast<size_t>(index), capacity_);
     back_index_ = index + 1;
@@ -122,22 +126,23 @@ class AtomicStack {
   }
 
   void Sort() {
-    if (!is_sorted_) {
-      int32_t start_back_index = back_index_.load();
-      int32_t start_front_index = front_index_.load();
-      is_sorted_ = true;
-      std::sort(Begin(), End());
-      CHECK_EQ(start_back_index, back_index_.load());
-      CHECK_EQ(start_front_index, front_index_.load());
+    int32_t start_back_index = back_index_.load();
+    int32_t start_front_index = front_index_.load();
+    std::sort(Begin(), End());
+    CHECK_EQ(start_back_index, back_index_.load());
+    CHECK_EQ(start_front_index, front_index_.load());
+    if (kIsDebugBuild) {
+      debug_is_sorted_ = true;
     }
   }
 
+  bool ContainsSorted(const T& value) const {
+    DCHECK(debug_is_sorted_);
+    return std::binary_search(Begin(), End(), value);
+  }
+
   bool Contains(const T& value) const {
-    if (is_sorted_) {
-      return std::binary_search(Begin(), End(), value);
-    } else {
-      return std::find(Begin(), End(), value) != End();
-    }
+    return std::find(Begin(), End(), value) != End();
   }
 
  private:
@@ -147,7 +152,7 @@ class AtomicStack {
         front_index_(0),
         begin_(NULL),
         capacity_(capacity),
-        is_sorted_(true) {
+        debug_is_sorted_(true) {
   }
 
   // Size in number of elements.
@@ -156,6 +161,7 @@ class AtomicStack {
     CHECK(mem_map_.get() != NULL) << "couldn't allocate mark stack";
     byte* addr = mem_map_->Begin();
     CHECK(addr != NULL);
+    debug_is_sorted_ = true;
     begin_ = reinterpret_cast<T*>(addr);
     Reset();
   }
@@ -178,7 +184,8 @@ class AtomicStack {
   // Maximum number of elements.
   size_t capacity_;
 
-  bool is_sorted_;
+  // Whether or not the stack is sorted, only updated in debug mode to avoid performance overhead.
+  bool debug_is_sorted_;
 
   DISALLOW_COPY_AND_ASSIGN(AtomicStack);
 };

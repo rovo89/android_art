@@ -22,6 +22,7 @@
 #include "class_linker-inl.h"
 #include "common_test.h"
 #include "dex_file.h"
+#include "entrypoints/entrypoint_utils.h"
 #include "gc/heap.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
@@ -32,7 +33,6 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/proxy.h"
 #include "mirror/stack_trace_element.h"
-#include "runtime_support.h"
 #include "sirt_ref.h"
 
 using ::art::mirror::AbstractMethod;

@@ -167,13 +167,38 @@ void RegisterLine::MarkRefsAsInitialized(const RegType& uninit_type) {
   DCHECK(uninit_type.IsUninitializedTypes());
   const RegType& init_type = verifier_->GetRegTypeCache()->FromUninitialized(uninit_type);
   size_t changed = 0;
-  for (size_t i = 0; i < num_regs_; i++) {
+  for (uint32_t i = 0; i < num_regs_; i++) {
     if (GetRegisterType(i).Equals(uninit_type)) {
       line_[i] = init_type.GetId();
       changed++;
     }
   }
   DCHECK_GT(changed, 0u);
+}
+
+void RegisterLine::MarkAllRegistersAsConflicts() {
+  uint16_t conflict_type_id = verifier_->GetRegTypeCache()->Conflict().GetId();
+  for (uint32_t i = 0; i < num_regs_; i++) {
+    line_[i] = conflict_type_id;
+  }
+}
+
+void RegisterLine::MarkAllRegistersAsConflictsExcept(uint32_t vsrc) {
+  uint16_t conflict_type_id = verifier_->GetRegTypeCache()->Conflict().GetId();
+  for (uint32_t i = 0; i < num_regs_; i++) {
+    if (i != vsrc) {
+      line_[i] = conflict_type_id;
+    }
+  }
+}
+
+void RegisterLine::MarkAllRegistersAsConflictsExceptWide(uint32_t vsrc) {
+  uint16_t conflict_type_id = verifier_->GetRegTypeCache()->Conflict().GetId();
+  for (uint32_t i = 0; i < num_regs_; i++) {
+    if ((i != vsrc) && (i != (vsrc + 1))) {
+      line_[i] = conflict_type_id;
+    }
+  }
 }
 
 std::string RegisterLine::Dump() const {

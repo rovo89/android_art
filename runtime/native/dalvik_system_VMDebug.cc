@@ -20,6 +20,9 @@
 #include "class_linker.h"
 #include "common_throws.h"
 #include "debugger.h"
+#include "gc/space/dlmalloc_space.h"
+#include "gc/space/large_object_space.h"
+#include "gc/space/space-inl.h"
 #include "hprof/hprof.h"
 #include "jni_internal.h"
 #include "mirror/class.h"
@@ -234,6 +237,69 @@ static jlong VMDebug_countInstancesOfClass(JNIEnv* env, jclass, jclass javaClass
   return count;
 }
 
+// We export the VM internal per-heap-space size/alloc/free metrics
+// for the zygote space, alloc space (application heap), and the large
+// object space for dumpsys meminfo. The other memory region data such
+// as PSS, private/shared dirty/shared data are available via
+// /proc/<pid>/smaps.
+static void VMDebug_getHeapSpaceStats(JNIEnv* env, jclass, jlongArray data) {
+  jlong* arr = reinterpret_cast<jlong*>(env->GetPrimitiveArrayCritical(data, 0));
+  if (arr == NULL || env->GetArrayLength(data) < 9) {
+    return;
+  }
+
+  size_t allocSize = 0;
+  size_t allocUsed = 0;
+  size_t zygoteSize = 0;
+  size_t zygoteUsed = 0;
+  size_t largeObjectsSize = 0;
+  size_t largeObjectsUsed = 0;
+
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  const std::vector<gc::space::ContinuousSpace*>& continuous_spaces = heap->GetContinuousSpaces();
+  const std::vector<gc::space::DiscontinuousSpace*>& discontinuous_spaces = heap->GetDiscontinuousSpaces();
+  typedef std::vector<gc::space::ContinuousSpace*>::const_iterator It;
+  for (It it = continuous_spaces.begin(), end = continuous_spaces.end(); it != end; ++it) {
+    gc::space::ContinuousSpace* space = *it;
+    if (space->IsImageSpace()) {
+      // Currently don't include the image space.
+    } else if (space->IsZygoteSpace()) {
+      gc::space::DlMallocSpace* dlmalloc_space = space->AsDlMallocSpace();
+      zygoteSize += dlmalloc_space->GetFootprint();
+      zygoteUsed += dlmalloc_space->GetBytesAllocated();
+    } else {
+      // This is the alloc space.
+      gc::space::DlMallocSpace* dlmalloc_space = space->AsDlMallocSpace();
+      allocSize += dlmalloc_space->GetFootprint();
+      allocUsed += dlmalloc_space->GetBytesAllocated();
+    }
+  }
+  typedef std::vector<gc::space::DiscontinuousSpace*>::const_iterator It2;
+  for (It2 it = discontinuous_spaces.begin(), end = discontinuous_spaces.end(); it != end; ++it) {
+    gc::space::DiscontinuousSpace* space = *it;
+    if (space->IsLargeObjectSpace()) {
+      largeObjectsSize += space->AsLargeObjectSpace()->GetBytesAllocated();
+      largeObjectsUsed += largeObjectsSize;
+    }
+  }
+
+  size_t allocFree = allocSize - allocUsed;
+  size_t zygoteFree = zygoteSize - zygoteUsed;
+  size_t largeObjectsFree = largeObjectsSize - largeObjectsUsed;
+
+  int j = 0;
+  arr[j++] = allocSize;
+  arr[j++] = allocUsed;
+  arr[j++] = allocFree;
+  arr[j++] = zygoteSize;
+  arr[j++] = zygoteUsed;
+  arr[j++] = zygoteFree;
+  arr[j++] = largeObjectsSize;
+  arr[j++] = largeObjectsUsed;
+  arr[j++] = largeObjectsFree;
+  env->ReleasePrimitiveArrayCritical(data, arr, 0);
+}
+
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMDebug, countInstancesOfClass, "(Ljava/lang/Class;Z)J"),
   NATIVE_METHOD(VMDebug, crash, "()V"),
@@ -241,6 +307,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMDebug, dumpHprofDataDdms, "()V"),
   NATIVE_METHOD(VMDebug, dumpReferenceTables, "()V"),
   NATIVE_METHOD(VMDebug, getAllocCount, "(I)I"),
+  NATIVE_METHOD(VMDebug, getHeapSpaceStats, "([J)V"),
   NATIVE_METHOD(VMDebug, getInstructionCount, "([I)V"),
   NATIVE_METHOD(VMDebug, getLoadedClassCount, "()I"),
   NATIVE_METHOD(VMDebug, getVmFeatureList, "()[Ljava/lang/String;"),

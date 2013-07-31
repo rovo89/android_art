@@ -18,8 +18,8 @@
 
 #include "codegen_mips.h"
 #include "dex/quick/mir_to_lir-inl.h"
+#include "entrypoints/quick/quick_entrypoints.h"
 #include "mips_lir.h"
-#include "oat/runtime/oat_support_entrypoints.h"
 
 namespace art {
 
@@ -247,7 +247,7 @@ void MipsMir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
   GenBarrier();
   NewLIR0(kMipsCurrPC);  // Really a jal to .+8
   // Now, fill the branch delay slot with the helper load
-  int r_tgt = LoadHelper(ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode));
+  int r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode));
   GenBarrier();  // Scheduling barrier
 
   // Construct BaseLabel and set up table base register
@@ -272,7 +272,7 @@ void MipsMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
   LockCallTemps();  // Prepare for explicit register usage
   GenNullCheck(rl_src.s_reg_low, rMIPS_ARG0, opt_flags);
   // Go expensive route - artLockObjectFromCode(self, obj);
-  int r_tgt = LoadHelper(ENTRYPOINT_OFFSET(pLockObjectFromCode));
+  int r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pLockObjectFromCode));
   ClobberCalleeSave();
   LIR* call_inst = OpReg(kOpBlx, r_tgt);
   MarkSafepointPC(call_inst);
@@ -287,7 +287,7 @@ void MipsMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
   LockCallTemps();  // Prepare for explicit register usage
   GenNullCheck(rl_src.s_reg_low, rMIPS_ARG0, opt_flags);
   // Go expensive route - UnlockObjectFromCode(obj);
-  int r_tgt = LoadHelper(ENTRYPOINT_OFFSET(pUnlockObjectFromCode));
+  int r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pUnlockObjectFromCode));
   ClobberCalleeSave();
   LIR* call_inst = OpReg(kOpBlx, r_tgt);
   MarkSafepointPC(call_inst);

@@ -20,9 +20,9 @@
 #include "abstract_method.h"
 
 #include "dex_file.h"
+#include "entrypoints/entrypoint_utils.h"
 #include "object_array.h"
 #include "runtime.h"
-#include "runtime_support.h"
 
 namespace art {
 namespace mirror {

@@ -44,7 +44,8 @@ TEST_F(ImageTest, WriteRead) {
     {
       jobject class_loader = NULL;
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-      TimingLogger timings("ImageTest::WriteRead", false);
+      base::TimingLogger timings("ImageTest::WriteRead", false, false);
+      timings.StartSplit("CompileAll");
       compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), timings);
 
       ScopedObjectAccess soa(Thread::Current());

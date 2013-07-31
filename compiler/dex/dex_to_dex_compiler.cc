@@ -36,9 +36,11 @@ const bool kEnableCheckCastEllision = true;
 class DexCompiler {
  public:
   DexCompiler(art::CompilerDriver& compiler,
-              const DexCompilationUnit& unit)
+              const DexCompilationUnit& unit,
+              DexToDexCompilationLevel dex_to_dex_compilation_level)
     : driver_(compiler),
-      unit_(unit) {}
+      unit_(unit),
+      dex_to_dex_compilation_level_(dex_to_dex_compilation_level) {}
 
   ~DexCompiler() {}
 
@@ -53,6 +55,10 @@ class DexCompiler {
   // to "unconst" here. The DEX-to-DEX compiler should work on a non-const DexFile.
   DexFile& GetModifiableDexFile() {
     return *const_cast<DexFile*>(unit_.GetDexFile());
+  }
+
+  bool PerformOptimizations() const {
+    return dex_to_dex_compilation_level_ >= kOptimize;
   }
 
   // Compiles a RETURN-VOID into a RETURN-VOID-BARRIER within a constructor where
@@ -84,6 +90,7 @@ class DexCompiler {
 
   CompilerDriver& driver_;
   const DexCompilationUnit& unit_;
+  const DexToDexCompilationLevel dex_to_dex_compilation_level_;
 
   DISALLOW_COPY_AND_ASSIGN(DexCompiler);
 };
@@ -138,6 +145,7 @@ class ScopedDexWriteAccess {
 };
 
 void DexCompiler::Compile() {
+  DCHECK_GE(dex_to_dex_compilation_level_, kRequired);
   const DexFile::CodeItem* code_item = unit_.GetCodeItem();
   const uint16_t* insns = code_item->insns_;
   const uint32_t insns_size = code_item->insns_size_in_code_units_;
@@ -220,7 +228,7 @@ void DexCompiler::CompileReturnVoid(Instruction* inst, uint32_t dex_pc) {
 }
 
 Instruction* DexCompiler::CompileCheckCast(Instruction* inst, uint32_t dex_pc) {
-  if (!kEnableCheckCastEllision) {
+  if (!kEnableCheckCastEllision || !PerformOptimizations()) {
     return inst;
   }
   MethodReference referrer(&GetDexFile(), unit_.GetDexMethodIndex());
@@ -253,7 +261,7 @@ void DexCompiler::CompileInstanceFieldAccess(Instruction* inst,
                                              uint32_t dex_pc,
                                              Instruction::Code new_opcode,
                                              bool is_put) {
-  if (!kEnableQuickening) {
+  if (!kEnableQuickening || !PerformOptimizations()) {
     return;
   }
   uint32_t field_idx = inst->VRegC_22c();
@@ -280,7 +288,7 @@ void DexCompiler::CompileInvokeVirtual(Instruction* inst,
                                 uint32_t dex_pc,
                                 Instruction::Code new_opcode,
                                 bool is_range) {
-  if (!kEnableQuickening) {
+  if (!kEnableQuickening || !PerformOptimizations()) {
     return;
   }
   uint32_t method_idx = is_range ? inst->VRegB_3rc() : inst->VRegB_35c();
@@ -320,14 +328,15 @@ void DexCompiler::CompileInvokeVirtual(Instruction* inst,
 }  // namespace optimizer
 }  // namespace art
 
-extern "C" art::CompiledMethod*
-    ArtCompileDEX(art::CompilerDriver& compiler, const art::DexFile::CodeItem* code_item,
+extern "C" void ArtCompileDEX(art::CompilerDriver& compiler, const art::DexFile::CodeItem* code_item,
                   uint32_t access_flags, art::InvokeType invoke_type,
                   uint32_t class_def_idx, uint32_t method_idx, jobject class_loader,
-                  const art::DexFile& dex_file) {
-  art::DexCompilationUnit unit(NULL, class_loader, art::Runtime::Current()->GetClassLinker(),
-                               dex_file, code_item, class_def_idx, method_idx, access_flags);
-  art::optimizer::DexCompiler dex_compiler(compiler, unit);
-  dex_compiler.Compile();
-  return NULL;
+                  const art::DexFile& dex_file,
+                  art::DexToDexCompilationLevel dex_to_dex_compilation_level) {
+  if (dex_to_dex_compilation_level != art::kDontDexToDexCompile) {
+    art::DexCompilationUnit unit(NULL, class_loader, art::Runtime::Current()->GetClassLinker(),
+                                 dex_file, code_item, class_def_idx, method_idx, access_flags);
+    art::optimizer::DexCompiler dex_compiler(compiler, unit, dex_to_dex_compilation_level);
+    dex_compiler.Compile();
+  }
 }

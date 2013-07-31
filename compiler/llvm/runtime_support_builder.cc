@@ -20,6 +20,7 @@
 #include "ir_builder.h"
 #include "monitor.h"
 #include "mirror/object.h"
+#include "runtime_support_llvm_func_list.h"
 #include "thread.h"
 
 #include <llvm/IR/DerivedTypes.h>
@@ -47,10 +48,7 @@ RuntimeSupportBuilder::RuntimeSupportBuilder(::llvm::LLVMContext& context,
     runtime_support_func_decls_[runtime_support::ID] = fn; \
   } while (0);
 
-#include "runtime_support_llvm_func_list.h"
   RUNTIME_SUPPORT_FUNC_LIST(GET_RUNTIME_SUPPORT_FUNC_DECL)
-#undef RUNTIME_SUPPORT_FUNC_LIST
-#undef GET_RUNTIME_SUPPORT_FUNC_DECL
 }
 
 

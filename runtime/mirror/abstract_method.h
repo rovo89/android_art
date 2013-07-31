@@ -407,8 +407,10 @@ class MANAGED AbstractMethod : public Object {
   uintptr_t ToFirstNativeSafepointPc(const uint32_t dex_pc)
       const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Find the catch block for the given exception type and dex_pc
-  uint32_t FindCatchBlock(Class* exception_type, uint32_t dex_pc) const
+  // Find the catch block for the given exception type and dex_pc. When a catch block is found,
+  // indicates whether the found catch block is responsible for clearing the exception or whether
+  // a move-exception instruction is present.
+  uint32_t FindCatchBlock(Class* exception_type, uint32_t dex_pc, bool* has_no_move_exception) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void SetClasses(Class* java_lang_reflect_Constructor, Class* java_lang_reflect_Method);

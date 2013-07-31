@@ -148,7 +148,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   CHECK(large_object_space_ != NULL) << "Failed to create large object space";
   AddDiscontinuousSpace(large_object_space_);
 
-  alloc_space_ = space::DlMallocSpace::Create("alloc space",
+  alloc_space_ = space::DlMallocSpace::Create(Runtime::Current()->IsZygote() ? "zygote space" : "alloc space",
                                               initial_size,
                                               growth_limit, capacity,
                                               requested_alloc_space_begin);
@@ -524,31 +524,42 @@ bool Heap::IsHeapAddress(const mirror::Object* obj) {
 
 bool Heap::IsLiveObjectLocked(const mirror::Object* obj) {
   // Locks::heap_bitmap_lock_->AssertReaderHeld(Thread::Current());
-  if (obj == NULL) {
+  if (obj == NULL || UNLIKELY(!IsAligned<kObjectAlignment>(obj))) {
     return false;
   }
-  if (UNLIKELY(!IsAligned<kObjectAlignment>(obj))) {
-    return false;
-  }
-  space::ContinuousSpace* cont_space = FindContinuousSpaceFromObject(obj, true);
-  if (cont_space != NULL) {
-    if (cont_space->GetLiveBitmap()->Test(obj)) {
+  space::ContinuousSpace* c_space = FindContinuousSpaceFromObject(obj, true);
+  space::DiscontinuousSpace* d_space = NULL;
+  if (c_space != NULL) {
+    if (c_space->GetLiveBitmap()->Test(obj)) {
       return true;
     }
   } else {
-    space::DiscontinuousSpace* disc_space = FindDiscontinuousSpaceFromObject(obj, true);
-    if (disc_space != NULL) {
-      if (disc_space->GetLiveObjects()->Test(obj)) {
+    d_space = FindDiscontinuousSpaceFromObject(obj, true);
+    if (d_space != NULL) {
+      if (d_space->GetLiveObjects()->Test(obj)) {
         return true;
       }
     }
   }
+  // This is covering the allocation/live stack swapping that is done without mutators suspended.
   for (size_t i = 0; i < 5; ++i) {
     if (allocation_stack_->Contains(const_cast<mirror::Object*>(obj)) ||
         live_stack_->Contains(const_cast<mirror::Object*>(obj))) {
       return true;
     }
     NanoSleep(MsToNs(10));
+  }
+  // We need to check the bitmaps again since there is a race where we mark something as live and
+  // then clear the stack containing it.
+  if (c_space != NULL) {
+    if (c_space->GetLiveBitmap()->Test(obj)) {
+      return true;
+    }
+  } else {
+    d_space = FindDiscontinuousSpaceFromObject(obj, true);
+    if (d_space != NULL && d_space->GetLiveObjects()->Test(obj)) {
+      return true;
+    }
   }
   return false;
 }
@@ -972,7 +983,7 @@ void Heap::PreZygoteFork() {
   // Turns the current alloc space into a Zygote space and obtain the new alloc space composed
   // of the remaining available heap memory.
   space::DlMallocSpace* zygote_space = alloc_space_;
-  alloc_space_ = zygote_space->CreateZygoteSpace();
+  alloc_space_ = zygote_space->CreateZygoteSpace("alloc space");
   alloc_space_->SetFootprintLimit(alloc_space_->Capacity());
 
   // Change the GC retention policy of the zygote space to only collect when full.
@@ -1131,7 +1142,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
               << PrettySize(total_memory) << ", " << "paused " << pause_string.str()
               << " total " << PrettyDuration((duration / 1000) * 1000);
     if (VLOG_IS_ON(heap)) {
-      LOG(INFO) << Dumpable<base::NewTimingLogger>(collector->GetTimings());
+      LOG(INFO) << Dumpable<base::TimingLogger>(collector->GetTimings());
     }
   }
 
@@ -1149,7 +1160,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   return gc_type;
 }
 
-void Heap::UpdateAndMarkModUnion(collector::MarkSweep* mark_sweep, base::NewTimingLogger& timings,
+void Heap::UpdateAndMarkModUnion(collector::MarkSweep* mark_sweep, base::TimingLogger& timings,
                                  collector::GcType gc_type) {
   if (gc_type == collector::kGcTypeSticky) {
     // Don't need to do anything for mod union table in this case since we are only scanning dirty
@@ -1229,10 +1240,10 @@ class VerifyReferenceVisitor {
         if (bitmap != NULL && bitmap->Test(obj)) {
           LOG(ERROR) << "Object " << obj << " found in live bitmap";
         }
-        if (alloc_stack->Contains(const_cast<mirror::Object*>(obj))) {
+        if (alloc_stack->ContainsSorted(const_cast<mirror::Object*>(obj))) {
           LOG(ERROR) << "Object " << obj << " found in allocation stack";
         }
-        if (live_stack->Contains(const_cast<mirror::Object*>(obj))) {
+        if (live_stack->ContainsSorted(const_cast<mirror::Object*>(obj))) {
           LOG(ERROR) << "Object " << obj << " found in live stack";
         }
         // Attempt to see if the card table missed the reference.
@@ -1252,10 +1263,10 @@ class VerifyReferenceVisitor {
       } else {
         LOG(ERROR) << "Root references dead object " << ref << "\nRef type " << PrettyTypeOf(ref);
       }
-      if (alloc_stack->Contains(const_cast<mirror::Object*>(ref))) {
+      if (alloc_stack->ContainsSorted(const_cast<mirror::Object*>(ref))) {
         LOG(ERROR) << "Reference " << ref << " found in allocation stack!";
       }
-      if (live_stack->Contains(const_cast<mirror::Object*>(ref))) {
+      if (live_stack->ContainsSorted(const_cast<mirror::Object*>(ref))) {
         LOG(ERROR) << "Reference " << ref << " found in live stack!";
       }
       heap_->image_mod_union_table_->Dump(LOG(ERROR) << "Image mod-union table: ");
@@ -1345,8 +1356,8 @@ class VerifyReferenceCardVisitor {
         // Card should be either kCardDirty if it got re-dirtied after we aged it, or
         // kCardDirty - 1 if it didnt get touched since we aged it.
         accounting::ObjectStack* live_stack = heap_->live_stack_.get();
-        if (live_stack->Contains(const_cast<mirror::Object*>(ref))) {
-          if (live_stack->Contains(const_cast<mirror::Object*>(obj))) {
+        if (live_stack->ContainsSorted(const_cast<mirror::Object*>(ref))) {
+          if (live_stack->ContainsSorted(const_cast<mirror::Object*>(obj))) {
             LOG(ERROR) << "Object " << obj << " found in live stack";
           }
           if (heap_->GetLiveBitmap()->Test(obj)) {
@@ -1441,7 +1452,7 @@ void Heap::SwapStacks() {
   }
 }
 
-void Heap::ProcessCards(base::NewTimingLogger& timings) {
+void Heap::ProcessCards(base::TimingLogger& timings) {
   // Clear cards and keep track of cards cleared in the mod-union table.
   typedef std::vector<space::ContinuousSpace*>::iterator It;
   for (It it = continuous_spaces_.begin(), end = continuous_spaces_.end(); it != end; ++it) {
@@ -1932,6 +1943,28 @@ void Heap::RegisterNativeFree(int bytes) {
         break;
       }
   } while (!native_bytes_allocated_.compare_and_swap(expected_size, new_size));
+}
+
+int64_t Heap::GetTotalMemory() const {
+  int64_t ret = 0;
+  typedef std::vector<space::ContinuousSpace*>::const_iterator It;
+  for (It it = continuous_spaces_.begin(), end = continuous_spaces_.end(); it != end; ++it) {
+    space::ContinuousSpace* space = *it;
+    if (space->IsImageSpace()) {
+      // Currently don't include the image space.
+    } else if (space->IsDlMallocSpace()) {
+      // Zygote or alloc space
+      ret += space->AsDlMallocSpace()->GetFootprint();
+    }
+  }
+  typedef std::vector<space::DiscontinuousSpace*>::const_iterator It2;
+  for (It2 it = discontinuous_spaces_.begin(), end = discontinuous_spaces_.end(); it != end; ++it) {
+    space::DiscontinuousSpace* space = *it;
+    if (space->IsLargeObjectSpace()) {
+      ret += space->AsLargeObjectSpace()->GetBytesAllocated();
+    }
+  }
+  return ret;
 }
 
 }  // namespace gc
