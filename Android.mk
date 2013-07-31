@@ -125,11 +125,11 @@ test-art-gtest: test-art-host-gtest test-art-target-gtest
 	@echo test-art-gtest PASSED
 
 .PHONY: test-art-oat
-test-art-oat: test-art-host-oat test-art-target-oat test-art-host-interpreter-oat
+test-art-oat: test-art-host-oat test-art-target-oat
 	@echo test-art-oat PASSED
 
 .PHONY: test-art-run-test
-test-art-run-test: test-art-host-run-test test-art-target-run-test test-art-host-interpreter-run-test
+test-art-run-test: test-art-host-run-test test-art-target-run-test
 	@echo test-art-run-test PASSED
 
 ########################################################################
@@ -137,11 +137,11 @@ test-art-run-test: test-art-host-run-test test-art-target-run-test test-art-host
 
 # "mm test-art-host" to build and run all host tests
 .PHONY: test-art-host
-test-art-host: test-art-host-gtest test-art-host-oat test-art-host-run-test test-art-host-interpreter
+test-art-host: test-art-host-gtest test-art-host-oat test-art-host-run-test
 	@echo test-art-host PASSED
 
 .PHONY: test-art-host-interpreter
-test-art-host-interpreter: test-art-host-interpreter-oat test-art-host-interpreter-run-test
+test-art-host-interpreter: test-art-host-oat-interpreter test-art-host-run-test-interpreter
 	@echo test-art-host-interpreter PASSED
 
 .PHONY: test-art-host-dependencies
@@ -161,39 +161,47 @@ valgrind-test-art-host-gtest: test-art-host-dependencies
 	$(call run-host-gtests-with,valgrind --leak-check=full)
 	@echo valgrind-test-art-host-gtest PASSED
 
+.PHONY: test-art-host-oat-default
+test-art-host-oat-default: $(ART_TEST_HOST_OAT_DEFAULT_TARGETS)
+	@echo test-art-host-oat-default PASSED
+
+.PHONY: test-art-host-oat-interpreter
+test-art-host-oat-interpreter: $(ART_TEST_HOST_OAT_INTERPRETER_TARGETS)
+	@echo test-art-host-oat-interpreter PASSED
+
 .PHONY: test-art-host-oat
-test-art-host-oat: $(ART_TEST_HOST_OAT_TARGETS)
+test-art-host-oat: test-art-host-oat-default test-art-host-oat-interpreter
 	@echo test-art-host-oat PASSED
 
-.PHONY: test-art-host-interpreter-oat
-test-art-host-interpreter-oat: $(ART_TEST_HOST_INTERPRETER_OAT_TARGETS)
-	@echo test-art-host-interpreter-oat PASSED
-
 define declare-test-art-host-run-test
-.PHONY: test-art-host-run-test-$(1)
-test-art-host-run-test-$(1): test-art-host-dependencies
+.PHONY: test-art-host-run-test-default-$(1)
+test-art-host-run-test-default-$(1): test-art-host-dependencies
 	art/test/run-test --host $(1)
-	@echo test-art-host-run-test-$(1) PASSED
+	@echo test-art-host-run-test-default-$(1) PASSED
 
-TEST_ART_HOST_RUN_TEST_TARGETS += test-art-host-run-test-$(1)
+TEST_ART_HOST_RUN_TEST_DEFAULT_TARGETS += test-art-host-run-test-default-$(1)
 
-.PHONY: test-art-host-interpreter-run-test-$(1)
-test-art-host-interpreter-run-test-$(1): test-art-host-dependencies
+.PHONY: test-art-host-run-test-interpreter-$(1)
+test-art-host-run-test-interpreter-$(1): test-art-host-dependencies
 	art/test/run-test --host --interpreter $(1)
-	@echo test-art-host-interpreter-run-test-$(1) PASSED
+	@echo test-art-host-run-test-interpreter-$(1) PASSED
 
-TEST_ART_HOST_INTERPRETER_RUN_TEST_TARGETS += test-art-host-interpreter-run-test-$(1)
+TEST_ART_HOST_RUN_TEST_INTERPRETER_TARGETS += test-art-host-run-test-interpreter-$(1)
 endef
 
 $(foreach test, $(wildcard art/test/[0-9]*), $(eval $(call declare-test-art-host-run-test,$(notdir $(test)))))
 
-.PHONY: test-art-host-run-test
-test-art-host-run-test: $(TEST_ART_HOST_RUN_TEST_TARGETS)
-	@echo test-art-host-run-test PASSED
+.PHONY: test-art-host-run-test-default
+test-art-host-run-test-default: $(TEST_ART_HOST_RUN_TEST_DEFAULT_TARGETS)
+	@echo test-art-host-run-test-default PASSED
 
-.PHONY: test-art-host-interpreter-run-test
-test-art-host-interpreter-run-test: $(TEST_ART_HOST_INTERPRETER_RUN_TEST_TARGETS)
-	@echo test-art-host-interpreter-run-test PASSED
+.PHONY: test-art-host-run-test-interpreter
+test-art-host-run-test-interpreter: $(TEST_ART_HOST_RUN_TEST_INTERPRETER_TARGETS)
+	@echo test-art-host-run-test-interpreter PASSED
+
+.PHONY: test-art-host-run-test
+test-art-host-run-test: test-art-host-run-test-default test-art-host-run-test-interpreter
+	@echo test-art-host-run-test PASSED
 
 ########################################################################
 # target test targets
