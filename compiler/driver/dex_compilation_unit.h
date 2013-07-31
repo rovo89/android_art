@@ -80,6 +80,10 @@ class DexCompilationUnit {
     return access_flags_;
   }
 
+  bool IsConstructor() const {
+    return ((access_flags_ & kAccConstructor) != 0);
+  }
+
   bool IsNative() const {
     return ((access_flags_ & kAccNative) != 0);
   }
