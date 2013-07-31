@@ -166,7 +166,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   # TODO: clean up the compilers and remove this.
   LOCAL_CFLAGS += -Wno-unused-parameter
 
-  LOCAL_SHARED_LIBRARIES := liblog
+  LOCAL_SHARED_LIBRARIES += liblog
   ifeq ($$(art_ndebug_or_debug),debug)
     ifeq ($$(art_target_or_host),target)
       LOCAL_CFLAGS += $(ART_TARGET_DEBUG_CFLAGS)
@@ -189,9 +189,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
 
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime
 
-  ifeq ($$(art_target_or_host),target)
-    LOCAL_SHARED_LIBRARIES += libstlport
-  else # host
+  ifeq ($$(art_target_or_host),host)
     LOCAL_LDLIBS := -ldl -lpthread
   endif
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk

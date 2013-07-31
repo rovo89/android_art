@@ -39,14 +39,14 @@ define build-libarttest
     LOCAL_MODULE_TAGS := tests
   endif
   LOCAL_SRC_FILES := $(LIBARTTEST_COMMON_SRC_FILES)
-  LOCAL_SHARED_LIBRARIES := libartd
+  LOCAL_SHARED_LIBRARIES += libartd
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime
   LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/build/Android.common.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/build/Android.libarttest.mk
   ifeq ($$(art_target_or_host),target)
     LOCAL_CLANG := $(ART_TARGET_CLANG)
     LOCAL_CFLAGS := $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)
-    LOCAL_SHARED_LIBRARIES += libdl libstlport
+    LOCAL_SHARED_LIBRARIES += libdl
     LOCAL_STATIC_LIBRARIES := libgtest
     LOCAL_MODULE_PATH := $(ART_TEST_OUT)
     include $(BUILD_SHARED_LIBRARY)
