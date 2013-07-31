@@ -230,29 +230,33 @@ uint32_t AbstractMethod::FindCatchBlock(Class* exception_type, uint32_t dex_pc,
                                         bool* has_no_move_exception) const {
   MethodHelper mh(this);
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
-  // Iterate over the catch handlers associated with dex_pc
+  // Default to handler not found.
+  uint32_t found_dex_pc = DexFile::kDexNoIndex;
+  // Iterate over the catch handlers associated with dex_pc.
   for (CatchHandlerIterator it(*code_item, dex_pc); it.HasNext(); it.Next()) {
     uint16_t iter_type_idx = it.GetHandlerTypeIndex();
     // Catch all case
     if (iter_type_idx == DexFile::kDexNoIndex16) {
-      return it.GetHandlerAddress();
+      found_dex_pc = it.GetHandlerAddress();
+      break;
     }
     // Does this catch exception type apply?
     Class* iter_exception_type = mh.GetDexCacheResolvedType(iter_type_idx);
     if (iter_exception_type == NULL) {
       // The verifier should take care of resolving all exception classes early
       LOG(WARNING) << "Unresolved exception class when finding catch block: "
-          << mh.GetTypeDescriptorFromTypeIdx(iter_type_idx);
+        << mh.GetTypeDescriptorFromTypeIdx(iter_type_idx);
     } else if (iter_exception_type->IsAssignableFrom(exception_type)) {
-      uint32_t found_dex_pc = it.GetHandlerAddress();
-      const Instruction* first_catch_instr =
-          Instruction::At(&mh.GetCodeItem()->insns_[found_dex_pc]);
-      *has_no_move_exception = (first_catch_instr->Opcode() != Instruction::MOVE_EXCEPTION);
-      return found_dex_pc;
+      found_dex_pc = it.GetHandlerAddress();
+      break;
     }
   }
-  // Handler not found
-  return DexFile::kDexNoIndex;
+  if (found_dex_pc != DexFile::kDexNoIndex) {
+    const Instruction* first_catch_instr =
+        Instruction::At(&mh.GetCodeItem()->insns_[found_dex_pc]);
+    *has_no_move_exception = (first_catch_instr->Opcode() != Instruction::MOVE_EXCEPTION);
+  }
+  return found_dex_pc;
 }
 
 void AbstractMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result,
