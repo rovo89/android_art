@@ -74,7 +74,8 @@ TEST_F(OatTest, WriteRead) {
 #else
   CompilerBackend compiler_backend = kQuick;
 #endif
-  compiler_driver_.reset(new CompilerDriver(compiler_backend, kThumb2, false, NULL, 2, true));
+  InstructionSet insn_set = kIsTargetBuild ? kThumb2 : kX86;
+  compiler_driver_.reset(new CompilerDriver(compiler_backend, insn_set, false, NULL, 2, true));
   jobject class_loader = NULL;
   if (compile) {
     base::TimingLogger timings("OatTest::WriteRead", false, false);
