@@ -54,53 +54,52 @@ static bool GenerateImage(const std::string& image_file_name) {
     LOG(FATAL) << "Failed to generate image because no boot class path specified";
   }
 
-  std::vector<char*> arg_vector;
+  std::vector<std::string> arg_vector;
 
-  std::string dex2oat_string(GetAndroidRoot());
+  const char* dex2oat = GetAndroidRoot();
+  std::string dex2oat_string(dex2oat);
   dex2oat_string += (kIsDebugBuild ? "/bin/dex2oatd" : "/bin/dex2oat");
-  const char* dex2oat = dex2oat_string.c_str();
-  arg_vector.push_back(strdup(dex2oat));
+  arg_vector.push_back(dex2oat_string);
 
   std::string image_option_string("--image=");
   image_option_string += image_file_name;
-  const char* image_option = image_option_string.c_str();
-  arg_vector.push_back(strdup(image_option));
+  arg_vector.push_back(image_option_string);
 
-  arg_vector.push_back(strdup("--runtime-arg"));
-  arg_vector.push_back(strdup("-Xms64m"));
+  arg_vector.push_back("--runtime-arg");
+  arg_vector.push_back("-Xms64m");
 
-  arg_vector.push_back(strdup("--runtime-arg"));
-  arg_vector.push_back(strdup("-Xmx64m"));
+  arg_vector.push_back("--runtime-arg");
+  arg_vector.push_back("-Xmx64m");
 
   for (size_t i = 0; i < boot_class_path.size(); i++) {
-    std::string dex_file_option_string("--dex-file=");
-    dex_file_option_string += boot_class_path[i];
-    const char* dex_file_option = dex_file_option_string.c_str();
-    arg_vector.push_back(strdup(dex_file_option));
+    arg_vector.push_back(std::string("--dex-file=") + boot_class_path[i]);
   }
 
   std::string oat_file_option_string("--oat-file=");
   oat_file_option_string += image_file_name;
   oat_file_option_string.erase(oat_file_option_string.size() - 3);
   oat_file_option_string += "oat";
-  const char* oat_file_option = oat_file_option_string.c_str();
-  arg_vector.push_back(strdup(oat_file_option));
+  arg_vector.push_back(oat_file_option_string);
 
-  std::string base_option_string(StringPrintf("--base=0x%x", ART_BASE_ADDRESS));
-  arg_vector.push_back(strdup(base_option_string.c_str()));
+  arg_vector.push_back(StringPrintf("--base=0x%x", ART_BASE_ADDRESS));
 
   if (kIsTargetBuild) {
-    arg_vector.push_back(strdup("--image-classes-zip=/system/framework/framework.jar"));
-    arg_vector.push_back(strdup("--image-classes=preloaded-classes"));
+    arg_vector.push_back("--image-classes-zip=/system/framework/framework.jar");
+    arg_vector.push_back("--image-classes=preloaded-classes");
   } else {
-    arg_vector.push_back(strdup("--host"));
+    arg_vector.push_back("--host");
   }
 
   std::string command_line(Join(arg_vector, ' '));
   LOG(INFO) << "GenerateImage: " << command_line;
 
-  arg_vector.push_back(NULL);
-  char** argv = &arg_vector[0];
+  // Convert the args to char pointers.
+  std::vector<char*> char_args;
+  for (std::vector<std::string>::iterator it = arg_vector.begin(); it != arg_vector.end();
+      ++it) {
+    char_args.push_back(const_cast<char*>(it->c_str()));
+  }
+  char_args.push_back(NULL);
 
   // fork and exec dex2oat
   pid_t pid = fork();
@@ -110,12 +109,14 @@ static bool GenerateImage(const std::string& image_file_name) {
     // change process groups, so we don't get reaped by ProcessManager
     setpgid(0, 0);
 
-    execv(dex2oat, argv);
+    execv(dex2oat, &char_args[0]);
 
     PLOG(FATAL) << "execv(" << dex2oat << ") failed";
     return false;
   } else {
-    STLDeleteElements(&arg_vector);
+    if (pid == -1) {
+      PLOG(ERROR) << "fork failed";
+    }
 
     // wait for dex2oat to finish
     int status;
