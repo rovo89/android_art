@@ -56,10 +56,9 @@ static bool GenerateImage(const std::string& image_file_name) {
 
   std::vector<std::string> arg_vector;
 
-  const char* dex2oat = GetAndroidRoot();
-  std::string dex2oat_string(dex2oat);
-  dex2oat_string += (kIsDebugBuild ? "/bin/dex2oatd" : "/bin/dex2oat");
-  arg_vector.push_back(dex2oat_string);
+  std::string dex2oat = GetAndroidRoot();
+  dex2oat += (kIsDebugBuild ? "/bin/dex2oatd" : "/bin/dex2oat");
+  arg_vector.push_back(dex2oat);
 
   std::string image_option_string("--image=");
   image_option_string += image_file_name;
@@ -109,7 +108,7 @@ static bool GenerateImage(const std::string& image_file_name) {
     // change process groups, so we don't get reaped by ProcessManager
     setpgid(0, 0);
 
-    execv(dex2oat, &char_args[0]);
+    execv(dex2oat.c_str(), &char_args[0]);
 
     PLOG(FATAL) << "execv(" << dex2oat << ") failed";
     return false;
