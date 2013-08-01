@@ -79,7 +79,8 @@ void CumulativeLogger::AddLogger(const base::TimingLogger &logger) {
   MutexLock mu(Thread::Current(), lock_);
   const std::vector<std::pair<uint64_t, const char*> >& splits = logger.GetSplits();
   typedef std::vector<std::pair<uint64_t, const char*> >::const_iterator It;
-  if (kIsDebugBuild && splits.size() != histograms_.size()) {
+  // The first time this is run, the histograms array will be empty.
+  if (kIsDebugBuild && !histograms_.empty() && splits.size() != histograms_.size()) {
     LOG(ERROR) << "Mismatch in splits.";
     typedef std::vector<Histogram<uint64_t> *>::const_iterator It2;
     It it = splits.begin();
@@ -111,24 +112,24 @@ void CumulativeLogger::Dump(std::ostream &os) {
 void CumulativeLogger::AddPair(const std::string &label, uint64_t delta_time) {
   // Convert delta time to microseconds so that we don't overflow our counters.
   delta_time /= kAdjust;
-  if (index_ >= histograms_.size()) {
-    Histogram<uint64_t> *tmp_hist = new Histogram<uint64_t>(label);
-    tmp_hist->AddValue(delta_time);
-    histograms_.push_back(tmp_hist);
-  } else {
-    histograms_[index_]->AddValue(delta_time);
-    DCHECK_EQ(label, histograms_[index_]->Name());
+  if (histograms_.size() <= index_) {
+    histograms_.push_back(new Histogram<uint64_t>(label.c_str(), 50));
+    DCHECK_GT(histograms_.size(), index_);
   }
-  index_++;
+  histograms_[index_]->AddValue(delta_time);
+  DCHECK_EQ(label, histograms_[index_]->Name());
+  ++index_;
 }
 
 void CumulativeLogger::DumpHistogram(std::ostream &os) {
   os << "Start Dumping histograms for " << iterations_ << " iterations"
      << " for " << name_ << "\n";
   for (size_t Idx = 0; Idx < histograms_.size(); Idx++) {
-    Histogram<uint64_t> &hist = *(histograms_[Idx]);
-    hist.CreateHistogram();
-    hist.PrintConfidenceIntervals(os, 0.99);
+    Histogram<uint64_t>::CumulativeData cumulative_data;
+    histograms_[Idx]->CreateHistogram(cumulative_data);
+    histograms_[Idx]->PrintConfidenceIntervals(os, 0.99, cumulative_data);
+    // Reset cumulative values to save memory. We don't expect DumpHistogram to be called often, so
+    // it is not performance critical.
   }
   os << "Done Dumping histograms \n";
 }

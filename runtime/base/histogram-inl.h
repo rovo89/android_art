@@ -29,7 +29,7 @@
 namespace art {
 
 template <class Value> inline void Histogram<Value>::AddValue(Value value) {
-  CHECK_GE(value, 0.0);
+  CHECK_GE(value, static_cast<Value>(0));
   if (value >= max_) {
     Value new_max = ((value + 1) / bucket_width_ + 1) * bucket_width_;
     DCHECK_GT(new_max, max_);
@@ -37,91 +37,90 @@ template <class Value> inline void Histogram<Value>::AddValue(Value value) {
   }
 
   BucketiseValue(value);
-  new_values_added_ = true;
 }
 
 template <class Value>
-inline Histogram<Value>::Histogram(const std::string name)
+inline Histogram<Value>::Histogram(const char* name, Value initial_bucket_width,
+                                   size_t max_buckets)
     : kAdjust(1000),
-      kBucketWidth(5),
-      kInitialBucketCount(10),
-      bucket_width_(kBucketWidth),
-      bucket_count_(kInitialBucketCount) {
-  name_ = name;
+      kInitialBucketCount(8),
+      name_(name),
+      max_buckets_(max_buckets),
+      bucket_width_(initial_bucket_width) {
   Reset();
 }
 
 template <class Value>
 inline void Histogram<Value>::GrowBuckets(Value new_max) {
   while (max_ < new_max) {
+    // If we have reached the maximum number of buckets, merge buckets together.
+    if (frequency_.size() >= max_buckets_) {
+      CHECK(IsAligned<2>(frequency_.size()));
+      // We double the width of each bucket to reduce the number of buckets by a factor of 2.
+      bucket_width_ *= 2;
+      const size_t limit = frequency_.size() / 2;
+      // Merge the frequencies by adding each adjacent two together.
+      for (size_t i = 0; i < limit; ++i) {
+        frequency_[i] = frequency_[i * 2] + frequency_[i * 2 + 1];
+      }
+      // Remove frequencies in the second half of the array which were added to the first half.
+      while (frequency_.size() > limit) {
+        frequency_.pop_back();
+      }
+    }
     max_ += bucket_width_;
-    ranges_.push_back(max_);
     frequency_.push_back(0);
-    bucket_count_++;
   }
 }
 
-template <class Value> inline size_t Histogram<Value>::FindBucket(Value val) {
+template <class Value> inline size_t Histogram<Value>::FindBucket(Value val) const {
   // Since this is only a linear histogram, bucket index can be found simply with
   // dividing the value by the bucket width.
   DCHECK_GE(val, min_);
   DCHECK_LE(val, max_);
-  size_t bucket_idx = static_cast<size_t>(static_cast<double>(val - min_) / bucket_width_);
+  const size_t bucket_idx = static_cast<size_t>((val - min_) / bucket_width_);
   DCHECK_GE(bucket_idx, 0ul);
-  DCHECK_LE(bucket_idx, bucket_count_);
+  DCHECK_LE(bucket_idx, GetBucketCount());
   return bucket_idx;
 }
 
 template <class Value>
-inline void Histogram<Value>::BucketiseValue(Value value) {
-  CHECK_LT(value, max_);
-  sum_ += value;
-  sum_of_squares_ += value * value;
-  size_t bucket_idx = FindBucket(value);
-  sample_size_++;
-  if (value > max_value_added_) {
-    max_value_added_ = value;
-  }
-  if (value < min_value_added_) {
-    min_value_added_ = value;
-  }
-  frequency_[bucket_idx]++;
+inline void Histogram<Value>::BucketiseValue(Value val) {
+  CHECK_LT(val, max_);
+  sum_ += val;
+  sum_of_squares_ += val * val;
+  ++sample_size_;
+  ++frequency_[FindBucket(val)];
+  max_value_added_ = std::max(val, max_value_added_);
+  min_value_added_ = std::min(val, min_value_added_);
 }
 
 template <class Value> inline void Histogram<Value>::Initialize() {
-  DCHECK_GT(bucket_count_, 0ul);
-  size_t idx = 0;
-  for (; idx < bucket_count_; idx++) {
-    ranges_.push_back(min_ + static_cast<Value>(idx) * (bucket_width_));
+  for (size_t idx = 0; idx < kInitialBucketCount; idx++) {
     frequency_.push_back(0);
   }
   // Cumulative frequency and ranges has a length of 1 over frequency.
-  ranges_.push_back(min_ + idx * bucket_width_);
-  max_ = bucket_width_ * bucket_count_;
+  max_ = bucket_width_ * GetBucketCount();
+}
+
+template <class Value> inline size_t Histogram<Value>::GetBucketCount() const {
+  return frequency_.size();
 }
 
 template <class Value> inline void Histogram<Value>::Reset() {
-  bucket_width_ = kBucketWidth;
-  bucket_count_ = kInitialBucketCount;
-  max_ = bucket_width_ * bucket_count_;
   sum_of_squares_ = 0;
   sample_size_ = 0;
   min_ = 0;
   sum_ = 0;
   min_value_added_ = std::numeric_limits<Value>::max();
   max_value_added_ = std::numeric_limits<Value>::min();
-  new_values_added_ = false;
-  ranges_.clear();
   frequency_.clear();
-  cumulative_freq_.clear();
-  cumulative_perc_.clear();
   Initialize();
 }
 
-template <class Value> inline void Histogram<Value>::BuildRanges() {
-  for (size_t idx = 0; idx < bucket_count_; ++idx) {
-    ranges_.push_back(min_ + idx * bucket_width_);
-  }
+template <class Value> inline Value Histogram<Value>::GetRange(size_t bucket_idx) const {
+  DCHECK_LE(bucket_idx, GetBucketCount());
+  return min_ + bucket_idx * bucket_width_;
 }
 
 template <class Value> inline double Histogram<Value>::Mean() const {
@@ -143,25 +142,21 @@ template <class Value> inline double Histogram<Value>::Variance() const {
 }
 
 template <class Value>
-inline void Histogram<Value>::PrintBins(std::ostream &os) {
+inline void Histogram<Value>::PrintBins(std::ostream& os, const CumulativeData& data) const {
   DCHECK_GT(sample_size_, 0ull);
-  DCHECK(!new_values_added_);
-  size_t bin_idx = 0;
-  while (bin_idx < cumulative_freq_.size()) {
-    if (bin_idx > 0 &&
-        cumulative_perc_[bin_idx] == cumulative_perc_[bin_idx - 1]) {
+  for (size_t bin_idx = 0; bin_idx < data.freq_.size(); ++bin_idx) {
+    if (bin_idx > 0 && data.perc_[bin_idx] == data.perc_[bin_idx - 1]) {
       bin_idx++;
       continue;
     }
-    os << ranges_[bin_idx] << ": " << cumulative_freq_[bin_idx] << "\t"
-       << cumulative_perc_[bin_idx] * 100.0 << "%\n";
-    bin_idx++;
+    os << GetRange(bin_idx) << ": " << data.freq_[bin_idx] << "\t"
+       << data.perc_[bin_idx] * 100.0 << "%\n";
   }
 }
 
 template <class Value>
-inline void Histogram<Value>::PrintConfidenceIntervals(std::ostream &os,
-                                                       double interval) const {
+inline void Histogram<Value>::PrintConfidenceIntervals(std::ostream &os, double interval,
+                                                       const CumulativeData& data) const {
   DCHECK_GT(interval, 0);
   DCHECK_LT(interval, 1.0);
 
@@ -169,69 +164,51 @@ inline void Histogram<Value>::PrintConfidenceIntervals(std::ostream &os,
   double per_1 = per_0 + interval;
   os << Name() << ":\t";
   TimeUnit unit = GetAppropriateTimeUnit(Mean() * kAdjust);
-  os << (interval * 100) << "% C.I. "
-     << FormatDuration(Percentile(per_0) * kAdjust, unit);
-  os << "-" << FormatDuration(Percentile(per_1) * kAdjust, unit) << " ";
+  os << (interval * 100) << "% C.I. " << FormatDuration(Percentile(per_0, data) * kAdjust, unit);
+  os << "-" << FormatDuration(Percentile(per_1, data) * kAdjust, unit) << " ";
   os << "Avg: " << FormatDuration(Mean() * kAdjust, unit) << " Max: ";
   os << FormatDuration(Max() * kAdjust, unit) << "\n";
 }
 
-template <class Value> inline void Histogram<Value>::BuildCDF() {
-  DCHECK_EQ(cumulative_freq_.size(), 0ull);
-  DCHECK_EQ(cumulative_perc_.size(), 0ull);
+template <class Value> inline void Histogram<Value>::CreateHistogram(CumulativeData& out_data) {
+  DCHECK_GT(sample_size_, 0ull);
+  out_data.freq_.clear();
+  out_data.perc_.clear();
   uint64_t accumulated = 0;
-
-  cumulative_freq_.push_back(accumulated);
-  cumulative_perc_.push_back(0.0);
+  out_data.freq_.push_back(accumulated);
+  out_data.perc_.push_back(0.0);
   for (size_t idx = 0; idx < frequency_.size(); idx++) {
     accumulated += frequency_[idx];
-    cumulative_freq_.push_back(accumulated);
-    cumulative_perc_.push_back(static_cast<double>(accumulated) /
-                               static_cast<double>(sample_size_));
+    out_data.freq_.push_back(accumulated);
+    out_data.perc_.push_back(static_cast<double>(accumulated) / static_cast<double>(sample_size_));
   }
-  DCHECK_EQ(*(cumulative_freq_.end() - 1), sample_size_);
-  DCHECK_EQ(*(cumulative_perc_.end() - 1), 1.0);
-}
-
-template <class Value> inline void Histogram<Value>::CreateHistogram() {
-  DCHECK_GT(sample_size_, 0ull);
-
-  // Create a histogram only if new values are added.
-  if (!new_values_added_)
-    return;
-
-  // Reset cumulative values in case this is not the first time creating histogram.
-  cumulative_freq_.clear();
-  cumulative_perc_.clear();
-  BuildCDF();
-  new_values_added_ = false;
+  DCHECK_EQ(out_data.freq_.back(), sample_size_);
+  DCHECK_LE(std::abs(out_data.perc_.back() - 1.0), 0.001);
 }
 
 template <class Value>
-inline double Histogram<Value>::Percentile(double per) const {
-  DCHECK_GT(cumulative_perc_.size(), 0ull);
-  size_t idx, upper_idx = 0, lower_idx = 0;
-  for (idx = 0; idx < cumulative_perc_.size(); idx++) {
-    if (per <= cumulative_perc_[idx]) {
+inline double Histogram<Value>::Percentile(double per, const CumulativeData& data) const {
+  DCHECK_GT(data.perc_.size(), 0ull);
+  size_t upper_idx = 0, lower_idx = 0;
+  for (size_t idx = 0; idx < data.perc_.size(); idx++) {
+    if (per <= data.perc_[idx]) {
       upper_idx = idx;
       break;
     }
 
-    if (per >= cumulative_perc_[idx] && idx != 0 &&
-        cumulative_perc_[idx] != cumulative_perc_[idx - 1]) {
+    if (per >= data.perc_[idx] && idx != 0 && data.perc_[idx] != data.perc_[idx - 1]) {
       lower_idx = idx;
     }
   }
 
-  double upper_value = static_cast<double>(ranges_[upper_idx]);
-  double lower_value = static_cast<double>(ranges_[lower_idx]);
-
-  double lower_perc = cumulative_perc_[lower_idx];
-  double upper_perc = cumulative_perc_[upper_idx];
-
+  const double lower_perc = data.perc_[lower_idx];
+  const double lower_value = static_cast<double>(GetRange(lower_idx));
   if (per == lower_perc) {
     return lower_value;
   }
+
+  const double upper_perc = data.perc_[upper_idx];
+  const double upper_value = static_cast<double>(GetRange(upper_idx));
   if (per == upper_perc) {
     return upper_value;
   }

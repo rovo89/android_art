@@ -56,7 +56,7 @@ static bool GenerateImage(const std::string& image_file_name) {
 
   std::vector<std::string> arg_vector;
 
-  std::string dex2oat = GetAndroidRoot();
+  std::string dex2oat(GetAndroidRoot());
   dex2oat += (kIsDebugBuild ? "/bin/dex2oatd" : "/bin/dex2oat");
   arg_vector.push_back(dex2oat);
 
