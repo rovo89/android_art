@@ -56,10 +56,6 @@ class SeaNode: public IVisitable {
   int Id() const {
     return id_;
   }
-  // Appends to @result a dot language formatted string representing the node and
-  //    (by convention) outgoing edges, so that the composition of theToDot() of all nodes
-  //    builds a complete dot graph, but without prolog ("digraph {") and epilog ("}").
-  virtual void ToDot(std::string& result, const art::DexFile& dex_file) const = 0;
 
   virtual ~SeaNode() { }
 

@@ -97,7 +97,9 @@ LIBART_COMPILER_SRC_FILES += \
 	sea_ir/instruction_tools.cc \
 	sea_ir/sea.cc \
 	sea_ir/code_gen.cc \
-	sea_ir/types/type_inference.cc
+	sea_ir/types/type_inference.cc \
+	sea_ir/types/type_inference_visitor.cc \
+	sea_ir/debug/dot_gen.cc
 endif
 
 LIBART_COMPILER_CFLAGS :=

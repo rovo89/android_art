@@ -23,8 +23,11 @@
 #include "llvm/llvm_compilation_unit.h"
 #include "mirror/object.h"
 #include "runtime.h"
-#include "sea_ir/sea.h"
 
+
+#include "sea_ir/sea.h"
+#include "sea_ir/debug/dot_gen.h"
+#include "sea_ir/types/types.h"
 namespace art {
 
 static CompiledMethod* CompileMethodWithSeaIr(CompilerDriver& compiler,
@@ -40,9 +43,11 @@ static CompiledMethod* CompileMethodWithSeaIr(CompilerDriver& compiler,
   // NOTE: Instead of keeping the convention from the Dalvik frontend.cc
   //       and silencing the cpplint.py warning, I just corrected the formatting.
   VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
-  sea_ir::SeaGraph* sg = sea_ir::SeaGraph::GetCurrentGraph(dex_file);
-  sg->CompileMethod(code_item, class_def_idx, method_idx, method_access_flags, dex_file);
-  sg->DumpSea("/tmp/temp.dot");
+  sea_ir::SeaGraph* ir_graph = sea_ir::SeaGraph::GetCurrentGraph(dex_file);
+  ir_graph->CompileMethod(code_item, class_def_idx, method_idx, method_access_flags, dex_file);
+  sea_ir::DotConversion dc;
+  std::map<int, const sea_ir::Type*>  types = ir_graph->ti_->GetTypeMap();
+  dc.DumpSea(ir_graph, "/tmp/temp.dot", &types);
   CHECK(0 && "No SEA compiled function exists yet.");
   return NULL;
 }

@@ -23,8 +23,8 @@
 
 #include "dex_file.h"
 #include "dex_instruction.h"
-#include "instruction_tools.h"
-#include "instruction_nodes.h"
+#include "sea_ir/instruction_tools.h"
+#include "sea_ir/instruction_nodes.h"
 #include "utils/scoped_hashtable.h"
 
 namespace sea_ir {
@@ -35,19 +35,9 @@ enum RegionNumbering {
   VISITING = -2
 };
 
-// Stores options for turning a SEA IR graph to a .dot file.
-class DotConversion {
- public:
-  static bool SaveUseEdges() {
-    return save_use_edges_;
-  }
-
- private:
-  static const bool save_use_edges_ =  false;  // TODO: Enable per-sea graph configuration.
-};
+class TypeInference;
 
 class Region;
-
 class InstructionNode;
 class PhiInstructionNode;
 class SignatureNode;
@@ -62,22 +52,15 @@ class SignatureNode: public InstructionNode {
   explicit SignatureNode(unsigned int parameter_register, unsigned int position):
     InstructionNode(NULL), parameter_register_(parameter_register), position_(position) { }
 
-  void ToDot(std::string& result, const art::DexFile& dex_file) const {
-    result += StringId() +" [label=\"signature:";
-    result += art::StringPrintf("r%d", GetResultRegister());
-    result += "\"] // signature node\n";
-    ToDotSSAEdges(result);
-  }
-
   int GetResultRegister() const {
     return parameter_register_;
   }
 
-  unsigned int GetPositionInSignature() {
+  unsigned int GetPositionInSignature() const {
     return position_;
   }
 
-  std::vector<int> GetUses() {
+  std::vector<int> GetUses() const {
     return std::vector<int>();
   }
 
@@ -87,16 +70,15 @@ class SignatureNode: public InstructionNode {
   }
 
  private:
-  unsigned int parameter_register_;
-  unsigned int position_;  // The position of this parameter node is in the function parameter list.
+  const unsigned int parameter_register_;
+  const unsigned int position_;     // The position of this parameter node is
+                                    // in the function parameter list.
 };
 
 class PhiInstructionNode: public InstructionNode {
  public:
   explicit PhiInstructionNode(int register_no):
     InstructionNode(NULL), register_no_(register_no), definition_edges_() {}
-  // Appends to @result the .dot string representation of the instruction.
-  void ToDot(std::string& result, const art::DexFile& dex_file) const;
   // Returns the register on which this phi-function is used.
   int GetRegisterNumber() const {
     return register_no_;
@@ -157,10 +139,7 @@ class Region : public SeaNode {
   std::vector<InstructionNode*>* GetInstructions() {
     return &instructions_;
   }
-  // Appends to @result a dot language formatted string representing the node and
-  //    (by convention) outgoing edges, so that the composition of theToDot() of all nodes
-  //    builds a complete dot graph (without prolog and epilog though).
-  virtual void ToDot(std::string& result, const art::DexFile& dex_file) const;
+
   // Computes Downward Exposed Definitions for the current node.
   void ComputeDownExposedDefs();
   const std::map<int, sea_ir::InstructionNode*>* GetDownExposedDefs() const;
@@ -272,8 +251,6 @@ class SeaGraph: IVisitable {
   std::vector<Region*>* GetRegions() {
     return &regions_;
   }
-  // Returns a string representation of the region and its Instruction children.
-  void DumpSea(std::string filename) const;
   // Recursively computes the reverse postorder value for @crt_bb and successors.
   static void ComputeRPO(Region* crt_bb, int& crt_rpo);
   // Returns the "lowest common ancestor" of @i and @j in the dominator tree.
@@ -287,15 +264,19 @@ class SeaGraph: IVisitable {
     return &dex_file_;
   }
 
+  virtual void Accept(IRVisitor* visitor) {
+    visitor->Initialize(this);
+    visitor->Visit(this);
+    visitor->Traverse(this);
+  }
+
+  TypeInference* ti_;
   uint32_t class_def_idx_;
   uint32_t method_idx_;
   uint32_t method_access_flags_;
 
  private:
-  explicit SeaGraph(const art::DexFile& df):
-    class_def_idx_(0), method_idx_(0),  method_access_flags_(), regions_(),
-    parameters_(), dex_file_(df), code_item_(NULL) {
-  }
+  explicit SeaGraph(const art::DexFile& df);
   // Registers @childReg as a region belonging to the SeaGraph instance.
   void AddRegion(Region* childReg);
   // Returns new region and registers it with the  SeaGraph instance.
@@ -336,11 +317,7 @@ class SeaGraph: IVisitable {
   // by using the scoped hashtable of names @ scoped_table.
   void RenameAsSSA(Region* node, utils::ScopedHashtable<int, InstructionNode*>* scoped_table);
 
-  virtual void Accept(IRVisitor* visitor) {
-    visitor->Initialize(this);
-    visitor->Visit(this);
-    visitor->Traverse(this);
-  }
+
 
   virtual ~SeaGraph() {}
   // Generate LLVM IR for the method.

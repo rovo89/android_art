@@ -22,7 +22,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Analysis/Verifier.h"
-#include "visitor.h"
+#include "sea_ir/visitor.h"
 
 namespace sea_ir {
 // Abstracts away the containers we use to map SEA IR objects to LLVM IR objects.

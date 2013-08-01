@@ -40,7 +40,7 @@ class IfEqzInstructionNode;
 
 class IRVisitor {
  public:
-  explicit IRVisitor():ordered_regions_() { }
+  explicit IRVisitor(): ordered_regions_() { }
   virtual void Initialize(SeaGraph* graph) = 0;
   virtual void Visit(SeaGraph* graph) = 0;
   virtual void Visit(Region* region) = 0;

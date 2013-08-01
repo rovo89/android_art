@@ -15,6 +15,8 @@
  */
 
 #include "sea_ir/types/type_inference.h"
+#include "sea_ir/types/type_inference_visitor.h"
+#include "sea_ir/sea.h"
 
 namespace sea_ir {
 
@@ -133,9 +135,10 @@ void TypeInference::ComputeTypes(SeaGraph* graph) SHARED_LOCKS_REQUIRED(Locks::m
   //       maintain this invariant, but they should.
   //       [1] http://www.sgi.com/tech/stl/List.html
   // TODO: Making this conditional (as in sparse conditional constant propagation) would be good.
+  // TODO: Remove elements as I go.
   for (std::list<InstructionNode*>::const_iterator instruction_it = worklist.begin();
         instruction_it != worklist.end(); instruction_it++) {
-    std::cout << "Instruction: " << (*instruction_it)->Id() << std::endl;
+    std::cout << "[TI] Instruction: " << (*instruction_it)->Id() << std::endl;
     (*instruction_it)->Accept(&tiv);
     std::map<int, const Type*>::const_iterator old_result_it =
         type_map_.find((*instruction_it)->Id());
@@ -144,16 +147,15 @@ void TypeInference::ComputeTypes(SeaGraph* graph) SHARED_LOCKS_REQUIRED(Locks::m
     bool type_changed = (old_result_it != type_map_.end()) && ((*old_result_it).second != new_type);
     if (first_time_set || type_changed) {
       std::cout << " New type:" << new_type->IsIntegralTypes() << std::endl;
-      std::cout << " Descriptor:" << new_type->Dump() << std::endl;
+      std::cout << " Descrip:" << new_type->Dump()<< "on " << (*instruction_it)->Id() << std::endl;
       type_map_[(*instruction_it)->Id()] = new_type;
       // Add SSA consumers of the current instruction to the work-list.
-      std::vector<InstructionNode*> consumers = (*instruction_it)->GetSSAConsumers();
-      for (std::vector<InstructionNode*>::iterator consumer = consumers.begin();
-          consumer != consumers.end(); consumer++) {
+      std::vector<InstructionNode*>* consumers = (*instruction_it)->GetSSAConsumers();
+      for (std::vector<InstructionNode*>::iterator consumer = consumers->begin();
+          consumer != consumers->end(); consumer++) {
         worklist.push_back(*consumer);
       }
     }
   }
 }
-
 }   // namespace sea_ir
