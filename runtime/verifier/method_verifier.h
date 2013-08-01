@@ -476,6 +476,10 @@ class MethodVerifier {
   void VerifyNewArray(const Instruction* inst, bool is_filled, bool is_range)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Helper to perform verification on puts of primitive type.
+  void VerifyPrimitivePut(const RegType& target_type, const RegType& insn_type,
+                          const uint32_t vregA) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Perform verification of an aget instruction. The destination register's type will be set to
   // be that of component type of the array unless the array type is unknown, in which case a
   // bottom type inferred from the type of instruction is used. is_primitive is false for an
