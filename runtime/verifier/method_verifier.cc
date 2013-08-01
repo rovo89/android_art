@@ -3297,6 +3297,43 @@ void MethodVerifier::VerifyAGet(const Instruction* inst,
   }
 }
 
+void MethodVerifier::VerifyPrimitivePut(const RegType& target_type, const RegType& insn_type,
+                                        const uint32_t vregA) {
+  // Primitive assignability rules are weaker than regular assignability rules.
+  bool instruction_compatible;
+  bool value_compatible;
+  const RegType& value_type = work_line_->GetRegisterType(vregA);
+  if (target_type.IsIntegralTypes()) {
+    instruction_compatible = insn_type.IsIntegralTypes();
+    value_compatible = value_type.IsIntegralTypes();
+  } else if (target_type.IsFloat()) {
+    instruction_compatible = insn_type.IsInteger();  // no put-float, so expect put-int
+    value_compatible = value_type.IsFloatTypes();
+  } else if (target_type.IsLong()) {
+    instruction_compatible = insn_type.IsLong();
+    value_compatible = value_type.IsLongTypes();
+  } else if (target_type.IsDouble()) {
+    instruction_compatible = insn_type.IsLong();  // no put-double, so expect put-long
+    value_compatible = value_type.IsDoubleTypes();
+  } else {
+    instruction_compatible = false;  // reference with primitive store
+    value_compatible = false;  // unused
+  }
+  if (!instruction_compatible) {
+    // This is a global failure rather than a class change failure as the instructions and
+    // the descriptors for the type should have been consistent within the same file at
+    // compile time.
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "put insn has type '" << insn_type
+        << "' but expected type '" << target_type << "'";
+    return;
+  }
+  if (!value_compatible) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unexpected value in v" << vregA
+        << " of type " << value_type << " but expected " << target_type << " for put";
+    return;
+  }
+}
+
 void MethodVerifier::VerifyAPut(const Instruction* inst,
                              const RegType& insn_type, bool is_primitive) {
   const RegType& index_type = work_line_->GetRegisterType(inst->VRegC_23x());
@@ -3312,23 +3349,19 @@ void MethodVerifier::VerifyAPut(const Instruction* inst,
     } else {
       /* verify the class */
       const RegType& component_type = reg_types_.GetComponentType(array_type, class_loader_);
-      if (!component_type.IsReferenceTypes() && !is_primitive) {
-        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "primitive array type " << array_type
-            << " source for aput-object";
-      } else if (component_type.IsNonZeroReferenceTypes() && is_primitive) {
-        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "reference array type " << array_type
-            << " source for category 1 aput";
-      } else if (is_primitive && !insn_type.Equals(component_type) &&
-                 !((insn_type.IsInteger() && component_type.IsFloat()) ||
-                   (insn_type.IsLong() && component_type.IsDouble()))) {
-        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "array type " << array_type
-            << " incompatible with aput of type " << insn_type;
+      const uint32_t vregA = inst->VRegA_23x();
+      if (is_primitive) {
+        VerifyPrimitivePut(component_type, insn_type, vregA);
       } else {
-        // The instruction agrees with the type of array, confirm the value to be stored does too
-        // Note: we use the instruction type (rather than the component type) for aput-object as
-        // incompatible classes will be caught at runtime as an array store exception
-        work_line_->VerifyRegisterType(inst->VRegA_23x(),
-                                       is_primitive ? component_type : insn_type);
+        if (!component_type.IsReferenceTypes()) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "primitive array type " << array_type
+              << " source for aput-object";
+        } else {
+          // The instruction agrees with the type of array, confirm the value to be stored does too
+          // Note: we use the instruction type (rather than the component type) for aput-object as
+          // incompatible classes will be caught at runtime as an array store exception
+          work_line_->VerifyRegisterType(vregA, insn_type);
+        }
       }
     }
   }
@@ -3518,43 +3551,7 @@ void MethodVerifier::VerifyISPut(const Instruction* inst, const RegType& insn_ty
   }
   const uint32_t vregA = (is_static) ? inst->VRegA_21c() : inst->VRegA_22c();
   if (is_primitive) {
-    // Primitive field assignability rules are weaker than regular assignability rules
-    bool instruction_compatible;
-    bool value_compatible;
-    const RegType& value_type = work_line_->GetRegisterType(vregA);
-    if (field_type.IsIntegralTypes()) {
-      instruction_compatible = insn_type.IsIntegralTypes();
-      value_compatible = value_type.IsIntegralTypes();
-    } else if (field_type.IsFloat()) {
-      instruction_compatible = insn_type.IsInteger();  // no [is]put-float, so expect [is]put-int
-      value_compatible = value_type.IsFloatTypes();
-    } else if (field_type.IsLong()) {
-      instruction_compatible = insn_type.IsLong();
-      value_compatible = value_type.IsLongTypes();
-    } else if (field_type.IsDouble()) {
-      instruction_compatible = insn_type.IsLong();  // no [is]put-double, so expect [is]put-long
-      value_compatible = value_type.IsDoubleTypes();
-    } else {
-      instruction_compatible = false;  // reference field with primitive store
-      value_compatible = false;  // unused
-    }
-    if (!instruction_compatible) {
-      // This is a global failure rather than a class change failure as the instructions and
-      // the descriptors for the type should have been consistent within the same file at
-      // compile time
-      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected field " << PrettyField(field)
-                                        << " to be of type '" << insn_type
-                                        << "' but found type '" << field_type
-                                        << "' in put";
-      return;
-    }
-    if (!value_compatible) {
-      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unexpected value in v" << vregA
-          << " of type " << value_type
-          << " but expected " << field_type
-          << " for store to " << PrettyField(field) << " in put";
-      return;
-    }
+    VerifyPrimitivePut(field_type, insn_type, vregA);
   } else {
     if (!insn_type.IsAssignableFrom(field_type)) {
       Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << PrettyField(field)
