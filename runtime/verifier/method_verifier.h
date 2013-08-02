@@ -230,6 +230,10 @@ class MethodVerifier {
                  uint32_t access_flags, bool can_load_classes, bool allow_soft_failures)
           SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  ~MethodVerifier() {
+    STLDeleteElements(&failure_messages_);
+  }
+
   // Run verification on the method. Returns true if verification completes and false if the input
   // has an irrecoverable corruption.
   bool Verify() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
