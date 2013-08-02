@@ -23,7 +23,7 @@
 namespace art {
 
 // Simple usage:
-//   Histogram *hist = new Histogram("SimplePercentiles");
+//   Histogram *hist(new Histogram("SimplePercentiles"));
 //   Percentile PerValue
 //   hist->AddValue(121);
 //   hist->AddValue(132);
@@ -34,7 +34,7 @@ namespace art {
 //   PerValue = hist->PercentileVal(0.50); finds the 50th percentile(median).
 
 TEST(Histtest, MeanTest) {
-  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("MeanTest"));
+  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("MeanTest", 5));
 
   double mean;
   for (size_t Idx = 0; Idx < 90; Idx++) {
@@ -52,20 +52,20 @@ TEST(Histtest, MeanTest) {
 }
 
 TEST(Histtest, VarianceTest) {
-  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("VarianceTest"));
+  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("VarianceTest", 5));
 
   double variance;
   hist->AddValue(9);
   hist->AddValue(17);
   hist->AddValue(28);
   hist->AddValue(28);
-  hist->CreateHistogram();
   variance = hist->Variance();
   EXPECT_EQ(64.25, variance);
 }
 
 TEST(Histtest, Percentile) {
-  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("Percentile"));
+  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("Percentile", 5));
+  Histogram<uint64_t>::CumulativeData data;
 
   double PerValue;
 
@@ -85,13 +85,14 @@ TEST(Histtest, Percentile) {
   hist->AddValue(145);
   hist->AddValue(155);
 
-  hist->CreateHistogram();
-  PerValue = hist->Percentile(0.50);
+  hist->CreateHistogram(data);
+  PerValue = hist->Percentile(0.50, data);
   EXPECT_EQ(875, static_cast<int>(PerValue * 10));
 }
 
 TEST(Histtest, UpdateRange) {
-  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("UpdateRange"));
+  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("UpdateRange", 5));
+  Histogram<uint64_t>::CumulativeData data;
 
   double PerValue;
 
@@ -116,14 +117,13 @@ TEST(Histtest, UpdateRange) {
   hist->AddValue(200);
   hist->AddValue(205);
   hist->AddValue(212);
-  hist->CreateHistogram();
-  PerValue = hist->Percentile(0.50);
+  hist->CreateHistogram(data);
+  PerValue = hist->Percentile(0.50, data);
 
   std::string text;
   std::stringstream stream;
-  std::string expected =
-      "UpdateRange:\t99% C.I. 15us-212us Avg: 126.380us Max: 212us\n";
-  hist->PrintConfidenceIntervals(stream, 0.99);
+  std::string expected("UpdateRange:\t99% C.I. 15us-212us Avg: 126.380us Max: 212us\n");
+  hist->PrintConfidenceIntervals(stream, 0.99, data);
 
   EXPECT_EQ(expected, stream.str());
   EXPECT_GE(PerValue, 132);
@@ -131,7 +131,8 @@ TEST(Histtest, UpdateRange) {
 }
 
 TEST(Histtest, Reset) {
-  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("Reset"));
+  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("Reset", 5));
+  Histogram<uint64_t>::CumulativeData data;
 
   double PerValue;
   hist->AddValue(0);
@@ -159,14 +160,13 @@ TEST(Histtest, Reset) {
   hist->AddValue(200);
   hist->AddValue(205);
   hist->AddValue(212);
-  hist->CreateHistogram();
-  PerValue = hist->Percentile(0.50);
+  hist->CreateHistogram(data);
+  PerValue = hist->Percentile(0.50, data);
 
   std::string text;
   std::stringstream stream;
-  std::string expected =
-      "Reset:\t99% C.I. 15us-212us Avg: 126.380us Max: 212us\n";
-  hist->PrintConfidenceIntervals(stream, 0.99);
+  std::string expected("Reset:\t99% C.I. 15us-212us Avg: 126.380us Max: 212us\n");
+  hist->PrintConfidenceIntervals(stream, 0.99, data);
 
   EXPECT_EQ(expected, stream.str());
   EXPECT_GE(PerValue, 132);
@@ -174,7 +174,8 @@ TEST(Histtest, Reset) {
 }
 
 TEST(Histtest, MultipleCreateHist) {
-  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("MultipleCreateHist"));
+  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("MultipleCreateHist", 5));
+  Histogram<uint64_t>::CumulativeData data;
 
   double PerValue;
   hist->AddValue(15);
@@ -184,7 +185,7 @@ TEST(Histtest, MultipleCreateHist) {
   hist->AddValue(68);
   hist->AddValue(75);
   hist->AddValue(93);
-  hist->CreateHistogram();
+  hist->CreateHistogram(data);
   hist->AddValue(110);
   hist->AddValue(121);
   hist->AddValue(132);
@@ -193,19 +194,18 @@ TEST(Histtest, MultipleCreateHist) {
   hist->AddValue(155);
   hist->AddValue(163);
   hist->AddValue(168);
-  hist->CreateHistogram();
+  hist->CreateHistogram(data);
   hist->AddValue(175);
   hist->AddValue(182);
   hist->AddValue(193);
   hist->AddValue(200);
   hist->AddValue(205);
   hist->AddValue(212);
-  hist->CreateHistogram();
-  PerValue = hist->Percentile(0.50);
+  hist->CreateHistogram(data);
+  PerValue = hist->Percentile(0.50, data);
   std::stringstream stream;
-  std::string expected =
-      "MultipleCreateHist:\t99% C.I. 15us-212us Avg: 126.380us Max: 212us\n";
-  hist->PrintConfidenceIntervals(stream, 0.99);
+  std::string expected("MultipleCreateHist:\t99% C.I. 15us-212us Avg: 126.380us Max: 212us\n");
+  hist->PrintConfidenceIntervals(stream, 0.99, data);
 
   EXPECT_EQ(expected, stream.str());
   EXPECT_GE(PerValue, 132);
@@ -213,18 +213,20 @@ TEST(Histtest, MultipleCreateHist) {
 }
 
 TEST(Histtest, SingleValue) {
-  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("SingleValue"));
+  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("SingleValue", 5));
+  Histogram<uint64_t>::CumulativeData data;
 
   hist->AddValue(1);
-  hist->CreateHistogram();
+  hist->CreateHistogram(data);
   std::stringstream stream;
   std::string expected = "SingleValue:\t99% C.I. 1us-1us Avg: 1us Max: 1us\n";
-  hist->PrintConfidenceIntervals(stream, 0.99);
+  hist->PrintConfidenceIntervals(stream, 0.99, data);
   EXPECT_EQ(expected, stream.str());
 }
 
 TEST(Histtest, CappingPercentiles) {
-  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("CappingPercentiles"));
+  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("CappingPercentiles", 5));
+  Histogram<uint64_t>::CumulativeData data;
 
   double per_995;
   double per_005;
@@ -232,8 +234,8 @@ TEST(Histtest, CappingPercentiles) {
   for (uint64_t idx = 0ull; idx < 150ull; idx++) {
     hist->AddValue(0);
   }
-  hist->CreateHistogram();
-  per_995 = hist->Percentile(0.995);
+  hist->CreateHistogram(data);
+  per_995 = hist->Percentile(0.995, data);
   EXPECT_EQ(per_995, 0);
   hist->Reset();
   for (size_t idx = 0; idx < 200; idx++) {
@@ -241,15 +243,16 @@ TEST(Histtest, CappingPercentiles) {
       hist->AddValue(val);
     }
   }
-  hist->CreateHistogram();
-  per_005 = hist->Percentile(0.005);
-  per_995 = hist->Percentile(0.995);
+  hist->CreateHistogram(data);
+  per_005 = hist->Percentile(0.005, data);
+  per_995 = hist->Percentile(0.995, data);
   EXPECT_EQ(1, per_005);
   EXPECT_EQ(4, per_995);
 }
 
 TEST(Histtest, SpikyValues) {
-  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("SpikyValues"));
+  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("SpikyValues", 5, 4096));
+  Histogram<uint64_t>::CumulativeData data;
 
   for (uint64_t idx = 0ull; idx < 30ull; idx++) {
     for (uint64_t idx_inner = 0ull; idx_inner < 5ull; idx_inner++) {
@@ -257,11 +260,10 @@ TEST(Histtest, SpikyValues) {
     }
   }
   hist->AddValue(10000);
-  hist->CreateHistogram();
+  hist->CreateHistogram(data);
   std::stringstream stream;
-  std::string expected =
-      "SpikyValues:\t99% C.I. 0.089us-2541.825us Avg: 95.033us Max: 10000us\n";
-  hist->PrintConfidenceIntervals(stream, 0.99);
+  std::string expected = "SpikyValues:\t99% C.I. 0.089us-2541.825us Avg: 95.033us Max: 10000us\n";
+  hist->PrintConfidenceIntervals(stream, 0.99, data);
   EXPECT_EQ(expected, stream.str());
 }
 
