@@ -57,8 +57,10 @@ class SignatureNode;
 // can return from the GetSSAUses() calls, instead of having missing SSA edges.
 class SignatureNode: public InstructionNode {
  public:
-  explicit SignatureNode(unsigned int parameter_register):InstructionNode(NULL),
-    parameter_register_(parameter_register) { }
+  // Creates a new signature node representing the initial definition of the
+  // register @parameter_register which is the @position-th argument to the method.
+  explicit SignatureNode(unsigned int parameter_register, unsigned int position):
+    InstructionNode(NULL), parameter_register_(parameter_register), position_(position) { }
 
   void ToDot(std::string& result, const art::DexFile& dex_file) const {
     result += StringId() +" [label=\"signature:";
@@ -69,6 +71,10 @@ class SignatureNode: public InstructionNode {
 
   int GetResultRegister() const {
     return parameter_register_;
+  }
+
+  unsigned int GetPositionInSignature() {
+    return position_;
   }
 
   std::vector<int> GetUses() {
@@ -82,6 +88,7 @@ class SignatureNode: public InstructionNode {
 
  private:
   unsigned int parameter_register_;
+  unsigned int position_;  // The position of this parameter node is in the function parameter list.
 };
 
 class PhiInstructionNode: public InstructionNode {
@@ -259,8 +266,8 @@ class SeaGraph: IVisitable {
  public:
   static SeaGraph* GetCurrentGraph(const art::DexFile&);
 
-  void CompileMethod(const art::DexFile::CodeItem* code_item,
-      uint32_t class_def_idx, uint32_t method_idx, const art::DexFile& dex_file);
+  void CompileMethod(const art::DexFile::CodeItem* code_item, uint32_t class_def_idx,
+      uint32_t method_idx, uint32_t method_access_flags, const art::DexFile& dex_file);
   // Returns all regions corresponding to this SeaGraph.
   std::vector<Region*>* GetRegions() {
     return &regions_;
@@ -275,12 +282,19 @@ class SeaGraph: IVisitable {
   std::vector<SignatureNode*>* GetParameterNodes() {
     return &parameters_;
   }
+
+  const art::DexFile* GetDexFile() const {
+    return &dex_file_;
+  }
+
   uint32_t class_def_idx_;
   uint32_t method_idx_;
+  uint32_t method_access_flags_;
 
  private:
   explicit SeaGraph(const art::DexFile& df):
-    class_def_idx_(0), method_idx_(0), regions_(), parameters_(), dex_file_(df) {
+    class_def_idx_(0), method_idx_(0),  method_access_flags_(), regions_(),
+    parameters_(), dex_file_(df), code_item_(NULL) {
   }
   // Registers @childReg as a region belonging to the SeaGraph instance.
   void AddRegion(Region* childReg);
@@ -295,7 +309,8 @@ class SeaGraph: IVisitable {
   // Builds the non-SSA sea-ir representation of the function @code_item from @dex_file
   // with class id @class_def_idx and method id @method_idx.
   void BuildMethodSeaGraph(const art::DexFile::CodeItem* code_item,
-      const art::DexFile& dex_file, uint32_t class_def_idx, uint32_t method_idx);
+      const art::DexFile& dex_file, uint32_t class_def_idx,
+      uint32_t method_idx, uint32_t method_access_flags);
   // Computes immediate dominators for each region.
   // Precondition: ComputeMethodSeaGraph()
   void ComputeIDominators();
@@ -336,6 +351,7 @@ class SeaGraph: IVisitable {
   std::vector<Region*> regions_;
   std::vector<SignatureNode*> parameters_;
   const art::DexFile& dex_file_;
+  const art::DexFile::CodeItem* code_item_;
 };
 }  // namespace sea_ir
 #endif  // ART_COMPILER_SEA_IR_SEA_H_

@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_SEA_IR_CODE_GEN_H_
 #define ART_COMPILER_SEA_IR_CODE_GEN_H_
 
+#include "llvm/Analysis/Verifier.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
