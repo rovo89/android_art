@@ -86,6 +86,8 @@ include $(art_path)/runtime/Android.mk
 include $(art_path)/compiler/Android.mk
 include $(art_path)/dex2oat/Android.mk
 include $(art_path)/oatdump/Android.mk
+include $(art_path)/dalvikvm/Android.mk
+include $(art_path)/jdwpspy/Android.mk
 include $(art_build_path)/Android.oat.mk
 
 # ART_HOST_DEPENDENCIES depends on Android.executable.mk above for ART_HOST_EXECUTABLES
@@ -106,14 +108,6 @@ ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_DEPENDENCIES)   $(ART_HOST_TEST_EXECU
 ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_DEPENDENCIES) $(ART_TARGET_TEST_EXECUTABLES) $(ART_TEST_TARGET_DEX_FILES) $(TARGET_CORE_IMG_OUT)
 
 include $(art_build_path)/Android.libarttest.mk
-
-# "m build-art" for quick minimal build
-.PHONY: build-art
-build-art: \
-    $(ART_TARGET_EXECUTABLES) \
-    $(ART_TARGET_TEST_EXECUTABLES) \
-    $(ART_HOST_EXECUTABLES) \
-    $(ART_HOST_TEST_EXECUTABLES)
 
 # "mm test-art" to build and run all tests on host and device
 .PHONY: test-art
@@ -290,6 +284,17 @@ oat-target-sync: oat-target
 	adb sync
 
 ########################################################################
+# "m build-art" for quick minimal build
+.PHONY: build-art
+build-art: build-art-host build-art-target
+
+.PHONY: build-art-host
+build-art-host:   $(ART_HOST_EXECUTABLES)   $(ART_HOST_TEST_EXECUTABLES)   $(HOST_CORE_IMG_OUT)   $(HOST_OUT)/lib/libjavacore.so
+
+.PHONY: build-art-target
+build-art-target: $(ART_TARGET_EXECUTABLES) $(ART_TARGET_TEST_EXECUTABLES) $(TARGET_CORE_IMG_OUT) $(TARGET_OUT)/lib/libjavacore.so
+
+########################################################################
 # oatdump targets
 
 .PHONY: dump-oat
@@ -353,8 +358,5 @@ use-dalvik:
 	adb reboot
 
 ########################################################################
-
-include $(art_path)/dalvikvm/Android.mk
-include $(art_path)/jdwpspy/Android.mk
 
 endif # !art_dont_bother
