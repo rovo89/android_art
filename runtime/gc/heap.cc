@@ -186,7 +186,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   card_table_.reset(accounting::CardTable::Create(heap_begin, heap_capacity));
   CHECK(card_table_.get() != NULL) << "Failed to create card table";
 
-  image_mod_union_table_.reset(new accounting::ModUnionTableCardCache(this));
+  image_mod_union_table_.reset(new accounting::ModUnionTableToZygoteAllocspace(this));
   CHECK(image_mod_union_table_.get() != NULL) << "Failed to create image mod-union table";
 
   zygote_mod_union_table_.reset(new accounting::ModUnionTableCardCache(this));
