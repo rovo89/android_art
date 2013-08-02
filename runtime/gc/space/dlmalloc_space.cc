@@ -20,8 +20,8 @@
 #include "thread.h"
 #include "utils.h"
 
-// #include <valgrind/memcheck.h>
 #include <valgrind.h>
+#include <../memcheck/memcheck.h>
 
 namespace art {
 namespace gc {
@@ -47,71 +47,63 @@ const size_t kValgrindRedZoneBytes = 8;
 class ValgrindDlMallocSpace : public DlMallocSpace {
  public:
   virtual mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes) {
-    void* obj_with_rdz = DlMallocSpace::AllocWithGrowth(self, num_bytes + (2 * kValgrindRedZoneBytes));
-    if (obj_with_rdz != NULL) {
-      // VALGRIND_MAKE_MEM_UNDEFINED();
-      mirror::Object* result = reinterpret_cast<mirror::Object*>(reinterpret_cast<byte*>(obj_with_rdz) +
-                                                                 kValgrindRedZoneBytes);
-      VALGRIND_MEMPOOL_ALLOC(GetMspace(), result, num_bytes);
-      LOG(INFO) << "AllocWithGrowth on " << self << " = " << obj_with_rdz
-          << " of size " << num_bytes;
-      return result;
-    } else {
+    void* obj_with_rdz = DlMallocSpace::AllocWithGrowth(self, num_bytes + 2 * kValgrindRedZoneBytes);
+    if (obj_with_rdz == NULL) {
       return NULL;
     }
+    mirror::Object* result = reinterpret_cast<mirror::Object*>(
+        reinterpret_cast<byte*>(obj_with_rdz) + kValgrindRedZoneBytes);
+    // Make redzones as no access.
+    VALGRIND_MAKE_MEM_NOACCESS(obj_with_rdz, kValgrindRedZoneBytes);
+    VALGRIND_MAKE_MEM_NOACCESS(reinterpret_cast<byte*>(result) + num_bytes, kValgrindRedZoneBytes);
+    return result;
   }
 
   virtual mirror::Object* Alloc(Thread* self, size_t num_bytes) {
-    void* obj_with_rdz = DlMallocSpace::Alloc(self, num_bytes + (2 * kValgrindRedZoneBytes));
-    if (obj_with_rdz != NULL) {
-      mirror::Object* result = reinterpret_cast<mirror::Object*>(reinterpret_cast<byte*>(obj_with_rdz) +
-                                                                 kValgrindRedZoneBytes);
-      VALGRIND_MEMPOOL_ALLOC(GetMspace(), result, num_bytes);
-      LOG(INFO) << "Alloc on " << self << " = " << obj_with_rdz
-          << " of size " << num_bytes;
-      return result;
-    } else {
-      return NULL;
+    void* obj_with_rdz = DlMallocSpace::Alloc(self, num_bytes + 2 * kValgrindRedZoneBytes);
+    if (obj_with_rdz == NULL) {
+     return NULL;
     }
+    mirror::Object* result = reinterpret_cast<mirror::Object*>(
+        reinterpret_cast<byte*>(obj_with_rdz) + kValgrindRedZoneBytes);
+    // Make redzones as no access.
+    VALGRIND_MAKE_MEM_NOACCESS(obj_with_rdz, kValgrindRedZoneBytes);
+    VALGRIND_MAKE_MEM_NOACCESS(reinterpret_cast<byte*>(result) + num_bytes, kValgrindRedZoneBytes);
+    return result;
   }
 
   virtual size_t AllocationSize(const mirror::Object* obj) {
-    const void* obj_after_rdz = reinterpret_cast<const void*>(obj);
-    size_t result = DlMallocSpace::AllocationSize(
-        reinterpret_cast<const mirror::Object*>(reinterpret_cast<const byte*>(obj_after_rdz) -
-                                                kValgrindRedZoneBytes));
-    return result - (2 * kValgrindRedZoneBytes);
+    size_t result = DlMallocSpace::AllocationSize(reinterpret_cast<const mirror::Object*>(
+        reinterpret_cast<const byte*>(obj) - kValgrindRedZoneBytes));
+    return result - 2 * kValgrindRedZoneBytes;
   }
 
   virtual size_t Free(Thread* self, mirror::Object* ptr) {
     void* obj_after_rdz = reinterpret_cast<void*>(ptr);
     void* obj_with_rdz = reinterpret_cast<byte*>(obj_after_rdz) - kValgrindRedZoneBytes;
-    LOG(INFO) << "Free on " << self << " of " << obj_with_rdz;
+    // Make redzones undefined.
+    size_t allocation_size = DlMallocSpace::AllocationSize(
+        reinterpret_cast<mirror::Object*>(obj_with_rdz));
+    VALGRIND_MAKE_MEM_UNDEFINED(obj_with_rdz, allocation_size);
     size_t freed = DlMallocSpace::Free(self, reinterpret_cast<mirror::Object*>(obj_with_rdz));
-    VALGRIND_MEMPOOL_FREE(GetMspace(), obj_after_rdz);
-    return freed - (2 * kValgrindRedZoneBytes);
+    return freed - 2 * kValgrindRedZoneBytes;
   }
 
   virtual size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) {
     size_t freed = 0;
     for (size_t i = 0; i < num_ptrs; i++) {
-      void* obj_after_rdz = reinterpret_cast<void*>(ptrs[i]);
-      void* obj_with_rdz = reinterpret_cast<byte*>(obj_after_rdz) - kValgrindRedZoneBytes;
-      LOG(INFO) << "FreeList on " << self << " of " << obj_with_rdz;
-      freed += DlMallocSpace::Free(self, reinterpret_cast<mirror::Object*>(obj_with_rdz));
-      VALGRIND_MEMPOOL_FREE(GetMspace(), obj_after_rdz);
+      freed += Free(self, ptrs[i]);
     }
-    return freed - (2 * kValgrindRedZoneBytes * num_ptrs);
+    return freed;
   }
 
   ValgrindDlMallocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin,
-                        byte* end, size_t growth_limit) :
+                        byte* end, size_t growth_limit, size_t initial_size) :
       DlMallocSpace(name, mem_map, mspace, begin, end, growth_limit) {
-    VALGRIND_CREATE_MEMPOOL(GetMspace(), kValgrindRedZoneBytes, true);
+    VALGRIND_MAKE_MEM_UNDEFINED(mem_map->Begin() + initial_size, mem_map->Size() - initial_size);
   }
 
   virtual ~ValgrindDlMallocSpace() {
-    VALGRIND_DESTROY_MEMPOOL(GetMspace());
   }
 
  private:
@@ -182,8 +174,8 @@ DlMallocSpace* DlMallocSpace::Create(const std::string& name, size_t initial_siz
   growth_limit = RoundUp(growth_limit, kPageSize);
   capacity = RoundUp(capacity, kPageSize);
 
-  UniquePtr<MemMap> mem_map(MemMap::MapAnonymous(name.c_str(), requested_begin,
-                                                 capacity, PROT_READ | PROT_WRITE));
+  UniquePtr<MemMap> mem_map(MemMap::MapAnonymous(name.c_str(), requested_begin, capacity,
+                                                 PROT_READ | PROT_WRITE));
   if (mem_map.get() == NULL) {
     LOG(ERROR) << "Failed to allocate pages for alloc space (" << name << ") of size "
         << PrettySize(capacity);
@@ -207,7 +199,7 @@ DlMallocSpace* DlMallocSpace::Create(const std::string& name, size_t initial_siz
   DlMallocSpace* space;
   if (RUNNING_ON_VALGRIND > 0) {
     space = new ValgrindDlMallocSpace(name, mem_map_ptr, mspace, mem_map_ptr->Begin(), end,
-                                      growth_limit);
+                                      growth_limit, initial_size);
   } else {
     space = new DlMallocSpace(name, mem_map_ptr, mspace, mem_map_ptr->Begin(), end, growth_limit);
   }
@@ -249,7 +241,7 @@ mirror::Object* DlMallocSpace::AllocWithoutGrowthLocked(size_t num_bytes) {
       CHECK(Contains(result)) << "Allocation (" << reinterpret_cast<void*>(result)
             << ") not in bounds of allocation space " << *this;
     }
-    size_t allocation_size = AllocationSize(result);
+    size_t allocation_size = InternalAllocationSize(result);
     num_bytes_allocated_ += allocation_size;
     total_bytes_allocated_ += allocation_size;
     ++total_objects_allocated_;
