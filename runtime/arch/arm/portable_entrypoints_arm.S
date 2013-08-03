@@ -16,6 +16,8 @@
 
 #include "asm_support_arm.S"
 
+    .cfi_sections   .debug_frame
+
     /*
      * Portable invocation stub.
      * On entry:
