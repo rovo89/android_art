@@ -16,6 +16,8 @@
 
 #include "asm_support_arm.S"
 
+    .cfi_sections   .debug_frame
+
     /* Deliver the given exception */
     .extern artDeliverExceptionFromCode
     /* Deliver an exception pending on a thread */
