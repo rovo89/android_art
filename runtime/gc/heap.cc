@@ -1258,8 +1258,7 @@ class VerifyReferenceVisitor {
         ScanVisitor scan_visitor;
         byte* byte_cover_begin = reinterpret_cast<byte*>(card_table->AddrFromCard(card_addr));
         card_table->Scan(bitmap, byte_cover_begin,
-                         byte_cover_begin + accounting::CardTable::kCardSize,
-                         scan_visitor, VoidFunctor());
+                         byte_cover_begin + accounting::CardTable::kCardSize, scan_visitor);
 
         // Search to see if any of the roots reference our object.
         void* arg = const_cast<void*>(reinterpret_cast<const void*>(obj));

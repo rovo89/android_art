@@ -51,7 +51,6 @@ void StickyMarkSweep::BindBitmaps() {
 }
 
 void StickyMarkSweep::MarkReachableObjects() {
-  DisableFinger();
   RecursiveMarkDirtyObjects(accounting::CardTable::kCardDirty - 1);
 }
 
