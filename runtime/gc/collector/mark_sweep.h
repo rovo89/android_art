@@ -167,14 +167,6 @@ class MarkSweep : public GarbageCollector {
   void ScanObjectVisit(const mirror::Object* obj, const MarkVisitor& visitor)
       NO_THREAD_SAFETY_ANALYSIS;
 
-  void SetFinger(mirror::Object* new_finger) {
-    finger_ = new_finger;
-  }
-
-  void DisableFinger() {
-    SetFinger(reinterpret_cast<mirror::Object*>(~static_cast<uintptr_t>(0)));
-  }
-
   size_t GetFreedBytes() const {
     return freed_bytes_;
   }
@@ -385,8 +377,6 @@ class MarkSweep : public GarbageCollector {
   mirror::Class* java_lang_Class_;
 
   accounting::ObjectStack* mark_stack_;
-
-  mirror::Object* finger_;
 
   // Immune range, every object inside the immune range is assumed to be marked.
   mirror::Object* immune_begin_;

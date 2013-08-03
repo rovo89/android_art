@@ -53,13 +53,10 @@ inline bool SpaceBitmap::Test(const mirror::Object* obj) const {
   return (bitmap_begin_[OffsetToIndex(offset)] & OffsetToMask(offset)) != 0;
 }
 
-template <typename Visitor, typename FingerVisitor>
+template <typename Visitor>
 void SpaceBitmap::VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end,
-                                   const Visitor& visitor,
-                                   const FingerVisitor& finger_visitor) const {
+                                   const Visitor& visitor) const {
   DCHECK_LT(visit_begin, visit_end);
-
-  const size_t word_span = kAlignment * kBitsPerWord;  // Equals IndexToOffset(1).
   const size_t bit_index_start = (visit_begin - heap_begin_) / kAlignment;
   const size_t bit_index_end = (visit_end - heap_begin_ - 1) / kAlignment;
 
@@ -79,7 +76,6 @@ void SpaceBitmap::VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end,
   // If word_start == word_end then handle this case at the same place we handle the right edge.
   if (edge_word != 0 && word_start < word_end) {
     uintptr_t ptr_base = IndexToOffset(word_start) + heap_begin_;
-    finger_visitor(reinterpret_cast<void*>(ptr_base + word_span));
     do {
       const size_t shift = CLZ(edge_word);
       mirror::Object* obj = reinterpret_cast<mirror::Object*>(ptr_base + shift * kAlignment);
@@ -93,7 +89,6 @@ void SpaceBitmap::VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end,
     size_t w = bitmap_begin_[i];
     if (w != 0) {
       uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
-      finger_visitor(reinterpret_cast<void*>(ptr_base + word_span));
       do {
         const size_t shift = CLZ(w);
         mirror::Object* obj = reinterpret_cast<mirror::Object*>(ptr_base + shift * kAlignment);
@@ -114,7 +109,6 @@ void SpaceBitmap::VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end,
   // Bits that we trim off the right.
   edge_word &= ~((static_cast<size_t>(kWordHighBitMask) >> right_bits) - 1);
   uintptr_t ptr_base = IndexToOffset(word_end) + heap_begin_;
-  finger_visitor(reinterpret_cast<void*>(ptr_base + word_span));
   while (edge_word != 0) {
     const size_t shift = CLZ(edge_word);
     mirror::Object* obj = reinterpret_cast<mirror::Object*>(ptr_base + shift * kAlignment);

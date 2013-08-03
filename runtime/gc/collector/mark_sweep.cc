@@ -71,18 +71,6 @@ static const bool kMeasureOverhead = false;
 static const bool kCountTasks = false;
 static const bool kCountJavaLangRefs = false;
 
-class SetFingerVisitor {
- public:
-  explicit SetFingerVisitor(MarkSweep* const mark_sweep) : mark_sweep_(mark_sweep) {}
-
-  void operator()(void* finger) const {
-    mark_sweep_->SetFinger(reinterpret_cast<Object*>(finger));
-  }
-
- private:
-  MarkSweep* const mark_sweep_;
-};
-
 void MarkSweep::ImmuneSpace(space::ContinuousSpace* space) {
   // Bind live to mark bitmap if necessary.
   if (space->GetLiveBitmap() != space->GetMarkBitmap()) {
@@ -139,7 +127,6 @@ MarkSweep::MarkSweep(Heap* heap, bool is_concurrent, const std::string& name_pre
       current_mark_bitmap_(NULL),
       java_lang_Class_(NULL),
       mark_stack_(NULL),
-      finger_(NULL),
       immune_begin_(NULL),
       immune_end_(NULL),
       soft_reference_list_(NULL),
@@ -159,7 +146,6 @@ void MarkSweep::InitializePhase() {
   timings_.StartSplit("InitializePhase");
   mark_stack_ = GetHeap()->mark_stack_.get();
   DCHECK(mark_stack_ != NULL);
-  finger_ = NULL;
   SetImmuneRange(NULL, NULL);
   soft_reference_list_ = NULL;
   weak_reference_list_ = NULL;
@@ -278,7 +264,6 @@ void MarkSweep::MarkReachableObjects() {
   live_stack->Reset();
   // Recursively mark all the non-image bits set in the mark bitmap.
   RecursiveMark();
-  DisableFinger();
 }
 
 void MarkSweep::ReclaimPhase() {
@@ -351,11 +336,9 @@ void MarkSweep::ExpandMarkStack() {
 inline void MarkSweep::MarkObjectNonNullParallel(const Object* obj, bool check_finger) {
   DCHECK(obj != NULL);
   if (MarkObjectParallel(obj)) {
-    if (kDisableFinger || (check_finger && obj < finger_)) {
-      while (UNLIKELY(!mark_stack_->AtomicPushBack(const_cast<Object*>(obj)))) {
-        // Only reason a push can fail is that the mark stack is full.
-        ExpandMarkStack();
-      }
+    while (UNLIKELY(!mark_stack_->AtomicPushBack(const_cast<Object*>(obj)))) {
+      // Only reason a push can fail is that the mark stack is full.
+      ExpandMarkStack();
     }
   }
 }
@@ -384,14 +367,12 @@ inline void MarkSweep::MarkObjectNonNull(const Object* obj, bool check_finger) {
   // This object was not previously marked.
   if (!object_bitmap->Test(obj)) {
     object_bitmap->Set(obj);
-    if (kDisableFinger || (check_finger && obj < finger_)) {
-      // Do we need to expand the mark stack?
-      if (UNLIKELY(mark_stack_->Size() >= mark_stack_->Capacity())) {
-        ExpandMarkStack();
-      }
-      // The object must be pushed on to the mark stack.
-      mark_stack_->PushBack(const_cast<Object*>(obj));
+    // Do we need to expand the mark stack?
+    if (UNLIKELY(mark_stack_->Size() >= mark_stack_->Capacity())) {
+      ExpandMarkStack();
     }
+    // The object must be pushed on to the mark stack.
+    mark_stack_->PushBack(const_cast<Object*>(obj));
   }
 }
 
@@ -582,7 +563,6 @@ void MarkSweep::ScanGrayObjects(byte minimum_age) {
   accounting::CardTable* card_table = GetHeap()->GetCardTable();
   const std::vector<space::ContinuousSpace*>& spaces = GetHeap()->GetContinuousSpaces();
   ScanObjectVisitor visitor(this);
-  SetFingerVisitor finger_visitor(this);
   // TODO: C++0x
   typedef std::vector<space::ContinuousSpace*>::const_iterator It;
   for (It it = spaces.begin(), space_end = spaces.end(); it != space_end; ++it) {
@@ -602,7 +582,7 @@ void MarkSweep::ScanGrayObjects(byte minimum_age) {
     byte* end = space->End();
     // Image spaces are handled properly since live == marked for them.
     accounting::SpaceBitmap* mark_bitmap = space->GetMarkBitmap();
-    card_table->Scan(mark_bitmap, begin, end, visitor, finger_visitor, minimum_age);
+    card_table->Scan(mark_bitmap, begin, end, visitor, minimum_age);
   }
 }
 
@@ -637,7 +617,7 @@ void MarkSweep::VerifyImageRoots() {
       uintptr_t end = reinterpret_cast<uintptr_t>(space->End());
       accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
       DCHECK(live_bitmap != NULL);
-      live_bitmap->VisitMarkedRange(begin, end, visitor, VoidFunctor());
+      live_bitmap->VisitMarkedRange(begin, end, visitor);
     }
   }
 }
@@ -655,10 +635,8 @@ void MarkSweep::RecursiveMark() {
   CHECK(cleared_reference_list_ == NULL);
 
   const bool partial = GetGcType() == kGcTypePartial;
-  SetFingerVisitor set_finger_visitor(this);
   ScanObjectVisitor scan_visitor(this);
   if (!kDisableFinger) {
-    finger_ = NULL;
     const std::vector<space::ContinuousSpace*>& spaces = GetHeap()->GetContinuousSpaces();
     // TODO: C++0x
     typedef std::vector<space::ContinuousSpace*>::const_iterator It;
@@ -674,11 +652,10 @@ void MarkSweep::RecursiveMark() {
         // This function does not handle heap end increasing, so we must use the space end.
         uintptr_t begin = reinterpret_cast<uintptr_t>(space->Begin());
         uintptr_t end = reinterpret_cast<uintptr_t>(space->End());
-        current_mark_bitmap_->VisitMarkedRange(begin, end, scan_visitor, set_finger_visitor);
+        current_mark_bitmap_->VisitMarkedRange(begin, end, scan_visitor);
       }
     }
   }
-  DisableFinger();
   timings_.NewSplit("ProcessMarkStack");
   ProcessMarkStack();
 }

@@ -261,7 +261,7 @@ void ModUnionTableReferenceCache::Verify() {
       space::ContinuousSpace* space =
           heap->FindContinuousSpaceFromObject(reinterpret_cast<Object*>(start), false);
       SpaceBitmap* live_bitmap = space->GetLiveBitmap();
-      live_bitmap->VisitMarkedRange(start, end, visitor, VoidFunctor());
+      live_bitmap->VisitMarkedRange(start, end, visitor);
     }
   }
 }
@@ -307,12 +307,11 @@ void ModUnionTableReferenceCache::Update() {
     uintptr_t end = start + CardTable::kCardSize;
     SpaceBitmap* live_bitmap =
         heap->FindContinuousSpaceFromObject(reinterpret_cast<Object*>(start), false)->GetLiveBitmap();
-    live_bitmap->VisitMarkedRange(start, end, visitor, VoidFunctor());
+    live_bitmap->VisitMarkedRange(start, end, visitor);
 
     // Update the corresponding references for the card.
     // TODO: C++0x auto
-    SafeMap<const byte*, std::vector<const Object*> >::iterator
-        found = references_.find(card);
+    SafeMap<const byte*, std::vector<const Object*> >::iterator found = references_.find(card);
     if (found == references_.end()) {
       if (cards_references.empty()) {
         // No reason to add empty array.
@@ -364,7 +363,7 @@ void ModUnionTableCardCache::MarkReferences(collector::MarkSweep* mark_sweep) {
     space::ContinuousSpace* cur_space =
         heap_->FindContinuousSpaceFromObject(reinterpret_cast<Object*>(start), false);
     accounting::SpaceBitmap* cur_live_bitmap = cur_space->GetLiveBitmap();
-    cur_live_bitmap->VisitMarkedRange(start, end, visitor, VoidFunctor());
+    cur_live_bitmap->VisitMarkedRange(start, end, visitor);
     for (++it; it != cc_end; ++it) {
       card = *it;
       start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card));
@@ -373,7 +372,7 @@ void ModUnionTableCardCache::MarkReferences(collector::MarkSweep* mark_sweep) {
         cur_space = heap_->FindContinuousSpaceFromObject(reinterpret_cast<Object*>(start), false);
         cur_live_bitmap = cur_space->GetLiveBitmap();
       }
-      cur_live_bitmap->VisitMarkedRange(start, end, visitor, VoidFunctor());
+      cur_live_bitmap->VisitMarkedRange(start, end, visitor);
     }
   }
 }

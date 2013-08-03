@@ -118,9 +118,8 @@ class SpaceBitmap {
     }
   }
 
-  template <typename Visitor, typename FingerVisitor>
-  void VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end,
-                        const Visitor& visitor, const FingerVisitor& finger_visitor) const
+  template <typename Visitor>
+  void VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end, const Visitor& visitor) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -130,10 +129,8 @@ class SpaceBitmap {
   void InOrderWalk(Callback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
-  static void SweepWalk(const SpaceBitmap& live,
-                        const SpaceBitmap& mark,
-                        uintptr_t base, uintptr_t max,
-                        SweepCallback* thunk, void* arg);
+  static void SweepWalk(const SpaceBitmap& live, const SpaceBitmap& mark, uintptr_t base,
+                        uintptr_t max, SweepCallback* thunk, void* arg);
 
   void CopyFrom(SpaceBitmap* source_bitmap);
 
@@ -179,7 +176,8 @@ class SpaceBitmap {
  private:
   // TODO: heap_end_ is initialized so that the heap bitmap is empty, this doesn't require the -1,
   // however, we document that this is expected on heap_end_
-  SpaceBitmap(const std::string& name, MemMap* mem_map, word* bitmap_begin, size_t bitmap_size, const void* heap_begin)
+  SpaceBitmap(const std::string& name, MemMap* mem_map, word* bitmap_begin, size_t bitmap_size,
+              const void* heap_begin)
       : mem_map_(mem_map), bitmap_begin_(bitmap_begin), bitmap_size_(bitmap_size),
         heap_begin_(reinterpret_cast<uintptr_t>(heap_begin)),
         name_(name) {}
