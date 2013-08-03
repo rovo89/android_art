@@ -2857,6 +2857,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
   void* sym = dlsym(handle, "JNI_OnLoad");
   if (sym == NULL) {
     VLOG(jni) << "[No JNI_OnLoad found in \"" << path << "\"]";
+    was_successful = true;
   } else {
     // Call JNI_OnLoad.  We have to override the current class
     // loader, which will always be "null" since the stuff at the
