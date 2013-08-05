@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "scoped_thread_state_change.h"
 #include "sea_ir/debug/dot_gen.h"
 
 namespace sea_ir {
@@ -51,6 +52,7 @@ void DotGenerationVisitor::ToDotSSAEdges(InstructionNode* instruction) {
       dot_text_ += art::StringPrintf("vR = %d", def_it->first);
       std::map<int, const Type*>::const_iterator type_it = types_->find(def_it->second->Id());
       if (type_it != types_->end()) {
+        art::ScopedObjectAccess soa(art::Thread::Current());
         dot_text_ += "(" + type_it->second->Dump() + ")";
       } else {
         dot_text_ += "()";

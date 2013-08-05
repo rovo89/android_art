@@ -41,42 +41,42 @@ class DotGenerationVisitor: public IRVisitor {
 
   virtual void Initialize(SeaGraph* graph);
   // Saves the ssa def->use edges corresponding to @instruction.
-  void ToDotSSAEdges(InstructionNode* instruction) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void Visit(SeaGraph* graph) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void ToDotSSAEdges(InstructionNode* instruction);
+  void Visit(SeaGraph* graph) {
     dot_text_ += "digraph seaOfNodes {\ncompound=true\n";
   }
-  void Visit(SignatureNode* parameter) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void Visit(SignatureNode* parameter);
 
   // Appends to @result a dot language formatted string representing the node and
   //    (by convention) outgoing edges, so that the composition of theToDot() of all nodes
   //    builds a complete dot graph (without prolog and epilog though).
-  void Visit(Region* region) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void Visit(InstructionNode* instruction) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void Visit(PhiInstructionNode* phi) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void Visit(UnnamedConstInstructionNode* instruction) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void Visit(Region* region);
+  void Visit(InstructionNode* instruction);
+  void Visit(PhiInstructionNode* phi);
+  void Visit(UnnamedConstInstructionNode* instruction);
 
-  void Visit(ConstInstructionNode* instruction) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void Visit(ConstInstructionNode* instruction) {
     Visit(reinterpret_cast<InstructionNode*>(instruction));
   }
-  void Visit(ReturnInstructionNode* instruction) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void Visit(ReturnInstructionNode* instruction) {
     Visit(reinterpret_cast<InstructionNode*>(instruction));
   }
-  void Visit(IfNeInstructionNode* instruction) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void Visit(IfNeInstructionNode* instruction) {
     Visit(reinterpret_cast<InstructionNode*>(instruction));
   }
-  void Visit(MoveResultInstructionNode* instruction) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void Visit(MoveResultInstructionNode* instruction) {
     Visit(reinterpret_cast<InstructionNode*>(instruction));
   }
-  void Visit(InvokeStaticInstructionNode* instruction) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void Visit(InvokeStaticInstructionNode* instruction) {
     Visit(reinterpret_cast<InstructionNode*>(instruction));
   }
-  void Visit(AddIntInstructionNode* instruction) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void Visit(AddIntInstructionNode* instruction) {
     Visit(reinterpret_cast<InstructionNode*>(instruction));
   }
-  void Visit(GotoInstructionNode* instruction) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void Visit(GotoInstructionNode* instruction) {
     Visit(reinterpret_cast<InstructionNode*>(instruction));
   }
-  void Visit(IfEqzInstructionNode* instruction) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void Visit(IfEqzInstructionNode* instruction) {
     Visit(reinterpret_cast<InstructionNode*>(instruction));
   }
 
