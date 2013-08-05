@@ -181,10 +181,13 @@ class OatWriter {
   OatHeader* oat_header_;
   std::vector<OatDexFile*> oat_dex_files_;
   std::vector<OatClass*> oat_classes_;
-  UniquePtr<const std::vector<uint8_t> > interpreter_to_interpreter_entry_;
-  UniquePtr<const std::vector<uint8_t> > interpreter_to_quick_entry_;
+  UniquePtr<const std::vector<uint8_t> > interpreter_to_interpreter_bridge_;
+  UniquePtr<const std::vector<uint8_t> > interpreter_to_compiled_code_bridge_;
+  UniquePtr<const std::vector<uint8_t> > jni_dlsym_lookup_;
   UniquePtr<const std::vector<uint8_t> > portable_resolution_trampoline_;
+  UniquePtr<const std::vector<uint8_t> > portable_to_interpreter_bridge_;
   UniquePtr<const std::vector<uint8_t> > quick_resolution_trampoline_;
+  UniquePtr<const std::vector<uint8_t> > quick_to_interpreter_bridge_;
 
   // output stats
   uint32_t size_dex_file_alignment_;
@@ -192,11 +195,14 @@ class OatWriter {
   uint32_t size_oat_header_;
   uint32_t size_oat_header_image_file_location_;
   uint32_t size_dex_file_;
-  uint32_t size_interpreter_to_interpreter_entry_;
-  uint32_t size_interpreter_to_quick_entry_;
+  uint32_t size_interpreter_to_interpreter_bridge_;
+  uint32_t size_interpreter_to_compiled_code_bridge_;
+  uint32_t size_jni_dlsym_lookup_;
   uint32_t size_portable_resolution_trampoline_;
+  uint32_t size_portable_to_interpreter_bridge_;
   uint32_t size_quick_resolution_trampoline_;
-  uint32_t size_stubs_alignment_;
+  uint32_t size_quick_to_interpreter_bridge_;
+  uint32_t size_trampoline_alignment_;
   uint32_t size_code_size_;
   uint32_t size_code_;
   uint32_t size_code_alignment_;

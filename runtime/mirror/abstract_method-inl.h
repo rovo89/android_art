@@ -114,11 +114,11 @@ inline void AbstractMethod::AssertPcIsWithinCode(uintptr_t pc) const {
   if (IsNative() || IsRuntimeMethod() || IsProxyMethod()) {
     return;
   }
-  if (pc == GetInstrumentationExitPc()) {
+  if (pc == GetQuickInstrumentationExitPc()) {
     return;
   }
   const void* code = GetEntryPointFromCompiledCode();
-  if (code == GetInterpreterEntryPoint() || code == GetInstrumentationEntryPoint()) {
+  if (code == GetCompiledCodeToInterpreterBridge() || code == GetQuickInstrumentationEntryPoint()) {
     return;
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();

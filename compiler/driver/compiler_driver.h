@@ -48,6 +48,17 @@ enum CompilerBackend {
   kNoBackend
 };
 
+enum EntryPointCallingConvention {
+  // ABI of invocations to a method's interpreter entry point.
+  kInterpreterAbi,
+  // ABI of calls to a method's native code, only used for native methods.
+  kJniAbi,
+  // ABI of calls to a method's portable code entry point.
+  kPortableAbi,
+  // ABI of calls to a method's quick code entry point.
+  kQuickAbi
+};
+
 enum DexToDexCompilationLevel {
   kDontDexToDexCompile,   // Only meaning wrt image time interpretation.
   kRequired,              // Dex-to-dex compilation required for correctness.
@@ -110,13 +121,19 @@ class CompilerDriver {
   CompilerTls* GetTls();
 
   // Generate the trampolines that are invoked by unresolved direct methods.
+  const std::vector<uint8_t>* CreateInterpreterToInterpreterBridge() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const std::vector<uint8_t>* CreateInterpreterToCompiledCodeBridge() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const std::vector<uint8_t>* CreateJniDlsymLookup() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const std::vector<uint8_t>* CreatePortableResolutionTrampoline() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const std::vector<uint8_t>* CreatePortableToInterpreterBridge() const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const std::vector<uint8_t>* CreateQuickResolutionTrampoline() const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const std::vector<uint8_t>* CreateInterpreterToInterpreterEntry() const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const std::vector<uint8_t>* CreateInterpreterToQuickEntry() const
+  const std::vector<uint8_t>* CreateQuickToInterpreterBridge() const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   CompiledClass* GetCompiledClass(ClassReference ref) const

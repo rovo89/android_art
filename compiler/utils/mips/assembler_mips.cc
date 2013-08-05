@@ -813,14 +813,7 @@ void MipsAssembler::Copy(ManagedRegister dest_base, Offset dest_offset, FrameOff
 
 void MipsAssembler::Copy(FrameOffset /*dest*/, FrameOffset /*src_base*/, Offset /*src_offset*/,
                          ManagedRegister /*mscratch*/, size_t /*size*/) {
-  UNIMPLEMENTED(FATAL) << "no arm implementation";
-#if 0
-  Register scratch = mscratch.AsMips().AsCoreRegister();
-  CHECK_EQ(size, 4u);
-  movl(scratch, Address(ESP, src_base));
-  movl(scratch, Address(scratch, src_offset));
-  movl(Address(ESP, dest), scratch);
-#endif
+  UNIMPLEMENTED(FATAL) << "no mips implementation";
 }
 
 void MipsAssembler::Copy(ManagedRegister dest, Offset dest_offset,
@@ -834,24 +827,11 @@ void MipsAssembler::Copy(ManagedRegister dest, Offset dest_offset,
 
 void MipsAssembler::Copy(FrameOffset /*dest*/, Offset /*dest_offset*/, FrameOffset /*src*/, Offset /*src_offset*/,
                          ManagedRegister /*mscratch*/, size_t /*size*/) {
-  UNIMPLEMENTED(FATAL) << "no arm implementation";
-#if 0
-  Register scratch = mscratch.AsMips().AsCoreRegister();
-  CHECK_EQ(size, 4u);
-  CHECK_EQ(dest.Int32Value(), src.Int32Value());
-  movl(scratch, Address(ESP, src));
-  pushl(Address(scratch, src_offset));
-  popl(Address(scratch, dest_offset));
-#endif
+  UNIMPLEMENTED(FATAL) << "no mips implementation";
 }
 
 void MipsAssembler::MemoryBarrier(ManagedRegister) {
-  UNIMPLEMENTED(FATAL) << "NEEDS TO BE IMPLEMENTED";
-#if 0
-#if ANDROID_SMP != 0
-  mfence();
-#endif
-#endif
+  UNIMPLEMENTED(FATAL) << "no mips implementation";
 }
 
 void MipsAssembler::CreateSirtEntry(ManagedRegister mout_reg,
@@ -953,10 +933,7 @@ void MipsAssembler::Call(FrameOffset base, Offset offset, ManagedRegister mscrat
 }
 
 void MipsAssembler::Call(ThreadOffset /*offset*/, ManagedRegister /*mscratch*/) {
-  UNIMPLEMENTED(FATAL) << "no arm implementation";
-#if 0
-  fs()->call(Address::Absolute(offset));
-#endif
+  UNIMPLEMENTED(FATAL) << "no mips implementation";
 }
 
 void MipsAssembler::GetCurrentThread(ManagedRegister tr) {
@@ -988,7 +965,7 @@ void MipsExceptionSlowPath::Emit(Assembler* sasm) {
   // Don't care about preserving A0 as this call won't return
   __ Move(A0, scratch_.AsCoreRegister());
   // Set up call to Thread::Current()->pDeliverException
-  __ LoadFromOffset(kLoadWord, T9, S1, QUICK_ENTRYPOINT_OFFSET(pDeliverException));
+  __ LoadFromOffset(kLoadWord, T9, S1, QUICK_ENTRYPOINT_OFFSET(pDeliverException).Int32Value());
   __ Jr(T9);
   // Call never returns
   __ Break();

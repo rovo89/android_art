@@ -86,23 +86,25 @@ static void UnimplementedEntryPoint() {
 }
 #endif
 
-void InitEntryPoints(QuickEntryPoints* qpoints, PortableEntryPoints* ppoints);
+void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
+                     PortableEntryPoints* ppoints, QuickEntryPoints* qpoints);
 
-void Thread::InitFunctionPointers() {
+void Thread::InitTlsEntryPoints() {
 #if !defined(__APPLE__)  // The Mac GCC is too old to accept this code.
   // Insert a placeholder so we can easily tell if we call an unimplemented entry point.
-  uintptr_t* begin = reinterpret_cast<uintptr_t*>(&quick_entrypoints_);
+  uintptr_t* begin = reinterpret_cast<uintptr_t*>(&interpreter_entrypoints_);
   uintptr_t* end = reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(begin) + sizeof(quick_entrypoints_));
   for (uintptr_t* it = begin; it != end; ++it) {
     *it = reinterpret_cast<uintptr_t>(UnimplementedEntryPoint);
   }
-  begin = reinterpret_cast<uintptr_t*>(&portable_entrypoints_);
+  begin = reinterpret_cast<uintptr_t*>(&interpreter_entrypoints_);
   end = reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(begin) + sizeof(portable_entrypoints_));
   for (uintptr_t* it = begin; it != end; ++it) {
     *it = reinterpret_cast<uintptr_t>(UnimplementedEntryPoint);
   }
 #endif
-  InitEntryPoints(&quick_entrypoints_, &portable_entrypoints_);
+  InitEntryPoints(&interpreter_entrypoints_, &jni_entrypoints_, &portable_entrypoints_,
+                  &quick_entrypoints_);
 }
 
 void Thread::SetDeoptimizationShadowFrame(ShadowFrame* sf) {
@@ -292,7 +294,7 @@ void Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm) {
   CHECK(Thread::Current() == NULL);
   SetUpAlternateSignalStack();
   InitCpu();
-  InitFunctionPointers();
+  InitTlsEntryPoints();
   InitCardTable();
   InitTid();
   // Set pthread_self_ ahead of pthread_setspecific, that makes Thread::Current function, this
@@ -1589,22 +1591,29 @@ struct EntryPointInfo {
   uint32_t offset;
   const char* name;
 };
-#define QUICK_ENTRY_POINT_INFO(x) { QUICK_ENTRYPOINT_OFFSET(x), #x }
-#define PORTABLE_ENTRY_POINT_INFO(x) { PORTABLE_ENTRYPOINT_OFFSET(x), #x }
+#define INTERPRETER_ENTRY_POINT_INFO(x) { INTERPRETER_ENTRYPOINT_OFFSET(x).Uint32Value(), #x }
+#define JNI_ENTRY_POINT_INFO(x)         { JNI_ENTRYPOINT_OFFSET(x).Uint32Value(), #x }
+#define PORTABLE_ENTRY_POINT_INFO(x)    { PORTABLE_ENTRYPOINT_OFFSET(x).Uint32Value(), #x }
+#define QUICK_ENTRY_POINT_INFO(x)       { QUICK_ENTRYPOINT_OFFSET(x).Uint32Value(), #x }
 static const EntryPointInfo gThreadEntryPointInfo[] = {
-  QUICK_ENTRY_POINT_INFO(pAllocArrayFromCode),
-  QUICK_ENTRY_POINT_INFO(pAllocArrayFromCodeWithAccessCheck),
-  QUICK_ENTRY_POINT_INFO(pAllocObjectFromCode),
-  QUICK_ENTRY_POINT_INFO(pAllocObjectFromCodeWithAccessCheck),
-  QUICK_ENTRY_POINT_INFO(pCheckAndAllocArrayFromCode),
-  QUICK_ENTRY_POINT_INFO(pCheckAndAllocArrayFromCodeWithAccessCheck),
-  QUICK_ENTRY_POINT_INFO(pInstanceofNonTrivialFromCode),
-  QUICK_ENTRY_POINT_INFO(pCanPutArrayElementFromCode),
-  QUICK_ENTRY_POINT_INFO(pCheckCastFromCode),
+  INTERPRETER_ENTRY_POINT_INFO(pInterpreterToInterpreterBridge),
+  INTERPRETER_ENTRY_POINT_INFO(pInterpreterToCompiledCodeBridge),
+  JNI_ENTRY_POINT_INFO(pDlsymLookup),
+  PORTABLE_ENTRY_POINT_INFO(pPortableResolutionTrampoline),
+  PORTABLE_ENTRY_POINT_INFO(pPortableToInterpreterBridge),
+  QUICK_ENTRY_POINT_INFO(pAllocArray),
+  QUICK_ENTRY_POINT_INFO(pAllocArrayWithAccessCheck),
+  QUICK_ENTRY_POINT_INFO(pAllocObject),
+  QUICK_ENTRY_POINT_INFO(pAllocObjectWithAccessCheck),
+  QUICK_ENTRY_POINT_INFO(pCheckAndAllocArray),
+  QUICK_ENTRY_POINT_INFO(pCheckAndAllocArrayWithAccessCheck),
+  QUICK_ENTRY_POINT_INFO(pInstanceofNonTrivial),
+  QUICK_ENTRY_POINT_INFO(pCanPutArrayElement),
+  QUICK_ENTRY_POINT_INFO(pCheckCast),
   QUICK_ENTRY_POINT_INFO(pInitializeStaticStorage),
-  QUICK_ENTRY_POINT_INFO(pInitializeTypeAndVerifyAccessFromCode),
-  QUICK_ENTRY_POINT_INFO(pInitializeTypeFromCode),
-  QUICK_ENTRY_POINT_INFO(pResolveStringFromCode),
+  QUICK_ENTRY_POINT_INFO(pInitializeTypeAndVerifyAccess),
+  QUICK_ENTRY_POINT_INFO(pInitializeType),
+  QUICK_ENTRY_POINT_INFO(pResolveString),
   QUICK_ENTRY_POINT_INFO(pSet32Instance),
   QUICK_ENTRY_POINT_INFO(pSet32Static),
   QUICK_ENTRY_POINT_INFO(pSet64Instance),
@@ -1617,15 +1626,15 @@ static const EntryPointInfo gThreadEntryPointInfo[] = {
   QUICK_ENTRY_POINT_INFO(pGet64Static),
   QUICK_ENTRY_POINT_INFO(pGetObjInstance),
   QUICK_ENTRY_POINT_INFO(pGetObjStatic),
-  QUICK_ENTRY_POINT_INFO(pHandleFillArrayDataFromCode),
+  QUICK_ENTRY_POINT_INFO(pHandleFillArrayData),
   QUICK_ENTRY_POINT_INFO(pJniMethodStart),
   QUICK_ENTRY_POINT_INFO(pJniMethodStartSynchronized),
   QUICK_ENTRY_POINT_INFO(pJniMethodEnd),
   QUICK_ENTRY_POINT_INFO(pJniMethodEndSynchronized),
   QUICK_ENTRY_POINT_INFO(pJniMethodEndWithReference),
   QUICK_ENTRY_POINT_INFO(pJniMethodEndWithReferenceSynchronized),
-  QUICK_ENTRY_POINT_INFO(pLockObjectFromCode),
-  QUICK_ENTRY_POINT_INFO(pUnlockObjectFromCode),
+  QUICK_ENTRY_POINT_INFO(pLockObject),
+  QUICK_ENTRY_POINT_INFO(pUnlockObject),
   QUICK_ENTRY_POINT_INFO(pCmpgDouble),
   QUICK_ENTRY_POINT_INFO(pCmpgFloat),
   QUICK_ENTRY_POINT_INFO(pCmplDouble),
@@ -1646,28 +1655,26 @@ static const EntryPointInfo gThreadEntryPointInfo[] = {
   QUICK_ENTRY_POINT_INFO(pShlLong),
   QUICK_ENTRY_POINT_INFO(pShrLong),
   QUICK_ENTRY_POINT_INFO(pUshrLong),
-  QUICK_ENTRY_POINT_INFO(pInterpreterToInterpreterEntry),
-  QUICK_ENTRY_POINT_INFO(pInterpreterToQuickEntry),
   QUICK_ENTRY_POINT_INFO(pIndexOf),
   QUICK_ENTRY_POINT_INFO(pMemcmp16),
   QUICK_ENTRY_POINT_INFO(pStringCompareTo),
   QUICK_ENTRY_POINT_INFO(pMemcpy),
-  QUICK_ENTRY_POINT_INFO(pQuickResolutionTrampolineFromCode),
+  QUICK_ENTRY_POINT_INFO(pQuickResolutionTrampoline),
+  QUICK_ENTRY_POINT_INFO(pQuickToInterpreterBridge),
   QUICK_ENTRY_POINT_INFO(pInvokeDirectTrampolineWithAccessCheck),
   QUICK_ENTRY_POINT_INFO(pInvokeInterfaceTrampoline),
   QUICK_ENTRY_POINT_INFO(pInvokeInterfaceTrampolineWithAccessCheck),
   QUICK_ENTRY_POINT_INFO(pInvokeStaticTrampolineWithAccessCheck),
   QUICK_ENTRY_POINT_INFO(pInvokeSuperTrampolineWithAccessCheck),
   QUICK_ENTRY_POINT_INFO(pInvokeVirtualTrampolineWithAccessCheck),
-  QUICK_ENTRY_POINT_INFO(pCheckSuspendFromCode),
-  QUICK_ENTRY_POINT_INFO(pTestSuspendFromCode),
+  QUICK_ENTRY_POINT_INFO(pCheckSuspend),
+  QUICK_ENTRY_POINT_INFO(pTestSuspend),
   QUICK_ENTRY_POINT_INFO(pDeliverException),
-  QUICK_ENTRY_POINT_INFO(pThrowArrayBoundsFromCode),
-  QUICK_ENTRY_POINT_INFO(pThrowDivZeroFromCode),
-  QUICK_ENTRY_POINT_INFO(pThrowNoSuchMethodFromCode),
-  QUICK_ENTRY_POINT_INFO(pThrowNullPointerFromCode),
-  QUICK_ENTRY_POINT_INFO(pThrowStackOverflowFromCode),
-  PORTABLE_ENTRY_POINT_INFO(pPortableResolutionTrampolineFromCode),
+  QUICK_ENTRY_POINT_INFO(pThrowArrayBounds),
+  QUICK_ENTRY_POINT_INFO(pThrowDivZero),
+  QUICK_ENTRY_POINT_INFO(pThrowNoSuchMethod),
+  QUICK_ENTRY_POINT_INFO(pThrowNullPointer),
+  QUICK_ENTRY_POINT_INFO(pThrowStackOverflow),
 };
 #undef QUICK_ENTRY_POINT_INFO
 
@@ -1695,8 +1702,9 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset, size_t size_of_
 
   size_t entry_point_count = arraysize(gThreadEntryPointInfo);
   CHECK_EQ(entry_point_count * size_of_pointers,
-           sizeof(QuickEntryPoints) + sizeof(PortableEntryPoints));
-  uint32_t expected_offset = OFFSETOF_MEMBER(Thread, quick_entrypoints_);
+           sizeof(InterpreterEntryPoints) + sizeof(JniEntryPoints) + sizeof(PortableEntryPoints) +
+           sizeof(QuickEntryPoints));
+  uint32_t expected_offset = OFFSETOF_MEMBER(Thread, interpreter_entrypoints_);
   for (size_t i = 0; i < entry_point_count; ++i) {
     CHECK_EQ(gThreadEntryPointInfo[i].offset, expected_offset) << gThreadEntryPointInfo[i].name;
     expected_offset += size_of_pointers;
@@ -1739,7 +1747,7 @@ class CatchBlockStackVisitor : public StackVisitor {
       return false;  // End stack walk.
     } else {
       if (UNLIKELY(method_tracing_active_ &&
-                   GetInstrumentationExitPc() == GetReturnPc())) {
+                   GetQuickInstrumentationExitPc() == GetReturnPc())) {
         // Keep count of the number of unwinds during instrumentation.
         instrumentation_frames_to_pop_++;
       }

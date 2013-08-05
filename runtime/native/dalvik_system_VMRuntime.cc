@@ -144,8 +144,6 @@ static void VMRuntime_setTargetSdkVersion(JNIEnv* env, jobject, jint targetSdkVe
   if (targetSdkVersion > 0 && targetSdkVersion <= 13 /* honeycomb-mr2 */) {
     Runtime* runtime = Runtime::Current();
     JavaVMExt* vm = runtime->GetJavaVM();
-
-#if !defined(ART_USE_PORTABLE_COMPILER)
     if (vm->check_jni) {
       LOG(WARNING) << "Turning off CheckJNI so we can turn on JNI app bug workarounds...";
       Thread* self = static_cast<JNIEnvExt*>(env)->self;
@@ -158,11 +156,6 @@ static void VMRuntime_setTargetSdkVersion(JNIEnv* env, jobject, jint targetSdkVe
               << targetSdkVersion << "...";
 
     vm->work_around_app_jni_bugs = true;
-#else
-    UNUSED(env);
-    LOG(WARNING) << "LLVM does not work-around app jni bugs.";
-    vm->work_around_app_jni_bugs = false;
-#endif
   }
 }
 

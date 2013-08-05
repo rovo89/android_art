@@ -347,6 +347,17 @@ class ClassLinker {
     return quick_resolution_trampoline_;
   }
 
+  InternTable* GetInternTable() const {
+    return intern_table_;
+  }
+
+  // Attempts to insert a class into a class table.  Returns NULL if
+  // the class was inserted, otherwise returns an existing class with
+  // the same descriptor and ClassLoader.
+  mirror::Class* InsertClass(const StringPiece& descriptor, mirror::Class* klass, bool image_class)
+      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  private:
   explicit ClassLinker(InternTable*);
 
@@ -361,8 +372,6 @@ class ClassLinker {
   void InitFromImage() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   OatFile& GetImageOatFile(gc::space::ImageSpace* space)
       LOCKS_EXCLUDED(dex_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void InitFromImageCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void FinishInit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -421,13 +430,6 @@ class ClassLinker {
 
   // Finds the associated oat class for a dex_file and descriptor
   const OatFile::OatClass* GetOatClass(const DexFile& dex_file, const char* descriptor)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  // Attempts to insert a class into a class table.  Returns NULL if
-  // the class was inserted, otherwise returns an existing class with
-  // the same descriptor and ClassLoader.
-  mirror::Class* InsertClass(const StringPiece& descriptor, mirror::Class* klass, bool image_class)
-      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void RegisterDexFileLocked(const DexFile& dex_file, SirtRef<mirror::DexCache>& dex_cache)

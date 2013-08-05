@@ -90,11 +90,23 @@ bool ImageWriter::Write(const std::string& image_filename,
     return false;
   }
   class_linker->RegisterOatFile(*oat_file_);
-  interpreter_to_interpreter_entry_offset_ = oat_file_->GetOatHeader().GetInterpreterToInterpreterEntryOffset();
-  interpreter_to_quick_entry_offset_ = oat_file_->GetOatHeader().GetInterpreterToQuickEntryOffset();
-  portable_resolution_trampoline_offset_ = oat_file_->GetOatHeader().GetPortableResolutionTrampolineOffset();
-  quick_resolution_trampoline_offset_ = oat_file_->GetOatHeader().GetQuickResolutionTrampolineOffset();
 
+  interpreter_to_interpreter_bridge_offset_ =
+      oat_file_->GetOatHeader().GetInterpreterToInterpreterBridgeOffset();
+  interpreter_to_compiled_code_bridge_offset_ =
+      oat_file_->GetOatHeader().GetInterpreterToCompiledCodeBridgeOffset();
+
+  jni_dlsym_lookup_offset_ = oat_file_->GetOatHeader().GetJniDlsymLookupOffset();
+
+  portable_resolution_trampoline_offset_ =
+      oat_file_->GetOatHeader().GetPortableResolutionTrampolineOffset();
+  portable_to_interpreter_bridge_offset_ =
+      oat_file_->GetOatHeader().GetPortableToInterpreterBridgeOffset();
+
+  quick_resolution_trampoline_offset_ =
+      oat_file_->GetOatHeader().GetQuickResolutionTrampolineOffset();
+  quick_to_interpreter_bridge_offset_ =
+      oat_file_->GetOatHeader().GetQuickToInterpreterBridgeOffset();
   {
     Thread::Current()->TransitionFromSuspendedToRunnable();
     PruneNonImageClasses();  // Remove junk
@@ -490,57 +502,62 @@ void ImageWriter::FixupClass(const Class* orig, Class* copy) {
 void ImageWriter::FixupMethod(const AbstractMethod* orig, AbstractMethod* copy) {
   FixupInstanceFields(orig, copy);
 
-  // OatWriter replaces the code_ with an offset value.
-  // Here we readjust to a pointer relative to oat_begin_
-  if (orig->IsAbstract()) {
-    // Code for abstract methods is set to the abstract method error stub when we load the image.
-    copy->SetEntryPointFromCompiledCode(NULL);
-    copy->SetEntryPointFromInterpreter(reinterpret_cast<EntryPointFromInterpreter*>
-                                       (GetOatAddress(interpreter_to_interpreter_entry_offset_)));
-    return;
-  } else {
-    copy->SetEntryPointFromInterpreter(reinterpret_cast<EntryPointFromInterpreter*>
-                                       (GetOatAddress(interpreter_to_quick_entry_offset_)));
-  }
+  // OatWriter replaces the code_ with an offset value. Here we re-adjust to a pointer relative to
+  // oat_begin_
 
-  if (orig == Runtime::Current()->GetResolutionMethod()) {
+  // The resolution method has a special trampoline to call.
+  if (UNLIKELY(orig == Runtime::Current()->GetResolutionMethod())) {
 #if defined(ART_USE_PORTABLE_COMPILER)
     copy->SetEntryPointFromCompiledCode(GetOatAddress(portable_resolution_trampoline_offset_));
 #else
     copy->SetEntryPointFromCompiledCode(GetOatAddress(quick_resolution_trampoline_offset_));
 #endif
-    return;
-  }
-
-  // Use original code if it exists. Otherwise, set the code pointer to the resolution trampoline.
-  const byte* code = GetOatAddress(orig->GetOatCodeOffset());
-  if (code != NULL) {
-    copy->SetEntryPointFromCompiledCode(code);
   } else {
+    // We assume all methods have code. If they don't currently then we set them to the use the
+    // resolution trampoline. Abstract methods never have code and so we need to make sure their
+    // use results in an AbstractMethodError. We use the interpreter to achieve this.
+    if (UNLIKELY(orig->IsAbstract())) {
 #if defined(ART_USE_PORTABLE_COMPILER)
-    copy->SetEntryPointFromCompiledCode(GetOatAddress(portable_resolution_trampoline_offset_));
+      copy->SetEntryPointFromCompiledCode(GetOatAddress(portable_to_interpreter_bridge_offset_));
 #else
-    copy->SetEntryPointFromCompiledCode(GetOatAddress(quick_resolution_trampoline_offset_));
+      copy->SetEntryPointFromCompiledCode(GetOatAddress(quick_to_interpreter_bridge_offset_));
 #endif
-  }
+      copy->SetEntryPointFromInterpreter(reinterpret_cast<EntryPointFromInterpreter*>
+      (GetOatAddress(interpreter_to_interpreter_bridge_offset_)));
+    } else {
+      copy->SetEntryPointFromInterpreter(reinterpret_cast<EntryPointFromInterpreter*>
+      (GetOatAddress(interpreter_to_compiled_code_bridge_offset_)));
+      // Use original code if it exists. Otherwise, set the code pointer to the resolution
+      // trampoline.
+      const byte* code = GetOatAddress(orig->GetOatCodeOffset());
+      if (code != NULL) {
+        copy->SetEntryPointFromCompiledCode(code);
+      } else {
+#if defined(ART_USE_PORTABLE_COMPILER)
+        copy->SetEntryPointFromCompiledCode(GetOatAddress(portable_resolution_trampoline_offset_));
+#else
+        copy->SetEntryPointFromCompiledCode(GetOatAddress(quick_resolution_trampoline_offset_));
+#endif
+      }
+      if (orig->IsNative()) {
+        // The native method's pointer is set to a stub to lookup via dlsym.
+        // Note this is not the code_ pointer, that is handled above.
+        copy->SetNativeMethod(GetOatAddress(jni_dlsym_lookup_offset_));
+      } else {
+        // Normal (non-abstract non-native) methods have various tables to relocate.
+        uint32_t mapping_table_off = orig->GetOatMappingTableOffset();
+        const byte* mapping_table = GetOatAddress(mapping_table_off);
+        copy->SetMappingTable(reinterpret_cast<const uint32_t*>(mapping_table));
 
-  if (orig->IsNative()) {
-    // The native method's pointer is set to a stub to lookup via dlsym when we load the image.
-    // Note this is not the code_ pointer, that is handled above.
-    copy->SetNativeMethod(NULL);
-  } else {
-    // normal (non-abstract non-native) methods have mapping tables to relocate
-    uint32_t mapping_table_off = orig->GetOatMappingTableOffset();
-    const byte* mapping_table = GetOatAddress(mapping_table_off);
-    copy->SetMappingTable(reinterpret_cast<const uint32_t*>(mapping_table));
+        uint32_t vmap_table_offset = orig->GetOatVmapTableOffset();
+        const byte* vmap_table = GetOatAddress(vmap_table_offset);
+        copy->SetVmapTable(reinterpret_cast<const uint16_t*>(vmap_table));
 
-    uint32_t vmap_table_offset = orig->GetOatVmapTableOffset();
-    const byte* vmap_table = GetOatAddress(vmap_table_offset);
-    copy->SetVmapTable(reinterpret_cast<const uint16_t*>(vmap_table));
-
-    uint32_t native_gc_map_offset = orig->GetOatNativeGcMapOffset();
-    const byte* native_gc_map = GetOatAddress(native_gc_map_offset);
-    copy->SetNativeGcMap(reinterpret_cast<const uint8_t*>(native_gc_map));
+        uint32_t native_gc_map_offset = orig->GetOatNativeGcMapOffset();
+        const byte* native_gc_map = GetOatAddress(native_gc_map_offset);
+        copy->SetNativeGcMap(reinterpret_cast<const uint8_t*>(native_gc_map));
+      }
+    }
   }
 }
 

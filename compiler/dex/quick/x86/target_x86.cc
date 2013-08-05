@@ -524,7 +524,7 @@ Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
 }
 
 // Not used in x86
-int X86Mir2Lir::LoadHelper(int offset) {
+int X86Mir2Lir::LoadHelper(ThreadOffset offset) {
   LOG(FATAL) << "Unexpected use of LoadHelper in x86";
   return INVALID_REG;
 }

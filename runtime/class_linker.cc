@@ -71,7 +71,7 @@
 
 namespace art {
 
-extern "C" void artInterpreterToQuickEntry(Thread* self, MethodHelper& mh,
+extern "C" void artInterperterToCompiledCodeBridge(Thread* self, MethodHelper& mh,
                                            const DexFile::CodeItem* code_item,
                                            ShadowFrame* shadow_frame, JValue* result);
 
@@ -944,6 +944,43 @@ const OatFile* ClassLinker::FindOatFileFromOatLocationLocked(const std::string& 
   return oat_file;
 }
 
+static void InitFromImageCallbackCommon(mirror::Object* obj, ClassLinker* class_linker,
+                                        bool interpret_only_mode)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  DCHECK(obj != NULL);
+  DCHECK(class_linker != NULL);
+
+  if (obj->GetClass()->IsStringClass()) {
+    class_linker->GetInternTable()->RegisterStrong(obj->AsString());
+  } else if (obj->IsClass()) {
+    // Restore class to ClassLinker::classes_ table.
+    mirror::Class* klass = obj->AsClass();
+    ClassHelper kh(klass, class_linker);
+    mirror::Class* existing = class_linker->InsertClass(kh.GetDescriptor(), klass, true);
+    DCHECK(existing == NULL) << kh.GetDescriptor();
+  } else if (interpret_only_mode && obj->IsMethod()) {
+    mirror::AbstractMethod* method = obj->AsMethod();
+    if (!method->IsNative()) {
+      method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterBridge);
+      if (method != Runtime::Current()->GetResolutionMethod()) {
+        method->SetEntryPointFromCompiledCode(GetCompiledCodeToInterpreterBridge());
+      }
+    }
+  }
+}
+
+static void InitFromImageCallback(mirror::Object* obj, void* arg)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ClassLinker* class_linker = reinterpret_cast<ClassLinker*>(arg);
+  InitFromImageCallbackCommon(obj, class_linker, false);
+}
+
+static void InitFromImageInterpretOnlyCallback(mirror::Object* obj, void* arg)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ClassLinker* class_linker = reinterpret_cast<ClassLinker*>(arg);
+  InitFromImageCallbackCommon(obj, class_linker, true);
+}
+
 void ClassLinker::InitFromImage() {
   VLOG(startup) << "ClassLinker::InitFromImage entering";
   CHECK(!init_done_);
@@ -997,7 +1034,11 @@ void ClassLinker::InitFromImage() {
   {
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     heap->FlushAllocStack();
-    heap->GetLiveBitmap()->Walk(InitFromImageCallback, this);
+    if (Runtime::Current()->GetInstrumentation()->InterpretOnly()) {
+      heap->GetLiveBitmap()->Walk(InitFromImageInterpretOnlyCallback, this);
+    } else {
+      heap->GetLiveBitmap()->Walk(InitFromImageCallback, this);
+    }
   }
 
   // reinit class_roots_
@@ -1023,40 +1064,6 @@ void ClassLinker::InitFromImage() {
   FinishInit();
 
   VLOG(startup) << "ClassLinker::InitFromImage exiting";
-}
-
-void ClassLinker::InitFromImageCallback(mirror::Object* obj, void* arg) {
-  DCHECK(obj != NULL);
-  DCHECK(arg != NULL);
-  ClassLinker* class_linker = reinterpret_cast<ClassLinker*>(arg);
-
-  if (obj->GetClass()->IsStringClass()) {
-    class_linker->intern_table_->RegisterStrong(obj->AsString());
-    return;
-  }
-  if (obj->IsClass()) {
-    // restore class to ClassLinker::classes_ table
-    mirror::Class* klass = obj->AsClass();
-    ClassHelper kh(klass, class_linker);
-    mirror::Class* existing = class_linker->InsertClass(kh.GetDescriptor(), klass, true);
-    DCHECK(existing == NULL) << kh.GetDescriptor();
-    return;
-  }
-
-  if (obj->IsMethod()) {
-    mirror::AbstractMethod* method = obj->AsMethod();
-    // Set entry points to interpreter for methods in interpreter only mode.
-    if (Runtime::Current()->GetInstrumentation()->InterpretOnly() && !method->IsNative()) {
-      method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterEntry);
-      if (method != Runtime::Current()->GetResolutionMethod()) {
-        method->SetEntryPointFromCompiledCode(GetInterpreterEntryPoint());
-      }
-    }
-    // Populate native method pointer with jni lookup stub.
-    if (method->IsNative()) {
-      method->UnregisterNative(Thread::Current());
-    }
-  }
 }
 
 // Keep in sync with InitCallback. Anything we visit, we need to
@@ -1558,7 +1565,7 @@ const void* ClassLinker::GetOatCodeFor(const mirror::AbstractMethod* method) {
   const void* result = GetOatMethodFor(method).GetCode();
   if (result == NULL) {
     // No code? You must mean to go into the interpreter.
-    result = GetInterpreterEntryPoint();
+    result = GetCompiledCodeToInterpreterBridge();
   }
   return result;
 }
@@ -1619,7 +1626,7 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
     const bool enter_interpreter = NeedsInterpreter(method, code);
     if (enter_interpreter) {
       // Use interpreter entry point.
-      code = GetInterpreterEntryPoint();
+      code = GetCompiledCodeToInterpreterBridge();
     }
     runtime->GetInstrumentation()->UpdateMethodsCode(method, code);
   }
@@ -1640,13 +1647,13 @@ static void LinkCode(SirtRef<mirror::AbstractMethod>& method, const OatFile::Oat
   Runtime* runtime = Runtime::Current();
   bool enter_interpreter = NeedsInterpreter(method.get(), method->GetEntryPointFromCompiledCode());
   if (enter_interpreter) {
-    method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterEntry);
+    method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterBridge);
   } else {
-    method->SetEntryPointFromInterpreter(artInterpreterToQuickEntry);
+    method->SetEntryPointFromInterpreter(artInterperterToCompiledCodeBridge);
   }
 
   if (method->IsAbstract()) {
-    method->SetEntryPointFromCompiledCode(GetAbstractMethodErrorStub());
+    method->SetEntryPointFromCompiledCode(GetCompiledCodeToInterpreterBridge());
     return;
   }
 
@@ -1657,7 +1664,7 @@ static void LinkCode(SirtRef<mirror::AbstractMethod>& method, const OatFile::Oat
     method->SetEntryPointFromCompiledCode(GetResolutionTrampoline(runtime->GetClassLinker()));
   } else if (enter_interpreter) {
     // Set entry point from compiled code if there's no code or in interpreter only mode.
-    method->SetEntryPointFromCompiledCode(GetInterpreterEntryPoint());
+    method->SetEntryPointFromCompiledCode(GetCompiledCodeToInterpreterBridge());
   }
 
   if (method->IsNative()) {
@@ -2625,12 +2632,8 @@ mirror::AbstractMethod* ClassLinker::CreateProxyMethod(Thread* self, SirtRef<mir
   method->SetCoreSpillMask(refs_and_args->GetCoreSpillMask());
   method->SetFpSpillMask(refs_and_args->GetFpSpillMask());
   method->SetFrameSizeInBytes(refs_and_args->GetFrameSizeInBytes());
-#if !defined(ART_USE_PORTABLE_COMPILER)
-  method->SetEntryPointFromCompiledCode(reinterpret_cast<void*>(art_quick_proxy_invoke_handler));
-#else
-  method->SetEntryPointFromCompiledCode(reinterpret_cast<void*>(art_portable_proxy_invoke_handler));
-#endif
-  method->SetEntryPointFromInterpreter(artInterpreterToQuickEntry);
+  method->SetEntryPointFromCompiledCode(GetProxyInvokeHandler());
+  method->SetEntryPointFromInterpreter(artInterperterToCompiledCodeBridge);
 
   return method;
 }

@@ -17,44 +17,45 @@
 #ifndef ART_RUNTIME_ENTRYPOINTS_QUICK_QUICK_ENTRYPOINTS_H_
 #define ART_RUNTIME_ENTRYPOINTS_QUICK_QUICK_ENTRYPOINTS_H_
 
-#include "dex_file-inl.h"
-#include "runtime.h"
+#include <jni.h>
+
+#include "base/macros.h"
+#include "offsets.h"
 
 #define QUICK_ENTRYPOINT_OFFSET(x) \
-    (static_cast<uintptr_t>(OFFSETOF_MEMBER(Thread, quick_entrypoints_)) + \
-        static_cast<uintptr_t>(OFFSETOF_MEMBER(QuickEntryPoints, x)))
+    ThreadOffset(static_cast<uintptr_t>(OFFSETOF_MEMBER(Thread, quick_entrypoints_)) + \
+                 static_cast<uintptr_t>(OFFSETOF_MEMBER(QuickEntryPoints, x)))
 
 namespace art {
+
 namespace mirror {
   class AbstractMethod;
   class Class;
   class Object;
 }  // namespace mirror
-class DvmDex;
-class MethodHelper;
-class ShadowFrame;
+
 class Thread;
 
 // Pointers to functions that are called by quick compiler generated code via thread-local storage.
 struct PACKED(4) QuickEntryPoints {
   // Alloc
-  void* (*pAllocArrayFromCode)(uint32_t, void*, int32_t);
-  void* (*pAllocArrayFromCodeWithAccessCheck)(uint32_t, void*, int32_t);
-  void* (*pAllocObjectFromCode)(uint32_t, void*);
-  void* (*pAllocObjectFromCodeWithAccessCheck)(uint32_t, void*);
-  void* (*pCheckAndAllocArrayFromCode)(uint32_t, void*, int32_t);
-  void* (*pCheckAndAllocArrayFromCodeWithAccessCheck)(uint32_t, void*, int32_t);
+  void* (*pAllocArray)(uint32_t, void*, int32_t);
+  void* (*pAllocArrayWithAccessCheck)(uint32_t, void*, int32_t);
+  void* (*pAllocObject)(uint32_t, void*);
+  void* (*pAllocObjectWithAccessCheck)(uint32_t, void*);
+  void* (*pCheckAndAllocArray)(uint32_t, void*, int32_t);
+  void* (*pCheckAndAllocArrayWithAccessCheck)(uint32_t, void*, int32_t);
 
   // Cast
-  uint32_t (*pInstanceofNonTrivialFromCode)(const mirror::Class*, const mirror::Class*);
-  void (*pCanPutArrayElementFromCode)(void*, void*);
-  void (*pCheckCastFromCode)(void*, void*);
+  uint32_t (*pInstanceofNonTrivial)(const mirror::Class*, const mirror::Class*);
+  void (*pCanPutArrayElement)(void*, void*);
+  void (*pCheckCast)(void*, void*);
 
   // DexCache
   void* (*pInitializeStaticStorage)(uint32_t, void*);
-  void* (*pInitializeTypeAndVerifyAccessFromCode)(uint32_t, void*);
-  void* (*pInitializeTypeFromCode)(uint32_t, void*);
-  void* (*pResolveStringFromCode)(void*, uint32_t);
+  void* (*pInitializeTypeAndVerifyAccess)(uint32_t, void*);
+  void* (*pInitializeType)(uint32_t, void*);
+  void* (*pResolveString)(void*, uint32_t);
 
   // Field
   int (*pSet32Instance)(uint32_t, void*, int32_t);  // field_idx, obj, src
@@ -71,7 +72,7 @@ struct PACKED(4) QuickEntryPoints {
   void* (*pGetObjStatic)(uint32_t);
 
   // FillArray
-  void (*pHandleFillArrayDataFromCode)(void*, void*);
+  void (*pHandleFillArrayData)(void*, void*);
 
   // JNI
   uint32_t (*pJniMethodStart)(Thread*);
@@ -83,8 +84,8 @@ struct PACKED(4) QuickEntryPoints {
                                                     jobject locked, Thread* self);
 
   // Locks
-  void (*pLockObjectFromCode)(void*);
-  void (*pUnlockObjectFromCode)(void*);
+  void (*pLockObject)(void*);
+  void (*pUnlockObject)(void*);
 
   // Math
   int32_t (*pCmpgDouble)(double, double);
@@ -108,14 +109,6 @@ struct PACKED(4) QuickEntryPoints {
   uint64_t (*pShrLong)(uint64_t, uint32_t);
   uint64_t (*pUshrLong)(uint64_t, uint32_t);
 
-  // Interpreter
-  void (*pInterpreterToInterpreterEntry)(Thread* self, MethodHelper& mh,
-                                         const DexFile::CodeItem* code_item,
-                                         ShadowFrame* shadow_frame, JValue* result);
-  void (*pInterpreterToQuickEntry)(Thread* self, MethodHelper& mh,
-                                   const DexFile::CodeItem* code_item,
-                                   ShadowFrame* shadow_frame, JValue* result);
-
   // Intrinsics
   int32_t (*pIndexOf)(void*, uint32_t, uint32_t, uint32_t);
   int32_t (*pMemcmp16)(void*, void*, int32_t);
@@ -123,8 +116,8 @@ struct PACKED(4) QuickEntryPoints {
   void* (*pMemcpy)(void*, const void*, size_t);
 
   // Invocation
-  const void* (*pQuickResolutionTrampolineFromCode)(mirror::AbstractMethod*, mirror::Object*,
-                                                    mirror::AbstractMethod**, Thread*);
+  void (*pQuickResolutionTrampoline)(mirror::AbstractMethod*);
+  void (*pQuickToInterpreterBridge)(mirror::AbstractMethod*);
   void (*pInvokeDirectTrampolineWithAccessCheck)(uint32_t, void*);
   void (*pInvokeInterfaceTrampoline)(uint32_t, void*);
   void (*pInvokeInterfaceTrampolineWithAccessCheck)(uint32_t, void*);
@@ -133,22 +126,21 @@ struct PACKED(4) QuickEntryPoints {
   void (*pInvokeVirtualTrampolineWithAccessCheck)(uint32_t, void*);
 
   // Thread
-  void (*pCheckSuspendFromCode)(Thread*);  // Stub that is called when the suspend count is non-zero
-  void (*pTestSuspendFromCode)();  // Stub that is periodically called to test the suspend count
+  void (*pCheckSuspend)(Thread*);  // Stub that is called when the suspend count is non-zero
+  void (*pTestSuspend)();  // Stub that is periodically called to test the suspend count
 
   // Throws
   void (*pDeliverException)(void*);
-  void (*pThrowArrayBoundsFromCode)(int32_t, int32_t);
-  void (*pThrowDivZeroFromCode)();
-  void (*pThrowNoSuchMethodFromCode)(int32_t);
-  void (*pThrowNullPointerFromCode)();
-  void (*pThrowStackOverflowFromCode)(void*);
+  void (*pThrowArrayBounds)(int32_t, int32_t);
+  void (*pThrowDivZero)();
+  void (*pThrowNoSuchMethod)(int32_t);
+  void (*pThrowNullPointer)();
+  void (*pThrowStackOverflow)(void*);
 };
 
 
 // JNI entrypoints.
-extern uint32_t JniMethodStart(Thread* self)
-    UNLOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
+extern uint32_t JniMethodStart(Thread* self) UNLOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
 extern uint32_t JniMethodStartSynchronized(jobject to_lock, Thread* self)
     UNLOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
 extern void JniMethodEnd(uint32_t saved_local_ref_cookie, Thread* self)

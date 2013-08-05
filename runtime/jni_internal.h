@@ -144,6 +144,10 @@ struct JNIEnvExt : public JNIEnv {
     return Offset(OFFSETOF_MEMBER(JNIEnvExt, local_ref_cookie));
   }
 
+  static Offset SelfOffset() {
+    return Offset(OFFSETOF_MEMBER(JNIEnvExt, self));
+  }
+
   Thread* const self;
   JavaVMExt* vm;
 

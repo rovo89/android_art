@@ -714,8 +714,8 @@ void ArmMir2Lir::FreeCallTemps() {
   FreeTemp(r3);
 }
 
-int ArmMir2Lir::LoadHelper(int offset) {
-  LoadWordDisp(rARM_SELF, offset, rARM_LR);
+int ArmMir2Lir::LoadHelper(ThreadOffset offset) {
+  LoadWordDisp(rARM_SELF, offset.Int32Value(), rARM_LR);
   return rARM_LR;
 }
 

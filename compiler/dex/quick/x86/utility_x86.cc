@@ -292,7 +292,7 @@ LIR* X86Mir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src,
   return OpRegImm(op, r_dest, value);
 }
 
-LIR* X86Mir2Lir::OpThreadMem(OpKind op, int thread_offset) {
+LIR* X86Mir2Lir::OpThreadMem(OpKind op, ThreadOffset thread_offset) {
   X86OpCode opcode = kX86Bkpt;
   switch (op) {
     case kOpBlx: opcode = kX86CallT;  break;
@@ -300,7 +300,7 @@ LIR* X86Mir2Lir::OpThreadMem(OpKind op, int thread_offset) {
       LOG(FATAL) << "Bad opcode: " << op;
       break;
   }
-  return NewLIR1(opcode, thread_offset);
+  return NewLIR1(opcode, thread_offset.Int32Value());
 }
 
 LIR* X86Mir2Lir::OpMem(OpKind op, int rBase, int disp) {

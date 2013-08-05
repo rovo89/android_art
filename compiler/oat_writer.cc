@@ -51,11 +51,14 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
     size_oat_header_(0),
     size_oat_header_image_file_location_(0),
     size_dex_file_(0),
-    size_interpreter_to_interpreter_entry_(0),
-    size_interpreter_to_quick_entry_(0),
+    size_interpreter_to_interpreter_bridge_(0),
+    size_interpreter_to_compiled_code_bridge_(0),
+    size_jni_dlsym_lookup_(0),
     size_portable_resolution_trampoline_(0),
+    size_portable_to_interpreter_bridge_(0),
     size_quick_resolution_trampoline_(0),
-    size_stubs_alignment_(0),
+    size_quick_to_interpreter_bridge_(0),
+    size_trampoline_alignment_(0),
     size_code_size_(0),
     size_code_(0),
     size_code_alignment_(0),
@@ -176,30 +179,30 @@ size_t OatWriter::InitOatCode(size_t offset) {
   size_executable_offset_alignment_ = offset - old_offset;
   if (compiler_driver_->IsImage()) {
     InstructionSet instruction_set = compiler_driver_->GetInstructionSet();
-    oat_header_->SetInterpreterToInterpreterEntryOffset(offset);
-    interpreter_to_interpreter_entry_.reset(
-        compiler_driver_->CreateInterpreterToInterpreterEntry());
-    offset += interpreter_to_interpreter_entry_->size();
 
-    offset = CompiledCode::AlignCode(offset, instruction_set);
-    oat_header_->SetInterpreterToQuickEntryOffset(offset);
-    interpreter_to_quick_entry_.reset(compiler_driver_->CreateInterpreterToQuickEntry());
-    offset += interpreter_to_quick_entry_->size();
+    #define DO_TRAMPOLINE(field, fn_name) \
+      offset = CompiledCode::AlignCode(offset, instruction_set); \
+      oat_header_->Set ## fn_name ## Offset(offset); \
+      field.reset(compiler_driver_->Create ## fn_name()); \
+      offset += field->size();
 
-    offset = CompiledCode::AlignCode(offset, instruction_set);
-    oat_header_->SetPortableResolutionTrampolineOffset(offset);
-    portable_resolution_trampoline_.reset(compiler_driver_->CreatePortableResolutionTrampoline());
-    offset += portable_resolution_trampoline_->size();
+    DO_TRAMPOLINE(interpreter_to_interpreter_bridge_, InterpreterToInterpreterBridge);
+    DO_TRAMPOLINE(interpreter_to_compiled_code_bridge_, InterpreterToCompiledCodeBridge);
+    DO_TRAMPOLINE(jni_dlsym_lookup_, JniDlsymLookup);
+    DO_TRAMPOLINE(portable_resolution_trampoline_, PortableResolutionTrampoline);
+    DO_TRAMPOLINE(portable_to_interpreter_bridge_, PortableToInterpreterBridge);
+    DO_TRAMPOLINE(quick_resolution_trampoline_, QuickResolutionTrampoline);
+    DO_TRAMPOLINE(quick_to_interpreter_bridge_, QuickToInterpreterBridge);
 
-    offset = CompiledCode::AlignCode(offset, instruction_set);
-    oat_header_->SetQuickResolutionTrampolineOffset(offset);
-    quick_resolution_trampoline_.reset(compiler_driver_->CreateQuickResolutionTrampoline());
-    offset += quick_resolution_trampoline_->size();
+    #undef DO_TRAMPOLINE
   } else {
-    oat_header_->SetInterpreterToInterpreterEntryOffset(0);
-    oat_header_->SetInterpreterToQuickEntryOffset(0);
+    oat_header_->SetInterpreterToInterpreterBridgeOffset(0);
+    oat_header_->SetInterpreterToCompiledCodeBridgeOffset(0);
+    oat_header_->SetJniDlsymLookupOffset(0);
     oat_header_->SetPortableResolutionTrampolineOffset(0);
+    oat_header_->SetPortableToInterpreterBridgeOffset(0);
     oat_header_->SetQuickResolutionTrampolineOffset(0);
+    oat_header_->SetQuickToInterpreterBridgeOffset(0);
   }
   return offset;
 }
@@ -469,11 +472,14 @@ bool OatWriter::Write(OutputStream& out) {
     DO_STAT(size_oat_header_);
     DO_STAT(size_oat_header_image_file_location_);
     DO_STAT(size_dex_file_);
-    DO_STAT(size_interpreter_to_interpreter_entry_);
-    DO_STAT(size_interpreter_to_quick_entry_);
+    DO_STAT(size_interpreter_to_interpreter_bridge_);
+    DO_STAT(size_interpreter_to_compiled_code_bridge_);
+    DO_STAT(size_jni_dlsym_lookup_);
     DO_STAT(size_portable_resolution_trampoline_);
+    DO_STAT(size_portable_to_interpreter_bridge_);
     DO_STAT(size_quick_resolution_trampoline_);
-    DO_STAT(size_stubs_alignment_);
+    DO_STAT(size_quick_to_interpreter_bridge_);
+    DO_STAT(size_trampoline_alignment_);
     DO_STAT(size_code_size_);
     DO_STAT(size_code_);
     DO_STAT(size_code_alignment_);
@@ -545,52 +551,30 @@ size_t OatWriter::WriteCode(OutputStream& out, const size_t file_offset) {
   DCHECK_OFFSET();
   if (compiler_driver_->IsImage()) {
     InstructionSet instruction_set = compiler_driver_->GetInstructionSet();
-    if (!out.WriteFully(&(*interpreter_to_interpreter_entry_)[0],
-                        interpreter_to_interpreter_entry_->size())) {
-      PLOG(ERROR) << "Failed to write interpreter to interpreter entry to " << out.GetLocation();
-      return false;
-    }
-    size_interpreter_to_interpreter_entry_ += interpreter_to_interpreter_entry_->size();
-    relative_offset += interpreter_to_interpreter_entry_->size();
-    DCHECK_OFFSET();
 
-    uint32_t aligned_offset = CompiledCode::AlignCode(relative_offset, instruction_set);
-    uint32_t alignment_padding = aligned_offset - relative_offset;
-    out.Seek(alignment_padding, kSeekCurrent);
-    size_stubs_alignment_ += alignment_padding;
-    if (!out.WriteFully(&(*interpreter_to_quick_entry_)[0], interpreter_to_quick_entry_->size())) {
-      PLOG(ERROR) << "Failed to write interpreter to quick entry to " << out.GetLocation();
-      return false;
-    }
-    size_interpreter_to_quick_entry_ += interpreter_to_quick_entry_->size();
-    relative_offset += alignment_padding + interpreter_to_quick_entry_->size();
-    DCHECK_OFFSET();
+    #define DO_TRAMPOLINE(field) \
+      do { \
+        uint32_t aligned_offset = CompiledCode::AlignCode(relative_offset, instruction_set); \
+        uint32_t alignment_padding = aligned_offset - relative_offset; \
+        out.Seek(alignment_padding, kSeekCurrent); \
+        size_trampoline_alignment_ += alignment_padding; \
+        if (!out.WriteFully(&(*field)[0], field->size())) { \
+          PLOG(ERROR) << "Failed to write " # field " to " << out.GetLocation(); \
+          return false; \
+        } \
+        size_ ## field += field->size(); \
+        relative_offset += alignment_padding + field->size(); \
+        DCHECK_OFFSET(); \
+      } while (false)
 
-    aligned_offset = CompiledCode::AlignCode(relative_offset, instruction_set);
-    alignment_padding = aligned_offset - relative_offset;
-    out.Seek(alignment_padding, kSeekCurrent);
-    size_stubs_alignment_ += alignment_padding;
-    if (!out.WriteFully(&(*portable_resolution_trampoline_)[0],
-                        portable_resolution_trampoline_->size())) {
-      PLOG(ERROR) << "Failed to write portable resolution trampoline to " << out.GetLocation();
-      return false;
-    }
-    size_portable_resolution_trampoline_ += portable_resolution_trampoline_->size();
-    relative_offset += alignment_padding + portable_resolution_trampoline_->size();
-    DCHECK_OFFSET();
-
-    aligned_offset = CompiledCode::AlignCode(relative_offset, instruction_set);
-    alignment_padding = aligned_offset - relative_offset;
-    out.Seek(alignment_padding, kSeekCurrent);
-    size_stubs_alignment_ += alignment_padding;
-    if (!out.WriteFully(&(*quick_resolution_trampoline_)[0],
-                        quick_resolution_trampoline_->size())) {
-      PLOG(ERROR) << "Failed to write quick resolution trampoline to " << out.GetLocation();
-      return false;
-    }
-    size_quick_resolution_trampoline_ += quick_resolution_trampoline_->size();
-    relative_offset += alignment_padding + quick_resolution_trampoline_->size();
-    DCHECK_OFFSET();
+    DO_TRAMPOLINE(interpreter_to_interpreter_bridge_);
+    DO_TRAMPOLINE(interpreter_to_compiled_code_bridge_);
+    DO_TRAMPOLINE(jni_dlsym_lookup_);
+    DO_TRAMPOLINE(portable_resolution_trampoline_);
+    DO_TRAMPOLINE(portable_to_interpreter_bridge_);
+    DO_TRAMPOLINE(quick_resolution_trampoline_);
+    DO_TRAMPOLINE(quick_to_interpreter_bridge_);
+    #undef DO_TRAMPOLINE
   }
   return relative_offset;
 }
