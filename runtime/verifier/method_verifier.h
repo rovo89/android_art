@@ -648,7 +648,7 @@ class MethodVerifier {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void SetSafeCastMap(MethodReference ref, const MethodSafeCastSet* mscs);
       LOCKS_EXCLUDED(safecast_map_lock_);
-  static Mutex* safecast_map_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  static ReaderWriterMutex* safecast_map_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   static SafeCastMap* safecast_map_ GUARDED_BY(safecast_map_lock_);
 
   // Devirtualization map.
