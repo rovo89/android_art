@@ -38,4 +38,12 @@
     .cpload $t9
 .endm
 
+.macro UNIMPLEMENTED name
+    ENTRY \name
+    break
+    break
+    END \name
+.endm
+
+
 #endif  // ART_RUNTIME_ARCH_MIPS_ASM_SUPPORT_MIPS_S_

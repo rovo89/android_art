@@ -30,8 +30,7 @@ ENTRY art_jni_dlsym_lookup_stub
     sub    sp, #12                        @ pad stack pointer to align frame
     .pad #12
     .cfi_adjust_cfa_offset 12
-    mov    r0, r9                         @ pass Thread::Current
-    blx    artFindNativeMethod            @ (Thread*)
+    blx    artFindNativeMethod
     mov    r12, r0                        @ save result in r12
     add    sp, #12                        @ restore stack pointer
     .cfi_adjust_cfa_offset -12
@@ -46,7 +45,7 @@ END art_jni_dlsym_lookup_stub
      * Entry point of native methods when JNI bug compatibility is enabled.
      */
     .extern artWorkAroundAppJniBugs
-ENTRY art_quick_work_around_app_jni_bugs
+ENTRY art_work_around_app_jni_bugs
     @ save registers that may contain arguments and LR that will be crushed by a call
     push {r0-r3, lr}
     .save {r0-r3, lr}
@@ -64,4 +63,4 @@ ENTRY art_quick_work_around_app_jni_bugs
     pop {r0-r3, lr}  @ restore possibly modified argument registers
     .cfi_adjust_cfa_offset -16
     bx  r12          @ tail call into JNI routine
-END art_quick_work_around_app_jni_bugs
+END art_work_around_app_jni_bugs

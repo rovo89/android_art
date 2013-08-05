@@ -148,7 +148,7 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     }
   } else {
     // Not special, continue with regular interpreter execution.
-    artInterpreterToInterpreterEntry(self, mh, code_item, shadow_frame, result);
+    artInterpreterToInterpreterBridge(self, mh, code_item, shadow_frame, result);
   }
 }
 
@@ -3039,6 +3039,10 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
 
 static inline JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
                              ShadowFrame& shadow_frame, JValue result_register) {
+  DCHECK(shadow_frame.GetMethod() == mh.GetMethod() ||
+         shadow_frame.GetMethod()->GetDeclaringClass()->IsProxyClass());
+  DCHECK(!shadow_frame.GetMethod()->IsAbstract());
+  DCHECK(!shadow_frame.GetMethod()->IsNative());
   if (shadow_frame.GetMethod()->IsPreverified()) {
     // Enter the "without access check" interpreter.
     return ExecuteImpl<false>(self, mh, code_item, shadow_frame, result_register);
@@ -3150,8 +3154,7 @@ void EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame* shadow_frame, JVa
 }
 
 JValue EnterInterpreterFromStub(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
-                                ShadowFrame& shadow_frame)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+                                ShadowFrame& shadow_frame) {
   DCHECK_EQ(self, Thread::Current());
   if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEnd())) {
     ThrowStackOverflowError(self);
@@ -3161,10 +3164,9 @@ JValue EnterInterpreterFromStub(Thread* self, MethodHelper& mh, const DexFile::C
   return Execute(self, mh, code_item, shadow_frame, JValue());
 }
 
-void artInterpreterToInterpreterEntry(Thread* self, MethodHelper& mh,
-                                      const DexFile::CodeItem* code_item,
-                                      ShadowFrame* shadow_frame, JValue* result)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh,
+                                                  const DexFile::CodeItem* code_item,
+                                                  ShadowFrame* shadow_frame, JValue* result) {
   if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEnd())) {
     ThrowStackOverflowError(self);
     return;

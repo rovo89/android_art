@@ -41,9 +41,9 @@
 #include "mirror/throwable.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
-#include "stubs/stubs.h"
 #include "thread.h"
 #include "thread_pool.h"
+#include "trampolines/trampoline_compiler.h"
 #include "verifier/method_verifier.h"
 
 #if defined(ART_USE_PORTABLE_COMPILER)
@@ -433,64 +433,38 @@ CompilerTls* CompilerDriver::GetTls() {
   return res;
 }
 
+const std::vector<uint8_t>* CompilerDriver::CreateInterpreterToInterpreterBridge() const {
+  return CreateTrampoline(instruction_set_, kInterpreterAbi,
+                          INTERPRETER_ENTRYPOINT_OFFSET(pInterpreterToInterpreterBridge));
+}
+
+const std::vector<uint8_t>* CompilerDriver::CreateInterpreterToCompiledCodeBridge() const {
+  return CreateTrampoline(instruction_set_, kInterpreterAbi,
+                          INTERPRETER_ENTRYPOINT_OFFSET(pInterpreterToCompiledCodeBridge));
+}
+
+const std::vector<uint8_t>* CompilerDriver::CreateJniDlsymLookup() const {
+  return CreateTrampoline(instruction_set_, kJniAbi, JNI_ENTRYPOINT_OFFSET(pDlsymLookup));
+}
+
 const std::vector<uint8_t>* CompilerDriver::CreatePortableResolutionTrampoline() const {
-  switch (instruction_set_) {
-    case kArm:
-    case kThumb2:
-      return arm::CreatePortableResolutionTrampoline();
-    case kMips:
-      return mips::CreatePortableResolutionTrampoline();
-    case kX86:
-      return x86::CreatePortableResolutionTrampoline();
-    default:
-      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set_;
-      return NULL;
-  }
+  return CreateTrampoline(instruction_set_, kPortableAbi,
+                          PORTABLE_ENTRYPOINT_OFFSET(pPortableResolutionTrampoline));
+}
+
+const std::vector<uint8_t>* CompilerDriver::CreatePortableToInterpreterBridge() const {
+  return CreateTrampoline(instruction_set_, kPortableAbi,
+                          PORTABLE_ENTRYPOINT_OFFSET(pPortableToInterpreterBridge));
 }
 
 const std::vector<uint8_t>* CompilerDriver::CreateQuickResolutionTrampoline() const {
-  switch (instruction_set_) {
-    case kArm:
-    case kThumb2:
-      return arm::CreateQuickResolutionTrampoline();
-    case kMips:
-      return mips::CreateQuickResolutionTrampoline();
-    case kX86:
-      return x86::CreateQuickResolutionTrampoline();
-    default:
-      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set_;
-      return NULL;
-  }
+  return CreateTrampoline(instruction_set_, kQuickAbi,
+                          QUICK_ENTRYPOINT_OFFSET(pQuickResolutionTrampoline));
 }
 
-const std::vector<uint8_t>* CompilerDriver::CreateInterpreterToInterpreterEntry() const {
-  switch (instruction_set_) {
-    case kArm:
-    case kThumb2:
-      return arm::CreateInterpreterToInterpreterEntry();
-    case kMips:
-      return mips::CreateInterpreterToInterpreterEntry();
-    case kX86:
-      return x86::CreateInterpreterToInterpreterEntry();
-    default:
-      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set_;
-      return NULL;
-  }
-}
-
-const std::vector<uint8_t>* CompilerDriver::CreateInterpreterToQuickEntry() const {
-  switch (instruction_set_) {
-    case kArm:
-    case kThumb2:
-      return arm::CreateInterpreterToQuickEntry();
-    case kMips:
-      return mips::CreateInterpreterToQuickEntry();
-    case kX86:
-      return x86::CreateInterpreterToQuickEntry();
-    default:
-      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set_;
-      return NULL;
-  }
+const std::vector<uint8_t>* CompilerDriver::CreateQuickToInterpreterBridge() const {
+  return CreateTrampoline(instruction_set_, kQuickAbi,
+                          QUICK_ENTRYPOINT_OFFSET(pQuickToInterpreterBridge));
 }
 
 void CompilerDriver::CompileAll(jobject class_loader,

@@ -240,8 +240,8 @@ void X86Mir2Lir::OpLea(int rBase, int reg1, int reg2, int scale, int offset) {
   NewLIR5(kX86Lea32RA, rBase, reg1, reg2, scale, offset);
 }
 
-void X86Mir2Lir::OpTlsCmp(int offset, int val) {
-  NewLIR2(kX86Cmp16TI8, offset, val);
+void X86Mir2Lir::OpTlsCmp(ThreadOffset offset, int val) {
+  NewLIR2(kX86Cmp16TI8, offset.Int32Value(), val);
 }
 
 bool X86Mir2Lir::GenInlinedCas32(CallInfo* info, bool need_write_barrier) {
@@ -285,7 +285,7 @@ void X86Mir2Lir::GenDivZeroCheck(int reg_lo, int reg_hi) {
 
 // Test suspend flag, return target of taken suspend branch
 LIR* X86Mir2Lir::OpTestSuspend(LIR* target) {
-  OpTlsCmp(Thread::ThreadFlagsOffset().Int32Value(), 0);
+  OpTlsCmp(Thread::ThreadFlagsOffset(), 0);
   return OpCondBranch((target == NULL) ? kCondNe : kCondEq, target);
 }
 
@@ -403,7 +403,7 @@ void X86Mir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
   StoreValueWide(rl_dest, rl_result);
 }
 
-void X86Mir2Lir::OpRegThreadMem(OpKind op, int r_dest, int thread_offset) {
+void X86Mir2Lir::OpRegThreadMem(OpKind op, int r_dest, ThreadOffset thread_offset) {
   X86OpCode opcode = kX86Bkpt;
   switch (op) {
   case kOpCmp: opcode = kX86Cmp32RT;  break;
@@ -412,7 +412,7 @@ void X86Mir2Lir::OpRegThreadMem(OpKind op, int r_dest, int thread_offset) {
     LOG(FATAL) << "Bad opcode: " << op;
     break;
   }
-  NewLIR2(opcode, r_dest, thread_offset);
+  NewLIR2(opcode, r_dest, thread_offset.Int32Value());
 }
 
 /*
@@ -532,7 +532,7 @@ void X86Mir2Lir::GenArrayObjPut(int opt_flags, RegLocation rl_array,
 
   // Get the array's class.
   LoadWordDisp(r_array, mirror::Object::ClassOffset().Int32Value(), r_array_class);
-  CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(pCanPutArrayElementFromCode), r_value,
+  CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(pCanPutArrayElement), r_value,
                           r_array_class, true);
   // Redo LoadValues in case they didn't survive the call.
   LoadValueDirectFixed(rl_array, r_array);  // Reload array

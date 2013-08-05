@@ -22,7 +22,7 @@
 namespace art {
 
 const uint8_t OatHeader::kOatMagic[] = { 'o', 'a', 't', '\n' };
-const uint8_t OatHeader::kOatVersion[] = { '0', '0', '6', '\0' };
+const uint8_t OatHeader::kOatVersion[] = { '0', '0', '7', '\0' };
 
 OatHeader::OatHeader() {
   memset(this, 0, sizeof(*this));
@@ -57,10 +57,13 @@ OatHeader::OatHeader(InstructionSet instruction_set,
   UpdateChecksum(image_file_location.data(), image_file_location_size_);
 
   executable_offset_ = 0;
-  interpreter_to_interpreter_entry_offset_ = 0;
-  interpreter_to_quick_entry_offset_ = 0;
+  interpreter_to_interpreter_bridge_offset_ = 0;
+  interpreter_to_compiled_code_bridge_offset_ = 0;
+  jni_dlsym_lookup_offset_ = 0;
   portable_resolution_trampoline_offset_ = 0;
+  portable_to_interpreter_bridge_offset_ = 0;
   quick_resolution_trampoline_offset_ = 0;
+  quick_to_interpreter_bridge_offset_ = 0;
 }
 
 bool OatHeader::IsValid() const {
@@ -111,42 +114,61 @@ void OatHeader::SetExecutableOffset(uint32_t executable_offset) {
   UpdateChecksum(&executable_offset_, sizeof(executable_offset));
 }
 
-const void* OatHeader::GetInterpreterToInterpreterEntry() const {
-  return reinterpret_cast<const uint8_t*>(this) + GetInterpreterToInterpreterEntryOffset();
+const void* OatHeader::GetInterpreterToInterpreterBridge() const {
+  return reinterpret_cast<const uint8_t*>(this) + GetInterpreterToInterpreterBridgeOffset();
 }
 
-uint32_t OatHeader::GetInterpreterToInterpreterEntryOffset() const {
+uint32_t OatHeader::GetInterpreterToInterpreterBridgeOffset() const {
   DCHECK(IsValid());
-  CHECK_GE(interpreter_to_interpreter_entry_offset_, executable_offset_);
-  return interpreter_to_interpreter_entry_offset_;
+  CHECK_GE(interpreter_to_interpreter_bridge_offset_, executable_offset_);
+  return interpreter_to_interpreter_bridge_offset_;
 }
 
-void OatHeader::SetInterpreterToInterpreterEntryOffset(uint32_t offset) {
+void OatHeader::SetInterpreterToInterpreterBridgeOffset(uint32_t offset) {
   CHECK(offset == 0 || offset >= executable_offset_);
   DCHECK(IsValid());
-  DCHECK_EQ(interpreter_to_interpreter_entry_offset_, 0U) << offset;
+  DCHECK_EQ(interpreter_to_interpreter_bridge_offset_, 0U) << offset;
 
-  interpreter_to_interpreter_entry_offset_ = offset;
-  UpdateChecksum(&interpreter_to_interpreter_entry_offset_, sizeof(offset));
+  interpreter_to_interpreter_bridge_offset_ = offset;
+  UpdateChecksum(&interpreter_to_interpreter_bridge_offset_, sizeof(offset));
 }
 
-const void* OatHeader::GetInterpreterToQuickEntry() const {
-  return reinterpret_cast<const uint8_t*>(this) + GetInterpreterToQuickEntryOffset();
+const void* OatHeader::GetInterpreterToCompiledCodeBridge() const {
+  return reinterpret_cast<const uint8_t*>(this) + GetInterpreterToCompiledCodeBridgeOffset();
 }
 
-uint32_t OatHeader::GetInterpreterToQuickEntryOffset() const {
+uint32_t OatHeader::GetInterpreterToCompiledCodeBridgeOffset() const {
   DCHECK(IsValid());
-  CHECK_GE(interpreter_to_quick_entry_offset_, interpreter_to_interpreter_entry_offset_);
-  return interpreter_to_quick_entry_offset_;
+  CHECK_GE(interpreter_to_compiled_code_bridge_offset_, interpreter_to_interpreter_bridge_offset_);
+  return interpreter_to_compiled_code_bridge_offset_;
 }
 
-void OatHeader::SetInterpreterToQuickEntryOffset(uint32_t offset) {
-  CHECK(offset == 0 || offset >= interpreter_to_interpreter_entry_offset_);
+void OatHeader::SetInterpreterToCompiledCodeBridgeOffset(uint32_t offset) {
+  CHECK(offset == 0 || offset >= interpreter_to_interpreter_bridge_offset_);
   DCHECK(IsValid());
-  DCHECK_EQ(interpreter_to_quick_entry_offset_, 0U) << offset;
+  DCHECK_EQ(interpreter_to_compiled_code_bridge_offset_, 0U) << offset;
 
-  interpreter_to_quick_entry_offset_ = offset;
-  UpdateChecksum(&interpreter_to_quick_entry_offset_, sizeof(offset));
+  interpreter_to_compiled_code_bridge_offset_ = offset;
+  UpdateChecksum(&interpreter_to_compiled_code_bridge_offset_, sizeof(offset));
+}
+
+const void* OatHeader::GetJniDlsymLookup() const {
+  return reinterpret_cast<const uint8_t*>(this) + GetJniDlsymLookupOffset();
+}
+
+uint32_t OatHeader::GetJniDlsymLookupOffset() const {
+  DCHECK(IsValid());
+  CHECK_GE(jni_dlsym_lookup_offset_, interpreter_to_compiled_code_bridge_offset_);
+  return jni_dlsym_lookup_offset_;
+}
+
+void OatHeader::SetJniDlsymLookupOffset(uint32_t offset) {
+  CHECK(offset == 0 || offset >= interpreter_to_compiled_code_bridge_offset_);
+  DCHECK(IsValid());
+  DCHECK_EQ(jni_dlsym_lookup_offset_, 0U) << offset;
+
+  jni_dlsym_lookup_offset_ = offset;
+  UpdateChecksum(&jni_dlsym_lookup_offset_, sizeof(offset));
 }
 
 const void* OatHeader::GetPortableResolutionTrampoline() const {
@@ -155,17 +177,36 @@ const void* OatHeader::GetPortableResolutionTrampoline() const {
 
 uint32_t OatHeader::GetPortableResolutionTrampolineOffset() const {
   DCHECK(IsValid());
-  CHECK_GE(portable_resolution_trampoline_offset_, interpreter_to_quick_entry_offset_);
+  CHECK_GE(portable_resolution_trampoline_offset_, jni_dlsym_lookup_offset_);
   return portable_resolution_trampoline_offset_;
 }
 
 void OatHeader::SetPortableResolutionTrampolineOffset(uint32_t offset) {
-  CHECK(offset == 0 || offset >= interpreter_to_quick_entry_offset_);
+  CHECK(offset == 0 || offset >= jni_dlsym_lookup_offset_);
   DCHECK(IsValid());
   DCHECK_EQ(portable_resolution_trampoline_offset_, 0U) << offset;
 
   portable_resolution_trampoline_offset_ = offset;
   UpdateChecksum(&portable_resolution_trampoline_offset_, sizeof(offset));
+}
+
+const void* OatHeader::GetPortableToInterpreterBridge() const {
+  return reinterpret_cast<const uint8_t*>(this) + GetPortableToInterpreterBridgeOffset();
+}
+
+uint32_t OatHeader::GetPortableToInterpreterBridgeOffset() const {
+  DCHECK(IsValid());
+  CHECK_GE(portable_to_interpreter_bridge_offset_, portable_resolution_trampoline_offset_);
+  return portable_to_interpreter_bridge_offset_;
+}
+
+void OatHeader::SetPortableToInterpreterBridgeOffset(uint32_t offset) {
+  CHECK(offset == 0 || offset >= portable_resolution_trampoline_offset_);
+  DCHECK(IsValid());
+  DCHECK_EQ(portable_to_interpreter_bridge_offset_, 0U) << offset;
+
+  portable_to_interpreter_bridge_offset_ = offset;
+  UpdateChecksum(&portable_to_interpreter_bridge_offset_, sizeof(offset));
 }
 
 const void* OatHeader::GetQuickResolutionTrampoline() const {
@@ -174,17 +215,36 @@ const void* OatHeader::GetQuickResolutionTrampoline() const {
 
 uint32_t OatHeader::GetQuickResolutionTrampolineOffset() const {
   DCHECK(IsValid());
-  CHECK_GE(quick_resolution_trampoline_offset_, portable_resolution_trampoline_offset_);
+  CHECK_GE(quick_resolution_trampoline_offset_, portable_to_interpreter_bridge_offset_);
   return quick_resolution_trampoline_offset_;
 }
 
 void OatHeader::SetQuickResolutionTrampolineOffset(uint32_t offset) {
-  CHECK(offset == 0 || offset >= portable_resolution_trampoline_offset_);
+  CHECK(offset == 0 || offset >= portable_to_interpreter_bridge_offset_);
   DCHECK(IsValid());
   DCHECK_EQ(quick_resolution_trampoline_offset_, 0U) << offset;
 
   quick_resolution_trampoline_offset_ = offset;
   UpdateChecksum(&quick_resolution_trampoline_offset_, sizeof(offset));
+}
+
+const void* OatHeader::GetQuickToInterpreterBridge() const {
+  return reinterpret_cast<const uint8_t*>(this) + GetQuickToInterpreterBridgeOffset();
+}
+
+uint32_t OatHeader::GetQuickToInterpreterBridgeOffset() const {
+  DCHECK(IsValid());
+  CHECK_GE(quick_to_interpreter_bridge_offset_, quick_resolution_trampoline_offset_);
+  return quick_to_interpreter_bridge_offset_;
+}
+
+void OatHeader::SetQuickToInterpreterBridgeOffset(uint32_t offset) {
+  CHECK(offset == 0 || offset >= quick_resolution_trampoline_offset_);
+  DCHECK(IsValid());
+  DCHECK_EQ(quick_to_interpreter_bridge_offset_, 0U) << offset;
+
+  quick_to_interpreter_bridge_offset_ = offset;
+  UpdateChecksum(&quick_to_interpreter_bridge_offset_, sizeof(offset));
 }
 
 uint32_t OatHeader::GetImageFileLocationOatChecksum() const {

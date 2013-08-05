@@ -176,7 +176,7 @@ void MipsMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
 void MipsMir2Lir::GenCmpFP(Instruction::Code opcode, RegLocation rl_dest,
                            RegLocation rl_src1, RegLocation rl_src2) {
   bool wide = true;
-  int offset = -1;  // Make gcc happy.
+  ThreadOffset offset(-1);
 
   switch (opcode) {
     case Instruction::CMPL_FLOAT:

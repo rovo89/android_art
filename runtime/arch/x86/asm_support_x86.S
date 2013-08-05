@@ -88,4 +88,16 @@ MACRO1(POP, reg)
   .cfi_restore REG_VAR(reg,0)
 END_MACRO
 
+MACRO1(UNIMPLEMENTED,name)
+    .type VAR(name, 0), @function
+    .globl VAR(name, 0)
+    ALIGN_FUNCTION_ENTRY
+VAR(name, 0):
+    .cfi_startproc
+    int3
+    int3
+    .cfi_endproc
+    .size \name, .-\name
+END_MACRO
+
 #endif  // ART_RUNTIME_ARCH_X86_ASM_SUPPORT_X86_S_

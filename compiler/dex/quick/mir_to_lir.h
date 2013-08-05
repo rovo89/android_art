@@ -424,42 +424,42 @@ class Mir2Lir : public Backend {
                           RegLocation rl_src, int lit);
     void GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
                         RegLocation rl_src1, RegLocation rl_src2);
-    void GenConversionCall(int func_offset, RegLocation rl_dest,
+    void GenConversionCall(ThreadOffset func_offset, RegLocation rl_dest,
                            RegLocation rl_src);
     void GenSuspendTest(int opt_flags);
     void GenSuspendTestAndBranch(int opt_flags, LIR* target);
 
     // Shared by all targets - implemented in gen_invoke.cc.
-    int CallHelperSetup(int helper_offset);
-    LIR* CallHelper(int r_tgt, int helper_offset, bool safepoint_pc);
-    void CallRuntimeHelperImm(int helper_offset, int arg0, bool safepoint_pc);
-    void CallRuntimeHelperReg(int helper_offset, int arg0, bool safepoint_pc);
-    void CallRuntimeHelperRegLocation(int helper_offset, RegLocation arg0,
-                                       bool safepoint_pc);
-    void CallRuntimeHelperImmImm(int helper_offset, int arg0, int arg1,
+    int CallHelperSetup(ThreadOffset helper_offset);
+    LIR* CallHelper(int r_tgt, ThreadOffset helper_offset, bool safepoint_pc);
+    void CallRuntimeHelperImm(ThreadOffset helper_offset, int arg0, bool safepoint_pc);
+    void CallRuntimeHelperReg(ThreadOffset helper_offset, int arg0, bool safepoint_pc);
+    void CallRuntimeHelperRegLocation(ThreadOffset helper_offset, RegLocation arg0,
+                                      bool safepoint_pc);
+    void CallRuntimeHelperImmImm(ThreadOffset helper_offset, int arg0, int arg1,
                                  bool safepoint_pc);
-    void CallRuntimeHelperImmRegLocation(int helper_offset, int arg0,
+    void CallRuntimeHelperImmRegLocation(ThreadOffset helper_offset, int arg0,
                                          RegLocation arg1, bool safepoint_pc);
-    void CallRuntimeHelperRegLocationImm(int helper_offset, RegLocation arg0,
+    void CallRuntimeHelperRegLocationImm(ThreadOffset helper_offset, RegLocation arg0,
                                          int arg1, bool safepoint_pc);
-    void CallRuntimeHelperImmReg(int helper_offset, int arg0, int arg1,
+    void CallRuntimeHelperImmReg(ThreadOffset helper_offset, int arg0, int arg1,
                                  bool safepoint_pc);
-    void CallRuntimeHelperRegImm(int helper_offset, int arg0, int arg1,
+    void CallRuntimeHelperRegImm(ThreadOffset helper_offset, int arg0, int arg1,
                                  bool safepoint_pc);
-    void CallRuntimeHelperImmMethod(int helper_offset, int arg0,
+    void CallRuntimeHelperImmMethod(ThreadOffset helper_offset, int arg0,
                                     bool safepoint_pc);
-    void CallRuntimeHelperRegLocationRegLocation(int helper_offset,
+    void CallRuntimeHelperRegLocationRegLocation(ThreadOffset helper_offset,
                                                  RegLocation arg0, RegLocation arg1,
                                                  bool safepoint_pc);
-    void CallRuntimeHelperRegReg(int helper_offset, int arg0, int arg1,
+    void CallRuntimeHelperRegReg(ThreadOffset helper_offset, int arg0, int arg1,
                                  bool safepoint_pc);
-    void CallRuntimeHelperRegRegImm(int helper_offset, int arg0, int arg1,
+    void CallRuntimeHelperRegRegImm(ThreadOffset helper_offset, int arg0, int arg1,
                                     int arg2, bool safepoint_pc);
-    void CallRuntimeHelperImmMethodRegLocation(int helper_offset, int arg0,
+    void CallRuntimeHelperImmMethodRegLocation(ThreadOffset helper_offset, int arg0,
                                                RegLocation arg2, bool safepoint_pc);
-    void CallRuntimeHelperImmMethodImm(int helper_offset, int arg0, int arg2,
+    void CallRuntimeHelperImmMethodImm(ThreadOffset helper_offset, int arg0, int arg2,
                                        bool safepoint_pc);
-    void CallRuntimeHelperImmRegLocationRegLocation(int helper_offset,
+    void CallRuntimeHelperImmRegLocationRegLocation(ThreadOffset helper_offset,
                                                     int arg0, RegLocation arg1, RegLocation arg2,
                                                     bool safepoint_pc);
     void GenInvoke(CallInfo* info);
@@ -526,7 +526,7 @@ class Mir2Lir : public Backend {
     // Required for target - codegen helpers.
     virtual bool SmallLiteralDivide(Instruction::Code dalvik_opcode,
                                     RegLocation rl_src, RegLocation rl_dest, int lit) = 0;
-    virtual int LoadHelper(int offset) = 0;
+    virtual int LoadHelper(ThreadOffset offset) = 0;
     virtual LIR* LoadBaseDisp(int rBase, int displacement, int r_dest, OpSize size, int s_reg) = 0;
     virtual LIR* LoadBaseDispWide(int rBase, int displacement, int r_dest_lo, int r_dest_hi,
                                   int s_reg) = 0;
@@ -674,14 +674,14 @@ class Mir2Lir : public Backend {
     virtual LIR* OpRegRegReg(OpKind op, int r_dest, int r_src1,
                              int r_src2) = 0;
     virtual LIR* OpTestSuspend(LIR* target) = 0;
-    virtual LIR* OpThreadMem(OpKind op, int thread_offset) = 0;
+    virtual LIR* OpThreadMem(OpKind op, ThreadOffset thread_offset) = 0;
     virtual LIR* OpVldm(int rBase, int count) = 0;
     virtual LIR* OpVstm(int rBase, int count) = 0;
     virtual void OpLea(int rBase, int reg1, int reg2, int scale,
                        int offset) = 0;
     virtual void OpRegCopyWide(int dest_lo, int dest_hi, int src_lo,
                                int src_hi) = 0;
-    virtual void OpTlsCmp(int offset, int val) = 0;
+    virtual void OpTlsCmp(ThreadOffset offset, int val) = 0;
     virtual bool InexpensiveConstantInt(int32_t value) = 0;
     virtual bool InexpensiveConstantFloat(int32_t value) = 0;
     virtual bool InexpensiveConstantLong(int64_t value) = 0;

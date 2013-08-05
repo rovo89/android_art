@@ -142,6 +142,7 @@ LIBART_COMMON_SRC_FILES += \
 	arch/x86/registers_x86.cc \
 	arch/mips/registers_mips.cc \
 	entrypoints/entrypoint_utils.cc \
+	entrypoints/interpreter/interpreter_entrypoints.cc \
 	entrypoints/jni/jni_entrypoints.cc \
 	entrypoints/math_entrypoints.cc \
 	entrypoints/portable/portable_alloc_entrypoints.cc \
@@ -163,15 +164,13 @@ LIBART_COMMON_SRC_FILES += \
 	entrypoints/quick/quick_field_entrypoints.cc \
 	entrypoints/quick/quick_fillarray_entrypoints.cc \
 	entrypoints/quick/quick_instrumentation_entrypoints.cc \
-	entrypoints/quick/quick_interpreter_entrypoints.cc \
 	entrypoints/quick/quick_invoke_entrypoints.cc \
 	entrypoints/quick/quick_jni_entrypoints.cc \
 	entrypoints/quick/quick_lock_entrypoints.cc \
 	entrypoints/quick/quick_math_entrypoints.cc \
-	entrypoints/quick/quick_proxy_entrypoints.cc \
-	entrypoints/quick/quick_stub_entrypoints.cc \
 	entrypoints/quick/quick_thread_entrypoints.cc \
-	entrypoints/quick/quick_throw_entrypoints.cc
+	entrypoints/quick/quick_throw_entrypoints.cc \
+	entrypoints/quick/quick_trampoline_entrypoints.cc
 
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \

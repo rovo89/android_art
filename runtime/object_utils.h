@@ -411,6 +411,10 @@ class MethodHelper {
     shorty_ = NULL;
   }
 
+  const mirror::AbstractMethod* GetMethod() const {
+    return method_;
+  }
+
   const char* GetName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile& dex_file = GetDexFile();
     uint32_t dex_method_idx = method_->GetDexMethodIndex();

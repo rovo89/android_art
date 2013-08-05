@@ -208,12 +208,12 @@ void Mir2Lir::GenIntNarrowing(Instruction::Code opcode, RegLocation rl_dest,
 void Mir2Lir::GenNewArray(uint32_t type_idx, RegLocation rl_dest,
                           RegLocation rl_src) {
   FlushAllRegs();  /* Everything to home location */
-  int func_offset;
+  ThreadOffset func_offset(-1);
   if (cu_->compiler_driver->CanAccessTypeWithoutChecks(cu_->method_idx, *cu_->dex_file,
                                                        type_idx)) {
-    func_offset = QUICK_ENTRYPOINT_OFFSET(pAllocArrayFromCode);
+    func_offset = QUICK_ENTRYPOINT_OFFSET(pAllocArray);
   } else {
-    func_offset= QUICK_ENTRYPOINT_OFFSET(pAllocArrayFromCodeWithAccessCheck);
+    func_offset= QUICK_ENTRYPOINT_OFFSET(pAllocArrayWithAccessCheck);
   }
   CallRuntimeHelperImmMethodRegLocation(func_offset, type_idx, rl_src, true);
   RegLocation rl_result = GetReturn(false);
@@ -230,12 +230,12 @@ void Mir2Lir::GenFilledNewArray(CallInfo* info) {
   int elems = info->num_arg_words;
   int type_idx = info->index;
   FlushAllRegs();  /* Everything to home location */
-  int func_offset;
+  ThreadOffset func_offset(-1);
   if (cu_->compiler_driver->CanAccessTypeWithoutChecks(cu_->method_idx, *cu_->dex_file,
                                                        type_idx)) {
-    func_offset = QUICK_ENTRYPOINT_OFFSET(pCheckAndAllocArrayFromCode);
+    func_offset = QUICK_ENTRYPOINT_OFFSET(pCheckAndAllocArray);
   } else {
-    func_offset = QUICK_ENTRYPOINT_OFFSET(pCheckAndAllocArrayFromCodeWithAccessCheck);
+    func_offset = QUICK_ENTRYPOINT_OFFSET(pCheckAndAllocArrayWithAccessCheck);
   }
   CallRuntimeHelperImmMethodImm(func_offset, type_idx, elems, true);
   FreeTemp(TargetReg(kArg2));
@@ -408,9 +408,10 @@ void Mir2Lir::GenSput(uint32_t field_idx, RegLocation rl_src, bool is_long_or_do
     FreeTemp(rBase);
   } else {
     FlushAllRegs();  // Everything to home locations
-    int setter_offset = is_long_or_double ? QUICK_ENTRYPOINT_OFFSET(pSet64Static) :
-        (is_object ? QUICK_ENTRYPOINT_OFFSET(pSetObjStatic)
-        : QUICK_ENTRYPOINT_OFFSET(pSet32Static));
+    ThreadOffset setter_offset =
+        is_long_or_double ? QUICK_ENTRYPOINT_OFFSET(pSet64Static)
+                          : (is_object ? QUICK_ENTRYPOINT_OFFSET(pSetObjStatic)
+                                       : QUICK_ENTRYPOINT_OFFSET(pSet32Static));
     CallRuntimeHelperImmRegLocation(setter_offset, field_idx, rl_src, true);
   }
 }
@@ -483,9 +484,10 @@ void Mir2Lir::GenSget(uint32_t field_idx, RegLocation rl_dest,
     }
   } else {
     FlushAllRegs();  // Everything to home locations
-    int getterOffset = is_long_or_double ? QUICK_ENTRYPOINT_OFFSET(pGet64Static) :
-        (is_object ? QUICK_ENTRYPOINT_OFFSET(pGetObjStatic)
-        : QUICK_ENTRYPOINT_OFFSET(pGet32Static));
+    ThreadOffset getterOffset =
+        is_long_or_double ? QUICK_ENTRYPOINT_OFFSET(pGet64Static)
+                          :(is_object ? QUICK_ENTRYPOINT_OFFSET(pGetObjStatic)
+                                      : QUICK_ENTRYPOINT_OFFSET(pGet32Static));
     CallRuntimeHelperImm(getterOffset, field_idx, true);
     if (is_long_or_double) {
       RegLocation rl_result = GetReturnWide(rl_dest.fp);
@@ -499,7 +501,7 @@ void Mir2Lir::GenSget(uint32_t field_idx, RegLocation rl_dest,
 
 void Mir2Lir::HandleSuspendLaunchPads() {
   int num_elems = suspend_launchpads_.Size();
-  int helper_offset = QUICK_ENTRYPOINT_OFFSET(pTestSuspendFromCode);
+  ThreadOffset helper_offset = QUICK_ENTRYPOINT_OFFSET(pTestSuspend);
   for (int i = 0; i < num_elems; i++) {
     ResetRegPool();
     ResetDefTracking();
@@ -539,13 +541,13 @@ void Mir2Lir::HandleThrowLaunchPads() {
     LIR* lab = throw_launchpads_.Get(i);
     current_dalvik_offset_ = lab->operands[1];
     AppendLIR(lab);
-    int func_offset = 0;
+    ThreadOffset func_offset(-1);
     int v1 = lab->operands[2];
     int v2 = lab->operands[3];
     bool target_x86 = (cu_->instruction_set == kX86);
     switch (lab->operands[0]) {
       case kThrowNullPointer:
-        func_offset = QUICK_ENTRYPOINT_OFFSET(pThrowNullPointerFromCode);
+        func_offset = QUICK_ENTRYPOINT_OFFSET(pThrowNullPointer);
         break;
       case kThrowConstantArrayBounds:  // v1 is length reg (for Arm/Mips), v2 constant index
         // v1 holds the constant array index.  Mips/Arm uses v2 for length, x86 reloads.
@@ -557,7 +559,7 @@ void Mir2Lir::HandleThrowLaunchPads() {
         // Make sure the following LoadConstant doesn't mess with kArg1.
         LockTemp(TargetReg(kArg1));
         LoadConstant(TargetReg(kArg0), v2);
-        func_offset = QUICK_ENTRYPOINT_OFFSET(pThrowArrayBoundsFromCode);
+        func_offset = QUICK_ENTRYPOINT_OFFSET(pThrowArrayBounds);
         break;
       case kThrowArrayBounds:
         // Move v1 (array index) to kArg0 and v2 (array length) to kArg1
@@ -590,18 +592,18 @@ void Mir2Lir::HandleThrowLaunchPads() {
             OpRegCopy(TargetReg(kArg0), v1);
           }
         }
-        func_offset = QUICK_ENTRYPOINT_OFFSET(pThrowArrayBoundsFromCode);
+        func_offset = QUICK_ENTRYPOINT_OFFSET(pThrowArrayBounds);
         break;
       case kThrowDivZero:
-        func_offset = QUICK_ENTRYPOINT_OFFSET(pThrowDivZeroFromCode);
+        func_offset = QUICK_ENTRYPOINT_OFFSET(pThrowDivZero);
         break;
       case kThrowNoSuchMethod:
         OpRegCopy(TargetReg(kArg0), v1);
         func_offset =
-          QUICK_ENTRYPOINT_OFFSET(pThrowNoSuchMethodFromCode);
+          QUICK_ENTRYPOINT_OFFSET(pThrowNoSuchMethod);
         break;
       case kThrowStackOverflow:
-        func_offset = QUICK_ENTRYPOINT_OFFSET(pThrowStackOverflowFromCode);
+        func_offset = QUICK_ENTRYPOINT_OFFSET(pThrowStackOverflow);
         // Restore stack alignment
         if (target_x86) {
           OpRegImm(kOpAdd, TargetReg(kSp), frame_size_);
@@ -664,9 +666,10 @@ void Mir2Lir::GenIGet(uint32_t field_idx, int opt_flags, OpSize size,
       StoreValue(rl_dest, rl_result);
     }
   } else {
-    int getterOffset = is_long_or_double ? QUICK_ENTRYPOINT_OFFSET(pGet64Instance) :
-        (is_object ? QUICK_ENTRYPOINT_OFFSET(pGetObjInstance)
-        : QUICK_ENTRYPOINT_OFFSET(pGet32Instance));
+    ThreadOffset getterOffset =
+        is_long_or_double ? QUICK_ENTRYPOINT_OFFSET(pGet64Instance)
+                          : (is_object ? QUICK_ENTRYPOINT_OFFSET(pGetObjInstance)
+                                       : QUICK_ENTRYPOINT_OFFSET(pGet32Instance));
     CallRuntimeHelperImmRegLocation(getterOffset, field_idx, rl_obj, true);
     if (is_long_or_double) {
       RegLocation rl_result = GetReturnWide(rl_dest.fp);
@@ -719,9 +722,10 @@ void Mir2Lir::GenIPut(uint32_t field_idx, int opt_flags, OpSize size,
       }
     }
   } else {
-    int setter_offset = is_long_or_double ? QUICK_ENTRYPOINT_OFFSET(pSet64Instance) :
-        (is_object ? QUICK_ENTRYPOINT_OFFSET(pSetObjInstance)
-        : QUICK_ENTRYPOINT_OFFSET(pSet32Instance));
+    ThreadOffset setter_offset =
+        is_long_or_double ? QUICK_ENTRYPOINT_OFFSET(pSet64Instance)
+                          : (is_object ? QUICK_ENTRYPOINT_OFFSET(pSetObjInstance)
+                                       : QUICK_ENTRYPOINT_OFFSET(pSet32Instance));
     CallRuntimeHelperImmRegLocationRegLocation(setter_offset, field_idx, rl_obj, rl_src, true);
   }
 }
@@ -735,7 +739,7 @@ void Mir2Lir::GenConstClass(uint32_t type_idx, RegLocation rl_dest) {
                                                    type_idx)) {
     // Call out to helper which resolves type and verifies access.
     // Resolved type returned in kRet0.
-    CallRuntimeHelperImmReg(QUICK_ENTRYPOINT_OFFSET(pInitializeTypeAndVerifyAccessFromCode),
+    CallRuntimeHelperImmReg(QUICK_ENTRYPOINT_OFFSET(pInitializeTypeAndVerifyAccess),
                             type_idx, rl_method.low_reg, true);
     RegLocation rl_result = GetReturn(false);
     StoreValue(rl_dest, rl_result);
@@ -764,7 +768,7 @@ void Mir2Lir::GenConstClass(uint32_t type_idx, RegLocation rl_dest) {
       // TUNING: move slow path to end & remove unconditional branch
       LIR* target1 = NewLIR0(kPseudoTargetLabel);
       // Call out to helper, which will return resolved type in kArg0
-      CallRuntimeHelperImmReg(QUICK_ENTRYPOINT_OFFSET(pInitializeTypeFromCode), type_idx,
+      CallRuntimeHelperImmReg(QUICK_ENTRYPOINT_OFFSET(pInitializeType), type_idx,
                               rl_method.low_reg, true);
       RegLocation rl_result = GetReturn(false);
       StoreValue(rl_dest, rl_result);
@@ -797,7 +801,7 @@ void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
     LoadWordDisp(TargetReg(kArg2),
                  mirror::AbstractMethod::DexCacheStringsOffset().Int32Value(), TargetReg(kArg0));
     // Might call out to helper, which will return resolved string in kRet0
-    int r_tgt = CallHelperSetup(QUICK_ENTRYPOINT_OFFSET(pResolveStringFromCode));
+    int r_tgt = CallHelperSetup(QUICK_ENTRYPOINT_OFFSET(pResolveString));
     LoadWordDisp(TargetReg(kArg0), offset_of_string, TargetReg(kRet0));
     LoadConstant(TargetReg(kArg1), string_idx);
     if (cu_->instruction_set == kThumb2) {
@@ -821,7 +825,7 @@ void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
       branch->target = target;
     } else {
       DCHECK_EQ(cu_->instruction_set, kX86);
-      CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(pResolveStringFromCode), TargetReg(kArg2),
+      CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(pResolveString), TargetReg(kArg2),
                               TargetReg(kArg1), true);
     }
     GenBarrier();
@@ -845,12 +849,12 @@ void Mir2Lir::GenNewInstance(uint32_t type_idx, RegLocation rl_dest) {
   FlushAllRegs();  /* Everything to home location */
   // alloc will always check for resolution, do we also need to verify
   // access because the verifier was unable to?
-  int func_offset;
+  ThreadOffset func_offset(-1);
   if (cu_->compiler_driver->CanAccessInstantiableTypeWithoutChecks(
       cu_->method_idx, *cu_->dex_file, type_idx)) {
-    func_offset = QUICK_ENTRYPOINT_OFFSET(pAllocObjectFromCode);
+    func_offset = QUICK_ENTRYPOINT_OFFSET(pAllocObject);
   } else {
-    func_offset = QUICK_ENTRYPOINT_OFFSET(pAllocObjectFromCodeWithAccessCheck);
+    func_offset = QUICK_ENTRYPOINT_OFFSET(pAllocObjectWithAccessCheck);
   }
   CallRuntimeHelperImmMethod(func_offset, type_idx, true);
   RegLocation rl_result = GetReturn(false);
@@ -929,7 +933,7 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
   if (needs_access_check) {
     // Check we have access to type_idx and if not throw IllegalAccessError,
     // returns Class* in kArg0
-    CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(pInitializeTypeAndVerifyAccessFromCode),
+    CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(pInitializeTypeAndVerifyAccess),
                          type_idx, true);
     OpRegCopy(class_reg, TargetReg(kRet0));  // Align usage with fast path
     LoadValueDirectFixed(rl_src, TargetReg(kArg0));  // kArg0 <= ref
@@ -951,7 +955,7 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
       LIR* hop_branch = OpCmpImmBranch(kCondNe, class_reg, 0, NULL);
       // Not resolved
       // Call out to helper, which will return resolved type in kRet0
-      CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(pInitializeTypeFromCode), type_idx, true);
+      CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(pInitializeType), type_idx, true);
       OpRegCopy(TargetReg(kArg2), TargetReg(kRet0));  // Align usage with fast path
       LoadValueDirectFixed(rl_src, TargetReg(kArg0));  /* reload Ref */
       // Rejoin code paths
@@ -986,7 +990,7 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
     }
   } else {
     if (cu_->instruction_set == kThumb2) {
-      int r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pInstanceofNonTrivialFromCode));
+      int r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pInstanceofNonTrivial));
       if (!type_known_abstract) {
       /* Uses conditional nullification */
         OpRegReg(kOpCmp, TargetReg(kArg1), TargetReg(kArg2));  // Same?
@@ -1003,13 +1007,13 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
         branchover = OpCmpBranch(kCondEq, TargetReg(kArg1), TargetReg(kArg2), NULL);
       }
       if (cu_->instruction_set != kX86) {
-        int r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pInstanceofNonTrivialFromCode));
+        int r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pInstanceofNonTrivial));
         OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));    // .ne case - arg0 <= class
         OpReg(kOpBlx, r_tgt);    // .ne case: helper(class, ref->class)
         FreeTemp(r_tgt);
       } else {
         OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));
-        OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(pInstanceofNonTrivialFromCode));
+        OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(pInstanceofNonTrivial));
       }
     }
   }
@@ -1069,7 +1073,7 @@ void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_
     // Check we have access to type_idx and if not throw IllegalAccessError,
     // returns Class* in kRet0
     // InitializeTypeAndVerifyAccess(idx, method)
-    CallRuntimeHelperImmReg(QUICK_ENTRYPOINT_OFFSET(pInitializeTypeAndVerifyAccessFromCode),
+    CallRuntimeHelperImmReg(QUICK_ENTRYPOINT_OFFSET(pInitializeTypeAndVerifyAccess),
                             type_idx, TargetReg(kArg1), true);
     OpRegCopy(class_reg, TargetReg(kRet0));  // Align usage with fast path
   } else if (use_declaring_class) {
@@ -1089,7 +1093,7 @@ void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_
       // Not resolved
       // Call out to helper, which will return resolved type in kArg0
       // InitializeTypeFromCode(idx, method)
-      CallRuntimeHelperImmReg(QUICK_ENTRYPOINT_OFFSET(pInitializeTypeFromCode), type_idx,
+      CallRuntimeHelperImmReg(QUICK_ENTRYPOINT_OFFSET(pInitializeType), type_idx,
                               TargetReg(kArg1), true);
       OpRegCopy(class_reg, TargetReg(kRet0));  // Align usage with fast path
       // Rejoin code paths
@@ -1109,7 +1113,7 @@ void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_
   if (!type_known_abstract) {
     branch2 = OpCmpBranch(kCondEq, TargetReg(kArg1), class_reg, NULL);
   }
-  CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(pCheckCastFromCode), TargetReg(kArg1),
+  CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(pCheckCast), TargetReg(kArg1),
                           TargetReg(kArg2), true);
   /* branch target here */
   LIR* target = NewLIR0(kPseudoTargetLabel);
@@ -1168,7 +1172,7 @@ void Mir2Lir::GenLong3Addr(OpKind first_op, OpKind second_op, RegLocation rl_des
 
 void Mir2Lir::GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
                              RegLocation rl_src1, RegLocation rl_shift) {
-  int func_offset = -1;  // Make gcc happy
+  ThreadOffset func_offset(-1);
 
   switch (opcode) {
     case Instruction::SHL_LONG:
@@ -1303,7 +1307,7 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
       }
       rl_result = GenDivRem(rl_dest, rl_src1.low_reg, rl_src2.low_reg, op == kOpDiv);
     } else {
-      int func_offset = QUICK_ENTRYPOINT_OFFSET(pIdivmod);
+      ThreadOffset func_offset = QUICK_ENTRYPOINT_OFFSET(pIdivmod);
       FlushAllRegs();   /* Send everything to home location */
       LoadValueDirectFixed(rl_src2, TargetReg(kArg1));
       int r_tgt = CallHelperSetup(func_offset);
@@ -1558,7 +1562,7 @@ void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, Re
         FlushAllRegs();   /* Everything to home location */
         LoadValueDirectFixed(rl_src, TargetReg(kArg0));
         Clobber(TargetReg(kArg0));
-        int func_offset = QUICK_ENTRYPOINT_OFFSET(pIdivmod);
+        ThreadOffset func_offset = QUICK_ENTRYPOINT_OFFSET(pIdivmod);
         CallRuntimeHelperRegImm(func_offset, TargetReg(kArg0), lit, false);
         if (is_div)
           rl_result = GetReturn(false);
@@ -1589,7 +1593,7 @@ void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
   OpKind second_op = kOpBkpt;
   bool call_out = false;
   bool check_zero = false;
-  int func_offset;
+  ThreadOffset func_offset(-1);
   int ret_reg = TargetReg(kRet0);
 
   switch (opcode) {
@@ -1709,7 +1713,7 @@ void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
   }
 }
 
-void Mir2Lir::GenConversionCall(int func_offset,
+void Mir2Lir::GenConversionCall(ThreadOffset func_offset,
                                 RegLocation rl_dest, RegLocation rl_src) {
   /*
    * Don't optimize the register usage since it calls out to support
