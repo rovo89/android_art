@@ -4061,20 +4061,19 @@ void MethodVerifier::SetDexGcMap(MethodReference ref, const std::vector<uint8_t>
 
 void  MethodVerifier::SetSafeCastMap(MethodReference ref, const MethodSafeCastSet* cast_set) {
   DCHECK(Runtime::Current()->IsCompiler());
-  MutexLock mu(Thread::Current(), *safecast_map_lock_);
+  WriterMutexLock mu(Thread::Current(), *safecast_map_lock_);
   SafeCastMap::iterator it = safecast_map_->find(ref);
   if (it != safecast_map_->end()) {
     delete it->second;
     safecast_map_->erase(it);
   }
-
   safecast_map_->Put(ref, cast_set);
   DCHECK(safecast_map_->find(ref) != safecast_map_->end());
 }
 
 bool MethodVerifier::IsSafeCast(MethodReference ref, uint32_t pc) {
   DCHECK(Runtime::Current()->IsCompiler());
-  MutexLock mu(Thread::Current(), *safecast_map_lock_);
+  ReaderMutexLock mu(Thread::Current(), *safecast_map_lock_);
   SafeCastMap::const_iterator it = safecast_map_->find(ref);
   if (it == safecast_map_->end()) {
     return false;
@@ -4186,7 +4185,7 @@ bool MethodVerifier::IsCandidateForCompilation(const DexFile::CodeItem* code_ite
 ReaderWriterMutex* MethodVerifier::dex_gc_maps_lock_ = NULL;
 MethodVerifier::DexGcMapTable* MethodVerifier::dex_gc_maps_ = NULL;
 
-Mutex* MethodVerifier::safecast_map_lock_ = NULL;
+ReaderWriterMutex* MethodVerifier::safecast_map_lock_ = NULL;
 MethodVerifier::SafeCastMap* MethodVerifier::safecast_map_ = NULL;
 
 ReaderWriterMutex* MethodVerifier::devirt_maps_lock_ = NULL;
@@ -4204,9 +4203,9 @@ void MethodVerifier::Init() {
       dex_gc_maps_ = new MethodVerifier::DexGcMapTable;
     }
 
-    safecast_map_lock_ = new Mutex("verifier Cast Elision lock");
+    safecast_map_lock_ = new ReaderWriterMutex("verifier Cast Elision lock");
     {
-      MutexLock mu(self, *safecast_map_lock_);
+      WriterMutexLock mu(self, *safecast_map_lock_);
       safecast_map_ = new MethodVerifier::SafeCastMap();
     }
 
@@ -4239,7 +4238,7 @@ void MethodVerifier::Shutdown() {
     dex_gc_maps_lock_ = NULL;
 
     {
-      MutexLock mu(self, *safecast_map_lock_);
+      WriterMutexLock mu(self, *safecast_map_lock_);
       STLDeleteValues(safecast_map_);
       delete safecast_map_;
       safecast_map_ = NULL;
