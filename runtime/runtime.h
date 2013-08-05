@@ -97,6 +97,7 @@ class Runtime {
     size_t heap_max_free_;
     double heap_target_utilization_;
     size_t stack_size_;
+    bool low_memory_mode_;
     size_t lock_profiling_threshold_;
     std::string stack_trace_file_;
     bool method_trace_;

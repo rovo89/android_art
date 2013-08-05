@@ -68,12 +68,13 @@ static const size_t kMinConcurrentRemainingBytes = 128 * KB;
 const double Heap::kDefaultTargetUtilization = 0.5;
 
 Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max_free,
-           double target_utilization, size_t capacity,
-           const std::string& original_image_file_name, bool concurrent_gc, size_t num_gc_threads)
+           double target_utilization, size_t capacity, const std::string& original_image_file_name,
+           bool concurrent_gc, size_t num_gc_threads, bool low_memory_mode)
     : alloc_space_(NULL),
       card_table_(NULL),
       concurrent_gc_(concurrent_gc),
       num_gc_threads_(num_gc_threads),
+      low_memory_mode_(low_memory_mode),
       have_zygote_space_(false),
       reference_queue_lock_(NULL),
       is_gc_running_(false),
@@ -1855,9 +1856,9 @@ void Heap::RequestHeapTrim() {
   uint64_t ms_time = MilliTime();
   float utilization =
       static_cast<float>(alloc_space_->GetBytesAllocated()) / alloc_space_->Size();
-  if ((utilization > 0.75f) || ((ms_time - last_trim_time_ms_) < 2 * 1000)) {
-    // Don't bother trimming the alloc space if it's more than 75% utilized, or if a
-    // heap trim occurred in the last two seconds.
+  if ((utilization > 0.75f && !IsLowMemoryMode()) || ((ms_time - last_trim_time_ms_) < 2 * 1000)) {
+    // Don't bother trimming the alloc space if it's more than 75% utilized and low memory mode is
+    // not enabled, or if a heap trim occurred in the last two seconds.
     return;
   }
 
