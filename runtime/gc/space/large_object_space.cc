@@ -55,7 +55,7 @@ LargeObjectMapSpace* LargeObjectMapSpace::Create(const std::string& name) {
   return new LargeObjectMapSpace(name);
 }
 
-mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes) {
+mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated) {
   MemMap* mem_map = MemMap::MapAnonymous("large object space allocation", NULL, num_bytes,
                                          PROT_READ | PROT_WRITE);
   if (mem_map == NULL) {
@@ -66,6 +66,9 @@ mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes) {
   large_objects_.push_back(obj);
   mem_maps_.Put(obj, mem_map);
   size_t allocation_size = mem_map->Size();
+  if (bytes_allocated != NULL) {
+    *bytes_allocated = allocation_size;
+  }
   num_bytes_allocated_ += allocation_size;
   total_bytes_allocated_ += allocation_size;
   ++num_objects_allocated_;
@@ -239,7 +242,7 @@ size_t FreeListSpace::AllocationSize(const mirror::Object* obj) {
   return chunk->GetSize();
 }
 
-mirror::Object* FreeListSpace::Alloc(Thread* self, size_t num_bytes) {
+mirror::Object* FreeListSpace::Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated) {
   MutexLock mu(self, lock_);
   num_bytes = RoundUp(num_bytes, kAlignment);
   Chunk temp;
@@ -262,6 +265,9 @@ mirror::Object* FreeListSpace::Alloc(Thread* self, size_t num_bytes) {
     AddFreeChunk(AddrFromChunk(new_chunk), chunk_size - num_bytes, chunk);
   }
 
+  if (bytes_allocated != NULL) {
+    *bytes_allocated = num_bytes;
+  }
   num_objects_allocated_++;
   total_objects_allocated_++;
   num_bytes_allocated_ += num_bytes;

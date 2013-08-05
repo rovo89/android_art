@@ -21,6 +21,7 @@
 
 #include <limits>
 #include <vector>
+#include <valgrind.h>
 
 #include "base/stl_util.h"
 #include "common_throws.h"
@@ -34,6 +35,7 @@
 #include "gc/collector/mark_sweep-inl.h"
 #include "gc/collector/partial_mark_sweep.h"
 #include "gc/collector/sticky_mark_sweep.h"
+#include "gc/space/dlmalloc_space-inl.h"
 #include "gc/space/image_space.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
@@ -66,6 +68,8 @@ static const bool kDumpGcPerformanceOnShutdown = false;
 // Minimum amount of remaining bytes before a concurrent GC is triggered.
 static const size_t kMinConcurrentRemainingBytes = 128 * KB;
 const double Heap::kDefaultTargetUtilization = 0.5;
+// If true, measure the total allocation time.
+static const bool kMeasureAllocationTime = false;
 
 Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max_free,
            double target_utilization, size_t capacity,
@@ -118,9 +122,9 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       max_free_(max_free),
       target_utilization_(target_utilization),
       total_wait_time_(0),
-      measure_allocation_time_(false),
       total_allocation_time_(0),
-      verify_object_mode_(kHeapVerificationNotPermitted) {
+      verify_object_mode_(kHeapVerificationNotPermitted),
+      running_on_valgrind_(RUNNING_ON_VALGRIND) {
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() entering";
   }
@@ -347,7 +351,7 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
   }
   os << "Total number of allocations: " << total_objects_allocated << "\n";
   os << "Total bytes allocated " << PrettySize(total_bytes_allocated) << "\n";
-  if (measure_allocation_time_) {
+  if (kMeasureAllocationTime) {
     os << "Total time spent allocating: " << PrettyDuration(allocation_time) << "\n";
     os << "Mean allocation time: " << PrettyDuration(allocation_time / total_objects_allocated)
        << "\n";
@@ -445,8 +449,9 @@ mirror::Object* Heap::AllocObject(Thread* self, mirror::Class* c, size_t byte_co
 
   mirror::Object* obj = NULL;
   size_t size = 0;
+  size_t bytes_allocated;
   uint64_t allocation_start = 0;
-  if (UNLIKELY(measure_allocation_time_)) {
+  if (UNLIKELY(kMeasureAllocationTime)) {
     allocation_start = NanoTime() / kTimeAdjust;
   }
 
@@ -458,18 +463,20 @@ mirror::Object* Heap::AllocObject(Thread* self, mirror::Class* c, size_t byte_co
       byte_count >= large_object_threshold_ && have_zygote_space_ && c->IsPrimitiveArray();
   if (UNLIKELY(large_object_allocation)) {
     size = RoundUp(byte_count, kPageSize);
-    obj = Allocate(self, large_object_space_, size);
+    obj = Allocate(self, large_object_space_, size, &bytes_allocated);
+    DCHECK(obj == NULL || size == bytes_allocated);
     // Make sure that our large object didn't get placed anywhere within the space interval or else
     // it breaks the immune range.
     DCHECK(obj == NULL ||
            reinterpret_cast<byte*>(obj) < continuous_spaces_.front()->Begin() ||
            reinterpret_cast<byte*>(obj) >= continuous_spaces_.back()->End());
   } else {
-    obj = Allocate(self, alloc_space_, byte_count);
+    obj = Allocate(self, alloc_space_, byte_count, &bytes_allocated);
+    DCHECK(obj == NULL || size <= bytes_allocated);
+    size = bytes_allocated;
 
     // Ensure that we did not allocate into a zygote space.
     DCHECK(obj == NULL || !have_zygote_space_ || !FindSpaceFromObject(obj, false)->IsZygoteSpace());
-    size = alloc_space_->AllocationSize(obj);
   }
 
   if (LIKELY(obj != NULL)) {
@@ -487,9 +494,11 @@ mirror::Object* Heap::AllocObject(Thread* self, mirror::Class* c, size_t byte_co
       SirtRef<mirror::Object> ref(self, obj);
       RequestConcurrentGC(self);
     }
-    VerifyObject(obj);
+    if (kDesiredHeapVerification > kNoHeapVerification) {
+      VerifyObject(obj);
+    }
 
-    if (UNLIKELY(measure_allocation_time_)) {
+    if (UNLIKELY(kMeasureAllocationTime)) {
       total_allocation_time_.fetch_add(NanoTime() / kTimeAdjust - allocation_start);
     }
 
@@ -645,7 +654,7 @@ void Heap::VerifyHeap() {
   GetLiveBitmap()->Walk(Heap::VerificationCallback, this);
 }
 
-void Heap::RecordAllocation(size_t size, mirror::Object* obj) {
+inline void Heap::RecordAllocation(size_t size, mirror::Object* obj) {
   DCHECK(obj != NULL);
   DCHECK_GT(size, 0u);
   num_bytes_allocated_.fetch_add(size);
@@ -684,37 +693,55 @@ void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
   }
 }
 
-mirror::Object* Heap::TryToAllocate(Thread* self, space::AllocSpace* space, size_t alloc_size,
-                                    bool grow) {
-  // Should we try to use a CAS here and fix up num_bytes_allocated_ later with AllocationSize?
-  if (num_bytes_allocated_ + alloc_size > max_allowed_footprint_) {
-    // max_allowed_footprint_ <= growth_limit_ so it is safe to check in here.
-    if (num_bytes_allocated_ + alloc_size > growth_limit_) {
-      // Completely out of memory.
-      return NULL;
-    }
-  }
-
-  return space->Alloc(self, alloc_size);
+inline bool Heap::IsOutOfMemoryOnAllocation(size_t alloc_size) {
+  return num_bytes_allocated_ + alloc_size > growth_limit_;
 }
 
-mirror::Object* Heap::Allocate(Thread* self, space::AllocSpace* space, size_t alloc_size) {
+inline mirror::Object* Heap::TryToAllocate(Thread* self, space::AllocSpace* space, size_t alloc_size,
+                                           bool grow, size_t* bytes_allocated) {
+  if (IsOutOfMemoryOnAllocation(alloc_size)) {
+    return NULL;
+  }
+  return space->Alloc(self, alloc_size, bytes_allocated);
+}
+
+// DlMallocSpace-specific version.
+inline mirror::Object* Heap::TryToAllocate(Thread* self, space::DlMallocSpace* space, size_t alloc_size,
+                                           bool grow, size_t* bytes_allocated) {
+  if (IsOutOfMemoryOnAllocation(alloc_size)) {
+    return NULL;
+  }
+  if (!running_on_valgrind_) {
+    return space->AllocNonvirtual(self, alloc_size, bytes_allocated);
+  } else {
+    return space->Alloc(self, alloc_size, bytes_allocated);
+  }
+}
+
+template <class T>
+inline mirror::Object* Heap::Allocate(Thread* self, T* space, size_t alloc_size, size_t* bytes_allocated) {
   // Since allocation can cause a GC which will need to SuspendAll, make sure all allocations are
   // done in the runnable state where suspension is expected.
   DCHECK_EQ(self->GetState(), kRunnable);
   self->AssertThreadSuspensionIsAllowable();
 
-  mirror::Object* ptr = TryToAllocate(self, space, alloc_size, false);
+  mirror::Object* ptr = TryToAllocate(self, space, alloc_size, false, bytes_allocated);
   if (ptr != NULL) {
     return ptr;
   }
+  return AllocateInternalWithGc(self, space, alloc_size, bytes_allocated);
+}
+
+mirror::Object* Heap::AllocateInternalWithGc(Thread* self, space::AllocSpace* space, size_t alloc_size,
+                                             size_t* bytes_allocated) {
+  mirror::Object* ptr;
 
   // The allocation failed. If the GC is running, block until it completes, and then retry the
   // allocation.
   collector::GcType last_gc = WaitForConcurrentGcToComplete(self);
   if (last_gc != collector::kGcTypeNone) {
     // A GC was in progress and we blocked, retry allocation now that memory has been freed.
-    ptr = TryToAllocate(self, space, alloc_size, false);
+    ptr = TryToAllocate(self, space, alloc_size, false, bytes_allocated);
     if (ptr != NULL) {
       return ptr;
     }
@@ -749,7 +776,7 @@ mirror::Object* Heap::Allocate(Thread* self, space::AllocSpace* space, size_t al
       i = static_cast<size_t>(gc_type_ran);
 
       // Did we free sufficient memory for the allocation to succeed?
-      ptr = TryToAllocate(self, space, alloc_size, false);
+      ptr = TryToAllocate(self, space, alloc_size, false, bytes_allocated);
       if (ptr != NULL) {
         return ptr;
       }
@@ -758,7 +785,7 @@ mirror::Object* Heap::Allocate(Thread* self, space::AllocSpace* space, size_t al
 
   // Allocations have failed after GCs;  this is an exceptional state.
   // Try harder, growing the heap if necessary.
-  ptr = TryToAllocate(self, space, alloc_size, true);
+  ptr = TryToAllocate(self, space, alloc_size, true, bytes_allocated);
   if (ptr != NULL) {
     return ptr;
   }
@@ -773,7 +800,7 @@ mirror::Object* Heap::Allocate(Thread* self, space::AllocSpace* space, size_t al
 
   // We don't need a WaitForConcurrentGcToComplete here either.
   CollectGarbageInternal(collector::kGcTypeFull, kGcCauseForAlloc, true);
-  return TryToAllocate(self, space, alloc_size, true);
+  return TryToAllocate(self, space, alloc_size, true, bytes_allocated);
 }
 
 void Heap::SetTargetHeapUtilization(float target) {

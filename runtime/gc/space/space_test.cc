@@ -88,32 +88,35 @@ TEST_F(SpaceTest, ZygoteSpace) {
     Thread* self = Thread::Current();
 
     // Succeeds, fits without adjusting the footprint limit.
-    mirror::Object* ptr1 = space->Alloc(self, 1 * MB);
+    mirror::Object* ptr1 = space->Alloc(self, 1 * MB, NULL);
     EXPECT_TRUE(ptr1 != NULL);
 
     // Fails, requires a higher footprint limit.
-    mirror::Object* ptr2 = space->Alloc(self, 8 * MB);
+    mirror::Object* ptr2 = space->Alloc(self, 8 * MB, NULL);
     EXPECT_TRUE(ptr2 == NULL);
 
     // Succeeds, adjusts the footprint.
-    mirror::Object* ptr3 = space->AllocWithGrowth(self, 8 * MB);
+    size_t ptr3_bytes_allocated;
+    mirror::Object* ptr3 = space->AllocWithGrowth(self, 8 * MB, &ptr3_bytes_allocated);
     EXPECT_TRUE(ptr3 != NULL);
+    EXPECT_LE(8U * MB, ptr3_bytes_allocated);
 
     // Fails, requires a higher footprint limit.
-    mirror::Object* ptr4 = space->Alloc(self, 8 * MB);
+    mirror::Object* ptr4 = space->Alloc(self, 8 * MB, NULL);
     EXPECT_TRUE(ptr4 == NULL);
 
     // Also fails, requires a higher allowed footprint.
-    mirror::Object* ptr5 = space->AllocWithGrowth(self, 8 * MB);
+    mirror::Object* ptr5 = space->AllocWithGrowth(self, 8 * MB, NULL);
     EXPECT_TRUE(ptr5 == NULL);
 
     // Release some memory.
     size_t free3 = space->AllocationSize(ptr3);
+    EXPECT_EQ(free3, ptr3_bytes_allocated);
     EXPECT_EQ(free3, space->Free(self, ptr3));
     EXPECT_LE(8U * MB, free3);
 
     // Succeeds, now that memory has been freed.
-    void* ptr6 = space->AllocWithGrowth(self, 9 * MB);
+    void* ptr6 = space->AllocWithGrowth(self, 9 * MB, NULL);
     EXPECT_TRUE(ptr6 != NULL);
 
     // Final clean up.
@@ -122,22 +125,22 @@ TEST_F(SpaceTest, ZygoteSpace) {
     EXPECT_LE(1U * MB, free1);
 
     // Make sure that the zygote space isn't directly at the start of the space.
-    space->Alloc(self, 1U * MB);
+    space->Alloc(self, 1U * MB, NULL);
     space = space->CreateZygoteSpace("alloc space");
 
     // Make space findable to the heap, will also delete space when runtime is cleaned up
     AddContinuousSpace(space);
 
     // Succeeds, fits without adjusting the footprint limit.
-    ptr1 = space->Alloc(self, 1 * MB);
+    ptr1 = space->Alloc(self, 1 * MB, NULL);
     EXPECT_TRUE(ptr1 != NULL);
 
     // Fails, requires a higher footprint limit.
-    ptr2 = space->Alloc(self, 8 * MB);
+    ptr2 = space->Alloc(self, 8 * MB, NULL);
     EXPECT_TRUE(ptr2 == NULL);
 
     // Succeeds, adjusts the footprint.
-    ptr3 = space->AllocWithGrowth(self, 2 * MB);
+    ptr3 = space->AllocWithGrowth(self, 2 * MB, NULL);
     EXPECT_TRUE(ptr3 != NULL);
     space->Free(self, ptr3);
 
@@ -156,32 +159,35 @@ TEST_F(SpaceTest, AllocAndFree) {
   AddContinuousSpace(space);
 
   // Succeeds, fits without adjusting the footprint limit.
-  mirror::Object* ptr1 = space->Alloc(self, 1 * MB);
+  mirror::Object* ptr1 = space->Alloc(self, 1 * MB, NULL);
   EXPECT_TRUE(ptr1 != NULL);
 
   // Fails, requires a higher footprint limit.
-  mirror::Object* ptr2 = space->Alloc(self, 8 * MB);
+  mirror::Object* ptr2 = space->Alloc(self, 8 * MB, NULL);
   EXPECT_TRUE(ptr2 == NULL);
 
   // Succeeds, adjusts the footprint.
-  mirror::Object* ptr3 = space->AllocWithGrowth(self, 8 * MB);
+  size_t ptr3_bytes_allocated;
+  mirror::Object* ptr3 = space->AllocWithGrowth(self, 8 * MB, &ptr3_bytes_allocated);
   EXPECT_TRUE(ptr3 != NULL);
+  EXPECT_LE(8U * MB, ptr3_bytes_allocated);
 
   // Fails, requires a higher footprint limit.
-  mirror::Object* ptr4 = space->Alloc(self, 8 * MB);
+  mirror::Object* ptr4 = space->Alloc(self, 8 * MB, NULL);
   EXPECT_TRUE(ptr4 == NULL);
 
   // Also fails, requires a higher allowed footprint.
-  mirror::Object* ptr5 = space->AllocWithGrowth(self, 8 * MB);
+  mirror::Object* ptr5 = space->AllocWithGrowth(self, 8 * MB, NULL);
   EXPECT_TRUE(ptr5 == NULL);
 
   // Release some memory.
   size_t free3 = space->AllocationSize(ptr3);
+  EXPECT_EQ(free3, ptr3_bytes_allocated);
   space->Free(self, ptr3);
   EXPECT_LE(8U * MB, free3);
 
   // Succeeds, now that memory has been freed.
-  void* ptr6 = space->AllocWithGrowth(self, 9 * MB);
+  void* ptr6 = space->AllocWithGrowth(self, 9 * MB, NULL);
   EXPECT_TRUE(ptr6 != NULL);
 
   // Final clean up.
@@ -201,7 +207,7 @@ TEST_F(SpaceTest, AllocAndFreeList) {
   // Succeeds, fits without adjusting the max allowed footprint.
   mirror::Object* lots_of_objects[1024];
   for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
-    lots_of_objects[i] = space->Alloc(self, 16);
+    lots_of_objects[i] = space->Alloc(self, 16, NULL);
     EXPECT_TRUE(lots_of_objects[i] != NULL);
   }
 
@@ -213,7 +219,7 @@ TEST_F(SpaceTest, AllocAndFreeList) {
 
   // Succeeds, fits by adjusting the max allowed footprint.
   for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
-    lots_of_objects[i] = space->AllocWithGrowth(self, 1024);
+    lots_of_objects[i] = space->AllocWithGrowth(self, 1024, NULL);
     EXPECT_TRUE(lots_of_objects[i] != NULL);
   }
 
@@ -276,9 +282,9 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(DlMallocSpace* space, intptr
       }
       mirror::Object* object;
       if (round <= 1) {
-        object = space->Alloc(self, alloc_size);
+        object = space->Alloc(self, alloc_size, NULL);
       } else {
-        object = space->AllocWithGrowth(self, alloc_size);
+        object = space->AllocWithGrowth(self, alloc_size, NULL);
       }
       footprint = mspace_footprint(mspace);
       EXPECT_GE(space->Size(), footprint);  // invariant
@@ -355,9 +361,9 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(DlMallocSpace* space, intptr
   mirror::Object* large_object;
   size_t three_quarters_space = (growth_limit / 2) + (growth_limit / 4);
   if (round <= 1) {
-    large_object = space->Alloc(self, three_quarters_space);
+    large_object = space->Alloc(self, three_quarters_space, NULL);
   } else {
-    large_object = space->AllocWithGrowth(self, three_quarters_space);
+    large_object = space->AllocWithGrowth(self, three_quarters_space, NULL);
   }
   EXPECT_TRUE(large_object != NULL);
 

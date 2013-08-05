@@ -50,15 +50,23 @@ class DlMallocSpace : public MemMapSpace, public AllocSpace {
                                size_t capacity, byte* requested_begin);
 
   // Allocate num_bytes without allowing the underlying mspace to grow.
-  virtual mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes);
+  virtual mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes,
+                                          size_t* bytes_allocated) LOCKS_EXCLUDED(lock_);
 
   // Allocate num_bytes allowing the underlying mspace to grow.
-  virtual mirror::Object* Alloc(Thread* self, size_t num_bytes);
+  virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated);
 
   // Return the storage space required by obj.
   virtual size_t AllocationSize(const mirror::Object* obj);
   virtual size_t Free(Thread* self, mirror::Object* ptr);
   virtual size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs);
+
+  mirror::Object* AllocNonvirtual(Thread* self, size_t num_bytes, size_t* bytes_allocated);
+
+  size_t AllocationSizeNonvirtual(const mirror::Object* obj) {
+    return mspace_usable_size(const_cast<void*>(reinterpret_cast<const void*>(obj))) +
+        kChunkOverhead;
+  }
 
   void* MoreCore(intptr_t increment);
 
@@ -141,7 +149,8 @@ class DlMallocSpace : public MemMapSpace, public AllocSpace {
 
  private:
   size_t InternalAllocationSize(const mirror::Object* obj);
-  mirror::Object* AllocWithoutGrowthLocked(size_t num_bytes) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  mirror::Object* AllocWithoutGrowthLocked(size_t num_bytes, size_t* bytes_allocated)
+      EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   bool Init(size_t initial_size, size_t maximum_size, size_t growth_size, byte* requested_base);
 
