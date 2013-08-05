@@ -418,7 +418,6 @@ void SeaGraph::CompileMethod(const art::DexFile::CodeItem* code_item, uint32_t c
   // Two Passes: Phi node insertion.
   ConvertToSSA();
   // Pass: type inference
-  std::cout << "TYPES." << std::endl;
   ti_->ComputeTypes(this);
   // Pass: Generate LLVM IR.
   GenerateLLVM();

@@ -43,7 +43,7 @@ class TypeInferenceVisitor: public IRVisitor {
   void Visit(Region* region) { }
 
   void Visit(PhiInstructionNode* instruction) { }
-  void Visit(SignatureNode* parameter) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void Visit(SignatureNode* parameter);
   void Visit(InstructionNode* instruction) { }
   void Visit(ConstInstructionNode* instruction) { }
   void Visit(ReturnInstructionNode* instruction) { }
@@ -54,9 +54,13 @@ class TypeInferenceVisitor: public IRVisitor {
   void Visit(GotoInstructionNode* instruction) { }
   void Visit(IfEqzInstructionNode* instruction) { }
 
-  const Type* GetType() const {
+  const Type* GetType() {
     // TODO: Currently multiple defined types are not supported.
-    if (crt_type_.size()>0) return crt_type_.at(0);
+    if (crt_type_.size()>0) {
+      const Type* single_type = crt_type_.at(0);
+      crt_type_.clear();
+      return single_type;
+    }
     return NULL;
   }
 

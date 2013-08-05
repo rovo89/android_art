@@ -102,6 +102,17 @@ class PhiInstructionNode: public InstructionNode {
     definition->AddSSAUse(this);
   }
 
+  // Returns the ordered set of Instructions that define the input operands of this instruction.
+  // Precondition: SeaGraph.ConvertToSSA().
+  std::vector<InstructionNode*> GetSSAProducers() {
+    std::vector<InstructionNode*> producers;
+    for (std::vector<std::vector<InstructionNode*>*>::const_iterator
+        cit = definition_edges_.begin(); cit != definition_edges_.end(); cit++) {
+      producers.insert(producers.end(), (*cit)->begin(), (*cit)->end());
+    }
+    return producers;
+  }
+
   // Returns the instruction that defines the phi register from predecessor
   // on position @predecessor_pos. Note that the return value is vector<> just
   // for consistency with the return value of GetSSAUses() on regular instructions,
@@ -117,6 +128,9 @@ class PhiInstructionNode: public InstructionNode {
 
  private:
   int register_no_;
+  // This vector has one entry for each predecessors, each with a single
+  // element, storing the id of the instruction that defines the register
+  // corresponding to this phi function.
   std::vector<std::vector<InstructionNode*>*> definition_edges_;
 };
 

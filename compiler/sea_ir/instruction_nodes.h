@@ -60,7 +60,7 @@ class InstructionNode: public SeaNode {
   }
   // Returns the ordered set of Instructions that define the input operands of this instruction.
   // Precondition: SeaGraph.ConvertToSSA().
-  std::vector<InstructionNode*> GetSSAProducers() {
+  virtual std::vector<InstructionNode*> GetSSAProducers() {
     std::vector<int> uses = GetUses();
     std::vector<InstructionNode*> ssa_uses;
     for (std::vector<int>::const_iterator cit = uses.begin(); cit != uses.end(); cit++) {

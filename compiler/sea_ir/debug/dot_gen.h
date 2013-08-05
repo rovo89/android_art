@@ -42,6 +42,7 @@ class DotGenerationVisitor: public IRVisitor {
   virtual void Initialize(SeaGraph* graph);
   // Saves the ssa def->use edges corresponding to @instruction.
   void ToDotSSAEdges(InstructionNode* instruction);
+  void ToDotSSAEdges(PhiInstructionNode* instruction);
   void Visit(SeaGraph* graph) {
     dot_text_ += "digraph seaOfNodes {\ncompound=true\n";
   }
