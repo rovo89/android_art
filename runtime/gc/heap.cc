@@ -1055,20 +1055,6 @@ void Heap::MarkAllocStack(accounting::SpaceBitmap* bitmap, accounting::SpaceSetM
   }
 }
 
-void Heap::UnMarkAllocStack(accounting::SpaceBitmap* bitmap, accounting::SpaceSetMap* large_objects,
-                            accounting::ObjectStack* stack) {
-  mirror::Object** limit = stack->End();
-  for (mirror::Object** it = stack->Begin(); it != limit; ++it) {
-    const mirror::Object* obj = *it;
-    DCHECK(obj != NULL);
-    if (LIKELY(bitmap->HasAddress(obj))) {
-      bitmap->Clear(obj);
-    } else {
-      large_objects->Clear(obj);
-    }
-  }
-}
-
 collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCause gc_cause,
                                                bool clear_soft_references) {
   Thread* self = Thread::Current();

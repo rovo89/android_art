@@ -372,11 +372,6 @@ class Heap {
                       accounting::ObjectStack* stack)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  // Unmark all the objects in the allocation stack in the specified bitmap.
-  void UnMarkAllocStack(accounting::SpaceBitmap* bitmap, accounting::SpaceSetMap* large_objects,
-                        accounting::ObjectStack* stack)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
   // Update and mark mod union table based on gc type.
   void UpdateAndMarkModUnion(collector::MarkSweep* mark_sweep, base::TimingLogger& timings,
                              collector::GcType gc_type)
