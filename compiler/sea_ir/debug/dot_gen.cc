@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+
 #include "scoped_thread_state_change.h"
 #include "sea_ir/debug/dot_gen.h"
 
@@ -50,7 +51,7 @@ void DotGenerationVisitor::ToDotSSAEdges(InstructionNode* instruction) {
       dot_text_ += def_it->second->StringId() + " -> ";
       dot_text_ += instruction->StringId() + "[color=gray,label=\"";
       dot_text_ += art::StringPrintf("vR = %d", def_it->first);
-      std::map<int, const Type*>::const_iterator type_it = types_->find(def_it->second->Id());
+      art::SafeMap<int, const Type*>::const_iterator type_it = types_->find(def_it->second->Id());
       if (type_it != types_->end()) {
         art::ScopedObjectAccess soa(art::Thread::Current());
         dot_text_ += "(" + type_it->second->Dump() + ")";
@@ -82,7 +83,7 @@ void DotGenerationVisitor::ToDotSSAEdges(PhiInstructionNode* instruction) {
       dot_text_ += (*def_it)->StringId() + " -> ";
       dot_text_ += instruction->StringId() + "[color=gray,label=\"";
       dot_text_ += art::StringPrintf("vR = %d", instruction->GetRegisterNumber());
-      std::map<int, const Type*>::const_iterator type_it = types_->find((*def_it)->Id());
+      art::SafeMap<int, const Type*>::const_iterator type_it = types_->find((*def_it)->Id());
       if (type_it != types_->end()) {
         art::ScopedObjectAccess soa(art::Thread::Current());
         dot_text_ += "(" + type_it->second->Dump() + ")";

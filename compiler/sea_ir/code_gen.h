@@ -101,6 +101,8 @@ class CodeGenPrepassVisitor: public CodeGenPassVisitor {
   void Visit(SignatureNode* region);
   void Visit(Region* region);
   void Visit(InstructionNode* instruction) { }
+
+  void Visit(UnnamedConstInstructionNode* instruction) { }
   void Visit(ConstInstructionNode* instruction) { }
   void Visit(ReturnInstructionNode* instruction) { }
   void Visit(IfNeInstructionNode* instruction) { }
@@ -120,6 +122,7 @@ class CodeGenPostpassVisitor: public CodeGenPassVisitor {
   void Visit(SignatureNode* region);
   void Visit(Region* region);
   void Visit(InstructionNode* region) { }
+  void Visit(UnnamedConstInstructionNode* instruction) { }
   void Visit(ConstInstructionNode* instruction) { }
   void Visit(ReturnInstructionNode* instruction) { }
   void Visit(IfNeInstructionNode* instruction) { }
@@ -139,10 +142,10 @@ class CodeGenVisitor: public CodeGenPassVisitor {
   void Visit(SignatureNode* region);
   void Visit(Region* region);
   void Visit(InstructionNode* region);
+  void Visit(UnnamedConstInstructionNode* instruction);
   void Visit(ConstInstructionNode* instruction);
   void Visit(ReturnInstructionNode* instruction);
   void Visit(IfNeInstructionNode* instruction);
-  // void Visit(AddIntLitInstructionNode* instruction);
   void Visit(MoveResultInstructionNode* instruction);
   void Visit(InvokeStaticInstructionNode* instruction);
   void Visit(AddIntInstructionNode* instruction);

@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_SEA_IR_DEBUG_DOT_GEN_H_
 #define ART_COMPILER_SEA_IR_DEBUG_DOT_GEN_H_
 
+#include "safe_map.h"
 #include "base/stringprintf.h"
 #include "file_output_stream.h"
 #include "sea_ir/sea.h"
@@ -37,7 +38,7 @@ class DotConversionOptions {
 class DotGenerationVisitor: public IRVisitor {
  public:
   explicit DotGenerationVisitor(const DotConversionOptions* const options,
-      std::map<int, const Type*>* types): graph_(), types_(types), options_(options) { }
+      art::SafeMap<int, const Type*>* types): graph_(), types_(types), options_(options) { }
 
   virtual void Initialize(SeaGraph* graph);
   // Saves the ssa def->use edges corresponding to @instruction.
@@ -88,7 +89,7 @@ class DotGenerationVisitor: public IRVisitor {
  private:
   std::string dot_text_;
   SeaGraph* graph_;
-  std::map<int, const Type*>* types_;
+  art::SafeMap<int, const Type*>* types_;
   const DotConversionOptions* const options_;
 };
 
@@ -97,7 +98,8 @@ class DotConversion {
  public:
   DotConversion(): options_() { }
   // Saves to @filename the .dot representation of @graph with the options @options.
-  void DumpSea(SeaGraph* graph, std::string filename,  std::map<int, const Type*>* types) const {
+  void DumpSea(SeaGraph* graph, std::string filename,
+      art::SafeMap<int, const Type*>* types) const {
     LOG(INFO) << "Starting to write SEA string to file.";
     DotGenerationVisitor dgv = DotGenerationVisitor(&options_, types);
     graph->Accept(&dgv);
