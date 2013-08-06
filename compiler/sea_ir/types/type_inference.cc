@@ -16,7 +16,7 @@
 #include "scoped_thread_state_change.h"
 #include "sea_ir/types/type_inference.h"
 #include "sea_ir/types/type_inference_visitor.h"
-#include "sea_ir/sea.h"
+#include "sea_ir/ir/sea.h"
 
 namespace sea_ir {
 

@@ -15,16 +15,16 @@
  */
 
 
-#ifndef ART_COMPILER_SEA_IR_SEA_H_
-#define ART_COMPILER_SEA_IR_SEA_H_
+#ifndef ART_COMPILER_SEA_IR_IR_SEA_H_
+#define ART_COMPILER_SEA_IR_IR_SEA_H_
 
 #include <set>
 #include <map>
 
 #include "dex_file.h"
 #include "dex_instruction.h"
-#include "sea_ir/instruction_tools.h"
-#include "sea_ir/instruction_nodes.h"
+#include "sea_ir/ir/instruction_tools.h"
+#include "sea_ir/ir/instruction_nodes.h"
 #include "utils/scoped_hashtable.h"
 
 namespace sea_ir {
@@ -345,4 +345,4 @@ class SeaGraph: IVisitable {
   const art::DexFile::CodeItem* code_item_;
 };
 }  // namespace sea_ir
-#endif  // ART_COMPILER_SEA_IR_SEA_H_
+#endif  // ART_COMPILER_SEA_IR_IR_SEA_H_

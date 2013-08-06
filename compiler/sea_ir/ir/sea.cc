@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 #include "base/stringprintf.h"
-#include "instruction_tools.h"
-#include "sea.h"
-#include "code_gen.h"
-#include "types/type_inference.h"
+#include "sea_ir/ir/instruction_tools.h"
+#include "sea_ir/ir/sea.h"
+#include "sea_ir/code_gen/code_gen.h"
+#include "sea_ir/types/type_inference.h"
 
 #define MAX_REACHING_DEF_ITERERATIONS (10)
 // TODO: When development is done, this define should not

@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_SEA_IR_INSTRUCTION_NODES_H_
-#define ART_COMPILER_SEA_IR_INSTRUCTION_NODES_H_
+#ifndef ART_COMPILER_SEA_IR_IR_INSTRUCTION_NODES_H_
+#define ART_COMPILER_SEA_IR_IR_INSTRUCTION_NODES_H_
 #include "dex_instruction-inl.h"
-#include "sea_ir/sea_node.h"
-#include "sea_ir/visitor.h"
+#include "sea_ir/ir/sea_node.h"
+#include "sea_ir/ir/visitor.h"
 
 
 namespace sea_ir {
@@ -235,4 +235,4 @@ class IfEqzInstructionNode: public InstructionNode {
   }
 };
 }  // namespace sea_ir
-#endif  // ART_COMPILER_SEA_IR_INSTRUCTION_NODES_H_
+#endif  // ART_COMPILER_SEA_IR_IR_INSTRUCTION_NODES_H_

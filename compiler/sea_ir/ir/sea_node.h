@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_SEA_IR_SEA_NODE_H_
-#define ART_COMPILER_SEA_IR_SEA_NODE_H_
+#ifndef ART_COMPILER_SEA_IR_IR_SEA_NODE_H_
+#define ART_COMPILER_SEA_IR_IR_SEA_NODE_H_
 
 #include "base/stringprintf.h"
 
@@ -74,4 +74,4 @@ class SeaNode: public IVisitable {
   DISALLOW_COPY_AND_ASSIGN(SeaNode);
 };
 }  // namespace sea_ir
-#endif  // ART_COMPILER_SEA_IR_SEA_NODE_H_
+#endif  // ART_COMPILER_SEA_IR_IR_SEA_NODE_H_

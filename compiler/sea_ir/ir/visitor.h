@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_SEA_IR_VISITOR_H_
-#define ART_COMPILER_SEA_IR_VISITOR_H_
+#ifndef ART_COMPILER_SEA_IR_IR_VISITOR_H_
+#define ART_COMPILER_SEA_IR_IR_VISITOR_H_
 
 namespace sea_ir {
 
@@ -84,4 +84,4 @@ class IRVisitor {
   std::vector<Region*> ordered_regions_;
 };
 }  // namespace sea_ir
-#endif  // ART_COMPILER_SEA_IR_VISITOR_H_
+#endif  // ART_COMPILER_SEA_IR_IR_VISITOR_H_

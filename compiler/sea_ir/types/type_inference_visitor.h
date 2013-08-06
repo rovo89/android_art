@@ -19,7 +19,7 @@
 
 
 #include "dex_file-inl.h"
-#include "sea_ir/visitor.h"
+#include "sea_ir/ir/visitor.h"
 #include "sea_ir/types/types.h"
 
 namespace sea_ir {

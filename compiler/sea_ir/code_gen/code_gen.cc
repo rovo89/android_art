@@ -15,8 +15,8 @@
  */
 
 #include <llvm/Support/raw_ostream.h>
-#include "sea.h"
-#include "code_gen.h"
+#include "sea_ir/ir/sea.h"
+#include "sea_ir/code_gen/code_gen.h"
 
 namespace sea_ir {
 

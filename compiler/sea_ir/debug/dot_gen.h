@@ -20,7 +20,7 @@
 #include "safe_map.h"
 #include "base/stringprintf.h"
 #include "file_output_stream.h"
-#include "sea_ir/sea.h"
+#include "sea_ir/ir/sea.h"
 #include "sea_ir/types/type_inference.h"
 
 namespace sea_ir {
