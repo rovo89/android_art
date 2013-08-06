@@ -58,7 +58,7 @@ class TypeInferenceVisitor: public IRVisitor {
 
   const Type* MergeTypes(std::vector<const Type*>& types) const;
   const Type* MergeTypes(const Type* t1, const Type* t2) const;
-
+  std::vector<const Type*> GetOperandTypes(InstructionNode* instruction) const;
   const Type* GetType() {
     // TODO: Currently multiple defined types are not supported.
     if (crt_type_.size()>0) {
@@ -74,9 +74,6 @@ class TypeInferenceVisitor: public IRVisitor {
   TypeData* type_data_;
   art::verifier::RegTypeCache* type_cache_;
   std::vector<const Type*> crt_type_;             // Stored temporarily between two calls to Visit.
-
- private:
-  std::vector<const Type*> GetOperandTypes(InstructionNode* instruction);
 };
 
 }  // namespace sea_ir

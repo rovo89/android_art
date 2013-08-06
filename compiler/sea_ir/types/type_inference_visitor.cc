@@ -62,7 +62,8 @@ void TypeInferenceVisitor::Visit(InvokeStaticInstructionNode* instruction) {
   crt_type_.push_back(result_type);
 }
 
-std::vector<const Type*> TypeInferenceVisitor::GetOperandTypes(InstructionNode* instruction) {
+std::vector<const Type*> TypeInferenceVisitor::GetOperandTypes(
+    InstructionNode* instruction) const {
   std::vector<InstructionNode*> sources = instruction->GetSSAProducers();
   std::vector<const Type*> types_to_merge;
   for (std::vector<InstructionNode*>::const_iterator cit = sources.begin(); cit != sources.end();

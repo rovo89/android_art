@@ -60,7 +60,9 @@ TEST_COMMON_SRC_FILES := \
 
 ifeq ($(ART_SEA_IR_MODE),true)
 TEST_COMMON_SRC_FILES += \
-	compiler/utils/scoped_hashtable_test.cc
+	compiler/utils/scoped_hashtable_test.cc \
+	compiler/sea_ir/types/type_data_test.cc \
+	compiler/sea_ir/types/type_inference_visitor_test.cc
 endif
 
 TEST_TARGET_SRC_FILES := \
