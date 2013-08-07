@@ -64,6 +64,9 @@ LIBART_COMMON_SRC_FILES := \
 	instrumentation.cc \
 	intern_table.cc \
 	interpreter/interpreter.cc \
+	interpreter/interpreter_common.cc \
+	interpreter/interpreter_goto_table_impl.cc \
+	interpreter/interpreter_switch_impl.cc \
 	jdwp/jdwp_event.cc \
 	jdwp/jdwp_expand_buf.cc \
 	jdwp/jdwp_handler.cc \
