@@ -257,7 +257,7 @@ class Region : public SeaNode {
 // and acts as starting point for visitors (ex: during code generation).
 class SeaGraph: IVisitable {
  public:
-  static SeaGraph* GetCurrentGraph(const art::DexFile&);
+  static SeaGraph* GetGraph(const art::DexFile&);
 
   void CompileMethod(const art::DexFile::CodeItem* code_item, uint32_t class_def_idx,
       uint32_t method_idx, uint32_t method_access_flags, const art::DexFile& dex_file);

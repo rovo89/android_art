@@ -49,7 +49,7 @@ void IRVisitor::Traverse(SeaGraph* graph) {
   }
 }
 
-SeaGraph* SeaGraph::GetCurrentGraph(const art::DexFile& dex_file) {
+SeaGraph* SeaGraph::GetGraph(const art::DexFile& dex_file) {
   return new SeaGraph(dex_file);
 }
 
