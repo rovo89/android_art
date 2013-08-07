@@ -3306,7 +3306,7 @@ void MethodVerifier::VerifyPrimitivePut(const RegType& target_type, const RegTyp
   bool value_compatible;
   const RegType& value_type = work_line_->GetRegisterType(vregA);
   if (target_type.IsIntegralTypes()) {
-    instruction_compatible = insn_type.IsIntegralTypes();
+    instruction_compatible = target_type.Equals(insn_type);
     value_compatible = value_type.IsIntegralTypes();
   } else if (target_type.IsFloat()) {
     instruction_compatible = insn_type.IsInteger();  // no put-float, so expect put-int
@@ -3492,8 +3492,8 @@ void MethodVerifier::VerifyISGet(const Instruction* inst, const RegType& insn_ty
   const uint32_t vregA = (is_static) ? inst->VRegA_21c() : inst->VRegA_22c();
   if (is_primitive) {
     if (field_type.Equals(insn_type) ||
-        (field_type.IsFloat() && insn_type.IsIntegralTypes()) ||
-        (field_type.IsDouble() && insn_type.IsLongTypes())) {
+        (field_type.IsFloat() && insn_type.IsInteger()) ||
+        (field_type.IsDouble() && insn_type.IsLong())) {
       // expected that read is of the correct primitive type or that int reads are reading
       // floats or long reads are reading doubles
     } else {
