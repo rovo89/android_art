@@ -28,6 +28,7 @@
 #include "gc/collector/gc_type.h"
 #include "globals.h"
 #include "gtest/gtest.h"
+#include "jni.h"
 #include "locks.h"
 #include "offsets.h"
 #include "safe_map.h"
@@ -99,24 +100,6 @@ enum HeapVerificationMode {
   kVerifyAll  // Sanity check all heap accesses.
 };
 const HeapVerificationMode kDesiredHeapVerification = kNoHeapVerification;
-
-// This comes from ActivityManager and needs to be kept in sync.
-enum ProcessState {
-  PROCESS_STATE_PERSISTENT = 0,
-  PROCESS_STATE_PERSISTENT_UI = 1,
-  PROCESS_STATE_TOP = 2,
-  PROCESS_STATE_IMPORTANT_FOREGROUND = 3,
-  PROCESS_STATE_IMPORTANT_BACKGROUND = 4,
-  PROCESS_STATE_BACKUP = 5,
-  PROCESS_STATE_HEAVY_WEIGHT = 6,
-  PROCESS_STATE_SERVICE = 7,
-  PROCESS_STATE_RECEIVER = 8,
-  PROCESS_STATE_HOME = 9,
-  PROCESS_STATE_LAST_ACTIVITY = 10,
-  PROCESS_STATE_CACHED_ACTIVITY = 11,
-  PROCESS_STATE_CACHED_ACTIVITY_CLIENT = 12,
-  PROCESS_STATE_CACHED_EMPTY = 13,
-};
 
 class Heap {
  public:
@@ -387,8 +370,8 @@ class Heap {
                              collector::GcType gc_type)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  // Update process state to let the heap know which type of GC to do.
-  void UpdateProcessState(ProcessState process_state);
+  // Gets called when we get notified by ActivityThread that the process state has changed.
+  void ListenForProcessStateChange();
 
   // DEPRECATED: Should remove in "near" future when support for multiple image spaces is added.
   // Assumes there is only one image space.
@@ -542,6 +525,19 @@ class Heap {
   // The watermark at which a GC is performed inside of registerNativeAllocation.
   size_t native_footprint_limit_;
 
+  // Activity manager members.
+  jclass activity_thread_class_;
+  jclass application_thread_class_;
+  jobject activity_thread_;
+  jobject application_thread_;
+  jfieldID last_process_state_id_;
+
+  // Process states which care about pause times.
+  std::set<int> process_state_cares_about_pause_time_;
+
+  // Whether or not we currently care about pause times.
+  bool care_about_pause_times_;
+
   // When num_bytes_allocated_ exceeds this amount then a concurrent GC should be requested so that
   // it completes ahead of an allocation failing.
   size_t concurrent_start_bytes_;
@@ -560,9 +556,6 @@ class Heap {
 
   // Bytes which are allocated and managed by native code but still need to be accounted for.
   AtomicInteger native_bytes_allocated_;
-
-  // Current process state, updated by activity manager.
-  ProcessState process_state_;
 
   // Data structure GC overhead.
   AtomicInteger gc_memory_overhead_;
