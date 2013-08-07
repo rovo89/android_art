@@ -34,25 +34,30 @@ namespace sea_ir {
 //   version 2: with template return value).
 class TypeInferenceVisitor: public IRVisitor {
  public:
-  TypeInferenceVisitor(SeaGraph* graph, art::verifier::RegTypeCache* types):
-    graph_(graph), type_cache_(types), crt_type_() {
+  TypeInferenceVisitor(SeaGraph* graph, TypeData* type_data,
+      art::verifier::RegTypeCache* types):
+    graph_(graph), type_data_(type_data), type_cache_(types), crt_type_() {
   }
   // There are no type related actions to be performed on these classes.
   void Initialize(SeaGraph* graph) { }
   void Visit(SeaGraph* graph) { }
   void Visit(Region* region) { }
 
-  void Visit(PhiInstructionNode* instruction) { }
+  void Visit(PhiInstructionNode* instruction);
   void Visit(SignatureNode* parameter);
   void Visit(InstructionNode* instruction) { }
+  void Visit(UnnamedConstInstructionNode* instruction);
   void Visit(ConstInstructionNode* instruction) { }
   void Visit(ReturnInstructionNode* instruction) { }
   void Visit(IfNeInstructionNode* instruction) { }
-  void Visit(MoveResultInstructionNode* instruction) { }
-  void Visit(InvokeStaticInstructionNode* instruction) { }
-  void Visit(AddIntInstructionNode* instruction) { }
+  void Visit(MoveResultInstructionNode* instruction);
+  void Visit(InvokeStaticInstructionNode* instruction);
+  void Visit(AddIntInstructionNode* instruction);
   void Visit(GotoInstructionNode* instruction) { }
   void Visit(IfEqzInstructionNode* instruction) { }
+
+  const Type* MergeTypes(std::vector<const Type*>& types) const;
+  const Type* MergeTypes(const Type* t1, const Type* t2) const;
 
   const Type* GetType() {
     // TODO: Currently multiple defined types are not supported.
@@ -66,8 +71,12 @@ class TypeInferenceVisitor: public IRVisitor {
 
  protected:
   const SeaGraph* const graph_;
+  TypeData* type_data_;
   art::verifier::RegTypeCache* type_cache_;
   std::vector<const Type*> crt_type_;             // Stored temporarily between two calls to Visit.
+
+ private:
+  std::vector<const Type*> GetOperandTypes(InstructionNode* instruction);
 };
 
 }  // namespace sea_ir

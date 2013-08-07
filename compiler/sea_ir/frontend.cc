@@ -23,7 +23,7 @@
 #include "llvm/llvm_compilation_unit.h"
 #include "mirror/object.h"
 #include "runtime.h"
-
+#include "safe_map.h"
 
 #include "sea_ir/sea.h"
 #include "sea_ir/debug/dot_gen.h"
@@ -46,8 +46,8 @@ static CompiledMethod* CompileMethodWithSeaIr(CompilerDriver& compiler,
   sea_ir::SeaGraph* ir_graph = sea_ir::SeaGraph::GetCurrentGraph(dex_file);
   ir_graph->CompileMethod(code_item, class_def_idx, method_idx, method_access_flags, dex_file);
   sea_ir::DotConversion dc;
-  std::map<int, const sea_ir::Type*>  types = ir_graph->ti_->GetTypeMap();
-  dc.DumpSea(ir_graph, "/tmp/temp.dot", &types);
+  SafeMap<int, const sea_ir::Type*>*  types = ir_graph->ti_->GetTypeMap();
+  dc.DumpSea(ir_graph, "/tmp/temp.dot", types);
   CHECK(0 && "No SEA compiled function exists yet.");
   return NULL;
 }

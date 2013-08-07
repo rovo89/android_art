@@ -114,6 +114,14 @@ void CodeGenVisitor::Visit(InstructionNode* instruction) {
   std::string instr = instruction->GetInstruction()->DumpString(NULL);
   DCHECK(0);  // This whole function is useful only during development.
 }
+
+void CodeGenVisitor::Visit(UnnamedConstInstructionNode* instruction) {
+  std::string instr = instruction->GetInstruction()->DumpString(NULL);
+  std::cout << "1.Instruction: " << instr << std::endl;
+  llvm_data_->AddValue(instruction,
+      llvm::ConstantInt::get(*llvm_data_->context_, llvm::APInt(32, instruction->GetConstValue())));
+}
+
 void CodeGenVisitor::Visit(ConstInstructionNode* instruction) {
   std::string instr = instruction->GetInstruction()->DumpString(NULL);
   std::cout << "1.Instruction: " << instr << std::endl;

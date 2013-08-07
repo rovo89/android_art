@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+#include "scoped_thread_state_change.h"
 #include "sea_ir/types/type_inference.h"
 #include "sea_ir/types/type_inference_visitor.h"
 #include "sea_ir/sea.h"
@@ -44,8 +44,29 @@ FunctionTypeInfo::FunctionTypeInfo(const SeaGraph* graph, art::verifier::RegType
   declaring_class_ = &(type_cache_->FromDescriptor(NULL, descriptor, false));
 }
 
-std::vector<const Type*> FunctionTypeInfo::GetDeclaredArgumentTypes()
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+FunctionTypeInfo::FunctionTypeInfo(const SeaGraph* graph, InstructionNode* inst,
+    art::verifier::RegTypeCache* types): dex_file_(graph->GetDexFile()),
+        dex_method_idx_(inst->GetInstruction()->VRegB_35c()), type_cache_(types),
+        method_access_flags_(0) {
+  // TODO: Test that GetDeclaredArgumentTypes() works correctly when using this constructor.
+  const art::DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx_);
+  const char* descriptor = dex_file_->GetTypeDescriptor(dex_file_->GetTypeId(method_id.class_idx_));
+  declaring_class_ = &(type_cache_->FromDescriptor(NULL, descriptor, false));
+}
+
+const Type* FunctionTypeInfo::GetReturnValueType() {
+  const art::DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx_);
+  uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
+  const char* descriptor = dex_file_->StringByTypeIdx(return_type_idx);
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  const Type& return_type = type_cache_->FromDescriptor(NULL, descriptor, false);
+  return &return_type;
+}
+
+
+
+std::vector<const Type*> FunctionTypeInfo::GetDeclaredArgumentTypes() {
+  art::ScopedObjectAccess soa(art::Thread::Current());
   std::vector<const Type*> argument_types;
   // Include the "this" pointer.
   size_t cur_arg = 0;
@@ -127,7 +148,7 @@ void TypeInference::ComputeTypes(SeaGraph* graph) SHARED_LOCKS_REQUIRED(Locks::m
     std::vector<InstructionNode*>* instructions = (*region_it)->GetInstructions();
     std::copy(instructions->begin(), instructions->end(), std::back_inserter(worklist));
   }
-  TypeInferenceVisitor tiv(graph, type_cache_);
+  TypeInferenceVisitor tiv(graph, &type_data_, type_cache_);
   // Sparse (SSA) fixed-point algorithm that processes each instruction in the work-list,
   // adding consumers of instructions whose result changed type back into the work-list.
   // Note: According to [1] list iterators should not be invalidated on insertion,
@@ -140,15 +161,13 @@ void TypeInference::ComputeTypes(SeaGraph* graph) SHARED_LOCKS_REQUIRED(Locks::m
         instruction_it != worklist.end(); instruction_it++) {
     std::cout << "[TI] Instruction: " << (*instruction_it)->Id() << std::endl;
     (*instruction_it)->Accept(&tiv);
-    std::map<int, const Type*>::const_iterator old_result_it =
-        type_map_.find((*instruction_it)->Id());
+    const Type* old_type = type_data_.FindTypeOf((*instruction_it)->Id());
     const Type* new_type = tiv.GetType();
-    bool first_time_set = (old_result_it == type_map_.end()) && (new_type != NULL);
-    bool type_changed = (old_result_it != type_map_.end()) && ((*old_result_it).second != new_type);
-    if (first_time_set || type_changed) {
+    bool type_changed = (old_type != new_type);
+    if (type_changed) {
       std::cout << " New type:" << new_type->IsIntegralTypes() << std::endl;
-      std::cout << " Descrip:" << new_type->Dump()<< "on " << (*instruction_it)->Id() << std::endl;
-      type_map_[(*instruction_it)->Id()] = new_type;
+      std::cout << " Descrip:" << new_type->Dump()<< " on " << (*instruction_it)->Id() << std::endl;
+      type_data_.SetTypeOf((*instruction_it)->Id(), new_type);
       // Add SSA consumers of the current instruction to the work-list.
       std::vector<InstructionNode*>* consumers = (*instruction_it)->GetSSAConsumers();
       for (std::vector<InstructionNode*>::iterator consumer = consumers->begin();

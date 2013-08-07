@@ -24,6 +24,7 @@ class Region;
 class InstructionNode;
 class PhiInstructionNode;
 class SignatureNode;
+class UnnamedConstInstructionNode;
 class ConstInstructionNode;
 class ReturnInstructionNode;
 class IfNeInstructionNode;
@@ -49,9 +50,9 @@ class IRVisitor {
 
   virtual void Visit(InstructionNode* region) = 0;
   virtual void Visit(ConstInstructionNode* instruction) = 0;
+  virtual void Visit(UnnamedConstInstructionNode* instruction) = 0;
   virtual void Visit(ReturnInstructionNode* instruction) = 0;
   virtual void Visit(IfNeInstructionNode* instruction) = 0;
-  // virtual void Visit(AddIntLitInstructionNode* instruction) = 0;
   virtual void Visit(MoveResultInstructionNode* instruction) = 0;
   virtual void Visit(InvokeStaticInstructionNode* instruction) = 0;
   virtual void Visit(AddIntInstructionNode* instruction) = 0;
