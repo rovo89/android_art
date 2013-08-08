@@ -137,7 +137,7 @@ class Heap {
   explicit Heap(size_t initial_size, size_t growth_limit, size_t min_free,
                 size_t max_free, double target_utilization, size_t capacity,
                 const std::string& original_image_file_name, bool concurrent_gc,
-                size_t num_gc_threads);
+                size_t num_gc_threads, bool low_memory_mode);
 
   ~Heap();
 
@@ -274,6 +274,11 @@ class Heap {
   bool IsObjectValidationEnabled() const {
     return kDesiredHeapVerification > kNoHeapVerification &&
         verify_object_mode_ > kHeapVerificationNotPermitted;
+  }
+
+  // Returns true if low memory mode is enabled.
+  bool IsLowMemoryMode() const {
+    return low_memory_mode_;
   }
 
   void RecordFree(size_t freed_objects, size_t freed_bytes);
@@ -512,6 +517,9 @@ class Heap {
 
   // How many GC threads we may use for garbage collection.
   const bool num_gc_threads_;
+
+  // Boolean for if we are in low memory mode.
+  const bool low_memory_mode_;
 
   // If we have a zygote space.
   bool have_zygote_space_;

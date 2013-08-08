@@ -341,6 +341,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   // Default to number of processors minus one since the main GC thread also does work.
   parsed->heap_gc_threads_ = sysconf(_SC_NPROCESSORS_CONF) - 1;
   parsed->stack_size_ = 0;  // 0 means default.
+  parsed->low_memory_mode_ = false;
 
   parsed->is_compiler_ = false;
   parsed->is_zygote_ = false;
@@ -488,6 +489,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         return NULL;
       }
       parsed->stack_size_ = size;
+    } else if (option == "-XX:LowMemoryMode") {
+      parsed->low_memory_mode_ = true;
     } else if (StartsWith(option, "-D")) {
       parsed->properties_.push_back(option.substr(strlen("-D")));
     } else if (StartsWith(option, "-Xjnitrace:")) {
@@ -835,7 +838,8 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
                        options->heap_maximum_size_,
                        options->image_,
                        options->is_concurrent_gc_enabled_,
-                       options->heap_gc_threads_);
+                       options->heap_gc_threads_,
+                       options->low_memory_mode_);
 
   BlockSignals();
   InitPlatformSignalHandlers();

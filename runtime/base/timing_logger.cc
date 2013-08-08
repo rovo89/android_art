@@ -113,7 +113,8 @@ void CumulativeLogger::AddPair(const std::string &label, uint64_t delta_time) {
   // Convert delta time to microseconds so that we don't overflow our counters.
   delta_time /= kAdjust;
   if (histograms_.size() <= index_) {
-    histograms_.push_back(new Histogram<uint64_t>(label.c_str(), 50));
+    const size_t max_buckets = Runtime::Current()->GetHeap()->IsLowMemoryMode() ? 16 : 100;
+    histograms_.push_back(new Histogram<uint64_t>(label.c_str(), 50, max_buckets));
     DCHECK_GT(histograms_.size(), index_);
   }
   histograms_[index_]->AddValue(delta_time);
