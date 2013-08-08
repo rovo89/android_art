@@ -179,7 +179,6 @@ class LOCKABLE Mutex : public BaseMutex {
   const bool recursive_;  // Can the lock be recursively held?
   unsigned int recursion_count_;
   friend class ConditionVariable;
-  friend class MutexTester;
   DISALLOW_COPY_AND_ASSIGN(Mutex);
 };
 
@@ -290,7 +289,6 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
 #else
   pthread_rwlock_t rwlock_;
 #endif
-  friend class MutexTester;
   DISALLOW_COPY_AND_ASSIGN(ReaderWriterMutex);
 };
 

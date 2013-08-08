@@ -617,9 +617,7 @@ class ClassLinker {
   const void* portable_resolution_trampoline_;
   const void* quick_resolution_trampoline_;
 
-  friend class CommonTest;
   friend class ImageWriter;  // for GetClassRoots
-  friend class ObjectTest;
   FRIEND_TEST(ClassLinkerTest, ClassRootDescriptors);
   FRIEND_TEST(mirror::DexCacheTest, Open);
   FRIEND_TEST(ExceptionTest, FindExceptionHandler);
