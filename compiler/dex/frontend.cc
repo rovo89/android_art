@@ -103,6 +103,7 @@ static uint32_t kCompilerDebugFlags = 0 |     // Enable debug/testing modes
   // (1 << kDebugDumpBitcodeFile) |
   // (1 << kDebugVerifyBitcode) |
   // (1 << kDebugShowSummaryMemoryUsage) |
+  // (1 << kDebugShowFilterStats) |
   0;
 
 static CompiledMethod* CompileMethod(CompilerDriver& compiler,
@@ -179,6 +180,10 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
   /* Build the raw MIR graph */
   cu->mir_graph->InlineMethod(code_item, access_flags, invoke_type, class_def_idx, method_idx,
                               class_loader, dex_file);
+
+  if (cu->mir_graph->SkipCompilation(Runtime::Current()->GetCompilerFilter())) {
+    return NULL;
+  }
 
   /* Do a code layout pass */
   cu->mir_graph->CodeLayout();

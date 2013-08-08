@@ -25,6 +25,38 @@
 
 namespace art {
 
+enum InstructionAnalysisAttributePos {
+  kUninterestingOp = 0,
+  kArithmeticOp,
+  kFPOp,
+  kSingleOp,
+  kDoubleOp,
+  kIntOp,
+  kLongOp,
+  kBranchOp,
+  kInvokeOp,
+  kArrayOp,
+  kHeavyweightOp,
+  kSimpleConstOp,
+  kMoveOp
+};
+
+#define AN_NONE (1 << kUninterestingOp)
+#define AN_MATH (1 << kArithmeticOp)
+#define AN_FP (1 << kFPOp)
+#define AN_LONG (1 << kLongOp)
+#define AN_INT (1 << kIntOp)
+#define AN_SINGLE (1 << kSingleOp)
+#define AN_DOUBLE (1 << kDoubleOp)
+#define AN_FLOATMATH (1 << kFPOp)
+#define AN_BRANCH (1 << kBranchOp)
+#define AN_INVOKE (1 << kInvokeOp)
+#define AN_ARRAYOP (1 << kArrayOp)
+#define AN_HEAVYWEIGHT (1 << kHeavyweightOp)
+#define AN_SIMPLECONST (1 << kSimpleConstOp)
+#define AN_MOVE (1 << kMoveOp)
+#define AN_COMPUTATIONAL (AN_MATH | AN_ARRAYOP | AN_MOVE | AN_SIMPLECONST)
+
 enum DataFlowAttributePos {
   kUA = 0,
   kUB,
@@ -313,6 +345,12 @@ class MIRGraph {
   ~MIRGraph();
 
   /*
+   * Examine the graph to determine whether it's worthwile to spend the time compiling
+   * this method.
+   */
+  bool SkipCompilation(Runtime::CompilerFilter compiler_filter);
+
+  /*
    * Parse dex method and add MIR at current insert point.  Returns id (which is
    * actually the index of the method in the m_units_ array).
    */
@@ -335,6 +373,10 @@ class MIRGraph {
 
   int GetNumBlocks() const {
     return num_blocks_;
+  }
+
+  size_t GetNumDalvikInsns() const {
+    return cu_->code_item->insns_size_in_code_units_;
   }
 
   ArenaBitVector* GetTryBlockAddr() const {
@@ -559,6 +601,7 @@ class MIRGraph {
 
   static const int oat_data_flow_attributes_[kMirOpLast];
   static const char* extended_mir_op_names_[kMirOpLast - kMirOpFirst];
+  static const uint32_t analysis_attributes_[kMirOpLast];
 
  private:
   int FindCommonParent(int block1, int block2);
@@ -621,6 +664,8 @@ class MIRGraph {
   void DoConstantPropogation(BasicBlock* bb);
   void CountChecks(BasicBlock* bb);
   bool CombineBlocks(BasicBlock* bb);
+  void AnalyzeBlock(BasicBlock* bb, struct MethodStats* stats);
+  bool ComputeSkipCompilation(struct MethodStats* stats, bool skip_default);
 
   CompilationUnit* const cu_;
   GrowableArray<int>* ssa_base_vregs_;

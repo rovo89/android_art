@@ -53,6 +53,7 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/mir_optimization.cc \
 	dex/frontend.cc \
 	dex/mir_graph.cc \
+	dex/mir_analysis.cc \
 	dex/vreg_analysis.cc \
 	dex/ssa_transformation.cc \
 	driver/compiler_driver.cc \

@@ -334,8 +334,8 @@ extern "C" void compilerLLVMSetBitcodeFileName(art::CompilerDriver& driver,
                                                std::string const& filename);
 
 CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet instruction_set,
-                               bool image, DescriptorSet* image_classes,
-                               size_t thread_count, bool dump_stats)
+                               bool image, DescriptorSet* image_classes, size_t thread_count,
+                               bool dump_stats)
     : compiler_backend_(compiler_backend),
       instruction_set_(instruction_set),
       freezing_constructor_lock_("freezing constructor lock"),
@@ -2227,6 +2227,10 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
   } else {
     bool compile = verifier::MethodVerifier::IsCandidateForCompilation(code_item, access_flags);
     if (compile) {
+      // If we're doing the image, override the compiler filter to force full compilation.
+      if ((image_classes_.get() != NULL) && (image_classes_->size() != 0)) {
+        Runtime::Current()->SetCompilerFilter(Runtime::kSpeed);
+      }
       CompilerFn compiler = compiler_;
 #ifdef ART_SEA_IR_MODE
       bool use_sea = Runtime::Current()->IsSeaIRMode();
@@ -2235,9 +2239,9 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
         compiler = sea_ir_compiler_;
       }
 #endif
+      // NOTE: if compiler declines to compile this method, it will return NULL.
       compiled_method = (*compiler)(*this, code_item, access_flags, invoke_type, class_def_idx,
                                     method_idx, class_loader, dex_file);
-      CHECK(compiled_method != NULL) << PrettyMethod(method_idx, dex_file);
     } else if (dex_to_dex_compilation_level != kDontDexToDexCompile) {
       // TODO: add a mode to disable DEX-to-DEX compilation ?
       (*dex_to_dex_compiler_)(*this, code_item, access_flags,

@@ -4181,16 +4181,7 @@ bool MethodVerifier::IsCandidateForCompilation(const DexFile::CodeItem* code_ite
   if (((access_flags & kAccConstructor) != 0) && ((access_flags & kAccStatic) != 0)) {
     return false;
   }
-
-  const Runtime* runtime = Runtime::Current();
-  if (runtime->IsSmallMode() && runtime->UseCompileTimeClassPath()) {
-    // In Small mode, we only compile small methods.
-    const uint32_t code_size = code_item->insns_size_in_code_units_;
-    return (code_size < runtime->GetSmallModeMethodDexSizeLimit());
-  } else {
-    // In normal mode, we compile everything.
-    return true;
-  }
+  return (Runtime::Current()->GetCompilerFilter() != Runtime::kInterpretOnly);
 }
 
 ReaderWriterMutex* MethodVerifier::dex_gc_maps_lock_ = NULL;
