@@ -21,11 +21,12 @@
 #include <set>
 #include <map>
 
+#include "utils/scoped_hashtable.h"
+#include "gtest/gtest_prod.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "sea_ir/ir/instruction_tools.h"
 #include "sea_ir/ir/instruction_nodes.h"
-#include "utils/scoped_hashtable.h"
 
 namespace sea_ir {
 
@@ -289,8 +290,12 @@ class SeaGraph: IVisitable {
   uint32_t method_idx_;
   uint32_t method_access_flags_;
 
- private:
+ protected:
   explicit SeaGraph(const art::DexFile& df);
+  virtual ~SeaGraph() { }
+
+ private:
+  FRIEND_TEST(RegionsTest, Basics);
   // Registers @childReg as a region belonging to the SeaGraph instance.
   void AddRegion(Region* childReg);
   // Returns new region and registers it with the  SeaGraph instance.
@@ -330,10 +335,6 @@ class SeaGraph: IVisitable {
   // Identifies the definitions corresponding to uses for region @node
   // by using the scoped hashtable of names @ scoped_table.
   void RenameAsSSA(Region* node, utils::ScopedHashtable<int, InstructionNode*>* scoped_table);
-
-
-
-  virtual ~SeaGraph() {}
   // Generate LLVM IR for the method.
   // Precondition: ConvertToSSA().
   void GenerateLLVM();
