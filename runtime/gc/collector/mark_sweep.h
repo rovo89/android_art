@@ -54,7 +54,6 @@ namespace space {
   class ContinuousSpace;
 }  // namespace space
 
-class CheckObjectVisitor;
 class Heap;
 
 namespace collector {
@@ -126,7 +125,7 @@ class MarkSweep : public GarbageCollector {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Builds a mark stack with objects on dirty cards and recursively mark until it empties.
-  void RecursiveMarkDirtyObjects(byte minimum_age)
+  void RecursiveMarkDirtyObjects(bool paused, byte minimum_age)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -260,8 +259,13 @@ class MarkSweep : public GarbageCollector {
   // Unmarks an object by clearing the bit inside of the corresponding bitmap, or if it is in a
   // space set, removing the object from the set.
   void UnMarkObjectNonNull(const mirror::Object* obj)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-        EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
+  // Mark the vm thread roots.
+  virtual void MarkThreadRoots(Thread* self)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Marks an object atomically, safe to use from multiple threads.
   void MarkObjectNonNullParallel(const mirror::Object* obj);
@@ -342,20 +346,20 @@ class MarkSweep : public GarbageCollector {
   }
 
   // Blackens objects grayed during a garbage collection.
-  void ScanGrayObjects(byte minimum_age)
+  void ScanGrayObjects(bool paused, byte minimum_age)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Schedules an unmarked object for reference processing.
-  void DelayReferenceReferent(mirror::Object* reference)
+  void DelayReferenceReferent(mirror::Class* klass, mirror::Object* reference)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // Recursively blackens objects on the mark stack.
-  void ProcessMarkStack()
+  void ProcessMarkStack(bool paused)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void ProcessMarkStackParallel()
+  void ProcessMarkStackParallel(bool paused)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -402,6 +406,9 @@ class MarkSweep : public GarbageCollector {
   mirror::Object* phantom_reference_list_;
   mirror::Object* cleared_reference_list_;
 
+  // Parallel finger.
+  AtomicInteger atomic_finger_;
+
   // Number of bytes freed in this collection.
   AtomicInteger freed_bytes_;
   // Number of objects freed in this collection.
@@ -431,7 +438,6 @@ class MarkSweep : public GarbageCollector {
  private:
   friend class AddIfReachesAllocSpaceVisitor;  // Used by mod-union table.
   friend class CheckBitmapVisitor;
-  friend class CheckObjectVisitor;
   friend class CheckReferenceVisitor;
   friend class art::gc::Heap;
   friend class InternTableEntryIsUnmarked;
@@ -445,7 +451,7 @@ class MarkSweep : public GarbageCollector {
   friend class ModUnionScanImageRootVisitor;
   friend class ScanBitmapVisitor;
   friend class ScanImageRootVisitor;
-  friend class MarkStackChunk;
+  template<bool kUseFinger> friend class MarkStackTask;
   friend class FifoMarkStackChunk;
 
   DISALLOW_COPY_AND_ASSIGN(MarkSweep);

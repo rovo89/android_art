@@ -23,6 +23,8 @@
 
 namespace art {
 
+static const bool kMeasureWaitTime = false;
+
 ThreadPoolWorker::ThreadPoolWorker(ThreadPool* thread_pool, const std::string& name,
                                    size_t stack_size)
     : thread_pool_(thread_pool),
@@ -64,7 +66,7 @@ void ThreadPool::AddTask(Thread* self, Task* task) {
   MutexLock mu(self, task_queue_lock_);
   tasks_.push_back(task);
   // If we have any waiters, signal one.
-  if (waiting_count_ != 0) {
+  if (started_ && waiting_count_ != 0) {
     task_queue_condition_.Signal(self);
   }
 }
@@ -129,11 +131,13 @@ Task* ThreadPool::GetTask(Thread* self) {
       // We may be done, lets broadcast to the completion condition.
       completion_condition_.Broadcast(self);
     }
-    const uint64_t wait_start = NanoTime();
+    const uint64_t wait_start = kMeasureWaitTime ? NanoTime() : 0;
     task_queue_condition_.Wait(self);
-    const uint64_t wait_end = NanoTime();
-    total_wait_time_ += wait_end - std::max(wait_start, start_time_);
-    waiting_count_--;
+    if (kMeasureWaitTime) {
+      const uint64_t wait_end = NanoTime();
+      total_wait_time_ += wait_end - std::max(wait_start, start_time_);
+    }
+    --waiting_count_;
   }
 
   // We are shutting down, return NULL to tell the worker thread to stop looping.

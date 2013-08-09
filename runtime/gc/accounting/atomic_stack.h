@@ -98,6 +98,12 @@ class AtomicStack {
     return begin_[index];
   }
 
+  // Pop a number of elements.
+  void PopBackCount(int32_t n) {
+    DCHECK_GE(Size(), static_cast<size_t>(n));
+    back_index_.fetch_sub(n);
+  }
+
   bool IsEmpty() const {
     return Size() == 0;
   }
@@ -108,11 +114,11 @@ class AtomicStack {
   }
 
   T* Begin() const {
-    return const_cast<mirror::Object**>(begin_ + front_index_);
+    return const_cast<T*>(begin_ + front_index_);
   }
 
   T* End() const {
-    return const_cast<mirror::Object**>(begin_ + back_index_);
+    return const_cast<T*>(begin_ + back_index_);
   }
 
   size_t Capacity() const {

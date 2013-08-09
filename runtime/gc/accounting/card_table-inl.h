@@ -65,33 +65,32 @@ inline void CardTable::Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_en
       (reinterpret_cast<uintptr_t>(card_end) & (sizeof(uintptr_t) - 1));
 
   // Now we have the words, we can send these to be processed in parallel.
-  uintptr_t* word_cur = reinterpret_cast<uintptr_t*>(card_cur);
-  uintptr_t* word_end = reinterpret_cast<uintptr_t*>(aligned_end);
+  auto* word_cur = reinterpret_cast<uintptr_t*>(card_cur);
+  auto* word_end = reinterpret_cast<uintptr_t*>(aligned_end);
+  for (;;) {
+    while (LIKELY(*word_cur == 0)) {
+      ++word_cur;
+      if (UNLIKELY(word_cur >= word_end)) {
+        goto exit_for;
+      }
+    }
 
-  // TODO: Parallelize
-  while (word_cur < word_end) {
     // Find the first dirty card.
-    while (*word_cur == 0 && word_cur < word_end) {
-      word_cur++;
-    }
-    if (word_cur >= word_end) {
-      break;
-    }
     uintptr_t start_word = *word_cur;
+    uintptr_t start = reinterpret_cast<uintptr_t>(AddrFromCard(reinterpret_cast<byte*>(word_cur)));
     for (size_t i = 0; i < sizeof(uintptr_t); ++i) {
-      if ((start_word & 0xFF) >= minimum_age) {
-        byte* card = reinterpret_cast<byte*>(word_cur) + i;
-        const byte card_byte = *card;
-        DCHECK(card_byte == (start_word & 0xFF) || card_byte == kCardDirty)
-        << "card " << static_cast<size_t>(card_byte) << " word " << (start_word & 0xFF);
-        uintptr_t start = reinterpret_cast<uintptr_t>(AddrFromCard(card));
-        uintptr_t end = start + kCardSize;
-        bitmap->VisitMarkedRange(start, end, visitor);
+      if (static_cast<byte>(start_word) >= minimum_age) {
+        auto* card = reinterpret_cast<byte*>(word_cur) + i;
+        DCHECK(*card == static_cast<byte>(start_word) || *card == kCardDirty)
+            << "card " << static_cast<size_t>(*card) << " word " << (start_word & 0xFF);
+        bitmap->VisitMarkedRange(start, start + kCardSize, visitor);
       }
       start_word >>= 8;
+      start += kCardSize;
     }
     ++word_cur;
   }
+  exit_for:
 
   // Handle any unaligned cards at the end.
   card_cur = reinterpret_cast<byte*>(word_end);
