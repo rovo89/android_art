@@ -89,6 +89,14 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       max_allowed_footprint_(initial_size),
       native_footprint_gc_watermark_(initial_size),
       native_footprint_limit_(2 * initial_size),
+      activity_thread_class_(NULL),
+      application_thread_class_(NULL),
+      activity_thread_(NULL),
+      application_thread_(NULL),
+      last_process_state_id_(NULL),
+      // Initially care about pauses in case we never get notified of process states, or if the JNI
+      // code becomes broken.
+      care_about_pause_times_(true),
       concurrent_start_bytes_(concurrent_gc ? initial_size - (kMinConcurrentRemainingBytes)
                                             :  std::numeric_limits<size_t>::max()),
       total_bytes_freed_ever_(0),
@@ -96,7 +104,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       large_object_threshold_(3 * kPageSize),
       num_bytes_allocated_(0),
       native_bytes_allocated_(0),
-      process_state_(PROCESS_STATE_TOP),
       gc_memory_overhead_(0),
       verify_missing_card_marks_(false),
       verify_system_weaks_(false),
@@ -250,8 +257,122 @@ struct ContinuousSpaceSorter {
   }
 };
 
-void Heap::UpdateProcessState(ProcessState process_state) {
-  process_state_ = process_state;
+static bool ReadStaticInt(JNIEnvExt* env, jclass clz, const char* name, int* out_value) {
+  CHECK(out_value != NULL);
+  jfieldID field = env->GetStaticFieldID(clz, name, "I");
+  if (field == NULL) {
+    env->ExceptionClear();
+    return false;
+  }
+  *out_value = env->GetStaticIntField(clz, field);
+  return true;
+}
+
+void Heap::ListenForProcessStateChange() {
+  VLOG(gc) << "Heap notified of process state change";
+
+  Thread* self = Thread::Current();
+  JNIEnvExt* env = self->GetJniEnv();
+
+  if (!have_zygote_space_) {
+    return;
+  }
+
+  if (activity_thread_class_ == NULL) {
+    jclass clz = env->FindClass("android/app/ActivityThread");
+    if (clz == NULL) {
+      env->ExceptionClear();
+      LOG(WARNING) << "Could not find activity thread class in process state change";
+      return;
+    }
+    activity_thread_class_ = reinterpret_cast<jclass>(env->NewGlobalRef(clz));
+  }
+
+  if (activity_thread_class_ != NULL && activity_thread_ == NULL) {
+    jmethodID current_activity_method = env->GetStaticMethodID(activity_thread_class_,
+                                                               "currentActivityThread",
+                                                               "()Landroid/app/ActivityThread;");
+    if (current_activity_method == NULL) {
+      env->ExceptionClear();
+      LOG(WARNING) << "Could not get method for currentActivityThread";
+      return;
+    }
+
+    jobject obj = env->CallStaticObjectMethod(activity_thread_class_, current_activity_method);
+    if (obj == NULL) {
+      env->ExceptionClear();
+      LOG(WARNING) << "Could not get current activity";
+      return;
+    }
+    activity_thread_ = env->NewGlobalRef(obj);
+  }
+
+  if (process_state_cares_about_pause_time_.empty()) {
+    // Just attempt to do this the first time.
+    jclass clz = env->FindClass("android/app/ActivityManager");
+    if (clz == NULL) {
+      LOG(WARNING) << "Activity manager class is null";
+      return;
+    }
+    ScopedLocalRef<jclass> activity_manager(env, clz);
+    std::vector<const char*> care_about_pauses;
+    care_about_pauses.push_back("PROCESS_STATE_TOP");
+    care_about_pauses.push_back("PROCESS_STATE_IMPORTANT_BACKGROUND");
+    // Attempt to read the constants and classify them as whether or not we care about pause times.
+    for (size_t i = 0; i < care_about_pauses.size(); ++i) {
+      int process_state = 0;
+      if (ReadStaticInt(env, activity_manager.get(), care_about_pauses[i], &process_state)) {
+        process_state_cares_about_pause_time_.insert(process_state);
+        VLOG(gc) << "Adding process state " << process_state
+                 << " to set of states which care about pause time";
+      }
+    }
+  }
+
+  if (application_thread_class_ == NULL) {
+    jclass clz = env->FindClass("android/app/ActivityThread$ApplicationThread");
+    if (clz == NULL) {
+      env->ExceptionClear();
+      LOG(WARNING) << "Could not get application thread class";
+      return;
+    }
+    application_thread_class_ = reinterpret_cast<jclass>(env->NewGlobalRef(clz));
+    last_process_state_id_ = env->GetFieldID(application_thread_class_, "mLastProcessState", "I");
+    if (last_process_state_id_ == NULL) {
+      env->ExceptionClear();
+      LOG(WARNING) << "Could not get last process state member";
+      return;
+    }
+  }
+
+  if (application_thread_class_ != NULL && application_thread_ == NULL) {
+    jmethodID get_application_thread =
+        env->GetMethodID(activity_thread_class_, "getApplicationThread",
+                         "()Landroid/app/ActivityThread$ApplicationThread;");
+    if (get_application_thread == NULL) {
+      LOG(WARNING) << "Could not get method ID for get application thread";
+      return;
+    }
+
+    jobject obj = env->CallObjectMethod(activity_thread_, get_application_thread);
+    if (obj == NULL) {
+      LOG(WARNING) << "Could not get application thread";
+      return;
+    }
+
+    application_thread_ = env->NewGlobalRef(obj);
+  }
+
+  if (application_thread_ != NULL && last_process_state_id_ != NULL) {
+    int process_state = env->GetIntField(application_thread_, last_process_state_id_);
+    env->ExceptionClear();
+
+    care_about_pause_times_ = process_state_cares_about_pause_time_.find(process_state) !=
+        process_state_cares_about_pause_time_.end();
+
+    VLOG(gc) << "New process state " << process_state
+             << " care about pauses " << care_about_pause_times_;
+  }
 }
 
 void Heap::AddContinuousSpace(space::ContinuousSpace* space) {
@@ -1880,20 +2001,18 @@ void Heap::RequestHeapTrim() {
     }
   }
 
-  SchedPolicy policy;
-  get_sched_policy(self->GetTid(), &policy);
-  if (policy == SP_FOREGROUND || policy == SP_AUDIO_APP) {
-    // Don't trim the heap if we are a foreground or audio app.
-    return;
-  }
-
   last_trim_time_ms_ = ms_time;
-  JNIEnv* env = self->GetJniEnv();
-  DCHECK(WellKnownClasses::java_lang_Daemons != NULL);
-  DCHECK(WellKnownClasses::java_lang_Daemons_requestHeapTrim != NULL);
-  env->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons,
-                            WellKnownClasses::java_lang_Daemons_requestHeapTrim);
-  CHECK(!env->ExceptionCheck());
+  ListenForProcessStateChange();
+
+  // Trim only if we do not currently care about pause times.
+  if (!care_about_pause_times_) {
+    JNIEnv* env = self->GetJniEnv();
+    DCHECK(WellKnownClasses::java_lang_Daemons != NULL);
+    DCHECK(WellKnownClasses::java_lang_Daemons_requestHeapTrim != NULL);
+    env->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons,
+                              WellKnownClasses::java_lang_Daemons_requestHeapTrim);
+    CHECK(!env->ExceptionCheck());
+  }
 }
 
 size_t Heap::Trim() {

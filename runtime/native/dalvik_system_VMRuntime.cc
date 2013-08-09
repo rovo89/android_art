@@ -207,10 +207,6 @@ static void VMRuntime_concurrentGC(JNIEnv* env, jobject) {
   Runtime::Current()->GetHeap()->ConcurrentGC(self);
 }
 
-static void VMRuntime_updateProcessState(JNIEnv* env, jobject, jint processState) {
-  Runtime::Current()->GetHeap()->UpdateProcessState(static_cast<gc::ProcessState>(processState));
-}
-
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, addressOf, "(Ljava/lang/Object;)J"),
   NATIVE_METHOD(VMRuntime, bootClassPath, "()Ljava/lang/String;"),
@@ -230,7 +226,6 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, trimHeap, "()V"),
   NATIVE_METHOD(VMRuntime, vmVersion, "()Ljava/lang/String;"),
   NATIVE_METHOD(VMRuntime, vmLibrary, "()Ljava/lang/String;"),
-  NATIVE_METHOD(VMRuntime, updateProcessState, "(I)V"),
 };
 
 void register_dalvik_system_VMRuntime(JNIEnv* env) {
