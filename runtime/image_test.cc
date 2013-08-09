@@ -49,7 +49,7 @@ TEST_F(ImageTest, WriteRead) {
 #if defined(ART_USE_PORTABLE_COMPILER)
       // TODO: we disable this for portable so the test executes in a reasonable amount of time.
       //       We shouldn't need to do this.
-      runtime_->SetSmallMode(true);
+      runtime_->SetCompilerFilter(Runtime::kInterpretOnly);
 #endif
       compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), timings);
 
