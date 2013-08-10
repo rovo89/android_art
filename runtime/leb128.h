@@ -24,8 +24,8 @@ namespace art {
 // Reads an unsigned LEB128 value, updating the given pointer to point
 // just past the end of the read value. This function tolerates
 // non-zero high-order bits in the fifth encoded byte.
-static inline uint32_t DecodeUnsignedLeb128(const byte** data) {
-  const byte* ptr = *data;
+static inline uint32_t DecodeUnsignedLeb128(const uint8_t** data) {
+  const uint8_t* ptr = *data;
   int result = *(ptr++);
   if (result > 0x7f) {
     int cur = *(ptr++);
@@ -53,15 +53,15 @@ static inline uint32_t DecodeUnsignedLeb128(const byte** data) {
 // just past the end of the read value. This function tolerates
 // non-zero high-order bits in the fifth encoded byte.
 // It is possible for this function to return -1.
-static inline int32_t DecodeUnsignedLeb128P1(const byte** data) {
+static inline int32_t DecodeUnsignedLeb128P1(const uint8_t** data) {
   return DecodeUnsignedLeb128(data) - 1;
 }
 
 // Reads a signed LEB128 value, updating the given pointer to point
 // just past the end of the read value. This function tolerates
 // non-zero high-order bits in the fifth encoded byte.
-static inline int32_t DecodeSignedLeb128(const byte** data) {
-  const byte* ptr = *data;
+static inline int32_t DecodeSignedLeb128(const uint8_t** data) {
+  const uint8_t* ptr = *data;
   int32_t result = *(ptr++);
   if (result <= 0x7f) {
     result = (result << 25) >> 25;
@@ -101,22 +101,6 @@ static inline uint32_t UnsignedLeb128Size(uint32_t data) {
     count++;
   } while (data != 0);
   return count;
-}
-
-// Writes a 32-bit value in unsigned ULEB128 format.
-// Returns the updated pointer.
-static inline uint8_t* WriteUnsignedLeb128(uint8_t* ptr, uint32_t data) {
-  while (true) {
-    uint8_t out = data & 0x7f;
-    if (out != data) {
-      *ptr++ = out | 0x80;
-      data >>= 7;
-    } else {
-      *ptr++ = out;
-      break;
-    }
-  }
-  return ptr;
 }
 
 }  // namespace art

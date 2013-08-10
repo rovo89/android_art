@@ -103,8 +103,8 @@ class CompiledMethod : public CompiledCode {
                  const size_t frame_size_in_bytes,
                  const uint32_t core_spill_mask,
                  const uint32_t fp_spill_mask,
-                 const std::vector<uint32_t>& mapping_table,
-                 const std::vector<uint16_t>& vmap_table,
+                 const std::vector<uint8_t>& mapping_table,
+                 const std::vector<uint8_t>& vmap_table,
                  const std::vector<uint8_t>& native_gc_map);
 
   // Constructs a CompiledMethod for the JniCompiler.
@@ -147,11 +147,11 @@ class CompiledMethod : public CompiledCode {
     return fp_spill_mask_;
   }
 
-  const std::vector<uint32_t>& GetMappingTable() const {
+  const std::vector<uint8_t>& GetMappingTable() const {
     return mapping_table_;
   }
 
-  const std::vector<uint16_t>& GetVmapTable() const {
+  const std::vector<uint8_t>& GetVmapTable() const {
     return vmap_table_;
   }
 
@@ -166,10 +166,11 @@ class CompiledMethod : public CompiledCode {
   const uint32_t core_spill_mask_;
   // For quick code, a bit mask describing spilled FPR callee-save registers.
   const uint32_t fp_spill_mask_;
-  // For quick code, a map from native PC offset to dex PC.
-  std::vector<uint32_t> mapping_table_;
-  // For quick code, a map from GPR/FPR register to dex register.
-  std::vector<uint16_t> vmap_table_;
+  // For quick code, a uleb128 encoded map from native PC offset to dex PC aswell as dex PC to
+  // native PC offset. Size prefixed.
+  std::vector<uint8_t> mapping_table_;
+  // For quick code, a uleb128 encoded map from GPR/FPR register to dex register. Size prefixed.
+  std::vector<uint8_t> vmap_table_;
   // For quick code, a map keyed by native PC indices to bitmaps describing what dalvik registers
   // are live. For portable code, the key is a dalvik PC.
   std::vector<uint8_t> gc_map_;

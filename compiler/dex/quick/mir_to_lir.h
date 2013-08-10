@@ -25,6 +25,7 @@
 #include "dex/growable_array.h"
 #include "dex/arena_allocator.h"
 #include "driver/compiler_driver.h"
+#include "leb128_encoder.h"
 #include "safe_map.h"
 
 namespace art {
@@ -760,7 +761,8 @@ class Mir2Lir : public Backend {
      */
     int live_sreg_;
     CodeBuffer code_buffer_;
-    std::vector<uint32_t> combined_mapping_table_;
+    // The encoding mapping table data (dex -> pc offset and pc offset -> dex) with a size prefix.
+    UnsignedLeb128EncodingVector encoded_mapping_table_;
     std::vector<uint32_t> core_vmap_table_;
     std::vector<uint32_t> fp_vmap_table_;
     std::vector<uint8_t> native_gc_map_;

@@ -18,6 +18,7 @@
 #include "common_test.h"
 #include "dex_file.h"
 #include "gtest/gtest.h"
+#include "leb128_encoder.h"
 #include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
@@ -53,17 +54,17 @@ class ExceptionTest : public CommonTest {
       fake_code_.push_back(0x70 | i);
     }
 
-    fake_mapping_data_.push_back(4);  // first element is count
-    fake_mapping_data_.push_back(4);  // total (non-length) elements
-    fake_mapping_data_.push_back(2);  // count of pc to dex elements
+    fake_mapping_data_.PushBack(4);  // first element is count
+    fake_mapping_data_.PushBack(4);  // total (non-length) elements
+    fake_mapping_data_.PushBack(2);  // count of pc to dex elements
                                       // ---  pc to dex table
-    fake_mapping_data_.push_back(3);  // offset 3
-    fake_mapping_data_.push_back(3);  // maps to dex offset 3
+    fake_mapping_data_.PushBack(3);  // offset 3
+    fake_mapping_data_.PushBack(3);  // maps to dex offset 3
                                       // ---  dex to pc table
-    fake_mapping_data_.push_back(3);  // offset 3
-    fake_mapping_data_.push_back(3);  // maps to dex offset 3
+    fake_mapping_data_.PushBack(3);  // offset 3
+    fake_mapping_data_.PushBack(3);  // maps to dex offset 3
 
-    fake_vmap_table_data_.push_back(0);
+    fake_vmap_table_data_.PushBack(0);
 
     fake_gc_map_.push_back(0);  // 0 bytes to encode references and native pc offsets.
     fake_gc_map_.push_back(0);
@@ -74,24 +75,24 @@ class ExceptionTest : public CommonTest {
     ASSERT_TRUE(method_f_ != NULL);
     method_f_->SetFrameSizeInBytes(kStackAlignment);
     method_f_->SetEntryPointFromCompiledCode(CompiledMethod::CodePointer(&fake_code_[sizeof(code_size)], kThumb2));
-    method_f_->SetMappingTable(&fake_mapping_data_[0]);
-    method_f_->SetVmapTable(&fake_vmap_table_data_[0]);
+    method_f_->SetMappingTable(&fake_mapping_data_.GetData()[0]);
+    method_f_->SetVmapTable(&fake_vmap_table_data_.GetData()[0]);
     method_f_->SetNativeGcMap(&fake_gc_map_[0]);
 
     method_g_ = my_klass_->FindVirtualMethod("g", "(I)V");
     ASSERT_TRUE(method_g_ != NULL);
     method_g_->SetFrameSizeInBytes(kStackAlignment);
     method_g_->SetEntryPointFromCompiledCode(CompiledMethod::CodePointer(&fake_code_[sizeof(code_size)], kThumb2));
-    method_g_->SetMappingTable(&fake_mapping_data_[0]);
-    method_g_->SetVmapTable(&fake_vmap_table_data_[0]);
+    method_g_->SetMappingTable(&fake_mapping_data_.GetData()[0]);
+    method_g_->SetVmapTable(&fake_vmap_table_data_.GetData()[0]);
     method_g_->SetNativeGcMap(&fake_gc_map_[0]);
   }
 
   const DexFile* dex_;
 
   std::vector<uint8_t> fake_code_;
-  std::vector<uint32_t> fake_mapping_data_;
-  std::vector<uint16_t> fake_vmap_table_data_;
+  UnsignedLeb128EncodingVector fake_mapping_data_;
+  UnsignedLeb128EncodingVector fake_vmap_table_data_;
   std::vector<uint8_t> fake_gc_map_;
 
   mirror::AbstractMethod* method_f_;

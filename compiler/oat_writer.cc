@@ -322,12 +322,12 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
     core_spill_mask = compiled_method->GetCoreSpillMask();
     fp_spill_mask = compiled_method->GetFpSpillMask();
 
-    const std::vector<uint32_t>& mapping_table = compiled_method->GetMappingTable();
+    const std::vector<uint8_t>& mapping_table = compiled_method->GetMappingTable();
     size_t mapping_table_size = mapping_table.size() * sizeof(mapping_table[0]);
     mapping_table_offset = (mapping_table_size == 0) ? 0 : offset;
 
     // Deduplicate mapping tables
-    SafeMap<const std::vector<uint32_t>*, uint32_t>::iterator mapping_iter =
+    SafeMap<const std::vector<uint8_t>*, uint32_t>::iterator mapping_iter =
         mapping_table_offsets_.find(&mapping_table);
     if (mapping_iter != mapping_table_offsets_.end()) {
       mapping_table_offset = mapping_iter->second;
@@ -337,12 +337,12 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
       oat_header_->UpdateChecksum(&mapping_table[0], mapping_table_size);
     }
 
-    const std::vector<uint16_t>& vmap_table = compiled_method->GetVmapTable();
+    const std::vector<uint8_t>& vmap_table = compiled_method->GetVmapTable();
     size_t vmap_table_size = vmap_table.size() * sizeof(vmap_table[0]);
     vmap_table_offset = (vmap_table_size == 0) ? 0 : offset;
 
     // Deduplicate vmap tables
-    SafeMap<const std::vector<uint16_t>*, uint32_t>::iterator vmap_iter =
+    SafeMap<const std::vector<uint8_t>*, uint32_t>::iterator vmap_iter =
         vmap_table_offsets_.find(&vmap_table);
     if (vmap_iter != vmap_table_offsets_.end()) {
       vmap_table_offset = vmap_iter->second;
@@ -717,11 +717,11 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, const size_t file_offset,
     DCHECK_OFFSET();
 #endif
 
-    const std::vector<uint32_t>& mapping_table = compiled_method->GetMappingTable();
+    const std::vector<uint8_t>& mapping_table = compiled_method->GetMappingTable();
     size_t mapping_table_size = mapping_table.size() * sizeof(mapping_table[0]);
 
     // Deduplicate mapping tables
-    SafeMap<const std::vector<uint32_t>*, uint32_t>::iterator mapping_iter =
+    SafeMap<const std::vector<uint8_t>*, uint32_t>::iterator mapping_iter =
         mapping_table_offsets_.find(&mapping_table);
     if (mapping_iter != mapping_table_offsets_.end() &&
         relative_offset != method_offsets.mapping_table_offset_) {
@@ -741,11 +741,11 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, const size_t file_offset,
     }
     DCHECK_OFFSET();
 
-    const std::vector<uint16_t>& vmap_table = compiled_method->GetVmapTable();
+    const std::vector<uint8_t>& vmap_table = compiled_method->GetVmapTable();
     size_t vmap_table_size = vmap_table.size() * sizeof(vmap_table[0]);
 
     // Deduplicate vmap tables
-    SafeMap<const std::vector<uint16_t>*, uint32_t>::iterator vmap_iter =
+    SafeMap<const std::vector<uint8_t>*, uint32_t>::iterator vmap_iter =
         vmap_table_offsets_.find(&vmap_table);
     if (vmap_iter != vmap_table_offsets_.end() &&
         relative_offset != method_offsets.vmap_table_offset_) {

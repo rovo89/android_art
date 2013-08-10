@@ -24,6 +24,7 @@
 #include "object_utils.h"
 #include "thread_list.h"
 #include "throw_location.h"
+#include "vmap_table.h"
 
 namespace art {
 
@@ -135,10 +136,10 @@ uint32_t StackVisitor::GetVReg(mirror::AbstractMethod* m, uint16_t vreg, VRegKin
   if (cur_quick_frame_ != NULL) {
     DCHECK(context_ != NULL);  // You can't reliably read registers without a context.
     DCHECK(m == GetMethod());
-    const VmapTable vmap_table(m->GetVmapTableRaw());
+    const VmapTable vmap_table(m->GetVmapTable());
     uint32_t vmap_offset;
     // TODO: IsInContext stops before spotting floating point registers.
-    if (vmap_table.IsInContext(vreg, vmap_offset, kind)) {
+    if (vmap_table.IsInContext(vreg, kind, &vmap_offset)) {
       bool is_float = (kind == kFloatVReg) || (kind == kDoubleLoVReg) || (kind == kDoubleHiVReg);
       uint32_t spill_mask = is_float ? m->GetFpSpillMask()
                                      : m->GetCoreSpillMask();
@@ -160,10 +161,10 @@ void StackVisitor::SetVReg(mirror::AbstractMethod* m, uint16_t vreg, uint32_t ne
   if (cur_quick_frame_ != NULL) {
     DCHECK(context_ != NULL);  // You can't reliably write registers without a context.
     DCHECK(m == GetMethod());
-    const VmapTable vmap_table(m->GetVmapTableRaw());
+    const VmapTable vmap_table(m->GetVmapTable());
     uint32_t vmap_offset;
     // TODO: IsInContext stops before spotting floating point registers.
-    if (vmap_table.IsInContext(vreg, vmap_offset, kind)) {
+    if (vmap_table.IsInContext(vreg, kind, &vmap_offset)) {
       bool is_float = (kind == kFloatVReg) || (kind == kDoubleLoVReg) || (kind == kDoubleHiVReg);
       uint32_t spill_mask = is_float ? m->GetFpSpillMask() : m->GetCoreSpillMask();
       const uint32_t reg = vmap_table.ComputeRegister(spill_mask, vmap_offset, kReferenceVReg);
