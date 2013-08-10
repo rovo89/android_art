@@ -263,9 +263,10 @@ void MarkSweep::ReclaimPhase() {
   Thread* self = Thread::Current();
 
   if (!IsConcurrent()) {
+    base::TimingLogger::ScopedSplit split("ProcessReferences", &timings_);
     ProcessReferences(self);
   } else {
-    timings_.NewSplit("UnMarkAllocStack");
+    base::TimingLogger::ScopedSplit split("UnMarkAllocStack", &timings_);
     accounting::ObjectStack* allocation_stack = GetHeap()->allocation_stack_.get();
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
     // The allocation stack contains things allocated since the start of the GC. These may have been
