@@ -24,6 +24,7 @@
 #include "gc/accounting/card_table-inl.h"
 #include "interpreter/interpreter.h"
 #include "jni_internal.h"
+#include "mapping_table.h"
 #include "object-inl.h"
 #include "object_array.h"
 #include "object_array-inl.h"
@@ -157,43 +158,27 @@ uintptr_t AbstractMethod::NativePcOffset(const uintptr_t pc) const {
   return pc - reinterpret_cast<uintptr_t>(code);
 }
 
-// Find the lowest-address native safepoint pc for a given dex pc
-uintptr_t AbstractMethod::ToFirstNativeSafepointPc(const uint32_t dex_pc) const {
-#if !defined(ART_USE_PORTABLE_COMPILER)
-  const uint32_t* mapping_table = GetPcToDexMappingTable();
-  if (mapping_table == NULL) {
-    DCHECK(IsNative() || IsCalleeSaveMethod() || IsProxyMethod()) << PrettyMethod(this);
-    return DexFile::kDexNoIndex;   // Special no mapping case
-  }
-  size_t mapping_table_length = GetPcToDexMappingTableLength();
-  for (size_t i = 0; i < mapping_table_length; i += 2) {
-    if (mapping_table[i + 1] == dex_pc) {
-      const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this);
-      return mapping_table[i] + reinterpret_cast<uintptr_t>(code);
-    }
-  }
-  LOG(FATAL) << "Failed to find native offset for dex pc 0x" << std::hex << dex_pc
-             << " in " << PrettyMethod(this);
-  return 0;
-#else
-  // Compiler LLVM doesn't use the machine pc, we just use dex pc instead.
-  return static_cast<uint32_t>(dex_pc);
-#endif
-}
-
 uint32_t AbstractMethod::ToDexPc(const uintptr_t pc) const {
 #if !defined(ART_USE_PORTABLE_COMPILER)
-  const uint32_t* mapping_table = GetPcToDexMappingTable();
-  if (mapping_table == NULL) {
+  MappingTable table(GetMappingTable());
+  if (table.TotalSize() == 0) {
     DCHECK(IsNative() || IsCalleeSaveMethod() || IsProxyMethod()) << PrettyMethod(this);
     return DexFile::kDexNoIndex;   // Special no mapping case
   }
-  size_t mapping_table_length = GetPcToDexMappingTableLength();
   const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this);
   uint32_t sought_offset = pc - reinterpret_cast<uintptr_t>(code);
-  for (size_t i = 0; i < mapping_table_length; i += 2) {
-    if (mapping_table[i] == sought_offset) {
-      return mapping_table[i + 1];
+  // Assume the caller wants a pc-to-dex mapping so check here first.
+  typedef MappingTable::PcToDexIterator It;
+  for (It cur = table.PcToDexBegin(), end = table.PcToDexEnd(); cur != end; ++cur) {
+    if (cur.NativePcOffset() == sought_offset) {
+      return cur.DexPc();
+    }
+  }
+  // Now check dex-to-pc mappings.
+  typedef MappingTable::DexToPcIterator It2;
+  for (It2 cur = table.DexToPcBegin(), end = table.DexToPcEnd(); cur != end; ++cur) {
+    if (cur.NativePcOffset() == sought_offset) {
+      return cur.DexPc();
     }
   }
   LOG(FATAL) << "Failed to find Dex offset for PC offset " << reinterpret_cast<void*>(sought_offset)
@@ -207,21 +192,28 @@ uint32_t AbstractMethod::ToDexPc(const uintptr_t pc) const {
 }
 
 uintptr_t AbstractMethod::ToNativePc(const uint32_t dex_pc) const {
-  const uint32_t* mapping_table = GetDexToPcMappingTable();
-  if (mapping_table == NULL) {
+  MappingTable table(GetMappingTable());
+  if (table.TotalSize() == 0) {
     DCHECK_EQ(dex_pc, 0U);
     return 0;   // Special no mapping/pc == 0 case
   }
-  size_t mapping_table_length = GetDexToPcMappingTableLength();
-  for (size_t i = 0; i < mapping_table_length; i += 2) {
-    uint32_t map_offset = mapping_table[i];
-    uint32_t map_dex_offset = mapping_table[i + 1];
-    if (map_dex_offset == dex_pc) {
+  // Assume the caller wants a dex-to-pc mapping so check here first.
+  typedef MappingTable::DexToPcIterator It;
+  for (It cur = table.DexToPcBegin(), end = table.DexToPcEnd(); cur != end; ++cur) {
+    if (cur.DexPc() == dex_pc) {
       const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this);
-      return reinterpret_cast<uintptr_t>(code) + map_offset;
+      return reinterpret_cast<uintptr_t>(code) + cur.NativePcOffset();
     }
   }
-  LOG(FATAL) << "Looking up Dex PC not contained in method, 0x" << std::hex << dex_pc
+  // Now check pc-to-dex mappings.
+  typedef MappingTable::PcToDexIterator It2;
+  for (It2 cur = table.PcToDexBegin(), end = table.PcToDexEnd(); cur != end; ++cur) {
+    if (cur.DexPc() == dex_pc) {
+      const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this);
+      return reinterpret_cast<uintptr_t>(code) + cur.NativePcOffset();
+    }
+  }
+  LOG(FATAL) << "Failed to find native offset for dex pc 0x" << std::hex << dex_pc
              << " in " << PrettyMethod(this);
   return 0;
 }

@@ -73,31 +73,31 @@ struct ReferenceMap2Visitor : public StackVisitor {
     // we know the Dex registers with live reference values. Assert that what we
     // find is what is expected.
     if (m_name.compare("f") == 0) {
-      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToFirstNativeSafepointPc(0x03U)));
+      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x03U)));
       CHECK(ref_bitmap);
       CHECK_REGS_CONTAIN_REFS(8);  // v8: this
 
-      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToFirstNativeSafepointPc(0x06U)));
+      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x06U)));
       CHECK(ref_bitmap);
       CHECK_REGS_CONTAIN_REFS(8, 1);  // v8: this, v1: x
 
-      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToFirstNativeSafepointPc(0x08U)));
+      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x08U)));
       CHECK(ref_bitmap);
       CHECK_REGS_CONTAIN_REFS(8, 3, 1);  // v8: this, v3: y, v1: x
 
-      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToFirstNativeSafepointPc(0x0cU)));
+      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x0cU)));
       CHECK(ref_bitmap);
       CHECK_REGS_CONTAIN_REFS(8, 3, 1);  // v8: this, v3: y, v1: x
 
-      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToFirstNativeSafepointPc(0x0eU)));
+      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x0eU)));
       CHECK(ref_bitmap);
       CHECK_REGS_CONTAIN_REFS(8, 3, 1);  // v8: this, v3: y, v1: x
 
-      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToFirstNativeSafepointPc(0x10U)));
+      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x10U)));
       CHECK(ref_bitmap);
       CHECK_REGS_CONTAIN_REFS(8, 3, 1);  // v8: this, v3: y, v1: x
 
-      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToFirstNativeSafepointPc(0x13U)));
+      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x13U)));
       CHECK(ref_bitmap);
       // v2 is added because of the instruction at DexPC 0024. Object merges with 0 is Object. See:
       //   0024: move-object v3, v2
@@ -107,45 +107,45 @@ struct ReferenceMap2Visitor : public StackVisitor {
       // We eliminate the non-live registers at a return, so only v3 is live:
       CHECK_REGS_CONTAIN_REFS(3);  // v3: y
 
-      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToFirstNativeSafepointPc(0x18U)));
+      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x18U)));
       CHECK(ref_bitmap);
       CHECK_REGS_CONTAIN_REFS(8, 2, 1, 0);  // v8: this, v2: y, v1: x, v0: ex
 
-      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToFirstNativeSafepointPc(0x1aU)));
+      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x1aU)));
       CHECK(ref_bitmap);
       CHECK_REGS_CONTAIN_REFS(8, 5, 2, 1, 0);  // v8: this, v5: x[1], v2: y, v1: x, v0: ex
 
-      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToFirstNativeSafepointPc(0x1dU)));
+      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x1dU)));
       CHECK(ref_bitmap);
       CHECK_REGS_CONTAIN_REFS(8, 5, 2, 1, 0);  // v8: this, v5: x[1], v2: y, v1: x, v0: ex
 
-      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToFirstNativeSafepointPc(0x1fU)));
+      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x1fU)));
       CHECK(ref_bitmap);
       // v5 is removed from the root set because there is a "merge" operation.
       // See 0015: if-nez v2, 001f.
       CHECK_REGS_CONTAIN_REFS(8, 2, 1, 0);  // v8: this, v2: y, v1: x, v0: ex
 
-      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToFirstNativeSafepointPc(0x21U)));
+      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x21U)));
       CHECK(ref_bitmap);
       CHECK_REGS_CONTAIN_REFS(8, 2, 1, 0);  // v8: this, v2: y, v1: x, v0: ex
 
-      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToFirstNativeSafepointPc(0x27U)));
+      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x27U)));
       CHECK(ref_bitmap);
       CHECK_REGS_CONTAIN_REFS(8, 4, 2, 1);  // v8: this, v4: ex, v2: y, v1: x
 
-      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToFirstNativeSafepointPc(0x29U)));
+      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x29U)));
       CHECK(ref_bitmap);
       CHECK_REGS_CONTAIN_REFS(8, 4, 2, 1);  // v8: this, v4: ex, v2: y, v1: x
 
-      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToFirstNativeSafepointPc(0x2cU)));
+      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x2cU)));
       CHECK(ref_bitmap);
       CHECK_REGS_CONTAIN_REFS(8, 4, 2, 1);  // v8: this, v4: ex, v2: y, v1: x
 
-      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToFirstNativeSafepointPc(0x2fU)));
+      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x2fU)));
       CHECK(ref_bitmap);
       CHECK_REGS_CONTAIN_REFS(8, 4, 3, 2, 1);  // v8: this, v4: ex, v3: y, v2: y, v1: x
 
-      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToFirstNativeSafepointPc(0x32U)));
+      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x32U)));
       CHECK(ref_bitmap);
       CHECK_REGS_CONTAIN_REFS(8, 3, 2, 1, 0);  // v8: this, v3: y, v2: y, v1: x, v0: ex
     }

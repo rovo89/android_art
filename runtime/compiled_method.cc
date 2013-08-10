@@ -112,35 +112,13 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
                                const size_t frame_size_in_bytes,
                                const uint32_t core_spill_mask,
                                const uint32_t fp_spill_mask,
-                               const std::vector<uint32_t>& mapping_table,
-                               const std::vector<uint16_t>& vmap_table,
+                               const std::vector<uint8_t>& mapping_table,
+                               const std::vector<uint8_t>& vmap_table,
                                const std::vector<uint8_t>& native_gc_map)
     : CompiledCode(instruction_set, code), frame_size_in_bytes_(frame_size_in_bytes),
       core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask),
+      mapping_table_(mapping_table), vmap_table_(vmap_table),
       gc_map_(native_gc_map) {
-  DCHECK_EQ(vmap_table.size(),
-            static_cast<uint32_t>(__builtin_popcount(core_spill_mask)
-                                  + __builtin_popcount(fp_spill_mask)));
-  CHECK_LE(vmap_table.size(), (1U << 16) - 1);  // length must fit in 2^16-1
-
-  std::vector<uint32_t> length_prefixed_mapping_table;
-  length_prefixed_mapping_table.push_back(mapping_table.size());
-  length_prefixed_mapping_table.insert(length_prefixed_mapping_table.end(),
-                                       mapping_table.begin(),
-                                       mapping_table.end());
-  DCHECK_EQ(mapping_table.size() + 1, length_prefixed_mapping_table.size());
-
-  std::vector<uint16_t> length_prefixed_vmap_table;
-  length_prefixed_vmap_table.push_back(vmap_table.size());
-  length_prefixed_vmap_table.insert(length_prefixed_vmap_table.end(),
-                                    vmap_table.begin(),
-                                    vmap_table.end());
-  DCHECK_EQ(vmap_table.size() + 1, length_prefixed_vmap_table.size());
-  DCHECK_EQ(vmap_table.size(), length_prefixed_vmap_table[0]);
-
-  mapping_table_ = length_prefixed_mapping_table;
-  vmap_table_ = length_prefixed_vmap_table;
-  DCHECK_EQ(vmap_table_[0], static_cast<uint32_t>(__builtin_popcount(core_spill_mask) + __builtin_popcount(fp_spill_mask)));
 }
 
 CompiledMethod::CompiledMethod(InstructionSet instruction_set,
