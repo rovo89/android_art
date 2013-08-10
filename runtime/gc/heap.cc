@@ -1175,17 +1175,6 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
                                                bool clear_soft_references) {
   Thread* self = Thread::Current();
 
-  switch (gc_cause) {
-    case kGcCauseForAlloc:
-      ATRACE_BEGIN("GC (alloc)");
-      break;
-    case kGcCauseBackground:
-      ATRACE_BEGIN("GC (background)");
-      break;
-    case kGcCauseExplicit:
-      ATRACE_BEGIN("GC (explicit)");
-      break;
-  }
 
   ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
   Locks::mutator_lock_->AssertNotHeld(self);
@@ -1205,7 +1194,9 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
       }
     }
     if (!start_collect) {
+      // TODO: timinglog this.
       WaitForConcurrentGcToComplete(self);
+
       // TODO: if another thread beat this one to do the GC, perhaps we should just return here?
       //       Not doing at the moment to ensure soft references are cleared.
     }
@@ -1234,6 +1225,18 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
     gc_type = collector::kGcTypePartial;
   }
 
+  switch (gc_cause) {
+    case kGcCauseForAlloc:
+      ATRACE_BEGIN("GC (alloc)");
+      break;
+    case kGcCauseBackground:
+      ATRACE_BEGIN("GC (background)");
+      break;
+    case kGcCauseExplicit:
+      ATRACE_BEGIN("GC (explicit)");
+      break;
+  }
+
   DCHECK_LT(gc_type, collector::kGcTypeMax);
   DCHECK_NE(gc_type, collector::kGcTypeNone);
   collector::MarkSweep* collector = NULL;
@@ -1249,6 +1252,9 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   CHECK(collector != NULL)
       << "Could not find garbage collector with concurrent=" << concurrent_gc_
       << " and type=" << gc_type;
+
+  base::TimingLogger& timings = collector->GetTimings();
+
   collector->clear_soft_references_ = clear_soft_references;
   collector->Run();
   total_objects_freed_ever_ += collector->GetFreedObjects();
@@ -1257,42 +1263,43 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   const size_t duration = collector->GetDurationNs();
   std::vector<uint64_t> pauses = collector->GetPauseTimes();
   bool was_slow = duration > kSlowGcThreshold ||
-      (gc_cause == kGcCauseForAlloc && duration > kLongGcPauseThreshold);
+          (gc_cause == kGcCauseForAlloc && duration > kLongGcPauseThreshold);
   for (size_t i = 0; i < pauses.size(); ++i) {
-    if (pauses[i] > kLongGcPauseThreshold) {
-      was_slow = true;
-    }
+      if (pauses[i] > kLongGcPauseThreshold) {
+          was_slow = true;
+      }
   }
 
   if (was_slow) {
-    const size_t percent_free = GetPercentFree();
-    const size_t current_heap_size = GetBytesAllocated();
-    const size_t total_memory = GetTotalMemory();
-    std::ostringstream pause_string;
-    for (size_t i = 0; i < pauses.size(); ++i) {
-      pause_string << PrettyDuration((pauses[i] / 1000) * 1000)
-                   << ((i != pauses.size() - 1) ? ", " : "");
-    }
-    LOG(INFO) << gc_cause << " " << collector->GetName()
-              << "GC freed " << PrettySize(collector->GetFreedBytes()) << ", "
-              << percent_free << "% free, " << PrettySize(current_heap_size) << "/"
-              << PrettySize(total_memory) << ", " << "paused " << pause_string.str()
-              << " total " << PrettyDuration((duration / 1000) * 1000);
-    if (VLOG_IS_ON(heap)) {
-      LOG(INFO) << Dumpable<base::TimingLogger>(collector->GetTimings());
-    }
+      const size_t percent_free = GetPercentFree();
+      const size_t current_heap_size = GetBytesAllocated();
+      const size_t total_memory = GetTotalMemory();
+      std::ostringstream pause_string;
+      for (size_t i = 0; i < pauses.size(); ++i) {
+          pause_string << PrettyDuration((pauses[i] / 1000) * 1000)
+                       << ((i != pauses.size() - 1) ? ", " : "");
+      }
+      LOG(INFO) << gc_cause << " " << collector->GetName()
+                << "GC freed " << PrettySize(collector->GetFreedBytes()) << ", "
+                << percent_free << "% free, " << PrettySize(current_heap_size) << "/"
+                << PrettySize(total_memory) << ", " << "paused " << pause_string.str()
+                << " total " << PrettyDuration((duration / 1000) * 1000);
+      if (VLOG_IS_ON(heap)) {
+          LOG(INFO) << Dumpable<base::TimingLogger>(timings);
+      }
   }
 
   {
-    MutexLock mu(self, *gc_complete_lock_);
-    is_gc_running_ = false;
-    last_gc_type_ = gc_type;
-    // Wake anyone who may have been waiting for the GC to complete.
-    gc_complete_cond_->Broadcast(self);
+      MutexLock mu(self, *gc_complete_lock_);
+      is_gc_running_ = false;
+      last_gc_type_ = gc_type;
+      // Wake anyone who may have been waiting for the GC to complete.
+      gc_complete_cond_->Broadcast(self);
   }
 
-  // Inform DDMS that a GC completed.
   ATRACE_END();
+
+  // Inform DDMS that a GC completed.
   Dbg::GcDidFinish();
   return gc_type;
 }
@@ -1305,9 +1312,10 @@ void Heap::UpdateAndMarkModUnion(collector::MarkSweep* mark_sweep, base::TimingL
     return;
   }
 
+  base::TimingLogger::ScopedSplit split("UpdateModUnionTable", &timings);
   // Update zygote mod union table.
   if (gc_type == collector::kGcTypePartial) {
-    timings.NewSplit("UpdateZygoteModUnionTable");
+    base::TimingLogger::ScopedSplit split("UpdateZygoteModUnionTable", &timings);
     zygote_mod_union_table_->Update();
 
     timings.NewSplit("ZygoteMarkReferences");
@@ -1594,15 +1602,15 @@ void Heap::ProcessCards(base::TimingLogger& timings) {
   for (It it = continuous_spaces_.begin(), end = continuous_spaces_.end(); it != end; ++it) {
     space::ContinuousSpace* space = *it;
     if (space->IsImageSpace()) {
-      timings.NewSplit("ModUnionClearCards");
+      base::TimingLogger::ScopedSplit split("ImageModUnionClearCards", &timings);
       image_mod_union_table_->ClearCards(space);
     } else if (space->IsZygoteSpace()) {
-      timings.NewSplit("ZygoteModUnionClearCards");
+      base::TimingLogger::ScopedSplit split("ZygoteModUnionClearCards", &timings);
       zygote_mod_union_table_->ClearCards(space);
     } else {
+      base::TimingLogger::ScopedSplit split("AllocSpaceClearCards", &timings);
       // No mod union table for the AllocSpace. Age the cards so that the GC knows that these cards
       // were dirty before the GC started.
-      timings.NewSplit("AllocSpaceClearCards");
       card_table_->ModifyCardsAtomic(space->Begin(), space->End(), AgeCardVisitor(), VoidFunctor());
     }
   }

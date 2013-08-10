@@ -25,6 +25,7 @@ TEST_COMMON_SRC_FILES := \
 	runtime/barrier_test.cc \
 	runtime/base/histogram_test.cc \
 	runtime/base/mutex_test.cc \
+	runtime/base/timing_logger_test.cc \
 	runtime/base/unix_file/fd_file_test.cc \
 	runtime/base/unix_file/mapped_file_test.cc \
 	runtime/base/unix_file/null_file_test.cc \

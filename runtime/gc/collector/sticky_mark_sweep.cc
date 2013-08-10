@@ -55,7 +55,6 @@ void StickyMarkSweep::MarkReachableObjects() {
 }
 
 void StickyMarkSweep::Sweep(bool swap_bitmaps) {
-  timings_.NewSplit("SweepArray");
   accounting::ObjectStack* live_stack = GetHeap()->GetLiveStack();
   SweepArray(live_stack, false);
 }
