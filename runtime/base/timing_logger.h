@@ -107,8 +107,8 @@ class TimingLogger {
       // Pauses timing of the split, usually due to nesting of another split.
       void Pause();
 
-      // Unpauses timing of the split, usually because a nested split has ended.
-      void UnPause();
+      // Resumes timing of the split, usually because a nested split has ended.
+      void Resume();
 
       // Used by new split to swap splits in place in a ScopedSplit instance.
       void TailInsertSplit(const char* label);
