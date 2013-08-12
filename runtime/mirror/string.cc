@@ -101,7 +101,8 @@ int32_t String::GetLength() const {
 uint16_t String::CharAt(int32_t index) const {
   // TODO: do we need this? Equals is the only caller, and could
   // bounds check itself.
-  if (index < 0 || index >= count_) {
+  DCHECK_GE(count_, 0);  // ensures the unsigned comparison is safe.
+  if (UNLIKELY(static_cast<uint32_t>(index) >= static_cast<uint32_t>(count_))) {
     Thread* self = Thread::Current();
     ThrowLocation throw_location = self->GetCurrentLocationForThrow();
     self->ThrowNewExceptionF(throw_location, "Ljava/lang/StringIndexOutOfBoundsException;",
