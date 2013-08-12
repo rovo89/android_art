@@ -23,6 +23,7 @@
 #include <iosfwd>
 #include <string>
 
+#include "atomic_integer.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "globals.h"
@@ -41,19 +42,25 @@
 #define HAVE_TIMED_RWLOCK 0
 #endif
 
-// Record Log contention information, dumpable via SIGQUIT.
-#define CONTENTION_LOGGING (0 && ART_USE_FUTEXES)
-const size_t kContentionLogSize = 64;
-#if CONTENTION_LOGGING
-#include "atomic_integer.h"
-#endif
-
 namespace art {
 
 class ScopedContentionRecorder;
 class Thread;
 
 const bool kDebugLocking = true || kIsDebugBuild;
+
+// Record Log contention information, dumpable via SIGQUIT.
+#ifdef ART_USE_FUTEXES
+// To enable lock contention logging, flip this to true.
+const bool kLogLockContentions = false;
+#else
+// Keep this false as lock contention logging is supported only with
+// futex.
+const bool kLogLockContentions = false;
+#endif
+const size_t kContentionLogSize = 64;
+const size_t kContentionLogDataSize = kLogLockContentions ? 1 : 0;
+const size_t kAllMutexDataSize = kLogLockContentions ? 1 : 0;
 
 // Base class for all Mutex implementations
 class BaseMutex {
@@ -80,12 +87,12 @@ class BaseMutex {
 
   friend class ScopedContentionRecorder;
 
-  void RecordContention(uint64_t blocked_tid, uint64_t owner_tid, uint64_t milli_time_blocked);
+  void RecordContention(uint64_t blocked_tid, uint64_t owner_tid, uint64_t nano_time_blocked);
   void DumpContention(std::ostream& os) const;
 
   const LockLevel level_;  // Support for lock hierarchy.
   const char* const name_;
-#if CONTENTION_LOGGING
+
   // A log entry that records contention but makes no guarantee that either tid will be held live.
   struct ContentionLogEntry {
     ContentionLogEntry() : blocked_tid(0), owner_tid(0) {}
@@ -93,15 +100,27 @@ class BaseMutex {
     uint64_t owner_tid;
     AtomicInteger count;
   };
-  ContentionLogEntry contention_log_[kContentionLogSize];
-  // The next entry in the contention log to be updated. Value ranges from 0 to
-  // kContentionLogSize - 1.
-  AtomicInteger cur_content_log_entry_;
-  // Number of times the Mutex has been contended.
-  AtomicInteger contention_count_;
-  // Sum of time waited by all contenders in ms.
-  AtomicInteger wait_time_;
-#endif
+  struct ContentionLogData {
+    ContentionLogEntry contention_log[kContentionLogSize];
+    // The next entry in the contention log to be updated. Value ranges from 0 to
+    // kContentionLogSize - 1.
+    AtomicInteger cur_content_log_entry;
+    // Number of times the Mutex has been contended.
+    AtomicInteger contention_count;
+    // Sum of time waited by all contenders in ns.
+    volatile uint64_t wait_time;
+    void AddToWaitTime(uint64_t value);
+    ContentionLogData() : wait_time(0) {}
+  };
+  ContentionLogData contetion_log_data_[kContentionLogDataSize];
+
+ public:
+  bool HasEverContended() const {
+    if (kLogLockContentions) {
+      return contetion_log_data_->contention_count > 0;
+    }
+    return false;
+  }
 };
 
 // A Mutex is used to achieve mutual exclusion between threads. A Mutex can be used to gain

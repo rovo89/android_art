@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <sys/time.h>
 
+#include "atomic.h"
 #include "base/logging.h"
 #include "cutils/atomic.h"
 #include "cutils/atomic-inline.h"
@@ -94,59 +95,78 @@ static bool ComputeRelativeTimeSpec(timespec* result_ts, const timespec& lhs, co
 }
 #endif
 
-#if CONTENTION_LOGGING
-// A guard for all_mutexes_ that's not a mutex (Mutexes must CAS to acquire and busy wait).
-static AtomicInteger all_mutexes_guard_;
-// All created mutexes guarded by all_mutexes_guard_.
-std::set<BaseMutex*>* all_mutexes_;
+struct AllMutexData {
+  // A guard for all_mutexes_ that's not a mutex (Mutexes must CAS to acquire and busy wait).
+  AtomicInteger all_mutexes_guard;
+  // All created mutexes guarded by all_mutexes_guard_.
+  std::set<BaseMutex*>* all_mutexes;
+  AllMutexData() : all_mutexes(NULL) {}
+};
+static struct AllMutexData all_mutex_data[kAllMutexDataSize];
 
 class ScopedAllMutexesLock {
  public:
   explicit ScopedAllMutexesLock(const BaseMutex* mutex) : mutex_(mutex) {
-    while (!all_mutexes_guard_.CompareAndSwap(0, reinterpret_cast<int32_t>(mutex))) {
+    while (!all_mutex_data->all_mutexes_guard.compare_and_swap(0, reinterpret_cast<int32_t>(mutex))) {
       NanoSleep(100);
     }
   }
   ~ScopedAllMutexesLock() {
-    while (!all_mutexes_guard_.CompareAndSwap(reinterpret_cast<int32_t>(mutex_), 0)) {
+    while (!all_mutex_data->all_mutexes_guard.compare_and_swap(reinterpret_cast<int32_t>(mutex_), 0)) {
       NanoSleep(100);
     }
   }
  private:
   const BaseMutex* const mutex_;
 };
-#endif
 
 BaseMutex::BaseMutex(const char* name, LockLevel level) : level_(level), name_(name) {
-#if CONTENTION_LOGGING
-  ScopedAllMutexesLock mu(this);
-  if (all_mutexes_ == NULL) {
-    // We leak the global set of all mutexes to avoid ordering issues in global variable
-    // construction/destruction.
-    all_mutexes_ = new std::set<BaseMutex*>();
+  if (kLogLockContentions) {
+    ScopedAllMutexesLock mu(this);
+    std::set<BaseMutex*>** all_mutexes_ptr = &all_mutex_data->all_mutexes;
+    if (*all_mutexes_ptr == NULL) {
+      // We leak the global set of all mutexes to avoid ordering issues in global variable
+      // construction/destruction.
+      *all_mutexes_ptr = new std::set<BaseMutex*>();
+    }
+    (*all_mutexes_ptr)->insert(this);
   }
-  all_mutexes_->insert(this);
-#endif
 }
 
 BaseMutex::~BaseMutex() {
-#if CONTENTION_LOGGING
-  ScopedAllMutexesLock mu(this);
-  all_mutexes_->erase(this);
-#endif
+  if (kLogLockContentions) {
+    ScopedAllMutexesLock mu(this);
+    all_mutex_data->all_mutexes->erase(this);
+  }
 }
 
 void BaseMutex::DumpAll(std::ostream& os) {
-#if CONTENTION_LOGGING
-  os << "Mutex logging:\n";
-  ScopedAllMutexesLock mu(reinterpret_cast<const BaseMutex*>(-1));
-  typedef std::set<BaseMutex*>::const_iterator It;
-  for (It it = all_mutexes_->begin(); it != all_mutexes_->end(); ++it) {
-    BaseMutex* mutex = *it;
-    mutex->Dump(os);
-    os << "\n";
+  if (kLogLockContentions) {
+    os << "Mutex logging:\n";
+    ScopedAllMutexesLock mu(reinterpret_cast<const BaseMutex*>(-1));
+    std::set<BaseMutex*>* all_mutexes = all_mutex_data->all_mutexes;
+    if (all_mutexes == NULL) {
+      // No mutexes have been created yet during at startup.
+      return;
+    }
+    typedef std::set<BaseMutex*>::const_iterator It;
+    os << "(Contented)\n";
+    for (It it = all_mutexes->begin(); it != all_mutexes->end(); ++it) {
+      BaseMutex* mutex = *it;
+      if (mutex->HasEverContended()) {
+        mutex->Dump(os);
+        os << "\n";
+      }
+    }
+    os << "(Never contented)\n";
+    for (It it = all_mutexes->begin(); it != all_mutexes->end(); ++it) {
+      BaseMutex* mutex = *it;
+      if (!mutex->HasEverContended()) {
+        mutex->Dump(os);
+        os << "\n";
+      }
+    }
   }
-#endif
 }
 
 void BaseMutex::CheckSafeToWait(Thread* self) {
@@ -172,85 +192,102 @@ void BaseMutex::CheckSafeToWait(Thread* self) {
   }
 }
 
+inline void BaseMutex::ContentionLogData::AddToWaitTime(uint64_t value) {
+  if (kLogLockContentions) {
+    // Atomically add value to wait_time.
+    uint64_t new_val, old_val;
+    volatile int64_t* addr = reinterpret_cast<volatile int64_t*>(&wait_time);
+    volatile const int64_t* caddr = const_cast<volatile const int64_t*>(addr);
+    do {
+      old_val = static_cast<uint64_t>(QuasiAtomic::Read64(caddr));
+      new_val = old_val + value;
+    } while (!QuasiAtomic::Cas64(static_cast<int64_t>(old_val), static_cast<int64_t>(new_val), addr));
+  }
+}
+
 void BaseMutex::RecordContention(uint64_t blocked_tid,
                                  uint64_t owner_tid,
-                                 uint64_t milli_time_blocked) {
-#if CONTENTION_LOGGING
-  ++contention_count_;
-  wait_time_ += static_cast<uint32_t>(milli_time_blocked);  // May overflow.
-  // This code is intentionally racy as it is only used for diagnostics.
-  uint32_t slot = cur_content_log_entry_;
-  if (contention_log_[slot].blocked_tid == blocked_tid &&
-      contention_log_[slot].owner_tid == blocked_tid) {
-    ++contention_log_[slot].count;
-  } else {
-    uint32_t new_slot;
-    do {
-      slot = cur_content_log_entry_;
-      new_slot = (slot + 1) % kContentionLogSize;
-    } while (!cur_content_log_entry_.CompareAndSwap(slot, new_slot));
-    contention_log_[new_slot].blocked_tid = blocked_tid;
-    contention_log_[new_slot].owner_tid = owner_tid;
-    contention_log_[new_slot].count = 1;
+                                 uint64_t nano_time_blocked) {
+  if (kLogLockContentions) {
+    ContentionLogData* data = contetion_log_data_;
+    ++(data->contention_count);
+    data->AddToWaitTime(nano_time_blocked);
+    ContentionLogEntry* log = data->contention_log;
+    // This code is intentionally racy as it is only used for diagnostics.
+    uint32_t slot = data->cur_content_log_entry;
+    if (log[slot].blocked_tid == blocked_tid &&
+        log[slot].owner_tid == blocked_tid) {
+      ++log[slot].count;
+    } else {
+      uint32_t new_slot;
+      do {
+        slot = data->cur_content_log_entry;
+        new_slot = (slot + 1) % kContentionLogSize;
+      } while (!data->cur_content_log_entry.compare_and_swap(slot, new_slot));
+      log[new_slot].blocked_tid = blocked_tid;
+      log[new_slot].owner_tid = owner_tid;
+      log[new_slot].count = 1;
+    }
   }
-#endif
 }
 
 void BaseMutex::DumpContention(std::ostream& os) const {
-#if CONTENTION_LOGGING
-  uint32_t wait_time = wait_time_;
-  uint32_t contention_count = contention_count_;
-  if (contention_count == 0) {
-    os << "never contended";
-  } else {
-    os << "contended " << contention_count
-       << " times, average wait of contender " << (wait_time / contention_count) << "ms";
-    SafeMap<uint64_t, size_t> most_common_blocker;
-    SafeMap<uint64_t, size_t> most_common_blocked;
-    typedef SafeMap<uint64_t, size_t>::const_iterator It;
-    for (size_t i = 0; i < kContentionLogSize; ++i) {
-      uint64_t blocked_tid = contention_log_[i].blocked_tid;
-      uint64_t owner_tid = contention_log_[i].owner_tid;
-      uint32_t count = contention_log_[i].count;
-      if (count > 0) {
-        It it = most_common_blocked.find(blocked_tid);
-        if (it != most_common_blocked.end()) {
-          most_common_blocked.Overwrite(blocked_tid, it->second + count);
-        } else {
-          most_common_blocked.Put(blocked_tid, count);
+  if (kLogLockContentions) {
+    const ContentionLogData* data = contetion_log_data_;
+    const ContentionLogEntry* log = data->contention_log;
+    uint64_t wait_time = data->wait_time;
+    uint32_t contention_count = data->contention_count;
+    if (contention_count == 0) {
+      os << "never contended";
+    } else {
+      os << "contended " << contention_count
+         << " times, average wait of contender " << PrettyDuration(wait_time / contention_count);
+      SafeMap<uint64_t, size_t> most_common_blocker;
+      SafeMap<uint64_t, size_t> most_common_blocked;
+      typedef SafeMap<uint64_t, size_t>::const_iterator It;
+      for (size_t i = 0; i < kContentionLogSize; ++i) {
+        uint64_t blocked_tid = log[i].blocked_tid;
+        uint64_t owner_tid = log[i].owner_tid;
+        uint32_t count = log[i].count;
+        if (count > 0) {
+          It it = most_common_blocked.find(blocked_tid);
+          if (it != most_common_blocked.end()) {
+            most_common_blocked.Overwrite(blocked_tid, it->second + count);
+          } else {
+            most_common_blocked.Put(blocked_tid, count);
+          }
+          it = most_common_blocker.find(owner_tid);
+          if (it != most_common_blocker.end()) {
+            most_common_blocker.Overwrite(owner_tid, it->second + count);
+          } else {
+            most_common_blocker.Put(owner_tid, count);
+          }
         }
-        it = most_common_blocker.find(owner_tid);
-        if (it != most_common_blocker.end()) {
-          most_common_blocker.Overwrite(owner_tid, it->second + count);
-        } else {
-          most_common_blocker.Put(owner_tid, count);
+      }
+      uint64_t max_tid = 0;
+      size_t max_tid_count = 0;
+      for (It it = most_common_blocked.begin(); it != most_common_blocked.end(); ++it) {
+        if (it->second > max_tid_count) {
+          max_tid = it->first;
+          max_tid_count = it->second;
         }
       }
-    }
-    uint64_t max_tid = 0;
-    size_t max_tid_count = 0;
-    for (It it = most_common_blocked.begin(); it != most_common_blocked.end(); ++it) {
-      if (it->second > max_tid_count) {
-        max_tid = it->first;
-        max_tid_count = it->second;
+      if (max_tid != 0) {
+        os << " sample shows most blocked tid=" << max_tid;
       }
-    }
-    if (max_tid != 0) {
-      os << " sample shows most blocked tid=" << max_tid;
-    }
-    max_tid = 0;
-    max_tid_count = 0;
-    for (It it = most_common_blocker.begin(); it != most_common_blocker.end(); ++it) {
-      if (it->second > max_tid_count) {
-        max_tid = it->first;
-        max_tid_count = it->second;
+      max_tid = 0;
+      max_tid_count = 0;
+      for (It it = most_common_blocker.begin(); it != most_common_blocker.end(); ++it) {
+        if (it->second > max_tid_count) {
+          max_tid = it->first;
+          max_tid_count = it->second;
+        }
       }
-    }
-    if (max_tid != 0) {
-      os << " sample shows tid=" << max_tid << " owning during this time";
+      if (max_tid != 0) {
+        os << " sample shows tid=" << max_tid << " owning during this time";
+      }
     }
   }
-#endif
 }
 
 
