@@ -131,11 +131,9 @@ static jstring VMRuntime_vmLibrary(JNIEnv* env, jobject) {
   return env->NewStringUTF(kIsDebugBuild ? "libartd.so" : "libart.so");
 }
 
-#if !defined(ART_USE_PORTABLE_COMPILER)
 static void DisableCheckJniCallback(Thread* t, void*) {
   t->GetJniEnv()->SetCheckJniEnabled(false);
 }
-#endif
 
 static void VMRuntime_setTargetSdkVersion(JNIEnv* env, jobject, jint targetSdkVersion) {
   // This is the target SDK version of the app we're about to run.
