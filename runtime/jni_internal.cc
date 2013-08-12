@@ -2853,7 +2853,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
 
   VLOG(jni) << "[Added shared library \"" << path << "\" for ClassLoader " << class_loader << "]";
 
-  bool result = true;
+  bool was_successful = false;
   void* sym = dlsym(handle, "JNI_OnLoad");
   if (sym == NULL) {
     VLOG(jni) << "[No JNI_OnLoad found in \"" << path << "\"]";
@@ -2876,7 +2876,9 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
 
     self->SetClassLoaderOverride(old_class_loader);
 
-    if (IsBadJniVersion(version)) {
+    if (version == JNI_ERR) {
+      StringAppendF(&detail, "JNI_ERR returned from JNI_OnLoad in \"%s\"", path.c_str());
+    } else if (IsBadJniVersion(version)) {
       StringAppendF(&detail, "Bad JNI version returned from JNI_OnLoad in \"%s\": %d",
                     path.c_str(), version);
       // It's unwise to call dlclose() here, but we can mark it
@@ -2885,14 +2887,15 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
       // be some partially-initialized stuff accessible through
       // newly-registered native method calls.  We could try to
       // unregister them, but that doesn't seem worthwhile.
-      result = false;
+    } else {
+      was_successful = true;
     }
-    VLOG(jni) << "[Returned " << (result ? "successfully" : "failure")
+    VLOG(jni) << "[Returned " << (was_successful ? "successfully" : "failure")
               << " from JNI_OnLoad in \"" << path << "\"]";
   }
 
-  library->SetResult(result);
-  return result;
+  library->SetResult(was_successful);
+  return was_successful;
 }
 
 void* JavaVMExt::FindCodeForNativeMethod(AbstractMethod* m) {
