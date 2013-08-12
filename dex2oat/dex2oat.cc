@@ -905,6 +905,11 @@ static int dex2oat(int argc, char** argv) {
     }
   }
 
+  // If we're doing the image, override the compiler filter to force full compilation.
+  if (image && Runtime::Current()->GetCompilerFilter() == Runtime::kInterpretOnly) {
+    Runtime::Current()->SetCompilerFilter(Runtime::kSpeed);
+  }
+
   /*
    * If we're not in interpret-only mode, go ahead and compile small applications. Don't
    * bother to check if we're doing the image.

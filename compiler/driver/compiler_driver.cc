@@ -2227,10 +2227,6 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
   } else {
     bool compile = verifier::MethodVerifier::IsCandidateForCompilation(code_item, access_flags);
     if (compile) {
-      // If we're doing the image, override the compiler filter to force full compilation.
-      if ((image_classes_.get() != NULL) && (image_classes_->size() != 0)) {
-        Runtime::Current()->SetCompilerFilter(Runtime::kSpeed);
-      }
       CompilerFn compiler = compiler_;
 #ifdef ART_SEA_IR_MODE
       bool use_sea = Runtime::Current()->IsSeaIRMode();
