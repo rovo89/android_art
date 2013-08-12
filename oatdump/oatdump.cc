@@ -35,6 +35,7 @@
 #include "gc/space/space-inl.h"
 #include "image.h"
 #include "indenter.h"
+#include "mapping_table.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
@@ -48,6 +49,7 @@
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"
 #include "verifier/method_verifier.h"
+#include "vmap_table.h"
 
 namespace art {
 
@@ -390,40 +392,39 @@ class OatDumper {
   }
 
   void DumpVmap(std::ostream& os, const OatFile::OatMethod& oat_method) {
-    const uint16_t* raw_table = oat_method.GetVmapTable();
-    if (raw_table == NULL) {
-      return;
-    }
-    const VmapTable vmap_table(raw_table);
-    bool first = true;
-    bool processing_fp = false;
-    uint32_t spill_mask = oat_method.GetCoreSpillMask();
-    for (size_t i = 0; i < vmap_table.size(); i++) {
-      uint16_t dex_reg = vmap_table[i];
-      uint32_t cpu_reg = vmap_table.ComputeRegister(spill_mask, i,
-                                                    processing_fp ? kFloatVReg : kIntVReg);
-      os << (first ? "v" : ", v")  << dex_reg;
-      if (!processing_fp) {
-        os << "/r" << cpu_reg;
-      } else {
-        os << "/fr" << cpu_reg;
+    const uint8_t* raw_table = oat_method.GetVmapTable();
+    if (raw_table != NULL) {
+      const VmapTable vmap_table(raw_table);
+      bool first = true;
+      bool processing_fp = false;
+      uint32_t spill_mask = oat_method.GetCoreSpillMask();
+      for (size_t i = 0; i < vmap_table.Size(); i++) {
+        uint16_t dex_reg = vmap_table[i];
+        uint32_t cpu_reg = vmap_table.ComputeRegister(spill_mask, i,
+                                                      processing_fp ? kFloatVReg : kIntVReg);
+        os << (first ? "v" : ", v")  << dex_reg;
+        if (!processing_fp) {
+          os << "/r" << cpu_reg;
+        } else {
+          os << "/fr" << cpu_reg;
+        }
+        first = false;
+        if (!processing_fp && dex_reg == 0xFFFF) {
+          processing_fp = true;
+          spill_mask = oat_method.GetFpSpillMask();
+        }
       }
-      first = false;
-      if (!processing_fp && dex_reg == 0xFFFF) {
-        processing_fp = true;
-        spill_mask = oat_method.GetFpSpillMask();
-      }
+      os << "\n";
     }
-    os << "\n";
   }
 
   void DescribeVReg(std::ostream& os, const OatFile::OatMethod& oat_method,
                     const DexFile::CodeItem* code_item, size_t reg, VRegKind kind) {
-    const uint16_t* raw_table = oat_method.GetVmapTable();
+    const uint8_t* raw_table = oat_method.GetVmapTable();
     if (raw_table != NULL) {
       const VmapTable vmap_table(raw_table);
       uint32_t vmap_offset;
-      if (vmap_table.IsInContext(reg, vmap_offset, kind)) {
+      if (vmap_table.IsInContext(reg, kind, &vmap_offset)) {
         bool is_float = (kind == kFloatVReg) || (kind == kDoubleLoVReg) || (kind == kDoubleHiVReg);
         uint32_t spill_mask = is_float ? oat_method.GetFpSpillMask()
                                        : oat_method.GetCoreSpillMask();
@@ -471,67 +472,50 @@ class OatDumper {
   }
 
   void DumpMappingTable(std::ostream& os, const OatFile::OatMethod& oat_method) {
-    const uint32_t* raw_table = oat_method.GetMappingTable();
     const void* code = oat_method.GetCode();
-    if (raw_table == NULL || code == NULL) {
+    if (code == NULL) {
       return;
     }
-
-    ++raw_table;
-    uint32_t length = *raw_table;
-    ++raw_table;
-    if (length == 0) {
-      return;
-    }
-    uint32_t pc_to_dex_entries = *raw_table;
-    ++raw_table;
-    if (pc_to_dex_entries != 0) {
-      os << "suspend point mappings {\n";
-    } else {
-      os << "catch entry mappings {\n";
-    }
-    Indenter indent_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
-    std::ostream indent_os(&indent_filter);
-    for (size_t i = 0; i < length; i += 2) {
-      const uint8_t* native_pc = reinterpret_cast<const uint8_t*>(code) + raw_table[i];
-      uint32_t dex_pc = raw_table[i + 1];
-      indent_os << StringPrintf("%p -> 0x%04x\n", native_pc, dex_pc);
-      if (i + 2 == pc_to_dex_entries && pc_to_dex_entries != length) {
-        // Separate the pc -> dex from dex -> pc sections
-        indent_os << std::flush;
-        os << "}\ncatch entry mappings {\n";
+    MappingTable table(oat_method.GetMappingTable());
+    if (table.TotalSize() != 0) {
+      Indenter indent_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
+      std::ostream indent_os(&indent_filter);
+      if (table.PcToDexSize() != 0) {
+        typedef MappingTable::PcToDexIterator It;
+        os << "suspend point mappings {\n";
+        for (It cur = table.PcToDexBegin(), end = table.PcToDexEnd(); cur != end; ++cur) {
+          indent_os << StringPrintf("0x%04x -> 0x%04x\n", cur.NativePcOffset(), cur.DexPc());
+        }
+        os << "}\n";
+      }
+      if (table.DexToPcSize() != 0) {
+        typedef MappingTable::DexToPcIterator It;
+        os << "catch entry mappings {\n";
+        for (It cur = table.DexToPcBegin(), end = table.DexToPcEnd(); cur != end; ++cur) {
+          indent_os << StringPrintf("0x%04x -> 0x%04x\n", cur.NativePcOffset(), cur.DexPc());
+        }
+        os << "}\n";
       }
     }
-    os << "}\n";
   }
 
-  uint32_t DumpMappingAtOffset(std::ostream& os, const OatFile::OatMethod& oat_method, size_t offset,
-                               bool suspend_point_mapping) {
-    const uint32_t* raw_table = oat_method.GetMappingTable();
-    if (raw_table != NULL) {
-      ++raw_table;
-      uint32_t length = *raw_table;
-      ++raw_table;
-      uint32_t pc_to_dex_entries = *raw_table;
-      ++raw_table;
-      size_t start, end;
-      if (suspend_point_mapping) {
-        start = 0;
-        end = pc_to_dex_entries;
-      } else {
-        start = pc_to_dex_entries;
-        end = length;
+  uint32_t DumpMappingAtOffset(std::ostream& os, const OatFile::OatMethod& oat_method,
+                               size_t offset, bool suspend_point_mapping) {
+    MappingTable table(oat_method.GetMappingTable());
+    if (suspend_point_mapping && table.PcToDexSize() > 0) {
+      typedef MappingTable::PcToDexIterator It;
+      for (It cur = table.PcToDexBegin(), end = table.PcToDexEnd(); cur != end; ++cur) {
+        if (offset == cur.NativePcOffset()) {
+          os << "suspend point dex PC: 0x" << cur.DexPc() << "\n";
+          return cur.DexPc();
+        }
       }
-      for (size_t i = start; i < end; i += 2) {
-        if (offset == raw_table[i]) {
-          uint32_t dex_pc = raw_table[i + 1];
-          if (suspend_point_mapping) {
-            os << "suspend point dex PC: 0x";
-          } else {
-            os << "catch entry dex PC: 0x";
-          }
-          os << std::hex << dex_pc << std::dec << "\n";
-          return dex_pc;
+    } else if (!suspend_point_mapping && table.DexToPcSize() > 0) {
+      typedef MappingTable::DexToPcIterator It;
+      for (It cur = table.DexToPcBegin(), end = table.DexToPcEnd(); cur != end; ++cur) {
+        if (offset == cur.NativePcOffset()) {
+          os << "catch entry dex PC: 0x" << cur.DexPc() << "\n";
+          return cur.DexPc();
         }
       }
     }
@@ -1019,13 +1003,13 @@ class ImageDumper {
         }
 
         size_t pc_mapping_table_bytes =
-            state->ComputeOatSize(method->GetMappingTableRaw(), &first_occurrence);
+            state->ComputeOatSize(method->GetMappingTable(), &first_occurrence);
         if (first_occurrence) {
           state->stats_.pc_mapping_table_bytes += pc_mapping_table_bytes;
         }
 
         size_t vmap_table_bytes =
-            state->ComputeOatSize(method->GetVmapTableRaw(), &first_occurrence);
+            state->ComputeOatSize(method->GetVmapTable(), &first_occurrence);
         if (first_occurrence) {
           state->stats_.vmap_table_bytes += vmap_table_bytes;
         }

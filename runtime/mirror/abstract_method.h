@@ -246,54 +246,13 @@ class MANAGED AbstractMethod : public Object {
     return OFFSET_OF_OBJECT_MEMBER(AbstractMethod, entry_point_from_compiled_code_);
   }
 
-  const uint32_t* GetMappingTable() const {
-    const uint32_t* map = GetMappingTableRaw();
-    if (map == NULL) {
-      return map;
-    }
-    return map + 1;
+  // Callers should wrap the uint8_t* in a MappingTable instance for convenient access.
+  const uint8_t* GetMappingTable() const {
+    return GetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, mapping_table_), false);
   }
 
-  uint32_t GetPcToDexMappingTableLength() const {
-    const uint32_t* map = GetMappingTableRaw();
-    if (map == NULL) {
-      return 0;
-    }
-    return map[2];
-  }
-
-  const uint32_t* GetPcToDexMappingTable() const {
-    const uint32_t* map = GetMappingTableRaw();
-    if (map == NULL) {
-      return map;
-    }
-    return map + 3;
-  }
-
-
-  uint32_t GetDexToPcMappingTableLength() const {
-    const uint32_t* map = GetMappingTableRaw();
-    if (map == NULL) {
-      return 0;
-    }
-    return map[1] - map[2];
-  }
-
-  const uint32_t* GetDexToPcMappingTable() const {
-    const uint32_t* map = GetMappingTableRaw();
-    if (map == NULL) {
-      return map;
-    }
-    return map + 3 + map[2];
-  }
-
-
-  const uint32_t* GetMappingTableRaw() const {
-    return GetFieldPtr<const uint32_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, mapping_table_), false);
-  }
-
-  void SetMappingTable(const uint32_t* mapping_table) {
-    SetFieldPtr<const uint32_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, mapping_table_),
+  void SetMappingTable(const uint8_t* mapping_table) {
+    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, mapping_table_),
                                  mapping_table, false);
   }
 
@@ -301,13 +260,13 @@ class MANAGED AbstractMethod : public Object {
 
   void SetOatMappingTableOffset(uint32_t mapping_table_offset);
 
-  // Callers should wrap the uint16_t* in a VmapTable instance for convenient access.
-  const uint16_t* GetVmapTableRaw() const {
-    return GetFieldPtr<const uint16_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, vmap_table_), false);
+  // Callers should wrap the uint8_t* in a VmapTable instance for convenient access.
+  const uint8_t* GetVmapTable() const {
+    return GetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, vmap_table_), false);
   }
 
-  void SetVmapTable(const uint16_t* vmap_table) {
-    SetFieldPtr<const uint16_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, vmap_table_), vmap_table, false);
+  void SetVmapTable(const uint8_t* vmap_table) {
+    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, vmap_table_), vmap_table, false);
   }
 
   uint32_t GetOatVmapTableOffset() const;
@@ -402,10 +361,6 @@ class MANAGED AbstractMethod : public Object {
 
   // Converts a dex PC to a native PC.
   uintptr_t ToNativePc(const uint32_t dex_pc) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  // Converts a dex PC to the first corresponding safepoint PC.
-  uintptr_t ToFirstNativeSafepointPc(const uint32_t dex_pc)
-      const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Find the catch block for the given exception type and dex_pc. When a catch block is found,
   // indicates whether the found catch block is responsible for clearing the exception or whether

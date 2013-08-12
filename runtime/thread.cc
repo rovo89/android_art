@@ -66,6 +66,7 @@
 #include "utils.h"
 #include "verifier/dex_gc_map.h"
 #include "verifier/method_verifier.h"
+#include "vmap_table.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -2043,7 +2044,7 @@ class ReferenceMapVisitor : public StackVisitor {
         if (num_regs > 0) {
           const uint8_t* reg_bitmap = map.FindBitMap(GetNativePcOffset());
           DCHECK(reg_bitmap != NULL);
-          const VmapTable vmap_table(m->GetVmapTableRaw());
+          const VmapTable vmap_table(m->GetVmapTable());
           uint32_t core_spills = m->GetCoreSpillMask();
           uint32_t fp_spills = m->GetFpSpillMask();
           size_t frame_size = m->GetFrameSizeInBytes();
@@ -2055,7 +2056,7 @@ class ReferenceMapVisitor : public StackVisitor {
             if (TestBitmap(reg, reg_bitmap)) {
               uint32_t vmap_offset;
               mirror::Object* ref;
-              if (vmap_table.IsInContext(reg, vmap_offset, kReferenceVReg)) {
+              if (vmap_table.IsInContext(reg, kReferenceVReg, &vmap_offset)) {
                 uintptr_t val = GetGPR(vmap_table.ComputeRegister(core_spills, vmap_offset,
                                                                   kReferenceVReg));
                 ref = reinterpret_cast<mirror::Object*>(val);

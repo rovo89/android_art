@@ -168,8 +168,8 @@ class CommonTest : public testing::Test {
                                      const size_t frame_size_in_bytes,
                                      const uint32_t core_spill_mask,
                                      const uint32_t fp_spill_mask,
-                                     const uint32_t* mapping_table,
-                                     const uint16_t* vmap_table,
+                                     const uint8_t* mapping_table,
+                                     const uint8_t* vmap_table,
                                      const uint8_t* gc_map) {
       return OatFile::OatMethod(NULL,
                                 reinterpret_cast<uint32_t>(code),

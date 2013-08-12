@@ -97,11 +97,11 @@ class OatFile {
     const void* GetCode() const;
     uint32_t GetCodeSize() const;
 
-    const uint32_t* GetMappingTable() const {
-      return GetOatPointer<const uint32_t*>(mapping_table_offset_);
+    const uint8_t* GetMappingTable() const {
+      return GetOatPointer<const uint8_t*>(mapping_table_offset_);
     }
-    const uint16_t* GetVmapTable() const {
-      return GetOatPointer<const uint16_t*>(vmap_table_offset_);
+    const uint8_t* GetVmapTable() const {
+      return GetOatPointer<const uint8_t*>(vmap_table_offset_);
     }
     const uint8_t* GetNativeGcMap() const {
       return GetOatPointer<const uint8_t*>(native_gc_map_offset_);

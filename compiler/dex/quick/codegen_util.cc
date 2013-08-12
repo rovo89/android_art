@@ -17,6 +17,7 @@
 #include "dex/compiler_internals.h"
 #include "dex_file-inl.h"
 #include "gc_map.h"
+#include "mapping_table.h"
 #include "mir_to_lir-inl.h"
 #include "verifier/dex_gc_map.h"
 #include "verifier/method_verifier.h"
@@ -515,15 +516,35 @@ void Mir2Lir::CreateMappingTables() {
     }
   }
   if (kIsDebugBuild) {
-    DCHECK(VerifyCatchEntries());
+    CHECK(VerifyCatchEntries());
   }
-  combined_mapping_table_.push_back(pc2dex_mapping_table_.size() +
-                                        dex2pc_mapping_table_.size());
-  combined_mapping_table_.push_back(pc2dex_mapping_table_.size());
-  combined_mapping_table_.insert(combined_mapping_table_.end(), pc2dex_mapping_table_.begin(),
-                                 pc2dex_mapping_table_.end());
-  combined_mapping_table_.insert(combined_mapping_table_.end(), dex2pc_mapping_table_.begin(),
-                                 dex2pc_mapping_table_.end());
+  CHECK_EQ(pc2dex_mapping_table_.size() & 1, 0U);
+  CHECK_EQ(dex2pc_mapping_table_.size() & 1, 0U);
+  uint32_t total_entries = (pc2dex_mapping_table_.size() + dex2pc_mapping_table_.size()) / 2;
+  uint32_t pc2dex_entries = pc2dex_mapping_table_.size() / 2;
+  encoded_mapping_table_.PushBack(total_entries);
+  encoded_mapping_table_.PushBack(pc2dex_entries);
+  encoded_mapping_table_.InsertBack(pc2dex_mapping_table_.begin(), pc2dex_mapping_table_.end());
+  encoded_mapping_table_.InsertBack(dex2pc_mapping_table_.begin(), dex2pc_mapping_table_.end());
+  if (kIsDebugBuild) {
+    // Verify the encoded table holds the expected data.
+    MappingTable table(&encoded_mapping_table_.GetData()[0]);
+    CHECK_EQ(table.TotalSize(), total_entries);
+    CHECK_EQ(table.PcToDexSize(), pc2dex_entries);
+    CHECK_EQ(table.DexToPcSize(), dex2pc_mapping_table_.size() / 2);
+    MappingTable::PcToDexIterator it = table.PcToDexBegin();
+    for (uint32_t i = 0; i < pc2dex_mapping_table_.size(); ++i, ++it) {
+      CHECK_EQ(pc2dex_mapping_table_.at(i), it.NativePcOffset());
+      ++i;
+      CHECK_EQ(pc2dex_mapping_table_.at(i), it.DexPc());
+    }
+    MappingTable::DexToPcIterator it2 = table.DexToPcBegin();
+    for (uint32_t i = 0; i < dex2pc_mapping_table_.size(); ++i, ++it2) {
+      CHECK_EQ(dex2pc_mapping_table_.at(i), it2.NativePcOffset());
+      ++i;
+      CHECK_EQ(dex2pc_mapping_table_.at(i), it2.DexPc());
+    }
+  }
 }
 
 class NativePcToReferenceMapBuilder {
@@ -980,28 +1001,35 @@ void Mir2Lir::Materialize() {
 
 CompiledMethod* Mir2Lir::GetCompiledMethod() {
   // Combine vmap tables - core regs, then fp regs - into vmap_table
-  std::vector<uint16_t> vmap_table;
+  std::vector<uint16_t> raw_vmap_table;
   // Core regs may have been inserted out of order - sort first
   std::sort(core_vmap_table_.begin(), core_vmap_table_.end());
   for (size_t i = 0 ; i < core_vmap_table_.size(); i++) {
     // Copy, stripping out the phys register sort key
-    vmap_table.push_back(~(-1 << VREG_NUM_WIDTH) & core_vmap_table_[i]);
+    raw_vmap_table.push_back(~(-1 << VREG_NUM_WIDTH) & core_vmap_table_[i]);
   }
   // If we have a frame, push a marker to take place of lr
   if (frame_size_ > 0) {
-    vmap_table.push_back(INVALID_VREG);
+    raw_vmap_table.push_back(INVALID_VREG);
   } else {
     DCHECK_EQ(__builtin_popcount(core_spill_mask_), 0);
     DCHECK_EQ(__builtin_popcount(fp_spill_mask_), 0);
   }
   // Combine vmap tables - core regs, then fp regs. fp regs already sorted
   for (uint32_t i = 0; i < fp_vmap_table_.size(); i++) {
-    vmap_table.push_back(fp_vmap_table_[i]);
+    raw_vmap_table.push_back(fp_vmap_table_[i]);
+  }
+  UnsignedLeb128EncodingVector vmap_encoder;
+  // Prefix the encoded data with its size.
+  vmap_encoder.PushBack(raw_vmap_table.size());
+  typedef std::vector<uint16_t>::const_iterator It;
+  for (It cur = raw_vmap_table.begin(), end = raw_vmap_table.end(); cur != end; ++cur) {
+    vmap_encoder.PushBack(*cur);
   }
   CompiledMethod* result =
       new CompiledMethod(cu_->instruction_set, code_buffer_,
                          frame_size_, core_spill_mask_, fp_spill_mask_,
-                         combined_mapping_table_, vmap_table, native_gc_map_);
+                         encoded_mapping_table_.GetData(), vmap_encoder.GetData(), native_gc_map_);
   return result;
 }
 

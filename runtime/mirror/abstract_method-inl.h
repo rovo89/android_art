@@ -144,22 +144,22 @@ inline void AbstractMethod::SetOatCodeOffset(uint32_t code_offset) {
 
 inline uint32_t AbstractMethod::GetOatMappingTableOffset() const {
   DCHECK(!Runtime::Current()->IsStarted());
-  return reinterpret_cast<uint32_t>(GetMappingTableRaw());
+  return reinterpret_cast<uint32_t>(GetMappingTable());
 }
 
 inline void AbstractMethod::SetOatMappingTableOffset(uint32_t mapping_table_offset) {
   DCHECK(!Runtime::Current()->IsStarted());
-  SetMappingTable(reinterpret_cast<const uint32_t*>(mapping_table_offset));
+  SetMappingTable(reinterpret_cast<const uint8_t*>(mapping_table_offset));
 }
 
 inline uint32_t AbstractMethod::GetOatVmapTableOffset() const {
   DCHECK(!Runtime::Current()->IsStarted());
-  return reinterpret_cast<uint32_t>(GetVmapTableRaw());
+  return reinterpret_cast<uint32_t>(GetVmapTable());
 }
 
 inline void AbstractMethod::SetOatVmapTableOffset(uint32_t vmap_table_offset) {
   DCHECK(!Runtime::Current()->IsStarted());
-  SetVmapTable(reinterpret_cast<uint16_t*>(vmap_table_offset));
+  SetVmapTable(reinterpret_cast<uint8_t*>(vmap_table_offset));
 }
 
 inline void AbstractMethod::SetOatNativeGcMapOffset(uint32_t gc_map_offset) {

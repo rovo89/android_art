@@ -28,6 +28,7 @@
 #include "mirror/object-inl.h"
 #include "os.h"
 #include "utils.h"
+#include "vmap_table.h"
 
 namespace art {
 
@@ -416,9 +417,10 @@ OatFile::OatMethod::OatMethod(const byte* base,
       DCHECK_EQ(0U, static_cast<uint32_t>(__builtin_popcount(core_spill_mask_) +
                                           __builtin_popcount(fp_spill_mask_)));
     } else {
-      const uint16_t* vmap_table_ = reinterpret_cast<const uint16_t*>(begin_ + vmap_table_offset_);
-      DCHECK_EQ(vmap_table_[0], static_cast<uint32_t>(__builtin_popcount(core_spill_mask_) +
-                                                      __builtin_popcount(fp_spill_mask_)));
+      VmapTable vmap_table(reinterpret_cast<const uint8_t*>(begin_ + vmap_table_offset_));
+
+      DCHECK_EQ(vmap_table.Size(), static_cast<uint32_t>(__builtin_popcount(core_spill_mask_) +
+                                                         __builtin_popcount(fp_spill_mask_)));
     }
   } else {
     DCHECK_EQ(vmap_table_offset_, 0U);
