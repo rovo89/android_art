@@ -1246,10 +1246,10 @@ bool Address::CanHoldStoreOffset(StoreOperandType type, int offset) {
 // Implementation note: this method must emit at most one instruction when
 // Address::CanHoldLoadOffset.
 void ArmAssembler::LoadFromOffset(LoadOperandType type,
-                               Register reg,
-                               Register base,
-                               int32_t offset,
-                               Condition cond) {
+                                  Register reg,
+                                  Register base,
+                                  int32_t offset,
+                                  Condition cond) {
   if (!Address::CanHoldLoadOffset(type, offset)) {
     CHECK(base != IP);
     LoadImmediate(IP, offset, cond);
@@ -1884,7 +1884,7 @@ void ArmExceptionSlowPath::Emit(Assembler* sasm) {
   // Don't care about preserving R0 as this call won't return
   __ mov(R0, ShifterOperand(scratch_.AsCoreRegister()));
   // Set up call to Thread::Current()->pDeliverException
-  __ LoadFromOffset(kLoadWord, R12, TR, QUICK_ENTRYPOINT_OFFSET(pDeliverException));
+  __ LoadFromOffset(kLoadWord, R12, TR, QUICK_ENTRYPOINT_OFFSET(pDeliverException).Int32Value());
   __ blx(R12);
   // Call never returns
   __ bkpt(0);

@@ -90,20 +90,5 @@ DEFINE_FUNCTION art_portable_proxy_invoke_handler
     ret
 END_FUNCTION art_portable_proxy_invoke_handler
 
-    /*
-     * Portable abstract method error stub. method* is at %esp + 4 on entry.
-     */
-DEFINE_FUNCTION art_portable_abstract_method_error_stub
-    PUSH ebp
-    movl %esp, %ebp               // Remember SP.
-    .cfi_def_cfa_register ebp
-    subl LITERAL(12), %esp        // Align stack.
-    PUSH esp                      // Pass sp (not used).
-    pushl %fs:THREAD_SELF_OFFSET  // Pass Thread::Current().
-    pushl 8(%ebp)                 // Pass Method*.
-    call SYMBOL(artThrowAbstractMethodErrorFromCode)  // (Method*, Thread*, SP)
-    leave                         // Restore the stack and %ebp.
-    .cfi_def_cfa esp, 4
-    .cfi_restore ebp
-    ret                           // Return to caller to handle pending exception.
-END_FUNCTION art_portable_abstract_method_error_stub
+UNIMPLEMENTED art_portable_resolution_trampoline
+UNIMPLEMENTED art_portable_to_interpreter_bridge

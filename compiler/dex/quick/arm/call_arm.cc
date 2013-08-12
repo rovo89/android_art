@@ -432,7 +432,7 @@ void ArmMir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
   // Making a call - use explicit registers
   FlushAllRegs();   /* Everything to home location */
   LoadValueDirectFixed(rl_src, r0);
-  LoadWordDisp(rARM_SELF, QUICK_ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode),
+  LoadWordDisp(rARM_SELF, QUICK_ENTRYPOINT_OFFSET(pHandleFillArrayData).Int32Value(),
                rARM_LR);
   // Materialize a pointer to the fill data image
   NewLIR3(kThumb2Adr, r1, 0, reinterpret_cast<uintptr_t>(tab_rec));
@@ -488,7 +488,7 @@ void ArmMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
   OpRegImm(kOpCmp, r1, 0);
   OpIT(kCondNe, "T");
   // Go expensive route - artLockObjectFromCode(self, obj);
-  LoadWordDisp(rARM_SELF, QUICK_ENTRYPOINT_OFFSET(pLockObjectFromCode), rARM_LR);
+  LoadWordDisp(rARM_SELF, QUICK_ENTRYPOINT_OFFSET(pLockObject).Int32Value(), rARM_LR);
   ClobberCalleeSave();
   LIR* call_inst = OpReg(kOpBlx, rARM_LR);
   MarkSafepointPC(call_inst);
@@ -519,7 +519,7 @@ void ArmMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
   OpIT(kCondEq, "EE");
   StoreWordDisp(r0, mirror::Object::MonitorOffset().Int32Value(), r3);
   // Go expensive route - UnlockObjectFromCode(obj);
-  LoadWordDisp(rARM_SELF, QUICK_ENTRYPOINT_OFFSET(pUnlockObjectFromCode), rARM_LR);
+  LoadWordDisp(rARM_SELF, QUICK_ENTRYPOINT_OFFSET(pUnlockObject).Int32Value(), rARM_LR);
   ClobberCalleeSave();
   LIR* call_inst = OpReg(kOpBlx, rARM_LR);
   MarkSafepointPC(call_inst);

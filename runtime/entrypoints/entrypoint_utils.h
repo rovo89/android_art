@@ -30,24 +30,13 @@
 #include "object_utils.h"
 #include "thread.h"
 
-extern "C" void art_interpreter_invoke_handler();
-extern "C" void art_jni_dlsym_lookup_stub();
-extern "C" void art_portable_abstract_method_error_stub();
-extern "C" void art_portable_proxy_invoke_handler();
-extern "C" void art_quick_abstract_method_error_stub();
-extern "C" void art_quick_deoptimize();
-extern "C" void art_quick_instrumentation_entry_from_code(void*);
-extern "C" void art_quick_instrumentation_exit_from_code();
-extern "C" void art_quick_interpreter_entry(void*);
-extern "C" void art_quick_proxy_invoke_handler();
-extern "C" void art_work_around_app_jni_bugs();
-
 namespace art {
+
 namespace mirror {
-class Class;
-class Field;
-class Object;
-}
+  class Class;
+  class Field;
+  class Object;
+}  // namespace mirror
 
 // Given the context of a calling Method, use its DexCache to resolve a type to a Class. If it
 // cannot be resolved, throw an error. If it can, use it to create an instance.
@@ -350,24 +339,42 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessUnchecked& soa, const char
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Entry point for deoptimization.
-static inline uintptr_t GetDeoptimizationEntryPoint() {
+extern "C" void art_quick_deoptimize();
+static inline uintptr_t GetQuickDeoptimizationEntryPoint() {
   return reinterpret_cast<uintptr_t>(art_quick_deoptimize);
 }
 
 // Return address of instrumentation stub.
-static inline void* GetInstrumentationEntryPoint() {
-  return reinterpret_cast<void*>(art_quick_instrumentation_entry_from_code);
+extern "C" void art_quick_instrumentation_entry(void*);
+static inline void* GetQuickInstrumentationEntryPoint() {
+  return reinterpret_cast<void*>(art_quick_instrumentation_entry);
 }
 
 // The return_pc of instrumentation exit stub.
-static inline uintptr_t GetInstrumentationExitPc() {
-  return reinterpret_cast<uintptr_t>(art_quick_instrumentation_exit_from_code);
+extern "C" void art_quick_instrumentation_exit();
+static inline uintptr_t GetQuickInstrumentationExitPc() {
+  return reinterpret_cast<uintptr_t>(art_quick_instrumentation_exit);
+}
+
+extern "C" void art_portable_to_interpreter_bridge(mirror::AbstractMethod*);
+static inline const void* GetPortableToInterpreterBridge() {
+  return reinterpret_cast<void*>(art_portable_to_interpreter_bridge);
+}
+
+extern "C" void art_quick_to_interpreter_bridge(mirror::AbstractMethod*);
+static inline const void* GetQuickToInterpreterBridge() {
+  return reinterpret_cast<void*>(art_quick_to_interpreter_bridge);
 }
 
 // Return address of interpreter stub.
-static inline void* GetInterpreterEntryPoint() {
-  return reinterpret_cast<void*>(art_quick_interpreter_entry);
+static inline const void* GetCompiledCodeToInterpreterBridge() {
+#if defined(ART_USE_PORTABLE_COMPILER)
+  return GetPortableToInterpreterBridge();
+#else
+  return GetQuickToInterpreterBridge();
+#endif
 }
+
 
 static inline const void* GetPortableResolutionTrampoline(ClassLinker* class_linker) {
   return class_linker->GetPortableResolutionTrampoline();
@@ -386,23 +393,25 @@ static inline const void* GetResolutionTrampoline(ClassLinker* class_linker) {
 #endif
 }
 
-static inline void* GetPortableAbstractMethodErrorStub() {
-  return reinterpret_cast<void*>(art_portable_abstract_method_error_stub);
+extern "C" void art_portable_proxy_invoke_handler();
+static inline const void* GetPortableProxyInvokeHandler() {
+  return reinterpret_cast<void*>(art_portable_proxy_invoke_handler);
 }
 
-static inline void* GetQuickAbstractMethodErrorStub() {
-  return reinterpret_cast<void*>(art_quick_abstract_method_error_stub);
+extern "C" void art_quick_proxy_invoke_handler();
+static inline const void* GetQuickProxyInvokeHandler() {
+  return reinterpret_cast<void*>(art_quick_proxy_invoke_handler);
 }
 
-// Return address of abstract method error stub for defined compiler.
-static inline void* GetAbstractMethodErrorStub() {
+static inline const void* GetProxyInvokeHandler() {
 #if defined(ART_USE_PORTABLE_COMPILER)
-  return GetPortableAbstractMethodErrorStub();
+  return GetPortableProxyInvokeHandler();
 #else
-  return GetQuickAbstractMethodErrorStub();
+  return GetQuickProxyInvokeHandler();
 #endif
 }
 
+extern "C" void* art_jni_dlsym_lookup_stub(JNIEnv*, jobject);
 static inline void* GetJniDlsymLookupStub() {
   return reinterpret_cast<void*>(art_jni_dlsym_lookup_stub);
 }

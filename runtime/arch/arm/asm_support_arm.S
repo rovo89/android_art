@@ -35,4 +35,11 @@
     .size \name, .-\name
 .endm
 
+.macro UNIMPLEMENTED name
+    ENTRY \name
+    bkpt
+    bkpt
+    END \name
+.endm
+
 #endif  // ART_RUNTIME_ARCH_X86_ASM_SUPPORT_X86_S_

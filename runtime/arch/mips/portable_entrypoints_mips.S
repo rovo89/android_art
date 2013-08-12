@@ -61,13 +61,5 @@ ENTRY art_portable_proxy_invoke_handler
     .cfi_adjust_cfa_offset -64
 END art_portable_proxy_invoke_handler
 
-    /*
-     * Portable abstract method error stub. $a0 contains method* on entry. SP unused in portable.
-     */
-    .extern artThrowAbstractMethodErrorFromCode
-ENTRY art_portable_abstract_method_error_stub
-    GENERATE_GLOBAL_POINTER
-    la       $t9, artThrowAbstractMethodErrorFromCode
-    jr       $t9            # (Method*, Thread*, SP)
-    move     $a1, $s1       # pass Thread::Current
-END art_portable_abstract_method_error_stub
+UNIMPLEMENTED art_portable_resolution_trampoline
+UNIMPLEMENTED art_portable_to_interpreter_bridge

@@ -60,7 +60,7 @@ bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
       const void* new_code;
       if (uninstall) {
         if (forced_interpret_only_ && !method->IsNative() && !method->IsProxyMethod()) {
-          new_code = GetInterpreterEntryPoint();
+          new_code = GetCompiledCodeToInterpreterBridge();
         } else if (is_initialized || !method->IsStatic() || method->IsConstructor()) {
           new_code = class_linker->GetOatCodeFor(method);
         } else {
@@ -68,9 +68,9 @@ bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
         }
       } else {  // !uninstall
         if (!interpreter_stubs_installed_ || method->IsNative()) {
-          new_code = GetInstrumentationEntryPoint();
+          new_code = GetQuickInstrumentationEntryPoint();
         } else {
-          new_code = GetInterpreterEntryPoint();
+          new_code = GetCompiledCodeToInterpreterBridge();
         }
       }
       method->SetEntryPointFromCompiledCode(new_code);
@@ -82,15 +82,15 @@ bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
       const void* new_code;
       if (uninstall) {
         if (forced_interpret_only_ && !method->IsNative() && !method->IsProxyMethod()) {
-          new_code = GetInterpreterEntryPoint();
+          new_code = GetCompiledCodeToInterpreterBridge();
         } else {
           new_code = class_linker->GetOatCodeFor(method);
         }
       } else {  // !uninstall
         if (!interpreter_stubs_installed_ || method->IsNative()) {
-          new_code = GetInstrumentationEntryPoint();
+          new_code = GetQuickInstrumentationEntryPoint();
         } else {
-          new_code = GetInterpreterEntryPoint();
+          new_code = GetCompiledCodeToInterpreterBridge();
         }
       }
       method->SetEntryPointFromCompiledCode(new_code);
@@ -159,7 +159,7 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
     LOG(INFO) << "Installing exit stubs in " << thread_name;
   }
   UniquePtr<Context> context(Context::Create());
-  uintptr_t instrumentation_exit_pc = GetInstrumentationExitPc();
+  uintptr_t instrumentation_exit_pc = GetQuickInstrumentationExitPc();
   InstallStackVisitor visitor(thread, context.get(), instrumentation_exit_pc);
   visitor.WalkStack(true);
 
@@ -251,7 +251,7 @@ static void InstrumentationRestoreStack(Thread* thread, void* arg)
   std::deque<instrumentation::InstrumentationStackFrame>* stack = thread->GetInstrumentationStack();
   if (stack->size() > 0) {
     Instrumentation* instrumentation = reinterpret_cast<Instrumentation*>(arg);
-    uintptr_t instrumentation_exit_pc = GetInstrumentationExitPc();
+    uintptr_t instrumentation_exit_pc = GetQuickInstrumentationExitPc();
     RestoreStackVisitor visitor(thread, instrumentation_exit_pc, instrumentation);
     visitor.WalkStack(true);
     CHECK_EQ(visitor.frames_removed_, stack->size());
@@ -384,9 +384,9 @@ void Instrumentation::UpdateMethodsCode(mirror::AbstractMethod* method, const vo
     method->SetEntryPointFromCompiledCode(code);
   } else {
     if (!interpreter_stubs_installed_ || method->IsNative()) {
-      method->SetEntryPointFromCompiledCode(GetInstrumentationEntryPoint());
+      method->SetEntryPointFromCompiledCode(GetQuickInstrumentationEntryPoint());
     } else {
-      method->SetEntryPointFromCompiledCode(GetInterpreterEntryPoint());
+      method->SetEntryPointFromCompiledCode(GetCompiledCodeToInterpreterBridge());
     }
   }
 }
@@ -396,8 +396,8 @@ const void* Instrumentation::GetQuickCodeFor(const mirror::AbstractMethod* metho
   if (LIKELY(!instrumentation_stubs_installed_)) {
     const void* code = method->GetEntryPointFromCompiledCode();
     DCHECK(code != NULL);
-    if (LIKELY(code != GetResolutionTrampoline(runtime->GetClassLinker()) &&
-               code != GetInterpreterEntryPoint())) {
+    if (LIKELY(code != GetQuickResolutionTrampoline(runtime->GetClassLinker()) &&
+               code != GetQuickToInterpreterBridge())) {
       return code;
     }
   }
@@ -548,7 +548,7 @@ uint64_t Instrumentation::PopInstrumentationStackFrame(Thread* self, uintptr_t* 
           << " result is " << std::hex << return_value.GetJ();
     }
     self->SetDeoptimizationReturnValue(return_value);
-    return static_cast<uint64_t>(GetDeoptimizationEntryPoint()) |
+    return static_cast<uint64_t>(GetQuickDeoptimizationEntryPoint()) |
         (static_cast<uint64_t>(*return_pc) << 32);
   } else {
     if (kVerboseInstrumentation) {

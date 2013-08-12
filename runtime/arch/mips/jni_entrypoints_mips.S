@@ -59,7 +59,7 @@ END art_jni_dlsym_lookup_stub
      * Entry point of native methods when JNI bug compatibility is enabled.
      */
     .extern artWorkAroundAppJniBugs
-ENTRY art_quick_work_around_app_jni_bugs
+ENTRY art_work_around_app_jni_bugs
     GENERATE_GLOBAL_POINTER
     # save registers that may contain arguments and LR that will be crushed by a call
     addiu    $sp, $sp, -32
@@ -86,4 +86,4 @@ ENTRY art_quick_work_around_app_jni_bugs
     jr       $t9              # tail call into JNI routine
     addiu    $sp, $sp, 32
     .cfi_adjust_cfa_offset -32
-END art_quick_work_around_app_jni_bugs
+END art_work_around_app_jni_bugs

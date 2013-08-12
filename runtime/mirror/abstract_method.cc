@@ -321,6 +321,7 @@ bool AbstractMethod::IsRegistered() const {
   return native_method != jni_stub;
 }
 
+extern "C" void art_work_around_app_jni_bugs(JNIEnv*, jobject);
 void AbstractMethod::RegisterNative(Thread* self, const void* native_method) {
   DCHECK(Thread::Current() == self);
   CHECK(IsNative()) << PrettyMethod(this);
@@ -332,10 +333,10 @@ void AbstractMethod::RegisterNative(Thread* self, const void* native_method) {
     // around JNI bugs, that include not giving Object** SIRT references to native methods. Direct
     // the native method to runtime support and store the target somewhere runtime support will
     // find it.
-#if defined(__arm__) && !defined(ART_USE_PORTABLE_COMPILER)
-    SetNativeMethod(native_method);
-#else
+#if defined(__i386__)
     UNIMPLEMENTED(FATAL);
+#else
+    SetNativeMethod(reinterpret_cast<void*>(art_work_around_app_jni_bugs));
 #endif
     SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, gc_map_),
         reinterpret_cast<const uint8_t*>(native_method), false);

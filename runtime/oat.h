@@ -44,18 +44,32 @@ class PACKED(4) OatHeader {
   }
   uint32_t GetExecutableOffset() const;
   void SetExecutableOffset(uint32_t executable_offset);
-  const void* GetInterpreterToInterpreterEntry() const;
-  uint32_t GetInterpreterToInterpreterEntryOffset() const;
-  void SetInterpreterToInterpreterEntryOffset(uint32_t offset);
-  const void* GetInterpreterToQuickEntry() const;
-  uint32_t GetInterpreterToQuickEntryOffset() const;
-  void SetInterpreterToQuickEntryOffset(uint32_t offset);
+
+  const void* GetInterpreterToInterpreterBridge() const;
+  uint32_t GetInterpreterToInterpreterBridgeOffset() const;
+  void SetInterpreterToInterpreterBridgeOffset(uint32_t offset);
+  const void* GetInterpreterToCompiledCodeBridge() const;
+  uint32_t GetInterpreterToCompiledCodeBridgeOffset() const;
+  void SetInterpreterToCompiledCodeBridgeOffset(uint32_t offset);
+
+  const void* GetJniDlsymLookup() const;
+  uint32_t GetJniDlsymLookupOffset() const;
+  void SetJniDlsymLookupOffset(uint32_t offset);
+
   const void* GetPortableResolutionTrampoline() const;
   uint32_t GetPortableResolutionTrampolineOffset() const;
   void SetPortableResolutionTrampolineOffset(uint32_t offset);
+  const void* GetPortableToInterpreterBridge() const;
+  uint32_t GetPortableToInterpreterBridgeOffset() const;
+  void SetPortableToInterpreterBridgeOffset(uint32_t offset);
+
   const void* GetQuickResolutionTrampoline() const;
   uint32_t GetQuickResolutionTrampolineOffset() const;
   void SetQuickResolutionTrampolineOffset(uint32_t offset);
+  const void* GetQuickToInterpreterBridge() const;
+  uint32_t GetQuickToInterpreterBridgeOffset() const;
+  void SetQuickToInterpreterBridgeOffset(uint32_t offset);
+
   InstructionSet GetInstructionSet() const;
   uint32_t GetImageFileLocationOatChecksum() const;
   uint32_t GetImageFileLocationOatDataBegin() const;
@@ -74,10 +88,13 @@ class PACKED(4) OatHeader {
   InstructionSet instruction_set_;
   uint32_t dex_file_count_;
   uint32_t executable_offset_;
-  uint32_t interpreter_to_interpreter_entry_offset_;
-  uint32_t interpreter_to_quick_entry_offset_;
+  uint32_t interpreter_to_interpreter_bridge_offset_;
+  uint32_t interpreter_to_compiled_code_bridge_offset_;
+  uint32_t jni_dlsym_lookup_offset_;
   uint32_t portable_resolution_trampoline_offset_;
+  uint32_t portable_to_interpreter_bridge_offset_;
   uint32_t quick_resolution_trampoline_offset_;
+  uint32_t quick_to_interpreter_bridge_offset_;
 
   uint32_t image_file_location_oat_checksum_;
   uint32_t image_file_location_oat_data_begin_;

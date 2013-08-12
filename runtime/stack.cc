@@ -304,7 +304,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
         if (UNLIKELY(exit_stubs_installed)) {
           // While profiling, the return pc is restored from the side stack, except when walking
           // the stack for an exception where the side stack will be unwound in VisitFrame.
-          if (GetInstrumentationExitPc() == return_pc) {
+          if (GetQuickInstrumentationExitPc() == return_pc) {
             instrumentation::InstrumentationStackFrame instrumentation_frame =
                 GetInstrumentationStackFrame(instrumentation_stack_depth);
             instrumentation_stack_depth++;

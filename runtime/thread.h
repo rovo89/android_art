@@ -26,6 +26,8 @@
 #include <string>
 
 #include "base/macros.h"
+#include "entrypoints/interpreter/interpreter_entrypoints.h"
+#include "entrypoints/jni/jni_entrypoints.h"
 #include "entrypoints/portable/portable_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "globals.h"
@@ -43,17 +45,17 @@
 namespace art {
 
 namespace mirror {
-class AbstractMethod;
-class Array;
-class Class;
-class ClassLoader;
-class Object;
-template<class T> class ObjectArray;
-template<class T> class PrimitiveArray;
-typedef PrimitiveArray<int32_t> IntArray;
-class StackTraceElement;
-class StaticStorageBase;
-class Throwable;
+  class AbstractMethod;
+  class Array;
+  class Class;
+  class ClassLoader;
+  class Object;
+  template<class T> class ObjectArray;
+  template<class T> class PrimitiveArray;
+  typedef PrimitiveArray<int32_t> IntArray;
+  class StackTraceElement;
+  class StaticStorageBase;
+  class Throwable;
 }  // namespace mirror
 class BaseMutex;
 class ClassLinker;
@@ -614,7 +616,7 @@ class PACKED(4) Thread {
   void Init(ThreadList*, JavaVMExt*) EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_);
   void InitCardTable();
   void InitCpu();
-  void InitFunctionPointers();
+  void InitTlsEntryPoints();
   void InitTid();
   void InitPthreadKeySelf();
   void InitStackHwm();
@@ -776,8 +778,10 @@ class PACKED(4) Thread {
  public:
   // Entrypoint function pointers
   // TODO: move this near the top, since changing its offset requires all oats to be recompiled!
-  QuickEntryPoints quick_entrypoints_;
+  InterpreterEntryPoints interpreter_entrypoints_;
+  JniEntryPoints jni_entrypoints_;
   PortableEntryPoints portable_entrypoints_;
+  QuickEntryPoints quick_entrypoints_;
 
  private:
   // How many times has our pthread key's destructor been called?

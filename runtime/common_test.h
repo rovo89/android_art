@@ -192,10 +192,7 @@ class CommonTest : public testing::Test {
       compiled_method =
           compiler_driver_->GetCompiledMethod(MethodReference(&dex_file,
                                                               method->GetDexMethodIndex()));
-
-#ifndef ART_LIGHT_MODE
       CHECK(compiled_method != NULL) << PrettyMethod(method);
-#endif
     }
     if (compiled_method != NULL) {
       const std::vector<uint8_t>& code = compiled_method->GetCode();
@@ -213,12 +210,8 @@ class CommonTest : public testing::Test {
       oat_method.LinkMethod(method);
     } else {
       const void* method_code;
-      if (method->IsAbstract()) {
-        method_code = GetAbstractMethodErrorStub();
-      } else {
-        // No code? You must mean to go into the interpreter.
-        method_code = GetInterpreterEntryPoint();
-      }
+      // No code? You must mean to go into the interpreter.
+      method_code = GetCompiledCodeToInterpreterBridge();
       LOG(INFO) << "MakeExecutable " << PrettyMethod(method) << " code=" << method_code;
       OatFile::OatMethod oat_method = CreateOatMethod(method_code,
                                                       kStackAlignment,
