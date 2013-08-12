@@ -24,6 +24,7 @@
 #include <signal.h>
 #include "base/macros.h"
 #include "log_severity.h"
+#include "UniquePtr.h"
 
 #define CHECK(x) \
   if (UNLIKELY(!(x))) \
@@ -194,7 +195,7 @@ class LogMessage {
  private:
   static void LogLine(const LogMessageData& data, const char*);
 
-  LogMessageData* const data_;
+  const UniquePtr<LogMessageData> data_;
 
   friend void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_context);
   friend class Mutex;

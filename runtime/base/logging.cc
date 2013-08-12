@@ -156,8 +156,6 @@ LogMessage::~LogMessage() {
   if (data_->severity == FATAL) {
     Runtime::Abort();
   }
-
-  delete data_;
 }
 
 HexDump::HexDump(const void* address, size_t byte_count, bool show_actual_addresses)
