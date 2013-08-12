@@ -268,7 +268,7 @@ class RegisterLine {
 
   // We expect no monitors to be held at certain points, such a method returns. Verify the stack
   // is empty, failing and returning false if not.
-  bool VerifyMonitorStackEmpty();
+  bool VerifyMonitorStackEmpty() const;
 
   bool MergeRegisters(const RegisterLine* incoming_line)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

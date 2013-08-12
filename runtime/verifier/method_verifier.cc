@@ -2819,8 +2819,10 @@ const RegType& MethodVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
     dex_cache_->SetResolvedType(class_idx, result.GetClass());
   }
   // Check if access is allowed. Unresolved types use xxxWithAccessCheck to
-  // check at runtime if access is allowed and so pass here.
-  if (!result.IsUnresolvedTypes() && !referrer.IsUnresolvedTypes() && !referrer.CanAccess(result)) {
+  // check at runtime if access is allowed and so pass here. If result is
+  // primitive, skip the access check.
+  if (result.IsNonZeroReferenceTypes() && !result.IsUnresolvedTypes() &&
+      !referrer.IsUnresolvedTypes() && !referrer.CanAccess(result)) {
     Fail(VERIFY_ERROR_ACCESS_CLASS) << "illegal class access: '"
                                     << referrer << "' -> '" << result << "'";
   }
@@ -3347,7 +3349,6 @@ void MethodVerifier::VerifyAPut(const Instruction* inst,
     } else if (!array_type.IsArrayTypes()) {
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "not array type " << array_type << " with aput";
     } else {
-      /* verify the class */
       const RegType& component_type = reg_types_.GetComponentType(array_type, class_loader_);
       const uint32_t vregA = inst->VRegA_23x();
       if (is_primitive) {
@@ -3753,6 +3754,10 @@ bool MethodVerifier::UpdateRegisters(uint32_t next_insn, const RegisterLine* mer
     if (!insn_flags_[next_insn].IsReturn()) {
       target_line->CopyFromLine(merge_line);
     } else {
+      // Verify that the monitor stack is empty on return.
+      if (!merge_line->VerifyMonitorStackEmpty()) {
+        return false;
+      }
       // For returns we only care about the operand to the return, all other registers are dead.
       // Initialize them as conflicts so they don't add to GC and deoptimization information.
       const Instruction* ret_inst = Instruction::At(code_item_->insns_ + next_insn);

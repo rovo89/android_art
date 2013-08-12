@@ -313,7 +313,6 @@ void DexFile::InitMembers() {
   method_ids_ = reinterpret_cast<const MethodId*>(b + h->method_ids_off_);
   proto_ids_ = reinterpret_cast<const ProtoId*>(b + h->proto_ids_off_);
   class_defs_ = reinterpret_cast<const ClassDef*>(b + h->class_defs_off_);
-  DCHECK_EQ(size_, header_->file_size_) << GetLocation();
 }
 
 bool DexFile::CheckMagicAndVersion() const {

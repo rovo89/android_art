@@ -38,7 +38,7 @@ bool RegisterLine::CheckConstructorReturn() const {
 bool RegisterLine::SetRegisterType(uint32_t vdst, const RegType& new_type) {
   DCHECK_LT(vdst, num_regs_);
   if (new_type.IsLowHalf() || new_type.IsHighHalf()) {
-    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "Expected category1 register type not '"
+    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Expected category1 register type not '"
         << new_type << "'";
     return false;
   } else if (new_type.IsConflict()) {  // should only be set during a merge
@@ -448,7 +448,7 @@ void RegisterLine::PopMonitor(uint32_t reg_idx) {
   }
 }
 
-bool RegisterLine::VerifyMonitorStackEmpty() {
+bool RegisterLine::VerifyMonitorStackEmpty() const {
   if (MonitorStackDepth() != 0) {
     verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected empty monitor stack";
     return false;
