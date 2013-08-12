@@ -16,8 +16,10 @@
 
 #include "compiler_driver.h"
 
-#include <vector>
+#define ATRACE_TAG ATRACE_TAG_DALVIK
+#include <utils/Trace.h>
 
+#include <vector>
 #include <unistd.h>
 
 #include "base/stl_util.h"
@@ -1562,14 +1564,14 @@ void CompilerDriver::Verify(jobject class_loader, const std::vector<const DexFil
 
 static void VerifyClass(const ParallelCompilationManager* manager, size_t class_def_index)
     LOCKS_EXCLUDED(Locks::mutator_lock_) {
+  ATRACE_CALL();
   ScopedObjectAccess soa(Thread::Current());
   const DexFile::ClassDef& class_def = manager->GetDexFile()->GetClassDef(class_def_index);
   const char* descriptor = manager->GetDexFile()->GetClassDescriptor(class_def);
   mirror::Class* klass =
       manager->GetClassLinker()->FindClass(descriptor,
                                            soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader()));
-  if (klass == NULL) {
-    CHECK(soa.Self()->IsExceptionPending());
+  if (klass == NULL) {    CHECK(soa.Self()->IsExceptionPending());
     soa.Self()->ClearException();
 
     /*
@@ -1599,6 +1601,7 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
     CHECK(soa.Self()->IsExceptionPending());
     soa.Self()->ClearException();
   }
+
 
   CHECK(klass->IsCompileTimeVerified() || klass->IsErroneous())
       << PrettyDescriptor(klass) << ": state=" << klass->GetStatus();
@@ -2135,6 +2138,7 @@ void CompilerDriver::Compile(jobject class_loader, const std::vector<const DexFi
 }
 
 void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, size_t class_def_index) {
+  ATRACE_CALL();
   jobject jclass_loader = manager->GetClassLoader();
   const DexFile& dex_file = *manager->GetDexFile();
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
@@ -2155,6 +2159,7 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
     // empty class, probably a marker interface
     return;
   }
+
   // Can we run DEX-to-DEX compiler on this class ?
   DexToDexCompilationLevel dex_to_dex_compilation_level = kDontDexToDexCompile;
   {
