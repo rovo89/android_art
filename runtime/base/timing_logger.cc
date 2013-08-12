@@ -243,7 +243,7 @@ TimingLogger::ScopedSplit::~ScopedSplit() {
 
   timing_logger_->current_split_ = enclosing_split_;
   if (enclosing_split_ != NULL) {
-    enclosing_split_->UnPause();
+    enclosing_split_->Resume();
   }
 }
 
@@ -281,7 +281,7 @@ void TimingLogger::ScopedSplit::Pause() {
 }
 
 
-void TimingLogger::ScopedSplit::UnPause() {
+void TimingLogger::ScopedSplit::Resume() {
   uint64_t current_time = NanoTime();
 
   start_ns_ = current_time;

@@ -145,7 +145,7 @@ MarkSweep::MarkSweep(Heap* heap, bool is_concurrent, const std::string& name_pre
 
 void MarkSweep::InitializePhase() {
   timings_.Reset();
-  timings_.StartSplit("InitializePhase");
+  base::TimingLogger::ScopedSplit split("InitializePhase", &timings_);
   mark_stack_ = GetHeap()->mark_stack_.get();
   DCHECK(mark_stack_ != NULL);
   SetImmuneRange(NULL, NULL);
@@ -168,14 +168,12 @@ void MarkSweep::InitializePhase() {
   reference_count_ = 0;
   java_lang_Class_ = Class::GetJavaLangClass();
   CHECK(java_lang_Class_ != NULL);
-  timings_.EndSplit();
 
   FindDefaultMarkBitmap();
 
 // Do any pre GC verification.
-  timings_.StartSplit("PreGcVerification");
+  timings_.NewSplit("PreGcVerification");
   heap_->PreGcVerification(this);
-  timings_.EndSplit();
 }
 
 void MarkSweep::ProcessReferences(Thread* self) {
@@ -185,6 +183,7 @@ void MarkSweep::ProcessReferences(Thread* self) {
 }
 
 bool MarkSweep::HandleDirtyObjectsPhase() {
+  base::TimingLogger::ScopedSplit split("HandleDirtyObjectsPhase", &timings_);
   Thread* self = Thread::Current();
   accounting::ObjectStack* allocation_stack = GetHeap()->allocation_stack_.get();
   Locks::mutator_lock_->AssertExclusiveHeld(self);
@@ -216,6 +215,7 @@ bool MarkSweep::IsConcurrent() const {
 }
 
 void MarkSweep::MarkingPhase() {
+  base::TimingLogger::ScopedSplit split("MarkingPhase", &timings_);
   Heap* heap = GetHeap();
   Thread* self = Thread::Current();
 
@@ -227,9 +227,8 @@ void MarkSweep::MarkingPhase() {
 
   // Need to do this before the checkpoint since we don't want any threads to add references to
   // the live stack during the recursive mark.
-  timings_.StartSplit("SwapStacks");
+  timings_.NewSplit("SwapStacks");
   heap->SwapStacks();
-  timings_.EndSplit();
 
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   if (Locks::mutator_lock_->IsExclusiveHeld(self)) {
@@ -260,6 +259,7 @@ void MarkSweep::MarkReachableObjects() {
 }
 
 void MarkSweep::ReclaimPhase() {
+  base::TimingLogger::ScopedSplit split("ReclaimPhase", &timings_);
   Thread* self = Thread::Current();
 
   if (!IsConcurrent()) {
@@ -320,7 +320,7 @@ void MarkSweep::SetImmuneRange(Object* begin, Object* end) {
 }
 
 void MarkSweep::FindDefaultMarkBitmap() {
-  timings_.StartSplit("FindDefaultMarkBitmap");
+  base::TimingLogger::ScopedSplit split("FindDefaultMarkBitmap", &timings_);
   const std::vector<space::ContinuousSpace*>& spaces = GetHeap()->GetContinuousSpaces();
   // TODO: C++0x
   typedef std::vector<space::ContinuousSpace*>::const_iterator It;
@@ -329,7 +329,6 @@ void MarkSweep::FindDefaultMarkBitmap() {
     if (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyAlwaysCollect) {
       current_mark_bitmap_ = (*it)->GetMarkBitmap();
       CHECK(current_mark_bitmap_ != NULL);
-      timings_.EndSplit();
       return;
     }
   }
@@ -675,7 +674,7 @@ void MarkSweep::VerifyImageRoots() {
 // Populates the mark stack based on the set of marked objects and
 // recursively marks until the mark stack is emptied.
 void MarkSweep::RecursiveMark() {
-  base::TimingLogger::ScopedSplit("RecursiveMark", &timings_);
+  base::TimingLogger::ScopedSplit split("RecursiveMark", &timings_);
   // RecursiveMark will build the lists of known instances of the Reference classes.
   // See DelayReferenceReferent for details.
   CHECK(soft_reference_list_ == NULL);
@@ -957,6 +956,7 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
 
 void MarkSweep::Sweep(bool swap_bitmaps) {
   DCHECK(mark_stack_->IsEmpty());
+  base::TimingLogger::ScopedSplit("Sweep", &timings_);
 
   // If we don't swap bitmaps then newly allocated Weaks go into the live bitmap but not mark
   // bitmap, resulting in occasional frees of Weaks which are still in use.
@@ -987,28 +987,25 @@ void MarkSweep::Sweep(bool swap_bitmaps) {
         std::swap(live_bitmap, mark_bitmap);
       }
       if (!space->IsZygoteSpace()) {
-        timings_.StartSplit("SweepAllocSpace");
+        base::TimingLogger::ScopedSplit split("SweepAllocSpace", &timings_);
         // Bitmaps are pre-swapped for optimization which enables sweeping with the heap unlocked.
         accounting::SpaceBitmap::SweepWalk(*live_bitmap, *mark_bitmap, begin, end,
                                            &SweepCallback, reinterpret_cast<void*>(&scc));
-        timings_.EndSplit();
       } else {
-        timings_.StartSplit("SweepZygote");
+        base::TimingLogger::ScopedSplit split("SweepZygote", &timings_);
         // Zygote sweep takes care of dirtying cards and clearing live bits, does not free actual
         // memory.
         accounting::SpaceBitmap::SweepWalk(*live_bitmap, *mark_bitmap, begin, end,
                                            &ZygoteSweepCallback, reinterpret_cast<void*>(&scc));
-        timings_.EndSplit();
       }
     }
   }
 
-  timings_.StartSplit("SweepLargeObjects");
   SweepLargeObjects(swap_bitmaps);
-  timings_.EndSplit();
 }
 
 void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
+  base::TimingLogger::ScopedSplit("SweepLargeObjects", &timings_);
   // Sweep large objects
   space::LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
   accounting::SpaceSetMap* large_live_objects = large_object_space->GetLiveObjects();
@@ -1488,7 +1485,7 @@ void MarkSweep::ProcessReferences(Object** soft_references, bool clear_soft,
 }
 
 void MarkSweep::UnBindBitmaps() {
-  timings_.StartSplit("UnBindBitmaps");
+  base::TimingLogger::ScopedSplit split("UnBindBitmaps", &timings_);
   const std::vector<space::ContinuousSpace*>& spaces = GetHeap()->GetContinuousSpaces();
   // TODO: C++0x
   typedef std::vector<space::ContinuousSpace*>::const_iterator It;
@@ -1506,24 +1503,24 @@ void MarkSweep::UnBindBitmaps() {
       }
     }
   }
-  timings_.EndSplit();
 }
 
 void MarkSweep::FinishPhase() {
-  // Can't enqueue referneces if we hold the mutator lock.
+  base::TimingLogger::ScopedSplit split("FinishPhase", &timings_);
+  // Can't enqueue references if we hold the mutator lock.
   Object* cleared_references = GetClearedReferences();
   Heap* heap = GetHeap();
+  timings_.NewSplit("EnqueueClearedReferences");
   heap->EnqueueClearedReferences(&cleared_references);
 
+  timings_.NewSplit("PostGcVerification");
   heap->PostGcVerification(this);
 
-  timings_.StartSplit("GrowForUtilization");
+  timings_.NewSplit("GrowForUtilization");
   heap->GrowForUtilization(GetGcType(), GetDurationNs());
-  timings_.EndSplit();
 
-  timings_.StartSplit("RequestHeapTrim");
+  timings_.NewSplit("RequestHeapTrim");
   heap->RequestHeapTrim();
-  timings_.EndSplit();
 
   // Update the cumulative statistics
   total_time_ns_ += GetDurationNs();
