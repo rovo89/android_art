@@ -153,10 +153,9 @@ LIBART_COMMON_SRC_FILES += \
 	entrypoints/portable/portable_invoke_entrypoints.cc \
 	entrypoints/portable/portable_jni_entrypoints.cc \
 	entrypoints/portable/portable_lock_entrypoints.cc \
-	entrypoints/portable/portable_proxy_entrypoints.cc \
-	entrypoints/portable/portable_stub_entrypoints.cc \
 	entrypoints/portable/portable_thread_entrypoints.cc \
 	entrypoints/portable/portable_throw_entrypoints.cc \
+	entrypoints/portable/portable_trampoline_entrypoints.cc \
 	entrypoints/quick/quick_alloc_entrypoints.cc \
 	entrypoints/quick/quick_cast_entrypoints.cc \
 	entrypoints/quick/quick_deoptimization_entrypoints.cc \

@@ -26,7 +26,7 @@ namespace art {
 extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh,
                                                  const DexFile::CodeItem* code_item,
                                                  ShadowFrame* shadow_frame, JValue* result);
-extern "C" void artInterperterToCompiledCodeBridge(Thread* self, MethodHelper& mh,
+extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& mh,
                                            const DexFile::CodeItem* code_item,
                                            ShadowFrame* shadow_frame, JValue* result);
 
@@ -137,7 +137,7 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
                      PortableEntryPoints* ppoints, QuickEntryPoints* qpoints) {
   // Interpreter
   ipoints->pInterpreterToInterpreterBridge = artInterpreterToInterpreterBridge;
-  ipoints->pInterpreterToCompiledCodeBridge = artInterperterToCompiledCodeBridge;
+  ipoints->pInterpreterToCompiledCodeBridge = artInterpreterToCompiledCodeBridge;
 
   // JNI
   jpoints->pDlsymLookup = art_jni_dlsym_lookup_stub;

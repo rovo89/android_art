@@ -71,7 +71,7 @@
 
 namespace art {
 
-extern "C" void artInterperterToCompiledCodeBridge(Thread* self, MethodHelper& mh,
+extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& mh,
                                            const DexFile::CodeItem* code_item,
                                            ShadowFrame* shadow_frame, JValue* result);
 
@@ -1649,7 +1649,7 @@ static void LinkCode(SirtRef<mirror::AbstractMethod>& method, const OatFile::Oat
   if (enter_interpreter) {
     method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterBridge);
   } else {
-    method->SetEntryPointFromInterpreter(artInterperterToCompiledCodeBridge);
+    method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
   }
 
   if (method->IsAbstract()) {
@@ -2633,7 +2633,7 @@ mirror::AbstractMethod* ClassLinker::CreateProxyMethod(Thread* self, SirtRef<mir
   method->SetFpSpillMask(refs_and_args->GetFpSpillMask());
   method->SetFrameSizeInBytes(refs_and_args->GetFrameSizeInBytes());
   method->SetEntryPointFromCompiledCode(GetProxyInvokeHandler());
-  method->SetEntryPointFromInterpreter(artInterperterToCompiledCodeBridge);
+  method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
 
   return method;
 }

@@ -25,7 +25,7 @@
 
 namespace art {
 
-extern "C" void artInterperterToCompiledCodeBridge(Thread* self, MethodHelper& mh,
+extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& mh,
                                                    const DexFile::CodeItem* code_item,
                                                    ShadowFrame* shadow_frame, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -35,9 +35,15 @@ extern "C" void artInterperterToCompiledCodeBridge(Thread* self, MethodHelper& m
     Runtime::Current()->GetClassLinker()->EnsureInitialized(method->GetDeclaringClass(), true, true);
   }
   uint16_t arg_offset = (code_item == NULL) ? 0 : code_item->registers_size_ - code_item->ins_size_;
+#if defined(ART_USE_PORTABLE_COMPILER)
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
-  arg_array.BuildArgArray(shadow_frame, arg_offset);
+  arg_array.BuildArgArrayFromFrame(shadow_frame, arg_offset);
   method->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(), result, mh.GetShorty()[0]);
+#else
+  method->Invoke(self, shadow_frame->GetVRegArgs(arg_offset),
+                 (shadow_frame->NumberOfVRegs() - arg_offset) * 4,
+                 result, mh.GetShorty()[0]);
+#endif
 }
 
 }  // namespace art

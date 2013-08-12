@@ -31,7 +31,6 @@
 ENTRY art_portable_invoke_stub
     push   {r0, r4, r5, r9, r11, lr}       @ spill regs
     .save  {r0, r4, r5, r9, r11, lr}
-    .pad #24
     .cfi_adjust_cfa_offset 24
     .cfi_rel_offset r0, 0
     .cfi_rel_offset r4, 4
@@ -41,6 +40,7 @@ ENTRY art_portable_invoke_stub
     .cfi_rel_offset lr, 20
     mov    r11, sp                         @ save the stack pointer
     .cfi_def_cfa_register r11
+    @.movsp r11
     mov    r9, r3                          @ move managed thread pointer into r9
     mov    r4, #SUSPEND_CHECK_INTERVAL     @ reset r4 to suspend check interval
     add    r5, r2, #16                     @ create space for method pointer in frame
@@ -97,5 +97,73 @@ ENTRY art_portable_proxy_invoke_handler
     bx      lr                     @ return
 END art_portable_proxy_invoke_handler
 
-UNIMPLEMENTED art_portable_resolution_trampoline
-UNIMPLEMENTED art_portable_to_interpreter_bridge
+    .extern artPortableResolutionTrampoline
+ENTRY art_portable_resolution_trampoline
+    @ Fake callee save ref and args frame set up, note portable doesn't use callee save frames.
+    @ TODO: just save the registers that are needed in artPortableResolutionTrampoline.
+    push {r1-r3, r5-r8, r10-r11, lr}  @ 10 words of callee saves
+    .save {r1-r3, r5-r8, r10-r11, lr}
+    .cfi_adjust_cfa_offset 40
+    .cfi_rel_offset r1, 0
+    .cfi_rel_offset r2, 4
+    .cfi_rel_offset r3, 8
+    .cfi_rel_offset r5, 12
+    .cfi_rel_offset r6, 16
+    .cfi_rel_offset r7, 20
+    .cfi_rel_offset r8, 24
+    .cfi_rel_offset r10, 28
+    .cfi_rel_offset r11, 32
+    .cfi_rel_offset lr, 36
+    sub sp, #8                        @ 2 words of space, bottom word will hold Method*
+    .pad #8
+    .cfi_adjust_cfa_offset 8
+    mov     r2, r9                 @ pass Thread::Current
+    mov     r3, sp                 @ pass SP
+    blx     artPortableResolutionTrampoline  @ (Method* called, receiver, Thread*, SP)
+    cmp     r0, #0                 @ is code pointer null?
+    beq     1f                     @ goto exception
+    mov     r12, r0
+    ldr  r0, [sp, #0]              @ load resolved method in r0
+    ldr  r1, [sp, #8]              @ restore non-callee save r1
+    ldrd r2, [sp, #12]             @ restore non-callee saves r2-r3
+    ldr  lr, [sp, #44]             @ restore lr
+    add  sp, #48                   @ rewind sp
+    .cfi_adjust_cfa_offset -48
+    bx      r12                    @ tail-call into actual code
+1:
+    ldr  r1, [sp, #8]          @ restore non-callee save r1
+    ldrd r2, [sp, #12]         @ restore non-callee saves r2-r3
+    ldr  lr, [sp, #44]         @ restore lr
+    add  sp, #48               @ rewind sp
+    .cfi_adjust_cfa_offset -48
+    bx lr
+END art_portable_resolution_trampoline
+
+    .extern artPortableToInterpreterBridge
+ENTRY art_portable_to_interpreter_bridge
+    @ Fake callee save ref and args frame set up, note portable doesn't use callee save frames.
+    @ TODO: just save the registers that are needed in artPortableToInterpreterBridge.
+    push {r1-r3, r5-r8, r10-r11, lr}  @ 10 words of callee saves
+    .save {r1-r3, r5-r8, r10-r11, lr}
+    .cfi_adjust_cfa_offset 40
+    .cfi_rel_offset r1, 0
+    .cfi_rel_offset r2, 4
+    .cfi_rel_offset r3, 8
+    .cfi_rel_offset r5, 12
+    .cfi_rel_offset r6, 16
+    .cfi_rel_offset r7, 20
+    .cfi_rel_offset r8, 24
+    .cfi_rel_offset r10, 28
+    .cfi_rel_offset r11, 32
+    .cfi_rel_offset lr, 36
+    sub sp, #8                        @ 2 words of space, bottom word will hold Method*
+    .pad #8
+    .cfi_adjust_cfa_offset 8
+    mov     r1, r9                 @ pass Thread::Current
+    mov     r2, sp                 @ pass SP
+    blx     artPortableToInterpreterBridge    @ (Method* method, Thread*, SP)
+    ldr     lr,  [sp, #44]         @ restore lr
+    add     sp,  #48               @ pop frame
+    .cfi_adjust_cfa_offset -48
+    bx      lr                     @ return
+END art_portable_to_interpreter_bridge
