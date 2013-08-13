@@ -110,6 +110,7 @@ ART_C_INCLUDES := \
 art_cflags := \
 	-fno-rtti \
 	-O2 \
+	-std=gnu++11 \
 	-ggdb3 \
 	-Wall \
 	-Werror \
@@ -124,9 +125,6 @@ endif
 ifeq ($(ART_SEA_IR_MODE),true)
   art_cflags += -DART_SEA_IR_MODE=1
 endif
-
-# TODO: enable -std=gnu++0x for auto support when on Ubuntu 12.04 LTS (Precise Pangolin)
-# On 10.04 LTS (Lucid Lynx), it can cause dependencies on GLIBCXX_3.4.14 version symbols.
 
 ifeq ($(HOST_OS),linux)
   art_non_debug_cflags := \

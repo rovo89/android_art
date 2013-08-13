@@ -912,7 +912,7 @@ class ScopedCheck {
   sc.Check(true, types, ##args)
 
 #define CHECK_JNI_EXIT(type, exp) ({ \
-  typeof(exp) _rc = (exp); \
+    auto _rc = (exp); \
   sc.Check(false, type, _rc); \
   _rc; })
 #define CHECK_JNI_EXIT_VOID() \

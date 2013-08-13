@@ -47,7 +47,7 @@ class CardTable {
  public:
   static const size_t kCardShift = 7;
   static const size_t kCardSize = (1 << kCardShift);
-  static const uint8_t kCardClean  = 0x0;
+  static const uint8_t kCardClean = 0x0;
   static const uint8_t kCardDirty = 0x70;
 
   static CardTable* Create(const byte* heap_begin, size_t heap_capacity);

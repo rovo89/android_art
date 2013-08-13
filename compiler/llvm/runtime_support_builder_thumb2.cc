@@ -51,8 +51,8 @@ void RuntimeSupportBuilderThumb2::EmitLockObject(Value* object) {
   // $2: temp
   // $3: temp
   std::string asms;
-  StringAppendF(&asms, "add $3, $1, #%"PRId32"\n", mirror::Object::MonitorOffset().Int32Value());
-  StringAppendF(&asms, "ldr $2, [r9, #%"PRId32"]\n", Thread::ThinLockIdOffset().Int32Value());
+  StringAppendF(&asms, "add $3, $1, #%" PRId32 "\n", mirror::Object::MonitorOffset().Int32Value());
+  StringAppendF(&asms, "ldr $2, [r9, #%" PRId32 "]\n", Thread::ThinLockIdOffset().Int32Value());
   StringAppendF(&asms, "ldrex $0, [$3]\n");
   StringAppendF(&asms, "lsl $2, $2, %d\n", LW_LOCK_OWNER_SHIFT);
   StringAppendF(&asms, "bfi $2, $0, #0, #%d\n", LW_LOCK_OWNER_SHIFT - 1);
