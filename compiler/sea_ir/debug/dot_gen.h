@@ -103,7 +103,7 @@ class DotConversion {
     LOG(INFO) << "Starting to write SEA string to file.";
     DotGenerationVisitor dgv = DotGenerationVisitor(&options_, types);
     graph->Accept(&dgv);
-    art::File* file = art::OS::OpenFile(filename.c_str(), true, true);
+    art::File* file = art::OS::OpenFile(filename.c_str(), O_RDWR | O_CREAT | O_TRUNC);
     art::FileOutputStream fos(file);
     std::string graph_as_string = dgv.GetResult();
     graph_as_string += "}";

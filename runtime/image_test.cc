@@ -65,7 +65,7 @@ TEST_F(ImageTest, WriteRead) {
     }
   }
   // Workound bug that mcld::Linker::emit closes tmp_elf by reopening as tmp_oat.
-  UniquePtr<File> tmp_oat(OS::OpenFile(tmp_elf.GetFilename().c_str(), true, false));
+  UniquePtr<File> tmp_oat(OS::OpenFileReadWrite(tmp_elf.GetFilename().c_str()));
   ASSERT_TRUE(tmp_oat.get() != NULL);
 
   ScratchFile tmp_image;
@@ -80,7 +80,7 @@ TEST_F(ImageTest, WriteRead) {
   }
 
   {
-    UniquePtr<File> file(OS::OpenFile(tmp_image.GetFilename().c_str(), false));
+    UniquePtr<File> file(OS::OpenFileForReading(tmp_image.GetFilename().c_str()));
     ASSERT_TRUE(file.get() != NULL);
     ImageHeader image_header;
     file->ReadFully(&image_header, sizeof(image_header));

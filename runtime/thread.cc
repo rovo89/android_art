@@ -2218,11 +2218,13 @@ void Thread::VerifyStackImpl() {
 
 // Set the stack end to that to be used during a stack overflow
 void Thread::SetStackEndForStackOverflow() {
-  // During stack overflow we allow use of the full stack
+  // During stack overflow we allow use of the full stack.
   if (stack_end_ == stack_begin_) {
-    DumpStack(std::cerr);
-    LOG(FATAL) << "Need to increase kStackOverflowReservedBytes (currently "
-               << kStackOverflowReservedBytes << ")";
+    // However, we seem to have already extended to use the full stack.
+    LOG(ERROR) << "Need to increase kStackOverflowReservedBytes (currently "
+               << kStackOverflowReservedBytes << ")?";
+    DumpStack(LOG(ERROR));
+    LOG(FATAL) << "Recursive stack overflow.";
   }
 
   stack_end_ = stack_begin_;
