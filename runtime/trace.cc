@@ -18,6 +18,7 @@
 
 #include <sys/uio.h>
 
+#include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "common_throws.h"
@@ -32,6 +33,7 @@
 #include "object_utils.h"
 #include "os.h"
 #include "scoped_thread_state_change.h"
+#include "ScopedLocalRef.h"
 #include "thread.h"
 #include "thread_list.h"
 #if !defined(ART_USE_PORTABLE_COMPILER)
@@ -82,6 +84,29 @@ enum TraceAction {
     kTraceMethodActionMask = 0x03,  // two bits
 };
 
+class BuildStackTraceVisitor : public StackVisitor {
+ public:
+  explicit BuildStackTraceVisitor(Thread* thread) : StackVisitor(thread, NULL),
+      method_trace_(new std::vector<mirror::AbstractMethod*>) {}
+
+  bool VisitFrame() {
+    mirror::AbstractMethod* m = GetMethod();
+    // Ignore runtime frames (in particular callee save).
+    if (!m->IsRuntimeMethod()) {
+      method_trace_->push_back(m);
+    }
+    return true;
+  }
+
+  // Returns a stack trace where the topmost frame corresponds with the first element of the vector.
+  std::vector<mirror::AbstractMethod*>* GetStackTrace() const {
+    return method_trace_;
+  }
+
+ private:
+  std::vector<mirror::AbstractMethod*>* const method_trace_;
+};
+
 static const char     kTraceTokenChar             = '*';
 static const uint16_t kTraceHeaderLength          = 32;
 static const uint32_t kTraceMagicValue            = 0x574f4c53;
@@ -96,7 +121,11 @@ ProfilerClockSource Trace::default_clock_source_ = kProfilerClockSourceDual;
 ProfilerClockSource Trace::default_clock_source_ = kProfilerClockSourceWall;
 #endif
 
-Trace* Trace::the_trace_ = NULL;
+Trace* volatile Trace::the_trace_ = NULL;
+// TODO: Add way to enable sampling and set interval through gui.
+bool Trace::sampling_enabled_ = true;
+uint32_t Trace::sampling_interval_us_ = 10000;
+pthread_t Trace::sampling_pthread_ = 0U;
 
 static mirror::AbstractMethod* DecodeTraceMethodId(uint32_t tmid) {
   return reinterpret_cast<mirror::AbstractMethod*>(tmid & ~kTraceMethodActionMask);
@@ -196,6 +225,82 @@ static void Append8LE(uint8_t* buf, uint64_t val) {
   *buf++ = (uint8_t) (val >> 56);
 }
 
+static void GetSample(Thread* thread, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  BuildStackTraceVisitor build_trace_visitor(thread);
+  build_trace_visitor.WalkStack();
+  std::vector<mirror::AbstractMethod*>* stack_trace = build_trace_visitor.GetStackTrace();
+  Trace* the_trace = reinterpret_cast<Trace*>(arg);
+  the_trace->CompareAndUpdateStackTrace(thread, stack_trace);
+}
+
+void Trace::CompareAndUpdateStackTrace(Thread* thread,
+                                       std::vector<mirror::AbstractMethod*>* stack_trace) {
+  CHECK_EQ(pthread_self(), sampling_pthread_);
+  SafeMap<Thread*, std::vector<mirror::AbstractMethod*>*>::iterator map_it = thread_stack_trace_map_.find(thread);
+  if (map_it == thread_stack_trace_map_.end()) {
+    // If there's no existing stack trace in the map for this thread, log an entry event for all
+    // methods in the trace.
+    thread_stack_trace_map_.Put(thread, stack_trace);
+    for (std::vector<mirror::AbstractMethod*>::reverse_iterator rit = stack_trace->rbegin();
+         rit != stack_trace->rend(); ++rit) {
+      LogMethodTraceEvent(thread, *rit, instrumentation::Instrumentation::kMethodEntered);
+    }
+  } else {
+    // If there's a previous stack trace for this thread, diff the traces and emit entry and exit
+    // events accordingly.
+    std::vector<mirror::AbstractMethod*>* old_stack_trace = map_it->second;
+    thread_stack_trace_map_.Overwrite(thread, stack_trace);
+    std::vector<mirror::AbstractMethod*>::reverse_iterator old_rit = old_stack_trace->rbegin();
+    std::vector<mirror::AbstractMethod*>::reverse_iterator rit = stack_trace->rbegin();
+
+    // Iterate bottom-up over both traces until there's a difference between them.
+    while (old_rit != old_stack_trace->rend() && rit != stack_trace->rend() && *old_rit == *rit) {
+      old_rit++;
+      rit++;
+    }
+    // Iterate top-down over the old trace until the point where they differ, emitting exit events.
+    for (std::vector<mirror::AbstractMethod*>::iterator old_it = old_stack_trace->begin();
+         old_it != old_rit.base(); ++old_it) {
+      LogMethodTraceEvent(thread, *old_it, instrumentation::Instrumentation::kMethodExited);
+    }
+    // Iterate bottom-up over the new trace from the point where they differ, emitting entry events.
+    for (; rit != stack_trace->rend(); ++rit) {
+      LogMethodTraceEvent(thread, *rit, instrumentation::Instrumentation::kMethodEntered);
+    }
+    delete old_stack_trace;
+  }
+}
+
+void* Trace::RunSamplingThread(void* arg) {
+  Runtime* runtime = Runtime::Current();
+  CHECK(runtime->AttachCurrentThread("Sampling Profiler", true, runtime->GetSystemThreadGroup(),
+                                     !runtime->IsCompiler()));
+
+  while (true) {
+    usleep(sampling_interval_us_);
+
+    Thread* self = Thread::Current();
+    Trace* the_trace;
+    {
+      MutexLock mu(self, *Locks::trace_lock_);
+      the_trace = the_trace_;
+      if (the_trace == NULL) {
+        break;
+      }
+    }
+
+    runtime->GetThreadList()->SuspendAll();
+    {
+      MutexLock mu(self, *Locks::thread_list_lock_);
+      runtime->GetThreadList()->ForEach(GetSample, the_trace);
+    }
+    runtime->GetThreadList()->ResumeAll();
+  }
+
+  runtime->DetachCurrentThread();
+  return NULL;
+}
+
 void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int flags,
                   bool direct_to_ddms) {
   Thread* self = Thread::Current();
@@ -240,10 +345,15 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
         runtime->SetStatsEnabled(true);
       }
 
-      runtime->GetInstrumentation()->AddListener(the_trace_,
-                                                 instrumentation::Instrumentation::kMethodEntered |
-                                                 instrumentation::Instrumentation::kMethodExited |
-                                                 instrumentation::Instrumentation::kMethodUnwind);
+      if (sampling_enabled_) {
+        CHECK_PTHREAD_CALL(pthread_create, (&sampling_pthread_, NULL, &RunSamplingThread, NULL),
+                           "Sampling profiler thread");
+      } else {
+        runtime->GetInstrumentation()->AddListener(the_trace_,
+                                                   instrumentation::Instrumentation::kMethodEntered |
+                                                   instrumentation::Instrumentation::kMethodExited |
+                                                   instrumentation::Instrumentation::kMethodUnwind);
+      }
     }
   }
   runtime->GetThreadList()->ResumeAll();
@@ -253,6 +363,7 @@ void Trace::Stop() {
   Runtime* runtime = Runtime::Current();
   runtime->GetThreadList()->SuspendAll();
   Trace* the_trace = NULL;
+  pthread_t sampling_pthread = 0U;
   {
     MutexLock mu(Thread::Current(), *Locks::trace_lock_);
     if (the_trace_ == NULL) {
@@ -260,17 +371,26 @@ void Trace::Stop() {
     } else {
       the_trace = the_trace_;
       the_trace_ = NULL;
+      sampling_pthread = sampling_pthread_;
+      sampling_pthread_ = 0U;
     }
   }
   if (the_trace != NULL) {
     the_trace->FinishTracing();
-    runtime->GetInstrumentation()->RemoveListener(the_trace,
-                                                  instrumentation::Instrumentation::kMethodEntered |
-                                                  instrumentation::Instrumentation::kMethodExited |
-                                                  instrumentation::Instrumentation::kMethodUnwind);
+
+    if (!sampling_enabled_) {
+      runtime->GetInstrumentation()->RemoveListener(the_trace,
+                                                    instrumentation::Instrumentation::kMethodEntered |
+                                                    instrumentation::Instrumentation::kMethodExited |
+                                                    instrumentation::Instrumentation::kMethodUnwind);
+    }
     delete the_trace;
   }
   runtime->GetThreadList()->ResumeAll();
+
+  if (sampling_enabled_ && sampling_pthread != 0U) {
+    CHECK_PTHREAD_CALL(pthread_join, (sampling_pthread, NULL), "sampling thread shutdown");
+  }
 }
 
 void Trace::Shutdown() {
@@ -302,6 +422,11 @@ Trace::Trace(File* trace_file, int buffer_size, int flags)
 
   // Update current offset.
   cur_offset_ = kTraceHeaderLength;
+}
+
+Trace::~Trace() {
+  CHECK_EQ(sampling_pthread_, static_cast<pthread_t>(0U));
+  STLDeleteValues(&thread_stack_trace_map_);
 }
 
 static void DumpBuf(uint8_t* buf, size_t buf_size, ProfilerClockSource clock_source)
