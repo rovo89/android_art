@@ -19,7 +19,10 @@
 
 #include "mutex.h"
 
+#define ATRACE_TAG ATRACE_TAG_DALVIK
+
 #include "cutils/atomic-inline.h"
+#include "cutils/trace.h"
 #include "runtime.h"
 #include "thread.h"
 
@@ -45,10 +48,16 @@ class ScopedContentionRecorder {
         blocked_tid_(kLogLockContentions ? blocked_tid : 0),
         owner_tid_(kLogLockContentions ? owner_tid : 0),
         start_nano_time_(kLogLockContentions ? NanoTime() : 0) {
+    if (kLogLockContentions) {
+      std::string msg = StringPrintf("Lock contention on %s (owner tid: %llu)",
+                                     mutex->GetName(), owner_tid);
+      ATRACE_BEGIN(msg.c_str());
+    }
   }
 
   ~ScopedContentionRecorder() {
     if (kLogLockContentions) {
+      ATRACE_END();
       uint64_t end_nano_time = NanoTime();
       mutex_->RecordContention(blocked_tid_, owner_tid_, end_nano_time - start_nano_time_);
     }

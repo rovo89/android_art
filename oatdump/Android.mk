@@ -22,10 +22,10 @@ OATDUMP_SRC_FILES := \
 include art/build/Android.executable.mk
 
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
-  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),,,target,ndebug))
+  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libcutils,,target,ndebug))
 endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
-  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),,,target,debug))
+  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libcutils,,target,debug))
 endif
 
 ifeq ($(WITH_HOST_DALVIK),true)
