@@ -990,7 +990,9 @@ class ImageDumper {
         DCHECK(method->GetNativeGcMap() == NULL) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
       } else {
-        CHECK((method->GetEntryPointFromCompiledCode() == NULL) || (method->GetNativeGcMap() != NULL));
+        // TODO: we check there is a GC map here, we may not have a GC map if the code is pointing
+        //       to the quick/portable to interpreter bridge.
+        CHECK(method->GetNativeGcMap() != NULL) << PrettyMethod(method);
 
         const DexFile::CodeItem* code_item = MethodHelper(method).GetCodeItem();
         size_t dex_instruction_bytes = code_item->insns_size_in_code_units_ * 2;
