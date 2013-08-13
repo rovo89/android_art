@@ -351,7 +351,7 @@ void Mutex::ExclusiveLock(Thread* self) {
         done = android_atomic_acquire_cas(0, 1, &state_) == 0;
       } else {
         // Failed to acquire, hang up.
-        ScopedContentionRecorder scr(this, GetExclusiveOwnerTid(), SafeGetTid(self));
+        ScopedContentionRecorder scr(this, SafeGetTid(self), GetExclusiveOwnerTid());
         android_atomic_inc(&num_contenders_);
         if (futex(&state_, FUTEX_WAIT, 1, NULL, NULL, 0) != 0) {
           // EAGAIN and EINTR both indicate a spurious failure, try again from the beginning.
@@ -554,7 +554,7 @@ void ReaderWriterMutex::ExclusiveLock(Thread* self) {
       done = android_atomic_acquire_cas(0, -1, &state_) == 0;
     } else {
       // Failed to acquire, hang up.
-      ScopedContentionRecorder scr(this, GetExclusiveOwnerTid(), SafeGetTid(self));
+      ScopedContentionRecorder scr(this, SafeGetTid(self), GetExclusiveOwnerTid());
       android_atomic_inc(&num_pending_writers_);
       if (futex(&state_, FUTEX_WAIT, cur_state, NULL, NULL, 0) != 0) {
         // EAGAIN and EINTR both indicate a spurious failure, try again from the beginning.
@@ -623,7 +623,7 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, int64_t ms, int32
       if (ComputeRelativeTimeSpec(&rel_ts, end_abs_ts, now_abs_ts)) {
         return false;  // Timed out.
       }
-      ScopedContentionRecorder scr(this, GetExclusiveOwnerTid(), SafeGetTid(self));
+      ScopedContentionRecorder scr(this, SafeGetTid(self), GetExclusiveOwnerTid());
       android_atomic_inc(&num_pending_writers_);
       if (futex(&state_, FUTEX_WAIT, cur_state, &rel_ts, NULL, 0) != 0) {
         if (errno == ETIMEDOUT) {
