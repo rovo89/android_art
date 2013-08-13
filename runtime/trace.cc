@@ -318,7 +318,7 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
   UniquePtr<File> trace_file;
   if (!direct_to_ddms) {
     if (trace_fd < 0) {
-      trace_file.reset(OS::OpenFile(trace_filename, true));
+      trace_file.reset(OS::CreateEmptyFile(trace_filename));
     } else {
       trace_file.reset(new File(trace_fd, "tracefile"));
       trace_file->DisableAutoClose();

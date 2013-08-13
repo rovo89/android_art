@@ -160,7 +160,7 @@ ImageSpace* ImageSpace::Init(const std::string& image_file_name, bool validate_o
     LOG(INFO) << "ImageSpace::Init entering image_file_name=" << image_file_name;
   }
 
-  UniquePtr<File> file(OS::OpenFile(image_file_name.c_str(), false));
+  UniquePtr<File> file(OS::OpenFileForReading(image_file_name.c_str()));
   if (file.get() == NULL) {
     LOG(ERROR) << "Failed to open " << image_file_name;
     return NULL;

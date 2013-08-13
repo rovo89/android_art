@@ -659,6 +659,7 @@ void ClassLinker::RegisterOatFileLocked(const OatFile& oat_file) {
       CHECK_NE(&oat_file, oat_files_[i]) << oat_file.GetLocation();
     }
   }
+  VLOG(class_linker) << "Registering " << oat_file.GetLocation();
   oat_files_.push_back(&oat_file);
 }
 
@@ -694,22 +695,39 @@ const DexFile* ClassLinker::FindDexFileInOatLocation(const std::string& dex_loca
   UniquePtr<OatFile> oat_file(OatFile::Open(oat_location, oat_location, NULL,
                                             !Runtime::Current()->IsCompiler()));
   if (oat_file.get() == NULL) {
+    VLOG(class_linker) << "Failed to find existing oat file at " << oat_location;
     return NULL;
   }
   Runtime* runtime = Runtime::Current();
   const ImageHeader& image_header = runtime->GetHeap()->GetImageSpace()->GetImageHeader();
-  if (oat_file->GetOatHeader().GetImageFileLocationOatChecksum() != image_header.GetOatChecksum()) {
+  uint32_t expected_image_oat_checksum = image_header.GetOatChecksum();
+  uint32_t actual_image_oat_checksum = oat_file->GetOatHeader().GetImageFileLocationOatChecksum();
+  if (expected_image_oat_checksum != actual_image_oat_checksum) {
+    VLOG(class_linker) << "Failed to find oat file at " << oat_location
+                       << " with expected image oat checksum of " << expected_image_oat_checksum
+                       << ", found " << actual_image_oat_checksum;
     return NULL;
   }
-  if (oat_file->GetOatHeader().GetImageFileLocationOatDataBegin()
-      != reinterpret_cast<uint32_t>(image_header.GetOatDataBegin())) {
+
+  uint32_t expected_image_oat_offset = reinterpret_cast<uint32_t>(image_header.GetOatDataBegin());
+  uint32_t actual_image_oat_offset = oat_file->GetOatHeader().GetImageFileLocationOatDataBegin();
+  if (expected_image_oat_offset != actual_image_oat_offset) {
+    VLOG(class_linker) << "Failed to find oat file at " << oat_location
+                       << " with expected image oat offset " << expected_image_oat_offset
+                       << ", found " << actual_image_oat_offset;
     return NULL;
   }
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location);
   if (oat_dex_file == NULL) {
+    VLOG(class_linker) << "Failed to find oat file at " << oat_location << " containing " << dex_location;
     return NULL;
   }
-  if (oat_dex_file->GetDexFileLocationChecksum() != dex_location_checksum) {
+  uint32_t expected_dex_checksum = dex_location_checksum;
+  uint32_t actual_dex_checksum = oat_dex_file->GetDexFileLocationChecksum();
+  if (expected_dex_checksum != actual_dex_checksum) {
+    VLOG(class_linker) << "Failed to find oat file at " << oat_location
+                       << " with expected dex checksum of " << expected_dex_checksum
+                       << ", found " << actual_dex_checksum;
     return NULL;
   }
   RegisterOatFileLocked(*oat_file.release());
@@ -722,11 +740,74 @@ const DexFile* ClassLinker::FindOrCreateOatFileForDexLocation(const std::string&
   return FindOrCreateOatFileForDexLocationLocked(dex_location, oat_location);
 }
 
+class ScopedFlock {
+ public:
+  ScopedFlock() {}
+
+  bool Init(const std::string& filename) {
+    while (true) {
+      file_.reset(OS::OpenFileWithFlags(filename.c_str(), O_CREAT | O_RDWR));
+      if (file_.get() == NULL) {
+        LOG(ERROR) << "Failed to open file: " << filename;
+        return false;
+      }
+      int flock_result = TEMP_FAILURE_RETRY(flock(file_->Fd(), LOCK_EX));
+      if (flock_result != 0) {
+        PLOG(ERROR) << "Failed to lock file: " << filename;
+        return false;
+      }
+      struct stat fstat_stat;
+      int fstat_result = TEMP_FAILURE_RETRY(fstat(file_->Fd(), &fstat_stat));
+      if (fstat_result != 0) {
+        PLOG(ERROR) << "Failed to fstat: " << filename;
+        return false;
+      }
+      struct stat stat_stat;
+      int stat_result = TEMP_FAILURE_RETRY(stat(filename.c_str(), &stat_stat));
+      if (stat_result != 0) {
+        PLOG(WARNING) << "Failed to stat, will retry: " << filename;
+        // ENOENT can happen if someone racing with us unlinks the file we created so just retry.
+        continue;
+      }
+      if (fstat_stat.st_dev != stat_stat.st_dev || fstat_stat.st_ino != stat_stat.st_ino) {
+        LOG(WARNING) << "File changed while locking, will retry: " << filename;
+        continue;
+      }
+      return true;
+    }
+  }
+
+  File& GetFile() {
+    return *file_;
+  }
+
+  ~ScopedFlock() {
+    int flock_result = TEMP_FAILURE_RETRY(flock(file_->Fd(), LOCK_UN));
+    CHECK_EQ(0, flock_result);
+  }
+
+ private:
+  UniquePtr<File> file_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedFlock);
+};
+
 const DexFile* ClassLinker::FindOrCreateOatFileForDexLocationLocked(const std::string& dex_location,
                                                                     const std::string& oat_location) {
   uint32_t dex_location_checksum;
   if (!DexFile::GetChecksum(dex_location, dex_location_checksum)) {
     LOG(ERROR) << "Failed to compute checksum '" << dex_location << "'";
+    return NULL;
+  }
+
+  // We play a locking game here so that if two different processes
+  // race to generate (or worse, one tries to open a partial generated
+  // file) we will be okay. This is actually common with apps that use
+  // DexClassLoader to work around the dex method reference limit and
+  // that have a background service running in a separate process.
+  ScopedFlock scoped_flock;
+  if (!scoped_flock.Init(oat_location)) {
+    LOG(ERROR) << "Failed to open locked oat file: " << oat_location;
     return NULL;
   }
 
@@ -739,12 +820,8 @@ const DexFile* ClassLinker::FindOrCreateOatFileForDexLocationLocked(const std::s
   }
 
   // Generate the output oat file for the dex file
-  UniquePtr<File> file(OS::OpenFile(oat_location.c_str(), true));
-  if (file.get() == NULL) {
-    LOG(ERROR) << "Failed to create oat file: " << oat_location;
-    return NULL;
-  }
-  if (!GenerateOatFile(dex_location, file->Fd(), oat_location)) {
+  VLOG(class_linker) << "Generating oat file " << oat_location << " for " << dex_location;
+  if (!GenerateOatFile(dex_location, scoped_flock.GetFile().Fd(), oat_location)) {
     LOG(ERROR) << "Failed to generate oat file: " << oat_location;
     return NULL;
   }

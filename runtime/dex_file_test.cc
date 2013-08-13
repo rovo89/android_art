@@ -64,7 +64,7 @@ static const DexFile* OpenDexFileBase64(const char* base64,
   CHECK(dex_bytes.get() != NULL);
 
   // write to provided file
-  UniquePtr<File> file(OS::OpenFile(location.c_str(), true));
+  UniquePtr<File> file(OS::CreateEmptyFile(location.c_str()));
   CHECK(file.get() != NULL);
   if (!file->WriteFully(dex_bytes.get(), length)) {
     PLOG(FATAL) << "Failed to write base64 as dex file";
