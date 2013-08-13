@@ -77,7 +77,7 @@ uint64_t CumulativeLogger::GetTotalTime() const {
 void CumulativeLogger::AddLogger(const base::TimingLogger &logger) {
   MutexLock mu(Thread::Current(), lock_);
   const base::TimingLogger::SplitTimings& splits = logger.GetSplits();
-  for (base::TimingLogger::SplitsIterator it = splits.begin(), end = splits.end();
+  for (base::TimingLogger::SplitTimingsIterator it = splits.begin(), end = splits.end();
        it != end; ++it) {
     base::TimingLogger::SplitTiming split = *it;
     uint64_t split_time = split.first;
@@ -155,7 +155,7 @@ void TimingLogger::NewSplit(const char* new_split_label) {
 
 uint64_t TimingLogger::GetTotalNs() const {
   uint64_t total_ns = 0;
-  for (base::TimingLogger::SplitsIterator it = splits_.begin(), end = splits_.end();
+  for (base::TimingLogger::SplitTimingsIterator it = splits_.begin(), end = splits_.end();
        it != end; ++it) {
     base::TimingLogger::SplitTiming split = *it;
     total_ns += split.first;
@@ -166,7 +166,7 @@ uint64_t TimingLogger::GetTotalNs() const {
 void TimingLogger::Dump(std::ostream &os) const {
   uint64_t longest_split = 0;
   uint64_t total_ns = 0;
-  for (base::TimingLogger::SplitsIterator it = splits_.begin(), end = splits_.end();
+  for (base::TimingLogger::SplitTimingsIterator it = splits_.begin(), end = splits_.end();
        it != end; ++it) {
     base::TimingLogger::SplitTiming split = *it;
     uint64_t split_time = split.first;
@@ -177,7 +177,7 @@ void TimingLogger::Dump(std::ostream &os) const {
   TimeUnit tu = GetAppropriateTimeUnit(longest_split);
   uint64_t divisor = GetNsToTimeUnitDivisor(tu);
   // Print formatted splits.
-  for (base::TimingLogger::SplitsIterator it = splits_.begin(), end = splits_.end();
+  for (base::TimingLogger::SplitTimingsIterator it = splits_.begin(), end = splits_.end();
        it != end; ++it) {
     base::TimingLogger::SplitTiming split = *it;
     uint64_t split_time = split.first;

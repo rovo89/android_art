@@ -33,9 +33,6 @@ namespace base {
 
 class CumulativeLogger {
  public:
-  typedef std::map<std::string, Histogram<uint64_t> *> Histograms;
-  typedef std::map<std::string, Histogram<uint64_t> *>::const_iterator HistogramsIterator;
-
   explicit CumulativeLogger(const std::string& name);
   void prepare_stats();
   ~CumulativeLogger();
@@ -50,6 +47,9 @@ class CumulativeLogger {
   void AddLogger(const base::TimingLogger& logger) LOCKS_EXCLUDED(lock_);
 
  private:
+  typedef std::map<std::string, Histogram<uint64_t> *> Histograms;
+  typedef std::map<std::string, Histogram<uint64_t> *>::const_iterator HistogramsIterator;
+
   void AddPair(const std::string &label, uint64_t delta_time)
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
   void DumpHistogram(std::ostream &os) EXCLUSIVE_LOCKS_REQUIRED(lock_);
@@ -73,7 +73,7 @@ class TimingLogger {
   // Splits are nanosecond times and split names.
   typedef std::pair<uint64_t, const char*> SplitTiming;
   typedef std::vector<SplitTiming> SplitTimings;
-  typedef std::vector<SplitTiming>::const_iterator SplitsIterator;
+  typedef std::vector<SplitTiming>::const_iterator SplitTimingsIterator;
 
   explicit TimingLogger(const char* name, bool precise, bool verbose);
 

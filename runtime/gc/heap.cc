@@ -1171,6 +1171,12 @@ void Heap::MarkAllocStack(accounting::SpaceBitmap* bitmap, accounting::SpaceSetM
   }
 }
 
+
+const char* gc_cause_and_type_strings[3][4] = {
+    {"", "GC Alloc Sticky", "GC Alloc Partial", "GC Alloc Full"},
+    {"", "GC Background Sticky", "GC Background Partial", "GC Background Full"},
+    {"", "GC Explicit Sticky", "GC Explicit Partial", "GC Explicit Full"}};
+
 collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCause gc_cause,
                                                bool clear_soft_references) {
   Thread* self = Thread::Current();
@@ -1225,20 +1231,12 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
     gc_type = collector::kGcTypePartial;
   }
 
-  switch (gc_cause) {
-    case kGcCauseForAlloc:
-      ATRACE_BEGIN("GC (alloc)");
-      break;
-    case kGcCauseBackground:
-      ATRACE_BEGIN("GC (background)");
-      break;
-    case kGcCauseExplicit:
-      ATRACE_BEGIN("GC (explicit)");
-      break;
-  }
-
   DCHECK_LT(gc_type, collector::kGcTypeMax);
   DCHECK_NE(gc_type, collector::kGcTypeNone);
+  DCHECK_LE(gc_cause, kGcCauseExplicit);
+
+  ATRACE_BEGIN(gc_cause_and_type_strings[gc_cause][gc_type]);
+
   collector::MarkSweep* collector = NULL;
   typedef std::vector<collector::MarkSweep*>::iterator It;
   for (It it = mark_sweep_collectors_.begin(), end = mark_sweep_collectors_.end();
@@ -1658,11 +1656,10 @@ void Heap::PreGcVerification(collector::GarbageCollector* gc) {
 }
 
 void Heap::PreSweepingGcVerification(collector::GarbageCollector* gc) {
-  ThreadList* thread_list = Runtime::Current()->GetThreadList();
-
   // Called before sweeping occurs since we want to make sure we are not going so reclaim any
   // reachable objects.
   if (verify_post_gc_heap_) {
+    ThreadList* thread_list = Runtime::Current()->GetThreadList();
     Thread* self = Thread::Current();
     CHECK_NE(self->GetState(), kRunnable);
     Locks::mutator_lock_->SharedUnlock(self);
@@ -1682,9 +1679,8 @@ void Heap::PreSweepingGcVerification(collector::GarbageCollector* gc) {
 }
 
 void Heap::PostGcVerification(collector::GarbageCollector* gc) {
-  Thread* self = Thread::Current();
-
   if (verify_system_weaks_) {
+    Thread* self = Thread::Current();
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     collector::MarkSweep* mark_sweep = down_cast<collector::MarkSweep*>(gc);
     mark_sweep->VerifySystemWeaks();
