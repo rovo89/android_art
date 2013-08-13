@@ -63,6 +63,7 @@ namespace collector {
 static const bool kParallelMarkStack = true;
 static const bool kDisableFinger = true;  // TODO: Fix, bit rotten.
 static const bool kUseMarkStackPrefetch = true;
+static const size_t kSweepArrayChunkFreeSize = 1024;
 
 // Profiling and information flags.
 static const bool kCountClassesMarked = false;
@@ -916,10 +917,12 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
     std::swap(large_live_objects, large_mark_objects);
   }
 
+  size_t freed_objects = 0;
   size_t freed_large_objects = 0;
   size_t count = allocations->Size();
   Object** objects = const_cast<Object**>(allocations->Begin());
   Object** out = objects;
+  Object** objects_to_chunk_free = out;
 
   // Empty the allocation stack.
   Thread* self = Thread::Current();
@@ -930,18 +933,37 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
       if (!mark_bitmap->Test(obj)) {
         // Don't bother un-marking since we clear the mark bitmap anyways.
         *(out++) = obj;
+        // Free objects in chunks.
+        DCHECK_GE(out, objects_to_chunk_free);
+        DCHECK_LE(static_cast<size_t>(out - objects_to_chunk_free), kSweepArrayChunkFreeSize);
+        if (static_cast<size_t>(out - objects_to_chunk_free) == kSweepArrayChunkFreeSize) {
+          timings_.StartSplit("FreeList");
+          size_t chunk_freed_objects = out - objects_to_chunk_free;
+          freed_objects += chunk_freed_objects;
+          freed_bytes += space->FreeList(self, chunk_freed_objects, objects_to_chunk_free);
+          objects_to_chunk_free = out;
+          timings_.EndSplit();
+        }
       }
     } else if (!large_mark_objects->Test(obj)) {
       ++freed_large_objects;
       freed_bytes += large_object_space->Free(self, obj);
     }
   }
+  // Free the remaining objects in chunks.
+  DCHECK_GE(out, objects_to_chunk_free);
+  DCHECK_LE(static_cast<size_t>(out - objects_to_chunk_free), kSweepArrayChunkFreeSize);
+  if (out - objects_to_chunk_free > 0) {
+    timings_.StartSplit("FreeList");
+    size_t chunk_freed_objects = out - objects_to_chunk_free;
+    freed_objects += chunk_freed_objects;
+    freed_bytes += space->FreeList(self, chunk_freed_objects, objects_to_chunk_free);
+    timings_.EndSplit();
+  }
   CHECK_EQ(count, allocations->Size());
   timings_.EndSplit();
 
-  timings_.StartSplit("FreeList");
-  size_t freed_objects = out - objects;
-  freed_bytes += space->FreeList(self, freed_objects, objects);
+  timings_.StartSplit("RecordFree");
   VLOG(heap) << "Freed " << freed_objects << "/" << count
              << " objects with size " << PrettySize(freed_bytes);
   heap_->RecordFree(freed_objects + freed_large_objects, freed_bytes);
