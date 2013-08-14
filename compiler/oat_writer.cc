@@ -464,7 +464,7 @@ bool OatWriter::Write(OutputStream& out) {
   if (kIsDebugBuild) {
     uint32_t size_total = 0;
     #define DO_STAT(x) \
-      LOG(INFO) << #x "=" << PrettySize(x) << " (" << x << "B)"; \
+      VLOG(compiler) << #x "=" << PrettySize(x) << " (" << x << "B)"; \
       size_total += x;
 
     DO_STAT(size_dex_file_alignment_);
@@ -495,7 +495,7 @@ bool OatWriter::Write(OutputStream& out) {
     DO_STAT(size_oat_class_method_offsets_);
     #undef DO_STAT
 
-    LOG(INFO) << "size_total=" << PrettySize(size_total) << " (" << size_total << "B)"; \
+    VLOG(compiler) << "size_total=" << PrettySize(size_total) << " (" << size_total << "B)"; \
     CHECK_EQ(file_offset + size_total, static_cast<uint32_t>(out.Seek(0, kSeekCurrent)));
     CHECK_EQ(size_, size_total);
   }

@@ -164,7 +164,7 @@ class Dex2Oat {
 
   ~Dex2Oat() {
     delete runtime_;
-    LOG(INFO) << "dex2oat took " << PrettyDuration(NanoTime() - start_ns_)
+    VLOG(compiler) << "dex2oat took " << PrettyDuration(NanoTime() - start_ns_)
               << " (threads: " << thread_count_ << ")";
   }
 
@@ -923,7 +923,7 @@ static int dex2oat(int argc, char** argv) {
     }
     if (num_methods <= Runtime::Current()->GetNumDexMethodsThreshold()) {
       Runtime::Current()->SetCompilerFilter(Runtime::kSpeed);
-      LOG(INFO) << "Below method threshold, compiling anyways";
+      VLOG(compiler) << "Below method threshold, compiling anyways";
     }
   }
 
@@ -945,7 +945,7 @@ static int dex2oat(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  LOG(INFO) << "Oat file written successfully (unstripped): " << oat_location;
+  VLOG(compiler) << "Oat file written successfully (unstripped): " << oat_location;
 
   // Notes on the interleaving of creating the image and oat file to
   // ensure the references between the two are correct.
@@ -1009,7 +1009,7 @@ static int dex2oat(int argc, char** argv) {
     if (!image_creation_success) {
       return EXIT_FAILURE;
     }
-    LOG(INFO) << "Image written successfully: " << image_filename;
+    VLOG(compiler) << "Image written successfully: " << image_filename;
   }
 
   if (is_host) {
@@ -1037,7 +1037,7 @@ static int dex2oat(int argc, char** argv) {
       CHECK(write_ok);
     }
     oat_file.reset(out.release());
-    LOG(INFO) << "Oat file copied successfully (stripped): " << oat_stripped;
+    VLOG(compiler) << "Oat file copied successfully (stripped): " << oat_stripped;
   }
 
 #if ART_USE_PORTABLE_COMPILER  // We currently only generate symbols on Portable
@@ -1049,7 +1049,7 @@ static int dex2oat(int argc, char** argv) {
 
 
   // We wrote the oat file successfully, and want to keep it.
-  LOG(INFO) << "Oat file written successfully (stripped): " << oat_location;
+  VLOG(compiler) << "Oat file written successfully (stripped): " << oat_location;
 #endif  // ART_USE_PORTABLE_COMPILER
 
   timings.EndSplit();

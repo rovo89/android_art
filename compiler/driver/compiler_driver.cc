@@ -64,7 +64,7 @@ static void DumpStat(size_t x, size_t y, const char* str) {
   if (x == 0 && y == 0) {
     return;
   }
-  LOG(INFO) << Percentage(x, y) << "% of " << str << " for " << (x + y) << " cases";
+  VLOG(compiler) << Percentage(x, y) << "% of " << str << " for " << (x + y) << " cases";
 }
 
 class AOTCompilationStats {
@@ -724,7 +724,7 @@ static void MaybeAddToImageClasses(mirror::Class* klass, CompilerDriver::Descrip
     std::pair<CompilerDriver::DescriptorSet::iterator, bool> result =
         image_classes->insert(descriptor);
     if (result.second) {
-      LOG(INFO) << "Adding " << descriptor << " to image classes";
+        VLOG(compiler) << "Adding " << descriptor << " to image classes";
     } else {
       return;
     }
@@ -2070,7 +2070,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
             }
           }
           if (!is_black_listed) {
-            LOG(INFO) << "Initializing: " << descriptor;
+            VLOG(compiler) << "Initializing: " << descriptor;
             if (StringPiece(descriptor) == "Ljava/lang/Void;") {
               // Hand initialize j.l.Void to avoid Dex file operations in un-started runtime.
               mirror::ObjectArray<mirror::Field>* fields = klass->GetSFields();

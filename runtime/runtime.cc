@@ -365,6 +365,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->sea_ir_mode_ = false;
 //  gLogVerbosity.class_linker = true;  // TODO: don't check this in!
 //  gLogVerbosity.compiler = true;  // TODO: don't check this in!
+//  gLogVerbosity.verifier = true;  // TODO: don't check this in!
 //  gLogVerbosity.heap = true;  // TODO: don't check this in!
 //  gLogVerbosity.gc = true;  // TODO: don't check this in!
 //  gLogVerbosity.jdwp = true;  // TODO: don't check this in!
@@ -522,6 +523,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       for (size_t i = 0; i < verbose_options.size(); ++i) {
         if (verbose_options[i] == "class") {
           gLogVerbosity.class_linker = true;
+        } else if (verbose_options[i] == "verifier") {
+          gLogVerbosity.verifier = true;
         } else if (verbose_options[i] == "compiler") {
           gLogVerbosity.compiler = true;
         } else if (verbose_options[i] == "heap") {
