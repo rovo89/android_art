@@ -19,8 +19,8 @@
 #include "UniquePtr.h"
 #include "class_linker.h"
 #include "gc_map.h"
-#include "mirror/abstract_method.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_method.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
@@ -50,7 +50,7 @@ struct TestReferenceMapVisitor : public StackVisitor {
   }
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::AbstractMethod* m = GetMethod();
+    mirror::ArtMethod* m = GetMethod();
     CHECK(m != NULL);
     LOG(INFO) << "At " << PrettyMethod(m, false);
 

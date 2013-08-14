@@ -23,7 +23,7 @@
 #include "class_linker.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
@@ -204,7 +204,7 @@ void Monitor::Lock(Thread* self) {
     uint64_t waitStart = 0;
     uint64_t waitEnd = 0;
     uint32_t wait_threshold = lock_profiling_threshold_;
-    const mirror::AbstractMethod* current_locking_method = NULL;
+    const mirror::ArtMethod* current_locking_method = NULL;
     uint32_t current_locking_dex_pc = 0;
     {
       ScopedThreadStateChange tsc(self, kBlocked);
@@ -433,7 +433,7 @@ void Monitor::WaitWithLock(Thread* self, int64_t ms, int32_t ns,
   int prev_lock_count = lock_count_;
   lock_count_ = 0;
   owner_ = NULL;
-  const mirror::AbstractMethod* saved_method = locking_method_;
+  const mirror::ArtMethod* saved_method = locking_method_;
   locking_method_ = NULL;
   uintptr_t saved_dex_pc = locking_dex_pc_;
   locking_dex_pc_ = 0;
@@ -888,7 +888,7 @@ mirror::Object* Monitor::GetContendedMonitor(Thread* thread) {
 
 void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::Object*, void*),
                          void* callback_context) {
-  mirror::AbstractMethod* m = stack_visitor->GetMethod();
+  mirror::ArtMethod* m = stack_visitor->GetMethod();
   CHECK(m != NULL);
 
   // Native methods are an easy special case.
@@ -948,7 +948,7 @@ void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::O
   }
 }
 
-void Monitor::TranslateLocation(const mirror::AbstractMethod* method, uint32_t dex_pc,
+void Monitor::TranslateLocation(const mirror::ArtMethod* method, uint32_t dex_pc,
                                 const char*& source_file, uint32_t& line_number) const {
   // If method is null, location is unknown
   if (method == NULL) {

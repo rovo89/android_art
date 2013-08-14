@@ -36,10 +36,10 @@
 #include "image.h"
 #include "indenter.h"
 #include "mapping_table.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_field-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
-#include "mirror/field-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "oat.h"
@@ -169,7 +169,7 @@ class OatDumper {
     return oat_file_.GetOatHeader().GetInstructionSet();
   }
 
-  const void* GetOatCode(mirror::AbstractMethod* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const void* GetOatCode(mirror::ArtMethod* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     MethodHelper mh(m);
     for (size_t i = 0; i < oat_dex_files_.size(); i++) {
       const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
@@ -804,18 +804,18 @@ class ImageDumper {
     } else if (type->IsClassClass()) {
       mirror::Class* klass = value->AsClass();
       os << StringPrintf("%p   Class: %s\n", klass, PrettyDescriptor(klass).c_str());
-    } else if (type->IsFieldClass()) {
-      mirror::Field* field = value->AsField();
+    } else if (type->IsArtFieldClass()) {
+      mirror::ArtField* field = value->AsArtField();
       os << StringPrintf("%p   Field: %s\n", field, PrettyField(field).c_str());
-    } else if (type->IsMethodClass()) {
-      mirror::AbstractMethod* method = value->AsMethod();
+    } else if (type->IsArtMethodClass()) {
+      mirror::ArtMethod* method = value->AsArtMethod();
       os << StringPrintf("%p   Method: %s\n", method, PrettyMethod(method).c_str());
     } else {
       os << StringPrintf("%p   %s\n", value, PrettyDescriptor(type).c_str());
     }
   }
 
-  static void PrintField(std::ostream& os, mirror::Field* field, mirror::Object* obj)
+  static void PrintField(std::ostream& os, mirror::ArtField* field, mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     FieldHelper fh(field);
     const char* descriptor = fh.GetTypeDescriptor();
@@ -856,10 +856,10 @@ class ImageDumper {
     if (super != NULL) {
       DumpFields(os, obj, super);
     }
-    mirror::ObjectArray<mirror::Field>* fields = klass->GetIFields();
+    mirror::ObjectArray<mirror::ArtField>* fields = klass->GetIFields();
     if (fields != NULL) {
       for (int32_t i = 0; i < fields->GetLength(); i++) {
-        mirror::Field* field = fields->Get(i);
+        mirror::ArtField* field = fields->Get(i);
         PrintField(os, field, obj);
       }
     }
@@ -869,7 +869,7 @@ class ImageDumper {
     return image_space_.Contains(object);
   }
 
-  const void* GetOatCodeBegin(mirror::AbstractMethod* m)
+  const void* GetOatCodeBegin(mirror::ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const void* code = m->GetEntryPointFromCompiledCode();
     if (code == GetResolutionTrampoline(Runtime::Current()->GetClassLinker())) {
@@ -881,7 +881,7 @@ class ImageDumper {
     return code;
   }
 
-  uint32_t GetOatCodeSize(mirror::AbstractMethod* m)
+  uint32_t GetOatCodeSize(mirror::ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const uint32_t* oat_code_begin = reinterpret_cast<const uint32_t*>(GetOatCodeBegin(m));
     if (oat_code_begin == NULL) {
@@ -890,7 +890,7 @@ class ImageDumper {
     return oat_code_begin[-1];
   }
 
-  const void* GetOatCodeEnd(mirror::AbstractMethod* m)
+  const void* GetOatCodeEnd(mirror::ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const uint8_t* oat_code_begin = reinterpret_cast<const uint8_t*>(GetOatCodeBegin(m));
     if (oat_code_begin == NULL) {
@@ -922,12 +922,12 @@ class ImageDumper {
       mirror::Class* klass = obj->AsClass();
       os << StringPrintf("%p: java.lang.Class \"%s\" (", obj, PrettyDescriptor(klass).c_str())
          << klass->GetStatus() << ")\n";
-    } else if (obj->IsField()) {
+    } else if (obj->IsArtField()) {
       os << StringPrintf("%p: java.lang.reflect.Field %s\n", obj,
-                         PrettyField(obj->AsField()).c_str());
-    } else if (obj->IsMethod()) {
+                         PrettyField(obj->AsArtField()).c_str());
+    } else if (obj->IsArtMethod()) {
       os << StringPrintf("%p: java.lang.reflect.Method %s\n", obj,
-                         PrettyMethod(obj->AsMethod()).c_str());
+                         PrettyMethod(obj->AsArtMethod()).c_str());
     } else if (obj_class->IsStringClass()) {
       os << StringPrintf("%p: java.lang.String %s\n", obj,
                          PrintableString(obj->AsString()->ToModifiedUtf8()).c_str());
@@ -960,18 +960,18 @@ class ImageDumper {
         PrettyObjectValue(indent_os, value_class, value);
       }
     } else if (obj->IsClass()) {
-      mirror::ObjectArray<mirror::Field>* sfields = obj->AsClass()->GetSFields();
+      mirror::ObjectArray<mirror::ArtField>* sfields = obj->AsClass()->GetSFields();
       if (sfields != NULL) {
         indent_os << "STATICS:\n";
         Indenter indent2_filter(indent_os.rdbuf(), kIndentChar, kIndentBy1Count);
         std::ostream indent2_os(&indent2_filter);
         for (int32_t i = 0; i < sfields->GetLength(); i++) {
-          mirror::Field* field = sfields->Get(i);
+          mirror::ArtField* field = sfields->Get(i);
           PrintField(indent2_os, field, field->GetDeclaringClass());
         }
       }
-    } else if (obj->IsMethod()) {
-      mirror::AbstractMethod* method = obj->AsMethod();
+    } else if (obj->IsArtMethod()) {
+      mirror::ArtMethod* method = obj->AsArtMethod();
       if (method->IsNative()) {
         DCHECK(method->GetNativeGcMap() == NULL) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
@@ -1085,7 +1085,7 @@ class ImageDumper {
 
     size_t dex_instruction_bytes;
 
-    std::vector<mirror::AbstractMethod*> method_outlier;
+    std::vector<mirror::ArtMethod*> method_outlier;
     std::vector<size_t> method_outlier_size;
     std::vector<double> method_outlier_expansion;
     std::vector<std::pair<std::string, size_t> > oat_dex_file_sizes;
@@ -1138,7 +1138,7 @@ class ImageDumper {
       return (static_cast<double>(size) / static_cast<double>(object_bytes)) * 100;
     }
 
-    void ComputeOutliers(size_t total_size, double expansion, mirror::AbstractMethod* method) {
+    void ComputeOutliers(size_t total_size, double expansion, mirror::ArtMethod* method) {
       method_outlier_size.push_back(total_size);
       method_outlier_expansion.push_back(expansion);
       method_outlier.push_back(method);

@@ -30,11 +30,11 @@
 #include "gc/space/space-inl.h"
 #include "invoke_arg_array_builder.h"
 #include "jdwp/object_registry.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_field-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
-#include "mirror/field-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/throwable.h"
@@ -60,7 +60,7 @@ static const size_t kMaxAllocRecordStackDepth = 16;  // Max 255.
 static const size_t kDefaultNumAllocRecords = 64*1024;  // Must be a power of 2.
 
 struct AllocRecordStackTraceElement {
-  mirror::AbstractMethod* method;
+  mirror::ArtMethod* method;
   uint32_t dex_pc;
 
   int32_t LineNumber() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -84,9 +84,9 @@ struct AllocRecord {
 };
 
 struct Breakpoint {
-  mirror::AbstractMethod* method;
+  mirror::ArtMethod* method;
   uint32_t dex_pc;
-  Breakpoint(mirror::AbstractMethod* method, uint32_t dex_pc) : method(method), dex_pc(dex_pc) {}
+  Breakpoint(mirror::ArtMethod* method, uint32_t dex_pc) : method(method), dex_pc(dex_pc) {}
 };
 
 static std::ostream& operator<<(std::ostream& os, const Breakpoint& rhs)
@@ -103,7 +103,7 @@ struct SingleStepControl {
   JDWP::JdwpStepSize step_size;
   JDWP::JdwpStepDepth step_depth;
 
-  const mirror::AbstractMethod* method;
+  const mirror::ArtMethod* method;
   int32_t line_number;  // Or -1 for native methods.
   std::set<uint32_t> dex_pcs;
   int stack_depth;
@@ -115,7 +115,7 @@ class DebugInstrumentationListener : public instrumentation::InstrumentationList
   virtual ~DebugInstrumentationListener() {}
 
   virtual void MethodEntered(Thread* thread, mirror::Object* this_object,
-                             const mirror::AbstractMethod* method, uint32_t dex_pc)
+                             const mirror::ArtMethod* method, uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (method->IsNative()) {
       // TODO: post location events is a suspension point and native method entry stubs aren't.
@@ -125,7 +125,7 @@ class DebugInstrumentationListener : public instrumentation::InstrumentationList
   }
 
   virtual void MethodExited(Thread* thread, mirror::Object* this_object,
-                            const mirror::AbstractMethod* method,
+                            const mirror::ArtMethod* method,
                             uint32_t dex_pc, const JValue& return_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     UNUSED(return_value);
@@ -136,7 +136,7 @@ class DebugInstrumentationListener : public instrumentation::InstrumentationList
     Dbg::PostLocationEvent(method, dex_pc, this_object, Dbg::kMethodExit);
   }
 
-  virtual void MethodUnwind(Thread* thread, const mirror::AbstractMethod* method,
+  virtual void MethodUnwind(Thread* thread, const mirror::ArtMethod* method,
                             uint32_t dex_pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // We're not recorded to listen to this kind of event, so complain.
     LOG(ERROR) << "Unexpected method unwind event in debugger " << PrettyMethod(method)
@@ -144,13 +144,13 @@ class DebugInstrumentationListener : public instrumentation::InstrumentationList
   }
 
   virtual void DexPcMoved(Thread* thread, mirror::Object* this_object,
-                          const mirror::AbstractMethod* method, uint32_t new_dex_pc)
+                          const mirror::ArtMethod* method, uint32_t new_dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Dbg::UpdateDebugger(thread, this_object, method, new_dex_pc);
   }
 
   virtual void ExceptionCaught(Thread* thread, const ThrowLocation& throw_location,
-                               mirror::AbstractMethod* catch_method, uint32_t catch_dex_pc,
+                               mirror::ArtMethod* catch_method, uint32_t catch_dex_pc,
                                mirror::Throwable* exception_object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Dbg::PostException(thread, throw_location, catch_method, catch_dex_pc, exception_object);
@@ -194,7 +194,7 @@ static size_t gAllocRecordCount GUARDED_BY(gAllocTrackerLock) = 0;
 static std::vector<Breakpoint> gBreakpoints GUARDED_BY(Locks::breakpoint_lock_);
 static SingleStepControl gSingleStepControl GUARDED_BY(Locks::breakpoint_lock_);
 
-static bool IsBreakpoint(const mirror::AbstractMethod* m, uint32_t dex_pc)
+static bool IsBreakpoint(const mirror::ArtMethod* m, uint32_t dex_pc)
     LOCKS_EXCLUDED(Locks::breakpoint_lock_)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   MutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
@@ -1131,7 +1131,7 @@ bool Dbg::MatchType(JDWP::RefTypeId instance_class_id, JDWP::RefTypeId class_id)
   return c1->IsAssignableFrom(c2);
 }
 
-static JDWP::FieldId ToFieldId(const mirror::Field* f)
+static JDWP::FieldId ToFieldId(const mirror::ArtField* f)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #ifdef MOVING_GARBAGE_COLLECTOR
   UNIMPLEMENTED(FATAL);
@@ -1140,7 +1140,7 @@ static JDWP::FieldId ToFieldId(const mirror::Field* f)
 #endif
 }
 
-static JDWP::MethodId ToMethodId(const mirror::AbstractMethod* m)
+static JDWP::MethodId ToMethodId(const mirror::ArtMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #ifdef MOVING_GARBAGE_COLLECTOR
   UNIMPLEMENTED(FATAL);
@@ -1149,25 +1149,25 @@ static JDWP::MethodId ToMethodId(const mirror::AbstractMethod* m)
 #endif
 }
 
-static mirror::Field* FromFieldId(JDWP::FieldId fid)
+static mirror::ArtField* FromFieldId(JDWP::FieldId fid)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #ifdef MOVING_GARBAGE_COLLECTOR
   UNIMPLEMENTED(FATAL);
 #else
-  return reinterpret_cast<mirror::Field*>(static_cast<uintptr_t>(fid));
+  return reinterpret_cast<mirror::ArtField*>(static_cast<uintptr_t>(fid));
 #endif
 }
 
-static mirror::AbstractMethod* FromMethodId(JDWP::MethodId mid)
+static mirror::ArtMethod* FromMethodId(JDWP::MethodId mid)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #ifdef MOVING_GARBAGE_COLLECTOR
   UNIMPLEMENTED(FATAL);
 #else
-  return reinterpret_cast<mirror::AbstractMethod*>(static_cast<uintptr_t>(mid));
+  return reinterpret_cast<mirror::ArtMethod*>(static_cast<uintptr_t>(mid));
 #endif
 }
 
-static void SetLocation(JDWP::JdwpLocation& location, mirror::AbstractMethod* m, uint32_t dex_pc)
+static void SetLocation(JDWP::JdwpLocation& location, mirror::ArtMethod* m, uint32_t dex_pc)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (m == NULL) {
     memset(&location, 0, sizeof(location));
@@ -1182,13 +1182,13 @@ static void SetLocation(JDWP::JdwpLocation& location, mirror::AbstractMethod* m,
 
 std::string Dbg::GetMethodName(JDWP::MethodId method_id)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::AbstractMethod* m = FromMethodId(method_id);
+  mirror::ArtMethod* m = FromMethodId(method_id);
   return MethodHelper(m).GetName();
 }
 
 std::string Dbg::GetFieldName(JDWP::FieldId field_id)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* f = FromFieldId(field_id);
+  mirror::ArtField* f = FromFieldId(field_id);
   return FieldHelper(f).GetName();
 }
 
@@ -1230,7 +1230,7 @@ static uint16_t MangleSlot(uint16_t slot, const char* name) {
   return newSlot;
 }
 
-static uint16_t DemangleSlot(uint16_t slot, mirror::AbstractMethod* m)
+static uint16_t DemangleSlot(uint16_t slot, mirror::ArtMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (slot == kEclipseWorkaroundSlot) {
     return 0;
@@ -1255,7 +1255,7 @@ JDWP::JdwpError Dbg::OutputDeclaredFields(JDWP::RefTypeId class_id, bool with_ge
   expandBufAdd4BE(pReply, instance_field_count + static_field_count);
 
   for (size_t i = 0; i < instance_field_count + static_field_count; ++i) {
-    mirror::Field* f = (i < instance_field_count) ? c->GetInstanceField(i) : c->GetStaticField(i - instance_field_count);
+    mirror::ArtField* f = (i < instance_field_count) ? c->GetInstanceField(i) : c->GetStaticField(i - instance_field_count);
     FieldHelper fh(f);
     expandBufAddFieldId(pReply, ToFieldId(f));
     expandBufAddUtf8String(pReply, fh.GetName());
@@ -1283,7 +1283,7 @@ JDWP::JdwpError Dbg::OutputDeclaredMethods(JDWP::RefTypeId class_id, bool with_g
   expandBufAdd4BE(pReply, direct_method_count + virtual_method_count);
 
   for (size_t i = 0; i < direct_method_count + virtual_method_count; ++i) {
-    mirror::AbstractMethod* m = (i < direct_method_count) ? c->GetDirectMethod(i) : c->GetVirtualMethod(i - direct_method_count);
+    mirror::ArtMethod* m = (i < direct_method_count) ? c->GetDirectMethod(i) : c->GetVirtualMethod(i - direct_method_count);
     MethodHelper mh(m);
     expandBufAddMethodId(pReply, ToMethodId(m));
     expandBufAddUtf8String(pReply, mh.GetName());
@@ -1327,7 +1327,7 @@ void Dbg::OutputLineTable(JDWP::RefTypeId, JDWP::MethodId method_id, JDWP::Expan
       return true;
     }
   };
-  mirror::AbstractMethod* m = FromMethodId(method_id);
+  mirror::ArtMethod* m = FromMethodId(method_id);
   MethodHelper mh(m);
   uint64_t start, end;
   if (m->IsNative()) {
@@ -1381,14 +1381,14 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId method_id, bool wi
       ++pContext->variable_count;
     }
   };
-  mirror::AbstractMethod* m = FromMethodId(method_id);
+  mirror::ArtMethod* m = FromMethodId(method_id);
   MethodHelper mh(m);
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
 
   // arg_count considers doubles and longs to take 2 units.
   // variable_count considers everything to take 1 unit.
   std::string shorty(mh.GetShorty());
-  expandBufAdd4BE(pReply, mirror::AbstractMethod::NumArgRegisters(shorty));
+  expandBufAdd4BE(pReply, mirror::ArtMethod::NumArgRegisters(shorty));
 
   // We don't know the total number of variables yet, so leave a blank and update it later.
   size_t variable_count_offset = expandBufGetLength(pReply);
@@ -1408,7 +1408,7 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId method_id, bool wi
 JDWP::JdwpError Dbg::GetBytecodes(JDWP::RefTypeId, JDWP::MethodId method_id,
                                   std::vector<uint8_t>& bytecodes)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::AbstractMethod* m = FromMethodId(method_id);
+  mirror::ArtMethod* m = FromMethodId(method_id);
   if (m == NULL) {
     return JDWP::ERR_INVALID_METHODID;
   }
@@ -1445,7 +1445,7 @@ static JDWP::JdwpError GetFieldValueImpl(JDWP::RefTypeId ref_type_id, JDWP::Obje
   if ((!is_static && o == NULL) || o == ObjectRegistry::kInvalidObject) {
     return JDWP::ERR_INVALID_OBJECT;
   }
-  mirror::Field* f = FromFieldId(field_id);
+  mirror::ArtField* f = FromFieldId(field_id);
 
   mirror::Class* receiver_class = c;
   if (receiver_class == NULL && o != NULL) {
@@ -1511,7 +1511,7 @@ static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId object_id, JDWP::FieldId
   if ((!is_static && o == NULL) || o == ObjectRegistry::kInvalidObject) {
     return JDWP::ERR_INVALID_OBJECT;
   }
-  mirror::Field* f = FromFieldId(field_id);
+  mirror::ArtField* f = FromFieldId(field_id);
 
   // The RI only enforces the static/non-static mismatch in one direction.
   // TODO: should we change the tests and check both?
@@ -1580,7 +1580,7 @@ JDWP::JdwpError Dbg::GetThreadName(JDWP::ObjectId thread_id, std::string& name) 
 
   // We still need to report the zombie threads' names, so we can't just call Thread::GetThreadName.
   mirror::Object* thread_object = gRegistry->Get<mirror::Object*>(thread_id);
-  mirror::Field* java_lang_Thread_name_field =
+  mirror::ArtField* java_lang_Thread_name_field =
       soa.DecodeField(WellKnownClasses::java_lang_Thread_name);
   mirror::String* s =
       reinterpret_cast<mirror::String*>(java_lang_Thread_name_field->GetObject(thread_object));
@@ -1612,7 +1612,7 @@ JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* p
 
   mirror::Class* c = Runtime::Current()->GetClassLinker()->FindSystemClass("Ljava/lang/Thread;");
   CHECK(c != NULL);
-  mirror::Field* f = c->FindInstanceField("group", "Ljava/lang/ThreadGroup;");
+  mirror::ArtField* f = c->FindInstanceField("group", "Ljava/lang/ThreadGroup;");
   CHECK(f != NULL);
   mirror::Object* group = f->GetObject(thread_object);
   CHECK(group != NULL);
@@ -1629,7 +1629,7 @@ std::string Dbg::GetThreadGroupName(JDWP::ObjectId thread_group_id) {
 
   mirror::Class* c = Runtime::Current()->GetClassLinker()->FindSystemClass("Ljava/lang/ThreadGroup;");
   CHECK(c != NULL);
-  mirror::Field* f = c->FindInstanceField("name", "Ljava/lang/String;");
+  mirror::ArtField* f = c->FindInstanceField("name", "Ljava/lang/String;");
   CHECK(f != NULL);
   mirror::String* s = reinterpret_cast<mirror::String*>(f->GetObject(thread_group));
   return s->ToModifiedUtf8();
@@ -1641,7 +1641,7 @@ JDWP::ObjectId Dbg::GetThreadGroupParent(JDWP::ObjectId thread_group_id) {
 
   mirror::Class* c = Runtime::Current()->GetClassLinker()->FindSystemClass("Ljava/lang/ThreadGroup;");
   CHECK(c != NULL);
-  mirror::Field* f = c->FindInstanceField("parent", "Ljava/lang/ThreadGroup;");
+  mirror::ArtField* f = c->FindInstanceField("parent", "Ljava/lang/ThreadGroup;");
   CHECK(f != NULL);
   mirror::Object* parent = f->GetObject(thread_group);
   return gRegistry->Add(parent);
@@ -1649,14 +1649,14 @@ JDWP::ObjectId Dbg::GetThreadGroupParent(JDWP::ObjectId thread_group_id) {
 
 JDWP::ObjectId Dbg::GetSystemThreadGroupId() {
   ScopedObjectAccessUnchecked soa(Thread::Current());
-  mirror::Field* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup);
+  mirror::ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup);
   mirror::Object* group = f->GetObject(f->GetDeclaringClass());
   return gRegistry->Add(group);
 }
 
 JDWP::ObjectId Dbg::GetMainThreadGroupId() {
   ScopedObjectAccess soa(Thread::Current());
-  mirror::Field* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup);
+  mirror::ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup);
   mirror::Object* group = f->GetObject(f->GetDeclaringClass());
   return gRegistry->Add(group);
 }
@@ -1793,12 +1793,12 @@ void Dbg::GetChildThreadGroups(JDWP::ObjectId thread_group_id, std::vector<JDWP:
   mirror::Object* thread_group = gRegistry->Get<mirror::Object*>(thread_group_id);
 
   // Get the ArrayList<ThreadGroup> "groups" out of this thread group...
-  mirror::Field* groups_field = thread_group->GetClass()->FindInstanceField("groups", "Ljava/util/List;");
+  mirror::ArtField* groups_field = thread_group->GetClass()->FindInstanceField("groups", "Ljava/util/List;");
   mirror::Object* groups_array_list = groups_field->GetObject(thread_group);
 
   // Get the array and size out of the ArrayList<ThreadGroup>...
-  mirror::Field* array_field = groups_array_list->GetClass()->FindInstanceField("array", "[Ljava/lang/Object;");
-  mirror::Field* size_field = groups_array_list->GetClass()->FindInstanceField("size", "I");
+  mirror::ArtField* array_field = groups_array_list->GetClass()->FindInstanceField("array", "[Ljava/lang/Object;");
+  mirror::ArtField* size_field = groups_array_list->GetClass()->FindInstanceField("size", "I");
   mirror::ObjectArray<mirror::Object>* groups_array =
       array_field->GetObject(groups_array_list)->AsObjectArray<mirror::Object>();
   const int32_t size = size_field->GetInt(groups_array_list);
@@ -2017,7 +2017,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int sl
         return true;  // Not our frame, carry on.
       }
       // TODO: check that the tag is compatible with the actual type of the slot!
-      mirror::AbstractMethod* m = GetMethod();
+      mirror::ArtMethod* m = GetMethod();
       uint16_t reg = DemangleSlot(slot_, m);
 
       switch (tag_) {
@@ -2156,7 +2156,7 @@ void Dbg::SetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int sl
         return true;  // Not our frame, carry on.
       }
       // TODO: check that the tag is compatible with the actual type of the slot!
-      mirror::AbstractMethod* m = GetMethod();
+      mirror::ArtMethod* m = GetMethod();
       uint16_t reg = DemangleSlot(slot_, m);
 
       switch (tag_) {
@@ -2226,7 +2226,7 @@ void Dbg::SetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int sl
   visitor.WalkStack();
 }
 
-void Dbg::PostLocationEvent(const mirror::AbstractMethod* m, int dex_pc,
+void Dbg::PostLocationEvent(const mirror::ArtMethod* m, int dex_pc,
                             mirror::Object* this_object, int event_flags) {
   mirror::Class* c = m->GetDeclaringClass();
 
@@ -2246,7 +2246,7 @@ void Dbg::PostLocationEvent(const mirror::AbstractMethod* m, int dex_pc,
 }
 
 void Dbg::PostException(Thread* thread, const ThrowLocation& throw_location,
-                        mirror::AbstractMethod* catch_method,
+                        mirror::ArtMethod* catch_method,
                         uint32_t catch_dex_pc, mirror::Throwable* exception_object) {
   if (!IsDebuggerActive()) {
     return;
@@ -2280,7 +2280,7 @@ void Dbg::PostClassPrepare(mirror::Class* c) {
 }
 
 void Dbg::UpdateDebugger(Thread* thread, mirror::Object* this_object,
-                         const mirror::AbstractMethod* m, uint32_t dex_pc) {
+                         const mirror::ArtMethod* m, uint32_t dex_pc) {
   if (!IsDebuggerActive() || dex_pc == static_cast<uint32_t>(-2) /* fake method exit */) {
     return;
   }
@@ -2361,14 +2361,14 @@ void Dbg::UpdateDebugger(Thread* thread, mirror::Object* this_object,
 
 void Dbg::WatchLocation(const JDWP::JdwpLocation* location) {
   MutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
-  mirror::AbstractMethod* m = FromMethodId(location->method_id);
+  mirror::ArtMethod* m = FromMethodId(location->method_id);
   gBreakpoints.push_back(Breakpoint(m, location->dex_pc));
   VLOG(jdwp) << "Set breakpoint #" << (gBreakpoints.size() - 1) << ": " << gBreakpoints[gBreakpoints.size() - 1];
 }
 
 void Dbg::UnwatchLocation(const JDWP::JdwpLocation* location) {
   MutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
-  mirror::AbstractMethod* m = FromMethodId(location->method_id);
+  mirror::ArtMethod* m = FromMethodId(location->method_id);
   for (size_t i = 0; i < gBreakpoints.size(); ++i) {
     if (gBreakpoints[i].method == m && gBreakpoints[i].dex_pc == location->dex_pc) {
       VLOG(jdwp) << "Removed breakpoint #" << i << ": " << gBreakpoints[i];
@@ -2468,7 +2468,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
     // annotalysis.
     bool VisitFrame() NO_THREAD_SAFETY_ANALYSIS {
       Locks::breakpoint_lock_->AssertHeld(Thread::Current());
-      const mirror::AbstractMethod* m = GetMethod();
+      const mirror::ArtMethod* m = GetMethod();
       if (!m->IsRuntimeMethod()) {
         ++gSingleStepControl.stack_depth;
         if (gSingleStepControl.method == NULL) {
@@ -2538,7 +2538,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
     uint32_t last_pc;
   };
   gSingleStepControl.dex_pcs.clear();
-  const mirror::AbstractMethod* m = gSingleStepControl.method;
+  const mirror::ArtMethod* m = gSingleStepControl.method;
   if (m->IsNative()) {
     gSingleStepControl.line_number = -1;
   } else {
@@ -2675,7 +2675,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
       return status;
     }
 
-    mirror::AbstractMethod* m = FromMethodId(method_id);
+    mirror::ArtMethod* m = FromMethodId(method_id);
     if (m->IsStatic() != (receiver == NULL)) {
       return JDWP::ERR_INVALID_METHODID;
     }
@@ -2798,7 +2798,7 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   // We can be called while an exception is pending. We need
   // to preserve that across the method invocation.
   SirtRef<mirror::Object> old_throw_this_object(soa.Self(), NULL);
-  SirtRef<mirror::AbstractMethod> old_throw_method(soa.Self(), NULL);
+  SirtRef<mirror::ArtMethod> old_throw_method(soa.Self(), NULL);
   SirtRef<mirror::Throwable> old_exception(soa.Self(), NULL);
   uint32_t old_throw_dex_pc;
   {
@@ -2812,9 +2812,9 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   }
 
   // Translate the method through the vtable, unless the debugger wants to suppress it.
-  mirror::AbstractMethod* m = pReq->method_;
+  mirror::ArtMethod* m = pReq->method_;
   if ((pReq->options_ & JDWP::INVOKE_NONVIRTUAL) == 0 && pReq->receiver_ != NULL) {
-    mirror::AbstractMethod* actual_method = pReq->class_->FindVirtualMethodForVirtualOrInterface(pReq->method_);
+    mirror::ArtMethod* actual_method = pReq->class_->FindVirtualMethodForVirtualOrInterface(pReq->method_);
     if (actual_method != m) {
       VLOG(jdwp) << "ExecuteMethod translated " << PrettyMethod(m) << " to " << PrettyMethod(actual_method);
       m = actual_method;
@@ -3491,7 +3491,7 @@ struct AllocRecordStackVisitor : public StackVisitor {
     if (depth >= kMaxAllocRecordStackDepth) {
       return false;
     }
-    mirror::AbstractMethod* m = GetMethod();
+    mirror::ArtMethod* m = GetMethod();
     if (!m->IsRuntimeMethod()) {
       record->stack[depth].method = m;
       record->stack[depth].dex_pc = GetDexPc();
@@ -3574,7 +3574,7 @@ void Dbg::DumpRecentAllocations() {
               << PrettyClass(record->type);
 
     for (size_t stack_frame = 0; stack_frame < kMaxAllocRecordStackDepth; ++stack_frame) {
-      const mirror::AbstractMethod* m = record->stack[stack_frame].method;
+      const mirror::ArtMethod* m = record->stack[stack_frame].method;
       if (m == NULL) {
         break;
       }
@@ -3695,7 +3695,7 @@ jbyteArray Dbg::GetRecentAllocations() {
 
       MethodHelper mh;
       for (size_t i = 0; i < kMaxAllocRecordStackDepth; i++) {
-        mirror::AbstractMethod* m = record->stack[i].method;
+        mirror::ArtMethod* m = record->stack[i].method;
         if (m != NULL) {
           mh.ChangeMethod(m);
           class_names.Add(mh.GetDeclaringClassDescriptor());

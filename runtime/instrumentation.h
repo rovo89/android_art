@@ -25,10 +25,10 @@
 
 namespace art {
 namespace mirror {
-class AbstractMethod;
-class Class;
-class Object;
-class Throwable;
+  class ArtMethod;
+  class Class;
+  class Object;
+  class Throwable;
 }  // namespace mirror
 union JValue;
 class Thread;
@@ -47,30 +47,30 @@ struct InstrumentationListener {
 
   // Call-back for when a method is entered.
   virtual void MethodEntered(Thread* thread, mirror::Object* this_object,
-                             const mirror::AbstractMethod* method,
+                             const mirror::ArtMethod* method,
                              uint32_t dex_pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
 
   // Call-back for when a method is exited.
   // TODO: its likely passing the return value would be useful, however, we may need to get and
   //       parse the shorty to determine what kind of register holds the result.
   virtual void MethodExited(Thread* thread, mirror::Object* this_object,
-                            const mirror::AbstractMethod* method, uint32_t dex_pc,
+                            const mirror::ArtMethod* method, uint32_t dex_pc,
                             const JValue& return_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
 
   // Call-back for when a method is popped due to an exception throw. A method will either cause a
   // MethodExited call-back or a MethodUnwind call-back when its activation is removed.
-  virtual void MethodUnwind(Thread* thread, const mirror::AbstractMethod* method,
+  virtual void MethodUnwind(Thread* thread, const mirror::ArtMethod* method,
                             uint32_t dex_pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
 
   // Call-back for when the dex pc moves in a method.
   virtual void DexPcMoved(Thread* thread, mirror::Object* this_object,
-                          const mirror::AbstractMethod* method, uint32_t new_dex_pc)
+                          const mirror::ArtMethod* method, uint32_t new_dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
 
   // Call-back when an exception is caught.
   virtual void ExceptionCaught(Thread* thread, const ThrowLocation& throw_location,
-                               mirror::AbstractMethod* catch_method, uint32_t catch_dex_pc,
+                               mirror::ArtMethod* catch_method, uint32_t catch_dex_pc,
                                mirror::Throwable* exception_object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
 };
@@ -111,12 +111,12 @@ class Instrumentation {
       LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::classlinker_classes_lock_);
 
   // Update the code of a method respecting any installed stubs.
-  void UpdateMethodsCode(mirror::AbstractMethod* method, const void* code) const;
+  void UpdateMethodsCode(mirror::ArtMethod* method, const void* code) const;
 
   // Get the quick code for the given method. More efficient than asking the class linker as it
   // will short-cut to GetCode if instrumentation and static method resolution stubs aren't
   // installed.
-  const void* GetQuickCodeFor(const mirror::AbstractMethod* method) const
+  const void* GetQuickCodeFor(const mirror::ArtMethod* method) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void ForceInterpretOnly() {
@@ -124,7 +124,7 @@ class Instrumentation {
     forced_interpret_only_ = true;
   }
 
-  // Called by AbstractMethod::Invoke to determine dispatch mechanism.
+  // Called by ArtMethod::Invoke to determine dispatch mechanism.
   bool InterpretOnly() const {
     return interpret_only_;
   }
@@ -152,7 +152,7 @@ class Instrumentation {
   // Inform listeners that a method has been entered. A dex PC is provided as we may install
   // listeners into executing code and get method enter events for methods already on the stack.
   void MethodEnterEvent(Thread* thread, mirror::Object* this_object,
-                        const mirror::AbstractMethod* method, uint32_t dex_pc) const
+                        const mirror::ArtMethod* method, uint32_t dex_pc) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (UNLIKELY(HasMethodEntryListeners())) {
       MethodEnterEventImpl(thread, this_object, method, dex_pc);
@@ -161,7 +161,7 @@ class Instrumentation {
 
   // Inform listeners that a method has been exited.
   void MethodExitEvent(Thread* thread, mirror::Object* this_object,
-                       const mirror::AbstractMethod* method, uint32_t dex_pc,
+                       const mirror::ArtMethod* method, uint32_t dex_pc,
                        const JValue& return_value) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (UNLIKELY(HasMethodExitListeners())) {
@@ -171,12 +171,12 @@ class Instrumentation {
 
   // Inform listeners that a method has been exited due to an exception.
   void MethodUnwindEvent(Thread* thread, mirror::Object* this_object,
-                         const mirror::AbstractMethod* method, uint32_t dex_pc) const
+                         const mirror::ArtMethod* method, uint32_t dex_pc) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Inform listeners that the dex pc has moved (only supported by the interpreter).
   void DexPcMovedEvent(Thread* thread, mirror::Object* this_object,
-                       const mirror::AbstractMethod* method, uint32_t dex_pc) const
+                       const mirror::ArtMethod* method, uint32_t dex_pc) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (UNLIKELY(HasDexPcListeners())) {
       DexPcMovedEventImpl(thread, this_object, method, dex_pc);
@@ -185,14 +185,14 @@ class Instrumentation {
 
   // Inform listeners that an exception was caught.
   void ExceptionCaughtEvent(Thread* thread, const ThrowLocation& throw_location,
-                            mirror::AbstractMethod* catch_method, uint32_t catch_dex_pc,
+                            mirror::ArtMethod* catch_method, uint32_t catch_dex_pc,
                             mirror::Throwable* exception_object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Called when an instrumented method is entered. The intended link register (lr) is saved so
   // that returning causes a branch to the method exit stub. Generates method enter events.
   void PushInstrumentationStackFrame(Thread* self, mirror::Object* this_object,
-                                     mirror::AbstractMethod* method, uintptr_t lr,
+                                     mirror::ArtMethod* method, uintptr_t lr,
                                      bool interpreter_entry)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -216,23 +216,23 @@ class Instrumentation {
       LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::classlinker_classes_lock_);
 
   void MethodEnterEventImpl(Thread* thread, mirror::Object* this_object,
-                            const mirror::AbstractMethod* method, uint32_t dex_pc) const
+                            const mirror::ArtMethod* method, uint32_t dex_pc) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void MethodExitEventImpl(Thread* thread, mirror::Object* this_object,
-                           const mirror::AbstractMethod* method,
+                           const mirror::ArtMethod* method,
                            uint32_t dex_pc, const JValue& return_value) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DexPcMovedEventImpl(Thread* thread, mirror::Object* this_object,
-                           const mirror::AbstractMethod* method, uint32_t dex_pc) const
+                           const mirror::ArtMethod* method, uint32_t dex_pc) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Have we hijacked AbstractMethod::code_ so that it calls instrumentation/interpreter code?
+  // Have we hijacked ArtMethod::code_ so that it calls instrumentation/interpreter code?
   bool instrumentation_stubs_installed_;
 
-  // Have we hijacked AbstractMethod::code_ to reference the enter/exit stubs?
+  // Have we hijacked ArtMethod::code_ to reference the enter/exit stubs?
   bool entry_exit_stubs_installed_;
 
-  // Have we hijacked AbstractMethod::code_ to reference the enter interpreter stub?
+  // Have we hijacked ArtMethod::code_ to reference the enter interpreter stub?
   bool interpreter_stubs_installed_;
 
   // Do we need the fidelity of events that we only get from running within the interpreter?
@@ -272,7 +272,7 @@ class Instrumentation {
 
 // An element in the instrumentation side stack maintained in art::Thread.
 struct InstrumentationStackFrame {
-  InstrumentationStackFrame(mirror::Object* this_object, mirror::AbstractMethod* method,
+  InstrumentationStackFrame(mirror::Object* this_object, mirror::ArtMethod* method,
                             uintptr_t return_pc, size_t frame_id, bool interpreter_entry)
       : this_object_(this_object), method_(method), return_pc_(return_pc), frame_id_(frame_id),
         interpreter_entry_(interpreter_entry) {
@@ -281,7 +281,7 @@ struct InstrumentationStackFrame {
   std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::Object* this_object_;
-  mirror::AbstractMethod* method_;
+  mirror::ArtMethod* method_;
   const uintptr_t return_pc_;
   const size_t frame_id_;
   const bool interpreter_entry_;

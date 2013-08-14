@@ -20,7 +20,7 @@
 namespace art {
 
 extern "C" int artUnlockObjectFromCode(mirror::Object* obj, Thread* self,
-                                       mirror::AbstractMethod** sp)
+                                       mirror::ArtMethod** sp)
     UNLOCK_FUNCTION(monitor_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   DCHECK(obj != NULL);  // Assumed to have been checked before entry
@@ -29,7 +29,7 @@ extern "C" int artUnlockObjectFromCode(mirror::Object* obj, Thread* self,
 }
 
 extern "C" void artLockObjectFromCode(mirror::Object* obj, Thread* thread,
-                                      mirror::AbstractMethod** sp)
+                                      mirror::ArtMethod** sp)
     EXCLUSIVE_LOCK_FUNCTION(monitor_lock_) {
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kRefsOnly);
   DCHECK(obj != NULL);        // Assumed to have been checked before entry

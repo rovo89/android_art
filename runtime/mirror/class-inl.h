@@ -19,10 +19,10 @@
 
 #include "class.h"
 
-#include "abstract_method.h"
+#include "art_field.h"
+#include "art_method.h"
 #include "class_loader.h"
 #include "dex_cache.h"
-#include "field.h"
 #include "iftable.h"
 #include "object_array-inl.h"
 #include "runtime.h"
@@ -54,30 +54,30 @@ inline DexCache* Class::GetDexCache() const {
   return GetFieldObject<DexCache*>(OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_), false);
 }
 
-inline ObjectArray<AbstractMethod>* Class::GetDirectMethods() const {
+inline ObjectArray<ArtMethod>* Class::GetDirectMethods() const {
   DCHECK(IsLoaded() || IsErroneous());
-  return GetFieldObject<ObjectArray<AbstractMethod>*>(
+  return GetFieldObject<ObjectArray<ArtMethod>*>(
       OFFSET_OF_OBJECT_MEMBER(Class, direct_methods_), false);
 }
 
-inline void Class::SetDirectMethods(ObjectArray<AbstractMethod>* new_direct_methods)
+inline void Class::SetDirectMethods(ObjectArray<ArtMethod>* new_direct_methods)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  DCHECK(NULL == GetFieldObject<ObjectArray<AbstractMethod>*>(
+  DCHECK(NULL == GetFieldObject<ObjectArray<ArtMethod>*>(
       OFFSET_OF_OBJECT_MEMBER(Class, direct_methods_), false));
   DCHECK_NE(0, new_direct_methods->GetLength());
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, direct_methods_),
                  new_direct_methods, false);
 }
 
-inline AbstractMethod* Class::GetDirectMethod(int32_t i) const
+inline ArtMethod* Class::GetDirectMethod(int32_t i) const
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return GetDirectMethods()->Get(i);
 }
 
-inline void Class::SetDirectMethod(uint32_t i, AbstractMethod* f)  // TODO: uint16_t
+inline void Class::SetDirectMethod(uint32_t i, ArtMethod* f)  // TODO: uint16_t
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectArray<AbstractMethod>* direct_methods =
-      GetFieldObject<ObjectArray<AbstractMethod>*>(
+  ObjectArray<ArtMethod>* direct_methods =
+      GetFieldObject<ObjectArray<ArtMethod>*>(
           OFFSET_OF_OBJECT_MEMBER(Class, direct_methods_), false);
   direct_methods->Set(i, f);
 }
@@ -87,13 +87,13 @@ inline size_t Class::NumDirectMethods() const {
   return (GetDirectMethods() != NULL) ? GetDirectMethods()->GetLength() : 0;
 }
 
-inline ObjectArray<AbstractMethod>* Class::GetVirtualMethods() const {
+inline ObjectArray<ArtMethod>* Class::GetVirtualMethods() const {
   DCHECK(IsLoaded() || IsErroneous());
-  return GetFieldObject<ObjectArray<AbstractMethod>*>(
+  return GetFieldObject<ObjectArray<ArtMethod>*>(
       OFFSET_OF_OBJECT_MEMBER(Class, virtual_methods_), false);
 }
 
-inline void Class::SetVirtualMethods(ObjectArray<AbstractMethod>* new_virtual_methods) {
+inline void Class::SetVirtualMethods(ObjectArray<ArtMethod>* new_virtual_methods) {
   // TODO: we reassign virtual methods to grow the table for miranda
   // methods.. they should really just be assigned once
   DCHECK_NE(0, new_virtual_methods->GetLength());
@@ -105,37 +105,37 @@ inline size_t Class::NumVirtualMethods() const {
   return (GetVirtualMethods() != NULL) ? GetVirtualMethods()->GetLength() : 0;
 }
 
-inline AbstractMethod* Class::GetVirtualMethod(uint32_t i) const
+inline ArtMethod* Class::GetVirtualMethod(uint32_t i) const
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(IsResolved() || IsErroneous());
   return GetVirtualMethods()->Get(i);
 }
 
-inline AbstractMethod* Class::GetVirtualMethodDuringLinking(uint32_t i) const
+inline ArtMethod* Class::GetVirtualMethodDuringLinking(uint32_t i) const
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(IsLoaded() || IsErroneous());
   return GetVirtualMethods()->Get(i);
 }
 
-inline void Class::SetVirtualMethod(uint32_t i, AbstractMethod* f)  // TODO: uint16_t
+inline void Class::SetVirtualMethod(uint32_t i, ArtMethod* f)  // TODO: uint16_t
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectArray<AbstractMethod>* virtual_methods =
-      GetFieldObject<ObjectArray<AbstractMethod>*>(
+  ObjectArray<ArtMethod>* virtual_methods =
+      GetFieldObject<ObjectArray<ArtMethod>*>(
           OFFSET_OF_OBJECT_MEMBER(Class, virtual_methods_), false);
   virtual_methods->Set(i, f);
 }
 
-inline ObjectArray<AbstractMethod>* Class::GetVTable() const {
+inline ObjectArray<ArtMethod>* Class::GetVTable() const {
   DCHECK(IsResolved() || IsErroneous());
-  return GetFieldObject<ObjectArray<AbstractMethod>*>(OFFSET_OF_OBJECT_MEMBER(Class, vtable_), false);
+  return GetFieldObject<ObjectArray<ArtMethod>*>(OFFSET_OF_OBJECT_MEMBER(Class, vtable_), false);
 }
 
-inline ObjectArray<AbstractMethod>* Class::GetVTableDuringLinking() const {
+inline ObjectArray<ArtMethod>* Class::GetVTableDuringLinking() const {
   DCHECK(IsLoaded() || IsErroneous());
-  return GetFieldObject<ObjectArray<AbstractMethod>*>(OFFSET_OF_OBJECT_MEMBER(Class, vtable_), false);
+  return GetFieldObject<ObjectArray<ArtMethod>*>(OFFSET_OF_OBJECT_MEMBER(Class, vtable_), false);
 }
 
-inline void Class::SetVTable(ObjectArray<AbstractMethod>* new_vtable)
+inline void Class::SetVTable(ObjectArray<ArtMethod>* new_vtable)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, vtable_), new_vtable, false);
 }
@@ -208,7 +208,7 @@ inline bool Class::IsSubClass(const Class* klass) const {
   return false;
 }
 
-inline AbstractMethod* Class::FindVirtualMethodForInterface(AbstractMethod* method) const {
+inline ArtMethod* Class::FindVirtualMethodForInterface(ArtMethod* method) const {
   Class* declaring_class = method->GetDeclaringClass();
   DCHECK(declaring_class != NULL) << PrettyClass(this);
   DCHECK(declaring_class->IsInterface()) << PrettyMethod(method);
@@ -223,7 +223,7 @@ inline AbstractMethod* Class::FindVirtualMethodForInterface(AbstractMethod* meth
   return NULL;
 }
 
-inline AbstractMethod* Class::FindVirtualMethodForVirtual(AbstractMethod* method) const
+inline ArtMethod* Class::FindVirtualMethodForVirtual(ArtMethod* method) const
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(!method->GetDeclaringClass()->IsInterface() || method->IsMiranda());
   // The argument method may from a super class.
@@ -231,13 +231,13 @@ inline AbstractMethod* Class::FindVirtualMethodForVirtual(AbstractMethod* method
   return GetVTable()->Get(method->GetMethodIndex());
 }
 
-inline AbstractMethod* Class::FindVirtualMethodForSuper(AbstractMethod* method) const
+inline ArtMethod* Class::FindVirtualMethodForSuper(ArtMethod* method) const
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(!method->GetDeclaringClass()->IsInterface());
   return GetSuperClass()->GetVTable()->Get(method->GetMethodIndex());
 }
 
-inline AbstractMethod* Class::FindVirtualMethodForVirtualOrInterface(AbstractMethod* method) const {
+inline ArtMethod* Class::FindVirtualMethodForVirtualOrInterface(ArtMethod* method) const {
   if (method->IsDirect()) {
     return method;
   }
@@ -263,26 +263,26 @@ inline void Class::SetIfTable(IfTable* new_iftable) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, iftable_), new_iftable, false);
 }
 
-inline ObjectArray<Field>* Class::GetIFields() const {
+inline ObjectArray<ArtField>* Class::GetIFields() const {
   DCHECK(IsLoaded() || IsErroneous());
-  return GetFieldObject<ObjectArray<Field>*>(OFFSET_OF_OBJECT_MEMBER(Class, ifields_), false);
+  return GetFieldObject<ObjectArray<ArtField>*>(OFFSET_OF_OBJECT_MEMBER(Class, ifields_), false);
 }
 
-inline void Class::SetIFields(ObjectArray<Field>* new_ifields)
+inline void Class::SetIFields(ObjectArray<ArtField>* new_ifields)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  DCHECK(NULL == GetFieldObject<ObjectArray<Field>*>(
+  DCHECK(NULL == GetFieldObject<ObjectArray<ArtField>*>(
       OFFSET_OF_OBJECT_MEMBER(Class, ifields_), false));
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, ifields_), new_ifields, false);
 }
 
-inline ObjectArray<Field>* Class::GetSFields() const {
+inline ObjectArray<ArtField>* Class::GetSFields() const {
   DCHECK(IsLoaded() || IsErroneous());
-  return GetFieldObject<ObjectArray<Field>*>(OFFSET_OF_OBJECT_MEMBER(Class, sfields_), false);
+  return GetFieldObject<ObjectArray<ArtField>*>(OFFSET_OF_OBJECT_MEMBER(Class, sfields_), false);
 }
 
-inline void Class::SetSFields(ObjectArray<Field>* new_sfields)
+inline void Class::SetSFields(ObjectArray<ArtField>* new_sfields)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  DCHECK(NULL == GetFieldObject<ObjectArray<Field>*>(
+  DCHECK(NULL == GetFieldObject<ObjectArray<ArtField>*>(
       OFFSET_OF_OBJECT_MEMBER(Class, sfields_), false));
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, sfields_), new_sfields, false);
 }
@@ -291,14 +291,14 @@ inline size_t Class::NumStaticFields() const {
   return (GetSFields() != NULL) ? GetSFields()->GetLength() : 0;
 }
 
-inline Field* Class::GetStaticField(uint32_t i) const  // TODO: uint16_t
+inline ArtField* Class::GetStaticField(uint32_t i) const  // TODO: uint16_t
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return GetSFields()->Get(i);
 }
 
-inline void Class::SetStaticField(uint32_t i, Field* f)  // TODO: uint16_t
+inline void Class::SetStaticField(uint32_t i, ArtField* f)  // TODO: uint16_t
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectArray<Field>* sfields= GetFieldObject<ObjectArray<Field>*>(
+  ObjectArray<ArtField>* sfields= GetFieldObject<ObjectArray<ArtField>*>(
       OFFSET_OF_OBJECT_MEMBER(Class, sfields_), false);
   sfields->Set(i, f);
 }
@@ -307,15 +307,15 @@ inline size_t Class::NumInstanceFields() const {
   return (GetIFields() != NULL) ? GetIFields()->GetLength() : 0;
 }
 
-inline Field* Class::GetInstanceField(uint32_t i) const  // TODO: uint16_t
+inline ArtField* Class::GetInstanceField(uint32_t i) const  // TODO: uint16_t
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK_NE(NumInstanceFields(), 0U);
   return GetIFields()->Get(i);
 }
 
-inline void Class::SetInstanceField(uint32_t i, Field* f)  // TODO: uint16_t
+inline void Class::SetInstanceField(uint32_t i, ArtField* f)  // TODO: uint16_t
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectArray<Field>* ifields= GetFieldObject<ObjectArray<Field>*>(
+  ObjectArray<ArtField>* ifields= GetFieldObject<ObjectArray<ArtField>*>(
       OFFSET_OF_OBJECT_MEMBER(Class, ifields_), false);
   ifields->Set(i, f);
 }
@@ -330,9 +330,8 @@ inline uint32_t Class::GetAccessFlags() const {
   // circularity issue during loading the names of its members
   DCHECK(IsLoaded() || IsErroneous() ||
          this == String::GetJavaLangString() ||
-         this == Field::GetJavaLangReflectField() ||
-         this == AbstractMethod::GetConstructorClass() ||
-         this == AbstractMethod::GetMethodClass());
+         this == ArtField::GetJavaLangReflectArtField() ||
+         this == ArtMethod::GetJavaLangReflectArtMethod());
   return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), false);
 }
 

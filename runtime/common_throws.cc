@@ -21,7 +21,7 @@
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
 #include "invoke_type.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
@@ -68,7 +68,7 @@ static void ThrowException(const ThrowLocation* throw_location, const char* exce
 
 // AbstractMethodError
 
-void ThrowAbstractMethodError(const mirror::AbstractMethod* method) {
+void ThrowAbstractMethodError(const mirror::ArtMethod* method) {
   ThrowException(NULL, "Ljava/lang/AbstractMethodError;", NULL,
                  StringPrintf("abstract method \"%s\"",
                               PrettyMethod(method).c_str()).c_str());
@@ -136,8 +136,8 @@ void ThrowIllegalAccessErrorClass(mirror::Class* referrer, mirror::Class* access
 }
 
 void ThrowIllegalAccessErrorClassForMethodDispatch(mirror::Class* referrer, mirror::Class* accessed,
-                                                   const mirror::AbstractMethod* caller,
-                                                   const mirror::AbstractMethod* called,
+                                                   const mirror::ArtMethod* caller,
+                                                   const mirror::ArtMethod* called,
                                                    InvokeType type) {
   std::ostringstream msg;
   msg << "Illegal class access ('" << PrettyDescriptor(referrer) << "' attempting to access '"
@@ -146,26 +146,27 @@ void ThrowIllegalAccessErrorClassForMethodDispatch(mirror::Class* referrer, mirr
   ThrowException(NULL, "Ljava/lang/IllegalAccessError;", referrer, msg.str().c_str());
 }
 
-void ThrowIllegalAccessErrorMethod(mirror::Class* referrer, mirror::AbstractMethod* accessed) {
+void ThrowIllegalAccessErrorMethod(mirror::Class* referrer, mirror::ArtMethod* accessed) {
   std::ostringstream msg;
   msg << "Method '" << PrettyMethod(accessed) << "' is inaccessible to class '"
       << PrettyDescriptor(referrer) << "'";
   ThrowException(NULL, "Ljava/lang/IllegalAccessError;", referrer, msg.str().c_str());
 }
 
-void ThrowIllegalAccessErrorField(mirror::Class* referrer, mirror::Field* accessed) {
+void ThrowIllegalAccessErrorField(mirror::Class* referrer, mirror::ArtField* accessed) {
   std::ostringstream msg;
   msg << "Field '" << PrettyField(accessed, false) << "' is inaccessible to class '"
       << PrettyDescriptor(referrer) << "'";
   ThrowException(NULL, "Ljava/lang/IllegalAccessError;", referrer, msg.str().c_str());
 }
 
-void ThrowIllegalAccessErrorFinalField(const mirror::AbstractMethod* referrer,
-                                       mirror::Field* accessed) {
+void ThrowIllegalAccessErrorFinalField(const mirror::ArtMethod* referrer,
+                                       mirror::ArtField* accessed) {
   std::ostringstream msg;
   msg << "Final field '" << PrettyField(accessed, false) << "' cannot be written to by method '"
       << PrettyMethod(referrer) << "'";
-  ThrowException(NULL, "Ljava/lang/IllegalAccessError;", referrer != NULL ? referrer->GetClass() : NULL,
+  ThrowException(NULL, "Ljava/lang/IllegalAccessError;",
+                 referrer != NULL ? referrer->GetClass() : NULL,
                  msg.str().c_str());
 }
 
@@ -186,8 +187,8 @@ void ThrowIllegalArgumentException(const ThrowLocation* throw_location, const ch
 // IncompatibleClassChangeError
 
 void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType found_type,
-                                       mirror::AbstractMethod* method,
-                                       const mirror::AbstractMethod* referrer) {
+                                       mirror::ArtMethod* method,
+                                       const mirror::ArtMethod* referrer) {
   std::ostringstream msg;
   msg << "The method '" << PrettyMethod(method) << "' was expected to be of type "
       << expected_type << " but instead was found to be of type " << found_type;
@@ -196,9 +197,9 @@ void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType foun
                  msg.str().c_str());
 }
 
-void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(const mirror::AbstractMethod* interface_method,
+void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(const mirror::ArtMethod* interface_method,
                                                                 mirror::Object* this_object,
-                                                                const mirror::AbstractMethod* referrer) {
+                                                                const mirror::ArtMethod* referrer) {
   // Referrer is calling interface_method on this_object, however, the interface_method isn't
   // implemented by this_object.
   CHECK(this_object != NULL);
@@ -212,8 +213,8 @@ void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(const mirror::Ab
                  msg.str().c_str());
 }
 
-void ThrowIncompatibleClassChangeErrorField(const mirror::Field* resolved_field, bool is_static,
-                                            const mirror::AbstractMethod* referrer) {
+void ThrowIncompatibleClassChangeErrorField(const mirror::ArtField* resolved_field, bool is_static,
+                                            const mirror::ArtMethod* referrer) {
   std::ostringstream msg;
   msg << "Expected '" << PrettyField(resolved_field) << "' to be a "
       << (is_static ? "static" : "instance") << " field" << " rather than a "
@@ -241,7 +242,8 @@ void ThrowLinkageError(const mirror::Class* referrer, const char* fmt, ...) {
 // NegativeArraySizeException
 
 void ThrowNegativeArraySizeException(int size) {
-  ThrowException(NULL, "Ljava/lang/NegativeArraySizeException;", NULL, StringPrintf("%d", size).c_str());
+  ThrowException(NULL, "Ljava/lang/NegativeArraySizeException;", NULL,
+                 StringPrintf("%d", size).c_str());
 }
 
 void ThrowNegativeArraySizeException(const char* msg) {
@@ -285,7 +287,7 @@ void ThrowNoSuchMethodError(uint32_t method_idx) {
 // NullPointerException
 
 void ThrowNullPointerExceptionForFieldAccess(const ThrowLocation& throw_location,
-                                             mirror::Field* field, bool is_read) {
+                                             mirror::ArtField* field, bool is_read) {
   std::ostringstream msg;
   msg << "Attempt to " << (is_read ? "read from" : "write to")
       << " field '" << PrettyField(field, true) << "' on a null object reference";
@@ -303,7 +305,8 @@ static void ThrowNullPointerExceptionForMethodAccessImpl(const ThrowLocation& th
   ThrowException(&throw_location, "Ljava/lang/NullPointerException;", NULL, msg.str().c_str());
 }
 
-void ThrowNullPointerExceptionForMethodAccess(const ThrowLocation& throw_location, uint32_t method_idx,
+void ThrowNullPointerExceptionForMethodAccess(const ThrowLocation& throw_location,
+                                              uint32_t method_idx,
                                               InvokeType type) {
   mirror::DexCache* dex_cache = throw_location.GetMethod()->GetDeclaringClass()->GetDexCache();
   const DexFile& dex_file = *dex_cache->GetDexFile();
@@ -312,7 +315,7 @@ void ThrowNullPointerExceptionForMethodAccess(const ThrowLocation& throw_locatio
 }
 
 void ThrowNullPointerExceptionForMethodAccess(const ThrowLocation& throw_location,
-                                              mirror::AbstractMethod* method,
+                                              mirror::ArtMethod* method,
                                               InvokeType type) {
   mirror::DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
   const DexFile& dex_file = *dex_cache->GetDexFile();
@@ -348,7 +351,7 @@ void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location) {
     case Instruction::INVOKE_VIRTUAL_RANGE_QUICK: {
       // Since we replaced the method index, we ask the verifier to tell us which
       // method is invoked at this location.
-      mirror::AbstractMethod* method =
+      mirror::ArtMethod* method =
           verifier::MethodVerifier::FindInvokedMethodAtDexPc(throw_location.GetMethod(),
                                                              throw_location.GetDexPc());
       if (method != NULL) {
@@ -368,7 +371,7 @@ void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location) {
     case Instruction::IGET_BYTE:
     case Instruction::IGET_CHAR:
     case Instruction::IGET_SHORT: {
-      mirror::Field* field =
+      mirror::ArtField* field =
           Runtime::Current()->GetClassLinker()->ResolveField(instr->VRegC_22c(),
                                                              throw_location.GetMethod(), false);
       ThrowNullPointerExceptionForFieldAccess(throw_location, field, true /* read */);
@@ -379,7 +382,7 @@ void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location) {
     case Instruction::IGET_OBJECT_QUICK: {
       // Since we replaced the field index, we ask the verifier to tell us which
       // field is accessed at this location.
-      mirror::Field* field =
+      mirror::ArtField* field =
           verifier::MethodVerifier::FindAccessedFieldAtDexPc(throw_location.GetMethod(),
                                                              throw_location.GetDexPc());
       if (field != NULL) {
@@ -399,7 +402,7 @@ void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location) {
     case Instruction::IPUT_BYTE:
     case Instruction::IPUT_CHAR:
     case Instruction::IPUT_SHORT: {
-      mirror::Field* field =
+      mirror::ArtField* field =
           Runtime::Current()->GetClassLinker()->ResolveField(instr->VRegC_22c(),
                                                              throw_location.GetMethod(), false);
       ThrowNullPointerExceptionForFieldAccess(throw_location, field, false /* write */);
@@ -410,7 +413,7 @@ void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location) {
     case Instruction::IPUT_OBJECT_QUICK: {
       // Since we replaced the field index, we ask the verifier to tell us which
       // field is accessed at this location.
-      mirror::Field* field =
+      mirror::ArtField* field =
           verifier::MethodVerifier::FindAccessedFieldAtDexPc(throw_location.GetMethod(),
                                                              throw_location.GetDexPc());
       if (field != NULL) {

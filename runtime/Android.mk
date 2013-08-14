@@ -78,11 +78,11 @@ LIBART_COMMON_SRC_FILES := \
 	locks.cc \
 	mem_map.cc \
 	memory_region.cc \
-	mirror/abstract_method.cc \
+	mirror/art_field.cc \
+	mirror/art_method.cc \
 	mirror/array.cc \
 	mirror/class.cc \
 	mirror/dex_cache.cc \
-	mirror/field.cc \
 	mirror/object.cc \
 	mirror/stack_trace_element.cc \
 	mirror/string.cc \

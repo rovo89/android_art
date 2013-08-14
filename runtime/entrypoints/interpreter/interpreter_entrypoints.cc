@@ -17,7 +17,7 @@
 #include "class_linker.h"
 #include "interpreter/interpreter.h"
 #include "invoke_arg_array_builder.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/object-inl.h"
 #include "object_utils.h"
 #include "runtime.h"
@@ -29,7 +29,7 @@ extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& m
                                                    const DexFile::CodeItem* code_item,
                                                    ShadowFrame* shadow_frame, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::AbstractMethod* method = shadow_frame->GetMethod();
+  mirror::ArtMethod* method = shadow_frame->GetMethod();
   // Ensure static methods are initialized.
   if (method->IsStatic()) {
     Runtime::Current()->GetClassLinker()->EnsureInitialized(method->GetDeclaringClass(), true, true);

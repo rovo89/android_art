@@ -365,7 +365,7 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       break;
     case 1:  // Get method->dex_cache_resolved_methods_
       cg->LoadWordDisp(cg->TargetReg(kArg0),
-        mirror::AbstractMethod::DexCacheResolvedMethodsOffset().Int32Value(), cg->TargetReg(kArg0));
+        mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(), cg->TargetReg(kArg0));
       // Set up direct code if known.
       if (direct_code != 0) {
         if (direct_code != static_cast<unsigned int>(-1)) {
@@ -395,7 +395,7 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       if (cu->instruction_set != kX86) {
         if (direct_code == 0) {
           cg->LoadWordDisp(cg->TargetReg(kArg0),
-                           mirror::AbstractMethod::GetEntryPointFromCompiledCodeOffset().Int32Value(),
+                           mirror::ArtMethod::GetEntryPointFromCompiledCodeOffset().Int32Value(),
                            cg->TargetReg(kInvokeTgt));
         }
         break;
@@ -448,7 +448,7 @@ static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
     case 4:  // Get the compiled code address [uses kArg0, sets kInvokeTgt]
       if (cu->instruction_set != kX86) {
         cg->LoadWordDisp(cg->TargetReg(kArg0),
-                         mirror::AbstractMethod::GetEntryPointFromCompiledCodeOffset().Int32Value(),
+                         mirror::ArtMethod::GetEntryPointFromCompiledCodeOffset().Int32Value(),
                          cg->TargetReg(kInvokeTgt));
         break;
       }
@@ -514,7 +514,7 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
         break;
     case 1:  // Get method->dex_cache_resolved_methods_ [set/use kArg0]
       cg->LoadWordDisp(cg->TargetReg(kArg0),
-                       mirror::AbstractMethod::DexCacheResolvedMethodsOffset().Int32Value(),
+                       mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(),
                        cg->TargetReg(kArg0));
       break;
     case 2:  // Grab target method* [set/use kArg0]
@@ -1407,7 +1407,7 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
   } else {
     if (fast_path && info->type != kInterface) {
       call_inst = OpMem(kOpBlx, TargetReg(kArg0),
-                        mirror::AbstractMethod::GetEntryPointFromCompiledCodeOffset().Int32Value());
+                        mirror::ArtMethod::GetEntryPointFromCompiledCodeOffset().Int32Value());
     } else {
       ThreadOffset trampoline(-1);
       switch (info->type) {

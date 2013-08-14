@@ -42,12 +42,11 @@
 #include "intern_table.h"
 #include "invoke_arg_array_builder.h"
 #include "jni_internal.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_field-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/array.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
-#include "mirror/field.h"
-#include "mirror/field-inl.h"
 #include "mirror/throwable.h"
 #include "monitor.h"
 #include "oat_file.h"
@@ -657,7 +656,7 @@ static void CreateSystemClassLoader() {
       soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ClassLoader);
   CHECK(Runtime::Current()->GetClassLinker()->EnsureInitialized(class_loader_class, true, true));
 
-  mirror::AbstractMethod* getSystemClassLoader =
+  mirror::ArtMethod* getSystemClassLoader =
       class_loader_class->FindDirectMethod("getSystemClassLoader", "()Ljava/lang/ClassLoader;");
   CHECK(getSystemClassLoader != NULL);
 
@@ -672,8 +671,8 @@ static void CreateSystemClassLoader() {
   mirror::Class* thread_class = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_Thread);
   CHECK(Runtime::Current()->GetClassLinker()->EnsureInitialized(thread_class, true, true));
 
-  mirror::Field* contextClassLoader = thread_class->FindDeclaredInstanceField("contextClassLoader",
-                                                                              "Ljava/lang/ClassLoader;");
+  mirror::ArtField* contextClassLoader = thread_class->FindDeclaredInstanceField("contextClassLoader",
+                                                                                 "Ljava/lang/ClassLoader;");
   CHECK(contextClassLoader != NULL);
 
   contextClassLoader->SetObject(soa.Self()->GetPeer(), class_loader);
@@ -1128,11 +1127,11 @@ void Runtime::VisitRoots(RootVisitor* visitor, void* arg, bool only_dirty, bool 
   VisitNonConcurrentRoots(visitor, arg);
 }
 
-mirror::AbstractMethod* Runtime::CreateResolutionMethod() {
-  mirror::Class* method_class = mirror::AbstractMethod::GetMethodClass();
+mirror::ArtMethod* Runtime::CreateResolutionMethod() {
+  mirror::Class* method_class = mirror::ArtMethod::GetJavaLangReflectArtMethod();
   Thread* self = Thread::Current();
-  SirtRef<mirror::AbstractMethod>
-      method(self, down_cast<mirror::AbstractMethod*>(method_class->AllocObject(self)));
+  SirtRef<mirror::ArtMethod>
+      method(self, down_cast<mirror::ArtMethod*>(method_class->AllocObject(self)));
   method->SetDeclaringClass(method_class);
   // TODO: use a special method for resolution method saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex16);
@@ -1143,12 +1142,12 @@ mirror::AbstractMethod* Runtime::CreateResolutionMethod() {
   return method.get();
 }
 
-mirror::AbstractMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set,
+mirror::ArtMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set,
                                                         CalleeSaveType type) {
-  mirror::Class* method_class = mirror::AbstractMethod::GetMethodClass();
+  mirror::Class* method_class = mirror::ArtMethod::GetJavaLangReflectArtMethod();
   Thread* self = Thread::Current();
-  SirtRef<mirror::AbstractMethod>
-      method(self, down_cast<mirror::AbstractMethod*>(method_class->AllocObject(self)));
+  SirtRef<mirror::ArtMethod>
+      method(self, down_cast<mirror::ArtMethod*>(method_class->AllocObject(self)));
   method->SetDeclaringClass(method_class);
   // TODO: use a special method for callee saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex16);
@@ -1208,7 +1207,7 @@ mirror::AbstractMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instructi
   return method.get();
 }
 
-void Runtime::SetCalleeSaveMethod(mirror::AbstractMethod* method, CalleeSaveType type) {
+void Runtime::SetCalleeSaveMethod(mirror::ArtMethod* method, CalleeSaveType type) {
   DCHECK_LT(static_cast<int>(type), static_cast<int>(kLastCalleeSaveType));
   callee_save_methods_[type] = method;
 }

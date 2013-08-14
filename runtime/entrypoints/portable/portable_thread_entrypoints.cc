@@ -15,7 +15,7 @@
  */
 
 #include "entrypoints/entrypoint_utils.h"
-#include "mirror/abstract_method.h"
+#include "mirror/art_method.h"
 #include "mirror/object-inl.h"
 #include "verifier/dex_gc_map.h"
 #include "stack.h"
@@ -31,7 +31,7 @@ class ShadowFrameCopyVisitor : public StackVisitor {
     if (IsShadowFrame()) {
       ShadowFrame* cur_frame = GetCurrentShadowFrame();
       size_t num_regs = cur_frame->NumberOfVRegs();
-      mirror::AbstractMethod* method = cur_frame->GetMethod();
+      mirror::ArtMethod* method = cur_frame->GetMethod();
       uint32_t dex_pc = cur_frame->GetDexPC();
       ShadowFrame* new_frame = ShadowFrame::Create(num_regs, NULL, method, dex_pc);
 
@@ -88,7 +88,7 @@ extern "C" void art_portable_test_suspend_from_code(Thread* self)
 
 extern "C" ShadowFrame* art_portable_push_shadow_frame_from_code(Thread* thread,
                                                                  ShadowFrame* new_shadow_frame,
-                                                                 mirror::AbstractMethod* method,
+                                                                 mirror::ArtMethod* method,
                                                                  uint32_t num_vregs) {
   ShadowFrame* old_frame = thread->PushShadowFrame(new_shadow_frame);
   new_shadow_frame->SetMethod(method);

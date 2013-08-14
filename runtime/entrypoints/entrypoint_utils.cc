@@ -19,9 +19,9 @@
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "gc/accounting/card_table-inl.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_field-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
-#include "mirror/field-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/proxy.h"
@@ -33,7 +33,7 @@
 namespace art {
 
 // Helper function to allocate array for FILLED_NEW_ARRAY.
-mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::AbstractMethod* referrer,
+mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::ArtMethod* referrer,
                                           int32_t component_count, Thread* self,
                                           bool access_check) {
   if (UNLIKELY(component_count < 0)) {
@@ -73,7 +73,7 @@ mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::AbstractMet
   }
 }
 
-mirror::Field* FindFieldFromCode(uint32_t field_idx, const mirror::AbstractMethod* referrer,
+mirror::ArtField* FindFieldFromCode(uint32_t field_idx, const mirror::ArtMethod* referrer,
                                  Thread* self, FindFieldType type, size_t expected_size,
                                  bool access_check) {
   bool is_primitive;
@@ -91,7 +91,7 @@ mirror::Field* FindFieldFromCode(uint32_t field_idx, const mirror::AbstractMetho
     default:                     is_primitive = true;  is_set = true;  is_static = true;  break;
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  mirror::Field* resolved_field = class_linker->ResolveField(field_idx, referrer, is_static);
+  mirror::ArtField* resolved_field = class_linker->ResolveField(field_idx, referrer, is_static);
   if (UNLIKELY(resolved_field == NULL)) {
     DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
     return NULL;  // Failure.
@@ -158,12 +158,12 @@ mirror::Field* FindFieldFromCode(uint32_t field_idx, const mirror::AbstractMetho
 }
 
 // Slow path method resolution
-mirror::AbstractMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object* this_object,
-                                           mirror::AbstractMethod* referrer,
+mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object* this_object,
+                                           mirror::ArtMethod* referrer,
                                            Thread* self, bool access_check, InvokeType type) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   bool is_direct = type == kStatic || type == kDirect;
-  mirror::AbstractMethod* resolved_method = class_linker->ResolveMethod(method_idx, referrer, type);
+  mirror::ArtMethod* resolved_method = class_linker->ResolveMethod(method_idx, referrer, type);
   if (UNLIKELY(resolved_method == NULL)) {
     DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
     return NULL;  // Failure.
@@ -179,7 +179,7 @@ mirror::AbstractMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object* 
       if (is_direct) {
         return resolved_method;
       } else if (type == kInterface) {
-        mirror::AbstractMethod* interface_method =
+        mirror::ArtMethod* interface_method =
             this_object->GetClass()->FindVirtualMethodForInterface(resolved_method);
         if (UNLIKELY(interface_method == NULL)) {
           ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(resolved_method, this_object,
@@ -189,7 +189,7 @@ mirror::AbstractMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object* 
           return interface_method;
         }
       } else {
-        mirror::ObjectArray<mirror::AbstractMethod>* vtable;
+        mirror::ObjectArray<mirror::ArtMethod>* vtable;
         uint16_t vtable_index = resolved_method->GetMethodIndex();
         if (type == kSuper) {
           vtable = referrer->GetDeclaringClass()->GetSuperClass()->GetVTable();
@@ -231,7 +231,7 @@ mirror::AbstractMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object* 
       if (is_direct) {
         return resolved_method;
       } else if (type == kInterface) {
-        mirror::AbstractMethod* interface_method =
+        mirror::ArtMethod* interface_method =
             this_object->GetClass()->FindVirtualMethodForInterface(resolved_method);
         if (UNLIKELY(interface_method == NULL)) {
           ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(resolved_method, this_object,
@@ -241,7 +241,7 @@ mirror::AbstractMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object* 
           return interface_method;
         }
       } else {
-        mirror::ObjectArray<mirror::AbstractMethod>* vtable;
+        mirror::ObjectArray<mirror::ArtMethod>* vtable;
         uint16_t vtable_index = resolved_method->GetMethodIndex();
         if (type == kSuper) {
           mirror::Class* super_class = referring_class->GetSuperClass();
@@ -326,17 +326,15 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessUnchecked& soa, const char
     }
   }
 
-  // Call InvocationHandler.invoke(Object proxy, Method method, Object[] args).
-  jobject inv_hand = soa.Env()->GetObjectField(rcvr_jobj,
-                                               WellKnownClasses::java_lang_reflect_Proxy_h);
+  // Call Proxy.invoke(Proxy proxy, ArtMethod method, Object[] args).
   jvalue invocation_args[3];
   invocation_args[0].l = rcvr_jobj;
   invocation_args[1].l = interface_method_jobj;
   invocation_args[2].l = args_jobj;
   jobject result =
-      soa.Env()->CallObjectMethodA(inv_hand,
-                                   WellKnownClasses::java_lang_reflect_InvocationHandler_invoke,
-                                   invocation_args);
+      soa.Env()->CallStaticObjectMethodA(WellKnownClasses::java_lang_reflect_Proxy,
+                                         WellKnownClasses::java_lang_reflect_Proxy_invoke,
+                                         invocation_args);
 
   // Unbox result and handle error conditions.
   if (LIKELY(!soa.Self()->IsExceptionPending())) {
@@ -346,10 +344,10 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessUnchecked& soa, const char
     } else {
       mirror::Object* result_ref = soa.Decode<mirror::Object*>(result);
       mirror::Object* rcvr = soa.Decode<mirror::Object*>(rcvr_jobj);
-      mirror::AbstractMethod* interface_method =
-          soa.Decode<mirror::AbstractMethod*>(interface_method_jobj);
+      mirror::ArtMethod* interface_method =
+          soa.Decode<mirror::ArtMethod*>(interface_method_jobj);
       mirror::Class* result_type = MethodHelper(interface_method).GetReturnType();
-      mirror::AbstractMethod* proxy_method;
+      mirror::ArtMethod* proxy_method;
       if (interface_method->GetDeclaringClass()->IsInterface()) {
         proxy_method = rcvr->GetClass()->FindVirtualMethodForInterface(interface_method);
       } else {
@@ -373,9 +371,9 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessUnchecked& soa, const char
       mirror::Object* rcvr = soa.Decode<mirror::Object*>(rcvr_jobj);
       mirror::SynthesizedProxyClass* proxy_class =
           down_cast<mirror::SynthesizedProxyClass*>(rcvr->GetClass());
-      mirror::AbstractMethod* interface_method =
-          soa.Decode<mirror::AbstractMethod*>(interface_method_jobj);
-      mirror::AbstractMethod* proxy_method =
+      mirror::ArtMethod* interface_method =
+          soa.Decode<mirror::ArtMethod*>(interface_method_jobj);
+      mirror::ArtMethod* proxy_method =
           rcvr->GetClass()->FindVirtualMethodForInterface(interface_method);
       int throws_index = -1;
       size_t num_virt_methods = proxy_class->NumVirtualMethods();

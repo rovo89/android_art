@@ -19,7 +19,7 @@
 #include "dex_instruction-inl.h"
 #include "interpreter/interpreter.h"
 #include "invoke_arg_array_builder.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
@@ -100,18 +100,18 @@ class QuickArgumentVisitor {
 #define QUICK_STACK_ARG_SKIP 0
 #endif
 
-  static mirror::AbstractMethod* GetCallingMethod(mirror::AbstractMethod** sp) {
+  static mirror::ArtMethod* GetCallingMethod(mirror::ArtMethod** sp) {
     byte* previous_sp = reinterpret_cast<byte*>(sp) +
         QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__FRAME_SIZE;
-    return *reinterpret_cast<mirror::AbstractMethod**>(previous_sp);
+    return *reinterpret_cast<mirror::ArtMethod**>(previous_sp);
   }
 
-  static uintptr_t GetCallingPc(mirror::AbstractMethod** sp) {
+  static uintptr_t GetCallingPc(mirror::ArtMethod** sp) {
     byte* lr = reinterpret_cast<byte*>(sp) + QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__LR_OFFSET;
     return *reinterpret_cast<uintptr_t*>(lr);
   }
 
-  QuickArgumentVisitor(mirror::AbstractMethod** sp, bool is_static,
+  QuickArgumentVisitor(mirror::ArtMethod** sp, bool is_static,
                        const char* shorty, uint32_t shorty_len)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) :
     is_static_(is_static), shorty_(shorty), shorty_len_(shorty_len),
@@ -220,7 +220,7 @@ class QuickArgumentVisitor {
 // Visits arguments on the stack placing them into the shadow frame.
 class BuildShadowFrameVisitor : public QuickArgumentVisitor {
  public:
-  BuildShadowFrameVisitor(mirror::AbstractMethod** sp, bool is_static, const char* shorty,
+  BuildShadowFrameVisitor(mirror::ArtMethod** sp, bool is_static, const char* shorty,
                           uint32_t shorty_len, ShadowFrame& sf, size_t first_arg_reg) :
     QuickArgumentVisitor(sp, is_static, shorty, shorty_len), sf_(sf), cur_reg_(first_arg_reg) {}
 
@@ -261,8 +261,8 @@ class BuildShadowFrameVisitor : public QuickArgumentVisitor {
   DISALLOW_COPY_AND_ASSIGN(BuildShadowFrameVisitor);
 };
 
-extern "C" uint64_t artQuickToInterpreterBridge(mirror::AbstractMethod* method, Thread* self,
-                                                mirror::AbstractMethod** sp)
+extern "C" uint64_t artQuickToInterpreterBridge(mirror::ArtMethod* method, Thread* self,
+                                                mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Ensure we don't get thread suspension until the object arguments are safely in the shadow
   // frame.
@@ -311,7 +311,7 @@ extern "C" uint64_t artQuickToInterpreterBridge(mirror::AbstractMethod* method, 
 // to jobjects.
 class BuildQuickArgumentVisitor : public QuickArgumentVisitor {
  public:
-  BuildQuickArgumentVisitor(mirror::AbstractMethod** sp, bool is_static, const char* shorty,
+  BuildQuickArgumentVisitor(mirror::ArtMethod** sp, bool is_static, const char* shorty,
                             uint32_t shorty_len, ScopedObjectAccessUnchecked* soa,
                             std::vector<jvalue>* args) :
     QuickArgumentVisitor(sp, is_static, shorty, shorty_len), soa_(soa), args_(args) {}
@@ -360,9 +360,9 @@ class BuildQuickArgumentVisitor : public QuickArgumentVisitor {
 // which is responsible for recording callee save registers. We explicitly place into jobjects the
 // incoming reference arguments (so they survive GC). We invoke the invocation handler, which is a
 // field within the proxy object, which will box the primitive arguments and deal with error cases.
-extern "C" uint64_t artQuickProxyInvokeHandler(mirror::AbstractMethod* proxy_method,
+extern "C" uint64_t artQuickProxyInvokeHandler(mirror::ArtMethod* proxy_method,
                                                mirror::Object* receiver,
-                                               Thread* self, mirror::AbstractMethod** sp)
+                                               Thread* self, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Ensure we don't get thread suspension until the object arguments are safely in jobjects.
   const char* old_cause =
@@ -389,7 +389,7 @@ extern "C" uint64_t artQuickProxyInvokeHandler(mirror::AbstractMethod* proxy_met
   args.erase(args.begin());
 
   // Convert proxy method into expected interface method.
-  mirror::AbstractMethod* interface_method = proxy_method->FindOverriddenMethod();
+  mirror::ArtMethod* interface_method = proxy_method->FindOverriddenMethod();
   DCHECK(interface_method != NULL);
   DCHECK(!interface_method->IsProxyMethod()) << PrettyMethod(interface_method);
   jobject interface_method_jobj = soa.AddLocalReference<jobject>(interface_method);
@@ -406,7 +406,7 @@ extern "C" uint64_t artQuickProxyInvokeHandler(mirror::AbstractMethod* proxy_met
 // so they don't get garbage collected.
 class RememberFoGcArgumentVisitor : public QuickArgumentVisitor {
  public:
-  RememberFoGcArgumentVisitor(mirror::AbstractMethod** sp, bool is_static, const char* shorty,
+  RememberFoGcArgumentVisitor(mirror::ArtMethod** sp, bool is_static, const char* shorty,
                               uint32_t shorty_len, ScopedObjectAccessUnchecked* soa) :
     QuickArgumentVisitor(sp, is_static, shorty, shorty_len), soa_(soa) {}
 
@@ -423,9 +423,9 @@ class RememberFoGcArgumentVisitor : public QuickArgumentVisitor {
 };
 
 // Lazily resolve a method for quick. Called by stub code.
-extern "C" const void* artQuickResolutionTrampoline(mirror::AbstractMethod* called,
+extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
                                                     mirror::Object* receiver,
-                                                    Thread* thread, mirror::AbstractMethod** sp)
+                                                    Thread* thread, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kRefsAndArgs);
   // Start new JNI local reference state
@@ -436,7 +436,7 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::AbstractMethod* call
 
   // Compute details about the called method (avoid GCs)
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  mirror::AbstractMethod* caller = QuickArgumentVisitor::GetCallingMethod(sp);
+  mirror::ArtMethod* caller = QuickArgumentVisitor::GetCallingMethod(sp);
   InvokeType invoke_type;
   const DexFile* dex_file;
   uint32_t dex_method_idx;

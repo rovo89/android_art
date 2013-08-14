@@ -38,10 +38,10 @@
 
 namespace art {
 namespace mirror {
-class AbstractMethod;
-class ClassLoader;
-class Field;
-}
+  class ArtField;
+  class ArtMethod;
+  class ClassLoader;
+}  // namespace mirror
 class ArgArray;
 union JValue;
 class Libraries;
@@ -55,7 +55,7 @@ void RegisterNativeMethods(JNIEnv* env, const char* jni_class_name, const JNINat
 
 JValue InvokeWithJValues(const ScopedObjectAccess&, jobject obj, jmethodID mid, jvalue* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-void InvokeWithArgArray(const ScopedObjectAccess& soa, mirror::AbstractMethod* method,
+void InvokeWithArgArray(const ScopedObjectAccess& soa, mirror::ArtMethod* method,
                         ArgArray *arg_array, JValue* result, char result_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -79,7 +79,7 @@ struct JavaVMExt : public JavaVM {
    * Returns a pointer to the code for the native method 'm', found
    * using dlsym(3) on every native library that's been loaded so far.
    */
-  void* FindCodeForNativeMethod(mirror::AbstractMethod* m)
+  void* FindCodeForNativeMethod(mirror::ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void DumpForSigQuit(std::ostream& os);

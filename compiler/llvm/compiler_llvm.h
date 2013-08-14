@@ -34,7 +34,7 @@ namespace art {
   class CompilerDriver;
   class DexCompilationUnit;
   namespace mirror {
-    class AbstractMethod;
+    class ArtMethod;
     class ClassLoader;
   }  // namespace mirror
 }  // namespace art

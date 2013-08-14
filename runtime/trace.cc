@@ -25,7 +25,7 @@
 #include "debugger.h"
 #include "dex_file-inl.h"
 #include "instrumentation.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
 #include "mirror/object_array-inl.h"
@@ -127,15 +127,15 @@ bool Trace::sampling_enabled_ = true;
 uint32_t Trace::sampling_interval_us_ = 10000;
 pthread_t Trace::sampling_pthread_ = 0U;
 
-static mirror::AbstractMethod* DecodeTraceMethodId(uint32_t tmid) {
-  return reinterpret_cast<mirror::AbstractMethod*>(tmid & ~kTraceMethodActionMask);
+static mirror::ArtMethod* DecodeTraceMethodId(uint32_t tmid) {
+  return reinterpret_cast<mirror::ArtMethod*>(tmid & ~kTraceMethodActionMask);
 }
 
 static TraceAction DecodeTraceAction(uint32_t tmid) {
   return static_cast<TraceAction>(tmid & kTraceMethodActionMask);
 }
 
-static uint32_t EncodeTraceMethodAndAction(const mirror::AbstractMethod* method,
+static uint32_t EncodeTraceMethodAndAction(const mirror::ArtMethod* method,
                                            TraceAction action) {
   uint32_t tmid = reinterpret_cast<uint32_t>(method) | action;
   DCHECK_EQ(method, DecodeTraceMethodId(tmid));
@@ -436,7 +436,7 @@ static void DumpBuf(uint8_t* buf, size_t buf_size, ProfilerClockSource clock_sou
 
   while (ptr < end) {
     uint32_t tmid = ptr[2] | (ptr[3] << 8) | (ptr[4] << 16) | (ptr[5] << 24);
-    mirror::AbstractMethod* method = DecodeTraceMethodId(tmid);
+    mirror::ArtMethod* method = DecodeTraceMethodId(tmid);
     TraceAction action = DecodeTraceAction(tmid);
     LOG(INFO) << PrettyMethod(method) << " " << static_cast<int>(action);
     ptr += GetRecordSize(clock_source);
@@ -454,7 +454,7 @@ void Trace::FinishTracing() {
     Runtime::Current()->SetStatsEnabled(false);
   }
 
-  std::set<mirror::AbstractMethod*> visited_methods;
+  std::set<mirror::ArtMethod*> visited_methods;
   GetVisitedMethods(final_offset, &visited_methods);
 
   std::ostringstream os;
@@ -511,35 +511,35 @@ void Trace::FinishTracing() {
 }
 
 void Trace::DexPcMoved(Thread* thread, mirror::Object* this_object,
-                       const mirror::AbstractMethod* method, uint32_t new_dex_pc) {
+                       const mirror::ArtMethod* method, uint32_t new_dex_pc) {
   // We're not recorded to listen to this kind of event, so complain.
   LOG(ERROR) << "Unexpected dex PC event in tracing " << PrettyMethod(method) << " " << new_dex_pc;
 };
 
 void Trace::MethodEntered(Thread* thread, mirror::Object* this_object,
-                          const mirror::AbstractMethod* method, uint32_t dex_pc) {
+                          const mirror::ArtMethod* method, uint32_t dex_pc) {
   LogMethodTraceEvent(thread, method, instrumentation::Instrumentation::kMethodEntered);
 }
 
 void Trace::MethodExited(Thread* thread, mirror::Object* this_object,
-                         const mirror::AbstractMethod* method, uint32_t dex_pc,
+                         const mirror::ArtMethod* method, uint32_t dex_pc,
                          const JValue& return_value) {
   UNUSED(return_value);
   LogMethodTraceEvent(thread, method, instrumentation::Instrumentation::kMethodExited);
 }
 
-void Trace::MethodUnwind(Thread* thread, const mirror::AbstractMethod* method, uint32_t dex_pc) {
+void Trace::MethodUnwind(Thread* thread, const mirror::ArtMethod* method, uint32_t dex_pc) {
   LogMethodTraceEvent(thread, method, instrumentation::Instrumentation::kMethodUnwind);
 }
 
 void Trace::ExceptionCaught(Thread* thread, const ThrowLocation& throw_location,
-                            mirror::AbstractMethod* catch_method, uint32_t catch_dex_pc,
+                            mirror::ArtMethod* catch_method, uint32_t catch_dex_pc,
                             mirror::Throwable* exception_object)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   LOG(ERROR) << "Unexpected exception caught event in tracing";
 }
 
-void Trace::LogMethodTraceEvent(Thread* thread, const mirror::AbstractMethod* method,
+void Trace::LogMethodTraceEvent(Thread* thread, const mirror::ArtMethod* method,
                                 instrumentation::Instrumentation::InstrumentationEvent event) {
   // Advance cur_offset_ atomically.
   int32_t new_offset;
@@ -598,24 +598,24 @@ void Trace::LogMethodTraceEvent(Thread* thread, const mirror::AbstractMethod* me
 }
 
 void Trace::GetVisitedMethods(size_t buf_size,
-                              std::set<mirror::AbstractMethod*>* visited_methods) {
+                              std::set<mirror::ArtMethod*>* visited_methods) {
   uint8_t* ptr = buf_.get() + kTraceHeaderLength;
   uint8_t* end = buf_.get() + buf_size;
 
   while (ptr < end) {
     uint32_t tmid = ptr[2] | (ptr[3] << 8) | (ptr[4] << 16) | (ptr[5] << 24);
-    mirror::AbstractMethod* method = DecodeTraceMethodId(tmid);
+    mirror::ArtMethod* method = DecodeTraceMethodId(tmid);
     visited_methods->insert(method);
     ptr += GetRecordSize(clock_source_);
   }
 }
 
 void Trace::DumpMethodList(std::ostream& os,
-                           const std::set<mirror::AbstractMethod*>& visited_methods) {
-  typedef std::set<mirror::AbstractMethod*>::const_iterator It;  // TODO: C++0x auto
+                           const std::set<mirror::ArtMethod*>& visited_methods) {
+  typedef std::set<mirror::ArtMethod*>::const_iterator It;  // TODO: C++0x auto
   MethodHelper mh;
   for (It it = visited_methods.begin(); it != visited_methods.end(); ++it) {
-    mirror::AbstractMethod* method = *it;
+    mirror::ArtMethod* method = *it;
     mh.ChangeMethod(method);
     os << StringPrintf("%p\t%s\t%s\t%s\t%s\n", method,
         PrettyDescriptor(mh.GetDeclaringClassDescriptor()).c_str(), mh.GetName(),

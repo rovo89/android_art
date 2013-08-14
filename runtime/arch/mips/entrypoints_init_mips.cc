@@ -30,8 +30,8 @@ extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& m
                                            ShadowFrame* shadow_frame, JValue* result);
 
 // Portable entrypoints.
-extern "C" void art_portable_resolution_trampoline(mirror::AbstractMethod*);
-extern "C" void art_portable_to_interpreter_bridge(mirror::AbstractMethod*);
+extern "C" void art_portable_resolution_trampoline(mirror::ArtMethod*);
+extern "C" void art_portable_to_interpreter_bridge(mirror::ArtMethod*);
 
 // Alloc entrypoints.
 extern "C" void* art_quick_alloc_array(uint32_t, void*, int32_t);
@@ -113,8 +113,8 @@ extern "C" int32_t art_quick_indexof(void*, uint32_t, uint32_t, uint32_t);
 extern "C" int32_t art_quick_string_compareto(void*, void*);
 
 // Invoke entrypoints.
-extern "C" void art_quick_resolution_trampoline(mirror::AbstractMethod*);
-extern "C" void art_quick_to_interpreter_bridge(mirror::AbstractMethod*);
+extern "C" void art_quick_resolution_trampoline(mirror::ArtMethod*);
+extern "C" void art_quick_to_interpreter_bridge(mirror::ArtMethod*);
 extern "C" void art_quick_invoke_direct_trampoline_with_access_check(uint32_t, void*);
 extern "C" void art_quick_invoke_interface_trampoline(uint32_t, void*);
 extern "C" void art_quick_invoke_interface_trampoline_with_access_check(uint32_t, void*);

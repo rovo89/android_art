@@ -17,7 +17,7 @@
 #include "callee_save_frame.h"
 #include "dex_file-inl.h"
 #include "interpreter/interpreter.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
@@ -28,7 +28,7 @@
 
 namespace art {
 
-extern "C" void artDeoptimize(Thread* self, mirror::AbstractMethod** sp)
+extern "C" void artDeoptimize(Thread* self, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
   self->SetException(ThrowLocation(), reinterpret_cast<mirror::Throwable*>(-1));

@@ -16,7 +16,7 @@
 
 #include "stack.h"
 
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object.h"
 #include "mirror/object-inl.h"
@@ -29,7 +29,7 @@
 namespace art {
 
 mirror::Object* ShadowFrame::GetThisObject() const {
-  mirror::AbstractMethod* m = GetMethod();
+  mirror::ArtMethod* m = GetMethod();
   if (m->IsStatic()) {
     return NULL;
   } else if (m->IsNative()) {
@@ -43,7 +43,7 @@ mirror::Object* ShadowFrame::GetThisObject() const {
 }
 
 mirror::Object* ShadowFrame::GetThisObject(uint16_t num_ins) const {
-  mirror::AbstractMethod* m = GetMethod();
+  mirror::ArtMethod* m = GetMethod();
   if (m->IsStatic()) {
     return NULL;
   } else {
@@ -101,7 +101,7 @@ uint32_t StackVisitor::GetDexPc() const {
 }
 
 mirror::Object* StackVisitor::GetThisObject() const {
-  mirror::AbstractMethod* m = GetMethod();
+  mirror::ArtMethod* m = GetMethod();
   if (m->IsStatic()) {
     return NULL;
   } else if (m->IsNative()) {
@@ -132,7 +132,7 @@ size_t StackVisitor::GetNativePcOffset() const {
   return GetMethod()->NativePcOffset(cur_quick_frame_pc_);
 }
 
-uint32_t StackVisitor::GetVReg(mirror::AbstractMethod* m, uint16_t vreg, VRegKind kind) const {
+uint32_t StackVisitor::GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind) const {
   if (cur_quick_frame_ != NULL) {
     DCHECK(context_ != NULL);  // You can't reliably read registers without a context.
     DCHECK(m == GetMethod());
@@ -156,7 +156,7 @@ uint32_t StackVisitor::GetVReg(mirror::AbstractMethod* m, uint16_t vreg, VRegKin
   }
 }
 
-void StackVisitor::SetVReg(mirror::AbstractMethod* m, uint16_t vreg, uint32_t new_value,
+void StackVisitor::SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_value,
                            VRegKind kind) {
   if (cur_quick_frame_ != NULL) {
     DCHECK(context_ != NULL);  // You can't reliably write registers without a context.
@@ -195,14 +195,14 @@ void StackVisitor::SetGPR(uint32_t reg, uintptr_t value) {
 }
 
 uintptr_t StackVisitor::GetReturnPc() const {
-  mirror::AbstractMethod** sp = GetCurrentQuickFrame();
+  mirror::ArtMethod** sp = GetCurrentQuickFrame();
   DCHECK(sp != NULL);
   byte* pc_addr = reinterpret_cast<byte*>(sp) + GetMethod()->GetReturnPcOffsetInBytes();
   return *reinterpret_cast<uintptr_t*>(pc_addr);
 }
 
 void StackVisitor::SetReturnPc(uintptr_t new_ret_pc) {
-  mirror::AbstractMethod** sp = GetCurrentQuickFrame();
+  mirror::ArtMethod** sp = GetCurrentQuickFrame();
   CHECK(sp != NULL);
   byte* pc_addr = reinterpret_cast<byte*>(sp) + GetMethod()->GetReturnPcOffsetInBytes();
   *reinterpret_cast<uintptr_t*>(pc_addr) = new_ret_pc;
@@ -241,7 +241,7 @@ void StackVisitor::DescribeStack(Thread* thread) {
 
 std::string StackVisitor::DescribeLocation() const {
   std::string result("Visiting method '");
-  mirror::AbstractMethod* m = GetMethod();
+  mirror::ArtMethod* m = GetMethod();
   if (m == NULL) {
     return "upcall";
   }
@@ -259,9 +259,8 @@ instrumentation::InstrumentationStackFrame StackVisitor::GetInstrumentationStack
 
 void StackVisitor::SanityCheckFrame() const {
 #ifndef NDEBUG
-  mirror::AbstractMethod* method = GetMethod();
-  CHECK(method->GetClass() == mirror::AbstractMethod::GetMethodClass() ||
-        method->GetClass() == mirror::AbstractMethod::GetConstructorClass());
+  mirror::ArtMethod* method = GetMethod();
+  CHECK(method->GetClass() == mirror::ArtMethod::GetJavaLangReflectArtMethod());
   if (cur_quick_frame_ != NULL) {
     method->AssertPcIsWithinCode(cur_quick_frame_pc_);
     // Frame sanity.
@@ -291,7 +290,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
     if (cur_quick_frame_ != NULL) {  // Handle quick stack frames.
       // Can't be both a shadow and a quick fragment.
       DCHECK(current_fragment->GetTopShadowFrame() == NULL);
-      mirror::AbstractMethod* method = *cur_quick_frame_;
+      mirror::ArtMethod* method = *cur_quick_frame_;
       while (method != NULL) {
         SanityCheckFrame();
         bool should_continue = VisitFrame();
@@ -316,7 +315,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
             if (GetMethod() == Runtime::Current()->GetCalleeSaveMethod(Runtime::kSaveAll)) {
               // Skip runtime save all callee frames which are used to deliver exceptions.
             } else if (instrumentation_frame.interpreter_entry_) {
-              mirror::AbstractMethod* callee = Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs);
+              mirror::ArtMethod* callee = Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs);
               CHECK_EQ(GetMethod(), callee) << "Expected: " << PrettyMethod(callee) << " Found: "
                   << PrettyMethod(GetMethod());
             } else if (instrumentation_frame.method_ != GetMethod()) {
@@ -335,7 +334,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
         }
         cur_quick_frame_pc_ = return_pc;
         byte* next_frame = reinterpret_cast<byte*>(cur_quick_frame_) + frame_size;
-        cur_quick_frame_ = reinterpret_cast<mirror::AbstractMethod**>(next_frame);
+        cur_quick_frame_ = reinterpret_cast<mirror::ArtMethod**>(next_frame);
         cur_depth_++;
         method = *cur_quick_frame_;
       }

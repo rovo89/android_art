@@ -37,7 +37,7 @@
 #include "gc/space/space-inl.h"
 #include "image_writer.h"
 #include "leb128.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
@@ -862,7 +862,7 @@ static int dex2oat(int argc, char** argv) {
   // give it away now and then switch to a more managable ScopedObjectAccess.
   Thread::Current()->TransitionFromRunnableToSuspended(kNative);
   // Whilst we're in native take the opportunity to initialize well known classes.
-  WellKnownClasses::InitClasses(Thread::Current()->GetJniEnv());
+  WellKnownClasses::Init(Thread::Current()->GetJniEnv());
   ScopedObjectAccess soa(Thread::Current());
 
   // If --image-classes was specified, calculate the full list of classes to include in the image

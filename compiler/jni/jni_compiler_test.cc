@@ -21,9 +21,9 @@
 #include "indirect_reference_table.h"
 #include "jni_internal.h"
 #include "mem_map.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
-#include "mirror/abstract_method-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/stack_trace_element.h"
@@ -51,7 +51,7 @@ class JniCompilerTest : public CommonTest {
     // Compile the native method before starting the runtime
     mirror::Class* c = class_linker_->FindClass("LMyClassNatives;",
                                                 soa.Decode<mirror::ClassLoader*>(class_loader));
-    mirror::AbstractMethod* method;
+    mirror::ArtMethod* method;
     if (direct) {
       method = c->FindDirectMethod(method_name, method_sig);
     } else {

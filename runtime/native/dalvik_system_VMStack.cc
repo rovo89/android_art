@@ -16,7 +16,7 @@
 
 #include "jni_internal.h"
 #include "nth_caller_visitor.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"

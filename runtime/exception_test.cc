@@ -95,8 +95,8 @@ class ExceptionTest : public CommonTest {
   UnsignedLeb128EncodingVector fake_vmap_table_data_;
   std::vector<uint8_t> fake_gc_map_;
 
-  mirror::AbstractMethod* method_f_;
-  mirror::AbstractMethod* method_g_;
+  mirror::ArtMethod* method_f_;
+  mirror::ArtMethod* method_g_;
 
  private:
   mirror::Class* my_klass_;

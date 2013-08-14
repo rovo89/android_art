@@ -17,19 +17,20 @@
 #include "callee_save_frame.h"
 #include "dex_file-inl.h"
 #include "entrypoints/entrypoint_utils.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_field-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
-#include "mirror/field-inl.h"
 
 #include <stdint.h>
 
 namespace art {
 
 extern "C" uint32_t artGet32StaticFromCode(uint32_t field_idx,
-                                           const mirror::AbstractMethod* referrer,
-                                           Thread* self, mirror::AbstractMethod** sp)
+                                           const mirror::ArtMethod* referrer,
+                                           Thread* self, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(int32_t));
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead,
+                                          sizeof(int32_t));
   if (LIKELY(field != NULL)) {
     return field->Get32(field->GetDeclaringClass());
   }
@@ -42,10 +43,11 @@ extern "C" uint32_t artGet32StaticFromCode(uint32_t field_idx,
 }
 
 extern "C" uint64_t artGet64StaticFromCode(uint32_t field_idx,
-                                           const mirror::AbstractMethod* referrer,
-                                           Thread* self, mirror::AbstractMethod** sp)
+                                           const mirror::ArtMethod* referrer,
+                                           Thread* self, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(int64_t));
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead,
+                                          sizeof(int64_t));
   if (LIKELY(field != NULL)) {
     return field->Get64(field->GetDeclaringClass());
   }
@@ -58,16 +60,17 @@ extern "C" uint64_t artGet64StaticFromCode(uint32_t field_idx,
 }
 
 extern "C" mirror::Object* artGetObjStaticFromCode(uint32_t field_idx,
-                                                   const mirror::AbstractMethod* referrer,
-                                                   Thread* self, mirror::AbstractMethod** sp)
+                                                   const mirror::ArtMethod* referrer,
+                                                   Thread* self, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx, referrer, StaticObjectRead,
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, StaticObjectRead,
                                        sizeof(mirror::Object*));
   if (LIKELY(field != NULL)) {
     return field->GetObj(field->GetDeclaringClass());
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, StaticObjectRead, sizeof(mirror::Object*), true);
+  field = FindFieldFromCode(field_idx, referrer, self, StaticObjectRead, sizeof(mirror::Object*),
+                            true);
   if (LIKELY(field != NULL)) {
     return field->GetObj(field->GetDeclaringClass());
   }
@@ -75,15 +78,17 @@ extern "C" mirror::Object* artGetObjStaticFromCode(uint32_t field_idx,
 }
 
 extern "C" uint32_t artGet32InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
-                                             const mirror::AbstractMethod* referrer, Thread* self,
-                                             mirror::AbstractMethod** sp)
+                                             const mirror::ArtMethod* referrer, Thread* self,
+                                             mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead, sizeof(int32_t));
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead,
+                                          sizeof(int32_t));
   if (LIKELY(field != NULL && obj != NULL)) {
     return field->Get32(obj);
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveRead, sizeof(int32_t), true);
+  field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveRead, sizeof(int32_t),
+                            true);
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
       ThrowLocation throw_location = self->GetCurrentLocationForThrow();
@@ -96,15 +101,17 @@ extern "C" uint32_t artGet32InstanceFromCode(uint32_t field_idx, mirror::Object*
 }
 
 extern "C" uint64_t artGet64InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
-                                             const mirror::AbstractMethod* referrer, Thread* self,
-                                             mirror::AbstractMethod** sp)
+                                             const mirror::ArtMethod* referrer, Thread* self,
+                                             mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead, sizeof(int64_t));
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead,
+                                          sizeof(int64_t));
   if (LIKELY(field != NULL && obj != NULL)) {
     return field->Get64(obj);
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveRead, sizeof(int64_t), true);
+  field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveRead, sizeof(int64_t),
+                            true);
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
       ThrowLocation throw_location = self->GetCurrentLocationForThrow();
@@ -117,16 +124,18 @@ extern "C" uint64_t artGet64InstanceFromCode(uint32_t field_idx, mirror::Object*
 }
 
 extern "C" mirror::Object* artGetObjInstanceFromCode(uint32_t field_idx, mirror::Object* obj,
-                                                     const mirror::AbstractMethod* referrer,
+                                                     const mirror::ArtMethod* referrer,
                                                      Thread* self,
-                                                     mirror::AbstractMethod** sp)
+                                                     mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx, referrer, InstanceObjectRead, sizeof(mirror::Object*));
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstanceObjectRead,
+                                          sizeof(mirror::Object*));
   if (LIKELY(field != NULL && obj != NULL)) {
     return field->GetObj(obj);
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, InstanceObjectRead, sizeof(mirror::Object*), true);
+  field = FindFieldFromCode(field_idx, referrer, self, InstanceObjectRead, sizeof(mirror::Object*),
+                            true);
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
       ThrowLocation throw_location = self->GetCurrentLocationForThrow();
@@ -139,10 +148,11 @@ extern "C" mirror::Object* artGetObjInstanceFromCode(uint32_t field_idx, mirror:
 }
 
 extern "C" int artSet32StaticFromCode(uint32_t field_idx, uint32_t new_value,
-                                      const mirror::AbstractMethod* referrer, Thread* self,
-                                      mirror::AbstractMethod** sp)
+                                      const mirror::ArtMethod* referrer, Thread* self,
+                                      mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(int32_t));
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite,
+                                          sizeof(int32_t));
   if (LIKELY(field != NULL)) {
     field->Set32(field->GetDeclaringClass(), new_value);
     return 0;  // success
@@ -156,10 +166,11 @@ extern "C" int artSet32StaticFromCode(uint32_t field_idx, uint32_t new_value,
   return -1;  // failure
 }
 
-extern "C" int artSet64StaticFromCode(uint32_t field_idx, const mirror::AbstractMethod* referrer,
-                                      uint64_t new_value, Thread* self, mirror::AbstractMethod** sp)
+extern "C" int artSet64StaticFromCode(uint32_t field_idx, const mirror::ArtMethod* referrer,
+                                      uint64_t new_value, Thread* self, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(int64_t));
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite,
+                                          sizeof(int64_t));
   if (LIKELY(field != NULL)) {
     field->Set64(field->GetDeclaringClass(), new_value);
     return 0;  // success
@@ -174,11 +185,11 @@ extern "C" int artSet64StaticFromCode(uint32_t field_idx, const mirror::Abstract
 }
 
 extern "C" int artSetObjStaticFromCode(uint32_t field_idx, mirror::Object* new_value,
-                                       const mirror::AbstractMethod* referrer, Thread* self,
-                                       mirror::AbstractMethod** sp)
+                                       const mirror::ArtMethod* referrer, Thread* self,
+                                       mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx, referrer, StaticObjectWrite,
-                                       sizeof(mirror::Object*));
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, StaticObjectWrite,
+                                          sizeof(mirror::Object*));
   if (LIKELY(field != NULL)) {
     if (LIKELY(!FieldHelper(field).IsPrimitiveType())) {
       field->SetObj(field->GetDeclaringClass(), new_value);
@@ -195,16 +206,18 @@ extern "C" int artSetObjStaticFromCode(uint32_t field_idx, mirror::Object* new_v
 }
 
 extern "C" int artSet32InstanceFromCode(uint32_t field_idx, mirror::Object* obj, uint32_t new_value,
-                                        const mirror::AbstractMethod* referrer, Thread* self,
-                                        mirror::AbstractMethod** sp)
+                                        const mirror::ArtMethod* referrer, Thread* self,
+                                        mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite, sizeof(int32_t));
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite,
+                                          sizeof(int32_t));
   if (LIKELY(field != NULL && obj != NULL)) {
     field->Set32(obj, new_value);
     return 0;  // success
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveWrite, sizeof(int32_t), true);
+  field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveWrite, sizeof(int32_t),
+                            true);
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
       ThrowLocation throw_location = self->GetCurrentLocationForThrow();
@@ -218,20 +231,21 @@ extern "C" int artSet32InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
 }
 
 extern "C" int artSet64InstanceFromCode(uint32_t field_idx, mirror::Object* obj, uint64_t new_value,
-                                        Thread* self, mirror::AbstractMethod** sp)
+                                        Thread* self, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::AbstractMethod* callee_save = Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsOnly);
-  mirror::AbstractMethod* referrer =
-      sp[callee_save->GetFrameSizeInBytes() / sizeof(mirror::AbstractMethod*)];
-  mirror::Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite,
-                                       sizeof(int64_t));
+  mirror::ArtMethod* callee_save = Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsOnly);
+  mirror::ArtMethod* referrer =
+      sp[callee_save->GetFrameSizeInBytes() / sizeof(mirror::ArtMethod*)];
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite,
+                                          sizeof(int64_t));
   if (LIKELY(field != NULL  && obj != NULL)) {
     field->Set64(obj, new_value);
     return 0;  // success
   }
   *sp = callee_save;
   self->SetTopOfStack(sp, 0);
-  field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveWrite, sizeof(int64_t), true);
+  field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveWrite, sizeof(int64_t),
+                            true);
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
       ThrowLocation throw_location = self->GetCurrentLocationForThrow();
@@ -246,11 +260,11 @@ extern "C" int artSet64InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
 
 extern "C" int artSetObjInstanceFromCode(uint32_t field_idx, mirror::Object* obj,
                                          mirror::Object* new_value,
-                                         const mirror::AbstractMethod* referrer, Thread* self,
-                                         mirror::AbstractMethod** sp)
+                                         const mirror::ArtMethod* referrer, Thread* self,
+                                         mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* field = FindFieldFast(field_idx, referrer, InstanceObjectWrite,
-                                       sizeof(mirror::Object*));
+  mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstanceObjectWrite,
+                                          sizeof(mirror::Object*));
   if (LIKELY(field != NULL && obj != NULL)) {
     field->SetObj(obj, new_value);
     return 0;  // success

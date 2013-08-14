@@ -22,11 +22,11 @@
 
 namespace art {
 namespace mirror {
-class AbstractMethod;
+class ArtMethod;
 }  // namespace mirror
 
 // Place a special frame at the TOS that will save the callee saves for the given type.
-static void FinishCalleeSaveFrameSetup(Thread* self, mirror::AbstractMethod** sp,
+static void FinishCalleeSaveFrameSetup(Thread* self, mirror::ArtMethod** sp,
                                        Runtime::CalleeSaveType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Be aware the store below may well stomp on an incoming argument.

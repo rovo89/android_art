@@ -20,6 +20,7 @@
 #include <stdio.h>
 
 #include "array-inl.h"
+#include "art_field-inl.h"
 #include "asm_support.h"
 #include "class-inl.h"
 #include "class_linker.h"
@@ -27,11 +28,10 @@
 #include "common_test.h"
 #include "dex_file.h"
 #include "entrypoints/entrypoint_utils.h"
-#include "field-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/heap.h"
 #include "iftable-inl.h"
-#include "abstract_method-inl.h"
+#include "art_method-inl.h"
 #include "object-inl.h"
 #include "object_array-inl.h"
 #include "sirt_ref.h"
@@ -75,7 +75,7 @@ TEST_F(ObjectTest, AsmConstants) {
   ASSERT_EQ(STRING_OFFSET_OFFSET, String::OffsetOffset().Int32Value());
   ASSERT_EQ(STRING_DATA_OFFSET, Array::DataOffset(sizeof(uint16_t)).Int32Value());
 
-  ASSERT_EQ(METHOD_CODE_OFFSET, AbstractMethod::EntryPointFromCompiledCodeOffset().Int32Value());
+  ASSERT_EQ(METHOD_CODE_OFFSET, ArtMethod::EntryPointFromCompiledCodeOffset().Int32Value());
 }
 
 TEST_F(ObjectTest, IsInSamePackage) {
@@ -204,7 +204,7 @@ TEST_F(ObjectTest, CheckAndAllocArrayFromCode) {
   // pretend we are trying to call 'new char[3]' from String.toCharArray
   ScopedObjectAccess soa(Thread::Current());
   Class* java_util_Arrays = class_linker_->FindSystemClass("Ljava/util/Arrays;");
-  AbstractMethod* sort = java_util_Arrays->FindDirectMethod("sort", "([I)V");
+  ArtMethod* sort = java_util_Arrays->FindDirectMethod("sort", "([I)V");
   const DexFile::StringId* string_id = java_lang_dex_file_->FindStringId("[I");
   ASSERT_TRUE(string_id != NULL);
   const DexFile::TypeId* type_id = java_lang_dex_file_->FindTypeId(
@@ -261,7 +261,7 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
 
   Class* klass =
       class_linker_->FindClass("LStaticsFromCode;", soa.Decode<ClassLoader*>(class_loader));
-  AbstractMethod* clinit = klass->FindDirectMethod("<clinit>", "()V");
+  ArtMethod* clinit = klass->FindDirectMethod("<clinit>", "()V");
   const DexFile::StringId* klass_string_id = dex_file->FindStringId("LStaticsFromCode;");
   ASSERT_TRUE(klass_string_id != NULL);
   const DexFile::TypeId* klass_type_id = dex_file->FindTypeId(
@@ -282,8 +282,8 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
   ASSERT_TRUE(field_id != NULL);
   uint32_t field_idx = dex_file->GetIndexForFieldId(*field_id);
 
-  Field* field = FindFieldFromCode(field_idx, clinit, Thread::Current(), StaticObjectRead,
-                                   sizeof(Object*), true);
+  ArtField* field = FindFieldFromCode(field_idx, clinit, Thread::Current(), StaticObjectRead,
+                                      sizeof(Object*), true);
   Object* s0 = field->GetObj(klass);
   EXPECT_TRUE(s0 != NULL);
 
@@ -294,7 +294,7 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
   field->SetObj(field->GetDeclaringClass(), NULL);
   EXPECT_EQ(NULL, field->GetObj(klass));
 
-  // TODO: more exhaustive tests of all 6 cases of Field::*FromCode
+  // TODO: more exhaustive tests of all 6 cases of ArtField::*FromCode
 }
 
 TEST_F(ObjectTest, String) {
@@ -395,29 +395,29 @@ TEST_F(ObjectTest, DescriptorCompare) {
   Class* klass2 = linker->FindClass("LProtoCompare2;", class_loader_2.get());
   ASSERT_TRUE(klass2 != NULL);
 
-  AbstractMethod* m1_1 = klass1->GetVirtualMethod(0);
+  ArtMethod* m1_1 = klass1->GetVirtualMethod(0);
   MethodHelper mh(m1_1);
   EXPECT_STREQ(mh.GetName(), "m1");
-  AbstractMethod* m2_1 = klass1->GetVirtualMethod(1);
+  ArtMethod* m2_1 = klass1->GetVirtualMethod(1);
   mh.ChangeMethod(m2_1);
   EXPECT_STREQ(mh.GetName(), "m2");
-  AbstractMethod* m3_1 = klass1->GetVirtualMethod(2);
+  ArtMethod* m3_1 = klass1->GetVirtualMethod(2);
   mh.ChangeMethod(m3_1);
   EXPECT_STREQ(mh.GetName(), "m3");
-  AbstractMethod* m4_1 = klass1->GetVirtualMethod(3);
+  ArtMethod* m4_1 = klass1->GetVirtualMethod(3);
   mh.ChangeMethod(m4_1);
   EXPECT_STREQ(mh.GetName(), "m4");
 
-  AbstractMethod* m1_2 = klass2->GetVirtualMethod(0);
+  ArtMethod* m1_2 = klass2->GetVirtualMethod(0);
   mh.ChangeMethod(m1_2);
   EXPECT_STREQ(mh.GetName(), "m1");
-  AbstractMethod* m2_2 = klass2->GetVirtualMethod(1);
+  ArtMethod* m2_2 = klass2->GetVirtualMethod(1);
   mh.ChangeMethod(m2_2);
   EXPECT_STREQ(mh.GetName(), "m2");
-  AbstractMethod* m3_2 = klass2->GetVirtualMethod(2);
+  ArtMethod* m3_2 = klass2->GetVirtualMethod(2);
   mh.ChangeMethod(m3_2);
   EXPECT_STREQ(mh.GetName(), "m3");
-  AbstractMethod* m4_2 = klass2->GetVirtualMethod(3);
+  ArtMethod* m4_2 = klass2->GetVirtualMethod(3);
   mh.ChangeMethod(m4_2);
   EXPECT_STREQ(mh.GetName(), "m4");
 
@@ -593,8 +593,8 @@ TEST_F(ObjectTest, FindInstanceField) {
   EXPECT_TRUE(c->FindInstanceField("Count", "I") == NULL);
 
   // Right name and type.
-  Field* f1 = c->FindDeclaredInstanceField("count", "I");
-  Field* f2 = c->FindInstanceField("count", "I");
+  ArtField* f1 = c->FindDeclaredInstanceField("count", "I");
+  ArtField* f2 = c->FindInstanceField("count", "I");
   EXPECT_TRUE(f1 != NULL);
   EXPECT_TRUE(f2 != NULL);
   EXPECT_EQ(f1, f2);
@@ -626,8 +626,8 @@ TEST_F(ObjectTest, FindStaticField) {
   EXPECT_TRUE(c->FindStaticField("cASE_INSENSITIVE_ORDER", "Ljava/util/Comparator;") == NULL);
 
   // Right name and type.
-  Field* f1 = c->FindDeclaredStaticField("CASE_INSENSITIVE_ORDER", "Ljava/util/Comparator;");
-  Field* f2 = c->FindStaticField("CASE_INSENSITIVE_ORDER", "Ljava/util/Comparator;");
+  ArtField* f1 = c->FindDeclaredStaticField("CASE_INSENSITIVE_ORDER", "Ljava/util/Comparator;");
+  ArtField* f2 = c->FindStaticField("CASE_INSENSITIVE_ORDER", "Ljava/util/Comparator;");
   EXPECT_TRUE(f1 != NULL);
   EXPECT_TRUE(f2 != NULL);
   EXPECT_EQ(f1, f2);

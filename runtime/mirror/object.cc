@@ -16,12 +16,12 @@
 
 #include "object.h"
 
+#include "art_field.h"
+#include "art_field-inl.h"
 #include "array-inl.h"
 #include "class.h"
 #include "class-inl.h"
 #include "class_linker-inl.h"
-#include "field.h"
-#include "field-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/heap.h"
 #include "iftable-inl.h"
@@ -67,7 +67,7 @@ Object* Object::Clone(Thread* self) {
     for (const Class* klass = c; klass != NULL; klass = klass->GetSuperClass()) {
       size_t num_reference_fields = klass->NumReferenceInstanceFields();
       for (size_t i = 0; i < num_reference_fields; ++i) {
-        Field* field = klass->GetInstanceField(i);
+        ArtField* field = klass->GetInstanceField(i);
         MemberOffset field_offset = field->GetOffset();
         const Object* ref = copy->GetFieldObject<const Object*>(field_offset, false);
         heap->WriteBarrierField(copy.get(), field_offset, ref);
@@ -90,11 +90,11 @@ void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, const Object* n
     return;
   }
   for (const Class* cur = c; cur != NULL; cur = cur->GetSuperClass()) {
-    ObjectArray<Field>* fields = cur->GetIFields();
+    ObjectArray<ArtField>* fields = cur->GetIFields();
     if (fields != NULL) {
       size_t num_ref_ifields = cur->NumReferenceInstanceFields();
       for (size_t i = 0; i < num_ref_ifields; ++i) {
-        Field* field = fields->Get(i);
+        ArtField* field = fields->Get(i);
         if (field->GetOffset().Int32Value() == field_offset.Int32Value()) {
           FieldHelper fh(field);
           CHECK(fh.GetType()->IsAssignableFrom(new_value->GetClass()));
@@ -108,11 +108,11 @@ void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, const Object* n
     return;
   }
   if (IsClass()) {
-    ObjectArray<Field>* fields = AsClass()->GetSFields();
+    ObjectArray<ArtField>* fields = AsClass()->GetSFields();
     if (fields != NULL) {
       size_t num_ref_sfields = AsClass()->NumReferenceStaticFields();
       for (size_t i = 0; i < num_ref_sfields; ++i) {
-        Field* field = fields->Get(i);
+        ArtField* field = fields->Get(i);
         if (field->GetOffset().Int32Value() == field_offset.Int32Value()) {
           FieldHelper fh(field);
           CHECK(fh.GetType()->IsAssignableFrom(new_value->GetClass()));

@@ -347,7 +347,7 @@ void Mir2Lir::GenSput(uint32_t field_idx, RegLocation rl_src, bool is_long_or_do
       RegLocation rl_method  = LoadCurrMethod();
       rBase = AllocTemp();
       LoadWordDisp(rl_method.low_reg,
-                   mirror::AbstractMethod::DeclaringClassOffset().Int32Value(), rBase);
+                   mirror::ArtMethod::DeclaringClassOffset().Int32Value(), rBase);
       if (IsTemp(rl_method.low_reg)) {
         FreeTemp(rl_method.low_reg);
       }
@@ -365,7 +365,7 @@ void Mir2Lir::GenSput(uint32_t field_idx, RegLocation rl_src, bool is_long_or_do
       rBase = TargetReg(kArg0);
       LockTemp(rBase);
       LoadWordDisp(r_method,
-                   mirror::AbstractMethod::DexCacheInitializedStaticStorageOffset().Int32Value(),
+                   mirror::ArtMethod::DexCacheInitializedStaticStorageOffset().Int32Value(),
                    rBase);
       LoadWordDisp(rBase,
                    mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
@@ -433,7 +433,7 @@ void Mir2Lir::GenSget(uint32_t field_idx, RegLocation rl_dest,
       RegLocation rl_method  = LoadCurrMethod();
       rBase = AllocTemp();
       LoadWordDisp(rl_method.low_reg,
-                   mirror::AbstractMethod::DeclaringClassOffset().Int32Value(), rBase);
+                   mirror::ArtMethod::DeclaringClassOffset().Int32Value(), rBase);
     } else {
       // Medium path, static storage base in a different class which requires checks that the other
       // class is initialized
@@ -448,7 +448,7 @@ void Mir2Lir::GenSget(uint32_t field_idx, RegLocation rl_dest,
       rBase = TargetReg(kArg0);
       LockTemp(rBase);
       LoadWordDisp(r_method,
-                   mirror::AbstractMethod::DexCacheInitializedStaticStorageOffset().Int32Value(),
+                   mirror::ArtMethod::DexCacheInitializedStaticStorageOffset().Int32Value(),
                    rBase);
       LoadWordDisp(rBase, mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
                    sizeof(int32_t*) * ssb_index, rBase);
@@ -746,7 +746,7 @@ void Mir2Lir::GenConstClass(uint32_t type_idx, RegLocation rl_dest) {
   } else {
     // We're don't need access checks, load type from dex cache
     int32_t dex_cache_offset =
-        mirror::AbstractMethod::DexCacheResolvedTypesOffset().Int32Value();
+        mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value();
     LoadWordDisp(rl_method.low_reg, dex_cache_offset, res_reg);
     int32_t offset_of_type =
         mirror::Array::DataOffset(sizeof(mirror::Class*)).Int32Value() + (sizeof(mirror::Class*)
@@ -799,7 +799,7 @@ void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
     LockCallTemps();  // Using explicit registers
     LoadCurrMethodDirect(TargetReg(kArg2));
     LoadWordDisp(TargetReg(kArg2),
-                 mirror::AbstractMethod::DexCacheStringsOffset().Int32Value(), TargetReg(kArg0));
+                 mirror::ArtMethod::DexCacheStringsOffset().Int32Value(), TargetReg(kArg0));
     // Might call out to helper, which will return resolved string in kRet0
     int r_tgt = CallHelperSetup(QUICK_ENTRYPOINT_OFFSET(pResolveString));
     LoadWordDisp(TargetReg(kArg0), offset_of_string, TargetReg(kRet0));
@@ -835,7 +835,7 @@ void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
     int res_reg = AllocTemp();
     RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
     LoadWordDisp(rl_method.low_reg,
-                 mirror::AbstractMethod::DexCacheStringsOffset().Int32Value(), res_reg);
+                 mirror::ArtMethod::DexCacheStringsOffset().Int32Value(), res_reg);
     LoadWordDisp(res_reg, offset_of_string, rl_result.low_reg);
     StoreValue(rl_dest, rl_result);
   }
@@ -884,11 +884,11 @@ void Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx, Re
 
   LoadCurrMethodDirect(check_class);
   if (use_declaring_class) {
-    LoadWordDisp(check_class, mirror::AbstractMethod::DeclaringClassOffset().Int32Value(),
+    LoadWordDisp(check_class, mirror::ArtMethod::DeclaringClassOffset().Int32Value(),
                  check_class);
     LoadWordDisp(object.low_reg,  mirror::Object::ClassOffset().Int32Value(), object_class);
   } else {
-    LoadWordDisp(check_class, mirror::AbstractMethod::DexCacheResolvedTypesOffset().Int32Value(),
+    LoadWordDisp(check_class, mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
                  check_class);
     LoadWordDisp(object.low_reg,  mirror::Object::ClassOffset().Int32Value(), object_class);
     int32_t offset_of_type =
@@ -940,12 +940,12 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
   } else if (use_declaring_class) {
     LoadValueDirectFixed(rl_src, TargetReg(kArg0));  // kArg0 <= ref
     LoadWordDisp(TargetReg(kArg1),
-                 mirror::AbstractMethod::DeclaringClassOffset().Int32Value(), class_reg);
+                 mirror::ArtMethod::DeclaringClassOffset().Int32Value(), class_reg);
   } else {
     // Load dex cache entry into class_reg (kArg2)
     LoadValueDirectFixed(rl_src, TargetReg(kArg0));  // kArg0 <= ref
     LoadWordDisp(TargetReg(kArg1),
-                 mirror::AbstractMethod::DexCacheResolvedTypesOffset().Int32Value(), class_reg);
+                 mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value(), class_reg);
     int32_t offset_of_type =
         mirror::Array::DataOffset(sizeof(mirror::Class*)).Int32Value() + (sizeof(mirror::Class*)
         * type_idx);
@@ -1078,11 +1078,11 @@ void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_
     OpRegCopy(class_reg, TargetReg(kRet0));  // Align usage with fast path
   } else if (use_declaring_class) {
     LoadWordDisp(TargetReg(kArg1),
-                 mirror::AbstractMethod::DeclaringClassOffset().Int32Value(), class_reg);
+                 mirror::ArtMethod::DeclaringClassOffset().Int32Value(), class_reg);
   } else {
     // Load dex cache entry into class_reg (kArg2)
     LoadWordDisp(TargetReg(kArg1),
-                 mirror::AbstractMethod::DexCacheResolvedTypesOffset().Int32Value(), class_reg);
+                 mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value(), class_reg);
     int32_t offset_of_type =
         mirror::Array::DataOffset(sizeof(mirror::Class*)).Int32Value() +
         (sizeof(mirror::Class*) * type_idx);

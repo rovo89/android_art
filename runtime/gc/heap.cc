@@ -41,8 +41,8 @@
 #include "gc/space/space-inl.h"
 #include "image.h"
 #include "invoke_arg_array_builder.h"
+#include "mirror/art_field-inl.h"
 #include "mirror/class-inl.h"
-#include "mirror/field-inl.h"
 #include "mirror/object.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
@@ -1512,11 +1512,11 @@ class VerifyReferenceCardVisitor {
           if (!obj->IsObjectArray()) {
             const mirror::Class* klass = is_static ? obj->AsClass() : obj->GetClass();
             CHECK(klass != NULL);
-            const mirror::ObjectArray<mirror::Field>* fields = is_static ? klass->GetSFields()
-                                                                         : klass->GetIFields();
+            const mirror::ObjectArray<mirror::ArtField>* fields = is_static ? klass->GetSFields()
+                                                                            : klass->GetIFields();
             CHECK(fields != NULL);
             for (int32_t i = 0; i < fields->GetLength(); ++i) {
-              const mirror::Field* cur = fields->Get(i);
+              const mirror::ArtField* cur = fields->Get(i);
               if (cur->GetOffset().Int32Value() == offset.Int32Value()) {
                 LOG(ERROR) << (is_static ? "Static " : "") << "field in the live stack is "
                           << PrettyField(cur);

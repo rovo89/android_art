@@ -27,7 +27,7 @@
 #include "llvm/llvm_compilation_unit.h"
 #include "llvm/runtime_support_llvm_func.h"
 #include "llvm/utils_llvm.h"
-#include "mirror/abstract_method.h"
+#include "mirror/art_method.h"
 #include "runtime.h"
 #include "stack.h"
 #include "thread.h"
@@ -91,7 +91,7 @@ CompiledMethod* JniCompiler::Compile() {
     // Load class object
     this_object_or_class_object =
         irb_.LoadFromObjectOffset(method_object_addr,
-                                  mirror::AbstractMethod::DeclaringClassOffset().Int32Value(),
+                                  mirror::ArtMethod::DeclaringClassOffset().Int32Value(),
                                   irb_.getJObjectTy(),
                                   kTBAAConstJObject);
   }
@@ -135,7 +135,7 @@ CompiledMethod* JniCompiler::Compile() {
   // Get callee code_addr
   ::llvm::Value* code_addr =
       irb_.LoadFromObjectOffset(method_object_addr,
-                                mirror::AbstractMethod::NativeMethodOffset().Int32Value(),
+                                mirror::ArtMethod::NativeMethodOffset().Int32Value(),
                                 GetFunctionType(dex_compilation_unit_->GetDexMethodIndex(),
                                                 is_static, true)->getPointerTo(),
                                 kTBAARuntimeInfo);

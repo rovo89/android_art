@@ -152,7 +152,7 @@ class ImageWriter {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void FixupClass(const mirror::Class* orig, mirror::Class* copy)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupMethod(const mirror::AbstractMethod* orig, mirror::AbstractMethod* copy)
+  void FixupMethod(const mirror::ArtMethod* orig, mirror::ArtMethod* copy)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void FixupObject(const mirror::Object* orig, mirror::Object* copy)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

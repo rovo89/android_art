@@ -22,10 +22,10 @@
 
 namespace art {
 namespace mirror {
-class AbstractMethod;
-class Class;
-class Field;
-class Object;
+  class ArtField;
+  class ArtMethod;
+  class Class;
+  class Object;
 }  // namespace mirror
 union JValue;
 class ScopedObjectAccess;
@@ -34,10 +34,10 @@ class ThrowLocation;
 mirror::Object* BoxPrimitive(Primitive::Type src_class, const JValue& value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 bool UnboxPrimitiveForArgument(mirror::Object* o, mirror::Class* dst_class, JValue& unboxed_value,
-                               mirror::AbstractMethod* m, size_t index)
+                               mirror::ArtMethod* m, size_t index)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 bool UnboxPrimitiveForField(mirror::Object* o, mirror::Class* dst_class, JValue& unboxed_value,
-                            mirror::Field* f)
+                            mirror::ArtField* f)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 bool UnboxPrimitiveForResult(const ThrowLocation& throw_location, mirror::Object* o,
                              mirror::Class* dst_class, JValue& unboxed_value)

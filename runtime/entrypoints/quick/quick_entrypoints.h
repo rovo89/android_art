@@ -29,9 +29,9 @@
 namespace art {
 
 namespace mirror {
-  class AbstractMethod;
-  class Class;
-  class Object;
+class ArtMethod;
+class Class;
+class Object;
 }  // namespace mirror
 
 class Thread;
@@ -116,8 +116,8 @@ struct PACKED(4) QuickEntryPoints {
   void* (*pMemcpy)(void*, const void*, size_t);
 
   // Invocation
-  void (*pQuickResolutionTrampoline)(mirror::AbstractMethod*);
-  void (*pQuickToInterpreterBridge)(mirror::AbstractMethod*);
+  void (*pQuickResolutionTrampoline)(mirror::ArtMethod*);
+  void (*pQuickToInterpreterBridge)(mirror::ArtMethod*);
   void (*pInvokeDirectTrampolineWithAccessCheck)(uint32_t, void*);
   void (*pInvokeInterfaceTrampoline)(uint32_t, void*);
   void (*pInvokeInterfaceTrampolineWithAccessCheck)(uint32_t, void*);

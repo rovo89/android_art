@@ -19,10 +19,10 @@
 
 #include "object.h"
 
-#include "abstract_method.h"
+#include "art_field.h"
+#include "art_method.h"
 #include "atomic.h"
 #include "array-inl.h"
-#include "field.h"
 #include "class.h"
 #include "monitor.h"
 #include "runtime.h"
@@ -112,32 +112,32 @@ inline bool Object::IsArrayInstance() const {
   return GetClass()->IsArrayClass();
 }
 
-inline bool Object::IsField() const {
-  return GetClass()->IsFieldClass();
+inline bool Object::IsArtField() const {
+  return GetClass()->IsArtFieldClass();
 }
 
-inline Field* Object::AsField() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  DCHECK(IsField());
-  return down_cast<Field*>(this);
+inline ArtField* Object::AsArtField() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  DCHECK(IsArtField());
+  return down_cast<ArtField*>(this);
 }
 
-inline const Field* Object::AsField() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  DCHECK(IsField());
-  return down_cast<const Field*>(this);
+inline const ArtField* Object::AsArtField() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  DCHECK(IsArtField());
+  return down_cast<const ArtField*>(this);
 }
 
-inline bool Object::IsMethod() const {
-  return GetClass()->IsMethodClass();
+inline bool Object::IsArtMethod() const {
+  return GetClass()->IsArtMethodClass();
 }
 
-inline AbstractMethod* Object::AsMethod() {
-  DCHECK(IsMethod());
-  return down_cast<AbstractMethod*>(this);
+inline ArtMethod* Object::AsArtMethod() {
+  DCHECK(IsArtMethod());
+  return down_cast<ArtMethod*>(this);
 }
 
-inline const AbstractMethod* Object::AsMethod() const {
-  DCHECK(IsMethod());
-  return down_cast<const AbstractMethod*>(this);
+inline const ArtMethod* Object::AsArtMethod() const {
+  DCHECK(IsArtMethod());
+  return down_cast<const ArtMethod*>(this);
 }
 
 inline bool Object::IsReferenceInstance() const {
@@ -227,8 +227,8 @@ inline size_t Object::SizeOf() const {
   } else {
     result = GetClass()->GetObjectSize();
   }
-  DCHECK(!IsField()  || result == sizeof(Field));
-  DCHECK(!IsMethod() || result == sizeof(AbstractMethod));
+  DCHECK(!IsArtField()  || result == sizeof(ArtField));
+  DCHECK(!IsArtMethod() || result == sizeof(ArtMethod));
   return result;
 }
 

@@ -33,7 +33,7 @@ extern "C" uint32_t artIsAssignableFromCode(const mirror::Class* klass,
 
 // Check whether it is safe to cast one class to the other, throw exception and return -1 on failure
 extern "C" int artCheckCastFromCode(mirror::Class* src_type, mirror::Class* dest_type,
-                                    Thread* self, mirror::AbstractMethod** sp)
+                                    Thread* self, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(src_type->IsClass()) << PrettyClass(src_type);
   DCHECK(dest_type->IsClass()) << PrettyClass(dest_type);
@@ -50,7 +50,7 @@ extern "C" int artCheckCastFromCode(mirror::Class* src_type, mirror::Class* dest
 // Returns 0 on success and -1 if an exception is pending.
 extern "C" int artCanPutArrayElementFromCode(const mirror::Object* element,
                                              const mirror::Class* array_class,
-                                             Thread* self, mirror::AbstractMethod** sp)
+                                             Thread* self, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(array_class != NULL);
   // element can't be NULL as we catch this is screened in runtime_support

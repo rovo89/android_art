@@ -23,7 +23,7 @@
 #include "indirect_reference_table.h"
 #include "invoke_type.h"
 #include "jni_internal.h"
-#include "mirror/abstract_method.h"
+#include "mirror/art_method.h"
 #include "mirror/array.h"
 #include "mirror/class-inl.h"
 #include "mirror/throwable.h"
@@ -34,7 +34,7 @@ namespace art {
 
 namespace mirror {
   class Class;
-  class Field;
+  class ArtField;
   class Object;
 }  // namespace mirror
 
@@ -42,7 +42,7 @@ namespace mirror {
 // cannot be resolved, throw an error. If it can, use it to create an instance.
 // When verification/compiler hasn't been able to verify access, optionally perform an access
 // check.
-static inline mirror::Object* AllocObjectFromCode(uint32_t type_idx, mirror::AbstractMethod* method,
+static inline mirror::Object* AllocObjectFromCode(uint32_t type_idx, mirror::ArtMethod* method,
                                                   Thread* self,
                                                   bool access_check)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -80,7 +80,7 @@ static inline mirror::Object* AllocObjectFromCode(uint32_t type_idx, mirror::Abs
 // it cannot be resolved, throw an error. If it can, use it to create an array.
 // When verification/compiler hasn't been able to verify access, optionally perform an access
 // check.
-static inline mirror::Array* AllocArrayFromCode(uint32_t type_idx, mirror::AbstractMethod* method,
+static inline mirror::Array* AllocArrayFromCode(uint32_t type_idx, mirror::ArtMethod* method,
                                                 int32_t component_count,
                                                 Thread* self, bool access_check)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -107,7 +107,7 @@ static inline mirror::Array* AllocArrayFromCode(uint32_t type_idx, mirror::Abstr
   return mirror::Array::Alloc(self, klass, component_count);
 }
 
-extern mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::AbstractMethod* method,
+extern mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::ArtMethod* method,
                                                  int32_t component_count,
                                                  Thread* self, bool access_check)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -125,17 +125,17 @@ enum FindFieldType {
 };
 
 // Slow field find that can initialize classes and may throw exceptions.
-extern mirror::Field* FindFieldFromCode(uint32_t field_idx, const mirror::AbstractMethod* referrer,
-                                        Thread* self, FindFieldType type, size_t expected_size,
-                                        bool access_check)
+extern mirror::ArtField* FindFieldFromCode(uint32_t field_idx, const mirror::ArtMethod* referrer,
+                                           Thread* self, FindFieldType type, size_t expected_size,
+                                           bool access_check)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Fast path field resolution that can't initialize classes or throw exceptions.
-static inline mirror::Field* FindFieldFast(uint32_t field_idx,
-                                           const mirror::AbstractMethod* referrer,
-                                           FindFieldType type, size_t expected_size)
+static inline mirror::ArtField* FindFieldFast(uint32_t field_idx,
+                                              const mirror::ArtMethod* referrer,
+                                              FindFieldType type, size_t expected_size)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Field* resolved_field =
+  mirror::ArtField* resolved_field =
       referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
   if (UNLIKELY(resolved_field == NULL)) {
     return NULL;
@@ -186,16 +186,16 @@ static inline mirror::Field* FindFieldFast(uint32_t field_idx,
 }
 
 // Fast path method resolution that can't throw exceptions.
-static inline mirror::AbstractMethod* FindMethodFast(uint32_t method_idx,
-                                                     mirror::Object* this_object,
-                                                     const mirror::AbstractMethod* referrer,
-                                                     bool access_check, InvokeType type)
+static inline mirror::ArtMethod* FindMethodFast(uint32_t method_idx,
+                                                mirror::Object* this_object,
+                                                const mirror::ArtMethod* referrer,
+                                                bool access_check, InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   bool is_direct = type == kStatic || type == kDirect;
   if (UNLIKELY(this_object == NULL && !is_direct)) {
     return NULL;
   }
-  mirror::AbstractMethod* resolved_method =
+  mirror::ArtMethod* resolved_method =
       referrer->GetDeclaringClass()->GetDexCache()->GetResolvedMethod(method_idx);
   if (UNLIKELY(resolved_method == NULL)) {
     return NULL;
@@ -228,13 +228,13 @@ static inline mirror::AbstractMethod* FindMethodFast(uint32_t method_idx,
   }
 }
 
-extern mirror::AbstractMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object* this_object,
-                                                  mirror::AbstractMethod* referrer,
-                                                  Thread* self, bool access_check, InvokeType type)
+extern mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object* this_object,
+                                             mirror::ArtMethod* referrer,
+                                             Thread* self, bool access_check, InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 static inline mirror::Class* ResolveVerifyAndClinit(uint32_t type_idx,
-                                                    const mirror::AbstractMethod* referrer,
+                                                    const mirror::ArtMethod* referrer,
                                                     Thread* self, bool can_run_clinit,
                                                     bool verify_access)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -271,7 +271,7 @@ static inline mirror::Class* ResolveVerifyAndClinit(uint32_t type_idx,
 
 extern void ThrowStackOverflowError(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-static inline mirror::String* ResolveStringFromCode(const mirror::AbstractMethod* referrer,
+static inline mirror::String* ResolveStringFromCode(const mirror::ArtMethod* referrer,
                                                     uint32_t string_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -307,7 +307,7 @@ static inline void CheckReferenceResult(mirror::Object* o, Thread* self)
   if (o == NULL) {
     return;
   }
-  mirror::AbstractMethod* m = self->GetCurrentMethod(NULL);
+  mirror::ArtMethod* m = self->GetCurrentMethod(NULL);
   if (o == kInvalidIndirectRefObject) {
     JniAbortF(NULL, "invalid reference returned from %s", PrettyMethod(m).c_str());
   }
@@ -334,7 +334,7 @@ static inline void CheckSuspend(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mut
 }
 
 JValue InvokeProxyInvocationHandler(ScopedObjectAccessUnchecked& soa, const char* shorty,
-                                    jobject rcvr_jobj, jobject interface_method_jobj,
+                                    jobject rcvr_jobj, jobject interface_art_method_jobj,
                                     std::vector<jvalue>& args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -356,12 +356,12 @@ static inline uintptr_t GetQuickInstrumentationExitPc() {
   return reinterpret_cast<uintptr_t>(art_quick_instrumentation_exit);
 }
 
-extern "C" void art_portable_to_interpreter_bridge(mirror::AbstractMethod*);
+extern "C" void art_portable_to_interpreter_bridge(mirror::ArtMethod*);
 static inline const void* GetPortableToInterpreterBridge() {
   return reinterpret_cast<void*>(art_portable_to_interpreter_bridge);
 }
 
-extern "C" void art_quick_to_interpreter_bridge(mirror::AbstractMethod*);
+extern "C" void art_quick_to_interpreter_bridge(mirror::ArtMethod*);
 static inline const void* GetQuickToInterpreterBridge() {
   return reinterpret_cast<void*>(art_quick_to_interpreter_bridge);
 }

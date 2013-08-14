@@ -26,7 +26,7 @@
 namespace art {
 
 namespace mirror {
-class AbstractMethod;
+class ArtMethod;
 class Object;
 }  // mirror
 
@@ -36,7 +36,7 @@ class PACKED(4) ThrowLocation {
     Clear();
   }
 
-  ThrowLocation(mirror::Object* throw_this_object, mirror::AbstractMethod* throw_method,
+  ThrowLocation(mirror::Object* throw_this_object, mirror::ArtMethod* throw_method,
                 uint32_t throw_dex_pc) :
       this_object_(throw_this_object),
       method_(throw_method),
@@ -46,7 +46,7 @@ class PACKED(4) ThrowLocation {
     return this_object_;
   }
 
-  mirror::AbstractMethod* GetMethod() const {
+  mirror::ArtMethod* GetMethod() const {
     return method_;
   }
 
@@ -68,7 +68,7 @@ class PACKED(4) ThrowLocation {
   // The 'this' reference of the throwing method.
   mirror::Object* this_object_;
   // The throwing method.
-  mirror::AbstractMethod* method_;
+  mirror::ArtMethod* method_;
   // The instruction within the throwing method.
   uint32_t dex_pc_;
 };

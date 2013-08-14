@@ -48,10 +48,9 @@
 #include "gc/heap.h"
 #include "gc/space/space.h"
 #include "globals.h"
+#include "mirror/art_field-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
-#include "mirror/field.h"
-#include "mirror/field-inl.h"
 #include "mirror/object-inl.h"
 #include "object_utils.h"
 #include "os.h"
@@ -922,7 +921,7 @@ int Hprof::DumpHeapObject(mirror::Object* obj) {
         rec->AddId(CLASS_STATICS_ID(obj));
 
         for (size_t i = 0; i < sFieldCount; ++i) {
-          mirror::Field* f = thisClass->GetStaticField(i);
+          mirror::ArtField* f = thisClass->GetStaticField(i);
           fh.ChangeField(f);
 
           size_t size;
@@ -947,7 +946,7 @@ int Hprof::DumpHeapObject(mirror::Object* obj) {
       int iFieldCount = thisClass->IsObjectClass() ? 0 : thisClass->NumInstanceFields();
       rec->AddU2((uint16_t)iFieldCount);
       for (int i = 0; i < iFieldCount; ++i) {
-        mirror::Field* f = thisClass->GetInstanceField(i);
+        mirror::ArtField* f = thisClass->GetInstanceField(i);
         fh.ChangeField(f);
         HprofBasicType t = SignatureToBasicTypeAndSize(fh.GetTypeDescriptor(), NULL);
         rec->AddId(LookupStringId(fh.GetName()));
@@ -1010,7 +1009,7 @@ int Hprof::DumpHeapObject(mirror::Object* obj) {
       while (!sclass->IsObjectClass()) {
         int ifieldCount = sclass->NumInstanceFields();
         for (int i = 0; i < ifieldCount; ++i) {
-          mirror::Field* f = sclass->GetInstanceField(i);
+          mirror::ArtField* f = sclass->GetInstanceField(i);
           fh.ChangeField(f);
           size_t size;
           SignatureToBasicTypeAndSize(fh.GetTypeDescriptor(), &size);

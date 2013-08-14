@@ -34,10 +34,10 @@
 namespace art {
 
 namespace mirror {
-class AbstractMethod;
-class ClassLoader;
-class DexCache;
-class Field;
+  class ArtField;
+  class ArtMethod;
+  class ClassLoader;
+  class DexCache;
 }  // namespace mirror
 class ClassLinker;
 class ZipArchive;
@@ -786,7 +786,7 @@ class DexFile {
   // Returns -2 for native methods (as expected in exception traces).
   //
   // This is used by runtime; therefore use art::Method not art::DexFile::Method.
-  int32_t GetLineNumFromPC(const mirror::AbstractMethod* method, uint32_t rel_pc) const
+  int32_t GetLineNumFromPC(const mirror::ArtMethod* method, uint32_t rel_pc) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void DecodeDebugInfo(const CodeItem* code_item, bool is_static, uint32_t method_idx,
@@ -1135,7 +1135,7 @@ class EncodedStaticFieldValueIterator {
                                   ClassLinker* linker, const DexFile::ClassDef& class_def)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void ReadValueToField(mirror::Field* field) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void ReadValueToField(mirror::ArtField* field) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasNext() { return pos_ < array_size_; }
 

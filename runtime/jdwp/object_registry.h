@@ -22,9 +22,9 @@
 #include <map>
 
 #include "jdwp/jdwp.h"
+#include "mirror/art_field-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
-#include "mirror/field-inl.h"
 #include "mirror/object-inl.h"
 #include "safe_map.h"
 

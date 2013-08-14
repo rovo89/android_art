@@ -17,7 +17,7 @@
 #ifndef ART_RUNTIME_INVOKE_ARG_ARRAY_BUILDER_H_
 #define ART_RUNTIME_INVOKE_ARG_ARRAY_BUILDER_H_
 
-#include "mirror/abstract_method.h"
+#include "mirror/art_method.h"
 #include "mirror/object.h"
 #include "scoped_thread_state_change.h"
 

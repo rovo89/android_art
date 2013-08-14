@@ -39,7 +39,7 @@ namespace art {
  */
 extern "C" int artHandleFillArrayDataFromCode(mirror::Array* array,
                                               const Instruction::ArrayDataPayload* payload,
-                                              Thread* self, mirror::AbstractMethod** sp)
+                                              Thread* self, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   DCHECK_EQ(payload->ident, static_cast<uint16_t>(Instruction::kArrayDataSignature));

@@ -33,11 +33,11 @@
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/heap_bitmap.h"
 #include "gc/space/space.h"
+#include "mirror/art_field-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
-#include "mirror/field-inl.h"
-#include "mirror/abstract_method-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/throwable.h"
@@ -515,7 +515,7 @@ static DexToDexCompilationLevel GetDexToDexCompilationlevel(mirror::ClassLoader*
   }
 }
 
-void CompilerDriver::CompileOne(const mirror::AbstractMethod* method, base::TimingLogger& timings) {
+void CompilerDriver::CompileOne(const mirror::ArtMethod* method, base::TimingLogger& timings) {
   DCHECK(!Runtime::Current()->IsStarted());
   Thread* self = Thread::Current();
   jobject jclass_loader;
@@ -632,12 +632,12 @@ static bool ResolveCatchBlockExceptionsClassVisitor(mirror::Class* c, void* arg)
       reinterpret_cast<std::set<std::pair<uint16_t, const DexFile*> >*>(arg);
   MethodHelper mh;
   for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
-    mirror::AbstractMethod* m = c->GetVirtualMethod(i);
+    mirror::ArtMethod* m = c->GetVirtualMethod(i);
     mh.ChangeMethod(m);
     ResolveExceptionsForMethod(&mh, *exceptions_to_resolve);
   }
   for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
-    mirror::AbstractMethod* m = c->GetDirectMethod(i);
+    mirror::ArtMethod* m = c->GetDirectMethod(i);
     mh.ChangeMethod(m);
     ResolveExceptionsForMethod(&mh, *exceptions_to_resolve);
   }
@@ -895,7 +895,7 @@ static mirror::Class* ComputeCompilingMethodsClass(ScopedObjectAccess& soa,
                                               dex_cache, class_loader);
 }
 
-static mirror::Field* ComputeFieldReferencedFromCompilingMethod(ScopedObjectAccess& soa,
+static mirror::ArtField* ComputeFieldReferencedFromCompilingMethod(ScopedObjectAccess& soa,
                                                                 const DexCompilationUnit* mUnit,
                                                                 uint32_t field_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -905,7 +905,7 @@ static mirror::Field* ComputeFieldReferencedFromCompilingMethod(ScopedObjectAcce
                                                class_loader, false);
 }
 
-static mirror::AbstractMethod* ComputeMethodReferencedFromCompilingMethod(ScopedObjectAccess& soa,
+static mirror::ArtMethod* ComputeMethodReferencedFromCompilingMethod(ScopedObjectAccess& soa,
                                                                           const DexCompilationUnit* mUnit,
                                                                           uint32_t method_idx,
                                                                           InvokeType type)
@@ -923,7 +923,7 @@ bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompi
   field_offset = -1;
   is_volatile = true;
   // Try to resolve field and ignore if an Incompatible Class Change Error (ie is static).
-  mirror::Field* resolved_field = ComputeFieldReferencedFromCompilingMethod(soa, mUnit, field_idx);
+  mirror::ArtField* resolved_field = ComputeFieldReferencedFromCompilingMethod(soa, mUnit, field_idx);
   if (resolved_field != NULL && !resolved_field->IsStatic()) {
     mirror::Class* referrer_class =
         ComputeCompilingMethodsClass(soa, resolved_field->GetDeclaringClass()->GetDexCache(),
@@ -974,7 +974,7 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
   is_referrers_class = false;
   is_volatile = true;
   // Try to resolve field and ignore if an Incompatible Class Change Error (ie isn't static).
-  mirror::Field* resolved_field = ComputeFieldReferencedFromCompilingMethod(soa, mUnit, field_idx);
+  mirror::ArtField* resolved_field = ComputeFieldReferencedFromCompilingMethod(soa, mUnit, field_idx);
   if (resolved_field != NULL && resolved_field->IsStatic()) {
     mirror::Class* referrer_class =
         ComputeCompilingMethodsClass(soa, resolved_field->GetDeclaringClass()->GetDexCache(),
@@ -1051,7 +1051,7 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
 
 void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type,
                                                    mirror::Class* referrer_class,
-                                                   mirror::AbstractMethod* method,
+                                                   mirror::ArtMethod* method,
                                                    uintptr_t& direct_code,
                                                    uintptr_t& direct_method,
                                                    bool update_stats) {
@@ -1114,7 +1114,7 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
   vtable_idx = -1;
   direct_code = 0;
   direct_method = 0;
-  mirror::AbstractMethod* resolved_method =
+  mirror::ArtMethod* resolved_method =
       ComputeMethodReferencedFromCompilingMethod(soa, mUnit, target_method.dex_method_index,
                                                  invoke_type);
   if (resolved_method != NULL) {
@@ -1179,7 +1179,7 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
                 mUnit->GetClassLinker()->FindDexCache(*devirt_map_target->dex_file);
             mirror::ClassLoader* class_loader =
                 soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader());
-            mirror::AbstractMethod* called_method =
+            mirror::ArtMethod* called_method =
                 mUnit->GetClassLinker()->ResolveMethod(*devirt_map_target->dex_file,
                                                        devirt_map_target->dex_method_index,
                                                        target_dex_cache, class_loader, NULL,
@@ -1471,7 +1471,7 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
   mirror::DexCache* dex_cache = class_linker->FindDexCache(dex_file);
   ClassDataItemIterator it(dex_file, class_data);
   while (it.HasNextStaticField()) {
-    mirror::Field* field = class_linker->ResolveField(dex_file, it.GetMemberIndex(), dex_cache,
+    mirror::ArtField* field = class_linker->ResolveField(dex_file, it.GetMemberIndex(), dex_cache,
                                                       class_loader, true);
     if (field == NULL) {
       CHECK(self->IsExceptionPending());
@@ -1487,7 +1487,7 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
       requires_constructor_barrier = true;
     }
 
-    mirror::Field* field = class_linker->ResolveField(dex_file, it.GetMemberIndex(), dex_cache,
+    mirror::ArtField* field = class_linker->ResolveField(dex_file, it.GetMemberIndex(), dex_cache,
                                                       class_loader, false);
     if (field == NULL) {
       CHECK(self->IsExceptionPending());
@@ -1500,7 +1500,7 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
                                                           class_def_index);
   }
   while (it.HasNextDirectMethod()) {
-    mirror::AbstractMethod* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(),
+    mirror::ArtMethod* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(),
                                                                  dex_cache, class_loader, NULL,
                                                                  it.GetMethodInvokeType(class_def));
     if (method == NULL) {
@@ -1510,7 +1510,7 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
     it.Next();
   }
   while (it.HasNextVirtualMethod()) {
-    mirror::AbstractMethod* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(),
+    mirror::ArtMethod* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(),
                                                                  dex_cache, class_loader, NULL,
                                                                  it.GetMethodInvokeType(class_def));
     if (method == NULL) {
@@ -2073,7 +2073,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
             VLOG(compiler) << "Initializing: " << descriptor;
             if (StringPiece(descriptor) == "Ljava/lang/Void;") {
               // Hand initialize j.l.Void to avoid Dex file operations in un-started runtime.
-              mirror::ObjectArray<mirror::Field>* fields = klass->GetSFields();
+              mirror::ObjectArray<mirror::ArtField>* fields = klass->GetSFields();
               CHECK_EQ(fields->GetLength(), 1);
               fields->Get(0)->SetObj(klass, manager->GetClassLinker()->FindPrimitiveClass('V'));
               klass->SetStatus(mirror::Class::kStatusInitialized);
