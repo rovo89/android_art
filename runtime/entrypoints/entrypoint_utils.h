@@ -16,7 +16,7 @@
 
 #ifndef ART_RUNTIME_ENTRYPOINTS_ENTRYPOINT_UTILS_H_
 #define ART_RUNTIME_ENTRYPOINTS_ENTRYPOINT_UTILS_H_
-
+#include "object_utils.h"
 #include "class_linker.h"
 #include "common_throws.h"
 #include "dex_file.h"
@@ -27,7 +27,7 @@
 #include "mirror/array.h"
 #include "mirror/class-inl.h"
 #include "mirror/throwable.h"
-#include "object_utils.h"
+
 #include "thread.h"
 
 namespace art {

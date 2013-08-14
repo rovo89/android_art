@@ -20,6 +20,7 @@
 #include "safe_map.h"
 #include "base/stringprintf.h"
 #include "file_output_stream.h"
+#include "os.h"
 #include "sea_ir/ir/sea.h"
 #include "sea_ir/types/type_inference.h"
 
@@ -103,7 +104,7 @@ class DotConversion {
     LOG(INFO) << "Starting to write SEA string to file.";
     DotGenerationVisitor dgv = DotGenerationVisitor(&options_, types);
     graph->Accept(&dgv);
-    art::File* file = art::OS::OpenFile(filename.c_str(), O_RDWR | O_CREAT | O_TRUNC);
+    art::File* file = art::OS::OpenFileReadWrite(filename.c_str());
     art::FileOutputStream fos(file);
     std::string graph_as_string = dgv.GetResult();
     graph_as_string += "}";

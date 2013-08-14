@@ -2231,13 +2231,18 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {
     bool compile = verifier::MethodVerifier::IsCandidateForCompilation(code_item, access_flags);
+#ifdef ART_SEA_IR_MODE
+    bool use_sea = Runtime::Current()->IsSeaIRMode();
+    use_sea = use_sea && (std::string::npos != PrettyMethod(method_idx, dex_file).find("fibonacci"));
+    if (use_sea) compile = true;
+#endif
+
     if (compile) {
       CompilerFn compiler = compiler_;
 #ifdef ART_SEA_IR_MODE
-      bool use_sea = Runtime::Current()->IsSeaIRMode();
-      use_sea = use_sea && (std::string::npos != PrettyMethod(method_idx, dex_file).find("fibonacci"));
       if (use_sea) {
         compiler = sea_ir_compiler_;
+        LOG(INFO) << "Using SEA IR to compile..." << std::endl;
       }
 #endif
       // NOTE: if compiler declines to compile this method, it will return NULL.
