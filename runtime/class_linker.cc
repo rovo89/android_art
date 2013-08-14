@@ -70,10 +70,6 @@
 
 namespace art {
 
-extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& mh,
-                                           const DexFile::CodeItem* code_item,
-                                           ShadowFrame* shadow_frame, JValue* result);
-
 static void ThrowNoClassDefFoundError(const char* fmt, ...)
     __attribute__((__format__(__printf__, 1, 2)))
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

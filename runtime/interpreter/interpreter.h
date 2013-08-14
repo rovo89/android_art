@@ -53,6 +53,12 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 }  // namespace interpreter
+
+extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& mh,
+                                                   const DexFile::CodeItem* code_item,
+                                                   ShadowFrame* shadow_frame, JValue* result)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_INTERPRETER_INTERPRETER_H_

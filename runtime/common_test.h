@@ -35,6 +35,7 @@
 #include "gc/heap.h"
 #include "gtest/gtest.h"
 #include "instruction_set.h"
+#include "interpreter/interpreter.h"
 #include "mirror/class_loader.h"
 #include "oat_file.h"
 #include "object_utils.h"
@@ -192,7 +193,6 @@ class CommonTest : public testing::Test {
       compiled_method =
           compiler_driver_->GetCompiledMethod(MethodReference(&dex_file,
                                                               method->GetDexMethodIndex()));
-      CHECK(compiled_method != NULL) << PrettyMethod(method);
     }
     if (compiled_method != NULL) {
       const std::vector<uint8_t>& code = compiled_method->GetCode();
@@ -208,6 +208,7 @@ class CommonTest : public testing::Test {
                                                       &compiled_method->GetVmapTable()[0],
                                                       NULL);
       oat_method.LinkMethod(method);
+      method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
     } else {
       const void* method_code;
       // No code? You must mean to go into the interpreter.
@@ -221,6 +222,7 @@ class CommonTest : public testing::Test {
                                                       NULL,
                                                       NULL);
       oat_method.LinkMethod(method);
+      method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterBridge);
     }
   }
 

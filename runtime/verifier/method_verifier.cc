@@ -4095,13 +4095,10 @@ const std::vector<uint8_t>* MethodVerifier::GetDexGcMap(MethodReference ref) {
   DCHECK(Runtime::Current()->IsCompiler());
   ReaderMutexLock mu(Thread::Current(), *dex_gc_maps_lock_);
   DexGcMapTable::const_iterator it = dex_gc_maps_->find(ref);
-  if (it == dex_gc_maps_->end()) {
-    LOG(WARNING) << "Didn't find GC map for: " << PrettyMethod(ref.dex_method_index, *ref.dex_file);
-    return NULL;
-  } else {
-    CHECK(it->second != NULL);
-    return it->second;
-  }
+  CHECK(it != dex_gc_maps_->end())
+    << "Didn't find GC map for: " << PrettyMethod(ref.dex_method_index, *ref.dex_file);
+  CHECK(it->second != NULL);
+  return it->second;
 }
 
 void  MethodVerifier::SetDevirtMap(MethodReference ref,

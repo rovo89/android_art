@@ -27,8 +27,7 @@ namespace art {
 
 extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& mh,
                                                    const DexFile::CodeItem* code_item,
-                                                   ShadowFrame* shadow_frame, JValue* result)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+                                                   ShadowFrame* shadow_frame, JValue* result) {
   mirror::ArtMethod* method = shadow_frame->GetMethod();
   // Ensure static methods are initialized.
   if (method->IsStatic()) {

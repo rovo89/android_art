@@ -851,7 +851,6 @@ static int dex2oat(int argc, char** argv) {
   options.push_back(std::make_pair("-sea_ir", reinterpret_cast<void*>(NULL)));
 #endif
 
-
   Dex2Oat* p_dex2oat;
   if (!Dex2Oat::Create(&p_dex2oat, options, compiler_backend, instruction_set, thread_count)) {
     LOG(ERROR) << "Failed to create dex2oat";
@@ -861,6 +860,11 @@ static int dex2oat(int argc, char** argv) {
   // Runtime::Create acquired the mutator_lock_ that is normally given away when we Runtime::Start,
   // give it away now and then switch to a more managable ScopedObjectAccess.
   Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+  // If we're doing the image, override the compiler filter to force full compilation. Must be
+  // done ahead of WellKnownClasses::Init that causes verification.
+  if (image && Runtime::Current()->GetCompilerFilter() == Runtime::kInterpretOnly) {
+    Runtime::Current()->SetCompilerFilter(Runtime::kSpeed);
+  }
   // Whilst we're in native take the opportunity to initialize well known classes.
   WellKnownClasses::Init(Thread::Current()->GetJniEnv());
   ScopedObjectAccess soa(Thread::Current());
@@ -903,11 +907,6 @@ static int dex2oat(int argc, char** argv) {
         return EXIT_FAILURE;
       }
     }
-  }
-
-  // If we're doing the image, override the compiler filter to force full compilation.
-  if (image && Runtime::Current()->GetCompilerFilter() == Runtime::kInterpretOnly) {
-    Runtime::Current()->SetCompilerFilter(Runtime::kSpeed);
   }
 
   /*
