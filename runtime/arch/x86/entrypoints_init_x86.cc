@@ -24,13 +24,13 @@ namespace art {
 extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh,
                                                   const DexFile::CodeItem* code_item,
                                                   ShadowFrame* shadow_frame, JValue* result);
-extern "C" void artInterperterToCompiledCodeBridge(Thread* self, MethodHelper& mh,
+extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& mh,
                                            const DexFile::CodeItem* code_item,
                                            ShadowFrame* shadow_frame, JValue* result);
 
 // Portable entrypoints.
-extern "C" void art_portable_resolution_trampoline(mirror::AbstractMethod*);
-extern "C" void art_portable_to_interpreter_bridge(mirror::AbstractMethod*);
+extern "C" void art_portable_resolution_trampoline(mirror::ArtMethod*);
+extern "C" void art_portable_to_interpreter_bridge(mirror::ArtMethod*);
 
 // Alloc entrypoints.
 extern "C" void* art_quick_alloc_array(uint32_t, void*, int32_t);
@@ -95,8 +95,8 @@ extern "C" int32_t art_quick_string_compareto(void*, void*);
 extern "C" void* art_quick_memcpy(void*, const void*, size_t);
 
 // Invoke entrypoints.
-extern "C" void art_quick_resolution_trampoline(mirror::AbstractMethod*);
-extern "C" void art_quick_to_interpreter_bridge(mirror::AbstractMethod*);
+extern "C" void art_quick_resolution_trampoline(mirror::ArtMethod*);
+extern "C" void art_quick_to_interpreter_bridge(mirror::ArtMethod*);
 extern "C" void art_quick_invoke_direct_trampoline_with_access_check(uint32_t, void*);
 extern "C" void art_quick_invoke_interface_trampoline(uint32_t, void*);
 extern "C" void art_quick_invoke_interface_trampoline_with_access_check(uint32_t, void*);
@@ -120,7 +120,7 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
                      PortableEntryPoints* ppoints, QuickEntryPoints* qpoints) {
   // Interpreter
   ipoints->pInterpreterToInterpreterBridge = artInterpreterToInterpreterBridge;
-  ipoints->pInterpreterToCompiledCodeBridge = artInterperterToCompiledCodeBridge;
+  ipoints->pInterpreterToCompiledCodeBridge = artInterpreterToCompiledCodeBridge;
 
   // JNI
   jpoints->pDlsymLookup = art_jni_dlsym_lookup_stub;

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_SEA_IR_SEA_NODE_H_
-#define ART_COMPILER_SEA_IR_SEA_NODE_H_
+#ifndef ART_COMPILER_SEA_IR_IR_SEA_NODE_H_
+#define ART_COMPILER_SEA_IR_IR_SEA_NODE_H_
 
 #include "base/stringprintf.h"
 
@@ -56,10 +56,6 @@ class SeaNode: public IVisitable {
   int Id() const {
     return id_;
   }
-  // Appends to @result a dot language formatted string representing the node and
-  //    (by convention) outgoing edges, so that the composition of theToDot() of all nodes
-  //    builds a complete dot graph, but without prolog ("digraph {") and epilog ("}").
-  virtual void ToDot(std::string& result, const art::DexFile& dex_file) const = 0;
 
   virtual ~SeaNode() { }
 
@@ -78,4 +74,4 @@ class SeaNode: public IVisitable {
   DISALLOW_COPY_AND_ASSIGN(SeaNode);
 };
 }  // namespace sea_ir
-#endif  // ART_COMPILER_SEA_IR_SEA_NODE_H_
+#endif  // ART_COMPILER_SEA_IR_IR_SEA_NODE_H_

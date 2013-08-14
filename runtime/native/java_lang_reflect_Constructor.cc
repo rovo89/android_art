@@ -16,13 +16,14 @@
 
 #include "class_linker.h"
 #include "jni_internal.h"
+#include "mirror/art_method.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
-#include "mirror/abstract_method.h"
-#include "mirror/abstract_method-inl.h"
 #include "mirror/object-inl.h"
 #include "object_utils.h"
 #include "reflection.h"
 #include "scoped_thread_state_change.h"
+#include "well_known_classes.h"
 
 namespace art {
 
@@ -35,7 +36,10 @@ namespace art {
  */
 static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectArray javaArgs) {
   ScopedObjectAccess soa(env);
-  mirror::AbstractMethod* m = soa.Decode<mirror::Object*>(javaMethod)->AsMethod();
+  jobject art_method = soa.Env()->GetObjectField(
+      javaMethod, WellKnownClasses::java_lang_reflect_AbstractMethod_artMethod);
+
+  mirror::ArtMethod* m = soa.Decode<mirror::Object*>(art_method)->AsArtMethod();
   mirror::Class* c = m->GetDeclaringClass();
   if (UNLIKELY(c->IsAbstract())) {
     ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();

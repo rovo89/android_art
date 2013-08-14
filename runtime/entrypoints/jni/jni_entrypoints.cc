@@ -16,7 +16,7 @@
 
 #include "base/logging.h"
 #include "entrypoints/entrypoint_utils.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/object-inl.h"
 #include "object_utils.h"
 #include "scoped_thread_state_change.h"
@@ -30,7 +30,7 @@ extern "C" void* artFindNativeMethod() {
   Locks::mutator_lock_->AssertNotHeld(self);  // We come here as Native.
   ScopedObjectAccess soa(self);
 
-  mirror::AbstractMethod* method = self->GetCurrentMethod(NULL);
+  mirror::ArtMethod* method = self->GetCurrentMethod(NULL);
   DCHECK(method != NULL);
 
   // Lookup symbol address for method, on failure we'll return NULL with an exception set,
@@ -69,7 +69,7 @@ extern "C" const void* artWorkAroundAppJniBugs(Thread* self, intptr_t* sp)
   // | unused |
   // | unused |
   // | unused | <- sp
-  mirror::AbstractMethod* jni_method = self->GetCurrentMethod(NULL);
+  mirror::ArtMethod* jni_method = self->GetCurrentMethod(NULL);
   DCHECK(jni_method->IsNative()) << PrettyMethod(jni_method);
   intptr_t* arg_ptr = sp + 4;  // pointer to r1 on stack
   // Fix up this/jclass argument

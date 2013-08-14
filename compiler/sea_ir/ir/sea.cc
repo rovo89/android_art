@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 #include "base/stringprintf.h"
-#include "file_output_stream.h"
-#include "instruction_tools.h"
-#include "sea.h"
-#include "code_gen.h"
+#include "sea_ir/ir/instruction_tools.h"
+#include "sea_ir/ir/sea.h"
+#include "sea_ir/code_gen/code_gen.h"
+#include "sea_ir/types/type_inference.h"
 
 #define MAX_REACHING_DEF_ITERERATIONS (10)
 // TODO: When development is done, this define should not
@@ -35,7 +35,6 @@ void IRVisitor::Traverse(Region* region) {
       cit != phis->end(); cit++) {
     (*cit)->Accept(this);
   }
-
   std::vector<InstructionNode*>* instructions = region->GetInstructions();
   for (std::vector<InstructionNode*>::const_iterator cit = instructions->begin();
       cit != instructions->end(); cit++) {
@@ -50,22 +49,8 @@ void IRVisitor::Traverse(SeaGraph* graph) {
   }
 }
 
-SeaGraph* SeaGraph::GetCurrentGraph(const art::DexFile& dex_file) {
+SeaGraph* SeaGraph::GetGraph(const art::DexFile& dex_file) {
   return new SeaGraph(dex_file);
-}
-
-void SeaGraph::DumpSea(std::string filename) const {
-  LOG(INFO) << "Starting to write SEA string to file.";
-  std::string result;
-  result += "digraph seaOfNodes {\ncompound=true\n";
-  for (std::vector<Region*>::const_iterator cit = regions_.begin(); cit != regions_.end(); cit++) {
-    (*cit)->ToDot(result, dex_file_);
-  }
-  result += "}\n";
-  art::File* file = art::OS::OpenFile(filename.c_str(), true, true);
-  art::FileOutputStream fos(file);
-  fos.WriteFully(result.c_str(), result.size());
-  LOG(INFO) << "Written SEA string to file.";
 }
 
 void SeaGraph::AddEdge(Region* src, Region* dst) const {
@@ -191,10 +176,12 @@ void SeaGraph::ComputeReachingDefs() {
 
 
 void SeaGraph::BuildMethodSeaGraph(const art::DexFile::CodeItem* code_item,
-    const art::DexFile& dex_file, uint32_t class_def_idx, uint32_t method_idx) {
+    const art::DexFile& dex_file, uint32_t class_def_idx,
+    uint32_t method_idx, uint32_t method_access_flags) {
+  code_item_ = code_item;
   class_def_idx_ = class_def_idx;
   method_idx_ = method_idx;
-
+  method_access_flags_ = method_access_flags;
   const uint16_t* code = code_item->insns_;
   const size_t size_in_code_units = code_item->insns_size_in_code_units_;
   // This maps target instruction pointers to their corresponding region objects.
@@ -225,8 +212,9 @@ void SeaGraph::BuildMethodSeaGraph(const art::DexFile::CodeItem* code_item,
   // Insert one SignatureNode per function argument,
   // to serve as placeholder definitions in dataflow analysis.
   for (unsigned int crt_offset = 0; crt_offset < code_item->ins_size_; crt_offset++) {
+    int position = crt_offset;  // TODO: Is this the correct offset in the signature?
     SignatureNode* parameter_def_node =
-        new sea_ir::SignatureNode(code_item->registers_size_ - 1 - crt_offset);
+        new sea_ir::SignatureNode(code_item->registers_size_ - 1 - crt_offset, position);
     AddParameterNode(parameter_def_node);
     r->AddChild(parameter_def_node);
   }
@@ -260,12 +248,8 @@ void SeaGraph::BuildMethodSeaGraph(const art::DexFile::CodeItem* code_item,
         }
         r = nextRegion;
       }
-      bool definesRegister = (0 != InstructionTools::instruction_attributes_[inst->Opcode()]
-          && (1 << kDA));
-      LOG(INFO)<< inst->GetDexPc(code) << "*** " << inst->DumpString(&dex_file)
-      << " region:" <<r->StringId() << "Definition?" << definesRegister << std::endl;
       r->AddChild(node);
-      }
+    }
     i += inst->SizeInCodeUnits();
   }
 }
@@ -417,10 +401,10 @@ void SeaGraph::GenerateLLVM() {
   code_gen_postpass_visitor.Write(std::string("my_file.llvm"));
 }
 
-void SeaGraph::CompileMethod(const art::DexFile::CodeItem* code_item,
-  uint32_t class_def_idx, uint32_t method_idx, const art::DexFile& dex_file) {
+void SeaGraph::CompileMethod(const art::DexFile::CodeItem* code_item, uint32_t class_def_idx,
+    uint32_t method_idx, uint32_t method_access_flags, const art::DexFile& dex_file) {
   // Two passes: Builds the intermediate structure (non-SSA) of the sea-ir for the function.
-  BuildMethodSeaGraph(code_item, dex_file, class_def_idx, method_idx);
+  BuildMethodSeaGraph(code_item, dex_file, class_def_idx, method_idx, method_access_flags);
   // Pass: Compute reverse post-order of regions.
   ComputeRPO();
   // Multiple passes: compute immediate dominators.
@@ -433,6 +417,8 @@ void SeaGraph::CompileMethod(const art::DexFile::CodeItem* code_item,
   ComputeDominanceFrontier();
   // Two Passes: Phi node insertion.
   ConvertToSSA();
+  // Pass: type inference
+  ti_->ComputeTypes(this);
   // Pass: Generate LLVM IR.
   GenerateLLVM();
 }
@@ -465,18 +451,10 @@ void SeaGraph::AddRegion(Region* r) {
   regions_.push_back(r);
 }
 
-/*
-void SeaNode::AddSuccessor(Region* successor) {
-  DCHECK(successor) << "Tried to add NULL successor to SEA node.";
-  successors_.push_back(successor);
-  return;
-}
+SeaGraph::SeaGraph(const art::DexFile& df)
+    :ti_(new TypeInference()), class_def_idx_(0), method_idx_(0),  method_access_flags_(),
+     regions_(), parameters_(), dex_file_(df), code_item_(NULL) { }
 
-void SeaNode::AddPredecessor(Region* predecessor) {
-  DCHECK(predecessor) << "Tried to add NULL predecessor to SEA node.";
-  predecessors_.push_back(predecessor);
-}
-*/
 void Region::AddChild(sea_ir::InstructionNode* instruction) {
   DCHECK(instruction) << "Tried to add NULL instruction to region node.";
   instructions_.push_back(instruction);
@@ -488,46 +466,6 @@ SeaNode* Region::GetLastChild() const {
     return instructions_.back();
   }
   return NULL;
-}
-
-void Region::ToDot(std::string& result, const art::DexFile& dex_file) const {
-  result += "\n// Region: \nsubgraph " + StringId() + " { label=\"region " + StringId() + "(rpo=";
-  result += art::StringPrintf("%d", rpo_number_);
-  if (NULL != GetIDominator()) {
-    result += " dom=" + GetIDominator()->StringId();
-  }
-  result += ")\";\n";
-
-  for (std::vector<PhiInstructionNode*>::const_iterator cit = phi_instructions_.begin();
-        cit != phi_instructions_.end(); cit++) {
-    result += (*cit)->StringId() +";\n";
-  }
-
-  for (std::vector<InstructionNode*>::const_iterator cit = instructions_.begin();
-        cit != instructions_.end(); cit++) {
-      result += (*cit)->StringId() +";\n";
-    }
-
-  result += "} // End Region.\n";
-
-  // Save phi-nodes.
-  for (std::vector<PhiInstructionNode*>::const_iterator cit = phi_instructions_.begin();
-      cit != phi_instructions_.end(); cit++) {
-    (*cit)->ToDot(result, dex_file);
-  }
-
-  // Save instruction nodes.
-  for (std::vector<InstructionNode*>::const_iterator cit = instructions_.begin();
-      cit != instructions_.end(); cit++) {
-    (*cit)->ToDot(result, dex_file);
-  }
-
-  for (std::vector<Region*>::const_iterator cit = successors_.begin(); cit != successors_.end();
-      cit++) {
-    DCHECK(NULL != *cit) << "Null successor found for SeaNode" << GetLastChild()->StringId() << ".";
-    result += GetLastChild()->StringId() + " -> " + (*cit)->GetLastChild()->StringId() +
-         "[lhead=" + (*cit)->StringId() + ", " + "ltail=" + StringId() + "];\n\n";
-  }
 }
 
 void Region::ComputeDownExposedDefs() {
@@ -692,38 +630,6 @@ std::vector<InstructionNode*> InstructionNode::Create(const art::Instruction* in
   return sea_instructions;
 }
 
-void InstructionNode::ToDotSSAEdges(std::string& result) const {
-  // SSA definitions:
-  for (std::map<int, InstructionNode*>::const_iterator def_it = definition_edges_.begin();
-      def_it != definition_edges_.end(); def_it++) {
-    if (NULL != def_it->second) {
-      result += def_it->second->StringId() + " -> " + StringId() + "[color=gray,label=\"";
-      result += art::StringPrintf("vR = %d", def_it->first);
-      result += "\"] ; // ssa edge\n";
-    }
-  }
-
-  // SSA used-by:
-  if (DotConversion::SaveUseEdges()) {
-    for (std::vector<InstructionNode*>::const_iterator cit = used_in_.begin();
-        cit != used_in_.end(); cit++) {
-      result += (*cit)->StringId() + " -> " + StringId() + "[color=gray,label=\"";
-      result += "\"] ; // SSA used-by edge\n";
-    }
-  }
-}
-
-void InstructionNode::ToDot(std::string& result, const art::DexFile& dex_file) const {
-  result += "// Instruction ("+StringId()+"): \n" + StringId() +
-      " [label=\"" + instruction_->DumpString(&dex_file) + "\"";
-  if (de_def_) {
-    result += "style=bold";
-  }
-  result += "];\n";
-
-  ToDotSSAEdges(result);
-}
-
 void InstructionNode::MarkAsDEDef() {
   de_def_ = true;
 }
@@ -747,7 +653,7 @@ std::vector<int> InstructionNode::GetDefinitions() const {
   return definitions;
 }
 
-std::vector<int> InstructionNode::GetUses() {
+std::vector<int> InstructionNode::GetUses() const {
   std::vector<int> uses;  // Using vector<> instead of set<> because order matters.
   if (!InstructionTools::IsDefinition(instruction_) && (instruction_->HasVRegA())) {
     int vA = instruction_->VRegA();
@@ -762,14 +668,5 @@ std::vector<int> InstructionNode::GetUses() {
     uses.push_back(vC);
   }
   return uses;
-}
-
-void PhiInstructionNode::ToDot(std::string& result, const art::DexFile& dex_file) const {
-  result += "// PhiInstruction: \n" + StringId() +
-      " [label=\"" + "PHI(";
-  result += art::StringPrintf("%d", register_no_);
-  result += ")\"";
-  result += "];\n";
-  ToDotSSAEdges(result);
 }
 }  // namespace sea_ir

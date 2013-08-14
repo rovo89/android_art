@@ -19,7 +19,10 @@
 
 #include "mutex.h"
 
+#define ATRACE_TAG ATRACE_TAG_DALVIK
+
 #include "cutils/atomic-inline.h"
+#include "cutils/trace.h"
 #include "runtime.h"
 #include "thread.h"
 
@@ -40,29 +43,31 @@ static inline int futex(volatile int *uaddr, int op, int val, const struct times
 
 class ScopedContentionRecorder {
  public:
-#if CONTENTION_LOGGING
-  ScopedContentionRecorder(BaseMutex* mutex, uint64_t blocked_tid, uint64_t owner_tid) :
-      mutex_(mutex), blocked_tid_(blocked_tid), owner_tid_(owner_tid),
-      start_milli_time_(MilliTime()) {
+  ScopedContentionRecorder(BaseMutex* mutex, uint64_t blocked_tid, uint64_t owner_tid)
+      : mutex_(kLogLockContentions ? mutex : NULL),
+        blocked_tid_(kLogLockContentions ? blocked_tid : 0),
+        owner_tid_(kLogLockContentions ? owner_tid : 0),
+        start_nano_time_(kLogLockContentions ? NanoTime() : 0) {
+    if (kLogLockContentions) {
+      std::string msg = StringPrintf("Lock contention on %s (owner tid: %llu)",
+                                     mutex->GetName(), owner_tid);
+      ATRACE_BEGIN(msg.c_str());
+    }
   }
-#else
-  ScopedContentionRecorder(BaseMutex*, uint64_t, uint64_t) {}
-#endif
 
   ~ScopedContentionRecorder() {
-#if CONTENTION_LOGGING
-    uint64_t end_milli_time = MilliTime();
-    mutex_->RecordContention(blocked_tid_, owner_tid_, end_milli_time - start_milli_time_);
-#endif
+    if (kLogLockContentions) {
+      ATRACE_END();
+      uint64_t end_nano_time = NanoTime();
+      mutex_->RecordContention(blocked_tid_, owner_tid_, end_nano_time - start_nano_time_);
+    }
   }
 
  private:
-#if CONTENTION_LOGGING
   BaseMutex* const mutex_;
   const uint64_t blocked_tid_;
   const uint64_t owner_tid_;
-  const uint64_t start_milli_time_;
-#endif
+  const uint64_t start_nano_time_;
 };
 
 static inline uint64_t SafeGetTid(const Thread* self) {

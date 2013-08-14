@@ -31,9 +31,8 @@
 #include "dex_file_verifier.h"
 #include "globals.h"
 #include "leb128.h"
-#include "mirror/abstract_method-inl.h"
-#include "mirror/field.h"
-#include "mirror/field-inl.h"
+#include "mirror/art_field-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/string.h"
 #include "os.h"
 #include "safe_map.h"
@@ -624,7 +623,7 @@ std::string DexFile::CreateMethodSignature(uint32_t proto_idx, int32_t* unicode_
   return descriptor;
 }
 
-int32_t DexFile::GetLineNumFromPC(const mirror::AbstractMethod* method, uint32_t rel_pc) const {
+int32_t DexFile::GetLineNumFromPC(const mirror::ArtMethod* method, uint32_t rel_pc) const {
   // For native method, lineno should be -2 to indicate it is native. Note that
   // "line number == -2" is how libcore tells from StackTraceElement.
   if (method->GetCodeItemOffset() == 0) {
@@ -1024,7 +1023,7 @@ void EncodedStaticFieldValueIterator::Next() {
   ptr_ += width;
 }
 
-void EncodedStaticFieldValueIterator::ReadValueToField(mirror::Field* field) const {
+void EncodedStaticFieldValueIterator::ReadValueToField(mirror::ArtField* field) const {
   switch (type_) {
     case kBoolean: field->SetBoolean(field->GetDeclaringClass(), jval_.z); break;
     case kByte:    field->SetByte(field->GetDeclaringClass(), jval_.b); break;

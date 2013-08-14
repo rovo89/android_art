@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include "field.h"
+#include "art_field.h"
 
-#include "field-inl.h"
+#include "art_field-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "object-inl.h"
 #include "object_utils.h"
@@ -27,20 +27,20 @@ namespace art {
 namespace mirror {
 
 // TODO: get global references for these
-Class* Field::java_lang_reflect_Field_ = NULL;
+Class* ArtField::java_lang_reflect_ArtField_ = NULL;
 
-void Field::SetClass(Class* java_lang_reflect_Field) {
-  CHECK(java_lang_reflect_Field_ == NULL);
-  CHECK(java_lang_reflect_Field != NULL);
-  java_lang_reflect_Field_ = java_lang_reflect_Field;
+void ArtField::SetClass(Class* java_lang_reflect_ArtField) {
+  CHECK(java_lang_reflect_ArtField_ == NULL);
+  CHECK(java_lang_reflect_ArtField != NULL);
+  java_lang_reflect_ArtField_ = java_lang_reflect_ArtField;
 }
 
-void Field::ResetClass() {
-  CHECK(java_lang_reflect_Field_ != NULL);
-  java_lang_reflect_Field_ = NULL;
+void ArtField::ResetClass() {
+  CHECK(java_lang_reflect_ArtField_ != NULL);
+  java_lang_reflect_ArtField_ = NULL;
 }
 
-void Field::SetOffset(MemberOffset num_bytes) {
+void ArtField::SetOffset(MemberOffset num_bytes) {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
 #if 0  // TODO enable later in boot and under !NDEBUG
   FieldHelper fh(this);
@@ -49,7 +49,7 @@ void Field::SetOffset(MemberOffset num_bytes) {
     DCHECK_ALIGNED(num_bytes.Uint32Value(), 8);
   }
 #endif
-  SetField32(OFFSET_OF_OBJECT_MEMBER(Field, offset_), num_bytes.Uint32Value(), false);
+  SetField32(OFFSET_OF_OBJECT_MEMBER(ArtField, offset_), num_bytes.Uint32Value(), false);
 }
 
 }  // namespace mirror

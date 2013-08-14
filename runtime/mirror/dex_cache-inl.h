@@ -22,9 +22,9 @@
 namespace art {
 namespace mirror {
 
-inline AbstractMethod* DexCache::GetResolvedMethod(uint32_t method_idx) const
+inline ArtMethod* DexCache::GetResolvedMethod(uint32_t method_idx) const
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  AbstractMethod* method = GetResolvedMethods()->Get(method_idx);
+  ArtMethod* method = GetResolvedMethods()->Get(method_idx);
   // Hide resolution trampoline methods from the caller
   if (method != NULL && method->IsRuntimeMethod()) {
     DCHECK(method == Runtime::Current()->GetResolutionMethod());

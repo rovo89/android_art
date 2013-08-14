@@ -15,7 +15,7 @@
  */
 
 #include "compiler/oat_writer.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
@@ -28,7 +28,7 @@ namespace art {
 
 class OatTest : public CommonTest {
  protected:
-  void CheckMethod(mirror::AbstractMethod* method,
+  void CheckMethod(mirror::ArtMethod* method,
                    const OatFile::OatMethod& oat_method,
                    const DexFile* dex_file)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

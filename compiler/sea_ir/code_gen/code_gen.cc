@@ -15,8 +15,8 @@
  */
 
 #include <llvm/Support/raw_ostream.h>
-#include "sea.h"
-#include "code_gen.h"
+#include "sea_ir/ir/sea.h"
+#include "sea_ir/code_gen/code_gen.h"
 
 namespace sea_ir {
 
@@ -114,6 +114,14 @@ void CodeGenVisitor::Visit(InstructionNode* instruction) {
   std::string instr = instruction->GetInstruction()->DumpString(NULL);
   DCHECK(0);  // This whole function is useful only during development.
 }
+
+void CodeGenVisitor::Visit(UnnamedConstInstructionNode* instruction) {
+  std::string instr = instruction->GetInstruction()->DumpString(NULL);
+  std::cout << "1.Instruction: " << instr << std::endl;
+  llvm_data_->AddValue(instruction,
+      llvm::ConstantInt::get(*llvm_data_->context_, llvm::APInt(32, instruction->GetConstValue())));
+}
+
 void CodeGenVisitor::Visit(ConstInstructionNode* instruction) {
   std::string instr = instruction->GetInstruction()->DumpString(NULL);
   std::cout << "1.Instruction: " << instr << std::endl;
@@ -123,14 +131,14 @@ void CodeGenVisitor::Visit(ConstInstructionNode* instruction) {
 void CodeGenVisitor::Visit(ReturnInstructionNode* instruction) {
   std::string instr = instruction->GetInstruction()->DumpString(NULL);
   std::cout << "2.Instruction: " << instr << std::endl;
-  DCHECK_GT(instruction->GetSSAUses().size(), 0u);
-  llvm::Value* return_value = llvm_data_->GetValue(instruction->GetSSAUses().at(0));
+  DCHECK_GT(instruction->GetSSAProducers().size(), 0u);
+  llvm::Value* return_value = llvm_data_->GetValue(instruction->GetSSAProducers().at(0));
   llvm_data_->builder_.CreateRet(return_value);
 }
 void CodeGenVisitor::Visit(IfNeInstructionNode* instruction) {
   std::string instr = instruction->GetInstruction()->DumpString(NULL);
   std::cout << "3.Instruction: " << instr << std::endl;
-  std::vector<InstructionNode*> ssa_uses = instruction->GetSSAUses();
+  std::vector<InstructionNode*> ssa_uses = instruction->GetSSAProducers();
   DCHECK_GT(ssa_uses.size(), 1u);
   InstructionNode* use_l = ssa_uses.at(0);
   llvm::Value* left = llvm_data_->GetValue(use_l);
@@ -171,7 +179,7 @@ void CodeGenVisitor::Visit(MoveResultInstructionNode* instruction) {
   // since their purpose of minimizing the number of opcodes in dex is
   // not relevant for the IR. (Will need to have different
   // instruction subclasses for functions and procedures.)
-  std::vector<InstructionNode*> ssa_uses = instruction->GetSSAUses();
+  std::vector<InstructionNode*> ssa_uses = instruction->GetSSAProducers();
   InstructionNode* use_l = ssa_uses.at(0);
   llvm::Value* left = llvm_data_->GetValue(use_l);
   llvm::Value* right = llvm::ConstantInt::get(*llvm_data_->context_, llvm::APInt(32, 0));
@@ -187,7 +195,7 @@ void CodeGenVisitor::Visit(InvokeStaticInstructionNode* invoke) {
   // TODO: Add proper checking of the matching between formal and actual signature.
   DCHECK(NULL != callee);
   std::vector<llvm::Value*> parameter_values;
-  std::vector<InstructionNode*> parameter_sources = invoke->GetSSAUses();
+  std::vector<InstructionNode*> parameter_sources = invoke->GetSSAProducers();
   for (std::vector<InstructionNode*>::const_iterator cit = parameter_sources.begin();
       cit != parameter_sources.end(); ++cit) {
     llvm::Value* parameter_value = llvm_data_->GetValue((*cit));
@@ -201,7 +209,7 @@ void CodeGenVisitor::Visit(InvokeStaticInstructionNode* invoke) {
 void CodeGenVisitor::Visit(AddIntInstructionNode* instruction) {
   std::string instr = instruction->GetInstruction()->DumpString(NULL);
   std::cout << "7.Instruction: " << instr << std::endl;
-  std::vector<InstructionNode*> ssa_uses = instruction->GetSSAUses();
+  std::vector<InstructionNode*> ssa_uses = instruction->GetSSAProducers();
   DCHECK_GT(ssa_uses.size(), 1u);
   InstructionNode* use_l = ssa_uses.at(0);
   InstructionNode* use_r = ssa_uses.at(1);
@@ -221,7 +229,7 @@ void CodeGenVisitor::Visit(GotoInstructionNode* instruction) {
 void CodeGenVisitor::Visit(IfEqzInstructionNode* instruction) {
   std::string instr = instruction->GetInstruction()->DumpString(NULL);
   std::cout << "9. Instruction: " << instr << "; Id: " <<instruction << std::endl;
-  std::vector<InstructionNode*> ssa_uses = instruction->GetSSAUses();
+  std::vector<InstructionNode*> ssa_uses = instruction->GetSSAProducers();
   DCHECK_GT(ssa_uses.size(), 0u);
   InstructionNode* use_l = ssa_uses.at(0);
   llvm::Value* left = llvm_data_->GetValue(use_l);

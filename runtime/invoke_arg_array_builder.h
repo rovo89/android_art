@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_INVOKE_ARG_ARRAY_BUILDER_H_
 #define ART_RUNTIME_INVOKE_ARG_ARRAY_BUILDER_H_
 
+#include "mirror/art_method.h"
 #include "mirror/object.h"
 #include "scoped_thread_state_change.h"
 
@@ -162,10 +163,35 @@ class ArgArray {
     }
   }
 
-  void BuildArgArray(ShadowFrame* shadow_frame, uint32_t arg_offset)
-  SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    arg_array_ = shadow_frame->GetVRegArgs(arg_offset);
-    num_bytes_ = (shadow_frame->NumberOfVRegs() - arg_offset) * 4;
+
+  void BuildArgArrayFromFrame(ShadowFrame* shadow_frame, uint32_t arg_offset)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // Set receiver if non-null (method is not static)
+    size_t cur_arg = arg_offset;
+    if (!shadow_frame->GetMethod()->IsStatic()) {
+      Append(shadow_frame->GetVReg(cur_arg));
+      cur_arg++;
+    }
+    for (size_t i = 1; i < shorty_len_; ++i) {
+      switch (shorty_[i]) {
+        case 'Z':
+        case 'B':
+        case 'C':
+        case 'S':
+        case 'I':
+        case 'F':
+        case 'L':
+          Append(shadow_frame->GetVReg(cur_arg));
+          cur_arg++;
+          break;
+        case 'D':
+        case 'J':
+          AppendWide(shadow_frame->GetVRegLong(cur_arg));
+          cur_arg++;
+          cur_arg++;
+          break;
+      }
+    }
   }
 
  private:

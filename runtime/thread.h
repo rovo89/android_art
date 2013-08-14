@@ -45,7 +45,7 @@
 namespace art {
 
 namespace mirror {
-  class AbstractMethod;
+  class ArtMethod;
   class Array;
   class Class;
   class ClassLoader;
@@ -318,13 +318,13 @@ class PACKED(4) Thread {
     long_jump_context_ = context;
   }
 
-  mirror::AbstractMethod* GetCurrentMethod(uint32_t* dex_pc) const
+  mirror::ArtMethod* GetCurrentMethod(uint32_t* dex_pc) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ThrowLocation GetCurrentLocationForThrow() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetTopOfStack(void* stack, uintptr_t pc) {
-    mirror::AbstractMethod** top_method = reinterpret_cast<mirror::AbstractMethod**>(stack);
+    mirror::ArtMethod** top_method = reinterpret_cast<mirror::ArtMethod**>(stack);
     managed_stack_.SetTopQuickFrame(top_method);
     managed_stack_.SetTopQuickFramePc(pc);
   }

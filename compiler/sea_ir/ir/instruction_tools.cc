@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "instruction_tools.h"
+#include "sea_ir/ir/instruction_tools.h"
 
 namespace sea_ir {
 

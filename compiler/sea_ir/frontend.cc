@@ -23,14 +23,17 @@
 #include "llvm/llvm_compilation_unit.h"
 #include "mirror/object.h"
 #include "runtime.h"
-#include "sea_ir/sea.h"
+#include "safe_map.h"
 
+#include "sea_ir/ir/sea.h"
+#include "sea_ir/debug/dot_gen.h"
+#include "sea_ir/types/types.h"
 namespace art {
 
 static CompiledMethod* CompileMethodWithSeaIr(CompilerDriver& compiler,
                                      const CompilerBackend compiler_backend,
                                      const DexFile::CodeItem* code_item,
-                                     uint32_t access_flags, InvokeType invoke_type,
+                                     uint32_t method_access_flags, InvokeType invoke_type,
                                      uint32_t class_def_idx, uint32_t method_idx,
                                      jobject class_loader, const DexFile& dex_file
 #if defined(ART_USE_PORTABLE_COMPILER)
@@ -40,9 +43,11 @@ static CompiledMethod* CompileMethodWithSeaIr(CompilerDriver& compiler,
   // NOTE: Instead of keeping the convention from the Dalvik frontend.cc
   //       and silencing the cpplint.py warning, I just corrected the formatting.
   VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
-  sea_ir::SeaGraph* sg = sea_ir::SeaGraph::GetCurrentGraph(dex_file);
-  sg->CompileMethod(code_item, class_def_idx, method_idx, dex_file);
-  sg->DumpSea("/tmp/temp.dot");
+  sea_ir::SeaGraph* ir_graph = sea_ir::SeaGraph::GetGraph(dex_file);
+  ir_graph->CompileMethod(code_item, class_def_idx, method_idx, method_access_flags, dex_file);
+  sea_ir::DotConversion dc;
+  SafeMap<int, const sea_ir::Type*>*  types = ir_graph->ti_->GetTypeMap();
+  dc.DumpSea(ir_graph, "/tmp/temp.dot", types);
   CHECK(0 && "No SEA compiled function exists yet.");
   return NULL;
 }
@@ -50,14 +55,14 @@ static CompiledMethod* CompileMethodWithSeaIr(CompilerDriver& compiler,
 CompiledMethod* SeaIrCompileOneMethod(CompilerDriver& compiler,
                                  const CompilerBackend backend,
                                  const DexFile::CodeItem* code_item,
-                                 uint32_t access_flags,
+                                 uint32_t method_access_flags,
                                  InvokeType invoke_type,
                                  uint32_t class_def_idx,
                                  uint32_t method_idx,
                                  jobject class_loader,
                                  const DexFile& dex_file,
                                  llvm::LlvmCompilationUnit* llvm_compilation_unit) {
-  return CompileMethodWithSeaIr(compiler, backend, code_item, access_flags, invoke_type,
+  return CompileMethodWithSeaIr(compiler, backend, code_item, method_access_flags, invoke_type,
       class_def_idx, method_idx, class_loader, dex_file
 #if defined(ART_USE_PORTABLE_COMPILER)
                        , llvm_compilation_unit
@@ -68,13 +73,13 @@ CompiledMethod* SeaIrCompileOneMethod(CompilerDriver& compiler,
 extern "C" art::CompiledMethod*
     SeaIrCompileMethod(art::CompilerDriver& compiler,
                           const art::DexFile::CodeItem* code_item,
-                          uint32_t access_flags, art::InvokeType invoke_type,
+                          uint32_t method_access_flags, art::InvokeType invoke_type,
                           uint32_t class_def_idx, uint32_t method_idx, jobject class_loader,
                           const art::DexFile& dex_file) {
   // TODO: Check method fingerprint here to determine appropriate backend type.
   //       Until then, use build default
   art::CompilerBackend backend = compiler.GetCompilerBackend();
-  return art::SeaIrCompileOneMethod(compiler, backend, code_item, access_flags, invoke_type,
+  return art::SeaIrCompileOneMethod(compiler, backend, code_item, method_access_flags, invoke_type,
                                class_def_idx, method_idx, class_loader, dex_file,
                                NULL /* use thread llvm_info */);
 }

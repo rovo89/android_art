@@ -15,6 +15,7 @@
  */
 
 #include "dlmalloc_space.h"
+#include "large_object_space.h"
 
 #include "common_test.h"
 #include "globals.h"
@@ -36,6 +37,11 @@ class SpaceTest : public CommonTest {
     Runtime::Current()->GetHeap()->AddContinuousSpace(space);
   }
 };
+
+static size_t test_rand(size_t* seed) {
+  *seed = *seed * 1103515245 + 12345;
+  return *seed;
+}
 
 TEST_F(SpaceTest, Init) {
   {
@@ -80,6 +86,7 @@ TEST_F(SpaceTest, Init) {
 // allocations after the ZygoteSpace is created. The test should also do some GCs to ensure that
 // the GC works with the ZygoteSpace.
 TEST_F(SpaceTest, ZygoteSpace) {
+    size_t dummy = 0;
     DlMallocSpace* space(DlMallocSpace::Create("test", 4 * MB, 16 * MB, 16 * MB, NULL));
     ASSERT_TRUE(space != NULL);
 
@@ -88,32 +95,35 @@ TEST_F(SpaceTest, ZygoteSpace) {
     Thread* self = Thread::Current();
 
     // Succeeds, fits without adjusting the footprint limit.
-    mirror::Object* ptr1 = space->Alloc(self, 1 * MB);
+    mirror::Object* ptr1 = space->Alloc(self, 1 * MB, &dummy);
     EXPECT_TRUE(ptr1 != NULL);
 
     // Fails, requires a higher footprint limit.
-    mirror::Object* ptr2 = space->Alloc(self, 8 * MB);
+    mirror::Object* ptr2 = space->Alloc(self, 8 * MB, &dummy);
     EXPECT_TRUE(ptr2 == NULL);
 
     // Succeeds, adjusts the footprint.
-    mirror::Object* ptr3 = space->AllocWithGrowth(self, 8 * MB);
+    size_t ptr3_bytes_allocated;
+    mirror::Object* ptr3 = space->AllocWithGrowth(self, 8 * MB, &ptr3_bytes_allocated);
     EXPECT_TRUE(ptr3 != NULL);
+    EXPECT_LE(8U * MB, ptr3_bytes_allocated);
 
     // Fails, requires a higher footprint limit.
-    mirror::Object* ptr4 = space->Alloc(self, 8 * MB);
+    mirror::Object* ptr4 = space->Alloc(self, 8 * MB, &dummy);
     EXPECT_TRUE(ptr4 == NULL);
 
     // Also fails, requires a higher allowed footprint.
-    mirror::Object* ptr5 = space->AllocWithGrowth(self, 8 * MB);
+    mirror::Object* ptr5 = space->AllocWithGrowth(self, 8 * MB, &dummy);
     EXPECT_TRUE(ptr5 == NULL);
 
     // Release some memory.
     size_t free3 = space->AllocationSize(ptr3);
+    EXPECT_EQ(free3, ptr3_bytes_allocated);
     EXPECT_EQ(free3, space->Free(self, ptr3));
     EXPECT_LE(8U * MB, free3);
 
     // Succeeds, now that memory has been freed.
-    void* ptr6 = space->AllocWithGrowth(self, 9 * MB);
+    void* ptr6 = space->AllocWithGrowth(self, 9 * MB, &dummy);
     EXPECT_TRUE(ptr6 != NULL);
 
     // Final clean up.
@@ -122,22 +132,22 @@ TEST_F(SpaceTest, ZygoteSpace) {
     EXPECT_LE(1U * MB, free1);
 
     // Make sure that the zygote space isn't directly at the start of the space.
-    space->Alloc(self, 1U * MB);
+    space->Alloc(self, 1U * MB, &dummy);
     space = space->CreateZygoteSpace("alloc space");
 
     // Make space findable to the heap, will also delete space when runtime is cleaned up
     AddContinuousSpace(space);
 
     // Succeeds, fits without adjusting the footprint limit.
-    ptr1 = space->Alloc(self, 1 * MB);
+    ptr1 = space->Alloc(self, 1 * MB, &dummy);
     EXPECT_TRUE(ptr1 != NULL);
 
     // Fails, requires a higher footprint limit.
-    ptr2 = space->Alloc(self, 8 * MB);
+    ptr2 = space->Alloc(self, 8 * MB, &dummy);
     EXPECT_TRUE(ptr2 == NULL);
 
     // Succeeds, adjusts the footprint.
-    ptr3 = space->AllocWithGrowth(self, 2 * MB);
+    ptr3 = space->AllocWithGrowth(self, 2 * MB, &dummy);
     EXPECT_TRUE(ptr3 != NULL);
     space->Free(self, ptr3);
 
@@ -148,6 +158,7 @@ TEST_F(SpaceTest, ZygoteSpace) {
 }
 
 TEST_F(SpaceTest, AllocAndFree) {
+  size_t dummy = 0;
   DlMallocSpace* space(DlMallocSpace::Create("test", 4 * MB, 16 * MB, 16 * MB, NULL));
   ASSERT_TRUE(space != NULL);
   Thread* self = Thread::Current();
@@ -156,38 +167,102 @@ TEST_F(SpaceTest, AllocAndFree) {
   AddContinuousSpace(space);
 
   // Succeeds, fits without adjusting the footprint limit.
-  mirror::Object* ptr1 = space->Alloc(self, 1 * MB);
+  mirror::Object* ptr1 = space->Alloc(self, 1 * MB, &dummy);
   EXPECT_TRUE(ptr1 != NULL);
 
   // Fails, requires a higher footprint limit.
-  mirror::Object* ptr2 = space->Alloc(self, 8 * MB);
+  mirror::Object* ptr2 = space->Alloc(self, 8 * MB, &dummy);
   EXPECT_TRUE(ptr2 == NULL);
 
   // Succeeds, adjusts the footprint.
-  mirror::Object* ptr3 = space->AllocWithGrowth(self, 8 * MB);
+  size_t ptr3_bytes_allocated;
+  mirror::Object* ptr3 = space->AllocWithGrowth(self, 8 * MB, &ptr3_bytes_allocated);
   EXPECT_TRUE(ptr3 != NULL);
+  EXPECT_LE(8U * MB, ptr3_bytes_allocated);
 
   // Fails, requires a higher footprint limit.
-  mirror::Object* ptr4 = space->Alloc(self, 8 * MB);
+  mirror::Object* ptr4 = space->Alloc(self, 8 * MB, &dummy);
   EXPECT_TRUE(ptr4 == NULL);
 
   // Also fails, requires a higher allowed footprint.
-  mirror::Object* ptr5 = space->AllocWithGrowth(self, 8 * MB);
+  mirror::Object* ptr5 = space->AllocWithGrowth(self, 8 * MB, &dummy);
   EXPECT_TRUE(ptr5 == NULL);
 
   // Release some memory.
   size_t free3 = space->AllocationSize(ptr3);
+  EXPECT_EQ(free3, ptr3_bytes_allocated);
   space->Free(self, ptr3);
   EXPECT_LE(8U * MB, free3);
 
   // Succeeds, now that memory has been freed.
-  void* ptr6 = space->AllocWithGrowth(self, 9 * MB);
+  void* ptr6 = space->AllocWithGrowth(self, 9 * MB, &dummy);
   EXPECT_TRUE(ptr6 != NULL);
 
   // Final clean up.
   size_t free1 = space->AllocationSize(ptr1);
   space->Free(self, ptr1);
   EXPECT_LE(1U * MB, free1);
+}
+
+TEST_F(SpaceTest, LargeObjectTest) {
+  size_t rand_seed = 0;
+  for (size_t i = 0; i < 2; ++i) {
+    LargeObjectSpace* los = NULL;
+    if (i == 0) {
+      los = space::LargeObjectMapSpace::Create("large object space");
+    } else {
+      los = space::FreeListSpace::Create("large object space", NULL, 128 * MB);
+    }
+
+    static const size_t num_allocations = 64;
+    static const size_t max_allocation_size = 0x100000;
+    std::vector<std::pair<mirror::Object*, size_t> > requests;
+
+    for (size_t phase = 0; phase < 2; ++phase) {
+      while (requests.size() < num_allocations) {
+        size_t request_size = test_rand(&rand_seed) % max_allocation_size;
+        size_t allocation_size = 0;
+        mirror::Object* obj = los->Alloc(Thread::Current(), request_size, &allocation_size);
+        ASSERT_TRUE(obj != NULL);
+        ASSERT_EQ(allocation_size, los->AllocationSize(obj));
+        ASSERT_GE(allocation_size, request_size);
+        // Fill in our magic value.
+        byte magic = (request_size & 0xFF) | 1;
+        memset(obj, magic, request_size);
+        requests.push_back(std::make_pair(obj, request_size));
+      }
+
+      // "Randomly" shuffle the requests.
+      for (size_t k = 0; k < 10; ++k) {
+        for (size_t j = 0; j < requests.size(); ++j) {
+          std::swap(requests[j], requests[test_rand(&rand_seed) % requests.size()]);
+        }
+      }
+
+      // Free 1 / 2 the allocations the first phase, and all the second phase.
+      size_t limit = !phase ? requests.size() / 2 : 0;
+      while (requests.size() > limit) {
+        mirror::Object* obj = requests.back().first;
+        size_t request_size = requests.back().second;
+        requests.pop_back();
+        byte magic = (request_size & 0xFF) | 1;
+        for (size_t k = 0; k < request_size; ++k) {
+          ASSERT_EQ(reinterpret_cast<const byte*>(obj)[k], magic);
+        }
+        ASSERT_GE(los->Free(Thread::Current(), obj), request_size);
+      }
+    }
+
+    size_t bytes_allocated = 0;
+    // Checks that the coalescing works.
+    mirror::Object* obj = los->Alloc(Thread::Current(), 100 * MB, &bytes_allocated);
+    EXPECT_TRUE(obj != NULL);
+    los->Free(Thread::Current(), obj);
+
+    EXPECT_EQ(0U, los->GetBytesAllocated());
+    EXPECT_EQ(0U, los->GetObjectsAllocated());
+    delete los;
+  }
 }
 
 TEST_F(SpaceTest, AllocAndFreeList) {
@@ -201,7 +276,9 @@ TEST_F(SpaceTest, AllocAndFreeList) {
   // Succeeds, fits without adjusting the max allowed footprint.
   mirror::Object* lots_of_objects[1024];
   for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
-    lots_of_objects[i] = space->Alloc(self, 16);
+    size_t allocation_size = 0;
+    lots_of_objects[i] = space->Alloc(self, 16, &allocation_size);
+    EXPECT_EQ(allocation_size, space->AllocationSize(lots_of_objects[i]));
     EXPECT_TRUE(lots_of_objects[i] != NULL);
   }
 
@@ -213,7 +290,9 @@ TEST_F(SpaceTest, AllocAndFreeList) {
 
   // Succeeds, fits by adjusting the max allowed footprint.
   for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
-    lots_of_objects[i] = space->AllocWithGrowth(self, 1024);
+    size_t allocation_size = 0;
+    lots_of_objects[i] = space->AllocWithGrowth(self, 1024, &allocation_size);
+    EXPECT_EQ(allocation_size, space->AllocationSize(lots_of_objects[i]));
     EXPECT_TRUE(lots_of_objects[i] != NULL);
   }
 
@@ -222,11 +301,6 @@ TEST_F(SpaceTest, AllocAndFreeList) {
   for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
     EXPECT_TRUE(lots_of_objects[i] == NULL);
   }
-}
-
-static size_t test_rand() {
-  // TODO: replace this with something random yet deterministic
-  return rand();
 }
 
 void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(DlMallocSpace* space, intptr_t object_size,
@@ -261,6 +335,7 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(DlMallocSpace* space, intptr
   size_t last_object = 0;  // last object for which allocation succeeded
   size_t amount_allocated = 0;  // amount of space allocated
   Thread* self = Thread::Current();
+  size_t rand_seed = 123456789;
   for (size_t i = 0; i < max_objects; i++) {
     size_t alloc_fails = 0;  // number of failed allocations
     size_t max_fails = 30;  // number of times we fail allocation before giving up
@@ -269,22 +344,24 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(DlMallocSpace* space, intptr
       if (object_size > 0) {
         alloc_size = object_size;
       } else {
-        alloc_size = test_rand() % static_cast<size_t>(-object_size);
+        alloc_size = test_rand(&rand_seed) % static_cast<size_t>(-object_size);
         if (alloc_size < 8) {
           alloc_size = 8;
         }
       }
       mirror::Object* object;
+      size_t bytes_allocated = 0;
       if (round <= 1) {
-        object = space->Alloc(self, alloc_size);
+        object = space->Alloc(self, alloc_size, &bytes_allocated);
       } else {
-        object = space->AllocWithGrowth(self, alloc_size);
+        object = space->AllocWithGrowth(self, alloc_size, &bytes_allocated);
       }
       footprint = mspace_footprint(mspace);
       EXPECT_GE(space->Size(), footprint);  // invariant
       if (object != NULL) {  // allocation succeeded
         lots_of_objects.get()[i] = object;
         size_t allocation_size = space->AllocationSize(object);
+        EXPECT_EQ(bytes_allocated, allocation_size);
         if (object_size > 0) {
           EXPECT_GE(allocation_size, static_cast<size_t>(object_size));
         } else {
@@ -354,10 +431,11 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(DlMallocSpace* space, intptr
   // All memory was released, try a large allocation to check freed memory is being coalesced
   mirror::Object* large_object;
   size_t three_quarters_space = (growth_limit / 2) + (growth_limit / 4);
+  size_t bytes_allocated = 0;
   if (round <= 1) {
-    large_object = space->Alloc(self, three_quarters_space);
+    large_object = space->Alloc(self, three_quarters_space, &bytes_allocated);
   } else {
-    large_object = space->AllocWithGrowth(self, three_quarters_space);
+    large_object = space->AllocWithGrowth(self, three_quarters_space, &bytes_allocated);
   }
   EXPECT_TRUE(large_object != NULL);
 

@@ -24,7 +24,7 @@
 namespace art {
 
 // Deliver an exception that's pending on thread helping set up a callee save frame on the way.
-extern "C" void artDeliverPendingExceptionFromCode(Thread* thread, mirror::AbstractMethod** sp)
+extern "C" void artDeliverPendingExceptionFromCode(Thread* thread, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   thread->QuickDeliverException();
@@ -32,7 +32,7 @@ extern "C" void artDeliverPendingExceptionFromCode(Thread* thread, mirror::Abstr
 
 // Called by generated call to throw an exception.
 extern "C" void artDeliverExceptionFromCode(mirror::Throwable* exception, Thread* self,
-                                            mirror::AbstractMethod** sp)
+                                            mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   /*
    * exception may be NULL, in which case this routine should
@@ -54,7 +54,7 @@ extern "C" void artDeliverExceptionFromCode(mirror::Throwable* exception, Thread
 
 // Called by generated call to throw a NPE exception.
 extern "C" void artThrowNullPointerExceptionFromCode(Thread* self,
-                                                     mirror::AbstractMethod** sp)
+                                                     mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
   ThrowLocation throw_location = self->GetCurrentLocationForThrow();
@@ -64,7 +64,7 @@ extern "C" void artThrowNullPointerExceptionFromCode(Thread* self,
 
 // Called by generated call to throw an arithmetic divide by zero exception.
 extern "C" void artThrowDivZeroFromCode(Thread* self,
-                                        mirror::AbstractMethod** sp)
+                                        mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
   ThrowArithmeticExceptionDivideByZero();
@@ -73,14 +73,14 @@ extern "C" void artThrowDivZeroFromCode(Thread* self,
 
 // Called by generated call to throw an array index out of bounds exception.
 extern "C" void artThrowArrayBoundsFromCode(int index, int length, Thread* self,
-                                            mirror::AbstractMethod** sp)
+                                            mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
   ThrowArrayIndexOutOfBoundsException(index, length);
   self->QuickDeliverException();
 }
 
-extern "C" void artThrowStackOverflowFromCode(Thread* self, mirror::AbstractMethod** sp)
+extern "C" void artThrowStackOverflowFromCode(Thread* self, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
   ThrowStackOverflowError(self);
@@ -88,7 +88,7 @@ extern "C" void artThrowStackOverflowFromCode(Thread* self, mirror::AbstractMeth
 }
 
 extern "C" void artThrowNoSuchMethodFromCode(int32_t method_idx, Thread* self,
-                                             mirror::AbstractMethod** sp)
+                                             mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
   ThrowNoSuchMethodError(method_idx);

@@ -31,10 +31,10 @@ class Thread;
 
 namespace mirror {
 
-class AbstractMethod;
+class ArtField;
+class ArtMethod;
 class Array;
 class Class;
-class Field;
 template<class T> class ObjectArray;
 template<class T> class PrimitiveArray;
 typedef PrimitiveArray<uint8_t> BooleanArray;
@@ -144,17 +144,17 @@ class MANAGED Object {
 
   Throwable* AsThrowable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsMethod() const;
+  bool IsArtMethod() const;
 
-  AbstractMethod* AsMethod();
+  ArtMethod* AsArtMethod();
 
-  const AbstractMethod* AsMethod() const;
+  const ArtMethod* AsArtMethod() const;
 
-  bool IsField() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool IsArtField() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Field* AsField() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ArtField* AsArtField() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  const Field* AsField() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const ArtField* AsArtField() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsReferenceInstance() const;
 

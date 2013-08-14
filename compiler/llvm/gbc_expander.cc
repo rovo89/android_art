@@ -20,7 +20,7 @@
 #include "intrinsic_helper.h"
 #include "ir_builder.h"
 #include "method_reference.h"
-#include "mirror/abstract_method.h"
+#include "mirror/art_method.h"
 #include "mirror/array.h"
 #include "mirror/string.h"
 #include "thread.h"
@@ -722,7 +722,7 @@ llvm::Value* GBCExpanderPass::EmitLoadDexCacheAddr(art::MemberOffset offset) {
 llvm::Value*
 GBCExpanderPass::EmitLoadDexCacheStaticStorageFieldAddr(uint32_t type_idx) {
   llvm::Value* static_storage_dex_cache_addr =
-    EmitLoadDexCacheAddr(art::mirror::AbstractMethod::DexCacheInitializedStaticStorageOffset());
+    EmitLoadDexCacheAddr(art::mirror::ArtMethod::DexCacheInitializedStaticStorageOffset());
 
   llvm::Value* type_idx_value = irb_.getPtrEquivInt(type_idx);
 
@@ -732,7 +732,7 @@ GBCExpanderPass::EmitLoadDexCacheStaticStorageFieldAddr(uint32_t type_idx) {
 llvm::Value*
 GBCExpanderPass::EmitLoadDexCacheResolvedTypeFieldAddr(uint32_t type_idx) {
   llvm::Value* resolved_type_dex_cache_addr =
-    EmitLoadDexCacheAddr(art::mirror::AbstractMethod::DexCacheResolvedTypesOffset());
+    EmitLoadDexCacheAddr(art::mirror::ArtMethod::DexCacheResolvedTypesOffset());
 
   llvm::Value* type_idx_value = irb_.getPtrEquivInt(type_idx);
 
@@ -742,7 +742,7 @@ GBCExpanderPass::EmitLoadDexCacheResolvedTypeFieldAddr(uint32_t type_idx) {
 llvm::Value* GBCExpanderPass::
 EmitLoadDexCacheResolvedMethodFieldAddr(uint32_t method_idx) {
   llvm::Value* resolved_method_dex_cache_addr =
-    EmitLoadDexCacheAddr(art::mirror::AbstractMethod::DexCacheResolvedMethodsOffset());
+    EmitLoadDexCacheAddr(art::mirror::ArtMethod::DexCacheResolvedMethodsOffset());
 
   llvm::Value* method_idx_value = irb_.getPtrEquivInt(method_idx);
 
@@ -752,7 +752,7 @@ EmitLoadDexCacheResolvedMethodFieldAddr(uint32_t method_idx) {
 llvm::Value* GBCExpanderPass::
 EmitLoadDexCacheStringFieldAddr(uint32_t string_idx) {
   llvm::Value* string_dex_cache_addr =
-    EmitLoadDexCacheAddr(art::mirror::AbstractMethod::DexCacheStringsOffset());
+    EmitLoadDexCacheAddr(art::mirror::ArtMethod::DexCacheStringsOffset());
 
   llvm::Value* string_idx_value = irb_.getPtrEquivInt(string_idx);
 
@@ -911,7 +911,7 @@ llvm::Value* GBCExpanderPass::EmitInvoke(llvm::CallInst& call_inst) {
   } else {
     code_addr =
         irb_.LoadFromObjectOffset(callee_method_object_addr,
-                                  art::mirror::AbstractMethod::GetEntryPointFromCompiledCodeOffset().Int32Value(),
+                                  art::mirror::ArtMethod::GetEntryPointFromCompiledCodeOffset().Int32Value(),
                                   func_type->getPointerTo(), kTBAARuntimeInfo);
   }
 
@@ -1207,7 +1207,7 @@ void GBCExpanderPass::Expand_SPutFast(llvm::Value* static_storage_addr,
 llvm::Value*
 GBCExpanderPass::Expand_LoadDeclaringClassSSB(llvm::Value* method_object_addr) {
   return irb_.LoadFromObjectOffset(method_object_addr,
-                                   art::mirror::AbstractMethod::DeclaringClassOffset().Int32Value(),
+                                   art::mirror::ArtMethod::DeclaringClassOffset().Int32Value(),
                                    irb_.getJObjectTy(),
                                    kTBAAConstJObject);
 }
@@ -1259,7 +1259,7 @@ llvm::Value* GBCExpanderPass::Expand_Invoke(llvm::CallInst& call_inst) {
 
   llvm::Value* code_addr =
     irb_.LoadFromObjectOffset(callee_method_object_addr,
-                              art::mirror::AbstractMethod::GetEntryPointFromCompiledCodeOffset().Int32Value(),
+                              art::mirror::ArtMethod::GetEntryPointFromCompiledCodeOffset().Int32Value(),
                               callee_method_type->getPointerTo(),
                               kTBAARuntimeInfo);
 
@@ -1938,7 +1938,7 @@ llvm::Value* GBCExpanderPass::Expand_HLSget(llvm::CallInst& call_inst,
 
       static_storage_addr =
         irb_.LoadFromObjectOffset(method_object_addr,
-                                  art::mirror::AbstractMethod::DeclaringClassOffset().Int32Value(),
+                                  art::mirror::ArtMethod::DeclaringClassOffset().Int32Value(),
                                   irb_.getJObjectTy(),
                                   kTBAAConstJObject);
     } else {
@@ -2023,7 +2023,7 @@ void GBCExpanderPass::Expand_HLSput(llvm::CallInst& call_inst,
 
       static_storage_addr =
         irb_.LoadFromObjectOffset(method_object_addr,
-                                  art::mirror::AbstractMethod::DeclaringClassOffset().Int32Value(),
+                                  art::mirror::ArtMethod::DeclaringClassOffset().Int32Value(),
                                   irb_.getJObjectTy(),
                                   kTBAAConstJObject);
     } else {

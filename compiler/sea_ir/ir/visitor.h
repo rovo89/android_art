@@ -14,16 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_SEA_IR_VISITOR_H_
-#define ART_COMPILER_SEA_IR_VISITOR_H_
-
-#include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Module.h"
-#include "llvm/Analysis/Verifier.h"
-// TODO: Separating the root visitor from the code_gen visitor
-// would allow me to not include llvm headers here.
-
+#ifndef ART_COMPILER_SEA_IR_IR_VISITOR_H_
+#define ART_COMPILER_SEA_IR_IR_VISITOR_H_
 
 namespace sea_ir {
 
@@ -32,6 +24,7 @@ class Region;
 class InstructionNode;
 class PhiInstructionNode;
 class SignatureNode;
+class UnnamedConstInstructionNode;
 class ConstInstructionNode;
 class ReturnInstructionNode;
 class IfNeInstructionNode;
@@ -48,7 +41,7 @@ class IfEqzInstructionNode;
 
 class IRVisitor {
  public:
-  explicit IRVisitor():ordered_regions_() { }
+  explicit IRVisitor(): ordered_regions_() { }
   virtual void Initialize(SeaGraph* graph) = 0;
   virtual void Visit(SeaGraph* graph) = 0;
   virtual void Visit(Region* region) = 0;
@@ -57,16 +50,16 @@ class IRVisitor {
 
   virtual void Visit(InstructionNode* region) = 0;
   virtual void Visit(ConstInstructionNode* instruction) = 0;
+  virtual void Visit(UnnamedConstInstructionNode* instruction) = 0;
   virtual void Visit(ReturnInstructionNode* instruction) = 0;
   virtual void Visit(IfNeInstructionNode* instruction) = 0;
-  // virtual void Visit(AddIntLitInstructionNode* instruction) = 0;
   virtual void Visit(MoveResultInstructionNode* instruction) = 0;
   virtual void Visit(InvokeStaticInstructionNode* instruction) = 0;
   virtual void Visit(AddIntInstructionNode* instruction) = 0;
   virtual void Visit(GotoInstructionNode* instruction) = 0;
   virtual void Visit(IfEqzInstructionNode* instruction) = 0;
 
-  // Note: This favor of visitor separates the traversal functions from the actual visiting part
+  // Note: This flavor of visitor separates the traversal functions from the actual visiting part
   //       so that the Visitor subclasses don't duplicate code and can't get the traversal wrong.
   //       The disadvantage is the increased number of functions (and calls).
   virtual void Traverse(SeaGraph* graph);
@@ -91,4 +84,4 @@ class IRVisitor {
   std::vector<Region*> ordered_regions_;
 };
 }  // namespace sea_ir
-#endif  // ART_COMPILER_SEA_IR_VISITOR_H_
+#endif  // ART_COMPILER_SEA_IR_IR_VISITOR_H_

@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_MIRROR_FIELD_INL_H_
-#define ART_RUNTIME_MIRROR_FIELD_INL_H_
+#ifndef ART_RUNTIME_MIRROR_ART_FIELD_INL_H_
+#define ART_RUNTIME_MIRROR_ART_FIELD_INL_H_
 
-#include "field.h"
+#include "art_field.h"
 
 #include "base/logging.h"
 #include "gc/accounting/card_table-inl.h"
@@ -29,117 +29,117 @@
 namespace art {
 namespace mirror {
 
-inline Class* Field::GetDeclaringClass() const {
-  Class* result = GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Field, declaring_class_), false);
+inline Class* ArtField::GetDeclaringClass() const {
+  Class* result = GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(ArtField, declaring_class_), false);
   DCHECK(result != NULL);
   DCHECK(result->IsLoaded() || result->IsErroneous());
   return result;
 }
 
-inline void Field::SetDeclaringClass(Class *new_declaring_class) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Field, declaring_class_), new_declaring_class, false);
+inline void ArtField::SetDeclaringClass(Class *new_declaring_class) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(ArtField, declaring_class_), new_declaring_class, false);
 }
 
-inline uint32_t Field::GetAccessFlags() const {
+inline uint32_t ArtField::GetAccessFlags() const {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
-  return GetField32(OFFSET_OF_OBJECT_MEMBER(Field, access_flags_), false);
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtField, access_flags_), false);
 }
 
-inline MemberOffset Field::GetOffset() const {
+inline MemberOffset ArtField::GetOffset() const {
   DCHECK(GetDeclaringClass()->IsResolved() || GetDeclaringClass()->IsErroneous());
-  return MemberOffset(GetField32(OFFSET_OF_OBJECT_MEMBER(Field, offset_), false));
+  return MemberOffset(GetField32(OFFSET_OF_OBJECT_MEMBER(ArtField, offset_), false));
 }
 
-inline MemberOffset Field::GetOffsetDuringLinking() const {
+inline MemberOffset ArtField::GetOffsetDuringLinking() const {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
-  return MemberOffset(GetField32(OFFSET_OF_OBJECT_MEMBER(Field, offset_), false));
+  return MemberOffset(GetField32(OFFSET_OF_OBJECT_MEMBER(ArtField, offset_), false));
 }
 
-inline uint32_t Field::Get32(const Object* object) const {
+inline uint32_t ArtField::Get32(const Object* object) const {
   DCHECK(object != NULL) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   return object->GetField32(GetOffset(), IsVolatile());
 }
 
-inline void Field::Set32(Object* object, uint32_t new_value) const {
+inline void ArtField::Set32(Object* object, uint32_t new_value) const {
   DCHECK(object != NULL) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   object->SetField32(GetOffset(), new_value, IsVolatile());
 }
 
-inline uint64_t Field::Get64(const Object* object) const {
+inline uint64_t ArtField::Get64(const Object* object) const {
   DCHECK(object != NULL) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   return object->GetField64(GetOffset(), IsVolatile());
 }
 
-inline void Field::Set64(Object* object, uint64_t new_value) const {
+inline void ArtField::Set64(Object* object, uint64_t new_value) const {
   DCHECK(object != NULL) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   object->SetField64(GetOffset(), new_value, IsVolatile());
 }
 
-inline Object* Field::GetObj(const Object* object) const {
+inline Object* ArtField::GetObj(const Object* object) const {
   DCHECK(object != NULL) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   return object->GetFieldObject<Object*>(GetOffset(), IsVolatile());
 }
 
-inline void Field::SetObj(Object* object, const Object* new_value) const {
+inline void ArtField::SetObj(Object* object, const Object* new_value) const {
   DCHECK(object != NULL) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   object->SetFieldObject(GetOffset(), new_value, IsVolatile());
 }
 
-inline bool Field::GetBoolean(const Object* object) const {
+inline bool ArtField::GetBoolean(const Object* object) const {
   DCHECK_EQ(Primitive::kPrimBoolean, FieldHelper(this).GetTypeAsPrimitiveType())
       << PrettyField(this);
   return Get32(object);
 }
 
-inline void Field::SetBoolean(Object* object, bool z) const {
+inline void ArtField::SetBoolean(Object* object, bool z) const {
   DCHECK_EQ(Primitive::kPrimBoolean, FieldHelper(this).GetTypeAsPrimitiveType())
       << PrettyField(this);
   Set32(object, z);
 }
 
-inline int8_t Field::GetByte(const Object* object) const {
+inline int8_t ArtField::GetByte(const Object* object) const {
   DCHECK_EQ(Primitive::kPrimByte, FieldHelper(this).GetTypeAsPrimitiveType())
       << PrettyField(this);
   return Get32(object);
 }
 
-inline void Field::SetByte(Object* object, int8_t b) const {
+inline void ArtField::SetByte(Object* object, int8_t b) const {
   DCHECK_EQ(Primitive::kPrimByte, FieldHelper(this).GetTypeAsPrimitiveType())
       << PrettyField(this);
   Set32(object, b);
 }
 
-inline uint16_t Field::GetChar(const Object* object) const {
+inline uint16_t ArtField::GetChar(const Object* object) const {
   DCHECK_EQ(Primitive::kPrimChar, FieldHelper(this).GetTypeAsPrimitiveType())
       << PrettyField(this);
   return Get32(object);
 }
 
-inline void Field::SetChar(Object* object, uint16_t c) const {
+inline void ArtField::SetChar(Object* object, uint16_t c) const {
   DCHECK_EQ(Primitive::kPrimChar, FieldHelper(this).GetTypeAsPrimitiveType())
        << PrettyField(this);
   Set32(object, c);
 }
 
-inline int16_t Field::GetShort(const Object* object) const {
+inline int16_t ArtField::GetShort(const Object* object) const {
   DCHECK_EQ(Primitive::kPrimShort, FieldHelper(this).GetTypeAsPrimitiveType())
        << PrettyField(this);
   return Get32(object);
 }
 
-inline void Field::SetShort(Object* object, int16_t s) const {
+inline void ArtField::SetShort(Object* object, int16_t s) const {
   DCHECK_EQ(Primitive::kPrimShort, FieldHelper(this).GetTypeAsPrimitiveType())
        << PrettyField(this);
   Set32(object, s);
 }
 
-inline int32_t Field::GetInt(const Object* object) const {
+inline int32_t ArtField::GetInt(const Object* object) const {
 #ifndef NDEBUG
   Primitive::Type type = FieldHelper(this).GetTypeAsPrimitiveType();
   CHECK(type == Primitive::kPrimInt || type == Primitive::kPrimFloat) << PrettyField(this);
@@ -147,7 +147,7 @@ inline int32_t Field::GetInt(const Object* object) const {
   return Get32(object);
 }
 
-inline void Field::SetInt(Object* object, int32_t i) const {
+inline void ArtField::SetInt(Object* object, int32_t i) const {
 #ifndef NDEBUG
   Primitive::Type type = FieldHelper(this).GetTypeAsPrimitiveType();
   CHECK(type == Primitive::kPrimInt || type == Primitive::kPrimFloat) << PrettyField(this);
@@ -155,7 +155,7 @@ inline void Field::SetInt(Object* object, int32_t i) const {
   Set32(object, i);
 }
 
-inline int64_t Field::GetLong(const Object* object) const {
+inline int64_t ArtField::GetLong(const Object* object) const {
 #ifndef NDEBUG
   Primitive::Type type = FieldHelper(this).GetTypeAsPrimitiveType();
   CHECK(type == Primitive::kPrimLong || type == Primitive::kPrimDouble) << PrettyField(this);
@@ -163,7 +163,7 @@ inline int64_t Field::GetLong(const Object* object) const {
   return Get64(object);
 }
 
-inline void Field::SetLong(Object* object, int64_t j) const {
+inline void ArtField::SetLong(Object* object, int64_t j) const {
 #ifndef NDEBUG
   Primitive::Type type = FieldHelper(this).GetTypeAsPrimitiveType();
   CHECK(type == Primitive::kPrimLong || type == Primitive::kPrimDouble) << PrettyField(this);
@@ -171,7 +171,7 @@ inline void Field::SetLong(Object* object, int64_t j) const {
   Set64(object, j);
 }
 
-inline float Field::GetFloat(const Object* object) const {
+inline float ArtField::GetFloat(const Object* object) const {
   DCHECK_EQ(Primitive::kPrimFloat, FieldHelper(this).GetTypeAsPrimitiveType())
        << PrettyField(this);
   JValue bits;
@@ -179,7 +179,7 @@ inline float Field::GetFloat(const Object* object) const {
   return bits.GetF();
 }
 
-inline void Field::SetFloat(Object* object, float f) const {
+inline void ArtField::SetFloat(Object* object, float f) const {
   DCHECK_EQ(Primitive::kPrimFloat, FieldHelper(this).GetTypeAsPrimitiveType())
        << PrettyField(this);
   JValue bits;
@@ -187,7 +187,7 @@ inline void Field::SetFloat(Object* object, float f) const {
   Set32(object, bits.GetI());
 }
 
-inline double Field::GetDouble(const Object* object) const {
+inline double ArtField::GetDouble(const Object* object) const {
   DCHECK_EQ(Primitive::kPrimDouble, FieldHelper(this).GetTypeAsPrimitiveType())
        << PrettyField(this);
   JValue bits;
@@ -195,7 +195,7 @@ inline double Field::GetDouble(const Object* object) const {
   return bits.GetD();
 }
 
-inline void Field::SetDouble(Object* object, double d) const {
+inline void ArtField::SetDouble(Object* object, double d) const {
   DCHECK_EQ(Primitive::kPrimDouble, FieldHelper(this).GetTypeAsPrimitiveType())
        << PrettyField(this);
   JValue bits;
@@ -203,13 +203,13 @@ inline void Field::SetDouble(Object* object, double d) const {
   Set64(object, bits.GetJ());
 }
 
-inline Object* Field::GetObject(const Object* object) const {
+inline Object* ArtField::GetObject(const Object* object) const {
   DCHECK_EQ(Primitive::kPrimNot, FieldHelper(this).GetTypeAsPrimitiveType())
        << PrettyField(this);
   return GetObj(object);
 }
 
-inline void Field::SetObject(Object* object, const Object* l) const {
+inline void ArtField::SetObject(Object* object, const Object* l) const {
   DCHECK_EQ(Primitive::kPrimNot, FieldHelper(this).GetTypeAsPrimitiveType())
        << PrettyField(this);
   SetObj(object, l);
@@ -218,4 +218,4 @@ inline void Field::SetObject(Object* object, const Object* l) const {
 }  // namespace mirror
 }  // namespace art
 
-#endif  // ART_RUNTIME_MIRROR_FIELD_INL_H_
+#endif  // ART_RUNTIME_MIRROR_ART_FIELD_INL_H_

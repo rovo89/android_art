@@ -25,6 +25,7 @@ TEST_COMMON_SRC_FILES := \
 	runtime/barrier_test.cc \
 	runtime/base/histogram_test.cc \
 	runtime/base/mutex_test.cc \
+	runtime/base/timing_logger_test.cc \
 	runtime/base/unix_file/fd_file_test.cc \
 	runtime/base/unix_file/mapped_file_test.cc \
 	runtime/base/unix_file/null_file_test.cc \
@@ -60,7 +61,10 @@ TEST_COMMON_SRC_FILES := \
 
 ifeq ($(ART_SEA_IR_MODE),true)
 TEST_COMMON_SRC_FILES += \
-	compiler/utils/scoped_hashtable_test.cc
+	compiler/utils/scoped_hashtable_test.cc \
+	compiler/sea_ir/types/type_data_test.cc \
+	compiler/sea_ir/types/type_inference_visitor_test.cc \
+	compiler/sea_ir/ir/regions_test.cc
 endif
 
 TEST_TARGET_SRC_FILES := \

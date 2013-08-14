@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_MIRROR_FIELD_H_
-#define ART_RUNTIME_MIRROR_FIELD_H_
+#ifndef ART_RUNTIME_MIRROR_ART_FIELD_H_
+#define ART_RUNTIME_MIRROR_ART_FIELD_H_
 
 #include "class.h"
 #include "modifiers.h"
@@ -23,13 +23,12 @@
 
 namespace art {
 
-struct FieldClassOffsets;
-struct FieldOffsets;
+struct ArtFieldOffsets;
 
 namespace mirror {
 
-// C++ mirror of java.lang.reflect.Field
-class MANAGED Field : public Object {
+// C++ mirror of java.lang.reflect.ArtField
+class MANAGED ArtField : public Object {
  public:
   Class* GetDeclaringClass() const;
 
@@ -38,7 +37,7 @@ class MANAGED Field : public Object {
   uint32_t GetAccessFlags() const;
 
   void SetAccessFlags(uint32_t new_access_flags) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Field, access_flags_), new_access_flags, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(ArtField, access_flags_), new_access_flags, false);
   }
 
   bool IsPublic() const {
@@ -54,18 +53,18 @@ class MANAGED Field : public Object {
   }
 
   uint32_t GetDexFieldIndex() const {
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(Field, field_dex_idx_), false);
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtField, field_dex_idx_), false);
   }
 
   void SetDexFieldIndex(uint32_t new_idx) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Field, field_dex_idx_), new_idx, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(ArtField, field_dex_idx_), new_idx, false);
   }
 
   // Offset to field within an Object
   MemberOffset GetOffset() const;
 
   static MemberOffset OffsetOffset() {
-    return MemberOffset(OFFSETOF_MEMBER(Field, offset_));
+    return MemberOffset(OFFSETOF_MEMBER(ArtField, offset_));
   }
 
   MemberOffset GetOffsetDuringLinking() const;
@@ -124,12 +123,12 @@ class MANAGED Field : public Object {
   void SetObj(Object* object, const Object* new_value) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static Class* GetJavaLangReflectField() {
-    DCHECK(java_lang_reflect_Field_ != NULL);
-    return java_lang_reflect_Field_;
+  static Class* GetJavaLangReflectArtField() {
+    DCHECK(java_lang_reflect_ArtField_ != NULL);
+    return java_lang_reflect_ArtField_;
   }
 
-  static void SetClass(Class* java_lang_reflect_Field);
+  static void SetClass(Class* java_lang_reflect_ArtField);
   static void ResetClass();
 
   bool IsVolatile() const {
@@ -149,20 +148,18 @@ class MANAGED Field : public Object {
   // Offset of field within an instance or in the Class' static fields
   uint32_t offset_;
 
-  static Class* java_lang_reflect_Field_;
+  static Class* java_lang_reflect_ArtField_;
 
-  friend struct art::FieldOffsets;  // for verifying offset information
-  DISALLOW_IMPLICIT_CONSTRUCTORS(Field);
+  friend struct art::ArtFieldOffsets;  // for verifying offset information
+  DISALLOW_IMPLICIT_CONSTRUCTORS(ArtField);
 };
 
-class MANAGED FieldClass : public Class {
+class MANAGED ArtFieldClass : public Class {
  private:
-  Object* ORDER_BY_NAME_AND_DECLARING_CLASS_;
-  friend struct art::FieldClassOffsets;  // for verifying offset information
-  DISALLOW_IMPLICIT_CONSTRUCTORS(FieldClass);
+  DISALLOW_IMPLICIT_CONSTRUCTORS(ArtFieldClass);
 };
 
 }  // namespace mirror
 }  // namespace art
 
-#endif  // ART_RUNTIME_MIRROR_FIELD_H_
+#endif  // ART_RUNTIME_MIRROR_ART_FIELD_H_

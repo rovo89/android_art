@@ -16,12 +16,12 @@
 
 #include "dex_instruction.h"
 #include "entrypoints/entrypoint_utils.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/object-inl.h"
 
 namespace art {
 
-extern "C" void art_portable_fill_array_data_from_code(mirror::AbstractMethod* method,
+extern "C" void art_portable_fill_array_data_from_code(mirror::ArtMethod* method,
                                                        uint32_t dex_pc,
                                                        mirror::Array* array,
                                                        uint32_t payload_offset)

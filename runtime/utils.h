@@ -33,9 +33,9 @@ namespace art {
 class DexFile;
 
 namespace mirror {
+class ArtField;
+class ArtMethod;
 class Class;
-class Field;
-class AbstractMethod;
 class Object;
 class String;
 }  // namespace mirror
@@ -195,13 +195,13 @@ std::string PrettyDescriptor(const mirror::Class* klass)
 
 // Returns a human-readable signature for 'f'. Something like "a.b.C.f" or
 // "int a.b.C.f" (depending on the value of 'with_type').
-std::string PrettyField(const mirror::Field* f, bool with_type = true)
+std::string PrettyField(const mirror::ArtField* f, bool with_type = true)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 std::string PrettyField(uint32_t field_idx, const DexFile& dex_file, bool with_type = true);
 
 // Returns a human-readable signature for 'm'. Something like "a.b.C.m" or
 // "a.b.C.m(II)V" (depending on the value of 'with_signature').
-std::string PrettyMethod(const mirror::AbstractMethod* m, bool with_signature = true)
+std::string PrettyMethod(const mirror::ArtMethod* m, bool with_signature = true)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with_signature = true);
 
@@ -265,10 +265,10 @@ bool IsValidDescriptor(const char* s);       // "Ljava/lang/String;"
 bool IsValidMemberName(const char* s);
 
 // Returns the JNI native function name for the non-overloaded method 'm'.
-std::string JniShortName(const mirror::AbstractMethod* m)
+std::string JniShortName(const mirror::ArtMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 // Returns the JNI native function name for the overloaded method 'm'.
-std::string JniLongName(const mirror::AbstractMethod* m)
+std::string JniLongName(const mirror::ArtMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 bool ReadFileToString(const std::string& file_name, std::string* result);

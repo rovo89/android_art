@@ -30,7 +30,7 @@ inline void HeapBitmap::Visit(const Visitor& visitor) {
   for (It it = continuous_space_bitmaps_.begin(), end = continuous_space_bitmaps_.end();
       it != end; ++it) {
     SpaceBitmap* bitmap = *it;
-    bitmap->VisitMarkedRange(bitmap->HeapBegin(), bitmap->HeapLimit(), visitor, VoidFunctor());
+    bitmap->VisitMarkedRange(bitmap->HeapBegin(), bitmap->HeapLimit(), visitor);
   }
   // TODO: C++0x auto
   typedef SpaceSetMapVector::iterator It2;

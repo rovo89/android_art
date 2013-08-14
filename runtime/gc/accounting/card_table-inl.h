@@ -41,10 +41,9 @@ static inline bool byte_cas(byte old_value, byte new_value, byte* address) {
   return success;
 }
 
-template <typename Visitor, typename FingerVisitor>
+template <typename Visitor>
 inline void CardTable::Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_end,
-                            const Visitor& visitor, const FingerVisitor& finger_visitor,
-                            const byte minimum_age) const {
+                            const Visitor& visitor, const byte minimum_age) const {
   DCHECK(bitmap->HasAddress(scan_begin));
   DCHECK(bitmap->HasAddress(scan_end - 1));  // scan_end is the byte after the last byte we scan.
   byte* card_cur = CardFromAddr(scan_begin);
@@ -57,7 +56,7 @@ inline void CardTable::Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_en
     if (*card_cur >= minimum_age) {
       uintptr_t start = reinterpret_cast<uintptr_t>(AddrFromCard(card_cur));
       uintptr_t end = start + kCardSize;
-      bitmap->VisitMarkedRange(start, end, visitor, finger_visitor);
+      bitmap->VisitMarkedRange(start, end, visitor);
     }
     ++card_cur;
   }
@@ -87,7 +86,7 @@ inline void CardTable::Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_en
         << "card " << static_cast<size_t>(card_byte) << " word " << (start_word & 0xFF);
         uintptr_t start = reinterpret_cast<uintptr_t>(AddrFromCard(card));
         uintptr_t end = start + kCardSize;
-        bitmap->VisitMarkedRange(start, end, visitor, finger_visitor);
+        bitmap->VisitMarkedRange(start, end, visitor);
       }
       start_word >>= 8;
     }
@@ -100,7 +99,7 @@ inline void CardTable::Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_en
     if (*card_cur >= minimum_age) {
       uintptr_t start = reinterpret_cast<uintptr_t>(AddrFromCard(card_cur));
       uintptr_t end = start + kCardSize;
-      bitmap->VisitMarkedRange(start, end, visitor, finger_visitor);
+      bitmap->VisitMarkedRange(start, end, visitor);
     }
     ++card_cur;
   }

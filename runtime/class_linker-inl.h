@@ -19,15 +19,15 @@
 
 #include "class_linker.h"
 
+#include "mirror/art_field.h"
 #include "mirror/dex_cache.h"
-#include "mirror/field.h"
 #include "mirror/iftable.h"
 #include "mirror/object_array.h"
 
 namespace art {
 
 inline mirror::String* ClassLinker::ResolveString(uint32_t string_idx,
-                                           const mirror::AbstractMethod* referrer) {
+                                           const mirror::ArtMethod* referrer) {
   mirror::String* resolved_string = referrer->GetDexCacheStrings()->Get(string_idx);
   if (UNLIKELY(resolved_string == NULL)) {
     mirror::Class* declaring_class = referrer->GetDeclaringClass();
@@ -39,7 +39,7 @@ inline mirror::String* ClassLinker::ResolveString(uint32_t string_idx,
 }
 
 inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx,
-                                               const mirror::AbstractMethod* referrer) {
+                                               const mirror::ArtMethod* referrer) {
   mirror::Class* resolved_type = referrer->GetDexCacheResolvedTypes()->Get(type_idx);
   if (UNLIKELY(resolved_type == NULL)) {
     mirror::Class* declaring_class = referrer->GetDeclaringClass();
@@ -51,7 +51,7 @@ inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx,
   return resolved_type;
 }
 
-inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx, const mirror::Field* referrer) {
+inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx, const mirror::ArtField* referrer) {
   mirror::Class* declaring_class = referrer->GetDeclaringClass();
   mirror::DexCache* dex_cache = declaring_class->GetDexCache();
   mirror::Class* resolved_type = dex_cache->GetResolvedType(type_idx);
@@ -63,10 +63,10 @@ inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx, const mirror::
   return resolved_type;
 }
 
-inline mirror::AbstractMethod* ClassLinker::ResolveMethod(uint32_t method_idx,
-                                                          const mirror::AbstractMethod* referrer,
-                                                          InvokeType type) {
-  mirror::AbstractMethod* resolved_method =
+inline mirror::ArtMethod* ClassLinker::ResolveMethod(uint32_t method_idx,
+                                                     const mirror::ArtMethod* referrer,
+                                                     InvokeType type) {
+  mirror::ArtMethod* resolved_method =
       referrer->GetDexCacheResolvedMethods()->Get(method_idx);
   if (UNLIKELY(resolved_method == NULL || resolved_method->IsRuntimeMethod())) {
     mirror::Class* declaring_class = referrer->GetDeclaringClass();
@@ -78,10 +78,10 @@ inline mirror::AbstractMethod* ClassLinker::ResolveMethod(uint32_t method_idx,
   return resolved_method;
 }
 
-inline mirror::Field* ClassLinker::ResolveField(uint32_t field_idx,
-                                                const mirror::AbstractMethod* referrer,
-                                                bool is_static) {
-  mirror::Field* resolved_field =
+inline mirror::ArtField* ClassLinker::ResolveField(uint32_t field_idx,
+                                                   const mirror::ArtMethod* referrer,
+                                                   bool is_static) {
+  mirror::ArtField* resolved_field =
       referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
   if (UNLIKELY(resolved_field == NULL)) {
     mirror::Class* declaring_class = referrer->GetDeclaringClass();
@@ -109,16 +109,10 @@ inline mirror::ObjectArray<mirror::String>* ClassLinker::AllocStringArray(Thread
                                                     length);
 }
 
-inline mirror::ObjectArray<mirror::AbstractMethod>* ClassLinker::AllocAbstractMethodArray(Thread* self,
-                                                                                          size_t length) {
-  return mirror::ObjectArray<mirror::AbstractMethod>::Alloc(self,
-      GetClassRoot(kJavaLangReflectAbstractMethodArrayClass), length);
-}
-
-inline mirror::ObjectArray<mirror::AbstractMethod>* ClassLinker::AllocMethodArray(Thread* self,
-                                                                                  size_t length) {
-  return mirror::ObjectArray<mirror::AbstractMethod>::Alloc(self,
-      GetClassRoot(kJavaLangReflectMethodArrayClass), length);
+inline mirror::ObjectArray<mirror::ArtMethod>* ClassLinker::AllocArtMethodArray(Thread* self,
+                                                                                size_t length) {
+  return mirror::ObjectArray<mirror::ArtMethod>::Alloc(self,
+      GetClassRoot(kJavaLangReflectArtMethodArrayClass), length);
 }
 
 inline mirror::IfTable* ClassLinker::AllocIfTable(Thread* self, size_t ifcount) {
@@ -126,11 +120,11 @@ inline mirror::IfTable* ClassLinker::AllocIfTable(Thread* self, size_t ifcount) 
       mirror::IfTable::Alloc(self, GetClassRoot(kObjectArrayClass), ifcount * mirror::IfTable::kMax));
 }
 
-inline mirror::ObjectArray<mirror::Field>* ClassLinker::AllocFieldArray(Thread* self,
-                                                                        size_t length) {
-  return mirror::ObjectArray<mirror::Field>::Alloc(self,
-                                                   GetClassRoot(kJavaLangReflectFieldArrayClass),
-                                                   length);
+inline mirror::ObjectArray<mirror::ArtField>* ClassLinker::AllocArtFieldArray(Thread* self,
+                                                                              size_t length) {
+  return mirror::ObjectArray<mirror::ArtField>::Alloc(self,
+                                                      GetClassRoot(kJavaLangReflectArtFieldArrayClass),
+                                                      length);
 }
 
 inline mirror::Class* ClassLinker::GetClassRoot(ClassRoot class_root)

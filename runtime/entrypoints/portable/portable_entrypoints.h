@@ -22,7 +22,7 @@
 
 namespace art {
 namespace mirror {
-  class AbstractMethod;
+  class ArtMethod;
   class Object;
 }  // namespace mirror
 class Thread;
@@ -35,8 +35,8 @@ class Thread;
 // compiler ABI.
 struct PACKED(4) PortableEntryPoints {
   // Invocation
-  void (*pPortableResolutionTrampoline)(mirror::AbstractMethod*);
-  void (*pPortableToInterpreterBridge)(mirror::AbstractMethod*);
+  void (*pPortableResolutionTrampoline)(mirror::ArtMethod*);
+  void (*pPortableToInterpreterBridge)(mirror::ArtMethod*);
 };
 
 }  // namespace art

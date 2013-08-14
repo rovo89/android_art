@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_MIRROR_ABSTRACT_METHOD_INL_H_
-#define ART_RUNTIME_MIRROR_ABSTRACT_METHOD_INL_H_
+#ifndef ART_RUNTIME_MIRROR_ART_METHOD_INL_H_
+#define ART_RUNTIME_MIRROR_ART_METHOD_INL_H_
 
-#include "abstract_method.h"
+#include "art_method.h"
 
 #include "dex_file.h"
 #include "entrypoints/entrypoint_utils.h"
@@ -27,54 +27,54 @@
 namespace art {
 namespace mirror {
 
-inline Class* AbstractMethod::GetDeclaringClass() const {
-  Class* result = GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, declaring_class_), false);
+inline Class* ArtMethod::GetDeclaringClass() const {
+  Class* result = GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, declaring_class_), false);
   DCHECK(result != NULL) << this;
   DCHECK(result->IsIdxLoaded() || result->IsErroneous()) << this;
   return result;
 }
 
-inline void AbstractMethod::SetDeclaringClass(Class *new_declaring_class) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, declaring_class_), new_declaring_class, false);
+inline void ArtMethod::SetDeclaringClass(Class *new_declaring_class) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(ArtMethod, declaring_class_), new_declaring_class, false);
 }
 
-inline uint32_t AbstractMethod::GetAccessFlags() const {
+inline uint32_t ArtMethod::GetAccessFlags() const {
   DCHECK(GetDeclaringClass()->IsIdxLoaded() || GetDeclaringClass()->IsErroneous());
-  return GetField32(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, access_flags_), false);
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, access_flags_), false);
 }
 
-inline uint16_t AbstractMethod::GetMethodIndex() const {
+inline uint16_t ArtMethod::GetMethodIndex() const {
   DCHECK(GetDeclaringClass()->IsResolved() || GetDeclaringClass()->IsErroneous());
-  return GetField32(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, method_index_), false);
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, method_index_), false);
 }
 
-inline uint32_t AbstractMethod::GetDexMethodIndex() const {
+inline uint32_t ArtMethod::GetDexMethodIndex() const {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
-  return GetField32(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, method_dex_index_), false);
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, method_dex_index_), false);
 }
 
-inline ObjectArray<String>* AbstractMethod::GetDexCacheStrings() const {
+inline ObjectArray<String>* ArtMethod::GetDexCacheStrings() const {
   return GetFieldObject<ObjectArray<String>*>(
-      OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_strings_), false);
+      OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_strings_), false);
 }
 
-inline ObjectArray<AbstractMethod>* AbstractMethod::GetDexCacheResolvedMethods() const {
-  return GetFieldObject<ObjectArray<AbstractMethod>*>(
-      OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_resolved_methods_), false);
+inline ObjectArray<ArtMethod>* ArtMethod::GetDexCacheResolvedMethods() const {
+  return GetFieldObject<ObjectArray<ArtMethod>*>(
+      OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_methods_), false);
 }
 
-inline ObjectArray<Class>* AbstractMethod::GetDexCacheResolvedTypes() const {
+inline ObjectArray<Class>* ArtMethod::GetDexCacheResolvedTypes() const {
   return GetFieldObject<ObjectArray<Class>*>(
-      OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_resolved_types_), false);
+      OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_types_), false);
 }
 
-inline ObjectArray<StaticStorageBase>* AbstractMethod::GetDexCacheInitializedStaticStorage() const {
+inline ObjectArray<StaticStorageBase>* ArtMethod::GetDexCacheInitializedStaticStorage() const {
   return GetFieldObject<ObjectArray<StaticStorageBase>*>(
-      OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_initialized_static_storage_),
+      OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_initialized_static_storage_),
       false);
 }
 
-inline uint32_t AbstractMethod::GetCodeSize() const {
+inline uint32_t ArtMethod::GetCodeSize() const {
   DCHECK(!IsRuntimeMethod() && !IsProxyMethod()) << PrettyMethod(this);
   uintptr_t code = reinterpret_cast<uintptr_t>(GetEntryPointFromCompiledCode());
   if (code == 0) {
@@ -85,7 +85,7 @@ inline uint32_t AbstractMethod::GetCodeSize() const {
   return reinterpret_cast<uint32_t*>(code)[-1];
 }
 
-inline bool AbstractMethod::CheckIncompatibleClassChange(InvokeType type) {
+inline bool ArtMethod::CheckIncompatibleClassChange(InvokeType type) {
   switch (type) {
     case kStatic:
       return !IsStatic();
@@ -107,7 +107,7 @@ inline bool AbstractMethod::CheckIncompatibleClassChange(InvokeType type) {
   }
 }
 
-inline void AbstractMethod::AssertPcIsWithinCode(uintptr_t pc) const {
+inline void ArtMethod::AssertPcIsWithinCode(uintptr_t pc) const {
   if (!kIsDebugBuild) {
     return;
   }
@@ -132,51 +132,51 @@ inline void AbstractMethod::AssertPcIsWithinCode(uintptr_t pc) const {
       << " size=" << GetCodeSize();
 }
 
-inline uint32_t AbstractMethod::GetOatCodeOffset() const {
+inline uint32_t ArtMethod::GetOatCodeOffset() const {
   DCHECK(!Runtime::Current()->IsStarted());
   return reinterpret_cast<uint32_t>(GetEntryPointFromCompiledCode());
 }
 
-inline void AbstractMethod::SetOatCodeOffset(uint32_t code_offset) {
+inline void ArtMethod::SetOatCodeOffset(uint32_t code_offset) {
   DCHECK(!Runtime::Current()->IsStarted());
   SetEntryPointFromCompiledCode(reinterpret_cast<void*>(code_offset));
 }
 
-inline uint32_t AbstractMethod::GetOatMappingTableOffset() const {
+inline uint32_t ArtMethod::GetOatMappingTableOffset() const {
   DCHECK(!Runtime::Current()->IsStarted());
   return reinterpret_cast<uint32_t>(GetMappingTable());
 }
 
-inline void AbstractMethod::SetOatMappingTableOffset(uint32_t mapping_table_offset) {
+inline void ArtMethod::SetOatMappingTableOffset(uint32_t mapping_table_offset) {
   DCHECK(!Runtime::Current()->IsStarted());
   SetMappingTable(reinterpret_cast<const uint8_t*>(mapping_table_offset));
 }
 
-inline uint32_t AbstractMethod::GetOatVmapTableOffset() const {
+inline uint32_t ArtMethod::GetOatVmapTableOffset() const {
   DCHECK(!Runtime::Current()->IsStarted());
   return reinterpret_cast<uint32_t>(GetVmapTable());
 }
 
-inline void AbstractMethod::SetOatVmapTableOffset(uint32_t vmap_table_offset) {
+inline void ArtMethod::SetOatVmapTableOffset(uint32_t vmap_table_offset) {
   DCHECK(!Runtime::Current()->IsStarted());
   SetVmapTable(reinterpret_cast<uint8_t*>(vmap_table_offset));
 }
 
-inline void AbstractMethod::SetOatNativeGcMapOffset(uint32_t gc_map_offset) {
+inline void ArtMethod::SetOatNativeGcMapOffset(uint32_t gc_map_offset) {
   DCHECK(!Runtime::Current()->IsStarted());
   SetNativeGcMap(reinterpret_cast<uint8_t*>(gc_map_offset));
 }
 
-inline uint32_t AbstractMethod::GetOatNativeGcMapOffset() const {
+inline uint32_t ArtMethod::GetOatNativeGcMapOffset() const {
   DCHECK(!Runtime::Current()->IsStarted());
   return reinterpret_cast<uint32_t>(GetNativeGcMap());
 }
 
-inline bool AbstractMethod::IsRuntimeMethod() const {
+inline bool ArtMethod::IsRuntimeMethod() const {
   return GetDexMethodIndex() == DexFile::kDexNoIndex16;
 }
 
-inline bool AbstractMethod::IsCalleeSaveMethod() const {
+inline bool ArtMethod::IsCalleeSaveMethod() const {
   if (!IsRuntimeMethod()) {
     return false;
   }
@@ -191,7 +191,7 @@ inline bool AbstractMethod::IsCalleeSaveMethod() const {
   return result;
 }
 
-inline bool AbstractMethod::IsResolutionMethod() const {
+inline bool ArtMethod::IsResolutionMethod() const {
   bool result = this == Runtime::Current()->GetResolutionMethod();
   // Check that if we do think it is phony it looks like the resolution method.
   DCHECK(!result || IsRuntimeMethod());
@@ -200,4 +200,4 @@ inline bool AbstractMethod::IsResolutionMethod() const {
 }  // namespace mirror
 }  // namespace art
 
-#endif  // ART_RUNTIME_MIRROR_ABSTRACT_METHOD_INL_H_
+#endif  // ART_RUNTIME_MIRROR_ART_METHOD_INL_H_

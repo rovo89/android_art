@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_SEA_IR_INSTRUCTION_NODES_H_
-#define ART_COMPILER_SEA_IR_INSTRUCTION_NODES_H_
-#include "sea_node.h"
-#include "visitor.h"
+#ifndef ART_COMPILER_SEA_IR_IR_INSTRUCTION_NODES_H_
+#define ART_COMPILER_SEA_IR_IR_INSTRUCTION_NODES_H_
 #include "dex_instruction-inl.h"
+#include "sea_ir/ir/sea_node.h"
+#include "sea_ir/ir/visitor.h"
+
 
 namespace sea_ir {
 
@@ -48,9 +49,7 @@ class InstructionNode: public SeaNode {
   // Returns the set of registers defined by the current instruction.
   virtual std::vector<int> GetDefinitions() const;
   // Returns the set of register numbers that are used by the instruction.
-  virtual std::vector<int> GetUses();
-  // Appends to @result the .dot string representation of the instruction.
-  virtual void ToDot(std::string& result, const art::DexFile& dex_file) const;
+  virtual std::vector<int> GetUses() const;
   // Mark the current instruction as a downward exposed definition.
   void MarkAsDEDef();
   // Rename the use of @reg_no to refer to the instruction @definition,
@@ -61,7 +60,7 @@ class InstructionNode: public SeaNode {
   }
   // Returns the ordered set of Instructions that define the input operands of this instruction.
   // Precondition: SeaGraph.ConvertToSSA().
-  std::vector<InstructionNode*> GetSSAUses() {
+  virtual std::vector<InstructionNode*> GetSSAProducers() {
     std::vector<int> uses = GetUses();
     std::vector<InstructionNode*> ssa_uses;
     for (std::vector<int>::const_iterator cit = uses.begin(); cit != uses.end(); cit++) {
@@ -69,11 +68,15 @@ class InstructionNode: public SeaNode {
     }
     return ssa_uses;
   }
-
+  std::map<int, InstructionNode* >* GetSSAProducersMap() {
+    return &definition_edges_;
+  }
+  std::vector<InstructionNode*>* GetSSAConsumers() {
+    return &used_in_;
+  }
   virtual void AddSSAUse(InstructionNode* use) {
     used_in_.push_back(use);
   }
-
   void Accept(IRVisitor* v) {
     v->Visit(this);
     v->Traverse(this);
@@ -91,11 +94,10 @@ class InstructionNode: public SeaNode {
  protected:
   explicit InstructionNode(const art::Instruction* in):
       SeaNode(), instruction_(in), used_in_(), de_def_(false), region_(NULL) { }
-  void ToDotSSAEdges(std::string& result) const;
 
  protected:
   const art::Instruction* const instruction_;
-  std::map<int, InstructionNode* > definition_edges_;
+  std::map<int, InstructionNode* > definition_edges_;  // Maps used registers to their definitions.
   // Stores pointers to instructions that use the result of the current instruction.
   std::vector<InstructionNode*> used_in_;
   bool de_def_;
@@ -121,6 +123,7 @@ class UnnamedConstInstructionNode: public ConstInstructionNode {
  public:
   explicit UnnamedConstInstructionNode(const art::Instruction* inst, int32_t value):
       ConstInstructionNode(inst), value_(value) { }
+
   void Accept(IRVisitor* v) {
     v->Visit(this);
     v->Traverse(this);
@@ -132,19 +135,6 @@ class UnnamedConstInstructionNode: public ConstInstructionNode {
 
   int32_t GetConstValue() const {
     return value_;
-  }
-
-  void ToDot(std::string& result, const art::DexFile& dex_file) const {
-    std::ostringstream sstream;
-    sstream << GetConstValue();
-    const std::string value_as_string(sstream.str());
-    result += "// Instruction ("+StringId()+"): \n" + StringId() +
-        " [label=\"const/x v-3, #"+ value_as_string + "\"";
-    if (de_def_) {
-      result += "style=bold";
-    }
-    result += "];\n";
-    ToDotSSAEdges(result);
   }
 
  private:
@@ -176,7 +166,7 @@ class IfNeInstructionNode: public InstructionNode {
 class MoveResultInstructionNode: public InstructionNode {
  public:
   explicit MoveResultInstructionNode(const art::Instruction* inst): InstructionNode(inst) { }
-  std::vector<int> GetUses() {
+  std::vector<int> GetUses() const {
     std::vector<int> uses;  // Using vector<> instead of set<> because order matters.
     uses.push_back(RETURN_REGISTER);
     return uses;
@@ -213,7 +203,7 @@ class AddIntLitInstructionNode: public AddIntInstructionNode {
   explicit AddIntLitInstructionNode(const art::Instruction* inst):
       AddIntInstructionNode(inst) { }
 
-  std::vector<int> GetUses() {
+  std::vector<int> GetUses() const {
     std::vector<int> uses =  AddIntInstructionNode::GetUses();
     uses.push_back(UNNAMED_CONST_REGISTER);
     return uses;
@@ -245,4 +235,4 @@ class IfEqzInstructionNode: public InstructionNode {
   }
 };
 }  // namespace sea_ir
-#endif  // ART_COMPILER_SEA_IR_INSTRUCTION_NODES_H_
+#endif  // ART_COMPILER_SEA_IR_IR_INSTRUCTION_NODES_H_

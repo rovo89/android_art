@@ -32,10 +32,10 @@
 #include "interpreter/interpreter.h"
 #include "invoke_arg_array_builder.h"
 #include "jni.h"
+#include "mirror/art_field-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
-#include "mirror/field-inl.h"
-#include "mirror/abstract_method-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/throwable.h"
@@ -49,7 +49,8 @@
 #include "UniquePtr.h"
 #include "well_known_classes.h"
 
-using ::art::mirror::AbstractMethod;
+using ::art::mirror::ArtField;
+using ::art::mirror::ArtMethod;
 using ::art::mirror::Array;
 using ::art::mirror::BooleanArray;
 using ::art::mirror::ByteArray;
@@ -57,7 +58,6 @@ using ::art::mirror::CharArray;
 using ::art::mirror::Class;
 using ::art::mirror::ClassLoader;
 using ::art::mirror::DoubleArray;
-using ::art::mirror::Field;
 using ::art::mirror::FloatArray;
 using ::art::mirror::IntArray;
 using ::art::mirror::LongArray;
@@ -101,7 +101,7 @@ static bool IsBadJniVersion(int version) {
   return version != JNI_VERSION_1_2 && version != JNI_VERSION_1_4 && version != JNI_VERSION_1_6;
 }
 
-static void CheckMethodArguments(AbstractMethod* m, uint32_t* args)
+static void CheckMethodArguments(ArtMethod* m, uint32_t* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   MethodHelper mh(m);
   const DexFile::TypeList* params = mh.GetParameterTypeList();
@@ -144,7 +144,7 @@ static void CheckMethodArguments(AbstractMethod* m, uint32_t* args)
   }
 }
 
-void InvokeWithArgArray(const ScopedObjectAccess& soa, AbstractMethod* method,
+void InvokeWithArgArray(const ScopedObjectAccess& soa, ArtMethod* method,
                         ArgArray* arg_array, JValue* result, char result_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   uint32_t* args = arg_array->GetArray();
@@ -157,7 +157,7 @@ void InvokeWithArgArray(const ScopedObjectAccess& soa, AbstractMethod* method,
 static JValue InvokeWithVarArgs(const ScopedObjectAccess& soa, jobject obj,
                                 jmethodID mid, va_list args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  AbstractMethod* method = soa.DecodeMethod(mid);
+  ArtMethod* method = soa.DecodeMethod(mid);
   Object* receiver = method->IsStatic() ? NULL : soa.Decode<Object*>(obj);
   MethodHelper mh(method);
   JValue result;
@@ -167,7 +167,7 @@ static JValue InvokeWithVarArgs(const ScopedObjectAccess& soa, jobject obj,
   return result;
 }
 
-static AbstractMethod* FindVirtualMethod(Object* receiver, AbstractMethod* method)
+static ArtMethod* FindVirtualMethod(Object* receiver, ArtMethod* method)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(method);
 }
@@ -176,7 +176,7 @@ static JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccess& soa,
                                                   jobject obj, jmethodID mid, jvalue* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Object* receiver = soa.Decode<Object*>(obj);
-  AbstractMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
+  ArtMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
   MethodHelper mh(method);
   JValue result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
@@ -189,7 +189,7 @@ static JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccess& soa,
                                                   jobject obj, jmethodID mid, va_list args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Object* receiver = soa.Decode<Object*>(obj);
-  AbstractMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
+  ArtMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
   MethodHelper mh(method);
   JValue result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
@@ -239,7 +239,7 @@ static jmethodID FindMethodID(ScopedObjectAccess& soa, jclass jni_class,
     return NULL;
   }
 
-  AbstractMethod* method = NULL;
+  ArtMethod* method = NULL;
   if (is_static) {
     method = c->FindDirectMethod(name, sig);
   } else {
@@ -261,7 +261,7 @@ static jmethodID FindMethodID(ScopedObjectAccess& soa, jclass jni_class,
 
 static ClassLoader* GetClassLoader(const ScopedObjectAccess& soa)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  AbstractMethod* method = soa.Self()->GetCurrentMethod(NULL);
+  ArtMethod* method = soa.Self()->GetCurrentMethod(NULL);
   if (method == NULL ||
       method == soa.DecodeMethod(WellKnownClasses::java_lang_Runtime_nativeLoad)) {
     return soa.Self()->GetClassLoaderOverride();
@@ -277,7 +277,7 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
     return NULL;
   }
 
-  Field* field = NULL;
+  ArtField* field = NULL;
   Class* field_type;
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   if (sig[1] != '\0') {
@@ -290,7 +290,7 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
     // Failed to find type from the signature of the field.
     DCHECK(soa.Self()->IsExceptionPending());
     ThrowLocation throw_location;
-    SirtRef<mirror::Throwable> cause(soa.Self(), soa.Self()->GetException(&throw_location));
+    SirtRef<Throwable> cause(soa.Self(), soa.Self()->GetException(&throw_location));
     soa.Self()->ClearException();
     soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchFieldError;",
                                    "no type \"%s\" found and so no field \"%s\" could be found in class "
@@ -561,7 +561,7 @@ class Libraries {
   }
 
   // See section 11.3 "Linking Native Methods" of the JNI spec.
-  void* FindNativeMethod(const AbstractMethod* m, std::string& detail)
+  void* FindNativeMethod(const ArtMethod* m, std::string& detail)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string jni_short_name(JniShortName(m));
     std::string jni_long_name(JniLongName(m));
@@ -598,7 +598,7 @@ class Libraries {
 
 JValue InvokeWithJValues(const ScopedObjectAccess& soa, jobject obj, jmethodID mid,
                          jvalue* args) {
-  AbstractMethod* method = soa.DecodeMethod(mid);
+  ArtMethod* method = soa.DecodeMethod(mid);
   Object* receiver = method->IsStatic() ? NULL : soa.Decode<Object*>(obj);
   MethodHelper mh(method);
   JValue result;
@@ -620,10 +620,10 @@ class JNI {
   }
 
   static jclass FindClass(JNIEnv* env, const char* name) {
-    ScopedObjectAccess soa(env);
     Runtime* runtime = Runtime::Current();
     ClassLinker* class_linker = runtime->GetClassLinker();
     std::string descriptor(NormalizeJniClassDescriptor(name));
+    ScopedObjectAccess soa(env);
     Class* c = NULL;
     if (runtime->IsStarted()) {
       ClassLoader* cl = GetClassLoader(soa);
@@ -636,26 +636,50 @@ class JNI {
 
   static jmethodID FromReflectedMethod(JNIEnv* env, jobject java_method) {
     ScopedObjectAccess soa(env);
-    AbstractMethod* method = soa.Decode<AbstractMethod*>(java_method);
+    jobject art_method = env->GetObjectField(java_method,
+                                             WellKnownClasses::java_lang_reflect_AbstractMethod_artMethod);
+    ArtMethod* method = soa.Decode<ArtMethod*>(art_method);
+    DCHECK(method != NULL);
     return soa.EncodeMethod(method);
   }
 
   static jfieldID FromReflectedField(JNIEnv* env, jobject java_field) {
     ScopedObjectAccess soa(env);
-    Field* field = soa.Decode<Field*>(java_field);
+    jobject art_field = env->GetObjectField(java_field,
+                                            WellKnownClasses::java_lang_reflect_Field_artField);
+    ArtField* field = soa.Decode<ArtField*>(art_field);
+    DCHECK(field != NULL);
     return soa.EncodeField(field);
   }
 
   static jobject ToReflectedMethod(JNIEnv* env, jclass, jmethodID mid, jboolean) {
     ScopedObjectAccess soa(env);
-    AbstractMethod* method = soa.DecodeMethod(mid);
-    return soa.AddLocalReference<jobject>(method);
+    ArtMethod* m = soa.DecodeMethod(mid);
+    jobject art_method = soa.AddLocalReference<jobject>(m);
+    jobject reflect_method = env->AllocObject(WellKnownClasses::java_lang_reflect_Method);
+    if (env->ExceptionCheck()) {
+      return NULL;
+    }
+    SetObjectField(env,
+                   reflect_method,
+                   WellKnownClasses::java_lang_reflect_AbstractMethod_artMethod,
+                   art_method);
+    return reflect_method;
   }
 
   static jobject ToReflectedField(JNIEnv* env, jclass, jfieldID fid, jboolean) {
     ScopedObjectAccess soa(env);
-    Field* field = soa.DecodeField(fid);
-    return soa.AddLocalReference<jobject>(field);
+    ArtField* f = soa.DecodeField(fid);
+    jobject art_field = soa.AddLocalReference<jobject>(f);
+    jobject reflect_field = env->AllocObject(WellKnownClasses::java_lang_reflect_Field);
+    if (env->ExceptionCheck()) {
+      return NULL;
+    }
+    SetObjectField(env,
+                   reflect_field,
+                   WellKnownClasses::java_lang_reflect_Field_artField,
+                   art_field);
+    return reflect_field;
   }
 
   static jclass GetObjectClass(JNIEnv* env, jobject java_object) {
@@ -678,7 +702,6 @@ class JNI {
   }
 
   static jboolean IsInstanceOf(JNIEnv* env, jobject jobj, jclass java_class) {
-    ScopedObjectAccess soa(env);
     if (java_class == NULL) {
       JniAbortF("IsInstanceOf", "null class (second argument)");
     }
@@ -686,6 +709,7 @@ class JNI {
       // Note: JNI is different from regular Java instanceof in this respect
       return JNI_TRUE;
     } else {
+      ScopedObjectAccess soa(env);
       Object* obj = soa.Decode<Object*>(jobj);
       Class* c = soa.Decode<Class*>(java_class);
       return obj->InstanceOf(c) ? JNI_TRUE : JNI_FALSE;
@@ -718,13 +742,13 @@ class JNI {
   static void ExceptionDescribe(JNIEnv* env) {
     ScopedObjectAccess soa(env);
 
-    SirtRef<mirror::Object> old_throw_this_object(soa.Self(), NULL);
-    SirtRef<mirror::AbstractMethod> old_throw_method(soa.Self(), NULL);
-    SirtRef<mirror::Throwable> old_exception(soa.Self(), NULL);
+    SirtRef<Object> old_throw_this_object(soa.Self(), NULL);
+    SirtRef<ArtMethod> old_throw_method(soa.Self(), NULL);
+    SirtRef<Throwable> old_exception(soa.Self(), NULL);
     uint32_t old_throw_dex_pc;
     {
       ThrowLocation old_throw_location;
-      mirror::Throwable* old_exception_obj = soa.Self()->GetException(&old_throw_location);
+      Throwable* old_exception_obj = soa.Self()->GetException(&old_throw_location);
       old_throw_this_object.reset(old_throw_location.GetThis());
       old_throw_method.reset(old_throw_location.GetMethod());
       old_exception.reset(old_exception_obj);
@@ -855,8 +879,12 @@ class JNI {
   }
 
   static jboolean IsSameObject(JNIEnv* env, jobject obj1, jobject obj2) {
-    ScopedObjectAccess soa(env);
-    return (soa.Decode<Object*>(obj1) == soa.Decode<Object*>(obj2)) ? JNI_TRUE : JNI_FALSE;
+    if (obj1 == obj2) {
+      return JNI_TRUE;
+    } else {
+      ScopedObjectAccess soa(env);
+      return (soa.Decode<Object*>(obj1) == soa.Decode<Object*>(obj2)) ? JNI_TRUE : JNI_FALSE;
+    }
   }
 
   static jobject AllocObject(JNIEnv* env, jclass java_class) {
@@ -1316,8 +1344,8 @@ class JNI {
     va_end(ap);
   }
 
-  static void CallNonvirtualVoidMethodV(JNIEnv* env,
-      jobject obj, jclass, jmethodID mid, va_list args) {
+  static void CallNonvirtualVoidMethodV(JNIEnv* env, jobject obj, jclass, jmethodID mid,
+                                        va_list args) {
     ScopedObjectAccess soa(env);
     InvokeWithVarArgs(soa, obj, mid, args);
   }
@@ -1342,13 +1370,13 @@ class JNI {
   static jobject GetObjectField(JNIEnv* env, jobject obj, jfieldID fid) {
     ScopedObjectAccess soa(env);
     Object* o = soa.Decode<Object*>(obj);
-    Field* f = soa.DecodeField(fid);
+    ArtField* f = soa.DecodeField(fid);
     return soa.AddLocalReference<jobject>(f->GetObject(o));
   }
 
   static jobject GetStaticObjectField(JNIEnv* env, jclass, jfieldID fid) {
     ScopedObjectAccess soa(env);
-    Field* f = soa.DecodeField(fid);
+    ArtField* f = soa.DecodeField(fid);
     return soa.AddLocalReference<jobject>(f->GetObject(f->GetDeclaringClass()));
   }
 
@@ -1356,37 +1384,37 @@ class JNI {
     ScopedObjectAccess soa(env);
     Object* o = soa.Decode<Object*>(java_object);
     Object* v = soa.Decode<Object*>(java_value);
-    Field* f = soa.DecodeField(fid);
+    ArtField* f = soa.DecodeField(fid);
     f->SetObject(o, v);
   }
 
   static void SetStaticObjectField(JNIEnv* env, jclass, jfieldID fid, jobject java_value) {
     ScopedObjectAccess soa(env);
     Object* v = soa.Decode<Object*>(java_value);
-    Field* f = soa.DecodeField(fid);
+    ArtField* f = soa.DecodeField(fid);
     f->SetObject(f->GetDeclaringClass(), v);
   }
 
 #define GET_PRIMITIVE_FIELD(fn, instance) \
   ScopedObjectAccess soa(env); \
   Object* o = soa.Decode<Object*>(instance); \
-  Field* f = soa.DecodeField(fid); \
+  ArtField* f = soa.DecodeField(fid); \
   return f->fn(o)
 
 #define GET_STATIC_PRIMITIVE_FIELD(fn) \
   ScopedObjectAccess soa(env); \
-  Field* f = soa.DecodeField(fid); \
+  ArtField* f = soa.DecodeField(fid); \
   return f->fn(f->GetDeclaringClass())
 
 #define SET_PRIMITIVE_FIELD(fn, instance, value) \
   ScopedObjectAccess soa(env); \
   Object* o = soa.Decode<Object*>(instance); \
-  Field* f = soa.DecodeField(fid); \
+  ArtField* f = soa.DecodeField(fid); \
   f->fn(o, value)
 
 #define SET_STATIC_PRIMITIVE_FIELD(fn, value) \
   ScopedObjectAccess soa(env); \
-  Field* f = soa.DecodeField(fid); \
+  ArtField* f = soa.DecodeField(fid); \
   f->fn(f->GetDeclaringClass(), value)
 
   static jboolean GetBooleanField(JNIEnv* env, jobject obj, jfieldID fid) {
@@ -1806,7 +1834,7 @@ class JNI {
   static jsize GetArrayLength(JNIEnv* env, jarray java_array) {
     ScopedObjectAccess soa(env);
     Object* obj = soa.Decode<Object*>(java_array);
-    if (!obj->IsArrayInstance()) {
+    if (UNLIKELY(!obj->IsArrayInstance())) {
       JniAbortF("GetArrayLength", "not an array: %s", PrettyTypeOf(obj).c_str());
     }
     Array* array = obj->AsArray();
@@ -1863,12 +1891,12 @@ class JNI {
   }
 
   static jobjectArray NewObjectArray(JNIEnv* env, jsize length, jclass element_jclass, jobject initial_element) {
-    ScopedObjectAccess soa(env);
     if (length < 0) {
       JniAbortF("NewObjectArray", "negative array length: %d", length);
     }
 
     // Compute the array class corresponding to the given element class.
+    ScopedObjectAccess soa(env);
     Class* element_class = soa.Decode<Class*>(element_jclass);
     std::string descriptor;
     descriptor += "[";
@@ -2080,7 +2108,7 @@ class JNI {
         ++sig;
       }
 
-      AbstractMethod* m = c->FindDirectMethod(name, sig);
+      ArtMethod* m = c->FindDirectMethod(name, sig);
       if (m == NULL) {
         m = c->FindVirtualMethod(name, sig);
       }
@@ -2111,13 +2139,13 @@ class JNI {
     VLOG(jni) << "[Unregistering JNI native methods for " << PrettyClass(c) << "]";
 
     for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
-      AbstractMethod* m = c->GetDirectMethod(i);
+      ArtMethod* m = c->GetDirectMethod(i);
       if (m->IsNative()) {
         m->UnregisterNative(soa.Self());
       }
     }
     for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
-      AbstractMethod* m = c->GetVirtualMethod(i);
+      ArtMethod* m = c->GetVirtualMethod(i);
       if (m->IsNative()) {
         m->UnregisterNative(soa.Self());
       }
@@ -2899,7 +2927,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
   return was_successful;
 }
 
-void* JavaVMExt::FindCodeForNativeMethod(AbstractMethod* m) {
+void* JavaVMExt::FindCodeForNativeMethod(ArtMethod* m) {
   CHECK(m->IsNative());
 
   Class* c = m->GetDeclaringClass();

@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_SEA_IR_CODE_GEN_H_
-#define ART_COMPILER_SEA_IR_CODE_GEN_H_
+#ifndef ART_COMPILER_SEA_IR_CODE_GEN_CODE_GEN_H_
+#define ART_COMPILER_SEA_IR_CODE_GEN_CODE_GEN_H_
 
+#include "llvm/Analysis/Verifier.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Analysis/Verifier.h"
-#include "visitor.h"
+#include "sea_ir/ir/visitor.h"
 
 namespace sea_ir {
 // Abstracts away the containers we use to map SEA IR objects to LLVM IR objects.
@@ -100,6 +101,8 @@ class CodeGenPrepassVisitor: public CodeGenPassVisitor {
   void Visit(SignatureNode* region);
   void Visit(Region* region);
   void Visit(InstructionNode* instruction) { }
+
+  void Visit(UnnamedConstInstructionNode* instruction) { }
   void Visit(ConstInstructionNode* instruction) { }
   void Visit(ReturnInstructionNode* instruction) { }
   void Visit(IfNeInstructionNode* instruction) { }
@@ -119,6 +122,7 @@ class CodeGenPostpassVisitor: public CodeGenPassVisitor {
   void Visit(SignatureNode* region);
   void Visit(Region* region);
   void Visit(InstructionNode* region) { }
+  void Visit(UnnamedConstInstructionNode* instruction) { }
   void Visit(ConstInstructionNode* instruction) { }
   void Visit(ReturnInstructionNode* instruction) { }
   void Visit(IfNeInstructionNode* instruction) { }
@@ -138,10 +142,10 @@ class CodeGenVisitor: public CodeGenPassVisitor {
   void Visit(SignatureNode* region);
   void Visit(Region* region);
   void Visit(InstructionNode* region);
+  void Visit(UnnamedConstInstructionNode* instruction);
   void Visit(ConstInstructionNode* instruction);
   void Visit(ReturnInstructionNode* instruction);
   void Visit(IfNeInstructionNode* instruction);
-  // void Visit(AddIntLitInstructionNode* instruction);
   void Visit(MoveResultInstructionNode* instruction);
   void Visit(InvokeStaticInstructionNode* instruction);
   void Visit(AddIntInstructionNode* instruction);
@@ -150,4 +154,4 @@ class CodeGenVisitor: public CodeGenPassVisitor {
   void Visit(PhiInstructionNode* region) { }
 };
 }  // namespace sea_ir
-#endif  // ART_COMPILER_SEA_IR_CODE_GEN_H_
+#endif  // ART_COMPILER_SEA_IR_CODE_GEN_CODE_GEN_H_

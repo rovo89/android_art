@@ -131,10 +131,6 @@ static jstring VMRuntime_vmLibrary(JNIEnv* env, jobject) {
   return env->NewStringUTF(kIsDebugBuild ? "libartd.so" : "libart.so");
 }
 
-static void DisableCheckJniCallback(Thread* t, void*) {
-  t->GetJniEnv()->SetCheckJniEnabled(false);
-}
-
 static void VMRuntime_setTargetSdkVersion(JNIEnv* env, jobject, jint targetSdkVersion) {
   // This is the target SDK version of the app we're about to run.
   // Note that targetSdkVersion may be CUR_DEVELOPMENT (10000).
@@ -143,17 +139,13 @@ static void VMRuntime_setTargetSdkVersion(JNIEnv* env, jobject, jint targetSdkVe
     Runtime* runtime = Runtime::Current();
     JavaVMExt* vm = runtime->GetJavaVM();
     if (vm->check_jni) {
-      LOG(WARNING) << "Turning off CheckJNI so we can turn on JNI app bug workarounds...";
-      Thread* self = static_cast<JNIEnvExt*>(env)->self;
-      MutexLock mu(self, *Locks::thread_list_lock_);
-      vm->SetCheckJniEnabled(false);
-      runtime->GetThreadList()->ForEach(DisableCheckJniCallback, NULL);
+      LOG(INFO) << "CheckJNI enabled: not enabling JNI app bug workarounds.";
+    } else {
+      LOG(INFO) << "Turning on JNI app bug workarounds for target SDK version "
+          << targetSdkVersion << "...";
+
+      vm->work_around_app_jni_bugs = true;
     }
-
-    LOG(INFO) << "Turning on JNI app bug workarounds for target SDK version "
-              << targetSdkVersion << "...";
-
-    vm->work_around_app_jni_bugs = true;
   }
 }
 

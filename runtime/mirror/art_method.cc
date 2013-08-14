@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include "abstract_method.h"
+#include "art_method.h"
 
-#include "abstract_method-inl.h"
+#include "art_method-inl.h"
 #include "base/stringpiece.h"
 #include "class-inl.h"
 #include "dex_file-inl.h"
@@ -34,14 +34,13 @@
 namespace art {
 namespace mirror {
 
-extern "C" void art_portable_invoke_stub(AbstractMethod*, uint32_t*, uint32_t, Thread*, JValue*, char);
-extern "C" void art_quick_invoke_stub(AbstractMethod*, uint32_t*, uint32_t, Thread*, JValue*, char);
+extern "C" void art_portable_invoke_stub(ArtMethod*, uint32_t*, uint32_t, Thread*, JValue*, char);
+extern "C" void art_quick_invoke_stub(ArtMethod*, uint32_t*, uint32_t, Thread*, JValue*, char);
 
 // TODO: get global references for these
-Class* AbstractMethod::java_lang_reflect_Constructor_ = NULL;
-Class* AbstractMethod::java_lang_reflect_Method_ = NULL;
+Class* ArtMethod::java_lang_reflect_ArtMethod_ = NULL;
 
-InvokeType AbstractMethod::GetInvokeType() const {
+InvokeType ArtMethod::GetInvokeType() const {
   // TODO: kSuper?
   if (GetDeclaringClass()->IsInterface()) {
     return kInterface;
@@ -54,45 +53,38 @@ InvokeType AbstractMethod::GetInvokeType() const {
   }
 }
 
-void AbstractMethod::SetClasses(Class* java_lang_reflect_Constructor, Class* java_lang_reflect_Method) {
-  CHECK(java_lang_reflect_Constructor_ == NULL);
-  CHECK(java_lang_reflect_Constructor != NULL);
-  java_lang_reflect_Constructor_ = java_lang_reflect_Constructor;
-
-  CHECK(java_lang_reflect_Method_ == NULL);
-  CHECK(java_lang_reflect_Method != NULL);
-  java_lang_reflect_Method_ = java_lang_reflect_Method;
+void ArtMethod::SetClass(Class* java_lang_reflect_ArtMethod) {
+  CHECK(java_lang_reflect_ArtMethod_ == NULL);
+  CHECK(java_lang_reflect_ArtMethod != NULL);
+  java_lang_reflect_ArtMethod_ = java_lang_reflect_ArtMethod;
 }
 
-void AbstractMethod::ResetClasses() {
-  CHECK(java_lang_reflect_Constructor_ != NULL);
-  java_lang_reflect_Constructor_ = NULL;
-
-  CHECK(java_lang_reflect_Method_ != NULL);
-  java_lang_reflect_Method_ = NULL;
+void ArtMethod::ResetClass() {
+  CHECK(java_lang_reflect_ArtMethod_ != NULL);
+  java_lang_reflect_ArtMethod_ = NULL;
 }
 
-void AbstractMethod::SetDexCacheStrings(ObjectArray<String>* new_dex_cache_strings) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_strings_),
+void ArtMethod::SetDexCacheStrings(ObjectArray<String>* new_dex_cache_strings) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_strings_),
                  new_dex_cache_strings, false);
 }
 
-void AbstractMethod::SetDexCacheResolvedMethods(ObjectArray<AbstractMethod>* new_dex_cache_methods) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_resolved_methods_),
+void ArtMethod::SetDexCacheResolvedMethods(ObjectArray<ArtMethod>* new_dex_cache_methods) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_methods_),
                  new_dex_cache_methods, false);
 }
 
-void AbstractMethod::SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cache_classes) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_resolved_types_),
+void ArtMethod::SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cache_classes) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_types_),
                  new_dex_cache_classes, false);
 }
 
-void AbstractMethod::SetDexCacheInitializedStaticStorage(ObjectArray<StaticStorageBase>* new_value) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_initialized_static_storage_),
+void ArtMethod::SetDexCacheInitializedStaticStorage(ObjectArray<StaticStorageBase>* new_value) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_initialized_static_storage_),
       new_value, false);
 }
 
-size_t AbstractMethod::NumArgRegisters(const StringPiece& shorty) {
+size_t ArtMethod::NumArgRegisters(const StringPiece& shorty) {
   CHECK_LE(1, shorty.length());
   uint32_t num_registers = 0;
   for (int i = 1; i < shorty.length(); ++i) {
@@ -106,19 +98,19 @@ size_t AbstractMethod::NumArgRegisters(const StringPiece& shorty) {
   return num_registers;
 }
 
-bool AbstractMethod::IsProxyMethod() const {
+bool ArtMethod::IsProxyMethod() const {
   return GetDeclaringClass()->IsProxyClass();
 }
 
-AbstractMethod* AbstractMethod::FindOverriddenMethod() const {
+ArtMethod* ArtMethod::FindOverriddenMethod() const {
   if (IsStatic()) {
     return NULL;
   }
   Class* declaring_class = GetDeclaringClass();
   Class* super_class = declaring_class->GetSuperClass();
   uint16_t method_index = GetMethodIndex();
-  ObjectArray<AbstractMethod>* super_class_vtable = super_class->GetVTable();
-  AbstractMethod* result = NULL;
+  ObjectArray<ArtMethod>* super_class_vtable = super_class->GetVTable();
+  ArtMethod* result = NULL;
   // Did this method override a super class method? If so load the result from the super class'
   // vtable
   if (super_class_vtable != NULL && method_index < super_class_vtable->GetLength()) {
@@ -136,7 +128,7 @@ AbstractMethod* AbstractMethod::FindOverriddenMethod() const {
       for (size_t i = 0; i < iftable->Count() && result == NULL; i++) {
         Class* interface = iftable->GetInterface(i);
         for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
-          AbstractMethod* interface_method = interface->GetVirtualMethod(j);
+          ArtMethod* interface_method = interface->GetVirtualMethod(j);
           interface_mh.ChangeMethod(interface_method);
           if (mh.HasSameNameAndSignature(&interface_mh)) {
             result = interface_method;
@@ -153,12 +145,12 @@ AbstractMethod* AbstractMethod::FindOverriddenMethod() const {
   return result;
 }
 
-uintptr_t AbstractMethod::NativePcOffset(const uintptr_t pc) const {
+uintptr_t ArtMethod::NativePcOffset(const uintptr_t pc) const {
   const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this);
   return pc - reinterpret_cast<uintptr_t>(code);
 }
 
-uint32_t AbstractMethod::ToDexPc(const uintptr_t pc) const {
+uint32_t ArtMethod::ToDexPc(const uintptr_t pc) const {
 #if !defined(ART_USE_PORTABLE_COMPILER)
   MappingTable table(GetMappingTable());
   if (table.TotalSize() == 0) {
@@ -191,7 +183,7 @@ uint32_t AbstractMethod::ToDexPc(const uintptr_t pc) const {
 #endif
 }
 
-uintptr_t AbstractMethod::ToNativePc(const uint32_t dex_pc) const {
+uintptr_t ArtMethod::ToNativePc(const uint32_t dex_pc) const {
   MappingTable table(GetMappingTable());
   if (table.TotalSize() == 0) {
     DCHECK_EQ(dex_pc, 0U);
@@ -218,8 +210,8 @@ uintptr_t AbstractMethod::ToNativePc(const uint32_t dex_pc) const {
   return 0;
 }
 
-uint32_t AbstractMethod::FindCatchBlock(Class* exception_type, uint32_t dex_pc,
-                                        bool* has_no_move_exception) const {
+uint32_t ArtMethod::FindCatchBlock(Class* exception_type, uint32_t dex_pc,
+                                   bool* has_no_move_exception) const {
   MethodHelper mh(this);
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
   // Default to handler not found.
@@ -251,8 +243,8 @@ uint32_t AbstractMethod::FindCatchBlock(Class* exception_type, uint32_t dex_pc,
   return found_dex_pc;
 }
 
-void AbstractMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result,
-                            char result_type) {
+void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result,
+                       char result_type) {
   if (kIsDebugBuild) {
     self->AssertThreadSuspensionIsAllowable();
     CHECK_EQ(kRunnable, self->GetState());
@@ -306,15 +298,15 @@ void AbstractMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JV
   self->PopManagedStackFragment(fragment);
 }
 
-bool AbstractMethod::IsRegistered() const {
-  void* native_method = GetFieldPtr<void*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, native_method_), false);
+bool ArtMethod::IsRegistered() const {
+  void* native_method = GetFieldPtr<void*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, native_method_), false);
   CHECK(native_method != NULL);
   void* jni_stub = GetJniDlsymLookupStub();
   return native_method != jni_stub;
 }
 
 extern "C" void art_work_around_app_jni_bugs(JNIEnv*, jobject);
-void AbstractMethod::RegisterNative(Thread* self, const void* native_method) {
+void ArtMethod::RegisterNative(Thread* self, const void* native_method) {
   DCHECK(Thread::Current() == self);
   CHECK(IsNative()) << PrettyMethod(this);
   CHECK(native_method != NULL) << PrettyMethod(this);
@@ -330,19 +322,19 @@ void AbstractMethod::RegisterNative(Thread* self, const void* native_method) {
 #else
     SetNativeMethod(reinterpret_cast<void*>(art_work_around_app_jni_bugs));
 #endif
-    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, gc_map_),
+    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, gc_map_),
         reinterpret_cast<const uint8_t*>(native_method), false);
   }
 }
 
-void AbstractMethod::UnregisterNative(Thread* self) {
+void ArtMethod::UnregisterNative(Thread* self) {
   CHECK(IsNative()) << PrettyMethod(this);
   // restore stub to lookup native pointer via dlsym
   RegisterNative(self, GetJniDlsymLookupStub());
 }
 
-void AbstractMethod::SetNativeMethod(const void* native_method) {
-  SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, native_method_),
+void ArtMethod::SetNativeMethod(const void* native_method) {
+  SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, native_method_),
       native_method, false);
 }
 

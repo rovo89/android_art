@@ -360,11 +360,6 @@ class Heap {
                       accounting::ObjectStack* stack)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  // Unmark all the objects in the allocation stack in the specified bitmap.
-  void UnMarkAllocStack(accounting::SpaceBitmap* bitmap, accounting::SpaceSetMap* large_objects,
-                        accounting::ObjectStack* stack)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
   // Update and mark mod union table based on gc type.
   void UpdateAndMarkModUnion(collector::MarkSweep* mark_sweep, base::TimingLogger& timings,
                              collector::GcType gc_type)
@@ -400,14 +395,30 @@ class Heap {
  private:
   // Allocates uninitialized storage. Passing in a null space tries to place the object in the
   // large object space.
-  mirror::Object* Allocate(Thread* self, space::AllocSpace* space, size_t num_bytes)
+  template <class T> mirror::Object* Allocate(Thread* self, T* space, size_t num_bytes, size_t* bytes_allocated)
+      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Handles Allocate()'s slow allocation path with GC involved after
+  // an initial allocation attempt failed.
+  mirror::Object* AllocateInternalWithGc(Thread* self, space::AllocSpace* space, size_t num_bytes,
+                                         size_t* bytes_allocated)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Try to allocate a number of bytes, this function never does any GCs.
-  mirror::Object* TryToAllocate(Thread* self, space::AllocSpace* space, size_t alloc_size, bool grow)
+  mirror::Object* TryToAllocate(Thread* self, space::AllocSpace* space, size_t alloc_size, bool grow,
+                                size_t* bytes_allocated)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Try to allocate a number of bytes, this function never does any GCs. DlMallocSpace-specialized version.
+  mirror::Object* TryToAllocate(Thread* self, space::DlMallocSpace* space, size_t alloc_size, bool grow,
+                                size_t* bytes_allocated)
+      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  bool IsOutOfMemoryOnAllocation(size_t alloc_size);
 
   // Pushes a list of cleared references out to the managed heap.
   void EnqueueClearedReferences(mirror::Object** cleared_references);
@@ -636,13 +647,14 @@ class Heap {
   uint64_t total_wait_time_;
 
   // Total number of objects allocated in microseconds.
-  const bool measure_allocation_time_;
   AtomicInteger total_allocation_time_;
 
   // The current state of heap verification, may be enabled or disabled.
   HeapVerificationMode verify_object_mode_;
 
   std::vector<collector::MarkSweep*> mark_sweep_collectors_;
+
+  const bool running_on_valgrind_;
 
   friend class collector::MarkSweep;
   friend class VerifyReferenceCardVisitor;

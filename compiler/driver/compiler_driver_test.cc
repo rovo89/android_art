@@ -24,10 +24,10 @@
 #include "common_test.h"
 #include "dex_file.h"
 #include "gc/heap.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
-#include "mirror/abstract_method-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 
@@ -115,7 +115,7 @@ TEST_F(CompilerDriverTest, DISABLED_LARGE_CompileDexLibCore) {
   }
   EXPECT_EQ(dex->NumMethodIds(), dex_cache->NumResolvedMethods());
   for (size_t i = 0; i < dex_cache->NumResolvedMethods(); i++) {
-    mirror::AbstractMethod* method = dex_cache->GetResolvedMethod(i);
+    mirror::ArtMethod* method = dex_cache->GetResolvedMethod(i);
     EXPECT_TRUE(method != NULL) << "method_idx=" << i
                                 << " " << dex->GetMethodDeclaringClassDescriptor(dex->GetMethodId(i))
                                 << " " << dex->GetMethodName(dex->GetMethodId(i));
@@ -126,7 +126,7 @@ TEST_F(CompilerDriverTest, DISABLED_LARGE_CompileDexLibCore) {
   }
   EXPECT_EQ(dex->NumFieldIds(), dex_cache->NumResolvedFields());
   for (size_t i = 0; i < dex_cache->NumResolvedFields(); i++) {
-    mirror::Field* field = dex_cache->GetResolvedField(i);
+    mirror::ArtField* field = dex_cache->GetResolvedField(i);
     EXPECT_TRUE(field != NULL) << "field_idx=" << i
                                << " " << dex->GetFieldDeclaringClassDescriptor(dex->GetFieldId(i))
                                << " " << dex->GetFieldName(dex->GetFieldId(i));

@@ -22,7 +22,7 @@
 
 namespace art {
 namespace mirror {
-class AbstractMethod;
+class ArtMethod;
 class Object;
 }  // namespace mirror
 
@@ -33,8 +33,8 @@ class Thread;
 
 namespace interpreter {
 
-// Called by AbstractMethod::Invoke, shadow frames arguments are taken from the args array.
-extern void EnterInterpreterFromInvoke(Thread* self, mirror::AbstractMethod* method,
+// Called by ArtMethod::Invoke, shadow frames arguments are taken from the args array.
+extern void EnterInterpreterFromInvoke(Thread* self, mirror::ArtMethod* method,
                                        mirror::Object* receiver, uint32_t* args, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -53,6 +53,12 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 }  // namespace interpreter
+
+extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& mh,
+                                                   const DexFile::CodeItem* code_item,
+                                                   ShadowFrame* shadow_frame, JValue* result)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_INTERPRETER_INTERPRETER_H_

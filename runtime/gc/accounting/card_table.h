@@ -47,7 +47,7 @@ class CardTable {
  public:
   static const size_t kCardShift = 7;
   static const size_t kCardSize = (1 << kCardShift);
-  static const uint8_t kCardClean  = 0x0;
+  static const uint8_t kCardClean = 0x0;
   static const uint8_t kCardDirty = 0x70;
 
   static CardTable* Create(const byte* heap_begin, size_t heap_capacity);
@@ -101,9 +101,8 @@ class CardTable {
 
   // For every dirty at least minumum age between begin and end invoke the visitor with the
   // specified argument.
-  template <typename Visitor, typename FingerVisitor>
-  void Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_end,
-            const Visitor& visitor, const FingerVisitor& finger_visitor,
+  template <typename Visitor>
+  void Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_end, const Visitor& visitor,
             const byte minimum_age = kCardDirty) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

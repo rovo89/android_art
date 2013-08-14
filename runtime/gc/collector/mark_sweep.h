@@ -167,14 +167,6 @@ class MarkSweep : public GarbageCollector {
   void ScanObjectVisit(const mirror::Object* obj, const MarkVisitor& visitor)
       NO_THREAD_SAFETY_ANALYSIS;
 
-  void SetFinger(mirror::Object* new_finger) {
-    finger_ = new_finger;
-  }
-
-  void DisableFinger() {
-    SetFinger(reinterpret_cast<mirror::Object*>(~static_cast<uintptr_t>(0)));
-  }
-
   size_t GetFreedBytes() const {
     return freed_bytes_;
   }
@@ -261,13 +253,22 @@ class MarkSweep : public GarbageCollector {
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
                             Locks::mutator_lock_);
 
-  void MarkObjectNonNull(const mirror::Object* obj, bool check_finger)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  void MarkObjectNonNull(const mirror::Object* obj)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+        EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  void MarkObjectNonNullParallel(const mirror::Object* obj, bool check_finger);
+  // Unmarks an object by clearing the bit inside of the corresponding bitmap, or if it is in a
+  // space set, removing the object from the set.
+  void UnMarkObjectNonNull(const mirror::Object* obj)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+        EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  bool MarkLargeObject(const mirror::Object* obj)
+  // Marks an object atomically, safe to use from multiple threads.
+  void MarkObjectNonNullParallel(const mirror::Object* obj);
+
+  // Marks or unmarks a large object based on whether or not set is true. If set is true, then we
+  // mark, otherwise we unmark.
+  bool MarkLargeObject(const mirror::Object* obj, bool set)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Returns true if we need to add obj to a mark stack.
@@ -294,6 +295,11 @@ class MarkSweep : public GarbageCollector {
 
   // Expand mark stack to 2x its current size. Thread safe.
   void ExpandMarkStack();
+
+  // Returns true if an object is inside of the immune region (assumed to be marked).
+  bool IsImmune(const mirror::Object* obj) const {
+    return obj >= immune_begin_ && obj < immune_end_;
+  }
 
   static void VerifyRootCallback(const mirror::Object* root, void* arg, size_t vreg,
                                  const StackVisitor *visitor);
@@ -385,8 +391,6 @@ class MarkSweep : public GarbageCollector {
   mirror::Class* java_lang_Class_;
 
   accounting::ObjectStack* mark_stack_;
-
-  mirror::Object* finger_;
 
   // Immune range, every object inside the immune range is assumed to be marked.
   mirror::Object* immune_begin_;

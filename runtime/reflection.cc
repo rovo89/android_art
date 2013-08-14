@@ -21,11 +21,10 @@
 #include "dex_file-inl.h"
 #include "invoke_arg_array_builder.h"
 #include "jni_internal.h"
-#include "mirror/abstract_method.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_field-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
-#include "mirror/field-inl.h"
 #include "mirror/object_array.h"
 #include "mirror/object_array-inl.h"
 #include "object_utils.h"
@@ -37,7 +36,7 @@ namespace art {
 jobject InvokeMethod(const ScopedObjectAccess& soa, jobject javaMethod, jobject javaReceiver,
                      jobject javaArgs) {
   jmethodID mid = soa.Env()->FromReflectedMethod(javaMethod);
-  mirror::AbstractMethod* m = soa.DecodeMethod(mid);
+  mirror::ArtMethod* m = soa.DecodeMethod(mid);
 
   mirror::Class* declaring_class = m->GetDeclaringClass();
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(declaring_class, true, true)) {
@@ -267,7 +266,7 @@ mirror::Object* BoxPrimitive(Primitive::Type src_class, const JValue& value) {
   return result.GetL();
 }
 
-static std::string UnboxingFailureKind(mirror::AbstractMethod* m, int index, mirror::Field* f)
+static std::string UnboxingFailureKind(mirror::ArtMethod* m, int index, mirror::ArtField* f)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (m != NULL && index != -1) {
     ++index;  // Humans count from 1.
@@ -281,7 +280,7 @@ static std::string UnboxingFailureKind(mirror::AbstractMethod* m, int index, mir
 
 static bool UnboxPrimitive(const ThrowLocation* throw_location, mirror::Object* o,
                            mirror::Class* dst_class, JValue& unboxed_value,
-                           mirror::AbstractMethod* m, int index, mirror::Field* f)
+                           mirror::ArtMethod* m, int index, mirror::ArtField* f)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   bool unbox_for_result = (f == NULL) && (index == -1);
   if (!dst_class->IsPrimitive()) {
@@ -327,7 +326,7 @@ static bool UnboxPrimitive(const ThrowLocation* throw_location, mirror::Object* 
   std::string src_descriptor(ClassHelper(o->GetClass()).GetDescriptor());
   mirror::Class* src_class = NULL;
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  mirror::Field* primitive_field = o->GetClass()->GetIFields()->Get(0);
+  mirror::ArtField* primitive_field = o->GetClass()->GetIFields()->Get(0);
   if (src_descriptor == "Ljava/lang/Boolean;") {
     src_class = class_linker->FindPrimitiveClass('Z');
     boxed_value.SetZ(primitive_field->GetBoolean(o));
@@ -367,13 +366,13 @@ static bool UnboxPrimitive(const ThrowLocation* throw_location, mirror::Object* 
 }
 
 bool UnboxPrimitiveForArgument(mirror::Object* o, mirror::Class* dst_class, JValue& unboxed_value,
-                               mirror::AbstractMethod* m, size_t index) {
+                               mirror::ArtMethod* m, size_t index) {
   CHECK(m != NULL);
   return UnboxPrimitive(NULL, o, dst_class, unboxed_value, m, index, NULL);
 }
 
 bool UnboxPrimitiveForField(mirror::Object* o, mirror::Class* dst_class, JValue& unboxed_value,
-                            mirror::Field* f) {
+                            mirror::ArtField* f) {
   CHECK(f != NULL);
   return UnboxPrimitive(NULL, o, dst_class, unboxed_value, NULL, -1, f);
 }

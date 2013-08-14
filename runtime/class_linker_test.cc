@@ -24,41 +24,16 @@
 #include "dex_file.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "gc/heap.h"
+#include "mirror/art_field-inl.h"
+#include "mirror/art_method.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
-#include "mirror/field-inl.h"
-#include "mirror/abstract_method.h"
-#include "mirror/abstract_method-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/proxy.h"
 #include "mirror/stack_trace_element.h"
 #include "sirt_ref.h"
-
-using ::art::mirror::AbstractMethod;
-using ::art::mirror::AbstractMethodClass;
-using ::art::mirror::CharArray;
-using ::art::mirror::Class;
-using ::art::mirror::ClassClass;
-using ::art::mirror::ClassLoader;
-using ::art::mirror::Constructor;
-using ::art::mirror::DexCache;
-using ::art::mirror::DoubleArray;
-using ::art::mirror::Field;
-using ::art::mirror::FieldClass;
-using ::art::mirror::IfTable;
-using ::art::mirror::IntArray;
-using ::art::mirror::LongArray;
-using ::art::mirror::Method;
-using ::art::mirror::Object;
-using ::art::mirror::ObjectArray;
-using ::art::mirror::Proxy;
-using ::art::mirror::ShortArray;
-using ::art::mirror::StackTraceElement;
-using ::art::mirror::StaticStorageBase;
-using ::art::mirror::String;
-using ::art::mirror::StringClass;
-using ::art::mirror::Throwable;
 
 namespace art {
 
@@ -69,9 +44,9 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(class_linker_->FindSystemClass(descriptor.c_str()) == NULL);
     Thread* self = Thread::Current();
     EXPECT_TRUE(self->IsExceptionPending());
-    Object* exception = self->GetException(NULL);
+    mirror::Object* exception = self->GetException(NULL);
     self->ClearException();
-    Class* exception_class = class_linker_->FindSystemClass("Ljava/lang/NoClassDefFoundError;");
+    mirror::Class* exception_class = class_linker_->FindSystemClass("Ljava/lang/NoClassDefFoundError;");
     EXPECT_TRUE(exception->InstanceOf(exception_class));
   }
 
@@ -80,7 +55,7 @@ class ClassLinkerTest : public CommonTest {
     AssertPrimitiveClass(descriptor, class_linker_->FindSystemClass(descriptor.c_str()));
   }
 
-  void AssertPrimitiveClass(const std::string& descriptor, const Class* primitive)
+  void AssertPrimitiveClass(const std::string& descriptor, const mirror::Class* primitive)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ClassHelper primitive_ch(primitive);
     ASSERT_TRUE(primitive != NULL);
@@ -91,7 +66,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(primitive->GetSuperClass() == NULL);
     EXPECT_FALSE(primitive->HasSuperClass());
     EXPECT_TRUE(primitive->GetClassLoader() == NULL);
-    EXPECT_EQ(Class::kStatusInitialized, primitive->GetStatus());
+    EXPECT_EQ(mirror::Class::kStatusInitialized, primitive->GetStatus());
     EXPECT_FALSE(primitive->IsErroneous());
     EXPECT_TRUE(primitive->IsLoaded());
     EXPECT_TRUE(primitive->IsResolved());
@@ -118,9 +93,9 @@ class ClassLinkerTest : public CommonTest {
 
   void AssertArrayClass(const std::string& array_descriptor,
                         const std::string& component_type,
-                        ClassLoader* class_loader)
+                        mirror::ClassLoader* class_loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Class* array = class_linker_->FindClass(array_descriptor.c_str(), class_loader);
+    mirror::Class* array = class_linker_->FindClass(array_descriptor.c_str(), class_loader);
     ClassHelper array_component_ch(array->GetComponentType());
     EXPECT_STREQ(component_type.c_str(), array_component_ch.GetDescriptor());
     EXPECT_EQ(class_loader, array->GetClassLoader());
@@ -128,7 +103,7 @@ class ClassLinkerTest : public CommonTest {
     AssertArrayClass(array_descriptor, array);
   }
 
-  void AssertArrayClass(const std::string& array_descriptor, Class* array)
+  void AssertArrayClass(const std::string& array_descriptor, mirror::Class* array)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ClassHelper kh(array);
     ASSERT_TRUE(array != NULL);
@@ -142,7 +117,7 @@ class ClassLinkerTest : public CommonTest {
     ASSERT_TRUE(array->GetComponentType() != NULL);
     kh.ChangeClass(array->GetComponentType());
     ASSERT_TRUE(kh.GetDescriptor() != NULL);
-    EXPECT_EQ(Class::kStatusInitialized, array->GetStatus());
+    EXPECT_EQ(mirror::Class::kStatusInitialized, array->GetStatus());
     EXPECT_FALSE(array->IsErroneous());
     EXPECT_TRUE(array->IsLoaded());
     EXPECT_TRUE(array->IsResolved());
@@ -163,7 +138,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_EQ(2U, kh.NumDirectInterfaces());
     EXPECT_TRUE(array->GetVTable() != NULL);
     EXPECT_EQ(2, array->GetIfTableCount());
-    IfTable* iftable = array->GetIfTable();
+    mirror::IfTable* iftable = array->GetIfTable();
     ASSERT_TRUE(iftable != NULL);
     kh.ChangeClass(kh.GetDirectInterface(0));
     EXPECT_STREQ(kh.GetDescriptor(), "Ljava/lang/Cloneable;");
@@ -172,7 +147,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_STREQ(kh.GetDescriptor(), "Ljava/io/Serializable;");
   }
 
-  void AssertMethod(AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void AssertMethod(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     MethodHelper mh(method);
     EXPECT_TRUE(method != NULL);
     EXPECT_TRUE(method->GetClass() != NULL);
@@ -193,7 +168,7 @@ class ClassLinkerTest : public CommonTest {
               method->GetDexCacheInitializedStaticStorage());
   }
 
-  void AssertField(Class* klass, Field* field)
+  void AssertField(mirror::Class* klass, mirror::ArtField* field)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     FieldHelper fh(field);
     EXPECT_TRUE(field != NULL);
@@ -203,7 +178,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(fh.GetType() != NULL);
   }
 
-  void AssertClass(const std::string& descriptor, Class* klass)
+  void AssertClass(const std::string& descriptor, mirror::Class* klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ClassHelper kh(klass);
     EXPECT_STREQ(descriptor.c_str(), kh.GetDescriptor());
@@ -222,7 +197,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_FALSE(klass->IsArrayClass());
     EXPECT_TRUE(klass->GetComponentType() == NULL);
     EXPECT_TRUE(klass->IsInSamePackage(klass));
-    EXPECT_TRUE(Class::IsInSamePackage(kh.GetDescriptor(), kh.GetDescriptor()));
+    EXPECT_TRUE(mirror::Class::IsInSamePackage(kh.GetDescriptor(), kh.GetDescriptor()));
     if (klass->IsInterface()) {
       EXPECT_TRUE(klass->IsAbstract());
       if (klass->NumDirectMethods() == 1) {
@@ -238,9 +213,9 @@ class ClassLinkerTest : public CommonTest {
       }
     }
     EXPECT_EQ(klass->IsInterface(), klass->GetVTable() == NULL);
-    const IfTable* iftable = klass->GetIfTable();
+    const mirror::IfTable* iftable = klass->GetIfTable();
     for (int i = 0; i < klass->GetIfTableCount(); i++) {
-      Class* interface = iftable->GetInterface(i);
+      mirror::Class* interface = iftable->GetInterface(i);
       ASSERT_TRUE(interface != NULL);
       if (klass->IsInterface()) {
         EXPECT_EQ(0U, iftable->GetMethodArrayCount(i));
@@ -266,27 +241,27 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(klass->CanAccess(klass));
 
     for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
-      AbstractMethod* method = klass->GetDirectMethod(i);
+      mirror::ArtMethod* method = klass->GetDirectMethod(i);
       AssertMethod(method);
       EXPECT_TRUE(method->IsDirect());
       EXPECT_EQ(klass, method->GetDeclaringClass());
     }
 
     for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
-      AbstractMethod* method = klass->GetVirtualMethod(i);
+      mirror::ArtMethod* method = klass->GetVirtualMethod(i);
       AssertMethod(method);
       EXPECT_FALSE(method->IsDirect());
       EXPECT_TRUE(method->GetDeclaringClass()->IsAssignableFrom(klass));
     }
 
     for (size_t i = 0; i < klass->NumInstanceFields(); i++) {
-      Field* field = klass->GetInstanceField(i);
+      mirror::ArtField* field = klass->GetInstanceField(i);
       AssertField(klass, field);
       EXPECT_FALSE(field->IsStatic());
     }
 
     for (size_t i = 0; i < klass->NumStaticFields(); i++) {
-      Field* field = klass->GetStaticField(i);
+      mirror::ArtField* field = klass->GetStaticField(i);
       AssertField(klass, field);
       EXPECT_TRUE(field->IsStatic());
     }
@@ -295,17 +270,17 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_GE(klass->NumInstanceFields(), klass->NumReferenceInstanceFields());
     FieldHelper fh;
     for (size_t i = 0; i < klass->NumReferenceInstanceFields(); i++) {
-      Field* field = klass->GetInstanceField(i);
+      mirror::ArtField* field = klass->GetInstanceField(i);
       fh.ChangeField(field);
       ASSERT_TRUE(!fh.IsPrimitiveType());
-      Class* field_type = fh.GetType();
+      mirror::Class* field_type = fh.GetType();
       ASSERT_TRUE(field_type != NULL);
       ASSERT_TRUE(!field_type->IsPrimitive());
     }
     for (size_t i = klass->NumReferenceInstanceFields(); i < klass->NumInstanceFields(); i++) {
-      Field* field = klass->GetInstanceField(i);
+      mirror::ArtField* field = klass->GetInstanceField(i);
       fh.ChangeField(field);
-      Class* field_type = fh.GetType();
+      mirror::Class* field_type = fh.GetType();
       ASSERT_TRUE(field_type != NULL);
       if (!fh.IsPrimitiveType() || !field_type->IsPrimitive()) {
         // While Reference.referent is not primitive, the ClassLinker
@@ -315,7 +290,7 @@ class ClassLinkerTest : public CommonTest {
     }
 
     size_t total_num_reference_instance_fields = 0;
-    Class* k = klass;
+    mirror::Class* k = klass;
     while (k != NULL) {
       total_num_reference_instance_fields += k->NumReferenceInstanceFields();
       k = k->GetSuperClass();
@@ -324,10 +299,10 @@ class ClassLinkerTest : public CommonTest {
               total_num_reference_instance_fields == 0);
   }
 
-  void AssertDexFileClass(ClassLoader* class_loader, const std::string& descriptor)
+  void AssertDexFileClass(mirror::ClassLoader* class_loader, const std::string& descriptor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ASSERT_TRUE(descriptor != NULL);
-    Class* klass = class_linker_->FindSystemClass(descriptor.c_str());
+    mirror::Class* klass = class_linker_->FindSystemClass(descriptor.c_str());
     ASSERT_TRUE(klass != NULL);
     EXPECT_STREQ(descriptor.c_str(), ClassHelper(klass).GetDescriptor());
     EXPECT_EQ(class_loader, klass->GetClassLoader());
@@ -340,7 +315,7 @@ class ClassLinkerTest : public CommonTest {
     }
   }
 
-  void AssertDexFile(const DexFile* dex, ClassLoader* class_loader)
+  void AssertDexFile(const DexFile* dex, mirror::ClassLoader* class_loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ASSERT_TRUE(dex != NULL);
 
@@ -358,14 +333,14 @@ class ClassLinkerTest : public CommonTest {
     }
     class_linker_->VisitRoots(TestRootVisitor, NULL, false);
     // Verify the dex cache has resolution methods in all resolved method slots
-    DexCache* dex_cache = class_linker_->FindDexCache(*dex);
-    ObjectArray<AbstractMethod>* resolved_methods = dex_cache->GetResolvedMethods();
+    mirror::DexCache* dex_cache = class_linker_->FindDexCache(*dex);
+    mirror::ObjectArray<mirror::ArtMethod>* resolved_methods = dex_cache->GetResolvedMethods();
     for (size_t i = 0; i < static_cast<size_t>(resolved_methods->GetLength()); i++) {
       EXPECT_TRUE(resolved_methods->Get(i) != NULL);
     }
   }
 
-  static void TestRootVisitor(const Object* root, void*) {
+  static void TestRootVisitor(const mirror::Object* root, void*) {
     EXPECT_TRUE(root != NULL);
   }
 };
@@ -385,7 +360,7 @@ struct CheckOffsets {
   std::vector<CheckOffset> offsets;
 
   bool Check() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Class* klass = Runtime::Current()->GetClassLinker()->FindSystemClass(class_descriptor.c_str());
+    mirror::Class* klass = Runtime::Current()->GetClassLinker()->FindSystemClass(class_descriptor.c_str());
     CHECK(klass != NULL) << class_descriptor;
 
     bool error = false;
@@ -412,7 +387,7 @@ struct CheckOffsets {
 
     FieldHelper fh;
     for (size_t i = 0; i < offsets.size(); i++) {
-      Field* field = is_static ? klass->GetStaticField(i) : klass->GetInstanceField(i);
+      mirror::ArtField* field = is_static ? klass->GetStaticField(i) : klass->GetInstanceField(i);
       fh.ChangeField(field);
       StringPiece field_name(fh.GetName());
       if (field_name != offsets[i].java_name) {
@@ -422,7 +397,7 @@ struct CheckOffsets {
     if (error) {
       for (size_t i = 0; i < offsets.size(); i++) {
         CheckOffset& offset = offsets[i];
-        Field* field = is_static ? klass->GetStaticField(i) : klass->GetInstanceField(i);
+        mirror::ArtField* field = is_static ? klass->GetStaticField(i) : klass->GetInstanceField(i);
         fh.ChangeField(field);
         StringPiece field_name(fh.GetName());
         if (field_name != offsets[i].java_name) {
@@ -437,7 +412,7 @@ struct CheckOffsets {
 
     for (size_t i = 0; i < offsets.size(); i++) {
       CheckOffset& offset = offsets[i];
-      Field* field = is_static ? klass->GetStaticField(i) : klass->GetInstanceField(i);
+      mirror::ArtField* field = is_static ? klass->GetStaticField(i) : klass->GetInstanceField(i);
       if (field->GetOffset().Uint32Value() != offset.cpp_offset) {
         error = true;
       }
@@ -445,7 +420,7 @@ struct CheckOffsets {
     if (error) {
       for (size_t i = 0; i < offsets.size(); i++) {
         CheckOffset& offset = offsets[i];
-        Field* field = is_static ? klass->GetStaticField(i) : klass->GetInstanceField(i);
+        mirror::ArtField* field = is_static ? klass->GetStaticField(i) : klass->GetInstanceField(i);
         if (field->GetOffset().Uint32Value() != offset.cpp_offset) {
           LOG(ERROR) << "OFFSET MISMATCH NEXT LINE:";
         }
@@ -464,195 +439,179 @@ struct CheckOffsets {
 // Note that ClassLinkerTest.ValidateFieldOrderOfJavaCppUnionClasses
 // is first since if it is failing, others are unlikely to succeed.
 
-struct ObjectOffsets : public CheckOffsets<Object> {
-  ObjectOffsets() : CheckOffsets<Object>(false, "Ljava/lang/Object;") {
+struct ObjectOffsets : public CheckOffsets<mirror::Object> {
+  ObjectOffsets() : CheckOffsets<mirror::Object>(false, "Ljava/lang/Object;") {
     // alphabetical references
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Object, klass_),   "shadow$_klass_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Object, klass_),   "shadow$_klass_"));
 
     // alphabetical 32-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Object, monitor_), "shadow$_monitor_"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Object, monitor_), "shadow$_monitor_"));
   };
 };
 
-struct FieldOffsets : public CheckOffsets<Field> {
-  FieldOffsets() : CheckOffsets<Field>(false, "Ljava/lang/reflect/Field;") {
+struct ArtFieldOffsets : public CheckOffsets<mirror::ArtField> {
+  ArtFieldOffsets() : CheckOffsets<mirror::ArtField>(false, "Ljava/lang/reflect/ArtField;") {
     // alphabetical references
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Field, declaring_class_), "declaringClass"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtField, declaring_class_), "declaringClass"));
 
     // alphabetical 32-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Field, access_flags_),    "accessFlags"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Field, field_dex_idx_),   "fieldDexIndex"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Field, offset_),          "offset"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtField, access_flags_),    "accessFlags"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtField, field_dex_idx_),   "fieldDexIndex"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtField, offset_),          "offset"));
   };
 };
 
-struct AbstractMethodOffsets : public CheckOffsets<AbstractMethod> {
-  AbstractMethodOffsets() : CheckOffsets<AbstractMethod>(false, "Ljava/lang/reflect/AbstractMethod;") {
+struct ArtMethodOffsets : public CheckOffsets<mirror::ArtMethod> {
+  ArtMethodOffsets() : CheckOffsets<mirror::ArtMethod>(false, "Ljava/lang/reflect/ArtMethod;") {
     // alphabetical references
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, declaring_class_),                      "declaringClass"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, dex_cache_initialized_static_storage_), "dexCacheInitializedStaticStorage"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, dex_cache_resolved_methods_),           "dexCacheResolvedMethods"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, dex_cache_resolved_types_),             "dexCacheResolvedTypes"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, dex_cache_strings_),                    "dexCacheStrings"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, declaring_class_),                      "declaringClass"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_cache_initialized_static_storage_), "dexCacheInitializedStaticStorage"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_cache_resolved_methods_),           "dexCacheResolvedMethods"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_cache_resolved_types_),             "dexCacheResolvedTypes"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_cache_strings_),                    "dexCacheStrings"));
 
     // alphabetical 32-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, access_flags_),                   "accessFlags"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, code_item_offset_),               "codeItemOffset"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, core_spill_mask_),                "coreSpillMask"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, entry_point_from_compiled_code_), "entryPointFromCompiledCode"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, entry_point_from_interpreter_),   "entryPointFromInterpreter"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, fp_spill_mask_),                  "fpSpillMask"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, frame_size_in_bytes_),            "frameSizeInBytes"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, gc_map_),                         "gcMap"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, mapping_table_),                  "mappingTable"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, method_dex_index_),               "methodDexIndex"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, method_index_),                   "methodIndex"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, native_method_),                  "nativeMethod"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, vmap_table_),                     "vmapTable"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, access_flags_),                   "accessFlags"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, code_item_offset_),               "codeItemOffset"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, core_spill_mask_),                "coreSpillMask"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, entry_point_from_compiled_code_), "entryPointFromCompiledCode"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, entry_point_from_interpreter_),   "entryPointFromInterpreter"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, fp_spill_mask_),                  "fpSpillMask"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, frame_size_in_bytes_),            "frameSizeInBytes"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, gc_map_),                         "gcMap"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, mapping_table_),                  "mappingTable"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, method_dex_index_),               "methodDexIndex"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, method_index_),                   "methodIndex"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, native_method_),                  "nativeMethod"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, vmap_table_),                     "vmapTable"));
   };
 };
 
-struct ConstructorOffsets : public CheckOffsets<Constructor> {
-  // java.lang.reflect.Constructor is a subclass of java.lang.reflect.AbstractMethod
-  ConstructorOffsets() : CheckOffsets<Constructor>(false, "Ljava/lang/reflect/Constructor;") {
-  }
-};
-
-struct MethodOffsets : public CheckOffsets<Method> {
-  // java.lang.reflect.Method is a subclass of java.lang.reflect.AbstractMethod
-  MethodOffsets() : CheckOffsets<Method>(false, "Ljava/lang/reflect/Method;") {
-  }
-};
-
-struct ClassOffsets : public CheckOffsets<Class> {
-  ClassOffsets() : CheckOffsets<Class>(false, "Ljava/lang/Class;") {
+struct ClassOffsets : public CheckOffsets<mirror::Class> {
+  ClassOffsets() : CheckOffsets<mirror::Class>(false, "Ljava/lang/Class;") {
     // alphabetical references
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, class_loader_),                  "classLoader"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, component_type_),                "componentType"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, dex_cache_),                     "dexCache"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, direct_methods_),                "directMethods"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, ifields_),                       "iFields"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, iftable_),                       "ifTable"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, name_),                          "name"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, sfields_),                       "sFields"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, super_class_),                   "superClass"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, verify_error_class_),            "verifyErrorClass"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, virtual_methods_),               "virtualMethods"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, vtable_),                        "vtable"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, class_loader_),                  "classLoader"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, component_type_),                "componentType"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, dex_cache_),                     "dexCache"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, direct_methods_),                "directMethods"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, ifields_),                       "iFields"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, iftable_),                       "ifTable"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, name_),                          "name"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, sfields_),                       "sFields"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, super_class_),                   "superClass"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, verify_error_class_),            "verifyErrorClass"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, virtual_methods_),               "virtualMethods"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, vtable_),                        "vtable"));
 
     // alphabetical 32-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, access_flags_),                  "accessFlags"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, class_size_),                    "classSize"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, clinit_thread_id_),              "clinitThreadId"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, dex_type_idx_),                  "dexTypeIndex"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, num_reference_instance_fields_), "numReferenceInstanceFields"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, num_reference_static_fields_),   "numReferenceStaticFields"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, object_size_),                   "objectSize"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, primitive_type_),                "primitiveType"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, reference_instance_offsets_),    "referenceInstanceOffsets"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, reference_static_offsets_),      "referenceStaticOffsets"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Class, status_),                        "status"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, access_flags_),                  "accessFlags"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, class_size_),                    "classSize"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, clinit_thread_id_),              "clinitThreadId"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, dex_type_idx_),                  "dexTypeIndex"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, num_reference_instance_fields_), "numReferenceInstanceFields"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, num_reference_static_fields_),   "numReferenceStaticFields"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, object_size_),                   "objectSize"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, primitive_type_),                "primitiveType"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, reference_instance_offsets_),    "referenceInstanceOffsets"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, reference_static_offsets_),      "referenceStaticOffsets"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, status_),                        "status"));
   };
 };
 
-struct StringOffsets : public CheckOffsets<String> {
-  StringOffsets() : CheckOffsets<String>(false, "Ljava/lang/String;") {
+struct StringOffsets : public CheckOffsets<mirror::String> {
+  StringOffsets() : CheckOffsets<mirror::String>(false, "Ljava/lang/String;") {
     // alphabetical references
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(String, array_),     "value"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::String, array_),     "value"));
 
     // alphabetical 32-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(String, count_),     "count"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(String, hash_code_), "hashCode"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(String, offset_),    "offset"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::String, count_),     "count"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::String, hash_code_), "hashCode"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::String, offset_),    "offset"));
   };
 };
 
-struct ThrowableOffsets : public CheckOffsets<Throwable> {
-  ThrowableOffsets() : CheckOffsets<Throwable>(false, "Ljava/lang/Throwable;") {
+struct ThrowableOffsets : public CheckOffsets<mirror::Throwable> {
+  ThrowableOffsets() : CheckOffsets<mirror::Throwable>(false, "Ljava/lang/Throwable;") {
     // alphabetical references
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, cause_),                 "cause"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, detail_message_),        "detailMessage"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, stack_state_),           "stackState"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, stack_trace_),           "stackTrace"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Throwable, suppressed_exceptions_), "suppressedExceptions"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Throwable, cause_),                 "cause"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Throwable, detail_message_),        "detailMessage"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Throwable, stack_state_),           "stackState"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Throwable, stack_trace_),           "stackTrace"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Throwable, suppressed_exceptions_), "suppressedExceptions"));
   };
 };
 
-struct StackTraceElementOffsets : public CheckOffsets<StackTraceElement> {
-  StackTraceElementOffsets() : CheckOffsets<StackTraceElement>(false, "Ljava/lang/StackTraceElement;") {
+struct StackTraceElementOffsets : public CheckOffsets<mirror::StackTraceElement> {
+  StackTraceElementOffsets() : CheckOffsets<mirror::StackTraceElement>(false, "Ljava/lang/StackTraceElement;") {
     // alphabetical references
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StackTraceElement, declaring_class_), "declaringClass"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StackTraceElement, file_name_),       "fileName"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StackTraceElement, method_name_),     "methodName"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StackTraceElement, line_number_),     "lineNumber"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StackTraceElement, declaring_class_), "declaringClass"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StackTraceElement, file_name_),       "fileName"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StackTraceElement, method_name_),     "methodName"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StackTraceElement, line_number_),     "lineNumber"));
   };
 };
 
-struct ClassLoaderOffsets : public CheckOffsets<ClassLoader> {
-  ClassLoaderOffsets() : CheckOffsets<ClassLoader>(false, "Ljava/lang/ClassLoader;") {
+struct ClassLoaderOffsets : public CheckOffsets<mirror::ClassLoader> {
+  ClassLoaderOffsets() : CheckOffsets<mirror::ClassLoader>(false, "Ljava/lang/ClassLoader;") {
     // alphabetical references
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ClassLoader, packages_),   "packages"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ClassLoader, parent_),     "parent"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ClassLoader, proxyCache_), "proxyCache"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ClassLoader, packages_),   "packages"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ClassLoader, parent_),     "parent"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ClassLoader, proxyCache_), "proxyCache"));
   };
 };
 
-struct ProxyOffsets : public CheckOffsets<Proxy> {
-  ProxyOffsets() : CheckOffsets<Proxy>(false, "Ljava/lang/reflect/Proxy;") {
+struct ProxyOffsets : public CheckOffsets<mirror::Proxy> {
+  ProxyOffsets() : CheckOffsets<mirror::Proxy>(false, "Ljava/lang/reflect/Proxy;") {
     // alphabetical references
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Proxy, h_), "h"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Proxy, h_), "h"));
   };
 };
 
-struct ClassClassOffsets : public CheckOffsets<ClassClass> {
-  ClassClassOffsets() : CheckOffsets<ClassClass>(true, "Ljava/lang/Class;") {
+struct ClassClassOffsets : public CheckOffsets<mirror::ClassClass> {
+  ClassClassOffsets() : CheckOffsets<mirror::ClassClass>(true, "Ljava/lang/Class;") {
     // padding 32-bit
-    CHECK_EQ(OFFSETOF_MEMBER(ClassClass, padding_) + 4,
-             OFFSETOF_MEMBER(ClassClass, serialVersionUID_));
+    CHECK_EQ(OFFSETOF_MEMBER(mirror::ClassClass, padding_) + 4,
+             OFFSETOF_MEMBER(mirror::ClassClass, serialVersionUID_));
 
     // alphabetical 64-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ClassClass, serialVersionUID_), "serialVersionUID"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ClassClass, serialVersionUID_), "serialVersionUID"));
   };
 };
 
-struct StringClassOffsets : public CheckOffsets<StringClass> {
-  StringClassOffsets() : CheckOffsets<StringClass>(true, "Ljava/lang/String;") {
+struct StringClassOffsets : public CheckOffsets<mirror::StringClass> {
+  StringClassOffsets() : CheckOffsets<mirror::StringClass>(true, "Ljava/lang/String;") {
     // alphabetical references
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StringClass, ASCII_),                  "ASCII"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StringClass, CASE_INSENSITIVE_ORDER_), "CASE_INSENSITIVE_ORDER"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, ASCII_),                  "ASCII"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, CASE_INSENSITIVE_ORDER_), "CASE_INSENSITIVE_ORDER"));
 
     // padding 32-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StringClass, REPLACEMENT_CHAR_),       "REPLACEMENT_CHAR"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, REPLACEMENT_CHAR_),       "REPLACEMENT_CHAR"));
 
     // alphabetical 64-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(StringClass, serialVersionUID_),       "serialVersionUID"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, serialVersionUID_),       "serialVersionUID"));
   };
 };
 
-struct FieldClassOffsets : public CheckOffsets<FieldClass> {
-  FieldClassOffsets() : CheckOffsets<FieldClass>(true, "Ljava/lang/reflect/Field;") {
-    // alphabetical references
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(FieldClass, ORDER_BY_NAME_AND_DECLARING_CLASS_), "ORDER_BY_NAME_AND_DECLARING_CLASS"));
+struct ArtFieldClassOffsets : public CheckOffsets<mirror::ArtFieldClass> {
+  ArtFieldClassOffsets() : CheckOffsets<mirror::ArtFieldClass>(true, "Ljava/lang/reflect/ArtField;") {
   };
 };
 
-struct MethodClassOffsets : public CheckOffsets<AbstractMethodClass> {
-  MethodClassOffsets() : CheckOffsets<AbstractMethodClass>(true, "Ljava/lang/reflect/Method;") {
-    // alphabetical references
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethodClass, ORDER_BY_SIGNATURE_), "ORDER_BY_SIGNATURE"));
+struct ArtMethodClassOffsets : public CheckOffsets<mirror::ArtMethodClass> {
+  ArtMethodClassOffsets() : CheckOffsets<mirror::ArtMethodClass>(true, "Ljava/lang/reflect/ArtMethod;") {
   };
 };
 
-struct DexCacheOffsets : public CheckOffsets<DexCache> {
-  DexCacheOffsets() : CheckOffsets<DexCache>(false, "Ljava/lang/DexCache;") {
+struct DexCacheOffsets : public CheckOffsets<mirror::DexCache> {
+  DexCacheOffsets() : CheckOffsets<mirror::DexCache>(false, "Ljava/lang/DexCache;") {
     // alphabetical references
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(DexCache, initialized_static_storage_), "initializedStaticStorage"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(DexCache, location_),                   "location"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(DexCache, resolved_fields_),            "resolvedFields"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(DexCache, resolved_methods_),           "resolvedMethods"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(DexCache, resolved_types_),             "resolvedTypes"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(DexCache, strings_),                    "strings"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(DexCache, dex_file_),                   "dexFile"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, initialized_static_storage_), "initializedStaticStorage"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, location_),                   "location"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_fields_),            "resolvedFields"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_methods_),           "resolvedMethods"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_types_),             "resolvedTypes"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, strings_),                    "strings"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, dex_file_),                   "dexFile"));
   };
 };
 
@@ -662,10 +621,8 @@ struct DexCacheOffsets : public CheckOffsets<DexCache> {
 TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   ScopedObjectAccess soa(Thread::Current());
   EXPECT_TRUE(ObjectOffsets().Check());
-  EXPECT_TRUE(ConstructorOffsets().Check());
-  EXPECT_TRUE(MethodOffsets().Check());
-  EXPECT_TRUE(FieldOffsets().Check());
-  EXPECT_TRUE(AbstractMethodOffsets().Check());
+  EXPECT_TRUE(ArtFieldOffsets().Check());
+  EXPECT_TRUE(ArtMethodOffsets().Check());
   EXPECT_TRUE(ClassOffsets().Check());
   EXPECT_TRUE(StringOffsets().Check());
   EXPECT_TRUE(ThrowableOffsets().Check());
@@ -676,8 +633,8 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
 
   EXPECT_TRUE(ClassClassOffsets().Check());
   EXPECT_TRUE(StringClassOffsets().Check());
-  EXPECT_TRUE(FieldClassOffsets().Check());
-  EXPECT_TRUE(MethodClassOffsets().Check());
+  EXPECT_TRUE(ArtFieldClassOffsets().Check());
+  EXPECT_TRUE(ArtMethodClassOffsets().Check());
 }
 
 TEST_F(ClassLinkerTest, FindClassNonexistent) {
@@ -688,14 +645,14 @@ TEST_F(ClassLinkerTest, FindClassNonexistent) {
 
 TEST_F(ClassLinkerTest, FindClassNested) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<ClassLoader> class_loader(soa.Self(), soa.Decode<ClassLoader*>(LoadDex("Nested")));
+  SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(LoadDex("Nested")));
 
-  Class* outer = class_linker_->FindClass("LNested;", class_loader.get());
+  mirror::Class* outer = class_linker_->FindClass("LNested;", class_loader.get());
   ASSERT_TRUE(outer != NULL);
   EXPECT_EQ(0U, outer->NumVirtualMethods());
   EXPECT_EQ(1U, outer->NumDirectMethods());
 
-  Class* inner = class_linker_->FindClass("LNested$Inner;", class_loader.get());
+  mirror::Class* inner = class_linker_->FindClass("LNested$Inner;", class_loader.get());
   ASSERT_TRUE(inner != NULL);
   EXPECT_EQ(0U, inner->NumVirtualMethods());
   EXPECT_EQ(1U, inner->NumDirectMethods());
@@ -717,7 +674,7 @@ TEST_F(ClassLinkerTest, FindClass_Primitives) {
 
 TEST_F(ClassLinkerTest, FindClass) {
   ScopedObjectAccess soa(Thread::Current());
-  Class* JavaLangObject = class_linker_->FindSystemClass("Ljava/lang/Object;");
+  mirror::Class* JavaLangObject = class_linker_->FindSystemClass("Ljava/lang/Object;");
   ClassHelper kh(JavaLangObject);
   ASSERT_TRUE(JavaLangObject != NULL);
   ASSERT_TRUE(JavaLangObject->GetClass() != NULL);
@@ -727,12 +684,12 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_TRUE(JavaLangObject->GetSuperClass() == NULL);
   EXPECT_FALSE(JavaLangObject->HasSuperClass());
   EXPECT_TRUE(JavaLangObject->GetClassLoader() == NULL);
-  EXPECT_EQ(Class::kStatusResolved, JavaLangObject->GetStatus());
+  EXPECT_EQ(mirror::Class::kStatusInitialized, JavaLangObject->GetStatus());
   EXPECT_FALSE(JavaLangObject->IsErroneous());
   EXPECT_TRUE(JavaLangObject->IsLoaded());
   EXPECT_TRUE(JavaLangObject->IsResolved());
-  EXPECT_FALSE(JavaLangObject->IsVerified());
-  EXPECT_FALSE(JavaLangObject->IsInitialized());
+  EXPECT_TRUE(JavaLangObject->IsVerified());
+  EXPECT_TRUE(JavaLangObject->IsInitialized());
   EXPECT_FALSE(JavaLangObject->IsArrayInstance());
   EXPECT_FALSE(JavaLangObject->IsArrayClass());
   EXPECT_TRUE(JavaLangObject->GetComponentType() == NULL);
@@ -752,9 +709,9 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_EQ(0U, JavaLangObject->NumStaticFields());
   EXPECT_EQ(0U, kh.NumDirectInterfaces());
 
-  SirtRef<ClassLoader> class_loader(soa.Self(), soa.Decode<ClassLoader*>(LoadDex("MyClass")));
+  SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(LoadDex("MyClass")));
   AssertNonExistentClass("LMyClass;");
-  Class* MyClass = class_linker_->FindClass("LMyClass;", class_loader.get());
+  mirror::Class* MyClass = class_linker_->FindClass("LMyClass;", class_loader.get());
   kh.ChangeClass(MyClass);
   ASSERT_TRUE(MyClass != NULL);
   ASSERT_TRUE(MyClass->GetClass() != NULL);
@@ -764,7 +721,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_TRUE(MyClass->GetSuperClass() == JavaLangObject);
   EXPECT_TRUE(MyClass->HasSuperClass());
   EXPECT_EQ(class_loader.get(), MyClass->GetClassLoader());
-  EXPECT_EQ(Class::kStatusResolved, MyClass->GetStatus());
+  EXPECT_EQ(mirror::Class::kStatusResolved, MyClass->GetStatus());
   EXPECT_FALSE(MyClass->IsErroneous());
   EXPECT_TRUE(MyClass->IsLoaded());
   EXPECT_TRUE(MyClass->IsResolved());
@@ -805,12 +762,13 @@ TEST_F(ClassLinkerTest, LibCore) {
 // start of the object
 TEST_F(ClassLinkerTest, ValidateObjectArrayElementsOffset) {
   ScopedObjectAccess soa(Thread::Current());
-  Class* array_class = class_linker_->FindSystemClass("[Ljava/lang/String;");
-  ObjectArray<String>* array = ObjectArray<String>::Alloc(soa.Self(), array_class, 0);
+  mirror::Class* array_class = class_linker_->FindSystemClass("[Ljava/lang/String;");
+  mirror::ObjectArray<mirror::String>* array =
+      mirror::ObjectArray<mirror::String>::Alloc(soa.Self(), array_class, 0);
   uint32_t array_offset = reinterpret_cast<uint32_t>(array);
   uint32_t data_offset =
-      array_offset + ObjectArray<String>::DataOffset(sizeof(String*)).Uint32Value();
-  if (sizeof(String*) == sizeof(int32_t)) {
+      array_offset + mirror::ObjectArray<mirror::String>::DataOffset(sizeof(mirror::String*)).Uint32Value();
+  if (sizeof(mirror::String*) == sizeof(int32_t)) {
     EXPECT_TRUE(IsAligned<4>(data_offset));  // Check 4 byte alignment.
   } else {
     EXPECT_TRUE(IsAligned<8>(data_offset));  // Check 8 byte alignment.
@@ -819,27 +777,27 @@ TEST_F(ClassLinkerTest, ValidateObjectArrayElementsOffset) {
 
 TEST_F(ClassLinkerTest, ValidatePrimitiveArrayElementsOffset) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<LongArray> long_array(soa.Self(), LongArray::Alloc(soa.Self(), 0));
+  SirtRef<mirror::LongArray> long_array(soa.Self(), mirror::LongArray::Alloc(soa.Self(), 0));
   EXPECT_EQ(class_linker_->FindSystemClass("[J"), long_array->GetClass());
   uintptr_t data_offset = reinterpret_cast<uintptr_t>(long_array->GetData());
   EXPECT_TRUE(IsAligned<8>(data_offset));  // Longs require 8 byte alignment
 
-  SirtRef<DoubleArray> double_array(soa.Self(), DoubleArray::Alloc(soa.Self(), 0));
+  SirtRef<mirror::DoubleArray> double_array(soa.Self(), mirror::DoubleArray::Alloc(soa.Self(), 0));
   EXPECT_EQ(class_linker_->FindSystemClass("[D"), double_array->GetClass());
   data_offset = reinterpret_cast<uintptr_t>(double_array->GetData());
   EXPECT_TRUE(IsAligned<8>(data_offset));  // Doubles require 8 byte alignment
 
-  SirtRef<IntArray> int_array(soa.Self(), IntArray::Alloc(soa.Self(), 0));
+  SirtRef<mirror::IntArray> int_array(soa.Self(), mirror::IntArray::Alloc(soa.Self(), 0));
   EXPECT_EQ(class_linker_->FindSystemClass("[I"), int_array->GetClass());
   data_offset = reinterpret_cast<uintptr_t>(int_array->GetData());
   EXPECT_TRUE(IsAligned<4>(data_offset));  // Ints require 4 byte alignment
 
-  SirtRef<CharArray> char_array(soa.Self(), CharArray::Alloc(soa.Self(), 0));
+  SirtRef<mirror::CharArray> char_array(soa.Self(), mirror::CharArray::Alloc(soa.Self(), 0));
   EXPECT_EQ(class_linker_->FindSystemClass("[C"), char_array->GetClass());
   data_offset = reinterpret_cast<uintptr_t>(char_array->GetData());
   EXPECT_TRUE(IsAligned<2>(data_offset));  // Chars require 2 byte alignment
 
-  SirtRef<ShortArray> short_array(soa.Self(), ShortArray::Alloc(soa.Self(), 0));
+  SirtRef<mirror::ShortArray> short_array(soa.Self(), mirror::ShortArray::Alloc(soa.Self(), 0));
   EXPECT_EQ(class_linker_->FindSystemClass("[S"), short_array->GetClass());
   data_offset = reinterpret_cast<uintptr_t>(short_array->GetData());
   EXPECT_TRUE(IsAligned<2>(data_offset));  // Shorts require 2 byte alignment
@@ -851,7 +809,7 @@ TEST_F(ClassLinkerTest, ValidateBoxedTypes) {
   // Validate that the "value" field is always the 0th field in each of java.lang's box classes.
   // This lets UnboxPrimitive avoid searching for the field by name at runtime.
   ScopedObjectAccess soa(Thread::Current());
-  Class* c;
+  mirror::Class* c;
   c = class_linker_->FindClass("Ljava/lang/Boolean;", NULL);
   FieldHelper fh(c->GetIFields()->Get(0));
   EXPECT_STREQ("value", fh.GetName());
@@ -880,10 +838,10 @@ TEST_F(ClassLinkerTest, ValidateBoxedTypes) {
 
 TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<ClassLoader> class_loader_1(soa.Self(), soa.Decode<ClassLoader*>(LoadDex("MyClass")));
-  SirtRef<ClassLoader> class_loader_2(soa.Self(), soa.Decode<ClassLoader*>(LoadDex("MyClass")));
-  Class* MyClass_1 = class_linker_->FindClass("LMyClass;", class_loader_1.get());
-  Class* MyClass_2 = class_linker_->FindClass("LMyClass;", class_loader_2.get());
+  SirtRef<mirror::ClassLoader> class_loader_1(soa.Self(), soa.Decode<mirror::ClassLoader*>(LoadDex("MyClass")));
+  SirtRef<mirror::ClassLoader> class_loader_2(soa.Self(), soa.Decode<mirror::ClassLoader*>(LoadDex("MyClass")));
+  mirror::Class* MyClass_1 = class_linker_->FindClass("LMyClass;", class_loader_1.get());
+  mirror::Class* MyClass_2 = class_linker_->FindClass("LMyClass;", class_loader_2.get());
   EXPECT_TRUE(MyClass_1 != NULL);
   EXPECT_TRUE(MyClass_2 != NULL);
   EXPECT_NE(MyClass_1, MyClass_2);
@@ -891,72 +849,72 @@ TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
 
 TEST_F(ClassLinkerTest, StaticFields) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<ClassLoader> class_loader(soa.Self(), soa.Decode<ClassLoader*>(LoadDex("Statics")));
-  Class* statics = class_linker_->FindClass("LStatics;", class_loader.get());
+  SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(LoadDex("Statics")));
+  mirror::Class* statics = class_linker_->FindClass("LStatics;", class_loader.get());
   class_linker_->EnsureInitialized(statics, true, true);
 
   // Static final primitives that are initialized by a compile-time constant
   // expression resolve to a copy of a constant value from the constant pool.
   // So <clinit> should be null.
-  AbstractMethod* clinit = statics->FindDirectMethod("<clinit>", "()V");
+  mirror::ArtMethod* clinit = statics->FindDirectMethod("<clinit>", "()V");
   EXPECT_TRUE(clinit == NULL);
 
   EXPECT_EQ(9U, statics->NumStaticFields());
 
-  Field* s0 = statics->FindStaticField("s0", "Z");
+  mirror::ArtField* s0 = statics->FindStaticField("s0", "Z");
   FieldHelper fh(s0);
-  EXPECT_STREQ(ClassHelper(s0->GetClass()).GetDescriptor(), "Ljava/lang/reflect/Field;");
+  EXPECT_STREQ(ClassHelper(s0->GetClass()).GetDescriptor(), "Ljava/lang/reflect/ArtField;");
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimBoolean);
   EXPECT_EQ(true, s0->GetBoolean(statics));
   s0->SetBoolean(statics, false);
 
-  Field* s1 = statics->FindStaticField("s1", "B");
+  mirror::ArtField* s1 = statics->FindStaticField("s1", "B");
   fh.ChangeField(s1);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimByte);
   EXPECT_EQ(5, s1->GetByte(statics));
   s1->SetByte(statics, 6);
 
-  Field* s2 = statics->FindStaticField("s2", "C");
+  mirror::ArtField* s2 = statics->FindStaticField("s2", "C");
   fh.ChangeField(s2);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimChar);
   EXPECT_EQ('a', s2->GetChar(statics));
   s2->SetChar(statics, 'b');
 
-  Field* s3 = statics->FindStaticField("s3", "S");
+  mirror::ArtField* s3 = statics->FindStaticField("s3", "S");
   fh.ChangeField(s3);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimShort);
   EXPECT_EQ(-536, s3->GetShort(statics));
   s3->SetShort(statics, -535);
 
-  Field* s4 = statics->FindStaticField("s4", "I");
+  mirror::ArtField* s4 = statics->FindStaticField("s4", "I");
   fh.ChangeField(s4);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimInt);
   EXPECT_EQ(2000000000, s4->GetInt(statics));
   s4->SetInt(statics, 2000000001);
 
-  Field* s5 = statics->FindStaticField("s5", "J");
+  mirror::ArtField* s5 = statics->FindStaticField("s5", "J");
   fh.ChangeField(s5);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimLong);
   EXPECT_EQ(0x1234567890abcdefLL, s5->GetLong(statics));
   s5->SetLong(statics, 0x34567890abcdef12LL);
 
-  Field* s6 = statics->FindStaticField("s6", "F");
+  mirror::ArtField* s6 = statics->FindStaticField("s6", "F");
   fh.ChangeField(s6);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimFloat);
   EXPECT_EQ(0.5, s6->GetFloat(statics));
   s6->SetFloat(statics, 0.75);
 
-  Field* s7 = statics->FindStaticField("s7", "D");
+  mirror::ArtField* s7 = statics->FindStaticField("s7", "D");
   fh.ChangeField(s7);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimDouble);
   EXPECT_EQ(16777217, s7->GetDouble(statics));
   s7->SetDouble(statics, 16777219);
 
-  Field* s8 = statics->FindStaticField("s8", "Ljava/lang/String;");
+  mirror::ArtField* s8 = statics->FindStaticField("s8", "Ljava/lang/String;");
   fh.ChangeField(s8);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimNot);
   EXPECT_TRUE(s8->GetObject(statics)->AsString()->Equals("android"));
-  s8->SetObject(s8->GetDeclaringClass(), String::AllocFromModifiedUtf8(soa.Self(), "robot"));
+  s8->SetObject(s8->GetDeclaringClass(), mirror::String::AllocFromModifiedUtf8(soa.Self(), "robot"));
 
   // TODO: Remove EXPECT_FALSE when GCC can handle EXPECT_EQ
   // http://code.google.com/p/googletest/issues/detail?id=322
@@ -973,27 +931,27 @@ TEST_F(ClassLinkerTest, StaticFields) {
 
 TEST_F(ClassLinkerTest, Interfaces) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<ClassLoader> class_loader(soa.Self(), soa.Decode<ClassLoader*>(LoadDex("Interfaces")));
-  Class* I = class_linker_->FindClass("LInterfaces$I;", class_loader.get());
-  Class* J = class_linker_->FindClass("LInterfaces$J;", class_loader.get());
-  Class* K = class_linker_->FindClass("LInterfaces$K;", class_loader.get());
-  Class* A = class_linker_->FindClass("LInterfaces$A;", class_loader.get());
-  Class* B = class_linker_->FindClass("LInterfaces$B;", class_loader.get());
+  SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(LoadDex("Interfaces")));
+  mirror::Class* I = class_linker_->FindClass("LInterfaces$I;", class_loader.get());
+  mirror::Class* J = class_linker_->FindClass("LInterfaces$J;", class_loader.get());
+  mirror::Class* K = class_linker_->FindClass("LInterfaces$K;", class_loader.get());
+  mirror::Class* A = class_linker_->FindClass("LInterfaces$A;", class_loader.get());
+  mirror::Class* B = class_linker_->FindClass("LInterfaces$B;", class_loader.get());
   EXPECT_TRUE(I->IsAssignableFrom(A));
   EXPECT_TRUE(J->IsAssignableFrom(A));
   EXPECT_TRUE(J->IsAssignableFrom(K));
   EXPECT_TRUE(K->IsAssignableFrom(B));
   EXPECT_TRUE(J->IsAssignableFrom(B));
 
-  AbstractMethod* Ii = I->FindVirtualMethod("i", "()V");
-  AbstractMethod* Jj1 = J->FindVirtualMethod("j1", "()V");
-  AbstractMethod* Jj2 = J->FindVirtualMethod("j2", "()V");
-  AbstractMethod* Kj1 = K->FindInterfaceMethod("j1", "()V");
-  AbstractMethod* Kj2 = K->FindInterfaceMethod("j2", "()V");
-  AbstractMethod* Kk = K->FindInterfaceMethod("k", "()V");
-  AbstractMethod* Ai = A->FindVirtualMethod("i", "()V");
-  AbstractMethod* Aj1 = A->FindVirtualMethod("j1", "()V");
-  AbstractMethod* Aj2 = A->FindVirtualMethod("j2", "()V");
+  mirror::ArtMethod* Ii = I->FindVirtualMethod("i", "()V");
+  mirror::ArtMethod* Jj1 = J->FindVirtualMethod("j1", "()V");
+  mirror::ArtMethod* Jj2 = J->FindVirtualMethod("j2", "()V");
+  mirror::ArtMethod* Kj1 = K->FindInterfaceMethod("j1", "()V");
+  mirror::ArtMethod* Kj2 = K->FindInterfaceMethod("j2", "()V");
+  mirror::ArtMethod* Kk = K->FindInterfaceMethod("k", "()V");
+  mirror::ArtMethod* Ai = A->FindVirtualMethod("i", "()V");
+  mirror::ArtMethod* Aj1 = A->FindVirtualMethod("j1", "()V");
+  mirror::ArtMethod* Aj2 = A->FindVirtualMethod("j2", "()V");
   ASSERT_TRUE(Ii != NULL);
   ASSERT_TRUE(Jj1 != NULL);
   ASSERT_TRUE(Jj2 != NULL);
@@ -1015,10 +973,10 @@ TEST_F(ClassLinkerTest, Interfaces) {
   EXPECT_EQ(Aj1, A->FindVirtualMethodForVirtualOrInterface(Jj1));
   EXPECT_EQ(Aj2, A->FindVirtualMethodForVirtualOrInterface(Jj2));
 
-  Field* Afoo = A->FindStaticField("foo", "Ljava/lang/String;");
-  Field* Bfoo = B->FindStaticField("foo", "Ljava/lang/String;");
-  Field* Jfoo = J->FindStaticField("foo", "Ljava/lang/String;");
-  Field* Kfoo = K->FindStaticField("foo", "Ljava/lang/String;");
+  mirror::ArtField* Afoo = A->FindStaticField("foo", "Ljava/lang/String;");
+  mirror::ArtField* Bfoo = B->FindStaticField("foo", "Ljava/lang/String;");
+  mirror::ArtField* Jfoo = J->FindStaticField("foo", "Ljava/lang/String;");
+  mirror::ArtField* Kfoo = K->FindStaticField("foo", "Ljava/lang/String;");
   ASSERT_TRUE(Afoo != NULL);
   EXPECT_EQ(Afoo, Bfoo);
   EXPECT_EQ(Afoo, Jfoo);
@@ -1033,30 +991,30 @@ TEST_F(ClassLinkerTest, ResolveVerifyAndClinit) {
 
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("StaticsFromCode");
-  SirtRef<ClassLoader> class_loader(soa.Self(), soa.Decode<ClassLoader*>(jclass_loader));
+  SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(jclass_loader));
   const DexFile* dex_file = Runtime::Current()->GetCompileTimeClassPath(jclass_loader)[0];
   CHECK(dex_file != NULL);
 
-  Class* klass = class_linker_->FindClass("LStaticsFromCode;", class_loader.get());
-  AbstractMethod* clinit = klass->FindDirectMethod("<clinit>", "()V");
-  AbstractMethod* getS0 = klass->FindDirectMethod("getS0", "()Ljava/lang/Object;");
+  mirror::Class* klass = class_linker_->FindClass("LStaticsFromCode;", class_loader.get());
+  mirror::ArtMethod* clinit = klass->FindDirectMethod("<clinit>", "()V");
+  mirror::ArtMethod* getS0 = klass->FindDirectMethod("getS0", "()Ljava/lang/Object;");
   const DexFile::StringId* string_id = dex_file->FindStringId("LStaticsFromCode;");
   ASSERT_TRUE(string_id != NULL);
   const DexFile::TypeId* type_id = dex_file->FindTypeId(dex_file->GetIndexForStringId(*string_id));
   ASSERT_TRUE(type_id != NULL);
   uint32_t type_idx = dex_file->GetIndexForTypeId(*type_id);
   EXPECT_TRUE(clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx) == NULL);
-  StaticStorageBase* uninit = ResolveVerifyAndClinit(type_idx, clinit, Thread::Current(), true, false);
+  mirror::StaticStorageBase* uninit = ResolveVerifyAndClinit(type_idx, clinit, Thread::Current(), true, false);
   EXPECT_TRUE(uninit != NULL);
   EXPECT_TRUE(clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx) == NULL);
-  StaticStorageBase* init = ResolveVerifyAndClinit(type_idx, getS0, Thread::Current(), true, false);
+  mirror::StaticStorageBase* init = ResolveVerifyAndClinit(type_idx, getS0, Thread::Current(), true, false);
   EXPECT_TRUE(init != NULL);
   EXPECT_EQ(init, clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx));
 }
 
 TEST_F(ClassLinkerTest, FinalizableBit) {
   ScopedObjectAccess soa(Thread::Current());
-  Class* c;
+  mirror::Class* c;
 
   // Object has a finalize method, but we know it's empty.
   c = class_linker_->FindSystemClass("Ljava/lang/Object;");
@@ -1092,7 +1050,7 @@ TEST_F(ClassLinkerTest, ClassRootDescriptors) {
   ScopedObjectAccess soa(Thread::Current());
   ClassHelper kh;
   for (int i = 0; i < ClassLinker::kClassRootsMax; i++) {
-    Class* klass = class_linker_->GetClassRoot(ClassLinker::ClassRoot(i));
+    mirror::Class* klass = class_linker_->GetClassRoot(ClassLinker::ClassRoot(i));
     kh.ChangeClass(klass);
     EXPECT_TRUE(kh.GetDescriptor() != NULL);
     EXPECT_STREQ(kh.GetDescriptor(),

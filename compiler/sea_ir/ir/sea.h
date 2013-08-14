@@ -15,17 +15,18 @@
  */
 
 
-#ifndef ART_COMPILER_SEA_IR_SEA_H_
-#define ART_COMPILER_SEA_IR_SEA_H_
+#ifndef ART_COMPILER_SEA_IR_IR_SEA_H_
+#define ART_COMPILER_SEA_IR_IR_SEA_H_
 
 #include <set>
 #include <map>
 
+#include "utils/scoped_hashtable.h"
+#include "gtest/gtest_prod.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
-#include "instruction_tools.h"
-#include "instruction_nodes.h"
-#include "utils/scoped_hashtable.h"
+#include "sea_ir/ir/instruction_tools.h"
+#include "sea_ir/ir/instruction_nodes.h"
 
 namespace sea_ir {
 
@@ -35,19 +36,9 @@ enum RegionNumbering {
   VISITING = -2
 };
 
-// Stores options for turning a SEA IR graph to a .dot file.
-class DotConversion {
- public:
-  static bool SaveUseEdges() {
-    return save_use_edges_;
-  }
-
- private:
-  static const bool save_use_edges_ =  false;  // TODO: Enable per-sea graph configuration.
-};
+class TypeInference;
 
 class Region;
-
 class InstructionNode;
 class PhiInstructionNode;
 class SignatureNode;
@@ -57,21 +48,20 @@ class SignatureNode;
 // can return from the GetSSAUses() calls, instead of having missing SSA edges.
 class SignatureNode: public InstructionNode {
  public:
-  explicit SignatureNode(unsigned int parameter_register):InstructionNode(NULL),
-    parameter_register_(parameter_register) { }
-
-  void ToDot(std::string& result, const art::DexFile& dex_file) const {
-    result += StringId() +" [label=\"signature:";
-    result += art::StringPrintf("r%d", GetResultRegister());
-    result += "\"] // signature node\n";
-    ToDotSSAEdges(result);
-  }
+  // Creates a new signature node representing the initial definition of the
+  // register @parameter_register which is the @position-th argument to the method.
+  explicit SignatureNode(unsigned int parameter_register, unsigned int position):
+    InstructionNode(NULL), parameter_register_(parameter_register), position_(position) { }
 
   int GetResultRegister() const {
     return parameter_register_;
   }
 
-  std::vector<int> GetUses() {
+  unsigned int GetPositionInSignature() const {
+    return position_;
+  }
+
+  std::vector<int> GetUses() const {
     return std::vector<int>();
   }
 
@@ -81,15 +71,15 @@ class SignatureNode: public InstructionNode {
   }
 
  private:
-  unsigned int parameter_register_;
+  const unsigned int parameter_register_;
+  const unsigned int position_;     // The position of this parameter node is
+                                    // in the function parameter list.
 };
 
 class PhiInstructionNode: public InstructionNode {
  public:
   explicit PhiInstructionNode(int register_no):
     InstructionNode(NULL), register_no_(register_no), definition_edges_() {}
-  // Appends to @result the .dot string representation of the instruction.
-  void ToDot(std::string& result, const art::DexFile& dex_file) const;
   // Returns the register on which this phi-function is used.
   int GetRegisterNumber() const {
     return register_no_;
@@ -113,6 +103,17 @@ class PhiInstructionNode: public InstructionNode {
     definition->AddSSAUse(this);
   }
 
+  // Returns the ordered set of Instructions that define the input operands of this instruction.
+  // Precondition: SeaGraph.ConvertToSSA().
+  std::vector<InstructionNode*> GetSSAProducers() {
+    std::vector<InstructionNode*> producers;
+    for (std::vector<std::vector<InstructionNode*>*>::const_iterator
+        cit = definition_edges_.begin(); cit != definition_edges_.end(); cit++) {
+      producers.insert(producers.end(), (*cit)->begin(), (*cit)->end());
+    }
+    return producers;
+  }
+
   // Returns the instruction that defines the phi register from predecessor
   // on position @predecessor_pos. Note that the return value is vector<> just
   // for consistency with the return value of GetSSAUses() on regular instructions,
@@ -128,6 +129,9 @@ class PhiInstructionNode: public InstructionNode {
 
  private:
   int register_no_;
+  // This vector has one entry for each predecessors, each with a single
+  // element, storing the id of the instruction that defines the register
+  // corresponding to this phi function.
   std::vector<std::vector<InstructionNode*>*> definition_edges_;
 };
 
@@ -150,10 +154,7 @@ class Region : public SeaNode {
   std::vector<InstructionNode*>* GetInstructions() {
     return &instructions_;
   }
-  // Appends to @result a dot language formatted string representing the node and
-  //    (by convention) outgoing edges, so that the composition of theToDot() of all nodes
-  //    builds a complete dot graph (without prolog and epilog though).
-  virtual void ToDot(std::string& result, const art::DexFile& dex_file) const;
+
   // Computes Downward Exposed Definitions for the current node.
   void ComputeDownExposedDefs();
   const std::map<int, sea_ir::InstructionNode*>* GetDownExposedDefs() const;
@@ -257,16 +258,14 @@ class Region : public SeaNode {
 // and acts as starting point for visitors (ex: during code generation).
 class SeaGraph: IVisitable {
  public:
-  static SeaGraph* GetCurrentGraph(const art::DexFile&);
+  static SeaGraph* GetGraph(const art::DexFile&);
 
-  void CompileMethod(const art::DexFile::CodeItem* code_item,
-      uint32_t class_def_idx, uint32_t method_idx, const art::DexFile& dex_file);
+  void CompileMethod(const art::DexFile::CodeItem* code_item, uint32_t class_def_idx,
+      uint32_t method_idx, uint32_t method_access_flags, const art::DexFile& dex_file);
   // Returns all regions corresponding to this SeaGraph.
   std::vector<Region*>* GetRegions() {
     return &regions_;
   }
-  // Returns a string representation of the region and its Instruction children.
-  void DumpSea(std::string filename) const;
   // Recursively computes the reverse postorder value for @crt_bb and successors.
   static void ComputeRPO(Region* crt_bb, int& crt_rpo);
   // Returns the "lowest common ancestor" of @i and @j in the dominator tree.
@@ -275,13 +274,28 @@ class SeaGraph: IVisitable {
   std::vector<SignatureNode*>* GetParameterNodes() {
     return &parameters_;
   }
+
+  const art::DexFile* GetDexFile() const {
+    return &dex_file_;
+  }
+
+  virtual void Accept(IRVisitor* visitor) {
+    visitor->Initialize(this);
+    visitor->Visit(this);
+    visitor->Traverse(this);
+  }
+
+  TypeInference* ti_;
   uint32_t class_def_idx_;
   uint32_t method_idx_;
+  uint32_t method_access_flags_;
+
+ protected:
+  explicit SeaGraph(const art::DexFile& df);
+  virtual ~SeaGraph() { }
 
  private:
-  explicit SeaGraph(const art::DexFile& df):
-    class_def_idx_(0), method_idx_(0), regions_(), parameters_(), dex_file_(df) {
-  }
+  FRIEND_TEST(RegionsTest, Basics);
   // Registers @childReg as a region belonging to the SeaGraph instance.
   void AddRegion(Region* childReg);
   // Returns new region and registers it with the  SeaGraph instance.
@@ -295,7 +309,8 @@ class SeaGraph: IVisitable {
   // Builds the non-SSA sea-ir representation of the function @code_item from @dex_file
   // with class id @class_def_idx and method id @method_idx.
   void BuildMethodSeaGraph(const art::DexFile::CodeItem* code_item,
-      const art::DexFile& dex_file, uint32_t class_def_idx, uint32_t method_idx);
+      const art::DexFile& dex_file, uint32_t class_def_idx,
+      uint32_t method_idx, uint32_t method_access_flags);
   // Computes immediate dominators for each region.
   // Precondition: ComputeMethodSeaGraph()
   void ComputeIDominators();
@@ -320,14 +335,6 @@ class SeaGraph: IVisitable {
   // Identifies the definitions corresponding to uses for region @node
   // by using the scoped hashtable of names @ scoped_table.
   void RenameAsSSA(Region* node, utils::ScopedHashtable<int, InstructionNode*>* scoped_table);
-
-  virtual void Accept(IRVisitor* visitor) {
-    visitor->Initialize(this);
-    visitor->Visit(this);
-    visitor->Traverse(this);
-  }
-
-  virtual ~SeaGraph() {}
   // Generate LLVM IR for the method.
   // Precondition: ConvertToSSA().
   void GenerateLLVM();
@@ -336,6 +343,7 @@ class SeaGraph: IVisitable {
   std::vector<Region*> regions_;
   std::vector<SignatureNode*> parameters_;
   const art::DexFile& dex_file_;
+  const art::DexFile::CodeItem* code_item_;
 };
 }  // namespace sea_ir
-#endif  // ART_COMPILER_SEA_IR_SEA_H_
+#endif  // ART_COMPILER_SEA_IR_IR_SEA_H_

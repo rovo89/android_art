@@ -17,8 +17,8 @@
 #include "sea.h"
 #include "dex_instruction.h"
 
-#ifndef ART_COMPILER_SEA_IR_INSTRUCTION_TOOLS_H_
-#define ART_COMPILER_SEA_IR_INSTRUCTION_TOOLS_H_
+#ifndef ART_COMPILER_SEA_IR_IR_INSTRUCTION_TOOLS_H_
+#define ART_COMPILER_SEA_IR_IR_INSTRUCTION_TOOLS_H_
 
 
 // Note: This file has content cannibalized for SEA_IR from the MIR implementation,
@@ -122,4 +122,4 @@ class InstructionTools {
   static const int instruction_attributes_[];
 };
 }  // namespace sea_ir
-#endif  // ART_COMPILER_SEA_IR_INSTRUCTION_TOOLS_H_
+#endif  // ART_COMPILER_SEA_IR_IR_INSTRUCTION_TOOLS_H_

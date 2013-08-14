@@ -51,12 +51,10 @@ void StickyMarkSweep::BindBitmaps() {
 }
 
 void StickyMarkSweep::MarkReachableObjects() {
-  DisableFinger();
   RecursiveMarkDirtyObjects(accounting::CardTable::kCardDirty - 1);
 }
 
 void StickyMarkSweep::Sweep(bool swap_bitmaps) {
-  timings_.NewSplit("SweepArray");
   accounting::ObjectStack* live_stack = GetHeap()->GetLiveStack();
   SweepArray(live_stack, false);
 }

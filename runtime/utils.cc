@@ -25,11 +25,10 @@
 #include "UniquePtr.h"
 #include "base/unix_file/fd_file.h"
 #include "dex_file-inl.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_field-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
-#include "mirror/field.h"
-#include "mirror/field-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/string.h"
@@ -295,7 +294,7 @@ std::string PrettyDescriptor(Primitive::Type type) {
   return PrettyDescriptor(descriptor_string);
 }
 
-std::string PrettyField(const mirror::Field* f, bool with_type) {
+std::string PrettyField(const mirror::ArtField* f, bool with_type) {
   if (f == NULL) {
     return "null";
   }
@@ -370,7 +369,7 @@ std::string PrettyReturnType(const char* signature) {
   return PrettyDescriptor(return_type);
 }
 
-std::string PrettyMethod(const mirror::AbstractMethod* m, bool with_signature) {
+std::string PrettyMethod(const mirror::ArtMethod* m, bool with_signature) {
   if (m == NULL) {
     return "null";
   }
@@ -629,7 +628,7 @@ std::string DescriptorToName(const char* descriptor) {
   return descriptor;
 }
 
-std::string JniShortName(const mirror::AbstractMethod* m) {
+std::string JniShortName(const mirror::ArtMethod* m) {
   MethodHelper mh(m);
   std::string class_name(mh.GetDeclaringClassDescriptor());
   // Remove the leading 'L' and trailing ';'...
@@ -648,7 +647,7 @@ std::string JniShortName(const mirror::AbstractMethod* m) {
   return short_name;
 }
 
-std::string JniLongName(const mirror::AbstractMethod* m) {
+std::string JniLongName(const mirror::ArtMethod* m) {
   std::string long_name;
   long_name += JniShortName(m);
   long_name += "__";

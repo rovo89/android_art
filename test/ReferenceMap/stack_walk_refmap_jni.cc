@@ -20,8 +20,8 @@
 #include "class_linker.h"
 #include "dex_file-inl.h"
 #include "gc_map.h"
-#include "mirror/abstract_method.h"
-#include "mirror/abstract_method-inl.h"
+#include "mirror/art_method.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
 #include "object_utils.h"
@@ -52,7 +52,7 @@ struct ReferenceMap2Visitor : public StackVisitor {
   }
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::AbstractMethod* m = GetMethod();
+    mirror::ArtMethod* m = GetMethod();
     if (!m || m->IsNative() || m->IsRuntimeMethod() || IsShadowFrame()) {
       return true;
     }

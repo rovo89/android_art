@@ -43,7 +43,7 @@ namespace gc {
   class Heap;
 }
 namespace mirror {
-  class AbstractMethod;
+  class ArtMethod;
   class ClassLoader;
   template<class T> class PrimitiveArray;
   typedef PrimitiveArray<int8_t> ByteArray;
@@ -310,7 +310,7 @@ class Runtime {
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns a special method that calls into a trampoline for runtime method resolution
-  mirror::AbstractMethod* GetResolutionMethod() const {
+  mirror::ArtMethod* GetResolutionMethod() const {
     CHECK(HasResolutionMethod());
     return resolution_method_;
   }
@@ -319,11 +319,11 @@ class Runtime {
     return resolution_method_ != NULL;
   }
 
-  void SetResolutionMethod(mirror::AbstractMethod* method) {
+  void SetResolutionMethod(mirror::ArtMethod* method) {
     resolution_method_ = method;
   }
 
-  mirror::AbstractMethod* CreateResolutionMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::ArtMethod* CreateResolutionMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns a special method that describes all callee saves being spilled to the stack.
   enum CalleeSaveType {
@@ -337,21 +337,21 @@ class Runtime {
     return callee_save_methods_[type] != NULL;
   }
 
-  mirror::AbstractMethod* GetCalleeSaveMethod(CalleeSaveType type) const {
+  mirror::ArtMethod* GetCalleeSaveMethod(CalleeSaveType type) const {
     DCHECK(HasCalleeSaveMethod(type));
     return callee_save_methods_[type];
   }
 
-  void SetCalleeSaveMethod(mirror::AbstractMethod* method, CalleeSaveType type);
+  void SetCalleeSaveMethod(mirror::ArtMethod* method, CalleeSaveType type);
 
-  mirror::AbstractMethod* CreateCalleeSaveMethod(InstructionSet instruction_set,
+  mirror::ArtMethod* CreateCalleeSaveMethod(InstructionSet instruction_set,
                                                  CalleeSaveType type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::AbstractMethod* CreateRefOnlyCalleeSaveMethod(InstructionSet instruction_set)
+  mirror::ArtMethod* CreateRefOnlyCalleeSaveMethod(InstructionSet instruction_set)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::AbstractMethod* CreateRefAndArgsCalleeSaveMethod(InstructionSet instruction_set)
+  mirror::ArtMethod* CreateRefAndArgsCalleeSaveMethod(InstructionSet instruction_set)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   int32_t GetStat(int kind);
@@ -451,9 +451,9 @@ class Runtime {
 
   mirror::Throwable* pre_allocated_OutOfMemoryError_;
 
-  mirror::AbstractMethod* callee_save_methods_[kLastCalleeSaveType];
+  mirror::ArtMethod* callee_save_methods_[kLastCalleeSaveType];
 
-  mirror::AbstractMethod* resolution_method_;
+  mirror::ArtMethod* resolution_method_;
 
   // As returned by ClassLoader.getSystemClassLoader()
   mirror::ClassLoader* system_class_loader_;

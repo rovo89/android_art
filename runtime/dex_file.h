@@ -34,10 +34,10 @@
 namespace art {
 
 namespace mirror {
-class AbstractMethod;
-class ClassLoader;
-class DexCache;
-class Field;
+  class ArtField;
+  class ArtMethod;
+  class ClassLoader;
+  class DexCache;
 }  // namespace mirror
 class ClassLinker;
 class ZipArchive;
@@ -209,7 +209,7 @@ class DexFile {
     }
 
     const TypeItem& GetTypeItem(uint32_t idx) const {
-      CHECK_LT(idx, this->size_);
+      DCHECK_LT(idx, this->size_);
       return this->list_[idx];
     }
 
@@ -494,7 +494,7 @@ class DexFile {
 
   // Returns the FieldId at the specified index.
   const FieldId& GetFieldId(uint32_t idx) const {
-    CHECK_LT(idx, NumFieldIds()) << GetLocation();
+    DCHECK_LT(idx, NumFieldIds()) << GetLocation();
     return field_ids_[idx];
   }
 
@@ -585,7 +585,7 @@ class DexFile {
 
   // Returns the ClassDef at the specified index.
   const ClassDef& GetClassDef(uint32_t idx) const {
-    CHECK_LT(idx, NumClassDefs()) << GetLocation();
+    DCHECK_LT(idx, NumClassDefs()) << GetLocation();
     return class_defs_[idx];
   }
 
@@ -786,7 +786,7 @@ class DexFile {
   // Returns -2 for native methods (as expected in exception traces).
   //
   // This is used by runtime; therefore use art::Method not art::DexFile::Method.
-  int32_t GetLineNumFromPC(const mirror::AbstractMethod* method, uint32_t rel_pc) const
+  int32_t GetLineNumFromPC(const mirror::ArtMethod* method, uint32_t rel_pc) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void DecodeDebugInfo(const CodeItem* code_item, bool is_static, uint32_t method_idx,
@@ -1025,7 +1025,7 @@ class ClassDataItemIterator {
     if (pos_ < EndOfInstanceFieldsPos()) {
       return last_idx_ + field_.field_idx_delta_;
     } else {
-      CHECK_LT(pos_, EndOfVirtualMethodsPos());
+      DCHECK_LT(pos_, EndOfVirtualMethodsPos());
       return last_idx_ + method_.method_idx_delta_;
     }
   }
@@ -1033,7 +1033,7 @@ class ClassDataItemIterator {
     if (pos_ < EndOfInstanceFieldsPos()) {
       return field_.access_flags_;
     } else {
-      CHECK_LT(pos_, EndOfVirtualMethodsPos());
+      DCHECK_LT(pos_, EndOfVirtualMethodsPos());
       return method_.access_flags_;
     }
   }
@@ -1045,7 +1045,7 @@ class ClassDataItemIterator {
         return kDirect;
       }
     } else {
-      CHECK_EQ(GetMemberAccessFlags() & kAccStatic, 0U);
+      DCHECK_EQ(GetMemberAccessFlags() & kAccStatic, 0U);
       if ((class_def.access_flags_ & kAccInterface) != 0) {
         return kInterface;
       } else if ((GetMemberAccessFlags() & kAccConstructor) != 0) {
@@ -1135,7 +1135,7 @@ class EncodedStaticFieldValueIterator {
                                   ClassLinker* linker, const DexFile::ClassDef& class_def)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void ReadValueToField(mirror::Field* field) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void ReadValueToField(mirror::ArtField* field) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasNext() { return pos_ < array_size_; }
 

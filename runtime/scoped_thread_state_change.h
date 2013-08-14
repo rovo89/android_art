@@ -204,7 +204,7 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
     return down_cast<T>(Self()->DecodeJObject(obj));
   }
 
-  mirror::Field* DecodeField(jfieldID fid) const
+  mirror::ArtField* DecodeField(jfieldID fid) const
       LOCKS_EXCLUDED(JavaVMExt::globals_lock,
                      JavaVMExt::weak_globals_lock)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -214,10 +214,10 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
     // TODO: we should make these unique weak globals if Field instances can ever move.
     UNIMPLEMENTED(WARNING);
 #endif
-    return reinterpret_cast<mirror::Field*>(fid);
+    return reinterpret_cast<mirror::ArtField*>(fid);
   }
 
-  jfieldID EncodeField(mirror::Field* field) const
+  jfieldID EncodeField(mirror::ArtField* field) const
       LOCKS_EXCLUDED(JavaVMExt::globals_lock,
                      JavaVMExt::weak_globals_lock)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -229,7 +229,7 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
     return reinterpret_cast<jfieldID>(field);
   }
 
-  mirror::AbstractMethod* DecodeMethod(jmethodID mid) const
+  mirror::ArtMethod* DecodeMethod(jmethodID mid) const
       LOCKS_EXCLUDED(JavaVMExt::globals_lock,
                      JavaVMExt::weak_globals_lock)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -239,10 +239,10 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
     // TODO: we should make these unique weak globals if Method instances can ever move.
     UNIMPLEMENTED(WARNING);
 #endif
-    return reinterpret_cast<mirror::AbstractMethod*>(mid);
+    return reinterpret_cast<mirror::ArtMethod*>(mid);
   }
 
-  jmethodID EncodeMethod(mirror::AbstractMethod* method) const
+  jmethodID EncodeMethod(mirror::ArtMethod* method) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK_EQ(thread_state_, kRunnable);  // Don't work with raw objects in non-runnable states.

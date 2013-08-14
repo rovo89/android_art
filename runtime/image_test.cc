@@ -46,6 +46,11 @@ TEST_F(ImageTest, WriteRead) {
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
       base::TimingLogger timings("ImageTest::WriteRead", false, false);
       timings.StartSplit("CompileAll");
+#if defined(ART_USE_PORTABLE_COMPILER)
+      // TODO: we disable this for portable so the test executes in a reasonable amount of time.
+      //       We shouldn't need to do this.
+      runtime_->SetCompilerFilter(Runtime::kInterpretOnly);
+#endif
       compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), timings);
 
       ScopedObjectAccess soa(Thread::Current());

@@ -35,6 +35,7 @@
 #include "gc/heap.h"
 #include "gtest/gtest.h"
 #include "instruction_set.h"
+#include "interpreter/interpreter.h"
 #include "mirror/class_loader.h"
 #include "oat_file.h"
 #include "object_utils.h"
@@ -181,7 +182,7 @@ class CommonTest : public testing::Test {
                                 reinterpret_cast<uint32_t>(gc_map));
   }
 
-  void MakeExecutable(mirror::AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void MakeExecutable(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(method != NULL);
     LOG(INFO) << "MakeExecutable " << PrettyMethod(method);
 
@@ -192,7 +193,6 @@ class CommonTest : public testing::Test {
       compiled_method =
           compiler_driver_->GetCompiledMethod(MethodReference(&dex_file,
                                                               method->GetDexMethodIndex()));
-      CHECK(compiled_method != NULL) << PrettyMethod(method);
     }
     if (compiled_method != NULL) {
       const std::vector<uint8_t>& code = compiled_method->GetCode();
@@ -208,6 +208,7 @@ class CommonTest : public testing::Test {
                                                       &compiled_method->GetVmapTable()[0],
                                                       NULL);
       oat_method.LinkMethod(method);
+      method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
     } else {
       const void* method_code;
       // No code? You must mean to go into the interpreter.
@@ -221,6 +222,7 @@ class CommonTest : public testing::Test {
                                                       NULL,
                                                       NULL);
       oat_method.LinkMethod(method);
+      method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterBridge);
     }
   }
 
@@ -348,7 +350,7 @@ class CommonTest : public testing::Test {
     compiler_driver_->SetSupportBootImageFixup(false);
 
     // We're back in native, take the opportunity to initialize well known classes.
-    WellKnownClasses::InitClasses(Thread::Current()->GetJniEnv());
+    WellKnownClasses::Init(Thread::Current()->GetJniEnv());
     // Create the heap thread pool so that the GC runs in parallel for tests. Normally, the thread
     // pool is created by the runtime.
     runtime_->GetHeap()->CreateThreadPool();
@@ -464,7 +466,7 @@ class CommonTest : public testing::Test {
     }
   }
 
-  void CompileMethod(mirror::AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void CompileMethod(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(method != NULL);
     base::TimingLogger timings("CommonTest::CompileMethod", false, false);
     timings.StartSplit("CompileOne");
@@ -480,7 +482,7 @@ class CommonTest : public testing::Test {
     std::string class_descriptor(DotToDescriptor(class_name));
     mirror::Class* klass = class_linker_->FindClass(class_descriptor.c_str(), class_loader);
     CHECK(klass != NULL) << "Class not found " << class_name;
-    mirror::AbstractMethod* method = klass->FindDirectMethod(method_name, signature);
+    mirror::ArtMethod* method = klass->FindDirectMethod(method_name, signature);
     CHECK(method != NULL) << "Direct method not found: "
                           << class_name << "." << method_name << signature;
     CompileMethod(method);
@@ -494,7 +496,7 @@ class CommonTest : public testing::Test {
     std::string class_descriptor(DotToDescriptor(class_name));
     mirror::Class* klass = class_linker_->FindClass(class_descriptor.c_str(), class_loader);
     CHECK(klass != NULL) << "Class not found " << class_name;
-    mirror::AbstractMethod* method = klass->FindVirtualMethod(method_name, signature);
+    mirror::ArtMethod* method = klass->FindVirtualMethod(method_name, signature);
     CHECK(method != NULL) << "Virtual method not found: "
                           << class_name << "." << method_name << signature;
     CompileMethod(method);

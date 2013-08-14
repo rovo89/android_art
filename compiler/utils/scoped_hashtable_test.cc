@@ -15,7 +15,7 @@
  */
 
 #include "common_test.h"
-#include "scoped_hashtable.h"
+#include "utils/scoped_hashtable.h"
 
 using utils::ScopedHashtable;
 

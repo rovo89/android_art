@@ -335,14 +335,15 @@ public class Main {
             System.out.println("  cantTouchThis is " + intVal);
             try {
                 field.setInt(instance, 99);
-                System.out.println("  setAccessible is always true");
             } catch (IllegalAccessException iae) {
                 System.out.println("ERROR: set-final failed");
             }
             intVal = field.getInt(instance);
             System.out.println("  cantTouchThis is now " + intVal);
 
+            System.out.println("  " + field + " accessible=" + field.isAccessible());
             field.setAccessible(true);
+            System.out.println("  " + field + " accessible=" + field.isAccessible());
             field.setInt(instance, 87);     // exercise int version
             intVal = field.getInt(instance);
             System.out.println("  cantTouchThis is now " + intVal);
@@ -378,8 +379,9 @@ public class Main {
             nsme.printStackTrace();
             return;
         }
-
+        System.out.println(m + " accessible=" + m.isAccessible());
         m.setAccessible(true);
+        System.out.println(m + " accessible=" + m.isAccessible());
         try {
             m.invoke(null, new Object(), Object.class);
         } catch (IllegalAccessException iae) {
@@ -518,6 +520,42 @@ public class Main {
         return stb.toString();
     }
 
+    public static void checkUnique() {
+        Field field1, field2;
+        try {
+            field1 = Main.class.getField("dummy");
+            field2 = Main.class.getField("dummy");
+        } catch (NoSuchFieldException nsfe) {
+            throw new RuntimeException(nsfe);
+        }
+        if (field1 == field2) {
+            System.out.println("ERROR: fields shouldn't have reference equality");
+        } else {
+            System.out.println("fields are unique");
+        }
+        if (field1.hashCode() == field2.hashCode() && field1.equals(field2)) {
+            System.out.println("fields are .equals");
+        } else {
+            System.out.println("ERROR: fields fail equality");
+        }
+        Method method1, method2;
+        try {
+            method1 = Main.class.getMethod("fancyMethod", new Class[] { ArrayList.class });
+            method2 = Main.class.getMethod("fancyMethod", new Class[] { ArrayList.class });
+        } catch (NoSuchMethodException nsme) {
+            throw new RuntimeException(nsme);
+        }
+        if (method1 == method2) {
+            System.out.println("ERROR: methods shouldn't have reference equality");
+        } else {
+            System.out.println("methods are unique");
+        }
+        if (method1.hashCode() == method2.hashCode() && method1.equals(method2)) {
+            System.out.println("methods are .equals");
+        } else {
+            System.out.println("ERROR: methods fail equality");
+        }
+    }
 
     public static void main(String[] args) throws Exception {
         Main test = new Main();
@@ -528,6 +566,7 @@ public class Main {
         checkClinitForFields();
         checkClinitForMethods();
         checkGeneric();
+        checkUnique();
     }
 }
 

@@ -32,7 +32,7 @@
         << "Check failed: " #x << " "
 
 #define CHECK_OP(LHS, RHS, OP) \
-  for (::art::EagerEvaluator<typeof(LHS), typeof(RHS)> _values(LHS, RHS); \
+  for (auto _values = ::art::MakeEagerEvaluator(LHS, RHS); \
        UNLIKELY(!(_values.lhs OP _values.rhs)); /* empty */) \
     ::art::LogMessage(__FILE__, __LINE__, FATAL, -1).stream() \
         << "Check failed: " << #LHS << " " << #OP << " " << #RHS \
@@ -125,6 +125,7 @@
 
 #define VLOG_IS_ON(module) UNLIKELY(::art::gLogVerbosity.module)
 #define VLOG(module) if (VLOG_IS_ON(module)) ::art::LogMessage(__FILE__, __LINE__, INFO, -1).stream()
+#define VLOG_STREAM(module) ::art::LogMessage(__FILE__, __LINE__, INFO, -1).stream()
 
 //
 // Implementation details beyond this point.
@@ -164,6 +165,11 @@ EAGER_PTR_EVALUATOR(const signed char*, const signed char*);
 EAGER_PTR_EVALUATOR(const signed char*, signed char*);
 EAGER_PTR_EVALUATOR(signed char*, const signed char*);
 EAGER_PTR_EVALUATOR(signed char*, signed char*);
+
+template <typename LHS, typename RHS>
+EagerEvaluator<LHS, RHS> MakeEagerEvaluator(LHS lhs, RHS rhs) {
+  return EagerEvaluator<LHS, RHS>(lhs, rhs);
+}
 
 // This indirection greatly reduces the stack impact of having
 // lots of checks/logging in a function.
@@ -301,6 +307,7 @@ class ToStr {
 // and the "-verbose:" command line argument.
 struct LogVerbosity {
   bool class_linker;  // Enabled with "-verbose:class".
+  bool verifier;
   bool compiler;
   bool heap;
   bool gc;

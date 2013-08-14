@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 #include "dlmalloc_space.h"
+#include "dlmalloc_space-inl.h"
 #include "gc/accounting/card_table.h"
 #include "gc/heap.h"
 #include "runtime.h"
@@ -46,8 +47,9 @@ const size_t kValgrindRedZoneBytes = 8;
 // A specialization of DlMallocSpace that provides information to valgrind wrt allocations.
 class ValgrindDlMallocSpace : public DlMallocSpace {
  public:
-  virtual mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes) {
-    void* obj_with_rdz = DlMallocSpace::AllocWithGrowth(self, num_bytes + 2 * kValgrindRedZoneBytes);
+  virtual mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes, size_t* bytes_allocated) {
+    void* obj_with_rdz = DlMallocSpace::AllocWithGrowth(self, num_bytes + 2 * kValgrindRedZoneBytes,
+                                                        bytes_allocated);
     if (obj_with_rdz == NULL) {
       return NULL;
     }
@@ -59,8 +61,9 @@ class ValgrindDlMallocSpace : public DlMallocSpace {
     return result;
   }
 
-  virtual mirror::Object* Alloc(Thread* self, size_t num_bytes) {
-    void* obj_with_rdz = DlMallocSpace::Alloc(self, num_bytes + 2 * kValgrindRedZoneBytes);
+  virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated) {
+    void* obj_with_rdz = DlMallocSpace::Alloc(self, num_bytes + 2 * kValgrindRedZoneBytes,
+                                              bytes_allocated);
     if (obj_with_rdz == NULL) {
      return NULL;
     }
@@ -234,37 +237,27 @@ void DlMallocSpace::SwapBitmaps() {
   mark_bitmap_->SetName(temp_name);
 }
 
-mirror::Object* DlMallocSpace::AllocWithoutGrowthLocked(size_t num_bytes) {
-  mirror::Object* result = reinterpret_cast<mirror::Object*>(mspace_calloc(mspace_, 1, num_bytes));
-  if (result != NULL) {
-    if (kDebugSpaces) {
-      CHECK(Contains(result)) << "Allocation (" << reinterpret_cast<void*>(result)
-            << ") not in bounds of allocation space " << *this;
-    }
-    size_t allocation_size = InternalAllocationSize(result);
-    num_bytes_allocated_ += allocation_size;
-    total_bytes_allocated_ += allocation_size;
-    ++total_objects_allocated_;
-    ++num_objects_allocated_;
+mirror::Object* DlMallocSpace::Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated) {
+  return AllocNonvirtual(self, num_bytes, bytes_allocated);
+}
+
+mirror::Object* DlMallocSpace::AllocWithGrowth(Thread* self, size_t num_bytes, size_t* bytes_allocated) {
+  mirror::Object* result;
+  {
+    MutexLock mu(self, lock_);
+    // Grow as much as possible within the mspace.
+    size_t max_allowed = Capacity();
+    mspace_set_footprint_limit(mspace_, max_allowed);
+    // Try the allocation.
+    result = AllocWithoutGrowthLocked(num_bytes, bytes_allocated);
+    // Shrink back down as small as possible.
+    size_t footprint = mspace_footprint(mspace_);
+    mspace_set_footprint_limit(mspace_, footprint);
   }
-  return result;
-}
-
-mirror::Object* DlMallocSpace::Alloc(Thread* self, size_t num_bytes) {
-  MutexLock mu(self, lock_);
-  return AllocWithoutGrowthLocked(num_bytes);
-}
-
-mirror::Object* DlMallocSpace::AllocWithGrowth(Thread* self, size_t num_bytes) {
-  MutexLock mu(self, lock_);
-  // Grow as much as possible within the mspace.
-  size_t max_allowed = Capacity();
-  mspace_set_footprint_limit(mspace_, max_allowed);
-  // Try the allocation.
-  mirror::Object* result = AllocWithoutGrowthLocked(num_bytes);
-  // Shrink back down as small as possible.
-  size_t footprint = mspace_footprint(mspace_);
-  mspace_set_footprint_limit(mspace_, footprint);
+  if (result != NULL) {
+    // Zero freshly allocated memory, done while not holding the space's lock.
+    memset(result, 0, num_bytes);
+  }
   // Return the new allocation or NULL.
   CHECK(!kDebugSpaces || result == NULL || Contains(result));
   return result;
@@ -415,8 +408,7 @@ void* DlMallocSpace::MoreCore(intptr_t increment) {
 
 // Virtual functions can't get inlined.
 inline size_t DlMallocSpace::InternalAllocationSize(const mirror::Object* obj) {
-  return mspace_usable_size(const_cast<void*>(reinterpret_cast<const void*>(obj))) +
-      kChunkOverhead;
+  return AllocationSizeNonvirtual(obj);
 }
 
 size_t DlMallocSpace::AllocationSize(const mirror::Object* obj) {
