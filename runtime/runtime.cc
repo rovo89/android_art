@@ -72,6 +72,7 @@ Runtime::Runtime()
     : is_compiler_(false),
       is_zygote_(false),
       is_concurrent_gc_enabled_(true),
+      is_explicit_gc_disabled_(false),
       default_stack_size_(0),
       heap_(NULL),
       monitor_list_(NULL),
@@ -346,6 +347,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->is_zygote_ = false;
   parsed->interpreter_only_ = false;
   parsed->is_concurrent_gc_enabled_ = true;
+  parsed->is_explicit_gc_disabled_ = false;
 
   parsed->lock_profiling_threshold_ = 0;
   parsed->hook_is_sensitive_thread_ = NULL;
@@ -516,6 +518,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
           LOG(WARNING) << "Ignoring unknown -Xgc option: " << gc_options[i];
         }
       }
+    } else if (option == "-XX:+DisableExplicitGC") {
+      parsed->is_explicit_gc_disabled_ = true;
     } else if (StartsWith(option, "-verbose:")) {
       std::vector<std::string> verbose_options;
       Split(option.substr(strlen("-verbose:")), ',', verbose_options);
@@ -827,6 +831,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   is_compiler_ = options->is_compiler_;
   is_zygote_ = options->is_zygote_;
   is_concurrent_gc_enabled_ = options->is_concurrent_gc_enabled_;
+  is_explicit_gc_disabled_ = options->is_explicit_gc_disabled_;
 
   compiler_filter_ = options->compiler_filter_;
   huge_method_threshold_ = options->huge_method_threshold_;
