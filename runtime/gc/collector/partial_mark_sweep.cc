@@ -33,14 +33,10 @@ PartialMarkSweep::PartialMarkSweep(Heap* heap, bool is_concurrent, const std::st
 void PartialMarkSweep::BindBitmaps() {
   MarkSweep::BindBitmaps();
 
-  const std::vector<space::ContinuousSpace*>& spaces = GetHeap()->GetContinuousSpaces();
   WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
   // For partial GCs we need to bind the bitmap of the zygote space so that all objects in the
   // zygote space are viewed as marked.
-  // TODO: C++0x
-  typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-  for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
-    space::ContinuousSpace* space = *it;
+  for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     if (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyFullCollect) {
       CHECK(space->IsZygoteSpace());
       ImmuneSpace(space);

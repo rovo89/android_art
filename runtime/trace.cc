@@ -610,12 +610,9 @@ void Trace::GetVisitedMethods(size_t buf_size,
   }
 }
 
-void Trace::DumpMethodList(std::ostream& os,
-                           const std::set<mirror::ArtMethod*>& visited_methods) {
-  typedef std::set<mirror::ArtMethod*>::const_iterator It;  // TODO: C++0x auto
+void Trace::DumpMethodList(std::ostream& os, const std::set<mirror::ArtMethod*>& visited_methods) {
   MethodHelper mh;
-  for (It it = visited_methods.begin(); it != visited_methods.end(); ++it) {
-    mirror::ArtMethod* method = *it;
+  for (const auto& method : visited_methods) {
     mh.ChangeMethod(method);
     os << StringPrintf("%p\t%s\t%s\t%s\t%s\n", method,
         PrettyDescriptor(mh.GetDeclaringClassDescriptor()).c_str(), mh.GetName(),

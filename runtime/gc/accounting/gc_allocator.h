@@ -75,8 +75,8 @@ namespace accounting {
                                           GCAllocatorImpl<T>,
                                           std::allocator<T> >::value {
   };
-}
-}
-}
+}  // namespace accounting
+}  // namespace gc
+}  // namespace art
 
 #endif  // ART_RUNTIME_GC_ACCOUNTING_GC_ALLOCATOR_H_

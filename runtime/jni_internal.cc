@@ -538,12 +538,12 @@ class Libraries {
 
   void Dump(std::ostream& os) const {
     bool first = true;
-    for (It it = libraries_.begin(); it != libraries_.end(); ++it) {
+    for (const auto& library : libraries_) {
       if (!first) {
         os << ' ';
       }
       first = false;
-      os << it->first;
+      os << library.first;
     }
   }
 
@@ -552,7 +552,7 @@ class Libraries {
   }
 
   SharedLibrary* Get(const std::string& path) {
-    It it = libraries_.find(path);
+    auto it = libraries_.find(path);
     return (it == libraries_.end()) ? NULL : it->second;
   }
 
@@ -566,8 +566,8 @@ class Libraries {
     std::string jni_short_name(JniShortName(m));
     std::string jni_long_name(JniLongName(m));
     const ClassLoader* declaring_class_loader = m->GetDeclaringClass()->GetClassLoader();
-    for (It it = libraries_.begin(); it != libraries_.end(); ++it) {
-      SharedLibrary* library = it->second;
+    for (const auto& lib : libraries_) {
+      SharedLibrary* library = lib.second;
       if (library->GetClassLoader() != declaring_class_loader) {
         // We only search libraries loaded by the appropriate ClassLoader.
         continue;
@@ -591,8 +591,6 @@ class Libraries {
   }
 
  private:
-  typedef SafeMap<std::string, SharedLibrary*>::const_iterator It;  // TODO: C++0x auto
-
   SafeMap<std::string, SharedLibrary*> libraries_;
 };
 

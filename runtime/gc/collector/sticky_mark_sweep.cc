@@ -33,15 +33,11 @@ StickyMarkSweep::StickyMarkSweep(Heap* heap, bool is_concurrent, const std::stri
 void StickyMarkSweep::BindBitmaps() {
   PartialMarkSweep::BindBitmaps();
 
-  const std::vector<space::ContinuousSpace*>& spaces = GetHeap()->GetContinuousSpaces();
   WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
   // For sticky GC, we want to bind the bitmaps of all spaces as the allocation stack lets us
   // know what was allocated since the last GC. A side-effect of binding the allocation space mark
   // and live bitmap is that marking the objects will place them in the live bitmap.
-  // TODO: C++0x
-  typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-  for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
-    space::ContinuousSpace* space = *it;
+  for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     if (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyAlwaysCollect) {
       BindLiveToMarkBitmap(space);
     }

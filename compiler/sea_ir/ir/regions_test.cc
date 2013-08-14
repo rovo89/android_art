@@ -56,4 +56,4 @@ TEST_F(RegionsTest, Basics) {
   EXPECT_EQ(root, preds->at(0));
 }
 
-}  // namespace art
+}  // namespace sea_ir

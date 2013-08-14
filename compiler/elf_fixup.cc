@@ -80,7 +80,6 @@ bool ElfFixup::Fixup(File* file, uintptr_t oat_data_begin) {
 #define DT_MIPS_RLD_MAP      0x70000016  // d_ptr
 
 bool ElfFixup::FixupDynamic(ElfFile& elf_file, uintptr_t base_address) {
-  // TODO: C++0x auto.
   for (::llvm::ELF::Elf32_Word i = 0; i < elf_file.GetDynamicNum(); i++) {
     ::llvm::ELF::Elf32_Dyn& elf_dyn = elf_file.GetDynamic(i);
     ::llvm::ELF::Elf32_Word d_tag = elf_dyn.d_tag;

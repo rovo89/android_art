@@ -78,9 +78,9 @@ std::vector<const Type*> TypeInferenceVisitor::GetOperandTypes(
 
 const Type* TypeInferenceVisitor::MergeTypes(std::vector<const Type*>& types) const {
   const Type* type = NULL;
-  if (types.size()>0) {
+  if (types.size() > 0) {
     type = *(types.begin());
-    if (types.size()>1) {
+    if (types.size() > 1) {
       for (std::vector<const Type*>::const_iterator cit = types.begin();
           cit != types.end(); cit++) {
         if (!type->Equals(**cit)) {

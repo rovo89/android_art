@@ -979,9 +979,7 @@ void MonitorList::Add(Monitor* m) {
 
 void MonitorList::SweepMonitorList(IsMarkedTester is_marked, void* arg) {
   MutexLock mu(Thread::Current(), monitor_list_lock_);
-  typedef std::list<Monitor*>::iterator It;  // TODO: C++0x auto
-  It it = list_.begin();
-  while (it != list_.end()) {
+  for (auto it = list_.begin(); it != list_.end(); ) {
     Monitor* m = *it;
     if (!is_marked(m->GetObject(), arg)) {
       VLOG(monitor) << "freeing monitor " << m << " belonging to unmarked object " << m->GetObject();

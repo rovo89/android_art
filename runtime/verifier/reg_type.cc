@@ -395,8 +395,7 @@ std::string UnresolvedMergedType::Dump() const {
   std::stringstream result;
   std::set<uint16_t> types = GetMergedTypes();
   result << "UnresolvedMergedReferences(";
-  typedef std::set<uint16_t>::const_iterator It;  // TODO: C++0x auto
-  It it = types.begin();
+  auto it = types.begin();
   result << reg_type_cache_->GetFromId(*it).Dump();
   for (++it; it != types.end(); ++it) {
     result << ", ";
@@ -609,9 +608,8 @@ std::set<uint16_t> UnresolvedMergedType::GetMergedTypes() const {
     types.insert(refs.second);
   }
   if (kIsDebugBuild) {
-    typedef std::set<uint16_t>::const_iterator It;  // TODO: C++0x auto
-    for (It it = types.begin(); it != types.end(); ++it) {
-      CHECK(!reg_type_cache_->GetFromId(*it).IsUnresolvedMergedReference());
+    for (const auto& type : types) {
+      CHECK(!reg_type_cache_->GetFromId(type).IsUnresolvedMergedReference());
     }
   }
   return types;

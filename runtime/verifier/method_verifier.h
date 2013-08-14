@@ -122,7 +122,7 @@ class PcToRegisterLineTable {
             uint16_t registers_size, MethodVerifier* verifier);
 
   RegisterLine* GetLine(size_t idx) {
-    Table::iterator result = pc_to_register_line_.find(idx);  // TODO: C++0x auto
+    auto result = pc_to_register_line_.find(idx);
     if (result == pc_to_register_line_.end()) {
       return NULL;
     } else {
