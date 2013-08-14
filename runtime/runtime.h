@@ -99,6 +99,7 @@ class Runtime {
     bool is_zygote_;
     bool interpreter_only_;
     bool is_concurrent_gc_enabled_;
+    bool is_explicit_gc_disabled_;
     size_t heap_initial_size_;
     size_t heap_maximum_size_;
     size_t heap_growth_limit_;
@@ -144,6 +145,10 @@ class Runtime {
 
   bool IsConcurrentGcEnabled() const {
     return is_concurrent_gc_enabled_;
+  }
+
+  bool IsExplicitGcDisabled() const {
+    return is_explicit_gc_disabled_;
   }
 
 #ifdef ART_SEA_IR_MODE
@@ -405,6 +410,7 @@ class Runtime {
   bool is_compiler_;
   bool is_zygote_;
   bool is_concurrent_gc_enabled_;
+  bool is_explicit_gc_disabled_;
 
   CompilerFilter compiler_filter_;
   size_t huge_method_threshold_;
