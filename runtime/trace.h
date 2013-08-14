@@ -63,7 +63,7 @@ class Trace : public instrumentation::InstrumentationListener {
   bool UseWallClock();
   bool UseThreadCpuClock();
 
-  void CompareAndUpdateStackTrace(Thread* thread, std::vector<mirror::AbstractMethod*>* stack_trace)
+  void CompareAndUpdateStackTrace(Thread* thread, std::vector<mirror::ArtMethod*>* stack_trace)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   virtual void MethodEntered(Thread* thread, mirror::Object* this_object,
@@ -117,7 +117,7 @@ class Trace : public instrumentation::InstrumentationListener {
   static pthread_t sampling_pthread_;
 
   // Maps a thread to its most recent stack trace sample.
-  SafeMap<Thread*, std::vector<mirror::AbstractMethod*>*> thread_stack_trace_map_;
+  SafeMap<Thread*, std::vector<mirror::ArtMethod*>*> thread_stack_trace_map_;
 
   // Maps a thread to its clock base.
   SafeMap<Thread*, uint64_t> thread_clock_base_map_;

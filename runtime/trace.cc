@@ -87,10 +87,10 @@ enum TraceAction {
 class BuildStackTraceVisitor : public StackVisitor {
  public:
   explicit BuildStackTraceVisitor(Thread* thread) : StackVisitor(thread, NULL),
-      method_trace_(new std::vector<mirror::AbstractMethod*>) {}
+      method_trace_(new std::vector<mirror::ArtMethod*>) {}
 
   bool VisitFrame() {
-    mirror::AbstractMethod* m = GetMethod();
+    mirror::ArtMethod* m = GetMethod();
     // Ignore runtime frames (in particular callee save).
     if (!m->IsRuntimeMethod()) {
       method_trace_->push_back(m);
@@ -99,12 +99,12 @@ class BuildStackTraceVisitor : public StackVisitor {
   }
 
   // Returns a stack trace where the topmost frame corresponds with the first element of the vector.
-  std::vector<mirror::AbstractMethod*>* GetStackTrace() const {
+  std::vector<mirror::ArtMethod*>* GetStackTrace() const {
     return method_trace_;
   }
 
  private:
-  std::vector<mirror::AbstractMethod*>* const method_trace_;
+  std::vector<mirror::ArtMethod*>* const method_trace_;
 };
 
 static const char     kTraceTokenChar             = '*';
@@ -228,30 +228,30 @@ static void Append8LE(uint8_t* buf, uint64_t val) {
 static void GetSample(Thread* thread, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   BuildStackTraceVisitor build_trace_visitor(thread);
   build_trace_visitor.WalkStack();
-  std::vector<mirror::AbstractMethod*>* stack_trace = build_trace_visitor.GetStackTrace();
+  std::vector<mirror::ArtMethod*>* stack_trace = build_trace_visitor.GetStackTrace();
   Trace* the_trace = reinterpret_cast<Trace*>(arg);
   the_trace->CompareAndUpdateStackTrace(thread, stack_trace);
 }
 
 void Trace::CompareAndUpdateStackTrace(Thread* thread,
-                                       std::vector<mirror::AbstractMethod*>* stack_trace) {
+                                       std::vector<mirror::ArtMethod*>* stack_trace) {
   CHECK_EQ(pthread_self(), sampling_pthread_);
-  SafeMap<Thread*, std::vector<mirror::AbstractMethod*>*>::iterator map_it = thread_stack_trace_map_.find(thread);
+  SafeMap<Thread*, std::vector<mirror::ArtMethod*>*>::iterator map_it = thread_stack_trace_map_.find(thread);
   if (map_it == thread_stack_trace_map_.end()) {
     // If there's no existing stack trace in the map for this thread, log an entry event for all
     // methods in the trace.
     thread_stack_trace_map_.Put(thread, stack_trace);
-    for (std::vector<mirror::AbstractMethod*>::reverse_iterator rit = stack_trace->rbegin();
+    for (std::vector<mirror::ArtMethod*>::reverse_iterator rit = stack_trace->rbegin();
          rit != stack_trace->rend(); ++rit) {
       LogMethodTraceEvent(thread, *rit, instrumentation::Instrumentation::kMethodEntered);
     }
   } else {
     // If there's a previous stack trace for this thread, diff the traces and emit entry and exit
     // events accordingly.
-    std::vector<mirror::AbstractMethod*>* old_stack_trace = map_it->second;
+    std::vector<mirror::ArtMethod*>* old_stack_trace = map_it->second;
     thread_stack_trace_map_.Overwrite(thread, stack_trace);
-    std::vector<mirror::AbstractMethod*>::reverse_iterator old_rit = old_stack_trace->rbegin();
-    std::vector<mirror::AbstractMethod*>::reverse_iterator rit = stack_trace->rbegin();
+    std::vector<mirror::ArtMethod*>::reverse_iterator old_rit = old_stack_trace->rbegin();
+    std::vector<mirror::ArtMethod*>::reverse_iterator rit = stack_trace->rbegin();
 
     // Iterate bottom-up over both traces until there's a difference between them.
     while (old_rit != old_stack_trace->rend() && rit != stack_trace->rend() && *old_rit == *rit) {
@@ -259,7 +259,7 @@ void Trace::CompareAndUpdateStackTrace(Thread* thread,
       rit++;
     }
     // Iterate top-down over the old trace until the point where they differ, emitting exit events.
-    for (std::vector<mirror::AbstractMethod*>::iterator old_it = old_stack_trace->begin();
+    for (std::vector<mirror::ArtMethod*>::iterator old_it = old_stack_trace->begin();
          old_it != old_rit.base(); ++old_it) {
       LogMethodTraceEvent(thread, *old_it, instrumentation::Instrumentation::kMethodExited);
     }
