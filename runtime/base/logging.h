@@ -125,6 +125,7 @@
 
 #define VLOG_IS_ON(module) UNLIKELY(::art::gLogVerbosity.module)
 #define VLOG(module) if (VLOG_IS_ON(module)) ::art::LogMessage(__FILE__, __LINE__, INFO, -1).stream()
+#define VLOG_STREAM(module) ::art::LogMessage(__FILE__, __LINE__, INFO, -1).stream()
 
 //
 // Implementation details beyond this point.
@@ -306,6 +307,7 @@ class ToStr {
 // and the "-verbose:" command line argument.
 struct LogVerbosity {
   bool class_linker;  // Enabled with "-verbose:class".
+  bool verifier;
   bool compiler;
   bool heap;
   bool gc;

@@ -45,6 +45,7 @@ namespace art {
 namespace verifier {
 
 static const bool gDebugVerify = false;
+// TODO: Add a constant to method_verifier to turn on verbose logging?
 
 void PcToRegisterLineTable::Init(RegisterTrackingMode mode, InstructionFlags* flags,
                                  uint32_t insns_size, uint16_t registers_size,
@@ -231,26 +232,28 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx,
   MethodVerifier::FailureKind result = kNoFailure;
   uint64_t start_ns = NanoTime();
 
-  MethodVerifier verifier(dex_file, dex_cache, class_loader, class_def_idx, code_item, method_idx,
-                          method, method_access_flags, true, allow_soft_failures);
-  if (verifier.Verify()) {
+  MethodVerifier verifier_(dex_file, dex_cache, class_loader, class_def_idx, code_item, method_idx,
+                           method, method_access_flags, true, allow_soft_failures);
+  if (verifier_.Verify()) {
     // Verification completed, however failures may be pending that didn't cause the verification
     // to hard fail.
-    CHECK(!verifier.have_pending_hard_failure_);
-    if (verifier.failures_.size() != 0) {
-      verifier.DumpFailures(LOG(INFO) << "Soft verification failures in "
-                                      << PrettyMethod(method_idx, *dex_file) << "\n");
+    CHECK(!verifier_.have_pending_hard_failure_);
+    if (verifier_.failures_.size() != 0) {
+      if (VLOG_IS_ON(verifier)) {
+          verifier_.DumpFailures(VLOG_STREAM(verifier) << "Soft verification failures in "
+                                << PrettyMethod(method_idx, *dex_file) << "\n");
+      }
       result = kSoftFailure;
     }
   } else {
     // Bad method data.
-    CHECK_NE(verifier.failures_.size(), 0U);
-    CHECK(verifier.have_pending_hard_failure_);
-    verifier.DumpFailures(LOG(INFO) << "Verification error in "
+    CHECK_NE(verifier_.failures_.size(), 0U);
+    CHECK(verifier_.have_pending_hard_failure_);
+    verifier_.DumpFailures(LOG(INFO) << "Verification error in "
                                     << PrettyMethod(method_idx, *dex_file) << "\n");
     if (gDebugVerify) {
-      std::cout << "\n" << verifier.info_messages_.str();
-      verifier.Dump(std::cout);
+      std::cout << "\n" << verifier_.info_messages_.str();
+      verifier_.Dump(std::cout);
     }
     result = kHardFailure;
   }
@@ -1079,8 +1082,10 @@ bool MethodVerifier::VerifyCodeFlow() {
 
 std::ostream& MethodVerifier::DumpFailures(std::ostream& os) {
   DCHECK_EQ(failures_.size(), failure_messages_.size());
-  for (size_t i = 0; i < failures_.size(); ++i) {
-    os << failure_messages_[i]->str() << "\n";
+  if (VLOG_IS_ON(verifier)) {
+      for (size_t i = 0; i < failures_.size(); ++i) {
+          os << failure_messages_[i]->str() << "\n";
+      }
   }
   return os;
 }
@@ -3386,7 +3391,7 @@ mirror::Field* MethodVerifier::GetStaticField(int field_idx) {
                                                                                dex_cache_,
                                                                                class_loader_);
   if (field == NULL) {
-    LOG(INFO) << "Unable to resolve static field " << field_idx << " ("
+    VLOG(verifier) << "Unable to resolve static field " << field_idx << " ("
               << dex_file_->GetFieldName(field_id) << ") in "
               << dex_file_->GetFieldDeclaringClassDescriptor(field_id);
     DCHECK(Thread::Current()->IsExceptionPending());
@@ -3423,7 +3428,7 @@ mirror::Field* MethodVerifier::GetInstanceField(const RegType& obj_type, int fie
                                                                                dex_cache_,
                                                                                class_loader_);
   if (field == NULL) {
-    LOG(INFO) << "Unable to resolve instance field " << field_idx << " ("
+    VLOG(verifier) << "Unable to resolve instance field " << field_idx << " ("
               << dex_file_->GetFieldName(field_id) << ") in "
               << dex_file_->GetFieldDeclaringClassDescriptor(field_id);
     DCHECK(Thread::Current()->IsExceptionPending());
