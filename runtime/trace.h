@@ -20,6 +20,7 @@
 #include <ostream>
 #include <set>
 #include <string>
+#include <vector>
 
 #include "base/macros.h"
 #include "globals.h"
@@ -62,6 +63,9 @@ class Trace : public instrumentation::InstrumentationListener {
   bool UseWallClock();
   bool UseThreadCpuClock();
 
+  void CompareAndUpdateStackTrace(Thread* thread, std::vector<mirror::AbstractMethod*>* stack_trace)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   virtual void MethodEntered(Thread* thread, mirror::Object* this_object,
                              const mirror::AbstractMethod* method, uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -79,8 +83,12 @@ class Trace : public instrumentation::InstrumentationListener {
                                mirror::Throwable* exception_object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  ~Trace();
+
  private:
   explicit Trace(File* trace_file, int buffer_size, int flags);
+
+  static void* RunSamplingThread(void* arg) LOCKS_EXCLUDED(Locks::trace_lock_);
 
   void FinishTracing() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -94,10 +102,22 @@ class Trace : public instrumentation::InstrumentationListener {
   void DumpThreadList(std::ostream& os) LOCKS_EXCLUDED(Locks::thread_list_lock_);
 
   // Singleton instance of the Trace or NULL when no method tracing is active.
-  static Trace* the_trace_ GUARDED_BY(Locks::trace_lock_);
+  static Trace* volatile the_trace_ GUARDED_BY(Locks::trace_lock_);
 
   // The default profiler clock source.
   static ProfilerClockSource default_clock_source_;
+
+  // True if traceview should sample instead of instrumenting method entry/exit.
+  static bool sampling_enabled_;
+
+  // Sampling interval in microseconds.
+  static uint32_t sampling_interval_us_;
+
+  // Sampling thread, non-zero when sampling.
+  static pthread_t sampling_pthread_;
+
+  // Maps a thread to its most recent stack trace sample.
+  SafeMap<Thread*, std::vector<mirror::AbstractMethod*>*> thread_stack_trace_map_;
 
   // Maps a thread to its clock base.
   SafeMap<Thread*, uint64_t> thread_clock_base_map_;
