@@ -62,7 +62,7 @@ TEST_F(OutputStreamTest, File) {
   FileOutputStream output_stream(tmp.GetFile());
   SetOutputStream(output_stream);
   GenerateTestOutput();
-  UniquePtr<File> in(OS::OpenFile(tmp.GetFilename().c_str(), false));
+  UniquePtr<File> in(OS::OpenFileForReading(tmp.GetFilename().c_str()));
   EXPECT_TRUE(in.get() != NULL);
   std::vector<uint8_t> actual(in->GetLength());
   bool readSuccess = in->ReadFully(&actual[0], actual.size());
