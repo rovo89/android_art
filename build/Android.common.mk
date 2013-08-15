@@ -109,7 +109,6 @@ ART_C_INCLUDES := \
 
 art_cflags := \
 	-fno-rtti \
-	-O2 \
 	-std=gnu++11 \
 	-ggdb3 \
 	-Wall \
@@ -131,8 +130,11 @@ ifeq ($(HOST_OS),linux)
 	-Wframe-larger-than=1728
 endif
 
+art_non_debug_cflags := \
+        -O3
+
 art_debug_cflags := \
-	-fno-inline \
+	-O1 \
 	-DDYNAMIC_ANNOTATIONS_ENABLED=1 \
 	-UNDEBUG
 
