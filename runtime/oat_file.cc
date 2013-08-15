@@ -74,7 +74,7 @@ OatFile* OatFile::Open(const std::string& filename,
   //
   // On host, dlopen is expected to fail when cross compiling, so fall back to OpenElfFile.
   // This won't work for portable runtime execution because it doesn't process relocations.
-  UniquePtr<File> file(OS::OpenFile(filename.c_str(), false, false));
+  UniquePtr<File> file(OS::OpenFileForReading(filename.c_str()));
   if (file.get() == NULL) {
     return NULL;
   }
@@ -125,11 +125,13 @@ OatFile::~OatFile() {
 bool OatFile::Dlopen(const std::string& elf_filename, byte* requested_base) {
   char* absolute_path = realpath(elf_filename.c_str(), NULL);
   if (absolute_path == NULL) {
+    VLOG(class_linker) << "Failed to find absolute path for " << elf_filename;
     return false;
   }
   dlopen_handle_ = dlopen(absolute_path, RTLD_NOW);
   free(absolute_path);
   if (dlopen_handle_ == NULL) {
+    VLOG(class_linker) << "Failed to dlopen " << elf_filename << ": " << dlerror();
     return false;
   }
   begin_ = reinterpret_cast<byte*>(dlsym(dlopen_handle_, "oatdata"));
@@ -319,7 +321,14 @@ const OatFile::OatDexFile* OatFile::GetOatDexFile(const std::string& dex_file_lo
   Table::const_iterator it = oat_dex_files_.find(dex_file_location);
   if (it == oat_dex_files_.end()) {
     if (warn_if_not_found) {
-      LOG(WARNING) << "Failed to find OatDexFile for DexFile " << dex_file_location;
+      LOG(WARNING) << "Failed to find OatDexFile for DexFile " << dex_file_location
+                   << " in OatFile " << GetLocation();
+      if (kIsDebugBuild) {
+        for (Table::const_iterator it = oat_dex_files_.begin(); it != oat_dex_files_.end(); ++it) {
+          LOG(WARNING) << "OatFile " << GetLocation()
+                       << " contains OatDexFile " << it->second->GetDexFileLocation();
+        }
+      }
     }
     return NULL;
   }
@@ -360,11 +369,11 @@ const OatFile::OatClass* OatFile::OatDexFile::GetOatClass(uint32_t class_def_ind
   uint32_t oat_class_offset = oat_class_offsets_pointer_[class_def_index];
 
   const byte* oat_class_pointer = oat_file_->Begin() + oat_class_offset;
-  CHECK_LT(oat_class_pointer, oat_file_->End());
+  CHECK_LT(oat_class_pointer, oat_file_->End()) << oat_file_->GetLocation();
   mirror::Class::Status status = *reinterpret_cast<const mirror::Class::Status*>(oat_class_pointer);
 
   const byte* methods_pointer = oat_class_pointer + sizeof(status);
-  CHECK_LT(methods_pointer, oat_file_->End());
+  CHECK_LT(methods_pointer, oat_file_->End()) << oat_file_->GetLocation();
 
   return new OatClass(oat_file_,
                       status,

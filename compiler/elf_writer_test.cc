@@ -62,7 +62,7 @@ TEST_F(ElfWriterTest, dlsym) {
 
   ASSERT_EQ(0, dlclose(dl_oat_so));
 
-  UniquePtr<File> file(OS::OpenFile(elf_filename.c_str(), false));
+  UniquePtr<File> file(OS::OpenFileForReading(elf_filename.c_str()));
   ASSERT_TRUE(file.get() != NULL);
   {
     UniquePtr<ElfFile> ef(ElfFile::Open(file.get(), false, false));

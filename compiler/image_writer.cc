@@ -79,7 +79,7 @@ bool ImageWriter::Write(const std::string& image_filename,
     dex_caches_.insert(dex_cache);
   }
 
-  UniquePtr<File> oat_file(OS::OpenFile(oat_filename.c_str(), true, false));
+  UniquePtr<File> oat_file(OS::OpenFileReadWrite(oat_filename.c_str()));
   if (oat_file.get() == NULL) {
     LOG(ERROR) << "Failed to open oat file " << oat_filename << " for " << oat_location;
     return false;
@@ -145,7 +145,7 @@ bool ImageWriter::Write(const std::string& image_filename,
   PatchOatCodeAndMethods();
   Thread::Current()->TransitionFromRunnableToSuspended(kNative);
 
-  UniquePtr<File> image_file(OS::OpenFile(image_filename.c_str(), true));
+  UniquePtr<File> image_file(OS::CreateEmptyFile(image_filename.c_str()));
   if (image_file.get() == NULL) {
     LOG(ERROR) << "Failed to open image file " << image_filename;
     return false;

@@ -27,17 +27,20 @@
 
 namespace art {
 
-File* OS::OpenFile(const char* name, bool writable, bool create) {
+File* OS::OpenFileForReading(const char* name) {
+  return OpenFileWithFlags(name, O_RDONLY);
+}
+
+File* OS::OpenFileReadWrite(const char* name) {
+  return OpenFileWithFlags(name, O_RDWR);
+}
+
+File* OS::CreateEmptyFile(const char* name) {
+  return OpenFileWithFlags(name, O_RDWR | O_CREAT | O_TRUNC);
+}
+
+File* OS::OpenFileWithFlags(const char* name, int flags) {
   CHECK(name != NULL);
-  int flags = 0;
-  if (writable) {
-    flags |= O_RDWR;
-    if (create) {
-      flags |= (O_CREAT | O_TRUNC);
-    }
-  } else {
-    flags |= O_RDONLY;
-  }
   UniquePtr<File> file(new File);
   if (!file->Open(name, flags, 0666)) {
     return NULL;

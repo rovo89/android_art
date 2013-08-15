@@ -29,8 +29,17 @@ typedef ::unix_file::FdFile File;
 
 class OS {
  public:
-  // Open a file. The returned pointer must be deleted by the caller.
-  static File* OpenFile(const char* name, bool writable, bool create = true);
+  // Open an existing file with read only access.
+  static File* OpenFileForReading(const char* name);
+
+  // Open an existing file with read/write access.
+  static File* OpenFileReadWrite(const char* name);
+
+  // Create an empty file with read/write access.
+  static File* CreateEmptyFile(const char* name);
+
+  // Open a file with the specified open(2) flags.
+  static File* OpenFileWithFlags(const char* name, int flags);
 
   // Check if a file exists.
   static bool FileExists(const char* name);

@@ -1229,6 +1229,7 @@ bool IsValidDexFilename(const std::string& filename) {
 
 bool IsValidOatFilename(const std::string& filename) {
   return (EndsWith(filename, ".odex") ||
+          EndsWith(filename, ".dex") ||
           EndsWith(filename, ".oat") ||
           EndsWith(filename, DexFile::kClassesDex));
 }

@@ -269,7 +269,10 @@ mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object* this_
 }
 
 void ThrowStackOverflowError(Thread* self) {
-  CHECK(!self->IsHandlingStackOverflow()) << "Recursive stack overflow.";
+  if (self->IsHandlingStackOverflow()) {
+      LOG(ERROR) << "Recursive stack overflow.";
+      // We don't fail here because SetStackEndForStackOverflow will print better diagnostics.
+  }
 
   if (Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()) {
     // Remove extra entry pushed onto second stack during method tracing.
