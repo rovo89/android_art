@@ -386,7 +386,7 @@ void SeaGraph::RenameAsSSA(Region* crt_region,
   scoped_table->CloseScope();
 }
 
-void SeaGraph::GenerateLLVM() {
+CodeGenData* SeaGraph::GenerateLLVM() {
   // Pass: Generate LLVM IR.
   CodeGenPrepassVisitor code_gen_prepass_visitor;
   std::cout << "Generating code..." << std::endl;
@@ -399,9 +399,11 @@ void SeaGraph::GenerateLLVM() {
   CodeGenPostpassVisitor code_gen_postpass_visitor(code_gen_visitor.GetData());
   Accept(&code_gen_postpass_visitor);
   code_gen_postpass_visitor.Write(std::string("my_file.llvm"));
+  return code_gen_postpass_visitor.GetData();
 }
 
-void SeaGraph::CompileMethod(const art::DexFile::CodeItem* code_item, uint32_t class_def_idx,
+CodeGenData* SeaGraph::CompileMethod(
+    const art::DexFile::CodeItem* code_item, uint32_t class_def_idx,
     uint32_t method_idx, uint32_t method_access_flags, const art::DexFile& dex_file) {
   // Two passes: Builds the intermediate structure (non-SSA) of the sea-ir for the function.
   BuildMethodSeaGraph(code_item, dex_file, class_def_idx, method_idx, method_access_flags);
@@ -420,7 +422,8 @@ void SeaGraph::CompileMethod(const art::DexFile::CodeItem* code_item, uint32_t c
   // Pass: type inference
   ti_->ComputeTypes(this);
   // Pass: Generate LLVM IR.
-  GenerateLLVM();
+  CodeGenData* cgd = GenerateLLVM();
+  return cgd;
 }
 
 void SeaGraph::ComputeDominanceFrontier() {

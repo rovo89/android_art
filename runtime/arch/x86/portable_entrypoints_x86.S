@@ -68,13 +68,13 @@ END_FUNCTION art_portable_invoke_stub
 DEFINE_FUNCTION art_portable_proxy_invoke_handler
     // Fake callee save ref and args frame set up, note portable doesn't use callee save frames.
     // TODO: just save the registers that are needed in artPortableProxyInvokeHandler.
-    PUSH edi  // Save callee saves
+    PUSH edi                      // Save callee saves
     PUSH esi
     PUSH ebp
-    PUSH ebx  // Save args
+    PUSH ebx                      // Save args
     PUSH edx
     PUSH ecx
-    PUSH eax   // Align stack, eax will be clobbered by Method*
+    PUSH eax                      // Align stack, eax will be clobbered by Method*
     // Begin argument set up.
     PUSH esp                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
@@ -90,5 +90,35 @@ DEFINE_FUNCTION art_portable_proxy_invoke_handler
     ret
 END_FUNCTION art_portable_proxy_invoke_handler
 
-UNIMPLEMENTED art_portable_resolution_trampoline
-UNIMPLEMENTED art_portable_to_interpreter_bridge
+DEFINE_FUNCTION art_portable_resolution_trampoline
+  pushl %ebp
+  movl %esp, %ebp                 // save ESP
+  subl LITERAL(8), %esp           // Align stack
+  movl 8(%ebp), %eax              // Method* called
+  leal 8(%ebp), %edx              // Method** called_addr
+  pushl %edx                      // pass called_addr
+  pushl %fs:THREAD_SELF_OFFSET    // pass thread
+  pushl %ecx                      // pass receiver
+  pushl %eax                      // pass called
+  call SYMBOL(artPortableResolutionTrampoline)
+  leave
+  cmpl LITERAL(0), %eax
+  je resolve_fail
+  jmp * %eax
+resolve_fail:
+  ret
+END_FUNCTION art_portable_resolution_trampoline
+
+DEFINE_FUNCTION art_portable_to_interpreter_bridge
+  pushl %ebp
+  movl %esp, %ebp                 // save ESP
+  subl LITERAL(12), %esp          // Align stack
+  movl 8(%ebp), %eax              // Method* called
+  leal 8(%ebp), %edx              // Method** called_addr
+  pushl %edx                      // pass called_addr
+  pushl %fs:THREAD_SELF_OFFSET    // pass thread
+  pushl %eax                      // pass called
+  call SYMBOL(artPortableToInterpreterBridge)
+  leave
+  ret
+END_FUNCTION art_quick_to_interpreter_bridge

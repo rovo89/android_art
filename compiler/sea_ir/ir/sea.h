@@ -37,6 +37,7 @@ enum RegionNumbering {
 };
 
 class TypeInference;
+class CodeGenData;
 
 class Region;
 class InstructionNode;
@@ -260,7 +261,7 @@ class SeaGraph: IVisitable {
  public:
   static SeaGraph* GetGraph(const art::DexFile&);
 
-  void CompileMethod(const art::DexFile::CodeItem* code_item, uint32_t class_def_idx,
+  CodeGenData* CompileMethod(const art::DexFile::CodeItem* code_item, uint32_t class_def_idx,
       uint32_t method_idx, uint32_t method_access_flags, const art::DexFile& dex_file);
   // Returns all regions corresponding to this SeaGraph.
   std::vector<Region*>* GetRegions() {
@@ -337,7 +338,7 @@ class SeaGraph: IVisitable {
   void RenameAsSSA(Region* node, utils::ScopedHashtable<int, InstructionNode*>* scoped_table);
   // Generate LLVM IR for the method.
   // Precondition: ConvertToSSA().
-  void GenerateLLVM();
+  CodeGenData* GenerateLLVM();
 
   static SeaGraph graph_;
   std::vector<Region*> regions_;

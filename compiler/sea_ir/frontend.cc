@@ -16,18 +16,26 @@
 
 #ifdef ART_SEA_IR_MODE
 #include <llvm/Support/Threading.h>
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Bitcode/ReaderWriter.h>
+
 #include "base/logging.h"
+#include "llvm/llvm_compilation_unit.h"
 #include "dex/portable/mir_to_gbc.h"
 #include "driver/compiler_driver.h"
-#include "leb128.h"
-#include "llvm/llvm_compilation_unit.h"
+#include "verifier/method_verifier.h"
 #include "mirror/object.h"
+#include "utils.h"
+
 #include "runtime.h"
 #include "safe_map.h"
 
 #include "sea_ir/ir/sea.h"
 #include "sea_ir/debug/dot_gen.h"
 #include "sea_ir/types/types.h"
+#include "sea_ir/code_gen/code_gen.h"
+
+
 namespace art {
 
 static CompiledMethod* CompileMethodWithSeaIr(CompilerDriver& compiler,
@@ -44,12 +52,31 @@ static CompiledMethod* CompileMethodWithSeaIr(CompilerDriver& compiler,
   //       and silencing the cpplint.py warning, I just corrected the formatting.
   VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
   sea_ir::SeaGraph* ir_graph = sea_ir::SeaGraph::GetGraph(dex_file);
-  ir_graph->CompileMethod(code_item, class_def_idx, method_idx, method_access_flags, dex_file);
+  sea_ir::CodeGenData* llvm_data =
+      ir_graph->CompileMethod(code_item, class_def_idx, method_idx, method_access_flags, dex_file);
   sea_ir::DotConversion dc;
   SafeMap<int, const sea_ir::Type*>*  types = ir_graph->ti_->GetTypeMap();
   dc.DumpSea(ir_graph, "/tmp/temp.dot", types);
   CHECK(0 && "No SEA compiled function exists yet.");
-  return NULL;
+
+  MethodReference mref(&dex_file, method_idx);
+
+  // TODO: Passing the LLVM code as string is ugly and inefficient,
+  //       but it is the way portable did it. I kept it for compatibility,
+  //       but actually it should not happen.
+  std::string llvm_code;
+  ::llvm::raw_string_ostream str_os(llvm_code);
+  ::llvm::WriteBitcodeToFile(&llvm_data->module_, str_os);
+
+  std::string symbol = "dex_";
+  symbol += MangleForJni(PrettyMethod(method_idx, dex_file));
+
+  CompiledMethod* compiled_method =  new CompiledMethod(
+                              compiler.GetInstructionSet(),
+                              llvm_code,
+                              *verifier::MethodVerifier::GetDexGcMap(mref),
+                              symbol);
+  return compiled_method;
 }
 
 CompiledMethod* SeaIrCompileOneMethod(CompilerDriver& compiler,
