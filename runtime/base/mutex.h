@@ -47,7 +47,7 @@ namespace art {
 class ScopedContentionRecorder;
 class Thread;
 
-const bool kDebugLocking = true || kIsDebugBuild;
+const bool kDebugLocking = kIsDebugBuild;
 
 // Record Log contention information, dumpable via SIGQUIT.
 #ifdef ART_USE_FUTEXES
