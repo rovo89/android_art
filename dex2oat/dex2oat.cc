@@ -313,7 +313,7 @@ class Dex2Oat {
       oat_data_begin = image_writer.GetOatDataBegin();
     }
 
-    UniquePtr<File> oat_file(OS::OpenFile(oat_filename.c_str(), true, false));
+    UniquePtr<File> oat_file(OS::OpenFileReadWrite(oat_filename.c_str()));
     if (oat_file.get() == NULL) {
       PLOG(ERROR) << "Failed to open ELF file: " << oat_filename;
       return false;
@@ -808,7 +808,7 @@ static int dex2oat(int argc, char** argv) {
   UniquePtr<File> oat_file;
   bool create_file = !oat_unstripped.empty();  // as opposed to using open file descriptor
   if (create_file) {
-    oat_file.reset(OS::OpenFile(oat_unstripped.c_str(), true));
+    oat_file.reset(OS::CreateEmptyFile(oat_unstripped.c_str()));
     if (oat_location.empty()) {
       oat_location = oat_filename;
     }
@@ -1023,8 +1023,8 @@ static int dex2oat(int argc, char** argv) {
   if (oat_unstripped != oat_stripped) {
     timings.NewSplit("dex2oat OatFile copy");
     oat_file.reset();
-    UniquePtr<File> in(OS::OpenFile(oat_unstripped.c_str(), false));
-    UniquePtr<File> out(OS::OpenFile(oat_stripped.c_str(), true));
+     UniquePtr<File> in(OS::OpenFileForReading(oat_unstripped.c_str()));
+    UniquePtr<File> out(OS::CreateEmptyFile(oat_stripped.c_str()));
     size_t buffer_size = 8192;
     UniquePtr<uint8_t> buffer(new uint8_t[buffer_size]);
     while (true) {

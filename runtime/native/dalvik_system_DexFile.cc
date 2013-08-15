@@ -84,7 +84,7 @@ class NullableScopedUtfChars {
   void operator=(const NullableScopedUtfChars&);
 };
 
-static jint DexFile_openDexFile(JNIEnv* env, jclass, jstring javaSourceName, jstring javaOutputName, jint) {
+static jint DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceName, jstring javaOutputName, jint) {
   ScopedUtfChars sourceName(env, javaSourceName);
   if (sourceName.c_str() == NULL) {
     return 0;
@@ -141,21 +141,25 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
   ScopedObjectAccess soa(env);
   const DexFile* dex_file = toDexFile(cookie);
   if (dex_file == NULL) {
+    VLOG(class_linker) << "Failed to find dex_file";
     return NULL;
   }
   ScopedUtfChars class_name(env, javaName);
   if (class_name.c_str() == NULL) {
+    VLOG(class_linker) << "Failed to find class_name";
     return NULL;
   }
   const std::string descriptor(DotToDescriptor(class_name.c_str()));
   const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor);
   if (dex_class_def == NULL) {
+    VLOG(class_linker) << "Failed to find dex_class_def";
     return NULL;
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   class_linker->RegisterDexFile(*dex_file);
   mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(javaLoader);
   mirror::Class* result = class_linker->DefineClass(descriptor, class_loader, *dex_file, *dex_class_def);
+  VLOG(class_linker) << "DexFile_defineClassNative returning " << result;
   return soa.AddLocalReference<jclass>(result);
 }
 
@@ -300,7 +304,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(DexFile, defineClassNative, "(Ljava/lang/String;Ljava/lang/ClassLoader;I)Ljava/lang/Class;"),
   NATIVE_METHOD(DexFile, getClassNameList, "(I)[Ljava/lang/String;"),
   NATIVE_METHOD(DexFile, isDexOptNeeded, "(Ljava/lang/String;)Z"),
-  NATIVE_METHOD(DexFile, openDexFile, "(Ljava/lang/String;Ljava/lang/String;I)I"),
+  NATIVE_METHOD(DexFile, openDexFileNative, "(Ljava/lang/String;Ljava/lang/String;I)I"),
 };
 
 void register_dalvik_system_DexFile(JNIEnv* env) {

@@ -777,7 +777,7 @@ class ImageDumper {
       os_ = saved_os;
     }
     os << "STATS:\n" << std::flush;
-    UniquePtr<File> file(OS::OpenFile(image_filename_.c_str(), false));
+    UniquePtr<File> file(OS::OpenFileForReading(image_filename_.c_str()));
     stats_.file_bytes = file->GetLength();
     size_t header_bytes = sizeof(ImageHeader);
     stats_.header_bytes = header_bytes;
