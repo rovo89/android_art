@@ -164,17 +164,6 @@ uint64_t NanoTime() {
 #endif
 }
 
-uint64_t ThreadCpuMicroTime() {
-#if defined(HAVE_POSIX_CLOCKS)
-  timespec now;
-  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now);
-  return static_cast<uint64_t>(now.tv_sec) * 1000000LL + now.tv_nsec / 1000LL;
-#else
-  UNIMPLEMENTED(WARNING);
-  return -1;
-#endif
-}
-
 uint64_t ThreadCpuNanoTime() {
 #if defined(HAVE_POSIX_CLOCKS)
   timespec now;

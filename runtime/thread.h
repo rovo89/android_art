@@ -267,6 +267,9 @@ class PACKED(4) Thread {
   // Sets the thread's name.
   void SetThreadName(const char* name) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Returns the thread-specific CPU-time clock in microseconds or -1 if unavailable.
+  uint64_t GetCpuMicroTime() const;
+
   mirror::Object* GetPeer() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(jpeer_ == NULL);
     return opeer_;

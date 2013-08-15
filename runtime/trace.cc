@@ -174,7 +174,7 @@ bool Trace::UseWallClock() {
 
 static void MeasureClockOverhead(Trace* trace) {
   if (trace->UseThreadCpuClock()) {
-    ThreadCpuMicroTime();
+    Thread::Current()->GetCpuMicroTime();
   }
   if (trace->UseWallClock()) {
     MicroTime();
@@ -182,7 +182,8 @@ static void MeasureClockOverhead(Trace* trace) {
 }
 
 static uint32_t GetClockOverhead(Trace* trace) {
-  uint64_t start = ThreadCpuMicroTime();
+  Thread* self = Thread::Current();
+  uint64_t start = self->GetCpuMicroTime();
 
   for (int i = 4000; i > 0; i--) {
     MeasureClockOverhead(trace);
@@ -195,7 +196,7 @@ static uint32_t GetClockOverhead(Trace* trace) {
     MeasureClockOverhead(trace);
   }
 
-  uint64_t elapsed = ThreadCpuMicroTime() - start;
+  uint64_t elapsed = self->GetCpuMicroTime() - start;
   return uint32_t (elapsed / 32);
 }
 
@@ -582,11 +583,11 @@ void Trace::LogMethodTraceEvent(Thread* thread, const mirror::ArtMethod* method,
     uint32_t thread_clock_diff = 0;
     if (UNLIKELY(it == thread_clock_base_map_.end())) {
       // First event, the diff is 0, record the base time in the map.
-      uint64_t time = ThreadCpuMicroTime();
+      uint64_t time = thread->GetCpuMicroTime();
       thread_clock_base_map_.Put(thread, time);
     } else {
       uint64_t thread_clock_base = it->second;
-      thread_clock_diff = ThreadCpuMicroTime() - thread_clock_base;
+      thread_clock_diff = thread->GetCpuMicroTime() - thread_clock_base;
     }
     Append4LE(ptr, thread_clock_diff);
     ptr += 4;

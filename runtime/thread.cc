@@ -496,6 +496,19 @@ void Thread::GetThreadName(std::string& name) const {
   name.assign(*name_);
 }
 
+uint64_t Thread::GetCpuMicroTime() const {
+#if defined(HAVE_POSIX_CLOCKS)
+  clockid_t cpu_clock_id;
+  pthread_getcpuclockid(pthread_self_, &cpu_clock_id);
+  timespec now;
+  clock_gettime(cpu_clock_id, &now);
+  return static_cast<uint64_t>(now.tv_sec) * 1000000LL + now.tv_nsec / 1000LL;
+#else
+  UNIMPLEMENTED(WARNING);
+  return -1;
+#endif
+}
+
 void Thread::AtomicSetFlag(ThreadFlag flag) {
   android_atomic_or(flag, &state_and_flags_.as_int);
 }
