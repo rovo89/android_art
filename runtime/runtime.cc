@@ -166,7 +166,7 @@ struct AbortState {
         ThrowLocation throw_location;
         mirror::Throwable* exception = self->GetException(&throw_location);
         os << "Pending exception " << PrettyTypeOf(exception)
-            << " thrown by '" << throw_location.Dump() << "\n"
+            << " thrown by '" << throw_location.Dump() << "'\n"
             << exception->Dump();
       }
     }
