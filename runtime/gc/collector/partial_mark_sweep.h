@@ -38,6 +38,7 @@ class PartialMarkSweep : public MarkSweep {
   // collections, ie the Zygote space. Also mark this space is immune.
   virtual void BindBitmaps() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+ private:
   DISALLOW_COPY_AND_ASSIGN(PartialMarkSweep);
 };
 

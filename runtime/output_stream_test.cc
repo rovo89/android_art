@@ -78,4 +78,4 @@ TEST_F(OutputStreamTest, Vector) {
   CheckTestOutput(output);
 }
 
-}  // namespace std
+}  // namespace art

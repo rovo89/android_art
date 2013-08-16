@@ -130,4 +130,4 @@ TEST_F(TypeInferenceVisitorTest, GetOperandTypes) {
 }
 
 
-}  // namespace art
+}  // namespace sea_ir

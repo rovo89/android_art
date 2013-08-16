@@ -204,8 +204,7 @@ class ImageWriter {
   uint32_t quick_to_interpreter_bridge_offset_;
 
   // DexCaches seen while scanning for fixing up CodeAndDirectMethods
-  typedef std::set<mirror::DexCache*> Set;
-  Set dex_caches_;
+  std::set<mirror::DexCache*> dex_caches_;
 };
 
 }  // namespace art

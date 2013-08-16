@@ -114,11 +114,7 @@ void GarbageCollector::SwapBitmaps() {
   // these bitmaps. The bitmap swapping is an optimization so that we do not need to clear the live
   // bits of dead objects in the live bitmap.
   const GcType gc_type = GetGcType();
-  const std::vector<space::ContinuousSpace*>& cont_spaces = GetHeap()->GetContinuousSpaces();
-  // TODO: C++0x
-  typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-  for (It it = cont_spaces.begin(), end = cont_spaces.end(); it != end; ++it) {
-    space::ContinuousSpace* space = *it;
+  for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     // We never allocate into zygote spaces.
     if (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyAlwaysCollect ||
         (gc_type == kGcTypeFull &&
@@ -132,11 +128,8 @@ void GarbageCollector::SwapBitmaps() {
       }
     }
   }
-  const std::vector<space::DiscontinuousSpace*>& disc_spaces = GetHeap()->GetDiscontinuousSpaces();
-  // TODO: C++0x
-  typedef std::vector<space::DiscontinuousSpace*>::const_iterator It2;
-  for (It2 it = disc_spaces.begin(), end = disc_spaces.end(); it != end; ++it) {
-    space::LargeObjectSpace* space = down_cast<space::LargeObjectSpace*>(*it);
+  for (const auto& disc_space : GetHeap()->GetDiscontinuousSpaces()) {
+    space::LargeObjectSpace* space = down_cast<space::LargeObjectSpace*>(disc_space);
     accounting::SpaceSetMap* live_set = space->GetLiveObjects();
     accounting::SpaceSetMap* mark_set = space->GetMarkObjects();
     heap_->GetLiveBitmap()->ReplaceObjectSet(live_set, mark_set);

@@ -112,6 +112,6 @@ template <class Value> class Histogram {
 
   DISALLOW_COPY_AND_ASSIGN(Histogram);
 };
-}
+}  // namespace art
 
 #endif  // ART_RUNTIME_BASE_HISTOGRAM_H_

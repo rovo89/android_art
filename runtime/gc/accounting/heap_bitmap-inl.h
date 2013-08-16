@@ -25,20 +25,12 @@ namespace accounting {
 
 template <typename Visitor>
 inline void HeapBitmap::Visit(const Visitor& visitor) {
-  // TODO: C++0x auto
-  typedef SpaceBitmapVector::iterator It;
-  for (It it = continuous_space_bitmaps_.begin(), end = continuous_space_bitmaps_.end();
-      it != end; ++it) {
-    SpaceBitmap* bitmap = *it;
+  for (const auto& bitmap : continuous_space_bitmaps_) {
     bitmap->VisitMarkedRange(bitmap->HeapBegin(), bitmap->HeapLimit(), visitor);
   }
-  // TODO: C++0x auto
-  typedef SpaceSetMapVector::iterator It2;
-  DCHECK(discontinuous_space_sets_.begin() !=  discontinuous_space_sets_.end());
-  for (It2 it = discontinuous_space_sets_.begin(), end = discontinuous_space_sets_.end();
-      it != end; ++it) {
-    SpaceSetMap* set = *it;
-    set->Visit(visitor);
+  DCHECK(!discontinuous_space_sets_.empty());
+  for (const auto& space_set : discontinuous_space_sets_) {
+    space_set->Visit(visitor);
   }
 }
 

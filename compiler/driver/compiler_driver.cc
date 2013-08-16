@@ -664,8 +664,7 @@ void CompilerDriver::LoadImageClasses(base::TimingLogger& timings)
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  typedef DescriptorSet::iterator It;  // TODO: C++0x auto
-  for (It it = image_classes_->begin(), end = image_classes_->end(); it != end;) {
+  for (auto it = image_classes_->begin(), end = image_classes_->end(); it != end;) {
     std::string descriptor(*it);
     SirtRef<mirror::Class> klass(self, class_linker->FindSystemClass(descriptor.c_str()));
     if (klass.get() == NULL) {
@@ -687,12 +686,9 @@ void CompilerDriver::LoadImageClasses(base::TimingLogger& timings)
     unresolved_exception_types.clear();
     class_linker->VisitClasses(ResolveCatchBlockExceptionsClassVisitor,
                                &unresolved_exception_types);
-    typedef std::set<std::pair<uint16_t, const DexFile*> >::const_iterator It;  // TODO: C++0x auto
-    for (It it = unresolved_exception_types.begin(),
-         end = unresolved_exception_types.end();
-         it != end; ++it) {
-      uint16_t exception_type_idx = it->first;
-      const DexFile* dex_file = it->second;
+    for (const std::pair<uint16_t, const DexFile*>& exception_type : unresolved_exception_types) {
+      uint16_t exception_type_idx = exception_type.first;
+      const DexFile* dex_file = exception_type.second;
       mirror::DexCache* dex_cache = class_linker->FindDexCache(*dex_file);
       mirror:: ClassLoader* class_loader = NULL;
       SirtRef<mirror::Class> klass(self, class_linker->ResolveType(*dex_file, exception_type_idx,

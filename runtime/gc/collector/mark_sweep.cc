@@ -84,16 +84,13 @@ void MarkSweep::ImmuneSpace(space::ContinuousSpace* space) {
     SetImmuneRange(reinterpret_cast<Object*>(space->Begin()),
                    reinterpret_cast<Object*>(space->End()));
   } else {
-    const std::vector<space::ContinuousSpace*>& spaces = GetHeap()->GetContinuousSpaces();
-    const space::ContinuousSpace* prev_space = NULL;
+    const space::ContinuousSpace* prev_space = nullptr;
     // Find out if the previous space is immune.
-    // TODO: C++0x
-    typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-    for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
-      if (*it == space) {
+    for (space::ContinuousSpace* cur_space : GetHeap()->GetContinuousSpaces()) {
+      if (cur_space == space) {
         break;
       }
-      prev_space = *it;
+      prev_space = cur_space;
     }
 
     // If previous space was immune, then extend the immune region. Relies on continuous spaces
@@ -322,13 +319,9 @@ void MarkSweep::SetImmuneRange(Object* begin, Object* end) {
 
 void MarkSweep::FindDefaultMarkBitmap() {
   base::TimingLogger::ScopedSplit split("FindDefaultMarkBitmap", &timings_);
-  const std::vector<space::ContinuousSpace*>& spaces = GetHeap()->GetContinuousSpaces();
-  // TODO: C++0x
-  typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-  for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
-    space::ContinuousSpace* space = *it;
+  for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     if (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyAlwaysCollect) {
-      current_mark_bitmap_ = (*it)->GetMarkBitmap();
+      current_mark_bitmap_ = space->GetMarkBitmap();
       CHECK(current_mark_bitmap_ != NULL);
       return;
     }
@@ -344,11 +337,10 @@ void MarkSweep::ExpandMarkStack() {
     // Someone else acquired the lock and expanded the mark stack before us.
     return;
   }
-  std::vector<Object*> temp;
-  temp.insert(temp.begin(), mark_stack_->Begin(), mark_stack_->End());
+  std::vector<Object*> temp(mark_stack_->Begin(), mark_stack_->End());
   mark_stack_->Resize(mark_stack_->Capacity() * 2);
-  for (size_t i = 0; i < temp.size(); ++i) {
-    mark_stack_->PushBack(temp[i]);
+  for (const auto& obj : temp) {
+    mark_stack_->PushBack(obj);
   }
 }
 
@@ -608,12 +600,8 @@ class ScanObjectVisitor {
 
 void MarkSweep::ScanGrayObjects(byte minimum_age) {
   accounting::CardTable* card_table = GetHeap()->GetCardTable();
-  const std::vector<space::ContinuousSpace*>& spaces = GetHeap()->GetContinuousSpaces();
   ScanObjectVisitor visitor(this);
-  // TODO: C++0x
-  typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-  for (It it = spaces.begin(), space_end = spaces.end(); it != space_end; ++it) {
-    space::ContinuousSpace* space = *it;
+  for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     switch (space->GetGcRetentionPolicy()) {
       case space::kGcRetentionPolicyNeverCollect:
         timings_.StartSplit("ScanGrayImageSpaceObjects");
@@ -656,15 +644,12 @@ void MarkSweep::VerifyImageRoots() {
   // space
   timings_.StartSplit("VerifyImageRoots");
   CheckBitmapVisitor visitor(this);
-  const std::vector<space::ContinuousSpace*>& spaces = GetHeap()->GetContinuousSpaces();
-  // TODO: C++0x
-  typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-  for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
-    if ((*it)->IsImageSpace()) {
-      space::ImageSpace* space = (*it)->AsImageSpace();
-      uintptr_t begin = reinterpret_cast<uintptr_t>(space->Begin());
-      uintptr_t end = reinterpret_cast<uintptr_t>(space->End());
-      accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
+  for (const auto& space : GetHeap()->GetContinuousSpaces()) {
+    if (space->IsImageSpace()) {
+      space::ImageSpace* image_space = space->AsImageSpace();
+      uintptr_t begin = reinterpret_cast<uintptr_t>(image_space->Begin());
+      uintptr_t end = reinterpret_cast<uintptr_t>(image_space->End());
+      accounting::SpaceBitmap* live_bitmap = image_space->GetLiveBitmap();
       DCHECK(live_bitmap != NULL);
       live_bitmap->VisitMarkedRange(begin, end, visitor);
     }
@@ -687,11 +672,7 @@ void MarkSweep::RecursiveMark() {
   const bool partial = GetGcType() == kGcTypePartial;
   ScanObjectVisitor scan_visitor(this);
   if (!kDisableFinger) {
-    const std::vector<space::ContinuousSpace*>& spaces = GetHeap()->GetContinuousSpaces();
-    // TODO: C++0x
-    typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-    for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
-      space::ContinuousSpace* space = *it;
+    for (const auto& space : GetHeap()->GetContinuousSpaces()) {
       if ((space->GetGcRetentionPolicy() == space::kGcRetentionPolicyAlwaysCollect) ||
           (!partial && space->GetGcRetentionPolicy() == space::kGcRetentionPolicyFullCollect)) {
         current_mark_bitmap_ = space->GetMarkBitmap();
@@ -729,10 +710,7 @@ void MarkSweep::ReMarkRoots() {
 void MarkSweep::SweepJniWeakGlobals(IsMarkedTester is_marked, void* arg) {
   JavaVMExt* vm = Runtime::Current()->GetJavaVM();
   MutexLock mu(Thread::Current(), vm->weak_globals_lock);
-  IndirectReferenceTable* table = &vm->weak_globals;
-  typedef IndirectReferenceTable::iterator It;  // TODO: C++0x auto
-  for (It it = table->begin(), end = table->end(); it != end; ++it) {
-    const Object** entry = *it;
+  for (const Object** entry : vm->weak_globals) {
     if (!is_marked(*entry, arg)) {
       *entry = kClearedJniWeakGlobal;
     }
@@ -815,10 +793,7 @@ void MarkSweep::VerifySystemWeaks() {
 
   JavaVMExt* vm = runtime->GetJavaVM();
   MutexLock mu(Thread::Current(), vm->weak_globals_lock);
-  IndirectReferenceTable* table = &vm->weak_globals;
-  typedef IndirectReferenceTable::iterator It;  // TODO: C++0x auto
-  for (It it = table->begin(), end = table->end(); it != end; ++it) {
-    const Object** entry = *it;
+  for (const Object** entry : vm->weak_globals) {
     VerifyIsLive(*entry);
   }
 }
@@ -988,11 +963,7 @@ void MarkSweep::Sweep(bool swap_bitmaps) {
   SweepCallbackContext scc;
   scc.mark_sweep = this;
   scc.self = Thread::Current();
-  const std::vector<space::ContinuousSpace*>& spaces = GetHeap()->GetContinuousSpaces();
-  // TODO: C++0x
-  typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-  for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
-    space::ContinuousSpace* space = *it;
+  for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     // We always sweep always collect spaces.
     bool sweep_space = (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyAlwaysCollect);
     if (!partial && !sweep_space) {
@@ -1040,11 +1011,9 @@ void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
   size_t freed_objects = 0;
   size_t freed_bytes = 0;
   Thread* self = Thread::Current();
-  // TODO: C++0x
-  typedef accounting::SpaceSetMap::Objects::iterator It;
-  for (It it = live_objects.begin(), end = live_objects.end(); it != end; ++it) {
-    if (!large_mark_objects->Test(*it)) {
-      freed_bytes += large_object_space->Free(self, const_cast<Object*>(*it));
+  for (const Object* obj : live_objects) {
+    if (!large_mark_objects->Test(obj)) {
+      freed_bytes += large_object_space->Free(self, const_cast<Object*>(obj));
       ++freed_objects;
     }
   }
@@ -1054,11 +1023,7 @@ void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
 }
 
 void MarkSweep::CheckReference(const Object* obj, const Object* ref, MemberOffset offset, bool is_static) {
-  const std::vector<space::ContinuousSpace*>& spaces = GetHeap()->GetContinuousSpaces();
-  // TODO: C++0x
-  typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-  for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
-    space::ContinuousSpace* space = *it;
+  for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     if (space->IsDlMallocSpace() && space->Contains(ref)) {
       DCHECK(IsMarked(obj));
 
@@ -1508,11 +1473,7 @@ void MarkSweep::ProcessReferences(Object** soft_references, bool clear_soft,
 
 void MarkSweep::UnBindBitmaps() {
   base::TimingLogger::ScopedSplit split("UnBindBitmaps", &timings_);
-  const std::vector<space::ContinuousSpace*>& spaces = GetHeap()->GetContinuousSpaces();
-  // TODO: C++0x
-  typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-  for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
-    space::ContinuousSpace* space = *it;
+  for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     if (space->IsDlMallocSpace()) {
       space::DlMallocSpace* alloc_space = space->AsDlMallocSpace();
       if (alloc_space->temp_bitmap_.get() != NULL) {
@@ -1585,11 +1546,7 @@ void MarkSweep::FinishPhase() {
   cumulative_timings_.End();
 
   // Clear all of the spaces' mark bitmaps.
-  const std::vector<space::ContinuousSpace*>& spaces = GetHeap()->GetContinuousSpaces();
-  // TODO: C++0x
-  typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-  for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
-    space::ContinuousSpace* space = *it;
+  for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     if (space->GetGcRetentionPolicy() != space::kGcRetentionPolicyNeverCollect) {
       space->GetMarkBitmap()->Clear();
     }

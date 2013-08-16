@@ -183,11 +183,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     heap_capacity += continuous_spaces_.back()->AsDlMallocSpace()->NonGrowthLimitCapacity();
   }
 
-  // Mark image objects in the live bitmap
-  // TODO: C++0x
-  typedef std::vector<space::ContinuousSpace*>::iterator It;
-  for (It it = continuous_spaces_.begin(); it != continuous_spaces_.end(); ++it) {
-    space::ContinuousSpace* space = *it;
+  // Mark image objects in the live bitmap.
+  for (const auto& space : continuous_spaces_) {
     if (space->IsImageSpace()) {
       space::ImageSpace* image_space = space->AsImageSpace();
       image_space->RecordImageAllocations(image_space->GetLiveBitmap());
@@ -393,9 +390,7 @@ void Heap::AddContinuousSpace(space::ContinuousSpace* space) {
   // Ensure that ImageSpaces < ZygoteSpaces < AllocSpaces so that we can do address based checks to
   // avoid redundant marking.
   bool seen_zygote = false, seen_alloc = false;
-  typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-  for (It it = continuous_spaces_.begin(); it != continuous_spaces_.end(); ++it) {
-    space::ContinuousSpace* space = *it;
+  for (const auto& space : continuous_spaces_) {
     if (space->IsImageSpace()) {
       DCHECK(!seen_zygote);
       DCHECK(!seen_alloc);
@@ -436,17 +431,13 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
   uint64_t total_duration = 0;
 
   // Dump cumulative loggers for each GC type.
-  // TODO: C++0x
   uint64_t total_paused_time = 0;
-  typedef std::vector<collector::MarkSweep*>::const_iterator It;
-  for (It it = mark_sweep_collectors_.begin();
-       it != mark_sweep_collectors_.end(); ++it) {
-    collector::MarkSweep* collector = *it;
+  for (const auto& collector : mark_sweep_collectors_) {
     CumulativeLogger& logger = collector->GetCumulativeTimings();
     if (logger.GetTotalNs() != 0) {
       os << Dumpable<CumulativeLogger>(logger);
       const uint64_t total_ns = logger.GetTotalNs();
-      const uint64_t total_pause_ns = (*it)->GetTotalPausedTimeNs();
+      const uint64_t total_pause_ns = collector->GetTotalPausedTimeNs();
       double seconds = NsToMs(logger.GetTotalNs()) / 1000.0;
       const uint64_t freed_bytes = collector->GetTotalFreedBytes();
       const uint64_t freed_objects = collector->GetTotalFreedObjects();
@@ -507,11 +498,9 @@ Heap::~Heap() {
 
 space::ContinuousSpace* Heap::FindContinuousSpaceFromObject(const mirror::Object* obj,
                                                             bool fail_ok) const {
-  // TODO: C++0x auto
-  typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-  for (It it = continuous_spaces_.begin(), end = continuous_spaces_.end(); it != end; ++it) {
-    if ((*it)->Contains(obj)) {
-      return *it;
+  for (const auto& space : continuous_spaces_) {
+    if (space->Contains(obj)) {
+      return space;
     }
   }
   if (!fail_ok) {
@@ -522,11 +511,9 @@ space::ContinuousSpace* Heap::FindContinuousSpaceFromObject(const mirror::Object
 
 space::DiscontinuousSpace* Heap::FindDiscontinuousSpaceFromObject(const mirror::Object* obj,
                                                                   bool fail_ok) const {
-  // TODO: C++0x auto
-  typedef std::vector<space::DiscontinuousSpace*>::const_iterator It;
-  for (It it = discontinuous_spaces_.begin(), end = discontinuous_spaces_.end(); it != end; ++it) {
-    if ((*it)->Contains(obj)) {
-      return *it;
+  for (const auto& space : discontinuous_spaces_) {
+    if (space->Contains(obj)) {
+      return space;
     }
   }
   if (!fail_ok) {
@@ -544,11 +531,9 @@ space::Space* Heap::FindSpaceFromObject(const mirror::Object* obj, bool fail_ok)
 }
 
 space::ImageSpace* Heap::GetImageSpace() const {
-  // TODO: C++0x auto
-  typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-  for (It it = continuous_spaces_.begin(), end = continuous_spaces_.end(); it != end; ++it) {
-    if ((*it)->IsImageSpace()) {
-      return (*it)->AsImageSpace();
+  for (const auto& space : continuous_spaces_) {
+    if (space->IsImageSpace()) {
+      return space->AsImageSpace();
     }
   }
   return NULL;
@@ -627,10 +612,7 @@ mirror::Object* Heap::AllocObject(Thread* self, mirror::Class* c, size_t byte_co
     // If the allocation failed due to fragmentation, print out the largest continuous allocation.
     if (!large_object_allocation && total_bytes_free >= byte_count) {
       size_t max_contiguous_allocation = 0;
-      // TODO: C++0x auto
-      typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-      for (It it = continuous_spaces_.begin(), end = continuous_spaces_.end(); it != end; ++it) {
-        space::ContinuousSpace* space = *it;
+      for (const auto& space : continuous_spaces_) {
         if (space->IsDlMallocSpace()) {
           space->AsDlMallocSpace()->Walk(MSpaceChunkCallback, &max_contiguous_allocation);
         }
@@ -706,19 +688,14 @@ void Heap::VerifyObjectImpl(const mirror::Object* obj) {
 }
 
 void Heap::DumpSpaces() {
-  // TODO: C++0x auto
-  typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-  for (It it = continuous_spaces_.begin(), end = continuous_spaces_.end(); it != end; ++it) {
-    space::ContinuousSpace* space = *it;
+  for (const auto& space : continuous_spaces_) {
     accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
     accounting::SpaceBitmap* mark_bitmap = space->GetMarkBitmap();
     LOG(INFO) << space << " " << *space << "\n"
               << live_bitmap << " " << *live_bitmap << "\n"
               << mark_bitmap << " " << *mark_bitmap;
   }
-  typedef std::vector<space::DiscontinuousSpace*>::const_iterator It2;
-  for (It2 it = discontinuous_spaces_.begin(), end = discontinuous_spaces_.end(); it != end; ++it) {
-    space::DiscontinuousSpace* space = *it;
+  for (const auto& space : discontinuous_spaces_) {
     LOG(INFO) << space << " " << *space << "\n";
   }
 }
@@ -1143,11 +1120,8 @@ void Heap::PreZygoteFork() {
   have_zygote_space_ = true;
 
   // Reset the cumulative loggers since we now have a few additional timing phases.
-  // TODO: C++0x
-  typedef std::vector<collector::MarkSweep*>::const_iterator It;
-  for (It it = mark_sweep_collectors_.begin(), end = mark_sweep_collectors_.end();
-      it != end; ++it) {
-    (*it)->ResetCumulativeStatistics();
+  for (const auto& collector : mark_sweep_collectors_) {
+    collector->ResetCumulativeStatistics();
   }
 }
 
@@ -1238,10 +1212,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   ATRACE_BEGIN(gc_cause_and_type_strings[gc_cause][gc_type]);
 
   collector::MarkSweep* collector = NULL;
-  typedef std::vector<collector::MarkSweep*>::iterator It;
-  for (It it = mark_sweep_collectors_.begin(), end = mark_sweep_collectors_.end();
-      it != end; ++it) {
-    collector::MarkSweep* cur_collector = *it;
+  for (const auto& cur_collector : mark_sweep_collectors_) {
     if (cur_collector->IsConcurrent() == concurrent_gc_ && cur_collector->GetGcType() == gc_type) {
       collector = cur_collector;
       break;
@@ -1596,9 +1567,7 @@ void Heap::SwapStacks() {
 
 void Heap::ProcessCards(base::TimingLogger& timings) {
   // Clear cards and keep track of cards cleared in the mod-union table.
-  typedef std::vector<space::ContinuousSpace*>::iterator It;
-  for (It it = continuous_spaces_.begin(), end = continuous_spaces_.end(); it != end; ++it) {
-    space::ContinuousSpace* space = *it;
+  for (const auto& space : continuous_spaces_) {
     if (space->IsImageSpace()) {
       base::TimingLogger::ScopedSplit split("ImageModUnionClearCards", &timings);
       image_mod_union_table_->ClearCards(space);
@@ -2085,9 +2054,7 @@ void Heap::RegisterNativeFree(int bytes) {
 
 int64_t Heap::GetTotalMemory() const {
   int64_t ret = 0;
-  typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-  for (It it = continuous_spaces_.begin(), end = continuous_spaces_.end(); it != end; ++it) {
-    space::ContinuousSpace* space = *it;
+  for (const auto& space : continuous_spaces_) {
     if (space->IsImageSpace()) {
       // Currently don't include the image space.
     } else if (space->IsDlMallocSpace()) {
@@ -2095,9 +2062,7 @@ int64_t Heap::GetTotalMemory() const {
       ret += space->AsDlMallocSpace()->GetFootprint();
     }
   }
-  typedef std::vector<space::DiscontinuousSpace*>::const_iterator It2;
-  for (It2 it = discontinuous_spaces_.begin(), end = discontinuous_spaces_.end(); it != end; ++it) {
-    space::DiscontinuousSpace* space = *it;
+  for (const auto& space : discontinuous_spaces_) {
     if (space->IsLargeObjectSpace()) {
       ret += space->AsLargeObjectSpace()->GetBytesAllocated();
     }

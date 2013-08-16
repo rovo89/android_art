@@ -74,10 +74,7 @@ bool ImageWriter::Write(const std::string& image_filename,
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const std::vector<DexCache*>& all_dex_caches = class_linker->GetDexCaches();
-  for (size_t i = 0; i < all_dex_caches.size(); i++) {
-    DexCache* dex_cache = all_dex_caches[i];
-    dex_caches_.insert(dex_cache);
-  }
+  dex_caches_.insert(all_dex_caches.begin(), all_dex_caches.end());
 
   UniquePtr<File> oat_file(OS::OpenFileReadWrite(oat_filename.c_str()));
   if (oat_file.get() == NULL) {
@@ -117,11 +114,7 @@ bool ImageWriter::Write(const std::string& image_filename,
   gc::Heap* heap = Runtime::Current()->GetHeap();
   heap->CollectGarbage(false);  // Remove garbage.
   // Trim size of alloc spaces.
-  const std::vector<gc::space::ContinuousSpace*>& spaces = heap->GetContinuousSpaces();
-  // TODO: C++0x auto
-  typedef std::vector<gc::space::ContinuousSpace*>::const_iterator It;
-  for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
-    gc::space::ContinuousSpace* space = *it;
+  for (const auto& space : heap->GetContinuousSpaces()) {
     if (space->IsDlMallocSpace()) {
       space->AsDlMallocSpace()->Trim();
     }
@@ -163,13 +156,8 @@ bool ImageWriter::Write(const std::string& image_filename,
 }
 
 bool ImageWriter::AllocMemory() {
-  gc::Heap* heap = Runtime::Current()->GetHeap();
-  const std::vector<gc::space::ContinuousSpace*>& spaces = heap->GetContinuousSpaces();
   size_t size = 0;
-  // TODO: C++0x auto
-  typedef std::vector<gc::space::ContinuousSpace*>::const_iterator It;
-  for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
-    gc::space::ContinuousSpace* space = *it;
+  for (const auto& space : Runtime::Current()->GetHeap()->GetContinuousSpaces()) {
     if (space->IsDlMallocSpace()) {
       size += space->Size();
     }
@@ -203,9 +191,7 @@ void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg) {
   String* string = obj->AsString();
   const uint16_t* utf16_string = string->GetCharArray()->GetData() + string->GetOffset();
   ImageWriter* writer = reinterpret_cast<ImageWriter*>(arg);
-  typedef Set::const_iterator CacheIt;  // TODO: C++0x auto
-  for (CacheIt it = writer->dex_caches_.begin(), end = writer->dex_caches_.end(); it != end; ++it) {
-    DexCache* dex_cache = *it;
+  for (DexCache* dex_cache : writer->dex_caches_) {
     const DexFile& dex_file = *dex_cache->GetDexFile();
     const DexFile::StringId* string_id = dex_file.FindStringId(utf16_string);
     if (string_id != NULL) {
@@ -251,16 +237,13 @@ void ImageWriter::PruneNonImageClasses() {
   class_linker->VisitClasses(NonImageClassesVisitor, &context);
 
   // Remove the undesired classes from the class roots.
-  typedef std::set<std::string>::const_iterator ClassIt;  // TODO: C++0x auto
-  for (ClassIt it = non_image_classes.begin(), end = non_image_classes.end(); it != end; ++it) {
-    class_linker->RemoveClass((*it).c_str(), NULL);
+  for (const std::string& it : non_image_classes) {
+    class_linker->RemoveClass(it.c_str(), NULL);
   }
 
   // Clear references to removed classes from the DexCaches.
   ArtMethod* resolution_method = runtime->GetResolutionMethod();
-  typedef Set::const_iterator CacheIt;  // TODO: C++0x auto
-  for (CacheIt it = dex_caches_.begin(), end = dex_caches_.end(); it != end; ++it) {
-    DexCache* dex_cache = *it;
+  for (DexCache* dex_cache : dex_caches_) {
     for (size_t i = 0; i < dex_cache->NumResolvedTypes(); i++) {
       Class* klass = dex_cache->GetResolvedType(i);
       if (klass != NULL && !IsImageClass(klass)) {
@@ -324,9 +307,8 @@ void ImageWriter::CheckNonImageClassesRemovedCallback(Object* obj, void* arg) {
 void ImageWriter::DumpImageClasses() {
   CompilerDriver::DescriptorSet* image_classes = compiler_driver_.GetImageClasses();
   CHECK(image_classes != NULL);
-  typedef std::set<std::string>::const_iterator It;  // TODO: C++0x auto
-  for (It it = image_classes->begin(), end = image_classes->end(); it != end; ++it) {
-    LOG(INFO) << " " << *it;
+  for (const std::string& image_class : *image_classes) {
+    LOG(INFO) << " " << image_class;
   }
 }
 
@@ -368,9 +350,8 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
   ObjectArray<Object>* dex_caches = ObjectArray<Object>::Alloc(self, object_array_class,
                                                                dex_caches_.size());
   int i = 0;
-  typedef Set::const_iterator It;  // TODO: C++0x auto
-  for (It it = dex_caches_.begin(), end = dex_caches_.end(); it != end; ++it, ++i) {
-    dex_caches->Set(i, *it);
+  for (DexCache* dex_cache : dex_caches_) {
+    dex_caches->Set(i++, dex_cache);
   }
 
   // build an Object[] of the roots needed to restore the runtime
@@ -403,7 +384,7 @@ void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_d
   SirtRef<ObjectArray<Object> > image_roots(self, CreateImageRoots());
 
   gc::Heap* heap = Runtime::Current()->GetHeap();
-  const std::vector<gc::space::ContinuousSpace*>& spaces = heap->GetContinuousSpaces();
+  const auto& spaces = heap->GetContinuousSpaces();
   DCHECK(!spaces.empty());
   DCHECK_EQ(0U, image_end_);
 
@@ -418,10 +399,7 @@ void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_d
     // TODO: Add InOrderWalk to heap bitmap.
     const char* old = self->StartAssertNoThreadSuspension("ImageWriter");
     DCHECK(heap->GetLargeObjectsSpace()->GetLiveObjects()->IsEmpty());
-    // TODO: C++0x auto
-    typedef std::vector<gc::space::ContinuousSpace*>::const_iterator It;
-    for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
-      gc::space::ContinuousSpace* space = *it;
+    for (const auto& space : spaces) {
       space->GetLiveBitmap()->InOrderWalk(CalculateNewObjectOffsetsCallback, this);
       DCHECK_LT(image_end_, image_->Size());
     }

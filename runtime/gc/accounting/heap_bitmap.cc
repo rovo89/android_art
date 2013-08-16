@@ -23,12 +23,9 @@ namespace gc {
 namespace accounting {
 
 void HeapBitmap::ReplaceBitmap(SpaceBitmap* old_bitmap, SpaceBitmap* new_bitmap) {
-  // TODO: C++0x auto
-  typedef SpaceBitmapVector::iterator It;
-  for (It it = continuous_space_bitmaps_.begin(), end = continuous_space_bitmaps_.end();
-      it != end; ++it) {
-    if (*it == old_bitmap) {
-      *it = new_bitmap;
+  for (auto& bitmap : continuous_space_bitmaps_) {
+    if (bitmap == old_bitmap) {
+      bitmap = new_bitmap;
       return;
     }
   }
@@ -36,12 +33,9 @@ void HeapBitmap::ReplaceBitmap(SpaceBitmap* old_bitmap, SpaceBitmap* new_bitmap)
 }
 
 void HeapBitmap::ReplaceObjectSet(SpaceSetMap* old_set, SpaceSetMap* new_set) {
-  // TODO: C++0x auto
-  typedef SpaceSetMapVector::iterator It;
-  for (It it = discontinuous_space_sets_.begin(), end = discontinuous_space_sets_.end();
-      it != end; ++it) {
-    if (*it == old_set) {
-      *it = new_set;
+  for (auto& space_set : discontinuous_space_sets_) {
+    if (space_set == old_set) {
+      space_set = new_set;
       return;
     }
   }
@@ -52,13 +46,10 @@ void HeapBitmap::AddContinuousSpaceBitmap(accounting::SpaceBitmap* bitmap) {
   DCHECK(bitmap != NULL);
 
   // Check for interval overlap.
-  typedef SpaceBitmapVector::iterator It;
-  for (It it = continuous_space_bitmaps_.begin(), end = continuous_space_bitmaps_.end();
-      it != end; ++it) {
-    SpaceBitmap* bitmap = *it;
-    SpaceBitmap* cur_bitmap = *it;
-    CHECK(bitmap->HeapBegin() < cur_bitmap->HeapLimit() &&
-          bitmap->HeapLimit() > cur_bitmap->HeapBegin())
+  for (const auto& cur_bitmap : continuous_space_bitmaps_) {
+    CHECK(!(
+        bitmap->HeapBegin() < cur_bitmap->HeapLimit() &&
+        bitmap->HeapLimit() > cur_bitmap->HeapBegin()))
         << "Bitmap " << bitmap->Dump() << " overlaps with existing bitmap " << cur_bitmap->Dump();
   }
   continuous_space_bitmaps_.push_back(bitmap);
@@ -70,20 +61,13 @@ void HeapBitmap::AddDiscontinuousObjectSet(SpaceSetMap* set) {
 }
 
 void HeapBitmap::Walk(SpaceBitmap::Callback* callback, void* arg) {
-  // TODO: C++0x auto
-  typedef SpaceBitmapVector::iterator It;
-  for (It it = continuous_space_bitmaps_.begin(), end = continuous_space_bitmaps_.end();
-      it != end; ++it) {
-    SpaceBitmap* bitmap = *it;
+  for (const auto& bitmap : continuous_space_bitmaps_) {
     bitmap->Walk(callback, arg);
   }
-  // TODO: C++0x auto
-  typedef SpaceSetMapVector::iterator It2;
-  DCHECK(discontinuous_space_sets_.begin() !=  discontinuous_space_sets_.end());
-  for (It2 it = discontinuous_space_sets_.begin(), end = discontinuous_space_sets_.end();
-      it != end; ++it) {
-    SpaceSetMap* set = *it;
-    set->Walk(callback, arg);
+
+  DCHECK(!discontinuous_space_sets_.empty());
+  for (const auto& space_set : discontinuous_space_sets_) {
+    space_set->Walk(callback, arg);
   }
 }
 

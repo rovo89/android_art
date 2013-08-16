@@ -137,6 +137,7 @@ class SlowPath {
   // Next in linked list of slow paths
   SlowPath *next_;
 
+ private:
   friend class AssemblerBuffer;
   DISALLOW_COPY_AND_ASSIGN(SlowPath);
 };

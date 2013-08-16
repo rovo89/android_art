@@ -736,13 +736,10 @@ class ImageDumper {
 
     oat_dumper_.reset(new OatDumper(host_prefix_, *oat_file));
 
-    std::vector<const OatFile::OatDexFile*> oat_dex_files = oat_file->GetOatDexFiles();
-    for (size_t i = 0; i < oat_dex_files.size(); i++) {
-      const OatFile::OatDexFile* oat_dex_file = oat_dex_files[i];
+    for (const OatFile::OatDexFile* oat_dex_file : oat_file->GetOatDexFiles()) {
       CHECK(oat_dex_file != NULL);
-      std::pair<std::string, size_t> entry(oat_dex_file->GetDexFileLocation(),
-                                           oat_dex_file->FileSize());
-      stats_.oat_dex_file_sizes.push_back(entry);
+      stats_.oat_dex_file_sizes.push_back(std::make_pair(oat_dex_file->GetDexFileLocation(),
+                                                         oat_dex_file->FileSize()));
     }
 
     os << "OBJECTS:\n" << std::flush;
@@ -761,10 +758,7 @@ class ImageDumper {
       std::ostream indent_os(&indent_filter);
       os_ = &indent_os;
       ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-      // TODO: C++0x auto
-      typedef std::vector<gc::space::ContinuousSpace*>::const_iterator It;
-      for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
-        gc::space::Space* space = *it;
+      for (const auto& space : spaces) {
         if (space->IsImageSpace()) {
           gc::space::ImageSpace* image_space = space->AsImageSpace();
           image_space->GetLiveBitmap()->Walk(ImageDumper::Callback, this);
@@ -1263,16 +1257,16 @@ class ImageDumper {
 
       os << "object_bytes breakdown:\n";
       size_t object_bytes_total = 0;
-      typedef SizeAndCountTable::const_iterator It;  // TODO: C++0x auto
-      for (It it = sizes_and_counts.begin(), end = sizes_and_counts.end(); it != end; ++it) {
-        const std::string& descriptor(it->first);
-        double average = static_cast<double>(it->second.bytes) / static_cast<double>(it->second.count);
-        double percent = PercentOfObjectBytes(it->second.bytes);
+      for (const auto& sizes_and_count : sizes_and_counts) {
+        const std::string& descriptor(sizes_and_count.first);
+        double average = static_cast<double>(sizes_and_count.second.bytes) /
+            static_cast<double>(sizes_and_count.second.count);
+        double percent = PercentOfObjectBytes(sizes_and_count.second.bytes);
         os << StringPrintf("%32s %8zd bytes %6zd instances "
                            "(%4.0f bytes/instance) %2.0f%% of object_bytes\n",
-                           descriptor.c_str(), it->second.bytes, it->second.count,
-                           average, percent);
-        object_bytes_total += it->second.bytes;
+                           descriptor.c_str(), sizes_and_count.second.bytes,
+                           sizes_and_count.second.count, average, percent);
+        object_bytes_total += sizes_and_count.second.bytes;
       }
       os << "\n" << std::flush;
       CHECK_EQ(object_bytes, object_bytes_total);
@@ -1292,11 +1286,10 @@ class ImageDumper {
                          large_initializer_code_bytes, PercentOfOatBytes(large_initializer_code_bytes),
                          large_method_code_bytes, PercentOfOatBytes(large_method_code_bytes))
             << "DexFile sizes:\n";
-      typedef std::vector<std::pair<std::string, size_t> >::const_iterator It2;
-      for (It2 it = oat_dex_file_sizes.begin(); it != oat_dex_file_sizes.end();
-          ++it) {
+      for (const std::pair<std::string, size_t>& oat_dex_file_size : oat_dex_file_sizes) {
         os << StringPrintf("%s = %zd (%2.0f%% of oat file bytes)\n",
-                           it->first.c_str(), it->second, PercentOfOatBytes(it->second));
+                           oat_dex_file_size.first.c_str(), oat_dex_file_size.second,
+                           PercentOfOatBytes(oat_dex_file_size.second));
       }
 
       os << "\n" << StringPrintf("gc_map_bytes           = %7zd (%2.0f%% of oat file bytes)\n"

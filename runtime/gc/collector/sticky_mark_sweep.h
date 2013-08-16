@@ -45,6 +45,7 @@ class StickyMarkSweep : public PartialMarkSweep {
 
   void Sweep(bool swap_bitmaps) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
+ private:
   DISALLOW_COPY_AND_ASSIGN(StickyMarkSweep);
 };
 

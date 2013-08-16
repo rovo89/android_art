@@ -38,4 +38,4 @@ TEST_F(TypeDataTest, Basics) {
   EXPECT_TRUE(byte_type == td.FindTypeOf(second_instruction_id));
 }
 
-}  // namespace art
+}  // namespace sea_ir

@@ -248,8 +248,6 @@ bool inline operator!=(const IrtIterator& lhs, const IrtIterator& rhs) {
 
 class IndirectReferenceTable {
  public:
-  typedef IrtIterator iterator;
-
   IndirectReferenceTable(size_t initialCount, size_t maxCount, IndirectRefKind kind);
 
   ~IndirectReferenceTable();
@@ -301,12 +299,12 @@ class IndirectReferenceTable {
     return segment_state_.parts.topIndex;
   }
 
-  iterator begin() {
-    return iterator(table_, 0, Capacity());
+  IrtIterator begin() {
+    return IrtIterator(table_, 0, Capacity());
   }
 
-  iterator end() {
-    return iterator(table_, Capacity(), Capacity());
+  IrtIterator end() {
+    return IrtIterator(table_, Capacity(), Capacity());
   }
 
   void VisitRoots(RootVisitor* visitor, void* arg);

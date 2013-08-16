@@ -61,7 +61,7 @@ class TypeInferenceVisitor: public IRVisitor {
   std::vector<const Type*> GetOperandTypes(InstructionNode* instruction) const;
   const Type* GetType() {
     // TODO: Currently multiple defined types are not supported.
-    if (crt_type_.size()>0) {
+    if (!crt_type_.empty()) {
       const Type* single_type = crt_type_.at(0);
       crt_type_.clear();
       return single_type;

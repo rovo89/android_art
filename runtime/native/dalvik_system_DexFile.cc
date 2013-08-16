@@ -253,14 +253,10 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
     return JNI_TRUE;
   }
 
-  gc::Heap* heap = runtime->GetHeap();
-  const std::vector<gc::space::ContinuousSpace*>& spaces = heap->GetContinuousSpaces();
-  // TODO: C++0x auto
-  typedef std::vector<gc::space::ContinuousSpace*>::const_iterator It;
-  for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
-    if ((*it)->IsImageSpace()) {
+  for (const auto& space : runtime->GetHeap()->GetContinuousSpaces()) {
+    if (space->IsImageSpace()) {
       // TODO: Ensure this works with multiple image spaces.
-      const ImageHeader& image_header = (*it)->AsImageSpace()->GetImageHeader();
+      const ImageHeader& image_header = space->AsImageSpace()->GetImageHeader();
       if (oat_file->GetOatHeader().GetImageFileLocationOatChecksum() != image_header.GetOatChecksum()) {
         ScopedObjectAccess soa(env);
         LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location

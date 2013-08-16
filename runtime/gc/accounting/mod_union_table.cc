@@ -36,54 +36,6 @@ namespace art {
 namespace gc {
 namespace accounting {
 
-class MarkIfReachesAllocspaceVisitor {
- public:
-  explicit MarkIfReachesAllocspaceVisitor(Heap* const heap, accounting::SpaceBitmap* bitmap)
-    : heap_(heap),
-      bitmap_(bitmap) {
-  }
-
-  // Extra parameters are required since we use this same visitor signature for checking objects.
-  void operator()(const Object* obj, const Object* ref, const MemberOffset& /* offset */,
-                  bool /* is_static */) const {
-    // TODO: Optimize?
-    // TODO: C++0x auto
-    const std::vector<space::ContinuousSpace*>& spaces = heap_->GetContinuousSpaces();
-    typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-    for (It cur = spaces.begin(); cur != spaces.end(); ++cur) {
-      if ((*cur)->IsDlMallocSpace() && (*cur)->Contains(ref)) {
-        bitmap_->Set(obj);
-        break;
-      }
-    }
-  }
-
- private:
-  Heap* const heap_;
-  accounting::SpaceBitmap* const bitmap_;
-};
-
-class ModUnionVisitor {
- public:
-  explicit ModUnionVisitor(Heap* const heap, accounting::SpaceBitmap* bitmap)
-    : heap_(heap),
-      bitmap_(bitmap) {
-  }
-
-  void operator()(const Object* obj) const
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
-                            Locks::mutator_lock_) {
-    DCHECK(obj != NULL);
-    // We don't have an early exit since we use the visitor pattern, an early exit should
-    // significantly speed this up.
-    MarkIfReachesAllocspaceVisitor visitor(heap_, bitmap_);
-    collector::MarkSweep::VisitObjectReferences(obj, visitor);
-  }
- private:
-  Heap* const heap_;
-  accounting::SpaceBitmap* const bitmap_;
-};
-
 class ModUnionClearCardSetVisitor {
  public:
   explicit ModUnionClearCardSetVisitor(ModUnionTable::CardSet* const cleared_cards)
@@ -237,29 +189,23 @@ class ModUnionCheckReferences {
 void ModUnionTableReferenceCache::Verify() {
   // Start by checking that everything in the mod union table is marked.
   Heap* heap = GetHeap();
-  typedef SafeMap<const byte*, std::vector<const Object*> >::const_iterator It;
-  typedef std::vector<const Object*>::const_iterator It2;
-  for (It it = references_.begin(), end = references_.end(); it != end; ++it) {
-    for (It2 it_ref = it->second.begin(), end_ref = it->second.end(); it_ref != end_ref;
-        ++it_ref ) {
-      CHECK(heap->IsLiveObjectLocked(*it_ref));
+  for (const std::pair<const byte*, std::vector<const Object*> >& it : references_) {
+    for (const Object* ref : it.second) {
+      CHECK(heap->IsLiveObjectLocked(ref));
     }
   }
 
   // Check the references of each clean card which is also in the mod union table.
   CardTable* card_table = heap->GetCardTable();
-  for (It it = references_.begin(); it != references_.end(); ++it) {
-    const byte* card = &*it->first;
+  for (const std::pair<const byte*, std::vector<const Object*> > & it : references_) {
+    const byte* card = it.first;
     if (*card == CardTable::kCardClean) {
-      std::set<const Object*> reference_set;
-      for (It2 itr = it->second.begin(); itr != it->second.end(); ++itr) {
-        reference_set.insert(*itr);
-      }
+      std::set<const Object*> reference_set(it.second.begin(), it.second.end());
       ModUnionCheckReferences visitor(this, reference_set);
       uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card));
       uintptr_t end = start + CardTable::kCardSize;
-      space::ContinuousSpace* space =
-          heap->FindContinuousSpaceFromObject(reinterpret_cast<Object*>(start), false);
+      auto* space = heap->FindContinuousSpaceFromObject(reinterpret_cast<Object*>(start), false);
+      DCHECK(space != nullptr);
       SpaceBitmap* live_bitmap = space->GetLiveBitmap();
       live_bitmap->VisitMarkedRange(start, end, visitor);
     }
@@ -268,24 +214,20 @@ void ModUnionTableReferenceCache::Verify() {
 
 void ModUnionTableReferenceCache::Dump(std::ostream& os) {
   CardTable* card_table = heap_->GetCardTable();
-  typedef std::set<byte*>::const_iterator It;
   os << "ModUnionTable cleared cards: [";
-  for (It it = cleared_cards_.begin(); it != cleared_cards_.end(); ++it) {
-    byte* card = *it;
-    uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card));
+  for (byte* card_addr : cleared_cards_) {
+    uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card_addr));
     uintptr_t end = start + CardTable::kCardSize;
     os << reinterpret_cast<void*>(start) << "-" << reinterpret_cast<void*>(end) << ",";
   }
   os << "]\nModUnionTable references: [";
-  typedef SafeMap<const byte*, std::vector<const Object*> >::const_iterator It2;
-  for (It2 it = references_.begin(); it != references_.end(); ++it) {
-    const byte* card = &*it->first;
-    uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card));
+  for (const std::pair<const byte*, std::vector<const Object*> >& it : references_) {
+    const byte* card_addr = it.first;
+    uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card_addr));
     uintptr_t end = start + CardTable::kCardSize;
     os << reinterpret_cast<void*>(start) << "-" << reinterpret_cast<void*>(end) << "->{";
-    typedef std::vector<const Object*>::const_iterator It3;
-    for (It3 itr = it->second.begin(); itr != it->second.end(); ++itr) {
-      os << reinterpret_cast<const void*>(*itr) << ",";
+    for (const mirror::Object* ref : it.second) {
+      os << reinterpret_cast<const void*>(ref) << ",";
     }
     os << "},";
   }
@@ -298,20 +240,18 @@ void ModUnionTableReferenceCache::Update() {
   std::vector<const Object*> cards_references;
   ModUnionReferenceVisitor visitor(this, &cards_references);
 
-  typedef std::set<byte*>::iterator It;
-  for (It it = cleared_cards_.begin(), cc_end = cleared_cards_.end(); it != cc_end; ++it) {
-    byte* card = *it;
+  for (const auto& card : cleared_cards_) {
     // Clear and re-compute alloc space references associated with this card.
     cards_references.clear();
     uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card));
     uintptr_t end = start + CardTable::kCardSize;
-    SpaceBitmap* live_bitmap =
-        heap->FindContinuousSpaceFromObject(reinterpret_cast<Object*>(start), false)->GetLiveBitmap();
+    auto* space = heap->FindContinuousSpaceFromObject(reinterpret_cast<Object*>(start), false);
+    DCHECK(space != nullptr);
+    SpaceBitmap* live_bitmap = space->GetLiveBitmap();
     live_bitmap->VisitMarkedRange(start, end, visitor);
 
     // Update the corresponding references for the card.
-    // TODO: C++0x auto
-    SafeMap<const byte*, std::vector<const Object*> >::iterator found = references_.find(card);
+    auto found = references_.find(card);
     if (found == references_.end()) {
       if (cards_references.empty()) {
         // No reason to add empty array.
@@ -326,14 +266,11 @@ void ModUnionTableReferenceCache::Update() {
 }
 
 void ModUnionTableReferenceCache::MarkReferences(collector::MarkSweep* mark_sweep) {
-  // TODO: C++0x auto
   size_t count = 0;
 
-  typedef SafeMap<const byte*, std::vector<const Object*> >::const_iterator It;
-  for (It it = references_.begin(); it != references_.end(); ++it) {
-    typedef std::vector<const Object*>::const_iterator It2;
-    for (It2 it_ref = it->second.begin(); it_ref != it->second.end(); ++it_ref) {
-      mark_sweep->MarkRoot(*it_ref);
+  for (const auto& ref : references_) {
+    for (const auto& obj : ref.second) {
+      mark_sweep->MarkRoot(obj);
       ++count;
     }
   }
@@ -353,38 +290,28 @@ void ModUnionTableCardCache::ClearCards(space::ContinuousSpace* space) {
 void ModUnionTableCardCache::MarkReferences(collector::MarkSweep* mark_sweep) {
   CardTable* card_table = heap_->GetCardTable();
   ModUnionScanImageRootVisitor visitor(mark_sweep);
-  typedef std::set<byte*>::const_iterator It;
-  It it = cleared_cards_.begin();
-  It cc_end = cleared_cards_.end();
-  if (it != cc_end) {
-    byte* card = *it;
-    uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card));
-    uintptr_t end = start + CardTable::kCardSize;
-    space::ContinuousSpace* cur_space =
-        heap_->FindContinuousSpaceFromObject(reinterpret_cast<Object*>(start), false);
-    accounting::SpaceBitmap* cur_live_bitmap = cur_space->GetLiveBitmap();
-    cur_live_bitmap->VisitMarkedRange(start, end, visitor);
-    for (++it; it != cc_end; ++it) {
-      card = *it;
-      start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card));
-      end = start + CardTable::kCardSize;
-      if (UNLIKELY(!cur_space->Contains(reinterpret_cast<Object*>(start)))) {
-        cur_space = heap_->FindContinuousSpaceFromObject(reinterpret_cast<Object*>(start), false);
-        cur_live_bitmap = cur_space->GetLiveBitmap();
-      }
-      cur_live_bitmap->VisitMarkedRange(start, end, visitor);
+  space::ContinuousSpace* space = nullptr;
+  SpaceBitmap* bitmap = nullptr;
+  for (const byte* card_addr : cleared_cards_) {
+    auto start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card_addr));
+    auto end = start + CardTable::kCardSize;
+    auto obj_start = reinterpret_cast<Object*>(start);
+    if (UNLIKELY(space == nullptr || !space->Contains(obj_start))) {
+      space = heap_->FindContinuousSpaceFromObject(obj_start, false);
+      DCHECK(space != nullptr);
+      bitmap = space->GetLiveBitmap();
+      DCHECK(bitmap != nullptr);
     }
+    bitmap->VisitMarkedRange(start, end, visitor);
   }
 }
 
 void ModUnionTableCardCache::Dump(std::ostream& os) {
   CardTable* card_table = heap_->GetCardTable();
-  typedef std::set<byte*>::const_iterator It;
   os << "ModUnionTable dirty cards: [";
-  for (It it = cleared_cards_.begin(); it != cleared_cards_.end(); ++it) {
-    byte* card = *it;
-    uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card));
-    uintptr_t end = start + CardTable::kCardSize;
+  for (const byte* card_addr : cleared_cards_) {
+    auto start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card_addr));
+    auto end = start + CardTable::kCardSize;
     os << reinterpret_cast<void*>(start) << "-" << reinterpret_cast<void*>(end) << ",";
   }
   os << "]";
