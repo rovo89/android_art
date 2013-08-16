@@ -35,7 +35,6 @@
 #include "sea_ir/types/types.h"
 #include "sea_ir/code_gen/code_gen.h"
 
-
 namespace art {
 
 static CompiledMethod* CompileMethodWithSeaIr(CompilerDriver& compiler,
@@ -48,34 +47,22 @@ static CompiledMethod* CompileMethodWithSeaIr(CompilerDriver& compiler,
                                      , llvm::LlvmCompilationUnit* llvm_compilation_unit
 #endif
 ) {
-  // NOTE: Instead of keeping the convention from the Dalvik frontend.cc
-  //       and silencing the cpplint.py warning, I just corrected the formatting.
-  VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
+  LOG(INFO) << "Compiling " << PrettyMethod(method_idx, dex_file) << ".";
   sea_ir::SeaGraph* ir_graph = sea_ir::SeaGraph::GetGraph(dex_file);
-  sea_ir::CodeGenData* llvm_data =
-      ir_graph->CompileMethod(code_item, class_def_idx, method_idx, method_access_flags, dex_file);
+  std::string symbol = "dex_" + MangleForJni(PrettyMethod(method_idx, dex_file));
+  sea_ir::CodeGenData* llvm_data = ir_graph->CompileMethod(symbol,
+          code_item, class_def_idx, method_idx, method_access_flags, dex_file);
   sea_ir::DotConversion dc;
   SafeMap<int, const sea_ir::Type*>*  types = ir_graph->ti_->GetTypeMap();
   dc.DumpSea(ir_graph, "/tmp/temp.dot", types);
-  CHECK(0 && "No SEA compiled function exists yet.");
-
   MethodReference mref(&dex_file, method_idx);
-
-  // TODO: Passing the LLVM code as string is ugly and inefficient,
-  //       but it is the way portable did it. I kept it for compatibility,
-  //       but actually it should not happen.
-  std::string llvm_code;
-  ::llvm::raw_string_ostream str_os(llvm_code);
-  ::llvm::WriteBitcodeToFile(&llvm_data->module_, str_os);
-
-  std::string symbol = "dex_";
-  symbol += MangleForJni(PrettyMethod(method_idx, dex_file));
-
+  std::string llvm_code = llvm_data->GetElf(compiler.GetInstructionSet());
   CompiledMethod* compiled_method =  new CompiledMethod(
                               compiler.GetInstructionSet(),
                               llvm_code,
                               *verifier::MethodVerifier::GetDexGcMap(mref),
                               symbol);
+  LOG(INFO) << "Compiled SEA IR method " << PrettyMethod(method_idx, dex_file) << ".";
   return compiled_method;
 }
 

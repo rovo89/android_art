@@ -101,10 +101,10 @@ class DotConversion {
   // Saves to @filename the .dot representation of @graph with the options @options.
   void DumpSea(SeaGraph* graph, std::string filename,
       art::SafeMap<int, const Type*>* types) const {
-    LOG(INFO) << "Starting to write SEA string to file.";
+    LOG(INFO) << "Starting to write SEA string to file " << filename << std::endl;
     DotGenerationVisitor dgv = DotGenerationVisitor(&options_, types);
     graph->Accept(&dgv);
-    art::File* file = art::OS::OpenFileReadWrite(filename.c_str());
+    art::File* file = art::OS::CreateEmptyFile(filename.c_str());
     art::FileOutputStream fos(file);
     std::string graph_as_string = dgv.GetResult();
     graph_as_string += "}";

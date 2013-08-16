@@ -31,8 +31,7 @@ class InstructionNode;
 // precise verification (which is the job of the verifier).
 class TypeInference {
  public:
-  TypeInference() {
-    type_cache_ = new art::verifier::RegTypeCache(false);
+  TypeInference() : type_cache_(new art::verifier::RegTypeCache(false)) {
   }
 
   // Computes the types for the method with SEA IR representation provided by @graph.
@@ -43,10 +42,8 @@ class TypeInference {
   }
   // Returns true if @descriptor corresponds to a primitive type.
   static bool IsPrimitiveDescriptor(char descriptor);
-
- protected:
-  art::verifier::RegTypeCache* type_cache_;
-  TypeData type_data_;
+  TypeData type_data_;    // TODO: Make private, add accessor and not publish a SafeMap above.
+  art::verifier::RegTypeCache* const type_cache_;    // TODO: Make private.
 };
 
 // Stores information about the exact type of  a function.

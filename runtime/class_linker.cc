@@ -1614,6 +1614,13 @@ static bool NeedsInterpreter(const mirror::ArtMethod* method, const void* code) 
     // No code: need interpreter.
     return true;
   }
+#ifdef ART_SEA_IR_MODE
+  ScopedObjectAccess soa(Thread::Current());
+  if (std::string::npos != PrettyMethod(method).find("fibonacci")) {
+    LOG(INFO) << "Found " << PrettyMethod(method);
+    return false;
+  }
+#endif
   // If interpreter mode is enabled, every method (except native and proxy) must
   // be run with interpreter.
   return Runtime::Current()->GetInstrumentation()->InterpretOnly() &&

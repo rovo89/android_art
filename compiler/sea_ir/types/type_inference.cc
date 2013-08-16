@@ -68,6 +68,9 @@ const Type* FunctionTypeInfo::GetReturnValueType() {
 std::vector<const Type*> FunctionTypeInfo::GetDeclaredArgumentTypes() {
   art::ScopedObjectAccess soa(art::Thread::Current());
   std::vector<const Type*> argument_types;
+  // TODO: The additional (fake) Method parameter is added on the first position,
+  //       but is represented as integer because we don't support  pointers yet.
+  argument_types.push_back(&(type_cache_->Integer()));
   // Include the "this" pointer.
   size_t cur_arg = 0;
   if (!IsStatic()) {
@@ -82,7 +85,7 @@ std::vector<const Type*> FunctionTypeInfo::GetDeclaredArgumentTypes() {
     }
     cur_arg++;
   }
-
+  // Include the types of the parameters in the Java method signature.
   const art::DexFile::ProtoId& proto_id =
       dex_file_->GetMethodPrototype(dex_file_->GetMethodId(dex_method_idx_));
   art::DexFileParameterIterator iterator(*dex_file_, proto_id);
@@ -149,6 +152,13 @@ void TypeInference::ComputeTypes(SeaGraph* graph) SHARED_LOCKS_REQUIRED(Locks::m
     std::copy(instructions->begin(), instructions->end(), std::back_inserter(worklist));
   }
   TypeInferenceVisitor tiv(graph, &type_data_, type_cache_);
+  // Record return type of the function.
+  graph->Accept(&tiv);
+  const Type* new_type = tiv.GetType();
+  type_data_.SetTypeOf(-1, new_type);   // TODO: Record this info in a way that
+                                        //      does not need magic constants.
+                                        //      Make SeaGraph a SeaNode?
+
   // Sparse (SSA) fixed-point algorithm that processes each instruction in the work-list,
   // adding consumers of instructions whose result changed type back into the work-list.
   // Note: According to [1] list iterators should not be invalidated on insertion,
@@ -159,14 +169,11 @@ void TypeInference::ComputeTypes(SeaGraph* graph) SHARED_LOCKS_REQUIRED(Locks::m
   // TODO: Remove elements as I go.
   for (std::list<InstructionNode*>::const_iterator instruction_it = worklist.begin();
         instruction_it != worklist.end(); instruction_it++) {
-    std::cout << "[TI] Instruction: " << (*instruction_it)->Id() << std::endl;
     (*instruction_it)->Accept(&tiv);
     const Type* old_type = type_data_.FindTypeOf((*instruction_it)->Id());
     const Type* new_type = tiv.GetType();
     bool type_changed = (old_type != new_type);
     if (type_changed) {
-      std::cout << " New type:" << new_type->IsIntegralTypes() << std::endl;
-      std::cout << " Descrip:" << new_type->Dump()<< " on " << (*instruction_it)->Id() << std::endl;
       type_data_.SetTypeOf((*instruction_it)->Id(), new_type);
       // Add SSA consumers of the current instruction to the work-list.
       std::vector<InstructionNode*>* consumers = (*instruction_it)->GetSSAConsumers();

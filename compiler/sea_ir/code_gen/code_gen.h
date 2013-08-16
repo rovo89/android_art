@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_SEA_IR_CODE_GEN_CODE_GEN_H_
 #define ART_COMPILER_SEA_IR_CODE_GEN_CODE_GEN_H_
 
+#include "instruction_set.h"
 #include "llvm/Analysis/Verifier.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
@@ -66,6 +67,9 @@ class CodeGenData {
   void AddValue(InstructionNode* instruction, llvm::Value* value) {
       AddValue(instruction->Id(), value);
   }
+  // Generates and returns in @elf the executable code corresponding to the llvm module
+  //
+  std::string GetElf(art::InstructionSet instruction_set);
 
   llvm::LLVMContext* const context_;
   llvm::Module module_;
@@ -97,6 +101,8 @@ class CodeGenPassVisitor: public IRVisitor {
 
 class CodeGenPrepassVisitor: public CodeGenPassVisitor {
  public:
+  explicit CodeGenPrepassVisitor(const std::string& function_name):
+    function_name_(function_name) { }
   void Visit(SeaGraph* graph);
   void Visit(SignatureNode* region);
   void Visit(Region* region);
@@ -113,6 +119,9 @@ class CodeGenPrepassVisitor: public CodeGenPassVisitor {
   void Visit(GotoInstructionNode* instruction) { }
   void Visit(IfEqzInstructionNode* instruction) { }
   void Visit(PhiInstructionNode* region);
+
+ private:
+  std::string function_name_;
 };
 
 class CodeGenPostpassVisitor: public CodeGenPassVisitor {
@@ -137,7 +146,8 @@ class CodeGenPostpassVisitor: public CodeGenPassVisitor {
 
 class CodeGenVisitor: public CodeGenPassVisitor {
  public:
-  explicit CodeGenVisitor(CodeGenData* code_gen_data): CodeGenPassVisitor(code_gen_data) { }
+  explicit CodeGenVisitor(CodeGenData* code_gen_data,
+      const art::DexFile& dex_file): CodeGenPassVisitor(code_gen_data), dex_file_(dex_file) { }
   void Visit(SeaGraph* graph);
   void Visit(SignatureNode* region);
   void Visit(Region* region);
@@ -152,6 +162,10 @@ class CodeGenVisitor: public CodeGenPassVisitor {
   void Visit(GotoInstructionNode* instruction);
   void Visit(IfEqzInstructionNode* instruction);
   void Visit(PhiInstructionNode* region) { }
+
+ private:
+  std::string function_name_;
+  const art::DexFile& dex_file_;
 };
 }  // namespace sea_ir
 #endif  // ART_COMPILER_SEA_IR_CODE_GEN_CODE_GEN_H_
