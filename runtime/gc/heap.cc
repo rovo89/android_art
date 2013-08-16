@@ -1268,7 +1268,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
       }
   }
 
-  if (was_slow) {
+  if (was_slow && care_about_pause_times_) {
       const size_t percent_free = GetPercentFree();
       const size_t current_heap_size = GetBytesAllocated();
       const size_t total_memory = GetTotalMemory();
