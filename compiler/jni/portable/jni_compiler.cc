@@ -60,7 +60,6 @@ JniCompiler::JniCompiler(LlvmCompilationUnit* cunit,
   CHECK(dex_compilation_unit->IsNative());
 }
 
-
 CompiledMethod* JniCompiler::Compile() {
   const bool is_static = dex_compilation_unit_->IsStatic();
   const bool is_synchronized = dex_compilation_unit_->IsSynchronized();
@@ -230,10 +229,21 @@ CompiledMethod* JniCompiler::Compile() {
   irb_.Runtime().EmitPopShadowFrame(old_shadow_frame);
 
   // Return!
-  if (return_shorty != 'V') {
-    irb_.CreateRet(retval);
-  } else {
-    irb_.CreateRetVoid();
+  switch (return_shorty) {
+    case 'V':
+      irb_.CreateRetVoid();
+      break;
+    case 'Z':
+    case 'C':
+      irb_.CreateRet(irb_.CreateZExt(retval, irb_.getInt32Ty()));
+      break;
+    case 'B':
+    case 'S':
+      irb_.CreateRet(irb_.CreateSExt(retval, irb_.getInt32Ty()));
+      break;
+    default:
+      irb_.CreateRet(retval);
+      break;
   }
 
   // Verify the generated bitcode
@@ -276,8 +286,20 @@ void JniCompiler::CreateFunction(const std::string& func_name) {
   CHECK_GE(shorty_size, 1u);
 
   // Get return type
-  ::llvm::Type* ret_type = irb_.getJType(shorty[0]);
-
+  ::llvm::Type* ret_type = NULL;
+  switch (shorty[0]) {
+    case 'V': ret_type =  irb_.getJVoidTy(); break;
+    case 'Z':
+    case 'B':
+    case 'C':
+    case 'S':
+    case 'I': ret_type =  irb_.getJIntTy(); break;
+    case 'F': ret_type =  irb_.getJFloatTy(); break;
+    case 'J': ret_type =  irb_.getJLongTy(); break;
+    case 'D': ret_type =  irb_.getJDoubleTy(); break;
+    case 'L': ret_type =  irb_.getJObjectTy(); break;
+    default: LOG(FATAL)  << "Unreachable: unexpected return type in shorty " << shorty;
+  }
   // Get argument type
   std::vector< ::llvm::Type*> args_type;
 
