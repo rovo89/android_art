@@ -314,7 +314,7 @@ extern "C" art::CompiledMethod* ArtCompileDEX(art::CompilerDriver& compiler,
                                               uint32_t method_idx,
                                               jobject class_loader,
                                               const art::DexFile& dex_file);
-
+#ifdef ART_SEA_IR_MODE
 extern "C" art::CompiledMethod* SeaIrCompileMethod(art::CompilerDriver& compiler,
                                                    const art::DexFile::CodeItem* code_item,
                                                    uint32_t access_flags,
@@ -323,7 +323,7 @@ extern "C" art::CompiledMethod* SeaIrCompileMethod(art::CompilerDriver& compiler
                                                    uint32_t method_idx,
                                                    jobject class_loader,
                                                    const art::DexFile& dex_file);
-
+#endif
 extern "C" art::CompiledMethod* ArtLLVMJniCompileMethod(art::CompilerDriver& driver,
                                                         uint32_t access_flags, uint32_t method_idx,
                                                         const art::DexFile& dex_file);
@@ -2226,16 +2226,15 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
     CHECK(compiled_method != NULL);
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {
-    bool compile = verifier::MethodVerifier::IsCandidateForCompilation(code_item, access_flags);
-#ifdef ART_SEA_IR_MODE
-    bool use_sea = Runtime::Current()->IsSeaIRMode();
-    use_sea = use_sea && (std::string::npos != PrettyMethod(method_idx, dex_file).find("fibonacci"));
-    if (use_sea) compile = true;
-#endif
+    MethodReference method_ref(&dex_file, method_idx);
+    bool compile = verifier::MethodVerifier::IsCandidateForCompilation(method_ref, access_flags);
 
     if (compile) {
       CompilerFn compiler = compiler_;
 #ifdef ART_SEA_IR_MODE
+      bool use_sea = Runtime::Current()->IsSeaIRMode();
+      use_sea = use_sea &&
+          (std::string::npos != PrettyMethod(method_idx, dex_file).find("fibonacci"));
       if (use_sea) {
         compiler = sea_ir_compiler_;
         LOG(INFO) << "Using SEA IR to compile..." << std::endl;

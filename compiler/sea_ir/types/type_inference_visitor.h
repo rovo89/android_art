@@ -40,7 +40,7 @@ class TypeInferenceVisitor: public IRVisitor {
   }
   // There are no type related actions to be performed on these classes.
   void Initialize(SeaGraph* graph) { }
-  void Visit(SeaGraph* graph) { }
+  void Visit(SeaGraph* graph);
   void Visit(Region* region) { }
 
   void Visit(PhiInstructionNode* instruction);

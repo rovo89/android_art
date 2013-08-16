@@ -174,6 +174,21 @@ void SeaGraph::ComputeReachingDefs() {
   DCHECK(!changed) << "Reaching definitions computation did not reach a fixed point.";
 }
 
+void SeaGraph::InsertSignatureNodes(const art::DexFile::CodeItem* code_item, Region* r) {
+  // Insert a fake SignatureNode for the first parameter.
+  // TODO: Provide a register enum value for the fake parameter.
+  SignatureNode* parameter_def_node = new sea_ir::SignatureNode(0, 0);
+  AddParameterNode(parameter_def_node);
+  r->AddChild(parameter_def_node);
+  // Insert SignatureNodes for each Dalvik register parameter.
+  for (unsigned int crt_offset = 0; crt_offset < code_item->ins_size_; crt_offset++) {
+    int register_no = code_item->registers_size_ - crt_offset - 1;
+    int position = crt_offset + 1;
+    SignatureNode* parameter_def_node = new sea_ir::SignatureNode(register_no, position);
+    AddParameterNode(parameter_def_node);
+    r->AddChild(parameter_def_node);
+  }
+}
 
 void SeaGraph::BuildMethodSeaGraph(const art::DexFile::CodeItem* code_item,
     const art::DexFile& dex_file, uint32_t class_def_idx,
@@ -209,15 +224,8 @@ void SeaGraph::BuildMethodSeaGraph(const art::DexFile::CodeItem* code_item,
 
 
   Region* r = GetNewRegion();
-  // Insert one SignatureNode per function argument,
-  // to serve as placeholder definitions in dataflow analysis.
-  for (unsigned int crt_offset = 0; crt_offset < code_item->ins_size_; crt_offset++) {
-    int position = crt_offset;  // TODO: Is this the correct offset in the signature?
-    SignatureNode* parameter_def_node =
-        new sea_ir::SignatureNode(code_item->registers_size_ - 1 - crt_offset, position);
-    AddParameterNode(parameter_def_node);
-    r->AddChild(parameter_def_node);
-  }
+
+  InsertSignatureNodes(code_item, r);
   // Pass: Assign instructions to region nodes and
   //         assign branches their control flow successors.
   i = 0;
@@ -386,23 +394,21 @@ void SeaGraph::RenameAsSSA(Region* crt_region,
   scoped_table->CloseScope();
 }
 
-CodeGenData* SeaGraph::GenerateLLVM() {
+CodeGenData* SeaGraph::GenerateLLVM(const std::string& function_name,
+    const art::DexFile& dex_file) {
   // Pass: Generate LLVM IR.
-  CodeGenPrepassVisitor code_gen_prepass_visitor;
+  CodeGenPrepassVisitor code_gen_prepass_visitor(function_name);
   std::cout << "Generating code..." << std::endl;
-  std::cout << "=== PRE VISITING ===" << std::endl;
   Accept(&code_gen_prepass_visitor);
-  CodeGenVisitor code_gen_visitor(code_gen_prepass_visitor.GetData());
-  std::cout << "=== VISITING ===" << std::endl;
+  CodeGenVisitor code_gen_visitor(code_gen_prepass_visitor.GetData(),  dex_file);
   Accept(&code_gen_visitor);
-  std::cout << "=== POST VISITING ===" << std::endl;
   CodeGenPostpassVisitor code_gen_postpass_visitor(code_gen_visitor.GetData());
   Accept(&code_gen_postpass_visitor);
-  code_gen_postpass_visitor.Write(std::string("my_file.llvm"));
   return code_gen_postpass_visitor.GetData();
 }
 
 CodeGenData* SeaGraph::CompileMethod(
+    const std::string& function_name,
     const art::DexFile::CodeItem* code_item, uint32_t class_def_idx,
     uint32_t method_idx, uint32_t method_access_flags, const art::DexFile& dex_file) {
   // Two passes: Builds the intermediate structure (non-SSA) of the sea-ir for the function.
@@ -422,7 +428,7 @@ CodeGenData* SeaGraph::CompileMethod(
   // Pass: type inference
   ti_->ComputeTypes(this);
   // Pass: Generate LLVM IR.
-  CodeGenData* cgd = GenerateLLVM();
+  CodeGenData* cgd = GenerateLLVM(function_name, dex_file);
   return cgd;
 }
 
@@ -607,7 +613,7 @@ std::vector<InstructionNode*> InstructionNode::Create(const art::Instruction* in
       sea_instructions.push_back(new IfNeInstructionNode(in));
       break;
     case art::Instruction::ADD_INT_LIT8:
-      sea_instructions.push_back(new UnnamedConstInstructionNode(in, in->VRegB_22b()));
+      sea_instructions.push_back(new UnnamedConstInstructionNode(in, in->VRegC_22b()));
       sea_instructions.push_back(new AddIntLitInstructionNode(in));
       break;
     case art::Instruction::MOVE_RESULT:

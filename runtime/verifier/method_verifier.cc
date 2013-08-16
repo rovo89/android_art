@@ -1048,7 +1048,7 @@ bool MethodVerifier::VerifyCodeFlow() {
   // Compute information for compiler.
   if (Runtime::Current()->IsCompiler()) {
     MethodReference ref(dex_file_, dex_method_idx_);
-    bool compile = IsCandidateForCompilation(code_item_, method_access_flags_);
+    bool compile = IsCandidateForCompilation(ref, method_access_flags_);
     if (compile) {
       /* Generate a register map and add it to the method. */
       UniquePtr<const std::vector<uint8_t> > map(GenerateGcMap());
@@ -4178,8 +4178,14 @@ std::vector<int32_t> MethodVerifier::DescribeVRegs(uint32_t dex_pc) {
   return result;
 }
 
-bool MethodVerifier::IsCandidateForCompilation(const DexFile::CodeItem* code_item,
+bool MethodVerifier::IsCandidateForCompilation(MethodReference& method_ref,
                                                const uint32_t access_flags) {
+#ifdef ART_SEA_IR_MODE
+    bool use_sea = Runtime::Current()->IsSeaIRMode();
+    use_sea = use_sea && (std::string::npos != PrettyMethod(
+                          method_ref.dex_method_index, *(method_ref.dex_file)).find("fibonacci"));
+    if (use_sea) return true;
+#endif
   // Don't compile class initializers, ever.
   if (((access_flags & kAccConstructor) != 0) && ((access_flags & kAccStatic) != 0)) {
     return false;

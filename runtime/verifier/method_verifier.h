@@ -239,7 +239,7 @@ class MethodVerifier {
   // Describe VRegs at the given dex pc.
   std::vector<int32_t> DescribeVRegs(uint32_t dex_pc);
 
-  static bool IsCandidateForCompilation(const DexFile::CodeItem* code_item,
+  static bool IsCandidateForCompilation(MethodReference& method_ref,
                                         const uint32_t access_flags);
 
  private:

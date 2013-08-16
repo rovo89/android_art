@@ -49,7 +49,12 @@ inline uint16_t ArtMethod::GetMethodIndex() const {
 }
 
 inline uint32_t ArtMethod::GetDexMethodIndex() const {
+#ifdef ART_SEA_IR_MODE
+  // TODO: Re-add this check for (PORTABLE + SMALL + ) SEA IR when PORTABLE IS fixed!
+  // DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
+#else
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
+#endif
   return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, method_dex_index_), false);
 }
 

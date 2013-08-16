@@ -21,6 +21,12 @@
 
 namespace sea_ir {
 
+void TypeInferenceVisitor::Visit(SeaGraph* graph) {
+  FunctionTypeInfo fti(graph_, type_cache_);
+  const Type* return_type = fti.GetReturnValueType();
+  crt_type_.push_back(return_type);
+}
+
 void TypeInferenceVisitor::Visit(SignatureNode* parameter) {
   FunctionTypeInfo fti(graph_, type_cache_);
   std::vector<const Type*> arguments = fti.GetDeclaredArgumentTypes();

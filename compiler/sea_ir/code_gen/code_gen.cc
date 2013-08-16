@@ -15,8 +15,14 @@
  */
 
 #include <llvm/Support/raw_ostream.h>
+
+#include "base/logging.h"
+#include "utils.h"
+
 #include "sea_ir/ir/sea.h"
 #include "sea_ir/code_gen/code_gen.h"
+#include "sea_ir/types/type_inference.h"
+#include "sea_ir/types/types.h"
 
 namespace sea_ir {
 
@@ -50,34 +56,36 @@ void CodeGenPassVisitor::Initialize(SeaGraph* graph) {
   }
 }
 
-void CodeGenPostpassVisitor::Visit(SeaGraph* graph) {
-  std::vector<SignatureNode*>* parameters = graph->GetParameterNodes();
-  std::cout << "=== SeaGraph ===" << parameters->size() << std::endl;
-}
-void CodeGenVisitor::Visit(SeaGraph* graph) {
-  std::vector<SignatureNode*>* parameters = graph->GetParameterNodes();
-  std::cout << "=== SeaGraph ===" << parameters->size() << std::endl;
-}
+void CodeGenPostpassVisitor::Visit(SeaGraph* graph) { }
+void CodeGenVisitor::Visit(SeaGraph* graph) { }
 void CodeGenPrepassVisitor::Visit(SeaGraph* graph) {
   std::vector<SignatureNode*>* parameters = graph->GetParameterNodes();
-  std::cout << "=== SeaGraph ===" << parameters->size() << std::endl;
-  // TODO: Extract correct types from dex for params and return value.
+  // TODO: It may be better to extract correct types from dex
+  //       instead than from type inference.
   DCHECK(parameters != NULL);
-  std::vector<llvm::Type*> parameter_types(parameters->size(),
-      llvm::Type::getInt32Ty(*llvm_data_->context_));
-  // Build llvm function name.
-  std::string function_name = art::StringPrintf(
-      "class=%d_method=%d", graph->class_def_idx_, graph->method_idx_);
+  std::vector<llvm::Type*> parameter_types;
+  for (std::vector<SignatureNode*>::const_iterator param_iterator = parameters->begin();
+      param_iterator!= parameters->end(); param_iterator++) {
+    const Type* param_type = graph->ti_->type_data_.FindTypeOf((*param_iterator)->Id());
+    DCHECK(param_type->Equals(graph->ti_->type_cache_->Integer()))
+      << "Code generation for types other than integer not implemented.";
+    parameter_types.push_back(llvm::Type::getInt32Ty(*llvm_data_->context_));
+  }
 
-  // Build llvm function type and parameters.
+  // TODO: Get correct function return type.
+  const Type* return_type = graph->ti_->type_data_.FindTypeOf(-1);
+  DCHECK(return_type->Equals(graph->ti_->type_cache_->Integer()))
+    << "Code generation for types other than integer not implemented.";
   llvm::FunctionType *function_type = llvm::FunctionType::get(
       llvm::Type::getInt32Ty(*llvm_data_->context_),
       parameter_types, false);
+
   llvm_data_->function_ = llvm::Function::Create(function_type,
-      llvm::Function::ExternalLinkage, function_name, &llvm_data_->module_);
+      llvm::Function::ExternalLinkage, function_name_, &llvm_data_->module_);
   unsigned param_id = 0;
   for (llvm::Function::arg_iterator arg_it = llvm_data_->function_->arg_begin();
       param_id != llvm_data_->function_->arg_size(); ++arg_it, ++param_id) {
+    // TODO: The "+1" is because of the Method parameter on position 0.
     DCHECK(parameters->size() > param_id) << "Insufficient parameters for function signature";
     // Build parameter register name for LLVM IR clarity.
     std::string arg_name = art::StringPrintf("r%d", parameters->at(param_id)->GetResultRegister());
@@ -97,15 +105,12 @@ void CodeGenPrepassVisitor::Visit(SeaGraph* graph) {
 }
 
 void CodeGenPrepassVisitor::Visit(Region* region) {
-  std::cout << " == Region " << region->StringId() << " ==" << std::endl;
   llvm_data_->builder_.SetInsertPoint(llvm_data_->GetBlock(region));
 }
 void CodeGenPostpassVisitor::Visit(Region* region) {
-  std::cout << " == Region " << region->StringId() << " ==" << std::endl;
   llvm_data_->builder_.SetInsertPoint(llvm_data_->GetBlock(region));
 }
 void CodeGenVisitor::Visit(Region* region) {
-  std::cout << " == Region " << region->StringId() << " ==" << std::endl;
   llvm_data_->builder_.SetInsertPoint(llvm_data_->GetBlock(region));
 }
 
@@ -189,13 +194,17 @@ void CodeGenVisitor::Visit(MoveResultInstructionNode* instruction) {
 void CodeGenVisitor::Visit(InvokeStaticInstructionNode* invoke) {
   std::string instr = invoke->GetInstruction()->DumpString(NULL);
   std::cout << "6.Instruction: " << instr << std::endl;
-  // TODO: Build callee llvm function name.
-  std::string function_name = art::StringPrintf("class=%d_method=%d", 0, 1);
+  // TODO: Build callee LLVM function name.
+  std::string symbol = "dex_";
+  symbol += art::MangleForJni(PrettyMethod(invoke->GetCalledMethodIndex(), dex_file_));
+  std::string function_name = "dex_int_00020Main_fibonacci_00028int_00029";
   llvm::Function *callee = llvm_data_->module_.getFunction(function_name);
   // TODO: Add proper checking of the matching between formal and actual signature.
   DCHECK(NULL != callee);
   std::vector<llvm::Value*> parameter_values;
   std::vector<InstructionNode*> parameter_sources = invoke->GetSSAProducers();
+  // TODO: Replace first parameter with Method argument instead of 0.
+  parameter_values.push_back(llvm::ConstantInt::get(*llvm_data_->context_, llvm::APInt(32, 0)));
   for (std::vector<InstructionNode*>::const_iterator cit = parameter_sources.begin();
       cit != parameter_sources.end(); ++cit) {
     llvm::Value* parameter_value = llvm_data_->GetValue((*cit));
@@ -245,7 +254,7 @@ void CodeGenVisitor::Visit(IfEqzInstructionNode* instruction) {
 }
 
 void CodeGenPostpassVisitor::Visit(PhiInstructionNode* phi) {
-  std::cout << "Phi node for: " << phi->GetRegisterNumber() << std::endl;
+  std::cout << "10. Instruction: Phi(" << phi->GetRegisterNumber() << ")" << std::endl;
   Region* r = phi->GetRegion();
   const std::vector<Region*>* predecessors = r->GetPredecessors();
   DCHECK(NULL != predecessors);
@@ -267,17 +276,14 @@ void CodeGenPostpassVisitor::Visit(PhiInstructionNode* phi) {
 }
 
 void CodeGenVisitor::Visit(SignatureNode* signature) {
-  std::cout << "Signature: ;" << "Id:" << signature->StringId() << std::endl;
   DCHECK_EQ(signature->GetDefinitions().size(), 1u) <<
       "Signature nodes must correspond to a single parameter register.";
 }
 void CodeGenPrepassVisitor::Visit(SignatureNode* signature) {
-  std::cout << "Signature: ;" << "Id:" << signature->StringId() << std::endl;
   DCHECK_EQ(signature->GetDefinitions().size(), 1u) <<
       "Signature nodes must correspond to a single parameter register.";
 }
 void CodeGenPostpassVisitor::Visit(SignatureNode* signature) {
-  std::cout << "Signature: ;" << "Id:" << signature->StringId() << std::endl;
   DCHECK_EQ(signature->GetDefinitions().size(), 1u) <<
       "Signature nodes must correspond to a single parameter register.";
 }
