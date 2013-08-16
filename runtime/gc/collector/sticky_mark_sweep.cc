@@ -47,13 +47,22 @@ void StickyMarkSweep::BindBitmaps() {
 }
 
 void StickyMarkSweep::MarkReachableObjects() {
-  RecursiveMarkDirtyObjects(accounting::CardTable::kCardDirty - 1);
+  // All reachable objects must be referenced by a root or a dirty card, so we can clear the mark
+  // stack here since all objects in the mark stack will get scanned by the card scanning anyways.
+  // TODO: Not put these objects in the mark stack in the first place.
+  mark_stack_->Reset();
+  RecursiveMarkDirtyObjects(false, accounting::CardTable::kCardDirty - 1);
 }
 
 void StickyMarkSweep::Sweep(bool swap_bitmaps) {
   accounting::ObjectStack* live_stack = GetHeap()->GetLiveStack();
   SweepArray(live_stack, false);
 }
+
+void StickyMarkSweep::MarkThreadRoots(Thread* self) {
+  MarkRootsCheckpoint(self);
+}
+
 
 }  // namespace collector
 }  // namespace gc

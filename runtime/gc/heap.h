@@ -380,6 +380,22 @@ class Heap {
     return large_object_space_;
   }
 
+  Mutex* GetSoftRefQueueLock() {
+    return soft_ref_queue_lock_;
+  }
+
+  Mutex* GetWeakRefQueueLock() {
+    return weak_ref_queue_lock_;
+  }
+
+  Mutex* GetFinalizerRefQueueLock() {
+    return finalizer_ref_queue_lock_;
+  }
+
+  Mutex* GetPhantomRefQueueLock() {
+    return phantom_ref_queue_lock_;
+  }
+
   void DumpSpaces();
 
   // GC performance measuring
@@ -499,7 +515,7 @@ class Heap {
   const bool concurrent_gc_;
 
   // How many GC threads we may use for garbage collection.
-  const bool num_gc_threads_;
+  const size_t num_gc_threads_;
 
   // Boolean for if we are in low memory mode.
   const bool low_memory_mode_;
@@ -512,9 +528,12 @@ class Heap {
   Mutex* gc_complete_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   UniquePtr<ConditionVariable> gc_complete_cond_ GUARDED_BY(gc_complete_lock_);
 
-  // Mutex held when adding references to reference queues.
+  // Mutexes held when adding references to reference queues.
   // TODO: move to a UniquePtr, currently annotalysis is confused that UniquePtr isn't lockable.
-  Mutex* reference_queue_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  Mutex* soft_ref_queue_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  Mutex* weak_ref_queue_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  Mutex* finalizer_ref_queue_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  Mutex* phantom_ref_queue_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 
   // True while the garbage collector is running.
   volatile bool is_gc_running_ GUARDED_BY(gc_complete_lock_);

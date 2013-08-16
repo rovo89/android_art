@@ -117,10 +117,10 @@ class CardTable {
   void ClearSpaceCards(space::ContinuousSpace* space);
 
   // Returns the first address in the heap which maps to this card.
-  void* AddrFromCard(const byte *card_addr) const;
+  void* AddrFromCard(const byte *card_addr) const ALWAYS_INLINE;
 
   // Returns the address of the relevant byte in the card table, given an address on the heap.
-  byte* CardFromAddr(const void *addr) const;
+  byte* CardFromAddr(const void *addr) const ALWAYS_INLINE;
 
   bool AddrIsInCardTable(const void* addr) const;
 
@@ -134,7 +134,7 @@ class CardTable {
     return card_addr >= begin && card_addr < end;
   }
 
-  void CheckCardValid(byte* card) const;
+  void CheckCardValid(byte* card) const ALWAYS_INLINE;
 
   // Verifies that all gray objects are on a dirty card.
   void VerifyCardTable();

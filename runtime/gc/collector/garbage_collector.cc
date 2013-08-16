@@ -61,9 +61,7 @@ void GarbageCollector::ResetCumulativeStatistics() {
 }
 
 void GarbageCollector::Run() {
-  Thread* self = Thread::Current();
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
-
   uint64_t start_time = NanoTime();
   pause_times_.clear();
   duration_ns_ = 0;
@@ -82,6 +80,7 @@ void GarbageCollector::Run() {
     uint64_t pause_end = NanoTime();
     pause_times_.push_back(pause_end - pause_start);
   } else {
+    auto* self = Thread::Current();
     {
       ReaderMutexLock mu(self, *Locks::mutator_lock_);
       MarkingPhase();
@@ -134,7 +133,7 @@ void GarbageCollector::SwapBitmaps() {
     accounting::SpaceSetMap* mark_set = space->GetMarkObjects();
     heap_->GetLiveBitmap()->ReplaceObjectSet(live_set, mark_set);
     heap_->GetMarkBitmap()->ReplaceObjectSet(mark_set, live_set);
-    space->SwapBitmaps();
+    down_cast<space::LargeObjectSpace*>(space)->SwapBitmaps();
   }
 }
 

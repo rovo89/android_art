@@ -80,7 +80,10 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       num_gc_threads_(num_gc_threads),
       low_memory_mode_(low_memory_mode),
       have_zygote_space_(false),
-      reference_queue_lock_(NULL),
+      soft_ref_queue_lock_(NULL),
+      weak_ref_queue_lock_(NULL),
+      finalizer_ref_queue_lock_(NULL),
+      phantom_ref_queue_lock_(NULL),
       is_gc_running_(false),
       last_gc_type_(collector::kGcTypeNone),
       next_gc_type_(collector::kGcTypePartial),
@@ -97,7 +100,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       // Initially care about pauses in case we never get notified of process states, or if the JNI
       // code becomes broken.
       care_about_pause_times_(true),
-      concurrent_start_bytes_(concurrent_gc ? initial_size - (kMinConcurrentRemainingBytes)
+      concurrent_start_bytes_(concurrent_gc ? initial_size - kMinConcurrentRemainingBytes
                                             :  std::numeric_limits<size_t>::max()),
       total_bytes_freed_ever_(0),
       total_objects_freed_ever_(0),
@@ -219,8 +222,11 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   gc_complete_cond_.reset(new ConditionVariable("GC complete condition variable",
                                                 *gc_complete_lock_));
 
-  // Create the reference queue lock, this is required so for parallel object scanning in the GC.
-  reference_queue_lock_ = new Mutex("reference queue lock");
+  // Create the reference queue locks, this is required so for parallel object scanning in the GC.
+  soft_ref_queue_lock_ = new Mutex("Soft reference queue lock");
+  weak_ref_queue_lock_ = new Mutex("Weak reference queue lock");
+  finalizer_ref_queue_lock_ = new Mutex("Finalizer reference queue lock");
+  phantom_ref_queue_lock_ = new Mutex("Phantom reference queue lock");
 
   last_gc_time_ns_ = NanoTime();
   last_gc_size_ = GetBytesAllocated();
@@ -240,19 +246,14 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
 }
 
 void Heap::CreateThreadPool() {
-  thread_pool_.reset(new ThreadPool(num_gc_threads_));
+  if (num_gc_threads_ != 0) {
+    thread_pool_.reset(new ThreadPool(num_gc_threads_));
+  }
 }
 
 void Heap::DeleteThreadPool() {
   thread_pool_.reset(NULL);
 }
-
-// Sort spaces based on begin address
-struct ContinuousSpaceSorter {
-  bool operator()(const space::ContinuousSpace* a, const space::ContinuousSpace* b) const {
-    return a->Begin() < b->Begin();
-  }
-};
 
 static bool ReadStaticInt(JNIEnvExt* env, jclass clz, const char* name, int* out_value) {
   CHECK(out_value != NULL);
@@ -266,7 +267,7 @@ static bool ReadStaticInt(JNIEnvExt* env, jclass clz, const char* name, int* out
 }
 
 void Heap::ListenForProcessStateChange() {
-  VLOG(gc) << "Heap notified of process state change";
+  VLOG(heap) << "Heap notified of process state change";
 
   Thread* self = Thread::Current();
   JNIEnvExt* env = self->GetJniEnv();
@@ -320,8 +321,8 @@ void Heap::ListenForProcessStateChange() {
       int process_state = 0;
       if (ReadStaticInt(env, activity_manager.get(), care_about_pauses[i], &process_state)) {
         process_state_cares_about_pause_time_.insert(process_state);
-        VLOG(gc) << "Adding process state " << process_state
-                 << " to set of states which care about pause time";
+        VLOG(heap) << "Adding process state " << process_state
+                   << " to set of states which care about pause time";
       }
     }
   }
@@ -367,8 +368,8 @@ void Heap::ListenForProcessStateChange() {
     care_about_pause_times_ = process_state_cares_about_pause_time_.find(process_state) !=
         process_state_cares_about_pause_time_.end();
 
-    VLOG(gc) << "New process state " << process_state
-             << " care about pauses " << care_about_pause_times_;
+    VLOG(heap) << "New process state " << process_state
+               << " care about pauses " << care_about_pause_times_;
   }
 }
 
@@ -385,7 +386,10 @@ void Heap::AddContinuousSpace(space::ContinuousSpace* space) {
   }
 
   // Ensure that spaces remain sorted in increasing order of start address (required for CMS finger)
-  std::sort(continuous_spaces_.begin(), continuous_spaces_.end(), ContinuousSpaceSorter());
+  std::sort(continuous_spaces_.begin(), continuous_spaces_.end(),
+            [](const space::ContinuousSpace* a, const space::ContinuousSpace* b) {
+              return a->Begin() < b->Begin();
+            });
 
   // Ensure that ImageSpaces < ZygoteSpaces < AllocSpaces so that we can do address based checks to
   // avoid redundant marking.
@@ -493,7 +497,10 @@ Heap::~Heap() {
   STLDeleteElements(&continuous_spaces_);
   STLDeleteElements(&discontinuous_spaces_);
   delete gc_complete_lock_;
-  delete reference_queue_lock_;
+  delete soft_ref_queue_lock_;
+  delete weak_ref_queue_lock_;
+  delete finalizer_ref_queue_lock_;
+  delete phantom_ref_queue_lock_;
 }
 
 space::ContinuousSpace* Heap::FindContinuousSpaceFromObject(const mirror::Object* obj,
@@ -1155,7 +1162,6 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
                                                bool clear_soft_references) {
   Thread* self = Thread::Current();
 
-
   ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
   Locks::mutator_lock_->AssertNotHeld(self);
 
@@ -1249,7 +1255,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
                        << ((i != pauses.size() - 1) ? ", " : "");
       }
       LOG(INFO) << gc_cause << " " << collector->GetName()
-                << "GC freed " << PrettySize(collector->GetFreedBytes()) << ", "
+                << " GC freed " << PrettySize(collector->GetFreedBytes()) << ", "
                 << percent_free << "% free, " << PrettySize(current_heap_size) << "/"
                 << PrettySize(total_memory) << ", " << "paused " << pause_string.str()
                 << " total " << PrettyDuration((duration / 1000) * 1000);
@@ -1835,17 +1841,18 @@ void Heap::EnqueueReference(mirror::Object* ref, mirror::Object** cleared_refere
 void Heap::EnqueuePendingReference(mirror::Object* ref, mirror::Object** list) {
   DCHECK(ref != NULL);
   DCHECK(list != NULL);
-
-  // TODO: Remove this lock, use atomic stacks for storing references.
-  MutexLock mu(Thread::Current(), *reference_queue_lock_);
-  if (*list == NULL) {
-    ref->SetFieldObject(reference_pendingNext_offset_, ref, false);
-    *list = ref;
-  } else {
-    mirror::Object* head =
-        (*list)->GetFieldObject<mirror::Object*>(reference_pendingNext_offset_, false);
-    ref->SetFieldObject(reference_pendingNext_offset_, head, false);
-    (*list)->SetFieldObject(reference_pendingNext_offset_, ref, false);
+  mirror::Object* pending =
+      ref->GetFieldObject<mirror::Object*>(reference_pendingNext_offset_, false);
+  if (pending == NULL) {
+    if (*list == NULL) {
+      ref->SetFieldObject(reference_pendingNext_offset_, ref, false);
+      *list = ref;
+    } else {
+      mirror::Object* head =
+          (*list)->GetFieldObject<mirror::Object*>(reference_pendingNext_offset_, false);
+      ref->SetFieldObject(reference_pendingNext_offset_, head, false);
+      (*list)->SetFieldObject(reference_pendingNext_offset_, ref, false);
+    }
   }
 }
 
