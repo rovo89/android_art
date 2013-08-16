@@ -961,6 +961,8 @@ Thread::Thread(bool daemon)
       jpeer_(NULL),
       stack_begin_(NULL),
       stack_size_(0),
+      stack_trace_sample_(NULL),
+      trace_clock_base_(0),
       thin_lock_id_(0),
       tid_(0),
       wait_mutex_(new Mutex("a thread wait mutex")),
@@ -1077,6 +1079,7 @@ Thread::~Thread() {
   delete debug_invoke_req_;
   delete instrumentation_stack_;
   delete name_;
+  delete stack_trace_sample_;
 
   TearDownAlternateSignalStack();
 }

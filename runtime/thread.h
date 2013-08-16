@@ -552,6 +552,22 @@ class PACKED(4) Thread {
     return instrumentation_stack_;
   }
 
+  std::vector<mirror::ArtMethod*>* GetStackTraceSample() const {
+    return stack_trace_sample_;
+  }
+
+  void SetStackTraceSample(std::vector<mirror::ArtMethod*>* sample) {
+    stack_trace_sample_ = sample;
+  }
+
+  uint64_t GetTraceClockBase() const {
+    return trace_clock_base_;
+  }
+
+  void SetTraceClockBase(uint64_t clock_base) {
+    trace_clock_base_ = clock_base;
+  }
+
   BaseMutex* GetHeldMutex(LockLevel level) const {
     return held_mutexes_[level];
   }
@@ -697,6 +713,12 @@ class PACKED(4) Thread {
 
   // Size of the stack
   size_t stack_size_;
+
+  // Pointer to previous stack trace captured by sampling profiler.
+  std::vector<mirror::ArtMethod*>* stack_trace_sample_;
+
+  // The clock base used for tracing.
+  uint64_t trace_clock_base_;
 
   // Thin lock thread id. This is a small integer used by the thin lock implementation.
   // This is not to be confused with the native thread's tid, nor is it the value returned

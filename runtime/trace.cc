@@ -87,7 +87,7 @@ enum TraceAction {
 class BuildStackTraceVisitor : public StackVisitor {
  public:
   explicit BuildStackTraceVisitor(Thread* thread) : StackVisitor(thread, NULL),
-      method_trace_(new std::vector<mirror::ArtMethod*>) {}
+      method_trace_(Trace::AllocStackTrace()) {}
 
   bool VisitFrame() {
     mirror::ArtMethod* m = GetMethod();
@@ -126,6 +126,7 @@ Trace* volatile Trace::the_trace_ = NULL;
 bool Trace::sampling_enabled_ = true;
 uint32_t Trace::sampling_interval_us_ = 10000;
 pthread_t Trace::sampling_pthread_ = 0U;
+UniquePtr<std::vector<mirror::ArtMethod*> > Trace::temp_stack_trace_;
 
 static mirror::ArtMethod* DecodeTraceMethodId(uint32_t tmid) {
   return reinterpret_cast<mirror::ArtMethod*>(tmid & ~kTraceMethodActionMask);
@@ -142,12 +143,25 @@ static uint32_t EncodeTraceMethodAndAction(const mirror::ArtMethod* method,
   return tmid;
 }
 
+std::vector<mirror::ArtMethod*>* Trace::AllocStackTrace() {
+  if (temp_stack_trace_.get() != NULL) {
+    return temp_stack_trace_.release();
+  } else {
+    return new std::vector<mirror::ArtMethod*>();
+  }
+}
+
+void Trace::FreeStackTrace(std::vector<mirror::ArtMethod*>* stack_trace) {
+  stack_trace->clear();
+  temp_stack_trace_.reset(stack_trace);
+}
+
 void Trace::SetDefaultClockSource(ProfilerClockSource clock_source) {
 #if defined(HAVE_POSIX_CLOCKS)
   default_clock_source_ = clock_source;
 #else
   if (clock_source != kProfilerClockSourceWall) {
-    LOG(WARNING) << "Ignoring tracing request to use ";
+    LOG(WARNING) << "Ignoring tracing request to use CPU time.";
   }
 #endif
 }
@@ -181,7 +195,8 @@ static void MeasureClockOverhead(Trace* trace) {
   }
 }
 
-static uint32_t GetClockOverhead(Trace* trace) {
+// Compute an average time taken to measure clocks.
+static uint32_t GetClockOverheadNanoSeconds(Trace* trace) {
   Thread* self = Thread::Current();
   uint64_t start = self->GetCpuMicroTime();
 
@@ -196,34 +211,34 @@ static uint32_t GetClockOverhead(Trace* trace) {
     MeasureClockOverhead(trace);
   }
 
-  uint64_t elapsed = self->GetCpuMicroTime() - start;
-  return uint32_t (elapsed / 32);
+  uint64_t elapsed_us = self->GetCpuMicroTime() - start;
+  return static_cast<uint32_t>(elapsed_us / 32);
 }
 
 // TODO: put this somewhere with the big-endian equivalent used by JDWP.
 static void Append2LE(uint8_t* buf, uint16_t val) {
-  *buf++ = (uint8_t) val;
-  *buf++ = (uint8_t) (val >> 8);
+  *buf++ = static_cast<uint8_t>(val);
+  *buf++ = static_cast<uint8_t>(val >> 8);
 }
 
 // TODO: put this somewhere with the big-endian equivalent used by JDWP.
 static void Append4LE(uint8_t* buf, uint32_t val) {
-  *buf++ = (uint8_t) val;
-  *buf++ = (uint8_t) (val >> 8);
-  *buf++ = (uint8_t) (val >> 16);
-  *buf++ = (uint8_t) (val >> 24);
+  *buf++ = static_cast<uint8_t>(val);
+  *buf++ = static_cast<uint8_t>(val >> 8);
+  *buf++ = static_cast<uint8_t>(val >> 16);
+  *buf++ = static_cast<uint8_t>(val >> 24);
 }
 
 // TODO: put this somewhere with the big-endian equivalent used by JDWP.
 static void Append8LE(uint8_t* buf, uint64_t val) {
-  *buf++ = (uint8_t) val;
-  *buf++ = (uint8_t) (val >> 8);
-  *buf++ = (uint8_t) (val >> 16);
-  *buf++ = (uint8_t) (val >> 24);
-  *buf++ = (uint8_t) (val >> 32);
-  *buf++ = (uint8_t) (val >> 40);
-  *buf++ = (uint8_t) (val >> 48);
-  *buf++ = (uint8_t) (val >> 56);
+  *buf++ = static_cast<uint8_t>(val);
+  *buf++ = static_cast<uint8_t>(val >> 8);
+  *buf++ = static_cast<uint8_t>(val >> 16);
+  *buf++ = static_cast<uint8_t>(val >> 24);
+  *buf++ = static_cast<uint8_t>(val >> 32);
+  *buf++ = static_cast<uint8_t>(val >> 40);
+  *buf++ = static_cast<uint8_t>(val >> 48);
+  *buf++ = static_cast<uint8_t>(val >> 56);
 }
 
 static void GetSample(Thread* thread, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -234,14 +249,22 @@ static void GetSample(Thread* thread, void* arg) SHARED_LOCKS_REQUIRED(Locks::mu
   the_trace->CompareAndUpdateStackTrace(thread, stack_trace);
 }
 
+static void ClearThreadStackTraceAndClockBase(Thread* thread, void* arg) {
+  thread->SetTraceClockBase(0);
+  std::vector<mirror::ArtMethod*>* stack_trace = thread->GetStackTraceSample();
+  thread->SetStackTraceSample(NULL);
+  delete stack_trace;
+}
+
 void Trace::CompareAndUpdateStackTrace(Thread* thread,
                                        std::vector<mirror::ArtMethod*>* stack_trace) {
   CHECK_EQ(pthread_self(), sampling_pthread_);
-  SafeMap<Thread*, std::vector<mirror::ArtMethod*>*>::iterator map_it = thread_stack_trace_map_.find(thread);
-  if (map_it == thread_stack_trace_map_.end()) {
-    // If there's no existing stack trace in the map for this thread, log an entry event for all
+  std::vector<mirror::ArtMethod*>* old_stack_trace = thread->GetStackTraceSample();
+  // Update the thread's stack trace sample.
+  thread->SetStackTraceSample(stack_trace);
+  if (old_stack_trace == NULL) {
+    // If there's no previous stack trace sample for this thread, log an entry event for all
     // methods in the trace.
-    thread_stack_trace_map_.Put(thread, stack_trace);
     for (std::vector<mirror::ArtMethod*>::reverse_iterator rit = stack_trace->rbegin();
          rit != stack_trace->rend(); ++rit) {
       LogMethodTraceEvent(thread, *rit, instrumentation::Instrumentation::kMethodEntered);
@@ -249,11 +272,8 @@ void Trace::CompareAndUpdateStackTrace(Thread* thread,
   } else {
     // If there's a previous stack trace for this thread, diff the traces and emit entry and exit
     // events accordingly.
-    std::vector<mirror::ArtMethod*>* old_stack_trace = map_it->second;
-    thread_stack_trace_map_.Overwrite(thread, stack_trace);
     std::vector<mirror::ArtMethod*>::reverse_iterator old_rit = old_stack_trace->rbegin();
     std::vector<mirror::ArtMethod*>::reverse_iterator rit = stack_trace->rbegin();
-
     // Iterate bottom-up over both traces until there's a difference between them.
     while (old_rit != old_stack_trace->rend() && rit != stack_trace->rend() && *old_rit == *rit) {
       old_rit++;
@@ -268,7 +288,7 @@ void Trace::CompareAndUpdateStackTrace(Thread* thread,
     for (; rit != stack_trace->rend(); ++rit) {
       LogMethodTraceEvent(thread, *rit, instrumentation::Instrumentation::kMethodEntered);
     }
-    delete old_stack_trace;
+    FreeStackTrace(old_stack_trace);
   }
 }
 
@@ -279,7 +299,7 @@ void* Trace::RunSamplingThread(void* arg) {
 
   while (true) {
     usleep(sampling_interval_us_);
-
+    ATRACE_BEGIN("Profile sampling");
     Thread* self = Thread::Current();
     Trace* the_trace;
     {
@@ -296,6 +316,7 @@ void* Trace::RunSamplingThread(void* arg) {
       runtime->GetThreadList()->ForEach(GetSample, the_trace);
     }
     runtime->GetThreadList()->ResumeAll();
+    ATRACE_END();
   }
 
   runtime->DetachCurrentThread();
@@ -379,7 +400,10 @@ void Trace::Stop() {
   if (the_trace != NULL) {
     the_trace->FinishTracing();
 
-    if (!sampling_enabled_) {
+    if (sampling_enabled_) {
+      MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
+      runtime->GetThreadList()->ForEach(ClearThreadStackTraceAndClockBase, NULL);
+    } else {
       runtime->GetInstrumentation()->RemoveListener(the_trace,
                                                     instrumentation::Instrumentation::kMethodEntered |
                                                     instrumentation::Instrumentation::kMethodExited |
@@ -427,7 +451,6 @@ Trace::Trace(File* trace_file, int buffer_size, int flags)
 
 Trace::~Trace() {
   CHECK_EQ(sampling_pthread_, static_cast<pthread_t>(0U));
-  STLDeleteValues(&thread_stack_trace_map_);
 }
 
 static void DumpBuf(uint8_t* buf, size_t buf_size, ProfilerClockSource clock_source)
@@ -449,7 +472,7 @@ void Trace::FinishTracing() {
   uint64_t elapsed = MicroTime() - start_time_;
 
   size_t final_offset = cur_offset_;
-  uint32_t clock_overhead = GetClockOverhead(this);
+  uint32_t clock_overhead_ns = GetClockOverheadNanoSeconds(this);
 
   if ((flags_ & kTraceCountAllocs) != 0) {
     Runtime::Current()->SetStatsEnabled(false);
@@ -475,7 +498,7 @@ void Trace::FinishTracing() {
   os << StringPrintf("elapsed-time-usec=%llu\n", elapsed);
   size_t num_records = (final_offset - kTraceHeaderLength) / GetRecordSize(clock_source_);
   os << StringPrintf("num-method-calls=%zd\n", num_records);
-  os << StringPrintf("clock-call-overhead-nsec=%d\n", clock_overhead);
+  os << StringPrintf("clock-call-overhead-nsec=%d\n", clock_overhead_ns);
   os << StringPrintf("vm=art\n");
   if ((flags_ & kTraceCountAllocs) != 0) {
     os << StringPrintf("alloc-count=%d\n", Runtime::Current()->GetStat(KIND_ALLOCATED_OBJECTS));
@@ -578,16 +601,14 @@ void Trace::LogMethodTraceEvent(Thread* thread, const mirror::ArtMethod* method,
   ptr += 6;
 
   if (UseThreadCpuClock()) {
-    // TODO: this isn't vaguely thread safe.
-    SafeMap<Thread*, uint64_t>::iterator it = thread_clock_base_map_.find(thread);
+    uint64_t clock_base = thread->GetTraceClockBase();
     uint32_t thread_clock_diff = 0;
-    if (UNLIKELY(it == thread_clock_base_map_.end())) {
-      // First event, the diff is 0, record the base time in the map.
+    if (UNLIKELY(clock_base == 0)) {
+      // First event, record the base time in the map.
       uint64_t time = thread->GetCpuMicroTime();
-      thread_clock_base_map_.Put(thread, time);
+      thread->SetTraceClockBase(time);
     } else {
-      uint64_t thread_clock_base = it->second;
-      thread_clock_diff = thread->GetCpuMicroTime() - thread_clock_base;
+      thread_clock_diff = thread->GetCpuMicroTime() - clock_base;
     }
     Append4LE(ptr, thread_clock_diff);
     ptr += 4;
