@@ -101,4 +101,4 @@ std::string CodeGenData::GetElf(art::InstructionSet instruction_set) {
   }
   return elf;
 }
-}
+}  // namespace sea_ir
