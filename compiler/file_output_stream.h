@@ -14,43 +14,31 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_OUTPUT_STREAM_H_
-#define ART_RUNTIME_OUTPUT_STREAM_H_
+#ifndef ART_COMPILER_FILE_OUTPUT_STREAM_H_
+#define ART_COMPILER_FILE_OUTPUT_STREAM_H_
 
-#include <stdint.h>
+#include "output_stream.h"
 
-#include <string>
-
-#include "base/macros.h"
+#include "os.h"
 
 namespace art {
 
-enum Whence {
-  kSeekSet = SEEK_SET,
-  kSeekCurrent = SEEK_CUR,
-  kSeekEnd = SEEK_END,
-};
-
-class OutputStream {
+class FileOutputStream : public OutputStream {
  public:
-  explicit OutputStream(const std::string& location) : location_(location) {}
+  explicit FileOutputStream(File* file);
 
-  virtual ~OutputStream() {}
+  virtual ~FileOutputStream() {}
 
-  const std::string& GetLocation() const {
-    return location_;
-  }
+  virtual bool WriteFully(const void* buffer, int64_t byte_count);
 
-  virtual bool WriteFully(const void* buffer, int64_t byte_count) = 0;
-
-  virtual off_t Seek(off_t offset, Whence whence) = 0;
+  virtual off_t Seek(off_t offset, Whence whence);
 
  private:
-  const std::string location_;
+  File* const file_;
 
-  DISALLOW_COPY_AND_ASSIGN(OutputStream);
+  DISALLOW_COPY_AND_ASSIGN(FileOutputStream);
 };
 
 }  // namespace art
 
-#endif  // ART_RUNTIME_OUTPUT_STREAM_H_
+#endif  // ART_COMPILER_FILE_OUTPUT_STREAM_H_

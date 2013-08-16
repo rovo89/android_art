@@ -87,6 +87,7 @@ LIBART_COMPILER_SRC_FILES := \
 	elf_stripper.cc \
 	elf_writer.cc \
 	elf_writer_quick.cc \
+	file_output_stream.cc \
 	image_writer.cc \
 	oat_writer.cc \
 	vector_output_stream.cc

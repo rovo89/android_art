@@ -44,7 +44,6 @@ LIBART_COMMON_SRC_FILES := \
 	disassembler_mips.cc \
 	disassembler_x86.cc \
 	elf_file.cc \
-	file_output_stream.cc \
 	gc/allocator/dlmalloc.cc \
 	gc/accounting/card_table.cc \
 	gc/accounting/gc_allocator.cc \

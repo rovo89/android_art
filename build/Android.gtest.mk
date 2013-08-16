@@ -19,7 +19,10 @@ LOCAL_PATH := art
 TEST_COMMON_SRC_FILES := \
 	compiler/driver/compiler_driver_test.cc \
 	compiler/elf_writer_test.cc \
+	compiler/image_test.cc \
 	compiler/jni/jni_compiler_test.cc \
+	compiler/oat_test.cc \
+	compiler/output_stream_test.cc \
 	compiler/utils/arm/managed_register_arm_test.cc \
 	compiler/utils/x86/managed_register_x86_test.cc \
 	runtime/barrier_test.cc \
@@ -41,7 +44,6 @@ TEST_COMMON_SRC_FILES := \
 	runtime/gc/heap_test.cc \
 	runtime/gc/space/space_test.cc \
 	runtime/gtest_test.cc \
-	runtime/image_test.cc \
 	runtime/indenter_test.cc \
 	runtime/indirect_reference_table_test.cc \
 	runtime/intern_table_test.cc \
@@ -49,8 +51,6 @@ TEST_COMMON_SRC_FILES := \
 	runtime/mem_map_test.cc \
 	runtime/mirror/dex_cache_test.cc \
 	runtime/mirror/object_test.cc \
-	runtime/oat_test.cc \
-	runtime/output_stream_test.cc \
 	runtime/reference_table_test.cc \
 	runtime/runtime_test.cc \
 	runtime/thread_pool_test.cc \
