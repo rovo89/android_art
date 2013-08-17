@@ -59,17 +59,16 @@ namespace art {
 namespace gc {
 
 // When to create a log message about a slow GC, 100ms.
-static const uint64_t kSlowGcThreshold = MsToNs(100);
+static constexpr uint64_t kSlowGcThreshold = MsToNs(100);
 // When to create a log message about a long pause, 5ms.
-static const uint64_t kLongGcPauseThreshold = MsToNs(5);
-static const bool kGCALotMode = false;
-static const size_t kGcAlotInterval = KB;
-static const bool kDumpGcPerformanceOnShutdown = false;
+static constexpr uint64_t kLongGcPauseThreshold = MsToNs(5);
+static constexpr bool kGCALotMode = false;
+static constexpr size_t kGcAlotInterval = KB;
+static constexpr bool kDumpGcPerformanceOnShutdown = false;
 // Minimum amount of remaining bytes before a concurrent GC is triggered.
-static const size_t kMinConcurrentRemainingBytes = 128 * KB;
-const double Heap::kDefaultTargetUtilization = 0.5;
+static constexpr size_t kMinConcurrentRemainingBytes = 128 * KB;
 // If true, measure the total allocation time.
-static const bool kMeasureAllocationTime = false;
+static constexpr bool kMeasureAllocationTime = false;
 
 Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max_free,
            double target_utilization, size_t capacity, const std::string& original_image_file_name,
@@ -100,8 +99,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       // Initially care about pauses in case we never get notified of process states, or if the JNI
       // code becomes broken.
       care_about_pause_times_(true),
-      concurrent_start_bytes_(concurrent_gc ? initial_size - kMinConcurrentRemainingBytes
-                                            :  std::numeric_limits<size_t>::max()),
+      concurrent_start_bytes_(concurrent_gc_ ? initial_size - kMinConcurrentRemainingBytes
+          :  std::numeric_limits<size_t>::max()),
       total_bytes_freed_ever_(0),
       total_objects_freed_ever_(0),
       large_object_threshold_(3 * kPageSize),
@@ -793,13 +792,26 @@ void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
   }
 }
 
-inline bool Heap::IsOutOfMemoryOnAllocation(size_t alloc_size) {
-  return num_bytes_allocated_ + alloc_size > growth_limit_;
+inline bool Heap::IsOutOfMemoryOnAllocation(size_t alloc_size, bool grow) {
+  size_t new_footprint = num_bytes_allocated_ + alloc_size;
+  if (UNLIKELY(new_footprint > max_allowed_footprint_)) {
+    if (UNLIKELY(new_footprint > growth_limit_)) {
+      return true;
+    }
+    if (!concurrent_gc_) {
+      if (!grow) {
+        return true;
+      } else {
+        max_allowed_footprint_ = new_footprint;
+      }
+    }
+  }
+  return false;
 }
 
 inline mirror::Object* Heap::TryToAllocate(Thread* self, space::AllocSpace* space, size_t alloc_size,
                                            bool grow, size_t* bytes_allocated) {
-  if (IsOutOfMemoryOnAllocation(alloc_size)) {
+  if (UNLIKELY(IsOutOfMemoryOnAllocation(alloc_size, grow))) {
     return NULL;
   }
   return space->Alloc(self, alloc_size, bytes_allocated);
@@ -808,10 +820,10 @@ inline mirror::Object* Heap::TryToAllocate(Thread* self, space::AllocSpace* spac
 // DlMallocSpace-specific version.
 inline mirror::Object* Heap::TryToAllocate(Thread* self, space::DlMallocSpace* space, size_t alloc_size,
                                            bool grow, size_t* bytes_allocated) {
-  if (IsOutOfMemoryOnAllocation(alloc_size)) {
+  if (UNLIKELY(IsOutOfMemoryOnAllocation(alloc_size, grow))) {
     return NULL;
   }
-  if (!running_on_valgrind_) {
+  if (LIKELY(!running_on_valgrind_)) {
     return space->AllocNonvirtual(self, alloc_size, bytes_allocated);
   } else {
     return space->Alloc(self, alloc_size, bytes_allocated);
@@ -819,7 +831,8 @@ inline mirror::Object* Heap::TryToAllocate(Thread* self, space::DlMallocSpace* s
 }
 
 template <class T>
-inline mirror::Object* Heap::Allocate(Thread* self, T* space, size_t alloc_size, size_t* bytes_allocated) {
+inline mirror::Object* Heap::Allocate(Thread* self, T* space, size_t alloc_size,
+                                      size_t* bytes_allocated) {
   // Since allocation can cause a GC which will need to SuspendAll, make sure all allocations are
   // done in the runnable state where suspension is expected.
   DCHECK_EQ(self->GetState(), kRunnable);
@@ -832,8 +845,8 @@ inline mirror::Object* Heap::Allocate(Thread* self, T* space, size_t alloc_size,
   return AllocateInternalWithGc(self, space, alloc_size, bytes_allocated);
 }
 
-mirror::Object* Heap::AllocateInternalWithGc(Thread* self, space::AllocSpace* space, size_t alloc_size,
-                                             size_t* bytes_allocated) {
+mirror::Object* Heap::AllocateInternalWithGc(Thread* self, space::AllocSpace* space,
+                                             size_t alloc_size, size_t* bytes_allocated) {
   mirror::Object* ptr;
 
   // The allocation failed. If the GC is running, block until it completes, and then retry the

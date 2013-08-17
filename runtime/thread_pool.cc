@@ -23,7 +23,7 @@
 
 namespace art {
 
-static const bool kMeasureWaitTime = false;
+static constexpr bool kMeasureWaitTime = false;
 
 ThreadPoolWorker::ThreadPoolWorker(ThreadPool* thread_pool, const std::string& name,
                                    size_t stack_size)

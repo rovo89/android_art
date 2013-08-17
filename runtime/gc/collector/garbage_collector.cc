@@ -80,7 +80,7 @@ void GarbageCollector::Run() {
     uint64_t pause_end = NanoTime();
     pause_times_.push_back(pause_end - pause_start);
   } else {
-    auto* self = Thread::Current();
+    Thread* self = Thread::Current();
     {
       ReaderMutexLock mu(self, *Locks::mutator_lock_);
       MarkingPhase();
