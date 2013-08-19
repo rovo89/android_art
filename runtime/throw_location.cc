@@ -25,8 +25,12 @@
 namespace art {
 
 std::string ThrowLocation::Dump() const {
-  return StringPrintf("%s:%d", PrettyMethod(method_).c_str(),
-                      MethodHelper(method_).GetLineNumFromDexPC(dex_pc_));
+  if (method_ != NULL) {
+    return StringPrintf("%s:%d", PrettyMethod(method_).c_str(),
+                        MethodHelper(method_).GetLineNumFromDexPC(dex_pc_));
+  } else {
+    return "unknown throw location";
+  }
 }
 
 void ThrowLocation::VisitRoots(RootVisitor* visitor, void* arg) {
