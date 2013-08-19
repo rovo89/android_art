@@ -863,7 +863,8 @@ void Thread::DumpStack(std::ostream& os) const {
   // TODO: we call this code when dying but may not have suspended the thread ourself. The
   //       IsSuspended check is therefore racy with the use for dumping (normally we inhibit
   //       the race with the thread_suspend_count_lock_).
-  bool dump_for_abort = (gAborting > 0);
+  // No point dumping for an abort in debug builds where we'll hit the not suspended check in stack.
+  bool dump_for_abort = (gAborting > 0) && !kIsDebugBuild;
   if (this == Thread::Current() || IsSuspended() || dump_for_abort) {
     // If we're currently in native code, dump that stack before dumping the managed stack.
     if (dump_for_abort || ShouldShowNativeStack(this)) {

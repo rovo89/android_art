@@ -1950,14 +1950,14 @@ static const char* class_initializer_black_list[] = {
   "Ljava/util/Scanner;",  // regex.Pattern.compileImpl.
   "Ljava/util/SimpleTimeZone;",  // Sub-class of TimeZone.
   "Ljava/util/TimeZone;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Ljava/util/concurrent/ConcurrentHashMap$Segment;",  // Calls Runtime.getRuntime().availableProcessors().
-  "Ljava/util/concurrent/ConcurrentSkipListMap;",  // Calls OsConstants.initConstants.
-  "Ljava/util/concurrent/Exchanger;",  // Calls OsConstants.initConstants.
-  "Ljava/util/concurrent/ForkJoinPool;",  // Calls OsConstants.initConstants.
-  "Ljava/util/concurrent/LinkedTransferQueue;",  // Calls OsConstants.initConstants.
-  "Ljava/util/concurrent/Phaser;",  // Calls OsConstants.initConstants.
+  "Ljava/util/concurrent/ConcurrentHashMap;",  // Calls Runtime.getRuntime().availableProcessors().
+  "Ljava/util/concurrent/ConcurrentSkipListMap;",  // Calls Random() -> OsConstants.initConstants.
+  "Ljava/util/concurrent/Exchanger;",  // Calls Runtime.getRuntime().availableProcessors().
+  "Ljava/util/concurrent/ForkJoinPool;",  // Makes a thread pool ..-> calls OsConstants.initConstants.
+  "Ljava/util/concurrent/LinkedTransferQueue;",  // Calls Runtime.getRuntime().availableProcessors().
+  "Ljava/util/concurrent/Phaser;",  // Calls Runtime.getRuntime().availableProcessors().
   "Ljava/util/concurrent/ScheduledThreadPoolExecutor;",  // Calls AtomicLong.VMSupportsCS8()
-  "Ljava/util/concurrent/SynchronousQueue;",  // Calls OsConstants.initConstants.
+  "Ljava/util/concurrent/SynchronousQueue;",  // Calls Runtime.getRuntime().availableProcessors().
   "Ljava/util/concurrent/atomic/AtomicLong;",  // Calls AtomicLong.VMSupportsCS8()
   "Ljava/util/logging/LogManager;",  // Calls System.getProperty -> OsConstants.initConstants.
   "Ljava/util/prefs/AbstractPreferences;",  // Calls OsConstants.initConstants.
