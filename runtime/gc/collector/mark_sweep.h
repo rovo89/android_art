@@ -170,8 +170,16 @@ class MarkSweep : public GarbageCollector {
     return freed_bytes_;
   }
 
+  size_t GetFreedLargeObjectBytes() const {
+    return freed_large_object_bytes_;
+  }
+
   size_t GetFreedObjects() const {
     return freed_objects_;
+  }
+
+  size_t GetFreedLargeObjects() const {
+    return freed_large_objects_;
   }
 
   uint64_t GetTotalTimeNs() const {
@@ -409,10 +417,14 @@ class MarkSweep : public GarbageCollector {
   // Parallel finger.
   AtomicInteger atomic_finger_;
 
-  // Number of bytes freed in this collection.
+  // Number of non large object bytes freed in this collection.
   AtomicInteger freed_bytes_;
+  // Number of large object bytes freed.
+  AtomicInteger freed_large_object_bytes_;
   // Number of objects freed in this collection.
   AtomicInteger freed_objects_;
+  // Number of freed large objects.
+  AtomicInteger freed_large_objects_;
   // Number of classes scanned, if kCountScannedTypes.
   AtomicInteger class_count_;
   // Number of arrays scanned, if kCountScannedTypes.

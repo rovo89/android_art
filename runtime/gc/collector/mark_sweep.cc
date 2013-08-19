@@ -152,16 +152,18 @@ MarkSweep::MarkSweep(Heap* heap, bool is_concurrent, const std::string& name_pre
 void MarkSweep::InitializePhase() {
   timings_.Reset();
   base::TimingLogger::ScopedSplit split("InitializePhase", &timings_);
-  mark_stack_ = GetHeap()->mark_stack_.get();
-  DCHECK(mark_stack_ != NULL);
-  SetImmuneRange(NULL, NULL);
-  soft_reference_list_ = NULL;
-  weak_reference_list_ = NULL;
-  finalizer_reference_list_ = NULL;
-  phantom_reference_list_ = NULL;
-  cleared_reference_list_ = NULL;
+  mark_stack_ = heap_->mark_stack_.get();
+  DCHECK(mark_stack_ != nullptr);
+  SetImmuneRange(nullptr, nullptr);
+  soft_reference_list_ = nullptr;
+  weak_reference_list_ = nullptr;
+  finalizer_reference_list_ = nullptr;
+  phantom_reference_list_ = nullptr;
+  cleared_reference_list_ = nullptr;
   freed_bytes_ = 0;
+  freed_large_object_bytes_ = 0;
   freed_objects_ = 0;
+  freed_large_objects_ = 0;
   class_count_ = 0;
   array_count_ = 0;
   other_count_ = 0;
@@ -173,7 +175,7 @@ void MarkSweep::InitializePhase() {
   work_chunks_deleted_ = 0;
   reference_count_ = 0;
   java_lang_Class_ = Class::GetJavaLangClass();
-  CHECK(java_lang_Class_ != NULL);
+  CHECK(java_lang_Class_ != nullptr);
 
   FindDefaultMarkBitmap();
 
@@ -1110,7 +1112,6 @@ void MarkSweep::ZygoteSweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
 }
 
 void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitmaps) {
-  size_t freed_bytes = 0;
   space::DlMallocSpace* space = heap_->GetAllocSpace();
 
   // If we don't swap bitmaps then newly allocated Weaks go into the live bitmap but not mark
@@ -1130,6 +1131,8 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
     std::swap(large_live_objects, large_mark_objects);
   }
 
+  size_t freed_bytes = 0;
+  size_t freed_large_object_bytes = 0;
   size_t freed_objects = 0;
   size_t freed_large_objects = 0;
   size_t count = allocations->Size();
@@ -1150,28 +1153,28 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
         DCHECK_GE(out, objects_to_chunk_free);
         DCHECK_LE(static_cast<size_t>(out - objects_to_chunk_free), kSweepArrayChunkFreeSize);
         if (static_cast<size_t>(out - objects_to_chunk_free) == kSweepArrayChunkFreeSize) {
-          // timings_.StartSplit("FreeList");
+          timings_.StartSplit("FreeList");
           size_t chunk_freed_objects = out - objects_to_chunk_free;
           freed_objects += chunk_freed_objects;
           freed_bytes += space->FreeList(self, chunk_freed_objects, objects_to_chunk_free);
           objects_to_chunk_free = out;
-          // timings_.EndSplit();
+          timings_.EndSplit();
         }
       }
     } else if (!large_mark_objects->Test(obj)) {
       ++freed_large_objects;
-      freed_bytes += large_object_space->Free(self, obj);
+      freed_large_object_bytes += large_object_space->Free(self, obj);
     }
   }
   // Free the remaining objects in chunks.
   DCHECK_GE(out, objects_to_chunk_free);
   DCHECK_LE(static_cast<size_t>(out - objects_to_chunk_free), kSweepArrayChunkFreeSize);
   if (out - objects_to_chunk_free > 0) {
-    // timings_.StartSplit("FreeList");
+    timings_.StartSplit("FreeList");
     size_t chunk_freed_objects = out - objects_to_chunk_free;
     freed_objects += chunk_freed_objects;
     freed_bytes += space->FreeList(self, chunk_freed_objects, objects_to_chunk_free);
-    // timings_.EndSplit();
+    timings_.EndSplit();
   }
   CHECK_EQ(count, allocations->Size());
   timings_.EndSplit();
@@ -1179,9 +1182,11 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
   timings_.StartSplit("RecordFree");
   VLOG(heap) << "Freed " << freed_objects << "/" << count
              << " objects with size " << PrettySize(freed_bytes);
-  heap_->RecordFree(freed_objects + freed_large_objects, freed_bytes);
+  heap_->RecordFree(freed_objects + freed_large_objects, freed_bytes + freed_large_object_bytes);
   freed_objects_.fetch_add(freed_objects);
+  freed_large_objects_.fetch_add(freed_large_objects);
   freed_bytes_.fetch_add(freed_bytes);
+  freed_large_object_bytes_.fetch_add(freed_large_object_bytes);
   timings_.EndSplit();
 
   timings_.StartSplit("ResetStack");
@@ -1244,19 +1249,18 @@ void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
   if (swap_bitmaps) {
     std::swap(large_live_objects, large_mark_objects);
   }
-  accounting::SpaceSetMap::Objects& live_objects = large_live_objects->GetObjects();
   // O(n*log(n)) but hopefully there are not too many large objects.
   size_t freed_objects = 0;
   size_t freed_bytes = 0;
   Thread* self = Thread::Current();
-  for (const Object* obj : live_objects) {
+  for (const Object* obj : large_live_objects->GetObjects()) {
     if (!large_mark_objects->Test(obj)) {
       freed_bytes += large_object_space->Free(self, const_cast<Object*>(obj));
       ++freed_objects;
     }
   }
-  freed_objects_.fetch_add(freed_objects);
-  freed_bytes_.fetch_add(freed_bytes);
+  freed_large_objects_.fetch_add(freed_objects);
+  freed_large_object_bytes_.fetch_add(freed_bytes);
   GetHeap()->RecordFree(freed_objects, freed_bytes);
 }
 
