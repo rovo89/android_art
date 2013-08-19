@@ -124,7 +124,7 @@ ProfilerClockSource Trace::default_clock_source_ = kProfilerClockSourceWall;
 Trace* volatile Trace::the_trace_ = NULL;
 // TODO: Add way to enable sampling and set interval through gui.
 bool Trace::sampling_enabled_ = true;
-uint32_t Trace::sampling_interval_us_ = 10000;
+uint32_t Trace::sampling_interval_us_ = 1000;
 pthread_t Trace::sampling_pthread_ = 0U;
 UniquePtr<std::vector<mirror::ArtMethod*> > Trace::temp_stack_trace_;
 
