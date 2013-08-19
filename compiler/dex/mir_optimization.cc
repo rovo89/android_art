@@ -153,7 +153,14 @@ static BasicBlock* NextDominatedBlock(BasicBlock* bb) {
   }
   DCHECK((bb->block_type == kEntryBlock) || (bb->block_type == kDalvikByteCode)
       || (bb->block_type == kExitBlock));
-  bb = bb->fall_through;
+  if (((bb->taken != NULL) && (bb->fall_through == NULL)) &&
+      ((bb->taken->block_type == kDalvikByteCode) || (bb->taken->block_type == kExitBlock))) {
+    // Follow simple unconditional branches.
+    bb = bb->taken;
+  } else {
+    // Follow simple fallthrough
+    bb = (bb->taken != NULL) ? NULL : bb->fall_through;
+  }
   if (bb == NULL || (Predecessors(bb) != 1)) {
     return NULL;
   }
@@ -303,7 +310,8 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
         case Instruction::IF_GEZ:
         case Instruction::IF_GTZ:
         case Instruction::IF_LEZ:
-          if (bb->taken->dominates_return) {
+          // If we've got a backwards branch to return, no need to suspend check.
+          if ((bb->taken->dominates_return) && (mir->backwards_branch)) {
             mir->optimization_flags |= MIR_IGNORE_SUSPEND_CHECK;
             if (cu_->verbose) {
               LOG(INFO) << "Suppressed suspend check on branch to return at 0x" << std::hex << mir->offset;

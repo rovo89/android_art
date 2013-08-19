@@ -232,7 +232,8 @@ struct SSARepresentation {
  */
 struct MIR {
   DecodedInstruction dalvikInsn;
-  unsigned int width;
+  uint16_t width;
+  bool backwards_branch;          // TODO: may be useful to make this an attribute flag word.
   unsigned int offset;
   int m_unit_index;               // From which method was this MIR included
   MIR* prev;
