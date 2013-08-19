@@ -262,12 +262,17 @@ void Trace::CompareAndUpdateStackTrace(Thread* thread,
   std::vector<mirror::ArtMethod*>* old_stack_trace = thread->GetStackTraceSample();
   // Update the thread's stack trace sample.
   thread->SetStackTraceSample(stack_trace);
+  // Read timer clocks to use for all events in this trace.
+  uint32_t thread_clock_diff = 0;
+  uint32_t wall_clock_diff = 0;
+  ReadClocks(thread, &thread_clock_diff, &wall_clock_diff);
   if (old_stack_trace == NULL) {
     // If there's no previous stack trace sample for this thread, log an entry event for all
     // methods in the trace.
     for (std::vector<mirror::ArtMethod*>::reverse_iterator rit = stack_trace->rbegin();
          rit != stack_trace->rend(); ++rit) {
-      LogMethodTraceEvent(thread, *rit, instrumentation::Instrumentation::kMethodEntered);
+      LogMethodTraceEvent(thread, *rit, instrumentation::Instrumentation::kMethodEntered,
+                          thread_clock_diff, wall_clock_diff);
     }
   } else {
     // If there's a previous stack trace for this thread, diff the traces and emit entry and exit
@@ -282,11 +287,13 @@ void Trace::CompareAndUpdateStackTrace(Thread* thread,
     // Iterate top-down over the old trace until the point where they differ, emitting exit events.
     for (std::vector<mirror::ArtMethod*>::iterator old_it = old_stack_trace->begin();
          old_it != old_rit.base(); ++old_it) {
-      LogMethodTraceEvent(thread, *old_it, instrumentation::Instrumentation::kMethodExited);
+      LogMethodTraceEvent(thread, *old_it, instrumentation::Instrumentation::kMethodExited,
+                          thread_clock_diff, wall_clock_diff);
     }
     // Iterate bottom-up over the new trace from the point where they differ, emitting entry events.
     for (; rit != stack_trace->rend(); ++rit) {
-      LogMethodTraceEvent(thread, *rit, instrumentation::Instrumentation::kMethodEntered);
+      LogMethodTraceEvent(thread, *rit, instrumentation::Instrumentation::kMethodEntered,
+                          thread_clock_diff, wall_clock_diff);
     }
     FreeStackTrace(old_stack_trace);
   }
@@ -542,18 +549,30 @@ void Trace::DexPcMoved(Thread* thread, mirror::Object* this_object,
 
 void Trace::MethodEntered(Thread* thread, mirror::Object* this_object,
                           const mirror::ArtMethod* method, uint32_t dex_pc) {
-  LogMethodTraceEvent(thread, method, instrumentation::Instrumentation::kMethodEntered);
+  uint32_t thread_clock_diff = 0;
+  uint32_t wall_clock_diff = 0;
+  ReadClocks(thread, &thread_clock_diff, &wall_clock_diff);
+  LogMethodTraceEvent(thread, method, instrumentation::Instrumentation::kMethodEntered,
+                      thread_clock_diff, wall_clock_diff);
 }
 
 void Trace::MethodExited(Thread* thread, mirror::Object* this_object,
                          const mirror::ArtMethod* method, uint32_t dex_pc,
                          const JValue& return_value) {
   UNUSED(return_value);
-  LogMethodTraceEvent(thread, method, instrumentation::Instrumentation::kMethodExited);
+  uint32_t thread_clock_diff = 0;
+  uint32_t wall_clock_diff = 0;
+  ReadClocks(thread, &thread_clock_diff, &wall_clock_diff);
+  LogMethodTraceEvent(thread, method, instrumentation::Instrumentation::kMethodExited,
+                      thread_clock_diff, wall_clock_diff);
 }
 
 void Trace::MethodUnwind(Thread* thread, const mirror::ArtMethod* method, uint32_t dex_pc) {
-  LogMethodTraceEvent(thread, method, instrumentation::Instrumentation::kMethodUnwind);
+  uint32_t thread_clock_diff = 0;
+  uint32_t wall_clock_diff = 0;
+  ReadClocks(thread, &thread_clock_diff, &wall_clock_diff);
+  LogMethodTraceEvent(thread, method, instrumentation::Instrumentation::kMethodUnwind,
+                      thread_clock_diff, wall_clock_diff);
 }
 
 void Trace::ExceptionCaught(Thread* thread, const ThrowLocation& throw_location,
@@ -563,8 +582,25 @@ void Trace::ExceptionCaught(Thread* thread, const ThrowLocation& throw_location,
   LOG(ERROR) << "Unexpected exception caught event in tracing";
 }
 
+void Trace::ReadClocks(Thread* thread, uint32_t* thread_clock_diff, uint32_t* wall_clock_diff) {
+  if (UseThreadCpuClock()) {
+    uint64_t clock_base = thread->GetTraceClockBase();
+    if (UNLIKELY(clock_base == 0)) {
+      // First event, record the base time in the map.
+      uint64_t time = thread->GetCpuMicroTime();
+      thread->SetTraceClockBase(time);
+    } else {
+      *thread_clock_diff = thread->GetCpuMicroTime() - clock_base;
+    }
+  }
+  if (UseWallClock()) {
+    *wall_clock_diff = MicroTime() - start_time_;
+  }
+}
+
 void Trace::LogMethodTraceEvent(Thread* thread, const mirror::ArtMethod* method,
-                                instrumentation::Instrumentation::InstrumentationEvent event) {
+                                instrumentation::Instrumentation::InstrumentationEvent event,
+                                uint32_t thread_clock_diff, uint32_t wall_clock_diff) {
   // Advance cur_offset_ atomically.
   int32_t new_offset;
   int32_t old_offset;
@@ -601,20 +637,10 @@ void Trace::LogMethodTraceEvent(Thread* thread, const mirror::ArtMethod* method,
   ptr += 6;
 
   if (UseThreadCpuClock()) {
-    uint64_t clock_base = thread->GetTraceClockBase();
-    uint32_t thread_clock_diff = 0;
-    if (UNLIKELY(clock_base == 0)) {
-      // First event, record the base time in the map.
-      uint64_t time = thread->GetCpuMicroTime();
-      thread->SetTraceClockBase(time);
-    } else {
-      thread_clock_diff = thread->GetCpuMicroTime() - clock_base;
-    }
     Append4LE(ptr, thread_clock_diff);
     ptr += 4;
   }
   if (UseWallClock()) {
-    uint32_t wall_clock_diff = MicroTime() - start_time_;
     Append4LE(ptr, wall_clock_diff);
   }
 }

@@ -97,8 +97,11 @@ class Trace : public instrumentation::InstrumentationListener {
 
   void FinishTracing() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void ReadClocks(Thread* thread, uint32_t* thread_clock_diff, uint32_t* wall_clock_diff);
+
   void LogMethodTraceEvent(Thread* thread, const mirror::ArtMethod* method,
-                           instrumentation::Instrumentation::InstrumentationEvent event);
+                           instrumentation::Instrumentation::InstrumentationEvent event,
+                           uint32_t thread_clock_diff, uint32_t wall_clock_diff);
 
   // Methods to output traced methods and threads.
   void GetVisitedMethods(size_t end_offset, std::set<mirror::ArtMethod*>* visited_methods);
