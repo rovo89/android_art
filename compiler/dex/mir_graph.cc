@@ -306,6 +306,9 @@ BasicBlock* MIRGraph::ProcessCanBranch(BasicBlock* cur_block, MIR* insn, int cur
     default:
       LOG(FATAL) << "Unexpected opcode(" << insn->dalvikInsn.opcode << ") with kBranch set";
   }
+  if (target <= cur_offset) {
+    insn->backwards_branch = true;
+  }
   BasicBlock *taken_block = FindBlock(target, /* split */ true, /* create */ true,
                                       /* immed_pred_block_p */ &cur_block);
   cur_block->taken = taken_block;
