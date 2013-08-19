@@ -239,7 +239,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::GOTO:
     case Instruction::GOTO_16:
     case Instruction::GOTO_32:
-      if (mir->backwards_branch) {
+      if (mir_graph_->IsBackedge(bb, bb->taken)) {
         GenSuspendTestAndBranch(opt_flags, &label_list[bb->taken->id]);
       } else {
         OpUnconditionalBranch(&label_list[bb->taken->id]);
@@ -277,13 +277,13 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       if (rl_src[0].is_const && rl_src[1].is_const) {
         bool is_taken = EvaluateBranch(opcode, mir_graph_->ConstantValue(rl_src[0].orig_sreg),
                                        mir_graph_->ConstantValue(rl_src[1].orig_sreg));
-        if (is_taken && mir->backwards_branch) {
+        BasicBlock* target = is_taken ? bb->taken : bb->fall_through;
+        if (mir_graph_->IsBackedge(bb, target)) {
           GenSuspendTest(opt_flags);
         }
-        int id = is_taken ? bb->taken->id : bb->fall_through->id;
-        OpUnconditionalBranch(&label_list[id]);
+        OpUnconditionalBranch(&label_list[target->id]);
       } else {
-        if (mir->backwards_branch) {
+        if (mir_graph_->IsBackwardsBranch(bb)) {
           GenSuspendTest(opt_flags);
         }
         GenCompareAndBranch(opcode, rl_src[0], rl_src[1], taken,
@@ -303,13 +303,13 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       // Result known at compile time?
       if (rl_src[0].is_const) {
         bool is_taken = EvaluateBranch(opcode, mir_graph_->ConstantValue(rl_src[0].orig_sreg), 0);
-        if (is_taken && mir->backwards_branch) {
+        BasicBlock* target = is_taken ? bb->taken : bb->fall_through;
+        if (mir_graph_->IsBackedge(bb, target)) {
           GenSuspendTest(opt_flags);
         }
-        int id = is_taken ? bb->taken->id : bb->fall_through->id;
-        OpUnconditionalBranch(&label_list[id]);
+        OpUnconditionalBranch(&label_list[target->id]);
       } else {
-        if (mir->backwards_branch) {
+        if (mir_graph_->IsBackwardsBranch(bb)) {
           GenSuspendTest(opt_flags);
         }
         GenCompareZeroAndBranch(opcode, rl_src[0], taken, fall_through);
