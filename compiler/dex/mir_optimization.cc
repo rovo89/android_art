@@ -311,7 +311,8 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
         case Instruction::IF_GTZ:
         case Instruction::IF_LEZ:
           // If we've got a backwards branch to return, no need to suspend check.
-          if ((bb->taken->dominates_return) && (mir->backwards_branch)) {
+          if ((IsBackedge(bb, bb->taken) && bb->taken->dominates_return) ||
+              (IsBackedge(bb, bb->fall_through) && bb->fall_through->dominates_return)) {
             mir->optimization_flags |= MIR_IGNORE_SUSPEND_CHECK;
             if (cu_->verbose) {
               LOG(INFO) << "Suppressed suspend check on branch to return at 0x" << std::hex << mir->offset;
