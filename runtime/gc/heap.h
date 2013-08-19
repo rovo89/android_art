@@ -99,20 +99,20 @@ enum HeapVerificationMode {
   kVerifyAllFast,  // Sanity check all heap accesses with quick(er) tests.
   kVerifyAll  // Sanity check all heap accesses.
 };
-const HeapVerificationMode kDesiredHeapVerification = kNoHeapVerification;
+static constexpr HeapVerificationMode kDesiredHeapVerification = kNoHeapVerification;
 
 class Heap {
  public:
-  static const size_t kDefaultInitialSize = 2 * MB;
-  static const size_t kDefaultMaximumSize = 32 * MB;
-  static const size_t kDefaultMaxFree = 2 * MB;
-  static const size_t kDefaultMinFree = kDefaultMaxFree / 4;
+  static constexpr size_t kDefaultInitialSize = 2 * MB;
+  static constexpr size_t kDefaultMaximumSize = 32 * MB;
+  static constexpr size_t kDefaultMaxFree = 2 * MB;
+  static constexpr size_t kDefaultMinFree = kDefaultMaxFree / 4;
 
   // Default target utilization.
-  static const double kDefaultTargetUtilization;
+  static constexpr double kDefaultTargetUtilization = 0.5;
 
   // Used so that we don't overflow the allocation time atomic integer.
-  static const size_t kTimeAdjust = 1024;
+  static constexpr size_t kTimeAdjust = 1024;
 
   // Create a heap with the requested sizes. The possible empty
   // image_file_names names specify Spaces to load based on
@@ -434,7 +434,7 @@ class Heap {
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsOutOfMemoryOnAllocation(size_t alloc_size);
+  bool IsOutOfMemoryOnAllocation(size_t alloc_size, bool grow);
 
   // Pushes a list of cleared references out to the managed heap.
   void EnqueueClearedReferences(mirror::Object** cleared_references);

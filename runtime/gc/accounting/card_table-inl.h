@@ -65,8 +65,8 @@ inline void CardTable::Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_en
       (reinterpret_cast<uintptr_t>(card_end) & (sizeof(uintptr_t) - 1));
 
   // Now we have the words, we can send these to be processed in parallel.
-  auto* word_cur = reinterpret_cast<uintptr_t*>(card_cur);
-  auto* word_end = reinterpret_cast<uintptr_t*>(aligned_end);
+  uintptr_t* word_cur = reinterpret_cast<uintptr_t*>(card_cur);
+  uintptr_t* word_end = reinterpret_cast<uintptr_t*>(aligned_end);
   for (;;) {
     while (LIKELY(*word_cur == 0)) {
       ++word_cur;

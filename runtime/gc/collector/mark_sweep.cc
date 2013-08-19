@@ -268,7 +268,7 @@ void MarkSweep::MarkReachableObjects() {
 
 void MarkSweep::ReclaimPhase() {
   base::TimingLogger::ScopedSplit split("ReclaimPhase", &timings_);
-  auto* self = Thread::Current();
+  Thread* self = Thread::Current();
 
   if (!IsConcurrent()) {
     base::TimingLogger::ScopedSplit split("ProcessReferences", &timings_);
@@ -745,14 +745,14 @@ void MarkSweep::ScanGrayObjects(bool paused, byte minimum_age) {
   ThreadPool* thread_pool = GetHeap()->GetThreadPool();
   const bool parallel = kParallelCardScan && thread_pool != nullptr;
   if (parallel) {
-    auto* self = Thread::Current();
+    Thread* self = Thread::Current();
     // Can't have a different split for each space since multiple spaces can have their cards being
     // scanned at the same time.
     timings_.StartSplit(paused ? "(Paused)ScanGrayObjects" : "ScanGrayObjects");
     // Try to take some of the mark stack since we can pass this off to the worker tasks.
     const Object** mark_stack_begin = const_cast<const Object**>(mark_stack_->Begin());
     const Object** mark_stack_end = const_cast<const Object**>(mark_stack_->End());
-    const auto mark_stack_size = mark_stack_end - mark_stack_begin;
+    const size_t mark_stack_size = mark_stack_end - mark_stack_begin;
     const size_t thread_count = thread_pool->GetThreadCount() + 1;
     // Estimated number of work tasks we will create.
     const size_t mark_stack_tasks = GetHeap()->GetContinuousSpaces().size() * thread_count;
@@ -1209,8 +1209,8 @@ void MarkSweep::Sweep(bool swap_bitmaps) {
       sweep_space = (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyFullCollect);
     }
     if (sweep_space) {
-      auto begin = reinterpret_cast<uintptr_t>(space->Begin());
-      auto end = reinterpret_cast<uintptr_t>(space->End());
+      uintptr_t begin = reinterpret_cast<uintptr_t>(space->Begin());
+      uintptr_t end = reinterpret_cast<uintptr_t>(space->End());
       scc.space = space->AsDlMallocSpace();
       accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
       accounting::SpaceBitmap* mark_bitmap = space->GetMarkBitmap();
