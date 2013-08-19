@@ -1241,40 +1241,43 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
       << "Could not find garbage collector with concurrent=" << concurrent_gc_
       << " and type=" << gc_type;
 
-  base::TimingLogger& timings = collector->GetTimings();
-
   collector->clear_soft_references_ = clear_soft_references;
   collector->Run();
   total_objects_freed_ever_ += collector->GetFreedObjects();
   total_bytes_freed_ever_ += collector->GetFreedBytes();
+  if (care_about_pause_times_) {
+    const size_t duration = collector->GetDurationNs();
+    std::vector<uint64_t> pauses = collector->GetPauseTimes();
+    // GC for alloc pauses the allocating thread, so consider it as a pause.
+    bool was_slow = duration > kSlowGcThreshold ||
+            (gc_cause == kGcCauseForAlloc && duration > kLongGcPauseThreshold);
+    if (!was_slow) {
+      for (uint64_t pause : pauses) {
+        was_slow = was_slow || pause > kLongGcPauseThreshold;
+      }
+    }
 
-  const size_t duration = collector->GetDurationNs();
-  std::vector<uint64_t> pauses = collector->GetPauseTimes();
-  bool was_slow = duration > kSlowGcThreshold ||
-          (gc_cause == kGcCauseForAlloc && duration > kLongGcPauseThreshold);
-  for (size_t i = 0; i < pauses.size(); ++i) {
-      if (pauses[i] > kLongGcPauseThreshold) {
-          was_slow = true;
-      }
-  }
-
-  if (was_slow && care_about_pause_times_) {
-      const size_t percent_free = GetPercentFree();
-      const size_t current_heap_size = GetBytesAllocated();
-      const size_t total_memory = GetTotalMemory();
-      std::ostringstream pause_string;
-      for (size_t i = 0; i < pauses.size(); ++i) {
-          pause_string << PrettyDuration((pauses[i] / 1000) * 1000)
-                       << ((i != pauses.size() - 1) ? ", " : "");
-      }
-      LOG(INFO) << gc_cause << " " << collector->GetName()
-                << " GC freed " << PrettySize(collector->GetFreedBytes()) << ", "
-                << percent_free << "% free, " << PrettySize(current_heap_size) << "/"
-                << PrettySize(total_memory) << ", " << "paused " << pause_string.str()
-                << " total " << PrettyDuration((duration / 1000) * 1000);
-      if (VLOG_IS_ON(heap)) {
-          LOG(INFO) << Dumpable<base::TimingLogger>(timings);
-      }
+    if (was_slow) {
+        const size_t percent_free = GetPercentFree();
+        const size_t current_heap_size = GetBytesAllocated();
+        const size_t total_memory = GetTotalMemory();
+        std::ostringstream pause_string;
+        for (size_t i = 0; i < pauses.size(); ++i) {
+            pause_string << PrettyDuration((pauses[i] / 1000) * 1000)
+                         << ((i != pauses.size() - 1) ? ", " : "");
+        }
+        LOG(INFO) << gc_cause << " " << collector->GetName()
+                  << " GC freed "  <<  collector->GetFreedObjects() << "("
+                  << PrettySize(collector->GetFreedBytes()) << ") AllocSpace objects, "
+                  << collector->GetFreedLargeObjects() << "("
+                  << PrettySize(collector->GetFreedLargeObjectBytes()) << ") LOS objects, "
+                  << percent_free << "% free, " << PrettySize(current_heap_size) << "/"
+                  << PrettySize(total_memory) << ", " << "paused " << pause_string.str()
+                  << " total " << PrettyDuration((duration / 1000) * 1000);
+        if (VLOG_IS_ON(heap)) {
+            LOG(INFO) << Dumpable<base::TimingLogger>(collector->GetTimings());
+        }
+    }
   }
 
   {
