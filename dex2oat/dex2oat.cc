@@ -825,6 +825,7 @@ static int dex2oat(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  timings.StartSplit("dex2oat Setup");
   LOG(INFO) << "dex2oat: " << oat_location;
 
   Runtime::Options options;
@@ -926,7 +927,6 @@ static int dex2oat(int argc, char** argv) {
     }
   }
 
-  timings.StartSplit("dex2oat Setup");
   UniquePtr<const CompilerDriver> compiler(dex2oat->CreateOatFile(boot_image_option,
                                                                   host_prefix.get(),
                                                                   android_root,

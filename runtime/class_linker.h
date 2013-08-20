@@ -443,7 +443,7 @@ class ClassLinker {
   bool InitializeSuperClass(mirror::Class* klass, bool can_run_clinit, bool can_init_fields)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Initialize static fields, returns true if fields were initialized.
-  bool InitializeStaticFields(mirror::Class* klass)
+  bool InitializeStaticFields(mirror::Class* klass, bool can_init_statics)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsSameDescriptorInDifferentClassContexts(const char* descriptor,
