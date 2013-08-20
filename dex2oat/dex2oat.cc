@@ -137,6 +137,8 @@ static void Usage(const char* fmt, ...) {
   UsageError("");
   UsageError("  --host: used with Portable backend to link against host runtime libraries");
   UsageError("");
+  UsageError("  --dump-timing: display a breakdown of where time was spent");
+  UsageError("");
   UsageError("  --runtime-arg <argument>: used to specify various arguments for the runtime,");
   UsageError("      such as initial heap size, maximum heap size, and verbose output.");
   UsageError("      Use a separate --runtime-arg switch for each argument.");
@@ -607,7 +609,8 @@ static int dex2oat(int argc, char** argv) {
 #endif
   bool is_host = false;
   bool dump_stats = kIsDebugBuild;
-  bool dump_timings = kIsDebugBuild;
+  bool dump_timing = false;
+  bool dump_slow_timing = kIsDebugBuild;
   bool watch_dog_enabled = !kIsTargetBuild;
 
 
@@ -695,6 +698,8 @@ static int dex2oat(int argc, char** argv) {
         LOG(INFO) << "dex2oat: option[" << i << "]=" << argv[i];
       }
       runtime_args.push_back(argv[i]);
+    } else if (option == "--dump-timing") {
+      dump_timing = true;
     } else {
       Usage("unknown argument %s", option.data());
     }
@@ -1012,7 +1017,7 @@ static int dex2oat(int argc, char** argv) {
   }
 
   if (is_host) {
-    if (dump_timings && timings.GetTotalNs() > MsToNs(1000)) {
+    if (dump_timing || (dump_slow_timing && timings.GetTotalNs() > MsToNs(1000))) {
       LOG(INFO) << Dumpable<base::TimingLogger>(timings);
     }
     return EXIT_SUCCESS;
@@ -1053,7 +1058,7 @@ static int dex2oat(int argc, char** argv) {
 
   timings.EndSplit();
 
-  if (dump_timings && timings.GetTotalNs() > MsToNs(1000)) {
+  if (dump_timing && timings.GetTotalNs() > MsToNs(1000)) {
     LOG(INFO) << Dumpable<base::TimingLogger>(timings);
   }
   return EXIT_SUCCESS;
