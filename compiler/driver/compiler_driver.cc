@@ -1947,6 +1947,7 @@ static const char* class_initializer_black_list[] = {
   "Ljava/util/SimpleTimeZone;",  // Sub-class of TimeZone.
   "Ljava/util/TimeZone;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
   "Ljava/util/concurrent/ConcurrentHashMap;",  // Calls Runtime.getRuntime().availableProcessors().
+  "Ljava/util/concurrent/ConcurrentHashMap$Segment;",  // Calls Runtime.getRuntime().availableProcessors().
   "Ljava/util/concurrent/ConcurrentSkipListMap;",  // Calls Random() -> OsConstants.initConstants.
   "Ljava/util/concurrent/Exchanger;",  // Calls Runtime.getRuntime().availableProcessors().
   "Ljava/util/concurrent/ForkJoinPool;",  // Makes a thread pool ..-> calls OsConstants.initConstants.
