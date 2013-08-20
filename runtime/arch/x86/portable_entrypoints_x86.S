@@ -125,4 +125,4 @@ DEFINE_FUNCTION art_portable_to_interpreter_bridge
   .cfi_restore %ebp
   .cfi_def_cfa %esp, 4
   ret
-END_FUNCTION art_quick_to_interpreter_bridge
+END_FUNCTION art_portable_to_interpreter_bridge
