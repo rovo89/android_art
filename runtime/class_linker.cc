@@ -2311,8 +2311,9 @@ void ClassLinker::VerifyClass(mirror::Class* klass) {
   mirror::Class::Status oat_file_class_status(mirror::Class::kStatusNotReady);
   bool preverified = VerifyClassUsingOatFile(dex_file, klass, oat_file_class_status);
   if (oat_file_class_status == mirror::Class::kStatusError) {
-    LOG(WARNING) << "Skipping runtime verification of erroneous class " << PrettyDescriptor(klass)
-                 << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
+    VLOG(class_linker) << "Skipping runtime verification of erroneous class "
+        << PrettyDescriptor(klass) << " in "
+        << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
     ThrowVerifyError(klass, "Rejecting class %s because it failed compile-time verification",
                      PrettyDescriptor(klass).c_str());
     klass->SetStatus(mirror::Class::kStatusError);
@@ -2326,7 +2327,7 @@ void ClassLinker::VerifyClass(mirror::Class* klass) {
   }
   if (preverified || verifier_failure != verifier::MethodVerifier::kHardFailure) {
     if (!preverified && verifier_failure != verifier::MethodVerifier::kNoFailure) {
-      LOG(WARNING) << "Soft verification failure in class " << PrettyDescriptor(klass)
+      VLOG(class_linker) << "Soft verification failure in class " << PrettyDescriptor(klass)
           << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8()
           << " because: " << error_msg;
     }
@@ -2722,14 +2723,6 @@ bool ClassLinker::InitializeClass(mirror::Class* klass, bool can_run_clinit, boo
     }
 
     clinit = klass->FindDeclaredDirectMethod("<clinit>", "()V");
-    if (clinit != NULL && !can_run_clinit) {
-      // if the class has a <clinit> but we can't run it during compilation,
-      // don't bother going to kStatusInitializing. We return false so that
-      // sub-classes don't believe this class is initialized.
-      // Opportunistically link non-static methods, TODO: don't initialize and dirty pages
-      // in second pass.
-      return false;
-    }
 
     // If the class is kStatusInitializing, either this thread is
     // initializing higher up the stack or another thread has beat us
@@ -2775,9 +2768,9 @@ bool ClassLinker::InitializeClass(mirror::Class* klass, bool can_run_clinit, boo
     return false;
   }
 
-  bool has_static_field_initializers = InitializeStaticFields(klass);
+  bool has_static_field_initializers = InitializeStaticFields(klass, can_init_statics);
 
-  if (clinit != NULL) {
+  if (clinit != NULL && can_run_clinit) {
     if (Runtime::Current()->IsStarted()) {
       JValue result;
       clinit->Invoke(self, NULL, 0, &result, 'V');
@@ -2786,7 +2779,11 @@ bool ClassLinker::InitializeClass(mirror::Class* klass, bool can_run_clinit, boo
     }
   }
 
-  FixupStaticTrampolines(klass);
+  // Opportunistically set static method trampolines to their destiniation. Unless initialization
+  // is being hindered at compile time.
+  if (can_init_statics || can_run_clinit || (!has_static_field_initializers && clinit == NULL)) {
+    FixupStaticTrampolines(klass);
+  }
 
   uint64_t t1 = NanoTime();
 
@@ -2805,15 +2802,15 @@ bool ClassLinker::InitializeClass(mirror::Class* klass, bool can_run_clinit, boo
       ++thread_stats->class_init_count;
       global_stats->class_init_time_ns += (t1 - t0);
       thread_stats->class_init_time_ns += (t1 - t0);
-      // Set the class as initialized except if we can't initialize static fields and static field
-      // initialization is necessary.
-      if (!can_init_statics && has_static_field_initializers) {
-        klass->SetStatus(mirror::Class::kStatusVerified);  // Don't leave class in initializing state.
+      // Set the class as initialized except if failed to initialize static fields.
+      if ((!can_init_statics && has_static_field_initializers) ||
+          (!can_run_clinit && clinit != NULL)) {
+        klass->SetStatus(mirror::Class::kStatusVerified);
         success = false;
       } else {
         klass->SetStatus(mirror::Class::kStatusInitialized);
       }
-      if (VLOG_IS_ON(class_linker)) {
+      if (success && VLOG_IS_ON(class_linker)) {
         ClassHelper kh(klass);
         LOG(INFO) << "Initialized class " << kh.GetDescriptor() << " from " << kh.GetLocation();
       }
@@ -2986,10 +2983,9 @@ bool ClassLinker::EnsureInitialized(mirror::Class* c, bool can_run_clinit, bool 
     return true;
   }
 
-  Thread* self = Thread::Current();
-  ScopedThreadStateChange tsc(self, kRunnable);
   bool success = InitializeClass(c, can_run_clinit, can_init_fields);
   if (!success) {
+    Thread* self = Thread::Current();
     CHECK(self->IsExceptionPending() || !can_run_clinit) << PrettyClass(c);
   }
   return success;
@@ -3005,7 +3001,7 @@ void ClassLinker::ConstructFieldMap(const DexFile& dex_file, const DexFile::Clas
   }
 }
 
-bool ClassLinker::InitializeStaticFields(mirror::Class* klass) {
+bool ClassLinker::InitializeStaticFields(mirror::Class* klass, bool can_init_statics) {
   size_t num_static_fields = klass->NumStaticFields();
   if (num_static_fields == 0) {
     return false;
@@ -3022,16 +3018,19 @@ bool ClassLinker::InitializeStaticFields(mirror::Class* klass) {
   EncodedStaticFieldValueIterator it(dex_file, dex_cache, klass->GetClassLoader(),
                                      this, *dex_class_def);
 
-  if (it.HasNext()) {
-    // We reordered the fields, so we need to be able to map the field indexes to the right fields.
-    SafeMap<uint32_t, mirror::ArtField*> field_map;
-    ConstructFieldMap(dex_file, *dex_class_def, klass, field_map);
-    for (size_t i = 0; it.HasNext(); i++, it.Next()) {
-      it.ReadValueToField(field_map.Get(i));
+  if (!it.HasNext()) {
+    return false;
+  } else {
+    if (can_init_statics) {
+      // We reordered the fields, so we need to be able to map the field indexes to the right fields.
+      SafeMap<uint32_t, mirror::ArtField*> field_map;
+      ConstructFieldMap(dex_file, *dex_class_def, klass, field_map);
+      for (size_t i = 0; it.HasNext(); i++, it.Next()) {
+        it.ReadValueToField(field_map.Get(i));
+      }
     }
     return true;
   }
-  return false;
 }
 
 bool ClassLinker::LinkClass(SirtRef<mirror::Class>& klass,

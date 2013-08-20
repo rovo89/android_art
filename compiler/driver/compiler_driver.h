@@ -110,6 +110,7 @@ class CompilerDriver {
     return compiler_backend_;
   }
 
+  // Are we compiling and creating an image file?
   bool IsImage() const {
     return image_;
   }
