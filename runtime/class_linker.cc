@@ -1111,16 +1111,15 @@ void ClassLinker::VisitRoots(RootVisitor* visitor, void* arg, bool clean_dirty) 
   Thread* self = Thread::Current();
   {
     ReaderMutexLock mu(self, dex_lock_);
-    for (size_t i = 0; i < dex_caches_.size(); i++) {
-      visitor(dex_caches_[i], arg);
+    for (mirror::DexCache* dex_cache : dex_caches_) {
+      visitor(dex_cache, arg);
     }
   }
 
   {
     ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);
-    typedef Table::const_iterator It;  // TODO: C++0x auto
-    for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
-      visitor(it->second, arg);
+    for (const std::pair<size_t, mirror::Class*>& it : classes_) {
+      visitor(it.second, arg);
     }
 
     // We deliberately ignore the class roots in the image since we
@@ -1135,14 +1134,13 @@ void ClassLinker::VisitRoots(RootVisitor* visitor, void* arg, bool clean_dirty) 
 
 void ClassLinker::VisitClasses(ClassVisitor* visitor, void* arg) const {
   ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-  typedef Table::const_iterator It;  // TODO: C++0x auto
-  for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
-    if (!visitor(it->second, arg)) {
+  for (const std::pair<size_t, mirror::Class*>& it : classes_) {
+    if (!visitor(it.second, arg)) {
       return;
     }
   }
-  for (It it = image_classes_.begin(), end = image_classes_.end(); it != end; ++it) {
-    if (!visitor(it->second, arg)) {
+  for (const std::pair<size_t, mirror::Class*>& it : image_classes_) {
+    if (!visitor(it.second, arg)) {
       return;
     }
   }
@@ -1157,9 +1155,8 @@ static bool GetClassesVisitor(mirror::Class* c, void* arg) {
 void ClassLinker::VisitClassesWithoutClassesLock(ClassVisitor* visitor, void* arg) const {
   std::set<mirror::Class*> classes;
   VisitClasses(GetClassesVisitor, &classes);
-  typedef std::set<mirror::Class*>::const_iterator It;  // TODO: C++0x auto
-  for (It it = classes.begin(), end = classes.end(); it != end; ++it) {
-    if (!visitor(*it, arg)) {
+  for (mirror::Class* klass : classes) {
+    if (!visitor(klass, arg)) {
       return;
     }
   }
@@ -1614,6 +1611,13 @@ static bool NeedsInterpreter(const mirror::ArtMethod* method, const void* code) 
     // No code: need interpreter.
     return true;
   }
+#ifdef ART_SEA_IR_MODE
+  ScopedObjectAccess soa(Thread::Current());
+  if (std::string::npos != PrettyMethod(method).find("fibonacci")) {
+    LOG(INFO) << "Found " << PrettyMethod(method);
+    return false;
+  }
+#endif
   // If interpreter mode is enabled, every method (except native and proxy) must
   // be run with interpreter.
   return Runtime::Current()->GetInstrumentation()->InterpretOnly() &&
@@ -2160,10 +2164,9 @@ mirror::Class* ClassLinker::InsertClass(const StringPiece& descriptor, mirror::C
 bool ClassLinker::RemoveClass(const char* descriptor, const mirror::ClassLoader* class_loader) {
   size_t hash = Hash(descriptor);
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-  typedef Table::iterator It;  // TODO: C++0x auto
   // TODO: determine if its better to search classes_ or image_classes_ first
   ClassHelper kh;
-  for (It it = classes_.lower_bound(hash), end = classes_.end(); it != end && it->first == hash;
+  for (auto it = classes_.lower_bound(hash), end = classes_.end(); it != end && it->first == hash;
        ++it) {
     mirror::Class* klass = it->second;
     kh.ChangeClass(klass);
@@ -2172,7 +2175,7 @@ bool ClassLinker::RemoveClass(const char* descriptor, const mirror::ClassLoader*
       return true;
     }
   }
-  for (It it = image_classes_.lower_bound(hash), end = classes_.end();
+  for (auto it = image_classes_.lower_bound(hash), end = classes_.end();
       it != end && it->first == hash; ++it) {
     mirror::Class* klass = it->second;
     kh.ChangeClass(klass);
@@ -2204,8 +2207,9 @@ mirror::Class* ClassLinker::LookupClassLocked(const char* descriptor,
                                               const mirror::ClassLoader* class_loader,
                                               size_t hash, const Table& classes) {
   ClassHelper kh(NULL, this);
-  typedef Table::const_iterator It;  // TODO: C++0x auto
-  for (It it = classes.lower_bound(hash), end = classes_.end(); it != end && it->first == hash; ++it) {
+  auto end = classes_.end();
+  for (auto it = classes.lower_bound(hash); it != end && it->first == hash;
+      ++it) {
     mirror::Class* klass = it->second;
     kh.ChangeClass(klass);
     if (strcmp(descriptor, kh.GetDescriptor()) == 0 && klass->GetClassLoader() == class_loader) {
@@ -2228,17 +2232,18 @@ void ClassLinker::LookupClasses(const char* descriptor, std::vector<mirror::Clas
   classes.clear();
   size_t hash = Hash(descriptor);
   ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-  typedef Table::const_iterator It;  // TODO: C++0x auto
   // TODO: determine if its better to search classes_ or image_classes_ first
   ClassHelper kh(NULL, this);
-  for (It it = classes_.lower_bound(hash), end = classes_.end(); it != end && it->first == hash; ++it) {
+  for (auto it = classes_.lower_bound(hash), end = classes_.end(); it != end && it->first == hash;
+      ++it) {
     mirror::Class* klass = it->second;
     kh.ChangeClass(klass);
     if (strcmp(descriptor, kh.GetDescriptor()) == 0) {
       classes.push_back(klass);
     }
   }
-  for (It it = image_classes_.lower_bound(hash), end = classes_.end(); it != end && it->first == hash; ++it) {
+  for (auto it = image_classes_.lower_bound(hash), end = classes_.end();
+      it != end && it->first == hash; ++it) {
     mirror::Class* klass = it->second;
     kh.ChangeClass(klass);
     if (strcmp(descriptor, kh.GetDescriptor()) == 0) {
@@ -3967,12 +3972,11 @@ void ClassLinker::DumpAllClasses(int flags) const {
   std::vector<mirror::Class*> all_classes;
   {
     ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-    typedef Table::const_iterator It;  // TODO: C++0x auto
-    for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
-      all_classes.push_back(it->second);
+    for (const std::pair<size_t, mirror::Class*>& it : classes_) {
+      all_classes.push_back(it.second);
     }
-    for (It it = image_classes_.begin(), end = image_classes_.end(); it != end; ++it) {
-      all_classes.push_back(it->second);
+    for (const std::pair<size_t, mirror::Class*>& it : image_classes_) {
+      all_classes.push_back(it.second);
     }
   }
 

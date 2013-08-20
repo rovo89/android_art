@@ -206,12 +206,9 @@ static void InstrumentationRestoreStack(Thread* thread, void* arg)
         }
         return true;  // Ignore upcalls.
       }
-      typedef std::deque<instrumentation::InstrumentationStackFrame>::const_iterator It;  // TODO: C++0x auto
       bool removed_stub = false;
       // TODO: make this search more efficient?
-      for (It it = instrumentation_stack_->begin(), end = instrumentation_stack_->end(); it != end;
-          ++it) {
-        InstrumentationStackFrame instrumentation_frame =  *it;
+      for (InstrumentationStackFrame instrumentation_frame : *instrumentation_stack_) {
         if (instrumentation_frame.frame_id_ == GetFrameId()) {
           if (kVerboseInstrumentation) {
             LOG(INFO) << "  Removing exit stub in " << DescribeLocation();
@@ -407,8 +404,7 @@ const void* Instrumentation::GetQuickCodeFor(const mirror::ArtMethod* method) co
 void Instrumentation::MethodEnterEventImpl(Thread* thread, mirror::Object* this_object,
                                            const mirror::ArtMethod* method,
                                            uint32_t dex_pc) const {
-  typedef std::list<InstrumentationListener*>::const_iterator It;  // TODO: C++0x auto
-  It it = method_entry_listeners_.begin();
+  auto it = method_entry_listeners_.begin();
   bool is_end = (it == method_entry_listeners_.end());
   // Implemented this way to prevent problems caused by modification of the list while iterating.
   while (!is_end) {
@@ -422,8 +418,7 @@ void Instrumentation::MethodEnterEventImpl(Thread* thread, mirror::Object* this_
 void Instrumentation::MethodExitEventImpl(Thread* thread, mirror::Object* this_object,
                                           const mirror::ArtMethod* method,
                                           uint32_t dex_pc, const JValue& return_value) const {
-  typedef std::list<InstrumentationListener*>::const_iterator It;  // TODO: C++0x auto
-  It it = method_exit_listeners_.begin();
+  auto it = method_exit_listeners_.begin();
   bool is_end = (it == method_exit_listeners_.end());
   // Implemented this way to prevent problems caused by modification of the list while iterating.
   while (!is_end) {
@@ -438,10 +433,8 @@ void Instrumentation::MethodUnwindEvent(Thread* thread, mirror::Object* this_obj
                                         const mirror::ArtMethod* method,
                                         uint32_t dex_pc) const {
   if (have_method_unwind_listeners_) {
-    typedef std::list<InstrumentationListener*>::const_iterator It;  // TODO: C++0x auto
-    for (It it = method_unwind_listeners_.begin(), end = method_unwind_listeners_.end(); it != end;
-        ++it) {
-      (*it)->MethodUnwind(thread, method, dex_pc);
+    for (InstrumentationListener* listener : method_unwind_listeners_) {
+      listener->MethodUnwind(thread, method, dex_pc);
     }
   }
 }
@@ -454,9 +447,8 @@ void Instrumentation::DexPcMovedEventImpl(Thread* thread, mirror::Object* this_o
   // around the problem and in general we may have to move to something like reference counting to
   // ensure listeners are deleted correctly.
   std::list<InstrumentationListener*> copy(dex_pc_listeners_);
-  typedef std::list<InstrumentationListener*>::const_iterator It;  // TODO: C++0x auto
-  for (It it = copy.begin(), end = copy.end(); it != end; ++it) {
-    (*it)->DexPcMoved(thread, this_object, method, dex_pc);
+  for (InstrumentationListener* listener : copy) {
+    listener->DexPcMoved(thread, this_object, method, dex_pc);
   }
 }
 
@@ -467,10 +459,8 @@ void Instrumentation::ExceptionCaughtEvent(Thread* thread, const ThrowLocation& 
   if (have_exception_caught_listeners_) {
     DCHECK_EQ(thread->GetException(NULL), exception_object);
     thread->ClearException();
-    typedef std::list<InstrumentationListener*>::const_iterator It;  // TODO: C++0x auto
-    for (It it = exception_caught_listeners_.begin(), end = exception_caught_listeners_.end();
-        it != end; ++it) {
-      (*it)->ExceptionCaught(thread, throw_location, catch_method, catch_dex_pc, exception_object);
+    for (InstrumentationListener* listener : exception_caught_listeners_) {
+      listener->ExceptionCaught(thread, throw_location, catch_method, catch_dex_pc, exception_object);
     }
     thread->SetException(throw_location, exception_object);
   }

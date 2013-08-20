@@ -15,8 +15,10 @@
  */
 
 #include "callee_save_frame.h"
+#include "common_throws.h"
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
+#include "entrypoints/entrypoint_utils.h"
 #include "interpreter/interpreter.h"
 #include "invoke_arg_array_builder.h"
 #include "mirror/art_method-inl.h"
@@ -25,6 +27,8 @@
 #include "mirror/object_array-inl.h"
 #include "object_utils.h"
 #include "runtime.h"
+
+
 
 namespace art {
 
@@ -218,10 +222,11 @@ class QuickArgumentVisitor {
 };
 
 // Visits arguments on the stack placing them into the shadow frame.
-class BuildShadowFrameVisitor : public QuickArgumentVisitor {
+class BuildQuickShadowFrameVisitor : public QuickArgumentVisitor {
  public:
-  BuildShadowFrameVisitor(mirror::ArtMethod** sp, bool is_static, const char* shorty,
-                          uint32_t shorty_len, ShadowFrame& sf, size_t first_arg_reg) :
+  BuildQuickShadowFrameVisitor(mirror::ArtMethod** sp,
+      bool is_static, const char* shorty,
+       uint32_t shorty_len, ShadowFrame& sf, size_t first_arg_reg) :
     QuickArgumentVisitor(sp, is_static, shorty, shorty_len), sf_(sf), cur_reg_(first_arg_reg) {}
 
   virtual void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -258,7 +263,7 @@ class BuildShadowFrameVisitor : public QuickArgumentVisitor {
   ShadowFrame& sf_;
   size_t cur_reg_;
 
-  DISALLOW_COPY_AND_ASSIGN(BuildShadowFrameVisitor);
+  DISALLOW_COPY_AND_ASSIGN(BuildQuickShadowFrameVisitor);
 };
 
 extern "C" uint64_t artQuickToInterpreterBridge(mirror::ArtMethod* method, Thread* self,
@@ -280,7 +285,7 @@ extern "C" uint64_t artQuickToInterpreterBridge(mirror::ArtMethod* method, Threa
     ShadowFrame* shadow_frame(ShadowFrame::Create(num_regs, NULL,  // No last shadow coming from quick.
                                                   method, 0, memory));
     size_t first_arg_reg = code_item->registers_size_ - code_item->ins_size_;
-    BuildShadowFrameVisitor shadow_frame_builder(sp, mh.IsStatic(), mh.GetShorty(),
+    BuildQuickShadowFrameVisitor shadow_frame_builder(sp, mh.IsStatic(), mh.GetShorty(),
                                                  mh.GetShortyLength(),
                                                  *shadow_frame, first_arg_reg);
     shadow_frame_builder.VisitArguments();

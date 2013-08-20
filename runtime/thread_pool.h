@@ -55,6 +55,7 @@ class ThreadPoolWorker {
   const size_t stack_size_;
   pthread_t pthread_;
 
+ private:
   friend class ThreadPool;
   DISALLOW_COPY_AND_ASSIGN(ThreadPoolWorker);
 };
@@ -117,6 +118,7 @@ class ThreadPool {
   uint64_t total_wait_time_;
   Barrier creation_barier_;
 
+ private:
   friend class ThreadPoolWorker;
   friend class WorkStealingWorker;
   DISALLOW_COPY_AND_ASSIGN(ThreadPool);
@@ -153,6 +155,7 @@ class WorkStealingWorker : public ThreadPoolWorker {
   WorkStealingWorker(ThreadPool* thread_pool, const std::string& name, size_t stack_size);
   virtual void Run();
 
+ private:
   friend class WorkStealingThreadPool;
   DISALLOW_COPY_AND_ASSIGN(WorkStealingWorker);
 };

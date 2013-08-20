@@ -87,6 +87,7 @@ LIBART_COMPILER_SRC_FILES := \
 	elf_stripper.cc \
 	elf_writer.cc \
 	elf_writer_quick.cc \
+	file_output_stream.cc \
 	image_writer.cc \
 	oat_writer.cc \
 	vector_output_stream.cc
@@ -97,6 +98,7 @@ LIBART_COMPILER_SRC_FILES += \
 	sea_ir/ir/instruction_tools.cc \
 	sea_ir/ir/sea.cc \
 	sea_ir/code_gen/code_gen.cc \
+	sea_ir/code_gen/code_gen_data.cc \
 	sea_ir/types/type_inference.cc \
 	sea_ir/types/type_inference_visitor.cc \
 	sea_ir/debug/dot_gen.cc

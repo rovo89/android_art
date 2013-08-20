@@ -99,20 +99,20 @@ enum HeapVerificationMode {
   kVerifyAllFast,  // Sanity check all heap accesses with quick(er) tests.
   kVerifyAll  // Sanity check all heap accesses.
 };
-const HeapVerificationMode kDesiredHeapVerification = kNoHeapVerification;
+static constexpr HeapVerificationMode kDesiredHeapVerification = kNoHeapVerification;
 
 class Heap {
  public:
-  static const size_t kDefaultInitialSize = 2 * MB;
-  static const size_t kDefaultMaximumSize = 32 * MB;
-  static const size_t kDefaultMaxFree = 2 * MB;
-  static const size_t kDefaultMinFree = kDefaultMaxFree / 4;
+  static constexpr size_t kDefaultInitialSize = 2 * MB;
+  static constexpr size_t kDefaultMaximumSize = 32 * MB;
+  static constexpr size_t kDefaultMaxFree = 2 * MB;
+  static constexpr size_t kDefaultMinFree = kDefaultMaxFree / 4;
 
   // Default target utilization.
-  static const double kDefaultTargetUtilization;
+  static constexpr double kDefaultTargetUtilization = 0.5;
 
   // Used so that we don't overflow the allocation time atomic integer.
-  static const size_t kTimeAdjust = 1024;
+  static constexpr size_t kTimeAdjust = 1024;
 
   // Create a heap with the requested sizes. The possible empty
   // image_file_names names specify Spaces to load based on
@@ -380,6 +380,22 @@ class Heap {
     return large_object_space_;
   }
 
+  Mutex* GetSoftRefQueueLock() {
+    return soft_ref_queue_lock_;
+  }
+
+  Mutex* GetWeakRefQueueLock() {
+    return weak_ref_queue_lock_;
+  }
+
+  Mutex* GetFinalizerRefQueueLock() {
+    return finalizer_ref_queue_lock_;
+  }
+
+  Mutex* GetPhantomRefQueueLock() {
+    return phantom_ref_queue_lock_;
+  }
+
   void DumpSpaces();
 
   // GC performance measuring
@@ -418,7 +434,7 @@ class Heap {
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsOutOfMemoryOnAllocation(size_t alloc_size);
+  bool IsOutOfMemoryOnAllocation(size_t alloc_size, bool grow);
 
   // Pushes a list of cleared references out to the managed heap.
   void EnqueueClearedReferences(mirror::Object** cleared_references);
@@ -499,7 +515,7 @@ class Heap {
   const bool concurrent_gc_;
 
   // How many GC threads we may use for garbage collection.
-  const bool num_gc_threads_;
+  const size_t num_gc_threads_;
 
   // Boolean for if we are in low memory mode.
   const bool low_memory_mode_;
@@ -512,9 +528,12 @@ class Heap {
   Mutex* gc_complete_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   UniquePtr<ConditionVariable> gc_complete_cond_ GUARDED_BY(gc_complete_lock_);
 
-  // Mutex held when adding references to reference queues.
+  // Mutexes held when adding references to reference queues.
   // TODO: move to a UniquePtr, currently annotalysis is confused that UniquePtr isn't lockable.
-  Mutex* reference_queue_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  Mutex* soft_ref_queue_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  Mutex* weak_ref_queue_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  Mutex* finalizer_ref_queue_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  Mutex* phantom_ref_queue_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 
   // True while the garbage collector is running.
   volatile bool is_gc_running_ GUARDED_BY(gc_complete_lock_);

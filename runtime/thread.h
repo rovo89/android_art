@@ -267,6 +267,9 @@ class PACKED(4) Thread {
   // Sets the thread's name.
   void SetThreadName(const char* name) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Returns the thread-specific CPU-time clock in microseconds or -1 if unavailable.
+  uint64_t GetCpuMicroTime() const;
+
   mirror::Object* GetPeer() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(jpeer_ == NULL);
     return opeer_;
@@ -549,6 +552,22 @@ class PACKED(4) Thread {
     return instrumentation_stack_;
   }
 
+  std::vector<mirror::ArtMethod*>* GetStackTraceSample() const {
+    return stack_trace_sample_;
+  }
+
+  void SetStackTraceSample(std::vector<mirror::ArtMethod*>* sample) {
+    stack_trace_sample_ = sample;
+  }
+
+  uint64_t GetTraceClockBase() const {
+    return trace_clock_base_;
+  }
+
+  void SetTraceClockBase(uint64_t clock_base) {
+    trace_clock_base_ = clock_base;
+  }
+
   BaseMutex* GetHeldMutex(LockLevel level) const {
     return held_mutexes_[level];
   }
@@ -694,6 +713,12 @@ class PACKED(4) Thread {
 
   // Size of the stack
   size_t stack_size_;
+
+  // Pointer to previous stack trace captured by sampling profiler.
+  std::vector<mirror::ArtMethod*>* stack_trace_sample_;
+
+  // The clock base used for tracing.
+  uint64_t trace_clock_base_;
 
   // Thin lock thread id. This is a small integer used by the thin lock implementation.
   // This is not to be confused with the native thread's tid, nor is it the value returned

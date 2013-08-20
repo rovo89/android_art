@@ -59,17 +59,16 @@ namespace art {
 namespace gc {
 
 // When to create a log message about a slow GC, 100ms.
-static const uint64_t kSlowGcThreshold = MsToNs(100);
+static constexpr uint64_t kSlowGcThreshold = MsToNs(100);
 // When to create a log message about a long pause, 5ms.
-static const uint64_t kLongGcPauseThreshold = MsToNs(5);
-static const bool kGCALotMode = false;
-static const size_t kGcAlotInterval = KB;
-static const bool kDumpGcPerformanceOnShutdown = false;
+static constexpr uint64_t kLongGcPauseThreshold = MsToNs(5);
+static constexpr bool kGCALotMode = false;
+static constexpr size_t kGcAlotInterval = KB;
+static constexpr bool kDumpGcPerformanceOnShutdown = false;
 // Minimum amount of remaining bytes before a concurrent GC is triggered.
-static const size_t kMinConcurrentRemainingBytes = 128 * KB;
-const double Heap::kDefaultTargetUtilization = 0.5;
+static constexpr size_t kMinConcurrentRemainingBytes = 128 * KB;
 // If true, measure the total allocation time.
-static const bool kMeasureAllocationTime = false;
+static constexpr bool kMeasureAllocationTime = false;
 
 Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max_free,
            double target_utilization, size_t capacity, const std::string& original_image_file_name,
@@ -80,7 +79,10 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       num_gc_threads_(num_gc_threads),
       low_memory_mode_(low_memory_mode),
       have_zygote_space_(false),
-      reference_queue_lock_(NULL),
+      soft_ref_queue_lock_(NULL),
+      weak_ref_queue_lock_(NULL),
+      finalizer_ref_queue_lock_(NULL),
+      phantom_ref_queue_lock_(NULL),
       is_gc_running_(false),
       last_gc_type_(collector::kGcTypeNone),
       next_gc_type_(collector::kGcTypePartial),
@@ -97,8 +99,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       // Initially care about pauses in case we never get notified of process states, or if the JNI
       // code becomes broken.
       care_about_pause_times_(true),
-      concurrent_start_bytes_(concurrent_gc ? initial_size - (kMinConcurrentRemainingBytes)
-                                            :  std::numeric_limits<size_t>::max()),
+      concurrent_start_bytes_(concurrent_gc_ ? initial_size - kMinConcurrentRemainingBytes
+          :  std::numeric_limits<size_t>::max()),
       total_bytes_freed_ever_(0),
       total_objects_freed_ever_(0),
       large_object_threshold_(3 * kPageSize),
@@ -183,11 +185,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     heap_capacity += continuous_spaces_.back()->AsDlMallocSpace()->NonGrowthLimitCapacity();
   }
 
-  // Mark image objects in the live bitmap
-  // TODO: C++0x
-  typedef std::vector<space::ContinuousSpace*>::iterator It;
-  for (It it = continuous_spaces_.begin(); it != continuous_spaces_.end(); ++it) {
-    space::ContinuousSpace* space = *it;
+  // Mark image objects in the live bitmap.
+  for (const auto& space : continuous_spaces_) {
     if (space->IsImageSpace()) {
       space::ImageSpace* image_space = space->AsImageSpace();
       image_space->RecordImageAllocations(image_space->GetLiveBitmap());
@@ -222,8 +221,11 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   gc_complete_cond_.reset(new ConditionVariable("GC complete condition variable",
                                                 *gc_complete_lock_));
 
-  // Create the reference queue lock, this is required so for parallel object scanning in the GC.
-  reference_queue_lock_ = new Mutex("reference queue lock");
+  // Create the reference queue locks, this is required so for parallel object scanning in the GC.
+  soft_ref_queue_lock_ = new Mutex("Soft reference queue lock");
+  weak_ref_queue_lock_ = new Mutex("Weak reference queue lock");
+  finalizer_ref_queue_lock_ = new Mutex("Finalizer reference queue lock");
+  phantom_ref_queue_lock_ = new Mutex("Phantom reference queue lock");
 
   last_gc_time_ns_ = NanoTime();
   last_gc_size_ = GetBytesAllocated();
@@ -243,19 +245,14 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
 }
 
 void Heap::CreateThreadPool() {
-  thread_pool_.reset(new ThreadPool(num_gc_threads_));
+  if (num_gc_threads_ != 0) {
+    thread_pool_.reset(new ThreadPool(num_gc_threads_));
+  }
 }
 
 void Heap::DeleteThreadPool() {
   thread_pool_.reset(NULL);
 }
-
-// Sort spaces based on begin address
-struct ContinuousSpaceSorter {
-  bool operator()(const space::ContinuousSpace* a, const space::ContinuousSpace* b) const {
-    return a->Begin() < b->Begin();
-  }
-};
 
 static bool ReadStaticInt(JNIEnvExt* env, jclass clz, const char* name, int* out_value) {
   CHECK(out_value != NULL);
@@ -269,7 +266,7 @@ static bool ReadStaticInt(JNIEnvExt* env, jclass clz, const char* name, int* out
 }
 
 void Heap::ListenForProcessStateChange() {
-  VLOG(gc) << "Heap notified of process state change";
+  VLOG(heap) << "Heap notified of process state change";
 
   Thread* self = Thread::Current();
   JNIEnvExt* env = self->GetJniEnv();
@@ -323,8 +320,8 @@ void Heap::ListenForProcessStateChange() {
       int process_state = 0;
       if (ReadStaticInt(env, activity_manager.get(), care_about_pauses[i], &process_state)) {
         process_state_cares_about_pause_time_.insert(process_state);
-        VLOG(gc) << "Adding process state " << process_state
-                 << " to set of states which care about pause time";
+        VLOG(heap) << "Adding process state " << process_state
+                   << " to set of states which care about pause time";
       }
     }
   }
@@ -370,8 +367,8 @@ void Heap::ListenForProcessStateChange() {
     care_about_pause_times_ = process_state_cares_about_pause_time_.find(process_state) !=
         process_state_cares_about_pause_time_.end();
 
-    VLOG(gc) << "New process state " << process_state
-             << " care about pauses " << care_about_pause_times_;
+    VLOG(heap) << "New process state " << process_state
+               << " care about pauses " << care_about_pause_times_;
   }
 }
 
@@ -388,14 +385,15 @@ void Heap::AddContinuousSpace(space::ContinuousSpace* space) {
   }
 
   // Ensure that spaces remain sorted in increasing order of start address (required for CMS finger)
-  std::sort(continuous_spaces_.begin(), continuous_spaces_.end(), ContinuousSpaceSorter());
+  std::sort(continuous_spaces_.begin(), continuous_spaces_.end(),
+            [](const space::ContinuousSpace* a, const space::ContinuousSpace* b) {
+              return a->Begin() < b->Begin();
+            });
 
   // Ensure that ImageSpaces < ZygoteSpaces < AllocSpaces so that we can do address based checks to
   // avoid redundant marking.
   bool seen_zygote = false, seen_alloc = false;
-  typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-  for (It it = continuous_spaces_.begin(); it != continuous_spaces_.end(); ++it) {
-    space::ContinuousSpace* space = *it;
+  for (const auto& space : continuous_spaces_) {
     if (space->IsImageSpace()) {
       DCHECK(!seen_zygote);
       DCHECK(!seen_alloc);
@@ -436,17 +434,13 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
   uint64_t total_duration = 0;
 
   // Dump cumulative loggers for each GC type.
-  // TODO: C++0x
   uint64_t total_paused_time = 0;
-  typedef std::vector<collector::MarkSweep*>::const_iterator It;
-  for (It it = mark_sweep_collectors_.begin();
-       it != mark_sweep_collectors_.end(); ++it) {
-    collector::MarkSweep* collector = *it;
+  for (const auto& collector : mark_sweep_collectors_) {
     CumulativeLogger& logger = collector->GetCumulativeTimings();
     if (logger.GetTotalNs() != 0) {
       os << Dumpable<CumulativeLogger>(logger);
       const uint64_t total_ns = logger.GetTotalNs();
-      const uint64_t total_pause_ns = (*it)->GetTotalPausedTimeNs();
+      const uint64_t total_pause_ns = collector->GetTotalPausedTimeNs();
       double seconds = NsToMs(logger.GetTotalNs()) / 1000.0;
       const uint64_t freed_bytes = collector->GetTotalFreedBytes();
       const uint64_t freed_objects = collector->GetTotalFreedObjects();
@@ -502,16 +496,17 @@ Heap::~Heap() {
   STLDeleteElements(&continuous_spaces_);
   STLDeleteElements(&discontinuous_spaces_);
   delete gc_complete_lock_;
-  delete reference_queue_lock_;
+  delete soft_ref_queue_lock_;
+  delete weak_ref_queue_lock_;
+  delete finalizer_ref_queue_lock_;
+  delete phantom_ref_queue_lock_;
 }
 
 space::ContinuousSpace* Heap::FindContinuousSpaceFromObject(const mirror::Object* obj,
                                                             bool fail_ok) const {
-  // TODO: C++0x auto
-  typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-  for (It it = continuous_spaces_.begin(), end = continuous_spaces_.end(); it != end; ++it) {
-    if ((*it)->Contains(obj)) {
-      return *it;
+  for (const auto& space : continuous_spaces_) {
+    if (space->Contains(obj)) {
+      return space;
     }
   }
   if (!fail_ok) {
@@ -522,11 +517,9 @@ space::ContinuousSpace* Heap::FindContinuousSpaceFromObject(const mirror::Object
 
 space::DiscontinuousSpace* Heap::FindDiscontinuousSpaceFromObject(const mirror::Object* obj,
                                                                   bool fail_ok) const {
-  // TODO: C++0x auto
-  typedef std::vector<space::DiscontinuousSpace*>::const_iterator It;
-  for (It it = discontinuous_spaces_.begin(), end = discontinuous_spaces_.end(); it != end; ++it) {
-    if ((*it)->Contains(obj)) {
-      return *it;
+  for (const auto& space : discontinuous_spaces_) {
+    if (space->Contains(obj)) {
+      return space;
     }
   }
   if (!fail_ok) {
@@ -544,11 +537,9 @@ space::Space* Heap::FindSpaceFromObject(const mirror::Object* obj, bool fail_ok)
 }
 
 space::ImageSpace* Heap::GetImageSpace() const {
-  // TODO: C++0x auto
-  typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-  for (It it = continuous_spaces_.begin(), end = continuous_spaces_.end(); it != end; ++it) {
-    if ((*it)->IsImageSpace()) {
-      return (*it)->AsImageSpace();
+  for (const auto& space : continuous_spaces_) {
+    if (space->IsImageSpace()) {
+      return space->AsImageSpace();
     }
   }
   return NULL;
@@ -627,10 +618,7 @@ mirror::Object* Heap::AllocObject(Thread* self, mirror::Class* c, size_t byte_co
     // If the allocation failed due to fragmentation, print out the largest continuous allocation.
     if (!large_object_allocation && total_bytes_free >= byte_count) {
       size_t max_contiguous_allocation = 0;
-      // TODO: C++0x auto
-      typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-      for (It it = continuous_spaces_.begin(), end = continuous_spaces_.end(); it != end; ++it) {
-        space::ContinuousSpace* space = *it;
+      for (const auto& space : continuous_spaces_) {
         if (space->IsDlMallocSpace()) {
           space->AsDlMallocSpace()->Walk(MSpaceChunkCallback, &max_contiguous_allocation);
         }
@@ -706,19 +694,14 @@ void Heap::VerifyObjectImpl(const mirror::Object* obj) {
 }
 
 void Heap::DumpSpaces() {
-  // TODO: C++0x auto
-  typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-  for (It it = continuous_spaces_.begin(), end = continuous_spaces_.end(); it != end; ++it) {
-    space::ContinuousSpace* space = *it;
+  for (const auto& space : continuous_spaces_) {
     accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
     accounting::SpaceBitmap* mark_bitmap = space->GetMarkBitmap();
     LOG(INFO) << space << " " << *space << "\n"
               << live_bitmap << " " << *live_bitmap << "\n"
               << mark_bitmap << " " << *mark_bitmap;
   }
-  typedef std::vector<space::DiscontinuousSpace*>::const_iterator It2;
-  for (It2 it = discontinuous_spaces_.begin(), end = discontinuous_spaces_.end(); it != end; ++it) {
-    space::DiscontinuousSpace* space = *it;
+  for (const auto& space : discontinuous_spaces_) {
     LOG(INFO) << space << " " << *space << "\n";
   }
 }
@@ -809,13 +792,26 @@ void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
   }
 }
 
-inline bool Heap::IsOutOfMemoryOnAllocation(size_t alloc_size) {
-  return num_bytes_allocated_ + alloc_size > growth_limit_;
+inline bool Heap::IsOutOfMemoryOnAllocation(size_t alloc_size, bool grow) {
+  size_t new_footprint = num_bytes_allocated_ + alloc_size;
+  if (UNLIKELY(new_footprint > max_allowed_footprint_)) {
+    if (UNLIKELY(new_footprint > growth_limit_)) {
+      return true;
+    }
+    if (!concurrent_gc_) {
+      if (!grow) {
+        return true;
+      } else {
+        max_allowed_footprint_ = new_footprint;
+      }
+    }
+  }
+  return false;
 }
 
 inline mirror::Object* Heap::TryToAllocate(Thread* self, space::AllocSpace* space, size_t alloc_size,
                                            bool grow, size_t* bytes_allocated) {
-  if (IsOutOfMemoryOnAllocation(alloc_size)) {
+  if (UNLIKELY(IsOutOfMemoryOnAllocation(alloc_size, grow))) {
     return NULL;
   }
   return space->Alloc(self, alloc_size, bytes_allocated);
@@ -824,10 +820,10 @@ inline mirror::Object* Heap::TryToAllocate(Thread* self, space::AllocSpace* spac
 // DlMallocSpace-specific version.
 inline mirror::Object* Heap::TryToAllocate(Thread* self, space::DlMallocSpace* space, size_t alloc_size,
                                            bool grow, size_t* bytes_allocated) {
-  if (IsOutOfMemoryOnAllocation(alloc_size)) {
+  if (UNLIKELY(IsOutOfMemoryOnAllocation(alloc_size, grow))) {
     return NULL;
   }
-  if (!running_on_valgrind_) {
+  if (LIKELY(!running_on_valgrind_)) {
     return space->AllocNonvirtual(self, alloc_size, bytes_allocated);
   } else {
     return space->Alloc(self, alloc_size, bytes_allocated);
@@ -835,7 +831,8 @@ inline mirror::Object* Heap::TryToAllocate(Thread* self, space::DlMallocSpace* s
 }
 
 template <class T>
-inline mirror::Object* Heap::Allocate(Thread* self, T* space, size_t alloc_size, size_t* bytes_allocated) {
+inline mirror::Object* Heap::Allocate(Thread* self, T* space, size_t alloc_size,
+                                      size_t* bytes_allocated) {
   // Since allocation can cause a GC which will need to SuspendAll, make sure all allocations are
   // done in the runnable state where suspension is expected.
   DCHECK_EQ(self->GetState(), kRunnable);
@@ -848,8 +845,8 @@ inline mirror::Object* Heap::Allocate(Thread* self, T* space, size_t alloc_size,
   return AllocateInternalWithGc(self, space, alloc_size, bytes_allocated);
 }
 
-mirror::Object* Heap::AllocateInternalWithGc(Thread* self, space::AllocSpace* space, size_t alloc_size,
-                                             size_t* bytes_allocated) {
+mirror::Object* Heap::AllocateInternalWithGc(Thread* self, space::AllocSpace* space,
+                                             size_t alloc_size, size_t* bytes_allocated) {
   mirror::Object* ptr;
 
   // The allocation failed. If the GC is running, block until it completes, and then retry the
@@ -1143,11 +1140,8 @@ void Heap::PreZygoteFork() {
   have_zygote_space_ = true;
 
   // Reset the cumulative loggers since we now have a few additional timing phases.
-  // TODO: C++0x
-  typedef std::vector<collector::MarkSweep*>::const_iterator It;
-  for (It it = mark_sweep_collectors_.begin(), end = mark_sweep_collectors_.end();
-      it != end; ++it) {
-    (*it)->ResetCumulativeStatistics();
+  for (const auto& collector : mark_sweep_collectors_) {
+    collector->ResetCumulativeStatistics();
   }
 }
 
@@ -1180,7 +1174,6 @@ const char* gc_cause_and_type_strings[3][4] = {
 collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCause gc_cause,
                                                bool clear_soft_references) {
   Thread* self = Thread::Current();
-
 
   ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
   Locks::mutator_lock_->AssertNotHeld(self);
@@ -1238,10 +1231,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   ATRACE_BEGIN(gc_cause_and_type_strings[gc_cause][gc_type]);
 
   collector::MarkSweep* collector = NULL;
-  typedef std::vector<collector::MarkSweep*>::iterator It;
-  for (It it = mark_sweep_collectors_.begin(), end = mark_sweep_collectors_.end();
-      it != end; ++it) {
-    collector::MarkSweep* cur_collector = *it;
+  for (const auto& cur_collector : mark_sweep_collectors_) {
     if (cur_collector->IsConcurrent() == concurrent_gc_ && cur_collector->GetGcType() == gc_type) {
       collector = cur_collector;
       break;
@@ -1251,40 +1241,43 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
       << "Could not find garbage collector with concurrent=" << concurrent_gc_
       << " and type=" << gc_type;
 
-  base::TimingLogger& timings = collector->GetTimings();
-
   collector->clear_soft_references_ = clear_soft_references;
   collector->Run();
   total_objects_freed_ever_ += collector->GetFreedObjects();
   total_bytes_freed_ever_ += collector->GetFreedBytes();
+  if (care_about_pause_times_) {
+    const size_t duration = collector->GetDurationNs();
+    std::vector<uint64_t> pauses = collector->GetPauseTimes();
+    // GC for alloc pauses the allocating thread, so consider it as a pause.
+    bool was_slow = duration > kSlowGcThreshold ||
+            (gc_cause == kGcCauseForAlloc && duration > kLongGcPauseThreshold);
+    if (!was_slow) {
+      for (uint64_t pause : pauses) {
+        was_slow = was_slow || pause > kLongGcPauseThreshold;
+      }
+    }
 
-  const size_t duration = collector->GetDurationNs();
-  std::vector<uint64_t> pauses = collector->GetPauseTimes();
-  bool was_slow = duration > kSlowGcThreshold ||
-          (gc_cause == kGcCauseForAlloc && duration > kLongGcPauseThreshold);
-  for (size_t i = 0; i < pauses.size(); ++i) {
-      if (pauses[i] > kLongGcPauseThreshold) {
-          was_slow = true;
-      }
-  }
-
-  if (was_slow) {
-      const size_t percent_free = GetPercentFree();
-      const size_t current_heap_size = GetBytesAllocated();
-      const size_t total_memory = GetTotalMemory();
-      std::ostringstream pause_string;
-      for (size_t i = 0; i < pauses.size(); ++i) {
-          pause_string << PrettyDuration((pauses[i] / 1000) * 1000)
-                       << ((i != pauses.size() - 1) ? ", " : "");
-      }
-      LOG(INFO) << gc_cause << " " << collector->GetName()
-                << "GC freed " << PrettySize(collector->GetFreedBytes()) << ", "
-                << percent_free << "% free, " << PrettySize(current_heap_size) << "/"
-                << PrettySize(total_memory) << ", " << "paused " << pause_string.str()
-                << " total " << PrettyDuration((duration / 1000) * 1000);
-      if (VLOG_IS_ON(heap)) {
-          LOG(INFO) << Dumpable<base::TimingLogger>(timings);
-      }
+    if (was_slow) {
+        const size_t percent_free = GetPercentFree();
+        const size_t current_heap_size = GetBytesAllocated();
+        const size_t total_memory = GetTotalMemory();
+        std::ostringstream pause_string;
+        for (size_t i = 0; i < pauses.size(); ++i) {
+            pause_string << PrettyDuration((pauses[i] / 1000) * 1000)
+                         << ((i != pauses.size() - 1) ? ", " : "");
+        }
+        LOG(INFO) << gc_cause << " " << collector->GetName()
+                  << " GC freed "  <<  collector->GetFreedObjects() << "("
+                  << PrettySize(collector->GetFreedBytes()) << ") AllocSpace objects, "
+                  << collector->GetFreedLargeObjects() << "("
+                  << PrettySize(collector->GetFreedLargeObjectBytes()) << ") LOS objects, "
+                  << percent_free << "% free, " << PrettySize(current_heap_size) << "/"
+                  << PrettySize(total_memory) << ", " << "paused " << pause_string.str()
+                  << " total " << PrettyDuration((duration / 1000) * 1000);
+        if (VLOG_IS_ON(heap)) {
+            LOG(INFO) << Dumpable<base::TimingLogger>(collector->GetTimings());
+        }
+    }
   }
 
   {
@@ -1596,9 +1589,7 @@ void Heap::SwapStacks() {
 
 void Heap::ProcessCards(base::TimingLogger& timings) {
   // Clear cards and keep track of cards cleared in the mod-union table.
-  typedef std::vector<space::ContinuousSpace*>::iterator It;
-  for (It it = continuous_spaces_.begin(), end = continuous_spaces_.end(); it != end; ++it) {
-    space::ContinuousSpace* space = *it;
+  for (const auto& space : continuous_spaces_) {
     if (space->IsImageSpace()) {
       base::TimingLogger::ScopedSplit split("ImageModUnionClearCards", &timings);
       image_mod_union_table_->ClearCards(space);
@@ -1866,17 +1857,18 @@ void Heap::EnqueueReference(mirror::Object* ref, mirror::Object** cleared_refere
 void Heap::EnqueuePendingReference(mirror::Object* ref, mirror::Object** list) {
   DCHECK(ref != NULL);
   DCHECK(list != NULL);
-
-  // TODO: Remove this lock, use atomic stacks for storing references.
-  MutexLock mu(Thread::Current(), *reference_queue_lock_);
-  if (*list == NULL) {
-    ref->SetFieldObject(reference_pendingNext_offset_, ref, false);
-    *list = ref;
-  } else {
-    mirror::Object* head =
-        (*list)->GetFieldObject<mirror::Object*>(reference_pendingNext_offset_, false);
-    ref->SetFieldObject(reference_pendingNext_offset_, head, false);
-    (*list)->SetFieldObject(reference_pendingNext_offset_, ref, false);
+  mirror::Object* pending =
+      ref->GetFieldObject<mirror::Object*>(reference_pendingNext_offset_, false);
+  if (pending == NULL) {
+    if (*list == NULL) {
+      ref->SetFieldObject(reference_pendingNext_offset_, ref, false);
+      *list = ref;
+    } else {
+      mirror::Object* head =
+          (*list)->GetFieldObject<mirror::Object*>(reference_pendingNext_offset_, false);
+      ref->SetFieldObject(reference_pendingNext_offset_, head, false);
+      (*list)->SetFieldObject(reference_pendingNext_offset_, ref, false);
+    }
   }
 }
 
@@ -2085,9 +2077,7 @@ void Heap::RegisterNativeFree(int bytes) {
 
 int64_t Heap::GetTotalMemory() const {
   int64_t ret = 0;
-  typedef std::vector<space::ContinuousSpace*>::const_iterator It;
-  for (It it = continuous_spaces_.begin(), end = continuous_spaces_.end(); it != end; ++it) {
-    space::ContinuousSpace* space = *it;
+  for (const auto& space : continuous_spaces_) {
     if (space->IsImageSpace()) {
       // Currently don't include the image space.
     } else if (space->IsDlMallocSpace()) {
@@ -2095,9 +2085,7 @@ int64_t Heap::GetTotalMemory() const {
       ret += space->AsDlMallocSpace()->GetFootprint();
     }
   }
-  typedef std::vector<space::DiscontinuousSpace*>::const_iterator It2;
-  for (It2 it = discontinuous_spaces_.begin(), end = discontinuous_spaces_.end(); it != end; ++it) {
-    space::DiscontinuousSpace* space = *it;
+  for (const auto& space : discontinuous_spaces_) {
     if (space->IsLargeObjectSpace()) {
       ret += space->AsLargeObjectSpace()->GetBytesAllocated();
     }

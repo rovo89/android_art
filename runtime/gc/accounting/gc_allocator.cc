@@ -31,6 +31,6 @@ namespace accounting {
     Runtime::Current()->GetHeap()->RegisterGCDeAllocation(bytes);
     free(p);
   }
-}
-}
-}
+}  // namespace accounting
+}  // namespace gc
+}  // namespace art

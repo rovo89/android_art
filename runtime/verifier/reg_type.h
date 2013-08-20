@@ -287,6 +287,7 @@ class RegType {
 
   friend class RegTypeCache;
 
+ private:
   DISALLOW_COPY_AND_ASSIGN(RegType);
 };
 

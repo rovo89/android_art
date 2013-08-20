@@ -3033,9 +3033,8 @@ void Dbg::DdmSetThreadNotification(bool enable) {
     }
     {
       ScopedObjectAccess soa(self);
-      typedef std::list<Thread*>::const_iterator It;  // TODO: C++0x auto
-      for (It it = threads.begin(), end = threads.end(); it != end; ++it) {
-        Dbg::DdmSendThreadNotification(*it, CHUNK_TYPE("THCR"));
+      for (Thread* thread : threads) {
+        Dbg::DdmSendThreadNotification(thread, CHUNK_TYPE("THCR"));
       }
     }
     ResumeVM();
@@ -3600,8 +3599,7 @@ class StringTable {
   }
 
   size_t IndexOf(const char* s) const {
-    typedef std::set<std::string>::const_iterator It;  // TODO: C++0x auto
-    It it = table_.find(s);
+    auto it = table_.find(s);
     if (it == table_.end()) {
       LOG(FATAL) << "IndexOf(\"" << s << "\") failed";
     }
@@ -3613,9 +3611,8 @@ class StringTable {
   }
 
   void WriteTo(std::vector<uint8_t>& bytes) const {
-    typedef std::set<std::string>::const_iterator It;  // TODO: C++0x auto
-    for (It it = table_.begin(); it != table_.end(); ++it) {
-      const char* s = (*it).c_str();
+    for (const std::string& str : table_) {
+      const char* s = str.c_str();
       size_t s_len = CountModifiedUtf8Chars(s);
       UniquePtr<uint16_t> s_utf16(new uint16_t[s_len]);
       ConvertModifiedUtf8ToUtf16(s_utf16.get(), s);

@@ -114,7 +114,7 @@ ENTRY art_portable_resolution_trampoline
     .cfi_rel_offset r10, 28
     .cfi_rel_offset r11, 32
     .cfi_rel_offset lr, 36
-    sub sp, #8                        @ 2 words of space, bottom word will hold Method*
+    sub sp, #8                     @ 2 words of space, bottom word will hold Method*
     .pad #8
     .cfi_adjust_cfa_offset 8
     mov     r2, r9                 @ pass Thread::Current
@@ -156,7 +156,7 @@ ENTRY art_portable_to_interpreter_bridge
     .cfi_rel_offset r10, 28
     .cfi_rel_offset r11, 32
     .cfi_rel_offset lr, 36
-    sub sp, #8                        @ 2 words of space, bottom word will hold Method*
+    sub sp, #8                     @ 2 words of space, bottom word will hold Method*
     .pad #8
     .cfi_adjust_cfa_offset 8
     mov     r1, r9                 @ pass Thread::Current

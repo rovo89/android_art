@@ -56,6 +56,8 @@ class InstructionNode: public SeaNode {
   // essentially creating SSA form.
   void RenameToSSA(int reg_no, InstructionNode* definition) {
     definition_edges_.insert(std::pair<int, InstructionNode*>(reg_no, definition));
+    DCHECK(NULL != definition) << "SSA definition for register " << reg_no
+        << " used in instruction " << Id() << " not found.";
     definition->AddSSAUse(this);
   }
   // Returns the ordered set of Instructions that define the input operands of this instruction.
@@ -179,14 +181,22 @@ class MoveResultInstructionNode: public InstructionNode {
 
 class InvokeStaticInstructionNode: public InstructionNode {
  public:
-  explicit InvokeStaticInstructionNode(const art::Instruction* inst): InstructionNode(inst) { }
+  explicit InvokeStaticInstructionNode(const art::Instruction* inst): InstructionNode(inst),
+    method_index_(inst->VRegB_35c()) { }
   int GetResultRegister() const {
     return RETURN_REGISTER;
+  }
+
+  int GetCalledMethodIndex() const {
+    return method_index_;
   }
   void Accept(IRVisitor* v) {
     v->Visit(this);
     v->Traverse(this);
   }
+
+ private:
+  const uint32_t method_index_;
 };
 
 class AddIntInstructionNode: public InstructionNode {

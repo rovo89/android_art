@@ -314,7 +314,7 @@ extern "C" art::CompiledMethod* ArtCompileDEX(art::CompilerDriver& compiler,
                                               uint32_t method_idx,
                                               jobject class_loader,
                                               const art::DexFile& dex_file);
-
+#ifdef ART_SEA_IR_MODE
 extern "C" art::CompiledMethod* SeaIrCompileMethod(art::CompilerDriver& compiler,
                                                    const art::DexFile::CodeItem* code_item,
                                                    uint32_t access_flags,
@@ -323,7 +323,7 @@ extern "C" art::CompiledMethod* SeaIrCompileMethod(art::CompilerDriver& compiler
                                                    uint32_t method_idx,
                                                    jobject class_loader,
                                                    const art::DexFile& dex_file);
-
+#endif
 extern "C" art::CompiledMethod* ArtLLVMJniCompileMethod(art::CompilerDriver& driver,
                                                         uint32_t access_flags, uint32_t method_idx,
                                                         const art::DexFile& dex_file);
@@ -664,8 +664,7 @@ void CompilerDriver::LoadImageClasses(base::TimingLogger& timings)
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  typedef DescriptorSet::iterator It;  // TODO: C++0x auto
-  for (It it = image_classes_->begin(), end = image_classes_->end(); it != end;) {
+  for (auto it = image_classes_->begin(), end = image_classes_->end(); it != end;) {
     std::string descriptor(*it);
     SirtRef<mirror::Class> klass(self, class_linker->FindSystemClass(descriptor.c_str()));
     if (klass.get() == NULL) {
@@ -687,12 +686,9 @@ void CompilerDriver::LoadImageClasses(base::TimingLogger& timings)
     unresolved_exception_types.clear();
     class_linker->VisitClasses(ResolveCatchBlockExceptionsClassVisitor,
                                &unresolved_exception_types);
-    typedef std::set<std::pair<uint16_t, const DexFile*> >::const_iterator It;  // TODO: C++0x auto
-    for (It it = unresolved_exception_types.begin(),
-         end = unresolved_exception_types.end();
-         it != end; ++it) {
-      uint16_t exception_type_idx = it->first;
-      const DexFile* dex_file = it->second;
+    for (const std::pair<uint16_t, const DexFile*>& exception_type : unresolved_exception_types) {
+      uint16_t exception_type_idx = exception_type.first;
+      const DexFile* dex_file = exception_type.second;
       mirror::DexCache* dex_cache = class_linker->FindDexCache(*dex_file);
       mirror:: ClassLoader* class_loader = NULL;
       SirtRef<mirror::Class> klass(self, class_linker->ResolveType(*dex_file, exception_type_idx,
@@ -1950,14 +1946,14 @@ static const char* class_initializer_black_list[] = {
   "Ljava/util/Scanner;",  // regex.Pattern.compileImpl.
   "Ljava/util/SimpleTimeZone;",  // Sub-class of TimeZone.
   "Ljava/util/TimeZone;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Ljava/util/concurrent/ConcurrentHashMap$Segment;",  // Calls Runtime.getRuntime().availableProcessors().
-  "Ljava/util/concurrent/ConcurrentSkipListMap;",  // Calls OsConstants.initConstants.
-  "Ljava/util/concurrent/Exchanger;",  // Calls OsConstants.initConstants.
-  "Ljava/util/concurrent/ForkJoinPool;",  // Calls OsConstants.initConstants.
-  "Ljava/util/concurrent/LinkedTransferQueue;",  // Calls OsConstants.initConstants.
-  "Ljava/util/concurrent/Phaser;",  // Calls OsConstants.initConstants.
+  "Ljava/util/concurrent/ConcurrentHashMap;",  // Calls Runtime.getRuntime().availableProcessors().
+  "Ljava/util/concurrent/ConcurrentSkipListMap;",  // Calls Random() -> OsConstants.initConstants.
+  "Ljava/util/concurrent/Exchanger;",  // Calls Runtime.getRuntime().availableProcessors().
+  "Ljava/util/concurrent/ForkJoinPool;",  // Makes a thread pool ..-> calls OsConstants.initConstants.
+  "Ljava/util/concurrent/LinkedTransferQueue;",  // Calls Runtime.getRuntime().availableProcessors().
+  "Ljava/util/concurrent/Phaser;",  // Calls Runtime.getRuntime().availableProcessors().
   "Ljava/util/concurrent/ScheduledThreadPoolExecutor;",  // Calls AtomicLong.VMSupportsCS8()
-  "Ljava/util/concurrent/SynchronousQueue;",  // Calls OsConstants.initConstants.
+  "Ljava/util/concurrent/SynchronousQueue;",  // Calls Runtime.getRuntime().availableProcessors().
   "Ljava/util/concurrent/atomic/AtomicLong;",  // Calls AtomicLong.VMSupportsCS8()
   "Ljava/util/logging/LogManager;",  // Calls System.getProperty -> OsConstants.initConstants.
   "Ljava/util/prefs/AbstractPreferences;",  // Calls OsConstants.initConstants.
@@ -2230,14 +2226,18 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
     CHECK(compiled_method != NULL);
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {
-    bool compile = verifier::MethodVerifier::IsCandidateForCompilation(code_item, access_flags);
+    MethodReference method_ref(&dex_file, method_idx);
+    bool compile = verifier::MethodVerifier::IsCandidateForCompilation(method_ref, access_flags);
+
     if (compile) {
       CompilerFn compiler = compiler_;
 #ifdef ART_SEA_IR_MODE
       bool use_sea = Runtime::Current()->IsSeaIRMode();
-      use_sea = use_sea && (std::string::npos != PrettyMethod(method_idx, dex_file).find("fibonacci"));
+      use_sea = use_sea &&
+          (std::string::npos != PrettyMethod(method_idx, dex_file).find("fibonacci"));
       if (use_sea) {
         compiler = sea_ir_compiler_;
+        LOG(INFO) << "Using SEA IR to compile..." << std::endl;
       }
 #endif
       // NOTE: if compiler declines to compile this method, it will return NULL.

@@ -37,27 +37,26 @@ inline void MarkSweep::ScanObjectVisit(const mirror::Object* obj, const MarkVisi
   }
   mirror::Class* klass = obj->GetClass();
   DCHECK(klass != NULL);
-  if (klass == java_lang_Class_) {
+  if (UNLIKELY(klass->IsArrayClass())) {
+    if (kCountScannedTypes) {
+      ++array_count_;
+    }
+    if (klass->IsObjectArrayClass()) {
+      VisitObjectArrayReferences(obj->AsObjectArray<mirror::Object>(), visitor);
+    }
+  } else if (UNLIKELY(klass == java_lang_Class_)) {
     DCHECK_EQ(klass->GetClass(), java_lang_Class_);
     if (kCountScannedTypes) {
       ++class_count_;
     }
     VisitClassReferences(klass, obj, visitor);
-  } else if (klass->IsArrayClass()) {
-    if (kCountScannedTypes) {
-      ++array_count_;
-    }
-    visitor(obj, klass, mirror::Object::ClassOffset(), false);
-    if (klass->IsObjectArrayClass()) {
-      VisitObjectArrayReferences(obj->AsObjectArray<mirror::Object>(), visitor);
-    }
   } else {
     if (kCountScannedTypes) {
       ++other_count_;
     }
     VisitOtherReferences(klass, obj, visitor);
     if (UNLIKELY(klass->IsReferenceClass())) {
-      DelayReferenceReferent(const_cast<mirror::Object*>(obj));
+      DelayReferenceReferent(klass, const_cast<mirror::Object*>(obj));
     }
   }
 }
@@ -117,6 +116,11 @@ inline void MarkSweep::VisitFieldsReferences(const mirror::Object* obj, uint32_t
                                              bool is_static, const Visitor& visitor) {
   if (LIKELY(ref_offsets != CLASS_WALK_SUPER)) {
     // Found a reference offset bitmap.  Mark the specified offsets.
+#ifndef MOVING_COLLECTOR
+    // Clear the class bit since we mark the class as part of marking the classlinker roots.
+    DCHECK_EQ(mirror::Object::ClassOffset().Uint32Value(), 0U);
+    ref_offsets &= (1U << (sizeof(ref_offsets) * 8 - 1)) - 1;
+#endif
     while (ref_offsets != 0) {
       size_t right_shift = CLZ(ref_offsets);
       MemberOffset field_offset = CLASS_OFFSET_FROM_CLZ(right_shift);
@@ -149,11 +153,11 @@ inline void MarkSweep::VisitFieldsReferences(const mirror::Object* obj, uint32_t
 template <typename Visitor>
 inline void MarkSweep::VisitObjectArrayReferences(const mirror::ObjectArray<mirror::Object>* array,
                                                   const Visitor& visitor) {
-  const int32_t length = array->GetLength();
-  for (int32_t i = 0; i < length; ++i) {
-    const mirror::Object* element = array->GetWithoutChecks(i);
+  const size_t length = static_cast<size_t>(array->GetLength());
+  for (size_t i = 0; i < length; ++i) {
+    const mirror::Object* element = array->GetWithoutChecks(static_cast<int32_t>(i));
     const size_t width = sizeof(mirror::Object*);
-    MemberOffset offset = MemberOffset(i * width + mirror::Array::DataOffset(width).Int32Value());
+    MemberOffset offset(i * width + mirror::Array::DataOffset(width).Int32Value());
     visitor(array, element, offset, false);
   }
 }

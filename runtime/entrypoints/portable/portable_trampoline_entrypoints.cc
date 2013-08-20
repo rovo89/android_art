@@ -42,8 +42,10 @@ class PortableArgumentVisitor {
 #define PORTABLE_CALLEE_SAVE_FRAME__REF_AND_ARGS__FRAME_SIZE 64
 #define PORTABLE_STACK_ARG_SKIP 16
 #elif defined(__i386__)
-#define PORTABLE_CALLEE_SAVE_FRAME__REF_AND_ARGS__R1_OFFSET 4
-#define PORTABLE_CALLEE_SAVE_FRAME__REF_AND_ARGS__FRAME_SIZE 32
+// For x86 there are no register arguments and the stack pointer will point directly to the called
+// method argument passed by the caller.
+#define PORTABLE_CALLEE_SAVE_FRAME__REF_AND_ARGS__R1_OFFSET 0
+#define PORTABLE_CALLEE_SAVE_FRAME__REF_AND_ARGS__FRAME_SIZE 0
 #define PORTABLE_STACK_ARG_SKIP 4
 #else
 #error "Unsupported architecture"

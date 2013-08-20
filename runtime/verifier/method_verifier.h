@@ -122,7 +122,7 @@ class PcToRegisterLineTable {
             uint16_t registers_size, MethodVerifier* verifier);
 
   RegisterLine* GetLine(size_t idx) {
-    Table::iterator result = pc_to_register_line_.find(idx);  // TODO: C++0x auto
+    auto result = pc_to_register_line_.find(idx);
     if (result == pc_to_register_line_.end()) {
       return NULL;
     } else {
@@ -239,7 +239,7 @@ class MethodVerifier {
   // Describe VRegs at the given dex pc.
   std::vector<int32_t> DescribeVRegs(uint32_t dex_pc);
 
-  static bool IsCandidateForCompilation(const DexFile::CodeItem* code_item,
+  static bool IsCandidateForCompilation(MethodReference& method_ref,
                                         const uint32_t access_flags);
 
  private:

@@ -661,7 +661,7 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
     return false;
   }
 
-  LOG(INFO) << "ELF file written successfully: " << elf_file_->GetPath();
+  VLOG(compiler) << "ELF file written successfully: " << elf_file_->GetPath();
   return true;
 }
 

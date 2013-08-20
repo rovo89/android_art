@@ -83,6 +83,11 @@ class Trace : public instrumentation::InstrumentationListener {
                                mirror::Throwable* exception_object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Reuse an old stack trace if it exists, otherwise allocate a new one.
+  static std::vector<mirror::ArtMethod*>* AllocStackTrace();
+  // Clear and store an old stack trace for later use.
+  static void FreeStackTrace(std::vector<mirror::ArtMethod*>* stack_trace);
+
   ~Trace();
 
  private:
@@ -92,8 +97,11 @@ class Trace : public instrumentation::InstrumentationListener {
 
   void FinishTracing() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void ReadClocks(Thread* thread, uint32_t* thread_clock_diff, uint32_t* wall_clock_diff);
+
   void LogMethodTraceEvent(Thread* thread, const mirror::ArtMethod* method,
-                           instrumentation::Instrumentation::InstrumentationEvent event);
+                           instrumentation::Instrumentation::InstrumentationEvent event,
+                           uint32_t thread_clock_diff, uint32_t wall_clock_diff);
 
   // Methods to output traced methods and threads.
   void GetVisitedMethods(size_t end_offset, std::set<mirror::ArtMethod*>* visited_methods);
@@ -116,11 +124,8 @@ class Trace : public instrumentation::InstrumentationListener {
   // Sampling thread, non-zero when sampling.
   static pthread_t sampling_pthread_;
 
-  // Maps a thread to its most recent stack trace sample.
-  SafeMap<Thread*, std::vector<mirror::ArtMethod*>*> thread_stack_trace_map_;
-
-  // Maps a thread to its clock base.
-  SafeMap<Thread*, uint64_t> thread_clock_base_map_;
+  // Used to remember an unused stack trace to avoid re-allocation during sampling.
+  static UniquePtr<std::vector<mirror::ArtMethod*> > temp_stack_trace_;
 
   // File to write trace data out to, NULL if direct to ddms.
   UniquePtr<File> trace_file_;

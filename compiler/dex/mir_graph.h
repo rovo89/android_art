@@ -232,7 +232,7 @@ struct SSARepresentation {
  */
 struct MIR {
   DecodedInstruction dalvikInsn;
-  unsigned int width;
+  uint32_t width;                 // NOTE: only need 16 bits for width.
   unsigned int offset;
   int m_unit_index;               // From which method was this MIR included
   MIR* prev;
@@ -557,6 +557,14 @@ class MIRGraph {
 
   SpecialCaseHandler GetSpecialCase() {
     return special_case_;
+  }
+
+  bool IsBackedge(BasicBlock* branch_bb, BasicBlock* target_bb) {
+    return ((target_bb != NULL) && (target_bb->start_offset <= branch_bb->start_offset));
+  }
+
+  bool IsBackwardsBranch(BasicBlock* branch_bb) {
+    return IsBackedge(branch_bb, branch_bb->taken) || IsBackedge(branch_bb, branch_bb->fall_through);
   }
 
   void BasicBlockCombine();

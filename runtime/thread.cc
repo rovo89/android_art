@@ -496,6 +496,19 @@ void Thread::GetThreadName(std::string& name) const {
   name.assign(*name_);
 }
 
+uint64_t Thread::GetCpuMicroTime() const {
+#if defined(HAVE_POSIX_CLOCKS)
+  clockid_t cpu_clock_id;
+  pthread_getcpuclockid(pthread_self_, &cpu_clock_id);
+  timespec now;
+  clock_gettime(cpu_clock_id, &now);
+  return static_cast<uint64_t>(now.tv_sec) * 1000000LL + now.tv_nsec / 1000LL;
+#else
+  UNIMPLEMENTED(WARNING);
+  return -1;
+#endif
+}
+
 void Thread::AtomicSetFlag(ThreadFlag flag) {
   android_atomic_or(flag, &state_and_flags_.as_int);
 }
@@ -863,7 +876,8 @@ void Thread::DumpStack(std::ostream& os) const {
   // TODO: we call this code when dying but may not have suspended the thread ourself. The
   //       IsSuspended check is therefore racy with the use for dumping (normally we inhibit
   //       the race with the thread_suspend_count_lock_).
-  bool dump_for_abort = (gAborting > 0);
+  // No point dumping for an abort in debug builds where we'll hit the not suspended check in stack.
+  bool dump_for_abort = (gAborting > 0) && !kIsDebugBuild;
   if (this == Thread::Current() || IsSuspended() || dump_for_abort) {
     // If we're currently in native code, dump that stack before dumping the managed stack.
     if (dump_for_abort || ShouldShowNativeStack(this)) {
@@ -948,6 +962,8 @@ Thread::Thread(bool daemon)
       jpeer_(NULL),
       stack_begin_(NULL),
       stack_size_(0),
+      stack_trace_sample_(NULL),
+      trace_clock_base_(0),
       thin_lock_id_(0),
       tid_(0),
       wait_mutex_(new Mutex("a thread wait mutex")),
@@ -1064,6 +1080,7 @@ Thread::~Thread() {
   delete debug_invoke_req_;
   delete instrumentation_stack_;
   delete name_;
+  delete stack_trace_sample_;
 
   TearDownAlternateSignalStack();
 }

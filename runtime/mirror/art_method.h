@@ -442,6 +442,7 @@ class MANAGED ArtMethod : public Object {
 
   static Class* java_lang_reflect_ArtMethod_;
 
+ private:
   friend struct art::ArtMethodOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(ArtMethod);
 };

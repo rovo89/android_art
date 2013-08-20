@@ -66,11 +66,7 @@ class HeapBitmap {
   }
 
   SpaceBitmap* GetContinuousSpaceBitmap(const mirror::Object* obj) {
-    // TODO: C++0x auto
-    typedef SpaceBitmapVector::iterator It;
-    for (It it = continuous_space_bitmaps_.begin(), end = continuous_space_bitmaps_.end();
-        it != end; ++it) {
-      SpaceBitmap* bitmap = *it;
+    for (const auto& bitmap : continuous_space_bitmaps_) {
       if (bitmap->HasAddress(obj)) {
         return bitmap;
       }
@@ -79,13 +75,9 @@ class HeapBitmap {
   }
 
   SpaceSetMap* GetDiscontinuousSpaceObjectSet(const mirror::Object* obj) {
-    // TODO: C++0x auto
-    typedef SpaceSetMapVector::iterator It;
-    for (It it = discontinuous_space_sets_.begin(), end = discontinuous_space_sets_.end();
-        it != end; ++it) {
-      SpaceSetMap* set = *it;
-      if (set->Test(obj)) {
-        return set;
+    for (const auto& space_set : discontinuous_space_sets_) {
+      if (space_set->Test(obj)) {
+        return space_set;
       }
     }
     return NULL;

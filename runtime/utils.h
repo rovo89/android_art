@@ -285,19 +285,16 @@ uint64_t MicroTime();
 // Returns the monotonic time since some unspecified starting point in nanoseconds.
 uint64_t NanoTime();
 
-// Returns the thread-specific CPU-time clock in microseconds or -1 if unavailable.
-uint64_t ThreadCpuMicroTime();
-
 // Returns the thread-specific CPU-time clock in nanoseconds or -1 if unavailable.
 uint64_t ThreadCpuNanoTime();
 
 // Converts the given number of nanoseconds to milliseconds.
-static inline uint64_t NsToMs(uint64_t ns) {
+static constexpr inline uint64_t NsToMs(uint64_t ns) {
   return ns / 1000 / 1000;
 }
 
 // Converts the given number of milliseconds to nanoseconds
-static inline uint64_t MsToNs(uint64_t ns) {
+static constexpr inline uint64_t MsToNs(uint64_t ns) {
   return ns * 1000 * 1000;
 }
 

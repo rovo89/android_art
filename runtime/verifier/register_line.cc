@@ -208,9 +208,8 @@ std::string RegisterLine::Dump() const {
     result += GetRegisterType(i).Dump();
     result += "],";
   }
-  typedef std::deque<uint32_t>::const_iterator It;  // TODO: C++0x auto
-  for (It it = monitors_.begin(), end = monitors_.end(); it != end; ++it) {
-    result += StringPrintf("{%d},", *it);
+  for (const auto& monitor : monitors_) {
+    result += StringPrintf("{%d},", monitor);
   }
   return result;
 }

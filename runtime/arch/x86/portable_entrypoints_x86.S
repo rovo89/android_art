@@ -66,29 +66,63 @@ return_float_portable:
 END_FUNCTION art_portable_invoke_stub
 
 DEFINE_FUNCTION art_portable_proxy_invoke_handler
-    // Fake callee save ref and args frame set up, note portable doesn't use callee save frames.
-    // TODO: just save the registers that are needed in artPortableProxyInvokeHandler.
-    PUSH edi  // Save callee saves
-    PUSH esi
-    PUSH ebp
-    PUSH ebx  // Save args
-    PUSH edx
-    PUSH ecx
-    PUSH eax   // Align stack, eax will be clobbered by Method*
-    // Begin argument set up.
-    PUSH esp                      // pass SP
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    .cfi_adjust_cfa_offset 4
-    PUSH ecx                      // pass receiver
-    PUSH eax                      // pass proxy method
-    call SYMBOL(artPortableProxyInvokeHandler) // (proxy method, receiver, Thread*, SP)
-    movd %eax, %xmm0              // place return value also into floating point return value
+    PUSH ebp                        // Set up frame.
+    movl %esp, %ebp
+    .cfi_def_cfa_register %ebp
+    subl LITERAL(8), %esp           // Align stack
+    leal 8(%ebp), %edx              // %edx = ArtMethod** called_addr
+    movl 12(%ebp), %ecx             // %ecx = receiver
+    movl 0(%edx), %eax              // %eax = ArtMethod* called
+    pushl %edx                      // Pass called_addr.
+    pushl %fs:THREAD_SELF_OFFSET    // Pass thread.
+    pushl %ecx                      // Pass receiver.
+    pushl %eax                      // Pass called.
+    call SYMBOL(artPortableProxyInvokeHandler)  // (called, receiver, Thread*, &called)
+    leave
+    .cfi_restore %ebp
+    .cfi_def_cfa %esp, 4
+    movd %eax, %xmm0              // Place return value also into floating point return value.
     movd %edx, %xmm1
     punpckldq %xmm1, %xmm0
-    addl LITERAL(44), %esp        // pop arguments
-    .cfi_adjust_cfa_offset -44
     ret
 END_FUNCTION art_portable_proxy_invoke_handler
 
-UNIMPLEMENTED art_portable_resolution_trampoline
-UNIMPLEMENTED art_portable_to_interpreter_bridge
+DEFINE_FUNCTION art_portable_resolution_trampoline
+  PUSH ebp                        // Set up frame.
+  movl %esp, %ebp
+  .cfi_def_cfa_register %ebp
+  subl LITERAL(8), %esp           // Align stack
+  leal 8(%ebp), %edx              // %edx = ArtMethod** called_addr
+  movl 12(%ebp), %ecx             // %ecx = receiver
+  movl 0(%edx), %eax              // %eax = ArtMethod* called
+  pushl %edx                      // Pass called_addr.
+  pushl %fs:THREAD_SELF_OFFSET    // Pass thread.
+  pushl %ecx                      // Pass receiver.
+  pushl %eax                      // Pass called.
+  call SYMBOL(artPortableResolutionTrampoline)  // (called, receiver, Thread*, &called)
+  leave
+  .cfi_restore %ebp
+  .cfi_def_cfa %esp, 4
+  testl %eax, %eax
+  jz  resolve_fail
+  jmp * %eax
+resolve_fail:                     // Resolution failed, return with exception pending.
+  ret
+END_FUNCTION art_portable_resolution_trampoline
+
+DEFINE_FUNCTION art_portable_to_interpreter_bridge
+  PUSH ebp                        // Set up frame.
+  movl %esp, %ebp
+  .cfi_def_cfa_register %ebp
+  subl LITERAL(12), %esp          // Align stack
+  leal 8(%ebp), %edx              // %edx = ArtMethod** called_addr
+  movl 0(%edx), %eax              // %eax = ArtMethod* called
+  pushl %edx                      // Pass called_addr.
+  pushl %fs:THREAD_SELF_OFFSET    // Pass thread.
+  pushl %eax                      // Pass called.
+  call SYMBOL(artPortableToInterpreterBridge)  // (called, Thread*, &called)
+  leave
+  .cfi_restore %ebp
+  .cfi_def_cfa %esp, 4
+  ret
+END_FUNCTION art_quick_to_interpreter_bridge

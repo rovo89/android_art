@@ -37,6 +37,7 @@ enum RegionNumbering {
 };
 
 class TypeInference;
+class CodeGenData;
 
 class Region;
 class InstructionNode;
@@ -49,12 +50,12 @@ class SignatureNode;
 class SignatureNode: public InstructionNode {
  public:
   // Creates a new signature node representing the initial definition of the
-  // register @parameter_register which is the @position-th argument to the method.
-  explicit SignatureNode(unsigned int parameter_register, unsigned int position):
-    InstructionNode(NULL), parameter_register_(parameter_register), position_(position) { }
+  // register @register_no which is the @signature_position-th argument to the method.
+  explicit SignatureNode(unsigned int register_no, unsigned int signature_position):
+    InstructionNode(NULL), register_no_(register_no), position_(signature_position) { }
 
   int GetResultRegister() const {
-    return parameter_register_;
+    return register_no_;
   }
 
   unsigned int GetPositionInSignature() const {
@@ -71,7 +72,7 @@ class SignatureNode: public InstructionNode {
   }
 
  private:
-  const unsigned int parameter_register_;
+  const unsigned int register_no_;
   const unsigned int position_;     // The position of this parameter node is
                                     // in the function parameter list.
 };
@@ -260,7 +261,8 @@ class SeaGraph: IVisitable {
  public:
   static SeaGraph* GetGraph(const art::DexFile&);
 
-  void CompileMethod(const art::DexFile::CodeItem* code_item, uint32_t class_def_idx,
+  CodeGenData* CompileMethod(const std::string& function_name,
+      const art::DexFile::CodeItem* code_item, uint32_t class_def_idx,
       uint32_t method_idx, uint32_t method_access_flags, const art::DexFile& dex_file);
   // Returns all regions corresponding to this SeaGraph.
   std::vector<Region*>* GetRegions() {
@@ -337,7 +339,9 @@ class SeaGraph: IVisitable {
   void RenameAsSSA(Region* node, utils::ScopedHashtable<int, InstructionNode*>* scoped_table);
   // Generate LLVM IR for the method.
   // Precondition: ConvertToSSA().
-  void GenerateLLVM();
+  CodeGenData* GenerateLLVM(const std::string& function_name, const art::DexFile& dex_file);
+  // Inserts one SignatureNode for each argument of the function in
+  void InsertSignatureNodes(const art::DexFile::CodeItem* code_item, Region* r);
 
   static SeaGraph graph_;
   std::vector<Region*> regions_;
