@@ -1290,6 +1290,11 @@ static mirror::Class* EnsureResolved(Thread* self, mirror::Class* klass)
   return klass;
 }
 
+bool ClassLinker::IsInBootClassPath(const char* descriptor) {
+  DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, boot_class_path_);
+  return pair.second != NULL;
+}
+
 mirror::Class* ClassLinker::FindSystemClass(const char* descriptor) {
   return FindClass(descriptor, NULL);
 }
@@ -1320,18 +1325,17 @@ mirror::Class* ClassLinker::FindClass(const char* descriptor, mirror::ClassLoade
     }
 
   } else if (Runtime::Current()->UseCompileTimeClassPath()) {
-    // first try the boot class path
-    mirror::Class* system_class = FindSystemClass(descriptor);
-    if (system_class != NULL) {
+    // First try the boot class path, we check the descriptor first to avoid an unnecessary
+    // throw of a NoClassDefFoundError.
+    if (IsInBootClassPath(descriptor)) {
+      mirror::Class* system_class = FindSystemClass(descriptor);
+      CHECK(system_class != NULL);
       return system_class;
     }
-    CHECK(self->IsExceptionPending());
-    self->ClearException();
-
-    // next try the compile time class path
+    // Next try the compile time class path.
     const std::vector<const DexFile*>* class_path;
     {
-      ScopedObjectAccessUnchecked soa(Thread::Current());
+      ScopedObjectAccessUnchecked soa(self);
       ScopedLocalRef<jobject> jclass_loader(soa.Env(), soa.AddLocalReference<jobject>(class_loader));
       class_path = &Runtime::Current()->GetCompileTimeClassPath(jclass_loader.get());
     }
@@ -2697,7 +2701,6 @@ bool ClassLinker::InitializeClass(mirror::Class* klass, bool can_run_clinit, boo
 
   Thread* self = Thread::Current();
 
-  mirror::ArtMethod* clinit = NULL;
   {
     // see JLS 3rd edition, 12.4.2 "Detailed Initialization Procedure" for the locking protocol
     ObjectLock lock(self, klass);
@@ -2721,8 +2724,6 @@ bool ClassLinker::InitializeClass(mirror::Class* klass, bool can_run_clinit, boo
         return false;
       }
     }
-
-    clinit = klass->FindDeclaredDirectMethod("<clinit>", "()V");
 
     // If the class is kStatusInitializing, either this thread is
     // initializing higher up the stack or another thread has beat us
@@ -2770,6 +2771,7 @@ bool ClassLinker::InitializeClass(mirror::Class* klass, bool can_run_clinit, boo
 
   bool has_static_field_initializers = InitializeStaticFields(klass, can_init_statics);
 
+  mirror::ArtMethod* clinit = klass->FindDeclaredDirectMethod("<clinit>", "()V");
   if (clinit != NULL && can_run_clinit) {
     if (Runtime::Current()->IsStarted()) {
       JValue result;
@@ -2779,7 +2781,7 @@ bool ClassLinker::InitializeClass(mirror::Class* klass, bool can_run_clinit, boo
     }
   }
 
-  // Opportunistically set static method trampolines to their destiniation. Unless initialization
+  // Opportunistically set static method trampolines to their destination. Unless initialization
   // is being hindered at compile time.
   if (can_init_statics || can_run_clinit || (!has_static_field_initializers && clinit == NULL)) {
     FixupStaticTrampolines(klass);

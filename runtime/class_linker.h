@@ -62,6 +62,8 @@ class ClassLinker {
 
   ~ClassLinker();
 
+  bool IsInBootClassPath(const char* descriptor);
+
   // Finds a class by its descriptor, loading it if necessary.
   // If class_loader is null, searches boot_class_path_.
   mirror::Class* FindClass(const char* descriptor, mirror::ClassLoader* class_loader)

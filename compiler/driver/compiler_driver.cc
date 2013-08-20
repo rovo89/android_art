@@ -1416,31 +1416,22 @@ class ParallelCompilationManager {
 // classes found in the boot classpath. Since at runtime we will
 // select the class from the boot classpath, do not attempt to resolve
 // or compile it now.
-static bool SkipClass(mirror::ClassLoader* class_loader,
-                      const DexFile& dex_file,
-                      const DexFile::ClassDef& class_def)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static bool SkipClass(ClassLinker* class_linker, jobject class_loader, const DexFile& dex_file,
+                      const DexFile::ClassDef& class_def) {
   if (class_loader == NULL) {
     return false;
   }
   const char* descriptor = dex_file.GetClassDescriptor(class_def);
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  mirror::Class* klass = class_linker->FindClass(descriptor, NULL);
-  if (klass == NULL) {
-    Thread* self = Thread::Current();
-    CHECK(self->IsExceptionPending());
-    self->ClearException();
-    return false;
-  }
-  return true;
+  return class_linker->IsInBootClassPath(descriptor);
 }
 
 static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manager,
                                          size_t class_def_index)
     LOCKS_EXCLUDED(Locks::mutator_lock_) {
-  ScopedObjectAccess soa(Thread::Current());
-  mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader());
+  Thread* self = Thread::Current();
+  jobject jclass_loader = manager->GetClassLoader();
   const DexFile& dex_file = *manager->GetDexFile();
+  ClassLinker* class_linker = manager->GetClassLinker();
 
   // If an instance field is final then we need to have a barrier on the return, static final
   // fields are assigned within the lock held for class initialization. Conservatively assume
@@ -1455,7 +1446,7 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
   // definitions, since many of them many never be referenced by
   // generated code.
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
-  if (!SkipClass(class_loader, dex_file, class_def)) {
+  if (!SkipClass(class_linker, jclass_loader, dex_file, class_def)) {
     // Note the class_data pointer advances through the headers,
     // static fields, instance fields, direct methods, and virtual
     // methods.
@@ -1464,7 +1455,8 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
       // Empty class such as a marker interface.
       requires_constructor_barrier = false;
     } else {
-      ClassLinker* class_linker = manager->GetClassLinker();
+      ScopedObjectAccess soa(self);
+      mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(jclass_loader);
       mirror::DexCache* dex_cache = class_linker->FindDexCache(dex_file);
 
       // Resolve the class.
@@ -1535,8 +1527,7 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
     }
   }
   if (requires_constructor_barrier) {
-    manager->GetCompiler()->AddRequiresConstructorBarrier(soa.Self(), manager->GetDexFile(),
-                                                          class_def_index);
+    manager->GetCompiler()->AddRequiresConstructorBarrier(self, &dex_file, class_def_index);
   }
 }
 
@@ -2170,12 +2161,9 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
   jobject jclass_loader = manager->GetClassLoader();
   const DexFile& dex_file = *manager->GetDexFile();
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
-  {
-    ScopedObjectAccess soa(Thread::Current());
-    mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(jclass_loader);
-    if (SkipClass(class_loader, dex_file, class_def)) {
-      return;
-    }
+  ClassLinker* class_linker = manager->GetClassLinker();
+  if (SkipClass(class_linker, jclass_loader, dex_file, class_def)) {
+    return;
   }
   ClassReference ref(&dex_file, class_def_index);
   // Skip compiling classes with generic verifier failures since they will still fail at runtime
@@ -2203,6 +2191,7 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
   while (it.HasNextInstanceField()) {
     it.Next();
   }
+  CompilerDriver* driver = manager->GetCompiler();
   // Compile direct methods
   int64_t previous_direct_method_idx = -1;
   while (it.HasNextDirectMethod()) {
@@ -2214,9 +2203,9 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
       continue;
     }
     previous_direct_method_idx = method_idx;
-    manager->GetCompiler()->CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(),
-                                          it.GetMethodInvokeType(class_def), class_def_index,
-                                          method_idx, jclass_loader, dex_file, dex_to_dex_compilation_level);
+    driver->CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(),
+                          it.GetMethodInvokeType(class_def), class_def_index,
+                          method_idx, jclass_loader, dex_file, dex_to_dex_compilation_level);
     it.Next();
   }
   // Compile virtual methods
@@ -2230,9 +2219,9 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
       continue;
     }
     previous_virtual_method_idx = method_idx;
-    manager->GetCompiler()->CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(),
-                                          it.GetMethodInvokeType(class_def), class_def_index,
-                                          method_idx, jclass_loader, dex_file, dex_to_dex_compilation_level);
+    driver->CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(),
+                          it.GetMethodInvokeType(class_def), class_def_index,
+                          method_idx, jclass_loader, dex_file, dex_to_dex_compilation_level);
     it.Next();
   }
   DCHECK(!it.HasNext());
@@ -2240,8 +2229,10 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
 
 void CompilerDriver::CompileDexFile(jobject class_loader, const DexFile& dex_file,
                                     ThreadPool& thread_pool, base::TimingLogger& timings) {
+  // TODO: strdup memory leak.
   timings.NewSplit(strdup(("Compile " + dex_file.GetLocation()).c_str()));
-  ParallelCompilationManager context(NULL, class_loader, this, &dex_file, thread_pool);
+  ParallelCompilationManager context(Runtime::Current()->GetClassLinker(), class_loader, this,
+                                     &dex_file, thread_pool);
   context.ForAll(0, dex_file.NumClassDefs(), CompilerDriver::CompileClass, thread_count_);
 }
 
