@@ -2333,7 +2333,7 @@ class JNI {
   static jint RegisterNativeMethods(JNIEnv* env, jclass java_class, const JNINativeMethod* methods,
                                     jint method_count, bool return_errors) {
     if (UNLIKELY(method_count < 0)) {
-      JniAbortF("RegisterNatives", "method_cound == %d", method_count);
+      JniAbortF("RegisterNatives", "negative method count: %d", method_count);
       return JNI_ERR;  // Not reached.
     }
     CHECK_NON_NULL_ARGUMENT(RegisterNatives, java_class);
@@ -2512,7 +2512,7 @@ class JNI {
   static jint EnsureLocalCapacity(JNIEnv* env, jint desired_capacity,
                                   const char* caller) {
     // TODO: we should try to expand the table if necessary.
-    if (desired_capacity < 1 || desired_capacity > static_cast<jint>(kLocalsMax)) {
+    if (desired_capacity < 0 || desired_capacity > static_cast<jint>(kLocalsMax)) {
       LOG(ERROR) << "Invalid capacity given to " << caller << ": " << desired_capacity;
       return JNI_ERR;
     }
