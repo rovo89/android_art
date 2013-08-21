@@ -611,6 +611,11 @@ JValue InvokeWithJValues(const ScopedObjectAccess& soa, jobject obj, jmethodID m
     JniAbortF(#fn, #value " == null"); \
   }
 
+#define CHECK_NON_NULL_MEMCPY_ARGUMENT(fn, length, value) \
+  if (UNLIKELY(length != 0 && value == NULL)) { \
+    JniAbortF(#fn, #value " == null"); \
+  }
+
 class JNI {
  public:
   static jint GetVersion(JNIEnv*) {
@@ -1968,7 +1973,7 @@ class JNI {
     if (start < 0 || length < 0 || start + length > s->GetLength()) {
       ThrowSIOOBE(soa, start, length, s->GetLength());
     } else {
-      CHECK_NON_NULL_ARGUMENT(GetStringRegion, buf);
+      CHECK_NON_NULL_MEMCPY_ARGUMENT(GetStringRegion, length, buf);
       const jchar* chars = s->GetCharArray()->GetData() + s->GetOffset();
       memcpy(buf, chars + start, length * sizeof(jchar));
     }
@@ -1982,7 +1987,7 @@ class JNI {
     if (start < 0 || length < 0 || start + length > s->GetLength()) {
       ThrowSIOOBE(soa, start, length, s->GetLength());
     } else {
-      CHECK_NON_NULL_ARGUMENT(GetStringUTFRegion, buf);
+      CHECK_NON_NULL_MEMCPY_ARGUMENT(GetStringUTFRegion, length, buf);
       const jchar* chars = s->GetCharArray()->GetData() + s->GetOffset();
       ConvertUtf16ToModifiedUtf8(buf, chars + start, length);
     }
@@ -2566,7 +2571,7 @@ class JNI {
     if (start < 0 || length < 0 || start + length > array->GetLength()) {
       ThrowAIOOBE(soa, array, start, length, "src");
     } else {
-      CHECK_NON_NULL_ARGUMENT(GetPrimitiveArrayRegion, buf);
+      CHECK_NON_NULL_MEMCPY_ARGUMENT(GetStringRegion, length, buf);
       JavaT* data = array->GetData();
       memcpy(buf, data + start, length * sizeof(JavaT));
     }
@@ -2581,7 +2586,7 @@ class JNI {
     if (start < 0 || length < 0 || start + length > array->GetLength()) {
       ThrowAIOOBE(soa, array, start, length, "dst");
     } else {
-      CHECK_NON_NULL_ARGUMENT(SetPrimitiveArrayRegion, buf);
+      CHECK_NON_NULL_MEMCPY_ARGUMENT(GetStringRegion, length, buf);
       JavaT* data = array->GetData();
       memcpy(data + start, buf, length * sizeof(JavaT));
     }
