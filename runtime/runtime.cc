@@ -583,14 +583,14 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       Trace::SetDefaultClockSource(kProfilerClockSourceDual);
     } else if (option == "-compiler-filter:interpret-only") {
       parsed->compiler_filter_ = kInterpretOnly;
-    } else if (option == "-compiler-filter:defer-compilation") {
-      parsed->compiler_filter_ = kDeferCompilation;
     } else if (option == "-compiler-filter:space") {
       parsed->compiler_filter_ = kSpace;
     } else if (option == "-compiler-filter:balanced") {
       parsed->compiler_filter_ = kBalanced;
     } else if (option == "-compiler-filter:speed") {
       parsed->compiler_filter_ = kSpeed;
+    } else if (option == "-compiler-filter:everything") {
+      parsed->compiler_filter_ = kEverything;
     } else if (option == "-sea_ir") {
       parsed->sea_ir_mode_ = true;
     } else if (StartsWith(option, "-huge-method-max:")) {

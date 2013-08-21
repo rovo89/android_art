@@ -867,9 +867,10 @@ static int dex2oat(int argc, char** argv) {
   // give it away now and then switch to a more managable ScopedObjectAccess.
   Thread::Current()->TransitionFromRunnableToSuspended(kNative);
   // If we're doing the image, override the compiler filter to force full compilation. Must be
-  // done ahead of WellKnownClasses::Init that causes verification.
-  if (image && Runtime::Current()->GetCompilerFilter() == Runtime::kInterpretOnly) {
-    Runtime::Current()->SetCompilerFilter(Runtime::kSpeed);
+  // done ahead of WellKnownClasses::Init that causes verification.  Note: doesn't force
+  // compilation of class initializers.
+  if (image) {
+    Runtime::Current()->SetCompilerFilter(Runtime::kEverything);
   }
   // Whilst we're in native take the opportunity to initialize well known classes.
   WellKnownClasses::Init(Thread::Current()->GetJniEnv());

@@ -65,10 +65,10 @@ class Runtime {
 
   enum CompilerFilter {
     kInterpretOnly,       // Compile nothing.
-    kDeferCompilation,    // Temporary minimal compilation, will redo during device idle time.
     kSpace,               // Maximize space savings.
     kBalanced,            // Try to get the best performance return on compilation investment.
-    kSpeed                // Compile all methods.
+    kSpeed,               // Maximize runtime performance.
+    kEverything           // Force compilation (Note: excludes compilaton of class initializers).
   };
 
   // Guide heuristics to determine whether to compile method if profile data not available.
@@ -77,10 +77,10 @@ class Runtime {
 #else
   static const CompilerFilter kDefaultCompilerFilter = kSpeed;
 #endif
-  static const size_t kDefaultHugeMethodThreshold = 6000;
-  static const size_t kDefaultLargeMethodThreshold = 1000;
-  static const size_t kDefaultSmallMethodThreshold = 200;
-  static const size_t kDefaultTinyMethodThreshold = 10;
+  static const size_t kDefaultHugeMethodThreshold = 10000;
+  static const size_t kDefaultLargeMethodThreshold = 600;
+  static const size_t kDefaultSmallMethodThreshold = 60;
+  static const size_t kDefaultTinyMethodThreshold = 20;
   static const size_t kDefaultNumDexMethodsThreshold = 900;
 
   class ParsedOptions {

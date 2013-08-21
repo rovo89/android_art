@@ -151,10 +151,10 @@ const uint32_t MIRGraph::analysis_attributes_[kMirOpLast] = {
   AN_BRANCH,
 
   // 2B PACKED_SWITCH vAA, +BBBBBBBB
-  AN_NONE,
+  AN_SWITCH,
 
   // 2C SPARSE_SWITCH vAA, +BBBBBBBB
-  AN_NONE,
+  AN_SWITCH,
 
   // 2D CMPL_FLOAT vAA, vBB, vCC
   AN_MATH | AN_FP | AN_SINGLE,
@@ -841,6 +841,7 @@ struct MethodStats {
   int branch_ops;
   int heavyweight_ops;
   bool has_computational_loop;
+  bool has_switch;
   float math_ratio;
   float fp_ratio;
   float array_ratio;
@@ -914,6 +915,9 @@ void MIRGraph::AnalyzeBlock(BasicBlock* bb, MethodStats* stats) {
       if ((flags & AN_HEAVYWEIGHT) != 0) {
         stats->heavyweight_ops += loop_scale_factor;
       }
+      if ((flags & AN_SWITCH) != 0) {
+        stats->has_switch = true;
+      }
     }
     if (tbb == ending_bb) {
       done = true;
@@ -939,7 +943,7 @@ bool MIRGraph::ComputeSkipCompilation(MethodStats* stats, bool skip_default) {
               << stats->math_ratio << ", fp:"
               << stats->fp_ratio << ", br:"
               << stats->branch_ratio << ", hw:"
-              << stats-> heavyweight_ratio << ", arr:"
+              << stats->heavyweight_ratio << ", arr:"
               << stats->array_ratio << ", hot:"
               << stats->has_computational_loop << ", "
               << PrettyMethod(cu_->method_idx, *cu_->dex_file);
@@ -971,8 +975,14 @@ bool MIRGraph::ComputeSkipCompilation(MethodStats* stats, bool skip_default) {
     return false;
   }
 
-  // If high proportion of expensive operations, skip.
-  if (stats->heavyweight_ratio > 0.3) {
+  // Switch operations benefit greatly from compilation, so go ahead and spend the cycles.
+  if (stats->has_switch) {
+    return false;
+  }
+
+  // If significant in size and high proportion of expensive operations, skip.
+  if ((GetNumDalvikInsns() > Runtime::Current()->GetSmallMethodThreshold()) &&
+      (stats->heavyweight_ratio > 0.3)) {
     return true;
   }
 
@@ -984,8 +994,7 @@ bool MIRGraph::ComputeSkipCompilation(MethodStats* stats, bool skip_default) {
   * Ultimate goal is to drive with profile data.
   */
 bool MIRGraph::SkipCompilation(Runtime::CompilerFilter compiler_filter) {
-  if (compiler_filter == Runtime::kSpeed) {
-    // If going for speed, compile everything.
+  if (compiler_filter == Runtime::kEverything) {
     return false;
   }
 
@@ -994,10 +1003,38 @@ bool MIRGraph::SkipCompilation(Runtime::CompilerFilter compiler_filter) {
     return true;
   }
 
-  // Filter 1: Skip huge methods (generally machine-generated initialization methods).
+  // Set up compilation cutoffs based on current filter mode.
+  size_t small_cutoff = 0;
+  size_t default_cutoff = 0;
+  switch (compiler_filter) {
+    case Runtime::kBalanced:
+      small_cutoff = Runtime::Current()->GetSmallMethodThreshold();
+      default_cutoff = Runtime::Current()->GetLargeMethodThreshold();
+      break;
+    case Runtime::kSpace:
+      small_cutoff = Runtime::Current()->GetTinyMethodThreshold();
+      default_cutoff = Runtime::Current()->GetSmallMethodThreshold();
+      break;
+    case Runtime::kSpeed:
+      small_cutoff = Runtime::Current()->GetHugeMethodThreshold();
+      default_cutoff = Runtime::Current()->GetHugeMethodThreshold();
+      break;
+    default:
+      LOG(FATAL) << "Unexpected compiler_filter_: " << compiler_filter;
+  }
+
+  // If size < cutoff, assume we'll compile - but allow removal.
+  bool skip_compilation = (GetNumDalvikInsns() >= default_cutoff);
+
+  /*
+   * Filter 1: Huge methods are likely to be machine generated, but some aren't.
+   * If huge, assume we won't compile, but allow futher analysis to turn it back on.
+   */
   if (GetNumDalvikInsns() > Runtime::Current()->GetHugeMethodThreshold()) {
-    // Ain't nobody got time for that.
-    return true;
+    skip_compilation = true;
+  } else if (compiler_filter == Runtime::kSpeed) {
+    // If not huge, compile.
+    return false;
   }
 
   // Filter 2: Skip class initializers.
@@ -1010,28 +1047,7 @@ bool MIRGraph::SkipCompilation(Runtime::CompilerFilter compiler_filter) {
     return false;
   }
 
-  /* In balanced mode, we generally assume that we'll be compiling, and then detect
-   * methods that won't benefit and remove them.  In space or deferred mode, we do the
-   * opposite: assume no compilation and then add back presumed hot methods.
-   */
-  bool skip_compilation = (compiler_filter == Runtime::kBalanced) ? false : true;
-
-
-  // Filter 4: go ahead and compile the small ones.
-  size_t small_cutoff = 0;
-  switch (compiler_filter) {
-    case Runtime::kBalanced:
-      small_cutoff = Runtime::Current()->GetSmallMethodThreshold();
-      break;
-    case Runtime::kSpace:
-      small_cutoff = Runtime::Current()->GetTinyMethodThreshold();
-      break;
-    case Runtime::kDeferCompilation:
-      small_cutoff = 0;
-      break;
-    default:
-      LOG(FATAL) << "Unexpected compiler_filter_: " << compiler_filter;
-  }
+  // Filter 4: if small, just compile.
   if (GetNumDalvikInsns() < small_cutoff) {
     return false;
   }
