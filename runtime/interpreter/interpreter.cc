@@ -127,7 +127,8 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     args[0] = reinterpret_cast<uint32_t>(found);
     EnterInterpreterFromInvoke(self, c, field.get(), args, NULL);
     result->SetL(field.get());
-  } else if (name == "void java.lang.System.arraycopy(java.lang.Object, int, java.lang.Object, int, int)") {
+  } else if (name == "void java.lang.System.arraycopy(java.lang.Object, int, java.lang.Object, int, int)" ||
+             name == "void java.lang.System.arraycopy(char[], int, char[], int, int)") {
     // Special case array copying without initializing System.
     Class* ctype = shadow_frame->GetVRegReference(arg_offset)->GetClass()->GetComponentType();
     jint srcPos = shadow_frame->GetVReg(arg_offset + 1);
