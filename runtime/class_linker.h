@@ -437,15 +437,10 @@ class ClassLinker {
   void RegisterOatFileLocked(const OatFile& oat_file) EXCLUSIVE_LOCKS_REQUIRED(dex_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(dex_lock_);
 
-  bool InitializeClass(mirror::Class* klass, bool can_run_clinit, bool can_init_statics)
+  bool InitializeClass(mirror::Class* klass, bool can_run_clinit, bool can_init_parents)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool WaitForInitializeClass(mirror::Class* klass, Thread* self, ObjectLock& lock);
   bool ValidateSuperClassDescriptors(const mirror::Class* klass)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool InitializeSuperClass(mirror::Class* klass, bool can_run_clinit, bool can_init_fields)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  // Initialize static fields, returns true if fields were initialized.
-  bool InitializeStaticFields(mirror::Class* klass, bool can_init_statics)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsSameDescriptorInDifferentClassContexts(const char* descriptor,

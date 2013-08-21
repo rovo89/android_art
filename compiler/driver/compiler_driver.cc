@@ -758,11 +758,6 @@ void CompilerDriver::UpdateImageClasses(base::TimingLogger& timings) {
   }
 }
 
-void CompilerDriver::RecordClassStatus(ClassReference ref, CompiledClass* compiled_class) {
-  MutexLock mu(Thread::Current(), CompilerDriver::compiled_classes_lock_);
-  compiled_classes_.Put(ref, compiled_class);
-}
-
 bool CompilerDriver::CanAssumeTypeIsPresentInDexCache(const DexFile& dex_file,
                                                       uint32_t type_idx) {
   if (IsImage() && IsImageClass(dex_file.GetTypeDescriptor(dex_file.GetTypeId(type_idx)))) {
@@ -1428,6 +1423,7 @@ static bool SkipClass(ClassLinker* class_linker, jobject class_loader, const Dex
 static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manager,
                                          size_t class_def_index)
     LOCKS_EXCLUDED(Locks::mutator_lock_) {
+  ATRACE_CALL();
   Thread* self = Thread::Current();
   jobject jclass_loader = manager->GetClassLoader();
   const DexFile& dex_file = *manager->GetDexFile();
@@ -2048,6 +2044,7 @@ static const char* class_initializer_black_list[] = {
 
 static void InitializeClass(const ParallelCompilationManager* manager, size_t class_def_index)
     LOCKS_EXCLUDED(Locks::mutator_lock_) {
+  ATRACE_CALL();
   const DexFile::ClassDef& class_def = manager->GetDexFile()->GetClassDef(class_def_index);
   ScopedObjectAccess soa(Thread::Current());
   mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader());
@@ -2056,48 +2053,54 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
   if (klass != NULL) {
     // Only try to initialize classes that were successfully verified.
     if (klass->IsVerified()) {
-      // We don't want class initialization occurring on multiple threads due to deadlock problems.
-      // For example, a parent class is initialized (holding its lock) that refers to a sub-class
-      // in its static/class initializer causing it to try to acquire the sub-class' lock. While
-      // on a second thread the sub-class is initialized (holding its lock) after first initializing
-      // its parents, whose locks are acquired. This leads to a parent-to-child and a child-to-parent
-      // lock ordering and consequent potential deadlock.
-      // We need to use an ObjectLock due to potential suspension in the interpreting code. Rather
-      // than use a special Object for the purpose we use the Class of java.lang.Class.
-      ObjectLock lock(soa.Self(), klass->GetClass());
-      bool can_init_static_fields = manager->GetCompiler()->IsImage() &&
-          manager->GetCompiler()->IsImageClass(descriptor);
-      manager->GetClassLinker()->EnsureInitialized(klass, false, can_init_static_fields);
-      if (soa.Self()->IsExceptionPending()) {
-        soa.Self()->GetException(NULL)->Dump();
-      }
+      // Attempt to initialize the class but bail if we either need to initialize the super-class
+      // or static fields.
+      manager->GetClassLinker()->EnsureInitialized(klass, false, false);
       if (!klass->IsInitialized()) {
-        if (can_init_static_fields) {
-          // NoPreloadHolder inner class implies this should not be initialized early.
-          bool is_black_listed = StringPiece(descriptor).ends_with("$NoPreloadHolder;");
-          if (!is_black_listed) {
-            for (size_t i = 0; i < arraysize(class_initializer_black_list); ++i) {
-              if (StringPiece(descriptor) == class_initializer_black_list[i]) {
-                is_black_listed = true;
-                break;
+        // We don't want non-trivial class initialization occurring on multiple threads due to
+        // deadlock problems. For example, a parent class is initialized (holding its lock) that
+        // refers to a sub-class in its static/class initializer causing it to try to acquire the
+        // sub-class' lock. While on a second thread the sub-class is initialized (holding its lock)
+        // after first initializing its parents, whose locks are acquired. This leads to a
+        // parent-to-child and a child-to-parent lock ordering and consequent potential deadlock.
+        // We need to use an ObjectLock due to potential suspension in the interpreting code. Rather
+        // than use a special Object for the purpose we use the Class of java.lang.Class.
+        ObjectLock lock(soa.Self(), klass->GetClass());
+        // Attempt to initialize allowing initialization of parent classes but still not static
+        // fields.
+        manager->GetClassLinker()->EnsureInitialized(klass, false, true);
+        if (!klass->IsInitialized()) {
+          // We need to initialize static fields, we only do this for image classes that aren't
+          // black listed or marked with the $NoPreloadHolder.
+          bool can_init_static_fields = manager->GetCompiler()->IsImage() &&
+              manager->GetCompiler()->IsImageClass(descriptor);
+          if (can_init_static_fields) {
+            // NoPreloadHolder inner class implies this should not be initialized early.
+            bool is_black_listed = StringPiece(descriptor).ends_with("$NoPreloadHolder;");
+            if (!is_black_listed) {
+              for (size_t i = 0; i < arraysize(class_initializer_black_list); ++i) {
+                if (StringPiece(descriptor) == class_initializer_black_list[i]) {
+                  is_black_listed = true;
+                  break;
+                }
+              }
+            }
+            if (!is_black_listed) {
+              VLOG(compiler) << "Initializing: " << descriptor;
+              if (StringPiece(descriptor) == "Ljava/lang/Void;") {
+                // Hand initialize j.l.Void to avoid Dex file operations in un-started runtime.
+                ObjectLock lock(soa.Self(), klass);
+                mirror::ObjectArray<mirror::ArtField>* fields = klass->GetSFields();
+                CHECK_EQ(fields->GetLength(), 1);
+                fields->Get(0)->SetObj(klass, manager->GetClassLinker()->FindPrimitiveClass('V'));
+                klass->SetStatus(mirror::Class::kStatusInitialized);
+              } else {
+                manager->GetClassLinker()->EnsureInitialized(klass, true, true);
               }
             }
           }
-          if (!is_black_listed) {
-            VLOG(compiler) << "Initializing: " << descriptor;
-            if (StringPiece(descriptor) == "Ljava/lang/Void;") {
-              // Hand initialize j.l.Void to avoid Dex file operations in un-started runtime.
-              ObjectLock lock(soa.Self(), klass);
-              mirror::ObjectArray<mirror::ArtField>* fields = klass->GetSFields();
-              CHECK_EQ(fields->GetLength(), 1);
-              fields->Get(0)->SetObj(klass, manager->GetClassLinker()->FindPrimitiveClass('V'));
-              klass->SetStatus(mirror::Class::kStatusInitialized);
-            } else {
-              manager->GetClassLinker()->EnsureInitialized(klass, true, can_init_static_fields);
-            }
-            soa.Self()->AssertNoPendingException();
-          }
         }
+        soa.Self()->AssertNoPendingException();
       }
       // If successfully initialized place in SSB array.
       if (klass->IsInitialized()) {
@@ -2105,15 +2108,8 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
       }
     }
     // Record the final class status if necessary.
-    mirror::Class::Status status = klass->GetStatus();
     ClassReference ref(manager->GetDexFile(), class_def_index);
-    CompiledClass* compiled_class = manager->GetCompiler()->GetCompiledClass(ref);
-    if (compiled_class == NULL) {
-      compiled_class = new CompiledClass(status);
-      manager->GetCompiler()->RecordClassStatus(ref, compiled_class);
-    } else {
-      DCHECK_GE(status, compiled_class->GetStatus()) << descriptor;
-    }
+    manager->GetCompiler()->RecordClassStatus(ref, klass->GetStatus());
   }
   // Clear any class not found or verification exceptions.
   soa.Self()->ClearException();
@@ -2288,7 +2284,7 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
   Thread* self = Thread::Current();
   if (compiled_method != NULL) {
     MethodReference ref(&dex_file, method_idx);
-    CHECK(GetCompiledMethod(ref) == NULL) << PrettyMethod(method_idx, dex_file);
+    DCHECK(GetCompiledMethod(ref) == NULL) << PrettyMethod(method_idx, dex_file);
     {
       MutexLock mu(self, compiled_methods_lock_);
       compiled_methods_.Put(ref, compiled_method);
@@ -2313,6 +2309,32 @@ CompiledClass* CompilerDriver::GetCompiledClass(ClassReference ref) const {
   return it->second;
 }
 
+void CompilerDriver::RecordClassStatus(ClassReference ref, mirror::Class::Status status) {
+  MutexLock mu(Thread::Current(), compiled_classes_lock_);
+  auto it = compiled_classes_.find(ref);
+  if (it == compiled_classes_.end() || it->second->GetStatus() != status) {
+    // An entry doesn't exist or the status is lower than the new status.
+    if (it != compiled_classes_.end()) {
+      CHECK_GT(status, it->second->GetStatus());
+      delete it->second;
+    }
+    switch (status) {
+      case mirror::Class::kStatusNotReady:
+      case mirror::Class::kStatusError:
+      case mirror::Class::kStatusRetryVerificationAtRuntime:
+      case mirror::Class::kStatusVerified:
+      case mirror::Class::kStatusInitialized:
+        break;  // Expected states.
+      default:
+        LOG(FATAL) << "Unexpected class status for class "
+            << PrettyDescriptor(ref.first->GetClassDescriptor(ref.first->GetClassDef(ref.second)))
+            << " of " << status;
+    }
+    CompiledClass* compiled_class = new CompiledClass(status);
+    compiled_classes_.Overwrite(ref, compiled_class);
+  }
+}
+
 CompiledMethod* CompilerDriver::GetCompiledMethod(MethodReference ref) const {
   MutexLock mu(Thread::Current(), compiled_methods_lock_);
   MethodTable::const_iterator it = compiled_methods_.find(ref);
@@ -2335,13 +2357,13 @@ void CompilerDriver::SetBitcodeFileName(std::string const& filename) {
 
 void CompilerDriver::AddRequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
                                              size_t class_def_index) {
-  MutexLock mu(self, freezing_constructor_lock_);
+  WriterMutexLock mu(self, freezing_constructor_lock_);
   freezing_constructor_classes_.insert(ClassReference(dex_file, class_def_index));
 }
 
 bool CompilerDriver::RequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
                                           size_t class_def_index) {
-  MutexLock mu(self, freezing_constructor_lock_);
+  ReaderMutexLock mu(self, freezing_constructor_lock_);
   return freezing_constructor_classes_.count(ClassReference(dex_file, class_def_index)) != 0;
 }
 
