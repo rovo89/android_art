@@ -575,9 +575,6 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
     case Runtime::kInterpretOnly:
       oat_compiler_filter_string += "interpret-only";
       break;
-    case Runtime::kDeferCompilation:
-      oat_compiler_filter_string += "defer-compilation";
-      break;
     case Runtime::kSpace:
       oat_compiler_filter_string += "space";
       break;
@@ -586,6 +583,9 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
       break;
     case Runtime::kSpeed:
       oat_compiler_filter_string += "speed";
+      break;
+    case Runtime::kEverything:
+      oat_compiler_filter_string += "everything";
       break;
     default:
       LOG(FATAL) << "Unexpected case.";
