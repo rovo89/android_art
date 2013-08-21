@@ -4202,7 +4202,7 @@ MethodVerifier::SafeCastMap* MethodVerifier::safecast_map_ = NULL;
 ReaderWriterMutex* MethodVerifier::devirt_maps_lock_ = NULL;
 MethodVerifier::DevirtualizationMapTable* MethodVerifier::devirt_maps_ = NULL;
 
-Mutex* MethodVerifier::rejected_classes_lock_ = NULL;
+ReaderWriterMutex* MethodVerifier::rejected_classes_lock_ = NULL;
 MethodVerifier::RejectedClassesTable* MethodVerifier::rejected_classes_ = NULL;
 
 void MethodVerifier::Init() {
@@ -4227,9 +4227,9 @@ void MethodVerifier::Init() {
       devirt_maps_ = new MethodVerifier::DevirtualizationMapTable();
     }
 
-    rejected_classes_lock_ = new Mutex("verifier rejected classes lock");
+    rejected_classes_lock_ = new ReaderWriterMutex("verifier rejected classes lock");
     {
-      MutexLock mu(self, *rejected_classes_lock_);
+      WriterMutexLock mu(self, *rejected_classes_lock_);
       rejected_classes_ = new MethodVerifier::RejectedClassesTable;
     }
   }
@@ -4267,7 +4267,7 @@ void MethodVerifier::Shutdown() {
     devirt_maps_lock_ = NULL;
 
     {
-      MutexLock mu(self, *rejected_classes_lock_);
+      WriterMutexLock mu(self, *rejected_classes_lock_);
       delete rejected_classes_;
       rejected_classes_ = NULL;
     }
@@ -4280,7 +4280,7 @@ void MethodVerifier::Shutdown() {
 void MethodVerifier::AddRejectedClass(ClassReference ref) {
   DCHECK(Runtime::Current()->IsCompiler());
   {
-    MutexLock mu(Thread::Current(), *rejected_classes_lock_);
+    WriterMutexLock mu(Thread::Current(), *rejected_classes_lock_);
     rejected_classes_->insert(ref);
   }
   CHECK(IsClassRejected(ref));
@@ -4288,7 +4288,7 @@ void MethodVerifier::AddRejectedClass(ClassReference ref) {
 
 bool MethodVerifier::IsClassRejected(ClassReference ref) {
   DCHECK(Runtime::Current()->IsCompiler());
-  MutexLock mu(Thread::Current(), *rejected_classes_lock_);
+  ReaderMutexLock mu(Thread::Current(), *rejected_classes_lock_);
   return (rejected_classes_->find(ref) != rejected_classes_->end());
 }
 

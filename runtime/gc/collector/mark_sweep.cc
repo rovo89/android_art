@@ -949,7 +949,7 @@ void MarkSweep::ReMarkRoots() {
 
 void MarkSweep::SweepJniWeakGlobals(IsMarkedTester is_marked, void* arg) {
   JavaVMExt* vm = Runtime::Current()->GetJavaVM();
-  MutexLock mu(Thread::Current(), vm->weak_globals_lock);
+  WriterMutexLock mu(Thread::Current(), vm->weak_globals_lock);
   for (const Object** entry : vm->weak_globals) {
     if (!is_marked(*entry, arg)) {
       *entry = kClearedJniWeakGlobal;
@@ -1032,7 +1032,7 @@ void MarkSweep::VerifySystemWeaks() {
   runtime->GetMonitorList()->SweepMonitorList(VerifyIsLiveCallback, this);
 
   JavaVMExt* vm = runtime->GetJavaVM();
-  MutexLock mu(Thread::Current(), vm->weak_globals_lock);
+  ReaderMutexLock mu(Thread::Current(), vm->weak_globals_lock);
   for (const Object** entry : vm->weak_globals) {
     VerifyIsLive(*entry);
   }
