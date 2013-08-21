@@ -100,13 +100,17 @@ class Runtime {
     bool interpreter_only_;
     bool is_concurrent_gc_enabled_;
     bool is_explicit_gc_disabled_;
+    size_t long_pause_log_threshold_;
+    size_t long_gc_log_threshold_;
+    bool ignore_max_footprint_;
     size_t heap_initial_size_;
     size_t heap_maximum_size_;
     size_t heap_growth_limit_;
-    size_t heap_gc_threads_;
     size_t heap_min_free_;
     size_t heap_max_free_;
     double heap_target_utilization_;
+    size_t parallel_gc_threads_;
+    size_t conc_gc_threads_;
     size_t stack_size_;
     bool low_memory_mode_;
     size_t lock_profiling_threshold_;

@@ -742,11 +742,23 @@ class CardScanTask : public MarkStackTask<false> {
   }
 };
 
+size_t MarkSweep::GetThreadCount(bool paused) const {
+  if (heap_->GetThreadPool() == nullptr || !heap_->CareAboutPauseTimes()) {
+    return 0;
+  }
+  if (paused) {
+    return heap_->GetParallelGCThreadCount() + 1;
+  } else {
+    return heap_->GetConcGCThreadCount() + 1;
+  }
+}
+
 void MarkSweep::ScanGrayObjects(bool paused, byte minimum_age) {
   accounting::CardTable* card_table = GetHeap()->GetCardTable();
   ThreadPool* thread_pool = GetHeap()->GetThreadPool();
-  const bool parallel = kParallelCardScan && thread_pool != nullptr;
-  if (parallel) {
+  size_t thread_count = GetThreadCount(paused);
+  // The parallel version with only one thread is faster for card scanning, TODO: fix.
+  if (kParallelCardScan && thread_count > 0) {
     Thread* self = Thread::Current();
     // Can't have a different split for each space since multiple spaces can have their cards being
     // scanned at the same time.
@@ -755,7 +767,6 @@ void MarkSweep::ScanGrayObjects(bool paused, byte minimum_age) {
     const Object** mark_stack_begin = const_cast<const Object**>(mark_stack_->Begin());
     const Object** mark_stack_end = const_cast<const Object**>(mark_stack_->End());
     const size_t mark_stack_size = mark_stack_end - mark_stack_begin;
-    const size_t thread_count = thread_pool->GetThreadCount() + 1;
     // Estimated number of work tasks we will create.
     const size_t mark_stack_tasks = GetHeap()->GetContinuousSpaces().size() * thread_count;
     DCHECK_NE(mark_stack_tasks, 0U);
@@ -788,8 +799,9 @@ void MarkSweep::ScanGrayObjects(bool paused, byte minimum_age) {
         card_begin += card_increment;
       }
     }
+    thread_pool->SetMaxActiveWorkers(thread_count - 1);
     thread_pool->StartWorkers(self);
-    thread_pool->Wait(self, paused, true);  // Only do work in the main thread if we are paused.
+    thread_pool->Wait(self, true, true);
     thread_pool->StopWorkers(self);
     timings_.EndSplit();
   } else {
@@ -885,7 +897,8 @@ void MarkSweep::RecursiveMark() {
     ScanObjectVisitor scan_visitor(this);
     auto* self = Thread::Current();
     ThreadPool* thread_pool = heap_->GetThreadPool();
-    const bool parallel = kParallelRecursiveMark && thread_pool != NULL;
+    size_t thread_count = GetThreadCount(false);
+    const bool parallel = kParallelRecursiveMark && thread_count > 1;
     mark_stack_->Reset();
     for (const auto& space : GetHeap()->GetContinuousSpaces()) {
       if ((space->GetGcRetentionPolicy() == space::kGcRetentionPolicyAlwaysCollect) ||
@@ -904,7 +917,7 @@ void MarkSweep::RecursiveMark() {
           atomic_finger_ = static_cast<int32_t>(0xFFFFFFFF);
 
           // Create a few worker tasks.
-          size_t n = (thread_pool->GetThreadCount() + 1) * 2;
+          const size_t n = thread_count * 2;
           while (begin != end) {
             uintptr_t start = begin;
             uintptr_t delta = (end - begin) / n;
@@ -915,8 +928,9 @@ void MarkSweep::RecursiveMark() {
                                                begin);
             thread_pool->AddTask(self, task);
           }
+          thread_pool->SetMaxActiveWorkers(thread_count - 1);
           thread_pool->StartWorkers(self);
-          thread_pool->Wait(self, false, true);
+          thread_pool->Wait(self, true, true);
           thread_pool->StopWorkers(self);
         } else {
           // This function does not handle heap end increasing, so we must use the space end.
@@ -1369,13 +1383,11 @@ void MarkSweep::ScanObject(const Object* obj) {
   ScanObjectVisit(obj, visitor);
 }
 
-void MarkSweep::ProcessMarkStackParallel(bool paused) {
+void MarkSweep::ProcessMarkStackParallel(size_t thread_count) {
   Thread* self = Thread::Current();
   ThreadPool* thread_pool = GetHeap()->GetThreadPool();
-  const size_t num_threads = thread_pool->GetThreadCount();
-  const size_t chunk_size =
-      std::min(mark_stack_->Size() / num_threads + 1,
-               static_cast<size_t>(MarkStackTask<false>::kMaxSize));
+  const size_t chunk_size = std::min(mark_stack_->Size() / thread_count + 1,
+                                     static_cast<size_t>(MarkStackTask<false>::kMaxSize));
   CHECK_GT(chunk_size, 0U);
   // Split the current mark stack up into work tasks.
   for (mirror::Object **it = mark_stack_->Begin(), **end = mark_stack_->End(); it < end; ) {
@@ -1384,10 +1396,9 @@ void MarkSweep::ProcessMarkStackParallel(bool paused) {
                                                         const_cast<const mirror::Object**>(it)));
     it += delta;
   }
+  thread_pool->SetMaxActiveWorkers(thread_count - 1);
   thread_pool->StartWorkers(self);
-  // Don't do work in the main thread since it assumed at least one other thread will require CPU
-  // time during the GC.
-  thread_pool->Wait(self, paused, true);
+  thread_pool->Wait(self, true, true);
   thread_pool->StopWorkers(self);
   mark_stack_->Reset();
   CHECK_EQ(work_chunks_created_, work_chunks_deleted_) << " some of the work chunks were leaked";
@@ -1396,10 +1407,10 @@ void MarkSweep::ProcessMarkStackParallel(bool paused) {
 // Scan anything that's on the mark stack.
 void MarkSweep::ProcessMarkStack(bool paused) {
   timings_.StartSplit("ProcessMarkStack");
-  const bool parallel = kParallelProcessMarkStack && GetHeap()->GetThreadPool() &&
-      mark_stack_->Size() >= kMinimumParallelMarkStackSize;
-  if (parallel) {
-    ProcessMarkStackParallel(paused);
+  size_t thread_count = GetThreadCount(paused);
+  if (kParallelProcessMarkStack && thread_count > 1 &&
+      mark_stack_->Size() >= kMinimumParallelMarkStackSize) {
+    ProcessMarkStackParallel(thread_count);
   } else {
     // TODO: Tune this.
     static const size_t kFifoSize = 4;
@@ -1610,8 +1621,8 @@ void MarkSweep::FinishPhase() {
   total_time_ns_ += GetDurationNs();
   total_paused_time_ns_ += std::accumulate(GetPauseTimes().begin(), GetPauseTimes().end(), 0,
                                            std::plus<uint64_t>());
-  total_freed_objects_ += GetFreedObjects();
-  total_freed_bytes_ += GetFreedBytes();
+  total_freed_objects_ += GetFreedObjects() + GetFreedLargeObjects();
+  total_freed_bytes_ += GetFreedBytes() + GetFreedLargeObjectBytes();
 
   // Ensure that the mark stack is empty.
   CHECK(mark_stack_->IsEmpty());

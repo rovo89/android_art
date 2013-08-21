@@ -308,6 +308,10 @@ class MarkSweep : public GarbageCollector {
   // Expand mark stack to 2x its current size. Thread safe.
   void ExpandMarkStack();
 
+  // Returns how many threads we should use for the current GC phase based on if we are paused,
+  // whether or not we care about pauses.
+  size_t GetThreadCount(bool paused) const;
+
   // Returns true if an object is inside of the immune region (assumed to be marked).
   bool IsImmune(const mirror::Object* obj) const {
     return obj >= immune_begin_ && obj < immune_end_;
@@ -367,7 +371,7 @@ class MarkSweep : public GarbageCollector {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void ProcessMarkStackParallel(bool paused)
+  void ProcessMarkStackParallel(size_t thread_count)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

@@ -81,7 +81,8 @@ ThreadPool::ThreadPool(size_t num_threads)
     start_time_(0),
     total_wait_time_(0),
     // Add one since the caller of constructor waits on the barrier too.
-    creation_barier_(num_threads + 1) {
+    creation_barier_(num_threads + 1),
+    max_active_workers_(num_threads) {
   Thread* self = Thread::Current();
   while (GetThreadCount() < num_threads) {
     const std::string name = StringPrintf("Thread pool worker %zu", GetThreadCount());
@@ -89,6 +90,12 @@ ThreadPool::ThreadPool(size_t num_threads)
   }
   // Wait for all of the threads to attach.
   creation_barier_.Wait(self);
+}
+
+void ThreadPool::SetMaxActiveWorkers(size_t threads) {
+  MutexLock mu(Thread::Current(), task_queue_lock_);
+  CHECK_LE(threads, GetThreadCount());
+  max_active_workers_ = threads;
 }
 
 ThreadPool::~ThreadPool() {
@@ -121,12 +128,18 @@ void ThreadPool::StopWorkers(Thread* self) {
 Task* ThreadPool::GetTask(Thread* self) {
   MutexLock mu(self, task_queue_lock_);
   while (!IsShuttingDown()) {
-    Task* task = TryGetTaskLocked(self);
-    if (task != NULL) {
-      return task;
+    const size_t thread_count = GetThreadCount();
+    // Ensure that we don't use more threads than the maximum active workers.
+    const size_t active_threads = thread_count - waiting_count_;
+    // <= since self is considered an active worker.
+    if (active_threads <= max_active_workers_) {
+      Task* task = TryGetTaskLocked(self);
+      if (task != NULL) {
+        return task;
+      }
     }
 
-    waiting_count_++;
+    ++waiting_count_;
     if (waiting_count_ == GetThreadCount() && tasks_.empty()) {
       // We may be done, lets broadcast to the completion condition.
       completion_condition_.Broadcast(self);
