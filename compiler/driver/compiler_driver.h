@@ -296,7 +296,8 @@ class CompilerDriver {
   // Checks if class specified by type_idx is one of the image_classes_
   bool IsImageClass(const char* descriptor) const;
 
-  void RecordClassStatus(ClassReference ref, CompiledClass* compiled_class);
+  void RecordClassStatus(ClassReference ref, mirror::Class::Status status)
+      LOCKS_EXCLUDED(compiled_classes_lock_);
 
  private:
   // Compute constant code and method pointers when possible
@@ -362,7 +363,7 @@ class CompilerDriver {
   InstructionSet instruction_set_;
 
   // All class references that require
-  mutable Mutex freezing_constructor_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  mutable ReaderWriterMutex freezing_constructor_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::set<ClassReference> freezing_constructor_classes_ GUARDED_BY(freezing_constructor_lock_);
 
   typedef SafeMap<const ClassReference, CompiledClass*> ClassTable;

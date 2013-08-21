@@ -41,7 +41,7 @@ class ExceptionTest : public CommonTest {
                                       soa.Decode<mirror::ClassLoader*>(LoadDex("ExceptionHandle")));
     my_klass_ = class_linker_->FindClass("LExceptionHandle;", class_loader.get());
     ASSERT_TRUE(my_klass_ != NULL);
-    class_linker_->EnsureInitialized(my_klass_, false, true);
+    class_linker_->EnsureInitialized(my_klass_, true, true);
 
     dex_ = my_klass_->GetDexCache()->GetDexFile();
 
