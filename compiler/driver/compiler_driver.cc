@@ -1750,6 +1750,7 @@ static const char* class_initializer_black_list[] = {
   "Landroid/webkit/JniUtil;",  // Calls System.loadLibrary.
   "Landroid/webkit/PluginManager;",  // // Calls OsConstants.initConstants.
   "Landroid/webkit/WebViewCore;",  // Calls System.loadLibrary.
+  "Landroid/webkit/WebViewFactory;",  // Calls -..-> android.os.SystemProperties.native_get.
   "Landroid/webkit/WebViewFactory$Preloader;",  // Calls to Class.forName.
   "Landroid/webkit/WebViewInputDispatcher;",  // Calls Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
   "Landroid/webkit/URLUtil;",  // Calls Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
