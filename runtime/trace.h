@@ -51,7 +51,7 @@ class Trace : public instrumentation::InstrumentationListener {
   static void SetDefaultClockSource(ProfilerClockSource clock_source);
 
   static void Start(const char* trace_filename, int trace_fd, int buffer_size, int flags,
-                    bool direct_to_ddms)
+                    bool direct_to_ddms, bool sampling_enabled, int interval_us)
   LOCKS_EXCLUDED(Locks::mutator_lock_,
                  Locks::thread_list_lock_,
                  Locks::thread_suspend_count_lock_,
@@ -88,11 +88,10 @@ class Trace : public instrumentation::InstrumentationListener {
   // Clear and store an old stack trace for later use.
   static void FreeStackTrace(std::vector<mirror::ArtMethod*>* stack_trace);
 
-  ~Trace();
-
  private:
-  explicit Trace(File* trace_file, int buffer_size, int flags);
+  explicit Trace(File* trace_file, int buffer_size, int flags, bool sampling_enabled);
 
+  // The sampling interval in microseconds is passed as an argument.
   static void* RunSamplingThread(void* arg) LOCKS_EXCLUDED(Locks::trace_lock_);
 
   void FinishTracing() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -115,12 +114,6 @@ class Trace : public instrumentation::InstrumentationListener {
   // The default profiler clock source.
   static ProfilerClockSource default_clock_source_;
 
-  // True if traceview should sample instead of instrumenting method entry/exit.
-  static bool sampling_enabled_;
-
-  // Sampling interval in microseconds.
-  static uint32_t sampling_interval_us_;
-
   // Sampling thread, non-zero when sampling.
   static pthread_t sampling_pthread_;
 
@@ -135,6 +128,9 @@ class Trace : public instrumentation::InstrumentationListener {
 
   // Flags enabling extra tracing of things such as alloc counts.
   const int flags_;
+
+  // True if traceview should sample instead of instrumenting method entry/exit.
+  const bool sampling_enabled_;
 
   const ProfilerClockSource clock_source_;
 

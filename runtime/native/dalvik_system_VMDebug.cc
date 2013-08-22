@@ -37,6 +37,7 @@ static jobjectArray VMDebug_getVmFeatureList(JNIEnv* env, jclass) {
   std::vector<std::string> features;
   features.push_back("method-trace-profiling");
   features.push_back("method-trace-profiling-streaming");
+  features.push_back("method-sample-profiling");
   features.push_back("hprof-heap-dump");
   features.push_back("hprof-heap-dump-streaming");
   return toStringArray(env, features);
@@ -58,8 +59,9 @@ static void VMDebug_resetAllocCount(JNIEnv*, jclass, jint kinds) {
   Runtime::Current()->ResetStats(kinds);
 }
 
-static void VMDebug_startMethodTracingDdmsImpl(JNIEnv*, jclass, jint bufferSize, jint flags) {
-  Trace::Start("[DDMS]", -1, bufferSize, flags, true);
+static void VMDebug_startMethodTracingDdmsImpl(JNIEnv*, jclass, jint bufferSize, jint flags,
+                                               jboolean samplingEnabled, jint intervalUs) {
+  Trace::Start("[DDMS]", -1, bufferSize, flags, true, samplingEnabled, intervalUs);
 }
 
 static void VMDebug_startMethodTracingFd(JNIEnv* env, jclass, jstring javaTraceFilename,
@@ -82,7 +84,7 @@ static void VMDebug_startMethodTracingFd(JNIEnv* env, jclass, jstring javaTraceF
   if (traceFilename.c_str() == NULL) {
     return;
   }
-  Trace::Start(traceFilename.c_str(), fd, bufferSize, flags, false);
+  Trace::Start(traceFilename.c_str(), fd, bufferSize, flags, false, false, 0);
 }
 
 static void VMDebug_startMethodTracingFilename(JNIEnv* env, jclass, jstring javaTraceFilename,
@@ -91,7 +93,7 @@ static void VMDebug_startMethodTracingFilename(JNIEnv* env, jclass, jstring java
   if (traceFilename.c_str() == NULL) {
     return;
   }
-  Trace::Start(traceFilename.c_str(), -1, bufferSize, flags, false);
+  Trace::Start(traceFilename.c_str(), -1, bufferSize, flags, false, false, 0);
 }
 
 static jboolean VMDebug_isMethodTracingActive(JNIEnv*, jclass) {
@@ -322,7 +324,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMDebug, startAllocCounting, "()V"),
   NATIVE_METHOD(VMDebug, startEmulatorTracing, "()V"),
   NATIVE_METHOD(VMDebug, startInstructionCounting, "()V"),
-  NATIVE_METHOD(VMDebug, startMethodTracingDdmsImpl, "(II)V"),
+  NATIVE_METHOD(VMDebug, startMethodTracingDdmsImpl, "(IIZI)V"),
   NATIVE_METHOD(VMDebug, startMethodTracingFd, "(Ljava/lang/String;Ljava/io/FileDescriptor;II)V"),
   NATIVE_METHOD(VMDebug, startMethodTracingFilename, "(Ljava/lang/String;II)V"),
   NATIVE_METHOD(VMDebug, stopAllocCounting, "()V"),
