@@ -55,10 +55,6 @@ class InternTable {
   // Interns a potentially new string in the 'weak' table. (See above.)
   mirror::String* InternWeak(mirror::String* s) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Register a String trusting that it is safe to intern.
-  // Used when reinitializing InternTable from an image.
-  void RegisterStrong(mirror::String* s) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   void SweepInternTableWeaks(IsMarkedTester is_marked, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
@@ -88,7 +84,6 @@ class InternTable {
 
   mutable Mutex intern_table_lock_;
   bool is_dirty_;
-  Table image_strong_interns_ GUARDED_BY(intern_table_lock_);
   Table strong_interns_ GUARDED_BY(intern_table_lock_);
   Table weak_interns_ GUARDED_BY(intern_table_lock_);
 };

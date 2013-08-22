@@ -208,19 +208,6 @@ inline bool operator>=(const StringPiece& x, const StringPiece& y) {
 
 extern std::ostream& operator<<(std::ostream& o, const StringPiece& piece);
 
-struct StringPieceHash {
-  size_t operator()(const StringPiece& string_piece) const {
-    size_t string_size = string_piece.size();
-    const char* string_data = string_piece.data();
-    // This is the java.lang.String hashcode for convenience, not interoperability.
-    size_t hash = 0;
-    while (string_size--) {
-      hash = hash * 31 + *string_data++;
-    }
-    return hash;
-  }
-};
-
 }  // namespace art
 
 #endif  // ART_RUNTIME_BASE_STRINGPIECE_H_

@@ -20,15 +20,33 @@
 public class Main {
     public static void main(String args[]) {
         String a, b;
-        String foo = "foo";
-        String bar = "bar";
+        final String foo = "foo";
+        final String bar = "bar";
 
+        // Two interned strings should match.
         a = foo.concat(bar).intern();
         b = foo.concat(bar).intern();
         if (a == b && foo != bar) {
             System.out.println("good! " + a);
         } else {
-            System.out.println("bad!");
+            System.out.println("bad! " + a + " != " + b);
+        }
+
+        // An interned string should match a string literal.
+        a = ("f" + foo.substring(1,3)).intern();
+        if (a == foo) {
+            System.out.println("good! " + a);
+        } else {
+            System.out.println("bad! " + a + " != " + b);
+        }
+
+        // Check that a string literal in libcore equals one in the app.
+        a = (new java.nio.charset.IllegalCharsetNameException(null)).getMessage();
+        b = "null";
+        if (a == b) {
+            System.out.println("good! " + a);
+        } else {
+            System.out.println("bad! " + a + " != " + b);
         }
     }
 }

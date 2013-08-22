@@ -50,24 +50,26 @@ void Class::ResetClass() {
   java_lang_Class_ = NULL;
 }
 
-void Class::SetStatus(Status new_status) {
-  if (UNLIKELY(new_status <= GetStatus() && new_status != kStatusError)) {
-    bool class_linker_initialized = Runtime::Current()->GetClassLinker() != nullptr;
-    if (class_linker_initialized) {
+void Class::SetStatus(Status new_status, Thread* self) {
+  Status old_status = GetStatus();
+  bool class_linker_initialized = Runtime::Current()->GetClassLinker() != nullptr;
+  if (LIKELY(class_linker_initialized)) {
+    if (UNLIKELY(new_status <= old_status && new_status != kStatusError)) {
       LOG(FATAL) << "Unexpected change back of class status for " << PrettyClass(this) << " "
-          << GetStatus() << " -> " << new_status;
+          << old_status << " -> " << new_status;
     }
-  }
-  if (new_status > kStatusResolved) {
-    CHECK_EQ(GetThinLockId(), Thread::Current()->GetThinLockId())
-        << "Attempt to change status of class while not holding its lock " << PrettyClass(this);
+    if (new_status >= kStatusResolved || old_status >= kStatusResolved) {
+      // When classes are being resolved the resolution code should hold the lock.
+      CHECK_EQ(GetThinLockId(), self->GetThinLockId())
+            << "Attempt to change status of class while not holding its lock: "
+            << PrettyClass(this) << " " << old_status << " -> " << new_status;
+    }
   }
   if (new_status == kStatusError) {
     CHECK_NE(GetStatus(), kStatusError)
         << "Attempt to set as erroneous an already erroneous class " << PrettyClass(this);
 
     // Stash current exception.
-    Thread* self = Thread::Current();
     SirtRef<mirror::Object> old_throw_this_object(self, NULL);
     SirtRef<mirror::ArtMethod> old_throw_method(self, NULL);
     SirtRef<mirror::Throwable> old_exception(self, NULL);
@@ -103,7 +105,13 @@ void Class::SetStatus(Status new_status) {
     self->SetException(gc_safe_throw_location, old_exception.get());
   }
   CHECK(sizeof(Status) == sizeof(uint32_t)) << PrettyClass(this);
-  return SetField32(OFFSET_OF_OBJECT_MEMBER(Class, status_), new_status, false);
+  SetField32(OFFSET_OF_OBJECT_MEMBER(Class, status_), new_status, false);
+  // Classes that are being resolved or initialized need to notify waiters that the class status
+  // changed. See ClassLinker::EnsureResolved and ClassLinker::WaitForInitializeClass.
+  if ((old_status >= kStatusResolved || new_status >= kStatusResolved) &&
+      class_linker_initialized) {
+    NotifyAll(self);
+  }
 }
 
 void Class::SetDexCache(DexCache* new_dex_cache) {

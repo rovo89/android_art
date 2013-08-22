@@ -151,7 +151,8 @@ static void VMDebug_printLoadedClasses(JNIEnv* env, jclass, jint flags) {
   return Runtime::Current()->GetClassLinker()->DumpAllClasses(flags);
 }
 
-static jint VMDebug_getLoadedClassCount(JNIEnv*, jclass) {
+static jint VMDebug_getLoadedClassCount(JNIEnv* env, jclass) {
+  ScopedObjectAccess soa(env);
   return Runtime::Current()->GetClassLinker()->NumLoadedClasses();
 }
 

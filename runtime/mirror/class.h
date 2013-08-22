@@ -125,10 +125,10 @@ class MANAGED Class : public StaticStorageBase {
 
   Status GetStatus() const {
     DCHECK_EQ(sizeof(Status), sizeof(uint32_t));
-    return static_cast<Status>(GetField32(OFFSET_OF_OBJECT_MEMBER(Class, status_), false));
+    return static_cast<Status>(GetField32(OFFSET_OF_OBJECT_MEMBER(Class, status_), true));
   }
 
-  void SetStatus(Status new_status) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetStatus(Status new_status, Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns true if the class has failed to link.
   bool IsErroneous() const {

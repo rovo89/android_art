@@ -100,6 +100,8 @@ class Monitor {
                          void* callback_context)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  static bool IsValidLockWord(int32_t lock_word);
+
   mirror::Object* GetObject();
 
  private:
@@ -188,6 +190,7 @@ class MonitorList {
   Mutex monitor_list_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::list<Monitor*> list_ GUARDED_BY(monitor_list_lock_);
 
+  friend class Monitor;
   DISALLOW_COPY_AND_ASSIGN(MonitorList);
 };
 

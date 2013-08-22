@@ -2094,7 +2094,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
                 mirror::ObjectArray<mirror::ArtField>* fields = klass->GetSFields();
                 CHECK_EQ(fields->GetLength(), 1);
                 fields->Get(0)->SetObj(klass, manager->GetClassLinker()->FindPrimitiveClass('V'));
-                klass->SetStatus(mirror::Class::kStatusInitialized);
+                klass->SetStatus(mirror::Class::kStatusInitialized, soa.Self());
               } else {
                 manager->GetClassLinker()->EnsureInitialized(klass, true, true);
               }
