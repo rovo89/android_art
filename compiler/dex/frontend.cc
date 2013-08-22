@@ -181,9 +181,11 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
   cu->mir_graph->InlineMethod(code_item, access_flags, invoke_type, class_def_idx, method_idx,
                               class_loader, dex_file);
 
+#if !defined(ART_USE_PORTABLE_COMPILER)
   if (cu->mir_graph->SkipCompilation(Runtime::Current()->GetCompilerFilter())) {
     return NULL;
   }
+#endif
 
   /* Do a code layout pass */
   cu->mir_graph->CodeLayout();
