@@ -369,14 +369,17 @@ extern "C" uint64_t artQuickProxyInvokeHandler(mirror::ArtMethod* proxy_method,
                                                mirror::Object* receiver,
                                                Thread* self, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  DCHECK(proxy_method->IsProxyMethod()) << PrettyMethod(proxy_method);
+  DCHECK(receiver->GetClass()->IsProxyClass()) << PrettyMethod(proxy_method);
   // Ensure we don't get thread suspension until the object arguments are safely in jobjects.
   const char* old_cause =
       self->StartAssertNoThreadSuspension("Adding to IRT proxy object arguments");
   // Register the top of the managed stack, making stack crawlable.
-  DCHECK_EQ(*sp, proxy_method);
+  DCHECK_EQ(*sp, proxy_method) << PrettyMethod(proxy_method);
   self->SetTopOfStack(sp, 0);
   DCHECK_EQ(proxy_method->GetFrameSizeInBytes(),
-            Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes());
+            Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes())
+      << PrettyMethod(proxy_method);
   self->VerifyStack();
   // Start new JNI local reference state.
   JNIEnvExt* env = self->GetJniEnv();
@@ -387,15 +390,18 @@ extern "C" uint64_t artQuickProxyInvokeHandler(mirror::ArtMethod* proxy_method,
 
   // Placing arguments into args vector and remove the receiver.
   MethodHelper proxy_mh(proxy_method);
+  DCHECK(!proxy_mh.IsStatic()) << PrettyMethod(proxy_method);
   std::vector<jvalue> args;
   BuildQuickArgumentVisitor local_ref_visitor(sp, proxy_mh.IsStatic(), proxy_mh.GetShorty(),
                                               proxy_mh.GetShortyLength(), &soa, &args);
+
   local_ref_visitor.VisitArguments();
+  DCHECK_GT(args.size(), 0U) << PrettyMethod(proxy_method);
   args.erase(args.begin());
 
   // Convert proxy method into expected interface method.
   mirror::ArtMethod* interface_method = proxy_method->FindOverriddenMethod();
-  DCHECK(interface_method != NULL);
+  DCHECK(interface_method != NULL) << PrettyMethod(proxy_method);
   DCHECK(!interface_method->IsProxyMethod()) << PrettyMethod(interface_method);
   jobject interface_method_jobj = soa.AddLocalReference<jobject>(interface_method);
 
