@@ -2348,6 +2348,8 @@ void ClassLinker::VerifyClass(mirror::Class* klass) {
       } else {
         CHECK_EQ(super->GetStatus(), mirror::Class::kStatusRetryVerificationAtRuntime);
         klass->SetStatus(mirror::Class::kStatusRetryVerificationAtRuntime);
+        // Pretend a soft failure occured so that we don't consider the class verified below.
+        verifier_failure = verifier::MethodVerifier::kSoftFailure;
       }
     } else {
       CHECK_EQ(verifier_failure, verifier::MethodVerifier::kSoftFailure);
@@ -2369,7 +2371,7 @@ void ClassLinker::VerifyClass(mirror::Class* klass) {
     klass->SetStatus(mirror::Class::kStatusError);
   }
   if (preverified || verifier_failure == verifier::MethodVerifier::kNoFailure) {
-    // Class is verified so we don't need to do any access check in its methods.
+    // Class is verified so we don't need to do any access check on its methods.
     // Let the interpreter know it by setting the kAccPreverified flag onto each
     // method.
     // Note: we're going here during compilation and at runtime. When we set the
@@ -2818,7 +2820,7 @@ bool ClassLinker::InitializeClass(mirror::Class* klass, bool can_init_statics,
     t0 = NanoTime();
   }
 
-  // Initialize super classes, must be done will initializing for the JLS.
+  // Initialize super classes, must be done while initializing for the JLS.
   if (!klass->IsInterface() && klass->HasSuperClass()) {
     mirror::Class* super_class = klass->GetSuperClass();
     if (!super_class->IsInitialized()) {
