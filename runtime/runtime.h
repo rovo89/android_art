@@ -65,10 +65,10 @@ class Runtime {
 
   enum CompilerFilter {
     kInterpretOnly,       // Compile nothing.
-    kDeferCompilation,    // Temporary minimal compilation, will redo during device idle time.
     kSpace,               // Maximize space savings.
     kBalanced,            // Try to get the best performance return on compilation investment.
-    kSpeed                // Compile all methods.
+    kSpeed,               // Maximize runtime performance.
+    kEverything           // Force compilation (Note: excludes compilaton of class initializers).
   };
 
   // Guide heuristics to determine whether to compile method if profile data not available.
@@ -77,10 +77,10 @@ class Runtime {
 #else
   static const CompilerFilter kDefaultCompilerFilter = kSpeed;
 #endif
-  static const size_t kDefaultHugeMethodThreshold = 6000;
-  static const size_t kDefaultLargeMethodThreshold = 1000;
-  static const size_t kDefaultSmallMethodThreshold = 200;
-  static const size_t kDefaultTinyMethodThreshold = 10;
+  static const size_t kDefaultHugeMethodThreshold = 10000;
+  static const size_t kDefaultLargeMethodThreshold = 600;
+  static const size_t kDefaultSmallMethodThreshold = 60;
+  static const size_t kDefaultTinyMethodThreshold = 20;
   static const size_t kDefaultNumDexMethodsThreshold = 900;
 
   class ParsedOptions {
@@ -100,13 +100,17 @@ class Runtime {
     bool interpreter_only_;
     bool is_concurrent_gc_enabled_;
     bool is_explicit_gc_disabled_;
+    size_t long_pause_log_threshold_;
+    size_t long_gc_log_threshold_;
+    bool ignore_max_footprint_;
     size_t heap_initial_size_;
     size_t heap_maximum_size_;
     size_t heap_growth_limit_;
-    size_t heap_gc_threads_;
     size_t heap_min_free_;
     size_t heap_max_free_;
     double heap_target_utilization_;
+    size_t parallel_gc_threads_;
+    size_t conc_gc_threads_;
     size_t stack_size_;
     bool low_memory_mode_;
     size_t lock_profiling_threshold_;

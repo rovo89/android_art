@@ -91,7 +91,7 @@ static jweak AddWeakGlobalReference(ScopedObjectAccess& soa, Object* obj)
   }
   JavaVMExt* vm = soa.Vm();
   IndirectReferenceTable& weak_globals = vm->weak_globals;
-  MutexLock mu(soa.Self(), vm->weak_globals_lock);
+  WriterMutexLock mu(soa.Self(), vm->weak_globals_lock);
   IndirectRef ref = weak_globals.Add(IRT_FIRST_SEGMENT, obj);
   return reinterpret_cast<jweak>(ref);
 }
@@ -828,7 +828,7 @@ class JNI {
     JavaVMExt* vm = soa.Vm();
     IndirectReferenceTable& globals = vm->globals;
     Object* decoded_obj = soa.Decode<Object*>(obj);
-    MutexLock mu(soa.Self(), vm->globals_lock);
+    WriterMutexLock mu(soa.Self(), vm->globals_lock);
     IndirectRef ref = globals.Add(IRT_FIRST_SEGMENT, decoded_obj);
     return reinterpret_cast<jobject>(ref);
   }
@@ -840,7 +840,7 @@ class JNI {
     JavaVMExt* vm = reinterpret_cast<JNIEnvExt*>(env)->vm;
     IndirectReferenceTable& globals = vm->globals;
     Thread* self = reinterpret_cast<JNIEnvExt*>(env)->self;
-    MutexLock mu(self, vm->globals_lock);
+    WriterMutexLock mu(self, vm->globals_lock);
 
     if (!globals.Remove(IRT_FIRST_SEGMENT, obj)) {
       LOG(WARNING) << "JNI WARNING: DeleteGlobalRef(" << obj << ") "
@@ -860,7 +860,7 @@ class JNI {
     ScopedObjectAccess soa(env);
     JavaVMExt* vm = soa.Vm();
     IndirectReferenceTable& weak_globals = vm->weak_globals;
-    MutexLock mu(soa.Self(), vm->weak_globals_lock);
+    WriterMutexLock mu(soa.Self(), vm->weak_globals_lock);
 
     if (!weak_globals.Remove(IRT_FIRST_SEGMENT, obj)) {
       LOG(WARNING) << "JNI WARNING: DeleteWeakGlobalRef(" << obj << ") "
@@ -2338,7 +2338,7 @@ class JNI {
   static jint RegisterNativeMethods(JNIEnv* env, jclass java_class, const JNINativeMethod* methods,
                                     jint method_count, bool return_errors) {
     if (UNLIKELY(method_count < 0)) {
-      JniAbortF("RegisterNatives", "method_cound == %d", method_count);
+      JniAbortF("RegisterNatives", "negative method count: %d", method_count);
       return JNI_ERR;  // Not reached.
     }
     CHECK_NON_NULL_ARGUMENT(RegisterNatives, java_class);
@@ -2517,7 +2517,7 @@ class JNI {
   static jint EnsureLocalCapacity(JNIEnv* env, jint desired_capacity,
                                   const char* caller) {
     // TODO: we should try to expand the table if necessary.
-    if (desired_capacity < 1 || desired_capacity > static_cast<jint>(kLocalsMax)) {
+    if (desired_capacity < 0 || desired_capacity > static_cast<jint>(kLocalsMax)) {
       LOG(ERROR) << "Invalid capacity given to " << caller << ": " << desired_capacity;
       return JNI_ERR;
     }
@@ -3024,11 +3024,11 @@ void JavaVMExt::DumpForSigQuit(std::ostream& os) {
     os << "; pins=" << pin_table.Size();
   }
   {
-    MutexLock mu(self, globals_lock);
+    ReaderMutexLock mu(self, globals_lock);
     os << "; globals=" << globals.Capacity();
   }
   {
-    MutexLock mu(self, weak_globals_lock);
+    ReaderMutexLock mu(self, weak_globals_lock);
     if (weak_globals.Capacity() > 0) {
       os << " (plus " << weak_globals.Capacity() << " weak)";
     }
@@ -3044,11 +3044,11 @@ void JavaVMExt::DumpForSigQuit(std::ostream& os) {
 void JavaVMExt::DumpReferenceTables(std::ostream& os) {
   Thread* self = Thread::Current();
   {
-    MutexLock mu(self, globals_lock);
+    ReaderMutexLock mu(self, globals_lock);
     globals.Dump(os);
   }
   {
-    MutexLock mu(self, weak_globals_lock);
+    ReaderMutexLock mu(self, weak_globals_lock);
     weak_globals.Dump(os);
   }
   {
@@ -3196,7 +3196,7 @@ void* JavaVMExt::FindCodeForNativeMethod(ArtMethod* m) {
       return NULL;
     }
   } else {
-    CHECK(c->GetStatus() >= Class::kStatusInitializing) << c->GetStatus() << " " << PrettyMethod(m);
+    CHECK(c->IsInitializing()) << c->GetStatus() << " " << PrettyMethod(m);
   }
 
   std::string detail;
@@ -3217,7 +3217,7 @@ void* JavaVMExt::FindCodeForNativeMethod(ArtMethod* m) {
 void JavaVMExt::VisitRoots(RootVisitor* visitor, void* arg) {
   Thread* self = Thread::Current();
   {
-    MutexLock mu(self, globals_lock);
+    ReaderMutexLock mu(self, globals_lock);
     globals.VisitRoots(visitor, arg);
   }
   {

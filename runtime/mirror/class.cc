@@ -51,14 +51,20 @@ void Class::ResetClass() {
 }
 
 void Class::SetStatus(Status new_status) {
-  CHECK(new_status > GetStatus() || new_status == kStatusError || !Runtime::Current()->IsStarted())
-      << PrettyClass(this) << " " << GetStatus() << " -> " << new_status;
-  CHECK(sizeof(Status) == sizeof(uint32_t)) << PrettyClass(this);
+  if (UNLIKELY(new_status <= GetStatus() && new_status != kStatusError)) {
+    bool class_linker_initialized = Runtime::Current()->GetClassLinker() != nullptr;
+    if (class_linker_initialized) {
+      LOG(FATAL) << "Unexpected change back of class status for " << PrettyClass(this) << " "
+          << GetStatus() << " -> " << new_status;
+    }
+  }
   if (new_status > kStatusResolved) {
-    CHECK_EQ(GetThinLockId(), Thread::Current()->GetThinLockId()) << PrettyClass(this);
+    CHECK_EQ(GetThinLockId(), Thread::Current()->GetThinLockId())
+        << "Attempt to change status of class while not holding its lock " << PrettyClass(this);
   }
   if (new_status == kStatusError) {
-    CHECK_NE(GetStatus(), kStatusError) << PrettyClass(this);
+    CHECK_NE(GetStatus(), kStatusError)
+        << "Attempt to set as erroneous an already erroneous class " << PrettyClass(this);
 
     // Stash current exception.
     Thread* self = Thread::Current();
@@ -96,6 +102,7 @@ void Class::SetStatus(Status new_status) {
 
     self->SetException(gc_safe_throw_location, old_exception.get());
   }
+  CHECK(sizeof(Status) == sizeof(uint32_t)) << PrettyClass(this);
   return SetField32(OFFSET_OF_OBJECT_MEMBER(Class, status_), new_status, false);
 }
 

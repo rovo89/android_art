@@ -90,6 +90,10 @@ class ThreadPool {
     return total_wait_time_;
   }
 
+  // Provides a way to bound the maximum number of worker threads, threads must be less the the
+  // thread count of the thread pool.
+  void SetMaxActiveWorkers(size_t threads);
+
  protected:
   // Get a task to run, blocks if there are no tasks left
   virtual Task* GetTask(Thread* self);
@@ -117,6 +121,7 @@ class ThreadPool {
   uint64_t start_time_ GUARDED_BY(task_queue_lock_);
   uint64_t total_wait_time_;
   Barrier creation_barier_;
+  size_t max_active_workers_ GUARDED_BY(task_queue_lock_);
 
  private:
   friend class ThreadPoolWorker;

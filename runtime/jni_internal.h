@@ -112,11 +112,11 @@ struct JavaVMExt : public JavaVM {
   ReferenceTable pin_table GUARDED_BY(pins_lock);
 
   // JNI global references.
-  Mutex globals_lock DEFAULT_MUTEX_ACQUIRED_AFTER;
+  ReaderWriterMutex globals_lock DEFAULT_MUTEX_ACQUIRED_AFTER;
   IndirectReferenceTable globals GUARDED_BY(globals_lock);
 
   // JNI weak global references.
-  Mutex weak_globals_lock DEFAULT_MUTEX_ACQUIRED_AFTER;
+  ReaderWriterMutex weak_globals_lock DEFAULT_MUTEX_ACQUIRED_AFTER;
   IndirectReferenceTable weak_globals GUARDED_BY(weak_globals_lock);
 
   Mutex libraries_lock DEFAULT_MUTEX_ACQUIRED_AFTER;

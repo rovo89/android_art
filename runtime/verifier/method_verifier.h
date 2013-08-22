@@ -661,7 +661,7 @@ class MethodVerifier {
                            const PcToConcreteMethodMap* pc_method_map)
         LOCKS_EXCLUDED(devirt_maps_lock_);
   typedef std::set<ClassReference> RejectedClassesTable;
-  static Mutex* rejected_classes_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  static ReaderWriterMutex* rejected_classes_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   static RejectedClassesTable* rejected_classes_ GUARDED_BY(rejected_classes_lock_);
 
   static void AddRejectedClass(ClassReference ref)

@@ -339,7 +339,9 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->heap_target_utilization_ = gc::Heap::kDefaultTargetUtilization;
   parsed->heap_growth_limit_ = 0;  // 0 means no growth limit.
   // Default to number of processors minus one since the main GC thread also does work.
-  parsed->heap_gc_threads_ = sysconf(_SC_NPROCESSORS_CONF) - 1;
+  parsed->parallel_gc_threads_ = sysconf(_SC_NPROCESSORS_CONF) - 1;
+  // Only the main GC thread, no workers.
+  parsed->conc_gc_threads_ = 0;
   parsed->stack_size_ = 0;  // 0 means default.
   parsed->low_memory_mode_ = false;
 
@@ -348,6 +350,10 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->interpreter_only_ = false;
   parsed->is_concurrent_gc_enabled_ = true;
   parsed->is_explicit_gc_disabled_ = false;
+
+  parsed->long_pause_log_threshold_ = gc::Heap::kDefaultLongPauseLogThreshold;
+  parsed->long_gc_log_threshold_ = gc::Heap::kDefaultLongGCLogThreshold;
+  parsed->ignore_max_footprint_ = false;
 
   parsed->lock_profiling_threshold_ = 0;
   parsed->hook_is_sensitive_thread_ = NULL;
@@ -480,9 +486,12 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         return NULL;
       }
       parsed->heap_target_utilization_ = value;
-    } else if (StartsWith(option, "-XX:HeapGCThreads=")) {
-      parsed->heap_gc_threads_ =
-          ParseMemoryOption(option.substr(strlen("-XX:HeapGCThreads=")).c_str(), 1024);
+    } else if (StartsWith(option, "-XX:ParallelGCThreads=")) {
+      parsed->parallel_gc_threads_ =
+          ParseMemoryOption(option.substr(strlen("-XX:ParallelGCThreads=")).c_str(), 1024);
+    } else if (StartsWith(option, "-XX:ConcGCThreads=")) {
+      parsed->conc_gc_threads_ =
+          ParseMemoryOption(option.substr(strlen("-XX:ConcGCThreads=")).c_str(), 1024);
     } else if (StartsWith(option, "-Xss")) {
       size_t size = ParseMemoryOption(option.substr(strlen("-Xss")).c_str(), 1);
       if (size == 0) {
@@ -494,6 +503,14 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         return NULL;
       }
       parsed->stack_size_ = size;
+    } else if (option == "-XX:LongPauseLogThreshold") {
+      parsed->long_pause_log_threshold_ =
+          ParseMemoryOption(option.substr(strlen("-XX:LongPauseLogThreshold=")).c_str(), 1024);
+    } else if (option == "-XX:LongGCLogThreshold") {
+          parsed->long_gc_log_threshold_ =
+              ParseMemoryOption(option.substr(strlen("-XX:LongGCLogThreshold")).c_str(), 1024);
+    } else if (option == "-XX:IgnoreMaxFootprint") {
+      parsed->ignore_max_footprint_ = true;
     } else if (option == "-XX:LowMemoryMode") {
       parsed->low_memory_mode_ = true;
     } else if (StartsWith(option, "-D")) {
@@ -583,14 +600,14 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       Trace::SetDefaultClockSource(kProfilerClockSourceDual);
     } else if (option == "-compiler-filter:interpret-only") {
       parsed->compiler_filter_ = kInterpretOnly;
-    } else if (option == "-compiler-filter:defer-compilation") {
-      parsed->compiler_filter_ = kDeferCompilation;
     } else if (option == "-compiler-filter:space") {
       parsed->compiler_filter_ = kSpace;
     } else if (option == "-compiler-filter:balanced") {
       parsed->compiler_filter_ = kBalanced;
     } else if (option == "-compiler-filter:speed") {
       parsed->compiler_filter_ = kSpeed;
+    } else if (option == "-compiler-filter:everything") {
+      parsed->compiler_filter_ = kEverything;
     } else if (option == "-sea_ir") {
       parsed->sea_ir_mode_ = true;
     } else if (StartsWith(option, "-huge-method-max:")) {
@@ -865,8 +882,12 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
                        options->heap_maximum_size_,
                        options->image_,
                        options->is_concurrent_gc_enabled_,
-                       options->heap_gc_threads_,
-                       options->low_memory_mode_);
+                       options->parallel_gc_threads_,
+                       options->conc_gc_threads_,
+                       options->low_memory_mode_,
+                       options->long_pause_log_threshold_,
+                       options->long_gc_log_threshold_,
+                       options->ignore_max_footprint_);
 
   BlockSignals();
   InitPlatformSignalHandlers();

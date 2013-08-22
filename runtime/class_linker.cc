@@ -575,9 +575,6 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
     case Runtime::kInterpretOnly:
       oat_compiler_filter_string += "interpret-only";
       break;
-    case Runtime::kDeferCompilation:
-      oat_compiler_filter_string += "defer-compilation";
-      break;
     case Runtime::kSpace:
       oat_compiler_filter_string += "space";
       break;
@@ -586,6 +583,9 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
       break;
     case Runtime::kSpeed:
       oat_compiler_filter_string += "speed";
+      break;
+    case Runtime::kEverything:
+      oat_compiler_filter_string += "everything";
       break;
     default:
       LOG(FATAL) << "Unexpected case.";
@@ -782,8 +782,10 @@ class ScopedFlock {
   }
 
   ~ScopedFlock() {
-    int flock_result = TEMP_FAILURE_RETRY(flock(file_->Fd(), LOCK_UN));
-    CHECK_EQ(0, flock_result);
+    if (file_.get() != NULL) {
+      int flock_result = TEMP_FAILURE_RETRY(flock(file_->Fd(), LOCK_UN));
+      CHECK_EQ(0, flock_result);
+    }
   }
 
  private:
@@ -1290,6 +1292,11 @@ static mirror::Class* EnsureResolved(Thread* self, mirror::Class* klass)
   return klass;
 }
 
+bool ClassLinker::IsInBootClassPath(const char* descriptor) {
+  DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, boot_class_path_);
+  return pair.second != NULL;
+}
+
 mirror::Class* ClassLinker::FindSystemClass(const char* descriptor) {
   return FindClass(descriptor, NULL);
 }
@@ -1320,18 +1327,17 @@ mirror::Class* ClassLinker::FindClass(const char* descriptor, mirror::ClassLoade
     }
 
   } else if (Runtime::Current()->UseCompileTimeClassPath()) {
-    // first try the boot class path
-    mirror::Class* system_class = FindSystemClass(descriptor);
-    if (system_class != NULL) {
+    // First try the boot class path, we check the descriptor first to avoid an unnecessary
+    // throw of a NoClassDefFoundError.
+    if (IsInBootClassPath(descriptor)) {
+      mirror::Class* system_class = FindSystemClass(descriptor);
+      CHECK(system_class != NULL);
       return system_class;
     }
-    CHECK(self->IsExceptionPending());
-    self->ClearException();
-
-    // next try the compile time class path
+    // Next try the compile time class path.
     const std::vector<const DexFile*>* class_path;
     {
-      ScopedObjectAccessUnchecked soa(Thread::Current());
+      ScopedObjectAccessUnchecked soa(self);
       ScopedLocalRef<jobject> jclass_loader(soa.Env(), soa.AddLocalReference<jobject>(class_loader));
       class_path = &Runtime::Current()->GetCompileTimeClassPath(jclass_loader.get());
     }
@@ -2280,18 +2286,18 @@ void ClassLinker::VerifyClass(mirror::Class* klass) {
   }
 
   // Verify super class.
-  mirror::Class* super = klass->GetSuperClass();
-  if (super != NULL) {
+  SirtRef<mirror::Class> super(self, klass->GetSuperClass());
+  if (super.get() != NULL) {
     // Acquire lock to prevent races on verifying the super class.
-    ObjectLock lock(self, super);
+    ObjectLock lock(self, super.get());
 
     if (!super->IsVerified() && !super->IsErroneous()) {
-      Runtime::Current()->GetClassLinker()->VerifyClass(super);
+      VerifyClass(super.get());
     }
     if (!super->IsCompileTimeVerified()) {
       std::string error_msg(StringPrintf("Rejecting class %s that attempts to sub-class erroneous class %s",
                                          PrettyDescriptor(klass).c_str(),
-                                         PrettyDescriptor(super).c_str()));
+                                         PrettyDescriptor(super.get()).c_str()));
       LOG(ERROR) << error_msg  << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
       SirtRef<mirror::Throwable> cause(self, self->GetException(NULL));
       if (cause.get() != NULL) {
@@ -2311,8 +2317,9 @@ void ClassLinker::VerifyClass(mirror::Class* klass) {
   mirror::Class::Status oat_file_class_status(mirror::Class::kStatusNotReady);
   bool preverified = VerifyClassUsingOatFile(dex_file, klass, oat_file_class_status);
   if (oat_file_class_status == mirror::Class::kStatusError) {
-    LOG(WARNING) << "Skipping runtime verification of erroneous class " << PrettyDescriptor(klass)
-                 << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
+    VLOG(class_linker) << "Skipping runtime verification of erroneous class "
+        << PrettyDescriptor(klass) << " in "
+        << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
     ThrowVerifyError(klass, "Rejecting class %s because it failed compile-time verification",
                      PrettyDescriptor(klass).c_str());
     klass->SetStatus(mirror::Class::kStatusError);
@@ -2326,7 +2333,7 @@ void ClassLinker::VerifyClass(mirror::Class* klass) {
   }
   if (preverified || verifier_failure != verifier::MethodVerifier::kHardFailure) {
     if (!preverified && verifier_failure != verifier::MethodVerifier::kNoFailure) {
-      LOG(WARNING) << "Soft verification failure in class " << PrettyDescriptor(klass)
+      VLOG(class_linker) << "Soft verification failure in class " << PrettyDescriptor(klass)
           << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8()
           << " because: " << error_msg;
     }
@@ -2334,7 +2341,16 @@ void ClassLinker::VerifyClass(mirror::Class* klass) {
     // Make sure all classes referenced by catch blocks are resolved.
     ResolveClassExceptionHandlerTypes(dex_file, klass);
     if (verifier_failure == verifier::MethodVerifier::kNoFailure) {
-      klass->SetStatus(mirror::Class::kStatusVerified);
+      // Even though there were no verifier failures we need to respect whether the super-class
+      // was verified or requiring runtime reverification.
+      if (super.get() == NULL || super->IsVerified()) {
+        klass->SetStatus(mirror::Class::kStatusVerified);
+      } else {
+        CHECK_EQ(super->GetStatus(), mirror::Class::kStatusRetryVerificationAtRuntime);
+        klass->SetStatus(mirror::Class::kStatusRetryVerificationAtRuntime);
+        // Pretend a soft failure occured so that we don't consider the class verified below.
+        verifier_failure = verifier::MethodVerifier::kSoftFailure;
+      }
     } else {
       CHECK_EQ(verifier_failure, verifier::MethodVerifier::kSoftFailure);
       // Soft failures at compile time should be retried at runtime. Soft
@@ -2355,7 +2371,7 @@ void ClassLinker::VerifyClass(mirror::Class* klass) {
     klass->SetStatus(mirror::Class::kStatusError);
   }
   if (preverified || verifier_failure == verifier::MethodVerifier::kNoFailure) {
-    // Class is verified so we don't need to do any access check in its methods.
+    // Class is verified so we don't need to do any access check on its methods.
     // Let the interpreter know it by setting the kAccPreverified flag onto each
     // method.
     // Note: we're going here during compilation and at runtime. When we set the
@@ -2690,45 +2706,88 @@ static void CheckProxyMethod(mirror::ArtMethod* method,
   CHECK_EQ(mh.GetReturnType(), mh2.GetReturnType());
 }
 
-bool ClassLinker::InitializeClass(mirror::Class* klass, bool can_run_clinit, bool can_init_statics) {
-  CHECK(klass->IsResolved() || klass->IsErroneous())
-      << PrettyClass(klass) << ": state=" << klass->GetStatus();
+static bool CanWeInitializeClass(mirror::Class* klass, bool can_init_statics,
+                                 bool can_init_parents)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (can_init_statics && can_init_statics) {
+    return true;
+  }
+  if (!can_init_statics) {
+    // Check if there's a class initializer.
+    mirror::ArtMethod* clinit = klass->FindDeclaredDirectMethod("<clinit>", "()V");
+    if (clinit != NULL) {
+      return false;
+    }
+    // Check if there are encoded static values needing initialization.
+    if (klass->NumStaticFields() != 0) {
+      ClassHelper kh(klass);
+      const DexFile::ClassDef* dex_class_def = kh.GetClassDef();
+      DCHECK(dex_class_def != NULL);
+      if (dex_class_def->static_values_off_ != 0) {
+        return false;
+      }
+    }
+  }
+  if (!klass->IsInterface() && klass->HasSuperClass()) {
+    mirror::Class* super_class = klass->GetSuperClass();
+    if (!can_init_parents && !super_class->IsInitialized()) {
+      return false;
+    } else {
+      if (!CanWeInitializeClass(super_class, can_init_statics, true)) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+bool ClassLinker::InitializeClass(mirror::Class* klass, bool can_init_statics,
+                                  bool can_init_parents) {
+  // see JLS 3rd edition, 12.4.2 "Detailed Initialization Procedure" for the locking protocol
+
+  // Are we already initialized and therefore done?
+  // Note: we differ from the JLS here as we don't do this under the lock, this is benign as
+  // an initialized class will never change its state.
+  if (klass->IsInitialized()) {
+    return true;
+  }
+
+  // Fast fail if initialization requires a full runtime. Not part of the JLS.
+  if (!CanWeInitializeClass(klass, can_init_statics, can_init_parents)) {
+    return false;
+  }
 
   Thread* self = Thread::Current();
-
-  mirror::ArtMethod* clinit = NULL;
+  uint64_t t0;
   {
-    // see JLS 3rd edition, 12.4.2 "Detailed Initialization Procedure" for the locking protocol
     ObjectLock lock(self, klass);
 
-    if (klass->GetStatus() == mirror::Class::kStatusInitialized) {
+    // Re-check under the lock in case another thread initialized ahead of us.
+    if (klass->IsInitialized()) {
       return true;
     }
 
+    // Was the class already found to be erroneous? Done under the lock to match the JLS.
     if (klass->IsErroneous()) {
       ThrowEarlierClassFailure(klass);
       return false;
     }
 
-    if (klass->GetStatus() == mirror::Class::kStatusResolved ||
-        klass->GetStatus() == mirror::Class::kStatusRetryVerificationAtRuntime) {
+    CHECK(klass->IsResolved()) << PrettyClass(klass) << ": state=" << klass->GetStatus();
+
+    if (!klass->IsVerified()) {
       VerifyClass(klass);
-      if (klass->GetStatus() != mirror::Class::kStatusVerified) {
-        if (klass->GetStatus() == mirror::Class::kStatusError) {
+      if (!klass->IsVerified()) {
+        // We failed to verify, expect either the klass to be erroneous or verification failed at
+        // compile time.
+        if (klass->IsErroneous()) {
           CHECK(self->IsExceptionPending());
+        } else {
+          CHECK(Runtime::Current()->IsCompiler());
+          CHECK_EQ(klass->GetStatus(), mirror::Class::kStatusRetryVerificationAtRuntime);
         }
         return false;
       }
-    }
-
-    clinit = klass->FindDeclaredDirectMethod("<clinit>", "()V");
-    if (clinit != NULL && !can_run_clinit) {
-      // if the class has a <clinit> but we can't run it during compilation,
-      // don't bother going to kStatusInitializing. We return false so that
-      // sub-classes don't believe this class is initialized.
-      // Opportunistically link non-static methods, TODO: don't initialize and dirty pages
-      // in second pass.
-      return false;
     }
 
     // If the class is kStatusInitializing, either this thread is
@@ -2748,37 +2807,65 @@ bool ClassLinker::InitializeClass(mirror::Class* klass, bool can_run_clinit, boo
 
     if (!ValidateSuperClassDescriptors(klass)) {
       klass->SetStatus(mirror::Class::kStatusError);
-      lock.NotifyAll();
       return false;
     }
 
-    DCHECK_EQ(klass->GetStatus(), mirror::Class::kStatusVerified) << PrettyClass(klass);
+    CHECK_EQ(klass->GetStatus(), mirror::Class::kStatusVerified) << PrettyClass(klass);
 
+    // From here out other threads may observe that we're initializing and so changes of state
+    // require the a notification.
     klass->SetClinitThreadId(self->GetTid());
     klass->SetStatus(mirror::Class::kStatusInitializing);
+
+    t0 = NanoTime();
   }
 
-  uint64_t t0 = NanoTime();
-
-  if (!InitializeSuperClass(klass, can_run_clinit, can_init_statics)) {
-    // Super class initialization failed, this can be because we can't run
-    // super-class class initializers in which case we'll be verified.
-    // Otherwise this class is erroneous.
-    if (!can_run_clinit) {
-      CHECK(klass->IsVerified());
-    } else {
-      CHECK(klass->IsErroneous());
+  // Initialize super classes, must be done while initializing for the JLS.
+  if (!klass->IsInterface() && klass->HasSuperClass()) {
+    mirror::Class* super_class = klass->GetSuperClass();
+    if (!super_class->IsInitialized()) {
+      CHECK(!super_class->IsInterface());
+      CHECK(can_init_parents);
+      bool super_initialized = InitializeClass(super_class, can_init_statics, true);
+      if (!super_initialized) {
+        // The super class was verified ahead of entering initializing, we should only be here if
+        // the super class became erroneous due to initialization.
+        CHECK(super_class->IsErroneous() && self->IsExceptionPending())
+            << "Super class initialization failed for " << PrettyDescriptor(super_class)
+            << " that has unexpected status " << super_class->GetStatus()
+            << "\nPending exception:\n"
+            << (self->GetException(NULL) != NULL ? self->GetException(NULL)->Dump() : "");
+        ObjectLock lock(self, klass);
+        // Initialization failed because the super-class is erroneous.
+        klass->SetStatus(mirror::Class::kStatusError);
+        lock.NotifyAll();
+        return false;
+      }
     }
-    // Signal to any waiting threads that saw this class as initializing.
-    ObjectLock lock(self, klass);
-    lock.NotifyAll();
-    return false;
   }
 
-  bool has_static_field_initializers = InitializeStaticFields(klass);
+  if (klass->NumStaticFields() > 0) {
+    ClassHelper kh(klass);
+    const DexFile::ClassDef* dex_class_def = kh.GetClassDef();
+    CHECK(dex_class_def != NULL);
+    const DexFile& dex_file = kh.GetDexFile();
+    EncodedStaticFieldValueIterator it(dex_file, kh.GetDexCache(), klass->GetClassLoader(),
+                                       this, *dex_class_def);
+    if (it.HasNext()) {
+      CHECK(can_init_statics);
+      // We reordered the fields, so we need to be able to map the field indexes to the right fields.
+      SafeMap<uint32_t, mirror::ArtField*> field_map;
+      ConstructFieldMap(dex_file, *dex_class_def, klass, field_map);
+      for (size_t i = 0; it.HasNext(); i++, it.Next()) {
+        it.ReadValueToField(field_map.Get(i));
+      }
+    }
+  }
 
+  mirror::ArtMethod* clinit = klass->FindDeclaredDirectMethod("<clinit>", "()V");
   if (clinit != NULL) {
-    if (Runtime::Current()->IsStarted()) {
+    CHECK(can_init_statics);
+    if (LIKELY(Runtime::Current()->IsStarted())) {
       JValue result;
       clinit->Invoke(self, NULL, 0, &result, 'V');
     } else {
@@ -2786,6 +2873,7 @@ bool ClassLinker::InitializeClass(mirror::Class* klass, bool can_run_clinit, boo
     }
   }
 
+  // Opportunistically set static method trampolines to their destination.
   FixupStaticTrampolines(klass);
 
   uint64_t t1 = NanoTime();
@@ -2805,14 +2893,8 @@ bool ClassLinker::InitializeClass(mirror::Class* klass, bool can_run_clinit, boo
       ++thread_stats->class_init_count;
       global_stats->class_init_time_ns += (t1 - t0);
       thread_stats->class_init_time_ns += (t1 - t0);
-      // Set the class as initialized except if we can't initialize static fields and static field
-      // initialization is necessary.
-      if (!can_init_statics && has_static_field_initializers) {
-        klass->SetStatus(mirror::Class::kStatusVerified);  // Don't leave class in initializing state.
-        success = false;
-      } else {
-        klass->SetStatus(mirror::Class::kStatusInitialized);
-      }
+      // Set the class as initialized except if failed to initialize static fields.
+      klass->SetStatus(mirror::Class::kStatusInitialized);
       if (VLOG_IS_ON(class_linker)) {
         ClassHelper kh(klass);
         LOG(INFO) << "Initialized class " << kh.GetDescriptor() << " from " << kh.GetLocation();
@@ -2827,6 +2909,7 @@ bool ClassLinker::WaitForInitializeClass(mirror::Class* klass, Thread* self, Obj
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   while (true) {
     self->AssertNoPendingException();
+    CHECK(!klass->IsInitialized());
     lock.WaitIgnoringInterrupts();
 
     // When we wake up, repeat the test for init-in-progress.  If
@@ -2953,44 +3036,16 @@ bool ClassLinker::IsSameDescriptorInDifferentClassContexts(const char* descripto
   return found1 == found2;
 }
 
-bool ClassLinker::InitializeSuperClass(mirror::Class* klass, bool can_run_clinit, bool can_init_fields) {
-  CHECK(klass != NULL);
-  if (!klass->IsInterface() && klass->HasSuperClass()) {
-    mirror::Class* super_class = klass->GetSuperClass();
-    if (!super_class->IsInitialized()) {
-      CHECK(!super_class->IsInterface());
-      // Must hold lock on object when initializing and setting status.
-      Thread* self = Thread::Current();
-      ObjectLock lock(self, klass);
-      bool super_initialized = InitializeClass(super_class, can_run_clinit, can_init_fields);
-      // TODO: check for a pending exception
-      if (!super_initialized) {
-        if (!can_run_clinit) {
-          // Don't set status to error when we can't run <clinit>.
-          CHECK_EQ(klass->GetStatus(), mirror::Class::kStatusInitializing) << PrettyClass(klass);
-          klass->SetStatus(mirror::Class::kStatusVerified);
-          return false;
-        }
-        klass->SetStatus(mirror::Class::kStatusError);
-        klass->NotifyAll(self);
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
-bool ClassLinker::EnsureInitialized(mirror::Class* c, bool can_run_clinit, bool can_init_fields) {
+bool ClassLinker::EnsureInitialized(mirror::Class* c, bool can_init_fields, bool can_init_parents) {
   DCHECK(c != NULL);
   if (c->IsInitialized()) {
     return true;
   }
 
-  Thread* self = Thread::Current();
-  ScopedThreadStateChange tsc(self, kRunnable);
-  bool success = InitializeClass(c, can_run_clinit, can_init_fields);
+  bool success = InitializeClass(c, can_init_fields, can_init_parents);
   if (!success) {
-    CHECK(self->IsExceptionPending() || !can_run_clinit) << PrettyClass(c);
+    Thread* self = Thread::Current();
+    CHECK(self->IsExceptionPending() || !can_init_fields || !can_init_parents) << PrettyClass(c);
   }
   return success;
 }
@@ -3003,35 +3058,6 @@ void ClassLinker::ConstructFieldMap(const DexFile& dex_file, const DexFile::Clas
   for (size_t i = 0; it.HasNextStaticField(); i++, it.Next()) {
     field_map.Put(i, ResolveField(dex_file, it.GetMemberIndex(), c->GetDexCache(), cl, true));
   }
-}
-
-bool ClassLinker::InitializeStaticFields(mirror::Class* klass) {
-  size_t num_static_fields = klass->NumStaticFields();
-  if (num_static_fields == 0) {
-    return false;
-  }
-  mirror::DexCache* dex_cache = klass->GetDexCache();
-  // TODO: this seems like the wrong check. do we really want !IsPrimitive && !IsArray?
-  if (dex_cache == NULL) {
-    return false;
-  }
-  ClassHelper kh(klass);
-  const DexFile::ClassDef* dex_class_def = kh.GetClassDef();
-  CHECK(dex_class_def != NULL);
-  const DexFile& dex_file = kh.GetDexFile();
-  EncodedStaticFieldValueIterator it(dex_file, dex_cache, klass->GetClassLoader(),
-                                     this, *dex_class_def);
-
-  if (it.HasNext()) {
-    // We reordered the fields, so we need to be able to map the field indexes to the right fields.
-    SafeMap<uint32_t, mirror::ArtField*> field_map;
-    ConstructFieldMap(dex_file, *dex_class_def, klass, field_map);
-    for (size_t i = 0; it.HasNext(); i++, it.Next()) {
-      it.ReadValueToField(field_map.Get(i));
-    }
-    return true;
-  }
-  return false;
 }
 
 bool ClassLinker::LinkClass(SirtRef<mirror::Class>& klass,

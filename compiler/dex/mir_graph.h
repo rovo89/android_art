@@ -38,7 +38,8 @@ enum InstructionAnalysisAttributePos {
   kArrayOp,
   kHeavyweightOp,
   kSimpleConstOp,
-  kMoveOp
+  kMoveOp,
+  kSwitch
 };
 
 #define AN_NONE (1 << kUninterestingOp)
@@ -55,6 +56,7 @@ enum InstructionAnalysisAttributePos {
 #define AN_HEAVYWEIGHT (1 << kHeavyweightOp)
 #define AN_SIMPLECONST (1 << kSimpleConstOp)
 #define AN_MOVE (1 << kMoveOp)
+#define AN_SWITCH (1 << kSwitch)
 #define AN_COMPUTATIONAL (AN_MATH | AN_ARRAYOP | AN_MOVE | AN_SIMPLECONST)
 
 enum DataFlowAttributePos {

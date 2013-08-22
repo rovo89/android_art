@@ -58,10 +58,6 @@
 namespace art {
 namespace gc {
 
-// When to create a log message about a slow GC, 100ms.
-static constexpr uint64_t kSlowGcThreshold = MsToNs(100);
-// When to create a log message about a long pause, 5ms.
-static constexpr uint64_t kLongGcPauseThreshold = MsToNs(5);
 static constexpr bool kGCALotMode = false;
 static constexpr size_t kGcAlotInterval = KB;
 static constexpr bool kDumpGcPerformanceOnShutdown = false;
@@ -72,12 +68,18 @@ static constexpr bool kMeasureAllocationTime = false;
 
 Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max_free,
            double target_utilization, size_t capacity, const std::string& original_image_file_name,
-           bool concurrent_gc, size_t num_gc_threads, bool low_memory_mode)
+           bool concurrent_gc, size_t parallel_gc_threads, size_t conc_gc_threads,
+           bool low_memory_mode, size_t long_pause_log_threshold, size_t long_gc_log_threshold,
+           bool ignore_max_footprint)
     : alloc_space_(NULL),
       card_table_(NULL),
       concurrent_gc_(concurrent_gc),
-      num_gc_threads_(num_gc_threads),
+      parallel_gc_threads_(parallel_gc_threads),
+      conc_gc_threads_(conc_gc_threads),
       low_memory_mode_(low_memory_mode),
+      long_pause_log_threshold_(long_pause_log_threshold),
+      long_gc_log_threshold_(long_gc_log_threshold),
+      ignore_max_footprint_(ignore_max_footprint),
       have_zygote_space_(false),
       soft_ref_queue_lock_(NULL),
       weak_ref_queue_lock_(NULL),
@@ -230,6 +232,11 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   last_gc_time_ns_ = NanoTime();
   last_gc_size_ = GetBytesAllocated();
 
+  if (ignore_max_footprint_) {
+    SetIdealFootprint(std::numeric_limits<size_t>::max());
+    concurrent_start_bytes_ = max_allowed_footprint_;
+  }
+
   // Create our garbage collectors.
   for (size_t i = 0; i < 2; ++i) {
     const bool concurrent = i != 0;
@@ -245,13 +252,14 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
 }
 
 void Heap::CreateThreadPool() {
-  if (num_gc_threads_ != 0) {
-    thread_pool_.reset(new ThreadPool(num_gc_threads_));
+  const size_t num_threads = std::max(parallel_gc_threads_, conc_gc_threads_);
+  if (num_threads != 0) {
+    thread_pool_.reset(new ThreadPool(num_threads));
   }
 }
 
 void Heap::DeleteThreadPool() {
-  thread_pool_.reset(NULL);
+  thread_pool_.reset(nullptr);
 }
 
 static bool ReadStaticInt(JNIEnvExt* env, jclass clz, const char* name, int* out_value) {
@@ -1249,11 +1257,11 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
     const size_t duration = collector->GetDurationNs();
     std::vector<uint64_t> pauses = collector->GetPauseTimes();
     // GC for alloc pauses the allocating thread, so consider it as a pause.
-    bool was_slow = duration > kSlowGcThreshold ||
-            (gc_cause == kGcCauseForAlloc && duration > kLongGcPauseThreshold);
+    bool was_slow = duration > long_gc_log_threshold_ ||
+            (gc_cause == kGcCauseForAlloc && duration > long_pause_log_threshold_);
     if (!was_slow) {
       for (uint64_t pause : pauses) {
-        was_slow = was_slow || pause > kLongGcPauseThreshold;
+        was_slow = was_slow || pause > long_pause_log_threshold_;
       }
     }
 
@@ -1702,7 +1710,7 @@ collector::GcType Heap::WaitForConcurrentGcToComplete(Thread* self) {
         wait_time = NanoTime() - wait_start;
         total_wait_time_ += wait_time;
       }
-      if (wait_time > kLongGcPauseThreshold) {
+      if (wait_time > long_pause_log_threshold_) {
         LOG(INFO) << "WaitForConcurrentGcToComplete blocked for " << PrettyDuration(wait_time);
       }
     }
@@ -1776,28 +1784,32 @@ void Heap::GrowForUtilization(collector::GcType gc_type, uint64_t gc_duration) {
       target_size = std::max(bytes_allocated, max_allowed_footprint_);
     }
   }
-  SetIdealFootprint(target_size);
 
-  // Calculate when to perform the next ConcurrentGC.
-  if (concurrent_gc_) {
-    // Calculate the estimated GC duration.
-    double gc_duration_seconds = NsToMs(gc_duration) / 1000.0;
-    // Estimate how many remaining bytes we will have when we need to start the next GC.
-    size_t remaining_bytes = allocation_rate_ * gc_duration_seconds;
-    remaining_bytes = std::max(remaining_bytes, kMinConcurrentRemainingBytes);
-    if (UNLIKELY(remaining_bytes > max_allowed_footprint_)) {
-      // A never going to happen situation that from the estimated allocation rate we will exceed
-      // the applications entire footprint with the given estimated allocation rate. Schedule
-      // another GC straight away.
-      concurrent_start_bytes_ = bytes_allocated;
-    } else {
-      // Start a concurrent GC when we get close to the estimated remaining bytes. When the
-      // allocation rate is very high, remaining_bytes could tell us that we should start a GC
-      // right away.
-      concurrent_start_bytes_ = std::max(max_allowed_footprint_ - remaining_bytes, bytes_allocated);
+  if (!ignore_max_footprint_) {
+    SetIdealFootprint(target_size);
+
+    if (concurrent_gc_) {
+      // Calculate when to perform the next ConcurrentGC.
+
+      // Calculate the estimated GC duration.
+      double gc_duration_seconds = NsToMs(gc_duration) / 1000.0;
+      // Estimate how many remaining bytes we will have when we need to start the next GC.
+      size_t remaining_bytes = allocation_rate_ * gc_duration_seconds;
+      remaining_bytes = std::max(remaining_bytes, kMinConcurrentRemainingBytes);
+      if (UNLIKELY(remaining_bytes > max_allowed_footprint_)) {
+        // A never going to happen situation that from the estimated allocation rate we will exceed
+        // the applications entire footprint with the given estimated allocation rate. Schedule
+        // another GC straight away.
+        concurrent_start_bytes_ = bytes_allocated;
+      } else {
+        // Start a concurrent GC when we get close to the estimated remaining bytes. When the
+        // allocation rate is very high, remaining_bytes could tell us that we should start a GC
+        // right away.
+        concurrent_start_bytes_ = std::max(max_allowed_footprint_ - remaining_bytes, bytes_allocated);
+      }
+      DCHECK_LE(concurrent_start_bytes_, max_allowed_footprint_);
+      DCHECK_LE(max_allowed_footprint_, growth_limit_);
     }
-    DCHECK_LE(concurrent_start_bytes_, max_allowed_footprint_);
-    DCHECK_LE(max_allowed_footprint_, growth_limit_);
   }
 
   UpdateMaxNativeFootprint();

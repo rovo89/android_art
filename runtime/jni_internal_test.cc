@@ -39,7 +39,7 @@ class JniInternalTest : public CommonTest {
     vm_ = Runtime::Current()->GetJavaVM();
 
     // Turn on -verbose:jni for the JNI tests.
-    gLogVerbosity.jni = true;
+    // gLogVerbosity.jni = true;
 
     vm_->AttachCurrentThread(&env_, NULL);
 
@@ -1488,6 +1488,21 @@ TEST_F(JniInternalTest, DeleteLocalRef) {
   env_->DeleteLocalRef(o);
 }
 
+TEST_F(JniInternalTest, PushLocalFrame_10395422) {
+  // The JNI specification is ambiguous about whether the given capacity is to be interpreted as a
+  // maximum or as a minimum, but it seems like it's supposed to be a minimum, and that's how
+  // Android historically treated it, and it's how the RI treats it. It's also the more useful
+  // interpretation!
+  ASSERT_EQ(JNI_OK, env_->PushLocalFrame(0));
+  env_->PopLocalFrame(NULL);
+
+  // Negative capacities are not allowed.
+  ASSERT_EQ(JNI_ERR, env_->PushLocalFrame(-1));
+
+  // And it's okay to have an upper limit. Ours is currently 512.
+  ASSERT_EQ(JNI_ERR, env_->PushLocalFrame(8192));
+}
+
 TEST_F(JniInternalTest, PushLocalFrame_PopLocalFrame) {
   jobject original = env_->NewStringUTF("");
   ASSERT_TRUE(original != NULL);
@@ -1497,11 +1512,11 @@ TEST_F(JniInternalTest, PushLocalFrame_PopLocalFrame) {
   ScopedObjectAccess soa(env_);
   mirror::Object* inner2_direct_pointer;
   {
-    env_->PushLocalFrame(4);
+    ASSERT_EQ(JNI_OK, env_->PushLocalFrame(4));
     outer = env_->NewLocalRef(original);
 
     {
-      env_->PushLocalFrame(4);
+      ASSERT_EQ(JNI_OK, env_->PushLocalFrame(4));
       inner1 = env_->NewLocalRef(outer);
       inner2 = env_->NewStringUTF("survivor");
       inner2_direct_pointer = soa.Decode<mirror::Object*>(inner2);

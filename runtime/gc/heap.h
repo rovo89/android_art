@@ -107,6 +107,8 @@ class Heap {
   static constexpr size_t kDefaultMaximumSize = 32 * MB;
   static constexpr size_t kDefaultMaxFree = 2 * MB;
   static constexpr size_t kDefaultMinFree = kDefaultMaxFree / 4;
+  static constexpr size_t kDefaultLongPauseLogThreshold = MsToNs(5);
+  static constexpr size_t kDefaultLongGCLogThreshold = MsToNs(100);
 
   // Default target utilization.
   static constexpr double kDefaultTargetUtilization = 0.5;
@@ -120,7 +122,8 @@ class Heap {
   explicit Heap(size_t initial_size, size_t growth_limit, size_t min_free,
                 size_t max_free, double target_utilization, size_t capacity,
                 const std::string& original_image_file_name, bool concurrent_gc,
-                size_t num_gc_threads, bool low_memory_mode);
+                size_t parallel_gc_threads, size_t conc_gc_threads, bool low_memory_mode,
+                size_t long_pause_threshold, size_t long_gc_threshold, bool ignore_max_footprint);
 
   ~Heap();
 
@@ -401,11 +404,22 @@ class Heap {
   // GC performance measuring
   void DumpGcPerformanceInfo(std::ostream& os);
 
+  // Returns true if we currently care about pause times.
+  bool CareAboutPauseTimes() const {
+    return care_about_pause_times_;
+  }
+
   // Thread pool.
   void CreateThreadPool();
   void DeleteThreadPool();
   ThreadPool* GetThreadPool() {
     return thread_pool_.get();
+  }
+  size_t GetParallelGCThreadCount() const {
+    return parallel_gc_threads_;
+  }
+  size_t GetConcGCThreadCount() const {
+    return conc_gc_threads_;
   }
 
  private:
@@ -514,11 +528,25 @@ class Heap {
   // false for stop-the-world mark sweep.
   const bool concurrent_gc_;
 
-  // How many GC threads we may use for garbage collection.
-  const size_t num_gc_threads_;
+  // How many GC threads we may use for paused parts of garbage collection.
+  const size_t parallel_gc_threads_;
+
+  // How many GC threads we may use for unpaused parts of garbage collection.
+  const size_t conc_gc_threads_;
 
   // Boolean for if we are in low memory mode.
   const bool low_memory_mode_;
+
+  // If we get a pause longer than long pause log threshold, then we print out the GC after it
+  // finishes.
+  const size_t long_pause_log_threshold_;
+
+  // If we get a GC longer than long GC log threshold, then we print out the GC after it finishes.
+  const size_t long_gc_log_threshold_;
+
+  // If we ignore the max footprint it lets the heap grow until it hits the heap capacity, this is
+  // useful for benchmarking since it reduces time spent in GC to a low %.
+  const bool ignore_max_footprint_;
 
   // If we have a zygote space.
   bool have_zygote_space_;
@@ -544,14 +572,18 @@ class Heap {
 
   // Maximum size that the heap can reach.
   const size_t capacity_;
+
   // The size the heap is limited to. This is initially smaller than capacity, but for largeHeap
   // programs it is "cleared" making it the same as capacity.
   size_t growth_limit_;
+
   // When the number of bytes allocated exceeds the footprint TryAllocate returns NULL indicating
   // a GC should be triggered.
   size_t max_allowed_footprint_;
+
   // The watermark at which a concurrent GC is requested by registerNativeAllocation.
   size_t native_footprint_gc_watermark_;
+
   // The watermark at which a GC is performed inside of registerNativeAllocation.
   size_t native_footprint_limit_;
 
