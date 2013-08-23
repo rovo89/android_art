@@ -1153,6 +1153,7 @@ void ArmMir2Lir::EncodeLIR(LIR* lir) {
 void ArmMir2Lir::AssembleLIR() {
   LIR* lir;
   LIR* prev_lir;
+  cu_->NewTimingSplit("Assemble");
   int assembler_retries = 0;
   CodeOffset starting_offset = EncodeRange(first_lir_insn_, last_lir_insn_, 0);
   data_offset_ = (starting_offset + 0x3) & ~0x3;
@@ -1574,6 +1575,7 @@ void ArmMir2Lir::AssembleLIR() {
 
   data_offset_ = (code_buffer_.size() + 0x3) & ~0x3;
 
+  cu_->NewTimingSplit("LiteralData");
   // Install literals
   InstallLiteralPools();
 
@@ -1584,8 +1586,10 @@ void ArmMir2Lir::AssembleLIR() {
   InstallFillArrayData();
 
   // Create the mapping table and native offset to reference map.
+  cu_->NewTimingSplit("PcMappingTable");
   CreateMappingTables();
 
+  cu_->NewTimingSplit("GcMap");
   CreateNativeGcMap();
 }
 

@@ -929,6 +929,7 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
 }
 
 void Mir2Lir::Materialize() {
+  cu_->NewTimingSplit("RegisterAllocation");
   CompilerInitializeRegAlloc();  // Needs to happen after SSA naming
 
   /* Allocate Registers using simple local allocation scheme */
@@ -940,6 +941,7 @@ void Mir2Lir::Materialize() {
        * special codegen doesn't succeed, first_lir_insn_ will
        * set to NULL;
        */
+      cu_->NewTimingSplit("SpecialMIR2LIR");
       SpecialMIR2LIR(mir_graph_->GetSpecialCase());
     }
 

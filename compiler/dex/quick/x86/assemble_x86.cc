@@ -1443,6 +1443,7 @@ void X86Mir2Lir::AssignOffsets() {
  * TODO: consolidate w/ Arm assembly mechanism.
  */
 void X86Mir2Lir::AssembleLIR() {
+  cu_->NewTimingSplit("Assemble");
   AssignOffsets();
   int assembler_retries = 0;
   /*
@@ -1466,6 +1467,7 @@ void X86Mir2Lir::AssembleLIR() {
     }
   }
 
+  cu_->NewTimingSplit("LiteralData");
   // Install literals
   InstallLiteralPools();
 
@@ -1476,8 +1478,10 @@ void X86Mir2Lir::AssembleLIR() {
   InstallFillArrayData();
 
   // Create the mapping table and native offset to reference map.
+  cu_->NewTimingSplit("PcMappingTable");
   CreateMappingTables();
 
+  cu_->NewTimingSplit("GcMap");
   CreateNativeGcMap();
 }
 

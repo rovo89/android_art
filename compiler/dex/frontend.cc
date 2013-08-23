@@ -24,6 +24,7 @@
 #include "runtime.h"
 #include "backend.h"
 #include "base/logging.h"
+#include "base/timing_logger.h"
 
 #if defined(ART_USE_PORTABLE_COMPILER)
 #include "dex/portable/mir_to_gbc.h"
@@ -104,7 +105,29 @@ static uint32_t kCompilerDebugFlags = 0 |     // Enable debug/testing modes
   // (1 << kDebugVerifyBitcode) |
   // (1 << kDebugShowSummaryMemoryUsage) |
   // (1 << kDebugShowFilterStats) |
+  // (1 << kDebugTimings) |
   0;
+
+// TODO: Add a cumulative version of logging, and combine with dex2oat --dump-timing
+void CompilationUnit::StartTimingSplit(const char* label) {
+  if (enable_debug & (1 << kDebugTimings)) {
+    timings.StartSplit(label);
+  }
+}
+
+void CompilationUnit::NewTimingSplit(const char* label) {
+  if (enable_debug & (1 << kDebugTimings)) {
+    timings.NewSplit(label);
+  }
+}
+
+void CompilationUnit::EndTiming() {
+  if (enable_debug & (1 << kDebugTimings)) {
+    timings.EndSplit();
+    LOG(INFO) << "TIMINGS " << PrettyMethod(method_idx, *dex_file);
+    LOG(INFO) << Dumpable<base::TimingLogger>(timings);
+  }
+}
 
 static CompiledMethod* CompileMethod(CompilerDriver& compiler,
                                      const CompilerBackend compiler_backend,
@@ -175,6 +198,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
         (1 << kPromoteCompilerTemps));
   }
 
+  cu.StartTimingSplit("BuildMIRGraph");
   cu.mir_graph.reset(new MIRGraph(&cu, &cu.arena));
 
   /* Gathering opcode stats? */
@@ -192,22 +216,28 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
   }
 #endif
 
+  cu.NewTimingSplit("MIROpt:CodeLayout");
+
   /* Do a code layout pass */
   cu.mir_graph->CodeLayout();
 
   /* Perform SSA transformation for the whole method */
+  cu.NewTimingSplit("MIROpt:SSATransform");
   cu.mir_graph->SSATransformation();
 
   /* Do constant propagation */
+  cu.NewTimingSplit("MIROpt:ConstantProp");
   cu.mir_graph->PropagateConstants();
 
   /* Count uses */
   cu.mir_graph->MethodUseCount();
 
   /* Perform null check elimination */
+  cu.NewTimingSplit("MIROpt:NullCheckElimination");
   cu.mir_graph->NullCheckElimination();
 
   /* Combine basic blocks where possible */
+  cu.NewTimingSplit("MIROpt:BBOpt");
   cu.mir_graph->BasicBlockCombine();
 
   /* Do some basic block optimizations */
@@ -250,6 +280,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
 
   cu.cg->Materialize();
 
+  cu.NewTimingSplit("Cleanup");
   result = cu.cg->GetCompiledMethod();
 
   if (result) {
@@ -270,6 +301,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
               << " " << PrettyMethod(method_idx, dex_file);
   }
 
+  cu.EndTiming();
   return result;
 }
 

@@ -819,6 +819,8 @@ void Mir2Lir::SpecialMIR2LIR(SpecialCaseHandler special_case) {
 }
 
 void Mir2Lir::MethodMIR2LIR() {
+  cu_->NewTimingSplit("MIR2LIR");
+
   // Hold the labels of each block.
   block_label_list_ =
       static_cast<LIR*>(arena_->Alloc(sizeof(LIR) * mir_graph_->GetNumBlocks(),
@@ -839,7 +841,7 @@ void Mir2Lir::MethodMIR2LIR() {
       next_bb = iter.Next();
     } while ((next_bb != NULL) && (next_bb->block_type == kDead));
   }
-
+  cu_->NewTimingSplit("Launchpads");
   HandleSuspendLaunchPads();
 
   HandleThrowLaunchPads();
