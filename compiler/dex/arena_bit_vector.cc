@@ -35,8 +35,8 @@ ArenaBitVector::ArenaBitVector(ArenaAllocator* arena, unsigned int start_bits,
      expandable_(expandable),
      kind_(kind),
      storage_size_((start_bits + 31) >> 5),
-     storage_(static_cast<uint32_t*>(arena_->NewMem(storage_size_ * sizeof(uint32_t), true,
-                                                    ArenaAllocator::kAllocGrowableBitMap))) {
+     storage_(static_cast<uint32_t*>(arena_->Alloc(storage_size_ * sizeof(uint32_t),
+                                                   ArenaAllocator::kAllocGrowableBitMap))) {
   DCHECK_EQ(sizeof(storage_[0]), 4U);    // Assuming 32-bit units.
 }
 
@@ -68,8 +68,8 @@ void ArenaBitVector::SetBit(unsigned int num) {
     unsigned int new_size = (num + 1 + 31) >> 5;
     DCHECK_GT(new_size, storage_size_);
     uint32_t *new_storage =
-        static_cast<uint32_t*>(arena_->NewMem(new_size * sizeof(uint32_t), false,
-                                              ArenaAllocator::kAllocGrowableBitMap));
+        static_cast<uint32_t*>(arena_->Alloc(new_size * sizeof(uint32_t),
+                                             ArenaAllocator::kAllocGrowableBitMap));
     memcpy(new_storage, storage_, storage_size_ * sizeof(uint32_t));
     // Zero out the new storage words.
     memset(&new_storage[storage_size_], 0, (new_size - storage_size_) * sizeof(uint32_t));

@@ -374,8 +374,8 @@ static const RegLocation fresh_loc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
  */
 void MIRGraph::BuildRegLocations() {
   /* Allocate the location map */
-  RegLocation* loc = static_cast<RegLocation*>(arena_->NewMem(GetNumSSARegs() * sizeof(*loc), true,
-                                                              ArenaAllocator::kAllocRegAlloc));
+  RegLocation* loc = static_cast<RegLocation*>(arena_->Alloc(GetNumSSARegs() * sizeof(*loc),
+                                                             ArenaAllocator::kAllocRegAlloc));
   for (int i = 0; i < GetNumSSARegs(); i++) {
     loc[i] = fresh_loc;
     loc[i].s_reg_low = i;

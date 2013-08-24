@@ -94,8 +94,8 @@ void MIRGraph::DoConstantPropogation(BasicBlock* bb) {
 
 void MIRGraph::PropagateConstants() {
   is_constant_v_ = new (arena_) ArenaBitVector(arena_, GetNumSSARegs(), false);
-  constant_values_ = static_cast<int*>(arena_->NewMem(sizeof(int) * GetNumSSARegs(), true,
-                                                      ArenaAllocator::kAllocDFInfo));
+  constant_values_ = static_cast<int*>(arena_->Alloc(sizeof(int) * GetNumSSARegs(),
+                                                     ArenaAllocator::kAllocDFInfo));
   AllNodesIterator iter(this, false /* not iterative */);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     DoConstantPropogation(bb);
@@ -399,8 +399,7 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
                 DCHECK_EQ(SelectKind(if_true), kSelectMove);
                 DCHECK_EQ(SelectKind(if_false), kSelectMove);
                 int* src_ssa =
-                    static_cast<int*>(arena_->NewMem(sizeof(int) * 3, false,
-                                                     ArenaAllocator::kAllocDFInfo));
+                    static_cast<int*>(arena_->Alloc(sizeof(int) * 3, ArenaAllocator::kAllocDFInfo));
                 src_ssa[0] = mir->ssa_rep->uses[0];
                 src_ssa[1] = if_true->ssa_rep->uses[0];
                 src_ssa[2] = if_false->ssa_rep->uses[0];
@@ -409,16 +408,14 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
               }
               mir->ssa_rep->num_defs = 1;
               mir->ssa_rep->defs =
-                  static_cast<int*>(arena_->NewMem(sizeof(int) * 1, false,
-                                                   ArenaAllocator::kAllocDFInfo));
+                  static_cast<int*>(arena_->Alloc(sizeof(int) * 1, ArenaAllocator::kAllocDFInfo));
               mir->ssa_rep->fp_def =
-                  static_cast<bool*>(arena_->NewMem(sizeof(bool) * 1, false,
-                                                    ArenaAllocator::kAllocDFInfo));
+                  static_cast<bool*>(arena_->Alloc(sizeof(bool) * 1, ArenaAllocator::kAllocDFInfo));
               mir->ssa_rep->fp_def[0] = if_true->ssa_rep->fp_def[0];
               // Match type of uses to def.
               mir->ssa_rep->fp_use =
-                  static_cast<bool*>(arena_->NewMem(sizeof(bool) * mir->ssa_rep->num_uses, false,
-                                                    ArenaAllocator::kAllocDFInfo));
+                  static_cast<bool*>(arena_->Alloc(sizeof(bool) * mir->ssa_rep->num_uses,
+                                                   ArenaAllocator::kAllocDFInfo));
               for (int i = 0; i < mir->ssa_rep->num_uses; i++) {
                 mir->ssa_rep->fp_use[i] = mir->ssa_rep->fp_def[0];
               }
@@ -805,8 +802,7 @@ void MIRGraph::CodeLayout() {
 
 void MIRGraph::DumpCheckStats() {
   Checkstats* stats =
-      static_cast<Checkstats*>(arena_->NewMem(sizeof(Checkstats), true,
-                                              ArenaAllocator::kAllocDFInfo));
+      static_cast<Checkstats*>(arena_->Alloc(sizeof(Checkstats), ArenaAllocator::kAllocDFInfo));
   checkstats_ = stats;
   AllNodesIterator iter(this, false /* not iterative */);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
