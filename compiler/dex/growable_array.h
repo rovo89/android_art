@@ -67,7 +67,7 @@ class GrowableArray {
         }
 
         static void* operator new(size_t size, ArenaAllocator* arena) {
-          return arena->NewMem(sizeof(GrowableArray::Iterator), true, ArenaAllocator::kAllocGrowableArray);
+          return arena->Alloc(sizeof(GrowableArray::Iterator), ArenaAllocator::kAllocGrowableArray);
         };
         static void operator delete(void* p) {}  // Nop.
 
@@ -81,8 +81,8 @@ class GrowableArray {
         num_allocated_(init_length),
         num_used_(0),
         kind_(kind) {
-      elem_list_ = static_cast<T*>(arena_->NewMem(sizeof(T) * init_length, true,
-                                                  ArenaAllocator::kAllocGrowableArray));
+      elem_list_ = static_cast<T*>(arena_->Alloc(sizeof(T) * init_length,
+                                                 ArenaAllocator::kAllocGrowableArray));
     };
 
 
@@ -95,8 +95,8 @@ class GrowableArray {
       if (new_length > target_length) {
          target_length = new_length;
       }
-      T* new_array = static_cast<T*>(arena_->NewMem(sizeof(T) * target_length, true,
-                                                    ArenaAllocator::kAllocGrowableArray));
+      T* new_array = static_cast<T*>(arena_->Alloc(sizeof(T) * target_length,
+                                                   ArenaAllocator::kAllocGrowableArray));
       memcpy(new_array, elem_list_, sizeof(T) * num_allocated_);
       num_allocated_ = target_length;
       elem_list_ = new_array;
@@ -153,7 +153,7 @@ class GrowableArray {
     T* GetRawStorage() const { return elem_list_; }
 
     static void* operator new(size_t size, ArenaAllocator* arena) {
-      return arena->NewMem(sizeof(GrowableArray<T>), true, ArenaAllocator::kAllocGrowableArray);
+      return arena->Alloc(sizeof(GrowableArray<T>), ArenaAllocator::kAllocGrowableArray);
     };
     static void operator delete(void* p) {}  // Nop.
 

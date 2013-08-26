@@ -954,11 +954,11 @@ void MIRGraph::DataFlowSSAFormat35C(MIR* mir) {
   int i;
 
   mir->ssa_rep->num_uses = num_uses;
-  mir->ssa_rep->uses = static_cast<int*>(arena_->NewMem(sizeof(int) * num_uses, true,
-                                                        ArenaAllocator::kAllocDFInfo));
+  mir->ssa_rep->uses = static_cast<int*>(arena_->Alloc(sizeof(int) * num_uses,
+                                                       ArenaAllocator::kAllocDFInfo));
   // NOTE: will be filled in during type & size inference pass
-  mir->ssa_rep->fp_use = static_cast<bool*>(arena_->NewMem(sizeof(bool) * num_uses, true,
-                                                           ArenaAllocator::kAllocDFInfo));
+  mir->ssa_rep->fp_use = static_cast<bool*>(arena_->Alloc(sizeof(bool) * num_uses,
+                                                          ArenaAllocator::kAllocDFInfo));
 
   for (i = 0; i < num_uses; i++) {
     HandleSSAUse(mir->ssa_rep->uses, d_insn->arg[i], i);
@@ -972,11 +972,11 @@ void MIRGraph::DataFlowSSAFormat3RC(MIR* mir) {
   int i;
 
   mir->ssa_rep->num_uses = num_uses;
-  mir->ssa_rep->uses = static_cast<int*>(arena_->NewMem(sizeof(int) * num_uses, true,
-                                                        ArenaAllocator::kAllocDFInfo));
+  mir->ssa_rep->uses = static_cast<int*>(arena_->Alloc(sizeof(int) * num_uses,
+                                                       ArenaAllocator::kAllocDFInfo));
   // NOTE: will be filled in during type & size inference pass
-  mir->ssa_rep->fp_use = static_cast<bool*>(arena_->NewMem(sizeof(bool) * num_uses, true,
-                                                           ArenaAllocator::kAllocDFInfo));
+  mir->ssa_rep->fp_use = static_cast<bool*>(arena_->Alloc(sizeof(bool) * num_uses,
+                                                          ArenaAllocator::kAllocDFInfo));
 
   for (i = 0; i < num_uses; i++) {
     HandleSSAUse(mir->ssa_rep->uses, d_insn->vC+i, i);
@@ -991,8 +991,8 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb) {
 
   for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     mir->ssa_rep =
-        static_cast<struct SSARepresentation *>(arena_->NewMem(sizeof(SSARepresentation), true,
-                                                               ArenaAllocator::kAllocDFInfo));
+        static_cast<struct SSARepresentation *>(arena_->Alloc(sizeof(SSARepresentation),
+                                                              ArenaAllocator::kAllocDFInfo));
 
     int df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
 
@@ -1041,10 +1041,10 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb) {
 
     if (num_uses) {
       mir->ssa_rep->num_uses = num_uses;
-      mir->ssa_rep->uses = static_cast<int*>(arena_->NewMem(sizeof(int) * num_uses, false,
-                                                            ArenaAllocator::kAllocDFInfo));
-      mir->ssa_rep->fp_use = static_cast<bool*>(arena_->NewMem(sizeof(bool) * num_uses, false,
-                                                               ArenaAllocator::kAllocDFInfo));
+      mir->ssa_rep->uses = static_cast<int*>(arena_->Alloc(sizeof(int) * num_uses,
+                                                           ArenaAllocator::kAllocDFInfo));
+      mir->ssa_rep->fp_use = static_cast<bool*>(arena_->Alloc(sizeof(bool) * num_uses,
+                                                              ArenaAllocator::kAllocDFInfo));
     }
 
     int num_defs = 0;
@@ -1058,10 +1058,10 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb) {
 
     if (num_defs) {
       mir->ssa_rep->num_defs = num_defs;
-      mir->ssa_rep->defs = static_cast<int*>(arena_->NewMem(sizeof(int) * num_defs, false,
-                                                            ArenaAllocator::kAllocDFInfo));
-      mir->ssa_rep->fp_def = static_cast<bool*>(arena_->NewMem(sizeof(bool) * num_defs, false,
-                                                               ArenaAllocator::kAllocDFInfo));
+      mir->ssa_rep->defs = static_cast<int*>(arena_->Alloc(sizeof(int) * num_defs,
+                                                           ArenaAllocator::kAllocDFInfo));
+      mir->ssa_rep->fp_def = static_cast<bool*>(arena_->Alloc(sizeof(bool) * num_defs,
+                                                              ArenaAllocator::kAllocDFInfo));
     }
 
     DecodedInstruction *d_insn = &mir->dalvikInsn;
@@ -1109,8 +1109,8 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb) {
    * predecessor blocks.
    */
   bb->data_flow_info->vreg_to_ssa_map =
-      static_cast<int*>(arena_->NewMem(sizeof(int) * cu_->num_dalvik_registers, false,
-                                       ArenaAllocator::kAllocDFInfo));
+      static_cast<int*>(arena_->Alloc(sizeof(int) * cu_->num_dalvik_registers,
+                                      ArenaAllocator::kAllocDFInfo));
 
   memcpy(bb->data_flow_info->vreg_to_ssa_map, vreg_to_ssa_map_,
          sizeof(int) * cu_->num_dalvik_registers);
@@ -1146,12 +1146,12 @@ void MIRGraph::CompilerInitializeSSAConversion() {
    * Dalvik register, and the SSA names for those are the same.
    */
   vreg_to_ssa_map_ =
-      static_cast<int*>(arena_->NewMem(sizeof(int) * num_dalvik_reg, false,
-                                       ArenaAllocator::kAllocDFInfo));
+      static_cast<int*>(arena_->Alloc(sizeof(int) * num_dalvik_reg,
+                                      ArenaAllocator::kAllocDFInfo));
   /* Keep track of the higest def for each dalvik reg */
   ssa_last_defs_ =
-      static_cast<int*>(arena_->NewMem(sizeof(int) * num_dalvik_reg, false,
-                                       ArenaAllocator::kAllocDFInfo));
+      static_cast<int*>(arena_->Alloc(sizeof(int) * num_dalvik_reg,
+                                      ArenaAllocator::kAllocDFInfo));
 
   for (unsigned int i = 0; i < num_dalvik_reg; i++) {
     vreg_to_ssa_map_[i] = i;
@@ -1174,8 +1174,8 @@ void MIRGraph::CompilerInitializeSSAConversion() {
       bb->block_type == kEntryBlock ||
       bb->block_type == kExitBlock) {
       bb->data_flow_info =
-          static_cast<BasicBlockDataFlow*>(arena_->NewMem(sizeof(BasicBlockDataFlow), true,
-                                                          ArenaAllocator::kAllocDFInfo));
+          static_cast<BasicBlockDataFlow*>(arena_->Alloc(sizeof(BasicBlockDataFlow),
+                                                         ArenaAllocator::kAllocDFInfo));
       }
   }
 }

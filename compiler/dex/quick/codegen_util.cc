@@ -321,7 +321,7 @@ LIR* Mir2Lir::ScanLiteralPoolWide(LIR* data_target, int val_lo, int val_hi) {
 LIR* Mir2Lir::AddWordData(LIR* *constant_list_p, int value) {
   /* Add the constant to the literal pool */
   if (constant_list_p) {
-    LIR* new_value = static_cast<LIR*>(arena_->NewMem(sizeof(LIR), true, ArenaAllocator::kAllocData));
+    LIR* new_value = static_cast<LIR*>(arena_->Alloc(sizeof(LIR), ArenaAllocator::kAllocData));
     new_value->operands[0] = value;
     new_value->next = *constant_list_p;
     *constant_list_p = new_value;
@@ -793,7 +793,7 @@ LIR* Mir2Lir::InsertCaseLabel(int vaddr, int keyVal) {
   if (it == boundary_map_.end()) {
     LOG(FATAL) << "Error: didn't find vaddr 0x" << std::hex << vaddr;
   }
-  LIR* new_label = static_cast<LIR*>(arena_->NewMem(sizeof(LIR), true, ArenaAllocator::kAllocLIR));
+  LIR* new_label = static_cast<LIR*>(arena_->Alloc(sizeof(LIR), ArenaAllocator::kAllocLIR));
   new_label->dalvik_offset = vaddr;
   new_label->opcode = kPseudoCaseLabel;
   new_label->operands[0] = keyVal;
@@ -961,8 +961,8 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       first_lir_insn_(NULL),
       last_lir_insn_(NULL) {
   promotion_map_ = static_cast<PromotionMap*>
-      (arena_->NewMem((cu_->num_dalvik_registers  + cu_->num_compiler_temps + 1) *
-                      sizeof(promotion_map_[0]), true, ArenaAllocator::kAllocRegAlloc));
+      (arena_->Alloc((cu_->num_dalvik_registers  + cu_->num_compiler_temps + 1) *
+                      sizeof(promotion_map_[0]), ArenaAllocator::kAllocRegAlloc));
 }
 
 void Mir2Lir::Materialize() {

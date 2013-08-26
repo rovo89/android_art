@@ -40,7 +40,7 @@ inline void Mir2Lir::ClobberBody(RegisterInfo* p) {
 
 inline LIR* Mir2Lir::RawLIR(int dalvik_offset, int opcode, int op0,
                             int op1, int op2, int op3, int op4, LIR* target) {
-  LIR* insn = static_cast<LIR*>(arena_->NewMem(sizeof(LIR), true, ArenaAllocator::kAllocLIR));
+  LIR* insn = static_cast<LIR*>(arena_->Alloc(sizeof(LIR), ArenaAllocator::kAllocLIR));
   insn->dalvik_offset = dalvik_offset;
   insn->opcode = opcode;
   insn->operands[0] = op0;

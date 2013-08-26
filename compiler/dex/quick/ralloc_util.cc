@@ -971,11 +971,11 @@ void Mir2Lir::DoPromotion() {
    * to describe register live ranges for GC.
    */
   RefCounts *core_regs =
-      static_cast<RefCounts*>(arena_->NewMem(sizeof(RefCounts) * num_regs, true,
-                                             ArenaAllocator::kAllocRegAlloc));
+      static_cast<RefCounts*>(arena_->Alloc(sizeof(RefCounts) * num_regs,
+                                            ArenaAllocator::kAllocRegAlloc));
   RefCounts *FpRegs =
-      static_cast<RefCounts *>(arena_->NewMem(sizeof(RefCounts) * num_regs, true,
-                                              ArenaAllocator::kAllocRegAlloc));
+      static_cast<RefCounts *>(arena_->Alloc(sizeof(RefCounts) * num_regs,
+                                             ArenaAllocator::kAllocRegAlloc));
   // Set ssa names for original Dalvik registers
   for (int i = 0; i < dalvik_regs; i++) {
     core_regs[i].s_reg = FpRegs[i].s_reg = i;
