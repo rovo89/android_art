@@ -305,8 +305,9 @@ class MarkSweep : public GarbageCollector {
   void VerifyRoots()
       NO_THREAD_SAFETY_ANALYSIS;
 
-  // Expand mark stack to 2x its current size. Thread safe.
-  void ExpandMarkStack();
+  // Expand mark stack to 2x its current size.
+  void ExpandMarkStack() EXCLUSIVE_LOCKS_REQUIRED(mark_stack_lock_);
+  void ResizeMarkStack(size_t new_size) EXCLUSIVE_LOCKS_REQUIRED(mark_stack_lock_);
 
   // Returns how many threads we should use for the current GC phase based on if we are paused,
   // whether or not we care about pauses.
@@ -445,7 +446,7 @@ class MarkSweep : public GarbageCollector {
 
   UniquePtr<Barrier> gc_barrier_;
   Mutex large_object_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  Mutex mark_stack_expand_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  Mutex mark_stack_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 
   const bool is_concurrent_;
 
