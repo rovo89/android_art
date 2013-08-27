@@ -27,7 +27,7 @@ class X86Mir2Lir : public Mir2Lir {
     X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
 
     // Required for target - codegen helpers.
-    bool SmallLiteralDivide(Instruction::Code dalvik_opcode, RegLocation rl_src,
+    bool SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div, RegLocation rl_src,
                                     RegLocation rl_dest, int lit);
     int LoadHelper(ThreadOffset offset);
     LIR* LoadBaseDisp(int rBase, int displacement, int r_dest, OpSize size, int s_reg);

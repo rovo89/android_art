@@ -1358,25 +1358,23 @@ static int LowestSetBit(unsigned int x) {
 
 // Returns true if it added instructions to 'cu' to divide 'rl_src' by 'lit'
 // and store the result in 'rl_dest'.
-bool Mir2Lir::HandleEasyDivide(Instruction::Code dalvik_opcode,
+bool Mir2Lir::HandleEasyDivRem(Instruction::Code dalvik_opcode, bool is_div,
                                RegLocation rl_src, RegLocation rl_dest, int lit) {
   if ((lit < 2) || ((cu_->instruction_set != kThumb2) && !IsPowerOfTwo(lit))) {
     return false;
   }
   // No divide instruction for Arm, so check for more special cases
   if ((cu_->instruction_set == kThumb2) && !IsPowerOfTwo(lit)) {
-    return SmallLiteralDivide(dalvik_opcode, rl_src, rl_dest, lit);
+    return SmallLiteralDivRem(dalvik_opcode, is_div, rl_src, rl_dest, lit);
   }
   int k = LowestSetBit(lit);
   if (k >= 30) {
     // Avoid special cases.
     return false;
   }
-  bool div = (dalvik_opcode == Instruction::DIV_INT_LIT8 ||
-      dalvik_opcode == Instruction::DIV_INT_LIT16);
   rl_src = LoadValue(rl_src, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  if (div) {
+  if (is_div) {
     int t_reg = AllocTemp();
     if (lit == 2) {
       // Division by 2 is by far the most common division by constant.
@@ -1544,16 +1542,16 @@ void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, Re
         GenImmedCheck(kCondAl, 0, 0, kThrowDivZero);
         return;
       }
-      if (HandleEasyDivide(opcode, rl_src, rl_dest, lit)) {
-        return;
-      }
-      if ((opcode == Instruction::DIV_INT_LIT8) ||
-          (opcode == Instruction::DIV_INT) ||
+      if ((opcode == Instruction::DIV_INT) ||
           (opcode == Instruction::DIV_INT_2ADDR) ||
+          (opcode == Instruction::DIV_INT_LIT8) ||
           (opcode == Instruction::DIV_INT_LIT16)) {
         is_div = true;
       } else {
         is_div = false;
+      }
+      if (HandleEasyDivRem(opcode, is_div, rl_src, rl_dest, lit)) {
+        return;
       }
       if (cu_->instruction_set == kMips) {
         rl_src = LoadValue(rl_src, kCoreReg);

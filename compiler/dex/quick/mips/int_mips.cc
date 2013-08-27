@@ -314,7 +314,7 @@ LIR* MipsMir2Lir::OpDecAndBranch(ConditionCode c_code, int reg, LIR* target) {
   return OpCmpImmBranch(c_code, reg, 0, target);
 }
 
-bool MipsMir2Lir::SmallLiteralDivide(Instruction::Code dalvik_opcode,
+bool MipsMir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div,
                                      RegLocation rl_src, RegLocation rl_dest, int lit) {
   LOG(FATAL) << "Unexpected use of smallLiteralDive in Mips";
   return false;

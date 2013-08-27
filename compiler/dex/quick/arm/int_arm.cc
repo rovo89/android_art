@@ -415,7 +415,7 @@ static const MagicTable magic_table[] = {
 };
 
 // Integer division by constant via reciprocal multiply (Hacker's Delight, 10-4)
-bool ArmMir2Lir::SmallLiteralDivide(Instruction::Code dalvik_opcode,
+bool ArmMir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div,
                                     RegLocation rl_src, RegLocation rl_dest, int lit) {
   if ((lit < 0) || (lit >= static_cast<int>(sizeof(magic_table)/sizeof(magic_table[0])))) {
     return false;
@@ -425,7 +425,7 @@ bool ArmMir2Lir::SmallLiteralDivide(Instruction::Code dalvik_opcode,
     return false;
   }
   // Tuning: add rem patterns
-  if (dalvik_opcode != Instruction::DIV_INT_LIT8) {
+  if (!is_div) {
     return false;
   }
 
