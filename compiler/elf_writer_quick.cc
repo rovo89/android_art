@@ -18,6 +18,7 @@
 
 #include "base/logging.h"
 #include "base/unix_file/fd_file.h"
+#include "buffered_output_stream.h"
 #include "driver/compiler_driver.h"
 #include "file_output_stream.h"
 #include "globals.h"
@@ -619,7 +620,7 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
                 << " for " << elf_file_->GetPath();
     return false;
   }
-  FileOutputStream output_stream(elf_file_);
+  BufferedOutputStream output_stream(new FileOutputStream(elf_file_));
   if (!oat_writer.Write(output_stream)) {
     PLOG(ERROR) << "Failed to write .rodata and .text for " << elf_file_->GetPath();
     return false;

@@ -83,6 +83,7 @@ LIBART_COMPILER_SRC_FILES := \
 	utils/mips/managed_register_mips.cc \
 	utils/x86/assembler_x86.cc \
 	utils/x86/managed_register_x86.cc \
+	buffered_output_stream.cc \
 	elf_fixup.cc \
 	elf_stripper.cc \
 	elf_writer.cc \

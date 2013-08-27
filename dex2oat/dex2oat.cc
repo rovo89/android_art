@@ -1059,7 +1059,7 @@ static int dex2oat(int argc, char** argv) {
 
   timings.EndSplit();
 
-  if (dump_timing && timings.GetTotalNs() > MsToNs(1000)) {
+  if (dump_timing || (dump_slow_timing && timings.GetTotalNs() > MsToNs(1000))) {
     LOG(INFO) << Dumpable<base::TimingLogger>(timings);
   }
   return EXIT_SUCCESS;
