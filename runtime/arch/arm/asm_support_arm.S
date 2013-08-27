@@ -19,7 +19,24 @@
 
 #include "asm_support_arm.h"
 
+.cfi_sections   .debug_frame
+.syntax unified
+.arch armv7-a
+.thumb
+
 .macro ENTRY name
+    .thumb_func
+    .type \name, #function
+    .global \name
+    /* Cache alignment for function entry */
+    .balign 16
+\name:
+    .cfi_startproc
+    .fnstart
+.endm
+
+.macro ARM_ENTRY name
+    .arm
     .type \name, #function
     .global \name
     /* Cache alignment for function entry */
