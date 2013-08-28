@@ -2209,14 +2209,12 @@ void Thread::VisitRoots(RootVisitor* visitor, void* arg) {
   mapper.WalkStack();
   ReleaseLongJumpContext(context);
 
-  std::deque<instrumentation::InstrumentationStackFrame>* instrumentation_stack = GetInstrumentationStack();
-  typedef std::deque<instrumentation::InstrumentationStackFrame>::const_iterator It;
-  for (It it = instrumentation_stack->begin(), end = instrumentation_stack->end(); it != end; ++it) {
-    mirror::Object* this_object = (*it).this_object_;
+  for (const instrumentation::InstrumentationStackFrame& frame : *GetInstrumentationStack()) {
+    mirror::Object* this_object = frame.this_object_;
     if (this_object != NULL) {
       visitor(this_object, arg);
     }
-    mirror::ArtMethod* method = (*it).method_;
+    mirror::ArtMethod* method = frame.method_;
     visitor(method, arg);
   }
 }
