@@ -48,9 +48,15 @@ class SpaceBitmap {
 
   typedef void SweepCallback(size_t ptr_count, mirror::Object** ptrs, void* arg);
 
-  // Initialize a HeapBitmap so that it points to a bitmap large enough to cover a heap at
+  // Initialize a space bitmap so that it points to a bitmap large enough to cover a heap at
   // heap_begin of heap_capacity bytes, where objects are guaranteed to be kAlignment-aligned.
   static SpaceBitmap* Create(const std::string& name, byte* heap_begin, size_t heap_capacity);
+
+  // Initialize a space bitmap using the provided mem_map as the live bits. Takes ownership of the
+  // mem map. The address range covered starts at heap_begin and is of size equal to heap_capacity.
+  // Objects are kAlignement-aligned.
+  static SpaceBitmap* CreateFromMemMap(const std::string& name, MemMap* mem_map,
+                                       byte* heap_begin, size_t heap_capacity);
 
   ~SpaceBitmap();
 

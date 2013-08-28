@@ -29,6 +29,7 @@
 #include "elf_writer.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/heap_bitmap.h"
+#include "gc/accounting/space_bitmap-inl.h"
 #include "gc/heap.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
@@ -136,9 +137,12 @@ bool ImageWriter::Write(const std::string& image_filename,
   CalculateNewObjectOffsets(oat_loaded_size, oat_data_offset);
   CopyAndFixupObjects();
   PatchOatCodeAndMethods();
+  // Record allocations into the image bitmap.
+  RecordImageAllocations();
   Thread::Current()->TransitionFromRunnableToSuspended(kNative);
 
   UniquePtr<File> image_file(OS::CreateEmptyFile(image_filename.c_str()));
+  ImageHeader* image_header = reinterpret_cast<ImageHeader*>(image_->Begin());
   if (image_file.get() == NULL) {
     LOG(ERROR) << "Failed to open image file " << image_filename;
     return false;
@@ -147,12 +151,35 @@ bool ImageWriter::Write(const std::string& image_filename,
     PLOG(ERROR) << "Failed to make image file world readable: " << image_filename;
     return EXIT_FAILURE;
   }
-  bool success = image_file->WriteFully(image_->Begin(), image_end_);
-  if (!success) {
+
+  // Write out the image.
+  CHECK_EQ(image_end_, image_header->GetImageSize());
+  if (!image_file->WriteFully(image_->Begin(), image_end_)) {
     PLOG(ERROR) << "Failed to write image file " << image_filename;
     return false;
   }
+
+  // Write out the image bitmap at the page aligned start of the image end.
+  CHECK_ALIGNED(image_header->GetImageBitmapOffset(), kPageSize);
+  if (!image_file->Write(reinterpret_cast<char*>(image_bitmap_->Begin()),
+                         image_header->GetImageBitmapSize(),
+                         image_header->GetImageBitmapOffset())) {
+    PLOG(ERROR) << "Failed to write image file " << image_filename;
+    return false;
+  }
+
   return true;
+}
+
+void ImageWriter::RecordImageAllocations() {
+  uint64_t start_time = NanoTime();
+  CHECK(image_bitmap_.get() != nullptr);
+  for (const auto& it : offsets_) {
+    mirror::Object* obj = reinterpret_cast<mirror::Object*>(image_->Begin() + it.second);
+    DCHECK_ALIGNED(obj, kObjectAlignment);
+    image_bitmap_->Set(obj);
+  }
+  LOG(INFO) << "RecordImageAllocations took " << PrettyDuration(NanoTime() - start_time);
 }
 
 bool ImageWriter::AllocMemory() {
@@ -388,7 +415,7 @@ void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_d
   DCHECK(!spaces.empty());
   DCHECK_EQ(0U, image_end_);
 
-  // leave space for the header, but do not write it yet, we need to
+  // Leave space for the header, but do not write it yet, we need to
   // know where image_roots is going to end up
   image_end_ += RoundUp(sizeof(ImageHeader), 8);  // 64-bit-alignment
 
@@ -406,13 +433,20 @@ void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_d
     self->EndAssertNoThreadSuspension(old);
   }
 
+  // Create the image bitmap.
+  image_bitmap_.reset(gc::accounting::SpaceBitmap::Create("image bitmap", image_->Begin(),
+                                                          image_end_));
   const byte* oat_file_begin = image_begin_ + RoundUp(image_end_, kPageSize);
   const byte* oat_file_end = oat_file_begin + oat_loaded_size;
   oat_data_begin_ = oat_file_begin + oat_data_offset;
   const byte* oat_data_end = oat_data_begin_ + oat_file_->Size();
 
-  // return to write header at start of image with future location of image_roots
+  // Return to write header at start of image with future location of image_roots. At this point,
+  // image_end_ is the size of the image (excluding bitmaps).
   ImageHeader image_header(reinterpret_cast<uint32_t>(image_begin_),
+                           static_cast<uint32_t>(image_end_),
+                           RoundUp(image_end_, kPageSize),
+                           image_bitmap_->Size(),
                            reinterpret_cast<uint32_t>(GetImageAddress(image_roots.get())),
                            oat_file_->GetOatHeader().GetChecksum(),
                            reinterpret_cast<uint32_t>(oat_file_begin),

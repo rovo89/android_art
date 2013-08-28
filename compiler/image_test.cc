@@ -85,6 +85,8 @@ TEST_F(ImageTest, WriteRead) {
     ImageHeader image_header;
     file->ReadFully(&image_header, sizeof(image_header));
     ASSERT_TRUE(image_header.IsValid());
+    ASSERT_GE(image_header.GetImageBitmapOffset(), sizeof(image_header));
+    ASSERT_NE(0U, image_header.GetImageBitmapSize());
 
     gc::Heap* heap = Runtime::Current()->GetHeap();
     ASSERT_EQ(1U, heap->GetContinuousSpaces().size());
@@ -136,6 +138,7 @@ TEST_F(ImageTest, WriteRead) {
   ASSERT_TRUE(heap->GetContinuousSpaces()[1]->IsDlMallocSpace());
 
   gc::space::ImageSpace* image_space = heap->GetImageSpace();
+  image_space->VerifyImageAllocations();
   byte* image_begin = image_space->Begin();
   byte* image_end = image_space->End();
   CHECK_EQ(requested_image_base, reinterpret_cast<uintptr_t>(image_begin));

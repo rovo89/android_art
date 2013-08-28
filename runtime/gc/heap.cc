@@ -187,14 +187,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     heap_capacity += continuous_spaces_.back()->AsDlMallocSpace()->NonGrowthLimitCapacity();
   }
 
-  // Mark image objects in the live bitmap.
-  for (const auto& space : continuous_spaces_) {
-    if (space->IsImageSpace()) {
-      space::ImageSpace* image_space = space->AsImageSpace();
-      image_space->RecordImageAllocations(image_space->GetLiveBitmap());
-    }
-  }
-
   // Allocate the card table.
   card_table_.reset(accounting::CardTable::Create(heap_begin, heap_capacity));
   CHECK(card_table_.get() != NULL) << "Failed to create card table";

@@ -58,7 +58,10 @@ class ImageWriter {
  private:
   bool AllocMemory();
 
-  // we use the lock word to store the offset of the object in the image
+  // Mark the objects defined in this space in the given live bitmap.
+  void RecordImageAllocations() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // We use the lock word to store the offset of the object in the image.
   void AssignImageOffset(mirror::Object* object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(object != NULL);
@@ -193,6 +196,9 @@ class ImageWriter {
 
   // Beginning target oat address for the pointers from the output image to its oat file.
   const byte* oat_data_begin_;
+
+  // Image bitmap which lets us know where the objects inside of the image reside.
+  UniquePtr<gc::accounting::SpaceBitmap> image_bitmap_;
 
   // Offset from oat_data_begin_ to the stubs.
   uint32_t interpreter_to_interpreter_bridge_offset_;

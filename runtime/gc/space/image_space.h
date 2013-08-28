@@ -53,6 +53,9 @@ class ImageSpace : public MemMapSpace {
   OatFile& ReleaseOatFile()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void VerifyImageAllocations()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   const ImageHeader& GetImageHeader() const {
     return *reinterpret_cast<ImageHeader*>(Begin());
   }
@@ -60,10 +63,6 @@ class ImageSpace : public MemMapSpace {
   const std::string GetImageFilename() const {
     return GetName();
   }
-
-  // Mark the objects defined in this space in the given live bitmap
-  void RecordImageAllocations(accounting::SpaceBitmap* live_bitmap) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   accounting::SpaceBitmap* GetLiveBitmap() const {
     return live_bitmap_.get();
@@ -96,11 +95,11 @@ class ImageSpace : public MemMapSpace {
 
   friend class Space;
 
-  static size_t bitmap_index_;
+  static AtomicInteger bitmap_index_;
 
   UniquePtr<accounting::SpaceBitmap> live_bitmap_;
 
-  ImageSpace(const std::string& name, MemMap* mem_map);
+  ImageSpace(const std::string& name, MemMap* mem_map, accounting::SpaceBitmap* live_bitmap);
 
   // The OatFile associated with the image during early startup to
   // reserve space contiguous to the image. It is later released to
