@@ -232,18 +232,18 @@ class Dex2Oat {
                                       bool image,
                                       UniquePtr<CompilerDriver::DescriptorSet>& image_classes,
                                       bool dump_stats,
-                                      base::TimingLogger& timings)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+                                      base::TimingLogger& timings) {
     // SirtRef and ClassLoader creation needs to come after Runtime::Create
     jobject class_loader = NULL;
+    Thread* self = Thread::Current();
     if (!boot_image_option.empty()) {
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
       std::vector<const DexFile*> class_path_files(dex_files);
       OpenClassPathFiles(runtime_->GetClassPathString(), class_path_files);
+      ScopedObjectAccess soa(self);
       for (size_t i = 0; i < class_path_files.size(); i++) {
         class_linker->RegisterDexFile(*class_path_files[i]);
       }
-      ScopedObjectAccessUnchecked soa(Thread::Current());
       soa.Env()->AllocObject(WellKnownClasses::dalvik_system_PathClassLoader);
       ScopedLocalRef<jobject> class_loader_local(soa.Env(),
           soa.Env()->AllocObject(WellKnownClasses::dalvik_system_PathClassLoader));
@@ -262,12 +262,7 @@ class Dex2Oat {
       driver->SetBitcodeFileName(bitcode_filename);
     }
 
-
-    Thread::Current()->TransitionFromRunnableToSuspended(kNative);
-
     driver->CompileAll(class_loader, dex_files, timings);
-
-    Thread::Current()->TransitionFromSuspendedToRunnable();
 
     timings.NewSplit("dex2oat OatWriter");
     std::string image_file_location;
@@ -864,8 +859,9 @@ static int dex2oat(int argc, char** argv) {
   }
   UniquePtr<Dex2Oat> dex2oat(p_dex2oat);
   // Runtime::Create acquired the mutator_lock_ that is normally given away when we Runtime::Start,
-  // give it away now and then switch to a more managable ScopedObjectAccess.
-  Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+  // give it away now so that we don't starve GC.
+  Thread* self = Thread::Current();
+  self->TransitionFromRunnableToSuspended(kNative);
   // If we're doing the image, override the compiler filter to force full compilation. Must be
   // done ahead of WellKnownClasses::Init that causes verification.  Note: doesn't force
   // compilation of class initializers.
@@ -873,8 +869,7 @@ static int dex2oat(int argc, char** argv) {
     Runtime::Current()->SetCompilerFilter(Runtime::kEverything);
   }
   // Whilst we're in native take the opportunity to initialize well known classes.
-  WellKnownClasses::Init(Thread::Current()->GetJniEnv());
-  ScopedObjectAccess soa(Thread::Current());
+  WellKnownClasses::Init(self->GetJniEnv());
 
   // If --image-classes was specified, calculate the full list of classes to include in the image
   UniquePtr<CompilerDriver::DescriptorSet> image_classes(NULL);
@@ -1004,13 +999,11 @@ static int dex2oat(int argc, char** argv) {
   //
   if (image) {
     timings.NewSplit("dex2oat ImageWriter");
-    Thread::Current()->TransitionFromRunnableToSuspended(kNative);
     bool image_creation_success = dex2oat->CreateImageFile(image_filename,
                                                            image_base,
                                                            oat_unstripped,
                                                            oat_location,
                                                            *compiler.get());
-    Thread::Current()->TransitionFromSuspendedToRunnable();
     if (!image_creation_success) {
       return EXIT_FAILURE;
     }
