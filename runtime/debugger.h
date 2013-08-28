@@ -29,6 +29,7 @@
 #include "jni.h"
 #include "jvalue.h"
 #include "root_visitor.h"
+#include "thread_state.h"
 
 namespace art {
 namespace mirror {
@@ -268,6 +269,7 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::ObjectId GetMainThreadGroupId();
 
+  static JDWP::JdwpThreadStatus ToJdwpThreadStatus(ThreadState state);
   static JDWP::JdwpError GetThreadStatus(JDWP::ObjectId thread_id, JDWP::JdwpThreadStatus* pThreadStatus, JDWP::JdwpSuspendStatus* pSuspendStatus);
   static JDWP::JdwpError GetThreadDebugSuspendCount(JDWP::ObjectId thread_id, JDWP::ExpandBuf* pReply);
   // static void WaitForSuspend(JDWP::ObjectId thread_id);

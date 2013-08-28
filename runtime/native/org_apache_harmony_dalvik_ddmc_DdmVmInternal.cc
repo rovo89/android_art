@@ -114,7 +114,7 @@ static void ThreadStatsGetterCallback(Thread* t, void* context) {
 
   std::vector<uint8_t>& bytes = *reinterpret_cast<std::vector<uint8_t>*>(context);
   JDWP::Append4BE(bytes, t->GetThinLockId());
-  JDWP::Append1BE(bytes, t->GetState());
+  JDWP::Append1BE(bytes, Dbg::ToJdwpThreadStatus(t->GetState()));
   JDWP::Append4BE(bytes, t->GetTid());
   JDWP::Append4BE(bytes, utime);
   JDWP::Append4BE(bytes, stime);
