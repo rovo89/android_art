@@ -446,7 +446,7 @@ class MarkSweep : public GarbageCollector {
 
   UniquePtr<Barrier> gc_barrier_;
   Mutex large_object_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  Mutex mark_stack_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  Mutex mark_stack_lock_ ACQUIRED_AFTER(Locks::classlinker_classes_lock_);
 
   const bool is_concurrent_;
 
