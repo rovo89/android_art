@@ -181,6 +181,10 @@ test-art-host-run-test-interpreter-$(1): test-art-host-dependencies
 	@echo test-art-host-run-test-interpreter-$(1) PASSED
 
 TEST_ART_HOST_RUN_TEST_INTERPRETER_TARGETS += test-art-host-run-test-interpreter-$(1)
+
+.PHONY: test-art-host-run-test-$(1)
+test-art-host-run-test-$(1): test-art-host-run-test-default-$(1) test-art-host-run-test-interpreter-$(1)
+
 endef
 
 $(foreach test, $(wildcard art/test/[0-9]*), $(eval $(call declare-test-art-host-run-test,$(notdir $(test)))))
@@ -228,6 +232,9 @@ test-art-target-run-test-$(1): test-art-target-sync
 	@echo test-art-target-run-test-$(1) PASSED
 
 TEST_ART_TARGET_RUN_TEST_TARGETS += test-art-target-run-test-$(1)
+
+test-art-run-test-$(1): test-art-host-run-test-$(1) test-art-target-run-test-$(1)
+
 endef
 
 $(foreach test, $(wildcard art/test/[0-9]*), $(eval $(call declare-test-art-target-run-test,$(notdir $(test)))))
