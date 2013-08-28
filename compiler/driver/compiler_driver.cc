@@ -671,7 +671,7 @@ void CompilerDriver::LoadImageClasses(base::TimingLogger& timings)
     if (klass.get() == NULL) {
       image_classes_->erase(it++);
       VLOG(compiler) << "Failed to find class " << descriptor;
-      Thread::Current()->ClearException();
+      self->ClearException();
     } else {
       ++it;
     }
@@ -1472,7 +1472,7 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
         // Class couldn't be resolved, for example, super-class is in a different dex file. Don't
         // attempt to resolve methods and fields when there is no declaring class.
         CHECK(soa.Self()->IsExceptionPending());
-        Thread::Current()->ClearException();
+        soa.Self()->ClearException();
         resolve_fields_and_methods = false;
       } else {
         resolve_fields_and_methods = manager->GetCompiler()->IsImage();
@@ -1547,7 +1547,14 @@ static void ResolveType(const ParallelCompilationManager* manager, size_t type_i
 
   if (klass == NULL) {
     CHECK(soa.Self()->IsExceptionPending());
-    Thread::Current()->ClearException();
+    mirror::Throwable* exception = soa.Self()->GetException(NULL);
+    VLOG(compiler) << "Exception during type resolution: " << exception->Dump();
+    if (strcmp(ClassHelper(exception->GetClass()).GetDescriptor(),
+               "Ljava/lang/OutOfMemoryError;") == 0) {
+      // There's little point continuing compilation if the heap is exhausted.
+      LOG(FATAL) << "Out of memory during type resolution for compilation";
+    }
+    soa.Self()->ClearException();
   }
 }
 

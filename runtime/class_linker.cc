@@ -1217,11 +1217,15 @@ mirror::Class* ClassLinker::AllocClass(Thread* self, mirror::Class* java_lang_Cl
                                        size_t class_size) {
   DCHECK_GE(class_size, sizeof(mirror::Class));
   gc::Heap* heap = Runtime::Current()->GetHeap();
-  SirtRef<mirror::Class> klass(self,
-                       heap->AllocObject(self, java_lang_Class, class_size)->AsClass());
+  mirror::Object* k = heap->AllocObject(self, java_lang_Class, class_size);
+  if (UNLIKELY(k == NULL)) {
+    CHECK(self->IsExceptionPending());  // OOME.
+    return NULL;
+  }
+  mirror::Class* klass = k->AsClass();
   klass->SetPrimitiveType(Primitive::kPrimNot);  // default to not being primitive
   klass->SetClassSize(class_size);
-  return klass.get();
+  return klass;
 }
 
 mirror::Class* ClassLinker::AllocClass(Thread* self, size_t class_size) {
@@ -1387,6 +1391,10 @@ mirror::Class* ClassLinker::DefineClass(const char* descriptor,
     }
   } else {
     klass.reset(AllocClass(self, SizeOfClass(dex_file, dex_class_def)));
+  }
+  if (UNLIKELY(klass.get() == NULL)) {
+    CHECK(self->IsExceptionPending());  // Expect an OOME.
+    return NULL;
   }
   klass->SetDexCache(FindDexCache(dex_file));
   LoadClass(dex_file, dex_class_def, klass, class_loader);
@@ -1725,18 +1733,37 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   ClassDataItemIterator it(dex_file, class_data);
   Thread* self = Thread::Current();
   if (it.NumStaticFields() != 0) {
-    klass->SetSFields(AllocArtFieldArray(self, it.NumStaticFields()));
+    mirror::ObjectArray<mirror::ArtField>* statics = AllocArtFieldArray(self, it.NumStaticFields());
+    if (UNLIKELY(statics == NULL)) {
+      CHECK(self->IsExceptionPending());  // OOME.
+      return;
+    }
+    klass->SetSFields(statics);
   }
   if (it.NumInstanceFields() != 0) {
-    klass->SetIFields(AllocArtFieldArray(self, it.NumInstanceFields()));
+    mirror::ObjectArray<mirror::ArtField>* fields =
+        AllocArtFieldArray(self, it.NumInstanceFields());
+    if (UNLIKELY(fields == NULL)) {
+      CHECK(self->IsExceptionPending());  // OOME.
+      return;
+    }
+    klass->SetIFields(fields);
   }
   for (size_t i = 0; it.HasNextStaticField(); i++, it.Next()) {
     SirtRef<mirror::ArtField> sfield(self, AllocArtField(self));
+    if (UNLIKELY(sfield.get() == NULL)) {
+      CHECK(self->IsExceptionPending());  // OOME.
+      return;
+    }
     klass->SetStaticField(i, sfield.get());
     LoadField(dex_file, it, klass, sfield);
   }
   for (size_t i = 0; it.HasNextInstanceField(); i++, it.Next()) {
     SirtRef<mirror::ArtField> ifield(self, AllocArtField(self));
+    if (UNLIKELY(ifield.get() == NULL)) {
+      CHECK(self->IsExceptionPending());  // OOME.
+      return;
+    }
     klass->SetInstanceField(i, ifield.get());
     LoadField(dex_file, it, klass, ifield);
   }
@@ -1749,15 +1776,31 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   // Load methods.
   if (it.NumDirectMethods() != 0) {
     // TODO: append direct methods to class object
-    klass->SetDirectMethods(AllocArtMethodArray(self, it.NumDirectMethods()));
+    mirror::ObjectArray<mirror::ArtMethod>* directs =
+         AllocArtMethodArray(self, it.NumDirectMethods());
+    if (UNLIKELY(directs == NULL)) {
+      CHECK(self->IsExceptionPending());  // OOME.
+      return;
+    }
+    klass->SetDirectMethods(directs);
   }
   if (it.NumVirtualMethods() != 0) {
     // TODO: append direct methods to class object
-    klass->SetVirtualMethods(AllocArtMethodArray(self, it.NumVirtualMethods()));
+    mirror::ObjectArray<mirror::ArtMethod>* virtuals =
+        AllocArtMethodArray(self, it.NumVirtualMethods());
+    if (UNLIKELY(virtuals == NULL)) {
+      CHECK(self->IsExceptionPending());  // OOME.
+      return;
+    }
+    klass->SetVirtualMethods(virtuals);
   }
   size_t class_def_method_index = 0;
   for (size_t i = 0; it.HasNextDirectMethod(); i++, it.Next()) {
     SirtRef<mirror::ArtMethod> method(self, LoadMethod(self, dex_file, it, klass));
+    if (UNLIKELY(method.get() == NULL)) {
+      CHECK(self->IsExceptionPending());  // OOME.
+      return;
+    }
     klass->SetDirectMethod(i, method.get());
     if (oat_class.get() != NULL) {
       LinkCode(method, oat_class.get(), class_def_method_index);
@@ -1767,6 +1810,10 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   }
   for (size_t i = 0; it.HasNextVirtualMethod(); i++, it.Next()) {
     SirtRef<mirror::ArtMethod> method(self, LoadMethod(self, dex_file, it, klass));
+    if (UNLIKELY(method.get() == NULL)) {
+      CHECK(self->IsExceptionPending());  // OOME.
+      return;
+    }
     klass->SetVirtualMethod(i, method.get());
     DCHECK_EQ(class_def_method_index, it.NumDirectMethods() + i);
     if (oat_class.get() != NULL) {
@@ -1786,13 +1833,17 @@ void ClassLinker::LoadField(const DexFile& /*dex_file*/, const ClassDataItemIter
 }
 
 mirror::ArtMethod* ClassLinker::LoadMethod(Thread* self, const DexFile& dex_file,
-                                                const ClassDataItemIterator& it,
-                                                SirtRef<mirror::Class>& klass) {
+                                           const ClassDataItemIterator& it,
+                                           SirtRef<mirror::Class>& klass) {
   uint32_t dex_method_idx = it.GetMemberIndex();
   const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_idx);
   StringPiece method_name(dex_file.GetMethodName(method_id));
 
   mirror::ArtMethod* dst = AllocArtMethod(self);
+  if (UNLIKELY(dst == NULL)) {
+    CHECK(self->IsExceptionPending());  // OOME.
+    return NULL;
+  }
   DCHECK(dst->IsArtMethod()) << PrettyDescriptor(dst->GetClass());
 
   const char* old_cause = self->StartAssertNoThreadSuspension("LoadMethod");
@@ -1846,6 +1897,7 @@ mirror::ArtMethod* ClassLinker::LoadMethod(Thread* self, const DexFile& dex_file
 void ClassLinker::AppendToBootClassPath(const DexFile& dex_file) {
   Thread* self = Thread::Current();
   SirtRef<mirror::DexCache> dex_cache(self, AllocDexCache(self, dex_file));
+  CHECK(dex_cache.get() != NULL) << "Failed to allocate dex cache for " << dex_file.GetLocation();
   AppendToBootClassPath(dex_file, dex_cache);
 }
 
@@ -1891,6 +1943,7 @@ void ClassLinker::RegisterDexFile(const DexFile& dex_file) {
   // suspend all threads and another thread may need the dex_lock_ to
   // get to a suspend point.
   SirtRef<mirror::DexCache> dex_cache(self, AllocDexCache(self, dex_file));
+  CHECK(dex_cache.get() != NULL) << "Failed to allocate dex cache for " << dex_file.GetLocation();
   {
     WriterMutexLock mu(self, dex_lock_);
     if (IsDexFileRegisteredLocked(dex_file)) {
@@ -1939,7 +1992,11 @@ void ClassLinker::FixupDexCaches(mirror::ArtMethod* resolution_method) const {
 }
 
 mirror::Class* ClassLinker::CreatePrimitiveClass(Thread* self, Primitive::Type type) {
-  return InitializePrimitiveClass(AllocClass(self, sizeof(mirror::Class)), type);
+  mirror::Class* klass = AllocClass(self, sizeof(mirror::Class));
+  if (UNLIKELY(klass == NULL)) {
+    return NULL;
+  }
+  return InitializePrimitiveClass(klass, type);
 }
 
 mirror::Class* ClassLinker::InitializePrimitiveClass(mirror::Class* primitive_class, Primitive::Type type) {
@@ -2574,7 +2631,10 @@ mirror::Class* ClassLinker::CreateProxyClass(mirror::String* name,
   Thread* self = Thread::Current();
   SirtRef<mirror::Class> klass(self, AllocClass(self, GetClassRoot(kJavaLangClass),
                                                 sizeof(mirror::SynthesizedProxyClass)));
-  CHECK(klass.get() != NULL);
+  if (klass.get() == NULL) {
+    CHECK(self->IsExceptionPending());  // OOME.
+    return NULL;
+  }
   DCHECK(klass->GetClass() != NULL);
   klass->SetObjectSize(sizeof(mirror::Proxy));
   klass->SetAccessFlags(kAccClassIsProxy | kAccPublic | kAccFinal);
@@ -2589,31 +2649,72 @@ mirror::Class* ClassLinker::CreateProxyClass(mirror::String* name,
   klass->SetDexTypeIndex(DexFile::kDexNoIndex16);
 
   // Instance fields are inherited, but we add a couple of static fields...
-  klass->SetSFields(AllocArtFieldArray(self, 2));
+  {
+    mirror::ObjectArray<mirror::ArtField>* sfields = AllocArtFieldArray(self, 2);
+    if (UNLIKELY(sfields == NULL)) {
+      CHECK(self->IsExceptionPending());  // OOME.
+      return NULL;
+    }
+    klass->SetSFields(sfields);
+  }
   // 1. Create a static field 'interfaces' that holds the _declared_ interfaces implemented by
   // our proxy, so Class.getInterfaces doesn't return the flattened set.
   SirtRef<mirror::ArtField> interfaces_sfield(self, AllocArtField(self));
+  if (UNLIKELY(interfaces_sfield.get() == NULL)) {
+    CHECK(self->IsExceptionPending());  // OOME.
+    return NULL;
+  }
   klass->SetStaticField(0, interfaces_sfield.get());
   interfaces_sfield->SetDexFieldIndex(0);
   interfaces_sfield->SetDeclaringClass(klass.get());
   interfaces_sfield->SetAccessFlags(kAccStatic | kAccPublic | kAccFinal);
   // 2. Create a static field 'throws' that holds exceptions thrown by our methods.
   SirtRef<mirror::ArtField> throws_sfield(self, AllocArtField(self));
+  if (UNLIKELY(throws_sfield.get() == NULL)) {
+    CHECK(self->IsExceptionPending());  // OOME.
+    return NULL;
+  }
   klass->SetStaticField(1, throws_sfield.get());
   throws_sfield->SetDexFieldIndex(1);
   throws_sfield->SetDeclaringClass(klass.get());
   throws_sfield->SetAccessFlags(kAccStatic | kAccPublic | kAccFinal);
 
   // Proxies have 1 direct method, the constructor
-  klass->SetDirectMethods(AllocArtMethodArray(self, 1));
-  klass->SetDirectMethod(0, CreateProxyConstructor(self, klass, proxy_class));
+  {
+    mirror::ObjectArray<mirror::ArtMethod>* directs =
+      AllocArtMethodArray(self, 1);
+    if (UNLIKELY(directs == NULL)) {
+      CHECK(self->IsExceptionPending());  // OOME.
+      return NULL;
+    }
+    klass->SetDirectMethods(directs);
+    mirror::ArtMethod* constructor = CreateProxyConstructor(self, klass, proxy_class);
+    if (UNLIKELY(constructor == NULL)) {
+      CHECK(self->IsExceptionPending());  // OOME.
+      return NULL;
+    }
+    klass->SetDirectMethod(0, constructor);
+  }
 
   // Create virtual method using specified prototypes
   size_t num_virtual_methods = methods->GetLength();
-  klass->SetVirtualMethods(AllocArtMethodArray(self, num_virtual_methods));
+  {
+    mirror::ObjectArray<mirror::ArtMethod>* virtuals =
+        AllocArtMethodArray(self, num_virtual_methods);
+    if (UNLIKELY(virtuals == NULL)) {
+      CHECK(self->IsExceptionPending());  // OOME.
+      return NULL;
+    }
+    klass->SetVirtualMethods(virtuals);
+  }
   for (size_t i = 0; i < num_virtual_methods; ++i) {
     SirtRef<mirror::ArtMethod> prototype(self, methods->Get(i));
-    klass->SetVirtualMethod(i, CreateProxyMethod(self, klass, prototype));
+    mirror::ArtMethod* clone = CreateProxyMethod(self, klass, prototype);
+    if (UNLIKELY(clone == NULL)) {
+      CHECK(self->IsExceptionPending());  // OOME.
+      return NULL;
+    }
+    klass->SetVirtualMethod(i, clone);
   }
 
   klass->SetSuperClass(proxy_class);  // The super class is java.lang.reflect.Proxy
@@ -2701,6 +2802,10 @@ mirror::ArtMethod* ClassLinker::CreateProxyConstructor(Thread* self,
   // code_ too)
   mirror::ArtMethod* constructor =
       down_cast<mirror::ArtMethod*>(proxy_constructor->Clone(self));
+  if (constructor == NULL) {
+    CHECK(self->IsExceptionPending());  // OOME.
+    return NULL;
+  }
   // Make this constructor public and fix the class to be our Proxy version
   constructor->SetAccessFlags((constructor->GetAccessFlags() & ~kAccProtected) | kAccPublic);
   constructor->SetDeclaringClass(klass.get());
@@ -2725,6 +2830,10 @@ mirror::ArtMethod* ClassLinker::CreateProxyMethod(Thread* self, SirtRef<mirror::
   // We steal everything from the prototype (such as DexCache, invoke stub, etc.) then specialize
   // as necessary
   mirror::ArtMethod* method = down_cast<mirror::ArtMethod*>(prototype->Clone(self));
+  if (UNLIKELY(method == NULL)) {
+    CHECK(self->IsExceptionPending());  // OOME.
+    return NULL;
+  }
 
   // Set class to be the concrete proxy class and clear the abstract flag, modify exceptions to
   // the intersection of throw exceptions as defined in Proxy
@@ -3277,6 +3386,10 @@ bool ClassLinker::LinkVirtualMethods(SirtRef<mirror::Class>& klass) {
     // TODO: do not assign to the vtable field until it is fully constructed.
     SirtRef<mirror::ObjectArray<mirror::ArtMethod> >
       vtable(self, klass->GetSuperClass()->GetVTable()->CopyOf(self, max_count));
+    if (UNLIKELY(vtable.get() == NULL)) {
+      CHECK(self->IsExceptionPending());  // OOME.
+      return false;
+    }
     // See if any of our virtual methods override the superclass.
     MethodHelper local_mh(NULL, this);
     MethodHelper super_mh(NULL, this);
@@ -3320,6 +3433,10 @@ bool ClassLinker::LinkVirtualMethods(SirtRef<mirror::Class>& klass) {
     CHECK_LE(actual_count, max_count);
     if (actual_count < max_count) {
       vtable.reset(vtable->CopyOf(self, actual_count));
+      if (UNLIKELY(vtable.get() == NULL)) {
+        CHECK(self->IsExceptionPending());  // OOME.
+        return false;
+      }
     }
     klass->SetVTable(vtable.get());
   } else {
@@ -3331,6 +3448,10 @@ bool ClassLinker::LinkVirtualMethods(SirtRef<mirror::Class>& klass) {
     }
     SirtRef<mirror::ObjectArray<mirror::ArtMethod> >
         vtable(self, AllocArtMethodArray(self, num_virtual_methods));
+    if (UNLIKELY(vtable.get() == NULL)) {
+      CHECK(self->IsExceptionPending());  // OOME.
+      return false;
+    }
     for (size_t i = 0; i < num_virtual_methods; ++i) {
       mirror::ArtMethod* virtual_method = klass->GetVirtualMethodDuringLinking(i);
       vtable->Set(i, virtual_method);
@@ -3381,6 +3502,10 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<mirror::Class>& klass,
   }
   Thread* self = Thread::Current();
   SirtRef<mirror::IfTable> iftable(self, AllocIfTable(self, ifcount));
+  if (UNLIKELY(iftable.get() == NULL)) {
+    CHECK(self->IsExceptionPending());  // OOME.
+    return false;
+  }
   if (super_ifcount != 0) {
     mirror::IfTable* super_iftable = klass->GetSuperClass()->GetIfTable();
     for (size_t i = 0; i < super_ifcount; i++) {
@@ -3432,6 +3557,10 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<mirror::Class>& klass,
   // Shrink iftable in case duplicates were found
   if (idx < ifcount) {
     iftable.reset(down_cast<mirror::IfTable*>(iftable->CopyOf(self, idx * mirror::IfTable::kMax)));
+    if (UNLIKELY(iftable.get() == NULL)) {
+      CHECK(self->IsExceptionPending());  // OOME.
+      return false;
+    }
     ifcount = idx;
   } else {
     CHECK_EQ(idx, ifcount);
@@ -3451,6 +3580,10 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<mirror::Class>& klass,
     if (num_methods > 0) {
       mirror::ObjectArray<mirror::ArtMethod>* method_array =
           AllocArtMethodArray(self, num_methods);
+      if (UNLIKELY(method_array == NULL)) {
+        CHECK(self->IsExceptionPending());  // OOME.
+        return false;
+      }
       iftable->SetMethodArray(i, method_array);
       mirror::ObjectArray<mirror::ArtMethod>* vtable = klass->GetVTableDuringLinking();
       for (size_t j = 0; j < num_methods; ++j) {
@@ -3491,8 +3624,16 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<mirror::Class>& klass,
             }
           }
           if (miranda_method.get() == NULL) {
-            // point the interface table at a phantom slot
+            // Point the interface table at a phantom slot.
             miranda_method.reset(down_cast<mirror::ArtMethod*>(interface_method->Clone(self)));
+            if (UNLIKELY(miranda_method.get() == NULL)) {
+              CHECK(self->IsExceptionPending());  // OOME.
+              return false;
+            }
+#ifdef MOVING_GARBAGE_COLLECTOR
+            // TODO: If a methods move then the miranda_list may hold stale references.
+            UNIMPLEMENTED(FATAL);
+#endif
             miranda_list.push_back(miranda_method.get());
           }
           method_array->Set(j, miranda_method.get());
@@ -3503,9 +3644,17 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<mirror::Class>& klass,
   if (!miranda_list.empty()) {
     int old_method_count = klass->NumVirtualMethods();
     int new_method_count = old_method_count + miranda_list.size();
-    klass->SetVirtualMethods((old_method_count == 0)
-                             ? AllocArtMethodArray(self, new_method_count)
-                             : klass->GetVirtualMethods()->CopyOf(self, new_method_count));
+    mirror::ObjectArray<mirror::ArtMethod>* virtuals;
+    if (old_method_count == 0) {
+      virtuals = AllocArtMethodArray(self, new_method_count);
+    } else {
+      virtuals = klass->GetVirtualMethods()->CopyOf(self, new_method_count);
+    }
+    if (UNLIKELY(virtuals == NULL)) {
+      CHECK(self->IsExceptionPending());  // OOME.
+      return false;
+    }
+    klass->SetVirtualMethods(virtuals);
 
     SirtRef<mirror::ObjectArray<mirror::ArtMethod> >
         vtable(self, klass->GetVTableDuringLinking());
@@ -3513,6 +3662,10 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<mirror::Class>& klass,
     int old_vtable_count = vtable->GetLength();
     int new_vtable_count = old_vtable_count + miranda_list.size();
     vtable.reset(vtable->CopyOf(self, new_vtable_count));
+    if (UNLIKELY(vtable.get() == NULL)) {
+      CHECK(self->IsExceptionPending());  // OOME.
+      return false;
+    }
     for (size_t i = 0; i < miranda_list.size(); ++i) {
       mirror::ArtMethod* method = miranda_list[i];
       // Leave the declaring class alone as type indices are relative to it
