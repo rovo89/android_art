@@ -22,6 +22,7 @@
 
 #include "base/mutex.h"
 #include "base/stl_util.h"
+#include "base/stringprintf.h"
 
 namespace art {
 

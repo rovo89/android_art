@@ -263,8 +263,10 @@ class OatDumper {
       const char* descriptor = dex_file->GetClassDescriptor(class_def);
       UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file.GetOatClass(class_def_index));
       CHECK(oat_class.get() != NULL);
-      os << StringPrintf("%zd: %s (type_idx=%d) (", class_def_index, descriptor, class_def.class_idx_)
-         << oat_class->GetStatus() << ")\n";
+      os << StringPrintf("%zd: %s (type_idx=%d)", class_def_index, descriptor, class_def.class_idx_)
+         << " (" << oat_class->GetStatus() << ")"
+         << " (" << oat_class->GetType() << ")\n";
+      // TODO: include bitmap here if type is kOatClassBitmap?
       Indenter indent_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
       std::ostream indented_os(&indent_filter);
       DumpOatClass(indented_os, *oat_class.get(), *(dex_file.get()), class_def);

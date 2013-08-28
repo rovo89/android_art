@@ -18,6 +18,7 @@
 
 #include <dlfcn.h>
 
+#include "base/bit_vector.h"
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "elf_file.h"
@@ -384,29 +385,92 @@ const OatFile::OatClass* OatFile::OatDexFile::GetOatClass(uint16_t class_def_ind
 
   const byte* oat_class_pointer = oat_file_->Begin() + oat_class_offset;
   CHECK_LT(oat_class_pointer, oat_file_->End()) << oat_file_->GetLocation();
-  mirror::Class::Status status = *reinterpret_cast<const mirror::Class::Status*>(oat_class_pointer);
 
-  const byte* methods_pointer = oat_class_pointer + sizeof(status);
+  const byte* status_pointer = oat_class_pointer;
+  CHECK_LT(status_pointer, oat_file_->End()) << oat_file_->GetLocation();
+  mirror::Class::Status status =
+      static_cast<mirror::Class::Status>(*reinterpret_cast<const int16_t*>(status_pointer));
+  CHECK_LT(status, mirror::Class::kStatusMax);
+
+  const byte* type_pointer = status_pointer + sizeof(uint16_t);
+  CHECK_LT(type_pointer, oat_file_->End()) << oat_file_->GetLocation();
+  OatClassType type = static_cast<OatClassType>(*reinterpret_cast<const uint16_t*>(type_pointer));
+  CHECK_LT(type, kOatClassMax);
+
+  const byte* bitmap_pointer = type_pointer + sizeof(int16_t);
+  CHECK_LT(bitmap_pointer, oat_file_->End()) << oat_file_->GetLocation();
+  uint32_t bitmap_size = 0;
+  if (type == kOatClassSomeCompiled) {
+    bitmap_size = static_cast<uint32_t>(*reinterpret_cast<const uint32_t*>(bitmap_pointer));
+    bitmap_pointer += sizeof(bitmap_size);
+    CHECK_LT(bitmap_pointer, oat_file_->End()) << oat_file_->GetLocation();
+  }
+
+  const byte* methods_pointer = bitmap_pointer + bitmap_size;
   CHECK_LT(methods_pointer, oat_file_->End()) << oat_file_->GetLocation();
 
   return new OatClass(oat_file_,
                       status,
+                      type,
+                      bitmap_size,
+                      reinterpret_cast<const uint32_t*>(bitmap_pointer),
                       reinterpret_cast<const OatMethodOffsets*>(methods_pointer));
 }
 
 OatFile::OatClass::OatClass(const OatFile* oat_file,
                             mirror::Class::Status status,
+                            OatClassType type,
+                            uint32_t bitmap_size,
+                            const uint32_t* bitmap_pointer,
                             const OatMethodOffsets* methods_pointer)
-    : oat_file_(oat_file), status_(status), methods_pointer_(methods_pointer) {}
+    : oat_file_(oat_file), status_(status), type_(type),
+      bitmap_(NULL), methods_pointer_(methods_pointer) {
+    switch (type_) {
+      case kOatClassAllCompiled: {
+        CHECK_EQ(0U, bitmap_size);
+        break;
+      }
+      case kOatClassSomeCompiled: {
+        CHECK_NE(0U, bitmap_size);
+        bitmap_ = new BitVector(0, false, Allocator::GetNoopAllocator(), bitmap_size,
+                                const_cast<uint32_t*>(bitmap_pointer));
+        break;
+      }
+      case kOatClassNoneCompiled: {
+        CHECK_EQ(0U, bitmap_size);
+        methods_pointer_ = NULL;
+        break;
+      }
+      case kOatClassMax: {
+        LOG(FATAL) << "Invalid OatClassType " << type_;
+        break;
+      }
+    }
+}
 
-OatFile::OatClass::~OatClass() {}
-
-mirror::Class::Status OatFile::OatClass::GetStatus() const {
-  return status_;
+OatFile::OatClass::~OatClass() {
+  delete bitmap_;
 }
 
 const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) const {
-  const OatMethodOffsets& oat_method_offsets = methods_pointer_[method_index];
+  if (methods_pointer_ == NULL) {
+    CHECK_EQ(kOatClassNoneCompiled, type_);
+    return OatMethod(NULL, 0, 0, 0, 0, 0, 0, 0);
+  }
+  size_t methods_pointer_index;
+  if (bitmap_ == NULL) {
+    CHECK_EQ(kOatClassAllCompiled, type_);
+    methods_pointer_index = method_index;
+  } else {
+    CHECK_EQ(kOatClassSomeCompiled, type_);
+    if (!bitmap_->IsBitSet(method_index)) {
+      return OatMethod(NULL, 0, 0, 0, 0, 0, 0, 0);
+    }
+    size_t num_set_bits = bitmap_->NumSetBits(method_index);
+    CHECK_NE(0U, num_set_bits);
+    methods_pointer_index = num_set_bits - 1;
+  }
+  const OatMethodOffsets& oat_method_offsets = methods_pointer_[methods_pointer_index];
   return OatMethod(
       oat_file_->Begin(),
       oat_method_offsets.code_offset_,

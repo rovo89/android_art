@@ -18,6 +18,7 @@
 
 #include <zlib.h>
 
+#include "base/bit_vector.h"
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
@@ -70,7 +71,9 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
     size_oat_dex_file_location_checksum_(0),
     size_oat_dex_file_offset_(0),
     size_oat_dex_file_methods_offsets_(0),
+    size_oat_class_type_(0),
     size_oat_class_status_(0),
+    size_oat_class_method_bitmaps_(0),
     size_oat_class_method_offsets_(0) {
   size_t offset = InitOatHeader();
   offset = InitOatDexFiles(offset);
@@ -142,12 +145,48 @@ size_t OatWriter::InitOatClasses(size_t offset) {
       oat_dex_files_[i]->methods_offsets_[class_def_index] = offset;
       const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
       const byte* class_data = dex_file->GetClassData(class_def);
-      uint32_t num_methods = 0;
+      uint32_t num_non_null_compiled_methods = 0;
+      UniquePtr<std::vector<CompiledMethod*> > compiled_methods(new std::vector<CompiledMethod*>());
       if (class_data != NULL) {  // ie not an empty class, such as a marker interface
         ClassDataItemIterator it(*dex_file, class_data);
         size_t num_direct_methods = it.NumDirectMethods();
         size_t num_virtual_methods = it.NumVirtualMethods();
-        num_methods = num_direct_methods + num_virtual_methods;
+        size_t num_methods = num_direct_methods + num_virtual_methods;
+
+        // Fill in the compiled_methods_ array for methods that have a
+        // CompiledMethod. We track the number of non-null entries in
+        // num_non_null_compiled_methods since we only want to allocate
+        // OatMethodOffsets for the compiled methods.
+        compiled_methods->reserve(num_methods);
+        while (it.HasNextStaticField()) {
+          it.Next();
+        }
+        while (it.HasNextInstanceField()) {
+          it.Next();
+        }
+        size_t class_def_method_index = 0;
+        while (it.HasNextDirectMethod()) {
+          uint32_t method_idx = it.GetMemberIndex();
+          CompiledMethod* compiled_method =
+              compiler_driver_->GetCompiledMethod(MethodReference(dex_file, method_idx));
+          compiled_methods->push_back(compiled_method);
+          if (compiled_method != NULL) {
+              num_non_null_compiled_methods++;
+          }
+          class_def_method_index++;
+          it.Next();
+        }
+        while (it.HasNextVirtualMethod()) {
+          uint32_t method_idx = it.GetMemberIndex();
+          CompiledMethod* compiled_method =
+              compiler_driver_->GetCompiledMethod(MethodReference(dex_file, method_idx));
+          compiled_methods->push_back(compiled_method);
+          if (compiled_method != NULL) {
+              num_non_null_compiled_methods++;
+          }
+          class_def_method_index++;
+          it.Next();
+        }
       }
 
       ClassReference class_ref(dex_file, class_def_index);
@@ -161,7 +200,8 @@ size_t OatWriter::InitOatClasses(size_t offset) {
         status = mirror::Class::kStatusNotReady;
       }
 
-      OatClass* oat_class = new OatClass(offset, status, num_methods);
+      OatClass* oat_class = new OatClass(offset, compiled_methods.release(),
+                                         num_non_null_compiled_methods, status);
       oat_classes_.push_back(oat_class);
       offset += oat_class->SizeOf();
     }
@@ -212,20 +252,20 @@ size_t OatWriter::InitOatCodeDexFiles(size_t offset) {
   for (size_t i = 0; i != dex_files_->size(); ++i) {
     const DexFile* dex_file = (*dex_files_)[i];
     CHECK(dex_file != NULL);
-    offset = InitOatCodeDexFile(offset, oat_class_index, *dex_file);
+    offset = InitOatCodeDexFile(offset, &oat_class_index, *dex_file);
   }
   return offset;
 }
 
 size_t OatWriter::InitOatCodeDexFile(size_t offset,
-                                     size_t& oat_class_index,
+                                     size_t* oat_class_index,
                                      const DexFile& dex_file) {
   for (size_t class_def_index = 0;
        class_def_index < dex_file.NumClassDefs();
-       class_def_index++, oat_class_index++) {
+       class_def_index++, (*oat_class_index)++) {
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
-    offset = InitOatCodeClassDef(offset, oat_class_index, class_def_index, dex_file, class_def);
-    oat_classes_[oat_class_index]->UpdateChecksum(*oat_header_);
+    offset = InitOatCodeClassDef(offset, *oat_class_index, class_def_index, dex_file, class_def);
+    oat_classes_[*oat_class_index]->UpdateChecksum(*oat_header_);
   }
   return offset;
 }
@@ -240,7 +280,7 @@ size_t OatWriter::InitOatCodeClassDef(size_t offset,
     return offset;
   }
   ClassDataItemIterator it(dex_file, class_data);
-  CHECK_EQ(oat_classes_[oat_class_index]->method_offsets_.size(),
+  CHECK_LE(oat_classes_[oat_class_index]->method_offsets_.size(),
            it.NumDirectMethods() + it.NumVirtualMethods());
   // Skip fields
   while (it.HasNextStaticField()) {
@@ -251,32 +291,35 @@ size_t OatWriter::InitOatCodeClassDef(size_t offset,
   }
   // Process methods
   size_t class_def_method_index = 0;
+  size_t method_offsets_index = 0;
   while (it.HasNextDirectMethod()) {
     bool is_native = (it.GetMemberAccessFlags() & kAccNative) != 0;
     offset = InitOatCodeMethod(offset, oat_class_index, class_def_index, class_def_method_index,
-                               is_native, it.GetMethodInvokeType(class_def), it.GetMemberIndex(),
-                               &dex_file);
+                               &method_offsets_index, is_native,
+                               it.GetMethodInvokeType(class_def), it.GetMemberIndex(), dex_file);
     class_def_method_index++;
     it.Next();
   }
   while (it.HasNextVirtualMethod()) {
     bool is_native = (it.GetMemberAccessFlags() & kAccNative) != 0;
     offset = InitOatCodeMethod(offset, oat_class_index, class_def_index, class_def_method_index,
-                               is_native, it.GetMethodInvokeType(class_def), it.GetMemberIndex(),
-                               &dex_file);
+                               &method_offsets_index, is_native,
+                               it.GetMethodInvokeType(class_def), it.GetMemberIndex(), dex_file);
     class_def_method_index++;
     it.Next();
   }
   DCHECK(!it.HasNext());
+  CHECK_LE(method_offsets_index, class_def_method_index);
   return offset;
 }
 
 size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
                                     size_t __attribute__((unused)) class_def_index,
                                     size_t class_def_method_index,
+                                    size_t* method_offsets_index,
                                     bool __attribute__((unused)) is_native,
                                     InvokeType invoke_type,
-                                    uint32_t method_idx, const DexFile* dex_file) {
+                                    uint32_t method_idx, const DexFile& dex_file) {
   // derived from CompiledMethod if available
   uint32_t code_offset = 0;
   uint32_t frame_size_in_bytes = kStackAlignment;
@@ -292,8 +335,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
       oat_class->GetOatMethodOffsetsOffsetFromOatHeader(class_def_method_index);
 #endif
 
-  CompiledMethod* compiled_method =
-      compiler_driver_->GetCompiledMethod(MethodReference(dex_file, method_idx));
+  CompiledMethod* compiled_method = oat_class->GetCompiledMethod(class_def_method_index);
   if (compiled_method != NULL) {
 #if defined(ART_USE_PORTABLE_COMPILER)
     compiled_method->AddOatdataOffsetToCompliledCodeOffset(
@@ -358,7 +400,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
 
 #if !defined(NDEBUG)
     // We expect GC maps except when the class hasn't been verified or the method is native
-    ClassReference class_ref(dex_file, class_def_index);
+    ClassReference class_ref(&dex_file, class_def_index);
     CompiledClass* compiled_class = compiler_driver_->GetCompiledClass(class_ref);
     mirror::Class::Status status;
     if (compiled_class != NULL) {
@@ -371,7 +413,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
     CHECK(gc_map_size != 0 || is_native || status < mirror::Class::kStatusVerified)
         << &gc_map << " " << gc_map_size << " " << (is_native ? "true" : "false") << " "
         << (status < mirror::Class::kStatusVerified) << " " << status << " "
-        << PrettyMethod(method_idx, *dex_file);
+        << PrettyMethod(method_idx, dex_file);
 #endif
 
     // Deduplicate GC maps
@@ -384,24 +426,26 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
       offset += gc_map_size;
       oat_header_->UpdateChecksum(&gc_map[0], gc_map_size);
     }
+
+    oat_class->method_offsets_[*method_offsets_index] =
+        OatMethodOffsets(code_offset,
+                         frame_size_in_bytes,
+                         core_spill_mask,
+                         fp_spill_mask,
+                         mapping_table_offset,
+                         vmap_table_offset,
+                         gc_map_offset);
+    (*method_offsets_index)++;
   }
 
-  oat_class->method_offsets_[class_def_method_index] =
-      OatMethodOffsets(code_offset,
-                       frame_size_in_bytes,
-                       core_spill_mask,
-                       fp_spill_mask,
-                       mapping_table_offset,
-                       vmap_table_offset,
-                       gc_map_offset);
 
   if (compiler_driver_->IsImage()) {
     ClassLinker* linker = Runtime::Current()->GetClassLinker();
-    mirror::DexCache* dex_cache = linker->FindDexCache(*dex_file);
+    mirror::DexCache* dex_cache = linker->FindDexCache(dex_file);
     // Unchecked as we hold mutator_lock_ on entry.
     ScopedObjectAccessUnchecked soa(Thread::Current());
-    mirror::ArtMethod* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache,
-                                                           NULL, NULL, invoke_type);
+    mirror::ArtMethod* method = linker->ResolveMethod(dex_file, method_idx, dex_cache,
+                                                      NULL, NULL, invoke_type);
     CHECK(method != NULL);
     method->SetFrameSizeInBytes(frame_size_in_bytes);
     method->SetCoreSpillMask(core_spill_mask);
@@ -491,7 +535,9 @@ bool OatWriter::Write(OutputStream& out) {
     DO_STAT(size_oat_dex_file_location_checksum_);
     DO_STAT(size_oat_dex_file_offset_);
     DO_STAT(size_oat_dex_file_methods_offsets_);
+    DO_STAT(size_oat_class_type_);
     DO_STAT(size_oat_class_status_);
+    DO_STAT(size_oat_class_method_bitmaps_);
     DO_STAT(size_oat_class_method_offsets_);
     #undef DO_STAT
 
@@ -586,7 +632,7 @@ size_t OatWriter::WriteCodeDexFiles(OutputStream& out,
   for (size_t i = 0; i != oat_dex_files_.size(); ++i) {
     const DexFile* dex_file = (*dex_files_)[i];
     CHECK(dex_file != NULL);
-    relative_offset = WriteCodeDexFile(out, file_offset, relative_offset, oat_class_index,
+    relative_offset = WriteCodeDexFile(out, file_offset, relative_offset, &oat_class_index,
                                        *dex_file);
     if (relative_offset == 0) {
       return 0;
@@ -596,12 +642,12 @@ size_t OatWriter::WriteCodeDexFiles(OutputStream& out,
 }
 
 size_t OatWriter::WriteCodeDexFile(OutputStream& out, const size_t file_offset,
-                                   size_t relative_offset, size_t& oat_class_index,
+                                   size_t relative_offset, size_t* oat_class_index,
                                    const DexFile& dex_file) {
   for (size_t class_def_index = 0; class_def_index < dex_file.NumClassDefs();
-      class_def_index++, oat_class_index++) {
+      class_def_index++, (*oat_class_index)++) {
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
-    relative_offset = WriteCodeClassDef(out, file_offset, relative_offset, oat_class_index,
+    relative_offset = WriteCodeClassDef(out, file_offset, relative_offset, *oat_class_index,
                                         dex_file, class_def);
     if (relative_offset == 0) {
       return 0;
@@ -637,11 +683,12 @@ size_t OatWriter::WriteCodeClassDef(OutputStream& out,
   }
   // Process methods
   size_t class_def_method_index = 0;
+  size_t method_offsets_index = 0;
   while (it.HasNextDirectMethod()) {
     bool is_static = (it.GetMemberAccessFlags() & kAccStatic) != 0;
     relative_offset = WriteCodeMethod(out, file_offset, relative_offset, oat_class_index,
-                                      class_def_method_index, is_static, it.GetMemberIndex(),
-                                      dex_file);
+                                      class_def_method_index, &method_offsets_index, is_static,
+                                      it.GetMemberIndex(), dex_file);
     if (relative_offset == 0) {
       return 0;
     }
@@ -650,28 +697,30 @@ size_t OatWriter::WriteCodeClassDef(OutputStream& out,
   }
   while (it.HasNextVirtualMethod()) {
     relative_offset = WriteCodeMethod(out, file_offset, relative_offset, oat_class_index,
-                                      class_def_method_index, false, it.GetMemberIndex(), dex_file);
+                                      class_def_method_index, &method_offsets_index, false,
+                                      it.GetMemberIndex(), dex_file);
     if (relative_offset == 0) {
       return 0;
     }
     class_def_method_index++;
     it.Next();
   }
+  DCHECK(!it.HasNext());
+  CHECK_LE(method_offsets_index, class_def_method_index);
   return relative_offset;
 }
 
 size_t OatWriter::WriteCodeMethod(OutputStream& out, const size_t file_offset,
                                   size_t relative_offset, size_t oat_class_index,
-                                  size_t class_def_method_index, bool is_static,
-                                  uint32_t method_idx, const DexFile& dex_file) {
-  const CompiledMethod* compiled_method =
-      compiler_driver_->GetCompiledMethod(MethodReference(&dex_file, method_idx));
-
-  const OatMethodOffsets& method_offsets =
-      oat_classes_[oat_class_index]->method_offsets_[class_def_method_index];
-
+                                  size_t class_def_method_index, size_t* method_offsets_index,
+                                  bool is_static, uint32_t method_idx, const DexFile& dex_file) {
+  OatClass* oat_class = oat_classes_[oat_class_index];
+  const CompiledMethod* compiled_method = oat_class->GetCompiledMethod(class_def_method_index);
 
   if (compiled_method != NULL) {  // ie. not an abstract method
+    const OatMethodOffsets method_offsets = oat_class->method_offsets_[*method_offsets_index];
+    (*method_offsets_index)++;
+
 #if !defined(ART_USE_PORTABLE_COMPILER)
     uint32_t aligned_offset = compiled_method->AlignCode(relative_offset);
     uint32_t aligned_code_delta = aligned_offset - relative_offset;
@@ -854,29 +903,96 @@ bool OatWriter::OatDexFile::Write(OatWriter* oat_writer,
   return true;
 }
 
-OatWriter::OatClass::OatClass(size_t offset, mirror::Class::Status status, uint32_t methods_count) {
+OatWriter::OatClass::OatClass(size_t offset,
+                              std::vector<CompiledMethod*>* compiled_methods,
+                              uint32_t num_non_null_compiled_methods,
+                              mirror::Class::Status status) {
+  CHECK(compiled_methods !=  NULL);
+  uint32_t num_methods = compiled_methods->size();
+  CHECK_LE(num_non_null_compiled_methods, num_methods);
+
   offset_ = offset;
+  compiled_methods_ = compiled_methods;
+  oat_method_offsets_offsets_from_oat_class_.resize(num_methods);
+
+  // Since both kOatClassNoneCompiled and kOatClassAllCompiled could
+  // apply when there are 0 methods, we just arbitrarily say that 0
+  // methods means kOatClassNoneCompiled and that we won't use
+  // kOatClassAllCompiled unless there is at least one compiled
+  // method. This means in an interpretter only system, we can assert
+  // that all classes are kOatClassNoneCompiled.
+  if (num_non_null_compiled_methods == 0) {
+    type_ = kOatClassNoneCompiled;
+  } else if (num_non_null_compiled_methods == num_methods) {
+    type_ = kOatClassAllCompiled;
+  } else {
+    type_ = kOatClassSomeCompiled;
+  }
+
   status_ = status;
-  method_offsets_.resize(methods_count);
+  method_offsets_.resize(num_non_null_compiled_methods);
+
+  uint32_t oat_method_offsets_offset_from_oat_class = sizeof(type_) + sizeof(status_);
+  if (type_ == kOatClassSomeCompiled) {
+    method_bitmap_ = new BitVector(num_methods, false, Allocator::GetMallocAllocator());
+    method_bitmap_size_ = method_bitmap_->GetSizeOf();
+    oat_method_offsets_offset_from_oat_class += sizeof(method_bitmap_size_);
+    oat_method_offsets_offset_from_oat_class += method_bitmap_size_;
+  } else {
+    method_bitmap_ = NULL;
+    method_bitmap_size_ = 0;
+  }
+
+  for (size_t i = 0; i < num_methods; i++) {
+    CompiledMethod* compiled_method = (*compiled_methods_)[i];
+    if (compiled_method == NULL) {
+      oat_method_offsets_offsets_from_oat_class_[i] = 0;
+    } else {
+      oat_method_offsets_offsets_from_oat_class_[i] = oat_method_offsets_offset_from_oat_class;
+      oat_method_offsets_offset_from_oat_class += sizeof(OatMethodOffsets);
+      if (type_ == kOatClassSomeCompiled) {
+        method_bitmap_->SetBit(i);
+      }
+    }
+  }
 }
 
+OatWriter::OatClass::~OatClass() {
+  delete compiled_methods_;
+}
+
+#if defined(ART_USE_PORTABLE_COMPILER)
 size_t OatWriter::OatClass::GetOatMethodOffsetsOffsetFromOatHeader(
     size_t class_def_method_index_) const {
-  return offset_ + GetOatMethodOffsetsOffsetFromOatClass(class_def_method_index_);
+  uint32_t method_offset = GetOatMethodOffsetsOffsetFromOatClass(class_def_method_index_);
+  if (method_offset == 0) {
+    return 0;
+  }
+  return offset_ + method_offset;
 }
 
 size_t OatWriter::OatClass::GetOatMethodOffsetsOffsetFromOatClass(
     size_t class_def_method_index_) const {
-  return sizeof(status_)
-          + (sizeof(method_offsets_[0]) * class_def_method_index_);
+  return oat_method_offsets_offsets_from_oat_class_[class_def_method_index_];
 }
+#endif
 
 size_t OatWriter::OatClass::SizeOf() const {
-  return GetOatMethodOffsetsOffsetFromOatClass(method_offsets_.size());
+  return sizeof(status_)
+          + sizeof(type_)
+          + ((method_bitmap_size_ == 0) ? 0 : sizeof(method_bitmap_size_))
+          + method_bitmap_size_
+          + (sizeof(method_offsets_[0]) * method_offsets_.size());
 }
 
 void OatWriter::OatClass::UpdateChecksum(OatHeader& oat_header) const {
   oat_header.UpdateChecksum(&status_, sizeof(status_));
+  oat_header.UpdateChecksum(&type_, sizeof(type_));
+  if (method_bitmap_size_ != 0) {
+    CHECK_EQ(kOatClassSomeCompiled, type_);
+    oat_header.UpdateChecksum(&method_bitmap_size_, sizeof(method_bitmap_size_));
+    oat_header.UpdateChecksum(method_bitmap_->GetRawStorage(), method_bitmap_size_);
+  }
   oat_header.UpdateChecksum(&method_offsets_[0],
                             sizeof(method_offsets_[0]) * method_offsets_.size());
 }
@@ -890,17 +1006,30 @@ bool OatWriter::OatClass::Write(OatWriter* oat_writer,
     return false;
   }
   oat_writer->size_oat_class_status_ += sizeof(status_);
-  DCHECK_EQ(static_cast<off_t>(file_offset + GetOatMethodOffsetsOffsetFromOatHeader(0)),
-            out.Seek(0, kSeekCurrent));
+  if (!out.WriteFully(&type_, sizeof(type_))) {
+    PLOG(ERROR) << "Failed to write oat class type to " << out.GetLocation();
+    return false;
+  }
+  oat_writer->size_oat_class_type_ += sizeof(type_);
+  if (method_bitmap_size_ != 0) {
+    CHECK_EQ(kOatClassSomeCompiled, type_);
+    if (!out.WriteFully(&method_bitmap_size_, sizeof(method_bitmap_size_))) {
+      PLOG(ERROR) << "Failed to write method bitmap size to " << out.GetLocation();
+      return false;
+    }
+    oat_writer->size_oat_class_method_bitmaps_ += sizeof(method_bitmap_size_);
+    if (!out.WriteFully(method_bitmap_->GetRawStorage(), method_bitmap_size_)) {
+      PLOG(ERROR) << "Failed to write method bitmap to " << out.GetLocation();
+      return false;
+    }
+    oat_writer->size_oat_class_method_bitmaps_ += method_bitmap_size_;
+  }
   if (!out.WriteFully(&method_offsets_[0],
                       sizeof(method_offsets_[0]) * method_offsets_.size())) {
     PLOG(ERROR) << "Failed to write method offsets to " << out.GetLocation();
     return false;
   }
   oat_writer->size_oat_class_method_offsets_ += sizeof(method_offsets_[0]) * method_offsets_.size();
-  DCHECK_EQ(static_cast<off_t>(file_offset +
-                               GetOatMethodOffsetsOffsetFromOatHeader(method_offsets_.size())),
-            out.Seek(0, kSeekCurrent));
   return true;
 }
 

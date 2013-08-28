@@ -21,6 +21,8 @@ include art/build/Android.common.mk
 LIBART_COMMON_SRC_FILES := \
 	atomic.cc.arm \
 	barrier.cc \
+	base/allocator.cc \
+	base/bit_vector.cc \
 	base/logging.cc \
 	base/mutex.cc \
 	base/stringpiece.cc \
@@ -247,6 +249,7 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
 	locks.h \
 	lock_word.h \
 	mirror/class.h \
+	oat.h \
 	thread.h \
 	thread_state.h \
 	verifier/method_verifier.h

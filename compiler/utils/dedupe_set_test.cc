@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include "common_test.h"
 #include "dedupe_set.h"
+#include "gtest/gtest.h"
+#include "thread-inl.h"
 
 namespace art {
 

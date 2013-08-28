@@ -14,28 +14,20 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_UTILS_ALLOCATOR_H_
-#define ART_COMPILER_UTILS_ALLOCATOR_H_
-
-#include "base/macros.h"
+#include "arena_allocator.h"
+#include "arena_bit_vector.h"
+#include "gtest/gtest.h"
 
 namespace art {
 
-class Allocator {
- public:
-  static Allocator* GetMallocAllocator();
-  static Allocator* GetNoopAllocator();
-
-  Allocator() {}
-  virtual ~Allocator() {}
-
-  virtual void* Alloc(size_t) = 0;
-  virtual void Free(void*) = 0;
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(Allocator);
-};
+TEST(ArenaAllocator, Test) {
+  ArenaPool pool;
+  ArenaAllocator arena(&pool);
+  ArenaBitVector bv(&arena, 10, true);
+  bv.SetBit(5);
+  EXPECT_EQ(1U, bv.GetStorageSize());
+  bv.SetBit(35);
+  EXPECT_EQ(2U, bv.GetStorageSize());
+}
 
 }  // namespace art
-
-#endif  // ART_COMPILER_UTILS_ALLOCATOR_H_

@@ -28,14 +28,14 @@ static uint32_t check_masks[32] = {
   0x02000000, 0x04000000, 0x08000000, 0x10000000, 0x20000000,
   0x40000000, 0x80000000 };
 
-static inline uint32_t BitsToWords(unsigned int bits) {
+static inline uint32_t BitsToWords(uint32_t bits) {
   return (bits + 31) >> 5;
 }
 
 // TODO: replace excessive argument defaulting when we are at gcc 4.7
 // or later on host with delegating constructor support. Specifically,
 // starts_bits and storage_size/storage are mutually exclusive.
-BitVector::BitVector(unsigned int start_bits,
+BitVector::BitVector(uint32_t start_bits,
                      bool expandable,
                      Allocator* allocator,
                      uint32_t storage_size,
@@ -58,10 +58,10 @@ BitVector::~BitVector() {
 /*
  * Determine whether or not the specified bit is set.
  */
-bool BitVector::IsBitSet(unsigned int num) {
+bool BitVector::IsBitSet(uint32_t num) const {
   DCHECK_LT(num, storage_size_ * sizeof(uint32_t) * 8);
 
-  unsigned int val = storage_[num >> 5] & check_masks[num & 0x1f];
+  uint32_t val = storage_[num >> 5] & check_masks[num & 0x1f];
   return (val != 0);
 }
 
@@ -75,12 +75,12 @@ void BitVector::ClearAllBits() {
  * TUNING: this could have pathologically bad growth/expand behavior.  Make sure we're
  * not using it badly or change resize mechanism.
  */
-void BitVector::SetBit(unsigned int num) {
+void BitVector::SetBit(uint32_t num) {
   if (num >= storage_size_ * sizeof(uint32_t) * 8) {
     DCHECK(expandable_) << "Attempted to expand a non-expandable bitmap to position " << num;
 
     /* Round up to word boundaries for "num+1" bits */
-    unsigned int new_size = BitsToWords(num + 1);
+    uint32_t new_size = BitsToWords(num + 1);
     DCHECK_GT(new_size, storage_size_);
     uint32_t *new_storage =
         static_cast<uint32_t*>(allocator_->Alloc(new_size * sizeof(uint32_t)));
@@ -96,7 +96,7 @@ void BitVector::SetBit(unsigned int num) {
 }
 
 // Mark the specified bit as "unset".
-void BitVector::ClearBit(unsigned int num) {
+void BitVector::ClearBit(uint32_t num) {
   DCHECK_LT(num, storage_size_ * sizeof(uint32_t) * 8);
   storage_[num >> 5] &= ~check_masks[num & 0x1f];
 }
@@ -105,7 +105,7 @@ void BitVector::ClearBit(unsigned int num) {
 void BitVector::Intersect(const BitVector* src) {
   DCHECK_EQ(storage_size_, src->GetStorageSize());
   DCHECK_EQ(expandable_, src->IsExpandable());
-  for (unsigned int idx = 0; idx < storage_size_; idx++) {
+  for (uint32_t idx = 0; idx < storage_size_; idx++) {
     storage_[idx] &= src->GetRawStorageWord(idx);
   }
 }
@@ -116,22 +116,44 @@ void BitVector::Intersect(const BitVector* src) {
 void BitVector::Union(const BitVector* src) {
   DCHECK_EQ(storage_size_, src->GetStorageSize());
   DCHECK_EQ(expandable_, src->IsExpandable());
-  for (unsigned int idx = 0; idx < storage_size_; idx++) {
+  for (uint32_t idx = 0; idx < storage_size_; idx++) {
     storage_[idx] |= src->GetRawStorageWord(idx);
   }
 }
 
 // Count the number of bits that are set.
-int BitVector::NumSetBits() {
-  unsigned int count = 0;
-
-  for (unsigned int word = 0; word < storage_size_; word++) {
+uint32_t BitVector::NumSetBits() const {
+  uint32_t count = 0;
+  for (uint32_t word = 0; word < storage_size_; word++) {
     count += __builtin_popcount(storage_[word]);
   }
   return count;
 }
 
-BitVector::Iterator* BitVector::GetIterator() {
+// Count the number of bits that are set up through and including num.
+uint32_t BitVector::NumSetBits(uint32_t num) const {
+  DCHECK_LT(num, storage_size_ * sizeof(uint32_t) * 8);
+  uint32_t last_word = num >> 5;
+  uint32_t partial_word_bits = num & 0x1f;
+
+  // partial_word_bits |  # |                         |                      | partial_word_mask
+  //             00000 |  0 | 0xffffffff >> (31 -  0) | (1 <<  (0 + 1)) - 1  | 0x00000001
+  //             00001 |  1 | 0xffffffff >> (31 -  1) | (1 <<  (1 + 1)) - 1  | 0x00000003
+  //             00010 |  2 | 0xffffffff >> (31 -  2) | (1 <<  (2 + 1)) - 1  | 0x00000007
+  //             ..... |
+  //             11110 | 30 | 0xffffffff >> (31 - 30) | (1 << (30 + 1)) - 1  | 0x7fffffff
+  //             11111 | 31 | 0xffffffff >> (31 - 31) | last_full_word++     | 0xffffffff
+  uint32_t partial_word_mask = 0xffffffff >> (0x1f - partial_word_bits);
+
+  uint32_t count = 0;
+  for (uint32_t word = 0; word < last_word; word++) {
+    count += __builtin_popcount(storage_[word]);
+  }
+  count += __builtin_popcount(storage_[last_word] & partial_word_mask);
+  return count;
+}
+
+BitVector::Iterator* BitVector::GetIterator() const {
   return new (allocator_) Iterator(this);
 }
 
@@ -140,13 +162,13 @@ BitVector::Iterator* BitVector::GetIterator() {
  * since there might be unused bits - setting those to one will confuse the
  * iterator.
  */
-void BitVector::SetInitialBits(unsigned int num_bits) {
+void BitVector::SetInitialBits(uint32_t num_bits) {
   DCHECK_LE(BitsToWords(num_bits), storage_size_);
-  unsigned int idx;
+  uint32_t idx;
   for (idx = 0; idx < (num_bits >> 5); idx++) {
     storage_[idx] = -1;
   }
-  unsigned int rem_num_bits = num_bits & 0x1f;
+  uint32_t rem_num_bits = num_bits & 0x1f;
   if (rem_num_bits) {
     storage_[idx] = (1 << rem_num_bits) - 1;
   }

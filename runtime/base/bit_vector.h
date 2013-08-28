@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_UTILS_BIT_VECTOR_H_
-#define ART_COMPILER_UTILS_BIT_VECTOR_H_
+#ifndef ART_RUNTIME_BASE_BIT_VECTOR_H_
+#define ART_RUNTIME_BASE_BIT_VECTOR_H_
 
 #include <stdint.h>
 #include <stddef.h>
@@ -34,7 +34,7 @@ class BitVector {
   public:
     class Iterator {
       public:
-        explicit Iterator(BitVector* bit_vector)
+        explicit Iterator(const BitVector* bit_vector)
           : p_bits_(bit_vector),
             bit_storage_(bit_vector->GetRawStorage()),
             bit_index_(0),
@@ -77,8 +77,8 @@ class BitVector {
         }
 
       private:
-        BitVector* const p_bits_;
-        uint32_t* const bit_storage_;
+        const BitVector* const p_bits_;
+        const uint32_t* const bit_storage_;
         uint32_t bit_index_;           // Current index (size in bits).
         const uint32_t bit_size_;      // Size of vector in bits.
 
@@ -95,9 +95,7 @@ class BitVector {
 
     void SetBit(uint32_t num);
     void ClearBit(uint32_t num);
-    void MarkAllBits(bool set);
-    void DebugBitVector(char* msg, int length);
-    bool IsBitSet(uint32_t num);
+    bool IsBitSet(uint32_t num) const;
     void ClearAllBits();
     void SetInitialBits(uint32_t num_bits);
     void Copy(BitVector* src) {
@@ -111,15 +109,17 @@ class BitVector {
         (expandable_ == src->IsExpandable()) &&
         (memcmp(storage_, src->GetRawStorage(), storage_size_ * sizeof(uint32_t)) == 0);
     }
-    int32_t NumSetBits();
+    uint32_t NumSetBits() const;
+    uint32_t NumSetBits(uint32_t num) const;
 
-    Iterator* GetIterator();
+    Iterator* GetIterator() const;
 
     uint32_t GetStorageSize() const { return storage_size_; }
     bool IsExpandable() const { return expandable_; }
     uint32_t GetRawStorageWord(size_t idx) const { return storage_[idx]; }
     uint32_t* GetRawStorage() { return storage_; }
     const uint32_t* GetRawStorage() const { return storage_; }
+    size_t GetSizeOf() const { return storage_size_ * sizeof(uint32_t); }
 
   private:
     Allocator* const allocator_;
@@ -131,4 +131,4 @@ class BitVector {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_UTILS_BIT_VECTOR_H_
+#endif  // ART_RUNTIME_BASE_BIT_VECTOR_H_

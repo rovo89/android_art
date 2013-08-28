@@ -28,6 +28,8 @@ namespace art {
 
 class OatTest : public CommonTest {
  protected:
+  static const bool kCompile = false;  // DISABLED_ due to the time to compile libcore
+
   void CheckMethod(mirror::ArtMethod* method,
                    const OatFile::OatMethod& oat_method,
                    const DexFile* dex_file)
@@ -40,7 +42,7 @@ class OatTest : public CommonTest {
       EXPECT_TRUE(oat_method.GetCode() == NULL) << PrettyMethod(method) << " "
                                                 << oat_method.GetCode();
 #if !defined(ART_USE_PORTABLE_COMPILER)
-      EXPECT_EQ(oat_method.GetFrameSizeInBytes(), static_cast<uint32_t>(kStackAlignment));
+      EXPECT_EQ(oat_method.GetFrameSizeInBytes(), kCompile ? kStackAlignment : 0);
       EXPECT_EQ(oat_method.GetCoreSpillMask(), 0U);
       EXPECT_EQ(oat_method.GetFpSpillMask(), 0U);
 #endif
@@ -65,7 +67,6 @@ class OatTest : public CommonTest {
 };
 
 TEST_F(OatTest, WriteRead) {
-  const bool compile = false;  // DISABLED_ due to the time to compile libcore
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
   // TODO: make selectable
@@ -77,7 +78,7 @@ TEST_F(OatTest, WriteRead) {
   InstructionSet insn_set = kIsTargetBuild ? kThumb2 : kX86;
   compiler_driver_.reset(new CompilerDriver(compiler_backend, insn_set, false, NULL, 2, true));
   jobject class_loader = NULL;
-  if (compile) {
+  if (kCompile) {
     base::TimingLogger timings("OatTest::WriteRead", false, false);
     compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), timings);
   }
@@ -96,7 +97,7 @@ TEST_F(OatTest, WriteRead) {
                                             tmp.GetFile());
   ASSERT_TRUE(success);
 
-  if (compile) {  // OatWriter strips the code, regenerate to compare
+  if (kCompile) {  // OatWriter strips the code, regenerate to compare
     base::TimingLogger timings("CommonTest::WriteRead", false, false);
     compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), timings);
   }
@@ -120,16 +121,18 @@ TEST_F(OatTest, WriteRead) {
   for (size_t i = 0; i < dex_file->NumClassDefs(); i++) {
     const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
     const byte* class_data = dex_file->GetClassData(class_def);
-    size_t num_virtual_methods =0;
+    size_t num_virtual_methods = 0;
     if (class_data != NULL) {
       ClassDataItemIterator it(*dex_file, class_data);
       num_virtual_methods = it.NumVirtualMethods();
     }
     const char* descriptor = dex_file->GetClassDescriptor(class_def);
+    mirror::Class* klass = class_linker->FindClass(descriptor, NULL);
 
     UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file->GetOatClass(i));
-
-    mirror::Class* klass = class_linker->FindClass(descriptor, NULL);
+    CHECK_EQ(mirror::Class::Status::kStatusNotReady, oat_class->GetStatus()) << descriptor;
+    CHECK_EQ(kCompile ? OatClassType::kOatClassAllCompiled : OatClassType::kOatClassNoneCompiled,
+             oat_class->GetType()) << descriptor;
 
     size_t method_index = 0;
     for (size_t i = 0; i < klass->NumDirectMethods(); i++, method_index++) {

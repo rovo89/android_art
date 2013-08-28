@@ -29,6 +29,7 @@
 
 namespace art {
 
+class BitVector;
 class ElfFile;
 class MemMap;
 class OatMethodOffsets;
@@ -145,7 +146,13 @@ class OatFile {
 
   class OatClass {
    public:
-    mirror::Class::Status GetStatus() const;
+    mirror::Class::Status GetStatus() const {
+      return status_;
+    }
+
+    OatClassType GetType() const {
+      return type_;
+    }
 
     // get the OatMethod entry based on its index into the class
     // defintion. direct methods come first, followed by virtual
@@ -157,10 +164,21 @@ class OatFile {
    private:
     OatClass(const OatFile* oat_file,
              mirror::Class::Status status,
+             OatClassType type,
+             uint32_t bitmap_size,
+             const uint32_t* bitmap_pointer,
              const OatMethodOffsets* methods_pointer);
 
     const OatFile* oat_file_;
+
     const mirror::Class::Status status_;
+    COMPILE_ASSERT(mirror::Class::Status::kStatusMax < (2 ^ 16), class_status_wont_fit_in_16bits);
+
+    OatClassType type_;
+    COMPILE_ASSERT(OatClassType::kOatClassMax < (2 ^ 16), oat_class_type_wont_fit_in_16bits);
+
+    const BitVector* bitmap_;
+
     const OatMethodOffsets* methods_pointer_;
 
     friend class OatDexFile;

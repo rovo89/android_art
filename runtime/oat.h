@@ -104,6 +104,19 @@ class PACKED(4) OatHeader {
   DISALLOW_COPY_AND_ASSIGN(OatHeader);
 };
 
+// OatMethodOffsets are currently 7x32-bits=224-bits long, so if we can
+// save even one OatMethodOffsets struct, the more complicated encoding
+// using a bitmap pays for itself since few classes will have 224
+// methods.
+enum OatClassType {
+  kOatClassAllCompiled = 0,   // OatClass is followed by an OatMethodOffsets for each method.
+  kOatClassSomeCompiled = 1,  // A bitmap of which OatMethodOffsets are present follows the OatClass.
+  kOatClassNoneCompiled = 2,  // All methods are interpretted so no OatMethodOffsets are necessary.
+  kOatClassMax = 3,
+};
+
+std::ostream& operator<<(std::ostream& os, const OatClassType& rhs);
+
 class PACKED(4) OatMethodOffsets {
  public:
   OatMethodOffsets();

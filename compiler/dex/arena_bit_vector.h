@@ -18,8 +18,8 @@
 #define ART_COMPILER_DEX_ARENA_BIT_VECTOR_H_
 
 #include "arena_allocator.h"
+#include "base/bit_vector.h"
 #include "compiler_enums.h"
-#include "utils/bit_vector.h"
 
 namespace art {
 

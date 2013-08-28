@@ -79,8 +79,6 @@ LIBART_COMPILER_SRC_FILES := \
 	utils/arm/assembler_arm.cc \
 	utils/arm/managed_register_arm.cc \
 	utils/assembler.cc \
-	utils/allocator.cc \
-	utils/bit_vector.cc \
 	utils/mips/assembler_mips.cc \
 	utils/mips/managed_register_mips.cc \
 	utils/x86/assembler_x86.cc \

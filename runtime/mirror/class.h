@@ -122,6 +122,7 @@ class MANAGED Class : public StaticStorageBase {
     kStatusVerified = 7,  // Logically part of linking; done pre-init.
     kStatusInitializing = 8,  // Class init in progress.
     kStatusInitialized = 9,  // Ready to go.
+    kStatusMax = 10,
   };
 
   Status GetStatus() const {
