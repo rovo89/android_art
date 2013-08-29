@@ -1707,12 +1707,13 @@ static const char* class_initializer_black_list[] = {
   "Landroid/net/NetworkInfo;",  // Calls java.util.EnumMap.<init> -> java.lang.Enum.getSharedConstants -> System.identityHashCode.
   "Landroid/net/Proxy;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
   "Landroid/net/SSLCertificateSocketFactory;",  // Requires javax.net.ssl.HttpsURLConnection.
-  "Landroid/net/Uri;",  // Calls Class.getSimpleName -> Class.isAnonymousClass -> Class.getDex.
   "Landroid/net/Uri$AbstractHierarchicalUri;",  // Requires Uri.
   "Landroid/net/Uri$HierarchicalUri;",  // Requires Uri.
   "Landroid/net/Uri$OpaqueUri;",  // Requires Uri.
   "Landroid/net/Uri$StringUri;",  // Requires Uri.
+  "Landroid/net/Uri;",  // Calls Class.getSimpleName -> Class.isAnonymousClass -> Class.getDex.
   "Landroid/net/WebAddress;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Landroid/net/wifi/WifiNative;",  // Calls new LocalLog -> new Time -> TimeZone -> Pattern.compile.
   "Landroid/nfc/NdefRecord;",  // Calls String.getBytes -> java.nio.charset.Charset.
   "Landroid/opengl/EGL14;",  // Calls android.opengl.EGL14._nativeClassInit.
   "Landroid/opengl/GLES10;",  // Calls android.opengl.GLES10._nativeClassInit.
