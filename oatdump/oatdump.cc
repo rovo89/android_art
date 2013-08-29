@@ -675,6 +675,9 @@ class ImageDumper {
 
     os << "IMAGE BEGIN: " << reinterpret_cast<void*>(image_header_.GetImageBegin()) << "\n\n";
 
+    os << "IMAGE BITMAP OFFSET: " << reinterpret_cast<void*>(image_header_.GetImageBitmapOffset())
+       << " SIZE: " << reinterpret_cast<void*>(image_header_.GetImageBitmapSize()) << "\n\n";
+
     os << "OAT CHECKSUM: " << StringPrintf("0x%08x\n\n", image_header_.GetOatChecksum());
 
     os << "OAT FILE BEGIN:" << reinterpret_cast<void*>(image_header_.GetOatFileBegin()) << "\n\n";

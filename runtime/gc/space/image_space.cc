@@ -35,15 +35,13 @@ namespace art {
 namespace gc {
 namespace space {
 
-size_t ImageSpace::bitmap_index_ = 0;
+AtomicInteger ImageSpace::bitmap_index_(0);
 
-ImageSpace::ImageSpace(const std::string& name, MemMap* mem_map)
-: MemMapSpace(name, mem_map, mem_map->Size(), kGcRetentionPolicyNeverCollect) {
-  const size_t bitmap_index = bitmap_index_++;
-  live_bitmap_.reset(accounting::SpaceBitmap::Create(
-      StringPrintf("imagespace %s live-bitmap %d", name.c_str(), static_cast<int>(bitmap_index)),
-      Begin(), Capacity()));
-  DCHECK(live_bitmap_.get() != NULL) << "could not create imagespace live bitmap #" << bitmap_index;
+ImageSpace::ImageSpace(const std::string& name, MemMap* mem_map,
+                       accounting::SpaceBitmap* live_bitmap)
+    : MemMapSpace(name, mem_map, mem_map->Size(), kGcRetentionPolicyNeverCollect) {
+  DCHECK(live_bitmap != NULL);
+  live_bitmap_.reset(live_bitmap);
 }
 
 static bool GenerateImage(const std::string& image_file_name) {
@@ -151,6 +149,17 @@ ImageSpace* ImageSpace::Create(const std::string& original_image_file_name) {
   return space::ImageSpace::Init(image_file_name, true);
 }
 
+void ImageSpace::VerifyImageAllocations() {
+  byte* current = Begin() + RoundUp(sizeof(ImageHeader), kObjectAlignment);
+  while (current < End()) {
+    DCHECK_ALIGNED(current, kObjectAlignment);
+    const mirror::Object* obj = reinterpret_cast<const mirror::Object*>(current);
+    CHECK(live_bitmap_->Test(obj));
+    CHECK(obj->GetClass() != nullptr) << "Image object at address " << obj << " has null class";
+    current += RoundUp(obj->SizeOf(), kObjectAlignment);
+  }
+}
+
 ImageSpace* ImageSpace::Init(const std::string& image_file_name, bool validate_oat_file) {
   CHECK(!image_file_name.empty());
 
@@ -171,8 +180,10 @@ ImageSpace* ImageSpace::Init(const std::string& image_file_name, bool validate_o
     LOG(ERROR) << "Invalid image header " << image_file_name;
     return NULL;
   }
+
+  // Note: The image header is part of the image due to mmap page alignment required of offset.
   UniquePtr<MemMap> map(MemMap::MapFileAtAddress(image_header.GetImageBegin(),
-                                                 file->GetLength(),
+                                                 image_header.GetImageSize(),
                                                  PROT_READ | PROT_WRITE,
                                                  MAP_PRIVATE | MAP_FIXED,
                                                  file->Fd(),
@@ -185,6 +196,20 @@ ImageSpace* ImageSpace::Init(const std::string& image_file_name, bool validate_o
   CHECK_EQ(image_header.GetImageBegin(), map->Begin());
   DCHECK_EQ(0, memcmp(&image_header, map->Begin(), sizeof(ImageHeader)));
 
+  UniquePtr<MemMap> image_map(MemMap::MapFileAtAddress(nullptr, image_header.GetImageBitmapSize(),
+                                                       PROT_READ, MAP_PRIVATE,
+                                                       file->Fd(), image_header.GetBitmapOffset(),
+                                                       false));
+  CHECK(image_map.get() != nullptr) << "failed to map image bitmap";
+  size_t bitmap_index = bitmap_index_.fetch_add(1);
+  std::string bitmap_name(StringPrintf("imagespace %s live-bitmap %u", image_file_name.c_str(),
+                                       bitmap_index));
+  UniquePtr<accounting::SpaceBitmap> bitmap(
+      accounting::SpaceBitmap::CreateFromMemMap(bitmap_name, image_map.release(),
+                                                reinterpret_cast<byte*>(map->Begin()),
+                                                map->Size()));
+  CHECK(bitmap.get() != nullptr) << "could not create " << bitmap_name;
+
   Runtime* runtime = Runtime::Current();
   mirror::Object* resolution_method = image_header.GetImageRoot(ImageHeader::kResolutionMethod);
   runtime->SetResolutionMethod(down_cast<mirror::ArtMethod*>(resolution_method));
@@ -196,7 +221,10 @@ ImageSpace* ImageSpace::Init(const std::string& image_file_name, bool validate_o
   callee_save_method = image_header.GetImageRoot(ImageHeader::kRefsAndArgsSaveMethod);
   runtime->SetCalleeSaveMethod(down_cast<mirror::ArtMethod*>(callee_save_method), Runtime::kRefsAndArgs);
 
-  UniquePtr<ImageSpace> space(new ImageSpace(image_file_name, map.release()));
+  UniquePtr<ImageSpace> space(new ImageSpace(image_file_name, map.release(), bitmap.release()));
+  if (kIsDebugBuild) {
+    space->VerifyImageAllocations();
+  }
 
   space->oat_file_.reset(space->OpenOatFile());
   if (space->oat_file_.get() == NULL) {
@@ -245,9 +273,7 @@ OatFile* ImageSpace::OpenOatFile() const {
 
 bool ImageSpace::ValidateOatFile() const {
   CHECK(oat_file_.get() != NULL);
-  std::vector<const OatFile::OatDexFile*> oat_dex_files = oat_file_->GetOatDexFiles();
-  for (size_t i = 0; i < oat_dex_files.size(); i++) {
-    const OatFile::OatDexFile* oat_dex_file = oat_dex_files[i];
+  for (const OatFile::OatDexFile* oat_dex_file : oat_file_->GetOatDexFiles()) {
     const std::string& dex_file_location = oat_dex_file->GetDexFileLocation();
     uint32_t dex_file_location_checksum;
     if (!DexFile::GetChecksum(dex_file_location.c_str(), dex_file_location_checksum)) {
@@ -268,28 +294,6 @@ bool ImageSpace::ValidateOatFile() const {
 OatFile& ImageSpace::ReleaseOatFile() {
   CHECK(oat_file_.get() != NULL);
   return *oat_file_.release();
-}
-
-void ImageSpace::RecordImageAllocations(accounting::SpaceBitmap* live_bitmap) const {
-  uint64_t start_time = 0;
-  if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
-    LOG(INFO) << "ImageSpace::RecordImageAllocations entering";
-    start_time = NanoTime();
-  }
-  DCHECK(!Runtime::Current()->IsStarted());
-  CHECK(live_bitmap != NULL);
-  byte* current = Begin() + RoundUp(sizeof(ImageHeader), kObjectAlignment);
-  byte* end = End();
-  while (current < end) {
-    DCHECK_ALIGNED(current, kObjectAlignment);
-    const mirror::Object* obj = reinterpret_cast<const mirror::Object*>(current);
-    live_bitmap->Set(obj);
-    current += RoundUp(obj->SizeOf(), kObjectAlignment);
-  }
-  if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
-    LOG(INFO) << "ImageSpace::RecordImageAllocations exiting ("
-        << PrettyDuration(NanoTime() - start_time) << ")";
-  }
 }
 
 void ImageSpace::Dump(std::ostream& os) const {
