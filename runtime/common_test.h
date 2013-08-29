@@ -434,6 +434,8 @@ class CommonTest : public testing::Test {
     filename += ".jar";
     const DexFile* dex_file = DexFile::Open(filename, filename);
     CHECK(dex_file != NULL) << "Failed to open " << filename;
+    CHECK_EQ(PROT_READ, dex_file->GetPermissions());
+    CHECK(dex_file->IsReadOnly());
     opened_dex_files_.push_back(dex_file);
     return dex_file;
   }
