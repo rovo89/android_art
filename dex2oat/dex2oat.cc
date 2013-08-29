@@ -828,6 +828,19 @@ static int dex2oat(int argc, char** argv) {
   timings.StartSplit("dex2oat Setup");
   LOG(INFO) << "dex2oat: " << oat_location;
 
+  if (image) {
+    bool has_compiler_filter = false;
+    for (const char* r : runtime_args) {
+      if (strncmp(r, "-compiler-filter:", 17) == 0) {
+        has_compiler_filter = true;
+        break;
+      }
+    }
+    if (!has_compiler_filter) {
+      runtime_args.push_back("-compiler-filter:everything");
+    }
+  }
+
   Runtime::Options options;
   options.push_back(std::make_pair("compiler", reinterpret_cast<void*>(NULL)));
   std::vector<const DexFile*> boot_class_path;
@@ -865,9 +878,6 @@ static int dex2oat(int argc, char** argv) {
   // If we're doing the image, override the compiler filter to force full compilation. Must be
   // done ahead of WellKnownClasses::Init that causes verification.  Note: doesn't force
   // compilation of class initializers.
-  if (image) {
-    Runtime::Current()->SetCompilerFilter(Runtime::kEverything);
-  }
   // Whilst we're in native take the opportunity to initialize well known classes.
   WellKnownClasses::Init(self->GetJniEnv());
 
