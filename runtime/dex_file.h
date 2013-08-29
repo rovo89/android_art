@@ -805,9 +805,9 @@ class DexFile {
 
   bool IsReadOnly() const;
 
-  bool EnableWrite(uint8_t* addr, size_t size) const;
+  bool EnableWrite() const;
 
-  bool DisableWrite(uint8_t* addr, size_t size) const;
+  bool DisableWrite() const;
 
  private:
   // Opens a .dex file

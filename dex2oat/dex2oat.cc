@@ -417,7 +417,7 @@ static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
     const char* dex_location = dex_locations[i];
     const DexFile* dex_file = DexFile::Open(dex_filename, dex_location);
     if (dex_file == NULL) {
-      LOG(WARNING) << "Could not open .dex from file '" << dex_filename << "'\n";
+      LOG(WARNING) << "Failed to open .dex from file '" << dex_filename << "'\n";
       ++failure_count;
     } else {
       dex_files.push_back(dex_file);
@@ -567,7 +567,7 @@ static int dex2oat(int argc, char** argv) {
   argc--;
 
   if (argc == 0) {
-    Usage("no arguments specified");
+    Usage("No arguments specified");
   }
 
   std::vector<const char*> dex_filenames;
@@ -622,7 +622,7 @@ static int dex2oat(int argc, char** argv) {
     } else if (option.starts_with("--zip-fd=")) {
       const char* zip_fd_str = option.substr(strlen("--zip-fd=")).data();
       if (!ParseInt(zip_fd_str, &zip_fd)) {
-        Usage("could not parse --zip-fd argument '%s' as an integer", zip_fd_str);
+        Usage("Failed to parse --zip-fd argument '%s' as an integer", zip_fd_str);
       }
     } else if (option.starts_with("--zip-location=")) {
       zip_location = option.substr(strlen("--zip-location=")).data();
@@ -633,7 +633,7 @@ static int dex2oat(int argc, char** argv) {
     } else if (option.starts_with("--oat-fd=")) {
       const char* oat_fd_str = option.substr(strlen("--oat-fd=")).data();
       if (!ParseInt(oat_fd_str, &oat_fd)) {
-        Usage("could not parse --oat-fd argument '%s' as an integer", oat_fd_str);
+        Usage("Failed to parse --oat-fd argument '%s' as an integer", oat_fd_str);
       }
     } else if (option == "--watch-dog") {
       watch_dog_enabled = true;
@@ -642,7 +642,7 @@ static int dex2oat(int argc, char** argv) {
     } else if (option.starts_with("-j")) {
       const char* thread_count_str = option.substr(strlen("-j")).data();
       if (!ParseInt(thread_count_str, &thread_count)) {
-        Usage("could not parse -j argument '%s' as an integer", thread_count_str);
+        Usage("Failed to parse -j argument '%s' as an integer", thread_count_str);
       }
     } else if (option.starts_with("--oat-location=")) {
       oat_location = option.substr(strlen("--oat-location=")).data();
@@ -696,7 +696,7 @@ static int dex2oat(int argc, char** argv) {
     } else if (option == "--dump-timing") {
       dump_timing = true;
     } else {
-      Usage("unknown argument %s", option.data());
+      Usage("Unknown argument %s", option.data());
     }
   }
 
@@ -789,7 +789,7 @@ static int dex2oat(int argc, char** argv) {
 
   if (boot_image_option.empty()) {
     if (image_base == 0) {
-      Usage("non-zero --base not specified");
+      Usage("Non-zero --base not specified");
     }
   }
 
@@ -828,6 +828,19 @@ static int dex2oat(int argc, char** argv) {
   timings.StartSplit("dex2oat Setup");
   LOG(INFO) << "dex2oat: " << oat_location;
 
+  if (image) {
+    bool has_compiler_filter = false;
+    for (const char* r : runtime_args) {
+      if (strncmp(r, "-compiler-filter:", 17) == 0) {
+        has_compiler_filter = true;
+        break;
+      }
+    }
+    if (!has_compiler_filter) {
+      runtime_args.push_back("-compiler-filter:everything");
+    }
+  }
+
   Runtime::Options options;
   options.push_back(std::make_pair("compiler", reinterpret_cast<void*>(NULL)));
   std::vector<const DexFile*> boot_class_path;
@@ -865,9 +878,6 @@ static int dex2oat(int argc, char** argv) {
   // If we're doing the image, override the compiler filter to force full compilation. Must be
   // done ahead of WellKnownClasses::Init that causes verification.  Note: doesn't force
   // compilation of class initializers.
-  if (image) {
-    Runtime::Current()->SetCompilerFilter(Runtime::kEverything);
-  }
   // Whilst we're in native take the opportunity to initialize well known classes.
   WellKnownClasses::Init(self->GetJniEnv());
 
@@ -907,6 +917,13 @@ static int dex2oat(int argc, char** argv) {
       if (failure_count > 0) {
         LOG(ERROR) << "Failed to open some dex files: " << failure_count;
         return EXIT_FAILURE;
+      }
+    }
+
+    // Ensure opened dex files are writable for dex-to-dex transformations.
+    for (const auto& dex_file : dex_files) {
+      if (!dex_file->EnableWrite()) {
+        PLOG(ERROR) << "Failed to make .dex file writeable '" << dex_file->GetLocation() << "'\n";
       }
     }
   }

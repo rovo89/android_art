@@ -75,6 +75,8 @@ static const DexFile* OpenDexFileBase64(const char* base64,
   ScopedObjectAccess soa(Thread::Current());
   const DexFile* dex_file = DexFile::Open(location, location);
   CHECK(dex_file != NULL);
+  EXPECT_EQ(PROT_READ, dex_file->GetPermissions());
+  EXPECT_TRUE(dex_file->IsReadOnly());
   return dex_file;
 }
 

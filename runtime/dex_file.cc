@@ -111,21 +111,21 @@ bool DexFile::IsReadOnly() const {
   return GetPermissions() == PROT_READ;
 }
 
-bool DexFile::EnableWrite(uint8_t* addr, size_t length) const {
+bool DexFile::EnableWrite() const {
   CHECK(IsReadOnly());
   if (mem_map_.get() == NULL) {
     return false;
   } else {
-    return mem_map_->ProtectRegion(addr, length, PROT_READ | PROT_WRITE);
+    return mem_map_->Protect(PROT_READ | PROT_WRITE);
   }
 }
 
-bool DexFile::DisableWrite(uint8_t* addr, size_t length) const {
+bool DexFile::DisableWrite() const {
   CHECK(!IsReadOnly());
   if (mem_map_.get() == NULL) {
     return false;
   } else {
-    return mem_map_->ProtectRegion(addr, length, PROT_READ);
+    return mem_map_->Protect(PROT_READ);
   }
 }
 
@@ -208,24 +208,26 @@ const DexFile* DexFile::Open(const ZipArchive& zip_archive, const std::string& l
     LOG(ERROR) << "Failed to find classes.dex within '" << location << "'";
     return NULL;
   }
-
   UniquePtr<MemMap> map(zip_entry->ExtractToMemMap(kClassesDex));
   if (map.get() == NULL) {
     LOG(ERROR) << "Failed to extract '" << kClassesDex << "' from '" << location << "'";
     return NULL;
   }
-  const DexFile* dex_file = OpenMemory(location, zip_entry->GetCrc32(), map.release());
-  if (dex_file == NULL) {
+  UniquePtr<const DexFile> dex_file(OpenMemory(location, zip_entry->GetCrc32(), map.release()));
+  if (dex_file.get() == NULL) {
     LOG(ERROR) << "Failed to open dex file '" << location << "' from memory";
     return NULL;
   }
-
-  if (!DexFileVerifier::Verify(dex_file, dex_file->Begin(), dex_file->Size())) {
+  if (!DexFileVerifier::Verify(dex_file.get(), dex_file->Begin(), dex_file->Size())) {
     LOG(ERROR) << "Failed to verify dex file '" << location << "'";
     return NULL;
   }
-
-  return dex_file;
+  if (!dex_file->DisableWrite()) {
+    LOG(ERROR) << "Failed to make dex file read only '" << location << "'";
+    return NULL;
+  }
+  CHECK(dex_file->IsReadOnly()) << location;
+  return dex_file.release();
 }
 
 const DexFile* DexFile::OpenMemory(const byte* base,
@@ -839,7 +841,9 @@ void DexFile::DecodeDebugInfo(const CodeItem* code_item, bool is_static, uint32_
                               DexDebugNewPositionCb position_cb, DexDebugNewLocalCb local_cb,
                               void* context) const {
   const byte* stream = GetDebugInfoStream(code_item);
-  UniquePtr<LocalInfo[]> local_in_reg(local_cb != NULL ? new LocalInfo[code_item->registers_size_] : NULL);
+  UniquePtr<LocalInfo[]> local_in_reg(local_cb != NULL ?
+                                      new LocalInfo[code_item->registers_size_] :
+                                      NULL);
   if (stream != NULL) {
     DecodeDebugInfo0(code_item, is_static, method_idx, position_cb, local_cb, context, stream, &local_in_reg[0]);
   }
