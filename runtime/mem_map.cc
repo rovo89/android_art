@@ -192,27 +192,4 @@ bool MemMap::Protect(int prot) {
   return false;
 }
 
-bool MemMap::ProtectRegion(uint8_t* addr, size_t length, int prot) {
-  CHECK_GE(addr, base_begin_);
-  CHECK_LT(addr + length, reinterpret_cast<const uint8_t*>(base_begin_) + base_size_);
-
-  /*
-   * Align "addr" to a page boundary and adjust "length" appropriately.
-   * (The address must be page-aligned, the length doesn't need to be,
-   * but we do need to ensure we cover the same range.)
-   */
-  uint8_t* alignAddr = reinterpret_cast<uint8_t*>(RoundDown(reinterpret_cast<uintptr_t>(addr),
-                                                            kPageSize));
-  size_t alignLength = length + (addr - alignAddr);
-
-  if (mprotect(alignAddr, alignLength, prot) == 0) {
-    prot_ = prot;
-    return true;
-  }
-
-  PLOG(ERROR) << "mprotect(" << reinterpret_cast<void*>(alignAddr) << ", " << alignLength << ", "
-              << prot << ") failed";
-  return false;
-}
-
 }  // namespace art

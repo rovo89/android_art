@@ -95,55 +95,6 @@ class DexCompiler {
   DISALLOW_COPY_AND_ASSIGN(DexCompiler);
 };
 
-// Ensures write access to a part of DEX file.
-//
-// If a DEX file is read-only, it modifies its protection (mprotect) so it allows
-// write access to the part of DEX file defined by an address and a length.
-// In this case, it also takes the DexFile::modification_lock to prevent from
-// concurrent protection modification from a parallel DEX-to-DEX compilation on
-// the same DEX file.
-// When the instance is destroyed, it recovers original protection and releases
-// the lock.
-// TODO: as this scoped class is similar to a MutexLock we should use annotalysis
-// to capture the locking behavior.
-class ScopedDexWriteAccess {
- public:
-  ScopedDexWriteAccess(DexFile& dex_file, Instruction* inst,
-                       size_t length)
-    : dex_file_(dex_file),
-      address_(reinterpret_cast<uint8_t*>(inst)),
-      length_(length),
-      is_read_only_(dex_file_.IsReadOnly()) {
-    if (is_read_only_) {
-      // We need to enable DEX write access. To avoid concurrent DEX write access
-      // modification, we take the DexFile::modification_lock before.
-      dex_file_.GetModificationLock().ExclusiveLock(Thread::Current());
-      bool success = dex_file_.EnableWrite(address_, length_);
-      DCHECK(success) << "Failed to enable DEX write access";
-    }
-  }
-
-  ~ScopedDexWriteAccess() {
-    DCHECK_EQ(is_read_only_, dex_file_.IsReadOnly());
-    if (is_read_only_) {
-      bool success = dex_file_.DisableWrite(address_, length_);
-      DCHECK(success) << "Failed to disable DEX write access";
-      // Now we recovered original read-only protection, we can release the
-      // DexFile::modification_lock.
-      dex_file_.GetModificationLock().ExclusiveUnlock(Thread::Current());
-    }
-  }
-
- private:
-  DexFile& dex_file_;
-  // TODO: make address_ const.
-  uint8_t* address_;
-  const size_t length_;
-  const bool is_read_only_;
-
-  DISALLOW_COPY_AND_ASSIGN(ScopedDexWriteAccess);
-};
-
 void DexCompiler::Compile() {
   DCHECK_GE(dex_to_dex_compilation_level_, kRequired);
   const DexFile::CodeItem* code_item = unit_.GetCodeItem();
@@ -223,7 +174,6 @@ void DexCompiler::CompileReturnVoid(Instruction* inst, uint32_t dex_pc) {
                  << " by " << Instruction::Name(Instruction::RETURN_VOID_BARRIER)
                  << " at dex pc " << StringPrintf("0x%x", dex_pc) << " in method "
                  << PrettyMethod(unit_.GetDexMethodIndex(), GetDexFile(), true);
-  ScopedDexWriteAccess sdwa(GetModifiableDexFile(), inst, 2u);
   inst->SetOpcode(Instruction::RETURN_VOID_BARRIER);
 }
 
@@ -246,7 +196,6 @@ Instruction* DexCompiler::CompileCheckCast(Instruction* inst, uint32_t dex_pc) {
                  << StringPrintf("0x%x", dex_pc) << " in method "
                  << PrettyMethod(unit_.GetDexMethodIndex(), GetDexFile(), true);
   // We are modifying 4 consecutive bytes.
-  ScopedDexWriteAccess sdwa(GetModifiableDexFile(), inst, 4u);
   inst->SetOpcode(Instruction::NOP);
   inst->SetVRegA_10x(0u);  // keep compliant with verifier.
   // Get to next instruction which is the second half of check-cast and replace
@@ -277,7 +226,6 @@ void DexCompiler::CompileInstanceFieldAccess(Instruction* inst,
                    << " at dex pc " << StringPrintf("0x%x", dex_pc) << " in method "
                    << PrettyMethod(unit_.GetDexMethodIndex(), GetDexFile(), true);
     // We are modifying 4 consecutive bytes.
-    ScopedDexWriteAccess sdwa(GetModifiableDexFile(), inst, 4u);
     inst->SetOpcode(new_opcode);
     // Replace field index by field offset.
     inst->SetVRegC_22c(static_cast<uint16_t>(field_offset));
@@ -313,7 +261,6 @@ void DexCompiler::CompileInvokeVirtual(Instruction* inst,
                      << " at dex pc " << StringPrintf("0x%x", dex_pc) << " in method "
                      << PrettyMethod(unit_.GetDexMethodIndex(), GetDexFile(), true);
       // We are modifying 4 consecutive bytes.
-      ScopedDexWriteAccess sdwa(GetModifiableDexFile(), inst, 4u);
       inst->SetOpcode(new_opcode);
       // Replace method index by vtable index.
       if (is_range) {
