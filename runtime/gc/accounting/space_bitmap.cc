@@ -45,9 +45,17 @@ std::string SpaceBitmap::Dump() const {
 }
 
 void SpaceSetMap::Walk(SpaceBitmap::Callback* callback, void* arg) {
-  for (Objects::iterator it = contained_.begin(); it != contained_.end(); ++it) {
-    callback(const_cast<mirror::Object*>(*it), arg);
+  for (const mirror::Object* obj : contained_) {
+    callback(const_cast<mirror::Object*>(obj), arg);
   }
+}
+
+SpaceBitmap* SpaceBitmap::CreateFromMemMap(const std::string& name, MemMap* mem_map,
+                                           byte* heap_begin, size_t heap_capacity) {
+  CHECK(mem_map != nullptr);
+  word* bitmap_begin = reinterpret_cast<word*>(mem_map->Begin());
+  size_t bitmap_size = OffsetToIndex(RoundUp(heap_capacity, kAlignment * kBitsPerWord)) * kWordSize;
+  return new SpaceBitmap(name, mem_map, bitmap_begin, bitmap_size, heap_begin);
 }
 
 SpaceBitmap* SpaceBitmap::Create(const std::string& name, byte* heap_begin, size_t heap_capacity) {
@@ -59,8 +67,7 @@ SpaceBitmap* SpaceBitmap::Create(const std::string& name, byte* heap_begin, size
     LOG(ERROR) << "Failed to allocate bitmap " << name;
     return NULL;
   }
-  word* bitmap_begin = reinterpret_cast<word*>(mem_map->Begin());
-  return new SpaceBitmap(name, mem_map.release(), bitmap_begin, bitmap_size, heap_begin);
+  return CreateFromMemMap(name, mem_map.release(), heap_begin, heap_capacity);
 }
 
 // Clean up any resources associated with the bitmap.
@@ -74,14 +81,11 @@ void SpaceBitmap::SetHeapLimit(uintptr_t new_end) {
   }
   // Not sure if doing this trim is necessary, since nothing past the end of the heap capacity
   // should be marked.
-  // TODO: Fix this code is, it broken and causes rare heap corruption!
-  // mem_map_->Trim(reinterpret_cast<byte*>(heap_begin_ + bitmap_size_));
 }
 
 void SpaceBitmap::Clear() {
   if (bitmap_begin_ != NULL) {
-    // This returns the memory to the system.  Successive page faults
-    // will return zeroed memory.
+    // This returns the memory to the system.  Successive page faults will return zeroed memory.
     int result = madvise(bitmap_begin_, bitmap_size_, MADV_DONTNEED);
     if (result == -1) {
       PLOG(FATAL) << "madvise failed";

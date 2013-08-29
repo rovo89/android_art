@@ -21,6 +21,7 @@
 
 #include "globals.h"
 #include "mirror/object.h"
+#include "utils.h"
 
 namespace art {
 
@@ -30,6 +31,9 @@ class PACKED(4) ImageHeader {
   ImageHeader() {}
 
   ImageHeader(uint32_t image_begin,
+              uint32_t image_size_,
+              uint32_t image_bitmap_offset,
+              uint32_t image_bitmap_size,
               uint32_t image_roots,
               uint32_t oat_checksum,
               uint32_t oat_file_begin,
@@ -56,6 +60,18 @@ class PACKED(4) ImageHeader {
     return reinterpret_cast<byte*>(image_begin_);
   }
 
+  size_t GetImageSize() const {
+    return static_cast<uint32_t>(image_size_);
+  }
+
+  size_t GetImageBitmapOffset() const {
+    return image_bitmap_offset_;
+  }
+
+  size_t GetImageBitmapSize() const {
+    return image_bitmap_size_;
+  }
+
   uint32_t GetOatChecksum() const {
     return oat_checksum_;
   }
@@ -78,6 +94,10 @@ class PACKED(4) ImageHeader {
 
   byte* GetOatFileEnd() const {
     return reinterpret_cast<byte*>(oat_file_end_);
+  }
+
+  size_t GetBitmapOffset() const {
+    return RoundUp(image_size_, kPageSize);
   }
 
   enum ImageRoot {
@@ -105,6 +125,15 @@ class PACKED(4) ImageHeader {
 
   // Required base address for mapping the image.
   uint32_t image_begin_;
+
+  // Image size, not page aligned.
+  uint32_t image_size_;
+
+  // Image bitmap offset in the file.
+  uint32_t image_bitmap_offset_;
+
+  // Size of the image bitmap.
+  uint32_t image_bitmap_size_;
 
   // Checksum of the oat file we link to for load time sanity check.
   uint32_t oat_checksum_;
