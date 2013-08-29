@@ -1661,6 +1661,38 @@ JDWP::ObjectId Dbg::GetMainThreadGroupId() {
   return gRegistry->Add(group);
 }
 
+JDWP::JdwpThreadStatus Dbg::ToJdwpThreadStatus(ThreadState state) {
+  switch (state) {
+    case kBlocked:
+      return JDWP::TS_MONITOR;
+    case kNative:
+    case kRunnable:
+    case kSuspended:
+      return JDWP::TS_RUNNING;
+    case kSleeping:
+      return JDWP::TS_SLEEPING;
+    case kStarting:
+    case kTerminated:
+      return JDWP::TS_ZOMBIE;
+    case kTimedWaiting:
+    case kWaitingForDebuggerSend:
+    case kWaitingForDebuggerSuspension:
+    case kWaitingForDebuggerToAttach:
+    case kWaitingForGcToComplete:
+    case kWaitingForCheckPointsToRun:
+    case kWaitingForJniOnLoad:
+    case kWaitingForSignalCatcherOutput:
+    case kWaitingInMainDebuggerLoop:
+    case kWaitingInMainSignalCatcherLoop:
+    case kWaitingPerformingGc:
+    case kWaiting:
+      return JDWP::TS_WAIT;
+      // Don't add a 'default' here so the compiler can spot incompatible enum changes.
+  }
+  LOG(FATAL) << "Unknown thread state: " << state;
+  return JDWP::TS_ZOMBIE;
+}
+
 JDWP::JdwpError Dbg::GetThreadStatus(JDWP::ObjectId thread_id, JDWP::JdwpThreadStatus* pThreadStatus, JDWP::JdwpSuspendStatus* pSuspendStatus) {
   ScopedObjectAccess soa(Thread::Current());
 
@@ -1681,28 +1713,7 @@ JDWP::JdwpError Dbg::GetThreadStatus(JDWP::ObjectId thread_id, JDWP::JdwpThreadS
     *pSuspendStatus = JDWP::SUSPEND_STATUS_SUSPENDED;
   }
 
-  switch (thread->GetState()) {
-    case kBlocked:                        *pThreadStatus = JDWP::TS_MONITOR;  break;
-    case kNative:                         *pThreadStatus = JDWP::TS_RUNNING;  break;
-    case kRunnable:                       *pThreadStatus = JDWP::TS_RUNNING;  break;
-    case kSleeping:                       *pThreadStatus = JDWP::TS_SLEEPING; break;
-    case kStarting:                       *pThreadStatus = JDWP::TS_ZOMBIE;   break;
-    case kSuspended:                      *pThreadStatus = JDWP::TS_RUNNING;  break;
-    case kTerminated:                     *pThreadStatus = JDWP::TS_ZOMBIE;   break;
-    case kTimedWaiting:                   *pThreadStatus = JDWP::TS_WAIT;     break;
-    case kWaitingForDebuggerSend:         *pThreadStatus = JDWP::TS_WAIT;     break;
-    case kWaitingForDebuggerSuspension:   *pThreadStatus = JDWP::TS_WAIT;     break;
-    case kWaitingForDebuggerToAttach:     *pThreadStatus = JDWP::TS_WAIT;     break;
-    case kWaitingForGcToComplete:         *pThreadStatus = JDWP::TS_WAIT;     break;
-    case kWaitingForCheckPointsToRun:     *pThreadStatus = JDWP::TS_WAIT;     break;
-    case kWaitingForJniOnLoad:            *pThreadStatus = JDWP::TS_WAIT;     break;
-    case kWaitingForSignalCatcherOutput:  *pThreadStatus = JDWP::TS_WAIT;     break;
-    case kWaitingInMainDebuggerLoop:      *pThreadStatus = JDWP::TS_WAIT;     break;
-    case kWaitingInMainSignalCatcherLoop: *pThreadStatus = JDWP::TS_WAIT;     break;
-    case kWaitingPerformingGc:            *pThreadStatus = JDWP::TS_WAIT;     break;
-    case kWaiting:                        *pThreadStatus = JDWP::TS_WAIT;     break;
-    // Don't add a 'default' here so the compiler can spot incompatible enum changes.
-  }
+  *pThreadStatus = ToJdwpThreadStatus(thread->GetState());
   return JDWP::ERR_NONE;
 }
 
