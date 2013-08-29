@@ -427,14 +427,20 @@ void Trace::Stop() {
 }
 
 void Trace::Shutdown() {
-  if (IsMethodTracingActive()) {
+  if (GetMethodTracingMode() != kTracingInactive) {
     Stop();
   }
 }
 
-bool Trace::IsMethodTracingActive() {
+TracingMode Trace::GetMethodTracingMode() {
   MutexLock mu(Thread::Current(), *Locks::trace_lock_);
-  return the_trace_ != NULL;
+  if (the_trace_ == NULL) {
+    return kTracingInactive;
+  } else if (the_trace_->sampling_enabled_) {
+    return kSampleProfilingActive;
+  } else {
+    return kMethodTracingActive;
+  }
 }
 
 Trace::Trace(File* trace_file, int buffer_size, int flags, bool sampling_enabled)
