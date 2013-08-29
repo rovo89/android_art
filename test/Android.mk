@@ -133,6 +133,12 @@ test-art-host-oat-interpreter-$(1): $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1)
           && echo test-art-host-oat-interpreter-$(1) PASSED || (echo test-art-host-oat-interpreter-$(1) FAILED && exit 1)
 	$(hide) rm -r /tmp/android-data/test-art-host-oat-interpreter-$(1)
 
+.PHONY: test-art-host-oat-$(1)
+test-art-host-oat-$(1): test-art-host-oat-default-$(1) test-art-host-oat-interpreter-$(1)
+
+.PHONY: test-art-oat-$(1)
+test-art-oat-$(1): test-art-host-oat-$(1) test-art-target-oat-$(1)
+
 ART_TEST_TARGET_OAT_TARGETS += test-art-target-oat-$(1)
 ART_TEST_HOST_OAT_DEFAULT_TARGETS += test-art-host-oat-default-$(1)
 ART_TEST_HOST_OAT_INTERPRETER_TARGETS += test-art-host-oat-interpreter-$(1)
