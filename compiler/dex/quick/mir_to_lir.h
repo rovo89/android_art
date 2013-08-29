@@ -376,7 +376,7 @@ class Mir2Lir : public Backend {
     RegLocation GetReturn(bool is_float);
 
     // Shared by all targets - implemented in gen_common.cc.
-    bool HandleEasyDivide(Instruction::Code dalvik_opcode,
+    bool HandleEasyDivRem(Instruction::Code dalvik_opcode, bool is_div,
                           RegLocation rl_src, RegLocation rl_dest, int lit);
     bool HandleEasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit);
     void HandleSuspendLaunchPads();
@@ -525,7 +525,7 @@ class Mir2Lir : public Backend {
 
 
     // Required for target - codegen helpers.
-    virtual bool SmallLiteralDivide(Instruction::Code dalvik_opcode,
+    virtual bool SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div,
                                     RegLocation rl_src, RegLocation rl_dest, int lit) = 0;
     virtual int LoadHelper(ThreadOffset offset) = 0;
     virtual LIR* LoadBaseDisp(int rBase, int displacement, int r_dest, OpSize size, int s_reg) = 0;

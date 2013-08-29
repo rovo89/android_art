@@ -26,6 +26,7 @@
 #include "compiled_class.h"
 #include "compiled_method.h"
 #include "dex_file.h"
+#include "dex/arena_allocator.h"
 #include "instruction_set.h"
 #include "invoke_type.h"
 #include "method_reference.h"
@@ -213,6 +214,9 @@ class CompilerDriver {
     support_boot_image_fixup_ = support_boot_image_fixup;
   }
 
+  ArenaPool& GetArenaPool() {
+    return arena_pool_;
+  }
 
   bool WriteElf(const std::string& android_root,
                 bool is_host,
@@ -422,6 +426,9 @@ class CompilerDriver {
   JniCompilerFn jni_compiler_;
 
   pthread_key_t tls_key_;
+
+  // Arena pool used by the compiler.
+  ArenaPool arena_pool_;
 
   typedef void (*CompilerEnableAutoElfLoadingFn)(CompilerDriver& driver);
   CompilerEnableAutoElfLoadingFn compiler_enable_auto_elf_loading_;

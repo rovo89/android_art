@@ -462,16 +462,14 @@ void MipsMir2Lir::CompilerInitializeRegAlloc() {
   int num_temps = sizeof(core_temps)/sizeof(*core_temps);
   int num_fp_regs = sizeof(FpRegs)/sizeof(*FpRegs);
   int num_fp_temps = sizeof(fp_temps)/sizeof(*fp_temps);
-  reg_pool_ = static_cast<RegisterPool*>(arena_->NewMem(sizeof(*reg_pool_), true,
-                                                        ArenaAllocator::kAllocRegAlloc));
+  reg_pool_ = static_cast<RegisterPool*>(arena_->Alloc(sizeof(*reg_pool_),
+                                                       ArenaAllocator::kAllocRegAlloc));
   reg_pool_->num_core_regs = num_regs;
   reg_pool_->core_regs = static_cast<RegisterInfo*>
-     (arena_->NewMem(num_regs * sizeof(*reg_pool_->core_regs), true,
-                     ArenaAllocator::kAllocRegAlloc));
+     (arena_->Alloc(num_regs * sizeof(*reg_pool_->core_regs), ArenaAllocator::kAllocRegAlloc));
   reg_pool_->num_fp_regs = num_fp_regs;
   reg_pool_->FPRegs = static_cast<RegisterInfo*>
-      (arena_->NewMem(num_fp_regs * sizeof(*reg_pool_->FPRegs), true,
-                      ArenaAllocator::kAllocRegAlloc));
+      (arena_->Alloc(num_fp_regs * sizeof(*reg_pool_->FPRegs), ArenaAllocator::kAllocRegAlloc));
   CompilerInitPool(reg_pool_->core_regs, core_regs, reg_pool_->num_core_regs);
   CompilerInitPool(reg_pool_->FPRegs, FpRegs, reg_pool_->num_fp_regs);
   // Keep special registers from being allocated

@@ -506,7 +506,7 @@ class OatDumper {
       typedef MappingTable::PcToDexIterator It;
       for (It cur = table.PcToDexBegin(), end = table.PcToDexEnd(); cur != end; ++cur) {
         if (offset == cur.NativePcOffset()) {
-          os << "suspend point dex PC: 0x" << cur.DexPc() << "\n";
+          os << StringPrintf("suspend point dex PC: 0x%04x\n", cur.DexPc());
           return cur.DexPc();
         }
       }
@@ -514,7 +514,7 @@ class OatDumper {
       typedef MappingTable::DexToPcIterator It;
       for (It cur = table.DexToPcBegin(), end = table.DexToPcEnd(); cur != end; ++cur) {
         if (offset == cur.NativePcOffset()) {
-          os << "catch entry dex PC: 0x" << cur.DexPc() << "\n";
+          os << StringPrintf("catch entry dex PC: 0x%04x\n", cur.DexPc());
           return cur.DexPc();
         }
       }
@@ -917,10 +917,10 @@ class ImageDumper {
       os << StringPrintf("%p: java.lang.Class \"%s\" (", obj, PrettyDescriptor(klass).c_str())
          << klass->GetStatus() << ")\n";
     } else if (obj->IsArtField()) {
-      os << StringPrintf("%p: java.lang.reflect.Field %s\n", obj,
+      os << StringPrintf("%p: java.lang.reflect.ArtField %s\n", obj,
                          PrettyField(obj->AsArtField()).c_str());
     } else if (obj->IsArtMethod()) {
-      os << StringPrintf("%p: java.lang.reflect.Method %s\n", obj,
+      os << StringPrintf("%p: java.lang.reflect.ArtMethod %s\n", obj,
                          PrettyMethod(obj->AsArtMethod()).c_str());
     } else if (obj_class->IsStringClass()) {
       os << StringPrintf("%p: java.lang.String %s\n", obj,

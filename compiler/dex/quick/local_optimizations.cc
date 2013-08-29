@@ -249,7 +249,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
         /* Only sink store instructions */
         if (sink_distance && !is_this_lir_load) {
           LIR* new_store_lir =
-              static_cast<LIR*>(arena_->NewMem(sizeof(LIR), true, ArenaAllocator::kAllocLIR));
+              static_cast<LIR*>(arena_->Alloc(sizeof(LIR), ArenaAllocator::kAllocLIR));
           *new_store_lir = *this_lir;
           /*
            * Stop point found - insert *before* the check_lir
@@ -446,7 +446,7 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
       if (slot >= 0) {
         LIR* cur_lir = prev_inst_list[slot];
         LIR* new_load_lir =
-          static_cast<LIR*>(arena_->NewMem(sizeof(LIR), true, ArenaAllocator::kAllocLIR));
+          static_cast<LIR*>(arena_->Alloc(sizeof(LIR), ArenaAllocator::kAllocLIR));
         *new_load_lir = *this_lir;
         /*
          * Insertion is guaranteed to succeed since check_lir

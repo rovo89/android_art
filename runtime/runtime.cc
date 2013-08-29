@@ -704,14 +704,8 @@ bool Runtime::Start() {
 
   CHECK(host_prefix_.empty()) << host_prefix_;
 
-  // Pre-allocate an OutOfMemoryError for the double-OOME case.
-  Thread* self = Thread::Current();
-  self->ThrowNewException(ThrowLocation(), "Ljava/lang/OutOfMemoryError;",
-                          "OutOfMemoryError thrown while trying to throw OutOfMemoryError; no stack available");
-  pre_allocated_OutOfMemoryError_ = self->GetException(NULL);
-  self->ClearException();
-
   // Restore main thread state to kNative as expected by native code.
+  Thread* self = Thread::Current();
   self->TransitionFromRunnableToSuspended(kNative);
 
   started_ = true;
@@ -906,7 +900,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   // Set us to runnable so tools using a runtime can allocate and GC by default
   self->TransitionFromSuspendedToRunnable();
 
-  // Now we're attached, we can take the heap lock and validate the heap.
+  // Now we're attached, we can take the heap locks and validate the heap.
   GetHeap()->EnableObjectValidation();
 
   CHECK_GE(GetHeap()->GetContinuousSpaces().size(), 1U);
@@ -925,8 +919,15 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   method_trace_file_size_ = options->method_trace_file_size_;
 
   if (options->method_trace_) {
-    Trace::Start(options->method_trace_file_.c_str(), -1, options->method_trace_file_size_, 0, false);
+    Trace::Start(options->method_trace_file_.c_str(), -1, options->method_trace_file_size_, 0,
+                 false, false, 0);
   }
+
+  // Pre-allocate an OutOfMemoryError for the double-OOME case.
+  self->ThrowNewException(ThrowLocation(), "Ljava/lang/OutOfMemoryError;",
+                          "OutOfMemoryError thrown while trying to throw OutOfMemoryError; no stack available");
+  pre_allocated_OutOfMemoryError_ = self->GetException(NULL);
+  self->ClearException();
 
   VLOG(startup) << "Runtime::Init exiting";
   return true;
@@ -1120,6 +1121,13 @@ void Runtime::DetachCurrentThread() {
     LOG(FATAL) << *Thread::Current() << " attempting to detach while still running code";
   }
   thread_list_->Unregister(self);
+}
+
+  mirror::Throwable* Runtime::GetPreAllocatedOutOfMemoryError() const {
+  if (pre_allocated_OutOfMemoryError_ == NULL) {
+    LOG(ERROR) << "Failed to return pre-allocated OOME";
+  }
+  return pre_allocated_OutOfMemoryError_;
 }
 
 void Runtime::VisitConcurrentRoots(RootVisitor* visitor, void* arg, bool only_dirty,

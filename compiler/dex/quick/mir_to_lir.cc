@@ -812,8 +812,8 @@ void Mir2Lir::SpecialMIR2LIR(SpecialCaseHandler special_case) {
 void Mir2Lir::MethodMIR2LIR() {
   // Hold the labels of each block.
   block_label_list_ =
-      static_cast<LIR*>(arena_->NewMem(sizeof(LIR) * mir_graph_->GetNumBlocks(), true,
-                                       ArenaAllocator::kAllocLIR));
+      static_cast<LIR*>(arena_->Alloc(sizeof(LIR) * mir_graph_->GetNumBlocks(),
+                                      ArenaAllocator::kAllocLIR));
 
   PreOrderDfsIterator iter(mir_graph_, false /* not iterative */);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {

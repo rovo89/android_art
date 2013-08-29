@@ -44,14 +44,16 @@ StackTraceElement* StackTraceElement::Alloc(Thread* self,
                                             int32_t line_number) {
   StackTraceElement* trace =
       down_cast<StackTraceElement*>(GetStackTraceElement()->AllocObject(self));
-  trace->SetFieldObject(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, declaring_class_),
-                        const_cast<String*>(declaring_class), false);
-  trace->SetFieldObject(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, method_name_),
-                        const_cast<String*>(method_name), false);
-  trace->SetFieldObject(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, file_name_),
-                        const_cast<String*>(file_name), false);
-  trace->SetField32(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, line_number_),
-                    line_number, false);
+  if (LIKELY(trace != NULL)) {
+    trace->SetFieldObject(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, declaring_class_),
+                          const_cast<String*>(declaring_class), false);
+    trace->SetFieldObject(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, method_name_),
+                          const_cast<String*>(method_name), false);
+    trace->SetFieldObject(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, file_name_),
+                          const_cast<String*>(file_name), false);
+    trace->SetField32(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, line_number_),
+                      line_number, false);
+  }
   return trace;
 }
 

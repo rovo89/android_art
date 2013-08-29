@@ -152,7 +152,7 @@ TEST_F(ImageTest, WriteRead) {
       // non image classes should be in a space after the image.
       EXPECT_GT(reinterpret_cast<byte*>(klass), image_end) << descriptor;
     }
-    EXPECT_EQ(*klass->GetRawLockWordAddress(), 0);  // address should have been removed from monitor
+    EXPECT_TRUE(Monitor::IsValidLockWord(*klass->GetRawLockWordAddress()));
   }
 }
 

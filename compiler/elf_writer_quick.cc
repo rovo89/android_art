@@ -596,7 +596,7 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
                 << " for " << elf_file_->GetPath();
     return false;
   }
-  if (!elf_file_->WriteFully(&dynstr[0], dynsym_size)) {
+  if (!elf_file_->WriteFully(&dynstr[0], dynstr_size)) {
     PLOG(ERROR) << "Failed to write .dynsym for " << elf_file_->GetPath();
     return false;
   }

@@ -73,7 +73,7 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Define a new a class based on a ClassDef from a DexFile
-  mirror::Class* DefineClass(const StringPiece& descriptor, mirror::ClassLoader* class_loader,
+  mirror::Class* DefineClass(const char* descriptor, mirror::ClassLoader* class_loader,
                              const DexFile& dex_file, const DexFile::ClassDef& dex_class_def)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -96,14 +96,17 @@ class ClassLinker {
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void DumpAllClasses(int flags) const
+  void DumpAllClasses(int flags)
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void DumpForSigQuit(std::ostream& os) const
-      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_);
+  void DumpForSigQuit(std::ostream& os)
+      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  size_t NumLoadedClasses() const LOCKS_EXCLUDED(Locks::classlinker_classes_lock_);
+  size_t NumLoadedClasses()
+      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolve a String with the given index from the DexFile, storing the
   // result in the DexCache. The referrer is used to identify the
@@ -219,12 +222,14 @@ class ClassLinker {
     return boot_class_path_;
   }
 
-  void VisitClasses(ClassVisitor* visitor, void* arg) const
-      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_);
+  void VisitClasses(ClassVisitor* visitor, void* arg)
+      LOCKS_EXCLUDED(dex_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Less efficient variant of VisitClasses that doesn't hold the classlinker_classes_lock_
   // when calling the visitor.
-  void VisitClassesWithoutClassesLock(ClassVisitor* visitor, void* arg) const
-      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_);
+  void VisitClassesWithoutClassesLock(ClassVisitor* visitor, void* arg)
+      LOCKS_EXCLUDED(dex_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void VisitRoots(RootVisitor* visitor, void* arg, bool clean_dirty)
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_, dex_lock_);
@@ -353,7 +358,7 @@ class ClassLinker {
   // Attempts to insert a class into a class table.  Returns NULL if
   // the class was inserted, otherwise returns an existing class with
   // the same descriptor and ClassLoader.
-  mirror::Class* InsertClass(const StringPiece& descriptor, mirror::Class* klass, bool image_class)
+  mirror::Class* InsertClass(const char* descriptor, mirror::Class* klass, size_t hash)
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -394,7 +399,7 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 
-  mirror::Class* CreateArrayClass(const std::string& descriptor, mirror::ClassLoader* class_loader)
+  mirror::Class* CreateArrayClass(const char* descriptor, mirror::ClassLoader* class_loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void AppendToBootClassPath(const DexFile& dex_file)
@@ -453,7 +458,8 @@ class ClassLinker {
                                                      const mirror::Class* klass2)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool LinkClass(SirtRef<mirror::Class>& klass, mirror::ObjectArray<mirror::Class>* interfaces)
+  bool LinkClass(SirtRef<mirror::Class>& klass, mirror::ObjectArray<mirror::Class>* interfaces,
+                 Thread* self)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool LinkSuperClass(SirtRef<mirror::Class>& klass)
@@ -530,12 +536,23 @@ class ClassLinker {
   // mirror::Class* instances. Results should be compared for a matching
   // Class::descriptor_ and Class::class_loader_.
   typedef std::multimap<size_t, mirror::Class*> Table;
-  Table image_classes_ GUARDED_BY(Locks::classlinker_classes_lock_);
-  Table classes_ GUARDED_BY(Locks::classlinker_classes_lock_);
+  Table class_table_ GUARDED_BY(Locks::classlinker_classes_lock_);
 
-  mirror::Class* LookupClassLocked(const char* descriptor, const mirror::ClassLoader* class_loader,
-                                   size_t hash, const Table& classes)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::classlinker_classes_lock_);
+  // Do we need to search dex caches to find image classes?
+  bool dex_cache_image_class_lookup_required_;
+  // Number of times we've searched dex caches for a class. After a certain number of misses we move
+  // the classes into the class_table_ to avoid dex cache based searches.
+  AtomicInteger failed_dex_cache_class_lookups_;
+
+  mirror::Class* LookupClassFromTableLocked(const char* descriptor,
+                                            const mirror::ClassLoader* class_loader,
+                                            size_t hash)
+      SHARED_LOCKS_REQUIRED(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
+
+  void MoveImageClassesToClassTable() LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::Class* LookupClassFromImage(const char* descriptor)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // indexes into class_roots_.
   // needs to be kept in sync with class_roots_descriptors_.

@@ -119,30 +119,30 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
   VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  UniquePtr<CompilationUnit> cu(new CompilationUnit);
+  CompilationUnit cu(&compiler.GetArenaPool());
 
-  cu->compiler_driver = &compiler;
-  cu->class_linker = class_linker;
-  cu->instruction_set = compiler.GetInstructionSet();
-  cu->compiler_backend = compiler_backend;
-  DCHECK((cu->instruction_set == kThumb2) ||
-         (cu->instruction_set == kX86) ||
-         (cu->instruction_set == kMips));
+  cu.compiler_driver = &compiler;
+  cu.class_linker = class_linker;
+  cu.instruction_set = compiler.GetInstructionSet();
+  cu.compiler_backend = compiler_backend;
+  DCHECK((cu.instruction_set == kThumb2) ||
+         (cu.instruction_set == kX86) ||
+         (cu.instruction_set == kMips));
 
 
   /* Adjust this value accordingly once inlining is performed */
-  cu->num_dalvik_registers = code_item->registers_size_;
+  cu.num_dalvik_registers = code_item->registers_size_;
   // TODO: set this from command line
-  cu->compiler_flip_match = false;
-  bool use_match = !cu->compiler_method_match.empty();
-  bool match = use_match && (cu->compiler_flip_match ^
-      (PrettyMethod(method_idx, dex_file).find(cu->compiler_method_match) !=
+  cu.compiler_flip_match = false;
+  bool use_match = !cu.compiler_method_match.empty();
+  bool match = use_match && (cu.compiler_flip_match ^
+      (PrettyMethod(method_idx, dex_file).find(cu.compiler_method_match) !=
        std::string::npos));
   if (!use_match || match) {
-    cu->disable_opt = kCompilerOptimizerDisableFlags;
-    cu->enable_debug = kCompilerDebugFlags;
-    cu->verbose = VLOG_IS_ON(compiler) ||
-        (cu->enable_debug & (1 << kDebugVerbose));
+    cu.disable_opt = kCompilerOptimizerDisableFlags;
+    cu.enable_debug = kCompilerDebugFlags;
+    cu.verbose = VLOG_IS_ON(compiler) ||
+        (cu.enable_debug & (1 << kDebugVerbose));
   }
 
   /*
@@ -152,12 +152,12 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
 
   if (compiler_backend == kPortable) {
     // Fused long branches not currently usseful in bitcode.
-    cu->disable_opt |= (1 << kBranchFusing);
+    cu.disable_opt |= (1 << kBranchFusing);
   }
 
-  if (cu->instruction_set == kMips) {
+  if (cu.instruction_set == kMips) {
     // Disable some optimizations for mips for now
-    cu->disable_opt |= (
+    cu.disable_opt |= (
         (1 << kLoadStoreElimination) |
         (1 << kLoadHoisting) |
         (1 << kSuppressLoads) |
@@ -170,72 +170,71 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
         (1 << kPromoteCompilerTemps));
   }
 
-  cu->mir_graph.reset(new MIRGraph(cu.get(), &cu->arena));
+  cu.mir_graph.reset(new MIRGraph(&cu, &cu.arena));
 
   /* Gathering opcode stats? */
   if (kCompilerDebugFlags & (1 << kDebugCountOpcodes)) {
-    cu->mir_graph->EnableOpcodeCounting();
+    cu.mir_graph->EnableOpcodeCounting();
   }
 
   /* Build the raw MIR graph */
-  cu->mir_graph->InlineMethod(code_item, access_flags, invoke_type, class_def_idx, method_idx,
+  cu.mir_graph->InlineMethod(code_item, access_flags, invoke_type, class_def_idx, method_idx,
                               class_loader, dex_file);
 
 #if !defined(ART_USE_PORTABLE_COMPILER)
-  if (cu->mir_graph->SkipCompilation(Runtime::Current()->GetCompilerFilter())) {
+  if (cu.mir_graph->SkipCompilation(Runtime::Current()->GetCompilerFilter())) {
     return NULL;
   }
 #endif
 
   /* Do a code layout pass */
-  cu->mir_graph->CodeLayout();
+  cu.mir_graph->CodeLayout();
 
   /* Perform SSA transformation for the whole method */
-  cu->mir_graph->SSATransformation();
+  cu.mir_graph->SSATransformation();
 
   /* Do constant propagation */
-  cu->mir_graph->PropagateConstants();
+  cu.mir_graph->PropagateConstants();
 
   /* Count uses */
-  cu->mir_graph->MethodUseCount();
+  cu.mir_graph->MethodUseCount();
 
   /* Perform null check elimination */
-  cu->mir_graph->NullCheckElimination();
+  cu.mir_graph->NullCheckElimination();
 
   /* Combine basic blocks where possible */
-  cu->mir_graph->BasicBlockCombine();
+  cu.mir_graph->BasicBlockCombine();
 
   /* Do some basic block optimizations */
-  cu->mir_graph->BasicBlockOptimization();
+  cu.mir_graph->BasicBlockOptimization();
 
-  if (cu->enable_debug & (1 << kDebugDumpCheckStats)) {
-    cu->mir_graph->DumpCheckStats();
+  if (cu.enable_debug & (1 << kDebugDumpCheckStats)) {
+    cu.mir_graph->DumpCheckStats();
   }
 
   if (kCompilerDebugFlags & (1 << kDebugCountOpcodes)) {
-    cu->mir_graph->ShowOpcodeStats();
+    cu.mir_graph->ShowOpcodeStats();
   }
 
   /* Set up regLocation[] array to describe values - one for each ssa_name. */
-  cu->mir_graph->BuildRegLocations();
+  cu.mir_graph->BuildRegLocations();
 
   CompiledMethod* result = NULL;
 
 #if defined(ART_USE_PORTABLE_COMPILER)
   if (compiler_backend == kPortable) {
-    cu->cg.reset(PortableCodeGenerator(cu.get(), cu->mir_graph.get(), &cu->arena,
-                                       llvm_compilation_unit));
+    cu.cg.reset(PortableCodeGenerator(&cu, cu.mir_graph.get(), &cu.arena, llvm_compilation_unit));
   } else {
 #endif
     switch (compiler.GetInstructionSet()) {
       case kThumb2:
-        cu->cg.reset(ArmCodeGenerator(cu.get(), cu->mir_graph.get(), &cu->arena));
+        cu.cg.reset(ArmCodeGenerator(&cu, cu.mir_graph.get(), &cu.arena));
         break;
       case kMips:
-        cu->cg.reset(MipsCodeGenerator(cu.get(), cu->mir_graph.get(), &cu->arena));
+        cu.cg.reset(MipsCodeGenerator(&cu, cu.mir_graph.get(), &cu.arena));
         break;
       case kX86:
-        cu->cg.reset(X86CodeGenerator(cu.get(), cu->mir_graph.get(), &cu->arena));
+        cu.cg.reset(X86CodeGenerator(&cu, cu.mir_graph.get(), &cu.arena));
         break;
       default:
         LOG(FATAL) << "Unexpected instruction set: " << compiler.GetInstructionSet();
@@ -244,9 +243,9 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
   }
 #endif
 
-  cu->cg->Materialize();
+  cu.cg->Materialize();
 
-  result = cu->cg->GetCompiledMethod();
+  result = cu.cg->GetCompiledMethod();
 
   if (result) {
     VLOG(compiler) << "Compiled " << PrettyMethod(method_idx, dex_file);
@@ -254,15 +253,15 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
     VLOG(compiler) << "Deferred " << PrettyMethod(method_idx, dex_file);
   }
 
-  if (cu->enable_debug & (1 << kDebugShowMemoryUsage)) {
-    if (cu->arena.BytesAllocated() > (5 * 1024 *1024)) {
-      MemStats mem_stats(cu->arena);
+  if (cu.enable_debug & (1 << kDebugShowMemoryUsage)) {
+    if (cu.arena.BytesAllocated() > (5 * 1024 *1024)) {
+      MemStats mem_stats(cu.arena);
       LOG(INFO) << PrettyMethod(method_idx, dex_file) << " " << Dumpable<MemStats>(mem_stats);
     }
   }
 
-  if (cu->enable_debug & (1 << kDebugShowSummaryMemoryUsage)) {
-    LOG(INFO) << "MEMINFO " << cu->arena.BytesAllocated() << " " << cu->mir_graph->GetNumBlocks()
+  if (cu.enable_debug & (1 << kDebugShowSummaryMemoryUsage)) {
+    LOG(INFO) << "MEMINFO " << cu.arena.BytesAllocated() << " " << cu.mir_graph->GetNumBlocks()
               << " " << PrettyMethod(method_idx, dex_file);
   }
 

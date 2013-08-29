@@ -792,6 +792,8 @@ void Monitor::Notify(Thread* self, mirror::Object *obj) {
       return;
     }
     // no-op;  there are no waiters to notify.
+    // We inflate here in case the Notify is in a tight loop. Without inflation here the waiter
+    // will struggle to get in. Bug 6961405.
     Inflate(self, obj);
   } else {
     // It's a fat lock.
@@ -811,6 +813,8 @@ void Monitor::NotifyAll(Thread* self, mirror::Object *obj) {
       return;
     }
     // no-op;  there are no waiters to notify.
+    // We inflate here in case the NotifyAll is in a tight loop. Without inflation here the waiter
+    // will struggle to get in. Bug 6961405.
     Inflate(self, obj);
   } else {
     // It's a fat lock.
@@ -945,6 +949,27 @@ void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::O
     mirror::Object* o = reinterpret_cast<mirror::Object*>(stack_visitor->GetVReg(m, monitor_register,
                                                                                  kReferenceVReg));
     callback(o, callback_context);
+  }
+}
+
+bool Monitor::IsValidLockWord(int32_t lock_word) {
+  if (lock_word == 0) {
+    return true;
+  } else if (LW_SHAPE(lock_word) == LW_SHAPE_FAT) {
+    Monitor* mon = LW_MONITOR(lock_word);
+    MonitorList* list = Runtime::Current()->GetMonitorList();
+    MutexLock mu(Thread::Current(), list->monitor_list_lock_);
+    bool found = false;
+    for (Monitor* list_mon : list->list_) {
+      if (mon == list_mon) {
+        found = true;
+        break;
+      }
+    }
+    return found;
+  } else {
+    // TODO: thin lock validity checking.
+    return LW_SHAPE(lock_word) == LW_SHAPE_THIN;
   }
 }
 

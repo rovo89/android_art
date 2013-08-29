@@ -38,6 +38,7 @@ enum LockLevel {
   kAbortLock,
   kJdwpSocketLock,
   kAllocSpaceLock,
+  kMarkSweepMarkStackLock,
   kDefaultMutexLevel,
   kMarkSweepLargeObjectLock,
   kPinTableLock,

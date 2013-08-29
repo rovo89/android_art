@@ -79,10 +79,10 @@ class MANAGED Object {
   Object* Clone(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   int32_t IdentityHashCode() const {
-  #ifdef MOVING_GARBAGE_COLLECTOR
+#ifdef MOVING_GARBAGE_COLLECTOR
     // TODO: we'll need to use the Object's internal concept of identity
-      UNIMPLEMENTED(FATAL);
-  #endif
+    UNIMPLEMENTED(FATAL);
+#endif
     return reinterpret_cast<int32_t>(this);
   }
 

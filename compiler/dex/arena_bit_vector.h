@@ -67,8 +67,8 @@ class ArenaBitVector {
         }
 
         static void* operator new(size_t size, ArenaAllocator* arena) {
-          return arena->NewMem(sizeof(ArenaBitVector::Iterator), true,
-                               ArenaAllocator::kAllocGrowableBitMap);
+          return arena->Alloc(sizeof(ArenaBitVector::Iterator),
+                              ArenaAllocator::kAllocGrowableBitMap);
         };
         static void operator delete(void* p) {}  // Nop.
 
@@ -84,7 +84,7 @@ class ArenaBitVector {
     ~ArenaBitVector() {}
 
     static void* operator new(size_t size, ArenaAllocator* arena) {
-      return arena->NewMem(sizeof(ArenaBitVector), true, ArenaAllocator::kAllocGrowableBitMap);
+      return arena->Alloc(sizeof(ArenaBitVector), ArenaAllocator::kAllocGrowableBitMap);
     }
     static void operator delete(void* p) {}  // Nop.
 

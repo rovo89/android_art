@@ -137,7 +137,7 @@ String* String::AllocFromUtf16(Thread* self,
   return string;
 }
 
-  String* String::AllocFromModifiedUtf8(Thread* self, const char* utf) {
+String* String::AllocFromModifiedUtf8(Thread* self, const char* utf) {
   if (utf == NULL) {
     return NULL;
   }

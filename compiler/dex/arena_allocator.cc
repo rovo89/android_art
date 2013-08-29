@@ -18,8 +18,13 @@
 #include "dex_file-inl.h"
 #include "arena_allocator.h"
 #include "base/logging.h"
+#include "base/mutex.h"
 
 namespace art {
+
+// Memmap is a bit slower than malloc according to my measurements.
+static constexpr bool kUseMemMap = false;
+static constexpr bool kUseMemSet = true && kUseMemMap;
 
 static const char* alloc_names[ArenaAllocator::kNumAllocKinds] = {
   "Misc       ",
@@ -37,108 +42,144 @@ static const char* alloc_names[ArenaAllocator::kNumAllocKinds] = {
   "Preds      ",
 };
 
-ArenaAllocator::ArenaAllocator(size_t default_size)
-  : default_size_(default_size),
-    block_size_(default_size - sizeof(ArenaMemBlock)),
-    arena_head_(NULL),
-    current_block_(NULL),
-    num_arena_blocks_(0),
-    malloc_bytes_(0),
-    lost_bytes_(0),
-    num_allocations_(0) {
-  memset(&alloc_stats_[0], 0, sizeof(alloc_stats_));
-  // Start with an empty arena.
-  arena_head_ = current_block_ = EmptyArenaBlock();
-  num_arena_blocks_++;
-}
-
-ArenaAllocator::~ArenaAllocator() {
-  // Reclaim all the arena blocks allocated so far.
-  ArenaMemBlock* head = arena_head_;
-  while (head != NULL) {
-    ArenaMemBlock* p = head;
-    head = head->next;
-    free(p);
+Arena::Arena(size_t size)
+    : bytes_allocated_(0),
+      map_(nullptr),
+      next_(nullptr) {
+  if (kUseMemMap) {
+    map_ = MemMap::MapAnonymous("dalvik-arena", NULL, size, PROT_READ | PROT_WRITE);
+    memory_ = map_->Begin();
+    size_ = map_->Size();
+  } else {
+    memory_ = reinterpret_cast<uint8_t*>(calloc(1, size));
+    size_ = size;
   }
-  arena_head_ = NULL;
-  num_arena_blocks_ = 0;
 }
 
-// Return an arena with no storage for use as a sentinal.
-ArenaAllocator::ArenaMemBlock* ArenaAllocator::EmptyArenaBlock() {
-  ArenaMemBlock* res = static_cast<ArenaMemBlock*>(malloc(sizeof(ArenaMemBlock)));
-  malloc_bytes_ += sizeof(ArenaMemBlock);
-  res->block_size = 0;
-  res->bytes_allocated = 0;
-  res->next = NULL;
-  return res;
+Arena::~Arena() {
+  if (kUseMemMap) {
+    delete map_;
+  } else {
+    free(reinterpret_cast<void*>(memory_));
+  }
 }
 
-// Arena-based malloc for compilation tasks.
-void* ArenaAllocator::NewMem(size_t size, bool zero, ArenaAllocKind kind) {
-  DCHECK(current_block_ != NULL);
-  DCHECK(arena_head_ != NULL);
-  size = (size + 3) & ~3;
-  alloc_stats_[kind] += size;
-  ArenaMemBlock* allocation_block = current_block_;  // Assume we'll fit.
-  size_t remaining_space = current_block_->block_size - current_block_->bytes_allocated;
-  if (remaining_space < size) {
-    /*
-     * Time to allocate a new block.  If this is a large allocation or we have
-     * significant space remaining in the current block then fulfill the allocation
-     * request with a custom-sized malloc() - otherwise grab a new standard block.
-     */
-    size_t allocation_size = sizeof(ArenaMemBlock);
-    if ((remaining_space >= ARENA_HIGH_WATER) || (size > block_size_)) {
-      allocation_size += size;
+void Arena::Reset() {
+  if (bytes_allocated_) {
+    if (kUseMemSet || !kUseMemMap) {
+      memset(Begin(), 0, bytes_allocated_);
     } else {
-      allocation_size += block_size_;
+      madvise(Begin(), bytes_allocated_, MADV_DONTNEED);
     }
-    ArenaMemBlock *new_block = static_cast<ArenaMemBlock*>(malloc(allocation_size));
-    if (new_block == NULL) {
-      LOG(FATAL) << "Arena allocation failure";
-    }
-    malloc_bytes_ += allocation_size;
-    new_block->block_size = allocation_size - sizeof(ArenaMemBlock);
-    new_block->bytes_allocated = 0;
-    new_block->next = NULL;
-    num_arena_blocks_++;
-    /*
-     * If the new block is completely full, insert it into the head of the list so we don't
-     * bother trying to fit more and won't hide the potentially allocatable space on the
-     * last (current_block_) block.  TUNING: if we move to a mark scheme, revisit
-     * this code to keep allocation order intact.
-     */
-    if (new_block->block_size == size) {
-      new_block->next = arena_head_;
-      arena_head_ = new_block;
-    } else {
-      int lost = (current_block_->block_size - current_block_->bytes_allocated);
-      lost_bytes_ += lost;
-      current_block_->next = new_block;
-      current_block_ = new_block;
-    }
-    allocation_block = new_block;
+    bytes_allocated_ = 0;
   }
-  void* ptr = &allocation_block->ptr[allocation_block->bytes_allocated];
-  allocation_block->bytes_allocated += size;
-  if (zero) {
-    memset(ptr, 0, size);
-  }
-  num_allocations_++;
-  return ptr;
 }
 
-// Dump memory usage stats.
-void ArenaAllocator::DumpMemStats(std::ostream& os) const {
+ArenaPool::ArenaPool()
+    : lock_("Arena pool lock"),
+      free_arenas_(nullptr) {
+}
+
+ArenaPool::~ArenaPool() {
+  while (free_arenas_ != nullptr) {
+    auto* arena = free_arenas_;
+    free_arenas_ = free_arenas_->next_;
+    delete arena;
+  }
+}
+
+Arena* ArenaPool::AllocArena(size_t size) {
+  Thread* self = Thread::Current();
+  Arena* ret = nullptr;
+  {
+    MutexLock lock(self, lock_);
+    if (free_arenas_ != nullptr && LIKELY(free_arenas_->Size() >= size)) {
+      ret = free_arenas_;
+      free_arenas_ = free_arenas_->next_;
+    }
+  }
+  if (ret == nullptr) {
+    ret = new Arena(size);
+  }
+  ret->Reset();
+  return ret;
+}
+
+void ArenaPool::FreeArena(Arena* arena) {
+  Thread* self = Thread::Current();
+  {
+    MutexLock lock(self, lock_);
+    arena->next_ = free_arenas_;
+    free_arenas_ = arena;
+  }
+}
+
+size_t ArenaAllocator::BytesAllocated() const {
   size_t total = 0;
   for (int i = 0; i < kNumAllocKinds; i++) {
     total += alloc_stats_[i];
   }
-  os << " MEM: used: " << total << ", allocated: " << malloc_bytes_
-     << ", lost: " << lost_bytes_ << "\n";
-  os << "Number of blocks allocated: " << num_arena_blocks_ << ", Number of allocations: "
-     << num_allocations_ << ", avg: " << total / num_allocations_ << "\n";
+  return total;
+}
+
+ArenaAllocator::ArenaAllocator(ArenaPool* pool)
+  : pool_(pool),
+    begin_(nullptr),
+    end_(nullptr),
+    ptr_(nullptr),
+    arena_head_(nullptr),
+    num_allocations_(0) {
+  memset(&alloc_stats_[0], 0, sizeof(alloc_stats_));
+}
+
+void ArenaAllocator::UpdateBytesAllocated() {
+  if (arena_head_ != nullptr) {
+    // Update how many bytes we have allocated into the arena so that the arena pool knows how
+    // much memory to zero out.
+    arena_head_->bytes_allocated_ = ptr_ - begin_;
+  }
+}
+
+ArenaAllocator::~ArenaAllocator() {
+  // Reclaim all the arenas by giving them back to the thread pool.
+  UpdateBytesAllocated();
+  while (arena_head_ != nullptr) {
+    Arena* arena = arena_head_;
+    arena_head_ = arena_head_->next_;
+    pool_->FreeArena(arena);
+  }
+}
+
+void ArenaAllocator::ObtainNewArenaForAllocation(size_t allocation_size) {
+  UpdateBytesAllocated();
+  Arena* new_arena = pool_->AllocArena(std::max(Arena::kDefaultSize, allocation_size));
+  new_arena->next_ = arena_head_;
+  arena_head_ = new_arena;
+  // Update our internal data structures.
+  ptr_ = begin_ = new_arena->Begin();
+  end_ = new_arena->End();
+}
+
+// Dump memory usage stats.
+void ArenaAllocator::DumpMemStats(std::ostream& os) const {
+  size_t malloc_bytes = 0;
+  // Start out with how many lost bytes we have in the arena we are currently allocating into.
+  size_t lost_bytes(end_ - ptr_);
+  size_t num_arenas = 0;
+  for (Arena* arena = arena_head_; arena != nullptr; arena = arena->next_) {
+    malloc_bytes += arena->Size();
+    if (arena != arena_head_) {
+      lost_bytes += arena->RemainingSpace();
+    }
+    ++num_arenas;
+  }
+  const size_t bytes_allocated = BytesAllocated();
+  os << " MEM: used: " << bytes_allocated << ", allocated: " << malloc_bytes
+     << ", lost: " << lost_bytes << "\n";
+  if (num_allocations_ != 0) {
+    os << "Number of arenas allocated: " << num_arenas << ", Number of allocations: "
+       << num_allocations_ << ", avg size: " << bytes_allocated / num_allocations_ << "\n";
+  }
   os << "===== Allocation by kind\n";
   for (int i = 0; i < kNumAllocKinds; i++) {
       os << alloc_names[i] << std::setw(10) << alloc_stats_[i] << "\n";

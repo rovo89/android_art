@@ -529,7 +529,20 @@ std::string Instruction::DumpString(const DexFile* file) const {
     case k30t:  os << StringPrintf("%s %+d", opcode, VRegA_30t()); break;
     case k31t:  os << StringPrintf("%s v%d, %+d", opcode, VRegA_31t(), VRegB_31t()); break;
     case k31i:  os << StringPrintf("%s v%d, #%+d", opcode, VRegA_31i(), VRegB_31i()); break;
-    case k31c:  os << StringPrintf("%s v%d, thing@%d", opcode, VRegA_31c(), VRegB_31c()); break;
+    case k31c:
+      if (Opcode() == CONST_STRING_JUMBO) {
+        uint32_t string_idx = VRegB_31c();
+        if (file != NULL) {
+          os << StringPrintf("%s v%d, %s // string@%d", opcode, VRegA_31c(),
+                             PrintableString(file->StringDataByIdx(string_idx)).c_str(),
+                             string_idx);
+        } else {
+          os << StringPrintf("%s v%d, string@%d", opcode, VRegA_31c(), string_idx);
+        }
+      } else {
+        os << StringPrintf("%s v%d, thing@%d", opcode, VRegA_31c(), VRegB_31c()); break;
+      }
+      break;
     case k35c: {
       uint32_t arg[5];
       GetArgs(arg);

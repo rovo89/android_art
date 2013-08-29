@@ -287,9 +287,8 @@ class Runtime {
     return monitor_list_;
   }
 
-  mirror::Throwable* GetPreAllocatedOutOfMemoryError() {
-    return pre_allocated_OutOfMemoryError_;
-  }
+  mirror::Throwable* GetPreAllocatedOutOfMemoryError() const
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const std::vector<std::string>& GetProperties() const {
     return properties_;

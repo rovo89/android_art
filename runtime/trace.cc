@@ -122,9 +122,6 @@ ProfilerClockSource Trace::default_clock_source_ = kProfilerClockSourceWall;
 #endif
 
 Trace* volatile Trace::the_trace_ = NULL;
-// TODO: Add way to enable sampling and set interval through gui.
-bool Trace::sampling_enabled_ = true;
-uint32_t Trace::sampling_interval_us_ = 1000;
 pthread_t Trace::sampling_pthread_ = 0U;
 UniquePtr<std::vector<mirror::ArtMethod*> > Trace::temp_stack_trace_;
 
@@ -301,11 +298,12 @@ void Trace::CompareAndUpdateStackTrace(Thread* thread,
 
 void* Trace::RunSamplingThread(void* arg) {
   Runtime* runtime = Runtime::Current();
+  int interval_us = reinterpret_cast<int>(arg);
   CHECK(runtime->AttachCurrentThread("Sampling Profiler", true, runtime->GetSystemThreadGroup(),
                                      !runtime->IsCompiler()));
 
   while (true) {
-    usleep(sampling_interval_us_);
+    usleep(interval_us);
     ATRACE_BEGIN("Profile sampling");
     Thread* self = Thread::Current();
     Trace* the_trace;
@@ -331,7 +329,7 @@ void* Trace::RunSamplingThread(void* arg) {
 }
 
 void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int flags,
-                  bool direct_to_ddms) {
+                  bool direct_to_ddms, bool sampling_enabled, int interval_us) {
   Thread* self = Thread::Current();
   {
     MutexLock mu(self, *Locks::trace_lock_);
@@ -367,16 +365,19 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
     if (the_trace_ != NULL) {
       LOG(ERROR) << "Trace already in progress, ignoring this request";
     } else {
-      the_trace_ = new Trace(trace_file.release(), buffer_size, flags);
+      the_trace_ = new Trace(trace_file.release(), buffer_size, flags, sampling_enabled);
 
       // Enable count of allocs if specified in the flags.
       if ((flags && kTraceCountAllocs) != 0) {
         runtime->SetStatsEnabled(true);
       }
 
-      if (sampling_enabled_) {
-        CHECK_PTHREAD_CALL(pthread_create, (&sampling_pthread_, NULL, &RunSamplingThread, NULL),
-                           "Sampling profiler thread");
+
+
+      if (sampling_enabled) {
+        CHECK_PTHREAD_CALL(pthread_create, (&sampling_pthread_, NULL, &RunSamplingThread,
+                                            reinterpret_cast<void*>(interval_us)),
+                                            "Sampling profiler thread");
       } else {
         runtime->GetInstrumentation()->AddListener(the_trace_,
                                                    instrumentation::Instrumentation::kMethodEntered |
@@ -407,7 +408,7 @@ void Trace::Stop() {
   if (the_trace != NULL) {
     the_trace->FinishTracing();
 
-    if (sampling_enabled_) {
+    if (the_trace->sampling_enabled_) {
       MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
       runtime->GetThreadList()->ForEach(ClearThreadStackTraceAndClockBase, NULL);
     } else {
@@ -420,7 +421,7 @@ void Trace::Stop() {
   }
   runtime->GetThreadList()->ResumeAll();
 
-  if (sampling_enabled_ && sampling_pthread != 0U) {
+  if (sampling_pthread != 0U) {
     CHECK_PTHREAD_CALL(pthread_join, (sampling_pthread, NULL), "sampling thread shutdown");
   }
 }
@@ -436,10 +437,10 @@ bool Trace::IsMethodTracingActive() {
   return the_trace_ != NULL;
 }
 
-Trace::Trace(File* trace_file, int buffer_size, int flags)
+Trace::Trace(File* trace_file, int buffer_size, int flags, bool sampling_enabled)
     : trace_file_(trace_file), buf_(new uint8_t[buffer_size]()), flags_(flags),
-      clock_source_(default_clock_source_), buffer_size_(buffer_size), start_time_(MicroTime()),
-      cur_offset_(0),  overflow_(false) {
+      sampling_enabled_(sampling_enabled), clock_source_(default_clock_source_),
+      buffer_size_(buffer_size), start_time_(MicroTime()), cur_offset_(0),  overflow_(false) {
   // Set up the beginning of the trace.
   uint16_t trace_version = GetTraceVersion(clock_source_);
   memset(buf_.get(), 0, kTraceHeaderLength);
@@ -454,10 +455,6 @@ Trace::Trace(File* trace_file, int buffer_size, int flags)
 
   // Update current offset.
   cur_offset_ = kTraceHeaderLength;
-}
-
-Trace::~Trace() {
-  CHECK_EQ(sampling_pthread_, static_cast<pthread_t>(0U));
 }
 
 static void DumpBuf(uint8_t* buf, size_t buf_size, ProfilerClockSource clock_source)

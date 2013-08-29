@@ -16,8 +16,6 @@
 
 #include "asm_support_arm.S"
 
-    .cfi_sections   .debug_frame
-
     /*
      * Jni dlsym lookup stub.
      */
@@ -34,11 +32,14 @@ ENTRY art_jni_dlsym_lookup_stub
     mov    r12, r0                        @ save result in r12
     add    sp, #12                        @ restore stack pointer
     .cfi_adjust_cfa_offset -12
+    cbz    r0, 1f                         @ is method code null?
     pop    {r0, r1, r2, r3, lr}           @ restore regs
     .cfi_adjust_cfa_offset -20
-    cmp    r12, #0                        @ is method code null?
-    bxne   r12                            @ if non-null, tail call to method's code
-    bx     lr                             @ otherwise, return to caller to handle exception
+    bx     r12                            @ if non-null, tail call to method's code
+1:
+    .cfi_adjust_cfa_offset 20
+    pop    {r0, r1, r2, r3, pc}           @ restore regs and return to caller to handle exception
+    .cfi_adjust_cfa_offset -20
 END art_jni_dlsym_lookup_stub
 
     /*

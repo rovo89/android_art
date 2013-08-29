@@ -931,7 +931,12 @@ void Mir2Lir::CountRefs(RefCounts* core_counts, RefCounts* fp_counts) {
 static int SortCounts(const void *val1, const void *val2) {
   const Mir2Lir::RefCounts* op1 = reinterpret_cast<const Mir2Lir::RefCounts*>(val1);
   const Mir2Lir::RefCounts* op2 = reinterpret_cast<const Mir2Lir::RefCounts*>(val2);
-  return (op1->count == op2->count) ? 0 : (op1->count < op2->count ? 1 : -1);
+  // Note that we fall back to sorting on reg so we get stable output
+  // on differing qsort implementations (such as on host and target or
+  // between local host and build servers).
+  return (op1->count == op2->count)
+          ? (op1->s_reg - op2->s_reg)
+          : (op1->count < op2->count ? 1 : -1);
 }
 
 void Mir2Lir::DumpCounts(const RefCounts* arr, int size, const char* msg) {
@@ -966,11 +971,11 @@ void Mir2Lir::DoPromotion() {
    * to describe register live ranges for GC.
    */
   RefCounts *core_regs =
-      static_cast<RefCounts*>(arena_->NewMem(sizeof(RefCounts) * num_regs, true,
-                                             ArenaAllocator::kAllocRegAlloc));
+      static_cast<RefCounts*>(arena_->Alloc(sizeof(RefCounts) * num_regs,
+                                            ArenaAllocator::kAllocRegAlloc));
   RefCounts *FpRegs =
-      static_cast<RefCounts *>(arena_->NewMem(sizeof(RefCounts) * num_regs, true,
-                                              ArenaAllocator::kAllocRegAlloc));
+      static_cast<RefCounts *>(arena_->Alloc(sizeof(RefCounts) * num_regs,
+                                             ArenaAllocator::kAllocRegAlloc));
   // Set ssa names for original Dalvik registers
   for (int i = 0; i < dalvik_regs; i++) {
     core_regs[i].s_reg = FpRegs[i].s_reg = i;

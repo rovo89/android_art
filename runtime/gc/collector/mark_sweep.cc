@@ -144,7 +144,7 @@ MarkSweep::MarkSweep(Heap* heap, bool is_concurrent, const std::string& name_pre
       cleared_reference_list_(NULL),
       gc_barrier_(new Barrier(0)),
       large_object_lock_("mark sweep large object lock", kMarkSweepLargeObjectLock),
-      mark_stack_expand_lock_("mark sweep mark stack expand lock"),
+      mark_stack_lock_("mark sweep mark stack lock", kMarkSweepMarkStackLock),
       is_concurrent_(is_concurrent),
       clear_soft_references_(false) {
 }
@@ -343,14 +343,18 @@ void MarkSweep::FindDefaultMarkBitmap() {
 }
 
 void MarkSweep::ExpandMarkStack() {
+  ResizeMarkStack(mark_stack_->Capacity() * 2);
+}
+
+void MarkSweep::ResizeMarkStack(size_t new_size) {
   // Rare case, no need to have Thread::Current be a parameter.
-  MutexLock mu(Thread::Current(), mark_stack_expand_lock_);
   if (UNLIKELY(mark_stack_->Size() < mark_stack_->Capacity())) {
     // Someone else acquired the lock and expanded the mark stack before us.
     return;
   }
   std::vector<Object*> temp(mark_stack_->Begin(), mark_stack_->End());
-  mark_stack_->Resize(mark_stack_->Capacity() * 2);
+  CHECK_LE(mark_stack_->Size(), new_size);
+  mark_stack_->Resize(new_size);
   for (const auto& obj : temp) {
     mark_stack_->PushBack(obj);
   }
@@ -359,10 +363,12 @@ void MarkSweep::ExpandMarkStack() {
 inline void MarkSweep::MarkObjectNonNullParallel(const Object* obj) {
   DCHECK(obj != NULL);
   if (MarkObjectParallel(obj)) {
-    while (UNLIKELY(!mark_stack_->AtomicPushBack(const_cast<Object*>(obj)))) {
-      // Only reason a push can fail is that the mark stack is full.
+    MutexLock mu(Thread::Current(), mark_stack_lock_);
+    if (UNLIKELY(mark_stack_->Size() >= mark_stack_->Capacity())) {
       ExpandMarkStack();
     }
+    // The object must be pushed on to the mark stack.
+    mark_stack_->PushBack(const_cast<Object*>(obj));
   }
 }
 
@@ -409,7 +415,8 @@ inline void MarkSweep::MarkObjectNonNull(const Object* obj) {
   // This object was not previously marked.
   if (!object_bitmap->Test(obj)) {
     object_bitmap->Set(obj);
-    // Do we need to expand the mark stack?
+    // Lock is not needed but is here anyways to please annotalysis.
+    MutexLock mu(Thread::Current(), mark_stack_lock_);
     if (UNLIKELY(mark_stack_->Size() >= mark_stack_->Capacity())) {
       ExpandMarkStack();
     }
@@ -493,8 +500,7 @@ void MarkSweep::MarkRoot(const Object* obj) {
 void MarkSweep::MarkRootParallelCallback(const Object* root, void* arg) {
   DCHECK(root != NULL);
   DCHECK(arg != NULL);
-  MarkSweep* mark_sweep = reinterpret_cast<MarkSweep*>(arg);
-  mark_sweep->MarkObjectNonNullParallel(root);
+  reinterpret_cast<MarkSweep*>(arg)->MarkObjectNonNullParallel(root);
 }
 
 void MarkSweep::MarkObjectCallback(const Object* root, void* arg) {

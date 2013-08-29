@@ -158,7 +158,8 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   class_linker->RegisterDexFile(*dex_file);
   mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(javaLoader);
-  mirror::Class* result = class_linker->DefineClass(descriptor, class_loader, *dex_file, *dex_class_def);
+  mirror::Class* result = class_linker->DefineClass(descriptor.c_str(), class_loader, *dex_file,
+                                                    *dex_class_def);
   VLOG(class_linker) << "DexFile_defineClassNative returning " << result;
   return soa.AddLocalReference<jclass>(result);
 }

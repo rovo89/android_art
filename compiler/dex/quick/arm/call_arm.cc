@@ -316,13 +316,12 @@ void ArmMir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
   }
   // Add the table to the list - we'll process it later
   SwitchTable *tab_rec =
-      static_cast<SwitchTable*>(arena_->NewMem(sizeof(SwitchTable), true,
-                                               ArenaAllocator::kAllocData));
+      static_cast<SwitchTable*>(arena_->Alloc(sizeof(SwitchTable), ArenaAllocator::kAllocData));
   tab_rec->table = table;
   tab_rec->vaddr = current_dalvik_offset_;
   int size = table[1];
-  tab_rec->targets = static_cast<LIR**>(arena_->NewMem(size * sizeof(LIR*), true,
-                                                       ArenaAllocator::kAllocLIR));
+  tab_rec->targets = static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*),
+                                                      ArenaAllocator::kAllocLIR));
   switch_tables_.Insert(tab_rec);
 
   // Get the switch value
@@ -365,13 +364,12 @@ void ArmMir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
   }
   // Add the table to the list - we'll process it later
   SwitchTable *tab_rec =
-      static_cast<SwitchTable*>(arena_->NewMem(sizeof(SwitchTable), true,
-                                               ArenaAllocator::kAllocData));
+      static_cast<SwitchTable*>(arena_->Alloc(sizeof(SwitchTable),  ArenaAllocator::kAllocData));
   tab_rec->table = table;
   tab_rec->vaddr = current_dalvik_offset_;
   int size = table[1];
   tab_rec->targets =
-      static_cast<LIR**>(arena_->NewMem(size * sizeof(LIR*), true, ArenaAllocator::kAllocLIR));
+      static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*), ArenaAllocator::kAllocLIR));
   switch_tables_.Insert(tab_rec);
 
   // Get the switch value
@@ -419,8 +417,7 @@ void ArmMir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   // Add the table to the list - we'll process it later
   FillArrayData *tab_rec =
-      static_cast<FillArrayData*>(arena_->NewMem(sizeof(FillArrayData), true,
-                                                 ArenaAllocator::kAllocData));
+      static_cast<FillArrayData*>(arena_->Alloc(sizeof(FillArrayData), ArenaAllocator::kAllocData));
   tab_rec->table = table;
   tab_rec->vaddr = current_dalvik_offset_;
   uint16_t width = tab_rec->table[1];

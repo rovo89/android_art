@@ -135,7 +135,9 @@ inline void ObjectArray<T>::Copy(const ObjectArray<T>* src, int src_pos,
 template<class T>
 inline ObjectArray<T>* ObjectArray<T>::CopyOf(Thread* self, int32_t new_length) {
   ObjectArray<T>* new_array = Alloc(self, GetClass(), new_length);
-  Copy(this, 0, new_array, 0, std::min(GetLength(), new_length));
+  if (LIKELY(new_array != NULL)) {
+    Copy(this, 0, new_array, 0, std::min(GetLength(), new_length));
+  }
   return new_array;
 }
 

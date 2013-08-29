@@ -43,7 +43,7 @@ class MIRGraph;
 class Mir2Lir;
 
 struct CompilationUnit {
-  CompilationUnit()
+  explicit CompilationUnit(ArenaPool* pool)
     : compiler_driver(NULL),
       class_linker(NULL),
       dex_file(NULL),
@@ -66,6 +66,7 @@ struct CompilationUnit {
       num_regs(0),
       num_compiler_temps(0),
       compiler_flip_match(false),
+      arena(pool),
       mir_graph(NULL),
       cg(NULL) {}
   /*

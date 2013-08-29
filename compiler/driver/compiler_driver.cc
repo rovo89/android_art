@@ -473,7 +473,7 @@ void CompilerDriver::CompileAll(jobject class_loader,
                                 const std::vector<const DexFile*>& dex_files,
                                 base::TimingLogger& timings) {
   DCHECK(!Runtime::Current()->IsStarted());
-  UniquePtr<ThreadPool> thread_pool(new ThreadPool(thread_count_));
+  UniquePtr<ThreadPool> thread_pool(new ThreadPool(thread_count_ - 1));
   PreCompile(class_loader, dex_files, *thread_pool.get(), timings);
   Compile(class_loader, dex_files, *thread_pool.get(), timings);
   if (dump_stats_) {
@@ -537,7 +537,7 @@ void CompilerDriver::CompileOne(const mirror::ArtMethod* method, base::TimingLog
   std::vector<const DexFile*> dex_files;
   dex_files.push_back(dex_file);
 
-  UniquePtr<ThreadPool> thread_pool(new ThreadPool(1U));
+  UniquePtr<ThreadPool> thread_pool(new ThreadPool(0U));
   PreCompile(jclass_loader, dex_files, *thread_pool.get(), timings);
 
   uint32_t method_idx = method->GetDexMethodIndex();
@@ -671,7 +671,7 @@ void CompilerDriver::LoadImageClasses(base::TimingLogger& timings)
     if (klass.get() == NULL) {
       image_classes_->erase(it++);
       VLOG(compiler) << "Failed to find class " << descriptor;
-      Thread::Current()->ClearException();
+      self->ClearException();
     } else {
       ++it;
     }
@@ -1322,7 +1322,8 @@ class ParallelCompilationManager {
                              CompilerDriver* compiler,
                              const DexFile* dex_file,
                              ThreadPool& thread_pool)
-    : class_linker_(class_linker),
+    : index_(0),
+      class_linker_(class_linker),
       class_loader_(class_loader),
       compiler_(compiler),
       dex_file_(dex_file),
@@ -1353,8 +1354,9 @@ class ParallelCompilationManager {
     CHECK_GT(work_units, 0U);
 
     std::vector<ForAllClosure*> closures(work_units);
+    index_ = begin;
     for (size_t i = 0; i < work_units; ++i) {
-      closures[i] = new ForAllClosure(this, begin + i, end, callback, work_units);
+      closures[i] = new ForAllClosure(this, end, callback);
       thread_pool_->AddTask(self, closures[i]);
     }
     thread_pool_->StartWorkers(self);
@@ -1367,20 +1369,25 @@ class ParallelCompilationManager {
     thread_pool_->Wait(self, true, false);
   }
 
+  size_t NextIndex() {
+    return index_.fetch_add(1);
+  }
+
  private:
   class ForAllClosure : public Task {
    public:
-    ForAllClosure(ParallelCompilationManager* manager, size_t begin, size_t end, Callback* callback,
-                  size_t stripe)
+    ForAllClosure(ParallelCompilationManager* manager, size_t end, Callback* callback)
         : manager_(manager),
-          begin_(begin),
           end_(end),
-          callback_(callback),
-          stripe_(stripe) {}
+          callback_(callback) {}
 
     virtual void Run(Thread* self) {
-      for (size_t i = begin_; i < end_; i += stripe_) {
-        callback_(manager_, i);
+      while (true) {
+        const size_t index = manager_->NextIndex();
+        if (UNLIKELY(index >= end_)) {
+          break;
+        }
+        callback_(manager_, index);
         self->AssertNoPendingException();
       }
     }
@@ -1390,18 +1397,19 @@ class ParallelCompilationManager {
     }
 
    private:
-    const ParallelCompilationManager* const manager_;
-    const size_t begin_;
+    ParallelCompilationManager* const manager_;
     const size_t end_;
     const Callback* const callback_;
-    const size_t stripe_;
   };
 
+  AtomicInteger index_;
   ClassLinker* const class_linker_;
   const jobject class_loader_;
   CompilerDriver* const compiler_;
   const DexFile* const dex_file_;
   ThreadPool* const thread_pool_;
+
+  DISALLOW_COPY_AND_ASSIGN(ParallelCompilationManager);
 };
 
 // Return true if the class should be skipped during compilation. We
@@ -1464,7 +1472,7 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
         // Class couldn't be resolved, for example, super-class is in a different dex file. Don't
         // attempt to resolve methods and fields when there is no declaring class.
         CHECK(soa.Self()->IsExceptionPending());
-        Thread::Current()->ClearException();
+        soa.Self()->ClearException();
         resolve_fields_and_methods = false;
       } else {
         resolve_fields_and_methods = manager->GetCompiler()->IsImage();
@@ -1539,7 +1547,14 @@ static void ResolveType(const ParallelCompilationManager* manager, size_t type_i
 
   if (klass == NULL) {
     CHECK(soa.Self()->IsExceptionPending());
-    Thread::Current()->ClearException();
+    mirror::Throwable* exception = soa.Self()->GetException(NULL);
+    VLOG(compiler) << "Exception during type resolution: " << exception->Dump();
+    if (strcmp(ClassHelper(exception->GetClass()).GetDescriptor(),
+               "Ljava/lang/OutOfMemoryError;") == 0) {
+      // There's little point continuing compilation if the heap is exhausted.
+      LOG(FATAL) << "Out of memory during type resolution for compilation";
+    }
+    soa.Self()->ClearException();
   }
 }
 
@@ -2094,7 +2109,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
                 mirror::ObjectArray<mirror::ArtField>* fields = klass->GetSFields();
                 CHECK_EQ(fields->GetLength(), 1);
                 fields->Get(0)->SetObj(klass, manager->GetClassLinker()->FindPrimitiveClass('V'));
-                klass->SetStatus(mirror::Class::kStatusInitialized);
+                klass->SetStatus(mirror::Class::kStatusInitialized, soa.Self());
               } else {
                 manager->GetClassLinker()->EnsureInitialized(klass, true, true);
               }

@@ -16,6 +16,10 @@
 
 #include "intern_table.h"
 
+#include "gc/space/image_space.h"
+#include "mirror/dex_cache.h"
+#include "mirror/object_array-inl.h"
+#include "mirror/object-inl.h"
 #include "mirror/string.h"
 #include "thread.h"
 #include "UniquePtr.h"
@@ -23,8 +27,8 @@
 
 namespace art {
 
-InternTable::InternTable() : intern_table_lock_("InternTable lock"), is_dirty_(false) {
-}
+InternTable::InternTable()
+    : intern_table_lock_("InternTable lock"), is_dirty_(false) {}
 
 size_t InternTable::Size() const {
   MutexLock mu(Thread::Current(), intern_table_lock_);
@@ -34,11 +38,11 @@ size_t InternTable::Size() const {
 void InternTable::DumpForSigQuit(std::ostream& os) const {
   MutexLock mu(Thread::Current(), intern_table_lock_);
   os << "Intern table: " << strong_interns_.size() << " strong; "
-     << weak_interns_.size() << " weak; "
-     << image_strong_interns_.size() << " image strong\n";
+     << weak_interns_.size() << " weak\n";
 }
 
-void InternTable::VisitRoots(RootVisitor* visitor, void* arg, bool clean_dirty) {
+void InternTable::VisitRoots(RootVisitor* visitor, void* arg,
+                             bool clean_dirty) {
   MutexLock mu(Thread::Current(), intern_table_lock_);
   for (const auto& strong_intern : strong_interns_) {
     visitor(strong_intern.second, arg);
@@ -46,10 +50,12 @@ void InternTable::VisitRoots(RootVisitor* visitor, void* arg, bool clean_dirty) 
   if (clean_dirty) {
     is_dirty_ = false;
   }
-  // Note: we deliberately don't visit the weak_interns_ table and the immutable image roots.
+  // Note: we deliberately don't visit the weak_interns_ table and the immutable
+  // image roots.
 }
 
-mirror::String* InternTable::Lookup(Table& table, mirror::String* s, uint32_t hash_code) {
+mirror::String* InternTable::Lookup(Table& table, mirror::String* s,
+                                    uint32_t hash_code) {
   intern_table_lock_.AssertHeld(Thread::Current());
   for (auto it = table.find(hash_code), end = table.end(); it != end; ++it) {
     mirror::String* existing_string = it->second;
@@ -60,18 +66,15 @@ mirror::String* InternTable::Lookup(Table& table, mirror::String* s, uint32_t ha
   return NULL;
 }
 
-mirror::String* InternTable::Insert(Table& table, mirror::String* s, uint32_t hash_code) {
+mirror::String* InternTable::Insert(Table& table, mirror::String* s,
+                                    uint32_t hash_code) {
   intern_table_lock_.AssertHeld(Thread::Current());
   table.insert(std::make_pair(hash_code, s));
   return s;
 }
 
-void InternTable::RegisterStrong(mirror::String* s) {
-  MutexLock mu(Thread::Current(), intern_table_lock_);
-  Insert(image_strong_interns_, s, s->GetHashCode());
-}
-
-void InternTable::Remove(Table& table, const mirror::String* s, uint32_t hash_code) {
+void InternTable::Remove(Table& table, const mirror::String* s,
+                         uint32_t hash_code) {
   intern_table_lock_.AssertHeld(Thread::Current());
   for (auto it = table.find(hash_code), end = table.end(); it != end; ++it) {
     if (it->second == s) {
@@ -79,6 +82,31 @@ void InternTable::Remove(Table& table, const mirror::String* s, uint32_t hash_co
       return;
     }
   }
+}
+
+static mirror::String* LookupStringFromImage(mirror::String* s)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  gc::space::ImageSpace* image = Runtime::Current()->GetHeap()->GetImageSpace();
+  if (image == NULL) {
+    return NULL;  // No image present.
+  }
+  mirror::Object* root = image->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
+  mirror::ObjectArray<mirror::DexCache>* dex_caches = root->AsObjectArray<mirror::DexCache>();
+  const std::string utf8 = s->ToModifiedUtf8();
+  for (int32_t i = 0; i < dex_caches->GetLength(); ++i) {
+    mirror::DexCache* dex_cache = dex_caches->Get(i);
+    const DexFile* dex_file = dex_cache->GetDexFile();
+    // Binary search the dex file for the string index.
+    const DexFile::StringId* string_id = dex_file->FindStringId(utf8.c_str());
+    if (string_id != NULL) {
+      uint32_t string_idx = dex_file->GetIndexForStringId(*string_id);
+      mirror::String* image = dex_cache->GetResolvedString(string_idx);
+      if (image != NULL) {
+        return image;
+      }
+    }
+  }
+  return NULL;
 }
 
 mirror::String* InternTable::Insert(mirror::String* s, bool is_strong) {
@@ -93,14 +121,15 @@ mirror::String* InternTable::Insert(mirror::String* s, bool is_strong) {
     if (strong != NULL) {
       return strong;
     }
-    // Check the image table for a match.
-    mirror::String* image = Lookup(image_strong_interns_, s, hash_code);
-    if (image != NULL) {
-      return image;
-    }
 
     // Mark as dirty so that we rescan the roots.
     Dirty();
+
+    // Check the image for a match.
+    mirror::String* image = LookupStringFromImage(s);
+    if (image != NULL) {
+      return Insert(strong_interns_, image, hash_code);
+    }
 
     // There is no match in the strong table, check the weak table.
     mirror::String* weak = Lookup(weak_interns_, s, hash_code);
@@ -110,7 +139,8 @@ mirror::String* InternTable::Insert(mirror::String* s, bool is_strong) {
       return Insert(strong_interns_, weak, hash_code);
     }
 
-    // No match in the strong table or the weak table. Insert into the strong table.
+    // No match in the strong table or the weak table. Insert into the strong
+    // table.
     return Insert(strong_interns_, s, hash_code);
   }
 
@@ -119,10 +149,10 @@ mirror::String* InternTable::Insert(mirror::String* s, bool is_strong) {
   if (strong != NULL) {
     return strong;
   }
-  // Check the image table for a match.
-  mirror::String* image = Lookup(image_strong_interns_, s, hash_code);
+  // Check the image for a match.
+  mirror::String* image = LookupStringFromImage(s);
   if (image != NULL) {
-    return image;
+    return Insert(weak_interns_, image, hash_code);
   }
   // Check the weak table for a match.
   mirror::String* weak = Lookup(weak_interns_, s, hash_code);
@@ -133,12 +163,15 @@ mirror::String* InternTable::Insert(mirror::String* s, bool is_strong) {
   return Insert(weak_interns_, s, hash_code);
 }
 
-mirror::String* InternTable::InternStrong(int32_t utf16_length, const char* utf8_data) {
-  return InternStrong(mirror::String::AllocFromModifiedUtf8(Thread::Current(), utf16_length, utf8_data));
+mirror::String* InternTable::InternStrong(int32_t utf16_length,
+                                          const char* utf8_data) {
+  return InternStrong(mirror::String::AllocFromModifiedUtf8(
+      Thread::Current(), utf16_length, utf8_data));
 }
 
 mirror::String* InternTable::InternStrong(const char* utf8_data) {
-  return InternStrong(mirror::String::AllocFromModifiedUtf8(Thread::Current(), utf8_data));
+  return InternStrong(
+      mirror::String::AllocFromModifiedUtf8(Thread::Current(), utf8_data));
 }
 
 mirror::String* InternTable::InternStrong(mirror::String* s) {
