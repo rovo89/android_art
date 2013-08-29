@@ -42,6 +42,12 @@ enum ProfilerClockSource {
   kProfilerClockSourceDual,  // Both wall and thread CPU clocks.
 };
 
+enum TracingMode {
+  kTracingInactive,
+  kMethodTracingActive,
+  kSampleProfilingActive,
+};
+
 class Trace : public instrumentation::InstrumentationListener {
  public:
   enum TraceFlag {
@@ -58,7 +64,7 @@ class Trace : public instrumentation::InstrumentationListener {
                  Locks::trace_lock_);
   static void Stop() LOCKS_EXCLUDED(Locks::trace_lock_);
   static void Shutdown() LOCKS_EXCLUDED(Locks::trace_lock_);
-  static bool IsMethodTracingActive() LOCKS_EXCLUDED(Locks::trace_lock_);
+  static TracingMode GetMethodTracingMode() LOCKS_EXCLUDED(Locks::trace_lock_);
 
   bool UseWallClock();
   bool UseThreadCpuClock();
