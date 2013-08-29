@@ -420,10 +420,6 @@ static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
       LOG(WARNING) << "Failed to open .dex from file '" << dex_filename << "'\n";
       ++failure_count;
     } else {
-      // Ensure writable for dex-to-dex transformations.
-      if (!dex_file->EnableWrite()) {
-        PLOG(ERROR) << "Failed to make .dex file writeable '" << dex_filename << "'\n";
-      }
       dex_files.push_back(dex_file);
     }
   }
@@ -921,6 +917,13 @@ static int dex2oat(int argc, char** argv) {
       if (failure_count > 0) {
         LOG(ERROR) << "Failed to open some dex files: " << failure_count;
         return EXIT_FAILURE;
+      }
+    }
+
+    // Ensure opened dex files are writable for dex-to-dex transformations.
+    for (const auto& dex_file : dex_files) {
+      if (!dex_file->EnableWrite()) {
+        PLOG(ERROR) << "Failed to make .dex file writeable '" << dex_file->GetLocation() << "'\n";
       }
     }
   }
