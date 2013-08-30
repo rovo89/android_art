@@ -286,12 +286,7 @@ class CommonTest : public testing::Test {
     if (java_lang_dex_file_ == NULL) {
       LOG(FATAL) << "Could not open .dex file '" << GetLibCoreDexFileName() << "'\n";
     }
-    conscrypt_file_ = DexFile::Open(GetConscryptFileName(), GetConscryptFileName());
-    if (conscrypt_file_  == NULL) {
-      LOG(FATAL) << "Could not open .dex file '" << GetConscryptFileName() << "'\n";
-    }
     boot_class_path_.push_back(java_lang_dex_file_);
-    boot_class_path_.push_back(conscrypt_file_);
 
     std::string min_heap_string(StringPrintf("-Xms%zdm", gc::Heap::kDefaultInitialSize / MB));
     std::string max_heap_string(StringPrintf("-Xmx%zdm", gc::Heap::kDefaultMaximumSize / MB));
@@ -396,10 +391,6 @@ class CommonTest : public testing::Test {
 
   std::string GetLibCoreDexFileName() {
     return GetDexFileName("core-libart");
-  }
-
-  std::string GetConscryptFileName() {
-    return GetDexFileName("conscrypt");
   }
 
   std::string GetDexFileName(const std::string& jar_prefix) {
@@ -520,7 +511,6 @@ class CommonTest : public testing::Test {
   std::string android_data_;
   std::string dalvik_cache_;
   const DexFile* java_lang_dex_file_;  // owned by runtime_
-  const DexFile* conscrypt_file_;  // owned by runtime_
   std::vector<const DexFile*> boot_class_path_;
   UniquePtr<Runtime> runtime_;
   // Owned by the runtime
