@@ -96,8 +96,8 @@ static void VMDebug_startMethodTracingFilename(JNIEnv* env, jclass, jstring java
   Trace::Start(traceFilename.c_str(), -1, bufferSize, flags, false, false, 0);
 }
 
-static jboolean VMDebug_isMethodTracingActive(JNIEnv*, jclass) {
-  return Trace::IsMethodTracingActive();
+static jint VMDebug_getMethodTracingMode(JNIEnv*, jclass) {
+  return Trace::GetMethodTracingMode();
 }
 
 static void VMDebug_stopMethodTracing(JNIEnv*, jclass) {
@@ -317,7 +317,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMDebug, infopoint, "(I)V"),
   NATIVE_METHOD(VMDebug, isDebuggerConnected, "()Z"),
   NATIVE_METHOD(VMDebug, isDebuggingEnabled, "()Z"),
-  NATIVE_METHOD(VMDebug, isMethodTracingActive, "()Z"),
+  NATIVE_METHOD(VMDebug, getMethodTracingMode, "()I"),
   NATIVE_METHOD(VMDebug, lastDebuggerActivity, "()J"),
   NATIVE_METHOD(VMDebug, printLoadedClasses, "(I)V"),
   NATIVE_METHOD(VMDebug, resetAllocCount, "(I)V"),
