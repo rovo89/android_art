@@ -34,6 +34,7 @@
 #include "runtime.h"
 #include "safe_map.h"
 #include "thread_pool.h"
+#include "utils/dedupe_set.h"
 
 namespace art {
 
@@ -303,6 +304,11 @@ class CompilerDriver {
   void RecordClassStatus(ClassReference ref, mirror::Class::Status status)
       LOCKS_EXCLUDED(compiled_classes_lock_);
 
+  std::vector<uint8_t>* DeduplicateCode(const std::vector<uint8_t>& code);
+  std::vector<uint8_t>* DeduplicateMappingTable(const std::vector<uint8_t>& code);
+  std::vector<uint8_t>* DeduplicateVMapTable(const std::vector<uint8_t>& code);
+  std::vector<uint8_t>* DeduplicateGCMap(const std::vector<uint8_t>& code);
+
  private:
   // Compute constant code and method pointers when possible
   void GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type,
@@ -438,6 +444,32 @@ class CompilerDriver {
   CompilerGetMethodCodeAddrFn compiler_get_method_code_addr_;
 
   bool support_boot_image_fixup_;
+
+  // DeDuplication data structures, these own the corresponding byte arrays.
+  class DedupeHashFunc {
+   public:
+    size_t operator()(const std::vector<uint8_t>& array) const {
+      // Take a random sample of bytes.
+      static const size_t kSmallArrayThreshold = 16;
+      static const size_t kRandomHashCount = 16;
+      size_t hash = 0;
+      if (array.size() < kSmallArrayThreshold) {
+        for (auto c : array) {
+          hash = hash * 54 + c;
+        }
+      } else {
+        for (size_t i = 0; i < kRandomHashCount; ++i) {
+          size_t r = i * 1103515245 + 12345;
+          hash = hash * 54 + array[r % array.size()];
+        }
+      }
+      return hash;
+    }
+  };
+  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc> dedupe_code_;
+  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc> dedupe_mapping_table_;
+  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc> dedupe_vmap_table_;
+  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc> dedupe_gc_map_;
 
   DISALLOW_COPY_AND_ASSIGN(CompilerDriver);
 };

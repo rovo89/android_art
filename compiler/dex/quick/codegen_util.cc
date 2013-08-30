@@ -1004,7 +1004,7 @@ CompiledMethod* Mir2Lir::GetCompiledMethod() {
   std::vector<uint16_t> raw_vmap_table;
   // Core regs may have been inserted out of order - sort first
   std::sort(core_vmap_table_.begin(), core_vmap_table_.end());
-  for (size_t i = 0 ; i < core_vmap_table_.size(); i++) {
+  for (size_t i = 0 ; i < core_vmap_table_.size(); ++i) {
     // Copy, stripping out the phys register sort key
     raw_vmap_table.push_back(~(-1 << VREG_NUM_WIDTH) & core_vmap_table_[i]);
   }
@@ -1022,14 +1022,13 @@ CompiledMethod* Mir2Lir::GetCompiledMethod() {
   UnsignedLeb128EncodingVector vmap_encoder;
   // Prefix the encoded data with its size.
   vmap_encoder.PushBack(raw_vmap_table.size());
-  typedef std::vector<uint16_t>::const_iterator It;
-  for (It cur = raw_vmap_table.begin(), end = raw_vmap_table.end(); cur != end; ++cur) {
-    vmap_encoder.PushBack(*cur);
+  for (uint16_t cur : raw_vmap_table) {
+    vmap_encoder.PushBack(cur);
   }
   CompiledMethod* result =
-      new CompiledMethod(cu_->instruction_set, code_buffer_,
-                         frame_size_, core_spill_mask_, fp_spill_mask_,
-                         encoded_mapping_table_.GetData(), vmap_encoder.GetData(), native_gc_map_);
+      new CompiledMethod(*cu_->compiler_driver, cu_->instruction_set, code_buffer_, frame_size_,
+                         core_spill_mask_, fp_spill_mask_, encoded_mapping_table_.GetData(),
+                         vmap_encoder.GetData(), native_gc_map_);
   return result;
 }
 

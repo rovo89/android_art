@@ -50,7 +50,7 @@ using ::art::llvm::runtime_support::JniMethodStartSynchronized;
 using ::art::llvm::runtime_support::RuntimeId;
 
 JniCompiler::JniCompiler(LlvmCompilationUnit* cunit,
-                         const CompilerDriver& driver,
+                         CompilerDriver& driver,
                          const DexCompilationUnit* dex_compilation_unit)
     : cunit_(cunit), driver_(&driver), module_(cunit_->GetModule()),
       context_(cunit_->GetLLVMContext()), irb_(*cunit_->GetIRBuilder()),
@@ -251,8 +251,7 @@ CompiledMethod* JniCompiler::Compile() {
 
   cunit_->Materialize();
 
-  return new CompiledMethod(cunit_->GetInstructionSet(),
-                            cunit_->GetElfObject(),
+  return new CompiledMethod(*driver_, cunit_->GetInstructionSet(), cunit_->GetElfObject(),
                             func_name);
 }
 

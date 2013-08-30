@@ -34,7 +34,6 @@ LIBART_COMMON_SRC_FILES := \
 	check_jni.cc \
 	class_linker.cc \
 	common_throws.cc \
-	compiled_method.cc \
 	debugger.cc \
 	dex_file.cc \
 	dex_file_verifier.cc \

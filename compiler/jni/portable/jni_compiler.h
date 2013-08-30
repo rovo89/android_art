@@ -54,7 +54,7 @@ class IRBuilder;
 class JniCompiler {
  public:
   JniCompiler(LlvmCompilationUnit* cunit,
-              const CompilerDriver& driver,
+              CompilerDriver& driver,
               const DexCompilationUnit* dex_compilation_unit);
 
   CompiledMethod* Compile();
@@ -67,7 +67,7 @@ class JniCompiler {
 
  private:
   LlvmCompilationUnit* cunit_;
-  const CompilerDriver* const driver_;
+  CompilerDriver* driver_;
 
   ::llvm::Module* module_;
   ::llvm::LLVMContext* context_;

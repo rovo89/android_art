@@ -217,18 +217,12 @@ class OatWriter {
   uint32_t size_oat_class_status_;
   uint32_t size_oat_class_method_offsets_;
 
-  template <class T> struct MapCompare {
-   public:
-    bool operator() (const T* const &a, const T* const &b) const {
-      return *a < *b;
-    }
-  };
-
-  // code mappings for deduplication
-  SafeMap<const std::vector<uint8_t>*, uint32_t, MapCompare<std::vector<uint8_t> > > code_offsets_;
-  SafeMap<const std::vector<uint8_t>*, uint32_t, MapCompare<std::vector<uint8_t> > > vmap_table_offsets_;
-  SafeMap<const std::vector<uint8_t>*, uint32_t, MapCompare<std::vector<uint8_t> > > mapping_table_offsets_;
-  SafeMap<const std::vector<uint8_t>*, uint32_t, MapCompare<std::vector<uint8_t> > > gc_map_offsets_;
+  // Code mappings for deduplication. Deduplication is already done on a pointer basis by the
+  // compiler driver, so we can simply compare the pointers to find out if things are duplicated.
+  SafeMap<const std::vector<uint8_t>*, uint32_t> code_offsets_;
+  SafeMap<const std::vector<uint8_t>*, uint32_t> vmap_table_offsets_;
+  SafeMap<const std::vector<uint8_t>*, uint32_t> mapping_table_offsets_;
+  SafeMap<const std::vector<uint8_t>*, uint32_t> gc_map_offsets_;
 
   DISALLOW_COPY_AND_ASSIGN(OatWriter);
 };
