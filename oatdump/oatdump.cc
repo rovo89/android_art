@@ -780,6 +780,8 @@ class ImageDumper {
     stats_.header_bytes = header_bytes;
     size_t alignment_bytes = RoundUp(header_bytes, kObjectAlignment) - header_bytes;
     stats_.alignment_bytes += alignment_bytes;
+    stats_.alignment_bytes += image_header_.GetImageBitmapOffset() - image_header_.GetImageSize();
+    stats_.bitmap_bytes += image_header_.GetImageBitmapSize();
     stats_.Dump(os);
     os << "\n";
 
@@ -1066,6 +1068,7 @@ class ImageDumper {
 
     size_t header_bytes;
     size_t object_bytes;
+    size_t bitmap_bytes;
     size_t alignment_bytes;
 
     size_t managed_code_bytes;
@@ -1092,6 +1095,7 @@ class ImageDumper {
           file_bytes(0),
           header_bytes(0),
           object_bytes(0),
+          bitmap_bytes(0),
           alignment_bytes(0),
           managed_code_bytes(0),
           managed_code_bytes_ignoring_deduplication(0),
@@ -1250,12 +1254,14 @@ class ImageDumper {
         std::ostream indent_os(&indent_filter);
         indent_os << StringPrintf("header_bytes    =  %8zd (%2.0f%% of art file bytes)\n"
                                   "object_bytes    =  %8zd (%2.0f%% of art file bytes)\n"
+                                  "bitmap_bytes    =  %8zd (%2.0f%% of art file bytes)\n"
                                   "alignment_bytes =  %8zd (%2.0f%% of art file bytes)\n\n",
                                   header_bytes, PercentOfFileBytes(header_bytes),
                                   object_bytes, PercentOfFileBytes(object_bytes),
+                                  bitmap_bytes, PercentOfFileBytes(bitmap_bytes),
                                   alignment_bytes, PercentOfFileBytes(alignment_bytes))
             << std::flush;
-        CHECK_EQ(file_bytes, header_bytes + object_bytes + alignment_bytes);
+        CHECK_EQ(file_bytes, bitmap_bytes + header_bytes + object_bytes + alignment_bytes);
       }
 
       os << "object_bytes breakdown:\n";
