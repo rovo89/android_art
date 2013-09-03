@@ -41,20 +41,8 @@ class PACKED(4) ImageHeader {
               uint32_t oat_data_end,
               uint32_t oat_file_end);
 
-  bool IsValid() const {
-    if (memcmp(magic_, kImageMagic, sizeof(kImageMagic)) != 0) {
-      return false;
-    }
-    if (memcmp(version_, kImageVersion, sizeof(kImageVersion)) != 0) {
-      return false;
-    }
-    return true;
-  }
-
-  const char* GetMagic() const {
-    CHECK(IsValid());
-    return reinterpret_cast<const char*>(magic_);
-  }
+  bool IsValid() const;
+  const char* GetMagic() const;
 
   byte* GetImageBegin() const {
     return reinterpret_cast<byte*>(image_begin_);

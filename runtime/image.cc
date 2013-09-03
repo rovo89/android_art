@@ -58,6 +58,21 @@ ImageHeader::ImageHeader(uint32_t image_begin,
   memcpy(version_, kImageVersion, sizeof(kImageVersion));
 }
 
+bool ImageHeader::IsValid() const {
+  if (memcmp(magic_, kImageMagic, sizeof(kImageMagic)) != 0) {
+    return false;
+  }
+  if (memcmp(version_, kImageVersion, sizeof(kImageVersion)) != 0) {
+    return false;
+  }
+  return true;
+}
+
+const char* ImageHeader::GetMagic() const {
+  CHECK(IsValid());
+  return reinterpret_cast<const char*>(magic_);
+}
+
 mirror::Object* ImageHeader::GetImageRoot(ImageRoot image_root) const {
   return GetImageRoots()->Get(image_root);
 }
