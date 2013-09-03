@@ -159,4 +159,34 @@ TEST_F(ImageTest, WriteRead) {
   }
 }
 
+TEST_F(ImageTest, ImageHeaderIsValid) {
+    uint32_t image_begin = ART_BASE_ADDRESS;
+    uint32_t image_size_ = 16 * KB;
+    uint32_t image_bitmap_offset = 0;
+    uint32_t image_bitmap_size = 0;
+    uint32_t image_roots = ART_BASE_ADDRESS + (1 * KB);
+    uint32_t oat_checksum = 0;
+    uint32_t oat_file_begin = ART_BASE_ADDRESS + (4 * KB);  // page aligned
+    uint32_t oat_data_begin = ART_BASE_ADDRESS + (8 * KB);  // page aligned
+    uint32_t oat_data_end = ART_BASE_ADDRESS + (9 * KB);
+    uint32_t oat_file_end = ART_BASE_ADDRESS + (10 * KB);
+    ImageHeader image_header(image_begin,
+                             image_size_,
+                             image_bitmap_offset,
+                             image_bitmap_size,
+                             image_roots,
+                             oat_checksum,
+                             oat_file_begin,
+                             oat_data_begin,
+                             oat_data_end,
+                             oat_file_end);
+    ASSERT_TRUE(image_header.IsValid());
+
+    char* magic = const_cast<char*>(image_header.GetMagic());
+    strcpy(magic, "");  // bad magic
+    ASSERT_FALSE(image_header.IsValid());
+    strcpy(magic, "art\n000");  // bad version
+    ASSERT_FALSE(image_header.IsValid());
+}
+
 }  // namespace art

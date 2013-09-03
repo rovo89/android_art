@@ -42,10 +42,10 @@ class PACKED(4) ImageHeader {
               uint32_t oat_file_end);
 
   bool IsValid() const {
-    if (memcmp(magic_, kImageMagic, sizeof(kImageMagic) != 0)) {
+    if (memcmp(magic_, kImageMagic, sizeof(kImageMagic)) != 0) {
       return false;
     }
-    if (memcmp(version_, kImageVersion, sizeof(kImageVersion) != 0)) {
+    if (memcmp(version_, kImageVersion, sizeof(kImageVersion)) != 0) {
       return false;
     }
     return true;
