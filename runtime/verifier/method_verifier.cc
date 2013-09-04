@@ -1921,9 +1921,12 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           (instance_of_inst->VRegA_22c() != instance_of_inst->VRegB_22c())) {
         // Check that the we are not attempting conversion to interface types,
         // which is not done because of the multiple inheritance implications.
+        // Also don't change the type if it would result in an upcast.
+        const RegType& orig_type = work_line_->GetRegisterType(instance_of_inst->VRegB_22c());
         const RegType& cast_type = ResolveClassAndCheckAccess(instance_of_inst->VRegC_22c());
 
-        if (!cast_type.IsUnresolvedTypes() && !cast_type.GetClass()->IsInterface()) {
+        if (!cast_type.IsUnresolvedTypes() && !cast_type.GetClass()->IsInterface() &&
+            !cast_type.IsAssignableFrom(orig_type)) {
           RegisterLine* update_line = new RegisterLine(code_item_->registers_size_, this);
           if (inst->Opcode() == Instruction::IF_EQZ) {
             fallthrough_line.reset(update_line);
