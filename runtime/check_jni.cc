@@ -35,10 +35,6 @@
 #include "scoped_thread_state_change.h"
 #include "thread.h"
 
-#define LIBCORE_CPP_JNI_HELPERS
-#include <JNIHelp.h>  // from libcore
-#undef LIBCORE_CPP_JNI_HELPERS
-
 namespace art {
 
 static void JniAbort(const char* jni_function_name, const char* msg) {
@@ -814,17 +810,8 @@ class ScopedCheck {
       ThrowLocation throw_location;
       mirror::Throwable* exception = self->GetException(&throw_location);
       std::string type(PrettyTypeOf(exception));
-      // TODO: write native code that doesn't require allocation for dumping an exception.
-      // TODO: do we care any more? art always dumps pending exceptions on aborting threads.
-      bool with_stack_trace = (type != "java.lang.OutOfMemoryError");
-      if (with_stack_trace) {
-        JniAbortF(function_name_, "JNI %s called with pending exception '%s' thrown in %s\n%s",
-                  function_name_, type.c_str(), throw_location.Dump().c_str(),
-                  jniGetStackTrace(soa_.Env()).c_str());
-      } else {
-        JniAbortF(function_name_, "JNI %s called with pending exception '%s' thrown in %s",
-                  function_name_, type.c_str(), throw_location.Dump().c_str());
-      }
+      JniAbortF(function_name_, "JNI %s called with pending exception '%s' thrown in %s",
+                function_name_, type.c_str(), throw_location.Dump().c_str());
       return;
     }
   }
