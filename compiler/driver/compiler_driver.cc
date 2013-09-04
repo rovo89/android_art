@@ -1585,13 +1585,11 @@ void CompilerDriver::ResolveDexFile(jobject class_loader, const DexFile& dex_fil
   if (IsImage()) {
     // For images we resolve all types, such as array, whereas for applications just those with
     // classdefs are resolved by ResolveClassFieldsAndMethods.
-    // TODO: strdup memory leak.
-    timings.NewSplit(strdup(("Resolve " + dex_file.GetLocation() + " Types").c_str()));
+    timings.NewSplit("Resolve Types");
     context.ForAll(0, dex_file.NumTypeIds(), ResolveType, thread_count_);
   }
 
-  // TODO: strdup memory leak.
-  timings.NewSplit(strdup(("Resolve " + dex_file.GetLocation() + " MethodsAndFields").c_str()));
+  timings.NewSplit("Resolve MethodsAndFields");
   context.ForAll(0, dex_file.NumClassDefs(), ResolveClassFieldsAndMethods, thread_count_);
 }
 
@@ -1652,8 +1650,7 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
 
 void CompilerDriver::VerifyDexFile(jobject class_loader, const DexFile& dex_file,
                                    ThreadPool& thread_pool, base::TimingLogger& timings) {
-  // TODO: strdup memory leak.
-  timings.NewSplit(strdup(("Verify " + dex_file.GetLocation()).c_str()));
+  timings.NewSplit("Verify Dex File");
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   ParallelCompilationManager context(class_linker, class_loader, this, &dex_file, thread_pool);
   context.ForAll(0, dex_file.NumClassDefs(), VerifyClass, thread_count_);
@@ -2150,8 +2147,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
 
 void CompilerDriver::InitializeClasses(jobject jni_class_loader, const DexFile& dex_file,
                                        ThreadPool& thread_pool, base::TimingLogger& timings) {
-  // TODO: strdup memory leak.
-  timings.NewSplit(strdup(("InitializeNoClinit " + dex_file.GetLocation()).c_str()));
+  timings.NewSplit("InitializeNoClinit");
 #ifndef NDEBUG
   // Sanity check blacklist descriptors.
   if (IsImage()) {
@@ -2258,8 +2254,7 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
 
 void CompilerDriver::CompileDexFile(jobject class_loader, const DexFile& dex_file,
                                     ThreadPool& thread_pool, base::TimingLogger& timings) {
-  // TODO: strdup memory leak.
-  timings.NewSplit(strdup(("Compile " + dex_file.GetLocation()).c_str()));
+  timings.NewSplit("Compile Dex File");
   ParallelCompilationManager context(Runtime::Current()->GetClassLinker(), class_loader, this,
                                      &dex_file, thread_pool);
   context.ForAll(0, dex_file.NumClassDefs(), CompilerDriver::CompileClass, thread_count_);
