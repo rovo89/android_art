@@ -394,6 +394,22 @@ CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet 
   }
 }
 
+std::vector<uint8_t>* CompilerDriver::DeduplicateCode(const std::vector<uint8_t>& code) {
+  return dedupe_code_.Add(Thread::Current(), code);
+}
+
+std::vector<uint8_t>* CompilerDriver::DeduplicateMappingTable(const std::vector<uint8_t>& code) {
+  return dedupe_mapping_table_.Add(Thread::Current(), code);
+}
+
+std::vector<uint8_t>* CompilerDriver::DeduplicateVMapTable(const std::vector<uint8_t>& code) {
+  return dedupe_vmap_table_.Add(Thread::Current(), code);
+}
+
+std::vector<uint8_t>* CompilerDriver::DeduplicateGCMap(const std::vector<uint8_t>& code) {
+  return dedupe_gc_map_.Add(Thread::Current(), code);
+}
+
 CompilerDriver::~CompilerDriver() {
   Thread* self = Thread::Current();
   {
