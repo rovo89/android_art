@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_COMPILED_METHOD_H_
-#define ART_RUNTIME_COMPILED_METHOD_H_
+#ifndef ART_COMPILER_COMPILED_METHOD_H_
+#define ART_COMPILER_COMPILED_METHOD_H_
 
 #include <string>
 #include <vector>
@@ -30,28 +30,27 @@ namespace llvm {
 
 namespace art {
 
+class CompilerDriver;
+
 class CompiledCode {
  public:
   // For Quick to supply an code blob
-  CompiledCode(InstructionSet instruction_set, const std::vector<uint8_t>& code);
+  CompiledCode(CompilerDriver* compiler_driver, InstructionSet instruction_set,
+               const std::vector<uint8_t>& code);
 
   // For Portable to supply an ELF object
-  CompiledCode(InstructionSet instruction_set,
-               const std::string& elf_object,
-               const std::string &symbol);
+  CompiledCode(CompilerDriver* compiler_driver, InstructionSet instruction_set,
+               const std::string& elf_object, const std::string &symbol);
 
   InstructionSet GetInstructionSet() const {
     return instruction_set_;
   }
 
   const std::vector<uint8_t>& GetCode() const {
-    return code_;
+    return *code_;
   }
 
-  void SetCode(const std::vector<uint8_t>& code) {
-    CHECK_NE(code.size(), 0U);
-    code_ = code;
-  }
+  void SetCode(const std::vector<uint8_t>& code);
 
   bool operator==(const CompiledCode& rhs) const {
     return (code_ == rhs.code_);
@@ -80,10 +79,12 @@ class CompiledCode {
 #endif
 
  private:
+  CompilerDriver* compiler_driver_;
+
   const InstructionSet instruction_set_;
 
   // Used to store the PIC code for Quick and an ELF image for portable.
-  std::vector<uint8_t> code_;
+  std::vector<uint8_t>* code_;
 
   // Used for the Portable ELF symbol name.
   const std::string symbol_;
@@ -98,7 +99,8 @@ class CompiledCode {
 class CompiledMethod : public CompiledCode {
  public:
   // Constructs a CompiledMethod for the non-LLVM compilers.
-  CompiledMethod(InstructionSet instruction_set,
+  CompiledMethod(CompilerDriver& driver,
+                 InstructionSet instruction_set,
                  const std::vector<uint8_t>& code,
                  const size_t frame_size_in_bytes,
                  const uint32_t core_spill_mask,
@@ -108,30 +110,20 @@ class CompiledMethod : public CompiledCode {
                  const std::vector<uint8_t>& native_gc_map);
 
   // Constructs a CompiledMethod for the JniCompiler.
-  CompiledMethod(InstructionSet instruction_set,
+  CompiledMethod(CompilerDriver& driver,
+                 InstructionSet instruction_set,
                  const std::vector<uint8_t>& code,
                  const size_t frame_size_in_bytes,
                  const uint32_t core_spill_mask,
                  const uint32_t fp_spill_mask);
 
   // Constructs a CompiledMethod for the Portable compiler.
-  CompiledMethod(InstructionSet instruction_set,
-                 const std::string& code,
-                 const std::vector<uint8_t>& gc_map,
-                 const std::string& symbol)
-      : CompiledCode(instruction_set, code, symbol),
-        frame_size_in_bytes_(kStackAlignment), core_spill_mask_(0),
-        fp_spill_mask_(0), gc_map_(gc_map) {
-  }
+  CompiledMethod(CompilerDriver& driver, InstructionSet instruction_set, const std::string& code,
+                 const std::vector<uint8_t>& gc_map, const std::string& symbol);
 
   // Constructs a CompiledMethod for the Portable JniCompiler.
-  CompiledMethod(InstructionSet instruction_set,
-                 const std::string& code,
-                 const std::string& symbol)
-      : CompiledCode(instruction_set, code, symbol),
-        frame_size_in_bytes_(kStackAlignment), core_spill_mask_(0),
-        fp_spill_mask_(0) {
-  }
+  CompiledMethod(CompilerDriver& driver, InstructionSet instruction_set, const std::string& code,
+                 const std::string& symbol);
 
   ~CompiledMethod() {}
 
@@ -148,15 +140,18 @@ class CompiledMethod : public CompiledCode {
   }
 
   const std::vector<uint8_t>& GetMappingTable() const {
-    return mapping_table_;
+    DCHECK(mapping_table_ != nullptr);
+    return *mapping_table_;
   }
 
   const std::vector<uint8_t>& GetVmapTable() const {
-    return vmap_table_;
+    DCHECK(vmap_table_ != nullptr);
+    return *vmap_table_;
   }
 
   const std::vector<uint8_t>& GetGcMap() const {
-    return gc_map_;
+    DCHECK(gc_map_ != nullptr);
+    return *gc_map_;
   }
 
  private:
@@ -168,14 +163,14 @@ class CompiledMethod : public CompiledCode {
   const uint32_t fp_spill_mask_;
   // For quick code, a uleb128 encoded map from native PC offset to dex PC aswell as dex PC to
   // native PC offset. Size prefixed.
-  std::vector<uint8_t> mapping_table_;
+  std::vector<uint8_t>* mapping_table_;
   // For quick code, a uleb128 encoded map from GPR/FPR register to dex register. Size prefixed.
-  std::vector<uint8_t> vmap_table_;
+  std::vector<uint8_t>* vmap_table_;
   // For quick code, a map keyed by native PC indices to bitmaps describing what dalvik registers
   // are live. For portable code, the key is a dalvik PC.
-  std::vector<uint8_t> gc_map_;
+  std::vector<uint8_t>* gc_map_;
 };
 
 }  // namespace art
 
-#endif  // ART_RUNTIME_COMPILED_METHOD_H_
+#endif  // ART_COMPILER_COMPILED_METHOD_H_

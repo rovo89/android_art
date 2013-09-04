@@ -57,11 +57,9 @@ static CompiledMethod* CompileMethodWithSeaIr(CompilerDriver& compiler,
   dc.DumpSea(ir_graph, "/tmp/temp.dot", types);
   MethodReference mref(&dex_file, method_idx);
   std::string llvm_code = llvm_data->GetElf(compiler.GetInstructionSet());
-  CompiledMethod* compiled_method =  new CompiledMethod(
-                              compiler.GetInstructionSet(),
-                              llvm_code,
-                              *verifier::MethodVerifier::GetDexGcMap(mref),
-                              symbol);
+  CompiledMethod* compiled_method =
+      new CompiledMethod(compiler, compiler.GetInstructionSet(), llvm_code,
+                         *verifier::MethodVerifier::GetDexGcMap(mref), symbol);
   LOG(INFO) << "Compiled SEA IR method " << PrettyMethod(method_idx, dex_file) << ".";
   return compiled_method;
 }

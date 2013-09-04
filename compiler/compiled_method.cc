@@ -15,26 +15,35 @@
  */
 
 #include "compiled_method.h"
+#include "driver/compiler_driver.h"
 
 namespace art {
 
-CompiledCode::CompiledCode(InstructionSet instruction_set, const std::vector<uint8_t>& code)
-    : instruction_set_(instruction_set), code_(code) {
-  CHECK_NE(code.size(), 0U);
+CompiledCode::CompiledCode(CompilerDriver* compiler_driver, InstructionSet instruction_set,
+                           const std::vector<uint8_t>& code)
+    : compiler_driver_(compiler_driver), instruction_set_(instruction_set), code_(nullptr) {
+  SetCode(code);
 }
 
-CompiledCode::CompiledCode(InstructionSet instruction_set,
-                           const std::string& elf_object,
-                           const std::string& symbol)
-    : instruction_set_(instruction_set), symbol_(symbol) {
+CompiledCode::CompiledCode(CompilerDriver* compiler_driver, InstructionSet instruction_set,
+                           const std::string& elf_object, const std::string& symbol)
+    : compiler_driver_(compiler_driver), instruction_set_(instruction_set), symbol_(symbol) {
   CHECK_NE(elf_object.size(), 0U);
   CHECK_NE(symbol.size(), 0U);
+  std::vector<uint8_t> temp_code(elf_object.size());
+  for (size_t i = 0; i < elf_object.size(); ++i) {
+    temp_code[i] = elf_object[i];
+  }
   // TODO: we shouldn't just shove ELF objects in as "code" but
   // change to have different kinds of compiled methods.  This is
   // being deferred until we work on hybrid execution or at least
   // until we work on batch compilation.
-  code_.resize(elf_object.size());
-  memcpy(&code_[0], &elf_object[0], elf_object.size());
+  SetCode(temp_code);
+}
+
+void CompiledCode::SetCode(const std::vector<uint8_t>& code) {
+  CHECK(!code.empty());
+  code_ = compiler_driver_->DeduplicateCode(code);
 }
 
 uint32_t CompiledCode::AlignCode(uint32_t offset) const {
@@ -107,7 +116,8 @@ void CompiledCode::AddOatdataOffsetToCompliledCodeOffset(uint32_t offset) {
 }
 #endif
 
-CompiledMethod::CompiledMethod(InstructionSet instruction_set,
+CompiledMethod::CompiledMethod(CompilerDriver& driver,
+                               InstructionSet instruction_set,
                                const std::vector<uint8_t>& code,
                                const size_t frame_size_in_bytes,
                                const uint32_t core_spill_mask,
@@ -115,19 +125,46 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
                                const std::vector<uint8_t>& mapping_table,
                                const std::vector<uint8_t>& vmap_table,
                                const std::vector<uint8_t>& native_gc_map)
-    : CompiledCode(instruction_set, code), frame_size_in_bytes_(frame_size_in_bytes),
+    : CompiledCode(&driver, instruction_set, code), frame_size_in_bytes_(frame_size_in_bytes),
       core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask),
-      mapping_table_(mapping_table), vmap_table_(vmap_table),
-      gc_map_(native_gc_map) {
+  mapping_table_(driver.DeduplicateMappingTable(mapping_table)),
+  vmap_table_(driver.DeduplicateVMapTable(vmap_table)),
+  gc_map_(driver.DeduplicateGCMap(native_gc_map)) {
 }
 
-CompiledMethod::CompiledMethod(InstructionSet instruction_set,
+CompiledMethod::CompiledMethod(CompilerDriver& driver,
+                               InstructionSet instruction_set,
                                const std::vector<uint8_t>& code,
                                const size_t frame_size_in_bytes,
                                const uint32_t core_spill_mask,
                                const uint32_t fp_spill_mask)
-    : CompiledCode(instruction_set, code),
+    : CompiledCode(&driver, instruction_set, code),
       frame_size_in_bytes_(frame_size_in_bytes),
-      core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask) {}
+      core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask) {
+  mapping_table_ = driver.DeduplicateMappingTable(std::vector<uint8_t>());
+  vmap_table_ = driver.DeduplicateVMapTable(std::vector<uint8_t>());
+  gc_map_ = driver.DeduplicateGCMap(std::vector<uint8_t>());
+}
+
+// Constructs a CompiledMethod for the Portable compiler.
+CompiledMethod::CompiledMethod(CompilerDriver& driver, InstructionSet instruction_set,
+                               const std::string& code, const std::vector<uint8_t>& gc_map,
+                               const std::string& symbol)
+    : CompiledCode(&driver, instruction_set, code, symbol),
+      frame_size_in_bytes_(kStackAlignment), core_spill_mask_(0),
+      fp_spill_mask_(0), gc_map_(driver.DeduplicateGCMap(gc_map)) {
+  mapping_table_ = driver.DeduplicateMappingTable(std::vector<uint8_t>());
+  vmap_table_ = driver.DeduplicateVMapTable(std::vector<uint8_t>());
+}
+
+CompiledMethod::CompiledMethod(CompilerDriver& driver, InstructionSet instruction_set,
+                               const std::string& code, const std::string& symbol)
+    : CompiledCode(&driver, instruction_set, code, symbol),
+      frame_size_in_bytes_(kStackAlignment), core_spill_mask_(0),
+      fp_spill_mask_(0) {
+  mapping_table_ = driver.DeduplicateMappingTable(std::vector<uint8_t>());
+  vmap_table_ = driver.DeduplicateVMapTable(std::vector<uint8_t>());
+  gc_map_ = driver.DeduplicateGCMap(std::vector<uint8_t>());
+}
 
 }  // namespace art

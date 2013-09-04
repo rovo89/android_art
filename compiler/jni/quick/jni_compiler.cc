@@ -370,7 +370,8 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
     UniquePtr<Disassembler> disassembler(Disassembler::Create(instruction_set));
     disassembler->Dump(LOG(INFO), &managed_code[0], &managed_code[managed_code.size()]);
   }
-  return new CompiledMethod(instruction_set,
+  return new CompiledMethod(compiler,
+                            instruction_set,
                             managed_code,
                             frame_size,
                             main_jni_conv->CoreSpillMask(),

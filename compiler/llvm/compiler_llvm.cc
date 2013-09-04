@@ -153,9 +153,8 @@ CompileDexMethod(DexCompilationUnit* dex_compilation_unit, InvokeType invoke_typ
 
   MethodReference mref(dex_compilation_unit->GetDexFile(),
                        dex_compilation_unit->GetDexMethodIndex());
-  return new CompiledMethod(compiler_driver_->GetInstructionSet(),
-                            cunit->GetElfObject(),
-                            *verifier::MethodVerifier::GetDexGcMap(mref),
+  return new CompiledMethod(*compiler_driver_, compiler_driver_->GetInstructionSet(),
+                            cunit->GetElfObject(), *verifier::MethodVerifier::GetDexGcMap(mref),
                             cunit->GetDexCompilationUnit()->GetSymbol());
 }
 

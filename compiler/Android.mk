@@ -19,6 +19,7 @@ LOCAL_PATH := $(call my-dir)
 include art/build/Android.common.mk
 
 LIBART_COMPILER_SRC_FILES := \
+	compiled_method.cc \
 	dex/local_value_numbering.cc \
 	dex/arena_allocator.cc \
 	dex/arena_bit_vector.cc \
