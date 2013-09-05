@@ -449,27 +449,39 @@ class CompilerDriver {
   class DedupeHashFunc {
    public:
     size_t operator()(const std::vector<uint8_t>& array) const {
-      // Take a random sample of bytes.
+      // For small arrays compute a hash using every byte.
       static const size_t kSmallArrayThreshold = 16;
-      static const size_t kRandomHashCount = 16;
-      size_t hash = 0;
-      if (array.size() < kSmallArrayThreshold) {
-        for (auto c : array) {
-          hash = hash * 54 + c;
+      size_t hash = 0x811c9dc5;
+      if (array.size() <= kSmallArrayThreshold) {
+        for (uint8_t b : array) {
+          hash = (hash * 16777619) ^ b;
         }
       } else {
-        for (size_t i = 0; i < kRandomHashCount; ++i) {
+        // For larger arrays use the first 4 bytes and then select a number of other values at
+        // random.
+        static const size_t kRandomHashCount = 16;
+        for (size_t i = 0; i < 4; ++i) {
+          uint8_t b = array[i];
+          hash = (hash * 16777619) ^ b;
+        }
+        for (size_t i = 4; i < kRandomHashCount; ++i) {
           size_t r = i * 1103515245 + 12345;
-          hash = hash * 54 + array[r % array.size()];
+          uint8_t b = array[r % array.size()];
+          hash = (hash * 16777619) ^ b;
         }
       }
+      hash += hash << 13;
+      hash ^= hash >> 7;
+      hash += hash << 3;
+      hash ^= hash >> 17;
+      hash += hash << 5;
       return hash;
     }
   };
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc> dedupe_code_;
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc> dedupe_mapping_table_;
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc> dedupe_vmap_table_;
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc> dedupe_gc_map_;
+  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_code_;
+  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_mapping_table_;
+  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_vmap_table_;
+  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_gc_map_;
 
   DISALLOW_COPY_AND_ASSIGN(CompilerDriver);
 };

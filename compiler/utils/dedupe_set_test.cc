@@ -38,7 +38,7 @@ class DedupeHashFunc {
 TEST_F(DedupeSetTest, Test) {
   Thread* self = Thread::Current();
   typedef std::vector<uint8_t> ByteArray;
-  DedupeSet<ByteArray, size_t, DedupeHashFunc> deduplicator;
+  DedupeSet<ByteArray, size_t, DedupeHashFunc> deduplicator("test");
   ByteArray* array1;
   {
     ByteArray test1;

@@ -164,7 +164,7 @@ CompileNativeMethod(DexCompilationUnit* dex_compilation_unit) {
   UniquePtr<LlvmCompilationUnit> cunit(AllocateCompilationUnit());
 
   UniquePtr<JniCompiler> jni_compiler(
-      new JniCompiler(cunit.get(), *compiler_driver_, dex_compilation_unit));
+      new JniCompiler(cunit.get(), compiler_driver_, dex_compilation_unit));
 
   return jni_compiler->Compile();
 }

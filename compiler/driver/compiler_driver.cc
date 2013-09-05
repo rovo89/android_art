@@ -355,7 +355,11 @@ CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet 
       jni_compiler_(NULL),
       compiler_enable_auto_elf_loading_(NULL),
       compiler_get_method_code_addr_(NULL),
-      support_boot_image_fixup_(true) {
+      support_boot_image_fixup_(true),
+      dedupe_code_("dedupe code"),
+      dedupe_mapping_table_("dedupe mapping table"),
+      dedupe_vmap_table_("dedupe vmap table"),
+      dedupe_gc_map_("dedupe gc map") {
 
   CHECK_PTHREAD_CALL(pthread_key_create, (&tls_key_, NULL), "compiler tls key");
 
