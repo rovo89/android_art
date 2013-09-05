@@ -316,6 +316,28 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
   }
 }
 
+static void System_arraycopyCharUnchecked(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject javaDst, jint dstPos, jint length) {
+  ScopedObjectAccess soa(env);
+  DCHECK(javaSrc != NULL);
+  DCHECK(javaDst != NULL);
+  mirror::Object* srcObject = soa.Decode<mirror::Object*>(javaSrc);
+  mirror::Object* dstObject = soa.Decode<mirror::Object*>(javaDst);
+  DCHECK(srcObject->IsArrayInstance());
+  DCHECK(dstObject->IsArrayInstance());
+  mirror::Array* srcArray = srcObject->AsArray();
+  mirror::Array* dstArray = dstObject->AsArray();
+  DCHECK(srcPos >= 0 && dstPos >= 0 && length >= 0 &&
+         srcPos + length <= srcArray->GetLength() && dstPos + length <= dstArray->GetLength());
+  DCHECK_EQ(srcArray->GetClass()->GetComponentType(), dstArray->GetClass()->GetComponentType());
+  DCHECK(srcArray->GetClass()->GetComponentType()->IsPrimitive());
+  DCHECK(dstArray->GetClass()->GetComponentType()->IsPrimitive());
+  DCHECK_EQ(srcArray->GetClass()->GetComponentSize(), static_cast<size_t>(2));
+  DCHECK_EQ(dstArray->GetClass()->GetComponentSize(), static_cast<size_t>(2));
+  uint8_t* dstBytes = reinterpret_cast<uint8_t*>(dstArray->GetRawData(2));
+  const uint8_t* srcBytes = reinterpret_cast<const uint8_t*>(srcArray->GetRawData(2));
+  move16(dstBytes + dstPos * 2, srcBytes + srcPos * 2, length * 2);
+}
+
 static jint System_identityHashCode(JNIEnv* env, jclass, jobject javaObject) {
   ScopedObjectAccess soa(env);
   mirror::Object* o = soa.Decode<mirror::Object*>(javaObject);
@@ -324,6 +346,7 @@ static jint System_identityHashCode(JNIEnv* env, jclass, jobject javaObject) {
 
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(System, arraycopy, "(Ljava/lang/Object;ILjava/lang/Object;II)V"),
+  NATIVE_METHOD(System, arraycopyCharUnchecked, "([CI[CII)V"),
   NATIVE_METHOD(System, identityHashCode, "(Ljava/lang/Object;)I"),
 };
 
