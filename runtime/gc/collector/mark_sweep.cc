@@ -1069,11 +1069,13 @@ class CheckpointMarkThreadRoots : public Closure {
   explicit CheckpointMarkThreadRoots(MarkSweep* mark_sweep) : mark_sweep_(mark_sweep) {}
 
   virtual void Run(Thread* thread) NO_THREAD_SAFETY_ANALYSIS {
+    ATRACE_BEGIN("Marking thread roots");
     // Note: self is not necessarily equal to thread since thread may be suspended.
     Thread* self = Thread::Current();
     CHECK(thread == self || thread->IsSuspended() || thread->GetState() == kWaitingPerformingGc)
         << thread->GetState() << " thread " << thread << " self " << self;
     thread->VisitRoots(MarkSweep::MarkRootParallelCallback, mark_sweep_);
+    ATRACE_END();
     mark_sweep_->GetBarrier().Pass(self);
   }
 
