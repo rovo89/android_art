@@ -88,12 +88,16 @@ void GarbageCollector::Run() {
     bool done = false;
     while (!done) {
       uint64_t pause_start = NanoTime();
-      ATRACE_BEGIN("Application threads suspended");
+      ATRACE_BEGIN("Suspending mutator threads");
       thread_list->SuspendAll();
+      ATRACE_END();
+      ATRACE_BEGIN("All mutator threads suspended");
       done = HandleDirtyObjectsPhase();
-      thread_list->ResumeAll();
       ATRACE_END();
       uint64_t pause_end = NanoTime();
+      ATRACE_BEGIN("Resuming mutator threads");
+      thread_list->ResumeAll();
+      ATRACE_END();
       pause_times_.push_back(pause_end - pause_start);
     }
     {
