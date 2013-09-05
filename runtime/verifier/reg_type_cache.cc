@@ -26,8 +26,8 @@ namespace art {
 namespace verifier {
 
 bool RegTypeCache::primitive_initialized_ = false;
-uint16_t RegTypeCache::primitive_start_ = 0;
 uint16_t RegTypeCache::primitive_count_ = 0;
+PreciseConstType* RegTypeCache::small_precise_constants_[kMaxSmallConstant - kMinSmallConstant + 1];
 
 static bool MatchingPrecisionForClass(RegType* entry, bool precise)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -44,7 +44,7 @@ static bool MatchingPrecisionForClass(RegType* entry, bool precise)
   }
 }
 
-void RegTypeCache::FillPrimitiveTypes() {
+void RegTypeCache::FillPrimitiveAndSmallConstantTypes() {
   entries_.push_back(UndefinedType::GetInstance());
   entries_.push_back(ConflictType::GetInstance());
   entries_.push_back(BooleanType::GetInstance());
@@ -57,6 +57,11 @@ void RegTypeCache::FillPrimitiveTypes() {
   entries_.push_back(FloatType::GetInstance());
   entries_.push_back(DoubleLoType::GetInstance());
   entries_.push_back(DoubleHiType::GetInstance());
+  for (int32_t value = kMinSmallConstant; value <= kMaxSmallConstant; ++value) {
+    int32_t i = value - kMinSmallConstant;
+    DCHECK_EQ(entries_.size(), small_precise_constants_[i]->GetId());
+    entries_.push_back(small_precise_constants_[i]);
+  }
   DCHECK_EQ(entries_.size(), primitive_count_);
 }
 
@@ -232,12 +237,12 @@ const RegType& RegTypeCache::FromClass(const char* descriptor, mirror::Class* kl
 RegTypeCache::~RegTypeCache() {
   CHECK_LE(primitive_count_, entries_.size());
   // Delete only the non primitive types.
-  if (entries_.size() == kNumPrimitives) {
-    // All entries are primitive, nothing to delete.
+  if (entries_.size() == kNumPrimitivesAndSmallConstants) {
+    // All entries are from the global pool, nothing to delete.
     return;
   }
   std::vector<RegType*>::iterator non_primitive_begin = entries_.begin();
-  std::advance(non_primitive_begin, kNumPrimitives);
+  std::advance(non_primitive_begin, kNumPrimitivesAndSmallConstants);
   STLDeleteContainerPointers(non_primitive_begin, entries_.end());
 }
 
@@ -255,12 +260,29 @@ void RegTypeCache::ShutDown() {
     FloatType::Destroy();
     DoubleLoType::Destroy();
     DoubleHiType::Destroy();
+    for (uint16_t value = kMinSmallConstant; value <= kMaxSmallConstant; ++value) {
+      PreciseConstType* type = small_precise_constants_[value - kMinSmallConstant];
+      delete type;
+    }
+
     RegTypeCache::primitive_initialized_ = false;
     RegTypeCache::primitive_count_ = 0;
   }
 }
 
-void RegTypeCache::CreatePrimitiveTypes() {
+template <class Type>
+Type* RegTypeCache::CreatePrimitiveTypeInstance(const std::string& descriptor) {
+  mirror::Class* klass = NULL;
+  // Try loading the class from linker.
+  if (!descriptor.empty()) {
+    klass = art::Runtime::Current()->GetClassLinker()->FindSystemClass(descriptor.c_str());
+  }
+  Type* entry = Type::CreateInstance(klass, descriptor, RegTypeCache::primitive_count_);
+  RegTypeCache::primitive_count_++;
+  return entry;
+}
+
+void RegTypeCache::CreatePrimitiveAndSmallConstantTypes() {
   CreatePrimitiveTypeInstance<UndefinedType>("");
   CreatePrimitiveTypeInstance<ConflictType>("");
   CreatePrimitiveTypeInstance<BooleanType>("Z");
@@ -273,6 +295,11 @@ void RegTypeCache::CreatePrimitiveTypes() {
   CreatePrimitiveTypeInstance<FloatType>("F");
   CreatePrimitiveTypeInstance<DoubleLoType>("D");
   CreatePrimitiveTypeInstance<DoubleHiType>("D");
+  for (int32_t value = kMinSmallConstant; value <= kMaxSmallConstant; ++value) {
+    PreciseConstType* type = new PreciseConstType(value, primitive_count_);
+    small_precise_constants_[value - kMinSmallConstant] = type;
+    primitive_count_++;
+  }
 }
 
 const RegType& RegTypeCache::FromUnresolvedMerge(const RegType& left, const RegType& right) {
@@ -331,29 +358,28 @@ const RegType& RegTypeCache::FromUnresolvedSuperClass(const RegType& child) {
   return *entry;
 }
 
-const RegType& RegTypeCache::Uninitialized(const RegType& type, uint32_t allocation_pc) {
-  RegType* entry = NULL;
-  RegType* cur_entry = NULL;
+const UninitializedType& RegTypeCache::Uninitialized(const RegType& type, uint32_t allocation_pc) {
+  UninitializedType* entry = NULL;
   const std::string& descriptor(type.GetDescriptor());
   if (type.IsUnresolvedTypes()) {
     for (size_t i = primitive_count_; i < entries_.size(); i++) {
-      cur_entry = entries_[i];
+      RegType* cur_entry = entries_[i];
       if (cur_entry->IsUnresolvedAndUninitializedReference() &&
           down_cast<UnresolvedUninitializedRefType*>(cur_entry)->GetAllocationPc() == allocation_pc &&
           (cur_entry->GetDescriptor() == descriptor)) {
-        return *cur_entry;
+        return *down_cast<UnresolvedUninitializedRefType*>(cur_entry);
       }
     }
     entry = new UnresolvedUninitializedRefType(descriptor, allocation_pc, entries_.size());
   } else {
     mirror::Class* klass = type.GetClass();
     for (size_t i = primitive_count_; i < entries_.size(); i++) {
-      cur_entry = entries_[i];
+      RegType* cur_entry = entries_[i];
       if (cur_entry->IsUninitializedReference() &&
           down_cast<UninitializedReferenceType*>(cur_entry)
               ->GetAllocationPc() == allocation_pc &&
           cur_entry->GetClass() == klass) {
-        return *cur_entry;
+        return *down_cast<UninitializedReferenceType*>(cur_entry);
       }
     }
     entry = new UninitializedReferenceType(klass, descriptor, allocation_pc, entries_.size());
@@ -404,27 +430,33 @@ const RegType& RegTypeCache::FromUninitialized(const RegType& uninit_type) {
   return *entry;
 }
 
-const RegType& RegTypeCache::ByteConstant() {
-  return FromCat1Const(std::numeric_limits<jbyte>::min(), false);
+const ImpreciseConstType& RegTypeCache::ByteConstant() {
+  const ConstantType& result = FromCat1Const(std::numeric_limits<jbyte>::min(), false);
+  DCHECK(result.IsImpreciseConstant());
+  return *down_cast<const ImpreciseConstType*>(&result);
 }
 
-const RegType& RegTypeCache::ShortConstant() {
-  return FromCat1Const(std::numeric_limits<jshort>::min(), false);
+const ImpreciseConstType& RegTypeCache::ShortConstant() {
+  const ConstantType& result =  FromCat1Const(std::numeric_limits<jshort>::min(), false);
+  DCHECK(result.IsImpreciseConstant());
+  return *down_cast<const ImpreciseConstType*>(&result);
 }
 
-const RegType& RegTypeCache::IntConstant() {
-  return FromCat1Const(std::numeric_limits<jint>::max(), false);
+const ImpreciseConstType& RegTypeCache::IntConstant() {
+  const ConstantType& result = FromCat1Const(std::numeric_limits<jint>::max(), false);
+  DCHECK(result.IsImpreciseConstant());
+  return *down_cast<const ImpreciseConstType*>(&result);
 }
 
-const RegType& RegTypeCache::UninitializedThisArgument(const RegType& type) {
-  RegType* entry;
+const UninitializedType& RegTypeCache::UninitializedThisArgument(const RegType& type) {
+  UninitializedType* entry;
   const std::string& descriptor(type.GetDescriptor());
   if (type.IsUnresolvedTypes()) {
     for (size_t i = primitive_count_; i < entries_.size(); i++) {
       RegType* cur_entry = entries_[i];
       if (cur_entry->IsUnresolvedAndUninitializedThisReference() &&
           cur_entry->GetDescriptor() == descriptor) {
-        return *cur_entry;
+        return *down_cast<UninitializedType*>(cur_entry);
       }
     }
     entry = new UnresolvedUninitializedThisRefType(descriptor, entries_.size());
@@ -433,7 +465,7 @@ const RegType& RegTypeCache::UninitializedThisArgument(const RegType& type) {
     for (size_t i = primitive_count_; i < entries_.size(); i++) {
       RegType* cur_entry = entries_[i];
       if (cur_entry->IsUninitializedThisReference() && cur_entry->GetClass() == klass) {
-        return *cur_entry;
+        return *down_cast<UninitializedType*>(cur_entry);
       }
     }
     entry = new UninitializedThisReferenceType(klass, descriptor, entries_.size());
@@ -442,16 +474,16 @@ const RegType& RegTypeCache::UninitializedThisArgument(const RegType& type) {
   return *entry;
 }
 
-const RegType& RegTypeCache::FromCat1Const(int32_t value, bool precise) {
+const ConstantType& RegTypeCache::FromCat1NonSmallConstant(int32_t value, bool precise) {
   for (size_t i = primitive_count_; i < entries_.size(); i++) {
     RegType* cur_entry = entries_[i];
     if (cur_entry->klass_ == NULL && cur_entry->IsConstant() &&
         cur_entry->IsPreciseConstant() == precise &&
         (down_cast<ConstantType*>(cur_entry))->ConstantValue() == value) {
-      return *cur_entry;
+      return *down_cast<ConstantType*>(cur_entry);
     }
   }
-  RegType* entry;
+  ConstantType* entry;
   if (precise) {
     entry = new PreciseConstType(value, entries_.size());
   } else {
@@ -461,15 +493,15 @@ const RegType& RegTypeCache::FromCat1Const(int32_t value, bool precise) {
   return *entry;
 }
 
-const RegType& RegTypeCache::FromCat2ConstLo(int32_t value, bool precise) {
+const ConstantType& RegTypeCache::FromCat2ConstLo(int32_t value, bool precise) {
   for (size_t i = primitive_count_; i < entries_.size(); i++) {
     RegType* cur_entry = entries_[i];
     if (cur_entry->IsConstantLo() && (cur_entry->IsPrecise() == precise) &&
         (down_cast<ConstantType*>(cur_entry))->ConstantValueLo() == value) {
-      return *cur_entry;
+      return *down_cast<ConstantType*>(cur_entry);
     }
   }
-  RegType* entry;
+  ConstantType* entry;
   if (precise) {
     entry = new PreciseConstLoType(value, entries_.size());
   } else {
@@ -479,15 +511,15 @@ const RegType& RegTypeCache::FromCat2ConstLo(int32_t value, bool precise) {
   return *entry;
 }
 
-const RegType& RegTypeCache::FromCat2ConstHi(int32_t value, bool precise) {
+const ConstantType& RegTypeCache::FromCat2ConstHi(int32_t value, bool precise) {
   for (size_t i = primitive_count_; i < entries_.size(); i++) {
     RegType* cur_entry = entries_[i];
     if (cur_entry->IsConstantHi() && (cur_entry->IsPrecise() == precise) &&
         (down_cast<ConstantType*>(cur_entry))->ConstantValueHi() == value) {
-      return *cur_entry;
+      return *down_cast<ConstantType*>(cur_entry);
     }
   }
-  RegType* entry;
+  ConstantType* entry;
   if (precise) {
     entry = new PreciseConstHiType(value, entries_.size());
   } else {
