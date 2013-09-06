@@ -1061,7 +1061,7 @@ bool MIRGraph::SkipCompilation(Runtime::CompilerFilter compiler_filter) {
   memset(&stats, 0, sizeof(stats));
 
   ClearAllVisitedFlags();
-  AllNodesIterator iter(this, false /* not iterative */);
+  AllNodesIterator iter(this);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     AnalyzeBlock(bb, &stats);
   }

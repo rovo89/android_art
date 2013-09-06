@@ -21,42 +21,63 @@
 
 namespace art {
 
-inline BasicBlock* DataflowIterator::NextBody(bool had_change) {
-  changed_ |= had_change;
+// Single forward pass over the nodes.
+inline BasicBlock* DataflowIterator::ForwardSingleNext() {
   BasicBlock* res = NULL;
-  if (reverse_) {
-    if (is_iterative_ && changed_ && (idx_ < 0)) {
-      idx_ = start_idx_;
-      changed_ = false;
-    }
-    if (idx_ >= 0) {
-      int bb_id = block_id_list_->Get(idx_--);
-      res = mir_graph_->GetBasicBlock(bb_id);
-    }
-  } else {
-    if (is_iterative_ && changed_ && (idx_ >= end_idx_)) {
-      idx_ = start_idx_;
-      changed_ = false;
-    }
-    if (idx_ < end_idx_) {
-      int bb_id = block_id_list_->Get(idx_++);
-      res = mir_graph_->GetBasicBlock(bb_id);
-    }
+  if (idx_ < end_idx_) {
+    int bb_id = block_id_list_->Get(idx_++);
+    res = mir_graph_->GetBasicBlock(bb_id);
   }
   return res;
 }
 
-// AllNodes uses the existing GrowableArray iterator, so use different NextBody().
-inline BasicBlock* AllNodesIterator::NextBody(bool had_change) {
+// Repeat full forward passes over all nodes until no change occurs during a complete pass.
+inline BasicBlock* DataflowIterator::ForwardRepeatNext(bool had_change) {
   changed_ |= had_change;
+  BasicBlock* res = NULL;
+  if ((idx_ >= end_idx_) && changed_) {
+    idx_ = start_idx_;
+    changed_ = false;
+  }
+  if (idx_ < end_idx_) {
+    int bb_id = block_id_list_->Get(idx_++);
+    res = mir_graph_->GetBasicBlock(bb_id);
+  }
+  return res;
+}
+
+// Single reverse pass over the nodes.
+inline BasicBlock* DataflowIterator::ReverseSingleNext() {
+  BasicBlock* res = NULL;
+  if (idx_ >= 0) {
+    int bb_id = block_id_list_->Get(idx_--);
+    res = mir_graph_->GetBasicBlock(bb_id);
+  }
+  return res;
+}
+
+// Repeat full backwards passes over all nodes until no change occurs during a complete pass.
+inline BasicBlock* DataflowIterator::ReverseRepeatNext(bool had_change) {
+  changed_ |= had_change;
+  BasicBlock* res = NULL;
+  if ((idx_ < 0) && changed_) {
+    idx_ = start_idx_;
+    changed_ = false;
+  }
+  if (idx_ >= 0) {
+    int bb_id = block_id_list_->Get(idx_--);
+    res = mir_graph_->GetBasicBlock(bb_id);
+  }
+  return res;
+}
+
+// AllNodes uses the existing GrowableArray iterator, and should be considered unordered.
+inline BasicBlock* AllNodesIterator::Next() {
   BasicBlock* res = NULL;
   bool keep_looking = true;
   while (keep_looking) {
     res = all_nodes_iterator_->Next();
-    if (is_iterative_ && changed_ && (res == NULL)) {
-      all_nodes_iterator_->Reset();
-      changed_ = false;
-    } else if ((res == NULL) || (!res->hidden)) {
+    if ((res == NULL) || (!res->hidden)) {
       keep_looking = false;
     }
   }

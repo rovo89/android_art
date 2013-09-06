@@ -727,7 +727,7 @@ class Mir2Lir : public Backend {
     GrowableArray<LIR*> throw_launchpads_;
     GrowableArray<LIR*> suspend_launchpads_;
     GrowableArray<LIR*> intrinsic_launchpads_;
-    SafeMap<unsigned int, LIR*> boundary_map_;  // boundary lookup cache.
+    GrowableArray<LIR*> boundary_map_;
     /*
      * Holds mapping from native PC to dex PC for safepoints where we may deoptimize.
      * Native PC is on the return address of the safepointed operation.  Dex PC is for

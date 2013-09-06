@@ -706,16 +706,15 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
   }
 
   // Free temp registers and reset redundant store tracking.
-  ResetRegPool();
-  ResetDefTracking();
-
   ClobberAllRegs();
 
   if (bb->block_type == kEntryBlock) {
+    ResetRegPool();
     int start_vreg = cu_->num_dalvik_registers - cu_->num_ins;
     GenEntrySequence(&mir_graph_->reg_location_[start_vreg],
                          mir_graph_->reg_location_[mir_graph_->GetMethodSReg()]);
   } else if (bb->block_type == kExitBlock) {
+    ResetRegPool();
     GenExitSequence();
   }
 
@@ -815,7 +814,7 @@ void Mir2Lir::MethodMIR2LIR() {
       static_cast<LIR*>(arena_->Alloc(sizeof(LIR) * mir_graph_->GetNumBlocks(),
                                       ArenaAllocator::kAllocLIR));
 
-  PreOrderDfsIterator iter(mir_graph_, false /* not iterative */);
+  PreOrderDfsIterator iter(mir_graph_);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     MethodBlockCodeGen(bb);
   }

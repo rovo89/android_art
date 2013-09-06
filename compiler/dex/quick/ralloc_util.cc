@@ -379,7 +379,7 @@ Mir2Lir::RegisterInfo* Mir2Lir::AllocLiveBody(RegisterInfo* p, int num_regs, int
   if (s_reg == -1)
     return NULL;
   for (int i = 0; i < num_regs; i++) {
-    if (p[i].live && (p[i].s_reg == s_reg)) {
+    if ((p[i].s_reg == s_reg) && p[i].live) {
       if (p[i].is_temp)
         p[i].in_use = true;
       return &p[i];
@@ -412,47 +412,16 @@ Mir2Lir::RegisterInfo* Mir2Lir::AllocLive(int s_reg, int reg_class) {
 }
 
 void Mir2Lir::FreeTemp(int reg) {
-  RegisterInfo* p = reg_pool_->core_regs;
-  int num_regs = reg_pool_->num_core_regs;
-  for (int i = 0; i< num_regs; i++) {
-    if (p[i].reg == reg) {
-      if (p[i].is_temp) {
-        p[i].in_use = false;
-      }
-      p[i].pair = false;
-      return;
-    }
+  RegisterInfo* p = GetRegInfo(reg);
+  if (p->is_temp) {
+    p->in_use = false;
   }
-  p = reg_pool_->FPRegs;
-  num_regs = reg_pool_->num_fp_regs;
-  for (int i = 0; i< num_regs; i++) {
-    if (p[i].reg == reg) {
-      if (p[i].is_temp) {
-        p[i].in_use = false;
-      }
-      p[i].pair = false;
-      return;
-    }
-  }
-  LOG(FATAL) << "Tried to free a non-existant temp: r" << reg;
+  p->pair = false;
 }
 
 Mir2Lir::RegisterInfo* Mir2Lir::IsLive(int reg) {
-  RegisterInfo* p = reg_pool_->core_regs;
-  int num_regs = reg_pool_->num_core_regs;
-  for (int i = 0; i< num_regs; i++) {
-    if (p[i].reg == reg) {
-      return p[i].live ? &p[i] : NULL;
-    }
-  }
-  p = reg_pool_->FPRegs;
-  num_regs = reg_pool_->num_fp_regs;
-  for (int i = 0; i< num_regs; i++) {
-    if (p[i].reg == reg) {
-      return p[i].live ? &p[i] : NULL;
-    }
-  }
-  return NULL;
+  RegisterInfo* p = GetRegInfo(reg);
+  return p->live ? p : NULL;
 }
 
 Mir2Lir::RegisterInfo* Mir2Lir::IsTemp(int reg) {
@@ -476,27 +445,10 @@ bool Mir2Lir::IsDirty(int reg) {
  * allocated.  Use with caution.
  */
 void Mir2Lir::LockTemp(int reg) {
-  RegisterInfo* p = reg_pool_->core_regs;
-  int num_regs = reg_pool_->num_core_regs;
-  for (int i = 0; i< num_regs; i++) {
-    if (p[i].reg == reg) {
-      DCHECK(p[i].is_temp);
-      p[i].in_use = true;
-      p[i].live = false;
-      return;
-    }
-  }
-  p = reg_pool_->FPRegs;
-  num_regs = reg_pool_->num_fp_regs;
-  for (int i = 0; i< num_regs; i++) {
-    if (p[i].reg == reg) {
-      DCHECK(p[i].is_temp);
-      p[i].in_use = true;
-      p[i].live = false;
-      return;
-    }
-  }
-  LOG(FATAL) << "Tried to lock a non-existant temp: r" << reg;
+  RegisterInfo* p = GetRegInfo(reg);
+  DCHECK(p->is_temp);
+  p->in_use = true;
+  p->live = false;
 }
 
 void Mir2Lir::ResetDef(int reg) {
@@ -599,11 +551,24 @@ void Mir2Lir::ResetDefTracking() {
 }
 
 void Mir2Lir::ClobberAllRegs() {
-  for (int i = 0; i< reg_pool_->num_core_regs; i++) {
-    ClobberBody(&reg_pool_->core_regs[i]);
+  RegisterInfo* p;
+  for (p = reg_pool_->core_regs; p < reg_pool_->core_regs + reg_pool_->num_core_regs; p++) {
+    if (p->is_temp) {
+      p->live = false;
+      p->s_reg = INVALID_SREG;
+      p->def_start = NULL;
+      p->def_end = NULL;
+      p->pair = false;
+    }
   }
-  for (int i = 0; i< reg_pool_->num_fp_regs; i++) {
-    ClobberBody(&reg_pool_->FPRegs[i]);
+  for (p = reg_pool_->FPRegs; p < reg_pool_->FPRegs + reg_pool_->num_fp_regs; p++) {
+    if (p->is_temp) {
+      p->live = false;
+      p->s_reg = INVALID_SREG;
+      p->def_start = NULL;
+      p->def_end = NULL;
+      p->pair = false;
+    }
   }
 }
 

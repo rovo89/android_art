@@ -1877,7 +1877,7 @@ void MirConverter::MethodMIR2Bitcode() {
   CreateFunction();
 
   // Create an LLVM basic block for each MIR block in dfs preorder
-  PreOrderDfsIterator iter(mir_graph_, false /* not iterative */);
+  PreOrderDfsIterator iter(mir_graph_);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     CreateLLVMBasicBlock(bb);
   }
@@ -1909,7 +1909,7 @@ void MirConverter::MethodMIR2Bitcode() {
     }
   }
 
-  PreOrderDfsIterator iter2(mir_graph_, false /* not iterative */);
+  PreOrderDfsIterator iter2(mir_graph_);
   for (BasicBlock* bb = iter2.Next(); bb != NULL; bb = iter2.Next()) {
     BlockBitcodeConversion(bb);
   }
