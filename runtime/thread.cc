@@ -819,7 +819,8 @@ struct StackDumpVisitor : public StackVisitor {
         mh.ChangeMethod(m);
         const char* source_file(mh.GetDeclaringClassSourceFile());
         os << "(" << (source_file != NULL ? source_file : "unavailable")
-           << ":" << line_number << ")";
+           << ":" << line_number << ")"
+           << " <0x" << std::hex << GetDexPc() << ">";
       }
       os << "\n";
       if (frame_count == 0) {
@@ -1921,6 +1922,7 @@ void Thread::QuickDeliverException() {
   ThrowLocation throw_location;
   mirror::Throwable* exception = GetException(&throw_location);
   CHECK(exception != NULL);
+  LG << "XXX bdc QuickDeliverException " << PrettyMethod(throw_location.GetMethod()) << " " << std::hex << throw_location.GetDexPc();
   // Don't leave exception visible while we try to find the handler, which may cause class
   // resolution.
   ClearException();
