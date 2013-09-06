@@ -246,11 +246,12 @@ void DexCompiler::CompileInvokeVirtual(Instruction* inst,
   int vtable_idx;
   uintptr_t direct_code;
   uintptr_t direct_method;
+  // TODO: support devirtualization.
+  const bool kEnableDevirtualization = false;
   bool fast_path = driver_.ComputeInvokeInfo(&unit_, dex_pc, invoke_type,
                                              target_method, vtable_idx,
                                              direct_code, direct_method,
-                                             false);
-  // TODO: support devirtualization.
+                                             false, kEnableDevirtualization);
   if (fast_path && original_invoke_type == invoke_type) {
     if (vtable_idx >= 0 && IsUint(16, vtable_idx)) {
       VLOG(compiler) << "Quickening " << Instruction::Name(inst->Opcode())

@@ -184,7 +184,8 @@ class CompilerDriver {
   // index.
   bool ComputeInvokeInfo(const DexCompilationUnit* mUnit, const uint32_t dex_pc,
                          InvokeType& type, MethodReference& target_method, int& vtable_idx,
-                         uintptr_t& direct_code, uintptr_t& direct_method, bool update_stats)
+                         uintptr_t& direct_code, uintptr_t& direct_method, bool update_stats,
+                         bool enable_devirtualization)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   bool IsSafeCast(const MethodReference& mr, uint32_t dex_pc);
