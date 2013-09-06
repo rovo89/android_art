@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <valgrind.h>
 
 #include <fstream>
 #include <iostream>
@@ -1072,6 +1073,13 @@ static int dex2oat(int argc, char** argv) {
   if (dump_timing || (dump_slow_timing && timings.GetTotalNs() > MsToNs(1000))) {
     LOG(INFO) << Dumpable<base::TimingLogger>(timings);
   }
+
+  // Everything was successfully written, do an explicit exit here to avoid running Runtime
+  // destructors that take time (bug 10645725) unless we're a debug build or running on valgrind.
+  if (!kIsDebugBuild || (RUNNING_ON_VALGRIND == 0)) {
+    exit(EXIT_SUCCESS);
+  }
+
   return EXIT_SUCCESS;
 }
 
