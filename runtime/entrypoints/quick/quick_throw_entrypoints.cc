@@ -58,7 +58,6 @@ extern "C" void artThrowNullPointerExceptionFromCode(Thread* self,
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
   ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-  LG << "artThrowNullPointerExceptionFromCode GetDexPc=0x" << std::hex << throw_location.GetDexPc();
   ThrowNullPointerExceptionFromDexPC(throw_location);
   self->QuickDeliverException();
 }
