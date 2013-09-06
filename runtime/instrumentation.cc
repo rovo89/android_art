@@ -41,6 +41,11 @@
 namespace art {
 namespace instrumentation {
 
+// Do we want to deoptimize for method entry and exit listeners or just try to intercept
+// invocations? Deoptimization forces all code to run in the interpreter and considerably hurts the
+// application's performance.
+static constexpr bool kDeoptimizeForAccurateMethodEntryExitListeners = true;
+
 static bool InstallStubsClassVisitor(mirror::Class* klass, void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Instrumentation* instrumentation = reinterpret_cast<Instrumentation*>(arg);
@@ -264,12 +269,14 @@ void Instrumentation::AddListener(InstrumentationListener* listener, uint32_t ev
   bool require_interpreter = false;
   if ((events & kMethodEntered) != 0) {
     method_entry_listeners_.push_back(listener);
-    require_entry_exit_stubs = true;
+    require_interpreter = kDeoptimizeForAccurateMethodEntryExitListeners;
+    require_entry_exit_stubs = !kDeoptimizeForAccurateMethodEntryExitListeners;
     have_method_entry_listeners_ = true;
   }
   if ((events & kMethodExited) != 0) {
     method_exit_listeners_.push_back(listener);
-    require_entry_exit_stubs = true;
+    require_interpreter = kDeoptimizeForAccurateMethodEntryExitListeners;
+    require_entry_exit_stubs = !kDeoptimizeForAccurateMethodEntryExitListeners;
     have_method_exit_listeners_ = true;
   }
   if ((events & kMethodUnwind) != 0) {
@@ -300,7 +307,10 @@ void Instrumentation::RemoveListener(InstrumentationListener* listener, uint32_t
       method_entry_listeners_.remove(listener);
     }
     have_method_entry_listeners_ = method_entry_listeners_.size() > 0;
-    require_entry_exit_stubs |= have_method_entry_listeners_;
+    require_entry_exit_stubs |= have_method_entry_listeners_ &&
+        !kDeoptimizeForAccurateMethodEntryExitListeners;
+    require_interpreter = have_method_entry_listeners_ &&
+        kDeoptimizeForAccurateMethodEntryExitListeners;
   }
   if ((events & kMethodExited) != 0) {
     bool contains = std::find(method_exit_listeners_.begin(), method_exit_listeners_.end(),
@@ -309,7 +319,10 @@ void Instrumentation::RemoveListener(InstrumentationListener* listener, uint32_t
       method_exit_listeners_.remove(listener);
     }
     have_method_exit_listeners_ = method_exit_listeners_.size() > 0;
-    require_entry_exit_stubs |= have_method_exit_listeners_;
+    require_entry_exit_stubs |= have_method_exit_listeners_ &&
+        !kDeoptimizeForAccurateMethodEntryExitListeners;
+    require_interpreter = have_method_exit_listeners_ &&
+        kDeoptimizeForAccurateMethodEntryExitListeners;
   }
   if ((events & kMethodUnwind) != 0) {
     method_unwind_listeners_.remove(listener);
