@@ -2953,7 +2953,10 @@ class JII {
   }
 
   static jint GetEnv(JavaVM* vm, void** env, jint version) {
-    if (IsBadJniVersion(version)) {
+    // GetEnv always returns a JNIEnv* for the most current supported JNI version,
+    // and unlike other calls that take a JNI version doesn't care if you supply
+    // JNI_VERSION_1_1, which we don't otherwise support.
+    if (IsBadJniVersion(version) && version != JNI_VERSION_1_1) {
       LOG(ERROR) << "Bad JNI version passed to GetEnv: " << version;
       return JNI_EVERSION;
     }
