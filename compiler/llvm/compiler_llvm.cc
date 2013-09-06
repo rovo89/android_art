@@ -26,6 +26,7 @@
 #include "ir_builder.h"
 #include "jni/portable/jni_compiler.h"
 #include "llvm_compilation_unit.h"
+#include "thread-inl.h"
 #include "utils_llvm.h"
 #include "verifier/method_verifier.h"
 

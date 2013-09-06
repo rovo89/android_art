@@ -19,6 +19,7 @@
 #include "arena_allocator.h"
 #include "base/logging.h"
 #include "base/mutex.h"
+#include "thread-inl.h"
 
 namespace art {
 

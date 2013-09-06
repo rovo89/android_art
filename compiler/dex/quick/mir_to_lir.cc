@@ -18,6 +18,7 @@
 #include "dex/dataflow_iterator-inl.h"
 #include "mir_to_lir-inl.h"
 #include "object_utils.h"
+#include "thread-inl.h"
 
 namespace art {
 

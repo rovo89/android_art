@@ -17,8 +17,6 @@
 #ifndef ART_RUNTIME_THREAD_H_
 #define ART_RUNTIME_THREAD_H_
 
-#include <pthread.h>
-
 #include <bitset>
 #include <deque>
 #include <iosfwd>
@@ -104,16 +102,7 @@ class PACKED(4) Thread {
   // Reset internal state of child thread after fork.
   void InitAfterFork();
 
-  static Thread* Current() {
-    // We rely on Thread::Current returning NULL for a detached thread, so it's not obvious
-    // that we can replace this with a direct %fs access on x86.
-    if (!is_started_) {
-      return NULL;
-    } else {
-      void* thread = pthread_getspecific(Thread::pthread_key_self_);
-      return reinterpret_cast<Thread*>(thread);
-    }
-  }
+  static Thread* Current();
 
   static Thread* FromManagedThread(const ScopedObjectAccessUnchecked& ts,
                                    mirror::Object* thread_peer)

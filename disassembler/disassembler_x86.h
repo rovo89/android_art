@@ -14,27 +14,25 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_DISASSEMBLER_MIPS_H_
-#define ART_RUNTIME_DISASSEMBLER_MIPS_H_
-
-#include <vector>
+#ifndef ART_DISASSEMBLER_DISASSEMBLER_X86_H_
+#define ART_DISASSEMBLER_DISASSEMBLER_X86_H_
 
 #include "disassembler.h"
 
 namespace art {
-namespace mips {
+namespace x86 {
 
-class DisassemblerMips : public Disassembler {
+class DisassemblerX86 : public Disassembler {
  public:
-  DisassemblerMips();
+  DisassemblerX86();
+
   virtual size_t Dump(std::ostream& os, const uint8_t* begin);
   virtual void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end);
-
  private:
-  DISALLOW_COPY_AND_ASSIGN(DisassemblerMips);
+  size_t DumpInstruction(std::ostream& os, const uint8_t* instr);
 };
 
-}  // namespace mips
+}  // namespace x86
 }  // namespace art
 
-#endif  // ART_RUNTIME_DISASSEMBLER_MIPS_H_
+#endif  // ART_DISASSEMBLER_DISASSEMBLER_X86_H_

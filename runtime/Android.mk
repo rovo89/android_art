@@ -38,10 +38,6 @@ LIBART_COMMON_SRC_FILES := \
 	dex_file.cc \
 	dex_file_verifier.cc \
 	dex_instruction.cc \
-	disassembler.cc \
-	disassembler_arm.cc \
-	disassembler_mips.cc \
-	disassembler_x86.cc \
 	elf_file.cc \
 	gc/allocator/dlmalloc.cc \
 	gc/accounting/card_table.cc \

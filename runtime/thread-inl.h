@@ -19,10 +19,23 @@
 
 #include "thread.h"
 
+#include <pthread.h>
+
 #include "base/mutex-inl.h"
 #include "cutils/atomic-inline.h"
 
 namespace art {
+
+inline Thread* Thread::Current() {
+  // We rely on Thread::Current returning NULL for a detached thread, so it's not obvious
+  // that we can replace this with a direct %fs access on x86.
+  if (!is_started_) {
+    return NULL;
+  } else {
+    void* thread = pthread_getspecific(Thread::pthread_key_self_);
+    return reinterpret_cast<Thread*>(thread);
+  }
+}
 
 inline ThreadState Thread::SetState(ThreadState new_state) {
   // Cannot use this code to change into Runnable as changing to Runnable should fail if

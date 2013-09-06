@@ -24,6 +24,7 @@
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
+#include "thread-inl.h"
 
 namespace art {
 namespace optimizer {

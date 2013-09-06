@@ -85,6 +85,7 @@ ifneq ($(art_dont_bother),true)
 include $(art_path)/runtime/Android.mk
 include $(art_path)/compiler/Android.mk
 include $(art_path)/dex2oat/Android.mk
+include $(art_path)/disassembler/Android.mk
 include $(art_path)/oatdump/Android.mk
 include $(art_path)/dalvikvm/Android.mk
 include $(art_path)/jdwpspy/Android.mk

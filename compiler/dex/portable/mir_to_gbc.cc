@@ -30,10 +30,10 @@
 #include "dex/compiler_internals.h"
 #include "dex/dataflow_iterator-inl.h"
 #include "dex/frontend.h"
-#include "mir_to_gbc.h"
-
 #include "llvm/llvm_compilation_unit.h"
 #include "llvm/utils_llvm.h"
+#include "mir_to_gbc.h"
+#include "thread-inl.h"
 
 const char* kLabelFormat = "%c0x%x_%d";
 const char kInvalidBlock = 0xff;
