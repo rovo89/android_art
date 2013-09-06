@@ -130,7 +130,7 @@ MIR* ArmMir2Lir::SpecialIGet(BasicBlock** bb, MIR* mir,
   int field_offset;
   bool is_volatile;
   uint32_t field_idx = mir->dalvikInsn.vC;
-  bool fast_path = FastInstance(field_idx, field_offset, is_volatile, false);
+  bool fast_path = FastInstance(field_idx, false, &field_offset, &is_volatile);
   if (!fast_path || !(mir->optimization_flags & MIR_IGNORE_NULL_CHECK)) {
     return NULL;
   }
@@ -155,7 +155,7 @@ MIR* ArmMir2Lir::SpecialIPut(BasicBlock** bb, MIR* mir,
   int field_offset;
   bool is_volatile;
   uint32_t field_idx = mir->dalvikInsn.vC;
-  bool fast_path = FastInstance(field_idx, field_offset, is_volatile, false);
+  bool fast_path = FastInstance(field_idx, false, &field_offset, &is_volatile);
   if (!fast_path || !(mir->optimization_flags & MIR_IGNORE_NULL_CHECK)) {
     return NULL;
   }

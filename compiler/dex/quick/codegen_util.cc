@@ -50,9 +50,9 @@ void Mir2Lir::MarkSafepointPC(LIR* inst) {
   DCHECK_EQ(safepoint_pc->def_mask, ENCODE_ALL);
 }
 
-bool Mir2Lir::FastInstance(uint32_t field_idx, int& field_offset, bool& is_volatile, bool is_put) {
+bool Mir2Lir::FastInstance(uint32_t field_idx, bool is_put, int* field_offset, bool* is_volatile) {
   return cu_->compiler_driver->ComputeInstanceFieldInfo(
-      field_idx, mir_graph_->GetCurrentDexCompilationUnit(), field_offset, is_volatile, is_put);
+      field_idx, mir_graph_->GetCurrentDexCompilationUnit(), is_put, field_offset, is_volatile);
 }
 
 /* Convert an instruction to a NOP */

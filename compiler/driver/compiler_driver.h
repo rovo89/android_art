@@ -169,15 +169,15 @@ class CompilerDriver {
      LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Can we fast path instance field access? Computes field's offset and volatility.
-  bool ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit,
-                                int& field_offset, bool& is_volatile, bool is_put)
+  bool ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit, bool is_put,
+                                int* field_offset, bool* is_volatile)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Can we fastpath static field access? Computes field's offset, volatility and whether the
   // field is within the referrer (which can avoid checking class initialization).
-  bool ComputeStaticFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit,
-                              int& field_offset, int& ssb_index,
-                              bool& is_referrers_class, bool& is_volatile, bool is_put)
+  bool ComputeStaticFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit, bool is_put,
+                              int* field_offset, int* ssb_index,
+                              bool* is_referrers_class, bool* is_volatile)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Can we fastpath a interface, super class or virtual method call? Computes method's vtable

@@ -1630,7 +1630,7 @@ llvm::Value* GBCExpanderPass::Expand_HLIGet(llvm::CallInst& call_inst,
   int field_offset;
   bool is_volatile;
   bool is_fast_path = driver_->ComputeInstanceFieldInfo(
-    field_idx, dex_compilation_unit_, field_offset, is_volatile, false);
+    field_idx, dex_compilation_unit_, false, &field_offset, &is_volatile);
 
   if (!is_fast_path) {
     llvm::Function* runtime_func;
@@ -1692,7 +1692,7 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
   int field_offset;
   bool is_volatile;
   bool is_fast_path = driver_->ComputeInstanceFieldInfo(
-    field_idx, dex_compilation_unit_, field_offset, is_volatile, true);
+    field_idx, dex_compilation_unit_, true, &field_offset, &is_volatile);
 
   if (!is_fast_path) {
     llvm::Function* runtime_func;
@@ -1897,8 +1897,8 @@ llvm::Value* GBCExpanderPass::Expand_HLSget(llvm::CallInst& call_inst,
   bool is_volatile;
 
   bool is_fast_path = driver_->ComputeStaticFieldInfo(
-    field_idx, dex_compilation_unit_, field_offset, ssb_index,
-    is_referrers_class, is_volatile, false);
+    field_idx, dex_compilation_unit_, false,
+    &field_offset, &ssb_index, &is_referrers_class, &is_volatile);
 
   llvm::Value* static_field_value;
 
@@ -1981,8 +1981,8 @@ void GBCExpanderPass::Expand_HLSput(llvm::CallInst& call_inst,
   bool is_volatile;
 
   bool is_fast_path = driver_->ComputeStaticFieldInfo(
-    field_idx, dex_compilation_unit_, field_offset, ssb_index,
-    is_referrers_class, is_volatile, true);
+    field_idx, dex_compilation_unit_, true,
+    &field_offset, &ssb_index, &is_referrers_class, &is_volatile);
 
   if (!is_fast_path) {
     llvm::Function* runtime_func;

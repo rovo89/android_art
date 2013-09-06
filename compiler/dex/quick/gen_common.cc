@@ -337,8 +337,8 @@ void Mir2Lir::GenSput(uint32_t field_idx, RegLocation rl_src, bool is_long_or_do
   bool is_volatile;
   bool is_referrers_class;
   bool fast_path = cu_->compiler_driver->ComputeStaticFieldInfo(
-      field_idx, mir_graph_->GetCurrentDexCompilationUnit(), field_offset, ssb_index,
-      is_referrers_class, is_volatile, true);
+      field_idx, mir_graph_->GetCurrentDexCompilationUnit(), true,
+      &field_offset, &ssb_index, &is_referrers_class, &is_volatile);
   if (fast_path && !SLOW_FIELD_PATH) {
     DCHECK_GE(field_offset, 0);
     int rBase;
@@ -423,8 +423,8 @@ void Mir2Lir::GenSget(uint32_t field_idx, RegLocation rl_dest,
   bool is_volatile;
   bool is_referrers_class;
   bool fast_path = cu_->compiler_driver->ComputeStaticFieldInfo(
-      field_idx, mir_graph_->GetCurrentDexCompilationUnit(), field_offset, ssb_index,
-      is_referrers_class, is_volatile, false);
+      field_idx, mir_graph_->GetCurrentDexCompilationUnit(), false,
+      &field_offset, &ssb_index, &is_referrers_class, &is_volatile);
   if (fast_path && !SLOW_FIELD_PATH) {
     DCHECK_GE(field_offset, 0);
     int rBase;
@@ -626,7 +626,7 @@ void Mir2Lir::GenIGet(uint32_t field_idx, int opt_flags, OpSize size,
   int field_offset;
   bool is_volatile;
 
-  bool fast_path = FastInstance(field_idx, field_offset, is_volatile, false);
+  bool fast_path = FastInstance(field_idx, false, &field_offset, &is_volatile);
 
   if (fast_path && !SLOW_FIELD_PATH) {
     RegLocation rl_result;
@@ -687,8 +687,7 @@ void Mir2Lir::GenIPut(uint32_t field_idx, int opt_flags, OpSize size,
   int field_offset;
   bool is_volatile;
 
-  bool fast_path = FastInstance(field_idx, field_offset, is_volatile,
-                 true);
+  bool fast_path = FastInstance(field_idx, true, &field_offset, &is_volatile);
   if (fast_path && !SLOW_FIELD_PATH) {
     RegisterClass reg_class = oat_reg_class_by_size(size);
     DCHECK_GE(field_offset, 0);

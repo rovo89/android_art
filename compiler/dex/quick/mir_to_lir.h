@@ -250,7 +250,7 @@ class Mir2Lir : public Backend {
     virtual void Materialize();
     virtual CompiledMethod* GetCompiledMethod();
     void MarkSafepointPC(LIR* inst);
-    bool FastInstance(uint32_t field_idx, int& field_offset, bool& is_volatile, bool is_put);
+    bool FastInstance(uint32_t field_idx, bool is_put, int* field_offset, bool* is_volatile);
     void SetupResourceMasks(LIR* lir);
     void AssembleLIR();
     void SetMemRefType(LIR* lir, bool is_load, int mem_type);

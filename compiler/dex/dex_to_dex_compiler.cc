@@ -216,8 +216,8 @@ void DexCompiler::CompileInstanceFieldAccess(Instruction* inst,
   uint32_t field_idx = inst->VRegC_22c();
   int field_offset;
   bool is_volatile;
-  bool fast_path = driver_.ComputeInstanceFieldInfo(field_idx, &unit_, field_offset,
-                                                    is_volatile, is_put);
+  bool fast_path = driver_.ComputeInstanceFieldInfo(field_idx, &unit_, is_put,
+                                                    &field_offset, &is_volatile);
   if (fast_path && !is_volatile && IsUint(16, field_offset)) {
     VLOG(compiler) << "Quickening " << Instruction::Name(inst->Opcode())
                    << " to " << Instruction::Name(new_opcode)

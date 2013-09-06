@@ -927,11 +927,11 @@ static mirror::ArtMethod* ComputeMethodReferencedFromCompilingMethod(ScopedObjec
 }
 
 bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit,
-                                              int& field_offset, bool& is_volatile, bool is_put) {
+                                              bool is_put, int* field_offset, bool* is_volatile) {
   ScopedObjectAccess soa(Thread::Current());
   // Conservative defaults.
-  field_offset = -1;
-  is_volatile = true;
+  *field_offset = -1;
+  *is_volatile = true;
   // Try to resolve field and ignore if an Incompatible Class Change Error (ie is static).
   mirror::ArtField* resolved_field = ComputeFieldReferencedFromCompilingMethod(soa, mUnit, field_idx);
   if (resolved_field != NULL && !resolved_field->IsStatic()) {
@@ -958,8 +958,8 @@ bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompi
       bool is_write_to_final_from_wrong_class = is_put && resolved_field->IsFinal() &&
           fields_class != referrer_class;
       if (access_ok && !is_write_to_final_from_wrong_class) {
-        field_offset = resolved_field->GetOffset().Int32Value();
-        is_volatile = resolved_field->IsVolatile();
+        *field_offset = resolved_field->GetOffset().Int32Value();
+        *is_volatile = resolved_field->IsVolatile();
         stats_->ResolvedInstanceField();
         return true;  // Fast path.
       }
@@ -974,15 +974,14 @@ bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompi
 }
 
 bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit,
-                                            int& field_offset, int& ssb_index,
-                                            bool& is_referrers_class, bool& is_volatile,
-                                            bool is_put) {
+                                            bool is_put, int* field_offset, int* ssb_index,
+                                            bool* is_referrers_class, bool* is_volatile) {
   ScopedObjectAccess soa(Thread::Current());
   // Conservative defaults.
-  field_offset = -1;
-  ssb_index = -1;
-  is_referrers_class = false;
-  is_volatile = true;
+  *field_offset = -1;
+  *ssb_index = -1;
+  *is_referrers_class = false;
+  *is_volatile = true;
   // Try to resolve field and ignore if an Incompatible Class Change Error (ie isn't static).
   mirror::ArtField* resolved_field = ComputeFieldReferencedFromCompilingMethod(soa, mUnit, field_idx);
   if (resolved_field != NULL && resolved_field->IsStatic()) {
@@ -992,9 +991,9 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
     if (referrer_class != NULL) {
       mirror::Class* fields_class = resolved_field->GetDeclaringClass();
       if (fields_class == referrer_class) {
-        is_referrers_class = true;  // implies no worrying about class initialization
-        field_offset = resolved_field->GetOffset().Int32Value();
-        is_volatile = resolved_field->IsVolatile();
+        *is_referrers_class = true;  // implies no worrying about class initialization
+        *field_offset = resolved_field->GetOffset().Int32Value();
+        *is_volatile = resolved_field->IsVolatile();
         stats_->ResolvedLocalStaticField();
         return true;  // fast path
       } else {
@@ -1025,9 +1024,9 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
           if (fields_class->GetDexCache() == dex_cache) {
             // common case where the dex cache of both the referrer and the field are the same,
             // no need to search the dex file
-            ssb_index = fields_class->GetDexTypeIndex();
-            field_offset = resolved_field->GetOffset().Int32Value();
-            is_volatile = resolved_field->IsVolatile();
+            *ssb_index = fields_class->GetDexTypeIndex();
+            *field_offset = resolved_field->GetOffset().Int32Value();
+            *is_volatile = resolved_field->IsVolatile();
             stats_->ResolvedStaticField();
             return true;
           }
@@ -1040,9 +1039,9 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
                mUnit->GetDexFile()->FindTypeId(mUnit->GetDexFile()->GetIndexForStringId(*string_id));
             if (type_id != NULL) {
               // medium path, needs check of static storage base being initialized
-              ssb_index = mUnit->GetDexFile()->GetIndexForTypeId(*type_id);
-              field_offset = resolved_field->GetOffset().Int32Value();
-              is_volatile = resolved_field->IsVolatile();
+              *ssb_index = mUnit->GetDexFile()->GetIndexForTypeId(*type_id);
+              *field_offset = resolved_field->GetOffset().Int32Value();
+              *is_volatile = resolved_field->IsVolatile();
               stats_->ResolvedStaticField();
               return true;
             }
