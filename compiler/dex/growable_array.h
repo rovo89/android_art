@@ -150,6 +150,11 @@ class GrowableArray {
 
     size_t Size() const { return num_used_; }
 
+    void SetSize(size_t new_size) {
+      Resize(new_size);
+      num_used_ = new_size;
+    }
+
     T* GetRawStorage() const { return elem_list_; }
 
     static void* operator new(size_t size, ArenaAllocator* arena) {

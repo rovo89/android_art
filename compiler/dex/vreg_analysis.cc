@@ -444,7 +444,7 @@ void MIRGraph::BuildRegLocations() {
   }
 
   /* Do type & size inference pass */
-  PreOrderDfsIterator iter(this, true /* iterative */);
+  RepeatingPreOrderDfsIterator iter(this);
   bool change = false;
   for (BasicBlock* bb = iter.Next(false); bb != NULL; bb = iter.Next(change)) {
     change = InferTypeAndSize(bb);

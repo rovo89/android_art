@@ -710,7 +710,6 @@ int Mir2Lir::AssignInsnOffsets() {
     }
     /* Pseudo opcodes don't consume space */
   }
-
   return offset;
 }
 
@@ -789,15 +788,15 @@ void Mir2Lir::AssembleLIR() {
  */
 LIR* Mir2Lir::InsertCaseLabel(int vaddr, int keyVal) {
   SafeMap<unsigned int, LIR*>::iterator it;
-  it = boundary_map_.find(vaddr);
-  if (it == boundary_map_.end()) {
+  LIR* boundary_lir = boundary_map_.Get(vaddr);
+  if (boundary_lir == NULL) {
     LOG(FATAL) << "Error: didn't find vaddr 0x" << std::hex << vaddr;
   }
   LIR* new_label = static_cast<LIR*>(arena_->Alloc(sizeof(LIR), ArenaAllocator::kAllocLIR));
   new_label->dalvik_offset = vaddr;
   new_label->opcode = kPseudoCaseLabel;
   new_label->operands[0] = keyVal;
-  InsertLIRAfter(it->second, new_label);
+  InsertLIRAfter(boundary_lir, new_label);
   return new_label;
 }
 
@@ -889,7 +888,7 @@ void Mir2Lir::DumpPackedSwitchTable(const uint16_t* table) {
  */
 LIR* Mir2Lir::MarkBoundary(int offset, const char* inst_str) {
   LIR* res = NewLIR1(kPseudoDalvikByteCodeBoundary, reinterpret_cast<uintptr_t>(inst_str));
-  if (boundary_map_.find(offset) == boundary_map_.end()) {
+  if (boundary_map_.Get(offset) == NULL) {
     boundary_map_.Put(offset, res);
   }
   return res;
@@ -947,6 +946,7 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       throw_launchpads_(arena, 2048, kGrowableArrayThrowLaunchPads),
       suspend_launchpads_(arena, 4, kGrowableArraySuspendLaunchPads),
       intrinsic_launchpads_(arena, 2048, kGrowableArrayMisc),
+      boundary_map_(arena, 0, kGrowableArrayMisc),
       data_offset_(0),
       total_size_(0),
       block_label_list_(NULL),
@@ -963,6 +963,8 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
   promotion_map_ = static_cast<PromotionMap*>
       (arena_->Alloc((cu_->num_dalvik_registers  + cu_->num_compiler_temps + 1) *
                       sizeof(promotion_map_[0]), ArenaAllocator::kAllocRegAlloc));
+  // Pre-fill with nulls.
+  boundary_map_.SetSize(cu->code_item->insns_size_in_code_units_);
 }
 
 void Mir2Lir::Materialize() {

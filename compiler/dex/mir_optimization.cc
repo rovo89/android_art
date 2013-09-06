@@ -96,7 +96,7 @@ void MIRGraph::PropagateConstants() {
   is_constant_v_ = new (arena_) ArenaBitVector(arena_, GetNumSSARegs(), false);
   constant_values_ = static_cast<int*>(arena_->Alloc(sizeof(int) * GetNumSSARegs(),
                                                      ArenaAllocator::kAllocDFInfo));
-  AllNodesIterator iter(this, false /* not iterative */);
+  AllNodesIterator iter(this);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     DoConstantPropogation(bb);
   }
@@ -762,11 +762,11 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb) {
 void MIRGraph::NullCheckElimination() {
   if (!(cu_->disable_opt & (1 << kNullCheckElimination))) {
     DCHECK(temp_ssa_register_v_ != NULL);
-    AllNodesIterator iter(this, false /* not iterative */);
+    AllNodesIterator iter(this);
     for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
       NullCheckEliminationInit(bb);
     }
-    PreOrderDfsIterator iter2(this, true /* iterative */);
+    RepeatingPreOrderDfsIterator iter2(this);
     bool change = false;
     for (BasicBlock* bb = iter2.Next(change); bb != NULL; bb = iter2.Next(change)) {
       change = EliminateNullChecks(bb);
@@ -778,7 +778,7 @@ void MIRGraph::NullCheckElimination() {
 }
 
 void MIRGraph::BasicBlockCombine() {
-  PreOrderDfsIterator iter(this, false /* not iterative */);
+  PreOrderDfsIterator iter(this);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     CombineBlocks(bb);
   }
@@ -791,7 +791,7 @@ void MIRGraph::CodeLayout() {
   if (cu_->enable_debug & (1 << kDebugVerifyDataflow)) {
     VerifyDataflow();
   }
-  AllNodesIterator iter(this, false /* not iterative */);
+  AllNodesIterator iter(this);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     LayoutBlocks(bb);
   }
@@ -804,7 +804,7 @@ void MIRGraph::DumpCheckStats() {
   Checkstats* stats =
       static_cast<Checkstats*>(arena_->Alloc(sizeof(Checkstats), ArenaAllocator::kAllocDFInfo));
   checkstats_ = stats;
-  AllNodesIterator iter(this, false /* not iterative */);
+  AllNodesIterator iter(this);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     CountChecks(bb);
   }
@@ -858,7 +858,7 @@ void MIRGraph::BasicBlockOptimization() {
   if (!(cu_->disable_opt & (1 << kBBOpt))) {
     DCHECK_EQ(cu_->num_compiler_temps, 0);
     ClearAllVisitedFlags();
-    PreOrderDfsIterator iter2(this, false /* not iterative */);
+    PreOrderDfsIterator iter2(this);
     for (BasicBlock* bb = iter2.Next(); bb != NULL; bb = iter2.Next()) {
       BuildExtendedBBList(bb);
     }

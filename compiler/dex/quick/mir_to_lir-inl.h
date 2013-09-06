@@ -33,7 +33,12 @@ inline void Mir2Lir::ClobberBody(RegisterInfo* p) {
     p->def_end = NULL;
     if (p->pair) {
       p->pair = false;
-      Clobber(p->partner);
+      p = GetRegInfo(p->partner);
+      p->pair = false;
+      p->live = false;
+      p->s_reg = INVALID_SREG;
+      p->def_start = NULL;
+      p->def_end = NULL;
     }
   }
 }

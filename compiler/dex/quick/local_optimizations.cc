@@ -99,12 +99,11 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
     int native_reg_id;
     if (cu_->instruction_set == kX86) {
       // If x86, location differs depending on whether memory/reg operation.
-      native_reg_id = (GetTargetInstFlags(this_lir->opcode) & IS_STORE) ? this_lir->operands[2]
-          : this_lir->operands[0];
+      native_reg_id = (target_flags & IS_STORE) ? this_lir->operands[2] : this_lir->operands[0];
     } else {
       native_reg_id = this_lir->operands[0];
     }
-    bool is_this_lir_load = GetTargetInstFlags(this_lir->opcode) & IS_LOAD;
+    bool is_this_lir_load = target_flags & IS_LOAD;
     LIR* check_lir;
     /* Use the mem mask to determine the rough memory location */
     uint64_t this_mem_mask = (this_lir->use_mask | this_lir->def_mask) & ENCODE_MEM;

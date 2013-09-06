@@ -1287,7 +1287,7 @@ void MIRGraph::MethodUseCount() {
   if (cu_->disable_opt & (1 << kPromoteRegs)) {
     return;
   }
-  AllNodesIterator iter(this, false /* not iterative */);
+  AllNodesIterator iter(this);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     CountUses(bb);
   }
@@ -1331,7 +1331,7 @@ bool MIRGraph::VerifyPredInfo(BasicBlock* bb) {
 
 void MIRGraph::VerifyDataflow() {
     /* Verify if all blocks are connected as claimed */
-  AllNodesIterator iter(this, false /* not iterative */);
+  AllNodesIterator iter(this);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     VerifyPredInfo(bb);
   }
