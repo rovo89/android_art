@@ -42,26 +42,27 @@ namespace mirror {
 
 class ObjectTest : public CommonTest {
  protected:
-  void AssertString(int32_t length,
+  void AssertString(int32_t expected_utf16_length,
                     const char* utf8_in,
                     const char* utf16_expected_le,
                     int32_t expected_hash)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    UniquePtr<uint16_t[]> utf16_expected(new uint16_t[length]);
-    for (int32_t i = 0; i < length; i++) {
+    UniquePtr<uint16_t[]> utf16_expected(new uint16_t[expected_utf16_length]);
+    for (int32_t i = 0; i < expected_utf16_length; i++) {
       uint16_t ch = (((utf16_expected_le[i*2 + 0] & 0xff) << 8) |
                      ((utf16_expected_le[i*2 + 1] & 0xff) << 0));
       utf16_expected[i] = ch;
     }
 
     Thread* self = Thread::Current();
-    SirtRef<String> string(self, String::AllocFromModifiedUtf8(self, length, utf8_in));
-    ASSERT_EQ(length, string->GetLength());
+    SirtRef<String> string(self, String::AllocFromModifiedUtf8(self, expected_utf16_length, utf8_in));
+    ASSERT_EQ(expected_utf16_length, string->GetLength());
     ASSERT_TRUE(string->GetCharArray() != NULL);
     ASSERT_TRUE(string->GetCharArray()->GetData() != NULL);
-    // strlen is necessary because the 1-character string "\0" is interpreted as ""
-    ASSERT_TRUE(string->Equals(utf8_in) || length != static_cast<int32_t>(strlen(utf8_in)));
-    for (int32_t i = 0; i < length; i++) {
+    // strlen is necessary because the 1-character string "\x00\x00" is interpreted as ""
+    ASSERT_TRUE(string->Equals(utf8_in) || (expected_utf16_length == 1 && strlen(utf8_in) == 0));
+    ASSERT_TRUE(string->Equals(StringPiece(utf8_in)) || (expected_utf16_length == 1 && strlen(utf8_in) == 0));
+    for (int32_t i = 0; i < expected_utf16_length; i++) {
       EXPECT_EQ(utf16_expected[i], string->CharAt(i));
     }
     EXPECT_EQ(expected_hash, string->GetHashCode());

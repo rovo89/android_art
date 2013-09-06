@@ -224,9 +224,6 @@ bool String::Equals(const char* modified_utf8) const {
 }
 
 bool String::Equals(const StringPiece& modified_utf8) const {
-  if (modified_utf8.size() != GetLength()) {
-    return false;
-  }
   const char* p = modified_utf8.data();
   for (int32_t i = 0; i < GetLength(); ++i) {
     uint16_t ch = GetUtf16FromUtf8(&p);

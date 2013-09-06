@@ -38,6 +38,13 @@ jobject InvokeMethod(const ScopedObjectAccess& soa, jobject javaMethod, jobject 
   jmethodID mid = soa.Env()->FromReflectedMethod(javaMethod);
   mirror::ArtMethod* m = soa.DecodeMethod(mid);
 
+  std::string pretty_descriptor(PrettyDescriptor(m->GetDeclaringClass()));
+  if (true ||
+      StartsWith(pretty_descriptor, "Lcom/eclipsim/gpsstatus2/") ||
+      StartsWith(pretty_descriptor, "Lo/")) {
+    LG << "XXX bdc InvokeMethod reflectively calling " << PrettyMethod(m);
+  }
+
   mirror::Class* declaring_class = m->GetDeclaringClass();
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(declaring_class, true, true)) {
     return NULL;

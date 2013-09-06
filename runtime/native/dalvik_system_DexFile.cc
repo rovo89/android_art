@@ -142,17 +142,20 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
   const DexFile* dex_file = toDexFile(cookie);
   if (dex_file == NULL) {
     VLOG(class_linker) << "Failed to find dex_file";
+    LG << "XXX bdc Failed to find dex_file";
     return NULL;
   }
   ScopedUtfChars class_name(env, javaName);
   if (class_name.c_str() == NULL) {
-    VLOG(class_linker) << "Failed to find class_name";
+    VLOG(class_linker) << "Failed to find class_name to lookup in " << dex_file->GetLocation();
+    LG << "XXX bdc Failed to find class_name to lookup in " << dex_file->GetLocation();
     return NULL;
   }
   const std::string descriptor(DotToDescriptor(class_name.c_str()));
   const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor);
   if (dex_class_def == NULL) {
-    VLOG(class_linker) << "Failed to find dex_class_def";
+    VLOG(class_linker) << "Failed to find dex_class_def " << descriptor << " in " << dex_file->GetLocation();
+    LG << dex_file << " XXX bdc Failed to find dex_class_def " << descriptor << " in " << dex_file->GetLocation();
     return NULL;
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -160,7 +163,8 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
   mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(javaLoader);
   mirror::Class* result = class_linker->DefineClass(descriptor.c_str(), class_loader, *dex_file,
                                                     *dex_class_def);
-  VLOG(class_linker) << "DexFile_defineClassNative returning " << result;
+  VLOG(class_linker) << "DexFile_defineClassNative for " << " in " << dex_file->GetLocation() << descriptor << " returning " << result;
+  LG << dex_file << " XXX bdc DexFile_defineClassNative for " << descriptor << " in " << dex_file->GetLocation() << " returning " << result;
   return soa.AddLocalReference<jclass>(result);
 }
 
