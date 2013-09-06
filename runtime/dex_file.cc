@@ -353,41 +353,27 @@ uint32_t DexFile::GetVersion() const {
 
 void DexFile::InitIndex() {
   CHECK_EQ(index_.size(), 0U) << GetLocation();
-bool debug_file = (GetLocation() == "/data/app/com.eclipsim.gpsstatus2-1.apk");
   for (size_t i = 0; i < NumClassDefs(); ++i) {
     const ClassDef& class_def = GetClassDef(i);
     const char* descriptor = GetClassDescriptor(class_def);
-bool debug_log = (strcmp(descriptor, "Lo/coN;") == 0);
-if (debug_log) { LG << this << " XXX bdc DexFile::InitIndex " << GetLocation() << " i=" << i << " descriptor=" << descriptor << " strlen(descriptor)=" << strlen(descriptor); }
     index_.Put(descriptor, i);
   }
-if (debug_file) { LG << this << " XXX bdc DexFile::InitIndex " << GetLocation() << " index_.size()=" << index_.size(); }
 }
 
 bool DexFile::FindClassDefIndex(const StringPiece& descriptor, uint32_t& idx) const {
-bool debug_file = (GetLocation() == "/data/app/com.eclipsim.gpsstatus2-1.apk");
-bool debug_log = (descriptor == "Lo/coN;");
   Index::const_iterator it = index_.find(descriptor);
   if (it == index_.end()) {
-if (debug_log) { LG << this << " XXX bdc DexFile::FindClassDefIndex(" << descriptor << ") => false debug_log=" << debug_log << " descriptor.size()=" << descriptor.size() << " " << strlen("Lo/coN;"); }
-if (debug_file) { LG << this << " XXX bdc DexFile::FindClassDefIndex " << GetLocation() << " index_.size()=" << index_.size(); }
     return false;
   }
   idx = it->second;
-if (debug_log) { LG << this << " XXX bdc DexFile::FindClassDefIndex(" << descriptor << ") => true idx=" << idx; }
   return true;
 }
 
 const DexFile::ClassDef* DexFile::FindClassDef(const StringPiece& descriptor) const {
   uint32_t idx;
-bool debug_file = (GetLocation() == "/data/app/com.eclipsim.gpsstatus2-1.apk");
-bool debug_log = (descriptor == "Lo/coN;");
   if (FindClassDefIndex(descriptor, idx)) {
-if (debug_log) { LG << this << " XXX bdc DexFile::FindClassDef(" << descriptor << ") => success"; }
     return &GetClassDef(idx);
   }
-if (debug_log) { LG << this << " XXX bdc DexFile::FindClassDef(" << descriptor << ") => NULL debug_log=" << debug_log << " descriptor.size()=" << descriptor.size() << " " << strlen("Lo/coN;"); }
-if (debug_file) { LG << this << " XXX bdc DexFile::FindClassDef " << GetLocation() << " index_.size()=" << index_.size(); }
   return NULL;
 }
 
