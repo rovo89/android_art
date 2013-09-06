@@ -457,14 +457,15 @@ class CompilerDriver {
           hash = (hash * 16777619) ^ b;
         }
       } else {
-        // For larger arrays use the first 4 bytes and then select a number of other values at
-        // random.
+        // For larger arrays use the 2 bytes at 6 bytes (the location of a push registers
+        // instruction field for quick generated code on ARM) and then select a number of other
+        // values at random.
         static const size_t kRandomHashCount = 16;
-        for (size_t i = 0; i < 4; ++i) {
-          uint8_t b = array[i];
+        for (size_t i = 0; i < 2; ++i) {
+          uint8_t b = array[i + 6];
           hash = (hash * 16777619) ^ b;
         }
-        for (size_t i = 4; i < kRandomHashCount; ++i) {
+        for (size_t i = 2; i < kRandomHashCount; ++i) {
           size_t r = i * 1103515245 + 12345;
           uint8_t b = array[r % array.size()];
           hash = (hash * 16777619) ^ b;
