@@ -183,9 +183,9 @@ class CompilerDriver {
   // Can we fastpath a interface, super class or virtual method call? Computes method's vtable
   // index.
   bool ComputeInvokeInfo(const DexCompilationUnit* mUnit, const uint32_t dex_pc,
-                         InvokeType& type, MethodReference& target_method, int& vtable_idx,
-                         uintptr_t& direct_code, uintptr_t& direct_method, bool update_stats,
-                         bool enable_devirtualization)
+                         bool update_stats, bool enable_devirtualization,
+                         InvokeType* type, MethodReference* target_method, int* vtable_idx,
+                         uintptr_t* direct_code, uintptr_t* direct_method)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   bool IsSafeCast(const MethodReference& mr, uint32_t dex_pc);
@@ -315,8 +315,8 @@ class CompilerDriver {
   void GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type,
                                      mirror::Class* referrer_class,
                                      mirror::ArtMethod* method,
-                                     uintptr_t& direct_code, uintptr_t& direct_method,
-                                     bool update_stats)
+                                     bool update_stats,
+                                     uintptr_t* direct_code, uintptr_t* direct_method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void PreCompile(jobject class_loader, const std::vector<const DexFile*>& dex_files,

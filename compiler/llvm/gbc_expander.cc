@@ -846,10 +846,10 @@ llvm::Value* GBCExpanderPass::EmitInvoke(llvm::CallInst& call_inst) {
   uintptr_t direct_code = 0;
   uintptr_t direct_method = 0;
   bool is_fast_path = driver_->ComputeInvokeInfo(dex_compilation_unit_, dex_pc,
-                                                 invoke_type, target_method,
-                                                 vtable_idx,
-                                                 direct_code, direct_method,
-                                                 true, true);
+                                                 true, true,
+                                                 &invoke_type, &target_method,
+                                                 &vtable_idx,
+                                                 &direct_code, &direct_method);
   // Load the method object
   llvm::Value* callee_method_object_addr = NULL;
 
