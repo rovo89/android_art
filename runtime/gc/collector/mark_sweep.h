@@ -421,7 +421,6 @@ class MarkSweep : public GarbageCollector {
 
   // Parallel finger.
   AtomicInteger atomic_finger_;
-
   // Number of non large object bytes freed in this collection.
   AtomicInteger freed_bytes_;
   // Number of large object bytes freed.
@@ -443,6 +442,10 @@ class MarkSweep : public GarbageCollector {
   AtomicInteger work_chunks_created_;
   AtomicInteger work_chunks_deleted_;
   AtomicInteger reference_count_;
+  AtomicInteger cards_scanned_;
+
+  // Verification.
+  size_t live_stack_freeze_size_;
 
   UniquePtr<Barrier> gc_barrier_;
   Mutex large_object_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
@@ -454,6 +457,7 @@ class MarkSweep : public GarbageCollector {
 
  private:
   friend class AddIfReachesAllocSpaceVisitor;  // Used by mod-union table.
+  friend class CardScanTask;
   friend class CheckBitmapVisitor;
   friend class CheckReferenceVisitor;
   friend class art::gc::Heap;

@@ -46,7 +46,7 @@ class DlMallocSpace;
 class ImageSpace;
 class LargeObjectSpace;
 
-static const bool kDebugSpaces = kIsDebugBuild;
+static constexpr bool kDebugSpaces = kIsDebugBuild;
 
 // See Space::GetGcRetentionPolicy.
 enum GcRetentionPolicy {
