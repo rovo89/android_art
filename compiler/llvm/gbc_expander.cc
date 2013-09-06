@@ -849,7 +849,7 @@ llvm::Value* GBCExpanderPass::EmitInvoke(llvm::CallInst& call_inst) {
                                                  invoke_type, target_method,
                                                  vtable_idx,
                                                  direct_code, direct_method,
-                                                 true);
+                                                 true, true);
   // Load the method object
   llvm::Value* callee_method_object_addr = NULL;
 

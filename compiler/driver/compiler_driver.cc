@@ -1099,7 +1099,7 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
                                        MethodReference& target_method,
                                        int& vtable_idx,
                                        uintptr_t& direct_code, uintptr_t& direct_method,
-                                       bool update_stats) {
+                                       bool update_stats, bool enable_devirtualization) {
   ScopedObjectAccess soa(Thread::Current());
   vtable_idx = -1;
   direct_code = 0;
@@ -1130,7 +1130,7 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
       }
       if (referrer_class->CanAccess(methods_class) &&
           referrer_class->CanAccessMember(methods_class, resolved_method->GetAccessFlags())) {
-        const bool kEnableFinalBasedSharpening = true;
+        const bool enableFinalBasedSharpening = enable_devirtualization;
         // Sharpen a virtual call into a direct call when the target is known not to have been
         // overridden (ie is final).
         bool can_sharpen_virtual_based_on_type =
@@ -1142,7 +1142,7 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
             resolved_method->GetMethodIndex() < methods_class->GetVTable()->GetLength() &&
             (methods_class->GetVTable()->Get(resolved_method->GetMethodIndex()) == resolved_method);
 
-        if (kEnableFinalBasedSharpening && (can_sharpen_virtual_based_on_type ||
+        if (enableFinalBasedSharpening && (can_sharpen_virtual_based_on_type ||
                                             can_sharpen_super_based_on_type)) {
           // Sharpen a virtual call into a direct call. The method_idx is into referrer's
           // dex cache, check that this resolved method is where we expect it.
@@ -1157,8 +1157,8 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
           invoke_type = kDirect;
           return true;
         }
-        const bool kEnableVerifierBasedSharpening = true;
-        if (kEnableVerifierBasedSharpening && (invoke_type == kVirtual ||
+        const bool enableVerifierBasedSharpening = enable_devirtualization;
+        if (enableVerifierBasedSharpening && (invoke_type == kVirtual ||
                                                invoke_type == kInterface)) {
           // Did the verifier record a more precise invoke target based on its type information?
           const MethodReference caller_method(mUnit->GetDexFile(), mUnit->GetDexMethodIndex());

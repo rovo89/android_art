@@ -1224,7 +1224,7 @@ bool MIRGraph::InvokeUsesMethodStar(MIR* mir) {
                                               type, target_method,
                                               vtable_idx,
                                               direct_code, direct_method,
-                                              false) &&
+                                              false, true) &&
                                               !(cu_->enable_debug & (1 << kDebugSlowInvokePath));
   return (((type == kDirect) || (type == kStatic)) &&
           fast_path && ((direct_code == 0) || (direct_method == 0)));

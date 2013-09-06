@@ -1359,7 +1359,7 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
                                               info->type, target_method,
                                               vtable_idx,
                                               direct_code, direct_method,
-                                              true) && !SLOW_INVOKE_PATH;
+                                              true, true) && !SLOW_INVOKE_PATH;
   if (info->type == kInterface) {
     if (fast_path) {
       p_null_ck = &null_ck;
