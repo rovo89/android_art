@@ -87,12 +87,6 @@ void ArenaBitVector::ClearBit(unsigned int num) {
   storage_[num >> 5] &= ~check_masks[num & 0x1f];
 }
 
-// Copy a whole vector to the other. Sizes must match.
-void ArenaBitVector::Copy(ArenaBitVector* src) {
-  DCHECK_EQ(storage_size_, src->GetStorageSize());
-  memcpy(storage_, src->GetRawStorage(), sizeof(uint32_t) * storage_size_);
-}
-
 // Intersect with another bit vector.  Sizes and expandability must be the same.
 void ArenaBitVector::Intersect(const ArenaBitVector* src) {
   DCHECK_EQ(storage_size_, src->GetStorageSize());

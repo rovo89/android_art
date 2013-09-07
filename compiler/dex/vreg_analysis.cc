@@ -29,9 +29,29 @@ bool MIRGraph::SetFp(int index, bool is_fp) {
   return change;
 }
 
+bool MIRGraph::SetFp(int index) {
+  bool change = false;
+  if (!reg_location_[index].fp) {
+    reg_location_[index].fp = true;
+    reg_location_[index].defined = true;
+    change = true;
+  }
+  return change;
+}
+
 bool MIRGraph::SetCore(int index, bool is_core) {
   bool change = false;
   if (is_core && !reg_location_[index].defined) {
+    reg_location_[index].core = true;
+    reg_location_[index].defined = true;
+    change = true;
+  }
+  return change;
+}
+
+bool MIRGraph::SetCore(int index) {
+  bool change = false;
+  if (!reg_location_[index].defined) {
     reg_location_[index].core = true;
     reg_location_[index].defined = true;
     change = true;
@@ -49,9 +69,28 @@ bool MIRGraph::SetRef(int index, bool is_ref) {
   return change;
 }
 
+bool MIRGraph::SetRef(int index) {
+  bool change = false;
+  if (!reg_location_[index].defined) {
+    reg_location_[index].ref = true;
+    reg_location_[index].defined = true;
+    change = true;
+  }
+  return change;
+}
+
 bool MIRGraph::SetWide(int index, bool is_wide) {
   bool change = false;
   if (is_wide && !reg_location_[index].wide) {
+    reg_location_[index].wide = true;
+    change = true;
+  }
+  return change;
+}
+
+bool MIRGraph::SetWide(int index) {
+  bool change = false;
+  if (!reg_location_[index].wide) {
     reg_location_[index].wide = true;
     change = true;
   }
@@ -66,6 +105,16 @@ bool MIRGraph::SetHigh(int index, bool is_high) {
   }
   return change;
 }
+
+bool MIRGraph::SetHigh(int index) {
+  bool change = false;
+  if (!reg_location_[index].high_word) {
+    reg_location_[index].high_word = true;
+    change = true;
+  }
+  return change;
+}
+
 
 /*
  * Infer types and sizes.  We don't need to track change on sizes,
@@ -84,21 +133,23 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb) {
     SSARepresentation *ssa_rep = mir->ssa_rep;
     if (ssa_rep) {
       int attrs = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
+      const int* uses = ssa_rep->uses;
+      const int* defs = ssa_rep->defs;
 
       // Handle defs
       if (attrs & DF_DA) {
         if (attrs & DF_CORE_A) {
-          changed |= SetCore(ssa_rep->defs[0], true);
+          changed |= SetCore(defs[0]);
         }
         if (attrs & DF_REF_A) {
-          changed |= SetRef(ssa_rep->defs[0], true);
+          changed |= SetRef(defs[0]);
         }
         if (attrs & DF_A_WIDE) {
-          reg_location_[ssa_rep->defs[0]].wide = true;
-          reg_location_[ssa_rep->defs[1]].wide = true;
-          reg_location_[ssa_rep->defs[1]].high_word = true;
-          DCHECK_EQ(SRegToVReg(ssa_rep->defs[0])+1,
-          SRegToVReg(ssa_rep->defs[1]));
+          reg_location_[defs[0]].wide = true;
+          reg_location_[defs[1]].wide = true;
+          reg_location_[defs[1]].high_word = true;
+          DCHECK_EQ(SRegToVReg(defs[0])+1,
+          SRegToVReg(defs[1]));
         }
       }
 
@@ -106,17 +157,17 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb) {
       int next = 0;
       if (attrs & DF_UA) {
         if (attrs & DF_CORE_A) {
-          changed |= SetCore(ssa_rep->uses[next], true);
+          changed |= SetCore(uses[next]);
         }
         if (attrs & DF_REF_A) {
-          changed |= SetRef(ssa_rep->uses[next], true);
+          changed |= SetRef(uses[next]);
         }
         if (attrs & DF_A_WIDE) {
-          reg_location_[ssa_rep->uses[next]].wide = true;
-          reg_location_[ssa_rep->uses[next + 1]].wide = true;
-          reg_location_[ssa_rep->uses[next + 1]].high_word = true;
-          DCHECK_EQ(SRegToVReg(ssa_rep->uses[next])+1,
-          SRegToVReg(ssa_rep->uses[next + 1]));
+          reg_location_[uses[next]].wide = true;
+          reg_location_[uses[next + 1]].wide = true;
+          reg_location_[uses[next + 1]].high_word = true;
+          DCHECK_EQ(SRegToVReg(uses[next])+1,
+          SRegToVReg(uses[next + 1]));
           next += 2;
         } else {
           next++;
@@ -124,17 +175,17 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb) {
       }
       if (attrs & DF_UB) {
         if (attrs & DF_CORE_B) {
-          changed |= SetCore(ssa_rep->uses[next], true);
+          changed |= SetCore(uses[next]);
         }
         if (attrs & DF_REF_B) {
-          changed |= SetRef(ssa_rep->uses[next], true);
+          changed |= SetRef(uses[next]);
         }
         if (attrs & DF_B_WIDE) {
-          reg_location_[ssa_rep->uses[next]].wide = true;
-          reg_location_[ssa_rep->uses[next + 1]].wide = true;
-          reg_location_[ssa_rep->uses[next + 1]].high_word = true;
-          DCHECK_EQ(SRegToVReg(ssa_rep->uses[next])+1,
-                               SRegToVReg(ssa_rep->uses[next + 1]));
+          reg_location_[uses[next]].wide = true;
+          reg_location_[uses[next + 1]].wide = true;
+          reg_location_[uses[next + 1]].high_word = true;
+          DCHECK_EQ(SRegToVReg(uses[next])+1,
+                               SRegToVReg(uses[next + 1]));
           next += 2;
         } else {
           next++;
@@ -142,17 +193,17 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb) {
       }
       if (attrs & DF_UC) {
         if (attrs & DF_CORE_C) {
-          changed |= SetCore(ssa_rep->uses[next], true);
+          changed |= SetCore(uses[next]);
         }
         if (attrs & DF_REF_C) {
-          changed |= SetRef(ssa_rep->uses[next], true);
+          changed |= SetRef(uses[next]);
         }
         if (attrs & DF_C_WIDE) {
-          reg_location_[ssa_rep->uses[next]].wide = true;
-          reg_location_[ssa_rep->uses[next + 1]].wide = true;
-          reg_location_[ssa_rep->uses[next + 1]].high_word = true;
-          DCHECK_EQ(SRegToVReg(ssa_rep->uses[next])+1,
-          SRegToVReg(ssa_rep->uses[next + 1]));
+          reg_location_[uses[next]].wide = true;
+          reg_location_[uses[next + 1]].wide = true;
+          reg_location_[uses[next + 1]].high_word = true;
+          DCHECK_EQ(SRegToVReg(uses[next])+1,
+          SRegToVReg(uses[next + 1]));
         }
       }
 
@@ -162,27 +213,27 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb) {
           (mir->dalvikInsn.opcode == Instruction::RETURN_OBJECT)) {
         switch (cu_->shorty[0]) {
             case 'I':
-              changed |= SetCore(ssa_rep->uses[0], true);
+              changed |= SetCore(uses[0]);
               break;
             case 'J':
-              changed |= SetCore(ssa_rep->uses[0], true);
-              changed |= SetCore(ssa_rep->uses[1], true);
-              reg_location_[ssa_rep->uses[0]].wide = true;
-              reg_location_[ssa_rep->uses[1]].wide = true;
-              reg_location_[ssa_rep->uses[1]].high_word = true;
+              changed |= SetCore(uses[0]);
+              changed |= SetCore(uses[1]);
+              reg_location_[uses[0]].wide = true;
+              reg_location_[uses[1]].wide = true;
+              reg_location_[uses[1]].high_word = true;
               break;
             case 'F':
-              changed |= SetFp(ssa_rep->uses[0], true);
+              changed |= SetFp(uses[0]);
               break;
             case 'D':
-              changed |= SetFp(ssa_rep->uses[0], true);
-              changed |= SetFp(ssa_rep->uses[1], true);
-              reg_location_[ssa_rep->uses[0]].wide = true;
-              reg_location_[ssa_rep->uses[1]].wide = true;
-              reg_location_[ssa_rep->uses[1]].high_word = true;
+              changed |= SetFp(uses[0]);
+              changed |= SetFp(uses[1]);
+              reg_location_[uses[0]].wide = true;
+              reg_location_[uses[1]].wide = true;
+              reg_location_[uses[1]].high_word = true;
               break;
             case 'L':
-              changed |= SetRef(ssa_rep->uses[0], true);
+              changed |= SetRef(uses[0]);
               break;
             default: break;
         }
@@ -206,10 +257,10 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb) {
             SSARepresentation* tgt_rep = move_result_mir->ssa_rep;
             DCHECK(tgt_rep != NULL);
             tgt_rep->fp_def[0] = true;
-            changed |= SetFp(tgt_rep->defs[0], true);
+            changed |= SetFp(tgt_rep->defs[0]);
             if (shorty[0] == 'D') {
               tgt_rep->fp_def[1] = true;
-              changed |= SetFp(tgt_rep->defs[1], true);
+              changed |= SetFp(tgt_rep->defs[1]);
             }
           }
         }
@@ -217,8 +268,8 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb) {
         // If this is a non-static invoke, mark implicit "this"
         if (((mir->dalvikInsn.opcode != Instruction::INVOKE_STATIC) &&
             (mir->dalvikInsn.opcode != Instruction::INVOKE_STATIC_RANGE))) {
-          reg_location_[ssa_rep->uses[next]].defined = true;
-          reg_location_[ssa_rep->uses[next]].ref = true;
+          reg_location_[uses[next]].defined = true;
+          reg_location_[uses[next]].ref = true;
           next++;
         }
         uint32_t cpos = 1;
@@ -229,28 +280,28 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb) {
               case 'D':
                 ssa_rep->fp_use[i] = true;
                 ssa_rep->fp_use[i+1] = true;
-                reg_location_[ssa_rep->uses[i]].wide = true;
-                reg_location_[ssa_rep->uses[i+1]].wide = true;
-                reg_location_[ssa_rep->uses[i+1]].high_word = true;
-                DCHECK_EQ(SRegToVReg(ssa_rep->uses[i])+1, SRegToVReg(ssa_rep->uses[i+1]));
+                reg_location_[uses[i]].wide = true;
+                reg_location_[uses[i+1]].wide = true;
+                reg_location_[uses[i+1]].high_word = true;
+                DCHECK_EQ(SRegToVReg(uses[i])+1, SRegToVReg(uses[i+1]));
                 i++;
                 break;
               case 'J':
-                reg_location_[ssa_rep->uses[i]].wide = true;
-                reg_location_[ssa_rep->uses[i+1]].wide = true;
-                reg_location_[ssa_rep->uses[i+1]].high_word = true;
-                DCHECK_EQ(SRegToVReg(ssa_rep->uses[i])+1, SRegToVReg(ssa_rep->uses[i+1]));
-                changed |= SetCore(ssa_rep->uses[i], true);
+                reg_location_[uses[i]].wide = true;
+                reg_location_[uses[i+1]].wide = true;
+                reg_location_[uses[i+1]].high_word = true;
+                DCHECK_EQ(SRegToVReg(uses[i])+1, SRegToVReg(uses[i+1]));
+                changed |= SetCore(uses[i]);
                 i++;
                 break;
               case 'F':
                 ssa_rep->fp_use[i] = true;
                 break;
               case 'L':
-                changed |= SetRef(ssa_rep->uses[i], true);
+                changed |= SetRef(uses[i]);
                 break;
               default:
-                changed |= SetCore(ssa_rep->uses[i], true);
+                changed |= SetCore(uses[i]);
                 break;
             }
             i++;
@@ -260,11 +311,11 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb) {
 
       for (int i = 0; ssa_rep->fp_use && i< ssa_rep->num_uses; i++) {
         if (ssa_rep->fp_use[i])
-          changed |= SetFp(ssa_rep->uses[i], true);
+          changed |= SetFp(uses[i]);
         }
       for (int i = 0; ssa_rep->fp_def && i< ssa_rep->num_defs; i++) {
         if (ssa_rep->fp_def[i])
-          changed |= SetFp(ssa_rep->defs[i], true);
+          changed |= SetFp(defs[i]);
         }
       // Special-case handling for moves & Phi
       if (attrs & (DF_IS_MOVE | DF_NULL_TRANSFER_N)) {
@@ -276,14 +327,14 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb) {
          */
         bool is_phi = (static_cast<int>(mir->dalvikInsn.opcode) ==
                       kMirOpPhi);
-        RegLocation rl_temp = reg_location_[ssa_rep->defs[0]];
+        RegLocation rl_temp = reg_location_[defs[0]];
         bool defined_fp = rl_temp.defined && rl_temp.fp;
         bool defined_core = rl_temp.defined && rl_temp.core;
         bool defined_ref = rl_temp.defined && rl_temp.ref;
         bool is_wide = rl_temp.wide || ((attrs & DF_A_WIDE) != 0);
         bool is_high = is_phi && rl_temp.wide && rl_temp.high_word;
         for (int i = 0; i < ssa_rep->num_uses; i++) {
-          rl_temp = reg_location_[ssa_rep->uses[i]];
+          rl_temp = reg_location_[uses[i]];
           defined_fp |= rl_temp.defined && rl_temp.fp;
           defined_core |= rl_temp.defined && rl_temp.core;
           defined_ref |= rl_temp.defined && rl_temp.ref;
@@ -303,26 +354,26 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb) {
                        << " has both fp and core/ref uses for same def.";
           cu_->disable_opt |= (1 << kPromoteRegs);
         }
-        changed |= SetFp(ssa_rep->defs[0], defined_fp);
-        changed |= SetCore(ssa_rep->defs[0], defined_core);
-        changed |= SetRef(ssa_rep->defs[0], defined_ref);
-        changed |= SetWide(ssa_rep->defs[0], is_wide);
-        changed |= SetHigh(ssa_rep->defs[0], is_high);
+        changed |= SetFp(defs[0], defined_fp);
+        changed |= SetCore(defs[0], defined_core);
+        changed |= SetRef(defs[0], defined_ref);
+        changed |= SetWide(defs[0], is_wide);
+        changed |= SetHigh(defs[0], is_high);
         if (attrs & DF_A_WIDE) {
-          changed |= SetWide(ssa_rep->defs[1], true);
-          changed |= SetHigh(ssa_rep->defs[1], true);
+          changed |= SetWide(defs[1]);
+          changed |= SetHigh(defs[1]);
         }
         for (int i = 0; i < ssa_rep->num_uses; i++) {
-          changed |= SetFp(ssa_rep->uses[i], defined_fp);
-          changed |= SetCore(ssa_rep->uses[i], defined_core);
-          changed |= SetRef(ssa_rep->uses[i], defined_ref);
-          changed |= SetWide(ssa_rep->uses[i], is_wide);
-          changed |= SetHigh(ssa_rep->uses[i], is_high);
+          changed |= SetFp(uses[i], defined_fp);
+          changed |= SetCore(uses[i], defined_core);
+          changed |= SetRef(uses[i], defined_ref);
+          changed |= SetWide(uses[i], is_wide);
+          changed |= SetHigh(uses[i], is_high);
         }
         if (attrs & DF_A_WIDE) {
           DCHECK_EQ(ssa_rep->num_uses, 2);
-          changed |= SetWide(ssa_rep->uses[1], true);
-          changed |= SetHigh(ssa_rep->uses[1], true);
+          changed |= SetWide(uses[1]);
+          changed |= SetHigh(uses[1]);
         }
       }
     }

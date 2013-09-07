@@ -580,11 +580,34 @@ class MIRGraph {
   void SSATransformation();
   void CheckForDominanceFrontier(BasicBlock* dom_bb, const BasicBlock* succ_bb);
   void NullCheckElimination();
+  /*
+   * Type inference handling helpers.  Because Dalvik's bytecode is not fully typed,
+   * we have to do some work to figure out the sreg type.  For some operations it is
+   * clear based on the opcode (i.e. ADD_FLOAT v0, v1, v2), but for others (MOVE), we
+   * may never know the "real" type.
+   *
+   * We perform the type inference operation by using an iterative  walk over
+   * the graph, propagating types "defined" by typed opcodes to uses and defs in
+   * non-typed opcodes (such as MOVE).  The Setxx(index) helpers are used to set defined
+   * types on typed opcodes (such as ADD_INT).  The Setxx(index, is_xx) form is used to
+   * propagate types through non-typed opcodes such as PHI and MOVE.  The is_xx flag
+   * tells whether our guess of the type is based on a previously typed definition.
+   * If so, the defined type takes precedence.  Note that it's possible to have the same sreg
+   * show multiple defined types because dx treats constants as untyped bit patterns.
+   * The return value of the Setxx() helpers says whether or not the Setxx() action changed
+   * the current guess, and is used to know when to terminate the iterative walk.
+   */
   bool SetFp(int index, bool is_fp);
+  bool SetFp(int index);
   bool SetCore(int index, bool is_core);
+  bool SetCore(int index);
   bool SetRef(int index, bool is_ref);
+  bool SetRef(int index);
   bool SetWide(int index, bool is_wide);
+  bool SetWide(int index);
   bool SetHigh(int index, bool is_high);
+  bool SetHigh(int index);
+
   void AppendMIR(BasicBlock* bb, MIR* mir);
   void PrependMIR(BasicBlock* bb, MIR* mir);
   void InsertMIRAfter(BasicBlock* bb, MIR* current_mir, MIR* new_mir);

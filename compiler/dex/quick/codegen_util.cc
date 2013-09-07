@@ -696,11 +696,11 @@ int Mir2Lir::AssignInsnOffsets() {
 
   for (lir = first_lir_insn_; lir != NULL; lir = NEXT_LIR(lir)) {
     lir->offset = offset;
-    if (lir->opcode >= 0) {
+    if (LIKELY(lir->opcode >= 0)) {
       if (!lir->flags.is_nop) {
         offset += lir->flags.size;
       }
-    } else if (lir->opcode == kPseudoPseudoAlign4) {
+    } else if (UNLIKELY(lir->opcode == kPseudoPseudoAlign4)) {
       if (offset & 0x2) {
         offset += 2;
         lir->operands[0] = 1;

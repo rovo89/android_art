@@ -44,7 +44,7 @@ class ArenaBitVector {
           DCHECK_EQ(bit_size_, p_bits_->GetStorageSize() * sizeof(uint32_t) * 8);
           DCHECK_EQ(bit_storage_, p_bits_->GetRawStorage());
 
-          if (bit_index_ >= bit_size_) return -1;
+          if (UNLIKELY(bit_index_ >= bit_size_)) return -1;
 
           uint32_t word_index = bit_index_ / 32;
           uint32_t word = bit_storage_[word_index];
@@ -54,7 +54,7 @@ class ArenaBitVector {
             bit_index_ &= ~0x1f;
             do {
               word_index++;
-              if ((word_index * 32) >= bit_size_) {
+              if (UNLIKELY((word_index * 32) >= bit_size_)) {
                 bit_index_ = bit_size_;
                 return -1;
               }
@@ -95,7 +95,9 @@ class ArenaBitVector {
     bool IsBitSet(unsigned int num);
     void ClearAllBits();
     void SetInitialBits(unsigned int num_bits);
-    void Copy(ArenaBitVector* src);
+    void Copy(ArenaBitVector* src) {
+      memcpy(storage_, src->GetRawStorage(), sizeof(uint32_t) * storage_size_);
+    }
     void Intersect(const ArenaBitVector* src2);
     void Union(const ArenaBitVector* src);
     // Are we equal to another bit vector?  Note: expandability attributes must also match.
