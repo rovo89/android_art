@@ -55,9 +55,32 @@ bool Mir2Lir::FastInstance(uint32_t field_idx, bool is_put, int* field_offset, b
       field_idx, mir_graph_->GetCurrentDexCompilationUnit(), is_put, field_offset, is_volatile);
 }
 
+/* Remove a LIR from the list. */
+void Mir2Lir::UnlinkLIR(LIR* lir) {
+  if (UNLIKELY(lir == first_lir_insn_)) {
+    first_lir_insn_ = lir->next;
+    if (lir->next != NULL) {
+      lir->next->prev = NULL;
+    } else {
+      DCHECK(lir->next == NULL);
+      DCHECK(lir == last_lir_insn_);
+      last_lir_insn_ = NULL;
+    }
+  } else if (lir == last_lir_insn_) {
+    last_lir_insn_ = lir->prev;
+    lir->prev->next = NULL;
+  } else if ((lir->prev != NULL) && (lir->next != NULL)) {
+    lir->prev->next = lir->next;
+    lir->next->prev = lir->prev;
+  }
+}
+
 /* Convert an instruction to a NOP */
 void Mir2Lir::NopLIR(LIR* lir) {
   lir->flags.is_nop = true;
+  if (!cu_->verbose) {
+    UnlinkLIR(lir);
+  }
 }
 
 void Mir2Lir::SetMemRefType(LIR* lir, bool is_load, int mem_type) {
@@ -782,20 +805,16 @@ void Mir2Lir::AssembleLIR() {
 /*
  * Insert a kPseudoCaseLabel at the beginning of the Dalvik
  * offset vaddr.  This label will be used to fix up the case
- * branch table during the assembly phase.  Be sure to set
- * all resource flags on this to prevent code motion across
- * target boundaries.  KeyVal is just there for debugging.
+ * branch table during the assembly phase.  All resource flags
+ * are set to prevent code motion.  KeyVal is just there for debugging.
  */
 LIR* Mir2Lir::InsertCaseLabel(int vaddr, int keyVal) {
-  SafeMap<unsigned int, LIR*>::iterator it;
-  LIR* boundary_lir = boundary_map_.Get(vaddr);
-  if (boundary_lir == NULL) {
-    LOG(FATAL) << "Error: didn't find vaddr 0x" << std::hex << vaddr;
-  }
+  LIR* boundary_lir = &block_label_list_[mir_graph_->FindBlock(vaddr)->id];
   LIR* new_label = static_cast<LIR*>(arena_->Alloc(sizeof(LIR), ArenaAllocator::kAllocLIR));
   new_label->dalvik_offset = vaddr;
   new_label->opcode = kPseudoCaseLabel;
   new_label->operands[0] = keyVal;
+  new_label->def_mask = ENCODE_ALL;
   InsertLIRAfter(boundary_lir, new_label);
   return new_label;
 }
@@ -880,18 +899,9 @@ void Mir2Lir::DumpPackedSwitchTable(const uint16_t* table) {
   }
 }
 
-/*
- * Set up special LIR to mark a Dalvik byte-code instruction start and
- * record it in the boundary_map.  NOTE: in cases such as kMirOpCheck in
- * which we split a single Dalvik instruction, only the first MIR op
- * associated with a Dalvik PC should be entered into the map.
- */
-LIR* Mir2Lir::MarkBoundary(int offset, const char* inst_str) {
-  LIR* res = NewLIR1(kPseudoDalvikByteCodeBoundary, reinterpret_cast<uintptr_t>(inst_str));
-  if (boundary_map_.Get(offset) == NULL) {
-    boundary_map_.Put(offset, res);
-  }
-  return res;
+/* Set up special LIR to mark a Dalvik byte-code instruction start for pretty printing */
+void Mir2Lir::MarkBoundary(int offset, const char* inst_str) {
+  NewLIR1(kPseudoDalvikByteCodeBoundary, reinterpret_cast<uintptr_t>(inst_str));
 }
 
 bool Mir2Lir::EvaluateBranch(Instruction::Code opcode, int32_t src1, int32_t src2) {
@@ -946,7 +956,6 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       throw_launchpads_(arena, 2048, kGrowableArrayThrowLaunchPads),
       suspend_launchpads_(arena, 4, kGrowableArraySuspendLaunchPads),
       intrinsic_launchpads_(arena, 2048, kGrowableArrayMisc),
-      boundary_map_(arena, 0, kGrowableArrayMisc),
       data_offset_(0),
       total_size_(0),
       block_label_list_(NULL),
@@ -963,8 +972,6 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
   promotion_map_ = static_cast<PromotionMap*>
       (arena_->Alloc((cu_->num_dalvik_registers  + cu_->num_compiler_temps + 1) *
                       sizeof(promotion_map_[0]), ArenaAllocator::kAllocRegAlloc));
-  // Pre-fill with nulls.
-  boundary_map_.SetSize(cu->code_item->insns_size_in_code_units_);
 }
 
 void Mir2Lir::Materialize() {
@@ -1090,6 +1097,5 @@ void Mir2Lir::InsertLIRAfter(LIR* current_lir, LIR* new_lir) {
   current_lir->next = new_lir;
   new_lir->next->prev = new_lir;
 }
-
 
 }  // namespace art

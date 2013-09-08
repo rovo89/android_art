@@ -234,11 +234,17 @@ void ArmMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
     rl_false = LoadValue(rl_false, kCoreReg);
     rl_result = EvalLoc(rl_dest, kCoreReg, true);
     OpRegImm(kOpCmp, rl_src.low_reg, 0);
-    OpIT(kCondEq, "E");
-    LIR* l1 = OpRegCopy(rl_result.low_reg, rl_true.low_reg);
-    l1->flags.is_nop = false;  // Make sure this instruction isn't optimized away
-    LIR* l2 = OpRegCopy(rl_result.low_reg, rl_false.low_reg);
-    l2->flags.is_nop = false;  // Make sure this instruction isn't optimized away
+    if (rl_result.low_reg == rl_true.low_reg) {  // Is the "true" case already in place?
+      OpIT(kCondNe, "");
+      OpRegCopy(rl_result.low_reg, rl_false.low_reg);
+    } else if (rl_result.low_reg == rl_false.low_reg) {  // False case in place?
+      OpIT(kCondEq, "");
+      OpRegCopy(rl_result.low_reg, rl_true.low_reg);
+    } else {  // Normal - select between the two.
+      OpIT(kCondEq, "E");
+      OpRegCopy(rl_result.low_reg, rl_true.low_reg);
+      OpRegCopy(rl_result.low_reg, rl_false.low_reg);
+    }
     GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
   }
   StoreValue(rl_dest, rl_result);

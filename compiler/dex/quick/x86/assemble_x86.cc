@@ -1237,7 +1237,7 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(uintptr_t start_addr) {
           delta = target - pc;
           if (!(cu_->disable_opt & (1 << kSafeOptimizations)) && delta == 0) {
             // Useless branch
-            lir->flags.is_nop = true;
+            NopLIR(lir);
             if (kVerbosePcFixup) {
               LOG(INFO) << "Retry for useless branch at " << lir->offset;
             }

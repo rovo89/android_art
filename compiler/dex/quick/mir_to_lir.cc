@@ -735,16 +735,16 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
 
     current_dalvik_offset_ = mir->offset;
     int opcode = mir->dalvikInsn.opcode;
-    LIR* boundary_lir;
 
     // Mark the beginning of a Dalvik instruction for line tracking.
-    char* inst_str = cu_->verbose ?
-       mir_graph_->GetDalvikDisassembly(mir) : NULL;
-    boundary_lir = MarkBoundary(mir->offset, inst_str);
+    if (cu_->verbose) {
+       char* inst_str = mir_graph_->GetDalvikDisassembly(mir);
+       MarkBoundary(mir->offset, inst_str);
+    }
     // Remember the first LIR for this block.
     if (head_lir == NULL) {
-      head_lir = boundary_lir;
-      // Set the first boundary_lir as a scheduling barrier.
+      head_lir = &block_label_list_[bb->id];
+      // Set the first label as a scheduling barrier.
       head_lir->def_mask = ENCODE_ALL;
     }
 
@@ -770,11 +770,6 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
   if (head_lir) {
     // Eliminate redundant loads/stores and delay stores into later slots.
     ApplyLocalOptimizations(head_lir, last_lir_insn_);
-
-    // Generate an unconditional branch to the fallthrough block.
-    if (bb->fall_through) {
-      OpUnconditionalBranch(&block_label_list_[bb->fall_through->id]);
-    }
   }
   return false;
 }
@@ -815,8 +810,18 @@ void Mir2Lir::MethodMIR2LIR() {
                                       ArenaAllocator::kAllocLIR));
 
   PreOrderDfsIterator iter(mir_graph_);
-  for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
-    MethodBlockCodeGen(bb);
+  BasicBlock* curr_bb = iter.Next();
+  BasicBlock* next_bb = iter.Next();
+  while (curr_bb != NULL) {
+    MethodBlockCodeGen(curr_bb);
+    // If the fall_through block is no longer laid out consecutively, drop in a branch.
+    if ((curr_bb->fall_through != NULL) && (curr_bb->fall_through != next_bb)) {
+      OpUnconditionalBranch(&block_label_list_[curr_bb->fall_through->id]);
+    }
+    curr_bb = next_bb;
+    do {
+      next_bb = iter.Next();
+    } while ((next_bb != NULL) && (next_bb->block_type == kDead));
   }
 
   HandleSuspendLaunchPads();
@@ -824,10 +829,6 @@ void Mir2Lir::MethodMIR2LIR() {
   HandleThrowLaunchPads();
 
   HandleIntrinsicLaunchPads();
-
-  if (!(cu_->disable_opt & (1 << kSafeOptimizations))) {
-    RemoveRedundantBranches();
-  }
 }
 
 }  // namespace art
