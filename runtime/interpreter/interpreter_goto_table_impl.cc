@@ -197,6 +197,12 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
 
   HANDLE_INSTRUCTION_START(RETURN_VOID) {
     JValue result;
+    if (do_access_check) {
+      // If access checks are required then the dex-to-dex compiler and analysis of
+      // whether the class has final fields hasn't been performed. Conservatively
+      // perform the memory barrier now.
+      ANDROID_MEMBAR_STORE();
+    }
     if (UNLIKELY(self->TestAllFlags())) {
       CheckSuspend(self);
     }
