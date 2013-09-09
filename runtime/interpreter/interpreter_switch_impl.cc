@@ -166,6 +166,12 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
       case Instruction::RETURN_VOID: {
         PREAMBLE();
         JValue result;
+        if (do_access_check) {
+          // If access checks are required then the dex-to-dex compiler and analysis of
+          // whether the class has final fields hasn't been performed. Conservatively
+          // perform the memory barrier now.
+          ANDROID_MEMBAR_STORE();
+        }
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
         }
