@@ -22,6 +22,9 @@ namespace interpreter {
 #define HANDLE_PENDING_EXCEPTION()                                                              \
   do {                                                                                          \
     CHECK(self->IsExceptionPending());                                                          \
+    if (UNLIKELY(self->TestAllFlags())) {                                                       \
+      CheckSuspend(self);                                                                       \
+    }                                                                                           \
     uint32_t found_dex_pc = FindNextInstructionFollowingException(self, shadow_frame,           \
                                                                   inst->GetDexPc(insns),        \
                                                                   this_object_ref,              \
@@ -73,9 +76,6 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
   while (true) {
     dex_pc = inst->GetDexPc(insns);
     shadow_frame.SetDexPC(dex_pc);
-    if (UNLIKELY(self->TestAllFlags())) {
-      CheckSuspend(self);
-    }
     if (UNLIKELY(instrumentation->HasDexPcListeners())) {
       instrumentation->DexPcMovedEvent(self, this_object_ref.get(),
                                        shadow_frame.GetMethod(), dex_pc);
@@ -166,6 +166,9 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
       case Instruction::RETURN_VOID: {
         PREAMBLE();
         JValue result;
+        if (UNLIKELY(self->TestAllFlags())) {
+          CheckSuspend(self);
+        }
         if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
           instrumentation->MethodExitEvent(self, this_object_ref.get(),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
@@ -177,6 +180,9 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
         PREAMBLE();
         ANDROID_MEMBAR_STORE();
         JValue result;
+        if (UNLIKELY(self->TestAllFlags())) {
+          CheckSuspend(self);
+        }
         if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
           instrumentation->MethodExitEvent(self, this_object_ref.get(),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
@@ -189,6 +195,9 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
         JValue result;
         result.SetJ(0);
         result.SetI(shadow_frame.GetVReg(inst->VRegA_11x()));
+        if (UNLIKELY(self->TestAllFlags())) {
+          CheckSuspend(self);
+        }
         if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
           instrumentation->MethodExitEvent(self, this_object_ref.get(),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
@@ -200,6 +209,9 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
         PREAMBLE();
         JValue result;
         result.SetJ(shadow_frame.GetVRegLong(inst->VRegA_11x()));
+        if (UNLIKELY(self->TestAllFlags())) {
+          CheckSuspend(self);
+        }
         if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
           instrumentation->MethodExitEvent(self, this_object_ref.get(),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
@@ -212,6 +224,9 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
         JValue result;
         result.SetJ(0);
         result.SetL(shadow_frame.GetVRegReference(inst->VRegA_11x()));
+        if (UNLIKELY(self->TestAllFlags())) {
+          CheckSuspend(self);
+        }
         if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
           instrumentation->MethodExitEvent(self, this_object_ref.get(),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
@@ -461,28 +476,56 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
       }
       case Instruction::GOTO: {
         PREAMBLE();
-        inst = inst->RelativeAt(inst->VRegA_10t());
+        int8_t offset = inst->VRegA_10t();
+        if (IsBackwardBranch(offset)) {
+          if (UNLIKELY(self->TestAllFlags())) {
+            CheckSuspend(self);
+          }
+        }
+        inst = inst->RelativeAt(offset);
         break;
       }
       case Instruction::GOTO_16: {
         PREAMBLE();
-        inst = inst->RelativeAt(inst->VRegA_20t());
+        int16_t offset = inst->VRegA_20t();
+        if (IsBackwardBranch(offset)) {
+          if (UNLIKELY(self->TestAllFlags())) {
+            CheckSuspend(self);
+          }
+        }
+        inst = inst->RelativeAt(offset);
         break;
       }
       case Instruction::GOTO_32: {
         PREAMBLE();
-        inst = inst->RelativeAt(inst->VRegA_30t());
+        int32_t offset = inst->VRegA_30t();
+        if (IsBackwardBranch(offset)) {
+          if (UNLIKELY(self->TestAllFlags())) {
+            CheckSuspend(self);
+          }
+        }
+        inst = inst->RelativeAt(offset);
         break;
       }
       case Instruction::PACKED_SWITCH: {
         PREAMBLE();
         int32_t offset = DoPackedSwitch(inst, shadow_frame);
+        if (IsBackwardBranch(offset)) {
+          if (UNLIKELY(self->TestAllFlags())) {
+            CheckSuspend(self);
+          }
+        }
         inst = inst->RelativeAt(offset);
         break;
       }
       case Instruction::SPARSE_SWITCH: {
         PREAMBLE();
         int32_t offset = DoSparseSwitch(inst, shadow_frame);
+        if (IsBackwardBranch(offset)) {
+          if (UNLIKELY(self->TestAllFlags())) {
+            CheckSuspend(self);
+          }
+        }
         inst = inst->RelativeAt(offset);
         break;
       }
@@ -570,7 +613,13 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
       case Instruction::IF_EQ: {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_22t()) == shadow_frame.GetVReg(inst->VRegB_22t())) {
-          inst = inst->RelativeAt(inst->VRegC_22t());
+          int16_t offset = inst->VRegC_22t();
+          if (IsBackwardBranch(offset)) {
+            if (UNLIKELY(self->TestAllFlags())) {
+              CheckSuspend(self);
+            }
+          }
+          inst = inst->RelativeAt(offset);
         } else {
           inst = inst->Next_2xx();
         }
@@ -579,7 +628,13 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
       case Instruction::IF_NE: {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_22t()) != shadow_frame.GetVReg(inst->VRegB_22t())) {
-          inst = inst->RelativeAt(inst->VRegC_22t());
+          int16_t offset = inst->VRegC_22t();
+          if (IsBackwardBranch(offset)) {
+            if (UNLIKELY(self->TestAllFlags())) {
+              CheckSuspend(self);
+            }
+          }
+          inst = inst->RelativeAt(offset);
         } else {
           inst = inst->Next_2xx();
         }
@@ -588,7 +643,13 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
       case Instruction::IF_LT: {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_22t()) < shadow_frame.GetVReg(inst->VRegB_22t())) {
-          inst = inst->RelativeAt(inst->VRegC_22t());
+          int16_t offset = inst->VRegC_22t();
+          if (IsBackwardBranch(offset)) {
+            if (UNLIKELY(self->TestAllFlags())) {
+              CheckSuspend(self);
+            }
+          }
+          inst = inst->RelativeAt(offset);
         } else {
           inst = inst->Next_2xx();
         }
@@ -597,7 +658,13 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
       case Instruction::IF_GE: {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_22t()) >= shadow_frame.GetVReg(inst->VRegB_22t())) {
-          inst = inst->RelativeAt(inst->VRegC_22t());
+          int16_t offset = inst->VRegC_22t();
+          if (IsBackwardBranch(offset)) {
+            if (UNLIKELY(self->TestAllFlags())) {
+              CheckSuspend(self);
+            }
+          }
+          inst = inst->RelativeAt(offset);
         } else {
           inst = inst->Next_2xx();
         }
@@ -606,7 +673,13 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
       case Instruction::IF_GT: {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_22t()) > shadow_frame.GetVReg(inst->VRegB_22t())) {
-          inst = inst->RelativeAt(inst->VRegC_22t());
+          int16_t offset = inst->VRegC_22t();
+          if (IsBackwardBranch(offset)) {
+            if (UNLIKELY(self->TestAllFlags())) {
+              CheckSuspend(self);
+            }
+          }
+          inst = inst->RelativeAt(offset);
         } else {
           inst = inst->Next_2xx();
         }
@@ -615,7 +688,13 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
       case Instruction::IF_LE: {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_22t()) <= shadow_frame.GetVReg(inst->VRegB_22t())) {
-          inst = inst->RelativeAt(inst->VRegC_22t());
+          int16_t offset = inst->VRegC_22t();
+          if (IsBackwardBranch(offset)) {
+            if (UNLIKELY(self->TestAllFlags())) {
+              CheckSuspend(self);
+            }
+          }
+          inst = inst->RelativeAt(offset);
         } else {
           inst = inst->Next_2xx();
         }
@@ -624,7 +703,13 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
       case Instruction::IF_EQZ: {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_21t()) == 0) {
-          inst = inst->RelativeAt(inst->VRegB_21t());
+          int16_t offset = inst->VRegB_21t();
+          if (IsBackwardBranch(offset)) {
+            if (UNLIKELY(self->TestAllFlags())) {
+              CheckSuspend(self);
+            }
+          }
+          inst = inst->RelativeAt(offset);
         } else {
           inst = inst->Next_2xx();
         }
@@ -633,7 +718,13 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
       case Instruction::IF_NEZ: {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_21t()) != 0) {
-          inst = inst->RelativeAt(inst->VRegB_21t());
+          int16_t offset = inst->VRegB_21t();
+          if (IsBackwardBranch(offset)) {
+            if (UNLIKELY(self->TestAllFlags())) {
+              CheckSuspend(self);
+            }
+          }
+          inst = inst->RelativeAt(offset);
         } else {
           inst = inst->Next_2xx();
         }
@@ -642,7 +733,13 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
       case Instruction::IF_LTZ: {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_21t()) < 0) {
-          inst = inst->RelativeAt(inst->VRegB_21t());
+          int16_t offset = inst->VRegB_21t();
+          if (IsBackwardBranch(offset)) {
+            if (UNLIKELY(self->TestAllFlags())) {
+              CheckSuspend(self);
+            }
+          }
+          inst = inst->RelativeAt(offset);
         } else {
           inst = inst->Next_2xx();
         }
@@ -651,7 +748,13 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
       case Instruction::IF_GEZ: {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_21t()) >= 0) {
-          inst = inst->RelativeAt(inst->VRegB_21t());
+          int16_t offset = inst->VRegB_21t();
+          if (IsBackwardBranch(offset)) {
+            if (UNLIKELY(self->TestAllFlags())) {
+              CheckSuspend(self);
+            }
+          }
+          inst = inst->RelativeAt(offset);
         } else {
           inst = inst->Next_2xx();
         }
@@ -660,7 +763,13 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
       case Instruction::IF_GTZ: {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_21t()) > 0) {
-          inst = inst->RelativeAt(inst->VRegB_21t());
+          int16_t offset = inst->VRegB_21t();
+          if (IsBackwardBranch(offset)) {
+            if (UNLIKELY(self->TestAllFlags())) {
+              CheckSuspend(self);
+            }
+          }
+          inst = inst->RelativeAt(offset);
         } else {
           inst = inst->Next_2xx();
         }
@@ -669,7 +778,13 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
       case Instruction::IF_LEZ:  {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_21t()) <= 0) {
-          inst = inst->RelativeAt(inst->VRegB_21t());
+          int16_t offset = inst->VRegB_21t();
+          if (IsBackwardBranch(offset)) {
+            if (UNLIKELY(self->TestAllFlags())) {
+              CheckSuspend(self);
+            }
+          }
+          inst = inst->RelativeAt(offset);
         } else {
           inst = inst->Next_2xx();
         }

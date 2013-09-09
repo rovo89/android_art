@@ -510,6 +510,10 @@ static inline void TraceExecution(const ShadowFrame& shadow_frame, const Instruc
   }
 }
 
+static inline bool IsBackwardBranch(int32_t branch_offset) {
+  return branch_offset <= 0;
+}
+
 }  // namespace interpreter
 }  // namespace art
 

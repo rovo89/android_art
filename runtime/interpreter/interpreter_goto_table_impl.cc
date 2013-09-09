@@ -36,9 +36,6 @@ namespace interpreter {
     inst = inst->RelativeAt(disp);                                          \
     dex_pc = static_cast<uint32_t>(static_cast<int32_t>(dex_pc) + disp);    \
     shadow_frame.SetDexPC(dex_pc);                                          \
-    if (UNLIKELY(self->TestAllFlags())) {                                   \
-      CheckSuspend(self);                                                   \
-    }                                                                       \
     TraceExecution(shadow_frame, inst, dex_pc, mh);                         \
     goto *currentHandlersTable[inst->Opcode()];                             \
   } while (false)
@@ -63,10 +60,6 @@ namespace interpreter {
 
 #define HANDLE_INSTRUCTION_START(opcode) op_##opcode:  // NOLINT(whitespace/labels)
 #define HANDLE_INSTRUCTION_END() UNREACHABLE_CODE_CHECK()
-
-static inline bool IsBackwardBranch(int32_t branch_offset) {
-  return branch_offset <= 0;
-}
 
 template<bool do_access_check>
 JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
@@ -204,6 +197,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
 
   HANDLE_INSTRUCTION_START(RETURN_VOID) {
     JValue result;
+    if (UNLIKELY(self->TestAllFlags())) {
+      CheckSuspend(self);
+    }
     if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
       instrumentation->MethodExitEvent(self, this_object_ref.get(),
                                        shadow_frame.GetMethod(), dex_pc,
@@ -216,6 +212,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   HANDLE_INSTRUCTION_START(RETURN_VOID_BARRIER) {
     ANDROID_MEMBAR_STORE();
     JValue result;
+    if (UNLIKELY(self->TestAllFlags())) {
+      CheckSuspend(self);
+    }
     if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
       instrumentation->MethodExitEvent(self, this_object_ref.get(),
                                        shadow_frame.GetMethod(), dex_pc,
@@ -229,6 +228,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     JValue result;
     result.SetJ(0);
     result.SetI(shadow_frame.GetVReg(inst->VRegA_11x()));
+    if (UNLIKELY(self->TestAllFlags())) {
+      CheckSuspend(self);
+    }
     if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
       instrumentation->MethodExitEvent(self, this_object_ref.get(),
                                        shadow_frame.GetMethod(), dex_pc,
@@ -241,6 +243,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   HANDLE_INSTRUCTION_START(RETURN_WIDE) {
     JValue result;
     result.SetJ(shadow_frame.GetVRegLong(inst->VRegA_11x()));
+    if (UNLIKELY(self->TestAllFlags())) {
+      CheckSuspend(self);
+    }
     if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
       instrumentation->MethodExitEvent(self, this_object_ref.get(),
                                        shadow_frame.GetMethod(), dex_pc,
@@ -254,6 +259,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     JValue result;
     result.SetJ(0);
     result.SetL(shadow_frame.GetVRegReference(inst->VRegA_11x()));
+    if (UNLIKELY(self->TestAllFlags())) {
+      CheckSuspend(self);
+    }
     if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
       instrumentation->MethodExitEvent(self, this_object_ref.get(),
                                        shadow_frame.GetMethod(), dex_pc,
@@ -507,6 +515,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   HANDLE_INSTRUCTION_START(GOTO) {
     int8_t offset = inst->VRegA_10t();
     if (IsBackwardBranch(offset)) {
+      if (UNLIKELY(self->TestAllFlags())) {
+        CheckSuspend(self);
+      }
       if (UNLIKELY(instrumentation->HasDexPcListeners())) {
         currentHandlersTable = instrumentationHandlersTable;
       } else {
@@ -520,6 +531,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   HANDLE_INSTRUCTION_START(GOTO_16) {
     int16_t offset = inst->VRegA_20t();
     if (IsBackwardBranch(offset)) {
+      if (UNLIKELY(self->TestAllFlags())) {
+        CheckSuspend(self);
+      }
       if (UNLIKELY(instrumentation->HasDexPcListeners())) {
         currentHandlersTable = instrumentationHandlersTable;
       } else {
@@ -533,6 +547,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   HANDLE_INSTRUCTION_START(GOTO_32) {
     int32_t offset = inst->VRegA_30t();
     if (IsBackwardBranch(offset)) {
+      if (UNLIKELY(self->TestAllFlags())) {
+        CheckSuspend(self);
+      }
       if (UNLIKELY(instrumentation->HasDexPcListeners())) {
         currentHandlersTable = instrumentationHandlersTable;
       } else {
@@ -546,6 +563,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   HANDLE_INSTRUCTION_START(PACKED_SWITCH) {
     int32_t offset = DoPackedSwitch(inst, shadow_frame);
     if (IsBackwardBranch(offset)) {
+      if (UNLIKELY(self->TestAllFlags())) {
+        CheckSuspend(self);
+      }
       if (UNLIKELY(instrumentation->HasDexPcListeners())) {
         currentHandlersTable = instrumentationHandlersTable;
       } else {
@@ -559,6 +579,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   HANDLE_INSTRUCTION_START(SPARSE_SWITCH) {
     int32_t offset = DoSparseSwitch(inst, shadow_frame);
     if (IsBackwardBranch(offset)) {
+      if (UNLIKELY(self->TestAllFlags())) {
+        CheckSuspend(self);
+      }
       if (UNLIKELY(instrumentation->HasDexPcListeners())) {
         currentHandlersTable = instrumentationHandlersTable;
       } else {
@@ -653,6 +676,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (shadow_frame.GetVReg(inst->VRegA_22t()) == shadow_frame.GetVReg(inst->VRegB_22t())) {
       int16_t offset = inst->VRegC_22t();
       if (IsBackwardBranch(offset)) {
+        if (UNLIKELY(self->TestAllFlags())) {
+          CheckSuspend(self);
+        }
         if (UNLIKELY(instrumentation->HasDexPcListeners())) {
           currentHandlersTable = instrumentationHandlersTable;
         } else {
@@ -670,6 +696,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (shadow_frame.GetVReg(inst->VRegA_22t()) != shadow_frame.GetVReg(inst->VRegB_22t())) {
       int16_t offset = inst->VRegC_22t();
       if (IsBackwardBranch(offset)) {
+        if (UNLIKELY(self->TestAllFlags())) {
+          CheckSuspend(self);
+        }
         if (UNLIKELY(instrumentation->HasDexPcListeners())) {
           currentHandlersTable = instrumentationHandlersTable;
         } else {
@@ -687,6 +716,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (shadow_frame.GetVReg(inst->VRegA_22t()) < shadow_frame.GetVReg(inst->VRegB_22t())) {
       int16_t offset = inst->VRegC_22t();
       if (IsBackwardBranch(offset)) {
+        if (UNLIKELY(self->TestAllFlags())) {
+          CheckSuspend(self);
+        }
         if (UNLIKELY(instrumentation->HasDexPcListeners())) {
           currentHandlersTable = instrumentationHandlersTable;
         } else {
@@ -704,6 +736,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (shadow_frame.GetVReg(inst->VRegA_22t()) >= shadow_frame.GetVReg(inst->VRegB_22t())) {
       int16_t offset = inst->VRegC_22t();
       if (IsBackwardBranch(offset)) {
+        if (UNLIKELY(self->TestAllFlags())) {
+          CheckSuspend(self);
+        }
         if (UNLIKELY(instrumentation->HasDexPcListeners())) {
           currentHandlersTable = instrumentationHandlersTable;
         } else {
@@ -721,6 +756,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (shadow_frame.GetVReg(inst->VRegA_22t()) > shadow_frame.GetVReg(inst->VRegB_22t())) {
       int16_t offset = inst->VRegC_22t();
       if (IsBackwardBranch(offset)) {
+        if (UNLIKELY(self->TestAllFlags())) {
+          CheckSuspend(self);
+        }
         if (UNLIKELY(instrumentation->HasDexPcListeners())) {
           currentHandlersTable = instrumentationHandlersTable;
         } else {
@@ -738,6 +776,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (shadow_frame.GetVReg(inst->VRegA_22t()) <= shadow_frame.GetVReg(inst->VRegB_22t())) {
       int16_t offset = inst->VRegC_22t();
       if (IsBackwardBranch(offset)) {
+        if (UNLIKELY(self->TestAllFlags())) {
+          CheckSuspend(self);
+        }
         if (UNLIKELY(instrumentation->HasDexPcListeners())) {
           currentHandlersTable = instrumentationHandlersTable;
         } else {
@@ -755,6 +796,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (shadow_frame.GetVReg(inst->VRegA_21t()) == 0) {
       int16_t offset = inst->VRegB_21t();
       if (IsBackwardBranch(offset)) {
+        if (UNLIKELY(self->TestAllFlags())) {
+          CheckSuspend(self);
+        }
         if (UNLIKELY(instrumentation->HasDexPcListeners())) {
           currentHandlersTable = instrumentationHandlersTable;
         } else {
@@ -772,6 +816,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (shadow_frame.GetVReg(inst->VRegA_21t()) != 0) {
       int16_t offset = inst->VRegB_21t();
       if (IsBackwardBranch(offset)) {
+        if (UNLIKELY(self->TestAllFlags())) {
+          CheckSuspend(self);
+        }
         if (UNLIKELY(instrumentation->HasDexPcListeners())) {
           currentHandlersTable = instrumentationHandlersTable;
         } else {
@@ -789,6 +836,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (shadow_frame.GetVReg(inst->VRegA_21t()) < 0) {
       int16_t offset = inst->VRegB_21t();
       if (IsBackwardBranch(offset)) {
+        if (UNLIKELY(self->TestAllFlags())) {
+          CheckSuspend(self);
+        }
         if (UNLIKELY(instrumentation->HasDexPcListeners())) {
           currentHandlersTable = instrumentationHandlersTable;
         } else {
@@ -806,6 +856,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (shadow_frame.GetVReg(inst->VRegA_21t()) >= 0) {
       int16_t offset = inst->VRegB_21t();
       if (IsBackwardBranch(offset)) {
+        if (UNLIKELY(self->TestAllFlags())) {
+          CheckSuspend(self);
+        }
         if (UNLIKELY(instrumentation->HasDexPcListeners())) {
           currentHandlersTable = instrumentationHandlersTable;
         } else {
@@ -823,6 +876,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (shadow_frame.GetVReg(inst->VRegA_21t()) > 0) {
       int16_t offset = inst->VRegB_21t();
       if (IsBackwardBranch(offset)) {
+        if (UNLIKELY(self->TestAllFlags())) {
+          CheckSuspend(self);
+        }
         if (UNLIKELY(instrumentation->HasDexPcListeners())) {
           currentHandlersTable = instrumentationHandlersTable;
         } else {
@@ -840,6 +896,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (shadow_frame.GetVReg(inst->VRegA_21t()) <= 0) {
       int16_t offset = inst->VRegB_21t();
       if (IsBackwardBranch(offset)) {
+        if (UNLIKELY(self->TestAllFlags())) {
+          CheckSuspend(self);
+        }
         if (UNLIKELY(instrumentation->HasDexPcListeners())) {
           currentHandlersTable = instrumentationHandlersTable;
         } else {
@@ -2307,6 +2366,9 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
 
   exception_pending_label: {
     CHECK(self->IsExceptionPending());
+    if (UNLIKELY(self->TestAllFlags())) {
+      CheckSuspend(self);
+    }
     uint32_t found_dex_pc = FindNextInstructionFollowingException(self, shadow_frame, dex_pc,
                                                                   this_object_ref,
                                                                   instrumentation);
