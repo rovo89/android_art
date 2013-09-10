@@ -29,7 +29,6 @@ namespace interpreter {
 // - "currentHandlersTable": the current table of pointer to each instruction handler.
 
 // Advance to the next instruction and updates interpreter state.
-// TODO: move check suspend to backward branch, return and exception handling.
 #define ADVANCE(_offset)                                                    \
   do {                                                                      \
     int32_t disp = static_cast<int32_t>(_offset);                           \
@@ -1339,84 +1338,84 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_VIRTUAL) {
-    bool success = DoInvoke<kVirtual, false, do_access_check>(self, shadow_frame, inst, &result_register);
+    bool success = DoInvoke<kVirtual, false, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_VIRTUAL_RANGE) {
-    bool success = DoInvoke<kVirtual, true, do_access_check>(self, shadow_frame, inst, &result_register);
+    bool success = DoInvoke<kVirtual, true, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_SUPER) {
-    bool success = DoInvoke<kSuper, false, do_access_check>(self, shadow_frame, inst, &result_register);
+    bool success = DoInvoke<kSuper, false, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_SUPER_RANGE) {
-    bool success = DoInvoke<kSuper, true, do_access_check>(self, shadow_frame, inst, &result_register);
+    bool success = DoInvoke<kSuper, true, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_DIRECT) {
-    bool success = DoInvoke<kDirect, false, do_access_check>(self, shadow_frame, inst, &result_register);
+    bool success = DoInvoke<kDirect, false, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_DIRECT_RANGE) {
-    bool success = DoInvoke<kDirect, true, do_access_check>(self, shadow_frame, inst, &result_register);
+    bool success = DoInvoke<kDirect, true, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_INTERFACE) {
-    bool success = DoInvoke<kInterface, false, do_access_check>(self, shadow_frame, inst, &result_register);
+    bool success = DoInvoke<kInterface, false, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_INTERFACE_RANGE) {
-    bool success = DoInvoke<kInterface, true, do_access_check>(self, shadow_frame, inst, &result_register);
+    bool success = DoInvoke<kInterface, true, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_STATIC) {
-    bool success = DoInvoke<kStatic, false, do_access_check>(self, shadow_frame, inst, &result_register);
+    bool success = DoInvoke<kStatic, false, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_STATIC_RANGE) {
-    bool success = DoInvoke<kStatic, true, do_access_check>(self, shadow_frame, inst, &result_register);
+    bool success = DoInvoke<kStatic, true, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_VIRTUAL_QUICK) {
-    bool success = DoInvokeVirtualQuick<false>(self, shadow_frame, inst, &result_register);
+    bool success = DoInvokeVirtualQuick<false>(self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_VIRTUAL_RANGE_QUICK) {
-    bool success = DoInvokeVirtualQuick<true>(self, shadow_frame, inst, &result_register);
+    bool success = DoInvokeVirtualQuick<true>(self, shadow_frame, inst, inst_data, &result_register);
     UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }

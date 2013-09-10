@@ -71,7 +71,7 @@ template<bool do_access_check>
 extern JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh,
                                 const DexFile::CodeItem* code_item,
                                 ShadowFrame& shadow_frame, JValue result_register)
-    NO_THREAD_SAFETY_ANALYSIS __attribute__((hot));
+    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 
 // TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
 // specialization.
@@ -79,12 +79,7 @@ template<bool do_access_check>
 extern JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh,
                               const DexFile::CodeItem* code_item,
                               ShadowFrame& shadow_frame, JValue result_register)
-    NO_THREAD_SAFETY_ANALYSIS __attribute__((hot));
-
-void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
-                            const DexFile::CodeItem* code_item, ShadowFrame* shadow_frame,
-                            JValue* result, size_t arg_offset)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 
 static inline void DoMonitorEnter(Thread* self, Object* ref) NO_THREAD_SAFETY_ANALYSIS {
   ref->MonitorEnter(self);
@@ -96,16 +91,72 @@ static inline void DoMonitorExit(Thread* self, Object* ref) NO_THREAD_SAFETY_ANA
 
 // TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
 // specialization.
+template<bool is_range, bool do_assignability_check>
+bool DoCall(ArtMethod* method, Object* receiver, Thread* self, ShadowFrame& shadow_frame,
+            const Instruction* inst, uint16_t inst_data, JValue* result) NO_THREAD_SAFETY_ANALYSIS;
+
+// TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
+// specialization.
 template<InvokeType type, bool is_range, bool do_access_check>
-bool DoInvoke(Thread* self, ShadowFrame& shadow_frame,
-              const Instruction* inst, JValue* result) NO_THREAD_SAFETY_ANALYSIS;
+static bool DoInvoke(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst,
+                     uint16_t inst_data, JValue* result) NO_THREAD_SAFETY_ANALYSIS ALWAYS_INLINE;
+
+template<InvokeType type, bool is_range, bool do_access_check>
+static inline bool DoInvoke(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst,
+                            uint16_t inst_data, JValue* result) {
+  const uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
+  const uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
+  Object* const receiver = (type == kStatic) ? NULL : shadow_frame.GetVRegReference(vregC);
+  ArtMethod* const method = FindMethodFromCode(method_idx, receiver, shadow_frame.GetMethod(), self,
+                                               do_access_check, type);
+  if (UNLIKELY(method == NULL)) {
+    CHECK(self->IsExceptionPending());
+    result->SetJ(0);
+    return false;
+  } else if (UNLIKELY(method->IsAbstract())) {
+    ThrowAbstractMethodError(method);
+    result->SetJ(0);
+    return false;
+  } else {
+    return DoCall<is_range, do_access_check>(method, receiver, self, shadow_frame, inst,
+                                             inst_data, result);
+  }
+}
 
 // TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
 // specialization.
 template<bool is_range>
-bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
-                          const Instruction* inst, JValue* result)
-    NO_THREAD_SAFETY_ANALYSIS;
+static bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst,
+                                 uint16_t inst_data, JValue* result)
+    NO_THREAD_SAFETY_ANALYSIS ALWAYS_INLINE;
+
+template<bool is_range>
+static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
+                                        const Instruction* inst, uint16_t inst_data,
+                                        JValue* result) {
+  const uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
+  Object* const receiver = shadow_frame.GetVRegReference(vregC);
+  if (UNLIKELY(receiver == NULL)) {
+    // We lost the reference to the method index so we cannot get a more
+    // precised exception message.
+    ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
+    return false;
+  }
+  const uint32_t vtable_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
+  ArtMethod* const method = receiver->GetClass()->GetVTable()->GetWithoutChecks(vtable_idx);
+  if (UNLIKELY(method == NULL)) {
+    CHECK(self->IsExceptionPending());
+    result->SetJ(0);
+    return false;
+  } else if (UNLIKELY(method->IsAbstract())) {
+    ThrowAbstractMethodError(method);
+    result->SetJ(0);
+    return false;
+  } else {
+    // No need to check since we've been quickened.
+    return DoCall<is_range, false>(method, receiver, self, shadow_frame, inst, inst_data, result);
+  }
+}
 
 // We use template functions to optimize compiler inlining process. Otherwise,
 // some parts of the code (like a switch statement) which depend on a constant
@@ -283,11 +334,11 @@ static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
 // TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
 // specialization.
 template<Primitive::Type field_type>
-static bool DoIPutQuick(ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data)
+static bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data)
     NO_THREAD_SAFETY_ANALYSIS ALWAYS_INLINE;
 
 template<Primitive::Type field_type>
-static inline bool DoIPutQuick(ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data) {
+static inline bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data) {
   Object* obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
   if (UNLIKELY(obj == NULL)) {
     // We lost the reference to the field index so we cannot get a more

@@ -281,7 +281,7 @@ inline uint16_t Instruction::VRegC_3rc() const {
   return Fetch16(2);
 }
 
-inline void Instruction::GetArgs(uint32_t arg[5]) const {
+inline void Instruction::GetArgs(uint32_t arg[5], uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k35c);
 
   /*
@@ -295,7 +295,8 @@ inline void Instruction::GetArgs(uint32_t arg[5]) const {
    * method constant (or equivalent) is always in vB.
    */
   uint16_t regList = Fetch16(2);
-  uint4_t count = InstB();  // This is labeled A in the spec.
+  uint4_t count = InstB(inst_data);  // This is labeled A in the spec.
+  DCHECK_LE(count, 5U) << "Invalid arg count in 35c (" << count << ")";
 
   /*
    * Copy the argument registers into the arg[] array, and
@@ -305,15 +306,13 @@ inline void Instruction::GetArgs(uint32_t arg[5]) const {
    * copies of those.) Note that cases 5..2 fall through.
    */
   switch (count) {
-    case 5: arg[4] = InstA();
+    case 5: arg[4] = InstA(inst_data);
     case 4: arg[3] = (regList >> 12) & 0x0f;
     case 3: arg[2] = (regList >> 8) & 0x0f;
     case 2: arg[1] = (regList >> 4) & 0x0f;
     case 1: arg[0] = regList & 0x0f; break;
-    case 0: break;  // Valid, but no need to do anything.
-    default:
-      LOG(ERROR) << "Invalid arg count in 35c (" << count << ")";
-      return;
+    default:  // case 0
+      break;  // Valid, but no need to do anything.
   }
 }
 
