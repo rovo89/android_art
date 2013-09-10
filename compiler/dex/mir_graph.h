@@ -728,7 +728,7 @@ class MIRGraph {
   BasicBlock* cur_block_;
   int num_blocks_;
   const DexFile::CodeItem* current_code_item_;
-  SafeMap<unsigned int, BasicBlock*> block_map_;  // FindBlock lookup cache.
+  GrowableArray<BasicBlock*> block_map_;         // FindBlock lookup cache.
   std::vector<DexCompilationUnit*> m_units_;     // List of methods included in this graph
   typedef std::pair<int, int> MIRLocation;       // Insert point, (m_unit_ index, offset)
   std::vector<MIRLocation> method_stack_;        // Include stack

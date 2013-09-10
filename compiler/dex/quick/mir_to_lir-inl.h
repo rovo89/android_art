@@ -201,6 +201,11 @@ inline void Mir2Lir::SetupResourceMasks(LIR* lir) {
   SetupTargetResourceMasks(lir);
 }
 
+inline art::Mir2Lir::RegisterInfo* Mir2Lir::GetRegInfo(int reg) {
+  DCHECK(reginfo_map_.Get(reg) != NULL);
+  return reginfo_map_.Get(reg);
+}
+
 }  // namespace art
 
 #endif  // ART_COMPILER_DEX_QUICK_MIR_TO_LIR_INL_H_

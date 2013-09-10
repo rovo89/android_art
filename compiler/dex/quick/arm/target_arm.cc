@@ -691,11 +691,6 @@ RegLocation ArmMir2Lir::GetReturnAlt() {
   return res;
 }
 
-ArmMir2Lir::RegisterInfo* ArmMir2Lir::GetRegInfo(int reg) {
-  return ARM_FPREG(reg) ? &reg_pool_->FPRegs[reg & ARM_FP_REG_MASK]
-      : &reg_pool_->core_regs[reg];
-}
-
 /* To be used when explicitly managing register use */
 void ArmMir2Lir::LockCallTemps() {
   LockTemp(r0);

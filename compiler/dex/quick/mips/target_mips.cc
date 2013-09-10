@@ -399,11 +399,6 @@ RegLocation MipsMir2Lir::GetReturnAlt() {
   return res;
 }
 
-MipsMir2Lir::RegisterInfo* MipsMir2Lir::GetRegInfo(int reg) {
-  return MIPS_FPREG(reg) ? &reg_pool_->FPRegs[reg & MIPS_FP_REG_MASK]
-            : &reg_pool_->core_regs[reg];
-}
-
 /* To be used when explicitly managing register use */
 void MipsMir2Lir::LockCallTemps() {
   LockTemp(rMIPS_ARG0);

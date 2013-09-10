@@ -374,6 +374,7 @@ class Mir2Lir : public Backend {
     int SRegOffset(int s_reg);
     RegLocation GetReturnWide(bool is_double);
     RegLocation GetReturn(bool is_float);
+    RegisterInfo* GetRegInfo(int reg);
 
     // Shared by all targets - implemented in gen_common.cc.
     bool HandleEasyDivRem(Instruction::Code dalvik_opcode, bool is_div,
@@ -550,7 +551,6 @@ class Mir2Lir : public Backend {
     virtual int AllocTypedTempPair(bool fp_hint, int reg_class) = 0;
     virtual int S2d(int low_reg, int high_reg) = 0;
     virtual int TargetReg(SpecialTargetRegister reg) = 0;
-    virtual RegisterInfo* GetRegInfo(int reg) = 0;
     virtual RegLocation GetReturnAlt() = 0;
     virtual RegLocation GetReturnWideAlt() = 0;
     virtual RegLocation LocCReturn() = 0;
@@ -727,6 +727,8 @@ class Mir2Lir : public Backend {
     GrowableArray<LIR*> throw_launchpads_;
     GrowableArray<LIR*> suspend_launchpads_;
     GrowableArray<LIR*> intrinsic_launchpads_;
+    GrowableArray<RegisterInfo*> tempreg_info_;
+    GrowableArray<RegisterInfo*> reginfo_map_;
     /*
      * Holds mapping from native PC to dex PC for safepoints where we may deoptimize.
      * Native PC is on the return address of the safepointed operation.  Dex PC is for

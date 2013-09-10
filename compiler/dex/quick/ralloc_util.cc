@@ -28,13 +28,9 @@ namespace art {
  * live until it is either explicitly killed or reallocated.
  */
 void Mir2Lir::ResetRegPool() {
-  for (int i = 0; i < reg_pool_->num_core_regs; i++) {
-    if (reg_pool_->core_regs[i].is_temp)
-      reg_pool_->core_regs[i].in_use = false;
-  }
-  for (int i = 0; i < reg_pool_->num_fp_regs; i++) {
-    if (reg_pool_->FPRegs[i].is_temp)
-      reg_pool_->FPRegs[i].in_use = false;
+  GrowableArray<RegisterInfo*>::Iterator iter(&tempreg_info_);
+  for (RegisterInfo* info = iter.Next(); info != NULL; info = iter.Next()) {
+    info->in_use = false;
   }
   // Reset temp tracking sanity check.
   if (kIsDebugBuild) {
@@ -48,13 +44,21 @@ void Mir2Lir::ResetRegPool() {
   */
 void Mir2Lir::CompilerInitPool(RegisterInfo* regs, int* reg_nums, int num) {
   for (int i = 0; i < num; i++) {
-    regs[i].reg = reg_nums[i];
+    uint32_t reg_number = reg_nums[i];
+    regs[i].reg = reg_number;
     regs[i].in_use = false;
     regs[i].is_temp = false;
     regs[i].pair = false;
     regs[i].live = false;
     regs[i].dirty = false;
     regs[i].s_reg = INVALID_SREG;
+    size_t map_size = reginfo_map_.Size();
+    if (reg_number >= map_size) {
+      for (uint32_t i = 0; i < ((reg_number - map_size) + 1); i++) {
+        reginfo_map_.Insert(NULL);
+      }
+    }
+    reginfo_map_.Put(reg_number, &regs[i]);
   }
 }
 
@@ -551,24 +555,13 @@ void Mir2Lir::ResetDefTracking() {
 }
 
 void Mir2Lir::ClobberAllRegs() {
-  RegisterInfo* p;
-  for (p = reg_pool_->core_regs; p < reg_pool_->core_regs + reg_pool_->num_core_regs; p++) {
-    if (p->is_temp) {
-      p->live = false;
-      p->s_reg = INVALID_SREG;
-      p->def_start = NULL;
-      p->def_end = NULL;
-      p->pair = false;
-    }
-  }
-  for (p = reg_pool_->FPRegs; p < reg_pool_->FPRegs + reg_pool_->num_fp_regs; p++) {
-    if (p->is_temp) {
-      p->live = false;
-      p->s_reg = INVALID_SREG;
-      p->def_start = NULL;
-      p->def_end = NULL;
-      p->pair = false;
-    }
+  GrowableArray<RegisterInfo*>::Iterator iter(&tempreg_info_);
+  for (RegisterInfo* info = iter.Next(); info != NULL; info = iter.Next()) {
+    info->live = false;
+    info->s_reg = INVALID_SREG;
+    info->def_start = NULL;
+    info->def_end = NULL;
+    info->pair = false;
   }
 }
 
@@ -624,11 +617,13 @@ void Mir2Lir::MarkLive(int reg, int s_reg) {
 
 void Mir2Lir::MarkTemp(int reg) {
   RegisterInfo* info = GetRegInfo(reg);
+  tempreg_info_.Insert(info);
   info->is_temp = true;
 }
 
 void Mir2Lir::UnmarkTemp(int reg) {
   RegisterInfo* info = GetRegInfo(reg);
+  tempreg_info_.Delete(info);
   info->is_temp = false;
 }
 
