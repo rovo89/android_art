@@ -3459,11 +3459,13 @@ static size_t GetAllocTrackerMax() {
     char* end;
     size_t value = strtoul(allocRecordMaxString, &end, 10);
     if (*end != '\0') {
-      ALOGE("Ignoring %s '%s' --- invalid", propertyName, allocRecordMaxString);
+      LOG(ERROR) << "Ignoring  " << propertyName << " '" << allocRecordMaxString
+                 << "' --- invalid";
       return kDefaultNumAllocRecords;
     }
     if (!IsPowerOfTwo(value)) {
-      ALOGE("Ignoring %s '%s' --- not power of two", propertyName, allocRecordMaxString);
+      LOG(ERROR) << "Ignoring  " << propertyName << " '" << allocRecordMaxString
+                 << "' --- not power of two";
       return kDefaultNumAllocRecords;
     }
     return value;
