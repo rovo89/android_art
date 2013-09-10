@@ -17,6 +17,7 @@
 #include "string.h"
 
 #include "array.h"
+#include "class-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "intern_table.h"
 #include "object-inl.h"
@@ -285,4 +286,3 @@ int32_t String::CompareTo(String* rhs) const {
 
 }  // namespace mirror
 }  // namespace art
-

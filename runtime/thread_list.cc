@@ -21,6 +21,7 @@
 #include <unistd.h>
 
 #include "base/mutex.h"
+#include "base/mutex-inl.h"
 #include "base/timing_logger.h"
 #include "debugger.h"
 #include "thread.h"

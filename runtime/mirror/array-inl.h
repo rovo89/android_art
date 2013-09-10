@@ -20,6 +20,8 @@
 #include "array.h"
 
 #include "class.h"
+#include "thread.h"
+#include "utils.h"
 
 namespace art {
 namespace mirror {
@@ -31,6 +33,39 @@ inline size_t Array::SizeOf() const {
   size_t header_size = sizeof(Object) + (component_size == sizeof(int64_t) ? 8 : 4);
   size_t data_size = component_count * component_size;
   return header_size + data_size;
+}
+
+inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count,
+                           size_t component_size) {
+  DCHECK(array_class != NULL);
+  DCHECK_GE(component_count, 0);
+  DCHECK(array_class->IsArrayClass());
+
+  size_t header_size = sizeof(Object) + (component_size == sizeof(int64_t) ? 8 : 4);
+  size_t data_size = component_count * component_size;
+  size_t size = header_size + data_size;
+
+  // Check for overflow and throw OutOfMemoryError if this was an unreasonable request.
+  size_t component_shift = sizeof(size_t) * 8 - 1 - CLZ(component_size);
+  if (UNLIKELY(data_size >> component_shift != size_t(component_count) || size < data_size)) {
+    self->ThrowOutOfMemoryError(StringPrintf("%s of length %d would overflow",
+                                             PrettyDescriptor(array_class).c_str(),
+                                             component_count).c_str());
+    return NULL;
+  }
+
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  Array* array = down_cast<Array*>(heap->AllocObject(self, array_class, size));
+  if (LIKELY(array != NULL)) {
+    DCHECK(array->IsArrayInstance());
+    array->SetLength(component_count);
+  }
+  return array;
+}
+
+inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count) {
+  DCHECK(array_class->IsArrayClass());
+  return Alloc(self, array_class, component_count, array_class->GetComponentSize());
 }
 
 }  // namespace mirror
