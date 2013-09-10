@@ -274,8 +274,9 @@ class Mir2Lir : public Backend {
     void ProcessSwitchTables();
     void DumpSparseSwitchTable(const uint16_t* table);
     void DumpPackedSwitchTable(const uint16_t* table);
-    LIR* MarkBoundary(int offset, const char* inst_str);
+    void MarkBoundary(int offset, const char* inst_str);
     void NopLIR(LIR* lir);
+    void UnlinkLIR(LIR* lir);
     bool EvaluateBranch(Instruction::Code opcode, int src1, int src2);
     bool IsInexpensiveConstant(RegLocation rl_src);
     ConditionCode FlipComparisonOrder(ConditionCode before);
@@ -302,7 +303,6 @@ class Mir2Lir : public Backend {
     void ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir);
     void ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir);
     void ApplyLocalOptimizations(LIR* head_lir, LIR* tail_lir);
-    void RemoveRedundantBranches();
 
     // Shared by all targets - implemented in ralloc_util.cc
     int GetSRegHi(int lowSreg);
@@ -727,7 +727,6 @@ class Mir2Lir : public Backend {
     GrowableArray<LIR*> throw_launchpads_;
     GrowableArray<LIR*> suspend_launchpads_;
     GrowableArray<LIR*> intrinsic_launchpads_;
-    GrowableArray<LIR*> boundary_map_;
     /*
      * Holds mapping from native PC to dex PC for safepoints where we may deoptimize.
      * Native PC is on the return address of the safepointed operation.  Dex PC is for

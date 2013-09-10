@@ -1170,7 +1170,7 @@ AssemblerStatus ArmMir2Lir::AssembleInstructions(uintptr_t start_addr) {
         lir->operands[0] = delta >> 1;
         if (!(cu_->disable_opt & (1 << kSafeOptimizations)) &&
           lir->operands[0] == 0) {  // Useless branch
-          lir->flags.is_nop = true;
+          NopLIR(lir);
           res = kRetryAll;
         }
       } else if (lir->opcode == kThumbBUncond) {
@@ -1188,7 +1188,7 @@ AssemblerStatus ArmMir2Lir::AssembleInstructions(uintptr_t start_addr) {
           lir->operands[0] = delta >> 1;
           if (!(cu_->disable_opt & (1 << kSafeOptimizations)) &&
             lir->operands[0] == -1) {  // Useless branch
-            lir->flags.is_nop = true;
+            NopLIR(lir);
             res = kRetryAll;
           }
         }

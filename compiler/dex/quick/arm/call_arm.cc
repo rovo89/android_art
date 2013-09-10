@@ -120,9 +120,10 @@ MIR* ArmMir2Lir::GetNextMir(BasicBlock** p_bb, MIR* mir) {
 // TODO:  move to common code
 void ArmMir2Lir::GenPrintLabel(MIR* mir) {
   /* Mark the beginning of a Dalvik instruction for line tracking */
-  char* inst_str = cu_->verbose ?
-     mir_graph_->GetDalvikDisassembly(mir) : NULL;
-  MarkBoundary(mir->offset, inst_str);
+  if (cu_->verbose) {
+    char* inst_str = mir_graph_->GetDalvikDisassembly(mir);
+    MarkBoundary(mir->offset, inst_str);
+  }
 }
 
 MIR* ArmMir2Lir::SpecialIGet(BasicBlock** bb, MIR* mir,

@@ -127,13 +127,11 @@ void Mir2Lir::GenCompareAndBranch(Instruction::Code opcode, RegLocation rl_src1,
         InexpensiveConstantInt(mir_graph_->ConstantValue(rl_src2))) {
       // OK - convert this to a compare immediate and branch
       OpCmpImmBranch(cond, rl_src1.low_reg, mir_graph_->ConstantValue(rl_src2), taken);
-      OpUnconditionalBranch(fall_through);
       return;
     }
   }
   rl_src2 = LoadValue(rl_src2, kCoreReg);
   OpCmpBranch(cond, rl_src1.low_reg, rl_src2.low_reg, taken);
-  OpUnconditionalBranch(fall_through);
 }
 
 void Mir2Lir::GenCompareZeroAndBranch(Instruction::Code opcode, RegLocation rl_src, LIR* taken,
@@ -164,7 +162,6 @@ void Mir2Lir::GenCompareZeroAndBranch(Instruction::Code opcode, RegLocation rl_s
       LOG(FATAL) << "Unexpected opcode " << opcode;
   }
   OpCmpImmBranch(cond, rl_src.low_reg, 0, taken);
-  OpUnconditionalBranch(fall_through);
 }
 
 void Mir2Lir::GenIntToLong(RegLocation rl_dest, RegLocation rl_src) {

@@ -503,7 +503,7 @@ void MipsMir2Lir::ConvertShortToLongBranch(LIR* lir) {
   if (!unconditional) {
     InsertLIRBefore(lir, hop_target);
   }
-  lir->flags.is_nop = true;
+  NopLIR(lir);
 }
 
 /*
@@ -561,7 +561,7 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
               RawLIR(lir->dalvik_offset, kMipsAddu,
                      lir->operands[0], lir->operands[0], r_RA);
           InsertLIRBefore(lir, new_addu);
-          lir->flags.is_nop = true;
+          NopLIR(lir);
           res = kRetryAll;
         }
       } else if (lir->opcode == kMipsDeltaLo) {

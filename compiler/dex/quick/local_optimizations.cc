@@ -168,7 +168,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
             if (check_lir->operands[0] != native_reg_id) {
               ConvertMemOpIntoMove(check_lir, check_lir->operands[0], native_reg_id);
             }
-            check_lir->flags.is_nop = true;
+            NopLIR(check_lir);
           }
         } else if (alias_condition == ENCODE_DALVIK_REG) {
           /* Must alias */
@@ -187,7 +187,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
                   native_reg_id) {
                   ConvertMemOpIntoMove(check_lir, check_lir->operands[0], native_reg_id);
                 }
-                check_lir->flags.is_nop = true;
+                NopLIR(check_lir);
               } else {
                 /*
                  * Destinaions are of different types -
@@ -201,7 +201,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
               stop_here = true;
             } else if (!is_this_lir_load && !is_check_lir_load) {
               /* WAW - nuke the earlier store */
-              this_lir->flags.is_nop = true;
+              NopLIR(this_lir);
               stop_here = true;
             }
           /* Partial overlap */
@@ -256,7 +256,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
            * top-down order.
            */
           InsertLIRBefore(check_lir, new_store_lir);
-          this_lir->flags.is_nop = true;
+          NopLIR(this_lir);
         }
         break;
       } else if (!check_lir->flags.is_nop) {
@@ -452,7 +452,7 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
          * is never the first LIR on the list
          */
         InsertLIRBefore(cur_lir, new_load_lir);
-        this_lir->flags.is_nop = true;
+        NopLIR(this_lir);
       }
     }
   }
@@ -464,43 +464,6 @@ void Mir2Lir::ApplyLocalOptimizations(LIR* head_lir, LIR* tail_lir) {
   }
   if (!(cu_->disable_opt & (1 << kLoadHoisting))) {
     ApplyLoadHoisting(head_lir, tail_lir);
-  }
-}
-
-/*
- * Nop any unconditional branches that go to the next instruction.
- * Note: new redundant branches may be inserted later, and we'll
- * use a check in final instruction assembly to nop those out.
- */
-void Mir2Lir::RemoveRedundantBranches() {
-  LIR* this_lir;
-
-  for (this_lir = first_lir_insn_; this_lir != last_lir_insn_; this_lir = NEXT_LIR(this_lir)) {
-    /* Branch to the next instruction */
-    if (IsUnconditionalBranch(this_lir)) {
-      LIR* next_lir = this_lir;
-
-      while (true) {
-        next_lir = NEXT_LIR(next_lir);
-
-        /*
-         * Is the branch target the next instruction?
-         */
-        if (next_lir == this_lir->target) {
-          this_lir->flags.is_nop = true;
-          break;
-        }
-
-        /*
-         * Found real useful stuff between the branch and the target.
-         * Need to explicitly check the last_lir_insn_ here because it
-         * might be the last real instruction.
-         */
-        if (!is_pseudo_opcode(next_lir->opcode) ||
-          (next_lir == last_lir_insn_))
-          break;
-      }
-    }
   }
 }
 
