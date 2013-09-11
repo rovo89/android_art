@@ -340,13 +340,10 @@ static bool MountEmulatedStorage(uid_t uid, jint mount_mode) {
 
     // /mnt/shell/emulated/0
     std::string source_user(StringPrintf("%s/%d", source, user_id));
-    // /mnt/shell/emulated/obb
-    std::string source_obb(StringPrintf("%s/obb", source));
     // /storage/emulated/0
     std::string target_user(StringPrintf("%s/%d", target, user_id));
 
     if (fs_prepare_dir(source_user.c_str(), 0000, 0, 0) == -1
-        || fs_prepare_dir(source_obb.c_str(), 0000, 0, 0) == -1
         || fs_prepare_dir(target_user.c_str(), 0000, 0, 0) == -1) {
       return false;
     }
@@ -365,22 +362,8 @@ static bool MountEmulatedStorage(uid_t uid, jint mount_mode) {
       }
     }
 
-    // Now that user is mounted, prepare and mount OBB storage
-    // into place for current user
-
-    // /storage/emulated/0/Android
-    std::string target_android(StringPrintf("%s/%d/Android", target, user_id));
-    // /storage/emulated/0/Android/obb
-    std::string target_obb(StringPrintf("%s/%d/Android/obb", target, user_id));
-
-    if (fs_prepare_dir(target_android.c_str(), 0000, 0, 0) == -1
-        || fs_prepare_dir(target_obb.c_str(), 0000, 0, 0) == -1
-        || fs_prepare_dir(legacy, 0000, 0, 0) == -1) {
+    if (fs_prepare_dir(legacy, 0000, 0, 0) == -1) {
         return false;
-    }
-    if (mount(source_obb.c_str(), target_obb.c_str(), NULL, MS_BIND, NULL) == -1) {
-      PLOG(WARNING) << "Failed to mount " << source_obb << " to " << target_obb;
-      return false;
     }
 
     // Finally, mount user-specific path into place for legacy users
