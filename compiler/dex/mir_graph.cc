@@ -99,6 +99,7 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       cur_block_(NULL),
       num_blocks_(0),
       current_code_item_(NULL),
+      block_map_(arena, 0, kGrowableArrayMisc),
       current_method_(kInvalidEntry),
       current_offset_(kInvalidEntry),
       def_count_(0),
@@ -210,18 +211,18 @@ BasicBlock* MIRGraph::FindBlock(unsigned int code_offset, bool split, bool creat
                                 BasicBlock** immed_pred_block_p) {
   BasicBlock* bb;
   unsigned int i;
-  SafeMap<unsigned int, BasicBlock*>::iterator it;
 
-  it = block_map_.find(code_offset);
-  if (it != block_map_.end()) {
-    return it->second;
-  } else if (!create) {
+  if (code_offset >= cu_->code_item->insns_size_in_code_units_) {
     return NULL;
+  }
+  bb = block_map_.Get(code_offset);
+  if ((bb != NULL) || !create) {
+    return bb;
   }
 
   if (split) {
-    for (i = 0; i < block_list_.Size(); i++) {
-      bb = block_list_.Get(i);
+    for (i = block_list_.Size(); i > 0; i--) {
+      bb = block_list_.Get(i - 1);
       if (bb->block_type != kDalvikByteCode) continue;
       /* Check if a branch jumps into the middle of an existing block */
       if ((code_offset > bb->start_offset) && (bb->last_mir_insn != NULL) &&
@@ -518,6 +519,8 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
 
   // TODO: need to rework expansion of block list & try_block_addr when inlining activated.
   block_list_.Resize(block_list_.Size() + current_code_item_->insns_size_in_code_units_);
+  block_map_.SetSize(block_map_.Size() + current_code_item_->insns_size_in_code_units_);
+
   // TODO: replace with explicit resize routine.  Using automatic extension side effect for now.
   try_block_addr_->SetBit(current_code_item_->insns_size_in_code_units_);
   try_block_addr_->ClearBit(current_code_item_->insns_size_in_code_units_);

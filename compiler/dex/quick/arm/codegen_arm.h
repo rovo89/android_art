@@ -51,7 +51,6 @@ class ArmMir2Lir : public Mir2Lir {
     int AllocTypedTempPair(bool fp_hint, int reg_class);
     int S2d(int low_reg, int high_reg);
     int TargetReg(SpecialTargetRegister reg);
-    RegisterInfo* GetRegInfo(int reg);
     RegLocation GetReturnAlt();
     RegLocation GetReturnWideAlt();
     RegLocation LocCReturn();

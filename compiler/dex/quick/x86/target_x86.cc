@@ -375,11 +375,6 @@ RegLocation X86Mir2Lir::GetReturnAlt() {
   return res;
 }
 
-X86Mir2Lir::RegisterInfo* X86Mir2Lir::GetRegInfo(int reg) {
-  return X86_FPREG(reg) ? &reg_pool_->FPRegs[reg & X86_FP_REG_MASK]
-                    : &reg_pool_->core_regs[reg];
-}
-
 /* To be used when explicitly managing register use */
 void X86Mir2Lir::LockCallTemps() {
   LockTemp(rX86_ARG0);
