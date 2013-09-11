@@ -260,8 +260,7 @@ static void ThrowIllegalMonitorStateExceptionF(const char* fmt, ...)
   if (!Runtime::Current()->IsStarted()) {
     std::ostringstream ss;
     self->Dump(ss);
-    std::string str(ss.str());
-    LOG(ERROR) << "IllegalMonitorStateException: " << str;
+    LOG(ERROR) << self->GetException(NULL)->Dump() << "\n" << ss.str();
   }
   va_end(args);
 }
