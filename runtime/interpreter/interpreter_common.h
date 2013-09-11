@@ -123,12 +123,12 @@ bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
 // specialization.
 template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check>
 static bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
-                       const Instruction* inst)
+                       const Instruction* inst, uint16_t inst_data)
     NO_THREAD_SAFETY_ANALYSIS ALWAYS_INLINE;
 
 template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check>
 static inline bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
-                              const Instruction* inst) {
+                              const Instruction* inst, uint16_t inst_data) {
   bool is_static = (find_type == StaticObjectRead) || (find_type == StaticPrimitiveRead);
   uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
   ArtField* f = FindFieldFromCode(field_idx, shadow_frame.GetMethod(), self,
@@ -142,13 +142,13 @@ static inline bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
   if (is_static) {
     obj = f->GetDeclaringClass();
   } else {
-    obj = shadow_frame.GetVRegReference(inst->VRegB_22c());
+    obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
     if (UNLIKELY(obj == NULL)) {
       ThrowNullPointerExceptionForFieldAccess(shadow_frame.GetCurrentLocationForThrow(), f, true);
       return false;
     }
   }
-  uint32_t vregA = is_static ? inst->VRegA_21c() : inst->VRegA_22c();
+  uint32_t vregA = is_static ? inst->VRegA_21c(inst_data) : inst->VRegA_22c(inst_data);
   switch (field_type) {
     case Primitive::kPrimBoolean:
       shadow_frame.SetVReg(vregA, f->GetBoolean(obj));
@@ -180,14 +180,12 @@ static inline bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
 // TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
 // specialization.
 template<Primitive::Type field_type>
-static bool DoIGetQuick(Thread* self, ShadowFrame& shadow_frame,
-                       const Instruction* inst)
+static bool DoIGetQuick(ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data)
     NO_THREAD_SAFETY_ANALYSIS ALWAYS_INLINE;
 
 template<Primitive::Type field_type>
-static inline bool DoIGetQuick(Thread* self, ShadowFrame& shadow_frame,
-                               const Instruction* inst) {
-  Object* obj = shadow_frame.GetVRegReference(inst->VRegB_22c());
+static inline bool DoIGetQuick(ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data) {
+  Object* obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
   if (UNLIKELY(obj == NULL)) {
     // We lost the reference to the field index so we cannot get a more
     // precised exception message.
@@ -196,7 +194,7 @@ static inline bool DoIGetQuick(Thread* self, ShadowFrame& shadow_frame,
   }
   MemberOffset field_offset(inst->VRegC_22c());
   const bool is_volatile = false;  // iget-x-quick only on non volatile fields.
-  const uint32_t vregA = inst->VRegA_22c();
+  const uint32_t vregA = inst->VRegA_22c(inst_data);
   switch (field_type) {
     case Primitive::kPrimInt:
       shadow_frame.SetVReg(vregA, static_cast<int32_t>(obj->GetField32(field_offset, is_volatile)));
@@ -217,12 +215,12 @@ static inline bool DoIGetQuick(Thread* self, ShadowFrame& shadow_frame,
 // specialization.
 template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check>
 static bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
-                       const Instruction* inst)
+                       const Instruction* inst, uint16_t inst_data)
     NO_THREAD_SAFETY_ANALYSIS ALWAYS_INLINE;
 
 template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check>
 static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
-                              const Instruction* inst) {
+                              const Instruction* inst, uint16_t inst_data) {
   bool is_static = (find_type == StaticObjectWrite) || (find_type == StaticPrimitiveWrite);
   uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
   ArtField* f = FindFieldFromCode(field_idx, shadow_frame.GetMethod(), self,
@@ -236,14 +234,14 @@ static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
   if (is_static) {
     obj = f->GetDeclaringClass();
   } else {
-    obj = shadow_frame.GetVRegReference(inst->VRegB_22c());
+    obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
     if (UNLIKELY(obj == NULL)) {
       ThrowNullPointerExceptionForFieldAccess(shadow_frame.GetCurrentLocationForThrow(),
                                               f, false);
       return false;
     }
   }
-  uint32_t vregA = is_static ? inst->VRegA_21c() : inst->VRegA_22c();
+  uint32_t vregA = is_static ? inst->VRegA_21c(inst_data) : inst->VRegA_22c(inst_data);
   switch (field_type) {
     case Primitive::kPrimBoolean:
       f->SetBoolean(obj, shadow_frame.GetVReg(vregA));
@@ -275,14 +273,12 @@ static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
 // TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
 // specialization.
 template<Primitive::Type field_type>
-static bool DoIPutQuick(Thread* self, ShadowFrame& shadow_frame,
-                       const Instruction* inst)
+static bool DoIPutQuick(ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data)
     NO_THREAD_SAFETY_ANALYSIS ALWAYS_INLINE;
 
 template<Primitive::Type field_type>
-static inline bool DoIPutQuick(Thread* self, ShadowFrame& shadow_frame,
-                               const Instruction* inst) {
-  Object* obj = shadow_frame.GetVRegReference(inst->VRegB_22c());
+static inline bool DoIPutQuick(ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data) {
+  Object* obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
   if (UNLIKELY(obj == NULL)) {
     // We lost the reference to the field index so we cannot get a more
     // precised exception message.
@@ -291,7 +287,7 @@ static inline bool DoIPutQuick(Thread* self, ShadowFrame& shadow_frame,
   }
   MemberOffset field_offset(inst->VRegC_22c());
   const bool is_volatile = false;  // iput-x-quick only on non volatile fields.
-  const uint32_t vregA = inst->VRegA_22c();
+  const uint32_t vregA = inst->VRegA_22c(inst_data);
   switch (field_type) {
     case Primitive::kPrimInt:
       obj->SetField32(field_offset, shadow_frame.GetVReg(vregA), is_volatile);
@@ -387,14 +383,14 @@ static inline bool DoLongRemainder(ShadowFrame& shadow_frame, size_t result_reg,
 // Returns true on success, otherwise throws an exception and returns false.
 template <bool is_range, bool do_access_check>
 bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
-                             Thread* self, JValue* result) NO_THREAD_SAFETY_ANALYSIS;
+                      Thread* self, JValue* result) NO_THREAD_SAFETY_ANALYSIS;
 
-static inline int32_t DoPackedSwitch(const Instruction* inst,
-                                     const ShadowFrame& shadow_frame)
+static inline int32_t DoPackedSwitch(const Instruction* inst, const ShadowFrame& shadow_frame,
+                                     uint16_t inst_data)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(inst->Opcode() == Instruction::PACKED_SWITCH);
   const uint16_t* switch_data = reinterpret_cast<const uint16_t*>(inst) + inst->VRegB_31t();
-  int32_t test_val = shadow_frame.GetVReg(inst->VRegA_31t());
+  int32_t test_val = shadow_frame.GetVReg(inst->VRegA_31t(inst_data));
   DCHECK_EQ(switch_data[0], static_cast<uint16_t>(Instruction::kPackedSwitchSignature));
   uint16_t size = switch_data[1];
   DCHECK_GT(size, 0);
@@ -412,12 +408,12 @@ static inline int32_t DoPackedSwitch(const Instruction* inst,
   }
 }
 
-static inline int32_t DoSparseSwitch(const Instruction* inst,
-                                     const ShadowFrame& shadow_frame)
+static inline int32_t DoSparseSwitch(const Instruction* inst, const ShadowFrame& shadow_frame,
+                                     uint16_t inst_data)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(inst->Opcode() == Instruction::SPARSE_SWITCH);
   const uint16_t* switch_data = reinterpret_cast<const uint16_t*>(inst) + inst->VRegB_31t();
-  int32_t test_val = shadow_frame.GetVReg(inst->VRegA_31t());
+  int32_t test_val = shadow_frame.GetVReg(inst->VRegA_31t(inst_data));
   DCHECK_EQ(switch_data[0], static_cast<uint16_t>(Instruction::kSparseSwitchSignature));
   uint16_t size = switch_data[1];
   DCHECK_GT(size, 0);
