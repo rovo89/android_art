@@ -555,10 +555,11 @@ bool ArmMir2Lir::GenInlinedCas32(CallInfo* info, bool need_write_barrier) {
   OpRegReg(kOpCmp, r_old_value, rl_expected.low_reg);
   FreeTemp(r_old_value);  // Now unneeded.
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  OpIT(kCondEq, "TE");
+  OpIT(kCondEq, "TEE");
   NewLIR4(kThumb2Strex, rl_result.low_reg, rl_new_value.low_reg, r_ptr, 0);
   FreeTemp(r_ptr);  // Now unneeded.
   OpRegImm(kOpXor, rl_result.low_reg, 1);
+  NewLIR0(kThumb2Clrex);
   OpRegReg(kOpXor, rl_result.low_reg, rl_result.low_reg);
 
   StoreValue(rl_dest, rl_result);
