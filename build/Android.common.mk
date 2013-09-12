@@ -104,6 +104,7 @@ ART_HOST_SHLIB_EXTENSION ?= .so
 ART_C_INCLUDES := \
 	external/gtest/include \
 	external/valgrind/main/include \
+	external/valgrind/main \
 	external/zlib \
 	frameworks/compile/mclinker/include
 

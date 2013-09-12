@@ -22,7 +22,7 @@
 #include "utils.h"
 
 #include <valgrind.h>
-#include <../memcheck/memcheck.h>
+#include <memcheck/memcheck.h>
 
 namespace art {
 namespace gc {
