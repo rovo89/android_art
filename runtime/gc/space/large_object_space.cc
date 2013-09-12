@@ -17,6 +17,7 @@
 #include "large_object_space.h"
 
 #include "base/logging.h"
+#include "base/mutex-inl.h"
 #include "base/stl_util.h"
 #include "UniquePtr.h"
 #include "image.h"

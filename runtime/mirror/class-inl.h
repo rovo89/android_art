@@ -342,6 +342,15 @@ inline void Class::SetName(String* name) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, name_), name, false);
 }
 
+inline Object* Class::AllocObject(Thread* self) {
+  DCHECK(!IsArrayClass()) << PrettyClass(this);
+  DCHECK(IsInstantiable()) << PrettyClass(this);
+  // TODO: decide whether we want this check. It currently fails during bootstrap.
+  // DCHECK(!Runtime::Current()->IsStarted() || IsInitializing()) << PrettyClass(this);
+  DCHECK_GE(this->object_size_, sizeof(Object));
+  return Runtime::Current()->GetHeap()->AllocObject(self, this, this->object_size_);
+}
+
 }  // namespace mirror
 }  // namespace art
 
