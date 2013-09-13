@@ -371,7 +371,12 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   // Creates a raw object instance but does not invoke the default constructor.
-  Object* AllocObject(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  Object* AllocObject(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return AllocObjectInstrumented(self);
+  }
+
+  Object* AllocObjectUninstrumented(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  Object* AllocObjectInstrumented(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsVariableSize() const {
     // Classes and arrays vary in size, and so the object_size_ field cannot
@@ -763,6 +768,8 @@ class MANAGED Class : public StaticStorageBase {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsAssignableFromArray(const Class* klass) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void CheckObjectAlloc() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // defining class loader, or NULL for the "bootstrap" system loader
   ClassLoader* class_loader_;

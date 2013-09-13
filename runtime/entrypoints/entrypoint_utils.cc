@@ -33,20 +33,20 @@
 
 namespace art {
 
-// Helper function to allocate array for FILLED_NEW_ARRAY.
-mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::ArtMethod* referrer,
-                                          int32_t component_count, Thread* self,
-                                          bool access_check) {
+static inline bool CheckFilledNewArrayAlloc(uint32_t type_idx, mirror::ArtMethod* referrer,
+                                            int32_t component_count, Thread* self,
+                                            bool access_check, mirror::Class** klass_ptr)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(component_count < 0)) {
     ThrowNegativeArraySizeException(component_count);
-    return NULL;  // Failure
+    return false;  // Failure
   }
-  mirror::Class* klass = referrer->GetDexCacheResolvedTypes()->Get(type_idx);
+  mirror::Class* klass = referrer->GetDexCacheResolvedTypes()->GetWithoutChecks(type_idx);
   if (UNLIKELY(klass == NULL)) {  // Not in dex cache so try to resolve
     klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, referrer);
     if (klass == NULL) {  // Error
       DCHECK(self->IsExceptionPending());
-      return NULL;  // Failure
+      return false;  // Failure
     }
   }
   if (UNLIKELY(klass->IsPrimitive() && !klass->IsPrimitiveInt())) {
@@ -60,18 +60,40 @@ mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::ArtMethod* 
                                "Found type %s; filled-new-array not implemented for anything but \'int\'",
                                PrettyDescriptor(klass).c_str());
     }
-    return NULL;  // Failure
-  } else {
-    if (access_check) {
-      mirror::Class* referrer_klass = referrer->GetDeclaringClass();
-      if (UNLIKELY(!referrer_klass->CanAccess(klass))) {
-        ThrowIllegalAccessErrorClass(referrer_klass, klass);
-        return NULL;  // Failure
-      }
-    }
-    DCHECK(klass->IsArrayClass()) << PrettyClass(klass);
-    return mirror::Array::Alloc(self, klass, component_count);
+    return false;  // Failure
   }
+  if (access_check) {
+    mirror::Class* referrer_klass = referrer->GetDeclaringClass();
+    if (UNLIKELY(!referrer_klass->CanAccess(klass))) {
+      ThrowIllegalAccessErrorClass(referrer_klass, klass);
+      return false;  // Failure
+    }
+  }
+  DCHECK(klass->IsArrayClass()) << PrettyClass(klass);
+  *klass_ptr = klass;
+  return true;
+}
+
+// Helper function to allocate array for FILLED_NEW_ARRAY.
+mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::ArtMethod* referrer,
+                                          int32_t component_count, Thread* self,
+                                          bool access_check) {
+  mirror::Class* klass;
+  if (UNLIKELY(!CheckFilledNewArrayAlloc(type_idx, referrer, component_count, self, access_check, &klass))) {
+    return NULL;
+  }
+  return mirror::Array::AllocUninstrumented(self, klass, component_count);
+}
+
+// Helper function to allocate array for FILLED_NEW_ARRAY.
+mirror::Array* CheckAndAllocArrayFromCodeInstrumented(uint32_t type_idx, mirror::ArtMethod* referrer,
+                                                      int32_t component_count, Thread* self,
+                                                      bool access_check) {
+  mirror::Class* klass;
+  if (UNLIKELY(!CheckFilledNewArrayAlloc(type_idx, referrer, component_count, self, access_check, &klass))) {
+    return NULL;
+  }
+  return mirror::Array::AllocInstrumented(self, klass, component_count);
 }
 
 mirror::ArtField* FindFieldFromCode(uint32_t field_idx, const mirror::ArtMethod* referrer,
@@ -405,5 +427,4 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessUnchecked& soa, const char
     return zero;
   }
 }
-
 }  // namespace art

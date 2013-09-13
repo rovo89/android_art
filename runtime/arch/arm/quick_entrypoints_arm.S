@@ -706,6 +706,17 @@ ENTRY art_quick_alloc_object
     DELIVER_PENDING_EXCEPTION
 END art_quick_alloc_object
 
+    .extern artAllocObjectFromCodeInstrumented
+ENTRY art_quick_alloc_object_instrumented
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
+    mov    r2, r9                     @ pass Thread::Current
+    mov    r3, sp                     @ pass SP
+    bl     artAllocObjectFromCodeInstrumented     @ (uint32_t type_idx, Method* method, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    RETURN_IF_RESULT_IS_NON_ZERO
+    DELIVER_PENDING_EXCEPTION
+END art_quick_alloc_object_instrumented
+
     /*
      * Called by managed code to allocate an object when the caller doesn't know whether it has
      * access to the created type.
@@ -720,6 +731,17 @@ ENTRY art_quick_alloc_object_with_access_check
     RETURN_IF_RESULT_IS_NON_ZERO
     DELIVER_PENDING_EXCEPTION
 END art_quick_alloc_object_with_access_check
+
+    .extern artAllocObjectFromCodeWithAccessCheckInstrumented
+ENTRY art_quick_alloc_object_with_access_check_instrumented
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
+    mov    r2, r9                     @ pass Thread::Current
+    mov    r3, sp                     @ pass SP
+    bl     artAllocObjectFromCodeWithAccessCheckInstrumented  @ (uint32_t type_idx, Method* method, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    RETURN_IF_RESULT_IS_NON_ZERO
+    DELIVER_PENDING_EXCEPTION
+END art_quick_alloc_object_with_access_check_instrumented
 
     /*
      * Called by managed code to allocate an array.
@@ -740,6 +762,23 @@ ENTRY art_quick_alloc_array
     RETURN_IF_RESULT_IS_NON_ZERO
     DELIVER_PENDING_EXCEPTION
 END art_quick_alloc_array
+
+    .extern artAllocArrayFromCodeInstrumented
+ENTRY art_quick_alloc_array_instrumented
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
+    mov    r3, r9                     @ pass Thread::Current
+    mov    r12, sp
+    str    r12, [sp, #-16]!           @ expand the frame and pass SP
+    .pad #16
+    .cfi_adjust_cfa_offset 16
+    @ artAllocArrayFromCodeInstrumented(uint32_t type_idx, Method* method, int32_t component_count, Thread*, SP)
+    bl     artAllocArrayFromCodeInstrumented
+    add    sp, #16                    @ strip the extra frame
+    .cfi_adjust_cfa_offset -16
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    RETURN_IF_RESULT_IS_NON_ZERO
+    DELIVER_PENDING_EXCEPTION
+END art_quick_alloc_array_instrumented
 
     /*
      * Called by managed code to allocate an array when the caller doesn't know whether it has
@@ -762,6 +801,23 @@ ENTRY art_quick_alloc_array_with_access_check
     DELIVER_PENDING_EXCEPTION
 END art_quick_alloc_array_with_access_check
 
+    .extern artAllocArrayFromCodeWithAccessCheckInstrumented
+ENTRY art_quick_alloc_array_with_access_check_instrumented
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
+    mov    r3, r9                     @ pass Thread::Current
+    mov    r12, sp
+    str    r12, [sp, #-16]!           @ expand the frame and pass SP
+    .pad #16
+    .cfi_adjust_cfa_offset 16
+    @ artAllocArrayFromCodeWithAccessCheckInstrumented(type_idx, method, component_count, Thread*, SP)
+    bl     artAllocArrayFromCodeWithAccessCheckInstrumented
+    add    sp, #16                    @ strip the extra frame
+    .cfi_adjust_cfa_offset -16
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    RETURN_IF_RESULT_IS_NON_ZERO
+    DELIVER_PENDING_EXCEPTION
+END art_quick_alloc_array_with_access_check_instrumented
+
     /*
      * Called by managed code to allocate an array in a special case for FILLED_NEW_ARRAY.
      */
@@ -782,6 +838,23 @@ ENTRY art_quick_check_and_alloc_array
     DELIVER_PENDING_EXCEPTION
 END art_quick_check_and_alloc_array
 
+    .extern artCheckAndAllocArrayFromCodeInstrumented
+ENTRY art_quick_check_and_alloc_array_instrumented
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
+    mov    r3, r9                     @ pass Thread::Current
+    mov    r12, sp
+    str    r12, [sp, #-16]!           @ expand the frame and pass SP
+    .pad #16
+    .cfi_adjust_cfa_offset 16
+    @ artCheckAndAllocArrayFromCodeInstrumented(uint32_t type_idx, Method* method, int32_t count, Thread* , SP)
+    bl     artCheckAndAllocArrayFromCodeInstrumented
+    add    sp, #16                    @ strip the extra frame
+    .cfi_adjust_cfa_offset -16
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    RETURN_IF_RESULT_IS_NON_ZERO
+    DELIVER_PENDING_EXCEPTION
+END art_quick_check_and_alloc_array_instrumented
+
     /*
      * Called by managed code to allocate an array in a special case for FILLED_NEW_ARRAY.
      */
@@ -801,6 +874,23 @@ ENTRY art_quick_check_and_alloc_array_with_access_check
     RETURN_IF_RESULT_IS_NON_ZERO
     DELIVER_PENDING_EXCEPTION
 END art_quick_check_and_alloc_array_with_access_check
+
+    .extern artCheckAndAllocArrayFromCodeWithAccessCheckInstrumented
+ENTRY art_quick_check_and_alloc_array_with_access_check_instrumented
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
+    mov    r3, r9                     @ pass Thread::Current
+    mov    r12, sp
+    str    r12, [sp, #-16]!           @ expand the frame and pass SP
+    .pad #16
+    .cfi_adjust_cfa_offset 16
+    @ artCheckAndAllocArrayFromCodeWithAccessCheckInstrumented(type_idx, method, count, Thread* , SP)
+    bl     artCheckAndAllocArrayFromCodeWithAccessCheckInstrumented
+    add    sp, #16                    @ strip the extra frame
+    .cfi_adjust_cfa_offset -16
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    RETURN_IF_RESULT_IS_NON_ZERO
+    DELIVER_PENDING_EXCEPTION
+END art_quick_check_and_alloc_array_with_access_check_instrumented
 
     /*
      * Called by managed code when the value in rSUSPEND has been decremented to 0.

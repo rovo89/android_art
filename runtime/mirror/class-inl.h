@@ -23,6 +23,7 @@
 #include "art_method.h"
 #include "class_loader.h"
 #include "dex_cache.h"
+#include "gc/heap-inl.h"
 #include "iftable.h"
 #include "object_array-inl.h"
 #include "runtime.h"
@@ -342,13 +343,22 @@ inline void Class::SetName(String* name) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, name_), name, false);
 }
 
-inline Object* Class::AllocObject(Thread* self) {
+inline void Class::CheckObjectAlloc() {
   DCHECK(!IsArrayClass()) << PrettyClass(this);
   DCHECK(IsInstantiable()) << PrettyClass(this);
   // TODO: decide whether we want this check. It currently fails during bootstrap.
   // DCHECK(!Runtime::Current()->IsStarted() || IsInitializing()) << PrettyClass(this);
   DCHECK_GE(this->object_size_, sizeof(Object));
-  return Runtime::Current()->GetHeap()->AllocObject(self, this, this->object_size_);
+}
+
+inline Object* Class::AllocObjectInstrumented(Thread* self) {
+  CheckObjectAlloc();
+  return Runtime::Current()->GetHeap()->AllocObjectInstrumented(self, this, this->object_size_);
+}
+
+inline Object* Class::AllocObjectUninstrumented(Thread* self) {
+  CheckObjectAlloc();
+  return Runtime::Current()->GetHeap()->AllocObjectUninstrumented(self, this, this->object_size_);
 }
 
 }  // namespace mirror

@@ -398,6 +398,9 @@ class Runtime {
   const std::vector<const DexFile*>& GetCompileTimeClassPath(jobject class_loader);
   void SetCompileTimeClassPath(jobject class_loader, std::vector<const DexFile*>& class_path);
 
+  void InstrumentQuickAllocEntryPoints();
+  void UninstrumentQuickAllocEntryPoints();
+
  private:
   static void InitPlatformSignalHandlers();
 
@@ -513,6 +516,8 @@ class Runtime {
 
   jobject main_thread_group_;
   jobject system_thread_group_;
+
+  int quick_alloc_entry_points_instrumentation_counter_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };

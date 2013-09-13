@@ -40,6 +40,42 @@ namespace mirror {
   class Object;
 }  // namespace mirror
 
+static inline bool CheckObjectAlloc(uint32_t type_idx, mirror::ArtMethod* method,
+                                    Thread* self,
+                                    bool access_check,
+                                    mirror::Class** klass_ptr)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::Class* klass = method->GetDexCacheResolvedTypes()->GetWithoutChecks(type_idx);
+  Runtime* runtime = Runtime::Current();
+  if (UNLIKELY(klass == NULL)) {
+    klass = runtime->GetClassLinker()->ResolveType(type_idx, method);
+    if (klass == NULL) {
+      DCHECK(self->IsExceptionPending());
+      return false;  // Failure
+    }
+  }
+  if (access_check) {
+    if (UNLIKELY(!klass->IsInstantiable())) {
+      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+      self->ThrowNewException(throw_location, "Ljava/lang/InstantiationError;",
+                              PrettyDescriptor(klass).c_str());
+      return false;  // Failure
+    }
+    mirror::Class* referrer = method->GetDeclaringClass();
+    if (UNLIKELY(!referrer->CanAccess(klass))) {
+      ThrowIllegalAccessErrorClass(referrer, klass);
+      return false;  // Failure
+    }
+  }
+  if (!klass->IsInitialized() &&
+      !runtime->GetClassLinker()->EnsureInitialized(klass, true, true)) {
+    DCHECK(self->IsExceptionPending());
+    return false;  // Failure
+  }
+  *klass_ptr = klass;
+  return true;
+}
+
 // Given the context of a calling Method, use its DexCache to resolve a type to a Class. If it
 // cannot be resolved, throw an error. If it can, use it to create an instance.
 // When verification/compiler hasn't been able to verify access, optionally perform an access
@@ -48,34 +84,50 @@ static inline mirror::Object* AllocObjectFromCode(uint32_t type_idx, mirror::Art
                                                   Thread* self,
                                                   bool access_check)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
-  Runtime* runtime = Runtime::Current();
-  if (UNLIKELY(klass == NULL)) {
-    klass = runtime->GetClassLinker()->ResolveType(type_idx, method);
-    if (klass == NULL) {
-      DCHECK(self->IsExceptionPending());
-      return NULL;  // Failure
+  mirror::Class* klass;
+  if (UNLIKELY(!CheckObjectAlloc(type_idx, method, self, access_check, &klass))) {
+    return NULL;
+  }
+  return klass->AllocObjectUninstrumented(self);
+}
+
+static inline mirror::Object* AllocObjectFromCodeInstrumented(uint32_t type_idx, mirror::ArtMethod* method,
+                                                              Thread* self,
+                                                              bool access_check)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::Class* klass;
+  if (UNLIKELY(!CheckObjectAlloc(type_idx, method, self, access_check, &klass))) {
+    return NULL;
+  }
+  return klass->AllocObjectInstrumented(self);
+}
+
+static inline bool CheckArrayAlloc(uint32_t type_idx, mirror::ArtMethod* method,
+                                   int32_t component_count,
+                                   bool access_check, mirror::Class** klass_ptr)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (UNLIKELY(component_count < 0)) {
+    ThrowNegativeArraySizeException(component_count);
+    return false;  // Failure
+  }
+  mirror::Class* klass = method->GetDexCacheResolvedTypes()->GetWithoutChecks(type_idx);
+  if (UNLIKELY(klass == NULL)) {  // Not in dex cache so try to resolve
+    klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
+    if (klass == NULL) {  // Error
+      DCHECK(Thread::Current()->IsExceptionPending());
+      return false;  // Failure
     }
+    CHECK(klass->IsArrayClass()) << PrettyClass(klass);
   }
   if (access_check) {
-    if (UNLIKELY(!klass->IsInstantiable())) {
-      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-      self->ThrowNewException(throw_location, "Ljava/lang/InstantiationError;",
-                              PrettyDescriptor(klass).c_str());
-      return NULL;  // Failure
-    }
     mirror::Class* referrer = method->GetDeclaringClass();
     if (UNLIKELY(!referrer->CanAccess(klass))) {
       ThrowIllegalAccessErrorClass(referrer, klass);
-      return NULL;  // Failure
+      return false;  // Failure
     }
   }
-  if (!klass->IsInitialized() &&
-      !runtime->GetClassLinker()->EnsureInitialized(klass, true, true)) {
-    DCHECK(self->IsExceptionPending());
-    return NULL;  // Failure
-  }
-  return klass->AllocObject(self);
+  *klass_ptr = klass;
+  return true;
 }
 
 // Given the context of a calling Method, use its DexCache to resolve a type to an array Class. If
@@ -86,32 +138,32 @@ static inline mirror::Array* AllocArrayFromCode(uint32_t type_idx, mirror::ArtMe
                                                 int32_t component_count,
                                                 Thread* self, bool access_check)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  if (UNLIKELY(component_count < 0)) {
-    ThrowNegativeArraySizeException(component_count);
-    return NULL;  // Failure
+  mirror::Class* klass;
+  if (UNLIKELY(!CheckArrayAlloc(type_idx, method, component_count, access_check, &klass))) {
+    return NULL;
   }
-  mirror::Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
-  if (UNLIKELY(klass == NULL)) {  // Not in dex cache so try to resolve
-    klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
-    if (klass == NULL) {  // Error
-      DCHECK(Thread::Current()->IsExceptionPending());
-      return NULL;  // Failure
-    }
-    CHECK(klass->IsArrayClass()) << PrettyClass(klass);
+  return mirror::Array::AllocUninstrumented(self, klass, component_count);
+}
+
+static inline mirror::Array* AllocArrayFromCodeInstrumented(uint32_t type_idx, mirror::ArtMethod* method,
+                                                            int32_t component_count,
+                                                            Thread* self, bool access_check)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::Class* klass;
+  if (UNLIKELY(!CheckArrayAlloc(type_idx, method, component_count, access_check, &klass))) {
+    return NULL;
   }
-  if (access_check) {
-    mirror::Class* referrer = method->GetDeclaringClass();
-    if (UNLIKELY(!referrer->CanAccess(klass))) {
-      ThrowIllegalAccessErrorClass(referrer, klass);
-      return NULL;  // Failure
-    }
-  }
-  return mirror::Array::Alloc(self, klass, component_count);
+  return mirror::Array::AllocInstrumented(self, klass, component_count);
 }
 
 extern mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::ArtMethod* method,
                                                  int32_t component_count,
                                                  Thread* self, bool access_check)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+extern mirror::Array* CheckAndAllocArrayFromCodeInstrumented(uint32_t type_idx, mirror::ArtMethod* method,
+                                                             int32_t component_count,
+                                                             Thread* self, bool access_check)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Type of find field operation for fast and slow case.

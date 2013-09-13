@@ -20,6 +20,7 @@
 #include "array.h"
 
 #include "class.h"
+#include "gc/heap-inl.h"
 #include "thread.h"
 #include "utils.h"
 
@@ -35,8 +36,9 @@ inline size_t Array::SizeOf() const {
   return header_size + data_size;
 }
 
-inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count,
-                           size_t component_size) {
+static inline size_t ComputeArraySize(Thread* self, Class* array_class, int32_t component_count,
+                                      size_t component_size)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(array_class != NULL);
   DCHECK_GE(component_count, 0);
   DCHECK(array_class->IsArrayClass());
@@ -51,21 +53,49 @@ inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_c
     self->ThrowOutOfMemoryError(StringPrintf("%s of length %d would overflow",
                                              PrettyDescriptor(array_class).c_str(),
                                              component_count).c_str());
-    return NULL;
+    return 0;  // failure
   }
+  return size;
+}
 
-  gc::Heap* heap = Runtime::Current()->GetHeap();
-  Array* array = down_cast<Array*>(heap->AllocObject(self, array_class, size));
+static inline Array* SetArrayLength(Array* array, size_t length) {
   if (LIKELY(array != NULL)) {
     DCHECK(array->IsArrayInstance());
-    array->SetLength(component_count);
+    array->SetLength(length);
   }
   return array;
 }
 
-inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count) {
+inline Array* Array::AllocInstrumented(Thread* self, Class* array_class, int32_t component_count,
+                                       size_t component_size) {
+  size_t size = ComputeArraySize(self, array_class, component_count, component_size);
+  if (UNLIKELY(size == 0)) {
+    return NULL;
+  }
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  Array* array = down_cast<Array*>(heap->AllocObjectInstrumented(self, array_class, size));
+  return SetArrayLength(array, component_count);
+}
+
+inline Array* Array::AllocUninstrumented(Thread* self, Class* array_class, int32_t component_count,
+                                         size_t component_size) {
+  size_t size = ComputeArraySize(self, array_class, component_count, component_size);
+  if (UNLIKELY(size == 0)) {
+    return NULL;
+  }
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  Array* array = down_cast<Array*>(heap->AllocObjectUninstrumented(self, array_class, size));
+  return SetArrayLength(array, component_count);
+}
+
+inline Array* Array::AllocInstrumented(Thread* self, Class* array_class, int32_t component_count) {
   DCHECK(array_class->IsArrayClass());
-  return Alloc(self, array_class, component_count, array_class->GetComponentSize());
+  return AllocInstrumented(self, array_class, component_count, array_class->GetComponentSize());
+}
+
+inline Array* Array::AllocUninstrumented(Thread* self, Class* array_class, int32_t component_count) {
+  DCHECK(array_class->IsArrayClass());
+  return AllocUninstrumented(self, array_class, component_count, array_class->GetComponentSize());
 }
 
 }  // namespace mirror

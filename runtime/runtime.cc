@@ -99,7 +99,8 @@ Runtime::Runtime()
       instrumentation_(),
       use_compile_time_class_path_(false),
       main_thread_group_(NULL),
-      system_thread_group_(NULL) {
+      system_thread_group_(NULL),
+      quick_alloc_entry_points_instrumentation_counter_(0) {
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
     callee_save_methods_[i] = NULL;
   }
@@ -1055,6 +1056,9 @@ void Runtime::SetStatsEnabled(bool new_state) {
     GetStats()->Clear(~0);
     // TODO: wouldn't it make more sense to clear _all_ threads' stats?
     Thread::Current()->GetStats()->Clear(~0);
+    InstrumentQuickAllocEntryPoints();
+  } else {
+    UninstrumentQuickAllocEntryPoints();
   }
   stats_enabled_ = new_state;
 }
@@ -1280,6 +1284,48 @@ void Runtime::SetCompileTimeClassPath(jobject class_loader, std::vector<const De
   CHECK(!IsStarted());
   use_compile_time_class_path_ = true;
   compile_time_class_paths_.Put(class_loader, class_path);
+}
+
+static void ResetQuickAllocEntryPointsForThread(Thread* thread, void* arg) {
+  thread->ResetQuickAllocEntryPointsForThread();
+}
+
+void SetQuickAllocEntryPointsInstrumented(bool instrumented);
+
+void Runtime::InstrumentQuickAllocEntryPoints() {
+  ThreadList* tl = thread_list_;
+  Thread* self = Thread::Current();
+  tl->SuspendAll();
+  {
+    MutexLock mu(self, *Locks::runtime_shutdown_lock_);
+    MutexLock mu2(self, *Locks::thread_list_lock_);
+    DCHECK_LE(quick_alloc_entry_points_instrumentation_counter_, 0);
+    int old_counter = quick_alloc_entry_points_instrumentation_counter_++;
+    if (old_counter == 0) {
+      // If it was disabled, enable it.
+      SetQuickAllocEntryPointsInstrumented(true);
+      tl->ForEach(ResetQuickAllocEntryPointsForThread, NULL);
+    }
+  }
+  tl->ResumeAll();
+}
+
+void Runtime::UninstrumentQuickAllocEntryPoints() {
+  ThreadList* tl = thread_list_;
+  Thread* self = Thread::Current();
+  tl->SuspendAll();
+  {
+    MutexLock mu(self, *Locks::runtime_shutdown_lock_);
+    MutexLock mu2(self, *Locks::thread_list_lock_);
+    DCHECK_LT(quick_alloc_entry_points_instrumentation_counter_, 0);
+    int new_counter = --quick_alloc_entry_points_instrumentation_counter_;
+    if (new_counter == 0) {
+      // Disable it if the counter becomes zero.
+      SetQuickAllocEntryPointsInstrumented(false);
+      tl->ForEach(ResetQuickAllocEntryPointsForThread, NULL);
+    }
+  }
+  tl->ResumeAll();
 }
 
 }  // namespace art

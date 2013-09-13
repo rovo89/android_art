@@ -108,6 +108,12 @@ void Thread::InitTlsEntryPoints() {
                   &quick_entrypoints_);
 }
 
+void ResetQuickAllocEntryPoints(QuickEntryPoints* qpoints);
+
+void Thread::ResetQuickAllocEntryPointsForThread() {
+  ResetQuickAllocEntryPoints(&quick_entrypoints_);
+}
+
 void Thread::SetDeoptimizationShadowFrame(ShadowFrame* sf) {
   deoptimization_shadow_frame_ = sf;
 }

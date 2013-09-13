@@ -576,6 +576,8 @@ class PACKED(4) Thread {
 
   void AtomicClearFlag(ThreadFlag flag);
 
+  void ResetQuickAllocEntryPointsForThread();
+
  private:
   // We have no control over the size of 'bool', but want our boolean fields
   // to be 4-byte quantities.
