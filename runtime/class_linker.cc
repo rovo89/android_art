@@ -1089,26 +1089,31 @@ void ClassLinker::InitFromImage() {
 // reinit references to when reinitializing a ClassLinker from a
 // mapped image.
 void ClassLinker::VisitRoots(RootVisitor* visitor, void* arg, bool clean_dirty) {
-  visitor(class_roots_, arg);
+  class_roots_ = reinterpret_cast<mirror::ObjectArray<mirror::Class>*>(visitor(class_roots_, arg));
+  DCHECK(class_roots_ != nullptr);
+
   Thread* self = Thread::Current();
   {
     ReaderMutexLock mu(self, dex_lock_);
-    for (mirror::DexCache* dex_cache : dex_caches_) {
-      visitor(dex_cache, arg);
+    for (mirror::DexCache*& dex_cache : dex_caches_) {
+      dex_cache = reinterpret_cast<mirror::DexCache*>(visitor(dex_cache, arg));
+      DCHECK(dex_cache != nullptr);
     }
   }
 
   {
     ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);
-    for (const std::pair<size_t, mirror::Class*>& it : class_table_) {
-      visitor(it.second, arg);
+    for (std::pair<size_t const, mirror::Class*>& it : class_table_) {
+      it.second = reinterpret_cast<mirror::Class*>(visitor(it.second, arg));
+      DCHECK(it.second != nullptr);
     }
 
     // We deliberately ignore the class roots in the image since we
     // handle image roots by using the MS/CMS rescanning of dirty cards.
   }
 
-  visitor(array_iftable_, arg);
+  array_iftable_ = reinterpret_cast<mirror::IfTable*>(visitor(array_iftable_, arg));
+  DCHECK(array_iftable_ != nullptr);
   if (clean_dirty) {
     is_dirty_ = false;
   }

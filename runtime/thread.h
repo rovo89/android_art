@@ -395,9 +395,6 @@ class PACKED(4) Thread {
 
   void VisitRoots(RootVisitor* visitor, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void VerifyRoots(VerifyRootVisitor* visitor, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   void VerifyStack() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   //

@@ -340,8 +340,9 @@ class ClassLinkerTest : public CommonTest {
     }
   }
 
-  static void TestRootVisitor(const mirror::Object* root, void*) {
+  static mirror::Object* TestRootVisitor(mirror::Object* root, void*) {
     EXPECT_TRUE(root != NULL);
+    return root;
   }
 };
 

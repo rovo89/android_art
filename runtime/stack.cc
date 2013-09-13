@@ -148,8 +148,8 @@ uint32_t StackVisitor::GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kin
       const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
       DCHECK(code_item != NULL) << PrettyMethod(m);  // Can't be NULL or how would we compile its instructions?
       size_t frame_size = m->GetFrameSizeInBytes();
-      return GetVReg(cur_quick_frame_, code_item, m->GetCoreSpillMask(), m->GetFpSpillMask(),
-                     frame_size, vreg);
+      return *GetVRegAddr(cur_quick_frame_, code_item, m->GetCoreSpillMask(), m->GetFpSpillMask(),
+                          frame_size, vreg);
     }
   } else {
     return cur_shadow_frame_->GetVReg(vreg);

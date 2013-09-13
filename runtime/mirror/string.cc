@@ -33,6 +33,10 @@ const CharArray* String::GetCharArray() const {
   return GetFieldObject<const CharArray*>(ValueOffset(), false);
 }
 
+CharArray* String::GetCharArray() {
+  return GetFieldObject<CharArray*>(ValueOffset(), false);
+}
+
 void String::ComputeHashCode() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   SetHashCode(ComputeUtf16Hash(GetCharArray(), GetOffset(), GetLength()));
 }

@@ -30,7 +30,7 @@ class SirtRef {
     self_->PushSirt(&sirt_);
   }
   ~SirtRef() {
-    CHECK(self_->PopSirt() == &sirt_);
+    CHECK_EQ(self_->PopSirt(), &sirt_);
   }
 
   T& operator*() const { return *get(); }

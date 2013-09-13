@@ -497,24 +497,18 @@ void MarkSweep::MarkRoot(const Object* obj) {
   }
 }
 
-void MarkSweep::MarkRootParallelCallback(const Object* root, void* arg) {
+Object* MarkSweep::MarkRootParallelCallback(Object* root, void* arg) {
   DCHECK(root != NULL);
   DCHECK(arg != NULL);
   reinterpret_cast<MarkSweep*>(arg)->MarkObjectNonNullParallel(root);
+  return root;
 }
 
-void MarkSweep::MarkObjectCallback(const Object* root, void* arg) {
-  DCHECK(root != NULL);
-  DCHECK(arg != NULL);
-  MarkSweep* mark_sweep = reinterpret_cast<MarkSweep*>(arg);
-  mark_sweep->MarkObjectNonNull(root);
-}
-
-void MarkSweep::ReMarkObjectVisitor(const Object* root, void* arg) {
-  DCHECK(root != NULL);
-  DCHECK(arg != NULL);
-  MarkSweep* mark_sweep = reinterpret_cast<MarkSweep*>(arg);
-  mark_sweep->MarkObjectNonNull(root);
+Object* MarkSweep::MarkRootCallback(Object* root, void* arg) {
+  DCHECK(root != nullptr);
+  DCHECK(arg != nullptr);
+  reinterpret_cast<MarkSweep*>(arg)->MarkObjectNonNull(root);
+  return root;
 }
 
 void MarkSweep::VerifyRootCallback(const Object* root, void* arg, size_t vreg,
@@ -542,20 +536,20 @@ void MarkSweep::VerifyRoots() {
 // Marks all objects in the root set.
 void MarkSweep::MarkRoots() {
   timings_.StartSplit("MarkRoots");
-  Runtime::Current()->VisitNonConcurrentRoots(MarkObjectCallback, this);
+  Runtime::Current()->VisitNonConcurrentRoots(MarkRootCallback, this);
   timings_.EndSplit();
 }
 
 void MarkSweep::MarkNonThreadRoots() {
   timings_.StartSplit("MarkNonThreadRoots");
-  Runtime::Current()->VisitNonThreadRoots(MarkObjectCallback, this);
+  Runtime::Current()->VisitNonThreadRoots(MarkRootCallback, this);
   timings_.EndSplit();
 }
 
 void MarkSweep::MarkConcurrentRoots() {
   timings_.StartSplit("MarkConcurrentRoots");
   // Visit all runtime roots and clear dirty flags.
-  Runtime::Current()->VisitConcurrentRoots(MarkObjectCallback, this, false, true);
+  Runtime::Current()->VisitConcurrentRoots(MarkRootCallback, this, false, true);
   timings_.EndSplit();
 }
 
@@ -963,14 +957,14 @@ void MarkSweep::RecursiveMarkDirtyObjects(bool paused, byte minimum_age) {
 
 void MarkSweep::ReMarkRoots() {
   timings_.StartSplit("ReMarkRoots");
-  Runtime::Current()->VisitRoots(ReMarkObjectVisitor, this, true, true);
+  Runtime::Current()->VisitRoots(MarkRootCallback, this, true, true);
   timings_.EndSplit();
 }
 
 void MarkSweep::SweepJniWeakGlobals(IsMarkedTester is_marked, void* arg) {
   JavaVMExt* vm = Runtime::Current()->GetJavaVM();
   WriterMutexLock mu(Thread::Current(), vm->weak_globals_lock);
-  for (const Object** entry : vm->weak_globals) {
+  for (Object** entry : vm->weak_globals) {
     if (!is_marked(*entry, arg)) {
       *entry = kClearedJniWeakGlobal;
     }
@@ -1053,7 +1047,7 @@ void MarkSweep::VerifySystemWeaks() {
 
   JavaVMExt* vm = runtime->GetJavaVM();
   ReaderMutexLock mu(Thread::Current(), vm->weak_globals_lock);
-  for (const Object** entry : vm->weak_globals) {
+  for (Object** entry : vm->weak_globals) {
     VerifyIsLive(*entry);
   }
 }
