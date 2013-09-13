@@ -541,25 +541,26 @@ bool ArmMir2Lir::GenInlinedCas32(CallInfo* info, bool need_write_barrier) {
   ClobberSReg(rl_offset.s_reg_low);
   FreeTemp(rl_offset.low_reg);
 
-  int r_old_value = AllocTemp();
-  NewLIR3(kThumb2Ldrex, r_old_value, r_ptr, 0);  // r_old_value := [r_ptr]
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  LoadConstant(rl_result.low_reg, 0);  // r_result := 0
 
-  RegLocation rl_expected = LoadValue(rl_src_expected, kCoreReg);
-
-  // if (r_old_value == rExpected) {
+  // while ([r_ptr] == rExpected && r_result == 0) {
   //   [r_ptr] <- r_new_value && r_result := success ? 0 : 1
   //   r_result ^= 1
-  // } else {
-  //   r_result := 0
   // }
+  int r_old_value = AllocTemp();
+  LIR* target = NewLIR0(kPseudoTargetLabel);
+  NewLIR3(kThumb2Ldrex, r_old_value, r_ptr, 0);
+
+  RegLocation rl_expected = LoadValue(rl_src_expected, kCoreReg);
   OpRegReg(kOpCmp, r_old_value, rl_expected.low_reg);
   FreeTemp(r_old_value);  // Now unneeded.
-  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  OpIT(kCondEq, "TE");
-  NewLIR4(kThumb2Strex, rl_result.low_reg, rl_new_value.low_reg, r_ptr, 0);
+  OpIT(kCondEq, "TT");
+  NewLIR4(kThumb2Strex /* eq */, rl_result.low_reg, rl_new_value.low_reg, r_ptr, 0);
   FreeTemp(r_ptr);  // Now unneeded.
-  OpRegImm(kOpXor, rl_result.low_reg, 1);
-  OpRegReg(kOpXor, rl_result.low_reg, rl_result.low_reg);
+  OpRegImm(kOpXor /* eq */, rl_result.low_reg, 1);
+  OpRegImm(kOpCmp /* eq */, rl_result.low_reg, 0);
+  OpCondBranch(kCondEq, target);
 
   StoreValue(rl_dest, rl_result);
 
