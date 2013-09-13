@@ -206,7 +206,7 @@ union IRTSegmentState {
 
 class IrtIterator {
  public:
-  explicit IrtIterator(const mirror::Object** table, size_t i, size_t capacity)
+  explicit IrtIterator(mirror::Object** table, size_t i, size_t capacity)
       : table_(table), i_(i), capacity_(capacity) {
     SkipNullsAndTombstones();
   }
@@ -217,7 +217,7 @@ class IrtIterator {
     return *this;
   }
 
-  const mirror::Object** operator*() {
+  mirror::Object** operator*() {
     return &table_[i_];
   }
 
@@ -233,7 +233,7 @@ class IrtIterator {
     }
   }
 
-  const mirror::Object** table_;
+  mirror::Object** table_;
   size_t i_;
   size_t capacity_;
 };
@@ -258,7 +258,7 @@ class IndirectReferenceTable {
    * Returns NULL if the table is full (max entries reached, or alloc
    * failed during expansion).
    */
-  IndirectRef Add(uint32_t cookie, const mirror::Object* obj)
+  IndirectRef Add(uint32_t cookie, mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
@@ -266,7 +266,7 @@ class IndirectReferenceTable {
    *
    * Returns kInvalidIndirectRefObject if iref is invalid.
    */
-  const mirror::Object* Get(IndirectRef iref) const {
+  mirror::Object* Get(IndirectRef iref) const {
     if (!GetChecked(iref)) {
       return kInvalidIndirectRefObject;
     }
@@ -363,7 +363,7 @@ class IndirectReferenceTable {
   IRTSegmentState segment_state_;
 
   /* bottom of the stack */
-  const mirror::Object** table_;
+  mirror::Object** table_;
   /* bit mask, ORed into all irefs */
   IndirectRefKind kind_;
   /* extended debugging info */

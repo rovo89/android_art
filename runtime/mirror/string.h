@@ -44,6 +44,7 @@ class MANAGED String : public Object {
   }
 
   const CharArray* GetCharArray() const;
+  CharArray* GetCharArray();
 
   int32_t GetOffset() const {
     int32_t result = GetField32(OffsetOffset(), false);

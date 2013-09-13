@@ -150,7 +150,12 @@ class ShadowFrame {
   mirror::Object* GetVRegReference(size_t i) const {
     DCHECK_LT(i, NumberOfVRegs());
     if (HasReferenceArray()) {
-      return References()[i];
+      mirror::Object* ref = References()[i];
+      // If the vreg reference is not equal to the vreg then the vreg reference is stale.
+      if (reinterpret_cast<uint32_t>(ref) != vregs_[i]) {
+        return nullptr;
+      }
+      return ref;
     } else {
       const uint32_t* vreg = &vregs_[i];
       return *reinterpret_cast<mirror::Object* const*>(vreg);
@@ -459,13 +464,14 @@ class StackVisitor {
   uintptr_t GetGPR(uint32_t reg) const;
   void SetGPR(uint32_t reg, uintptr_t value);
 
-  uint32_t GetVReg(mirror::ArtMethod** cur_quick_frame, const DexFile::CodeItem* code_item,
+  // This is a fast-path for getting/setting values in a quick frame.
+  uint32_t* GetVRegAddr(mirror::ArtMethod** cur_quick_frame, const DexFile::CodeItem* code_item,
                    uint32_t core_spills, uint32_t fp_spills, size_t frame_size,
                    uint16_t vreg) const {
     int offset = GetVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg);
     DCHECK_EQ(cur_quick_frame, GetCurrentQuickFrame());
     byte* vreg_addr = reinterpret_cast<byte*>(cur_quick_frame) + offset;
-    return *reinterpret_cast<uint32_t*>(vreg_addr);
+    return reinterpret_cast<uint32_t*>(vreg_addr);
   }
 
   uintptr_t GetReturnPc() const;

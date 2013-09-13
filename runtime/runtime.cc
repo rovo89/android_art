@@ -1142,12 +1142,17 @@ void Runtime::VisitConcurrentRoots(RootVisitor* visitor, void* arg, bool only_di
 
 void Runtime::VisitNonThreadRoots(RootVisitor* visitor, void* arg) {
   java_vm_->VisitRoots(visitor, arg);
-  if (pre_allocated_OutOfMemoryError_ != NULL) {
-    visitor(pre_allocated_OutOfMemoryError_, arg);
+  if (pre_allocated_OutOfMemoryError_ != nullptr) {
+    pre_allocated_OutOfMemoryError_ = reinterpret_cast<mirror::Throwable*>(
+        visitor(pre_allocated_OutOfMemoryError_, arg));
+    DCHECK(pre_allocated_OutOfMemoryError_ != nullptr);
   }
-  visitor(resolution_method_, arg);
+  resolution_method_ = reinterpret_cast<mirror::ArtMethod*>(visitor(resolution_method_, arg));
+  DCHECK(resolution_method_ != nullptr);
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
-    visitor(callee_save_methods_[i], arg);
+    callee_save_methods_[i] = reinterpret_cast<mirror::ArtMethod*>(
+        visitor(callee_save_methods_[i], arg));
+    DCHECK(callee_save_methods_[i] != nullptr);
   }
 }
 

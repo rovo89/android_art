@@ -1322,11 +1322,12 @@ void Heap::UpdateAndMarkModUnion(collector::MarkSweep* mark_sweep, base::TimingL
   image_mod_union_table_->MarkReferences(mark_sweep);
 }
 
-static void RootMatchesObjectVisitor(const mirror::Object* root, void* arg) {
+static mirror::Object* RootMatchesObjectVisitor(mirror::Object* root, void* arg) {
   mirror::Object* obj = reinterpret_cast<mirror::Object*>(arg);
   if (root == obj) {
     LOG(INFO) << "Object " << obj << " is a root";
   }
+  return root;
 }
 
 class ScanVisitor {
@@ -1414,9 +1415,10 @@ class VerifyReferenceVisitor {
     return heap_->IsLiveObjectLocked(obj);
   }
 
-  static void VerifyRoots(const mirror::Object* root, void* arg) {
+  static mirror::Object* VerifyRoots(mirror::Object* root, void* arg) {
     VerifyReferenceVisitor* visitor = reinterpret_cast<VerifyReferenceVisitor*>(arg);
-    (*visitor)(NULL, root, MemberOffset(0), true);
+    (*visitor)(nullptr, root, MemberOffset(0), true);
+    return root;
   }
 
  private:

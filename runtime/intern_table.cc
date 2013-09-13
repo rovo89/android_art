@@ -44,14 +44,14 @@ void InternTable::DumpForSigQuit(std::ostream& os) const {
 void InternTable::VisitRoots(RootVisitor* visitor, void* arg,
                              bool clean_dirty) {
   MutexLock mu(Thread::Current(), intern_table_lock_);
-  for (const auto& strong_intern : strong_interns_) {
-    visitor(strong_intern.second, arg);
+  for (auto& strong_intern : strong_interns_) {
+    strong_intern.second = reinterpret_cast<mirror::String*>(visitor(strong_intern.second, arg));
+    DCHECK(strong_intern.second != nullptr);
   }
   if (clean_dirty) {
     is_dirty_ = false;
   }
-  // Note: we deliberately don't visit the weak_interns_ table and the immutable
-  // image roots.
+  // Note: we deliberately don't visit the weak_interns_ table and the immutable image roots.
 }
 
 mirror::String* InternTable::Lookup(Table& table, mirror::String* s,

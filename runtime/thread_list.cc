@@ -569,10 +569,24 @@ void ThreadList::VisitRoots(RootVisitor* visitor, void* arg) const {
   }
 }
 
+struct VerifyRootWrapperArg {
+  VerifyRootVisitor* visitor;
+  void* arg;
+};
+
+static mirror::Object* VerifyRootWrapperCallback(mirror::Object* root, void* arg) {
+  VerifyRootWrapperArg* wrapperArg = reinterpret_cast<VerifyRootWrapperArg*>(arg);
+  wrapperArg->visitor(root, wrapperArg->arg, 0, NULL);
+  return root;
+}
+
 void ThreadList::VerifyRoots(VerifyRootVisitor* visitor, void* arg) const {
+  VerifyRootWrapperArg wrapper;
+  wrapper.visitor = visitor;
+  wrapper.arg = arg;
   MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
   for (const auto& thread : list_) {
-    thread->VerifyRoots(visitor, arg);
+    thread->VisitRoots(VerifyRootWrapperCallback, &wrapper);
   }
 }
 

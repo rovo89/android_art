@@ -314,14 +314,14 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
   return soa.EncodeField(field);
 }
 
-static void PinPrimitiveArray(const ScopedObjectAccess& soa, const Array* array)
+static void PinPrimitiveArray(const ScopedObjectAccess& soa, Array* array)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   JavaVMExt* vm = soa.Vm();
   MutexLock mu(soa.Self(), vm->pins_lock);
   vm->pin_table.Add(array);
 }
 
-static void UnpinPrimitiveArray(const ScopedObjectAccess& soa, const Array* array)
+static void UnpinPrimitiveArray(const ScopedObjectAccess& soa, Array* array)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   JavaVMExt* vm = soa.Vm();
   MutexLock mu(soa.Self(), vm->pins_lock);
@@ -1997,7 +1997,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT(GetStringUTFRegion, java_string);
     ScopedObjectAccess soa(env);
     String* s = soa.Decode<String*>(java_string);
-    const CharArray* chars = s->GetCharArray();
+    CharArray* chars = s->GetCharArray();
     PinPrimitiveArray(soa, chars);
     if (is_copy != NULL) {
       *is_copy = JNI_FALSE;
