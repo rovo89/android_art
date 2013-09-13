@@ -417,7 +417,7 @@ void Thread::SetThreadName(const char* name) {
 void Thread::InitStackHwm() {
   void* stack_base;
   size_t stack_size;
-  GetThreadStack(pthread_self_, stack_base, stack_size);
+  GetThreadStack(pthread_self_, &stack_base, &stack_size);
 
   // TODO: include this in the thread dumps; potentially useful in SIGQUIT output?
   VLOG(threads) << StringPrintf("Native stack is at %p (%s)", stack_base, PrettySize(stack_size).c_str());
@@ -757,7 +757,7 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
   int utime = 0;
   int stime = 0;
   int task_cpu = 0;
-  GetTaskStats(tid, native_thread_state, utime, stime, task_cpu);
+  GetTaskStats(tid, &native_thread_state, &utime, &stime, &task_cpu);
 
   os << "  | state=" << native_thread_state
      << " schedstat=( " << scheduler_stats << " )"
