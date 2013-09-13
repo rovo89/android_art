@@ -357,14 +357,23 @@ inline void Class::CheckObjectAlloc() {
   DCHECK_GE(this->object_size_, sizeof(Object));
 }
 
-inline Object* Class::AllocObjectInstrumented(Thread* self) {
+template <bool kIsMovable, bool kIsInstrumented>
+inline Object* Class::Alloc(Thread* self) {
   CheckObjectAlloc();
-  return Runtime::Current()->GetHeap()->AllocObjectInstrumented(self, this, this->object_size_);
-}
-
-inline Object* Class::AllocObjectUninstrumented(Thread* self) {
-  CheckObjectAlloc();
-  return Runtime::Current()->GetHeap()->AllocObjectUninstrumented(self, this, this->object_size_);
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  if (kIsMovable) {
+    if (kIsInstrumented) {
+      return heap->AllocMovableObjectInstrumented(self, this, this->object_size_);
+    } else {
+      return heap->AllocMovableObjectUninstrumented(self, this, this->object_size_);
+    }
+  } else {
+    if (kIsInstrumented) {
+      return heap->AllocNonMovableObjectInstrumented(self, this, this->object_size_);
+    } else {
+      return heap->AllocNonMovableObjectUninstrumented(self, this, this->object_size_);
+    }
+  }
 }
 
 }  // namespace mirror

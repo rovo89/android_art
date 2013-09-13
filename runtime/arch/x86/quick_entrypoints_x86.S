@@ -401,7 +401,7 @@ MACRO3(THREE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     END_FUNCTION VAR(c_name, 0)
 END_MACRO
 
-MACRO0(RETURN_IF_EAX_NOT_ZERO)
+MACRO0(RETURN_IF_RESULT_IS_NON_ZERO)
     testl %eax, %eax               // eax == 0 ?
     jz  1f                         // if eax == 0 goto 1
     ret                            // return
@@ -426,24 +426,12 @@ MACRO0(RETURN_OR_DELIVER_PENDING_EXCEPTION)
     DELIVER_PENDING_EXCEPTION
 END_MACRO
 
-TWO_ARG_DOWNCALL art_quick_alloc_object, artAllocObjectFromCode, RETURN_IF_EAX_NOT_ZERO
-TWO_ARG_DOWNCALL art_quick_alloc_object_with_access_check, artAllocObjectFromCodeWithAccessCheck, RETURN_IF_EAX_NOT_ZERO
-THREE_ARG_DOWNCALL art_quick_alloc_array, artAllocArrayFromCode, RETURN_IF_EAX_NOT_ZERO
-THREE_ARG_DOWNCALL art_quick_alloc_array_with_access_check, artAllocArrayFromCodeWithAccessCheck, RETURN_IF_EAX_NOT_ZERO
-THREE_ARG_DOWNCALL art_quick_check_and_alloc_array, artCheckAndAllocArrayFromCode, RETURN_IF_EAX_NOT_ZERO
-THREE_ARG_DOWNCALL art_quick_check_and_alloc_array_with_access_check, artCheckAndAllocArrayFromCodeWithAccessCheck, RETURN_IF_EAX_NOT_ZERO
+#include "arch/alloc_entrypoints.S"
 
-TWO_ARG_DOWNCALL art_quick_alloc_object_instrumented, artAllocObjectFromCodeInstrumented, RETURN_IF_EAX_NOT_ZERO
-TWO_ARG_DOWNCALL art_quick_alloc_object_with_access_check_instrumented, artAllocObjectFromCodeWithAccessCheckInstrumented, RETURN_IF_EAX_NOT_ZERO
-THREE_ARG_DOWNCALL art_quick_alloc_array_instrumented, artAllocArrayFromCodeInstrumented, RETURN_IF_EAX_NOT_ZERO
-THREE_ARG_DOWNCALL art_quick_alloc_array_with_access_check_instrumented, artAllocArrayFromCodeWithAccessCheckInstrumented, RETURN_IF_EAX_NOT_ZERO
-THREE_ARG_DOWNCALL art_quick_check_and_alloc_array_instrumented, artCheckAndAllocArrayFromCodeInstrumented, RETURN_IF_EAX_NOT_ZERO
-THREE_ARG_DOWNCALL art_quick_check_and_alloc_array_with_access_check_instrumented, artCheckAndAllocArrayFromCodeWithAccessCheckInstrumented, RETURN_IF_EAX_NOT_ZERO
-
-TWO_ARG_DOWNCALL art_quick_resolve_string, artResolveStringFromCode, RETURN_IF_EAX_NOT_ZERO
-TWO_ARG_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode, RETURN_IF_EAX_NOT_ZERO
-TWO_ARG_DOWNCALL art_quick_initialize_type, artInitializeTypeFromCode, RETURN_IF_EAX_NOT_ZERO
-TWO_ARG_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeAndVerifyAccessFromCode, RETURN_IF_EAX_NOT_ZERO
+TWO_ARG_DOWNCALL art_quick_resolve_string, artResolveStringFromCode, RETURN_IF_RESULT_IS_NON_ZERO
+TWO_ARG_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode, RETURN_IF_RESULT_IS_NON_ZERO
+TWO_ARG_DOWNCALL art_quick_initialize_type, artInitializeTypeFromCode, RETURN_IF_RESULT_IS_NON_ZERO
+TWO_ARG_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeAndVerifyAccessFromCode, RETURN_IF_RESULT_IS_NON_ZERO
 
 TWO_ARG_DOWNCALL art_quick_handle_fill_data, artHandleFillArrayDataFromCode, RETURN_IF_EAX_ZERO
 

@@ -130,7 +130,7 @@ static inline void CheckUnattachedThread(LockLevel level) NO_THREAD_SAFETY_ANALY
   // TODO: tighten this check.
   if (kDebugLocking) {
     Runtime* runtime = Runtime::Current();
-    CHECK(runtime == NULL || !runtime->IsStarted() || runtime->IsShuttingDown() ||
+    CHECK(runtime == NULL || !runtime->IsStarted() || runtime->IsShuttingDownLocked() ||
           level == kDefaultMutexLevel  || level == kRuntimeShutdownLock ||
           level == kThreadListLock || level == kLoggingLock || level == kAbortLock);
   }

@@ -46,7 +46,7 @@ class GarbageCollector {
   virtual GcType GetGcType() const = 0;
 
   // Run the garbage collector.
-  void Run();
+  void Run(bool clear_soft_references);
 
   Heap* GetHeap() const {
     return heap_;
@@ -78,6 +78,34 @@ class GarbageCollector {
   // this is the allocation space, for full GC then we swap the zygote bitmaps too.
   void SwapBitmaps() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
+  size_t GetFreedBytes() const {
+    return freed_bytes_;
+  }
+
+  size_t GetFreedLargeObjectBytes() const {
+    return freed_large_object_bytes_;
+  }
+
+  size_t GetFreedObjects() const {
+    return freed_objects_;
+  }
+
+  size_t GetFreedLargeObjects() const {
+    return freed_large_objects_;
+  }
+
+  uint64_t GetTotalPausedTimeNs() const {
+    return total_paused_time_ns_;
+  }
+
+  uint64_t GetTotalFreedBytes() const {
+    return total_freed_bytes_;
+  }
+
+  uint64_t GetTotalFreedObjects() const {
+    return total_freed_objects_;
+  }
+
  protected:
   // The initial phase. Done without mutators paused.
   virtual void InitializePhase() = 0;
@@ -98,6 +126,8 @@ class GarbageCollector {
 
   std::string name_;
 
+  bool clear_soft_references_;
+
   const bool verbose_;
 
   uint64_t duration_ns_;
@@ -108,6 +138,12 @@ class GarbageCollector {
   uint64_t total_paused_time_ns_;
   uint64_t total_freed_objects_;
   uint64_t total_freed_bytes_;
+
+  // Single GC statitstics.
+  AtomicInteger freed_bytes_;
+  AtomicInteger freed_large_object_bytes_;
+  AtomicInteger freed_objects_;
+  AtomicInteger freed_large_objects_;
 
   CumulativeLogger cumulative_timings_;
 

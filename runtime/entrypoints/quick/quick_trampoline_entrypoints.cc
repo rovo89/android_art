@@ -416,10 +416,10 @@ extern "C" uint64_t artQuickProxyInvokeHandler(mirror::ArtMethod* proxy_method,
 
 // Read object references held in arguments from quick frames and place in a JNI local references,
 // so they don't get garbage collected.
-class RememberFoGcArgumentVisitor : public QuickArgumentVisitor {
+class RememberForGcArgumentVisitor : public QuickArgumentVisitor {
  public:
-  RememberFoGcArgumentVisitor(mirror::ArtMethod** sp, bool is_static, const char* shorty,
-                              uint32_t shorty_len, ScopedObjectAccessUnchecked* soa) :
+  RememberForGcArgumentVisitor(mirror::ArtMethod** sp, bool is_static, const char* shorty,
+                               uint32_t shorty_len, ScopedObjectAccessUnchecked* soa) :
     QuickArgumentVisitor(sp, is_static, shorty, shorty_len), soa_(soa) {}
 
   virtual void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -441,7 +441,7 @@ class RememberFoGcArgumentVisitor : public QuickArgumentVisitor {
  private:
   ScopedObjectAccessUnchecked* soa_;
   std::vector<std::pair<jobject, mirror::Object**> > references_;
-  DISALLOW_COPY_AND_ASSIGN(RememberFoGcArgumentVisitor);
+  DISALLOW_COPY_AND_ASSIGN(RememberForGcArgumentVisitor);
 };
 
 // Lazily resolve a method for quick. Called by stub code.
@@ -531,7 +531,7 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
   uint32_t shorty_len;
   const char* shorty =
       dex_file->GetMethodShorty(dex_file->GetMethodId(dex_method_idx), &shorty_len);
-  RememberFoGcArgumentVisitor visitor(sp, invoke_type == kStatic, shorty, shorty_len, &soa);
+  RememberForGcArgumentVisitor visitor(sp, invoke_type == kStatic, shorty, shorty_len, &soa);
   visitor.VisitArguments();
   thread->EndAssertNoThreadSuspension(old_cause);
   // Resolve method filling in dex cache.

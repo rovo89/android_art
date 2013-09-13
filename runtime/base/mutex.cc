@@ -266,9 +266,8 @@ Mutex::Mutex(const char* name, LockLevel level, bool recursive)
 Mutex::~Mutex() {
 #if ART_USE_FUTEXES
   if (state_ != 0) {
-    MutexLock mu(Thread::Current(), *Locks::runtime_shutdown_lock_);
     Runtime* runtime = Runtime::Current();
-    bool shutting_down = (runtime == NULL) || runtime->IsShuttingDown();
+    bool shutting_down = runtime == nullptr || runtime->IsShuttingDown(Thread::Current());
     LOG(shutting_down ? WARNING : FATAL) << "destroying mutex with owner: " << exclusive_owner_;
   } else {
     CHECK_EQ(exclusive_owner_, 0U)  << "unexpectedly found an owner on unlocked mutex " << name_;
@@ -641,9 +640,8 @@ ConditionVariable::ConditionVariable(const char* name, Mutex& guard)
 ConditionVariable::~ConditionVariable() {
 #if ART_USE_FUTEXES
   if (num_waiters_!= 0) {
-    MutexLock mu(Thread::Current(), *Locks::runtime_shutdown_lock_);
     Runtime* runtime = Runtime::Current();
-    bool shutting_down = (runtime == NULL) || runtime->IsShuttingDown();
+    bool shutting_down = runtime == nullptr || runtime->IsShuttingDown(Thread::Current());
     LOG(shutting_down ? WARNING : FATAL) << "ConditionVariable::~ConditionVariable for " << name_
         << " called with " << num_waiters_ << " waiters.";
   }

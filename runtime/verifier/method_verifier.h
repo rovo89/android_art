@@ -33,6 +33,7 @@
 #include "reg_type_cache-inl.h"
 #include "register_line.h"
 #include "safe_map.h"
+#include "sirt_ref.h"
 #include "UniquePtr.h"
 
 namespace art {
@@ -142,14 +143,15 @@ class MethodVerifier {
   static FailureKind VerifyClass(const mirror::Class* klass, bool allow_soft_failures,
                                  std::string* error)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static FailureKind VerifyClass(const DexFile* dex_file, mirror::DexCache* dex_cache,
-                                 mirror::ClassLoader* class_loader,
+  static FailureKind VerifyClass(const DexFile* dex_file, SirtRef<mirror::DexCache>& dex_cache,
+                                 SirtRef<mirror::ClassLoader>& class_loader,
                                  const DexFile::ClassDef* class_def,
                                  bool allow_soft_failures, std::string* error)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void VerifyMethodAndDump(std::ostream& os, uint32_t method_idx, const DexFile* dex_file,
-                                  mirror::DexCache* dex_cache, mirror::ClassLoader* class_loader,
+                                  SirtRef<mirror::DexCache>& dex_cache,
+                                  SirtRef<mirror::ClassLoader>& class_loader,
                                   const DexFile::ClassDef* class_def,
                                   const DexFile::CodeItem* code_item,
                                   mirror::ArtMethod* method, uint32_t method_access_flags)
@@ -217,16 +219,13 @@ class MethodVerifier {
     return can_load_classes_;
   }
 
-  MethodVerifier(const DexFile* dex_file, mirror::DexCache* dex_cache,
-                 mirror::ClassLoader* class_loader, const DexFile::ClassDef* class_def,
-                 const DexFile::CodeItem* code_item,
-                 uint32_t method_idx, mirror::ArtMethod* method,
+  MethodVerifier(const DexFile* dex_file, SirtRef<mirror::DexCache>* dex_cache,
+                 SirtRef<mirror::ClassLoader>* class_loader, const DexFile::ClassDef* class_def,
+                 const DexFile::CodeItem* code_item, uint32_t method_idx, mirror::ArtMethod* method,
                  uint32_t access_flags, bool can_load_classes, bool allow_soft_failures)
           SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  ~MethodVerifier() {
-    STLDeleteElements(&failure_messages_);
-  }
+  ~MethodVerifier();
 
   // Run verification on the method. Returns true if verification completes and false if the input
   // has an irrecoverable corruption.
@@ -257,8 +256,8 @@ class MethodVerifier {
    *      for code flow problems.
    */
   static FailureKind VerifyMethod(uint32_t method_idx, const DexFile* dex_file,
-                                  mirror::DexCache* dex_cache,
-                                  mirror::ClassLoader* class_loader,
+                                  SirtRef<mirror::DexCache>& dex_cache,
+                                  SirtRef<mirror::ClassLoader>& class_loader,
                                   const DexFile::ClassDef* class_def_idx,
                                   const DexFile::CodeItem* code_item,
                                   mirror::ArtMethod* method, uint32_t method_access_flags,
@@ -685,9 +684,9 @@ class MethodVerifier {
   const RegType* return_type_;  // Lazily computed return type of the method.
   const DexFile* const dex_file_;  // The dex file containing the method.
   // The dex_cache for the declaring class of the method.
-  mirror::DexCache* dex_cache_ GUARDED_BY(Locks::mutator_lock_);
+  SirtRef<mirror::DexCache>* dex_cache_ GUARDED_BY(Locks::mutator_lock_);
   // The class loader for the declaring class of the method.
-  mirror::ClassLoader* class_loader_ GUARDED_BY(Locks::mutator_lock_);
+  SirtRef<mirror::ClassLoader>* class_loader_ GUARDED_BY(Locks::mutator_lock_);
   const DexFile::ClassDef* const class_def_;  // The class def of the declaring class of the method.
   const DexFile::CodeItem* const code_item_;  // The code item containing the code for the method.
   const RegType* declaring_class_;  // Lazily computed reg type of the method's declaring class.

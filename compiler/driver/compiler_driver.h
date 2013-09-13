@@ -368,7 +368,8 @@ class CompilerDriver {
                          ThreadPool& thread_pool, base::TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_, compiled_classes_lock_);
 
-  void UpdateImageClasses(base::TimingLogger& timings);
+  void UpdateImageClasses(base::TimingLogger& timings)
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
   static void FindClinitImageClassesCallback(mirror::Object* object, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

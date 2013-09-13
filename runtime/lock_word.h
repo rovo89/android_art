@@ -21,6 +21,7 @@
 #include <stdint.h>
 
 #include "base/logging.h"
+#include "utils.h"
 
 namespace art {
 namespace mirror {
@@ -73,6 +74,7 @@ class LockWord {
     kStateThinOrUnlocked = 0,
     kStateFat = 1,
     kStateHash = 2,
+    kStateForwardingAddress = 3,
 
     // When the state is kHashCode, the non-state bits hold the hashcode.
     kHashShift = 0,
@@ -86,6 +88,11 @@ class LockWord {
                      (kStateThinOrUnlocked << kStateShift));
   }
 
+  static LockWord FromForwardingAddress(size_t target) {
+    DCHECK(IsAligned < 1 << kStateSize>(target));
+    return LockWord((target >> kStateSize) | (kStateForwardingAddress << kStateShift));
+  }
+
   static LockWord FromHashCode(uint32_t hash_code) {
     CHECK_LE(hash_code, static_cast<uint32_t>(kHashMask));
     return LockWord((hash_code << kHashShift) | (kStateHash << kStateShift));
@@ -96,19 +103,25 @@ class LockWord {
     kThinLocked,  // Single uncontended owner.
     kFatLocked,   // See associated monitor.
     kHashCode,    // Lock word contains an identity hash.
+    kForwardingAddress,  // Lock word contains the forwarding address of an object.
   };
 
   LockState GetState() const {
-    uint32_t internal_state = (value_ >> kStateShift) & kStateMask;
-    if (value_ == 0) {
+    if (UNLIKELY(value_ == 0)) {
       return kUnlocked;
-    } else if (internal_state == kStateThinOrUnlocked) {
-      return kThinLocked;
-    } else if (internal_state == kStateHash) {
-      return kHashCode;
     } else {
-      DCHECK_EQ(internal_state, static_cast<uint32_t>(kStateFat));
-      return kFatLocked;
+      uint32_t internal_state = (value_ >> kStateShift) & kStateMask;
+      switch (internal_state) {
+        case kStateThinOrUnlocked:
+          return kThinLocked;
+        case kStateHash:
+          return kHashCode;
+        case kStateForwardingAddress:
+          return kForwardingAddress;
+        default:
+          DCHECK_EQ(internal_state, static_cast<uint32_t>(kStateFat));
+          return kFatLocked;
+      }
     }
   }
 
@@ -120,6 +133,9 @@ class LockWord {
 
   // Return the Monitor encoded in a fat lock.
   Monitor* FatLockMonitor() const;
+
+  // Return the forwarding address stored in the monitor.
+  size_t ForwardingAddress() const;
 
   // Default constructor with no lock ownership.
   LockWord();

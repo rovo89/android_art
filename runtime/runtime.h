@@ -149,10 +149,6 @@ class Runtime {
     return is_zygote_;
   }
 
-  bool IsConcurrentGcEnabled() const {
-    return is_concurrent_gc_enabled_;
-  }
-
   bool IsExplicitGcDisabled() const {
     return is_explicit_gc_disabled_;
   }
@@ -203,7 +199,8 @@ class Runtime {
   // Starts a runtime, which may cause threads to be started and code to run.
   bool Start() UNLOCK_FUNCTION(Locks::mutator_lock_);
 
-  bool IsShuttingDown() const EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_) {
+  bool IsShuttingDown(Thread* self);
+  bool IsShuttingDownLocked() const EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_) {
     return shutting_down_;
   }
 

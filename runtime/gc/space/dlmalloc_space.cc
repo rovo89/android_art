@@ -102,8 +102,8 @@ class ValgrindDlMallocSpace : public DlMallocSpace {
   }
 
   ValgrindDlMallocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin,
-                        byte* end, size_t growth_limit, size_t initial_size) :
-      DlMallocSpace(name, mem_map, mspace, begin, end, growth_limit) {
+                        byte* end, byte* limit, size_t growth_limit, size_t initial_size) :
+      DlMallocSpace(name, mem_map, mspace, begin, end, limit, growth_limit) {
     VALGRIND_MAKE_MEM_UNDEFINED(mem_map->Begin() + initial_size, mem_map->Size() - initial_size);
   }
 
@@ -117,15 +117,13 @@ class ValgrindDlMallocSpace : public DlMallocSpace {
 size_t DlMallocSpace::bitmap_index_ = 0;
 
 DlMallocSpace::DlMallocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin,
-                       byte* end, size_t growth_limit)
-    : MemMapSpace(name, mem_map, end - begin, kGcRetentionPolicyAlwaysCollect),
+                       byte* end, byte* limit, size_t growth_limit)
+    : ContinuousMemMapAllocSpace(name, mem_map, begin, end, limit, kGcRetentionPolicyAlwaysCollect),
       recent_free_pos_(0), total_bytes_freed_(0), total_objects_freed_(0),
       lock_("allocation space lock", kAllocSpaceLock), mspace_(mspace),
       growth_limit_(growth_limit) {
   CHECK(mspace != NULL);
-
   size_t bitmap_index = bitmap_index_++;
-
   static const uintptr_t kGcCardSize = static_cast<uintptr_t>(accounting::CardTable::kCardSize);
   CHECK(IsAligned<kGcCardSize>(reinterpret_cast<uintptr_t>(mem_map->Begin())));
   CHECK(IsAligned<kGcCardSize>(reinterpret_cast<uintptr_t>(mem_map->End())));
@@ -133,12 +131,10 @@ DlMallocSpace::DlMallocSpace(const std::string& name, MemMap* mem_map, void* msp
       StringPrintf("allocspace %s live-bitmap %d", name.c_str(), static_cast<int>(bitmap_index)),
       Begin(), Capacity()));
   DCHECK(live_bitmap_.get() != NULL) << "could not create allocspace live bitmap #" << bitmap_index;
-
   mark_bitmap_.reset(accounting::SpaceBitmap::Create(
       StringPrintf("allocspace %s mark-bitmap %d", name.c_str(), static_cast<int>(bitmap_index)),
       Begin(), Capacity()));
   DCHECK(live_bitmap_.get() != NULL) << "could not create allocspace mark bitmap #" << bitmap_index;
-
   for (auto& freed : recent_freed_objects_) {
     freed.first = nullptr;
     freed.second = nullptr;
@@ -207,12 +203,14 @@ DlMallocSpace* DlMallocSpace::Create(const std::string& name, size_t initial_siz
   // Everything is set so record in immutable structure and leave
   MemMap* mem_map_ptr = mem_map.release();
   DlMallocSpace* space;
+  byte* begin = mem_map_ptr->Begin();
   if (RUNNING_ON_VALGRIND > 0) {
-    space = new ValgrindDlMallocSpace(name, mem_map_ptr, mspace, mem_map_ptr->Begin(), end,
+    space = new ValgrindDlMallocSpace(name, mem_map_ptr, mspace, begin, end, begin + capacity,
                                       growth_limit, initial_size);
   } else {
-    space = new DlMallocSpace(name, mem_map_ptr, mspace, mem_map_ptr->Begin(), end, growth_limit);
+    space = new DlMallocSpace(name, mem_map_ptr, mspace, begin, end, begin + capacity, growth_limit);
   }
+  // We start out with only the initial size possibly containing objects.
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Space::CreateAllocSpace exiting (" << PrettyDuration(NanoTime() - start_time)
         << " ) " << *space;
@@ -318,7 +316,8 @@ DlMallocSpace* DlMallocSpace::CreateZygoteSpace(const char* alloc_space_name) {
     CHECK_MEMORY_CALL(mprotect, (end, capacity - initial_size, PROT_NONE), alloc_space_name);
   }
   DlMallocSpace* alloc_space =
-      new DlMallocSpace(alloc_space_name, mem_map.release(), mspace, end_, end, growth_limit);
+      new DlMallocSpace(alloc_space_name, mem_map.release(), mspace, end_, end, limit_,
+                        growth_limit);
   live_bitmap_->SetHeapLimit(reinterpret_cast<uintptr_t>(End()));
   CHECK_EQ(live_bitmap_->HeapLimit(), reinterpret_cast<uintptr_t>(End()));
   mark_bitmap_->SetHeapLimit(reinterpret_cast<uintptr_t>(End()));
@@ -343,8 +342,7 @@ mirror::Class* DlMallocSpace::FindRecentFreedObject(const mirror::Object* obj) {
 }
 
 void DlMallocSpace::RegisterRecentFree(mirror::Object* ptr) {
-  recent_freed_objects_[recent_free_pos_].first = ptr;
-  recent_freed_objects_[recent_free_pos_].second = ptr->GetClass();
+  recent_freed_objects_[recent_free_pos_] = std::make_pair(ptr, ptr->GetClass());
   recent_free_pos_ = (recent_free_pos_ + 1) & kRecentFreeMask;
 }
 
@@ -412,8 +410,8 @@ size_t DlMallocSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** p
 // Callback from dlmalloc when it needs to increase the footprint
 extern "C" void* art_heap_morecore(void* mspace, intptr_t increment) {
   Heap* heap = Runtime::Current()->GetHeap();
-  DCHECK_EQ(heap->GetAllocSpace()->GetMspace(), mspace);
-  return heap->GetAllocSpace()->MoreCore(increment);
+  DCHECK_EQ(heap->GetNonMovingSpace()->GetMspace(), mspace);
+  return heap->GetNonMovingSpace()->MoreCore(increment);
 }
 
 void* DlMallocSpace::MoreCore(intptr_t increment) {
@@ -482,6 +480,29 @@ size_t DlMallocSpace::GetFootprintLimit() {
   return mspace_footprint_limit(mspace_);
 }
 
+// Returns the old mark bitmap.
+accounting::SpaceBitmap* DlMallocSpace::BindLiveToMarkBitmap() {
+  accounting::SpaceBitmap* live_bitmap = GetLiveBitmap();
+  accounting::SpaceBitmap* mark_bitmap = mark_bitmap_.release();
+  temp_bitmap_.reset(mark_bitmap);
+  mark_bitmap_.reset(live_bitmap);
+  return mark_bitmap;
+}
+
+bool DlMallocSpace::HasBoundBitmaps() const {
+  return temp_bitmap_.get() != nullptr;
+}
+
+void DlMallocSpace::UnBindBitmaps() {
+  CHECK(HasBoundBitmaps());
+  // At this point, the temp_bitmap holds our old mark bitmap.
+  accounting::SpaceBitmap* new_bitmap = temp_bitmap_.release();
+  CHECK_EQ(mark_bitmap_.release(), live_bitmap_.get());
+  mark_bitmap_.reset(new_bitmap);
+  DCHECK(temp_bitmap_.get() == NULL);
+}
+
+
 void DlMallocSpace::SetFootprintLimit(size_t new_size) {
   MutexLock mu(Thread::Current(), lock_);
   VLOG(heap) << "DLMallocSpace::SetFootprintLimit " << PrettySize(new_size);
@@ -504,17 +525,25 @@ void DlMallocSpace::Dump(std::ostream& os) const {
 }
 
 uint64_t DlMallocSpace::GetBytesAllocated() {
-  MutexLock mu(Thread::Current(), lock_);
-  size_t bytes_allocated = 0;
-  mspace_inspect_all(mspace_, DlmallocBytesAllocatedCallback, &bytes_allocated);
-  return bytes_allocated;
+  if (mspace_ != nullptr) {
+    MutexLock mu(Thread::Current(), lock_);
+    size_t bytes_allocated = 0;
+    mspace_inspect_all(mspace_, DlmallocBytesAllocatedCallback, &bytes_allocated);
+    return bytes_allocated;
+  } else {
+    return Size();
+  }
 }
 
 uint64_t DlMallocSpace::GetObjectsAllocated() {
-  MutexLock mu(Thread::Current(), lock_);
-  size_t objects_allocated = 0;
-  mspace_inspect_all(mspace_, DlmallocObjectsAllocatedCallback, &objects_allocated);
-  return objects_allocated;
+  if (mspace_ != nullptr) {
+    MutexLock mu(Thread::Current(), lock_);
+    size_t objects_allocated = 0;
+    mspace_inspect_all(mspace_, DlmallocObjectsAllocatedCallback, &objects_allocated);
+    return objects_allocated;
+  } else {
+    return 0;
+  }
 }
 
 }  // namespace space

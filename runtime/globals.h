@@ -73,6 +73,15 @@ const bool kIsTargetBuild = true;
 const bool kIsTargetBuild = false;
 #endif
 
+// Garbage collector constants.
+static constexpr bool kMovingCollector = false;
+// True if we allow moving classes.
+static constexpr bool kMovingClasses = false;
+// True if we allow moving fields.
+static constexpr bool kMovingFields = false;
+// True if we allow moving methods.
+static constexpr bool kMovingMethods = false;
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_GLOBALS_H_

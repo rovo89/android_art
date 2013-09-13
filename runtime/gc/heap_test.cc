@@ -43,12 +43,14 @@ TEST_F(HeapTest, GarbageCollectClassLinkerInit) {
     ScopedObjectAccess soa(Thread::Current());
     // garbage is created during ClassLinker::Init
 
-    mirror::Class* c = class_linker_->FindSystemClass("[Ljava/lang/Object;");
+    SirtRef<mirror::Class> c(soa.Self(), class_linker_->FindSystemClass("[Ljava/lang/Object;"));
     for (size_t i = 0; i < 1024; ++i) {
       SirtRef<mirror::ObjectArray<mirror::Object> > array(soa.Self(),
-          mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(), c, 2048));
+          mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(), c.get(), 2048));
       for (size_t j = 0; j < 2048; ++j) {
-        array->Set(j, mirror::String::AllocFromModifiedUtf8(soa.Self(), "hello, world!"));
+        mirror::String* string = mirror::String::AllocFromModifiedUtf8(soa.Self(), "hello, world!");
+        // SIRT operator -> deferences the SIRT before running the method.
+        array->Set(j, string);
       }
     }
   }

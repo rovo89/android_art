@@ -140,9 +140,10 @@ mirror::Class* RegTypeCache::ResolveClass(const char* descriptor, mirror::ClassL
   // Class was not found, must create new type.
   // Try resolving class
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  SirtRef<mirror::ClassLoader> class_loader(Thread::Current(), loader);
   mirror::Class* klass = NULL;
   if (can_load_classes_) {
-    klass = class_linker->FindClass(descriptor, loader);
+    klass = class_linker->FindClass(descriptor, class_loader);
   } else {
     klass = class_linker->LookupClass(descriptor, loader);
     if (klass != NULL && !klass->IsLoaded()) {

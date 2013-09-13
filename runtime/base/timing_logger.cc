@@ -86,6 +86,11 @@ void CumulativeLogger::AddLogger(const base::TimingLogger &logger) {
   }
 }
 
+size_t CumulativeLogger::GetIterations() const {
+  MutexLock mu(Thread::Current(), lock_);
+  return iterations_;
+}
+
 void CumulativeLogger::Dump(std::ostream &os) {
   MutexLock mu(Thread::Current(), lock_);
   DumpHistogram(os);

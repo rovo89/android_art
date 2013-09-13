@@ -93,6 +93,8 @@ void MarkSweep::ImmuneSpace(space::ContinuousSpace* space) {
   }
 
   // Add the space to the immune region.
+  // TODO: Use space limits instead of current end_ since the end_ can be changed by dlmalloc
+  // callbacks.
   if (immune_begin_ == NULL) {
     DCHECK(immune_end_ == NULL);
     SetImmuneRange(reinterpret_cast<Object*>(space->Begin()),
@@ -108,14 +110,14 @@ void MarkSweep::ImmuneSpace(space::ContinuousSpace* space) {
     }
     // If previous space was immune, then extend the immune region. Relies on continuous spaces
     // being sorted by Heap::AddContinuousSpace.
-    if (prev_space != NULL && IsImmuneSpace(prev_space)) {
+    if (prev_space != nullptr && IsImmuneSpace(prev_space)) {
       immune_begin_ = std::min(reinterpret_cast<Object*>(space->Begin()), immune_begin_);
       immune_end_ = std::max(reinterpret_cast<Object*>(space->End()), immune_end_);
     }
   }
 }
 
-bool MarkSweep::IsImmuneSpace(const space::ContinuousSpace* space) {
+bool MarkSweep::IsImmuneSpace(const space::ContinuousSpace* space) const {
   return
       immune_begin_ <= reinterpret_cast<Object*>(space->Begin()) &&
       immune_end_ >= reinterpret_cast<Object*>(space->End());
@@ -135,10 +137,9 @@ void MarkSweep::BindBitmaps() {
 
 MarkSweep::MarkSweep(Heap* heap, bool is_concurrent, const std::string& name_prefix)
     : GarbageCollector(heap,
-                       name_prefix + (name_prefix.empty() ? "" : " ") +
+                       name_prefix +
                        (is_concurrent ? "concurrent mark sweep": "mark sweep")),
       current_mark_bitmap_(NULL),
-      java_lang_Class_(NULL),
       mark_stack_(NULL),
       immune_begin_(NULL),
       immune_end_(NULL),
@@ -150,8 +151,7 @@ MarkSweep::MarkSweep(Heap* heap, bool is_concurrent, const std::string& name_pre
       gc_barrier_(new Barrier(0)),
       large_object_lock_("mark sweep large object lock", kMarkSweepLargeObjectLock),
       mark_stack_lock_("mark sweep mark stack lock", kMarkSweepMarkStackLock),
-      is_concurrent_(is_concurrent),
-      clear_soft_references_(false) {
+      is_concurrent_(is_concurrent) {
 }
 
 void MarkSweep::InitializePhase() {
@@ -165,10 +165,6 @@ void MarkSweep::InitializePhase() {
   finalizer_reference_list_ = nullptr;
   phantom_reference_list_ = nullptr;
   cleared_reference_list_ = nullptr;
-  freed_bytes_ = 0;
-  freed_large_object_bytes_ = 0;
-  freed_objects_ = 0;
-  freed_large_objects_ = 0;
   class_count_ = 0;
   array_count_ = 0;
   other_count_ = 0;
@@ -179,8 +175,6 @@ void MarkSweep::InitializePhase() {
   work_chunks_created_ = 0;
   work_chunks_deleted_ = 0;
   reference_count_ = 0;
-  java_lang_Class_ = Class::GetJavaLangClass();
-  CHECK(java_lang_Class_ != nullptr);
 
   FindDefaultMarkBitmap();
 
@@ -294,8 +288,7 @@ void MarkSweep::MarkReachableObjects() {
   // knowing that new allocations won't be marked as live.
   timings_.StartSplit("MarkStackAsLive");
   accounting::ObjectStack* live_stack = heap_->GetLiveStack();
-  heap_->MarkAllocStack(heap_->alloc_space_->GetLiveBitmap(),
-                        heap_->large_object_space_->GetLiveObjects(), live_stack);
+  heap_->MarkAllocStackAsLive(live_stack);
   live_stack->Reset();
   timings_.EndSplit();
   // Recursively mark all the non-image bits set in the mark bitmap.
@@ -371,8 +364,10 @@ void MarkSweep::SetImmuneRange(Object* begin, Object* end) {
 void MarkSweep::FindDefaultMarkBitmap() {
   base::TimingLogger::ScopedSplit split("FindDefaultMarkBitmap", &timings_);
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
-    if (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyAlwaysCollect) {
-      current_mark_bitmap_ = space->GetMarkBitmap();
+    accounting::SpaceBitmap* bitmap = space->GetMarkBitmap();
+    if (bitmap != nullptr &&
+        space->GetGcRetentionPolicy() == space::kGcRetentionPolicyAlwaysCollect) {
+      current_mark_bitmap_ = bitmap;
       CHECK(current_mark_bitmap_ != NULL);
       return;
     }
@@ -613,10 +608,8 @@ void MarkSweep::BindLiveToMarkBitmap(space::ContinuousSpace* space) {
   CHECK(space->IsDlMallocSpace());
   space::DlMallocSpace* alloc_space = space->AsDlMallocSpace();
   accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
-  accounting::SpaceBitmap* mark_bitmap = alloc_space->mark_bitmap_.release();
+  accounting::SpaceBitmap* mark_bitmap = alloc_space->BindLiveToMarkBitmap();
   GetHeap()->GetMarkBitmap()->ReplaceBitmap(mark_bitmap, live_bitmap);
-  alloc_space->temp_bitmap_.reset(mark_bitmap);
-  alloc_space->mark_bitmap_.reset(live_bitmap);
 }
 
 class ScanObjectVisitor {
@@ -625,7 +618,7 @@ class ScanObjectVisitor {
       : mark_sweep_(mark_sweep) {}
 
   // TODO: Fixme when anotatalysis works with visitors.
-  void operator()(const Object* obj) const ALWAYS_INLINE NO_THREAD_SAFETY_ANALYSIS {
+  void operator()(Object* obj) const ALWAYS_INLINE NO_THREAD_SAFETY_ANALYSIS {
     if (kCheckLocks) {
       Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
       Locks::heap_bitmap_lock_->AssertExclusiveHeld(Thread::Current());
@@ -814,6 +807,9 @@ void MarkSweep::ScanGrayObjects(bool paused, byte minimum_age) {
     const size_t mark_stack_delta = std::min(CardScanTask::kMaxSize / 2,
                                              mark_stack_size / mark_stack_tasks + 1);
     for (const auto& space : GetHeap()->GetContinuousSpaces()) {
+      if (space->GetMarkBitmap() == nullptr) {
+        continue;
+      }
       byte* card_begin = space->Begin();
       byte* card_end = space->End();
       // Align up the end address. For example, the image space's end
@@ -856,24 +852,26 @@ void MarkSweep::ScanGrayObjects(bool paused, byte minimum_age) {
     timings_.EndSplit();
   } else {
     for (const auto& space : GetHeap()->GetContinuousSpaces()) {
-      // Image spaces are handled properly since live == marked for them.
-      switch (space->GetGcRetentionPolicy()) {
-        case space::kGcRetentionPolicyNeverCollect:
-          timings_.StartSplit(paused ? "(Paused)ScanGrayImageSpaceObjects" :
-              "ScanGrayImageSpaceObjects");
-          break;
-        case space::kGcRetentionPolicyFullCollect:
-          timings_.StartSplit(paused ? "(Paused)ScanGrayZygoteSpaceObjects" :
-              "ScanGrayZygoteSpaceObjects");
-          break;
-        case space::kGcRetentionPolicyAlwaysCollect:
-          timings_.StartSplit(paused ? "(Paused)ScanGrayAllocSpaceObjects" :
-              "ScanGrayAllocSpaceObjects");
-          break;
-        }
-      ScanObjectVisitor visitor(this);
-      card_table->Scan(space->GetMarkBitmap(), space->Begin(), space->End(), visitor, minimum_age);
-      timings_.EndSplit();
+      if (space->GetMarkBitmap() != nullptr) {
+        // Image spaces are handled properly since live == marked for them.
+        switch (space->GetGcRetentionPolicy()) {
+          case space::kGcRetentionPolicyNeverCollect:
+            timings_.StartSplit(paused ? "(Paused)ScanGrayImageSpaceObjects" :
+                "ScanGrayImageSpaceObjects");
+            break;
+          case space::kGcRetentionPolicyFullCollect:
+            timings_.StartSplit(paused ? "(Paused)ScanGrayZygoteSpaceObjects" :
+                "ScanGrayZygoteSpaceObjects");
+            break;
+          case space::kGcRetentionPolicyAlwaysCollect:
+            timings_.StartSplit(paused ? "(Paused)ScanGrayAllocSpaceObjects" :
+                "ScanGrayAllocSpaceObjects");
+            break;
+          }
+        ScanObjectVisitor visitor(this);
+        card_table->Scan(space->GetMarkBitmap(), space->Begin(), space->End(), visitor, minimum_age);
+        timings_.EndSplit();
+      }
     }
   }
 }
@@ -954,9 +952,8 @@ void MarkSweep::RecursiveMark() {
       if ((space->GetGcRetentionPolicy() == space::kGcRetentionPolicyAlwaysCollect) ||
           (!partial && space->GetGcRetentionPolicy() == space::kGcRetentionPolicyFullCollect)) {
         current_mark_bitmap_ = space->GetMarkBitmap();
-        if (current_mark_bitmap_ == NULL) {
-          GetHeap()->DumpSpaces();
-          LOG(FATAL) << "invalid bitmap";
+        if (current_mark_bitmap_ == nullptr) {
+          continue;
         }
         if (parallel) {
           // We will use the mark stack the future.
@@ -1121,7 +1118,7 @@ void MarkSweep::ZygoteSweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
 }
 
 void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitmaps) {
-  space::DlMallocSpace* space = heap_->GetAllocSpace();
+  space::DlMallocSpace* space = heap_->GetNonMovingSpace();
   timings_.StartSplit("SweepArray");
   // Newly allocated objects MUST be in the alloc space and those are the only objects which we are
   // going to free.
@@ -1207,8 +1204,11 @@ void MarkSweep::Sweep(bool swap_bitmaps) {
   scc.mark_sweep = this;
   scc.self = Thread::Current();
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
+    if (!space->IsDlMallocSpace()) {
+      continue;
+    }
     // We always sweep always collect spaces.
-    bool sweep_space = (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyAlwaysCollect);
+    bool sweep_space = space->GetGcRetentionPolicy() == space::kGcRetentionPolicyAlwaysCollect;
     if (!partial && !sweep_space) {
       // We sweep full collect spaces when the GC isn't a partial GC (ie its full).
       sweep_space = (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyFullCollect);
@@ -1370,9 +1370,9 @@ class MarkObjectVisitor {
 
 // Scans an object reference.  Determines the type of the reference
 // and dispatches to a specialized scanning routine.
-void MarkSweep::ScanObject(const Object* obj) {
+void MarkSweep::ScanObject(Object* obj) {
   MarkObjectVisitor visitor(this);
-  ScanObjectVisit(const_cast<Object*>(obj), visitor);
+  ScanObjectVisit(obj, visitor);
 }
 
 void MarkSweep::ProcessMarkStackParallel(size_t thread_count) {
@@ -1406,12 +1406,12 @@ void MarkSweep::ProcessMarkStack(bool paused) {
   } else {
     // TODO: Tune this.
     static const size_t kFifoSize = 4;
-    BoundedFifoPowerOfTwo<const Object*, kFifoSize> prefetch_fifo;
+    BoundedFifoPowerOfTwo<Object*, kFifoSize> prefetch_fifo;
     for (;;) {
-      const Object* obj = NULL;
+      Object* obj = NULL;
       if (kUseMarkStackPrefetch) {
         while (!mark_stack_->IsEmpty() && prefetch_fifo.size() < kFifoSize) {
-          const Object* obj = mark_stack_->PopBack();
+          Object* obj = mark_stack_->PopBack();
           DCHECK(obj != NULL);
           __builtin_prefetch(obj);
           prefetch_fifo.push_back(obj);
@@ -1603,9 +1603,6 @@ void MarkSweep::FinishPhase() {
   timings_.NewSplit("PostGcVerification");
   heap->PostGcVerification(this);
 
-  timings_.NewSplit("GrowForUtilization");
-  heap->GrowForUtilization(GetGcType(), GetDurationNs());
-
   timings_.NewSplit("RequestHeapTrim");
   heap->RequestHeapTrim();
 
@@ -1651,8 +1648,10 @@ void MarkSweep::FinishPhase() {
 
   // Clear all of the spaces' mark bitmaps.
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
-    if (space->GetGcRetentionPolicy() != space::kGcRetentionPolicyNeverCollect) {
-      space->GetMarkBitmap()->Clear();
+    accounting::SpaceBitmap* bitmap = space->GetMarkBitmap();
+    if (bitmap != nullptr &&
+        space->GetGcRetentionPolicy() != space::kGcRetentionPolicyNeverCollect) {
+      bitmap->Clear();
     }
   }
   mark_stack_->Reset();

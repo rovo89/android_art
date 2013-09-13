@@ -30,7 +30,7 @@ namespace collector {
 namespace space {
 
 // An alloc space is a space where objects may be allocated and garbage collected.
-class DlMallocSpace : public MemMapSpace, public AllocSpace {
+class DlMallocSpace : public ContinuousMemMapAllocSpace {
  public:
   typedef void(*WalkCallback)(void *start, void *end, size_t num_bytes, void* callback_arg);
 
@@ -136,19 +136,30 @@ class DlMallocSpace : public MemMapSpace, public AllocSpace {
     return GetObjectsAllocated() + total_objects_freed_;
   }
 
+  // Returns the old mark bitmap.
+  accounting::SpaceBitmap* BindLiveToMarkBitmap();
+  bool HasBoundBitmaps() const;
+  void UnBindBitmaps();
+
   // Returns the class of a recently freed object.
   mirror::Class* FindRecentFreedObject(const mirror::Object* obj);
 
+  // Used to ensure that failure happens when you free / allocate into an invalidated space. If we
+  // don't do this we may get heap corruption instead of a segfault at null.
+  void InvalidateMSpace() {
+    mspace_ = nullptr;
+  }
+
  protected:
   DlMallocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin, byte* end,
-                size_t growth_limit);
+                byte* limit, size_t growth_limit);
 
  private:
   size_t InternalAllocationSize(const mirror::Object* obj);
   mirror::Object* AllocWithoutGrowthLocked(size_t num_bytes, size_t* bytes_allocated)
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
   bool Init(size_t initial_size, size_t maximum_size, size_t growth_size, byte* requested_base);
-  void RegisterRecentFree(mirror::Object* ptr);
+  void RegisterRecentFree(mirror::Object* ptr) EXCLUSIVE_LOCKS_REQUIRED(lock_);
   static void* CreateMallocSpace(void* base, size_t morecore_start, size_t initial_size);
 
   UniquePtr<accounting::SpaceBitmap> live_bitmap_;
@@ -174,7 +185,7 @@ class DlMallocSpace : public MemMapSpace, public AllocSpace {
   Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 
   // Underlying malloc space
-  void* const mspace_;
+  void* mspace_;
 
   // The capacity of the alloc space until such time that ClearGrowthLimit is called.
   // The underlying mem_map_ controls the maximum size we allow the heap to grow to. The growth

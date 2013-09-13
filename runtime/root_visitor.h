@@ -23,11 +23,13 @@ class Object;
 }  // namespace mirror
 class StackVisitor;
 
+// Returns the new address of the object, returns root if it has not moved.
 typedef mirror::Object* (RootVisitor)(mirror::Object* root, void* arg)
     __attribute__((warn_unused_result));
 typedef void (VerifyRootVisitor)(const mirror::Object* root, void* arg, size_t vreg,
                                  const StackVisitor* visitor);
 typedef bool (IsMarkedTester)(const mirror::Object* object, void* arg);
+typedef void (ObjectVisitorCallback)(mirror::Object* obj, void* arg);
 
 }  // namespace art
 

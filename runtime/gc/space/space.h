@@ -42,7 +42,10 @@ class Heap;
 
 namespace space {
 
+class AllocSpace;
+class ContinuousSpace;
 class DlMallocSpace;
+class DiscontinuousSpace;
 class ImageSpace;
 class LargeObjectSpace;
 
@@ -64,6 +67,7 @@ enum SpaceType {
   kSpaceTypeImageSpace,
   kSpaceTypeAllocSpace,
   kSpaceTypeZygoteSpace,
+  kSpaceTypeBumpPointerSpace,
   kSpaceTypeLargeObjectSpace,
 };
 std::ostream& operator<<(std::ostream& os, const SpaceType& space_type);
@@ -113,11 +117,34 @@ class Space {
     return GetType() == kSpaceTypeZygoteSpace;
   }
 
+  // Is this space a bump pointer space?
+  bool IsBumpPointerSpace() const {
+    return GetType() == kSpaceTypeBumpPointerSpace;
+  }
+
   // Does this space hold large objects and implement the large object space abstraction?
   bool IsLargeObjectSpace() const {
     return GetType() == kSpaceTypeLargeObjectSpace;
   }
   LargeObjectSpace* AsLargeObjectSpace();
+
+  virtual bool IsContinuousSpace() const {
+    return false;
+  }
+  ContinuousSpace* AsContinuousSpace();
+
+  virtual bool IsDiscontinuousSpace() const {
+    return false;
+  }
+  DiscontinuousSpace* AsDiscontinuousSpace();
+
+  virtual bool IsAllocSpace() const {
+    return false;
+  }
+  virtual AllocSpace* AsAllocSpace() {
+    LOG(FATAL) << "Unimplemented";
+    return nullptr;
+  }
 
   virtual ~Space() {}
 
@@ -131,13 +158,13 @@ class Space {
   // Name of the space that may vary due to the Zygote fork.
   std::string name_;
 
- private:
+ protected:
   // When should objects within this space be reclaimed? Not constant as we vary it in the case
   // of Zygote forking.
   GcRetentionPolicy gc_retention_policy_;
 
+ private:
   friend class art::gc::Heap;
-
   DISALLOW_COPY_AND_ASSIGN(Space);
 };
 std::ostream& operator<<(std::ostream& os, const Space& space);
@@ -180,14 +207,29 @@ class AllocSpace {
 // continuous spaces can be marked in the card table.
 class ContinuousSpace : public Space {
  public:
-  // Address at which the space begins
+  // Address at which the space begins.
   byte* Begin() const {
     return begin_;
   }
 
-  // Address at which the space ends, which may vary as the space is filled.
+  // Current address at which the space ends, which may vary as the space is filled.
   byte* End() const {
     return end_;
+  }
+
+  // The end of the address range covered by the space.
+  byte* Limit() const {
+    return limit_;
+  }
+
+  // Change the end of the space. Be careful with use since changing the end of a space to an
+  // invalid value may break the GC.
+  void SetEnd(byte* end) {
+    end_ = end;
+  }
+
+  void SetLimit(byte* limit) {
+    limit_ = limit;
   }
 
   // Current size of space
@@ -198,31 +240,42 @@ class ContinuousSpace : public Space {
   virtual accounting::SpaceBitmap* GetLiveBitmap() const = 0;
   virtual accounting::SpaceBitmap* GetMarkBitmap() const = 0;
 
+  // Maximum which the mapped space can grow to.
+  virtual size_t Capacity() const {
+    return Limit() - Begin();
+  }
+
   // Is object within this space? We check to see if the pointer is beyond the end first as
   // continuous spaces are iterated over from low to high.
   bool HasAddress(const mirror::Object* obj) const {
     const byte* byte_ptr = reinterpret_cast<const byte*>(obj);
-    return byte_ptr < End() && byte_ptr >= Begin();
+    return byte_ptr >= Begin() && byte_ptr < Limit();
   }
 
   bool Contains(const mirror::Object* obj) const {
     return HasAddress(obj);
   }
 
+  virtual bool IsContinuousSpace() const {
+    return true;
+  }
+
   virtual ~ContinuousSpace() {}
 
  protected:
   ContinuousSpace(const std::string& name, GcRetentionPolicy gc_retention_policy,
-                  byte* begin, byte* end) :
-      Space(name, gc_retention_policy), begin_(begin), end_(end) {
+                  byte* begin, byte* end, byte* limit) :
+      Space(name, gc_retention_policy), begin_(begin), end_(end), limit_(limit) {
   }
 
-
   // The beginning of the storage for fast access.
-  byte* const begin_;
+  byte* begin_;
 
   // Current end of the space.
-  byte* end_;
+  byte* volatile end_;
+
+  // Limit of the space.
+  byte* limit_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(ContinuousSpace);
@@ -241,6 +294,10 @@ class DiscontinuousSpace : public Space {
     return mark_objects_.get();
   }
 
+  virtual bool IsDiscontinuousSpace() const {
+    return true;
+  }
+
   virtual ~DiscontinuousSpace() {}
 
  protected:
@@ -255,23 +312,10 @@ class DiscontinuousSpace : public Space {
 
 class MemMapSpace : public ContinuousSpace {
  public:
-  // Maximum which the mapped space can grow to.
-  virtual size_t Capacity() const {
-    return mem_map_->Size();
-  }
-
   // Size of the space without a limit on its growth. By default this is just the Capacity, but
   // for the allocation space we support starting with a small heap and then extending it.
   virtual size_t NonGrowthLimitCapacity() const {
     return Capacity();
-  }
-
- protected:
-  MemMapSpace(const std::string& name, MemMap* mem_map, size_t initial_size,
-              GcRetentionPolicy gc_retention_policy)
-      : ContinuousSpace(name, gc_retention_policy,
-                        mem_map->Begin(), mem_map->Begin() + initial_size),
-        mem_map_(mem_map) {
   }
 
   MemMap* GetMemMap() {
@@ -282,11 +326,43 @@ class MemMapSpace : public ContinuousSpace {
     return mem_map_.get();
   }
 
- private:
+ protected:
+  MemMapSpace(const std::string& name, MemMap* mem_map, byte* begin, byte* end, byte* limit,
+              GcRetentionPolicy gc_retention_policy)
+      : ContinuousSpace(name, gc_retention_policy, begin, end, limit),
+        mem_map_(mem_map) {
+  }
+
   // Underlying storage of the space
   UniquePtr<MemMap> mem_map_;
 
+ private:
   DISALLOW_COPY_AND_ASSIGN(MemMapSpace);
+};
+
+// Used by the heap compaction interface to enable copying from one type of alloc space to another.
+class ContinuousMemMapAllocSpace : public MemMapSpace, public AllocSpace {
+ public:
+  virtual bool IsAllocSpace() const {
+    return true;
+  }
+
+  virtual AllocSpace* AsAllocSpace() {
+    return this;
+  }
+
+  virtual void Clear() {
+    LOG(FATAL) << "Unimplemented";
+  }
+
+ protected:
+  ContinuousMemMapAllocSpace(const std::string& name, MemMap* mem_map, byte* begin,
+                             byte* end, byte* limit, GcRetentionPolicy gc_retention_policy)
+      : MemMapSpace(name, mem_map, begin, end, limit, gc_retention_policy) {
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ContinuousMemMapAllocSpace);
 };
 
 }  // namespace space

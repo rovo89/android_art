@@ -44,8 +44,7 @@ inline void MarkSweep::ScanObjectVisit(mirror::Object* obj, const MarkVisitor& v
     if (klass->IsObjectArrayClass()) {
       VisitObjectArrayReferences(obj->AsObjectArray<mirror::Object>(), visitor);
     }
-  } else if (UNLIKELY(klass == java_lang_Class_)) {
-    DCHECK_EQ(klass->GetClass(), java_lang_Class_);
+  } else if (UNLIKELY(klass == mirror::Class::GetJavaLangClass())) {
     if (kCountScannedTypes) {
       ++class_count_;
     }
@@ -56,7 +55,7 @@ inline void MarkSweep::ScanObjectVisit(mirror::Object* obj, const MarkVisitor& v
     }
     VisitOtherReferences(klass, obj, visitor);
     if (UNLIKELY(klass->IsReferenceClass())) {
-      DelayReferenceReferent(klass, const_cast<mirror::Object*>(obj));
+      DelayReferenceReferent(klass, obj);
     }
   }
 }
@@ -68,11 +67,10 @@ inline void MarkSweep::VisitObjectReferences(mirror::Object* obj, const Visitor&
                           Locks::mutator_lock_) {
   DCHECK(obj != NULL);
   DCHECK(obj->GetClass() != NULL);
-
   mirror::Class* klass = obj->GetClass();
   DCHECK(klass != NULL);
   if (visit_class) {
-    visitor(obj, klass, MemberOffset(0), false);
+    visitor(obj, klass, mirror::Object::ClassOffset(), false);
   }
   if (klass == mirror::Class::GetJavaLangClass()) {
     DCHECK_EQ(klass->GetClass(), mirror::Class::GetJavaLangClass());
@@ -90,8 +88,7 @@ inline void MarkSweep::VisitObjectReferences(mirror::Object* obj, const Visitor&
 }
 
 template <typename Visitor>
-inline void MarkSweep::VisitInstanceFieldsReferences(mirror::Class* klass,
-                                                     mirror::Object* obj,
+inline void MarkSweep::VisitInstanceFieldsReferences(mirror::Class* klass, mirror::Object* obj,
                                                      const Visitor& visitor)
     SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
   DCHECK(obj != NULL);
@@ -119,11 +116,6 @@ inline void MarkSweep::VisitFieldsReferences(mirror::Object* obj, uint32_t ref_o
                                              bool is_static, const Visitor& visitor) {
   if (LIKELY(ref_offsets != CLASS_WALK_SUPER)) {
     // Found a reference offset bitmap.  Mark the specified offsets.
-#ifndef MOVING_COLLECTOR
-    // Clear the class bit since we mark the class as part of marking the classlinker roots.
-    DCHECK_EQ(mirror::Object::ClassOffset().Uint32Value(), 0U);
-    ref_offsets &= (1U << (sizeof(ref_offsets) * 8 - 1)) - 1;
-#endif
     while (ref_offsets != 0) {
       size_t right_shift = CLZ(ref_offsets);
       MemberOffset field_offset = CLASS_OFFSET_FROM_CLZ(right_shift);

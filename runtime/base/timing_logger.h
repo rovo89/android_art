@@ -45,6 +45,7 @@ class CumulativeLogger {
   // parent class that is unable to determine the "name" of a sub-class.
   void SetName(const std::string& name);
   void AddLogger(const base::TimingLogger& logger) LOCKS_EXCLUDED(lock_);
+  size_t GetIterations() const;
 
  private:
   typedef std::map<std::string, Histogram<uint64_t> *> Histograms;

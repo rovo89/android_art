@@ -20,6 +20,7 @@
 #include "heap.h"
 
 #include "debugger.h"
+#include "gc/space/bump_pointer_space-inl.h"
 #include "gc/space/dlmalloc_space-inl.h"
 #include "gc/space/large_object_space.h"
 #include "object_utils.h"
@@ -30,8 +31,9 @@
 namespace art {
 namespace gc {
 
-inline mirror::Object* Heap::AllocObjectUninstrumented(Thread* self, mirror::Class* c, size_t byte_count) {
-  DebugCheckPreconditionsForAllobObject(c, byte_count);
+inline mirror::Object* Heap::AllocNonMovableObjectUninstrumented(Thread* self, mirror::Class* c,
+                                                                 size_t byte_count) {
+  DebugCheckPreconditionsForAllocObject(c, byte_count);
   mirror::Object* obj;
   size_t bytes_allocated;
   AllocationTimer alloc_timer(this, &obj);
@@ -39,7 +41,7 @@ inline mirror::Object* Heap::AllocObjectUninstrumented(Thread* self, mirror::Cla
                                                                    &obj, &bytes_allocated);
   if (LIKELY(!large_object_allocation)) {
     // Non-large object allocation.
-    obj = AllocateUninstrumented(self, alloc_space_, byte_count, &bytes_allocated);
+    obj = AllocateUninstrumented(self, non_moving_space_, byte_count, &bytes_allocated);
     // Ensure that we did not allocate into a zygote space.
     DCHECK(obj == NULL || !have_zygote_space_ || !FindSpaceFromObject(obj, false)->IsZygoteSpace());
   }
@@ -53,10 +55,45 @@ inline mirror::Object* Heap::AllocObjectUninstrumented(Thread* self, mirror::Cla
     if (kDesiredHeapVerification > kNoHeapVerification) {
       VerifyObject(obj);
     }
-    return obj;
+  } else {
+    ThrowOutOfMemoryError(self, byte_count, large_object_allocation);
   }
-  ThrowOutOfMemoryError(self, byte_count, large_object_allocation);
-  return NULL;
+  if (kIsDebugBuild) {
+    self->VerifyStack();
+  }
+  return obj;
+}
+
+inline mirror::Object* Heap::AllocMovableObjectUninstrumented(Thread* self, mirror::Class* c,
+                                                              size_t byte_count) {
+  DebugCheckPreconditionsForAllocObject(c, byte_count);
+  mirror::Object* obj;
+  AllocationTimer alloc_timer(this, &obj);
+  byte_count = (byte_count + 7) & ~7;
+  if (UNLIKELY(IsOutOfMemoryOnAllocation(byte_count, false))) {
+    CollectGarbageInternal(collector::kGcTypeFull, kGcCauseForAlloc, false);
+    if (UNLIKELY(IsOutOfMemoryOnAllocation(byte_count, true))) {
+      CollectGarbageInternal(collector::kGcTypeFull, kGcCauseForAlloc, true);
+    }
+  }
+  obj = bump_pointer_space_->AllocNonvirtual(byte_count);
+  if (LIKELY(obj != NULL)) {
+    obj->SetClass(c);
+    DCHECK(!obj->IsClass());
+    // Record allocation after since we want to use the atomic add for the atomic fence to guard
+    // the SetClass since we do not want the class to appear NULL in another thread.
+    num_bytes_allocated_.fetch_add(byte_count);
+    DCHECK(!Dbg::IsAllocTrackingEnabled());
+    if (kDesiredHeapVerification > kNoHeapVerification) {
+      VerifyObject(obj);
+    }
+  } else {
+    ThrowOutOfMemoryError(self, byte_count, false);
+  }
+  if (kIsDebugBuild) {
+    self->VerifyStack();
+  }
+  return obj;
 }
 
 inline size_t Heap::RecordAllocationUninstrumented(size_t size, mirror::Object* obj) {
@@ -124,7 +161,7 @@ inline bool Heap::TryAllocLargeObjectUninstrumented(Thread* self, mirror::Class*
   return large_object_allocation;
 }
 
-inline void Heap::DebugCheckPreconditionsForAllobObject(mirror::Class* c, size_t byte_count) {
+inline void Heap::DebugCheckPreconditionsForAllocObject(mirror::Class* c, size_t byte_count) {
   DCHECK(c == NULL || (c->IsClassClass() && byte_count >= sizeof(mirror::Class)) ||
          (c->IsVariableSize() || c->GetObjectSize() == byte_count) ||
          strlen(ClassHelper(c).GetDescriptor()) == 0);

@@ -122,7 +122,7 @@ struct TypeStaticIf<false, A,  B> {
 // For rounding integers.
 template<typename T>
 static inline T RoundDown(T x, int n) {
-  CHECK(IsPowerOfTwo(n));
+  DCHECK(IsPowerOfTwo(n));
   return (x & -n);
 }
 
