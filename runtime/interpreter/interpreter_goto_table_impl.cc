@@ -51,6 +51,15 @@ namespace interpreter {
     }                                                                       \
   } while (false)
 
+#define UPDATE_HANDLER_TABLE()                              \
+  do {                                                      \
+    if (UNLIKELY(instrumentation->HasDexPcListeners())) {   \
+      currentHandlersTable = instrumentationHandlersTable;  \
+    } else {                                                \
+      currentHandlersTable = handlersTable;                 \
+    }                                                       \
+  } while (false);
+
 #define UNREACHABLE_CODE_CHECK()                \
   do {                                          \
     if (kIsDebugBuild) {                        \
@@ -104,11 +113,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   };
 
   const void** currentHandlersTable;
-  if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-    currentHandlersTable = instrumentationHandlersTable;
-  } else {
-    currentHandlersTable = handlersTable;
-  }
+  UPDATE_HANDLER_TABLE();
 
   // Jump to first instruction.
   ADVANCE(0);
@@ -524,11 +529,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       if (UNLIKELY(self->TestAllFlags())) {
         CheckSuspend(self);
       }
-      if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-        currentHandlersTable = instrumentationHandlersTable;
-      } else {
-        currentHandlersTable = handlersTable;
-      }
+      UPDATE_HANDLER_TABLE();
     }
     ADVANCE(offset);
   }
@@ -540,11 +541,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       if (UNLIKELY(self->TestAllFlags())) {
         CheckSuspend(self);
       }
-      if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-        currentHandlersTable = instrumentationHandlersTable;
-      } else {
-        currentHandlersTable = handlersTable;
-      }
+      UPDATE_HANDLER_TABLE();
     }
     ADVANCE(offset);
   }
@@ -556,11 +553,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       if (UNLIKELY(self->TestAllFlags())) {
         CheckSuspend(self);
       }
-      if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-        currentHandlersTable = instrumentationHandlersTable;
-      } else {
-        currentHandlersTable = handlersTable;
-      }
+      UPDATE_HANDLER_TABLE();
     }
     ADVANCE(offset);
   }
@@ -572,11 +565,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       if (UNLIKELY(self->TestAllFlags())) {
         CheckSuspend(self);
       }
-      if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-        currentHandlersTable = instrumentationHandlersTable;
-      } else {
-        currentHandlersTable = handlersTable;
-      }
+      UPDATE_HANDLER_TABLE();
     }
     ADVANCE(offset);
   }
@@ -588,11 +577,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       if (UNLIKELY(self->TestAllFlags())) {
         CheckSuspend(self);
       }
-      if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-        currentHandlersTable = instrumentationHandlersTable;
-      } else {
-        currentHandlersTable = handlersTable;
-      }
+      UPDATE_HANDLER_TABLE();
     }
     ADVANCE(offset);
   }
@@ -685,11 +670,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
         }
-        if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-          currentHandlersTable = instrumentationHandlersTable;
-        } else {
-          currentHandlersTable = handlersTable;
-        }
+        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -705,11 +686,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
         }
-        if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-          currentHandlersTable = instrumentationHandlersTable;
-        } else {
-          currentHandlersTable = handlersTable;
-        }
+        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -725,11 +702,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
         }
-        if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-          currentHandlersTable = instrumentationHandlersTable;
-        } else {
-          currentHandlersTable = handlersTable;
-        }
+        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -745,11 +718,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
         }
-        if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-          currentHandlersTable = instrumentationHandlersTable;
-        } else {
-          currentHandlersTable = handlersTable;
-        }
+        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -765,11 +734,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
         }
-        if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-          currentHandlersTable = instrumentationHandlersTable;
-        } else {
-          currentHandlersTable = handlersTable;
-        }
+        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -785,11 +750,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
         }
-        if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-          currentHandlersTable = instrumentationHandlersTable;
-        } else {
-          currentHandlersTable = handlersTable;
-        }
+        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -805,11 +766,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
         }
-        if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-          currentHandlersTable = instrumentationHandlersTable;
-        } else {
-          currentHandlersTable = handlersTable;
-        }
+        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -825,11 +782,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
         }
-        if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-          currentHandlersTable = instrumentationHandlersTable;
-        } else {
-          currentHandlersTable = handlersTable;
-        }
+        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -845,11 +798,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
         }
-        if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-          currentHandlersTable = instrumentationHandlersTable;
-        } else {
-          currentHandlersTable = handlersTable;
-        }
+        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -865,11 +814,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
         }
-        if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-          currentHandlersTable = instrumentationHandlersTable;
-        } else {
-          currentHandlersTable = handlersTable;
-        }
+        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -885,11 +830,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
         }
-        if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-          currentHandlersTable = instrumentationHandlersTable;
-        } else {
-          currentHandlersTable = handlersTable;
-        }
+        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -905,11 +846,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
         }
-        if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-          currentHandlersTable = instrumentationHandlersTable;
-        } else {
-          currentHandlersTable = handlersTable;
-        }
+        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -1383,72 +1320,84 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
 
   HANDLE_INSTRUCTION_START(INVOKE_VIRTUAL) {
     bool success = DoInvoke<kVirtual, false, do_access_check>(self, shadow_frame, inst, &result_register);
+    UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_VIRTUAL_RANGE) {
     bool success = DoInvoke<kVirtual, true, do_access_check>(self, shadow_frame, inst, &result_register);
+    UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_SUPER) {
     bool success = DoInvoke<kSuper, false, do_access_check>(self, shadow_frame, inst, &result_register);
+    UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_SUPER_RANGE) {
     bool success = DoInvoke<kSuper, true, do_access_check>(self, shadow_frame, inst, &result_register);
+    UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_DIRECT) {
     bool success = DoInvoke<kDirect, false, do_access_check>(self, shadow_frame, inst, &result_register);
+    UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_DIRECT_RANGE) {
     bool success = DoInvoke<kDirect, true, do_access_check>(self, shadow_frame, inst, &result_register);
+    UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_INTERFACE) {
     bool success = DoInvoke<kInterface, false, do_access_check>(self, shadow_frame, inst, &result_register);
+    UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_INTERFACE_RANGE) {
     bool success = DoInvoke<kInterface, true, do_access_check>(self, shadow_frame, inst, &result_register);
+    UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_STATIC) {
     bool success = DoInvoke<kStatic, false, do_access_check>(self, shadow_frame, inst, &result_register);
+    UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_STATIC_RANGE) {
     bool success = DoInvoke<kStatic, true, do_access_check>(self, shadow_frame, inst, &result_register);
+    UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_VIRTUAL_QUICK) {
     bool success = DoInvokeVirtualQuick<false>(self, shadow_frame, inst, &result_register);
+    UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(INVOKE_VIRTUAL_RANGE_QUICK) {
     bool success = DoInvokeVirtualQuick<true>(self, shadow_frame, inst, &result_register);
+    UPDATE_HANDLER_TABLE();
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
