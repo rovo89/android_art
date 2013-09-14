@@ -158,6 +158,10 @@ Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
 #define ENCODE_ALL              (~0ULL)
 #define ENCODE_MEM              (ENCODE_DALVIK_REG | ENCODE_LITERAL | \
                                  ENCODE_HEAP_REF | ENCODE_MUST_NOT_ALIAS)
+
+// Mask to denote sreg as the start of a double.  Must not interfere with low 16 bits.
+#define STARTING_DOUBLE_SREG 0x10000
+
 // TODO: replace these macros
 #define SLOW_FIELD_PATH (cu_->enable_debug & (1 << kDebugSlowFieldPath))
 #define SLOW_INVOKE_PATH (cu_->enable_debug & (1 << kDebugSlowInvokePath))
@@ -187,7 +191,6 @@ class Mir2Lir : public Backend {
     struct RefCounts {
       int count;
       int s_reg;
-      bool double_start;   // Starting v_reg for a double
     };
 
     /*
@@ -324,11 +327,9 @@ class Mir2Lir : public Backend {
     void RecordCorePromotion(int reg, int s_reg);
     int AllocPreservedCoreReg(int s_reg);
     void RecordFpPromotion(int reg, int s_reg);
-    int AllocPreservedSingle(int s_reg, bool even);
+    int AllocPreservedSingle(int s_reg);
     int AllocPreservedDouble(int s_reg);
-    int AllocPreservedFPReg(int s_reg, bool double_start);
-    int AllocTempBody(RegisterInfo* p, int num_regs, int* next_temp,
-                      bool required);
+    int AllocTempBody(RegisterInfo* p, int num_regs, int* next_temp, bool required);
     int AllocTempDouble();
     int AllocFreeTemp();
     int AllocTemp();
@@ -367,7 +368,7 @@ class Mir2Lir : public Backend {
     RegLocation UpdateRawLoc(RegLocation loc);
     RegLocation EvalLocWide(RegLocation loc, int reg_class, bool update);
     RegLocation EvalLoc(RegLocation loc, int reg_class, bool update);
-    void CountRefs(RefCounts* core_counts, RefCounts* fp_counts);
+    void CountRefs(RefCounts* core_counts, RefCounts* fp_counts, size_t num_regs);
     void DumpCounts(const RefCounts* arr, int size, const char* msg);
     void DoPromotion();
     int VRegOffset(int v_reg);
