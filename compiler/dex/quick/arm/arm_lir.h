@@ -462,7 +462,7 @@ enum ArmOpDmbOptions {
 
 // Instruction assembly field_loc kind.
 enum ArmEncodingKind {
-  kFmtUnused,
+  kFmtUnused,    // Unused field and marks end of formats.
   kFmtBitBlt,    // Bit string using end/start.
   kFmtDfp,       // Double FP reg.
   kFmtSfp,       // Single FP reg.
@@ -477,6 +477,7 @@ enum ArmEncodingKind {
   kFmtBrOffset,  // Signed extended [26,11,13,21-16,10-0]:0.
   kFmtFPImm,     // Encoded floating point immediate.
   kFmtOff24,     // 24-bit Thumb2 unconditional branch encoding.
+  kFmtSkip,      // Unused field, but continue to next.
 };
 
 // Struct used to define the snippet positions for each Thumb opcode.
@@ -492,6 +493,7 @@ struct ArmEncodingMap {
   const char* name;
   const char* fmt;
   int size;   // Note: size is in bytes.
+  FixupKind fixup;
 };
 
 }  // namespace art

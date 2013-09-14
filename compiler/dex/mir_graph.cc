@@ -96,10 +96,9 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       try_block_addr_(NULL),
       entry_block_(NULL),
       exit_block_(NULL),
-      cur_block_(NULL),
       num_blocks_(0),
       current_code_item_(NULL),
-      block_map_(arena, 0, kGrowableArrayMisc),
+      dex_pc_to_block_map_(arena, 0, kGrowableArrayMisc),
       current_method_(kInvalidEntry),
       current_offset_(kInvalidEntry),
       def_count_(0),
@@ -109,7 +108,9 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       attributes_(METHOD_IS_LEAF),  // Start with leaf assumption, change on encountering invoke.
       checkstats_(NULL),
       special_case_(kNoHandler),
-      arena_(arena) {
+      arena_(arena),
+      backward_branches_(0),
+      forward_branches_(0) {
   try_block_addr_ = new (arena_) ArenaBitVector(arena_, 0, true /* expandable */);
 }
 
@@ -151,7 +152,7 @@ BasicBlock* MIRGraph::SplitBlock(unsigned int code_offset,
   orig_block->terminated_by_return = false;
 
   /* Add it to the quick lookup cache */
-  block_map_.Put(bottom_block->start_offset, bottom_block);
+  dex_pc_to_block_map_.Put(bottom_block->start_offset, bottom_block->id);
 
   /* Handle the taken path */
   bottom_block->taken = orig_block->taken;
@@ -196,6 +197,23 @@ BasicBlock* MIRGraph::SplitBlock(unsigned int code_offset,
     DCHECK_EQ(*immed_pred_block_p, orig_block);
     *immed_pred_block_p = bottom_block;
   }
+
+  // Associate dex instructions in the bottom block with the new container.
+  MIR* p = bottom_block->first_mir_insn;
+  while (p != NULL) {
+    int opcode = p->dalvikInsn.opcode;
+    /*
+     * Some messiness here to ensure that we only enter real opcodes and only the
+     * first half of a potentially throwing instruction that has been split into
+     * CHECK and work portions.  The 2nd half of a split operation will have a non-null
+     * throw_insn pointer that refers to the 1st half.
+     */
+    if ((opcode == kMirOpCheck) || (!IsPseudoMirOp(opcode) && (p->meta.throw_insn == NULL))) {
+      dex_pc_to_block_map_.Put(p->offset, bottom_block->id);
+    }
+    p = (p == bottom_block->last_mir_insn) ? NULL : p->next;
+  }
+
   return bottom_block;
 }
 
@@ -209,38 +227,36 @@ BasicBlock* MIRGraph::SplitBlock(unsigned int code_offset,
  */
 BasicBlock* MIRGraph::FindBlock(unsigned int code_offset, bool split, bool create,
                                 BasicBlock** immed_pred_block_p) {
-  BasicBlock* bb;
-  unsigned int i;
-
   if (code_offset >= cu_->code_item->insns_size_in_code_units_) {
     return NULL;
   }
-  bb = block_map_.Get(code_offset);
-  if ((bb != NULL) || !create) {
+
+  int block_id = dex_pc_to_block_map_.Get(code_offset);
+  BasicBlock* bb = (block_id == 0) ? NULL : block_list_.Get(block_id);
+
+  if ((bb != NULL) && (bb->start_offset == code_offset)) {
+    // Does this containing block start with the desired instruction?
     return bb;
   }
 
-  if (split) {
-    for (i = block_list_.Size(); i > 0; i--) {
-      bb = block_list_.Get(i - 1);
-      if (bb->block_type != kDalvikByteCode) continue;
-      /* Check if a branch jumps into the middle of an existing block */
-      if ((code_offset > bb->start_offset) && (bb->last_mir_insn != NULL) &&
-          (code_offset <= bb->last_mir_insn->offset)) {
-        BasicBlock *new_bb = SplitBlock(code_offset, bb, bb == *immed_pred_block_p ?
-                                       immed_pred_block_p : NULL);
-        return new_bb;
-      }
-    }
+  // No direct hit.
+  if (!create) {
+    return NULL;
   }
 
-  /* Create a new one */
+  if (bb != NULL) {
+    // The target exists somewhere in an existing block.
+    return SplitBlock(code_offset, bb, bb == *immed_pred_block_p ?  immed_pred_block_p : NULL);
+  }
+
+  // Create a new block.
   bb = NewMemBB(kDalvikByteCode, num_blocks_++);
   block_list_.Insert(bb);
   bb->start_offset = code_offset;
-  block_map_.Put(bb->start_offset, bb);
+  dex_pc_to_block_map_.Put(bb->start_offset, bb->id);
   return bb;
 }
+
 
 /* Identify code range in try blocks and set up the empty catch blocks */
 void MIRGraph::ProcessTryCatchBlocks() {
@@ -307,6 +323,7 @@ BasicBlock* MIRGraph::ProcessCanBranch(BasicBlock* cur_block, MIR* insn, int cur
     default:
       LOG(FATAL) << "Unexpected opcode(" << insn->dalvikInsn.opcode << ") with kBranch set";
   }
+  CountBranch(target);
   BasicBlock *taken_block = FindBlock(target, /* split */ true, /* create */ true,
                                       /* immed_pred_block_p */ &cur_block);
   cur_block->taken = taken_block;
@@ -485,6 +502,9 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, int cur_
    * pseudo exception edge MIR.  Note also that this new block is
    * not automatically terminated after the work portion, and may
    * contain following instructions.
+   *
+   * Note also that the dex_pc_to_block_map_ entry for the potentially
+   * throwing instruction will refer to the original basic block.
    */
   BasicBlock *new_block = NewMemBB(kDalvikByteCode, num_blocks_++);
   block_list_.Insert(new_block);
@@ -518,8 +538,9 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
       current_code_item_->insns_ + current_code_item_->insns_size_in_code_units_;
 
   // TODO: need to rework expansion of block list & try_block_addr when inlining activated.
+  // TUNING: use better estimate of basic blocks for following resize.
   block_list_.Resize(block_list_.Size() + current_code_item_->insns_size_in_code_units_);
-  block_map_.SetSize(block_map_.Size() + current_code_item_->insns_size_in_code_units_);
+  dex_pc_to_block_map_.SetSize(dex_pc_to_block_map_.Size() + current_code_item_->insns_size_in_code_units_);
 
   // TODO: replace with explicit resize routine.  Using automatic extension side effect for now.
   try_block_addr_->SetBit(current_code_item_->insns_size_in_code_units_);
@@ -560,10 +581,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
   DCHECK_EQ(current_offset_, 0);
   cur_block->start_offset = current_offset_;
   block_list_.Insert(cur_block);
-  /* Add first block to the fast lookup cache */
-// FIXME: block map needs association with offset/method pair rather than just offset
-  block_map_.Put(cur_block->start_offset, cur_block);
-// FIXME: this needs to insert at the insert point rather than entry block.
+  // FIXME: this needs to insert at the insert point rather than entry block.
   entry_block_->fall_through = cur_block;
   cur_block->predecessors->Insert(entry_block_);
 
@@ -588,7 +606,6 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
     if (opcode_count_ != NULL) {
       opcode_count_[static_cast<int>(opcode)]++;
     }
-
 
     /* Possible simple method? */
     if (live_pattern) {
@@ -639,6 +656,9 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
     } else {
       AppendMIR(cur_block, insn);
     }
+
+    // Associate the starting dex_pc for this opcode with its containing basic block.
+    dex_pc_to_block_map_.Put(insn->offset, cur_block->id);
 
     code_ptr += width;
 

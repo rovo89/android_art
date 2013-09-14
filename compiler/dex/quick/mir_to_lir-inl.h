@@ -58,7 +58,8 @@ inline LIR* Mir2Lir::RawLIR(int dalvik_offset, int opcode, int op0,
   if ((opcode == kPseudoTargetLabel) || (opcode == kPseudoSafepointPC) ||
       (opcode == kPseudoExportedPC)) {
     // Always make labels scheduling barriers
-    insn->use_mask = insn->def_mask = ENCODE_ALL;
+    DCHECK(!insn->flags.use_def_invalid);
+    insn->u.m.use_mask = insn->u.m.def_mask = ENCODE_ALL;
   }
   return insn;
 }
@@ -141,20 +142,21 @@ inline void Mir2Lir::SetupRegMask(uint64_t* mask, int reg) {
 inline void Mir2Lir::SetupResourceMasks(LIR* lir) {
   int opcode = lir->opcode;
 
-  if (opcode <= 0) {
-    lir->use_mask = lir->def_mask = 0;
+  if ((opcode < 0) && (opcode != kPseudoBarrier)) {
+    lir->flags.fixup = kFixupLabel;
     return;
   }
 
   uint64_t flags = GetTargetInstFlags(opcode);
 
   if (flags & NEEDS_FIXUP) {
-    lir->flags.pcRelFixup = true;
+    // Note: target-specific setup may specialize the fixup kind.
+    lir->flags.fixup = kFixupLabel;
   }
 
   /* Get the starting size of the instruction's template */
   lir->flags.size = GetInsnSize(lir);
-
+  estimated_native_code_size_ += lir->flags.size;
   /* Set up the mask for resources that are updated */
   if (flags & (IS_LOAD | IS_STORE)) {
     /* Default to heap - will catch specialized classes later */
@@ -166,39 +168,44 @@ inline void Mir2Lir::SetupResourceMasks(LIR* lir) {
    * turn will trash everything.
    */
   if (flags & IS_BRANCH) {
-    lir->def_mask = lir->use_mask = ENCODE_ALL;
+    lir->u.m.def_mask = lir->u.m.use_mask = ENCODE_ALL;
     return;
   }
 
   if (flags & REG_DEF0) {
-    SetupRegMask(&lir->def_mask, lir->operands[0]);
+    SetupRegMask(&lir->u.m.def_mask, lir->operands[0]);
   }
 
   if (flags & REG_DEF1) {
-    SetupRegMask(&lir->def_mask, lir->operands[1]);
+    SetupRegMask(&lir->u.m.def_mask, lir->operands[1]);
   }
 
+  if (flags & REG_USE0) {
+    SetupRegMask(&lir->u.m.use_mask, lir->operands[0]);
+  }
+
+  if (flags & REG_USE1) {
+    SetupRegMask(&lir->u.m.use_mask, lir->operands[1]);
+  }
+
+  if (flags & REG_USE2) {
+    SetupRegMask(&lir->u.m.use_mask, lir->operands[2]);
+  }
+
+  if (flags & REG_USE3) {
+    SetupRegMask(&lir->u.m.use_mask, lir->operands[3]);
+  }
 
   if (flags & SETS_CCODES) {
-    lir->def_mask |= ENCODE_CCODE;
-  }
-
-  if (flags & (REG_USE0 | REG_USE1 | REG_USE2 | REG_USE3)) {
-    int i;
-
-    for (i = 0; i < 4; i++) {
-      if (flags & (1 << (kRegUse0 + i))) {
-        SetupRegMask(&lir->use_mask, lir->operands[i]);
-      }
-    }
+    lir->u.m.def_mask |= ENCODE_CCODE;
   }
 
   if (flags & USES_CCODES) {
-    lir->use_mask |= ENCODE_CCODE;
+    lir->u.m.use_mask |= ENCODE_CCODE;
   }
 
   // Handle target-specific actions
-  SetupTargetResourceMasks(lir);
+  SetupTargetResourceMasks(lir, flags);
 }
 
 inline art::Mir2Lir::RegisterInfo* Mir2Lir::GetRegInfo(int reg) {

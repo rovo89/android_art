@@ -71,9 +71,12 @@ class X86Mir2Lir : public Mir2Lir {
     void CompilerInitializeRegAlloc();
 
     // Required for target - miscellaneous.
+    void AssembleLIR();
+    int AssignInsnOffsets();
+    void AssignOffsets();
     AssemblerStatus AssembleInstructions(uintptr_t start_addr);
     void DumpResourceMask(LIR* lir, uint64_t mask, const char* prefix);
-    void SetupTargetResourceMasks(LIR* lir);
+    void SetupTargetResourceMasks(LIR* lir, uint64_t flags);
     const char* GetTargetInstFmt(int opcode);
     const char* GetTargetInstName(int opcode);
     std::string BuildInsnString(const char* fmt, LIR* lir, unsigned char* base_addr);

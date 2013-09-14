@@ -319,7 +319,18 @@ LIR* ArmMir2Lir::OpCmpImmBranch(ConditionCode cond, int reg, int check_value,
   LIR* branch;
   int mod_imm;
   ArmConditionCode arm_cond = ArmConditionEncoding(cond);
-  if ((ARM_LOWREG(reg)) && (check_value == 0) &&
+  /*
+   * A common use of OpCmpImmBranch is for null checks, and using the Thumb 16-bit
+   * compare-and-branch if zero is ideal if it will reach.  However, because null checks
+   * branch forward to a launch pad, they will frequently not reach - and thus have to
+   * be converted to a long form during assembly (which will trigger another assembly
+   * pass).  Here we estimate the branch distance for checks, and if large directly
+   * generate the long form in an attempt to avoid an extra assembly pass.
+   * TODO: consider interspersing launchpads in code following unconditional branches.
+   */
+  bool skip = ((target != NULL) && (target->opcode == kPseudoThrowTarget));
+  skip &= ((cu_->code_item->insns_size_in_code_units_ - current_dalvik_offset_) > 64);
+  if (!skip && (ARM_LOWREG(reg)) && (check_value == 0) &&
      ((arm_cond == kArmCondEq) || (arm_cond == kArmCondNe))) {
     branch = NewLIR2((arm_cond == kArmCondEq) ? kThumb2Cbz : kThumb2Cbnz,
                      reg, 0);
@@ -624,7 +635,7 @@ void ArmMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
       break;
   }
   LIR* dmb = NewLIR1(kThumb2Dmb, dmb_flavor);
-  dmb->def_mask = ENCODE_ALL;
+  dmb->u.m.def_mask = ENCODE_ALL;
 #endif
 }
 

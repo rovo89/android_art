@@ -90,7 +90,6 @@ LIR* ArmMir2Lir::LoadFPConstantValue(int r_dest, int value) {
   LIR* load_pc_rel = RawLIR(current_dalvik_offset_, kThumb2Vldrs,
                           r_dest, r15pc, 0, 0, 0, data_target);
   SetMemRefType(load_pc_rel, true, kLiteral);
-  load_pc_rel->alias_info = reinterpret_cast<uintptr_t>(data_target);
   AppendLIR(load_pc_rel);
   return load_pc_rel;
 }
@@ -626,7 +625,6 @@ LIR* ArmMir2Lir::LoadConstantWide(int r_dest_lo, int r_dest_hi, int64_t value) {
                    r_dest_lo, r_dest_hi, r15pc, 0, 0, data_target);
     }
     SetMemRefType(res, true, kLiteral);
-    res->alias_info = reinterpret_cast<uintptr_t>(data_target);
     AppendLIR(res);
   }
   return res;

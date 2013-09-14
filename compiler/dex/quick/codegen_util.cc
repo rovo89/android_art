@@ -45,9 +45,10 @@ bool Mir2Lir::IsInexpensiveConstant(RegLocation rl_src) {
 }
 
 void Mir2Lir::MarkSafepointPC(LIR* inst) {
-  inst->def_mask = ENCODE_ALL;
+  DCHECK(!inst->flags.use_def_invalid);
+  inst->u.m.def_mask = ENCODE_ALL;
   LIR* safepoint_pc = NewLIR0(kPseudoSafepointPC);
-  DCHECK_EQ(safepoint_pc->def_mask, ENCODE_ALL);
+  DCHECK_EQ(safepoint_pc->u.m.def_mask, ENCODE_ALL);
 }
 
 bool Mir2Lir::FastInstance(uint32_t field_idx, bool is_put, int* field_offset, bool* is_volatile) {
@@ -87,10 +88,11 @@ void Mir2Lir::SetMemRefType(LIR* lir, bool is_load, int mem_type) {
   uint64_t *mask_ptr;
   uint64_t mask = ENCODE_MEM;
   DCHECK(GetTargetInstFlags(lir->opcode) & (IS_LOAD | IS_STORE));
+  DCHECK(!lir->flags.use_def_invalid);
   if (is_load) {
-    mask_ptr = &lir->use_mask;
+    mask_ptr = &lir->u.m.use_mask;
   } else {
-    mask_ptr = &lir->def_mask;
+    mask_ptr = &lir->u.m.def_mask;
   }
   /* Clear out the memref flags */
   *mask_ptr &= ~mask;
@@ -127,7 +129,7 @@ void Mir2Lir::AnnotateDalvikRegAccess(LIR* lir, int reg_id, bool is_load,
    * Store the Dalvik register id in alias_info. Mark the MSB if it is a 64-bit
    * access.
    */
-  lir->alias_info = ENCODE_ALIAS_INFO(reg_id, is64bit);
+  lir->flags.alias_info = ENCODE_ALIAS_INFO(reg_id, is64bit);
 }
 
 /*
@@ -213,11 +215,11 @@ void Mir2Lir::DumpLIRInsn(LIR* lir, unsigned char* base_addr) {
       break;
   }
 
-  if (lir->use_mask && (!lir->flags.is_nop || dump_nop)) {
-    DUMP_RESOURCE_MASK(DumpResourceMask(lir, lir->use_mask, "use"));
+  if (lir->u.m.use_mask && (!lir->flags.is_nop || dump_nop)) {
+    DUMP_RESOURCE_MASK(DumpResourceMask(lir, lir->u.m.use_mask, "use"));
   }
-  if (lir->def_mask && (!lir->flags.is_nop || dump_nop)) {
-    DUMP_RESOURCE_MASK(DumpResourceMask(lir, lir->def_mask, "def"));
+  if (lir->u.m.def_mask && (!lir->flags.is_nop || dump_nop)) {
+    DUMP_RESOURCE_MASK(DumpResourceMask(lir, lir->u.m.def_mask, "def"));
   }
 }
 
@@ -348,6 +350,7 @@ LIR* Mir2Lir::AddWordData(LIR* *constant_list_p, int value) {
     new_value->operands[0] = value;
     new_value->next = *constant_list_p;
     *constant_list_p = new_value;
+    estimated_native_code_size_ += sizeof(value);
     return new_value;
   }
   return NULL;
@@ -431,6 +434,7 @@ void Mir2Lir::InstallSwitchTables() {
     int bx_offset = INVALID_OFFSET;
     switch (cu_->instruction_set) {
       case kThumb2:
+        DCHECK(tab_rec->anchor->flags.fixup != kFixupNone);
         bx_offset = tab_rec->anchor->offset + 4;
         break;
       case kX86:
@@ -714,111 +718,29 @@ int Mir2Lir::AssignFillArrayDataOffset(int offset) {
   return offset;
 }
 
-// LIR offset assignment.
-int Mir2Lir::AssignInsnOffsets() {
-  LIR* lir;
-  int offset = 0;
-
-  for (lir = first_lir_insn_; lir != NULL; lir = NEXT_LIR(lir)) {
-    lir->offset = offset;
-    if (LIKELY(lir->opcode >= 0)) {
-      if (!lir->flags.is_nop) {
-        offset += lir->flags.size;
-      }
-    } else if (UNLIKELY(lir->opcode == kPseudoPseudoAlign4)) {
-      if (offset & 0x2) {
-        offset += 2;
-        lir->operands[0] = 1;
-      } else {
-        lir->operands[0] = 0;
-      }
-    }
-    /* Pseudo opcodes don't consume space */
-  }
-  return offset;
-}
-
-/*
- * Walk the compilation unit and assign offsets to instructions
- * and literals and compute the total size of the compiled unit.
- */
-void Mir2Lir::AssignOffsets() {
-  int offset = AssignInsnOffsets();
-
-  /* Const values have to be word aligned */
-  offset = (offset + 3) & ~3;
-
-  /* Set up offsets for literals */
-  data_offset_ = offset;
-
-  offset = AssignLiteralOffset(offset);
-
-  offset = AssignSwitchTablesOffset(offset);
-
-  offset = AssignFillArrayDataOffset(offset);
-
-  total_size_ = offset;
-}
-
-/*
- * Go over each instruction in the list and calculate the offset from the top
- * before sending them off to the assembler. If out-of-range branch distance is
- * seen rearrange the instructions a bit to correct it.
- */
-void Mir2Lir::AssembleLIR() {
-  AssignOffsets();
-  int assembler_retries = 0;
-  /*
-   * Assemble here.  Note that we generate code with optimistic assumptions
-   * and if found now to work, we'll have to redo the sequence and retry.
-   */
-
-  while (true) {
-    AssemblerStatus res = AssembleInstructions(0);
-    if (res == kSuccess) {
-      break;
-    } else {
-      assembler_retries++;
-      if (assembler_retries > MAX_ASSEMBLER_RETRIES) {
-        CodegenDump();
-        LOG(FATAL) << "Assembler error - too many retries";
-      }
-      // Redo offsets and try again
-      AssignOffsets();
-      code_buffer_.clear();
-    }
-  }
-
-  // Install literals
-  InstallLiteralPools();
-
-  // Install switch tables
-  InstallSwitchTables();
-
-  // Install fill array data
-  InstallFillArrayData();
-
-  // Create the mapping table and native offset to reference map.
-  CreateMappingTables();
-
-  CreateNativeGcMap();
-}
-
 /*
  * Insert a kPseudoCaseLabel at the beginning of the Dalvik
- * offset vaddr.  This label will be used to fix up the case
+ * offset vaddr if pretty-printing, otherise use the standard block
+ * label.  The selected label will be used to fix up the case
  * branch table during the assembly phase.  All resource flags
  * are set to prevent code motion.  KeyVal is just there for debugging.
  */
 LIR* Mir2Lir::InsertCaseLabel(int vaddr, int keyVal) {
   LIR* boundary_lir = &block_label_list_[mir_graph_->FindBlock(vaddr)->id];
-  LIR* new_label = static_cast<LIR*>(arena_->Alloc(sizeof(LIR), ArenaAllocator::kAllocLIR));
-  new_label->dalvik_offset = vaddr;
-  new_label->opcode = kPseudoCaseLabel;
-  new_label->operands[0] = keyVal;
-  new_label->def_mask = ENCODE_ALL;
-  InsertLIRAfter(boundary_lir, new_label);
-  return new_label;
+  LIR* res = boundary_lir;
+  if (cu_->verbose) {
+    // Only pay the expense if we're pretty-printing.
+    LIR* new_label = static_cast<LIR*>(arena_->Alloc(sizeof(LIR), ArenaAllocator::kAllocLIR));
+    new_label->dalvik_offset = vaddr;
+    new_label->opcode = kPseudoCaseLabel;
+    new_label->operands[0] = keyVal;
+    new_label->flags.fixup = kFixupLabel;
+    DCHECK(!new_label->flags.use_def_invalid);
+    new_label->u.m.def_mask = ENCODE_ALL;
+    InsertLIRAfter(boundary_lir, new_label);
+    res = new_label;
+  }
+  return res;
 }
 
 void Mir2Lir::MarkPackedCaseLabels(Mir2Lir::SwitchTable *tab_rec) {
@@ -951,6 +873,7 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       literal_list_(NULL),
       method_literal_list_(NULL),
       code_literal_list_(NULL),
+      first_fixup_(NULL),
       cu_(cu),
       mir_graph_(mir_graph),
       switch_tables_(arena, 4, kGrowableArraySwitchTables),
@@ -964,6 +887,7 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       total_size_(0),
       block_label_list_(NULL),
       current_dalvik_offset_(0),
+      estimated_native_code_size_(0),
       reg_pool_(NULL),
       live_sreg_(0),
       num_core_spills_(0),

@@ -70,9 +70,14 @@ class ArmMir2Lir : public Mir2Lir {
     void CompilerInitializeRegAlloc();
 
     // Required for target - miscellaneous.
+    void AssembleLIR();
+    uint32_t EncodeRange(LIR* head_lir, LIR* tail_lir, uint32_t starting_offset);
+    int AssignInsnOffsets();
+    void AssignOffsets();
     AssemblerStatus AssembleInstructions(uintptr_t start_addr);
+    void EncodeLIR(LIR* lir);
     void DumpResourceMask(LIR* lir, uint64_t mask, const char* prefix);
-    void SetupTargetResourceMasks(LIR* lir);
+    void SetupTargetResourceMasks(LIR* lir, uint64_t flags);
     const char* GetTargetInstFmt(int opcode);
     const char* GetTargetInstName(int opcode);
     std::string BuildInsnString(const char* fmt, LIR* lir, unsigned char* base_addr);
@@ -187,6 +192,9 @@ class ArmMir2Lir : public Mir2Lir {
     MIR* SpecialIdentity(MIR* mir);
     LIR* LoadFPConstantValue(int r_dest, int value);
     bool BadOverlap(RegLocation rl_src, RegLocation rl_dest);
+    void ReplaceFixup(LIR* prev_lir, LIR* orig_lir, LIR* new_lir);
+    void InsertFixupBefore(LIR* prev_lir, LIR* orig_lir, LIR* new_lir);
+    void AssignDataOffsets();
 };
 
 }  // namespace art

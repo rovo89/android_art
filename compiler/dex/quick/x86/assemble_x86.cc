@@ -1174,7 +1174,7 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(uintptr_t start_addr) {
       continue;
     }
 
-    if (lir->flags.pcRelFixup) {
+    if (lir->flags.fixup != kFixupNone) {
       switch (lir->opcode) {
         case kX86Jcc8: {
           LIR *target_lir = lir->target;
@@ -1383,6 +1383,99 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(uintptr_t start_addr) {
         << "Instruction size mismatch for entry: " << X86Mir2Lir::EncodingMap[lir->opcode].name;
   }
   return res;
+}
+
+// LIR offset assignment.
+// TODO: consolidate w/ Arm assembly mechanism.
+int X86Mir2Lir::AssignInsnOffsets() {
+  LIR* lir;
+  int offset = 0;
+
+  for (lir = first_lir_insn_; lir != NULL; lir = NEXT_LIR(lir)) {
+    lir->offset = offset;
+    if (LIKELY(lir->opcode >= 0)) {
+      if (!lir->flags.is_nop) {
+        offset += lir->flags.size;
+      }
+    } else if (UNLIKELY(lir->opcode == kPseudoPseudoAlign4)) {
+      if (offset & 0x2) {
+        offset += 2;
+        lir->operands[0] = 1;
+      } else {
+        lir->operands[0] = 0;
+      }
+    }
+    /* Pseudo opcodes don't consume space */
+  }
+  return offset;
+}
+
+/*
+ * Walk the compilation unit and assign offsets to instructions
+ * and literals and compute the total size of the compiled unit.
+ * TODO: consolidate w/ Arm assembly mechanism.
+ */
+void X86Mir2Lir::AssignOffsets() {
+  int offset = AssignInsnOffsets();
+
+  /* Const values have to be word aligned */
+  offset = (offset + 3) & ~3;
+
+  /* Set up offsets for literals */
+  data_offset_ = offset;
+
+  offset = AssignLiteralOffset(offset);
+
+  offset = AssignSwitchTablesOffset(offset);
+
+  offset = AssignFillArrayDataOffset(offset);
+
+  total_size_ = offset;
+}
+
+/*
+ * Go over each instruction in the list and calculate the offset from the top
+ * before sending them off to the assembler. If out-of-range branch distance is
+ * seen rearrange the instructions a bit to correct it.
+ * TODO: consolidate w/ Arm assembly mechanism.
+ */
+void X86Mir2Lir::AssembleLIR() {
+  AssignOffsets();
+  int assembler_retries = 0;
+  /*
+   * Assemble here.  Note that we generate code with optimistic assumptions
+   * and if found now to work, we'll have to redo the sequence and retry.
+   */
+
+  while (true) {
+    AssemblerStatus res = AssembleInstructions(0);
+    if (res == kSuccess) {
+      break;
+    } else {
+      assembler_retries++;
+      if (assembler_retries > MAX_ASSEMBLER_RETRIES) {
+        CodegenDump();
+        LOG(FATAL) << "Assembler error - too many retries";
+      }
+      // Redo offsets and try again
+      AssignOffsets();
+      code_buffer_.clear();
+    }
+  }
+
+  // Install literals
+  InstallLiteralPools();
+
+  // Install switch tables
+  InstallSwitchTables();
+
+  // Install fill array data
+  InstallFillArrayData();
+
+  // Create the mapping table and native offset to reference map.
+  CreateMappingTables();
+
+  CreateNativeGcMap();
 }
 
 }  // namespace art

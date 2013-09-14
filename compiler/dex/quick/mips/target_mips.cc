@@ -120,22 +120,21 @@ uint64_t MipsMir2Lir::GetPCUseDefEncoding() {
 }
 
 
-void MipsMir2Lir::SetupTargetResourceMasks(LIR* lir) {
+void MipsMir2Lir::SetupTargetResourceMasks(LIR* lir, uint64_t flags) {
   DCHECK_EQ(cu_->instruction_set, kMips);
+  DCHECK(!lir->flags.use_def_invalid);
 
   // Mips-specific resource map setup here.
-  uint64_t flags = MipsMir2Lir::EncodingMap[lir->opcode].flags;
-
   if (flags & REG_DEF_SP) {
-    lir->def_mask |= ENCODE_MIPS_REG_SP;
+    lir->u.m.def_mask |= ENCODE_MIPS_REG_SP;
   }
 
   if (flags & REG_USE_SP) {
-    lir->use_mask |= ENCODE_MIPS_REG_SP;
+    lir->u.m.use_mask |= ENCODE_MIPS_REG_SP;
   }
 
   if (flags & REG_DEF_LR) {
-    lir->def_mask |= ENCODE_MIPS_REG_LR;
+    lir->u.m.def_mask |= ENCODE_MIPS_REG_LR;
   }
 }
 
@@ -269,8 +268,8 @@ void MipsMir2Lir::DumpResourceMask(LIR *mips_lir, uint64_t mask, const char *pre
     }
     /* Memory bits */
     if (mips_lir && (mask & ENCODE_DALVIK_REG)) {
-      sprintf(buf + strlen(buf), "dr%d%s", mips_lir->alias_info & 0xffff,
-              (mips_lir->alias_info & 0x80000000) ? "(+1)" : "");
+      sprintf(buf + strlen(buf), "dr%d%s", DECODE_ALIAS_INFO_REG(mips_lir->flags.alias_info),
+              DECODE_ALIAS_INFO_WIDE(mips_lir->flags.alias_info) ? "(+1)" : "");
     }
     if (mask & ENCODE_LITERAL) {
       strcat(buf, "lit ");
