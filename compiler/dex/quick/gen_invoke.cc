@@ -283,11 +283,28 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
         need_flush = true;
       }
 
-      // For wide args, force flush if only half is promoted
+      // For wide args, force flush if not fully promoted
       if (t_loc->wide) {
         PromotionMap* p_map = v_map + (t_loc->high_word ? -1 : +1);
+        // Is only half promoted?
         need_flush |= (p_map->core_location != v_map->core_location) ||
             (p_map->fp_location != v_map->fp_location);
+        if ((cu_->instruction_set == kThumb2) && t_loc->fp && !need_flush) {
+          /*
+           * In Arm, a double is represented as a pair of consecutive single float
+           * registers starting at an even number.  It's possible that both Dalvik vRegs
+           * representing the incoming double were independently promoted as singles - but
+           * not in a form usable as a double.  If so, we need to flush - even though the
+           * incoming arg appears fully in register.  At this point in the code, both
+           * halves of the double are promoted.  Make sure they are in a usable form.
+           */
+          int lowreg_index = start_vreg + i + (t_loc->high_word ? -1 : 0);
+          int low_reg = promotion_map_[lowreg_index].FpReg;
+          int high_reg = promotion_map_[lowreg_index + 1].FpReg;
+          if (((low_reg & 0x1) != 0) || (high_reg != (low_reg + 1))) {
+            need_flush = true;
+          }
+        }
       }
       if (need_flush) {
         StoreBaseDisp(TargetReg(kSp), SRegOffset(start_vreg + i),
