@@ -468,7 +468,7 @@ void Instrumentation::DexPcMovedEventImpl(Thread* thread, mirror::Object* this_o
 void Instrumentation::ExceptionCaughtEvent(Thread* thread, const ThrowLocation& throw_location,
                                            mirror::ArtMethod* catch_method,
                                            uint32_t catch_dex_pc,
-                                           mirror::Throwable* exception_object) {
+                                           mirror::Throwable* exception_object) const {
   if (have_exception_caught_listeners_) {
     DCHECK_EQ(thread->GetException(NULL), exception_object);
     thread->ClearException();

@@ -186,7 +186,7 @@ class Instrumentation {
   // Inform listeners that an exception was caught.
   void ExceptionCaughtEvent(Thread* thread, const ThrowLocation& throw_location,
                             mirror::ArtMethod* catch_method, uint32_t catch_dex_pc,
-                            mirror::Throwable* exception_object)
+                            mirror::Throwable* exception_object) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Called when an instrumented method is entered. The intended link register (lr) is saved so

@@ -25,9 +25,10 @@ namespace interpreter {
     if (UNLIKELY(self->TestAllFlags())) {                                                       \
       CheckSuspend(self);                                                                       \
     }                                                                                           \
+    Object* this_object = shadow_frame.GetThisObject(code_item->ins_size_);                     \
     uint32_t found_dex_pc = FindNextInstructionFollowingException(self, shadow_frame,           \
                                                                   inst->GetDexPc(insns),        \
-                                                                  this_object_ref,              \
+                                                                  this_object,                  \
                                                                   instrumentation);             \
     if (found_dex_pc == DexFile::kDexNoIndex) {                                                 \
       return JValue(); /* Handled in caller. */                                                 \
@@ -57,17 +58,12 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
     return JValue();
   }
   self->VerifyStack();
-  instrumentation::Instrumentation* const instrumentation = Runtime::Current()->GetInstrumentation();
-
-  // As the 'this' object won't change during the execution of current code, we
-  // want to cache it in local variables. Nevertheless, in order to let the
-  // garbage collector access it, we store it into sirt references.
-  SirtRef<Object> this_object_ref(self, shadow_frame.GetThisObject(code_item->ins_size_));
 
   uint32_t dex_pc = shadow_frame.GetDexPC();
+  const instrumentation::Instrumentation* const instrumentation = Runtime::Current()->GetInstrumentation();
   if (LIKELY(dex_pc == 0)) {  // We are entering the method as opposed to deoptimizing..
     if (UNLIKELY(instrumentation->HasMethodEntryListeners())) {
-      instrumentation->MethodEnterEvent(self, this_object_ref.get(),
+      instrumentation->MethodEnterEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                         shadow_frame.GetMethod(), 0);
     }
   }
@@ -77,7 +73,7 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
     dex_pc = inst->GetDexPc(insns);
     shadow_frame.SetDexPC(dex_pc);
     if (UNLIKELY(instrumentation->HasDexPcListeners())) {
-      instrumentation->DexPcMovedEvent(self, this_object_ref.get(),
+      instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                        shadow_frame.GetMethod(), dex_pc);
     }
     TraceExecution(shadow_frame, inst, dex_pc, mh);
@@ -176,7 +172,7 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
           CheckSuspend(self);
         }
         if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
-          instrumentation->MethodExitEvent(self, this_object_ref.get(),
+          instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
                                            result);
         }
@@ -190,7 +186,7 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
           CheckSuspend(self);
         }
         if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
-          instrumentation->MethodExitEvent(self, this_object_ref.get(),
+          instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
                                            result);
         }
@@ -205,7 +201,7 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
           CheckSuspend(self);
         }
         if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
-          instrumentation->MethodExitEvent(self, this_object_ref.get(),
+          instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
                                            result);
         }
@@ -219,7 +215,7 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
           CheckSuspend(self);
         }
         if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
-          instrumentation->MethodExitEvent(self, this_object_ref.get(),
+          instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
                                            result);
         }
@@ -234,7 +230,7 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
           CheckSuspend(self);
         }
         if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
-          instrumentation->MethodExitEvent(self, this_object_ref.get(),
+          instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
                                            result);
         }

@@ -445,24 +445,24 @@ static inline int32_t DoSparseSwitch(const Instruction* inst,
 static inline uint32_t FindNextInstructionFollowingException(Thread* self,
                                                              ShadowFrame& shadow_frame,
                                                              uint32_t dex_pc,
-                                                             SirtRef<Object>& this_object_ref,
-                                                             instrumentation::Instrumentation* instrumentation)
+                                                             mirror::Object* this_object,
+                                                             const instrumentation::Instrumentation* instrumentation)
     ALWAYS_INLINE;
 
 static inline uint32_t FindNextInstructionFollowingException(Thread* self,
                                                              ShadowFrame& shadow_frame,
                                                              uint32_t dex_pc,
-                                                             SirtRef<Object>& this_object_ref,
-                                                             instrumentation::Instrumentation* instrumentation)
+                                                             mirror::Object* this_object,
+                                                             const instrumentation::Instrumentation* instrumentation)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   self->VerifyStack();
   ThrowLocation throw_location;
   mirror::Throwable* exception = self->GetException(&throw_location);
-  bool clear_exception;
+  bool clear_exception = false;
   uint32_t found_dex_pc = shadow_frame.GetMethod()->FindCatchBlock(exception->GetClass(), dex_pc,
                                                                    &clear_exception);
   if (found_dex_pc == DexFile::kDexNoIndex) {
-    instrumentation->MethodUnwindEvent(self, this_object_ref.get(),
+    instrumentation->MethodUnwindEvent(self, this_object,
                                        shadow_frame.GetMethod(), dex_pc);
   } else {
     instrumentation->ExceptionCaughtEvent(self, throw_location,
