@@ -231,7 +231,7 @@ class ClassLinker {
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void VisitRoots(RootVisitor* visitor, void* arg, bool clean_dirty)
+  void VisitRoots(RootVisitor* visitor, void* arg, bool only_dirty, bool clean_dirty)
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_, dex_lock_);
 
   mirror::DexCache* FindDexCache(const DexFile& dex_file) const
@@ -334,14 +334,6 @@ class ClassLinker {
 
   pid_t GetClassesLockOwner();  // For SignalCatcher.
   pid_t GetDexLockOwner();  // For SignalCatcher.
-
-  bool IsDirty() const {
-    return is_dirty_;
-  }
-
-  void Dirty() {
-    is_dirty_ = true;
-  }
 
   const void* GetPortableResolutionTrampoline() const {
     return portable_resolution_trampoline_;
@@ -617,7 +609,8 @@ class ClassLinker {
   mirror::IfTable* array_iftable_;
 
   bool init_done_;
-  bool is_dirty_;
+  bool dex_caches_dirty_ GUARDED_BY(dex_lock_);
+  bool class_table_dirty_ GUARDED_BY(Locks::classlinker_classes_lock_);
 
   InternTable* intern_table_;
 

@@ -64,10 +64,9 @@ inline void CardTable::Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_en
   byte* aligned_end = card_end -
       (reinterpret_cast<uintptr_t>(card_end) & (sizeof(uintptr_t) - 1));
 
-  // Now we have the words, we can send these to be processed in parallel.
-  uintptr_t* word_cur = reinterpret_cast<uintptr_t*>(card_cur);
   uintptr_t* word_end = reinterpret_cast<uintptr_t*>(aligned_end);
-  for (;;) {
+  for (uintptr_t* word_cur = reinterpret_cast<uintptr_t*>(card_cur); word_cur < word_end;
+      ++word_cur) {
     while (LIKELY(*word_cur == 0)) {
       ++word_cur;
       if (UNLIKELY(word_cur >= word_end)) {
@@ -78,6 +77,8 @@ inline void CardTable::Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_en
     // Find the first dirty card.
     uintptr_t start_word = *word_cur;
     uintptr_t start = reinterpret_cast<uintptr_t>(AddrFromCard(reinterpret_cast<byte*>(word_cur)));
+    // TODO: Investigate if processing continuous runs of dirty cards with a single bitmap visit is
+    // more efficient.
     for (size_t i = 0; i < sizeof(uintptr_t); ++i) {
       if (static_cast<byte>(start_word) >= minimum_age) {
         auto* card = reinterpret_cast<byte*>(word_cur) + i;
@@ -88,7 +89,6 @@ inline void CardTable::Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_en
       start_word >>= 8;
       start += kCardSize;
     }
-    ++word_cur;
   }
   exit_for:
 
