@@ -62,14 +62,9 @@ class InternTable {
 
   size_t Size() const;
 
-  void VisitRoots(RootVisitor* visitor, void* arg, bool clean_dirty);
+  void VisitRoots(RootVisitor* visitor, void* arg, bool only_dirty, bool clean_dirty);
 
   void DumpForSigQuit(std::ostream& os) const;
-
-  bool IsDirty() const { return is_dirty_; }
-  void Dirty() {
-    is_dirty_ = true;
-  }
 
  private:
   typedef std::multimap<int32_t, mirror::String*> Table;
@@ -83,7 +78,7 @@ class InternTable {
   void Remove(Table& table, const mirror::String* s, uint32_t hash_code);
 
   mutable Mutex intern_table_lock_;
-  bool is_dirty_;
+  bool is_dirty_ GUARDED_BY(intern_table_lock_);
   Table strong_interns_ GUARDED_BY(intern_table_lock_);
   Table weak_interns_ GUARDED_BY(intern_table_lock_);
 };

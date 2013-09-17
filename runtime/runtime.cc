@@ -1132,12 +1132,8 @@ void Runtime::DetachCurrentThread() {
 
 void Runtime::VisitConcurrentRoots(RootVisitor* visitor, void* arg, bool only_dirty,
                                    bool clean_dirty) {
-  if (!only_dirty || intern_table_->IsDirty()) {
-    intern_table_->VisitRoots(visitor, arg, clean_dirty);
-  }
-  if (!only_dirty || class_linker_->IsDirty()) {
-    class_linker_->VisitRoots(visitor, arg, clean_dirty);
-  }
+  intern_table_->VisitRoots(visitor, arg, only_dirty, clean_dirty);
+  class_linker_->VisitRoots(visitor, arg, only_dirty, clean_dirty);
 }
 
 void Runtime::VisitNonThreadRoots(RootVisitor* visitor, void* arg) {
