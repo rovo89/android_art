@@ -42,13 +42,15 @@ void InternTable::DumpForSigQuit(std::ostream& os) const {
 }
 
 void InternTable::VisitRoots(RootVisitor* visitor, void* arg,
-                             bool clean_dirty) {
+                             bool only_dirty, bool clean_dirty) {
   MutexLock mu(Thread::Current(), intern_table_lock_);
-  for (const auto& strong_intern : strong_interns_) {
-    visitor(strong_intern.second, arg);
-  }
-  if (clean_dirty) {
-    is_dirty_ = false;
+  if (!only_dirty || is_dirty_) {
+    for (const auto& strong_intern : strong_interns_) {
+      visitor(strong_intern.second, arg);
+    }
+    if (clean_dirty) {
+      is_dirty_ = false;
+    }
   }
   // Note: we deliberately don't visit the weak_interns_ table and the immutable
   // image roots.
@@ -123,7 +125,7 @@ mirror::String* InternTable::Insert(mirror::String* s, bool is_strong) {
     }
 
     // Mark as dirty so that we rescan the roots.
-    Dirty();
+    is_dirty_ = true;
 
     // Check the image for a match.
     mirror::String* image = LookupStringFromImage(s);

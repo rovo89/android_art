@@ -192,7 +192,8 @@ ClassLinker::ClassLinker(InternTable* intern_table)
       class_roots_(NULL),
       array_iftable_(NULL),
       init_done_(false),
-      is_dirty_(false),
+      dex_caches_dirty_(false),
+      class_table_dirty_(false),
       intern_table_(intern_table),
       portable_resolution_trampoline_(NULL),
       quick_resolution_trampoline_(NULL) {
@@ -1088,20 +1089,30 @@ void ClassLinker::InitFromImage() {
 // Keep in sync with InitCallback. Anything we visit, we need to
 // reinit references to when reinitializing a ClassLinker from a
 // mapped image.
-void ClassLinker::VisitRoots(RootVisitor* visitor, void* arg, bool clean_dirty) {
+void ClassLinker::VisitRoots(RootVisitor* visitor, void* arg, bool only_dirty, bool clean_dirty) {
   visitor(class_roots_, arg);
   Thread* self = Thread::Current();
   {
     ReaderMutexLock mu(self, dex_lock_);
-    for (mirror::DexCache* dex_cache : dex_caches_) {
-      visitor(dex_cache, arg);
+    if (!only_dirty || dex_caches_dirty_) {
+      for (mirror::DexCache* dex_cache : dex_caches_) {
+        visitor(dex_cache, arg);
+      }
+      if (clean_dirty) {
+        dex_caches_dirty_ = false;
+      }
     }
   }
 
   {
     ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);
-    for (const std::pair<size_t, mirror::Class*>& it : class_table_) {
-      visitor(it.second, arg);
+    if (!only_dirty || class_table_dirty_) {
+      for (const std::pair<size_t, mirror::Class*>& it : class_table_) {
+        visitor(it.second, arg);
+      }
+      if (clean_dirty) {
+        class_table_dirty_ = false;
+      }
     }
 
     // We deliberately ignore the class roots in the image since we
@@ -1109,9 +1120,6 @@ void ClassLinker::VisitRoots(RootVisitor* visitor, void* arg, bool clean_dirty) 
   }
 
   visitor(array_iftable_, arg);
-  if (clean_dirty) {
-    is_dirty_ = false;
-  }
 }
 
 void ClassLinker::VisitClasses(ClassVisitor* visitor, void* arg) {
@@ -1928,7 +1936,7 @@ void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file, SirtRef<mirror:
   CHECK(dex_cache->GetLocation()->Equals(dex_file.GetLocation()));
   dex_caches_.push_back(dex_cache.get());
   dex_cache->SetDexFile(&dex_file);
-  Dirty();
+  dex_caches_dirty_ = true;
 }
 
 void ClassLinker::RegisterDexFile(const DexFile& dex_file) {
@@ -2203,7 +2211,7 @@ mirror::Class* ClassLinker::InsertClass(const char* descriptor, mirror::Class* k
   }
   Runtime::Current()->GetHeap()->VerifyObject(klass);
   class_table_.insert(std::make_pair(hash, klass));
-  Dirty();
+  class_table_dirty_ = true;
   return NULL;
 }
 
@@ -2316,7 +2324,7 @@ void ClassLinker::MoveImageClassesToClassTable() {
       }
     }
   }
-  Dirty();
+  class_table_dirty_ = true;
   dex_cache_image_class_lookup_required_ = false;
   self->EndAssertNoThreadSuspension(old_no_suspend_cause);
 }
