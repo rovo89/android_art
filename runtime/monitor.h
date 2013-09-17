@@ -103,6 +103,7 @@ class Monitor {
   static bool IsValidLockWord(int32_t lock_word);
 
   mirror::Object* GetObject();
+  void SetObject(mirror::Object* object);
 
  private:
   explicit Monitor(Thread* owner, mirror::Object* obj)
@@ -159,7 +160,7 @@ class Monitor {
   int lock_count_ GUARDED_BY(monitor_lock_);
 
   // What object are we part of (for debugging).
-  mirror::Object* const obj_;
+  mirror::Object* obj_;
 
   // Threads currently waiting on this monitor.
   Thread* wait_set_ GUARDED_BY(monitor_lock_);
@@ -183,8 +184,7 @@ class MonitorList {
 
   void Add(Monitor* m);
 
-  void SweepMonitorList(IsMarkedTester is_marked, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  void SweepMonitorList(RootVisitor visitor, void* arg);
 
  private:
   Mutex monitor_list_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;

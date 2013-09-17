@@ -89,6 +89,8 @@ struct JavaVMExt : public JavaVM {
 
   void SetCheckJniEnabled(bool enabled);
 
+  void SweepJniWeakGlobals(RootVisitor visitor, void* arg);
+
   void VisitRoots(RootVisitor*, void*);
 
   Runtime* runtime;

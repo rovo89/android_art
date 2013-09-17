@@ -3217,6 +3217,18 @@ void* JavaVMExt::FindCodeForNativeMethod(ArtMethod* m) {
   return native_method;
 }
 
+void JavaVMExt::SweepJniWeakGlobals(RootVisitor visitor, void* arg) {
+  WriterMutexLock mu(Thread::Current(), weak_globals_lock);
+  for (mirror::Object** entry : weak_globals) {
+    mirror::Object* obj = *entry;
+    mirror::Object* new_obj = visitor(obj, arg);
+    if (new_obj == nullptr) {
+      new_obj = kClearedJniWeakGlobal;
+    }
+    *entry = new_obj;
+  }
+}
+
 void JavaVMExt::VisitRoots(RootVisitor* visitor, void* arg) {
   Thread* self = Thread::Current();
   {

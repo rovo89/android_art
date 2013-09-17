@@ -319,6 +319,12 @@ size_t ParseIntegerOrDie(const std::string& s) {
   return result;
 }
 
+void Runtime::SweepSystemWeaks(RootVisitor* visitor, void* arg) {
+  GetInternTable()->SweepInternTableWeaks(visitor, arg);
+  GetMonitorList()->SweepMonitorList(visitor, arg);
+  GetJavaVM()->SweepJniWeakGlobals(visitor, arg);
+}
+
 Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, bool ignore_unrecognized) {
   UniquePtr<ParsedOptions> parsed(new ParsedOptions());
   const char* boot_class_path_string = getenv("BOOTCLASSPATH");

@@ -317,6 +317,10 @@ class Runtime {
   void VisitNonConcurrentRoots(RootVisitor* visitor, void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Sweep system weaks, the system weak is deleted if the visitor return nullptr. Otherwise, the
+  // system weak is updated to be the visitor's returned value.
+  void SweepSystemWeaks(RootVisitor* visitor, void* arg);
+
   // Returns a special method that calls into a trampoline for runtime method resolution
   mirror::ArtMethod* GetResolutionMethod() const {
     CHECK(HasResolutionMethod());

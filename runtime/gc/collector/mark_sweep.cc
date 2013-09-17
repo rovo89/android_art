@@ -944,10 +944,12 @@ void MarkSweep::RecursiveMark() {
   ProcessMarkStack(false);
 }
 
-bool MarkSweep::IsMarkedCallback(const Object* object, void* arg) {
-  return
-      reinterpret_cast<MarkSweep*>(arg)->IsMarked(object) ||
-      !reinterpret_cast<MarkSweep*>(arg)->GetHeap()->GetLiveBitmap()->Test(object);
+mirror::Object* MarkSweep::SystemWeakIsMarkedCallback(Object* object, void* arg) {
+  if (reinterpret_cast<MarkSweep*>(arg)->IsMarked(object) ||
+      !reinterpret_cast<MarkSweep*>(arg)->GetHeap()->GetLiveBitmap()->Test(object)) {
+    return object;
+  }
+  return nullptr;
 }
 
 void MarkSweep::RecursiveMarkDirtyObjects(bool paused, byte minimum_age) {
@@ -961,29 +963,22 @@ void MarkSweep::ReMarkRoots() {
   timings_.EndSplit();
 }
 
-void MarkSweep::SweepJniWeakGlobals(IsMarkedTester is_marked, void* arg) {
-  JavaVMExt* vm = Runtime::Current()->GetJavaVM();
-  WriterMutexLock mu(Thread::Current(), vm->weak_globals_lock);
-  for (Object** entry : vm->weak_globals) {
-    if (!is_marked(*entry, arg)) {
-      *entry = kClearedJniWeakGlobal;
-    }
-  }
-}
-
 struct ArrayMarkedCheck {
   accounting::ObjectStack* live_stack;
   MarkSweep* mark_sweep;
 };
 
 // Either marked or not live.
-bool MarkSweep::IsMarkedArrayCallback(const Object* object, void* arg) {
+mirror::Object* MarkSweep::SystemWeakIsMarkedArrayCallback(Object* object, void* arg) {
   ArrayMarkedCheck* array_check = reinterpret_cast<ArrayMarkedCheck*>(arg);
   if (array_check->mark_sweep->IsMarked(object)) {
-    return true;
+    return object;
   }
   accounting::ObjectStack* live_stack = array_check->live_stack;
-  return std::find(live_stack->Begin(), live_stack->End(), object) == live_stack->End();
+  if (std::find(live_stack->Begin(), live_stack->End(), object) == live_stack->End()) {
+    return object;
+  }
+  return nullptr;
 }
 
 void MarkSweep::SweepSystemWeaksArray(accounting::ObjectStack* allocations) {
@@ -993,14 +988,11 @@ void MarkSweep::SweepSystemWeaksArray(accounting::ObjectStack* allocations) {
   // !IsMarked && IsLive
   // So compute !(!IsMarked && IsLive) which is equal to (IsMarked || !IsLive).
   // Or for swapped (IsLive || !IsMarked).
-
   timings_.StartSplit("SweepSystemWeaksArray");
   ArrayMarkedCheck visitor;
   visitor.live_stack = allocations;
   visitor.mark_sweep = this;
-  runtime->GetInternTable()->SweepInternTableWeaks(IsMarkedArrayCallback, &visitor);
-  runtime->GetMonitorList()->SweepMonitorList(IsMarkedArrayCallback, &visitor);
-  SweepJniWeakGlobals(IsMarkedArrayCallback, &visitor);
+  runtime->SweepSystemWeaks(SystemWeakIsMarkedArrayCallback, &visitor);
   timings_.EndSplit();
 }
 
@@ -1012,16 +1004,14 @@ void MarkSweep::SweepSystemWeaks() {
   // So compute !(!IsMarked && IsLive) which is equal to (IsMarked || !IsLive).
   // Or for swapped (IsLive || !IsMarked).
   timings_.StartSplit("SweepSystemWeaks");
-  runtime->GetInternTable()->SweepInternTableWeaks(IsMarkedCallback, this);
-  runtime->GetMonitorList()->SweepMonitorList(IsMarkedCallback, this);
-  SweepJniWeakGlobals(IsMarkedCallback, this);
+  runtime->SweepSystemWeaks(SystemWeakIsMarkedCallback, this);
   timings_.EndSplit();
 }
 
-bool MarkSweep::VerifyIsLiveCallback(const Object* obj, void* arg) {
+mirror::Object* MarkSweep::VerifySystemWeakIsLiveCallback(Object* obj, void* arg) {
   reinterpret_cast<MarkSweep*>(arg)->VerifyIsLive(obj);
   // We don't actually want to sweep the object, so lets return "marked"
-  return true;
+  return obj;
 }
 
 void MarkSweep::VerifyIsLive(const Object* obj) {
@@ -1040,16 +1030,8 @@ void MarkSweep::VerifyIsLive(const Object* obj) {
 }
 
 void MarkSweep::VerifySystemWeaks() {
-  Runtime* runtime = Runtime::Current();
-  // Verify system weaks, uses a special IsMarked callback which always returns true.
-  runtime->GetInternTable()->SweepInternTableWeaks(VerifyIsLiveCallback, this);
-  runtime->GetMonitorList()->SweepMonitorList(VerifyIsLiveCallback, this);
-
-  JavaVMExt* vm = runtime->GetJavaVM();
-  ReaderMutexLock mu(Thread::Current(), vm->weak_globals_lock);
-  for (Object** entry : vm->weak_globals) {
-    VerifyIsLive(*entry);
-  }
+  // Verify system weaks, uses a special object visitor which returns the input object.
+  Runtime::Current()->SweepSystemWeaks(VerifySystemWeakIsLiveCallback, this);
 }
 
 struct SweepCallbackContext {
