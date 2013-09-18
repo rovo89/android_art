@@ -779,7 +779,7 @@ bool Runtime::InitZygote() {
   const char* target_base = getenv("EMULATED_STORAGE_TARGET");
   if (target_base != NULL) {
     if (mount("tmpfs", target_base, "tmpfs", MS_NOSUID | MS_NODEV,
-              "uid=0,gid=1028,mode=0050") == -1) {
+              "uid=0,gid=1028,mode=0751") == -1) {
       LOG(WARNING) << "Failed to mount tmpfs to " << target_base;
       return false;
     }
