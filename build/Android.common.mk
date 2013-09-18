@@ -82,7 +82,8 @@ ART_USE_PORTABLE_COMPILER := true
 endif
 
 LLVM_ROOT_PATH := external/llvm
-include $(LLVM_ROOT_PATH)/llvm.mk
+# Don't fail a dalvik minimal host build.
+-include $(LLVM_ROOT_PATH)/llvm.mk
 
 # Clang build.
 # ART_TARGET_CLANG := true
