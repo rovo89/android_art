@@ -1122,6 +1122,12 @@ AssemblerStatus ArmMir2Lir::AssembleInstructions(uintptr_t start_addr) {
           lir->operands[1] = 0;
           lir->target = 0;
           SetupResourceMasks(lir);
+          /*
+           * Because we just added this new instruction after the current one,
+           * advance lir so that this new instruction won't be checked for displacement
+           * overflow until the next pass (when its base offset will be properly established).
+           */
+          lir = new_inst;
           res = kRetryAll;
         } else {
           lir->operands[1] = delta >> 1;
