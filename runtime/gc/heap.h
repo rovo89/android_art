@@ -228,10 +228,13 @@ class Heap {
 
   // Returns true if the reference object has not yet been enqueued.
   bool IsEnqueuable(const mirror::Object* ref);
-  void EnqueueReference(mirror::Object* ref, mirror::Object** list) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void EnqueueReference(mirror::Object* ref, mirror::Object** list)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool IsEnqueued(mirror::Object* ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void EnqueuePendingReference(mirror::Object* ref, mirror::Object** list)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::Object* DequeuePendingReference(mirror::Object** list) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::Object* DequeuePendingReference(mirror::Object** list)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   MemberOffset GetReferencePendingNextOffset() {
     DCHECK_NE(reference_pendingNext_offset_.Uint32Value(), 0U);

@@ -1860,21 +1860,24 @@ void Heap::EnqueueReference(mirror::Object* ref, mirror::Object** cleared_refere
   EnqueuePendingReference(ref, cleared_reference_list);
 }
 
+bool Heap::IsEnqueued(mirror::Object* ref) {
+  // Since the references are stored as cyclic lists it means that once enqueued, the pending next
+  // will always be non-null.
+  return ref->GetFieldObject<mirror::Object*>(GetReferencePendingNextOffset(), false) != nullptr;
+}
+
 void Heap::EnqueuePendingReference(mirror::Object* ref, mirror::Object** list) {
   DCHECK(ref != NULL);
   DCHECK(list != NULL);
-  mirror::Object* pending =
-      ref->GetFieldObject<mirror::Object*>(reference_pendingNext_offset_, false);
-  if (pending == NULL) {
-    if (*list == NULL) {
-      ref->SetFieldObject(reference_pendingNext_offset_, ref, false);
-      *list = ref;
-    } else {
-      mirror::Object* head =
-          (*list)->GetFieldObject<mirror::Object*>(reference_pendingNext_offset_, false);
-      ref->SetFieldObject(reference_pendingNext_offset_, head, false);
-      (*list)->SetFieldObject(reference_pendingNext_offset_, ref, false);
-    }
+  if (*list == NULL) {
+    // 1 element cyclic queue, ie: Reference ref = ..; ref.pendingNext = ref;
+    ref->SetFieldObject(reference_pendingNext_offset_, ref, false);
+    *list = ref;
+  } else {
+    mirror::Object* head =
+        (*list)->GetFieldObject<mirror::Object*>(reference_pendingNext_offset_, false);
+    ref->SetFieldObject(reference_pendingNext_offset_, head, false);
+    (*list)->SetFieldObject(reference_pendingNext_offset_, ref, false);
   }
 }
 
