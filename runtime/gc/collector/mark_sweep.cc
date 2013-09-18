@@ -1342,18 +1342,28 @@ void MarkSweep::DelayReferenceReferent(mirror::Class* klass, Object* obj) {
     }
     Thread* self = Thread::Current();
     // TODO: Remove these locks, and use atomic stacks for storing references?
+    // We need to check that the references haven't already been enqueued since we can end up
+    // scanning the same reference multiple times due to dirty cards.
     if (klass->IsSoftReferenceClass()) {
       MutexLock mu(self, *heap_->GetSoftRefQueueLock());
-      heap_->EnqueuePendingReference(obj, &soft_reference_list_);
+      if (!heap_->IsEnqueued(obj)) {
+        heap_->EnqueuePendingReference(obj, &soft_reference_list_);
+      }
     } else if (klass->IsWeakReferenceClass()) {
       MutexLock mu(self, *heap_->GetWeakRefQueueLock());
-      heap_->EnqueuePendingReference(obj, &weak_reference_list_);
+      if (!heap_->IsEnqueued(obj)) {
+        heap_->EnqueuePendingReference(obj, &weak_reference_list_);
+      }
     } else if (klass->IsFinalizerReferenceClass()) {
       MutexLock mu(self, *heap_->GetFinalizerRefQueueLock());
-      heap_->EnqueuePendingReference(obj, &finalizer_reference_list_);
+      if (!heap_->IsEnqueued(obj)) {
+        heap_->EnqueuePendingReference(obj, &finalizer_reference_list_);
+      }
     } else if (klass->IsPhantomReferenceClass()) {
       MutexLock mu(self, *heap_->GetPhantomRefQueueLock());
-      heap_->EnqueuePendingReference(obj, &phantom_reference_list_);
+      if (!heap_->IsEnqueued(obj)) {
+        heap_->EnqueuePendingReference(obj, &phantom_reference_list_);
+      }
     } else {
       LOG(FATAL) << "Invalid reference type " << PrettyClass(klass)
                  << " " << std::hex << klass->GetAccessFlags();
@@ -1498,7 +1508,6 @@ inline bool MarkSweep::IsMarked(const Object* object) const
   }
   return heap_->GetMarkBitmap()->Test(object);
 }
-
 
 // Unlink the reference list clearing references objects with white
 // referents.  Cleared references registered to a reference queue are
