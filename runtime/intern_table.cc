@@ -197,14 +197,16 @@ bool InternTable::ContainsWeak(mirror::String* s) {
   return found == s;
 }
 
-void InternTable::SweepInternTableWeaks(IsMarkedTester is_marked, void* arg) {
+void InternTable::SweepInternTableWeaks(RootVisitor visitor, void* arg) {
   MutexLock mu(Thread::Current(), intern_table_lock_);
-  // TODO: std::remove_if + lambda.
   for (auto it = weak_interns_.begin(), end = weak_interns_.end(); it != end;) {
     mirror::Object* object = it->second;
-    if (!is_marked(object, arg)) {
+    mirror::Object* new_object = visitor(object, arg);
+    if (new_object == nullptr) {
+      // TODO: use it = weak_interns_.erase(it) when we get a c++11 stl.
       weak_interns_.erase(it++);
     } else {
+      it->second = down_cast<mirror::String*>(new_object);
       ++it;
     }
   }

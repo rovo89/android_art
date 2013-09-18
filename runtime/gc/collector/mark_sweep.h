@@ -208,7 +208,7 @@ class MarkSweep : public GarbageCollector {
   void SweepSystemWeaksArray(accounting::ObjectStack* allocations)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  static bool VerifyIsLiveCallback(const mirror::Object* obj, void* arg)
+  static mirror::Object* VerifySystemWeakIsLiveCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   void VerifySystemWeaks()
@@ -246,10 +246,10 @@ class MarkSweep : public GarbageCollector {
   // Returns true if the object has its bit set in the mark bitmap.
   bool IsMarked(const mirror::Object* object) const;
 
-  static bool IsMarkedCallback(const mirror::Object* object, void* arg)
+  static mirror::Object* SystemWeakIsMarkedCallback(mirror::Object* object, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  static bool IsMarkedArrayCallback(const mirror::Object* object, void* arg)
+  static mirror::Object* SystemWeakIsMarkedArrayCallback(mirror::Object* object, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   static void VerifyImageRootVisitor(mirror::Object* root, void* arg)
@@ -389,9 +389,6 @@ class MarkSweep : public GarbageCollector {
                          mirror::Object** phantom_references)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  void SweepJniWeakGlobals(IsMarkedTester is_marked, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Whether or not we count how many of each type of object were scanned.
   static const bool kCountScannedTypes = false;

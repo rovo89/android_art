@@ -194,6 +194,10 @@ mirror::Object* Monitor::GetObject() {
   return obj_;
 }
 
+void Monitor::SetObject(mirror::Object* object) {
+  obj_ = object;
+}
+
 void Monitor::Lock(Thread* self) {
   if (owner_ == self) {
     lock_count_++;
@@ -1001,15 +1005,19 @@ void MonitorList::Add(Monitor* m) {
   list_.push_front(m);
 }
 
-void MonitorList::SweepMonitorList(IsMarkedTester is_marked, void* arg) {
+void MonitorList::SweepMonitorList(RootVisitor visitor, void* arg) {
   MutexLock mu(Thread::Current(), monitor_list_lock_);
   for (auto it = list_.begin(); it != list_.end(); ) {
     Monitor* m = *it;
-    if (!is_marked(m->GetObject(), arg)) {
-      VLOG(monitor) << "freeing monitor " << m << " belonging to unmarked object " << m->GetObject();
+    mirror::Object* obj = m->GetObject();
+    mirror::Object* new_obj = visitor(obj, arg);
+    if (new_obj == nullptr) {
+      VLOG(monitor) << "freeing monitor " << m << " belonging to unmarked object "
+                    << m->GetObject();
       delete m;
       it = list_.erase(it);
     } else {
+      m->SetObject(new_obj);
       ++it;
     }
   }
