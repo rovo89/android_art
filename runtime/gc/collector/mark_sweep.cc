@@ -185,6 +185,7 @@ void MarkSweep::InitializePhase() {
 }
 
 void MarkSweep::ProcessReferences(Thread* self) {
+  base::TimingLogger::ScopedSplit split("ProcessReferences", &timings_);
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   ProcessReferences(&soft_reference_list_, clear_soft_references_, &weak_reference_list_,
                     &finalizer_reference_list_, &phantom_reference_list_);
@@ -206,6 +207,10 @@ bool MarkSweep::HandleDirtyObjectsPhase() {
   }
 
   ProcessReferences(self);
+  {
+    WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+    SweepSystemWeaks();
+  }
 
   // Only need to do this if we have the card mark verification on, and only during concurrent GC.
   if (GetHeap()->verify_missing_card_marks_) {
@@ -273,8 +278,9 @@ void MarkSweep::ReclaimPhase() {
   Thread* self = Thread::Current();
 
   if (!IsConcurrent()) {
-    base::TimingLogger::ScopedSplit split("ProcessReferences", &timings_);
     ProcessReferences(self);
+    WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+    SweepSystemWeaks();
   } else {
     base::TimingLogger::ScopedSplit split("UnMarkAllocStack", &timings_);
     accounting::ObjectStack* allocation_stack = GetHeap()->allocation_stack_.get();
@@ -945,8 +951,7 @@ void MarkSweep::RecursiveMark() {
 }
 
 mirror::Object* MarkSweep::SystemWeakIsMarkedCallback(Object* object, void* arg) {
-  if (reinterpret_cast<MarkSweep*>(arg)->IsMarked(object) ||
-      !reinterpret_cast<MarkSweep*>(arg)->GetHeap()->GetLiveBitmap()->Test(object)) {
+  if (reinterpret_cast<MarkSweep*>(arg)->IsMarked(object)) {
     return object;
   }
   return nullptr;
@@ -1112,10 +1117,6 @@ void MarkSweep::ZygoteSweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
 void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitmaps) {
   space::DlMallocSpace* space = heap_->GetAllocSpace();
 
-  // If we don't swap bitmaps then newly allocated Weaks go into the live bitmap but not mark
-  // bitmap, resulting in occasional frees of Weaks which are still in use.
-  SweepSystemWeaksArray(allocations);
-
   timings_.StartSplit("SweepArray");
   // Newly allocated objects MUST be in the alloc space and those are the only objects which we are
   // going to free.
@@ -1195,10 +1196,6 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
 void MarkSweep::Sweep(bool swap_bitmaps) {
   DCHECK(mark_stack_->IsEmpty());
   base::TimingLogger::ScopedSplit("Sweep", &timings_);
-
-  // If we don't swap bitmaps then newly allocated Weaks go into the live bitmap but not mark
-  // bitmap, resulting in occasional frees of Weaks which are still in use.
-  SweepSystemWeaks();
 
   const bool partial = (GetGcType() == kGcTypePartial);
   SweepCallbackContext scc;
