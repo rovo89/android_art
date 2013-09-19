@@ -61,7 +61,8 @@ void InvokeWithArgArray(const ScopedObjectAccess& soa, mirror::ArtMethod* method
 
 int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobject cause);
 
-struct JavaVMExt : public JavaVM {
+class JavaVMExt : public JavaVM {
+ public:
   JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options);
   ~JavaVMExt();
 
@@ -91,6 +92,15 @@ struct JavaVMExt : public JavaVM {
 
   void VisitRoots(RootVisitor*, void*);
 
+  void DisallowNewWeakGlobals() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void AllowNewWeakGlobals() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  jweak AddWeakGlobalReference(Thread* self, mirror::Object* obj)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void DeleteWeakGlobalRef(Thread* self, jweak obj)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SweepWeakGlobals(IsMarkedTester is_marked, void* arg);
+  mirror::Object* DecodeWeakGlobal(Thread* self, IndirectRef ref);
+
   Runtime* runtime;
 
   // Used for testing. By default, we'll LOG(FATAL) the reason.
@@ -115,15 +125,19 @@ struct JavaVMExt : public JavaVM {
   ReaderWriterMutex globals_lock DEFAULT_MUTEX_ACQUIRED_AFTER;
   IndirectReferenceTable globals GUARDED_BY(globals_lock);
 
-  // JNI weak global references.
-  ReaderWriterMutex weak_globals_lock DEFAULT_MUTEX_ACQUIRED_AFTER;
-  IndirectReferenceTable weak_globals GUARDED_BY(weak_globals_lock);
-
   Mutex libraries_lock DEFAULT_MUTEX_ACQUIRED_AFTER;
   Libraries* libraries GUARDED_BY(libraries_lock);
 
   // Used by -Xcheck:jni.
   const JNIInvokeInterface* unchecked_functions;
+
+ private:
+  // TODO: Make the other members of this class also private.
+  // JNI weak global references.
+  Mutex weak_globals_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  IndirectReferenceTable weak_globals_ GUARDED_BY(weak_globals_lock_);
+  bool allow_new_weak_globals_ GUARDED_BY(weak_globals_lock_);
+  ConditionVariable weak_globals_add_condition_ GUARDED_BY(weak_globals_lock_);
 };
 
 struct JNIEnvExt : public JNIEnv {
