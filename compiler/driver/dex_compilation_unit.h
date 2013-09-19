@@ -36,7 +36,7 @@ class DexCompilationUnit {
 
   DexCompilationUnit(CompilationUnit* cu, jobject class_loader, ClassLinker* class_linker,
                      const DexFile& dex_file, const DexFile::CodeItem* code_item,
-                     uint32_t class_def_idx, uint32_t method_idx, uint32_t access_flags);
+                     uint16_t class_def_idx, uint32_t method_idx, uint32_t access_flags);
 
   CompilationUnit* GetCompilationUnit() const {
     return cu_;
@@ -54,7 +54,7 @@ class DexCompilationUnit {
     return dex_file_;
   }
 
-  uint32_t GetClassDefIndex() const {
+  uint16_t GetClassDefIndex() const {
     return class_def_idx_;
   }
 
@@ -108,7 +108,7 @@ class DexCompilationUnit {
   const DexFile* const dex_file_;
 
   const DexFile::CodeItem* const code_item_;
-  const uint32_t class_def_idx_;
+  const uint16_t class_def_idx_;
   const uint32_t dex_method_idx_;
   const uint32_t access_flags_;
 

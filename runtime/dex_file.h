@@ -339,7 +339,7 @@ class DexFile {
   typedef std::vector<const DexFile*> ClassPath;
 
   // Search a collection of DexFiles for a descriptor
-  static ClassPathEntry FindInClassPath(const StringPiece& descriptor,
+  static ClassPathEntry FindInClassPath(const char* descriptor,
                                         const ClassPath& class_path);
 
   // Returns the checksum of a file for comparison with GetLocationChecksum().
@@ -375,10 +375,6 @@ class DexFile {
   uint32_t GetLocationChecksum() const {
     return location_checksum_;
   }
-
-  // Returns a com.android.dex.Dex object corresponding to the mapped-in dex file.
-  // Used by managed code to implement annotations.
-  jobject GetDexObject(JNIEnv* env) const;
 
   const Header& GetHeader() const {
     DCHECK(header_ != NULL) << GetLocation();
@@ -584,12 +580,12 @@ class DexFile {
   }
 
   // Returns the ClassDef at the specified index.
-  const ClassDef& GetClassDef(uint32_t idx) const {
+  const ClassDef& GetClassDef(uint16_t idx) const {
     DCHECK_LT(idx, NumClassDefs()) << GetLocation();
     return class_defs_[idx];
   }
 
-  uint32_t GetIndexForClassDef(const ClassDef& class_def) const {
+  uint16_t GetIndexForClassDef(const ClassDef& class_def) const {
     CHECK_GE(&class_def, class_defs_) << GetLocation();
     CHECK_LT(&class_def, class_defs_ + header_->class_defs_size_) << GetLocation();
     return &class_def - class_defs_;
@@ -601,10 +597,10 @@ class DexFile {
   }
 
   // Looks up a class definition by its class descriptor.
-  const ClassDef* FindClassDef(const StringPiece& descriptor) const;
+  const ClassDef* FindClassDef(const char* descriptor) const;
 
-  // Looks up a class definition index by its class descriptor.
-  bool FindClassDefIndex(const StringPiece& descriptor, uint32_t& idx) const;
+  // Looks up a class definition by its type index.
+  const ClassDef* FindClassDef(uint16_t type_idx) const;
 
   const TypeList* GetInterfacesList(const ClassDef& class_def) const {
     if (class_def.interfaces_off_ == 0) {
@@ -809,6 +805,14 @@ class DexFile {
 
   bool DisableWrite() const;
 
+  const byte* Begin() const {
+    return begin_;
+  }
+
+  size_t Size() const {
+    return size_;
+  }
+
  private:
   // Opens a .dex file
   static const DexFile* OpenFile(const std::string& filename,
@@ -840,7 +844,6 @@ class DexFile {
         location_(location),
         location_checksum_(location_checksum),
         mem_map_(mem_map),
-        dex_object_(NULL),
         modification_lock("DEX modification lock"),
         header_(0),
         string_ids_(0),
@@ -853,22 +856,11 @@ class DexFile {
     CHECK_GT(size_, 0U) << GetLocation();
   }
 
-  const byte* Begin() const {
-    return begin_;
-  }
-
-  size_t Size() const {
-    return size_;
-  }
-
   // Top-level initializer that calls other Init methods.
   bool Init();
 
   // Caches pointers into to the various file sections.
   void InitMembers();
-
-  // Builds the index of descriptors to class definitions.
-  void InitIndex();
 
   // Returns true if the header magic and version numbers are of the expected values.
   bool CheckMagicAndVersion() const;
@@ -876,10 +868,6 @@ class DexFile {
   void DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32_t method_idx,
       DexDebugNewPositionCb position_cb, DexDebugNewLocalCb local_cb,
       void* context, const byte* stream, LocalInfo* local_in_reg) const;
-
-  // The index of descriptors to class definition indexes (as opposed to type id indexes)
-  typedef SafeMap<const StringPiece, uint32_t> Index;
-  Index index_;
 
   // The base address of the memory mapping.
   const byte* const begin_;
@@ -897,10 +885,6 @@ class DexFile {
 
   // Manages the underlying memory allocation.
   UniquePtr<MemMap> mem_map_;
-
-  // A cached com.android.dex.Dex instance, possibly NULL. Use GetDexObject.
-  // TODO: this is mutable as it shouldn't be here. We should move it to the dex cache or similar.
-  mutable jobject dex_object_;
 
   // The DEX-to-DEX compiler uses this lock to ensure thread safety when
   // enabling write access to a read-only DEX file.

@@ -41,7 +41,7 @@ static CompiledMethod* CompileMethodWithSeaIr(CompilerDriver& compiler,
                                      const CompilerBackend compiler_backend,
                                      const DexFile::CodeItem* code_item,
                                      uint32_t method_access_flags, InvokeType invoke_type,
-                                     uint32_t class_def_idx, uint32_t method_idx,
+                                     uint16_t class_def_idx, uint32_t method_idx,
                                      jobject class_loader, const DexFile& dex_file
 #if defined(ART_USE_PORTABLE_COMPILER)
                                      , llvm::LlvmCompilationUnit* llvm_compilation_unit
@@ -69,7 +69,7 @@ CompiledMethod* SeaIrCompileOneMethod(CompilerDriver& compiler,
                                  const DexFile::CodeItem* code_item,
                                  uint32_t method_access_flags,
                                  InvokeType invoke_type,
-                                 uint32_t class_def_idx,
+                                 uint16_t class_def_idx,
                                  uint32_t method_idx,
                                  jobject class_loader,
                                  const DexFile& dex_file,
@@ -86,7 +86,7 @@ extern "C" art::CompiledMethod*
     SeaIrCompileMethod(art::CompilerDriver& compiler,
                           const art::DexFile::CodeItem* code_item,
                           uint32_t method_access_flags, art::InvokeType invoke_type,
-                          uint32_t class_def_idx, uint32_t method_idx, jobject class_loader,
+                          uint16_t class_def_idx, uint32_t method_idx, jobject class_loader,
                           const art::DexFile& dex_file) {
   // TODO: Check method fingerprint here to determine appropriate backend type.
   //       Until then, use build default

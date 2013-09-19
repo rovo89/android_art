@@ -48,7 +48,7 @@ namespace art {
 const byte DexFile::kDexMagic[] = { 'd', 'e', 'x', '\n' };
 const byte DexFile::kDexMagicVersion[] = { '0', '3', '5', '\0' };
 
-DexFile::ClassPathEntry DexFile::FindInClassPath(const StringPiece& descriptor,
+DexFile::ClassPathEntry DexFile::FindInClassPath(const char* descriptor,
                                                  const ClassPath& class_path) {
   for (size_t i = 0; i != class_path.size(); ++i) {
     const DexFile* dex_file = class_path[i];
@@ -251,56 +251,11 @@ DexFile::~DexFile() {
   // the global reference table is otherwise empty!
 }
 
-class ScopedJniMonitorLock {
- public:
-  ScopedJniMonitorLock(JNIEnv* env, jobject locked) : env_(env), locked_(locked) {
-    env->MonitorEnter(locked_);
-  }
-  ~ScopedJniMonitorLock() {
-    env_->MonitorExit(locked_);
-  }
- private:
-  JNIEnv* const env_;
-  const jobject locked_;
-};
-
-jobject DexFile::GetDexObject(JNIEnv* env) const {
-  {
-    ScopedJniMonitorLock lock(env, WellKnownClasses::com_android_dex_Dex);
-    if (dex_object_ != NULL) {
-      return dex_object_;
-    }
-  }
-  void* address = const_cast<void*>(reinterpret_cast<const void*>(begin_));
-  jobject byte_buffer = env->NewDirectByteBuffer(address, size_);
-  if (byte_buffer == NULL) {
-    return NULL;
-  }
-
-  ScopedJniMonitorLock lock(env, WellKnownClasses::com_android_dex_Dex);
-  // Re-test to see if someone beat us to the creation when we had the lock released.
-  if (dex_object_ != NULL) {
-    return dex_object_;
-  }
-  jvalue args[1];
-  args[0].l = byte_buffer;
-  jobject local = env->CallStaticObjectMethodA(WellKnownClasses::com_android_dex_Dex,
-                                               WellKnownClasses::com_android_dex_Dex_create,
-                                               args);
-  if (local == NULL) {
-    return NULL;
-  }
-
-  dex_object_ = env->NewGlobalRef(local);
-  return dex_object_;
-}
-
 bool DexFile::Init() {
   InitMembers();
   if (!CheckMagicAndVersion()) {
     return false;
   }
-  InitIndex();
   return true;
 }
 
@@ -351,28 +306,36 @@ uint32_t DexFile::GetVersion() const {
   return atoi(version);
 }
 
-void DexFile::InitIndex() {
-  CHECK_EQ(index_.size(), 0U) << GetLocation();
-  for (size_t i = 0; i < NumClassDefs(); ++i) {
+const DexFile::ClassDef* DexFile::FindClassDef(const char* descriptor) const {
+  size_t num_class_defs = NumClassDefs();
+  if (num_class_defs == 0) {
+    return NULL;
+  }
+  const StringId* string_id = FindStringId(descriptor);
+  if (string_id == NULL) {
+    return NULL;
+  }
+  const TypeId* type_id = FindTypeId(GetIndexForStringId(*string_id));
+  if (type_id == NULL) {
+    return NULL;
+  }
+  uint16_t type_idx = GetIndexForTypeId(*type_id);
+  for (size_t i = 0; i < num_class_defs; ++i) {
     const ClassDef& class_def = GetClassDef(i);
-    const char* descriptor = GetClassDescriptor(class_def);
-    index_.Put(descriptor, i);
+    if (class_def.class_idx_ == type_idx) {
+      return &class_def;
+    }
   }
+  return NULL;
 }
 
-bool DexFile::FindClassDefIndex(const StringPiece& descriptor, uint32_t& idx) const {
-  Index::const_iterator it = index_.find(descriptor);
-  if (it == index_.end()) {
-    return false;
-  }
-  idx = it->second;
-  return true;
-}
-
-const DexFile::ClassDef* DexFile::FindClassDef(const StringPiece& descriptor) const {
-  uint32_t idx;
-  if (FindClassDefIndex(descriptor, idx)) {
-    return &GetClassDef(idx);
+const DexFile::ClassDef* DexFile::FindClassDef(uint16_t type_idx) const {
+  size_t num_class_defs = NumClassDefs();
+  for (size_t i = 0; i < num_class_defs; ++i) {
+    const ClassDef& class_def = GetClassDef(i);
+    if (class_def.class_idx_ == type_idx) {
+      return &class_def;
+    }
   }
   return NULL;
 }
