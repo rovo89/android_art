@@ -138,13 +138,17 @@ class ShadowFrame {
   int64_t GetVRegLong(size_t i) const {
     DCHECK_LT(i, NumberOfVRegs());
     const uint32_t* vreg = &vregs_[i];
-    return *reinterpret_cast<const int64_t*>(vreg);
+    // Alignment attribute required for GCC 4.8
+    typedef const int64_t unaligned_int64 __attribute__ ((aligned (4)));
+    return *reinterpret_cast<unaligned_int64*>(vreg);
   }
 
   double GetVRegDouble(size_t i) const {
     DCHECK_LT(i, NumberOfVRegs());
     const uint32_t* vreg = &vregs_[i];
-    return *reinterpret_cast<const double*>(vreg);
+    // Alignment attribute required for GCC 4.8
+    typedef const double unaligned_double __attribute__ ((aligned (4)));
+    return *reinterpret_cast<unaligned_double*>(vreg);
   }
 
   mirror::Object* GetVRegReference(size_t i) const {
@@ -177,13 +181,17 @@ class ShadowFrame {
   void SetVRegLong(size_t i, int64_t val) {
     DCHECK_LT(i, NumberOfVRegs());
     uint32_t* vreg = &vregs_[i];
-    *reinterpret_cast<int64_t*>(vreg) = val;
+    // Alignment attribute required for GCC 4.8
+    typedef int64_t unaligned_int64 __attribute__ ((aligned (4)));
+    *reinterpret_cast<unaligned_int64*>(vreg) = val;
   }
 
   void SetVRegDouble(size_t i, double val) {
     DCHECK_LT(i, NumberOfVRegs());
     uint32_t* vreg = &vregs_[i];
-    *reinterpret_cast<double*>(vreg) = val;
+    // Alignment attribute required for GCC 4.8
+    typedef double unaligned_double __attribute__ ((aligned (4)));
+    *reinterpret_cast<unaligned_double*>(vreg) = val;
   }
 
   void SetVRegReference(size_t i, mirror::Object* val) {
