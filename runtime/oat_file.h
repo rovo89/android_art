@@ -183,7 +183,7 @@ class OatFile {
     }
 
     // Returns the OatClass for the class specified by the given DexFile class_def_index.
-    const OatClass* GetOatClass(uint32_t class_def_index) const;
+    const OatClass* GetOatClass(uint16_t class_def_index) const;
 
     ~OatDexFile();
 

@@ -39,7 +39,7 @@ DexCompilationUnit::DexCompilationUnit(CompilationUnit* cu,
                                        ClassLinker* class_linker,
                                        const DexFile& dex_file,
                                        const DexFile::CodeItem* code_item,
-                                       uint32_t class_def_idx,
+                                       uint16_t class_def_idx,
                                        uint32_t method_idx,
                                        uint32_t access_flags)
     : cu_(cu),

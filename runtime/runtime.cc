@@ -1007,6 +1007,7 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
   REGISTER(register_dalvik_system_VMStack);
   REGISTER(register_dalvik_system_Zygote);
   REGISTER(register_java_lang_Class);
+  REGISTER(register_java_lang_DexCache);
   REGISTER(register_java_lang_Object);
   REGISTER(register_java_lang_Runtime);
   REGISTER(register_java_lang_String);
@@ -1175,7 +1176,7 @@ mirror::ArtMethod* Runtime::CreateResolutionMethod() {
       method(self, down_cast<mirror::ArtMethod*>(method_class->AllocObject(self)));
   method->SetDeclaringClass(method_class);
   // TODO: use a special method for resolution method saves
-  method->SetDexMethodIndex(DexFile::kDexNoIndex16);
+  method->SetDexMethodIndex(DexFile::kDexNoIndex);
   // When compiling, the code pointer will get set later when the image is loaded.
   Runtime* r = Runtime::Current();
   ClassLinker* cl = r->GetClassLinker();
@@ -1191,7 +1192,7 @@ mirror::ArtMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_se
       method(self, down_cast<mirror::ArtMethod*>(method_class->AllocObject(self)));
   method->SetDeclaringClass(method_class);
   // TODO: use a special method for callee saves
-  method->SetDexMethodIndex(DexFile::kDexNoIndex16);
+  method->SetDexMethodIndex(DexFile::kDexNoIndex);
   method->SetEntryPointFromCompiledCode(NULL);
   if ((instruction_set == kThumb2) || (instruction_set == kArm)) {
     uint32_t ref_spills = (1 << art::arm::R5) | (1 << art::arm::R6)  | (1 << art::arm::R7) |

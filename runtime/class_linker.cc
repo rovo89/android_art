@@ -475,40 +475,33 @@ void ClassLinker::FinishInit() {
   // as the types of the field can't be resolved prior to the runtime being
   // fully initialized
   mirror::Class* java_lang_ref_Reference = GetClassRoot(kJavaLangRefReference);
-  mirror::Class* java_lang_ref_ReferenceQueue = FindSystemClass("Ljava/lang/ref/ReferenceQueue;");
-  mirror::Class* java_lang_ref_FinalizerReference = FindSystemClass("Ljava/lang/ref/FinalizerReference;");
-
-  const DexFile& java_lang_dex = *java_lang_ref_Reference->GetDexCache()->GetDexFile();
+  mirror::Class* java_lang_ref_FinalizerReference =
+      FindSystemClass("Ljava/lang/ref/FinalizerReference;");
 
   mirror::ArtField* pendingNext = java_lang_ref_Reference->GetInstanceField(0);
   FieldHelper fh(pendingNext, this);
   CHECK_STREQ(fh.GetName(), "pendingNext");
-  CHECK_EQ(java_lang_dex.GetFieldId(pendingNext->GetDexFieldIndex()).type_idx_,
-           java_lang_ref_Reference->GetDexTypeIndex());
+  CHECK_STREQ(fh.GetTypeDescriptor(), "Ljava/lang/ref/Reference;");
 
   mirror::ArtField* queue = java_lang_ref_Reference->GetInstanceField(1);
   fh.ChangeField(queue);
   CHECK_STREQ(fh.GetName(), "queue");
-  CHECK_EQ(java_lang_dex.GetFieldId(queue->GetDexFieldIndex()).type_idx_,
-           java_lang_ref_ReferenceQueue->GetDexTypeIndex());
+  CHECK_STREQ(fh.GetTypeDescriptor(), "Ljava/lang/ref/ReferenceQueue;");
 
   mirror::ArtField* queueNext = java_lang_ref_Reference->GetInstanceField(2);
   fh.ChangeField(queueNext);
   CHECK_STREQ(fh.GetName(), "queueNext");
-  CHECK_EQ(java_lang_dex.GetFieldId(queueNext->GetDexFieldIndex()).type_idx_,
-           java_lang_ref_Reference->GetDexTypeIndex());
+  CHECK_STREQ(fh.GetTypeDescriptor(), "Ljava/lang/ref/Reference;");
 
   mirror::ArtField* referent = java_lang_ref_Reference->GetInstanceField(3);
   fh.ChangeField(referent);
   CHECK_STREQ(fh.GetName(), "referent");
-  CHECK_EQ(java_lang_dex.GetFieldId(referent->GetDexFieldIndex()).type_idx_,
-           GetClassRoot(kJavaLangObject)->GetDexTypeIndex());
+  CHECK_STREQ(fh.GetTypeDescriptor(), "Ljava/lang/Object;");
 
   mirror::ArtField* zombie = java_lang_ref_FinalizerReference->GetInstanceField(2);
   fh.ChangeField(zombie);
   CHECK_STREQ(fh.GetName(), "zombie");
-  CHECK_EQ(java_lang_dex.GetFieldId(zombie->GetDexFieldIndex()).type_idx_,
-           GetClassRoot(kJavaLangObject)->GetDexTypeIndex());
+  CHECK_STREQ(fh.GetTypeDescriptor(), "Ljava/lang/Object;");
 
   gc::Heap* heap = Runtime::Current()->GetHeap();
   heap->SetReferenceOffsets(referent->GetOffset(),
@@ -1234,8 +1227,10 @@ mirror::Class* ClassLinker::AllocClass(Thread* self, mirror::Class* java_lang_Cl
     return NULL;
   }
   mirror::Class* klass = k->AsClass();
-  klass->SetPrimitiveType(Primitive::kPrimNot);  // default to not being primitive
+  klass->SetPrimitiveType(Primitive::kPrimNot);  // Default to not being primitive.
   klass->SetClassSize(class_size);
+  klass->SetDexClassDefIndex(DexFile::kDexNoIndex16);  // Default to no valid class def index.
+  klass->SetDexTypeIndex(DexFile::kDexNoIndex16);  // Default to no valid type index.
   return klass;
 }
 
@@ -1499,26 +1494,21 @@ size_t ClassLinker::SizeOfClass(const DexFile& dex_file,
   return size;
 }
 
-const OatFile::OatClass* ClassLinker::GetOatClass(const DexFile& dex_file, const char* descriptor) {
-  DCHECK(descriptor != NULL);
+const OatFile::OatClass* ClassLinker::GetOatClass(const DexFile& dex_file, uint16_t class_def_idx) {
+  DCHECK_NE(class_def_idx, DexFile::kDexNoIndex16);
   const OatFile* oat_file = FindOpenedOatFileForDexFile(dex_file);
-  CHECK(oat_file != NULL) << dex_file.GetLocation() << " " << descriptor;
+  CHECK(oat_file != NULL) << dex_file.GetLocation();
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());
-  CHECK(oat_dex_file != NULL) << dex_file.GetLocation() << " " << descriptor;
-  uint32_t class_def_index;
-  bool found = dex_file.FindClassDefIndex(descriptor, class_def_index);
-  CHECK(found) << dex_file.GetLocation() << " " << descriptor;
-  const OatFile::OatClass* oat_class = oat_dex_file->GetOatClass(class_def_index);
-  CHECK(oat_class != NULL) << dex_file.GetLocation() << " " << descriptor;
+  CHECK(oat_dex_file != NULL) << dex_file.GetLocation();
+  const OatFile::OatClass* oat_class = oat_dex_file->GetOatClass(class_def_idx);
+  CHECK(oat_class != NULL) << dex_file.GetLocation() << " " << class_def_idx;
   return oat_class;
 }
 
-static uint32_t GetOatMethodIndexFromMethodIndex(const DexFile& dex_file, uint32_t method_idx) {
-  const DexFile::MethodId& method_id = dex_file.GetMethodId(method_idx);
-  const DexFile::TypeId& type_id = dex_file.GetTypeId(method_id.class_idx_);
-  const DexFile::ClassDef* class_def = dex_file.FindClassDef(dex_file.GetTypeDescriptor(type_id));
-  CHECK(class_def != NULL);
-  const byte* class_data = dex_file.GetClassData(*class_def);
+static uint32_t GetOatMethodIndexFromMethodIndex(const DexFile& dex_file, uint16_t class_def_idx,
+                                                 uint32_t method_idx) {
+  const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_idx);
+  const byte* class_data = dex_file.GetClassData(class_def);
   CHECK(class_data != NULL);
   ClassDataItemIterator it(dex_file, class_data);
   // Skip fields
@@ -1572,11 +1562,13 @@ const OatFile::OatMethod ClassLinker::GetOatMethodFor(const mirror::ArtMethod* m
     }
     CHECK(found) << "Didn't find oat method index for virtual method: " << PrettyMethod(method);
   }
-  ClassHelper kh(declaring_class);
-  UniquePtr<const OatFile::OatClass> oat_class(GetOatClass(kh.GetDexFile(), kh.GetDescriptor()));
+  UniquePtr<const OatFile::OatClass>
+      oat_class(GetOatClass(*declaring_class->GetDexCache()->GetDexFile(),
+                            declaring_class->GetDexClassDefIndex()));
   CHECK(oat_class.get() != NULL);
   DCHECK_EQ(oat_method_index,
             GetOatMethodIndexFromMethodIndex(*declaring_class->GetDexCache()->GetDexFile(),
+                                             method->GetDeclaringClass()->GetDexClassDefIndex(),
                                              method->GetDexMethodIndex()));
 
   return oat_class->GetOatMethod(oat_method_index);
@@ -1600,12 +1592,11 @@ const void* ClassLinker::GetOatCodeFor(const mirror::ArtMethod* method) {
   return result;
 }
 
-const void* ClassLinker::GetOatCodeFor(const DexFile& dex_file, uint32_t method_idx) {
-  const DexFile::MethodId& method_id = dex_file.GetMethodId(method_idx);
-  const char* descriptor = dex_file.GetTypeDescriptor(dex_file.GetTypeId(method_id.class_idx_));
-  uint32_t oat_method_idx = GetOatMethodIndexFromMethodIndex(dex_file, method_idx);
-  UniquePtr<const OatFile::OatClass> oat_class(GetOatClass(dex_file, descriptor));
-  CHECK(oat_class.get() != NULL);
+const void* ClassLinker::GetOatCodeFor(const DexFile& dex_file, uint16_t class_def_idx,
+                                       uint32_t method_idx) {
+  UniquePtr<const OatFile::OatClass> oat_class(GetOatClass(dex_file, class_def_idx));
+  CHECK(oat_class.get() != nullptr);
+  uint32_t oat_method_idx = GetOatMethodIndexFromMethodIndex(dex_file, class_def_idx, method_idx);
   return oat_class->GetOatMethod(oat_method_idx).GetCode();
 }
 
@@ -1642,7 +1633,7 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
     // OAT file unavailable
     return;
   }
-  UniquePtr<const OatFile::OatClass> oat_class(GetOatClass(dex_file, kh.GetDescriptor()));
+  UniquePtr<const OatFile::OatClass> oat_class(GetOatClass(dex_file, klass->GetDexClassDefIndex()));
   CHECK(oat_class.get() != NULL);
   ClassDataItemIterator it(dex_file, class_data);
   // Skip fields
@@ -1734,6 +1725,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   DCHECK_EQ(klass->GetPrimitiveType(), Primitive::kPrimNot);
   klass->SetStatus(mirror::Class::kStatusIdx, NULL);
 
+  klass->SetDexClassDefIndex(dex_file.GetIndexForClassDef(dex_class_def));
   klass->SetDexTypeIndex(dex_class_def.class_idx_);
 
   // Load fields fields.
@@ -1781,7 +1773,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
 
   UniquePtr<const OatFile::OatClass> oat_class;
   if (Runtime::Current()->IsStarted() && !Runtime::Current()->UseCompileTimeClassPath()) {
-    oat_class.reset(GetOatClass(dex_file, descriptor));
+    oat_class.reset(GetOatClass(dex_file, klass->GetDexClassDefIndex()));
   }
 
   // Load methods.
@@ -1876,7 +1868,8 @@ mirror::ArtMethod* ClassLinker::LoadMethod(Thread* self, const DexFile& dex_file
           if (klass->GetClassLoader() != NULL) {  // All non-boot finalizer methods are flagged
             klass->SetFinalizable();
           } else {
-            StringPiece klass_descriptor(dex_file.StringByTypeIdx(klass->GetDexTypeIndex()));
+            ClassHelper kh(klass.get());
+            StringPiece klass_descriptor(kh.GetDescriptor());
             // The Enum class declares a "final" finalize() method to prevent subclasses from
             // introducing a finalizer. We don't want to set the finalizable flag for Enum or its
             // subclasses, so we exclude it here.
@@ -2342,12 +2335,16 @@ mirror::Class* ClassLinker::LookupClassFromImage(const char* descriptor) {
     const DexFile* dex_file = dex_cache->GetDexFile();
     // First search using the class def map, but don't bother for non-class types.
     if (descriptor[0] == 'L') {
-      const DexFile::ClassDef* class_def = dex_file->FindClassDef(descriptor);
-      if (class_def != NULL) {
-        mirror::Class* klass = dex_cache->GetResolvedType(class_def->class_idx_);
-        if (klass != NULL) {
-          self->EndAssertNoThreadSuspension(old_no_suspend_cause);
-          return klass;
+      const DexFile::StringId* descriptor_string_id = dex_file->FindStringId(descriptor);
+      if (descriptor_string_id != NULL) {
+        const DexFile::TypeId* type_id =
+            dex_file->FindTypeId(dex_file->GetIndexForStringId(*descriptor_string_id));
+        if (type_id != NULL) {
+          mirror::Class* klass = dex_cache->GetResolvedType(dex_file->GetIndexForTypeId(*type_id));
+          if (klass != NULL) {
+            self->EndAssertNoThreadSuspension(old_no_suspend_cause);
+            return klass;
+          }
         }
       }
     }
@@ -2458,8 +2455,9 @@ void ClassLinker::VerifyClass(mirror::Class* klass) {
   verifier::MethodVerifier::FailureKind verifier_failure = verifier::MethodVerifier::kNoFailure;
   std::string error_msg;
   if (!preverified) {
-    verifier_failure = verifier::MethodVerifier::VerifyClass(klass, error_msg,
-                                                             Runtime::Current()->IsCompiler());
+    verifier_failure = verifier::MethodVerifier::VerifyClass(klass,
+                                                             Runtime::Current()->IsCompiler(),
+                                                             &error_msg);
   }
   if (preverified || verifier_failure != verifier::MethodVerifier::kHardFailure) {
     if (!preverified && verifier_failure != verifier::MethodVerifier::kNoFailure) {
@@ -2530,7 +2528,6 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, mirror::Class
     }
   }
 
-
   const OatFile* oat_file = FindOpenedOatFileForDexFile(dex_file);
   // Make this work with gtests, which do not set up the image properly.
   // TODO: we should clean up gtests to set up the image path properly.
@@ -2542,9 +2539,7 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, mirror::Class
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());
   CHECK(oat_dex_file != NULL) << dex_file.GetLocation() << " " << PrettyClass(klass);
   const char* descriptor = ClassHelper(klass).GetDescriptor();
-  uint32_t class_def_index;
-  bool found = dex_file.FindClassDefIndex(descriptor, class_def_index);
-  CHECK(found) << dex_file.GetLocation() << " " << PrettyClass(klass) << " " << descriptor;
+  uint16_t class_def_index = klass->GetDexClassDefIndex();
   UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file->GetOatClass(class_def_index));
   CHECK(oat_class.get() != NULL)
           << dex_file.GetLocation() << " " << PrettyClass(klass) << " " << descriptor;
@@ -2656,8 +2651,6 @@ mirror::Class* ClassLinker::CreateProxyClass(mirror::String* name,
   klass->SetDexCache(proxy_class->GetDexCache());
 
   klass->SetStatus(mirror::Class::kStatusIdx, self);
-
-  klass->SetDexTypeIndex(DexFile::kDexNoIndex16);
 
   // Instance fields are inherited, but we add a couple of static fields...
   {
@@ -3265,10 +3258,8 @@ bool ClassLinker::LinkClass(SirtRef<mirror::Class>& klass,
 
 bool ClassLinker::LoadSuperAndInterfaces(SirtRef<mirror::Class>& klass, const DexFile& dex_file) {
   CHECK_EQ(mirror::Class::kStatusIdx, klass->GetStatus());
-  StringPiece descriptor(dex_file.StringByTypeIdx(klass->GetDexTypeIndex()));
-  const DexFile::ClassDef* class_def = dex_file.FindClassDef(descriptor);
-  CHECK(class_def != NULL);
-  uint16_t super_class_idx = class_def->superclass_idx_;
+  const DexFile::ClassDef& class_def = dex_file.GetClassDef(klass->GetDexClassDefIndex());
+  uint16_t super_class_idx = class_def.superclass_idx_;
   if (super_class_idx != DexFile::kDexNoIndex16) {
     mirror::Class* super_class = ResolveType(dex_file, super_class_idx, klass.get());
     if (super_class == NULL) {
@@ -3284,7 +3275,7 @@ bool ClassLinker::LoadSuperAndInterfaces(SirtRef<mirror::Class>& klass, const De
     }
     klass->SetSuperClass(super_class);
   }
-  const DexFile::TypeList* interfaces = dex_file.GetInterfacesList(*class_def);
+  const DexFile::TypeList* interfaces = dex_file.GetInterfacesList(class_def);
   if (interfaces != NULL) {
     for (size_t i = 0; i < interfaces->Size(); i++) {
       uint16_t idx = interfaces->GetTypeItem(i).type_idx_;

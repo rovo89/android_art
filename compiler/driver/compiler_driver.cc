@@ -293,7 +293,7 @@ extern "C" art::CompiledMethod* ArtCompileMethod(art::CompilerDriver& driver,
                                                  const art::DexFile::CodeItem* code_item,
                                                  uint32_t access_flags,
                                                  art::InvokeType invoke_type,
-                                                 uint32_t class_def_idx,
+                                                 uint16_t class_def_idx,
                                                  uint32_t method_idx,
                                                  jobject class_loader,
                                                  const art::DexFile& dex_file);
@@ -301,7 +301,7 @@ extern "C" art::CompiledMethod* ArtQuickCompileMethod(art::CompilerDriver& compi
                                                       const art::DexFile::CodeItem* code_item,
                                                       uint32_t access_flags,
                                                       art::InvokeType invoke_type,
-                                                      uint32_t class_def_idx,
+                                                      uint16_t class_def_idx,
                                                       uint32_t method_idx,
                                                       jobject class_loader,
                                                       const art::DexFile& dex_file);
@@ -310,7 +310,7 @@ extern "C" art::CompiledMethod* ArtCompileDEX(art::CompilerDriver& compiler,
                                               const art::DexFile::CodeItem* code_item,
                                               uint32_t access_flags,
                                               art::InvokeType invoke_type,
-                                              uint32_t class_def_idx,
+                                              uint16_t class_def_idx,
                                               uint32_t method_idx,
                                               jobject class_loader,
                                               const art::DexFile& dex_file);
@@ -319,7 +319,7 @@ extern "C" art::CompiledMethod* SeaIrCompileMethod(art::CompilerDriver& compiler
                                                    const art::DexFile::CodeItem* code_item,
                                                    uint32_t access_flags,
                                                    art::InvokeType invoke_type,
-                                                   uint32_t class_def_idx,
+                                                   uint16_t class_def_idx,
                                                    uint32_t method_idx,
                                                    jobject class_loader,
                                                    const art::DexFile& dex_file);
@@ -540,7 +540,7 @@ void CompilerDriver::CompileOne(const mirror::ArtMethod* method, base::TimingLog
   Thread* self = Thread::Current();
   jobject jclass_loader;
   const DexFile* dex_file;
-  uint32_t class_def_idx;
+  uint16_t class_def_idx;
   {
     ScopedObjectAccessUnchecked soa(self);
     ScopedLocalRef<jobject>
@@ -1304,13 +1304,15 @@ bool CompilerDriver::IsSafeCast(const MethodReference& mr, uint32_t dex_pc) {
 
 
 void CompilerDriver::AddCodePatch(const DexFile* dex_file,
-                            uint32_t referrer_method_idx,
-                            InvokeType referrer_invoke_type,
-                            uint32_t target_method_idx,
-                            InvokeType target_invoke_type,
-                            size_t literal_offset) {
+                                  uint16_t referrer_class_def_idx,
+                                  uint32_t referrer_method_idx,
+                                  InvokeType referrer_invoke_type,
+                                  uint32_t target_method_idx,
+                                  InvokeType target_invoke_type,
+                                  size_t literal_offset) {
   MutexLock mu(Thread::Current(), compiled_methods_lock_);
   code_to_patch_.push_back(new PatchInformation(dex_file,
+                                                referrer_class_def_idx,
                                                 referrer_method_idx,
                                                 referrer_invoke_type,
                                                 target_method_idx,
@@ -1318,13 +1320,15 @@ void CompilerDriver::AddCodePatch(const DexFile* dex_file,
                                                 literal_offset));
 }
 void CompilerDriver::AddMethodPatch(const DexFile* dex_file,
-                              uint32_t referrer_method_idx,
-                              InvokeType referrer_invoke_type,
-                              uint32_t target_method_idx,
-                              InvokeType target_invoke_type,
-                              size_t literal_offset) {
+                                    uint16_t referrer_class_def_idx,
+                                    uint32_t referrer_method_idx,
+                                    InvokeType referrer_invoke_type,
+                                    uint32_t target_method_idx,
+                                    InvokeType target_invoke_type,
+                                    size_t literal_offset) {
   MutexLock mu(Thread::Current(), compiled_methods_lock_);
   methods_to_patch_.push_back(new PatchInformation(dex_file,
+                                                   referrer_class_def_idx,
                                                    referrer_method_idx,
                                                    referrer_invoke_type,
                                                    target_method_idx,
@@ -1625,10 +1629,12 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
      */
     mirror::DexCache* dex_cache =  manager->GetClassLinker()->FindDexCache(*manager->GetDexFile());
     std::string error_msg;
-    if (verifier::MethodVerifier::VerifyClass(manager->GetDexFile(),
+    const DexFile* dex_file = manager->GetDexFile();
+    const DexFile::ClassDef* class_def = &dex_file->GetClassDef(class_def_index);
+    if (verifier::MethodVerifier::VerifyClass(dex_file,
                                               dex_cache,
                                               soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader()),
-                                              class_def_index, error_msg, true) ==
+                                              class_def, true, &error_msg) ==
                                                   verifier::MethodVerifier::kHardFailure) {
       const DexFile::ClassDef& class_def = manager->GetDexFile()->GetClassDef(class_def_index);
       LOG(ERROR) << "Verification failed on class "
@@ -2137,7 +2143,8 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
       }
       // If successfully initialized place in SSB array.
       if (klass->IsInitialized()) {
-        klass->GetDexCache()->GetInitializedStaticStorage()->Set(klass->GetDexTypeIndex(), klass);
+        int32_t ssb_index = klass->GetDexTypeIndex();
+        klass->GetDexCache()->GetInitializedStaticStorage()->Set(ssb_index, klass);
       }
     }
     // Record the final class status if necessary.
@@ -2264,7 +2271,7 @@ void CompilerDriver::CompileDexFile(jobject class_loader, const DexFile& dex_fil
 }
 
 void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
-                                   InvokeType invoke_type, uint32_t class_def_idx,
+                                   InvokeType invoke_type, uint16_t class_def_idx,
                                    uint32_t method_idx, jobject class_loader,
                                    const DexFile& dex_file,
                                    DexToDexCompilationLevel dex_to_dex_compilation_level) {
@@ -2387,13 +2394,13 @@ void CompilerDriver::SetBitcodeFileName(std::string const& filename) {
 
 
 void CompilerDriver::AddRequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
-                                             size_t class_def_index) {
+                                                   uint16_t class_def_index) {
   WriterMutexLock mu(self, freezing_constructor_lock_);
   freezing_constructor_classes_.insert(ClassReference(dex_file, class_def_index));
 }
 
 bool CompilerDriver::RequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
-                                          size_t class_def_index) {
+                                                uint16_t class_def_index) {
   ReaderMutexLock mu(self, freezing_constructor_lock_);
   return freezing_constructor_classes_.count(ClassReference(dex_file, class_def_index)) != 0;
 }

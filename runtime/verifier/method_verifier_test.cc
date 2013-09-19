@@ -34,7 +34,8 @@ class MethodVerifierTest : public CommonTest {
 
     // Verify the class
     std::string error_msg;
-    ASSERT_TRUE(MethodVerifier::VerifyClass(klass, error_msg, true) == MethodVerifier::kNoFailure) << error_msg;
+    ASSERT_TRUE(MethodVerifier::VerifyClass(klass, true, &error_msg) == MethodVerifier::kNoFailure)
+        << error_msg;
   }
 
   void VerifyDexFile(const DexFile* dex)

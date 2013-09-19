@@ -74,50 +74,51 @@ void PcToRegisterLineTable::Init(RegisterTrackingMode mode, InstructionFlags* fl
 }
 
 MethodVerifier::FailureKind MethodVerifier::VerifyClass(const mirror::Class* klass,
-                                                        std::string& error,
-                                                        bool allow_soft_failures) {
+                                                        bool allow_soft_failures,
+                                                        std::string* error) {
   if (klass->IsVerified()) {
     return kNoFailure;
   }
   mirror::Class* super = klass->GetSuperClass();
   if (super == NULL && StringPiece(ClassHelper(klass).GetDescriptor()) != "Ljava/lang/Object;") {
-    error = "Verifier rejected class ";
-    error += PrettyDescriptor(klass);
-    error += " that has no super class";
+    *error = "Verifier rejected class ";
+    *error += PrettyDescriptor(klass);
+    *error += " that has no super class";
     return kHardFailure;
   }
   if (super != NULL && super->IsFinal()) {
-    error = "Verifier rejected class ";
-    error += PrettyDescriptor(klass);
-    error += " that attempts to sub-class final class ";
-    error += PrettyDescriptor(super);
+    *error = "Verifier rejected class ";
+    *error += PrettyDescriptor(klass);
+    *error += " that attempts to sub-class final class ";
+    *error += PrettyDescriptor(super);
     return kHardFailure;
   }
   ClassHelper kh(klass);
   const DexFile& dex_file = kh.GetDexFile();
-  uint32_t class_def_idx;
-  if (!dex_file.FindClassDefIndex(kh.GetDescriptor(), class_def_idx)) {
-    error = "Verifier rejected class ";
-    error += PrettyDescriptor(klass);
-    error += " that isn't present in dex file ";
-    error += dex_file.GetLocation();
+  const DexFile::ClassDef* class_def = kh.GetClassDef();
+  if (class_def == NULL) {
+    *error = "Verifier rejected class ";
+    *error += PrettyDescriptor(klass);
+    *error += " that isn't present in dex file ";
+    *error += dex_file.GetLocation();
     return kHardFailure;
   }
   return VerifyClass(&dex_file,
                      kh.GetDexCache(),
                      klass->GetClassLoader(),
-                     class_def_idx, error,
-                     allow_soft_failures);
+                     class_def,
+                     allow_soft_failures,
+                     error);
 }
 
 MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
                                                         mirror::DexCache* dex_cache,
                                                         mirror::ClassLoader* class_loader,
-                                                        uint32_t class_def_idx,
-                                                        std::string& error,
-                                                        bool allow_soft_failures) {
-  const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_idx);
-  const byte* class_data = dex_file->GetClassData(class_def);
+                                                        const DexFile::ClassDef* class_def,
+                                                        bool allow_soft_failures,
+                                                        std::string* error) {
+  DCHECK(class_def != nullptr);
+  const byte* class_data = dex_file->GetClassData(*class_def);
   if (class_data == NULL) {
     // empty class, probably a marker interface
     return kNoFailure;
@@ -139,7 +140,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
       continue;
     }
     previous_direct_method_idx = method_idx;
-    InvokeType type = it.GetMethodInvokeType(class_def);
+    InvokeType type = it.GetMethodInvokeType(*class_def);
     mirror::ArtMethod* method =
         linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, NULL, type);
     if (method == NULL) {
@@ -151,7 +152,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
                                                       dex_file,
                                                       dex_cache,
                                                       class_loader,
-                                                      class_def_idx,
+                                                      class_def,
                                                       it.GetMethodCodeItem(),
                                                       method,
                                                       it.GetMemberAccessFlags(),
@@ -160,12 +161,12 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
       if (result == kHardFailure) {
         hard_fail = true;
         if (error_count > 0) {
-          error += "\n";
+          *error += "\n";
         }
-        error = "Verifier rejected class ";
-        error += PrettyDescriptor(dex_file->GetClassDescriptor(class_def));
-        error += " due to bad method ";
-        error += PrettyMethod(method_idx, *dex_file);
+        *error = "Verifier rejected class ";
+        *error += PrettyDescriptor(dex_file->GetClassDescriptor(*class_def));
+        *error += " due to bad method ";
+        *error += PrettyMethod(method_idx, *dex_file);
       }
       ++error_count;
     }
@@ -181,7 +182,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
       continue;
     }
     previous_virtual_method_idx = method_idx;
-    InvokeType type = it.GetMethodInvokeType(class_def);
+    InvokeType type = it.GetMethodInvokeType(*class_def);
     mirror::ArtMethod* method =
         linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, NULL, type);
     if (method == NULL) {
@@ -193,7 +194,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
                                                       dex_file,
                                                       dex_cache,
                                                       class_loader,
-                                                      class_def_idx,
+                                                      class_def,
                                                       it.GetMethodCodeItem(),
                                                       method,
                                                       it.GetMemberAccessFlags(),
@@ -202,12 +203,12 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
       if (result == kHardFailure) {
         hard_fail = true;
         if (error_count > 0) {
-          error += "\n";
+          *error += "\n";
         }
-        error = "Verifier rejected class ";
-        error += PrettyDescriptor(dex_file->GetClassDescriptor(class_def));
-        error += " due to bad method ";
-        error += PrettyMethod(method_idx, *dex_file);
+        *error = "Verifier rejected class ";
+        *error += PrettyDescriptor(dex_file->GetClassDescriptor(*class_def));
+        *error += " due to bad method ";
+        *error += PrettyMethod(method_idx, *dex_file);
       }
       ++error_count;
     }
@@ -224,7 +225,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx,
                                                          const DexFile* dex_file,
                                                          mirror::DexCache* dex_cache,
                                                          mirror::ClassLoader* class_loader,
-                                                         uint32_t class_def_idx,
+                                                         const DexFile::ClassDef* class_def,
                                                          const DexFile::CodeItem* code_item,
                                                          mirror::ArtMethod* method,
                                                          uint32_t method_access_flags,
@@ -232,7 +233,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx,
   MethodVerifier::FailureKind result = kNoFailure;
   uint64_t start_ns = NanoTime();
 
-  MethodVerifier verifier_(dex_file, dex_cache, class_loader, class_def_idx, code_item, method_idx,
+  MethodVerifier verifier_(dex_file, dex_cache, class_loader, class_def, code_item, method_idx,
                            method, method_access_flags, true, allow_soft_failures);
   if (verifier_.Verify()) {
     // Verification completed, however failures may be pending that didn't cause the verification
@@ -267,11 +268,12 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx,
 
 void MethodVerifier::VerifyMethodAndDump(std::ostream& os, uint32_t dex_method_idx,
                                          const DexFile* dex_file, mirror::DexCache* dex_cache,
-                                         mirror::ClassLoader* class_loader, uint32_t class_def_idx,
+                                         mirror::ClassLoader* class_loader,
+                                         const DexFile::ClassDef* class_def,
                                          const DexFile::CodeItem* code_item,
                                          mirror::ArtMethod* method,
                                          uint32_t method_access_flags) {
-  MethodVerifier verifier(dex_file, dex_cache, class_loader, class_def_idx, code_item,
+  MethodVerifier verifier(dex_file, dex_cache, class_loader, class_def, code_item,
                           dex_method_idx, method, method_access_flags, true, true);
   verifier.Verify();
   verifier.DumpFailures(os);
@@ -280,7 +282,8 @@ void MethodVerifier::VerifyMethodAndDump(std::ostream& os, uint32_t dex_method_i
 }
 
 MethodVerifier::MethodVerifier(const DexFile* dex_file, mirror::DexCache* dex_cache,
-                               mirror::ClassLoader* class_loader, uint32_t class_def_idx,
+                               mirror::ClassLoader* class_loader,
+                               const DexFile::ClassDef* class_def,
                                const DexFile::CodeItem* code_item,
                                uint32_t dex_method_idx, mirror::ArtMethod* method,
                                uint32_t method_access_flags, bool can_load_classes,
@@ -293,7 +296,7 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, mirror::DexCache* dex_ca
       dex_file_(dex_file),
       dex_cache_(dex_cache),
       class_loader_(class_loader),
-      class_def_idx_(class_def_idx),
+      class_def_(class_def),
       code_item_(code_item),
       declaring_class_(NULL),
       interesting_dex_pc_(-1),
@@ -306,13 +309,14 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, mirror::DexCache* dex_ca
       allow_soft_failures_(allow_soft_failures),
       has_check_casts_(false),
       has_virtual_or_interface_invokes_(false) {
+  DCHECK(class_def != NULL);
 }
 
 void MethodVerifier::FindLocksAtDexPc(mirror::ArtMethod* m, uint32_t dex_pc,
                                       std::vector<uint32_t>& monitor_enter_dex_pcs) {
   MethodHelper mh(m);
   MethodVerifier verifier(&mh.GetDexFile(), mh.GetDexCache(), mh.GetClassLoader(),
-                          mh.GetClassDefIndex(), mh.GetCodeItem(), m->GetDexMethodIndex(),
+                          &mh.GetClassDef(), mh.GetCodeItem(), m->GetDexMethodIndex(),
                           m, m->GetAccessFlags(), false, true);
   verifier.interesting_dex_pc_ = dex_pc;
   verifier.monitor_enter_dex_pcs_ = &monitor_enter_dex_pcs;
@@ -334,7 +338,7 @@ mirror::ArtField* MethodVerifier::FindAccessedFieldAtDexPc(mirror::ArtMethod* m,
                                                         uint32_t dex_pc) {
   MethodHelper mh(m);
   MethodVerifier verifier(&mh.GetDexFile(), mh.GetDexCache(), mh.GetClassLoader(),
-                          mh.GetClassDefIndex(), mh.GetCodeItem(), m->GetDexMethodIndex(),
+                          &mh.GetClassDef(), mh.GetCodeItem(), m->GetDexMethodIndex(),
                           m, m->GetAccessFlags(), false, true);
   return verifier.FindAccessedFieldAtDexPc(dex_pc);
 }
@@ -362,7 +366,7 @@ mirror::ArtMethod* MethodVerifier::FindInvokedMethodAtDexPc(mirror::ArtMethod* m
                                                                  uint32_t dex_pc) {
   MethodHelper mh(m);
   MethodVerifier verifier(&mh.GetDexFile(), mh.GetDexCache(), mh.GetClassLoader(),
-                          mh.GetClassDefIndex(), mh.GetCodeItem(), m->GetDexMethodIndex(),
+                          &mh.GetClassDef(), mh.GetCodeItem(), m->GetDexMethodIndex(),
                           m, m->GetAccessFlags(), false, true);
   return verifier.FindInvokedMethodAtDexPc(dex_pc);
 }
@@ -448,7 +452,7 @@ std::ostream& MethodVerifier::Fail(VerifyError error) {
       // marked as rejected to prevent it from being compiled.
     case VERIFY_ERROR_BAD_CLASS_HARD: {
       if (Runtime::Current()->IsCompiler()) {
-        ClassReference ref(dex_file_, class_def_idx_);
+        ClassReference ref(dex_file_, dex_file_->GetIndexForClassDef(*class_def_));
         AddRejectedClass(ref);
       }
       have_pending_hard_failure_ = true;
