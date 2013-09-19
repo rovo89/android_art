@@ -42,21 +42,22 @@ static inline bool byte_cas(byte old_value, byte new_value, byte* address) {
 }
 
 template <typename Visitor>
-inline void CardTable::Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_end,
-                            const Visitor& visitor, const byte minimum_age) const {
+inline size_t CardTable::Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_end,
+                              const Visitor& visitor, const byte minimum_age) const {
   DCHECK(bitmap->HasAddress(scan_begin));
   DCHECK(bitmap->HasAddress(scan_end - 1));  // scan_end is the byte after the last byte we scan.
   byte* card_cur = CardFromAddr(scan_begin);
   byte* card_end = CardFromAddr(scan_end);
   CheckCardValid(card_cur);
   CheckCardValid(card_end);
+  size_t cards_scanned = 0;
 
   // Handle any unaligned cards at the start.
   while (!IsAligned<sizeof(word)>(card_cur) && card_cur < card_end) {
     if (*card_cur >= minimum_age) {
       uintptr_t start = reinterpret_cast<uintptr_t>(AddrFromCard(card_cur));
-      uintptr_t end = start + kCardSize;
-      bitmap->VisitMarkedRange(start, end, visitor);
+      bitmap->VisitMarkedRange(start, start + kCardSize, visitor);
+      ++cards_scanned;
     }
     ++card_cur;
   }
@@ -85,6 +86,7 @@ inline void CardTable::Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_en
         DCHECK(*card == static_cast<byte>(start_word) || *card == kCardDirty)
             << "card " << static_cast<size_t>(*card) << " word " << (start_word & 0xFF);
         bitmap->VisitMarkedRange(start, start + kCardSize, visitor);
+        ++cards_scanned;
       }
       start_word >>= 8;
       start += kCardSize;
@@ -97,11 +99,13 @@ inline void CardTable::Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_en
   while (card_cur < card_end) {
     if (*card_cur >= minimum_age) {
       uintptr_t start = reinterpret_cast<uintptr_t>(AddrFromCard(card_cur));
-      uintptr_t end = start + kCardSize;
-      bitmap->VisitMarkedRange(start, end, visitor);
+      bitmap->VisitMarkedRange(start, start + kCardSize, visitor);
+      ++cards_scanned;
     }
     ++card_cur;
   }
+
+  return cards_scanned;
 }
 
 /*
