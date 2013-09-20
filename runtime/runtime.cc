@@ -1237,6 +1237,18 @@ mirror::ArtMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_se
   return method.get();
 }
 
+void Runtime::DisallowNewSystemWeaks() {
+  monitor_list_->DisallowNewMonitors();
+  intern_table_->DisallowNewInterns();
+  java_vm_->DisallowNewWeakGlobals();
+}
+
+void Runtime::AllowNewSystemWeaks() {
+  monitor_list_->AllowNewMonitors();
+  intern_table_->AllowNewInterns();
+  java_vm_->AllowNewWeakGlobals();
+}
+
 void Runtime::SetCalleeSaveMethod(mirror::ArtMethod* method, CalleeSaveType type) {
   DCHECK_LT(static_cast<int>(type), static_cast<int>(kLastCalleeSaveType));
   callee_save_methods_[type] = method;

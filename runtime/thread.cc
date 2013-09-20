@@ -1188,10 +1188,7 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
     result = const_cast<mirror::Object*>(globals.Get(ref));
   } else {
     DCHECK_EQ(kind, kWeakGlobal);
-    JavaVMExt* vm = Runtime::Current()->GetJavaVM();
-    IndirectReferenceTable& weak_globals = vm->weak_globals;
-    ReaderMutexLock mu(const_cast<Thread*>(this), vm->weak_globals_lock);
-    result = const_cast<mirror::Object*>(weak_globals.Get(ref));
+    result = Runtime::Current()->GetJavaVM()->DecodeWeakGlobal(const_cast<Thread*>(this), ref);
     if (result == kClearedJniWeakGlobal) {
       // This is a special case where it's okay to return NULL.
       return NULL;
