@@ -643,7 +643,8 @@ bool Heap::IsHeapAddress(const mirror::Object* obj) {
   return FindSpaceFromObject(obj, true) != NULL;
 }
 
-bool Heap::IsLiveObjectLocked(const mirror::Object* obj) {
+bool Heap::IsLiveObjectLocked(const mirror::Object* obj, bool search_allocation_stack,
+                              bool search_live_stack, bool sorted) {
   // Locks::heap_bitmap_lock_->AssertReaderHeld(Thread::Current());
   if (obj == NULL || UNLIKELY(!IsAligned<kObjectAlignment>(obj))) {
     return false;
@@ -663,12 +664,30 @@ bool Heap::IsLiveObjectLocked(const mirror::Object* obj) {
     }
   }
   // This is covering the allocation/live stack swapping that is done without mutators suspended.
-  for (size_t i = 0; i < 5; ++i) {
-    if (allocation_stack_->Contains(const_cast<mirror::Object*>(obj)) ||
-        live_stack_->Contains(const_cast<mirror::Object*>(obj))) {
-      return true;
+  for (size_t i = 0; i < (sorted ? 1 : 5); ++i) {
+    if (i > 0) {
+      NanoSleep(MsToNs(10));
     }
-    NanoSleep(MsToNs(10));
+
+    if (search_allocation_stack) {
+      if (sorted) {
+        if (allocation_stack_->ContainsSorted(const_cast<mirror::Object*>(obj))) {
+          return true;
+        }
+      } else if (allocation_stack_->Contains(const_cast<mirror::Object*>(obj))) {
+        return true;
+      }
+    }
+
+    if (search_live_stack) {
+      if (sorted) {
+        if (live_stack_->ContainsSorted(const_cast<mirror::Object*>(obj))) {
+          return true;
+        }
+      } else if (live_stack_->Contains(const_cast<mirror::Object*>(obj))) {
+        return true;
+      }
+    }
   }
   // We need to check the bitmaps again since there is a race where we mark something as live and
   // then clear the stack containing it.
@@ -707,10 +726,9 @@ void Heap::DumpSpaces() {
 }
 
 void Heap::VerifyObjectBody(const mirror::Object* obj) {
-  if (UNLIKELY(!IsAligned<kObjectAlignment>(obj))) {
-    LOG(FATAL) << "Object isn't aligned: " << obj;
-  }
-  if (UNLIKELY(GetObjectsAllocated() <= 10)) {  // Ignore early dawn of the universe verifications.
+  CHECK(IsAligned<kObjectAlignment>(obj)) << "Object isn't aligned: " << obj;
+  // Ignore early dawn of the universe verifications.
+  if (UNLIKELY(static_cast<size_t>(num_bytes_allocated_.load()) < 10 * KB)) {
     return;
   }
   const byte* raw_addr = reinterpret_cast<const byte*>(obj) +
@@ -1333,7 +1351,7 @@ static mirror::Object* RootMatchesObjectVisitor(mirror::Object* root, void* arg)
 class ScanVisitor {
  public:
   void operator()(const mirror::Object* obj) const {
-    LOG(INFO) << "Would have rescanned object " << obj;
+    LOG(ERROR) << "Would have rescanned object " << obj;
   }
 };
 
@@ -1359,12 +1377,42 @@ class VerifyReferenceVisitor {
       accounting::ObjectStack* alloc_stack = heap_->allocation_stack_.get();
       accounting::ObjectStack* live_stack = heap_->live_stack_.get();
 
-      if (obj != NULL) {
+      if (!failed_) {
+        // Print message on only on first failure to prevent spam.
+        LOG(ERROR) << "!!!!!!!!!!!!!!Heap corruption detected!!!!!!!!!!!!!!!!!!!";
+        failed_ = true;
+      }
+      if (obj != nullptr) {
         byte* card_addr = card_table->CardFromAddr(obj);
-        LOG(ERROR) << "Object " << obj << " references dead object " << ref << " at offset " << offset
-                   << "\nIsDirty = " << (*card_addr == accounting::CardTable::kCardDirty)
-                   << "\nObj type " << PrettyTypeOf(obj)
-                   << "\nRef type " << PrettyTypeOf(ref);
+        LOG(ERROR) << "Object " << obj << " references dead object " << ref << " at offset "
+                   << offset << "\n card value = " << static_cast<int>(*card_addr);
+        if (heap_->IsHeapAddress(obj->GetClass())) {
+          LOG(ERROR) << "Obj type " << PrettyTypeOf(obj);
+        } else {
+          LOG(ERROR) << "Object " << obj << " class(" << obj->GetClass() << ") not a heap address";
+        }
+
+        // Attmept to find the class inside of the recently freed objects.
+        space::ContinuousSpace* ref_space = heap_->FindContinuousSpaceFromObject(ref, true);
+        if (ref_space->IsDlMallocSpace()) {
+          space::DlMallocSpace* space = ref_space->AsDlMallocSpace();
+          mirror::Class* ref_class = space->FindRecentFreedObject(ref);
+          if (ref_class != nullptr) {
+            LOG(ERROR) << "Reference " << ref << " found as a recently freed object with class "
+                       << PrettyClass(ref_class);
+          } else {
+            LOG(ERROR) << "Reference " << ref << " not found as a recently freed object";
+          }
+        }
+
+        if (ref->GetClass() != nullptr && heap_->IsHeapAddress(ref->GetClass()) &&
+            ref->GetClass()->IsClass()) {
+          LOG(ERROR) << "Ref type " << PrettyTypeOf(ref);
+        } else {
+          LOG(ERROR) << "Ref " << ref << " class(" << ref->GetClass()
+                     << ") is not a valid heap address";
+        }
+
         card_table->CheckAddrIsInCardTable(reinterpret_cast<const byte*>(obj));
         void* cover_begin = card_table->AddrFromCard(card_addr);
         void* cover_end = reinterpret_cast<void*>(reinterpret_cast<size_t>(cover_begin) +
@@ -1377,11 +1425,17 @@ class VerifyReferenceVisitor {
         if (bitmap != NULL && bitmap->Test(obj)) {
           LOG(ERROR) << "Object " << obj << " found in live bitmap";
         }
-        if (alloc_stack->ContainsSorted(const_cast<mirror::Object*>(obj))) {
+        if (alloc_stack->Contains(const_cast<mirror::Object*>(obj))) {
           LOG(ERROR) << "Object " << obj << " found in allocation stack";
         }
-        if (live_stack->ContainsSorted(const_cast<mirror::Object*>(obj))) {
+        if (live_stack->Contains(const_cast<mirror::Object*>(obj))) {
           LOG(ERROR) << "Object " << obj << " found in live stack";
+        }
+        if (alloc_stack->Contains(const_cast<mirror::Object*>(ref))) {
+          LOG(ERROR) << "Ref " << ref << " found in allocation stack";
+        }
+        if (live_stack->Contains(const_cast<mirror::Object*>(ref))) {
+          LOG(ERROR) << "Ref " << ref << " found in live stack";
         }
         // Attempt to see if the card table missed the reference.
         ScanVisitor scan_visitor;
@@ -1399,20 +1453,11 @@ class VerifyReferenceVisitor {
       } else {
         LOG(ERROR) << "Root references dead object " << ref << "\nRef type " << PrettyTypeOf(ref);
       }
-      if (alloc_stack->ContainsSorted(const_cast<mirror::Object*>(ref))) {
-        LOG(ERROR) << "Reference " << ref << " found in allocation stack!";
-      }
-      if (live_stack->ContainsSorted(const_cast<mirror::Object*>(ref))) {
-        LOG(ERROR) << "Reference " << ref << " found in live stack!";
-      }
-      heap_->image_mod_union_table_->Dump(LOG(ERROR) << "Image mod-union table: ");
-      heap_->zygote_mod_union_table_->Dump(LOG(ERROR) << "Zygote mod-union table: ");
-      failed_ = true;
     }
   }
 
   bool IsLive(const mirror::Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
-    return heap_->IsLiveObjectLocked(obj);
+    return heap_->IsLiveObjectLocked(obj, true, false, true);
   }
 
   static mirror::Object* VerifyRoots(mirror::Object* root, void* arg) {
@@ -1436,6 +1481,8 @@ class VerifyObjectVisitor {
     // Note: we are verifying the references in obj but not obj itself, this is because obj must
     // be live or else how did we find it in the live bitmap?
     VerifyReferenceVisitor visitor(heap_);
+    // The class doesn't count as a reference but we should verify it anyways.
+    visitor(obj, obj->GetClass(), MemberOffset(0), false);
     collector::MarkSweep::VisitObjectReferences(obj, visitor);
     failed_ = failed_ || visitor.Failed();
   }
@@ -1459,9 +1506,18 @@ bool Heap::VerifyHeapReferences() {
   VerifyObjectVisitor visitor(this);
   Runtime::Current()->VisitRoots(VerifyReferenceVisitor::VerifyRoots, &visitor, false, false);
   GetLiveBitmap()->Visit(visitor);
-  // We don't want to verify the objects in the allocation stack since they themselves may be
+  // Verify objects in the allocation stack since these will be objects which were:
+  // 1. Allocated prior to the GC (pre GC verification).
+  // 2. Allocated during the GC (pre sweep GC verification).
+  for (mirror::Object** it = allocation_stack_->Begin(); it != allocation_stack_->End(); ++it) {
+    visitor(*it);
+  }
+  // We don't want to verify the objects in the live stack since they themselves may be
   // pointing to dead objects if they are not reachable.
   if (visitor.Failed()) {
+    // Dump mod-union tables.
+    image_mod_union_table_->Dump(LOG(ERROR) << "Image mod-union table: ");
+    zygote_mod_union_table_->Dump(LOG(ERROR) << "Zygote mod-union table: ");
     DumpSpaces();
     return false;
   }
@@ -1582,11 +1638,6 @@ bool Heap::VerifyMissingCardMarks() {
 
 void Heap::SwapStacks() {
   allocation_stack_.swap(live_stack_);
-
-  // Sort the live stack so that we can quickly binary search it later.
-  if (verify_object_mode_ > kNoHeapVerification) {
-    live_stack_->Sort();
-  }
 }
 
 void Heap::ProcessCards(base::TimingLogger& timings) {
@@ -1652,22 +1703,17 @@ void Heap::PreSweepingGcVerification(collector::GarbageCollector* gc) {
   // Called before sweeping occurs since we want to make sure we are not going so reclaim any
   // reachable objects.
   if (verify_post_gc_heap_) {
-    ThreadList* thread_list = Runtime::Current()->GetThreadList();
     Thread* self = Thread::Current();
     CHECK_NE(self->GetState(), kRunnable);
-    Locks::mutator_lock_->SharedUnlock(self);
-    thread_list->SuspendAll();
     {
       WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
       // Swapping bound bitmaps does nothing.
       gc->SwapBitmaps();
       if (!VerifyHeapReferences()) {
-        LOG(FATAL) << "Post " << gc->GetName() << "GC verification failed";
+        LOG(FATAL) << "Pre sweeping " << gc->GetName() << " GC verification failed";
       }
       gc->SwapBitmaps();
     }
-    thread_list->ResumeAll();
-    Locks::mutator_lock_->SharedLock(self);
   }
 }
 

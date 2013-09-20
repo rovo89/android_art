@@ -17,6 +17,7 @@
 #include "dlmalloc_space-inl.h"
 #include "gc/accounting/card_table.h"
 #include "gc/heap.h"
+#include "mirror/object-inl.h"
 #include "runtime.h"
 #include "thread.h"
 #include "utils.h"
@@ -118,8 +119,9 @@ size_t DlMallocSpace::bitmap_index_ = 0;
 DlMallocSpace::DlMallocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin,
                        byte* end, size_t growth_limit)
     : MemMapSpace(name, mem_map, end - begin, kGcRetentionPolicyAlwaysCollect),
-      num_bytes_allocated_(0), num_objects_allocated_(0), total_bytes_allocated_(0),
-      total_objects_allocated_(0), lock_("allocation space lock", kAllocSpaceLock), mspace_(mspace),
+      recent_free_pos_(0), num_bytes_allocated_(0), num_objects_allocated_(0),
+      total_bytes_allocated_(0), total_objects_allocated_(0),
+      lock_("allocation space lock", kAllocSpaceLock), mspace_(mspace),
       growth_limit_(growth_limit) {
   CHECK(mspace != NULL);
 
@@ -137,6 +139,11 @@ DlMallocSpace::DlMallocSpace(const std::string& name, MemMap* mem_map, void* msp
       StringPrintf("allocspace %s mark-bitmap %d", name.c_str(), static_cast<int>(bitmap_index)),
       Begin(), Capacity()));
   DCHECK(live_bitmap_.get() != NULL) << "could not create allocspace mark bitmap #" << bitmap_index;
+
+  for (auto& freed : recent_freed_objects_) {
+    freed.first = nullptr;
+    freed.second = nullptr;
+  }
 }
 
 DlMallocSpace* DlMallocSpace::Create(const std::string& name, size_t initial_size, size_t
@@ -318,6 +325,27 @@ DlMallocSpace* DlMallocSpace::CreateZygoteSpace(const char* alloc_space_name) {
   return alloc_space;
 }
 
+mirror::Class* DlMallocSpace::FindRecentFreedObject(const mirror::Object* obj) {
+  size_t pos = recent_free_pos_;
+  // Start at the most recently freed object and work our way back since there may be duplicates
+  // caused by dlmalloc reusing memory.
+  if (kRecentFreeCount > 0) {
+    for (size_t i = 0; i + 1 < kRecentFreeCount + 1; ++i) {
+      pos = pos != 0 ? pos - 1 : kRecentFreeMask;
+      if (recent_freed_objects_[pos].first == obj) {
+        return recent_freed_objects_[pos].second;
+      }
+    }
+  }
+  return nullptr;
+}
+
+void DlMallocSpace::RegisterRecentFree(mirror::Object* ptr) {
+  recent_freed_objects_[recent_free_pos_].first = ptr;
+  recent_freed_objects_[recent_free_pos_].second = ptr->GetClass();
+  recent_free_pos_ = (recent_free_pos_ + 1) & kRecentFreeMask;
+}
+
 size_t DlMallocSpace::Free(Thread* self, mirror::Object* ptr) {
   MutexLock mu(self, lock_);
   if (kDebugSpaces) {
@@ -327,6 +355,9 @@ size_t DlMallocSpace::Free(Thread* self, mirror::Object* ptr) {
   const size_t bytes_freed = InternalAllocationSize(ptr);
   num_bytes_allocated_ -= bytes_freed;
   --num_objects_allocated_;
+  if (kRecentFreeCount > 0) {
+    RegisterRecentFree(ptr);
+  }
   mspace_free(mspace_, ptr);
   return bytes_freed;
 }
@@ -344,6 +375,13 @@ size_t DlMallocSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** p
       __builtin_prefetch(reinterpret_cast<char*>(ptrs[i + look_ahead]) - sizeof(size_t));
     }
     bytes_freed += InternalAllocationSize(ptr);
+  }
+
+  if (kRecentFreeCount > 0) {
+    MutexLock mu(self, lock_);
+    for (size_t i = 0; i < num_ptrs; i++) {
+      RegisterRecentFree(ptrs[i]);
+    }
   }
 
   if (kDebugSpaces) {
