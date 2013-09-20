@@ -196,8 +196,6 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
 
   template<typename T>
   T Decode(jobject obj) const
-      LOCKS_EXCLUDED(JavaVMExt::globals_lock,
-                     JavaVMExt::weak_globals_lock)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK_EQ(thread_state_, kRunnable);  // Don't work with raw objects in non-runnable states.
@@ -205,8 +203,6 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
   }
 
   mirror::ArtField* DecodeField(jfieldID fid) const
-      LOCKS_EXCLUDED(JavaVMExt::globals_lock,
-                     JavaVMExt::weak_globals_lock)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK_EQ(thread_state_, kRunnable);  // Don't work with raw objects in non-runnable states.
@@ -218,8 +214,6 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
   }
 
   jfieldID EncodeField(mirror::ArtField* field) const
-      LOCKS_EXCLUDED(JavaVMExt::globals_lock,
-                     JavaVMExt::weak_globals_lock)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK_EQ(thread_state_, kRunnable);  // Don't work with raw objects in non-runnable states.
@@ -230,8 +224,6 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
   }
 
   mirror::ArtMethod* DecodeMethod(jmethodID mid) const
-      LOCKS_EXCLUDED(JavaVMExt::globals_lock,
-                     JavaVMExt::weak_globals_lock)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK_EQ(thread_state_, kRunnable);  // Don't work with raw objects in non-runnable states.
