@@ -145,8 +145,9 @@ class CompilerDriver {
   CompiledMethod* GetCompiledMethod(MethodReference ref) const
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
-  void AddRequiresConstructorBarrier(Thread* self, const DexFile* dex_file, size_t class_def_index);
-  bool RequiresConstructorBarrier(Thread* self, const DexFile* dex_file, size_t class_def_index);
+  void AddRequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
+                                     uint16_t class_def_index);
+  bool RequiresConstructorBarrier(Thread* self, const DexFile* dex_file, uint16_t class_def_index);
 
   // Callbacks from compiler to see what runtime checks must be generated.
 
@@ -192,6 +193,7 @@ class CompilerDriver {
 
   // Record patch information for later fix up.
   void AddCodePatch(const DexFile* dex_file,
+                    uint16_t referrer_class_def_idx,
                     uint32_t referrer_method_idx,
                     InvokeType referrer_invoke_type,
                     uint32_t target_method_idx,
@@ -199,6 +201,7 @@ class CompilerDriver {
                     size_t literal_offset)
       LOCKS_EXCLUDED(compiled_methods_lock_);
   void AddMethodPatch(const DexFile* dex_file,
+                      uint16_t referrer_class_def_idx,
                       uint32_t referrer_method_idx,
                       InvokeType referrer_invoke_type,
                       uint32_t target_method_idx,
@@ -249,6 +252,9 @@ class CompilerDriver {
     const DexFile& GetDexFile() const {
       return *dex_file_;
     }
+    uint16_t GetReferrerClassDefIdx() const {
+      return referrer_class_def_idx_;
+    }
     uint32_t GetReferrerMethodIdx() const {
       return referrer_method_idx_;
     }
@@ -267,12 +273,14 @@ class CompilerDriver {
 
    private:
     PatchInformation(const DexFile* dex_file,
+                     uint16_t referrer_class_def_idx,
                      uint32_t referrer_method_idx,
                      InvokeType referrer_invoke_type,
                      uint32_t target_method_idx,
                      InvokeType target_invoke_type,
                      size_t literal_offset)
       : dex_file_(dex_file),
+        referrer_class_def_idx_(referrer_class_def_idx),
         referrer_method_idx_(referrer_method_idx),
         referrer_invoke_type_(referrer_invoke_type),
         target_method_idx_(target_method_idx),
@@ -281,12 +289,13 @@ class CompilerDriver {
       CHECK(dex_file_ != NULL);
     }
 
-    const DexFile* dex_file_;
-    uint32_t referrer_method_idx_;
-    InvokeType referrer_invoke_type_;
-    uint32_t target_method_idx_;
-    InvokeType target_invoke_type_;
-    size_t literal_offset_;
+    const DexFile* const dex_file_;
+    const uint16_t referrer_class_def_idx_;
+    const uint32_t referrer_method_idx_;
+    const InvokeType referrer_invoke_type_;
+    const uint32_t target_method_idx_;
+    const InvokeType target_invoke_type_;
+    const size_t literal_offset_;
 
     friend class CompilerDriver;
     DISALLOW_COPY_AND_ASSIGN(PatchInformation);
@@ -358,7 +367,7 @@ class CompilerDriver {
                       ThreadPool& thread_pool, base::TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
   void CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
-                     InvokeType invoke_type, uint32_t class_def_idx, uint32_t method_idx,
+                     InvokeType invoke_type, uint16_t class_def_idx, uint32_t method_idx,
                      jobject class_loader, const DexFile& dex_file,
                      DexToDexCompilationLevel dex_to_dex_compilation_level)
       LOCKS_EXCLUDED(compiled_methods_lock_);

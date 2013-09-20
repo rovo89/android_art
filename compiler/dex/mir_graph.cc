@@ -504,7 +504,7 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, int cur_
 
 /* Parse a Dex method and insert it into the MIRGraph at the current insert point. */
 void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
-                           InvokeType invoke_type, uint32_t class_def_idx,
+                           InvokeType invoke_type, uint16_t class_def_idx,
                            uint32_t method_idx, jobject class_loader, const DexFile& dex_file) {
   current_code_item_ = code_item;
   method_stack_.push_back(std::make_pair(current_method_, current_offset_));

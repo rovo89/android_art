@@ -357,7 +357,7 @@ class MIRGraph {
    * actually the index of the method in the m_units_ array).
    */
   void InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
-                    InvokeType invoke_type, uint32_t class_def_idx,
+                    InvokeType invoke_type, uint16_t class_def_idx,
                     uint32_t method_idx, jobject class_loader, const DexFile& dex_file);
 
   /* Find existing block */

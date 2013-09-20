@@ -508,6 +508,7 @@ struct ClassOffsets : public CheckOffsets<mirror::Class> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, access_flags_),                  "accessFlags"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, class_size_),                    "classSize"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, clinit_thread_id_),              "clinitThreadId"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, dex_class_def_idx_),             "dexClassDefIndex"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, dex_type_idx_),                  "dexTypeIndex"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, num_reference_instance_fields_), "numReferenceInstanceFields"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, num_reference_static_fields_),   "numReferenceStaticFields"));
@@ -570,10 +571,6 @@ struct ProxyOffsets : public CheckOffsets<mirror::Proxy> {
 
 struct ClassClassOffsets : public CheckOffsets<mirror::ClassClass> {
   ClassClassOffsets() : CheckOffsets<mirror::ClassClass>(true, "Ljava/lang/Class;") {
-    // padding 32-bit
-    CHECK_EQ(OFFSETOF_MEMBER(mirror::ClassClass, padding_) + 4,
-             OFFSETOF_MEMBER(mirror::ClassClass, serialVersionUID_));
-
     // alphabetical 64-bit
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ClassClass, serialVersionUID_), "serialVersionUID"));
   };
@@ -585,11 +582,11 @@ struct StringClassOffsets : public CheckOffsets<mirror::StringClass> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, ASCII_),                  "ASCII"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, CASE_INSENSITIVE_ORDER_), "CASE_INSENSITIVE_ORDER"));
 
-    // padding 32-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, REPLACEMENT_CHAR_),       "REPLACEMENT_CHAR"));
-
     // alphabetical 64-bit
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, serialVersionUID_),       "serialVersionUID"));
+
+    // alphabetical 32-bit
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, REPLACEMENT_CHAR_),       "REPLACEMENT_CHAR"));
   };
 };
 
@@ -606,6 +603,7 @@ struct ArtMethodClassOffsets : public CheckOffsets<mirror::ArtMethodClass> {
 struct DexCacheOffsets : public CheckOffsets<mirror::DexCache> {
   DexCacheOffsets() : CheckOffsets<mirror::DexCache>(false, "Ljava/lang/DexCache;") {
     // alphabetical references
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, dex_),                        "dex"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, initialized_static_storage_), "initializedStaticStorage"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, location_),                   "location"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_fields_),            "resolvedFields"));

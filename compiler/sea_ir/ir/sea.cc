@@ -191,7 +191,7 @@ void SeaGraph::InsertSignatureNodes(const art::DexFile::CodeItem* code_item, Reg
 }
 
 void SeaGraph::BuildMethodSeaGraph(const art::DexFile::CodeItem* code_item,
-    const art::DexFile& dex_file, uint32_t class_def_idx,
+    const art::DexFile& dex_file, uint16_t class_def_idx,
     uint32_t method_idx, uint32_t method_access_flags) {
   code_item_ = code_item;
   class_def_idx_ = class_def_idx;
@@ -409,7 +409,7 @@ CodeGenData* SeaGraph::GenerateLLVM(const std::string& function_name,
 
 CodeGenData* SeaGraph::CompileMethod(
     const std::string& function_name,
-    const art::DexFile::CodeItem* code_item, uint32_t class_def_idx,
+    const art::DexFile::CodeItem* code_item, uint16_t class_def_idx,
     uint32_t method_idx, uint32_t method_access_flags, const art::DexFile& dex_file) {
   // Two passes: Builds the intermediate structure (non-SSA) of the sea-ir for the function.
   BuildMethodSeaGraph(code_item, dex_file, class_def_idx, method_idx, method_access_flags);

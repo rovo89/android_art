@@ -178,7 +178,7 @@ inline uint32_t ArtMethod::GetOatNativeGcMapOffset() const {
 }
 
 inline bool ArtMethod::IsRuntimeMethod() const {
-  return GetDexMethodIndex() == DexFile::kDexNoIndex16;
+  return GetDexMethodIndex() == DexFile::kDexNoIndex;
 }
 
 inline bool ArtMethod::IsCalleeSaveMethod() const {

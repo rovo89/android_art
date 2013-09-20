@@ -91,6 +91,7 @@ LIBART_COMMON_SRC_FILES := \
 	native/dalvik_system_VMStack.cc \
 	native/dalvik_system_Zygote.cc \
 	native/java_lang_Class.cc \
+	native/java_lang_DexCache.cc \
 	native/java_lang_Object.cc \
 	native/java_lang_Runtime.cc \
 	native/java_lang_String.cc \

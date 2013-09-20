@@ -385,11 +385,12 @@ void Mir2Lir::InstallLiteralPools() {
   while (data_lir != NULL) {
     uint32_t target = data_lir->operands[0];
     cu_->compiler_driver->AddCodePatch(cu_->dex_file,
-                                      cu_->method_idx,
-                                      cu_->invoke_type,
-                                      target,
-                                      static_cast<InvokeType>(data_lir->operands[1]),
-                                      code_buffer_.size());
+                                       cu_->class_def_idx,
+                                       cu_->method_idx,
+                                       cu_->invoke_type,
+                                       target,
+                                       static_cast<InvokeType>(data_lir->operands[1]),
+                                       code_buffer_.size());
     const DexFile::MethodId& id = cu_->dex_file->GetMethodId(target);
     // unique based on target to ensure code deduplication works
     uint32_t unique_patch_value = reinterpret_cast<uint32_t>(&id);
@@ -400,11 +401,12 @@ void Mir2Lir::InstallLiteralPools() {
   while (data_lir != NULL) {
     uint32_t target = data_lir->operands[0];
     cu_->compiler_driver->AddMethodPatch(cu_->dex_file,
-                                        cu_->method_idx,
-                                        cu_->invoke_type,
-                                        target,
-                                        static_cast<InvokeType>(data_lir->operands[1]),
-                                        code_buffer_.size());
+                                         cu_->class_def_idx,
+                                         cu_->method_idx,
+                                         cu_->invoke_type,
+                                         target,
+                                         static_cast<InvokeType>(data_lir->operands[1]),
+                                         code_buffer_.size());
     const DexFile::MethodId& id = cu_->dex_file->GetMethodId(target);
     // unique based on target to ensure code deduplication works
     uint32_t unique_patch_value = reinterpret_cast<uint32_t>(&id);

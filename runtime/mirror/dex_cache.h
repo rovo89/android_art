@@ -164,6 +164,7 @@ class MANAGED DexCache : public Object {
   }
 
  private:
+  Object* dex_;
   ObjectArray<StaticStorageBase>* initialized_static_storage_;
   String* location_;
   ObjectArray<ArtField>* resolved_fields_;
