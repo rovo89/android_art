@@ -58,7 +58,7 @@ class ZipEntry {
   uint32_t GetCompressedLength();
 
   // returns -1 on error
-  off_t GetDataOffset();
+  off64_t GetDataOffset();
 
   const ZipArchive* zip_archive_;
 
@@ -72,22 +72,28 @@ class ZipEntry {
 class ZipArchive {
  public:
   // Zip file constants.
-  static const uint32_t kEOCDSignature  = 0x06054b50;
-  static const int32_t kEOCDLen         = 22;
-  static const int32_t kEOCDNumEntries  =  8;  // offset to #of entries in file
-  static const int32_t kEOCDSize        = 12;  // size of the central directory
-  static const int32_t kEOCDFileOffset  = 16;  // offset to central directory
+  static const uint32_t kEOCDSignature      = 0x06054b50;
+  static const int32_t kEOCDLen             = 22;
+  static const int32_t kEOCDDiskNumber      =  4;              // number of the current disk
+  static const int32_t kEOCDDiskNumberForCD =  6;              // disk number with the Central Directory
+  static const int32_t kEOCDNumEntries      =  8;              // offset to #of entries in file
+  static const int32_t kEOCDTotalNumEntries = 10;              // offset to total #of entries in spanned archives
+  static const int32_t kEOCDSize            = 12;              // size of the central directory
+  static const int32_t kEOCDFileOffset      = 16;              // offset to central directory
+  static const int32_t kEOCDCommentSize     = 20;              // offset to the length of the file comment
 
   static const int32_t kMaxCommentLen = 65535;  // longest possible in uint16_t
   static const int32_t kMaxEOCDSearch = (kMaxCommentLen + kEOCDLen);
 
   static const uint32_t kLFHSignature = 0x04034b50;
   static const int32_t kLFHLen        = 30;  // excluding variable-len fields
+  static const int32_t kLFHGPBFlags   = 6;   // offset to GPB flags
   static const int32_t kLFHNameLen    = 26;  // offset to filename length
   static const int32_t kLFHExtraLen   = 28;  // offset to extra length
 
   static const uint32_t kCDESignature   = 0x02014b50;
   static const int32_t kCDELen          = 46;  // excluding variable-len fields
+  static const int32_t kCDEGPBFlags     = 8;   // offset to GPB flags
   static const int32_t kCDEMethod       = 10;  // offset to compression method
   static const int32_t kCDEModWhen      = 12;  // offset to modification timestamp
   static const int32_t kCDECRC          = 16;  // offset to entry CRC
@@ -97,6 +103,10 @@ class ZipArchive {
   static const int32_t kCDEExtraLen     = 30;  // offset to extra length
   static const int32_t kCDECommentLen   = 32;  // offset to comment length
   static const int32_t kCDELocalOffset  = 42;  // offset to local hdr
+
+  // General Purpose Bit Flag
+  static const int32_t kGPFEncryptedFlag   = (1 << 0);
+  static const int32_t kGPFUnsupportedMask = (kGPFEncryptedFlag);
 
   // return new ZipArchive instance on success, NULL on error.
   static ZipArchive* Open(const std::string& filename);
@@ -117,7 +127,7 @@ class ZipArchive {
 
   int fd_;
   uint16_t num_entries_;
-  off_t dir_offset_;
+  off64_t dir_offset_;
   UniquePtr<MemMap> dir_map_;
   typedef SafeMap<StringPiece, const byte*> DirEntries;
   DirEntries dir_entries_;
