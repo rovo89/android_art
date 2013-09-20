@@ -1196,7 +1196,7 @@ std::string GetDalvikCacheFilenameOrDie(const std::string& location) {
     LOG(FATAL) << "Expected path in location to be absolute: "<< location;
   }
   std::string cache_file(location, 1);  // skip leading slash
-  if (!IsValidDexFilename(location)) {
+  if (!IsValidDexFilename(location) && !IsValidImageFilename(location)) {
     cache_file += "/";
     cache_file += DexFile::kClassesDex;
   }
@@ -1214,6 +1214,10 @@ bool IsValidZipFilename(const std::string& filename) {
 
 bool IsValidDexFilename(const std::string& filename) {
   return EndsWith(filename, ".dex");
+}
+
+bool IsValidImageFilename(const std::string& filename) {
+  return EndsWith(filename, ".art");
 }
 
 bool IsValidOatFilename(const std::string& filename) {
