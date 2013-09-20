@@ -60,7 +60,7 @@ uint32_t ZipEntry::GetCrc32() {
   return Le32ToHost(ptr_ + ZipArchive::kCDECRC);
 }
 
-off_t ZipEntry::GetDataOffset() {
+off64_t ZipEntry::GetDataOffset() {
   // All we have is the offset to the Local File Header, which is
   // variable size, so we have to read the contents of the struct to
   // figure out where the actual data starts.
@@ -69,14 +69,14 @@ off_t ZipEntry::GetDataOffset() {
   // somebody trying to map the compressed or uncompressed data runs
   // off the end of the mapped region.
 
-  off_t dir_offset = zip_archive_->dir_offset_;
+  off64_t dir_offset = zip_archive_->dir_offset_;
   int64_t lfh_offset = Le32ToHost(ptr_ + ZipArchive::kCDELocalOffset);
   if (lfh_offset + ZipArchive::kLFHLen >= dir_offset) {
     LOG(WARNING) << "Zip: bad LFH offset in zip";
     return -1;
   }
 
-  if (lseek(zip_archive_->fd_, lfh_offset, SEEK_SET) != lfh_offset) {
+  if (lseek64(zip_archive_->fd_, lfh_offset, SEEK_SET) != lfh_offset) {
     PLOG(WARNING) << "Zip: failed seeking to LFH at offset " << lfh_offset;
     return -1;
   }
@@ -93,7 +93,13 @@ off_t ZipEntry::GetDataOffset() {
     return -1;
   }
 
-  off_t data_offset = (lfh_offset + ZipArchive::kLFHLen
+  uint32_t gpbf = Le16ToHost(lfh_buf + ZipArchive::kLFHGPBFlags);
+  if ((gpbf & ZipArchive::kGPFUnsupportedMask) != 0) {
+    LOG(WARNING) << "Invalid General Purpose Bit Flag: " << gpbf;
+    return -1;
+  }
+
+  off64_t data_offset = (lfh_offset + ZipArchive::kLFHLen
                        + Le16ToHost(lfh_buf + ZipArchive::kLFHNameLen)
                        + Le16ToHost(lfh_buf + ZipArchive::kLFHExtraLen));
   if (data_offset >= dir_offset) {
@@ -103,7 +109,7 @@ off_t ZipEntry::GetDataOffset() {
 
   // check lengths
 
-  if (static_cast<off_t>(data_offset + GetCompressedLength()) > dir_offset) {
+  if (static_cast<off64_t>(data_offset + GetCompressedLength()) > dir_offset) {
     LOG(WARNING) << "Zip: bad compressed length in zip "
                  << "(" << data_offset << " + " << GetCompressedLength()
                  << " > " << dir_offset << ")";
@@ -111,7 +117,7 @@ off_t ZipEntry::GetDataOffset() {
   }
 
   if (GetCompressionMethod() == kCompressStored
-      && static_cast<off_t>(data_offset + GetUncompressedLength()) > dir_offset) {
+      && static_cast<off64_t>(data_offset + GetUncompressedLength()) > dir_offset) {
     LOG(WARNING) << "Zip: bad uncompressed length in zip "
                  << "(" << data_offset << " + " << GetUncompressedLength()
                  << " > " << dir_offset << ")";
@@ -263,12 +269,12 @@ bool ZipEntry::ExtractToMemory(uint8_t* begin, size_t size) {
   if (size == 0) {
     return true;
   }
-  off_t data_offset = GetDataOffset();
+  off64_t data_offset = GetDataOffset();
   if (data_offset == -1) {
     LOG(WARNING) << "Zip: data_offset=" << data_offset;
     return false;
   }
-  if (lseek(zip_archive_->fd_, data_offset, SEEK_SET) != data_offset) {
+  if (lseek64(zip_archive_->fd_, data_offset, SEEK_SET) != data_offset) {
     PLOG(WARNING) << "Zip: lseek to data at " << data_offset << " failed";
     return false;
   }
@@ -378,10 +384,40 @@ bool ZipArchive::MapCentralDirectory() {
   /*
    * Get and test file length.
    */
-  off_t file_length = lseek(fd_, 0, SEEK_END);
+  off64_t file_length = lseek64(fd_, 0, SEEK_END);
   if (file_length < kEOCDLen) {
-      LOG(WARNING) << "Zip: length " << file_length << " is too small to be zip";
-      return false;
+    LOG(WARNING) << "Zip: length " << file_length << " is too small to be zip";
+    return false;
+  }
+
+  size_t read_amount = kMaxEOCDSearch;
+  if (file_length < off64_t(read_amount)) {
+    read_amount = file_length;
+  }
+
+  UniquePtr<uint8_t[]> scan_buf(new uint8_t[read_amount]);
+  if (scan_buf.get() == NULL) {
+    return false;
+  }
+
+  /*
+   * Make sure this is a Zip archive.
+   */
+  if (lseek64(fd_, 0, SEEK_SET) != 0) {
+    PLOG(WARNING) << "seek to start failed: ";
+    return false;
+  }
+
+  ssize_t actual = TEMP_FAILURE_RETRY(read(fd_, scan_buf.get(), sizeof(int32_t)));
+  if (actual != static_cast<ssize_t>(sizeof(int32_t))) {
+    PLOG(INFO) << "couldn't read first signature from zip archive: ";
+    return false;
+  }
+
+  unsigned int header = Le32ToHost(scan_buf.get());
+  if (header != kLFHSignature) {
+    LOG(VERBOSE) << "Not a Zip archive (found " << std::hex << header << ")";
+    return false;
   }
 
   // Perform the traditional EOCD snipe hunt.
@@ -394,25 +430,15 @@ bool ZipArchive::MapCentralDirectory() {
   // to determine the extent of the CD.
   //
   // We start by pulling in the last part of the file.
-  size_t read_amount = kMaxEOCDSearch;
-  if (file_length < off_t(read_amount)) {
-      read_amount = file_length;
-  }
+  off64_t search_start = file_length - read_amount;
 
-  UniquePtr<uint8_t[]> scan_buf(new uint8_t[read_amount]);
-  if (scan_buf.get() == NULL) {
-    return false;
-  }
-
-  off_t search_start = file_length - read_amount;
-
-  if (lseek(fd_, search_start, SEEK_SET) != search_start) {
+  if (lseek64(fd_, search_start, SEEK_SET) != search_start) {
     PLOG(WARNING) << "Zip: seek " << search_start << " failed";
     return false;
   }
-  ssize_t actual = TEMP_FAILURE_RETRY(read(fd_, scan_buf.get(), read_amount));
-  if (actual == -1) {
-    PLOG(WARNING) << "Zip: read " << read_amount << " failed";
+  actual = TEMP_FAILURE_RETRY(read(fd_, scan_buf.get(), read_amount));
+  if (actual != static_cast<ssize_t>(read_amount)) {
+    PLOG(WARNING) << "Zip: read " << actual << ", expected " << read_amount << ". failed";
     return false;
   }
 
@@ -432,16 +458,20 @@ bool ZipArchive::MapCentralDirectory() {
     return false;
   }
 
-  off_t eocd_offset = search_start + i;
+  off64_t eocd_offset = search_start + i;
   const byte* eocd_ptr = scan_buf.get() + i;
 
   DCHECK(eocd_offset < file_length);
 
   // Grab the CD offset and size, and the number of entries in the
   // archive.  Verify that they look reasonable.
+  uint16_t disk_number = Le16ToHost(eocd_ptr + kEOCDDiskNumber);
+  uint16_t disk_with_central_dir = Le16ToHost(eocd_ptr + kEOCDDiskNumberForCD);
   uint16_t num_entries = Le16ToHost(eocd_ptr + kEOCDNumEntries);
+  uint16_t total_num_entries = Le16ToHost(eocd_ptr + kEOCDTotalNumEntries);
   uint32_t dir_size = Le32ToHost(eocd_ptr + kEOCDSize);
   uint32_t dir_offset = Le32ToHost(eocd_ptr + kEOCDFileOffset);
+  uint16_t comment_size = Le16ToHost(eocd_ptr + kEOCDCommentSize);
 
   if ((uint64_t) dir_offset + (uint64_t) dir_size > (uint64_t) eocd_offset) {
     LOG(WARNING) << "Zip: bad offsets ("
@@ -452,6 +482,16 @@ bool ZipArchive::MapCentralDirectory() {
   }
   if (num_entries == 0) {
     LOG(WARNING) << "Zip: empty archive?";
+    return false;
+  } else if (num_entries != total_num_entries || disk_number != 0 || disk_with_central_dir != 0) {
+    LOG(WARNING) << "spanned archives not supported";
+    return false;
+  }
+
+  // Check to see if comment is a sane size
+  if ((comment_size > (file_length - kEOCDLen))
+      || (eocd_offset > (file_length - kEOCDLen) - comment_size)) {
+    LOG(WARNING) << "comment size runs off end of file";
     return false;
   }
 
@@ -489,14 +529,27 @@ bool ZipArchive::Parse() {
       return false;
     }
 
-    uint16_t filename_len = Le16ToHost(ptr + kCDENameLen);
+    uint16_t gpbf = Le16ToHost(ptr + kCDEGPBFlags);
+    if ((gpbf & kGPFUnsupportedMask) != 0) {
+      LOG(WARNING) << "Invalid General Purpose Bit Flag: " << gpbf;
+      return false;
+    }
+
+    uint16_t name_len = Le16ToHost(ptr + kCDENameLen);
     uint16_t extra_len = Le16ToHost(ptr + kCDEExtraLen);
     uint16_t comment_len = Le16ToHost(ptr + kCDECommentLen);
 
     // add the CDE filename to the hash table
     const char* name = reinterpret_cast<const char*>(ptr + kCDELen);
-    dir_entries_.Put(StringPiece(name, filename_len), ptr);
-    ptr += kCDELen + filename_len + extra_len + comment_len;
+
+    // Check name for NULL characters
+    if (memchr(name, 0, name_len) != NULL) {
+      LOG(WARNING) << "Filename contains NUL byte";
+      return false;
+    }
+
+    dir_entries_.Put(StringPiece(name, name_len), ptr);
+    ptr += kCDELen + name_len + extra_len + comment_len;
     if (ptr > cd_ptr + cd_length) {
       LOG(WARNING) << "Zip: bad CD advance "
                    << "(" << ptr << " vs " << (cd_ptr + cd_length) << ") "
