@@ -208,17 +208,26 @@ bool MarkSweep::HandleDirtyObjectsPhase() {
 
   ProcessReferences(self);
   {
-    WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+    ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     SweepSystemWeaks();
   }
 
   // Only need to do this if we have the card mark verification on, and only during concurrent GC.
-  if (GetHeap()->verify_missing_card_marks_) {
+  if (GetHeap()->verify_missing_card_marks_ || GetHeap()->verify_pre_gc_heap_||
+      GetHeap()->verify_post_gc_heap_) {
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
     // This second sweep makes sure that we don't have any objects in the live stack which point to
     // freed objects. These cause problems since their references may be previously freed objects.
     SweepArray(GetHeap()->allocation_stack_.get(), false);
   }
+
+  timings_.StartSplit("PreSweepingGcVerification");
+  heap_->PreSweepingGcVerification(this);
+  timings_.EndSplit();
+
+  // Ensure that nobody inserted items in the live stack after we swapped the stacks.
+  ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
+  CHECK_GE(live_stack_freeze_size_, GetHeap()->GetLiveStack()->Size());
   return true;
 }
 
@@ -228,19 +237,18 @@ bool MarkSweep::IsConcurrent() const {
 
 void MarkSweep::MarkingPhase() {
   base::TimingLogger::ScopedSplit split("MarkingPhase", &timings_);
-  Heap* heap = GetHeap();
   Thread* self = Thread::Current();
 
   BindBitmaps();
   FindDefaultMarkBitmap();
 
   // Process dirty cards and add dirty cards to mod union tables.
-  heap->ProcessCards(timings_);
+  heap_->ProcessCards(timings_);
 
   // Need to do this before the checkpoint since we don't want any threads to add references to
   // the live stack during the recursive mark.
   timings_.NewSplit("SwapStacks");
-  heap->SwapStacks();
+  heap_->SwapStacks();
 
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   if (Locks::mutator_lock_->IsExclusiveHeld(self)) {
@@ -248,11 +256,13 @@ void MarkSweep::MarkingPhase() {
     MarkRoots();
   } else {
     MarkThreadRoots(self);
+    // At this point the live stack should no longer have any mutators which push into it.
     MarkNonThreadRoots();
   }
+  live_stack_freeze_size_ = heap_->GetLiveStack()->Size();
   MarkConcurrentRoots();
 
-  heap->UpdateAndMarkModUnion(this, timings_, GetGcType());
+  heap_->UpdateAndMarkModUnion(this, timings_, GetGcType());
   MarkReachableObjects();
 }
 
@@ -279,12 +289,17 @@ void MarkSweep::ReclaimPhase() {
 
   if (!IsConcurrent()) {
     ProcessReferences(self);
-    WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-    SweepSystemWeaks();
+    {
+      ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
+      SweepSystemWeaks();
+    }
+    timings_.StartSplit("PreSweepingGcVerification");
+    heap_->PreSweepingGcVerification(this);
+    timings_.EndSplit();
   } else {
     base::TimingLogger::ScopedSplit split("UnMarkAllocStack", &timings_);
-    accounting::ObjectStack* allocation_stack = GetHeap()->allocation_stack_.get();
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+    accounting::ObjectStack* allocation_stack = GetHeap()->allocation_stack_.get();
     // The allocation stack contains things allocated since the start of the GC. These may have been
     // marked during this GC meaning they won't be eligible for reclaiming in the next sticky GC.
     // Remove these objects from the mark bitmaps so that they will be eligible for sticky
@@ -308,9 +323,6 @@ void MarkSweep::ReclaimPhase() {
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     VerifyImageRoots();
   }
-  timings_.StartSplit("PreSweepingGcVerification");
-  heap_->PreSweepingGcVerification(this);
-  timings_.EndSplit();
 
   {
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
@@ -421,9 +433,9 @@ inline void MarkSweep::MarkObjectNonNull(const Object* obj) {
   // This object was not previously marked.
   if (!object_bitmap->Test(obj)) {
     object_bitmap->Set(obj);
-    // Lock is not needed but is here anyways to please annotalysis.
-    MutexLock mu(Thread::Current(), mark_stack_lock_);
     if (UNLIKELY(mark_stack_->Size() >= mark_stack_->Capacity())) {
+      // Lock is not needed but is here anyways to please annotalysis.
+      MutexLock mu(Thread::Current(), mark_stack_lock_);
       ExpandMarkStack();
     }
     // The object must be pushed on to the mark stack.
@@ -748,7 +760,10 @@ class CardScanTask : public MarkStackTask<false> {
   virtual void Run(Thread* self) NO_THREAD_SAFETY_ANALYSIS {
     ScanObjectParallelVisitor visitor(this);
     accounting::CardTable* card_table = mark_sweep_->GetHeap()->GetCardTable();
-    card_table->Scan(bitmap_, begin_, end_, visitor, minimum_age_);
+    size_t cards_scanned = card_table->Scan(bitmap_, begin_, end_, visitor, minimum_age_);
+    mark_sweep_->cards_scanned_.fetch_add(cards_scanned);
+    VLOG(heap) << "Parallel scanning cards " << reinterpret_cast<void*>(begin_) << " - "
+        << reinterpret_cast<void*>(end_) << " = " << cards_scanned;
     // Finish by emptying our local mark stack.
     MarkStackTask::Run(self);
   }
@@ -784,6 +799,8 @@ void MarkSweep::ScanGrayObjects(bool paused, byte minimum_age) {
     DCHECK_NE(mark_stack_tasks, 0U);
     const size_t mark_stack_delta = std::min(CardScanTask::kMaxSize / 2,
                                              mark_stack_size / mark_stack_tasks + 1);
+    size_t ref_card_count = 0;
+    cards_scanned_ = 0;
     for (const auto& space : GetHeap()->GetContinuousSpaces()) {
       byte* card_begin = space->Begin();
       byte* card_end = space->End();
@@ -810,11 +827,24 @@ void MarkSweep::ScanGrayObjects(bool paused, byte minimum_age) {
         thread_pool->AddTask(self, task);
         card_begin += card_increment;
       }
+
+      if (paused && kIsDebugBuild) {
+        // Make sure we don't miss scanning any cards.
+        size_t scanned_cards = card_table->Scan(space->GetMarkBitmap(), space->Begin(),
+                                                space->End(), VoidFunctor(), minimum_age);
+        VLOG(heap) << "Scanning space cards " << reinterpret_cast<void*>(space->Begin()) << " - "
+            << reinterpret_cast<void*>(space->End()) << " = " << scanned_cards;
+        ref_card_count += scanned_cards;
+      }
     }
+
     thread_pool->SetMaxActiveWorkers(thread_count - 1);
     thread_pool->StartWorkers(self);
     thread_pool->Wait(self, true, true);
     thread_pool->StopWorkers(self);
+    if (paused) {
+      DCHECK_EQ(ref_card_count, static_cast<size_t>(cards_scanned_.load()));
+    }
     timings_.EndSplit();
   } else {
     for (const auto& space : GetHeap()->GetContinuousSpaces()) {
@@ -993,7 +1023,10 @@ bool MarkSweep::IsMarkedArrayCallback(const Object* object, void* arg) {
     return true;
   }
   accounting::ObjectStack* live_stack = array_check->live_stack;
-  return std::find(live_stack->Begin(), live_stack->End(), object) == live_stack->End();
+  if (std::find(live_stack->Begin(), live_stack->End(), object) == live_stack->End()) {
+    return true;
+  }
+  return false;
 }
 
 void MarkSweep::SweepSystemWeaksArray(accounting::ObjectStack* allocations) {
@@ -1557,10 +1590,11 @@ void MarkSweep::ProcessReferences(Object** soft_references, bool clear_soft,
                                   Object** weak_references,
                                   Object** finalizer_references,
                                   Object** phantom_references) {
-  DCHECK(soft_references != NULL);
-  DCHECK(weak_references != NULL);
-  DCHECK(finalizer_references != NULL);
-  DCHECK(phantom_references != NULL);
+  CHECK(soft_references != NULL);
+  CHECK(weak_references != NULL);
+  CHECK(finalizer_references != NULL);
+  CHECK(phantom_references != NULL);
+  CHECK(mark_stack_->IsEmpty());
 
   // Unless we are in the zygote or required to clear soft references
   // with white references, preserve some white referents.

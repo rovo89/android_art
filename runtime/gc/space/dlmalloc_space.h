@@ -143,6 +143,9 @@ class DlMallocSpace : public MemMapSpace, public AllocSpace {
     return total_objects_allocated_;
   }
 
+  // Returns the class of a recently freed object.
+  mirror::Class* FindRecentFreedObject(const mirror::Object* obj);
+
  protected:
   DlMallocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin, byte* end,
                 size_t growth_limit);
@@ -151,14 +154,19 @@ class DlMallocSpace : public MemMapSpace, public AllocSpace {
   size_t InternalAllocationSize(const mirror::Object* obj);
   mirror::Object* AllocWithoutGrowthLocked(size_t num_bytes, size_t* bytes_allocated)
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
-
   bool Init(size_t initial_size, size_t maximum_size, size_t growth_size, byte* requested_base);
-
+  void RegisterRecentFree(mirror::Object* ptr);
   static void* CreateMallocSpace(void* base, size_t morecore_start, size_t initial_size);
 
   UniquePtr<accounting::SpaceBitmap> live_bitmap_;
   UniquePtr<accounting::SpaceBitmap> mark_bitmap_;
   UniquePtr<accounting::SpaceBitmap> temp_bitmap_;
+
+  // Recent allocation buffer.
+  static constexpr size_t kRecentFreeCount = kDebugSpaces ? (1 << 16) : 0;
+  static constexpr size_t kRecentFreeMask = kRecentFreeCount - 1;
+  std::pair<const mirror::Object*, mirror::Class*> recent_freed_objects_[kRecentFreeCount];
+  size_t recent_free_pos_;
 
   // Approximate number of bytes which have been allocated into the space.
   size_t num_bytes_allocated_;

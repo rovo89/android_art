@@ -146,7 +146,8 @@ class Heap {
   // Check sanity of all live references.
   void VerifyHeap() LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
   bool VerifyHeapReferences()
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool VerifyMissingCardMarks()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -158,7 +159,8 @@ class Heap {
 
   // Returns true if 'obj' is a live heap object, false otherwise (including for invalid addresses).
   // Requires the heap lock to be held.
-  bool IsLiveObjectLocked(const mirror::Object* obj)
+  bool IsLiveObjectLocked(const mirror::Object* obj, bool search_allocation_stack = true,
+                          bool search_live_stack = true, bool sorted = false)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Initiates an explicit garbage collection.
