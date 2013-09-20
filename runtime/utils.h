@@ -356,6 +356,7 @@ std::string GetDalvikCacheFilenameOrDie(const std::string& location);
 // Check whether the given filename has a valid extension
 bool IsValidZipFilename(const std::string& filename);
 bool IsValidDexFilename(const std::string& filename);
+bool IsValidImageFilename(const std::string& filename);
 bool IsValidOatFilename(const std::string& filename);
 
 class VoidFunctor {
