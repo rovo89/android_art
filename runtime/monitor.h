@@ -185,9 +185,13 @@ class MonitorList {
   void Add(Monitor* m);
 
   void SweepMonitorList(RootVisitor visitor, void* arg);
+  void DisallowNewMonitors();
+  void AllowNewMonitors();
 
  private:
+  bool allow_new_monitors_ GUARDED_BY(monitor_list_lock_);
   Mutex monitor_list_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  ConditionVariable monitor_add_condition_ GUARDED_BY(monitor_list_lock_);
   std::list<Monitor*> list_ GUARDED_BY(monitor_list_lock_);
 
   friend class Monitor;

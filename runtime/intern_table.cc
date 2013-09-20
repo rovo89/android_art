@@ -28,7 +28,9 @@
 namespace art {
 
 InternTable::InternTable()
-    : intern_table_lock_("InternTable lock"), is_dirty_(false) {}
+    : intern_table_lock_("InternTable lock"), is_dirty_(false), allow_new_interns_(true),
+      new_intern_condition_("New intern condition", intern_table_lock_) {
+}
 
 size_t InternTable::Size() const {
   MutexLock mu(Thread::Current(), intern_table_lock_);
@@ -112,11 +114,29 @@ static mirror::String* LookupStringFromImage(mirror::String* s)
   return NULL;
 }
 
+void InternTable::AllowNewInterns() {
+  Thread* self = Thread::Current();
+  MutexLock mu(self, intern_table_lock_);
+  allow_new_interns_ = true;
+  new_intern_condition_.Broadcast(self);
+}
+
+void InternTable::DisallowNewInterns() {
+  Thread* self = Thread::Current();
+  MutexLock mu(self, intern_table_lock_);
+  allow_new_interns_ = false;
+}
+
 mirror::String* InternTable::Insert(mirror::String* s, bool is_strong) {
-  MutexLock mu(Thread::Current(), intern_table_lock_);
+  Thread* self = Thread::Current();
+  MutexLock mu(self, intern_table_lock_);
 
   DCHECK(s != NULL);
   uint32_t hash_code = s->GetHashCode();
+
+  while (UNLIKELY(!allow_new_interns_)) {
+    new_intern_condition_.WaitHoldingLocks(self);
+  }
 
   if (is_strong) {
     // Check the strong table for a match.

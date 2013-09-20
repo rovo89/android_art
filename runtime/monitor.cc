@@ -992,7 +992,9 @@ void Monitor::TranslateLocation(const mirror::ArtMethod* method, uint32_t dex_pc
   line_number = mh.GetLineNumFromDexPC(dex_pc);
 }
 
-MonitorList::MonitorList() : monitor_list_lock_("MonitorList lock") {
+MonitorList::MonitorList()
+    : allow_new_monitors_(true), monitor_list_lock_("MonitorList lock"),
+      monitor_add_condition_("MonitorList disallow condition", monitor_list_lock_) {
 }
 
 MonitorList::~MonitorList() {
@@ -1000,8 +1002,24 @@ MonitorList::~MonitorList() {
   STLDeleteElements(&list_);
 }
 
-void MonitorList::Add(Monitor* m) {
+void MonitorList::DisallowNewMonitors() {
   MutexLock mu(Thread::Current(), monitor_list_lock_);
+  allow_new_monitors_ = false;
+}
+
+void MonitorList::AllowNewMonitors() {
+  Thread* self = Thread::Current();
+  MutexLock mu(self, monitor_list_lock_);
+  allow_new_monitors_ = true;
+  monitor_add_condition_.Broadcast(self);
+}
+
+void MonitorList::Add(Monitor* m) {
+  Thread* self = Thread::Current();
+  MutexLock mu(self, monitor_list_lock_);
+  while (UNLIKELY(!allow_new_monitors_)) {
+    monitor_add_condition_.WaitHoldingLocks(self);
+  }
   list_.push_front(m);
 }
 

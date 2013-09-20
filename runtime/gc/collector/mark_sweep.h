@@ -204,10 +204,6 @@ class MarkSweep : public GarbageCollector {
   void SweepSystemWeaks()
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  // Only sweep the weaks which are inside of an allocation stack.
-  void SweepSystemWeaksArray(accounting::ObjectStack* allocations)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
   static mirror::Object* VerifySystemWeakIsLiveCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 

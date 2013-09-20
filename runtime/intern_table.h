@@ -65,6 +65,9 @@ class InternTable {
 
   void DumpForSigQuit(std::ostream& os) const;
 
+  void DisallowNewInterns() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void AllowNewInterns() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  private:
   typedef std::multimap<int32_t, mirror::String*> Table;
 
@@ -78,6 +81,8 @@ class InternTable {
 
   mutable Mutex intern_table_lock_;
   bool is_dirty_ GUARDED_BY(intern_table_lock_);
+  bool allow_new_interns_ GUARDED_BY(intern_table_lock_);
+  ConditionVariable new_intern_condition_ GUARDED_BY(intern_table_lock_);
   Table strong_interns_ GUARDED_BY(intern_table_lock_);
   Table weak_interns_ GUARDED_BY(intern_table_lock_);
 };

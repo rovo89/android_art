@@ -207,10 +207,6 @@ bool MarkSweep::HandleDirtyObjectsPhase() {
   }
 
   ProcessReferences(self);
-  {
-    ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-    SweepSystemWeaks();
-  }
 
   // Only need to do this if we have the card mark verification on, and only during concurrent GC.
   if (GetHeap()->verify_missing_card_marks_ || GetHeap()->verify_pre_gc_heap_||
@@ -228,6 +224,12 @@ bool MarkSweep::HandleDirtyObjectsPhase() {
   // Ensure that nobody inserted items in the live stack after we swapped the stacks.
   ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
   CHECK_GE(live_stack_freeze_size_, GetHeap()->GetLiveStack()->Size());
+
+  // Disallow new system weaks to prevent a race which occurs when someone adds a new system
+  // weak before we sweep them. Since this new system weak may not be marked, the GC may
+  // incorrectly sweep it. This also fixes a race where interning may attempt to return a strong
+  // reference to a string that is about to be swept.
+  Runtime::Current()->DisallowNewSystemWeaks();
   return true;
 }
 
@@ -289,14 +291,16 @@ void MarkSweep::ReclaimPhase() {
 
   if (!IsConcurrent()) {
     ProcessReferences(self);
-    {
-      ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-      SweepSystemWeaks();
-    }
-    timings_.StartSplit("PreSweepingGcVerification");
-    heap_->PreSweepingGcVerification(this);
-    timings_.EndSplit();
-  } else {
+  }
+
+  {
+    WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+    SweepSystemWeaks();
+  }
+
+  if (IsConcurrent()) {
+    Runtime::Current()->AllowNewSystemWeaks();
+
     base::TimingLogger::ScopedSplit split("UnMarkAllocStack", &timings_);
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
     accounting::ObjectStack* allocation_stack = GetHeap()->allocation_stack_.get();
@@ -998,46 +1002,8 @@ void MarkSweep::ReMarkRoots() {
   timings_.EndSplit();
 }
 
-struct ArrayMarkedCheck {
-  accounting::ObjectStack* live_stack;
-  MarkSweep* mark_sweep;
-};
-
-// Either marked or not live.
-mirror::Object* MarkSweep::SystemWeakIsMarkedArrayCallback(Object* object, void* arg) {
-  ArrayMarkedCheck* array_check = reinterpret_cast<ArrayMarkedCheck*>(arg);
-  if (array_check->mark_sweep->IsMarked(object)) {
-    return object;
-  }
-  accounting::ObjectStack* live_stack = array_check->live_stack;
-  if (std::find(live_stack->Begin(), live_stack->End(), object) == live_stack->End()) {
-    return object;
-  }
-  return nullptr;
-}
-
-void MarkSweep::SweepSystemWeaksArray(accounting::ObjectStack* allocations) {
-  Runtime* runtime = Runtime::Current();
-  // The callbacks check
-  // !is_marked where is_marked is the callback but we want
-  // !IsMarked && IsLive
-  // So compute !(!IsMarked && IsLive) which is equal to (IsMarked || !IsLive).
-  // Or for swapped (IsLive || !IsMarked).
-  timings_.StartSplit("SweepSystemWeaksArray");
-  ArrayMarkedCheck visitor;
-  visitor.live_stack = allocations;
-  visitor.mark_sweep = this;
-  runtime->SweepSystemWeaks(SystemWeakIsMarkedArrayCallback, &visitor);
-  timings_.EndSplit();
-}
-
 void MarkSweep::SweepSystemWeaks() {
   Runtime* runtime = Runtime::Current();
-  // The callbacks check
-  // !is_marked where is_marked is the callback but we want
-  // !IsMarked && IsLive
-  // So compute !(!IsMarked && IsLive) which is equal to (IsMarked || !IsLive).
-  // Or for swapped (IsLive || !IsMarked).
   timings_.StartSplit("SweepSystemWeaks");
   runtime->SweepSystemWeaks(SystemWeakIsMarkedCallback, this);
   timings_.EndSplit();
@@ -1146,7 +1112,6 @@ void MarkSweep::ZygoteSweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
 
 void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitmaps) {
   space::DlMallocSpace* space = heap_->GetAllocSpace();
-
   timings_.StartSplit("SweepArray");
   // Newly allocated objects MUST be in the alloc space and those are the only objects which we are
   // going to free.
