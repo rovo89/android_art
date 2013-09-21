@@ -1460,16 +1460,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
 
   HANDLE_INSTRUCTION_START(FLOAT_TO_INT) {
     float val = shadow_frame.GetVRegFloat(inst->VRegB_12x(inst_data));
-    int32_t result;
-    if (val != val) {
-      result = 0;
-    } else if (val > static_cast<float>(kMaxInt)) {
-      result = kMaxInt;
-    } else if (val < static_cast<float>(kMinInt)) {
-      result = kMinInt;
-    } else {
-      result = val;
-    }
+    int32_t result = art_float_to_integral<int32_t, float>(val);
     shadow_frame.SetVReg(inst->VRegA_12x(inst_data), result);
     ADVANCE(1);
   }
@@ -1477,16 +1468,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
 
   HANDLE_INSTRUCTION_START(FLOAT_TO_LONG) {
     float val = shadow_frame.GetVRegFloat(inst->VRegB_12x(inst_data));
-    int64_t result;
-    if (val != val) {
-      result = 0;
-    } else if (val > static_cast<float>(kMaxLong)) {
-      result = kMaxLong;
-    } else if (val < static_cast<float>(kMinLong)) {
-      result = kMinLong;
-    } else {
-      result = val;
-    }
+    int64_t result = art_float_to_integral<int64_t, float>(val);
     shadow_frame.SetVRegLong(inst->VRegA_12x(inst_data), result);
     ADVANCE(1);
   }
@@ -1499,16 +1481,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
 
   HANDLE_INSTRUCTION_START(DOUBLE_TO_INT) {
     double val = shadow_frame.GetVRegDouble(inst->VRegB_12x(inst_data));
-    int32_t result;
-    if (val != val) {
-      result = 0;
-    } else if (val > static_cast<double>(kMaxInt)) {
-      result = kMaxInt;
-    } else if (val < static_cast<double>(kMinInt)) {
-      result = kMinInt;
-    } else {
-      result = val;
-    }
+    int32_t result = art_float_to_integral<int32_t, double>(val);
     shadow_frame.SetVReg(inst->VRegA_12x(inst_data), result);
     ADVANCE(1);
   }
@@ -1516,16 +1489,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
 
   HANDLE_INSTRUCTION_START(DOUBLE_TO_LONG) {
     double val = shadow_frame.GetVRegDouble(inst->VRegB_12x(inst_data));
-    int64_t result;
-    if (val != val) {
-      result = 0;
-    } else if (val > static_cast<double>(kMaxLong)) {
-      result = kMaxLong;
-    } else if (val < static_cast<double>(kMinLong)) {
-      result = kMinLong;
-    } else {
-      result = val;
-    }
+    int64_t result = art_float_to_integral<int64_t, double>(val);
     shadow_frame.SetVRegLong(inst->VRegA_12x(inst_data), result);
     ADVANCE(1);
   }

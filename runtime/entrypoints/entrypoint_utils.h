@@ -16,7 +16,8 @@
 
 #ifndef ART_RUNTIME_ENTRYPOINTS_ENTRYPOINT_UTILS_H_
 #define ART_RUNTIME_ENTRYPOINTS_ENTRYPOINT_UTILS_H_
-#include "object_utils.h"
+
+#include "base/macros.h"
 #include "class_linker.h"
 #include "common_throws.h"
 #include "dex_file.h"
@@ -27,6 +28,7 @@
 #include "mirror/array.h"
 #include "mirror/class-inl.h"
 #include "mirror/throwable.h"
+#include "object_utils.h"
 
 #include "thread.h"
 
@@ -414,6 +416,23 @@ static inline const void* GetProxyInvokeHandler() {
 extern "C" void* art_jni_dlsym_lookup_stub(JNIEnv*, jobject);
 static inline void* GetJniDlsymLookupStub() {
   return reinterpret_cast<void*>(art_jni_dlsym_lookup_stub);
+}
+
+template <typename INT_TYPE, typename FLOAT_TYPE>
+static inline INT_TYPE art_float_to_integral(FLOAT_TYPE f) {
+  const INT_TYPE kMaxInt = static_cast<INT_TYPE>(std::numeric_limits<INT_TYPE>::max());
+  const INT_TYPE kMinInt = static_cast<INT_TYPE>(std::numeric_limits<INT_TYPE>::min());
+  const FLOAT_TYPE kMaxIntAsFloat = static_cast<FLOAT_TYPE>(kMaxInt);
+  const FLOAT_TYPE kMinIntAsFloat = static_cast<FLOAT_TYPE>(kMinInt);
+  if (LIKELY(f > kMinIntAsFloat)) {
+     if (LIKELY(f < kMaxIntAsFloat)) {
+       return static_cast<INT_TYPE>(f);
+     } else {
+       return kMaxInt;
+     }
+  } else {
+    return (f != f) ? 0 : kMinInt;  // f != f implies NaN
+  }
 }
 
 }  // namespace art

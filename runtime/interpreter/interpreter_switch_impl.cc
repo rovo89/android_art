@@ -1361,47 +1361,44 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
         break;
       case Instruction::INT_TO_LONG:
         PREAMBLE();
-        shadow_frame.SetVRegLong(inst->VRegA_12x(inst_data), shadow_frame.GetVReg(inst->VRegB_12x(inst_data)));
+        shadow_frame.SetVRegLong(inst->VRegA_12x(inst_data),
+                                 shadow_frame.GetVReg(inst->VRegB_12x(inst_data)));
         inst = inst->Next_1xx();
         break;
       case Instruction::INT_TO_FLOAT:
         PREAMBLE();
-        shadow_frame.SetVRegFloat(inst->VRegA_12x(inst_data), shadow_frame.GetVReg(inst->VRegB_12x(inst_data)));
+        shadow_frame.SetVRegFloat(inst->VRegA_12x(inst_data),
+                                  shadow_frame.GetVReg(inst->VRegB_12x(inst_data)));
         inst = inst->Next_1xx();
         break;
       case Instruction::INT_TO_DOUBLE:
         PREAMBLE();
-        shadow_frame.SetVRegDouble(inst->VRegA_12x(inst_data), shadow_frame.GetVReg(inst->VRegB_12x(inst_data)));
+        shadow_frame.SetVRegDouble(inst->VRegA_12x(inst_data),
+                                   shadow_frame.GetVReg(inst->VRegB_12x(inst_data)));
         inst = inst->Next_1xx();
         break;
       case Instruction::LONG_TO_INT:
         PREAMBLE();
-        shadow_frame.SetVReg(inst->VRegA_12x(inst_data), shadow_frame.GetVRegLong(inst->VRegB_12x(inst_data)));
+        shadow_frame.SetVReg(inst->VRegA_12x(inst_data),
+                             shadow_frame.GetVRegLong(inst->VRegB_12x(inst_data)));
         inst = inst->Next_1xx();
         break;
       case Instruction::LONG_TO_FLOAT:
         PREAMBLE();
-        shadow_frame.SetVRegFloat(inst->VRegA_12x(inst_data), shadow_frame.GetVRegLong(inst->VRegB_12x(inst_data)));
+        shadow_frame.SetVRegFloat(inst->VRegA_12x(inst_data),
+                                  shadow_frame.GetVRegLong(inst->VRegB_12x(inst_data)));
         inst = inst->Next_1xx();
         break;
       case Instruction::LONG_TO_DOUBLE:
         PREAMBLE();
-        shadow_frame.SetVRegDouble(inst->VRegA_12x(inst_data), shadow_frame.GetVRegLong(inst->VRegB_12x(inst_data)));
+        shadow_frame.SetVRegDouble(inst->VRegA_12x(inst_data),
+                                   shadow_frame.GetVRegLong(inst->VRegB_12x(inst_data)));
         inst = inst->Next_1xx();
         break;
       case Instruction::FLOAT_TO_INT: {
         PREAMBLE();
         float val = shadow_frame.GetVRegFloat(inst->VRegB_12x(inst_data));
-        int32_t result;
-        if (val != val) {
-          result = 0;
-        } else if (val > static_cast<float>(kMaxInt)) {
-          result = kMaxInt;
-        } else if (val < static_cast<float>(kMinInt)) {
-          result = kMinInt;
-        } else {
-          result = val;
-        }
+        int32_t result = art_float_to_integral<int32_t, float>(val);
         shadow_frame.SetVReg(inst->VRegA_12x(inst_data), result);
         inst = inst->Next_1xx();
         break;
@@ -1409,38 +1406,21 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
       case Instruction::FLOAT_TO_LONG: {
         PREAMBLE();
         float val = shadow_frame.GetVRegFloat(inst->VRegB_12x(inst_data));
-        int64_t result;
-        if (val != val) {
-          result = 0;
-        } else if (val > static_cast<float>(kMaxLong)) {
-          result = kMaxLong;
-        } else if (val < static_cast<float>(kMinLong)) {
-          result = kMinLong;
-        } else {
-          result = val;
-        }
+        int64_t result = art_float_to_integral<int64_t, float>(val);
         shadow_frame.SetVRegLong(inst->VRegA_12x(inst_data), result);
         inst = inst->Next_1xx();
         break;
       }
       case Instruction::FLOAT_TO_DOUBLE:
         PREAMBLE();
-        shadow_frame.SetVRegDouble(inst->VRegA_12x(inst_data), shadow_frame.GetVRegFloat(inst->VRegB_12x(inst_data)));
+        shadow_frame.SetVRegDouble(inst->VRegA_12x(inst_data),
+                                   shadow_frame.GetVRegFloat(inst->VRegB_12x(inst_data)));
         inst = inst->Next_1xx();
         break;
       case Instruction::DOUBLE_TO_INT: {
         PREAMBLE();
         double val = shadow_frame.GetVRegDouble(inst->VRegB_12x(inst_data));
-        int32_t result;
-        if (val != val) {
-          result = 0;
-        } else if (val > static_cast<double>(kMaxInt)) {
-          result = kMaxInt;
-        } else if (val < static_cast<double>(kMinInt)) {
-          result = kMinInt;
-        } else {
-          result = val;
-        }
+        int32_t result = art_float_to_integral<int32_t, double>(val);
         shadow_frame.SetVReg(inst->VRegA_12x(inst_data), result);
         inst = inst->Next_1xx();
         break;
@@ -1448,23 +1428,15 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
       case Instruction::DOUBLE_TO_LONG: {
         PREAMBLE();
         double val = shadow_frame.GetVRegDouble(inst->VRegB_12x(inst_data));
-        int64_t result;
-        if (val != val) {
-          result = 0;
-        } else if (val > static_cast<double>(kMaxLong)) {
-          result = kMaxLong;
-        } else if (val < static_cast<double>(kMinLong)) {
-          result = kMinLong;
-        } else {
-          result = val;
-        }
+        int64_t result = art_float_to_integral<int64_t, double>(val);
         shadow_frame.SetVRegLong(inst->VRegA_12x(inst_data), result);
         inst = inst->Next_1xx();
         break;
       }
       case Instruction::DOUBLE_TO_FLOAT:
         PREAMBLE();
-        shadow_frame.SetVRegFloat(inst->VRegA_12x(inst_data), shadow_frame.GetVRegDouble(inst->VRegB_12x(inst_data)));
+        shadow_frame.SetVRegFloat(inst->VRegA_12x(inst_data),
+                                  shadow_frame.GetVRegDouble(inst->VRegB_12x(inst_data)));
         inst = inst->Next_1xx();
         break;
       case Instruction::INT_TO_BYTE:
