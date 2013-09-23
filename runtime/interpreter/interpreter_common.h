@@ -81,12 +81,6 @@ extern JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh,
                               ShadowFrame& shadow_frame, JValue result_register)
     NO_THREAD_SAFETY_ANALYSIS __attribute__((hot));
 
-// Common part of both implementations.
-static const int32_t kMaxInt = std::numeric_limits<int32_t>::max();
-static const int32_t kMinInt = std::numeric_limits<int32_t>::min();
-static const int64_t kMaxLong = std::numeric_limits<int64_t>::max();
-static const int64_t kMinLong = std::numeric_limits<int64_t>::min();
-
 void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
                             const DexFile::CodeItem* code_item, ShadowFrame* shadow_frame,
                             JValue* result, size_t arg_offset)
@@ -321,6 +315,7 @@ static inline String* ResolveString(Thread* self, MethodHelper& mh, uint32_t str
 static inline bool DoIntDivide(ShadowFrame& shadow_frame, size_t result_reg,
                                int32_t dividend, int32_t divisor)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const int32_t kMinInt = std::numeric_limits<int32_t>::min();
   if (UNLIKELY(divisor == 0)) {
     ThrowArithmeticExceptionDivideByZero();
     return false;
@@ -336,6 +331,7 @@ static inline bool DoIntDivide(ShadowFrame& shadow_frame, size_t result_reg,
 static inline bool DoIntRemainder(ShadowFrame& shadow_frame, size_t result_reg,
                                   int32_t dividend, int32_t divisor)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const int32_t kMinInt = std::numeric_limits<int32_t>::min();
   if (UNLIKELY(divisor == 0)) {
     ThrowArithmeticExceptionDivideByZero();
     return false;
@@ -351,6 +347,7 @@ static inline bool DoIntRemainder(ShadowFrame& shadow_frame, size_t result_reg,
 static inline bool DoLongDivide(ShadowFrame& shadow_frame, size_t result_reg,
                                 int64_t dividend, int64_t divisor)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const int64_t kMinLong = std::numeric_limits<int64_t>::min();
   if (UNLIKELY(divisor == 0)) {
     ThrowArithmeticExceptionDivideByZero();
     return false;
@@ -366,6 +363,7 @@ static inline bool DoLongDivide(ShadowFrame& shadow_frame, size_t result_reg,
 static inline bool DoLongRemainder(ShadowFrame& shadow_frame, size_t result_reg,
                                    int64_t dividend, int64_t divisor)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const int64_t kMinLong = std::numeric_limits<int64_t>::min();
   if (UNLIKELY(divisor == 0)) {
     ThrowArithmeticExceptionDivideByZero();
     return false;
