@@ -191,11 +191,11 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   card_table_.reset(accounting::CardTable::Create(heap_begin, heap_capacity));
   CHECK(card_table_.get() != NULL) << "Failed to create card table";
 
-  image_mod_union_table_.reset(new accounting::ModUnionTableToZygoteAllocspace(this));
-  CHECK(image_mod_union_table_.get() != NULL) << "Failed to create image mod-union table";
-
-  zygote_mod_union_table_.reset(new accounting::ModUnionTableCardCache(this));
-  CHECK(zygote_mod_union_table_.get() != NULL) << "Failed to create Zygote mod-union table";
+  accounting::ModUnionTable* mod_union_table =
+      new accounting::ModUnionTableToZygoteAllocspace("Image mod-union table", this,
+                                                      GetImageSpace());
+  CHECK(mod_union_table != nullptr) << "Failed to create image mod-union table";
+  AddModUnionTable(mod_union_table);
 
   // TODO: Count objects in the image space here.
   num_bytes_allocated_ = 0;
@@ -489,10 +489,7 @@ Heap::~Heap() {
   live_stack_->Reset();
 
   VLOG(heap) << "~Heap()";
-  // We can't take the heap lock here because there might be a daemon thread suspended with the
-  // heap lock held. We know though that no non-daemon threads are executing, and we know that
-  // all daemon threads are suspended, and we also know that the threads list have been deleted, so
-  // those threads can't resume. We're the only running thread, and we can do whatever we like...
+  STLDeleteValues(&mod_union_tables_);
   STLDeleteElements(&continuous_spaces_);
   STLDeleteElements(&discontinuous_spaces_);
   delete gc_complete_lock_;
@@ -1084,15 +1081,15 @@ class ReferringObjectsFinder {
   // For bitmap Visit.
   // TODO: Fix lock analysis to not use NO_THREAD_SAFETY_ANALYSIS, requires support for
   // annotalysis on visitors.
-  void operator()(const mirror::Object* o) const NO_THREAD_SAFETY_ANALYSIS {
-    collector::MarkSweep::VisitObjectReferences(o, *this);
+  void operator()(mirror::Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
+    collector::MarkSweep::VisitObjectReferences(obj, *this, true);
   }
 
   // For MarkSweep::VisitObjectReferences.
-  void operator()(const mirror::Object* referrer, const mirror::Object* object,
+  void operator()(mirror::Object* referrer, mirror::Object* object,
                   const MemberOffset&, bool) const {
     if (object == object_ && (max_count_ == 0 || referring_objects_.size() < max_count_)) {
-      referring_objects_.push_back(const_cast<mirror::Object*>(referrer));
+      referring_objects_.push_back(referrer);
     }
   }
 
@@ -1156,6 +1153,12 @@ void Heap::PreZygoteFork() {
   zygote_space->SetGcRetentionPolicy(space::kGcRetentionPolicyFullCollect);
   AddContinuousSpace(alloc_space_);
   have_zygote_space_ = true;
+
+  // Create the zygote space mod union table.
+  accounting::ModUnionTable* mod_union_table =
+      new accounting::ModUnionTableCardCache("zygote space mod-union table", this, zygote_space);
+  CHECK(mod_union_table != nullptr) << "Failed to create zygote space mod-union table";
+  AddModUnionTable(mod_union_table);
 
   // Reset the cumulative loggers since we now have a few additional timing phases.
   for (const auto& collector : mark_sweep_collectors_) {
@@ -1313,33 +1316,6 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   return gc_type;
 }
 
-void Heap::UpdateAndMarkModUnion(collector::MarkSweep* mark_sweep, base::TimingLogger& timings,
-                                 collector::GcType gc_type) {
-  if (gc_type == collector::kGcTypeSticky) {
-    // Don't need to do anything for mod union table in this case since we are only scanning dirty
-    // cards.
-    return;
-  }
-
-  base::TimingLogger::ScopedSplit split("UpdateModUnionTable", &timings);
-  // Update zygote mod union table.
-  if (gc_type == collector::kGcTypePartial) {
-    base::TimingLogger::ScopedSplit split("UpdateZygoteModUnionTable", &timings);
-    zygote_mod_union_table_->Update();
-
-    timings.NewSplit("ZygoteMarkReferences");
-    zygote_mod_union_table_->MarkReferences(mark_sweep);
-  }
-
-  // Processes the cards we cleared earlier and adds their objects into the mod-union table.
-  timings.NewSplit("UpdateModUnionTable");
-  image_mod_union_table_->Update();
-
-  // Scans all objects in the mod-union table.
-  timings.NewSplit("MarkImageToAllocSpaceReferences");
-  image_mod_union_table_->MarkReferences(mark_sweep);
-}
-
 static mirror::Object* RootMatchesObjectVisitor(mirror::Object* root, void* arg) {
   mirror::Object* obj = reinterpret_cast<mirror::Object*>(arg);
   if (root == obj) {
@@ -1483,7 +1459,7 @@ class VerifyObjectVisitor {
     VerifyReferenceVisitor visitor(heap_);
     // The class doesn't count as a reference but we should verify it anyways.
     visitor(obj, obj->GetClass(), MemberOffset(0), false);
-    collector::MarkSweep::VisitObjectReferences(obj, visitor);
+    collector::MarkSweep::VisitObjectReferences(const_cast<mirror::Object*>(obj), visitor, true);
     failed_ = failed_ || visitor.Failed();
   }
 
@@ -1516,8 +1492,10 @@ bool Heap::VerifyHeapReferences() {
   // pointing to dead objects if they are not reachable.
   if (visitor.Failed()) {
     // Dump mod-union tables.
-    image_mod_union_table_->Dump(LOG(ERROR) << "Image mod-union table: ");
-    zygote_mod_union_table_->Dump(LOG(ERROR) << "Zygote mod-union table: ");
+    for (const auto& table_pair : mod_union_tables_) {
+      accounting::ModUnionTable* mod_union_table = table_pair.second;
+      mod_union_table->Dump(LOG(ERROR) << mod_union_table->GetName() << ": ");
+    }
     DumpSpaces();
     return false;
   }
@@ -1601,10 +1579,10 @@ class VerifyLiveStackReferences {
       : heap_(heap),
         failed_(false) {}
 
-  void operator()(const mirror::Object* obj) const
+  void operator()(mirror::Object* obj) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     VerifyReferenceCardVisitor visitor(heap_, const_cast<bool*>(&failed_));
-    collector::MarkSweep::VisitObjectReferences(obj, visitor);
+    collector::MarkSweep::VisitObjectReferences(obj, visitor, true);
   }
 
   bool Failed() const {
@@ -1640,15 +1618,23 @@ void Heap::SwapStacks() {
   allocation_stack_.swap(live_stack_);
 }
 
+accounting::ModUnionTable* Heap::FindModUnionTableFromSpace(space::Space* space) {
+  auto it = mod_union_tables_.find(space);
+  if (it == mod_union_tables_.end()) {
+    return nullptr;
+  }
+  return it->second;
+}
+
 void Heap::ProcessCards(base::TimingLogger& timings) {
   // Clear cards and keep track of cards cleared in the mod-union table.
   for (const auto& space : continuous_spaces_) {
-    if (space->IsImageSpace()) {
-      base::TimingLogger::ScopedSplit split("ImageModUnionClearCards", &timings);
-      image_mod_union_table_->ClearCards(space);
-    } else if (space->IsZygoteSpace()) {
-      base::TimingLogger::ScopedSplit split("ZygoteModUnionClearCards", &timings);
-      zygote_mod_union_table_->ClearCards(space);
+    accounting::ModUnionTable* table = FindModUnionTableFromSpace(space);
+    if (table != nullptr) {
+      const char* name = space->IsZygoteSpace() ? "ZygoteModUnionClearCards" :
+          "ImageModUnionClearCards";
+      base::TimingLogger::ScopedSplit split(name, &timings);
+      table->ClearCards();
     } else {
       base::TimingLogger::ScopedSplit split("AllocSpaceClearCards", &timings);
       // No mod union table for the AllocSpace. Age the cards so that the GC knows that these cards
@@ -1656,6 +1642,10 @@ void Heap::ProcessCards(base::TimingLogger& timings) {
       card_table_->ModifyCardsAtomic(space->Begin(), space->End(), AgeCardVisitor(), VoidFunctor());
     }
   }
+}
+
+static mirror::Object* IdentityCallback(mirror::Object* obj, void*) {
+  return obj;
 }
 
 void Heap::PreGcVerification(collector::GarbageCollector* gc) {
@@ -1691,10 +1681,11 @@ void Heap::PreGcVerification(collector::GarbageCollector* gc) {
   if (verify_mod_union_table_) {
     thread_list->SuspendAll();
     ReaderMutexLock reader_lock(self, *Locks::heap_bitmap_lock_);
-    zygote_mod_union_table_->Update();
-    zygote_mod_union_table_->Verify();
-    image_mod_union_table_->Update();
-    image_mod_union_table_->Verify();
+    for (const auto& table_pair : mod_union_tables_) {
+      accounting::ModUnionTable* mod_union_table = table_pair.second;
+      mod_union_table->UpdateAndMarkReferences(IdentityCallback, nullptr);
+      mod_union_table->Verify();
+    }
     thread_list->ResumeAll();
   }
 }
@@ -2146,6 +2137,11 @@ int64_t Heap::GetTotalMemory() const {
     }
   }
   return ret;
+}
+
+void Heap::AddModUnionTable(accounting::ModUnionTable* mod_union_table) {
+  DCHECK(mod_union_table != nullptr);
+  mod_union_tables_.Put(mod_union_table->GetSpace(), mod_union_table);
 }
 
 }  // namespace gc

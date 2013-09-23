@@ -19,6 +19,7 @@
 
 #include "gc_allocator.h"
 #include "globals.h"
+#include "root_visitor.h"
 #include "safe_map.h"
 
 #include <set>
@@ -52,21 +53,23 @@ class ModUnionTable {
  public:
   typedef std::set<byte*, std::less<byte*>, GCAllocator<byte*> > CardSet;
 
-  explicit ModUnionTable(Heap* heap) : heap_(heap) {}
+  explicit ModUnionTable(const std::string& name, Heap* heap, space::ContinuousSpace* space)
+      : name_(name),
+        heap_(heap),
+        space_(space) {
+  }
 
   virtual ~ModUnionTable() {}
 
   // Clear cards which map to a memory range of a space. This doesn't immediately update the
   // mod-union table, as updating the mod-union table may have an associated cost, such as
   // determining references to track.
-  virtual void ClearCards(space::ContinuousSpace* space) = 0;
+  virtual void ClearCards() = 0;
 
   // Update the mod-union table using data stored by ClearCards. There may be multiple ClearCards
-  // before a call to update, for example, back-to-back sticky GCs.
-  virtual void Update() = 0;
-
-  // Mark the bitmaps for all references which are stored in the mod-union table.
-  virtual void MarkReferences(collector::MarkSweep* mark_sweep) = 0;
+  // before a call to update, for example, back-to-back sticky GCs. Also mark references to other
+  // spaces which are stored in the mod-union table.
+  virtual void UpdateAndMarkReferences(RootVisitor visitor, void* arg) = 0;
 
   // Verification, sanity checks that we don't have clean cards which conflict with out cached data
   // for said cards. Exclusive lock is required since verify sometimes uses
@@ -75,31 +78,35 @@ class ModUnionTable {
   virtual void Verify() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) = 0;
 
   virtual void Dump(std::ostream& os) = 0;
-
+  space::ContinuousSpace* GetSpace() {
+    return space_;
+  }
   Heap* GetHeap() const {
     return heap_;
   }
+  const std::string& GetName() const {
+    return name_;
+  }
 
  protected:
+  const std::string name_;
   Heap* const heap_;
+  space::ContinuousSpace* const space_;
 };
 
 // Reference caching implementation. Caches references pointing to alloc space(s) for each card.
 class ModUnionTableReferenceCache : public ModUnionTable {
  public:
-  explicit ModUnionTableReferenceCache(Heap* heap) : ModUnionTable(heap) {}
+  explicit ModUnionTableReferenceCache(const std::string& name, Heap* heap,
+                                       space::ContinuousSpace* space)
+      : ModUnionTable(name, heap, space) {}
   virtual ~ModUnionTableReferenceCache() {}
 
   // Clear and store cards for a space.
-  void ClearCards(space::ContinuousSpace* space);
+  void ClearCards();
 
-  // Update table based on cleared cards.
-  void Update()
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  // Mark all references to the alloc space(s).
-  void MarkReferences(collector::MarkSweep* mark_sweep)
+  // Update table based on cleared cards and mark all references to the other spaces.
+  void UpdateAndMarkReferences(RootVisitor visitor, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
@@ -117,24 +124,22 @@ class ModUnionTableReferenceCache : public ModUnionTable {
   ModUnionTable::CardSet cleared_cards_;
 
   // Maps from dirty cards to their corresponding alloc space references.
-  SafeMap<const byte*, std::vector<const mirror::Object*>, std::less<const byte*>,
-    GCAllocator<std::pair<const byte*, std::vector<const mirror::Object*> > > > references_;
+  SafeMap<const byte*, std::vector<mirror::Object**>, std::less<const byte*>,
+    GCAllocator<std::pair<const byte*, std::vector<mirror::Object**> > > > references_;
 };
 
 // Card caching implementation. Keeps track of which cards we cleared and only this information.
 class ModUnionTableCardCache : public ModUnionTable {
  public:
-  explicit ModUnionTableCardCache(Heap* heap) : ModUnionTable(heap) {}
+  explicit ModUnionTableCardCache(const std::string& name, Heap* heap, space::ContinuousSpace* space)
+      : ModUnionTable(name, heap, space) {}
   virtual ~ModUnionTableCardCache() {}
 
   // Clear and store cards for a space.
-  void ClearCards(space::ContinuousSpace* space);
-
-  // Nothing to update as all dirty cards were placed into cleared cards during clearing.
-  void Update() {}
+  void ClearCards();
 
   // Mark all references to the alloc space(s).
-  void MarkReferences(collector::MarkSweep* mark_sweep)
+  void UpdateAndMarkReferences(RootVisitor visitor, void* arg)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

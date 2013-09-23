@@ -28,6 +28,7 @@
 #include "base/timing_logger.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/heap_bitmap.h"
+#include "gc/accounting/mod_union_table.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/heap.h"
 #include "gc/space/image_space.h"
@@ -99,7 +100,7 @@ void MarkSweep::ImmuneSpace(space::ContinuousSpace* space) {
   } else {
     const space::ContinuousSpace* prev_space = nullptr;
     // Find out if the previous space is immune.
-    for (space::ContinuousSpace* cur_space : GetHeap()->GetContinuousSpaces()) {
+    for (const space::ContinuousSpace* cur_space : GetHeap()->GetContinuousSpaces()) {
       if (cur_space == space) {
         break;
       }
@@ -107,13 +108,17 @@ void MarkSweep::ImmuneSpace(space::ContinuousSpace* space) {
     }
     // If previous space was immune, then extend the immune region. Relies on continuous spaces
     // being sorted by Heap::AddContinuousSpace.
-    if (prev_space != NULL &&
-        immune_begin_ <= reinterpret_cast<Object*>(prev_space->Begin()) &&
-        immune_end_ >= reinterpret_cast<Object*>(prev_space->End())) {
+    if (prev_space != NULL && IsImmuneSpace(prev_space)) {
       immune_begin_ = std::min(reinterpret_cast<Object*>(space->Begin()), immune_begin_);
       immune_end_ = std::max(reinterpret_cast<Object*>(space->End()), immune_end_);
     }
   }
+}
+
+bool MarkSweep::IsImmuneSpace(const space::ContinuousSpace* space) {
+  return
+      immune_begin_ <= reinterpret_cast<Object*>(space->Begin()) &&
+      immune_end_ >= reinterpret_cast<Object*>(space->End());
 }
 
 void MarkSweep::BindBitmaps() {
@@ -263,9 +268,21 @@ void MarkSweep::MarkingPhase() {
   }
   live_stack_freeze_size_ = heap_->GetLiveStack()->Size();
   MarkConcurrentRoots();
-
-  heap_->UpdateAndMarkModUnion(this, timings_, GetGcType());
+  UpdateAndMarkModUnion();
   MarkReachableObjects();
+}
+
+void MarkSweep::UpdateAndMarkModUnion() {
+  for (const auto& space : heap_->GetContinuousSpaces()) {
+    if (IsImmuneSpace(space)) {
+      const char* name = space->IsZygoteSpace() ? "UpdateAndMarkZygoteModUnionTable" :
+          "UpdateAndMarkImageModUnionTable";
+      base::TimingLogger::ScopedSplit split(name, &timings_);
+      accounting::ModUnionTable* mod_union_table = heap_->FindModUnionTableFromSpace(space);
+      CHECK(mod_union_table != nullptr);
+      mod_union_table->UpdateAndMarkReferences(MarkRootCallback, this);
+    }
+  }
 }
 
 void MarkSweep::MarkThreadRoots(Thread* self) {
@@ -577,11 +594,11 @@ void MarkSweep::MarkConcurrentRoots() {
 
 void MarkSweep::CheckObject(const Object* obj) {
   DCHECK(obj != NULL);
-  VisitObjectReferences(obj, [this](const Object* obj, const Object* ref, MemberOffset offset,
-      bool is_static) NO_THREAD_SAFETY_ANALYSIS {
+  VisitObjectReferences(const_cast<Object*>(obj), [this](const Object* obj, const Object* ref,
+      MemberOffset offset, bool is_static) NO_THREAD_SAFETY_ANALYSIS {
     Locks::heap_bitmap_lock_->AssertSharedHeld(Thread::Current());
     CheckReference(obj, ref, offset, is_static);
-  });
+  }, true);
 }
 
 void MarkSweep::VerifyImageRootVisitor(Object* root, void* arg) {
@@ -647,11 +664,11 @@ class MarkStackTask : public Task {
     explicit ScanObjectParallelVisitor(MarkStackTask<kUseFinger>* chunk_task) ALWAYS_INLINE
         : chunk_task_(chunk_task) {}
 
-    void operator()(const Object* obj) const {
+    void operator()(Object* obj) const {
       MarkSweep* mark_sweep = chunk_task_->mark_sweep_;
       mark_sweep->ScanObjectVisit(obj,
-          [mark_sweep, this](const Object* /* obj */, const Object* ref,
-              const MemberOffset& /* offset */, bool /* is_static */) ALWAYS_INLINE {
+          [mark_sweep, this](Object* /* obj */, Object* ref, const MemberOffset& /* offset */,
+              bool /* is_static */) ALWAYS_INLINE {
         if (ref != nullptr && mark_sweep->MarkObjectParallel(ref)) {
           if (kUseFinger) {
             android_memory_barrier();
@@ -708,11 +725,11 @@ class MarkStackTask : public Task {
     static const size_t kFifoSize = 4;
     BoundedFifoPowerOfTwo<const Object*, kFifoSize> prefetch_fifo;
     for (;;) {
-      const Object* obj = NULL;
+      const Object* obj = nullptr;
       if (kUseMarkStackPrefetch) {
         while (mark_stack_pos_ != 0 && prefetch_fifo.size() < kFifoSize) {
           const Object* obj = mark_stack_[--mark_stack_pos_];
-          DCHECK(obj != NULL);
+          DCHECK(obj != nullptr);
           __builtin_prefetch(obj);
           prefetch_fifo.push_back(obj);
         }
@@ -727,8 +744,8 @@ class MarkStackTask : public Task {
         }
         obj = mark_stack_[--mark_stack_pos_];
       }
-      DCHECK(obj != NULL);
-      visitor(obj);
+      DCHECK(obj != nullptr);
+      visitor(const_cast<mirror::Object*>(obj));
     }
   }
 };
@@ -1366,7 +1383,7 @@ class MarkObjectVisitor {
 // and dispatches to a specialized scanning routine.
 void MarkSweep::ScanObject(const Object* obj) {
   MarkObjectVisitor visitor(this);
-  ScanObjectVisit(obj, visitor);
+  ScanObjectVisit(const_cast<Object*>(obj), visitor);
 }
 
 void MarkSweep::ProcessMarkStackParallel(size_t thread_count) {
