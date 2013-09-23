@@ -21,7 +21,7 @@
 #include "leb128.h"
 #include "safe_map.h"
 #include "UniquePtr.h"
-#include "utf.h"
+#include "utf-inl.h"
 #include "utils.h"
 #include "zip_archive.h"
 

@@ -38,7 +38,7 @@
 #include "safe_map.h"
 #include "thread.h"
 #include "UniquePtr.h"
-#include "utf.h"
+#include "utf-inl.h"
 #include "utils.h"
 #include "well_known_classes.h"
 #include "zip_archive.h"

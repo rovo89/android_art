@@ -24,7 +24,7 @@
 #include "runtime.h"
 #include "sirt_ref.h"
 #include "thread.h"
-#include "utf.h"
+#include "utf-inl.h"
 
 namespace art {
 namespace mirror {

@@ -34,7 +34,7 @@
 #include "mirror/string.h"
 #include "object_utils.h"
 #include "os.h"
-#include "utf.h"
+#include "utf-inl.h"
 
 #if !defined(HAVE_POSIX_CLOCKS)
 #include <sys/time.h>
