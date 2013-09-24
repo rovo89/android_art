@@ -569,64 +569,16 @@ class MethodHelper {
 
   bool HasSameNameAndSignature(MethodHelper* other)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile& dex_file = GetDexFile();
-    const DexFile::MethodId& mid = dex_file.GetMethodId(method_->GetDexMethodIndex());
     if (GetDexCache() == other->GetDexCache()) {
+      const DexFile& dex_file = GetDexFile();
+      const DexFile::MethodId& mid = dex_file.GetMethodId(method_->GetDexMethodIndex());
       const DexFile::MethodId& other_mid =
           dex_file.GetMethodId(other->method_->GetDexMethodIndex());
       return mid.name_idx_ == other_mid.name_idx_ && mid.proto_idx_ == other_mid.proto_idx_;
     }
-    const DexFile& other_dex_file = other->GetDexFile();
-    const DexFile::MethodId& other_mid =
-        other_dex_file.GetMethodId(other->method_->GetDexMethodIndex());
-    uint32_t length, other_length;
-    const char* data = dex_file.StringDataAndLengthByIdx(mid.name_idx_, &length);
-    const char* other_data = other_dex_file.StringDataAndLengthByIdx(other_mid.name_idx_,
-                                                                     &other_length);
-    if ((length != other_length) || (strcmp(data, other_data) != 0)) {
-      return false;  // Name mismatch.
-    }
-    const DexFile::ProtoId& proto_id = dex_file.GetMethodPrototype(mid);
-    const DexFile::ProtoId& other_proto_id = other_dex_file.GetMethodPrototype(other_mid);
-    data = dex_file.StringDataAndLengthByIdx(proto_id.shorty_idx_, &length);
-    other_data = dex_file.StringDataAndLengthByIdx(proto_id.shorty_idx_, &other_length);
-    if ((length != other_length) || (strcmp(data, other_data) != 0)) {
-      return false;  // Shorty mismatch.
-    }
-    const DexFile::TypeId& return_type_id = dex_file.GetTypeId(proto_id.return_type_idx_);
-    const DexFile::TypeId& other_return_type_id =
-        other_dex_file.GetTypeId(other_proto_id.return_type_idx_);
-    data = dex_file.StringDataAndLengthByIdx(return_type_id.descriptor_idx_, &length);
-    other_data = other_dex_file.StringDataAndLengthByIdx(other_return_type_id.descriptor_idx_,
-                                                         &other_length);
-    if ((length != other_length) || (strcmp(data, other_data) != 0)) {
-      return false;  // Return type mismatch.
-    }
-    const DexFile::TypeList* params = dex_file.GetProtoParameters(proto_id);
-    const DexFile::TypeList* other_params = other_dex_file.GetProtoParameters(other_proto_id);
-    if (params == nullptr) {
-      return other_params == nullptr;  // Check both lists are empty.
-    }
-    if (other_params == nullptr) {
-      return false;  // Parameter list size mismatch.
-    }
-    uint32_t params_size = params->Size();
-    uint32_t other_params_size = other_params->Size();
-    if (params_size != other_params_size) {
-      return false;  // Parameter list size mismatch.
-    }
-    for (uint32_t i = 0; i < params_size; ++i) {
-      const DexFile::TypeId& param_id = dex_file.GetTypeId(params->GetTypeItem(i).type_idx_);
-      const DexFile::TypeId& other_param_id =
-          other_dex_file.GetTypeId(other_params->GetTypeItem(i).type_idx_);
-      data = dex_file.StringDataAndLengthByIdx(param_id.descriptor_idx_, &length);
-      other_data = other_dex_file.StringDataAndLengthByIdx(other_param_id.descriptor_idx_,
-                                                     &other_length);
-      if ((length != other_length) || (strcmp(data, other_data) != 0)) {
-        return false;  // Parameter type mismatch.
-      }
-    }
-    return true;
+    StringPiece name(GetName());
+    StringPiece other_name(other->GetName());
+    return name == other_name && GetSignature() == other->GetSignature();
   }
 
   const DexFile::CodeItem* GetCodeItem()
