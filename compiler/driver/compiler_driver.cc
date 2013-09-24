@@ -1474,6 +1474,24 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
   // generated code.
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
   if (!SkipClass(class_linker, jclass_loader, dex_file, class_def)) {
+    ScopedObjectAccess soa(self);
+    mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(jclass_loader);
+    mirror::DexCache* dex_cache = class_linker->FindDexCache(dex_file);
+
+    // Resolve the class.
+    mirror::Class* klass = class_linker->ResolveType(dex_file, class_def.class_idx_, dex_cache,
+                                                     class_loader);
+
+    bool resolve_fields_and_methods;
+    if (klass == NULL) {
+      // Class couldn't be resolved, for example, super-class is in a different dex file. Don't
+      // attempt to resolve methods and fields when there is no declaring class.
+      CHECK(soa.Self()->IsExceptionPending());
+      soa.Self()->ClearException();
+      resolve_fields_and_methods = false;
+    } else {
+      resolve_fields_and_methods = manager->GetCompiler()->IsImage();
+    }
     // Note the class_data pointer advances through the headers,
     // static fields, instance fields, direct methods, and virtual
     // methods.
@@ -1482,24 +1500,6 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
       // Empty class such as a marker interface.
       requires_constructor_barrier = false;
     } else {
-      ScopedObjectAccess soa(self);
-      mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(jclass_loader);
-      mirror::DexCache* dex_cache = class_linker->FindDexCache(dex_file);
-
-      // Resolve the class.
-      mirror::Class* klass = class_linker->ResolveType(dex_file, class_def.class_idx_, dex_cache,
-                                                       class_loader);
-
-      bool resolve_fields_and_methods;
-      if (klass == NULL) {
-        // Class couldn't be resolved, for example, super-class is in a different dex file. Don't
-        // attempt to resolve methods and fields when there is no declaring class.
-        CHECK(soa.Self()->IsExceptionPending());
-        soa.Self()->ClearException();
-        resolve_fields_and_methods = false;
-      } else {
-        resolve_fields_and_methods = manager->GetCompiler()->IsImage();
-      }
       ClassDataItemIterator it(dex_file, class_data);
       while (it.HasNextStaticField()) {
         if (resolve_fields_and_methods) {
