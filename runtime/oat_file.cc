@@ -365,7 +365,7 @@ const DexFile* OatFile::OatDexFile::OpenDexFile() const {
                        dex_file_location_checksum_);
 }
 
-const OatFile::OatClass* OatFile::OatDexFile::GetOatClass(uint32_t class_def_index) const {
+const OatFile::OatClass* OatFile::OatDexFile::GetOatClass(uint16_t class_def_index) const {
   uint32_t oat_class_offset = oat_class_offsets_pointer_[class_def_index];
 
   const byte* oat_class_pointer = oat_file_->Begin() + oat_class_offset;

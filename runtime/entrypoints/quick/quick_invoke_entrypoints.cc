@@ -32,7 +32,7 @@ extern "C" uint64_t artInvokeInterfaceTrampoline(mirror::ArtMethod* interface_me
                                                  Thread* self, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtMethod* method;
-  if (LIKELY(interface_method->GetDexMethodIndex() != DexFile::kDexNoIndex16)) {
+  if (LIKELY(interface_method->GetDexMethodIndex() != DexFile::kDexNoIndex)) {
     method = this_object->GetClass()->FindVirtualMethodForInterface(interface_method);
     if (UNLIKELY(method == NULL)) {
       FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);

@@ -25,6 +25,8 @@ struct ProxyOffsets;
 
 namespace mirror {
 
+// All proxy objects have a class which is a synthesized proxy class. The synthesized proxy class
+// has the static fields used to implement reflection on proxy objects.
 class MANAGED SynthesizedProxyClass : public Class {
  public:
   ObjectArray<Class>* GetInterfaces() {
@@ -41,6 +43,7 @@ class MANAGED SynthesizedProxyClass : public Class {
   DISALLOW_IMPLICIT_CONSTRUCTORS(SynthesizedProxyClass);
 };
 
+// C++ mirror of java.lang.reflect.Proxy.
 class MANAGED Proxy : public Object {
  private:
   Object* h_;

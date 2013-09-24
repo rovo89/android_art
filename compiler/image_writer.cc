@@ -699,6 +699,7 @@ void ImageWriter::PatchOatCodeAndMethods() {
 void ImageWriter::SetPatchLocation(const CompilerDriver::PatchInformation* patch, uint32_t value) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const void* oat_code = class_linker->GetOatCodeFor(patch->GetDexFile(),
+                                                     patch->GetReferrerClassDefIdx(),
                                                      patch->GetReferrerMethodIdx());
   OatHeader& oat_header = const_cast<OatHeader&>(oat_file_->GetOatHeader());
   // TODO: make this Thumb2 specific

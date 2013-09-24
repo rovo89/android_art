@@ -262,7 +262,7 @@ class SeaGraph: IVisitable {
   static SeaGraph* GetGraph(const art::DexFile&);
 
   CodeGenData* CompileMethod(const std::string& function_name,
-      const art::DexFile::CodeItem* code_item, uint32_t class_def_idx,
+      const art::DexFile::CodeItem* code_item, uint16_t class_def_idx,
       uint32_t method_idx, uint32_t method_access_flags, const art::DexFile& dex_file);
   // Returns all regions corresponding to this SeaGraph.
   std::vector<Region*>* GetRegions() {
@@ -288,7 +288,7 @@ class SeaGraph: IVisitable {
   }
 
   TypeInference* ti_;
-  uint32_t class_def_idx_;
+  uint16_t class_def_idx_;
   uint32_t method_idx_;
   uint32_t method_access_flags_;
 
@@ -311,7 +311,7 @@ class SeaGraph: IVisitable {
   // Builds the non-SSA sea-ir representation of the function @code_item from @dex_file
   // with class id @class_def_idx and method id @method_idx.
   void BuildMethodSeaGraph(const art::DexFile::CodeItem* code_item,
-      const art::DexFile& dex_file, uint32_t class_def_idx,
+      const art::DexFile& dex_file, uint16_t class_def_idx,
       uint32_t method_idx, uint32_t method_access_flags);
   // Computes immediate dominators for each region.
   // Precondition: ComputeMethodSeaGraph()

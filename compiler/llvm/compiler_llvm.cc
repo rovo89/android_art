@@ -39,7 +39,7 @@ void CompileOneMethod(CompilerDriver& driver,
                       const CompilerBackend compilerBackend,
                       const DexFile::CodeItem* code_item,
                       uint32_t access_flags, InvokeType invoke_type,
-                      uint32_t class_def_idx, uint32_t method_idx, jobject class_loader,
+                      uint16_t class_def_idx, uint32_t method_idx, jobject class_loader,
                       const DexFile& dex_file,
                       llvm::LlvmCompilationUnit* llvm_info);
 }
@@ -202,7 +202,7 @@ extern "C" art::CompiledMethod* ArtCompileMethod(art::CompilerDriver& driver,
                                                  const art::DexFile::CodeItem* code_item,
                                                  uint32_t access_flags,
                                                  art::InvokeType invoke_type,
-                                                 uint32_t class_def_idx,
+                                                 uint16_t class_def_idx,
                                                  uint32_t method_idx,
                                                  jobject class_loader,
                                                  const art::DexFile& dex_file) {
