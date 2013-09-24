@@ -277,7 +277,7 @@ void DexCompiler::CompileInvokeVirtual(Instruction* inst,
 
 extern "C" void ArtCompileDEX(art::CompilerDriver& compiler, const art::DexFile::CodeItem* code_item,
                   uint32_t access_flags, art::InvokeType invoke_type,
-                  uint32_t class_def_idx, uint32_t method_idx, jobject class_loader,
+                  uint16_t class_def_idx, uint32_t method_idx, jobject class_loader,
                   const art::DexFile& dex_file,
                   art::DexToDexCompilationLevel dex_to_dex_compilation_level) {
   if (dex_to_dex_compilation_level != art::kDontDexToDexCompile) {

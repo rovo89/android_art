@@ -78,35 +78,6 @@ static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean
   return soa.AddLocalReference<jclass>(c);
 }
 
-static jint Class_getAnnotationDirectoryOffset(JNIEnv* env, jclass javaClass) {
-  ScopedObjectAccess soa(env);
-  mirror::Class* c = DecodeClass(soa, javaClass);
-  if (c->IsPrimitive() || c->IsArrayClass() || c->IsProxyClass()) {
-    return 0;  // primitive, array and proxy classes don't have class definitions
-  }
-  const DexFile::ClassDef* class_def = ClassHelper(c).GetClassDef();
-  if (class_def == NULL) {
-    return 0;  // not found
-  } else {
-    return class_def->annotations_off_;
-  }
-}
-
-static jobject Class_getDex(JNIEnv* env, jobject javaClass) {
-  ScopedObjectAccess soa(env);
-  mirror::Class* c = DecodeClass(soa, javaClass);
-
-  mirror::DexCache* dex_cache = c->GetDexCache();
-  if (dex_cache == NULL) {
-    return NULL;
-  }
-  const DexFile* dex_file = dex_cache->GetDexFile();
-  if (dex_file == NULL) {
-    return NULL;
-  }
-  return dex_file->GetDexObject(env);
-}
-
 static jstring Class_getNameNative(JNIEnv* env, jobject javaThis) {
   ScopedObjectAccess soa(env);
   mirror::Class* c = DecodeClass(soa, javaThis);
@@ -122,8 +93,6 @@ static jobjectArray Class_getProxyInterfaces(JNIEnv* env, jobject javaThis) {
 
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Class, classForName, "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;"),
-  NATIVE_METHOD(Class, getAnnotationDirectoryOffset, "()I"),
-  NATIVE_METHOD(Class, getDex, "()Lcom/android/dex/Dex;"),
   NATIVE_METHOD(Class, getNameNative, "()Ljava/lang/String;"),
   NATIVE_METHOD(Class, getProxyInterfaces, "()[Ljava/lang/Class;"),
 };

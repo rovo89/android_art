@@ -726,6 +726,14 @@ class MANAGED Class : public StaticStorageBase {
     return GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_class_), false);
   }
 
+  uint16_t GetDexClassDefIndex() const {
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, dex_class_def_idx_), false);
+  }
+
+  void SetDexClassDefIndex(uint16_t class_def_idx) {
+    SetField32(OFFSET_OF_OBJECT_MEMBER(Class, dex_class_def_idx_), class_def_idx, false);
+  }
+
   uint16_t GetDexTypeIndex() const {
     return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, dex_type_idx_), false);
   }
@@ -807,7 +815,7 @@ class MANAGED Class : public StaticStorageBase {
   // If class verify fails, we must return same error on subsequent tries.
   Class* verify_error_class_;
 
-  // virtual methods defined in this class; invoked through vtable
+  // Virtual methods defined in this class; invoked through vtable.
   ObjectArray<ArtMethod>* virtual_methods_;
 
   // Virtual method table (vtable), for use by "invoke-virtual".  The vtable from the superclass is
@@ -816,24 +824,28 @@ class MANAGED Class : public StaticStorageBase {
   // virtual_ methods_ for miranda methods.
   ObjectArray<ArtMethod>* vtable_;
 
-  // access flags; low 16 bits are defined by VM spec
+  // Access flags; low 16 bits are defined by VM spec.
   uint32_t access_flags_;
 
   // Total size of the Class instance; used when allocating storage on gc heap.
   // See also object_size_.
   size_t class_size_;
 
-  // tid used to check for recursive <clinit> invocation
+  // Tid used to check for recursive <clinit> invocation.
   pid_t clinit_thread_id_;
 
-  // type index from dex file
+  // ClassDef index in dex file, -1 if no class definition such as an array.
   // TODO: really 16bits
-  uint32_t dex_type_idx_;
+  int32_t dex_class_def_idx_;
 
-  // number of instance fields that are object refs
+  // Type index in dex file.
+  // TODO: really 16bits
+  int32_t dex_type_idx_;
+
+  // Number of instance fields that are object refs.
   size_t num_reference_instance_fields_;
 
-  // number of static fields that are object refs
+  // Number of static fields that are object refs,
   size_t num_reference_static_fields_;
 
   // Total object size; used when allocating storage on gc heap.
@@ -841,7 +853,7 @@ class MANAGED Class : public StaticStorageBase {
   // See also class_size_.
   size_t object_size_;
 
-  // primitive type value, or Primitive::kPrimNot (0); set for generated prim classes
+  // Primitive type value, or Primitive::kPrimNot (0); set for generated primitive classes.
   Primitive::Type primitive_type_;
 
   // Bitmap of offsets of ifields.
@@ -850,7 +862,7 @@ class MANAGED Class : public StaticStorageBase {
   // Bitmap of offsets of sfields.
   uint32_t reference_static_offsets_;
 
-  // state of class initialization
+  // State of class initialization.
   Status status_;
 
   // TODO: ?
@@ -873,7 +885,6 @@ std::ostream& operator<<(std::ostream& os, const Class::Status& rhs);
 
 class MANAGED ClassClass : public Class {
  private:
-  int32_t padding_;
   int64_t serialVersionUID_;
   friend struct art::ClassClassOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(ClassClass);

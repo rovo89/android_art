@@ -128,7 +128,10 @@ Object* Class::AllocObject(Thread* self) {
 }
 
 void Class::SetClassSize(size_t new_class_size) {
-  DCHECK_GE(new_class_size, GetClassSize()) << " class=" << PrettyTypeOf(this);
+  if (kIsDebugBuild && (new_class_size < GetClassSize())) {
+    DumpClass(LOG(ERROR), kDumpClassFullDetail);
+    CHECK_GE(new_class_size, GetClassSize()) << " class=" << PrettyTypeOf(this);
+  }
   SetField32(OFFSET_OF_OBJECT_MEMBER(Class, class_size_), new_class_size, false);
 }
 
@@ -300,22 +303,8 @@ bool Class::IsInSamePackage(const Class* that) const {
     return true;
   }
   // Compare the package part of the descriptor string.
-  if (LIKELY(!klass1->IsProxyClass() && !klass2->IsProxyClass())) {
-    ClassHelper kh(klass1);
-    const DexFile* dex_file1 = &kh.GetDexFile();
-    const DexFile::TypeId* type_id1 = &dex_file1->GetTypeId(klass1->GetDexTypeIndex());
-    const char* descriptor1 = dex_file1->GetTypeDescriptor(*type_id1);
-    kh.ChangeClass(klass2);
-    const DexFile* dex_file2 = &kh.GetDexFile();
-    const DexFile::TypeId* type_id2 = &dex_file2->GetTypeId(klass2->GetDexTypeIndex());
-    const char* descriptor2 = dex_file2->GetTypeDescriptor(*type_id2);
-    return IsInSamePackage(descriptor1, descriptor2);
-  }
-  ClassHelper kh(klass1);
-  std::string descriptor1(kh.GetDescriptor());
-  kh.ChangeClass(klass2);
-  std::string descriptor2(kh.GetDescriptor());
-  return IsInSamePackage(descriptor1, descriptor2);
+  return IsInSamePackage(ClassHelper(klass1).GetDescriptor(),
+                         ClassHelper(klass2).GetDescriptor());
 }
 
 bool Class::IsClassClass() const {

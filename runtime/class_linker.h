@@ -329,7 +329,7 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get the oat code for a method from a method index.
-  const void* GetOatCodeFor(const DexFile& dex_file, uint32_t method_idx)
+  const void* GetOatCodeFor(const DexFile& dex_file, uint16_t class_def_idx, uint32_t method_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   pid_t GetClassesLockOwner();  // For SignalCatcher.
@@ -424,7 +424,7 @@ class ClassLinker {
   void FixupStaticTrampolines(mirror::Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Finds the associated oat class for a dex_file and descriptor
-  const OatFile::OatClass* GetOatClass(const DexFile& dex_file, const char* descriptor)
+  const OatFile::OatClass* GetOatClass(const DexFile& dex_file, uint16_t class_def_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void RegisterDexFileLocked(const DexFile& dex_file, SirtRef<mirror::DexCache>& dex_cache)

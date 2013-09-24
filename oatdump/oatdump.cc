@@ -176,9 +176,10 @@ class OatDumper {
       CHECK(oat_dex_file != NULL);
       UniquePtr<const DexFile> dex_file(oat_dex_file->OpenDexFile());
       if (dex_file.get() != NULL) {
-        uint32_t class_def_index;
-        bool found = dex_file->FindClassDefIndex(mh.GetDeclaringClassDescriptor(), class_def_index);
-        if (found) {
+        const DexFile::ClassDef* class_def =
+            dex_file->FindClassDef(mh.GetDeclaringClassDescriptor());
+        if (class_def != NULL) {
+          uint16_t class_def_index = dex_file->GetIndexForClassDef(*class_def);
           const OatFile::OatClass* oat_class = oat_dex_file->GetOatClass(class_def_index);
           CHECK(oat_class != NULL);
           size_t method_index = m->GetMethodIndex();
@@ -284,18 +285,17 @@ class OatDumper {
     }
     ClassDataItemIterator it(dex_file, class_data);
     SkipAllFields(it);
-    uint32_t class_def_idx = dex_file.GetIndexForClassDef(class_def);
     uint32_t class_method_idx = 0;
     while (it.HasNextDirectMethod()) {
       const OatFile::OatMethod oat_method = oat_class.GetOatMethod(class_method_idx);
-      DumpOatMethod(os, class_def_idx, class_method_idx, oat_method, dex_file,
+      DumpOatMethod(os, class_def, class_method_idx, oat_method, dex_file,
                     it.GetMemberIndex(), it.GetMethodCodeItem(), it.GetMemberAccessFlags());
       class_method_idx++;
       it.Next();
     }
     while (it.HasNextVirtualMethod()) {
       const OatFile::OatMethod oat_method = oat_class.GetOatMethod(class_method_idx);
-      DumpOatMethod(os, class_def_idx, class_method_idx, oat_method, dex_file,
+      DumpOatMethod(os, class_def, class_method_idx, oat_method, dex_file,
                     it.GetMemberIndex(), it.GetMethodCodeItem(), it.GetMemberAccessFlags());
       class_method_idx++;
       it.Next();
@@ -304,7 +304,8 @@ class OatDumper {
     os << std::flush;
   }
 
-  void DumpOatMethod(std::ostream& os, uint32_t class_def_idx, uint32_t class_method_index,
+  void DumpOatMethod(std::ostream& os, const DexFile::ClassDef& class_def,
+                     uint32_t class_method_index,
                      const OatFile::OatMethod& oat_method, const DexFile& dex_file,
                      uint32_t dex_method_idx, const DexFile::CodeItem* code_item,
                      uint32_t method_access_flags) {
@@ -323,7 +324,8 @@ class OatDumper {
       indent1_os << "VERIFIER TYPE ANALYSIS:\n";
       Indenter indent2_filter(indent1_os.rdbuf(), kIndentChar, kIndentBy1Count);
       std::ostream indent2_os(&indent2_filter);
-      DumpVerifier(indent2_os, dex_method_idx, &dex_file, class_def_idx, code_item, method_access_flags);
+      DumpVerifier(indent2_os, dex_method_idx, &dex_file, class_def, code_item,
+                   method_access_flags);
     }
     {
       indent1_os << "OAT DATA:\n";
@@ -363,7 +365,7 @@ class OatDumper {
                                  oat_method.GetCode() != NULL ? "..." : "");
       Indenter indent2_filter(indent1_os.rdbuf(), kIndentChar, kIndentBy1Count);
       std::ostream indent2_os(&indent2_filter);
-      DumpCode(indent2_os, oat_method, dex_method_idx, &dex_file, class_def_idx, code_item,
+      DumpCode(indent2_os, oat_method, dex_method_idx, &dex_file, class_def, code_item,
                method_access_flags);
     }
   }
@@ -554,7 +556,7 @@ class OatDumper {
 
   void DumpVRegsAtDexPc(std::ostream& os,  const OatFile::OatMethod& oat_method,
                         uint32_t dex_method_idx, const DexFile* dex_file,
-                        uint32_t class_def_idx, const DexFile::CodeItem* code_item,
+                        const DexFile::ClassDef& class_def, const DexFile::CodeItem* code_item,
                         uint32_t method_access_flags, uint32_t dex_pc) {
     static UniquePtr<verifier::MethodVerifier> verifier;
     static const DexFile* verified_dex_file = NULL;
@@ -563,7 +565,7 @@ class OatDumper {
       ScopedObjectAccess soa(Thread::Current());
       mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file);
       mirror::ClassLoader* class_loader = NULL;
-      verifier.reset(new verifier::MethodVerifier(dex_file, dex_cache, class_loader, class_def_idx,
+      verifier.reset(new verifier::MethodVerifier(dex_file, dex_cache, class_loader, &class_def,
                                                   code_item, dex_method_idx, NULL,
                                                   method_access_flags, true, true));
       verifier->Verify();
@@ -615,21 +617,21 @@ class OatDumper {
   }
 
   void DumpVerifier(std::ostream& os, uint32_t dex_method_idx, const DexFile* dex_file,
-                    uint32_t class_def_idx, const DexFile::CodeItem* code_item,
+                    const DexFile::ClassDef& class_def, const DexFile::CodeItem* code_item,
                     uint32_t method_access_flags) {
     if ((method_access_flags & kAccNative) == 0) {
       ScopedObjectAccess soa(Thread::Current());
       mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file);
       mirror::ClassLoader* class_loader = NULL;
       verifier::MethodVerifier::VerifyMethodAndDump(os, dex_method_idx, dex_file, dex_cache,
-                                                    class_loader, class_def_idx, code_item, NULL,
+                                                    class_loader, &class_def, code_item, NULL,
                                                     method_access_flags);
     }
   }
 
   void DumpCode(std::ostream& os,  const OatFile::OatMethod& oat_method,
                 uint32_t dex_method_idx, const DexFile* dex_file,
-                uint32_t class_def_idx, const DexFile::CodeItem* code_item,
+                const DexFile::ClassDef& class_def, const DexFile::CodeItem* code_item,
                 uint32_t method_access_flags) {
     const void* code = oat_method.GetCode();
     size_t code_size = oat_method.GetCodeSize();
@@ -647,7 +649,7 @@ class OatDumper {
       if (dex_pc != DexFile::kDexNoIndex) {
         DumpGcMapAtNativePcOffset(os, oat_method, code_item, offset);
         if (kDumpVRegs) {
-          DumpVRegsAtDexPc(os, oat_method, dex_method_idx, dex_file, class_def_idx, code_item,
+          DumpVRegsAtDexPc(os, oat_method, dex_method_idx, dex_file, class_def, code_item,
                            method_access_flags, dex_pc);
         }
       }

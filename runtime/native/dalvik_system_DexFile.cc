@@ -150,7 +150,7 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
     return NULL;
   }
   const std::string descriptor(DotToDescriptor(class_name.c_str()));
-  const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor);
+  const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor.c_str());
   if (dex_class_def == NULL) {
     VLOG(class_linker) << "Failed to find dex_class_def";
     return NULL;
