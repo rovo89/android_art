@@ -40,6 +40,7 @@ namespace mirror {
   class DexCache;
 }  // namespace mirror
 class ClassLinker;
+class StringPiece;
 class ZipArchive;
 
 // TODO: move all of the macro functionality into the DexCache class.
@@ -431,6 +432,8 @@ class DexFile {
     const StringId& string_id = GetStringId(idx);
     return GetStringDataAndLength(string_id, unicode_length);
   }
+
+  StringPiece StringDataAsStringPieceByIdx(uint32_t idx) const;
 
   const char* StringDataByIdx(uint32_t idx) const {
     uint32_t unicode_length;

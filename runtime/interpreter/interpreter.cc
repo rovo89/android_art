@@ -82,7 +82,7 @@ static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
   }
 }
 
-static void InterpreterJni(Thread* self, ArtMethod* method, StringPiece shorty,
+static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& shorty,
                            Object* receiver, uint32_t* args, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // TODO: The following enters JNI code using a typedef-ed function rather than the JNI compiler,

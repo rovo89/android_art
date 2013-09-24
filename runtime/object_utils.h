@@ -111,6 +111,17 @@ class ClassHelper {
     }
   }
 
+  StringPiece GetDescriptorAsStringPiece() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    CHECK(klass_ != NULL);
+    if (UNLIKELY(klass_->IsArrayClass() || klass_->IsPrimitive() || klass_->IsProxyClass())) {
+      return StringPiece(GetDescriptor());
+    } else {
+      const DexFile& dex_file = GetDexFile();
+      const DexFile::TypeId& type_id = dex_file.GetTypeId(GetClassDef()->class_idx_);
+      return dex_file.StringDataAsStringPieceByIdx(type_id.descriptor_idx_);
+    }
+  }
+
   const char* GetArrayDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string result("[");
     const mirror::Class* saved_klass = klass_;
@@ -182,7 +193,7 @@ class ClassHelper {
   }
 
   const char* GetSourceFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    std::string descriptor(GetDescriptor());
+    std::string descriptor(GetDescriptorAsStringPiece().as_string());
     const DexFile& dex_file = GetDexFile();
     const DexFile::ClassDef* dex_class_def = GetClassDef();
     CHECK(dex_class_def != NULL);
@@ -267,53 +278,77 @@ class FieldHelper {
     }
     field_ = new_f;
   }
+
   const char* GetName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t field_index = field_->GetDexFieldIndex();
-    if (!field_->GetDeclaringClass()->IsProxyClass()) {
-      const DexFile& dex_file = GetDexFile();
-      return dex_file.GetFieldName(dex_file.GetFieldId(field_index));
-    } else {
+    if (UNLIKELY(field_->GetDeclaringClass()->IsProxyClass())) {
       DCHECK(field_->IsStatic());
       DCHECK_LT(field_index, 2U);
       return field_index == 0 ? "interfaces" : "throws";
     }
+    const DexFile& dex_file = GetDexFile();
+    return dex_file.GetFieldName(dex_file.GetFieldId(field_index));
   }
+
+  StringPiece GetNameAsStringPiece() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    uint32_t field_index = field_->GetDexFieldIndex();
+    if (UNLIKELY(field_->GetDeclaringClass()->IsProxyClass())) {
+      return StringPiece(GetName());
+    }
+    const DexFile& dex_file = GetDexFile();
+    const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
+    return dex_file.StringDataAsStringPieceByIdx(field_id.name_idx_);
+  }
+
   mirror::Class* GetType(bool resolve = true) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t field_index = field_->GetDexFieldIndex();
-    if (!field_->GetDeclaringClass()->IsProxyClass()) {
-      const DexFile& dex_file = GetDexFile();
-      const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
-      mirror::Class* type = GetDexCache()->GetResolvedType(field_id.type_idx_);
-      if (resolve && (type == NULL)) {
-        type = GetClassLinker()->ResolveType(field_id.type_idx_, field_);
-        CHECK(type != NULL || Thread::Current()->IsExceptionPending());
-      }
-      return type;
-    } else {
+    if (UNLIKELY(field_->GetDeclaringClass()->IsProxyClass())) {
       return GetClassLinker()->FindSystemClass(GetTypeDescriptor());
     }
+    const DexFile& dex_file = GetDexFile();
+    const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
+    mirror::Class* type = GetDexCache()->GetResolvedType(field_id.type_idx_);
+    if (resolve && (type == NULL)) {
+      type = GetClassLinker()->ResolveType(field_id.type_idx_, field_);
+      CHECK(type != NULL || Thread::Current()->IsExceptionPending());
+    }
+    return type;
   }
+
   const char* GetTypeDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t field_index = field_->GetDexFieldIndex();
-    if (!field_->GetDeclaringClass()->IsProxyClass()) {
-      const DexFile& dex_file = GetDexFile();
-      const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
-      return dex_file.GetFieldTypeDescriptor(field_id);
-    } else {
+    if (UNLIKELY(field_->GetDeclaringClass()->IsProxyClass())) {
       DCHECK(field_->IsStatic());
       DCHECK_LT(field_index, 2U);
       // 0 == Class[] interfaces; 1 == Class[][] throws;
       return field_index == 0 ? "[Ljava/lang/Class;" : "[[Ljava/lang/Class;";
     }
+    const DexFile& dex_file = GetDexFile();
+    const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
+    return dex_file.GetFieldTypeDescriptor(field_id);
   }
+
+  StringPiece GetTypeDescriptorAsStringPiece() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    uint32_t field_index = field_->GetDexFieldIndex();
+    if (UNLIKELY(field_->GetDeclaringClass()->IsProxyClass())) {
+      return StringPiece(GetTypeDescriptor());
+    }
+    const DexFile& dex_file = GetDexFile();
+    const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
+    const DexFile::TypeId& type_id = dex_file.GetTypeId(field_id.type_idx_);
+    return dex_file.StringDataAsStringPieceByIdx(type_id.descriptor_idx_);
+  }
+
   Primitive::Type GetTypeAsPrimitiveType()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return Primitive::GetType(GetTypeDescriptor()[0]);
   }
+
   bool IsPrimitiveType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Primitive::Type type = GetTypeAsPrimitiveType();
     return type != Primitive::kPrimNot;
   }
+
   size_t FieldSize() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Primitive::Type type = GetTypeAsPrimitiveType();
     return Primitive::FieldSize(type);
@@ -324,18 +359,17 @@ class FieldHelper {
   const char* GetDeclaringClassDescriptor()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t field_index = field_->GetDexFieldIndex();
-    if (!field_->GetDeclaringClass()->IsProxyClass()) {
-      const DexFile& dex_file = GetDexFile();
-      const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
-      return dex_file.GetFieldDeclaringClassDescriptor(field_id);
-    } else {
+    if (UNLIKELY(field_->GetDeclaringClass()->IsProxyClass())) {
       DCHECK(field_->IsStatic());
       DCHECK_LT(field_index, 2U);
       // 0 == Class[] interfaces; 1 == Class[][] throws;
       ClassHelper kh(field_->GetDeclaringClass());
-      declaring_class_descriptor_ = kh.GetDescriptor();
+      declaring_class_descriptor_ = kh.GetDescriptorAsStringPiece().as_string();
       return declaring_class_descriptor_.c_str();
     }
+    const DexFile& dex_file = GetDexFile();
+    const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
+    return dex_file.GetFieldDeclaringClassDescriptor(field_id);
   }
 
  private:
@@ -417,7 +451,7 @@ class MethodHelper {
   const char* GetName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile& dex_file = GetDexFile();
     uint32_t dex_method_idx = method_->GetDexMethodIndex();
-    if (dex_method_idx != DexFile::kDexNoIndex) {
+    if (LIKELY(dex_method_idx != DexFile::kDexNoIndex)) {
       return dex_file.GetMethodName(dex_file.GetMethodId(dex_method_idx));
     } else {
       Runtime* runtime = Runtime::Current();
@@ -433,6 +467,16 @@ class MethodHelper {
         return "<unknown runtime internal method>";
       }
     }
+  }
+
+  StringPiece GetNameAsStringPiece() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    const DexFile& dex_file = GetDexFile();
+    uint32_t dex_method_idx = method_->GetDexMethodIndex();
+    if (UNLIKELY(dex_method_idx == DexFile::kDexNoIndex)) {
+      return StringPiece(GetName());
+    }
+    const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_idx);
+    return dex_file.StringDataAsStringPieceByIdx(method_id.name_idx_);
   }
 
   mirror::String* GetNameAsString() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -508,11 +552,22 @@ class MethodHelper {
   const char* GetDeclaringClassDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile& dex_file = GetDexFile();
     uint32_t dex_method_idx = method_->GetDexMethodIndex();
-    if (dex_method_idx != DexFile::kDexNoIndex) {
-      return dex_file.GetMethodDeclaringClassDescriptor(dex_file.GetMethodId(dex_method_idx));
-    } else {
+    if (UNLIKELY(dex_method_idx == DexFile::kDexNoIndex)) {
       return "<runtime method>";
     }
+    return dex_file.GetMethodDeclaringClassDescriptor(dex_file.GetMethodId(dex_method_idx));
+  }
+
+  StringPiece GetDeclaringClassDescriptorAsStringPiece()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    const DexFile& dex_file = GetDexFile();
+    uint32_t dex_method_idx = method_->GetDexMethodIndex();
+    if (UNLIKELY(dex_method_idx == DexFile::kDexNoIndex)) {
+      return StringPiece("<runtime method>");
+    }
+    const DexFile::MethodId& mid = dex_file.GetMethodId(dex_method_idx);
+    const DexFile::TypeId& type_id = dex_file.GetTypeId(mid.class_idx_);
+    return dex_file.StringDataAsStringPieceByIdx(type_id.descriptor_idx_);
   }
 
   const char* GetDeclaringClassSourceFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -536,7 +591,7 @@ class MethodHelper {
   }
 
   bool IsClassInitializer() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return IsStatic() && StringPiece(GetName()) == "<clinit>";
+    return IsStatic() && GetNameAsStringPiece() == "<clinit>";
   }
 
   size_t NumArgs() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -569,16 +624,56 @@ class MethodHelper {
 
   bool HasSameNameAndSignature(MethodHelper* other)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    const DexFile& dex_file = GetDexFile();
+    const DexFile::MethodId& mid = dex_file.GetMethodId(method_->GetDexMethodIndex());
     if (GetDexCache() == other->GetDexCache()) {
-      const DexFile& dex_file = GetDexFile();
-      const DexFile::MethodId& mid = dex_file.GetMethodId(method_->GetDexMethodIndex());
       const DexFile::MethodId& other_mid =
           dex_file.GetMethodId(other->method_->GetDexMethodIndex());
       return mid.name_idx_ == other_mid.name_idx_ && mid.proto_idx_ == other_mid.proto_idx_;
     }
-    StringPiece name(GetName());
-    StringPiece other_name(other->GetName());
-    return name == other_name && GetSignature() == other->GetSignature();
+    const DexFile& other_dex_file = other->GetDexFile();
+    const DexFile::MethodId& other_mid =
+        other_dex_file.GetMethodId(other->method_->GetDexMethodIndex());
+    if (dex_file.StringDataAsStringPieceByIdx(mid.name_idx_) !=
+        other_dex_file.StringDataAsStringPieceByIdx(other_mid.name_idx_)) {
+      return false;  // Name mismatch.
+    }
+    const DexFile::ProtoId& proto_id = dex_file.GetMethodPrototype(mid);
+    const DexFile::ProtoId& other_proto_id = other_dex_file.GetMethodPrototype(other_mid);
+    if (dex_file.StringDataAsStringPieceByIdx(proto_id.shorty_idx_) !=
+        other_dex_file.StringDataAsStringPieceByIdx(other_proto_id.shorty_idx_)) {
+      return false;  // Shorty mismatch.
+    }
+    const DexFile::TypeId& return_type_id = dex_file.GetTypeId(proto_id.return_type_idx_);
+    const DexFile::TypeId& other_return_type_id =
+        other_dex_file.GetTypeId(other_proto_id.return_type_idx_);
+    if (dex_file.StringDataAsStringPieceByIdx(return_type_id.descriptor_idx_) !=
+        other_dex_file.StringDataAsStringPieceByIdx(other_return_type_id.descriptor_idx_)) {
+      return false;  // Return type mismatch.
+    }
+    const DexFile::TypeList* params = dex_file.GetProtoParameters(proto_id);
+    const DexFile::TypeList* other_params = other_dex_file.GetProtoParameters(other_proto_id);
+    if (params == nullptr) {
+      return other_params == nullptr;  // Check both lists are empty.
+    }
+    if (other_params == nullptr) {
+      return false;  // Parameter list size mismatch.
+    }
+    uint32_t params_size = params->Size();
+    uint32_t other_params_size = other_params->Size();
+    if (params_size != other_params_size) {
+      return false;  // Parameter list size mismatch.
+    }
+    for (uint32_t i = 0; i < params_size; ++i) {
+      const DexFile::TypeId& param_id = dex_file.GetTypeId(params->GetTypeItem(i).type_idx_);
+      const DexFile::TypeId& other_param_id =
+          other_dex_file.GetTypeId(other_params->GetTypeItem(i).type_idx_);
+      if (dex_file.StringDataAsStringPieceByIdx(param_id.descriptor_idx_) !=
+          other_dex_file.StringDataAsStringPieceByIdx(other_param_id.descriptor_idx_)) {
+        return false;  // Parameter type mismatch.
+      }
+    }
+    return true;
   }
 
   const DexFile::CodeItem* GetCodeItem()

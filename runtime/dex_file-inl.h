@@ -18,6 +18,7 @@
 #define ART_RUNTIME_DEX_FILE_INL_H_
 
 #include "base/logging.h"
+#include "base/stringpiece.h"
 #include "dex_file.h"
 #include "leb128.h"
 #include "utils.h"
@@ -34,6 +35,16 @@ inline const char* DexFile::GetStringDataAndLength(const StringId& string_id, ui
   const byte* ptr = begin_ + string_id.string_data_off_;
   *length = DecodeUnsignedLeb128(&ptr);
   return reinterpret_cast<const char*>(ptr);
+}
+
+inline StringPiece DexFile::StringDataAsStringPieceByIdx(uint32_t idx) const {
+  if (idx == kDexNoIndex) {
+    return StringPiece();
+  }
+  const StringId& string_id = GetStringId(idx);
+  uint32_t length;
+  const char* data = GetStringDataAndLength(string_id, &length);
+  return StringPiece(data, static_cast<int>(length));
 }
 
 inline const DexFile::TryItem* DexFile::GetTryItems(const CodeItem& code_item, uint32_t offset) {

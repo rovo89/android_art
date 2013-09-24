@@ -80,7 +80,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const mirror::Class* kla
     return kNoFailure;
   }
   mirror::Class* super = klass->GetSuperClass();
-  if (super == NULL && StringPiece(ClassHelper(klass).GetDescriptor()) != "Ljava/lang/Object;") {
+  if (super == NULL && ClassHelper(klass).GetDescriptorAsStringPiece() != "Ljava/lang/Object;") {
     *error = "Verifier rejected class ";
     *error += PrettyDescriptor(klass);
     *error += " that has no super class";
@@ -293,6 +293,7 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, mirror::DexCache* dex_ca
       dex_method_idx_(dex_method_idx),
       mirror_method_(method),
       method_access_flags_(method_access_flags),
+      return_type_(nullptr),
       dex_file_(dex_file),
       dex_cache_(dex_cache),
       class_loader_(class_loader),
@@ -300,7 +301,7 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, mirror::DexCache* dex_ca
       code_item_(code_item),
       declaring_class_(NULL),
       interesting_dex_pc_(-1),
-      monitor_enter_dex_pcs_(NULL),
+      monitor_enter_dex_pcs_(nullptr),
       have_pending_hard_failure_(false),
       have_pending_runtime_throw_failure_(false),
       new_instance_count_(0),
@@ -309,7 +310,7 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, mirror::DexCache* dex_ca
       allow_soft_failures_(allow_soft_failures),
       has_check_casts_(false),
       has_virtual_or_interface_invokes_(false) {
-  DCHECK(class_def != NULL);
+  DCHECK(class_def != nullptr);
 }
 
 void MethodVerifier::FindLocksAtDexPc(mirror::ArtMethod* m, uint32_t dex_pc,
@@ -2131,20 +2132,30 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
                         inst->Opcode() == Instruction::INVOKE_SUPER_RANGE);
       mirror::ArtMethod* called_method = VerifyInvocationArgs(inst, METHOD_VIRTUAL,
                                                                    is_range, is_super);
-      const char* descriptor;
-      if (called_method == NULL) {
+      const RegType* return_type = nullptr;
+      if (called_method != nullptr) {
+        MethodHelper mh(called_method);
+        mirror::Class* return_type_class = mh.GetReturnType();
+        if (return_type_class != nullptr) {
+          return_type = &reg_types_.FromClass(mh.GetReturnTypeDescriptor(), return_type_class,
+                                              return_type_class->CannotBeAssignedFromOtherTypes());
+        } else {
+          Thread* self = Thread::Current();
+          DCHECK(self->IsExceptionPending());
+          self->ClearException();
+        }
+      }
+      if (return_type == nullptr) {
         uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
         const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
         uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
-        descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
-      } else {
-        descriptor = MethodHelper(called_method).GetReturnTypeDescriptor();
+        const char* descriptor = dex_file_->StringByTypeIdx(return_type_idx);
+        return_type = &reg_types_.FromDescriptor(class_loader_, descriptor, false);
       }
-      const RegType& return_type = reg_types_.FromDescriptor(class_loader_, descriptor, false);
-      if (!return_type.IsLowHalf()) {
-        work_line_->SetResultRegisterType(return_type);
+      if (!return_type->IsLowHalf()) {
+        work_line_->SetResultRegisterType(*return_type);
       } else {
-        work_line_->SetResultRegisterTypeWide(return_type, return_type.HighHalf(&reg_types_));
+        work_line_->SetResultRegisterTypeWide(*return_type, return_type->HighHalf(&reg_types_));
       }
       just_set_result = true;
       break;
@@ -2159,7 +2170,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       if (called_method == NULL) {
         uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
         const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
-        is_constructor = StringPiece(dex_file_->GetMethodName(method_id)) == "<init>";
+        is_constructor = dex_file_->StringDataAsStringPieceByIdx(method_id.name_idx_) == "<init>";
         uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
         return_type_descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
       } else {
@@ -3497,22 +3508,26 @@ void MethodVerifier::VerifyISGet(const Instruction* inst, const RegType& insn_ty
     const RegType& object_type = work_line_->GetRegisterType(inst->VRegB_22c());
     field = GetInstanceField(object_type, field_idx);
   }
-  const char* descriptor;
-  mirror::ClassLoader* loader;
+  const RegType* field_type = nullptr;
   if (field != NULL) {
-    descriptor = FieldHelper(field).GetTypeDescriptor();
-    loader = field->GetDeclaringClass()->GetClassLoader();
-  } else {
-    const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
-    descriptor = dex_file_->GetFieldTypeDescriptor(field_id);
-    loader = class_loader_;
+    FieldHelper fh(field);
+    mirror::Class* field_type_class = fh.GetType(false);
+    if (field_type_class != nullptr) {
+      field_type = &reg_types_.FromClass(fh.GetTypeDescriptor(), field_type_class,
+                                         field_type_class->CannotBeAssignedFromOtherTypes());
+    }
   }
-  const RegType& field_type = reg_types_.FromDescriptor(loader, descriptor, false);
+  if (field_type == nullptr) {
+    const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
+    const char* descriptor = dex_file_->GetFieldTypeDescriptor(field_id);
+    mirror::ClassLoader* loader = class_loader_;
+    field_type = &reg_types_.FromDescriptor(loader, descriptor, false);
+  }
   const uint32_t vregA = (is_static) ? inst->VRegA_21c() : inst->VRegA_22c();
   if (is_primitive) {
-    if (field_type.Equals(insn_type) ||
-        (field_type.IsFloat() && insn_type.IsInteger()) ||
-        (field_type.IsDouble() && insn_type.IsLong())) {
+    if (field_type->Equals(insn_type) ||
+        (field_type->IsFloat() && insn_type.IsInteger()) ||
+        (field_type->IsDouble() && insn_type.IsLong())) {
       // expected that read is of the correct primitive type or that int reads are reading
       // floats or long reads are reading doubles
     } else {
@@ -3525,7 +3540,7 @@ void MethodVerifier::VerifyISGet(const Instruction* inst, const RegType& insn_ty
       return;
     }
   } else {
-    if (!insn_type.IsAssignableFrom(field_type)) {
+    if (!insn_type.IsAssignableFrom(*field_type)) {
       Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << PrettyField(field)
                                         << " to be compatible with type '" << insn_type
                                         << "' but found type '" << field_type
@@ -3534,10 +3549,10 @@ void MethodVerifier::VerifyISGet(const Instruction* inst, const RegType& insn_ty
       return;
     }
   }
-  if (!field_type.IsLowHalf()) {
-    work_line_->SetRegisterType(vregA, field_type);
+  if (!field_type->IsLowHalf()) {
+    work_line_->SetRegisterType(vregA, *field_type);
   } else {
-    work_line_->SetRegisterTypeWide(vregA, field_type, field_type.HighHalf(&reg_types_));
+    work_line_->SetRegisterTypeWide(vregA, *field_type, field_type->HighHalf(&reg_types_));
   }
 }
 
@@ -3551,36 +3566,38 @@ void MethodVerifier::VerifyISPut(const Instruction* inst, const RegType& insn_ty
     const RegType& object_type = work_line_->GetRegisterType(inst->VRegB_22c());
     field = GetInstanceField(object_type, field_idx);
   }
-  const char* descriptor;
-  mirror::ClassLoader* loader;
-  if (field != NULL) {
-    descriptor = FieldHelper(field).GetTypeDescriptor();
-    loader = field->GetDeclaringClass()->GetClassLoader();
-  } else {
-    const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
-    descriptor = dex_file_->GetFieldTypeDescriptor(field_id);
-    loader = class_loader_;
-  }
-  const RegType& field_type = reg_types_.FromDescriptor(loader, descriptor, false);
+  const RegType* field_type = nullptr;
   if (field != NULL) {
     if (field->IsFinal() && field->GetDeclaringClass() != GetDeclaringClass().GetClass()) {
       Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot modify final field " << PrettyField(field)
                                       << " from other class " << GetDeclaringClass();
       return;
     }
+    FieldHelper fh(field);
+    mirror::Class* field_type_class = fh.GetType(false);
+    if (field_type_class != nullptr) {
+      field_type = &reg_types_.FromClass(fh.GetTypeDescriptor(), field_type_class,
+                                         field_type_class->CannotBeAssignedFromOtherTypes());
+    }
+  }
+  if (field_type == nullptr) {
+    const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
+    const char* descriptor = dex_file_->GetFieldTypeDescriptor(field_id);
+    mirror::ClassLoader* loader = class_loader_;
+    field_type = &reg_types_.FromDescriptor(loader, descriptor, false);
   }
   const uint32_t vregA = (is_static) ? inst->VRegA_21c() : inst->VRegA_22c();
   if (is_primitive) {
-    VerifyPrimitivePut(field_type, insn_type, vregA);
+    VerifyPrimitivePut(*field_type, insn_type, vregA);
   } else {
-    if (!insn_type.IsAssignableFrom(field_type)) {
+    if (!insn_type.IsAssignableFrom(*field_type)) {
       Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << PrettyField(field)
                                         << " to be compatible with type '" << insn_type
                                         << "' but found type '" << field_type
                                         << "' in put-object";
       return;
     }
-    work_line_->VerifyRegisterType(vregA, field_type);
+    work_line_->VerifyRegisterType(vregA, *field_type);
   }
 }
 
@@ -3648,14 +3665,21 @@ void MethodVerifier::VerifyIGetQuick(const Instruction* inst, const RegType& ins
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Cannot infer field from " << inst->Name();
     return;
   }
-  const char* descriptor = FieldHelper(field).GetTypeDescriptor();
-  mirror::ClassLoader* loader = field->GetDeclaringClass()->GetClassLoader();
-  const RegType& field_type = reg_types_.FromDescriptor(loader, descriptor, false);
+  FieldHelper fh(field);
+  mirror::Class* field_type_class = fh.GetType(false);
+  const RegType* field_type;
+  if (field_type_class != nullptr) {
+    field_type = &reg_types_.FromClass(fh.GetTypeDescriptor(), field_type_class,
+                                       field_type_class->CannotBeAssignedFromOtherTypes());
+  } else {
+    field_type = &reg_types_.FromDescriptor(field->GetDeclaringClass()->GetClassLoader(),
+                                            fh.GetTypeDescriptor(), false);
+  }
   const uint32_t vregA = inst->VRegA_22c();
   if (is_primitive) {
-    if (field_type.Equals(insn_type) ||
-        (field_type.IsFloat() && insn_type.IsIntegralTypes()) ||
-        (field_type.IsDouble() && insn_type.IsLongTypes())) {
+    if (field_type->Equals(insn_type) ||
+        (field_type->IsFloat() && insn_type.IsIntegralTypes()) ||
+        (field_type->IsDouble() && insn_type.IsLongTypes())) {
       // expected that read is of the correct primitive type or that int reads are reading
       // floats or long reads are reading doubles
     } else {
@@ -3668,7 +3692,7 @@ void MethodVerifier::VerifyIGetQuick(const Instruction* inst, const RegType& ins
       return;
     }
   } else {
-    if (!insn_type.IsAssignableFrom(field_type)) {
+    if (!insn_type.IsAssignableFrom(*field_type)) {
       Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << PrettyField(field)
                                         << " to be compatible with type '" << insn_type
                                         << "' but found type '" << field_type
@@ -3677,10 +3701,10 @@ void MethodVerifier::VerifyIGetQuick(const Instruction* inst, const RegType& ins
       return;
     }
   }
-  if (!field_type.IsLowHalf()) {
-    work_line_->SetRegisterType(vregA, field_type);
+  if (!field_type->IsLowHalf()) {
+    work_line_->SetRegisterType(vregA, *field_type);
   } else {
-    work_line_->SetRegisterTypeWide(vregA, field_type, field_type.HighHalf(&reg_types_));
+    work_line_->SetRegisterTypeWide(vregA, *field_type, field_type->HighHalf(&reg_types_));
   }
 }
 
@@ -3822,11 +3846,28 @@ InstructionFlags* MethodVerifier::CurrentInsnFlags() {
 }
 
 const RegType& MethodVerifier::GetMethodReturnType() {
-  const DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx_);
-  const DexFile::ProtoId& proto_id = dex_file_->GetMethodPrototype(method_id);
-  uint16_t return_type_idx = proto_id.return_type_idx_;
-  const char* descriptor = dex_file_->GetTypeDescriptor(dex_file_->GetTypeId(return_type_idx));
-  return reg_types_.FromDescriptor(class_loader_, descriptor, false);
+  if (return_type_ == nullptr) {
+    if (mirror_method_ != NULL) {
+      MethodHelper mh(mirror_method_);
+      mirror::Class* return_type_class = mh.GetReturnType();
+      if (return_type_class != nullptr) {
+        return_type_ =&reg_types_.FromClass(mh.GetReturnTypeDescriptor(), return_type_class,
+                                            return_type_class->CannotBeAssignedFromOtherTypes());
+      } else {
+        Thread* self = Thread::Current();
+        DCHECK(self->IsExceptionPending());
+        self->ClearException();
+      }
+    }
+    if (return_type_ == nullptr) {
+      const DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx_);
+      const DexFile::ProtoId& proto_id = dex_file_->GetMethodPrototype(method_id);
+      uint16_t return_type_idx = proto_id.return_type_idx_;
+      const char* descriptor = dex_file_->GetTypeDescriptor(dex_file_->GetTypeId(return_type_idx));
+      return_type_ = &reg_types_.FromDescriptor(class_loader_, descriptor, false);
+    }
+  }
+  return *return_type_;
 }
 
 const RegType& MethodVerifier::GetDeclaringClass() {

@@ -149,7 +149,7 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetReferenceType(JDWP::ObjectId object_id, JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError GetSignature(JDWP::RefTypeId ref_type_id, std::string& signature)
+  static JDWP::JdwpError GetSignature(JDWP::RefTypeId ref_type_id, std::string* signature)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetSourceFile(JDWP::RefTypeId ref_type_id, std::string& source_file)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

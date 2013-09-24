@@ -557,7 +557,7 @@ static void MSpaceChunkCallback(void* start, void* end, size_t used_bytes, void*
 mirror::Object* Heap::AllocObject(Thread* self, mirror::Class* c, size_t byte_count) {
   DCHECK(c == NULL || (c->IsClassClass() && byte_count >= sizeof(mirror::Class)) ||
          (c->IsVariableSize() || c->GetObjectSize() == byte_count) ||
-         strlen(ClassHelper(c).GetDescriptor()) == 0);
+         ClassHelper(c).GetDescriptorAsStringPiece().length() == 0);
   DCHECK_GE(byte_count, sizeof(mirror::Object));
 
   mirror::Object* obj = NULL;

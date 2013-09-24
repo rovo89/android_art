@@ -688,6 +688,7 @@ class MethodVerifier {
   // Its object representation if known.
   mirror::ArtMethod* mirror_method_ GUARDED_BY(Locks::mutator_lock_);
   const uint32_t method_access_flags_;  // Method's access flags.
+  const RegType* return_type_;  // Lazily computed return type of the method.
   const DexFile* const dex_file_;  // The dex file containing the method.
   // The dex_cache for the declaring class of the method.
   mirror::DexCache* dex_cache_ GUARDED_BY(Locks::mutator_lock_);

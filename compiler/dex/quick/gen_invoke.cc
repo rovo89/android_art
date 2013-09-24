@@ -1219,8 +1219,10 @@ bool Mir2Lir::GenIntrinsic(CallInfo* info) {
    * method.  By doing this during basic block construction, we can also
    * take advantage of/generate new useful dataflow info.
    */
+  const DexFile::MethodId& target_mid = cu_->dex_file->GetMethodId(info->index);
+  const DexFile::TypeId& declaring_type = cu_->dex_file->GetTypeId(target_mid.class_idx_);
   StringPiece tgt_methods_declaring_class(
-      cu_->dex_file->GetMethodDeclaringClassDescriptor(cu_->dex_file->GetMethodId(info->index)));
+      cu_->dex_file->StringDataAsStringPieceByIdx(declaring_type.descriptor_idx_));
   if (tgt_methods_declaring_class.starts_with("Ljava/lang/Double;")) {
     std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
     if (tgt_method == "long java.lang.Double.doubleToRawLongBits(double)") {

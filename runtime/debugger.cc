@@ -891,7 +891,7 @@ JDWP::JdwpError Dbg::GetClassInfo(JDWP::RefTypeId class_id, JDWP::JdwpTypeTag* p
   }
 
   if (pDescriptor != NULL) {
-    *pDescriptor = ClassHelper(c).GetDescriptor();
+    *pDescriptor = ClassHelper(c).GetDescriptorAsStringPiece().as_string();
   }
   return JDWP::ERR_NONE;
 }
@@ -928,13 +928,13 @@ JDWP::JdwpError Dbg::GetReferenceType(JDWP::ObjectId object_id, JDWP::ExpandBuf*
   return JDWP::ERR_NONE;
 }
 
-JDWP::JdwpError Dbg::GetSignature(JDWP::RefTypeId class_id, std::string& signature) {
+JDWP::JdwpError Dbg::GetSignature(JDWP::RefTypeId class_id, std::string* signature) {
   JDWP::JdwpError status;
   mirror::Class* c = DecodeClass(class_id, status);
   if (c == NULL) {
     return status;
   }
-  signature = ClassHelper(c).GetDescriptor();
+  *signature = ClassHelper(c).GetDescriptorAsStringPiece().as_string();
   return JDWP::ERR_NONE;
 }
 
@@ -1065,8 +1065,8 @@ JDWP::JdwpError Dbg::SetArrayElements(JDWP::ObjectId array_id, int offset, int c
     LOG(WARNING) << __FUNCTION__ << " access out of bounds: offset=" << offset << "; count=" << count;
     return JDWP::ERR_INVALID_LENGTH;
   }
-  std::string descriptor(ClassHelper(dst->GetClass()).GetDescriptor());
-  JDWP::JdwpTag tag = BasicTagFromDescriptor(descriptor.c_str() + 1);
+  const char* descriptor = ClassHelper(dst->GetClass()).GetDescriptor();
+  JDWP::JdwpTag tag = BasicTagFromDescriptor(descriptor + 1);
 
   if (IsPrimitiveTag(tag)) {
     size_t width = GetTagWidth(tag);
@@ -2287,7 +2287,8 @@ void Dbg::PostClassPrepare(mirror::Class* c) {
   // since the class may not yet be verified.
   int state = JDWP::CS_VERIFIED | JDWP::CS_PREPARED;
   JDWP::JdwpTypeTag tag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
-  gJdwpState->PostClassPrepare(tag, gRegistry->Add(c), ClassHelper(c).GetDescriptor(), state);
+  gJdwpState->PostClassPrepare(tag, gRegistry->Add(c),
+                               ClassHelper(c).GetDescriptorAsStringPiece().as_string(), state);
 }
 
 void Dbg::UpdateDebugger(Thread* thread, mirror::Object* this_object,

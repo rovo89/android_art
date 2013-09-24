@@ -1119,7 +1119,7 @@ class ImageDumper {
     typedef SafeMap<std::string, SizeAndCount> SizeAndCountTable;
     SizeAndCountTable sizes_and_counts;
 
-    void Update(const std::string& descriptor, size_t object_bytes) {
+    void Update(const char* descriptor, size_t object_bytes) {
       SizeAndCountTable::iterator it = sizes_and_counts.find(descriptor);
       if (it != sizes_and_counts.end()) {
         it->second.bytes += object_bytes;

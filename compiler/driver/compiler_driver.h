@@ -309,7 +309,7 @@ class CompilerDriver {
   }
 
   // Checks if class specified by type_idx is one of the image_classes_
-  bool IsImageClass(const char* descriptor) const;
+  bool IsImageClass(const StringPiece& descriptor) const;
 
   void RecordClassStatus(ClassReference ref, mirror::Class::Status status)
       LOCKS_EXCLUDED(compiled_classes_lock_);

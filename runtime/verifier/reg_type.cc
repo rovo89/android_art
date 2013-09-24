@@ -761,11 +761,6 @@ bool RegType::IsStrictlyAssignableFrom(const RegType& src) const {
   return AssignableFrom(*this, src, true);
 }
 
-int32_t ConstantType::ConstantValue() const {
-  DCHECK(IsConstantTypes());
-  return constant_;
-}
-
 int32_t ConstantType::ConstantValueLo() const {
   DCHECK(IsConstantLo());
   return constant_;

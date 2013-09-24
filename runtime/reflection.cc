@@ -323,7 +323,7 @@ static bool UnboxPrimitive(const ThrowLocation* throw_location, mirror::Object* 
   }
 
   JValue boxed_value;
-  std::string src_descriptor(ClassHelper(o->GetClass()).GetDescriptor());
+  const StringPiece src_descriptor(ClassHelper(o->GetClass()).GetDescriptorAsStringPiece());
   mirror::Class* src_class = NULL;
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   mirror::ArtField* primitive_field = o->GetClass()->GetIFields()->Get(0);
@@ -356,7 +356,7 @@ static bool UnboxPrimitive(const ThrowLocation* throw_location, mirror::Object* 
                                   StringPrintf("%s has type %s, got %s",
                                                UnboxingFailureKind(m, index, f).c_str(),
                                                PrettyDescriptor(dst_class).c_str(),
-                                               PrettyDescriptor(src_descriptor.c_str()).c_str()).c_str());
+                                               PrettyDescriptor(src_descriptor.data()).c_str()).c_str());
     return false;
   }
 

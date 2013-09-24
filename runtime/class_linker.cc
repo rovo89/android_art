@@ -1840,7 +1840,7 @@ mirror::ArtMethod* ClassLinker::LoadMethod(Thread* self, const DexFile& dex_file
                                            SirtRef<mirror::Class>& klass) {
   uint32_t dex_method_idx = it.GetMemberIndex();
   const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_idx);
-  StringPiece method_name(dex_file.GetMethodName(method_id));
+  StringPiece method_name(dex_file.StringDataAsStringPieceByIdx(method_id.name_idx_));
 
   mirror::ArtMethod* dst = AllocArtMethod(self);
   if (UNLIKELY(dst == NULL)) {
@@ -1869,7 +1869,7 @@ mirror::ArtMethod* ClassLinker::LoadMethod(Thread* self, const DexFile& dex_file
             klass->SetFinalizable();
           } else {
             ClassHelper kh(klass.get());
-            StringPiece klass_descriptor(kh.GetDescriptor());
+            StringPiece klass_descriptor(kh.GetDescriptorAsStringPiece());
             // The Enum class declares a "final" finalize() method to prevent subclasses from
             // introducing a finalizer. We don't want to set the finalizable flag for Enum or its
             // subclasses, so we exclude it here.
@@ -2219,7 +2219,7 @@ bool ClassLinker::RemoveClass(const char* descriptor, const mirror::ClassLoader*
        ++it) {
     mirror::Class* klass = it->second;
     kh.ChangeClass(klass);
-    if (strcmp(kh.GetDescriptor(), descriptor) == 0 && klass->GetClassLoader() == class_loader) {
+    if (kh.GetDescriptorAsStringPiece() == descriptor && klass->GetClassLoader() == class_loader) {
       class_table_.erase(it);
       return true;
     }
@@ -2265,15 +2265,16 @@ mirror::Class* ClassLinker::LookupClassFromTableLocked(const char* descriptor,
   for (auto it = class_table_.lower_bound(hash); it != end && it->first == hash; ++it) {
     mirror::Class* klass = it->second;
     kh.ChangeClass(klass);
-    if (klass->GetClassLoader() == class_loader && strcmp(descriptor, kh.GetDescriptor()) == 0) {
+    if (klass->GetClassLoader() == class_loader && kh.GetDescriptorAsStringPiece() == descriptor) {
       if (kIsDebugBuild) {
         // Check for duplicates in the table.
         for (++it; it != end && it->first == hash; ++it) {
           mirror::Class* klass2 = it->second;
           kh.ChangeClass(klass2);
-          CHECK(!(strcmp(descriptor, kh.GetDescriptor()) == 0 && klass2->GetClassLoader() == class_loader))
-          << PrettyClass(klass) << " " << klass << " " << klass->GetClassLoader() << " "
-          << PrettyClass(klass2) << " " << klass2 << " " << klass2->GetClassLoader();
+          CHECK(!(kh.GetDescriptorAsStringPiece() == descriptor &&
+                  klass2->GetClassLoader() == class_loader))
+              << PrettyClass(klass) << " " << klass << " " << klass->GetClassLoader() << " "
+              << PrettyClass(klass2) << " " << klass2 << " " << klass2->GetClassLoader();
         }
       }
       return klass;
@@ -2379,7 +2380,7 @@ void ClassLinker::LookupClasses(const char* descriptor, std::vector<mirror::Clas
       it != end && it->first == hash; ++it) {
     mirror::Class* klass = it->second;
     kh.ChangeClass(klass);
-    if (strcmp(descriptor, kh.GetDescriptor()) == 0) {
+    if (kh.GetDescriptorAsStringPiece() == descriptor) {
       result.push_back(klass);
     }
   }
@@ -2538,11 +2539,11 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, mirror::Class
   CHECK(oat_file != NULL) << dex_file.GetLocation() << " " << PrettyClass(klass);
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());
   CHECK(oat_dex_file != NULL) << dex_file.GetLocation() << " " << PrettyClass(klass);
-  const char* descriptor = ClassHelper(klass).GetDescriptor();
   uint16_t class_def_index = klass->GetDexClassDefIndex();
   UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file->GetOatClass(class_def_index));
   CHECK(oat_class.get() != NULL)
-          << dex_file.GetLocation() << " " << PrettyClass(klass) << " " << descriptor;
+          << dex_file.GetLocation() << " " << PrettyClass(klass) << " "
+          << ClassHelper(klass).GetDescriptor();
   oat_file_class_status = oat_class->GetStatus();
   if (oat_file_class_status == mirror::Class::kStatusVerified ||
       oat_file_class_status == mirror::Class::kStatusInitialized) {
@@ -2581,7 +2582,8 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, mirror::Class
     return false;
   }
   LOG(FATAL) << "Unexpected class status: " << oat_file_class_status
-             << " " << dex_file.GetLocation() << " " << PrettyClass(klass) << " " << descriptor;
+             << " " << dex_file.GetLocation() << " " << PrettyClass(klass) << " "
+             << ClassHelper(klass).GetDescriptor();
 
   return false;
 }
@@ -3727,10 +3729,10 @@ struct LinkFieldsComparator {
 
     // same basic group? then sort by string.
     fh_->ChangeField(field1);
-    StringPiece name1(fh_->GetName());
+    const char* name1 = fh_->GetName();
     fh_->ChangeField(field2);
-    StringPiece name2(fh_->GetName());
-    return name1 < name2;
+    const char* name2 = fh_->GetName();
+    return strcmp(name1, name2) < 0;
   }
 
   FieldHelper* fh_;
@@ -3764,7 +3766,9 @@ bool ClassLinker::LinkFields(SirtRef<mirror::Class>& klass, bool is_static) {
   // minimizes disruption of C++ version such as Class and Method.
   std::deque<mirror::ArtField*> grouped_and_sorted_fields;
   for (size_t i = 0; i < num_fields; i++) {
-    grouped_and_sorted_fields.push_back(fields->Get(i));
+    mirror::ArtField* f = fields->Get(i);
+    CHECK(f != NULL);
+    grouped_and_sorted_fields.push_back(f);
   }
   FieldHelper fh(NULL, this);
   std::sort(grouped_and_sorted_fields.begin(),
@@ -3831,7 +3835,7 @@ bool ClassLinker::LinkFields(SirtRef<mirror::Class>& klass, bool is_static) {
 
   // We lie to the GC about the java.lang.ref.Reference.referent field, so it doesn't scan it.
   if (!is_static &&
-      StringPiece(ClassHelper(klass.get(), this).GetDescriptor()) == "Ljava/lang/ref/Reference;") {
+      (ClassHelper(klass.get(), this).GetDescriptorAsStringPiece() == "Ljava/lang/ref/Reference;")) {
     // We know there are no non-reference fields in the Reference classes, and we know
     // that 'referent' is alphabetically last, so this is easy...
     CHECK_EQ(num_reference_fields, num_fields);
@@ -3840,39 +3844,39 @@ bool ClassLinker::LinkFields(SirtRef<mirror::Class>& klass, bool is_static) {
     --num_reference_fields;
   }
 
-#ifndef NDEBUG
-  // Make sure that all reference fields appear before
-  // non-reference fields, and all double-wide fields are aligned.
-  bool seen_non_ref = false;
-  for (size_t i = 0; i < num_fields; i++) {
-    mirror::ArtField* field = fields->Get(i);
-    if (false) {  // enable to debug field layout
-      LOG(INFO) << "LinkFields: " << (is_static ? "static" : "instance")
-                << " class=" << PrettyClass(klass.get())
-                << " field=" << PrettyField(field)
-                << " offset=" << field->GetField32(MemberOffset(mirror::ArtField::OffsetOffset()),
-                                                   false);
-    }
-    fh.ChangeField(field);
-    Primitive::Type type = fh.GetTypeAsPrimitiveType();
-    bool is_primitive = type != Primitive::kPrimNot;
-    if (StringPiece(ClassHelper(klass.get(), this).GetDescriptor()) == "Ljava/lang/ref/Reference;" &&
-        StringPiece(fh.GetName()) == "referent") {
-      is_primitive = true;  // We lied above, so we have to expect a lie here.
-    }
-    if (is_primitive) {
-      if (!seen_non_ref) {
-        seen_non_ref = true;
-        DCHECK_EQ(num_reference_fields, i);
+  if (kIsDebugBuild) {
+    // Make sure that all reference fields appear before
+    // non-reference fields, and all double-wide fields are aligned.
+    bool seen_non_ref = false;
+    for (size_t i = 0; i < num_fields; i++) {
+      mirror::ArtField* field = fields->Get(i);
+      if (false) {  // enable to debug field layout
+        LOG(INFO) << "LinkFields: " << (is_static ? "static" : "instance")
+                    << " class=" << PrettyClass(klass.get())
+                    << " field=" << PrettyField(field)
+                    << " offset=" << field->GetField32(MemberOffset(mirror::ArtField::OffsetOffset()),
+                                                       false);
       }
-    } else {
-      DCHECK(!seen_non_ref);
+      fh.ChangeField(field);
+      Primitive::Type type = fh.GetTypeAsPrimitiveType();
+      bool is_primitive = type != Primitive::kPrimNot;
+      if (ClassHelper(klass.get(), this).GetDescriptorAsStringPiece() == "Ljava/lang/ref/Reference;" &&
+          fh.GetNameAsStringPiece() == "referent") {
+        is_primitive = true;  // We lied above, so we have to expect a lie here.
+      }
+      if (is_primitive) {
+        if (!seen_non_ref) {
+          seen_non_ref = true;
+          DCHECK_EQ(num_reference_fields, i);
+        }
+      } else {
+        DCHECK(!seen_non_ref);
+      }
+    }
+    if (!seen_non_ref) {
+      DCHECK_EQ(num_fields, num_reference_fields);
     }
   }
-  if (!seen_non_ref) {
-    DCHECK_EQ(num_fields, num_reference_fields);
-  }
-#endif
   size = field_offset.Uint32Value();
   // Update klass
   if (is_static) {
@@ -4175,9 +4179,9 @@ mirror::ArtField* ClassLinker::ResolveField(const DexFile& dex_file,
 }
 
 mirror::ArtField* ClassLinker::ResolveFieldJLS(const DexFile& dex_file,
-                                            uint32_t field_idx,
-                                            mirror::DexCache* dex_cache,
-                                            mirror::ClassLoader* class_loader) {
+                                               uint32_t field_idx,
+                                               mirror::DexCache* dex_cache,
+                                               mirror::ClassLoader* class_loader) {
   DCHECK(dex_cache != NULL);
   mirror::ArtField* resolved = dex_cache->GetResolvedField(field_idx);
   if (resolved != NULL) {
@@ -4190,8 +4194,9 @@ mirror::ArtField* ClassLinker::ResolveFieldJLS(const DexFile& dex_file,
     return NULL;
   }
 
-  const char* name = dex_file.GetFieldName(field_id);
-  const char* type = dex_file.GetFieldTypeDescriptor(field_id);
+  StringPiece name(dex_file.StringDataAsStringPieceByIdx(field_id.name_idx_));
+  StringPiece type(dex_file.StringDataAsStringPieceByIdx(
+      dex_file.GetTypeId(field_id.type_idx_).descriptor_idx_));
   resolved = klass->FindField(name, type);
   if (resolved != NULL) {
     dex_cache->SetResolvedField(field_idx, resolved);
