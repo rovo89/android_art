@@ -79,23 +79,23 @@ std::string GetThreadName(pid_t tid) {
   return result;
 }
 
-void GetThreadStack(pthread_t thread, void*& stack_base, size_t& stack_size) {
+void GetThreadStack(pthread_t thread, void** stack_base, size_t* stack_size) {
 #if defined(__APPLE__)
-  stack_size = pthread_get_stacksize_np(thread);
+  *stack_size = pthread_get_stacksize_np(thread);
   void* stack_addr = pthread_get_stackaddr_np(thread);
 
   // Check whether stack_addr is the base or end of the stack.
   // (On Mac OS 10.7, it's the end.)
   int stack_variable;
   if (stack_addr > &stack_variable) {
-    stack_base = reinterpret_cast<byte*>(stack_addr) - stack_size;
+    *stack_base = reinterpret_cast<byte*>(stack_addr) - *stack_size;
   } else {
-    stack_base = stack_addr;
+    *stack_base = stack_addr;
   }
 #else
   pthread_attr_t attributes;
   CHECK_PTHREAD_CALL(pthread_getattr_np, (thread, &attributes), __FUNCTION__);
-  CHECK_PTHREAD_CALL(pthread_attr_getstack, (&attributes, &stack_base, &stack_size), __FUNCTION__);
+  CHECK_PTHREAD_CALL(pthread_attr_getstack, (&attributes, stack_base, stack_size), __FUNCTION__);
   CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attributes), __FUNCTION__);
 #endif
 }
@@ -955,8 +955,8 @@ void SetThreadName(const char* thread_name) {
 #endif
 }
 
-void GetTaskStats(pid_t tid, char& state, int& utime, int& stime, int& task_cpu) {
-  utime = stime = task_cpu = 0;
+void GetTaskStats(pid_t tid, char* state, int* utime, int* stime, int* task_cpu) {
+  *utime = *stime = *task_cpu = 0;
   std::string stats;
   if (!ReadFileToString(StringPrintf("/proc/self/task/%d/stat", tid), &stats)) {
     return;
@@ -966,10 +966,10 @@ void GetTaskStats(pid_t tid, char& state, int& utime, int& stime, int& task_cpu)
   // Extract the three fields we care about.
   std::vector<std::string> fields;
   Split(stats, ' ', fields);
-  state = fields[0][0];
-  utime = strtoull(fields[11].c_str(), NULL, 10);
-  stime = strtoull(fields[12].c_str(), NULL, 10);
-  task_cpu = strtoull(fields[36].c_str(), NULL, 10);
+  *state = fields[0][0];
+  *utime = strtoull(fields[11].c_str(), NULL, 10);
+  *stime = strtoull(fields[12].c_str(), NULL, 10);
+  *task_cpu = strtoull(fields[36].c_str(), NULL, 10);
 }
 
 std::string GetSchedulerGroupName(pid_t tid) {
