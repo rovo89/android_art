@@ -3982,7 +3982,8 @@ mirror::Class* ClassLinker::ResolveType(const DexFile& dex_file,
       }
     }
   }
-  DCHECK((resolved == NULL) || resolved->IsResolved()) << PrettyDescriptor(resolved);
+  DCHECK((resolved == NULL) || resolved->IsResolved() || resolved->IsErroneous())
+          << PrettyDescriptor(resolved) << " " << resolved->GetStatus();
   return resolved;
 }
 
