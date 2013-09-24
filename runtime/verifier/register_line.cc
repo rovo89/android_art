@@ -44,12 +44,6 @@ bool RegisterLine::SetRegisterType(uint32_t vdst, const RegType& new_type) {
   } else if (new_type.IsConflict()) {  // should only be set during a merge
     verifier_->Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "Set register to unknown type " << new_type;
     return false;
-  } else if (verifier_->CanLoadClasses() && !Runtime::Current()->IsCompiler() &&
-      new_type.IsUnresolvedTypes()) {
-    // Unresolvable classes at runtime are bad and marked as a rewrite error.
-    verifier_->Fail(VERIFY_ERROR_NO_CLASS) << "Set register to unresolved class '"
-                                           << new_type << "' at runtime";
-    return false;
   } else {
     line_[vdst] = new_type.GetId();
   }
@@ -116,11 +110,15 @@ bool RegisterLine::VerifyRegisterType(uint32_t vsrc,
   // Verify the src register type against the check type refining the type of the register
   const RegType& src_type = GetRegisterType(vsrc);
   if (!(check_type.IsAssignableFrom(src_type))) {
-    // Hard fail if one of the types is primitive, since they are concretely known.
-    enum VerifyError fail_type = (!check_type.IsNonZeroReferenceTypes() ||
-                                  !src_type.IsNonZeroReferenceTypes())
-                                 ? VERIFY_ERROR_BAD_CLASS_HARD
-                                 : VERIFY_ERROR_BAD_CLASS_SOFT;
+    enum VerifyError fail_type;
+    if (!check_type.IsNonZeroReferenceTypes() || !src_type.IsNonZeroReferenceTypes()) {
+      // Hard fail if one of the types is primitive, since they are concretely known.
+      fail_type = VERIFY_ERROR_BAD_CLASS_HARD;
+    } else if (check_type.IsUnresolvedTypes() || src_type.IsUnresolvedTypes()) {
+      fail_type = VERIFY_ERROR_NO_CLASS;
+    } else {
+      fail_type = VERIFY_ERROR_BAD_CLASS_SOFT;
+    }
     verifier_->Fail(fail_type) << "register v" << vsrc << " has type "
                                << src_type << " but expected " << check_type;
     return false;

@@ -71,6 +71,11 @@ class MANAGED Object {
 
   void SetClass(Class* new_klass);
 
+  // The verifier treats all interfaces as java.lang.Object and relies on runtime checks in
+  // invoke-interface to detect incompatible interface types.
+  bool VerifierInstanceOf(const Class* klass) const
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   bool InstanceOf(const Class* klass) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

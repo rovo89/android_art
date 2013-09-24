@@ -215,6 +215,7 @@ static bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
 template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check>
 static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
                               const Instruction* inst, uint16_t inst_data) {
+  bool do_assignability_check = do_access_check;
   bool is_static = (find_type == StaticObjectWrite) || (find_type == StaticPrimitiveWrite);
   uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
   ArtField* f = FindFieldFromCode(field_idx, shadow_frame.GetMethod(), self,
@@ -255,9 +256,24 @@ static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
     case Primitive::kPrimLong:
       f->SetLong(obj, shadow_frame.GetVRegLong(vregA));
       break;
-    case Primitive::kPrimNot:
-      f->SetObj(obj, shadow_frame.GetVRegReference(vregA));
+    case Primitive::kPrimNot: {
+      Object* reg = shadow_frame.GetVRegReference(vregA);
+      if (do_assignability_check && reg != NULL) {
+        Class* field_class = FieldHelper(f).GetType();
+        if (!reg->VerifierInstanceOf(field_class)) {
+          // This should never happen.
+          self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
+                                   "Ljava/lang/VirtualMachineError;",
+                                   "Put '%s' that is not instance of field '%s' in '%s'",
+                                   ClassHelper(reg->GetClass()).GetDescriptor(),
+                                   ClassHelper(field_class).GetDescriptor(),
+                                   ClassHelper(f->GetDeclaringClass()).GetDescriptor());
+          return false;
+        }
+      }
+      f->SetObj(obj, reg);
       break;
+    }
     default:
       LOG(FATAL) << "Unreachable: " << field_type;
   }
@@ -479,7 +495,8 @@ static void UnexpectedOpcode(const Instruction* inst, MethodHelper& mh)
 }
 
 static inline void TraceExecution(const ShadowFrame& shadow_frame, const Instruction* inst,
-                                  const uint32_t dex_pc, MethodHelper& mh) {
+                                  const uint32_t dex_pc, MethodHelper& mh)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   const bool kTracing = false;
   if (kTracing) {
 #define TRACE_LOG std::cerr

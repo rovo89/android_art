@@ -22,6 +22,7 @@ namespace interpreter {
 template<InvokeType type, bool is_range, bool do_access_check>
 bool DoInvoke(Thread* self, ShadowFrame& shadow_frame,
               const Instruction* inst, JValue* result) {
+  bool do_assignability_check = do_access_check;
   uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
   uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
   Object* receiver = (type == kStatic) ? NULL : shadow_frame.GetVRegReference(vregC);
@@ -61,6 +62,10 @@ bool DoInvoke(Thread* self, ShadowFrame& shadow_frame,
     ++cur_reg;
   }
 
+  const DexFile::TypeList* params;
+  if (do_assignability_check) {
+    params = mh.GetParameterTypeList();
+  }
   size_t arg_offset = (receiver == NULL) ? 0 : 1;
   const char* shorty = mh.GetShorty();
   uint32_t arg[5];
@@ -73,6 +78,23 @@ bool DoInvoke(Thread* self, ShadowFrame& shadow_frame,
     switch (shorty[shorty_pos + 1]) {
       case 'L': {
         Object* o = shadow_frame.GetVRegReference(arg_pos);
+        if (do_assignability_check && o != NULL) {
+          Class* arg_type = mh.GetClassFromTypeIdx(params->GetTypeItem(shorty_pos).type_idx_);
+          if (arg_type == NULL) {
+            CHECK(self->IsExceptionPending());
+            return false;
+          }
+          if (!o->VerifierInstanceOf(arg_type)) {
+            // This should never happen.
+            self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
+                                     "Ljava/lang/VirtualMachineError;",
+                                     "Invoking %s with bad arg %d, type '%s' not instance of '%s'",
+                                     mh.GetName(), shorty_pos,
+                                     ClassHelper(o->GetClass()).GetDescriptor(),
+                                     ClassHelper(arg_type).GetDescriptor());
+            return false;
+          }
+        }
         new_shadow_frame->SetVRegReference(cur_reg, o);
         break;
       }

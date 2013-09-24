@@ -53,6 +53,7 @@ namespace interpreter {
 template<bool do_access_check>
 static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
                                 ShadowFrame& shadow_frame, JValue result_register) {
+  bool do_assignability_check = do_access_check;
   if (UNLIKELY(!shadow_frame.HasReferenceArray())) {
     LOG(FATAL) << "Invalid shadow frame for interpreter use";
     return JValue();
@@ -226,10 +227,27 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
       case Instruction::RETURN_OBJECT: {
         PREAMBLE();
         JValue result;
+        Object* obj_result = shadow_frame.GetVRegReference(inst->VRegA_11x(inst_data));
         result.SetJ(0);
-        result.SetL(shadow_frame.GetVRegReference(inst->VRegA_11x(inst_data)));
+        result.SetL(obj_result);
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
+        }
+        if (do_assignability_check && obj_result != NULL) {
+          Class* return_type = MethodHelper(shadow_frame.GetMethod()).GetReturnType();
+          if (return_type == NULL) {
+            // Return the pending exception.
+            HANDLE_PENDING_EXCEPTION();
+          }
+          if (!obj_result->VerifierInstanceOf(return_type)) {
+            // This should never happen.
+            self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
+                                     "Ljava/lang/VirtualMachineError;",
+                                     "Returning '%s' that is not instance of return type '%s'",
+                                     ClassHelper(obj_result->GetClass()).GetDescriptor(),
+                                     ClassHelper(return_type).GetDescriptor());
+            HANDLE_PENDING_EXCEPTION();
+          }
         }
         if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
           instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
@@ -472,6 +490,12 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
         Object* exception = shadow_frame.GetVRegReference(inst->VRegA_11x(inst_data));
         if (UNLIKELY(exception == NULL)) {
           ThrowNullPointerException(NULL, "throw with null exception");
+        } else if (do_assignability_check && !exception->GetClass()->IsThrowableClass()) {
+          // This should never happen.
+          self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
+                                   "Ljava/lang/VirtualMachineError;",
+                                   "Throwing '%s' that is not instance of Throwable",
+                                   ClassHelper(exception->GetClass()).GetDescriptor());
         } else {
           self->SetException(shadow_frame.GetCurrentLocationForThrow(), exception->AsThrowable());
         }
