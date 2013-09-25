@@ -423,6 +423,7 @@ static bool DoInvoke(Thread* self, ShadowFrame& shadow_frame,
 template<InvokeType type, bool is_range, bool do_access_check>
 static bool DoInvoke(Thread* self, ShadowFrame& shadow_frame,
                      const Instruction* inst, JValue* result) {
+  bool do_assignability_check = do_access_check;
   uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
   uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
   Object* receiver = (type == kStatic) ? NULL : shadow_frame.GetVRegReference(vregC);
@@ -462,6 +463,10 @@ static bool DoInvoke(Thread* self, ShadowFrame& shadow_frame,
     ++cur_reg;
   }
 
+  const DexFile::TypeList* params;
+  if (do_assignability_check) {
+    params = mh.GetParameterTypeList();
+  }
   size_t arg_offset = (receiver == NULL) ? 0 : 1;
   const char* shorty = mh.GetShorty();
   uint32_t arg[5];
@@ -474,6 +479,23 @@ static bool DoInvoke(Thread* self, ShadowFrame& shadow_frame,
     switch (shorty[shorty_pos + 1]) {
       case 'L': {
         Object* o = shadow_frame.GetVRegReference(arg_pos);
+        if (do_assignability_check && o != NULL) {
+          Class* arg_type = mh.GetClassFromTypeIdx(params->GetTypeItem(shorty_pos).type_idx_);
+          if (arg_type == NULL) {
+            CHECK(self->IsExceptionPending());
+            return false;
+          }
+          if (!o->VerifierInstanceOf(arg_type)) {
+            // This should never happen.
+            self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
+                                     "Ljava/lang/VirtualMachineError;",
+                                     "Invoking %s with bad arg %d, type '%s' not instance of '%s'",
+                                     mh.GetName(), shorty_pos,
+                                     ClassHelper(o->GetClass()).GetDescriptor(),
+                                     ClassHelper(arg_type).GetDescriptor());
+            return false;
+          }
+        }
         new_shadow_frame->SetVRegReference(cur_reg, o);
         break;
       }
@@ -702,6 +724,7 @@ static bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
 template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check>
 static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
                               const Instruction* inst) {
+  bool do_assignability_check = do_access_check;
   bool is_static = (find_type == StaticObjectWrite) || (find_type == StaticPrimitiveWrite);
   uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
   ArtField* f = FindFieldFromCode(field_idx, shadow_frame.GetMethod(), self,
@@ -742,9 +765,24 @@ static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
     case Primitive::kPrimLong:
       f->SetLong(obj, shadow_frame.GetVRegLong(vregA));
       break;
-    case Primitive::kPrimNot:
-      f->SetObj(obj, shadow_frame.GetVRegReference(vregA));
+    case Primitive::kPrimNot: {
+      Object* reg = shadow_frame.GetVRegReference(vregA);
+      if (do_assignability_check && reg != NULL) {
+        Class* field_class = FieldHelper(f).GetType();
+        if (!reg->VerifierInstanceOf(field_class)) {
+          // This should never happen.
+          self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
+                                   "Ljava/lang/VirtualMachineError;",
+                                   "Put '%s' that is not instance of field '%s' in '%s'",
+                                   ClassHelper(reg->GetClass()).GetDescriptor(),
+                                   ClassHelper(field_class).GetDescriptor(),
+                                   ClassHelper(f->GetDeclaringClass()).GetDescriptor());
+          return false;
+        }
+      }
+      f->SetObj(obj, reg);
       break;
+    }
     default:
       LOG(FATAL) << "Unreachable: " << field_type;
   }
@@ -1039,6 +1077,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
 template<bool do_access_check>
 static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
                       ShadowFrame& shadow_frame, JValue result_register) {
+  bool do_assignability_check = do_access_check;
   if (UNLIKELY(!shadow_frame.HasReferenceArray())) {
     LOG(FATAL) << "Invalid shadow frame for interpreter use";
     return JValue();
@@ -1221,8 +1260,25 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       case Instruction::RETURN_OBJECT: {
         PREAMBLE();
         JValue result;
+        Object* obj_result = shadow_frame.GetVRegReference(inst->VRegA_11x());
         result.SetJ(0);
-        result.SetL(shadow_frame.GetVRegReference(inst->VRegA_11x()));
+        result.SetL(obj_result);
+        if (do_assignability_check && obj_result != NULL) {
+          Class* return_type = MethodHelper(shadow_frame.GetMethod()).GetReturnType();
+          if (return_type == NULL) {
+            // Return the pending exception.
+            HANDLE_PENDING_EXCEPTION();
+          }
+          if (!obj_result->VerifierInstanceOf(return_type)) {
+            // This should never happen.
+            self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
+                                     "Ljava/lang/VirtualMachineError;",
+                                     "Returning '%s' that is not instance of return type '%s'",
+                                     ClassHelper(obj_result->GetClass()).GetDescriptor(),
+                                     ClassHelper(return_type).GetDescriptor());
+            HANDLE_PENDING_EXCEPTION();
+          }
+        }
         if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
           instrumentation->MethodExitEvent(self, this_object_ref.get(),
                                            shadow_frame.GetMethod(), inst->GetDexPc(insns),
@@ -1464,6 +1520,12 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
         Object* exception = shadow_frame.GetVRegReference(inst->VRegA_11x());
         if (UNLIKELY(exception == NULL)) {
           ThrowNullPointerException(NULL, "throw with null exception");
+        } else if (do_assignability_check && !exception->GetClass()->IsThrowableClass()) {
+          // This should never happen.
+          self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
+                                   "Ljava/lang/VirtualMachineError;",
+                                   "Throwing '%s' that is not instance of Throwable",
+                                   ClassHelper(exception->GetClass()).GetDescriptor());
         } else {
           self->SetException(shadow_frame.GetCurrentLocationForThrow(), exception->AsThrowable());
         }
