@@ -110,10 +110,8 @@ enum RegisterTrackingMode {
 // execution of that instruction.
 class PcToRegisterLineTable {
  public:
-  PcToRegisterLineTable() {}
-  ~PcToRegisterLineTable() {
-    STLDeleteValues(&pc_to_register_line_);
-  }
+  PcToRegisterLineTable() : size_(0) {}
+  ~PcToRegisterLineTable();
 
   // Initialize the RegisterTable. Every instruction address can have a different set of information
   // about what's in which register, but for verification purposes we only need to store it at
@@ -122,17 +120,13 @@ class PcToRegisterLineTable {
             uint16_t registers_size, MethodVerifier* verifier);
 
   RegisterLine* GetLine(size_t idx) {
-    auto result = pc_to_register_line_.find(idx);
-    if (result == pc_to_register_line_.end()) {
-      return NULL;
-    } else {
-      return result->second;
-    }
+    DCHECK_LT(idx, size_);
+    return register_lines_[idx];
   }
 
  private:
-  typedef SafeMap<int32_t, RegisterLine*> Table;
-  Table pc_to_register_line_;
+  UniquePtr<RegisterLine*[]> register_lines_;
+  size_t size_;
 };
 
 // The verifier
