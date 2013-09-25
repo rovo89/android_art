@@ -51,7 +51,8 @@ void PcToRegisterLineTable::Init(RegisterTrackingMode mode, InstructionFlags* fl
                                  uint32_t insns_size, uint16_t registers_size,
                                  MethodVerifier* verifier) {
   DCHECK_GT(insns_size, 0U);
-
+  register_lines_.reset(new RegisterLine*[insns_size]());
+  size_ = insns_size;
   for (uint32_t i = 0; i < insns_size; i++) {
     bool interesting = false;
     switch (mode) {
@@ -68,7 +69,16 @@ void PcToRegisterLineTable::Init(RegisterTrackingMode mode, InstructionFlags* fl
         break;
     }
     if (interesting) {
-      pc_to_register_line_.Put(i, new RegisterLine(registers_size, verifier));
+      register_lines_[i] = RegisterLine::Create(registers_size, verifier);
+    }
+  }
+}
+
+PcToRegisterLineTable::~PcToRegisterLineTable() {
+  for (size_t i = 0; i < size_; i++) {
+    delete register_lines_[i];
+    if (kIsDebugBuild) {
+      register_lines_[i] = nullptr;
     }
   }
 }
@@ -1035,8 +1045,8 @@ bool MethodVerifier::VerifyCodeFlow() {
                   this);
 
 
-  work_line_.reset(new RegisterLine(registers_size, this));
-  saved_line_.reset(new RegisterLine(registers_size, this));
+  work_line_.reset(RegisterLine::Create(registers_size, this));
+  saved_line_.reset(RegisterLine::Create(registers_size, this));
 
   /* Initialize register types of method arguments. */
   if (!SetTypesFromSignature()) {
@@ -1936,7 +1946,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
 
         if (!cast_type.IsUnresolvedTypes() && !orig_type.IsUnresolvedTypes() &&
             !cast_type.GetClass()->IsInterface() && !cast_type.IsAssignableFrom(orig_type)) {
-          RegisterLine* update_line = new RegisterLine(code_item_->registers_size_, this);
+          RegisterLine* update_line = RegisterLine::Create(code_item_->registers_size_, this);
           if (inst->Opcode() == Instruction::IF_EQZ) {
             fallthrough_line.reset(update_line);
           } else {
@@ -3818,7 +3828,7 @@ bool MethodVerifier::UpdateRegisters(uint32_t next_insn, const RegisterLine* mer
     }
   } else {
     UniquePtr<RegisterLine> copy(gDebugVerify ?
-                                 new RegisterLine(target_line->NumRegs(), this) :
+                                 RegisterLine::Create(target_line->NumRegs(), this) :
                                  NULL);
     if (gDebugVerify) {
       copy->CopyFromLine(target_line);
