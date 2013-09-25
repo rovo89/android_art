@@ -71,6 +71,12 @@ inline void Object::Wait(Thread* self, int64_t ms, int32_t ns) {
   Monitor::Wait(self, this, ms, ns, true, kTimedWaiting);
 }
 
+inline bool Object::VerifierInstanceOf(const Class* klass) const {
+  DCHECK(klass != NULL);
+  DCHECK(GetClass() != NULL);
+  return klass->IsInterface() || InstanceOf(klass);
+}
+
 inline bool Object::InstanceOf(const Class* klass) const {
   DCHECK(klass != NULL);
   DCHECK(GetClass() != NULL);

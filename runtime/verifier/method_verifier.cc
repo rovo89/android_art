@@ -439,6 +439,8 @@ std::ostream& MethodVerifier::Fail(VerifyError error) {
         // to an interpreter.
         error = VERIFY_ERROR_BAD_CLASS_SOFT;
       } else {
+        // If we fail again at runtime, mark that this instruction would throw and force this
+        // method to be executed using the interpreter with checks.
         have_pending_runtime_throw_failure_ = true;
       }
       break;
@@ -1580,11 +1582,13 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
             Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "returning uninitialized object '"
                                               << reg_type << "'";
           } else if (!return_type.IsAssignableFrom(reg_type)) {
-            Fail(reg_type.IsUnresolvedTypes() ?
-                 VERIFY_ERROR_BAD_CLASS_SOFT :
-                 VERIFY_ERROR_BAD_CLASS_HARD)
-                    << "returning '" << reg_type << "', but expected from declaration '"
-                    << return_type << "'";
+            if (reg_type.IsUnresolvedTypes() || return_type.IsUnresolvedTypes()) {
+              Fail(VERIFY_ERROR_NO_CLASS) << " can't resolve returned type '" << return_type
+                  << "' or '" << reg_type << "'";
+            } else {
+              Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "returning '" << reg_type
+                  << "', but expected from declaration '" << return_type << "'";
+            }
           }
         }
       }
@@ -1804,8 +1808,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::THROW: {
       const RegType& res_type = work_line_->GetRegisterType(inst->VRegA_11x());
       if (!reg_types_.JavaLangThrowable(false).IsAssignableFrom(res_type)) {
-        Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "thrown class " << res_type
-                                          << " not instanceof Throwable";
+        Fail(res_type.IsUnresolvedTypes() ? VERIFY_ERROR_NO_CLASS : VERIFY_ERROR_BAD_CLASS_SOFT)
+            << "thrown class " << res_type << " not instanceof Throwable";
       }
       break;
     }
@@ -1929,8 +1933,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         const RegType& orig_type = work_line_->GetRegisterType(instance_of_inst->VRegB_22c());
         const RegType& cast_type = ResolveClassAndCheckAccess(instance_of_inst->VRegC_22c());
 
-        if (!cast_type.IsUnresolvedTypes() && !cast_type.GetClass()->IsInterface() &&
-            !cast_type.IsAssignableFrom(orig_type)) {
+        if (!cast_type.IsUnresolvedTypes() && !orig_type.IsUnresolvedTypes() &&
+            !cast_type.GetClass()->IsInterface() && !cast_type.IsAssignableFrom(orig_type)) {
           RegisterLine* update_line = new RegisterLine(code_item_->registers_size_, this);
           if (inst->Opcode() == Instruction::IF_EQZ) {
             fallthrough_line.reset(update_line);
@@ -2610,7 +2614,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     info_messages_ << "Rejecting opcode " << inst->DumpString(dex_file_);
     return false;
   } else if (have_pending_runtime_throw_failure_) {
-    /* slow path will throw, mark following code as unreachable */
+    /* checking interpreter will throw, mark following code as unreachable */
     opcode_flags = Instruction::kThrow;
   }
   /*
@@ -2861,7 +2865,8 @@ const RegType& MethodVerifier::GetCaughtExceptionType() {
             } else if (!reg_types_.JavaLangThrowable(false).IsAssignableFrom(exception)) {
               // We don't know enough about the type and the common path merge will result in
               // Conflict. Fail here knowing the correct thing can be done at runtime.
-              Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "unexpected non-exception class " << exception;
+              Fail(exception.IsUnresolvedTypes() ? VERIFY_ERROR_NO_CLASS :
+                  VERIFY_ERROR_BAD_CLASS_SOFT) << "unexpected non-exception class " << exception;
               return reg_types_.Conflict();
             } else if (common_super->Equals(exception)) {
               // odd case, but nothing to do
@@ -3042,7 +3047,8 @@ mirror::ArtMethod* MethodVerifier::VerifyInvocationArgs(const Instruction* inst,
           reg_types_.FromClass(ClassHelper(klass).GetDescriptor(), klass,
                                klass->CannotBeAssignedFromOtherTypes());
       if (!res_method_class.IsAssignableFrom(actual_arg_type)) {
-        Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "'this' argument '" << actual_arg_type
+        Fail(actual_arg_type.IsUnresolvedTypes() ? VERIFY_ERROR_NO_CLASS:
+            VERIFY_ERROR_BAD_CLASS_SOFT) << "'this' argument '" << actual_arg_type
             << "' not instance of '" << res_method_class << "'";
         return NULL;
       }
@@ -3166,7 +3172,8 @@ mirror::ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instructio
         reg_types_.FromClass(ClassHelper(klass).GetDescriptor(), klass,
                              klass->CannotBeAssignedFromOtherTypes());
     if (!res_method_class.IsAssignableFrom(actual_arg_type)) {
-      Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "'this' argument '" << actual_arg_type
+      Fail(actual_arg_type.IsUnresolvedTypes() ? VERIFY_ERROR_NO_CLASS :
+          VERIFY_ERROR_BAD_CLASS_SOFT) << "'this' argument '" << actual_arg_type
           << "' not instance of '" << res_method_class << "'";
       return NULL;
     }
