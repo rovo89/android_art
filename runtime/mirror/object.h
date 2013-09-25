@@ -189,6 +189,11 @@ class MANAGED Object {
     }
   }
 
+  Object** GetFieldObjectAddr(MemberOffset field_offset) ALWAYS_INLINE {
+    VerifyObject(this);
+    return reinterpret_cast<Object**>(reinterpret_cast<byte*>(this) + field_offset.Int32Value());
+  }
+
   uint32_t GetField32(MemberOffset field_offset, bool is_volatile) const {
     VerifyObject(this);
     const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset.Int32Value();

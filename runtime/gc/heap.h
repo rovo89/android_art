@@ -368,11 +368,6 @@ class Heap {
                       accounting::ObjectStack* stack)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  // Update and mark mod union table based on gc type.
-  void UpdateAndMarkModUnion(collector::MarkSweep* mark_sweep, base::TimingLogger& timings,
-                             collector::GcType gc_type)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
   // Gets called when we get notified by ActivityThread that the process state has changed.
   void ListenForProcessStateChange();
 
@@ -426,6 +421,8 @@ class Heap {
   size_t GetConcGCThreadCount() const {
     return conc_gc_threads_;
   }
+  accounting::ModUnionTable* FindModUnionTableFromSpace(space::Space* space);
+  void AddModUnionTable(accounting::ModUnionTable* mod_union_table);
 
  private:
   // Allocates uninitialized storage. Passing in a null space tries to place the object in the
@@ -522,12 +519,8 @@ class Heap {
   // The card table, dirtied by the write barrier.
   UniquePtr<accounting::CardTable> card_table_;
 
-  // The mod-union table remembers all of the references from the image space to the alloc /
-  // zygote spaces to allow the card table to be cleared.
-  UniquePtr<accounting::ModUnionTable> image_mod_union_table_;
-
-  // This table holds all of the references from the zygote space to the alloc space.
-  UniquePtr<accounting::ModUnionTable> zygote_mod_union_table_;
+  // A mod-union table remembers all of the references from the it's space to other spaces.
+  SafeMap<space::Space*, accounting::ModUnionTable*> mod_union_tables_;
 
   // What kind of concurrency behavior is the runtime after? True for concurrent mark sweep GC,
   // false for stop-the-world mark sweep.

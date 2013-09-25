@@ -114,6 +114,9 @@ class MarkSweep : public GarbageCollector {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  bool IsImmuneSpace(const space::ContinuousSpace* space)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Bind the live bits to the mark bits of bitmaps for spaces that are never collected, ie
   // the image. Mark that portion of the heap as immune.
   virtual void BindBitmaps() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -135,6 +138,9 @@ class MarkSweep : public GarbageCollector {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void ProcessReferences(Thread* self)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  virtual void UpdateAndMarkModUnion()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Sweeps unmarked objects to complete the garbage collection.
@@ -163,7 +169,7 @@ class MarkSweep : public GarbageCollector {
 
   // TODO: enable thread safety analysis when in use by multiple worker threads.
   template <typename MarkVisitor>
-  void ScanObjectVisit(const mirror::Object* obj, const MarkVisitor& visitor)
+  void ScanObjectVisit(mirror::Object* obj, const MarkVisitor& visitor)
       NO_THREAD_SAFETY_ANALYSIS;
 
   size_t GetFreedBytes() const {
@@ -215,7 +221,8 @@ class MarkSweep : public GarbageCollector {
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   template <typename Visitor>
-  static void VisitObjectReferences(const mirror::Object* obj, const Visitor& visitor)
+  static void VisitObjectReferences(mirror::Object* obj, const Visitor& visitor,
+                                    bool visit_class = false)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
                             Locks::mutator_lock_);
 
@@ -306,7 +313,7 @@ class MarkSweep : public GarbageCollector {
   size_t GetThreadCount(bool paused) const;
 
   // Returns true if an object is inside of the immune region (assumed to be marked).
-  bool IsImmune(const mirror::Object* obj) const {
+  bool IsImmune(const mirror::Object* obj) const ALWAYS_INLINE {
     return obj >= immune_begin_ && obj < immune_end_;
   }
 
@@ -317,34 +324,34 @@ class MarkSweep : public GarbageCollector {
       NO_THREAD_SAFETY_ANALYSIS;
 
   template <typename Visitor>
-  static void VisitInstanceFieldsReferences(const mirror::Class* klass, const mirror::Object* obj,
+  static void VisitInstanceFieldsReferences(mirror::Class* klass, mirror::Object* obj,
                                             const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // Visit the header, static field references, and interface pointers of a class object.
   template <typename Visitor>
-  static void VisitClassReferences(const mirror::Class* klass, const mirror::Object* obj,
+  static void VisitClassReferences(mirror::Class* klass, mirror::Object* obj,
                                    const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   template <typename Visitor>
-  static void VisitStaticFieldsReferences(const mirror::Class* klass, const Visitor& visitor)
+  static void VisitStaticFieldsReferences(mirror::Class* klass, const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   template <typename Visitor>
-  static void VisitFieldsReferences(const mirror::Object* obj, uint32_t ref_offsets, bool is_static,
+  static void VisitFieldsReferences(mirror::Object* obj, uint32_t ref_offsets, bool is_static,
                                     const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // Visit all of the references in an object array.
   template <typename Visitor>
-  static void VisitObjectArrayReferences(const mirror::ObjectArray<mirror::Object>* array,
+  static void VisitObjectArrayReferences(mirror::ObjectArray<mirror::Object>* array,
                                          const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // Visits the header and field references of a data object.
   template <typename Visitor>
-  static void VisitOtherReferences(const mirror::Class* klass, const mirror::Object* obj,
+  static void VisitOtherReferences(mirror::Class* klass, mirror::Object* obj,
                                    const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
     return VisitInstanceFieldsReferences(klass, obj, visitor);

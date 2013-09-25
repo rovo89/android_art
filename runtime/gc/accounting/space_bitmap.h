@@ -247,8 +247,8 @@ class SpaceSetMap {
 
   template <typename Visitor>
   void Visit(const Visitor& visitor) NO_THREAD_SAFETY_ANALYSIS {
-    for (Objects::iterator it = contained_.begin(); it != contained_.end(); ++it) {
-      visitor(*it);
+    for (const mirror::Object* obj : contained_) {
+      visitor(const_cast<mirror::Object*>(obj));
     }
   }
 
