@@ -1393,24 +1393,23 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
   // Transition into runnable state to work on Object*/Array*
   ScopedObjectAccess soa(env);
   // Decode the internal stack trace into the depth, method trace and PC trace
-  mirror::ObjectArray<mirror::Object>* method_trace =
-      soa.Decode<mirror::ObjectArray<mirror::Object>*>(internal);
-  int32_t depth = method_trace->GetLength() - 1;
-  mirror::IntArray* pc_trace = down_cast<mirror::IntArray*>(method_trace->Get(depth));
+  int32_t depth = soa.Decode<mirror::ObjectArray<mirror::Object>*>(internal)->GetLength() - 1;
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
   jobjectArray result;
-  mirror::ObjectArray<mirror::StackTraceElement>* java_traces;
+
   if (output_array != NULL) {
     // Reuse the array we were given.
     result = output_array;
-    java_traces = soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>*>(output_array);
     // ...adjusting the number of frames we'll write to not exceed the array length.
-    depth = std::min(depth, java_traces->GetLength());
+    const int32_t traces_length =
+        soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>*>(result)->GetLength();
+    depth = std::min(depth, traces_length);
   } else {
     // Create java_trace array and place in local reference table
-    java_traces = class_linker->AllocStackTraceElementArray(soa.Self(), depth);
+    mirror::ObjectArray<mirror::StackTraceElement>* java_traces =
+        class_linker->AllocStackTraceElementArray(soa.Self(), depth);
     if (java_traces == NULL) {
       return NULL;
     }
@@ -1423,9 +1422,12 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
 
   MethodHelper mh;
   for (int32_t i = 0; i < depth; ++i) {
+    mirror::ObjectArray<mirror::Object>* method_trace =
+          soa.Decode<mirror::ObjectArray<mirror::Object>*>(internal);
     // Prepare parameters for StackTraceElement(String cls, String method, String file, int line)
     mirror::ArtMethod* method = down_cast<mirror::ArtMethod*>(method_trace->Get(i));
     mh.ChangeMethod(method);
+    mirror::IntArray* pc_trace = down_cast<mirror::IntArray*>(method_trace->Get(depth));
     uint32_t dex_pc = pc_trace->Get(i);
     int32_t line_number = mh.GetLineNumFromDexPC(dex_pc);
     // Allocate element, potentially triggering GC
@@ -1448,8 +1450,9 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
       return NULL;
     }
     const char* source_file = mh.GetDeclaringClassSourceFile();
-    SirtRef<mirror::String> source_name_object(soa.Self(), mirror::String::AllocFromModifiedUtf8(soa.Self(),
-                                                                                                 source_file));
+    SirtRef<mirror::String> source_name_object(soa.Self(),
+                                               mirror::String::AllocFromModifiedUtf8(soa.Self(),
+                                                                                     source_file));
     mirror::StackTraceElement* obj = mirror::StackTraceElement::Alloc(soa.Self(),
                                                                       class_name_object.get(),
                                                                       method_name_object.get(),
@@ -1458,13 +1461,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
     if (obj == NULL) {
       return NULL;
     }
-#ifdef MOVING_GARBAGE_COLLECTOR
-    // Re-read after potential GC
-    java_traces = Decode<ObjectArray<Object>*>(soa.Env(), result);
-    method_trace = down_cast<ObjectArray<Object>*>(Decode<Object*>(soa.Env(), internal));
-    pc_trace = down_cast<IntArray*>(method_trace->Get(depth));
-#endif
-    java_traces->Set(i, obj);
+    soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>*>(result)->Set(i, obj);
   }
   return result;
 }
