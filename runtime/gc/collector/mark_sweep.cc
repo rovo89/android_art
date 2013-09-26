@@ -613,8 +613,8 @@ void MarkSweep::VerifyImageRootVisitor(Object* root, void* arg) {
 }
 
 void MarkSweep::BindLiveToMarkBitmap(space::ContinuousSpace* space) {
-  CHECK(space->IsDlMallocSpace());
-  space::DlMallocSpace* alloc_space = space->AsDlMallocSpace();
+  CHECK(space->IsMallocSpace());
+  space::MallocSpace* alloc_space = space->AsMallocSpace();
   accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
   accounting::SpaceBitmap* mark_bitmap = alloc_space->BindLiveToMarkBitmap();
   GetHeap()->GetMarkBitmap()->ReplaceBitmap(mark_bitmap, live_bitmap);
@@ -1126,7 +1126,7 @@ void MarkSweep::ZygoteSweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
 }
 
 void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitmaps) {
-  space::DlMallocSpace* space = heap_->GetNonMovingSpace();
+  space::MallocSpace* space = heap_->GetNonMovingSpace();
   timings_.StartSplit("SweepArray");
   // Newly allocated objects MUST be in the alloc space and those are the only objects which we are
   // going to free.
@@ -1212,7 +1212,7 @@ void MarkSweep::Sweep(bool swap_bitmaps) {
   scc.mark_sweep = this;
   scc.self = Thread::Current();
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
-    if (!space->IsDlMallocSpace()) {
+    if (!space->IsMallocSpace()) {
       continue;
     }
     // We always sweep always collect spaces.
@@ -1224,7 +1224,7 @@ void MarkSweep::Sweep(bool swap_bitmaps) {
     if (sweep_space) {
       uintptr_t begin = reinterpret_cast<uintptr_t>(space->Begin());
       uintptr_t end = reinterpret_cast<uintptr_t>(space->End());
-      scc.space = space->AsDlMallocSpace();
+      scc.space = space->AsMallocSpace();
       accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
       accounting::SpaceBitmap* mark_bitmap = space->GetMarkBitmap();
       if (swap_bitmaps) {
@@ -1274,7 +1274,7 @@ void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
 
 void MarkSweep::CheckReference(const Object* obj, const Object* ref, MemberOffset offset, bool is_static) {
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
-    if (space->IsDlMallocSpace() && space->Contains(ref)) {
+    if (space->IsMallocSpace() && space->Contains(ref)) {
       DCHECK(IsMarked(obj));
 
       bool is_marked = IsMarked(ref);
@@ -1424,8 +1424,8 @@ inline bool MarkSweep::IsMarked(const Object* object) const
 void MarkSweep::UnBindBitmaps() {
   TimingLogger::ScopedSplit split("UnBindBitmaps", &timings_);
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
-    if (space->IsDlMallocSpace()) {
-      space::DlMallocSpace* alloc_space = space->AsDlMallocSpace();
+    if (space->IsMallocSpace()) {
+      space::MallocSpace* alloc_space = space->AsMallocSpace();
       if (alloc_space->temp_bitmap_.get() != NULL) {
         // At this point, the temp_bitmap holds our old mark bitmap.
         accounting::SpaceBitmap* new_bitmap = alloc_space->temp_bitmap_.release();

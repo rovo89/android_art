@@ -368,8 +368,8 @@ void SemiSpace::MarkRoots() {
 }
 
 void SemiSpace::BindLiveToMarkBitmap(space::ContinuousSpace* space) {
-  CHECK(space->IsDlMallocSpace());
-  space::DlMallocSpace* alloc_space = space->AsDlMallocSpace();
+  CHECK(space->IsMallocSpace());
+  space::MallocSpace* alloc_space = space->AsMallocSpace();
   accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
   accounting::SpaceBitmap* mark_bitmap = alloc_space->BindLiveToMarkBitmap();
   GetHeap()->GetMarkBitmap()->ReplaceBitmap(mark_bitmap, live_bitmap);
@@ -433,7 +433,7 @@ void SemiSpace::Sweep(bool swap_bitmaps) {
   scc.mark_sweep = this;
   scc.self = Thread::Current();
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
-    if (!space->IsDlMallocSpace()) {
+    if (!space->IsMallocSpace()) {
       continue;
     }
     // We always sweep always collect spaces.
@@ -442,10 +442,10 @@ void SemiSpace::Sweep(bool swap_bitmaps) {
       // We sweep full collect spaces when the GC isn't a partial GC (ie its full).
       sweep_space = (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyFullCollect);
     }
-    if (sweep_space && space->IsDlMallocSpace()) {
+    if (sweep_space && space->IsMallocSpace()) {
       uintptr_t begin = reinterpret_cast<uintptr_t>(space->Begin());
       uintptr_t end = reinterpret_cast<uintptr_t>(space->End());
-      scc.space = space->AsDlMallocSpace();
+      scc.space = space->AsMallocSpace();
       accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
       accounting::SpaceBitmap* mark_bitmap = space->GetMarkBitmap();
       if (swap_bitmaps) {
@@ -550,8 +550,8 @@ inline Object* SemiSpace::GetMarkedForwardAddress(mirror::Object* obj) const
 void SemiSpace::UnBindBitmaps() {
   TimingLogger::ScopedSplit split("UnBindBitmaps", &timings_);
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
-    if (space->IsDlMallocSpace()) {
-      space::DlMallocSpace* alloc_space = space->AsDlMallocSpace();
+    if (space->IsMallocSpace()) {
+      space::MallocSpace* alloc_space = space->AsMallocSpace();
       if (alloc_space->HasBoundBitmaps()) {
         alloc_space->UnBindBitmaps();
         heap_->GetMarkBitmap()->ReplaceBitmap(alloc_space->GetLiveBitmap(),

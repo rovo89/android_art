@@ -31,9 +31,10 @@ inline ImageSpace* Space::AsImageSpace() {
   return down_cast<ImageSpace*>(down_cast<MemMapSpace*>(this));
 }
 
-inline DlMallocSpace* Space::AsDlMallocSpace() {
-  DCHECK(IsDlMallocSpace());
-  return down_cast<DlMallocSpace*>(down_cast<MemMapSpace*>(this));
+inline MallocSpace* Space::AsMallocSpace() {
+  DCHECK(GetType() == kSpaceTypeAllocSpace || GetType() == kSpaceTypeZygoteSpace);
+  DCHECK(IsDlMallocSpace() || IsRosAllocSpace());
+  return down_cast<MallocSpace*>(down_cast<MemMapSpace*>(this));
 }
 
 inline LargeObjectSpace* Space::AsLargeObjectSpace() {

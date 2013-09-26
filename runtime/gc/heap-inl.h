@@ -23,6 +23,7 @@
 #include "gc/space/bump_pointer_space-inl.h"
 #include "gc/space/dlmalloc_space-inl.h"
 #include "gc/space/large_object_space.h"
+#include "gc/space/rosalloc_space-inl.h"
 #include "object_utils.h"
 #include "runtime.h"
 #include "thread.h"
@@ -41,7 +42,15 @@ inline mirror::Object* Heap::AllocNonMovableObjectUninstrumented(Thread* self, m
                                                                    &obj, &bytes_allocated);
   if (LIKELY(!large_object_allocation)) {
     // Non-large object allocation.
-    obj = AllocateUninstrumented(self, non_moving_space_, byte_count, &bytes_allocated);
+    if (!kUseRosAlloc) {
+      DCHECK(non_moving_space_->IsDlMallocSpace());
+      obj = AllocateUninstrumented(self, reinterpret_cast<space::DlMallocSpace*>(non_moving_space_),
+                                   byte_count, &bytes_allocated);
+    } else {
+      DCHECK(non_moving_space_->IsRosAllocSpace());
+      obj = AllocateUninstrumented(self, reinterpret_cast<space::RosAllocSpace*>(non_moving_space_),
+                                   byte_count, &bytes_allocated);
+    }
     // Ensure that we did not allocate into a zygote space.
     DCHECK(obj == NULL || !have_zygote_space_ || !FindSpaceFromObject(obj, false)->IsZygoteSpace());
   }
@@ -123,6 +132,16 @@ inline mirror::Object* Heap::TryToAllocateUninstrumented(Thread* self, space::Al
 
 // DlMallocSpace-specific version.
 inline mirror::Object* Heap::TryToAllocateUninstrumented(Thread* self, space::DlMallocSpace* space, size_t alloc_size,
+                                                         bool grow, size_t* bytes_allocated) {
+  if (UNLIKELY(IsOutOfMemoryOnAllocation(alloc_size, grow))) {
+    return NULL;
+  }
+  DCHECK(!running_on_valgrind_);
+  return space->AllocNonvirtual(self, alloc_size, bytes_allocated);
+}
+
+// RosAllocSpace-specific version.
+inline mirror::Object* Heap::TryToAllocateUninstrumented(Thread* self, space::RosAllocSpace* space, size_t alloc_size,
                                                          bool grow, size_t* bytes_allocated) {
   if (UNLIKELY(IsOutOfMemoryOnAllocation(alloc_size, grow))) {
     return NULL;

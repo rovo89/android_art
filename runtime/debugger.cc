@@ -3418,6 +3418,14 @@ void Dbg::DdmSendHeapSegments(bool native) {
   JDWP::Set4BE(&heap_id[0], 1);  // Heap id (bogus; we only have one heap).
   Dbg::DdmSendChunk(native ? CHUNK_TYPE("NHST") : CHUNK_TYPE("HPST"), sizeof(heap_id), heap_id);
 
+  Thread* self = Thread::Current();
+
+  // To allow the Walk/InspectAll() below to exclusively-lock the
+  // mutator lock, temporarily release the shared access to the
+  // mutator lock here by transitioning to the suspended state.
+  Locks::mutator_lock_->AssertSharedHeld(self);
+  self->TransitionFromRunnableToSuspended(kSuspended);
+
   // Send a series of heap segment chunks.
   HeapChunkContext context((what == HPSG_WHAT_MERGED_OBJECTS), native);
   if (native) {
@@ -3425,17 +3433,20 @@ void Dbg::DdmSendHeapSegments(bool native) {
   } else {
     gc::Heap* heap = Runtime::Current()->GetHeap();
     const std::vector<gc::space::ContinuousSpace*>& spaces = heap->GetContinuousSpaces();
-    Thread* self = Thread::Current();
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     typedef std::vector<gc::space::ContinuousSpace*>::const_iterator It;
     for (It cur = spaces.begin(), end = spaces.end(); cur != end; ++cur) {
-      if ((*cur)->IsDlMallocSpace()) {
-        (*cur)->AsDlMallocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
+      if ((*cur)->IsMallocSpace()) {
+        (*cur)->AsMallocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
       }
     }
     // Walk the large objects, these are not in the AllocSpace.
     heap->GetLargeObjectsSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
   }
+
+  // Shared-lock the mutator lock back.
+  self->TransitionFromSuspendedToRunnable();
+  Locks::mutator_lock_->AssertSharedHeld(self);
 
   // Finally, send a heap end chunk.
   Dbg::DdmSendChunk(native ? CHUNK_TYPE("NHEN") : CHUNK_TYPE("HPEN"), sizeof(heap_id), heap_id);

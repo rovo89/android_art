@@ -42,6 +42,7 @@ LIBART_COMMON_SRC_FILES := \
 	dex_instruction.cc \
 	elf_file.cc \
 	gc/allocator/dlmalloc.cc \
+	gc/allocator/rosalloc.cc \
 	gc/accounting/card_table.cc \
 	gc/accounting/gc_allocator.cc \
 	gc/accounting/heap_bitmap.cc \
@@ -58,6 +59,8 @@ LIBART_COMMON_SRC_FILES := \
 	gc/space/dlmalloc_space.cc \
 	gc/space/image_space.cc \
 	gc/space/large_object_space.cc \
+	gc/space/malloc_space.cc \
+	gc/space/rosalloc_space.cc \
 	gc/space/space.cc \
 	hprof/hprof.cc \
 	image.cc \

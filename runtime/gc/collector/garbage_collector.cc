@@ -83,6 +83,7 @@ void GarbageCollector::Run(bool clear_soft_references) {
     thread_list->SuspendAll();
     MarkingPhase();
     ReclaimPhase();
+    GetHeap()->RevokeAllThreadLocalBuffers();
     thread_list->ResumeAll();
     ATRACE_END();
     uint64_t pause_end = NanoTime();
@@ -101,6 +102,9 @@ void GarbageCollector::Run(bool clear_soft_references) {
       ATRACE_END();
       ATRACE_BEGIN("All mutator threads suspended");
       done = HandleDirtyObjectsPhase();
+      if (done) {
+        GetHeap()->RevokeAllThreadLocalBuffers();
+      }
       ATRACE_END();
       uint64_t pause_end = NanoTime();
       ATRACE_BEGIN("Resuming mutator threads");
@@ -135,7 +139,7 @@ void GarbageCollector::SwapBitmaps() {
       if (live_bitmap != mark_bitmap) {
         heap_->GetLiveBitmap()->ReplaceBitmap(live_bitmap, mark_bitmap);
         heap_->GetMarkBitmap()->ReplaceBitmap(mark_bitmap, live_bitmap);
-        space->AsDlMallocSpace()->SwapBitmaps();
+        space->AsMallocSpace()->SwapBitmaps();
       }
     }
   }

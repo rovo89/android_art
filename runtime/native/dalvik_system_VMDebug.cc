@@ -267,14 +267,14 @@ static void VMDebug_getHeapSpaceStats(JNIEnv* env, jclass, jlongArray data) {
     if (space->IsImageSpace()) {
       // Currently don't include the image space.
     } else if (space->IsZygoteSpace()) {
-      gc::space::DlMallocSpace* dlmalloc_space = space->AsDlMallocSpace();
-      zygoteSize += dlmalloc_space->GetFootprint();
-      zygoteUsed += dlmalloc_space->GetBytesAllocated();
+      gc::space::MallocSpace* malloc_space = space->AsMallocSpace();
+      zygoteSize += malloc_space->GetFootprint();
+      zygoteUsed += malloc_space->GetBytesAllocated();
     } else {
       // This is the alloc space.
-      gc::space::DlMallocSpace* dlmalloc_space = space->AsDlMallocSpace();
-      allocSize += dlmalloc_space->GetFootprint();
-      allocUsed += dlmalloc_space->GetBytesAllocated();
+      gc::space::MallocSpace* malloc_space = space->AsMallocSpace();
+      allocSize += malloc_space->GetFootprint();
+      allocUsed += malloc_space->GetBytesAllocated();
     }
   }
   typedef std::vector<gc::space::DiscontinuousSpace*>::const_iterator It2;

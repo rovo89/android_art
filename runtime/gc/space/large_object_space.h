@@ -116,7 +116,8 @@ class FreeListSpace : public LargeObjectSpace {
   virtual ~FreeListSpace();
   static FreeListSpace* Create(const std::string& name, byte* requested_begin, size_t capacity);
 
-  size_t AllocationSize(const mirror::Object* obj) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  size_t AllocationSize(const mirror::Object* obj)
+      EXCLUSIVE_LOCKS_REQUIRED(lock_);
   mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated);
   size_t Free(Thread* self, mirror::Object* obj);
   bool Contains(const mirror::Object* obj) const;

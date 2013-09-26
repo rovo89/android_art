@@ -124,6 +124,11 @@ Runtime::~Runtime() {
   heap_->WaitForGcToComplete(self);
   heap_->DeleteThreadPool();
 
+  // For RosAlloc, revoke thread local runs. Note that in tests
+  // (common_test.h) we repeat allocating and deleting Runtime
+  // objects.
+  heap_->RevokeAllThreadLocalBuffers();
+
   // Make sure our internal threads are dead before we start tearing down things they're using.
   Dbg::StopJdwp();
   delete signal_catcher_;

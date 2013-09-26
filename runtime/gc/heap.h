@@ -69,6 +69,8 @@ namespace space {
   class DlMallocSpace;
   class ImageSpace;
   class LargeObjectSpace;
+  class MallocSpace;
+  class RosAllocSpace;
   class Space;
   class SpaceTest;
   class ContinuousMemMapAllocSpace;
@@ -105,6 +107,9 @@ enum HeapVerificationMode {
   kVerifyAll  // Sanity check all heap accesses.
 };
 static constexpr HeapVerificationMode kDesiredHeapVerification = kNoHeapVerification;
+
+// If true, use rosalloc/RosAllocSpace instead of dlmalloc/DlMallocSpace
+static constexpr bool kUseRosAlloc = false;
 
 class Heap {
  public:
@@ -413,6 +418,9 @@ class Heap {
   // Trim the managed and native heaps by releasing unused memory back to the OS.
   void Trim();
 
+  void RevokeThreadLocalBuffers(Thread* thread);
+  void RevokeAllThreadLocalBuffers();
+
   accounting::HeapBitmap* GetLiveBitmap() SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     return live_bitmap_.get();
   }
@@ -447,7 +455,7 @@ class Heap {
   // Assumes there is only one image space.
   space::ImageSpace* GetImageSpace() const;
 
-  space::DlMallocSpace* GetNonMovingSpace() const {
+  space::MallocSpace* GetNonMovingSpace() const {
     return non_moving_space_;
   }
 
@@ -539,12 +547,23 @@ class Heap {
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Try to allocate a number of bytes, this function never does any GCs. RosAllocSpace-specialized version.
+  mirror::Object* TryToAllocateInstrumented(Thread* self, space::RosAllocSpace* space, size_t alloc_size,
+                                            bool grow, size_t* bytes_allocated)
+      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   mirror::Object* TryToAllocateUninstrumented(Thread* self, space::AllocSpace* space, size_t alloc_size,
                                               bool grow, size_t* bytes_allocated)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::Object* TryToAllocateUninstrumented(Thread* self, space::DlMallocSpace* space, size_t alloc_size,
+                                              bool grow, size_t* bytes_allocated)
+      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  mirror::Object* TryToAllocateUninstrumented(Thread* self, space::RosAllocSpace* space, size_t alloc_size,
                                               bool grow, size_t* bytes_allocated)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -642,7 +661,7 @@ class Heap {
 
   // A space where non-movable objects are allocated, when compaction is enabled it contains
   // Classes, ArtMethods, ArtFields, and non moving objects.
-  space::DlMallocSpace* non_moving_space_;
+  space::MallocSpace* non_moving_space_;
 
   // The large object space we are currently allocating into.
   space::LargeObjectSpace* large_object_space_;
