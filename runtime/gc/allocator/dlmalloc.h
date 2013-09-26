@@ -18,6 +18,8 @@
 #define ART_RUNTIME_GC_ALLOCATOR_DLMALLOC_H_
 
 // Configure dlmalloc for mspaces.
+// Avoid a collision with one used in llvm.
+#undef HAVE_MMAP
 #define HAVE_MMAP 0
 #define HAVE_MREMAP 0
 #define HAVE_MORECORE 1
