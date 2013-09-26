@@ -423,13 +423,23 @@ class RememberFoGcArgumentVisitor : public QuickArgumentVisitor {
 
   virtual void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (IsParamAReference()) {
-      soa_->AddLocalReference<jobject>(*reinterpret_cast<mirror::Object**>(GetParamAddress()));
+      mirror::Object** param_address = reinterpret_cast<mirror::Object**>(GetParamAddress());
+      jobject reference =
+          soa_->AddLocalReference<jobject>(*param_address);
+      references_.push_back(std::make_pair(reference, param_address));
+    }
+  }
+
+  void FixupReferences() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // Fixup any references which may have changed.
+    for (std::pair<jobject, mirror::Object**>& it : references_) {
+      *it.second = soa_->Decode<mirror::Object*>(it.first);
     }
   }
 
  private:
   ScopedObjectAccessUnchecked* soa_;
-
+  std::vector<std::pair<jobject, mirror::Object**> > references_;
   DISALLOW_COPY_AND_ASSIGN(RememberFoGcArgumentVisitor);
 };
 
@@ -556,11 +566,8 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
     }
   }
   CHECK_EQ(code == NULL, thread->IsExceptionPending());
-#ifdef MOVING_GARBAGE_COLLECTOR
-  // TODO: locally saved objects may have moved during a GC during resolution. Need to update the
-  //       registers so that the stale objects aren't passed to the method we've resolved.
-    UNIMPLEMENTED(WARNING);
-#endif
+  // Fixup any locally saved objects may have moved during a GC.
+  visitor.FixupReferences();
   // Place called method in callee-save frame to be placed as first argument to quick method.
   *sp = called;
   return code;
