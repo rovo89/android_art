@@ -265,7 +265,7 @@ void ThrowNoSuchFieldError(const StringPiece& scope, mirror::Class* c,
 // NoSuchMethodError
 
 void ThrowNoSuchMethodError(InvokeType type, mirror::Class* c, const StringPiece& name,
-                            const StringPiece& signature) {
+                            const Signature& signature) {
   std::ostringstream msg;
   ClassHelper kh(c);
   msg << "No " << type << " method " << name << signature

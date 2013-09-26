@@ -2823,12 +2823,12 @@ static void CheckProxyConstructor(mirror::ArtMethod* constructor)
   CHECK(constructor->IsConstructor());
   MethodHelper mh(constructor);
   CHECK_STREQ(mh.GetName(), "<init>");
-  CHECK_EQ(mh.GetSignature(), std::string("(Ljava/lang/reflect/InvocationHandler;)V"));
+  CHECK_STREQ(mh.GetSignature().ToString().c_str(), "(Ljava/lang/reflect/InvocationHandler;)V");
   DCHECK(constructor->IsPublic());
 }
 
 mirror::ArtMethod* ClassLinker::CreateProxyMethod(Thread* self, SirtRef<mirror::Class>& klass,
-                                                       SirtRef<mirror::ArtMethod>& prototype) {
+                                                  SirtRef<mirror::ArtMethod>& prototype) {
   // Ensure prototype is in dex cache so that we can use the dex cache to look up the overridden
   // prototype method
   prototype->GetDeclaringClass()->GetDexCache()->SetResolvedMethod(prototype->GetDexMethodIndex(),
@@ -2892,7 +2892,7 @@ static bool CanWeInitializeClass(mirror::Class* klass, bool can_init_statics,
   }
   if (!can_init_statics) {
     // Check if there's a class initializer.
-    mirror::ArtMethod* clinit = klass->FindDeclaredDirectMethod("<clinit>", "()V");
+    mirror::ArtMethod* clinit = klass->FindClassInitializer();
     if (clinit != NULL) {
       return false;
     }
@@ -3039,7 +3039,7 @@ bool ClassLinker::InitializeClass(mirror::Class* klass, bool can_init_statics,
     }
   }
 
-  mirror::ArtMethod* clinit = klass->FindDeclaredDirectMethod("<clinit>", "()V");
+  mirror::ArtMethod* clinit = klass->FindClassInitializer();
   if (clinit != NULL) {
     CHECK(can_init_statics);
     if (LIKELY(Runtime::Current()->IsStarted())) {
@@ -3992,11 +3992,11 @@ mirror::Class* ClassLinker::ResolveType(const DexFile& dex_file,
 }
 
 mirror::ArtMethod* ClassLinker::ResolveMethod(const DexFile& dex_file,
-                                                   uint32_t method_idx,
-                                                   mirror::DexCache* dex_cache,
-                                                   mirror::ClassLoader* class_loader,
-                                                   const mirror::ArtMethod* referrer,
-                                                   InvokeType type) {
+                                              uint32_t method_idx,
+                                              mirror::DexCache* dex_cache,
+                                              mirror::ClassLoader* class_loader,
+                                              const mirror::ArtMethod* referrer,
+                                              InvokeType type) {
   DCHECK(dex_cache != NULL);
   // Check for hit in the dex cache.
   mirror::ArtMethod* resolved = dex_cache->GetResolvedMethod(method_idx);
@@ -4031,7 +4031,7 @@ mirror::ArtMethod* ClassLinker::ResolveMethod(const DexFile& dex_file,
   if (resolved == NULL) {
     // Search by name, which works across dex files.
     const char* name = dex_file.StringDataByIdx(method_id.name_idx_);
-    std::string signature(dex_file.CreateMethodSignature(method_id.proto_idx_, NULL));
+    const Signature signature = dex_file.GetMethodSignature(method_id);
     switch (type) {
       case kDirect:  // Fall-through.
       case kStatic:
@@ -4061,7 +4061,7 @@ mirror::ArtMethod* ClassLinker::ResolveMethod(const DexFile& dex_file,
     // We failed to find the method which means either an access error, an incompatible class
     // change, or no such method. First try to find the method among direct and virtual methods.
     const char* name = dex_file.StringDataByIdx(method_id.name_idx_);
-    std::string signature(dex_file.CreateMethodSignature(method_id.proto_idx_, NULL));
+    const Signature signature = dex_file.GetMethodSignature(method_id);
     switch (type) {
       case kDirect:
       case kStatic:

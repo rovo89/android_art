@@ -59,6 +59,7 @@ namespace art {
 
 struct ClassClassOffsets;
 struct ClassOffsets;
+class Signature;
 class StringPiece;
 
 namespace mirror {
@@ -565,28 +566,19 @@ class MANAGED Class : public StaticStorageBase {
   ArtMethod* FindVirtualMethodForInterface(ArtMethod* method) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE;
 
-  ArtMethod* FindInterfaceMethod(const StringPiece& name, const StringPiece& descriptor) const
+  ArtMethod* FindVirtualMethodForVirtualOrInterface(ArtMethod* method) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  ArtMethod* FindInterfaceMethod(const StringPiece& name, const Signature& signature) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ArtMethod* FindInterfaceMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  ArtMethod* FindVirtualMethodForVirtualOrInterface(ArtMethod* method) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  ArtMethod* FindDeclaredVirtualMethod(const StringPiece& name, const StringPiece& signature) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  ArtMethod* FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  ArtMethod* FindVirtualMethod(const StringPiece& name, const StringPiece& descriptor) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  ArtMethod* FindVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   ArtMethod* FindDeclaredDirectMethod(const StringPiece& name, const StringPiece& signature) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  ArtMethod* FindDeclaredDirectMethod(const StringPiece& name, const Signature& signature) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ArtMethod* FindDeclaredDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
@@ -595,8 +587,31 @@ class MANAGED Class : public StaticStorageBase {
   ArtMethod* FindDirectMethod(const StringPiece& name, const StringPiece& signature) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  ArtMethod* FindDirectMethod(const StringPiece& name, const Signature& signature) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   ArtMethod* FindDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  ArtMethod* FindDeclaredVirtualMethod(const StringPiece& name, const StringPiece& signature) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  ArtMethod* FindDeclaredVirtualMethod(const StringPiece& name, const Signature& signature) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  ArtMethod* FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  ArtMethod* FindVirtualMethod(const StringPiece& name, const StringPiece& signature) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  ArtMethod* FindVirtualMethod(const StringPiece& name, const Signature& signature) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  ArtMethod* FindVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  ArtMethod* FindClassInitializer() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   int32_t GetIfTableCount() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

@@ -1287,7 +1287,7 @@ JDWP::JdwpError Dbg::OutputDeclaredMethods(JDWP::RefTypeId class_id, bool with_g
     MethodHelper mh(m);
     expandBufAddMethodId(pReply, ToMethodId(m));
     expandBufAddUtf8String(pReply, mh.GetName());
-    expandBufAddUtf8String(pReply, mh.GetSignature());
+    expandBufAddUtf8String(pReply, mh.GetSignature().ToString());
     if (with_generic) {
       static const char genericSignature[1] = "";
       expandBufAddUtf8String(pReply, genericSignature);

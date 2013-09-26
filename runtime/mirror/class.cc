@@ -325,7 +325,7 @@ void Class::SetClassLoader(ClassLoader* new_class_loader) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), new_class_loader, false);
 }
 
-ArtMethod* Class::FindInterfaceMethod(const StringPiece& name, const StringPiece& signature) const {
+ArtMethod* Class::FindInterfaceMethod(const StringPiece& name, const Signature& signature) const {
   // Check the current class before checking the interfaces.
   ArtMethod* method = FindDeclaredVirtualMethod(name, signature);
   if (method != NULL) {
@@ -361,8 +361,19 @@ ArtMethod* Class::FindInterfaceMethod(const DexCache* dex_cache, uint32_t dex_me
   return NULL;
 }
 
-
 ArtMethod* Class::FindDeclaredDirectMethod(const StringPiece& name, const StringPiece& signature) const {
+  MethodHelper mh;
+  for (size_t i = 0; i < NumDirectMethods(); ++i) {
+    ArtMethod* method = GetDirectMethod(i);
+    mh.ChangeMethod(method);
+    if (name == mh.GetNameAsStringPiece() && mh.GetSignature() == signature) {
+      return method;
+    }
+  }
+  return NULL;
+}
+
+ArtMethod* Class::FindDeclaredDirectMethod(const StringPiece& name, const Signature& signature) const {
   MethodHelper mh;
   for (size_t i = 0; i < NumDirectMethods(); ++i) {
     ArtMethod* method = GetDirectMethod(i);
@@ -396,6 +407,16 @@ ArtMethod* Class::FindDirectMethod(const StringPiece& name, const StringPiece& s
   return NULL;
 }
 
+ArtMethod* Class::FindDirectMethod(const StringPiece& name, const Signature& signature) const {
+  for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
+    ArtMethod* method = klass->FindDeclaredDirectMethod(name, signature);
+    if (method != NULL) {
+      return method;
+    }
+  }
+  return NULL;
+}
+
 ArtMethod* Class::FindDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
   for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
     ArtMethod* method = klass->FindDeclaredDirectMethod(dex_cache, dex_method_idx);
@@ -406,8 +427,20 @@ ArtMethod* Class::FindDirectMethod(const DexCache* dex_cache, uint32_t dex_metho
   return NULL;
 }
 
+ArtMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name, const StringPiece& signature) const {
+  MethodHelper mh;
+  for (size_t i = 0; i < NumVirtualMethods(); ++i) {
+    ArtMethod* method = GetVirtualMethod(i);
+    mh.ChangeMethod(method);
+    if (name == mh.GetNameAsStringPiece() && mh.GetSignature() == signature) {
+      return method;
+    }
+  }
+  return NULL;
+}
+
 ArtMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name,
-                                         const StringPiece& signature) const {
+                                            const Signature& signature) const {
   MethodHelper mh;
   for (size_t i = 0; i < NumVirtualMethods(); ++i) {
     ArtMethod* method = GetVirtualMethod(i);
@@ -441,10 +474,35 @@ ArtMethod* Class::FindVirtualMethod(const StringPiece& name, const StringPiece& 
   return NULL;
 }
 
+ArtMethod* Class::FindVirtualMethod(const StringPiece& name, const Signature& signature) const {
+  for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
+    ArtMethod* method = klass->FindDeclaredVirtualMethod(name, signature);
+    if (method != NULL) {
+      return method;
+    }
+  }
+  return NULL;
+}
+
 ArtMethod* Class::FindVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
   for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
     ArtMethod* method = klass->FindDeclaredVirtualMethod(dex_cache, dex_method_idx);
     if (method != NULL) {
+      return method;
+    }
+  }
+  return NULL;
+}
+
+ArtMethod* Class::FindClassInitializer() const {
+  for (size_t i = 0; i < NumDirectMethods(); ++i) {
+    ArtMethod* method = GetDirectMethod(i);
+    if (method->IsConstructor() && method->IsStatic()) {
+      if (kIsDebugBuild) {
+        MethodHelper mh(method);
+        CHECK_STREQ(mh.GetName(), "<clinit>");
+        CHECK_STREQ(mh.GetSignature().ToString().c_str(), "()V");
+      }
       return method;
     }
   }

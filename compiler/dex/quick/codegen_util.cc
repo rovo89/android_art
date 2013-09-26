@@ -248,12 +248,12 @@ void Mir2Lir::DumpPromotionMap() {
 }
 
 /* Dump a mapping table */
-void Mir2Lir::DumpMappingTable(const char* table_name, const std::string& descriptor,
-                               const std::string& name, const std::string& signature,
+void Mir2Lir::DumpMappingTable(const char* table_name, const char* descriptor,
+                               const char* name, const Signature& signature,
                                const std::vector<uint32_t>& v) {
   if (v.size() > 0) {
     std::string line(StringPrintf("\n  %s %s%s_%s_table[%zu] = {", table_name,
-                     descriptor.c_str(), name.c_str(), signature.c_str(), v.size()));
+                     descriptor, name, signature.ToString().c_str(), v.size()));
     std::replace(line.begin(), line.end(), ';', '_');
     LOG(INFO) << line;
     for (uint32_t i = 0; i < v.size(); i+=2) {
@@ -293,9 +293,9 @@ void Mir2Lir::CodegenDump() {
 
   const DexFile::MethodId& method_id =
       cu_->dex_file->GetMethodId(cu_->method_idx);
-  std::string signature(cu_->dex_file->GetMethodSignature(method_id));
-  std::string name(cu_->dex_file->GetMethodName(method_id));
-  std::string descriptor(cu_->dex_file->GetMethodDeclaringClassDescriptor(method_id));
+  const Signature signature = cu_->dex_file->GetMethodSignature(method_id);
+  const char* name = cu_->dex_file->GetMethodName(method_id);
+  const char* descriptor(cu_->dex_file->GetMethodDeclaringClassDescriptor(method_id));
 
   // Dump mapping tables
   DumpMappingTable("PC2Dex_MappingTable", descriptor, name, signature, pc2dex_mapping_table_);

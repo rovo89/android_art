@@ -40,6 +40,7 @@ namespace mirror {
   class DexCache;
 }  // namespace mirror
 class ClassLinker;
+class Signature;
 class StringPiece;
 class ZipArchive;
 
@@ -559,10 +560,8 @@ class DexFile {
     return GetProtoId(method_id.proto_idx_);
   }
 
-  // Returns the signature of a method id.
-  const std::string GetMethodSignature(const MethodId& method_id) const {
-    return CreateMethodSignature(method_id.proto_idx_, NULL);
-  }
+  // Returns a representation of the signature of a method id.
+  const Signature GetMethodSignature(const MethodId& method_id) const;
 
   // Returns the name of a method id.
   const char* GetMethodName(const MethodId& method_id) const {
@@ -656,15 +655,16 @@ class DexFile {
   }
 
   // Looks up a proto id for a given return type and signature type list
-  const ProtoId* FindProtoId(uint16_t return_type_id,
+  const ProtoId* FindProtoId(uint16_t return_type_idx,
                              const std::vector<uint16_t>& signature_type_idxs_) const;
 
   // Given a signature place the type ids into the given vector, returns true on success
-  bool CreateTypeList(uint16_t* return_type_idx, std::vector<uint16_t>* param_type_idxs,
-                      const std::string& signature) const;
+  bool CreateTypeList(const StringPiece& signature, uint16_t* return_type_idx,
+                      std::vector<uint16_t>* param_type_idxs) const;
 
-  // Given a proto_idx decode the type list and return type into a method signature
-  std::string CreateMethodSignature(uint32_t proto_idx, int32_t* unicode_length) const;
+  // Create a Signature from the given string signature or return Signature::NoSignature if not
+  // possible.
+  const Signature CreateSignature(const StringPiece& signature) const;
 
   // Returns the short form method descriptor for the given prototype.
   const char* GetShorty(uint32_t proto_idx) const {
@@ -941,6 +941,83 @@ class DexFileParameterIterator {
   uint32_t pos_;
   DISALLOW_IMPLICIT_CONSTRUCTORS(DexFileParameterIterator);
 };
+
+// Abstract the signature of a method.
+class Signature {
+ public:
+  std::string ToString() const;
+
+  static Signature NoSignature() {
+    return Signature();
+  }
+
+  bool operator==(const Signature& rhs) const {
+    if (dex_file_ == nullptr) {
+      return rhs.dex_file_ == nullptr;
+    }
+    if (rhs.dex_file_ == nullptr) {
+      return false;
+    }
+    if (dex_file_ == rhs.dex_file_) {
+      return proto_id_ == rhs.proto_id_;
+    }
+    StringPiece shorty(dex_file_->StringDataAsStringPieceByIdx(proto_id_->shorty_idx_));
+    if (shorty != rhs.dex_file_->StringDataAsStringPieceByIdx(rhs.proto_id_->shorty_idx_)) {
+      return false;  // Shorty mismatch.
+    }
+    if (shorty[0] == 'L') {
+      const DexFile::TypeId& return_type_id = dex_file_->GetTypeId(proto_id_->return_type_idx_);
+      const DexFile::TypeId& rhs_return_type_id =
+          rhs.dex_file_->GetTypeId(rhs.proto_id_->return_type_idx_);
+      if (dex_file_->StringDataAsStringPieceByIdx(return_type_id.descriptor_idx_) !=
+          rhs.dex_file_->StringDataAsStringPieceByIdx(rhs_return_type_id.descriptor_idx_)) {
+        return false;  // Return type mismatch.
+      }
+    }
+    if (shorty.find('L', 1) != StringPiece::npos) {
+      const DexFile::TypeList* params = dex_file_->GetProtoParameters(*proto_id_);
+      const DexFile::TypeList* rhs_params = rhs.dex_file_->GetProtoParameters(*rhs.proto_id_);
+      // Both lists are empty or have contents, or else shorty is broken.
+      DCHECK_EQ(params == nullptr, rhs_params == nullptr);
+      if (params != nullptr) {
+        uint32_t params_size = params->Size();
+        DCHECK_EQ(params_size, rhs_params->Size());  // Parameter list size must match.
+        for (uint32_t i = 0; i < params_size; ++i) {
+          const DexFile::TypeId& param_id = dex_file_->GetTypeId(params->GetTypeItem(i).type_idx_);
+          const DexFile::TypeId& rhs_param_id =
+              rhs.dex_file_->GetTypeId(rhs_params->GetTypeItem(i).type_idx_);
+          if (dex_file_->StringDataAsStringPieceByIdx(param_id.descriptor_idx_) !=
+              rhs.dex_file_->StringDataAsStringPieceByIdx(rhs_param_id.descriptor_idx_)) {
+            return false;  // Parameter type mismatch.
+          }
+        }
+      }
+    }
+    return true;
+  }
+
+  bool operator!=(const Signature& rhs) const {
+    return !(*this == rhs);
+  }
+
+  bool operator==(const StringPiece& rhs) const {
+    // TODO: Avoid temporary string allocation.
+    return ToString() == rhs;
+  }
+
+ private:
+  Signature(const DexFile* dex, const DexFile::ProtoId& proto) : dex_file_(dex), proto_id_(&proto) {
+  }
+
+  Signature() : dex_file_(nullptr), proto_id_(nullptr) {
+  }
+
+  friend class DexFile;
+
+  const DexFile* const dex_file_;
+  const DexFile::ProtoId* const proto_id_;
+};
+std::ostream& operator<<(std::ostream& os, const Signature& sig);
 
 // Iterate and decode class_data_item
 class ClassDataItemIterator {

@@ -283,8 +283,8 @@ class Mir2Lir : public Backend {
     bool EvaluateBranch(Instruction::Code opcode, int src1, int src2);
     bool IsInexpensiveConstant(RegLocation rl_src);
     ConditionCode FlipComparisonOrder(ConditionCode before);
-    void DumpMappingTable(const char* table_name, const std::string& descriptor,
-                          const std::string& name, const std::string& signature,
+    void DumpMappingTable(const char* table_name, const char* descriptor,
+                          const char* name, const Signature& signature,
                           const std::vector<uint32_t>& v);
     void InstallLiteralPools();
     void InstallSwitchTables();

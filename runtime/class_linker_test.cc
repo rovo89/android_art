@@ -152,7 +152,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(method != NULL);
     EXPECT_TRUE(method->GetClass() != NULL);
     EXPECT_TRUE(mh.GetName() != NULL);
-    EXPECT_TRUE(mh.GetSignature() != NULL);
+    EXPECT_TRUE(mh.GetSignature() != Signature::NoSignature());
 
     EXPECT_TRUE(method->GetDexCacheStrings() != NULL);
     EXPECT_TRUE(method->GetDexCacheResolvedMethods() != NULL);
@@ -942,15 +942,16 @@ TEST_F(ClassLinkerTest, Interfaces) {
   EXPECT_TRUE(K->IsAssignableFrom(B));
   EXPECT_TRUE(J->IsAssignableFrom(B));
 
-  mirror::ArtMethod* Ii = I->FindVirtualMethod("i", "()V");
-  mirror::ArtMethod* Jj1 = J->FindVirtualMethod("j1", "()V");
-  mirror::ArtMethod* Jj2 = J->FindVirtualMethod("j2", "()V");
-  mirror::ArtMethod* Kj1 = K->FindInterfaceMethod("j1", "()V");
-  mirror::ArtMethod* Kj2 = K->FindInterfaceMethod("j2", "()V");
-  mirror::ArtMethod* Kk = K->FindInterfaceMethod("k", "()V");
-  mirror::ArtMethod* Ai = A->FindVirtualMethod("i", "()V");
-  mirror::ArtMethod* Aj1 = A->FindVirtualMethod("j1", "()V");
-  mirror::ArtMethod* Aj2 = A->FindVirtualMethod("j2", "()V");
+  const Signature void_sig = I->GetDexCache()->GetDexFile()->CreateSignature("()V");
+  mirror::ArtMethod* Ii = I->FindVirtualMethod("i", void_sig);
+  mirror::ArtMethod* Jj1 = J->FindVirtualMethod("j1", void_sig);
+  mirror::ArtMethod* Jj2 = J->FindVirtualMethod("j2", void_sig);
+  mirror::ArtMethod* Kj1 = K->FindInterfaceMethod("j1", void_sig);
+  mirror::ArtMethod* Kj2 = K->FindInterfaceMethod("j2", void_sig);
+  mirror::ArtMethod* Kk = K->FindInterfaceMethod("k", void_sig);
+  mirror::ArtMethod* Ai = A->FindVirtualMethod("i", void_sig);
+  mirror::ArtMethod* Aj1 = A->FindVirtualMethod("j1", void_sig);
+  mirror::ArtMethod* Aj2 = A->FindVirtualMethod("j2", void_sig);
   ASSERT_TRUE(Ii != NULL);
   ASSERT_TRUE(Jj1 != NULL);
   ASSERT_TRUE(Jj2 != NULL);

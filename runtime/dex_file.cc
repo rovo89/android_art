@@ -503,8 +503,8 @@ const DexFile::ProtoId* DexFile::FindProtoId(uint16_t return_type_idx,
 }
 
 // Given a signature place the type ids into the given vector
-bool DexFile::CreateTypeList(uint16_t* return_type_idx, std::vector<uint16_t>* param_type_idxs,
-                             const std::string& signature) const {
+bool DexFile::CreateTypeList(const StringPiece& signature, uint16_t* return_type_idx,
+                             std::vector<uint16_t>* param_type_idxs) const {
   if (signature[0] != '(') {
     return false;
   }
@@ -518,6 +518,7 @@ bool DexFile::CreateTypeList(uint16_t* return_type_idx, std::vector<uint16_t>* p
       process_return = true;
       continue;
     }
+    // TODO: avoid building a string.
     std::string descriptor;
     descriptor += c;
     while (c == '[') {  // process array prefix
@@ -557,35 +558,18 @@ bool DexFile::CreateTypeList(uint16_t* return_type_idx, std::vector<uint16_t>* p
   return false;  // failed to correctly parse return type
 }
 
-// Materializes the method descriptor for a method prototype.  Method
-// descriptors are not stored directly in the dex file.  Instead, one
-// must assemble the descriptor from references in the prototype.
-std::string DexFile::CreateMethodSignature(uint32_t proto_idx, int32_t* unicode_length) const {
-  const ProtoId& proto_id = GetProtoId(proto_idx);
-  std::string descriptor;
-  descriptor.push_back('(');
-  const TypeList* type_list = GetProtoParameters(proto_id);
-  size_t parameter_length = 0;
-  if (type_list != NULL) {
-    // A non-zero number of arguments.  Append the type names.
-    for (size_t i = 0; i < type_list->Size(); ++i) {
-      const TypeItem& type_item = type_list->GetTypeItem(i);
-      uint32_t type_idx = type_item.type_idx_;
-      uint32_t type_length;
-      const char* name = StringByTypeIdx(type_idx, &type_length);
-      parameter_length += type_length;
-      descriptor.append(name);
-    }
+const Signature DexFile::CreateSignature(const StringPiece& signature) const {
+  uint16_t return_type_idx;
+  std::vector<uint16_t> param_type_indices;
+  bool success = CreateTypeList(signature, &return_type_idx, &param_type_indices);
+  if (!success) {
+    return Signature::NoSignature();
   }
-  descriptor.push_back(')');
-  uint32_t return_type_idx = proto_id.return_type_idx_;
-  uint32_t return_type_length;
-  const char* name = StringByTypeIdx(return_type_idx, &return_type_length);
-  descriptor.append(name);
-  if (unicode_length != NULL) {
-    *unicode_length = parameter_length + return_type_length + 2;  // 2 for ( and )
+  const ProtoId* proto_id = FindProtoId(return_type_idx, param_type_indices);
+  if (proto_id == NULL) {
+    return Signature::NoSignature();
   }
-  return descriptor;
+  return Signature(this, *proto_id);
 }
 
 int32_t DexFile::GetLineNumFromPC(const mirror::ArtMethod* method, uint32_t rel_pc) const {
@@ -829,6 +813,30 @@ bool DexFile::LineNumForPcCb(void* raw_context, uint32_t address, uint32_t line_
     context->line_num_ = line_num;
     return address == context->address_;
   }
+}
+
+std::string Signature::ToString() const {
+  if (dex_file_ == nullptr) {
+    CHECK(proto_id_ == nullptr);
+    return "<no signature>";
+  }
+  const DexFile::TypeList* params = dex_file_->GetProtoParameters(*proto_id_);
+  std::string result;
+  if (params == nullptr) {
+    result += "()";
+  } else {
+    result += "(";
+    for (uint32_t i = 0; i < params->Size(); ++i) {
+      result += dex_file_->StringByTypeIdx(params->GetTypeItem(i).type_idx_);
+    }
+    result += ")";
+  }
+  result += dex_file_->StringByTypeIdx(proto_id_->return_type_idx_);
+  return result;
+}
+
+std::ostream& operator<<(std::ostream& os, const Signature& sig) {
+  return os << sig.ToString();
 }
 
 // Decodes the header section from the class data bytes.

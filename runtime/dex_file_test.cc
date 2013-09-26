@@ -137,14 +137,14 @@ TEST_F(DexFileTest, ClassDefs) {
   EXPECT_STREQ("LNested;", raw->GetClassDescriptor(c1));
 }
 
-TEST_F(DexFileTest, CreateMethodSignature) {
+TEST_F(DexFileTest, GetMethodSignature) {
   ScopedObjectAccess soa(Thread::Current());
-  const DexFile* raw(OpenTestDexFile("CreateMethodSignature"));
+  const DexFile* raw(OpenTestDexFile("GetMethodSignature"));
   ASSERT_TRUE(raw != NULL);
   EXPECT_EQ(1U, raw->NumClassDefs());
 
   const DexFile::ClassDef& class_def = raw->GetClassDef(0);
-  ASSERT_STREQ("LCreateMethodSignature;", raw->GetClassDescriptor(class_def));
+  ASSERT_STREQ("LGetMethodSignature;", raw->GetClassDescriptor(class_def));
 
   const byte* class_data = raw->GetClassData(class_def);
   ASSERT_TRUE(class_data != NULL);
@@ -156,11 +156,9 @@ TEST_F(DexFileTest, CreateMethodSignature) {
   {
     ASSERT_EQ(1U, it.NumDirectMethods());
     const DexFile::MethodId& method_id = raw->GetMethodId(it.GetMemberIndex());
-    uint32_t proto_idx = method_id.proto_idx_;
     const char* name = raw->StringDataByIdx(method_id.name_idx_);
     ASSERT_STREQ("<init>", name);
-    int32_t length;
-    std::string signature(raw->CreateMethodSignature(proto_idx, &length));
+    std::string signature(raw->GetMethodSignature(method_id).ToString());
     ASSERT_EQ("()V", signature);
   }
 
@@ -173,9 +171,7 @@ TEST_F(DexFileTest, CreateMethodSignature) {
     const char* name = raw->StringDataByIdx(method_id.name_idx_);
     ASSERT_STREQ("m1", name);
 
-    uint32_t proto_idx = method_id.proto_idx_;
-    int32_t length;
-    std::string signature(raw->CreateMethodSignature(proto_idx, &length));
+    std::string signature(raw->GetMethodSignature(method_id).ToString());
     ASSERT_EQ("(IDJLjava/lang/Object;)Ljava/lang/Float;", signature);
   }
 
@@ -186,20 +182,18 @@ TEST_F(DexFileTest, CreateMethodSignature) {
     const char* name = raw->StringDataByIdx(method_id.name_idx_);
     ASSERT_STREQ("m2", name);
 
-    uint32_t proto_idx = method_id.proto_idx_;
-    int32_t length;
-    std::string signature(raw->CreateMethodSignature(proto_idx, &length));
-    ASSERT_EQ("(ZSC)LCreateMethodSignature;", signature);
+    std::string signature(raw->GetMethodSignature(method_id).ToString());
+    ASSERT_EQ("(ZSC)LGetMethodSignature;", signature);
   }
 }
 
 TEST_F(DexFileTest, FindStringId) {
   ScopedObjectAccess soa(Thread::Current());
-  const DexFile* raw(OpenTestDexFile("CreateMethodSignature"));
+  const DexFile* raw(OpenTestDexFile("GetMethodSignature"));
   ASSERT_TRUE(raw != NULL);
   EXPECT_EQ(1U, raw->NumClassDefs());
 
-  const char* strings[] = { "LCreateMethodSignature;", "Ljava/lang/Float;", "Ljava/lang/Object;",
+  const char* strings[] = { "LGetMethodSignature;", "Ljava/lang/Float;", "Ljava/lang/Object;",
       "D", "I", "J", NULL };
   for (size_t i = 0; strings[i] != NULL; i++) {
     const char* str = strings[i];
@@ -245,11 +239,10 @@ TEST_F(DexFileTest, FindMethodId) {
     const DexFile::StringId& name = java_lang_dex_file_->GetStringId(to_find.name_idx_);
     const DexFile::ProtoId& signature = java_lang_dex_file_->GetProtoId(to_find.proto_idx_);
     const DexFile::MethodId* found = java_lang_dex_file_->FindMethodId(klass, name, signature);
-    int32_t length;
     ASSERT_TRUE(found != NULL) << "Didn't find method " << i << ": "
         << java_lang_dex_file_->StringByTypeIdx(to_find.class_idx_) << "."
         << java_lang_dex_file_->GetStringData(name)
-        << java_lang_dex_file_->CreateMethodSignature(to_find.proto_idx_, &length);
+        << java_lang_dex_file_->GetMethodSignature(to_find);
     EXPECT_EQ(java_lang_dex_file_->GetIndexForMethodId(*found), i);
   }
 }

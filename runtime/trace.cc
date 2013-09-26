@@ -667,7 +667,7 @@ void Trace::DumpMethodList(std::ostream& os, const std::set<mirror::ArtMethod*>&
     mh.ChangeMethod(method);
     os << StringPrintf("%p\t%s\t%s\t%s\t%s\n", method,
         PrettyDescriptor(mh.GetDeclaringClassDescriptor()).c_str(), mh.GetName(),
-        mh.GetSignature().c_str(), mh.GetDeclaringClassSourceFile());
+        mh.GetSignature().ToString().c_str(), mh.GetDeclaringClassSourceFile());
   }
 }
 

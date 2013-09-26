@@ -23,8 +23,8 @@ include art/build/Android.common.mk
 TEST_DEX_DIRECTORIES := \
 	AbstractMethod \
 	AllFields \
-	CreateMethodSignature \
 	ExceptionHandle \
+	GetMethodSignature \
 	Interfaces \
 	Main \
 	MyClass \

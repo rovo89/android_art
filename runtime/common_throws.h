@@ -27,6 +27,7 @@ class ArtMethod;
 class Class;
 class Object;
 }  // namespace mirror
+class Signature;
 class StringPiece;
 class ThrowLocation;
 
@@ -140,7 +141,7 @@ void ThrowNoSuchFieldError(const StringPiece& scope, mirror::Class* c,
 // NoSuchMethodError
 
 void ThrowNoSuchMethodError(InvokeType type, mirror::Class* c, const StringPiece& name,
-                            const StringPiece& signature)
+                            const Signature& signature)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 void ThrowNoSuchMethodError(uint32_t method_idx)

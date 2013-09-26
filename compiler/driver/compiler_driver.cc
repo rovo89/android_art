@@ -1227,8 +1227,9 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
                   if (name != NULL) {
                     uint16_t return_type_idx;
                     std::vector<uint16_t> param_type_idxs;
-                    bool success = dexfile->CreateTypeList(&return_type_idx, &param_type_idxs,
-                                                           cm_dexfile->GetMethodSignature(cm_method_id));
+                    bool success =
+                        dexfile->CreateTypeList(cm_dexfile->GetMethodSignature(cm_method_id).ToString(),
+                                                &return_type_idx, &param_type_idxs);
                     if (success) {
                       const DexFile::ProtoId* sig =
                           dexfile->FindProtoId(return_type_idx, param_type_idxs);

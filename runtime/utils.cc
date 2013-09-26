@@ -367,11 +367,13 @@ std::string PrettyMethod(const mirror::ArtMethod* m, bool with_signature) {
   result += '.';
   result += mh.GetName();
   if (with_signature) {
-    std::string signature(mh.GetSignature());
-    if (signature == "<no signature>") {
-      return result + signature;
+    const Signature signature = mh.GetSignature();
+    std::string sig_as_string(signature.ToString());
+    if (signature == Signature::NoSignature()) {
+      return result + sig_as_string;
     }
-    result = PrettyReturnType(signature.c_str()) + " " + result + PrettyArguments(signature.c_str());
+    result = PrettyReturnType(sig_as_string.c_str()) + " " + result +
+        PrettyArguments(sig_as_string.c_str());
   }
   return result;
 }
@@ -385,11 +387,13 @@ std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with
   result += '.';
   result += dex_file.GetMethodName(method_id);
   if (with_signature) {
-    std::string signature(dex_file.GetMethodSignature(method_id));
-    if (signature == "<no signature>") {
-      return result + signature;
+    const Signature signature = dex_file.GetMethodSignature(method_id);
+    std::string sig_as_string(signature.ToString());
+    if (signature == Signature::NoSignature()) {
+      return result + sig_as_string;
     }
-    result = PrettyReturnType(signature.c_str()) + " " + result + PrettyArguments(signature.c_str());
+    result = PrettyReturnType(sig_as_string.c_str()) + " " + result +
+        PrettyArguments(sig_as_string.c_str());
   }
   return result;
 }
@@ -641,7 +645,7 @@ std::string JniLongName(const mirror::ArtMethod* m) {
   long_name += JniShortName(m);
   long_name += "__";
 
-  std::string signature(MethodHelper(m).GetSignature());
+  std::string signature(MethodHelper(m).GetSignature().ToString());
   signature.erase(0, 1);
   signature.erase(signature.begin() + signature.find(')'), signature.end());
 

@@ -47,6 +47,10 @@ inline StringPiece DexFile::StringDataAsStringPieceByIdx(uint32_t idx) const {
   return StringPiece(data, static_cast<int>(length));
 }
 
+inline const Signature DexFile::GetMethodSignature(const MethodId& method_id) const {
+  return Signature(this, GetProtoId(method_id.proto_idx_));
+}
+
 inline const DexFile::TryItem* DexFile::GetTryItems(const CodeItem& code_item, uint32_t offset) {
   const uint16_t* insns_end_ = &code_item.insns_[code_item.insns_size_in_code_units_];
   return reinterpret_cast<const TryItem*>
