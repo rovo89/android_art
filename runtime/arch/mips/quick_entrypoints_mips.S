@@ -953,7 +953,7 @@ ENTRY art_quick_resolution_trampoline
     GENERATE_GLOBAL_POINTER
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     move    $a2, rSELF             # pass Thread::Current
-    jal     artQuickProxyInvokeHandler  # (Method* called, receiver, Thread*, SP)
+    jal     artQuickResolutionTrampoline  # (Method* called, receiver, Thread*, SP)
     move    $a3, $sp               # pass $sp
     lw      $gp, 52($sp)           # restore $gp
     lw      $ra, 60($sp)           # restore $ra
@@ -962,6 +962,7 @@ ENTRY art_quick_resolution_trampoline
     lw      $a1, 4($sp)            # restore non-callee save $a1
     lw      $a2, 8($sp)            # restore non-callee save $a2
     lw      $a3, 12($sp)           # restore non-callee save $a3
+    move    $t9, $v0               # code pointer must be in $t9 to generate the global pointer
     jr      $v0                    # tail call to method
 1:
     addiu   $sp, $sp, 64           # pop frame
