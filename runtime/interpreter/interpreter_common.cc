@@ -316,11 +316,12 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
 }
 
 // Explicit DoCall template function declarations.
-#define EXPLICIT_DO_CALL_TEMPLATE_DECL(_is_range, _do_assignability_check)                        \
-template bool DoCall<_is_range, _do_assignability_check>(ArtMethod* method, Object* receiver,     \
-                                                         Thread* self, ShadowFrame& shadow_frame, \
-                                                         const Instruction* inst,                 \
-                                                         uint16_t inst_data, JValue* result)
+#define EXPLICIT_DO_CALL_TEMPLATE_DECL(_is_range, _do_assignability_check)                      \
+  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                          \
+  bool DoCall<_is_range, _do_assignability_check>(ArtMethod* method, Object* receiver,          \
+                                                  Thread* self, ShadowFrame& shadow_frame,      \
+                                                  const Instruction* inst, uint16_t inst_data,  \
+                                                  JValue* result)
 EXPLICIT_DO_CALL_TEMPLATE_DECL(false, false);
 EXPLICIT_DO_CALL_TEMPLATE_DECL(false, true);
 EXPLICIT_DO_CALL_TEMPLATE_DECL(true, false);
@@ -329,7 +330,8 @@ EXPLICIT_DO_CALL_TEMPLATE_DECL(true, true);
 
 // Explicit DoFilledNewArray template function declarations.
 #define EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(_is_range_, _check)                \
-  template bool DoFilledNewArray<_is_range_, _check>(const Instruction* inst,         \
+  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                \
+  bool DoFilledNewArray<_is_range_, _check>(const Instruction* inst,                  \
                                                      const ShadowFrame& shadow_frame, \
                                                      Thread* self, JValue* result)
 EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(false, false);

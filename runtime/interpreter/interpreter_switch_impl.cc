@@ -51,7 +51,7 @@ namespace interpreter {
 #define PREAMBLE()
 
 template<bool do_access_check>
-static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
+JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
                                 ShadowFrame& shadow_frame, JValue result_register) {
   bool do_assignability_check = do_access_check;
   if (UNLIKELY(!shadow_frame.HasReferenceArray())) {
@@ -2134,12 +2134,14 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
 }  // NOLINT(readability/fn_size)
 
 // Explicit definitions of ExecuteSwitchImpl.
-template JValue ExecuteSwitchImpl<true>(Thread* self, MethodHelper& mh,
-                                        const DexFile::CodeItem* code_item,
-                                        ShadowFrame& shadow_frame, JValue result_register);
-template JValue ExecuteSwitchImpl<false>(Thread* self, MethodHelper& mh,
-                                         const DexFile::CodeItem* code_item,
-                                         ShadowFrame& shadow_frame, JValue result_register);
+template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) HOT_ATTR
+JValue ExecuteSwitchImpl<true>(Thread* self, MethodHelper& mh,
+                               const DexFile::CodeItem* code_item,
+                               ShadowFrame& shadow_frame, JValue result_register);
+template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) HOT_ATTR
+JValue ExecuteSwitchImpl<false>(Thread* self, MethodHelper& mh,
+                                const DexFile::CodeItem* code_item,
+                                ShadowFrame& shadow_frame, JValue result_register);
 
 }  // namespace interpreter
 }  // namespace art
