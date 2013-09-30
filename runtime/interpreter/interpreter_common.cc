@@ -24,6 +24,19 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
                                    JValue* result, size_t arg_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+// Assign register 'src_reg' from shadow_frame to register 'dest_reg' into new_shadow_frame.
+static inline void AssignRegister(ShadowFrame& new_shadow_frame, const ShadowFrame& shadow_frame,
+                                  size_t dest_reg, size_t src_reg) {
+  // If both register locations contains the same value, the register probably holds a reference.
+  int32_t src_value = shadow_frame.GetVReg(src_reg);
+  mirror::Object* o = shadow_frame.GetVRegReference(src_reg);
+  if (src_value == reinterpret_cast<int32_t>(o)) {
+    new_shadow_frame.SetVRegReference(dest_reg, o);
+  } else {
+    new_shadow_frame.SetVReg(dest_reg, src_value);
+  }
+}
+
 template<bool is_range, bool do_assignability_check>
 bool DoCall(ArtMethod* method, Object* receiver, Thread* self, ShadowFrame& shadow_frame,
             const Instruction* inst, uint16_t inst_data, JValue* result) {
@@ -45,67 +58,90 @@ bool DoCall(ArtMethod* method, Object* receiver, Thread* self, ShadowFrame& shad
   ShadowFrame* new_shadow_frame(ShadowFrame::Create(num_regs, &shadow_frame, method, 0, memory));
 
   // Initialize new shadow frame.
-  size_t cur_reg = num_regs - num_ins;
-  size_t arg_offset = 0;
-  if (receiver != NULL) {
-    DCHECK(!method->IsStatic());
-    new_shadow_frame->SetVRegReference(cur_reg, receiver);
-    ++cur_reg;
-    ++arg_offset;
-  } else {
-    DCHECK(method->IsStatic());
-  }
-
-  const DexFile::TypeList* params;
+  const size_t first_dest_reg = num_regs - num_ins;
   if (do_assignability_check) {
-    params = mh.GetParameterTypeList();
-  }
-  const char* shorty = mh.GetShorty();
-  // TODO: find a cleaner way to separate non-range and range information.
-  uint32_t arg[5];  // only used in invoke-XXX.
-  uint32_t vregC;   // only used in invoke-XXX-range.
-  if (is_range) {
-    vregC = inst->VRegC_3rc();
-  } else {
-    inst->GetArgs(arg, inst_data);
-  }
-  for (size_t shorty_pos = 0; cur_reg < num_regs; ++shorty_pos, ++cur_reg, ++arg_offset) {
-    DCHECK_LT(shorty_pos + 1, mh.GetShortyLength());
-    size_t arg_pos = (is_range) ? vregC + arg_offset : arg[arg_offset];
-    switch (shorty[shorty_pos + 1]) {
-      case 'L': {
-        Object* o = shadow_frame.GetVRegReference(arg_pos);
-        if (do_assignability_check && o != NULL) {
-          Class* arg_type = mh.GetClassFromTypeIdx(params->GetTypeItem(shorty_pos).type_idx_);
-          if (arg_type == NULL) {
-            CHECK(self->IsExceptionPending());
-            return false;
+    // Slow path: we need to do runtime check on reference assignment. We need to load the shorty
+    // to get the exact type of each reference argument.
+    const DexFile::TypeList* params = mh.GetParameterTypeList();
+    const char* shorty = mh.GetShorty();
+
+    // Handle receiver apart since it's not part of the shorty.
+    size_t dest_reg = first_dest_reg;
+    size_t arg_offset = 0;
+    if (receiver != NULL) {
+      DCHECK(!method->IsStatic());
+      new_shadow_frame->SetVRegReference(dest_reg, receiver);
+      ++dest_reg;
+      ++arg_offset;
+    } else {
+      DCHECK(method->IsStatic());
+    }
+    // TODO: find a cleaner way to separate non-range and range information without duplicating code.
+    uint32_t arg[5];  // only used in invoke-XXX.
+    uint32_t vregC;   // only used in invoke-XXX-range.
+    if (is_range) {
+      vregC = inst->VRegC_3rc();
+    } else {
+      inst->GetArgs(arg, inst_data);
+    }
+    for (size_t shorty_pos = 0; dest_reg < num_regs; ++shorty_pos, ++dest_reg, ++arg_offset) {
+      DCHECK_LT(shorty_pos + 1, mh.GetShortyLength());
+      const size_t src_reg = (is_range) ? vregC + arg_offset : arg[arg_offset];
+      switch (shorty[shorty_pos + 1]) {
+        case 'L': {
+          Object* o = shadow_frame.GetVRegReference(src_reg);
+          if (do_assignability_check && o != NULL) {
+            Class* arg_type = mh.GetClassFromTypeIdx(params->GetTypeItem(shorty_pos).type_idx_);
+            if (arg_type == NULL) {
+              CHECK(self->IsExceptionPending());
+              return false;
+            }
+            if (!o->VerifierInstanceOf(arg_type)) {
+              // This should never happen.
+              self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
+                                       "Ljava/lang/VirtualMachineError;",
+                                       "Invoking %s with bad arg %d, type '%s' not instance of '%s'",
+                                       mh.GetName(), shorty_pos,
+                                       ClassHelper(o->GetClass()).GetDescriptor(),
+                                       ClassHelper(arg_type).GetDescriptor());
+              return false;
+            }
           }
-          if (!o->VerifierInstanceOf(arg_type)) {
-            // This should never happen.
-            self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
-                                     "Ljava/lang/VirtualMachineError;",
-                                     "Invoking %s with bad arg %d, type '%s' not instance of '%s'",
-                                     mh.GetName(), shorty_pos,
-                                     ClassHelper(o->GetClass()).GetDescriptor(),
-                                     ClassHelper(arg_type).GetDescriptor());
-            return false;
-          }
+          new_shadow_frame->SetVRegReference(dest_reg, o);
+          break;
         }
-        new_shadow_frame->SetVRegReference(cur_reg, o);
-        break;
+        case 'J': case 'D': {
+          uint64_t wide_value = (static_cast<uint64_t>(shadow_frame.GetVReg(src_reg + 1)) << 32) |
+                                static_cast<uint32_t>(shadow_frame.GetVReg(src_reg));
+          new_shadow_frame->SetVRegLong(dest_reg, wide_value);
+          ++dest_reg;
+          ++arg_offset;
+          break;
+        }
+        default:
+          new_shadow_frame->SetVReg(dest_reg, shadow_frame.GetVReg(src_reg));
+          break;
       }
-      case 'J': case 'D': {
-        uint64_t wide_value = (static_cast<uint64_t>(shadow_frame.GetVReg(arg_pos + 1)) << 32) |
-                              static_cast<uint32_t>(shadow_frame.GetVReg(arg_pos));
-        new_shadow_frame->SetVRegLong(cur_reg, wide_value);
-        ++cur_reg;
-        ++arg_offset;
-        break;
+    }
+  } else {
+    // Fast path: no extra checks.
+    if (is_range) {
+      const uint16_t first_src_reg = inst->VRegC_3rc();
+      for (size_t src_reg = first_src_reg, dest_reg = first_dest_reg; dest_reg < num_regs;
+          ++dest_reg, ++src_reg) {
+        AssignRegister(*new_shadow_frame, shadow_frame, dest_reg, src_reg);
       }
-      default:
-        new_shadow_frame->SetVReg(cur_reg, shadow_frame.GetVReg(arg_pos));
-        break;
+    } else {
+      DCHECK_LE(num_ins, 5U);
+      uint16_t regList = inst->Fetch16(2);
+      uint16_t count = num_ins;
+      if (count == 5) {
+        AssignRegister(*new_shadow_frame, shadow_frame, first_dest_reg + 4U, (inst_data >> 8) & 0x0f);
+        --count;
+       }
+      for (size_t arg_index = 0; arg_index < count; ++arg_index, regList >>= 4) {
+        AssignRegister(*new_shadow_frame, shadow_frame, first_dest_reg + arg_index, regList & 0x0f);
+      }
     }
   }
 
@@ -113,7 +149,7 @@ bool DoCall(ArtMethod* method, Object* receiver, Thread* self, ShadowFrame& shad
   if (LIKELY(Runtime::Current()->IsStarted())) {
     (method->GetEntryPointFromInterpreter())(self, mh, code_item, new_shadow_frame, result);
   } else {
-    UnstartedRuntimeInvoke(self, mh, code_item, new_shadow_frame, result, num_regs - num_ins);
+    UnstartedRuntimeInvoke(self, mh, code_item, new_shadow_frame, result, first_dest_reg);
   }
   return !self->IsExceptionPending();
 }
