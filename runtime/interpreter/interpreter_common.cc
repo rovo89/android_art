@@ -19,62 +19,59 @@
 namespace art {
 namespace interpreter {
 
-template<InvokeType type, bool is_range, bool do_access_check>
-bool DoInvoke(Thread* self, ShadowFrame& shadow_frame,
-              const Instruction* inst, JValue* result) {
-  bool do_assignability_check = do_access_check;
-  uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
-  uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
-  Object* receiver = (type == kStatic) ? NULL : shadow_frame.GetVRegReference(vregC);
-  ArtMethod* method = FindMethodFromCode(method_idx, receiver, shadow_frame.GetMethod(), self,
-                                         do_access_check, type);
-  if (UNLIKELY(method == NULL)) {
-    CHECK(self->IsExceptionPending());
-    result->SetJ(0);
-    return false;
-  } else if (UNLIKELY(method->IsAbstract())) {
-    ThrowAbstractMethodError(method);
-    result->SetJ(0);
-    return false;
-  }
+static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
+                                   const DexFile::CodeItem* code_item, ShadowFrame* shadow_frame,
+                                   JValue* result, size_t arg_offset)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+template<bool is_range, bool do_assignability_check>
+bool DoCall(ArtMethod* method, Object* receiver, Thread* self, ShadowFrame& shadow_frame,
+            const Instruction* inst, uint16_t inst_data, JValue* result) {
+  // Compute method information.
   MethodHelper mh(method);
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
+  const uint16_t num_ins = (is_range) ? inst->VRegA_3rc(inst_data) : inst->VRegA_35c(inst_data);
   uint16_t num_regs;
-  uint16_t num_ins;
   if (LIKELY(code_item != NULL)) {
     num_regs = code_item->registers_size_;
-    num_ins = code_item->ins_size_;
+    DCHECK_EQ(num_ins, code_item->ins_size_);
   } else {
     DCHECK(method->IsNative() || method->IsProxyMethod());
-    num_regs = num_ins = ArtMethod::NumArgRegisters(mh.GetShorty());
-    if (!method->IsStatic()) {
-      num_regs++;
-      num_ins++;
-    }
+    num_regs = num_ins;
   }
 
+  // Allocate shadow frame on the stack.
   void* memory = alloca(ShadowFrame::ComputeSize(num_regs));
   ShadowFrame* new_shadow_frame(ShadowFrame::Create(num_regs, &shadow_frame, method, 0, memory));
+
+  // Initialize new shadow frame.
   size_t cur_reg = num_regs - num_ins;
+  size_t arg_offset = 0;
   if (receiver != NULL) {
+    DCHECK(!method->IsStatic());
     new_shadow_frame->SetVRegReference(cur_reg, receiver);
     ++cur_reg;
+    ++arg_offset;
+  } else {
+    DCHECK(method->IsStatic());
   }
 
   const DexFile::TypeList* params;
   if (do_assignability_check) {
     params = mh.GetParameterTypeList();
   }
-  size_t arg_offset = (receiver == NULL) ? 0 : 1;
   const char* shorty = mh.GetShorty();
-  uint32_t arg[5];
-  if (!is_range) {
-    inst->GetArgs(arg);
+  // TODO: find a cleaner way to separate non-range and range information.
+  uint32_t arg[5];  // only used in invoke-XXX.
+  uint32_t vregC;   // only used in invoke-XXX-range.
+  if (is_range) {
+    vregC = inst->VRegC_3rc();
+  } else {
+    inst->GetArgs(arg, inst_data);
   }
-  for (size_t shorty_pos = 0; cur_reg < num_regs; ++shorty_pos, cur_reg++, arg_offset++) {
+  for (size_t shorty_pos = 0; cur_reg < num_regs; ++shorty_pos, ++cur_reg, ++arg_offset) {
     DCHECK_LT(shorty_pos + 1, mh.GetShortyLength());
-    size_t arg_pos = is_range ? vregC + arg_offset : arg[arg_offset];
+    size_t arg_pos = (is_range) ? vregC + arg_offset : arg[arg_offset];
     switch (shorty[shorty_pos + 1]) {
       case 'L': {
         Object* o = shadow_frame.GetVRegReference(arg_pos);
@@ -102,8 +99,8 @@ bool DoInvoke(Thread* self, ShadowFrame& shadow_frame,
         uint64_t wide_value = (static_cast<uint64_t>(shadow_frame.GetVReg(arg_pos + 1)) << 32) |
                               static_cast<uint32_t>(shadow_frame.GetVReg(arg_pos));
         new_shadow_frame->SetVRegLong(cur_reg, wide_value);
-        cur_reg++;
-        arg_offset++;
+        ++cur_reg;
+        ++arg_offset;
         break;
       }
       default:
@@ -112,92 +109,7 @@ bool DoInvoke(Thread* self, ShadowFrame& shadow_frame,
     }
   }
 
-  if (LIKELY(Runtime::Current()->IsStarted())) {
-    (method->GetEntryPointFromInterpreter())(self, mh, code_item, new_shadow_frame, result);
-  } else {
-    UnstartedRuntimeInvoke(self, mh, code_item, new_shadow_frame, result, num_regs - num_ins);
-  }
-  return !self->IsExceptionPending();
-}
-
-template<bool is_range>
-bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
-                          const Instruction* inst, JValue* result) {
-  uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
-  Object* receiver = shadow_frame.GetVRegReference(vregC);
-  if (UNLIKELY(receiver == NULL)) {
-    // We lost the reference to the method index so we cannot get a more
-    // precised exception message.
-    ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
-    return false;
-  }
-  uint32_t vtable_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
-  // TODO: use ObjectArray<T>::GetWithoutChecks ?
-  ArtMethod* method = receiver->GetClass()->GetVTable()->Get(vtable_idx);
-  if (UNLIKELY(method == NULL)) {
-    CHECK(self->IsExceptionPending());
-    result->SetJ(0);
-    return false;
-  } else if (UNLIKELY(method->IsAbstract())) {
-    ThrowAbstractMethodError(method);
-    result->SetJ(0);
-    return false;
-  }
-
-  MethodHelper mh(method);
-  const DexFile::CodeItem* code_item = mh.GetCodeItem();
-  uint16_t num_regs;
-  uint16_t num_ins;
-  if (code_item != NULL) {
-    num_regs = code_item->registers_size_;
-    num_ins = code_item->ins_size_;
-  } else {
-    DCHECK(method->IsNative() || method->IsProxyMethod());
-    num_regs = num_ins = ArtMethod::NumArgRegisters(mh.GetShorty());
-    if (!method->IsStatic()) {
-      num_regs++;
-      num_ins++;
-    }
-  }
-
-  void* memory = alloca(ShadowFrame::ComputeSize(num_regs));
-  ShadowFrame* new_shadow_frame(ShadowFrame::Create(num_regs, &shadow_frame,
-                                                    method, 0, memory));
-  size_t cur_reg = num_regs - num_ins;
-  if (receiver != NULL) {
-    new_shadow_frame->SetVRegReference(cur_reg, receiver);
-    ++cur_reg;
-  }
-
-  size_t arg_offset = (receiver == NULL) ? 0 : 1;
-  const char* shorty = mh.GetShorty();
-  uint32_t arg[5];
-  if (!is_range) {
-    inst->GetArgs(arg);
-  }
-  for (size_t shorty_pos = 0; cur_reg < num_regs; ++shorty_pos, cur_reg++, arg_offset++) {
-    DCHECK_LT(shorty_pos + 1, mh.GetShortyLength());
-    size_t arg_pos = is_range ? vregC + arg_offset : arg[arg_offset];
-    switch (shorty[shorty_pos + 1]) {
-      case 'L': {
-        Object* o = shadow_frame.GetVRegReference(arg_pos);
-        new_shadow_frame->SetVRegReference(cur_reg, o);
-        break;
-      }
-      case 'J': case 'D': {
-        uint64_t wide_value = (static_cast<uint64_t>(shadow_frame.GetVReg(arg_pos + 1)) << 32) |
-                              static_cast<uint32_t>(shadow_frame.GetVReg(arg_pos));
-        new_shadow_frame->SetVRegLong(cur_reg, wide_value);
-        cur_reg++;
-        arg_offset++;
-        break;
-      }
-      default:
-        new_shadow_frame->SetVReg(cur_reg, shadow_frame.GetVReg(arg_pos));
-        break;
-    }
-  }
-
+  // Do the call now.
   if (LIKELY(Runtime::Current()->IsStarted())) {
     (method->GetEntryPointFromInterpreter())(self, mh, code_item, new_shadow_frame, result);
   } else {
@@ -273,9 +185,9 @@ bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
   return true;
 }
 
-void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
-                            const DexFile::CodeItem* code_item, ShadowFrame* shadow_frame,
-                            JValue* result, size_t arg_offset) {
+static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
+                                   const DexFile::CodeItem* code_item, ShadowFrame* shadow_frame,
+                                   JValue* result, size_t arg_offset) {
   // In a runtime that's not started we intercept certain methods to avoid complicated dependency
   // problems in core libraries.
   std::string name(PrettyMethod(shadow_frame->GetMethod()));
@@ -367,34 +279,17 @@ void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
   }
 }
 
-// Explicit DoInvoke template function declarations.
-#define EXPLICIT_DO_INVOKE_TEMPLATE_DECL(_type, _is_range_, _check) \
-  template bool DoInvoke<_type, _is_range_, _check>(Thread* self, ShadowFrame& shadow_frame, \
-                                                    const Instruction* inst, JValue* result)
-
-#define EXPLICIT_DO_INVOKE_TEMPLATE_DECL_VARIANTS(_type) \
-  EXPLICIT_DO_INVOKE_TEMPLATE_DECL(_type, false, false); \
-  EXPLICIT_DO_INVOKE_TEMPLATE_DECL(_type, false, true);  \
-  EXPLICIT_DO_INVOKE_TEMPLATE_DECL(_type, true, false);  \
-  EXPLICIT_DO_INVOKE_TEMPLATE_DECL(_type, true, true)
-
-EXPLICIT_DO_INVOKE_TEMPLATE_DECL_VARIANTS(kStatic);
-EXPLICIT_DO_INVOKE_TEMPLATE_DECL_VARIANTS(kDirect);
-EXPLICIT_DO_INVOKE_TEMPLATE_DECL_VARIANTS(kVirtual);
-EXPLICIT_DO_INVOKE_TEMPLATE_DECL_VARIANTS(kSuper);
-EXPLICIT_DO_INVOKE_TEMPLATE_DECL_VARIANTS(kInterface);
-
-#undef EXPLICIT_DO_INVOKE_TEMPLATE_DECL_VARIANTS
-#undef EXPLICIT_DO_INVOKE_TEMPLATE_DECL
-
-// Explicit DoInvokeVirtualQuick template function declarations.
-#define EXPLICIT_DO_INVOKE_VIRTUAL_QUICK_TEMPLATE_DECL(_is_range)                       \
-template bool DoInvokeVirtualQuick<_is_range>(Thread* self, ShadowFrame& shadow_frame,  \
-                                              const Instruction* inst, JValue* result)
-
-EXPLICIT_DO_INVOKE_VIRTUAL_QUICK_TEMPLATE_DECL(false);
-EXPLICIT_DO_INVOKE_VIRTUAL_QUICK_TEMPLATE_DECL(true);
-#undef EXPLICIT_DO_INVOKE_VIRTUAL_QUICK_TEMPLATE_DECL
+// Explicit DoCall template function declarations.
+#define EXPLICIT_DO_CALL_TEMPLATE_DECL(_is_range, _do_assignability_check)                        \
+template bool DoCall<_is_range, _do_assignability_check>(ArtMethod* method, Object* receiver,     \
+                                                         Thread* self, ShadowFrame& shadow_frame, \
+                                                         const Instruction* inst,                 \
+                                                         uint16_t inst_data, JValue* result)
+EXPLICIT_DO_CALL_TEMPLATE_DECL(false, false);
+EXPLICIT_DO_CALL_TEMPLATE_DECL(false, true);
+EXPLICIT_DO_CALL_TEMPLATE_DECL(true, false);
+EXPLICIT_DO_CALL_TEMPLATE_DECL(true, true);
+#undef EXPLICIT_DO_CALL_TEMPLATE_DECL
 
 // Explicit DoFilledNewArray template function declarations.
 #define EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(_is_range_, _check)                \

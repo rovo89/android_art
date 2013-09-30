@@ -422,15 +422,18 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh
   }
 
   ArtMethod* method = shadow_frame->GetMethod();
-  if (method->IsStatic() && !method->GetDeclaringClass()->IsInitializing()) {
-    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(method->GetDeclaringClass(),
-                                                                 true, true)) {
-      DCHECK(Thread::Current()->IsExceptionPending());
-      return;
+  // Ensure static methods are initialized.
+  if (method->IsStatic()) {
+    Class* declaringClass = method->GetDeclaringClass();
+    if (UNLIKELY(!declaringClass->IsInitializing())) {
+      if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(declaringClass,
+                                                                            true, true))) {
+        DCHECK(Thread::Current()->IsExceptionPending());
+        return;
+      }
+      CHECK(declaringClass->IsInitializing());
     }
-    CHECK(method->GetDeclaringClass()->IsInitializing());
   }
-
   self->PushShadowFrame(shadow_frame);
 
   if (LIKELY(!method->IsNative())) {
@@ -445,7 +448,6 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh
   }
 
   self->PopShadowFrame();
-  return;
 }
 
 }  // namespace interpreter

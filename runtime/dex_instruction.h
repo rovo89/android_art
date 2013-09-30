@@ -365,7 +365,10 @@ class Instruction {
   uint16_t VRegC_3rc() const;
 
   // Fills the given array with the 'arg' array of the instruction.
-  void GetArgs(uint32_t args[5]) const;
+  void GetArgs(uint32_t args[5], uint16_t inst_data) const;
+  void GetArgs(uint32_t args[5]) const {
+    return GetArgs(args, Fetch16(0));
+  }
 
   // Returns the opcode field of the instruction. The given "inst_data" parameter must be the first
   // 16 bits of instruction.

@@ -68,8 +68,7 @@ class ShadowFrame {
   static ShadowFrame* Create(uint32_t num_vregs, ShadowFrame* link,
                              mirror::ArtMethod* method, uint32_t dex_pc) {
     uint8_t* memory = new uint8_t[ComputeSize(num_vregs)];
-    ShadowFrame* sf = new (memory) ShadowFrame(num_vregs, link, method, dex_pc, true);
-    return sf;
+    return Create(num_vregs, link, method, dex_pc, memory);
   }
 
   // Create ShadowFrame for interpreter using provided memory.

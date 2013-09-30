@@ -1283,73 +1283,73 @@ static JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::C
       }
       case Instruction::INVOKE_VIRTUAL: {
         PREAMBLE();
-        bool success = DoInvoke<kVirtual, false, do_access_check>(self, shadow_frame, inst, &result_register);
+        bool success = DoInvoke<kVirtual, false, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_3xx);
         break;
       }
       case Instruction::INVOKE_VIRTUAL_RANGE: {
         PREAMBLE();
-        bool success = DoInvoke<kVirtual, true, do_access_check>(self, shadow_frame, inst, &result_register);
+        bool success = DoInvoke<kVirtual, true, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_3xx);
         break;
       }
       case Instruction::INVOKE_SUPER: {
         PREAMBLE();
-        bool success = DoInvoke<kSuper, false, do_access_check>(self, shadow_frame, inst, &result_register);
+        bool success = DoInvoke<kSuper, false, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_3xx);
         break;
       }
       case Instruction::INVOKE_SUPER_RANGE: {
         PREAMBLE();
-        bool success = DoInvoke<kSuper, true, do_access_check>(self, shadow_frame, inst, &result_register);
+        bool success = DoInvoke<kSuper, true, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_3xx);
         break;
       }
       case Instruction::INVOKE_DIRECT: {
         PREAMBLE();
-        bool success = DoInvoke<kDirect, false, do_access_check>(self, shadow_frame, inst, &result_register);
+        bool success = DoInvoke<kDirect, false, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_3xx);
         break;
       }
       case Instruction::INVOKE_DIRECT_RANGE: {
         PREAMBLE();
-        bool success = DoInvoke<kDirect, true, do_access_check>(self, shadow_frame, inst, &result_register);
+        bool success = DoInvoke<kDirect, true, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_3xx);
         break;
       }
       case Instruction::INVOKE_INTERFACE: {
         PREAMBLE();
-        bool success = DoInvoke<kInterface, false, do_access_check>(self, shadow_frame, inst, &result_register);
+        bool success = DoInvoke<kInterface, false, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_3xx);
         break;
       }
       case Instruction::INVOKE_INTERFACE_RANGE: {
         PREAMBLE();
-        bool success = DoInvoke<kInterface, true, do_access_check>(self, shadow_frame, inst, &result_register);
+        bool success = DoInvoke<kInterface, true, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_3xx);
         break;
       }
       case Instruction::INVOKE_STATIC: {
         PREAMBLE();
-        bool success = DoInvoke<kStatic, false, do_access_check>(self, shadow_frame, inst, &result_register);
+        bool success = DoInvoke<kStatic, false, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_3xx);
         break;
       }
       case Instruction::INVOKE_STATIC_RANGE: {
         PREAMBLE();
-        bool success = DoInvoke<kStatic, true, do_access_check>(self, shadow_frame, inst, &result_register);
+        bool success = DoInvoke<kStatic, true, do_access_check>(self, shadow_frame, inst, inst_data, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_3xx);
         break;
       }
       case Instruction::INVOKE_VIRTUAL_QUICK: {
         PREAMBLE();
-        bool success = DoInvokeVirtualQuick<false>(self, shadow_frame, inst, &result_register);
+        bool success = DoInvokeVirtualQuick<false>(self, shadow_frame, inst, inst_data, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_3xx);
         break;
       }
       case Instruction::INVOKE_VIRTUAL_RANGE_QUICK: {
         PREAMBLE();
-        bool success = DoInvokeVirtualQuick<true>(self, shadow_frame, inst, &result_register);
+        bool success = DoInvokeVirtualQuick<true>(self, shadow_frame, inst, inst_data, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_3xx);
         break;
       }
