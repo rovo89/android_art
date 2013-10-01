@@ -2333,12 +2333,14 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
 }  // NOLINT(readability/fn_size)
 
 // Explicit definitions of ExecuteGotoImpl.
-template JValue ExecuteGotoImpl<true>(Thread* self, MethodHelper& mh,
-                                      const DexFile::CodeItem* code_item,
-                                      ShadowFrame& shadow_frame, JValue result_register);
-template JValue ExecuteGotoImpl<false>(Thread* self, MethodHelper& mh,
-                                       const DexFile::CodeItem* code_item,
-                                       ShadowFrame& shadow_frame, JValue result_register);
+template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) HOT_ATTR
+JValue ExecuteGotoImpl<true>(Thread* self, MethodHelper& mh,
+                             const DexFile::CodeItem* code_item,
+                             ShadowFrame& shadow_frame, JValue result_register);
+template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) HOT_ATTR
+JValue ExecuteGotoImpl<false>(Thread* self, MethodHelper& mh,
+                              const DexFile::CodeItem* code_item,
+                              ShadowFrame& shadow_frame, JValue result_register);
 
 }  // namespace interpreter
 }  // namespace art

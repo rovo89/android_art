@@ -65,21 +65,15 @@ namespace interpreter {
 
 // External references to both interpreter implementations.
 
-// TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
-// specialization.
 template<bool do_access_check>
 extern JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh,
                                 const DexFile::CodeItem* code_item,
-                                ShadowFrame& shadow_frame, JValue result_register)
-    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
+                                ShadowFrame& shadow_frame, JValue result_register);
 
-// TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
-// specialization.
 template<bool do_access_check>
 extern JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh,
                               const DexFile::CodeItem* code_item,
-                              ShadowFrame& shadow_frame, JValue result_register)
-    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
+                              ShadowFrame& shadow_frame, JValue result_register);
 
 static inline void DoMonitorEnter(Thread* self, Object* ref) NO_THREAD_SAFETY_ANALYSIS {
   ref->MonitorEnter(self);
@@ -89,18 +83,16 @@ static inline void DoMonitorExit(Thread* self, Object* ref) NO_THREAD_SAFETY_ANA
   ref->MonitorExit(self);
 }
 
-// TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
-// specialization.
+// Invokes the given method. This is part of the invocation support and is used by DoInvoke and
+// DoInvokeVirtualQuick functions.
+// Returns true on success, otherwise throws an exception and returns false.
 template<bool is_range, bool do_assignability_check>
 bool DoCall(ArtMethod* method, Object* receiver, Thread* self, ShadowFrame& shadow_frame,
-            const Instruction* inst, uint16_t inst_data, JValue* result) NO_THREAD_SAFETY_ANALYSIS;
+            const Instruction* inst, uint16_t inst_data, JValue* result);
 
-// TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
-// specialization.
-template<InvokeType type, bool is_range, bool do_access_check>
-static bool DoInvoke(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst,
-                     uint16_t inst_data, JValue* result) NO_THREAD_SAFETY_ANALYSIS ALWAYS_INLINE;
 
+// Handles invoke-XXX/range instructions.
+// Returns true on success, otherwise throws an exception and returns false.
 template<InvokeType type, bool is_range, bool do_access_check>
 static inline bool DoInvoke(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst,
                             uint16_t inst_data, JValue* result) {
@@ -123,13 +115,8 @@ static inline bool DoInvoke(Thread* self, ShadowFrame& shadow_frame, const Instr
   }
 }
 
-// TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
-// specialization.
-template<bool is_range>
-static bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst,
-                                 uint16_t inst_data, JValue* result)
-    NO_THREAD_SAFETY_ANALYSIS ALWAYS_INLINE;
-
+// Handles invoke-virtual-quick and invoke-virtual-quick-range instructions.
+// Returns true on success, otherwise throws an exception and returns false.
 template<bool is_range>
 static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
                                         const Instruction* inst, uint16_t inst_data,
@@ -158,19 +145,8 @@ static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
   }
 }
 
-// We use template functions to optimize compiler inlining process. Otherwise,
-// some parts of the code (like a switch statement) which depend on a constant
-// parameter would not be inlined while it should be. These constant parameters
-// are now part of the template arguments.
-// Note these template functions are static and inlined so they should not be
-// part of the final object file.
-// TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
-// specialization.
-template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check>
-static bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
-                       const Instruction* inst, uint16_t inst_data)
-    NO_THREAD_SAFETY_ANALYSIS ALWAYS_INLINE;
-
+// Handles iget-XXX and sget-XXX instructions.
+// Returns true on success, otherwise throws an exception and returns false.
 template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check>
 static inline bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
                               const Instruction* inst, uint16_t inst_data) {
@@ -222,12 +198,8 @@ static inline bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
   return true;
 }
 
-// TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
-// specialization.
-template<Primitive::Type field_type>
-static bool DoIGetQuick(ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data)
-    NO_THREAD_SAFETY_ANALYSIS ALWAYS_INLINE;
-
+// Handles iget-quick, iget-wide-quick and iget-object-quick instructions.
+// Returns true on success, otherwise throws an exception and returns false.
 template<Primitive::Type field_type>
 static inline bool DoIGetQuick(ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data) {
   Object* obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
@@ -256,13 +228,8 @@ static inline bool DoIGetQuick(ShadowFrame& shadow_frame, const Instruction* ins
   return true;
 }
 
-// TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
-// specialization.
-template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check>
-static bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
-                       const Instruction* inst, uint16_t inst_data)
-    NO_THREAD_SAFETY_ANALYSIS ALWAYS_INLINE;
-
+// Handles iput-XXX and sput-XXX instructions.
+// Returns true on success, otherwise throws an exception and returns false.
 template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check>
 static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
                               const Instruction* inst, uint16_t inst_data) {
@@ -331,12 +298,8 @@ static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
   return true;
 }
 
-// TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
-// specialization.
-template<Primitive::Type field_type>
-static bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data)
-    NO_THREAD_SAFETY_ANALYSIS ALWAYS_INLINE;
-
+// Handles iput-quick, iput-wide-quick and iput-object-quick instructions.
+// Returns true on success, otherwise throws an exception and returns false.
 template<Primitive::Type field_type>
 static inline bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data) {
   Object* obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
@@ -365,6 +328,8 @@ static inline bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instructio
   return true;
 }
 
+// Handles string resolution for const-string and const-string-jumbo instructions. Also ensures the
+// java.lang.String class is initialized.
 static inline String* ResolveString(Thread* self, MethodHelper& mh, uint32_t string_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Class* java_lang_string_class = String::GetJavaLangString();
@@ -379,6 +344,8 @@ static inline String* ResolveString(Thread* self, MethodHelper& mh, uint32_t str
   return mh.ResolveString(string_idx);
 }
 
+// Handles div-int, div-int/2addr, div-int/li16 and div-int/lit8 instructions.
+// Returns true on success, otherwise throws a java.lang.ArithmeticException and return false.
 static inline bool DoIntDivide(ShadowFrame& shadow_frame, size_t result_reg,
                                int32_t dividend, int32_t divisor)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -395,6 +362,8 @@ static inline bool DoIntDivide(ShadowFrame& shadow_frame, size_t result_reg,
   return true;
 }
 
+// Handles rem-int, rem-int/2addr, rem-int/li16 and rem-int/lit8 instructions.
+// Returns true on success, otherwise throws a java.lang.ArithmeticException and return false.
 static inline bool DoIntRemainder(ShadowFrame& shadow_frame, size_t result_reg,
                                   int32_t dividend, int32_t divisor)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -411,6 +380,8 @@ static inline bool DoIntRemainder(ShadowFrame& shadow_frame, size_t result_reg,
   return true;
 }
 
+// Handles div-long and div-long-2addr instructions.
+// Returns true on success, otherwise throws a java.lang.ArithmeticException and return false.
 static inline bool DoLongDivide(ShadowFrame& shadow_frame, size_t result_reg,
                                 int64_t dividend, int64_t divisor)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -427,6 +398,8 @@ static inline bool DoLongDivide(ShadowFrame& shadow_frame, size_t result_reg,
   return true;
 }
 
+// Handles rem-long and rem-long-2addr instructions.
+// Returns true on success, otherwise throws a java.lang.ArithmeticException and return false.
 static inline bool DoLongRemainder(ShadowFrame& shadow_frame, size_t result_reg,
                                    int64_t dividend, int64_t divisor)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -443,13 +416,14 @@ static inline bool DoLongRemainder(ShadowFrame& shadow_frame, size_t result_reg,
   return true;
 }
 
-// TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
-// specialization.
+// Handles filled-new-array and filled-new-array-range instructions.
 // Returns true on success, otherwise throws an exception and returns false.
 template <bool is_range, bool do_access_check>
 bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
-                      Thread* self, JValue* result) NO_THREAD_SAFETY_ANALYSIS;
+                      Thread* self, JValue* result);
 
+// Handles packed-switch instruction.
+// Returns the branch offset to the next instruction to execute.
 static inline int32_t DoPackedSwitch(const Instruction* inst, const ShadowFrame& shadow_frame,
                                      uint16_t inst_data)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -473,6 +447,8 @@ static inline int32_t DoPackedSwitch(const Instruction* inst, const ShadowFrame&
   }
 }
 
+// Handles sparse-switch instruction.
+// Returns the branch offset to the next instruction to execute.
 static inline int32_t DoSparseSwitch(const Instruction* inst, const ShadowFrame& shadow_frame,
                                      uint16_t inst_data)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -575,6 +551,122 @@ static inline void TraceExecution(const ShadowFrame& shadow_frame, const Instruc
 static inline bool IsBackwardBranch(int32_t branch_offset) {
   return branch_offset <= 0;
 }
+
+// Explicitly instantiate all DoInvoke functions.
+#define EXPLICIT_DO_INVOKE_TEMPLATE_DECL(_type, _is_range, _do_check)                             \
+  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE                              \
+  static bool DoInvoke<_type, _is_range, _do_check>(Thread* self, ShadowFrame& shadow_frame,      \
+                                                    const Instruction* inst, uint16_t inst_data,  \
+                                                    JValue* result)
+
+#define EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(_type)       \
+  EXPLICIT_DO_INVOKE_TEMPLATE_DECL(_type, false, false);  \
+  EXPLICIT_DO_INVOKE_TEMPLATE_DECL(_type, false, true);   \
+  EXPLICIT_DO_INVOKE_TEMPLATE_DECL(_type, true, false);   \
+  EXPLICIT_DO_INVOKE_TEMPLATE_DECL(_type, true, true);
+
+EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kStatic);      // invoke-static/range.
+EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kDirect);      // invoke-direct/range.
+EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kVirtual);     // invoke-virtual/range.
+EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kSuper);       // invoke-super/range.
+EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kInterface);   // invoke-interface/range.
+#undef EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL
+#undef EXPLICIT_DO_INVOKE_TEMPLATE_DECL
+
+// Explicitly instantiate all DoFieldGet functions.
+#define EXPLICIT_DO_FIELD_GET_TEMPLATE_DECL(_find_type, _field_type, _do_check)                       \
+  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE                                  \
+  static bool DoFieldGet<_find_type, _field_type, _do_check>(Thread* self, ShadowFrame& shadow_frame, \
+                                                             const Instruction* inst, uint16_t inst_data)
+
+#define EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(_find_type, _field_type)  \
+    EXPLICIT_DO_FIELD_GET_TEMPLATE_DECL(_find_type, _field_type, false);  \
+    EXPLICIT_DO_FIELD_GET_TEMPLATE_DECL(_find_type, _field_type, true);
+
+// iget-XXX
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(InstancePrimitiveRead, Primitive::kPrimBoolean);
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(InstancePrimitiveRead, Primitive::kPrimByte);
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(InstancePrimitiveRead, Primitive::kPrimChar);
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(InstancePrimitiveRead, Primitive::kPrimShort);
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(InstancePrimitiveRead, Primitive::kPrimInt);
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(InstancePrimitiveRead, Primitive::kPrimLong);
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(InstanceObjectRead, Primitive::kPrimNot);
+
+// sget-XXX
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticPrimitiveRead, Primitive::kPrimBoolean);
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticPrimitiveRead, Primitive::kPrimByte);
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticPrimitiveRead, Primitive::kPrimChar);
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticPrimitiveRead, Primitive::kPrimShort);
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticPrimitiveRead, Primitive::kPrimInt);
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticPrimitiveRead, Primitive::kPrimLong);
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticObjectRead, Primitive::kPrimNot);
+
+#undef EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL
+#undef EXPLICIT_DO_FIELD_GET_TEMPLATE_DECL
+
+// Explicitly instantiate all DoFieldPut functions.
+#define EXPLICIT_DO_FIELD_PUT_TEMPLATE_DECL(_find_type, _field_type, _do_check)                             \
+  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE                                        \
+  static bool DoFieldPut<_find_type, _field_type, _do_check>(Thread* self, const ShadowFrame& shadow_frame, \
+                                                             const Instruction* inst, uint16_t inst_data)
+
+#define EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(_find_type, _field_type)  \
+    EXPLICIT_DO_FIELD_PUT_TEMPLATE_DECL(_find_type, _field_type, false);  \
+    EXPLICIT_DO_FIELD_PUT_TEMPLATE_DECL(_find_type, _field_type, true);
+
+// iput-XXX
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(InstancePrimitiveWrite, Primitive::kPrimBoolean);
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(InstancePrimitiveWrite, Primitive::kPrimByte);
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(InstancePrimitiveWrite, Primitive::kPrimChar);
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(InstancePrimitiveWrite, Primitive::kPrimShort);
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(InstancePrimitiveWrite, Primitive::kPrimInt);
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(InstancePrimitiveWrite, Primitive::kPrimLong);
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(InstanceObjectWrite, Primitive::kPrimNot);
+
+// sput-XXX
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticPrimitiveWrite, Primitive::kPrimBoolean);
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticPrimitiveWrite, Primitive::kPrimByte);
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticPrimitiveWrite, Primitive::kPrimChar);
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticPrimitiveWrite, Primitive::kPrimShort);
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticPrimitiveWrite, Primitive::kPrimInt);
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticPrimitiveWrite, Primitive::kPrimLong);
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticObjectWrite, Primitive::kPrimNot);
+
+#undef EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL
+#undef EXPLICIT_DO_FIELD_PUT_TEMPLATE_DECL
+
+// Explicitly instantiate all DoInvokeVirtualQuick functions.
+#define EXPLICIT_DO_INVOKE_VIRTUAL_QUICK_TEMPLATE_DECL(_is_range)                       \
+  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE                    \
+  static bool DoInvokeVirtualQuick<_is_range>(Thread* self, ShadowFrame& shadow_frame,  \
+                                          const Instruction* inst, uint16_t inst_data,  \
+                                          JValue* result)
+
+EXPLICIT_DO_INVOKE_VIRTUAL_QUICK_TEMPLATE_DECL(false);  // invoke-virtual-quick.
+EXPLICIT_DO_INVOKE_VIRTUAL_QUICK_TEMPLATE_DECL(true);   // invoke-virtual-quick-range.
+#undef EXPLICIT_INSTANTIATION_DO_INVOKE_VIRTUAL_QUICK
+
+// Explicitly instantiate all DoIGetQuick functions.
+#define EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL(_field_type)                                   \
+  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE                        \
+  static bool DoIGetQuick<_field_type>(ShadowFrame& shadow_frame, const Instruction* inst,  \
+                                       uint16_t inst_data)
+
+EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL(Primitive::kPrimInt);    // iget-quick.
+EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL(Primitive::kPrimLong);   // iget-wide-quick.
+EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL(Primitive::kPrimNot);    // iget-object-quick.
+#undef EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL
+
+// Explicitly instantiate all DoIPutQuick functions.
+#define EXPLICIT_DO_IPUT_QUICK_TEMPLATE_DECL(_field_type)                                         \
+  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE                              \
+  static bool DoIPutQuick<_field_type>(const ShadowFrame& shadow_frame, const Instruction* inst,  \
+                                       uint16_t inst_data)
+
+EXPLICIT_DO_IPUT_QUICK_TEMPLATE_DECL(Primitive::kPrimInt);    // iget-quick.
+EXPLICIT_DO_IPUT_QUICK_TEMPLATE_DECL(Primitive::kPrimLong);   // iget-wide-quick.
+EXPLICIT_DO_IPUT_QUICK_TEMPLATE_DECL(Primitive::kPrimNot);    // iget-object-quick.
+#undef EXPLICIT_DO_IPUT_QUICK_TEMPLATE_DECL
 
 }  // namespace interpreter
 }  // namespace art
