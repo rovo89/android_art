@@ -1620,21 +1620,22 @@ static bool NeedsInterpreter(const mirror::ArtMethod* method, const void* code) 
 }
 
 void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
-  ClassHelper kh(klass);
-  const DexFile::ClassDef* dex_class_def = kh.GetClassDef();
-  CHECK(dex_class_def != NULL);
-  const DexFile& dex_file = kh.GetDexFile();
-  const byte* class_data = dex_file.GetClassData(*dex_class_def);
-  if (class_data == NULL) {
-    return;  // no fields or methods - for example a marker interface
+  if (klass->NumDirectMethods() == 0) {
+    return;  // No direct methods => no static methods.
   }
   Runtime* runtime = Runtime::Current();
   if (!runtime->IsStarted() || runtime->UseCompileTimeClassPath()) {
-    // OAT file unavailable
-    return;
+    return;  // OAT file unavailable.
   }
+  ClassHelper kh(klass);
+  const DexFile& dex_file = kh.GetDexFile();
+  const DexFile::ClassDef* dex_class_def = kh.GetClassDef();
+  CHECK(dex_class_def != nullptr);
+  const byte* class_data = dex_file.GetClassData(*dex_class_def);
+  // There should always be class data if there were direct methods.
+  CHECK(class_data != nullptr) << PrettyDescriptor(klass);
   UniquePtr<const OatFile::OatClass> oat_class(GetOatClass(dex_file, klass->GetDexClassDefIndex()));
-  CHECK(oat_class.get() != NULL);
+  CHECK(oat_class.get() != nullptr);
   ClassDataItemIterator it(dex_file, class_data);
   // Skip fields
   while (it.HasNextStaticField()) {
@@ -1643,7 +1644,7 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
   while (it.HasNextInstanceField()) {
     it.Next();
   }
-  // Link the code of methods skipped by LinkCode
+  // Link the code of methods skipped by LinkCode.
   for (size_t method_index = 0; it.HasNextDirectMethod(); ++method_index, it.Next()) {
     mirror::ArtMethod* method = klass->GetDirectMethod(method_index);
     if (!method->IsStatic()) {
