@@ -291,8 +291,8 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
   ASSERT_TRUE(field_id != NULL);
   uint32_t field_idx = dex_file->GetIndexForFieldId(*field_id);
 
-  ArtField* field = FindFieldFromCode(field_idx, clinit, Thread::Current(), StaticObjectRead,
-                                      sizeof(Object*), true);
+  ArtField* field = FindFieldFromCode<StaticObjectRead, true>(field_idx, clinit, Thread::Current(),
+                                                              sizeof(Object*));
   Object* s0 = field->GetObj(klass);
   EXPECT_TRUE(s0 != NULL);
 

@@ -90,7 +90,6 @@ template<bool is_range, bool do_assignability_check>
 bool DoCall(ArtMethod* method, Object* receiver, Thread* self, ShadowFrame& shadow_frame,
             const Instruction* inst, uint16_t inst_data, JValue* result);
 
-
 // Handles invoke-XXX/range instructions.
 // Returns true on success, otherwise throws an exception and returns false.
 template<InvokeType type, bool is_range, bool do_access_check>
@@ -99,14 +98,14 @@ static inline bool DoInvoke(Thread* self, ShadowFrame& shadow_frame, const Instr
   const uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
   const uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
   Object* receiver = (type == kStatic) ? nullptr : shadow_frame.GetVRegReference(vregC);
-  ArtMethod* const method = FindMethodFromCode(method_idx, receiver, shadow_frame.GetMethod(), self,
-                                               do_access_check, type);
+  ArtMethod* const method = FindMethodFromCode<type, do_access_check>(method_idx, receiver,
+                                                                      shadow_frame.GetMethod(),
+                                                                      self);
   if (type != kStatic) {
     // Reload the vreg since the GC may have moved the object.
     receiver = shadow_frame.GetVRegReference(vregC);
   }
-
-  if (UNLIKELY(method == NULL)) {
+  if (UNLIKELY(method == nullptr)) {
     CHECK(self->IsExceptionPending());
     result->SetJ(0);
     return false;
@@ -128,7 +127,7 @@ static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
                                         JValue* result) {
   const uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
   Object* const receiver = shadow_frame.GetVRegReference(vregC);
-  if (UNLIKELY(receiver == NULL)) {
+  if (UNLIKELY(receiver == nullptr)) {
     // We lost the reference to the method index so we cannot get a more
     // precised exception message.
     ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
@@ -136,7 +135,7 @@ static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
   }
   const uint32_t vtable_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
   ArtMethod* const method = receiver->GetClass()->GetVTable()->GetWithoutChecks(vtable_idx);
-  if (UNLIKELY(method == NULL)) {
+  if (UNLIKELY(method == nullptr)) {
     CHECK(self->IsExceptionPending());
     result->SetJ(0);
     return false;
@@ -155,12 +154,11 @@ static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
 template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check>
 static inline bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
                               const Instruction* inst, uint16_t inst_data) {
-  bool is_static = (find_type == StaticObjectRead) || (find_type == StaticPrimitiveRead);
-  uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
-  ArtField* f = FindFieldFromCode(field_idx, shadow_frame.GetMethod(), self,
-                                  find_type, Primitive::FieldSize(field_type),
-                                  do_access_check);
-  if (UNLIKELY(f == NULL)) {
+  const bool is_static = (find_type == StaticObjectRead) || (find_type == StaticPrimitiveRead);
+  const uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
+  ArtField* f = FindFieldFromCode<find_type, do_access_check>(field_idx, shadow_frame.GetMethod(), self,
+                                                              Primitive::FieldSize(field_type));
+  if (UNLIKELY(f == nullptr)) {
     CHECK(self->IsExceptionPending());
     return false;
   }
@@ -169,7 +167,7 @@ static inline bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
     obj = f->GetDeclaringClass();
   } else {
     obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
-    if (UNLIKELY(obj == NULL)) {
+    if (UNLIKELY(obj == nullptr)) {
       ThrowNullPointerExceptionForFieldAccess(shadow_frame.GetCurrentLocationForThrow(), f, true);
       return false;
     }
@@ -208,7 +206,7 @@ static inline bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
 template<Primitive::Type field_type>
 static inline bool DoIGetQuick(ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data) {
   Object* obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
-  if (UNLIKELY(obj == NULL)) {
+  if (UNLIKELY(obj == nullptr)) {
     // We lost the reference to the field index so we cannot get a more
     // precised exception message.
     ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
@@ -241,10 +239,9 @@ static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
   bool do_assignability_check = do_access_check;
   bool is_static = (find_type == StaticObjectWrite) || (find_type == StaticPrimitiveWrite);
   uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
-  ArtField* f = FindFieldFromCode(field_idx, shadow_frame.GetMethod(), self,
-                                  find_type, Primitive::FieldSize(field_type),
-                                  do_access_check);
-  if (UNLIKELY(f == NULL)) {
+  ArtField* f = FindFieldFromCode<find_type, do_access_check>(field_idx, shadow_frame.GetMethod(), self,
+                                                              Primitive::FieldSize(field_type));
+  if (UNLIKELY(f == nullptr)) {
     CHECK(self->IsExceptionPending());
     return false;
   }
@@ -253,7 +250,7 @@ static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
     obj = f->GetDeclaringClass();
   } else {
     obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
-    if (UNLIKELY(obj == NULL)) {
+    if (UNLIKELY(obj == nullptr)) {
       ThrowNullPointerExceptionForFieldAccess(shadow_frame.GetCurrentLocationForThrow(),
                                               f, false);
       return false;
@@ -281,7 +278,7 @@ static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
       break;
     case Primitive::kPrimNot: {
       Object* reg = shadow_frame.GetVRegReference(vregA);
-      if (do_assignability_check && reg != NULL) {
+      if (do_assignability_check && reg != nullptr) {
         Class* field_class = FieldHelper(f).GetType();
         if (!reg->VerifierInstanceOf(field_class)) {
           // This should never happen.
@@ -308,7 +305,7 @@ static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
 template<Primitive::Type field_type>
 static inline bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data) {
   Object* obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
-  if (UNLIKELY(obj == NULL)) {
+  if (UNLIKELY(obj == nullptr)) {
     // We lost the reference to the field index so we cannot get a more
     // precised exception message.
     ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());

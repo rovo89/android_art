@@ -118,8 +118,7 @@ extern "C" uint64_t artInvokeInterfaceTrampoline(mirror::ArtMethod* interface_me
       DCHECK_EQ(instr_code, Instruction::INVOKE_INTERFACE_RANGE);
       dex_method_idx = instr->VRegB_3rc();
     }
-    method = FindMethodFromCode(dex_method_idx, this_object, caller_method, self,
-                                false, kInterface);
+    method = FindMethodFromCode<kInterface, false>(dex_method_idx, this_object, caller_method, self);
     if (UNLIKELY(method == NULL)) {
       CHECK(self->IsExceptionPending());
       return 0;  // Failure.
@@ -142,17 +141,15 @@ extern "C" uint64_t artInvokeInterfaceTrampoline(mirror::ArtMethod* interface_me
   return result;
 }
 
-
+template<InvokeType type, bool access_check>
 static uint64_t artInvokeCommon(uint32_t method_idx, mirror::Object* this_object,
                                 mirror::ArtMethod* caller_method,
-                                Thread* self, mirror::ArtMethod** sp, bool access_check,
-                                InvokeType type)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+                                Thread* self, mirror::ArtMethod** sp) {
   mirror::ArtMethod* method = FindMethodFast(method_idx, this_object, caller_method,
                                                   access_check, type);
   if (UNLIKELY(method == NULL)) {
     FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);
-    method = FindMethodFromCode(method_idx, this_object, caller_method, self, access_check, type);
+    method = FindMethodFromCode<type, access_check>(method_idx, this_object, caller_method, self);
     if (UNLIKELY(method == NULL)) {
       CHECK(self->IsExceptionPending());
       return 0;  // failure
@@ -176,6 +173,27 @@ static uint64_t artInvokeCommon(uint32_t method_idx, mirror::Object* this_object
   return result;
 }
 
+// Explicit template declarations of artInvokeCommon for all invoke types.
+#define EXPLICIT_ART_INVOKE_COMMON_TEMPLATE_DECL(_type, _access_check)                        \
+  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                        \
+  static uint64_t artInvokeCommon<_type, _access_check>(uint32_t method_idx,                  \
+                                                        mirror::Object* this_object,          \
+                                                        mirror::ArtMethod* caller_method,     \
+                                                        Thread* self, mirror::ArtMethod** sp)
+
+#define EXPLICIT_ART_INVOKE_COMMON_TYPED_TEMPLATE_DECL(_type) \
+    EXPLICIT_ART_INVOKE_COMMON_TEMPLATE_DECL(_type, false);   \
+    EXPLICIT_ART_INVOKE_COMMON_TEMPLATE_DECL(_type, true)
+
+EXPLICIT_ART_INVOKE_COMMON_TYPED_TEMPLATE_DECL(kStatic);
+EXPLICIT_ART_INVOKE_COMMON_TYPED_TEMPLATE_DECL(kDirect);
+EXPLICIT_ART_INVOKE_COMMON_TYPED_TEMPLATE_DECL(kVirtual);
+EXPLICIT_ART_INVOKE_COMMON_TYPED_TEMPLATE_DECL(kSuper);
+EXPLICIT_ART_INVOKE_COMMON_TYPED_TEMPLATE_DECL(kInterface);
+
+#undef EXPLICIT_ART_INVOKE_COMMON_TYPED_TEMPLATE_DECL
+#undef EXPLICIT_ART_INVOKE_COMMON_TEMPLATE_DECL
+
 // See comments in runtime_support_asm.S
 extern "C" uint64_t artInvokeInterfaceTrampolineWithAccessCheck(uint32_t method_idx,
                                                                 mirror::Object* this_object,
@@ -183,7 +201,7 @@ extern "C" uint64_t artInvokeInterfaceTrampolineWithAccessCheck(uint32_t method_
                                                                 Thread* self,
                                                                 mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return artInvokeCommon(method_idx, this_object, caller_method, self, sp, true, kInterface);
+  return artInvokeCommon<kInterface, true>(method_idx, this_object, caller_method, self, sp);
 }
 
 
@@ -193,7 +211,7 @@ extern "C" uint64_t artInvokeDirectTrampolineWithAccessCheck(uint32_t method_idx
                                                              Thread* self,
                                                              mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return artInvokeCommon(method_idx, this_object, caller_method, self, sp, true, kDirect);
+  return artInvokeCommon<kDirect, true>(method_idx, this_object, caller_method, self, sp);
 }
 
 extern "C" uint64_t artInvokeStaticTrampolineWithAccessCheck(uint32_t method_idx,
@@ -202,7 +220,7 @@ extern "C" uint64_t artInvokeStaticTrampolineWithAccessCheck(uint32_t method_idx
                                                              Thread* self,
                                                              mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return artInvokeCommon(method_idx, this_object, caller_method, self, sp, true, kStatic);
+  return artInvokeCommon<kStatic, true>(method_idx, this_object, caller_method, self, sp);
 }
 
 extern "C" uint64_t artInvokeSuperTrampolineWithAccessCheck(uint32_t method_idx,
@@ -211,7 +229,7 @@ extern "C" uint64_t artInvokeSuperTrampolineWithAccessCheck(uint32_t method_idx,
                                                             Thread* self,
                                                             mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return artInvokeCommon(method_idx, this_object, caller_method, self, sp, true, kSuper);
+  return artInvokeCommon<kSuper, true>(method_idx, this_object, caller_method, self, sp);
 }
 
 extern "C" uint64_t artInvokeVirtualTrampolineWithAccessCheck(uint32_t method_idx,
@@ -220,7 +238,7 @@ extern "C" uint64_t artInvokeVirtualTrampolineWithAccessCheck(uint32_t method_id
                                                               Thread* self,
                                                               mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return artInvokeCommon(method_idx, this_object, caller_method, self, sp, true, kVirtual);
+  return artInvokeCommon<kVirtual, true>(method_idx, this_object, caller_method, self, sp);
 }
 
 }  // namespace art
