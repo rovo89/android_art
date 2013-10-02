@@ -24,6 +24,7 @@ namespace art {
 void Thread::InitCpu() {
   CHECK_EQ(THREAD_FLAGS_OFFSET, OFFSETOF_MEMBER(Thread, state_and_flags_));
   CHECK_EQ(THREAD_EXCEPTION_OFFSET, OFFSETOF_MEMBER(Thread, exception_));
+  CHECK_EQ(THREAD_ID_OFFSET, OFFSETOF_MEMBER(Thread, thin_lock_thread_id_));
 }
 
 }  // namespace art

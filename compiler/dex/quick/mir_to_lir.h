@@ -639,8 +639,6 @@ class Mir2Lir : public Backend {
     virtual void GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) = 0;
     virtual void GenSelect(BasicBlock* bb, MIR* mir) = 0;
     virtual void GenMemBarrier(MemBarrierKind barrier_kind) = 0;
-    virtual void GenMonitorEnter(int opt_flags, RegLocation rl_src) = 0;
-    virtual void GenMonitorExit(int opt_flags, RegLocation rl_src) = 0;
     virtual void GenMoveException(RegLocation rl_dest) = 0;
     virtual void GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
                                                RegLocation rl_result, int lit, int first_bit,
@@ -698,6 +696,10 @@ class Mir2Lir : public Backend {
     virtual bool InexpensiveConstantFloat(int32_t value) = 0;
     virtual bool InexpensiveConstantLong(int64_t value) = 0;
     virtual bool InexpensiveConstantDouble(int64_t value) = 0;
+
+    // May be optimized by targets.
+    virtual void GenMonitorEnter(int opt_flags, RegLocation rl_src);
+    virtual void GenMonitorExit(int opt_flags, RegLocation rl_src);
 
     // Temp workaround
     void Workaround7250540(RegLocation rl_dest, int value);

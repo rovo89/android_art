@@ -26,7 +26,7 @@ static jobject DexCache_getDexNative(JNIEnv* env, jobject javaDexCache) {
   ScopedObjectAccess soa(env);
   mirror::DexCache* dex_cache = soa.Decode<mirror::DexCache*>(javaDexCache);
   // Should only be called while holding the lock on the dex cache.
-  DCHECK_EQ(dex_cache->GetThinLockId(), soa.Self()->GetThinLockId());
+  DCHECK_EQ(dex_cache->GetLockOwnerThreadId(), soa.Self()->GetThreadId());
   const DexFile* dex_file = dex_cache->GetDexFile();
   if (dex_file == NULL) {
     return NULL;

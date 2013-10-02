@@ -154,7 +154,8 @@ class PACKED(4) Thread {
   void ModifySuspendCount(Thread* self, int delta, bool for_debugger)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_suspend_count_lock_);
 
-  bool RequestCheckpoint(Closure* function);
+  bool RequestCheckpoint(Closure* function)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_suspend_count_lock_);
 
   // Called when thread detected that the thread_suspend_count_ was non-zero. Gives up share of
   // mutator_lock_ and waits until it is resumed and thread_suspend_count_ is zero.
@@ -174,14 +175,6 @@ class PACKED(4) Thread {
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       UNLOCK_FUNCTION(Locks::mutator_lock_)
       ALWAYS_INLINE;
-
-  // Wait for a debugger suspension on the thread associated with the given peer. Returns the
-  // thread on success, else NULL. If the thread should be suspended then request_suspension should
-  // be true on entry. If the suspension times out then *timeout is set to true.
-  static Thread* SuspendForDebugger(jobject peer,  bool request_suspension, bool* timed_out)
-      LOCKS_EXCLUDED(Locks::mutator_lock_,
-                     Locks::thread_list_lock_,
-                     Locks::thread_suspend_count_lock_);
 
   // Once called thread suspension will cause an assertion failure.
 #ifndef NDEBUG
@@ -219,7 +212,7 @@ class PACKED(4) Thread {
     return daemon_;
   }
 
-  bool HoldsLock(mirror::Object*);
+  bool HoldsLock(mirror::Object*) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Changes the priority of this thread to match that of the java.lang.Thread object.
@@ -237,8 +230,8 @@ class PACKED(4) Thread {
    */
   static int GetNativePriority();
 
-  uint32_t GetThinLockId() const {
-    return thin_lock_id_;
+  uint32_t GetThreadId() const {
+    return thin_lock_thread_id_;
   }
 
   pid_t GetTid() const {
@@ -414,7 +407,7 @@ class PACKED(4) Thread {
   }
 
   static ThreadOffset ThinLockIdOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, thin_lock_id_));
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, thin_lock_thread_id_));
   }
 
   static ThreadOffset CardTableOffset() {
@@ -702,18 +695,18 @@ class PACKED(4) Thread {
   // Size of the stack
   size_t stack_size_;
 
-  // Pointer to previous stack trace captured by sampling profiler.
-  std::vector<mirror::ArtMethod*>* stack_trace_sample_;
-
-  // The clock base used for tracing.
-  uint64_t trace_clock_base_;
-
   // Thin lock thread id. This is a small integer used by the thin lock implementation.
   // This is not to be confused with the native thread's tid, nor is it the value returned
   // by java.lang.Thread.getId --- this is a distinct value, used only for locking. One
   // important difference between this id and the ids visible to managed code is that these
   // ones get reused (to ensure that they fit in the number of bits available).
-  uint32_t thin_lock_id_;
+  uint32_t thin_lock_thread_id_;
+
+  // Pointer to previous stack trace captured by sampling profiler.
+  std::vector<mirror::ArtMethod*>* stack_trace_sample_;
+
+  // The clock base used for tracing.
+  uint64_t trace_clock_base_;
 
   // System thread id.
   pid_t tid_;
@@ -722,13 +715,16 @@ class PACKED(4) Thread {
 
   // Guards the 'interrupted_' and 'wait_monitor_' members.
   mutable Mutex* wait_mutex_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  // Condition variable waited upon during a wait.
   ConditionVariable* wait_cond_ GUARDED_BY(wait_mutex_);
-  // Pointer to the monitor lock we're currently waiting on (or NULL).
+  // Pointer to the monitor lock we're currently waiting on or NULL if not waiting.
   Monitor* wait_monitor_ GUARDED_BY(wait_mutex_);
   // Thread "interrupted" status; stays raised until queried or thrown.
   bool32_t interrupted_ GUARDED_BY(wait_mutex_);
-  // The next thread in the wait set this thread is part of.
+  // The next thread in the wait set this thread is part of or NULL if not waiting.
   Thread* wait_next_;
+
+
   // If we're blocked in MonitorEnter, this is the object we're trying to lock.
   mirror::Object* monitor_enter_object_;
 
@@ -785,7 +781,8 @@ class PACKED(4) Thread {
   // Cause for last suspension.
   const char* last_no_thread_suspension_cause_;
 
-  // Pending checkpoint functions.
+  // Pending checkpoint function or NULL if non-pending. Installation guarding by
+  // Locks::thread_suspend_count_lock_.
   Closure* checkpoint_function_;
 
  public:

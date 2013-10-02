@@ -150,43 +150,6 @@ void X86Mir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
                           rX86_ARG1, true);
 }
 
-void X86Mir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
-  FlushAllRegs();
-  LoadValueDirectFixed(rl_src, rCX);  // Get obj
-  LockCallTemps();  // Prepare for explicit register usage
-  GenNullCheck(rl_src.s_reg_low, rCX, opt_flags);
-  // If lock is unheld, try to grab it quickly with compare and exchange
-  // TODO: copy and clear hash state?
-  NewLIR2(kX86Mov32RT, rDX, Thread::ThinLockIdOffset().Int32Value());
-  NewLIR2(kX86Sal32RI, rDX, LW_LOCK_OWNER_SHIFT);
-  NewLIR2(kX86Xor32RR, rAX, rAX);
-  NewLIR3(kX86LockCmpxchgMR, rCX, mirror::Object::MonitorOffset().Int32Value(), rDX);
-  LIR* branch = NewLIR2(kX86Jcc8, 0, kX86CondEq);
-  // If lock is held, go the expensive route - artLockObjectFromCode(self, obj);
-  CallRuntimeHelperReg(QUICK_ENTRYPOINT_OFFSET(pLockObject), rCX, true);
-  branch->target = NewLIR0(kPseudoTargetLabel);
-}
-
-void X86Mir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
-  FlushAllRegs();
-  LoadValueDirectFixed(rl_src, rAX);  // Get obj
-  LockCallTemps();  // Prepare for explicit register usage
-  GenNullCheck(rl_src.s_reg_low, rAX, opt_flags);
-  // If lock is held by the current thread, clear it to quickly release it
-  // TODO: clear hash state?
-  NewLIR2(kX86Mov32RT, rDX, Thread::ThinLockIdOffset().Int32Value());
-  NewLIR2(kX86Sal32RI, rDX, LW_LOCK_OWNER_SHIFT);
-  NewLIR3(kX86Mov32RM, rCX, rAX, mirror::Object::MonitorOffset().Int32Value());
-  OpRegReg(kOpSub, rCX, rDX);
-  LIR* branch = NewLIR2(kX86Jcc8, 0, kX86CondNe);
-  NewLIR3(kX86Mov32MR, rAX, mirror::Object::MonitorOffset().Int32Value(), rCX);
-  LIR* branch2 = NewLIR1(kX86Jmp8, 0);
-  branch->target = NewLIR0(kPseudoTargetLabel);
-  // Otherwise, go the expensive route - UnlockObjectFromCode(obj);
-  CallRuntimeHelperReg(QUICK_ENTRYPOINT_OFFSET(pUnlockObject), rAX, true);
-  branch2->target = NewLIR0(kPseudoTargetLabel);
-}
-
 void X86Mir2Lir::GenMoveException(RegLocation rl_dest) {
   int ex_offset = Thread::ExceptionOffset().Int32Value();
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);

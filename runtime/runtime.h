@@ -112,6 +112,7 @@ class Runtime {
     size_t parallel_gc_threads_;
     size_t conc_gc_threads_;
     size_t stack_size_;
+    size_t max_spins_before_thin_lock_inflation_;
     bool low_memory_mode_;
     size_t lock_profiling_threshold_;
     std::string stack_trace_file_;
@@ -281,6 +282,10 @@ class Runtime {
 
   JavaVMExt* GetJavaVM() const {
     return java_vm_;
+  }
+
+  size_t GetMaxSpinsBeforeThinkLockInflation() const {
+    return max_spins_before_thin_lock_inflation_;
   }
 
   MonitorList* GetMonitorList() const {
@@ -455,6 +460,8 @@ class Runtime {
 
   gc::Heap* heap_;
 
+  // The number of spins that are done before thread suspension is used to forcibly inflate.
+  size_t max_spins_before_thin_lock_inflation_;
   MonitorList* monitor_list_;
 
   ThreadList* thread_list_;

@@ -23,6 +23,8 @@
 #include "compiler/oat_writer.h"
 #include "gc/space/image_space.h"
 #include "image.h"
+#include "lock_word.h"
+#include "mirror/object-inl.h"
 #include "signal_catcher.h"
 #include "UniquePtr.h"
 #include "utils.h"
@@ -158,7 +160,7 @@ TEST_F(ImageTest, WriteRead) {
       // non image classes should be in a space after the image.
       EXPECT_GT(reinterpret_cast<byte*>(klass), image_end) << descriptor;
     }
-    EXPECT_TRUE(Monitor::IsValidLockWord(*klass->GetRawLockWordAddress()));
+    EXPECT_TRUE(Monitor::IsValidLockWord(klass->GetLockWord()));
   }
 }
 

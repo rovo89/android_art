@@ -21,6 +21,9 @@
 // check.
 #define SUSPEND_CHECK_INTERVAL (1000)
 
+// Offsets within java.lang.Object.
+#define LOCK_WORD_OFFSET 4
+
 // Offsets within java.lang.String.
 #define STRING_VALUE_OFFSET 8
 #define STRING_COUNT_OFFSET 12

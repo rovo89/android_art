@@ -1762,4 +1762,16 @@ void Mir2Lir::GenSuspendTestAndBranch(int opt_flags, LIR* target) {
   suspend_launchpads_.Insert(launch_pad);
 }
 
+/* Call out to helper assembly routine that will null check obj and then lock it. */
+void Mir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
+  FlushAllRegs();
+  CallRuntimeHelperRegLocation(QUICK_ENTRYPOINT_OFFSET(pLockObject), rl_src, true);
+}
+
+/* Call out to helper assembly routine that will null check obj and then unlock it. */
+void Mir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
+  FlushAllRegs();
+  CallRuntimeHelperRegLocation(QUICK_ENTRYPOINT_OFFSET(pUnlockObject), rl_src, true);
+}
+
 }  // namespace art
