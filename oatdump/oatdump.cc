@@ -777,7 +777,17 @@ class ImageDumper {
     }
     os << "STATS:\n" << std::flush;
     UniquePtr<File> file(OS::OpenFileForReading(image_filename_.c_str()));
-    stats_.file_bytes = file->GetLength();
+    if (file.get() == NULL) {
+      std::string cache_location(GetDalvikCacheFilenameOrDie(image_filename_));
+      file.reset(OS::OpenFileForReading(cache_location.c_str()));
+      if (file.get() == NULL) {
+          LOG(WARNING) << "Failed to find image in " << image_filename_
+                       << " and " << cache_location;
+      }
+    }
+    if (file.get() != NULL) {
+        stats_.file_bytes = file->GetLength();
+    }
     size_t header_bytes = sizeof(ImageHeader);
     stats_.header_bytes = header_bytes;
     size_t alignment_bytes = RoundUp(header_bytes, kObjectAlignment) - header_bytes;
