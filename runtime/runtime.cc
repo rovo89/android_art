@@ -75,6 +75,7 @@ Runtime::Runtime()
       is_explicit_gc_disabled_(false),
       default_stack_size_(0),
       heap_(NULL),
+      max_spins_before_thin_lock_inflation_(Monitor::kDefaultMaxSpinsBeforeThinLockInflation),
       monitor_list_(NULL),
       thread_list_(NULL),
       intern_table_(NULL),
@@ -350,6 +351,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   // Only the main GC thread, no workers.
   parsed->conc_gc_threads_ = 0;
   parsed->stack_size_ = 0;  // 0 means default.
+  parsed->max_spins_before_thin_lock_inflation_ = Monitor::kDefaultMaxSpinsBeforeThinLockInflation;
   parsed->low_memory_mode_ = false;
 
   parsed->is_compiler_ = false;
@@ -510,6 +512,10 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         return NULL;
       }
       parsed->stack_size_ = size;
+    } else if (StartsWith(option, "-XX:MaxSpinsBeforeThinLockInflation=")) {
+      parsed->max_spins_before_thin_lock_inflation_ =
+          strtoul(option.substr(strlen("-XX:MaxSpinsBeforeThinLockInflation=")).c_str(),
+                  nullptr, 10);
     } else if (option == "-XX:LongPauseLogThreshold") {
       parsed->long_pause_log_threshold_ =
           ParseMemoryOption(option.substr(strlen("-XX:LongPauseLogThreshold=")).c_str(), 1024);
@@ -866,6 +872,8 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   default_stack_size_ = options->stack_size_;
   stack_trace_file_ = options->stack_trace_file_;
 
+  max_spins_before_thin_lock_inflation_ = options->max_spins_before_thin_lock_inflation_;
+
   monitor_list_ = new MonitorList;
   thread_list_ = new ThreadList;
   intern_table_ = new InternTable;
@@ -901,7 +909,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   // objects. We can't supply a thread group yet; it will be fixed later. Since we are the main
   // thread, we do not get a java peer.
   Thread* self = Thread::Attach("main", false, NULL, false);
-  CHECK_EQ(self->thin_lock_id_, ThreadList::kMainId);
+  CHECK_EQ(self->thin_lock_thread_id_, ThreadList::kMainThreadId);
   CHECK(self != NULL);
 
   // Set us to runnable so tools using a runtime can allocate and GC by default

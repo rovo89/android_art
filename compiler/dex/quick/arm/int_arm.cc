@@ -24,8 +24,7 @@
 
 namespace art {
 
-LIR* ArmMir2Lir::OpCmpBranch(ConditionCode cond, int src1,
-         int src2, LIR* target) {
+LIR* ArmMir2Lir::OpCmpBranch(ConditionCode cond, int src1, int src2, LIR* target) {
   OpRegReg(kOpCmp, src1, src2);
   return OpCondBranch(cond, target);
 }

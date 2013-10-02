@@ -54,17 +54,17 @@ struct AllMutexData {
   std::set<BaseMutex*>* all_mutexes;
   AllMutexData() : all_mutexes(NULL) {}
 };
-static struct AllMutexData all_mutex_data[kAllMutexDataSize];
+static struct AllMutexData gAllMutexData[kAllMutexDataSize];
 
 class ScopedAllMutexesLock {
  public:
   explicit ScopedAllMutexesLock(const BaseMutex* mutex) : mutex_(mutex) {
-    while (!all_mutex_data->all_mutexes_guard.compare_and_swap(0, reinterpret_cast<int32_t>(mutex))) {
+    while (!gAllMutexData->all_mutexes_guard.compare_and_swap(0, reinterpret_cast<int32_t>(mutex))) {
       NanoSleep(100);
     }
   }
   ~ScopedAllMutexesLock() {
-    while (!all_mutex_data->all_mutexes_guard.compare_and_swap(reinterpret_cast<int32_t>(mutex_), 0)) {
+    while (!gAllMutexData->all_mutexes_guard.compare_and_swap(reinterpret_cast<int32_t>(mutex_), 0)) {
       NanoSleep(100);
     }
   }
@@ -75,7 +75,7 @@ class ScopedAllMutexesLock {
 BaseMutex::BaseMutex(const char* name, LockLevel level) : level_(level), name_(name) {
   if (kLogLockContentions) {
     ScopedAllMutexesLock mu(this);
-    std::set<BaseMutex*>** all_mutexes_ptr = &all_mutex_data->all_mutexes;
+    std::set<BaseMutex*>** all_mutexes_ptr = &gAllMutexData->all_mutexes;
     if (*all_mutexes_ptr == NULL) {
       // We leak the global set of all mutexes to avoid ordering issues in global variable
       // construction/destruction.
@@ -88,7 +88,7 @@ BaseMutex::BaseMutex(const char* name, LockLevel level) : level_(level), name_(n
 BaseMutex::~BaseMutex() {
   if (kLogLockContentions) {
     ScopedAllMutexesLock mu(this);
-    all_mutex_data->all_mutexes->erase(this);
+    gAllMutexData->all_mutexes->erase(this);
   }
 }
 
@@ -96,13 +96,13 @@ void BaseMutex::DumpAll(std::ostream& os) {
   if (kLogLockContentions) {
     os << "Mutex logging:\n";
     ScopedAllMutexesLock mu(reinterpret_cast<const BaseMutex*>(-1));
-    std::set<BaseMutex*>* all_mutexes = all_mutex_data->all_mutexes;
+    std::set<BaseMutex*>* all_mutexes = gAllMutexData->all_mutexes;
     if (all_mutexes == NULL) {
       // No mutexes have been created yet during at startup.
       return;
     }
     typedef std::set<BaseMutex*>::const_iterator It;
-    os << "(Contented)\n";
+    os << "(Contended)\n";
     for (It it = all_mutexes->begin(); it != all_mutexes->end(); ++it) {
       BaseMutex* mutex = *it;
       if (mutex->HasEverContended()) {
@@ -127,7 +127,8 @@ void BaseMutex::CheckSafeToWait(Thread* self) {
     return;
   }
   if (kDebugLocking) {
-    CHECK(self->GetHeldMutex(level_) == this) << "Waiting on unacquired mutex: " << name_;
+    CHECK(self->GetHeldMutex(level_) == this || level_ == kMonitorLock)
+        << "Waiting on unacquired mutex: " << name_;
     bool bad_mutexes_held = false;
     for (int i = kLockLevelCount - 1; i >= 0; --i) {
       if (i != level_) {

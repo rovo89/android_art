@@ -116,24 +116,5 @@ Value* RuntimeSupportBuilderARM::EmitSetCurrentThread(Value* thread) {
   return old_thread_register;
 }
 
-
-/* Monitor */
-
-void RuntimeSupportBuilderARM::EmitLockObject(Value* object) {
-  RuntimeSupportBuilder::EmitLockObject(object);
-  FunctionType* func_ty = FunctionType::get(/*Result=*/Type::getVoidTy(context_),
-                                            /*isVarArg=*/false);
-  InlineAsm* func = InlineAsm::get(func_ty, "dmb sy", "", true);
-  irb_.CreateCall(func);
-}
-
-void RuntimeSupportBuilderARM::EmitUnlockObject(Value* object) {
-  RuntimeSupportBuilder::EmitUnlockObject(object);
-  FunctionType* func_ty = FunctionType::get(/*Result=*/Type::getVoidTy(context_),
-                                            /*isVarArg=*/false);
-  InlineAsm* func = InlineAsm::get(func_ty, "dmb sy", "", true);
-  irb_.CreateCall(func);
-}
-
 }  // namespace llvm
 }  // namespace art

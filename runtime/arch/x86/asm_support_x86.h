@@ -23,5 +23,7 @@
 #define THREAD_SELF_OFFSET 40
 // Offset of field Thread::exception_ verified in InitCpu
 #define THREAD_EXCEPTION_OFFSET 12
+// Offset of field Thread::thin_lock_thread_id_ verified in InitCpu
+#define THREAD_ID_OFFSET 60
 
 #endif  // ART_RUNTIME_ARCH_X86_ASM_SUPPORT_X86_H_

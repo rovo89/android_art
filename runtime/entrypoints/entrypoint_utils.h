@@ -378,7 +378,6 @@ static inline void CheckSuspend(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mut
   for (;;) {
     if (thread->ReadFlag(kCheckpointRequest)) {
       thread->RunCheckpointFunction();
-      thread->AtomicClearFlag(kCheckpointRequest);
     } else if (thread->ReadFlag(kSuspendRequest)) {
       thread->FullSuspendCheck();
     } else {

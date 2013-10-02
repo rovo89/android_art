@@ -123,8 +123,6 @@ class MipsMir2Lir : public Mir2Lir {
     void GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir);
     void GenSelect(BasicBlock* bb, MIR* mir);
     void GenMemBarrier(MemBarrierKind barrier_kind);
-    void GenMonitorEnter(int opt_flags, RegLocation rl_src);
-    void GenMonitorExit(int opt_flags, RegLocation rl_src);
     void GenMoveException(RegLocation rl_dest);
     void GenMultiplyByTwoBitMultiplier(RegLocation rl_src, RegLocation rl_result, int lit,
                                                int first_bit, int second_bit);

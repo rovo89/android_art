@@ -26,6 +26,7 @@
 namespace art {
 
 class ImageWriter;
+class LockWord;
 struct ObjectOffsets;
 class Thread;
 
@@ -95,14 +96,10 @@ class MANAGED Object {
     return OFFSET_OF_OBJECT_MEMBER(Object, monitor_);
   }
 
-  volatile int32_t* GetRawLockWordAddress() {
-    byte* raw_addr = reinterpret_cast<byte*>(this) +
-        OFFSET_OF_OBJECT_MEMBER(Object, monitor_).Int32Value();
-    int32_t* word_addr = reinterpret_cast<int32_t*>(raw_addr);
-    return const_cast<volatile int32_t*>(word_addr);
-  }
-
-  uint32_t GetThinLockId();
+  LockWord GetLockWord();
+  void SetLockWord(LockWord new_val);
+  bool CasLockWord(LockWord old_val, LockWord new_val);
+  uint32_t GetLockOwnerThreadId();
 
   void MonitorEnter(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCK_FUNCTION(monitor_lock_);
@@ -225,6 +222,8 @@ class MANAGED Object {
       *word_addr = new_value;
     }
   }
+
+  bool CasField32(MemberOffset field_offset, uint32_t old_value, uint32_t new_value);
 
   uint64_t GetField64(MemberOffset field_offset, bool is_volatile) const;
 

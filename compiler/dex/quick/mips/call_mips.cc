@@ -261,36 +261,6 @@ void MipsMir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
   MarkSafepointPC(call_inst);
 }
 
-/*
- * TODO: implement fast path to short-circuit thin-lock case
- */
-void MipsMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
-  FlushAllRegs();
-  LoadValueDirectFixed(rl_src, rMIPS_ARG0);  // Get obj
-  LockCallTemps();  // Prepare for explicit register usage
-  GenNullCheck(rl_src.s_reg_low, rMIPS_ARG0, opt_flags);
-  // Go expensive route - artLockObjectFromCode(self, obj);
-  int r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pLockObject));
-  ClobberCalleeSave();
-  LIR* call_inst = OpReg(kOpBlx, r_tgt);
-  MarkSafepointPC(call_inst);
-}
-
-/*
- * TODO: implement fast path to short-circuit thin-lock case
- */
-void MipsMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
-  FlushAllRegs();
-  LoadValueDirectFixed(rl_src, rMIPS_ARG0);  // Get obj
-  LockCallTemps();  // Prepare for explicit register usage
-  GenNullCheck(rl_src.s_reg_low, rMIPS_ARG0, opt_flags);
-  // Go expensive route - UnlockObjectFromCode(obj);
-  int r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pUnlockObject));
-  ClobberCalleeSave();
-  LIR* call_inst = OpReg(kOpBlx, r_tgt);
-  MarkSafepointPC(call_inst);
-}
-
 void MipsMir2Lir::GenMoveException(RegLocation rl_dest) {
   int ex_offset = Thread::ExceptionOffset().Int32Value();
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
@@ -318,6 +288,7 @@ void MipsMir2Lir::MarkGCCard(int val_reg, int tgt_addr_reg) {
   FreeTemp(reg_card_base);
   FreeTemp(reg_card_no);
 }
+
 void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
   int spill_count = num_core_spills_ + num_fp_spills_;
   /*

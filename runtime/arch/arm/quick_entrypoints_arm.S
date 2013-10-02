@@ -318,22 +318,67 @@ ENTRY art_quick_handle_fill_data
 END art_quick_handle_fill_data
 
     /*
-     * Entry from managed code that calls artLockObjectFromCode, may block for GC.
+     * Entry from managed code that calls artLockObjectFromCode, may block for GC. r0 holds the
+     * possibly null object to lock.
      */
     .extern artLockObjectFromCode
 ENTRY art_quick_lock_object
+    cbz    r0, slow_lock
+retry_lock:
+    ldrex  r1, [r0, #LOCK_WORD_OFFSET]
+    ldrt   r2, [r9, #THREAD_ID_OFFSET]
+    cmp    r1, #0
+    bmi    slow_lock                  @ lock word contains a monitor
+    bne    already_thin
+    @ unlocked case - r2 holds thread id with count of 0
+    strex  r3, r2, [r0, #LOCK_WORD_OFFSET]
+    cbnz   r3, strex_fail             @ store failed, retry
+    bx lr
+strex_fail:
+    b retry_lock                      @ unlikely forward branch, need to reload and recheck r1/r2
+already_thin:
+    eor    r2, r1, r2                 @ lock_word.ThreadId() ^ self->ThreadId()
+    uxth   r2, r2                     @ zero top 16 bits
+    cbnz   r2, slow_lock              @ lock word and self thread id's match -> recursive lock
+                                      @ else contention, go to slow path
+    adds   r2, r1, #65536             @ increment count in lock word placing in r2 for storing
+    bmi    slow_lock                  @ if we overflow the count go slow
+    str    r2, [r0, #LOCK_WORD_OFFSET] @ no need for strex as we hold the lock
+    bx lr
+slow_lock:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case we block
     mov    r1, r9                     @ pass Thread::Current
     mov    r2, sp                     @ pass SP
     bl     artLockObjectFromCode      @ (Object* obj, Thread*, SP)
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    RETURN_IF_RESULT_IS_ZERO
+    DELIVER_PENDING_EXCEPTION
 END art_quick_lock_object
 
     /*
      * Entry from managed code that calls artUnlockObjectFromCode and delivers exception on failure.
+     * r0 holds the possibly null object to lock.
      */
     .extern artUnlockObjectFromCode
 ENTRY art_quick_unlock_object
+    cbz    r0, slow_unlock
+    ldr    r1, [r0, #LOCK_WORD_OFFSET]
+    ldr    r2, [r9, #THREAD_ID_OFFSET]
+    cmp    r1, #0
+    bmi    slow_unlock                @ lock word contains a monitor
+    eor    r3, r1, r2                 @ lock_word.ThreadId() ^ self->ThreadId()
+    uxth   r3, r3                     @ zero top 16 bits
+    cbnz   r3, slow_unlock            @ do lock word and self thread id's match?
+    cmp    r1, #65536
+    bpl    recursive_thin_unlock
+    @ transition to unlocked, r3 holds 0
+    str    r3, [r0, #LOCK_WORD_OFFSET]
+    bx     lr
+recursive_thin_unlock:
+    sub    r1, r1, #65536
+    str    r1, [r0, #LOCK_WORD_OFFSET]
+    bx     lr
+slow_unlock:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case exception allocation triggers GC
     mov    r1, r9                     @ pass Thread::Current
     mov    r2, sp                     @ pass SP

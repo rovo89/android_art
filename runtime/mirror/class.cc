@@ -60,7 +60,7 @@ void Class::SetStatus(Status new_status, Thread* self) {
     }
     if (new_status >= kStatusResolved || old_status >= kStatusResolved) {
       // When classes are being resolved the resolution code should hold the lock.
-      CHECK_EQ(GetThinLockId(), self->GetThinLockId())
+      CHECK_EQ(GetLockOwnerThreadId(), self->GetThreadId())
             << "Attempt to change status of class while not holding its lock: "
             << PrettyClass(this) << " " << old_status << " -> " << new_status;
     }

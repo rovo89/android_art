@@ -311,7 +311,7 @@ void Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm) {
   CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, this), "attach self");
   DCHECK_EQ(Thread::Current(), this);
 
-  thin_lock_id_ = thread_list->AllocThreadId(this);
+  thin_lock_thread_id_ = thread_list->AllocThreadId(this);
   InitStackHwm();
 
   jni_env_ = new JNIEnvExt(this, java_vm);
@@ -476,9 +476,9 @@ void Thread::InitStackHwm() {
 
 void Thread::ShortDump(std::ostream& os) const {
   os << "Thread[";
-  if (GetThinLockId() != 0) {
+  if (GetThreadId() != 0) {
     // If we're in kStarting, we won't have a thin lock id or tid yet.
-    os << GetThinLockId()
+    os << GetThreadId()
              << ",tid=" << GetTid() << ',';
   }
   os << GetState()
@@ -574,18 +574,32 @@ void Thread::RunCheckpointFunction() {
   ATRACE_BEGIN("Checkpoint function");
   checkpoint_function_->Run(this);
   ATRACE_END();
+  checkpoint_function_ = NULL;
+  AtomicClearFlag(kCheckpointRequest);
 }
 
 bool Thread::RequestCheckpoint(Closure* function) {
-  CHECK(!ReadFlag(kCheckpointRequest)) << "Already have a pending checkpoint request";
-  checkpoint_function_ = function;
   union StateAndFlags old_state_and_flags = state_and_flags_;
+  if (old_state_and_flags.as_struct.state != kRunnable) {
+    return false;  // Fail, thread is suspended and so can't run a checkpoint.
+  }
+  if ((old_state_and_flags.as_struct.flags & kCheckpointRequest) != 0) {
+    return false;  // Fail, already a checkpoint pending.
+  }
+  CHECK(checkpoint_function_ == NULL);
+  checkpoint_function_ = function;
+  // Checkpoint function installed now install flag bit.
   // We must be runnable to request a checkpoint.
   old_state_and_flags.as_struct.state = kRunnable;
   union StateAndFlags new_state_and_flags = old_state_and_flags;
   new_state_and_flags.as_struct.flags |= kCheckpointRequest;
   int succeeded = android_atomic_cmpxchg(old_state_and_flags.as_int, new_state_and_flags.as_int,
                                          &state_and_flags_.as_int);
+  if (UNLIKELY(succeeded != 0)) {
+    // The thread changed state before the checkpoint was installed.
+    CHECK(checkpoint_function_ == function);
+    checkpoint_function_ = NULL;
+  }
   return succeeded == 0;
 }
 
@@ -598,88 +612,6 @@ void Thread::FullSuspendCheck() {
   TransitionFromSuspendedToRunnable();
   ATRACE_END();
   VLOG(threads) << this << " self-reviving";
-}
-
-Thread* Thread::SuspendForDebugger(jobject peer, bool request_suspension, bool* timed_out) {
-  static const useconds_t kTimeoutUs = 30 * 1000000;  // 30s.
-  useconds_t total_delay_us = 0;
-  useconds_t delay_us = 0;
-  bool did_suspend_request = false;
-  *timed_out = false;
-  while (true) {
-    Thread* thread;
-    {
-      ScopedObjectAccess soa(Thread::Current());
-      Thread* self = soa.Self();
-      MutexLock mu(self, *Locks::thread_list_lock_);
-      thread = Thread::FromManagedThread(soa, peer);
-      if (thread == NULL) {
-        JNIEnv* env = self->GetJniEnv();
-        ScopedLocalRef<jstring> scoped_name_string(env,
-                                                   (jstring)env->GetObjectField(peer,
-                                                              WellKnownClasses::java_lang_Thread_name));
-        ScopedUtfChars scoped_name_chars(env, scoped_name_string.get());
-        if (scoped_name_chars.c_str() == NULL) {
-            LOG(WARNING) << "No such thread for suspend: " << peer;
-            env->ExceptionClear();
-        } else {
-            LOG(WARNING) << "No such thread for suspend: " << peer << ":" << scoped_name_chars.c_str();
-        }
-
-        return NULL;
-      }
-      {
-        MutexLock mu(soa.Self(), *Locks::thread_suspend_count_lock_);
-        if (request_suspension) {
-          thread->ModifySuspendCount(soa.Self(), +1, true /* for_debugger */);
-          request_suspension = false;
-          did_suspend_request = true;
-        }
-        // IsSuspended on the current thread will fail as the current thread is changed into
-        // Runnable above. As the suspend count is now raised if this is the current thread
-        // it will self suspend on transition to Runnable, making it hard to work with. It's simpler
-        // to just explicitly handle the current thread in the callers to this code.
-        CHECK_NE(thread, soa.Self()) << "Attempt to suspend the current thread for the debugger";
-        // If thread is suspended (perhaps it was already not Runnable but didn't have a suspend
-        // count, or else we've waited and it has self suspended) or is the current thread, we're
-        // done.
-        if (thread->IsSuspended()) {
-          return thread;
-        }
-        if (total_delay_us >= kTimeoutUs) {
-          LOG(ERROR) << "Thread suspension timed out: " << peer;
-          if (did_suspend_request) {
-            thread->ModifySuspendCount(soa.Self(), -1, true /* for_debugger */);
-          }
-          *timed_out = true;
-          return NULL;
-        }
-      }
-      // Release locks and come out of runnable state.
-    }
-    for (int i = kLockLevelCount - 1; i >= 0; --i) {
-      BaseMutex* held_mutex = Thread::Current()->GetHeldMutex(static_cast<LockLevel>(i));
-      if (held_mutex != NULL) {
-        LOG(FATAL) << "Holding " << held_mutex->GetName()
-            << " while sleeping for thread suspension";
-      }
-    }
-    {
-      useconds_t new_delay_us = delay_us * 2;
-      CHECK_GE(new_delay_us, delay_us);
-      if (new_delay_us < 500000) {  // Don't allow sleeping to be more than 0.5s.
-        delay_us = new_delay_us;
-      }
-    }
-    if (delay_us == 0) {
-      sched_yield();
-      // Default to 1 milliseconds (note that this gets multiplied by 2 before the first sleep).
-      delay_us = 500;
-    } else {
-      usleep(delay_us);
-      total_delay_us += delay_us;
-    }
-  }
 }
 
 void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
@@ -718,7 +650,7 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
       os << " daemon";
     }
     os << " prio=" << priority
-       << " tid=" << thread->GetThinLockId()
+       << " tid=" << thread->GetThreadId()
        << " " << thread->GetState();
     if (thread->IsStillStarting()) {
       os << " (still starting up)";
@@ -968,9 +900,9 @@ Thread::Thread(bool daemon)
       jpeer_(NULL),
       stack_begin_(NULL),
       stack_size_(0),
+      thin_lock_thread_id_(0),
       stack_trace_sample_(NULL),
       trace_clock_base_(0),
-      thin_lock_id_(0),
       tid_(0),
       wait_mutex_(new Mutex("a thread wait mutex")),
       wait_cond_(new ConditionVariable("a thread wait condition variable", *wait_mutex_)),
@@ -1718,7 +1650,7 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset, size_t size_of_
   DO_THREAD_OFFSET(self_);
   DO_THREAD_OFFSET(stack_end_);
   DO_THREAD_OFFSET(suspend_count_);
-  DO_THREAD_OFFSET(thin_lock_id_);
+  DO_THREAD_OFFSET(thin_lock_thread_id_);
   // DO_THREAD_OFFSET(top_of_managed_stack_);
   // DO_THREAD_OFFSET(top_of_managed_stack_pc_);
   DO_THREAD_OFFSET(top_sirt_);
@@ -2001,7 +1933,7 @@ bool Thread::HoldsLock(mirror::Object* object) {
   if (object == NULL) {
     return false;
   }
-  return object->GetThinLockId() == thin_lock_id_;
+  return object->GetLockOwnerThreadId() == thin_lock_thread_id_;
 }
 
 // RootVisitor parameters are: (const Object* obj, size_t vreg, const StackVisitor* visitor).

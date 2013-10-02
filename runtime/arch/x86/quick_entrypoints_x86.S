@@ -401,14 +401,85 @@ TWO_ARG_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorage
 TWO_ARG_DOWNCALL art_quick_initialize_type, artInitializeTypeFromCode, RETURN_IF_EAX_NOT_ZERO
 TWO_ARG_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeAndVerifyAccessFromCode, RETURN_IF_EAX_NOT_ZERO
 
-ONE_ARG_DOWNCALL art_quick_lock_object, artLockObjectFromCode, ret
-ONE_ARG_DOWNCALL art_quick_unlock_object, artUnlockObjectFromCode, RETURN_IF_EAX_ZERO
-
 TWO_ARG_DOWNCALL art_quick_handle_fill_data, artHandleFillArrayDataFromCode, RETURN_IF_EAX_ZERO
+
+DEFINE_FUNCTION art_quick_lock_object
+    testl %eax, %eax                      // null check object/eax
+    jz   slow_lock
+retry_lock:
+    movl LOCK_WORD_OFFSET(%eax), %ecx     // ecx := lock word
+    movl %fs:THREAD_ID_OFFSET, %edx       // edx := thread id
+    test %ecx, %ecx
+    jb   slow_lock                        // lock word contains a monitor
+    jnz  already_thin                     // lock word contains a thin lock
+    // unlocked case - %edx holds thread id with count of 0
+    movl %eax, %ecx                       // remember object in case of retry
+    xor  %eax, %eax                       // eax == 0 for comparison with lock word in cmpxchg
+    lock cmpxchg  %edx, LOCK_WORD_OFFSET(%ecx)
+    jnz  cmpxchg_fail                     // cmpxchg failed retry
+    ret
+cmpxchg_fail:
+    movl  %ecx, %eax                       // restore eax
+    jmp  retry_lock
+already_thin:
+    cmpw %ax, %dx                         // do we hold the lock already?
+    jne  slow_lock
+    addl LITERAL(65536), %eax             // increment recursion count
+    jb   slow_lock                        // count overflowed so go slow
+    movl %eax, LOCK_WORD_OFFSET(%ecx)     // update lockword, cmpxchg not necessary as we hold lock
+    ret
+slow_lock:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
+    mov %esp, %edx                // remember SP
+    // Outgoing argument set up
+    PUSH eax                      // push padding
+    PUSH edx                      // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    .cfi_adjust_cfa_offset 4
+    PUSH eax                      // pass object
+    call artLockObjectFromCode    // artLockObjectFromCode(object, Thread*, SP)
+    addl MACRO_LITERAL(16), %esp  // pop arguments
+    .cfi_adjust_cfa_offset -16
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
+    RETURN_IF_EAX_ZERO
+END_FUNCTION art_quick_lock_object
+
+DEFINE_FUNCTION art_quick_unlock_object
+    testl %eax, %eax                      // null check object/eax
+    jz   slow_unlock
+    movl LOCK_WORD_OFFSET(%eax), %ecx     // ecx := lock word
+    movl %fs:THREAD_ID_OFFSET, %edx       // edx := thread id
+    test %ecx, %ecx
+    jb   slow_unlock                      // lock word contains a monitor
+    cmpw %cx, %dx                         // does the thread id match?
+    jne  slow_unlock
+    cmpl LITERAL(65536), %ecx
+    jae  recursive_thin_unlock
+    movl LITERAL(0), LOCK_WORD_OFFSET(%eax)
+    ret
+recursive_thin_unlock:
+    subl LITERAL(65536), %ecx
+    mov  %ecx, LOCK_WORD_OFFSET(%eax)
+    ret
+slow_unlock:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
+    mov %esp, %edx                // remember SP
+    // Outgoing argument set up
+    PUSH eax                      // push padding
+    PUSH edx                      // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    .cfi_adjust_cfa_offset 4
+    PUSH eax                      // pass object
+    call artUnlockObjectFromCode    // artUnlockObjectFromCode(object, Thread*, SP)
+    addl MACRO_LITERAL(16), %esp  // pop arguments
+    .cfi_adjust_cfa_offset -16
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
+    RETURN_IF_EAX_ZERO
+END_FUNCTION art_quick_unlock_object
 
 DEFINE_FUNCTION art_quick_is_assignable
     PUSH eax                     // alignment padding
-    PUSH ecx                    // pass arg2
+    PUSH ecx                     // pass arg2
     PUSH eax                     // pass arg1
     call SYMBOL(artIsAssignableFromCode)  // (Class* a, Class* b, Thread*, SP)
     addl LITERAL(12), %esp        // pop arguments

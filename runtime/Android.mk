@@ -243,6 +243,7 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
 	jdwp/jdwp.h \
 	jdwp/jdwp_constants.h \
 	locks.h \
+	lock_word.h \
 	mirror/class.h \
 	thread.h \
 	thread_state.h \

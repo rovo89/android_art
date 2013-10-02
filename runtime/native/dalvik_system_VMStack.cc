@@ -34,7 +34,7 @@ static jobject GetThreadStack(JNIEnv* env, jobject peer) {
   }
   // Suspend thread to build stack trace.
   bool timed_out;
-  Thread* thread = Thread::SuspendForDebugger(peer, true, &timed_out);
+  Thread* thread = ThreadList::SuspendThreadByPeer(peer, true, false, &timed_out);
   if (thread != NULL) {
     jobject trace;
     {
@@ -42,7 +42,7 @@ static jobject GetThreadStack(JNIEnv* env, jobject peer) {
       trace = thread->CreateInternalStackTrace(soa);
     }
     // Restart suspended thread.
-    Runtime::Current()->GetThreadList()->Resume(thread, true);
+    Runtime::Current()->GetThreadList()->Resume(thread, false);
     return trace;
   } else {
     if (timed_out) {
