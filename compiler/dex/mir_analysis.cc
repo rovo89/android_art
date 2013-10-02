@@ -1032,6 +1032,14 @@ bool MIRGraph::SkipCompilation(Runtime::CompilerFilter compiler_filter) {
    */
   if (GetNumDalvikInsns() > Runtime::Current()->GetHugeMethodThreshold()) {
     skip_compilation = true;
+    // If we're got a huge number of basic blocks, don't bother with further analysis.
+    if (static_cast<size_t>(num_blocks_) > (Runtime::Current()->GetHugeMethodThreshold() / 2)) {
+      return true;
+    }
+  } else if (GetNumDalvikInsns() > Runtime::Current()->GetLargeMethodThreshold() &&
+    /* If it's large and contains no branches, it's likely to be machine generated initialization */
+      (GetBranchCount() == 0)) {
+    return true;
   } else if (compiler_filter == Runtime::kSpeed) {
     // If not huge, compile.
     return false;

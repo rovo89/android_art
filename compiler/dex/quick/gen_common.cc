@@ -30,13 +30,14 @@ namespace art {
  */
 
 /*
- * Generate an kPseudoBarrier marker to indicate the boundary of special
+ * Generate a kPseudoBarrier marker to indicate the boundary of special
  * blocks.
  */
 void Mir2Lir::GenBarrier() {
   LIR* barrier = NewLIR0(kPseudoBarrier);
   /* Mark all resources as being clobbered */
-  barrier->def_mask = -1;
+  DCHECK(!barrier->flags.use_def_invalid);
+  barrier->u.m.def_mask = ENCODE_ALL;
 }
 
 // FIXME: need to do some work to split out targets with

@@ -569,6 +569,26 @@ class MIRGraph {
     return IsBackedge(branch_bb, branch_bb->taken) || IsBackedge(branch_bb, branch_bb->fall_through);
   }
 
+  void CountBranch(int target_offset) {
+    if (target_offset <= current_offset_) {
+      backward_branches_++;
+    } else {
+      forward_branches_++;
+    }
+  }
+
+  int GetBranchCount() {
+    return backward_branches_ + forward_branches_;
+  }
+
+  bool IsPseudoMirOp(Instruction::Code opcode) {
+    return static_cast<int>(opcode) >= static_cast<int>(kMirOpFirst);
+  }
+
+  bool IsPseudoMirOp(int opcode) {
+    return opcode >= static_cast<int>(kMirOpFirst);
+  }
+
   void BasicBlockCombine();
   void CodeLayout();
   void DumpCheckStats();
@@ -725,15 +745,14 @@ class MIRGraph {
   ArenaBitVector* try_block_addr_;
   BasicBlock* entry_block_;
   BasicBlock* exit_block_;
-  BasicBlock* cur_block_;
   int num_blocks_;
   const DexFile::CodeItem* current_code_item_;
-  GrowableArray<BasicBlock*> block_map_;         // FindBlock lookup cache.
+  GrowableArray<uint16_t> dex_pc_to_block_map_;  // FindBlock lookup cache.
   std::vector<DexCompilationUnit*> m_units_;     // List of methods included in this graph
   typedef std::pair<int, int> MIRLocation;       // Insert point, (m_unit_ index, offset)
   std::vector<MIRLocation> method_stack_;        // Include stack
   int current_method_;
-  int current_offset_;
+  int current_offset_;                           // Dex offset in code units
   int def_count_;                                // Used to estimate size of ssa name storage.
   int* opcode_count_;                            // Dex opcode coverage stats.
   int num_ssa_regs_;                             // Number of names following SSA transformation.
@@ -743,6 +762,8 @@ class MIRGraph {
   Checkstats* checkstats_;
   SpecialCaseHandler special_case_;
   ArenaAllocator* arena_;
+  int backward_branches_;
+  int forward_branches_;
 };
 
 }  // namespace art

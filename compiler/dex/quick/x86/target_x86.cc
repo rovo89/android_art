@@ -132,37 +132,36 @@ uint64_t X86Mir2Lir::GetPCUseDefEncoding() {
   return 0ULL;
 }
 
-void X86Mir2Lir::SetupTargetResourceMasks(LIR* lir) {
+void X86Mir2Lir::SetupTargetResourceMasks(LIR* lir, uint64_t flags) {
   DCHECK_EQ(cu_->instruction_set, kX86);
+  DCHECK(!lir->flags.use_def_invalid);
 
   // X86-specific resource map setup here.
-  uint64_t flags = X86Mir2Lir::EncodingMap[lir->opcode].flags;
-
   if (flags & REG_USE_SP) {
-    lir->use_mask |= ENCODE_X86_REG_SP;
+    lir->u.m.use_mask |= ENCODE_X86_REG_SP;
   }
 
   if (flags & REG_DEF_SP) {
-    lir->def_mask |= ENCODE_X86_REG_SP;
+    lir->u.m.def_mask |= ENCODE_X86_REG_SP;
   }
 
   if (flags & REG_DEFA) {
-    SetupRegMask(&lir->def_mask, rAX);
+    SetupRegMask(&lir->u.m.def_mask, rAX);
   }
 
   if (flags & REG_DEFD) {
-    SetupRegMask(&lir->def_mask, rDX);
+    SetupRegMask(&lir->u.m.def_mask, rDX);
   }
   if (flags & REG_USEA) {
-    SetupRegMask(&lir->use_mask, rAX);
+    SetupRegMask(&lir->u.m.use_mask, rAX);
   }
 
   if (flags & REG_USEC) {
-    SetupRegMask(&lir->use_mask, rCX);
+    SetupRegMask(&lir->u.m.use_mask, rCX);
   }
 
   if (flags & REG_USED) {
-    SetupRegMask(&lir->use_mask, rDX);
+    SetupRegMask(&lir->u.m.use_mask, rDX);
   }
 }
 
@@ -275,8 +274,8 @@ void X86Mir2Lir::DumpResourceMask(LIR *x86LIR, uint64_t mask, const char *prefix
     }
     /* Memory bits */
     if (x86LIR && (mask & ENCODE_DALVIK_REG)) {
-      sprintf(buf + strlen(buf), "dr%d%s", x86LIR->alias_info & 0xffff,
-              (x86LIR->alias_info & 0x80000000) ? "(+1)" : "");
+      sprintf(buf + strlen(buf), "dr%d%s", DECODE_ALIAS_INFO_REG(x86LIR->flags.alias_info),
+              (DECODE_ALIAS_INFO_WIDE(x86LIR->flags.alias_info)) ? "(+1)" : "");
     }
     if (mask & ENCODE_LITERAL) {
       strcat(buf, "lit ");

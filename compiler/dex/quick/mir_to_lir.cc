@@ -697,6 +697,7 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
 
   // Insert the block label.
   block_label_list_[block_id].opcode = kPseudoNormalBlockLabel;
+  block_label_list_[block_id].flags.fixup = kFixupLabel;
   AppendLIR(&block_label_list_[block_id]);
 
   LIR* head_lir = NULL;
@@ -746,7 +747,8 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
     if (head_lir == NULL) {
       head_lir = &block_label_list_[bb->id];
       // Set the first label as a scheduling barrier.
-      head_lir->def_mask = ENCODE_ALL;
+      DCHECK(!head_lir->flags.use_def_invalid);
+      head_lir->u.m.def_mask = ENCODE_ALL;
     }
 
     if (opcode == kMirOpCheck) {

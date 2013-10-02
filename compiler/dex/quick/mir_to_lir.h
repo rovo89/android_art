@@ -95,6 +95,7 @@ struct BasicBlock;
 struct CallInfo;
 struct CompilationUnit;
 struct MIR;
+struct LIR;
 struct RegLocation;
 struct RegisterInfo;
 class MIRGraph;
@@ -107,24 +108,36 @@ typedef int (*NextCallInsn)(CompilationUnit*, CallInfo*, int,
 
 typedef std::vector<uint8_t> CodeBuffer;
 
+struct UseDefMasks {
+  uint64_t use_mask;        // Resource mask for use.
+  uint64_t def_mask;        // Resource mask for def.
+};
+
+struct AssemblyInfo {
+  LIR* pcrel_next;           // Chain of LIR nodes needing pc relative fixups.
+  uint8_t bytes[16];         // Encoded instruction bytes.
+};
 
 struct LIR {
   int offset;               // Offset of this instruction.
-  int dalvik_offset;        // Offset of Dalvik opcode.
+  uint16_t dalvik_offset;   // Offset of Dalvik opcode in code units (16-bit words).
+  int16_t opcode;
   LIR* next;
   LIR* prev;
   LIR* target;
-  int opcode;
-  int operands[5];          // [0..4] = [dest, src1, src2, extra, extra2].
   struct {
-    bool is_nop:1;          // LIR is optimized away.
-    bool pcRelFixup:1;      // May need pc-relative fixup.
-    unsigned int size:5;    // Note: size is in bytes.
-    unsigned int unused:25;
+    unsigned int alias_info:17;  // For Dalvik register disambiguation.
+    bool is_nop:1;               // LIR is optimized away.
+    unsigned int size:4;         // Note: size of encoded instruction is in bytes.
+    bool use_def_invalid:1;      // If true, masks should not be used.
+    unsigned int generation:1;   // Used to track visitation state during fixup pass.
+    unsigned int fixup:8;        // Fixup kind.
   } flags;
-  int alias_info;           // For Dalvik register & litpool disambiguation.
-  uint64_t use_mask;        // Resource mask for use.
-  uint64_t def_mask;        // Resource mask for def.
+  union {
+    UseDefMasks m;          // Use & Def masks used during optimization.
+    AssemblyInfo a;         // Instruction encoding used during assembly phase.
+  } u;
+  int operands[5];          // [0..4] = [dest, src1, src2, extra, extra2].
 };
 
 // Target-specific initialization.
@@ -141,7 +154,7 @@ Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
 
 // Defines for alias_info (tracks Dalvik register references).
 #define DECODE_ALIAS_INFO_REG(X)        (X & 0xffff)
-#define DECODE_ALIAS_INFO_WIDE_FLAG     (0x80000000)
+#define DECODE_ALIAS_INFO_WIDE_FLAG     (0x10000)
 #define DECODE_ALIAS_INFO_WIDE(X)       ((X & DECODE_ALIAS_INFO_WIDE_FLAG) ? 1 : 0)
 #define ENCODE_ALIAS_INFO(REG, ISWIDE)  (REG | (ISWIDE ? DECODE_ALIAS_INFO_WIDE_FLAG : 0))
 
@@ -255,7 +268,6 @@ class Mir2Lir : public Backend {
     void MarkSafepointPC(LIR* inst);
     bool FastInstance(uint32_t field_idx, bool is_put, int* field_offset, bool* is_volatile);
     void SetupResourceMasks(LIR* lir);
-    void AssembleLIR();
     void SetMemRefType(LIR* lir, bool is_load, int mem_type);
     void AnnotateDalvikRegAccess(LIR* lir, int reg_id, bool is_load, bool is64bit);
     void SetupRegMask(uint64_t* mask, int reg);
@@ -295,8 +307,6 @@ class Mir2Lir : public Backend {
     int AssignLiteralOffset(int offset);
     int AssignSwitchTablesOffset(int offset);
     int AssignFillArrayDataOffset(int offset);
-    int AssignInsnOffsets();
-    void AssignOffsets();
     LIR* InsertCaseLabel(int vaddr, int keyVal);
     void MarkPackedCaseLabels(Mir2Lir::SwitchTable *tab_rec);
     void MarkSparseCaseLabels(Mir2Lir::SwitchTable *tab_rec);
@@ -571,9 +581,9 @@ class Mir2Lir : public Backend {
     virtual void CompilerInitializeRegAlloc() = 0;
 
     // Required for target - miscellaneous.
-    virtual AssemblerStatus AssembleInstructions(uintptr_t start_addr) = 0;
+    virtual void AssembleLIR() = 0;
     virtual void DumpResourceMask(LIR* lir, uint64_t mask, const char* prefix) = 0;
-    virtual void SetupTargetResourceMasks(LIR* lir) = 0;
+    virtual void SetupTargetResourceMasks(LIR* lir, uint64_t flags) = 0;
     virtual const char* GetTargetInstFmt(int opcode) = 0;
     virtual const char* GetTargetInstName(int opcode) = 0;
     virtual std::string BuildInsnString(const char* fmt, LIR* lir, unsigned char* base_addr) = 0;
@@ -719,6 +729,7 @@ class Mir2Lir : public Backend {
     LIR* literal_list_;                        // Constants.
     LIR* method_literal_list_;                 // Method literals requiring patching.
     LIR* code_literal_list_;                   // Code literals requiring patching.
+    LIR* first_fixup_;                         // Doubly-linked list of LIR nodes requiring fixups.
 
   protected:
     CompilationUnit* const cu_;
@@ -741,6 +752,7 @@ class Mir2Lir : public Backend {
      * immediately preceed the instruction.
      */
     std::vector<uint32_t> dex2pc_mapping_table_;
+    int current_code_offset_;             // Working byte offset of machine instructons.
     int data_offset_;                     // starting offset of literal pool.
     int total_size_;                      // header + code size.
     LIR* block_label_list_;
@@ -755,6 +767,7 @@ class Mir2Lir : public Backend {
      * The low-level LIR creation utilites will pull it from here.  Rework this.
      */
     int current_dalvik_offset_;
+    int estimated_native_code_size_;     // Just an estimate; used to reserve code_buffer_ size.
     RegisterPool* reg_pool_;
     /*
      * Sanity checking for the register temp tracking.  The same ssa

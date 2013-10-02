@@ -117,6 +117,11 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
 #endif
 ) {
   VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
+  if (code_item->insns_size_in_code_units_ >= 0x10000) {
+    LOG(INFO) << "Method size exceeds compiler limits: " << code_item->insns_size_in_code_units_
+              << " in " << PrettyMethod(method_idx, dex_file);
+    return NULL;
+  }
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   CompilationUnit cu(&compiler.GetArenaPool());
@@ -151,7 +156,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
    */
 
   if (compiler_backend == kPortable) {
-    // Fused long branches not currently usseful in bitcode.
+    // Fused long branches not currently useful in bitcode.
     cu.disable_opt |= (1 << kBranchFusing);
   }
 
