@@ -596,6 +596,7 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
     // change process groups, so we don't get reaped by ProcessManager
     setpgid(0, 0);
 
+    // gLogVerbosity.class_linker = true;
     VLOG(class_linker) << dex2oat
                        << " --runtime-arg -Xms64m"
                        << " --runtime-arg -Xmx64m"
@@ -832,10 +833,14 @@ const DexFile* ClassLinker::FindOrCreateOatFileForDexLocationLocked(const std::s
   RegisterOatFileLocked(*oat_file);
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location);
   if (oat_dex_file == NULL) {
-    LOG(ERROR) << "Failed to find dex file in generated oat file: " << oat_location;
+    LOG(ERROR) << "Failed to find dex file " << dex_location << " in generated oat file: " << oat_location;
     return NULL;
   }
-  return oat_dex_file->OpenDexFile();
+  const DexFile* result = oat_dex_file->OpenDexFile();
+  CHECK_EQ(dex_location_checksum, result->GetLocationChecksum()) << std::hex
+          << "dex_location_checksum=" << dex_location_checksum
+          << " DexFile::GetLocationChecksum()=" << result->GetLocationChecksum();
+  return result;
 }
 
 bool ClassLinker::VerifyOatFileChecksums(const OatFile* oat_file,
@@ -870,14 +875,14 @@ bool ClassLinker::VerifyOatFileChecksums(const OatFile* oat_file,
     std::string image_file(image_header.GetImageRoot(
         ImageHeader::kOatLocation)->AsString()->ToModifiedUtf8());
     LOG(WARNING) << "oat file " << oat_file->GetLocation()
-                 << " mismatch ( " << std::hex << oat_file->GetOatHeader().GetImageFileLocationOatChecksum()
+                 << " mismatch (" << std::hex << oat_file->GetOatHeader().GetImageFileLocationOatChecksum()
                  << ", " << oat_file->GetOatHeader().GetImageFileLocationOatDataBegin()
                  << ") with " << image_file
                  << " (" << image_oat_checksum << ", " << std::hex << image_oat_data_begin << ")";
   }
   if (!dex_check) {
     LOG(WARNING) << "oat file " << oat_file->GetLocation()
-                 << " mismatch ( " << std::hex << oat_dex_file->GetDexFileLocationChecksum()
+                 << " mismatch (" << std::hex << oat_dex_file->GetDexFileLocationChecksum()
                  << ") with " << dex_location
                  << " (" << std::hex << dex_location_checksum << ")";
   }
@@ -889,6 +894,7 @@ const DexFile* ClassLinker::VerifyAndOpenDexFileFromOatFile(const OatFile* oat_f
                                                             uint32_t dex_location_checksum) {
   bool verified = VerifyOatFileChecksums(oat_file, dex_location, dex_location_checksum);
   if (!verified) {
+    delete oat_file;
     return NULL;
   }
   RegisterOatFileLocked(*oat_file);
@@ -906,8 +912,8 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const std::strin
   // Look for an existing file next to dex. for example, for
   // /foo/bar/baz.jar, look for /foo/bar/baz.odex.
   std::string odex_filename(OatFile::DexFilenameToOdexFilename(dex_location));
-  const OatFile* oat_file = FindOatFileFromOatLocationLocked(odex_filename);
-  if (oat_file != NULL) {
+  UniquePtr<const OatFile> oat_file(FindOatFileFromOatLocationLocked(odex_filename));
+  if (oat_file.get() != NULL) {
     uint32_t dex_location_checksum;
     if (!DexFile::GetChecksum(dex_location, dex_location_checksum)) {
       // If no classes.dex found in dex_location, it has been stripped, assume oat is up-to-date.
@@ -917,7 +923,7 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const std::strin
       RegisterOatFileLocked(*oat_file);
       return oat_dex_file->OpenDexFile();
     }
-    const DexFile* dex_file = VerifyAndOpenDexFileFromOatFile(oat_file,
+    const DexFile* dex_file = VerifyAndOpenDexFileFromOatFile(oat_file.release(),
                                                               dex_location,
                                                               dex_location_checksum);
     if (dex_file != NULL) {
@@ -927,21 +933,21 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const std::strin
   // Look for an existing file in the dalvik-cache, validating the result if found
   // not found in /foo/bar/baz.odex? try /data/dalvik-cache/foo@bar@baz.jar@classes.dex
   std::string cache_location(GetDalvikCacheFilenameOrDie(dex_location));
-  oat_file = FindOatFileFromOatLocationLocked(cache_location);
-  if (oat_file != NULL) {
+  oat_file.reset(FindOatFileFromOatLocationLocked(cache_location));
+  if (oat_file.get() != NULL) {
     uint32_t dex_location_checksum;
     if (!DexFile::GetChecksum(dex_location, dex_location_checksum)) {
       LOG(WARNING) << "Failed to compute checksum: " << dex_location;
       return NULL;
     }
-    const DexFile* dex_file = VerifyAndOpenDexFileFromOatFile(oat_file,
+    const DexFile* dex_file = VerifyAndOpenDexFileFromOatFile(oat_file.release(),
                                                               dex_location,
                                                               dex_location_checksum);
     if (dex_file != NULL) {
       return dex_file;
     }
-    if (TEMP_FAILURE_RETRY(unlink(oat_file->GetLocation().c_str())) != 0) {
-      PLOG(FATAL) << "Failed to remove obsolete oat file " << oat_file->GetLocation();
+    if (TEMP_FAILURE_RETRY(unlink(cache_location.c_str())) != 0) {
+      PLOG(FATAL) << "Failed to remove obsolete oat file from " << cache_location;
     }
   }
   LOG(INFO) << "Failed to open oat file from " << odex_filename << " or " << cache_location << ".";
