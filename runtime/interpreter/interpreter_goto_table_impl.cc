@@ -461,8 +461,8 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(NEW_INSTANCE) {
-    Object* obj = AllocObjectFromCode(inst->VRegB_21c(), shadow_frame.GetMethod(),
-                                      self, do_access_check);
+    Object* obj = AllocObjectFromCodeInstrumented(inst->VRegB_21c(), shadow_frame.GetMethod(),
+                                                  self, do_access_check);
     if (UNLIKELY(obj == NULL)) {
       HANDLE_PENDING_EXCEPTION();
     } else {
@@ -474,8 +474,8 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
 
   HANDLE_INSTRUCTION_START(NEW_ARRAY) {
     int32_t length = shadow_frame.GetVReg(inst->VRegB_22c(inst_data));
-    Object* obj = AllocArrayFromCode(inst->VRegC_22c(), shadow_frame.GetMethod(),
-                                     length, self, do_access_check);
+    Object* obj = AllocArrayFromCodeInstrumented(inst->VRegC_22c(), shadow_frame.GetMethod(),
+                                                 length, self, do_access_check);
     if (UNLIKELY(obj == NULL)) {
       HANDLE_PENDING_EXCEPTION();
     } else {

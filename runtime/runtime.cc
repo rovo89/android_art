@@ -1307,7 +1307,7 @@ void Runtime::InstrumentQuickAllocEntryPoints() {
   {
     MutexLock mu(self, *Locks::runtime_shutdown_lock_);
     MutexLock mu2(self, *Locks::thread_list_lock_);
-    DCHECK_LE(quick_alloc_entry_points_instrumentation_counter_, 0);
+    DCHECK_GE(quick_alloc_entry_points_instrumentation_counter_, 0);
     int old_counter = quick_alloc_entry_points_instrumentation_counter_++;
     if (old_counter == 0) {
       // If it was disabled, enable it.
@@ -1325,7 +1325,7 @@ void Runtime::UninstrumentQuickAllocEntryPoints() {
   {
     MutexLock mu(self, *Locks::runtime_shutdown_lock_);
     MutexLock mu2(self, *Locks::thread_list_lock_);
-    DCHECK_LT(quick_alloc_entry_points_instrumentation_counter_, 0);
+    DCHECK_GT(quick_alloc_entry_points_instrumentation_counter_, 0);
     int new_counter = --quick_alloc_entry_points_instrumentation_counter_;
     if (new_counter == 0) {
       // Disable it if the counter becomes zero.
