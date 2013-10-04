@@ -1196,7 +1196,7 @@ std::string GetDalvikCacheFilenameOrDie(const std::string& location) {
     LOG(FATAL) << "Expected path in location to be absolute: "<< location;
   }
   std::string cache_file(location, 1);  // skip leading slash
-  if (!IsValidDexFilename(location) && !IsValidImageFilename(location)) {
+  if (!EndsWith(location, ".dex") || !EndsWith(location, ".art")) {
     cache_file += "/";
     cache_file += DexFile::kClassesDex;
   }
@@ -1204,27 +1204,19 @@ std::string GetDalvikCacheFilenameOrDie(const std::string& location) {
   return dalvik_cache + "/" + cache_file;
 }
 
-bool IsValidZipFilename(const std::string& filename) {
-  if (filename.size() < 4) {
-    return false;
-  }
-  std::string suffix(filename.substr(filename.size() - 4));
-  return (suffix == ".zip" || suffix == ".jar" || suffix == ".apk");
+bool IsZipMagic(uint32_t magic) {
+  return (('P' == ((magic >> 0) & 0xff)) &&
+          ('K' == ((magic >> 8) & 0xff)));
 }
 
-bool IsValidDexFilename(const std::string& filename) {
-  return EndsWith(filename, ".dex");
+bool IsDexMagic(uint32_t magic) {
+  return DexFile::IsMagicValid(reinterpret_cast<const byte*>(&magic));
 }
 
-bool IsValidImageFilename(const std::string& filename) {
-  return EndsWith(filename, ".art");
-}
-
-bool IsValidOatFilename(const std::string& filename) {
-  return (EndsWith(filename, ".odex") ||
-          EndsWith(filename, ".dex") ||
-          EndsWith(filename, ".oat") ||
-          EndsWith(filename, DexFile::kClassesDex));
+bool IsOatMagic(uint32_t magic) {
+  return (memcmp(reinterpret_cast<const byte*>(magic),
+                 OatHeader::kOatMagic,
+                 sizeof(OatHeader::kOatMagic)) == 0);
 }
 
 }  // namespace art

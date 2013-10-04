@@ -228,7 +228,7 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
     } else {
       uint32_t location_checksum;
       // If we have no classes.dex checksum such as in a user build, assume up-to-date.
-      if (!DexFile::GetChecksum(filename.c_str(), location_checksum)) {
+      if (!DexFile::GetChecksum(filename.c_str(), &location_checksum)) {
         if (debug_logging) {
           LOG(INFO) << "DexFile_isDexOptNeeded ignoring precompiled stripped file: "
               << filename.c_str();
@@ -278,7 +278,7 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
 
   ScopedObjectAccess soa(env);
   uint32_t location_checksum;
-  if (!DexFile::GetChecksum(filename.c_str(), location_checksum)) {
+  if (!DexFile::GetChecksum(filename.c_str(), &location_checksum)) {
     LOG(ERROR) << "DexFile_isDexOptNeeded failed to compute checksum of " << filename.c_str();
     return JNI_TRUE;
   }

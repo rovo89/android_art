@@ -336,11 +336,11 @@ ZipArchive* ZipArchive::Open(const std::string& filename) {
     PLOG(WARNING) << "Unable to open '" << filename << "'";
     return NULL;
   }
-  SetCloseOnExec(fd);
   return OpenFromFd(fd);
 }
 
 ZipArchive* ZipArchive::OpenFromFd(int fd) {
+  SetCloseOnExec(fd);
   UniquePtr<ZipArchive> zip_archive(new ZipArchive(fd));
   if (zip_archive.get() == NULL) {
       return NULL;
