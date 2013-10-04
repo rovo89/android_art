@@ -63,10 +63,16 @@ OatFile* OatFile::Open(const std::string& filename,
                        bool executable) {
   CHECK(!filename.empty()) << location;
   CheckLocation(filename);
-  // If we are trying to execute, we need to use dlopen.
+#ifdef ART_USE_PORTABLE_COMPILER
+  // If we are using PORTABLE, use dlopen to deal with relocations.
+  //
+  // We use our own ELF loader for Quick to deal with legacy apps that
+  // open a generated dex file by name, remove the file, then open
+  // another generated dex file with the same name. http://b/10614658
   if (executable) {
     return OpenDlopen(filename, location, requested_base);
   }
+#endif
   // If we aren't trying to execute, we just use our own ElfFile loader for a couple reasons:
   //
   // On target, dlopen may fail when compiling due to selinux restrictions on installd.
@@ -160,7 +166,9 @@ bool OatFile::Dlopen(const std::string& elf_filename, byte* requested_base) {
 bool OatFile::ElfFileOpen(File* file, byte* requested_base, bool writable, bool executable) {
   elf_file_.reset(ElfFile::Open(file, writable, true));
   if (elf_file_.get() == NULL) {
-    PLOG(WARNING) << "Failed to create ELF file for " << file->GetPath();
+    if (writable) {
+      PLOG(WARNING) << "Failed to open ELF file for " << file->GetPath();
+    }
     return false;
   }
   bool loaded = elf_file_->Load(executable);

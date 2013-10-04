@@ -70,7 +70,10 @@ bool ElfFile::Setup(File* file, bool writable, bool program_header_only) {
     return false;
   }
   if (file_length < sizeof(llvm::ELF::Elf32_Ehdr)) {
-    LOG(WARNING) << "File not large enough to contain ELF header: " << file_->GetPath();
+    if (writable) {
+      LOG(WARNING) << "File size " << file_length
+                   << " not large enough to contain ELF header: " << file_->GetPath();
+    }
     return false;
   }
 
@@ -78,7 +81,6 @@ bool ElfFile::Setup(File* file, bool writable, bool program_header_only) {
     // first just map ELF header to get program header size information
     size_t elf_header_size = sizeof(llvm::ELF::Elf32_Ehdr);
     if (!SetMap(MemMap::MapFile(elf_header_size, prot, flags, file_->Fd(), 0))) {
-      LOG(WARNING) << "Failed to map ELF header: " << file_->GetPath();
       return false;
     }
     // then remap to cover program header
