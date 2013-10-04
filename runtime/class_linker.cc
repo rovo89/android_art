@@ -794,7 +794,7 @@ class ScopedFlock {
 const DexFile* ClassLinker::FindOrCreateOatFileForDexLocationLocked(const std::string& dex_location,
                                                                     const std::string& oat_location) {
   uint32_t dex_location_checksum;
-  if (!DexFile::GetChecksum(dex_location, dex_location_checksum)) {
+  if (!DexFile::GetChecksum(dex_location, &dex_location_checksum)) {
     LOG(ERROR) << "Failed to compute checksum '" << dex_location << "'";
     return NULL;
   }
@@ -915,7 +915,7 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const std::strin
   UniquePtr<const OatFile> oat_file(FindOatFileFromOatLocationLocked(odex_filename));
   if (oat_file.get() != NULL) {
     uint32_t dex_location_checksum;
-    if (!DexFile::GetChecksum(dex_location, dex_location_checksum)) {
+    if (!DexFile::GetChecksum(dex_location, &dex_location_checksum)) {
       // If no classes.dex found in dex_location, it has been stripped, assume oat is up-to-date.
       // This is the common case in user builds for jar's and apk's in the /system directory.
       const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location);
@@ -936,7 +936,7 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const std::strin
   oat_file.reset(FindOatFileFromOatLocationLocked(cache_location));
   if (oat_file.get() != NULL) {
     uint32_t dex_location_checksum;
-    if (!DexFile::GetChecksum(dex_location, dex_location_checksum)) {
+    if (!DexFile::GetChecksum(dex_location, &dex_location_checksum)) {
       LOG(WARNING) << "Failed to compute checksum: " << dex_location;
       return NULL;
     }
@@ -1932,7 +1932,8 @@ bool ClassLinker::IsDexFileRegistered(const DexFile& dex_file) const {
 void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file, SirtRef<mirror::DexCache>& dex_cache) {
   dex_lock_.AssertExclusiveHeld(Thread::Current());
   CHECK(dex_cache.get() != NULL) << dex_file.GetLocation();
-  CHECK(dex_cache->GetLocation()->Equals(dex_file.GetLocation()));
+  CHECK(dex_cache->GetLocation()->Equals(dex_file.GetLocation()))
+      << dex_cache->GetLocation()->ToModifiedUtf8() << " " << dex_file.GetLocation();
   dex_caches_.push_back(dex_cache.get());
   dex_cache->SetDexFile(&dex_file);
   dex_caches_dirty_ = true;

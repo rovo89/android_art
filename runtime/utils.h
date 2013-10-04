@@ -353,11 +353,10 @@ std::string GetDalvikCacheOrDie(const char* android_data);
 // Returns the dalvik-cache location for a DexFile or OatFile, or dies trying.
 std::string GetDalvikCacheFilenameOrDie(const std::string& location);
 
-// Check whether the given filename has a valid extension
-bool IsValidZipFilename(const std::string& filename);
-bool IsValidDexFilename(const std::string& filename);
-bool IsValidImageFilename(const std::string& filename);
-bool IsValidOatFilename(const std::string& filename);
+// Check whether the given magic matches a known file type.
+bool IsZipMagic(uint32_t magic);
+bool IsDexMagic(uint32_t magic);
+bool IsOatMagic(uint32_t magic);
 
 class VoidFunctor {
  public:
