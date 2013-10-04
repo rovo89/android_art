@@ -120,7 +120,7 @@ TEST_F(DexFileTest, GetLocationChecksum) {
 TEST_F(DexFileTest, GetChecksum) {
   uint32_t checksum;
   ScopedObjectAccess soa(Thread::Current());
-  EXPECT_TRUE(DexFile::GetChecksum(GetLibCoreDexFileName(), checksum));
+  EXPECT_TRUE(DexFile::GetChecksum(GetLibCoreDexFileName(), &checksum));
   EXPECT_EQ(java_lang_dex_file_->GetLocationChecksum(), checksum);
 }
 

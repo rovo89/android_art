@@ -27,6 +27,9 @@ namespace art {
 
 class PACKED(4) OatHeader {
  public:
+  static const uint8_t kOatMagic[4];
+  static const uint8_t kOatVersion[4];
+
   OatHeader();
   OatHeader(InstructionSet instruction_set,
             const std::vector<const DexFile*>* dex_files,
@@ -78,9 +81,6 @@ class PACKED(4) OatHeader {
   std::string GetImageFileLocation() const;
 
  private:
-  static const uint8_t kOatMagic[4];
-  static const uint8_t kOatVersion[4];
-
   uint8_t magic_[4];
   uint8_t version_[4];
   uint32_t adler32_checksum_;

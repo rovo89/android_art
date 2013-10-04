@@ -62,9 +62,34 @@ DexFile::ClassPathEntry DexFile::FindInClassPath(const char* descriptor,
                         reinterpret_cast<const DexFile::ClassDef*>(NULL));
 }
 
-bool DexFile::GetChecksum(const std::string& filename, uint32_t& checksum) {
-  if (IsValidZipFilename(filename)) {
-    UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(filename));
+int OpenAndReadMagic(const std::string& filename, uint32_t* magic) {
+  CHECK(magic != NULL);
+  int fd = open(filename.c_str(), O_RDONLY, 0);
+  if (fd == -1) {
+    PLOG(WARNING) << "Unable to open '" << filename << "'";
+    return -1;
+  }
+  int n = TEMP_FAILURE_RETRY(read(fd, magic, sizeof(*magic)));
+  if (n != sizeof(*magic)) {
+    PLOG(ERROR) << "Failed to find magic in '" << filename << "'";
+    return -1;
+  }
+  if (lseek(fd, 0, SEEK_SET) != 0) {
+    PLOG(ERROR) << "Failed to seek to beginning of file '" << filename << "'";
+    return -1;
+  }
+  return fd;
+}
+
+bool DexFile::GetChecksum(const std::string& filename, uint32_t* checksum) {
+  CHECK(checksum != NULL);
+  uint32_t magic;
+  int fd = OpenAndReadMagic(filename, &magic);
+  if (fd == -1) {
+    return false;
+  }
+  if (IsZipMagic(magic)) {
+    UniquePtr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(fd));
     if (zip_archive.get() == NULL) {
       return false;
     }
@@ -73,30 +98,36 @@ bool DexFile::GetChecksum(const std::string& filename, uint32_t& checksum) {
       LOG(ERROR) << "Zip archive '" << filename << "' doesn't contain " << kClassesDex;
       return false;
     }
-    checksum = zip_entry->GetCrc32();
+    *checksum = zip_entry->GetCrc32();
     return true;
   }
-  if (IsValidDexFilename(filename)) {
-    UniquePtr<const DexFile> dex_file(DexFile::OpenFile(filename, filename, false));
+  if (IsDexMagic(magic)) {
+    UniquePtr<const DexFile> dex_file(DexFile::OpenFile(fd, filename, false));
     if (dex_file.get() == NULL) {
       return false;
     }
-    checksum = dex_file->GetHeader().checksum_;
+    *checksum = dex_file->GetHeader().checksum_;
     return true;
   }
-  LOG(ERROR) << "Expected valid zip or dex file name: " << filename;
+  LOG(ERROR) << "Expected valid zip or dex file: " << filename;
   return false;
 }
 
 const DexFile* DexFile::Open(const std::string& filename,
                              const std::string& location) {
-  if (IsValidZipFilename(filename)) {
-    return DexFile::OpenZip(filename, location);
+  uint32_t magic;
+  int fd = OpenAndReadMagic(filename, &magic);
+  if (fd == -1) {
+    return NULL;
   }
-  if (!IsValidDexFilename(filename)) {
-    LOG(WARNING) << "Attempting to open dex file with unknown extension '" << filename << "'";
+  if (IsZipMagic(magic)) {
+    return DexFile::OpenZip(fd, location);
   }
-  return DexFile::OpenFile(filename, location, true);
+  if (IsDexMagic(magic)) {
+    return DexFile::OpenFile(fd, location, true);
+  }
+  LOG(ERROR) << "Expected valid zip or dex file: " << filename;
+  return NULL;
 }
 
 int DexFile::GetPermissions() const {
@@ -129,37 +160,32 @@ bool DexFile::DisableWrite() const {
   }
 }
 
-const DexFile* DexFile::OpenFile(const std::string& filename,
+const DexFile* DexFile::OpenFile(int fd,
                                  const std::string& location,
                                  bool verify) {
-  CHECK(!location.empty()) << filename;
-  int fd = open(filename.c_str(), O_RDONLY);  // TODO: scoped_fd
-  if (fd == -1) {
-    PLOG(ERROR) << "open(\"" << filename << "\", O_RDONLY) failed";
-    return NULL;
-  }
+  CHECK(!location.empty());
   struct stat sbuf;
   memset(&sbuf, 0, sizeof(sbuf));
   if (fstat(fd, &sbuf) == -1) {
-    PLOG(ERROR) << "fstat \"" << filename << "\" failed";
+    PLOG(ERROR) << "fstat \"" << location << "\" failed";
     close(fd);
     return NULL;
   }
   if (S_ISDIR(sbuf.st_mode)) {
-    LOG(ERROR) << "attempt to mmap directory \"" << filename << "\"";
+    LOG(ERROR) << "attempt to mmap directory \"" << location << "\"";
     return NULL;
   }
   size_t length = sbuf.st_size;
   UniquePtr<MemMap> map(MemMap::MapFile(length, PROT_READ, MAP_PRIVATE, fd, 0));
   if (map.get() == NULL) {
-    LOG(ERROR) << "mmap \"" << filename << "\" failed";
+    LOG(ERROR) << "mmap \"" << location << "\" failed";
     close(fd);
     return NULL;
   }
   close(fd);
 
   if (map->Size() < sizeof(DexFile::Header)) {
-    LOG(ERROR) << "Failed to open dex file '" << filename << "' that is too short to have a header";
+    LOG(ERROR) << "Failed to open dex file '" << location << "' that is too short to have a header";
     return NULL;
   }
 
@@ -167,12 +193,12 @@ const DexFile* DexFile::OpenFile(const std::string& filename,
 
   const DexFile* dex_file = OpenMemory(location, dex_header->checksum_, map.release());
   if (dex_file == NULL) {
-    LOG(ERROR) << "Failed to open dex file '" << filename << "' from memory";
+    LOG(ERROR) << "Failed to open dex file '" << location << "' from memory";
     return NULL;
   }
 
   if (verify && !DexFileVerifier::Verify(dex_file, dex_file->Begin(), dex_file->Size())) {
-    LOG(ERROR) << "Failed to verify dex file '" << filename << "'";
+    LOG(ERROR) << "Failed to verify dex file '" << location << "'";
     return NULL;
   }
 
@@ -181,11 +207,10 @@ const DexFile* DexFile::OpenFile(const std::string& filename,
 
 const char* DexFile::kClassesDex = "classes.dex";
 
-const DexFile* DexFile::OpenZip(const std::string& filename,
-                                const std::string& location) {
-  UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(filename));
+const DexFile* DexFile::OpenZip(int fd, const std::string& location) {
+  UniquePtr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(fd));
   if (zip_archive.get() == NULL) {
-    LOG(ERROR) << "Failed to open " << filename << " when looking for classes.dex";
+    LOG(ERROR) << "Failed to open " << location << " when looking for classes.dex";
     return NULL;
   }
   return DexFile::Open(*zip_archive.get(), location);

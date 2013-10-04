@@ -276,7 +276,7 @@ bool ImageSpace::ValidateOatFile() const {
   for (const OatFile::OatDexFile* oat_dex_file : oat_file_->GetOatDexFiles()) {
     const std::string& dex_file_location = oat_dex_file->GetDexFileLocation();
     uint32_t dex_file_location_checksum;
-    if (!DexFile::GetChecksum(dex_file_location.c_str(), dex_file_location_checksum)) {
+    if (!DexFile::GetChecksum(dex_file_location.c_str(), &dex_file_location_checksum)) {
       LOG(WARNING) << "ValidateOatFile could not find checksum for " << dex_file_location;
       return false;
     }
