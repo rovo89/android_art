@@ -89,25 +89,35 @@ static jint DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceNam
   if (sourceName.c_str() == NULL) {
     return 0;
   }
-  std::string source(sourceName.c_str());
+  std::string dex_location(sourceName.c_str());
   NullableScopedUtfChars outputName(env, javaOutputName);
   if (env->ExceptionCheck()) {
     return 0;
   }
   ScopedObjectAccess soa(env);
-  const DexFile* dex_file;
-  if (outputName.c_str() == NULL) {
-    dex_file = Runtime::Current()->GetClassLinker()->FindDexFileInOatFileFromDexLocation(source);
-  } else {
-    std::string output(outputName.c_str());
-    dex_file =
-        Runtime::Current()->GetClassLinker()->FindOrCreateOatFileForDexLocation(source, output);
-  }
-  if (dex_file == NULL) {
-    LOG(WARNING) << "Failed to open dex file: " << source;
+
+  uint32_t dex_location_checksum;
+  if (!DexFile::GetChecksum(dex_location, &dex_location_checksum)) {
+    LOG(WARNING) << "Failed to compute checksum: " << dex_location;
     ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
     soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/io/IOException;",
-                                   "Unable to open dex file: %s", source.c_str());
+                                   "Unable to get checksum of dex file: %s", dex_location.c_str());
+    return 0;
+  }
+
+  ClassLinker* linker = Runtime::Current()->GetClassLinker();
+  const DexFile* dex_file;
+  if (outputName.c_str() == NULL) {
+    dex_file = linker->FindDexFileInOatFileFromDexLocation(dex_location, dex_location_checksum);
+  } else {
+    std::string oat_location(outputName.c_str());
+    dex_file = linker->FindOrCreateOatFileForDexLocation(dex_location, dex_location_checksum, oat_location);
+  }
+  if (dex_file == NULL) {
+    LOG(WARNING) << "Failed to open dex file: " << dex_location;
+    ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
+    soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/io/IOException;",
+                                   "Unable to open dex file: %s", dex_location.c_str());
     return 0;
   }
   return static_cast<jint>(reinterpret_cast<uintptr_t>(dex_file));
@@ -220,7 +230,7 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
   UniquePtr<const OatFile> oat_file(OatFile::Open(odex_filename, odex_filename, NULL, false));
   if (oat_file.get() != NULL) {
     ScopedObjectAccess soa(env);
-    const art::OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(filename.c_str());
+    const art::OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(filename.c_str(), NULL);
     if (oat_dex_file == NULL) {
       if (debug_logging) {
         LOG(INFO) << "DexFile_isDexOptNeeded GetOatDexFile failed";

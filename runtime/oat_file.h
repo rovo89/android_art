@@ -204,7 +204,8 @@ class OatFile {
     DISALLOW_COPY_AND_ASSIGN(OatDexFile);
   };
 
-  const OatDexFile* GetOatDexFile(const std::string& dex_file_location,
+  const OatDexFile* GetOatDexFile(const std::string& dex_location,
+                                  const uint32_t* const dex_location_checksum,
                                   bool exception_if_not_found = true) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   std::vector<const OatDexFile*> GetOatDexFiles() const;

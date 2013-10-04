@@ -110,7 +110,9 @@ TEST_F(OatTest, WriteRead) {
   ASSERT_EQ("lue.art", oat_header.GetImageFileLocation());
 
   const DexFile* dex_file = java_lang_dex_file_;
-  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file->GetLocation());
+  uint32_t dex_file_checksum = dex_file->GetLocationChecksum();
+  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file->GetLocation(),
+                                                                    &dex_file_checksum);
   CHECK_EQ(dex_file->GetLocationChecksum(), oat_dex_file->GetDexFileLocationChecksum());
   for (size_t i = 0; i < dex_file->NumClassDefs(); i++) {
     const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
