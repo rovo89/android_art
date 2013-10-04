@@ -278,6 +278,26 @@ void DisassemblerArm::DumpArm(std::ostream& os, const uint8_t* instr_ptr) {
     os << StringPrintf("%p: %08x\t%-7s ", instr_ptr, instruction, opcode.c_str()) << args.str() << '\n';
 }
 
+int32_t ThumbExpand(int32_t imm12) {
+  if ((imm12 & 0xC00) == 0) {
+    switch ((imm12 >> 8) & 3) {
+      case 0:
+        return imm12 & 0xFF;
+      case 1:
+        return ((imm12 & 0xFF) << 16) | (imm12 & 0xFF);
+      case 2:
+        return ((imm12 & 0xFF) << 24) | ((imm12 & 0xFF) << 8);
+      default:  // 3
+        return ((imm12 & 0xFF) << 24) | ((imm12 & 0xFF) << 16) | ((imm12 & 0xFF) << 8) |
+            (imm12 & 0xFF);
+    }
+  } else {
+    uint32_t val = 0x80 | (imm12 & 0x7F);
+    int32_t rotate = (imm12 >> 7) & 0x1F;
+    return (val >> rotate) | (val << (32 - rotate));
+  }
+}
+
 size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) {
   uint32_t instr = (ReadU16(instr_ptr) << 16) | ReadU16(instr_ptr + 2);
   // |111|1 1|1000000|0000|1111110000000000|
@@ -628,7 +648,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
               opcode << "s";
             }
           }
-          args << Rd << ", ThumbExpand(" << imm32 << ")";
+          args << Rd << ", #" << ThumbExpand(imm32);
         } else if (Rd.r == 0xF && S == 1 &&
                    (op3 == 0x0 || op3 == 0x4 || op3 == 0x8 || op3 == 0xD)) {
           if (op3 == 0x0) {
@@ -640,7 +660,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
           } else {
             opcode << "cmp.w";
           }
-          args << Rn << ", ThumbExpand(" << imm32 << ")";
+          args << Rn << ", #" << ThumbExpand(imm32);
         } else {
           switch (op3) {
             case 0x0: opcode << "and"; break;
@@ -658,7 +678,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
           if (S == 1) {
             opcode << "s";
           }
-          args << Rd << ", " << Rn << ", ThumbExpand(" << imm32 << ")";
+          args << Rd << ", " << Rn << ", #" << ThumbExpand(imm32);
         }
       } else if ((instr & 0x8000) == 0 && (op2 & 0x20) != 0) {
         // Data-processing (plain binary immediate)
