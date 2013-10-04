@@ -214,6 +214,7 @@ void Mir2Lir::CallRuntimeHelperImmRegLocationRegLocation(ThreadOffset helper_off
                                                          int arg0, RegLocation arg1,
                                                          RegLocation arg2, bool safepoint_pc) {
   int r_tgt = CallHelperSetup(helper_offset);
+  DCHECK_EQ(arg1.wide, 0U);
   LoadValueDirectFixed(arg1, TargetReg(kArg1));
   if (arg2.wide == 0) {
     LoadValueDirectFixed(arg2, TargetReg(kArg2));
@@ -221,6 +222,21 @@ void Mir2Lir::CallRuntimeHelperImmRegLocationRegLocation(ThreadOffset helper_off
     LoadValueDirectWideFixed(arg2, TargetReg(kArg2), TargetReg(kArg3));
   }
   LoadConstant(TargetReg(kArg0), arg0);
+  ClobberCalleeSave();
+  CallHelper(r_tgt, helper_offset, safepoint_pc);
+}
+
+void Mir2Lir::CallRuntimeHelperRegLocationRegLocationRegLocation(ThreadOffset helper_offset,
+                                                                 RegLocation arg0, RegLocation arg1,
+                                                                 RegLocation arg2,
+                                                                 bool safepoint_pc) {
+  int r_tgt = CallHelperSetup(helper_offset);
+  DCHECK_EQ(arg0.wide, 0U);
+  LoadValueDirectFixed(arg0, TargetReg(kArg0));
+  DCHECK_EQ(arg1.wide, 0U);
+  LoadValueDirectFixed(arg1, TargetReg(kArg1));
+  DCHECK_EQ(arg1.wide, 0U);
+  LoadValueDirectFixed(arg2, TargetReg(kArg2));
   ClobberCalleeSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }

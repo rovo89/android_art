@@ -152,6 +152,7 @@ ENTRY \c_name
     mov r1, r9                      @ pass Thread::Current
     mov r2, sp                      @ pass SP
     b   \cxx_name                   @ \cxx_name(Thread*, SP)
+    bkpt
 END \c_name
 .endm
 
@@ -162,6 +163,7 @@ ENTRY \c_name
     mov r2, r9                      @ pass Thread::Current
     mov r3, sp                      @ pass SP
     b   \cxx_name                   @ \cxx_name(Thread*, SP)
+    bkpt
 END \c_name
 .endm
 
@@ -389,33 +391,96 @@ slow_unlock:
 END art_quick_unlock_object
 
     /*
-     * Entry from managed code that calls artCheckCastFromCode and delivers exception on failure.
+     * Entry from managed code that calls artIsAssignableFromCode and on failure calls
+     * artThrowClassCastException.
      */
-    .extern artCheckCastFromCode
+    .extern artThrowClassCastException
 ENTRY art_quick_check_cast
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME    @ save callee saves in case exception allocation triggers GC
-    mov    r2, r9                       @ pass Thread::Current
-    mov    r3, sp                       @ pass SP
-    bl     artCheckCastFromCode         @ (Class* a, Class* b, Thread*, SP)
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    RETURN_IF_RESULT_IS_ZERO
-    DELIVER_PENDING_EXCEPTION
+    push {r0-r1, lr}                    @ save arguments, link register and pad
+    .save {r0-r1, lr}
+    .cfi_adjust_cfa_offset 12
+    .cfi_rel_offset r0, 0
+    .cfi_rel_offset r1, 4
+    .cfi_rel_offset lr, 8
+    sub sp, #4
+    .pad #4
+    .cfi_adjust_cfa_offset 4
+    bl artIsAssignableFromCode
+    cbz    r0, throw_class_cast_exception
+    add sp, #4
+    .cfi_adjust_cfa_offset -4
+    pop {r0-r1, pc}
+throw_class_cast_exception:
+    add sp, #4
+    .cfi_adjust_cfa_offset -4
+    pop {r0-r1, lr}
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
+    mov r2, r9                      @ pass Thread::Current
+    mov r3, sp                      @ pass SP
+    b   artThrowClassCastException  @ (Class*, Class*, Thread*, SP)
+    bkpt
 END art_quick_check_cast
 
     /*
-     * Entry from managed code that calls artCanPutArrayElementFromCode and delivers exception on
-     * failure.
+     * Entry from managed code for array put operations of objects where the value being stored
+     * needs to be checked for compatibility.
+     * r0 = array, r1 = index, r2 = value
      */
-    .extern artCanPutArrayElementFromCode
-ENTRY art_quick_can_put_array_element
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME    @ save callee saves in case exception allocation triggers GC
-    mov    r2, r9                         @ pass Thread::Current
-    mov    r3, sp                         @ pass SP
-    bl     artCanPutArrayElementFromCode  @ (Object* element, Class* array_class, Thread*, SP)
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    RETURN_IF_RESULT_IS_ZERO
-    DELIVER_PENDING_EXCEPTION
-END art_quick_can_put_array_element
+ENTRY art_quick_aput_obj_with_null_and_bound_check
+    tst r0, r0
+    bne art_quick_aput_obj_with_bound_check
+    b art_quick_throw_null_pointer_exception
+END art_quick_aput_obj_with_null_and_bound_check
+
+ENTRY art_quick_aput_obj_with_bound_check
+    ldr r3, [r0, #ARRAY_LENGTH_OFFSET]
+    cmp r3, r1
+    bhi art_quick_aput_obj
+    mov r0, r1
+    mov r1, r3
+    b art_quick_throw_array_bounds
+END art_quick_aput_obj_with_bound_check
+
+ENTRY art_quick_aput_obj
+    cbz r2, do_aput_null
+    ldr r3, [r0, #CLASS_OFFSET]
+    ldr ip, [r2, #CLASS_OFFSET]
+    ldr r3, [r3, #CLASS_COMPONENT_TYPE_OFFSET]
+    cmp r3, ip  @ value's type == array's component type - trivial assignability
+    bne check_assignability
+do_aput:
+    add r3, r0, #OBJECT_ARRAY_DATA_OFFSET
+    str r2, [r3, r1, lsl #2]
+    ldr r3, [r9, #THREAD_CARD_TABLE_OFFSET]
+    lsr r0, r0, #7
+    strb r3, [r3, r0]
+    blx lr
+do_aput_null:
+    add r3, r0, #OBJECT_ARRAY_DATA_OFFSET
+    str r2, [r3, r1, lsl #2]
+    blx lr
+check_assignability:
+    push {r0-r2, lr}                 @ save arguments
+    mov r1, ip
+    mov r0, r3
+    bl artIsAssignableFromCode
+    cbz r0, throw_array_store_exception
+    pop {r0-r2, lr}
+    add r3, r0, #OBJECT_ARRAY_DATA_OFFSET
+    str r2, [r3, r1, lsl #2]
+    ldr r3, [r9, #THREAD_CARD_TABLE_OFFSET]
+    lsr r0, r0, #7
+    strb r3, [r3, r0]
+    blx lr
+throw_array_store_exception:
+    pop {r0-r2, lr}
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    mov r1, r2
+    mov r2, r9                   @ pass Thread::Current
+    mov r3, sp                   @ pass SP
+    b artThrowArrayStoreException  @ (Class*, Class*, Thread*, SP)
+    bkpt                         @ unreached
+END art_quick_aput_obj
 
     /*
      * Entry from managed code when uninitialized static storage, this stub will run the class

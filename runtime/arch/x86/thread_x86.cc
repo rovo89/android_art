@@ -134,6 +134,7 @@ void Thread::InitCpu() {
 
   // Sanity check other offsets.
   CHECK_EQ(THREAD_EXCEPTION_OFFSET, OFFSETOF_MEMBER(Thread, exception_));
+  CHECK_EQ(THREAD_CARD_TABLE_OFFSET, OFFSETOF_MEMBER(Thread, card_table_));
   CHECK_EQ(THREAD_ID_OFFSET, OFFSETOF_MEMBER(Thread, thin_lock_thread_id_));
 }
 

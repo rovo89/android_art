@@ -283,6 +283,7 @@ END art_quick_deliver_exception
     .extern artThrowNullPointerExceptionFromCode
 ENTRY art_quick_throw_null_pointer_exception
     GENERATE_GLOBAL_POINTER
+art_quick_throw_null_pointer_exception_gp_set:
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     move $a0, rSELF                 # pass Thread::Current
     la   $t9, artThrowNullPointerExceptionFromCode
@@ -309,6 +310,7 @@ END art_quick_throw_div_zero
     .extern artThrowArrayBoundsFromCode
 ENTRY art_quick_throw_array_bounds
     GENERATE_GLOBAL_POINTER
+art_quick_throw_array_bounds_gp_set:
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     move $a2, rSELF                 # pass Thread::Current
     la   $t9, artThrowArrayBoundsFromCode
@@ -481,6 +483,8 @@ END art_quick_handle_fill_data
     .extern artLockObjectFromCode
 ENTRY art_quick_lock_object
     GENERATE_GLOBAL_POINTER
+    beqz    $a0, art_quick_throw_null_pointer_exception_gp_set
+    nop
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME      # save callee saves in case we block
     move    $a1, rSELF                    # pass Thread::Current
     jal     artLockObjectFromCode         # (Object* obj, Thread*, $sp)
@@ -494,6 +498,8 @@ END art_quick_lock_object
     .extern artUnlockObjectFromCode
 ENTRY art_quick_unlock_object
     GENERATE_GLOBAL_POINTER
+    beqz    $a0, art_quick_throw_null_pointer_exception_gp_set
+    nop
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case exception allocation triggers GC
     move    $a1, rSELF                # pass Thread::Current
     jal     artUnlockObjectFromCode   # (Object* obj, Thread*, $sp)
@@ -504,29 +510,116 @@ END art_quick_unlock_object
     /*
      * Entry from managed code that calls artCheckCastFromCode and delivers exception on failure.
      */
-    .extern artCheckCastFromCode
+    .extern artThrowClassCastException
 ENTRY art_quick_check_cast
     GENERATE_GLOBAL_POINTER
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case exception allocation triggers GC
-    move    $a2, rSELF                # pass Thread::Current
-    jal     artCheckCastFromCode      # (Class* a, Class* b, Thread*, $sp)
-    move    $a3, $sp                  # pass $sp
-    RETURN_IF_ZERO
+    addiu  $sp, $sp, -16
+    .cfi_adjust_cfa_offset 16
+    sw     $ra, 12($sp)
+    .cfi_rel_offset 31, 12
+    sw     $t9, 8($sp)
+    sw     $a1, 4($sp)
+    sw     $a0, 0($sp)
+    jal    artIsAssignableFromCode
+    nop
+    beqz   $v0, throw_class_cast_exception
+    lw     $ra, 12($sp)
+    jr     $ra
+    addiu  $sp, $sp, 16
+    .cfi_adjust_cfa_offset -16
+throw_class_cast_exception:
+    lw     $t9, 8($sp)
+    lw     $a1, 4($sp)
+    lw     $a0, 0($sp)
+    addiu  $sp, $sp, 16
+    .cfi_adjust_cfa_offset -16
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    move $a2, rSELF                 # pass Thread::Current
+    la   $t9, artThrowClassCastException
+    jr   $t9                        # artThrowClassCastException (Class*, Class*, Thread*, SP)
+    move $a3, $sp                   # pass $sp
 END art_quick_check_cast
 
     /*
-     * Entry from managed code that calls artCanPutArrayElementFromCode and delivers exception on
-     * failure.
+     * Entry from managed code for array put operations of objects where the value being stored
+     * needs to be checked for compatibility.
+     * a0 = array, a1 = index, a2 = value
      */
-    .extern artCanPutArrayElementFromCode
-ENTRY art_quick_can_put_array_element
+ENTRY art_quick_aput_obj_with_null_and_bound_check
     GENERATE_GLOBAL_POINTER
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case exception allocation triggers GC
-    move    $a2, rSELF                     # pass Thread::Current
-    jal     artCanPutArrayElementFromCode  # (Object* element, Class* array_class, Thread*, $sp)
-    move    $a3, $sp                       # pass $sp
-    RETURN_IF_ZERO
-END art_quick_can_put_array_element
+    bnez    $a0, art_quick_aput_obj_with_bound_check_gp_set
+    nop
+    b art_quick_throw_null_pointer_exception_gp_set
+    nop
+END art_quick_aput_obj_with_null_and_bound_check
+
+ENTRY art_quick_aput_obj_with_bound_check
+    GENERATE_GLOBAL_POINTER
+art_quick_aput_obj_with_bound_check_gp_set:
+    lw $t0, ARRAY_LENGTH_OFFSET($a0)
+    sltu $t1, $a1, $t0
+    bnez $t1, art_quick_aput_obj_gp_set
+    nop
+    move $a0, $a1
+    b art_quick_throw_array_bounds_gp_set
+    move $a1, $t0
+END art_quick_aput_obj_with_bound_check
+
+ENTRY art_quick_aput_obj
+    GENERATE_GLOBAL_POINTER
+art_quick_aput_obj_gp_set:
+    beqz $a2, do_aput_null
+    nop
+    lw $t0, CLASS_OFFSET($a0)
+    lw $t1, CLASS_OFFSET($a2)
+    lw $t0, CLASS_COMPONENT_TYPE_OFFSET($t0)
+    bne $t1, $t0, check_assignability  # value's type == array's component type - trivial assignability
+    nop
+do_aput:
+    sll $a1, $a1, 2
+    add $t0, $a0, $a1
+    sw  $a2, OBJECT_ARRAY_DATA_OFFSET($t0)
+    lw  $t0, THREAD_CARD_TABLE_OFFSET(rSELF)
+    srl $t1, $a0, 7
+    add $t1, $t1, $t0
+    sb  $t0, ($t1)
+    jr  $ra
+    nop
+do_aput_null:
+    sll $a1, $a1, 2
+    add $t0, $a0, $a1
+    sw  $a2, OBJECT_ARRAY_DATA_OFFSET($t0)
+    jr  $ra
+    nop
+check_assignability:
+    addiu  $sp, $sp, -32
+    .cfi_adjust_cfa_offset 32
+    sw     $ra, 28($sp)
+    .cfi_rel_offset 31, 28
+    sw     $t9, 12($sp)
+    sw     $a2, 8($sp)
+    sw     $a1, 4($sp)
+    sw     $a0, 0($sp)
+    move   $a1, $t1
+    move   $a0, $t0
+    jal    artIsAssignableFromCode  # (Class*, Class*)
+    nop
+    lw     $ra, 28($sp)
+    lw     $t9, 12($sp)
+    lw     $a2, 8($sp)
+    lw     $a1, 4($sp)
+    lw     $a0, 0($sp)
+    add    $sp, 32
+    .cfi_adjust_cfa_offset -32
+    bnez   $v0, do_aput
+    nop
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    move $a1, $a2
+    move $a2, rSELF                 # pass Thread::Current
+    la   $t9, artThrowArrayStoreException
+    jr   $t9                        # artThrowArrayStoreException(Class*, Class*, Thread*, SP)
+    move $a3, $sp                   # pass $sp
+END art_quick_aput_obj
 
     /*
      * Entry from managed code when uninitialized static storage, this stub will run the class

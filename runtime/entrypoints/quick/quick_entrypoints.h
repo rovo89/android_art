@@ -48,7 +48,6 @@ struct PACKED(4) QuickEntryPoints {
 
   // Cast
   uint32_t (*pInstanceofNonTrivial)(const mirror::Class*, const mirror::Class*);
-  void (*pCanPutArrayElement)(void*, void*);
   void (*pCheckCast)(void*, void*);
 
   // DexCache
@@ -71,7 +70,10 @@ struct PACKED(4) QuickEntryPoints {
   void* (*pGetObjInstance)(uint32_t, void*);
   void* (*pGetObjStatic)(uint32_t);
 
-  // FillArray
+  // Array
+  void (*pAputObjectWithNullAndBoundCheck)(void*, uint32_t, void*);  // array, index, src
+  void (*pAputObjectWithBoundCheck)(void*, uint32_t, void*);  // array, index, src
+  void (*pAputObject)(void*, uint32_t, void*);  // array, index, src
   void (*pHandleFillArrayData)(void*, void*);
 
   // JNI
@@ -103,7 +105,7 @@ struct PACKED(4) QuickEntryPoints {
   int64_t (*pD2l)(double);
   int64_t (*pF2l)(float);
   int64_t (*pLdiv)(int64_t, int64_t);
-  int64_t (*pLdivmod)(int64_t, int64_t);
+  int64_t (*pLmod)(int64_t, int64_t);
   int64_t (*pLmul)(int64_t, int64_t);
   uint64_t (*pShlLong)(uint64_t, uint32_t);
   uint64_t (*pShrLong)(uint64_t, uint32_t);

@@ -479,13 +479,114 @@ END_FUNCTION art_quick_unlock_object
 
 DEFINE_FUNCTION art_quick_is_assignable
     PUSH eax                     // alignment padding
-    PUSH ecx                     // pass arg2
-    PUSH eax                     // pass arg1
-    call SYMBOL(artIsAssignableFromCode)  // (Class* a, Class* b, Thread*, SP)
+    PUSH ecx                     // pass arg2 - obj->klass
+    PUSH eax                     // pass arg1 - checked class
+    call SYMBOL(artIsAssignableFromCode)  // (Class* klass, Class* ref_klass)
     addl LITERAL(12), %esp        // pop arguments
     .cfi_adjust_cfa_offset -12
     ret
 END_FUNCTION art_quick_is_assignable
+
+DEFINE_FUNCTION art_quick_check_cast
+    PUSH eax                     // alignment padding
+    PUSH ecx                     // pass arg2 - obj->klass
+    PUSH eax                     // pass arg1 - checked class
+    call SYMBOL(artIsAssignableFromCode)  // (Class* klass, Class* ref_klass)
+    testl %eax, %eax
+    jz 1f                         // jump forward if not assignable
+    addl LITERAL(12), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -12
+    ret
+1:
+    POP eax                       // pop arguments
+    POP ecx
+    addl LITERAL(4), %esp
+    .cfi_adjust_cfa_offset -12
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
+    mov %esp, %edx
+    // Outgoing argument set up
+    PUSH edx                      // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    .cfi_adjust_cfa_offset 4
+    PUSH ecx                      // pass arg2
+    PUSH eax                      // pass arg1
+    call SYMBOL(artThrowClassCastException) // (Class* a, Class* b, Thread*, SP)
+    int3                          // unreached
+END_FUNCTION art_quick_check_cast
+
+    /*
+     * Entry from managed code for array put operations of objects where the value being stored
+     * needs to be checked for compatibility.
+     * eax = array, ecx = index, edx = value
+     */
+DEFINE_FUNCTION art_quick_aput_obj_with_null_and_bound_check
+    testl %eax, %eax
+    jnz art_quick_aput_obj_with_bound_check
+    jmp art_quick_throw_null_pointer_exception
+END_FUNCTION art_quick_aput_obj_with_null_and_bound_check
+
+DEFINE_FUNCTION art_quick_aput_obj_with_bound_check
+    movl ARRAY_LENGTH_OFFSET(%eax), %ebx
+    cmpl %ebx, %ecx
+    jb art_quick_aput_obj
+    mov %ecx, %eax
+    mov %ebx, %ecx
+    jmp art_quick_throw_array_bounds
+END_FUNCTION art_quick_aput_obj_with_bound_check
+
+DEFINE_FUNCTION art_quick_aput_obj
+    test %edx, %edx              // store of null
+    jz do_aput_null
+    movl CLASS_OFFSET(%eax), %ebx
+    movl CLASS_COMPONENT_TYPE_OFFSET(%ebx), %ebx
+    cmpl CLASS_OFFSET(%edx), %ebx // value's type == array's component type - trivial assignability
+    jne check_assignability
+do_aput:
+    movl %edx, OBJECT_ARRAY_DATA_OFFSET(%eax, %ecx, 4)
+    movl %fs:THREAD_CARD_TABLE_OFFSET, %edx
+    shrl LITERAL(7), %eax
+    movb %dl, (%edx, %eax)
+    ret
+do_aput_null:
+    movl %edx, OBJECT_ARRAY_DATA_OFFSET(%eax, %ecx, 4)
+    ret
+check_assignability:
+    PUSH eax                     // save arguments
+    PUSH ecx
+    PUSH edx
+    subl LITERAL(8), %esp        // alignment padding
+    .cfi_adjust_cfa_offset 8
+    pushl CLASS_OFFSET(%edx)     // pass arg2 - type of the value to be stored
+    .cfi_adjust_cfa_offset 4
+    PUSH ebx                     // pass arg1 - component type of the array
+    call SYMBOL(artIsAssignableFromCode)  // (Class* a, Class* b)
+    addl LITERAL(16), %esp       // pop arguments
+    .cfi_adjust_cfa_offset -16
+    testl %eax, %eax
+    jz   throw_array_store_exception
+    POP  edx
+    POP  ecx
+    POP  eax
+    movl %edx, OBJECT_ARRAY_DATA_OFFSET(%eax, %ecx, 4)  // do the aput
+    movl %fs:THREAD_CARD_TABLE_OFFSET, %edx
+    shrl LITERAL(7), %eax
+    movb %dl, (%edx, %eax)
+    ret
+throw_array_store_exception:
+    POP  edx
+    POP  ecx
+    POP  eax
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
+    mov %esp, %ecx
+    // Outgoing argument set up
+    PUSH ecx                      // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    .cfi_adjust_cfa_offset 4
+    PUSH edx                      // pass arg2 - value
+    PUSH eax                      // pass arg1 - array
+    call SYMBOL(artThrowArrayStoreException) // (array, value, Thread*, SP)
+    int3                          // unreached
+END_FUNCTION art_quick_aput_obj
 
 DEFINE_FUNCTION art_quick_memcpy
     PUSH edx                      // pass arg3
@@ -496,9 +597,6 @@ DEFINE_FUNCTION art_quick_memcpy
     .cfi_adjust_cfa_offset -12
     ret
 END_FUNCTION art_quick_memcpy
-
-TWO_ARG_DOWNCALL art_quick_check_cast, artCheckCastFromCode, RETURN_IF_EAX_ZERO
-TWO_ARG_DOWNCALL art_quick_can_put_array_element, artCanPutArrayElementFromCode, RETURN_IF_EAX_ZERO
 
 NO_ARG_DOWNCALL art_quick_test_suspend, artTestSuspendFromCode, ret
 
@@ -586,30 +684,30 @@ check_arg2:
 END_FUNCTION art_quick_idivmod
 
 DEFINE_FUNCTION art_quick_ldiv
-    subl LITERAL(12), %esp        // alignment padding
+    subl LITERAL(12), %esp       // alignment padding
     .cfi_adjust_cfa_offset 12
     PUSH ebx                     // pass arg4 b.hi
     PUSH edx                     // pass arg3 b.lo
     PUSH ecx                     // pass arg2 a.hi
-    PUSH eax                      // pass arg1 a.lo
-    call SYMBOL(artLdivFromCode)  // (jlong a, jlong b)
-    addl LITERAL(28), %esp        // pop arguments
+    PUSH eax                     // pass arg1 a.lo
+    call SYMBOL(artLdiv)         // (jlong a, jlong b)
+    addl LITERAL(28), %esp       // pop arguments
     .cfi_adjust_cfa_offset -28
     ret
 END_FUNCTION art_quick_ldiv
 
-DEFINE_FUNCTION art_quick_ldivmod
-    subl LITERAL(12), %esp        // alignment padding
+DEFINE_FUNCTION art_quick_lmod
+    subl LITERAL(12), %esp       // alignment padding
     .cfi_adjust_cfa_offset 12
     PUSH ebx                     // pass arg4 b.hi
     PUSH edx                     // pass arg3 b.lo
     PUSH ecx                     // pass arg2 a.hi
-    PUSH eax                      // pass arg1 a.lo
-    call SYMBOL(artLdivmodFromCode) // (jlong a, jlong b)
-    addl LITERAL(28), %esp        // pop arguments
+    PUSH eax                     // pass arg1 a.lo
+    call SYMBOL(artLmod)         // (jlong a, jlong b)
+    addl LITERAL(28), %esp       // pop arguments
     .cfi_adjust_cfa_offset -28
     ret
-END_FUNCTION art_quick_ldivmod
+END_FUNCTION art_quick_lmod
 
 DEFINE_FUNCTION art_quick_lmul
     imul %eax, %ebx              // ebx = a.lo(eax) * b.hi(ebx)

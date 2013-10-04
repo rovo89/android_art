@@ -66,8 +66,7 @@ LIR* Mir2Lir::GenImmedCheck(ConditionCode c_code, int reg, int imm_val, ThrowKin
 
 /* Perform null-check on a register.  */
 LIR* Mir2Lir::GenNullCheck(int s_reg, int m_reg, int opt_flags) {
-  if (!(cu_->disable_opt & (1 << kNullCheckElimination)) &&
-    opt_flags & MIR_IGNORE_NULL_CHECK) {
+  if (!(cu_->disable_opt & (1 << kNullCheckElimination)) && (opt_flags & MIR_IGNORE_NULL_CHECK)) {
     return NULL;
   }
   return GenImmedCheck(kCondEq, m_reg, 0, kThrowNullPointer);
@@ -727,6 +726,18 @@ void Mir2Lir::GenIPut(uint32_t field_idx, int opt_flags, OpSize size,
   }
 }
 
+void Mir2Lir::GenArrayObjPut(int opt_flags, RegLocation rl_array, RegLocation rl_index,
+                             RegLocation rl_src) {
+  bool needs_range_check = !(opt_flags & MIR_IGNORE_RANGE_CHECK);
+  bool needs_null_check = !((cu_->disable_opt & (1 << kNullCheckElimination)) &&
+      (opt_flags & MIR_IGNORE_NULL_CHECK));
+  ThreadOffset helper = needs_range_check
+      ? (needs_null_check ? QUICK_ENTRYPOINT_OFFSET(pAputObjectWithNullAndBoundCheck)
+                          : QUICK_ENTRYPOINT_OFFSET(pAputObjectWithBoundCheck))
+      : QUICK_ENTRYPOINT_OFFSET(pAputObject);
+  CallRuntimeHelperRegLocationRegLocationRegLocation(helper, rl_array, rl_index, rl_src, true);
+}
+
 void Mir2Lir::GenConstClass(uint32_t type_idx, RegLocation rl_dest) {
   RegLocation rl_method = LoadCurrMethod();
   int res_reg = AllocTemp();
@@ -1110,8 +1121,8 @@ void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_
   if (!type_known_abstract) {
     branch2 = OpCmpBranch(kCondEq, TargetReg(kArg1), class_reg, NULL);
   }
-  CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(pCheckCast), TargetReg(kArg1),
-                          TargetReg(kArg2), true);
+  CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(pCheckCast), TargetReg(kArg2),
+                          TargetReg(kArg1), true);
   /* branch target here */
   LIR* target = NewLIR0(kPseudoTargetLabel);
   branch1->target = target;
@@ -1648,7 +1659,7 @@ void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
     case Instruction::REM_LONG_2ADDR:
       call_out = true;
       check_zero = true;
-      func_offset = QUICK_ENTRYPOINT_OFFSET(pLdivmod);
+      func_offset = QUICK_ENTRYPOINT_OFFSET(pLmod);
       /* NOTE - for Arm, result is in kArg2/kArg3 instead of kRet0/kRet1 */
       ret_reg = (cu_->instruction_set == kThumb2) ? TargetReg(kArg2) : TargetReg(kRet0);
       break;

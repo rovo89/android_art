@@ -21,6 +21,8 @@
 
 // Offset of field Thread::self_ verified in InitCpu
 #define THREAD_SELF_OFFSET 40
+// Offset of field Thread::card_table_ verified in InitCpu
+#define THREAD_CARD_TABLE_OFFSET 8
 // Offset of field Thread::exception_ verified in InitCpu
 #define THREAD_EXCEPTION_OFFSET 12
 // Offset of field Thread::thin_lock_thread_id_ verified in InitCpu

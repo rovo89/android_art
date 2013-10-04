@@ -22,7 +22,15 @@
 #define SUSPEND_CHECK_INTERVAL (1000)
 
 // Offsets within java.lang.Object.
+#define CLASS_OFFSET 0
 #define LOCK_WORD_OFFSET 4
+
+// Offsets within java.lang.Class.
+#define CLASS_COMPONENT_TYPE_OFFSET 12
+
+// Array offsets.
+#define ARRAY_LENGTH_OFFSET 8
+#define OBJECT_ARRAY_DATA_OFFSET 12
 
 // Offsets within java.lang.String.
 #define STRING_VALUE_OFFSET 8

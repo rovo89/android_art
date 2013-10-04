@@ -531,8 +531,9 @@ const ConstantType& RegTypeCache::FromCat2ConstHi(int32_t value, bool precise) {
 }
 
 const RegType& RegTypeCache::GetComponentType(const RegType& array, mirror::ClassLoader* loader) {
-  CHECK(array.IsArrayTypes());
-  if (array.IsUnresolvedTypes()) {
+  if (!array.IsArrayTypes()) {
+    return Conflict();
+  } else if (array.IsUnresolvedTypes()) {
     const std::string& descriptor(array.GetDescriptor());
     const std::string component(descriptor.substr(1, descriptor.size() - 1));
     return FromDescriptor(loader, component.c_str(), false);
