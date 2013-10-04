@@ -258,17 +258,20 @@ class ClassLinker {
   // it is missing or out of date. Returns the DexFile from within the
   // created oat file.
   const DexFile* FindOrCreateOatFileForDexLocation(const std::string& dex_location,
+                                                   uint32_t dex_location_checksum,
                                                    const std::string& oat_location)
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const DexFile* FindOrCreateOatFileForDexLocationLocked(const std::string& dex_location,
+                                                         uint32_t dex_location_checksum,
                                                          const std::string& oat_location)
       EXCLUSIVE_LOCKS_REQUIRED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Find a DexFile within an OatFile given a DexFile location. Note
   // that this returns null if the location checksum of the DexFile
   // does not match the OatFile.
-  const DexFile* FindDexFileInOatFileFromDexLocation(const std::string& location)
+  const DexFile* FindDexFileInOatFileFromDexLocation(const std::string& location,
+                                                     uint32_t location_checksum)
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -494,7 +497,8 @@ class ClassLinker {
   const OatFile* FindOpenedOatFileForDexFile(const DexFile& dex_file)
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const OatFile* FindOpenedOatFileFromDexLocation(const std::string& dex_location)
+  const OatFile* FindOpenedOatFileFromDexLocation(const std::string& dex_location,
+                                                  uint32_t dex_location_checksum)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, dex_lock_);
   const OatFile* FindOpenedOatFileFromOatLocation(const std::string& oat_location)
       SHARED_LOCKS_REQUIRED(dex_lock_);
