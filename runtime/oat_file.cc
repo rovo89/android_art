@@ -323,23 +323,29 @@ const byte* OatFile::End() const {
   return end_;
 }
 
-const OatFile::OatDexFile* OatFile::GetOatDexFile(const std::string& dex_file_location,
+const OatFile::OatDexFile* OatFile::GetOatDexFile(const std::string& dex_location,
+                                                  const uint32_t* const dex_location_checksum,
                                                   bool warn_if_not_found) const {
-  Table::const_iterator it = oat_dex_files_.find(dex_file_location);
-  if (it == oat_dex_files_.end()) {
-    if (warn_if_not_found) {
-      LOG(WARNING) << "Failed to find OatDexFile for DexFile " << dex_file_location
-                   << " in OatFile " << GetLocation();
-      if (kIsDebugBuild) {
-        for (Table::const_iterator it = oat_dex_files_.begin(); it != oat_dex_files_.end(); ++it) {
-          LOG(WARNING) << "OatFile " << GetLocation()
-                       << " contains OatDexFile " << it->second->GetDexFileLocation();
-        }
+  Table::const_iterator it = oat_dex_files_.find(dex_location);
+  if (it != oat_dex_files_.end()) {
+    const OatFile::OatDexFile* oat_dex_file = it->second;
+    if (dex_location_checksum == NULL ||
+        oat_dex_file->GetDexFileLocationChecksum() == *dex_location_checksum) {
+      return oat_dex_file;
+    }
+  }
+
+  if (warn_if_not_found) {
+    LOG(WARNING) << "Failed to find OatDexFile for DexFile " << dex_location
+                 << " in OatFile " << GetLocation();
+    if (kIsDebugBuild) {
+      for (Table::const_iterator it = oat_dex_files_.begin(); it != oat_dex_files_.end(); ++it) {
+        LOG(WARNING) << "OatFile " << GetLocation()
+                     << " contains OatDexFile " << it->second->GetDexFileLocation();
       }
     }
-    return NULL;
   }
-  return it->second;
+  return NULL;
 }
 
 std::vector<const OatFile::OatDexFile*> OatFile::GetOatDexFiles() const {
