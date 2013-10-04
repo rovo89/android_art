@@ -179,7 +179,7 @@ void MIRGraph::ComputeDomPostOrderTraversal(BasicBlock* bb) {
   bb->visited = true;
   work_stack.push_back(std::make_pair(bb, new (arena_) ArenaBitVector::Iterator(bb->i_dominated)));
   while (!work_stack.empty()) {
-    std::pair<BasicBlock*, ArenaBitVector::Iterator*> curr = work_stack.back();
+    const std::pair<BasicBlock*, ArenaBitVector::Iterator*>& curr = work_stack.back();
     BasicBlock* curr_bb = curr.first;
     ArenaBitVector::Iterator* curr_idom_iter = curr.second;
     int bb_idx = curr_idom_iter->Next();
