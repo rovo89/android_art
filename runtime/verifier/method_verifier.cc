@@ -3103,7 +3103,14 @@ mirror::ArtMethod* MethodVerifier::VerifyInvocationArgs(const Instruction* inst,
     }
     const RegType& reg_type = reg_types_.FromDescriptor(class_loader_, descriptor, false);
     uint32_t get_reg = is_range ? inst->VRegC_3rc() + actual_args : arg[actual_args];
-    if (!work_line_->VerifyRegisterType(get_reg, reg_type)) {
+    if (reg_type.IsIntegralTypes()) {
+      const RegType& src_type = work_line_->GetRegisterType(get_reg);
+      if (!src_type.IsIntegralTypes()) {
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "register v" << get_reg << " has type " << src_type
+                                          << " but expected " << reg_type;
+        return res_method;
+      }
+    } else if (!work_line_->VerifyRegisterType(get_reg, reg_type)) {
       return res_method;
     }
     actual_args = reg_type.IsLongOrDoubleTypes() ? actual_args + 2 : actual_args + 1;
