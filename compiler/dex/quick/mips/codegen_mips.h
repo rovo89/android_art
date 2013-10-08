@@ -88,12 +88,10 @@ class MipsMir2Lir : public Mir2Lir {
     // Required for target - Dalvik-level generators.
     void GenArithImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
                                    RegLocation rl_src1, RegLocation rl_src2);
-    void GenArrayObjPut(int opt_flags, RegLocation rl_array, RegLocation rl_index,
-                                RegLocation rl_src, int scale);
     void GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
-                             RegLocation rl_index, RegLocation rl_dest, int scale);
+                     RegLocation rl_index, RegLocation rl_dest, int scale);
     void GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
-                             RegLocation rl_index, RegLocation rl_src, int scale);
+                     RegLocation rl_index, RegLocation rl_src, int scale, bool card_mark);
     void GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
                                    RegLocation rl_src1, RegLocation rl_shift);
     void GenMulLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);

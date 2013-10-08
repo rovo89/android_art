@@ -71,12 +71,20 @@ class ObjectTest : public CommonTest {
 
 // Keep the assembly code in sync
 TEST_F(ObjectTest, AsmConstants) {
-  ASSERT_EQ(STRING_VALUE_OFFSET, String::ValueOffset().Int32Value());
-  ASSERT_EQ(STRING_COUNT_OFFSET, String::CountOffset().Int32Value());
-  ASSERT_EQ(STRING_OFFSET_OFFSET, String::OffsetOffset().Int32Value());
-  ASSERT_EQ(STRING_DATA_OFFSET, Array::DataOffset(sizeof(uint16_t)).Int32Value());
+  EXPECT_EQ(CLASS_OFFSET, Object::ClassOffset().Int32Value());
+  EXPECT_EQ(LOCK_WORD_OFFSET, Object::MonitorOffset().Int32Value());
 
-  ASSERT_EQ(METHOD_CODE_OFFSET, ArtMethod::EntryPointFromCompiledCodeOffset().Int32Value());
+  EXPECT_EQ(CLASS_COMPONENT_TYPE_OFFSET, Class::ComponentTypeOffset().Int32Value());
+
+  EXPECT_EQ(ARRAY_LENGTH_OFFSET, Array::LengthOffset().Int32Value());
+  EXPECT_EQ(OBJECT_ARRAY_DATA_OFFSET, Array::DataOffset(sizeof(Object*)).Int32Value());
+
+  EXPECT_EQ(STRING_VALUE_OFFSET, String::ValueOffset().Int32Value());
+  EXPECT_EQ(STRING_COUNT_OFFSET, String::CountOffset().Int32Value());
+  EXPECT_EQ(STRING_OFFSET_OFFSET, String::OffsetOffset().Int32Value());
+  EXPECT_EQ(STRING_DATA_OFFSET, Array::DataOffset(sizeof(uint16_t)).Int32Value());
+
+  EXPECT_EQ(METHOD_CODE_OFFSET, ArtMethod::EntryPointFromCompiledCodeOffset().Int32Value());
 }
 
 TEST_F(ObjectTest, IsInSamePackage) {

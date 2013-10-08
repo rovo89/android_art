@@ -247,7 +247,7 @@ class MANAGED Class : public StaticStorageBase {
     } else {
       Class* component = GetComponentType();
       if (component->IsPrimitive()) {
-        return false;
+        return true;
       } else {
         return component->CannotBeAssignedFromOtherTypes();
       }
@@ -346,14 +346,18 @@ class MANAGED Class : public StaticStorageBase {
 
   bool IsArtMethodClass() const;
 
+  static MemberOffset ComponentTypeOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Class, component_type_);
+  }
+
   Class* GetComponentType() const {
-    return GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Class, component_type_), false);
+    return GetFieldObject<Class*>(ComponentTypeOffset(), false);
   }
 
   void SetComponentType(Class* new_component_type) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(GetComponentType() == NULL);
     DCHECK(new_component_type != NULL);
-    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, component_type_), new_component_type, false);
+    SetFieldObject(ComponentTypeOffset(), new_component_type, false);
   }
 
   size_t GetComponentSize() const {

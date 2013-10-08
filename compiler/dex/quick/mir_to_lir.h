@@ -419,6 +419,9 @@ class Mir2Lir : public Backend {
                  RegLocation rl_dest, RegLocation rl_obj, bool is_long_or_double, bool is_object);
     void GenIPut(uint32_t field_idx, int opt_flags, OpSize size,
                  RegLocation rl_src, RegLocation rl_obj, bool is_long_or_double, bool is_object);
+    void GenArrayObjPut(int opt_flags, RegLocation rl_array, RegLocation rl_index,
+                        RegLocation rl_src);
+
     void GenConstClass(uint32_t type_idx, RegLocation rl_dest);
     void GenConstString(uint32_t string_idx, RegLocation rl_dest);
     void GenNewInstance(uint32_t type_idx, RegLocation rl_dest);
@@ -475,6 +478,10 @@ class Mir2Lir : public Backend {
     void CallRuntimeHelperImmRegLocationRegLocation(ThreadOffset helper_offset,
                                                     int arg0, RegLocation arg1, RegLocation arg2,
                                                     bool safepoint_pc);
+    void CallRuntimeHelperRegLocationRegLocationRegLocation(ThreadOffset helper_offset,
+                                                            RegLocation arg0, RegLocation arg1,
+                                                            RegLocation arg2,
+                                                            bool safepoint_pc);
     void GenInvoke(CallInfo* info);
     void FlushIns(RegLocation* ArgLocs, RegLocation rl_method);
     int GenDalvikArgsNoRange(CallInfo* info, int call_state, LIR** pcrLabel,
@@ -651,12 +658,11 @@ class Mir2Lir : public Backend {
                                  RegLocation rl_src) = 0;
     virtual void GenSpecialCase(BasicBlock* bb, MIR* mir,
                                 SpecialCaseHandler special_case) = 0;
-    virtual void GenArrayObjPut(int opt_flags, RegLocation rl_array,
-                                RegLocation rl_index, RegLocation rl_src, int scale) = 0;
     virtual void GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
                              RegLocation rl_index, RegLocation rl_dest, int scale) = 0;
     virtual void GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
-                     RegLocation rl_index, RegLocation rl_src, int scale) = 0;
+                             RegLocation rl_index, RegLocation rl_src, int scale,
+                             bool card_mark) = 0;
     virtual void GenShiftImmOpLong(Instruction::Code opcode,
                                    RegLocation rl_dest, RegLocation rl_src1,
                                    RegLocation rl_shift) = 0;

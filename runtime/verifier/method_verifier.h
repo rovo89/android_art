@@ -724,10 +724,12 @@ class MethodVerifier {
   // running and the verifier is called from the class linker.
   const bool allow_soft_failures_;
 
-  // Indicates if the method being verified contains at least one check-cast instruction.
+  // Indicates the method being verified contains at least one check-cast or aput-object
+  // instruction. Aput-object operations implicitly check for array-store exceptions, similar to
+  // check-cast.
   bool has_check_casts_;
 
-  // Indicates if the method being verified contains at least one invoke-virtual/range
+  // Indicates the method being verified contains at least one invoke-virtual/range
   // or invoke-interface/range.
   bool has_virtual_or_interface_invokes_;
 };

@@ -52,7 +52,6 @@ extern "C" void* art_quick_check_and_alloc_array_with_access_check_instrumented(
 // Cast entrypoints.
 extern "C" uint32_t artIsAssignableFromCode(const mirror::Class* klass,
                                             const mirror::Class* ref_class);
-extern "C" void art_quick_can_put_array_element(void*, void*);
 extern "C" void art_quick_check_cast(void*, void*);
 
 // DexCache entrypoints.
@@ -78,7 +77,10 @@ extern "C" int64_t art_quick_get64_static(uint32_t);
 extern "C" void* art_quick_get_obj_instance(uint32_t, void*);
 extern "C" void* art_quick_get_obj_static(uint32_t);
 
-// FillArray entrypoint.
+// Array entrypoints.
+extern "C" void art_quick_aput_obj_with_null_and_bound_check(void*, uint32_t, void*);
+extern "C" void art_quick_aput_obj_with_bound_check(void*, uint32_t, void*);
+extern "C" void art_quick_aput_obj(void*, uint32_t, void*);
 extern "C" void art_quick_handle_fill_data(void*, void*);
 
 // Lock entrypoints.
@@ -182,7 +184,6 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
 
   // Cast
   qpoints->pInstanceofNonTrivial = artIsAssignableFromCode;
-  qpoints->pCanPutArrayElement = art_quick_can_put_array_element;
   qpoints->pCheckCast = art_quick_check_cast;
 
   // DexCache
@@ -205,7 +206,10 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pGet64Static = art_quick_get64_static;
   qpoints->pGetObjStatic = art_quick_get_obj_static;
 
-  // FillArray
+  // Array
+  qpoints->pAputObjectWithNullAndBoundCheck = art_quick_aput_obj_with_null_and_bound_check;
+  qpoints->pAputObjectWithBoundCheck = art_quick_aput_obj_with_bound_check;
+  qpoints->pAputObject = art_quick_aput_obj;
   qpoints->pHandleFillArrayData = art_quick_handle_fill_data;
 
   // JNI
@@ -236,7 +240,7 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pD2l = art_d2l;
   qpoints->pF2l = art_f2l;
   qpoints->pLdiv = __aeabi_ldivmod;
-  qpoints->pLdivmod = __aeabi_ldivmod;  // result returned in r2:r3
+  qpoints->pLmod = __aeabi_ldivmod;  // result returned in r2:r3
   qpoints->pLmul = art_quick_mul_long;
   qpoints->pShlLong = art_quick_shl_long;
   qpoints->pShrLong = art_quick_shr_long;

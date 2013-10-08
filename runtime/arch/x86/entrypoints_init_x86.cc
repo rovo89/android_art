@@ -50,7 +50,6 @@ extern "C" void* art_quick_check_and_alloc_array_with_access_check_instrumented(
 // Cast entrypoints.
 extern "C" uint32_t art_quick_is_assignable(const mirror::Class* klass,
                                                 const mirror::Class* ref_class);
-extern "C" void art_quick_can_put_array_element(void*, void*);
 extern "C" void art_quick_check_cast(void*, void*);
 
 // DexCache entrypoints.
@@ -73,7 +72,10 @@ extern "C" int64_t art_quick_get64_static(uint32_t);
 extern "C" void* art_quick_get_obj_instance(uint32_t, void*);
 extern "C" void* art_quick_get_obj_static(uint32_t);
 
-// FillArray entrypoint.
+// Array entrypoints.
+extern "C" void art_quick_aput_obj_with_null_and_bound_check(void*, uint32_t, void*);
+extern "C" void art_quick_aput_obj_with_bound_check(void*, uint32_t, void*);
+extern "C" void art_quick_aput_obj(void*, uint32_t, void*);
 extern "C" void art_quick_handle_fill_data(void*, void*);
 
 // Lock entrypoints.
@@ -89,7 +91,7 @@ extern "C" int64_t art_quick_d2l(double);
 extern "C" int64_t art_quick_f2l(float);
 extern "C" int32_t art_quick_idivmod(int32_t, int32_t);
 extern "C" int64_t art_quick_ldiv(int64_t, int64_t);
-extern "C" int64_t art_quick_ldivmod(int64_t, int64_t);
+extern "C" int64_t art_quick_lmod(int64_t, int64_t);
 extern "C" int64_t art_quick_lmul(int64_t, int64_t);
 extern "C" uint64_t art_quick_lshl(uint64_t, uint32_t);
 extern "C" uint64_t art_quick_lshr(uint64_t, uint32_t);
@@ -165,7 +167,6 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
 
   // Cast
   qpoints->pInstanceofNonTrivial = art_quick_is_assignable;
-  qpoints->pCanPutArrayElement = art_quick_can_put_array_element;
   qpoints->pCheckCast = art_quick_check_cast;
 
   // DexCache
@@ -188,7 +189,10 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pGet64Static = art_quick_get64_static;
   qpoints->pGetObjStatic = art_quick_get_obj_static;
 
-  // FillArray
+  // Array
+  qpoints->pAputObjectWithNullAndBoundCheck = art_quick_aput_obj_with_null_and_bound_check;
+  qpoints->pAputObjectWithBoundCheck = art_quick_aput_obj_with_bound_check;
+  qpoints->pAputObject = art_quick_aput_obj;
   qpoints->pHandleFillArrayData = art_quick_handle_fill_data;
 
   // JNI
@@ -218,7 +222,7 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pD2l = art_quick_d2l;
   qpoints->pF2l = art_quick_f2l;
   qpoints->pLdiv = art_quick_ldiv;
-  qpoints->pLdivmod = art_quick_ldivmod;
+  qpoints->pLmod = art_quick_lmod;
   qpoints->pLmul = art_quick_lmul;
   qpoints->pShlLong = art_quick_lshl;
   qpoints->pShrLong = art_quick_lshr;

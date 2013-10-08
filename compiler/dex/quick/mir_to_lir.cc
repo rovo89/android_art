@@ -338,22 +338,35 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       GenArrayGet(opt_flags, kSignedHalf, rl_src[0], rl_src[1], rl_dest, 1);
       break;
     case Instruction::APUT_WIDE:
-      GenArrayPut(opt_flags, kLong, rl_src[1], rl_src[2], rl_src[0], 3);
+      GenArrayPut(opt_flags, kLong, rl_src[1], rl_src[2], rl_src[0], 3, false);
       break;
     case Instruction::APUT:
-      GenArrayPut(opt_flags, kWord, rl_src[1], rl_src[2], rl_src[0], 2);
+      GenArrayPut(opt_flags, kWord, rl_src[1], rl_src[2], rl_src[0], 2, false);
       break;
-    case Instruction::APUT_OBJECT:
-      GenArrayObjPut(opt_flags, rl_src[1], rl_src[2], rl_src[0], 2);
+    case Instruction::APUT_OBJECT: {
+      bool is_null = mir_graph_->IsConstantNullRef(rl_src[0]);
+      bool is_safe = is_null;  // Always safe to store null.
+      if (!is_safe) {
+        // Check safety from verifier type information.
+        const MethodReference mr(cu_->dex_file, cu_->method_idx);
+        is_safe = cu_->compiler_driver->IsSafeCast(mr, mir->offset);
+      }
+      if (is_null || is_safe) {
+        // Store of constant null doesn't require an assignability test and can be generated inline
+        // without fixed register usage or a card mark.
+        GenArrayPut(opt_flags, kWord, rl_src[1], rl_src[2], rl_src[0], 2, !is_null);
+      } else {
+        GenArrayObjPut(opt_flags, rl_src[1], rl_src[2], rl_src[0]);
+      }
       break;
+    }
     case Instruction::APUT_SHORT:
     case Instruction::APUT_CHAR:
-      GenArrayPut(opt_flags, kUnsignedHalf, rl_src[1], rl_src[2], rl_src[0], 1);
+      GenArrayPut(opt_flags, kUnsignedHalf, rl_src[1], rl_src[2], rl_src[0], 1, false);
       break;
     case Instruction::APUT_BYTE:
     case Instruction::APUT_BOOLEAN:
-      GenArrayPut(opt_flags, kUnsignedByte, rl_src[1], rl_src[2],
-            rl_src[0], 0);
+      GenArrayPut(opt_flags, kUnsignedByte, rl_src[1], rl_src[2], rl_src[0], 0, false);
       break;
 
     case Instruction::IGET_OBJECT:

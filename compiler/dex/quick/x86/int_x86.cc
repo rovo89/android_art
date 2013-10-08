@@ -419,7 +419,7 @@ void X86Mir2Lir::OpRegThreadMem(OpKind op, int r_dest, ThreadOffset thread_offse
  * Generate array load
  */
 void X86Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
-                          RegLocation rl_index, RegLocation rl_dest, int scale) {
+                             RegLocation rl_index, RegLocation rl_dest, int scale) {
   RegisterClass reg_class = oat_reg_class_by_size(size);
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   int data_offset;
@@ -466,7 +466,7 @@ void X86Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
  *
  */
 void X86Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
-                             RegLocation rl_index, RegLocation rl_src, int scale) {
+                             RegLocation rl_index, RegLocation rl_src, int scale, bool card_mark) {
   RegisterClass reg_class = oat_reg_class_by_size(size);
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   int data_offset;
@@ -502,59 +502,9 @@ void X86Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     StoreBaseIndexedDisp(rl_array.low_reg, rl_index.low_reg, scale, data_offset, rl_src.low_reg,
                          rl_src.high_reg, size, INVALID_SREG);
   }
-}
-
-/*
- * Generate array store
- *
- */
-void X86Mir2Lir::GenArrayObjPut(int opt_flags, RegLocation rl_array,
-                             RegLocation rl_index, RegLocation rl_src, int scale) {
-  int len_offset = mirror::Array::LengthOffset().Int32Value();
-  int data_offset = mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value();
-
-  FlushAllRegs();  // Use explicit registers
-  LockCallTemps();
-
-  int r_value = TargetReg(kArg0);  // Register holding value
-  int r_array_class = TargetReg(kArg1);  // Register holding array's Class
-  int r_array = TargetReg(kArg2);  // Register holding array
-  int r_index = TargetReg(kArg3);  // Register holding index into array
-
-  LoadValueDirectFixed(rl_array, r_array);  // Grab array
-  LoadValueDirectFixed(rl_src, r_value);  // Grab value
-  LoadValueDirectFixed(rl_index, r_index);  // Grab index
-
-  GenNullCheck(rl_array.s_reg_low, r_array, opt_flags);  // NPE?
-
-  // Store of null?
-  LIR* null_value_check = OpCmpImmBranch(kCondEq, r_value, 0, NULL);
-
-  // Get the array's class.
-  LoadWordDisp(r_array, mirror::Object::ClassOffset().Int32Value(), r_array_class);
-  CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(pCanPutArrayElement), r_value,
-                          r_array_class, true);
-  // Redo LoadValues in case they didn't survive the call.
-  LoadValueDirectFixed(rl_array, r_array);  // Reload array
-  LoadValueDirectFixed(rl_index, r_index);  // Reload index
-  LoadValueDirectFixed(rl_src, r_value);  // Reload value
-  r_array_class = INVALID_REG;
-
-  // Branch here if value to be stored == null
-  LIR* target = NewLIR0(kPseudoTargetLabel);
-  null_value_check->target = target;
-
-  // make an extra temp available for card mark below
-  FreeTemp(TargetReg(kArg1));
-  if (!(opt_flags & MIR_IGNORE_RANGE_CHECK)) {
-    /* if (rl_index >= [rl_array + len_offset]) goto kThrowArrayBounds */
-    GenRegMemCheck(kCondUge, r_index, r_array, len_offset, kThrowArrayBounds);
-  }
-  StoreBaseIndexedDisp(r_array, r_index, scale,
-                       data_offset, r_value, INVALID_REG, kWord, INVALID_SREG);
-  FreeTemp(r_index);
-  if (!mir_graph_->IsConstantNullRef(rl_src)) {
-    MarkGCCard(r_value, r_array);
+  if (card_mark) {
+    FreeTemp(rl_index.low_reg);  // Ensure there are 2 free regs for card mark.
+    MarkGCCard(rl_src.low_reg, rl_array.low_reg);
   }
 }
 

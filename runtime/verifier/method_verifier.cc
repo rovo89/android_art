@@ -506,17 +506,25 @@ bool MethodVerifier::ComputeWidthsAndCountOps() {
 
   while (dex_pc < insns_size) {
     Instruction::Code opcode = inst->Opcode();
-    if (opcode == Instruction::NEW_INSTANCE) {
-      new_instance_count++;
-    } else if (opcode == Instruction::MONITOR_ENTER) {
-      monitor_enter_count++;
-    } else if (opcode == Instruction::CHECK_CAST) {
-      has_check_casts_ = true;
-    } else if ((inst->Opcode() == Instruction::INVOKE_VIRTUAL) ||
-              (inst->Opcode() ==  Instruction::INVOKE_VIRTUAL_RANGE) ||
-              (inst->Opcode() == Instruction::INVOKE_INTERFACE) ||
-              (inst->Opcode() == Instruction::INVOKE_INTERFACE_RANGE)) {
-      has_virtual_or_interface_invokes_ = true;
+    switch (opcode) {
+      case Instruction::APUT_OBJECT:
+      case Instruction::CHECK_CAST:
+        has_check_casts_ = true;
+        break;
+      case Instruction::INVOKE_VIRTUAL:
+      case Instruction::INVOKE_VIRTUAL_RANGE:
+      case Instruction::INVOKE_INTERFACE:
+      case Instruction::INVOKE_INTERFACE_RANGE:
+        has_virtual_or_interface_invokes_ = true;
+        break;
+      case Instruction::MONITOR_ENTER:
+        monitor_enter_count++;
+        break;
+      case Instruction::NEW_INSTANCE:
+        new_instance_count++;
+        break;
+      default:
+        break;
     }
     size_t inst_size = inst->SizeInCodeUnits();
     insn_flags_[dex_pc].SetLengthInCodeUnits(inst_size);
@@ -3940,18 +3948,32 @@ MethodVerifier::MethodSafeCastSet* MethodVerifier::GenerateSafeCastSet() {
                                            code_item_->insns_size_in_code_units_);
 
   for (; inst < end; inst = inst->Next()) {
-    if (Instruction::CHECK_CAST != inst->Opcode()) {
-      continue;
-    }
-    uint32_t dex_pc = inst->GetDexPc(code_item_->insns_);
-    RegisterLine* line = reg_table_.GetLine(dex_pc);
-    const RegType& reg_type(line->GetRegisterType(inst->VRegA_21c()));
-    const RegType& cast_type = ResolveClassAndCheckAccess(inst->VRegB_21c());
-    if (cast_type.IsStrictlyAssignableFrom(reg_type)) {
-      if (mscs.get() == NULL) {
-        mscs.reset(new MethodSafeCastSet());
+    Instruction::Code code = inst->Opcode();
+    if ((code == Instruction::CHECK_CAST) || (code == Instruction::APUT_OBJECT)) {
+      uint32_t dex_pc = inst->GetDexPc(code_item_->insns_);
+      RegisterLine* line = reg_table_.GetLine(dex_pc);
+      bool is_safe_cast = false;
+      if (code == Instruction::CHECK_CAST) {
+        const RegType& reg_type(line->GetRegisterType(inst->VRegA_21c()));
+        const RegType& cast_type = ResolveClassAndCheckAccess(inst->VRegB_21c());
+        is_safe_cast = cast_type.IsStrictlyAssignableFrom(reg_type);
+      } else {
+        const RegType& array_type(line->GetRegisterType(inst->VRegB_23x()));
+        // We only know its safe to assign to an array if the array type is precise. For example,
+        // an Object[] can have any type of object stored in it, but it may also be assigned a
+        // String[] in which case the stores need to be of Strings.
+        if (array_type.IsPreciseReference()) {
+          const RegType& value_type(line->GetRegisterType(inst->VRegA_23x()));
+          const RegType& component_type(reg_types_.GetComponentType(array_type, class_loader_));
+          is_safe_cast = component_type.IsStrictlyAssignableFrom(value_type);
+        }
       }
-      mscs->insert(dex_pc);
+      if (is_safe_cast) {
+        if (mscs.get() == NULL) {
+          mscs.reset(new MethodSafeCastSet());
+        }
+        mscs->insert(dex_pc);
+      }
     }
   }
   return mscs.release();
