@@ -119,8 +119,7 @@ size_t DlMallocSpace::bitmap_index_ = 0;
 DlMallocSpace::DlMallocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin,
                        byte* end, size_t growth_limit)
     : MemMapSpace(name, mem_map, end - begin, kGcRetentionPolicyAlwaysCollect),
-      recent_free_pos_(0), num_bytes_allocated_(0), num_objects_allocated_(0),
-      total_bytes_allocated_(0), total_objects_allocated_(0),
+      recent_free_pos_(0), total_bytes_freed_(0), total_objects_freed_(0),
       lock_("allocation space lock", kAllocSpaceLock), mspace_(mspace),
       growth_limit_(growth_limit) {
   CHECK(mspace != NULL);
@@ -353,8 +352,8 @@ size_t DlMallocSpace::Free(Thread* self, mirror::Object* ptr) {
     CHECK(Contains(ptr)) << "Free (" << ptr << ") not in bounds of heap " << *this;
   }
   const size_t bytes_freed = InternalAllocationSize(ptr);
-  num_bytes_allocated_ -= bytes_freed;
-  --num_objects_allocated_;
+  total_bytes_freed_ += bytes_freed;
+  ++total_objects_freed_;
   if (kRecentFreeCount > 0) {
     RegisterRecentFree(ptr);
   }
@@ -400,8 +399,8 @@ size_t DlMallocSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** p
 
   {
     MutexLock mu(self, lock_);
-    num_bytes_allocated_ -= bytes_freed;
-    num_objects_allocated_ -= num_ptrs;
+    total_bytes_freed_ += bytes_freed;
+    total_objects_freed_ += num_ptrs;
     mspace_bulk_free(mspace_, reinterpret_cast<void**>(ptrs), num_ptrs);
     return bytes_freed;
   }
@@ -499,6 +498,20 @@ void DlMallocSpace::Dump(std::ostream& os) const {
       << ",end=" << reinterpret_cast<void*>(End())
       << ",size=" << PrettySize(Size()) << ",capacity=" << PrettySize(Capacity())
       << ",name=\"" << GetName() << "\"]";
+}
+
+uint64_t DlMallocSpace::GetBytesAllocated() {
+  MutexLock mu(Thread::Current(), lock_);
+  size_t bytes_allocated = 0;
+  mspace_inspect_all(mspace_, DlmallocBytesAllocatedCallback, &bytes_allocated);
+  return bytes_allocated;
+}
+
+uint64_t DlMallocSpace::GetObjectsAllocated() {
+  MutexLock mu(Thread::Current(), lock_);
+  size_t objects_allocated = 0;
+  mspace_inspect_all(mspace_, DlmallocObjectsAllocatedCallback, &objects_allocated);
+  return objects_allocated;
 }
 
 }  // namespace space

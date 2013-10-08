@@ -169,10 +169,7 @@ static void VMRuntime_trimHeap(JNIEnv*, jobject) {
 
   // Trim the managed heap.
   gc::Heap* heap = Runtime::Current()->GetHeap();
-  gc::space::DlMallocSpace* alloc_space = heap->GetAllocSpace();
-  size_t alloc_space_size = alloc_space->Size();
-  float managed_utilization =
-      static_cast<float>(alloc_space->GetBytesAllocated()) / alloc_space_size;
+  float managed_utilization = static_cast<float>(heap->GetBytesAllocated()) / heap->GetTotalMemory();
   size_t managed_reclaimed = heap->Trim();
 
   uint64_t gc_heap_end_ns = NanoTime();

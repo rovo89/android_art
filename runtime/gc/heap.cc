@@ -1999,8 +1999,10 @@ void Heap::RequestHeapTrim() {
   // We could try mincore(2) but that's only a measure of how many pages we haven't given away,
   // not how much use we're making of those pages.
   uint64_t ms_time = MilliTime();
-  float utilization =
-      static_cast<float>(alloc_space_->GetBytesAllocated()) / alloc_space_->Size();
+  // Note the large object space's bytes allocated is equal to its capacity.
+  uint64_t los_bytes_allocated = large_object_space_->GetBytesAllocated();
+  float utilization = static_cast<float>(GetBytesAllocated() - los_bytes_allocated) /
+      (GetTotalMemory() - los_bytes_allocated);
   if ((utilization > 0.75f && !IsLowMemoryMode()) || ((ms_time - last_trim_time_ms_) < 2 * 1000)) {
     // Don't bother trimming the alloc space if it's more than 75% utilized and low memory mode is
     // not enabled, or if a heap trim occurred in the last two seconds.
