@@ -489,7 +489,7 @@ ENTRY art_quick_lock_object
     move    $a1, rSELF                    # pass Thread::Current
     jal     artLockObjectFromCode         # (Object* obj, Thread*, $sp)
     move    $a2, $sp                      # pass $sp
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
+    RETURN_IF_ZERO
 END art_quick_lock_object
 
     /*
