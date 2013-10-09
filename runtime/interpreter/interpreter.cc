@@ -309,6 +309,7 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
     return;
   }
 
+  const char* old_cause = self->StartAssertNoThreadSuspension("EnterInterpreterFromInvoke");
   MethodHelper mh(method);
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
   uint16_t num_regs;
@@ -317,6 +318,7 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
     num_regs =  code_item->registers_size_;
     num_ins = code_item->ins_size_;
   } else if (method->IsAbstract()) {
+    self->EndAssertNoThreadSuspension(old_cause);
     ThrowAbstractMethodError(method);
     return;
   } else {
@@ -332,6 +334,8 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
   void* memory = alloca(ShadowFrame::ComputeSize(num_regs));
   ShadowFrame* shadow_frame(ShadowFrame::Create(num_regs, last_shadow_frame, method, 0, memory));
   self->PushShadowFrame(shadow_frame);
+  self->EndAssertNoThreadSuspension(old_cause);
+
   size_t cur_reg = num_regs - num_ins;
   if (!method->IsStatic()) {
     CHECK(receiver != NULL);
@@ -339,8 +343,7 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
     ++cur_reg;
   } else if (UNLIKELY(!method->GetDeclaringClass()->IsInitializing())) {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    if (UNLIKELY(!class_linker->EnsureInitialized(method->GetDeclaringClass(),
-                                                  true, true))) {
+    if (UNLIKELY(!class_linker->EnsureInitialized(method->GetDeclaringClass(), true, true))) {
       CHECK(self->IsExceptionPending());
       self->PopShadowFrame();
       return;
@@ -421,6 +424,7 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh
     return;
   }
 
+  self->PushShadowFrame(shadow_frame);
   ArtMethod* method = shadow_frame->GetMethod();
   // Ensure static methods are initialized.
   if (method->IsStatic()) {
@@ -429,12 +433,12 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh
       if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(declaringClass,
                                                                             true, true))) {
         DCHECK(Thread::Current()->IsExceptionPending());
+        self->PopShadowFrame();
         return;
       }
       CHECK(declaringClass->IsInitializing());
     }
   }
-  self->PushShadowFrame(shadow_frame);
 
   if (LIKELY(!method->IsNative())) {
     result->SetJ(Execute(self, mh, code_item, *shadow_frame, JValue()).GetJ());
@@ -442,7 +446,7 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh
     // We don't expect to be asked to interpret native code (which is entered via a JNI compiler
     // generated stub) except during testing and image writing.
     CHECK(!Runtime::Current()->IsStarted());
-    Object* receiver = method->IsStatic() ? NULL : shadow_frame->GetVRegReference(0);
+    Object* receiver = method->IsStatic() ? nullptr : shadow_frame->GetVRegReference(0);
     uint32_t* args = shadow_frame->GetVRegArgs(method->IsStatic() ? 0 : 1);
     UnstartedRuntimeJni(self, method, receiver, args, result);
   }

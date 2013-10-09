@@ -227,12 +227,12 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
       case Instruction::RETURN_OBJECT: {
         PREAMBLE();
         JValue result;
-        Object* obj_result = shadow_frame.GetVRegReference(inst->VRegA_11x(inst_data));
-        result.SetJ(0);
-        result.SetL(obj_result);
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
         }
+        Object* obj_result = shadow_frame.GetVRegReference(inst->VRegA_11x(inst_data));
+        result.SetJ(0);
+        result.SetL(obj_result);
         if (do_assignability_check && obj_result != NULL) {
           Class* return_type = MethodHelper(shadow_frame.GetMethod()).GetReturnType();
           if (return_type == NULL) {

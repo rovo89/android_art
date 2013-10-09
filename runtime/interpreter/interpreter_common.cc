@@ -54,6 +54,7 @@ bool DoCall(ArtMethod* method, Object* receiver, Thread* self, ShadowFrame& shad
   }
 
   // Allocate shadow frame on the stack.
+  const char* old_cause = self->StartAssertNoThreadSuspension("DoCall");
   void* memory = alloca(ShadowFrame::ComputeSize(num_regs));
   ShadowFrame* new_shadow_frame(ShadowFrame::Create(num_regs, &shadow_frame, method, 0, memory));
 
@@ -94,9 +95,11 @@ bool DoCall(ArtMethod* method, Object* receiver, Thread* self, ShadowFrame& shad
             Class* arg_type = mh.GetClassFromTypeIdx(params->GetTypeItem(shorty_pos).type_idx_);
             if (arg_type == NULL) {
               CHECK(self->IsExceptionPending());
+              self->EndAssertNoThreadSuspension(old_cause);
               return false;
             }
             if (!o->VerifierInstanceOf(arg_type)) {
+              self->EndAssertNoThreadSuspension(old_cause);
               // This should never happen.
               self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
                                        "Ljava/lang/VirtualMachineError;",
@@ -144,6 +147,7 @@ bool DoCall(ArtMethod* method, Object* receiver, Thread* self, ShadowFrame& shad
       }
     }
   }
+  self->EndAssertNoThreadSuspension(old_cause);
 
   // Do the call now.
   if (LIKELY(Runtime::Current()->IsStarted())) {

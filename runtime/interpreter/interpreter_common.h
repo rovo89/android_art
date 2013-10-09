@@ -98,9 +98,14 @@ static inline bool DoInvoke(Thread* self, ShadowFrame& shadow_frame, const Instr
                             uint16_t inst_data, JValue* result) {
   const uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
   const uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
-  Object* const receiver = (type == kStatic) ? NULL : shadow_frame.GetVRegReference(vregC);
+  Object* receiver = (type == kStatic) ? nullptr : shadow_frame.GetVRegReference(vregC);
   ArtMethod* const method = FindMethodFromCode(method_idx, receiver, shadow_frame.GetMethod(), self,
                                                do_access_check, type);
+  if (type != kStatic) {
+    // Reload the vreg since the GC may have moved the object.
+    receiver = shadow_frame.GetVRegReference(vregC);
+  }
+
   if (UNLIKELY(method == NULL)) {
     CHECK(self->IsExceptionPending());
     result->SetJ(0);
@@ -524,26 +529,27 @@ static void UnexpectedOpcode(const Instruction* inst, MethodHelper& mh)
 static inline void TraceExecution(const ShadowFrame& shadow_frame, const Instruction* inst,
                                   const uint32_t dex_pc, MethodHelper& mh)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  const bool kTracing = false;
+  constexpr bool kTracing = false;
   if (kTracing) {
 #define TRACE_LOG std::cerr
-    TRACE_LOG << PrettyMethod(shadow_frame.GetMethod())
-              << StringPrintf("\n0x%x: ", dex_pc)
-              << inst->DumpString(&mh.GetDexFile()) << "\n";
+    std::ostringstream oss;
+    oss << PrettyMethod(shadow_frame.GetMethod())
+        << StringPrintf("\n0x%x: ", dex_pc)
+        << inst->DumpString(&mh.GetDexFile()) << "\n";
     for (size_t i = 0; i < shadow_frame.NumberOfVRegs(); ++i) {
       uint32_t raw_value = shadow_frame.GetVReg(i);
       Object* ref_value = shadow_frame.GetVRegReference(i);
-      TRACE_LOG << StringPrintf(" vreg%d=0x%08X", i, raw_value);
+      oss << StringPrintf(" vreg%d=0x%08X", i, raw_value);
       if (ref_value != NULL) {
         if (ref_value->GetClass()->IsStringClass() &&
             ref_value->AsString()->GetCharArray() != NULL) {
-          TRACE_LOG << "/java.lang.String \"" << ref_value->AsString()->ToModifiedUtf8() << "\"";
+          oss << "/java.lang.String \"" << ref_value->AsString()->ToModifiedUtf8() << "\"";
         } else {
-          TRACE_LOG << "/" << PrettyTypeOf(ref_value);
+          oss << "/" << PrettyTypeOf(ref_value);
         }
       }
     }
-    TRACE_LOG << "\n";
+    TRACE_LOG << oss.str() << "\n";
 #undef TRACE_LOG
   }
 }
