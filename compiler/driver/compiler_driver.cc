@@ -64,7 +64,7 @@ static void DumpStat(size_t x, size_t y, const char* str) {
   if (x == 0 && y == 0) {
     return;
   }
-  VLOG(compiler) << Percentage(x, y) << "% of " << str << " for " << (x + y) << " cases";
+  LOG(INFO) << Percentage(x, y) << "% of " << str << " for " << (x + y) << " cases";
 }
 
 class AOTCompilationStats {

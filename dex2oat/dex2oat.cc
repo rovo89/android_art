@@ -604,7 +604,7 @@ static int dex2oat(int argc, char** argv) {
 #error "Unsupported architecture"
 #endif
   bool is_host = false;
-  bool dump_stats = kIsDebugBuild;
+  bool dump_stats = false;
   bool dump_timing = false;
   bool dump_slow_timing = kIsDebugBuild;
   bool watch_dog_enabled = !kIsTargetBuild;
@@ -696,6 +696,8 @@ static int dex2oat(int argc, char** argv) {
       runtime_args.push_back(argv[i]);
     } else if (option == "--dump-timing") {
       dump_timing = true;
+    } else if (option == "--dump-stats") {
+      dump_stats = true;
     } else {
       Usage("Unknown argument %s", option.data());
     }
