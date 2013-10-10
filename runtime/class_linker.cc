@@ -1728,8 +1728,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   klass->SetClass(GetClassRoot(kJavaLangClass));
   uint32_t access_flags = dex_class_def.access_flags_;
   // Make sure that none of our runtime-only flags are set.
-  // TODO: JACK CLASS ACCESS (HACK TO BE REMOVED)
-  CHECK_EQ(access_flags & ~(kAccJavaFlagsMask | kAccClassJack), 0U);
+  CHECK_EQ(access_flags & ~kAccJavaFlagsMask, 0U);
   klass->SetAccessFlags(access_flags);
   klass->SetClassLoader(class_loader);
   DCHECK_EQ(klass->GetPrimitiveType(), Primitive::kPrimNot);
