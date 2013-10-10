@@ -996,7 +996,7 @@ TEST_F(ClassLinkerTest, ResolveVerifyAndClinit) {
   CHECK(dex_file != NULL);
 
   mirror::Class* klass = class_linker_->FindClass("LStaticsFromCode;", class_loader.get());
-  mirror::ArtMethod* clinit = klass->FindDirectMethod("<clinit>", "()V");
+  mirror::ArtMethod* clinit = klass->FindClassInitializer();
   mirror::ArtMethod* getS0 = klass->FindDirectMethod("getS0", "()Ljava/lang/Object;");
   const DexFile::StringId* string_id = dex_file->FindStringId("LStaticsFromCode;");
   ASSERT_TRUE(string_id != NULL);

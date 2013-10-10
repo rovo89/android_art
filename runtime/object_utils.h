@@ -592,7 +592,7 @@ class MethodHelper {
   }
 
   bool IsClassInitializer() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return IsStatic() && GetNameAsStringPiece() == "<clinit>";
+    return method_->IsConstructor() && IsStatic();
   }
 
   size_t NumArgs() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
