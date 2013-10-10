@@ -256,10 +256,7 @@ class OatDumper {
       UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file.GetOatClass(class_def_index));
       CHECK(oat_class.get() != NULL);
       os << StringPrintf("%zd: %s (type_idx=%d) (", class_def_index, descriptor, class_def.class_idx_)
-         << oat_class->GetStatus() << ")"
-         // TODO: JACK CLASS ACCESS (HACK TO BE REMOVED)
-         << ( (class_def.access_flags_ & kAccClassJack) == kAccClassJack ? " (Jack)" : "" )
-         << "\n";
+         << oat_class->GetStatus() << ")\n";
       Indenter indent_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
       std::ostream indented_os(&indent_filter);
       DumpOatClass(indented_os, *oat_class.get(), *(dex_file.get()), class_def);
