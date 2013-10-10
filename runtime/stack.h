@@ -567,7 +567,7 @@ class StackVisitor {
   static void DescribeStack(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
-  instrumentation::InstrumentationStackFrame GetInstrumentationStackFrame(uint32_t depth) const;
+  instrumentation::InstrumentationStackFrame& GetInstrumentationStackFrame(uint32_t depth) const;
 
   void SanityCheckFrame() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

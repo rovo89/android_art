@@ -667,7 +667,7 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, const size_t file_offset,
   const CompiledMethod* compiled_method =
       compiler_driver_->GetCompiledMethod(MethodReference(&dex_file, method_idx));
 
-  OatMethodOffsets method_offsets =
+  const OatMethodOffsets& method_offsets =
       oat_classes_[oat_class_index]->method_offsets_[class_def_method_index];
 
 
