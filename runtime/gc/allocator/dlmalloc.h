@@ -39,4 +39,10 @@ extern "C" int  dlmalloc_trim(size_t);
 // pages back to the kernel.
 extern "C" void DlmallocMadviseCallback(void* start, void* end, size_t used_bytes, void* /*arg*/);
 
+// Callbacks for dlmalloc_inspect_all or mspace_inspect_all that will
+// count the number of bytes allocated and objects allocated,
+// respectively.
+extern "C" void DlmallocBytesAllocatedCallback(void* start, void* end, size_t used_bytes, void* arg);
+extern "C" void DlmallocObjectsAllocatedCallback(void* start, void* end, size_t used_bytes, void* arg);
+
 #endif  // ART_RUNTIME_GC_ALLOCATOR_DLMALLOC_H_

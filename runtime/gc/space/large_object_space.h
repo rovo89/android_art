@@ -41,19 +41,19 @@ class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
   virtual void Walk(DlMallocSpace::WalkCallback, void* arg) = 0;
   virtual ~LargeObjectSpace() {}
 
-  uint64_t GetBytesAllocated() const {
+  uint64_t GetBytesAllocated() {
     return num_bytes_allocated_;
   }
 
-  uint64_t GetObjectsAllocated() const {
+  uint64_t GetObjectsAllocated() {
     return num_objects_allocated_;
   }
 
-  uint64_t GetTotalBytesAllocated() const {
+  uint64_t GetTotalBytesAllocated() {
     return total_bytes_allocated_;
   }
 
-  uint64_t GetTotalObjectsAllocated() const {
+  uint64_t GetTotalObjectsAllocated() {
     return total_objects_allocated_;
   }
 

@@ -127,20 +127,13 @@ class DlMallocSpace : public MemMapSpace, public AllocSpace {
   // Turn ourself into a zygote space and return a new alloc space which has our unused memory.
   DlMallocSpace* CreateZygoteSpace(const char* alloc_space_name);
 
-  uint64_t GetBytesAllocated() const {
-    return num_bytes_allocated_;
+  uint64_t GetBytesAllocated();
+  uint64_t GetObjectsAllocated();
+  uint64_t GetTotalBytesAllocated() {
+    return GetBytesAllocated() + total_bytes_freed_;
   }
-
-  uint64_t GetObjectsAllocated() const {
-    return num_objects_allocated_;
-  }
-
-  uint64_t GetTotalBytesAllocated() const {
-    return total_bytes_allocated_;
-  }
-
-  uint64_t GetTotalObjectsAllocated() const {
-    return total_objects_allocated_;
+  uint64_t GetTotalObjectsAllocated() {
+    return GetObjectsAllocated() + total_objects_freed_;
   }
 
   // Returns the class of a recently freed object.
@@ -168,11 +161,9 @@ class DlMallocSpace : public MemMapSpace, public AllocSpace {
   std::pair<const mirror::Object*, mirror::Class*> recent_freed_objects_[kRecentFreeCount];
   size_t recent_free_pos_;
 
-  // Approximate number of bytes which have been allocated into the space.
-  size_t num_bytes_allocated_;
-  size_t num_objects_allocated_;
-  size_t total_bytes_allocated_;
-  size_t total_objects_allocated_;
+  // Approximate number of bytes and objects which have been deallocated in the space.
+  size_t total_bytes_freed_;
+  size_t total_objects_freed_;
 
   static size_t bitmap_index_;
 
