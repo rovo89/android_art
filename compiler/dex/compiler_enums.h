@@ -55,6 +55,7 @@ enum RegLocationType {
 };
 
 enum BBType {
+  kNullBlock,
   kEntryBlock,
   kDalvikByteCode,
   kExitBlock,

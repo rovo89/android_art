@@ -25,7 +25,7 @@ namespace art {
 inline BasicBlock* DataflowIterator::ForwardSingleNext() {
   BasicBlock* res = NULL;
   if (idx_ < end_idx_) {
-    int bb_id = block_id_list_->Get(idx_++);
+    BasicBlockId bb_id = block_id_list_->Get(idx_++);
     res = mir_graph_->GetBasicBlock(bb_id);
   }
   return res;
@@ -40,7 +40,7 @@ inline BasicBlock* DataflowIterator::ForwardRepeatNext(bool had_change) {
     changed_ = false;
   }
   if (idx_ < end_idx_) {
-    int bb_id = block_id_list_->Get(idx_++);
+    BasicBlockId bb_id = block_id_list_->Get(idx_++);
     res = mir_graph_->GetBasicBlock(bb_id);
   }
   return res;
@@ -50,7 +50,7 @@ inline BasicBlock* DataflowIterator::ForwardRepeatNext(bool had_change) {
 inline BasicBlock* DataflowIterator::ReverseSingleNext() {
   BasicBlock* res = NULL;
   if (idx_ >= 0) {
-    int bb_id = block_id_list_->Get(idx_--);
+    BasicBlockId bb_id = block_id_list_->Get(idx_--);
     res = mir_graph_->GetBasicBlock(bb_id);
   }
   return res;
@@ -65,7 +65,7 @@ inline BasicBlock* DataflowIterator::ReverseRepeatNext(bool had_change) {
     changed_ = false;
   }
   if (idx_ >= 0) {
-    int bb_id = block_id_list_->Get(idx_--);
+    BasicBlockId bb_id = block_id_list_->Get(idx_--);
     res = mir_graph_->GetBasicBlock(bb_id);
   }
   return res;

@@ -74,7 +74,6 @@ class ArmMir2Lir : public Mir2Lir {
     uint32_t EncodeRange(LIR* head_lir, LIR* tail_lir, uint32_t starting_offset);
     int AssignInsnOffsets();
     void AssignOffsets();
-    AssemblerStatus AssembleInstructions(uintptr_t start_addr);
     void EncodeLIR(LIR* lir);
     void DumpResourceMask(LIR* lir, uint64_t mask, const char* prefix);
     void SetupTargetResourceMasks(LIR* lir, uint64_t flags);
@@ -120,7 +119,7 @@ class ArmMir2Lir : public Mir2Lir {
     void GenDivZeroCheck(int reg_lo, int reg_hi);
     void GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method);
     void GenExitSequence();
-    void GenFillArrayData(uint32_t table_offset, RegLocation rl_src);
+    void GenFillArrayData(DexOffset table_offset, RegLocation rl_src);
     void GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias, bool is_double);
     void GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir);
     void GenSelect(BasicBlock* bb, MIR* mir);
@@ -132,8 +131,8 @@ class ArmMir2Lir : public Mir2Lir {
                                                int first_bit, int second_bit);
     void GenNegDouble(RegLocation rl_dest, RegLocation rl_src);
     void GenNegFloat(RegLocation rl_dest, RegLocation rl_src);
-    void GenPackedSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src);
-    void GenSparseSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src);
+    void GenPackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
+    void GenSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
     void GenSpecialCase(BasicBlock* bb, MIR* mir, SpecialCaseHandler special_case);
 
     // Required for target - single operation generators.

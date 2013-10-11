@@ -1295,23 +1295,23 @@ void MIRGraph::MethodUseCount() {
 
 /* Verify if all the successor is connected with all the claimed predecessors */
 bool MIRGraph::VerifyPredInfo(BasicBlock* bb) {
-  GrowableArray<BasicBlock*>::Iterator iter(bb->predecessors);
+  GrowableArray<BasicBlockId>::Iterator iter(bb->predecessors);
 
   while (true) {
-    BasicBlock *pred_bb = iter.Next();
+    BasicBlock *pred_bb = GetBasicBlock(iter.Next());
     if (!pred_bb) break;
     bool found = false;
-    if (pred_bb->taken == bb) {
+    if (pred_bb->taken == bb->id) {
         found = true;
-    } else if (pred_bb->fall_through == bb) {
+    } else if (pred_bb->fall_through == bb->id) {
         found = true;
-    } else if (pred_bb->successor_block_list.block_list_type != kNotUsed) {
-      GrowableArray<SuccessorBlockInfo*>::Iterator iterator(pred_bb->successor_block_list.blocks);
+    } else if (pred_bb->successor_block_list_type != kNotUsed) {
+      GrowableArray<SuccessorBlockInfo*>::Iterator iterator(pred_bb->successor_blocks);
       while (true) {
         SuccessorBlockInfo *successor_block_info = iterator.Next();
         if (successor_block_info == NULL) break;
-        BasicBlock *succ_bb = successor_block_info->block;
-        if (succ_bb == bb) {
+        BasicBlockId succ_bb = successor_block_info->block;
+        if (succ_bb == bb->id) {
             found = true;
             break;
         }

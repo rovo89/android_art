@@ -74,7 +74,7 @@ class MipsMir2Lir : public Mir2Lir {
     void AssembleLIR();
     int AssignInsnOffsets();
     void AssignOffsets();
-    AssemblerStatus AssembleInstructions(uintptr_t start_addr);
+    AssemblerStatus AssembleInstructions(CodeOffset start_addr);
     void DumpResourceMask(LIR* lir, uint64_t mask, const char* prefix);
     void SetupTargetResourceMasks(LIR* lir, uint64_t flags);
     const char* GetTargetInstFmt(int opcode);

@@ -282,8 +282,8 @@ static char*  DecodeFPCSRegList(int count, int base, char* buf) {
   return buf;
 }
 
-static int ExpandImmediate(int value) {
-  int mode = (value & 0xf00) >> 8;
+static int32_t ExpandImmediate(int value) {
+  int32_t mode = (value & 0xf00) >> 8;
   uint32_t bits = value & 0xff;
   switch (mode) {
     case 0:

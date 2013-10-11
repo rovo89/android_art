@@ -92,7 +92,7 @@ void ArmMir2Lir::LockLiveArgs(MIR* mir) {
 }
 
 /* Find the next MIR, which may be in a following basic block */
-// TODO: should this be a utility in mir_graph?
+// TODO: make this a utility in mir_graph.
 MIR* ArmMir2Lir::GetNextMir(BasicBlock** p_bb, MIR* mir) {
   BasicBlock* bb = *p_bb;
   MIR* orig_mir = mir;
@@ -103,7 +103,7 @@ MIR* ArmMir2Lir::GetNextMir(BasicBlock** p_bb, MIR* mir) {
     if (mir != NULL) {
       return mir;
     } else {
-      bb = bb->fall_through;
+      bb = mir_graph_->GetBasicBlock(bb->fall_through);
       *p_bb = bb;
       if (bb) {
          mir = bb->first_mir_insn;
@@ -128,7 +128,7 @@ void ArmMir2Lir::GenPrintLabel(MIR* mir) {
 
 MIR* ArmMir2Lir::SpecialIGet(BasicBlock** bb, MIR* mir,
                              OpSize size, bool long_or_double, bool is_object) {
-  int field_offset;
+  int32_t field_offset;
   bool is_volatile;
   uint32_t field_idx = mir->dalvikInsn.vC;
   bool fast_path = FastInstance(field_idx, false, &field_offset, &is_volatile);
@@ -153,7 +153,7 @@ MIR* ArmMir2Lir::SpecialIGet(BasicBlock** bb, MIR* mir,
 
 MIR* ArmMir2Lir::SpecialIPut(BasicBlock** bb, MIR* mir,
                              OpSize size, bool long_or_double, bool is_object) {
-  int field_offset;
+  int32_t field_offset;
   bool is_volatile;
   uint32_t field_idx = mir->dalvikInsn.vC;
   bool fast_path = FastInstance(field_idx, false, &field_offset, &is_volatile);
@@ -320,9 +320,9 @@ void ArmMir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
       static_cast<SwitchTable*>(arena_->Alloc(sizeof(SwitchTable), ArenaAllocator::kAllocData));
   tab_rec->table = table;
   tab_rec->vaddr = current_dalvik_offset_;
-  int size = table[1];
+  uint32_t size = table[1];
   tab_rec->targets = static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*),
-                                                      ArenaAllocator::kAllocLIR));
+                                                     ArenaAllocator::kAllocLIR));
   switch_tables_.Insert(tab_rec);
 
   // Get the switch value
@@ -338,7 +338,7 @@ void ArmMir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
     r_key = tmp;
   }
   // Materialize a pointer to the switch table
-  NewLIR3(kThumb2Adr, rBase, 0, reinterpret_cast<uintptr_t>(tab_rec));
+  NewLIR3(kThumb2Adr, rBase, 0, WrapPointer(tab_rec));
   // Set up r_idx
   int r_idx = AllocTemp();
   LoadConstant(r_idx, size);
@@ -368,7 +368,7 @@ void ArmMir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
       static_cast<SwitchTable*>(arena_->Alloc(sizeof(SwitchTable),  ArenaAllocator::kAllocData));
   tab_rec->table = table;
   tab_rec->vaddr = current_dalvik_offset_;
-  int size = table[1];
+  uint32_t size = table[1];
   tab_rec->targets =
       static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*), ArenaAllocator::kAllocLIR));
   switch_tables_.Insert(tab_rec);
@@ -377,7 +377,7 @@ void ArmMir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
   rl_src = LoadValue(rl_src, kCoreReg);
   int table_base = AllocTemp();
   // Materialize a pointer to the switch table
-  NewLIR3(kThumb2Adr, table_base, 0, reinterpret_cast<uintptr_t>(tab_rec));
+  NewLIR3(kThumb2Adr, table_base, 0, WrapPointer(tab_rec));
   int low_key = s4FromSwitchData(&table[2]);
   int keyReg;
   // Remove the bias, if necessary
@@ -433,7 +433,7 @@ void ArmMir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
   LoadWordDisp(rARM_SELF, QUICK_ENTRYPOINT_OFFSET(pHandleFillArrayData).Int32Value(),
                rARM_LR);
   // Materialize a pointer to the fill data image
-  NewLIR3(kThumb2Adr, r1, 0, reinterpret_cast<uintptr_t>(tab_rec));
+  NewLIR3(kThumb2Adr, r1, 0, WrapPointer(tab_rec));
   ClobberCalleeSave();
   LIR* call_inst = OpReg(kOpBlx, rARM_LR);
   MarkSafepointPC(call_inst);

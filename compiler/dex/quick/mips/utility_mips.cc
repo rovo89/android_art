@@ -93,7 +93,7 @@ LIR* MipsMir2Lir::LoadConstantNoClobber(int r_dest, int value) {
   } else if ((value < 0) && (value >= -32768)) {
     res = NewLIR3(kMipsAddiu, r_dest, r_ZERO, value);
   } else {
-    res = NewLIR2(kMipsLui, r_dest, value>>16);
+    res = NewLIR2(kMipsLui, r_dest, value >> 16);
     if (value & 0xffff)
       NewLIR3(kMipsOri, r_dest, r_dest, value);
   }

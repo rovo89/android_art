@@ -59,14 +59,14 @@ void MipsMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
  * done:
  *
  */
-void MipsMir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
+void MipsMir2Lir::GenSparseSwitch(MIR* mir, DexOffset table_offset,
                                   RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   if (cu_->verbose) {
     DumpSparseSwitchTable(table);
   }
   // Add the table to the list - we'll process it later
-  SwitchTable *tab_rec =
+  SwitchTable* tab_rec =
       static_cast<SwitchTable*>(arena_->Alloc(sizeof(SwitchTable), ArenaAllocator::kAllocData));
   tab_rec->table = table;
   tab_rec->vaddr = current_dalvik_offset_;
@@ -101,8 +101,7 @@ void MipsMir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
   // Remember base label so offsets can be computed later
   tab_rec->anchor = base_label;
   int rBase = AllocTemp();
-  NewLIR4(kMipsDelta, rBase, 0, reinterpret_cast<uintptr_t>(base_label),
-          reinterpret_cast<uintptr_t>(tab_rec));
+  NewLIR4(kMipsDelta, rBase, 0, WrapPointer(base_label), WrapPointer(tab_rec));
   OpRegRegReg(kOpAdd, rEnd, rEnd, rBase);
 
   // Grab switch test value
@@ -138,20 +137,20 @@ void MipsMir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
  *   jr    r_RA
  * done:
  */
-void MipsMir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
+void MipsMir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
                                   RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   if (cu_->verbose) {
     DumpPackedSwitchTable(table);
   }
   // Add the table to the list - we'll process it later
-  SwitchTable *tab_rec =
+  SwitchTable* tab_rec =
       static_cast<SwitchTable*>(arena_->Alloc(sizeof(SwitchTable), ArenaAllocator::kAllocData));
   tab_rec->table = table;
   tab_rec->vaddr = current_dalvik_offset_;
   int size = table[1];
   tab_rec->targets = static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*),
-                                                       ArenaAllocator::kAllocLIR));
+                                                      ArenaAllocator::kAllocLIR));
   switch_tables_.Insert(tab_rec);
 
   // Get the switch value
@@ -196,8 +195,7 @@ void MipsMir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
 
   // Materialize the table base pointer
   int rBase = AllocTemp();
-  NewLIR4(kMipsDelta, rBase, 0, reinterpret_cast<uintptr_t>(base_label),
-          reinterpret_cast<uintptr_t>(tab_rec));
+  NewLIR4(kMipsDelta, rBase, 0, WrapPointer(base_label), WrapPointer(tab_rec));
 
   // Load the displacement from the switch table
   int r_disp = AllocTemp();
@@ -222,10 +220,10 @@ void MipsMir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
  *
  * Total size is 4+(width * size + 1)/2 16-bit code units.
  */
-void MipsMir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
+void MipsMir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   // Add the table to the list - we'll process it later
-  FillArrayData *tab_rec =
+  FillArrayData* tab_rec =
       reinterpret_cast<FillArrayData*>(arena_->Alloc(sizeof(FillArrayData),
                                                      ArenaAllocator::kAllocData));
   tab_rec->table = table;
@@ -252,8 +250,7 @@ void MipsMir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
   LIR* base_label = NewLIR0(kPseudoTargetLabel);
 
   // Materialize a pointer to the fill data image
-  NewLIR4(kMipsDelta, rMIPS_ARG1, 0, reinterpret_cast<uintptr_t>(base_label),
-          reinterpret_cast<uintptr_t>(tab_rec));
+  NewLIR4(kMipsDelta, rMIPS_ARG1, 0, WrapPointer(base_label), WrapPointer(tab_rec));
 
   // And go...
   ClobberCalleeSave();

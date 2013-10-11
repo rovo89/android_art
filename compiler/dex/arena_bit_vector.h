@@ -39,7 +39,7 @@ class ArenaBitVector {
             bit_size_(p_bits_->storage_size_ * sizeof(uint32_t) * 8) {}
 
         // Return the position of the next set bit.  -1 means end-of-element reached.
-        int Next() {
+        int32_t Next() {
           // Did anything obviously change since we started?
           DCHECK_EQ(bit_size_, p_bits_->GetStorageSize() * sizeof(uint32_t) * 8);
           DCHECK_EQ(bit_storage_, p_bits_->GetRawStorage());
@@ -79,7 +79,7 @@ class ArenaBitVector {
         const uint32_t bit_size_;       // Size of vector in bits.
     };
 
-    ArenaBitVector(ArenaAllocator* arena, unsigned int start_bits, bool expandable,
+    ArenaBitVector(ArenaAllocator* arena, uint32_t start_bits, bool expandable,
                    OatBitMapKind kind = kBitMapMisc);
     ~ArenaBitVector() {}
 
@@ -88,13 +88,13 @@ class ArenaBitVector {
     }
     static void operator delete(void* p) {}  // Nop.
 
-    void SetBit(unsigned int num);
-    void ClearBit(unsigned int num);
+    void SetBit(uint32_t num);
+    void ClearBit(uint32_t num);
     void MarkAllBits(bool set);
     void DebugBitVector(char* msg, int length);
-    bool IsBitSet(unsigned int num);
+    bool IsBitSet(uint32_t num);
     void ClearAllBits();
-    void SetInitialBits(unsigned int num_bits);
+    void SetInitialBits(uint32_t num_bits);
     void Copy(ArenaBitVector* src) {
       memcpy(storage_, src->GetRawStorage(), sizeof(uint32_t) * storage_size_);
     }
@@ -106,7 +106,7 @@ class ArenaBitVector {
         (expandable_ == src->IsExpandable()) &&
         (memcmp(storage_, src->GetRawStorage(), storage_size_ * 4) == 0);
     }
-    int NumSetBits();
+    int32_t NumSetBits();
 
     uint32_t GetStorageSize() const { return storage_size_; }
     bool IsExpandable() const { return expandable_; }

@@ -241,9 +241,9 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::GOTO_16:
     case Instruction::GOTO_32:
       if (mir_graph_->IsBackedge(bb, bb->taken)) {
-        GenSuspendTestAndBranch(opt_flags, &label_list[bb->taken->id]);
+        GenSuspendTestAndBranch(opt_flags, &label_list[bb->taken]);
       } else {
-        OpUnconditionalBranch(&label_list[bb->taken->id]);
+        OpUnconditionalBranch(&label_list[bb->taken]);
       }
       break;
 
@@ -272,23 +272,22 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::IF_GE:
     case Instruction::IF_GT:
     case Instruction::IF_LE: {
-      LIR* taken = &label_list[bb->taken->id];
-      LIR* fall_through = &label_list[bb->fall_through->id];
+      LIR* taken = &label_list[bb->taken];
+      LIR* fall_through = &label_list[bb->fall_through];
       // Result known at compile time?
       if (rl_src[0].is_const && rl_src[1].is_const) {
         bool is_taken = EvaluateBranch(opcode, mir_graph_->ConstantValue(rl_src[0].orig_sreg),
                                        mir_graph_->ConstantValue(rl_src[1].orig_sreg));
-        BasicBlock* target = is_taken ? bb->taken : bb->fall_through;
-        if (mir_graph_->IsBackedge(bb, target)) {
+        BasicBlockId target_id = is_taken ? bb->taken : bb->fall_through;
+        if (mir_graph_->IsBackedge(bb, target_id)) {
           GenSuspendTest(opt_flags);
         }
-        OpUnconditionalBranch(&label_list[target->id]);
+        OpUnconditionalBranch(&label_list[target_id]);
       } else {
         if (mir_graph_->IsBackwardsBranch(bb)) {
           GenSuspendTest(opt_flags);
         }
-        GenCompareAndBranch(opcode, rl_src[0], rl_src[1], taken,
-                                fall_through);
+        GenCompareAndBranch(opcode, rl_src[0], rl_src[1], taken, fall_through);
       }
       break;
       }
@@ -299,16 +298,16 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::IF_GEZ:
     case Instruction::IF_GTZ:
     case Instruction::IF_LEZ: {
-      LIR* taken = &label_list[bb->taken->id];
-      LIR* fall_through = &label_list[bb->fall_through->id];
+      LIR* taken = &label_list[bb->taken];
+      LIR* fall_through = &label_list[bb->fall_through];
       // Result known at compile time?
       if (rl_src[0].is_const) {
         bool is_taken = EvaluateBranch(opcode, mir_graph_->ConstantValue(rl_src[0].orig_sreg), 0);
-        BasicBlock* target = is_taken ? bb->taken : bb->fall_through;
-        if (mir_graph_->IsBackedge(bb, target)) {
+        BasicBlockId target_id = is_taken ? bb->taken : bb->fall_through;
+        if (mir_graph_->IsBackedge(bb, target_id)) {
           GenSuspendTest(opt_flags);
         }
-        OpUnconditionalBranch(&label_list[target->id]);
+        OpUnconditionalBranch(&label_list[target_id]);
       } else {
         if (mir_graph_->IsBackwardsBranch(bb)) {
           GenSuspendTest(opt_flags);
@@ -831,8 +830,9 @@ void Mir2Lir::MethodMIR2LIR() {
   while (curr_bb != NULL) {
     MethodBlockCodeGen(curr_bb);
     // If the fall_through block is no longer laid out consecutively, drop in a branch.
-    if ((curr_bb->fall_through != NULL) && (curr_bb->fall_through != next_bb)) {
-      OpUnconditionalBranch(&block_label_list_[curr_bb->fall_through->id]);
+    BasicBlock* curr_bb_fall_through = mir_graph_->GetBasicBlock(curr_bb->fall_through);
+    if ((curr_bb_fall_through != NULL) && (curr_bb_fall_through != next_bb)) {
+      OpUnconditionalBranch(&block_label_list_[curr_bb->fall_through]);
     }
     curr_bb = next_bb;
     do {

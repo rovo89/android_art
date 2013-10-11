@@ -30,6 +30,14 @@
 
 namespace art {
 
+/*
+ * TODO: refactoring pass to move these (and other) typdefs towards usage style of runtime to
+ * add type safety (see runtime/offsets.h).
+ */
+typedef uint32_t DexOffset;          // Dex offset in code units.
+typedef uint16_t NarrowDexOffset;    // For use in structs, Dex offsets range from 0 .. 0xffff.
+typedef uint32_t CodeOffset;         // Native code offset in bytes.
+
 // Set to 1 to measure cost of suspend check.
 #define NO_SUSPEND 0
 
@@ -119,8 +127,8 @@ struct AssemblyInfo {
 };
 
 struct LIR {
-  int offset;               // Offset of this instruction.
-  uint16_t dalvik_offset;   // Offset of Dalvik opcode in code units (16-bit words).
+  CodeOffset offset;             // Offset of this instruction.
+  NarrowDexOffset dalvik_offset;   // Offset of Dalvik opcode in code units (16-bit words).
   int16_t opcode;
   LIR* next;
   LIR* prev;
@@ -134,10 +142,10 @@ struct LIR {
     unsigned int fixup:8;        // Fixup kind.
   } flags;
   union {
-    UseDefMasks m;          // Use & Def masks used during optimization.
-    AssemblyInfo a;         // Instruction encoding used during assembly phase.
+    UseDefMasks m;               // Use & Def masks used during optimization.
+    AssemblyInfo a;              // Instruction encoding used during assembly phase.
   } u;
-  int operands[5];          // [0..4] = [dest, src1, src2, extra, extra2].
+  int32_t operands[5];           // [0..4] = [dest, src1, src2, extra, extra2].
 };
 
 // Target-specific initialization.
@@ -184,19 +192,23 @@ Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
 
 class Mir2Lir : public Backend {
   public:
-    struct SwitchTable {
-      int offset;
-      const uint16_t* table;      // Original dex table.
-      int vaddr;                  // Dalvik offset of switch opcode.
-      LIR* anchor;                // Reference instruction for relative offsets.
-      LIR** targets;              // Array of case targets.
+    /*
+     * Auxiliary information describing the location of data embedded in the Dalvik
+     * byte code stream.
+     */
+    struct EmbeddedData {
+      CodeOffset offset;        // Code offset of data block.
+      const uint16_t* table;      // Original dex data.
+      DexOffset vaddr;            // Dalvik offset of parent opcode.
     };
 
-    struct FillArrayData {
-      int offset;
-      const uint16_t* table;      // Original dex table.
-      int size;
-      int vaddr;                  // Dalvik offset of FILL_ARRAY_DATA opcode.
+    struct FillArrayData : EmbeddedData {
+      int32_t size;
+    };
+
+    struct SwitchTable : EmbeddedData {
+      LIR* anchor;                // Reference instruction for relative offsets.
+      LIR** targets;              // Array of case targets.
     };
 
     /* Static register use counts */
@@ -260,6 +272,34 @@ class Mir2Lir : public Backend {
       return (opcode < 0);
     }
 
+    /*
+     * LIR operands are 32-bit integers.  Sometimes, (especially for managing
+     * instructions which require PC-relative fixups), we need the operands to carry
+     * pointers.  To do this, we assign these pointers an index in pointer_storage_, and
+     * hold that index in the operand array.
+     * TUNING: If use of these utilities becomes more common on 32-bit builds, it
+     * may be worth conditionally-compiling a set of identity functions here.
+     */
+    uint32_t WrapPointer(void* pointer) {
+      uint32_t res = pointer_storage_.Size();
+      pointer_storage_.Insert(pointer);
+      return res;
+    }
+
+    void* UnwrapPointer(size_t index) {
+      return pointer_storage_.Get(index);
+    }
+
+    // strdup(), but allocates from the arena.
+    char* ArenaStrdup(const char* str) {
+      size_t len = strlen(str) + 1;
+      char* res = reinterpret_cast<char*>(arena_->Alloc(len, ArenaAllocator::kAllocMisc));
+      if (res != NULL) {
+        strncpy(res, str, len);
+      }
+      return res;
+    }
+
     // Shared by all targets - implemented in codegen_util.cc
     void AppendLIR(LIR* lir);
     void InsertLIRBefore(LIR* current_lir, LIR* new_lir);
@@ -277,7 +317,7 @@ class Mir2Lir : public Backend {
     void DumpLIRInsn(LIR* arg, unsigned char* base_addr);
     void DumpPromotionMap();
     void CodegenDump();
-    LIR* RawLIR(int dalvik_offset, int opcode, int op0 = 0, int op1 = 0,
+    LIR* RawLIR(DexOffset dalvik_offset, int opcode, int op0 = 0, int op1 = 0,
                 int op2 = 0, int op3 = 0, int op4 = 0, LIR* target = NULL);
     LIR* NewLIR0(int opcode);
     LIR* NewLIR1(int opcode, int dest);
@@ -292,7 +332,7 @@ class Mir2Lir : public Backend {
     void ProcessSwitchTables();
     void DumpSparseSwitchTable(const uint16_t* table);
     void DumpPackedSwitchTable(const uint16_t* table);
-    void MarkBoundary(int offset, const char* inst_str);
+    void MarkBoundary(DexOffset offset, const char* inst_str);
     void NopLIR(LIR* lir);
     void UnlinkLIR(LIR* lir);
     bool EvaluateBranch(Instruction::Code opcode, int src1, int src2);
@@ -307,12 +347,12 @@ class Mir2Lir : public Backend {
     bool VerifyCatchEntries();
     void CreateMappingTables();
     void CreateNativeGcMap();
-    int AssignLiteralOffset(int offset);
-    int AssignSwitchTablesOffset(int offset);
-    int AssignFillArrayDataOffset(int offset);
-    LIR* InsertCaseLabel(int vaddr, int keyVal);
-    void MarkPackedCaseLabels(Mir2Lir::SwitchTable *tab_rec);
-    void MarkSparseCaseLabels(Mir2Lir::SwitchTable *tab_rec);
+    int AssignLiteralOffset(CodeOffset offset);
+    int AssignSwitchTablesOffset(CodeOffset offset);
+    int AssignFillArrayDataOffset(CodeOffset offset);
+    LIR* InsertCaseLabel(DexOffset vaddr, int keyVal);
+    void MarkPackedCaseLabels(Mir2Lir::SwitchTable* tab_rec);
+    void MarkSparseCaseLabels(Mir2Lir::SwitchTable* tab_rec);
 
     // Shared by all targets - implemented in local_optimizations.cc
     void ConvertMemOpIntoMove(LIR* orig_lir, int dest, int src);
@@ -642,7 +682,7 @@ class Mir2Lir : public Backend {
     virtual void GenEntrySequence(RegLocation* ArgLocs,
                                   RegLocation rl_method) = 0;
     virtual void GenExitSequence() = 0;
-    virtual void GenFillArrayData(uint32_t table_offset,
+    virtual void GenFillArrayData(DexOffset table_offset,
                                   RegLocation rl_src) = 0;
     virtual void GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias,
                                      bool is_double) = 0;
@@ -655,9 +695,9 @@ class Mir2Lir : public Backend {
                                                int second_bit) = 0;
     virtual void GenNegDouble(RegLocation rl_dest, RegLocation rl_src) = 0;
     virtual void GenNegFloat(RegLocation rl_dest, RegLocation rl_src) = 0;
-    virtual void GenPackedSwitch(MIR* mir, uint32_t table_offset,
+    virtual void GenPackedSwitch(MIR* mir, DexOffset table_offset,
                                  RegLocation rl_src) = 0;
-    virtual void GenSparseSwitch(MIR* mir, uint32_t table_offset,
+    virtual void GenSparseSwitch(MIR* mir, DexOffset table_offset,
                                  RegLocation rl_src) = 0;
     virtual void GenSpecialCase(BasicBlock* bb, MIR* mir,
                                 SpecialCaseHandler special_case) = 0;
@@ -672,13 +712,10 @@ class Mir2Lir : public Backend {
 
     // Required for target - single operation generators.
     virtual LIR* OpUnconditionalBranch(LIR* target) = 0;
-    virtual LIR* OpCmpBranch(ConditionCode cond, int src1, int src2,
-                             LIR* target) = 0;
-    virtual LIR* OpCmpImmBranch(ConditionCode cond, int reg, int check_value,
-                                LIR* target) = 0;
+    virtual LIR* OpCmpBranch(ConditionCode cond, int src1, int src2, LIR* target) = 0;
+    virtual LIR* OpCmpImmBranch(ConditionCode cond, int reg, int check_value, LIR* target) = 0;
     virtual LIR* OpCondBranch(ConditionCode cc, LIR* target) = 0;
-    virtual LIR* OpDecAndBranch(ConditionCode c_code, int reg,
-                                LIR* target) = 0;
+    virtual LIR* OpDecAndBranch(ConditionCode c_code, int reg, LIR* target) = 0;
     virtual LIR* OpFpRegCopy(int r_dest, int r_src) = 0;
     virtual LIR* OpIT(ConditionCode cond, const char* guide) = 0;
     virtual LIR* OpMem(OpKind op, int rBase, int disp) = 0;
@@ -690,16 +727,13 @@ class Mir2Lir : public Backend {
     virtual LIR* OpRegMem(OpKind op, int r_dest, int rBase, int offset) = 0;
     virtual LIR* OpRegReg(OpKind op, int r_dest_src1, int r_src2) = 0;
     virtual LIR* OpRegRegImm(OpKind op, int r_dest, int r_src1, int value) = 0;
-    virtual LIR* OpRegRegReg(OpKind op, int r_dest, int r_src1,
-                             int r_src2) = 0;
+    virtual LIR* OpRegRegReg(OpKind op, int r_dest, int r_src1, int r_src2) = 0;
     virtual LIR* OpTestSuspend(LIR* target) = 0;
     virtual LIR* OpThreadMem(OpKind op, ThreadOffset thread_offset) = 0;
     virtual LIR* OpVldm(int rBase, int count) = 0;
     virtual LIR* OpVstm(int rBase, int count) = 0;
-    virtual void OpLea(int rBase, int reg1, int reg2, int scale,
-                       int offset) = 0;
-    virtual void OpRegCopyWide(int dest_lo, int dest_hi, int src_lo,
-                               int src_hi) = 0;
+    virtual void OpLea(int rBase, int reg1, int reg2, int scale, int offset) = 0;
+    virtual void OpRegCopyWide(int dest_lo, int dest_hi, int src_lo, int src_hi) = 0;
     virtual void OpTlsCmp(ThreadOffset offset, int val) = 0;
     virtual bool InexpensiveConstantInt(int32_t value) = 0;
     virtual bool InexpensiveConstantFloat(int32_t value) = 0;
@@ -752,6 +786,7 @@ class Mir2Lir : public Backend {
     GrowableArray<LIR*> intrinsic_launchpads_;
     GrowableArray<RegisterInfo*> tempreg_info_;
     GrowableArray<RegisterInfo*> reginfo_map_;
+    GrowableArray<void*> pointer_storage_;
     /*
      * Holds mapping from native PC to dex PC for safepoints where we may deoptimize.
      * Native PC is on the return address of the safepointed operation.  Dex PC is for
@@ -763,9 +798,9 @@ class Mir2Lir : public Backend {
      * immediately preceed the instruction.
      */
     std::vector<uint32_t> dex2pc_mapping_table_;
-    int current_code_offset_;             // Working byte offset of machine instructons.
-    int data_offset_;                     // starting offset of literal pool.
-    int total_size_;                      // header + code size.
+    CodeOffset current_code_offset_;    // Working byte offset of machine instructons.
+    CodeOffset data_offset_;            // starting offset of literal pool.
+    size_t total_size_;                   // header + code size.
     LIR* block_label_list_;
     PromotionMap* promotion_map_;
     /*
@@ -777,8 +812,8 @@ class Mir2Lir : public Backend {
      * in the CompilationUnit struct before codegen for each instruction.
      * The low-level LIR creation utilites will pull it from here.  Rework this.
      */
-    int current_dalvik_offset_;
-    int estimated_native_code_size_;     // Just an estimate; used to reserve code_buffer_ size.
+    DexOffset current_dalvik_offset_;
+    size_t estimated_native_code_size_;     // Just an estimate; used to reserve code_buffer_ size.
     RegisterPool* reg_pool_;
     /*
      * Sanity checking for the register temp tracking.  The same ssa

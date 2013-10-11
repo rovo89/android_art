@@ -908,7 +908,7 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
     LoadWordDisp(rl_obj.low_reg, value_offset, reg_ptr);
     if (range_check) {
       // Set up a launch pad to allow retry in case of bounds violation */
-      launch_pad = RawLIR(0, kPseudoIntrinsicRetry, reinterpret_cast<uintptr_t>(info));
+      launch_pad = RawLIR(0, kPseudoIntrinsicRetry, WrapPointer(info));
       intrinsic_launchpads_.Insert(launch_pad);
       OpRegReg(kOpCmp, rl_idx.low_reg, reg_max);
       FreeTemp(reg_max);
@@ -919,7 +919,7 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
       reg_max = AllocTemp();
       LoadWordDisp(rl_obj.low_reg, count_offset, reg_max);
       // Set up a launch pad to allow retry in case of bounds violation */
-      launch_pad = RawLIR(0, kPseudoIntrinsicRetry, reinterpret_cast<uintptr_t>(info));
+      launch_pad = RawLIR(0, kPseudoIntrinsicRetry, WrapPointer(info));
       intrinsic_launchpads_.Insert(launch_pad);
       OpRegReg(kOpCmp, rl_idx.low_reg, reg_max);
       FreeTemp(reg_max);
@@ -1085,7 +1085,7 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   }
   int r_tgt = (cu_->instruction_set != kX86) ? LoadHelper(QUICK_ENTRYPOINT_OFFSET(pIndexOf)) : 0;
   GenNullCheck(rl_obj.s_reg_low, reg_ptr, info->opt_flags);
-  LIR* launch_pad = RawLIR(0, kPseudoIntrinsicRetry, reinterpret_cast<uintptr_t>(info));
+  LIR* launch_pad = RawLIR(0, kPseudoIntrinsicRetry, WrapPointer(info));
   intrinsic_launchpads_.Insert(launch_pad);
   OpCmpImmBranch(kCondGt, reg_char, 0xFFFF, launch_pad);
   // NOTE: not a safepoint
@@ -1095,7 +1095,7 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
     OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(pIndexOf));
   }
   LIR* resume_tgt = NewLIR0(kPseudoTargetLabel);
-  launch_pad->operands[2] = reinterpret_cast<uintptr_t>(resume_tgt);
+  launch_pad->operands[2] = WrapPointer(resume_tgt);
   // Record that we've already inlined & null checked
   info->opt_flags |= (MIR_INLINED | MIR_IGNORE_NULL_CHECK);
   RegLocation rl_return = GetReturn(false);
@@ -1123,7 +1123,7 @@ bool Mir2Lir::GenInlinedStringCompareTo(CallInfo* info) {
       LoadHelper(QUICK_ENTRYPOINT_OFFSET(pStringCompareTo)) : 0;
   GenNullCheck(rl_this.s_reg_low, reg_this, info->opt_flags);
   // TUNING: check if rl_cmp.s_reg_low is already null checked
-  LIR* launch_pad = RawLIR(0, kPseudoIntrinsicRetry, reinterpret_cast<uintptr_t>(info));
+  LIR* launch_pad = RawLIR(0, kPseudoIntrinsicRetry, WrapPointer(info));
   intrinsic_launchpads_.Insert(launch_pad);
   OpCmpImmBranch(kCondEq, reg_cmp, 0, launch_pad);
   // NOTE: not a safepoint
