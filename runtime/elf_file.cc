@@ -71,8 +71,9 @@ bool ElfFile::Setup(File* file, bool writable, bool program_header_only) {
   }
   if (file_length < sizeof(llvm::ELF::Elf32_Ehdr)) {
     if (writable) {
-      LOG(WARNING) << "File size " << file_length
-                   << " not large enough to contain ELF header: " << file_->GetPath();
+      LOG(WARNING) << "File size of " << file_length
+                   << " bytes not large enough to contain ELF header of "
+                   << sizeof(llvm::ELF::Elf32_Ehdr) << " bytes: " << file_->GetPath();
     }
     return false;
   }
@@ -85,6 +86,12 @@ bool ElfFile::Setup(File* file, bool writable, bool program_header_only) {
     }
     // then remap to cover program header
     size_t program_header_size = header_->e_phoff + (header_->e_phentsize * header_->e_phnum);
+    if (file_length < program_header_size) {
+      LOG(WARNING) << "File size of " << file_length
+                   << " bytes not large enough to contain ELF program header of "
+                   << program_header_size << " bytes: " << file_->GetPath();
+      return false;
+    }
     if (!SetMap(MemMap::MapFile(program_header_size, prot, flags, file_->Fd(), 0))) {
       LOG(WARNING) << "Failed to map ELF program headers: " << file_->GetPath();
       return false;
@@ -617,6 +624,7 @@ bool ElfFile::Load(bool executable) {
     // non-zero, the segments require the specific address specified,
     // which either was specified in the file because we already set
     // base_address_ after the first zero segment).
+    int64_t file_length = file_->GetLength();
     if (program_header.p_vaddr == 0) {
       std::string reservation_name("ElfFile reservation for ");
       reservation_name += file_->GetPath();
@@ -647,6 +655,13 @@ bool ElfFile::Load(bool executable) {
       flags |= MAP_SHARED;
     } else {
       flags |= MAP_PRIVATE;
+    }
+    if (file_length < (program_header.p_offset + program_header.p_memsz)) {
+      LOG(WARNING) << "File size of " << file_length
+                   << " bytes not large enough to contain ELF segment " << i
+                   << " of " << (program_header.p_offset + program_header.p_memsz)
+                   << " bytes: " << file_->GetPath();
+      return false;
     }
     UniquePtr<MemMap> segment(MemMap::MapFileAtAddress(p_vaddr,
                                                        program_header.p_memsz,
