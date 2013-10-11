@@ -270,7 +270,7 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
 
   Class* klass =
       class_linker_->FindClass("LStaticsFromCode;", soa.Decode<ClassLoader*>(class_loader));
-  ArtMethod* clinit = klass->FindDirectMethod("<clinit>", "()V");
+  ArtMethod* clinit = klass->FindClassInitializer();
   const DexFile::StringId* klass_string_id = dex_file->FindStringId("LStaticsFromCode;");
   ASSERT_TRUE(klass_string_id != NULL);
   const DexFile::TypeId* klass_type_id = dex_file->FindTypeId(

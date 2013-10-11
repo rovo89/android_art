@@ -1865,47 +1865,54 @@ mirror::ArtMethod* ClassLinker::LoadMethod(Thread* self, const DexFile& dex_file
   const char* old_cause = self->StartAssertNoThreadSuspension("LoadMethod");
   dst->SetDexMethodIndex(dex_method_idx);
   dst->SetDeclaringClass(klass.get());
-
-  if (method_name == "finalize") {
-    // Create the prototype for a signature of "()V"
-    const DexFile::StringId* void_string_id = dex_file.FindStringId("V");
-    if (void_string_id != NULL) {
-      const DexFile::TypeId* void_type_id =
-          dex_file.FindTypeId(dex_file.GetIndexForStringId(*void_string_id));
-      if (void_type_id != NULL) {
-        std::vector<uint16_t> no_args;
-        const DexFile::ProtoId* finalizer_proto =
-            dex_file.FindProtoId(dex_file.GetIndexForTypeId(*void_type_id), no_args);
-        if (finalizer_proto != NULL) {
-          // We have the prototype in the dex file
-          if (klass->GetClassLoader() != NULL) {  // All non-boot finalizer methods are flagged
-            klass->SetFinalizable();
-          } else {
-            ClassHelper kh(klass.get());
-            StringPiece klass_descriptor(kh.GetDescriptorAsStringPiece());
-            // The Enum class declares a "final" finalize() method to prevent subclasses from
-            // introducing a finalizer. We don't want to set the finalizable flag for Enum or its
-            // subclasses, so we exclude it here.
-            // We also want to avoid setting the flag on Object, where we know that finalize() is
-            // empty.
-            if (klass_descriptor != "Ljava/lang/Object;" &&
-                klass_descriptor != "Ljava/lang/Enum;") {
-              klass->SetFinalizable();
-            }
-          }
-        }
-      }
-    }
-  }
   dst->SetCodeItemOffset(it.GetMethodCodeItemOffset());
-  dst->SetAccessFlags(it.GetMemberAccessFlags());
 
   dst->SetDexCacheStrings(klass->GetDexCache()->GetStrings());
   dst->SetDexCacheResolvedMethods(klass->GetDexCache()->GetResolvedMethods());
   dst->SetDexCacheResolvedTypes(klass->GetDexCache()->GetResolvedTypes());
   dst->SetDexCacheInitializedStaticStorage(klass->GetDexCache()->GetInitializedStaticStorage());
 
-  CHECK(dst->IsArtMethod());
+  uint32_t access_flags = it.GetMemberAccessFlags();
+
+  if (UNLIKELY(method_name == "finalize")) {
+    // Set finalizable flag on declaring class.
+    const DexFile::ProtoId& proto = dex_file.GetProtoId(method_id.proto_idx_);
+    if (dex_file.GetProtoParameters(proto) == NULL) {  // No arguments
+      const DexFile::TypeId& return_type = dex_file.GetTypeId(proto.return_type_idx_);
+      if (dex_file.StringDataAsStringPieceByIdx(return_type.descriptor_idx_) == "V") {
+        // Void return type.
+        if (klass->GetClassLoader() != NULL) {  // All non-boot finalizer methods are flagged
+          klass->SetFinalizable();
+        } else {
+          ClassHelper kh(klass.get());
+          StringPiece klass_descriptor(kh.GetDescriptorAsStringPiece());
+          // The Enum class declares a "final" finalize() method to prevent subclasses from
+          // introducing a finalizer. We don't want to set the finalizable flag for Enum or its
+          // subclasses, so we exclude it here.
+          // We also want to avoid setting the flag on Object, where we know that finalize() is
+          // empty.
+          if (klass_descriptor != "Ljava/lang/Object;" &&
+              klass_descriptor != "Ljava/lang/Enum;") {
+            klass->SetFinalizable();
+          }
+        }
+      }
+    }
+  } else if (method_name[0] == '<') {
+    // Fix broken access flags for initializers. Bug 11157540.
+    bool is_init = (method_name == "<init>");
+    bool is_clinit = !is_init && (method_name == "<clinit>");
+    if (UNLIKELY(!is_init && !is_clinit)) {
+      LOG(WARNING) << "Unexpected '<' at start of method name " << method_name;
+    } else {
+      if (UNLIKELY((access_flags & kAccConstructor) == 0)) {
+        LOG(WARNING) << method_name << " didn't have expected constructor access flag in class "
+            << PrettyDescriptor(klass.get()) << " in dex file " << dex_file.GetLocation();
+        access_flags |= kAccConstructor;
+      }
+    }
+  }
+  dst->SetAccessFlags(access_flags);
 
   self->EndAssertNoThreadSuspension(old_cause);
   return dst;

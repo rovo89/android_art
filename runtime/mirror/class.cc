@@ -500,6 +500,7 @@ ArtMethod* Class::FindClassInitializer() const {
     if (method->IsConstructor() && method->IsStatic()) {
       if (kIsDebugBuild) {
         MethodHelper mh(method);
+        CHECK(mh.IsClassInitializer());
         CHECK_STREQ(mh.GetName(), "<clinit>");
         CHECK_STREQ(mh.GetSignature().ToString().c_str(), "()V");
       }

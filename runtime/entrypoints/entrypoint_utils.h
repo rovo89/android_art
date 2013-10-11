@@ -312,7 +312,7 @@ static inline mirror::Class* ResolveVerifyAndClinit(uint32_t type_idx,
   //
   // Do not set the DexCache InitializedStaticStorage, since that implies <clinit> has finished
   // running.
-  if (klass == referring_class && MethodHelper(referrer).IsClassInitializer()) {
+  if (klass == referring_class && referrer->IsConstructor() && referrer->IsStatic()) {
     return klass;
   }
   if (!class_linker->EnsureInitialized(klass, true, true)) {
