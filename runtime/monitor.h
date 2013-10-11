@@ -62,11 +62,11 @@ class Monitor {
 
   static void Notify(Thread* self, mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    InflateAndNotify(self, obj, false);
+    DoNotify(self, obj, false);
   }
   static void NotifyAll(Thread* self, mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    InflateAndNotify(self, obj, true);
+    DoNotify(self, obj, true);
   }
   static void Wait(Thread* self, mirror::Object* obj, int64_t ms, int32_t ns,
                    bool interruptShouldThrow, ThreadState why)
@@ -130,7 +130,7 @@ class Monitor {
       LOCKS_EXCLUDED(monitor_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static void InflateAndNotify(Thread* self, mirror::Object* obj, bool notify_all)
+  static void DoNotify(Thread* self, mirror::Object* obj, bool notify_all)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void Notify(Thread* self)
