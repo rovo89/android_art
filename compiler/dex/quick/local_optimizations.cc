@@ -78,7 +78,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
   }
 
   for (this_lir = PREV_LIR(tail_lir); this_lir != head_lir; this_lir = PREV_LIR(this_lir)) {
-    if (is_pseudo_opcode(this_lir->opcode)) {
+    if (IsPseudoLirOp(this_lir->opcode)) {
       continue;
     }
 
@@ -135,7 +135,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
        * Skip already dead instructions (whose dataflow information is
        * outdated and misleading).
        */
-      if (check_lir->flags.is_nop || is_pseudo_opcode(check_lir->opcode)) {
+      if (check_lir->flags.is_nop || IsPseudoLirOp(check_lir->opcode)) {
         continue;
       }
 
@@ -285,7 +285,7 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
 
   /* Start from the second instruction */
   for (this_lir = NEXT_LIR(head_lir); this_lir != tail_lir; this_lir = NEXT_LIR(this_lir)) {
-    if (is_pseudo_opcode(this_lir->opcode)) {
+    if (IsPseudoLirOp(this_lir->opcode)) {
       continue;
     }
 
@@ -362,7 +362,7 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
        * Store the dependent or non-pseudo/indepedent instruction to the
        * list.
        */
-      if (stop_here || !is_pseudo_opcode(check_lir->opcode)) {
+      if (stop_here || !IsPseudoLirOp(check_lir->opcode)) {
         prev_inst_list[next_slot++] = check_lir;
         if (next_slot == MAX_HOIST_DISTANCE) {
           break;
@@ -393,7 +393,7 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
       int slot;
       LIR* dep_lir = prev_inst_list[next_slot-1];
       /* If there is ld-ld dependency, wait LDLD_DISTANCE cycles */
-      if (!is_pseudo_opcode(dep_lir->opcode) &&
+      if (!IsPseudoLirOp(dep_lir->opcode) &&
         (GetTargetInstFlags(dep_lir->opcode) & IS_LOAD)) {
         first_slot -= LDLD_DISTANCE;
       }
@@ -434,7 +434,7 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
          * Try to find two instructions with load/use dependency until
          * the remaining instructions are less than LD_LATENCY.
          */
-        bool prev_is_load = is_pseudo_opcode(prev_lir->opcode) ? false :
+        bool prev_is_load = IsPseudoLirOp(prev_lir->opcode) ? false :
             (GetTargetInstFlags(prev_lir->opcode) & IS_LOAD);
         if (((cur_lir->u.m.use_mask & prev_lir->u.m.def_mask) && prev_is_load) || (slot < LD_LATENCY)) {
           break;

@@ -181,7 +181,6 @@ Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
 #define SLOW_STRING_PATH (cu_->enable_debug & (1 << kDebugSlowStringPath))
 #define SLOW_TYPE_PATH (cu_->enable_debug & (1 << kDebugSlowTypePath))
 #define EXERCISE_SLOWEST_STRING_PATH (cu_->enable_debug & (1 << kDebugSlowestStringPath))
-#define is_pseudo_opcode(opcode) (static_cast<int>(opcode) < 0)
 
 class Mir2Lir : public Backend {
   public:
@@ -255,6 +254,10 @@ class Mir2Lir : public Backend {
 
     size_t CodeBufferSizeInBytes() {
       return code_buffer_.size() / sizeof(code_buffer_[0]);
+    }
+
+    bool IsPseudoLirOp(int opcode) {
+      return (opcode < 0);
     }
 
     // Shared by all targets - implemented in codegen_util.cc

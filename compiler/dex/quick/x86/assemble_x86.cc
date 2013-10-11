@@ -362,6 +362,7 @@ static size_t ComputeSize(const X86EncodingMap* entry, int base, int displacemen
 }
 
 int X86Mir2Lir::GetInsnSize(LIR* lir) {
+  DCHECK(!IsPseudoLirOp(lir->opcode));
   const X86EncodingMap* entry = &X86Mir2Lir::EncodingMap[lir->opcode];
   switch (entry->kind) {
     case kData:
@@ -1166,7 +1167,7 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(uintptr_t start_addr) {
 
   const bool kVerbosePcFixup = false;
   for (lir = first_lir_insn_; lir != NULL; lir = NEXT_LIR(lir)) {
-    if (lir->opcode < 0) {
+    if (IsPseudoLirOp(lir->opcode)) {
       continue;
     }
 
@@ -1393,7 +1394,7 @@ int X86Mir2Lir::AssignInsnOffsets() {
 
   for (lir = first_lir_insn_; lir != NULL; lir = NEXT_LIR(lir)) {
     lir->offset = offset;
-    if (LIKELY(lir->opcode >= 0)) {
+    if (LIKELY(!IsPseudoLirOp(lir->opcode))) {
       if (!lir->flags.is_nop) {
         offset += lir->flags.size;
       }

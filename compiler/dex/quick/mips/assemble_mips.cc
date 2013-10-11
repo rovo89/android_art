@@ -646,6 +646,7 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
     if (res != kSuccess) {
       continue;
     }
+    DCHECK(!IsPseudoLirOp(lir->opcode));
     const MipsEncodingMap *encoder = &EncodingMap[lir->opcode];
     uint32_t bits = encoder->skeleton;
     int i;
@@ -695,6 +696,7 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
     code_buffer_.push_back((bits >> 24) & 0xff);
     // TUNING: replace with proper delay slot handling
     if (encoder->size == 8) {
+      DCHECK(!IsPseudoLirOp(lir->opcode));
       const MipsEncodingMap *encoder = &EncodingMap[kMipsNop];
       uint32_t bits = encoder->skeleton;
       code_buffer_.push_back(bits & 0xff);
@@ -707,6 +709,7 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
 }
 
 int MipsMir2Lir::GetInsnSize(LIR* lir) {
+  DCHECK(!IsPseudoLirOp(lir->opcode));
   return EncodingMap[lir->opcode].size;
 }
 

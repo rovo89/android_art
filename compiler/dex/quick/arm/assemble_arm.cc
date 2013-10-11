@@ -1021,7 +1021,7 @@ void ArmMir2Lir::InsertFixupBefore(LIR* prev_lir, LIR* orig_lir, LIR* new_lir) {
 
 void ArmMir2Lir::EncodeLIR(LIR* lir) {
   int opcode = lir->opcode;
-  if (opcode < 0) {
+  if (IsPseudoLirOp(opcode)) {
     if (UNLIKELY(opcode == kPseudoPseudoAlign4)) {
       // Note: size for this opcode will be either 0 or 2 depending on final alignment.
       lir->u.a.bytes[0] = (PADDING_MOV_R5_R5 & 0xff);
@@ -1594,6 +1594,7 @@ void ArmMir2Lir::AssembleLIR() {
 }
 
 int ArmMir2Lir::GetInsnSize(LIR* lir) {
+  DCHECK(!IsPseudoLirOp(lir->opcode));
   return EncodingMap[lir->opcode].size;
 }
 
@@ -1613,7 +1614,7 @@ uint32_t ArmMir2Lir::EncodeRange(LIR* head_lir, LIR* tail_lir, uint32_t offset) 
     lir->offset = offset;
     if (!lir->flags.is_nop) {
       if (lir->flags.fixup != kFixupNone) {
-        if (lir->opcode >= 0) {
+        if (!IsPseudoLirOp(lir->opcode)) {
           lir->flags.size = EncodingMap[lir->opcode].size;
           lir->flags.fixup = EncodingMap[lir->opcode].fixup;
         } else if (UNLIKELY(lir->opcode == kPseudoPseudoAlign4)) {

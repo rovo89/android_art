@@ -327,7 +327,7 @@ LIR* ArmMir2Lir::OpRegRegShift(OpKind op, int r_dest_src1, int r_src2,
       LOG(FATAL) << "Bad opcode: " << op;
       break;
   }
-  DCHECK_GE(static_cast<int>(opcode), 0);
+  DCHECK(!IsPseudoLirOp(opcode));
   if (EncodingMap[opcode].flags & IS_BINARY_OP) {
     return NewLIR2(opcode, r_dest_src1, r_src2);
   } else if (EncodingMap[opcode].flags & IS_TERTIARY_OP) {
@@ -405,7 +405,7 @@ LIR* ArmMir2Lir::OpRegRegRegShift(OpKind op, int r_dest, int r_src1,
       LOG(FATAL) << "Bad opcode: " << op;
       break;
   }
-  DCHECK_GE(static_cast<int>(opcode), 0);
+  DCHECK(!IsPseudoLirOp(opcode));
   if (EncodingMap[opcode].flags & IS_QUAD_OP) {
     return NewLIR4(opcode, r_dest, r_src1, r_src2, shift);
   } else {

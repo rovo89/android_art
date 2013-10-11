@@ -718,14 +718,17 @@ int ArmMir2Lir::LoadHelper(ThreadOffset offset) {
 }
 
 uint64_t ArmMir2Lir::GetTargetInstFlags(int opcode) {
+  DCHECK(!IsPseudoLirOp(opcode));
   return ArmMir2Lir::EncodingMap[opcode].flags;
 }
 
 const char* ArmMir2Lir::GetTargetInstName(int opcode) {
+  DCHECK(!IsPseudoLirOp(opcode));
   return ArmMir2Lir::EncodingMap[opcode].name;
 }
 
 const char* ArmMir2Lir::GetTargetInstFmt(int opcode) {
+  DCHECK(!IsPseudoLirOp(opcode));
   return ArmMir2Lir::EncodingMap[opcode].fmt;
 }
 

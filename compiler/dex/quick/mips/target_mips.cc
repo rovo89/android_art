@@ -553,14 +553,17 @@ Mir2Lir* MipsCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
 }
 
 uint64_t MipsMir2Lir::GetTargetInstFlags(int opcode) {
+  DCHECK(!IsPseudoLirOp(opcode));
   return MipsMir2Lir::EncodingMap[opcode].flags;
 }
 
 const char* MipsMir2Lir::GetTargetInstName(int opcode) {
+  DCHECK(!IsPseudoLirOp(opcode));
   return MipsMir2Lir::EncodingMap[opcode].name;
 }
 
 const char* MipsMir2Lir::GetTargetInstFmt(int opcode) {
+  DCHECK(!IsPseudoLirOp(opcode));
   return MipsMir2Lir::EncodingMap[opcode].fmt;
 }
 

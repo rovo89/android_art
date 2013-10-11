@@ -69,7 +69,7 @@ inline LIR* Mir2Lir::RawLIR(int dalvik_offset, int opcode, int op0,
  * operands.
  */
 inline LIR* Mir2Lir::NewLIR0(int opcode) {
-  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & NO_OPERAND))
+  DCHECK(IsPseudoLirOp(opcode) || (GetTargetInstFlags(opcode) & NO_OPERAND))
       << GetTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " "
       << current_dalvik_offset_;
@@ -79,7 +79,7 @@ inline LIR* Mir2Lir::NewLIR0(int opcode) {
 }
 
 inline LIR* Mir2Lir::NewLIR1(int opcode, int dest) {
-  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & IS_UNARY_OP))
+  DCHECK(IsPseudoLirOp(opcode) || (GetTargetInstFlags(opcode) & IS_UNARY_OP))
       << GetTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " "
       << current_dalvik_offset_;
@@ -89,7 +89,7 @@ inline LIR* Mir2Lir::NewLIR1(int opcode, int dest) {
 }
 
 inline LIR* Mir2Lir::NewLIR2(int opcode, int dest, int src1) {
-  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & IS_BINARY_OP))
+  DCHECK(IsPseudoLirOp(opcode) || (GetTargetInstFlags(opcode) & IS_BINARY_OP))
       << GetTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " "
       << current_dalvik_offset_;
@@ -99,7 +99,7 @@ inline LIR* Mir2Lir::NewLIR2(int opcode, int dest, int src1) {
 }
 
 inline LIR* Mir2Lir::NewLIR3(int opcode, int dest, int src1, int src2) {
-  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & IS_TERTIARY_OP))
+  DCHECK(IsPseudoLirOp(opcode) || (GetTargetInstFlags(opcode) & IS_TERTIARY_OP))
       << GetTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " "
       << current_dalvik_offset_;
@@ -109,7 +109,7 @@ inline LIR* Mir2Lir::NewLIR3(int opcode, int dest, int src1, int src2) {
 }
 
 inline LIR* Mir2Lir::NewLIR4(int opcode, int dest, int src1, int src2, int info) {
-  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & IS_QUAD_OP))
+  DCHECK(IsPseudoLirOp(opcode) || (GetTargetInstFlags(opcode) & IS_QUAD_OP))
       << GetTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " "
       << current_dalvik_offset_;
@@ -120,7 +120,7 @@ inline LIR* Mir2Lir::NewLIR4(int opcode, int dest, int src1, int src2, int info)
 
 inline LIR* Mir2Lir::NewLIR5(int opcode, int dest, int src1, int src2, int info1,
                              int info2) {
-  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & IS_QUIN_OP))
+  DCHECK(IsPseudoLirOp(opcode) || (GetTargetInstFlags(opcode) & IS_QUIN_OP))
       << GetTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " "
       << current_dalvik_offset_;
@@ -142,8 +142,10 @@ inline void Mir2Lir::SetupRegMask(uint64_t* mask, int reg) {
 inline void Mir2Lir::SetupResourceMasks(LIR* lir) {
   int opcode = lir->opcode;
 
-  if ((opcode < 0) && (opcode != kPseudoBarrier)) {
-    lir->flags.fixup = kFixupLabel;
+  if (IsPseudoLirOp(opcode)) {
+    if (opcode != kPseudoBarrier) {
+      lir->flags.fixup = kFixupLabel;
+    }
     return;
   }
 
