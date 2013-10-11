@@ -695,7 +695,7 @@ void Monitor::Wait(Thread* self, mirror::Object *obj, int64_t ms, int32_t ns,
   mon->Wait(self, ms, ns, interruptShouldThrow, why);
 }
 
-void Monitor::InflateAndNotify(Thread* self, mirror::Object* obj, bool notify_all) {
+void Monitor::DoNotify(Thread* self, mirror::Object* obj, bool notify_all) {
   DCHECK(self != NULL);
   DCHECK(obj != NULL);
 
