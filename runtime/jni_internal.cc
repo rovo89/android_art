@@ -255,11 +255,28 @@ static jmethodID FindMethodID(ScopedObjectAccess& soa, jclass jni_class,
 static ClassLoader* GetClassLoader(const ScopedObjectAccess& soa)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ArtMethod* method = soa.Self()->GetCurrentMethod(NULL);
-  if (method == NULL ||
-      method == soa.DecodeMethod(WellKnownClasses::java_lang_Runtime_nativeLoad)) {
+  // If we are running Runtime.nativeLoad, use the overriding ClassLoader it set.
+  if (method == soa.DecodeMethod(WellKnownClasses::java_lang_Runtime_nativeLoad)) {
     return soa.Self()->GetClassLoaderOverride();
   }
-  return method->GetDeclaringClass()->GetClassLoader();
+  // If we have a method, use its ClassLoader for context.
+  if (method != NULL) {
+    return method->GetDeclaringClass()->GetClassLoader();
+  }
+  // We don't have a method, so try to use the system ClassLoader.
+  ClassLoader* class_loader = soa.Decode<ClassLoader*>(Runtime::Current()->GetSystemClassLoader());
+  if (class_loader != NULL) {
+    return class_loader;
+  }
+  // See if the override ClassLoader is set for gtests.
+  class_loader = soa.Self()->GetClassLoaderOverride();
+  if (class_loader != NULL) {
+    // If so, CommonTest should have set UseCompileTimeClassPath.
+    CHECK(Runtime::Current()->UseCompileTimeClassPath());
+    return class_loader;
+  }
+  // Use the BOOTCLASSPATH.
+  return NULL;
 }
 
 static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, const char* name,
@@ -2101,13 +2118,14 @@ class JNI {
     descriptor += ClassHelper(element_class).GetDescriptor();
 
     // Find the class.
-    ScopedLocalRef<jclass> java_array_class(env, FindClass(env, descriptor.c_str()));
-    if (java_array_class.get() == NULL) {
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    Class* array_class = class_linker->FindClass(descriptor.c_str(),
+                                                 element_class->GetClassLoader());
+    if (array_class == NULL) {
       return NULL;
     }
 
     // Allocate and initialize if necessary.
-    Class* array_class = soa.Decode<Class*>(java_array_class.get());
     ObjectArray<Object>* result = ObjectArray<Object>::Alloc(soa.Self(), array_class, length);
     if (initial_element != NULL) {
       Object* initial_object = soa.Decode<Object*>(initial_element);

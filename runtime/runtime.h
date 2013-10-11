@@ -240,6 +240,9 @@ class Runtime {
   // Returns the "system" ThreadGroup, used when attaching our internal threads.
   jobject GetSystemThreadGroup() const;
 
+  // Returns the system ClassLoader which represents the CLASSPATH.
+  jobject GetSystemClassLoader() const;
+
   // Attaches the calling native thread to the runtime.
   bool AttachCurrentThread(const char* thread_name, bool as_daemon, jobject thread_group,
                            bool create_peer);
@@ -467,9 +470,6 @@ class Runtime {
 
   mirror::ArtMethod* resolution_method_;
 
-  // As returned by ClassLoader.getSystemClassLoader()
-  mirror::ClassLoader* system_class_loader_;
-
   // A non-zero value indicates that a thread has been created but not yet initialized. Guarded by
   // the shutdown lock so that threads aren't born while we're shutting down.
   size_t threads_being_born_ GUARDED_BY(Locks::runtime_shutdown_lock_);
@@ -509,6 +509,9 @@ class Runtime {
 
   jobject main_thread_group_;
   jobject system_thread_group_;
+
+  // As returned by ClassLoader.getSystemClassLoader().
+  jobject system_class_loader_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };

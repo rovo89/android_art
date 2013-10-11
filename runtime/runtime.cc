@@ -83,7 +83,6 @@ Runtime::Runtime()
       java_vm_(NULL),
       pre_allocated_OutOfMemoryError_(NULL),
       resolution_method_(NULL),
-      system_class_loader_(NULL),
       threads_being_born_(0),
       shutdown_cond_(new ConditionVariable("Runtime shutdown", *Locks::runtime_shutdown_lock_)),
       shutting_down_(false),
@@ -99,7 +98,8 @@ Runtime::Runtime()
       instrumentation_(),
       use_compile_time_class_path_(false),
       main_thread_group_(NULL),
-      system_thread_group_(NULL) {
+      system_thread_group_(NULL),
+      system_class_loader_(NULL) {
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
     callee_save_methods_[i] = NULL;
   }
@@ -666,9 +666,9 @@ bool Runtime::Create(const Options& options, bool ignore_unrecognized) {
   return true;
 }
 
-static void CreateSystemClassLoader() {
+jobject CreateSystemClassLoader() {
   if (Runtime::Current()->UseCompileTimeClassPath()) {
-    return;
+    return NULL;
   }
 
   ScopedObjectAccess soa(Thread::Current());
@@ -687,6 +687,10 @@ static void CreateSystemClassLoader() {
   mirror::ClassLoader* class_loader = down_cast<mirror::ClassLoader*>(result.GetL());
   CHECK(class_loader != NULL);
 
+  JNIEnv* env = soa.Self()->GetJniEnv();
+  ScopedLocalRef<jobject> system_class_loader(env, soa.AddLocalReference<jobject>(class_loader));
+  CHECK(system_class_loader.get() != NULL);
+
   soa.Self()->SetClassLoaderOverride(class_loader);
 
   mirror::Class* thread_class = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_Thread);
@@ -697,6 +701,8 @@ static void CreateSystemClassLoader() {
   CHECK(contextClassLoader != NULL);
 
   contextClassLoader->SetObject(soa.Self()->GetPeer(), class_loader);
+
+  return env->NewGlobalRef(system_class_loader.get());
 }
 
 bool Runtime::Start() {
@@ -729,7 +735,7 @@ bool Runtime::Start() {
 
   StartDaemonThreads();
 
-  CreateSystemClassLoader();
+  system_class_loader_ = CreateSystemClassLoader();
 
   self->GetJniEnv()->locals.AssertEmpty();
 
@@ -989,6 +995,11 @@ jobject Runtime::GetMainThreadGroup() const {
 jobject Runtime::GetSystemThreadGroup() const {
   CHECK(system_thread_group_ != NULL || IsCompiler());
   return system_thread_group_;
+}
+
+jobject Runtime::GetSystemClassLoader() const {
+  CHECK(system_class_loader_ != NULL || IsCompiler());
+  return system_class_loader_;
 }
 
 void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
