@@ -15,6 +15,7 @@
 #
 
 LIBARTTEST_COMMON_SRC_FILES := \
+	test/JniTest/jni_test.cc \
 	test/ReferenceMap/stack_walk_refmap_jni.cc \
 	test/StackWalk/stack_walk_jni.cc
 
