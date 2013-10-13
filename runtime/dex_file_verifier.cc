@@ -65,12 +65,22 @@ static bool IsDataSectionType(uint32_t map_type) {
   return true;
 }
 
-static bool CheckShortyDescriptorMatch(char shorty_char, const char* descriptor,
-    bool is_return_type) {
+bool DexFileVerifier::Verify(const DexFile* dex_file, const byte* begin, size_t size,
+                             const char* location, std::string* error_msg) {
+  UniquePtr<DexFileVerifier> verifier(new DexFileVerifier(dex_file, begin, size, location));
+  if (!verifier->Verify()) {
+    *error_msg = verifier->FailureReason();
+    return false;
+  }
+  return true;
+}
+
+bool DexFileVerifier::CheckShortyDescriptorMatch(char shorty_char, const char* descriptor,
+                                                bool is_return_type) {
   switch (shorty_char) {
     case 'V':
-      if (!is_return_type) {
-        LOG(ERROR) << "Invalid use of void";
+      if (UNLIKELY(!is_return_type)) {
+        ErrorStringPrintf("Invalid use of void");
         return false;
       }
       // Intentional fallthrough.
@@ -82,62 +92,58 @@ static bool CheckShortyDescriptorMatch(char shorty_char, const char* descriptor,
     case 'J':
     case 'S':
     case 'Z':
-      if ((descriptor[0] != shorty_char) || (descriptor[1] != '\0')) {
-        LOG(ERROR) << StringPrintf("Shorty vs. primitive type mismatch: '%c', '%s'", shorty_char, descriptor);
+      if (UNLIKELY((descriptor[0] != shorty_char) || (descriptor[1] != '\0'))) {
+        ErrorStringPrintf("Shorty vs. primitive type mismatch: '%c', '%s'",
+                          shorty_char, descriptor);
         return false;
       }
       break;
     case 'L':
-      if ((descriptor[0] != 'L') && (descriptor[0] != '[')) {
-        LOG(ERROR) << StringPrintf("Shorty vs. type mismatch: '%c', '%s'", shorty_char, descriptor);
+      if (UNLIKELY((descriptor[0] != 'L') && (descriptor[0] != '['))) {
+        ErrorStringPrintf("Shorty vs. type mismatch: '%c', '%s'", shorty_char, descriptor);
         return false;
       }
       break;
     default:
-      LOG(ERROR) << "Bad shorty character: '" << shorty_char << "'";
+      ErrorStringPrintf("Bad shorty character: '%c'", shorty_char);
       return false;
   }
   return true;
 }
 
-bool DexFileVerifier::Verify(const DexFile* dex_file, const byte* begin, size_t size) {
-  UniquePtr<DexFileVerifier> verifier(new DexFileVerifier(dex_file, begin, size));
-  return verifier->Verify();
-}
-
-bool DexFileVerifier::CheckPointerRange(const void* start, const void* end, const char* label) const {
+bool DexFileVerifier::CheckPointerRange(const void* start, const void* end, const char* label) {
   uint32_t range_start = reinterpret_cast<uint32_t>(start);
   uint32_t range_end = reinterpret_cast<uint32_t>(end);
   uint32_t file_start = reinterpret_cast<uint32_t>(begin_);
   uint32_t file_end = file_start + size_;
-  if ((range_start < file_start) || (range_start > file_end) ||
-      (range_end < file_start) || (range_end > file_end)) {
-    LOG(ERROR) << StringPrintf("Bad range for %s: %x to %x", label,
-        range_start - file_start, range_end - file_start);
+  if (UNLIKELY((range_start < file_start) || (range_start > file_end) ||
+               (range_end < file_start) || (range_end > file_end))) {
+    ErrorStringPrintf("Bad range for %s: %x to %x", label,
+                      range_start - file_start, range_end - file_start);
     return false;
   }
   return true;
 }
 
 bool DexFileVerifier::CheckListSize(const void* start, uint32_t count,
-    uint32_t element_size, const char* label) const {
+                                    uint32_t element_size, const char* label) {
   const byte* list_start = reinterpret_cast<const byte*>(start);
   return CheckPointerRange(list_start, list_start + (count * element_size), label);
 }
 
-bool DexFileVerifier::CheckIndex(uint32_t field, uint32_t limit, const char* label) const {
-  if (field >= limit) {
-    LOG(ERROR) << StringPrintf("Bad index for %s: %x >= %x", label, field, limit);
+bool DexFileVerifier::CheckIndex(uint32_t field, uint32_t limit, const char* label) {
+  if (UNLIKELY(field >= limit)) {
+    ErrorStringPrintf("Bad index for %s: %x >= %x", label, field, limit);
     return false;
   }
   return true;
 }
 
-bool DexFileVerifier::CheckHeader() const {
+bool DexFileVerifier::CheckHeader() {
   // Check file size from the header.
   uint32_t expected_size = header_->file_size_;
   if (size_ != expected_size) {
-    LOG(ERROR) << "Bad file size (" << size_ << ", expected " << expected_size << ")";
+    ErrorStringPrintf("Bad file size (%zd, expected %ud)", size_, expected_size);
     return false;
   }
 
@@ -147,25 +153,25 @@ bool DexFileVerifier::CheckHeader() const {
   const byte* non_sum_ptr = reinterpret_cast<const byte*>(header_) + non_sum;
   adler_checksum = adler32(adler_checksum, non_sum_ptr, expected_size - non_sum);
   if (adler_checksum != header_->checksum_) {
-    LOG(ERROR) << StringPrintf("Bad checksum (%08x, expected %08x)", adler_checksum, header_->checksum_);
+    ErrorStringPrintf("Bad checksum (%08x, expected %08x)", adler_checksum, header_->checksum_);
     return false;
   }
 
   // Check the contents of the header.
   if (header_->endian_tag_ != DexFile::kDexEndianConstant) {
-    LOG(ERROR) << StringPrintf("Unexpected endian_tag: %x", header_->endian_tag_);
+    ErrorStringPrintf("Unexpected endian_tag: %x", header_->endian_tag_);
     return false;
   }
 
   if (header_->header_size_ != sizeof(DexFile::Header)) {
-    LOG(ERROR) << "Bad header size: " << header_->header_size_;
+    ErrorStringPrintf("Bad header size: %ud", header_->header_size_);
     return false;
   }
 
   return true;
 }
 
-bool DexFileVerifier::CheckMap() const {
+bool DexFileVerifier::CheckMap() {
   const DexFile::MapList* map = reinterpret_cast<const DexFile::MapList*>(begin_ + header_->map_off_);
   const DexFile::MapItem* item = map->list_;
 
@@ -182,19 +188,20 @@ bool DexFileVerifier::CheckMap() const {
 
   // Check the items listed in the map.
   for (uint32_t i = 0; i < count; i++) {
-    if (last_offset >= item->offset_ && i != 0) {
-      LOG(ERROR) << StringPrintf("Out of order map item: %x then %x", last_offset, item->offset_);
+    if (UNLIKELY(last_offset >= item->offset_ && i != 0)) {
+      ErrorStringPrintf("Out of order map item: %x then %x", last_offset, item->offset_);
       return false;
     }
-    if (item->offset_ >= header_->file_size_) {
-      LOG(ERROR) << StringPrintf("Map item after end of file: %x, size %x", item->offset_, header_->file_size_);
+    if (UNLIKELY(item->offset_ >= header_->file_size_)) {
+      ErrorStringPrintf("Map item after end of file: %x, size %x",
+                        item->offset_, header_->file_size_);
       return false;
     }
 
     if (IsDataSectionType(item->type_)) {
       uint32_t icount = item->size_;
-      if (icount > data_items_left) {
-        LOG(ERROR) << "Too many items in data section: " << data_item_count + icount;
+      if (UNLIKELY(icount > data_items_left)) {
+        ErrorStringPrintf("Too many items in data section: %ud", data_item_count + icount);
         return false;
       }
       data_items_left -= icount;
@@ -203,13 +210,13 @@ bool DexFileVerifier::CheckMap() const {
 
     uint32_t bit = MapTypeToBitMask(item->type_);
 
-    if (bit == 0) {
-      LOG(ERROR) << StringPrintf("Unknown map section type %x", item->type_);
+    if (UNLIKELY(bit == 0)) {
+      ErrorStringPrintf("Unknown map section type %x", item->type_);
       return false;
     }
 
-    if ((used_bits & bit) != 0) {
-      LOG(ERROR) << StringPrintf("Duplicate map section of type %x", item->type_);
+    if (UNLIKELY((used_bits & bit) != 0)) {
+      ErrorStringPrintf("Duplicate map section of type %x", item->type_);
       return false;
     }
 
@@ -219,63 +226,59 @@ bool DexFileVerifier::CheckMap() const {
   }
 
   // Check for missing sections in the map.
-  if ((used_bits & MapTypeToBitMask(DexFile::kDexTypeHeaderItem)) == 0) {
-    LOG(ERROR) << "Map is missing header entry";
+  if (UNLIKELY((used_bits & MapTypeToBitMask(DexFile::kDexTypeHeaderItem)) == 0)) {
+    ErrorStringPrintf("Map is missing header entry");
     return false;
   }
-  if ((used_bits & MapTypeToBitMask(DexFile::kDexTypeMapList)) == 0) {
-    LOG(ERROR) << "Map is missing map_list entry";
+  if (UNLIKELY((used_bits & MapTypeToBitMask(DexFile::kDexTypeMapList)) == 0)) {
+    ErrorStringPrintf("Map is missing map_list entry");
     return false;
   }
-  if ((used_bits & MapTypeToBitMask(DexFile::kDexTypeStringIdItem)) == 0 &&
-      ((header_->string_ids_off_ != 0) || (header_->string_ids_size_ != 0))) {
-    LOG(ERROR) << "Map is missing string_ids entry";
+  if (UNLIKELY((used_bits & MapTypeToBitMask(DexFile::kDexTypeStringIdItem)) == 0 &&
+               ((header_->string_ids_off_ != 0) || (header_->string_ids_size_ != 0)))) {
+    ErrorStringPrintf("Map is missing string_ids entry");
     return false;
   }
-  if ((used_bits & MapTypeToBitMask(DexFile::kDexTypeTypeIdItem)) == 0 &&
-      ((header_->type_ids_off_ != 0) || (header_->type_ids_size_ != 0))) {
-    LOG(ERROR) << "Map is missing type_ids entry";
+  if (UNLIKELY((used_bits & MapTypeToBitMask(DexFile::kDexTypeTypeIdItem)) == 0 &&
+               ((header_->type_ids_off_ != 0) || (header_->type_ids_size_ != 0)))) {
+    ErrorStringPrintf("Map is missing type_ids entry");
     return false;
   }
-  if ((used_bits & MapTypeToBitMask(DexFile::kDexTypeProtoIdItem)) == 0 &&
-      ((header_->proto_ids_off_ != 0) || (header_->proto_ids_size_ != 0))) {
-    LOG(ERROR) << "Map is missing proto_ids entry";
+  if (UNLIKELY((used_bits & MapTypeToBitMask(DexFile::kDexTypeProtoIdItem)) == 0 &&
+               ((header_->proto_ids_off_ != 0) || (header_->proto_ids_size_ != 0)))) {
+    ErrorStringPrintf("Map is missing proto_ids entry");
     return false;
   }
-  if ((used_bits & MapTypeToBitMask(DexFile::kDexTypeFieldIdItem)) == 0 &&
-      ((header_->field_ids_off_ != 0) || (header_->field_ids_size_ != 0))) {
-    LOG(ERROR) << "Map is missing field_ids entry";
+  if (UNLIKELY((used_bits & MapTypeToBitMask(DexFile::kDexTypeFieldIdItem)) == 0 &&
+               ((header_->field_ids_off_ != 0) || (header_->field_ids_size_ != 0)))) {
+    ErrorStringPrintf("Map is missing field_ids entry");
     return false;
   }
-  if ((used_bits & MapTypeToBitMask(DexFile::kDexTypeMethodIdItem)) == 0 &&
-      ((header_->method_ids_off_ != 0) || (header_->method_ids_size_ != 0))) {
-    LOG(ERROR) << "Map is missing method_ids entry";
+  if (UNLIKELY((used_bits & MapTypeToBitMask(DexFile::kDexTypeMethodIdItem)) == 0 &&
+               ((header_->method_ids_off_ != 0) || (header_->method_ids_size_ != 0)))) {
+    ErrorStringPrintf("Map is missing method_ids entry");
     return false;
   }
-  if ((used_bits & MapTypeToBitMask(DexFile::kDexTypeClassDefItem)) == 0 &&
-      ((header_->class_defs_off_ != 0) || (header_->class_defs_size_ != 0))) {
-    LOG(ERROR) << "Map is missing class_defs entry";
+  if (UNLIKELY((used_bits & MapTypeToBitMask(DexFile::kDexTypeClassDefItem)) == 0 &&
+               ((header_->class_defs_off_ != 0) || (header_->class_defs_size_ != 0)))) {
+    ErrorStringPrintf("Map is missing class_defs entry");
     return false;
   }
-
   return true;
 }
 
 uint32_t DexFileVerifier::ReadUnsignedLittleEndian(uint32_t size) {
   uint32_t result = 0;
-  if (!CheckPointerRange(ptr_, ptr_ + size, "encoded_value")) {
-    return 0;
+  if (LIKELY(CheckPointerRange(ptr_, ptr_ + size, "encoded_value"))) {
+    for (uint32_t i = 0; i < size; i++) {
+      result |= ((uint32_t) *(ptr_++)) << (i * 8);
+    }
   }
-
-  for (uint32_t i = 0; i < size; i++) {
-    result |= ((uint32_t) *(ptr_++)) << (i * 8);
-  }
-
   return result;
 }
 
 bool DexFileVerifier::CheckAndGetHandlerOffsets(const DexFile::CodeItem* code_item,
-    uint32_t* handler_offsets, uint32_t handlers_size) {
+                                                uint32_t* handler_offsets, uint32_t handlers_size) {
   const byte* handlers_base = DexFile::GetCatchHandlerData(*code_item, 0);
 
   for (uint32_t i = 0; i < handlers_size; i++) {
@@ -283,8 +286,8 @@ bool DexFileVerifier::CheckAndGetHandlerOffsets(const DexFile::CodeItem* code_it
     uint32_t offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(handlers_base);
     int32_t size = DecodeSignedLeb128(&ptr_);
 
-    if ((size < -65536) || (size > 65536)) {
-      LOG(ERROR) << "Invalid exception handler size: " << size;
+    if (UNLIKELY((size < -65536) || (size > 65536))) {
+      ErrorStringPrintf("Invalid exception handler size: %d", size);
       return false;
     }
 
@@ -304,16 +307,16 @@ bool DexFileVerifier::CheckAndGetHandlerOffsets(const DexFile::CodeItem* code_it
       }
 
       uint32_t addr = DecodeUnsignedLeb128(&ptr_);
-      if (addr >= code_item->insns_size_in_code_units_) {
-        LOG(ERROR) << StringPrintf("Invalid handler addr: %x", addr);
+      if (UNLIKELY(addr >= code_item->insns_size_in_code_units_)) {
+        ErrorStringPrintf("Invalid handler addr: %x", addr);
         return false;
       }
     }
 
     if (catch_all) {
       uint32_t addr = DecodeUnsignedLeb128(&ptr_);
-      if (addr >= code_item->insns_size_in_code_units_) {
-        LOG(ERROR) << StringPrintf("Invalid handler catch_all_addr: %x", addr);
+      if (UNLIKELY(addr >= code_item->insns_size_in_code_units_)) {
+        ErrorStringPrintf("Invalid handler catch_all_addr: %x", addr);
         return false;
       }
     }
@@ -323,21 +326,21 @@ bool DexFileVerifier::CheckAndGetHandlerOffsets(const DexFile::CodeItem* code_it
 }
 
 bool DexFileVerifier::CheckClassDataItemField(uint32_t idx, uint32_t access_flags,
-    bool expect_static) const {
+                                              bool expect_static) {
   if (!CheckIndex(idx, header_->field_ids_size_, "class_data_item field_idx")) {
     return false;
   }
 
   bool is_static = (access_flags & kAccStatic) != 0;
-  if (is_static != expect_static) {
-    LOG(ERROR) << "Static/instance field not in expected list";
+  if (UNLIKELY(is_static != expect_static)) {
+    ErrorStringPrintf("Static/instance field not in expected list");
     return false;
   }
 
   uint32_t access_field_mask = kAccPublic | kAccPrivate | kAccProtected | kAccStatic |
       kAccFinal | kAccVolatile | kAccTransient | kAccSynthetic | kAccEnum;
-  if ((access_flags & ~access_field_mask) != 0) {
-    LOG(ERROR) << StringPrintf("Bad class_data_item field access_flags %x", access_flags);
+  if (UNLIKELY((access_flags & ~access_field_mask) != 0)) {
+    ErrorStringPrintf("Bad class_data_item field access_flags %x", access_flags);
     return false;
   }
 
@@ -345,7 +348,7 @@ bool DexFileVerifier::CheckClassDataItemField(uint32_t idx, uint32_t access_flag
 }
 
 bool DexFileVerifier::CheckClassDataItemMethod(uint32_t idx, uint32_t access_flags,
-    uint32_t code_offset, bool expect_direct) const {
+                                               uint32_t code_offset, bool expect_direct) {
   if (!CheckIndex(idx, header_->method_ids_size_, "class_data_item method_idx")) {
     return false;
   }
@@ -355,26 +358,27 @@ bool DexFileVerifier::CheckClassDataItemMethod(uint32_t idx, uint32_t access_fla
   bool is_synchronized = (access_flags & kAccSynchronized) != 0;
   bool allow_synchronized = (access_flags & kAccNative) != 0;
 
-  if (is_direct != expect_direct) {
-    LOG(ERROR) << "Direct/virtual method not in expected list";
+  if (UNLIKELY(is_direct != expect_direct)) {
+    ErrorStringPrintf("Direct/virtual method not in expected list");
     return false;
   }
 
   uint32_t access_method_mask = kAccPublic | kAccPrivate | kAccProtected | kAccStatic |
       kAccFinal | kAccSynchronized | kAccBridge | kAccVarargs | kAccNative | kAccAbstract |
       kAccStrict | kAccSynthetic | kAccConstructor | kAccDeclaredSynchronized;
-  if (((access_flags & ~access_method_mask) != 0) || (is_synchronized && !allow_synchronized)) {
-    LOG(ERROR) << StringPrintf("Bad class_data_item method access_flags %x", access_flags);
+  if (UNLIKELY(((access_flags & ~access_method_mask) != 0) ||
+               (is_synchronized && !allow_synchronized))) {
+    ErrorStringPrintf("Bad class_data_item method access_flags %x", access_flags);
     return false;
   }
 
-  if (expect_code && code_offset == 0) {
-    LOG(ERROR)<< StringPrintf("Unexpected zero value for class_data_item method code_off"
-        " with access flags %x", access_flags);
+  if (UNLIKELY(expect_code && (code_offset == 0))) {
+    ErrorStringPrintf("Unexpected zero value for class_data_item method code_off with access "
+                      "flags %x", access_flags);
     return false;
-  } else if (!expect_code && code_offset != 0) {
-    LOG(ERROR) << StringPrintf("Unexpected non-zero value %x for class_data_item method code_off"
-        " with access flags %x", code_offset, access_flags);
+  } else if (UNLIKELY(!expect_code && (code_offset != 0))) {
+    ErrorStringPrintf("Unexpected non-zero value %x for class_data_item method code_off"
+                      " with access flags %x", code_offset, access_flags);
     return false;
   }
 
@@ -387,8 +391,8 @@ bool DexFileVerifier::CheckPadding(uint32_t offset, uint32_t aligned_offset) {
       return false;
     }
     while (offset < aligned_offset) {
-      if (*ptr_ != '\0') {
-        LOG(ERROR) << StringPrintf("Non-zero padding %x before section start at %x", *ptr_, offset);
+      if (UNLIKELY(*ptr_ != '\0')) {
+        ErrorStringPrintf("Non-zero padding %x before section start at %x", *ptr_, offset);
         return false;
       }
       ptr_++;
@@ -409,24 +413,24 @@ bool DexFileVerifier::CheckEncodedValue() {
 
   switch (value_type) {
     case DexFile::kDexAnnotationByte:
-      if (value_arg != 0) {
-        LOG(ERROR) << StringPrintf("Bad encoded_value byte size %x", value_arg);
+      if (UNLIKELY(value_arg != 0)) {
+        ErrorStringPrintf("Bad encoded_value byte size %x", value_arg);
         return false;
       }
       ptr_++;
       break;
     case DexFile::kDexAnnotationShort:
     case DexFile::kDexAnnotationChar:
-      if (value_arg > 1) {
-        LOG(ERROR) << StringPrintf("Bad encoded_value char/short size %x", value_arg);
+      if (UNLIKELY(value_arg > 1)) {
+        ErrorStringPrintf("Bad encoded_value char/short size %x", value_arg);
         return false;
       }
       ptr_ += value_arg + 1;
       break;
     case DexFile::kDexAnnotationInt:
     case DexFile::kDexAnnotationFloat:
-      if (value_arg > 3) {
-        LOG(ERROR) << StringPrintf("Bad encoded_value int/float size %x", value_arg);
+      if (UNLIKELY(value_arg > 3)) {
+        ErrorStringPrintf("Bad encoded_value int/float size %x", value_arg);
         return false;
       }
       ptr_ += value_arg + 1;
@@ -436,8 +440,8 @@ bool DexFileVerifier::CheckEncodedValue() {
       ptr_ += value_arg + 1;
       break;
     case DexFile::kDexAnnotationString: {
-      if (value_arg > 3) {
-        LOG(ERROR) << StringPrintf("Bad encoded_value string size %x", value_arg);
+      if (UNLIKELY(value_arg > 3)) {
+        ErrorStringPrintf("Bad encoded_value string size %x", value_arg);
         return false;
       }
       uint32_t idx = ReadUnsignedLittleEndian(value_arg + 1);
@@ -447,8 +451,8 @@ bool DexFileVerifier::CheckEncodedValue() {
       break;
     }
     case DexFile::kDexAnnotationType: {
-      if (value_arg > 3) {
-        LOG(ERROR) << StringPrintf("Bad encoded_value type size %x", value_arg);
+      if (UNLIKELY(value_arg > 3)) {
+        ErrorStringPrintf("Bad encoded_value type size %x", value_arg);
         return false;
       }
       uint32_t idx = ReadUnsignedLittleEndian(value_arg + 1);
@@ -459,8 +463,8 @@ bool DexFileVerifier::CheckEncodedValue() {
     }
     case DexFile::kDexAnnotationField:
     case DexFile::kDexAnnotationEnum: {
-      if (value_arg > 3) {
-        LOG(ERROR) << StringPrintf("Bad encoded_value field/enum size %x", value_arg);
+      if (UNLIKELY(value_arg > 3)) {
+        ErrorStringPrintf("Bad encoded_value field/enum size %x", value_arg);
         return false;
       }
       uint32_t idx = ReadUnsignedLittleEndian(value_arg + 1);
@@ -470,8 +474,8 @@ bool DexFileVerifier::CheckEncodedValue() {
       break;
     }
     case DexFile::kDexAnnotationMethod: {
-      if (value_arg > 3) {
-        LOG(ERROR) << StringPrintf("Bad encoded_value method size %x", value_arg);
+      if (UNLIKELY(value_arg > 3)) {
+        ErrorStringPrintf("Bad encoded_value method size %x", value_arg);
         return false;
       }
       uint32_t idx = ReadUnsignedLittleEndian(value_arg + 1);
@@ -481,8 +485,8 @@ bool DexFileVerifier::CheckEncodedValue() {
       break;
     }
     case DexFile::kDexAnnotationArray:
-      if (value_arg != 0) {
-        LOG(ERROR) << StringPrintf("Bad encoded_value array value_arg %x", value_arg);
+      if (UNLIKELY(value_arg != 0)) {
+        ErrorStringPrintf("Bad encoded_value array value_arg %x", value_arg);
         return false;
       }
       if (!CheckEncodedArray()) {
@@ -490,8 +494,8 @@ bool DexFileVerifier::CheckEncodedValue() {
       }
       break;
     case DexFile::kDexAnnotationAnnotation:
-      if (value_arg != 0) {
-        LOG(ERROR) << StringPrintf("Bad encoded_value annotation value_arg %x", value_arg);
+      if (UNLIKELY(value_arg != 0)) {
+        ErrorStringPrintf("Bad encoded_value annotation value_arg %x", value_arg);
         return false;
       }
       if (!CheckEncodedAnnotation()) {
@@ -499,19 +503,19 @@ bool DexFileVerifier::CheckEncodedValue() {
       }
       break;
     case DexFile::kDexAnnotationNull:
-      if (value_arg != 0) {
-        LOG(ERROR) << StringPrintf("Bad encoded_value null value_arg %x", value_arg);
+      if (UNLIKELY(value_arg != 0)) {
+        ErrorStringPrintf("Bad encoded_value null value_arg %x", value_arg);
         return false;
       }
       break;
     case DexFile::kDexAnnotationBoolean:
-      if (value_arg > 1) {
-        LOG(ERROR) << StringPrintf("Bad encoded_value boolean size %x", value_arg);
+      if (UNLIKELY(value_arg > 1)) {
+        ErrorStringPrintf("Bad encoded_value boolean size %x", value_arg);
         return false;
       }
       break;
     default:
-      LOG(ERROR) << StringPrintf("Bogus encoded_value value_type %x", value_type);
+      ErrorStringPrintf("Bogus encoded_value value_type %x", value_type);
       return false;
   }
 
@@ -523,7 +527,7 @@ bool DexFileVerifier::CheckEncodedArray() {
 
   while (size--) {
     if (!CheckEncodedValue()) {
-      LOG(ERROR) << "Bad encoded_array value";
+      failure_reason_ = StringPrintf("Bad encoded_array value: %s", failure_reason_.c_str());
       return false;
     }
   }
@@ -545,9 +549,9 @@ bool DexFileVerifier::CheckEncodedAnnotation() {
       return false;
     }
 
-    if (last_idx >= idx && i != 0) {
-      LOG(ERROR) << StringPrintf("Out-of-order annotation_element name_idx: %x then %x",
-          last_idx, idx);
+    if (UNLIKELY(last_idx >= idx && i != 0)) {
+      ErrorStringPrintf("Out-of-order annotation_element name_idx: %x then %x",
+                        last_idx, idx);
       return false;
     }
 
@@ -596,21 +600,22 @@ bool DexFileVerifier::CheckIntraCodeItem() {
     return false;
   }
 
-  if (code_item->ins_size_ > code_item->registers_size_) {
-    LOG(ERROR) << "ins_size (" << code_item->ins_size_ << ") > registers_size ("
-               << code_item->registers_size_ << ")";
+  if (UNLIKELY(code_item->ins_size_ > code_item->registers_size_)) {
+    ErrorStringPrintf("ins_size (%ud) > registers_size (%ud)",
+                      code_item->ins_size_, code_item->registers_size_);
     return false;
   }
 
-  if ((code_item->outs_size_ > 5) && (code_item->outs_size_ > code_item->registers_size_)) {
+  if (UNLIKELY((code_item->outs_size_ > 5) &&
+               (code_item->outs_size_ > code_item->registers_size_))) {
     /*
      * outs_size can be up to 5, even if registers_size is smaller, since the
      * short forms of method invocation allow repetitions of a register multiple
      * times within a single parameter list. However, longer parameter lists
      * need to be represented in-order in the register file.
      */
-    LOG(ERROR) << "outs_size (" << code_item->outs_size_ << ") > registers_size ("
-               << code_item->registers_size_ << ")";
+    ErrorStringPrintf("outs_size (%ud) > registers_size (%ud)",
+                      code_item->outs_size_, code_item->registers_size_);
     return false;
   }
 
@@ -629,7 +634,7 @@ bool DexFileVerifier::CheckIntraCodeItem() {
 
   // try_items are 4-byte aligned. Verify the spacer is 0.
   if ((((uint32_t) &insns[insns_size] & 3) != 0) && (insns[insns_size] != 0)) {
-    LOG(ERROR) << StringPrintf("Non-zero padding: %x", insns[insns_size]);
+    ErrorStringPrintf("Non-zero padding: %x", insns[insns_size]);
     return false;
   }
 
@@ -641,8 +646,8 @@ bool DexFileVerifier::CheckIntraCodeItem() {
     return false;
   }
 
-  if ((handlers_size == 0) || (handlers_size >= 65536)) {
-    LOG(ERROR) << "Invalid handlers_size: " << handlers_size;
+  if (UNLIKELY((handlers_size == 0) || (handlers_size >= 65536))) {
+    ErrorStringPrintf("Invalid handlers_size: %ud", handlers_size);
     return false;
   }
 
@@ -653,14 +658,13 @@ bool DexFileVerifier::CheckIntraCodeItem() {
 
   uint32_t last_addr = 0;
   while (try_items_size--) {
-    if (try_items->start_addr_ < last_addr) {
-      LOG(ERROR) << StringPrintf("Out-of_order try_item with start_addr: %x",
-          try_items->start_addr_);
+    if (UNLIKELY(try_items->start_addr_ < last_addr)) {
+      ErrorStringPrintf("Out-of_order try_item with start_addr: %x", try_items->start_addr_);
       return false;
     }
 
-    if (try_items->start_addr_ >= insns_size) {
-      LOG(ERROR) << StringPrintf("Invalid try_item start_addr: %x", try_items->start_addr_);
+    if (UNLIKELY(try_items->start_addr_ >= insns_size)) {
+      ErrorStringPrintf("Invalid try_item start_addr: %x", try_items->start_addr_);
       return false;
     }
 
@@ -671,14 +675,14 @@ bool DexFileVerifier::CheckIntraCodeItem() {
       }
     }
 
-    if (i == handlers_size) {
-      LOG(ERROR) << StringPrintf("Bogus handler offset: %x", try_items->handler_off_);
+    if (UNLIKELY(i == handlers_size)) {
+      ErrorStringPrintf("Bogus handler offset: %x", try_items->handler_off_);
       return false;
     }
 
     last_addr = try_items->start_addr_ + try_items->insn_count_;
-    if (last_addr > insns_size) {
-      LOG(ERROR) << StringPrintf("Invalid try_item insn_count: %x", try_items->insn_count_);
+    if (UNLIKELY(last_addr > insns_size)) {
+      ErrorStringPrintf("Invalid try_item insn_count: %x", try_items->insn_count_);
       return false;
     }
 
@@ -693,8 +697,8 @@ bool DexFileVerifier::CheckIntraStringDataItem() {
   const byte* file_end = begin_ + size_;
 
   for (uint32_t i = 0; i < size; i++) {
-    if (ptr_ >= file_end) {
-      LOG(ERROR) << "String data would go beyond end-of-file";
+    if (UNLIKELY(ptr_ >= file_end)) {
+      ErrorStringPrintf("String data would go beyond end-of-file");
       return false;
     }
 
@@ -704,8 +708,8 @@ bool DexFileVerifier::CheckIntraStringDataItem() {
     switch (byte >> 4) {
       case 0x00:
         // Special case of bit pattern 0xxx.
-        if (byte == 0) {
-          LOG(ERROR) << StringPrintf("String data shorter than indicated utf16_size %x", size);
+        if (UNLIKELY(byte == 0)) {
+          ErrorStringPrintf("String data shorter than indicated utf16_size %x", size);
           return false;
         }
         break;
@@ -725,19 +729,19 @@ bool DexFileVerifier::CheckIntraStringDataItem() {
       case 0x0f:
         // Illegal bit patterns 10xx or 1111.
         // Note: 1111 is valid for normal UTF-8, but not here.
-        LOG(ERROR) << StringPrintf("Illegal start byte %x in string data", byte);
+        ErrorStringPrintf("Illegal start byte %x in string data", byte);
         return false;
       case 0x0c:
       case 0x0d: {
         // Bit pattern 110x has an additional byte.
         uint8_t byte2 = *(ptr_++);
-        if ((byte2 & 0xc0) != 0x80) {
-          LOG(ERROR) << StringPrintf("Illegal continuation byte %x in string data", byte2);
+        if (UNLIKELY((byte2 & 0xc0) != 0x80)) {
+          ErrorStringPrintf("Illegal continuation byte %x in string data", byte2);
           return false;
         }
         uint16_t value = ((byte & 0x1f) << 6) | (byte2 & 0x3f);
-        if ((value != 0) && (value < 0x80)) {
-          LOG(ERROR) << StringPrintf("Illegal representation for value %x in string data", value);
+        if (UNLIKELY((value != 0) && (value < 0x80))) {
+          ErrorStringPrintf("Illegal representation for value %x in string data", value);
           return false;
         }
         break;
@@ -745,18 +749,18 @@ bool DexFileVerifier::CheckIntraStringDataItem() {
       case 0x0e: {
         // Bit pattern 1110 has 2 additional bytes.
         uint8_t byte2 = *(ptr_++);
-        if ((byte2 & 0xc0) != 0x80) {
-          LOG(ERROR) << StringPrintf("Illegal continuation byte %x in string data", byte2);
+        if (UNLIKELY((byte2 & 0xc0) != 0x80)) {
+          ErrorStringPrintf("Illegal continuation byte %x in string data", byte2);
           return false;
         }
         uint8_t byte3 = *(ptr_++);
-        if ((byte3 & 0xc0) != 0x80) {
-          LOG(ERROR) << StringPrintf("Illegal continuation byte %x in string data", byte3);
+        if (UNLIKELY((byte3 & 0xc0) != 0x80)) {
+          ErrorStringPrintf("Illegal continuation byte %x in string data", byte3);
           return false;
         }
         uint16_t value = ((byte & 0x0f) << 12) | ((byte2 & 0x3f) << 6) | (byte3 & 0x3f);
-        if (value < 0x800) {
-          LOG(ERROR) << StringPrintf("Illegal representation for value %x in string data", value);
+        if (UNLIKELY(value < 0x800)) {
+          ErrorStringPrintf("Illegal representation for value %x in string data", value);
           return false;
         }
         break;
@@ -764,8 +768,8 @@ bool DexFileVerifier::CheckIntraStringDataItem() {
     }
   }
 
-  if (*(ptr_++) != '\0') {
-    LOG(ERROR) << StringPrintf("String longer than indicated size %x", size);
+  if (UNLIKELY(*(ptr_++) != '\0')) {
+    ErrorStringPrintf("String longer than indicated size %x", size);
     return false;
   }
 
@@ -775,8 +779,8 @@ bool DexFileVerifier::CheckIntraStringDataItem() {
 bool DexFileVerifier::CheckIntraDebugInfoItem() {
   DecodeUnsignedLeb128(&ptr_);
   uint32_t parameters_size = DecodeUnsignedLeb128(&ptr_);
-  if (parameters_size > 65536) {
-    LOG(ERROR) << StringPrintf("Invalid parameters_size: %x", parameters_size);
+  if (UNLIKELY(parameters_size > 65536)) {
+    ErrorStringPrintf("Invalid parameters_size: %x", parameters_size);
     return false;
   }
 
@@ -806,8 +810,8 @@ bool DexFileVerifier::CheckIntraDebugInfoItem() {
       }
       case DexFile::DBG_START_LOCAL: {
         uint32_t reg_num = DecodeUnsignedLeb128(&ptr_);
-        if (reg_num >= 65536) {
-          LOG(ERROR) << StringPrintf("Bad reg_num for opcode %x", opcode);
+        if (UNLIKELY(reg_num >= 65536)) {
+          ErrorStringPrintf("Bad reg_num for opcode %x", opcode);
           return false;
         }
         uint32_t name_idx = DecodeUnsignedLeb128(&ptr_);
@@ -829,16 +833,16 @@ bool DexFileVerifier::CheckIntraDebugInfoItem() {
       case DexFile::DBG_END_LOCAL:
       case DexFile::DBG_RESTART_LOCAL: {
         uint32_t reg_num = DecodeUnsignedLeb128(&ptr_);
-        if (reg_num >= 65536) {
-          LOG(ERROR) << StringPrintf("Bad reg_num for opcode %x", opcode);
+        if (UNLIKELY(reg_num >= 65536)) {
+          ErrorStringPrintf("Bad reg_num for opcode %x", opcode);
           return false;
         }
         break;
       }
       case DexFile::DBG_START_LOCAL_EXTENDED: {
         uint32_t reg_num = DecodeUnsignedLeb128(&ptr_);
-        if (reg_num >= 65536) {
-          LOG(ERROR) << StringPrintf("Bad reg_num for opcode %x", opcode);
+        if (UNLIKELY(reg_num >= 65536)) {
+          ErrorStringPrintf("Bad reg_num for opcode %x", opcode);
           return false;
         }
         uint32_t name_idx = DecodeUnsignedLeb128(&ptr_);
@@ -890,7 +894,7 @@ bool DexFileVerifier::CheckIntraAnnotationItem() {
     case DexFile::kDexVisibilitySystem:
       break;
     default:
-      LOG(ERROR) << StringPrintf("Bad annotation visibility: %x", *ptr_);
+      ErrorStringPrintf("Bad annotation visibility: %x", *ptr_);
       return false;
   }
 
@@ -918,8 +922,8 @@ bool DexFileVerifier::CheckIntraAnnotationsDirectoryItem() {
 
   uint32_t last_idx = 0;
   for (uint32_t i = 0; i < field_count; i++) {
-    if (last_idx >= field_item->field_idx_ && i != 0) {
-      LOG(ERROR) << StringPrintf("Out-of-order field_idx for annotation: %x then %x", last_idx, field_item->field_idx_);
+    if (UNLIKELY(last_idx >= field_item->field_idx_ && i != 0)) {
+      ErrorStringPrintf("Out-of-order field_idx for annotation: %x then %x", last_idx, field_item->field_idx_);
       return false;
     }
     last_idx = field_item->field_idx_;
@@ -936,9 +940,9 @@ bool DexFileVerifier::CheckIntraAnnotationsDirectoryItem() {
 
   last_idx = 0;
   for (uint32_t i = 0; i < method_count; i++) {
-    if (last_idx >= method_item->method_idx_ && i != 0) {
-      LOG(ERROR) << StringPrintf("Out-of-order method_idx for annotation: %x then %x",
-          last_idx, method_item->method_idx_);
+    if (UNLIKELY(last_idx >= method_item->method_idx_ && i != 0)) {
+      ErrorStringPrintf("Out-of-order method_idx for annotation: %x then %x",
+                       last_idx, method_item->method_idx_);
       return false;
     }
     last_idx = method_item->method_idx_;
@@ -950,15 +954,15 @@ bool DexFileVerifier::CheckIntraAnnotationsDirectoryItem() {
       reinterpret_cast<const DexFile::ParameterAnnotationsItem*>(method_item);
   uint32_t parameter_count = item->parameters_size_;
   if (!CheckListSize(parameter_item, parameter_count, sizeof(DexFile::ParameterAnnotationsItem),
-      "parameter_annotations list")) {
+                     "parameter_annotations list")) {
     return false;
   }
 
   last_idx = 0;
   for (uint32_t i = 0; i < parameter_count; i++) {
-    if (last_idx >= parameter_item->method_idx_ && i != 0) {
-      LOG(ERROR) << StringPrintf("Out-of-order method_idx for annotation: %x then %x",
-          last_idx, parameter_item->method_idx_);
+    if (UNLIKELY(last_idx >= parameter_item->method_idx_ && i != 0)) {
+      ErrorStringPrintf("Out-of-order method_idx for annotation: %x then %x",
+                        last_idx, parameter_item->method_idx_);
       return false;
     }
     last_idx = parameter_item->method_idx_;
@@ -1059,7 +1063,7 @@ bool DexFileVerifier::CheckIntraSectionIterate(uint32_t offset, uint32_t count, 
 
         if (!CheckPointerRange(list, list + 1, "annotation_set_ref_list") ||
             !CheckListSize(item, count, sizeof(DexFile::AnnotationSetRefItem),
-                "annotation_set_ref_list size")) {
+                           "annotation_set_ref_list size")) {
           return false;
         }
         ptr_ = reinterpret_cast<const byte*>(item + count);
@@ -1121,7 +1125,7 @@ bool DexFileVerifier::CheckIntraSectionIterate(uint32_t offset, uint32_t count, 
         break;
       }
       default:
-        LOG(ERROR) << StringPrintf("Unknown map item type %x", type);
+        ErrorStringPrintf("Unknown map item type %x", type);
         return false;
     }
 
@@ -1130,8 +1134,8 @@ bool DexFileVerifier::CheckIntraSectionIterate(uint32_t offset, uint32_t count, 
     }
 
     aligned_offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(begin_);
-    if (aligned_offset > size_) {
-      LOG(ERROR) << StringPrintf("Item %d at ends out of bounds", i);
+    if (UNLIKELY(aligned_offset > size_)) {
+      ErrorStringPrintf("Item %d at ends out of bounds", i);
       return false;
     }
 
@@ -1172,17 +1176,17 @@ bool DexFileVerifier::CheckIntraIdSection(uint32_t offset, uint32_t count, uint1
       expected_size = header_->class_defs_size_;
       break;
     default:
-      LOG(ERROR) << StringPrintf("Bad type for id section: %x", type);
+      ErrorStringPrintf("Bad type for id section: %x", type);
       return false;
   }
 
   // Check that the offset and size are what were expected from the header.
-  if (offset != expected_offset) {
-    LOG(ERROR) << StringPrintf("Bad offset for section: got %x, expected %x", offset, expected_offset);
+  if (UNLIKELY(offset != expected_offset)) {
+    ErrorStringPrintf("Bad offset for section: got %x, expected %x", offset, expected_offset);
     return false;
   }
-  if (count != expected_size) {
-    LOG(ERROR) << StringPrintf("Bad size for section: got %x, expected %x", count, expected_size);
+  if (UNLIKELY(count != expected_size)) {
+    ErrorStringPrintf("Bad size for section: got %x, expected %x", count, expected_size);
     return false;
   }
 
@@ -1194,8 +1198,8 @@ bool DexFileVerifier::CheckIntraDataSection(uint32_t offset, uint32_t count, uin
   uint32_t data_end = data_start + header_->data_size_;
 
   // Sanity check the offset of the section.
-  if ((offset < data_start) || (offset > data_end)) {
-    LOG(ERROR) << StringPrintf("Bad offset for data subsection: %x", offset);
+  if (UNLIKELY((offset < data_start) || (offset > data_end))) {
+    ErrorStringPrintf("Bad offset for data subsection: %x", offset);
     return false;
   }
 
@@ -1205,7 +1209,7 @@ bool DexFileVerifier::CheckIntraDataSection(uint32_t offset, uint32_t count, uin
 
   uint32_t next_offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(begin_);
   if (next_offset > data_end) {
-    LOG(ERROR) << StringPrintf("Out-of-bounds end of data subsection: %x", next_offset);
+    ErrorStringPrintf("Out-of-bounds end of data subsection: %x", next_offset);
     return false;
   }
 
@@ -1229,20 +1233,20 @@ bool DexFileVerifier::CheckIntraSection() {
     // Check for padding and overlap between items.
     if (!CheckPadding(offset, section_offset)) {
       return false;
-    } else if (offset > section_offset) {
-      LOG(ERROR) << StringPrintf("Section overlap or out-of-order map: %x, %x", offset, section_offset);
+    } else if (UNLIKELY(offset > section_offset)) {
+      ErrorStringPrintf("Section overlap or out-of-order map: %x, %x", offset, section_offset);
       return false;
     }
 
     // Check each item based on its type.
     switch (type) {
       case DexFile::kDexTypeHeaderItem:
-        if (section_count != 1) {
-          LOG(ERROR) << "Multiple header items";
+        if (UNLIKELY(section_count != 1)) {
+          ErrorStringPrintf("Multiple header items");
           return false;
         }
-        if (section_offset != 0) {
-          LOG(ERROR) << StringPrintf("Header at %x, not at start of file", section_offset);
+        if (UNLIKELY(section_offset != 0)) {
+          ErrorStringPrintf("Header at %x, not at start of file", section_offset);
           return false;
         }
         ptr_ = begin_ + header_->header_size_;
@@ -1260,13 +1264,13 @@ bool DexFileVerifier::CheckIntraSection() {
         offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(begin_);
         break;
       case DexFile::kDexTypeMapList:
-        if (section_count != 1) {
-          LOG(ERROR) << "Multiple map list items";
+        if (UNLIKELY(section_count != 1)) {
+          ErrorStringPrintf("Multiple map list items");
           return false;
         }
-        if (section_offset != header_->map_off_) {
-          LOG(ERROR) << StringPrintf("Map not at header-defined offset: %x, expected %x",
-              section_offset, header_->map_off_);
+        if (UNLIKELY(section_offset != header_->map_off_)) {
+          ErrorStringPrintf("Map not at header-defined offset: %x, expected %x",
+                            section_offset, header_->map_off_);
           return false;
         }
         ptr_ += sizeof(uint32_t) + (map->size_ * sizeof(DexFile::MapItem));
@@ -1288,7 +1292,7 @@ bool DexFileVerifier::CheckIntraSection() {
         offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(begin_);
         break;
       default:
-        LOG(ERROR) << StringPrintf("Unknown map item type %x", type);
+        ErrorStringPrintf("Unknown map item type %x", type);
         return false;
     }
 
@@ -1300,13 +1304,13 @@ bool DexFileVerifier::CheckIntraSection() {
 
 bool DexFileVerifier::CheckOffsetToTypeMap(uint32_t offset, uint16_t type) {
   auto it = offset_to_type_map_.find(offset);
-  if (it == offset_to_type_map_.end()) {
-    LOG(ERROR) << StringPrintf("No data map entry found @ %x; expected %x", offset, type);
+  if (UNLIKELY(it == offset_to_type_map_.end())) {
+    ErrorStringPrintf("No data map entry found @ %x; expected %x", offset, type);
     return false;
   }
-  if (it->second != type) {
-    LOG(ERROR) << StringPrintf("Unexpected data map entry @ %x; expected %x, found %x",
-        offset, type, it->second);
+  if (UNLIKELY(it->second != type)) {
+    ErrorStringPrintf("Unexpected data map entry @ %x; expected %x, found %x",
+                      offset, type, it->second);
     return false;
   }
   return true;
@@ -1365,8 +1369,8 @@ bool DexFileVerifier::CheckInterStringIdItem() {
     const DexFile::StringId* prev_item = reinterpret_cast<const DexFile::StringId*>(previous_item_);
     const char* prev_str = dex_file_->GetStringData(*prev_item);
     const char* str = dex_file_->GetStringData(*item);
-    if (CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(prev_str, str) >= 0) {
-      LOG(ERROR) << StringPrintf("Out-of-order string_ids: '%s' then '%s'", prev_str, str);
+    if (UNLIKELY(CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(prev_str, str) >= 0)) {
+      ErrorStringPrintf("Out-of-order string_ids: '%s' then '%s'", prev_str, str);
       return false;
     }
   }
@@ -1380,17 +1384,17 @@ bool DexFileVerifier::CheckInterTypeIdItem() {
   const char* descriptor = dex_file_->StringDataByIdx(item->descriptor_idx_);
 
   // Check that the descriptor is a valid type.
-  if (!IsValidDescriptor(descriptor)) {
-    LOG(ERROR) << StringPrintf("Invalid type descriptor: '%s'", descriptor);
+  if (UNLIKELY(!IsValidDescriptor(descriptor))) {
+    ErrorStringPrintf("Invalid type descriptor: '%s'", descriptor);
     return false;
   }
 
   // Check ordering between items.
   if (previous_item_ != NULL) {
     const DexFile::TypeId* prev_item = reinterpret_cast<const DexFile::TypeId*>(previous_item_);
-    if (prev_item->descriptor_idx_ >= item->descriptor_idx_) {
-      LOG(ERROR) << StringPrintf("Out-of-order type_ids: %x then %x",
-          prev_item->descriptor_idx_, item->descriptor_idx_);
+    if (UNLIKELY(prev_item->descriptor_idx_ >= item->descriptor_idx_)) {
+      ErrorStringPrintf("Out-of-order type_ids: %x then %x",
+                        prev_item->descriptor_idx_, item->descriptor_idx_);
       return false;
     }
   }
@@ -1422,16 +1426,16 @@ bool DexFileVerifier::CheckInterProtoIdItem() {
     it.Next();
     shorty++;
   }
-  if (it.HasNext() || *shorty != '\0') {
-    LOG(ERROR) << "Mismatched length for parameters and shorty";
+  if (UNLIKELY(it.HasNext() || *shorty != '\0')) {
+    ErrorStringPrintf("Mismatched length for parameters and shorty");
     return false;
   }
 
   // Check ordering between items. This relies on type_ids being in order.
   if (previous_item_ != NULL) {
     const DexFile::ProtoId* prev = reinterpret_cast<const DexFile::ProtoId*>(previous_item_);
-    if (prev->return_type_idx_ > item->return_type_idx_) {
-      LOG(ERROR) << "Out-of-order proto_id return types";
+    if (UNLIKELY(prev->return_type_idx_ > item->return_type_idx_)) {
+      ErrorStringPrintf("Out-of-order proto_id return types");
       return false;
     } else if (prev->return_type_idx_ == item->return_type_idx_) {
       DexFileParameterIterator curr_it(*dex_file_, *item);
@@ -1443,15 +1447,15 @@ bool DexFileVerifier::CheckInterProtoIdItem() {
         if (prev_idx == DexFile::kDexNoIndex16) {
           break;
         }
-        if (curr_idx == DexFile::kDexNoIndex16) {
-          LOG(ERROR) << "Out-of-order proto_id arguments";
+        if (UNLIKELY(curr_idx == DexFile::kDexNoIndex16)) {
+          ErrorStringPrintf("Out-of-order proto_id arguments");
           return false;
         }
 
         if (prev_idx < curr_idx) {
           break;
-        } else if (prev_idx > curr_idx) {
-          LOG(ERROR) << "Out-of-order proto_id arguments";
+        } else if (UNLIKELY(prev_idx > curr_idx)) {
+          ErrorStringPrintf("Out-of-order proto_id arguments");
           return false;
         }
 
@@ -1470,38 +1474,38 @@ bool DexFileVerifier::CheckInterFieldIdItem() {
 
   // Check that the class descriptor is valid.
   const char* descriptor = dex_file_->StringByTypeIdx(item->class_idx_);
-  if (!IsValidDescriptor(descriptor) || descriptor[0] != 'L') {
-    LOG(ERROR) << "Invalid descriptor for class_idx: '" << descriptor << '"';
+  if (UNLIKELY(!IsValidDescriptor(descriptor) || descriptor[0] != 'L')) {
+    ErrorStringPrintf("Invalid descriptor for class_idx: '%s'", descriptor);
     return false;
   }
 
   // Check that the type descriptor is a valid field name.
   descriptor = dex_file_->StringByTypeIdx(item->type_idx_);
-  if (!IsValidDescriptor(descriptor) || descriptor[0] == 'V') {
-    LOG(ERROR) << "Invalid descriptor for type_idx: '" << descriptor << '"';
+  if (UNLIKELY(!IsValidDescriptor(descriptor) || descriptor[0] == 'V')) {
+    ErrorStringPrintf("Invalid descriptor for type_idx: '%s'", descriptor);
     return false;
   }
 
   // Check that the name is valid.
   descriptor = dex_file_->StringDataByIdx(item->name_idx_);
-  if (!IsValidMemberName(descriptor)) {
-    LOG(ERROR) << "Invalid field name: '" << descriptor << '"';
+  if (UNLIKELY(!IsValidMemberName(descriptor))) {
+    ErrorStringPrintf("Invalid field name: '%s'", descriptor);
     return false;
   }
 
   // Check ordering between items. This relies on the other sections being in order.
   if (previous_item_ != NULL) {
     const DexFile::FieldId* prev_item = reinterpret_cast<const DexFile::FieldId*>(previous_item_);
-    if (prev_item->class_idx_ > item->class_idx_) {
-      LOG(ERROR) << "Out-of-order field_ids";
+    if (UNLIKELY(prev_item->class_idx_ > item->class_idx_)) {
+      ErrorStringPrintf("Out-of-order field_ids");
       return false;
     } else if (prev_item->class_idx_ == item->class_idx_) {
-      if (prev_item->name_idx_ > item->name_idx_) {
-        LOG(ERROR) << "Out-of-order field_ids";
+      if (UNLIKELY(prev_item->name_idx_ > item->name_idx_)) {
+        ErrorStringPrintf("Out-of-order field_ids");
         return false;
       } else if (prev_item->name_idx_ == item->name_idx_) {
-        if (prev_item->type_idx_ >= item->type_idx_) {
-          LOG(ERROR) << "Out-of-order field_ids";
+        if (UNLIKELY(prev_item->type_idx_ >= item->type_idx_)) {
+          ErrorStringPrintf("Out-of-order field_ids");
           return false;
         }
       }
@@ -1517,31 +1521,31 @@ bool DexFileVerifier::CheckInterMethodIdItem() {
 
   // Check that the class descriptor is a valid reference name.
   const char* descriptor = dex_file_->StringByTypeIdx(item->class_idx_);
-  if (!IsValidDescriptor(descriptor) || (descriptor[0] != 'L' && descriptor[0] != '[')) {
-    LOG(ERROR) << "Invalid descriptor for class_idx: '" << descriptor << '"';
+  if (UNLIKELY(!IsValidDescriptor(descriptor) || (descriptor[0] != 'L' && descriptor[0] != '['))) {
+    ErrorStringPrintf("Invalid descriptor for class_idx: '%s'", descriptor);
     return false;
   }
 
   // Check that the name is valid.
   descriptor = dex_file_->StringDataByIdx(item->name_idx_);
-  if (!IsValidMemberName(descriptor)) {
-    LOG(ERROR) << "Invalid method name: '" << descriptor << '"';
+  if (UNLIKELY(!IsValidMemberName(descriptor))) {
+    ErrorStringPrintf("Invalid method name: '%s'", descriptor);
     return false;
   }
 
   // Check ordering between items. This relies on the other sections being in order.
   if (previous_item_ != NULL) {
     const DexFile::MethodId* prev_item = reinterpret_cast<const DexFile::MethodId*>(previous_item_);
-    if (prev_item->class_idx_ > item->class_idx_) {
-      LOG(ERROR) << "Out-of-order method_ids";
+    if (UNLIKELY(prev_item->class_idx_ > item->class_idx_)) {
+      ErrorStringPrintf("Out-of-order method_ids");
       return false;
     } else if (prev_item->class_idx_ == item->class_idx_) {
-      if (prev_item->name_idx_ > item->name_idx_) {
-        LOG(ERROR) << "Out-of-order method_ids";
+      if (UNLIKELY(prev_item->name_idx_ > item->name_idx_)) {
+        ErrorStringPrintf("Out-of-order method_ids");
         return false;
       } else if (prev_item->name_idx_ == item->name_idx_) {
-        if (prev_item->proto_idx_ >= item->proto_idx_) {
-          LOG(ERROR) << "Out-of-order method_ids";
+        if (UNLIKELY(prev_item->proto_idx_ >= item->proto_idx_)) {
+          ErrorStringPrintf("Out-of-order method_ids");
           return false;
         }
       }
@@ -1557,8 +1561,8 @@ bool DexFileVerifier::CheckInterClassDefItem() {
   uint32_t class_idx = item->class_idx_;
   const char* descriptor = dex_file_->StringByTypeIdx(class_idx);
 
-  if (!IsValidDescriptor(descriptor) || descriptor[0] != 'L') {
-    LOG(ERROR) << "Invalid class descriptor: '" << descriptor << "'";
+  if (UNLIKELY(!IsValidDescriptor(descriptor) || descriptor[0] != 'L')) {
+    ErrorStringPrintf("Invalid class descriptor: '%s'", descriptor);
     return false;
   }
 
@@ -1581,8 +1585,8 @@ bool DexFileVerifier::CheckInterClassDefItem() {
 
   if (item->superclass_idx_ != DexFile::kDexNoIndex16) {
     descriptor = dex_file_->StringByTypeIdx(item->superclass_idx_);
-    if (!IsValidDescriptor(descriptor) || descriptor[0] != 'L') {
-      LOG(ERROR) << "Invalid superclass: '" << descriptor << "'";
+    if (UNLIKELY(!IsValidDescriptor(descriptor) || descriptor[0] != 'L')) {
+      ErrorStringPrintf("Invalid superclass: '%s'", descriptor);
       return false;
     }
   }
@@ -1594,8 +1598,8 @@ bool DexFileVerifier::CheckInterClassDefItem() {
     // Ensure that all interfaces refer to classes (not arrays or primitives).
     for (uint32_t i = 0; i < size; i++) {
       descriptor = dex_file_->StringByTypeIdx(interfaces->GetTypeItem(i).type_idx_);
-      if (!IsValidDescriptor(descriptor) || descriptor[0] != 'L') {
-        LOG(ERROR) << "Invalid interface: '" << descriptor << "'";
+      if (UNLIKELY(!IsValidDescriptor(descriptor) || descriptor[0] != 'L')) {
+        ErrorStringPrintf("Invalid interface: '%s'", descriptor);
         return false;
       }
     }
@@ -1608,8 +1612,8 @@ bool DexFileVerifier::CheckInterClassDefItem() {
       uint32_t idx1 = interfaces->GetTypeItem(i).type_idx_;
       for (uint32_t j =0; j < i; j++) {
         uint32_t idx2 = interfaces->GetTypeItem(j).type_idx_;
-        if (idx1 == idx2) {
-          LOG(ERROR) << "Duplicate interface: '" << dex_file_->StringByTypeIdx(idx1) << "'";
+        if (UNLIKELY(idx1 == idx2)) {
+          ErrorStringPrintf("Duplicate interface: '%s'", dex_file_->StringByTypeIdx(idx1));
           return false;
         }
       }
@@ -1620,8 +1624,8 @@ bool DexFileVerifier::CheckInterClassDefItem() {
   if (item->class_data_off_ != 0) {
     const byte* data = begin_ + item->class_data_off_;
     uint16_t data_definer = FindFirstClassDataDefiner(data);
-    if ((data_definer != item->class_idx_) && (data_definer != DexFile::kDexNoIndex16)) {
-      LOG(ERROR) << "Invalid class_data_item";
+    if (UNLIKELY((data_definer != item->class_idx_) && (data_definer != DexFile::kDexNoIndex16))) {
+      ErrorStringPrintf("Invalid class_data_item");
       return false;
     }
   }
@@ -1630,8 +1634,9 @@ bool DexFileVerifier::CheckInterClassDefItem() {
   if (item->annotations_off_ != 0) {
     const byte* data = begin_ + item->annotations_off_;
     uint16_t annotations_definer = FindFirstAnnotationsDirectoryDefiner(data);
-    if ((annotations_definer != item->class_idx_) && (annotations_definer != DexFile::kDexNoIndex16)) {
-      LOG(ERROR) << "Invalid annotations_directory_item";
+    if (UNLIKELY((annotations_definer != item->class_idx_) &&
+                 (annotations_definer != DexFile::kDexNoIndex16))) {
+      ErrorStringPrintf("Invalid annotations_directory_item");
       return false;
     }
   }
@@ -1675,8 +1680,8 @@ bool DexFileVerifier::CheckInterAnnotationSetItem() {
     const uint8_t* data = annotation->annotation_;
     uint32_t idx = DecodeUnsignedLeb128(&data);
 
-    if (last_idx >= idx && i != 0) {
-      LOG(ERROR) << StringPrintf("Out-of-order entry types: %x then %x", last_idx, idx);
+    if (UNLIKELY(last_idx >= idx && i != 0)) {
+      ErrorStringPrintf("Out-of-order entry types: %x then %x", last_idx, idx);
       return false;
     }
 
@@ -1694,8 +1699,8 @@ bool DexFileVerifier::CheckInterClassDataItem() {
 
   for (; it.HasNextStaticField() || it.HasNextInstanceField(); it.Next()) {
     const DexFile::FieldId& field = dex_file_->GetFieldId(it.GetMemberIndex());
-    if (field.class_idx_ != defining_class) {
-      LOG(ERROR) << "Mismatched defining class for class_data_item field";
+    if (UNLIKELY(field.class_idx_ != defining_class)) {
+      ErrorStringPrintf("Mismatched defining class for class_data_item field");
       return false;
     }
   }
@@ -1705,8 +1710,8 @@ bool DexFileVerifier::CheckInterClassDataItem() {
       return false;
     }
     const DexFile::MethodId& method = dex_file_->GetMethodId(it.GetMemberIndex());
-    if (method.class_idx_ != defining_class) {
-      LOG(ERROR) << "Mismatched defining class for class_data_item method";
+    if (UNLIKELY(method.class_idx_ != defining_class)) {
+      ErrorStringPrintf("Mismatched defining class for class_data_item method");
       return false;
     }
   }
@@ -1731,8 +1736,8 @@ bool DexFileVerifier::CheckInterAnnotationsDirectoryItem() {
   uint32_t field_count = item->fields_size_;
   for (uint32_t i = 0; i < field_count; i++) {
     const DexFile::FieldId& field = dex_file_->GetFieldId(field_item->field_idx_);
-    if (field.class_idx_ != defining_class) {
-      LOG(ERROR) << "Mismatched defining class for field_annotation";
+    if (UNLIKELY(field.class_idx_ != defining_class)) {
+      ErrorStringPrintf("Mismatched defining class for field_annotation");
       return false;
     }
     if (!CheckOffsetToTypeMap(field_item->annotations_off_, DexFile::kDexTypeAnnotationSetItem)) {
@@ -1747,8 +1752,8 @@ bool DexFileVerifier::CheckInterAnnotationsDirectoryItem() {
   uint32_t method_count = item->methods_size_;
   for (uint32_t i = 0; i < method_count; i++) {
     const DexFile::MethodId& method = dex_file_->GetMethodId(method_item->method_idx_);
-    if (method.class_idx_ != defining_class) {
-      LOG(ERROR) << "Mismatched defining class for method_annotation";
+    if (UNLIKELY(method.class_idx_ != defining_class)) {
+      ErrorStringPrintf("Mismatched defining class for method_annotation");
       return false;
     }
     if (!CheckOffsetToTypeMap(method_item->annotations_off_, DexFile::kDexTypeAnnotationSetItem)) {
@@ -1763,8 +1768,8 @@ bool DexFileVerifier::CheckInterAnnotationsDirectoryItem() {
   uint32_t parameter_count = item->parameters_size_;
   for (uint32_t i = 0; i < parameter_count; i++) {
     const DexFile::MethodId& parameter_method = dex_file_->GetMethodId(parameter_item->method_idx_);
-    if (parameter_method.class_idx_ != defining_class) {
-      LOG(ERROR) << "Mismatched defining class for parameter_annotation";
+    if (UNLIKELY(parameter_method.class_idx_ != defining_class)) {
+      ErrorStringPrintf("Mismatched defining class for parameter_annotation");
       return false;
     }
     if (!CheckOffsetToTypeMap(parameter_item->annotations_off_,
@@ -1860,7 +1865,7 @@ bool DexFileVerifier::CheckInterSectionIterate(uint32_t offset, uint32_t count, 
         break;
       }
       default:
-        LOG(ERROR) << StringPrintf("Unknown map item type %x", type);
+        ErrorStringPrintf("Unknown map item type %x", type);
         return false;
     }
 
@@ -1908,7 +1913,7 @@ bool DexFileVerifier::CheckInterSection() {
         break;
       }
       default:
-        LOG(ERROR) << StringPrintf("Unknown map item type %x", type);
+        ErrorStringPrintf("Unknown map item type %x", type);
         return false;
     }
 
@@ -1940,6 +1945,15 @@ bool DexFileVerifier::Verify() {
   }
 
   return true;
+}
+
+void DexFileVerifier::ErrorStringPrintf(const char* fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  DCHECK(failure_reason_.empty()) << failure_reason_;
+  failure_reason_ = StringPrintf("Failure to verify dex file '%s': ", location_);
+  StringAppendV(&failure_reason_, fmt, ap);
+  va_end(ap);
 }
 
 }  // namespace art

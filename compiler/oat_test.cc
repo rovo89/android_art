@@ -100,8 +100,10 @@ TEST_F(OatTest, WriteRead) {
     base::TimingLogger timings("CommonTest::WriteRead", false, false);
     compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), timings);
   }
-  UniquePtr<OatFile> oat_file(OatFile::Open(tmp.GetFilename(), tmp.GetFilename(), NULL, false));
-  ASSERT_TRUE(oat_file.get() != NULL);
+  std::string error_msg;
+  UniquePtr<OatFile> oat_file(OatFile::Open(tmp.GetFilename(), tmp.GetFilename(), NULL, false,
+                                            &error_msg));
+  ASSERT_TRUE(oat_file.get() != nullptr) << error_msg;
   const OatHeader& oat_header = oat_file->GetOatHeader();
   ASSERT_TRUE(oat_header.IsValid());
   ASSERT_EQ(1U, oat_header.GetDexFileCount());  // core
@@ -111,8 +113,9 @@ TEST_F(OatTest, WriteRead) {
 
   const DexFile* dex_file = java_lang_dex_file_;
   uint32_t dex_file_checksum = dex_file->GetLocationChecksum();
-  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file->GetLocation(),
+  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file->GetLocation().c_str(),
                                                                     &dex_file_checksum);
+  ASSERT_TRUE(oat_dex_file != nullptr);
   CHECK_EQ(dex_file->GetLocationChecksum(), oat_dex_file->GetDexFileLocationChecksum());
   for (size_t i = 0; i < dex_file->NumClassDefs(); i++) {
     const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);

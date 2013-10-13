@@ -718,9 +718,9 @@ bool IsValidPartOfMemberNameUtf8Slow(const char** pUtf8Ptr) {
  * this function returns false, then the given pointer may only have
  * been partially advanced.
  */
-bool IsValidPartOfMemberNameUtf8(const char** pUtf8Ptr) {
+static bool IsValidPartOfMemberNameUtf8(const char** pUtf8Ptr) {
   uint8_t c = (uint8_t) **pUtf8Ptr;
-  if (c <= 0x7f) {
+  if (LIKELY(c <= 0x7f)) {
     // It's low-ascii, so check the table.
     uint32_t wordIdx = c >> 5;
     uint32_t bitIdx = c & 0x1f;
@@ -761,7 +761,7 @@ bool IsValidMemberName(const char* s) {
 }
 
 enum ClassNameType { kName, kDescriptor };
-bool IsValidClassName(const char* s, ClassNameType type, char separator) {
+static bool IsValidClassName(const char* s, ClassNameType type, char separator) {
   int arrayCount = 0;
   while (*s == '[') {
     arrayCount++;
@@ -1194,12 +1194,12 @@ std::string GetDalvikCacheOrDie(const char* android_data) {
   return dalvik_cache;
 }
 
-std::string GetDalvikCacheFilenameOrDie(const std::string& location) {
+std::string GetDalvikCacheFilenameOrDie(const char* location) {
   std::string dalvik_cache(GetDalvikCacheOrDie(GetAndroidData()));
   if (location[0] != '/') {
     LOG(FATAL) << "Expected path in location to be absolute: "<< location;
   }
-  std::string cache_file(location, 1);  // skip leading slash
+  std::string cache_file(&location[1]);  // skip leading slash
   if (!EndsWith(location, ".dex") && !EndsWith(location, ".art")) {
     cache_file += "/";
     cache_file += DexFile::kClassesDex;

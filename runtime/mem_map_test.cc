@@ -24,11 +24,14 @@ namespace art {
 class MemMapTest : public testing::Test {};
 
 TEST_F(MemMapTest, MapAnonymousEmpty) {
+  std::string error_msg;
   UniquePtr<MemMap> map(MemMap::MapAnonymous("MapAnonymousEmpty",
                                              NULL,
                                              0,
-                                             PROT_READ));
-  ASSERT_TRUE(map.get() != NULL);
+                                             PROT_READ,
+                                             &error_msg));
+  ASSERT_TRUE(map.get() != NULL) << error_msg;
+  ASSERT_TRUE(error_msg.empty());
 }
 
 }  // namespace art

@@ -230,6 +230,15 @@ void ThrowIncompatibleClassChangeError(const mirror::Class* referrer, const char
   va_end(args);
 }
 
+// IOException
+
+void ThrowIOException(const char* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  ThrowException(NULL, "Ljava/io/IOException;", NULL, fmt, &args);
+  va_end(args);
+}
+
 // LinkageError
 
 void ThrowLinkageError(const mirror::Class* referrer, const char* fmt, ...) {

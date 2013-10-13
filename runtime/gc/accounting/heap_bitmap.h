@@ -31,8 +31,8 @@ namespace accounting {
 
 class HeapBitmap {
  public:
-  typedef std::vector<SpaceBitmap*, GCAllocator<SpaceBitmap*> > SpaceBitmapVector;
-  typedef std::vector<SpaceSetMap*, GCAllocator<SpaceSetMap*> > SpaceSetMapVector;
+  typedef std::vector<SpaceBitmap*, GcAllocator<SpaceBitmap*> > SpaceBitmapVector;
+  typedef std::vector<SpaceSetMap*, GcAllocator<SpaceSetMap*> > SpaceSetMapVector;
 
   bool Test(const mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     SpaceBitmap* bitmap = GetContinuousSpaceBitmap(obj);

@@ -173,9 +173,13 @@ class OatDumper {
     MethodHelper mh(m);
     for (size_t i = 0; i < oat_dex_files_.size(); i++) {
       const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
-      CHECK(oat_dex_file != NULL);
-      UniquePtr<const DexFile> dex_file(oat_dex_file->OpenDexFile());
-      if (dex_file.get() != NULL) {
+      CHECK(oat_dex_file != nullptr);
+      std::string error_msg;
+      UniquePtr<const DexFile> dex_file(oat_dex_file->OpenDexFile(&error_msg));
+      if (dex_file.get() == nullptr) {
+        LOG(WARNING) << "Failed to open dex file '" << oat_dex_file->GetDexFileLocation()
+            << "': " << error_msg;
+      } else {
         const DexFile::ClassDef* class_def =
             dex_file->FindClassDef(mh.GetDeclaringClassDescriptor());
         if (class_def != NULL) {
@@ -199,8 +203,11 @@ class OatDumper {
     for (size_t i = 0; i < oat_dex_files_.size(); i++) {
       const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
       CHECK(oat_dex_file != NULL);
-      UniquePtr<const DexFile> dex_file(oat_dex_file->OpenDexFile());
-      if (dex_file.get() == NULL) {
+      std::string error_msg;
+      UniquePtr<const DexFile> dex_file(oat_dex_file->OpenDexFile(&error_msg));
+      if (dex_file.get() == nullptr) {
+        LOG(WARNING) << "Failed to open dex file '" << oat_dex_file->GetDexFileLocation()
+            << "': " << error_msg;
         continue;
       }
       offsets_.insert(reinterpret_cast<uint32_t>(&dex_file->GetHeader()));
@@ -245,9 +252,10 @@ class OatDumper {
     os << "OAT DEX FILE:\n";
     os << StringPrintf("location: %s\n", oat_dex_file.GetDexFileLocation().c_str());
     os << StringPrintf("checksum: 0x%08x\n", oat_dex_file.GetDexFileLocationChecksum());
-    UniquePtr<const DexFile> dex_file(oat_dex_file.OpenDexFile());
+    std::string error_msg;
+    UniquePtr<const DexFile> dex_file(oat_dex_file.OpenDexFile(&error_msg));
     if (dex_file.get() == NULL) {
-      os << "NOT FOUND\n\n";
+      os << "NOT FOUND: " << error_msg << "\n\n";
       return;
     }
     for (size_t class_def_index = 0; class_def_index < dex_file->NumClassDefs(); class_def_index++) {
@@ -727,9 +735,10 @@ class ImageDumper {
       os << " (" << oat_location << ")";
     }
     os << "\n";
-    const OatFile* oat_file = class_linker->FindOatFileFromOatLocation(oat_location);
+    std::string error_msg;
+    const OatFile* oat_file = class_linker->FindOatFileFromOatLocation(oat_location, &error_msg);
     if (oat_file == NULL) {
-      os << "NOT FOUND\n";
+      os << "NOT FOUND: " << error_msg << "\n";
       return;
     }
     os << "\n";
@@ -775,7 +784,7 @@ class ImageDumper {
     os << "STATS:\n" << std::flush;
     UniquePtr<File> file(OS::OpenFileForReading(image_filename_.c_str()));
     if (file.get() == NULL) {
-      std::string cache_location(GetDalvikCacheFilenameOrDie(image_filename_));
+      std::string cache_location(GetDalvikCacheFilenameOrDie(image_filename_.c_str()));
       file.reset(OS::OpenFileForReading(cache_location.c_str()));
       if (file.get() == NULL) {
           LOG(WARNING) << "Failed to find image in " << image_filename_
@@ -1412,10 +1421,11 @@ static int oatdump(int argc, char** argv) {
   }
 
   if (oat_filename != NULL) {
+    std::string error_msg;
     OatFile* oat_file =
-        OatFile::Open(oat_filename, oat_filename, NULL, false);
+        OatFile::Open(oat_filename, oat_filename, NULL, false, &error_msg);
     if (oat_file == NULL) {
-      fprintf(stderr, "Failed to open oat file from %s\n", oat_filename);
+      fprintf(stderr, "Failed to open oat file from '%s': %s\n", oat_filename, error_msg.c_str());
       return EXIT_FAILURE;
     }
     OatDumper oat_dumper(*host_prefix.get(), *oat_file);

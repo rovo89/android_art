@@ -35,7 +35,7 @@ namespace art {
 // ELFObjectFile.
 class ElfFile {
  public:
-  static ElfFile* Open(File* file, bool writable, bool program_header_only);
+  static ElfFile* Open(File* file, bool writable, bool program_header_only, std::string* error_msg);
   ~ElfFile();
 
   // Load segments into memory based on PT_LOAD program headers
@@ -115,12 +115,12 @@ class ElfFile {
 
   // Load segments into memory based on PT_LOAD program headers.
   // executable is true at run time, false at compile time.
-  bool Load(bool executable);
+  bool Load(bool executable, std::string* error_msg);
 
  private:
   ElfFile();
 
-  bool Setup(File* file, bool writable, bool program_header_only);
+  bool Setup(File* file, bool writable, bool program_header_only, std::string* error_msg);
 
   bool SetMap(MemMap* map);
 

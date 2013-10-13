@@ -66,7 +66,7 @@ static constexpr bool kDumpGcPerformanceOnShutdown = false;
 static constexpr size_t kMinConcurrentRemainingBytes = 128 * KB;
 
 Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max_free,
-           double target_utilization, size_t capacity, const std::string& original_image_file_name,
+           double target_utilization, size_t capacity, const std::string& image_file_name,
            bool concurrent_gc, size_t parallel_gc_threads, size_t conc_gc_threads,
            bool low_memory_mode, size_t long_pause_log_threshold, size_t long_gc_log_threshold,
            bool ignore_max_footprint)
@@ -144,9 +144,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
 
   // Requested begin for the alloc space, to follow the mapped image and oat files
   byte* requested_alloc_space_begin = NULL;
-  std::string image_file_name(original_image_file_name);
   if (!image_file_name.empty()) {
-    space::ImageSpace* image_space = space::ImageSpace::Create(image_file_name);
+    space::ImageSpace* image_space = space::ImageSpace::Create(image_file_name.c_str());
     CHECK(image_space != NULL) << "Failed to create space for " << image_file_name;
     AddContinuousSpace(image_space);
     // Oat files referenced by image files immediately follow them in memory, ensure alloc space

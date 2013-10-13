@@ -45,18 +45,20 @@ class OatFile {
   static OatFile* Open(const std::string& filename,
                        const std::string& location,
                        byte* requested_base,
-                       bool executable);
+                       bool executable,
+                       std::string* error_msg);
 
   // Open an oat file from an already opened File.
   // Does not use dlopen underneath so cannot be used for runtime use
   // where relocations may be required. Currently used from
   // ImageWriter which wants to open a writable version from an existing
   // file descriptor for patching.
-  static OatFile* OpenWritable(File* file, const std::string& location);
+  static OatFile* OpenWritable(File* file, const std::string& location, std::string* error_msg);
 
   // Open an oat file backed by a std::vector with the given location.
   static OatFile* OpenMemory(std::vector<uint8_t>& oat_contents,
-                             const std::string& location);
+                             const std::string& location,
+                             std::string* error_msg);
 
   ~OatFile();
 
@@ -167,7 +169,7 @@ class OatFile {
   class OatDexFile {
    public:
     // Opens the DexFile referred to by this OatDexFile from within the containing OatFile.
-    const DexFile* OpenDexFile() const;
+    const DexFile* OpenDexFile(std::string* error_msg) const;
 
     // Returns the size of the DexFile refered to by this OatDexFile.
     size_t FileSize() const;
@@ -204,10 +206,10 @@ class OatFile {
     DISALLOW_COPY_AND_ASSIGN(OatDexFile);
   };
 
-  const OatDexFile* GetOatDexFile(const std::string& dex_location,
+  const OatDexFile* GetOatDexFile(const char* dex_location,
                                   const uint32_t* const dex_location_checksum,
-                                  bool exception_if_not_found = true) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+                                  bool exception_if_not_found = true) const;
+
   std::vector<const OatDexFile*> GetOatDexFiles() const;
 
   size_t Size() const {
@@ -219,18 +221,21 @@ class OatFile {
 
   static OatFile* OpenDlopen(const std::string& elf_filename,
                              const std::string& location,
-                             byte* requested_base);
+                             byte* requested_base,
+                             std::string* error_msg);
 
   static OatFile* OpenElfFile(File* file,
                               const std::string& location,
                               byte* requested_base,
                               bool writable,
-                              bool executable);
+                              bool executable,
+                              std::string* error_msg);
 
   explicit OatFile(const std::string& filename);
-  bool Dlopen(const std::string& elf_filename, byte* requested_base);
-  bool ElfFileOpen(File* file, byte* requested_base, bool writable, bool executable);
-  bool Setup();
+  bool Dlopen(const std::string& elf_filename, byte* requested_base, std::string* error_msg);
+  bool ElfFileOpen(File* file, byte* requested_base, bool writable, bool executable,
+                   std::string* error_msg);
+  bool Setup(std::string* error_msg);
 
   const byte* Begin() const;
   const byte* End() const;
