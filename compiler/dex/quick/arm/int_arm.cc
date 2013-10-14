@@ -884,12 +884,14 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   }
 
   int reg_ptr;
+  bool allocated_reg_ptr_temp = false;
   if (constant_index) {
     reg_ptr = rl_array.low_reg;
   } else if (IsTemp(rl_array.low_reg)) {
     Clobber(rl_array.low_reg);
     reg_ptr = rl_array.low_reg;
   } else {
+    allocated_reg_ptr_temp = true;
     reg_ptr = AllocTemp();
   }
 
@@ -940,7 +942,7 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     StoreBaseIndexed(reg_ptr, rl_index.low_reg, rl_src.low_reg,
                      scale, size);
   }
-  if (!constant_index) {
+  if (allocated_reg_ptr_temp) {
     FreeTemp(reg_ptr);
   }
   if (card_mark) {

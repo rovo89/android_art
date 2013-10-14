@@ -498,12 +498,14 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   rl_array = LoadValue(rl_array, kCoreReg);
   rl_index = LoadValue(rl_index, kCoreReg);
   int reg_ptr = INVALID_REG;
+  bool allocated_reg_ptr_temp = false;
   if (IsTemp(rl_array.low_reg)) {
     Clobber(rl_array.low_reg);
     reg_ptr = rl_array.low_reg;
   } else {
     reg_ptr = AllocTemp();
     OpRegCopy(reg_ptr, rl_array.low_reg);
+    allocated_reg_ptr_temp = true;
   }
 
   /* null object? */
@@ -538,8 +540,6 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     }
 
     StoreBaseDispWide(reg_ptr, 0, rl_src.low_reg, rl_src.high_reg);
-
-    FreeTemp(reg_ptr);
   } else {
     rl_src = LoadValue(rl_src, reg_class);
     if (needs_range_check) {
@@ -548,6 +548,9 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     }
     StoreBaseIndexed(reg_ptr, rl_index.low_reg, rl_src.low_reg,
                      scale, size);
+  }
+  if (allocated_reg_ptr_temp) {
+    FreeTemp(reg_ptr);
   }
   if (card_mark) {
     MarkGCCard(rl_src.low_reg, rl_array.low_reg);

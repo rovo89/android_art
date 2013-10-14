@@ -503,7 +503,8 @@ void X86Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
                          rl_src.high_reg, size, INVALID_SREG);
   }
   if (card_mark) {
-    FreeTemp(rl_index.low_reg);  // Ensure there are 2 free regs for card mark.
+    // Free rl_index if its a temp. Ensures there are 2 free regs for card mark.
+    FreeTemp(rl_index.low_reg);
     MarkGCCard(rl_src.low_reg, rl_array.low_reg);
   }
 }
