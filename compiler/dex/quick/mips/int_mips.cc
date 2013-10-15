@@ -499,7 +499,7 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   rl_index = LoadValue(rl_index, kCoreReg);
   int reg_ptr = INVALID_REG;
   bool allocated_reg_ptr_temp = false;
-  if (IsTemp(rl_array.low_reg)) {
+  if (IsTemp(rl_array.low_reg) && !card_mark) {
     Clobber(rl_array.low_reg);
     reg_ptr = rl_array.low_reg;
   } else {

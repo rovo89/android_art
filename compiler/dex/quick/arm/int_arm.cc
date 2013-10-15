@@ -887,7 +887,7 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   bool allocated_reg_ptr_temp = false;
   if (constant_index) {
     reg_ptr = rl_array.low_reg;
-  } else if (IsTemp(rl_array.low_reg)) {
+  } else if (IsTemp(rl_array.low_reg) && !card_mark) {
     Clobber(rl_array.low_reg);
     reg_ptr = rl_array.low_reg;
   } else {
