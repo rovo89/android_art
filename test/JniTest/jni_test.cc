@@ -54,6 +54,7 @@ static void* testFindClassOnAttachedNativeThread(void*) {
   return NULL;
 }
 
+// http://b/10994325
 extern "C" JNIEXPORT void JNICALL Java_JniTest_testFindClassOnAttachedNativeThread(JNIEnv*,
                                                                                    jclass) {
   pthread_t pthread;
@@ -64,4 +65,19 @@ extern "C" JNIEXPORT void JNICALL Java_JniTest_testFindClassOnAttachedNativeThre
   assert(pthread_create_result == 0);
   int pthread_join_result = pthread_join(pthread, NULL);
   assert(pthread_join_result == 0);
+}
+
+// http://b/11243757
+extern "C" JNIEXPORT void JNICALL Java_JniTest_testCallStaticVoidMethodOnSubClassNative(JNIEnv* env,
+                                                                                        jclass) {
+  jclass super_class = env->FindClass("JniTest$testCallStaticVoidMethodOnSubClass_SuperClass");
+  assert(super_class != NULL);
+
+  jmethodID execute = env->GetStaticMethodID(super_class, "execute", "()V");
+  assert(execute != NULL);
+
+  jclass sub_class = env->FindClass("JniTest$testCallStaticVoidMethodOnSubClass_SubClass");
+  assert(sub_class != NULL);
+
+  env->CallStaticVoidMethod(sub_class, execute);
 }
