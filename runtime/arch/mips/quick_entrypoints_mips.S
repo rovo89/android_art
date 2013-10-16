@@ -88,15 +88,29 @@
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    lw     $gp, 52($sp)
     lw     $ra, 60($sp)
+    lw     $s8, 56($sp)
+    lw     $gp, 52($sp)
+    lw     $s7, 48($sp)
+    lw     $s6, 44($sp)
+    lw     $s5, 40($sp)
+    lw     $s4, 36($sp)
+    lw     $s3, 32($sp)
+    lw     $s2, 28($sp)
     addiu  $sp, $sp, 64
     .cfi_adjust_cfa_offset -64
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
-    lw     $gp, 52($sp)
     lw     $ra, 60($sp)
+    lw     $s8, 56($sp)
+    lw     $gp, 52($sp)
+    lw     $s7, 48($sp)
+    lw     $s6, 44($sp)
+    lw     $s5, 40($sp)
+    lw     $s4, 36($sp)
+    lw     $s3, 32($sp)
+    lw     $s2, 28($sp)
     jr     $ra
     addiu  $sp, $sp, 64
     .cfi_adjust_cfa_offset -64
@@ -138,11 +152,18 @@
 .endm
 
 .macro RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    lw     $ra, 60($sp)           # restore $ra
-    lw     $gp, 52($sp)           # restore $gp
-    lw     $a1, 4($sp)            # restore non-callee save $a1
-    lw     $a2, 8($sp)            # restore non-callee save $a2
-    lw     $a3, 12($sp)           # restore non-callee save $a3
+    lw     $ra, 60($sp)
+    lw     $s8, 56($sp)
+    lw     $gp, 52($sp)
+    lw     $s7, 48($sp)
+    lw     $s6, 44($sp)
+    lw     $s5, 40($sp)
+    lw     $s4, 36($sp)
+    lw     $s3, 32($sp)
+    lw     $s2, 28($sp)
+    lw     $a3, 12($sp)
+    lw     $a2, 8($sp)
+    lw     $a1, 4($sp)
     addiu  $sp, $sp, 64           # pop frame
     .cfi_adjust_cfa_offset -64
 .endm

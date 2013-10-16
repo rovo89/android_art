@@ -67,16 +67,16 @@
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    ldr lr, [sp, #28]  @ restore lr for return
-    add sp, #32        @ unwind stack
+    add sp, #4               @ bottom word holds Method*
+    pop {r5-r8, r10-r11, lr} @ 7 words of callee saves
     .cfi_adjust_cfa_offset -32
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
-    ldr lr, [sp, #28]  @ restore lr for return
-    add sp, #32        @ unwind stack
+    add sp, #4               @ bottom word holds Method*
+    pop {r5-r8, r10-r11, lr} @ 7 words of callee saves
     .cfi_adjust_cfa_offset -32
-    bx  lr             @ return
+    bx  lr                   @ return
 .endm
 
     /*
@@ -103,10 +103,8 @@
 .endm
 
 .macro RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    ldr  r1, [sp, #8]          @ restore non-callee save r1
-    ldrd r2, [sp, #12]         @ restore non-callee saves r2-r3
-    ldr  lr, [sp, #44]         @ restore lr
-    add  sp, #48               @ rewind sp
+    add  sp, #8                      @ rewind sp
+    pop {r1-r3, r5-r8, r10-r11, lr}  @ 10 words of callee saves
     .cfi_adjust_cfa_offset -48
 .endm
 

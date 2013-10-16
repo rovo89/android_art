@@ -41,7 +41,10 @@ MACRO0(SETUP_REF_ONLY_CALLEE_SAVE_FRAME)
 END_MACRO
 
 MACRO0(RESTORE_REF_ONLY_CALLEE_SAVE_FRAME)
-    addl MACRO_LITERAL(28), %esp  // Unwind stack up to return address
+    addl MACRO_LITERAL(16), %esp  // Unwind stack up to return address
+    POP ebp  // Restore callee saves (ebx is saved/restored by the upcall)
+    POP esi
+    POP edi
     .cfi_adjust_cfa_offset -28
 END_MACRO
 
