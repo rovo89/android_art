@@ -4002,11 +4002,11 @@ mirror::Class* ClassLinker::ResolveType(const DexFile& dex_file,
 }
 
 mirror::ArtMethod* ClassLinker::ResolveMethod(const DexFile& dex_file,
-                                                   uint32_t method_idx,
-                                                   mirror::DexCache* dex_cache,
-                                                   mirror::ClassLoader* class_loader,
-                                                   const mirror::ArtMethod* referrer,
-                                                   InvokeType type) {
+                                              uint32_t method_idx,
+                                              mirror::DexCache* dex_cache,
+                                              mirror::ClassLoader* class_loader,
+                                              const mirror::ArtMethod* referrer,
+                                              InvokeType type) {
   DCHECK(dex_cache != NULL);
   // Check for hit in the dex cache.
   mirror::ArtMethod* resolved = dex_cache->GetResolvedMethod(method_idx);
@@ -4149,10 +4149,10 @@ mirror::ArtMethod* ClassLinker::ResolveMethod(const DexFile& dex_file,
 }
 
 mirror::ArtField* ClassLinker::ResolveField(const DexFile& dex_file,
-                                         uint32_t field_idx,
-                                         mirror::DexCache* dex_cache,
-                                         mirror::ClassLoader* class_loader,
-                                         bool is_static) {
+                                            uint32_t field_idx,
+                                            mirror::DexCache* dex_cache,
+                                            mirror::ClassLoader* class_loader,
+                                            bool is_static) {
   DCHECK(dex_cache != NULL);
   mirror::ArtField* resolved = dex_cache->GetResolvedField(field_idx);
   if (resolved != NULL) {
@@ -4189,9 +4189,9 @@ mirror::ArtField* ClassLinker::ResolveField(const DexFile& dex_file,
 }
 
 mirror::ArtField* ClassLinker::ResolveFieldJLS(const DexFile& dex_file,
-                                            uint32_t field_idx,
-                                            mirror::DexCache* dex_cache,
-                                            mirror::ClassLoader* class_loader) {
+                                               uint32_t field_idx,
+                                               mirror::DexCache* dex_cache,
+                                               mirror::ClassLoader* class_loader) {
   DCHECK(dex_cache != NULL);
   mirror::ArtField* resolved = dex_cache->GetResolvedField(field_idx);
   if (resolved != NULL) {
