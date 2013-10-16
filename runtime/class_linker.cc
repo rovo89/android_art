@@ -2674,7 +2674,6 @@ mirror::Class* ClassLinker::CreateProxyClass(mirror::String* name,
   klass->SetName(name);
   mirror::Class* proxy_class = GetClassRoot(kJavaLangReflectProxy);
   klass->SetDexCache(proxy_class->GetDexCache());
-
   klass->SetStatus(mirror::Class::kStatusIdx, self);
 
   // Instance fields are inherited, but we add a couple of static fields...
@@ -2785,6 +2784,9 @@ mirror::Class* ClassLinker::CreateProxyClass(mirror::String* name,
     CHECK_EQ(synth_proxy_class->GetInterfaces(), interfaces);
     CHECK_EQ(synth_proxy_class->GetThrows(), throws);
   }
+  std::string descriptor(GetDescriptorForProxy(klass.get()));
+  mirror::Class* existing = InsertClass(descriptor.c_str(), klass.get(), Hash(descriptor.c_str()));
+  CHECK(existing == nullptr);
   return klass.get();
 }
 
