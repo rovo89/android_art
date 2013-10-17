@@ -293,6 +293,7 @@ void Instrumentation::AddListener(InstrumentationListener* listener, uint32_t ev
     have_exception_caught_listeners_ = true;
   }
   ConfigureStubs(require_entry_exit_stubs, require_interpreter);
+  UpdateInterpreterHandlerTable();
 }
 
 void Instrumentation::RemoveListener(InstrumentationListener* listener, uint32_t events) {
@@ -341,6 +342,7 @@ void Instrumentation::RemoveListener(InstrumentationListener* listener, uint32_t
     have_exception_caught_listeners_ = exception_caught_listeners_.size() > 0;
   }
   ConfigureStubs(require_entry_exit_stubs, require_interpreter);
+  UpdateInterpreterHandlerTable();
 }
 
 void Instrumentation::ConfigureStubs(bool require_entry_exit_stubs, bool require_interpreter) {

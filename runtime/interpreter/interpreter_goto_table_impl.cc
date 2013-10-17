@@ -51,14 +51,8 @@ namespace interpreter {
     }                                                                       \
   } while (false)
 
-#define UPDATE_HANDLER_TABLE()                              \
-  do {                                                      \
-    if (UNLIKELY(instrumentation->HasDexPcListeners())) {   \
-      currentHandlersTable = instrumentationHandlersTable;  \
-    } else {                                                \
-      currentHandlersTable = handlersTable;                 \
-    }                                                       \
-  } while (false);
+#define UPDATE_HANDLER_TABLE() \
+  currentHandlersTable = handlersTable[Runtime::Current()->GetInstrumentation()->GetInterpreterHandlerTable()]
 
 #define UNREACHABLE_CODE_CHECK()                \
   do {                                          \
@@ -70,10 +64,77 @@ namespace interpreter {
 #define HANDLE_INSTRUCTION_START(opcode) op_##opcode:  // NOLINT(whitespace/labels)
 #define HANDLE_INSTRUCTION_END() UNREACHABLE_CODE_CHECK()
 
+/**
+ * Interpreter based on computed goto tables.
+ *
+ * Each instruction is associated to a handler. This handler is responsible for executing the
+ * instruction and jump to the next instruction's handler.
+ * In order to limit the cost of instrumentation, we have two handler tables:
+ * - the "main" handler table: it contains handlers for normal execution of each instruction without
+ * handling of instrumentation.
+ * - the "alternative" handler table: it contains alternative handlers which first handle
+ * instrumentation before jumping to the corresponding "normal" instruction's handler.
+ *
+ * When instrumentation is active, the interpreter uses the "alternative" handler table. Otherwise
+ * it uses the "main" handler table.
+ *
+ * The current handler table is the handler table being used by the interpreter. It is updated:
+ * - on backward branch (goto, if and switch instructions)
+ * - after invoke
+ * - when an exception is thrown.
+ * This allows to support an attaching debugger to an already running application for instance.
+ *
+ * For a fast handler table update, handler tables are stored in an array of handler tables. Each
+ * handler table is represented by the InterpreterHandlerTable enum which allows to associate it
+ * to an index in this array of handler tables ((see Instrumentation::GetInterpreterHandlerTable).
+ *
+ * Here's the current layout of this array of handler tables:
+ *
+ * ---------------------+---------------+
+ *                      |     NOP       | (handler for NOP instruction)
+ *                      +---------------+
+ *       "main"         |     MOVE      | (handler for MOVE instruction)
+ *    handler table     +---------------+
+ *                      |      ...      |
+ *                      +---------------+
+ *                      |   UNUSED_FF   | (handler for UNUSED_FF instruction)
+ * ---------------------+---------------+
+ *                      |     NOP       | (alternative handler for NOP instruction)
+ *                      +---------------+
+ *    "alternative"     |     MOVE      | (alternative handler for MOVE instruction)
+ *    handler table     +---------------+
+ *                      |      ...      |
+ *                      +---------------+
+ *                      |   UNUSED_FF   | (alternative handler for UNUSED_FF instruction)
+ * ---------------------+---------------+
+ *
+ */
 template<bool do_access_check>
 JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
                        ShadowFrame& shadow_frame, JValue result_register) {
-  bool do_assignability_check = do_access_check;
+  // Define handler tables:
+  // - The main handler table contains execution handlers for each instruction.
+  // - The alternative handler table contains prelude handlers which check for thread suspend and
+  //   manage instrumentation before jumping to the execution handler.
+  static const void* const handlersTable[instrumentation::kNumHandlerTables][kNumPackedOpcodes] = {
+    {
+    // Main handler table.
+#define INSTRUCTION_HANDLER(o, code, n, f, r, i, a, v) &&op_##code,
+#include "dex_instruction_list.h"
+      DEX_INSTRUCTION_LIST(INSTRUCTION_HANDLER)
+#undef DEX_INSTRUCTION_LIST
+#undef INSTRUCTION_HANDLER
+    }, {
+    // Alternative handler table.
+#define INSTRUCTION_HANDLER(o, code, n, f, r, i, a, v) &&alt_op_##code,
+#include "dex_instruction_list.h"
+      DEX_INSTRUCTION_LIST(INSTRUCTION_HANDLER)
+#undef DEX_INSTRUCTION_LIST
+#undef INSTRUCTION_HANDLER
+    }
+  };
+
+  const bool do_assignability_check = do_access_check;
   if (UNLIKELY(!shadow_frame.HasReferenceArray())) {
     LOG(FATAL) << "Invalid shadow frame for interpreter use";
     return JValue();
@@ -81,35 +142,17 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   self->VerifyStack();
 
   uint32_t dex_pc = shadow_frame.GetDexPC();
-  const instrumentation::Instrumentation* const instrumentation = Runtime::Current()->GetInstrumentation();
+  const Instruction* inst = Instruction::At(code_item->insns_ + dex_pc);
+  uint16_t inst_data;
+  const void* const* currentHandlersTable;
+  UPDATE_HANDLER_TABLE();
   if (LIKELY(dex_pc == 0)) {  // We are entering the method as opposed to deoptimizing..
+    instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
     if (UNLIKELY(instrumentation->HasMethodEntryListeners())) {
       instrumentation->MethodEnterEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                         shadow_frame.GetMethod(), 0);
     }
   }
-  const Instruction* inst = Instruction::At(code_item->insns_ + dex_pc);
-  uint16_t inst_data;
-
-  // Define handlers table.
-  static const void* handlersTable[kNumPackedOpcodes] = {
-#define INSTRUCTION_HANDLER(o, code, n, f, r, i, a, v) &&op_##code,
-#include "dex_instruction_list.h"
-      DEX_INSTRUCTION_LIST(INSTRUCTION_HANDLER)
-#undef DEX_INSTRUCTION_LIST
-#undef INSTRUCTION_HANDLER
-  };
-
-  static const void* instrumentationHandlersTable[kNumPackedOpcodes] = {
-#define INSTRUCTION_HANDLER(o, code, n, f, r, i, a, v) &&instrumentation_op_##code,
-#include "dex_instruction_list.h"
-      DEX_INSTRUCTION_LIST(INSTRUCTION_HANDLER)
-#undef DEX_INSTRUCTION_LIST
-#undef INSTRUCTION_HANDLER
-  };
-
-  const void** currentHandlersTable;
-  UPDATE_HANDLER_TABLE();
 
   // Jump to first instruction.
   ADVANCE(0);
@@ -207,6 +250,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (UNLIKELY(self->TestAllFlags())) {
       CheckSuspend(self);
     }
+    instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
     if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
       instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                        shadow_frame.GetMethod(), dex_pc,
@@ -222,6 +266,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (UNLIKELY(self->TestAllFlags())) {
       CheckSuspend(self);
     }
+    instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
     if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
       instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                        shadow_frame.GetMethod(), dex_pc,
@@ -238,6 +283,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (UNLIKELY(self->TestAllFlags())) {
       CheckSuspend(self);
     }
+    instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
     if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
       instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                        shadow_frame.GetMethod(), dex_pc,
@@ -253,6 +299,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (UNLIKELY(self->TestAllFlags())) {
       CheckSuspend(self);
     }
+    instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
     if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
       instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                        shadow_frame.GetMethod(), dex_pc,
@@ -286,6 +333,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
         HANDLE_PENDING_EXCEPTION();
       }
     }
+    instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
     if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
       instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                        shadow_frame.GetMethod(), dex_pc,
@@ -547,8 +595,8 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (IsBackwardBranch(offset)) {
       if (UNLIKELY(self->TestAllFlags())) {
         CheckSuspend(self);
+        UPDATE_HANDLER_TABLE();
       }
-      UPDATE_HANDLER_TABLE();
     }
     ADVANCE(offset);
   }
@@ -559,8 +607,8 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (IsBackwardBranch(offset)) {
       if (UNLIKELY(self->TestAllFlags())) {
         CheckSuspend(self);
+        UPDATE_HANDLER_TABLE();
       }
-      UPDATE_HANDLER_TABLE();
     }
     ADVANCE(offset);
   }
@@ -571,8 +619,8 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (IsBackwardBranch(offset)) {
       if (UNLIKELY(self->TestAllFlags())) {
         CheckSuspend(self);
+        UPDATE_HANDLER_TABLE();
       }
-      UPDATE_HANDLER_TABLE();
     }
     ADVANCE(offset);
   }
@@ -583,8 +631,8 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (IsBackwardBranch(offset)) {
       if (UNLIKELY(self->TestAllFlags())) {
         CheckSuspend(self);
+        UPDATE_HANDLER_TABLE();
       }
-      UPDATE_HANDLER_TABLE();
     }
     ADVANCE(offset);
   }
@@ -595,8 +643,8 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     if (IsBackwardBranch(offset)) {
       if (UNLIKELY(self->TestAllFlags())) {
         CheckSuspend(self);
+        UPDATE_HANDLER_TABLE();
       }
-      UPDATE_HANDLER_TABLE();
     }
     ADVANCE(offset);
   }
@@ -688,8 +736,8 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
+          UPDATE_HANDLER_TABLE();
         }
-        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -704,8 +752,8 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
+          UPDATE_HANDLER_TABLE();
         }
-        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -720,8 +768,8 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
+          UPDATE_HANDLER_TABLE();
         }
-        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -736,8 +784,8 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
+          UPDATE_HANDLER_TABLE();
         }
-        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -752,8 +800,8 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
+          UPDATE_HANDLER_TABLE();
         }
-        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -768,8 +816,8 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
+          UPDATE_HANDLER_TABLE();
         }
-        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -784,8 +832,8 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
+          UPDATE_HANDLER_TABLE();
         }
-        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -800,8 +848,8 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
+          UPDATE_HANDLER_TABLE();
         }
-        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -816,8 +864,8 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
+          UPDATE_HANDLER_TABLE();
         }
-        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -832,8 +880,8 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
+          UPDATE_HANDLER_TABLE();
         }
-        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -848,8 +896,8 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
+          UPDATE_HANDLER_TABLE();
         }
-        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -864,8 +912,8 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
+          UPDATE_HANDLER_TABLE();
         }
-        UPDATE_HANDLER_TABLE();
       }
       ADVANCE(offset);
     } else {
@@ -2306,8 +2354,10 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     CHECK(self->IsExceptionPending());
     if (UNLIKELY(self->TestAllFlags())) {
       CheckSuspend(self);
+      UPDATE_HANDLER_TABLE();
     }
     Object* this_object = shadow_frame.GetThisObject(code_item->ins_size_);
+    instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
     uint32_t found_dex_pc = FindNextInstructionFollowingException(self, shadow_frame, dex_pc,
                                                                   this_object,
                                                                   instrumentation);
@@ -2320,11 +2370,15 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   }
 
   // Create alternative instruction handlers dedicated to instrumentation.
-#define INSTRUMENTATION_INSTRUCTION_HANDLER(o, code, n, f, r, i, a, v)                        \
-  instrumentation_op_##code: {                                                                \
-    instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),  \
-                                     shadow_frame.GetMethod(), dex_pc);                       \
-    goto *handlersTable[Instruction::code];                                                   \
+#define INSTRUMENTATION_INSTRUCTION_HANDLER(o, code, n, f, r, i, a, v)                              \
+  alt_op_##code: {                                                                                  \
+      instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation(); \
+      if (UNLIKELY(instrumentation->HasDexPcListeners())) {                                         \
+        instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),    \
+                                         shadow_frame.GetMethod(), dex_pc);                         \
+      }                                                                                             \
+      UPDATE_HANDLER_TABLE();                                                                       \
+      goto *handlersTable[instrumentation::kMainHandlerTable][Instruction::code];                   \
   }
 #include "dex_instruction_list.h"
       DEX_INSTRUCTION_LIST(INSTRUMENTATION_INSTRUCTION_HANDLER)
