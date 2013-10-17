@@ -1196,7 +1196,7 @@ std::string GetDalvikCacheFilenameOrDie(const std::string& location) {
     LOG(FATAL) << "Expected path in location to be absolute: "<< location;
   }
   std::string cache_file(location, 1);  // skip leading slash
-  if (!EndsWith(location, ".dex") || !EndsWith(location, ".art")) {
+  if (!EndsWith(location, ".dex") && !EndsWith(location, ".art")) {
     cache_file += "/";
     cache_file += DexFile::kClassesDex;
   }
