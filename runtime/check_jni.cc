@@ -335,7 +335,7 @@ class ScopedCheck {
       return;
     }
     mirror::Class* c = soa_.Decode<mirror::Class*>(java_class);
-    if (!c->IsAssignableFrom(m->GetDeclaringClass())) {
+    if (!m->GetDeclaringClass()->IsAssignableFrom(c)) {
       JniAbortF(function_name_, "can't call static %s on class %s",
                 PrettyMethod(m).c_str(), PrettyClass(c).c_str());
     }
