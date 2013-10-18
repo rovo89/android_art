@@ -95,7 +95,6 @@ static jint DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceNam
     return 0;
   }
   ScopedObjectAccess soa(env);
-
   uint32_t dex_location_checksum;
   if (!DexFile::GetChecksum(dex_location, &dex_location_checksum)) {
     LOG(WARNING) << "Failed to compute checksum: " << dex_location;
@@ -123,9 +122,10 @@ static jint DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceNam
   return static_cast<jint>(reinterpret_cast<uintptr_t>(dex_file));
 }
 
-static const DexFile* toDexFile(int dex_file_address) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static const DexFile* toDexFile(int dex_file_address, JNIEnv* env) {
   const DexFile* dex_file = reinterpret_cast<const DexFile*>(static_cast<uintptr_t>(dex_file_address));
-  if (dex_file == NULL) {
+  if (UNLIKELY(dex_file == nullptr)) {
+    ScopedObjectAccess soa(env);
     ThrowNullPointerException(NULL, "dex_file == null");
   }
   return dex_file;
@@ -133,11 +133,8 @@ static const DexFile* toDexFile(int dex_file_address) SHARED_LOCKS_REQUIRED(Lock
 
 static void DexFile_closeDexFile(JNIEnv* env, jclass, jint cookie) {
   const DexFile* dex_file;
-  {
-    ScopedObjectAccess soa(env);
-    dex_file = toDexFile(cookie);
-  }
-  if (dex_file == NULL) {
+  dex_file = toDexFile(cookie, env);
+  if (dex_file == nullptr) {
     return;
   }
   if (Runtime::Current()->GetClassLinker()->IsDexFileRegistered(*dex_file)) {
@@ -148,8 +145,7 @@ static void DexFile_closeDexFile(JNIEnv* env, jclass, jint cookie) {
 
 static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, jobject javaLoader,
                                         jint cookie) {
-  ScopedObjectAccess soa(env);
-  const DexFile* dex_file = toDexFile(cookie);
+  const DexFile* dex_file = toDexFile(cookie, env);
   if (dex_file == NULL) {
     VLOG(class_linker) << "Failed to find dex_file";
     return NULL;
@@ -165,6 +161,7 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
     VLOG(class_linker) << "Failed to find dex_class_def";
     return NULL;
   }
+  ScopedObjectAccess soa(env);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   class_linker->RegisterDexFile(*dex_file);
   mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(javaLoader);
@@ -176,12 +173,9 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
 
 static jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jint cookie) {
   const DexFile* dex_file;
-  {
-    ScopedObjectAccess soa(env);
-    dex_file = toDexFile(cookie);
-  }
-  if (dex_file == NULL) {
-    return NULL;
+  dex_file = toDexFile(cookie, env);
+  if (dex_file == nullptr) {
+    return nullptr;
   }
 
   std::vector<std::string> class_names;

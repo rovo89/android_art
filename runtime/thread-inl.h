@@ -21,10 +21,18 @@
 
 #include <pthread.h>
 
+#include "base/casts.h"
 #include "base/mutex-inl.h"
 #include "cutils/atomic-inline.h"
+#include "jni_internal.h"
 
 namespace art {
+
+// Quickly access the current thread from a JNIEnv.
+static inline Thread* ThreadForEnv(JNIEnv* env) {
+  JNIEnvExt* full_env(down_cast<JNIEnvExt*>(env));
+  return full_env->self;
+}
 
 inline Thread* Thread::Current() {
   // We rely on Thread::Current returning NULL for a detached thread, so it's not obvious

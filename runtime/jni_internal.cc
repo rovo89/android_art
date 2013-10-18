@@ -2357,9 +2357,9 @@ class JNI {
     for (jint i = 0; i < method_count; ++i) {
       const char* name = methods[i].name;
       const char* sig = methods[i].signature;
-
+      bool is_fast = false;
       if (*sig == '!') {
-        // TODO: fast jni. it's too noisy to log all these.
+        is_fast = true;
         ++sig;
       }
 
@@ -2382,7 +2382,7 @@ class JNI {
 
       VLOG(jni) << "[Registering JNI native method " << PrettyMethod(m) << "]";
 
-      m->RegisterNative(soa.Self(), methods[i].fnPtr);
+      m->RegisterNative(soa.Self(), methods[i].fnPtr, is_fast);
     }
     return JNI_OK;
   }
@@ -3107,8 +3107,8 @@ void JavaVMExt::DumpReferenceTables(std::ostream& os) {
 }
 
 bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_loader,
-                                  std::string& detail) {
-  detail.clear();
+                                  std::string* detail) {
+  detail->clear();
 
   // See if we've already loaded this library.  If we have, and the class loader
   // matches, return successfully without doing anything.
@@ -3126,7 +3126,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
       // The library will be associated with class_loader. The JNI
       // spec says we can't load the same library into more than one
       // class loader.
-      StringAppendF(&detail, "Shared library \"%s\" already opened by "
+      StringAppendF(detail, "Shared library \"%s\" already opened by "
           "ClassLoader %p; can't open in ClassLoader %p",
           path.c_str(), library->GetClassLoader(), class_loader);
       LOG(WARNING) << detail;
@@ -3135,7 +3135,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
     VLOG(jni) << "[Shared library \"" << path << "\" already loaded in "
               << "ClassLoader " << class_loader << "]";
     if (!library->CheckOnLoadResult()) {
-      StringAppendF(&detail, "JNI_OnLoad failed on a previous attempt "
+      StringAppendF(detail, "JNI_OnLoad failed on a previous attempt "
           "to load \"%s\"", path.c_str());
       return false;
     }
@@ -3162,7 +3162,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
   VLOG(jni) << "[Call to dlopen(\"" << path << "\", RTLD_LAZY) returned " << handle << "]";
 
   if (handle == NULL) {
-    detail = dlerror();
+    *detail = dlerror();
     LOG(ERROR) << "dlopen(\"" << path << "\", RTLD_LAZY) failed: " << detail;
     return false;
   }
@@ -3212,9 +3212,9 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
     self->SetClassLoaderOverride(old_class_loader);
 
     if (version == JNI_ERR) {
-      StringAppendF(&detail, "JNI_ERR returned from JNI_OnLoad in \"%s\"", path.c_str());
+      StringAppendF(detail, "JNI_ERR returned from JNI_OnLoad in \"%s\"", path.c_str());
     } else if (IsBadJniVersion(version)) {
-      StringAppendF(&detail, "Bad JNI version returned from JNI_OnLoad in \"%s\": %d",
+      StringAppendF(detail, "Bad JNI version returned from JNI_OnLoad in \"%s\": %d",
                     path.c_str(), version);
       // It's unwise to call dlclose() here, but we can mark it
       // as bad and ensure that future load attempts will fail.

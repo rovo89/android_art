@@ -19,6 +19,7 @@
 #include "jni_internal.h"
 #include "monitor.h"
 #include "mirror/object.h"
+#include "scoped_fast_native_object_access.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedUtfChars.h"
 #include "thread.h"
@@ -27,7 +28,7 @@
 namespace art {
 
 static jobject Thread_currentThread(JNIEnv* env, jclass) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   return soa.AddLocalReference<jobject>(soa.Self()->GetPeer());
 }
 
@@ -150,7 +151,7 @@ static void Thread_nativeSetPriority(JNIEnv* env, jobject java_thread, jint new_
 }
 
 static void Thread_sleep(JNIEnv* env, jclass, jobject java_lock, jlong ms, jint ns) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   mirror::Object* lock = soa.Decode<mirror::Object*>(java_lock);
   Monitor::Wait(Thread::Current(), lock, ms, ns, true, kSleeping);
 }
@@ -166,7 +167,7 @@ static void Thread_yield(JNIEnv*, jobject) {
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Thread, currentThread, "()Ljava/lang/Thread;"),
+  NATIVE_METHOD(Thread, currentThread, "!()Ljava/lang/Thread;"),
   NATIVE_METHOD(Thread, interrupted, "()Z"),
   NATIVE_METHOD(Thread, isInterrupted, "()Z"),
   NATIVE_METHOD(Thread, nativeCreate, "(Ljava/lang/Thread;JZ)V"),
@@ -175,7 +176,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Thread, nativeInterrupt, "()V"),
   NATIVE_METHOD(Thread, nativeSetName, "(Ljava/lang/String;)V"),
   NATIVE_METHOD(Thread, nativeSetPriority, "(I)V"),
-  NATIVE_METHOD(Thread, sleep, "(Ljava/lang/Object;JI)V"),
+  NATIVE_METHOD(Thread, sleep, "!(Ljava/lang/Object;JI)V"),
   NATIVE_METHOD(Thread, yield, "()V"),
 };
 

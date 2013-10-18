@@ -17,13 +17,14 @@
 #include "common_throws.h"
 #include "jni_internal.h"
 #include "mirror/string.h"
+#include "scoped_fast_native_object_access.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
 
 namespace art {
 
 static jint String_compareTo(JNIEnv* env, jobject javaThis, jobject javaRhs) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   if (UNLIKELY(javaRhs == NULL)) {
     ThrowNullPointerException(NULL, "rhs == null");
     return -1;
@@ -33,7 +34,7 @@ static jint String_compareTo(JNIEnv* env, jobject javaThis, jobject javaRhs) {
 }
 
 static jint String_fastIndexOf(JNIEnv* env, jobject java_this, jint ch, jint start) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   // This method does not handle supplementary characters. They're dealt with in managed code.
   DCHECK_LE(ch, 0xffff);
 
@@ -42,16 +43,16 @@ static jint String_fastIndexOf(JNIEnv* env, jobject java_this, jint ch, jint sta
 }
 
 static jstring String_intern(JNIEnv* env, jobject javaThis) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   mirror::String* s = soa.Decode<mirror::String*>(javaThis);
   mirror::String* result = s->Intern();
   return soa.AddLocalReference<jstring>(result);
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(String, compareTo, "(Ljava/lang/String;)I"),
-  NATIVE_METHOD(String, fastIndexOf, "(II)I"),
-  NATIVE_METHOD(String, intern, "()Ljava/lang/String;"),
+  NATIVE_METHOD(String, compareTo, "!(Ljava/lang/String;)I"),
+  NATIVE_METHOD(String, fastIndexOf, "!(II)I"),
+  NATIVE_METHOD(String, intern, "!()Ljava/lang/String;"),
 };
 
 void register_java_lang_String(JNIEnv* env) {

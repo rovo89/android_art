@@ -18,7 +18,6 @@
 #define ART_RUNTIME_SCOPED_THREAD_STATE_CHANGE_H_
 
 #include "base/casts.h"
-#include "jni_internal.h"
 #include "thread-inl.h"
 
 namespace art {
@@ -122,14 +121,14 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
   explicit ScopedObjectAccessUnchecked(JNIEnv* env)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_) ALWAYS_INLINE
       : ScopedThreadStateChange(ThreadForEnv(env), kRunnable),
-        env_(reinterpret_cast<JNIEnvExt*>(env)), vm_(env_->vm) {
+        env_(down_cast<JNIEnvExt*>(env)), vm_(env_->vm) {
     self_->VerifyStack();
   }
 
   explicit ScopedObjectAccessUnchecked(Thread* self)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       : ScopedThreadStateChange(self, kRunnable),
-        env_(reinterpret_cast<JNIEnvExt*>(self->GetJniEnv())),
+        env_(down_cast<JNIEnvExt*>(self->GetJniEnv())),
         vm_(env_ != NULL ? env_->vm : NULL) {
     self_->VerifyStack();
   }
@@ -137,7 +136,7 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
   // Used when we want a scoped JNI thread state but have no thread/JNIEnv. Consequently doesn't
   // change into Runnable or acquire a share on the mutator_lock_.
   explicit ScopedObjectAccessUnchecked(JavaVM* vm)
-      : ScopedThreadStateChange(), env_(NULL), vm_(reinterpret_cast<JavaVMExt*>(vm)) {}
+      : ScopedThreadStateChange(), env_(NULL), vm_(down_cast<JavaVMExt*>(vm)) {}
 
   // Here purely to force inlining.
   ~ScopedObjectAccessUnchecked() ALWAYS_INLINE {
@@ -162,6 +161,7 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
    */
   template<typename T>
   T AddLocalReference(mirror::Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK_EQ(thread_state_, kRunnable);  // Don't work with raw objects in non-runnable states.
     if (obj == NULL) {
       return NULL;
@@ -245,11 +245,6 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
   }
 
  private:
-  static Thread* ThreadForEnv(JNIEnv* env) {
-    JNIEnvExt* full_env(reinterpret_cast<JNIEnvExt*>(env));
-    return full_env->self;
-  }
-
   // The full JNIEnv.
   JNIEnvExt* const env_;
   // The full JavaVM.

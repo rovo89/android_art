@@ -661,7 +661,9 @@ static void SetPreverifiedFlagOnMethods(mirror::ObjectArray<mirror::ArtMethod>* 
     for (int32_t index = 0, end = methods->GetLength(); index < end; ++index) {
       mirror::ArtMethod* method = methods->GetWithoutChecks(index);
       DCHECK(method != NULL);
-      method->SetPreverified();
+      if (!method->IsNative() && !method->IsAbstract()) {
+        method->SetPreverified();
+      }
     }
   }
 }

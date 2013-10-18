@@ -2044,24 +2044,22 @@ bool Heap::IsGCRequestPending() const {
   return concurrent_start_bytes_ != std::numeric_limits<size_t>::max();
 }
 
-void Heap::RegisterNativeAllocation(int bytes) {
+void Heap::RegisterNativeAllocation(JNIEnv* env, int bytes) {
   // Total number of native bytes allocated.
   native_bytes_allocated_.fetch_add(bytes);
-  Thread* self = Thread::Current();
   if (static_cast<size_t>(native_bytes_allocated_) > native_footprint_gc_watermark_) {
     // The second watermark is higher than the gc watermark. If you hit this it means you are
     // allocating native objects faster than the GC can keep up with.
     if (static_cast<size_t>(native_bytes_allocated_) > native_footprint_limit_) {
-        JNIEnv* env = self->GetJniEnv();
         // Can't do this in WellKnownClasses::Init since System is not properly set up at that
         // point.
-        if (WellKnownClasses::java_lang_System_runFinalization == NULL) {
+        if (UNLIKELY(WellKnownClasses::java_lang_System_runFinalization == NULL)) {
           DCHECK(WellKnownClasses::java_lang_System != NULL);
           WellKnownClasses::java_lang_System_runFinalization =
               CacheMethod(env, WellKnownClasses::java_lang_System, true, "runFinalization", "()V");
-          assert(WellKnownClasses::java_lang_System_runFinalization != NULL);
+          CHECK(WellKnownClasses::java_lang_System_runFinalization != NULL);
         }
-        if (WaitForConcurrentGcToComplete(self) != collector::kGcTypeNone) {
+        if (WaitForConcurrentGcToComplete(ThreadForEnv(env)) != collector::kGcTypeNone) {
           // Just finished a GC, attempt to run finalizers.
           env->CallStaticVoidMethod(WellKnownClasses::java_lang_System,
                                     WellKnownClasses::java_lang_System_runFinalization);
@@ -2080,20 +2078,22 @@ void Heap::RegisterNativeAllocation(int bytes) {
         UpdateMaxNativeFootprint();
     } else {
       if (!IsGCRequestPending()) {
-        RequestConcurrentGC(self);
+        RequestConcurrentGC(ThreadForEnv(env));
       }
     }
   }
 }
 
-void Heap::RegisterNativeFree(int bytes) {
+void Heap::RegisterNativeFree(JNIEnv* env, int bytes) {
   int expected_size, new_size;
   do {
       expected_size = native_bytes_allocated_.load();
       new_size = expected_size - bytes;
-      if (new_size < 0) {
-        ThrowRuntimeException("attempted to free %d native bytes with only %d native bytes registered as allocated",
-                              bytes, expected_size);
+      if (UNLIKELY(new_size < 0)) {
+        ScopedObjectAccess soa(env);
+        env->ThrowNew(WellKnownClasses::java_lang_RuntimeException,
+                      StringPrintf("Attempted to free %d native bytes with only %d native bytes "
+                                   "registered as allocated", bytes, expected_size).c_str());
         break;
       }
   } while (!native_bytes_allocated_.compare_and_swap(expected_size, new_size));

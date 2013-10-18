@@ -22,7 +22,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_fast_native_object_access.h"
 
 /*
  * We make guarantees about the atomicity of accesses to primitive
@@ -179,7 +179,7 @@ static void ThrowArrayStoreException_NotAnArray(const char* identifier, mirror::
 }
 
 static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject javaDst, jint dstPos, jint length) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
 
   // Null pointer checks.
   if (UNLIKELY(javaSrc == NULL)) {
@@ -317,7 +317,7 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
 }
 
 static void System_arraycopyCharUnchecked(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject javaDst, jint dstPos, jint length) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   DCHECK(javaSrc != NULL);
   DCHECK(javaDst != NULL);
   mirror::Object* srcObject = soa.Decode<mirror::Object*>(javaSrc);
@@ -339,15 +339,15 @@ static void System_arraycopyCharUnchecked(JNIEnv* env, jclass, jobject javaSrc, 
 }
 
 static jint System_identityHashCode(JNIEnv* env, jclass, jobject javaObject) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   mirror::Object* o = soa.Decode<mirror::Object*>(javaObject);
   return static_cast<jint>(o->IdentityHashCode());
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(System, arraycopy, "(Ljava/lang/Object;ILjava/lang/Object;II)V"),
-  NATIVE_METHOD(System, arraycopyCharUnchecked, "([CI[CII)V"),
-  NATIVE_METHOD(System, identityHashCode, "(Ljava/lang/Object;)I"),
+  NATIVE_METHOD(System, arraycopy, "!(Ljava/lang/Object;ILjava/lang/Object;II)V"),
+  NATIVE_METHOD(System, arraycopyCharUnchecked, "!([CI[CII)V"),
+  NATIVE_METHOD(System, identityHashCode, "!(Ljava/lang/Object;)I"),
 };
 
 void register_java_lang_System(JNIEnv* env) {
