@@ -1249,7 +1249,7 @@ bool Mir2Lir::GenIntrinsic(CallInfo* info) {
     }
   } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Float;")) {
     std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
-    if (tgt_method == "int java.lang.Float.float_to_raw_int_bits(float)") {
+    if (tgt_method == "int java.lang.Float.floatToRawIntBits(float)") {
       return GenInlinedFloatCvt(info);
     }
     if (tgt_method == "float java.lang.Float.intBitsToFloat(int)") {
