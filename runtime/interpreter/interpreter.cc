@@ -269,7 +269,7 @@ enum InterpreterImplKind {
   kComputedGotoImplKind   // computed-goto-based interpreter implementation.
 };
 
-static const InterpreterImplKind kInterpreterImplKind = kSwitchImpl;
+static const InterpreterImplKind kInterpreterImplKind = kComputedGotoImplKind;
 
 static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
                       ShadowFrame& shadow_frame, JValue result_register)
