@@ -33,6 +33,8 @@
 
 namespace art {
 
+// TODO: remove dependencies on mirror classes, primarily by moving
+// EncodedStaticFieldValueIterator to its own file.
 namespace mirror {
   class ArtField;
   class ArtMethod;
