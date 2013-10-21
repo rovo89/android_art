@@ -4164,10 +4164,10 @@ mirror::ArtMethod* ClassLinker::ResolveMethod(const DexFile& dex_file,
 }
 
 mirror::ArtField* ClassLinker::ResolveField(const DexFile& dex_file,
-                                         uint32_t field_idx,
-                                         mirror::DexCache* dex_cache,
-                                         mirror::ClassLoader* class_loader,
-                                         bool is_static) {
+                                            uint32_t field_idx,
+                                            mirror::DexCache* dex_cache,
+                                            mirror::ClassLoader* class_loader,
+                                            bool is_static) {
   DCHECK(dex_cache != NULL);
   mirror::ArtField* resolved = dex_cache->GetResolvedField(field_idx);
   if (resolved != NULL) {

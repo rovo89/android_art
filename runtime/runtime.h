@@ -280,6 +280,7 @@ class Runtime {
   }
 
   InternTable* GetInternTable() const {
+    DCHECK(intern_table_ != NULL);
     return intern_table_;
   }
 

@@ -346,10 +346,6 @@ class ClassLinker {
     return quick_resolution_trampoline_;
   }
 
-  InternTable* GetInternTable() const {
-    return intern_table_;
-  }
-
   // Attempts to insert a class into a class table.  Returns NULL if
   // the class was inserted, otherwise returns an existing class with
   // the same descriptor and ClassLoader.
