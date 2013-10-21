@@ -66,10 +66,9 @@ void Mir2Lir::DumpRegPool(RegisterInfo* p, int num_regs) {
   LOG(INFO) << "================================================";
   for (int i = 0; i < num_regs; i++) {
     LOG(INFO) << StringPrintf(
-        "R[%d]: T:%d, U:%d, P:%d, p:%d, LV:%d, D:%d, SR:%d, ST:%x, EN:%x",
+        "R[%d]: T:%d, U:%d, P:%d, p:%d, LV:%d, D:%d, SR:%d",
         p[i].reg, p[i].is_temp, p[i].in_use, p[i].pair, p[i].partner,
-        p[i].live, p[i].dirty, p[i].s_reg, reinterpret_cast<uintptr_t>(p[i].def_start),
-        reinterpret_cast<uintptr_t>(p[i].def_end));
+        p[i].live, p[i].dirty, p[i].s_reg);
   }
   LOG(INFO) << "================================================";
 }
@@ -769,9 +768,9 @@ RegLocation Mir2Lir::UpdateRawLoc(RegLocation loc) {
 
 RegLocation Mir2Lir::EvalLocWide(RegLocation loc, int reg_class, bool update) {
   DCHECK(loc.wide);
-  int new_regs;
-  int low_reg;
-  int high_reg;
+  int32_t new_regs;
+  int32_t low_reg;
+  int32_t high_reg;
 
   loc = UpdateLocWide(loc);
 

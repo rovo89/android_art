@@ -864,7 +864,7 @@ void MIRGraph::AnalyzeBlock(BasicBlock* bb, MethodStats* stats) {
   if (ending_bb->last_mir_insn != NULL) {
     uint32_t ending_flags = analysis_attributes_[ending_bb->last_mir_insn->dalvikInsn.opcode];
     while ((ending_flags & AN_BRANCH) == 0) {
-      ending_bb = ending_bb->fall_through;
+      ending_bb = GetBasicBlock(ending_bb->fall_through);
       ending_flags = analysis_attributes_[ending_bb->last_mir_insn->dalvikInsn.opcode];
     }
   }
@@ -876,13 +876,14 @@ void MIRGraph::AnalyzeBlock(BasicBlock* bb, MethodStats* stats) {
    */
   int loop_scale_factor = 1;
   // Simple for and while loops
-  if ((ending_bb->taken != NULL) && (ending_bb->fall_through == NULL)) {
-    if ((ending_bb->taken->taken == bb) || (ending_bb->taken->fall_through == bb)) {
+  if ((ending_bb->taken != NullBasicBlockId) && (ending_bb->fall_through == NullBasicBlockId)) {
+    if ((GetBasicBlock(ending_bb->taken)->taken == bb->id) ||
+        (GetBasicBlock(ending_bb->taken)->fall_through == bb->id)) {
       loop_scale_factor = 25;
     }
   }
   // Simple do-while loop
-  if ((ending_bb->taken != NULL) && (ending_bb->taken == bb)) {
+  if ((ending_bb->taken != NullBasicBlockId) && (ending_bb->taken == bb->id)) {
     loop_scale_factor = 25;
   }
 
@@ -922,7 +923,7 @@ void MIRGraph::AnalyzeBlock(BasicBlock* bb, MethodStats* stats) {
     if (tbb == ending_bb) {
       done = true;
     } else {
-      tbb = tbb->fall_through;
+      tbb = GetBasicBlock(tbb->fall_through);
     }
   }
   if (has_math && computational_block && (loop_scale_factor > 1)) {

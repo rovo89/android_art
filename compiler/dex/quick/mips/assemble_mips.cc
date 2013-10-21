@@ -489,12 +489,12 @@ void MipsMir2Lir::ConvertShortToLongBranch(LIR* lir) {
   LIR* curr_pc = RawLIR(dalvik_offset, kMipsCurrPC);
   InsertLIRBefore(lir, curr_pc);
   LIR* anchor = RawLIR(dalvik_offset, kPseudoTargetLabel);
-  LIR* delta_hi = RawLIR(dalvik_offset, kMipsDeltaHi, r_AT, 0,
-                        reinterpret_cast<uintptr_t>(anchor), 0, 0, lir->target);
+  LIR* delta_hi = RawLIR(dalvik_offset, kMipsDeltaHi, r_AT, 0, WrapPointer(anchor), 0, 0,
+                         lir->target);
   InsertLIRBefore(lir, delta_hi);
   InsertLIRBefore(lir, anchor);
-  LIR* delta_lo = RawLIR(dalvik_offset, kMipsDeltaLo, r_AT, 0,
-                        reinterpret_cast<uintptr_t>(anchor), 0, 0, lir->target);
+  LIR* delta_lo = RawLIR(dalvik_offset, kMipsDeltaLo, r_AT, 0, WrapPointer(anchor), 0, 0,
+                         lir->target);
   InsertLIRBefore(lir, delta_lo);
   LIR* addu = RawLIR(dalvik_offset, kMipsAddu, r_AT, r_AT, r_RA);
   InsertLIRBefore(lir, addu);
@@ -512,7 +512,7 @@ void MipsMir2Lir::ConvertShortToLongBranch(LIR* lir) {
  * instruction.  In those cases we will try to substitute a new code
  * sequence or request that the trace be shortened and retried.
  */
-AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
+AssemblerStatus MipsMir2Lir::AssembleInstructions(CodeOffset start_addr) {
   LIR *lir;
   AssemblerStatus res = kSuccess;  // Assume success
 
@@ -538,8 +538,8 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
          * and is found in lir->target.  If operands[3] is non-NULL,
          * then it is a Switch/Data table.
          */
-        int offset1 = (reinterpret_cast<LIR*>(lir->operands[2]))->offset;
-        SwitchTable *tab_rec = reinterpret_cast<SwitchTable*>(lir->operands[3]);
+        int offset1 = (reinterpret_cast<LIR*>(UnwrapPointer(lir->operands[2])))->offset;
+        EmbeddedData *tab_rec = reinterpret_cast<EmbeddedData*>(UnwrapPointer(lir->operands[3]));
         int offset2 = tab_rec ? tab_rec->offset : lir->target->offset;
         int delta = offset2 - offset1;
         if ((delta & 0xffff) == delta && ((delta & 0x8000) == 0)) {
@@ -565,21 +565,21 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
           res = kRetryAll;
         }
       } else if (lir->opcode == kMipsDeltaLo) {
-        int offset1 = (reinterpret_cast<LIR*>(lir->operands[2]))->offset;
-        SwitchTable *tab_rec = reinterpret_cast<SwitchTable*>(lir->operands[3]);
+        int offset1 = (reinterpret_cast<LIR*>(UnwrapPointer(lir->operands[2])))->offset;
+        EmbeddedData *tab_rec = reinterpret_cast<EmbeddedData*>(UnwrapPointer(lir->operands[3]));
         int offset2 = tab_rec ? tab_rec->offset : lir->target->offset;
         int delta = offset2 - offset1;
         lir->operands[1] = delta & 0xffff;
       } else if (lir->opcode == kMipsDeltaHi) {
-        int offset1 = (reinterpret_cast<LIR*>(lir->operands[2]))->offset;
-        SwitchTable *tab_rec = reinterpret_cast<SwitchTable*>(lir->operands[3]);
+        int offset1 = (reinterpret_cast<LIR*>(UnwrapPointer(lir->operands[2])))->offset;
+        EmbeddedData *tab_rec = reinterpret_cast<EmbeddedData*>(UnwrapPointer(lir->operands[3]));
         int offset2 = tab_rec ? tab_rec->offset : lir->target->offset;
         int delta = offset2 - offset1;
         lir->operands[1] = (delta >> 16) & 0xffff;
       } else if (lir->opcode == kMipsB || lir->opcode == kMipsBal) {
         LIR *target_lir = lir->target;
-        uintptr_t pc = lir->offset + 4;
-        uintptr_t target = target_lir->offset;
+        CodeOffset pc = lir->offset + 4;
+        CodeOffset target = target_lir->offset;
         int delta = target - pc;
         if (delta & 0x3) {
           LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
@@ -592,8 +592,8 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
         }
       } else if (lir->opcode >= kMipsBeqz && lir->opcode <= kMipsBnez) {
         LIR *target_lir = lir->target;
-        uintptr_t pc = lir->offset + 4;
-        uintptr_t target = target_lir->offset;
+        CodeOffset pc = lir->offset + 4;
+        CodeOffset target = target_lir->offset;
         int delta = target - pc;
         if (delta & 0x3) {
           LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
@@ -606,8 +606,8 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
         }
       } else if (lir->opcode == kMipsBeq || lir->opcode == kMipsBne) {
         LIR *target_lir = lir->target;
-        uintptr_t pc = lir->offset + 4;
-        uintptr_t target = target_lir->offset;
+        CodeOffset pc = lir->offset + 4;
+        CodeOffset target = target_lir->offset;
         int delta = target - pc;
         if (delta & 0x3) {
           LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
@@ -619,8 +619,8 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
           lir->operands[2] = delta >> 2;
         }
       } else if (lir->opcode == kMipsJal) {
-        uintptr_t cur_pc = (start_addr + lir->offset + 4) & ~3;
-        uintptr_t target = lir->operands[0];
+        CodeOffset cur_pc = (start_addr + lir->offset + 4) & ~3;
+        CodeOffset target = lir->operands[0];
         /* ensure PC-region branch can be used */
         DCHECK_EQ((cur_pc & 0xF0000000), (target & 0xF0000000));
         if (target & 0x3) {
@@ -629,11 +629,11 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
         lir->operands[0] =  target >> 2;
       } else if (lir->opcode == kMipsLahi) { /* ld address hi (via lui) */
         LIR *target_lir = lir->target;
-        uintptr_t target = start_addr + target_lir->offset;
+        CodeOffset target = start_addr + target_lir->offset;
         lir->operands[1] = target >> 16;
       } else if (lir->opcode == kMipsLalo) { /* ld address lo (via ori) */
         LIR *target_lir = lir->target;
-        uintptr_t target = start_addr + target_lir->offset;
+        CodeOffset target = start_addr + target_lir->offset;
         lir->operands[2] = lir->operands[2] + target;
       }
     }

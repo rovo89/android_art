@@ -39,7 +39,7 @@ namespace art {
       virtual ~DataflowIterator() {}
 
     protected:
-      DataflowIterator(MIRGraph* mir_graph, int start_idx, int end_idx)
+      DataflowIterator(MIRGraph* mir_graph, int32_t start_idx, int32_t end_idx)
           : mir_graph_(mir_graph),
             start_idx_(start_idx),
             end_idx_(end_idx),
@@ -53,10 +53,10 @@ namespace art {
       virtual BasicBlock* ReverseRepeatNext(bool had_change) ALWAYS_INLINE;
 
       MIRGraph* const mir_graph_;
-      const int start_idx_;
-      const int end_idx_;
-      GrowableArray<int>* block_id_list_;
-      int idx_;
+      const int32_t start_idx_;
+      const int32_t end_idx_;
+      GrowableArray<BasicBlockId>* block_id_list_;
+      int32_t idx_;
       bool changed_;
   };  // DataflowIterator
 

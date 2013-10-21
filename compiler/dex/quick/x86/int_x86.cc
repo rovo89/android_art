@@ -166,7 +166,7 @@ void X86Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
 }
 
 void X86Mir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
-  LIR* taken = &block_label_list_[bb->taken->id];
+  LIR* taken = &block_label_list_[bb->taken];
   RegLocation rl_src1 = mir_graph_->GetSrcWide(mir, 0);
   RegLocation rl_src2 = mir_graph_->GetSrcWide(mir, 2);
   FlushAllRegs();

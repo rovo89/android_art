@@ -223,7 +223,7 @@ std::string X86Mir2Lir::BuildInsnString(const char *fmt, LIR *lir, unsigned char
             buf += StringPrintf("%d", operand);
             break;
           case 'p': {
-            SwitchTable *tab_rec = reinterpret_cast<SwitchTable*>(operand);
+            EmbeddedData *tab_rec = reinterpret_cast<EmbeddedData*>(UnwrapPointer(operand));
             buf += StringPrintf("0x%08x", tab_rec->offset);
             break;
           }
@@ -238,7 +238,7 @@ std::string X86Mir2Lir::BuildInsnString(const char *fmt, LIR *lir, unsigned char
             break;
           case 't':
             buf += StringPrintf("0x%08x (L%p)",
-                                reinterpret_cast<uint32_t>(base_addr)
+                                reinterpret_cast<uintptr_t>(base_addr)
                                 + lir->offset + operand, lir->target);
             break;
           default:

@@ -1090,11 +1090,13 @@ void X86Mir2Lir::EmitPcRel(const X86EncodingMap* entry, uint8_t reg,
                       int base_or_table, uint8_t index, int scale, int table_or_disp) {
   int disp;
   if (entry->opcode == kX86PcRelLoadRA) {
-    Mir2Lir::SwitchTable *tab_rec = reinterpret_cast<Mir2Lir::SwitchTable*>(table_or_disp);
+    Mir2Lir::EmbeddedData *tab_rec =
+        reinterpret_cast<Mir2Lir::EmbeddedData*>(UnwrapPointer(table_or_disp));
     disp = tab_rec->offset;
   } else {
     DCHECK(entry->opcode == kX86PcRelAdr);
-    Mir2Lir::FillArrayData *tab_rec = reinterpret_cast<Mir2Lir::FillArrayData*>(base_or_table);
+    Mir2Lir::EmbeddedData *tab_rec =
+        reinterpret_cast<Mir2Lir::EmbeddedData*>(UnwrapPointer(base_or_table));
     disp = tab_rec->offset;
   }
   if (entry->skeleton.prefix1 != 0) {
@@ -1161,7 +1163,7 @@ void X86Mir2Lir::EmitUnimplemented(const X86EncodingMap* entry, LIR* lir) {
  * instruction.  In those cases we will try to substitute a new code
  * sequence or request that the trace be shortened and retried.
  */
-AssemblerStatus X86Mir2Lir::AssembleInstructions(uintptr_t start_addr) {
+AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
   LIR *lir;
   AssemblerStatus res = kSuccess;  // Assume success
 
@@ -1181,13 +1183,13 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(uintptr_t start_addr) {
           LIR *target_lir = lir->target;
           DCHECK(target_lir != NULL);
           int delta = 0;
-          uintptr_t pc;
+          CodeOffset pc;
           if (IS_SIMM8(lir->operands[0])) {
             pc = lir->offset + 2 /* opcode + rel8 */;
           } else {
             pc = lir->offset + 6 /* 2 byte opcode + rel32 */;
           }
-          uintptr_t target = target_lir->offset;
+          CodeOffset target = target_lir->offset;
           delta = target - pc;
           if (IS_SIMM8(delta) != IS_SIMM8(lir->operands[0])) {
             if (kVerbosePcFixup) {
@@ -1211,8 +1213,8 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(uintptr_t start_addr) {
         case kX86Jcc32: {
           LIR *target_lir = lir->target;
           DCHECK(target_lir != NULL);
-          uintptr_t pc = lir->offset + 6 /* 2 byte opcode + rel32 */;
-          uintptr_t target = target_lir->offset;
+          CodeOffset pc = lir->offset + 6 /* 2 byte opcode + rel32 */;
+          CodeOffset target = target_lir->offset;
           int delta = target - pc;
           if (kVerbosePcFixup) {
             LOG(INFO) << "Source:";
@@ -1228,13 +1230,13 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(uintptr_t start_addr) {
           LIR *target_lir = lir->target;
           DCHECK(target_lir != NULL);
           int delta = 0;
-          uintptr_t pc;
+          CodeOffset pc;
           if (IS_SIMM8(lir->operands[0])) {
             pc = lir->offset + 2 /* opcode + rel8 */;
           } else {
             pc = lir->offset + 5 /* opcode + rel32 */;
           }
-          uintptr_t target = target_lir->offset;
+          CodeOffset target = target_lir->offset;
           delta = target - pc;
           if (!(cu_->disable_opt & (1 << kSafeOptimizations)) && delta == 0) {
             // Useless branch
@@ -1257,8 +1259,8 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(uintptr_t start_addr) {
         case kX86Jmp32: {
           LIR *target_lir = lir->target;
           DCHECK(target_lir != NULL);
-          uintptr_t pc = lir->offset + 5 /* opcode + rel32 */;
-          uintptr_t target = target_lir->offset;
+          CodeOffset pc = lir->offset + 5 /* opcode + rel32 */;
+          CodeOffset target = target_lir->offset;
           int delta = target - pc;
           lir->operands[0] = delta;
           break;

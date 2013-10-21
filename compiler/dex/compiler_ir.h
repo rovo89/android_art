@@ -90,14 +90,14 @@ struct CompilationUnit {
   InstructionSet instruction_set;
 
   // TODO: much of this info available elsewhere.  Go to the original source?
-  int num_dalvik_registers;        // method->registers_size.
+  uint16_t num_dalvik_registers;        // method->registers_size.
   const uint16_t* insns;
-  int num_ins;
-  int num_outs;
-  int num_regs;            // Unlike num_dalvik_registers, does not include ins.
+  uint16_t num_ins;
+  uint16_t num_outs;
+  uint16_t num_regs;            // Unlike num_dalvik_registers, does not include ins.
 
   // TODO: may want to move this to MIRGraph.
-  int num_compiler_temps;
+  uint16_t num_compiler_temps;
 
   // If non-empty, apply optimizer/debug flags only to matching methods.
   std::string compiler_method_match;

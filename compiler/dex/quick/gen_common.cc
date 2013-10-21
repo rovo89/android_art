@@ -40,7 +40,7 @@ void Mir2Lir::GenBarrier() {
   barrier->u.m.def_mask = ENCODE_ALL;
 }
 
-// FIXME: need to do some work to split out targets with
+// TODO: need to do some work to split out targets with
 // condition codes and those without
 LIR* Mir2Lir::GenCheck(ConditionCode c_code, ThrowKind kind) {
   DCHECK_NE(cu_->instruction_set, kMips);
@@ -503,7 +503,7 @@ void Mir2Lir::HandleSuspendLaunchPads() {
     ResetRegPool();
     ResetDefTracking();
     LIR* lab = suspend_launchpads_.Get(i);
-    LIR* resume_lab = reinterpret_cast<LIR*>(lab->operands[0]);
+    LIR* resume_lab = reinterpret_cast<LIR*>(UnwrapPointer(lab->operands[0]));
     current_dalvik_offset_ = lab->operands[1];
     AppendLIR(lab);
     int r_tgt = CallHelperSetup(helper_offset);
@@ -518,12 +518,12 @@ void Mir2Lir::HandleIntrinsicLaunchPads() {
     ResetRegPool();
     ResetDefTracking();
     LIR* lab = intrinsic_launchpads_.Get(i);
-    CallInfo* info = reinterpret_cast<CallInfo*>(lab->operands[0]);
+    CallInfo* info = reinterpret_cast<CallInfo*>(UnwrapPointer(lab->operands[0]));
     current_dalvik_offset_ = info->offset;
     AppendLIR(lab);
     // NOTE: GenInvoke handles MarkSafepointPC
     GenInvoke(info);
-    LIR* resume_lab = reinterpret_cast<LIR*>(lab->operands[2]);
+    LIR* resume_lab = reinterpret_cast<LIR*>(UnwrapPointer(lab->operands[2]));
     if (resume_lab != NULL) {
       OpUnconditionalBranch(resume_lab);
     }
@@ -1351,7 +1351,7 @@ static bool IsPopCountLE2(unsigned int x) {
 }
 
 // Returns the index of the lowest set bit in 'x'.
-static int LowestSetBit(unsigned int x) {
+static int32_t LowestSetBit(uint32_t x) {
   int bit_posn = 0;
   while ((x & 0xf) == 0) {
     bit_posn += 4;
@@ -1752,8 +1752,8 @@ void Mir2Lir::GenSuspendTest(int opt_flags) {
   FlushAllRegs();
   LIR* branch = OpTestSuspend(NULL);
   LIR* ret_lab = NewLIR0(kPseudoTargetLabel);
-  LIR* target = RawLIR(current_dalvik_offset_, kPseudoSuspendTarget,
-                       reinterpret_cast<uintptr_t>(ret_lab), current_dalvik_offset_);
+  LIR* target = RawLIR(current_dalvik_offset_, kPseudoSuspendTarget, WrapPointer(ret_lab),
+                       current_dalvik_offset_);
   branch->target = target;
   suspend_launchpads_.Insert(target);
 }
@@ -1766,8 +1766,8 @@ void Mir2Lir::GenSuspendTestAndBranch(int opt_flags, LIR* target) {
   }
   OpTestSuspend(target);
   LIR* launch_pad =
-      RawLIR(current_dalvik_offset_, kPseudoSuspendTarget,
-             reinterpret_cast<uintptr_t>(target), current_dalvik_offset_);
+      RawLIR(current_dalvik_offset_, kPseudoSuspendTarget, WrapPointer(target),
+             current_dalvik_offset_);
   FlushAllRegs();
   OpUnconditionalBranch(launch_pad);
   suspend_launchpads_.Insert(launch_pad);

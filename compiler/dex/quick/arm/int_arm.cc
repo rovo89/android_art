@@ -122,8 +122,8 @@ void ArmMir2Lir::GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1,
   int32_t val_hi = High32Bits(val);
   DCHECK_GE(ModifiedImmediate(val_lo), 0);
   DCHECK_GE(ModifiedImmediate(val_hi), 0);
-  LIR* taken = &block_label_list_[bb->taken->id];
-  LIR* not_taken = &block_label_list_[bb->fall_through->id];
+  LIR* taken = &block_label_list_[bb->taken];
+  LIR* not_taken = &block_label_list_[bb->fall_through];
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
   int32_t low_reg = rl_src1.low_reg;
   int32_t high_reg = rl_src1.high_reg;
@@ -178,23 +178,6 @@ void ArmMir2Lir::GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1,
 void ArmMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
   RegLocation rl_result;
   RegLocation rl_src = mir_graph_->GetSrc(mir, 0);
-  // Temporary debugging code
-  int dest_sreg = mir->ssa_rep->defs[0];
-  if ((dest_sreg < 0) || (dest_sreg >= mir_graph_->GetNumSSARegs())) {
-    LOG(INFO) << "Bad target sreg: " << dest_sreg << ", in "
-              << PrettyMethod(cu_->method_idx, *cu_->dex_file);
-    LOG(INFO) << "at dex offset 0x" << std::hex << mir->offset;
-    LOG(INFO) << "vreg = " << mir_graph_->SRegToVReg(dest_sreg);
-    LOG(INFO) << "num uses = " << mir->ssa_rep->num_uses;
-    if (mir->ssa_rep->num_uses == 1) {
-      LOG(INFO) << "CONST case, vals = " << mir->dalvikInsn.vB << ", " << mir->dalvikInsn.vC;
-    } else {
-      LOG(INFO) << "MOVE case, operands = " << mir->ssa_rep->uses[1] << ", "
-                << mir->ssa_rep->uses[2];
-    }
-    CHECK(false) << "Invalid target sreg on Select.";
-  }
-  // End temporary debugging code
   RegLocation rl_dest = mir_graph_->GetDest(mir);
   rl_src = LoadValue(rl_src, kCoreReg);
   if (mir->ssa_rep->num_uses == 1) {
@@ -270,8 +253,8 @@ void ArmMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
       return;
     }
   }
-  LIR* taken = &block_label_list_[bb->taken->id];
-  LIR* not_taken = &block_label_list_[bb->fall_through->id];
+  LIR* taken = &block_label_list_[bb->taken];
+  LIR* not_taken = &block_label_list_[bb->fall_through];
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
   rl_src2 = LoadValueWide(rl_src2, kCoreReg);
   OpRegReg(kOpCmp, rl_src1.high_reg, rl_src2.high_reg);

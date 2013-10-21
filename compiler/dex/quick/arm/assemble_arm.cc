@@ -1031,8 +1031,7 @@ void ArmMir2Lir::EncodeLIR(LIR* lir) {
   } else if (LIKELY(!lir->flags.is_nop)) {
     const ArmEncodingMap *encoder = &EncodingMap[lir->opcode];
     uint32_t bits = encoder->skeleton;
-    int i;
-    for (i = 0; i < 4; i++) {
+    for (int i = 0; i < 4; i++) {
       uint32_t operand;
       uint32_t value;
       operand = lir->operands[i];
@@ -1088,7 +1087,7 @@ void ArmMir2Lir::EncodeLIR(LIR* lir) {
           case kFmtDfp: {
             DCHECK(ARM_DOUBLEREG(operand));
             DCHECK_EQ((operand & 0x1), 0U);
-            int reg_name = (operand & ARM_FP_REG_MASK) >> 1;
+            uint32_t reg_name = (operand & ARM_FP_REG_MASK) >> 1;
             /* Snag the 1-bit slice and position it */
             value = ((reg_name & 0x10) >> 4) << encoder->field_loc[i].end;
             /* Extract and position the 4-bit slice */
@@ -1155,9 +1154,9 @@ void ArmMir2Lir::AssembleLIR() {
   LIR* lir;
   LIR* prev_lir;
   int assembler_retries = 0;
-  int starting_offset = EncodeRange(first_lir_insn_, last_lir_insn_, 0);
+  CodeOffset starting_offset = EncodeRange(first_lir_insn_, last_lir_insn_, 0);
   data_offset_ = (starting_offset + 0x3) & ~0x3;
-  int offset_adjustment;
+  int32_t offset_adjustment;
   AssignDataOffsets();
 
   /*
@@ -1200,10 +1199,10 @@ void ArmMir2Lir::AssembleLIR() {
            * we revert to a multiple-instruction materialization sequence.
            */
           LIR *lir_target = lir->target;
-          uintptr_t pc = (lir->offset + 4) & ~3;
-          uintptr_t target = lir_target->offset +
+          CodeOffset pc = (lir->offset + 4) & ~3;
+          CodeOffset target = lir_target->offset +
               ((lir_target->flags.generation == lir->flags.generation) ? 0 : offset_adjustment);
-          int delta = target - pc;
+          int32_t delta = target - pc;
           if (res != kSuccess) {
             /*
              * In this case, we're just estimating and will do it again for real.  Ensure offset
@@ -1281,10 +1280,10 @@ void ArmMir2Lir::AssembleLIR() {
         }
         case kFixupCBxZ: {
           LIR *target_lir = lir->target;
-          uintptr_t pc = lir->offset + 4;
-          uintptr_t target = target_lir->offset +
+          CodeOffset pc = lir->offset + 4;
+          CodeOffset target = target_lir->offset +
               ((target_lir->flags.generation == lir->flags.generation) ? 0 : offset_adjustment);
-          int delta = target - pc;
+          int32_t delta = target - pc;
           if (delta > 126 || delta < 0) {
             /*
              * Convert to cmp rx,#0 / b[eq/ne] tgt pair
@@ -1351,10 +1350,10 @@ void ArmMir2Lir::AssembleLIR() {
         }
         case kFixupCondBranch: {
           LIR *target_lir = lir->target;
-          int delta = 0;
+          int32_t delta = 0;
           DCHECK(target_lir);
-          uintptr_t pc = lir->offset + 4;
-          uintptr_t target = target_lir->offset +
+          CodeOffset pc = lir->offset + 4;
+          CodeOffset target = target_lir->offset +
               ((target_lir->flags.generation == lir->flags.generation) ? 0 : offset_adjustment);
           delta = target - pc;
           if ((lir->opcode == kThumbBCond) && (delta > 254 || delta < -256)) {
@@ -1370,10 +1369,10 @@ void ArmMir2Lir::AssembleLIR() {
         }
         case kFixupT2Branch: {
           LIR *target_lir = lir->target;
-          uintptr_t pc = lir->offset + 4;
-          uintptr_t target = target_lir->offset +
+          CodeOffset pc = lir->offset + 4;
+          CodeOffset target = target_lir->offset +
               ((target_lir->flags.generation == lir->flags.generation) ? 0 : offset_adjustment);
-          int delta = target - pc;
+          int32_t delta = target - pc;
           lir->operands[0] = delta >> 1;
           if (!(cu_->disable_opt & (1 << kSafeOptimizations)) && lir->operands[0] == 0) {
             // Useless branch
@@ -1387,10 +1386,10 @@ void ArmMir2Lir::AssembleLIR() {
         }
         case kFixupT1Branch: {
           LIR *target_lir = lir->target;
-          uintptr_t pc = lir->offset + 4;
-          uintptr_t target = target_lir->offset +
+          CodeOffset pc = lir->offset + 4;
+          CodeOffset target = target_lir->offset +
               ((target_lir->flags.generation == lir->flags.generation) ? 0 : offset_adjustment);
-          int delta = target - pc;
+          int32_t delta = target - pc;
           if (delta > 2046 || delta < -2048) {
             // Convert to Thumb2BCond w/ kArmCondAl
             offset_adjustment -= lir->flags.size;
@@ -1416,14 +1415,14 @@ void ArmMir2Lir::AssembleLIR() {
         case kFixupBlx1: {
           DCHECK(NEXT_LIR(lir)->opcode == kThumbBlx2);
           /* cur_pc is Thumb */
-          uintptr_t cur_pc = (lir->offset + 4) & ~3;
-          uintptr_t target = lir->operands[1];
+          CodeOffset cur_pc = (lir->offset + 4) & ~3;
+          CodeOffset target = lir->operands[1];
 
           /* Match bit[1] in target with base */
           if (cur_pc & 0x2) {
             target |= 0x2;
           }
-          int delta = target - cur_pc;
+          int32_t delta = target - cur_pc;
           DCHECK((delta >= -(1<<22)) && (delta <= ((1<<22)-2)));
 
           lir->operands[0] = (delta >> 12) & 0x7ff;
@@ -1433,10 +1432,10 @@ void ArmMir2Lir::AssembleLIR() {
         case kFixupBl1: {
           DCHECK(NEXT_LIR(lir)->opcode == kThumbBl2);
           /* Both cur_pc and target are Thumb */
-          uintptr_t cur_pc = lir->offset + 4;
-          uintptr_t target = lir->operands[1];
+          CodeOffset cur_pc = lir->offset + 4;
+          CodeOffset target = lir->operands[1];
 
-          int delta = target - cur_pc;
+          int32_t delta = target - cur_pc;
           DCHECK((delta >= -(1<<22)) && (delta <= ((1<<22)-2)));
 
           lir->operands[0] = (delta >> 12) & 0x7ff;
@@ -1444,20 +1443,19 @@ void ArmMir2Lir::AssembleLIR() {
           break;
         }
         case kFixupAdr: {
-          SwitchTable *tab_rec = reinterpret_cast<SwitchTable*>(lir->operands[2]);
+          EmbeddedData *tab_rec = reinterpret_cast<EmbeddedData*>(UnwrapPointer(lir->operands[2]));
           LIR* target = lir->target;
-          int target_disp = (tab_rec != NULL) ?  tab_rec->offset + offset_adjustment
+          int32_t target_disp = (tab_rec != NULL) ?  tab_rec->offset + offset_adjustment
               : target->offset + ((target->flags.generation == lir->flags.generation) ? 0 : offset_adjustment);
-          int disp = target_disp - ((lir->offset + 4) & ~3);
+          int32_t disp = target_disp - ((lir->offset + 4) & ~3);
           if (disp < 4096) {
             lir->operands[1] = disp;
           } else {
             // convert to ldimm16l, ldimm16h, add tgt, pc, operands[0]
             // TUNING: if this case fires often, it can be improved.  Not expected to be common.
             LIR *new_mov16L =
-                RawLIR(lir->dalvik_offset, kThumb2MovImm16LST,
-                       lir->operands[0], 0, reinterpret_cast<uintptr_t>(lir),
-                       reinterpret_cast<uintptr_t>(tab_rec), 0, lir->target);
+                RawLIR(lir->dalvik_offset, kThumb2MovImm16LST, lir->operands[0], 0,
+                       WrapPointer(lir), WrapPointer(tab_rec), 0, lir->target);
             new_mov16L->flags.size = EncodingMap[new_mov16L->opcode].size;
             new_mov16L->flags.fixup = kFixupMovImmLST;
             new_mov16L->offset = lir->offset;
@@ -1467,11 +1465,9 @@ void ArmMir2Lir::AssembleLIR() {
             offset_adjustment += new_mov16L->flags.size;
             InsertFixupBefore(prev_lir, lir, new_mov16L);
             prev_lir = new_mov16L;   // Now we've got a new prev.
-
             LIR *new_mov16H =
-                RawLIR(lir->dalvik_offset, kThumb2MovImm16HST,
-                       lir->operands[0], 0, reinterpret_cast<uintptr_t>(lir),
-                       reinterpret_cast<uintptr_t>(tab_rec), 0, lir->target);
+                RawLIR(lir->dalvik_offset, kThumb2MovImm16HST, lir->operands[0], 0,
+                       WrapPointer(lir), WrapPointer(tab_rec), 0, lir->target);
             new_mov16H->flags.size = EncodingMap[new_mov16H->opcode].size;
             new_mov16H->flags.fixup = kFixupMovImmHST;
             new_mov16H->offset = lir->offset;
@@ -1499,27 +1495,27 @@ void ArmMir2Lir::AssembleLIR() {
         }
         case kFixupMovImmLST: {
           // operands[1] should hold disp, [2] has add, [3] has tab_rec
-          LIR *addPCInst = reinterpret_cast<LIR*>(lir->operands[2]);
-          SwitchTable *tab_rec = reinterpret_cast<SwitchTable*>(lir->operands[3]);
+          LIR *addPCInst = reinterpret_cast<LIR*>(UnwrapPointer(lir->operands[2]));
+          EmbeddedData *tab_rec = reinterpret_cast<EmbeddedData*>(UnwrapPointer(lir->operands[3]));
           // If tab_rec is null, this is a literal load. Use target
           LIR* target = lir->target;
-          int target_disp = tab_rec ? tab_rec->offset : target->offset;
+          int32_t target_disp = tab_rec ? tab_rec->offset : target->offset;
           lir->operands[1] = (target_disp - (addPCInst->offset + 4)) & 0xffff;
           break;
         }
         case kFixupMovImmHST: {
           // operands[1] should hold disp, [2] has add, [3] has tab_rec
-          LIR *addPCInst = reinterpret_cast<LIR*>(lir->operands[2]);
-          SwitchTable *tab_rec = reinterpret_cast<SwitchTable*>(lir->operands[3]);
+          LIR *addPCInst = reinterpret_cast<LIR*>(UnwrapPointer(lir->operands[2]));
+          EmbeddedData *tab_rec = reinterpret_cast<EmbeddedData*>(UnwrapPointer(lir->operands[3]));
           // If tab_rec is null, this is a literal load. Use target
           LIR* target = lir->target;
-          int target_disp = tab_rec ? tab_rec->offset : target->offset;
+          int32_t target_disp = tab_rec ? tab_rec->offset : target->offset;
           lir->operands[1] =
               ((target_disp - (addPCInst->offset + 4)) >> 16) & 0xffff;
           break;
         }
         case kFixupAlign4: {
-          int required_size = lir->offset & 0x2;
+          int32_t required_size = lir->offset & 0x2;
           if (lir->flags.size != required_size) {
             offset_adjustment += required_size - lir->flags.size;
             lir->flags.size = required_size;
@@ -1647,7 +1643,7 @@ uint32_t ArmMir2Lir::EncodeRange(LIR* head_lir, LIR* tail_lir, uint32_t offset) 
 
 void ArmMir2Lir::AssignDataOffsets() {
   /* Set up offsets for literals */
-  int offset = data_offset_;
+  CodeOffset offset = data_offset_;
 
   offset = AssignLiteralOffset(offset);
 
