@@ -73,7 +73,7 @@ class JavaVMExt : public JavaVM {
    * human-readable description of the error.
    */
   bool LoadNativeLibrary(const std::string& path, mirror::ClassLoader* class_loader,
-                         std::string& detail)
+                         std::string* detail)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /**

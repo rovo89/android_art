@@ -146,9 +146,8 @@ class Heap {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void ThrowOutOfMemoryError(size_t byte_count, bool large_object_allocation);
 
-  void RegisterNativeAllocation(int bytes)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void RegisterNativeFree(int bytes) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void RegisterNativeAllocation(JNIEnv* env, int bytes);
+  void RegisterNativeFree(JNIEnv* env, int bytes);
 
   // The given reference is believed to be to an object in the Java heap, check the soundness of it.
   void VerifyObjectImpl(const mirror::Object* o);

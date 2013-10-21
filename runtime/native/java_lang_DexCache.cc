@@ -17,13 +17,13 @@
 #include "dex_file.h"
 #include "mirror/dex_cache.h"
 #include "mirror/object-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_fast_native_object_access.h"
 #include "well_known_classes.h"
 
 namespace art {
 
 static jobject DexCache_getDexNative(JNIEnv* env, jobject javaDexCache) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   mirror::DexCache* dex_cache = soa.Decode<mirror::DexCache*>(javaDexCache);
   // Should only be called while holding the lock on the dex cache.
   DCHECK_EQ(dex_cache->GetLockOwnerThreadId(), soa.Self()->GetThreadId());
@@ -46,7 +46,7 @@ static jobject DexCache_getDexNative(JNIEnv* env, jobject javaDexCache) {
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(DexCache, getDexNative, "()Lcom/android/dex/Dex;"),
+  NATIVE_METHOD(DexCache, getDexNative, "!()Lcom/android/dex/Dex;"),
 };
 
 void register_java_lang_DexCache(JNIEnv* env) {

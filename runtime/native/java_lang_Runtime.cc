@@ -41,7 +41,6 @@ static void Runtime_nativeExit(JNIEnv*, jclass, jint status) {
 }
 
 static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, jobject javaLoader, jstring javaLdLibraryPath) {
-  ScopedObjectAccess soa(env);
   ScopedUtfChars filename(env, javaFilename);
   if (filename.c_str() == NULL) {
     return NULL;
@@ -62,12 +61,15 @@ static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, job
     }
   }
 
-  mirror::ClassLoader* classLoader = soa.Decode<mirror::ClassLoader*>(javaLoader);
   std::string detail;
-  JavaVMExt* vm = Runtime::Current()->GetJavaVM();
-  bool success = vm->LoadNativeLibrary(filename.c_str(), classLoader, detail);
-  if (success) {
-    return NULL;
+  {
+    ScopedObjectAccess soa(env);
+    mirror::ClassLoader* classLoader = soa.Decode<mirror::ClassLoader*>(javaLoader);
+    JavaVMExt* vm = Runtime::Current()->GetJavaVM();
+    bool success = vm->LoadNativeLibrary(filename.c_str(), classLoader, &detail);
+    if (success) {
+      return nullptr;
+    }
   }
 
   // Don't let a pending exception from JNI_OnLoad cause a CheckJNI issue with NewStringUTF.

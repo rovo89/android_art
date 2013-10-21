@@ -24,13 +24,14 @@
 #include "mirror/proxy.h"
 #include "object_utils.h"
 #include "scoped_thread_state_change.h"
+#include "scoped_fast_native_object_access.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
 #include "well_known_classes.h"
 
 namespace art {
 
-static mirror::Class* DecodeClass(const ScopedObjectAccess& soa, jobject java_class)
+static mirror::Class* DecodeClass(const ScopedFastNativeObjectAccess& soa, jobject java_class)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Class* c = soa.Decode<mirror::Class*>(java_class);
   DCHECK(c != NULL);
@@ -79,13 +80,13 @@ static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean
 }
 
 static jstring Class_getNameNative(JNIEnv* env, jobject javaThis) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   mirror::Class* c = DecodeClass(soa, javaThis);
   return soa.AddLocalReference<jstring>(c->ComputeName());
 }
 
 static jobjectArray Class_getProxyInterfaces(JNIEnv* env, jobject javaThis) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   mirror::SynthesizedProxyClass* c =
       down_cast<mirror::SynthesizedProxyClass*>(DecodeClass(soa, javaThis));
   return soa.AddLocalReference<jobjectArray>(c->GetInterfaces()->Clone(soa.Self()));
@@ -93,8 +94,8 @@ static jobjectArray Class_getProxyInterfaces(JNIEnv* env, jobject javaThis) {
 
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Class, classForName, "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;"),
-  NATIVE_METHOD(Class, getNameNative, "()Ljava/lang/String;"),
-  NATIVE_METHOD(Class, getProxyInterfaces, "()[Ljava/lang/Class;"),
+  NATIVE_METHOD(Class, getNameNative, "!()Ljava/lang/String;"),
+  NATIVE_METHOD(Class, getProxyInterfaces, "!()[Ljava/lang/Class;"),
 };
 
 void register_java_lang_Class(JNIEnv* env) {
