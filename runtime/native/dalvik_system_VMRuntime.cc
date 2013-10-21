@@ -203,11 +203,12 @@ static void VMRuntime_concurrentGC(JNIEnv* env, jobject) {
 
 typedef std::map<std::string, mirror::String*> StringTable;
 
-static void PreloadDexCachesStringsVisitor(const mirror::Object* root, void* arg) {
+static mirror::Object* PreloadDexCachesStringsVisitor(mirror::Object* root, void* arg) {
   StringTable& table = *reinterpret_cast<StringTable*>(arg);
   mirror::String* string = const_cast<mirror::Object*>(root)->AsString();
   // LOG(INFO) << "VMRuntime.preloadDexCaches interned=" << string->ToModifiedUtf8();
   table[string->ToModifiedUtf8()] = string;
+  return root;
 }
 
 // Based on ClassLinker::ResolveString.
