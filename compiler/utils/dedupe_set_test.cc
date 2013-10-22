@@ -19,10 +19,6 @@
 
 namespace art {
 
-class DedupeSetTest : public testing::Test {
- public:
-};
-
 class DedupeHashFunc {
  public:
   size_t operator()(const std::vector<uint8_t>& array) const {
@@ -35,7 +31,7 @@ class DedupeHashFunc {
     return hash;
   }
 };
-TEST_F(DedupeSetTest, Test) {
+TEST(DedupeSetTest, Test) {
   Thread* self = Thread::Current();
   typedef std::vector<uint8_t> ByteArray;
   DedupeSet<ByteArray, size_t, DedupeHashFunc> deduplicator("test");

@@ -183,7 +183,7 @@ void MIRGraph::ComputeDomPostOrderTraversal(BasicBlock* bb) {
   ClearAllVisitedFlags();
   std::vector<std::pair<BasicBlock*, ArenaBitVector::Iterator*> > work_stack;
   bb->visited = true;
-  work_stack.push_back(std::make_pair(bb, new (arena_) ArenaBitVector::Iterator(bb->i_dominated)));
+  work_stack.push_back(std::make_pair(bb, bb->i_dominated->GetIterator()));
   while (!work_stack.empty()) {
     const std::pair<BasicBlock*, ArenaBitVector::Iterator*>& curr = work_stack.back();
     BasicBlock* curr_bb = curr.first;
@@ -196,7 +196,7 @@ void MIRGraph::ComputeDomPostOrderTraversal(BasicBlock* bb) {
       BasicBlock* new_bb = GetBasicBlock(bb_idx);
       new_bb->visited = true;
       work_stack.push_back(
-          std::make_pair(new_bb, new (arena_) ArenaBitVector::Iterator(new_bb->i_dominated)));
+          std::make_pair(new_bb, new_bb->i_dominated->GetIterator()));
     } else {
       // no successor/next
       if (curr_bb->id != NullBasicBlockId) {
