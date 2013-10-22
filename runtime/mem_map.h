@@ -84,8 +84,9 @@ class MemMap {
     return Begin() <= addr && addr < End();
   }
 
-  // Trim by unmapping pages at the end of the map.
-  void UnMapAtEnd(byte* new_end);
+  // Unmap the pages at end and remap them to create another memory map.
+  MemMap* RemapAtEnd(byte* new_end, const char* tail_name, int tail_prot,
+                     std::string* error_msg);
 
  private:
   MemMap(const std::string& name, byte* begin, size_t size, void* base_begin, size_t base_size,
@@ -96,8 +97,10 @@ class MemMap {
   size_t size_;  // Length of data.
 
   void* const base_begin_;  // Page-aligned base address.
-  const size_t base_size_;  // Length of mapping.
+  size_t base_size_;  // Length of mapping. May be changed by RemapAtEnd (ie Zygote).
   int prot_;  // Protection of the map.
+
+  friend class MemMapTest;  // To allow access to base_begin_ and base_size_.
 };
 
 }  // namespace art

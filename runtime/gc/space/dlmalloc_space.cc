@@ -287,8 +287,6 @@ DlMallocSpace* DlMallocSpace::CreateZygoteSpace(const char* alloc_space_name) {
   size_t size = RoundUp(Size(), kPageSize);
   // Trim the heap so that we minimize the size of the Zygote space.
   Trim();
-  // Trim our mem-map to free unused pages.
-  GetMemMap()->UnMapAtEnd(end_);
   // TODO: Not hardcode these in?
   const size_t starting_size = kPageSize;
   const size_t initial_size = 2 * MB;
@@ -308,9 +306,10 @@ DlMallocSpace* DlMallocSpace::CreateZygoteSpace(const char* alloc_space_name) {
   VLOG(heap) << "Size " << GetMemMap()->Size();
   VLOG(heap) << "GrowthLimit " << PrettySize(growth_limit);
   VLOG(heap) << "Capacity " << PrettySize(capacity);
+  // Remap the tail.
   std::string error_msg;
-  UniquePtr<MemMap> mem_map(MemMap::MapAnonymous(alloc_space_name, End(), capacity,
-                                                 PROT_READ | PROT_WRITE, &error_msg));
+  UniquePtr<MemMap> mem_map(GetMemMap()->RemapAtEnd(end_, alloc_space_name,
+                                                    PROT_READ | PROT_WRITE, &error_msg));
   CHECK(mem_map.get() != nullptr) << error_msg;
   void* mspace = CreateMallocSpace(end_, starting_size, initial_size);
   // Protect memory beyond the initial size.
