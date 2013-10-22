@@ -700,6 +700,46 @@ class MethodHelper {
     return s;
   }
 
+  uint32_t FindDexMethodIndexInOtherDexFile(const DexFile& other_dexfile)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    const DexFile& dexfile = GetDexFile();
+    if (&dexfile == &other_dexfile) {
+      return method_->GetDexMethodIndex();
+    }
+    const DexFile::MethodId& mid = dexfile.GetMethodId(method_->GetDexMethodIndex());
+    const char* mid_declaring_class_descriptor = dexfile.StringByTypeIdx(mid.class_idx_);
+    const DexFile::StringId* other_descriptor =
+        other_dexfile.FindStringId(mid_declaring_class_descriptor);
+    if (other_descriptor != nullptr) {
+      const DexFile::TypeId* other_type_id =
+          other_dexfile.FindTypeId(other_dexfile.GetIndexForStringId(*other_descriptor));
+      if (other_type_id != nullptr) {
+        const char* mid_name = dexfile.GetMethodName(mid);
+        const DexFile::StringId* other_name = other_dexfile.FindStringId(mid_name);
+        if (other_name != nullptr) {
+          uint16_t other_return_type_idx;
+          std::vector<uint16_t> other_param_type_idxs;
+          bool success = other_dexfile.CreateTypeList(dexfile.GetMethodSignature(mid).ToString(),
+                                                      &other_return_type_idx,
+                                                      &other_param_type_idxs);
+          if (success) {
+            const DexFile::ProtoId* other_sig =
+                other_dexfile.FindProtoId(other_return_type_idx, other_param_type_idxs);
+            if (other_sig != nullptr) {
+              const  DexFile::MethodId* other_mid = other_dexfile.FindMethodId(*other_type_id,
+                                                                               *other_name,
+                                                                               *other_sig);
+              if (other_mid != nullptr) {
+                return other_dexfile.GetIndexForMethodId(*other_mid);
+              }
+            }
+          }
+        }
+      }
+    }
+    return DexFile::kDexNoIndex;
+  }
+
  private:
   // Set the method_ field, for proxy methods looking up the interface method via the resolved
   // methods table.
