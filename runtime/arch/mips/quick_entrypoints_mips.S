@@ -1051,11 +1051,9 @@ ENTRY art_quick_proxy_invoke_handler
     jal     artQuickProxyInvokeHandler  # (Method* proxy method, receiver, Thread*, SP)
     move    $a3, $sp               # pass $sp
     lw      $t0, THREAD_EXCEPTION_OFFSET(rSELF) # load Thread::Current()->exception_
-    lw      $gp, 52($sp)           # restore $gp
-    lw      $ra, 60($sp)           # restore $ra
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     bnez    $t0, 1f
-    addiu   $sp, $sp, 64           # pop frame
-    .cfi_adjust_cfa_offset -64
+    nop
     jr      $ra
     nop
 1:
@@ -1069,18 +1067,14 @@ ENTRY art_quick_resolution_trampoline
     move    $a2, rSELF             # pass Thread::Current
     jal     artQuickResolutionTrampoline  # (Method* called, receiver, Thread*, SP)
     move    $a3, $sp               # pass $sp
-    lw      $gp, 52($sp)           # restore $gp
-    lw      $ra, 60($sp)           # restore $ra
     beqz    $v0, 1f
     lw      $a0, 0($sp)            # load resolved method to $a0
-    lw      $a1, 4($sp)            # restore non-callee save $a1
-    lw      $a2, 8($sp)            # restore non-callee save $a2
-    lw      $a3, 12($sp)           # restore non-callee save $a3
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     move    $t9, $v0               # code pointer must be in $t9 to generate the global pointer
     jr      $v0                    # tail call to method
+    nop
 1:
-    addiu   $sp, $sp, 64           # pop frame
-    .cfi_adjust_cfa_offset -64
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     DELIVER_PENDING_EXCEPTION
 END art_quick_resolution_trampoline
 
@@ -1092,11 +1086,9 @@ ENTRY art_quick_to_interpreter_bridge
     jal     artQuickToInterpreterBridge    # (Method* method, Thread*, SP)
     move    $a2, $sp               # pass $sp
     lw      $t0, THREAD_EXCEPTION_OFFSET(rSELF) # load Thread::Current()->exception_
-    lw      $gp, 52($sp)           # restore $gp
-    lw      $ra, 60($sp)           # restore $ra
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     bnez    $t0, 1f
-    addiu   $sp, $sp, 64           # pop frame
-    .cfi_adjust_cfa_offset -64
+    nop
     jr      $ra
     nop
 1:

@@ -48,7 +48,7 @@
 
     /*
      * Macro that sets up the callee save frame to conform with
-     * Runtime::CreateCalleeSaveMethod(kRefsOnly). Restoration assumes non-moving GC.
+     * Runtime::CreateCalleeSaveMethod(kRefsOnly).
      */
 .macro SETUP_REF_ONLY_CALLEE_SAVE_FRAME
     push {r5-r8, r10-r11, lr} @ 7 words of callee saves
@@ -81,7 +81,7 @@
 
     /*
      * Macro that sets up the callee save frame to conform with
-     * Runtime::CreateCalleeSaveMethod(kRefsAndArgs). Restoration assumes non-moving GC.
+     * Runtime::CreateCalleeSaveMethod(kRefsAndArgs).
      */
 .macro SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     push {r1-r3, r5-r8, r10-r11, lr}  @ 10 words of callee saves
@@ -1030,12 +1030,13 @@ ENTRY art_quick_proxy_invoke_handler
     mov     r3, sp                 @ pass SP
     blx     artQuickProxyInvokeHandler  @ (Method* proxy method, receiver, Thread*, SP)
     ldr     r2, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
-    ldr     lr,  [sp, #44]         @ restore lr
-    add     sp,  #48               @ pop frame
-    .cfi_adjust_cfa_offset -48
+    add     sp, #16                @ skip r1-r3, 4 bytes padding.
+    .cfi_adjust_cfa_offset -16
     cbnz    r2, 1f                 @ success if no exception is pending
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     bx      lr                     @ return on success
 1:
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     DELIVER_PENDING_EXCEPTION
 END art_quick_proxy_invoke_handler
 
@@ -1048,11 +1049,7 @@ ENTRY art_quick_resolution_trampoline
     cbz     r0, 1f                 @ is code pointer null? goto exception
     mov     r12, r0
     ldr  r0, [sp, #0]              @ load resolved method in r0
-    ldr  r1, [sp, #8]              @ restore non-callee save r1
-    ldrd r2, [sp, #12]             @ restore non-callee saves r2-r3
-    ldr  lr, [sp, #44]             @ restore lr
-    add  sp, #48                   @ rewind sp
-    .cfi_adjust_cfa_offset -48
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     bx      r12                    @ tail-call into actual code
 1:
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
@@ -1066,12 +1063,13 @@ ENTRY art_quick_to_interpreter_bridge
     mov     r2, sp                 @ pass SP
     blx     artQuickToInterpreterBridge    @ (Method* method, Thread*, SP)
     ldr     r2, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
-    ldr     lr,  [sp, #44]         @ restore lr
-    add     sp,  #48               @ pop frame
-    .cfi_adjust_cfa_offset -48
+    add     sp, #16                @ skip r1-r3, 4 bytes padding.
+    .cfi_adjust_cfa_offset -16
     cbnz    r2, 1f                 @ success if no exception is pending
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     bx    lr                       @ return on success
 1:
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     DELIVER_PENDING_EXCEPTION
 END art_quick_to_interpreter_bridge
 

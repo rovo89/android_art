@@ -1034,8 +1034,9 @@ DEFINE_FUNCTION art_quick_to_interpreter_bridge
     movd %eax, %xmm0              // place return value also into floating point return value
     movd %edx, %xmm1
     punpckldq %xmm1, %xmm0
-    addl LITERAL(44), %esp        // pop arguments
-    .cfi_adjust_cfa_offset -44
+    addl LITERAL(16), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -16
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 END_FUNCTION art_quick_to_interpreter_bridge
 
