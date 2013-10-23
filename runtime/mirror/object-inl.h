@@ -247,6 +247,7 @@ inline size_t Object::SizeOf() const {
   } else {
     result = GetClass()->GetObjectSize();
   }
+  DCHECK_GE(result, sizeof(Object)) << " class=" << PrettyTypeOf(GetClass());
   DCHECK(!IsArtField()  || result == sizeof(ArtField));
   DCHECK(!IsArtMethod() || result == sizeof(ArtMethod));
   return result;

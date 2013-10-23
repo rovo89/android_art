@@ -283,7 +283,7 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   SirtRef<mirror::Class>
       java_lang_DexCache(self, AllocClass(self, java_lang_Class.get(), sizeof(mirror::DexCacheClass)));
   SetClassRoot(kJavaLangDexCache, java_lang_DexCache.get());
-  java_lang_DexCache->SetObjectSize(sizeof(mirror::DexCacheClass));
+  java_lang_DexCache->SetObjectSize(sizeof(mirror::DexCache));
   java_lang_DexCache->SetStatus(mirror::Class::kStatusResolved, self);
 
   // Constructor, Field, Method, and AbstractMethod are necessary so that FindClass can link members.
@@ -3911,6 +3911,11 @@ bool ClassLinker::LinkFields(SirtRef<mirror::Class>& klass, bool is_static) {
     klass->SetNumReferenceInstanceFields(num_reference_fields);
     if (!klass->IsVariableSize()) {
       DCHECK_GE(size, sizeof(mirror::Object)) << ClassHelper(klass.get(), this).GetDescriptor();
+      size_t previous_size = klass->GetObjectSize();
+      if (previous_size != 0) {
+        // Make sure that we didn't originally have an incorrect size.
+        CHECK_EQ(previous_size, size);
+      }
       klass->SetObjectSize(size);
     }
   }
