@@ -241,6 +241,10 @@ ImageSpace* ImageSpace::Init(const char* image_file_name, bool validate_oat_file
   Runtime* runtime = Runtime::Current();
   mirror::Object* resolution_method = image_header.GetImageRoot(ImageHeader::kResolutionMethod);
   runtime->SetResolutionMethod(down_cast<mirror::ArtMethod*>(resolution_method));
+  mirror::Object* imt_conflict_method = image_header.GetImageRoot(ImageHeader::kImtConflictMethod);
+  runtime->SetImtConflictMethod(down_cast<mirror::ArtMethod*>(imt_conflict_method));
+  mirror::Object* default_imt = image_header.GetImageRoot(ImageHeader::kDefaultImt);
+  runtime->SetDefaultImt(down_cast<mirror::ObjectArray<mirror::ArtMethod>*>(default_imt));
 
   mirror::Object* callee_save_method = image_header.GetImageRoot(ImageHeader::kCalleeSaveMethod);
   runtime->SetCalleeSaveMethod(down_cast<mirror::ArtMethod*>(callee_save_method), Runtime::kSaveAll);

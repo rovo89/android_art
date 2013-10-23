@@ -196,7 +196,9 @@ ClassLinker::ClassLinker(InternTable* intern_table)
       class_table_dirty_(false),
       intern_table_(intern_table),
       portable_resolution_trampoline_(NULL),
-      quick_resolution_trampoline_(NULL) {
+      quick_resolution_trampoline_(NULL),
+      portable_imt_conflict_trampoline_(NULL),
+      quick_imt_conflict_trampoline_(NULL) {
   CHECK_EQ(arraysize(class_roots_descriptors_), size_t(kClassRootsMax));
 }
 
@@ -335,6 +337,12 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   // run char class through InitializePrimitiveClass to finish init
   InitializePrimitiveClass(char_class.get(), Primitive::kPrimChar);
   SetClassRoot(kPrimitiveChar, char_class.get());  // needs descriptor
+
+  // Create runtime resolution and imt conflict methods. Also setup the default imt.
+  Runtime* runtime = Runtime::Current();
+  runtime->SetResolutionMethod(runtime->CreateResolutionMethod());
+  runtime->SetImtConflictMethod(runtime->CreateImtConflictMethod());
+  runtime->SetDefaultImt(runtime->CreateDefaultImt(this));
 
   // Object, String and DexCache need to be rerun through FindSystemClass to finish init
   java_lang_Object->SetStatus(mirror::Class::kStatusNotReady, self);
@@ -1045,6 +1053,8 @@ void ClassLinker::InitFromImage() {
   CHECK(oat_file.GetOatHeader().GetImageFileLocation().empty());
   portable_resolution_trampoline_ = oat_file.GetOatHeader().GetPortableResolutionTrampoline();
   quick_resolution_trampoline_ = oat_file.GetOatHeader().GetQuickResolutionTrampoline();
+  portable_imt_conflict_trampoline_ = oat_file.GetOatHeader().GetPortableImtConflictTrampoline();
+  quick_imt_conflict_trampoline_ = oat_file.GetOatHeader().GetQuickImtConflictTrampoline();
   mirror::Object* dex_caches_object = space->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
   mirror::ObjectArray<mirror::DexCache>* dex_caches =
       dex_caches_object->AsObjectArray<mirror::DexCache>();
@@ -3518,6 +3528,8 @@ bool ClassLinker::LinkVirtualMethods(SirtRef<mirror::Class>& klass) {
 
 bool ClassLinker::LinkInterfaceMethods(SirtRef<mirror::Class>& klass,
                                        mirror::ObjectArray<mirror::Class>* interfaces) {
+  // Set the imt table to be all conflicts by default.
+  klass->SetImTable(Runtime::Current()->GetDefaultImt());
   size_t super_ifcount;
   if (klass->HasSuperClass()) {
     super_ifcount = klass->GetSuperClass()->GetIfTableCount();
@@ -3625,6 +3637,13 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<mirror::Class>& klass,
   if (klass->IsInterface()) {
     return true;
   }
+  // Allocate imtable
+  bool imtable_changed = false;
+  SirtRef<mirror::ObjectArray<mirror::ArtMethod> > imtable(self, AllocArtMethodArray(self, kImtSize));
+  if (UNLIKELY(imtable.get() == NULL)) {
+    CHECK(self->IsExceptionPending());  // OOME.
+    return false;
+  }
   std::vector<mirror::ArtMethod*> miranda_list;
   MethodHelper vtable_mh(NULL, this);
   MethodHelper interface_mh(NULL, this);
@@ -3664,6 +3683,14 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<mirror::Class>& klass,
               return false;
             }
             method_array->Set(j, vtable_method);
+            // Place method in imt if entry is empty, place conflict otherwise.
+            uint32_t imt_index = interface_method->GetDexMethodIndex() % kImtSize;
+            if (imtable->Get(imt_index) == NULL) {
+              imtable->Set(imt_index, vtable_method);
+              imtable_changed = true;
+            } else {
+              imtable->Set(imt_index, Runtime::Current()->GetImtConflictMethod());
+            }
             break;
           }
         }
@@ -3694,6 +3721,16 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<mirror::Class>& klass,
         }
       }
     }
+  }
+  if (imtable_changed) {
+    // Fill in empty entries in interface method table with conflict.
+    mirror::ArtMethod* imt_conflict_method = Runtime::Current()->GetImtConflictMethod();
+    for (size_t i = 0; i < kImtSize; i++) {
+      if (imtable->Get(i) == NULL) {
+        imtable->Set(i, imt_conflict_method);
+      }
+    }
+    klass->SetImTable(imtable.get());
   }
   if (!miranda_list.empty()) {
     int old_method_count = klass->NumVirtualMethods();

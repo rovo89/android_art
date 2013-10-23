@@ -76,6 +76,8 @@ int MipsMir2Lir::TargetReg(SpecialTargetRegister reg) {
     case kRet0: res = rMIPS_RET0; break;
     case kRet1: res = rMIPS_RET1; break;
     case kInvokeTgt: res = rMIPS_INVOKE_TGT; break;
+    case kHiddenArg: res = r_T0; break;
+    case kHiddenFpArg: res = INVALID_REG; break;
     case kCount: res = rMIPS_COUNT; break;
   }
   return res;

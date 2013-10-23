@@ -85,6 +85,8 @@ int X86Mir2Lir::TargetReg(SpecialTargetRegister reg) {
     case kRet0: res = rX86_RET0; break;
     case kRet1: res = rX86_RET1; break;
     case kInvokeTgt: res = rX86_INVOKE_TGT; break;
+    case kHiddenArg: res = rAX; break;
+    case kHiddenFpArg: res = fr0; break;
     case kCount: res = rX86_COUNT; break;
   }
   return res;

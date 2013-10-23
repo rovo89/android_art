@@ -458,6 +458,8 @@ class MethodHelper {
       Runtime* runtime = Runtime::Current();
       if (method_ == runtime->GetResolutionMethod()) {
         return "<runtime internal resolution method>";
+      } else if (method_ == runtime->GetImtConflictMethod()) {
+        return "<runtime internal imt conflict method>";
       } else if (method_ == runtime->GetCalleeSaveMethod(Runtime::kSaveAll)) {
         return "<runtime internal callee-save all registers method>";
       } else if (method_ == runtime->GetCalleeSaveMethod(Runtime::kRefsOnly)) {

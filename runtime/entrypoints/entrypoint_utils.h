@@ -372,14 +372,21 @@ static inline mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror:
       return vtable->GetWithoutChecks(vtable_index);
     }
     case kInterface: {
-      mirror::ArtMethod* interface_method =
-          this_object->GetClass()->FindVirtualMethodForInterface(resolved_method);
-      if (UNLIKELY(interface_method == nullptr)) {
-        ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(resolved_method, this_object,
-                                                                   referrer);
-        return nullptr;  // Failure.
+      uint32_t imt_index = resolved_method->GetDexMethodIndex() % ClassLinker::kImtSize;
+      mirror::ObjectArray<mirror::ArtMethod>* imt_table = this_object->GetClass()->GetImTable();
+      mirror::ArtMethod* imt_method = imt_table->Get(imt_index);
+      if (!imt_method->IsImtConflictMethod()) {
+        return imt_method;
       } else {
-        return interface_method;
+        mirror::ArtMethod* interface_method =
+            this_object->GetClass()->FindVirtualMethodForInterface(resolved_method);
+        if (UNLIKELY(interface_method == nullptr)) {
+          ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(resolved_method, this_object,
+                                                                     referrer);
+          return nullptr;  // Failure.
+        } else {
+          return interface_method;
+        }
       }
     }
     default:
@@ -662,6 +669,23 @@ static inline const void* GetResolutionTrampoline(ClassLinker* class_linker) {
   return GetPortableResolutionTrampoline(class_linker);
 #else
   return GetQuickResolutionTrampoline(class_linker);
+#endif
+}
+
+static inline const void* GetPortableImtConflictTrampoline(ClassLinker* class_linker) {
+  return class_linker->GetPortableImtConflictTrampoline();
+}
+
+static inline const void* GetQuickImtConflictTrampoline(ClassLinker* class_linker) {
+  return class_linker->GetQuickImtConflictTrampoline();
+}
+
+// Return address of imt conflict trampoline stub for defined compiler.
+static inline const void* GetImtConflictTrampoline(ClassLinker* class_linker) {
+#if defined(ART_USE_PORTABLE_COMPILER)
+  return GetPortableImtConflictTrampoline(class_linker);
+#else
+  return GetQuickImtConflictTrampoline(class_linker);
 #endif
 }
 

@@ -469,6 +469,11 @@ const std::vector<uint8_t>* CompilerDriver::CreateJniDlsymLookup() const {
   return CreateTrampoline(instruction_set_, kJniAbi, JNI_ENTRYPOINT_OFFSET(pDlsymLookup));
 }
 
+const std::vector<uint8_t>* CompilerDriver::CreatePortableImtConflictTrampoline() const {
+  return CreateTrampoline(instruction_set_, kPortableAbi,
+                          PORTABLE_ENTRYPOINT_OFFSET(pPortableImtConflictTrampoline));
+}
+
 const std::vector<uint8_t>* CompilerDriver::CreatePortableResolutionTrampoline() const {
   return CreateTrampoline(instruction_set_, kPortableAbi,
                           PORTABLE_ENTRYPOINT_OFFSET(pPortableResolutionTrampoline));
@@ -477,6 +482,11 @@ const std::vector<uint8_t>* CompilerDriver::CreatePortableResolutionTrampoline()
 const std::vector<uint8_t>* CompilerDriver::CreatePortableToInterpreterBridge() const {
   return CreateTrampoline(instruction_set_, kPortableAbi,
                           PORTABLE_ENTRYPOINT_OFFSET(pPortableToInterpreterBridge));
+}
+
+const std::vector<uint8_t>* CompilerDriver::CreateQuickImtConflictTrampoline() const {
+  return CreateTrampoline(instruction_set_, kQuickAbi,
+                          QUICK_ENTRYPOINT_OFFSET(pQuickImtConflictTrampoline));
 }
 
 const std::vector<uint8_t>* CompilerDriver::CreateQuickResolutionTrampoline() const {
@@ -1080,7 +1090,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
     }
     use_dex_cache = true;
   } else {
-    if (sharp_type != kStatic && sharp_type != kDirect && sharp_type != kInterface) {
+    if (sharp_type != kStatic && sharp_type != kDirect) {
       return;
     }
     // TODO: support patching on all architectures.
@@ -1101,9 +1111,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
     }
   }
   if (update_stats && method_code_in_boot) {
-    if (sharp_type != kInterface) {  // Interfaces always go via a trampoline until we get IMTs.
-      stats_->DirectCallsToBoot(*type);
-    }
+    stats_->DirectCallsToBoot(*type);
     stats_->DirectMethodsToBoot(*type);
   }
   if (!use_dex_cache && compiling_boot) {
@@ -1145,19 +1153,15 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
     if (compiling_boot) {
       *type = sharp_type;
       *direct_method = -1;
-      if (sharp_type != kInterface) {
-        *direct_code = -1;
-      }
+      *direct_code = -1;
     } else {
       bool method_in_image =
           Runtime::Current()->GetHeap()->FindSpaceFromObject(method, false)->IsImageSpace();
       if (method_in_image) {
-        CHECK_EQ(method->IsAbstract(), sharp_type == kInterface);
+        CHECK(!method->IsAbstract());
         *type = sharp_type;
         *direct_method = reinterpret_cast<uintptr_t>(method);
-        if (*type != kInterface) {
-          *direct_code = reinterpret_cast<uintptr_t>(method->GetEntryPointFromCompiledCode());
-        }
+        *direct_code = reinterpret_cast<uintptr_t>(method->GetEntryPointFromCompiledCode());
         target_method->dex_file = method->GetDeclaringClass()->GetDexCache()->GetDexFile();
         target_method->dex_method_index = method->GetDexMethodIndex();
       } else if (!must_use_direct_pointers) {
@@ -1187,6 +1191,8 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
   if (resolved_method != NULL) {
     if (*invoke_type == kVirtual || *invoke_type == kSuper) {
       *vtable_idx = resolved_method->GetMethodIndex();
+    } else if (*invoke_type == kInterface) {
+      *vtable_idx = resolved_method->GetDexMethodIndex();
     }
     // Don't try to fast-path if we don't understand the caller's class or this appears to be an
     // Incompatible Class Change Error.

@@ -491,69 +491,56 @@ static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
 }
 
 /*
- * All invoke-interface calls bounce off of art_quick_invoke_interface_trampoline,
- * which will locate the target and continue on via a tail call.
+ * Emit the next instruction in an invoke interface sequence. This will do a lookup in the
+ * class's IMT, calling either the actual method or art_quick_imt_conflict_trampoline if
+ * more than one interface method map to the same index. Note also that we'll load the first
+ * argument ("this") into kArg1 here rather than the standard LoadArgRegs.
  */
 static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
                                  const MethodReference& target_method,
-                                 uint32_t unused, uintptr_t unused2,
-                                 uintptr_t direct_method, InvokeType unused4) {
+                                 uint32_t method_idx, uintptr_t unused,
+                                 uintptr_t direct_method, InvokeType unused2) {
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
-  ThreadOffset trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeInterfaceTrampoline);
 
-  if (direct_method != 0) {
-    switch (state) {
-      case 0:  // Load the trampoline target [sets kInvokeTgt].
-        if (cu->instruction_set != kX86) {
-          cg->LoadWordDisp(cg->TargetReg(kSelf), trampoline.Int32Value(),
-                           cg->TargetReg(kInvokeTgt));
-        }
-        // Get the interface Method* [sets kArg0]
-        if (direct_method != static_cast<unsigned int>(-1)) {
-          cg->LoadConstant(cg->TargetReg(kArg0), direct_method);
-        } else {
-          CHECK_EQ(cu->dex_file, target_method.dex_file);
-          LIR* data_target = cg->ScanLiteralPool(cg->method_literal_list_,
-                                                 target_method.dex_method_index, 0);
-          if (data_target == NULL) {
-            data_target = cg->AddWordData(&cg->method_literal_list_,
-                                          target_method.dex_method_index);
-            data_target->operands[1] = kInterface;
-          }
-          LIR* load_pc_rel = cg->OpPcRelLoad(cg->TargetReg(kArg0), data_target);
-          cg->AppendLIR(load_pc_rel);
-          DCHECK_EQ(cu->instruction_set, kThumb2) << reinterpret_cast<void*>(data_target);
-        }
-        break;
-      default:
-        return -1;
-    }
-  } else {
-    switch (state) {
-      case 0:
-        // Get the current Method* [sets kArg0] - TUNING: remove copy of method if it is promoted.
-        cg->LoadCurrMethodDirect(cg->TargetReg(kArg0));
-        // Load the trampoline target [sets kInvokeTgt].
-        if (cu->instruction_set != kX86) {
-          cg->LoadWordDisp(cg->TargetReg(kSelf), trampoline.Int32Value(),
-                           cg->TargetReg(kInvokeTgt));
-        }
-        break;
-    case 1:  // Get method->dex_cache_resolved_methods_ [set/use kArg0]
-      cg->LoadWordDisp(cg->TargetReg(kArg0),
-                       mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(),
-                       cg->TargetReg(kArg0));
-      break;
-    case 2:  // Grab target method* [set/use kArg0]
+  switch (state) {
+    case 0:  // Set target method index in case of conflict [set kHiddenArg, kHiddenFpArg (x86)]
       CHECK_EQ(cu->dex_file, target_method.dex_file);
-      cg->LoadWordDisp(cg->TargetReg(kArg0),
-                       mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
-                           (target_method.dex_method_index * 4),
+      CHECK_LT(target_method.dex_method_index, target_method.dex_file->NumMethodIds());
+      cg->LoadConstant(cg->TargetReg(kHiddenArg), target_method.dex_method_index);
+      if (cu->instruction_set == kX86) {
+        cg->OpRegCopy(cg->TargetReg(kHiddenFpArg), cg->TargetReg(kHiddenArg));
+      }
+      break;
+    case 1: {  // Get "this" [set kArg1]
+      RegLocation  rl_arg = info->args[0];
+      cg->LoadValueDirectFixed(rl_arg, cg->TargetReg(kArg1));
+      break;
+    }
+    case 2:  // Is "this" null? [use kArg1]
+      cg->GenNullCheck(info->args[0].s_reg_low, cg->TargetReg(kArg1), info->opt_flags);
+      // Get this->klass_ [use kArg1, set kInvokeTgt]
+      cg->LoadWordDisp(cg->TargetReg(kArg1), mirror::Object::ClassOffset().Int32Value(),
+                       cg->TargetReg(kInvokeTgt));
+      break;
+    case 3:  // Get this->klass_->imtable [use kInvokeTgt, set kInvokeTgt]
+      cg->LoadWordDisp(cg->TargetReg(kInvokeTgt), mirror::Class::ImTableOffset().Int32Value(),
+                       cg->TargetReg(kInvokeTgt));
+      break;
+    case 4:  // Get target method [use kInvokeTgt, set kArg0]
+      cg->LoadWordDisp(cg->TargetReg(kInvokeTgt), ((method_idx % ClassLinker::kImtSize) * 4) +
+                       mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value(),
                        cg->TargetReg(kArg0));
       break;
+    case 5:  // Get the compiled code address [use kArg0, set kInvokeTgt]
+      if (cu->instruction_set != kX86) {
+        cg->LoadWordDisp(cg->TargetReg(kArg0),
+                         mirror::ArtMethod::GetEntryPointFromCompiledCodeOffset().Int32Value(),
+                         cg->TargetReg(kInvokeTgt));
+        break;
+      }
+      // Intentional fallthrough for X86
     default:
       return -1;
-    }
   }
   return state + 1;
 }
@@ -1390,11 +1377,8 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
                                               &vtable_idx,
                                               &direct_code, &direct_method) && !SLOW_INVOKE_PATH;
   if (info->type == kInterface) {
-    if (fast_path) {
-      p_null_ck = &null_ck;
-    }
     next_call_insn = fast_path ? NextInterfaceCallInsn : NextInterfaceCallInsnWithAccessCheck;
-    skip_this = false;
+    skip_this = fast_path;
   } else if (info->type == kDirect) {
     if (fast_path) {
       p_null_ck = &null_ck;
@@ -1434,15 +1418,14 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
   if (cu_->instruction_set != kX86) {
     call_inst = OpReg(kOpBlx, TargetReg(kInvokeTgt));
   } else {
-    if (fast_path && info->type != kInterface) {
+    if (fast_path) {
       call_inst = OpMem(kOpBlx, TargetReg(kArg0),
                         mirror::ArtMethod::GetEntryPointFromCompiledCodeOffset().Int32Value());
     } else {
       ThreadOffset trampoline(-1);
       switch (info->type) {
       case kInterface:
-        trampoline = fast_path ? QUICK_ENTRYPOINT_OFFSET(pInvokeInterfaceTrampoline)
-            : QUICK_ENTRYPOINT_OFFSET(pInvokeInterfaceTrampolineWithAccessCheck);
+        trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeInterfaceTrampolineWithAccessCheck);
         break;
       case kDirect:
         trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeDirectTrampolineWithAccessCheck);

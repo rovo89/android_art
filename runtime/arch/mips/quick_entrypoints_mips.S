@@ -1060,6 +1060,21 @@ ENTRY art_quick_proxy_invoke_handler
     DELIVER_PENDING_EXCEPTION
 END art_quick_proxy_invoke_handler
 
+    /*
+     * Called to resolve an imt conflict. t0 is a hidden argument that holds the target method's
+     * dex method index.
+     */
+ENTRY art_quick_imt_conflict_trampoline
+    GENERATE_GLOBAL_POINTER
+    lw      $a0, 0($sp)            # load caller Method*
+    lw      $a0, METHOD_DEX_CACHE_METHODS_OFFSET($a0)  # load dex_cache_resolved_methods
+    sll     $t0, 2                 # convert target method offset to bytes
+    add     $a0, $t0               # get address of target method
+    lw      $a0, OBJECT_ARRAY_DATA_OFFSET($a0)  # load the target method
+    la      $t9, art_quick_invoke_interface_trampoline
+    jr      $t9
+END art_quick_imt_conflict_trampoline
+
     .extern artQuickResolutionTrampoline
 ENTRY art_quick_resolution_trampoline
     GENERATE_GLOBAL_POINTER

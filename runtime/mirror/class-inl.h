@@ -139,6 +139,14 @@ inline void Class::SetVTable(ObjectArray<ArtMethod>* new_vtable)
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, vtable_), new_vtable, false);
 }
 
+inline ObjectArray<ArtMethod>* Class::GetImTable() const {
+  return GetFieldObject<ObjectArray<ArtMethod>*>(OFFSET_OF_OBJECT_MEMBER(Class, imtable_), false);
+}
+
+inline void Class::SetImTable(ObjectArray<ArtMethod>* new_imtable) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, imtable_), new_imtable, false);
+}
+
 inline bool Class::Implements(const Class* klass) const {
   DCHECK(klass != NULL);
   DCHECK(klass->IsInterface()) << PrettyClass(this);

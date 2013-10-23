@@ -555,6 +555,15 @@ class MANAGED Class : public StaticStorageBase {
     return OFFSET_OF_OBJECT_MEMBER(Class, vtable_);
   }
 
+  ObjectArray<ArtMethod>* GetImTable() const;
+
+  void SetImTable(ObjectArray<ArtMethod>* new_imtable)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static MemberOffset ImTableOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Class, imtable_);
+  }
+
   // Given a method implemented by this class but potentially from a super class, return the
   // specific implementation method for this class.
   ArtMethod* FindVirtualMethodForVirtual(ArtMethod* method) const
@@ -830,6 +839,9 @@ class MANAGED Class : public StaticStorageBase {
   // methods for the methods in the interface.
   IfTable* iftable_;
 
+  // Interface method table (imt), for quick "invoke-interface".
+  ObjectArray<ArtMethod>* imtable_;
+
   // descriptor for the class such as "java.lang.Class" or "[C". Lazily initialized by ComputeName
   String* name_;
 
@@ -912,6 +924,7 @@ std::ostream& operator<<(std::ostream& os, const Class::Status& rhs);
 
 class MANAGED ClassClass : public Class {
  private:
+  int32_t pad_;
   int64_t serialVersionUID_;
   friend struct art::ClassClassOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(ClassClass);

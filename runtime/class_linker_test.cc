@@ -497,6 +497,7 @@ struct ClassOffsets : public CheckOffsets<mirror::Class> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, direct_methods_),                "directMethods"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, ifields_),                       "iFields"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, iftable_),                       "ifTable"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, imtable_),                       "imTable"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, name_),                          "name"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, sfields_),                       "sFields"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, super_class_),                   "superClass"));
@@ -582,11 +583,11 @@ struct StringClassOffsets : public CheckOffsets<mirror::StringClass> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, ASCII_),                  "ASCII"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, CASE_INSENSITIVE_ORDER_), "CASE_INSENSITIVE_ORDER"));
 
-    // alphabetical 64-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, serialVersionUID_),       "serialVersionUID"));
-
     // alphabetical 32-bit
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, REPLACEMENT_CHAR_),       "REPLACEMENT_CHAR"));
+
+    // alphabetical 64-bit
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, serialVersionUID_),       "serialVersionUID"));
   };
 };
 

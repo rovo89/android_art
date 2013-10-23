@@ -44,6 +44,7 @@ TEST_OAT_DIRECTORIES := \
 	Main \
 	HelloWorld \
 	\
+        InterfaceTest \
 	JniTest \
 	NativeAllocations \
 	ParallelGC \
