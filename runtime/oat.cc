@@ -22,13 +22,14 @@
 namespace art {
 
 const uint8_t OatHeader::kOatMagic[] = { 'o', 'a', 't', '\n' };
-const uint8_t OatHeader::kOatVersion[] = { '0', '0', '9', '\0' };
+const uint8_t OatHeader::kOatVersion[] = { '0', '1', '0', '\0' };
 
 OatHeader::OatHeader() {
   memset(this, 0, sizeof(*this));
 }
 
 OatHeader::OatHeader(InstructionSet instruction_set,
+                     const InstructionSetFeatures& instruction_set_features,
                      const std::vector<const DexFile*>* dex_files,
                      uint32_t image_file_location_oat_checksum,
                      uint32_t image_file_location_oat_data_begin,
@@ -41,6 +42,9 @@ OatHeader::OatHeader(InstructionSet instruction_set,
   CHECK_NE(instruction_set, kNone);
   instruction_set_ = instruction_set;
   UpdateChecksum(&instruction_set_, sizeof(instruction_set_));
+
+  instruction_set_features_ = instruction_set_features;
+  UpdateChecksum(&instruction_set_features_, sizeof(instruction_set_features_));
 
   dex_file_count_ = dex_files->size();
   UpdateChecksum(&dex_file_count_, sizeof(dex_file_count_));
@@ -97,6 +101,11 @@ void OatHeader::UpdateChecksum(const void* data, size_t length) {
 InstructionSet OatHeader::GetInstructionSet() const {
   CHECK(IsValid());
   return instruction_set_;
+}
+
+const InstructionSetFeatures& OatHeader::GetInstructionSetFeatures() const {
+  CHECK(IsValid());
+  return instruction_set_features_;
 }
 
 uint32_t OatHeader::GetExecutableOffset() const {

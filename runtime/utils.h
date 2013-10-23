@@ -252,7 +252,7 @@ std::string FormatDuration(uint64_t nano_duration, TimeUnit time_unit);
 // Get the appropriate unit for a nanosecond duration.
 TimeUnit GetAppropriateTimeUnit(uint64_t nano_duration);
 
-// Get the divisor to convert from a nanoseconds to a time unit
+// Get the divisor to convert from a nanoseconds to a time unit.
 uint64_t GetNsToTimeUnitDivisor(TimeUnit time_unit);
 
 // Performs JNI name mangling as described in section 11.3 "Linking Native Methods"
@@ -326,6 +326,9 @@ void InitTimeSpec(bool absolute, int clock, int64_t ms, int32_t ns, timespec* ts
 // strings. Empty strings will be omitted.
 void Split(const std::string& s, char separator, std::vector<std::string>& result);
 
+// Trims whitespace off both ends of the given string.
+std::string Trim(std::string s);
+
 // Joins a vector of strings into a single string, using the given separator.
 template <typename StringT> std::string Join(std::vector<StringT>& strings, char separator);
 
@@ -354,10 +357,10 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix = "", bool 
 // Dumps the kernel stack for thread 'tid' to 'os'. Note that this is only available on linux-x86.
 void DumpKernelStack(std::ostream& os, pid_t tid, const char* prefix = "", bool include_count = true);
 
-// Find $ANDROID_ROOT, /system, or abort
+// Find $ANDROID_ROOT, /system, or abort.
 const char* GetAndroidRoot();
 
-// Find $ANDROID_DATA, /data, or abort
+// Find $ANDROID_DATA, /data, or abort.
 const char* GetAndroidData();
 
 // Returns the dalvik-cache location, or dies trying.

@@ -97,6 +97,9 @@ struct CompilationUnit {
   CompilerBackend compiler_backend;
   InstructionSet instruction_set;
 
+  const InstructionSetFeatures& GetInstructionSetFeatures() {
+    return compiler_driver->GetInstructionSetFeatures();
+  }
   // TODO: much of this info available elsewhere.  Go to the original source?
   uint16_t num_dalvik_registers;        // method->registers_size.
   const uint16_t* insns;

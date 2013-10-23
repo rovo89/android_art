@@ -18,6 +18,9 @@
 #define ART_RUNTIME_INSTRUCTION_SET_H_
 
 #include <iosfwd>
+#include <string>
+
+#include "base/macros.h"
 
 namespace art {
 
@@ -27,6 +30,53 @@ enum InstructionSet {
   kThumb2,
   kX86,
   kMips
+};
+
+enum InstructionFeatures {
+  kHwDiv = 1                  // Supports hardware divide.
+};
+
+// This is a bitmask of supported features per architecture.
+class PACKED(4) InstructionSetFeatures {
+ public:
+  InstructionSetFeatures() : mask_(0) {}
+  explicit InstructionSetFeatures(uint32_t mask) : mask_(mask) {}
+
+  bool HasDivideInstruction() const {
+      return (mask_ & kHwDiv) != 0;
+  }
+
+  void SetHasDivideInstruction(bool v) {
+    mask_ = (mask_ & ~kHwDiv) | (v ? kHwDiv : 0);
+  }
+
+  std::string GetFeatureString() const {
+    std::string result;
+    if ((mask_ & kHwDiv) != 0) {
+      result += "div";
+    }
+    if (result.size() == 0) {
+      result = "none";
+    }
+    return result;
+  }
+
+  uint32_t get_mask() const {
+    return mask_;
+  }
+
+  // Other features in here.
+
+  bool operator==(const InstructionSetFeatures &peer) const {
+    return mask_ == peer.mask_;
+  }
+
+  bool operator!=(const InstructionSetFeatures &peer) const {
+    return mask_ != peer.mask_;
+  }
+
+ private:
+  uint32_t mask_;
 };
 
 std::ostream& operator<<(std::ostream& os, const InstructionSet& rhs);

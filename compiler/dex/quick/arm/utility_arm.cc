@@ -395,6 +395,10 @@ LIR* ArmMir2Lir::OpRegRegRegShift(OpKind op, int r_dest, int r_src1,
       DCHECK_EQ(shift, 0);
       opcode = kThumb2MulRRR;
       break;
+    case kOpDiv:
+      DCHECK_EQ(shift, 0);
+      opcode = kThumb2SdivRRR;
+      break;
     case kOpOr:
       opcode = kThumb2OrrRRR;
       break;

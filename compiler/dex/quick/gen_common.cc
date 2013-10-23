@@ -1307,6 +1307,7 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
     }
     StoreValue(rl_dest, rl_result);
   } else {
+    bool done = false;      // Set to true if we happen to find a way to use a real instruction.
     if (cu_->instruction_set == kMips) {
       rl_src1 = LoadValue(rl_src1, kCoreReg);
       rl_src2 = LoadValue(rl_src2, kCoreReg);
@@ -1314,7 +1315,23 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
           GenImmedCheck(kCondEq, rl_src2.low_reg, 0, kThrowDivZero);
       }
       rl_result = GenDivRem(rl_dest, rl_src1.low_reg, rl_src2.low_reg, op == kOpDiv);
-    } else {
+      done = true;
+    } else if (cu_->instruction_set == kThumb2) {
+      if (cu_->GetInstructionSetFeatures().HasDivideInstruction()) {
+        // Use ARM SDIV instruction for division.  For remainder we also need to
+        // calculate using a MUL and subtract.
+        rl_src1 = LoadValue(rl_src1, kCoreReg);
+        rl_src2 = LoadValue(rl_src2, kCoreReg);
+        if (check_zero) {
+            GenImmedCheck(kCondEq, rl_src2.low_reg, 0, kThrowDivZero);
+        }
+        rl_result = GenDivRem(rl_dest, rl_src1.low_reg, rl_src2.low_reg, op == kOpDiv);
+        done = true;
+      }
+    }
+
+    // If we haven't already generated the code use the callout function.
+    if (!done) {
       ThreadOffset func_offset = QUICK_ENTRYPOINT_OFFSET(pIdivmod);
       FlushAllRegs();   /* Send everything to home location */
       LoadValueDirectFixed(rl_src2, TargetReg(kArg1));
@@ -1323,7 +1340,7 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
       if (check_zero) {
         GenImmedCheck(kCondEq, TargetReg(kArg1), 0, kThrowDivZero);
       }
-      // NOTE: callout here is not a safepoint
+      // NOTE: callout here is not a safepoint.
       CallHelper(r_tgt, func_offset, false /* not a safepoint */);
       if (op == kOpDiv)
         rl_result = GetReturn(false);
@@ -1561,11 +1578,24 @@ void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, Re
       if (HandleEasyDivRem(opcode, is_div, rl_src, rl_dest, lit)) {
         return;
       }
+
+      bool done = false;
       if (cu_->instruction_set == kMips) {
         rl_src = LoadValue(rl_src, kCoreReg);
         rl_result = GenDivRemLit(rl_dest, rl_src.low_reg, lit, is_div);
-      } else {
-        FlushAllRegs();   /* Everything to home location */
+        done = true;
+      } else if (cu_->instruction_set == kThumb2) {
+        if (cu_->GetInstructionSetFeatures().HasDivideInstruction()) {
+          // Use ARM SDIV instruction for division.  For remainder we also need to
+          // calculate using a MUL and subtract.
+          rl_src = LoadValue(rl_src, kCoreReg);
+          rl_result = GenDivRemLit(rl_dest, rl_src.low_reg, lit, is_div);
+          done = true;
+        }
+      }
+
+      if (!done) {
+        FlushAllRegs();   /* Everything to home location. */
         LoadValueDirectFixed(rl_src, TargetReg(kArg0));
         Clobber(TargetReg(kArg0));
         ThreadOffset func_offset = QUICK_ENTRYPOINT_OFFSET(pIdivmod);
@@ -1583,7 +1613,7 @@ void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, Re
   }
   rl_src = LoadValue(rl_src, kCoreReg);
   rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  // Avoid shifts by literal 0 - no support in Thumb.  Change to copy
+  // Avoid shifts by literal 0 - no support in Thumb.  Change to copy.
   if (shift_op && (lit == 0)) {
     OpRegCopy(rl_result.low_reg, rl_src.low_reg);
   } else {

@@ -130,6 +130,10 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 #define LIKELY(x)       __builtin_expect((x), true)
 #define UNLIKELY(x)     __builtin_expect((x), false)
 
+// Stringify the argument.
+#define QUOTE(x) #x
+#define STRINGIFY(x) QUOTE(x)
+
 #ifndef NDEBUG
 #define ALWAYS_INLINE
 #else

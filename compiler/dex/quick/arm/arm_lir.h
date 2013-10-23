@@ -380,6 +380,8 @@ enum ArmOpcode {
   kThumb2CmnRR,      // cmn [111010110001] rn[19..16] [0000] [1111] [0000] rm[3..0].
   kThumb2EorRRR,     // eor [111010101000] rn[19..16] [0000] rd[11..8] [0000] rm[3..0].
   kThumb2MulRRR,     // mul [111110110000] rn[19..16] [1111] rd[11..8] [0000] rm[3..0].
+  kThumb2SdivRRR,    // sdiv [111110111001] rn[19..16] [1111] rd[11..8] [1111] rm[3..0].
+  kThumb2UdivRRR,    // udiv [111110111011] rn[19..16] [1111] rd[11..8] [1111] rm[3..0].
   kThumb2MnvRR,      // mvn [11101010011011110] rd[11-8] [0000] rm[3..0].
   kThumb2RsubRRI8,   // rsub [111100011100] rn[19..16] [0000] rd[11..8] imm8[7..0].
   kThumb2NegRR,      // actually rsub rd, rn, #0.

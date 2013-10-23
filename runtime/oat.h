@@ -32,6 +32,7 @@ class PACKED(4) OatHeader {
 
   OatHeader();
   OatHeader(InstructionSet instruction_set,
+            const InstructionSetFeatures& instruction_set_features,
             const std::vector<const DexFile*>* dex_files,
             uint32_t image_file_location_oat_checksum,
             uint32_t image_file_location_oat_data_begin,
@@ -80,6 +81,7 @@ class PACKED(4) OatHeader {
   void SetQuickToInterpreterBridgeOffset(uint32_t offset);
 
   InstructionSet GetInstructionSet() const;
+  const InstructionSetFeatures& GetInstructionSetFeatures() const;
   uint32_t GetImageFileLocationOatChecksum() const;
   uint32_t GetImageFileLocationOatDataBegin() const;
   uint32_t GetImageFileLocationSize() const;
@@ -92,6 +94,7 @@ class PACKED(4) OatHeader {
   uint32_t adler32_checksum_;
 
   InstructionSet instruction_set_;
+  InstructionSetFeatures instruction_set_features_;
   uint32_t dex_file_count_;
   uint32_t executable_offset_;
   uint32_t interpreter_to_interpreter_bridge_offset_;

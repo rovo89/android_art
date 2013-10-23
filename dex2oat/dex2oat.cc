@@ -131,6 +131,10 @@ static void Usage(const char* fmt, ...) {
   UsageError("      Example: --instruction-set=x86");
   UsageError("      Default: arm");
   UsageError("");
+  UsageError("  --instruction-set-features=...,: Specify instruction set features");
+  UsageError("      Example: --instruction-set-features=div");
+  UsageError("      Default: default");
+  UsageError("");
   UsageError("  --compiler-backend=(Quick|QuickGBC|Portable): select compiler backend");
   UsageError("      set.");
   UsageError("      Example: --compiler-backend=Portable");
@@ -155,13 +159,15 @@ class Dex2Oat {
                      Runtime::Options& options,
                      CompilerBackend compiler_backend,
                      InstructionSet instruction_set,
+                     InstructionSetFeatures instruction_set_features,
                      size_t thread_count)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_) {
     if (!CreateRuntime(options, instruction_set)) {
       *p_dex2oat = NULL;
       return false;
     }
-    *p_dex2oat = new Dex2Oat(Runtime::Current(), compiler_backend, instruction_set, thread_count);
+    *p_dex2oat = new Dex2Oat(Runtime::Current(), compiler_backend, instruction_set,
+        instruction_set_features, thread_count);
     return true;
   }
 
@@ -257,6 +263,7 @@ class Dex2Oat {
 
     UniquePtr<CompilerDriver> driver(new CompilerDriver(compiler_backend_,
                                                         instruction_set_,
+                                                        instruction_set_features_,
                                                         image,
                                                         image_classes.release(),
                                                         thread_count_,
@@ -330,9 +337,11 @@ class Dex2Oat {
   explicit Dex2Oat(Runtime* runtime,
                    CompilerBackend compiler_backend,
                    InstructionSet instruction_set,
+                   InstructionSetFeatures instruction_set_features,
                    size_t thread_count)
       : compiler_backend_(compiler_backend),
         instruction_set_(instruction_set),
+        instruction_set_features_(instruction_set_features),
         runtime_(runtime),
         thread_count_(thread_count),
         start_ns_(NanoTime()) {
@@ -391,6 +400,7 @@ class Dex2Oat {
   const CompilerBackend compiler_backend_;
 
   const InstructionSet instruction_set_;
+  const InstructionSetFeatures instruction_set_features_;
 
   Runtime* runtime_;
   size_t thread_count_;
@@ -559,6 +569,32 @@ class WatchDog {
 const unsigned int WatchDog::kWatchDogWarningSeconds;
 const unsigned int WatchDog::kWatchDogTimeoutSeconds;
 
+// Given a set of instruction features from the build, parse it.  The
+// input 'str' is a comma separated list of feature names.  Parse it and
+// return the InstructionSetFeatures object.
+static InstructionSetFeatures ParseFeatureList(std::string str) {
+  InstructionSetFeatures result;
+  typedef std::vector<std::string> FeatureList;
+  FeatureList features;
+  Split(str, ',', features);
+  for (FeatureList::iterator i = features.begin(); i != features.end(); i++) {
+    std::string feature = Trim(*i);
+    if (feature == "default") {
+      // Nothing to do.
+    } else if (feature == "div") {
+      // Supports divide instruction.
+       result.SetHasDivideInstruction(true);
+    } else if (feature == "nodiv") {
+      // Turn off support for divide instruction.
+      result.SetHasDivideInstruction(false);
+    } else {
+      Usage("Unknown instruction set feature: '%s'", feature.c_str());
+    }
+  }
+  // others...
+  return result;
+}
+
 static int dex2oat(int argc, char** argv) {
   base::TimingLogger timings("compiler", false, false);
 
@@ -595,6 +631,15 @@ static int dex2oat(int argc, char** argv) {
 #else
   CompilerBackend compiler_backend = kQuick;
 #endif
+
+  // Take the default set of instruction features from the build if present.
+  InstructionSetFeatures instruction_set_features =
+#ifdef ART_DEFAULT_INSTRUCTION_SET_FEATURES
+    ParseFeatureList(STRINGIFY(ART_DEFAULT_INSTRUCTION_SET_FEATURES));
+#else
+    ParseFeatureList("default");
+#endif
+
 #if defined(__arm__)
   InstructionSet instruction_set = kThumb2;
 #elif defined(__i386__)
@@ -604,6 +649,8 @@ static int dex2oat(int argc, char** argv) {
 #else
 #error "Unsupported architecture"
 #endif
+
+
   bool is_host = false;
   bool dump_stats = false;
   bool dump_timing = false;
@@ -678,6 +725,9 @@ static int dex2oat(int argc, char** argv) {
       } else if (instruction_set_str == "x86") {
         instruction_set = kX86;
       }
+    } else if (option.starts_with("--instruction-set-features=")) {
+      StringPiece str = option.substr(strlen("--instruction-set-features=")).data();
+      instruction_set_features = ParseFeatureList(str.as_string());
     } else if (option.starts_with("--compiler-backend=")) {
       StringPiece backend_str = option.substr(strlen("--compiler-backend=")).data();
       if (backend_str == "Quick") {
@@ -870,7 +920,8 @@ static int dex2oat(int argc, char** argv) {
 #endif
 
   Dex2Oat* p_dex2oat;
-  if (!Dex2Oat::Create(&p_dex2oat, options, compiler_backend, instruction_set, thread_count)) {
+  if (!Dex2Oat::Create(&p_dex2oat, options, compiler_backend, instruction_set,
+      instruction_set_features, thread_count)) {
     LOG(ERROR) << "Failed to create dex2oat";
     return EXIT_FAILURE;
   }
@@ -1093,8 +1144,6 @@ static int dex2oat(int argc, char** argv) {
 
   return EXIT_SUCCESS;
 }
-
-
 }  // namespace art
 
 int main(int argc, char** argv) {

@@ -118,6 +118,9 @@ class OatDumper {
     os << "INSTRUCTION SET:\n";
     os << oat_header.GetInstructionSet() << "\n\n";
 
+    os << "INSTRUCTION SET FEATURES:\n";
+    os << oat_header.GetInstructionSetFeatures().GetFeatureString() << "\n\n";
+
     os << "DEX FILE COUNT:\n";
     os << oat_header.GetDexFileCount() << "\n\n";
 

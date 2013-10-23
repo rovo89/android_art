@@ -466,14 +466,39 @@ LIR* ArmMir2Lir::GenRegMemCheck(ConditionCode c_code,
 
 RegLocation ArmMir2Lir::GenDivRemLit(RegLocation rl_dest, int reg1, int lit,
                                      bool is_div) {
-  LOG(FATAL) << "Unexpected use of GenDivRemLit for Arm";
-  return rl_dest;
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+
+  // Put the literal in a temp.
+  int lit_temp = AllocTemp();
+  LoadConstant(lit_temp, lit);
+  // Use the generic case for div/rem with arg2 in a register.
+  // TODO: The literal temp can be freed earlier during a modulus to reduce reg pressure.
+  rl_result = GenDivRem(rl_result, reg1, lit_temp, is_div);
+  FreeTemp(lit_temp);
+
+  return rl_result;
 }
 
 RegLocation ArmMir2Lir::GenDivRem(RegLocation rl_dest, int reg1, int reg2,
                                   bool is_div) {
-  LOG(FATAL) << "Unexpected use of GenDivRem for Arm";
-  return rl_dest;
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  if (is_div) {
+    // Simple case, use sdiv instruction.
+    OpRegRegReg(kOpDiv, rl_result.low_reg, reg1, reg2);
+  } else {
+    // Remainder case, use the following code:
+    // temp = reg1 / reg2      - integer division
+    // temp = temp * reg2
+    // dest = reg1 - temp
+
+    int temp = AllocTemp();
+    OpRegRegReg(kOpDiv, temp, reg1, reg2);
+    OpRegReg(kOpMul, temp, reg2);
+    OpRegRegReg(kOpSub, rl_result.low_reg, reg1, temp);
+    FreeTemp(temp);
+  }
+
+  return rl_result;
 }
 
 bool ArmMir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min) {

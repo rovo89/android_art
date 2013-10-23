@@ -889,6 +889,35 @@ void Split(const std::string& s, char separator, std::vector<std::string>& resul
   }
 }
 
+std::string Trim(std::string s) {
+  std::string result;
+  unsigned int start_index = 0;
+  unsigned int end_index = s.size() - 1;
+
+  // Skip initial whitespace.
+  while (start_index < s.size()) {
+    if (!isspace(s[start_index])) {
+      break;
+    }
+    start_index++;
+  }
+
+  // Skip terminating whitespace.
+  while (end_index >= start_index) {
+    if (!isspace(s[end_index])) {
+      break;
+    }
+    end_index--;
+  }
+
+  // All spaces, no beef.
+  if (end_index < start_index) {
+    return "";
+  }
+  // Start_index is the first non-space, end_index is the last one.
+  return s.substr(start_index, end_index - start_index + 1);
+}
+
 template <typename StringT>
 std::string Join(std::vector<StringT>& strings, char separator) {
   if (strings.empty()) {

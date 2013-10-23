@@ -336,10 +336,12 @@ extern "C" void compilerLLVMSetBitcodeFileName(art::CompilerDriver& driver,
                                                std::string const& filename);
 
 CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet instruction_set,
+                               InstructionSetFeatures instruction_set_features,
                                bool image, DescriptorSet* image_classes, size_t thread_count,
                                bool dump_stats)
     : compiler_backend_(compiler_backend),
       instruction_set_(instruction_set),
+      instruction_set_features_(instruction_set_features),
       freezing_constructor_lock_("freezing constructor lock"),
       compiled_classes_lock_("compiled classes lock"),
       compiled_methods_lock_("compiled method lock"),

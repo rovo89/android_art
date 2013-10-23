@@ -91,6 +91,7 @@ class CompilerDriver {
   // can assume will be in the image, with NULL implying all available
   // classes.
   explicit CompilerDriver(CompilerBackend compiler_backend, InstructionSet instruction_set,
+                          InstructionSetFeatures instruction_set_features,
                           bool image, DescriptorSet* image_classes,
                           size_t thread_count, bool dump_stats);
 
@@ -104,8 +105,12 @@ class CompilerDriver {
   void CompileOne(const mirror::ArtMethod* method, base::TimingLogger& timings)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  InstructionSet GetInstructionSet() const {
+  const InstructionSet& GetInstructionSet() const {
     return instruction_set_;
+  }
+
+  const InstructionSetFeatures& GetInstructionSetFeatures() const {
+    return instruction_set_features_;
   }
 
   CompilerBackend GetCompilerBackend() const {
@@ -386,7 +391,8 @@ class CompilerDriver {
 
   CompilerBackend compiler_backend_;
 
-  InstructionSet instruction_set_;
+  const InstructionSet instruction_set_;
+  const InstructionSetFeatures instruction_set_features_;
 
   // All class references that require
   mutable ReaderWriterMutex freezing_constructor_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;

@@ -98,6 +98,7 @@ OatWriter::~OatWriter() {
 size_t OatWriter::InitOatHeader() {
   // create the OatHeader
   oat_header_ = new OatHeader(compiler_driver_->GetInstructionSet(),
+                              compiler_driver_->GetInstructionSetFeatures(),
                               dex_files_,
                               image_file_location_oat_checksum_,
                               image_file_location_oat_begin_,

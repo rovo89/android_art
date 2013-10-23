@@ -76,7 +76,10 @@ TEST_F(OatTest, WriteRead) {
   CompilerBackend compiler_backend = kQuick;
 #endif
   InstructionSet insn_set = kIsTargetBuild ? kThumb2 : kX86;
-  compiler_driver_.reset(new CompilerDriver(compiler_backend, insn_set, false, NULL, 2, true));
+
+  InstructionSetFeatures insn_features;
+  compiler_driver_.reset(new CompilerDriver(compiler_backend, insn_set,
+                                            insn_features, false, NULL, 2, true));
   jobject class_loader = NULL;
   if (kCompile) {
     base::TimingLogger timings("OatTest::WriteRead", false, false);
@@ -149,17 +152,19 @@ TEST_F(OatTest, WriteRead) {
 TEST_F(OatTest, OatHeaderSizeCheck) {
   // If this test is failing and you have to update these constants,
   // it is time to update OatHeader::kOatVersion
-  EXPECT_EQ(72U, sizeof(OatHeader));
+  EXPECT_EQ(76U, sizeof(OatHeader));
   EXPECT_EQ(28U, sizeof(OatMethodOffsets));
 }
 
 TEST_F(OatTest, OatHeaderIsValid) {
     InstructionSet instruction_set = kX86;
+    InstructionSetFeatures instruction_set_features;
     std::vector<const DexFile*> dex_files;
     uint32_t image_file_location_oat_checksum = 0;
     uint32_t image_file_location_oat_begin = 0;
     const std::string image_file_location;
     OatHeader oat_header(instruction_set,
+                         instruction_set_features,
                          &dex_files,
                          image_file_location_oat_checksum,
                          image_file_location_oat_begin,
