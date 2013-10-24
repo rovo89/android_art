@@ -243,7 +243,7 @@ enum X86OpCode {
   //             - lir operands - 0: base, 1: disp, 2: immediate
   // AI - Array Immediate  - opcode [base + index * scale + disp], #immediate
   //             - lir operands - 0: base, 1: index, 2: scale, 3: disp 4: immediate
-  // TI - Thread Register  - opcode fs:[disp], imm - where fs: is equal to Thread::Current()
+  // TI - Thread Immediate  - opcode fs:[disp], imm - where fs: is equal to Thread::Current()
   //             - lir operands - 0: disp, 1: imm
 #define BinaryOpCode(opcode) \
   opcode ## 8MR, opcode ## 8AR, opcode ## 8TR, \
