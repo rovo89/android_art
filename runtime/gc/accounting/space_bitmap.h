@@ -212,7 +212,7 @@ class SpaceSetMap {
  public:
   typedef std::set<
       const mirror::Object*, std::less<const mirror::Object*>,
-      GCAllocator<const mirror::Object*> > Objects;
+      GcAllocator<const mirror::Object*> > Objects;
 
   bool IsEmpty() const {
     return contained_.empty();

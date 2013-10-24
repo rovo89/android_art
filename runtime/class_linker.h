@@ -215,7 +215,7 @@ class ClassLinker {
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void RegisterOatFile(const OatFile& oat_file)
+  const OatFile* RegisterOatFile(const OatFile* oat_file)
       LOCKS_EXCLUDED(dex_lock_);
 
   const std::vector<const DexFile*>& GetBootClassPath() {
@@ -244,43 +244,37 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Generate an oat file from a dex file
-  bool GenerateOatFile(const std::string& dex_filename,
+  bool GenerateOatFile(const char* dex_filename,
                        int oat_fd,
-                       const std::string& oat_cache_filename);
+                       const char* oat_cache_filename);
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  const OatFile* FindOatFileFromOatLocation(const std::string& location)
+  const OatFile* FindOatFileFromOatLocation(const std::string& location,
+                                            std::string* error_msg)
       LOCKS_EXCLUDED(dex_lock_);
-
-  const OatFile* FindOatFileFromOatLocationLocked(const std::string& location)
-      SHARED_LOCKS_REQUIRED(dex_lock_);
 
   // Finds the oat file for a dex location, generating the oat file if
   // it is missing or out of date. Returns the DexFile from within the
   // created oat file.
-  const DexFile* FindOrCreateOatFileForDexLocation(const std::string& dex_location,
+  const DexFile* FindOrCreateOatFileForDexLocation(const char* dex_location,
                                                    uint32_t dex_location_checksum,
-                                                   const std::string& oat_location)
-      LOCKS_EXCLUDED(dex_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const DexFile* FindOrCreateOatFileForDexLocationLocked(const std::string& dex_location,
-                                                         uint32_t dex_location_checksum,
-                                                         const std::string& oat_location)
-      EXCLUSIVE_LOCKS_REQUIRED(dex_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+                                                   const char* oat_location,
+                                                   std::string* error_msg)
+      LOCKS_EXCLUDED(dex_lock_, Locks::mutator_lock_);
   // Find a DexFile within an OatFile given a DexFile location. Note
   // that this returns null if the location checksum of the DexFile
   // does not match the OatFile.
-  const DexFile* FindDexFileInOatFileFromDexLocation(const std::string& location,
-                                                     uint32_t location_checksum)
-      LOCKS_EXCLUDED(dex_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const DexFile* FindDexFileInOatFileFromDexLocation(const char* location,
+                                                     uint32_t location_checksum,
+                                                     std::string* error_msg)
+      LOCKS_EXCLUDED(dex_lock_, Locks::mutator_lock_);
 
 
   // Returns true if oat file contains the dex file with the given location and checksum.
   static bool VerifyOatFileChecksums(const OatFile* oat_file,
-                                     const std::string& dex_location,
-                                     uint32_t dex_location_checksum)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+                                     const char* dex_location,
+                                     uint32_t dex_location_checksum,
+                                     std::string* error_msg);
 
   // TODO: replace this with multiple methods that allocate the correct managed type.
   template <class T>
@@ -430,8 +424,6 @@ class ClassLinker {
       EXCLUSIVE_LOCKS_REQUIRED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsDexFileRegisteredLocked(const DexFile& dex_file) const SHARED_LOCKS_REQUIRED(dex_lock_);
-  void RegisterOatFileLocked(const OatFile& oat_file) EXCLUSIVE_LOCKS_REQUIRED(dex_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(dex_lock_);
 
   bool InitializeClass(mirror::Class* klass, bool can_run_clinit, bool can_init_parents)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -493,22 +485,22 @@ class ClassLinker {
   const OatFile* FindOpenedOatFileForDexFile(const DexFile& dex_file)
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const OatFile* FindOpenedOatFileFromDexLocation(const std::string& dex_location,
+  const OatFile* FindOpenedOatFileFromDexLocation(const char* dex_location,
                                                   uint32_t dex_location_checksum)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, dex_lock_);
+      LOCKS_EXCLUDED(dex_lock);
   const OatFile* FindOpenedOatFileFromOatLocation(const std::string& oat_location)
-      SHARED_LOCKS_REQUIRED(dex_lock_);
-  const DexFile* FindDexFileInOatLocation(const std::string& dex_location,
+      LOCKS_EXCLUDED(dex_lock_);
+  const DexFile* FindDexFileInOatLocation(const char* dex_location,
                                           uint32_t dex_location_checksum,
-                                          const std::string& oat_location)
-      EXCLUSIVE_LOCKS_REQUIRED(dex_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+                                          const char* oat_location,
+                                          std::string* error_msg)
+      LOCKS_EXCLUDED(dex_lock_);
 
-  const DexFile* VerifyAndOpenDexFileFromOatFile(const OatFile* oat_file,
-                                                 const std::string& dex_location,
-                                                 uint32_t dex_location_checksum)
-      EXCLUSIVE_LOCKS_REQUIRED(dex_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const DexFile* VerifyAndOpenDexFileFromOatFile(const std::string& oat_file_location,
+                                                 const char* dex_location,
+                                                 std::string* error_msg,
+                                                 bool* open_failed)
+      LOCKS_EXCLUDED(dex_lock_);
 
   mirror::ArtMethod* CreateProxyConstructor(Thread* self, SirtRef<mirror::Class>& klass,
                                             mirror::Class* proxy_class)

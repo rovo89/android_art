@@ -40,15 +40,16 @@ ElfFile::ElfFile()
     symtab_symbol_table_(NULL),
     dynsym_symbol_table_(NULL) {}
 
-ElfFile* ElfFile::Open(File* file, bool writable, bool program_header_only) {
+ElfFile* ElfFile::Open(File* file, bool writable, bool program_header_only,
+                       std::string* error_msg) {
   UniquePtr<ElfFile> elf_file(new ElfFile());
-  if (!elf_file->Setup(file, writable, program_header_only)) {
-    return NULL;
+  if (!elf_file->Setup(file, writable, program_header_only, error_msg)) {
+    return nullptr;
   }
   return elf_file.release();
 }
 
-bool ElfFile::Setup(File* file, bool writable, bool program_header_only) {
+bool ElfFile::Setup(File* file, bool writable, bool program_header_only, std::string* error_msg) {
   CHECK(file != NULL);
   file_ = file;
   writable_ = writable;
@@ -66,40 +67,42 @@ bool ElfFile::Setup(File* file, bool writable, bool program_header_only) {
   int64_t file_length = file_->GetLength();
   if (file_length < 0) {
     errno = -file_length;
-    PLOG(WARNING) << "Failed to get length of file: " << file_->GetPath() << " fd=" << file_->Fd();
+    *error_msg = StringPrintf("Failed to get length of file: '%s' fd=%d: %s",
+                              file_->GetPath().c_str(), file_->Fd(), strerror(errno));
     return false;
   }
   if (file_length < sizeof(llvm::ELF::Elf32_Ehdr)) {
-    if (writable) {
-      LOG(WARNING) << "File size of " << file_length
-                   << " bytes not large enough to contain ELF header of "
-                   << sizeof(llvm::ELF::Elf32_Ehdr) << " bytes: " << file_->GetPath();
-    }
+    *error_msg = StringPrintf("File size of %lld bytes not large enough to contain ELF header of "
+                              "%zd bytes: '%s'", file_length, sizeof(llvm::ELF::Elf32_Ehdr),
+                              file_->GetPath().c_str());
     return false;
   }
 
   if (program_header_only) {
     // first just map ELF header to get program header size information
     size_t elf_header_size = sizeof(llvm::ELF::Elf32_Ehdr);
-    if (!SetMap(MemMap::MapFile(elf_header_size, prot, flags, file_->Fd(), 0))) {
+    if (!SetMap(MemMap::MapFile(elf_header_size, prot, flags, file_->Fd(), 0,
+                                file_->GetPath().c_str(), error_msg))) {
       return false;
     }
     // then remap to cover program header
     size_t program_header_size = header_->e_phoff + (header_->e_phentsize * header_->e_phnum);
     if (file_length < program_header_size) {
-      LOG(WARNING) << "File size of " << file_length
-                   << " bytes not large enough to contain ELF program header of "
-                   << program_header_size << " bytes: " << file_->GetPath();
+      *error_msg = StringPrintf("File size of %lld bytes not large enough to contain ELF program "
+                                "header of %zd bytes: '%s'", file_length,
+                                sizeof(llvm::ELF::Elf32_Ehdr), file_->GetPath().c_str());
       return false;
     }
-    if (!SetMap(MemMap::MapFile(program_header_size, prot, flags, file_->Fd(), 0))) {
-      LOG(WARNING) << "Failed to map ELF program headers: " << file_->GetPath();
+    if (!SetMap(MemMap::MapFile(program_header_size, prot, flags, file_->Fd(), 0,
+                                file_->GetPath().c_str(), error_msg))) {
+      *error_msg = StringPrintf("Failed to map ELF program headers: %s", error_msg->c_str());
       return false;
     }
   } else {
     // otherwise map entire file
-    if (!SetMap(MemMap::MapFile(file_->GetLength(), prot, flags, file_->Fd(), 0))) {
-      LOG(WARNING) << "Failed to map ELF file: " << file_->GetPath();
+    if (!SetMap(MemMap::MapFile(file_->GetLength(), prot, flags, file_->Fd(), 0,
+                                file_->GetPath().c_str(), error_msg))) {
+      *error_msg = StringPrintf("Failed to map ELF file: %s", error_msg->c_str());
       return false;
     }
   }
@@ -114,7 +117,8 @@ bool ElfFile::Setup(File* file, bool writable, bool program_header_only) {
     // Find .dynamic section info from program header
     dynamic_program_header_ = FindProgamHeaderByType(llvm::ELF::PT_DYNAMIC);
     if (dynamic_program_header_ == NULL) {
-      LOG(WARNING) << "Failed to find PT_DYNAMIC program header in ELF file: " << file_->GetPath();
+      *error_msg = StringPrintf("Failed to find PT_DYNAMIC program header in ELF file: '%s'",
+                                file_->GetPath().c_str());
       return false;
     }
 
@@ -596,7 +600,7 @@ size_t ElfFile::GetLoadedSize() {
   return loaded_size;
 }
 
-bool ElfFile::Load(bool executable) {
+bool ElfFile::Load(bool executable, std::string* error_msg) {
   // TODO: actually return false error
   CHECK(program_header_only_) << file_->GetPath();
   for (llvm::ELF::Elf32_Word i = 0; i < GetProgramHeaderNum(); i++) {
@@ -628,9 +632,10 @@ bool ElfFile::Load(bool executable) {
     if (program_header.p_vaddr == 0) {
       std::string reservation_name("ElfFile reservation for ");
       reservation_name += file_->GetPath();
+      std::string error_msg;
       UniquePtr<MemMap> reserve(MemMap::MapAnonymous(reservation_name.c_str(),
-                                                     NULL, GetLoadedSize(), PROT_NONE));
-      CHECK(reserve.get() != NULL) << file_->GetPath();
+                                                     NULL, GetLoadedSize(), PROT_NONE, &error_msg));
+      CHECK(reserve.get() != NULL) << file_->GetPath() << ": " << error_msg;
       base_address_ = reserve->Begin();
       segments_.push_back(reserve.release());
     }
@@ -657,18 +662,20 @@ bool ElfFile::Load(bool executable) {
       flags |= MAP_PRIVATE;
     }
     if (file_length < (program_header.p_offset + program_header.p_memsz)) {
-      LOG(WARNING) << "File size of " << file_length
-                   << " bytes not large enough to contain ELF segment " << i
-                   << " of " << (program_header.p_offset + program_header.p_memsz)
-                   << " bytes: " << file_->GetPath();
+      *error_msg = StringPrintf("File size of %lld bytes not large enough to contain ELF segment "
+                                "%d of %d bytes: '%s'", file_length, i,
+                                program_header.p_offset + program_header.p_memsz,
+                                file_->GetPath().c_str());
       return false;
     }
     UniquePtr<MemMap> segment(MemMap::MapFileAtAddress(p_vaddr,
                                                        program_header.p_memsz,
                                                        prot, flags, file_->Fd(),
                                                        program_header.p_offset,
-                                                       true));
-    CHECK(segment.get() != NULL) << file_->GetPath();
+                                                       true,
+                                                       file_->GetPath().c_str(),
+                                                       error_msg));
+    CHECK(segment.get() != nullptr) << *error_msg;
     CHECK_EQ(segment->Begin(), p_vaddr) << file_->GetPath();
     segments_.push_back(segment.release());
   }

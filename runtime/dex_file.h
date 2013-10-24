@@ -350,22 +350,22 @@ class DexFile {
   // For .dex files, this is the header checksum.
   // For zip files, this is the classes.dex zip entry CRC32 checksum.
   // Return true if the checksum could be found, false otherwise.
-  static bool GetChecksum(const std::string& filename, uint32_t* checksum)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static bool GetChecksum(const char* filename, uint32_t* checksum, std::string* error_msg);
 
   // Opens .dex file, guessing the container format based on file extension
-  static const DexFile* Open(const std::string& filename,
-                             const std::string& location);
+  static const DexFile* Open(const char* filename, const char* location, std::string* error_msg);
 
   // Opens .dex file, backed by existing memory
   static const DexFile* Open(const uint8_t* base, size_t size,
                              const std::string& location,
-                             uint32_t location_checksum) {
-    return OpenMemory(base, size, location, location_checksum, NULL);
+                             uint32_t location_checksum,
+                             std::string* error_msg) {
+    return OpenMemory(base, size, location, location_checksum, NULL, error_msg);
   }
 
   // Opens .dex file from the classes.dex in a zip archive
-  static const DexFile* Open(const ZipArchive& zip_archive, const std::string& location);
+  static const DexFile* Open(const ZipArchive& zip_archive, const std::string& location,
+                             std::string* error_msg);
 
   // Closes a .dex file.
   virtual ~DexFile();
@@ -820,24 +820,24 @@ class DexFile {
 
  private:
   // Opens a .dex file
-  static const DexFile* OpenFile(int fd,
-                                 const std::string& location,
-                                 bool verify);
+  static const DexFile* OpenFile(int fd, const char* location, bool verify, std::string* error_msg);
 
   // Opens a dex file from within a .jar, .zip, or .apk file
-  static const DexFile* OpenZip(int fd, const std::string& location);
+  static const DexFile* OpenZip(int fd, const std::string& location, std::string* error_msg);
 
   // Opens a .dex file at the given address backed by a MemMap
   static const DexFile* OpenMemory(const std::string& location,
                                    uint32_t location_checksum,
-                                   MemMap* mem_map);
+                                   MemMap* mem_map,
+                                   std::string* error_msg);
 
   // Opens a .dex file at the given address, optionally backed by a MemMap
   static const DexFile* OpenMemory(const byte* dex_file,
                                    size_t size,
                                    const std::string& location,
                                    uint32_t location_checksum,
-                                   MemMap* mem_map);
+                                   MemMap* mem_map,
+                                   std::string* error_msg);
 
   DexFile(const byte* base, size_t size,
           const std::string& location,
@@ -861,13 +861,13 @@ class DexFile {
   }
 
   // Top-level initializer that calls other Init methods.
-  bool Init();
+  bool Init(std::string* error_msg);
 
   // Caches pointers into to the various file sections.
   void InitMembers();
 
   // Returns true if the header magic and version numbers are of the expected values.
-  bool CheckMagicAndVersion() const;
+  bool CheckMagicAndVersion(std::string* error_msg) const;
 
   void DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32_t method_idx,
       DexDebugNewPositionCb position_cb, DexDebugNewLocalCb local_cb,

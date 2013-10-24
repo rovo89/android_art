@@ -20,16 +20,27 @@
 
 namespace art {
 
-class DexMethodIteratorTest : public CommonTest {};
+class DexMethodIteratorTest : public CommonTest {
+ public:
+  const DexFile* OpenDexFile(const std::string& partial_filename) {
+    std::string dfn = GetDexFileName(partial_filename);
+    std::string error_msg;
+    const DexFile* dexfile = DexFile::Open(dfn.c_str(), dfn.c_str(), &error_msg);
+    if (dexfile == nullptr) {
+      LG << "Failed to open '" << dfn << "': " << error_msg;
+    }
+    return dexfile;
+  }
+};
 
 TEST_F(DexMethodIteratorTest, Basic) {
   ScopedObjectAccess soa(Thread::Current());
   std::vector<const DexFile*> dex_files;
-  dex_files.push_back(DexFile::Open(GetDexFileName("core"), GetDexFileName("core")));
-  dex_files.push_back(DexFile::Open(GetDexFileName("conscrypt"), GetDexFileName("conscrypt")));
-  dex_files.push_back(DexFile::Open(GetDexFileName("okhttp"), GetDexFileName("okhttp")));
-  dex_files.push_back(DexFile::Open(GetDexFileName("core-junit"), GetDexFileName("core-junit")));
-  dex_files.push_back(DexFile::Open(GetDexFileName("bouncycastle"), GetDexFileName("bouncycastle")));
+  dex_files.push_back(OpenDexFile("core"));
+  dex_files.push_back(OpenDexFile("conscrypt"));
+  dex_files.push_back(OpenDexFile("okhttp"));
+  dex_files.push_back(OpenDexFile("core-junit"));
+  dex_files.push_back(OpenDexFile("bouncycastle"));
   DexMethodIterator it(dex_files);
   while (it.HasNext()) {
     const DexFile& dex_file = it.GetDexFile();

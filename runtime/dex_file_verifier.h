@@ -24,29 +24,35 @@ namespace art {
 
 class DexFileVerifier {
  public:
-  static bool Verify(const DexFile* dex_file, const byte* begin, size_t size);
+  static bool Verify(const DexFile* dex_file, const byte* begin, size_t size,
+                     const char* location, std::string* error_msg);
+
+  const std::string& FailureReason() const {
+    return failure_reason_;
+  }
 
  private:
-  DexFileVerifier(const DexFile* dex_file, const byte* begin, size_t size)
-      : dex_file_(dex_file), begin_(begin), size_(size),
+  DexFileVerifier(const DexFile* dex_file, const byte* begin, size_t size, const char* location)
+      : dex_file_(dex_file), begin_(begin), size_(size), location_(location),
         header_(&dex_file->GetHeader()), ptr_(NULL), previous_item_(NULL)  {
   }
 
   bool Verify();
 
-  bool CheckPointerRange(const void* start, const void* end, const char* label) const;
-  bool CheckListSize(const void* start, uint32_t count, uint32_t element_size, const char* label) const;
-  bool CheckIndex(uint32_t field, uint32_t limit, const char* label) const;
+  bool CheckShortyDescriptorMatch(char shorty_char, const char* descriptor, bool is_return_type);
+  bool CheckPointerRange(const void* start, const void* end, const char* label);
+  bool CheckListSize(const void* start, uint32_t count, uint32_t element_size, const char* label);
+  bool CheckIndex(uint32_t field, uint32_t limit, const char* label);
 
-  bool CheckHeader() const;
-  bool CheckMap() const;
+  bool CheckHeader();
+  bool CheckMap();
 
   uint32_t ReadUnsignedLittleEndian(uint32_t size);
   bool CheckAndGetHandlerOffsets(const DexFile::CodeItem* code_item,
-      uint32_t* handler_offsets, uint32_t handlers_size);
-  bool CheckClassDataItemField(uint32_t idx, uint32_t access_flags, bool expect_static) const;
+                                 uint32_t* handler_offsets, uint32_t handlers_size);
+  bool CheckClassDataItemField(uint32_t idx, uint32_t access_flags, bool expect_static);
   bool CheckClassDataItemMethod(uint32_t idx, uint32_t access_flags, uint32_t code_offset,
-      bool expect_direct) const;
+                                bool expect_direct);
   bool CheckPadding(uint32_t offset, uint32_t aligned_offset);
   bool CheckEncodedValue();
   bool CheckEncodedArray();
@@ -82,14 +88,20 @@ class DexFileVerifier {
   bool CheckInterSectionIterate(uint32_t offset, uint32_t count, uint16_t type);
   bool CheckInterSection();
 
-  const DexFile* dex_file_;
-  const byte* begin_;
-  size_t size_;
-  const DexFile::Header* header_;
+  void ErrorStringPrintf(const char* fmt, ...)
+      __attribute__((__format__(__printf__, 2, 3))) COLD_ATTR;
+
+  const DexFile* const dex_file_;
+  const byte* const begin_;
+  const size_t size_;
+  const char* const location_;
+  const DexFile::Header* const header_;
 
   SafeMap<uint32_t, uint16_t> offset_to_type_map_;
   const byte* ptr_;
   const void* previous_item_;
+
+  std::string failure_reason_;
 };
 
 }  // namespace art

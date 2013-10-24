@@ -65,23 +65,26 @@ TEST_F(ElfWriterTest, dlsym) {
   UniquePtr<File> file(OS::OpenFileForReading(elf_filename.c_str()));
   ASSERT_TRUE(file.get() != NULL);
   {
-    UniquePtr<ElfFile> ef(ElfFile::Open(file.get(), false, false));
-    CHECK(ef.get() != NULL);
+    std::string error_msg;
+    UniquePtr<ElfFile> ef(ElfFile::Open(file.get(), false, false, &error_msg));
+    CHECK(ef.get() != nullptr) << error_msg;
     EXPECT_ELF_FILE_ADDRESS(ef, dl_oatdata, "oatdata", false);
     EXPECT_ELF_FILE_ADDRESS(ef, dl_oatexec, "oatexec", false);
     EXPECT_ELF_FILE_ADDRESS(ef, dl_oatlastword, "oatlastword", false);
   }
   {
-    UniquePtr<ElfFile> ef(ElfFile::Open(file.get(), false, false));
-    CHECK(ef.get() != NULL);
+    std::string error_msg;
+    UniquePtr<ElfFile> ef(ElfFile::Open(file.get(), false, false, &error_msg));
+    CHECK(ef.get() != nullptr) << error_msg;
     EXPECT_ELF_FILE_ADDRESS(ef, dl_oatdata, "oatdata", true);
     EXPECT_ELF_FILE_ADDRESS(ef, dl_oatexec, "oatexec", true);
     EXPECT_ELF_FILE_ADDRESS(ef, dl_oatlastword, "oatlastword", true);
   }
   {
-    UniquePtr<ElfFile> ef(ElfFile::Open(file.get(), false, true));
-    CHECK(ef.get() != NULL);
-    ef->Load(false);
+    std::string error_msg;
+    UniquePtr<ElfFile> ef(ElfFile::Open(file.get(), false, true, &error_msg));
+    CHECK(ef.get() != nullptr) << error_msg;
+    CHECK(ef->Load(false, &error_msg)) << error_msg;
     EXPECT_EQ(dl_oatdata, ef->FindDynamicSymbolAddress("oatdata"));
     EXPECT_EQ(dl_oatexec, ef->FindDynamicSymbolAddress("oatexec"));
     EXPECT_EQ(dl_oatlastword, ef->FindDynamicSymbolAddress("oatlastword"));

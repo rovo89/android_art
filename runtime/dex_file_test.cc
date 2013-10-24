@@ -56,7 +56,7 @@ static const char kRawDex[] =
   "AAMgAAACAAAAiAIAAAQgAAADAAAAlAIAAAAgAAACAAAAqwIAAAAQAAABAAAAxAIAAA==";
 
 static const DexFile* OpenDexFileBase64(const char* base64,
-                                        const std::string& location) {
+                                        const char* location) {
   // decode base64
   CHECK(base64 != NULL);
   size_t length;
@@ -64,7 +64,7 @@ static const DexFile* OpenDexFileBase64(const char* base64,
   CHECK(dex_bytes.get() != NULL);
 
   // write to provided file
-  UniquePtr<File> file(OS::CreateEmptyFile(location.c_str()));
+  UniquePtr<File> file(OS::CreateEmptyFile(location));
   CHECK(file.get() != NULL);
   if (!file->WriteFully(dex_bytes.get(), length)) {
     PLOG(FATAL) << "Failed to write base64 as dex file";
@@ -73,8 +73,9 @@ static const DexFile* OpenDexFileBase64(const char* base64,
 
   // read dex file
   ScopedObjectAccess soa(Thread::Current());
-  const DexFile* dex_file = DexFile::Open(location, location);
-  CHECK(dex_file != NULL);
+  std::string error_msg;
+  const DexFile* dex_file = DexFile::Open(location, location, &error_msg);
+  CHECK(dex_file != nullptr) << error_msg;
   EXPECT_EQ(PROT_READ, dex_file->GetPermissions());
   EXPECT_TRUE(dex_file->IsReadOnly());
   return dex_file;
@@ -82,7 +83,7 @@ static const DexFile* OpenDexFileBase64(const char* base64,
 
 TEST_F(DexFileTest, Header) {
   ScratchFile tmp;
-  UniquePtr<const DexFile> raw(OpenDexFileBase64(kRawDex, tmp.GetFilename()));
+  UniquePtr<const DexFile> raw(OpenDexFileBase64(kRawDex, tmp.GetFilename().c_str()));
   ASSERT_TRUE(raw.get() != NULL);
 
   const DexFile::Header& header = raw->GetHeader();
@@ -120,7 +121,9 @@ TEST_F(DexFileTest, GetLocationChecksum) {
 TEST_F(DexFileTest, GetChecksum) {
   uint32_t checksum;
   ScopedObjectAccess soa(Thread::Current());
-  EXPECT_TRUE(DexFile::GetChecksum(GetLibCoreDexFileName(), &checksum));
+  std::string error_msg;
+  EXPECT_TRUE(DexFile::GetChecksum(GetLibCoreDexFileName().c_str(), &checksum, &error_msg))
+      << error_msg;
   EXPECT_EQ(java_lang_dex_file_->GetLocationChecksum(), checksum);
 }
 

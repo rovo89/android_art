@@ -51,7 +51,7 @@ class HeapBitmap;
 // cleared between GC phases, reducing the number of dirty cards that need to be scanned.
 class ModUnionTable {
  public:
-  typedef std::set<byte*, std::less<byte*>, GCAllocator<byte*> > CardSet;
+  typedef std::set<byte*, std::less<byte*>, GcAllocator<byte*> > CardSet;
 
   explicit ModUnionTable(const std::string& name, Heap* heap, space::ContinuousSpace* space)
       : name_(name),
@@ -125,7 +125,7 @@ class ModUnionTableReferenceCache : public ModUnionTable {
 
   // Maps from dirty cards to their corresponding alloc space references.
   SafeMap<const byte*, std::vector<mirror::Object**>, std::less<const byte*>,
-    GCAllocator<std::pair<const byte*, std::vector<mirror::Object**> > > > references_;
+    GcAllocator<std::pair<const byte*, std::vector<mirror::Object**> > > > references_;
 };
 
 // Card caching implementation. Keeps track of which cards we cleared and only this information.

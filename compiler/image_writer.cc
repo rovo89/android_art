@@ -82,12 +82,14 @@ bool ImageWriter::Write(const std::string& image_filename,
     LOG(ERROR) << "Failed to open oat file " << oat_filename << " for " << oat_location;
     return false;
   }
-  oat_file_ = OatFile::OpenWritable(oat_file.get(), oat_location);
-  if (oat_file_ == NULL) {
-    LOG(ERROR) << "Failed to open writable oat file " << oat_filename << " for " << oat_location;
+  std::string error_msg;
+  oat_file_ = OatFile::OpenWritable(oat_file.get(), oat_location, &error_msg);
+  if (oat_file_ == nullptr) {
+    LOG(ERROR) << "Failed to open writable oat file " << oat_filename << " for " << oat_location
+        << ": " << error_msg;
     return false;
   }
-  class_linker->RegisterOatFile(*oat_file_);
+  CHECK_EQ(class_linker->RegisterOatFile(oat_file_), oat_file_);
 
   interpreter_to_interpreter_bridge_offset_ =
       oat_file_->GetOatHeader().GetInterpreterToInterpreterBridgeOffset();
@@ -192,9 +194,10 @@ bool ImageWriter::AllocMemory() {
 
   int prot = PROT_READ | PROT_WRITE;
   size_t length = RoundUp(size, kPageSize);
-  image_.reset(MemMap::MapAnonymous("image writer image", NULL, length, prot));
-  if (image_.get() == NULL) {
-    LOG(ERROR) << "Failed to allocate memory for image file generation";
+  std::string error_msg;
+  image_.reset(MemMap::MapAnonymous("image writer image", NULL, length, prot, &error_msg));
+  if (UNLIKELY(image_.get() == nullptr)) {
+    LOG(ERROR) << "Failed to allocate memory for image file generation: " << error_msg;
     return false;
   }
   return true;

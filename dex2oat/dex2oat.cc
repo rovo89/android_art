@@ -200,21 +200,24 @@ class Dex2Oat {
   }
 
   // Reads the class names (java.lang.Object) and returns a set of descriptors (Ljava/lang/Object;)
-  CompilerDriver::DescriptorSet* ReadImageClassesFromZip(const std::string& zip_filename,
-                                                         const char* image_classes_filename) {
-    UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(zip_filename));
+  CompilerDriver::DescriptorSet* ReadImageClassesFromZip(const char* zip_filename,
+                                                         const char* image_classes_filename,
+                                                         std::string* error_msg) {
+    UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(zip_filename, error_msg));
     if (zip_archive.get() == NULL) {
-      LOG(ERROR) << "Failed to open zip file " << zip_filename;
       return NULL;
     }
     UniquePtr<ZipEntry> zip_entry(zip_archive->Find(image_classes_filename));
     if (zip_entry.get() == NULL) {
-      LOG(ERROR) << "Failed to find " << image_classes_filename << " within " << zip_filename;
+      *error_msg = StringPrintf("Failed to find '%s' within '%s': %s", image_classes_filename,
+                                zip_filename, error_msg->c_str());
       return NULL;
     }
-    UniquePtr<MemMap> image_classes_file(zip_entry->ExtractToMemMap(image_classes_filename));
+    UniquePtr<MemMap> image_classes_file(zip_entry->ExtractToMemMap(image_classes_filename,
+                                                                    error_msg));
     if (image_classes_file.get() == NULL) {
-      LOG(ERROR) << "Failed to extract " << image_classes_filename << " from " << zip_filename;
+      *error_msg = StringPrintf("Failed to extract '%s' from '%s': %s", image_classes_filename,
+                                zip_filename, error_msg->c_str());
       return NULL;
     }
     const std::string image_classes_string(reinterpret_cast<char*>(image_classes_file->Begin()),
@@ -368,9 +371,10 @@ class Dex2Oat {
       if (DexFilesContains(dex_files, parsed[i])) {
         continue;
       }
-      const DexFile* dex_file = DexFile::Open(parsed[i], parsed[i]);
+      std::string error_msg;
+      const DexFile* dex_file = DexFile::Open(parsed[i].c_str(), parsed[i].c_str(), &error_msg);
       if (dex_file == NULL) {
-        LOG(WARNING) << "Failed to open dex file " << parsed[i];
+        LOG(WARNING) << "Failed to open dex file '" << parsed[i] << "': " << error_msg;
       } else {
         dex_files.push_back(dex_file);
       }
@@ -416,9 +420,10 @@ static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
   for (size_t i = 0; i < dex_filenames.size(); i++) {
     const char* dex_filename = dex_filenames[i];
     const char* dex_location = dex_locations[i];
-    const DexFile* dex_file = DexFile::Open(dex_filename, dex_location);
+    std::string error_msg;
+    const DexFile* dex_file = DexFile::Open(dex_filename, dex_location, &error_msg);
     if (dex_file == NULL) {
-      LOG(WARNING) << "Failed to open .dex from file '" << dex_filename << "'\n";
+      LOG(WARNING) << "Failed to open .dex from file '" << dex_filename << "': " << error_msg;
       ++failure_count;
     } else {
       dex_files.push_back(dex_file);
@@ -887,14 +892,17 @@ static int dex2oat(int argc, char** argv) {
   // If --image-classes was specified, calculate the full list of classes to include in the image
   UniquePtr<CompilerDriver::DescriptorSet> image_classes(NULL);
   if (image_classes_filename != NULL) {
+    std::string error_msg;
     if (image_classes_zip_filename != NULL) {
       image_classes.reset(dex2oat->ReadImageClassesFromZip(image_classes_zip_filename,
-                                                           image_classes_filename));
+                                                           image_classes_filename,
+                                                           &error_msg));
     } else {
       image_classes.reset(dex2oat->ReadImageClassesFromFile(image_classes_filename));
     }
     if (image_classes.get() == NULL) {
-      LOG(ERROR) << "Failed to create list of image classes from " << image_classes_filename;
+      LOG(ERROR) << "Failed to create list of image classes from '" << image_classes_filename <<
+          "': " << error_msg;
       return EXIT_FAILURE;
     }
   }
@@ -904,14 +912,18 @@ static int dex2oat(int argc, char** argv) {
     dex_files = Runtime::Current()->GetClassLinker()->GetBootClassPath();
   } else {
     if (dex_filenames.empty()) {
-      UniquePtr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(zip_fd));
+      std::string error_msg;
+      UniquePtr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(zip_fd, zip_location.c_str(),
+                                                               &error_msg));
       if (zip_archive.get() == NULL) {
-        LOG(ERROR) << "Failed to open zip from file descriptor for " << zip_location;
+        LOG(ERROR) << "Failed to open zip from file descriptor for '" << zip_location << "': "
+            << error_msg;
         return EXIT_FAILURE;
       }
-      const DexFile* dex_file = DexFile::Open(*zip_archive.get(), zip_location);
+      const DexFile* dex_file = DexFile::Open(*zip_archive.get(), zip_location, &error_msg);
       if (dex_file == NULL) {
-        LOG(ERROR) << "Failed to open dex from file descriptor for zip file: " << zip_location;
+        LOG(ERROR) << "Failed to open dex from file descriptor for zip file '" << zip_location
+            << "': " << error_msg;
         return EXIT_FAILURE;
       }
       dex_files.push_back(dex_file);
@@ -1063,7 +1075,8 @@ static int dex2oat(int argc, char** argv) {
   // Strip unneeded sections for target
   off_t seek_actual = lseek(oat_file->Fd(), 0, SEEK_SET);
   CHECK_EQ(0, seek_actual);
-  ElfStripper::Strip(oat_file.get());
+  std::string error_msg;
+  CHECK(ElfStripper::Strip(oat_file.get(), &error_msg)) << error_msg;
 
 
   // We wrote the oat file successfully, and want to keep it.

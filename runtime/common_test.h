@@ -282,9 +282,12 @@ class CommonTest : public testing::Test {
     int mkdir_result = mkdir(dalvik_cache_.c_str(), 0700);
     ASSERT_EQ(mkdir_result, 0);
 
-    java_lang_dex_file_ = DexFile::Open(GetLibCoreDexFileName(), GetLibCoreDexFileName());
+    std::string error_msg;
+    java_lang_dex_file_ = DexFile::Open(GetLibCoreDexFileName().c_str(),
+                                        GetLibCoreDexFileName().c_str(), &error_msg);
     if (java_lang_dex_file_ == NULL) {
-      LOG(FATAL) << "Could not open .dex file '" << GetLibCoreDexFileName() << "'\n";
+      LOG(FATAL) << "Could not open .dex file '" << GetLibCoreDexFileName() << "': "
+          << error_msg << "\n";
     }
     boot_class_path_.push_back(java_lang_dex_file_);
 
@@ -423,8 +426,9 @@ class CommonTest : public testing::Test {
     filename += "art-test-dex-";
     filename += name;
     filename += ".jar";
-    const DexFile* dex_file = DexFile::Open(filename, filename);
-    CHECK(dex_file != NULL) << "Failed to open " << filename;
+    std::string error_msg;
+    const DexFile* dex_file = DexFile::Open(filename.c_str(), filename.c_str(), &error_msg);
+    CHECK(dex_file != NULL) << "Failed to open '" << filename << "': " << error_msg;
     CHECK_EQ(PROT_READ, dex_file->GetPermissions());
     CHECK(dex_file->IsReadOnly());
     opened_dex_files_.push_back(dex_file);
@@ -498,10 +502,12 @@ class CommonTest : public testing::Test {
   void ReserveImageSpace() {
     // Reserve where the image will be loaded up front so that other parts of test set up don't
     // accidentally end up colliding with the fixed memory address when we need to load the image.
+    std::string error_msg;
     image_reservation_.reset(MemMap::MapAnonymous("image reservation",
                                                   reinterpret_cast<byte*>(ART_BASE_ADDRESS),
                                                   (size_t)100 * 1024 * 1024,  // 100MB
-                                                  PROT_NONE));
+                                                  PROT_NONE, &error_msg));
+    CHECK(image_reservation_.get() != nullptr) << error_msg;
   }
 
   void UnreserveImageSpace() {
