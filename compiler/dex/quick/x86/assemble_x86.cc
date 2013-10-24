@@ -526,7 +526,7 @@ void X86Mir2Lir::EmitOpReg(const X86EncodingMap* entry, uint8_t reg) {
   code_buffer_.push_back(entry->skeleton.opcode);
   if (entry->skeleton.opcode == 0x0F) {
     code_buffer_.push_back(entry->skeleton.extra_opcode1);
-    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
+    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode1 == 0x3A) {
       code_buffer_.push_back(entry->skeleton.extra_opcode2);
     } else {
       DCHECK_EQ(0, entry->skeleton.extra_opcode2);
@@ -583,7 +583,7 @@ void X86Mir2Lir::EmitMemReg(const X86EncodingMap* entry,
   code_buffer_.push_back(entry->skeleton.opcode);
   if (entry->skeleton.opcode == 0x0F) {
     code_buffer_.push_back(entry->skeleton.extra_opcode1);
-    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
+    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode1 == 0x3A) {
       code_buffer_.push_back(entry->skeleton.extra_opcode2);
     } else {
       DCHECK_EQ(0, entry->skeleton.extra_opcode2);
@@ -632,7 +632,7 @@ void X86Mir2Lir::EmitRegArray(const X86EncodingMap* entry, uint8_t reg, uint8_t 
   code_buffer_.push_back(entry->skeleton.opcode);
   if (entry->skeleton.opcode == 0x0F) {
     code_buffer_.push_back(entry->skeleton.extra_opcode1);
-    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
+    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode1 == 0x3A) {
       code_buffer_.push_back(entry->skeleton.extra_opcode2);
     } else {
       DCHECK_EQ(0, entry->skeleton.extra_opcode2);
@@ -673,7 +673,7 @@ void X86Mir2Lir::EmitRegThread(const X86EncodingMap* entry, uint8_t reg, int dis
   code_buffer_.push_back(entry->skeleton.opcode);
   if (entry->skeleton.opcode == 0x0F) {
     code_buffer_.push_back(entry->skeleton.extra_opcode1);
-    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
+    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode1 == 0x3A) {
       code_buffer_.push_back(entry->skeleton.extra_opcode2);
     } else {
       DCHECK_EQ(0, entry->skeleton.extra_opcode2);
@@ -713,7 +713,7 @@ void X86Mir2Lir::EmitRegReg(const X86EncodingMap* entry, uint8_t reg1, uint8_t r
   code_buffer_.push_back(entry->skeleton.opcode);
   if (entry->skeleton.opcode == 0x0F) {
     code_buffer_.push_back(entry->skeleton.extra_opcode1);
-    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
+    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode1 == 0x3A) {
       code_buffer_.push_back(entry->skeleton.extra_opcode2);
     } else {
       DCHECK_EQ(0, entry->skeleton.extra_opcode2);
@@ -750,7 +750,7 @@ void X86Mir2Lir::EmitRegRegImm(const X86EncodingMap* entry,
   code_buffer_.push_back(entry->skeleton.opcode);
   if (entry->skeleton.opcode == 0x0F) {
     code_buffer_.push_back(entry->skeleton.extra_opcode1);
-    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
+    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode1 == 0x3A) {
       code_buffer_.push_back(entry->skeleton.extra_opcode2);
     } else {
       DCHECK_EQ(0, entry->skeleton.extra_opcode2);
@@ -809,7 +809,7 @@ void X86Mir2Lir::EmitRegImm(const X86EncodingMap* entry, uint8_t reg, int imm) {
     code_buffer_.push_back(entry->skeleton.opcode);
     if (entry->skeleton.opcode == 0x0F) {
       code_buffer_.push_back(entry->skeleton.extra_opcode1);
-      if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
+      if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode1 == 0x3A) {
         code_buffer_.push_back(entry->skeleton.extra_opcode2);
       } else {
         DCHECK_EQ(0, entry->skeleton.extra_opcode2);
@@ -859,7 +859,7 @@ void X86Mir2Lir::EmitThreadImm(const X86EncodingMap* entry, int disp, int imm) {
   code_buffer_.push_back(entry->skeleton.opcode);
   if (entry->skeleton.opcode == 0x0F) {
     code_buffer_.push_back(entry->skeleton.extra_opcode1);
-    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
+    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode1 == 0x3A) {
       code_buffer_.push_back(entry->skeleton.extra_opcode2);
     } else {
       DCHECK_EQ(0, entry->skeleton.extra_opcode2);
@@ -924,7 +924,7 @@ void X86Mir2Lir::EmitShiftRegImm(const X86EncodingMap* entry, uint8_t reg, int i
   }
   if (entry->skeleton.opcode == 0x0F) {
     code_buffer_.push_back(entry->skeleton.extra_opcode1);
-    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
+    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode1 == 0x3A) {
       code_buffer_.push_back(entry->skeleton.extra_opcode2);
     } else {
       DCHECK_EQ(0, entry->skeleton.extra_opcode2);
@@ -1038,7 +1038,7 @@ void X86Mir2Lir::EmitCallMem(const X86EncodingMap* entry, uint8_t base, int disp
   code_buffer_.push_back(entry->skeleton.opcode);
   if (entry->skeleton.opcode == 0x0F) {
     code_buffer_.push_back(entry->skeleton.extra_opcode1);
-    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
+    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode1 == 0x3A) {
       code_buffer_.push_back(entry->skeleton.extra_opcode2);
     } else {
       DCHECK_EQ(0, entry->skeleton.extra_opcode2);
@@ -1067,7 +1067,7 @@ void X86Mir2Lir::EmitCallThread(const X86EncodingMap* entry, int disp) {
   code_buffer_.push_back(entry->skeleton.opcode);
   if (entry->skeleton.opcode == 0x0F) {
     code_buffer_.push_back(entry->skeleton.extra_opcode1);
-    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
+    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode1 == 0x3A) {
       code_buffer_.push_back(entry->skeleton.extra_opcode2);
     } else {
       DCHECK_EQ(0, entry->skeleton.extra_opcode2);
