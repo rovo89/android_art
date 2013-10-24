@@ -170,6 +170,7 @@ class X86Mir2Lir : public Mir2Lir {
 
   private:
     void EmitDisp(int base, int disp);
+    void EmitOpRegOpcode(const X86EncodingMap* entry, uint8_t reg);
     void EmitOpReg(const X86EncodingMap* entry, uint8_t reg);
     void EmitOpMem(const X86EncodingMap* entry, uint8_t base, int disp);
     void EmitMemReg(const X86EncodingMap* entry, uint8_t base, int disp, uint8_t reg);

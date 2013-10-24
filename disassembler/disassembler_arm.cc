@@ -103,6 +103,10 @@ static const char* kThumbDataProcessingOperations[] = {
   "tst", "rsb", "cmp", "cmn", "orr", "mul", "bic", "mvn",
 };
 
+static const char* kThumbReverseOperations[] = {
+    "rev", "rev16", "rbit", "revsh"
+};
+
 struct ArmRegister {
   explicit ArmRegister(uint32_t r) : r(r) { CHECK_LE(r, 15U); }
   ArmRegister(uint32_t instruction, uint32_t at_bit) : r((instruction >> at_bit) & 0xf) { CHECK_LE(r, 15U); }
@@ -995,6 +999,31 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
           }
           break;
         }
+        case 0x29: {  // 0101001
+          // |111|11|1000000|0000|1111|1100|00|0 0|0000|
+          // |5 3|21|0     4|3  0|5  2|1  8|76|5 4|3  0|
+          // |---|--|-------|----|----|----|--|---|----|
+          // |332|22|2222222|1111|1111|1100|00|0 0|0000|
+          // |1 9|87|6     0|9  6|5  2|1  8|76|5 4|3  0|
+          // |---|--|-------|----|----|----|--|---|----|
+          // |111|11|0101001| Rm |1111| Rd |11|op3| Rm |
+          // REV   - 111 11 0101001 mmmm 1111 dddd 1000 mmmm
+          // REV16 - 111 11 0101001 mmmm 1111 dddd 1001 mmmm
+          // RBIT  - 111 11 0101001 mmmm 1111 dddd 1010 mmmm
+          // REVSH - 111 11 0101001 mmmm 1111 dddd 1011 mmmm
+          if ((instr & 0xf0c0) == 0xf080) {
+            uint32_t op3 = (instr >> 4) & 3;
+            opcode << kThumbReverseOperations[op3];
+            ArmRegister Rm(instr, 0);
+            ArmRegister Rd(instr, 8);
+            args << Rd << ", " << Rm;
+            ArmRegister Rm2(instr, 16);
+            if (Rm.r != Rm2.r || Rm.r == 13 || Rm.r == 15 || Rd.r == 13 || Rd.r == 15) {
+              args << " (UNPREDICTABLE)";
+            }
+          } // else unknown instruction
+          break;
+        }
         case 0x05: case 0x0D: case 0x15: case 0x1D: {  // 00xx101
           // Load word
           // |111|11|10|0 0|00|0|0000|1111|110000|000000|
@@ -1283,6 +1312,16 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
           uint32_t imm32 = (i << 6) | (imm5 << 1);
           args << Rn << ", ";
           DumpBranchTarget(args, instr_ptr + 4, imm32);
+          break;
+        }
+        case 0x50: case 0x51:    // 101000x
+        case 0x52: case 0x53:    // 101001x
+        case 0x56: case 0x57: {  // 101011x
+          uint16_t op = (instr >> 6) & 3;
+          opcode << kThumbReverseOperations[op];
+          ThumbRegister Rm(instr, 3);
+          ThumbRegister Rd(instr, 0);
+          args << Rd << ", " << Rm;
           break;
         }
         case 0x78: case 0x79: case 0x7A: case 0x7B:  // 1111xxx

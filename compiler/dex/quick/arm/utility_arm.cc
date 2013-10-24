@@ -314,6 +314,22 @@ LIR* ArmMir2Lir::OpRegRegShift(OpKind op, int r_dest_src1, int r_src2,
     case kOpSub:
       opcode = (thumb_form) ? kThumbSubRRR : kThumb2SubRRR;
       break;
+    case kOpRev:
+      DCHECK_EQ(shift, 0);
+      if (!thumb_form) {
+        // Binary, but rm is encoded twice.
+        return NewLIR3(kThumb2RevRR, r_dest_src1, r_src2, r_src2);
+      }
+      opcode = kThumbRev;
+      break;
+    case kOpRevsh:
+      DCHECK_EQ(shift, 0);
+      if (!thumb_form) {
+        // Binary, but rm is encoded twice.
+        return NewLIR3(kThumb2RevshRR, r_dest_src1, r_src2, r_src2);
+      }
+      opcode = kThumbRevsh;
+      break;
     case kOp2Byte:
       DCHECK_EQ(shift, 0);
       return NewLIR4(kThumb2Sbfx, r_dest_src1, r_src2, 0, 8);

@@ -246,6 +246,8 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   UNARY_ENCODING_MAP(Idivmod, 0x7, 0, SETS_CCODES, DaR, kRegRegReg, IS_UNARY_OP | REG_USE0, DaM, kRegRegMem, IS_BINARY_OP | REG_USE0, DaA, kRegRegArray, IS_QUAD_OP | REG_USE01, 0, REG_DEFA_USEA, REG_DEFAD_USEAD, REG_DEFAD_USEAD, "ah:al,ax,", "dx:ax,dx:ax,", "edx:eax,edx:eax,"),
 #undef UNARY_ENCODING_MAP
 
+  { kX86Bswap32R, kRegOpcode, IS_UNARY_OP | REG_DEF0_USE0, { 0, 0, 0x0F, 0xC8, 0, 0, 0, 0 }, "Bswap32R", "!0r" },
+
 #define EXT_0F_ENCODING_MAP(opname, prefix, opcode, reg_def) \
 { kX86 ## opname ## RR, kRegReg,             IS_BINARY_OP   | reg_def | REG_USE01,  { prefix, 0, 0x0F, opcode, 0, 0, 0, 0 }, #opname "RR", "!0r,!1r" }, \
 { kX86 ## opname ## RM, kRegMem,   IS_LOAD | IS_TERTIARY_OP | reg_def | REG_USE01,  { prefix, 0, 0x0F, opcode, 0, 0, 0, 0 }, #opname "RM", "!0r,[!1r+!2d]" }, \
@@ -371,6 +373,8 @@ int X86Mir2Lir::GetInsnSize(LIR* lir) {
       return lir->operands[0];  // length of nop is sole operand
     case kNullary:
       return 1;  // 1 byte of opcode
+    case kRegOpcode:  // lir operands - 0: reg
+      return ComputeSize(entry, 0, 0, false) - 1;  // substract 1 for modrm
     case kReg:  // lir operands - 0: reg
       return ComputeSize(entry, 0, 0, false);
     case kMem:  // lir operands - 0: base, 1: disp
@@ -512,6 +516,33 @@ void X86Mir2Lir::EmitDisp(int base, int disp) {
     code_buffer_.push_back((disp >> 16) & 0xFF);
     code_buffer_.push_back((disp >> 24) & 0xFF);
   }
+}
+
+void X86Mir2Lir::EmitOpRegOpcode(const X86EncodingMap* entry, uint8_t reg) {
+  if (entry->skeleton.prefix1 != 0) {
+    code_buffer_.push_back(entry->skeleton.prefix1);
+    if (entry->skeleton.prefix2 != 0) {
+      code_buffer_.push_back(entry->skeleton.prefix2);
+    }
+  } else {
+    DCHECK_EQ(0, entry->skeleton.prefix2);
+  }
+  code_buffer_.push_back(entry->skeleton.opcode);
+  if (entry->skeleton.opcode == 0x0F) {
+    code_buffer_.push_back(entry->skeleton.extra_opcode1);
+    // There's no 3-byte instruction with +rd
+    DCHECK_NE(0x38, entry->skeleton.extra_opcode1);
+    DCHECK_NE(0x3A, entry->skeleton.extra_opcode1);
+    DCHECK_EQ(0, entry->skeleton.extra_opcode2);
+  } else {
+    DCHECK_EQ(0, entry->skeleton.extra_opcode1);
+    DCHECK_EQ(0, entry->skeleton.extra_opcode2);
+  }
+  DCHECK(!X86_FPREG(reg));
+  DCHECK_LT(reg, 8);
+  code_buffer_.back() += reg;
+  DCHECK_EQ(0, entry->skeleton.ax_opcode);
+  DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
 void X86Mir2Lir::EmitOpReg(const X86EncodingMap* entry, uint8_t reg) {
@@ -1302,6 +1333,9 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
         DCHECK_EQ(0, entry->skeleton.modrm_opcode);
         DCHECK_EQ(0, entry->skeleton.ax_opcode);
         DCHECK_EQ(0, entry->skeleton.immediate_bytes);
+        break;
+      case kRegOpcode:  // lir operands - 0: reg
+        EmitOpRegOpcode(entry, lir->operands[0]);
         break;
       case kReg:  // lir operands - 0: reg
         EmitOpReg(entry, lir->operands[0]);

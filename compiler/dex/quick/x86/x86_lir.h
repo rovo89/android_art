@@ -313,6 +313,7 @@ enum X86OpCode {
   UnaryOpcode(kX86Imul, DaR, DaM, DaA),
   UnaryOpcode(kX86Divmod,  DaR, DaM, DaA),
   UnaryOpcode(kX86Idivmod, DaR, DaM, DaA),
+  kX86Bswap32R,
 #undef UnaryOpcode
 #define Binary0fOpCode(opcode) \
   opcode ## RR, opcode ## RM, opcode ## RA
@@ -381,6 +382,7 @@ enum X86EncodingKind {
   kData,                                   // Special case for raw data.
   kNop,                                    // Special case for variable length nop.
   kNullary,                                // Opcode that takes no arguments.
+  kRegOpcode,                              // Shorter form of R instruction kind (opcode+rd)
   kReg, kMem, kArray,                      // R, M and A instruction kinds.
   kMemReg, kArrayReg, kThreadReg,          // MR, AR and TR instruction kinds.
   kRegReg, kRegMem, kRegArray, kRegThread,  // RR, RM, RA and RT instruction kinds.

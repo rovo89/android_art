@@ -296,6 +296,8 @@ enum ArmOpcode {
   kThumbOrr,         // orr   [0100001100] rm[5..3] rd[2..0].
   kThumbPop,         // pop   [1011110] r[8..8] rl[7..0].
   kThumbPush,        // push  [1011010] r[8..8] rl[7..0].
+  kThumbRev,         // rev   [1011101000] rm[5..3] rd[2..0]
+  kThumbRevsh,       // revsh   [1011101011] rm[5..3] rd[2..0]
   kThumbRorRR,       // ror   [0100000111] rs[5..3] rd[2..0].
   kThumbSbc,         // sbc   [0100000110] rm[5..3] rd[2..0].
   kThumbStmia,       // stmia   [11000] rn[10..8] reglist [7.. 0].
@@ -399,6 +401,8 @@ enum ArmOpcode {
   kThumb2AdcRRI8,    // adc [111100010101] rn[19..16] [0] imm3 rd[11..8] imm8.
   kThumb2SubRRI8,    // sub [111100011011] rn[19..16] [0] imm3 rd[11..8] imm8.
   kThumb2SbcRRI8,    // sbc [111100010111] rn[19..16] [0] imm3 rd[11..8] imm8.
+  kThumb2RevRR,      // rev [111110101001] rm[19..16] [1111] rd[11..8] 1000 rm[3..0]
+  kThumb2RevshRR,    // rev [111110101001] rm[19..16] [1111] rd[11..8] 1011 rm[3..0]
   kThumb2It,         // it [10111111] firstcond[7-4] mask[3-0].
   kThumb2Fmstat,     // fmstat [11101110111100011111101000010000].
   kThumb2Vcmpd,      // vcmp [111011101] D [11011] rd[15-12] [1011] E [1] M [0] rm[3-0].

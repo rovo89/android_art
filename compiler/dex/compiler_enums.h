@@ -181,6 +181,8 @@ enum OpKind {
   kOpBic,
   kOpCmn,
   kOpTst,
+  kOpRev,
+  kOpRevsh,
   kOpBkpt,
   kOpBlx,
   kOpPush,
