@@ -153,8 +153,9 @@ void ElfWriterMclinker::Init() {
 
 void ElfWriterMclinker::AddOatInput(std::vector<uint8_t>& oat_contents) {
   // Add an artificial memory input. Based on LinkerTest.
-  UniquePtr<OatFile> oat_file(OatFile::OpenMemory(oat_contents, elf_file_->GetPath()));
-  CHECK(oat_file.get() != NULL) << elf_file_->GetPath();
+  std::string error_msg;
+  UniquePtr<OatFile> oat_file(OatFile::OpenMemory(oat_contents, elf_file_->GetPath(), &error_msg));
+  CHECK(oat_file.get() != NULL) << elf_file_->GetPath() << ": " << error_msg;
 
   const char* oat_data_start = reinterpret_cast<const char*>(&oat_file->GetOatHeader());
   const size_t oat_data_length = oat_file->GetOatHeader().GetExecutableOffset();
@@ -344,8 +345,9 @@ bool ElfWriterMclinker::Link() {
 
 #if defined(ART_USE_PORTABLE_COMPILER)
 void ElfWriterMclinker::FixupOatMethodOffsets(const std::vector<const DexFile*>& dex_files) {
-  UniquePtr<ElfFile> elf_file(ElfFile::Open(elf_file_, true, false));
-  CHECK(elf_file.get() != NULL) << elf_file_->GetPath();
+  std::string error_msg;
+  UniquePtr<ElfFile> elf_file(ElfFile::Open(elf_file_, true, false, &error_msg));
+  CHECK(elf_file.get() != NULL) << elf_file_->GetPath() << ": " << error_msg;
 
   llvm::ELF::Elf32_Addr oatdata_address = GetOatDataAddress(elf_file.get());
   DexMethodIterator it(dex_files);
