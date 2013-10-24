@@ -178,6 +178,7 @@ LIBART_TARGET_SRC_FILES := \
 	runtime_android.cc \
 	thread_android.cc
 
+LIBART_LDFLAGS :=
 ifeq ($(TARGET_ARCH),arm)
 LIBART_TARGET_SRC_FILES += \
 	arch/arm/context_arm.cc.arm \
@@ -195,6 +196,7 @@ LIBART_TARGET_SRC_FILES += \
 	arch/x86/portable_entrypoints_x86.S \
 	arch/x86/quick_entrypoints_x86.S \
 	arch/x86/thread_x86.cc
+LIBART_LDFLAGS += -Wl,--no-fatal-warnings
 else # TARGET_ARCH != x86
 ifeq ($(TARGET_ARCH),mips)
 LIBART_TARGET_SRC_FILES += \
@@ -304,6 +306,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   LOCAL_GENERATED_SOURCES += $$(ENUM_OPERATOR_OUT_GEN)
 
   LOCAL_CFLAGS := $(LIBART_CFLAGS)
+  LOCAL_LDFLAGS := $(LIBART_LDFLAGS)
   ifeq ($$(art_target_or_host),target)
     LOCAL_CLANG := $(ART_TARGET_CLANG)
     LOCAL_CFLAGS += $(ART_TARGET_CFLAGS)
