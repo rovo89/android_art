@@ -1159,6 +1159,39 @@ bool Mir2Lir::GenInlinedCurrentThread(CallInfo* info) {
   return true;
 }
 
+bool Mir2Lir::GenInlinedPeek(CallInfo* info, OpSize size) {
+  RegLocation rl_src_address = info->args[0];  // long address
+  rl_src_address.wide = 0;  // ignore high half in info->args[1]
+  RegLocation rl_dest = InlineTarget(info);
+  RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  if (size == kLong) {
+    LoadBaseDispWide(rl_address.low_reg, 0, rl_result.low_reg, rl_result.high_reg, INVALID_SREG);
+    StoreValueWide(rl_dest, rl_result);
+  } else {
+    DCHECK(size == kSignedByte || size == kSignedHalf || size == kWord);
+    LoadBaseDisp(rl_address.low_reg, 0, rl_result.low_reg, size, INVALID_SREG);
+    StoreValue(rl_dest, rl_result);
+  }
+  return true;
+}
+
+bool Mir2Lir::GenInlinedPoke(CallInfo* info, OpSize size) {
+  RegLocation rl_src_address = info->args[0];  // long address
+  rl_src_address.wide = 0;  // ignore high half in info->args[1]
+  RegLocation rl_src_value = info->args[2];  // [size] value
+  RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
+  if (size == kLong) {
+    RegLocation rl_value = LoadValueWide(rl_src_value, kCoreReg);
+    StoreBaseDispWide(rl_address.low_reg, 0, rl_value.low_reg, rl_value.high_reg);
+  } else {
+    DCHECK(size == kSignedByte || size == kSignedHalf || size == kWord);
+    RegLocation rl_value = LoadValue(rl_src_value, kCoreReg);
+    StoreBaseDisp(rl_address.low_reg, 0, rl_value.low_reg, size);
+  }
+  return true;
+}
+
 bool Mir2Lir::GenInlinedUnsafeGet(CallInfo* info,
                                   bool is_long, bool is_volatile) {
   if (cu_->instruction_set == kMips) {
@@ -1321,6 +1354,32 @@ bool Mir2Lir::GenIntrinsic(CallInfo* info) {
     std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
     if (tgt_method == "java.lang.Thread java.lang.Thread.currentThread()") {
       return GenInlinedCurrentThread(info);
+    }
+  } else if (tgt_methods_declaring_class.starts_with("Llibcore/io/Memory;")) {
+    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
+    if (tgt_method == "byte libcore.io.Memory.peekByte(long)") {
+      return GenInlinedPeek(info, kSignedByte);
+    }
+    if (tgt_method == "int libcore.io.Memory.peekIntNative(long)") {
+      return GenInlinedPeek(info, kWord);
+    }
+    if (tgt_method == "long libcore.io.Memory.peekLongNative(long)") {
+      return GenInlinedPeek(info, kLong);
+    }
+    if (tgt_method == "short libcore.io.Memory.peekShortNative(long)") {
+      return GenInlinedPeek(info, kSignedHalf);
+    }
+    if (tgt_method == "void libcore.io.Memory.pokeByte(long, byte)") {
+      return GenInlinedPoke(info, kSignedByte);
+    }
+    if (tgt_method == "void libcore.io.Memory.pokeIntNative(long, int)") {
+      return GenInlinedPoke(info, kWord);
+    }
+    if (tgt_method == "void libcore.io.Memory.pokeLongNative(long, long)") {
+      return GenInlinedPoke(info, kLong);
+    }
+    if (tgt_method == "void libcore.io.Memory.pokeShortNative(long, short)") {
+      return GenInlinedPoke(info, kSignedHalf);
     }
   } else if (tgt_methods_declaring_class.starts_with("Lsun/misc/Unsafe;")) {
     std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));

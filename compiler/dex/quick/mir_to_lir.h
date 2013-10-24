@@ -552,6 +552,8 @@ class Mir2Lir : public Backend {
     bool GenInlinedIndexOf(CallInfo* info, bool zero_based);
     bool GenInlinedStringCompareTo(CallInfo* info);
     bool GenInlinedCurrentThread(CallInfo* info);
+    bool GenInlinedPeek(CallInfo* info, OpSize size);
+    bool GenInlinedPoke(CallInfo* info, OpSize size);
     bool GenInlinedUnsafeGet(CallInfo* info, bool is_long, bool is_volatile);
     bool GenInlinedUnsafePut(CallInfo* info, bool is_long, bool is_object,
                              bool is_volatile, bool is_ordered);
