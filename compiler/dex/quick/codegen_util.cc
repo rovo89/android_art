@@ -164,8 +164,7 @@ void Mir2Lir::DumpLIRInsn(LIR* lir, unsigned char* base_addr) {
          lir->operands[0] = WrapPointer(ArenaStrdup("No instruction string"));
       }
       LOG(INFO) << "-------- dalvik offset: 0x" << std::hex
-                << lir->dalvik_offset << " @ "
-                << reinterpret_cast<char*>(UnwrapPointer(lir->operands[0]));
+                << lir->dalvik_offset << " @ " << reinterpret_cast<char*>(lir->operands[0]);
       break;
     case kPseudoExitBlock:
       LOG(INFO) << "-------- exit offset: 0x" << std::hex << dest;
