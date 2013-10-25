@@ -44,7 +44,7 @@ inline void Object::SetClass(Class* new_klass) {
   SetFieldPtr(OFFSET_OF_OBJECT_MEMBER(Object, klass_), new_klass, false, false);
 }
 
-inline LockWord Object::GetLockWord() {
+inline LockWord Object::GetLockWord() const {
   return LockWord(GetField32(OFFSET_OF_OBJECT_MEMBER(Object, monitor_), true));
 }
 

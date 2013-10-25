@@ -339,6 +339,9 @@ static void System_arraycopyCharUnchecked(JNIEnv* env, jclass, jobject javaSrc, 
 }
 
 static jint System_identityHashCode(JNIEnv* env, jclass, jobject javaObject) {
+  if (javaObject == nullptr) {
+    return 0;
+  }
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* o = soa.Decode<mirror::Object*>(javaObject);
   return static_cast<jint>(o->IdentityHashCode());

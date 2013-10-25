@@ -29,30 +29,37 @@ namespace mirror {
 
 class Monitor;
 
-/* The lock value itself as stored in mirror::Object::monitor_.  The MSB of the lock encodes its
- * state.  When cleared, the lock is in the "thin" state and its bits are formatted as follows:
+/* The lock value itself as stored in mirror::Object::monitor_.  The two most significant bits of
+ * the state. The three possible states are fat locked, thin/unlocked, and hash code.
+ * When the lock word is in the "thin" state and its bits are formatted as follows:
  *
- *  |3|32222222222111|11111110000000000|
- *  |1|09876543210987|65432109876543210|
- *  |0| lock count   | thread id       |
+ *  |33|22222222221111|1111110000000000|
+ *  |10|98765432109876|5432109876543210|
+ *  |00| lock count   |thread id owner |
  *
- * When set, the lock is in the "fat" state and its bits are formatted as follows:
+ * When the lock word is in the "fat" state and its bits are formatted as follows:
  *
- *  |3|3222222222211111111110000000000|
- *  |1|0987654321098765432109876543210|
- *  |1| Monitor* >> 1                 |
+ *  |33|222222222211111111110000000000|
+ *  |10|987654321098765432109876543210|
+ *  |01| Monitor* >> kStateSize       |
+ *
+ * When the lock word is in hash state and its bits are formatted as follows:
+ *
+ *  |33|222222222211111111110000000000|
+ *  |10|987654321098765432109876543210|
+ *  |10| HashCode                     |
  */
 class LockWord {
  public:
   enum {
-    // Number of bits to encode the state, currently just fat or thin/unlocked.
-    kStateSize = 1,
+    // Number of bits to encode the state, currently just fat or thin/unlocked or hash code.
+    kStateSize = 2,
     // Number of bits to encode the thin lock owner.
     kThinLockOwnerSize = 16,
     // Remaining bits are the recursive lock count.
     kThinLockCountSize = 32 - kThinLockOwnerSize - kStateSize,
-
     // Thin lock bits. Owner in lowest bits.
+
     kThinLockOwnerShift = 0,
     kThinLockOwnerMask = (1 << kThinLockOwnerSize) - 1,
     // Count in higher bits.
@@ -65,25 +72,42 @@ class LockWord {
     kStateMask = (1 << kStateSize) - 1,
     kStateThinOrUnlocked = 0,
     kStateFat = 1,
+    kStateHash = 2,
+
+    // When the state is kHashCode, the non-state bits hold the hashcode.
+    kHashShift = 0,
+    kHashSize = 32 - kStateSize,
+    kHashMask = (1 << kHashSize) - 1,
   };
 
   static LockWord FromThinLockId(uint32_t thread_id, uint32_t count) {
     CHECK_LE(thread_id, static_cast<uint32_t>(kThinLockOwnerMask));
-    return LockWord((thread_id << kThinLockOwnerShift) | (count << kThinLockCountShift));
+    return LockWord((thread_id << kThinLockOwnerShift) | (count << kThinLockCountShift) |
+                     (kStateThinOrUnlocked << kStateShift));
+  }
+
+  static LockWord FromHashCode(uint32_t hash_code) {
+    CHECK_LE(hash_code, static_cast<uint32_t>(kHashMask));
+    return LockWord((hash_code << kHashShift) | (kStateHash << kStateShift));
   }
 
   enum LockState {
     kUnlocked,    // No lock owners.
     kThinLocked,  // Single uncontended owner.
-    kFatLocked    // See associated monitor.
+    kFatLocked,   // See associated monitor.
+    kHashCode,    // Lock word contains an identity hash.
   };
 
   LockState GetState() const {
+    uint32_t internal_state = (value_ >> kStateShift) & kStateMask;
     if (value_ == 0) {
       return kUnlocked;
-    } else if (((value_ >> kStateShift) & kStateMask) == kStateThinOrUnlocked) {
+    } else if (internal_state == kStateThinOrUnlocked) {
       return kThinLocked;
+    } else if (internal_state == kStateHash) {
+      return kHashCode;
     } else {
+      DCHECK_EQ(internal_state, static_cast<uint32_t>(kStateFat));
       return kFatLocked;
     }
   }
@@ -103,16 +127,19 @@ class LockWord {
   // Constructor a lock word for inflation to use a Monitor.
   explicit LockWord(Monitor* mon);
 
-  bool operator==(const LockWord& rhs) {
+  bool operator==(const LockWord& rhs) const {
     return GetValue() == rhs.GetValue();
   }
 
- private:
-  explicit LockWord(uint32_t val) : value_(val) {}
+  // Return the hash code stored in the lock word, must be kHashCode state.
+  uint32_t GetHashCode() const;
 
   uint32_t GetValue() const {
     return value_;
   }
+
+ private:
+  explicit LockWord(uint32_t val) : value_(val) {}
 
   // Only Object should be converting LockWords to/from uints.
   friend class mirror::Object;

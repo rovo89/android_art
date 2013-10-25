@@ -69,7 +69,7 @@ class MarkSweep : public GarbageCollector {
   virtual bool HandleDirtyObjectsPhase() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   virtual void MarkingPhase() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   virtual void ReclaimPhase() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  virtual void FinishPhase();
+  virtual void FinishPhase() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   virtual void MarkReachableObjects()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
@@ -208,13 +208,13 @@ class MarkSweep : public GarbageCollector {
   void SetImmuneRange(mirror::Object* begin, mirror::Object* end);
 
   void SweepSystemWeaks()
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
   static mirror::Object* VerifySystemWeakIsLiveCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   void VerifySystemWeaks()
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
   // Verify that an object is live, either in a live bitmap or in the allocation stack.
   void VerifyIsLive(const mirror::Object* obj)
