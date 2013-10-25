@@ -355,7 +355,7 @@ CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet 
       jni_compiler_(NULL),
       compiler_enable_auto_elf_loading_(NULL),
       compiler_get_method_code_addr_(NULL),
-      support_boot_image_fixup_(true),
+      support_boot_image_fixup_(instruction_set == kThumb2),
       dedupe_code_("dedupe code"),
       dedupe_mapping_table_("dedupe mapping table"),
       dedupe_vmap_table_("dedupe vmap table"),
@@ -1058,10 +1058,12 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
   return false;  // Incomplete knowledge needs slow path.
 }
 
-void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type,
+void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType sharp_type,
+                                                   bool no_guarantee_of_dex_cache_entry,
                                                    mirror::Class* referrer_class,
                                                    mirror::ArtMethod* method,
                                                    bool update_stats,
+                                                   MethodReference* target_method,
                                                    uintptr_t* direct_code,
                                                    uintptr_t* direct_method) {
   // For direct and static methods compute possible direct_code and direct_method values, ie
@@ -1070,46 +1072,103 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType s
   // invoked, so this can be passed to the out-of-line runtime support code.
   *direct_code = 0;
   *direct_method = 0;
+  bool use_dex_cache = false;
+  bool compiling_boot = Runtime::Current()->GetHeap()->GetContinuousSpaces().size() == 1;
   if (compiler_backend_ == kPortable) {
     if (sharp_type != kStatic && sharp_type != kDirect) {
       return;
     }
+    use_dex_cache = true;
   } else {
     if (sharp_type != kStatic && sharp_type != kDirect && sharp_type != kInterface) {
       return;
     }
+    // TODO: support patching on all architectures.
+    use_dex_cache = compiling_boot && !support_boot_image_fixup_;
   }
-  bool method_code_in_boot = method->GetDeclaringClass()->GetClassLoader() == NULL;
-  if (!method_code_in_boot) {
-    return;
-  }
-  bool has_clinit_trampoline = method->IsStatic() && !method->GetDeclaringClass()->IsInitialized();
-  if (has_clinit_trampoline && (method->GetDeclaringClass() != referrer_class)) {
-    // Ensure we run the clinit trampoline unless we are invoking a static method in the same class.
-    return;
-  }
-  if (update_stats) {
-    if (sharp_type != kInterface) {  // Interfaces always go via a trampoline.
-      stats_->DirectCallsToBoot(type);
-    }
-    stats_->DirectMethodsToBoot(type);
-  }
-  bool compiling_boot = Runtime::Current()->GetHeap()->GetContinuousSpaces().size() == 1;
-  if (compiling_boot) {
-    if (support_boot_image_fixup_) {
-      MethodHelper mh(method);
-      if (IsImageClass(mh.GetDeclaringClassDescriptorAsStringPiece())) {
-        // We can only branch directly to Methods that are resolved in the DexCache.
-        // Otherwise we won't invoke the resolution trampoline.
-        *direct_method = -1;
-        *direct_code = -1;
+  bool method_code_in_boot = (method->GetDeclaringClass()->GetClassLoader() == nullptr);
+  if (!use_dex_cache) {
+    if (!method_code_in_boot) {
+      use_dex_cache = true;
+    } else {
+      bool has_clinit_trampoline =
+          method->IsStatic() && !method->GetDeclaringClass()->IsInitialized();
+      if (has_clinit_trampoline && (method->GetDeclaringClass() != referrer_class)) {
+        // Ensure we run the clinit trampoline unless we are invoking a static method in the same
+        // class.
+        use_dex_cache = true;
       }
     }
-  } else {
-    if (Runtime::Current()->GetHeap()->FindSpaceFromObject(method, false)->IsImageSpace()) {
-      *direct_method = reinterpret_cast<uintptr_t>(method);
+  }
+  if (update_stats && method_code_in_boot) {
+    if (sharp_type != kInterface) {  // Interfaces always go via a trampoline until we get IMTs.
+      stats_->DirectCallsToBoot(*type);
     }
-    *direct_code = reinterpret_cast<uintptr_t>(method->GetEntryPointFromCompiledCode());
+    stats_->DirectMethodsToBoot(*type);
+  }
+  if (!use_dex_cache && compiling_boot) {
+    MethodHelper mh(method);
+    if (!IsImageClass(mh.GetDeclaringClassDescriptorAsStringPiece())) {
+      // We can only branch directly to Methods that are resolved in the DexCache.
+      // Otherwise we won't invoke the resolution trampoline.
+      use_dex_cache = true;
+    }
+  }
+  // The method is defined not within this dex file. We need a dex cache slot within the current
+  // dex file or direct pointers.
+  bool must_use_direct_pointers = false;
+  if (target_method->dex_file == method->GetDeclaringClass()->GetDexCache()->GetDexFile()) {
+    target_method->dex_method_index = method->GetDexMethodIndex();
+  } else {
+    // TODO: support patching from one dex file to another in the boot image.
+    use_dex_cache = use_dex_cache || compiling_boot;
+    if (no_guarantee_of_dex_cache_entry) {
+      // See if the method is also declared in this dex cache.
+      uint32_t dex_method_idx = MethodHelper(method).FindDexMethodIndexInOtherDexFile(
+          *referrer_class->GetDexCache()->GetDexFile());
+      if (dex_method_idx != DexFile::kDexNoIndex) {
+        target_method->dex_method_index = dex_method_idx;
+      } else {
+        must_use_direct_pointers = true;
+      }
+    }
+  }
+  if (use_dex_cache) {
+    if (must_use_direct_pointers) {
+      // Fail. Test above showed the only safe dispatch was via the dex cache, however, the direct
+      // pointers are required as the dex cache lacks an appropriate entry.
+      VLOG(compiler) << "Dex cache devirtualization failed for: " << PrettyMethod(method);
+    } else {
+      *type = sharp_type;
+    }
+  } else {
+    if (compiling_boot) {
+      *type = sharp_type;
+      *direct_method = -1;
+      if (sharp_type != kInterface) {
+        *direct_code = -1;
+      }
+    } else {
+      bool method_in_image =
+          Runtime::Current()->GetHeap()->FindSpaceFromObject(method, false)->IsImageSpace();
+      if (method_in_image) {
+        CHECK_EQ(method->IsAbstract(), sharp_type == kInterface);
+        *type = sharp_type;
+        *direct_method = reinterpret_cast<uintptr_t>(method);
+        if (*type != kInterface) {
+          *direct_code = reinterpret_cast<uintptr_t>(method->GetEntryPointFromCompiledCode());
+        }
+        target_method->dex_file = method->GetDeclaringClass()->GetDexCache()->GetDexFile();
+        target_method->dex_method_index = method->GetDexMethodIndex();
+      } else if (!must_use_direct_pointers) {
+        // Set the code and rely on the dex cache for the method.
+        *type = sharp_type;
+        *direct_code = reinterpret_cast<uintptr_t>(method->GetEntryPointFromCompiledCode());
+      } else {
+        // Direct pointers were required but none were available.
+        VLOG(compiler) << "Dex cache devirtualization failed for: " << PrettyMethod(method);
+      }
+    }
   }
 }
 
@@ -1126,6 +1185,9 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
       ComputeMethodReferencedFromCompilingMethod(soa, mUnit, target_method->dex_method_index,
                                                  *invoke_type);
   if (resolved_method != NULL) {
+    if (*invoke_type == kVirtual || *invoke_type == kSuper) {
+      *vtable_idx = resolved_method->GetMethodIndex();
+    }
     // Don't try to fast-path if we don't understand the caller's class or this appears to be an
     // Incompatible Class Change Error.
     mirror::Class* referrer_class =
@@ -1166,13 +1228,14 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
           // dex cache, check that this resolved method is where we expect it.
           CHECK(referrer_class->GetDexCache()->GetResolvedMethod(target_method->dex_method_index) ==
                 resolved_method) << PrettyMethod(resolved_method);
-          if (update_stats) {
-            stats_->ResolvedMethod(*invoke_type);
-            stats_->VirtualMadeDirect(*invoke_type);
+          InvokeType orig_invoke_type = *invoke_type;
+          GetCodeAndMethodForDirectCall(invoke_type, kDirect, false, referrer_class, resolved_method,
+                                        update_stats, target_method, direct_code, direct_method);
+          if (update_stats && (*invoke_type == kDirect)) {
+            stats_->ResolvedMethod(orig_invoke_type);
+            stats_->VirtualMadeDirect(orig_invoke_type);
           }
-          GetCodeAndMethodForDirectCall(*invoke_type, kDirect, referrer_class, resolved_method,
-                                        update_stats, direct_code, direct_method);
-          *invoke_type = kDirect;
+          DCHECK_NE(*invoke_type, kSuper) << PrettyMethod(resolved_method);
           return true;
         }
         const bool enableVerifierBasedSharpening = enable_devirtualization;
@@ -1194,76 +1257,16 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
                                                        kVirtual);
             CHECK(called_method != NULL);
             CHECK(!called_method->IsAbstract());
-            GetCodeAndMethodForDirectCall(*invoke_type, kDirect, referrer_class, called_method,
-                                          update_stats, direct_code, direct_method);
-            bool compiler_needs_dex_cache =
-                (GetCompilerBackend() == kPortable) ||
-                (GetCompilerBackend() == kQuick && instruction_set_ != kThumb2) ||
-                (*direct_code == 0) || (*direct_code == static_cast<unsigned int>(-1)) ||
-                (*direct_method == 0) || (*direct_method == static_cast<unsigned int>(-1));
-            if ((devirt_map_target->dex_file != target_method->dex_file) &&
-                compiler_needs_dex_cache) {
-              // We need to use the dex cache to find either the method or code, and the dex file
-              // containing the method isn't the one expected for the target method. Try to find
-              // the method within the expected target dex file.
-              // TODO: the -1 could be handled as direct code if the patching new the target dex
-              //       file.
-              // TODO: quick only supports direct pointers with Thumb2.
-              // TODO: the following should be factored into a common helper routine to find
-              //       one dex file's method within another.
-              const DexFile* dexfile = target_method->dex_file;
-              const DexFile* cm_dexfile =
-                  called_method->GetDeclaringClass()->GetDexCache()->GetDexFile();
-              const DexFile::MethodId& cm_method_id =
-                  cm_dexfile->GetMethodId(called_method->GetDexMethodIndex());
-              const char* cm_descriptor = cm_dexfile->StringByTypeIdx(cm_method_id.class_idx_);
-              const DexFile::StringId* descriptor = dexfile->FindStringId(cm_descriptor);
-              if (descriptor != NULL) {
-                const DexFile::TypeId* type_id =
-                    dexfile->FindTypeId(dexfile->GetIndexForStringId(*descriptor));
-                if (type_id != NULL) {
-                  const char* cm_name = cm_dexfile->GetMethodName(cm_method_id);
-                  const DexFile::StringId* name = dexfile->FindStringId(cm_name);
-                  if (name != NULL) {
-                    uint16_t return_type_idx;
-                    std::vector<uint16_t> param_type_idxs;
-                    bool success =
-                        dexfile->CreateTypeList(cm_dexfile->GetMethodSignature(cm_method_id).ToString(),
-                                                &return_type_idx, &param_type_idxs);
-                    if (success) {
-                      const DexFile::ProtoId* sig =
-                          dexfile->FindProtoId(return_type_idx, param_type_idxs);
-                      if (sig != NULL) {
-                        const  DexFile::MethodId* method_id = dexfile->FindMethodId(*type_id,
-                                                                                    *name, *sig);
-                        if (method_id != NULL) {
-                          if (update_stats) {
-                            stats_->ResolvedMethod(*invoke_type);
-                            stats_->VirtualMadeDirect(*invoke_type);
-                            stats_->PreciseTypeDevirtualization();
-                          }
-                          target_method->dex_method_index =
-                              dexfile->GetIndexForMethodId(*method_id);
-                          *invoke_type = kDirect;
-                          return true;
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-              // TODO: the stats for direct code and method are off as we failed to find the direct
-              //       method in the referring method's dex cache/file.
-            } else {
-              if (update_stats) {
-                stats_->ResolvedMethod(*invoke_type);
-                stats_->VirtualMadeDirect(*invoke_type);
-                stats_->PreciseTypeDevirtualization();
-              }
-              *target_method = *devirt_map_target;
-              *invoke_type = kDirect;
-              return true;
+            InvokeType orig_invoke_type = *invoke_type;
+            GetCodeAndMethodForDirectCall(invoke_type, kDirect, true, referrer_class, called_method,
+                                          update_stats, target_method, direct_code, direct_method);
+            if (update_stats && (*invoke_type == kDirect)) {
+              stats_->ResolvedMethod(orig_invoke_type);
+              stats_->VirtualMadeDirect(orig_invoke_type);
+              stats_->PreciseTypeDevirtualization();
             }
+            DCHECK_NE(*invoke_type, kSuper);
+            return true;
           }
         }
         if (*invoke_type == kSuper) {
@@ -1273,11 +1276,8 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
           if (update_stats) {
             stats_->ResolvedMethod(*invoke_type);
           }
-          if (*invoke_type == kVirtual || *invoke_type == kSuper) {
-            *vtable_idx = resolved_method->GetMethodIndex();
-          }
-          GetCodeAndMethodForDirectCall(*invoke_type, *invoke_type, referrer_class, resolved_method,
-                                        update_stats, direct_code, direct_method);
+          GetCodeAndMethodForDirectCall(invoke_type, *invoke_type, false, referrer_class, resolved_method,
+                                        update_stats, target_method, direct_code, direct_method);
           return true;
         }
       }

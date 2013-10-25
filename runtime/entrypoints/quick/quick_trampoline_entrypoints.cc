@@ -19,6 +19,7 @@
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
 #include "entrypoints/entrypoint_utils.h"
+#include "gc/accounting/card_table-inl.h"
 #include "interpreter/interpreter.h"
 #include "invoke_arg_array_builder.h"
 #include "mirror/art_method-inl.h"
@@ -546,6 +547,21 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
       called = receiver->GetClass()->FindVirtualMethodForVirtual(called);
     } else if (invoke_type == kInterface) {
       called = receiver->GetClass()->FindVirtualMethodForInterface(called);
+    }
+    if ((invoke_type == kVirtual) || (invoke_type == kInterface)) {
+      // We came here because of sharpening. Ensure the dex cache is up-to-date on the method index
+      // of the sharpened method.
+      if (called->GetDexCacheResolvedMethods() == caller->GetDexCacheResolvedMethods()) {
+        caller->GetDexCacheResolvedMethods()->Set(called->GetDexMethodIndex(), called);
+      } else {
+        // Calling from one dex file to another, need to compute the method index appropriate to
+        // the caller's dex file.
+        uint32_t method_index =
+            MethodHelper(called).FindDexMethodIndexInOtherDexFile(MethodHelper(caller).GetDexFile());
+        if (method_index != DexFile::kDexNoIndex) {
+          caller->GetDexCacheResolvedMethods()->Set(method_index, called);
+        }
+      }
     }
     // Ensure that the called method's class is initialized.
     mirror::Class* called_class = called->GetDeclaringClass();

@@ -350,16 +350,13 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
                           uintptr_t direct_code, uintptr_t direct_method,
                           InvokeType type) {
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
-  if (cu->instruction_set != kThumb2) {
-    // Disable sharpening
-    direct_code = 0;
-    direct_method = 0;
-  }
   if (direct_code != 0 && direct_method != 0) {
     switch (state) {
     case 0:  // Get the current Method* [sets kArg0]
       if (direct_code != static_cast<unsigned int>(-1)) {
-        cg->LoadConstant(cg->TargetReg(kInvokeTgt), direct_code);
+        if (cu->instruction_set != kX86) {
+          cg->LoadConstant(cg->TargetReg(kInvokeTgt), direct_code);
+        }
       } else {
         CHECK_EQ(cu->dex_file, target_method.dex_file);
         LIR* data_target = cg->ScanLiteralPool(cg->code_literal_list_,
@@ -405,6 +402,7 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
           cg->LoadConstant(cg->TargetReg(kInvokeTgt), direct_code);
         } else {
           CHECK_EQ(cu->dex_file, target_method.dex_file);
+          CHECK_LT(target_method.dex_method_index, target_method.dex_file->NumMethodIds());
           LIR* data_target = cg->ScanLiteralPool(cg->code_literal_list_,
                                                  target_method.dex_method_index, 0);
           if (data_target == NULL) {
@@ -501,10 +499,6 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
                                  uint32_t unused, uintptr_t unused2,
                                  uintptr_t direct_method, InvokeType unused4) {
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
-  if (cu->instruction_set != kThumb2) {
-    // Disable sharpening
-    direct_method = 0;
-  }
   ThreadOffset trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeInterfaceTrampoline);
 
   if (direct_method != 0) {
