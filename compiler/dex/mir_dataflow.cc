@@ -1243,7 +1243,8 @@ bool MIRGraph::CountUses(struct BasicBlock* bb) {
     if (mir->ssa_rep == NULL) {
       continue;
     }
-    uint32_t weight = std::min(16U, static_cast<uint32_t>(bb->nesting_depth));
+    // Each level of nesting adds *16 to count, up to 3 levels deep.
+    uint32_t weight = std::min(3U, static_cast<uint32_t>(bb->nesting_depth) * 4);
     for (int i = 0; i < mir->ssa_rep->num_uses; i++) {
       int s_reg = mir->ssa_rep->uses[i];
       raw_use_counts_.Increment(s_reg);

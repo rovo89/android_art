@@ -629,10 +629,15 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb) {
    */
   if ((bb->block_type == kEntryBlock) | bb->catch_entry) {
     temp_ssa_register_v_->ClearAllBits();
+    // Assume all ins are objects.
+    for (uint16_t in_reg = cu_->num_dalvik_registers - cu_->num_ins;
+         in_reg < cu_->num_dalvik_registers; in_reg++) {
+      temp_ssa_register_v_->SetBit(in_reg);
+    }
     if ((cu_->access_flags & kAccStatic) == 0) {
       // If non-static method, mark "this" as non-null
       int this_reg = cu_->num_dalvik_registers - cu_->num_ins;
-      temp_ssa_register_v_->SetBit(this_reg);
+      temp_ssa_register_v_->ClearBit(this_reg);
     }
   } else if (bb->predecessors->Size() == 1) {
     BasicBlock* pred_bb = GetBasicBlock(bb->predecessors->Get(0));
@@ -645,18 +650,18 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb) {
         if (pred_bb->fall_through == bb->id) {
           // The fall-through of a block following a IF_EQZ, set the vA of the IF_EQZ to show that
           // it can't be null.
-          temp_ssa_register_v_->SetBit(last_insn->ssa_rep->uses[0]);
+          temp_ssa_register_v_->ClearBit(last_insn->ssa_rep->uses[0]);
         }
       } else if (last_opcode == Instruction::IF_NEZ) {
         if (pred_bb->taken == bb->id) {
           // The taken block following a IF_NEZ, set the vA of the IF_NEZ to show that it can't be
           // null.
-          temp_ssa_register_v_->SetBit(last_insn->ssa_rep->uses[0]);
+          temp_ssa_register_v_->ClearBit(last_insn->ssa_rep->uses[0]);
         }
       }
     }
   } else {
-    // Starting state is intersection of all incoming arcs
+    // Starting state is union of all incoming arcs
     GrowableArray<BasicBlockId>::Iterator iter(bb->predecessors);
     BasicBlock* pred_bb = GetBasicBlock(iter.Next());
     DCHECK(pred_bb != NULL);
@@ -668,9 +673,12 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb) {
           (pred_bb->data_flow_info->ending_null_check_v == NULL)) {
         continue;
       }
-      temp_ssa_register_v_->Intersect(pred_bb->data_flow_info->ending_null_check_v);
+      temp_ssa_register_v_->Union(pred_bb->data_flow_info->ending_null_check_v);
     }
   }
+
+  // At this point, temp_ssa_register_v_ shows which sregs have an object definition with
+  // no intervening uses.
 
   // Walk through the instruction in the block, updating as necessary
   for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
@@ -679,9 +687,39 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb) {
     }
     int df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
 
-    // Mark target of NEW* as non-null
-    if (df_attributes & DF_NON_NULL_DST) {
+    // Already nullchecked?
+    if ((df_attributes & DF_HAS_NULL_CHKS) && !(mir->optimization_flags & MIR_IGNORE_NULL_CHECK)) {
+      int src_idx;
+      if (df_attributes & DF_NULL_CHK_1) {
+        src_idx = 1;
+      } else if (df_attributes & DF_NULL_CHK_2) {
+        src_idx = 2;
+      } else {
+        src_idx = 0;
+      }
+      int src_sreg = mir->ssa_rep->uses[src_idx];
+        if (!temp_ssa_register_v_->IsBitSet(src_sreg)) {
+          // Eliminate the null check
+          mir->optimization_flags |= MIR_IGNORE_NULL_CHECK;
+        } else {
+          // Mark s_reg as null-checked
+          temp_ssa_register_v_->ClearBit(src_sreg);
+        }
+     }
+
+    if ((df_attributes & (DF_REF_A | DF_NULL_TRANSFER_0 | DF_NULL_TRANSFER_N)) == 0) {
+      continue;
+    }
+
+    // First, mark all object definitions as requiring null check.
+    if ((df_attributes & (DF_DA | DF_REF_A)) == (DF_DA | DF_REF_A)) {
       temp_ssa_register_v_->SetBit(mir->ssa_rep->defs[0]);
+    }
+
+    // Now, remove mark from all object definitions we know are non-null.
+    if (df_attributes & DF_NON_NULL_DST) {
+      // Mark target of NEW* as non-null
+      temp_ssa_register_v_->ClearBit(mir->ssa_rep->defs[0]);
     }
 
     // Mark non-null returns from invoke-style NEW*
@@ -691,7 +729,7 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb) {
       if (next_mir &&
           next_mir->dalvikInsn.opcode == Instruction::MOVE_RESULT_OBJECT) {
         // Mark as null checked
-        temp_ssa_register_v_->SetBit(next_mir->ssa_rep->defs[0]);
+        temp_ssa_register_v_->ClearBit(next_mir->ssa_rep->defs[0]);
       } else {
         if (next_mir) {
           LOG(WARNING) << "Unexpected opcode following new: " << next_mir->dalvikInsn.opcode;
@@ -706,7 +744,7 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb) {
             // First non-pseudo should be MOVE_RESULT_OBJECT
             if (tmir->dalvikInsn.opcode == Instruction::MOVE_RESULT_OBJECT) {
               // Mark as null checked
-              temp_ssa_register_v_->SetBit(tmir->ssa_rep->defs[0]);
+              temp_ssa_register_v_->ClearBit(tmir->ssa_rep->defs[0]);
             } else {
               LOG(WARNING) << "Unexpected op after new: " << tmir->dalvikInsn.opcode;
             }
@@ -719,40 +757,22 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb) {
     /*
      * Propagate nullcheck state on register copies (including
      * Phi pseudo copies.  For the latter, nullcheck state is
-     * the "and" of all the Phi's operands.
+     * the "or" of all the Phi's operands.
      */
     if (df_attributes & (DF_NULL_TRANSFER_0 | DF_NULL_TRANSFER_N)) {
       int tgt_sreg = mir->ssa_rep->defs[0];
       int operands = (df_attributes & DF_NULL_TRANSFER_0) ? 1 :
           mir->ssa_rep->num_uses;
-      bool null_checked = true;
+      bool needs_null_check = false;
       for (int i = 0; i < operands; i++) {
-        null_checked &= temp_ssa_register_v_->IsBitSet(mir->ssa_rep->uses[i]);
+        needs_null_check |= temp_ssa_register_v_->IsBitSet(mir->ssa_rep->uses[i]);
       }
-      if (null_checked) {
+      if (needs_null_check) {
         temp_ssa_register_v_->SetBit(tgt_sreg);
+      } else {
+        temp_ssa_register_v_->ClearBit(tgt_sreg);
       }
     }
-
-    // Already nullchecked?
-    if ((df_attributes & DF_HAS_NULL_CHKS) && !(mir->optimization_flags & MIR_IGNORE_NULL_CHECK)) {
-      int src_idx;
-      if (df_attributes & DF_NULL_CHK_1) {
-        src_idx = 1;
-      } else if (df_attributes & DF_NULL_CHK_2) {
-        src_idx = 2;
-      } else {
-        src_idx = 0;
-      }
-      int src_sreg = mir->ssa_rep->uses[src_idx];
-        if (temp_ssa_register_v_->IsBitSet(src_sreg)) {
-          // Eliminate the null check
-          mir->optimization_flags |= MIR_IGNORE_NULL_CHECK;
-        } else {
-          // Mark s_reg as null-checked
-          temp_ssa_register_v_->SetBit(src_sreg);
-        }
-     }
   }
 
   // Did anything change?
