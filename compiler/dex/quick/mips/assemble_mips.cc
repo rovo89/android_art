@@ -768,6 +768,7 @@ void MipsMir2Lir::AssignOffsets() {
  * TODO: consolidate w/ Arm assembly mechanism.
  */
 void MipsMir2Lir::AssembleLIR() {
+  cu_->NewTimingSplit("Assemble");
   AssignOffsets();
   int assembler_retries = 0;
   /*
@@ -792,6 +793,7 @@ void MipsMir2Lir::AssembleLIR() {
   }
 
   // Install literals
+  cu_->NewTimingSplit("LiteralData");
   InstallLiteralPools();
 
   // Install switch tables
@@ -801,8 +803,10 @@ void MipsMir2Lir::AssembleLIR() {
   InstallFillArrayData();
 
   // Create the mapping table and native offset to reference map.
+  cu_->NewTimingSplit("PcMappingTable");
   CreateMappingTables();
 
+  cu_->NewTimingSplit("GcMap");
   CreateNativeGcMap();
 }
 
