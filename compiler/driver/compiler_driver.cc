@@ -1747,6 +1747,7 @@ static const char* class_initializer_black_list[] = {
   "Landroid/opengl/GLUtils;",  // Calls android.opengl.GLUtils.nativeClassInit.
   "Landroid/os/Build;",  // Calls -..-> android.os.SystemProperties.native_get.
   "Landroid/os/Build$VERSION;",  // Requires Build.
+  "Landroid/os/Bundle;",  // Calls android.os.Parcel.obtain -..> Parcel.nativeCreate.
   "Landroid/os/Debug;",  // Requires android.os.Environment.
   "Landroid/os/Environment;",  // Calls System.getenv.
   "Landroid/os/FileUtils;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
