@@ -1021,7 +1021,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             if (Rm.r != Rm2.r || Rm.r == 13 || Rm.r == 15 || Rd.r == 13 || Rd.r == 15) {
               args << " (UNPREDICTABLE)";
             }
-          } // else unknown instruction
+          }  // else unknown instruction
           break;
         }
         case 0x05: case 0x0D: case 0x15: case 0x1D: {  // 00xx101
