@@ -596,7 +596,9 @@ void X86Mir2Lir::EmitMemReg(const X86EncodingMap* entry,
     reg = reg & X86_FP_REG_MASK;
   }
   if (reg >= 4) {
-    DCHECK(strchr(entry->name, '8') == NULL) << entry->name << " " << static_cast<int>(reg)
+    DCHECK(strchr(entry->name, '8') == NULL ||
+           entry->opcode == kX86Movzx8RM || entry->opcode == kX86Movsx8RM)
+        << entry->name << " " << static_cast<int>(reg)
         << " in " << PrettyMethod(cu_->method_idx, *cu_->dex_file);
   }
   DCHECK_LT(reg, 8);
