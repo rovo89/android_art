@@ -81,6 +81,16 @@ LOCAL_ADDITIONAL_DEPENDENCIES += $(HOST_CORE_IMG_OUT)
 include $(BUILD_PHONY_PACKAGE)
 endif
 
+ifeq ($(ART_BUILD_TARGET),true)
+include $(CLEAR_VARS)
+LOCAL_MODULE := core.art
+LOCAL_MODULE_TAGS := optional
+LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
+LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.oat.mk
+LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_CORE_IMG_OUT)
+include $(BUILD_PHONY_PACKAGE)
+endif
+
 ########################################################################
 # The full system boot classpath
 TARGET_BOOT_JARS := $(subst :, ,$(DEXPREOPT_BOOT_JARS))
