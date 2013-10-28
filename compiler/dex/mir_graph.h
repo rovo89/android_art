@@ -149,7 +149,7 @@ enum DataFlowAttributePos {
 #define DF_C_IS_REG             (DF_UC)
 #define DF_IS_GETTER_OR_SETTER  (DF_IS_GETTER | DF_IS_SETTER)
 #define DF_USES_FP              (DF_FP_A | DF_FP_B | DF_FP_C)
-
+#define DF_NULL_TRANSFER        (DF_NULL_TRANSFER_0 | DF_NULL_TRANSFER_N)
 enum OatMethodAttributes {
   kIsLeaf,            // Method is leaf.
   kHasLoop,           // Method contains simple loop.
