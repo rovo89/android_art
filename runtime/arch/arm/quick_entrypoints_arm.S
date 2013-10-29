@@ -325,24 +325,25 @@ END art_quick_handle_fill_data
 ENTRY art_quick_lock_object
     cbz    r0, slow_lock
 retry_lock:
-    ldrex  r1, [r0, #LOCK_WORD_OFFSET]
     ldrt   r2, [r9, #THREAD_ID_OFFSET]
-    cmp    r1, #0
-    bmi    slow_lock                  @ lock word contains a monitor
-    bne    already_thin
+    ldrex  r1, [r0, #LOCK_WORD_OFFSET]
+    cbnz   r1, not_unlocked           @ already thin locked
     @ unlocked case - r2 holds thread id with count of 0
     strex  r3, r2, [r0, #LOCK_WORD_OFFSET]
     cbnz   r3, strex_fail             @ store failed, retry
     bx lr
 strex_fail:
     b retry_lock                      @ unlikely forward branch, need to reload and recheck r1/r2
-already_thin:
+not_unlocked:
+    lsr    r3, r1, 30
+    cbnz   r3, slow_lock              @ if either of the top two bits are set, go slow path
     eor    r2, r1, r2                 @ lock_word.ThreadId() ^ self->ThreadId()
     uxth   r2, r2                     @ zero top 16 bits
     cbnz   r2, slow_lock              @ lock word and self thread id's match -> recursive lock
                                       @ else contention, go to slow path
-    adds   r2, r1, #65536             @ increment count in lock word placing in r2 for storing
-    bmi    slow_lock                  @ if we overflow the count go slow
+    add    r2, r1, #65536             @ increment count in lock word placing in r2 for storing
+    lsr    r1, r2, 30                 @ if either of the top two bits are set, we overflowed.
+    cbnz   r1, slow_lock              @ if we overflow the count go slow path
     str    r2, [r0, #LOCK_WORD_OFFSET] @ no need for strex as we hold the lock
     bx lr
 slow_lock:
@@ -363,9 +364,9 @@ END art_quick_lock_object
 ENTRY art_quick_unlock_object
     cbz    r0, slow_unlock
     ldr    r1, [r0, #LOCK_WORD_OFFSET]
+    lsr    r2, r1, 30
+    cbnz   r2, slow_unlock            @ if either of the top two bits are set, go slow path
     ldr    r2, [r9, #THREAD_ID_OFFSET]
-    cmp    r1, #0
-    bmi    slow_unlock                @ lock word contains a monitor
     eor    r3, r1, r2                 @ lock_word.ThreadId() ^ self->ThreadId()
     uxth   r3, r3                     @ zero top 16 bits
     cbnz   r3, slow_unlock            @ do lock word and self thread id's match?

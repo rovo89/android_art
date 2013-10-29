@@ -88,8 +88,7 @@ class Monitor {
 
   static bool IsValidLockWord(LockWord lock_word);
 
-  // TODO: SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-  mirror::Object* GetObject() const {
+  mirror::Object* GetObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return obj_;
   }
 
@@ -99,8 +98,17 @@ class Monitor {
     return owner_;
   }
 
+  int32_t GetHashCode() const {
+    return hash_code_;
+  }
+
+  bool IsLocked() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static void InflateThinLocked(Thread* self, mirror::Object* obj, LockWord lock_word,
+                                uint32_t hash_code) NO_THREAD_SAFETY_ANALYSIS;
+
  private:
-  explicit Monitor(Thread* owner, mirror::Object* obj)
+  explicit Monitor(Thread* owner, mirror::Object* obj, uint32_t hash_code)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Install the monitor into its object, may fail if another thread installs a different monitor
@@ -112,7 +120,7 @@ class Monitor {
   void AppendToWaitSet(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(monitor_lock_);
   void RemoveFromWaitSet(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(monitor_lock_);
 
-  static void Inflate(Thread* self, Thread* owner, mirror::Object* obj)
+  static void Inflate(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void LogContentionEvent(Thread* self, uint32_t wait_ms, uint32_t sample_percent,
@@ -171,6 +179,9 @@ class Monitor {
   // Threads currently waiting on this monitor.
   Thread* wait_set_ GUARDED_BY(monitor_lock_);
 
+  // Stored object hash code, always generated.
+  const uint32_t hash_code_;
+
   // Method and dex pc where the lock owner acquired the lock, used when lock
   // sampling is enabled. locking_method_ may be null if the lock is currently
   // unlocked, or if the lock is acquired by the system when the stack is empty.
@@ -190,7 +201,7 @@ class MonitorList {
 
   void Add(Monitor* m);
 
-  void SweepMonitorList(RootVisitor visitor, void* arg);
+  void SweepMonitorList(RootVisitor visitor, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DisallowNewMonitors();
   void AllowNewMonitors();
 

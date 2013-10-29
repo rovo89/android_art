@@ -411,9 +411,10 @@ DEFINE_FUNCTION art_quick_lock_object
     jz   slow_lock
 retry_lock:
     movl LOCK_WORD_OFFSET(%eax), %ecx     // ecx := lock word
+    test LITERAL(0xC0000000), %ecx        // test the 2 high bits.
+    jne  slow_lock                        // slow path if either of the two high bits are set.
     movl %fs:THREAD_ID_OFFSET, %edx       // edx := thread id
     test %ecx, %ecx
-    jb   slow_lock                        // lock word contains a monitor
     jnz  already_thin                     // lock word contains a thin lock
     // unlocked case - %edx holds thread id with count of 0
     movl %eax, %ecx                       // remember object in case of retry
@@ -428,7 +429,8 @@ already_thin:
     cmpw %ax, %dx                         // do we hold the lock already?
     jne  slow_lock
     addl LITERAL(65536), %eax             // increment recursion count
-    jb   slow_lock                        // count overflowed so go slow
+    test LITERAL(0xC0000000), %eax        // overflowed if either of top two bits are set
+    jne  slow_lock                        // count overflowed so go slow
     movl %eax, LOCK_WORD_OFFSET(%ecx)     // update lockword, cmpxchg not necessary as we hold lock
     ret
 slow_lock:

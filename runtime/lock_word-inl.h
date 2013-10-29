@@ -33,7 +33,7 @@ inline uint32_t LockWord::ThinLockCount() const {
 
 inline Monitor* LockWord::FatLockMonitor() const {
   DCHECK_EQ(GetState(), kFatLocked);
-  return reinterpret_cast<Monitor*>(value_ << 1);
+  return reinterpret_cast<Monitor*>(value_ << kStateSize);
 }
 
 inline LockWord::LockWord() : value_(0) {
@@ -41,8 +41,13 @@ inline LockWord::LockWord() : value_(0) {
 }
 
 inline LockWord::LockWord(Monitor* mon)
-    : value_((reinterpret_cast<uint32_t>(mon) >> 1) | (kStateFat << kStateShift)) {
+    : value_((reinterpret_cast<uint32_t>(mon) >> kStateSize) | (kStateFat << kStateShift)) {
   DCHECK_EQ(FatLockMonitor(), mon);
+}
+
+inline uint32_t LockWord::GetHashCode() const {
+  DCHECK_EQ(GetState(), kHashCode);
+  return (value_ >> kHashShift) & kHashMask;
 }
 
 }  // namespace art

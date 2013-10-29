@@ -518,8 +518,9 @@ class Heap {
 
   void PreGcVerification(collector::GarbageCollector* gc);
   void PreSweepingGcVerification(collector::GarbageCollector* gc)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void PostGcVerification(collector::GarbageCollector* gc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void PostGcVerification(collector::GarbageCollector* gc);
 
   // Update the watermark for the native allocated bytes based on the current number of native
   // bytes allocated and the target utilization ratio.

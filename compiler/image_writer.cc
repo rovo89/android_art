@@ -36,6 +36,7 @@
 #include "globals.h"
 #include "image.h"
 #include "intern_table.h"
+#include "lock_word.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/array-inl.h"
@@ -489,7 +490,30 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object* object, void* arg) {
   DCHECK_LT(offset + n, image_writer->image_->Size());
   memcpy(dst, src, n);
   Object* copy = reinterpret_cast<Object*>(dst);
-  copy->SetField32(Object::MonitorOffset(), 0, false);  // We may have inflated the lock during compilation.
+  // Write in a hash code of objects which have inflated monitors or a hash code in their monitor
+  // word.
+  LockWord lw(copy->GetLockWord());
+  switch (lw.GetState()) {
+    case LockWord::kFatLocked: {
+      Monitor* monitor = lw.FatLockMonitor();
+      CHECK(monitor != nullptr);
+      CHECK(!monitor->IsLocked());
+      copy->SetLockWord(LockWord::FromHashCode(monitor->GetHashCode()));
+      break;
+    }
+    case LockWord::kThinLocked: {
+      LOG(FATAL) << "Thin locked object " << obj << " found during object copy";
+      break;
+    }
+    case LockWord::kUnlocked:
+      // Fall-through.
+    case LockWord::kHashCode:
+      // Do nothing since we can just keep the same hash code.
+      break;
+    default:
+      LOG(FATAL) << "Unreachable.";
+      break;
+  }
   image_writer->FixupObject(obj, copy);
 }
 
