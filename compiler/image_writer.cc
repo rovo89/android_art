@@ -99,11 +99,15 @@ bool ImageWriter::Write(const std::string& image_filename,
 
   jni_dlsym_lookup_offset_ = oat_file_->GetOatHeader().GetJniDlsymLookupOffset();
 
+  portable_imt_conflict_trampoline_offset_ =
+      oat_file_->GetOatHeader().GetPortableImtConflictTrampolineOffset();
   portable_resolution_trampoline_offset_ =
       oat_file_->GetOatHeader().GetPortableResolutionTrampolineOffset();
   portable_to_interpreter_bridge_offset_ =
       oat_file_->GetOatHeader().GetPortableToInterpreterBridgeOffset();
 
+  quick_imt_conflict_trampoline_offset_ =
+      oat_file_->GetOatHeader().GetQuickImtConflictTrampolineOffset();
   quick_resolution_trampoline_offset_ =
       oat_file_->GetOatHeader().GetQuickResolutionTrampolineOffset();
   quick_to_interpreter_bridge_offset_ =
@@ -391,6 +395,8 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
                   ObjectArray<Object>::Alloc(self, object_array_class,
                                              ImageHeader::kImageRootsMax));
   image_roots->Set(ImageHeader::kResolutionMethod, runtime->GetResolutionMethod());
+  image_roots->Set(ImageHeader::kImtConflictMethod, runtime->GetImtConflictMethod());
+  image_roots->Set(ImageHeader::kDefaultImt, runtime->GetDefaultImt());
   image_roots->Set(ImageHeader::kCalleeSaveMethod,
                    runtime->GetCalleeSaveMethod(Runtime::kSaveAll));
   image_roots->Set(ImageHeader::kRefsOnlySaveMethod,
@@ -550,6 +556,12 @@ void ImageWriter::FixupMethod(const ArtMethod* orig, ArtMethod* copy) {
     copy->SetEntryPointFromCompiledCode(GetOatAddress(portable_resolution_trampoline_offset_));
 #else
     copy->SetEntryPointFromCompiledCode(GetOatAddress(quick_resolution_trampoline_offset_));
+#endif
+  } else if (UNLIKELY(orig == Runtime::Current()->GetImtConflictMethod())) {
+#if defined(ART_USE_PORTABLE_COMPILER)
+    copy->SetEntryPointFromCompiledCode(GetOatAddress(portable_imt_conflict_trampoline_offset_));
+#else
+    copy->SetEntryPointFromCompiledCode(GetOatAddress(quick_imt_conflict_trampoline_offset_));
 #endif
   } else {
     // We assume all methods have code. If they don't currently then we set them to the use the

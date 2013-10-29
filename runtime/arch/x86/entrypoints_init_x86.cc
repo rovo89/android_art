@@ -104,10 +104,10 @@ extern "C" int32_t art_quick_string_compareto(void*, void*);
 extern "C" void* art_quick_memcpy(void*, const void*, size_t);
 
 // Invoke entrypoints.
+extern "C" void art_quick_imt_conflict_trampoline(mirror::ArtMethod*);
 extern "C" void art_quick_resolution_trampoline(mirror::ArtMethod*);
 extern "C" void art_quick_to_interpreter_bridge(mirror::ArtMethod*);
 extern "C" void art_quick_invoke_direct_trampoline_with_access_check(uint32_t, void*);
-extern "C" void art_quick_invoke_interface_trampoline(uint32_t, void*);
 extern "C" void art_quick_invoke_interface_trampoline_with_access_check(uint32_t, void*);
 extern "C" void art_quick_invoke_static_trampoline_with_access_check(uint32_t, void*);
 extern "C" void art_quick_invoke_super_trampoline_with_access_check(uint32_t, void*);
@@ -235,10 +235,10 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pMemcpy = art_quick_memcpy;
 
   // Invocation
+  qpoints->pQuickImtConflictTrampoline = art_quick_imt_conflict_trampoline;
   qpoints->pQuickResolutionTrampoline = art_quick_resolution_trampoline;
   qpoints->pQuickToInterpreterBridge = art_quick_to_interpreter_bridge;
   qpoints->pInvokeDirectTrampolineWithAccessCheck = art_quick_invoke_direct_trampoline_with_access_check;
-  qpoints->pInvokeInterfaceTrampoline = art_quick_invoke_interface_trampoline;
   qpoints->pInvokeInterfaceTrampolineWithAccessCheck = art_quick_invoke_interface_trampoline_with_access_check;
   qpoints->pInvokeStaticTrampolineWithAccessCheck = art_quick_invoke_static_trampoline_with_access_check;
   qpoints->pInvokeSuperTrampolineWithAccessCheck = art_quick_invoke_super_trampoline_with_access_check;

@@ -22,7 +22,7 @@
 namespace art {
 
 const uint8_t OatHeader::kOatMagic[] = { 'o', 'a', 't', '\n' };
-const uint8_t OatHeader::kOatVersion[] = { '0', '0', '8', '\0' };
+const uint8_t OatHeader::kOatVersion[] = { '0', '0', '9', '\0' };
 
 OatHeader::OatHeader() {
   memset(this, 0, sizeof(*this));
@@ -60,8 +60,10 @@ OatHeader::OatHeader(InstructionSet instruction_set,
   interpreter_to_interpreter_bridge_offset_ = 0;
   interpreter_to_compiled_code_bridge_offset_ = 0;
   jni_dlsym_lookup_offset_ = 0;
+  portable_imt_conflict_trampoline_offset_ = 0;
   portable_resolution_trampoline_offset_ = 0;
   portable_to_interpreter_bridge_offset_ = 0;
+  quick_imt_conflict_trampoline_offset_ = 0;
   quick_resolution_trampoline_offset_ = 0;
   quick_to_interpreter_bridge_offset_ = 0;
 }
@@ -171,18 +173,37 @@ void OatHeader::SetJniDlsymLookupOffset(uint32_t offset) {
   UpdateChecksum(&jni_dlsym_lookup_offset_, sizeof(offset));
 }
 
+const void* OatHeader::GetPortableImtConflictTrampoline() const {
+  return reinterpret_cast<const uint8_t*>(this) + GetPortableImtConflictTrampolineOffset();
+}
+
+uint32_t OatHeader::GetPortableImtConflictTrampolineOffset() const {
+  DCHECK(IsValid());
+  CHECK_GE(portable_imt_conflict_trampoline_offset_, jni_dlsym_lookup_offset_);
+  return portable_imt_conflict_trampoline_offset_;
+}
+
+void OatHeader::SetPortableImtConflictTrampolineOffset(uint32_t offset) {
+  CHECK(offset == 0 || offset >= jni_dlsym_lookup_offset_);
+  DCHECK(IsValid());
+  DCHECK_EQ(portable_imt_conflict_trampoline_offset_, 0U) << offset;
+
+  portable_imt_conflict_trampoline_offset_ = offset;
+  UpdateChecksum(&portable_imt_conflict_trampoline_offset_, sizeof(offset));
+}
+
 const void* OatHeader::GetPortableResolutionTrampoline() const {
   return reinterpret_cast<const uint8_t*>(this) + GetPortableResolutionTrampolineOffset();
 }
 
 uint32_t OatHeader::GetPortableResolutionTrampolineOffset() const {
   DCHECK(IsValid());
-  CHECK_GE(portable_resolution_trampoline_offset_, jni_dlsym_lookup_offset_);
+  CHECK_GE(portable_resolution_trampoline_offset_, portable_imt_conflict_trampoline_offset_);
   return portable_resolution_trampoline_offset_;
 }
 
 void OatHeader::SetPortableResolutionTrampolineOffset(uint32_t offset) {
-  CHECK(offset == 0 || offset >= jni_dlsym_lookup_offset_);
+  CHECK(offset == 0 || offset >= portable_imt_conflict_trampoline_offset_);
   DCHECK(IsValid());
   DCHECK_EQ(portable_resolution_trampoline_offset_, 0U) << offset;
 
@@ -209,18 +230,37 @@ void OatHeader::SetPortableToInterpreterBridgeOffset(uint32_t offset) {
   UpdateChecksum(&portable_to_interpreter_bridge_offset_, sizeof(offset));
 }
 
+const void* OatHeader::GetQuickImtConflictTrampoline() const {
+  return reinterpret_cast<const uint8_t*>(this) + GetQuickImtConflictTrampolineOffset();
+}
+
+uint32_t OatHeader::GetQuickImtConflictTrampolineOffset() const {
+  DCHECK(IsValid());
+  CHECK_GE(quick_imt_conflict_trampoline_offset_, portable_to_interpreter_bridge_offset_);
+  return quick_imt_conflict_trampoline_offset_;
+}
+
+void OatHeader::SetQuickImtConflictTrampolineOffset(uint32_t offset) {
+  CHECK(offset == 0 || offset >= portable_to_interpreter_bridge_offset_);
+  DCHECK(IsValid());
+  DCHECK_EQ(quick_imt_conflict_trampoline_offset_, 0U) << offset;
+
+  quick_imt_conflict_trampoline_offset_ = offset;
+  UpdateChecksum(&quick_imt_conflict_trampoline_offset_, sizeof(offset));
+}
+
 const void* OatHeader::GetQuickResolutionTrampoline() const {
   return reinterpret_cast<const uint8_t*>(this) + GetQuickResolutionTrampolineOffset();
 }
 
 uint32_t OatHeader::GetQuickResolutionTrampolineOffset() const {
   DCHECK(IsValid());
-  CHECK_GE(quick_resolution_trampoline_offset_, portable_to_interpreter_bridge_offset_);
+  CHECK_GE(quick_resolution_trampoline_offset_, quick_imt_conflict_trampoline_offset_);
   return quick_resolution_trampoline_offset_;
 }
 
 void OatHeader::SetQuickResolutionTrampolineOffset(uint32_t offset) {
-  CHECK(offset == 0 || offset >= portable_to_interpreter_bridge_offset_);
+  CHECK(offset == 0 || offset >= quick_imt_conflict_trampoline_offset_);
   DCHECK(IsValid());
   DCHECK_EQ(quick_resolution_trampoline_offset_, 0U) << offset;
 

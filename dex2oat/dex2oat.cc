@@ -345,10 +345,6 @@ class Dex2Oat {
       return false;
     }
     Runtime* runtime = Runtime::Current();
-    // if we loaded an existing image, we will reuse values from the image roots.
-    if (!runtime->HasResolutionMethod()) {
-      runtime->SetResolutionMethod(runtime->CreateResolutionMethod());
-    }
     for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
       Runtime::CalleeSaveType type = Runtime::CalleeSaveType(i);
       if (!runtime->HasCalleeSaveMethod(type)) {

@@ -329,9 +329,6 @@ class CommonTest : public testing::Test {
       CompilerBackend compiler_backend = kQuick;
 #endif
 
-      if (!runtime_->HasResolutionMethod()) {
-        runtime_->SetResolutionMethod(runtime_->CreateResolutionMethod());
-      }
       for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
         Runtime::CalleeSaveType type = Runtime::CalleeSaveType(i);
         if (!runtime_->HasCalleeSaveMethod(type)) {

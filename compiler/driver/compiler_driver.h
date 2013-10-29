@@ -130,9 +130,13 @@ class CompilerDriver {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const std::vector<uint8_t>* CreateJniDlsymLookup() const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const std::vector<uint8_t>* CreatePortableImtConflictTrampoline() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const std::vector<uint8_t>* CreatePortableResolutionTrampoline() const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const std::vector<uint8_t>* CreatePortableToInterpreterBridge() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const std::vector<uint8_t>* CreateQuickImtConflictTrampoline() const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const std::vector<uint8_t>* CreateQuickResolutionTrampoline() const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

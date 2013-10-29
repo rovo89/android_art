@@ -86,6 +86,8 @@ static void usage() {
 
 const char* image_roots_descriptions_[] = {
   "kResolutionMethod",
+  "kImtConflictMethod",
+  "kDefaultImt",
   "kCalleeSaveMethod",
   "kRefsOnlySaveMethod",
   "kRefsAndArgsSaveMethod",
@@ -1005,7 +1007,8 @@ class ImageDumper {
           indent_os << StringPrintf("OAT CODE: %p\n", oat_code);
         }
       } else if (method->IsAbstract() || method->IsCalleeSaveMethod() ||
-          method->IsResolutionMethod() || MethodHelper(method).IsClassInitializer()) {
+          method->IsResolutionMethod() || method->IsImtConflictMethod() ||
+          MethodHelper(method).IsClassInitializer()) {
         DCHECK(method->GetNativeGcMap() == NULL) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
       } else {

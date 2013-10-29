@@ -999,6 +999,20 @@ DEFINE_FUNCTION art_quick_proxy_invoke_handler
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 END_FUNCTION art_quick_proxy_invoke_handler
 
+    /*
+     * Called to resolve an imt conflict. xmm0 is a hidden argument that holds the target method's
+     * dex method index.
+     */
+DEFINE_FUNCTION art_quick_imt_conflict_trampoline
+    PUSH ecx
+    movl 8(%esp), %eax            // load caller Method*
+    movl METHOD_DEX_CACHE_METHODS_OFFSET(%eax), %eax  // load dex_cache_resolved_methods
+    movd %xmm0, %ecx              // get target method index stored in xmm0
+    movl OBJECT_ARRAY_DATA_OFFSET(%eax, %ecx, 4), %eax  // load the target method
+    POP ecx
+    jmp art_quick_invoke_interface_trampoline
+END_FUNCTION art_quick_imt_conflict_trampoline
+
 DEFINE_FUNCTION art_quick_resolution_trampoline
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     PUSH esp                      // pass SP

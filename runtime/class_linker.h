@@ -51,6 +51,11 @@ typedef bool (ClassVisitor)(mirror::Class* c, void* arg);
 
 class ClassLinker {
  public:
+  // Interface method table size. Increasing this value reduces the chance of two interface methods
+  // colliding in the interface method table but increases the size of classes that implement
+  // (non-marker) interfaces.
+  static constexpr size_t kImtSize = 64;
+
   // Creates the class linker by bootstrapping from dex files.
   static ClassLinker* CreateFromCompiler(const std::vector<const DexFile*>& boot_class_path,
                                          InternTable* intern_table)
@@ -340,6 +345,18 @@ class ClassLinker {
     return quick_resolution_trampoline_;
   }
 
+  const void* GetPortableImtConflictTrampoline() const {
+    return portable_imt_conflict_trampoline_;
+  }
+
+  const void* GetQuickImtConflictTrampoline() const {
+    return quick_imt_conflict_trampoline_;
+  }
+
+  InternTable* GetInternTable() const {
+    return intern_table_;
+  }
+
   // Attempts to insert a class into a class table.  Returns NULL if
   // the class was inserted, otherwise returns an existing class with
   // the same descriptor and ClassLoader.
@@ -608,6 +625,8 @@ class ClassLinker {
 
   const void* portable_resolution_trampoline_;
   const void* quick_resolution_trampoline_;
+  const void* portable_imt_conflict_trampoline_;
+  const void* quick_imt_conflict_trampoline_;
 
   friend class ImageWriter;  // for GetClassRoots
   FRIEND_TEST(ClassLinkerTest, ClassRootDescriptors);

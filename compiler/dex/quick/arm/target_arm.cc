@@ -74,6 +74,8 @@ int ArmMir2Lir::TargetReg(SpecialTargetRegister reg) {
     case kRet0: res = rARM_RET0; break;
     case kRet1: res = rARM_RET1; break;
     case kInvokeTgt: res = rARM_INVOKE_TGT; break;
+    case kHiddenArg: res = r12; break;
+    case kHiddenFpArg: res = INVALID_REG; break;
     case kCount: res = rARM_COUNT; break;
   }
   return res;

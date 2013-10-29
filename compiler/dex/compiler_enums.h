@@ -44,6 +44,8 @@ enum SpecialTargetRegister {
   kRet0,
   kRet1,
   kInvokeTgt,
+  kHiddenArg,
+  kHiddenFpArg,
   kCount
 };
 

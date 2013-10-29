@@ -84,6 +84,8 @@ Runtime::Runtime()
       java_vm_(NULL),
       pre_allocated_OutOfMemoryError_(NULL),
       resolution_method_(NULL),
+      imt_conflict_method_(NULL),
+      default_imt_(NULL),
       threads_being_born_(0),
       shutdown_cond_(new ConditionVariable("Runtime shutdown", *Locks::runtime_shutdown_lock_)),
       shutting_down_(false),
@@ -1175,6 +1177,10 @@ void Runtime::VisitNonThreadRoots(RootVisitor* visitor, void* arg) {
   }
   resolution_method_ = reinterpret_cast<mirror::ArtMethod*>(visitor(resolution_method_, arg));
   DCHECK(resolution_method_ != nullptr);
+  imt_conflict_method_ = reinterpret_cast<mirror::ArtMethod*>(visitor(imt_conflict_method_, arg));
+  DCHECK(imt_conflict_method_ != nullptr);
+  default_imt_ = reinterpret_cast<mirror::ObjectArray<mirror::ArtMethod>*>(visitor(default_imt_, arg));
+  DCHECK(default_imt_ != nullptr);
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
     callee_save_methods_[i] = reinterpret_cast<mirror::ArtMethod*>(
         visitor(callee_save_methods_[i], arg));
@@ -1190,6 +1196,31 @@ void Runtime::VisitNonConcurrentRoots(RootVisitor* visitor, void* arg) {
 void Runtime::VisitRoots(RootVisitor* visitor, void* arg, bool only_dirty, bool clean_dirty) {
   VisitConcurrentRoots(visitor, arg, only_dirty, clean_dirty);
   VisitNonConcurrentRoots(visitor, arg);
+}
+
+mirror::ObjectArray<mirror::ArtMethod>* Runtime::CreateDefaultImt(ClassLinker* cl) {
+  Thread* self = Thread::Current();
+  SirtRef<mirror::ObjectArray<mirror::ArtMethod> > imtable(self, cl->AllocArtMethodArray(self, 64));
+  mirror::ArtMethod* imt_conflict_method = Runtime::Current()->GetImtConflictMethod();
+  for (size_t i = 0; i < 64; i++) {
+    imtable->Set(i, imt_conflict_method);
+  }
+  return imtable.get();
+}
+
+mirror::ArtMethod* Runtime::CreateImtConflictMethod() {
+  mirror::Class* method_class = mirror::ArtMethod::GetJavaLangReflectArtMethod();
+  Thread* self = Thread::Current();
+  SirtRef<mirror::ArtMethod>
+      method(self, down_cast<mirror::ArtMethod*>(method_class->AllocObject(self)));
+  method->SetDeclaringClass(method_class);
+  // TODO: use a special method for imt conflict method saves
+  method->SetDexMethodIndex(DexFile::kDexNoIndex);
+  // When compiling, the code pointer will get set later when the image is loaded.
+  Runtime* r = Runtime::Current();
+  ClassLinker* cl = r->GetClassLinker();
+  method->SetEntryPointFromCompiledCode(r->IsCompiler() ? NULL : GetImtConflictTrampoline(cl));
+  return method.get();
 }
 
 mirror::ArtMethod* Runtime::CreateResolutionMethod() {

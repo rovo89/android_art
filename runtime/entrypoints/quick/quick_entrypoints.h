@@ -118,10 +118,10 @@ struct PACKED(4) QuickEntryPoints {
   void* (*pMemcpy)(void*, const void*, size_t);
 
   // Invocation
+  void (*pQuickImtConflictTrampoline)(mirror::ArtMethod*);
   void (*pQuickResolutionTrampoline)(mirror::ArtMethod*);
   void (*pQuickToInterpreterBridge)(mirror::ArtMethod*);
   void (*pInvokeDirectTrampolineWithAccessCheck)(uint32_t, void*);
-  void (*pInvokeInterfaceTrampoline)(uint32_t, void*);
   void (*pInvokeInterfaceTrampolineWithAccessCheck)(uint32_t, void*);
   void (*pInvokeStaticTrampolineWithAccessCheck)(uint32_t, void*);
   void (*pInvokeSuperTrampolineWithAccessCheck)(uint32_t, void*);

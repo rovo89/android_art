@@ -38,7 +38,8 @@
 #define STRING_OFFSET_OFFSET 20
 #define STRING_DATA_OFFSET 12
 
-// Offset of field Method::entry_point_from_compiled_code_
+// Offsets within java.lang.Method.
+#define METHOD_DEX_CACHE_METHODS_OFFSET 16
 #define METHOD_CODE_OFFSET 40
 
 #endif  // ART_RUNTIME_ASM_SUPPORT_H_

@@ -357,6 +357,8 @@ class MANAGED ArtMethod : public Object {
 
   bool IsResolutionMethod() const;
 
+  bool IsImtConflictMethod() const;
+
   uintptr_t NativePcOffset(const uintptr_t pc) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Converts a native PC to a dex PC.

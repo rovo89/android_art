@@ -45,6 +45,7 @@ namespace gc {
 namespace mirror {
   class ArtMethod;
   class ClassLoader;
+  template<class T> class ObjectArray;
   template<class T> class PrimitiveArray;
   typedef PrimitiveArray<int8_t> ByteArray;
   class String;
@@ -350,6 +351,39 @@ class Runtime {
 
   mirror::ArtMethod* CreateResolutionMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Returns a special method that calls into a trampoline for runtime imt conflicts
+  mirror::ArtMethod* GetImtConflictMethod() const {
+    CHECK(HasImtConflictMethod());
+    return imt_conflict_method_;
+  }
+
+  bool HasImtConflictMethod() const {
+    return imt_conflict_method_ != NULL;
+  }
+
+  void SetImtConflictMethod(mirror::ArtMethod* method) {
+    imt_conflict_method_ = method;
+  }
+
+  mirror::ArtMethod* CreateImtConflictMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Returns an imt with every entry set to conflict, used as default imt for all classes.
+  mirror::ObjectArray<mirror::ArtMethod>* GetDefaultImt() const {
+    CHECK(HasDefaultImt());
+    return default_imt_;
+  }
+
+  bool HasDefaultImt() const {
+    return default_imt_ != NULL;
+  }
+
+  void SetDefaultImt(mirror::ObjectArray<mirror::ArtMethod>* imt) {
+    default_imt_ = imt;
+  }
+
+  mirror::ObjectArray<mirror::ArtMethod>* CreateDefaultImt(ClassLinker* cl)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Returns a special method that describes all callee saves being spilled to the stack.
   enum CalleeSaveType {
     kSaveAll,
@@ -485,6 +519,10 @@ class Runtime {
   mirror::ArtMethod* callee_save_methods_[kLastCalleeSaveType];
 
   mirror::ArtMethod* resolution_method_;
+
+  mirror::ArtMethod* imt_conflict_method_;
+
+  mirror::ObjectArray<mirror::ArtMethod>* default_imt_;
 
   // A non-zero value indicates that a thread has been created but not yet initialized. Guarded by
   // the shutdown lock so that threads aren't born while we're shutting down.

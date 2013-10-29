@@ -1041,6 +1041,18 @@ ENTRY art_quick_proxy_invoke_handler
     DELIVER_PENDING_EXCEPTION
 END art_quick_proxy_invoke_handler
 
+    /*
+     * Called to resolve an imt conflict. r12 is a hidden argument that holds the target method's
+     * dex method index.
+     */
+ENTRY art_quick_imt_conflict_trampoline
+    ldr    r0, [sp, #0]            @ load caller Method*
+    ldr    r0, [r0, #METHOD_DEX_CACHE_METHODS_OFFSET]  @ load dex_cache_resolved_methods
+    add    r0, #OBJECT_ARRAY_DATA_OFFSET  @ get starting address of data
+    ldr    r0, [r0, r12, lsl 2]    @ load the target method
+    b art_quick_invoke_interface_trampoline
+END art_quick_imt_conflict_trampoline
+
     .extern artQuickResolutionTrampoline
 ENTRY art_quick_resolution_trampoline
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
