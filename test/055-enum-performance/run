@@ -14,5 +14,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# As this is a performance test we always run -O
-exec ${RUN} -O "$@"
+# As this is a performance test we always use the non-debug build.
+exec ${RUN} "${@/#libartd.so/libart.so}"
