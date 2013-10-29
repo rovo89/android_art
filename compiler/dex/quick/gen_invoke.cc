@@ -971,6 +971,29 @@ bool Mir2Lir::GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty) {
   return true;
 }
 
+bool Mir2Lir::GenInlinedReverseBytes(CallInfo* info, OpSize size) {
+  if (cu_->instruction_set == kMips) {
+    // TODO - add Mips implementation
+    return false;
+  }
+  RegLocation rl_src_i = info->args[0];
+  RegLocation rl_dest = InlineTarget(info);  // result reg
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  if (size == kLong) {
+    RegLocation rl_i = LoadValueWide(rl_src_i, kCoreReg);
+    OpRegReg(kOpRev, rl_result.low_reg, rl_i.high_reg);
+    OpRegReg(kOpRev, rl_result.high_reg, rl_i.low_reg);
+    StoreValueWide(rl_dest, rl_result);
+  } else {
+    DCHECK(size == kWord || size == kSignedHalf);
+    OpKind op = (size == kWord) ? kOpRev : kOpRevsh;
+    RegLocation rl_i = LoadValue(rl_src_i, kCoreReg);
+    OpRegReg(op, rl_result.low_reg, rl_i.low_reg);
+    StoreValue(rl_dest, rl_result);
+  }
+  return true;
+}
+
 bool Mir2Lir::GenInlinedAbsInt(CallInfo* info) {
   if (cu_->instruction_set == kMips) {
     // TODO - add Mips implementation
@@ -1249,6 +1272,16 @@ bool Mir2Lir::GenIntrinsic(CallInfo* info) {
     if (tgt_method == "float java.lang.Float.intBitsToFloat(int)") {
       return GenInlinedFloatCvt(info);
     }
+  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Integer;")) {
+    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
+    if (tgt_method == "int java.lang.Integer.reverseBytes(int)") {
+      return GenInlinedReverseBytes(info, kWord);
+    }
+  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Long;")) {
+    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
+    if (tgt_method == "long java.lang.Long.reverseBytes(long)") {
+      return GenInlinedReverseBytes(info, kLong);
+    }
   } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Math;") ||
              tgt_methods_declaring_class.starts_with("Ljava/lang/StrictMath;")) {
     std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
@@ -1271,6 +1304,11 @@ bool Mir2Lir::GenIntrinsic(CallInfo* info) {
     if (tgt_method == "double java.lang.Math.sqrt(double)" ||
         tgt_method == "double java.lang.StrictMath.sqrt(double)") {
       return GenInlinedSqrt(info);
+    }
+  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Short;")) {
+    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
+    if (tgt_method == "short java.lang.Short.reverseBytes(short)") {
+      return GenInlinedReverseBytes(info, kSignedHalf);
     }
   } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/String;")) {
     std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));

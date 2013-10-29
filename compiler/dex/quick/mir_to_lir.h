@@ -544,6 +544,7 @@ class Mir2Lir : public Backend {
 
     bool GenInlinedCharAt(CallInfo* info);
     bool GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty);
+    bool GenInlinedReverseBytes(CallInfo* info, OpSize size);
     bool GenInlinedAbsInt(CallInfo* info);
     bool GenInlinedAbsLong(CallInfo* info);
     bool GenInlinedFloatCvt(CallInfo* info);
