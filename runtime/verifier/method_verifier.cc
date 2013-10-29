@@ -3140,6 +3140,8 @@ mirror::ArtMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction* inst
   const RegType& actual_arg_type = reg_line->GetInvocationThis(inst, is_range);
   if (actual_arg_type.IsConflict()) {  // GetInvocationThis failed.
     return NULL;
+  } else if (actual_arg_type.IsZero()) {  // Invoke on "null" instance: we can't go further.
+    return NULL;
   }
   mirror::Class* this_class = NULL;
   if (!actual_arg_type.IsUnresolvedTypes()) {
