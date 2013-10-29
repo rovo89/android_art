@@ -81,6 +81,8 @@ LOCAL_ADDITIONAL_DEPENDENCIES += $(HOST_CORE_IMG_OUT)
 include $(BUILD_PHONY_PACKAGE)
 endif
 
+# If we aren't building the host toolchain, skip building the target core.art.
+ifeq ($(WITH_HOST_DALVIK),true)
 ifeq ($(ART_BUILD_TARGET),true)
 include $(CLEAR_VARS)
 LOCAL_MODULE := core.art
@@ -89,6 +91,7 @@ LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
 LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.oat.mk
 LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_CORE_IMG_OUT)
 include $(BUILD_PHONY_PACKAGE)
+endif
 endif
 
 ########################################################################
