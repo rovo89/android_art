@@ -418,29 +418,29 @@ class DexFile {
 
   int32_t GetStringLength(const StringId& string_id) const;
 
-  // Returns a pointer to the UTF-8 string data referred to by the given string_id.
-  const char* GetStringDataAndLength(const StringId& string_id, uint32_t* length) const;
+  // Returns a pointer to the UTF-8 string data referred to by the given string_id as well as the
+  // length of the string when decoded as a UTF-16 string. Note the UTF-16 length is not the same
+  // as the string length of the string data.
+  const char* GetStringDataAndUtf16Length(const StringId& string_id, uint32_t* utf16_length) const;
 
   const char* GetStringData(const StringId& string_id) const {
-    uint32_t length;
-    return GetStringDataAndLength(string_id, &length);
+    uint32_t ignored;
+    return GetStringDataAndUtf16Length(string_id, &ignored);
   }
 
-  // return the UTF-8 encoded string with the specified string_id index
-  const char* StringDataAndLengthByIdx(uint32_t idx, uint32_t* unicode_length) const {
+  // Index version of GetStringDataAndUtf16Length.
+  const char* StringDataAndUtf16LengthByIdx(uint32_t idx, uint32_t* utf16_length) const {
     if (idx == kDexNoIndex) {
-      *unicode_length = 0;
+      *utf16_length = 0;
       return NULL;
     }
     const StringId& string_id = GetStringId(idx);
-    return GetStringDataAndLength(string_id, unicode_length);
+    return GetStringDataAndUtf16Length(string_id, utf16_length);
   }
-
-  StringPiece StringDataAsStringPieceByIdx(uint32_t idx) const;
 
   const char* StringDataByIdx(uint32_t idx) const {
     uint32_t unicode_length;
-    return StringDataAndLengthByIdx(idx, &unicode_length);
+    return StringDataAndUtf16LengthByIdx(idx, &unicode_length);
   }
 
   // Looks up a string id for a given modified utf8 string.
@@ -472,7 +472,7 @@ class DexFile {
   // Get the descriptor string associated with a given type index.
   const char* StringByTypeIdx(uint32_t idx, uint32_t* unicode_length) const {
     const TypeId& type_id = GetTypeId(idx);
-    return StringDataAndLengthByIdx(type_id.descriptor_idx_, unicode_length);
+    return StringDataAndUtf16LengthByIdx(type_id.descriptor_idx_, unicode_length);
   }
 
   const char* StringByTypeIdx(uint32_t idx) const {
@@ -575,7 +575,7 @@ class DexFile {
     return StringDataByIdx(GetProtoId(method_id.proto_idx_).shorty_idx_);
   }
   const char* GetMethodShorty(const MethodId& method_id, uint32_t* length) const {
-    return StringDataAndLengthByIdx(GetProtoId(method_id.proto_idx_).shorty_idx_, length);
+    return StringDataAndUtf16LengthByIdx(GetProtoId(method_id.proto_idx_).shorty_idx_, length);
   }
   // Returns the number of class definitions in the .dex file.
   size_t NumClassDefs() const {
@@ -952,51 +952,7 @@ class Signature {
     return Signature();
   }
 
-  bool operator==(const Signature& rhs) const {
-    if (dex_file_ == nullptr) {
-      return rhs.dex_file_ == nullptr;
-    }
-    if (rhs.dex_file_ == nullptr) {
-      return false;
-    }
-    if (dex_file_ == rhs.dex_file_) {
-      return proto_id_ == rhs.proto_id_;
-    }
-    StringPiece shorty(dex_file_->StringDataAsStringPieceByIdx(proto_id_->shorty_idx_));
-    if (shorty != rhs.dex_file_->StringDataAsStringPieceByIdx(rhs.proto_id_->shorty_idx_)) {
-      return false;  // Shorty mismatch.
-    }
-    if (shorty[0] == 'L') {
-      const DexFile::TypeId& return_type_id = dex_file_->GetTypeId(proto_id_->return_type_idx_);
-      const DexFile::TypeId& rhs_return_type_id =
-          rhs.dex_file_->GetTypeId(rhs.proto_id_->return_type_idx_);
-      if (dex_file_->StringDataAsStringPieceByIdx(return_type_id.descriptor_idx_) !=
-          rhs.dex_file_->StringDataAsStringPieceByIdx(rhs_return_type_id.descriptor_idx_)) {
-        return false;  // Return type mismatch.
-      }
-    }
-    if (shorty.find('L', 1) != StringPiece::npos) {
-      const DexFile::TypeList* params = dex_file_->GetProtoParameters(*proto_id_);
-      const DexFile::TypeList* rhs_params = rhs.dex_file_->GetProtoParameters(*rhs.proto_id_);
-      // Both lists are empty or have contents, or else shorty is broken.
-      DCHECK_EQ(params == nullptr, rhs_params == nullptr);
-      if (params != nullptr) {
-        uint32_t params_size = params->Size();
-        DCHECK_EQ(params_size, rhs_params->Size());  // Parameter list size must match.
-        for (uint32_t i = 0; i < params_size; ++i) {
-          const DexFile::TypeId& param_id = dex_file_->GetTypeId(params->GetTypeItem(i).type_idx_);
-          const DexFile::TypeId& rhs_param_id =
-              rhs.dex_file_->GetTypeId(rhs_params->GetTypeItem(i).type_idx_);
-          if (dex_file_->StringDataAsStringPieceByIdx(param_id.descriptor_idx_) !=
-              rhs.dex_file_->StringDataAsStringPieceByIdx(rhs_param_id.descriptor_idx_)) {
-            return false;  // Parameter type mismatch.
-          }
-        }
-      }
-    }
-    return true;
-  }
-
+  bool operator==(const Signature& rhs) const;
   bool operator!=(const Signature& rhs) const {
     return !(*this == rhs);
   }

@@ -112,17 +112,6 @@ class ClassHelper {
     }
   }
 
-  StringPiece GetDescriptorAsStringPiece() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    CHECK(klass_ != NULL);
-    if (UNLIKELY(klass_->IsArrayClass() || klass_->IsPrimitive() || klass_->IsProxyClass())) {
-      return StringPiece(GetDescriptor());
-    } else {
-      const DexFile& dex_file = GetDexFile();
-      const DexFile::TypeId& type_id = dex_file.GetTypeId(GetClassDef()->class_idx_);
-      return dex_file.StringDataAsStringPieceByIdx(type_id.descriptor_idx_);
-    }
-  }
-
   const char* GetArrayDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string result("[");
     const mirror::Class* saved_klass = klass_;
@@ -194,7 +183,7 @@ class ClassHelper {
   }
 
   const char* GetSourceFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    std::string descriptor(GetDescriptorAsStringPiece().as_string());
+    std::string descriptor(GetDescriptor());
     const DexFile& dex_file = GetDexFile();
     const DexFile::ClassDef* dex_class_def = GetClassDef();
     CHECK(dex_class_def != NULL);
@@ -291,16 +280,6 @@ class FieldHelper {
     return dex_file.GetFieldName(dex_file.GetFieldId(field_index));
   }
 
-  StringPiece GetNameAsStringPiece() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    uint32_t field_index = field_->GetDexFieldIndex();
-    if (UNLIKELY(field_->GetDeclaringClass()->IsProxyClass())) {
-      return StringPiece(GetName());
-    }
-    const DexFile& dex_file = GetDexFile();
-    const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
-    return dex_file.StringDataAsStringPieceByIdx(field_id.name_idx_);
-  }
-
   mirror::Class* GetType(bool resolve = true) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t field_index = field_->GetDexFieldIndex();
     if (UNLIKELY(field_->GetDeclaringClass()->IsProxyClass())) {
@@ -329,17 +308,6 @@ class FieldHelper {
     return dex_file.GetFieldTypeDescriptor(field_id);
   }
 
-  StringPiece GetTypeDescriptorAsStringPiece() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    uint32_t field_index = field_->GetDexFieldIndex();
-    if (UNLIKELY(field_->GetDeclaringClass()->IsProxyClass())) {
-      return StringPiece(GetTypeDescriptor());
-    }
-    const DexFile& dex_file = GetDexFile();
-    const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
-    const DexFile::TypeId& type_id = dex_file.GetTypeId(field_id.type_idx_);
-    return dex_file.StringDataAsStringPieceByIdx(type_id.descriptor_idx_);
-  }
-
   Primitive::Type GetTypeAsPrimitiveType()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return Primitive::GetType(GetTypeDescriptor()[0]);
@@ -365,7 +333,7 @@ class FieldHelper {
       DCHECK_LT(field_index, 2U);
       // 0 == Class[] interfaces; 1 == Class[][] throws;
       ClassHelper kh(field_->GetDeclaringClass());
-      declaring_class_descriptor_ = kh.GetDescriptorAsStringPiece().as_string();
+      declaring_class_descriptor_ = kh.GetDescriptor();
       return declaring_class_descriptor_.c_str();
     }
     const DexFile& dex_file = GetDexFile();
@@ -470,16 +438,6 @@ class MethodHelper {
     }
   }
 
-  StringPiece GetNameAsStringPiece() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile& dex_file = GetDexFile();
-    uint32_t dex_method_idx = method_->GetDexMethodIndex();
-    if (UNLIKELY(dex_method_idx == DexFile::kDexNoIndex)) {
-      return StringPiece(GetName());
-    }
-    const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_idx);
-    return dex_file.StringDataAsStringPieceByIdx(method_id.name_idx_);
-  }
-
   mirror::String* GetNameAsString() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile& dex_file = GetDexFile();
     uint32_t dex_method_idx = method_->GetDexMethodIndex();
@@ -559,18 +517,6 @@ class MethodHelper {
     return dex_file.GetMethodDeclaringClassDescriptor(dex_file.GetMethodId(dex_method_idx));
   }
 
-  StringPiece GetDeclaringClassDescriptorAsStringPiece()
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile& dex_file = GetDexFile();
-    uint32_t dex_method_idx = method_->GetDexMethodIndex();
-    if (UNLIKELY(dex_method_idx == DexFile::kDexNoIndex)) {
-      return StringPiece("<runtime method>");
-    }
-    const DexFile::MethodId& mid = dex_file.GetMethodId(dex_method_idx);
-    const DexFile::TypeId& type_id = dex_file.GetTypeId(mid.class_idx_);
-    return dex_file.StringDataAsStringPieceByIdx(type_id.descriptor_idx_);
-  }
-
   const char* GetDeclaringClassSourceFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return ClassHelper(method_->GetDeclaringClass()).GetSourceFile();
   }
@@ -635,8 +581,8 @@ class MethodHelper {
     const DexFile& other_dex_file = other->GetDexFile();
     const DexFile::MethodId& other_mid =
         other_dex_file.GetMethodId(other->method_->GetDexMethodIndex());
-    if (dex_file.StringDataAsStringPieceByIdx(mid.name_idx_) !=
-        other_dex_file.StringDataAsStringPieceByIdx(other_mid.name_idx_)) {
+    if (!DexFileStringEquals(&dex_file, mid.name_idx_,
+                             &other_dex_file, other_mid.name_idx_)) {
       return false;  // Name mismatch.
     }
     return dex_file.GetMethodSignature(mid) == other_dex_file.GetMethodSignature(other_mid);

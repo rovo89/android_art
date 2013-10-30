@@ -459,7 +459,7 @@ const DexFile::StringId* DexFile::FindStringId(const char* string) const {
     int32_t mid = (hi + lo) / 2;
     uint32_t length;
     const DexFile::StringId& str_id = GetStringId(mid);
-    const char* str = GetStringDataAndLength(str_id, &length);
+    const char* str = GetStringDataAndUtf16Length(str_id, &length);
     int compare = CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(string, str);
     if (compare > 0) {
       lo = mid + 1;
@@ -479,7 +479,7 @@ const DexFile::StringId* DexFile::FindStringId(const uint16_t* string) const {
     int32_t mid = (hi + lo) / 2;
     uint32_t length;
     const DexFile::StringId& str_id = GetStringId(mid);
-    const char* str = GetStringDataAndLength(str_id, &length);
+    const char* str = GetStringDataAndUtf16Length(str_id, &length);
     int compare = CompareModifiedUtf8ToUtf16AsCodePointValues(str, string);
     if (compare > 0) {
       lo = mid + 1;

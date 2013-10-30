@@ -1878,7 +1878,7 @@ mirror::ArtMethod* ClassLinker::LoadMethod(Thread* self, const DexFile& dex_file
                                            SirtRef<mirror::Class>& klass) {
   uint32_t dex_method_idx = it.GetMemberIndex();
   const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_idx);
-  StringPiece method_name(dex_file.StringDataAsStringPieceByIdx(method_id.name_idx_));
+  const char* method_name = dex_file.StringDataByIdx(method_id.name_idx_);
 
   mirror::ArtMethod* dst = AllocArtMethod(self);
   if (UNLIKELY(dst == NULL)) {
@@ -1899,34 +1899,30 @@ mirror::ArtMethod* ClassLinker::LoadMethod(Thread* self, const DexFile& dex_file
 
   uint32_t access_flags = it.GetMemberAccessFlags();
 
-  if (UNLIKELY(method_name == "finalize")) {
+  if (UNLIKELY(strcmp("finalize", method_name) == 0)) {
     // Set finalizable flag on declaring class.
-    const DexFile::ProtoId& proto = dex_file.GetProtoId(method_id.proto_idx_);
-    if (dex_file.GetProtoParameters(proto) == NULL) {  // No arguments
-      const DexFile::TypeId& return_type = dex_file.GetTypeId(proto.return_type_idx_);
-      if (dex_file.StringDataAsStringPieceByIdx(return_type.descriptor_idx_) == "V") {
-        // Void return type.
-        if (klass->GetClassLoader() != NULL) {  // All non-boot finalizer methods are flagged
+    if (strcmp("V", dex_file.GetShorty(method_id.proto_idx_)) == 0) {
+      // Void return type.
+      if (klass->GetClassLoader() != NULL) {  // All non-boot finalizer methods are flagged
+        klass->SetFinalizable();
+      } else {
+        ClassHelper kh(klass.get());
+        const char* klass_descriptor = kh.GetDescriptor();
+        // The Enum class declares a "final" finalize() method to prevent subclasses from
+        // introducing a finalizer. We don't want to set the finalizable flag for Enum or its
+        // subclasses, so we exclude it here.
+        // We also want to avoid setting the flag on Object, where we know that finalize() is
+        // empty.
+        if ((strcmp("Ljava/lang/Object;", klass_descriptor) != 0) &&
+            (strcmp("Ljava/lang/Enum;", klass_descriptor) != 0)) {
           klass->SetFinalizable();
-        } else {
-          ClassHelper kh(klass.get());
-          StringPiece klass_descriptor(kh.GetDescriptorAsStringPiece());
-          // The Enum class declares a "final" finalize() method to prevent subclasses from
-          // introducing a finalizer. We don't want to set the finalizable flag for Enum or its
-          // subclasses, so we exclude it here.
-          // We also want to avoid setting the flag on Object, where we know that finalize() is
-          // empty.
-          if (klass_descriptor != "Ljava/lang/Object;" &&
-              klass_descriptor != "Ljava/lang/Enum;") {
-            klass->SetFinalizable();
-          }
         }
       }
     }
   } else if (method_name[0] == '<') {
     // Fix broken access flags for initializers. Bug 11157540.
-    bool is_init = (method_name == "<init>");
-    bool is_clinit = !is_init && (method_name == "<clinit>");
+    bool is_init = (strcmp("<init>", method_name) == 0);
+    bool is_clinit = !is_init && (strcmp("<clinit>", method_name) == 0);
     if (UNLIKELY(!is_init && !is_clinit)) {
       LOG(WARNING) << "Unexpected '<' at start of method name " << method_name;
     } else {
@@ -2265,7 +2261,8 @@ bool ClassLinker::RemoveClass(const char* descriptor, const mirror::ClassLoader*
        ++it) {
     mirror::Class* klass = it->second;
     kh.ChangeClass(klass);
-    if (kh.GetDescriptorAsStringPiece() == descriptor && klass->GetClassLoader() == class_loader) {
+    if ((klass->GetClassLoader() == class_loader) &&
+        (strcmp(descriptor, kh.GetDescriptor()) == 0)) {
       class_table_.erase(it);
       return true;
     }
@@ -2311,14 +2308,15 @@ mirror::Class* ClassLinker::LookupClassFromTableLocked(const char* descriptor,
   for (auto it = class_table_.lower_bound(hash); it != end && it->first == hash; ++it) {
     mirror::Class* klass = it->second;
     kh.ChangeClass(klass);
-    if (klass->GetClassLoader() == class_loader && kh.GetDescriptorAsStringPiece() == descriptor) {
+    if ((klass->GetClassLoader() == class_loader) &&
+        (strcmp(descriptor, kh.GetDescriptor()) == 0)) {
       if (kIsDebugBuild) {
         // Check for duplicates in the table.
         for (++it; it != end && it->first == hash; ++it) {
           mirror::Class* klass2 = it->second;
           kh.ChangeClass(klass2);
-          CHECK(!(kh.GetDescriptorAsStringPiece() == descriptor &&
-                  klass2->GetClassLoader() == class_loader))
+          CHECK(!((klass2->GetClassLoader() == class_loader) &&
+                  (strcmp(descriptor, kh.GetDescriptor()) == 0)))
               << PrettyClass(klass) << " " << klass << " " << klass->GetClassLoader() << " "
               << PrettyClass(klass2) << " " << klass2 << " " << klass2->GetClassLoader();
         }
@@ -2426,7 +2424,7 @@ void ClassLinker::LookupClasses(const char* descriptor, std::vector<mirror::Clas
       it != end && it->first == hash; ++it) {
     mirror::Class* klass = it->second;
     kh.ChangeClass(klass);
-    if (kh.GetDescriptorAsStringPiece() == descriptor) {
+    if (strcmp(descriptor, kh.GetDescriptor()) == 0) {
       result.push_back(klass);
     }
   }
@@ -3885,7 +3883,7 @@ bool ClassLinker::LinkFields(SirtRef<mirror::Class>& klass, bool is_static) {
 
   // We lie to the GC about the java.lang.ref.Reference.referent field, so it doesn't scan it.
   if (!is_static &&
-      (ClassHelper(klass.get(), this).GetDescriptorAsStringPiece() == "Ljava/lang/ref/Reference;")) {
+      (strcmp("Ljava/lang/ref/Reference;", ClassHelper(klass.get(), this).GetDescriptor()) == 0)) {
     // We know there are no non-reference fields in the Reference classes, and we know
     // that 'referent' is alphabetically last, so this is easy...
     CHECK_EQ(num_reference_fields, num_fields);
@@ -3910,8 +3908,8 @@ bool ClassLinker::LinkFields(SirtRef<mirror::Class>& klass, bool is_static) {
       fh.ChangeField(field);
       Primitive::Type type = fh.GetTypeAsPrimitiveType();
       bool is_primitive = type != Primitive::kPrimNot;
-      if (ClassHelper(klass.get(), this).GetDescriptorAsStringPiece() == "Ljava/lang/ref/Reference;" &&
-          fh.GetNameAsStringPiece() == "referent") {
+      if ((strcmp("Ljava/lang/ref/Reference;", ClassHelper(klass.get(), this).GetDescriptor()) == 0)
+          && (strcmp("referent", fh.GetName()) == 0)) {
         is_primitive = true;  // We lied above, so we have to expect a lie here.
       }
       if (is_primitive) {
@@ -4006,9 +4004,8 @@ mirror::String* ClassLinker::ResolveString(const DexFile& dex_file,
   if (resolved != NULL) {
     return resolved;
   }
-  const DexFile::StringId& string_id = dex_file.GetStringId(string_idx);
-  int32_t utf16_length = dex_file.GetStringLength(string_id);
-  const char* utf8_data = dex_file.GetStringData(string_id);
+  uint32_t utf16_length;
+  const char* utf8_data = dex_file.StringDataAndUtf16LengthByIdx(string_idx, &utf16_length);
   mirror::String* string = intern_table_->InternStrong(utf16_length, utf8_data);
   dex_cache->SetResolvedString(string_idx, string);
   return string;
@@ -4249,8 +4246,8 @@ mirror::ArtField* ClassLinker::ResolveFieldJLS(const DexFile& dex_file,
     return NULL;
   }
 
-  StringPiece name(dex_file.StringDataAsStringPieceByIdx(field_id.name_idx_));
-  StringPiece type(dex_file.StringDataAsStringPieceByIdx(
+  StringPiece name(dex_file.StringDataByIdx(field_id.name_idx_));
+  StringPiece type(dex_file.StringDataByIdx(
       dex_file.GetTypeId(field_id.type_idx_).descriptor_idx_));
   resolved = klass->FindField(name, type);
   if (resolved != NULL) {

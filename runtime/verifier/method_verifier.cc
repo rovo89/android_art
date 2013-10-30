@@ -90,7 +90,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const mirror::Class* kla
     return kNoFailure;
   }
   mirror::Class* super = klass->GetSuperClass();
-  if (super == NULL && ClassHelper(klass).GetDescriptorAsStringPiece() != "Ljava/lang/Object;") {
+  if (super == NULL && strcmp("Ljava/lang/Object;", ClassHelper(klass).GetDescriptor()) != 0) {
     *error = "Verifier rejected class ";
     *error += PrettyDescriptor(klass);
     *error += " that has no super class";
@@ -2188,7 +2188,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       if (called_method == NULL) {
         uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
         const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
-        is_constructor = dex_file_->StringDataAsStringPieceByIdx(method_id.name_idx_) == "<init>";
+        is_constructor = strcmp("<init>", dex_file_->StringDataByIdx(method_id.name_idx_)) == 0;
         uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
         return_type_descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
       } else {

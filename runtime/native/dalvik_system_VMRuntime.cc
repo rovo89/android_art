@@ -222,7 +222,7 @@ static void PreloadDexCachesResolveString(mirror::DexCache* dex_cache,
   }
   const DexFile* dex_file = dex_cache->GetDexFile();
   uint32_t utf16Size;
-  const char* utf8 = dex_file->StringDataAndLengthByIdx(string_idx, &utf16Size);
+  const char* utf8 = dex_file->StringDataAndUtf16LengthByIdx(string_idx, &utf16Size);
   string = strings[utf8];
   if (string == NULL) {
     return;
