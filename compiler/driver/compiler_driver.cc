@@ -610,11 +610,11 @@ void CompilerDriver::PreCompile(jobject class_loader, const std::vector<const De
   UpdateImageClasses(timings);
 }
 
-bool CompilerDriver::IsImageClass(const StringPiece& descriptor) const {
+bool CompilerDriver::IsImageClass(const char* descriptor) const {
   if (!IsImage()) {
     return true;
   } else {
-    return image_classes_->find(descriptor.data()) != image_classes_->end();
+    return image_classes_->find(descriptor) != image_classes_->end();
   }
 }
 
@@ -790,7 +790,7 @@ void CompilerDriver::UpdateImageClasses(base::TimingLogger& timings) {
 bool CompilerDriver::CanAssumeTypeIsPresentInDexCache(const DexFile& dex_file,
                                                       uint32_t type_idx) {
   if (IsImage() &&
-      IsImageClass(dex_file.StringDataAsStringPieceByIdx(dex_file.GetTypeId(type_idx).descriptor_idx_))) {
+      IsImageClass(dex_file.StringDataByIdx(dex_file.GetTypeId(type_idx).descriptor_idx_))) {
     if (kIsDebugBuild) {
       ScopedObjectAccess soa(Thread::Current());
       mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
@@ -1116,7 +1116,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
   }
   if (!use_dex_cache && compiling_boot) {
     MethodHelper mh(method);
-    if (!IsImageClass(mh.GetDeclaringClassDescriptorAsStringPiece())) {
+    if (!IsImageClass(mh.GetDeclaringClassDescriptor())) {
       // We can only branch directly to Methods that are resolved in the DexCache.
       // Otherwise we won't invoke the resolution trampoline.
       use_dex_cache = true;
@@ -1579,8 +1579,8 @@ static void ResolveType(const ParallelCompilationManager* manager, size_t type_i
     CHECK(soa.Self()->IsExceptionPending());
     mirror::Throwable* exception = soa.Self()->GetException(NULL);
     VLOG(compiler) << "Exception during type resolution: " << exception->Dump();
-    if (ClassHelper(exception->GetClass()).GetDescriptorAsStringPiece() ==
-        "Ljava/lang/OutOfMemoryError;") {
+    if (strcmp("Ljava/lang/OutOfMemoryError;",
+               ClassHelper(exception->GetClass()).GetDescriptor()) == 0) {
       // There's little point continuing compilation if the heap is exhausted.
       LOG(FATAL) << "Out of memory during type resolution for compilation";
     }
@@ -2095,11 +2095,11 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
   const DexFile* dex_file = manager->GetDexFile();
   const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
   const DexFile::TypeId& class_type_id = dex_file->GetTypeId(class_def.class_idx_);
-  StringPiece descriptor(dex_file->StringDataAsStringPieceByIdx(class_type_id.descriptor_idx_));
+  const char* descriptor = dex_file->StringDataByIdx(class_type_id.descriptor_idx_);
 
   ScopedObjectAccess soa(Thread::Current());
   mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader());
-  mirror::Class* klass = manager->GetClassLinker()->FindClass(descriptor.data(), class_loader);
+  mirror::Class* klass = manager->GetClassLinker()->FindClass(descriptor, class_loader);
   if (klass != NULL) {
     // Only try to initialize classes that were successfully verified.
     if (klass->IsVerified()) {
@@ -2129,7 +2129,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
             bool is_black_listed = StringPiece(descriptor).ends_with("$NoPreloadHolder;");
             if (!is_black_listed) {
               for (size_t i = 0; i < arraysize(class_initializer_black_list); ++i) {
-                if (descriptor == class_initializer_black_list[i]) {
+                if (strcmp(descriptor, class_initializer_black_list[i]) == 0) {
                   is_black_listed = true;
                   break;
                 }
@@ -2137,7 +2137,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
             }
             if (!is_black_listed) {
               VLOG(compiler) << "Initializing: " << descriptor;
-              if (descriptor == "Ljava/lang/Void;") {
+              if (strcmp("Ljava/lang/Void;", descriptor) == 0) {
                 // Hand initialize j.l.Void to avoid Dex file operations in un-started runtime.
                 ObjectLock lock(soa.Self(), klass);
                 mirror::ObjectArray<mirror::ArtField>* fields = klass->GetSFields();

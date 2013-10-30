@@ -127,7 +127,7 @@ inline bool Heap::TryAllocLargeObjectUninstrumented(Thread* self, mirror::Class*
 inline void Heap::DebugCheckPreconditionsForAllobObject(mirror::Class* c, size_t byte_count) {
   DCHECK(c == NULL || (c->IsClassClass() && byte_count >= sizeof(mirror::Class)) ||
          (c->IsVariableSize() || c->GetObjectSize() == byte_count) ||
-         ClassHelper(c).GetDescriptorAsStringPiece().length() == 0);
+         strlen(ClassHelper(c).GetDescriptor()) == 0);
   DCHECK_GE(byte_count, sizeof(mirror::Object));
 }
 

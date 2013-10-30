@@ -323,7 +323,7 @@ static bool UnboxPrimitive(const ThrowLocation* throw_location, mirror::Object* 
   }
 
   JValue boxed_value;
-  const StringPiece src_descriptor(ClassHelper(o->GetClass()).GetDescriptorAsStringPiece());
+  const StringPiece src_descriptor(ClassHelper(o->GetClass()).GetDescriptor());
   mirror::Class* src_class = NULL;
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   mirror::ArtField* primitive_field = o->GetClass()->GetIFields()->Get(0);

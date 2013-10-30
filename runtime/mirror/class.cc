@@ -135,7 +135,7 @@ String* Class::ComputeName() {
   if (name != NULL) {
     return name;
   }
-  std::string descriptor(ClassHelper(this).GetDescriptorAsStringPiece().as_string());
+  std::string descriptor(ClassHelper(this).GetDescriptor());
   if ((descriptor[0] != 'L') && (descriptor[0] != '[')) {
     // The descriptor indicates that this is the class for
     // a primitive type; special-case the return value.
@@ -294,8 +294,8 @@ bool Class::IsInSamePackage(const Class* that) const {
     return true;
   }
   // Compare the package part of the descriptor string.
-  return IsInSamePackage(ClassHelper(klass1).GetDescriptorAsStringPiece(),
-                         ClassHelper(klass2).GetDescriptorAsStringPiece());
+  return IsInSamePackage(ClassHelper(klass1).GetDescriptor(),
+                         ClassHelper(klass2).GetDescriptor());
 }
 
 bool Class::IsClassClass() const {
@@ -366,7 +366,7 @@ ArtMethod* Class::FindDeclaredDirectMethod(const StringPiece& name, const String
   for (size_t i = 0; i < NumDirectMethods(); ++i) {
     ArtMethod* method = GetDirectMethod(i);
     mh.ChangeMethod(method);
-    if (name == mh.GetNameAsStringPiece() && mh.GetSignature() == signature) {
+    if (name == mh.GetName() && mh.GetSignature() == signature) {
       return method;
     }
   }
@@ -378,7 +378,7 @@ ArtMethod* Class::FindDeclaredDirectMethod(const StringPiece& name, const Signat
   for (size_t i = 0; i < NumDirectMethods(); ++i) {
     ArtMethod* method = GetDirectMethod(i);
     mh.ChangeMethod(method);
-    if (name == mh.GetNameAsStringPiece() && signature == mh.GetSignature()) {
+    if (name == mh.GetName() && signature == mh.GetSignature()) {
       return method;
     }
   }
@@ -432,7 +432,7 @@ ArtMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name, const Strin
   for (size_t i = 0; i < NumVirtualMethods(); ++i) {
     ArtMethod* method = GetVirtualMethod(i);
     mh.ChangeMethod(method);
-    if (name == mh.GetNameAsStringPiece() && mh.GetSignature() == signature) {
+    if (name == mh.GetName() && mh.GetSignature() == signature) {
       return method;
     }
   }
@@ -445,7 +445,7 @@ ArtMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name,
   for (size_t i = 0; i < NumVirtualMethods(); ++i) {
     ArtMethod* method = GetVirtualMethod(i);
     mh.ChangeMethod(method);
-    if (name == mh.GetNameAsStringPiece() && signature == mh.GetSignature()) {
+    if (name == mh.GetName() && signature == mh.GetSignature()) {
       return method;
     }
   }
@@ -517,7 +517,7 @@ ArtField* Class::FindDeclaredInstanceField(const StringPiece& name, const String
   for (size_t i = 0; i < NumInstanceFields(); ++i) {
     ArtField* f = GetInstanceField(i);
     fh.ChangeField(f);
-    if (name == fh.GetNameAsStringPiece() && type == fh.GetTypeDescriptorAsStringPiece()) {
+    if (name == fh.GetName() && type == fh.GetTypeDescriptor()) {
       return f;
     }
   }
@@ -566,7 +566,7 @@ ArtField* Class::FindDeclaredStaticField(const StringPiece& name, const StringPi
   for (size_t i = 0; i < NumStaticFields(); ++i) {
     ArtField* f = GetStaticField(i);
     fh.ChangeField(f);
-    if (name == fh.GetNameAsStringPiece() && type == fh.GetTypeDescriptorAsStringPiece()) {
+    if (name == fh.GetName() && type == fh.GetTypeDescriptor()) {
       return f;
     }
   }

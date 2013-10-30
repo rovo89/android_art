@@ -891,7 +891,7 @@ JDWP::JdwpError Dbg::GetClassInfo(JDWP::RefTypeId class_id, JDWP::JdwpTypeTag* p
   }
 
   if (pDescriptor != NULL) {
-    *pDescriptor = ClassHelper(c).GetDescriptorAsStringPiece().as_string();
+    *pDescriptor = ClassHelper(c).GetDescriptor();
   }
   return JDWP::ERR_NONE;
 }
@@ -934,7 +934,7 @@ JDWP::JdwpError Dbg::GetSignature(JDWP::RefTypeId class_id, std::string* signatu
   if (c == NULL) {
     return status;
   }
-  *signature = ClassHelper(c).GetDescriptorAsStringPiece().as_string();
+  *signature = ClassHelper(c).GetDescriptor();
   return JDWP::ERR_NONE;
 }
 
@@ -2289,7 +2289,7 @@ void Dbg::PostClassPrepare(mirror::Class* c) {
   int state = JDWP::CS_VERIFIED | JDWP::CS_PREPARED;
   JDWP::JdwpTypeTag tag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
   gJdwpState->PostClassPrepare(tag, gRegistry->Add(c),
-                               ClassHelper(c).GetDescriptorAsStringPiece().as_string(), state);
+                               ClassHelper(c).GetDescriptor(), state);
 }
 
 void Dbg::UpdateDebugger(Thread* thread, mirror::Object* this_object,

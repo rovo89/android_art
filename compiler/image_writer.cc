@@ -249,7 +249,7 @@ void ImageWriter::ComputeEagerResolvedStrings()
 }
 
 bool ImageWriter::IsImageClass(const Class* klass) {
-  return compiler_driver_.IsImageClass(ClassHelper(klass).GetDescriptorAsStringPiece());
+  return compiler_driver_.IsImageClass(ClassHelper(klass).GetDescriptor());
 }
 
 struct NonImageClasses {
@@ -304,7 +304,7 @@ void ImageWriter::PruneNonImageClasses() {
 bool ImageWriter::NonImageClassesVisitor(Class* klass, void* arg) {
   NonImageClasses* context = reinterpret_cast<NonImageClasses*>(arg);
   if (!context->image_writer->IsImageClass(klass)) {
-    context->non_image_classes->insert(ClassHelper(klass).GetDescriptorAsStringPiece().as_string());
+    context->non_image_classes->insert(ClassHelper(klass).GetDescriptor());
   }
   return true;
 }
