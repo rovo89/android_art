@@ -1987,6 +1987,7 @@ static const char* class_initializer_black_list[] = {
   "Ljava/net/Inet4Address;",  // Sub-class of InetAddress.
   "Ljava/net/Inet6Address;",  // Sub-class of InetAddress.
   "Ljava/net/InetUnixAddress;",  // Sub-class of InetAddress.
+  "Ljava/net/NetworkInterface;",  // Calls to Random.<init> -> System.currentTimeMillis -> OsConstants.initConstants.
   "Ljava/nio/charset/Charset;",  // Calls Charset.getDefaultCharset -> System.getProperty -> OsConstants.initConstants.
   "Ljava/nio/charset/CharsetICU;",  // Sub-class of Charset.
   "Ljava/nio/charset/Charsets;",  // Calls Charset.forName.
