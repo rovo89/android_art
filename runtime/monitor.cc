@@ -123,7 +123,7 @@ bool Monitor::Install(Thread* self) {
   // Publish the updated lock word, which may race with other threads.
   bool success = obj_->CasLockWord(lw, fat);
   // Lock profiling.
-  if (success && lock_profiling_threshold_ != 0) {
+  if (success && owner_ != nullptr && lock_profiling_threshold_ != 0) {
     locking_method_ = owner_->GetCurrentMethod(&locking_dex_pc_);
   }
   return success;
