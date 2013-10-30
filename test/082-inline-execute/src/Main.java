@@ -37,10 +37,6 @@ public class Main {
     test_String_length();
   }
 
-  private static String nullString() {
-    return null;
-  }
-
   public static void test_String_length() {
     String str0 = "";
     String str1 = "x";
@@ -50,7 +46,7 @@ public class Main {
     Assert.assertEquals(str1.length(), 1);
     Assert.assertEquals(str80.length(), 80);
 
-    String strNull = nullString();
+    String strNull = null;
     try {
       strNull.length();
       Assert.fail();
@@ -65,7 +61,7 @@ public class Main {
     Assert.assertTrue(str0.isEmpty());
     Assert.assertFalse(str1.isEmpty());
 
-    String strNull = nullString();
+    String strNull = null;
     try {
       strNull.isEmpty();
       Assert.fail();
@@ -92,7 +88,7 @@ public class Main {
     } catch (StringIndexOutOfBoundsException expected) {
     }
 
-    String strNull = nullString();
+    String strNull = null;
     try {
       strNull.charAt(0);
       Assert.fail();
@@ -137,7 +133,7 @@ public class Main {
     Assert.assertEquals(str40.indexOf('a',10), 10);
     Assert.assertEquals(str40.indexOf('b',40), -1);
 
-    String strNull = nullString();
+    String strNull = null;
     try {
       strNull.indexOf('a');
       Assert.fail();
