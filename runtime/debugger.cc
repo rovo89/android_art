@@ -1324,7 +1324,7 @@ void Dbg::OutputLineTable(JDWP::RefTypeId, JDWP::MethodId method_id, JDWP::Expan
       expandBufAdd8BE(pContext->pReply, address);
       expandBufAdd4BE(pContext->pReply, line_number);
       pContext->numItems++;
-      return true;
+      return false;
     }
   };
   mirror::ArtMethod* m = FromMethodId(method_id);
