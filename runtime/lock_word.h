@@ -132,7 +132,7 @@ class LockWord {
   }
 
   // Return the hash code stored in the lock word, must be kHashCode state.
-  uint32_t GetHashCode() const;
+  int32_t GetHashCode() const;
 
   uint32_t GetValue() const {
     return value_;

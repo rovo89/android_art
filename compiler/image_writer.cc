@@ -504,7 +504,11 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object* object, void* arg) {
       Monitor* monitor = lw.FatLockMonitor();
       CHECK(monitor != nullptr);
       CHECK(!monitor->IsLocked());
-      copy->SetLockWord(LockWord::FromHashCode(monitor->GetHashCode()));
+      if (monitor->HasHashCode()) {
+        copy->SetLockWord(LockWord::FromHashCode(monitor->GetHashCode()));
+      } else {
+        copy->SetLockWord(LockWord());
+      }
       break;
     }
     case LockWord::kThinLocked: {
@@ -512,9 +516,10 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object* object, void* arg) {
       break;
     }
     case LockWord::kUnlocked:
-      // Fall-through.
+      break;
     case LockWord::kHashCode:
       // Do nothing since we can just keep the same hash code.
+      CHECK_NE(lw.GetHashCode(), 0);
       break;
     default:
       LOG(FATAL) << "Unreachable.";

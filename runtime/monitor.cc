@@ -79,7 +79,7 @@ void Monitor::Init(uint32_t lock_profiling_threshold, bool (*is_sensitive_thread
   is_sensitive_thread_hook_ = is_sensitive_thread_hook;
 }
 
-Monitor::Monitor(Thread* owner, mirror::Object* obj, uint32_t hash_code)
+Monitor::Monitor(Thread* owner, mirror::Object* obj, int32_t hash_code)
     : monitor_lock_("a monitor lock", kMonitorLock),
       monitor_contenders_("monitor contenders", monitor_lock_),
       owner_(owner),
@@ -95,6 +95,16 @@ Monitor::Monitor(Thread* owner, mirror::Object* obj, uint32_t hash_code)
   // The identity hash code is set for the life time of the monitor.
 }
 
+int32_t Monitor::GetHashCode() {
+  while (!HasHashCode()) {
+    if (hash_code_.compare_and_swap(0, mirror::Object::GenerateIdentityHashCode())) {
+      break;
+    }
+  }
+  DCHECK(HasHashCode());
+  return hash_code_.load();
+}
+
 bool Monitor::Install(Thread* self) {
   MutexLock mu(self, monitor_lock_);  // Uncontended mutex acquisition as monitor isn't yet public.
   CHECK(owner_ == nullptr || owner_ == self || owner_->IsSuspended());
@@ -107,7 +117,7 @@ bool Monitor::Install(Thread* self) {
       break;
     }
     case LockWord::kHashCode: {
-      CHECK_EQ(hash_code_, lw.GetHashCode());
+      CHECK_EQ(hash_code_, static_cast<int32_t>(lw.GetHashCode()));
       break;
     }
     case LockWord::kFatLocked: {
@@ -622,7 +632,7 @@ void Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
             return;  // Success!
           } else {
             // We'd overflow the recursion count, so inflate the monitor.
-            InflateThinLocked(self, obj, lock_word, mirror::Object::GenerateIdentityHashCode());
+            InflateThinLocked(self, obj, lock_word, 0);
           }
         } else {
           // Contention.
@@ -632,7 +642,7 @@ void Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
             NanoSleep(1000);  // Sleep for 1us and re-attempt.
           } else {
             contention_count = 0;
-            InflateThinLocked(self, obj, lock_word, mirror::Object::GenerateIdentityHashCode());
+            InflateThinLocked(self, obj, lock_word, 0);
           }
         }
         continue;  // Start from the beginning.
@@ -716,7 +726,7 @@ void Monitor::Wait(Thread* self, mirror::Object *obj, int64_t ms, int32_t ns,
         return;  // Failure.
       } else {
         // We own the lock, inflate to enqueue ourself on the Monitor.
-        Inflate(self, self, obj, mirror::Object::GenerateIdentityHashCode());
+        Inflate(self, self, obj, 0);
         lock_word = obj->GetLockWord();
       }
       break;

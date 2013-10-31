@@ -325,7 +325,7 @@ END art_quick_handle_fill_data
 ENTRY art_quick_lock_object
     cbz    r0, slow_lock
 retry_lock:
-    ldrt   r2, [r9, #THREAD_ID_OFFSET]
+    ldr    r2, [r9, #THREAD_ID_OFFSET]
     ldrex  r1, [r0, #LOCK_WORD_OFFSET]
     cbnz   r1, not_unlocked           @ already thin locked
     @ unlocked case - r2 holds thread id with count of 0

@@ -84,14 +84,14 @@ Object* Object::Clone(Thread* self) {
   return copy.get();
 }
 
-uint32_t Object::GenerateIdentityHashCode() {
+int32_t Object::GenerateIdentityHashCode() {
   static AtomicInteger seed(987654321 + std::time(nullptr));
-  uint32_t expected_value, new_value;
+  int32_t expected_value, new_value;
   do {
     expected_value = static_cast<uint32_t>(seed.load());
     new_value = expected_value * 1103515245 + 12345;
-  } while (!seed.compare_and_swap(static_cast<int32_t>(expected_value),
-                                  static_cast<int32_t>(new_value)));
+  } while ((expected_value & LockWord::kHashMask) == 0 ||
+      !seed.compare_and_swap(expected_value, new_value));
   return expected_value & LockWord::kHashMask;
 }
 
