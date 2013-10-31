@@ -133,7 +133,7 @@ static void Usage(const char* fmt, ...) {
   UsageError("");
   UsageError("  --compiler-backend=(Quick|QuickGBC|Portable): select compiler backend");
   UsageError("      set.");
-  UsageError("      Example: --instruction-set=Portable");
+  UsageError("      Example: --compiler-backend=Portable");
   UsageError("      Default: Quick");
   UsageError("");
   UsageError("  --host: used with Portable backend to link against host runtime libraries");
