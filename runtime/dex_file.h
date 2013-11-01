@@ -575,6 +575,7 @@ class DexFile {
     return StringDataByIdx(GetProtoId(method_id.proto_idx_).shorty_idx_);
   }
   const char* GetMethodShorty(const MethodId& method_id, uint32_t* length) const {
+    // Using the UTF16 length is safe here as shorties are guaranteed to be ASCII characters.
     return StringDataAndUtf16LengthByIdx(GetProtoId(method_id.proto_idx_).shorty_idx_, length);
   }
   // Returns the number of class definitions in the .dex file.
