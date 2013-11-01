@@ -49,8 +49,7 @@
 #include <sys/syscall.h>
 #endif
 
-#include <corkscrew/backtrace.h>  // For DumpNativeStack.
-#include <corkscrew/demangle.h>  // For DumpNativeStack.
+#include <backtrace/Backtrace.h>  // For DumpNativeStack.
 
 #if defined(__linux__)
 #include <linux/unistd.h>
@@ -997,10 +996,9 @@ std::string GetSchedulerGroupName(pid_t tid) {
   return "";
 }
 
-static const char* CleanMapName(const backtrace_symbol_t* symbol) {
-  const char* map_name = symbol->map_name;
+static const char* CleanMapName(const char* map_name) {
   if (map_name == NULL) {
-    map_name = "???";
+    return "???";
   }
   // Turn "/usr/local/google/home/enh/clean-dalvik-dev/out/host/linux-x86/lib/libartd.so"
   // into "libartd.so".
@@ -1011,89 +1009,36 @@ static const char* CleanMapName(const backtrace_symbol_t* symbol) {
   return map_name;
 }
 
-static void FindSymbolInElf(const backtrace_frame_t* frame, const backtrace_symbol_t* symbol,
-                            std::string& symbol_name, uint32_t& pc_offset) {
-  symbol_table_t* symbol_table = NULL;
-  if (symbol->map_name != NULL) {
-    symbol_table = load_symbol_table(symbol->map_name);
-  }
-  const symbol_t* elf_symbol = NULL;
-  bool was_relative = true;
-  if (symbol_table != NULL) {
-    elf_symbol = find_symbol(symbol_table, symbol->relative_pc);
-    if (elf_symbol == NULL) {
-      elf_symbol = find_symbol(symbol_table, frame->absolute_pc);
-      was_relative = false;
-    }
-  }
-  if (elf_symbol != NULL) {
-    const char* demangled_symbol_name = demangle_symbol_name(elf_symbol->name);
-    if (demangled_symbol_name != NULL) {
-      symbol_name = demangled_symbol_name;
-    } else {
-      symbol_name = elf_symbol->name;
-    }
-
-    // TODO: is it a libcorkscrew bug that we have to do this?
-    pc_offset = (was_relative ? symbol->relative_pc : frame->absolute_pc) - elf_symbol->start;
-  } else {
-    symbol_name = "???";
-  }
-  free_symbol_table(symbol_table);
-}
-
 void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix, bool include_count) {
-  // Ensure libcorkscrew doesn't use a stale cache of /proc/self/maps.
-  flush_my_map_info_list();
-
-  const size_t MAX_DEPTH = 32;
-  UniquePtr<backtrace_frame_t[]> frames(new backtrace_frame_t[MAX_DEPTH]);
-  size_t ignore_count = 2;  // Don't include unwind_backtrace_thread or DumpNativeStack.
-  ssize_t frame_count = unwind_backtrace_thread(tid, frames.get(), ignore_count, MAX_DEPTH);
-  if (frame_count == -1) {
-    os << prefix << "(unwind_backtrace_thread failed for thread " << tid << ")\n";
+  UniquePtr<Backtrace> backtrace(Backtrace::Create(-1, tid));
+  if (!backtrace->Unwind(0)) {
+    os << prefix << "(backtrace::Unwind failed for thread " << tid << ")\n";
     return;
-  } else if (frame_count == 0) {
+  } else if (backtrace->NumFrames() == 0) {
     os << prefix << "(no native stack frames for thread " << tid << ")\n";
     return;
   }
 
-  UniquePtr<backtrace_symbol_t[]> backtrace_symbols(new backtrace_symbol_t[frame_count]);
-  get_backtrace_symbols(frames.get(), frame_count, backtrace_symbols.get());
-
-  for (size_t i = 0; i < static_cast<size_t>(frame_count); ++i) {
-    const backtrace_frame_t* frame = &frames[i];
-    const backtrace_symbol_t* symbol = &backtrace_symbols[i];
-
+  for (size_t i = 0; i < backtrace->NumFrames(); ++i) {
     // We produce output like this:
-    // ]    #00 unwind_backtrace_thread+536 [0x55d75bb8] (libcorkscrew.so)
-
-    std::string symbol_name;
-    uint32_t pc_offset = 0;
-    if (symbol->demangled_name != NULL) {
-      symbol_name = symbol->demangled_name;
-      pc_offset = symbol->relative_pc - symbol->relative_symbol_addr;
-    } else if (symbol->symbol_name != NULL) {
-      symbol_name = symbol->symbol_name;
-      pc_offset = symbol->relative_pc - symbol->relative_symbol_addr;
-    } else {
-      // dladdr(3) didn't find a symbol; maybe it's static? Look in the ELF file...
-      FindSymbolInElf(frame, symbol, symbol_name, pc_offset);
-    }
+    // ]    #00 unwind_backtrace_thread+536 [0x55d75bb8] (libbacktrace.so)
+    const backtrace_frame_data_t* frame = backtrace->GetFrame(i);
 
     os << prefix;
     if (include_count) {
-      os << StringPrintf("#%02zd ", i);
+      os << StringPrintf("#%02zu ", i);
     }
-    os << symbol_name;
-    if (pc_offset != 0) {
-      os << "+" << pc_offset;
+    if (frame->func_name) {
+      os << frame->func_name;
+    } else {
+      os << "???";
     }
-    os << StringPrintf(" [%p] (%s)\n",
-                       reinterpret_cast<void*>(frame->absolute_pc), CleanMapName(symbol));
+    if (frame->func_offset != 0) {
+      os << "+" << frame->func_offset;
+    }
+    os << StringPrintf(" [%p]", reinterpret_cast<void*>(frame->pc));
+    os << " (" << CleanMapName(frame->map_name) << ")\n";
   }
-
-  free_backtrace_symbols(backtrace_symbols.get(), frame_count);
 }
 
 #if defined(__APPLE__)
