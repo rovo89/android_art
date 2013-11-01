@@ -45,7 +45,7 @@ inline LockWord::LockWord(Monitor* mon)
   DCHECK_EQ(FatLockMonitor(), mon);
 }
 
-inline uint32_t LockWord::GetHashCode() const {
+inline int32_t LockWord::GetHashCode() const {
   DCHECK_EQ(GetState(), kHashCode);
   return (value_ >> kHashShift) & kHashMask;
 }

@@ -249,7 +249,7 @@ class MANAGED Object {
   }
 
   // Generate an identity hash code.
-  static uint32_t GenerateIdentityHashCode();
+  static int32_t GenerateIdentityHashCode();
 
   // Write barrier called post update to a reference bearing field.
   static void WriteBarrierField(const Object* dst, MemberOffset offset, const Object* new_value);

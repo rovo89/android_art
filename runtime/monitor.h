@@ -24,6 +24,7 @@
 #include <list>
 #include <vector>
 
+#include "atomic_integer.h"
 #include "base/mutex.h"
 #include "root_visitor.h"
 #include "thread_state.h"
@@ -98,17 +99,19 @@ class Monitor {
     return owner_;
   }
 
-  int32_t GetHashCode() const {
-    return hash_code_;
-  }
+  int32_t GetHashCode();
 
   bool IsLocked() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  bool HasHashCode() const {
+    return hash_code_.load() != 0;
+  }
 
   static void InflateThinLocked(Thread* self, mirror::Object* obj, LockWord lock_word,
                                 uint32_t hash_code) NO_THREAD_SAFETY_ANALYSIS;
 
  private:
-  explicit Monitor(Thread* owner, mirror::Object* obj, uint32_t hash_code)
+  explicit Monitor(Thread* owner, mirror::Object* obj, int32_t hash_code)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Install the monitor into its object, may fail if another thread installs a different monitor
@@ -179,8 +182,8 @@ class Monitor {
   // Threads currently waiting on this monitor.
   Thread* wait_set_ GUARDED_BY(monitor_lock_);
 
-  // Stored object hash code, always generated.
-  const uint32_t hash_code_;
+  // Stored object hash code, generated lazily by GetHashCode.
+  AtomicInteger hash_code_;
 
   // Method and dex pc where the lock owner acquired the lock, used when lock
   // sampling is enabled. locking_method_ may be null if the lock is currently
