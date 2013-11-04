@@ -2863,11 +2863,14 @@ const RegType& MethodVerifier::GetCaughtExceptionType() {
               // as that is caught at runtime
               common_super = &exception;
             } else if (!reg_types_.JavaLangThrowable(false).IsAssignableFrom(exception)) {
-              // We don't know enough about the type and the common path merge will result in
-              // Conflict. Fail here knowing the correct thing can be done at runtime.
-              Fail(exception.IsUnresolvedTypes() ? VERIFY_ERROR_NO_CLASS :
-                  VERIFY_ERROR_BAD_CLASS_SOFT) << "unexpected non-exception class " << exception;
-              return reg_types_.Conflict();
+              if (exception.IsUnresolvedTypes()) {
+                // We don't know enough about the type. Fail here and let runtime handle it.
+                Fail(VERIFY_ERROR_NO_CLASS) << "unresolved exception class " << exception;
+                return exception;
+              } else {
+                Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "unexpected non-exception class " << exception;
+                return reg_types_.Conflict();
+              }
             } else if (common_super->Equals(exception)) {
               // odd case, but nothing to do
             } else {
