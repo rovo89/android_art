@@ -107,6 +107,8 @@ class X86Mir2Lir : public Mir2Lir {
     bool GenInlinedCas32(CallInfo* info, bool need_write_barrier);
     bool GenInlinedMinMaxInt(CallInfo* info, bool is_min);
     bool GenInlinedSqrt(CallInfo* info);
+    bool GenInlinedPeek(CallInfo* info, OpSize size);
+    bool GenInlinedPoke(CallInfo* info, OpSize size);
     void GenNegLong(RegLocation rl_dest, RegLocation rl_src);
     void GenOrLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
     void GenSubLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);

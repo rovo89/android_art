@@ -268,6 +268,37 @@ bool MipsMir2Lir::GenInlinedSqrt(CallInfo* info) {
   return false;
 }
 
+bool MipsMir2Lir::GenInlinedPeek(CallInfo* info, OpSize size) {
+  if (size != kSignedByte) {
+    // MIPS supports only aligned access. Defer unaligned access to JNI implementation.
+    return false;
+  }
+  RegLocation rl_src_address = info->args[0];  // long address
+  rl_src_address.wide = 0;  // ignore high half in info->args[1]
+  RegLocation rl_dest = InlineTarget(info);
+  RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  DCHECK(size == kSignedByte);
+  LoadBaseDisp(rl_address.low_reg, 0, rl_result.low_reg, size, INVALID_SREG);
+  StoreValue(rl_dest, rl_result);
+  return true;
+}
+
+bool MipsMir2Lir::GenInlinedPoke(CallInfo* info, OpSize size) {
+  if (size != kSignedByte) {
+    // MIPS supports only aligned access. Defer unaligned access to JNI implementation.
+    return false;
+  }
+  RegLocation rl_src_address = info->args[0];  // long address
+  rl_src_address.wide = 0;  // ignore high half in info->args[1]
+  RegLocation rl_src_value = info->args[2];  // [size] value
+  RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
+  DCHECK(size == kSignedByte);
+  RegLocation rl_value = LoadValue(rl_src_value, kCoreReg);
+  StoreBaseDisp(rl_address.low_reg, 0, rl_value.low_reg, size);
+  return true;
+}
+
 LIR* MipsMir2Lir::OpPcRelLoad(int reg, LIR* target) {
   LOG(FATAL) << "Unexpected use of OpPcRelLoad for Mips";
   return NULL;

@@ -236,6 +236,43 @@ bool X86Mir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min) {
   return true;
 }
 
+bool X86Mir2Lir::GenInlinedPeek(CallInfo* info, OpSize size) {
+  RegLocation rl_src_address = info->args[0];  // long address
+  rl_src_address.wide = 0;  // ignore high half in info->args[1]
+  RegLocation rl_dest = InlineTarget(info);
+  RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  if (size == kLong) {
+    // Unaligned access is allowed on x86.
+    LoadBaseDispWide(rl_address.low_reg, 0, rl_result.low_reg, rl_result.high_reg, INVALID_SREG);
+    StoreValueWide(rl_dest, rl_result);
+  } else {
+    DCHECK(size == kSignedByte || size == kSignedHalf || size == kWord);
+    // Unaligned access is allowed on x86.
+    LoadBaseDisp(rl_address.low_reg, 0, rl_result.low_reg, size, INVALID_SREG);
+    StoreValue(rl_dest, rl_result);
+  }
+  return true;
+}
+
+bool X86Mir2Lir::GenInlinedPoke(CallInfo* info, OpSize size) {
+  RegLocation rl_src_address = info->args[0];  // long address
+  rl_src_address.wide = 0;  // ignore high half in info->args[1]
+  RegLocation rl_src_value = info->args[2];  // [size] value
+  RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
+  if (size == kLong) {
+    // Unaligned access is allowed on x86.
+    RegLocation rl_value = LoadValueWide(rl_src_value, kCoreReg);
+    StoreBaseDispWide(rl_address.low_reg, 0, rl_value.low_reg, rl_value.high_reg);
+  } else {
+    DCHECK(size == kSignedByte || size == kSignedHalf || size == kWord);
+    // Unaligned access is allowed on x86.
+    RegLocation rl_value = LoadValue(rl_src_value, kCoreReg);
+    StoreBaseDisp(rl_address.low_reg, 0, rl_value.low_reg, size);
+  }
+  return true;
+}
+
 void X86Mir2Lir::OpLea(int rBase, int reg1, int reg2, int scale, int offset) {
   NewLIR5(kX86Lea32RA, rBase, reg1, reg2, scale, offset);
 }

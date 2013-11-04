@@ -552,8 +552,6 @@ class Mir2Lir : public Backend {
     bool GenInlinedIndexOf(CallInfo* info, bool zero_based);
     bool GenInlinedStringCompareTo(CallInfo* info);
     bool GenInlinedCurrentThread(CallInfo* info);
-    bool GenInlinedPeek(CallInfo* info, OpSize size);
-    bool GenInlinedPoke(CallInfo* info, OpSize size);
     bool GenInlinedUnsafeGet(CallInfo* info, bool is_long, bool is_volatile);
     bool GenInlinedUnsafePut(CallInfo* info, bool is_long, bool is_object,
                              bool is_volatile, bool is_ordered);
@@ -666,6 +664,8 @@ class Mir2Lir : public Backend {
     virtual bool GenInlinedCas32(CallInfo* info, bool need_write_barrier) = 0;
     virtual bool GenInlinedMinMaxInt(CallInfo* info, bool is_min) = 0;
     virtual bool GenInlinedSqrt(CallInfo* info) = 0;
+    virtual bool GenInlinedPeek(CallInfo* info, OpSize size) = 0;
+    virtual bool GenInlinedPoke(CallInfo* info, OpSize size) = 0;
     virtual void GenNegLong(RegLocation rl_dest, RegLocation rl_src) = 0;
     virtual void GenOrLong(RegLocation rl_dest, RegLocation rl_src1,
                            RegLocation rl_src2) = 0;

@@ -493,6 +493,50 @@ bool ArmMir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min) {
   return true;
 }
 
+bool ArmMir2Lir::GenInlinedPeek(CallInfo* info, OpSize size) {
+  RegLocation rl_src_address = info->args[0];  // long address
+  rl_src_address.wide = 0;  // ignore high half in info->args[1]
+  RegLocation rl_dest = InlineTarget(info);
+  RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  if (size == kLong) {
+    // Fake unaligned LDRD by two unaligned LDR instructions on ARMv7 with SCTLR.A set to 0.
+    if (rl_address.low_reg != rl_result.low_reg) {
+      LoadBaseDisp(rl_address.low_reg, 0, rl_result.low_reg, kWord, INVALID_SREG);
+      LoadBaseDisp(rl_address.low_reg, 4, rl_result.high_reg, kWord, INVALID_SREG);
+    } else {
+      LoadBaseDisp(rl_address.low_reg, 4, rl_result.high_reg, kWord, INVALID_SREG);
+      LoadBaseDisp(rl_address.low_reg, 0, rl_result.low_reg, kWord, INVALID_SREG);
+    }
+    StoreValueWide(rl_dest, rl_result);
+  } else {
+    DCHECK(size == kSignedByte || size == kSignedHalf || size == kWord);
+    // Unaligned load with LDR and LDRSH is allowed on ARMv7 with SCTLR.A set to 0.
+    LoadBaseDisp(rl_address.low_reg, 0, rl_result.low_reg, size, INVALID_SREG);
+    StoreValue(rl_dest, rl_result);
+  }
+  return true;
+}
+
+bool ArmMir2Lir::GenInlinedPoke(CallInfo* info, OpSize size) {
+  RegLocation rl_src_address = info->args[0];  // long address
+  rl_src_address.wide = 0;  // ignore high half in info->args[1]
+  RegLocation rl_src_value = info->args[2];  // [size] value
+  RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
+  if (size == kLong) {
+    // Fake unaligned STRD by two unaligned STR instructions on ARMv7 with SCTLR.A set to 0.
+    RegLocation rl_value = LoadValueWide(rl_src_value, kCoreReg);
+    StoreBaseDisp(rl_address.low_reg, 0, rl_value.low_reg, kWord);
+    StoreBaseDisp(rl_address.low_reg, 4, rl_value.high_reg, kWord);
+  } else {
+    DCHECK(size == kSignedByte || size == kSignedHalf || size == kWord);
+    // Unaligned store with STR and STRSH is allowed on ARMv7 with SCTLR.A set to 0.
+    RegLocation rl_value = LoadValue(rl_src_value, kCoreReg);
+    StoreBaseDisp(rl_address.low_reg, 0, rl_value.low_reg, size);
+  }
+  return true;
+}
+
 void ArmMir2Lir::OpLea(int rBase, int reg1, int reg2, int scale, int offset) {
   LOG(FATAL) << "Unexpected use of OpLea for Arm";
 }
