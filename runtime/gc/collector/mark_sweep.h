@@ -157,11 +157,6 @@ class MarkSweep : public GarbageCollector {
     return cleared_reference_list_;
   }
 
-  // Proxy for external access to ScanObject.
-  void ScanRoot(const mirror::Object* obj)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   // Blackens an object.
   void ScanObject(const mirror::Object* obj)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
@@ -438,7 +433,6 @@ class MarkSweep : public GarbageCollector {
   AtomicInteger work_chunks_created_;
   AtomicInteger work_chunks_deleted_;
   AtomicInteger reference_count_;
-  AtomicInteger cards_scanned_;
 
   // Verification.
   size_t live_stack_freeze_size_;
