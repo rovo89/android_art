@@ -16,7 +16,7 @@
 
 #include "mem_map.h"
 
-#include <corkscrew/map_info.h>
+#include <backtrace/backtrace.h>
 
 #include "base/stringprintf.h"
 #include "ScopedFd.h"
@@ -32,8 +32,8 @@ namespace art {
 
 #if !defined(NDEBUG)
 
-static std::ostream& operator<<(std::ostream& os, map_info_t* rhs) {
-  for (map_info_t* m = rhs; m != NULL; m = m->next) {
+static std::ostream& operator<<(std::ostream& os, backtrace_map_info_t* rhs) {
+  for (backtrace_map_info_t* m = rhs; m != NULL; m = m->next) {
     os << StringPrintf("0x%08x-0x%08x %c%c %s\n",
                        static_cast<uint32_t>(m->start),
                        static_cast<uint32_t>(m->end),
@@ -50,8 +50,8 @@ static void CheckMapRequest(byte* addr, size_t byte_count) {
   uint32_t base = reinterpret_cast<size_t>(addr);
   uint32_t limit = base + byte_count;
 
-  map_info_t* map_info_list = load_map_info_list(getpid());
-  for (map_info_t* m = map_info_list; m != NULL; m = m->next) {
+  backtrace_map_info_t* map_info_list = backtrace_create_map_info_list(getpid());
+  for (backtrace_map_info_t* m = map_info_list; m != NULL; m = m->next) {
     CHECK(!(base >= m->start && base < m->end)     // start of new within old
         && !(limit > m->start && limit < m->end)   // end of new within old
         && !(base <= m->start && limit > m->end))  // start/end of new includes all of old
@@ -60,7 +60,7 @@ static void CheckMapRequest(byte* addr, size_t byte_count) {
                         static_cast<uint32_t>(m->start), static_cast<uint32_t>(m->end), m->name)
         << map_info_list;
   }
-  free_map_info_list(map_info_list);
+  backtrace_destroy_map_info_list(map_info_list);
 }
 
 #else
