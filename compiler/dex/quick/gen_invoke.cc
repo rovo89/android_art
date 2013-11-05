@@ -1245,84 +1245,87 @@ bool Mir2Lir::GenIntrinsic(CallInfo* info) {
   const DexFile::TypeId& declaring_type = cu_->dex_file->GetTypeId(target_mid.class_idx_);
   StringPiece tgt_methods_declaring_class(
       cu_->dex_file->StringDataByIdx(declaring_type.descriptor_idx_));
-  if (tgt_methods_declaring_class.starts_with("Ljava/lang/Double;")) {
-    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
-    if (tgt_method == "long java.lang.Double.doubleToRawLongBits(double)") {
-      return GenInlinedDoubleCvt(info);
-    }
-    if (tgt_method == "double java.lang.Double.longBitsToDouble(long)") {
-      return GenInlinedDoubleCvt(info);
-    }
-  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Float;")) {
-    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
-    if (tgt_method == "int java.lang.Float.floatToRawIntBits(float)") {
-      return GenInlinedFloatCvt(info);
-    }
-    if (tgt_method == "float java.lang.Float.intBitsToFloat(int)") {
-      return GenInlinedFloatCvt(info);
-    }
-  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Integer;")) {
-    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
-    if (tgt_method == "int java.lang.Integer.reverseBytes(int)") {
-      return GenInlinedReverseBytes(info, kWord);
-    }
-  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Long;")) {
-    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
-    if (tgt_method == "long java.lang.Long.reverseBytes(long)") {
-      return GenInlinedReverseBytes(info, kLong);
-    }
-  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Math;") ||
-             tgt_methods_declaring_class.starts_with("Ljava/lang/StrictMath;")) {
-    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
-    if (tgt_method == "int java.lang.Math.abs(int)" ||
-        tgt_method == "int java.lang.StrictMath.abs(int)") {
-      return GenInlinedAbsInt(info);
-    }
-    if (tgt_method == "long java.lang.Math.abs(long)" ||
-        tgt_method == "long java.lang.StrictMath.abs(long)") {
-      return GenInlinedAbsLong(info);
-    }
-    if (tgt_method == "int java.lang.Math.max(int, int)" ||
-        tgt_method == "int java.lang.StrictMath.max(int, int)") {
-      return GenInlinedMinMaxInt(info, false /* is_min */);
-    }
-    if (tgt_method == "int java.lang.Math.min(int, int)" ||
-        tgt_method == "int java.lang.StrictMath.min(int, int)") {
-      return GenInlinedMinMaxInt(info, true /* is_min */);
-    }
-    if (tgt_method == "double java.lang.Math.sqrt(double)" ||
-        tgt_method == "double java.lang.StrictMath.sqrt(double)") {
-      return GenInlinedSqrt(info);
-    }
-  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Short;")) {
-    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
-    if (tgt_method == "short java.lang.Short.reverseBytes(short)") {
-      return GenInlinedReverseBytes(info, kSignedHalf);
-    }
-  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/String;")) {
-    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
-    if (tgt_method == "char java.lang.String.charAt(int)") {
-      return GenInlinedCharAt(info);
-    }
-    if (tgt_method == "int java.lang.String.compareTo(java.lang.String)") {
-      return GenInlinedStringCompareTo(info);
-    }
-    if (tgt_method == "boolean java.lang.String.is_empty()") {
-      return GenInlinedStringIsEmptyOrLength(info, true /* is_empty */);
-    }
-    if (tgt_method == "int java.lang.String.index_of(int, int)") {
-      return GenInlinedIndexOf(info, false /* base 0 */);
-    }
-    if (tgt_method == "int java.lang.String.index_of(int)") {
-      return GenInlinedIndexOf(info, true /* base 0 */);
-    }
-    if (tgt_method == "int java.lang.String.length()") {
-      return GenInlinedStringIsEmptyOrLength(info, false /* is_empty */);
-    }
-  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Thread;")) {
-    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
-    if (tgt_method == "java.lang.Thread java.lang.Thread.currentThread()") {
-      return GenInlinedCurrentThread(info);
+  if (tgt_methods_declaring_class.starts_with("Ljava/lang/")) {
+    tgt_methods_declaring_class.remove_prefix(sizeof("Ljava/lang/") - 1);
+    if (tgt_methods_declaring_class.starts_with("Double;")) {
+      std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
+      if (tgt_method == "long java.lang.Double.doubleToRawLongBits(double)") {
+        return GenInlinedDoubleCvt(info);
+      }
+      if (tgt_method == "double java.lang.Double.longBitsToDouble(long)") {
+        return GenInlinedDoubleCvt(info);
+      }
+    } else if (tgt_methods_declaring_class.starts_with("Float;")) {
+      std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
+      if (tgt_method == "int java.lang.Float.floatToRawIntBits(float)") {
+        return GenInlinedFloatCvt(info);
+      }
+      if (tgt_method == "float java.lang.Float.intBitsToFloat(int)") {
+        return GenInlinedFloatCvt(info);
+      }
+    } else if (tgt_methods_declaring_class.starts_with("Integer;")) {
+      std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
+      if (tgt_method == "int java.lang.Integer.reverseBytes(int)") {
+        return GenInlinedReverseBytes(info, kWord);
+      }
+    } else if (tgt_methods_declaring_class.starts_with("Long;")) {
+      std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
+      if (tgt_method == "long java.lang.Long.reverseBytes(long)") {
+        return GenInlinedReverseBytes(info, kLong);
+      }
+    } else if (tgt_methods_declaring_class.starts_with("Math;") ||
+               tgt_methods_declaring_class.starts_with("StrictMath;")) {
+      std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
+      if (tgt_method == "int java.lang.Math.abs(int)" ||
+          tgt_method == "int java.lang.StrictMath.abs(int)") {
+        return GenInlinedAbsInt(info);
+      }
+      if (tgt_method == "long java.lang.Math.abs(long)" ||
+          tgt_method == "long java.lang.StrictMath.abs(long)") {
+        return GenInlinedAbsLong(info);
+      }
+      if (tgt_method == "int java.lang.Math.max(int, int)" ||
+          tgt_method == "int java.lang.StrictMath.max(int, int)") {
+        return GenInlinedMinMaxInt(info, false /* is_min */);
+      }
+      if (tgt_method == "int java.lang.Math.min(int, int)" ||
+          tgt_method == "int java.lang.StrictMath.min(int, int)") {
+        return GenInlinedMinMaxInt(info, true /* is_min */);
+      }
+      if (tgt_method == "double java.lang.Math.sqrt(double)" ||
+          tgt_method == "double java.lang.StrictMath.sqrt(double)") {
+        return GenInlinedSqrt(info);
+      }
+    } else if (tgt_methods_declaring_class.starts_with("Short;")) {
+      std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
+      if (tgt_method == "short java.lang.Short.reverseBytes(short)") {
+        return GenInlinedReverseBytes(info, kSignedHalf);
+      }
+    } else if (tgt_methods_declaring_class.starts_with("String;")) {
+      std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
+      if (tgt_method == "char java.lang.String.charAt(int)") {
+        return GenInlinedCharAt(info);
+      }
+      if (tgt_method == "int java.lang.String.compareTo(java.lang.String)") {
+        return GenInlinedStringCompareTo(info);
+      }
+      if (tgt_method == "boolean java.lang.String.is_empty()") {
+        return GenInlinedStringIsEmptyOrLength(info, true /* is_empty */);
+      }
+      if (tgt_method == "int java.lang.String.index_of(int, int)") {
+        return GenInlinedIndexOf(info, false /* base 0 */);
+      }
+      if (tgt_method == "int java.lang.String.index_of(int)") {
+        return GenInlinedIndexOf(info, true /* base 0 */);
+      }
+      if (tgt_method == "int java.lang.String.length()") {
+        return GenInlinedStringIsEmptyOrLength(info, false /* is_empty */);
+      }
+    } else if (tgt_methods_declaring_class.starts_with("Thread;")) {
+      std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
+      if (tgt_method == "java.lang.Thread java.lang.Thread.currentThread()") {
+        return GenInlinedCurrentThread(info);
+      }
     }
   } else if (tgt_methods_declaring_class.starts_with("Llibcore/io/Memory;")) {
     std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
