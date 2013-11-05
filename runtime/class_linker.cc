@@ -2945,7 +2945,7 @@ static void CheckProxyMethod(mirror::ArtMethod* method,
 static bool CanWeInitializeClass(mirror::Class* klass, bool can_init_statics,
                                  bool can_init_parents)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  if (can_init_statics && can_init_statics) {
+  if (can_init_statics && can_init_parents) {
     return true;
   }
   if (!can_init_statics) {
@@ -2969,7 +2969,7 @@ static bool CanWeInitializeClass(mirror::Class* klass, bool can_init_statics,
     if (!can_init_parents && !super_class->IsInitialized()) {
       return false;
     } else {
-      if (!CanWeInitializeClass(super_class, can_init_statics, true)) {
+      if (!CanWeInitializeClass(super_class, can_init_statics, can_init_parents)) {
         return false;
       }
     }
