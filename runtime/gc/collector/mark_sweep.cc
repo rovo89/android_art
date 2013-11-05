@@ -776,7 +776,6 @@ class CardScanTask : public MarkStackTask<false> {
     ScanObjectParallelVisitor visitor(this);
     accounting::CardTable* card_table = mark_sweep_->GetHeap()->GetCardTable();
     size_t cards_scanned = card_table->Scan(bitmap_, begin_, end_, visitor, minimum_age_);
-    mark_sweep_->cards_scanned_.fetch_add(cards_scanned);
     VLOG(heap) << "Parallel scanning cards " << reinterpret_cast<void*>(begin_) << " - "
         << reinterpret_cast<void*>(end_) << " = " << cards_scanned;
     // Finish by emptying our local mark stack.
@@ -814,11 +813,14 @@ void MarkSweep::ScanGrayObjects(bool paused, byte minimum_age) {
     DCHECK_NE(mark_stack_tasks, 0U);
     const size_t mark_stack_delta = std::min(CardScanTask::kMaxSize / 2,
                                              mark_stack_size / mark_stack_tasks + 1);
-    size_t ref_card_count = 0;
-    cards_scanned_ = 0;
     for (const auto& space : GetHeap()->GetContinuousSpaces()) {
       byte* card_begin = space->Begin();
       byte* card_end = space->End();
+      // Align up the end address. For example, the image space's end
+      // may not be card-size-aligned.
+      card_end = AlignUp(card_end, accounting::CardTable::kCardSize);
+      DCHECK(IsAligned<accounting::CardTable::kCardSize>(card_begin));
+      DCHECK(IsAligned<accounting::CardTable::kCardSize>(card_end));
       // Calculate how many bytes of heap we will scan,
       const size_t address_range = card_end - card_begin;
       // Calculate how much address range each task gets.
@@ -842,24 +844,15 @@ void MarkSweep::ScanGrayObjects(bool paused, byte minimum_age) {
         thread_pool->AddTask(self, task);
         card_begin += card_increment;
       }
-
-      if (paused && kIsDebugBuild) {
-        // Make sure we don't miss scanning any cards.
-        size_t scanned_cards = card_table->Scan(space->GetMarkBitmap(), space->Begin(),
-                                                space->End(), VoidFunctor(), minimum_age);
-        VLOG(heap) << "Scanning space cards " << reinterpret_cast<void*>(space->Begin()) << " - "
-            << reinterpret_cast<void*>(space->End()) << " = " << scanned_cards;
-        ref_card_count += scanned_cards;
-      }
     }
 
+    // Note: the card scan below may dirty new cards (and scan them)
+    // as a side effect when a Reference object is encountered and
+    // queued during the marking. See b/11465268.
     thread_pool->SetMaxActiveWorkers(thread_count - 1);
     thread_pool->StartWorkers(self);
     thread_pool->Wait(self, true, true);
     thread_pool->StopWorkers(self);
-    if (paused) {
-      DCHECK_EQ(ref_card_count, static_cast<size_t>(cards_scanned_.load()));
-    }
     timings_.EndSplit();
   } else {
     for (const auto& space : GetHeap()->GetContinuousSpaces()) {
@@ -1354,10 +1347,6 @@ void MarkSweep::DelayReferenceReferent(mirror::Class* klass, Object* obj) {
                  << " " << std::hex << klass->GetAccessFlags();
     }
   }
-}
-
-void MarkSweep::ScanRoot(const Object* obj) {
-  ScanObject(obj);
 }
 
 class MarkObjectVisitor {

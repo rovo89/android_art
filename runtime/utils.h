@@ -119,6 +119,7 @@ struct TypeStaticIf<false, A,  B> {
   typedef B value;
 };
 
+// For rounding integers.
 template<typename T>
 static inline T RoundDown(T x, int n) {
   CHECK(IsPowerOfTwo(n));
@@ -128,6 +129,18 @@ static inline T RoundDown(T x, int n) {
 template<typename T>
 static inline T RoundUp(T x, int n) {
   return RoundDown(x + n - 1, n);
+}
+
+// For aligning pointers.
+template<typename T>
+static inline T* AlignDown(T* x, int n) {
+  CHECK(IsPowerOfTwo(n));
+  return reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(x) & -static_cast<uintptr_t>(n));
+}
+
+template<typename T>
+static inline T* AlignUp(T* x, int n) {
+  return AlignDown(reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(x) + static_cast<uintptr_t>(n - 1)), n);
 }
 
 // Implementation is from "Hacker's Delight" by Henry S. Warren, Jr.,
