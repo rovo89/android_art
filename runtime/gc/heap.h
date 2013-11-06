@@ -300,6 +300,10 @@ class Heap {
     card_table_->MarkCard(dst);
   }
 
+  void WriteBarrierEveryFieldOf(const mirror::Object* obj) {
+    card_table_->MarkCard(obj);
+  }
+
   accounting::CardTable* GetCardTable() const {
     return card_table_.get();
   }
