@@ -1043,7 +1043,7 @@ static const char* CleanMapName(const char* map_name) {
 }
 
 void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix, bool include_count) {
-  UniquePtr<Backtrace> backtrace(Backtrace::Create(-1, tid));
+  UniquePtr<Backtrace> backtrace(Backtrace::Create(BACKTRACE_CURRENT_PROCESS, tid));
   if (!backtrace->Unwind(0)) {
     os << prefix << "(backtrace::Unwind failed for thread " << tid << ")\n";
     return;
