@@ -35,6 +35,7 @@ namespace art {
  * with an interface, array, or primitive class.
  */
 static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectArray javaArgs) {
+  // TODO: ScopedFastNativeObjectAccess
   ScopedObjectAccess soa(env);
   jobject art_method = soa.Env()->GetObjectField(
       javaMethod, WellKnownClasses::java_lang_reflect_AbstractMethod_artMethod);
@@ -68,7 +69,7 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Constructor, newInstance, "([Ljava/lang/Object;)Ljava/lang/Object;"),
+  NATIVE_METHOD(Constructor, newInstance, "!([Ljava/lang/Object;)Ljava/lang/Object;"),
 };
 
 void register_java_lang_reflect_Constructor(JNIEnv* env) {

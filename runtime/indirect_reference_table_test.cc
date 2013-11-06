@@ -17,6 +17,7 @@
 #include "common_test.h"
 
 #include "indirect_reference_table.h"
+#include "mirror/object-inl.h"
 
 namespace art {
 

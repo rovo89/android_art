@@ -34,7 +34,7 @@
 #include "mirror/string.h"
 #include "object_utils.h"
 #include "os.h"
-#include "utf.h"
+#include "utf-inl.h"
 
 #if !defined(HAVE_POSIX_CLOCKS)
 #include <sys/time.h>
@@ -366,11 +366,13 @@ std::string PrettyMethod(const mirror::ArtMethod* m, bool with_signature) {
   result += '.';
   result += mh.GetName();
   if (with_signature) {
-    std::string signature(mh.GetSignature());
-    if (signature == "<no signature>") {
-      return result + signature;
+    const Signature signature = mh.GetSignature();
+    std::string sig_as_string(signature.ToString());
+    if (signature == Signature::NoSignature()) {
+      return result + sig_as_string;
     }
-    result = PrettyReturnType(signature.c_str()) + " " + result + PrettyArguments(signature.c_str());
+    result = PrettyReturnType(sig_as_string.c_str()) + " " + result +
+        PrettyArguments(sig_as_string.c_str());
   }
   return result;
 }
@@ -384,11 +386,13 @@ std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with
   result += '.';
   result += dex_file.GetMethodName(method_id);
   if (with_signature) {
-    std::string signature(dex_file.GetMethodSignature(method_id));
-    if (signature == "<no signature>") {
-      return result + signature;
+    const Signature signature = dex_file.GetMethodSignature(method_id);
+    std::string sig_as_string(signature.ToString());
+    if (signature == Signature::NoSignature()) {
+      return result + sig_as_string;
     }
-    result = PrettyReturnType(signature.c_str()) + " " + result + PrettyArguments(signature.c_str());
+    result = PrettyReturnType(sig_as_string.c_str()) + " " + result +
+        PrettyArguments(sig_as_string.c_str());
   }
   return result;
 }
@@ -640,7 +644,7 @@ std::string JniLongName(const mirror::ArtMethod* m) {
   long_name += JniShortName(m);
   long_name += "__";
 
-  std::string signature(MethodHelper(m).GetSignature());
+  std::string signature(MethodHelper(m).GetSignature().ToString());
   signature.erase(0, 1);
   signature.erase(signature.begin() + signature.find(')'), signature.end());
 
@@ -713,9 +717,9 @@ bool IsValidPartOfMemberNameUtf8Slow(const char** pUtf8Ptr) {
  * this function returns false, then the given pointer may only have
  * been partially advanced.
  */
-bool IsValidPartOfMemberNameUtf8(const char** pUtf8Ptr) {
+static bool IsValidPartOfMemberNameUtf8(const char** pUtf8Ptr) {
   uint8_t c = (uint8_t) **pUtf8Ptr;
-  if (c <= 0x7f) {
+  if (LIKELY(c <= 0x7f)) {
     // It's low-ascii, so check the table.
     uint32_t wordIdx = c >> 5;
     uint32_t bitIdx = c & 0x1f;
@@ -756,7 +760,7 @@ bool IsValidMemberName(const char* s) {
 }
 
 enum ClassNameType { kName, kDescriptor };
-bool IsValidClassName(const char* s, ClassNameType type, char separator) {
+static bool IsValidClassName(const char* s, ClassNameType type, char separator) {
   int arrayCount = 0;
   while (*s == '[') {
     arrayCount++;
@@ -883,6 +887,35 @@ void Split(const std::string& s, char separator, std::vector<std::string>& resul
       result.push_back(std::string(start, p - start));
     }
   }
+}
+
+std::string Trim(std::string s) {
+  std::string result;
+  unsigned int start_index = 0;
+  unsigned int end_index = s.size() - 1;
+
+  // Skip initial whitespace.
+  while (start_index < s.size()) {
+    if (!isspace(s[start_index])) {
+      break;
+    }
+    start_index++;
+  }
+
+  // Skip terminating whitespace.
+  while (end_index >= start_index) {
+    if (!isspace(s[end_index])) {
+      break;
+    }
+    end_index--;
+  }
+
+  // All spaces, no beef.
+  if (end_index < start_index) {
+    return "";
+  }
+  // Start_index is the first non-space, end_index is the last one.
+  return s.substr(start_index, end_index - start_index + 1);
 }
 
 template <typename StringT>
@@ -1135,12 +1168,12 @@ std::string GetDalvikCacheOrDie(const char* android_data) {
   return dalvik_cache;
 }
 
-std::string GetDalvikCacheFilenameOrDie(const std::string& location) {
+std::string GetDalvikCacheFilenameOrDie(const char* location) {
   std::string dalvik_cache(GetDalvikCacheOrDie(GetAndroidData()));
   if (location[0] != '/') {
     LOG(FATAL) << "Expected path in location to be absolute: "<< location;
   }
-  std::string cache_file(location, 1);  // skip leading slash
+  std::string cache_file(&location[1]);  // skip leading slash
   if (!EndsWith(location, ".dex") && !EndsWith(location, ".art")) {
     cache_file += "/";
     cache_file += DexFile::kClassesDex;

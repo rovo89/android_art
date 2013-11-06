@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-class CreateMethodSignature {
+class GetMethodSignature {
     Float m1(int a, double b, long c, Object d) { return null; }
-    CreateMethodSignature m2(boolean x, short y, char z) { return null; }
+    GetMethodSignature m2(boolean x, short y, char z) { return null; }
 }

@@ -202,6 +202,13 @@ inline bool ArtMethod::IsResolutionMethod() const {
   DCHECK(!result || IsRuntimeMethod());
   return result;
 }
+
+inline bool ArtMethod::IsImtConflictMethod() const {
+  bool result = this == Runtime::Current()->GetImtConflictMethod();
+  // Check that if we do think it is phony it looks like the imt conflict method.
+  DCHECK(!result || IsRuntimeMethod());
+  return result;
+}
 }  // namespace mirror
 }  // namespace art
 

@@ -29,8 +29,10 @@ namespace art {
 class ZipArchiveTest : public CommonTest {};
 
 TEST_F(ZipArchiveTest, FindAndExtract) {
-  UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(GetLibCoreDexFileName()));
-  ASSERT_TRUE(zip_archive.get() != false);
+  std::string error_msg;
+  UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(GetLibCoreDexFileName().c_str(), &error_msg));
+  ASSERT_TRUE(zip_archive.get() != false) << error_msg;
+  ASSERT_TRUE(error_msg.empty());
   UniquePtr<ZipEntry> zip_entry(zip_archive->Find("classes.dex"));
   ASSERT_TRUE(zip_entry.get() != false);
 
@@ -38,8 +40,9 @@ TEST_F(ZipArchiveTest, FindAndExtract) {
   ASSERT_NE(-1, tmp.GetFd());
   UniquePtr<File> file(new File(tmp.GetFd(), tmp.GetFilename()));
   ASSERT_TRUE(file.get() != NULL);
-  bool success = zip_entry->ExtractToFile(*file);
-  ASSERT_TRUE(success);
+  bool success = zip_entry->ExtractToFile(*file, &error_msg);
+  ASSERT_TRUE(success) << error_msg;
+  ASSERT_TRUE(error_msg.empty());
   file.reset(NULL);
 
   uint32_t computed_crc = crc32(0L, Z_NULL, 0);

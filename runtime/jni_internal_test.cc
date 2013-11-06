@@ -1012,31 +1012,50 @@ TEST_F(JniInternalTest, RegisterNatives) {
                                scalar_type, \
                                expected_class_descriptor) \
   jsize size = 4; \
+  \
   /* Allocate an array and check it has the right type and length. */ \
   scalar_type ## Array a = env_->new_fn(size); \
   EXPECT_TRUE(a != NULL); \
   EXPECT_TRUE(env_->IsInstanceOf(a, env_->FindClass(expected_class_descriptor))); \
   EXPECT_EQ(size, env_->GetArrayLength(a)); \
+  \
+  /* GetPrimitiveArrayRegion/SetPrimitiveArrayRegion */ \
   /* AIOOBE for negative start offset. */ \
   env_->get_region_fn(a, -1, 1, NULL); \
   EXPECT_EXCEPTION(aioobe_); \
   env_->set_region_fn(a, -1, 1, NULL); \
   EXPECT_EXCEPTION(aioobe_); \
+  \
   /* AIOOBE for negative length. */ \
   env_->get_region_fn(a, 0, -1, NULL); \
   EXPECT_EXCEPTION(aioobe_); \
   env_->set_region_fn(a, 0, -1, NULL); \
   EXPECT_EXCEPTION(aioobe_); \
+  \
   /* AIOOBE for buffer overrun. */ \
   env_->get_region_fn(a, size - 1, size, NULL); \
   EXPECT_EXCEPTION(aioobe_); \
   env_->set_region_fn(a, size - 1, size, NULL); \
   EXPECT_EXCEPTION(aioobe_); \
+  \
+  /* It's okay for the buffer to be NULL as long as the length is 0. */ \
+  env_->get_region_fn(a, 2, 0, NULL); \
+  /* Even if the offset is invalid... */ \
+  env_->get_region_fn(a, 123, 0, NULL); \
+  EXPECT_EXCEPTION(aioobe_); \
+  \
+  /* It's okay for the buffer to be NULL as long as the length is 0. */ \
+  env_->set_region_fn(a, 2, 0, NULL); \
+  /* Even if the offset is invalid... */ \
+  env_->set_region_fn(a, 123, 0, NULL); \
+  EXPECT_EXCEPTION(aioobe_); \
+  \
   /* Prepare a couple of buffers. */ \
   UniquePtr<scalar_type[]> src_buf(new scalar_type[size]); \
   UniquePtr<scalar_type[]> dst_buf(new scalar_type[size]); \
   for (jsize i = 0; i < size; ++i) { src_buf[i] = scalar_type(i); } \
   for (jsize i = 0; i < size; ++i) { dst_buf[i] = scalar_type(-1); } \
+  \
   /* Copy all of src_buf onto the heap. */ \
   env_->set_region_fn(a, 0, size, &src_buf[0]); \
   /* Copy back only part. */ \
@@ -1252,6 +1271,12 @@ TEST_F(JniInternalTest, GetStringRegion_GetStringUTFRegion) {
   EXPECT_EQ('l', chars[2]);
   EXPECT_EQ('x', chars[3]);
 
+  // It's okay for the buffer to be NULL as long as the length is 0.
+  env_->GetStringRegion(s, 2, 0, NULL);
+  // Even if the offset is invalid...
+  env_->GetStringRegion(s, 123, 0, NULL);
+  EXPECT_EXCEPTION(sioobe_);
+
   env_->GetStringUTFRegion(s, -1, 0, NULL);
   EXPECT_EXCEPTION(sioobe_);
   env_->GetStringUTFRegion(s, 0, -1, NULL);
@@ -1267,6 +1292,12 @@ TEST_F(JniInternalTest, GetStringRegion_GetStringUTFRegion) {
   EXPECT_EQ('e', bytes[1]);
   EXPECT_EQ('l', bytes[2]);
   EXPECT_EQ('x', bytes[3]);
+
+  // It's okay for the buffer to be NULL as long as the length is 0.
+  env_->GetStringUTFRegion(s, 2, 0, NULL);
+  // Even if the offset is invalid...
+  env_->GetStringUTFRegion(s, 123, 0, NULL);
+  EXPECT_EXCEPTION(sioobe_);
 }
 
 TEST_F(JniInternalTest, GetStringUTFChars_ReleaseStringUTFChars) {

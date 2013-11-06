@@ -44,6 +44,7 @@ class MANAGED String : public Object {
   }
 
   const CharArray* GetCharArray() const;
+  CharArray* GetCharArray();
 
   int32_t GetOffset() const {
     int32_t result = GetField32(OffsetOffset(), false);
@@ -155,8 +156,8 @@ class MANAGED StringClass : public Class {
  private:
   CharArray* ASCII_;
   Object* CASE_INSENSITIVE_ORDER_;
-  int64_t serialVersionUID_;
   uint32_t REPLACEMENT_CHAR_;
+  int64_t serialVersionUID_;
   friend struct art::StringClassOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(StringClass);
 };

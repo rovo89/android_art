@@ -22,7 +22,7 @@
 namespace art {
 
 void MIRGraph::ClearAllVisitedFlags() {
-  AllNodesIterator iter(this, false /* not iterative */);
+  AllNodesIterator iter(this);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     bb->visited = false;
   }
@@ -38,18 +38,18 @@ BasicBlock* MIRGraph::NeedsVisit(BasicBlock* bb) {
 }
 
 BasicBlock* MIRGraph::NextUnvisitedSuccessor(BasicBlock* bb) {
-  BasicBlock* res = NeedsVisit(bb->fall_through);
+  BasicBlock* res = NeedsVisit(GetBasicBlock(bb->fall_through));
   if (res == NULL) {
-    res = NeedsVisit(bb->taken);
+    res = NeedsVisit(GetBasicBlock(bb->taken));
     if (res == NULL) {
-      if (bb->successor_block_list.block_list_type != kNotUsed) {
-        GrowableArray<SuccessorBlockInfo*>::Iterator iterator(bb->successor_block_list.blocks);
+      if (bb->successor_block_list_type != kNotUsed) {
+        GrowableArray<SuccessorBlockInfo*>::Iterator iterator(bb->successor_blocks);
         while (true) {
           SuccessorBlockInfo *sbi = iterator.Next();
           if (sbi == NULL) {
             break;
           }
-          res = NeedsVisit(sbi->block);
+          res = NeedsVisit(GetBasicBlock(sbi->block));
           if (res != NULL) {
             break;
           }
@@ -63,7 +63,9 @@ BasicBlock* MIRGraph::NextUnvisitedSuccessor(BasicBlock* bb) {
 void MIRGraph::MarkPreOrder(BasicBlock* block) {
   block->visited = true;
   /* Enqueue the pre_order block id */
-  dfs_order_->Insert(block->id);
+  if (block->id != NullBasicBlockId) {
+    dfs_order_->Insert(block->id);
+  }
 }
 
 void MIRGraph::RecordDFSOrders(BasicBlock* block) {
@@ -79,7 +81,9 @@ void MIRGraph::RecordDFSOrders(BasicBlock* block) {
       continue;
     }
     curr->dfs_id = dfs_post_order_->Size();
-    dfs_post_order_->Insert(curr->id);
+    if (curr->id != NullBasicBlockId) {
+      dfs_post_order_->Insert(curr->id);
+    }
     succ.pop_back();
   }
 }
@@ -88,7 +92,8 @@ void MIRGraph::RecordDFSOrders(BasicBlock* block) {
 void MIRGraph::ComputeDFSOrders() {
   /* Initialize or reset the DFS pre_order list */
   if (dfs_order_ == NULL) {
-    dfs_order_ = new (arena_) GrowableArray<int>(arena_, GetNumBlocks(), kGrowableArrayDfsOrder);
+    dfs_order_ = new (arena_) GrowableArray<BasicBlockId>(arena_, GetNumBlocks(),
+                                                          kGrowableArrayDfsOrder);
   } else {
     /* Just reset the used length on the counter */
     dfs_order_->Reset();
@@ -96,7 +101,8 @@ void MIRGraph::ComputeDFSOrders() {
 
   /* Initialize or reset the DFS post_order list */
   if (dfs_post_order_ == NULL) {
-    dfs_post_order_ = new (arena_) GrowableArray<int>(arena_, GetNumBlocks(), kGrowableArrayDfsPostOrder);
+    dfs_post_order_ = new (arena_) GrowableArray<BasicBlockId>(arena_, GetNumBlocks(),
+                                                               kGrowableArrayDfsPostOrder);
   } else {
     /* Just reset the used length on the counter */
     dfs_post_order_->Reset();
@@ -145,11 +151,11 @@ void MIRGraph::ComputeDefBlockMatrix() {
     def_block_matrix_[i] =
         new (arena_) ArenaBitVector(arena_, GetNumBlocks(), false, kBitMapBMatrix);
   }
-  AllNodesIterator iter(this, false /* not iterative */);
+  AllNodesIterator iter(this);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     FindLocalLiveIn(bb);
   }
-  AllNodesIterator iter2(this, false /* not iterative */);
+  AllNodesIterator iter2(this);
   for (BasicBlock* bb = iter2.Next(); bb != NULL; bb = iter2.Next()) {
     FillDefBlockMatrix(bb);
   }
@@ -169,7 +175,7 @@ void MIRGraph::ComputeDomPostOrderTraversal(BasicBlock* bb) {
   if (dom_post_order_traversal_ == NULL) {
     // First time - create the array.
     dom_post_order_traversal_ =
-        new (arena_) GrowableArray<int>(arena_, num_reachable_blocks_,
+        new (arena_) GrowableArray<BasicBlockId>(arena_, num_reachable_blocks_,
                                         kGrowableArrayDomPostOrderTraversal);
   } else {
     dom_post_order_traversal_->Reset();
@@ -177,9 +183,9 @@ void MIRGraph::ComputeDomPostOrderTraversal(BasicBlock* bb) {
   ClearAllVisitedFlags();
   std::vector<std::pair<BasicBlock*, ArenaBitVector::Iterator*> > work_stack;
   bb->visited = true;
-  work_stack.push_back(std::make_pair(bb, new (arena_) ArenaBitVector::Iterator(bb->i_dominated)));
+  work_stack.push_back(std::make_pair(bb, bb->i_dominated->GetIterator()));
   while (!work_stack.empty()) {
-    std::pair<BasicBlock*, ArenaBitVector::Iterator*> curr = work_stack.back();
+    const std::pair<BasicBlock*, ArenaBitVector::Iterator*>& curr = work_stack.back();
     BasicBlock* curr_bb = curr.first;
     ArenaBitVector::Iterator* curr_idom_iter = curr.second;
     int bb_idx = curr_idom_iter->Next();
@@ -190,14 +196,17 @@ void MIRGraph::ComputeDomPostOrderTraversal(BasicBlock* bb) {
       BasicBlock* new_bb = GetBasicBlock(bb_idx);
       new_bb->visited = true;
       work_stack.push_back(
-          std::make_pair(new_bb, new (arena_) ArenaBitVector::Iterator(new_bb->i_dominated)));
+          std::make_pair(new_bb, new_bb->i_dominated->GetIterator()));
     } else {
       // no successor/next
-      dom_post_order_traversal_->Insert(curr_bb->id);
+      if (curr_bb->id != NullBasicBlockId) {
+        dom_post_order_traversal_->Insert(curr_bb->id);
+      }
       work_stack.pop_back();
 
       /* hacky loop detection */
-      if (curr_bb->taken && curr_bb->dominators->IsBitSet(curr_bb->taken->id)) {
+      if ((curr_bb->taken != NullBasicBlockId) && curr_bb->dominators->IsBitSet(curr_bb->taken)) {
+        curr_bb->nesting_depth++;
         attributes_ |= METHOD_HAS_LOOP;
       }
     }
@@ -210,7 +219,7 @@ void MIRGraph::CheckForDominanceFrontier(BasicBlock* dom_bb,
    * TODO - evaluate whether phi will ever need to be inserted into exit
    * blocks.
    */
-  if (succ_bb->i_dom != dom_bb &&
+  if (succ_bb->i_dom != dom_bb->id &&
     succ_bb->block_type == kDalvikByteCode &&
     succ_bb->hidden == false) {
     dom_bb->dom_frontier->SetBit(succ_bb->id);
@@ -220,20 +229,20 @@ void MIRGraph::CheckForDominanceFrontier(BasicBlock* dom_bb,
 /* Worker function to compute the dominance frontier */
 bool MIRGraph::ComputeDominanceFrontier(BasicBlock* bb) {
   /* Calculate DF_local */
-  if (bb->taken) {
-    CheckForDominanceFrontier(bb, bb->taken);
+  if (bb->taken != NullBasicBlockId) {
+    CheckForDominanceFrontier(bb, GetBasicBlock(bb->taken));
   }
-  if (bb->fall_through) {
-    CheckForDominanceFrontier(bb, bb->fall_through);
+  if (bb->fall_through != NullBasicBlockId) {
+    CheckForDominanceFrontier(bb, GetBasicBlock(bb->fall_through));
   }
-  if (bb->successor_block_list.block_list_type != kNotUsed) {
-    GrowableArray<SuccessorBlockInfo*>::Iterator iterator(bb->successor_block_list.blocks);
+  if (bb->successor_block_list_type != kNotUsed) {
+    GrowableArray<SuccessorBlockInfo*>::Iterator iterator(bb->successor_blocks);
       while (true) {
         SuccessorBlockInfo *successor_block_info = iterator.Next();
         if (successor_block_info == NULL) {
           break;
         }
-        BasicBlock* succ_bb = successor_block_info->block;
+        BasicBlock* succ_bb = GetBasicBlock(successor_block_info->block);
         CheckForDominanceFrontier(bb, succ_bb);
       }
   }
@@ -306,17 +315,17 @@ int MIRGraph::FindCommonParent(int block1, int block2) {
 /* Worker function to compute each block's immediate dominator */
 bool MIRGraph::ComputeblockIDom(BasicBlock* bb) {
   /* Special-case entry block */
-  if (bb == GetEntryBlock()) {
+  if ((bb->id == NullBasicBlockId) || (bb == GetEntryBlock())) {
     return false;
   }
 
   /* Iterate through the predecessors */
-  GrowableArray<BasicBlock*>::Iterator iter(bb->predecessors);
+  GrowableArray<BasicBlockId>::Iterator iter(bb->predecessors);
 
   /* Find the first processed predecessor */
   int idom = -1;
   while (true) {
-    BasicBlock* pred_bb = iter.Next();
+    BasicBlock* pred_bb = GetBasicBlock(iter.Next());
     CHECK(pred_bb != NULL);
     if (i_dom_list_[pred_bb->dfs_id] != NOTVISITED) {
       idom = pred_bb->dfs_id;
@@ -326,7 +335,7 @@ bool MIRGraph::ComputeblockIDom(BasicBlock* bb) {
 
   /* Scan the rest of the predecessors */
   while (true) {
-      BasicBlock* pred_bb = iter.Next();
+      BasicBlock* pred_bb = GetBasicBlock(iter.Next());
       if (!pred_bb) {
         break;
       }
@@ -352,7 +361,7 @@ bool MIRGraph::ComputeBlockDominators(BasicBlock* bb) {
   if (bb == GetEntryBlock()) {
     bb->dominators->ClearAllBits();
   } else {
-    bb->dominators->Copy(bb->i_dom->dominators);
+    bb->dominators->Copy(GetBasicBlock(bb->i_dom)->dominators);
   }
   bb->dominators->SetBit(bb->id);
   return false;
@@ -364,7 +373,7 @@ bool MIRGraph::SetDominators(BasicBlock* bb) {
     DCHECK_NE(idom_dfs_idx, NOTVISITED);
     int i_dom_idx = dfs_post_order_->Get(idom_dfs_idx);
     BasicBlock* i_dom = GetBasicBlock(i_dom_idx);
-    bb->i_dom = i_dom;
+    bb->i_dom = i_dom->id;
     /* Add bb to the i_dominated set of the immediate dominator block */
     i_dom->i_dominated->SetBit(bb->id);
   }
@@ -377,7 +386,7 @@ void MIRGraph::ComputeDominators() {
   int num_total_blocks = GetBasicBlockListCount();
 
   /* Initialize domination-related data structures */
-  ReachableNodesIterator iter(this, false /* not iterative */);
+  PreOrderDfsIterator iter(this);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     InitializeDominationInfo(bb);
   }
@@ -396,7 +405,7 @@ void MIRGraph::ComputeDominators() {
   i_dom_list_[GetEntryBlock()->dfs_id] = GetEntryBlock()->dfs_id;
 
   /* Compute the immediate dominators */
-  ReversePostOrderDfsIterator iter2(this, true /* iterative */);
+  RepeatingReversePostOrderDfsIterator iter2(this);
   bool change = false;
   for (BasicBlock* bb = iter2.Next(false); bb != NULL; bb = iter2.Next(change)) {
     change = ComputeblockIDom(bb);
@@ -412,21 +421,21 @@ void MIRGraph::ComputeDominators() {
   } else {
     temp_block_v_->ClearAllBits();
   }
-  GetEntryBlock()->i_dom = NULL;
+  GetEntryBlock()->i_dom = 0;
 
-  ReachableNodesIterator iter3(this, false /* not iterative */);
+  PreOrderDfsIterator iter3(this);
   for (BasicBlock* bb = iter3.Next(); bb != NULL; bb = iter3.Next()) {
     SetDominators(bb);
   }
 
-  ReversePostOrderDfsIterator iter4(this, false /* not iterative */);
+  ReversePostOrderDfsIterator iter4(this);
   for (BasicBlock* bb = iter4.Next(); bb != NULL; bb = iter4.Next()) {
     ComputeBlockDominators(bb);
   }
 
   // Compute the dominance frontier for each block.
   ComputeDomPostOrderTraversal(GetEntryBlock());
-  PostOrderDOMIterator iter5(this, false /* not iterative */);
+  PostOrderDOMIterator iter5(this);
   for (BasicBlock* bb = iter5.Next(); bb != NULL; bb = iter5.Next()) {
     ComputeDominanceFrontier(bb);
   }
@@ -463,20 +472,22 @@ bool MIRGraph::ComputeBlockLiveIns(BasicBlock* bb) {
     return false;
   }
   temp_dalvik_register_v->Copy(bb->data_flow_info->live_in_v);
-  if (bb->taken && bb->taken->data_flow_info)
-    ComputeSuccLineIn(temp_dalvik_register_v, bb->taken->data_flow_info->live_in_v,
+  BasicBlock* bb_taken = GetBasicBlock(bb->taken);
+  BasicBlock* bb_fall_through = GetBasicBlock(bb->fall_through);
+  if (bb_taken && bb_taken->data_flow_info)
+    ComputeSuccLineIn(temp_dalvik_register_v, bb_taken->data_flow_info->live_in_v,
                       bb->data_flow_info->def_v);
-  if (bb->fall_through && bb->fall_through->data_flow_info)
-    ComputeSuccLineIn(temp_dalvik_register_v, bb->fall_through->data_flow_info->live_in_v,
+  if (bb_fall_through && bb_fall_through->data_flow_info)
+    ComputeSuccLineIn(temp_dalvik_register_v, bb_fall_through->data_flow_info->live_in_v,
                       bb->data_flow_info->def_v);
-  if (bb->successor_block_list.block_list_type != kNotUsed) {
-    GrowableArray<SuccessorBlockInfo*>::Iterator iterator(bb->successor_block_list.blocks);
+  if (bb->successor_block_list_type != kNotUsed) {
+    GrowableArray<SuccessorBlockInfo*>::Iterator iterator(bb->successor_blocks);
     while (true) {
       SuccessorBlockInfo *successor_block_info = iterator.Next();
       if (successor_block_info == NULL) {
         break;
       }
-      BasicBlock* succ_bb = successor_block_info->block;
+      BasicBlock* succ_bb = GetBasicBlock(successor_block_info->block);
       if (succ_bb->data_flow_info) {
         ComputeSuccLineIn(temp_dalvik_register_v, succ_bb->data_flow_info->live_in_v,
                           bb->data_flow_info->def_v);
@@ -503,7 +514,7 @@ void MIRGraph::InsertPhiNodes() {
   temp_dalvik_register_v_ =
       new (arena_) ArenaBitVector(arena_, cu_->num_dalvik_registers, false, kBitMapRegisterV);
 
-  PostOrderDfsIterator iter(this, true /* iterative */);
+  RepeatingPostOrderDfsIterator iter(this);
   bool change = false;
   for (BasicBlock* bb = iter.Next(false); bb != NULL; bb = iter.Next(change)) {
     change = ComputeBlockLiveIns(bb);
@@ -579,50 +590,37 @@ void MIRGraph::InsertPhiNodes() {
  * predecessor blocks
  */
 bool MIRGraph::InsertPhiNodeOperands(BasicBlock* bb) {
-  MIR *mir;
-  std::vector<int> uses;
-  std::vector<int> incoming_arc;
-
   /* Phi nodes are at the beginning of each block */
-  for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
+  for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     if (mir->dalvikInsn.opcode != static_cast<Instruction::Code>(kMirOpPhi))
       return true;
     int ssa_reg = mir->ssa_rep->defs[0];
     DCHECK_GE(ssa_reg, 0);   // Shouldn't see compiler temps here
     int v_reg = SRegToVReg(ssa_reg);
 
-    uses.clear();
-    incoming_arc.clear();
-
     /* Iterate through the predecessors */
-    GrowableArray<BasicBlock*>::Iterator iter(bb->predecessors);
+    GrowableArray<BasicBlockId>::Iterator iter(bb->predecessors);
+    size_t num_uses = bb->predecessors->Size();
+    mir->ssa_rep->num_uses = num_uses;
+    int* uses = static_cast<int*>(arena_->Alloc(sizeof(int) * num_uses,
+                                                ArenaAllocator::kAllocDFInfo));
+    mir->ssa_rep->uses = uses;
+    mir->ssa_rep->fp_use =
+        static_cast<bool*>(arena_->Alloc(sizeof(bool) * num_uses, ArenaAllocator::kAllocDFInfo));
+    BasicBlockId* incoming =
+        static_cast<BasicBlockId*>(arena_->Alloc(sizeof(BasicBlockId) * num_uses,
+                                                 ArenaAllocator::kAllocDFInfo));
+    mir->meta.phi_incoming = incoming;
+    int idx = 0;
     while (true) {
-      BasicBlock* pred_bb = iter.Next();
+      BasicBlock* pred_bb = GetBasicBlock(iter.Next());
       if (!pred_bb) {
         break;
       }
       int ssa_reg = pred_bb->data_flow_info->vreg_to_ssa_map[v_reg];
-      uses.push_back(ssa_reg);
-      incoming_arc.push_back(pred_bb->id);
-    }
-
-    /* Count the number of SSA registers for a Dalvik register */
-    int num_uses = uses.size();
-    mir->ssa_rep->num_uses = num_uses;
-    mir->ssa_rep->uses =
-        static_cast<int*>(arena_->Alloc(sizeof(int) * num_uses, ArenaAllocator::kAllocDFInfo));
-    mir->ssa_rep->fp_use =
-        static_cast<bool*>(arena_->Alloc(sizeof(bool) * num_uses, ArenaAllocator::kAllocDFInfo));
-    int* incoming =
-        static_cast<int*>(arena_->Alloc(sizeof(int) * num_uses, ArenaAllocator::kAllocDFInfo));
-    // TODO: Ugly, rework (but don't burden each MIR/LIR for Phi-only needs)
-    mir->dalvikInsn.vB = reinterpret_cast<uintptr_t>(incoming);
-
-    /* Set the uses array for the phi node */
-    int *use_ptr = mir->ssa_rep->uses;
-    for (int i = 0; i < num_uses; i++) {
-      *use_ptr++ = uses[i];
-      *incoming++ = incoming_arc[i];
+      uses[idx] = ssa_reg;
+      incoming[idx] = pred_bb->id;
+      idx++;
     }
   }
 
@@ -644,24 +642,24 @@ void MIRGraph::DoDFSPreOrderSSARename(BasicBlock* block) {
       static_cast<int*>(arena_->Alloc(map_size, ArenaAllocator::kAllocDalvikToSSAMap));
   memcpy(saved_ssa_map, vreg_to_ssa_map_, map_size);
 
-  if (block->fall_through) {
-    DoDFSPreOrderSSARename(block->fall_through);
+  if (block->fall_through != NullBasicBlockId) {
+    DoDFSPreOrderSSARename(GetBasicBlock(block->fall_through));
     /* Restore SSA map snapshot */
     memcpy(vreg_to_ssa_map_, saved_ssa_map, map_size);
   }
-  if (block->taken) {
-    DoDFSPreOrderSSARename(block->taken);
+  if (block->taken != NullBasicBlockId) {
+    DoDFSPreOrderSSARename(GetBasicBlock(block->taken));
     /* Restore SSA map snapshot */
     memcpy(vreg_to_ssa_map_, saved_ssa_map, map_size);
   }
-  if (block->successor_block_list.block_list_type != kNotUsed) {
-    GrowableArray<SuccessorBlockInfo*>::Iterator iterator(block->successor_block_list.blocks);
+  if (block->successor_block_list_type != kNotUsed) {
+    GrowableArray<SuccessorBlockInfo*>::Iterator iterator(block->successor_blocks);
     while (true) {
       SuccessorBlockInfo *successor_block_info = iterator.Next();
       if (successor_block_info == NULL) {
         break;
       }
-      BasicBlock* succ_bb = successor_block_info->block;
+      BasicBlock* succ_bb = GetBasicBlock(successor_block_info->block);
       DoDFSPreOrderSSARename(succ_bb);
       /* Restore SSA map snapshot */
       memcpy(vreg_to_ssa_map_, saved_ssa_map, map_size);
@@ -700,7 +698,7 @@ void MIRGraph::SSATransformation() {
       new (arena_) ArenaBitVector(arena_, GetNumSSARegs(), false, kBitMapTempSSARegisterV);
 
   /* Insert phi-operands with latest SSA names from predecessor blocks */
-  ReachableNodesIterator iter2(this, false /* not iterative */);
+  PreOrderDfsIterator iter2(this);
   for (BasicBlock* bb = iter2.Next(); bb != NULL; bb = iter2.Next()) {
     InsertPhiNodeOperands(bb);
   }

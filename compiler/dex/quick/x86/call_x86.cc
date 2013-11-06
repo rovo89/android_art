@@ -31,15 +31,15 @@ void X86Mir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
  * The sparse table in the literal pool is an array of <key,displacement>
  * pairs.
  */
-void X86Mir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
+void X86Mir2Lir::GenSparseSwitch(MIR* mir, DexOffset table_offset,
                                  RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   if (cu_->verbose) {
     DumpSparseSwitchTable(table);
   }
   int entries = table[1];
-  const int* keys = reinterpret_cast<const int*>(&table[2]);
-  const int* targets = &keys[entries];
+  const int32_t* keys = reinterpret_cast<const int32_t*>(&table[2]);
+  const int32_t* targets = &keys[entries];
   rl_src = LoadValue(rl_src, kCoreReg);
   for (int i = 0; i < entries; i++) {
     int key = keys[i];
@@ -66,15 +66,15 @@ void X86Mir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
  * jmp  r_start_of_method
  * done:
  */
-void X86Mir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
+void X86Mir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
                                  RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   if (cu_->verbose) {
     DumpPackedSwitchTable(table);
   }
   // Add the table to the list - we'll process it later
-  SwitchTable *tab_rec =
-      static_cast<SwitchTable *>(arena_->Alloc(sizeof(SwitchTable), ArenaAllocator::kAllocData));
+  SwitchTable* tab_rec =
+      static_cast<SwitchTable*>(arena_->Alloc(sizeof(SwitchTable), ArenaAllocator::kAllocData));
   tab_rec->table = table;
   tab_rec->vaddr = current_dalvik_offset_;
   int size = table[1];
@@ -103,8 +103,7 @@ void X86Mir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
 
   // Load the displacement from the switch table
   int disp_reg = AllocTemp();
-  NewLIR5(kX86PcRelLoadRA, disp_reg, start_of_method_reg, keyReg, 2,
-          reinterpret_cast<uintptr_t>(tab_rec));
+  NewLIR5(kX86PcRelLoadRA, disp_reg, start_of_method_reg, keyReg, 2, WrapPointer(tab_rec));
   // Add displacement to start of method
   OpRegReg(kOpAdd, start_of_method_reg, disp_reg);
   // ..and go!
@@ -126,10 +125,10 @@ void X86Mir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
  *
  * Total size is 4+(width * size + 1)/2 16-bit code units.
  */
-void X86Mir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
+void X86Mir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   // Add the table to the list - we'll process it later
-  FillArrayData *tab_rec =
+  FillArrayData* tab_rec =
       static_cast<FillArrayData*>(arena_->Alloc(sizeof(FillArrayData), ArenaAllocator::kAllocData));
   tab_rec->table = table;
   tab_rec->vaddr = current_dalvik_offset_;
@@ -144,47 +143,10 @@ void X86Mir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
   LoadValueDirectFixed(rl_src, rX86_ARG0);
   // Materialize a pointer to the fill data image
   NewLIR1(kX86StartOfMethod, rX86_ARG2);
-  NewLIR2(kX86PcRelAdr, rX86_ARG1, reinterpret_cast<uintptr_t>(tab_rec));
+  NewLIR2(kX86PcRelAdr, rX86_ARG1, WrapPointer(tab_rec));
   NewLIR2(kX86Add32RR, rX86_ARG1, rX86_ARG2);
   CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(pHandleFillArrayData), rX86_ARG0,
                           rX86_ARG1, true);
-}
-
-void X86Mir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
-  FlushAllRegs();
-  LoadValueDirectFixed(rl_src, rCX);  // Get obj
-  LockCallTemps();  // Prepare for explicit register usage
-  GenNullCheck(rl_src.s_reg_low, rCX, opt_flags);
-  // If lock is unheld, try to grab it quickly with compare and exchange
-  // TODO: copy and clear hash state?
-  NewLIR2(kX86Mov32RT, rDX, Thread::ThinLockIdOffset().Int32Value());
-  NewLIR2(kX86Sal32RI, rDX, LW_LOCK_OWNER_SHIFT);
-  NewLIR2(kX86Xor32RR, rAX, rAX);
-  NewLIR3(kX86LockCmpxchgMR, rCX, mirror::Object::MonitorOffset().Int32Value(), rDX);
-  LIR* branch = NewLIR2(kX86Jcc8, 0, kX86CondEq);
-  // If lock is held, go the expensive route - artLockObjectFromCode(self, obj);
-  CallRuntimeHelperReg(QUICK_ENTRYPOINT_OFFSET(pLockObject), rCX, true);
-  branch->target = NewLIR0(kPseudoTargetLabel);
-}
-
-void X86Mir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
-  FlushAllRegs();
-  LoadValueDirectFixed(rl_src, rAX);  // Get obj
-  LockCallTemps();  // Prepare for explicit register usage
-  GenNullCheck(rl_src.s_reg_low, rAX, opt_flags);
-  // If lock is held by the current thread, clear it to quickly release it
-  // TODO: clear hash state?
-  NewLIR2(kX86Mov32RT, rDX, Thread::ThinLockIdOffset().Int32Value());
-  NewLIR2(kX86Sal32RI, rDX, LW_LOCK_OWNER_SHIFT);
-  NewLIR3(kX86Mov32RM, rCX, rAX, mirror::Object::MonitorOffset().Int32Value());
-  OpRegReg(kOpSub, rCX, rDX);
-  LIR* branch = NewLIR2(kX86Jcc8, 0, kX86CondNe);
-  NewLIR3(kX86Mov32MR, rAX, mirror::Object::MonitorOffset().Int32Value(), rCX);
-  LIR* branch2 = NewLIR1(kX86Jmp8, 0);
-  branch->target = NewLIR0(kPseudoTargetLabel);
-  // Otherwise, go the expensive route - UnlockObjectFromCode(obj);
-  CallRuntimeHelperReg(QUICK_ENTRYPOINT_OFFSET(pUnlockObject), rAX, true);
-  branch2->target = NewLIR0(kPseudoTargetLabel);
 }
 
 void X86Mir2Lir::GenMoveException(RegLocation rl_dest) {

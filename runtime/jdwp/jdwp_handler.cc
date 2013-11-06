@@ -47,7 +47,7 @@ std::string DescribeMethod(const MethodId& method_id) {
 
 std::string DescribeRefTypeId(const RefTypeId& ref_type_id) {
   std::string signature("unknown");
-  Dbg::GetSignature(ref_type_id, signature);
+  Dbg::GetSignature(ref_type_id, &signature);
   return StringPrintf("%#llx (%s)", ref_type_id, signature.c_str());
 }
 
@@ -547,7 +547,7 @@ static JdwpError RT_Signature(JdwpState*, Request& request, ExpandBuf* pReply, b
   RefTypeId refTypeId = request.ReadRefTypeId();
 
   std::string signature;
-  JdwpError status = Dbg::GetSignature(refTypeId, signature);
+  JdwpError status = Dbg::GetSignature(refTypeId, &signature);
   if (status != ERR_NONE) {
     return status;
   }

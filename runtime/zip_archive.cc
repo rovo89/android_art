@@ -19,10 +19,12 @@
 #include <vector>
 
 #include <fcntl.h>
+#include <stdio.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "base/stringprintf.h"
 #include "base/unix_file/fd_file.h"
 #include "UniquePtr.h"
 
@@ -247,35 +249,38 @@ static bool InflateToMemory(uint8_t* begin, size_t size,
   return true;
 }
 
-bool ZipEntry::ExtractToFile(File& file) {
+bool ZipEntry::ExtractToFile(File& file, std::string* error_msg) {
   uint32_t length = GetUncompressedLength();
   int result = TEMP_FAILURE_RETRY(ftruncate(file.Fd(), length));
   if (result == -1) {
-    PLOG(WARNING) << "Zip: failed to ftruncate " << file.GetPath() << " to length " << length;
+    *error_msg = StringPrintf("Zip: failed to ftruncate '%s' to length %ud", file.GetPath().c_str(),
+                              length);
     return false;
   }
 
-  UniquePtr<MemMap> map(MemMap::MapFile(length, PROT_READ | PROT_WRITE, MAP_SHARED, file.Fd(), 0));
+  UniquePtr<MemMap> map(MemMap::MapFile(length, PROT_READ | PROT_WRITE, MAP_SHARED, file.Fd(), 0,
+                                        file.GetPath().c_str(), error_msg));
   if (map.get() == NULL) {
-    LOG(WARNING) << "Zip: failed to mmap space for " << file.GetPath();
+    *error_msg = StringPrintf("Zip: failed to mmap space for '%s': %s", file.GetPath().c_str(),
+                              error_msg->c_str());
     return false;
   }
 
-  return ExtractToMemory(map->Begin(), map->Size());
+  return ExtractToMemory(map->Begin(), map->Size(), error_msg);
 }
 
-bool ZipEntry::ExtractToMemory(uint8_t* begin, size_t size) {
+bool ZipEntry::ExtractToMemory(uint8_t* begin, size_t size, std::string* error_msg) {
   // If size is zero, data offset will be meaningless, so bail out early.
   if (size == 0) {
     return true;
   }
   off64_t data_offset = GetDataOffset();
   if (data_offset == -1) {
-    LOG(WARNING) << "Zip: data_offset=" << data_offset;
+    *error_msg = StringPrintf("Zip: data_offset=%lld", data_offset);
     return false;
   }
   if (lseek64(zip_archive_->fd_, data_offset, SEEK_SET) != data_offset) {
-    PLOG(WARNING) << "Zip: lseek to data at " << data_offset << " failed";
+    *error_msg = StringPrintf("Zip: lseek to data at %lld failed", data_offset);
     return false;
   }
 
@@ -288,25 +293,25 @@ bool ZipEntry::ExtractToMemory(uint8_t* begin, size_t size) {
       return InflateToMemory(begin, size, zip_archive_->fd_,
                              GetUncompressedLength(), GetCompressedLength());
     default:
-      LOG(WARNING) << "Zip: unknown compression method " << std::hex << GetCompressionMethod();
+      *error_msg = StringPrintf("Zip: unknown compression method 0x%x", GetCompressionMethod());
       return false;
   }
 }
 
-MemMap* ZipEntry::ExtractToMemMap(const char* entry_filename) {
+MemMap* ZipEntry::ExtractToMemMap(const char* entry_filename, std::string* error_msg) {
   std::string name(entry_filename);
   name += " extracted in memory from ";
   name += entry_filename;
   UniquePtr<MemMap> map(MemMap::MapAnonymous(name.c_str(),
                                              NULL,
                                              GetUncompressedLength(),
-                                             PROT_READ | PROT_WRITE));
-  if (map.get() == NULL) {
-    LOG(ERROR) << "Zip: mmap for '" << entry_filename << "' failed";
+                                             PROT_READ | PROT_WRITE, error_msg));
+  if (map.get() == nullptr) {
+    DCHECK(!error_msg->empty());
     return NULL;
   }
 
-  bool success = ExtractToMemory(map->Begin(), map->Size());
+  bool success = ExtractToMemory(map->Begin(), map->Size(), error_msg);
   if (!success) {
     LOG(ERROR) << "Zip: Failed to extract '" << entry_filename << "' to memory";
     return NULL;
@@ -329,27 +334,25 @@ static void SetCloseOnExec(int fd) {
   }
 }
 
-ZipArchive* ZipArchive::Open(const std::string& filename) {
-  DCHECK(!filename.empty());
-  int fd = open(filename.c_str(), O_RDONLY, 0);
+ZipArchive* ZipArchive::Open(const char* filename, std::string* error_msg) {
+  DCHECK(filename != nullptr);
+  int fd = open(filename, O_RDONLY, 0);
   if (fd == -1) {
-    PLOG(WARNING) << "Unable to open '" << filename << "'";
+    *error_msg = StringPrintf("Zip: unable to open '%s': %s", filename, strerror(errno));
     return NULL;
   }
-  return OpenFromFd(fd);
+  return OpenFromFd(fd, filename, error_msg);
 }
 
-ZipArchive* ZipArchive::OpenFromFd(int fd) {
+ZipArchive* ZipArchive::OpenFromFd(int fd, const char* filename, std::string* error_msg) {
   SetCloseOnExec(fd);
-  UniquePtr<ZipArchive> zip_archive(new ZipArchive(fd));
-  if (zip_archive.get() == NULL) {
-      return NULL;
-  }
-  if (!zip_archive->MapCentralDirectory()) {
+  UniquePtr<ZipArchive> zip_archive(new ZipArchive(fd, filename));
+  CHECK(zip_archive.get() != nullptr);
+  if (!zip_archive->MapCentralDirectory(error_msg)) {
       zip_archive->Close();
       return NULL;
   }
-  if (!zip_archive->Parse()) {
+  if (!zip_archive->Parse(error_msg)) {
       zip_archive->Close();
       return NULL;
   }
@@ -374,19 +377,28 @@ void ZipArchive::Close() {
   dir_offset_ = 0;
 }
 
+std::string ZipArchive::ErrorStringPrintf(const char* fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  std::string result(StringPrintf("Zip '%s' : ", filename_.c_str()));
+  StringAppendV(&result, fmt, ap);
+  va_end(ap);
+  return result;
+}
+
 // Find the zip Central Directory and memory-map it.
 //
 // On success, returns true after populating fields from the EOCD area:
 //   num_entries_
 //   dir_offset_
 //   dir_map_
-bool ZipArchive::MapCentralDirectory() {
+bool ZipArchive::MapCentralDirectory(std::string* error_msg) {
   /*
    * Get and test file length.
    */
   off64_t file_length = lseek64(fd_, 0, SEEK_END);
   if (file_length < kEOCDLen) {
-    LOG(WARNING) << "Zip: length " << file_length << " is too small to be zip";
+    *error_msg = ErrorStringPrintf("length %lld is too small to be zip", file_length);
     return false;
   }
 
@@ -396,27 +408,26 @@ bool ZipArchive::MapCentralDirectory() {
   }
 
   UniquePtr<uint8_t[]> scan_buf(new uint8_t[read_amount]);
-  if (scan_buf.get() == NULL) {
-    return false;
-  }
+  CHECK(scan_buf.get() != nullptr);
 
   /*
    * Make sure this is a Zip archive.
    */
   if (lseek64(fd_, 0, SEEK_SET) != 0) {
-    PLOG(WARNING) << "seek to start failed: ";
+    *error_msg = ErrorStringPrintf("seek to start failed: %s", strerror(errno));
     return false;
   }
 
   ssize_t actual = TEMP_FAILURE_RETRY(read(fd_, scan_buf.get(), sizeof(int32_t)));
   if (actual != static_cast<ssize_t>(sizeof(int32_t))) {
-    PLOG(INFO) << "couldn't read first signature from zip archive: ";
+    *error_msg = ErrorStringPrintf("couldn\'t read first signature from zip archive: %s",
+                                   strerror(errno));
     return false;
   }
 
   unsigned int header = Le32ToHost(scan_buf.get());
   if (header != kLFHSignature) {
-    LOG(VERBOSE) << "Not a Zip archive (found " << std::hex << header << ")";
+    *error_msg = ErrorStringPrintf("not a zip archive (found 0x%x)", header);
     return false;
   }
 
@@ -433,12 +444,13 @@ bool ZipArchive::MapCentralDirectory() {
   off64_t search_start = file_length - read_amount;
 
   if (lseek64(fd_, search_start, SEEK_SET) != search_start) {
-    PLOG(WARNING) << "Zip: seek " << search_start << " failed";
+    *error_msg = ErrorStringPrintf("seek %lld failed: %s", search_start, strerror(errno));
     return false;
   }
   actual = TEMP_FAILURE_RETRY(read(fd_, scan_buf.get(), read_amount));
   if (actual != static_cast<ssize_t>(read_amount)) {
-    PLOG(WARNING) << "Zip: read " << actual << ", expected " << read_amount << ". failed";
+    *error_msg = ErrorStringPrintf("read %lld, expected %zd. %s", search_start, read_amount,
+                                   strerror(errno));
     return false;
   }
 
@@ -454,14 +466,14 @@ bool ZipArchive::MapCentralDirectory() {
     }
   }
   if (i < 0) {
-    LOG(WARNING) << "Zip: EOCD not found, not a zip file";
+    *error_msg = ErrorStringPrintf("EOCD not found, not a zip file");
     return false;
   }
 
   off64_t eocd_offset = search_start + i;
   const byte* eocd_ptr = scan_buf.get() + i;
 
-  DCHECK(eocd_offset < file_length);
+  CHECK(eocd_offset < file_length);
 
   // Grab the CD offset and size, and the number of entries in the
   // archive.  Verify that they look reasonable.
@@ -474,29 +486,28 @@ bool ZipArchive::MapCentralDirectory() {
   uint16_t comment_size = Le16ToHost(eocd_ptr + kEOCDCommentSize);
 
   if ((uint64_t) dir_offset + (uint64_t) dir_size > (uint64_t) eocd_offset) {
-    LOG(WARNING) << "Zip: bad offsets ("
-                 << "dir=" << dir_offset << ", "
-                 << "size=" << dir_size  << ", "
-                 << "eocd=" << eocd_offset << ")";
+    *error_msg = ErrorStringPrintf("bad offsets (dir=%ud, size=%ud, eocd=%lld)",
+                                   dir_offset, dir_size, eocd_offset);
     return false;
   }
   if (num_entries == 0) {
-    LOG(WARNING) << "Zip: empty archive?";
+    *error_msg = ErrorStringPrintf("empty archive?");
     return false;
   } else if (num_entries != total_num_entries || disk_number != 0 || disk_with_central_dir != 0) {
-    LOG(WARNING) << "spanned archives not supported";
+    *error_msg = ErrorStringPrintf("spanned archives not supported");
     return false;
   }
 
   // Check to see if comment is a sane size
   if ((comment_size > (file_length - kEOCDLen))
       || (eocd_offset > (file_length - kEOCDLen) - comment_size)) {
-    LOG(WARNING) << "comment size runs off end of file";
+    *error_msg = ErrorStringPrintf("comment size runs off end of file");
     return false;
   }
 
   // It all looks good.  Create a mapping for the CD.
-  dir_map_.reset(MemMap::MapFile(dir_size, PROT_READ, MAP_SHARED, fd_, dir_offset));
+  dir_map_.reset(MemMap::MapFile(dir_size, PROT_READ, MAP_SHARED, fd_, dir_offset,
+                                 filename_.c_str(), error_msg));
   if (dir_map_.get() == NULL) {
     return false;
   }
@@ -506,7 +517,7 @@ bool ZipArchive::MapCentralDirectory() {
   return true;
 }
 
-bool ZipArchive::Parse() {
+bool ZipArchive::Parse(std::string* error_msg) {
   const byte* cd_ptr = dir_map_->Begin();
   size_t cd_length = dir_map_->Size();
 
@@ -515,23 +526,23 @@ bool ZipArchive::Parse() {
   const byte* ptr = cd_ptr;
   for (int i = 0; i < num_entries_; i++) {
     if (Le32ToHost(ptr) != kCDESignature) {
-      LOG(WARNING) << "Zip: missed a central dir sig (at " << i << ")";
+      *error_msg = ErrorStringPrintf("missed a central dir sig (at %d)", i);
       return false;
     }
     if (ptr + kCDELen > cd_ptr + cd_length) {
-      LOG(WARNING) << "Zip: ran off the end (at " << i << ")";
+      *error_msg = ErrorStringPrintf("ran off the end (at %d)", i);
       return false;
     }
 
     int64_t local_hdr_offset = Le32ToHost(ptr + kCDELocalOffset);
     if (local_hdr_offset >= dir_offset_) {
-      LOG(WARNING) << "Zip: bad LFH offset " << local_hdr_offset << " at entry " << i;
+      *error_msg = ErrorStringPrintf("bad LFH offset %lld at entry %d", local_hdr_offset, i);
       return false;
     }
 
     uint16_t gpbf = Le16ToHost(ptr + kCDEGPBFlags);
     if ((gpbf & kGPFUnsupportedMask) != 0) {
-      LOG(WARNING) << "Invalid General Purpose Bit Flag: " << gpbf;
+      *error_msg = ErrorStringPrintf("invalid general purpose bit flag %x", gpbf);
       return false;
     }
 
@@ -544,16 +555,15 @@ bool ZipArchive::Parse() {
 
     // Check name for NULL characters
     if (memchr(name, 0, name_len) != NULL) {
-      LOG(WARNING) << "Filename contains NUL byte";
+      *error_msg = ErrorStringPrintf("filename contains NUL byte");
       return false;
     }
 
     dir_entries_.Put(StringPiece(name, name_len), ptr);
     ptr += kCDELen + name_len + extra_len + comment_len;
     if (ptr > cd_ptr + cd_length) {
-      LOG(WARNING) << "Zip: bad CD advance "
-                   << "(" << ptr << " vs " << (cd_ptr + cd_length) << ") "
-                   << "at entry " << i;
+      *error_msg = ErrorStringPrintf("bad CD advance (%p vs %p) at entry %d",
+                                     ptr, cd_ptr + cd_length, i);
       return false;
     }
   }

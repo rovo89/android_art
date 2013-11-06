@@ -24,53 +24,35 @@
 #include <list>
 #include <vector>
 
+#include "atomic_integer.h"
 #include "base/mutex.h"
 #include "root_visitor.h"
 #include "thread_state.h"
 
 namespace art {
 
-/*
- * Monitor shape field. Used to distinguish thin locks from fat locks.
- */
-#define LW_SHAPE_THIN 0
-#define LW_SHAPE_FAT 1
-
-/*
- * Hash state field.  Used to signify that an object has had its
- * identity hash code exposed or relocated.
- */
-#define LW_HASH_STATE_UNHASHED 0
-#define LW_HASH_STATE_HASHED 1
-#define LW_HASH_STATE_HASHED_AND_MOVED 3
-#define LW_HASH_STATE_MASK 0x3
-#define LW_HASH_STATE_SHIFT 1
-#define LW_HASH_STATE(x) (((x) >> LW_HASH_STATE_SHIFT) & LW_HASH_STATE_MASK)
-
-/*
- * Lock owner field.  Contains the thread id of the thread currently
- * holding the lock.
- */
-#define LW_LOCK_OWNER_MASK 0xffff
-#define LW_LOCK_OWNER_SHIFT 3
-#define LW_LOCK_OWNER(x) (((x) >> LW_LOCK_OWNER_SHIFT) & LW_LOCK_OWNER_MASK)
-
 namespace mirror {
   class ArtMethod;
   class Object;
 }  // namespace mirror
+class LockWord;
 class Thread;
 class StackVisitor;
 
 class Monitor {
  public:
+  // The default number of spins that are done before thread suspension is used to forcibly inflate
+  // a lock word. See Runtime::max_spins_before_thin_lock_inflation_.
+  constexpr static size_t kDefaultMaxSpinsBeforeThinLockInflation = 50;
+
   ~Monitor();
 
   static bool IsSensitiveThread();
   static void Init(uint32_t lock_profiling_threshold, bool (*is_sensitive_thread_hook)());
 
-  static uint32_t GetThinLockId(uint32_t raw_lock_word)
-      NO_THREAD_SAFETY_ANALYSIS;  // Reading lock owner without holding lock is racy.
+  // Return the thread id of the lock owner or 0 when there is no owner.
+  static uint32_t GetLockOwnerThreadId(mirror::Object* obj)
+      NO_THREAD_SAFETY_ANALYSIS;  // TODO: Reading lock owner without holding lock is racy.
 
   static void MonitorEnter(Thread* thread, mirror::Object* obj)
       EXCLUSIVE_LOCK_FUNCTION(monitor_lock_)
@@ -80,9 +62,13 @@ class Monitor {
       UNLOCK_FUNCTION(monitor_lock_);
 
   static void Notify(Thread* self, mirror::Object* obj)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DoNotify(self, obj, false);
+  }
   static void NotifyAll(Thread* self, mirror::Object* obj)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DoNotify(self, obj, true);
+  }
   static void Wait(Thread* self, mirror::Object* obj, int64_t ms, int32_t ns,
                    bool interruptShouldThrow, ThreadState why)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -92,7 +78,8 @@ class Monitor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Used to implement JDWP's ThreadReference.CurrentContendedMonitor.
-  static mirror::Object* GetContendedMonitor(Thread* thread);
+  static mirror::Object* GetContendedMonitor(Thread* thread)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Calls 'callback' once for each lock held in the single stack frame represented by
   // the current state of 'stack_visitor'.
@@ -100,18 +87,43 @@ class Monitor {
                          void* callback_context)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static bool IsValidLockWord(int32_t lock_word);
+  static bool IsValidLockWord(LockWord lock_word);
 
-  mirror::Object* GetObject();
+  mirror::Object* GetObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return obj_;
+  }
+
+  void SetObject(mirror::Object* object);
+
+  Thread* GetOwner() const NO_THREAD_SAFETY_ANALYSIS {
+    return owner_;
+  }
+
+  int32_t GetHashCode();
+
+  bool IsLocked() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  bool HasHashCode() const {
+    return hash_code_.load() != 0;
+  }
+
+  static void InflateThinLocked(Thread* self, mirror::Object* obj, LockWord lock_word,
+                                uint32_t hash_code) NO_THREAD_SAFETY_ANALYSIS;
 
  private:
-  explicit Monitor(Thread* owner, mirror::Object* obj)
+  explicit Monitor(Thread* owner, mirror::Object* obj, int32_t hash_code)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Install the monitor into its object, may fail if another thread installs a different monitor
+  // first.
+  bool Install(Thread* self)
+      LOCKS_EXCLUDED(monitor_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void AppendToWaitSet(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(monitor_lock_);
   void RemoveFromWaitSet(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(monitor_lock_);
 
-  static void Inflate(Thread* self, mirror::Object* obj)
+  static void Inflate(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void LogContentionEvent(Thread* self, uint32_t wait_ms, uint32_t sample_percent,
@@ -122,47 +134,56 @@ class Monitor {
       LOCKS_EXCLUDED(Locks::thread_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void Lock(Thread* self) EXCLUSIVE_LOCK_FUNCTION(monitor_lock_);
-  bool Unlock(Thread* thread, bool for_wait) UNLOCK_FUNCTION(monitor_lock_);
-
-  void Notify(Thread* self) NO_THREAD_SAFETY_ANALYSIS;
-  void NotifyWithLock(Thread* self)
-      EXCLUSIVE_LOCKS_REQUIRED(monitor_lock_)
+  void Lock(Thread* self)
+      LOCKS_EXCLUDED(monitor_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool Unlock(Thread* thread)
+      LOCKS_EXCLUDED(monitor_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void NotifyAll(Thread* self) NO_THREAD_SAFETY_ANALYSIS;
-  void NotifyAllWithLock()
-      EXCLUSIVE_LOCKS_REQUIRED(monitor_lock_)
+  static void DoNotify(Thread* self, mirror::Object* obj, bool notify_all)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void Notify(Thread* self)
+      LOCKS_EXCLUDED(monitor_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void NotifyAll(Thread* self)
+      LOCKS_EXCLUDED(monitor_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 
   void Wait(Thread* self, int64_t msec, int32_t nsec, bool interruptShouldThrow, ThreadState why)
-      NO_THREAD_SAFETY_ANALYSIS;
-  void WaitWithLock(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThrow, ThreadState why)
-      EXCLUSIVE_LOCKS_REQUIRED(monitor_lock_)
+      LOCKS_EXCLUDED(monitor_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Translates the provided method and pc into its declaring class' source file and line number.
   void TranslateLocation(const mirror::ArtMethod* method, uint32_t pc,
-                         const char*& source_file, uint32_t& line_number) const
+                         const char** source_file, uint32_t* line_number) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  uint32_t GetOwnerThreadId();
 
   static bool (*is_sensitive_thread_hook_)();
   static uint32_t lock_profiling_threshold_;
 
   Mutex monitor_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  ConditionVariable monitor_contenders_ GUARDED_BY(monitor_lock_);
 
   // Which thread currently owns the lock?
-  Thread* volatile owner_;
+  Thread* volatile owner_ GUARDED_BY(monitor_lock_);
 
   // Owner's recursive lock depth.
   int lock_count_ GUARDED_BY(monitor_lock_);
 
-  // What object are we part of (for debugging).
-  mirror::Object* const obj_;
+  // What object are we part of.
+  mirror::Object* obj_;
 
   // Threads currently waiting on this monitor.
   Thread* wait_set_ GUARDED_BY(monitor_lock_);
+
+  // Stored object hash code, generated lazily by GetHashCode.
+  AtomicInteger hash_code_;
 
   // Method and dex pc where the lock owner acquired the lock, used when lock
   // sampling is enabled. locking_method_ may be null if the lock is currently
@@ -182,10 +203,11 @@ class MonitorList {
   ~MonitorList();
 
   void Add(Monitor* m);
-  void SweepMonitorList(IsMarkedTester is_marked, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
+  void SweepMonitorList(RootVisitor visitor, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DisallowNewMonitors();
   void AllowNewMonitors();
+
  private:
   bool allow_new_monitors_ GUARDED_BY(monitor_list_lock_);
   Mutex monitor_list_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
@@ -203,9 +225,9 @@ class MonitorInfo {
  public:
   explicit MonitorInfo(mirror::Object* o) EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Thread* owner;
-  size_t entry_count;
-  std::vector<Thread*> waiters;
+  Thread* owner_;
+  size_t entry_count_;
+  std::vector<Thread*> waiters_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(MonitorInfo);

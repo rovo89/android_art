@@ -44,22 +44,10 @@ static jboolean DdmVmInternal_getRecentAllocationStatus(JNIEnv*, jclass) {
  * NULL on failure, e.g. if the threadId couldn't be found.
  */
 static jobjectArray DdmVmInternal_getStackTraceById(JNIEnv* env, jclass, jint thin_lock_id) {
-  ScopedLocalRef<jobject> peer(env, NULL);
-  {
-    Thread* t = Runtime::Current()->GetThreadList()->FindThreadByThinLockId(thin_lock_id);
-    if (t == NULL) {
-      return NULL;
-    }
-    ScopedObjectAccess soa(env);
-    peer.reset(soa.AddLocalReference<jobject>(t->GetPeer()));
-  }
-  if (peer.get() == NULL) {
-    return NULL;
-  }
-
   // Suspend thread to build stack trace.
+  ThreadList* thread_list = Runtime::Current()->GetThreadList();
   bool timed_out;
-  Thread* thread = Thread::SuspendForDebugger(peer.get(), true, &timed_out);
+  Thread* thread = thread_list->SuspendThreadByThreadId(thin_lock_id, false, &timed_out);
   if (thread != NULL) {
     jobject trace;
     {
@@ -67,7 +55,7 @@ static jobjectArray DdmVmInternal_getStackTraceById(JNIEnv* env, jclass, jint th
       trace = thread->CreateInternalStackTrace(soa);
     }
     // Restart suspended thread.
-    Runtime::Current()->GetThreadList()->Resume(thread, true);
+    thread_list->Resume(thread, false);
     return Thread::InternalStackTraceToStackTraceElementArray(env, trace);
   } else {
     if (timed_out) {
@@ -115,7 +103,7 @@ static void ThreadStatsGetterCallback(Thread* t, void* context) {
   GetTaskStats(t->GetTid(), &native_thread_state, &utime, &stime, &task_cpu);
 
   std::vector<uint8_t>& bytes = *reinterpret_cast<std::vector<uint8_t>*>(context);
-  JDWP::Append4BE(bytes, t->GetThinLockId());
+  JDWP::Append4BE(bytes, t->GetThreadId());
   JDWP::Append1BE(bytes, Dbg::ToJdwpThreadStatus(t->GetState()));
   JDWP::Append4BE(bytes, t->GetTid());
   JDWP::Append4BE(bytes, utime);

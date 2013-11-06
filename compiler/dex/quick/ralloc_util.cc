@@ -28,13 +28,9 @@ namespace art {
  * live until it is either explicitly killed or reallocated.
  */
 void Mir2Lir::ResetRegPool() {
-  for (int i = 0; i < reg_pool_->num_core_regs; i++) {
-    if (reg_pool_->core_regs[i].is_temp)
-      reg_pool_->core_regs[i].in_use = false;
-  }
-  for (int i = 0; i < reg_pool_->num_fp_regs; i++) {
-    if (reg_pool_->FPRegs[i].is_temp)
-      reg_pool_->FPRegs[i].in_use = false;
+  GrowableArray<RegisterInfo*>::Iterator iter(&tempreg_info_);
+  for (RegisterInfo* info = iter.Next(); info != NULL; info = iter.Next()) {
+    info->in_use = false;
   }
   // Reset temp tracking sanity check.
   if (kIsDebugBuild) {
@@ -48,13 +44,21 @@ void Mir2Lir::ResetRegPool() {
   */
 void Mir2Lir::CompilerInitPool(RegisterInfo* regs, int* reg_nums, int num) {
   for (int i = 0; i < num; i++) {
-    regs[i].reg = reg_nums[i];
+    uint32_t reg_number = reg_nums[i];
+    regs[i].reg = reg_number;
     regs[i].in_use = false;
     regs[i].is_temp = false;
     regs[i].pair = false;
     regs[i].live = false;
     regs[i].dirty = false;
     regs[i].s_reg = INVALID_SREG;
+    size_t map_size = reginfo_map_.Size();
+    if (reg_number >= map_size) {
+      for (uint32_t i = 0; i < ((reg_number - map_size) + 1); i++) {
+        reginfo_map_.Insert(NULL);
+      }
+    }
+    reginfo_map_.Put(reg_number, &regs[i]);
   }
 }
 
@@ -62,10 +66,9 @@ void Mir2Lir::DumpRegPool(RegisterInfo* p, int num_regs) {
   LOG(INFO) << "================================================";
   for (int i = 0; i < num_regs; i++) {
     LOG(INFO) << StringPrintf(
-        "R[%d]: T:%d, U:%d, P:%d, p:%d, LV:%d, D:%d, SR:%d, ST:%x, EN:%x",
+        "R[%d]: T:%d, U:%d, P:%d, p:%d, LV:%d, D:%d, SR:%d",
         p[i].reg, p[i].is_temp, p[i].in_use, p[i].pair, p[i].partner,
-        p[i].live, p[i].dirty, p[i].s_reg, reinterpret_cast<uintptr_t>(p[i].def_start),
-        reinterpret_cast<uintptr_t>(p[i].def_end));
+        p[i].live, p[i].dirty, p[i].s_reg);
   }
   LOG(INFO) << "================================================";
 }
@@ -170,17 +173,12 @@ void Mir2Lir::RecordFpPromotion(int reg, int s_reg) {
   promotion_map_[p_map_idx].FpReg = reg;
 }
 
-/*
- * Reserve a callee-save fp single register.  Try to fullfill request for
- * even/odd  allocation, but go ahead and allocate anything if not
- * available.  If nothing's available, return -1.
- */
-int Mir2Lir::AllocPreservedSingle(int s_reg, bool even) {
-  int res = -1;
+// Reserve a callee-save fp single register.
+int Mir2Lir::AllocPreservedSingle(int s_reg) {
+  int res = -1;  // Return code if none available.
   RegisterInfo* FPRegs = reg_pool_->FPRegs;
   for (int i = 0; i < reg_pool_->num_fp_regs; i++) {
-    if (!FPRegs[i].is_temp && !FPRegs[i].in_use &&
-      ((FPRegs[i].reg & 0x1) == 0) == even) {
+    if (!FPRegs[i].is_temp && !FPRegs[i].in_use) {
       res = FPRegs[i].reg;
       RecordFpPromotion(res, s_reg);
       break;
@@ -243,26 +241,6 @@ int Mir2Lir::AllocPreservedDouble(int s_reg) {
     promotion_map_[p_map_idx+1].fp_location = kLocPhysReg;
     promotion_map_[p_map_idx+1].FpReg = res + 1;
   }
-  return res;
-}
-
-
-/*
- * Reserve a callee-save fp register.   If this register can be used
- * as the first of a double, attempt to allocate an even pair of fp
- * single regs (but if can't still attempt to allocate a single, preferring
- * first to allocate an odd register.
- */
-int Mir2Lir::AllocPreservedFPReg(int s_reg, bool double_start) {
-  int res = -1;
-  if (double_start) {
-    res = AllocPreservedDouble(s_reg);
-  }
-  if (res == -1) {
-    res = AllocPreservedSingle(s_reg, false /* try odd # */);
-  }
-  if (res == -1)
-    res = AllocPreservedSingle(s_reg, true /* try even # */);
   return res;
 }
 
@@ -379,7 +357,7 @@ Mir2Lir::RegisterInfo* Mir2Lir::AllocLiveBody(RegisterInfo* p, int num_regs, int
   if (s_reg == -1)
     return NULL;
   for (int i = 0; i < num_regs; i++) {
-    if (p[i].live && (p[i].s_reg == s_reg)) {
+    if ((p[i].s_reg == s_reg) && p[i].live) {
       if (p[i].is_temp)
         p[i].in_use = true;
       return &p[i];
@@ -412,47 +390,16 @@ Mir2Lir::RegisterInfo* Mir2Lir::AllocLive(int s_reg, int reg_class) {
 }
 
 void Mir2Lir::FreeTemp(int reg) {
-  RegisterInfo* p = reg_pool_->core_regs;
-  int num_regs = reg_pool_->num_core_regs;
-  for (int i = 0; i< num_regs; i++) {
-    if (p[i].reg == reg) {
-      if (p[i].is_temp) {
-        p[i].in_use = false;
-      }
-      p[i].pair = false;
-      return;
-    }
+  RegisterInfo* p = GetRegInfo(reg);
+  if (p->is_temp) {
+    p->in_use = false;
   }
-  p = reg_pool_->FPRegs;
-  num_regs = reg_pool_->num_fp_regs;
-  for (int i = 0; i< num_regs; i++) {
-    if (p[i].reg == reg) {
-      if (p[i].is_temp) {
-        p[i].in_use = false;
-      }
-      p[i].pair = false;
-      return;
-    }
-  }
-  LOG(FATAL) << "Tried to free a non-existant temp: r" << reg;
+  p->pair = false;
 }
 
 Mir2Lir::RegisterInfo* Mir2Lir::IsLive(int reg) {
-  RegisterInfo* p = reg_pool_->core_regs;
-  int num_regs = reg_pool_->num_core_regs;
-  for (int i = 0; i< num_regs; i++) {
-    if (p[i].reg == reg) {
-      return p[i].live ? &p[i] : NULL;
-    }
-  }
-  p = reg_pool_->FPRegs;
-  num_regs = reg_pool_->num_fp_regs;
-  for (int i = 0; i< num_regs; i++) {
-    if (p[i].reg == reg) {
-      return p[i].live ? &p[i] : NULL;
-    }
-  }
-  return NULL;
+  RegisterInfo* p = GetRegInfo(reg);
+  return p->live ? p : NULL;
 }
 
 Mir2Lir::RegisterInfo* Mir2Lir::IsTemp(int reg) {
@@ -476,27 +423,10 @@ bool Mir2Lir::IsDirty(int reg) {
  * allocated.  Use with caution.
  */
 void Mir2Lir::LockTemp(int reg) {
-  RegisterInfo* p = reg_pool_->core_regs;
-  int num_regs = reg_pool_->num_core_regs;
-  for (int i = 0; i< num_regs; i++) {
-    if (p[i].reg == reg) {
-      DCHECK(p[i].is_temp);
-      p[i].in_use = true;
-      p[i].live = false;
-      return;
-    }
-  }
-  p = reg_pool_->FPRegs;
-  num_regs = reg_pool_->num_fp_regs;
-  for (int i = 0; i< num_regs; i++) {
-    if (p[i].reg == reg) {
-      DCHECK(p[i].is_temp);
-      p[i].in_use = true;
-      p[i].live = false;
-      return;
-    }
-  }
-  LOG(FATAL) << "Tried to lock a non-existant temp: r" << reg;
+  RegisterInfo* p = GetRegInfo(reg);
+  DCHECK(p->is_temp);
+  p->in_use = true;
+  p->live = false;
 }
 
 void Mir2Lir::ResetDef(int reg) {
@@ -599,11 +529,13 @@ void Mir2Lir::ResetDefTracking() {
 }
 
 void Mir2Lir::ClobberAllRegs() {
-  for (int i = 0; i< reg_pool_->num_core_regs; i++) {
-    ClobberBody(&reg_pool_->core_regs[i]);
-  }
-  for (int i = 0; i< reg_pool_->num_fp_regs; i++) {
-    ClobberBody(&reg_pool_->FPRegs[i]);
+  GrowableArray<RegisterInfo*>::Iterator iter(&tempreg_info_);
+  for (RegisterInfo* info = iter.Next(); info != NULL; info = iter.Next()) {
+    info->live = false;
+    info->s_reg = INVALID_SREG;
+    info->def_start = NULL;
+    info->def_end = NULL;
+    info->pair = false;
   }
 }
 
@@ -659,11 +591,13 @@ void Mir2Lir::MarkLive(int reg, int s_reg) {
 
 void Mir2Lir::MarkTemp(int reg) {
   RegisterInfo* info = GetRegInfo(reg);
+  tempreg_info_.Insert(info);
   info->is_temp = true;
 }
 
 void Mir2Lir::UnmarkTemp(int reg) {
   RegisterInfo* info = GetRegInfo(reg);
+  tempreg_info_.Delete(info);
   info->is_temp = false;
 }
 
@@ -834,9 +768,9 @@ RegLocation Mir2Lir::UpdateRawLoc(RegLocation loc) {
 
 RegLocation Mir2Lir::EvalLocWide(RegLocation loc, int reg_class, bool update) {
   DCHECK(loc.wide);
-  int new_regs;
-  int low_reg;
-  int high_reg;
+  int32_t new_regs;
+  int32_t low_reg;
+  int32_t high_reg;
 
   loc = UpdateLocWide(loc);
 
@@ -912,17 +846,21 @@ RegLocation Mir2Lir::EvalLoc(RegLocation loc, int reg_class, bool update) {
 }
 
 /* USE SSA names to count references of base Dalvik v_regs. */
-void Mir2Lir::CountRefs(RefCounts* core_counts, RefCounts* fp_counts) {
+void Mir2Lir::CountRefs(RefCounts* core_counts, RefCounts* fp_counts, size_t num_regs) {
   for (int i = 0; i < mir_graph_->GetNumSSARegs(); i++) {
     RegLocation loc = mir_graph_->reg_location_[i];
     RefCounts* counts = loc.fp ? fp_counts : core_counts;
     int p_map_idx = SRegToPMap(loc.s_reg_low);
-    // Don't count easily regenerated immediates
-    if (loc.fp || !IsInexpensiveConstant(loc)) {
+    if (loc.fp) {
+      if (loc.wide) {
+        // Treat doubles as a unit, using upper half of fp_counts array.
+        counts[p_map_idx + num_regs].count += mir_graph_->GetUseCount(i);
+        i++;
+      } else {
+        counts[p_map_idx].count += mir_graph_->GetUseCount(i);
+      }
+    } else if (!IsInexpensiveConstant(loc)) {
       counts[p_map_idx].count += mir_graph_->GetUseCount(i);
-    }
-    if (loc.wide && loc.fp && !loc.high_word) {
-      counts[p_map_idx].double_start = true;
     }
   }
 }
@@ -942,7 +880,11 @@ static int SortCounts(const void *val1, const void *val2) {
 void Mir2Lir::DumpCounts(const RefCounts* arr, int size, const char* msg) {
   LOG(INFO) << msg;
   for (int i = 0; i < size; i++) {
-    LOG(INFO) << "s_reg[" << arr[i].s_reg << "]: " << arr[i].count;
+    if ((arr[i].s_reg & STARTING_DOUBLE_SREG) != 0) {
+      LOG(INFO) << "s_reg[D" << (arr[i].s_reg & ~STARTING_DOUBLE_SREG) << "]: " << arr[i].count;
+    } else {
+      LOG(INFO) << "s_reg[" << arr[i].s_reg << "]: " << arr[i].count;
+    }
   }
 }
 
@@ -965,7 +907,7 @@ void Mir2Lir::DoPromotion() {
    * count based on original Dalvik register name.  Count refs
    * separately based on type in order to give allocation
    * preference to fp doubles - which must be allocated sequential
-   * physical single fp registers started with an even-numbered
+   * physical single fp registers starting with an even-numbered
    * reg.
    * TUNING: replace with linear scan once we have the ability
    * to describe register live ranges for GC.
@@ -974,7 +916,7 @@ void Mir2Lir::DoPromotion() {
       static_cast<RefCounts*>(arena_->Alloc(sizeof(RefCounts) * num_regs,
                                             ArenaAllocator::kAllocRegAlloc));
   RefCounts *FpRegs =
-      static_cast<RefCounts *>(arena_->Alloc(sizeof(RefCounts) * num_regs,
+      static_cast<RefCounts *>(arena_->Alloc(sizeof(RefCounts) * num_regs * 2,
                                              ArenaAllocator::kAllocRegAlloc));
   // Set ssa names for original Dalvik registers
   for (int i = 0; i < dalvik_regs; i++) {
@@ -982,46 +924,49 @@ void Mir2Lir::DoPromotion() {
   }
   // Set ssa name for Method*
   core_regs[dalvik_regs].s_reg = mir_graph_->GetMethodSReg();
-  FpRegs[dalvik_regs].s_reg = mir_graph_->GetMethodSReg();  // For consistecy
+  FpRegs[dalvik_regs].s_reg = mir_graph_->GetMethodSReg();  // For consistecy.
+  FpRegs[dalvik_regs + num_regs].s_reg = mir_graph_->GetMethodSReg();  // for consistency.
   // Set ssa names for compiler_temps
   for (int i = 1; i <= cu_->num_compiler_temps; i++) {
     CompilerTemp* ct = mir_graph_->compiler_temps_.Get(i);
     core_regs[dalvik_regs + i].s_reg = ct->s_reg;
     FpRegs[dalvik_regs + i].s_reg = ct->s_reg;
+    FpRegs[num_regs + dalvik_regs + i].s_reg = ct->s_reg;
+  }
+
+  // Duplicate in upper half to represent possible fp double starting sregs.
+  for (int i = 0; i < num_regs; i++) {
+    FpRegs[num_regs + i].s_reg = FpRegs[i].s_reg | STARTING_DOUBLE_SREG;
   }
 
   // Sum use counts of SSA regs by original Dalvik vreg.
-  CountRefs(core_regs, FpRegs);
+  CountRefs(core_regs, FpRegs, num_regs);
 
-  /*
-   * Ideally, we'd allocate doubles starting with an even-numbered
-   * register.  Bias the counts to try to allocate any vreg that's
-   * used as the start of a pair first.
-   */
-  for (int i = 0; i < num_regs; i++) {
-    if (FpRegs[i].double_start) {
-      FpRegs[i].count *= 2;
-    }
-  }
 
   // Sort the count arrays
   qsort(core_regs, num_regs, sizeof(RefCounts), SortCounts);
-  qsort(FpRegs, num_regs, sizeof(RefCounts), SortCounts);
+  qsort(FpRegs, num_regs * 2, sizeof(RefCounts), SortCounts);
 
   if (cu_->verbose) {
     DumpCounts(core_regs, num_regs, "Core regs after sort");
-    DumpCounts(FpRegs, num_regs, "Fp regs after sort");
+    DumpCounts(FpRegs, num_regs * 2, "Fp regs after sort");
   }
 
   if (!(cu_->disable_opt & (1 << kPromoteRegs))) {
     // Promote FpRegs
-    for (int i = 0; (i < num_regs) && (FpRegs[i].count >= promotion_threshold); i++) {
-      int p_map_idx = SRegToPMap(FpRegs[i].s_reg);
-      if (promotion_map_[p_map_idx].fp_location != kLocPhysReg) {
-        int reg = AllocPreservedFPReg(FpRegs[i].s_reg,
-          FpRegs[i].double_start);
+    for (int i = 0; (i < (num_regs * 2)) && (FpRegs[i].count >= promotion_threshold); i++) {
+      int p_map_idx = SRegToPMap(FpRegs[i].s_reg & ~STARTING_DOUBLE_SREG);
+      if ((FpRegs[i].s_reg & STARTING_DOUBLE_SREG) != 0) {
+        if ((promotion_map_[p_map_idx].fp_location != kLocPhysReg) &&
+            (promotion_map_[p_map_idx + 1].fp_location != kLocPhysReg)) {
+          int low_sreg = FpRegs[i].s_reg & ~STARTING_DOUBLE_SREG;
+          // Ignore result - if can't alloc double may still be able to alloc singles.
+          AllocPreservedDouble(low_sreg);
+        }
+      } else if (promotion_map_[p_map_idx].fp_location != kLocPhysReg) {
+        int reg = AllocPreservedSingle(FpRegs[i].s_reg);
         if (reg < 0) {
-          break;  // No more left
+          break;  // No more left.
         }
       }
     }

@@ -26,6 +26,8 @@
 namespace art {
 
 class ImageWriter;
+class LockWord;
+class Monitor;
 struct ObjectOffsets;
 class Thread;
 
@@ -83,26 +85,16 @@ class MANAGED Object {
 
   Object* Clone(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  int32_t IdentityHashCode() const {
-#ifdef MOVING_GARBAGE_COLLECTOR
-    // TODO: we'll need to use the Object's internal concept of identity
-    UNIMPLEMENTED(FATAL);
-#endif
-    return reinterpret_cast<int32_t>(this);
-  }
+  int32_t IdentityHashCode() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static MemberOffset MonitorOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Object, monitor_);
   }
 
-  volatile int32_t* GetRawLockWordAddress() {
-    byte* raw_addr = reinterpret_cast<byte*>(this) +
-        OFFSET_OF_OBJECT_MEMBER(Object, monitor_).Int32Value();
-    int32_t* word_addr = reinterpret_cast<int32_t*>(raw_addr);
-    return const_cast<volatile int32_t*>(word_addr);
-  }
-
-  uint32_t GetThinLockId();
+  LockWord GetLockWord() const;
+  void SetLockWord(LockWord new_val);
+  bool CasLockWord(LockWord old_val, LockWord new_val);
+  uint32_t GetLockOwnerThreadId();
 
   void MonitorEnter(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCK_FUNCTION(monitor_lock_);
@@ -189,6 +181,11 @@ class MANAGED Object {
     }
   }
 
+  Object** GetFieldObjectAddr(MemberOffset field_offset) ALWAYS_INLINE {
+    VerifyObject(this);
+    return reinterpret_cast<Object**>(reinterpret_cast<byte*>(this) + field_offset.Int32Value());
+  }
+
   uint32_t GetField32(MemberOffset field_offset, bool is_volatile) const {
     VerifyObject(this);
     const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset.Int32Value();
@@ -221,6 +218,8 @@ class MANAGED Object {
     }
   }
 
+  bool CasField32(MemberOffset field_offset, uint32_t old_value, uint32_t new_value);
+
   uint64_t GetField64(MemberOffset field_offset, bool is_volatile) const;
 
   void SetField64(MemberOffset field_offset, uint64_t new_value, bool is_volatile);
@@ -239,7 +238,6 @@ class MANAGED Object {
 
  private:
   static void VerifyObject(const Object* obj) ALWAYS_INLINE;
-
   // Verify the type correctness of stores to fields.
   void CheckFieldAssignmentImpl(MemberOffset field_offset, const Object* new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -250,6 +248,9 @@ class MANAGED Object {
     }
   }
 
+  // Generate an identity hash code.
+  static int32_t GenerateIdentityHashCode();
+
   // Write barrier called post update to a reference bearing field.
   static void WriteBarrierField(const Object* dst, MemberOffset offset, const Object* new_value);
 
@@ -258,6 +259,7 @@ class MANAGED Object {
   uint32_t monitor_;
 
   friend class art::ImageWriter;
+  friend class art::Monitor;
   friend struct art::ObjectOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(Object);
 };

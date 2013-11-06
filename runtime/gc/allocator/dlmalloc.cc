@@ -69,3 +69,19 @@ extern "C" void DlmallocMadviseCallback(void* start, void* end, size_t used_byte
     *reclaimed += length;
   }
 }
+
+extern "C" void DlmallocBytesAllocatedCallback(void* start, void* end, size_t used_bytes, void* arg) {
+  if (used_bytes == 0) {
+    return;
+  }
+  size_t* bytes_allocated = reinterpret_cast<size_t*>(arg);
+  *bytes_allocated += used_bytes + sizeof(size_t);
+}
+
+extern "C" void DlmallocObjectsAllocatedCallback(void* start, void* end, size_t used_bytes, void* arg) {
+  if (used_bytes == 0) {
+    return;
+  }
+  size_t* objects_allocated = reinterpret_cast<size_t*>(arg);
+  ++(*objects_allocated);
+}

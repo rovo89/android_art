@@ -41,19 +41,19 @@ class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
   virtual void Walk(DlMallocSpace::WalkCallback, void* arg) = 0;
   virtual ~LargeObjectSpace() {}
 
-  uint64_t GetBytesAllocated() const {
+  uint64_t GetBytesAllocated() {
     return num_bytes_allocated_;
   }
 
-  uint64_t GetObjectsAllocated() const {
+  uint64_t GetObjectsAllocated() {
     return num_objects_allocated_;
   }
 
-  uint64_t GetTotalBytesAllocated() const {
+  uint64_t GetTotalBytesAllocated() {
     return total_bytes_allocated_;
   }
 
-  uint64_t GetTotalObjectsAllocated() const {
+  uint64_t GetTotalObjectsAllocated() {
     return total_objects_allocated_;
   }
 
@@ -96,9 +96,9 @@ class LargeObjectMapSpace : public LargeObjectSpace {
   // Used to ensure mutual exclusion when the allocation spaces data structures are being modified.
   mutable Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::vector<mirror::Object*,
-      accounting::GCAllocator<mirror::Object*> > large_objects_ GUARDED_BY(lock_);
+      accounting::GcAllocator<mirror::Object*> > large_objects_ GUARDED_BY(lock_);
   typedef SafeMap<mirror::Object*, MemMap*, std::less<mirror::Object*>,
-      accounting::GCAllocator<std::pair<const mirror::Object*, MemMap*> > > MemMaps;
+      accounting::GcAllocator<std::pair<const mirror::Object*, MemMap*> > > MemMaps;
   MemMaps mem_maps_ GUARDED_BY(lock_);
 };
 
@@ -217,7 +217,7 @@ class FreeListSpace : public LargeObjectSpace {
   AllocationHeader* GetAllocationHeader(const mirror::Object* obj);
 
   typedef std::set<AllocationHeader*, AllocationHeader::SortByPrevFree,
-                   accounting::GCAllocator<AllocationHeader*> > FreeBlocks;
+                   accounting::GcAllocator<AllocationHeader*> > FreeBlocks;
 
   byte* const begin_;
   byte* const end_;

@@ -31,7 +31,15 @@ extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& m
   mirror::ArtMethod* method = shadow_frame->GetMethod();
   // Ensure static methods are initialized.
   if (method->IsStatic()) {
-    Runtime::Current()->GetClassLinker()->EnsureInitialized(method->GetDeclaringClass(), true, true);
+    mirror::Class* declaringClass = method->GetDeclaringClass();
+    if (UNLIKELY(!declaringClass->IsInitializing())) {
+      if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(declaringClass,
+                                                                            true, true))) {
+        DCHECK(Thread::Current()->IsExceptionPending());
+        return;
+      }
+      CHECK(declaringClass->IsInitializing());
+    }
   }
   uint16_t arg_offset = (code_item == NULL) ? 0 : code_item->registers_size_ - code_item->ins_size_;
 #if defined(ART_USE_PORTABLE_COMPILER)
@@ -40,7 +48,7 @@ extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& m
   method->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(), result, mh.GetShorty()[0]);
 #else
   method->Invoke(self, shadow_frame->GetVRegArgs(arg_offset),
-                 (shadow_frame->NumberOfVRegs() - arg_offset) * 4,
+                 (shadow_frame->NumberOfVRegs() - arg_offset) * sizeof(uint32_t),
                  result, mh.GetShorty()[0]);
 #endif
 }

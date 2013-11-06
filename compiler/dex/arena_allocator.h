@@ -103,6 +103,9 @@ class ArenaAllocator {
 
   // Returns zeroed memory.
   void* Alloc(size_t bytes, ArenaAllocKind kind) ALWAYS_INLINE {
+    if (UNLIKELY(running_on_valgrind_)) {
+      return AllocValgrind(bytes, kind);
+    }
     bytes = (bytes + 3) & ~3;
     if (UNLIKELY(ptr_ + bytes > end_)) {
       // Obtain a new block.
@@ -120,6 +123,7 @@ class ArenaAllocator {
     return ret;
   }
 
+  void* AllocValgrind(size_t bytes, ArenaAllocKind kind);
   void ObtainNewArenaForAllocation(size_t allocation_size);
   size_t BytesAllocated() const;
   void DumpMemStats(std::ostream& os) const;
@@ -132,10 +136,9 @@ class ArenaAllocator {
   uint8_t* end_;
   uint8_t* ptr_;
   Arena* arena_head_;
-
-  // Statistics.
   size_t num_allocations_;
-  size_t alloc_stats_[kNumAllocKinds];   // Bytes used by various allocation kinds.
+  size_t alloc_stats_[kNumAllocKinds];  // Bytes used by various allocation kinds.
+  bool running_on_valgrind_;
 
   DISALLOW_COPY_AND_ASSIGN(ArenaAllocator);
 };  // ArenaAllocator
