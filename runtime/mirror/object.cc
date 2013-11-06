@@ -40,48 +40,39 @@ namespace art {
 namespace mirror {
 
 Object* Object::Clone(Thread* self) {
-  Class* c = GetClass();
+  mirror::Class* c = GetClass();
   DCHECK(!c->IsClassClass());
-
   // Object::SizeOf gets the right size even if we're an array.
   // Using c->AllocObject() here would be wrong.
   size_t num_bytes = SizeOf();
   gc::Heap* heap = Runtime::Current()->GetHeap();
-  SirtRef<Object> copy(self, heap->AllocObject(self, c, num_bytes));
-  if (copy.get() == NULL) {
-    return NULL;
+  SirtRef<mirror::Object> sirt_this(self, this);
+  Object* copy = heap->AllocObject(self, c, num_bytes);
+  if (UNLIKELY(copy == nullptr)) {
+    return nullptr;
   }
-
   // Copy instance data.  We assume memcpy copies by words.
   // TODO: expose and use move32.
-  byte* src_bytes = reinterpret_cast<byte*>(this);
-  byte* dst_bytes = reinterpret_cast<byte*>(copy.get());
+  byte* src_bytes = reinterpret_cast<byte*>(sirt_this.get());
+  byte* dst_bytes = reinterpret_cast<byte*>(copy);
   size_t offset = sizeof(Object);
   memcpy(dst_bytes + offset, src_bytes + offset, num_bytes - offset);
-
   // Perform write barriers on copied object references.
+  c = copy->GetClass();  // Re-read Class in case it moved.
   if (c->IsArrayClass()) {
     if (!c->GetComponentType()->IsPrimitive()) {
       const ObjectArray<Object>* array = copy->AsObjectArray<Object>();
-      heap->WriteBarrierArray(copy.get(), 0, array->GetLength());
+      heap->WriteBarrierArray(copy, 0, array->GetLength());
     }
   } else {
-    for (const Class* klass = c; klass != NULL; klass = klass->GetSuperClass()) {
-      size_t num_reference_fields = klass->NumReferenceInstanceFields();
-      for (size_t i = 0; i < num_reference_fields; ++i) {
-        ArtField* field = klass->GetInstanceField(i);
-        MemberOffset field_offset = field->GetOffset();
-        const Object* ref = copy->GetFieldObject<const Object*>(field_offset, false);
-        heap->WriteBarrierField(copy.get(), field_offset, ref);
-      }
-    }
+    heap->WriteBarrierEveryFieldOf(copy);
   }
-
   if (c->IsFinalizable()) {
-    heap->AddFinalizerReference(Thread::Current(), copy.get());
+    SirtRef<mirror::Object> sirt_copy(self, copy);
+    heap->AddFinalizerReference(self, copy);
+    return sirt_copy.get();
   }
-
-  return copy.get();
+  return copy;
 }
 
 int32_t Object::GenerateIdentityHashCode() {
