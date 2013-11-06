@@ -36,6 +36,7 @@
 #include "mirror/string.h"
 #include "os.h"
 #include "safe_map.h"
+#include "ScopedFd.h"
 #include "thread.h"
 #include "UniquePtr.h"
 #include "utf-inl.h"
@@ -64,34 +65,34 @@ DexFile::ClassPathEntry DexFile::FindInClassPath(const char* descriptor,
 
 static int OpenAndReadMagic(const char* filename, uint32_t* magic, std::string* error_msg) {
   CHECK(magic != NULL);
-  int fd = open(filename, O_RDONLY, 0);
-  if (fd == -1) {
+  ScopedFd fd(open(filename, O_RDONLY, 0));
+  if (fd.get() == -1) {
     *error_msg = StringPrintf("Unable to open '%s' : %s", filename, strerror(errno));
     return -1;
   }
-  int n = TEMP_FAILURE_RETRY(read(fd, magic, sizeof(*magic)));
+  int n = TEMP_FAILURE_RETRY(read(fd.get(), magic, sizeof(*magic)));
   if (n != sizeof(*magic)) {
     *error_msg = StringPrintf("Failed to find magic in '%s'", filename);
     return -1;
   }
-  if (lseek(fd, 0, SEEK_SET) != 0) {
+  if (lseek(fd.get(), 0, SEEK_SET) != 0) {
     *error_msg = StringPrintf("Failed to seek to beginning of file '%s' : %s", filename,
                               strerror(errno));
     return -1;
   }
-  return fd;
+  return fd.release();
 }
 
 bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string* error_msg) {
   CHECK(checksum != NULL);
   uint32_t magic;
-  int fd = OpenAndReadMagic(filename, &magic, error_msg);
-  if (fd == -1) {
+  ScopedFd fd(OpenAndReadMagic(filename, &magic, error_msg));
+  if (fd.get() == -1) {
     DCHECK(!error_msg->empty());
     return false;
   }
   if (IsZipMagic(magic)) {
-    UniquePtr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(fd, filename, error_msg));
+    UniquePtr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(fd.release(), filename, error_msg));
     if (zip_archive.get() == NULL) {
       *error_msg = StringPrintf("Failed to open zip archive '%s'", filename);
       return false;
@@ -105,7 +106,7 @@ bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string*
     return true;
   }
   if (IsDexMagic(magic)) {
-    UniquePtr<const DexFile> dex_file(DexFile::OpenFile(fd, filename, false, error_msg));
+    UniquePtr<const DexFile> dex_file(DexFile::OpenFile(fd.release(), filename, false, error_msg));
     if (dex_file.get() == NULL) {
       return false;
     }
@@ -120,16 +121,16 @@ const DexFile* DexFile::Open(const char* filename,
                              const char* location,
                              std::string* error_msg) {
   uint32_t magic;
-  int fd = OpenAndReadMagic(filename, &magic, error_msg);
-  if (fd == -1) {
+  ScopedFd fd(OpenAndReadMagic(filename, &magic, error_msg));
+  if (fd.get() == -1) {
     DCHECK(!error_msg->empty());
     return NULL;
   }
   if (IsZipMagic(magic)) {
-    return DexFile::OpenZip(fd, location, error_msg);
+    return DexFile::OpenZip(fd.release(), location, error_msg);
   }
   if (IsDexMagic(magic)) {
-    return DexFile::OpenFile(fd, location, true, error_msg);
+    return DexFile::OpenFile(fd.release(), location, true, error_msg);
   }
   *error_msg = StringPrintf("Expected valid zip or dex file: '%s'", filename);
   return nullptr;
@@ -168,26 +169,26 @@ bool DexFile::DisableWrite() const {
 const DexFile* DexFile::OpenFile(int fd, const char* location, bool verify,
                                  std::string* error_msg) {
   CHECK(location != nullptr);
-  struct stat sbuf;
-  memset(&sbuf, 0, sizeof(sbuf));
-  if (fstat(fd, &sbuf) == -1) {
-    *error_msg = StringPrintf("DexFile: fstat \'%s\' failed: %s", location, strerror(errno));
-    close(fd);
-    return nullptr;
+  UniquePtr<MemMap> map;
+  {
+    ScopedFd delayed_close(fd);
+    struct stat sbuf;
+    memset(&sbuf, 0, sizeof(sbuf));
+    if (fstat(fd, &sbuf) == -1) {
+      *error_msg = StringPrintf("DexFile: fstat \'%s\' failed: %s", location, strerror(errno));
+      return nullptr;
+    }
+    if (S_ISDIR(sbuf.st_mode)) {
+      *error_msg = StringPrintf("Attempt to mmap directory '%s'", location);
+      return nullptr;
+    }
+    size_t length = sbuf.st_size;
+    map.reset(MemMap::MapFile(length, PROT_READ, MAP_PRIVATE, fd, 0, location, error_msg));
+    if (map.get() == nullptr) {
+      DCHECK(!error_msg->empty());
+      return nullptr;
+    }
   }
-  if (S_ISDIR(sbuf.st_mode)) {
-    *error_msg = StringPrintf("Attempt to mmap directory '%s'", location);
-    return nullptr;
-  }
-  size_t length = sbuf.st_size;
-  UniquePtr<MemMap> map(MemMap::MapFile(length, PROT_READ, MAP_PRIVATE, fd, 0, location,
-                                        error_msg));
-  if (map.get() == nullptr) {
-    DCHECK(!error_msg->empty());
-    close(fd);
-    return nullptr;
-  }
-  close(fd);
 
   if (map->Size() < sizeof(DexFile::Header)) {
     *error_msg = StringPrintf(
@@ -220,7 +221,7 @@ const DexFile* DexFile::OpenZip(int fd, const std::string& location, std::string
     DCHECK(!error_msg->empty());
     return nullptr;
   }
-  return DexFile::Open(*zip_archive.get(), location, error_msg);
+  return DexFile::Open(*zip_archive, location, error_msg);
 }
 
 const DexFile* DexFile::OpenMemory(const std::string& location,
