@@ -423,13 +423,9 @@ class CommonTest : public testing::Test {
 
       InstructionSet instruction_set = kNone;
 
-      // take the default set of instruction features from the build if present
+      // Take the default set of instruction features from the build.
       InstructionSetFeatures instruction_set_features =
-#ifdef ART_DEFAULT_INSTRUCTION_SET_FEATURES
-        ParseFeatureList(STRINGIFY(ART_DEFAULT_INSTRUCTION_SET_FEATURES));
-#else
-        ParseFeatureList("default");
-#endif
+          ParseFeatureList(STRINGIFY(ART_DEFAULT_INSTRUCTION_SET_FEATURES));
 
 #if defined(__arm__)
       instruction_set = kThumb2;
