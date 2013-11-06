@@ -56,10 +56,10 @@ bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
   bool is_initialized = klass->IsInitialized();
   for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
     mirror::ArtMethod* method = klass->GetDirectMethod(i);
-    if (!method->IsAbstract()) {
+    if (!method->IsAbstract() && !method->IsProxyMethod()) {
       const void* new_code;
       if (uninstall) {
-        if (forced_interpret_only_ && !method->IsNative() && !method->IsProxyMethod()) {
+        if (forced_interpret_only_ && !method->IsNative()) {
           new_code = GetCompiledCodeToInterpreterBridge();
         } else if (is_initialized || !method->IsStatic() || method->IsConstructor()) {
           new_code = class_linker->GetOatCodeFor(method);
@@ -78,10 +78,10 @@ bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
   }
   for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
     mirror::ArtMethod* method = klass->GetVirtualMethod(i);
-    if (!method->IsAbstract()) {
+    if (!method->IsAbstract() && !method->IsProxyMethod()) {
       const void* new_code;
       if (uninstall) {
-        if (forced_interpret_only_ && !method->IsNative() && !method->IsProxyMethod()) {
+        if (forced_interpret_only_ && !method->IsNative()) {
           new_code = GetCompiledCodeToInterpreterBridge();
         } else {
           new_code = class_linker->GetOatCodeFor(method);
