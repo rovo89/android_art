@@ -89,28 +89,46 @@
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     lw     $ra, 60($sp)
+    .cfi_restore 31
     lw     $s8, 56($sp)
+    .cfi_restore 30
     lw     $gp, 52($sp)
+    .cfi_restore 28
     lw     $s7, 48($sp)
+    .cfi_restore 23
     lw     $s6, 44($sp)
+    .cfi_restore 22
     lw     $s5, 40($sp)
+    .cfi_restore 21
     lw     $s4, 36($sp)
+    .cfi_restore 20
     lw     $s3, 32($sp)
+    .cfi_restore 19
     lw     $s2, 28($sp)
+    .cfi_restore 18
     addiu  $sp, $sp, 64
     .cfi_adjust_cfa_offset -64
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
     lw     $ra, 60($sp)
+    .cfi_restore 31
     lw     $s8, 56($sp)
+    .cfi_restore 30
     lw     $gp, 52($sp)
+    .cfi_restore 28
     lw     $s7, 48($sp)
+    .cfi_restore 23
     lw     $s6, 44($sp)
+    .cfi_restore 22
     lw     $s5, 40($sp)
+    .cfi_restore 21
     lw     $s4, 36($sp)
+    .cfi_restore 20
     lw     $s3, 32($sp)
+    .cfi_restore 19
     lw     $s2, 28($sp)
+    .cfi_restore 18
     jr     $ra
     addiu  $sp, $sp, 64
     .cfi_adjust_cfa_offset -64
@@ -153,17 +171,29 @@
 
 .macro RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     lw     $ra, 60($sp)
+    .cfi_restore 31
     lw     $s8, 56($sp)
+    .cfi_restore 30
     lw     $gp, 52($sp)
+    .cfi_restore 28
     lw     $s7, 48($sp)
+    .cfi_restore 23
     lw     $s6, 44($sp)
+    .cfi_restore 22
     lw     $s5, 40($sp)
+    .cfi_restore 21
     lw     $s4, 36($sp)
+    .cfi_restore 20
     lw     $s3, 32($sp)
+    .cfi_restore 19
     lw     $s2, 28($sp)
+    .cfi_restore 18
     lw     $a3, 12($sp)
+    .cfi_restore 7
     lw     $a2, 8($sp)
+    .cfi_restore 6
     lw     $a1, 4($sp)
+    .cfi_restore 5
     addiu  $sp, $sp, 64           # pop frame
     .cfi_adjust_cfa_offset -64
 .endm
@@ -463,9 +493,13 @@ ENTRY art_quick_invoke_stub
     sw    $zero, 0($sp)         # store NULL for method* at bottom of frame
     move  $sp, $fp              # restore the stack
     lw    $s0, 0($sp)
+    .cfi_restore 16
     lw    $s1, 4($sp)
+    .cfi_restore 17
     lw    $fp, 8($sp)
+    .cfi_restore 30
     lw    $ra, 12($sp)
+    .cfi_restore 31
     addiu $sp, $sp, 16
     .cfi_adjust_cfa_offset -16
     lw    $t0, 16($sp)          # get result pointer

@@ -16,14 +16,19 @@
 
 #include "asm_support_x86.S"
 
+// For x86, the CFA is esp+4, the address above the pushed return address on the stack.
+
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveAll)
      */
 MACRO0(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME)
     PUSH edi  // Save callee saves (ebx is saved/restored by the upcall)
+    .cfi_rel_offset edi, -8
     PUSH esi
+    .cfi_rel_offset esi, -12
     PUSH ebp
+    .cfi_rel_offset ebp, -16
     subl  MACRO_LITERAL(16), %esp  // Grow stack by 4 words, bottom word will hold Method*
     .cfi_adjust_cfa_offset 16
 END_MACRO
@@ -34,8 +39,11 @@ END_MACRO
      */
 MACRO0(SETUP_REF_ONLY_CALLEE_SAVE_FRAME)
     PUSH edi  // Save callee saves (ebx is saved/restored by the upcall)
+     .cfi_rel_offset edi, -8
     PUSH esi
+    .cfi_rel_offset esi, -12
     PUSH ebp
+     .cfi_rel_offset ebp, -16
     subl  MACRO_LITERAL(16), %esp  // Grow stack by 4 words, bottom word will hold Method*
     .cfi_adjust_cfa_offset 16
 END_MACRO
@@ -43,8 +51,11 @@ END_MACRO
 MACRO0(RESTORE_REF_ONLY_CALLEE_SAVE_FRAME)
     addl MACRO_LITERAL(16), %esp  // Unwind stack up to return address
     POP ebp  // Restore callee saves (ebx is saved/restored by the upcall)
+    .cfi_restore ebp
     POP esi
+    .cfi_restore esi
     POP edi
+    .cfi_restore edi
     .cfi_adjust_cfa_offset -28
 END_MACRO
 
@@ -54,23 +65,36 @@ END_MACRO
      */
 MACRO0(SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME)
     PUSH edi  // Save callee saves
+    .cfi_rel_offset edi, -8
     PUSH esi
+    .cfi_rel_offset esi, -12
     PUSH ebp
+    .cfi_rel_offset ebp, -16
     PUSH ebx  // Save args
+    .cfi_rel_offset ebx, -20
     PUSH edx
+    .cfi_rel_offset edx, -24
     PUSH ecx
+    .cfi_rel_offset ecx, -28
     PUSH eax   // Align stack, eax will be clobbered by Method*
+    .cfi_rel_offset eax, -28
 END_MACRO
 
 MACRO0(RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME)
     addl MACRO_LITERAL(4), %esp  // Remove padding
     .cfi_adjust_cfa_offset -4
     POP ecx  // Restore args except eax
+    .cfi_restore ecx
     POP edx
+    .cfi_restore edx
     POP ebx
+    .cfi_restore ebx
     POP ebp  // Restore callee saves
+    .cfi_restore ebp
     POP esi
+    .cfi_restore esi
     POP edi
+    .cfi_restore edi
 END_MACRO
 
     /*
@@ -188,12 +212,19 @@ MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
     // Set up the callee save frame to conform with Runtime::CreateCalleeSaveMethod(kRefsAndArgs)
     // return address
     PUSH edi
+    .cfi_rel_offset edi, -8
     PUSH esi
+    .cfi_rel_offset esi, -12
     PUSH ebp
-    PUSH ebx
+    .cfi_rel_offset ebp, -16
+    PUSH ebx  // Save args
+    .cfi_rel_offset ebx, -20
     PUSH edx
+    .cfi_rel_offset edx, -24
     PUSH ecx
-    PUSH eax   // <-- callee save Method* to go here
+    .cfi_rel_offset ecx, -28
+    PUSH eax    // <-- callee save Method* to go here
+    .cfi_rel_offset eax, -32
     movl %esp, %edx  // remember SP
     // Outgoing argument set up
     subl MACRO_LITERAL(12), %esp  // alignment padding
@@ -209,11 +240,16 @@ MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
     movl %edx, %edi               // save code pointer in EDI
     addl MACRO_LITERAL(36), %esp  // Pop arguments skip eax
     .cfi_adjust_cfa_offset -36
-    POP ecx                       // Restore args
+    POP ecx  // Restore args except eax
+    .cfi_restore ecx
     POP edx
+    .cfi_restore edx
     POP ebx
-    POP ebp  // Restore callee saves.
+    .cfi_restore ebx
+    POP ebp  // Restore callee saves
+    .cfi_restore ebp
     POP esi
+    .cfi_restore esi
     // Swap EDI callee save with code pointer.
     xchgl %edi, (%esp)
     testl %eax, %eax              // Branch forward if exception pending.
@@ -248,7 +284,9 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
      */
 DEFINE_FUNCTION art_quick_invoke_stub
     PUSH ebp                      // save ebp
+    .cfi_rel_offset ebp, -8
     PUSH ebx                      // save ebx
+    .cfi_rel_offset ebx, -12
     mov %esp, %ebp                // copy value of stack pointer into base pointer
     .cfi_def_cfa_register ebp
     mov 20(%ebp), %ebx            // get arg array size
@@ -269,8 +307,11 @@ DEFINE_FUNCTION art_quick_invoke_stub
     mov 12(%esp), %ebx            // copy arg3 into ebx
     call *METHOD_CODE_OFFSET(%eax) // call the method
     mov %ebp, %esp                // restore stack pointer
+    .cfi_def_cfa_register esp
     POP ebx                       // pop ebx
+    .cfi_restore ebx
     POP ebp                       // pop ebp
+    .cfi_restore ebp
     mov 20(%esp), %ecx            // get result pointer
     cmpl LITERAL(68), 24(%esp)    // test if result type char == 'D'
     je return_double_quick
@@ -495,7 +536,9 @@ END_FUNCTION art_quick_is_assignable
 DEFINE_FUNCTION art_quick_check_cast
     PUSH eax                     // alignment padding
     PUSH ecx                     // pass arg2 - obj->klass
+    .cfi_rel_offset ecx, -12
     PUSH eax                     // pass arg1 - checked class
+    .cfi_rel_offset eax, -16
     call SYMBOL(artIsAssignableFromCode)  // (Class* klass, Class* ref_klass)
     testl %eax, %eax
     jz 1f                         // jump forward if not assignable
@@ -504,7 +547,9 @@ DEFINE_FUNCTION art_quick_check_cast
     ret
 1:
     POP eax                       // pop arguments
+    .cfi_restore eax
     POP ecx
+    .cfi_restore ecx
     addl LITERAL(4), %esp
     .cfi_adjust_cfa_offset -12
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context

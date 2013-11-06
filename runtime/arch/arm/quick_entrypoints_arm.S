@@ -69,12 +69,24 @@
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     add sp, #4               @ bottom word holds Method*
     pop {r5-r8, r10-r11, lr} @ 7 words of callee saves
+    .cfi_restore r5
+    .cfi_restore r6
+    .cfi_restore r7
+    .cfi_restore r8
+    .cfi_restore r10
+    .cfi_restore r11
     .cfi_adjust_cfa_offset -32
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
     add sp, #4               @ bottom word holds Method*
     pop {r5-r8, r10-r11, lr} @ 7 words of callee saves
+    .cfi_restore r5
+    .cfi_restore r6
+    .cfi_restore r7
+    .cfi_restore r8
+    .cfi_restore r10
+    .cfi_restore r11
     .cfi_adjust_cfa_offset -32
     bx  lr                   @ return
 .endm
@@ -86,7 +98,6 @@
 .macro SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     push {r1-r3, r5-r8, r10-r11, lr}  @ 10 words of callee saves
     .save {r1-r3, r5-r8, r10-r11, lr}
-    .cfi_adjust_cfa_offset 40
     .cfi_rel_offset r1, 0
     .cfi_rel_offset r2, 4
     .cfi_rel_offset r3, 8
@@ -97,6 +108,7 @@
     .cfi_rel_offset r10, 28
     .cfi_rel_offset r11, 32
     .cfi_rel_offset lr, 36
+    .cfi_adjust_cfa_offset 40
     sub sp, #8                        @ 2 words of space, bottom word will hold Method*
     .pad #8
     .cfi_adjust_cfa_offset 8
@@ -105,6 +117,15 @@
 .macro RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     add  sp, #8                      @ rewind sp
     pop {r1-r3, r5-r8, r10-r11, lr}  @ 10 words of callee saves
+    .cfi_restore r1
+    .cfi_restore r2
+    .cfi_restore r3
+    .cfi_restore r5
+    .cfi_restore r6
+    .cfi_restore r7
+    .cfi_restore r8
+    .cfi_restore r10
+    .cfi_restore r11
     .cfi_adjust_cfa_offset -48
 .endm
 
@@ -285,6 +306,11 @@ ENTRY art_quick_invoke_stub
     ldr    ip, [sp, #24]                   @ load the result pointer
     strd   r0, [ip]                        @ store r0/r1 into result pointer
     pop    {r0, r4, r5, r9, r11, lr}       @ restore spill regs
+    .cfi_restore r0
+    .cfi_restore r4
+    .cfi_restore r5
+    .cfi_restore r9
+    .cfi_restore lr
     .cfi_adjust_cfa_offset -24
     bx     lr
 END art_quick_invoke_stub
@@ -413,6 +439,8 @@ throw_class_cast_exception:
     add sp, #4
     .cfi_adjust_cfa_offset -4
     pop {r0-r1, lr}
+    .cfi_restore r0
+    .cfi_restore r1
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
     mov r2, r9                      @ pass Thread::Current
     mov r3, sp                      @ pass SP
@@ -689,6 +717,7 @@ ENTRY art_quick_set64_static
     .cfi_rel_offset r9, 0
     bl     artSet64StaticFromCode        @ (field_idx, referrer, new_val, Thread*, SP)
     add    sp, #16                       @ release out args
+    .cfi_adjust_cfa_offset -16
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME   @ TODO: we can clearly save an add here
     RETURN_IF_RESULT_IS_ZERO
     DELIVER_PENDING_EXCEPTION
@@ -1137,6 +1166,8 @@ art_quick_instrumentation_exit:
     mov   r2, r0         @ link register saved by instrumentation
     mov   lr, r1         @ r1 is holding link register if we're to bounce to deoptimize
     pop   {r0, r1}       @ restore return value
+    .cfi_restore r0
+    .cfi_restore r1
     add sp, #32          @ remove callee save frame
     .cfi_adjust_cfa_offset -32
     bx    r2             @ return
@@ -1187,6 +1218,8 @@ ENTRY art_quick_mul_long
     mov     r1,r10
     pop     {r9 - r10}
     .cfi_adjust_cfa_offset -8
+    .cfi_restore r9
+    .cfi_restore r10
     bx      lr
 END art_quick_mul_long
 
