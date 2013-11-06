@@ -237,7 +237,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   CHECK_NE(max_allowed_footprint_, 0U);
 
   if (running_on_valgrind_) {
-    Runtime::Current()->InstrumentQuickAllocEntryPoints();
+    Runtime::Current()->GetInstrumentation()->InstrumentQuickAllocEntryPoints();
   }
 
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {

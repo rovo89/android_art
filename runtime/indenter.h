@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_INDENTER_H_
 #define ART_RUNTIME_INDENTER_H_
 
+#include "base/logging.h"
 #include "base/macros.h"
 #include <streambuf>
 
@@ -30,16 +31,28 @@ class Indenter : public std::streambuf {
 
  private:
   int_type overflow(int_type c) {
-    if (c != std::char_traits<char>::eof()) {
-      if (indent_next_) {
-        for (size_t i = 0; i < count_; ++i) {
-          out_sbuf_->sputc(text_);
+    if (UNLIKELY(c == std::char_traits<char>::eof())) {
+      out_sbuf_->pubsync();
+      return c;
+    }
+    if (indent_next_) {
+      for (size_t i = 0; i < count_; ++i) {
+        int_type r = out_sbuf_->sputc(text_);
+        if (UNLIKELY(r != text_)) {
+          out_sbuf_->pubsync();
+          r = out_sbuf_->sputc(text_);
+          CHECK_EQ(r, text_) << "Error writing to buffer. Disk full?";
         }
       }
-      out_sbuf_->sputc(c);
-      indent_next_ = (c == '\n');
     }
-    return std::char_traits<char>::not_eof(c);
+    indent_next_ = (c == '\n');
+    int_type r = out_sbuf_->sputc(c);
+    if (UNLIKELY(r != c)) {
+      out_sbuf_->pubsync();
+      r = out_sbuf_->sputc(c);
+      CHECK_EQ(r, c) << "Error writing to buffer. Disk full?";
+    }
+    return r;
   }
 
   int sync() {
