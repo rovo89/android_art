@@ -39,6 +39,9 @@
 #include "thread_list.h"
 
 namespace art {
+
+extern void SetQuickAllocEntryPointsInstrumented(bool instrumented);
+
 namespace instrumentation {
 
 // Do we want to deoptimize for method entry and exit listeners or just try to intercept
@@ -388,6 +391,55 @@ void Instrumentation::ConfigureStubs(bool require_entry_exit_stubs, bool require
     instrumentation_stubs_installed_ = false;
     MutexLock mu(self, *Locks::thread_list_lock_);
     Runtime::Current()->GetThreadList()->ForEach(InstrumentationRestoreStack, this);
+  }
+}
+
+static void ResetQuickAllocEntryPointsForThread(Thread* thread, void* arg) {
+  thread->ResetQuickAllocEntryPointsForThread();
+}
+
+void Instrumentation::InstrumentQuickAllocEntryPoints() {
+  // TODO: the read of quick_alloc_entry_points_instrumentation_counter_ is racey and this code
+  //       should be guarded by a lock.
+  DCHECK_GE(quick_alloc_entry_points_instrumentation_counter_, 0U);
+  bool enable_instrumentation = (quick_alloc_entry_points_instrumentation_counter_ == 0);
+  quick_alloc_entry_points_instrumentation_counter_++;
+  if (enable_instrumentation) {
+    // Instrumentation wasn't enabled so enable it.
+    SetQuickAllocEntryPointsInstrumented(true);
+    Runtime* runtime = Runtime::Current();
+    if (runtime->IsStarted()) {
+      ThreadList* tl = runtime->GetThreadList();
+      Thread* self = Thread::Current();
+      tl->SuspendAll();
+      {
+        MutexLock mu(self, *Locks::thread_list_lock_);
+        tl->ForEach(ResetQuickAllocEntryPointsForThread, NULL);
+      }
+      tl->ResumeAll();
+    }
+  }
+}
+
+void Instrumentation::UninstrumentQuickAllocEntryPoints() {
+  // TODO: the read of quick_alloc_entry_points_instrumentation_counter_ is racey and this code
+  //       should be guarded by a lock.
+  DCHECK_GT(quick_alloc_entry_points_instrumentation_counter_, 0U);
+  quick_alloc_entry_points_instrumentation_counter_--;
+  bool disable_instrumentation = (quick_alloc_entry_points_instrumentation_counter_ == 0);
+  if (disable_instrumentation) {
+    SetQuickAllocEntryPointsInstrumented(false);
+    Runtime* runtime = Runtime::Current();
+    if (runtime->IsStarted()) {
+      ThreadList* tl = Runtime::Current()->GetThreadList();
+      Thread* self = Thread::Current();
+      tl->SuspendAll();
+      {
+        MutexLock mu(self, *Locks::thread_list_lock_);
+        tl->ForEach(ResetQuickAllocEntryPointsForThread, NULL);
+      }
+      tl->ResumeAll();
+    }
   }
 }
 

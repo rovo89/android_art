@@ -3489,9 +3489,9 @@ void Dbg::SetAllocTrackingEnabled(bool enabled) {
       recent_allocation_records_ = new AllocRecord[gAllocRecordMax];
       CHECK(recent_allocation_records_ != NULL);
     }
-    Runtime::Current()->InstrumentQuickAllocEntryPoints();
+    Runtime::Current()->GetInstrumentation()->InstrumentQuickAllocEntryPoints();
   } else {
-    Runtime::Current()->UninstrumentQuickAllocEntryPoints();
+    Runtime::Current()->GetInstrumentation()->UninstrumentQuickAllocEntryPoints();
     delete[] recent_allocation_records_;
     recent_allocation_records_ = NULL;
   }

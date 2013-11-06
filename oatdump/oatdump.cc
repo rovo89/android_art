@@ -712,14 +712,25 @@ class ImageDumper {
         if (image_root_object->IsObjectArray()) {
           Indenter indent2_filter(indent1_os.rdbuf(), kIndentChar, kIndentBy1Count);
           std::ostream indent2_os(&indent2_filter);
-          // TODO: replace down_cast with AsObjectArray (g++ currently has a problem with this)
           mirror::ObjectArray<mirror::Object>* image_root_object_array
-              = down_cast<mirror::ObjectArray<mirror::Object>*>(image_root_object);
-          //  = image_root_object->AsObjectArray<Object>();
+              = image_root_object->AsObjectArray<mirror::Object>();
           for (int i = 0; i < image_root_object_array->GetLength(); i++) {
             mirror::Object* value = image_root_object_array->Get(i);
+            size_t run = 0;
+            for (int32_t j = i + 1; j < image_root_object_array->GetLength(); j++) {
+              if (value == image_root_object_array->Get(j)) {
+                run++;
+              } else {
+                break;
+              }
+            }
+            if (run == 0) {
+              indent2_os << StringPrintf("%d: ", i);
+            } else {
+              indent2_os << StringPrintf("%d to %zd: ", i, i + run);
+              i = i + run;
+            }
             if (value != NULL) {
-              indent2_os << i << ": ";
               PrettyObjectValue(indent2_os, value->GetClass(), value);
             } else {
               indent2_os << i << ": null\n";
