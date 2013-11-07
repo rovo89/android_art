@@ -122,7 +122,7 @@ class ElfFile {
 
   bool Setup(File* file, bool writable, bool program_header_only, std::string* error_msg);
 
-  bool SetMap(MemMap* map);
+  bool SetMap(MemMap* map, std::string* error_msg);
 
   byte* GetProgramHeadersStart();
   byte* GetSectionHeadersStart();
