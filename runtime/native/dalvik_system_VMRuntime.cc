@@ -485,6 +485,21 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
   }
 }
 
+
+/*
+ * This is called by the framework when it knows the application directory and
+ * process name.  We use this information to start up the sampling profiler for
+ * for ART.
+ */
+static void VMRuntime_registerAppInfo(JNIEnv* env, jclass, jstring appDir, jstring procName) {
+  const char *appDirChars = env->GetStringUTFChars(appDir, NULL);
+  const char *procNameChars = env->GetStringUTFChars(procName, NULL);
+  std::string profileFile = std::string(appDirChars) + "/art-profile-" + std::string(procNameChars);
+  Runtime::Current()->StartProfiler(profileFile.c_str());
+  env->ReleaseStringUTFChars(appDir, appDirChars);
+  env->ReleaseStringUTFChars(procName, procNameChars);
+}
+
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, addressOf, "!(Ljava/lang/Object;)J"),
   NATIVE_METHOD(VMRuntime, bootClassPath, "()Ljava/lang/String;"),
@@ -506,6 +521,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, vmVersion, "()Ljava/lang/String;"),
   NATIVE_METHOD(VMRuntime, vmLibrary, "()Ljava/lang/String;"),
   NATIVE_METHOD(VMRuntime, preloadDexCaches, "()V"),
+  NATIVE_METHOD(VMRuntime, registerAppInfo, "(Ljava/lang/String;Ljava/lang/String;)V"),
 };
 
 void register_dalvik_system_VMRuntime(JNIEnv* env) {

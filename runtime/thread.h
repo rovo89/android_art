@@ -133,7 +133,17 @@ class PACKED(4) Thread {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ThreadState GetState() const {
+    DCHECK(state_and_flags_.as_struct.state >= kTerminated && state_and_flags_.as_struct.state <= kSuspended);
     return static_cast<ThreadState>(state_and_flags_.as_struct.state);
+  }
+
+  // This function can be used to make sure a thread's state is valid.
+  void CheckState(int id) const {
+    if (state_and_flags_.as_struct.state >= kTerminated && state_and_flags_.as_struct.state <= kSuspended) {
+      return;
+    }
+    LOG(INFO) << "Thread " << this << " state is invalid: " << state_and_flags_.as_struct.state << " id=" << id;
+    CHECK(false);
   }
 
   ThreadState SetState(ThreadState new_state);
@@ -780,9 +790,12 @@ class PACKED(4) Thread {
   // Cause for last suspension.
   const char* last_no_thread_suspension_cause_;
 
+  // Maximum number of checkpoint functions.
+  static constexpr uint32_t kMaxCheckpoints = 3;
+
   // Pending checkpoint function or NULL if non-pending. Installation guarding by
   // Locks::thread_suspend_count_lock_.
-  Closure* checkpoint_function_;
+  Closure* checkpoint_functions_[kMaxCheckpoints];
 
  public:
   // Entrypoint function pointers
