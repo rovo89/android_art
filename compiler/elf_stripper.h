@@ -17,6 +17,8 @@
 #ifndef ART_COMPILER_ELF_STRIPPER_H_
 #define ART_COMPILER_ELF_STRIPPER_H_
 
+#include <string>
+
 #include "base/macros.h"
 #include "os.h"
 
@@ -26,7 +28,7 @@ class ElfStripper {
  public:
   // Strip an ELF file of unneeded debugging information.
   // Returns true on success, false on failure.
-  static bool Strip(File* file);
+  static bool Strip(File* file, std::string* error_msg);
 
  private:
   DISALLOW_IMPLICIT_CONSTRUCTORS(ElfStripper);

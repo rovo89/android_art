@@ -85,6 +85,8 @@ int X86Mir2Lir::TargetReg(SpecialTargetRegister reg) {
     case kRet0: res = rX86_RET0; break;
     case kRet1: res = rX86_RET1; break;
     case kInvokeTgt: res = rX86_INVOKE_TGT; break;
+    case kHiddenArg: res = rAX; break;
+    case kHiddenFpArg: res = fr0; break;
     case kCount: res = rX86_COUNT; break;
   }
   return res;
@@ -132,37 +134,36 @@ uint64_t X86Mir2Lir::GetPCUseDefEncoding() {
   return 0ULL;
 }
 
-void X86Mir2Lir::SetupTargetResourceMasks(LIR* lir) {
+void X86Mir2Lir::SetupTargetResourceMasks(LIR* lir, uint64_t flags) {
   DCHECK_EQ(cu_->instruction_set, kX86);
+  DCHECK(!lir->flags.use_def_invalid);
 
   // X86-specific resource map setup here.
-  uint64_t flags = X86Mir2Lir::EncodingMap[lir->opcode].flags;
-
   if (flags & REG_USE_SP) {
-    lir->use_mask |= ENCODE_X86_REG_SP;
+    lir->u.m.use_mask |= ENCODE_X86_REG_SP;
   }
 
   if (flags & REG_DEF_SP) {
-    lir->def_mask |= ENCODE_X86_REG_SP;
+    lir->u.m.def_mask |= ENCODE_X86_REG_SP;
   }
 
   if (flags & REG_DEFA) {
-    SetupRegMask(&lir->def_mask, rAX);
+    SetupRegMask(&lir->u.m.def_mask, rAX);
   }
 
   if (flags & REG_DEFD) {
-    SetupRegMask(&lir->def_mask, rDX);
+    SetupRegMask(&lir->u.m.def_mask, rDX);
   }
   if (flags & REG_USEA) {
-    SetupRegMask(&lir->use_mask, rAX);
+    SetupRegMask(&lir->u.m.use_mask, rAX);
   }
 
   if (flags & REG_USEC) {
-    SetupRegMask(&lir->use_mask, rCX);
+    SetupRegMask(&lir->u.m.use_mask, rCX);
   }
 
   if (flags & REG_USED) {
-    SetupRegMask(&lir->use_mask, rDX);
+    SetupRegMask(&lir->u.m.use_mask, rDX);
   }
 }
 
@@ -224,7 +225,7 @@ std::string X86Mir2Lir::BuildInsnString(const char *fmt, LIR *lir, unsigned char
             buf += StringPrintf("%d", operand);
             break;
           case 'p': {
-            SwitchTable *tab_rec = reinterpret_cast<SwitchTable*>(operand);
+            EmbeddedData *tab_rec = reinterpret_cast<EmbeddedData*>(UnwrapPointer(operand));
             buf += StringPrintf("0x%08x", tab_rec->offset);
             break;
           }
@@ -239,7 +240,7 @@ std::string X86Mir2Lir::BuildInsnString(const char *fmt, LIR *lir, unsigned char
             break;
           case 't':
             buf += StringPrintf("0x%08x (L%p)",
-                                reinterpret_cast<uint32_t>(base_addr)
+                                reinterpret_cast<uintptr_t>(base_addr)
                                 + lir->offset + operand, lir->target);
             break;
           default:
@@ -275,8 +276,8 @@ void X86Mir2Lir::DumpResourceMask(LIR *x86LIR, uint64_t mask, const char *prefix
     }
     /* Memory bits */
     if (x86LIR && (mask & ENCODE_DALVIK_REG)) {
-      sprintf(buf + strlen(buf), "dr%d%s", x86LIR->alias_info & 0xffff,
-              (x86LIR->alias_info & 0x80000000) ? "(+1)" : "");
+      sprintf(buf + strlen(buf), "dr%d%s", DECODE_ALIAS_INFO_REG(x86LIR->flags.alias_info),
+              (DECODE_ALIAS_INFO_WIDE(x86LIR->flags.alias_info)) ? "(+1)" : "");
     }
     if (mask & ENCODE_LITERAL) {
       strcat(buf, "lit ");
@@ -373,11 +374,6 @@ RegLocation X86Mir2Lir::GetReturnAlt() {
   Clobber(rDX);
   MarkInUse(rDX);
   return res;
-}
-
-X86Mir2Lir::RegisterInfo* X86Mir2Lir::GetRegInfo(int reg) {
-  return X86_FPREG(reg) ? &reg_pool_->FPRegs[reg & X86_FP_REG_MASK]
-                    : &reg_pool_->core_regs[reg];
 }
 
 /* To be used when explicitly managing register use */
@@ -530,14 +526,17 @@ int X86Mir2Lir::LoadHelper(ThreadOffset offset) {
 }
 
 uint64_t X86Mir2Lir::GetTargetInstFlags(int opcode) {
+  DCHECK(!IsPseudoLirOp(opcode));
   return X86Mir2Lir::EncodingMap[opcode].flags;
 }
 
 const char* X86Mir2Lir::GetTargetInstName(int opcode) {
+  DCHECK(!IsPseudoLirOp(opcode));
   return X86Mir2Lir::EncodingMap[opcode].name;
 }
 
 const char* X86Mir2Lir::GetTargetInstFmt(int opcode) {
+  DCHECK(!IsPseudoLirOp(opcode));
   return X86Mir2Lir::EncodingMap[opcode].fmt;
 }
 

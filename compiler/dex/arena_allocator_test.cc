@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Android Open Source Project
+ * Copyright (C) 2013 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,27 +14,20 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_DISASSEMBLER_MIPS_H_
-#define ART_RUNTIME_DISASSEMBLER_MIPS_H_
-
-#include <vector>
-
-#include "disassembler.h"
+#include "arena_allocator.h"
+#include "arena_bit_vector.h"
+#include "gtest/gtest.h"
 
 namespace art {
-namespace mips {
 
-class DisassemblerMips : public Disassembler {
- public:
-  DisassemblerMips();
-  virtual size_t Dump(std::ostream& os, const uint8_t* begin);
-  virtual void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end);
+TEST(ArenaAllocator, Test) {
+  ArenaPool pool;
+  ArenaAllocator arena(&pool);
+  ArenaBitVector bv(&arena, 10, true);
+  bv.SetBit(5);
+  EXPECT_EQ(1U, bv.GetStorageSize());
+  bv.SetBit(35);
+  EXPECT_EQ(2U, bv.GetStorageSize());
+}
 
- private:
-  DISALLOW_COPY_AND_ASSIGN(DisassemblerMips);
-};
-
-}  // namespace mips
 }  // namespace art
-
-#endif  // ART_RUNTIME_DISASSEMBLER_MIPS_H_

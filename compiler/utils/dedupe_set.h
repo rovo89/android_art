@@ -18,62 +18,66 @@
 #define ART_COMPILER_UTILS_DEDUPE_SET_H_
 
 #include <set>
+#include <string>
 
 #include "base/mutex.h"
 #include "base/stl_util.h"
+#include "base/stringprintf.h"
 
 namespace art {
 
-// A simple data structure to handle hashed deduplication. Add is thread safe.
-template <typename Key, typename HashType, typename HashFunc>
+// A set of Keys that support a HashFunc returning HashType. Used to find duplicates of Key in the
+// Add method. The data-structure is thread-safe through the use of internal locks, it also
+// supports the lock being sharded.
+template <typename Key, typename HashType, typename HashFunc, HashType kShard = 1>
 class DedupeSet {
   typedef std::pair<HashType, Key*> HashedKey;
 
   class Comparator {
    public:
     bool operator()(const HashedKey& a, const HashedKey& b) const {
-      if (a.first < b.first) return true;
-      if (a.first > b.first) return true;
-      return *a.second < *b.second;
+      if (a.first != b.first) {
+        return a.first < b.first;
+      } else {
+        return *a.second < *b.second;
+      }
     }
   };
 
-  typedef std::set<HashedKey, Comparator> Keys;
-
  public:
-  typedef typename Keys::iterator iterator;
-  typedef typename Keys::const_iterator const_iterator;
-  typedef typename Keys::size_type size_type;
-  typedef typename Keys::value_type value_type;
-
-  iterator begin() { return keys_.begin(); }
-  const_iterator begin() const { return keys_.begin(); }
-  iterator end() { return keys_.end(); }
-  const_iterator end() const { return keys_.end(); }
-
   Key* Add(Thread* self, const Key& key) {
-    HashType hash = HashFunc()(key);
-    HashedKey hashed_key(hash, const_cast<Key*>(&key));
-    MutexLock lock(self, lock_);
-    auto it = keys_.find(hashed_key);
-    if (it != keys_.end()) {
+    HashType raw_hash = HashFunc()(key);
+    HashType shard_hash = raw_hash / kShard;
+    HashType shard_bin = raw_hash % kShard;
+    HashedKey hashed_key(shard_hash, const_cast<Key*>(&key));
+    MutexLock lock(self, *lock_[shard_bin]);
+    auto it = keys_[shard_bin].find(hashed_key);
+    if (it != keys_[shard_bin].end()) {
       return it->second;
     }
     hashed_key.second = new Key(key);
-    keys_.insert(hashed_key);
+    keys_[shard_bin].insert(hashed_key);
     return hashed_key.second;
   }
 
-  DedupeSet() : lock_("dedupe lock") {
+  explicit DedupeSet(const char* set_name) {
+    for (HashType i = 0; i < kShard; ++i) {
+      lock_name_[i] = StringPrintf("%s lock %d", set_name, i);
+      lock_[i].reset(new Mutex(lock_name_[i].c_str()));
+    }
   }
 
   ~DedupeSet() {
-    STLDeleteValues(&keys_);
+    for (HashType i = 0; i < kShard; ++i) {
+      STLDeleteValues(&keys_[i]);
+    }
   }
 
  private:
-  Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  Keys keys_;
+  std::string lock_name_[kShard];
+  UniquePtr<Mutex> lock_[kShard];
+  std::set<HashedKey, Comparator> keys_[kShard];
+
   DISALLOW_COPY_AND_ASSIGN(DedupeSet);
 };
 

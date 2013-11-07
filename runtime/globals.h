@@ -30,30 +30,30 @@ const size_t KB = 1024;
 const size_t MB = KB * KB;
 const size_t GB = KB * KB * KB;
 
-const int kWordSize = sizeof(word);
-const int kPointerSize = sizeof(void*);
+const size_t kWordSize = sizeof(word);
+const size_t kPointerSize = sizeof(void*);
 
-const int kBitsPerByte = 8;
-const int kBitsPerByteLog2 = 3;
+const size_t kBitsPerByte = 8;
+const size_t kBitsPerByteLog2 = 3;
 const int kBitsPerWord = kWordSize * kBitsPerByte;
-const int kWordHighBitMask = 1 << (kBitsPerWord - 1);
+const size_t kWordHighBitMask = 1 << (kBitsPerWord - 1);
 
 // Required stack alignment
-const int kStackAlignment = 16;
+const size_t kStackAlignment = 16;
 
 // Required object alignment
-const int kObjectAlignment = 8;
+const size_t kObjectAlignment = 8;
 
 // ARM instruction alignment. ARM processors require code to be 4-byte aligned,
 // but ARM ELF requires 8..
-const int kArmAlignment = 8;
+const size_t kArmAlignment = 8;
 
 // MIPS instruction alignment.  MIPS processors require code to be 4-byte aligned.
 // TODO: Can this be 4?
-const int kMipsAlignment = 8;
+const size_t kMipsAlignment = 8;
 
 // X86 instruction alignment. This is the recommended alignment for maximum performance.
-const int kX86Alignment = 16;
+const size_t kX86Alignment = 16;
 
 // System page size. We check this against sysconf(_SC_PAGE_SIZE) at runtime, but use a simple
 // compile-time constant so the compiler can generate better code.

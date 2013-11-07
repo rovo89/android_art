@@ -228,6 +228,7 @@ static jmethodID FindMethodID(ScopedObjectAccess& soa, jclass jni_class,
                               const char* name, const char* sig, bool is_static)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Class* c = soa.Decode<Class*>(jni_class);
+  DCHECK(c != nullptr);
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
     return NULL;
   }
@@ -324,14 +325,14 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
   return soa.EncodeField(field);
 }
 
-static void PinPrimitiveArray(const ScopedObjectAccess& soa, const Array* array)
+static void PinPrimitiveArray(const ScopedObjectAccess& soa, Array* array)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   JavaVMExt* vm = soa.Vm();
   MutexLock mu(soa.Self(), vm->pins_lock);
   vm->pin_table.Add(array);
 }
 
-static void UnpinPrimitiveArray(const ScopedObjectAccess& soa, const Array* array)
+static void UnpinPrimitiveArray(const ScopedObjectAccess& soa, Array* array)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   JavaVMExt* vm = soa.Vm();
   MutexLock mu(soa.Self(), vm->pins_lock);
@@ -450,7 +451,7 @@ class SharedLibrary {
         class_loader_(class_loader),
         jni_on_load_lock_("JNI_OnLoad lock"),
         jni_on_load_cond_("JNI_OnLoad condition variable", jni_on_load_lock_),
-        jni_on_load_thread_id_(Thread::Current()->GetThinLockId()),
+        jni_on_load_thread_id_(Thread::Current()->GetThreadId()),
         jni_on_load_result_(kPending) {
   }
 
@@ -475,7 +476,7 @@ class SharedLibrary {
     {
       MutexLock mu(self, jni_on_load_lock_);
 
-      if (jni_on_load_thread_id_ == self->GetThinLockId()) {
+      if (jni_on_load_thread_id_ == self->GetThreadId()) {
         // Check this so we don't end up waiting for ourselves.  We need to return "true" so the
         // caller can continue.
         LOG(INFO) << *self << " recursive attempt to load library " << "\"" << path_ << "\"";
@@ -1999,7 +2000,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT(GetStringUTFRegion, java_string);
     ScopedObjectAccess soa(env);
     String* s = soa.Decode<String*>(java_string);
-    const CharArray* chars = s->GetCharArray();
+    CharArray* chars = s->GetCharArray();
     PinPrimitiveArray(soa, chars);
     if (is_copy != NULL) {
       *is_copy = JNI_FALSE;
@@ -2356,9 +2357,9 @@ class JNI {
     for (jint i = 0; i < method_count; ++i) {
       const char* name = methods[i].name;
       const char* sig = methods[i].signature;
-
+      bool is_fast = false;
       if (*sig == '!') {
-        // TODO: fast jni. it's too noisy to log all these.
+        is_fast = true;
         ++sig;
       }
 
@@ -2381,7 +2382,7 @@ class JNI {
 
       VLOG(jni) << "[Registering JNI native method " << PrettyMethod(m) << "]";
 
-      m->RegisterNative(soa.Self(), methods[i].fnPtr);
+      m->RegisterNative(soa.Self(), methods[i].fnPtr, is_fast);
     }
     return JNI_OK;
   }
@@ -3081,15 +3082,6 @@ void JavaVMExt::AllowNewWeakGlobals() {
   weak_globals_add_condition_.Broadcast(self);
 }
 
-void JavaVMExt::SweepWeakGlobals(IsMarkedTester is_marked, void* arg) {
-  MutexLock mu(Thread::Current(), weak_globals_lock_);
-  for (const Object** entry : weak_globals_) {
-    if (!is_marked(*entry, arg)) {
-      *entry = kClearedJniWeakGlobal;
-    }
-  }
-}
-
 mirror::Object* JavaVMExt::DecodeWeakGlobal(Thread* self, IndirectRef ref) {
   MutexLock mu(self, weak_globals_lock_);
   while (UNLIKELY(!allow_new_weak_globals_)) {
@@ -3115,8 +3107,8 @@ void JavaVMExt::DumpReferenceTables(std::ostream& os) {
 }
 
 bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_loader,
-                                  std::string& detail) {
-  detail.clear();
+                                  std::string* detail) {
+  detail->clear();
 
   // See if we've already loaded this library.  If we have, and the class loader
   // matches, return successfully without doing anything.
@@ -3134,7 +3126,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
       // The library will be associated with class_loader. The JNI
       // spec says we can't load the same library into more than one
       // class loader.
-      StringAppendF(&detail, "Shared library \"%s\" already opened by "
+      StringAppendF(detail, "Shared library \"%s\" already opened by "
           "ClassLoader %p; can't open in ClassLoader %p",
           path.c_str(), library->GetClassLoader(), class_loader);
       LOG(WARNING) << detail;
@@ -3143,7 +3135,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
     VLOG(jni) << "[Shared library \"" << path << "\" already loaded in "
               << "ClassLoader " << class_loader << "]";
     if (!library->CheckOnLoadResult()) {
-      StringAppendF(&detail, "JNI_OnLoad failed on a previous attempt "
+      StringAppendF(detail, "JNI_OnLoad failed on a previous attempt "
           "to load \"%s\"", path.c_str());
       return false;
     }
@@ -3170,7 +3162,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
   VLOG(jni) << "[Call to dlopen(\"" << path << "\", RTLD_LAZY) returned " << handle << "]";
 
   if (handle == NULL) {
-    detail = dlerror();
+    *detail = dlerror();
     LOG(ERROR) << "dlopen(\"" << path << "\", RTLD_LAZY) failed: " << detail;
     return false;
   }
@@ -3220,9 +3212,9 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
     self->SetClassLoaderOverride(old_class_loader);
 
     if (version == JNI_ERR) {
-      StringAppendF(&detail, "JNI_ERR returned from JNI_OnLoad in \"%s\"", path.c_str());
+      StringAppendF(detail, "JNI_ERR returned from JNI_OnLoad in \"%s\"", path.c_str());
     } else if (IsBadJniVersion(version)) {
-      StringAppendF(&detail, "Bad JNI version returned from JNI_OnLoad in \"%s\": %d",
+      StringAppendF(detail, "Bad JNI version returned from JNI_OnLoad in \"%s\": %d",
                     path.c_str(), version);
       // It's unwise to call dlclose() here, but we can mark it
       // as bad and ensure that future load attempts will fail.
@@ -3269,6 +3261,18 @@ void* JavaVMExt::FindCodeForNativeMethod(ArtMethod* m) {
     self->ThrowNewException(throw_location, "Ljava/lang/UnsatisfiedLinkError;", detail.c_str());
   }
   return native_method;
+}
+
+void JavaVMExt::SweepJniWeakGlobals(RootVisitor visitor, void* arg) {
+  MutexLock mu(Thread::Current(), weak_globals_lock_);
+  for (mirror::Object** entry : weak_globals_) {
+    mirror::Object* obj = *entry;
+    mirror::Object* new_obj = visitor(obj, arg);
+    if (new_obj == nullptr) {
+      new_obj = kClearedJniWeakGlobal;
+    }
+    *entry = new_obj;
+  }
 }
 
 void JavaVMExt::VisitRoots(RootVisitor* visitor, void* arg) {

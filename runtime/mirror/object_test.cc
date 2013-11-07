@@ -71,12 +71,21 @@ class ObjectTest : public CommonTest {
 
 // Keep the assembly code in sync
 TEST_F(ObjectTest, AsmConstants) {
-  ASSERT_EQ(STRING_VALUE_OFFSET, String::ValueOffset().Int32Value());
-  ASSERT_EQ(STRING_COUNT_OFFSET, String::CountOffset().Int32Value());
-  ASSERT_EQ(STRING_OFFSET_OFFSET, String::OffsetOffset().Int32Value());
-  ASSERT_EQ(STRING_DATA_OFFSET, Array::DataOffset(sizeof(uint16_t)).Int32Value());
+  EXPECT_EQ(CLASS_OFFSET, Object::ClassOffset().Int32Value());
+  EXPECT_EQ(LOCK_WORD_OFFSET, Object::MonitorOffset().Int32Value());
 
-  ASSERT_EQ(METHOD_CODE_OFFSET, ArtMethod::EntryPointFromCompiledCodeOffset().Int32Value());
+  EXPECT_EQ(CLASS_COMPONENT_TYPE_OFFSET, Class::ComponentTypeOffset().Int32Value());
+
+  EXPECT_EQ(ARRAY_LENGTH_OFFSET, Array::LengthOffset().Int32Value());
+  EXPECT_EQ(OBJECT_ARRAY_DATA_OFFSET, Array::DataOffset(sizeof(Object*)).Int32Value());
+
+  EXPECT_EQ(STRING_VALUE_OFFSET, String::ValueOffset().Int32Value());
+  EXPECT_EQ(STRING_COUNT_OFFSET, String::CountOffset().Int32Value());
+  EXPECT_EQ(STRING_OFFSET_OFFSET, String::OffsetOffset().Int32Value());
+  EXPECT_EQ(STRING_DATA_OFFSET, Array::DataOffset(sizeof(uint16_t)).Int32Value());
+
+  EXPECT_EQ(METHOD_DEX_CACHE_METHODS_OFFSET, ArtMethod::DexCacheResolvedMethodsOffset().Int32Value());
+  EXPECT_EQ(METHOD_CODE_OFFSET, ArtMethod::EntryPointFromCompiledCodeOffset().Int32Value());
 }
 
 TEST_F(ObjectTest, IsInSamePackage) {
@@ -262,7 +271,7 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
 
   Class* klass =
       class_linker_->FindClass("LStaticsFromCode;", soa.Decode<ClassLoader*>(class_loader));
-  ArtMethod* clinit = klass->FindDirectMethod("<clinit>", "()V");
+  ArtMethod* clinit = klass->FindClassInitializer();
   const DexFile::StringId* klass_string_id = dex_file->FindStringId("LStaticsFromCode;");
   ASSERT_TRUE(klass_string_id != NULL);
   const DexFile::TypeId* klass_type_id = dex_file->FindTypeId(
@@ -283,8 +292,8 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
   ASSERT_TRUE(field_id != NULL);
   uint32_t field_idx = dex_file->GetIndexForFieldId(*field_id);
 
-  ArtField* field = FindFieldFromCode(field_idx, clinit, Thread::Current(), StaticObjectRead,
-                                      sizeof(Object*), true);
+  ArtField* field = FindFieldFromCode<StaticObjectRead, true>(field_idx, clinit, Thread::Current(),
+                                                              sizeof(Object*));
   Object* s0 = field->GetObj(klass);
   EXPECT_TRUE(s0 != NULL);
 

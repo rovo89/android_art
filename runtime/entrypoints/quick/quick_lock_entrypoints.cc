@@ -15,28 +15,40 @@
  */
 
 #include "callee_save_frame.h"
+#include "common_throws.h"
 #include "mirror/object-inl.h"
 
 namespace art {
 
-extern "C" int artUnlockObjectFromCode(mirror::Object* obj, Thread* self,
-                                       mirror::ArtMethod** sp)
-    UNLOCK_FUNCTION(monitor_lock_) {
+extern "C" int artLockObjectFromCode(mirror::Object* obj, Thread* self, mirror::ArtMethod** sp)
+    EXCLUSIVE_LOCK_FUNCTION(monitor_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  DCHECK(obj != NULL);  // Assumed to have been checked before entry
-  // MonitorExit may throw exception
-  return obj->MonitorExit(self) ? 0 /* Success */ : -1 /* Failure */;
+  if (UNLIKELY(obj == NULL)) {
+    ThrowLocation throw_location(self->GetCurrentLocationForThrow());
+    ThrowNullPointerException(&throw_location,
+                              "Null reference used for synchronization (monitor-enter)");
+    return -1;  // Failure.
+  } else {
+    obj->MonitorEnter(self);  // May block
+    DCHECK(self->HoldsLock(obj));
+    DCHECK(!self->IsExceptionPending());
+    return 0;  // Success.
+    // Only possible exception is NPE and is handled before entry
+  }
 }
 
-extern "C" void artLockObjectFromCode(mirror::Object* obj, Thread* thread,
-                                      mirror::ArtMethod** sp)
-    EXCLUSIVE_LOCK_FUNCTION(monitor_lock_) {
-  FinishCalleeSaveFrameSetup(thread, sp, Runtime::kRefsOnly);
-  DCHECK(obj != NULL);        // Assumed to have been checked before entry
-  obj->MonitorEnter(thread);  // May block
-  DCHECK(thread->HoldsLock(obj));
-  // Only possible exception is NPE and is handled before entry
-  DCHECK(!thread->IsExceptionPending());
+extern "C" int artUnlockObjectFromCode(mirror::Object* obj, Thread* self, mirror::ArtMethod** sp)
+    UNLOCK_FUNCTION(monitor_lock_) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  if (UNLIKELY(obj == NULL)) {
+    ThrowLocation throw_location(self->GetCurrentLocationForThrow());
+    ThrowNullPointerException(&throw_location,
+                              "Null reference used for synchronization (monitor-exit)");
+    return -1;  // Failure.
+  } else {
+    // MonitorExit may throw exception.
+    return obj->MonitorExit(self) ? 0 /* Success */ : -1 /* Failure */;
+  }
 }
 
 }  // namespace art

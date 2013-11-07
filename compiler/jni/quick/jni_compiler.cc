@@ -24,7 +24,6 @@
 #include "compiled_method.h"
 #include "dex_file-inl.h"
 #include "driver/compiler_driver.h"
-#include "disassembler.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "jni_internal.h"
 #include "utils/assembler.h"
@@ -82,10 +81,8 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   UniquePtr<JniCallingConvention> end_jni_conv(
       JniCallingConvention::Create(is_static, is_synchronized, jni_end_shorty, instruction_set));
 
-
   // Assembler that holds generated instructions
   UniquePtr<Assembler> jni_asm(Assembler::Create(instruction_set));
-  bool should_disassemble = false;
 
   // Offsets into data structures
   // TODO: if cross compiling these offsets are for the host not the target
@@ -356,9 +353,9 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   // 15. Process pending exceptions from JNI call or monitor exit.
   __ ExceptionPoll(main_jni_conv->InterproceduralScratchRegister(), 0);
 
-  // 16. Remove activation - no need to restore callee save registers because we didn't clobber
+  // 16. Remove activation - need to restore callee save registers since the GC may have changed
   //     them.
-  __ RemoveFrame(frame_size, std::vector<ManagedRegister>());
+  __ RemoveFrame(frame_size, callee_save_regs);
 
   // 17. Finalize code generation
   __ EmitSlowPaths();
@@ -366,10 +363,6 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
   std::vector<uint8_t> managed_code(cs);
   MemoryRegion code(&managed_code[0], managed_code.size());
   __ FinalizeInstructions(code);
-  if (should_disassemble) {
-    UniquePtr<Disassembler> disassembler(Disassembler::Create(instruction_set));
-    disassembler->Dump(LOG(INFO), &managed_code[0], &managed_code[managed_code.size()]);
-  }
   return new CompiledMethod(compiler,
                             instruction_set,
                             managed_code,

@@ -75,6 +75,7 @@ Runtime::Runtime()
       is_explicit_gc_disabled_(false),
       default_stack_size_(0),
       heap_(NULL),
+      max_spins_before_thin_lock_inflation_(Monitor::kDefaultMaxSpinsBeforeThinLockInflation),
       monitor_list_(NULL),
       thread_list_(NULL),
       intern_table_(NULL),
@@ -83,6 +84,8 @@ Runtime::Runtime()
       java_vm_(NULL),
       pre_allocated_OutOfMemoryError_(NULL),
       resolution_method_(NULL),
+      imt_conflict_method_(NULL),
+      default_imt_(NULL),
       threads_being_born_(0),
       shutdown_cond_(new ConditionVariable("Runtime shutdown", *Locks::runtime_shutdown_lock_)),
       shutting_down_(false),
@@ -99,7 +102,8 @@ Runtime::Runtime()
       use_compile_time_class_path_(false),
       main_thread_group_(NULL),
       system_thread_group_(NULL),
-      system_class_loader_(NULL) {
+      system_class_loader_(NULL),
+      quick_alloc_entry_points_instrumentation_counter_(0) {
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
     callee_save_methods_[i] = NULL;
   }
@@ -319,6 +323,12 @@ size_t ParseIntegerOrDie(const std::string& s) {
   return result;
 }
 
+void Runtime::SweepSystemWeaks(RootVisitor* visitor, void* arg) {
+  GetInternTable()->SweepInternTableWeaks(visitor, arg);
+  GetMonitorList()->SweepMonitorList(visitor, arg);
+  GetJavaVM()->SweepJniWeakGlobals(visitor, arg);
+}
+
 Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, bool ignore_unrecognized) {
   UniquePtr<ParsedOptions> parsed(new ParsedOptions());
   const char* boot_class_path_string = getenv("BOOTCLASSPATH");
@@ -343,6 +353,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   // Only the main GC thread, no workers.
   parsed->conc_gc_threads_ = 0;
   parsed->stack_size_ = 0;  // 0 means default.
+  parsed->max_spins_before_thin_lock_inflation_ = Monitor::kDefaultMaxSpinsBeforeThinLockInflation;
   parsed->low_memory_mode_ = false;
 
   parsed->is_compiler_ = false;
@@ -503,6 +514,10 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         return NULL;
       }
       parsed->stack_size_ = size;
+    } else if (StartsWith(option, "-XX:MaxSpinsBeforeThinLockInflation=")) {
+      parsed->max_spins_before_thin_lock_inflation_ =
+          strtoul(option.substr(strlen("-XX:MaxSpinsBeforeThinLockInflation=")).c_str(),
+                  nullptr, 10);
     } else if (option == "-XX:LongPauseLogThreshold") {
       parsed->long_pause_log_threshold_ =
           ParseMemoryOption(option.substr(strlen("-XX:LongPauseLogThreshold=")).c_str(), 1024);
@@ -865,6 +880,8 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   default_stack_size_ = options->stack_size_;
   stack_trace_file_ = options->stack_trace_file_;
 
+  max_spins_before_thin_lock_inflation_ = options->max_spins_before_thin_lock_inflation_;
+
   monitor_list_ = new MonitorList;
   thread_list_ = new ThreadList;
   intern_table_ = new InternTable;
@@ -900,7 +917,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   // objects. We can't supply a thread group yet; it will be fixed later. Since we are the main
   // thread, we do not get a java peer.
   Thread* self = Thread::Attach("main", false, NULL, false);
-  CHECK_EQ(self->thin_lock_id_, ThreadList::kMainId);
+  CHECK_EQ(self->thin_lock_thread_id_, ThreadList::kMainThreadId);
   CHECK(self != NULL);
 
   // Set us to runnable so tools using a runtime can allocate and GC by default
@@ -962,7 +979,7 @@ void Runtime::InitNativeMethods() {
     std::string mapped_name(StringPrintf(OS_SHARED_LIB_FORMAT_STR, "javacore"));
     std::string reason;
     self->TransitionFromSuspendedToRunnable();
-    if (!instance_->java_vm_->LoadNativeLibrary(mapped_name, NULL, reason)) {
+    if (!instance_->java_vm_->LoadNativeLibrary(mapped_name, NULL, &reason)) {
       LOG(FATAL) << "LoadNativeLibrary failed for \"" << mapped_name << "\": " << reason;
     }
     self->TransitionFromRunnableToSuspended(kNative);
@@ -1060,6 +1077,9 @@ void Runtime::SetStatsEnabled(bool new_state) {
     GetStats()->Clear(~0);
     // TODO: wouldn't it make more sense to clear _all_ threads' stats?
     Thread::Current()->GetStats()->Clear(~0);
+    InstrumentQuickAllocEntryPoints();
+  } else {
+    UninstrumentQuickAllocEntryPoints();
   }
   stats_enabled_ = new_state;
 }
@@ -1150,12 +1170,21 @@ void Runtime::VisitConcurrentRoots(RootVisitor* visitor, void* arg, bool only_di
 
 void Runtime::VisitNonThreadRoots(RootVisitor* visitor, void* arg) {
   java_vm_->VisitRoots(visitor, arg);
-  if (pre_allocated_OutOfMemoryError_ != NULL) {
-    visitor(pre_allocated_OutOfMemoryError_, arg);
+  if (pre_allocated_OutOfMemoryError_ != nullptr) {
+    pre_allocated_OutOfMemoryError_ = reinterpret_cast<mirror::Throwable*>(
+        visitor(pre_allocated_OutOfMemoryError_, arg));
+    DCHECK(pre_allocated_OutOfMemoryError_ != nullptr);
   }
-  visitor(resolution_method_, arg);
+  resolution_method_ = reinterpret_cast<mirror::ArtMethod*>(visitor(resolution_method_, arg));
+  DCHECK(resolution_method_ != nullptr);
+  imt_conflict_method_ = reinterpret_cast<mirror::ArtMethod*>(visitor(imt_conflict_method_, arg));
+  DCHECK(imt_conflict_method_ != nullptr);
+  default_imt_ = reinterpret_cast<mirror::ObjectArray<mirror::ArtMethod>*>(visitor(default_imt_, arg));
+  DCHECK(default_imt_ != nullptr);
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
-    visitor(callee_save_methods_[i], arg);
+    callee_save_methods_[i] = reinterpret_cast<mirror::ArtMethod*>(
+        visitor(callee_save_methods_[i], arg));
+    DCHECK(callee_save_methods_[i] != nullptr);
   }
 }
 
@@ -1167,6 +1196,31 @@ void Runtime::VisitNonConcurrentRoots(RootVisitor* visitor, void* arg) {
 void Runtime::VisitRoots(RootVisitor* visitor, void* arg, bool only_dirty, bool clean_dirty) {
   VisitConcurrentRoots(visitor, arg, only_dirty, clean_dirty);
   VisitNonConcurrentRoots(visitor, arg);
+}
+
+mirror::ObjectArray<mirror::ArtMethod>* Runtime::CreateDefaultImt(ClassLinker* cl) {
+  Thread* self = Thread::Current();
+  SirtRef<mirror::ObjectArray<mirror::ArtMethod> > imtable(self, cl->AllocArtMethodArray(self, 64));
+  mirror::ArtMethod* imt_conflict_method = Runtime::Current()->GetImtConflictMethod();
+  for (size_t i = 0; i < 64; i++) {
+    imtable->Set(i, imt_conflict_method);
+  }
+  return imtable.get();
+}
+
+mirror::ArtMethod* Runtime::CreateImtConflictMethod() {
+  mirror::Class* method_class = mirror::ArtMethod::GetJavaLangReflectArtMethod();
+  Thread* self = Thread::Current();
+  SirtRef<mirror::ArtMethod>
+      method(self, down_cast<mirror::ArtMethod*>(method_class->AllocObject(self)));
+  method->SetDeclaringClass(method_class);
+  // TODO: use a special method for imt conflict method saves
+  method->SetDexMethodIndex(DexFile::kDexNoIndex);
+  // When compiling, the code pointer will get set later when the image is loaded.
+  Runtime* r = Runtime::Current();
+  ClassLinker* cl = r->GetClassLinker();
+  method->SetEntryPointFromCompiledCode(r->IsCompiler() ? NULL : GetImtConflictTrampoline(cl));
+  return method.get();
 }
 
 mirror::ArtMethod* Runtime::CreateResolutionMethod() {
@@ -1280,6 +1334,48 @@ void Runtime::SetCompileTimeClassPath(jobject class_loader, std::vector<const De
   CHECK(!IsStarted());
   use_compile_time_class_path_ = true;
   compile_time_class_paths_.Put(class_loader, class_path);
+}
+
+static void ResetQuickAllocEntryPointsForThread(Thread* thread, void* arg) {
+  thread->ResetQuickAllocEntryPointsForThread();
+}
+
+void SetQuickAllocEntryPointsInstrumented(bool instrumented);
+
+void Runtime::InstrumentQuickAllocEntryPoints() {
+  ThreadList* tl = thread_list_;
+  Thread* self = Thread::Current();
+  tl->SuspendAll();
+  {
+    MutexLock mu(self, *Locks::runtime_shutdown_lock_);
+    MutexLock mu2(self, *Locks::thread_list_lock_);
+    DCHECK_GE(quick_alloc_entry_points_instrumentation_counter_, 0);
+    int old_counter = quick_alloc_entry_points_instrumentation_counter_++;
+    if (old_counter == 0) {
+      // If it was disabled, enable it.
+      SetQuickAllocEntryPointsInstrumented(true);
+      tl->ForEach(ResetQuickAllocEntryPointsForThread, NULL);
+    }
+  }
+  tl->ResumeAll();
+}
+
+void Runtime::UninstrumentQuickAllocEntryPoints() {
+  ThreadList* tl = thread_list_;
+  Thread* self = Thread::Current();
+  tl->SuspendAll();
+  {
+    MutexLock mu(self, *Locks::runtime_shutdown_lock_);
+    MutexLock mu2(self, *Locks::thread_list_lock_);
+    DCHECK_GT(quick_alloc_entry_points_instrumentation_counter_, 0);
+    int new_counter = --quick_alloc_entry_points_instrumentation_counter_;
+    if (new_counter == 0) {
+      // Disable it if the counter becomes zero.
+      SetQuickAllocEntryPointsInstrumented(false);
+      tl->ForEach(ResetQuickAllocEntryPointsForThread, NULL);
+    }
+  }
+  tl->ResumeAll();
 }
 
 }  // namespace art

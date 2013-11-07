@@ -21,8 +21,8 @@ namespace art {
 #define DEBUG_OPT(X)
 
 /* Check RAW, WAR, and RAW dependency on the register operands */
-#define CHECK_REG_DEP(use, def, check) ((def & check->use_mask) || \
-                                        ((use | def) & check->def_mask))
+#define CHECK_REG_DEP(use, def, check) ((def & check->u.m.use_mask) || \
+                                        ((use | def) & check->u.m.def_mask))
 
 /* Scheduler heuristics */
 #define MAX_HOIST_DISTANCE 20
@@ -30,10 +30,10 @@ namespace art {
 #define LD_LATENCY 2
 
 static bool IsDalvikRegisterClobbered(LIR* lir1, LIR* lir2) {
-  int reg1Lo = DECODE_ALIAS_INFO_REG(lir1->alias_info);
-  int reg1Hi = reg1Lo + DECODE_ALIAS_INFO_WIDE(lir1->alias_info);
-  int reg2Lo = DECODE_ALIAS_INFO_REG(lir2->alias_info);
-  int reg2Hi = reg2Lo + DECODE_ALIAS_INFO_WIDE(lir2->alias_info);
+  int reg1Lo = DECODE_ALIAS_INFO_REG(lir1->flags.alias_info);
+  int reg1Hi = reg1Lo + DECODE_ALIAS_INFO_WIDE(lir1->flags.alias_info);
+  int reg2Lo = DECODE_ALIAS_INFO_REG(lir2->flags.alias_info);
+  int reg2Hi = reg2Lo + DECODE_ALIAS_INFO_WIDE(lir2->flags.alias_info);
 
   return (reg1Lo == reg2Lo) || (reg1Lo == reg2Hi) || (reg1Hi == reg2Lo);
 }
@@ -78,7 +78,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
   }
 
   for (this_lir = PREV_LIR(tail_lir); this_lir != head_lir; this_lir = PREV_LIR(this_lir)) {
-    if (is_pseudo_opcode(this_lir->opcode)) {
+    if (IsPseudoLirOp(this_lir->opcode)) {
       continue;
     }
 
@@ -99,15 +99,14 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
     int native_reg_id;
     if (cu_->instruction_set == kX86) {
       // If x86, location differs depending on whether memory/reg operation.
-      native_reg_id = (GetTargetInstFlags(this_lir->opcode) & IS_STORE) ? this_lir->operands[2]
-          : this_lir->operands[0];
+      native_reg_id = (target_flags & IS_STORE) ? this_lir->operands[2] : this_lir->operands[0];
     } else {
       native_reg_id = this_lir->operands[0];
     }
-    bool is_this_lir_load = GetTargetInstFlags(this_lir->opcode) & IS_LOAD;
+    bool is_this_lir_load = target_flags & IS_LOAD;
     LIR* check_lir;
     /* Use the mem mask to determine the rough memory location */
-    uint64_t this_mem_mask = (this_lir->use_mask | this_lir->def_mask) & ENCODE_MEM;
+    uint64_t this_mem_mask = (this_lir->u.m.use_mask | this_lir->u.m.def_mask) & ENCODE_MEM;
 
     /*
      * Currently only eliminate redundant ld/st for constant and Dalvik
@@ -117,10 +116,10 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
       continue;
     }
 
-    uint64_t stop_def_reg_mask = this_lir->def_mask & ~ENCODE_MEM;
+    uint64_t stop_def_reg_mask = this_lir->u.m.def_mask & ~ENCODE_MEM;
     uint64_t stop_use_reg_mask;
     if (cu_->instruction_set == kX86) {
-      stop_use_reg_mask = (IS_BRANCH | this_lir->use_mask) & ~ENCODE_MEM;
+      stop_use_reg_mask = (IS_BRANCH | this_lir->u.m.use_mask) & ~ENCODE_MEM;
     } else {
       /*
        * Add pc to the resource mask to prevent this instruction
@@ -128,7 +127,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
        * region bits since stop_mask is used to check data/control
        * dependencies.
        */
-        stop_use_reg_mask = (GetPCUseDefEncoding() | this_lir->use_mask) & ~ENCODE_MEM;
+        stop_use_reg_mask = (GetPCUseDefEncoding() | this_lir->u.m.use_mask) & ~ENCODE_MEM;
     }
 
     for (check_lir = NEXT_LIR(this_lir); check_lir != tail_lir; check_lir = NEXT_LIR(check_lir)) {
@@ -136,11 +135,11 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
        * Skip already dead instructions (whose dataflow information is
        * outdated and misleading).
        */
-      if (check_lir->flags.is_nop || is_pseudo_opcode(check_lir->opcode)) {
+      if (check_lir->flags.is_nop || IsPseudoLirOp(check_lir->opcode)) {
         continue;
       }
 
-      uint64_t check_mem_mask = (check_lir->use_mask | check_lir->def_mask) & ENCODE_MEM;
+      uint64_t check_mem_mask = (check_lir->u.m.use_mask | check_lir->u.m.def_mask) & ENCODE_MEM;
       uint64_t alias_condition = this_mem_mask & check_mem_mask;
       bool stop_here = false;
 
@@ -160,7 +159,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
            */
           DCHECK(!(check_flags & IS_STORE));
           /* Same value && same register type */
-          if (check_lir->alias_info == this_lir->alias_info &&
+          if (check_lir->flags.alias_info == this_lir->flags.alias_info &&
               SameRegType(check_lir->operands[0], native_reg_id)) {
             /*
              * Different destination register - insert
@@ -169,11 +168,11 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
             if (check_lir->operands[0] != native_reg_id) {
               ConvertMemOpIntoMove(check_lir, check_lir->operands[0], native_reg_id);
             }
-            check_lir->flags.is_nop = true;
+            NopLIR(check_lir);
           }
         } else if (alias_condition == ENCODE_DALVIK_REG) {
           /* Must alias */
-          if (check_lir->alias_info == this_lir->alias_info) {
+          if (check_lir->flags.alias_info == this_lir->flags.alias_info) {
             /* Only optimize compatible registers */
             bool reg_compatible = SameRegType(check_lir->operands[0], native_reg_id);
             if ((is_this_lir_load && is_check_lir_load) ||
@@ -188,7 +187,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
                   native_reg_id) {
                   ConvertMemOpIntoMove(check_lir, check_lir->operands[0], native_reg_id);
                 }
-                check_lir->flags.is_nop = true;
+                NopLIR(check_lir);
               } else {
                 /*
                  * Destinaions are of different types -
@@ -202,7 +201,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
               stop_here = true;
             } else if (!is_this_lir_load && !is_check_lir_load) {
               /* WAW - nuke the earlier store */
-              this_lir->flags.is_nop = true;
+              NopLIR(this_lir);
               stop_here = true;
             }
           /* Partial overlap */
@@ -257,7 +256,7 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
            * top-down order.
            */
           InsertLIRBefore(check_lir, new_store_lir);
-          this_lir->flags.is_nop = true;
+          NopLIR(this_lir);
         }
         break;
       } else if (!check_lir->flags.is_nop) {
@@ -286,7 +285,7 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
 
   /* Start from the second instruction */
   for (this_lir = NEXT_LIR(head_lir); this_lir != tail_lir; this_lir = NEXT_LIR(this_lir)) {
-    if (is_pseudo_opcode(this_lir->opcode)) {
+    if (IsPseudoLirOp(this_lir->opcode)) {
       continue;
     }
 
@@ -298,7 +297,7 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
       continue;
     }
 
-    uint64_t stop_use_all_mask = this_lir->use_mask;
+    uint64_t stop_use_all_mask = this_lir->u.m.use_mask;
 
     if (cu_->instruction_set != kX86) {
       /*
@@ -314,7 +313,7 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
 
     /* Similar as above, but just check for pure register dependency */
     uint64_t stop_use_reg_mask = stop_use_all_mask & ~ENCODE_MEM;
-    uint64_t stop_def_reg_mask = this_lir->def_mask & ~ENCODE_MEM;
+    uint64_t stop_def_reg_mask = this_lir->u.m.def_mask & ~ENCODE_MEM;
 
     int next_slot = 0;
     bool stop_here = false;
@@ -329,7 +328,7 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
         continue;
       }
 
-      uint64_t check_mem_mask = check_lir->def_mask & ENCODE_MEM;
+      uint64_t check_mem_mask = check_lir->u.m.def_mask & ENCODE_MEM;
       uint64_t alias_condition = stop_use_all_mask & check_mem_mask;
       stop_here = false;
 
@@ -338,7 +337,7 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
         /* We can fully disambiguate Dalvik references */
         if (alias_condition == ENCODE_DALVIK_REG) {
           /* Must alias or partually overlap */
-          if ((check_lir->alias_info == this_lir->alias_info) ||
+          if ((check_lir->flags.alias_info == this_lir->flags.alias_info) ||
             IsDalvikRegisterClobbered(this_lir, check_lir)) {
             stop_here = true;
           }
@@ -363,7 +362,7 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
        * Store the dependent or non-pseudo/indepedent instruction to the
        * list.
        */
-      if (stop_here || !is_pseudo_opcode(check_lir->opcode)) {
+      if (stop_here || !IsPseudoLirOp(check_lir->opcode)) {
         prev_inst_list[next_slot++] = check_lir;
         if (next_slot == MAX_HOIST_DISTANCE) {
           break;
@@ -394,7 +393,7 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
       int slot;
       LIR* dep_lir = prev_inst_list[next_slot-1];
       /* If there is ld-ld dependency, wait LDLD_DISTANCE cycles */
-      if (!is_pseudo_opcode(dep_lir->opcode) &&
+      if (!IsPseudoLirOp(dep_lir->opcode) &&
         (GetTargetInstFlags(dep_lir->opcode) & IS_LOAD)) {
         first_slot -= LDLD_DISTANCE;
       }
@@ -407,7 +406,7 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
         LIR* prev_lir = prev_inst_list[slot+1];
 
         /* Check the highest instruction */
-        if (prev_lir->def_mask == ENCODE_ALL) {
+        if (prev_lir->u.m.def_mask == ENCODE_ALL) {
           /*
            * If the first instruction is a load, don't hoist anything
            * above it since it is unlikely to be beneficial.
@@ -435,9 +434,9 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
          * Try to find two instructions with load/use dependency until
          * the remaining instructions are less than LD_LATENCY.
          */
-        bool prev_is_load = is_pseudo_opcode(prev_lir->opcode) ? false :
+        bool prev_is_load = IsPseudoLirOp(prev_lir->opcode) ? false :
             (GetTargetInstFlags(prev_lir->opcode) & IS_LOAD);
-        if (((cur_lir->use_mask & prev_lir->def_mask) && prev_is_load) || (slot < LD_LATENCY)) {
+        if (((cur_lir->u.m.use_mask & prev_lir->u.m.def_mask) && prev_is_load) || (slot < LD_LATENCY)) {
           break;
         }
       }
@@ -453,7 +452,7 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
          * is never the first LIR on the list
          */
         InsertLIRBefore(cur_lir, new_load_lir);
-        this_lir->flags.is_nop = true;
+        NopLIR(this_lir);
       }
     }
   }
@@ -465,43 +464,6 @@ void Mir2Lir::ApplyLocalOptimizations(LIR* head_lir, LIR* tail_lir) {
   }
   if (!(cu_->disable_opt & (1 << kLoadHoisting))) {
     ApplyLoadHoisting(head_lir, tail_lir);
-  }
-}
-
-/*
- * Nop any unconditional branches that go to the next instruction.
- * Note: new redundant branches may be inserted later, and we'll
- * use a check in final instruction assembly to nop those out.
- */
-void Mir2Lir::RemoveRedundantBranches() {
-  LIR* this_lir;
-
-  for (this_lir = first_lir_insn_; this_lir != last_lir_insn_; this_lir = NEXT_LIR(this_lir)) {
-    /* Branch to the next instruction */
-    if (IsUnconditionalBranch(this_lir)) {
-      LIR* next_lir = this_lir;
-
-      while (true) {
-        next_lir = NEXT_LIR(next_lir);
-
-        /*
-         * Is the branch target the next instruction?
-         */
-        if (next_lir == this_lir->target) {
-          this_lir->flags.is_nop = true;
-          break;
-        }
-
-        /*
-         * Found real useful stuff between the branch and the target.
-         * Need to explicitly check the last_lir_insn_ here because it
-         * might be the last real instruction.
-         */
-        if (!is_pseudo_opcode(next_lir->opcode) ||
-          (next_lir == last_lir_insn_))
-          break;
-      }
-    }
   }
 }
 

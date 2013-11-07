@@ -30,6 +30,7 @@
 
 namespace art {
 
+class BitVector;
 class OutputStream;
 
 // OatHeader         variable length with count of D OatDexFiles
@@ -90,7 +91,7 @@ class OatWriter {
   size_t InitOatCodeDexFiles(size_t offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   size_t InitOatCodeDexFile(size_t offset,
-                            size_t& oat_class_index,
+                            size_t* oat_class_index,
                             const DexFile& dex_file)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   size_t InitOatCodeClassDef(size_t offset,
@@ -99,21 +100,22 @@ class OatWriter {
                              const DexFile::ClassDef& class_def)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   size_t InitOatCodeMethod(size_t offset, size_t oat_class_index, size_t class_def_index,
-                           size_t class_def_method_index, bool is_native, InvokeType type,
-                           uint32_t method_idx, const DexFile*)
+                           size_t class_def_method_index, size_t* method_offsets_index,
+                           bool is_native, InvokeType type, uint32_t method_idx, const DexFile&)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool WriteTables(OutputStream& out, const size_t file_offset);
   size_t WriteCode(OutputStream& out, const size_t file_offset);
   size_t WriteCodeDexFiles(OutputStream& out, const size_t file_offset, size_t relative_offset);
   size_t WriteCodeDexFile(OutputStream& out, const size_t file_offset, size_t relative_offset,
-                          size_t& oat_class_index, const DexFile& dex_file);
+                          size_t* oat_class_index, const DexFile& dex_file);
   size_t WriteCodeClassDef(OutputStream& out, const size_t file_offset, size_t relative_offset,
                            size_t oat_class_index, const DexFile& dex_file,
                            const DexFile::ClassDef& class_def);
   size_t WriteCodeMethod(OutputStream& out, const size_t file_offset, size_t relative_offset,
-                         size_t oat_class_index, size_t class_def_method_index, bool is_static,
-                         uint32_t method_idx, const DexFile& dex_file);
+                         size_t oat_class_index, size_t class_def_method_index,
+                         size_t* method_offsets_index, bool is_static, uint32_t method_idx,
+                         const DexFile& dex_file);
 
   void ReportWriteFailure(const char* what, uint32_t method_idx, const DexFile& dex_file,
                           OutputStream& out) const;
@@ -142,12 +144,23 @@ class OatWriter {
 
   class OatClass {
    public:
-    explicit OatClass(size_t offset, mirror::Class::Status status, uint32_t methods_count);
+    explicit OatClass(size_t offset,
+                      std::vector<CompiledMethod*>* compiled_methods,
+                      uint32_t num_non_null_compiled_methods,
+                      mirror::Class::Status status);
+    ~OatClass();
+#if defined(ART_USE_PORTABLE_COMPILER)
     size_t GetOatMethodOffsetsOffsetFromOatHeader(size_t class_def_method_index_) const;
     size_t GetOatMethodOffsetsOffsetFromOatClass(size_t class_def_method_index_) const;
+#endif
     size_t SizeOf() const;
     void UpdateChecksum(OatHeader& oat_header) const;
     bool Write(OatWriter* oat_writer, OutputStream& out, const size_t file_offset) const;
+
+    CompiledMethod* GetCompiledMethod(size_t class_def_method_index) const {
+      DCHECK(compiled_methods_ != NULL);
+      return (*compiled_methods_)[class_def_method_index];
+    }
 
     // Offset of start of OatClass from beginning of OatHeader. It is
     // used to validate file position when writing. For Portable, it
@@ -156,8 +169,37 @@ class OatWriter {
     // patched to point to code in the Portable .o ELF objects.
     size_t offset_;
 
+    // CompiledMethods for each class_def_method_index, or NULL if no method is available.
+    std::vector<CompiledMethod*>* compiled_methods_;
+
+    // Offset from OatClass::offset_ to the OatMethodOffsets for the
+    // class_def_method_index. If 0, it means the corresponding
+    // CompiledMethod entry in OatClass::compiled_methods_ should be
+    // NULL and that the OatClass::type_ should be kOatClassBitmap.
+    std::vector<uint32_t> oat_method_offsets_offsets_from_oat_class_;
+
     // data to write
-    mirror::Class::Status status_;
+
+    COMPILE_ASSERT(mirror::Class::Status::kStatusMax < (2 ^ 16), class_status_wont_fit_in_16bits);
+    int16_t status_;
+
+    COMPILE_ASSERT(OatClassType::kOatClassMax < (2 ^ 16), oat_class_type_wont_fit_in_16bits);
+    uint16_t type_;
+
+    uint32_t method_bitmap_size_;
+
+    // bit vector indexed by ClassDef method index. When
+    // OatClassType::type_ is kOatClassBitmap, a set bit indicates the
+    // method has an OatMethodOffsets in methods_offsets_, otherwise
+    // the entry was ommited to save space. If OatClassType::type_ is
+    // not is kOatClassBitmap, the bitmap will be NULL.
+    BitVector* method_bitmap_;
+
+    // OatMethodOffsets for each CompiledMethod present in the
+    // OatClass. Note that some may be missing if
+    // OatClass::compiled_methods_ contains NULL values (and
+    // oat_method_offsets_offsets_from_oat_class_ should contain 0
+    // values in this case).
     std::vector<OatMethodOffsets> method_offsets_;
 
    private:
@@ -184,8 +226,10 @@ class OatWriter {
   UniquePtr<const std::vector<uint8_t> > interpreter_to_interpreter_bridge_;
   UniquePtr<const std::vector<uint8_t> > interpreter_to_compiled_code_bridge_;
   UniquePtr<const std::vector<uint8_t> > jni_dlsym_lookup_;
+  UniquePtr<const std::vector<uint8_t> > portable_imt_conflict_trampoline_;
   UniquePtr<const std::vector<uint8_t> > portable_resolution_trampoline_;
   UniquePtr<const std::vector<uint8_t> > portable_to_interpreter_bridge_;
+  UniquePtr<const std::vector<uint8_t> > quick_imt_conflict_trampoline_;
   UniquePtr<const std::vector<uint8_t> > quick_resolution_trampoline_;
   UniquePtr<const std::vector<uint8_t> > quick_to_interpreter_bridge_;
 
@@ -198,8 +242,10 @@ class OatWriter {
   uint32_t size_interpreter_to_interpreter_bridge_;
   uint32_t size_interpreter_to_compiled_code_bridge_;
   uint32_t size_jni_dlsym_lookup_;
+  uint32_t size_portable_imt_conflict_trampoline_;
   uint32_t size_portable_resolution_trampoline_;
   uint32_t size_portable_to_interpreter_bridge_;
+  uint32_t size_quick_imt_conflict_trampoline_;
   uint32_t size_quick_resolution_trampoline_;
   uint32_t size_quick_to_interpreter_bridge_;
   uint32_t size_trampoline_alignment_;
@@ -214,7 +260,9 @@ class OatWriter {
   uint32_t size_oat_dex_file_location_checksum_;
   uint32_t size_oat_dex_file_offset_;
   uint32_t size_oat_dex_file_methods_offsets_;
+  uint32_t size_oat_class_type_;
   uint32_t size_oat_class_status_;
+  uint32_t size_oat_class_method_bitmaps_;
   uint32_t size_oat_class_method_offsets_;
 
   // Code mappings for deduplication. Deduplication is already done on a pointer basis by the

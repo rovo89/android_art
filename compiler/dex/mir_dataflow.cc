@@ -1221,10 +1221,10 @@ bool MIRGraph::InvokeUsesMethodStar(MIR* mir) {
   uint32_t current_offset = static_cast<uint32_t>(current_offset_);
   bool fast_path =
       cu_->compiler_driver->ComputeInvokeInfo(&m_unit, current_offset,
-                                              type, target_method,
-                                              vtable_idx,
-                                              direct_code, direct_method,
-                                              false) &&
+                                              false, true,
+                                              &type, &target_method,
+                                              &vtable_idx,
+                                              &direct_code, &direct_method) &&
                                               !(cu_->enable_debug & (1 << kDebugSlowInvokePath));
   return (((type == kDirect) || (type == kStatic)) &&
           fast_path && ((direct_code == 0) || (direct_method == 0)));
@@ -1243,7 +1243,8 @@ bool MIRGraph::CountUses(struct BasicBlock* bb) {
     if (mir->ssa_rep == NULL) {
       continue;
     }
-    uint32_t weight = std::min(16U, static_cast<uint32_t>(bb->nesting_depth));
+    // Each level of nesting adds *16 to count, up to 3 levels deep.
+    uint32_t weight = std::min(3U, static_cast<uint32_t>(bb->nesting_depth) * 4);
     for (int i = 0; i < mir->ssa_rep->num_uses; i++) {
       int s_reg = mir->ssa_rep->uses[i];
       raw_use_counts_.Increment(s_reg);
@@ -1287,7 +1288,7 @@ void MIRGraph::MethodUseCount() {
   if (cu_->disable_opt & (1 << kPromoteRegs)) {
     return;
   }
-  AllNodesIterator iter(this, false /* not iterative */);
+  AllNodesIterator iter(this);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     CountUses(bb);
   }
@@ -1295,23 +1296,23 @@ void MIRGraph::MethodUseCount() {
 
 /* Verify if all the successor is connected with all the claimed predecessors */
 bool MIRGraph::VerifyPredInfo(BasicBlock* bb) {
-  GrowableArray<BasicBlock*>::Iterator iter(bb->predecessors);
+  GrowableArray<BasicBlockId>::Iterator iter(bb->predecessors);
 
   while (true) {
-    BasicBlock *pred_bb = iter.Next();
+    BasicBlock *pred_bb = GetBasicBlock(iter.Next());
     if (!pred_bb) break;
     bool found = false;
-    if (pred_bb->taken == bb) {
+    if (pred_bb->taken == bb->id) {
         found = true;
-    } else if (pred_bb->fall_through == bb) {
+    } else if (pred_bb->fall_through == bb->id) {
         found = true;
-    } else if (pred_bb->successor_block_list.block_list_type != kNotUsed) {
-      GrowableArray<SuccessorBlockInfo*>::Iterator iterator(pred_bb->successor_block_list.blocks);
+    } else if (pred_bb->successor_block_list_type != kNotUsed) {
+      GrowableArray<SuccessorBlockInfo*>::Iterator iterator(pred_bb->successor_blocks);
       while (true) {
         SuccessorBlockInfo *successor_block_info = iterator.Next();
         if (successor_block_info == NULL) break;
-        BasicBlock *succ_bb = successor_block_info->block;
-        if (succ_bb == bb) {
+        BasicBlockId succ_bb = successor_block_info->block;
+        if (succ_bb == bb->id) {
             found = true;
             break;
         }
@@ -1331,7 +1332,7 @@ bool MIRGraph::VerifyPredInfo(BasicBlock* bb) {
 
 void MIRGraph::VerifyDataflow() {
     /* Verify if all blocks are connected as claimed */
-  AllNodesIterator iter(this, false /* not iterative */);
+  AllNodesIterator iter(this);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     VerifyPredInfo(bb);
   }

@@ -22,15 +22,17 @@
 namespace art {
 namespace gc {
 namespace accounting {
-  void* RegisterGCAllocation(size_t bytes) {
-    Runtime::Current()->GetHeap()->RegisterGCAllocation(bytes);
-    return malloc(bytes);
-  }
 
-  void RegisterGCDeAllocation(void* p, size_t bytes) {
-    Runtime::Current()->GetHeap()->RegisterGCDeAllocation(bytes);
-    free(p);
-  }
+void* RegisterGcAllocation(size_t bytes) {
+  Runtime::Current()->GetHeap()->RegisterGCAllocation(bytes);
+  return malloc(bytes);
+}
+
+void RegisterGcDeallocation(void* p, size_t bytes) {
+  Runtime::Current()->GetHeap()->RegisterGCDeAllocation(bytes);
+  free(p);
+}
+
 }  // namespace accounting
 }  // namespace gc
 }  // namespace art

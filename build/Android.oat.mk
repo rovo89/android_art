@@ -26,7 +26,7 @@ LIBART_COMPILER := $(LIBARTD_COMPILER)
 
 # By default, do not run rerun dex2oat if the tool changes.
 # Comment out the | to force dex2oat to rerun on after all changes.
-DEX2OAT_DEPENDENCY := |
+DEX2OAT_DEPENDENCY := #|
 DEX2OAT_DEPENDENCY += $(DEX2OAT)
 DEX2OAT_DEPENDENCY += $(LIBART_COMPILER)
 
@@ -57,15 +57,26 @@ TARGET_CORE_OAT_OUT := $(ART_TEST_OUT)/core.oat
 HOST_CORE_IMG_OUT := $(HOST_OUT_JAVA_LIBRARIES)/core.art
 TARGET_CORE_IMG_OUT := $(ART_TEST_OUT)/core.art
 
+# DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES is set in ../build/core/dex_preopt.mk based on
+# the TARGET_CPU_VARIANT
+
+TARGET_INSTRUCTION_SET_FEATURES := $(DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES)
+
 $(HOST_CORE_IMG_OUT): $(HOST_CORE_DEX_FILES) $(DEX2OAT_DEPENDENCY)
 	@echo "host dex2oat: $@ ($?)"
 	@mkdir -p $(dir $@)
-	$(hide) $(DEX2OAT) $(PARALLEL_ART_COMPILE_JOBS) --runtime-arg -Xms16m --runtime-arg -Xmx16m --image-classes=$(PRELOADED_CLASSES) $(addprefix --dex-file=,$(HOST_CORE_DEX_FILES)) $(addprefix --dex-location=,$(HOST_CORE_DEX_LOCATIONS)) --oat-file=$(HOST_CORE_OAT_OUT) --oat-location=$(HOST_CORE_OAT) --image=$(HOST_CORE_IMG_OUT) --base=$(IMG_HOST_BASE_ADDRESS) --instruction-set=$(HOST_ARCH) --host --android-root=$(HOST_OUT)
+	$(hide) $(DEX2OAT) $(PARALLEL_ART_COMPILE_JOBS) --runtime-arg -Xms16m --runtime-arg -Xmx16m --image-classes=$(PRELOADED_CLASSES) $(addprefix \
+		--dex-file=,$(HOST_CORE_DEX_FILES)) $(addprefix --dex-location=,$(HOST_CORE_DEX_LOCATIONS)) --oat-file=$(HOST_CORE_OAT_OUT) \
+		--oat-location=$(HOST_CORE_OAT) --image=$(HOST_CORE_IMG_OUT) --base=$(IMG_HOST_BASE_ADDRESS) \
+		--instruction-set=$(HOST_ARCH) --host --android-root=$(HOST_OUT)
 
 $(TARGET_CORE_IMG_OUT): $(TARGET_CORE_DEX_FILES) $(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $@ ($?)"
 	@mkdir -p $(dir $@)
-	$(hide) $(DEX2OAT) $(PARALLEL_ART_COMPILE_JOBS) --runtime-arg -Xms16m --runtime-arg -Xmx16m --image-classes=$(PRELOADED_CLASSES) $(addprefix --dex-file=,$(TARGET_CORE_DEX_FILES)) $(addprefix --dex-location=,$(TARGET_CORE_DEX_LOCATIONS)) --oat-file=$(TARGET_CORE_OAT_OUT) --oat-location=$(TARGET_CORE_OAT) --image=$(TARGET_CORE_IMG_OUT) --base=$(IMG_TARGET_BASE_ADDRESS) --instruction-set=$(TARGET_ARCH) --host-prefix=$(PRODUCT_OUT) --android-root=$(PRODUCT_OUT)/system
+	$(hide) $(DEX2OAT) $(PARALLEL_ART_COMPILE_JOBS) --runtime-arg -Xms16m --runtime-arg -Xmx16m --image-classes=$(PRELOADED_CLASSES) $(addprefix \
+		--dex-file=,$(TARGET_CORE_DEX_FILES)) $(addprefix --dex-location=,$(TARGET_CORE_DEX_LOCATIONS)) --oat-file=$(TARGET_CORE_OAT_OUT) \
+		--oat-location=$(TARGET_CORE_OAT) --image=$(TARGET_CORE_IMG_OUT) --base=$(IMG_TARGET_BASE_ADDRESS) \
+		--instruction-set=$(TARGET_ARCH) --instruction-set-features=$(TARGET_INSTRUCTION_SET_FEATURES) --host-prefix=$(PRODUCT_OUT) --android-root=$(PRODUCT_OUT)/system
 
 $(HOST_CORE_OAT_OUT): $(HOST_CORE_IMG_OUT)
 
@@ -110,7 +121,10 @@ $(TARGET_BOOT_IMG_OUT): $(TARGET_BOOT_DEX_FILES) $(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $@ ($?)"
 	@mkdir -p $(dir $@)
 	@mkdir -p $(dir $(TARGET_BOOT_OAT_UNSTRIPPED_OUT))
-	$(hide) $(DEX2OAT) $(PARALLEL_ART_COMPILE_JOBS) --runtime-arg -Xms256m --runtime-arg -Xmx256m --image-classes=$(PRELOADED_CLASSES) $(addprefix --dex-file=,$(TARGET_BOOT_DEX_FILES)) $(addprefix --dex-location=,$(TARGET_BOOT_DEX_LOCATIONS)) --oat-symbols=$(TARGET_BOOT_OAT_UNSTRIPPED_OUT) --oat-file=$(TARGET_BOOT_OAT_OUT) --oat-location=$(TARGET_BOOT_OAT) --image=$(TARGET_BOOT_IMG_OUT) --base=$(IMG_TARGET_BASE_ADDRESS) --instruction-set=$(TARGET_ARCH) --host-prefix=$(PRODUCT_OUT) --android-root=$(PRODUCT_OUT)/system
+	$(hide) $(DEX2OAT) $(PARALLEL_ART_COMPILE_JOBS) --runtime-arg -Xms256m --runtime-arg -Xmx256m --image-classes=$(PRELOADED_CLASSES) $(addprefix --dex-file=,$(TARGET_BOOT_DEX_FILES)) $(addprefix --dex-location=,$(TARGET_BOOT_DEX_LOCATIONS)) \
+		--oat-symbols=$(TARGET_BOOT_OAT_UNSTRIPPED_OUT) --oat-file=$(TARGET_BOOT_OAT_OUT) \
+		--oat-location=$(TARGET_BOOT_OAT) --image=$(TARGET_BOOT_IMG_OUT) --base=$(IMG_TARGET_BASE_ADDRESS) \
+		--instruction-set=$(TARGET_ARCH) --instruction-set-features=$(TARGET_INSTRUCTION_SET_FEATURES) --host-prefix=$(PRODUCT_OUT) --android-root=$(PRODUCT_OUT)/system
 
 $(TARGET_BOOT_OAT_UNSTRIPPED_OUT): $(TARGET_BOOT_IMG_OUT)
 

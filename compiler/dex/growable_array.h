@@ -131,6 +131,11 @@ class GrowableArray {
       elem_list_[index]++;
     }
 
+    /*
+     * Remove an existing element from list.  If there are more than one copy
+     * of the element, only the first one encountered will be deleted.
+     */
+    // TODO: consider renaming this.
     void Delete(T element) {
       bool found = false;
       for (size_t i = 0; i < num_used_ - 1; i++) {
@@ -149,6 +154,11 @@ class GrowableArray {
     size_t GetNumAllocated() const { return num_allocated_; }
 
     size_t Size() const { return num_used_; }
+
+    void SetSize(size_t new_size) {
+      Resize(new_size);
+      num_used_ = new_size;
+    }
 
     T* GetRawStorage() const { return elem_list_; }
 

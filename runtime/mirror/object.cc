@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <ctime>
+
 #include "object.h"
 
 #include "art_field.h"
@@ -80,6 +82,52 @@ Object* Object::Clone(Thread* self) {
   }
 
   return copy.get();
+}
+
+int32_t Object::GenerateIdentityHashCode() {
+  static AtomicInteger seed(987654321 + std::time(nullptr));
+  int32_t expected_value, new_value;
+  do {
+    expected_value = static_cast<uint32_t>(seed.load());
+    new_value = expected_value * 1103515245 + 12345;
+  } while ((expected_value & LockWord::kHashMask) == 0 ||
+      !seed.compare_and_swap(expected_value, new_value));
+  return expected_value & LockWord::kHashMask;
+}
+
+int32_t Object::IdentityHashCode() const {
+  while (true) {
+    LockWord lw = GetLockWord();
+    switch (lw.GetState()) {
+      case LockWord::kUnlocked: {
+        // Try to compare and swap in a new hash, if we succeed we will return the hash on the next
+        // loop iteration.
+        LockWord hash_word(LockWord::FromHashCode(GenerateIdentityHashCode()));
+        DCHECK_EQ(hash_word.GetState(), LockWord::kHashCode);
+        if (const_cast<Object*>(this)->CasLockWord(lw, hash_word)) {
+          return hash_word.GetHashCode();
+        }
+        break;
+      }
+      case LockWord::kThinLocked: {
+        // Inflate the thin lock to a monitor and stick the hash code inside of the monitor.
+        Thread* self = Thread::Current();
+        Monitor::InflateThinLocked(self, const_cast<Object*>(this), lw, GenerateIdentityHashCode());
+        break;
+      }
+      case LockWord::kFatLocked: {
+        // Already inflated, return the has stored in the monitor.
+        Monitor* monitor = lw.FatLockMonitor();
+        DCHECK(monitor != nullptr);
+        return monitor->GetHashCode();
+      }
+      case LockWord::kHashCode: {
+        return lw.GetHashCode();
+      }
+    }
+  }
+  LOG(FATAL) << "Unreachable";
+  return 0;
 }
 
 void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, const Object* new_value) {

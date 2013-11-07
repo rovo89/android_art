@@ -82,7 +82,6 @@
 #include "ir_builder.h"
 #include "os.h"
 #include "runtime_support_builder_arm.h"
-#include "runtime_support_builder_thumb2.h"
 #include "runtime_support_builder_x86.h"
 #include "utils_llvm.h"
 
@@ -118,11 +117,9 @@ LlvmCompilationUnit::LlvmCompilationUnit(const CompilerLLVM* compiler_llvm, size
   default:
     runtime_support_.reset(new RuntimeSupportBuilder(*context_, *module_, *irb_));
     break;
+  case kThumb2:
   case kArm:
     runtime_support_.reset(new RuntimeSupportBuilderARM(*context_, *module_, *irb_));
-    break;
-  case kThumb2:
-    runtime_support_.reset(new RuntimeSupportBuilderThumb2(*context_, *module_, *irb_));
     break;
   case kX86:
     runtime_support_.reset(new RuntimeSupportBuilderX86(*context_, *module_, *irb_));
@@ -214,6 +211,7 @@ bool LlvmCompilationUnit::MaterializeToRawOStream(::llvm::raw_ostream& out_strea
   ::llvm::TargetOptions target_options;
   target_options.FloatABIType = ::llvm::FloatABI::Soft;
   target_options.NoFramePointerElim = true;
+  target_options.NoFramePointerElimNonLeaf = true;
   target_options.UseSoftFloat = false;
   target_options.EnableFastISel = false;
 
@@ -257,7 +255,7 @@ bool LlvmCompilationUnit::MaterializeToRawOStream(::llvm::raw_ostream& out_strea
 
     ::llvm::OwningPtr< ::llvm::tool_output_file> out_file(
       new ::llvm::tool_output_file(bitcode_filename_.c_str(), errmsg,
-                                 ::llvm::sys::fs::F_Binary));
+                                 ::llvm::raw_fd_ostream::F_Binary));
 
 
     if (!errmsg.empty()) {
@@ -277,6 +275,7 @@ bool LlvmCompilationUnit::MaterializeToRawOStream(::llvm::raw_ostream& out_strea
   // pm_builder.Inliner = ::llvm::createAlwaysInlinerPass();
   // pm_builder.Inliner = ::llvm::createPartialInliningPass();
   pm_builder.OptLevel = 3;
+  pm_builder.DisableSimplifyLibCalls = 1;
   pm_builder.DisableUnitAtATime = 1;
   pm_builder.populateFunctionPassManager(fpm);
   pm_builder.populateModulePassManager(pm);

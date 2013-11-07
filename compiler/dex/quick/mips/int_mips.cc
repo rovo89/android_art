@@ -268,6 +268,37 @@ bool MipsMir2Lir::GenInlinedSqrt(CallInfo* info) {
   return false;
 }
 
+bool MipsMir2Lir::GenInlinedPeek(CallInfo* info, OpSize size) {
+  if (size != kSignedByte) {
+    // MIPS supports only aligned access. Defer unaligned access to JNI implementation.
+    return false;
+  }
+  RegLocation rl_src_address = info->args[0];  // long address
+  rl_src_address.wide = 0;  // ignore high half in info->args[1]
+  RegLocation rl_dest = InlineTarget(info);
+  RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  DCHECK(size == kSignedByte);
+  LoadBaseDisp(rl_address.low_reg, 0, rl_result.low_reg, size, INVALID_SREG);
+  StoreValue(rl_dest, rl_result);
+  return true;
+}
+
+bool MipsMir2Lir::GenInlinedPoke(CallInfo* info, OpSize size) {
+  if (size != kSignedByte) {
+    // MIPS supports only aligned access. Defer unaligned access to JNI implementation.
+    return false;
+  }
+  RegLocation rl_src_address = info->args[0];  // long address
+  rl_src_address.wide = 0;  // ignore high half in info->args[1]
+  RegLocation rl_src_value = info->args[2];  // [size] value
+  RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
+  DCHECK(size == kSignedByte);
+  RegLocation rl_value = LoadValue(rl_src_value, kCoreReg);
+  StoreBaseDisp(rl_address.low_reg, 0, rl_value.low_reg, size);
+  return true;
+}
+
 LIR* MipsMir2Lir::OpPcRelLoad(int reg, LIR* target) {
   LOG(FATAL) << "Unexpected use of OpPcRelLoad for Mips";
   return NULL;
@@ -484,7 +515,7 @@ void MipsMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
  *
  */
 void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
-                          RegLocation rl_index, RegLocation rl_src, int scale) {
+                          RegLocation rl_index, RegLocation rl_src, int scale, bool card_mark) {
   RegisterClass reg_class = oat_reg_class_by_size(size);
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   int data_offset;
@@ -498,12 +529,14 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   rl_array = LoadValue(rl_array, kCoreReg);
   rl_index = LoadValue(rl_index, kCoreReg);
   int reg_ptr = INVALID_REG;
-  if (IsTemp(rl_array.low_reg)) {
+  bool allocated_reg_ptr_temp = false;
+  if (IsTemp(rl_array.low_reg) && !card_mark) {
     Clobber(rl_array.low_reg);
     reg_ptr = rl_array.low_reg;
   } else {
     reg_ptr = AllocTemp();
     OpRegCopy(reg_ptr, rl_array.low_reg);
+    allocated_reg_ptr_temp = true;
   }
 
   /* null object? */
@@ -538,8 +571,6 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     }
 
     StoreBaseDispWide(reg_ptr, 0, rl_src.low_reg, rl_src.high_reg);
-
-    FreeTemp(reg_ptr);
   } else {
     rl_src = LoadValue(rl_src, reg_class);
     if (needs_range_check) {
@@ -549,65 +580,11 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     StoreBaseIndexed(reg_ptr, rl_index.low_reg, rl_src.low_reg,
                      scale, size);
   }
-}
-
-/*
- * Generate array store
- *
- */
-void MipsMir2Lir::GenArrayObjPut(int opt_flags, RegLocation rl_array,
-                             RegLocation rl_index, RegLocation rl_src, int scale) {
-  int len_offset = mirror::Array::LengthOffset().Int32Value();
-  int data_offset = mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value();
-
-  FlushAllRegs();  // Use explicit registers
-  LockCallTemps();
-
-  int r_value = TargetReg(kArg0);  // Register holding value
-  int r_array_class = TargetReg(kArg1);  // Register holding array's Class
-  int r_array = TargetReg(kArg2);  // Register holding array
-  int r_index = TargetReg(kArg3);  // Register holding index into array
-
-  LoadValueDirectFixed(rl_array, r_array);  // Grab array
-  LoadValueDirectFixed(rl_src, r_value);  // Grab value
-  LoadValueDirectFixed(rl_index, r_index);  // Grab index
-
-  GenNullCheck(rl_array.s_reg_low, r_array, opt_flags);  // NPE?
-
-  // Store of null?
-  LIR* null_value_check = OpCmpImmBranch(kCondEq, r_value, 0, NULL);
-
-  // Get the array's class.
-  LoadWordDisp(r_array, mirror::Object::ClassOffset().Int32Value(), r_array_class);
-  CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(pCanPutArrayElement), r_value,
-                          r_array_class, true);
-  // Redo LoadValues in case they didn't survive the call.
-  LoadValueDirectFixed(rl_array, r_array);  // Reload array
-  LoadValueDirectFixed(rl_index, r_index);  // Reload index
-  LoadValueDirectFixed(rl_src, r_value);  // Reload value
-  r_array_class = INVALID_REG;
-
-  // Branch here if value to be stored == null
-  LIR* target = NewLIR0(kPseudoTargetLabel);
-  null_value_check->target = target;
-
-  bool needs_range_check = (!(opt_flags & MIR_IGNORE_RANGE_CHECK));
-  int reg_len = INVALID_REG;
-  if (needs_range_check) {
-    reg_len = TargetReg(kArg1);
-    LoadWordDisp(r_array, len_offset, reg_len);  // Get len
+  if (allocated_reg_ptr_temp) {
+    FreeTemp(reg_ptr);
   }
-  /* r_ptr -> array data */
-  int r_ptr = AllocTemp();
-  OpRegRegImm(kOpAdd, r_ptr, r_array, data_offset);
-  if (needs_range_check) {
-    GenRegRegCheck(kCondCs, r_index, reg_len, kThrowArrayBounds);
-  }
-  StoreBaseIndexed(r_ptr, r_index, r_value, scale, kWord);
-  FreeTemp(r_ptr);
-  FreeTemp(r_index);
-  if (!mir_graph_->IsConstantNullRef(rl_src)) {
-    MarkGCCard(r_value, r_array);
+  if (card_mark) {
+    MarkGCCard(rl_src.low_reg, rl_array.low_reg);
   }
 }
 

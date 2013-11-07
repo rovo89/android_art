@@ -42,6 +42,8 @@ namespace mirror {
   class DexCache;
 }  // namespace mirror
 class ClassLinker;
+class Signature;
+class StringPiece;
 class ZipArchive;
 
 // TODO: move all of the macro functionality into the DexCache class.
@@ -348,22 +350,22 @@ class DexFile {
   // For .dex files, this is the header checksum.
   // For zip files, this is the classes.dex zip entry CRC32 checksum.
   // Return true if the checksum could be found, false otherwise.
-  static bool GetChecksum(const std::string& filename, uint32_t* checksum)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static bool GetChecksum(const char* filename, uint32_t* checksum, std::string* error_msg);
 
   // Opens .dex file, guessing the container format based on file extension
-  static const DexFile* Open(const std::string& filename,
-                             const std::string& location);
+  static const DexFile* Open(const char* filename, const char* location, std::string* error_msg);
 
   // Opens .dex file, backed by existing memory
   static const DexFile* Open(const uint8_t* base, size_t size,
                              const std::string& location,
-                             uint32_t location_checksum) {
-    return OpenMemory(base, size, location, location_checksum, NULL);
+                             uint32_t location_checksum,
+                             std::string* error_msg) {
+    return OpenMemory(base, size, location, location_checksum, NULL, error_msg);
   }
 
   // Opens .dex file from the classes.dex in a zip archive
-  static const DexFile* Open(const ZipArchive& zip_archive, const std::string& location);
+  static const DexFile* Open(const ZipArchive& zip_archive, const std::string& location,
+                             std::string* error_msg);
 
   // Closes a .dex file.
   virtual ~DexFile();
@@ -416,27 +418,29 @@ class DexFile {
 
   int32_t GetStringLength(const StringId& string_id) const;
 
-  // Returns a pointer to the UTF-8 string data referred to by the given string_id.
-  const char* GetStringDataAndLength(const StringId& string_id, uint32_t* length) const;
+  // Returns a pointer to the UTF-8 string data referred to by the given string_id as well as the
+  // length of the string when decoded as a UTF-16 string. Note the UTF-16 length is not the same
+  // as the string length of the string data.
+  const char* GetStringDataAndUtf16Length(const StringId& string_id, uint32_t* utf16_length) const;
 
   const char* GetStringData(const StringId& string_id) const {
-    uint32_t length;
-    return GetStringDataAndLength(string_id, &length);
+    uint32_t ignored;
+    return GetStringDataAndUtf16Length(string_id, &ignored);
   }
 
-  // return the UTF-8 encoded string with the specified string_id index
-  const char* StringDataAndLengthByIdx(uint32_t idx, uint32_t* unicode_length) const {
+  // Index version of GetStringDataAndUtf16Length.
+  const char* StringDataAndUtf16LengthByIdx(uint32_t idx, uint32_t* utf16_length) const {
     if (idx == kDexNoIndex) {
-      *unicode_length = 0;
+      *utf16_length = 0;
       return NULL;
     }
     const StringId& string_id = GetStringId(idx);
-    return GetStringDataAndLength(string_id, unicode_length);
+    return GetStringDataAndUtf16Length(string_id, utf16_length);
   }
 
   const char* StringDataByIdx(uint32_t idx) const {
     uint32_t unicode_length;
-    return StringDataAndLengthByIdx(idx, &unicode_length);
+    return StringDataAndUtf16LengthByIdx(idx, &unicode_length);
   }
 
   // Looks up a string id for a given modified utf8 string.
@@ -468,7 +472,7 @@ class DexFile {
   // Get the descriptor string associated with a given type index.
   const char* StringByTypeIdx(uint32_t idx, uint32_t* unicode_length) const {
     const TypeId& type_id = GetTypeId(idx);
-    return StringDataAndLengthByIdx(type_id.descriptor_idx_, unicode_length);
+    return StringDataAndUtf16LengthByIdx(type_id.descriptor_idx_, unicode_length);
   }
 
   const char* StringByTypeIdx(uint32_t idx) const {
@@ -558,10 +562,8 @@ class DexFile {
     return GetProtoId(method_id.proto_idx_);
   }
 
-  // Returns the signature of a method id.
-  const std::string GetMethodSignature(const MethodId& method_id) const {
-    return CreateMethodSignature(method_id.proto_idx_, NULL);
-  }
+  // Returns a representation of the signature of a method id.
+  const Signature GetMethodSignature(const MethodId& method_id) const;
 
   // Returns the name of a method id.
   const char* GetMethodName(const MethodId& method_id) const {
@@ -573,7 +575,8 @@ class DexFile {
     return StringDataByIdx(GetProtoId(method_id.proto_idx_).shorty_idx_);
   }
   const char* GetMethodShorty(const MethodId& method_id, uint32_t* length) const {
-    return StringDataAndLengthByIdx(GetProtoId(method_id.proto_idx_).shorty_idx_, length);
+    // Using the UTF16 length is safe here as shorties are guaranteed to be ASCII characters.
+    return StringDataAndUtf16LengthByIdx(GetProtoId(method_id.proto_idx_).shorty_idx_, length);
   }
   // Returns the number of class definitions in the .dex file.
   size_t NumClassDefs() const {
@@ -655,15 +658,16 @@ class DexFile {
   }
 
   // Looks up a proto id for a given return type and signature type list
-  const ProtoId* FindProtoId(uint16_t return_type_id,
+  const ProtoId* FindProtoId(uint16_t return_type_idx,
                              const std::vector<uint16_t>& signature_type_idxs_) const;
 
   // Given a signature place the type ids into the given vector, returns true on success
-  bool CreateTypeList(uint16_t* return_type_idx, std::vector<uint16_t>* param_type_idxs,
-                      const std::string& signature) const;
+  bool CreateTypeList(const StringPiece& signature, uint16_t* return_type_idx,
+                      std::vector<uint16_t>* param_type_idxs) const;
 
-  // Given a proto_idx decode the type list and return type into a method signature
-  std::string CreateMethodSignature(uint32_t proto_idx, int32_t* unicode_length) const;
+  // Create a Signature from the given string signature or return Signature::NoSignature if not
+  // possible.
+  const Signature CreateSignature(const StringPiece& signature) const;
 
   // Returns the short form method descriptor for the given prototype.
   const char* GetShorty(uint32_t proto_idx) const {
@@ -817,24 +821,24 @@ class DexFile {
 
  private:
   // Opens a .dex file
-  static const DexFile* OpenFile(int fd,
-                                 const std::string& location,
-                                 bool verify);
+  static const DexFile* OpenFile(int fd, const char* location, bool verify, std::string* error_msg);
 
   // Opens a dex file from within a .jar, .zip, or .apk file
-  static const DexFile* OpenZip(int fd, const std::string& location);
+  static const DexFile* OpenZip(int fd, const std::string& location, std::string* error_msg);
 
   // Opens a .dex file at the given address backed by a MemMap
   static const DexFile* OpenMemory(const std::string& location,
                                    uint32_t location_checksum,
-                                   MemMap* mem_map);
+                                   MemMap* mem_map,
+                                   std::string* error_msg);
 
   // Opens a .dex file at the given address, optionally backed by a MemMap
   static const DexFile* OpenMemory(const byte* dex_file,
                                    size_t size,
                                    const std::string& location,
                                    uint32_t location_checksum,
-                                   MemMap* mem_map);
+                                   MemMap* mem_map,
+                                   std::string* error_msg);
 
   DexFile(const byte* base, size_t size,
           const std::string& location,
@@ -858,13 +862,13 @@ class DexFile {
   }
 
   // Top-level initializer that calls other Init methods.
-  bool Init();
+  bool Init(std::string* error_msg);
 
   // Caches pointers into to the various file sections.
   void InitMembers();
 
   // Returns true if the header magic and version numbers are of the expected values.
-  bool CheckMagicAndVersion() const;
+  bool CheckMagicAndVersion(std::string* error_msg) const;
 
   void DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32_t method_idx,
       DexDebugNewPositionCb position_cb, DexDebugNewLocalCb local_cb,
@@ -939,6 +943,39 @@ class DexFileParameterIterator {
   uint32_t pos_;
   DISALLOW_IMPLICIT_CONSTRUCTORS(DexFileParameterIterator);
 };
+
+// Abstract the signature of a method.
+class Signature {
+ public:
+  std::string ToString() const;
+
+  static Signature NoSignature() {
+    return Signature();
+  }
+
+  bool operator==(const Signature& rhs) const;
+  bool operator!=(const Signature& rhs) const {
+    return !(*this == rhs);
+  }
+
+  bool operator==(const StringPiece& rhs) const {
+    // TODO: Avoid temporary string allocation.
+    return ToString() == rhs;
+  }
+
+ private:
+  Signature(const DexFile* dex, const DexFile::ProtoId& proto) : dex_file_(dex), proto_id_(&proto) {
+  }
+
+  Signature() : dex_file_(nullptr), proto_id_(nullptr) {
+  }
+
+  friend class DexFile;
+
+  const DexFile* const dex_file_;
+  const DexFile::ProtoId* const proto_id_;
+};
+std::ostream& operator<<(std::ostream& os, const Signature& sig);
 
 // Iterate and decode class_data_item
 class ClassDataItemIterator {

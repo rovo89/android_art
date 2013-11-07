@@ -28,6 +28,8 @@ namespace art {
 
 class OatTest : public CommonTest {
  protected:
+  static const bool kCompile = false;  // DISABLED_ due to the time to compile libcore
+
   void CheckMethod(mirror::ArtMethod* method,
                    const OatFile::OatMethod& oat_method,
                    const DexFile* dex_file)
@@ -40,7 +42,7 @@ class OatTest : public CommonTest {
       EXPECT_TRUE(oat_method.GetCode() == NULL) << PrettyMethod(method) << " "
                                                 << oat_method.GetCode();
 #if !defined(ART_USE_PORTABLE_COMPILER)
-      EXPECT_EQ(oat_method.GetFrameSizeInBytes(), static_cast<uint32_t>(kStackAlignment));
+      EXPECT_EQ(oat_method.GetFrameSizeInBytes(), kCompile ? kStackAlignment : 0);
       EXPECT_EQ(oat_method.GetCoreSpillMask(), 0U);
       EXPECT_EQ(oat_method.GetFpSpillMask(), 0U);
 #endif
@@ -65,7 +67,6 @@ class OatTest : public CommonTest {
 };
 
 TEST_F(OatTest, WriteRead) {
-  const bool compile = false;  // DISABLED_ due to the time to compile libcore
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
   // TODO: make selectable
@@ -75,9 +76,12 @@ TEST_F(OatTest, WriteRead) {
   CompilerBackend compiler_backend = kQuick;
 #endif
   InstructionSet insn_set = kIsTargetBuild ? kThumb2 : kX86;
-  compiler_driver_.reset(new CompilerDriver(compiler_backend, insn_set, false, NULL, 2, true));
+
+  InstructionSetFeatures insn_features;
+  compiler_driver_.reset(new CompilerDriver(compiler_backend, insn_set,
+                                            insn_features, false, NULL, 2, true));
   jobject class_loader = NULL;
-  if (compile) {
+  if (kCompile) {
     base::TimingLogger timings("OatTest::WriteRead", false, false);
     compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), timings);
   }
@@ -96,37 +100,42 @@ TEST_F(OatTest, WriteRead) {
                                             tmp.GetFile());
   ASSERT_TRUE(success);
 
-  if (compile) {  // OatWriter strips the code, regenerate to compare
+  if (kCompile) {  // OatWriter strips the code, regenerate to compare
     base::TimingLogger timings("CommonTest::WriteRead", false, false);
     compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), timings);
   }
-  UniquePtr<OatFile> oat_file(OatFile::Open(tmp.GetFilename(), tmp.GetFilename(), NULL, false));
-  ASSERT_TRUE(oat_file.get() != NULL);
+  std::string error_msg;
+  UniquePtr<OatFile> oat_file(OatFile::Open(tmp.GetFilename(), tmp.GetFilename(), NULL, false,
+                                            &error_msg));
+  ASSERT_TRUE(oat_file.get() != nullptr) << error_msg;
   const OatHeader& oat_header = oat_file->GetOatHeader();
   ASSERT_TRUE(oat_header.IsValid());
-  ASSERT_EQ(2U, oat_header.GetDexFileCount());  // core and conscrypt
+  ASSERT_EQ(1U, oat_header.GetDexFileCount());  // core
   ASSERT_EQ(42U, oat_header.GetImageFileLocationOatChecksum());
   ASSERT_EQ(4096U, oat_header.GetImageFileLocationOatDataBegin());
   ASSERT_EQ("lue.art", oat_header.GetImageFileLocation());
 
   const DexFile* dex_file = java_lang_dex_file_;
   uint32_t dex_file_checksum = dex_file->GetLocationChecksum();
-  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file->GetLocation(),
+  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file->GetLocation().c_str(),
                                                                     &dex_file_checksum);
+  ASSERT_TRUE(oat_dex_file != nullptr);
   CHECK_EQ(dex_file->GetLocationChecksum(), oat_dex_file->GetDexFileLocationChecksum());
   for (size_t i = 0; i < dex_file->NumClassDefs(); i++) {
     const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
     const byte* class_data = dex_file->GetClassData(class_def);
-    size_t num_virtual_methods =0;
+    size_t num_virtual_methods = 0;
     if (class_data != NULL) {
       ClassDataItemIterator it(*dex_file, class_data);
       num_virtual_methods = it.NumVirtualMethods();
     }
     const char* descriptor = dex_file->GetClassDescriptor(class_def);
+    mirror::Class* klass = class_linker->FindClass(descriptor, NULL);
 
     UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file->GetOatClass(i));
-
-    mirror::Class* klass = class_linker->FindClass(descriptor, NULL);
+    CHECK_EQ(mirror::Class::Status::kStatusNotReady, oat_class->GetStatus()) << descriptor;
+    CHECK_EQ(kCompile ? OatClassType::kOatClassAllCompiled : OatClassType::kOatClassNoneCompiled,
+             oat_class->GetType()) << descriptor;
 
     size_t method_index = 0;
     for (size_t i = 0; i < klass->NumDirectMethods(); i++, method_index++) {
@@ -143,17 +152,19 @@ TEST_F(OatTest, WriteRead) {
 TEST_F(OatTest, OatHeaderSizeCheck) {
   // If this test is failing and you have to update these constants,
   // it is time to update OatHeader::kOatVersion
-  EXPECT_EQ(64U, sizeof(OatHeader));
+  EXPECT_EQ(76U, sizeof(OatHeader));
   EXPECT_EQ(28U, sizeof(OatMethodOffsets));
 }
 
 TEST_F(OatTest, OatHeaderIsValid) {
     InstructionSet instruction_set = kX86;
+    InstructionSetFeatures instruction_set_features;
     std::vector<const DexFile*> dex_files;
     uint32_t image_file_location_oat_checksum = 0;
     uint32_t image_file_location_oat_begin = 0;
     const std::string image_file_location;
     OatHeader oat_header(instruction_set,
+                         instruction_set_features,
                          &dex_files,
                          image_file_location_oat_checksum,
                          image_file_location_oat_begin,

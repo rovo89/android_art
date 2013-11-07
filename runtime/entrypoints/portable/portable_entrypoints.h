@@ -35,6 +35,7 @@ class Thread;
 // compiler ABI.
 struct PACKED(4) PortableEntryPoints {
   // Invocation
+  void (*pPortableImtConflictTrampoline)(mirror::ArtMethod*);
   void (*pPortableResolutionTrampoline)(mirror::ArtMethod*);
   void (*pPortableToInterpreterBridge)(mirror::ArtMethod*);
 };

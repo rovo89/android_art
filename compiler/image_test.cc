@@ -23,6 +23,8 @@
 #include "compiler/oat_writer.h"
 #include "gc/space/image_space.h"
 #include "image.h"
+#include "lock_word.h"
+#include "mirror/object-inl.h"
 #include "signal_catcher.h"
 #include "UniquePtr.h"
 #include "utils.h"
@@ -110,8 +112,11 @@ TEST_F(ImageTest, WriteRead) {
   runtime_.reset();
   java_lang_dex_file_ = NULL;
 
-  UniquePtr<const DexFile> dex(DexFile::Open(GetLibCoreDexFileName(), GetLibCoreDexFileName()));
-  ASSERT_TRUE(dex.get() != NULL);
+  std::string error_msg;
+  UniquePtr<const DexFile> dex(DexFile::Open(GetLibCoreDexFileName().c_str(),
+                                             GetLibCoreDexFileName().c_str(),
+                                             &error_msg));
+  ASSERT_TRUE(dex.get() != nullptr) << error_msg;
 
   // Remove the reservation of the memory for use to load the image.
   UnreserveImageSpace();
@@ -158,7 +163,7 @@ TEST_F(ImageTest, WriteRead) {
       // non image classes should be in a space after the image.
       EXPECT_GT(reinterpret_cast<byte*>(klass), image_end) << descriptor;
     }
-    EXPECT_TRUE(Monitor::IsValidLockWord(*klass->GetRawLockWordAddress()));
+    EXPECT_TRUE(Monitor::IsValidLockWord(klass->GetLockWord()));
   }
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Android Open Source Project
+ * Copyright (C) 2013 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,28 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_LLVM_RUNTIME_SUPPORT_BUILDER_THUMB2_H_
-#define ART_COMPILER_LLVM_RUNTIME_SUPPORT_BUILDER_THUMB2_H_
+#ifndef ART_RUNTIME_BASE_ALLOCATOR_H_
+#define ART_RUNTIME_BASE_ALLOCATOR_H_
 
-#include "runtime_support_builder_arm.h"
+#include "base/macros.h"
 
 namespace art {
-namespace llvm {
 
-class RuntimeSupportBuilderThumb2 : public RuntimeSupportBuilderARM {
+class Allocator {
  public:
-  RuntimeSupportBuilderThumb2(::llvm::LLVMContext& context, ::llvm::Module& module, IRBuilder& irb)
-    : RuntimeSupportBuilderARM(context, module, irb) {}
+  static Allocator* GetMallocAllocator();
+  static Allocator* GetNoopAllocator();
 
-  /* Monitor */
-  virtual void EmitLockObject(::llvm::Value* object);
+  Allocator() {}
+  virtual ~Allocator() {}
+
+  virtual void* Alloc(size_t) = 0;
+  virtual void Free(void*) = 0;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(Allocator);
 };
 
-}  // namespace llvm
 }  // namespace art
 
-#endif  // ART_COMPILER_LLVM_RUNTIME_SUPPORT_BUILDER_THUMB2_H_
+#endif  // ART_RUNTIME_BASE_ALLOCATOR_H_

@@ -119,6 +119,7 @@ struct TypeStaticIf<false, A,  B> {
   typedef B value;
 };
 
+// For rounding integers.
 template<typename T>
 static inline T RoundDown(T x, int n) {
   CHECK(IsPowerOfTwo(n));
@@ -128,6 +129,18 @@ static inline T RoundDown(T x, int n) {
 template<typename T>
 static inline T RoundUp(T x, int n) {
   return RoundDown(x + n - 1, n);
+}
+
+// For aligning pointers.
+template<typename T>
+static inline T* AlignDown(T* x, int n) {
+  CHECK(IsPowerOfTwo(n));
+  return reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(x) & -static_cast<uintptr_t>(n));
+}
+
+template<typename T>
+static inline T* AlignUp(T* x, int n) {
+  return AlignDown(reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(x) + static_cast<uintptr_t>(n - 1)), n);
 }
 
 // Implementation is from "Hacker's Delight" by Henry S. Warren, Jr.,
@@ -239,7 +252,7 @@ std::string FormatDuration(uint64_t nano_duration, TimeUnit time_unit);
 // Get the appropriate unit for a nanosecond duration.
 TimeUnit GetAppropriateTimeUnit(uint64_t nano_duration);
 
-// Get the divisor to convert from a nanoseconds to a time unit
+// Get the divisor to convert from a nanoseconds to a time unit.
 uint64_t GetNsToTimeUnitDivisor(TimeUnit time_unit);
 
 // Performs JNI name mangling as described in section 11.3 "Linking Native Methods"
@@ -313,6 +326,9 @@ void InitTimeSpec(bool absolute, int clock, int64_t ms, int32_t ns, timespec* ts
 // strings. Empty strings will be omitted.
 void Split(const std::string& s, char separator, std::vector<std::string>& result);
 
+// Trims whitespace off both ends of the given string.
+std::string Trim(std::string s);
+
 // Joins a vector of strings into a single string, using the given separator.
 template <typename StringT> std::string Join(std::vector<StringT>& strings, char separator);
 
@@ -341,17 +357,17 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix = "", bool 
 // Dumps the kernel stack for thread 'tid' to 'os'. Note that this is only available on linux-x86.
 void DumpKernelStack(std::ostream& os, pid_t tid, const char* prefix = "", bool include_count = true);
 
-// Find $ANDROID_ROOT, /system, or abort
+// Find $ANDROID_ROOT, /system, or abort.
 const char* GetAndroidRoot();
 
-// Find $ANDROID_DATA, /data, or abort
+// Find $ANDROID_DATA, /data, or abort.
 const char* GetAndroidData();
 
 // Returns the dalvik-cache location, or dies trying.
 std::string GetDalvikCacheOrDie(const char* android_data);
 
 // Returns the dalvik-cache location for a DexFile or OatFile, or dies trying.
-std::string GetDalvikCacheFilenameOrDie(const std::string& location);
+std::string GetDalvikCacheFilenameOrDie(const char* location);
 
 // Check whether the given magic matches a known file type.
 bool IsZipMagic(uint32_t magic);

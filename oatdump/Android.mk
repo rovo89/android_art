@@ -22,17 +22,17 @@ OATDUMP_SRC_FILES := \
 include art/build/Android.executable.mk
 
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
-  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libcutils,,target,ndebug))
+  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libcutils libart-disassembler,art/disassembler,target,ndebug))
 endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
-  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libcutils,,target,debug))
+  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libcutils libartd-disassembler,art/disassembler,target,debug))
 endif
 
 ifeq ($(WITH_HOST_DALVIK),true)
   ifeq ($(ART_BUILD_HOST_NDEBUG),true)
-    $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),,,host,ndebug))
+    $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libart-disassembler,art/disassembler,host,ndebug))
   endif
   ifeq ($(ART_BUILD_HOST_DEBUG),true)
-    $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),,,host,debug))
+    $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libartd-disassembler,art/disassembler,host,debug))
   endif
 endif

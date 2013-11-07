@@ -23,7 +23,7 @@
 #include "utils.h"
 
 #include <valgrind.h>
-#include <../memcheck/memcheck.h>
+#include <memcheck/memcheck.h>
 
 namespace art {
 namespace gc {
@@ -119,8 +119,7 @@ size_t DlMallocSpace::bitmap_index_ = 0;
 DlMallocSpace::DlMallocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin,
                        byte* end, size_t growth_limit)
     : MemMapSpace(name, mem_map, end - begin, kGcRetentionPolicyAlwaysCollect),
-      recent_free_pos_(0), num_bytes_allocated_(0), num_objects_allocated_(0),
-      total_bytes_allocated_(0), total_objects_allocated_(0),
+      recent_free_pos_(0), total_bytes_freed_(0), total_objects_freed_(0),
       lock_("allocation space lock", kAllocSpaceLock), mspace_(mspace),
       growth_limit_(growth_limit) {
   CHECK(mspace != NULL);
@@ -184,11 +183,12 @@ DlMallocSpace* DlMallocSpace::Create(const std::string& name, size_t initial_siz
   growth_limit = RoundUp(growth_limit, kPageSize);
   capacity = RoundUp(capacity, kPageSize);
 
+  std::string error_msg;
   UniquePtr<MemMap> mem_map(MemMap::MapAnonymous(name.c_str(), requested_begin, capacity,
-                                                 PROT_READ | PROT_WRITE));
+                                                 PROT_READ | PROT_WRITE, &error_msg));
   if (mem_map.get() == NULL) {
     LOG(ERROR) << "Failed to allocate pages for alloc space (" << name << ") of size "
-        << PrettySize(capacity);
+        << PrettySize(capacity) << ": " << error_msg;
     return NULL;
   }
 
@@ -287,8 +287,6 @@ DlMallocSpace* DlMallocSpace::CreateZygoteSpace(const char* alloc_space_name) {
   size_t size = RoundUp(Size(), kPageSize);
   // Trim the heap so that we minimize the size of the Zygote space.
   Trim();
-  // Trim our mem-map to free unused pages.
-  GetMemMap()->UnMapAtEnd(end_);
   // TODO: Not hardcode these in?
   const size_t starting_size = kPageSize;
   const size_t initial_size = 2 * MB;
@@ -308,7 +306,11 @@ DlMallocSpace* DlMallocSpace::CreateZygoteSpace(const char* alloc_space_name) {
   VLOG(heap) << "Size " << GetMemMap()->Size();
   VLOG(heap) << "GrowthLimit " << PrettySize(growth_limit);
   VLOG(heap) << "Capacity " << PrettySize(capacity);
-  UniquePtr<MemMap> mem_map(MemMap::MapAnonymous(alloc_space_name, End(), capacity, PROT_READ | PROT_WRITE));
+  // Remap the tail.
+  std::string error_msg;
+  UniquePtr<MemMap> mem_map(GetMemMap()->RemapAtEnd(end_, alloc_space_name,
+                                                    PROT_READ | PROT_WRITE, &error_msg));
+  CHECK(mem_map.get() != nullptr) << error_msg;
   void* mspace = CreateMallocSpace(end_, starting_size, initial_size);
   // Protect memory beyond the initial size.
   byte* end = mem_map->Begin() + starting_size;
@@ -353,8 +355,8 @@ size_t DlMallocSpace::Free(Thread* self, mirror::Object* ptr) {
     CHECK(Contains(ptr)) << "Free (" << ptr << ") not in bounds of heap " << *this;
   }
   const size_t bytes_freed = InternalAllocationSize(ptr);
-  num_bytes_allocated_ -= bytes_freed;
-  --num_objects_allocated_;
+  total_bytes_freed_ += bytes_freed;
+  ++total_objects_freed_;
   if (kRecentFreeCount > 0) {
     RegisterRecentFree(ptr);
   }
@@ -400,8 +402,8 @@ size_t DlMallocSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** p
 
   {
     MutexLock mu(self, lock_);
-    num_bytes_allocated_ -= bytes_freed;
-    num_objects_allocated_ -= num_ptrs;
+    total_bytes_freed_ += bytes_freed;
+    total_objects_freed_ += num_ptrs;
     mspace_bulk_free(mspace_, reinterpret_cast<void**>(ptrs), num_ptrs);
     return bytes_freed;
   }
@@ -499,6 +501,20 @@ void DlMallocSpace::Dump(std::ostream& os) const {
       << ",end=" << reinterpret_cast<void*>(End())
       << ",size=" << PrettySize(Size()) << ",capacity=" << PrettySize(Capacity())
       << ",name=\"" << GetName() << "\"]";
+}
+
+uint64_t DlMallocSpace::GetBytesAllocated() {
+  MutexLock mu(Thread::Current(), lock_);
+  size_t bytes_allocated = 0;
+  mspace_inspect_all(mspace_, DlmallocBytesAllocatedCallback, &bytes_allocated);
+  return bytes_allocated;
+}
+
+uint64_t DlMallocSpace::GetObjectsAllocated() {
+  MutexLock mu(Thread::Current(), lock_);
+  size_t objects_allocated = 0;
+  mspace_inspect_all(mspace_, DlmallocObjectsAllocatedCallback, &objects_allocated);
+  return objects_allocated;
 }
 
 }  // namespace space

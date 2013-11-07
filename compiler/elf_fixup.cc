@@ -27,8 +27,9 @@ namespace art {
 static const bool DEBUG_FIXUP = false;
 
 bool ElfFixup::Fixup(File* file, uintptr_t oat_data_begin) {
-  UniquePtr<ElfFile> elf_file(ElfFile::Open(file, true, false));
-  CHECK(elf_file.get() != NULL);
+  std::string error_msg;
+  UniquePtr<ElfFile> elf_file(ElfFile::Open(file, true, false, &error_msg));
+  CHECK(elf_file.get() != nullptr) << error_msg;
 
   // Lookup "oatdata" symbol address.
   ::llvm::ELF::Elf32_Addr oatdata_address = ElfWriter::GetOatDataAddress(elf_file.get());

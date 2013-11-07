@@ -31,6 +31,7 @@
 #include "mirror/dex_cache-inl.h"
 #include "mirror/object-inl.h"
 #include "object_utils.h"
+#include "scoped_fast_native_object_access.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
 #include "thread_list.h"
@@ -56,7 +57,7 @@ static jobject VMRuntime_newNonMovableArray(JNIEnv* env,
                                             jobject,
                                             jclass javaElementClass,
                                             jint length) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
 #ifdef MOVING_GARBAGE_COLLECTOR
   // TODO: right now, we don't have a copying collector, so there's no need
   // to do anything special here, but we ought to pass the non-movability
@@ -87,7 +88,7 @@ static jlong VMRuntime_addressOf(JNIEnv* env, jobject, jobject javaArray) {
   if (javaArray == NULL) {  // Most likely allocation failed
     return 0;
   }
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   mirror::Array* array = soa.Decode<mirror::Array*>(javaArray);
   if (!array->IsArrayInstance()) {
     ThrowIllegalArgumentException(NULL, "not an array");
@@ -153,21 +154,21 @@ static void VMRuntime_setTargetSdkVersionNative(JNIEnv* env, jobject, jint targe
 }
 
 static void VMRuntime_registerNativeAllocation(JNIEnv* env, jobject, jint bytes) {
-  ScopedObjectAccess soa(env);
-  if (bytes < 0) {
+  if (UNLIKELY(bytes < 0)) {
+    ScopedObjectAccess soa(env);
     ThrowRuntimeException("allocation size negative %d", bytes);
     return;
   }
-  Runtime::Current()->GetHeap()->RegisterNativeAllocation(bytes);
+  Runtime::Current()->GetHeap()->RegisterNativeAllocation(env, bytes);
 }
 
 static void VMRuntime_registerNativeFree(JNIEnv* env, jobject, jint bytes) {
-  ScopedObjectAccess soa(env);
-  if (bytes < 0) {
+  if (UNLIKELY(bytes < 0)) {
+    ScopedObjectAccess soa(env);
     ThrowRuntimeException("allocation size negative %d", bytes);
     return;
   }
-  Runtime::Current()->GetHeap()->RegisterNativeFree(bytes);
+  Runtime::Current()->GetHeap()->RegisterNativeFree(env, bytes);
 }
 
 static void VMRuntime_trimHeap(JNIEnv*, jobject) {
@@ -175,10 +176,8 @@ static void VMRuntime_trimHeap(JNIEnv*, jobject) {
 
   // Trim the managed heap.
   gc::Heap* heap = Runtime::Current()->GetHeap();
-  gc::space::DlMallocSpace* alloc_space = heap->GetAllocSpace();
-  size_t alloc_space_size = alloc_space->Size();
-  float managed_utilization =
-      static_cast<float>(alloc_space->GetBytesAllocated()) / alloc_space_size;
+  float managed_utilization = (static_cast<float>(heap->GetBytesAllocated()) /
+                               heap->GetTotalMemory());
   size_t managed_reclaimed = heap->Trim();
 
   uint64_t gc_heap_end_ns = NanoTime();
@@ -198,17 +197,18 @@ static void VMRuntime_trimHeap(JNIEnv*, jobject) {
 }
 
 static void VMRuntime_concurrentGC(JNIEnv* env, jobject) {
-  Thread* self = static_cast<JNIEnvExt*>(env)->self;
+  Thread* self = ThreadForEnv(env);
   Runtime::Current()->GetHeap()->ConcurrentGC(self);
 }
 
 typedef std::map<std::string, mirror::String*> StringTable;
 
-static void PreloadDexCachesStringsVisitor(const mirror::Object* root, void* arg) {
+static mirror::Object* PreloadDexCachesStringsVisitor(mirror::Object* root, void* arg) {
   StringTable& table = *reinterpret_cast<StringTable*>(arg);
   mirror::String* string = const_cast<mirror::Object*>(root)->AsString();
   // LOG(INFO) << "VMRuntime.preloadDexCaches interned=" << string->ToModifiedUtf8();
   table[string->ToModifiedUtf8()] = string;
+  return root;
 }
 
 // Based on ClassLinker::ResolveString.
@@ -221,8 +221,7 @@ static void PreloadDexCachesResolveString(mirror::DexCache* dex_cache,
     return;
   }
   const DexFile* dex_file = dex_cache->GetDexFile();
-  uint32_t utf16Size;
-  const char* utf8 = dex_file->StringDataAndLengthByIdx(string_idx, &utf16Size);
+  const char* utf8 = dex_file->StringDataByIdx(string_idx);
   string = strings[utf8];
   if (string == NULL) {
     return;
@@ -508,7 +507,7 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(VMRuntime, addressOf, "(Ljava/lang/Object;)J"),
+  NATIVE_METHOD(VMRuntime, addressOf, "!(Ljava/lang/Object;)J"),
   NATIVE_METHOD(VMRuntime, bootClassPath, "()Ljava/lang/String;"),
   NATIVE_METHOD(VMRuntime, classPath, "()Ljava/lang/String;"),
   NATIVE_METHOD(VMRuntime, clearGrowthLimit, "()V"),
@@ -517,7 +516,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, getTargetHeapUtilization, "()F"),
   NATIVE_METHOD(VMRuntime, isDebuggerActive, "()Z"),
   NATIVE_METHOD(VMRuntime, nativeSetTargetHeapUtilization, "(F)V"),
-  NATIVE_METHOD(VMRuntime, newNonMovableArray, "(Ljava/lang/Class;I)Ljava/lang/Object;"),
+  NATIVE_METHOD(VMRuntime, newNonMovableArray, "!(Ljava/lang/Class;I)Ljava/lang/Object;"),
   NATIVE_METHOD(VMRuntime, properties, "()[Ljava/lang/String;"),
   NATIVE_METHOD(VMRuntime, setTargetSdkVersionNative, "(I)V"),
   NATIVE_METHOD(VMRuntime, registerNativeAllocation, "(I)V"),

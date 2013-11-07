@@ -284,8 +284,8 @@ void X86Mir2Lir::GenCmpFP(Instruction::Code code, RegLocation rl_dest,
 
 void X86Mir2Lir::GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias,
                                      bool is_double) {
-  LIR* taken = &block_label_list_[bb->taken->id];
-  LIR* not_taken = &block_label_list_[bb->fall_through->id];
+  LIR* taken = &block_label_list_[bb->taken];
+  LIR* not_taken = &block_label_list_[bb->fall_through];
   LIR* branch = NULL;
   RegLocation rl_src1;
   RegLocation rl_src2;

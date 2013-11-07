@@ -456,8 +456,7 @@ bool RegisterLine::VerifyMonitorStackEmpty() const {
 
 bool RegisterLine::MergeRegisters(const RegisterLine* incoming_line) {
   bool changed = false;
-  CHECK(NULL != incoming_line);
-  CHECK(NULL != line_.get());
+  DCHECK(incoming_line != nullptr);
   for (size_t idx = 0; idx < num_regs_; idx++) {
     if (line_[idx] != incoming_line->line_[idx]) {
       const RegType& incoming_reg_type = incoming_line->GetRegisterType(idx);

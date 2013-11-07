@@ -14,14 +14,11 @@
  * limitations under the License.
  */
 
-#include "common_test.h"
 #include "dedupe_set.h"
+#include "gtest/gtest.h"
+#include "thread-inl.h"
 
 namespace art {
-
-class DedupeSetTest : public testing::Test {
- public:
-};
 
 class DedupeHashFunc {
  public:
@@ -35,10 +32,10 @@ class DedupeHashFunc {
     return hash;
   }
 };
-TEST_F(DedupeSetTest, Test) {
+TEST(DedupeSetTest, Test) {
   Thread* self = Thread::Current();
   typedef std::vector<uint8_t> ByteArray;
-  DedupeSet<ByteArray, size_t, DedupeHashFunc> deduplicator;
+  DedupeSet<ByteArray, size_t, DedupeHashFunc> deduplicator("test");
   ByteArray* array1;
   {
     ByteArray test1;

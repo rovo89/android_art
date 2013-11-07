@@ -17,14 +17,22 @@
 #include "thread_list.h"
 
 #include <dirent.h>
+#include <ScopedLocalRef.h>
+#include <ScopedUtfChars.h>
 #include <sys/types.h>
 #include <unistd.h>
 
 #include "base/mutex.h"
+#include "base/mutex-inl.h"
 #include "base/timing_logger.h"
 #include "debugger.h"
+#include "jni_internal.h"
+#include "lock_word.h"
+#include "monitor.h"
+#include "scoped_thread_state_change.h"
 #include "thread.h"
 #include "utils.h"
+#include "well_known_classes.h"
 
 namespace art {
 
@@ -32,6 +40,7 @@ ThreadList::ThreadList()
     : allocated_ids_lock_("allocated thread ids lock"),
       suspend_all_count_(0), debug_suspend_all_count_(0),
       thread_exit_cond_("thread exit condition variable", *Locks::thread_list_lock_) {
+  CHECK(Monitor::IsValidLockWord(LockWord::FromThinLockId(kMaxThreadId, 1)));
 }
 
 ThreadList::~ThreadList() {
@@ -159,18 +168,19 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function) {
     // Call a checkpoint function for each thread, threads which are suspend get their checkpoint
     // manually called.
     MutexLock mu(self, *Locks::thread_list_lock_);
+    MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
     for (const auto& thread : list_) {
       if (thread != self) {
-        for (;;) {
+        while (true) {
           if (thread->RequestCheckpoint(checkpoint_function)) {
             // This thread will run it's checkpoint some time in the near future.
             count++;
             break;
           } else {
             // We are probably suspended, try to make sure that we stay suspended.
-            MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
             // The thread switched back to runnable.
             if (thread->GetState() == kRunnable) {
+              // Spurious fail, try again.
               continue;
             }
             thread->ModifySuspendCount(self, +1, false);
@@ -203,7 +213,7 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function) {
       }
     }
     // We know for sure that the thread is suspended at this point.
-    thread->RunCheckpointFunction();
+    checkpoint_function->Run(thread);
     {
       MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
       thread->ModifySuspendCount(self, -1, false);
@@ -319,6 +329,178 @@ void ThreadList::Resume(Thread* thread, bool for_debugger) {
   }
 
   VLOG(threads) << "Resume(" << *thread << ") complete";
+}
+
+static void ThreadSuspendByPeerWarning(Thread* self, int level, const char* message, jobject peer) {
+  JNIEnvExt* env = self->GetJniEnv();
+  ScopedLocalRef<jstring>
+      scoped_name_string(env, (jstring)env->GetObjectField(peer,
+                                                          WellKnownClasses::java_lang_Thread_name));
+  ScopedUtfChars scoped_name_chars(env, scoped_name_string.get());
+  if (scoped_name_chars.c_str() == NULL) {
+      LOG(level) << message << ": " << peer;
+      env->ExceptionClear();
+  } else {
+      LOG(level) << message << ": " << peer << ":" << scoped_name_chars.c_str();
+  }
+}
+
+// Unlike suspending all threads where we can wait to acquire the mutator_lock_, suspending an
+// individual thread requires polling. delay_us is the requested sleep and total_delay_us
+// accumulates the total time spent sleeping for timeouts. The first sleep is just a yield,
+// subsequently sleeps increase delay_us from 1ms to 500ms by doubling.
+static void ThreadSuspendSleep(Thread* self, useconds_t* delay_us, useconds_t* total_delay_us) {
+  for (int i = kLockLevelCount - 1; i >= 0; --i) {
+    BaseMutex* held_mutex = self->GetHeldMutex(static_cast<LockLevel>(i));
+    if (held_mutex != NULL) {
+      LOG(FATAL) << "Holding " << held_mutex->GetName() << " while sleeping for thread suspension";
+    }
+  }
+  {
+    useconds_t new_delay_us = (*delay_us) * 2;
+    CHECK_GE(new_delay_us, *delay_us);
+    if (new_delay_us < 500000) {  // Don't allow sleeping to be more than 0.5s.
+      *delay_us = new_delay_us;
+    }
+  }
+  if ((*delay_us) == 0) {
+    sched_yield();
+    // Default to 1 milliseconds (note that this gets multiplied by 2 before the first sleep).
+    (*delay_us) = 500;
+  } else {
+    usleep(*delay_us);
+    (*total_delay_us) += (*delay_us);
+  }
+}
+
+Thread* ThreadList::SuspendThreadByPeer(jobject peer, bool request_suspension,
+                                        bool debug_suspension, bool* timed_out) {
+  static const useconds_t kTimeoutUs = 30 * 1000000;  // 30s.
+  useconds_t total_delay_us = 0;
+  useconds_t delay_us = 0;
+  bool did_suspend_request = false;
+  *timed_out = false;
+  Thread* self = Thread::Current();
+  while (true) {
+    Thread* thread;
+    {
+      ScopedObjectAccess soa(self);
+      MutexLock mu(self, *Locks::thread_list_lock_);
+      thread = Thread::FromManagedThread(soa, peer);
+      if (thread == NULL) {
+        ThreadSuspendByPeerWarning(self, WARNING, "No such thread for suspend", peer);
+        return NULL;
+      }
+      {
+        MutexLock mu(self, *Locks::thread_suspend_count_lock_);
+        if (request_suspension) {
+          thread->ModifySuspendCount(self, +1, debug_suspension);
+          request_suspension = false;
+          did_suspend_request = true;
+        } else {
+          // If the caller isn't requesting suspension, a suspension should have already occurred.
+          CHECK_GT(thread->GetSuspendCount(), 0);
+        }
+        // IsSuspended on the current thread will fail as the current thread is changed into
+        // Runnable above. As the suspend count is now raised if this is the current thread
+        // it will self suspend on transition to Runnable, making it hard to work with. It's simpler
+        // to just explicitly handle the current thread in the callers to this code.
+        CHECK_NE(thread, self) << "Attempt to suspend the current thread for the debugger";
+        // If thread is suspended (perhaps it was already not Runnable but didn't have a suspend
+        // count, or else we've waited and it has self suspended) or is the current thread, we're
+        // done.
+        if (thread->IsSuspended()) {
+          return thread;
+        }
+        if (total_delay_us >= kTimeoutUs) {
+          ThreadSuspendByPeerWarning(self, ERROR, "Thread suspension timed out", peer);
+          if (did_suspend_request) {
+            thread->ModifySuspendCount(soa.Self(), -1, debug_suspension);
+          }
+          *timed_out = true;
+          return NULL;
+        }
+      }
+      // Release locks and come out of runnable state.
+    }
+    ThreadSuspendSleep(self, &delay_us, &total_delay_us);
+  }
+}
+
+static void ThreadSuspendByThreadIdWarning(int level, const char* message, uint32_t thread_id) {
+  LOG(level) << StringPrintf("%s: %d", message, thread_id);
+}
+
+Thread* ThreadList::SuspendThreadByThreadId(uint32_t thread_id, bool debug_suspension,
+                                            bool* timed_out) {
+  static const useconds_t kTimeoutUs = 30 * 1000000;  // 30s.
+  useconds_t total_delay_us = 0;
+  useconds_t delay_us = 0;
+  bool did_suspend_request = false;
+  *timed_out = false;
+  Thread* self = Thread::Current();
+  CHECK_NE(thread_id, kInvalidThreadId);
+  while (true) {
+    Thread* thread = NULL;
+    {
+      ScopedObjectAccess soa(self);
+      MutexLock mu(self, *Locks::thread_list_lock_);
+      for (const auto& it : list_) {
+        if (it->GetThreadId() == thread_id) {
+          thread = it;
+          break;
+        }
+      }
+      if (thread == NULL) {
+        // There's a race in inflating a lock and the owner giving up ownership and then dying.
+        ThreadSuspendByThreadIdWarning(WARNING, "No such thread id for suspend", thread_id);
+        return NULL;
+      }
+      {
+        MutexLock mu(self, *Locks::thread_suspend_count_lock_);
+        if (!did_suspend_request) {
+          thread->ModifySuspendCount(self, +1, debug_suspension);
+          did_suspend_request = true;
+        } else {
+          // If the caller isn't requesting suspension, a suspension should have already occurred.
+          CHECK_GT(thread->GetSuspendCount(), 0);
+        }
+        // IsSuspended on the current thread will fail as the current thread is changed into
+        // Runnable above. As the suspend count is now raised if this is the current thread
+        // it will self suspend on transition to Runnable, making it hard to work with. It's simpler
+        // to just explicitly handle the current thread in the callers to this code.
+        CHECK_NE(thread, self) << "Attempt to suspend the current thread for the debugger";
+        // If thread is suspended (perhaps it was already not Runnable but didn't have a suspend
+        // count, or else we've waited and it has self suspended) or is the current thread, we're
+        // done.
+        if (thread->IsSuspended()) {
+          return thread;
+        }
+        if (total_delay_us >= kTimeoutUs) {
+          ThreadSuspendByThreadIdWarning(ERROR, "Thread suspension timed out", thread_id);
+          if (did_suspend_request) {
+            thread->ModifySuspendCount(soa.Self(), -1, debug_suspension);
+          }
+          *timed_out = true;
+          return NULL;
+        }
+      }
+      // Release locks and come out of runnable state.
+    }
+    ThreadSuspendSleep(self, &delay_us, &total_delay_us);
+  }
+}
+
+Thread* ThreadList::FindThreadByThreadId(uint32_t thin_lock_id) {
+  Thread* self = Thread::Current();
+  MutexLock mu(self, *Locks::thread_list_lock_);
+  for (const auto& thread : list_) {
+    if (thread->GetThreadId() == thin_lock_id) {
+      CHECK(thread == self || thread->IsSuspended());
+      return thread;
+    }
+  }
+  return NULL;
 }
 
 void ThreadList::SuspendAllForDebugger() {
@@ -527,8 +709,8 @@ void ThreadList::Unregister(Thread* self) {
   // suspend and so on, must happen at this point, and not in ~Thread.
   self->Destroy();
 
-  uint32_t thin_lock_id = self->thin_lock_id_;
-  self->thin_lock_id_ = 0;
+  uint32_t thin_lock_id = self->thin_lock_thread_id_;
+  self->thin_lock_thread_id_ = 0;
   ReleaseThreadId(self, thin_lock_id);
   while (self != NULL) {
     // Remove and delete the Thread* while holding the thread_list_lock_ and
@@ -568,10 +750,24 @@ void ThreadList::VisitRoots(RootVisitor* visitor, void* arg) const {
   }
 }
 
+struct VerifyRootWrapperArg {
+  VerifyRootVisitor* visitor;
+  void* arg;
+};
+
+static mirror::Object* VerifyRootWrapperCallback(mirror::Object* root, void* arg) {
+  VerifyRootWrapperArg* wrapperArg = reinterpret_cast<VerifyRootWrapperArg*>(arg);
+  wrapperArg->visitor(root, wrapperArg->arg, 0, NULL);
+  return root;
+}
+
 void ThreadList::VerifyRoots(VerifyRootVisitor* visitor, void* arg) const {
+  VerifyRootWrapperArg wrapper;
+  wrapper.visitor = visitor;
+  wrapper.arg = arg;
   MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
   for (const auto& thread : list_) {
-    thread->VerifyRoots(visitor, arg);
+    thread->VisitRoots(VerifyRootWrapperCallback, &wrapper);
   }
 }
 
@@ -592,16 +788,6 @@ void ThreadList::ReleaseThreadId(Thread* self, uint32_t id) {
   --id;  // Zero is reserved to mean "invalid".
   DCHECK(allocated_ids_[id]) << id;
   allocated_ids_.reset(id);
-}
-
-Thread* ThreadList::FindThreadByThinLockId(uint32_t thin_lock_id) {
-  MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
-  for (const auto& thread : list_) {
-    if (thread->GetThinLockId() == thin_lock_id) {
-      return thread;
-    }
-  }
-  return NULL;
 }
 
 }  // namespace art

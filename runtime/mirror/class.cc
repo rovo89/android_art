@@ -60,7 +60,7 @@ void Class::SetStatus(Status new_status, Thread* self) {
     }
     if (new_status >= kStatusResolved || old_status >= kStatusResolved) {
       // When classes are being resolved the resolution code should hold the lock.
-      CHECK_EQ(GetThinLockId(), self->GetThinLockId())
+      CHECK_EQ(GetLockOwnerThreadId(), self->GetThreadId())
             << "Attempt to change status of class while not holding its lock: "
             << PrettyClass(this) << " " << old_status << " -> " << new_status;
     }
@@ -116,15 +116,6 @@ void Class::SetStatus(Status new_status, Thread* self) {
 
 void Class::SetDexCache(DexCache* new_dex_cache) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_), new_dex_cache, false);
-}
-
-Object* Class::AllocObject(Thread* self) {
-  DCHECK(!IsArrayClass()) << PrettyClass(this);
-  DCHECK(IsInstantiable()) << PrettyClass(this);
-  // TODO: decide whether we want this check. It currently fails during bootstrap.
-  // DCHECK(!Runtime::Current()->IsStarted() || IsInitializing()) << PrettyClass(this);
-  DCHECK_GE(this->object_size_, sizeof(Object));
-  return Runtime::Current()->GetHeap()->AllocObject(self, this, this->object_size_);
 }
 
 void Class::SetClassSize(size_t new_class_size) {
@@ -334,7 +325,7 @@ void Class::SetClassLoader(ClassLoader* new_class_loader) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), new_class_loader, false);
 }
 
-ArtMethod* Class::FindInterfaceMethod(const StringPiece& name, const StringPiece& signature) const {
+ArtMethod* Class::FindInterfaceMethod(const StringPiece& name, const Signature& signature) const {
   // Check the current class before checking the interfaces.
   ArtMethod* method = FindDeclaredVirtualMethod(name, signature);
   if (method != NULL) {
@@ -370,8 +361,19 @@ ArtMethod* Class::FindInterfaceMethod(const DexCache* dex_cache, uint32_t dex_me
   return NULL;
 }
 
-
 ArtMethod* Class::FindDeclaredDirectMethod(const StringPiece& name, const StringPiece& signature) const {
+  MethodHelper mh;
+  for (size_t i = 0; i < NumDirectMethods(); ++i) {
+    ArtMethod* method = GetDirectMethod(i);
+    mh.ChangeMethod(method);
+    if (name == mh.GetName() && mh.GetSignature() == signature) {
+      return method;
+    }
+  }
+  return NULL;
+}
+
+ArtMethod* Class::FindDeclaredDirectMethod(const StringPiece& name, const Signature& signature) const {
   MethodHelper mh;
   for (size_t i = 0; i < NumDirectMethods(); ++i) {
     ArtMethod* method = GetDirectMethod(i);
@@ -405,6 +407,16 @@ ArtMethod* Class::FindDirectMethod(const StringPiece& name, const StringPiece& s
   return NULL;
 }
 
+ArtMethod* Class::FindDirectMethod(const StringPiece& name, const Signature& signature) const {
+  for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
+    ArtMethod* method = klass->FindDeclaredDirectMethod(name, signature);
+    if (method != NULL) {
+      return method;
+    }
+  }
+  return NULL;
+}
+
 ArtMethod* Class::FindDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
   for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
     ArtMethod* method = klass->FindDeclaredDirectMethod(dex_cache, dex_method_idx);
@@ -415,8 +427,20 @@ ArtMethod* Class::FindDirectMethod(const DexCache* dex_cache, uint32_t dex_metho
   return NULL;
 }
 
+ArtMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name, const StringPiece& signature) const {
+  MethodHelper mh;
+  for (size_t i = 0; i < NumVirtualMethods(); ++i) {
+    ArtMethod* method = GetVirtualMethod(i);
+    mh.ChangeMethod(method);
+    if (name == mh.GetName() && mh.GetSignature() == signature) {
+      return method;
+    }
+  }
+  return NULL;
+}
+
 ArtMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name,
-                                         const StringPiece& signature) const {
+                                            const Signature& signature) const {
   MethodHelper mh;
   for (size_t i = 0; i < NumVirtualMethods(); ++i) {
     ArtMethod* method = GetVirtualMethod(i);
@@ -450,10 +474,36 @@ ArtMethod* Class::FindVirtualMethod(const StringPiece& name, const StringPiece& 
   return NULL;
 }
 
+ArtMethod* Class::FindVirtualMethod(const StringPiece& name, const Signature& signature) const {
+  for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
+    ArtMethod* method = klass->FindDeclaredVirtualMethod(name, signature);
+    if (method != NULL) {
+      return method;
+    }
+  }
+  return NULL;
+}
+
 ArtMethod* Class::FindVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
   for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
     ArtMethod* method = klass->FindDeclaredVirtualMethod(dex_cache, dex_method_idx);
     if (method != NULL) {
+      return method;
+    }
+  }
+  return NULL;
+}
+
+ArtMethod* Class::FindClassInitializer() const {
+  for (size_t i = 0; i < NumDirectMethods(); ++i) {
+    ArtMethod* method = GetDirectMethod(i);
+    if (method->IsConstructor() && method->IsStatic()) {
+      if (kIsDebugBuild) {
+        MethodHelper mh(method);
+        CHECK(mh.IsClassInitializer());
+        CHECK_STREQ(mh.GetName(), "<clinit>");
+        CHECK_STREQ(mh.GetSignature().ToString().c_str(), "()V");
+      }
       return method;
     }
   }
@@ -611,7 +661,9 @@ static void SetPreverifiedFlagOnMethods(mirror::ObjectArray<mirror::ArtMethod>* 
     for (int32_t index = 0, end = methods->GetLength(); index < end; ++index) {
       mirror::ArtMethod* method = methods->GetWithoutChecks(index);
       DCHECK(method != NULL);
-      method->SetPreverified();
+      if (!method->IsNative() && !method->IsAbstract()) {
+        method->SetPreverified();
+      }
     }
   }
 }

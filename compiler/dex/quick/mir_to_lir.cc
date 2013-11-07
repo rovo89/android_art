@@ -18,6 +18,7 @@
 #include "dex/dataflow_iterator-inl.h"
 #include "mir_to_lir-inl.h"
 #include "object_utils.h"
+#include "thread-inl.h"
 
 namespace art {
 
@@ -240,9 +241,9 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::GOTO_16:
     case Instruction::GOTO_32:
       if (mir_graph_->IsBackedge(bb, bb->taken)) {
-        GenSuspendTestAndBranch(opt_flags, &label_list[bb->taken->id]);
+        GenSuspendTestAndBranch(opt_flags, &label_list[bb->taken]);
       } else {
-        OpUnconditionalBranch(&label_list[bb->taken->id]);
+        OpUnconditionalBranch(&label_list[bb->taken]);
       }
       break;
 
@@ -271,23 +272,22 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::IF_GE:
     case Instruction::IF_GT:
     case Instruction::IF_LE: {
-      LIR* taken = &label_list[bb->taken->id];
-      LIR* fall_through = &label_list[bb->fall_through->id];
+      LIR* taken = &label_list[bb->taken];
+      LIR* fall_through = &label_list[bb->fall_through];
       // Result known at compile time?
       if (rl_src[0].is_const && rl_src[1].is_const) {
         bool is_taken = EvaluateBranch(opcode, mir_graph_->ConstantValue(rl_src[0].orig_sreg),
                                        mir_graph_->ConstantValue(rl_src[1].orig_sreg));
-        BasicBlock* target = is_taken ? bb->taken : bb->fall_through;
-        if (mir_graph_->IsBackedge(bb, target)) {
+        BasicBlockId target_id = is_taken ? bb->taken : bb->fall_through;
+        if (mir_graph_->IsBackedge(bb, target_id)) {
           GenSuspendTest(opt_flags);
         }
-        OpUnconditionalBranch(&label_list[target->id]);
+        OpUnconditionalBranch(&label_list[target_id]);
       } else {
         if (mir_graph_->IsBackwardsBranch(bb)) {
           GenSuspendTest(opt_flags);
         }
-        GenCompareAndBranch(opcode, rl_src[0], rl_src[1], taken,
-                                fall_through);
+        GenCompareAndBranch(opcode, rl_src[0], rl_src[1], taken, fall_through);
       }
       break;
       }
@@ -298,16 +298,16 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::IF_GEZ:
     case Instruction::IF_GTZ:
     case Instruction::IF_LEZ: {
-      LIR* taken = &label_list[bb->taken->id];
-      LIR* fall_through = &label_list[bb->fall_through->id];
+      LIR* taken = &label_list[bb->taken];
+      LIR* fall_through = &label_list[bb->fall_through];
       // Result known at compile time?
       if (rl_src[0].is_const) {
         bool is_taken = EvaluateBranch(opcode, mir_graph_->ConstantValue(rl_src[0].orig_sreg), 0);
-        BasicBlock* target = is_taken ? bb->taken : bb->fall_through;
-        if (mir_graph_->IsBackedge(bb, target)) {
+        BasicBlockId target_id = is_taken ? bb->taken : bb->fall_through;
+        if (mir_graph_->IsBackedge(bb, target_id)) {
           GenSuspendTest(opt_flags);
         }
-        OpUnconditionalBranch(&label_list[target->id]);
+        OpUnconditionalBranch(&label_list[target_id]);
       } else {
         if (mir_graph_->IsBackwardsBranch(bb)) {
           GenSuspendTest(opt_flags);
@@ -337,22 +337,35 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       GenArrayGet(opt_flags, kSignedHalf, rl_src[0], rl_src[1], rl_dest, 1);
       break;
     case Instruction::APUT_WIDE:
-      GenArrayPut(opt_flags, kLong, rl_src[1], rl_src[2], rl_src[0], 3);
+      GenArrayPut(opt_flags, kLong, rl_src[1], rl_src[2], rl_src[0], 3, false);
       break;
     case Instruction::APUT:
-      GenArrayPut(opt_flags, kWord, rl_src[1], rl_src[2], rl_src[0], 2);
+      GenArrayPut(opt_flags, kWord, rl_src[1], rl_src[2], rl_src[0], 2, false);
       break;
-    case Instruction::APUT_OBJECT:
-      GenArrayObjPut(opt_flags, rl_src[1], rl_src[2], rl_src[0], 2);
+    case Instruction::APUT_OBJECT: {
+      bool is_null = mir_graph_->IsConstantNullRef(rl_src[0]);
+      bool is_safe = is_null;  // Always safe to store null.
+      if (!is_safe) {
+        // Check safety from verifier type information.
+        const MethodReference mr(cu_->dex_file, cu_->method_idx);
+        is_safe = cu_->compiler_driver->IsSafeCast(mr, mir->offset);
+      }
+      if (is_null || is_safe) {
+        // Store of constant null doesn't require an assignability test and can be generated inline
+        // without fixed register usage or a card mark.
+        GenArrayPut(opt_flags, kWord, rl_src[1], rl_src[2], rl_src[0], 2, !is_null);
+      } else {
+        GenArrayObjPut(opt_flags, rl_src[1], rl_src[2], rl_src[0]);
+      }
       break;
+    }
     case Instruction::APUT_SHORT:
     case Instruction::APUT_CHAR:
-      GenArrayPut(opt_flags, kUnsignedHalf, rl_src[1], rl_src[2], rl_src[0], 1);
+      GenArrayPut(opt_flags, kUnsignedHalf, rl_src[1], rl_src[2], rl_src[0], 1, false);
       break;
     case Instruction::APUT_BYTE:
     case Instruction::APUT_BOOLEAN:
-      GenArrayPut(opt_flags, kUnsignedByte, rl_src[1], rl_src[2],
-            rl_src[0], 0);
+      GenArrayPut(opt_flags, kUnsignedByte, rl_src[1], rl_src[2], rl_src[0], 0, false);
       break;
 
     case Instruction::IGET_OBJECT:
@@ -696,6 +709,7 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
 
   // Insert the block label.
   block_label_list_[block_id].opcode = kPseudoNormalBlockLabel;
+  block_label_list_[block_id].flags.fixup = kFixupLabel;
   AppendLIR(&block_label_list_[block_id]);
 
   LIR* head_lir = NULL;
@@ -706,16 +720,15 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
   }
 
   // Free temp registers and reset redundant store tracking.
-  ResetRegPool();
-  ResetDefTracking();
-
   ClobberAllRegs();
 
   if (bb->block_type == kEntryBlock) {
+    ResetRegPool();
     int start_vreg = cu_->num_dalvik_registers - cu_->num_ins;
     GenEntrySequence(&mir_graph_->reg_location_[start_vreg],
                          mir_graph_->reg_location_[mir_graph_->GetMethodSReg()]);
   } else if (bb->block_type == kExitBlock) {
+    ResetRegPool();
     GenExitSequence();
   }
 
@@ -736,17 +749,18 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
 
     current_dalvik_offset_ = mir->offset;
     int opcode = mir->dalvikInsn.opcode;
-    LIR* boundary_lir;
 
     // Mark the beginning of a Dalvik instruction for line tracking.
-    char* inst_str = cu_->verbose ?
-       mir_graph_->GetDalvikDisassembly(mir) : NULL;
-    boundary_lir = MarkBoundary(mir->offset, inst_str);
+    if (cu_->verbose) {
+       char* inst_str = mir_graph_->GetDalvikDisassembly(mir);
+       MarkBoundary(mir->offset, inst_str);
+    }
     // Remember the first LIR for this block.
     if (head_lir == NULL) {
-      head_lir = boundary_lir;
-      // Set the first boundary_lir as a scheduling barrier.
-      head_lir->def_mask = ENCODE_ALL;
+      head_lir = &block_label_list_[bb->id];
+      // Set the first label as a scheduling barrier.
+      DCHECK(!head_lir->flags.use_def_invalid);
+      head_lir->u.m.def_mask = ENCODE_ALL;
     }
 
     if (opcode == kMirOpCheck) {
@@ -771,11 +785,6 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
   if (head_lir) {
     // Eliminate redundant loads/stores and delay stores into later slots.
     ApplyLocalOptimizations(head_lir, last_lir_insn_);
-
-    // Generate an unconditional branch to the fallthrough block.
-    if (bb->fall_through) {
-      OpUnconditionalBranch(&block_label_list_[bb->fall_through->id]);
-    }
   }
   return false;
 }
@@ -810,25 +819,34 @@ void Mir2Lir::SpecialMIR2LIR(SpecialCaseHandler special_case) {
 }
 
 void Mir2Lir::MethodMIR2LIR() {
+  cu_->NewTimingSplit("MIR2LIR");
+
   // Hold the labels of each block.
   block_label_list_ =
       static_cast<LIR*>(arena_->Alloc(sizeof(LIR) * mir_graph_->GetNumBlocks(),
                                       ArenaAllocator::kAllocLIR));
 
-  PreOrderDfsIterator iter(mir_graph_, false /* not iterative */);
-  for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
-    MethodBlockCodeGen(bb);
+  PreOrderDfsIterator iter(mir_graph_);
+  BasicBlock* curr_bb = iter.Next();
+  BasicBlock* next_bb = iter.Next();
+  while (curr_bb != NULL) {
+    MethodBlockCodeGen(curr_bb);
+    // If the fall_through block is no longer laid out consecutively, drop in a branch.
+    BasicBlock* curr_bb_fall_through = mir_graph_->GetBasicBlock(curr_bb->fall_through);
+    if ((curr_bb_fall_through != NULL) && (curr_bb_fall_through != next_bb)) {
+      OpUnconditionalBranch(&block_label_list_[curr_bb->fall_through]);
+    }
+    curr_bb = next_bb;
+    do {
+      next_bb = iter.Next();
+    } while ((next_bb != NULL) && (next_bb->block_type == kDead));
   }
-
+  cu_->NewTimingSplit("Launchpads");
   HandleSuspendLaunchPads();
 
   HandleThrowLaunchPads();
 
   HandleIntrinsicLaunchPads();
-
-  if (!(cu_->disable_opt & (1 << kSafeOptimizations))) {
-    RemoveRedundantBranches();
-  }
 }
 
 }  // namespace art

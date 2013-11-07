@@ -20,6 +20,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
+#include "scoped_fast_native_object_access.h"
 #include "scoped_thread_state_change.h"
 #include "thread_list.h"
 
@@ -34,7 +35,7 @@ static jobject GetThreadStack(JNIEnv* env, jobject peer) {
   }
   // Suspend thread to build stack trace.
   bool timed_out;
-  Thread* thread = Thread::SuspendForDebugger(peer, true, &timed_out);
+  Thread* thread = ThreadList::SuspendThreadByPeer(peer, true, false, &timed_out);
   if (thread != NULL) {
     jobject trace;
     {
@@ -42,7 +43,7 @@ static jobject GetThreadStack(JNIEnv* env, jobject peer) {
       trace = thread->CreateInternalStackTrace(soa);
     }
     // Restart suspended thread.
-    Runtime::Current()->GetThreadList()->Resume(thread, true);
+    Runtime::Current()->GetThreadList()->Resume(thread, false);
     return trace;
   } else {
     if (timed_out) {
@@ -66,7 +67,7 @@ static jint VMStack_fillStackTraceElements(JNIEnv* env, jclass, jobject javaThre
 
 // Returns the defining class loader of the caller's caller.
 static jobject VMStack_getCallingClassLoader(JNIEnv* env, jclass) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   NthCallerVisitor visitor(soa.Self(), 2);
   visitor.WalkStack();
   return soa.AddLocalReference<jobject>(visitor.caller->GetDeclaringClass()->GetClassLoader());
@@ -93,7 +94,7 @@ static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject ja
     mirror::Object* system;
     mirror::Object* class_loader;
   };
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   mirror::Object* bootstrap = soa.Decode<mirror::Object*>(javaBootstrap);
   mirror::Object* system = soa.Decode<mirror::Object*>(javaSystem);
   ClosestUserClassLoaderVisitor visitor(soa.Self(), bootstrap, system);
@@ -103,7 +104,7 @@ static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject ja
 
 // Returns the class of the caller's caller's caller.
 static jclass VMStack_getStackClass2(JNIEnv* env, jclass) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   NthCallerVisitor visitor(soa.Self(), 3);
   visitor.WalkStack();
   return soa.AddLocalReference<jclass>(visitor.caller->GetDeclaringClass());
@@ -119,9 +120,9 @@ static jobjectArray VMStack_getThreadStackTrace(JNIEnv* env, jclass, jobject jav
 
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMStack, fillStackTraceElements, "(Ljava/lang/Thread;[Ljava/lang/StackTraceElement;)I"),
-  NATIVE_METHOD(VMStack, getCallingClassLoader, "()Ljava/lang/ClassLoader;"),
-  NATIVE_METHOD(VMStack, getClosestUserClassLoader, "(Ljava/lang/ClassLoader;Ljava/lang/ClassLoader;)Ljava/lang/ClassLoader;"),
-  NATIVE_METHOD(VMStack, getStackClass2, "()Ljava/lang/Class;"),
+  NATIVE_METHOD(VMStack, getCallingClassLoader, "!()Ljava/lang/ClassLoader;"),
+  NATIVE_METHOD(VMStack, getClosestUserClassLoader, "!(Ljava/lang/ClassLoader;Ljava/lang/ClassLoader;)Ljava/lang/ClassLoader;"),
+  NATIVE_METHOD(VMStack, getStackClass2, "!()Ljava/lang/Class;"),
   NATIVE_METHOD(VMStack, getThreadStackTrace, "(Ljava/lang/Thread;)[Ljava/lang/StackTraceElement;"),
 };
 

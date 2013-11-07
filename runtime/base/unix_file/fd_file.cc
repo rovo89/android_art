@@ -102,10 +102,6 @@ bool FdFile::IsOpened() const {
   return fd_ >= 0;
 }
 
-std::string FdFile::GetPath() const {
-  return file_path_;
-}
-
 bool FdFile::ReadFully(void* buffer, int64_t byte_count) {
   char* ptr = static_cast<char*>(buffer);
   while (byte_count > 0) {

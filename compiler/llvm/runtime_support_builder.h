@@ -64,8 +64,8 @@ class RuntimeSupportBuilder {
   virtual void EmitTestSuspend();
 
   /* Monitor */
-  virtual void EmitLockObject(::llvm::Value* object);
-  virtual void EmitUnlockObject(::llvm::Value* object);
+  void EmitLockObject(::llvm::Value* object);
+  void EmitUnlockObject(::llvm::Value* object);
 
   /* MarkGCCard */
   virtual void EmitMarkGCCard(::llvm::Value* value, ::llvm::Value* target_addr);
