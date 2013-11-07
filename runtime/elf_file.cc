@@ -82,7 +82,8 @@ bool ElfFile::Setup(File* file, bool writable, bool program_header_only, std::st
     // first just map ELF header to get program header size information
     size_t elf_header_size = sizeof(llvm::ELF::Elf32_Ehdr);
     if (!SetMap(MemMap::MapFile(elf_header_size, prot, flags, file_->Fd(), 0,
-                                file_->GetPath().c_str(), error_msg))) {
+                                file_->GetPath().c_str(), error_msg),
+                error_msg)) {
       return false;
     }
     // then remap to cover program header
@@ -94,14 +95,16 @@ bool ElfFile::Setup(File* file, bool writable, bool program_header_only, std::st
       return false;
     }
     if (!SetMap(MemMap::MapFile(program_header_size, prot, flags, file_->Fd(), 0,
-                                file_->GetPath().c_str(), error_msg))) {
+                                file_->GetPath().c_str(), error_msg),
+                error_msg)) {
       *error_msg = StringPrintf("Failed to map ELF program headers: %s", error_msg->c_str());
       return false;
     }
   } else {
     // otherwise map entire file
     if (!SetMap(MemMap::MapFile(file_->GetLength(), prot, flags, file_->Fd(), 0,
-                                file_->GetPath().c_str(), error_msg))) {
+                                file_->GetPath().c_str(), error_msg),
+                error_msg)) {
       *error_msg = StringPrintf("Failed to map ELF file: %s", error_msg->c_str());
       return false;
     }
@@ -173,9 +176,10 @@ ElfFile::~ElfFile() {
   delete dynsym_symbol_table_;
 }
 
-bool ElfFile::SetMap(MemMap* map) {
+bool ElfFile::SetMap(MemMap* map, std::string* error_msg) {
   if (map == NULL) {
-    // MemMap::Open should have already logged
+    // MemMap::Open should have already set an error.
+    DCHECK(!error_msg->empty());
     return false;
   }
   map_.reset(map);
@@ -187,12 +191,12 @@ bool ElfFile::SetMap(MemMap* map) {
       || (llvm::ELF::ElfMagic[1] != header_->e_ident[llvm::ELF::EI_MAG1])
       || (llvm::ELF::ElfMagic[2] != header_->e_ident[llvm::ELF::EI_MAG2])
       || (llvm::ELF::ElfMagic[3] != header_->e_ident[llvm::ELF::EI_MAG3])) {
-    LOG(WARNING) << "Failed to find ELF magic in " << file_->GetPath()
-                 << ": " << std::hex
-                 << static_cast<uint8_t>(header_->e_ident[llvm::ELF::EI_MAG0])
-                 << static_cast<uint8_t>(header_->e_ident[llvm::ELF::EI_MAG1])
-                 << static_cast<uint8_t>(header_->e_ident[llvm::ELF::EI_MAG2])
-                 << static_cast<uint8_t>(header_->e_ident[llvm::ELF::EI_MAG3]);
+    *error_msg = StringPrintf("Failed to find ELF magic in %s: %c%c%c%c",
+                              file_->GetPath().c_str(),
+                              header_->e_ident[llvm::ELF::EI_MAG0],
+                              header_->e_ident[llvm::ELF::EI_MAG1],
+                              header_->e_ident[llvm::ELF::EI_MAG2],
+                              header_->e_ident[llvm::ELF::EI_MAG3]);
     return false;
   }
 
