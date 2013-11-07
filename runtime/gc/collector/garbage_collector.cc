@@ -26,7 +26,7 @@
 #include "gc/accounting/heap_bitmap.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
-#include "thread.h"
+#include "thread-inl.h"
 #include "thread_list.h"
 
 namespace art {

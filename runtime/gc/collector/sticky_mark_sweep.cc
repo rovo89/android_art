@@ -18,7 +18,7 @@
 #include "gc/space/large_object_space.h"
 #include "gc/space/space.h"
 #include "sticky_mark_sweep.h"
-#include "thread.h"
+#include "thread-inl.h"
 
 namespace art {
 namespace gc {
