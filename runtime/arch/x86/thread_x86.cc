@@ -21,7 +21,7 @@
 
 #include "asm_support_x86.h"
 #include "base/macros.h"
-#include "thread.h"
+#include "thread-inl.h"
 #include "thread_list.h"
 
 #if defined(__APPLE__)
