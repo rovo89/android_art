@@ -24,10 +24,6 @@ ifeq ($(ART_USE_PORTABLE_COMPILER),true)
   ART_EXECUTABLES_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
 endif
 
-# add the default instruction set features
-ART_EXECUTABLES_CFLAGS += \
-	-DART_DEFAULT_INSTRUCTION_SET_FEATURES=$(DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES)
-
 # $(1): executable ("d" will be appended for debug version)
 # $(2): source
 # $(3): extra shared libraries
