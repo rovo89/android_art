@@ -84,6 +84,7 @@ static uint32_t kCompilerOptimizerDisableFlags = 0 |  // Disable specific optimi
   // (1 << kBBOpt) |
   // (1 << kMatch) |
   // (1 << kPromoteCompilerTemps) |
+  // (1 << kSuppressExceptionEdges) |
   0;
 
 static uint32_t kCompilerDebugFlags = 0 |     // Enable debug/testing modes
@@ -212,7 +213,9 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
 
   if (compiler_backend == kPortable) {
     // Fused long branches not currently useful in bitcode.
-    cu.disable_opt |= (1 << kBranchFusing);
+    cu.disable_opt |=
+        (1 << kBranchFusing) |
+        (1 << kSuppressExceptionEdges);
   }
 
   if (cu.instruction_set == kMips) {

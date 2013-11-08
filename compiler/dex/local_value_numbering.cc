@@ -380,7 +380,9 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
           }
           mir->optimization_flags |= MIR_IGNORE_RANGE_CHECK;
         }
-        mir->meta.throw_insn->optimization_flags |= mir->optimization_flags;
+        if (mir->meta.throw_insn != NULL) {
+          mir->meta.throw_insn->optimization_flags |= mir->optimization_flags;
+        }
         // Use side effect to note range check completed.
         (void)LookupValue(ARRAY_REF, array, index, NO_VALUE);
         // Establish value number for loaded register. Note use of memory version.
@@ -419,7 +421,9 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
           }
           mir->optimization_flags |= MIR_IGNORE_RANGE_CHECK;
         }
-        mir->meta.throw_insn->optimization_flags |= mir->optimization_flags;
+        if (mir->meta.throw_insn != NULL) {
+          mir->meta.throw_insn->optimization_flags |= mir->optimization_flags;
+        }
         // Use side effect to note range check completed.
         (void)LookupValue(ARRAY_REF, array, index, NO_VALUE);
         // Rev the memory version
@@ -443,7 +447,9 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
         } else {
           null_checked_.insert(base);
         }
-        mir->meta.throw_insn->optimization_flags |= mir->optimization_flags;
+        if (mir->meta.throw_insn != NULL) {
+          mir->meta.throw_insn->optimization_flags |= mir->optimization_flags;
+        }
         uint16_t field_ref = mir->dalvikInsn.vC;
         uint16_t memory_version = GetMemoryVersion(base, field_ref);
         if (opcode == Instruction::IGET_WIDE) {
@@ -473,7 +479,9 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
         } else {
           null_checked_.insert(base);
         }
-        mir->meta.throw_insn->optimization_flags |= mir->optimization_flags;
+        if (mir->meta.throw_insn != NULL) {
+          mir->meta.throw_insn->optimization_flags |= mir->optimization_flags;
+        }
         uint16_t field_ref = mir->dalvikInsn.vC;
         AdvanceMemoryVersion(base, field_ref);
       }

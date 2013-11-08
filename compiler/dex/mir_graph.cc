@@ -365,8 +365,8 @@ BasicBlock* MIRGraph::ProcessCanBranch(BasicBlock* cur_block, MIR* insn, DexOffs
 }
 
 /* Process instructions with the kSwitch flag */
-void MIRGraph::ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, DexOffset cur_offset, int width,
-                                int flags) {
+BasicBlock* MIRGraph::ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, DexOffset cur_offset,
+                                       int width, int flags) {
   const uint16_t* switch_data =
       reinterpret_cast<const uint16_t*>(GetCurrentInsns() + cur_offset + insn->dalvikInsn.vB);
   int size;
@@ -437,6 +437,7 @@ void MIRGraph::ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, DexOffset cur_
                                             /* create */ true, /* immed_pred_block_p */ NULL);
   cur_block->fall_through = fallthrough_block->id;
   fallthrough_block->predecessors->Insert(cur_block->id);
+  return cur_block;
 }
 
 /* Process instructions with the kThrow flag */
@@ -444,6 +445,9 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
                                       int width, int flags, ArenaBitVector* try_block_addr,
                                       const uint16_t* code_ptr, const uint16_t* code_end) {
   bool in_try_block = try_block_addr->IsBitSet(cur_offset);
+  bool is_throw = (insn->dalvikInsn.opcode == Instruction::THROW);
+  bool build_all_edges =
+      (cu_->disable_opt & (1 << kSuppressExceptionEdges)) || is_throw || in_try_block;
 
   /* In try block */
   if (in_try_block) {
@@ -473,7 +477,7 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
       cur_block->successor_blocks->Insert(successor_block_info);
       catch_block->predecessors->Insert(cur_block->id);
     }
-  } else {
+  } else if (build_all_edges) {
     BasicBlock *eh_block = NewMemBB(kExceptionHandling, num_blocks_++);
     cur_block->taken = eh_block->id;
     block_list_.Insert(eh_block);
@@ -481,7 +485,7 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
     eh_block->predecessors->Insert(cur_block->id);
   }
 
-  if (insn->dalvikInsn.opcode == Instruction::THROW) {
+  if (is_throw) {
     cur_block->explicit_throw = true;
     if (code_ptr < code_end) {
       // Force creation of new block following THROW via side-effect
@@ -492,6 +496,16 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
        // Don't split a THROW that can't rethrow - we're done.
       return cur_block;
     }
+  }
+
+  if (!build_all_edges) {
+    /*
+     * Even though there is an exception edge here, control cannot return to this
+     * method.  Thus, for the purposes of dataflow analysis and optimization, we can
+     * ignore the edge.  Doing this reduces compile time, and increases the scope
+     * of the basic-block level optimization pass.
+     */
+    return cur_block;
   }
 
   /*
@@ -695,7 +709,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
       cur_block = ProcessCanThrow(cur_block, insn, current_offset_, width, flags, try_block_addr_,
                                   code_ptr, code_end);
     } else if (flags & Instruction::kSwitch) {
-      ProcessCanSwitch(cur_block, insn, current_offset_, width, flags);
+      cur_block = ProcessCanSwitch(cur_block, insn, current_offset_, width, flags);
     }
     current_offset_ += width;
     BasicBlock *next_block = FindBlock(current_offset_, /* split */ false, /* create */
@@ -1100,6 +1114,7 @@ const char* MIRGraph::GetShortyFromTargetIdx(int target_idx) {
 void MIRGraph::DumpMIRGraph() {
   BasicBlock* bb;
   const char* block_type_names[] = {
+    "Null Block",
     "Entry Block",
     "Code Block",
     "Exit Block",

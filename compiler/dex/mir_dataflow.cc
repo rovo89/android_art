@@ -1243,12 +1243,13 @@ bool MIRGraph::CountUses(struct BasicBlock* bb) {
     if (mir->ssa_rep == NULL) {
       continue;
     }
-    // Each level of nesting adds *16 to count, up to 3 levels deep.
-    uint32_t weight = std::min(3U, static_cast<uint32_t>(bb->nesting_depth) * 4);
+    // Each level of nesting adds *100 to count, up to 3 levels deep.
+    uint32_t depth = std::min(3U, static_cast<uint32_t>(bb->nesting_depth));
+    uint32_t weight = std::max(1U, depth * 100);
     for (int i = 0; i < mir->ssa_rep->num_uses; i++) {
       int s_reg = mir->ssa_rep->uses[i];
       raw_use_counts_.Increment(s_reg);
-      use_counts_.Put(s_reg, use_counts_.Get(s_reg) + (1 << weight));
+      use_counts_.Put(s_reg, use_counts_.Get(s_reg) + weight);
     }
     if (!(cu_->disable_opt & (1 << kPromoteCompilerTemps))) {
       int df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
@@ -1267,7 +1268,7 @@ bool MIRGraph::CountUses(struct BasicBlock* bb) {
         }
         if (uses_method_star) {
           raw_use_counts_.Increment(method_sreg_);
-          use_counts_.Put(method_sreg_, use_counts_.Get(method_sreg_) + (1 << weight));
+          use_counts_.Put(method_sreg_, use_counts_.Get(method_sreg_) + weight);
         }
       }
     }
