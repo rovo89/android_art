@@ -1444,20 +1444,45 @@ class ParallelCompilationManager {
   DISALLOW_COPY_AND_ASSIGN(ParallelCompilationManager);
 };
 
-// Return true if the class should be skipped during compilation. We
-// never skip classes in the boot class loader. However, if we have a
-// non-boot class loader and we can resolve the class in the boot
-// class loader, we do skip the class. This happens if an app bundles
-// classes found in the boot classpath. Since at runtime we will
-// select the class from the boot classpath, do not attempt to resolve
-// or compile it now.
+// Return true if the class should be skipped during compilation.
+//
+// The first case where we skip is for redundant class definitions in
+// the boot classpath. We skip all but the first definition in that case.
+//
+// The second case where we skip is when an app bundles classes found
+// in the boot classpath. Since at runtime we will select the class from
+// the boot classpath, we ignore the one from the app.
 static bool SkipClass(ClassLinker* class_linker, jobject class_loader, const DexFile& dex_file,
                       const DexFile::ClassDef& class_def) {
+  const char* descriptor = dex_file.GetClassDescriptor(class_def);
   if (class_loader == NULL) {
+    DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, class_linker->GetBootClassPath());
+    CHECK(pair.second != NULL);
+    if (pair.first != &dex_file) {
+      LOG(WARNING) << "Skipping class " << descriptor << " from " << dex_file.GetLocation()
+                   << " previously found in " << pair.first->GetLocation();
+      return true;
+    }
     return false;
   }
-  const char* descriptor = dex_file.GetClassDescriptor(class_def);
   return class_linker->IsInBootClassPath(descriptor);
+}
+
+// A fast version of SkipClass above if the class pointer is available
+// that avoids the expensive FindInClassPath search.
+static bool SkipClass(jobject class_loader, const DexFile& dex_file, mirror::Class* klass)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  DCHECK(klass != NULL);
+  const DexFile& original_dex_file = *klass->GetDexCache()->GetDexFile();
+  if (&dex_file != &original_dex_file) {
+    if (class_loader == NULL) {
+      LOG(WARNING) << "Skipping class " << PrettyDescriptor(klass) << " from "
+                   << dex_file.GetLocation() << " previously found in "
+                   << original_dex_file.GetLocation();
+    }
+    return true;
+  }
+  return false;
 }
 
 static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manager,
@@ -1622,11 +1647,13 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
     LOCKS_EXCLUDED(Locks::mutator_lock_) {
   ATRACE_CALL();
   ScopedObjectAccess soa(Thread::Current());
-  const DexFile::ClassDef& class_def = manager->GetDexFile()->GetClassDef(class_def_index);
-  const char* descriptor = manager->GetDexFile()->GetClassDescriptor(class_def);
-  mirror::Class* klass =
-      manager->GetClassLinker()->FindClass(descriptor,
-                                           soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader()));
+  const DexFile& dex_file = *manager->GetDexFile();
+  const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
+  const char* descriptor = dex_file.GetClassDescriptor(class_def);
+  ClassLinker* class_linker = manager->GetClassLinker();
+  jobject jclass_loader = manager->GetClassLoader();
+  mirror::Class* klass = class_linker->FindClass(descriptor,
+                                                 soa.Decode<mirror::ClassLoader*>(jclass_loader));
   if (klass == NULL) {
     CHECK(soa.Self()->IsExceptionPending());
     soa.Self()->ClearException();
@@ -1636,23 +1663,18 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
      * This is to ensure the class is structurally sound for compilation. An unsound class
      * will be rejected by the verifier and later skipped during compilation in the compiler.
      */
-    mirror::DexCache* dex_cache =  manager->GetClassLinker()->FindDexCache(*manager->GetDexFile());
+    mirror::DexCache* dex_cache = class_linker->FindDexCache(dex_file);
     std::string error_msg;
-    const DexFile* dex_file = manager->GetDexFile();
-    const DexFile::ClassDef* class_def = &dex_file->GetClassDef(class_def_index);
-    if (verifier::MethodVerifier::VerifyClass(dex_file,
-                                              dex_cache,
-                                              soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader()),
-                                              class_def, true, &error_msg) ==
+    if (verifier::MethodVerifier::VerifyClass(&dex_file, dex_cache,
+                                              soa.Decode<mirror::ClassLoader*>(jclass_loader),
+                                              &class_def, true, &error_msg) ==
                                                   verifier::MethodVerifier::kHardFailure) {
-      const DexFile::ClassDef& class_def = manager->GetDexFile()->GetClassDef(class_def_index);
-      LOG(ERROR) << "Verification failed on class "
-                 << PrettyDescriptor(manager->GetDexFile()->GetClassDescriptor(class_def))
+      LOG(ERROR) << "Verification failed on class " << PrettyDescriptor(descriptor)
                  << " because: " << error_msg;
     }
-  } else {
+  } else if (!SkipClass(jclass_loader, dex_file, klass)) {
     CHECK(klass->IsResolved()) << PrettyClass(klass);
-    manager->GetClassLinker()->VerifyClass(klass);
+    class_linker->VerifyClass(klass);
 
     if (klass->IsErroneous()) {
       // ClassLinker::VerifyClass throws, which isn't useful in the compiler.
@@ -2095,15 +2117,17 @@ static const char* class_initializer_black_list[] = {
 static void InitializeClass(const ParallelCompilationManager* manager, size_t class_def_index)
     LOCKS_EXCLUDED(Locks::mutator_lock_) {
   ATRACE_CALL();
-  const DexFile* dex_file = manager->GetDexFile();
-  const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
-  const DexFile::TypeId& class_type_id = dex_file->GetTypeId(class_def.class_idx_);
-  const char* descriptor = dex_file->StringDataByIdx(class_type_id.descriptor_idx_);
+  jobject jclass_loader = manager->GetClassLoader();
+  const DexFile& dex_file = *manager->GetDexFile();
+  const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
+  const DexFile::TypeId& class_type_id = dex_file.GetTypeId(class_def.class_idx_);
+  const char* descriptor = dex_file.StringDataByIdx(class_type_id.descriptor_idx_);
 
   ScopedObjectAccess soa(Thread::Current());
-  mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader());
+  mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(jclass_loader);
   mirror::Class* klass = manager->GetClassLinker()->FindClass(descriptor, class_loader);
-  if (klass != NULL) {
+
+  if (klass != NULL && !SkipClass(jclass_loader, dex_file, klass)) {
     // Only try to initialize classes that were successfully verified.
     if (klass->IsVerified()) {
       // Attempt to initialize the class but bail if we either need to initialize the super-class
