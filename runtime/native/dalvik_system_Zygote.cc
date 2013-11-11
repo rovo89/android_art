@@ -36,6 +36,7 @@
 #include "ScopedPrimitiveArray.h"
 #include "ScopedUtfChars.h"
 #include "thread-inl.h"
+#include "utils.h"
 
 #if defined(HAVE_PRCTL)
 #include <sys/prctl.h>
@@ -495,6 +496,15 @@ static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArra
         PLOG(FATAL) << "selinux_android_setcontext(" << uid << ", "
                     << (is_system_server ? "true" : "false") << ", "
                     << "\"" << se_info_c_str << "\", \"" << se_name_c_str << "\") failed";
+      }
+
+      // Make it easier to debug audit logs by setting the main thread's name to the
+      // nice name rather than "app_process".
+      if (se_info_c_str == NULL && is_system_server) {
+        se_name_c_str = "system_server";
+      }
+      if (se_info_c_str != NULL) {
+        SetThreadName(se_name_c_str);
       }
     }
 #else
