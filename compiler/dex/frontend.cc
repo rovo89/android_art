@@ -108,6 +108,38 @@ static uint32_t kCompilerDebugFlags = 0 |     // Enable debug/testing modes
   // (1 << kDebugTimings) |
   0;
 
+CompilationUnit::CompilationUnit(ArenaPool* pool)
+  : compiler_driver(NULL),
+    class_linker(NULL),
+    dex_file(NULL),
+    class_loader(NULL),
+    class_def_idx(0),
+    method_idx(0),
+    code_item(NULL),
+    access_flags(0),
+    invoke_type(kDirect),
+    shorty(NULL),
+    disable_opt(0),
+    enable_debug(0),
+    verbose(false),
+    compiler_backend(kNoBackend),
+    instruction_set(kNone),
+    num_dalvik_registers(0),
+    insns(NULL),
+    num_ins(0),
+    num_outs(0),
+    num_regs(0),
+    num_compiler_temps(0),
+    compiler_flip_match(false),
+    arena(pool),
+    mir_graph(NULL),
+    cg(NULL),
+    timings("QuickCompiler", true, false) {
+}
+
+CompilationUnit::~CompilationUnit() {
+}
+
 // TODO: Add a cumulative version of logging, and combine with dex2oat --dump-timing
 void CompilationUnit::StartTimingSplit(const char* label) {
   if (enable_debug & (1 << kDebugTimings)) {

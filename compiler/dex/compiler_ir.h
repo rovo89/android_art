@@ -20,7 +20,6 @@
 #include <vector>
 #include <llvm/IR/Module.h>
 #include "arena_allocator.h"
-#include "backend.h"
 #include "compiler_enums.h"
 #include "dex/quick/mir_to_lir.h"
 #include "dex_instruction.h"
@@ -39,39 +38,14 @@ class LlvmCompilationUnit;
 }  // namespace llvm
 
 struct ArenaMemBlock;
+class Backend;
 struct Memstats;
 class MIRGraph;
 class Mir2Lir;
 
 struct CompilationUnit {
-  explicit CompilationUnit(ArenaPool* pool)
-    : compiler_driver(NULL),
-      class_linker(NULL),
-      dex_file(NULL),
-      class_loader(NULL),
-      class_def_idx(0),
-      method_idx(0),
-      code_item(NULL),
-      access_flags(0),
-      invoke_type(kDirect),
-      shorty(NULL),
-      disable_opt(0),
-      enable_debug(0),
-      verbose(false),
-      compiler_backend(kNoBackend),
-      instruction_set(kNone),
-      num_dalvik_registers(0),
-      insns(NULL),
-      num_ins(0),
-      num_outs(0),
-      num_regs(0),
-      num_compiler_temps(0),
-      compiler_flip_match(false),
-      arena(pool),
-      mir_graph(NULL),
-      cg(NULL),
-      timings("QuickCompiler", true, false) {
-      }
+  explicit CompilationUnit(ArenaPool* pool);
+  ~CompilationUnit();
 
   void StartTimingSplit(const char* label);
   void NewTimingSplit(const char* label);
