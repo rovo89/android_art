@@ -416,6 +416,11 @@ static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
   for (size_t i = 0; i < dex_filenames.size(); i++) {
     const char* dex_filename = dex_filenames[i];
     const char* dex_location = dex_locations[i];
+    std::string error_msg;
+    if (!OS::FileExists(dex_filename)) {
+      LOG(WARNING) << "Skipping non-existent dex file '" << dex_filename << "'";
+      continue;
+    }
     const DexFile* dex_file = DexFile::Open(dex_filename, dex_location);
     if (dex_file == NULL) {
       LOG(WARNING) << "Failed to open .dex from file '" << dex_filename << "'\n";
