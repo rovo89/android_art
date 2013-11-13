@@ -82,6 +82,7 @@ void Monitor::Init(uint32_t lock_profiling_threshold, bool (*is_sensitive_thread
 Monitor::Monitor(Thread* owner, mirror::Object* obj, int32_t hash_code)
     : monitor_lock_("a monitor lock", kMonitorLock),
       monitor_contenders_("monitor contenders", monitor_lock_),
+      num_waiters_(0),
       owner_(owner),
       lock_count_(0),
       obj_(obj),
@@ -225,7 +226,9 @@ void Monitor::Lock(Thread* self) {
       ScopedThreadStateChange tsc(self, kBlocked);  // Change to blocked and give up mutator_lock_.
       MutexLock mu2(self, monitor_lock_);  // Reacquire monitor_lock_ without mutator_lock_ for Wait.
       if (owner_ != NULL) {  // Did the owner_ give the lock up?
+        ++num_waiters_;
         monitor_contenders_.Wait(self);  // Still contended so wait.
+        --num_waiters_;
         // Woken from contention.
         if (log_contention) {
           uint64_t wait_ms = MilliTime() - wait_start_ms;
@@ -581,7 +584,7 @@ bool Monitor::Deflate(Thread* self, mirror::Object* obj) {
         return false;
       }
       // Can't deflate if we have anybody waiting on the CV.
-      if (monitor->monitor_contenders_.GetNumWaiters() > 0) {
+      if (monitor->num_waiters_ > 0) {
         return false;
       }
       // Deflate to a thin lock.

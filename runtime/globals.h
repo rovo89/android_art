@@ -73,8 +73,14 @@ const bool kIsTargetBuild = true;
 const bool kIsTargetBuild = false;
 #endif
 
+#if defined(ART_USE_PORTABLE_COMPILER)
+constexpr bool kUsePortableCompiler = true;
+#else
+constexpr bool kUsePortableCompiler = false;
+#endif
+
 // Garbage collector constants.
-static constexpr bool kMovingCollector = false;
+static constexpr bool kMovingCollector = false && !kUsePortableCompiler;
 // True if we allow moving classes.
 static constexpr bool kMovingClasses = false;
 // True if we allow moving fields.

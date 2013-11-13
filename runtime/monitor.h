@@ -174,6 +174,9 @@ class Monitor {
   Mutex monitor_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   ConditionVariable monitor_contenders_ GUARDED_BY(monitor_lock_);
 
+  // Number of people waiting on the condition.
+  size_t num_waiters_ GUARDED_BY(monitor_lock_);
+
   // Which thread currently owns the lock?
   Thread* volatile owner_ GUARDED_BY(monitor_lock_);
 
