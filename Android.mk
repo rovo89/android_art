@@ -146,14 +146,9 @@ test-art-host-dependencies: $(ART_HOST_TEST_DEPENDENCIES) $(HOST_OUT_SHARED_LIBR
 test-art-host-gtest: $(ART_HOST_TEST_TARGETS)
 	@echo test-art-host-gtest PASSED
 
-define run-host-gtests-with
-  $(foreach file,$(sort $(ART_HOST_TEST_EXECUTABLES)),$(1) $(file) &&) true
-endef
-
 # "mm valgrind-test-art-host-gtest" to build and run the host gtests under valgrind.
 .PHONY: valgrind-test-art-host-gtest
-valgrind-test-art-host-gtest: test-art-host-dependencies
-	$(call run-host-gtests-with,valgrind --leak-check=full)
+valgrind-test-art-host-gtest: $(ART_HOST_VALGRIND_TEST_TARGETS)
 	@echo valgrind-test-art-host-gtest PASSED
 
 .PHONY: test-art-host-oat-default

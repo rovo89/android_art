@@ -170,6 +170,13 @@ $$(art_gtest_target): $$(art_gtest_exe) test-art-host-dependencies
 	@echo $$@ PASSED
 
 ART_HOST_TEST_TARGETS += $$(art_gtest_target)
+
+.PHONY: valgrind-$$(art_gtest_target)
+valgrind-$$(art_gtest_target): $$(art_gtest_exe) test-art-host-dependencies
+	valgrind --leak-check=full $$<
+	@echo $$@ PASSED
+
+ART_HOST_VALGRIND_TEST_TARGETS += valgrind-$$(art_gtest_target)
 endif
 endef
 
