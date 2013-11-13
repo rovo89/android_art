@@ -378,11 +378,12 @@ class MANAGED Class : public StaticStorageBase {
 
   // Creates a raw object instance but does not invoke the default constructor.
   Object* AllocObject(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return AllocObjectInstrumented(self);
+    return Alloc<kMovingCollector, true>(self);
   }
 
-  Object* AllocObjectUninstrumented(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  Object* AllocObjectInstrumented(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  // Creates a raw object instance but does not invoke the default constructor.
+  template <bool kIsMovable, bool kIsInstrumented>
+  Object* Alloc(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsVariableSize() const {
     // Classes and arrays vary in size, and so the object_size_ field cannot

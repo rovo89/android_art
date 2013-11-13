@@ -1118,7 +1118,8 @@ JDWP::JdwpError Dbg::CreateArrayObject(JDWP::RefTypeId array_class_id, uint32_t 
   if (c == NULL) {
     return status;
   }
-  new_array = gRegistry->Add(mirror::Array::Alloc(Thread::Current(), c, length));
+  new_array = gRegistry->Add(
+      mirror::Array::Alloc<kMovingCollector, true>(Thread::Current(), c, length));
   return JDWP::ERR_NONE;
 }
 
@@ -1133,38 +1134,26 @@ bool Dbg::MatchType(JDWP::RefTypeId instance_class_id, JDWP::RefTypeId class_id)
 
 static JDWP::FieldId ToFieldId(const mirror::ArtField* f)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-#ifdef MOVING_GARBAGE_COLLECTOR
-  UNIMPLEMENTED(FATAL);
-#else
+  CHECK(!kMovingFields);
   return static_cast<JDWP::FieldId>(reinterpret_cast<uintptr_t>(f));
-#endif
 }
 
 static JDWP::MethodId ToMethodId(const mirror::ArtMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-#ifdef MOVING_GARBAGE_COLLECTOR
-  UNIMPLEMENTED(FATAL);
-#else
+  CHECK(!kMovingMethods);
   return static_cast<JDWP::MethodId>(reinterpret_cast<uintptr_t>(m));
-#endif
 }
 
 static mirror::ArtField* FromFieldId(JDWP::FieldId fid)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-#ifdef MOVING_GARBAGE_COLLECTOR
-  UNIMPLEMENTED(FATAL);
-#else
+  CHECK(!kMovingFields);
   return reinterpret_cast<mirror::ArtField*>(static_cast<uintptr_t>(fid));
-#endif
 }
 
 static mirror::ArtMethod* FromMethodId(JDWP::MethodId mid)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-#ifdef MOVING_GARBAGE_COLLECTOR
-  UNIMPLEMENTED(FATAL);
-#else
+  CHECK(!kMovingMethods);
   return reinterpret_cast<mirror::ArtMethod*>(static_cast<uintptr_t>(mid));
-#endif
 }
 
 static void SetLocation(JDWP::JdwpLocation& location, mirror::ArtMethod* m, uint32_t dex_pc)
@@ -2079,7 +2068,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int sl
           CHECK_EQ(width_, sizeof(JDWP::ObjectId));
           mirror::Object* o = reinterpret_cast<mirror::Object*>(GetVReg(m, reg, kReferenceVReg));
           VLOG(jdwp) << "get array local " << reg << " = " << o;
-          if (!Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
+          if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(o)) {
             LOG(FATAL) << "Register " << reg << " expected to hold array: " << o;
           }
           JDWP::SetObjectId(buf_+1, gRegistry->Add(o));
@@ -2095,7 +2084,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int sl
           CHECK_EQ(width_, sizeof(JDWP::ObjectId));
           mirror::Object* o = reinterpret_cast<mirror::Object*>(GetVReg(m, reg, kReferenceVReg));
           VLOG(jdwp) << "get object local " << reg << " = " << o;
-          if (!Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
+          if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(o)) {
             LOG(FATAL) << "Register " << reg << " expected to hold object: " << o;
           }
           tag_ = TagFromObject(o);
@@ -3372,7 +3361,7 @@ class HeapChunkContext {
       return HPSG_STATE(SOLIDITY_HARD, KIND_OBJECT);
     }
 
-    if (!Runtime::Current()->GetHeap()->IsHeapAddress(c)) {
+    if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(c)) {
       LOG(ERROR) << "Invalid class for managed heap object: " << o << " " << c;
       return HPSG_STATE(SOLIDITY_HARD, KIND_UNKNOWN);
     }
@@ -3752,7 +3741,6 @@ jbyteArray Dbg::GetRecentAllocations() {
 
     count = gAllocRecordCount;
     idx = HeadIndex();
-    ClassHelper kh;
     while (count--) {
       // For each entry:
       // (4b) total allocation size
@@ -3761,7 +3749,7 @@ jbyteArray Dbg::GetRecentAllocations() {
       // (1b) stack depth
       AllocRecord* record = &recent_allocation_records_[idx];
       size_t stack_depth = record->GetDepth();
-      kh.ChangeClass(record->type);
+      ClassHelper kh(record->type);
       size_t allocated_object_class_name_index = class_names.IndexOf(kh.GetDescriptor());
       JDWP::Append4BE(bytes, record->byte_count);
       JDWP::Append2BE(bytes, record->thin_lock_id);

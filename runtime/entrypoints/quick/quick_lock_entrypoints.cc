@@ -29,9 +29,15 @@ extern "C" int artLockObjectFromCode(mirror::Object* obj, Thread* self, mirror::
                               "Null reference used for synchronization (monitor-enter)");
     return -1;  // Failure.
   } else {
-    obj->MonitorEnter(self);  // May block
-    DCHECK(self->HoldsLock(obj));
-    DCHECK(!self->IsExceptionPending());
+    if (kIsDebugBuild) {
+      // GC may move the obj, need Sirt for the following DCHECKs.
+      SirtRef<mirror::Object> sirt_obj(self, obj);
+      obj->MonitorEnter(self);  // May block
+      CHECK(self->HoldsLock(sirt_obj.get()));
+      CHECK(!self->IsExceptionPending());
+    } else {
+      obj->MonitorEnter(self);  // May block
+    }
     return 0;  // Success.
     // Only possible exception is NPE and is handled before entry
   }

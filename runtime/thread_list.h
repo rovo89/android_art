@@ -124,6 +124,9 @@ class ThreadList {
     return list_;
   }
 
+  void DumpNativeStacks(std::ostream& os)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_);
+
  private:
   uint32_t AllocThreadId(Thread* self);
   void ReleaseThreadId(Thread* self, uint32_t id) LOCKS_EXCLUDED(allocated_ids_lock_);

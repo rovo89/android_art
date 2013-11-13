@@ -33,8 +33,8 @@ class SpaceTest : public CommonTest {
                                            int round, size_t growth_limit);
   void SizeFootPrintGrowthLimitAndTrimDriver(size_t object_size);
 
-  void AddContinuousSpace(ContinuousSpace* space) {
-    Runtime::Current()->GetHeap()->AddContinuousSpace(space);
+  void AddSpace(ContinuousSpace* space) {
+    Runtime::Current()->GetHeap()->AddSpace(space);
   }
 };
 
@@ -91,7 +91,7 @@ TEST_F(SpaceTest, ZygoteSpace) {
     ASSERT_TRUE(space != NULL);
 
     // Make space findable to the heap, will also delete space when runtime is cleaned up
-    AddContinuousSpace(space);
+    AddSpace(space);
     Thread* self = Thread::Current();
 
     // Succeeds, fits without adjusting the footprint limit.
@@ -136,7 +136,7 @@ TEST_F(SpaceTest, ZygoteSpace) {
     space = space->CreateZygoteSpace("alloc space");
 
     // Make space findable to the heap, will also delete space when runtime is cleaned up
-    AddContinuousSpace(space);
+    AddSpace(space);
 
     // Succeeds, fits without adjusting the footprint limit.
     ptr1 = space->Alloc(self, 1 * MB, &dummy);
@@ -164,7 +164,7 @@ TEST_F(SpaceTest, AllocAndFree) {
   Thread* self = Thread::Current();
 
   // Make space findable to the heap, will also delete space when runtime is cleaned up
-  AddContinuousSpace(space);
+  AddSpace(space);
 
   // Succeeds, fits without adjusting the footprint limit.
   mirror::Object* ptr1 = space->Alloc(self, 1 * MB, &dummy);
@@ -270,7 +270,7 @@ TEST_F(SpaceTest, AllocAndFreeList) {
   ASSERT_TRUE(space != NULL);
 
   // Make space findable to the heap, will also delete space when runtime is cleaned up
-  AddContinuousSpace(space);
+  AddSpace(space);
   Thread* self = Thread::Current();
 
   // Succeeds, fits without adjusting the max allowed footprint.
@@ -467,7 +467,7 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimDriver(size_t object_size) {
   EXPECT_EQ(space->NonGrowthLimitCapacity(), capacity);
 
   // Make space findable to the heap, will also delete space when runtime is cleaned up
-  AddContinuousSpace(space);
+  AddSpace(space);
 
   // In this round we don't allocate with growth and therefore can't grow past the initial size.
   // This effectively makes the growth_limit the initial_size, so assert this.

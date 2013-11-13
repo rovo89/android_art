@@ -233,7 +233,7 @@ void ReferenceTable::Dump(std::ostream& os, const Table& entries) {
 
 void ReferenceTable::VisitRoots(RootVisitor* visitor, void* arg) {
   for (auto& ref : entries_) {
-    ref = visitor(const_cast<mirror::Object*>(ref), arg);
+    ref = visitor(ref, arg);
   }
 }
 

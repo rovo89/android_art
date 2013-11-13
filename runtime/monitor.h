@@ -27,6 +27,7 @@
 #include "atomic_integer.h"
 #include "base/mutex.h"
 #include "root_visitor.h"
+#include "sirt_ref.h"
 #include "thread_state.h"
 
 namespace art {
@@ -107,8 +108,11 @@ class Monitor {
     return hash_code_.load() != 0;
   }
 
-  static void InflateThinLocked(Thread* self, mirror::Object* obj, LockWord lock_word,
+  static void InflateThinLocked(Thread* self, SirtRef<mirror::Object>& obj, LockWord lock_word,
                                 uint32_t hash_code) NO_THREAD_SAFETY_ANALYSIS;
+
+  static bool Deflate(Thread* self, mirror::Object* obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   explicit Monitor(Thread* owner, mirror::Object* obj, int32_t hash_code)

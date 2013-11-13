@@ -26,7 +26,7 @@ namespace collector {
 
 StickyMarkSweep::StickyMarkSweep(Heap* heap, bool is_concurrent, const std::string& name_prefix)
     : PartialMarkSweep(heap, is_concurrent,
-                       name_prefix + (name_prefix.empty() ? "" : " ") + "sticky") {
+                       name_prefix.empty() ? "sticky " : name_prefix) {
   cumulative_timings_.SetName(GetName());
 }
 
@@ -38,7 +38,8 @@ void StickyMarkSweep::BindBitmaps() {
   // know what was allocated since the last GC. A side-effect of binding the allocation space mark
   // and live bitmap is that marking the objects will place them in the live bitmap.
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
-    if (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyAlwaysCollect) {
+    if (space->IsDlMallocSpace() &&
+        space->GetGcRetentionPolicy() == space::kGcRetentionPolicyAlwaysCollect) {
       BindLiveToMarkBitmap(space);
     }
   }

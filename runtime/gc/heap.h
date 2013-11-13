@@ -31,6 +31,7 @@
 #include "jni.h"
 #include "locks.h"
 #include "offsets.h"
+#include "root_visitor.h"
 #include "safe_map.h"
 #include "thread_pool.h"
 
@@ -57,16 +58,19 @@ namespace accounting {
 namespace collector {
   class GarbageCollector;
   class MarkSweep;
+  class SemiSpace;
 }  // namespace collector
 
 namespace space {
   class AllocSpace;
+  class BumpPointerSpace;
   class DiscontinuousSpace;
   class DlMallocSpace;
   class ImageSpace;
   class LargeObjectSpace;
   class Space;
   class SpaceTest;
+  class ContinuousMemMapAllocSpace;
 }  // namespace space
 
 class AgeCardVisitor {
@@ -101,13 +105,13 @@ enum HeapVerificationMode {
 };
 static constexpr HeapVerificationMode kDesiredHeapVerification = kNoHeapVerification;
 
-// If true, measure the total allocation time.
-static constexpr bool kMeasureAllocationTime = false;
-// Primitive arrays larger than this size are put in the large object space.
-static constexpr size_t kLargeObjectThreshold = 3 * kPageSize;
-
 class Heap {
  public:
+  // If true, measure the total allocation time.
+  static constexpr bool kMeasureAllocationTime = false;
+  // Primitive arrays larger than this size are put in the large object space.
+  static constexpr size_t kLargeObjectThreshold = 3 * kPageSize;
+
   static constexpr size_t kDefaultInitialSize = 2 * MB;
   static constexpr size_t kDefaultMaximumSize = 32 * MB;
   static constexpr size_t kDefaultMaxFree = 2 * MB;
@@ -135,14 +139,47 @@ class Heap {
   // Allocates and initializes storage for an object instance.
   mirror::Object* AllocObject(Thread* self, mirror::Class* klass, size_t num_bytes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    CHECK(!kMovingClasses);
     return AllocObjectInstrumented(self, klass, num_bytes);
   }
+  // Allocates and initializes storage for an object instance.
+  mirror::Object* AllocNonMovableObject(Thread* self, mirror::Class* klass, size_t num_bytes)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    CHECK(!kMovingClasses);
+    return AllocNonMovableObjectInstrumented(self, klass, num_bytes);
+  }
   mirror::Object* AllocObjectInstrumented(Thread* self, mirror::Class* klass, size_t num_bytes)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    CHECK(!kMovingClasses);
+    if (kMovingCollector) {
+      return AllocMovableObjectInstrumented(self, klass, num_bytes);
+    } else {
+      return AllocNonMovableObjectInstrumented(self, klass, num_bytes);
+    }
+  }
   mirror::Object* AllocObjectUninstrumented(Thread* self, mirror::Class* klass, size_t num_bytes)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    CHECK(!kMovingClasses);
+    if (kMovingCollector) {
+      return AllocMovableObjectUninstrumented(self, klass, num_bytes);
+    } else {
+      return AllocNonMovableObjectUninstrumented(self, klass, num_bytes);
+    }
+  }
+  mirror::Object* AllocNonMovableObjectInstrumented(Thread* self, mirror::Class* klass,
+                                                    size_t num_bytes)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::Object* AllocNonMovableObjectUninstrumented(Thread* self, mirror::Class* klass,
+                                                      size_t num_bytes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void DebugCheckPreconditionsForAllobObject(mirror::Class* c, size_t byte_count)
+  // Visit all of the live objects in the heap.
+  void VisitObjects(ObjectVisitorCallback callback, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+
+  void SwapSemiSpaces() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void DebugCheckPreconditionsForAllocObject(mirror::Class* c, size_t byte_count)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void ThrowOutOfMemoryError(size_t byte_count, bool large_object_allocation);
 
@@ -152,7 +189,7 @@ class Heap {
   // The given reference is believed to be to an object in the Java heap, check the soundness of it.
   void VerifyObjectImpl(const mirror::Object* o);
   void VerifyObject(const mirror::Object* o) {
-    if (o != NULL && this != NULL && verify_object_mode_ > kNoHeapVerification) {
+    if (o != nullptr && this != nullptr && verify_object_mode_ > kNoHeapVerification) {
       VerifyObjectImpl(o);
     }
   }
@@ -169,13 +206,27 @@ class Heap {
   // A weaker test than IsLiveObject or VerifyObject that doesn't require the heap lock,
   // and doesn't abort on error, allowing the caller to report more
   // meaningful diagnostics.
-  bool IsHeapAddress(const mirror::Object* obj);
+  bool IsValidObjectAddress(const mirror::Object* obj) const;
+
+  // Returns true if the address passed in is a heap address, doesn't need to be aligned.
+  bool IsHeapAddress(const mirror::Object* obj) const;
 
   // Returns true if 'obj' is a live heap object, false otherwise (including for invalid addresses).
   // Requires the heap lock to be held.
   bool IsLiveObjectLocked(const mirror::Object* obj, bool search_allocation_stack = true,
                           bool search_live_stack = true, bool sorted = false)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
+  // Returns true if there is any chance that the object (obj) will move.
+  bool IsMovableObject(const mirror::Object* obj) const;
+
+  // Returns true if an object is in the temp space, if this happens its usually indicative of
+  // compaction related errors.
+  bool IsInTempSpace(const mirror::Object* obj) const;
+
+  // Enables us to prevent GC until objects are released.
+  void IncrementDisableGC(Thread* self);
+  void DecrementDisableGC(Thread* self);
 
   // Initiates an explicit garbage collection.
   void CollectGarbage(bool clear_soft_references) LOCKS_EXCLUDED(Locks::mutator_lock_);
@@ -221,9 +272,9 @@ class Heap {
   // from the system. Doesn't allow the space to exceed its growth limit.
   void SetIdealFootprint(size_t max_allowed_footprint);
 
-  // Blocks the caller until the garbage collector becomes idle and returns
-  // true if we waited for the GC to complete.
-  collector::GcType WaitForConcurrentGcToComplete(Thread* self) LOCKS_EXCLUDED(gc_complete_lock_);
+  // Blocks the caller until the garbage collector becomes idle and returns the type of GC we
+  // waited for.
+  collector::GcType WaitForGcToComplete(Thread* self) LOCKS_EXCLUDED(gc_complete_lock_);
 
   const std::vector<space::ContinuousSpace*>& GetContinuousSpaces() const {
     return continuous_spaces_;
@@ -239,7 +290,10 @@ class Heap {
                            MemberOffset reference_pendingNext_offset,
                            MemberOffset finalizer_reference_zombie_offset);
 
-  mirror::Object* GetReferenceReferent(mirror::Object* reference);
+  void SetReferenceReferent(mirror::Object* reference, mirror::Object* referent)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::Object* GetReferenceReferent(mirror::Object* reference)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void ClearReferenceReferent(mirror::Object* reference) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns true if the reference object has not yet been enqueued.
@@ -316,7 +370,7 @@ class Heap {
   }
 
   // Returns the number of objects currently allocated.
-  size_t GetObjectsAllocated() const;
+  size_t GetObjectsAllocated() const LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
   // Returns the total number of objects allocated since the heap was created.
   size_t GetObjectsAllocatedEver() const;
@@ -361,7 +415,8 @@ class Heap {
 
   void DumpForSigQuit(std::ostream& os);
 
-  size_t Trim();
+  // Trim the managed and native heaps by releasing unused memory back to the OS.
+  void Trim();
 
   accounting::HeapBitmap* GetLiveBitmap() SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     return live_bitmap_.get();
@@ -375,7 +430,7 @@ class Heap {
     return live_stack_.get();
   }
 
-  void PreZygoteFork() LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
+  void PreZygoteFork() NO_THREAD_SAFETY_ANALYSIS;
 
   // Mark and empty stack.
   void FlushAllocStack()
@@ -386,6 +441,10 @@ class Heap {
                       accounting::ObjectStack* stack)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
+  // Mark the specified allocation stack as live.
+  void MarkAllocStackAsLive(accounting::ObjectStack* stack)
+        EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
   // Gets called when we get notified by ActivityThread that the process state has changed.
   void ListenForProcessStateChange();
 
@@ -393,8 +452,8 @@ class Heap {
   // Assumes there is only one image space.
   space::ImageSpace* GetImageSpace() const;
 
-  space::DlMallocSpace* GetAllocSpace() const {
-    return alloc_space_;
+  space::DlMallocSpace* GetNonMovingSpace() const {
+    return non_moving_space_;
   }
 
   space::LargeObjectSpace* GetLargeObjectsSpace() const {
@@ -417,7 +476,7 @@ class Heap {
     return phantom_ref_queue_lock_;
   }
 
-  void DumpSpaces();
+  void DumpSpaces(std::ostream& stream = LOG(INFO));
 
   // GC performance measuring
   void DumpGcPerformanceInfo(std::ostream& os);
@@ -442,7 +501,20 @@ class Heap {
   accounting::ModUnionTable* FindModUnionTableFromSpace(space::Space* space);
   void AddModUnionTable(accounting::ModUnionTable* mod_union_table);
 
+  mirror::Object* AllocMovableObjectInstrumented(Thread* self, mirror::Class* klass,
+                                                 size_t num_bytes)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::Object* AllocMovableObjectUninstrumented(Thread* self, mirror::Class* klass,
+                                                   size_t num_bytes)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  bool IsCompilingBoot() const;
+  bool HasImageSpace() const;
+
  private:
+  void Compact(space::ContinuousMemMapAllocSpace* target_space,
+               space::ContinuousMemMapAllocSpace* source_space);
+
   bool TryAllocLargeObjectInstrumented(Thread* self, mirror::Class* c, size_t byte_count,
                                        mirror::Object** obj_ptr, size_t* bytes_allocated)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -469,6 +541,11 @@ class Heap {
   mirror::Object* AllocateInternalWithGc(Thread* self, space::AllocSpace* space, size_t num_bytes,
                                          size_t* bytes_allocated)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Allocate into a specific space.
+  mirror::Object* AllocateInto(Thread* self, space::AllocSpace* space, mirror::Class* c,
+                               size_t bytes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Try to allocate a number of bytes, this function never does any GCs.
@@ -499,6 +576,17 @@ class Heap {
 
   // Pushes a list of cleared references out to the managed heap.
   void EnqueueClearedReferences(mirror::Object** cleared_references);
+
+  // Print a reference queue.
+  void PrintReferenceQueue(std::ostream& os, mirror::Object** queue);
+
+  // Run the finalizers.
+  void RunFinalization(JNIEnv* env);
+
+  // Blocks the caller until the garbage collector becomes idle and returns the type of GC we
+  // waited for.
+  collector::GcType WaitForGcToCompleteLocked(Thread* self)
+      EXCLUSIVE_LOCKS_REQUIRED(gc_complete_lock_);
 
   void RequestHeapTrim() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
   void RequestConcurrentGC(Thread* self) LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
@@ -537,9 +625,7 @@ class Heap {
 
   size_t GetPercentFree();
 
-  void AddContinuousSpace(space::ContinuousSpace* space) LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
-  void AddDiscontinuousSpace(space::DiscontinuousSpace* space)
-      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
+  void AddSpace(space::Space* space) LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
   // No thread saftey analysis since we call this everywhere and it is impossible to find a proper
   // lock ordering for it.
@@ -560,8 +646,12 @@ class Heap {
   // All-known discontinuous spaces, where objects may be placed throughout virtual memory.
   std::vector<space::DiscontinuousSpace*> discontinuous_spaces_;
 
-  // The allocation space we are currently allocating into.
-  space::DlMallocSpace* alloc_space_;
+  // All-known alloc spaces, where objects may be or have been allocated.
+  std::vector<space::AllocSpace*> alloc_spaces_;
+
+  // A space where non-movable objects are allocated, when compaction is enabled it contains
+  // Classes, ArtMethods, ArtFields, and non moving objects.
+  space::DlMallocSpace* non_moving_space_;
 
   // The large object space we are currently allocating into.
   space::LargeObjectSpace* large_object_space_;
@@ -599,6 +689,11 @@ class Heap {
   // If we have a zygote space.
   bool have_zygote_space_;
 
+  // Number of pinned primitive arrays in the movable space.
+  // Block all GC until this hits zero, or we hit the timeout!
+  size_t number_gc_blockers_;
+  static constexpr size_t KGCBlockTimeout = 30000;
+
   // Guards access to the state of GC, associated conditional variable is used to signal when a GC
   // completes.
   Mutex* gc_complete_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
@@ -634,6 +729,9 @@ class Heap {
 
   // The watermark at which a GC is performed inside of registerNativeAllocation.
   size_t native_footprint_limit_;
+
+  // Whether or not we need to run finalizers in the next native allocation.
+  bool native_need_to_run_finalization_;
 
   // Activity manager members.
   jclass activity_thread_class_;
@@ -714,6 +812,11 @@ class Heap {
   // Second allocation stack so that we can process allocation with the heap unlocked.
   UniquePtr<accounting::ObjectStack> live_stack_;
 
+  // Bump pointer spaces.
+  space::BumpPointerSpace* bump_pointer_space_;
+  // Temp space is the space which the semispace collector copies to.
+  space::BumpPointerSpace* temp_space_;
+
   // offset of java.lang.ref.Reference.referent
   MemberOffset reference_referent_offset_;
 
@@ -748,11 +851,16 @@ class Heap {
   // The current state of heap verification, may be enabled or disabled.
   HeapVerificationMode verify_object_mode_;
 
-  std::vector<collector::MarkSweep*> mark_sweep_collectors_;
+  // GC disable count, error on GC if > 0.
+  size_t gc_disable_count_ GUARDED_BY(gc_complete_lock_);
+
+  std::vector<collector::GarbageCollector*> garbage_collectors_;
+  collector::SemiSpace* semi_space_collector_;
 
   const bool running_on_valgrind_;
 
   friend class collector::MarkSweep;
+  friend class collector::SemiSpace;
   friend class VerifyReferenceCardVisitor;
   friend class VerifyReferenceVisitor;
   friend class VerifyObjectVisitor;

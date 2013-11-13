@@ -88,7 +88,7 @@ static inline mirror::Object* AllocObjectFromCode(uint32_t type_idx, mirror::Art
   if (UNLIKELY(!CheckObjectAlloc(type_idx, method, self, access_check, &klass))) {
     return NULL;
   }
-  return klass->AllocObjectUninstrumented(self);
+  return klass->Alloc<kMovingCollector, false>(self);
 }
 
 static inline mirror::Object* AllocObjectFromCodeInstrumented(uint32_t type_idx, mirror::ArtMethod* method,
@@ -99,7 +99,7 @@ static inline mirror::Object* AllocObjectFromCodeInstrumented(uint32_t type_idx,
   if (UNLIKELY(!CheckObjectAlloc(type_idx, method, self, access_check, &klass))) {
     return NULL;
   }
-  return klass->AllocObjectInstrumented(self);
+  return klass->Alloc<kMovingCollector, true>(self);
 }
 
 static inline bool CheckArrayAlloc(uint32_t type_idx, mirror::ArtMethod* method,
@@ -142,7 +142,7 @@ static inline mirror::Array* AllocArrayFromCode(uint32_t type_idx, mirror::ArtMe
   if (UNLIKELY(!CheckArrayAlloc(type_idx, method, component_count, access_check, &klass))) {
     return NULL;
   }
-  return mirror::Array::AllocUninstrumented(self, klass, component_count);
+  return mirror::Array::Alloc<kMovingCollector, false>(self, klass, component_count);
 }
 
 static inline mirror::Array* AllocArrayFromCodeInstrumented(uint32_t type_idx, mirror::ArtMethod* method,
@@ -153,7 +153,7 @@ static inline mirror::Array* AllocArrayFromCodeInstrumented(uint32_t type_idx, m
   if (UNLIKELY(!CheckArrayAlloc(type_idx, method, component_count, access_check, &klass))) {
     return NULL;
   }
-  return mirror::Array::AllocInstrumented(self, klass, component_count);
+  return mirror::Array::Alloc<kMovingCollector, true>(self, klass, component_count);
 }
 
 extern mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::ArtMethod* method,

@@ -177,34 +177,27 @@ class PACKED(4) Thread {
       ALWAYS_INLINE;
 
   // Once called thread suspension will cause an assertion failure.
-#ifndef NDEBUG
   const char* StartAssertNoThreadSuspension(const char* cause) {
-    CHECK(cause != NULL);
-    const char* previous_cause = last_no_thread_suspension_cause_;
-    no_thread_suspension_++;
-    last_no_thread_suspension_cause_ = cause;
-    return previous_cause;
+    if (kIsDebugBuild) {
+      CHECK(cause != NULL);
+      const char* previous_cause = last_no_thread_suspension_cause_;
+      no_thread_suspension_++;
+      last_no_thread_suspension_cause_ = cause;
+      return previous_cause;
+    } else {
+      return nullptr;
+    }
   }
-#else
-  const char* StartAssertNoThreadSuspension(const char* cause) {
-    CHECK(cause != NULL);
-    return NULL;
-  }
-#endif
 
   // End region where no thread suspension is expected.
-#ifndef NDEBUG
   void EndAssertNoThreadSuspension(const char* old_cause) {
-    CHECK(old_cause != NULL || no_thread_suspension_ == 1);
-    CHECK_GT(no_thread_suspension_, 0U);
-    no_thread_suspension_--;
-    last_no_thread_suspension_cause_ = old_cause;
+    if (kIsDebugBuild) {
+      CHECK(old_cause != NULL || no_thread_suspension_ == 1);
+      CHECK_GT(no_thread_suspension_, 0U);
+      no_thread_suspension_--;
+      last_no_thread_suspension_cause_ = old_cause;
+    }
   }
-#else
-  void EndAssertNoThreadSuspension(const char*) {
-  }
-#endif
-
 
   void AssertThreadSuspensionIsAllowable(bool check_locks = true) const;
 
@@ -370,9 +363,7 @@ class PACKED(4) Thread {
     return class_loader_override_;
   }
 
-  void SetClassLoaderOverride(mirror::ClassLoader* class_loader_override) {
-    class_loader_override_ = class_loader_override;
-  }
+  void SetClassLoaderOverride(mirror::ClassLoader* class_loader_override);
 
   // Create the internal representation of a stack trace, that is more time
   // and space efficient to compute than the StackTraceElement[]

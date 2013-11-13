@@ -23,6 +23,7 @@
 #include "mirror/art_field.h"
 #include "mirror/class.h"
 #include "runtime.h"
+#include "sirt_ref.h"
 #include "thread.h"
 
 namespace art {
@@ -30,7 +31,7 @@ namespace mirror {
 
 template<class T>
 inline ObjectArray<T>* ObjectArray<T>::Alloc(Thread* self, Class* object_array_class, int32_t length) {
-  Array* array = Array::Alloc(self, object_array_class, length, sizeof(Object*));
+  Array* array = Array::Alloc<kMovingCollector, true>(self, object_array_class, length, sizeof(Object*));
   if (UNLIKELY(array == NULL)) {
     return NULL;
   } else {
@@ -134,9 +135,11 @@ inline void ObjectArray<T>::Copy(const ObjectArray<T>* src, int src_pos,
 
 template<class T>
 inline ObjectArray<T>* ObjectArray<T>::CopyOf(Thread* self, int32_t new_length) {
+  // We may get copied by a compacting GC.
+  SirtRef<ObjectArray<T> > sirt_this(self, this);
   ObjectArray<T>* new_array = Alloc(self, GetClass(), new_length);
-  if (LIKELY(new_array != NULL)) {
-    Copy(this, 0, new_array, 0, std::min(GetLength(), new_length));
+  if (LIKELY(new_array != nullptr)) {
+    Copy(sirt_this.get(), 0, new_array, 0, std::min(sirt_this->GetLength(), new_length));
   }
   return new_array;
 }

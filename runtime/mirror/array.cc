@@ -41,15 +41,16 @@ namespace mirror {
 // Recursively create an array with multiple dimensions.  Elements may be
 // Objects or primitive types.
 static Array* RecursiveCreateMultiArray(Thread* self, Class* array_class, int current_dimension,
-                                        IntArray* dimensions)
+                                        SirtRef<mirror::IntArray>& dimensions)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   int32_t array_length = dimensions->Get(current_dimension);
-  SirtRef<Array> new_array(self, Array::Alloc(self, array_class, array_length));
+  SirtRef<Array> new_array(self, Array::Alloc<kMovingCollector, true>(self, array_class,
+                                                                      array_length));
   if (UNLIKELY(new_array.get() == NULL)) {
     CHECK(self->IsExceptionPending());
     return NULL;
   }
-  if ((current_dimension + 1) < dimensions->GetLength()) {
+  if (current_dimension + 1 < dimensions->GetLength()) {
     // Create a new sub-array in every element of the array.
     for (int32_t i = 0; i < array_length; i++) {
       Array* sub_array = RecursiveCreateMultiArray(self, array_class->GetComponentType(),
@@ -87,13 +88,15 @@ Array* Array::CreateMultiArray(Thread* self, Class* element_class, IntArray* dim
 
   // Find/generate the array class.
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Class* array_class = class_linker->FindClass(descriptor.c_str(), element_class->GetClassLoader());
+  SirtRef<mirror::ClassLoader> class_loader(self, element_class->GetClassLoader());
+  Class* array_class = class_linker->FindClass(descriptor.c_str(), class_loader);
   if (UNLIKELY(array_class == NULL)) {
     CHECK(self->IsExceptionPending());
     return NULL;
   }
   // create the array
-  Array* new_array = RecursiveCreateMultiArray(self, array_class, 0, dimensions);
+  SirtRef<mirror::IntArray> sirt_dimensions(self, dimensions);
+  Array* new_array = RecursiveCreateMultiArray(self, array_class, 0, sirt_dimensions);
   if (UNLIKELY(new_array == NULL)) {
     CHECK(self->IsExceptionPending());
     return NULL;
@@ -112,7 +115,7 @@ void Array::ThrowArrayStoreException(Object* object) const {
 template<typename T>
 PrimitiveArray<T>* PrimitiveArray<T>::Alloc(Thread* self, size_t length) {
   DCHECK(array_class_ != NULL);
-  Array* raw_array = Array::Alloc(self, array_class_, length, sizeof(T));
+  Array* raw_array = Array::Alloc<kMovingCollector, true>(self, array_class_, length, sizeof(T));
   return down_cast<PrimitiveArray<T>*>(raw_array);
 }
 

@@ -53,18 +53,9 @@ static void VMRuntime_startJitCompilation(JNIEnv*, jobject) {
 static void VMRuntime_disableJitCompilation(JNIEnv*, jobject) {
 }
 
-static jobject VMRuntime_newNonMovableArray(JNIEnv* env,
-                                            jobject,
-                                            jclass javaElementClass,
+static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaElementClass,
                                             jint length) {
   ScopedFastNativeObjectAccess soa(env);
-#ifdef MOVING_GARBAGE_COLLECTOR
-  // TODO: right now, we don't have a copying collector, so there's no need
-  // to do anything special here, but we ought to pass the non-movability
-  // through to the allocator.
-  UNIMPLEMENTED(FATAL);
-#endif
-
   mirror::Class* element_class = soa.Decode<mirror::Class*>(javaElementClass);
   if (element_class == NULL) {
     ThrowNullPointerException(NULL, "element class == null");
@@ -74,13 +65,13 @@ static jobject VMRuntime_newNonMovableArray(JNIEnv* env,
     ThrowNegativeArraySizeException(length);
     return NULL;
   }
-
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   std::string descriptor;
   descriptor += "[";
   descriptor += ClassHelper(element_class).GetDescriptor();
-  mirror::Class* array_class = class_linker->FindClass(descriptor.c_str(), NULL);
-  mirror::Array* result = mirror::Array::Alloc(soa.Self(), array_class, length);
+  SirtRef<mirror::ClassLoader> class_loader(soa.Self(), nullptr);
+  mirror::Class* array_class = class_linker->FindClass(descriptor.c_str(), class_loader);
+  mirror::Array* result = mirror::Array::Alloc<false, true>(soa.Self(), array_class, length);
   return soa.AddLocalReference<jobject>(result);
 }
 
@@ -94,7 +85,10 @@ static jlong VMRuntime_addressOf(JNIEnv* env, jobject, jobject javaArray) {
     ThrowIllegalArgumentException(NULL, "not an array");
     return 0;
   }
-  // TODO: we should also check that this is a non-movable array.
+  if (Runtime::Current()->GetHeap()->IsMovableObject(array)) {
+    ThrowRuntimeException("Trying to get address of movable array object");
+    return 0;
+  }
   return reinterpret_cast<uintptr_t>(array->GetRawData(array->GetClass()->GetComponentSize()));
 }
 
@@ -172,28 +166,7 @@ static void VMRuntime_registerNativeFree(JNIEnv* env, jobject, jint bytes) {
 }
 
 static void VMRuntime_trimHeap(JNIEnv*, jobject) {
-  uint64_t start_ns = NanoTime();
-
-  // Trim the managed heap.
-  gc::Heap* heap = Runtime::Current()->GetHeap();
-  float managed_utilization = (static_cast<float>(heap->GetBytesAllocated()) /
-                               heap->GetTotalMemory());
-  size_t managed_reclaimed = heap->Trim();
-
-  uint64_t gc_heap_end_ns = NanoTime();
-
-  // Trim the native heap.
-  dlmalloc_trim(0);
-  size_t native_reclaimed = 0;
-  dlmalloc_inspect_all(DlmallocMadviseCallback, &native_reclaimed);
-
-  uint64_t end_ns = NanoTime();
-
-  LOG(INFO) << "Heap trim of managed (duration=" << PrettyDuration(gc_heap_end_ns - start_ns)
-      << ", advised=" << PrettySize(managed_reclaimed) << ") and native (duration="
-      << PrettyDuration(end_ns - gc_heap_end_ns) << ", advised=" << PrettySize(native_reclaimed)
-      << ") heaps. Managed heap utilization of " << static_cast<int>(100 * managed_utilization)
-      << "%.";
+  Runtime::Current()->GetHeap()->Trim();
 }
 
 static void VMRuntime_concurrentGC(JNIEnv* env, jobject) {
@@ -212,7 +185,7 @@ static mirror::Object* PreloadDexCachesStringsVisitor(mirror::Object* root, void
 }
 
 // Based on ClassLinker::ResolveString.
-static void PreloadDexCachesResolveString(mirror::DexCache* dex_cache,
+static void PreloadDexCachesResolveString(SirtRef<mirror::DexCache>& dex_cache,
                                           uint32_t string_idx,
                                           StringTable& strings)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -260,7 +233,7 @@ static void PreloadDexCachesResolveType(mirror::DexCache* dex_cache, uint32_t ty
 }
 
 // Based on ClassLinker::ResolveField.
-static void PreloadDexCachesResolveField(mirror::DexCache* dex_cache,
+static void PreloadDexCachesResolveField(SirtRef<mirror::DexCache>& dex_cache,
                                          uint32_t field_idx,
                                          bool is_static)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -275,9 +248,9 @@ static void PreloadDexCachesResolveField(mirror::DexCache* dex_cache,
     return;
   }
   if (is_static) {
-    field = klass->FindStaticField(dex_cache, field_idx);
+    field = klass->FindStaticField(dex_cache.get(), field_idx);
   } else {
-    field = klass->FindInstanceField(dex_cache, field_idx);
+    field = klass->FindInstanceField(dex_cache.get(), field_idx);
   }
   if (field == NULL) {
     return;
@@ -287,7 +260,7 @@ static void PreloadDexCachesResolveField(mirror::DexCache* dex_cache,
 }
 
 // Based on ClassLinker::ResolveMethod.
-static void PreloadDexCachesResolveMethod(mirror::DexCache* dex_cache,
+static void PreloadDexCachesResolveMethod(SirtRef<mirror::DexCache>& dex_cache,
                                           uint32_t method_idx,
                                           InvokeType invoke_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -304,14 +277,14 @@ static void PreloadDexCachesResolveMethod(mirror::DexCache* dex_cache,
   switch (invoke_type) {
     case kDirect:
     case kStatic:
-      method = klass->FindDirectMethod(dex_cache, method_idx);
+      method = klass->FindDirectMethod(dex_cache.get(), method_idx);
       break;
     case kInterface:
-      method = klass->FindInterfaceMethod(dex_cache, method_idx);
+      method = klass->FindInterfaceMethod(dex_cache.get(), method_idx);
       break;
     case kSuper:
     case kVirtual:
-      method = klass->FindVirtualMethod(dex_cache, method_idx);
+      method = klass->FindVirtualMethod(dex_cache.get(), method_idx);
       break;
     default:
       LOG(FATAL) << "Unreachable - invocation type: " << invoke_type;
@@ -430,6 +403,7 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
 
   Runtime* runtime = Runtime::Current();
   ClassLinker* linker = runtime->GetClassLinker();
+  Thread* self = ThreadForEnv(env);
 
   // We use a std::map to avoid heap allocating StringObjects to lookup in gDvm.literalStrings
   StringTable strings;
@@ -441,7 +415,7 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
   for (size_t i = 0; i< boot_class_path.size(); i++) {
     const DexFile* dex_file = boot_class_path[i];
     CHECK(dex_file != NULL);
-    mirror::DexCache* dex_cache = linker->FindDexCache(*dex_file);
+    SirtRef<mirror::DexCache> dex_cache(self, linker->FindDexCache(*dex_file));
 
     if (kPreloadDexCachesStrings) {
       for (size_t i = 0; i < dex_cache->NumStrings(); i++) {
@@ -451,7 +425,7 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
 
     if (kPreloadDexCachesTypes) {
       for (size_t i = 0; i < dex_cache->NumResolvedTypes(); i++) {
-        PreloadDexCachesResolveType(dex_cache, i);
+        PreloadDexCachesResolveType(dex_cache.get(), i);
       }
     }
 

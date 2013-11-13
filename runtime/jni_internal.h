@@ -162,6 +162,9 @@ struct JNIEnvExt : public JNIEnv {
     return Offset(OFFSETOF_MEMBER(JNIEnvExt, self));
   }
 
+  jobject NewLocalRef(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void DeleteLocalRef(jobject obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   Thread* const self;
   JavaVMExt* vm;
 

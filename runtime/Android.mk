@@ -50,8 +50,10 @@ LIBART_COMMON_SRC_FILES := \
 	gc/collector/garbage_collector.cc \
 	gc/collector/mark_sweep.cc \
 	gc/collector/partial_mark_sweep.cc \
+	gc/collector/semi_space.cc \
 	gc/collector/sticky_mark_sweep.cc \
 	gc/heap.cc \
+	gc/space/bump_pointer_space.cc \
 	gc/space/dlmalloc_space.cc \
 	gc/space/image_space.cc \
 	gc/space/large_object_space.cc \

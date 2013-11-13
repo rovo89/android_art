@@ -329,6 +329,11 @@ class ConditionVariable {
   // TODO: remove this.
   void WaitHoldingLocks(Thread* self) NO_THREAD_SAFETY_ANALYSIS;
 
+  // Return the number of people that are waiting on this condition.
+  int32_t GetNumWaiters() const NO_THREAD_SAFETY_ANALYSIS {
+    return num_waiters_;
+  }
+
  private:
   const char* const name_;
   // The Mutex being used by waiters. It is an error to mix condition variables between different

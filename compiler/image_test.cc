@@ -94,8 +94,8 @@ TEST_F(ImageTest, WriteRead) {
     ASSERT_NE(0U, image_header.GetImageBitmapSize());
 
     gc::Heap* heap = Runtime::Current()->GetHeap();
-    ASSERT_EQ(1U, heap->GetContinuousSpaces().size());
-    gc::space::ContinuousSpace* space = heap->GetContinuousSpaces().front();
+    ASSERT_TRUE(!heap->GetContinuousSpaces().empty());
+    gc::space::ContinuousSpace* space = heap->GetNonMovingSpace();
     ASSERT_FALSE(space->IsImageSpace());
     ASSERT_TRUE(space != NULL);
     ASSERT_TRUE(space->IsDlMallocSpace());
@@ -139,11 +139,8 @@ TEST_F(ImageTest, WriteRead) {
   class_linker_ = runtime_->GetClassLinker();
 
   gc::Heap* heap = Runtime::Current()->GetHeap();
-  ASSERT_EQ(2U, heap->GetContinuousSpaces().size());
-  ASSERT_TRUE(heap->GetContinuousSpaces()[0]->IsImageSpace());
-  ASSERT_FALSE(heap->GetContinuousSpaces()[0]->IsDlMallocSpace());
-  ASSERT_FALSE(heap->GetContinuousSpaces()[1]->IsImageSpace());
-  ASSERT_TRUE(heap->GetContinuousSpaces()[1]->IsDlMallocSpace());
+  ASSERT_TRUE(heap->HasImageSpace());
+  ASSERT_TRUE(heap->GetNonMovingSpace()->IsDlMallocSpace());
 
   gc::space::ImageSpace* image_space = heap->GetImageSpace();
   image_space->VerifyImageAllocations();

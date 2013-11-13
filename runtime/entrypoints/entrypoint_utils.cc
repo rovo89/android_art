@@ -82,7 +82,7 @@ mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::ArtMethod* 
   if (UNLIKELY(!CheckFilledNewArrayAlloc(type_idx, referrer, component_count, self, access_check, &klass))) {
     return NULL;
   }
-  return mirror::Array::AllocUninstrumented(self, klass, component_count);
+  return mirror::Array::Alloc<kMovingCollector, false>(self, klass, component_count);
 }
 
 // Helper function to allocate array for FILLED_NEW_ARRAY.
@@ -93,7 +93,7 @@ mirror::Array* CheckAndAllocArrayFromCodeInstrumented(uint32_t type_idx, mirror:
   if (UNLIKELY(!CheckFilledNewArrayAlloc(type_idx, referrer, component_count, self, access_check, &klass))) {
     return NULL;
   }
-  return mirror::Array::AllocInstrumented(self, klass, component_count);
+  return mirror::Array::Alloc<kMovingCollector, true>(self, klass, component_count);
 }
 
 void ThrowStackOverflowError(Thread* self) {

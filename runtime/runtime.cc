@@ -121,7 +121,7 @@ Runtime::~Runtime() {
   Trace::Shutdown();
 
   // Make sure to let the GC complete if it is running.
-  heap_->WaitForConcurrentGcToComplete(self);
+  heap_->WaitForGcToComplete(self);
   heap_->DeleteThreadPool();
 
   // Make sure our internal threads are dead before we start tearing down things they're using.
@@ -821,6 +821,11 @@ void Runtime::StartSignalCatcher() {
   }
 }
 
+bool Runtime::IsShuttingDown(Thread* self) {
+  MutexLock mu(self, *Locks::runtime_shutdown_lock_);
+  return IsShuttingDownLocked();
+}
+
 void Runtime::StartDaemonThreads() {
   VLOG(startup) << "Runtime::StartDaemonThreads entering";
 
@@ -861,7 +866,6 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
 
   is_compiler_ = options->is_compiler_;
   is_zygote_ = options->is_zygote_;
-  is_concurrent_gc_enabled_ = options->is_concurrent_gc_enabled_;
   is_explicit_gc_disabled_ = options->is_explicit_gc_disabled_;
 
   compiler_filter_ = options->compiler_filter_;
@@ -926,12 +930,13 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   GetHeap()->EnableObjectValidation();
 
   CHECK_GE(GetHeap()->GetContinuousSpaces().size(), 1U);
-  if (GetHeap()->GetContinuousSpaces()[0]->IsImageSpace()) {
-    class_linker_ = ClassLinker::CreateFromImage(intern_table_);
+  class_linker_ = new ClassLinker(intern_table_);
+  if (GetHeap()->HasImageSpace()) {
+    class_linker_->InitFromImage();
   } else {
     CHECK(options->boot_class_path_ != NULL);
     CHECK_NE(options->boot_class_path_->size(), 0U);
-    class_linker_ = ClassLinker::CreateFromCompiler(*options->boot_class_path_, intern_table_);
+    class_linker_->InitFromCompiler(*options->boot_class_path_);
   }
   CHECK(class_linker_ != NULL);
   verifier::MethodVerifier::Init();
@@ -1174,16 +1179,20 @@ void Runtime::VisitNonThreadRoots(RootVisitor* visitor, void* arg) {
         visitor(pre_allocated_OutOfMemoryError_, arg));
     DCHECK(pre_allocated_OutOfMemoryError_ != nullptr);
   }
-  resolution_method_ = reinterpret_cast<mirror::ArtMethod*>(visitor(resolution_method_, arg));
+  resolution_method_ = down_cast<mirror::ArtMethod*>(visitor(resolution_method_, arg));
   DCHECK(resolution_method_ != nullptr);
-  imt_conflict_method_ = reinterpret_cast<mirror::ArtMethod*>(visitor(imt_conflict_method_, arg));
-  DCHECK(imt_conflict_method_ != nullptr);
-  default_imt_ = reinterpret_cast<mirror::ObjectArray<mirror::ArtMethod>*>(visitor(default_imt_, arg));
-  DCHECK(default_imt_ != nullptr);
+  if (HasImtConflictMethod()) {
+    imt_conflict_method_ = down_cast<mirror::ArtMethod*>(visitor(imt_conflict_method_, arg));
+  }
+  if (HasDefaultImt()) {
+    default_imt_ = down_cast<mirror::ObjectArray<mirror::ArtMethod>*>(visitor(default_imt_, arg));
+  }
+
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
-    callee_save_methods_[i] = reinterpret_cast<mirror::ArtMethod*>(
-        visitor(callee_save_methods_[i], arg));
-    DCHECK(callee_save_methods_[i] != nullptr);
+    if (callee_save_methods_[i] != nullptr) {
+      callee_save_methods_[i] = down_cast<mirror::ArtMethod*>(
+          visitor(callee_save_methods_[i], arg));
+    }
   }
 }
 
@@ -1201,49 +1210,45 @@ mirror::ObjectArray<mirror::ArtMethod>* Runtime::CreateDefaultImt(ClassLinker* c
   Thread* self = Thread::Current();
   SirtRef<mirror::ObjectArray<mirror::ArtMethod> > imtable(self, cl->AllocArtMethodArray(self, 64));
   mirror::ArtMethod* imt_conflict_method = Runtime::Current()->GetImtConflictMethod();
-  for (size_t i = 0; i < 64; i++) {
+  for (size_t i = 0; i < static_cast<size_t>(imtable->GetLength()); i++) {
     imtable->Set(i, imt_conflict_method);
   }
   return imtable.get();
 }
 
 mirror::ArtMethod* Runtime::CreateImtConflictMethod() {
-  mirror::Class* method_class = mirror::ArtMethod::GetJavaLangReflectArtMethod();
   Thread* self = Thread::Current();
-  SirtRef<mirror::ArtMethod>
-      method(self, down_cast<mirror::ArtMethod*>(method_class->AllocObject(self)));
-  method->SetDeclaringClass(method_class);
+  Runtime* r = Runtime::Current();
+  ClassLinker* cl = r->GetClassLinker();
+  SirtRef<mirror::ArtMethod> method(self, cl->AllocArtMethod(self));
+  method->SetDeclaringClass(mirror::ArtMethod::GetJavaLangReflectArtMethod());
   // TODO: use a special method for imt conflict method saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
   // When compiling, the code pointer will get set later when the image is loaded.
-  Runtime* r = Runtime::Current();
-  ClassLinker* cl = r->GetClassLinker();
   method->SetEntryPointFromCompiledCode(r->IsCompiler() ? NULL : GetImtConflictTrampoline(cl));
   return method.get();
 }
 
 mirror::ArtMethod* Runtime::CreateResolutionMethod() {
-  mirror::Class* method_class = mirror::ArtMethod::GetJavaLangReflectArtMethod();
   Thread* self = Thread::Current();
-  SirtRef<mirror::ArtMethod>
-      method(self, down_cast<mirror::ArtMethod*>(method_class->AllocObject(self)));
-  method->SetDeclaringClass(method_class);
+  Runtime* r = Runtime::Current();
+  ClassLinker* cl = r->GetClassLinker();
+  SirtRef<mirror::ArtMethod> method(self, cl->AllocArtMethod(self));
+  method->SetDeclaringClass(mirror::ArtMethod::GetJavaLangReflectArtMethod());
   // TODO: use a special method for resolution method saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
   // When compiling, the code pointer will get set later when the image is loaded.
-  Runtime* r = Runtime::Current();
-  ClassLinker* cl = r->GetClassLinker();
   method->SetEntryPointFromCompiledCode(r->IsCompiler() ? NULL : GetResolutionTrampoline(cl));
   return method.get();
 }
 
 mirror::ArtMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set,
-                                                        CalleeSaveType type) {
-  mirror::Class* method_class = mirror::ArtMethod::GetJavaLangReflectArtMethod();
+                                                   CalleeSaveType type) {
   Thread* self = Thread::Current();
-  SirtRef<mirror::ArtMethod>
-      method(self, down_cast<mirror::ArtMethod*>(method_class->AllocObject(self)));
-  method->SetDeclaringClass(method_class);
+  Runtime* r = Runtime::Current();
+  ClassLinker* cl = r->GetClassLinker();
+  SirtRef<mirror::ArtMethod> method(self, cl->AllocArtMethod(self));
+  method->SetDeclaringClass(mirror::ArtMethod::GetJavaLangReflectArtMethod());
   // TODO: use a special method for callee saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
   method->SetEntryPointFromCompiledCode(NULL);

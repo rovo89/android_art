@@ -59,6 +59,14 @@ class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
 
   size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs);
 
+  virtual bool IsAllocSpace() const {
+    return true;
+  }
+
+  virtual AllocSpace* AsAllocSpace() {
+    return this;
+  }
+
  protected:
   explicit LargeObjectSpace(const std::string& name);
 

@@ -23,20 +23,12 @@
 
 namespace art {
 
-static jclass Proxy_generateProxy(JNIEnv* env, jclass, jstring javaName,
-                                  jobjectArray javaInterfaces, jobject javaLoader,
-                                  jobjectArray javaMethods, jobjectArray javaThrows) {
+static jclass Proxy_generateProxy(JNIEnv* env, jclass, jstring name, jobjectArray interfaces,
+                                  jobject loader, jobjectArray methods, jobjectArray throws) {
   ScopedObjectAccess soa(env);
-  mirror::String* name = soa.Decode<mirror::String*>(javaName);
-  mirror::ObjectArray<mirror::Class>* interfaces =
-      soa.Decode<mirror::ObjectArray<mirror::Class>*>(javaInterfaces);
-  mirror::ClassLoader* loader = soa.Decode<mirror::ClassLoader*>(javaLoader);
-  mirror::ObjectArray<mirror::ArtMethod>* methods =
-      soa.Decode<mirror::ObjectArray<mirror::ArtMethod>*>(javaMethods);
-  mirror::ObjectArray<mirror::ObjectArray<mirror::Class> >* throws =
-      soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class> >*>(javaThrows);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  mirror::Class* result = class_linker->CreateProxyClass(name, interfaces, loader, methods, throws);
+  mirror::Class* result = class_linker->CreateProxyClass(soa, name, interfaces, loader, methods,
+                                                         throws);
   return soa.AddLocalReference<jclass>(result);
 }
 

@@ -114,7 +114,7 @@ class MarkSweep : public GarbageCollector {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsImmuneSpace(const space::ContinuousSpace* space)
+  bool IsImmuneSpace(const space::ContinuousSpace* space) const;
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Bind the live bits to the mark bits of bitmaps for spaces that are never collected, ie
@@ -140,6 +140,7 @@ class MarkSweep : public GarbageCollector {
   void ProcessReferences(Thread* self)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Update and mark references from immune spaces.
   virtual void UpdateAndMarkModUnion()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -158,7 +159,7 @@ class MarkSweep : public GarbageCollector {
   }
 
   // Blackens an object.
-  void ScanObject(const mirror::Object* obj)
+  void ScanObject(mirror::Object* obj)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -166,38 +167,6 @@ class MarkSweep : public GarbageCollector {
   template <typename MarkVisitor>
   void ScanObjectVisit(mirror::Object* obj, const MarkVisitor& visitor)
       NO_THREAD_SAFETY_ANALYSIS;
-
-  size_t GetFreedBytes() const {
-    return freed_bytes_;
-  }
-
-  size_t GetFreedLargeObjectBytes() const {
-    return freed_large_object_bytes_;
-  }
-
-  size_t GetFreedObjects() const {
-    return freed_objects_;
-  }
-
-  size_t GetFreedLargeObjects() const {
-    return freed_large_objects_;
-  }
-
-  uint64_t GetTotalTimeNs() const {
-    return total_time_ns_;
-  }
-
-  uint64_t GetTotalPausedTimeNs() const {
-    return total_paused_time_ns_;
-  }
-
-  uint64_t GetTotalFreedObjects() const {
-    return total_freed_objects_;
-  }
-
-  uint64_t GetTotalFreedBytes() const {
-    return total_freed_bytes_;
-  }
 
   // Everything inside the immune range is assumed to be marked.
   void SetImmuneRange(mirror::Object* begin, mirror::Object* end);
@@ -216,8 +185,7 @@ class MarkSweep : public GarbageCollector {
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   template <typename Visitor>
-  static void VisitObjectReferences(mirror::Object* obj, const Visitor& visitor,
-                                    bool visit_class = false)
+  static void VisitObjectReferences(mirror::Object* obj, const Visitor& visitor, bool visit_class)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
                             Locks::mutator_lock_);
 
@@ -395,9 +363,6 @@ class MarkSweep : public GarbageCollector {
   // object.
   accounting::SpaceBitmap* current_mark_bitmap_;
 
-  // Cache java.lang.Class for optimization.
-  mirror::Class* java_lang_Class_;
-
   accounting::ObjectStack* mark_stack_;
 
   // Immune range, every object inside the immune range is assumed to be marked.
@@ -412,14 +377,6 @@ class MarkSweep : public GarbageCollector {
 
   // Parallel finger.
   AtomicInteger atomic_finger_;
-  // Number of non large object bytes freed in this collection.
-  AtomicInteger freed_bytes_;
-  // Number of large object bytes freed.
-  AtomicInteger freed_large_object_bytes_;
-  // Number of objects freed in this collection.
-  AtomicInteger freed_objects_;
-  // Number of freed large objects.
-  AtomicInteger freed_large_objects_;
   // Number of classes scanned, if kCountScannedTypes.
   AtomicInteger class_count_;
   // Number of arrays scanned, if kCountScannedTypes.
@@ -442,8 +399,6 @@ class MarkSweep : public GarbageCollector {
   Mutex mark_stack_lock_ ACQUIRED_AFTER(Locks::classlinker_classes_lock_);
 
   const bool is_concurrent_;
-
-  bool clear_soft_references_;
 
  private:
   friend class AddIfReachesAllocSpaceVisitor;  // Used by mod-union table.

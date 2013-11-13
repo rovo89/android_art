@@ -66,36 +66,36 @@ static inline Array* SetArrayLength(Array* array, size_t length) {
   return array;
 }
 
-inline Array* Array::AllocInstrumented(Thread* self, Class* array_class, int32_t component_count,
-                                       size_t component_size) {
+template <bool kIsMovable, bool kIsInstrumented>
+inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count,
+                           size_t component_size) {
   size_t size = ComputeArraySize(self, array_class, component_count, component_size);
   if (UNLIKELY(size == 0)) {
     return NULL;
   }
   gc::Heap* heap = Runtime::Current()->GetHeap();
-  Array* array = down_cast<Array*>(heap->AllocObjectInstrumented(self, array_class, size));
-  return SetArrayLength(array, component_count);
-}
-
-inline Array* Array::AllocUninstrumented(Thread* self, Class* array_class, int32_t component_count,
-                                         size_t component_size) {
-  size_t size = ComputeArraySize(self, array_class, component_count, component_size);
-  if (UNLIKELY(size == 0)) {
-    return NULL;
+  Array* array = nullptr;
+  if (kIsMovable) {
+    if (kIsInstrumented) {
+      array = down_cast<Array*>(heap->AllocMovableObjectInstrumented(self, array_class, size));
+    } else {
+      array = down_cast<Array*>(heap->AllocMovableObjectUninstrumented(self, array_class, size));
+    }
+  } else {
+    if (kIsInstrumented) {
+      array = down_cast<Array*>(heap->AllocNonMovableObjectInstrumented(self, array_class, size));
+    } else {
+      array = down_cast<Array*>(heap->AllocNonMovableObjectUninstrumented(self, array_class, size));
+    }
   }
-  gc::Heap* heap = Runtime::Current()->GetHeap();
-  Array* array = down_cast<Array*>(heap->AllocObjectUninstrumented(self, array_class, size));
   return SetArrayLength(array, component_count);
 }
 
-inline Array* Array::AllocInstrumented(Thread* self, Class* array_class, int32_t component_count) {
+template <bool kIsMovable, bool kIsInstrumented>
+inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count) {
   DCHECK(array_class->IsArrayClass());
-  return AllocInstrumented(self, array_class, component_count, array_class->GetComponentSize());
-}
-
-inline Array* Array::AllocUninstrumented(Thread* self, Class* array_class, int32_t component_count) {
-  DCHECK(array_class->IsArrayClass());
-  return AllocUninstrumented(self, array_class, component_count, array_class->GetComponentSize());
+  return Alloc<kIsMovable, kIsInstrumented>(self, array_class, component_count,
+                                            array_class->GetComponentSize());
 }
 
 }  // namespace mirror
