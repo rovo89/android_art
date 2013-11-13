@@ -82,10 +82,11 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       long_gc_log_threshold_(long_gc_log_threshold),
       ignore_max_footprint_(ignore_max_footprint),
       have_zygote_space_(false),
-      soft_ref_queue_lock_(NULL),
-      weak_ref_queue_lock_(NULL),
-      finalizer_ref_queue_lock_(NULL),
-      phantom_ref_queue_lock_(NULL),
+      soft_reference_queue_(this),
+      weak_reference_queue_(this),
+      finalizer_reference_queue_(this),
+      phantom_reference_queue_(this),
+      cleared_references_(this),
       is_gc_running_(false),
       last_gc_type_(collector::kGcTypeNone),
       next_gc_type_(collector::kGcTypePartial),
@@ -233,13 +234,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   gc_complete_lock_ = new Mutex("GC complete lock");
   gc_complete_cond_.reset(new ConditionVariable("GC complete condition variable",
                                                 *gc_complete_lock_));
-
-  // Create the reference queue locks, this is required so for parallel object scanning in the GC.
-  soft_ref_queue_lock_ = new Mutex("Soft reference queue lock");
-  weak_ref_queue_lock_ = new Mutex("Weak reference queue lock");
-  finalizer_ref_queue_lock_ = new Mutex("Finalizer reference queue lock");
-  phantom_ref_queue_lock_ = new Mutex("Phantom reference queue lock");
-
   last_gc_time_ns_ = NanoTime();
   last_gc_size_ = GetBytesAllocated();
 
@@ -599,10 +593,6 @@ Heap::~Heap() {
   STLDeleteElements(&continuous_spaces_);
   STLDeleteElements(&discontinuous_spaces_);
   delete gc_complete_lock_;
-  delete soft_ref_queue_lock_;
-  delete weak_ref_queue_lock_;
-  delete finalizer_ref_queue_lock_;
-  delete phantom_ref_queue_lock_;
   VLOG(heap) << "Finished ~Heap()";
 }
 
@@ -638,6 +628,106 @@ space::Space* Heap::FindSpaceFromObject(const mirror::Object* obj, bool fail_ok)
     return result;
   }
   return FindDiscontinuousSpaceFromObject(obj, true);
+}
+
+struct SoftReferenceArgs {
+  RootVisitor* is_marked_callback_;
+  RootVisitor* recursive_mark_callback_;
+  void* arg_;
+};
+
+mirror::Object* Heap::PreserveSoftReferenceCallback(mirror::Object* obj, void* arg) {
+  SoftReferenceArgs* args  = reinterpret_cast<SoftReferenceArgs*>(arg);
+  // TODO: Not preserve all soft references.
+  return args->recursive_mark_callback_(obj, args->arg_);
+}
+
+// Process reference class instances and schedule finalizations.
+void Heap::ProcessReferences(TimingLogger& timings, bool clear_soft,
+                             RootVisitor* is_marked_callback,
+                             RootVisitor* recursive_mark_object_callback, void* arg) {
+  // Unless we are in the zygote or required to clear soft references with white references,
+  // preserve some white referents.
+  if (!clear_soft && !Runtime::Current()->IsZygote()) {
+    SoftReferenceArgs soft_reference_args;
+    soft_reference_args.is_marked_callback_ = is_marked_callback;
+    soft_reference_args.recursive_mark_callback_ = recursive_mark_object_callback;
+    soft_reference_args.arg_ = arg;
+    soft_reference_queue_.PreserveSomeSoftReferences(&PreserveSoftReferenceCallback,
+                                                     &soft_reference_args);
+  }
+  timings.StartSplit("ProcessReferences");
+  // Clear all remaining soft and weak references with white referents.
+  soft_reference_queue_.ClearWhiteReferences(cleared_references_, is_marked_callback, arg);
+  weak_reference_queue_.ClearWhiteReferences(cleared_references_, is_marked_callback, arg);
+  timings.EndSplit();
+  // Preserve all white objects with finalize methods and schedule them for finalization.
+  timings.StartSplit("EnqueueFinalizerReferences");
+  finalizer_reference_queue_.EnqueueFinalizerReferences(cleared_references_, is_marked_callback,
+                                                        recursive_mark_object_callback, arg);
+  timings.EndSplit();
+  timings.StartSplit("ProcessReferences");
+  // Clear all f-reachable soft and weak references with white referents.
+  soft_reference_queue_.ClearWhiteReferences(cleared_references_, is_marked_callback, arg);
+  weak_reference_queue_.ClearWhiteReferences(cleared_references_, is_marked_callback, arg);
+  // Clear all phantom references with white referents.
+  phantom_reference_queue_.ClearWhiteReferences(cleared_references_, is_marked_callback, arg);
+  // At this point all reference queues other than the cleared references should be empty.
+  DCHECK(soft_reference_queue_.IsEmpty());
+  DCHECK(weak_reference_queue_.IsEmpty());
+  DCHECK(finalizer_reference_queue_.IsEmpty());
+  DCHECK(phantom_reference_queue_.IsEmpty());
+  timings.EndSplit();
+}
+
+bool Heap::IsEnqueued(mirror::Object* ref) const {
+  // Since the references are stored as cyclic lists it means that once enqueued, the pending next
+  // will always be non-null.
+  return ref->GetFieldObject<mirror::Object*>(GetReferencePendingNextOffset(), false) != nullptr;
+}
+
+bool Heap::IsEnqueuable(const mirror::Object* ref) const {
+  DCHECK(ref != nullptr);
+  const mirror::Object* queue =
+      ref->GetFieldObject<mirror::Object*>(GetReferenceQueueOffset(), false);
+  const mirror::Object* queue_next =
+      ref->GetFieldObject<mirror::Object*>(GetReferenceQueueNextOffset(), false);
+  return queue != nullptr && queue_next == nullptr;
+}
+
+// Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been
+// marked, put it on the appropriate list in the heap for later processing.
+void Heap::DelayReferenceReferent(mirror::Class* klass, mirror::Object* obj,
+                                  RootVisitor mark_visitor, void* arg) {
+  DCHECK(klass != nullptr);
+  DCHECK(klass->IsReferenceClass());
+  DCHECK(obj != nullptr);
+  mirror::Object* referent = GetReferenceReferent(obj);
+  if (referent != nullptr) {
+    mirror::Object* forward_address = mark_visitor(referent, arg);
+    // Null means that the object is not currently marked.
+    if (forward_address == nullptr) {
+      Thread* self = Thread::Current();
+      // TODO: Remove these locks, and use atomic stacks for storing references?
+      // We need to check that the references haven't already been enqueued since we can end up
+      // scanning the same reference multiple times due to dirty cards.
+      if (klass->IsSoftReferenceClass()) {
+        soft_reference_queue_.AtomicEnqueueIfNotEnqueued(self, obj);
+      } else if (klass->IsWeakReferenceClass()) {
+        weak_reference_queue_.AtomicEnqueueIfNotEnqueued(self, obj);
+      } else if (klass->IsFinalizerReferenceClass()) {
+        finalizer_reference_queue_.AtomicEnqueueIfNotEnqueued(self, obj);
+      } else if (klass->IsPhantomReferenceClass()) {
+        phantom_reference_queue_.AtomicEnqueueIfNotEnqueued(self, obj);
+      } else {
+        LOG(FATAL) << "Invalid reference type " << PrettyClass(klass) << " " << std::hex
+                   << klass->GetAccessFlags();
+      }
+    } else if (referent != forward_address) {
+      // Referent is already marked and we need to update it.
+      SetReferenceReferent(obj, forward_address);
+    }
+  }
 }
 
 space::ImageSpace* Heap::GetImageSpace() const {
@@ -843,7 +933,6 @@ bool Heap::IsLiveObjectLocked(const mirror::Object* obj, bool search_allocation_
     if (i > 0) {
       NanoSleep(MsToNs(10));
     }
-
     if (search_allocation_stack) {
       if (sorted) {
         if (allocation_stack_->ContainsSorted(const_cast<mirror::Object*>(obj))) {
@@ -1441,6 +1530,9 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   collector->Run(clear_soft_references);
   total_objects_freed_ever_ += collector->GetFreedObjects();
   total_bytes_freed_ever_ += collector->GetFreedBytes();
+
+  // Enqueue cleared references.
+  EnqueueClearedReferences();
 
   // Grow the heap so that we know when to perform the next GC.
   GrowForUtilization(gc_type, collector->GetDurationNs());
@@ -2072,72 +2164,6 @@ mirror::Object* Heap::GetReferenceReferent(mirror::Object* reference) {
   return reference->GetFieldObject<mirror::Object*>(reference_referent_offset_, true);
 }
 
-void Heap::ClearReferenceReferent(mirror::Object* reference) {
-  DCHECK(reference != NULL);
-  DCHECK_NE(reference_referent_offset_.Uint32Value(), 0U);
-  reference->SetFieldObject(reference_referent_offset_, nullptr, true);
-}
-
-// Returns true if the reference object has not yet been enqueued.
-bool Heap::IsEnqueuable(const mirror::Object* ref) {
-  DCHECK(ref != NULL);
-  const mirror::Object* queue =
-      ref->GetFieldObject<mirror::Object*>(reference_queue_offset_, false);
-  const mirror::Object* queue_next =
-      ref->GetFieldObject<mirror::Object*>(reference_queueNext_offset_, false);
-  return (queue != NULL) && (queue_next == NULL);
-}
-
-void Heap::EnqueueReference(mirror::Object* ref, mirror::Object** cleared_reference_list) {
-  DCHECK(ref != NULL);
-  CHECK(ref->GetFieldObject<mirror::Object*>(reference_queue_offset_, false) != NULL);
-  CHECK(ref->GetFieldObject<mirror::Object*>(reference_queueNext_offset_, false) == NULL);
-  EnqueuePendingReference(ref, cleared_reference_list);
-}
-
-bool Heap::IsEnqueued(mirror::Object* ref) {
-  // Since the references are stored as cyclic lists it means that once enqueued, the pending next
-  // will always be non-null.
-  return ref->GetFieldObject<mirror::Object*>(GetReferencePendingNextOffset(), false) != nullptr;
-}
-
-void Heap::EnqueuePendingReference(mirror::Object* ref, mirror::Object** list) {
-  DCHECK(ref != NULL);
-  DCHECK(list != NULL);
-  if (*list == NULL) {
-    // 1 element cyclic queue, ie: Reference ref = ..; ref.pendingNext = ref;
-    ref->SetFieldObject(reference_pendingNext_offset_, ref, false);
-    *list = ref;
-  } else {
-    mirror::Object* head =
-        (*list)->GetFieldObject<mirror::Object*>(reference_pendingNext_offset_, false);
-    ref->SetFieldObject(reference_pendingNext_offset_, head, false);
-    (*list)->SetFieldObject(reference_pendingNext_offset_, ref, false);
-  }
-}
-
-mirror::Object* Heap::DequeuePendingReference(mirror::Object** list) {
-  DCHECK(list != NULL);
-  DCHECK(*list != NULL);
-  mirror::Object* head = (*list)->GetFieldObject<mirror::Object*>(reference_pendingNext_offset_,
-                                                                  false);
-  mirror::Object* ref;
-
-  // Note: the following code is thread-safe because it is only called from ProcessReferences which
-  // is single threaded.
-  if (*list == head) {
-    ref = *list;
-    *list = NULL;
-  } else {
-    mirror::Object* next = head->GetFieldObject<mirror::Object*>(reference_pendingNext_offset_,
-                                                                 false);
-    (*list)->SetFieldObject(reference_pendingNext_offset_, next, false);
-    ref = head;
-  }
-  ref->SetFieldObject(reference_pendingNext_offset_, NULL, false);
-  return ref;
-}
-
 void Heap::AddFinalizerReference(Thread* self, mirror::Object* object) {
   ScopedObjectAccess soa(self);
   JValue result;
@@ -2168,20 +2194,18 @@ void Heap::PrintReferenceQueue(std::ostream& os, mirror::Object** queue) {
   }
 }
 
-void Heap::EnqueueClearedReferences(mirror::Object** cleared) {
-  DCHECK(cleared != nullptr);
-  mirror::Object* list = *cleared;
-  if (list != nullptr) {
+void Heap::EnqueueClearedReferences() {
+  if (!cleared_references_.IsEmpty()) {
     // When a runtime isn't started there are no reference queues to care about so ignore.
     if (LIKELY(Runtime::Current()->IsStarted())) {
       ScopedObjectAccess soa(Thread::Current());
       JValue result;
       ArgArray arg_array(NULL, 0);
-      arg_array.Append(reinterpret_cast<uint32_t>(list));
+      arg_array.Append(reinterpret_cast<uint32_t>(cleared_references_.GetList()));
       soa.DecodeMethod(WellKnownClasses::java_lang_ref_ReferenceQueue_add)->Invoke(soa.Self(),
           arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'V');
     }
-    *cleared = nullptr;
+    cleared_references_.Clear();
   }
 }
 

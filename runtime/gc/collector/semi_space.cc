@@ -158,8 +158,8 @@ void SemiSpace::InitializePhase() {
 void SemiSpace::ProcessReferences(Thread* self) {
   TimingLogger::ScopedSplit split("ProcessReferences", &timings_);
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-  ProcessReferences(&soft_reference_list_, clear_soft_references_, &weak_reference_list_,
-                    &finalizer_reference_list_, &phantom_reference_list_);
+  GetHeap()->ProcessReferences(timings_, clear_soft_references_, &MarkedForwardingAddressCallback,
+                               &RecursiveMarkObjectCallback, this);
 }
 
 void SemiSpace::MarkingPhase() {
@@ -344,6 +344,15 @@ Object* SemiSpace::MarkObject(Object* obj) {
   return ret;
 }
 
+Object* SemiSpace::RecursiveMarkObjectCallback(Object* root, void* arg) {
+  DCHECK(root != nullptr);
+  DCHECK(arg != nullptr);
+  SemiSpace* semi_space = reinterpret_cast<SemiSpace*>(arg);
+  mirror::Object* ret = semi_space->MarkObject(root);
+  semi_space->ProcessMarkStack(true);
+  return ret;
+}
+
 Object* SemiSpace::MarkRootCallback(Object* root, void* arg) {
   DCHECK(root != nullptr);
   DCHECK(arg != nullptr);
@@ -374,13 +383,13 @@ mirror::Object* SemiSpace::GetForwardingAddress(mirror::Object* obj) {
   return obj;
 }
 
-mirror::Object* SemiSpace::SystemWeakIsMarkedCallback(Object* object, void* arg) {
+mirror::Object* SemiSpace::MarkedForwardingAddressCallback(Object* object, void* arg) {
   return reinterpret_cast<SemiSpace*>(arg)->GetMarkedForwardAddress(object);
 }
 
 void SemiSpace::SweepSystemWeaks() {
   timings_.StartSplit("SweepSystemWeaks");
-  Runtime::Current()->SweepSystemWeaks(SystemWeakIsMarkedCallback, this);
+  Runtime::Current()->SweepSystemWeaks(MarkedForwardingAddressCallback, this);
   timings_.EndSplit();
 }
 
@@ -487,45 +496,7 @@ void SemiSpace::SweepLargeObjects(bool swap_bitmaps) {
 // Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been
 // marked, put it on the appropriate list in the heap for later processing.
 void SemiSpace::DelayReferenceReferent(mirror::Class* klass, Object* obj) {
-  DCHECK(klass != nullptr);
-  DCHECK(klass->IsReferenceClass());
-  DCHECK(obj != nullptr);
-  Object* referent = heap_->GetReferenceReferent(obj);
-  if (referent != nullptr) {
-    Object* forward_address = GetMarkedForwardAddress(referent);
-    if (forward_address == nullptr) {
-      Thread* self = Thread::Current();
-      // TODO: Remove these locks, and use atomic stacks for storing references?
-      // We need to check that the references haven't already been enqueued since we can end up
-      // scanning the same reference multiple times due to dirty cards.
-      if (klass->IsSoftReferenceClass()) {
-        MutexLock mu(self, *heap_->GetSoftRefQueueLock());
-        if (!heap_->IsEnqueued(obj)) {
-          heap_->EnqueuePendingReference(obj, &soft_reference_list_);
-        }
-      } else if (klass->IsWeakReferenceClass()) {
-        MutexLock mu(self, *heap_->GetWeakRefQueueLock());
-        if (!heap_->IsEnqueued(obj)) {
-          heap_->EnqueuePendingReference(obj, &weak_reference_list_);
-        }
-      } else if (klass->IsFinalizerReferenceClass()) {
-        MutexLock mu(self, *heap_->GetFinalizerRefQueueLock());
-        if (!heap_->IsEnqueued(obj)) {
-          heap_->EnqueuePendingReference(obj, &finalizer_reference_list_);
-        }
-      } else if (klass->IsPhantomReferenceClass()) {
-        MutexLock mu(self, *heap_->GetPhantomRefQueueLock());
-        if (!heap_->IsEnqueued(obj)) {
-          heap_->EnqueuePendingReference(obj, &phantom_reference_list_);
-        }
-      } else {
-        LOG(FATAL) << "Invalid reference type " << PrettyClass(klass) << " " << std::hex
-                   << klass->GetAccessFlags();
-      }
-    } else if (referent != forward_address) {
-      heap_->SetReferenceReferent(obj, forward_address);
-    }
-  }
+  heap_->DelayReferenceReferent(klass, obj, MarkedForwardingAddressCallback, this);
 }
 
 // Visit all of the references of an object and update.
@@ -555,48 +526,6 @@ void SemiSpace::ProcessMarkStack(bool paused) {
   timings_.EndSplit();
 }
 
-// Walks the reference list marking any references subject to the
-// reference clearing policy.  References with a black referent are
-// removed from the list.  References with white referents biased
-// toward saving are blackened and also removed from the list.
-void SemiSpace::PreserveSomeSoftReferences(Object** list) {
-  DCHECK(list != NULL);
-  Object* clear = NULL;
-  size_t counter = 0;
-  DCHECK(mark_stack_->IsEmpty());
-  timings_.StartSplit("PreserveSomeSoftReferences");
-  while (*list != NULL) {
-    Object* ref = heap_->DequeuePendingReference(list);
-    Object* referent = heap_->GetReferenceReferent(ref);
-    if (referent == NULL) {
-      // Referent was cleared by the user during marking.
-      continue;
-    }
-    Object* forward_address = GetMarkedForwardAddress(referent);
-    bool is_marked = forward_address != nullptr;
-    if (!is_marked && ((++counter) & 1)) {
-      // Referent is white and biased toward saving, mark it.
-      forward_address = MarkObject(referent);
-      if (referent != forward_address) {
-        // Update the referent if we moved it.
-        heap_->SetReferenceReferent(ref, forward_address);
-      }
-    } else {
-      if (!is_marked) {
-        // Referent is white, queue it for clearing.
-        heap_->EnqueuePendingReference(ref, &clear);
-      } else if (referent != forward_address) {
-        CHECK(forward_address != nullptr);
-        heap_->SetReferenceReferent(ref, forward_address);
-      }
-    }
-  }
-  *list = clear;
-  timings_.EndSplit();
-  // Restart the mark with the newly black references added to the root set.
-  ProcessMarkStack(true);
-}
-
 inline Object* SemiSpace::GetMarkedForwardAddress(mirror::Object* obj) const
     SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
   // All immune objects are assumed marked.
@@ -616,112 +545,6 @@ inline Object* SemiSpace::GetMarkedForwardAddress(mirror::Object* obj) const
     return obj;
   }
   return heap_->GetMarkBitmap()->Test(obj) ? obj : nullptr;
-}
-
-// Unlink the reference list clearing references objects with white
-// referents.  Cleared references registered to a reference queue are
-// scheduled for appending by the heap worker thread.
-void SemiSpace::ClearWhiteReferences(Object** list) {
-  DCHECK(list != NULL);
-  while (*list != NULL) {
-    Object* ref = heap_->DequeuePendingReference(list);
-    Object* referent = heap_->GetReferenceReferent(ref);
-    if (referent != nullptr) {
-      Object* forward_address = GetMarkedForwardAddress(referent);
-      if (forward_address == nullptr) {
-        // Referent is white, clear it.
-        heap_->ClearReferenceReferent(ref);
-        if (heap_->IsEnqueuable(ref)) {
-          heap_->EnqueueReference(ref, &cleared_reference_list_);
-        }
-      } else if (referent != forward_address) {
-        heap_->SetReferenceReferent(ref, forward_address);
-      }
-    }
-  }
-  DCHECK(*list == NULL);
-}
-
-// Enqueues finalizer references with white referents.  White
-// referents are blackened, moved to the zombie field, and the
-// referent field is cleared.
-void SemiSpace::EnqueueFinalizerReferences(Object** list) {
-  // *list = NULL;
-  // return;
-  DCHECK(list != NULL);
-  timings_.StartSplit("EnqueueFinalizerReferences");
-  MemberOffset zombie_offset = heap_->GetFinalizerReferenceZombieOffset();
-  bool has_enqueued = false;
-  while (*list != NULL) {
-    Object* ref = heap_->DequeuePendingReference(list);
-    Object* referent = heap_->GetReferenceReferent(ref);
-    if (referent != nullptr) {
-      Object* forward_address = GetMarkedForwardAddress(referent);
-      // Not marked.
-      if (forward_address == nullptr) {
-        forward_address = MarkObject(referent);
-        // If the referent is non-null the reference must queuable.
-        DCHECK(heap_->IsEnqueuable(ref));
-        // Move the referent to the zombie field.
-        ref->SetFieldObject(zombie_offset, forward_address, false);
-        heap_->ClearReferenceReferent(ref);
-        heap_->EnqueueReference(ref, &cleared_reference_list_);
-        has_enqueued = true;
-      } else if (referent != forward_address) {
-        heap_->SetReferenceReferent(ref, forward_address);
-      }
-    }
-  }
-  timings_.EndSplit();
-  if (has_enqueued) {
-    ProcessMarkStack(true);
-  }
-  DCHECK(*list == NULL);
-}
-
-// Process reference class instances and schedule finalizations.
-void SemiSpace::ProcessReferences(Object** soft_references, bool clear_soft,
-                                  Object** weak_references,
-                                  Object** finalizer_references,
-                                  Object** phantom_references) {
-  CHECK(soft_references != NULL);
-  CHECK(weak_references != NULL);
-  CHECK(finalizer_references != NULL);
-  CHECK(phantom_references != NULL);
-  CHECK(mark_stack_->IsEmpty());
-
-  // Unless we are in the zygote or required to clear soft references
-  // with white references, preserve some white referents.
-  if (!clear_soft && !Runtime::Current()->IsZygote()) {
-    PreserveSomeSoftReferences(soft_references);
-  }
-
-  timings_.StartSplit("ProcessReferences");
-  // Clear all remaining soft and weak references with white
-  // referents.
-  ClearWhiteReferences(soft_references);
-  ClearWhiteReferences(weak_references);
-  timings_.EndSplit();
-
-  // Preserve all white objects with finalize methods and schedule
-  // them for finalization.
-  EnqueueFinalizerReferences(finalizer_references);
-
-  timings_.StartSplit("ProcessReferences");
-  // Clear all f-reachable soft and weak references with white
-  // referents.
-  ClearWhiteReferences(soft_references);
-  ClearWhiteReferences(weak_references);
-
-  // Clear all phantom references with white referents.
-  ClearWhiteReferences(phantom_references);
-
-  // At this point all reference lists should be empty.
-  DCHECK(*soft_references == NULL);
-  DCHECK(*weak_references == NULL);
-  DCHECK(*finalizer_references == NULL);
-  DCHECK(*phantom_references == NULL);
-  timings_.EndSplit();
 }
 
 void SemiSpace::UnBindBitmaps() {
@@ -751,11 +574,7 @@ void SemiSpace::SetFromSpace(space::ContinuousMemMapAllocSpace* from_space) {
 void SemiSpace::FinishPhase() {
   TimingLogger::ScopedSplit split("FinishPhase", &timings_);
   // Can't enqueue references if we hold the mutator lock.
-  Object* cleared_references = GetClearedReferences();
   Heap* heap = GetHeap();
-  timings_.NewSplit("EnqueueClearedReferences");
-  heap->EnqueueClearedReferences(&cleared_references);
-
   timings_.NewSplit("PostGcVerification");
   heap->PostGcVerification(this);
 

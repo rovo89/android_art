@@ -53,6 +53,7 @@ LIBART_COMMON_SRC_FILES := \
 	gc/collector/semi_space.cc \
 	gc/collector/sticky_mark_sweep.cc \
 	gc/heap.cc \
+	gc/reference_queue.cc \
 	gc/space/bump_pointer_space.cc \
 	gc/space/dlmalloc_space.cc \
 	gc/space/image_space.cc \

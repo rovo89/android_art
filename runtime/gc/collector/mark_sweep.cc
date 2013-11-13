@@ -187,8 +187,8 @@ void MarkSweep::InitializePhase() {
 void MarkSweep::ProcessReferences(Thread* self) {
   TimingLogger::ScopedSplit split("ProcessReferences", &timings_);
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-  ProcessReferences(&soft_reference_list_, clear_soft_references_, &weak_reference_list_,
-                    &finalizer_reference_list_, &phantom_reference_list_);
+  GetHeap()->ProcessReferences(timings_, clear_soft_references_, &IsMarkedCallback,
+                               &RecursiveMarkObjectCallback, this);
 }
 
 bool MarkSweep::HandleDirtyObjectsPhase() {
@@ -405,6 +405,13 @@ inline void MarkSweep::MarkObjectNonNullParallel(const Object* obj) {
     // The object must be pushed on to the mark stack.
     mark_stack_->PushBack(const_cast<Object*>(obj));
   }
+}
+
+mirror::Object* MarkSweep::RecursiveMarkObjectCallback(mirror::Object* obj, void* arg) {
+  MarkSweep* mark_sweep = reinterpret_cast<MarkSweep*>(arg);
+  mark_sweep->MarkObject(obj);
+  mark_sweep->ProcessMarkStack(true);
+  return obj;
 }
 
 inline void MarkSweep::UnMarkObjectNonNull(const Object* obj) {
@@ -992,7 +999,7 @@ void MarkSweep::RecursiveMark() {
   ProcessMarkStack(false);
 }
 
-mirror::Object* MarkSweep::SystemWeakIsMarkedCallback(Object* object, void* arg) {
+mirror::Object* MarkSweep::IsMarkedCallback(Object* object, void* arg) {
   if (reinterpret_cast<MarkSweep*>(arg)->IsMarked(object)) {
     return object;
   }
@@ -1013,7 +1020,7 @@ void MarkSweep::ReMarkRoots() {
 void MarkSweep::SweepSystemWeaks() {
   Runtime* runtime = Runtime::Current();
   timings_.StartSplit("SweepSystemWeaks");
-  runtime->SweepSystemWeaks(SystemWeakIsMarkedCallback, this);
+  runtime->SweepSystemWeaks(IsMarkedCallback, this);
   timings_.EndSplit();
 }
 
@@ -1314,40 +1321,7 @@ void MarkSweep::DelayReferenceReferent(mirror::Class* klass, Object* obj) {
   DCHECK(klass != nullptr);
   DCHECK(klass->IsReferenceClass());
   DCHECK(obj != NULL);
-  Object* referent = heap_->GetReferenceReferent(obj);
-  if (referent != NULL && !IsMarked(referent)) {
-    if (kCountJavaLangRefs) {
-      ++reference_count_;
-    }
-    Thread* self = Thread::Current();
-    // TODO: Remove these locks, and use atomic stacks for storing references?
-    // We need to check that the references haven't already been enqueued since we can end up
-    // scanning the same reference multiple times due to dirty cards.
-    if (klass->IsSoftReferenceClass()) {
-      MutexLock mu(self, *heap_->GetSoftRefQueueLock());
-      if (!heap_->IsEnqueued(obj)) {
-        heap_->EnqueuePendingReference(obj, &soft_reference_list_);
-      }
-    } else if (klass->IsWeakReferenceClass()) {
-      MutexLock mu(self, *heap_->GetWeakRefQueueLock());
-      if (!heap_->IsEnqueued(obj)) {
-        heap_->EnqueuePendingReference(obj, &weak_reference_list_);
-      }
-    } else if (klass->IsFinalizerReferenceClass()) {
-      MutexLock mu(self, *heap_->GetFinalizerRefQueueLock());
-      if (!heap_->IsEnqueued(obj)) {
-        heap_->EnqueuePendingReference(obj, &finalizer_reference_list_);
-      }
-    } else if (klass->IsPhantomReferenceClass()) {
-      MutexLock mu(self, *heap_->GetPhantomRefQueueLock());
-      if (!heap_->IsEnqueued(obj)) {
-        heap_->EnqueuePendingReference(obj, &phantom_reference_list_);
-      }
-    } else {
-      LOG(FATAL) << "Invalid reference type " << PrettyClass(klass)
-                 << " " << std::hex << klass->GetAccessFlags();
-    }
-  }
+  heap_->DelayReferenceReferent(klass, obj, IsMarkedCallback, this);
 }
 
 class MarkObjectVisitor {
@@ -1435,43 +1409,6 @@ void MarkSweep::ProcessMarkStack(bool paused) {
   timings_.EndSplit();
 }
 
-// Walks the reference list marking any references subject to the
-// reference clearing policy.  References with a black referent are
-// removed from the list.  References with white referents biased
-// toward saving are blackened and also removed from the list.
-void MarkSweep::PreserveSomeSoftReferences(Object** list) {
-  DCHECK(list != NULL);
-  Object* clear = NULL;
-  size_t counter = 0;
-
-  DCHECK(mark_stack_->IsEmpty());
-
-  timings_.StartSplit("PreserveSomeSoftReferences");
-  while (*list != NULL) {
-    Object* ref = heap_->DequeuePendingReference(list);
-    Object* referent = heap_->GetReferenceReferent(ref);
-    if (referent == NULL) {
-      // Referent was cleared by the user during marking.
-      continue;
-    }
-    bool is_marked = IsMarked(referent);
-    if (!is_marked && ((++counter) & 1)) {
-      // Referent is white and biased toward saving, mark it.
-      MarkObject(referent);
-      is_marked = true;
-    }
-    if (!is_marked) {
-      // Referent is white, queue it for clearing.
-      heap_->EnqueuePendingReference(ref, &clear);
-    }
-  }
-  *list = clear;
-  timings_.EndSplit();
-
-  // Restart the mark with the newly black references added to the root set.
-  ProcessMarkStack(true);
-}
-
 inline bool MarkSweep::IsMarked(const Object* object) const
     SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
   if (IsImmune(object)) {
@@ -1482,98 +1419,6 @@ inline bool MarkSweep::IsMarked(const Object* object) const
     return current_mark_bitmap_->Test(object);
   }
   return heap_->GetMarkBitmap()->Test(object);
-}
-
-// Unlink the reference list clearing references objects with white
-// referents.  Cleared references registered to a reference queue are
-// scheduled for appending by the heap worker thread.
-void MarkSweep::ClearWhiteReferences(Object** list) {
-  DCHECK(list != NULL);
-  while (*list != NULL) {
-    Object* ref = heap_->DequeuePendingReference(list);
-    Object* referent = heap_->GetReferenceReferent(ref);
-    if (referent != NULL && !IsMarked(referent)) {
-      // Referent is white, clear it.
-      heap_->ClearReferenceReferent(ref);
-      if (heap_->IsEnqueuable(ref)) {
-        heap_->EnqueueReference(ref, &cleared_reference_list_);
-      }
-    }
-  }
-  DCHECK(*list == NULL);
-}
-
-// Enqueues finalizer references with white referents.  White
-// referents are blackened, moved to the zombie field, and the
-// referent field is cleared.
-void MarkSweep::EnqueueFinalizerReferences(Object** list) {
-  DCHECK(list != NULL);
-  timings_.StartSplit("EnqueueFinalizerReferences");
-  MemberOffset zombie_offset = heap_->GetFinalizerReferenceZombieOffset();
-  bool has_enqueued = false;
-  while (*list != NULL) {
-    Object* ref = heap_->DequeuePendingReference(list);
-    Object* referent = heap_->GetReferenceReferent(ref);
-    if (referent != NULL && !IsMarked(referent)) {
-      MarkObject(referent);
-      // If the referent is non-null the reference must queuable.
-      DCHECK(heap_->IsEnqueuable(ref));
-      ref->SetFieldObject(zombie_offset, referent, false);
-      heap_->ClearReferenceReferent(ref);
-      heap_->EnqueueReference(ref, &cleared_reference_list_);
-      has_enqueued = true;
-    }
-  }
-  timings_.EndSplit();
-  if (has_enqueued) {
-    ProcessMarkStack(true);
-  }
-  DCHECK(*list == NULL);
-}
-
-// Process reference class instances and schedule finalizations.
-void MarkSweep::ProcessReferences(Object** soft_references, bool clear_soft,
-                                  Object** weak_references,
-                                  Object** finalizer_references,
-                                  Object** phantom_references) {
-  CHECK(soft_references != NULL);
-  CHECK(weak_references != NULL);
-  CHECK(finalizer_references != NULL);
-  CHECK(phantom_references != NULL);
-  CHECK(mark_stack_->IsEmpty());
-
-  // Unless we are in the zygote or required to clear soft references
-  // with white references, preserve some white referents.
-  if (!clear_soft && !Runtime::Current()->IsZygote()) {
-    PreserveSomeSoftReferences(soft_references);
-  }
-
-  timings_.StartSplit("ProcessReferences");
-  // Clear all remaining soft and weak references with white
-  // referents.
-  ClearWhiteReferences(soft_references);
-  ClearWhiteReferences(weak_references);
-  timings_.EndSplit();
-
-  // Preserve all white objects with finalize methods and schedule
-  // them for finalization.
-  EnqueueFinalizerReferences(finalizer_references);
-
-  timings_.StartSplit("ProcessReferences");
-  // Clear all f-reachable soft and weak references with white
-  // referents.
-  ClearWhiteReferences(soft_references);
-  ClearWhiteReferences(weak_references);
-
-  // Clear all phantom references with white referents.
-  ClearWhiteReferences(phantom_references);
-
-  // At this point all reference lists should be empty.
-  DCHECK(*soft_references == NULL);
-  DCHECK(*weak_references == NULL);
-  DCHECK(*finalizer_references == NULL);
-  DCHECK(*phantom_references == NULL);
-  timings_.EndSplit();
 }
 
 void MarkSweep::UnBindBitmaps() {
@@ -1596,11 +1441,7 @@ void MarkSweep::UnBindBitmaps() {
 void MarkSweep::FinishPhase() {
   TimingLogger::ScopedSplit split("FinishPhase", &timings_);
   // Can't enqueue references if we hold the mutator lock.
-  Object* cleared_references = GetClearedReferences();
   Heap* heap = GetHeap();
-  timings_.NewSplit("EnqueueClearedReferences");
-  heap->EnqueueClearedReferences(&cleared_references);
-
   timings_.NewSplit("PostGcVerification");
   heap->PostGcVerification(this);
 

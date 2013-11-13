@@ -31,6 +31,7 @@
 #include "jni.h"
 #include "locks.h"
 #include "offsets.h"
+#include "reference_queue.h"
 #include "root_visitor.h"
 #include "safe_map.h"
 #include "thread_pool.h"
@@ -289,32 +290,26 @@ class Heap {
                            MemberOffset reference_queueNext_offset,
                            MemberOffset reference_pendingNext_offset,
                            MemberOffset finalizer_reference_zombie_offset);
-
-  void SetReferenceReferent(mirror::Object* reference, mirror::Object* referent)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::Object* GetReferenceReferent(mirror::Object* reference)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void ClearReferenceReferent(mirror::Object* reference) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  // Returns true if the reference object has not yet been enqueued.
-  bool IsEnqueuable(const mirror::Object* ref);
-  void EnqueueReference(mirror::Object* ref, mirror::Object** list)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool IsEnqueued(mirror::Object* ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void EnqueuePendingReference(mirror::Object* ref, mirror::Object** list)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::Object* DequeuePendingReference(mirror::Object** list)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  MemberOffset GetReferencePendingNextOffset() {
-    DCHECK_NE(reference_pendingNext_offset_.Uint32Value(), 0U);
+  MemberOffset GetReferenceReferentOffset() const {
+    return reference_referent_offset_;
+  }
+  MemberOffset GetReferenceQueueOffset() const {
+    return reference_queue_offset_;
+  }
+  MemberOffset GetReferenceQueueNextOffset() const {
+    return reference_queueNext_offset_;
+  }
+  MemberOffset GetReferencePendingNextOffset() const {
     return reference_pendingNext_offset_;
   }
-
-  MemberOffset GetFinalizerReferenceZombieOffset() {
-    DCHECK_NE(finalizer_reference_zombie_offset_.Uint32Value(), 0U);
+  MemberOffset GetFinalizerReferenceZombieOffset() const {
     return finalizer_reference_zombie_offset_;
   }
+  static mirror::Object* PreserveSoftReferenceCallback(mirror::Object* obj, void* arg);
+  void ProcessReferences(TimingLogger& timings, bool clear_soft, RootVisitor* is_marked_callback,
+                         RootVisitor* recursive_mark_object_callback, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Enable verification of object references when the runtime is sufficiently initialized.
   void EnableObjectValidation() {
@@ -460,22 +455,6 @@ class Heap {
     return large_object_space_;
   }
 
-  Mutex* GetSoftRefQueueLock() {
-    return soft_ref_queue_lock_;
-  }
-
-  Mutex* GetWeakRefQueueLock() {
-    return weak_ref_queue_lock_;
-  }
-
-  Mutex* GetFinalizerRefQueueLock() {
-    return finalizer_ref_queue_lock_;
-  }
-
-  Mutex* GetPhantomRefQueueLock() {
-    return phantom_ref_queue_lock_;
-  }
-
   void DumpSpaces(std::ostream& stream = LOG(INFO));
 
   // GC performance measuring
@@ -575,8 +554,20 @@ class Heap {
   bool IsOutOfMemoryOnAllocation(size_t alloc_size, bool grow);
 
   // Pushes a list of cleared references out to the managed heap.
-  void EnqueueClearedReferences(mirror::Object** cleared_references);
-
+  void SetReferenceReferent(mirror::Object* reference, mirror::Object* referent)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::Object* GetReferenceReferent(mirror::Object* reference)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void ClearReferenceReferent(mirror::Object* reference)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SetReferenceReferent(reference, nullptr);
+  }
+  void EnqueueClearedReferences();
+  // Returns true if the reference object has not yet been enqueued.
+  bool IsEnqueuable(const mirror::Object* ref) const;
+  bool IsEnqueued(mirror::Object* ref) const;
+  void DelayReferenceReferent(mirror::Class* klass, mirror::Object* obj, RootVisitor mark_visitor,
+                              void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Print a reference queue.
   void PrintReferenceQueue(std::ostream& os, mirror::Object** queue);
 
@@ -699,12 +690,12 @@ class Heap {
   Mutex* gc_complete_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   UniquePtr<ConditionVariable> gc_complete_cond_ GUARDED_BY(gc_complete_lock_);
 
-  // Mutexes held when adding references to reference queues.
-  // TODO: move to a UniquePtr, currently annotalysis is confused that UniquePtr isn't lockable.
-  Mutex* soft_ref_queue_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  Mutex* weak_ref_queue_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  Mutex* finalizer_ref_queue_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  Mutex* phantom_ref_queue_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  // Reference queues.
+  ReferenceQueue soft_reference_queue_;
+  ReferenceQueue weak_reference_queue_;
+  ReferenceQueue finalizer_reference_queue_;
+  ReferenceQueue phantom_reference_queue_;
+  ReferenceQueue cleared_references_;
 
   // True while the garbage collector is running.
   volatile bool is_gc_running_ GUARDED_BY(gc_complete_lock_);
@@ -819,16 +810,12 @@ class Heap {
 
   // offset of java.lang.ref.Reference.referent
   MemberOffset reference_referent_offset_;
-
   // offset of java.lang.ref.Reference.queue
   MemberOffset reference_queue_offset_;
-
   // offset of java.lang.ref.Reference.queueNext
   MemberOffset reference_queueNext_offset_;
-
   // offset of java.lang.ref.Reference.pendingNext
   MemberOffset reference_pendingNext_offset_;
-
   // offset of java.lang.ref.FinalizerReference.zombie
   MemberOffset finalizer_reference_zombie_offset_;
 
@@ -861,6 +848,7 @@ class Heap {
 
   friend class collector::MarkSweep;
   friend class collector::SemiSpace;
+  friend class ReferenceQueue;
   friend class VerifyReferenceCardVisitor;
   friend class VerifyReferenceVisitor;
   friend class VerifyObjectVisitor;

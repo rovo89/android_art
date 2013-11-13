@@ -150,12 +150,15 @@ class SemiSpace : public GarbageCollector {
   static mirror::Object* MarkRootCallback(mirror::Object* root, void* arg)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
+  static mirror::Object* RecursiveMarkObjectCallback(mirror::Object* root, void* arg)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+
  protected:
   // Returns null if the object is not marked, otherwise returns the forwarding address (same as
   // object for non movable things).
   mirror::Object* GetMarkedForwardAddress(mirror::Object* object) const;
 
-  static mirror::Object* SystemWeakIsMarkedCallback(mirror::Object* object, void* arg)
+  static mirror::Object* MarkedForwardingAddressCallback(mirror::Object* object, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Marks or unmarks a large object based on whether or not set is true. If set is true, then we

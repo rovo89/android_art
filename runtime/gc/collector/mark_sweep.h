@@ -189,6 +189,10 @@ class MarkSweep : public GarbageCollector {
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
                             Locks::mutator_lock_);
 
+  static mirror::Object* RecursiveMarkObjectCallback(mirror::Object* obj, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
   static mirror::Object* MarkRootCallback(mirror::Object* root, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
@@ -212,10 +216,7 @@ class MarkSweep : public GarbageCollector {
   // Returns true if the object has its bit set in the mark bitmap.
   bool IsMarked(const mirror::Object* object) const;
 
-  static mirror::Object* SystemWeakIsMarkedCallback(mirror::Object* object, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
-  static mirror::Object* SystemWeakIsMarkedArrayCallback(mirror::Object* object, void* arg)
+  static mirror::Object* IsMarkedCallback(mirror::Object* object, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   static void VerifyImageRootVisitor(mirror::Object* root, void* arg)
@@ -348,13 +349,6 @@ class MarkSweep : public GarbageCollector {
 
   void ClearWhiteReferences(mirror::Object** list)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
-  void ProcessReferences(mirror::Object** soft_references, bool clear_soft_references,
-                         mirror::Object** weak_references,
-                         mirror::Object** finalizer_references,
-                         mirror::Object** phantom_references)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Whether or not we count how many of each type of object were scanned.
   static const bool kCountScannedTypes = false;
