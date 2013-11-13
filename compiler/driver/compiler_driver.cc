@@ -505,7 +505,7 @@ void CompilerDriver::CompileAll(jobject class_loader,
                                 const std::vector<const DexFile*>& dex_files,
                                 base::TimingLogger& timings) {
   DCHECK(!Runtime::Current()->IsStarted());
-  UniquePtr<ThreadPool> thread_pool(new ThreadPool(thread_count_ - 1));
+  UniquePtr<ThreadPool> thread_pool(new ThreadPool("Compiler driver thread pool", thread_count_ - 1));
   PreCompile(class_loader, dex_files, *thread_pool.get(), timings);
   Compile(class_loader, dex_files, *thread_pool.get(), timings);
   if (dump_stats_) {
@@ -568,7 +568,7 @@ void CompilerDriver::CompileOne(const mirror::ArtMethod* method, base::TimingLog
   std::vector<const DexFile*> dex_files;
   dex_files.push_back(dex_file);
 
-  UniquePtr<ThreadPool> thread_pool(new ThreadPool(0U));
+  UniquePtr<ThreadPool> thread_pool(new ThreadPool("Compiler driver thread pool", 0U));
   PreCompile(jclass_loader, dex_files, *thread_pool.get(), timings);
 
   uint32_t method_idx = method->GetDexMethodIndex();
