@@ -721,9 +721,9 @@ void DexFile::DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32
   for (;;)  {
     uint8_t opcode = *stream++;
     uint16_t reg;
-    uint16_t name_idx;
-    uint16_t descriptor_idx;
-    uint16_t signature_idx = 0;
+    uint32_t name_idx;
+    uint32_t descriptor_idx;
+    uint32_t signature_idx = 0;
 
     switch (opcode) {
       case DBG_END_SEQUENCE:
