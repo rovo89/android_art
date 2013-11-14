@@ -242,7 +242,7 @@ class Dex2Oat {
                                       bool image,
                                       UniquePtr<CompilerDriver::DescriptorSet>& image_classes,
                                       bool dump_stats,
-                                      base::TimingLogger& timings) {
+                                      TimingLogger& timings) {
     // SirtRef and ClassLoader creation needs to come after Runtime::Create
     jobject class_loader = NULL;
     Thread* self = Thread::Current();
@@ -600,7 +600,7 @@ static InstructionSetFeatures ParseFeatureList(std::string str) {
 }
 
 static int dex2oat(int argc, char** argv) {
-  base::TimingLogger timings("compiler", false, false);
+  TimingLogger timings("compiler", false, false);
 
   InitLogging(argv);
 
@@ -1091,7 +1091,7 @@ static int dex2oat(int argc, char** argv) {
 
   if (is_host) {
     if (dump_timing || (dump_slow_timing && timings.GetTotalNs() > MsToNs(1000))) {
-      LOG(INFO) << Dumpable<base::TimingLogger>(timings);
+      LOG(INFO) << Dumpable<TimingLogger>(timings);
     }
     return EXIT_SUCCESS;
   }
@@ -1133,7 +1133,7 @@ static int dex2oat(int argc, char** argv) {
   timings.EndSplit();
 
   if (dump_timing || (dump_slow_timing && timings.GetTotalNs() > MsToNs(1000))) {
-    LOG(INFO) << Dumpable<base::TimingLogger>(timings);
+    LOG(INFO) << Dumpable<TimingLogger>(timings);
   }
 
   // Everything was successfully written, do an explicit exit here to avoid running Runtime

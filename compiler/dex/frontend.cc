@@ -157,7 +157,7 @@ void CompilationUnit::EndTiming() {
   if (enable_debug & (1 << kDebugTimings)) {
     timings.EndSplit();
     LOG(INFO) << "TIMINGS " << PrettyMethod(method_idx, *dex_file);
-    LOG(INFO) << Dumpable<base::TimingLogger>(timings);
+    LOG(INFO) << Dumpable<TimingLogger>(timings);
   }
 }
 

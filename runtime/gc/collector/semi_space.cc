@@ -139,7 +139,7 @@ SemiSpace::SemiSpace(Heap* heap, const std::string& name_prefix)
 
 void SemiSpace::InitializePhase() {
   timings_.Reset();
-  base::TimingLogger::ScopedSplit split("InitializePhase", &timings_);
+  TimingLogger::ScopedSplit split("InitializePhase", &timings_);
   mark_stack_ = heap_->mark_stack_.get();
   DCHECK(mark_stack_ != nullptr);
   immune_begin_ = nullptr;
@@ -156,7 +156,7 @@ void SemiSpace::InitializePhase() {
 }
 
 void SemiSpace::ProcessReferences(Thread* self) {
-  base::TimingLogger::ScopedSplit split("ProcessReferences", &timings_);
+  TimingLogger::ScopedSplit split("ProcessReferences", &timings_);
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   ProcessReferences(&soft_reference_list_, clear_soft_references_, &weak_reference_list_,
                     &finalizer_reference_list_, &phantom_reference_list_);
@@ -165,7 +165,7 @@ void SemiSpace::ProcessReferences(Thread* self) {
 void SemiSpace::MarkingPhase() {
   Thread* self = Thread::Current();
   Locks::mutator_lock_->AssertExclusiveHeld(self);
-  base::TimingLogger::ScopedSplit split("MarkingPhase", &timings_);
+  TimingLogger::ScopedSplit split("MarkingPhase", &timings_);
   // Need to do this with mutators paused so that somebody doesn't accidentally allocate into the
   // wrong space.
   heap_->SwapSemiSpaces();
@@ -198,7 +198,7 @@ void SemiSpace::UpdateAndMarkModUnion() {
       accounting::ModUnionTable* table = heap_->FindModUnionTableFromSpace(space);
       CHECK(table != nullptr);
       // TODO: Improve naming.
-      base::TimingLogger::ScopedSplit split(
+      TimingLogger::ScopedSplit split(
           space->IsZygoteSpace() ? "UpdateAndMarkZygoteModUnionTable" :
                                    "UpdateAndMarkImageModUnionTable",
                                    &timings_);
@@ -218,7 +218,7 @@ void SemiSpace::MarkReachableObjects() {
 }
 
 void SemiSpace::ReclaimPhase() {
-  base::TimingLogger::ScopedSplit split("ReclaimPhase", &timings_);
+  TimingLogger::ScopedSplit split("ReclaimPhase", &timings_);
   Thread* self = Thread::Current();
   ProcessReferences(self);
   {
@@ -417,7 +417,7 @@ void SemiSpace::ZygoteSweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
 
 void SemiSpace::Sweep(bool swap_bitmaps) {
   DCHECK(mark_stack_->IsEmpty());
-  base::TimingLogger::ScopedSplit("Sweep", &timings_);
+  TimingLogger::ScopedSplit("Sweep", &timings_);
 
   const bool partial = (GetGcType() == kGcTypePartial);
   SweepCallbackContext scc;
@@ -443,12 +443,12 @@ void SemiSpace::Sweep(bool swap_bitmaps) {
         std::swap(live_bitmap, mark_bitmap);
       }
       if (!space->IsZygoteSpace()) {
-        base::TimingLogger::ScopedSplit split("SweepAllocSpace", &timings_);
+        TimingLogger::ScopedSplit split("SweepAllocSpace", &timings_);
         // Bitmaps are pre-swapped for optimization which enables sweeping with the heap unlocked.
         accounting::SpaceBitmap::SweepWalk(*live_bitmap, *mark_bitmap, begin, end,
                                            &SweepCallback, reinterpret_cast<void*>(&scc));
       } else {
-        base::TimingLogger::ScopedSplit split("SweepZygote", &timings_);
+        TimingLogger::ScopedSplit split("SweepZygote", &timings_);
         // Zygote sweep takes care of dirtying cards and clearing live bits, does not free actual
         // memory.
         accounting::SpaceBitmap::SweepWalk(*live_bitmap, *mark_bitmap, begin, end,
@@ -461,7 +461,7 @@ void SemiSpace::Sweep(bool swap_bitmaps) {
 }
 
 void SemiSpace::SweepLargeObjects(bool swap_bitmaps) {
-  base::TimingLogger::ScopedSplit("SweepLargeObjects", &timings_);
+  TimingLogger::ScopedSplit("SweepLargeObjects", &timings_);
   // Sweep large objects
   space::LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
   accounting::SpaceSetMap* large_live_objects = large_object_space->GetLiveObjects();
@@ -725,7 +725,7 @@ void SemiSpace::ProcessReferences(Object** soft_references, bool clear_soft,
 }
 
 void SemiSpace::UnBindBitmaps() {
-  base::TimingLogger::ScopedSplit split("UnBindBitmaps", &timings_);
+  TimingLogger::ScopedSplit split("UnBindBitmaps", &timings_);
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     if (space->IsDlMallocSpace()) {
       space::DlMallocSpace* alloc_space = space->AsDlMallocSpace();
@@ -749,7 +749,7 @@ void SemiSpace::SetFromSpace(space::ContinuousMemMapAllocSpace* from_space) {
 }
 
 void SemiSpace::FinishPhase() {
-  base::TimingLogger::ScopedSplit split("FinishPhase", &timings_);
+  TimingLogger::ScopedSplit split("FinishPhase", &timings_);
   // Can't enqueue references if we hold the mutator lock.
   Object* cleared_references = GetClearedReferences();
   Heap* heap = GetHeap();

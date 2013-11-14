@@ -638,7 +638,7 @@ class Heap {
   void SwapStacks();
 
   // Clear cards and update the mod union table.
-  void ProcessCards(base::TimingLogger& timings);
+  void ProcessCards(TimingLogger& timings);
 
   // All-known continuous spaces, where objects lie within fixed bounds.
   std::vector<space::ContinuousSpace*> continuous_spaces_;
