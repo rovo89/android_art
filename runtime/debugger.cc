@@ -1194,41 +1194,37 @@ static uint32_t MangleAccessFlags(uint32_t accessFlags) {
   return accessFlags;
 }
 
-static const uint16_t kEclipseWorkaroundSlot = 1000;
-
 /*
- * Eclipse appears to expect that the "this" reference is in slot zero.
- * If it's not, the "variables" display will show two copies of "this",
- * possibly because it gets "this" from SF.ThisObject and then displays
- * all locals with nonzero slot numbers.
- *
- * So, we remap the item in slot 0 to 1000, and remap "this" to zero.  On
- * SF.GetValues / SF.SetValues we map them back.
- *
- * TODO: jdb uses the value to determine whether a variable is a local or an argument,
- * by checking whether it's less than the number of arguments. To make that work, we'd
- * have to "mangle" all the arguments to come first, not just the implicit argument 'this'.
+ * Circularly shifts registers so that arguments come first. Debuggers
+ * expect slots to begin with arguments, but dex code places them at
+ * the end.
  */
-static uint16_t MangleSlot(uint16_t slot, const char* name) {
-  uint16_t newSlot = slot;
-  if (strcmp(name, "this") == 0) {
-    newSlot = 0;
-  } else if (slot == 0) {
-    newSlot = kEclipseWorkaroundSlot;
+static uint16_t MangleSlot(uint16_t slot, mirror::ArtMethod* m)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+  uint16_t ins_size = code_item->ins_size_;
+  uint16_t locals_size = code_item->registers_size_ - ins_size;
+  if (slot >= locals_size) {
+    return slot - locals_size;
+  } else {
+    return slot + ins_size;
   }
-  return newSlot;
 }
 
+/*
+ * Circularly shifts registers so that arguments come last. Reverts
+ * slots to dex style argument placement.
+ */
 static uint16_t DemangleSlot(uint16_t slot, mirror::ArtMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  if (slot == kEclipseWorkaroundSlot) {
-    return 0;
-  } else if (slot == 0) {
-    const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
-    CHECK(code_item != NULL) << PrettyMethod(m);
-    return code_item->registers_size_ - code_item->ins_size_;
+  const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+  uint16_t ins_size = code_item->ins_size_;
+  uint16_t locals_size = code_item->registers_size_ - ins_size;
+  if (slot < ins_size) {
+    return slot + locals_size;
+  } else {
+    return slot - ins_size;
   }
-  return slot;
 }
 
 JDWP::JdwpError Dbg::OutputDeclaredFields(JDWP::RefTypeId class_id, bool with_generic, JDWP::ExpandBuf* pReply) {
@@ -1347,16 +1343,18 @@ void Dbg::OutputLineTable(JDWP::RefTypeId, JDWP::MethodId method_id, JDWP::Expan
 
 void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId method_id, bool with_generic, JDWP::ExpandBuf* pReply) {
   struct DebugCallbackContext {
+    mirror::ArtMethod* method;
     JDWP::ExpandBuf* pReply;
     size_t variable_count;
     bool with_generic;
 
-    static void Callback(void* context, uint16_t slot, uint32_t startAddress, uint32_t endAddress, const char* name, const char* descriptor, const char* signature) {
+    static void Callback(void* context, uint16_t slot, uint32_t startAddress, uint32_t endAddress, const char* name, const char* descriptor, const char* signature)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       DebugCallbackContext* pContext = reinterpret_cast<DebugCallbackContext*>(context);
 
-      VLOG(jdwp) << StringPrintf("    %2zd: %d(%d) '%s' '%s' '%s' actual slot=%d mangled slot=%d", pContext->variable_count, startAddress, endAddress - startAddress, name, descriptor, signature, slot, MangleSlot(slot, name));
+      VLOG(jdwp) << StringPrintf("    %2zd: %d(%d) '%s' '%s' '%s' actual slot=%d mangled slot=%d", pContext->variable_count, startAddress, endAddress - startAddress, name, descriptor, signature, slot, MangleSlot(slot, pContext->method));
 
-      slot = MangleSlot(slot, name);
+      slot = MangleSlot(slot, pContext->method);
 
       expandBufAdd8BE(pContext->pReply, startAddress);
       expandBufAddUtf8String(pContext->pReply, name);
@@ -1384,6 +1382,7 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId method_id, bool wi
   expandBufAdd4BE(pReply, 0);
 
   DebugCallbackContext context;
+  context.method = m;
   context.pReply = pReply;
   context.variable_count = 0;
   context.with_generic = with_generic;
