@@ -148,6 +148,7 @@ MarkSweep::MarkSweep(Heap* heap, bool is_concurrent, const std::string& name_pre
       finalizer_reference_list_(NULL),
       phantom_reference_list_(NULL),
       cleared_reference_list_(NULL),
+      live_stack_freeze_size_(0),
       gc_barrier_(new Barrier(0)),
       large_object_lock_("mark sweep large object lock", kMarkSweepLargeObjectLock),
       mark_stack_lock_("mark sweep mark stack lock", kMarkSweepMarkStackLock),
