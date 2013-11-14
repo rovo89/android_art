@@ -18,6 +18,7 @@ LOCAL_PATH := $(call my-dir)
 
 art_path := $(LOCAL_PATH)
 art_build_path := $(art_path)/build
+include $(art_build_path)/Android.common.mk
 
 ########################################################################
 # clean-oat targets
