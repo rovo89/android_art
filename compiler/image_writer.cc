@@ -260,7 +260,12 @@ void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg) {
   const uint16_t* utf16_string = string->GetCharArray()->GetData() + string->GetOffset();
   for (DexCache* dex_cache : Runtime::Current()->GetClassLinker()->GetDexCaches()) {
     const DexFile& dex_file = *dex_cache->GetDexFile();
-    const DexFile::StringId* string_id = dex_file.FindStringId(utf16_string);
+    const DexFile::StringId* string_id;
+    if (UNLIKELY(string->GetLength() == 0)) {
+      string_id = dex_file.FindStringId("");
+    } else {
+      string_id = dex_file.FindStringId(utf16_string);
+    }
     if (string_id != nullptr) {
       // This string occurs in this dex file, assign the dex cache entry.
       uint32_t string_idx = dex_file.GetIndexForStringId(*string_id);
