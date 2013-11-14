@@ -318,6 +318,7 @@ DlMallocSpace* DlMallocSpace::CreateZygoteSpace(const char* alloc_space_name) {
   DlMallocSpace* alloc_space =
       new DlMallocSpace(alloc_space_name, mem_map.release(), mspace, end_, end, limit_,
                         growth_limit);
+  SetLimit(End());
   live_bitmap_->SetHeapLimit(reinterpret_cast<uintptr_t>(End()));
   CHECK_EQ(live_bitmap_->HeapLimit(), reinterpret_cast<uintptr_t>(End()));
   mark_bitmap_->SetHeapLimit(reinterpret_cast<uintptr_t>(End()));
