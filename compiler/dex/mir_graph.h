@@ -698,8 +698,8 @@ class MIRGraph {
   void ProcessTryCatchBlocks();
   BasicBlock* ProcessCanBranch(BasicBlock* cur_block, MIR* insn, DexOffset cur_offset, int width,
                                int flags, const uint16_t* code_ptr, const uint16_t* code_end);
-  void ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, DexOffset cur_offset, int width,
-                        int flags);
+  BasicBlock* ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, DexOffset cur_offset, int width,
+                               int flags);
   BasicBlock* ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffset cur_offset, int width,
                               int flags, ArenaBitVector* try_block_addr, const uint16_t* code_ptr,
                               const uint16_t* code_end);
