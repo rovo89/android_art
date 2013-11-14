@@ -68,8 +68,10 @@ class MappingTable {
         native_pc_offset_(0), dex_pc_(0) {
       if (element == 0) {
         encoded_table_ptr_ = table_->FirstDexToPcPtr();
-        native_pc_offset_ = DecodeUnsignedLeb128(&encoded_table_ptr_);
-        dex_pc_ = DecodeUnsignedLeb128(&encoded_table_ptr_);
+        if (end_ > 0) {
+          native_pc_offset_ = DecodeUnsignedLeb128(&encoded_table_ptr_);
+          dex_pc_ = DecodeUnsignedLeb128(&encoded_table_ptr_);
+        }
       } else {
         DCHECK_EQ(table_->DexToPcSize(), element);
       }
@@ -141,8 +143,10 @@ class MappingTable {
         native_pc_offset_(0), dex_pc_(0) {
       if (element == 0) {
         encoded_table_ptr_ = table_->FirstPcToDexPtr();
-        native_pc_offset_ = DecodeUnsignedLeb128(&encoded_table_ptr_);
-        dex_pc_ = DecodeUnsignedLeb128(&encoded_table_ptr_);
+        if (end_ > 0) {
+          native_pc_offset_ = DecodeUnsignedLeb128(&encoded_table_ptr_);
+          dex_pc_ = DecodeUnsignedLeb128(&encoded_table_ptr_);
+        }
       } else {
         DCHECK_EQ(table_->PcToDexSize(), element);
       }
