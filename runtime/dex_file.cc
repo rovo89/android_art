@@ -510,7 +510,8 @@ const DexFile::TypeId* DexFile::FindTypeId(uint32_t string_idx) const {
 }
 
 const DexFile::ProtoId* DexFile::FindProtoId(uint16_t return_type_idx,
-                                         const std::vector<uint16_t>& signature_type_idxs) const {
+                                             const uint16_t* signature_type_idxs,
+                                             uint32_t signature_length) const {
   int32_t lo = 0;
   int32_t hi = NumProtoIds() - 1;
   while (hi >= lo) {
@@ -520,7 +521,7 @@ const DexFile::ProtoId* DexFile::FindProtoId(uint16_t return_type_idx,
     if (compare == 0) {
       DexFileParameterIterator it(*this, proto);
       size_t i = 0;
-      while (it.HasNext() && i < signature_type_idxs.size() && compare == 0) {
+      while (it.HasNext() && i < signature_length && compare == 0) {
         compare = signature_type_idxs[i] - it.GetTypeIdx();
         it.Next();
         i++;
@@ -528,7 +529,7 @@ const DexFile::ProtoId* DexFile::FindProtoId(uint16_t return_type_idx,
       if (compare == 0) {
         if (it.HasNext()) {
           compare = -1;
-        } else if (i < signature_type_idxs.size()) {
+        } else if (i < signature_length) {
           compare = 1;
         }
       }

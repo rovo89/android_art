@@ -106,6 +106,7 @@ struct MIR;
 struct LIR;
 struct RegLocation;
 struct RegisterInfo;
+class DexFileMethodInliner;
 class MIRGraph;
 class Mir2Lir;
 
@@ -555,7 +556,6 @@ class Mir2Lir : public Backend {
     bool GenInlinedUnsafeGet(CallInfo* info, bool is_long, bool is_volatile);
     bool GenInlinedUnsafePut(CallInfo* info, bool is_long, bool is_object,
                              bool is_volatile, bool is_ordered);
-    bool GenIntrinsic(CallInfo* info);
     int LoadArgRegs(CallInfo* info, int call_state,
                     NextCallInsn next_call_insn,
                     const MethodReference& target_method,
@@ -837,6 +837,8 @@ class Mir2Lir : public Backend {
     unsigned int fp_spill_mask_;
     LIR* first_lir_insn_;
     LIR* last_lir_insn_;
+    // Lazily retrieved method inliner for intrinsics.
+    const DexFileMethodInliner* inliner_;
 };  // Class Mir2Lir
 
 }  // namespace art
