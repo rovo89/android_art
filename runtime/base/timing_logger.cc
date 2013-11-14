@@ -74,12 +74,11 @@ uint64_t CumulativeLogger::GetTotalTime() const {
   return total;
 }
 
-void CumulativeLogger::AddLogger(const base::TimingLogger &logger) {
+void CumulativeLogger::AddLogger(const TimingLogger &logger) {
   MutexLock mu(Thread::Current(), lock_);
-  const base::TimingLogger::SplitTimings& splits = logger.GetSplits();
-  for (base::TimingLogger::SplitTimingsIterator it = splits.begin(), end = splits.end();
-       it != end; ++it) {
-    base::TimingLogger::SplitTiming split = *it;
+  const TimingLogger::SplitTimings& splits = logger.GetSplits();
+  for (auto it = splits.begin(), end = splits.end(); it != end; ++it) {
+    TimingLogger::SplitTiming split = *it;
     uint64_t split_time = split.first;
     const char* split_name = split.second;
     AddPair(split_name, split_time);
@@ -101,7 +100,8 @@ void CumulativeLogger::AddPair(const std::string &label, uint64_t delta_time) {
   delta_time /= kAdjust;
 
   if (histograms_.find(label) == histograms_.end()) {
-    // TODO: Shoud this be a defined constant so we we know out of which orifice 16 and 100 were picked?
+    // TODO: Should this be a defined constant so we we know out of which orifice 16 and 100 were
+    //       picked?
     const size_t max_buckets = Runtime::Current()->GetHeap()->IsLowMemoryMode() ? 16 : 100;
     // TODO: Should this be a defined constant so we know 50 of WTF?
     histograms_[label] = new Histogram<uint64_t>(label.c_str(), 50, max_buckets);
@@ -123,9 +123,6 @@ void CumulativeLogger::DumpHistogram(std::ostream &os) {
   os << "Done Dumping histograms \n";
 }
 
-
-namespace base {
-
 TimingLogger::TimingLogger(const char* name, bool precise, bool verbose)
     : name_(name), precise_(precise), verbose_(verbose), current_split_(NULL) {
 }
@@ -136,33 +133,35 @@ void TimingLogger::Reset() {
 }
 
 void TimingLogger::StartSplit(const char* new_split_label) {
-  DCHECK(new_split_label != NULL) << "Starting split (" << new_split_label << ") with null label.";
-  TimingLogger::ScopedSplit* explicit_scoped_split = new TimingLogger::ScopedSplit(new_split_label, this);
+  DCHECK(new_split_label != nullptr) << "Starting split with null label.";
+  TimingLogger::ScopedSplit* explicit_scoped_split =
+      new TimingLogger::ScopedSplit(new_split_label, this);
   explicit_scoped_split->explicit_ = true;
 }
 
 void TimingLogger::EndSplit() {
-  CHECK(current_split_ != NULL) << "Ending a non-existent split.";
-  DCHECK(current_split_->label_ != NULL);
-  DCHECK(current_split_->explicit_ == true) << "Explicitly ending scoped split: " << current_split_->label_;
-
+  CHECK(current_split_ != nullptr) << "Ending a non-existent split.";
+  DCHECK(current_split_->label_ != nullptr);
+  DCHECK(current_split_->explicit_ == true)
+      << "Explicitly ending scoped split: " << current_split_->label_;
   delete current_split_;
+  // TODO: current_split_ = nullptr;
 }
 
 // Ends the current split and starts the one given by the label.
 void TimingLogger::NewSplit(const char* new_split_label) {
-  CHECK(current_split_ != NULL) << "Inserting a new split (" << new_split_label
-                                << ") into a non-existent split.";
-  DCHECK(new_split_label != NULL) << "New split (" << new_split_label << ") with null label.";
-
-  current_split_->TailInsertSplit(new_split_label);
+  if (current_split_ == nullptr) {
+    StartSplit(new_split_label);
+  } else {
+    DCHECK(new_split_label != nullptr) << "New split (" << new_split_label << ") with null label.";
+    current_split_->TailInsertSplit(new_split_label);
+  }
 }
 
 uint64_t TimingLogger::GetTotalNs() const {
   uint64_t total_ns = 0;
-  for (base::TimingLogger::SplitTimingsIterator it = splits_.begin(), end = splits_.end();
-       it != end; ++it) {
-    base::TimingLogger::SplitTiming split = *it;
+  for (auto it = splits_.begin(), end = splits_.end(); it != end; ++it) {
+    TimingLogger::SplitTiming split = *it;
     total_ns += split.first;
   }
   return total_ns;
@@ -171,9 +170,8 @@ uint64_t TimingLogger::GetTotalNs() const {
 void TimingLogger::Dump(std::ostream &os) const {
   uint64_t longest_split = 0;
   uint64_t total_ns = 0;
-  for (base::TimingLogger::SplitTimingsIterator it = splits_.begin(), end = splits_.end();
-       it != end; ++it) {
-    base::TimingLogger::SplitTiming split = *it;
+  for (auto it = splits_.begin(), end = splits_.end(); it != end; ++it) {
+    TimingLogger::SplitTiming split = *it;
     uint64_t split_time = split.first;
     longest_split = std::max(longest_split, split_time);
     total_ns += split_time;
@@ -182,9 +180,8 @@ void TimingLogger::Dump(std::ostream &os) const {
   TimeUnit tu = GetAppropriateTimeUnit(longest_split);
   uint64_t divisor = GetNsToTimeUnitDivisor(tu);
   // Print formatted splits.
-  for (base::TimingLogger::SplitTimingsIterator it = splits_.begin(), end = splits_.end();
-       it != end; ++it) {
-    base::TimingLogger::SplitTiming split = *it;
+  for (auto it = splits_.begin(), end = splits_.end(); it != end; ++it) {
+    const TimingLogger::SplitTiming& split = *it;
     uint64_t split_time = split.first;
     if (!precise_ && divisor >= 1000) {
       // Make the fractional part 0.
@@ -231,7 +228,7 @@ TimingLogger::ScopedSplit::~ScopedSplit() {
     LOG(INFO) << "End: " << label_ << " " << PrettyDuration(split_time);
   }
 
-  // If one or more enclosed explcitly started splits are not terminated we can
+  // If one or more enclosed explicitly started splits are not terminated we can
   // either fail or "unwind" the stack of splits in the timing logger to 'this'
   // (by deleting the intervening scoped splits). This implements the latter.
   TimingLogger::ScopedSplit* current = timing_logger_->current_split_;
@@ -293,5 +290,4 @@ void TimingLogger::ScopedSplit::Resume() {
   ATRACE_BEGIN(label_);
 }
 
-}  // namespace base
 }  // namespace art

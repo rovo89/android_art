@@ -157,7 +157,7 @@ MarkSweep::MarkSweep(Heap* heap, bool is_concurrent, const std::string& name_pre
 
 void MarkSweep::InitializePhase() {
   timings_.Reset();
-  base::TimingLogger::ScopedSplit split("InitializePhase", &timings_);
+  TimingLogger::ScopedSplit split("InitializePhase", &timings_);
   mark_stack_ = heap_->mark_stack_.get();
   DCHECK(mark_stack_ != nullptr);
   SetImmuneRange(nullptr, nullptr);
@@ -185,14 +185,14 @@ void MarkSweep::InitializePhase() {
 }
 
 void MarkSweep::ProcessReferences(Thread* self) {
-  base::TimingLogger::ScopedSplit split("ProcessReferences", &timings_);
+  TimingLogger::ScopedSplit split("ProcessReferences", &timings_);
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   ProcessReferences(&soft_reference_list_, clear_soft_references_, &weak_reference_list_,
                     &finalizer_reference_list_, &phantom_reference_list_);
 }
 
 bool MarkSweep::HandleDirtyObjectsPhase() {
-  base::TimingLogger::ScopedSplit split("HandleDirtyObjectsPhase", &timings_);
+  TimingLogger::ScopedSplit split("HandleDirtyObjectsPhase", &timings_);
   Thread* self = Thread::Current();
   Locks::mutator_lock_->AssertExclusiveHeld(self);
 
@@ -238,7 +238,7 @@ bool MarkSweep::IsConcurrent() const {
 }
 
 void MarkSweep::MarkingPhase() {
-  base::TimingLogger::ScopedSplit split("MarkingPhase", &timings_);
+  TimingLogger::ScopedSplit split("MarkingPhase", &timings_);
   Thread* self = Thread::Current();
 
   BindBitmaps();
@@ -272,7 +272,7 @@ void MarkSweep::UpdateAndMarkModUnion() {
     if (IsImmuneSpace(space)) {
       const char* name = space->IsZygoteSpace() ? "UpdateAndMarkZygoteModUnionTable" :
           "UpdateAndMarkImageModUnionTable";
-      base::TimingLogger::ScopedSplit split(name, &timings_);
+      TimingLogger::ScopedSplit split(name, &timings_);
       accounting::ModUnionTable* mod_union_table = heap_->FindModUnionTableFromSpace(space);
       CHECK(mod_union_table != nullptr);
       mod_union_table->UpdateAndMarkReferences(MarkRootCallback, this);
@@ -297,7 +297,7 @@ void MarkSweep::MarkReachableObjects() {
 }
 
 void MarkSweep::ReclaimPhase() {
-  base::TimingLogger::ScopedSplit split("ReclaimPhase", &timings_);
+  TimingLogger::ScopedSplit split("ReclaimPhase", &timings_);
   Thread* self = Thread::Current();
 
   if (!IsConcurrent()) {
@@ -312,7 +312,7 @@ void MarkSweep::ReclaimPhase() {
   if (IsConcurrent()) {
     Runtime::Current()->AllowNewSystemWeaks();
 
-    base::TimingLogger::ScopedSplit split("UnMarkAllocStack", &timings_);
+    TimingLogger::ScopedSplit split("UnMarkAllocStack", &timings_);
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
     accounting::ObjectStack* allocation_stack = GetHeap()->allocation_stack_.get();
     // The allocation stack contains things allocated since the start of the GC. These may have been
@@ -363,7 +363,7 @@ void MarkSweep::SetImmuneRange(Object* begin, Object* end) {
 }
 
 void MarkSweep::FindDefaultMarkBitmap() {
-  base::TimingLogger::ScopedSplit split("FindDefaultMarkBitmap", &timings_);
+  TimingLogger::ScopedSplit split("FindDefaultMarkBitmap", &timings_);
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     accounting::SpaceBitmap* bitmap = space->GetMarkBitmap();
     if (bitmap != nullptr &&
@@ -932,7 +932,7 @@ class RecursiveMarkTask : public MarkStackTask<false> {
 // Populates the mark stack based on the set of marked objects and
 // recursively marks until the mark stack is emptied.
 void MarkSweep::RecursiveMark() {
-  base::TimingLogger::ScopedSplit split("RecursiveMark", &timings_);
+  TimingLogger::ScopedSplit split("RecursiveMark", &timings_);
   // RecursiveMark will build the lists of known instances of the Reference classes.
   // See DelayReferenceReferent for details.
   CHECK(soft_reference_list_ == NULL);
@@ -1198,7 +1198,7 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
 
 void MarkSweep::Sweep(bool swap_bitmaps) {
   DCHECK(mark_stack_->IsEmpty());
-  base::TimingLogger::ScopedSplit("Sweep", &timings_);
+  TimingLogger::ScopedSplit("Sweep", &timings_);
 
   const bool partial = (GetGcType() == kGcTypePartial);
   SweepCallbackContext scc;
@@ -1224,12 +1224,12 @@ void MarkSweep::Sweep(bool swap_bitmaps) {
         std::swap(live_bitmap, mark_bitmap);
       }
       if (!space->IsZygoteSpace()) {
-        base::TimingLogger::ScopedSplit split("SweepAllocSpace", &timings_);
+        TimingLogger::ScopedSplit split("SweepAllocSpace", &timings_);
         // Bitmaps are pre-swapped for optimization which enables sweeping with the heap unlocked.
         accounting::SpaceBitmap::SweepWalk(*live_bitmap, *mark_bitmap, begin, end,
                                            &SweepCallback, reinterpret_cast<void*>(&scc));
       } else {
-        base::TimingLogger::ScopedSplit split("SweepZygote", &timings_);
+        TimingLogger::ScopedSplit split("SweepZygote", &timings_);
         // Zygote sweep takes care of dirtying cards and clearing live bits, does not free actual
         // memory.
         accounting::SpaceBitmap::SweepWalk(*live_bitmap, *mark_bitmap, begin, end,
@@ -1242,7 +1242,7 @@ void MarkSweep::Sweep(bool swap_bitmaps) {
 }
 
 void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
-  base::TimingLogger::ScopedSplit("SweepLargeObjects", &timings_);
+  TimingLogger::ScopedSplit("SweepLargeObjects", &timings_);
   // Sweep large objects
   space::LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
   accounting::SpaceSetMap* large_live_objects = large_object_space->GetLiveObjects();
@@ -1577,7 +1577,7 @@ void MarkSweep::ProcessReferences(Object** soft_references, bool clear_soft,
 }
 
 void MarkSweep::UnBindBitmaps() {
-  base::TimingLogger::ScopedSplit split("UnBindBitmaps", &timings_);
+  TimingLogger::ScopedSplit split("UnBindBitmaps", &timings_);
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     if (space->IsDlMallocSpace()) {
       space::DlMallocSpace* alloc_space = space->AsDlMallocSpace();
@@ -1594,7 +1594,7 @@ void MarkSweep::UnBindBitmaps() {
 }
 
 void MarkSweep::FinishPhase() {
-  base::TimingLogger::ScopedSplit split("FinishPhase", &timings_);
+  TimingLogger::ScopedSplit split("FinishPhase", &timings_);
   // Can't enqueue references if we hold the mutator lock.
   Object* cleared_references = GetClearedReferences();
   Heap* heap = GetHeap();

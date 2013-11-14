@@ -26,10 +26,7 @@
 #include <map>
 
 namespace art {
-
-namespace base {
-  class TimingLogger;
-}  // namespace base
+class TimingLogger;
 
 class CumulativeLogger {
  public:
@@ -44,7 +41,7 @@ class CumulativeLogger {
   // Allow the name to be modified, particularly when the cumulative logger is a field within a
   // parent class that is unable to determine the "name" of a sub-class.
   void SetName(const std::string& name);
-  void AddLogger(const base::TimingLogger& logger) LOCKS_EXCLUDED(lock_);
+  void AddLogger(const TimingLogger& logger) LOCKS_EXCLUDED(lock_);
   size_t GetIterations() const;
 
  private:
@@ -65,19 +62,17 @@ class CumulativeLogger {
   DISALLOW_COPY_AND_ASSIGN(CumulativeLogger);
 };
 
-namespace base {
-
-
 // A timing logger that knows when a split starts for the purposes of logging tools, like systrace.
 class TimingLogger {
  public:
   // Splits are nanosecond times and split names.
   typedef std::pair<uint64_t, const char*> SplitTiming;
   typedef std::vector<SplitTiming> SplitTimings;
-  typedef std::vector<SplitTiming>::const_iterator SplitTimingsIterator;
 
   explicit TimingLogger(const char* name, bool precise, bool verbose);
-
+  ~TimingLogger() {
+    // TODO: DCHECK(current_split_ == nullptr) << "Forgot to end split: " << current_split_->label_;
+  }
   // Clears current splits and labels.
   void Reset();
 
@@ -143,7 +138,7 @@ class TimingLogger {
   friend class ScopedSplit;
  protected:
   // The name of the timing logger.
-  const char* name_;
+  const char* const name_;
 
   // Do we want to print the exactly recorded split (true) or round down to the time unit being
   // used (false).
@@ -162,7 +157,6 @@ class TimingLogger {
   DISALLOW_COPY_AND_ASSIGN(TimingLogger);
 };
 
-}  // namespace base
 }  // namespace art
 
 #endif  // ART_RUNTIME_BASE_TIMING_LOGGER_H_

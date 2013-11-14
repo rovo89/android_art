@@ -46,7 +46,7 @@ TEST_F(ImageTest, WriteRead) {
     {
       jobject class_loader = NULL;
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-      base::TimingLogger timings("ImageTest::WriteRead", false, false);
+      TimingLogger timings("ImageTest::WriteRead", false, false);
       timings.StartSplit("CompileAll");
 #if defined(ART_USE_PORTABLE_COMPILER)
       // TODO: we disable this for portable so the test executes in a reasonable amount of time.
@@ -67,6 +67,7 @@ TEST_F(ImageTest, WriteRead) {
                                                 oat_writer,
                                                 tmp_elf.GetFile());
       ASSERT_TRUE(success);
+      timings.EndSplit();
     }
   }
   // Workound bug that mcld::Linker::emit closes tmp_elf by reopening as tmp_oat.

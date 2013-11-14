@@ -1474,7 +1474,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
                   << PrettySize(total_memory) << ", " << "paused " << pause_string.str()
                   << " total " << PrettyDuration((duration / 1000) * 1000);
         if (VLOG_IS_ON(heap)) {
-            LOG(INFO) << Dumpable<base::TimingLogger>(collector->GetTimings());
+            LOG(INFO) << Dumpable<TimingLogger>(collector->GetTimings());
         }
     }
   }
@@ -1808,17 +1808,17 @@ accounting::ModUnionTable* Heap::FindModUnionTableFromSpace(space::Space* space)
   return it->second;
 }
 
-void Heap::ProcessCards(base::TimingLogger& timings) {
+void Heap::ProcessCards(TimingLogger& timings) {
   // Clear cards and keep track of cards cleared in the mod-union table.
   for (const auto& space : continuous_spaces_) {
     accounting::ModUnionTable* table = FindModUnionTableFromSpace(space);
     if (table != nullptr) {
       const char* name = space->IsZygoteSpace() ? "ZygoteModUnionClearCards" :
           "ImageModUnionClearCards";
-      base::TimingLogger::ScopedSplit split(name, &timings);
+      TimingLogger::ScopedSplit split(name, &timings);
       table->ClearCards();
     } else if (space->GetType() != space::kSpaceTypeBumpPointerSpace) {
-      base::TimingLogger::ScopedSplit split("AllocSpaceClearCards", &timings);
+      TimingLogger::ScopedSplit split("AllocSpaceClearCards", &timings);
       // No mod union table for the AllocSpace. Age the cards so that the GC knows that these cards
       // were dirty before the GC started.
       // TODO: Don't need to use atomic.

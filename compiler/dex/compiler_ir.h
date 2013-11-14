@@ -94,7 +94,7 @@ struct CompilationUnit {
 
   UniquePtr<MIRGraph> mir_graph;   // MIR container.
   UniquePtr<Backend> cg;           // Target-specific codegen.
-  base::TimingLogger timings;
+  TimingLogger timings;
 };
 
 }  // namespace art

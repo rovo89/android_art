@@ -82,7 +82,7 @@ TEST_F(OatTest, WriteRead) {
                                             insn_features, false, NULL, 2, true));
   jobject class_loader = NULL;
   if (kCompile) {
-    base::TimingLogger timings("OatTest::WriteRead", false, false);
+    TimingLogger timings("OatTest::WriteRead", false, false);
     compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), timings);
   }
 
@@ -101,7 +101,7 @@ TEST_F(OatTest, WriteRead) {
   ASSERT_TRUE(success);
 
   if (kCompile) {  // OatWriter strips the code, regenerate to compare
-    base::TimingLogger timings("CommonTest::WriteRead", false, false);
+    TimingLogger timings("CommonTest::WriteRead", false, false);
     compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), timings);
   }
   std::string error_msg;

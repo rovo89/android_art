@@ -64,7 +64,7 @@ class GarbageCollector {
 
   void RegisterPause(uint64_t nano_length);
 
-  base::TimingLogger& GetTimings() {
+  TimingLogger& GetTimings() {
     return timings_;
   }
 
@@ -131,7 +131,7 @@ class GarbageCollector {
   const bool verbose_;
 
   uint64_t duration_ns_;
-  base::TimingLogger timings_;
+  TimingLogger timings_;
 
   // Cumulative statistics.
   uint64_t total_time_ns_;
