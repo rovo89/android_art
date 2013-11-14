@@ -80,6 +80,7 @@ TEST_HOST_SRC_FILES := \
 ART_HOST_TEST_EXECUTABLES :=
 ART_TARGET_TEST_EXECUTABLES :=
 ART_HOST_TEST_TARGETS :=
+ART_HOST_VALGRIND_TEST_TARGETS :=
 ART_TARGET_TEST_TARGETS :=
 
 ART_TEST_CFLAGS :=
@@ -173,7 +174,7 @@ ART_HOST_TEST_TARGETS += $$(art_gtest_target)
 
 .PHONY: valgrind-$$(art_gtest_target)
 valgrind-$$(art_gtest_target): $$(art_gtest_exe) test-art-host-dependencies
-	valgrind --leak-check=full $$<
+	valgrind --leak-check=full --error-exitcode=1 $$<
 	@echo $$@ PASSED
 
 ART_HOST_VALGRIND_TEST_TARGETS += valgrind-$$(art_gtest_target)
