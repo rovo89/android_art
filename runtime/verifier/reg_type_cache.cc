@@ -262,11 +262,11 @@ void RegTypeCache::ShutDown() {
     FloatType::Destroy();
     DoubleLoType::Destroy();
     DoubleHiType::Destroy();
-    for (uint16_t value = kMinSmallConstant; value <= kMaxSmallConstant; ++value) {
+    for (int32_t value = kMinSmallConstant; value <= kMaxSmallConstant; ++value) {
       PreciseConstType* type = small_precise_constants_[value - kMinSmallConstant];
       delete type;
+      small_precise_constants_[value - kMinSmallConstant] = nullptr;
     }
-
     RegTypeCache::primitive_initialized_ = false;
     RegTypeCache::primitive_count_ = 0;
   }
