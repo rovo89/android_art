@@ -120,6 +120,9 @@ class BumpPointerSpace : public ContinuousMemMapAllocSpace {
   static mirror::Object* GetNextObject(mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Alignment.
+  static constexpr size_t kAlignment = 8;
+
  protected:
   BumpPointerSpace(const std::string& name, MemMap* mem_map);
 
@@ -131,9 +134,6 @@ class BumpPointerSpace : public ContinuousMemMapAllocSpace {
   AtomicInteger num_objects_allocated_;
   AtomicInteger total_bytes_allocated_;
   AtomicInteger total_objects_allocated_;
-
-  // Alignment.
-  static constexpr size_t kAlignment = 8;
 
   byte* growth_end_;
 

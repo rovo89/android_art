@@ -59,43 +59,44 @@ static inline size_t ComputeArraySize(Thread* self, Class* array_class, int32_t 
 }
 
 static inline Array* SetArrayLength(Array* array, size_t length) {
-  if (LIKELY(array != NULL)) {
+  if (LIKELY(array != nullptr)) {
     DCHECK(array->IsArrayInstance());
     array->SetLength(length);
   }
   return array;
 }
 
-template <bool kIsMovable, bool kIsInstrumented>
+template <bool kIsInstrumented>
 inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count,
-                           size_t component_size) {
+                           size_t component_size, gc::AllocatorType allocator_type) {
   size_t size = ComputeArraySize(self, array_class, component_count, component_size);
   if (UNLIKELY(size == 0)) {
-    return NULL;
+    return nullptr;
   }
   gc::Heap* heap = Runtime::Current()->GetHeap();
-  Array* array = nullptr;
-  if (kIsMovable) {
-    if (kIsInstrumented) {
-      array = down_cast<Array*>(heap->AllocMovableObjectInstrumented(self, array_class, size));
-    } else {
-      array = down_cast<Array*>(heap->AllocMovableObjectUninstrumented(self, array_class, size));
-    }
-  } else {
-    if (kIsInstrumented) {
-      array = down_cast<Array*>(heap->AllocNonMovableObjectInstrumented(self, array_class, size));
-    } else {
-      array = down_cast<Array*>(heap->AllocNonMovableObjectUninstrumented(self, array_class, size));
-    }
-  }
+  Array* array = down_cast<Array*>(
+      heap->AllocObjectWithAllocator<kIsInstrumented>(self, array_class, size, allocator_type));
   return SetArrayLength(array, component_count);
 }
 
-template <bool kIsMovable, bool kIsInstrumented>
-inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count) {
+template <bool kIsInstrumented>
+inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count,
+                           gc::AllocatorType allocator_type) {
   DCHECK(array_class->IsArrayClass());
-  return Alloc<kIsMovable, kIsInstrumented>(self, array_class, component_count,
-                                            array_class->GetComponentSize());
+  return Alloc<kIsInstrumented>(self, array_class, component_count, array_class->GetComponentSize(),
+                                allocator_type);
+}
+template <bool kIsInstrumented>
+inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count) {
+  return Alloc<kIsInstrumented>(self, array_class, component_count,
+               Runtime::Current()->GetHeap()->GetCurrentAllocator());
+}
+
+template <bool kIsInstrumented>
+inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count,
+                           size_t component_size) {
+  return Alloc<kIsInstrumented>(self, array_class, component_count, component_size,
+               Runtime::Current()->GetHeap()->GetCurrentAllocator());
 }
 
 }  // namespace mirror

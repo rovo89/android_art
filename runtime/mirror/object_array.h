@@ -18,6 +18,7 @@
 #define ART_RUNTIME_MIRROR_OBJECT_ARRAY_H_
 
 #include "array.h"
+#include "gc/heap.h"
 
 namespace art {
 namespace mirror {
@@ -25,6 +26,10 @@ namespace mirror {
 template<class T>
 class MANAGED ObjectArray : public Array {
  public:
+  static ObjectArray<T>* Alloc(Thread* self, Class* object_array_class, int32_t length,
+                               gc::AllocatorType allocator_type)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   static ObjectArray<T>* Alloc(Thread* self, Class* object_array_class, int32_t length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

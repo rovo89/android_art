@@ -75,9 +75,9 @@ Object* Object::Clone(Thread* self) {
   SirtRef<Object> this_object(self, this);
   Object* copy;
   if (heap->IsMovableObject(this)) {
-    copy = heap->AllocObject(self, GetClass(), num_bytes);
+    copy = heap->AllocObject<true>(self, GetClass(), num_bytes);
   } else {
-    copy = heap->AllocNonMovableObject(self, GetClass(), num_bytes);
+    copy = heap->AllocNonMovableObject<true>(self, GetClass(), num_bytes);
   }
   if (LIKELY(copy != nullptr)) {
     return CopyObject(self, copy, this_object.get(), num_bytes);

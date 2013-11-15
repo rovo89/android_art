@@ -1119,8 +1119,7 @@ JDWP::JdwpError Dbg::CreateArrayObject(JDWP::RefTypeId array_class_id, uint32_t 
   if (c == NULL) {
     return status;
   }
-  new_array = gRegistry->Add(
-      mirror::Array::Alloc<kMovingCollector, true>(Thread::Current(), c, length));
+  new_array = gRegistry->Add(mirror::Array::Alloc<true>(Thread::Current(), c, length));
   return JDWP::ERR_NONE;
 }
 

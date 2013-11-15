@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_INSTRUMENTATION_H_
 #define ART_RUNTIME_INSTRUMENTATION_H_
 
+#include "atomic_integer.h"
 #include "base/macros.h"
 #include "locks.h"
 
@@ -125,6 +126,7 @@ class Instrumentation {
 
   void InstrumentQuickAllocEntryPoints() LOCKS_EXCLUDED(Locks::thread_list_lock_);
   void UninstrumentQuickAllocEntryPoints() LOCKS_EXCLUDED(Locks::thread_list_lock_);
+  void ResetQuickAllocEntryPoints();
 
   // Update the code of a method respecting any installed stubs.
   void UpdateMethodsCode(mirror::ArtMethod* method, const void* code) const;
@@ -298,7 +300,7 @@ class Instrumentation {
 
   // Greater than 0 if quick alloc entry points instrumented.
   // TODO: The access and changes to this is racy and should be guarded by a lock.
-  size_t quick_alloc_entry_points_instrumentation_counter_;
+  AtomicInteger quick_alloc_entry_points_instrumentation_counter_;
 
   DISALLOW_COPY_AND_ASSIGN(Instrumentation);
 };

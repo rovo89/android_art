@@ -87,6 +87,13 @@ class AgeCardVisitor {
   }
 };
 
+// Different types of allocators.
+enum AllocatorType {
+  kAllocatorTypeBumpPointer,
+  kAllocatorTypeFreeList,  // ROSAlloc / dlmalloc
+  kAllocatorTypeLOS,  // Large object space.
+};
+
 // What caused the GC?
 enum GcCause {
   // GC triggered by a failed allocation. Thread doing allocation is blocked waiting for GC before
@@ -143,41 +150,30 @@ class Heap {
   ~Heap();
 
   // Allocates and initializes storage for an object instance.
-  mirror::Object* AllocObject(Thread* self, mirror::Class* klass, size_t num_bytes)
+  template <const bool kInstrumented>
+  inline mirror::Object* AllocObject(Thread* self, mirror::Class* klass, size_t num_bytes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    CHECK(!kMovingClasses);
-    return AllocObjectInstrumented(self, klass, num_bytes);
+    return AllocObjectWithAllocator<kInstrumented>(self, klass, num_bytes, GetCurrentAllocator());
   }
-  // Allocates and initializes storage for an object instance.
-  mirror::Object* AllocNonMovableObject(Thread* self, mirror::Class* klass, size_t num_bytes)
+  template <const bool kInstrumented>
+  inline mirror::Object* AllocNonMovableObject(Thread* self, mirror::Class* klass,
+                                               size_t num_bytes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    CHECK(!kMovingClasses);
-    return AllocNonMovableObjectInstrumented(self, klass, num_bytes);
+    return AllocObjectWithAllocator<kInstrumented>(self, klass, num_bytes,
+                                                   GetCurrentNonMovingAllocator());
   }
-  mirror::Object* AllocObjectInstrumented(Thread* self, mirror::Class* klass, size_t num_bytes)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    CHECK(!kMovingClasses);
-    if (kMovingCollector) {
-      return AllocMovableObjectInstrumented(self, klass, num_bytes);
-    } else {
-      return AllocNonMovableObjectInstrumented(self, klass, num_bytes);
-    }
-  }
-  mirror::Object* AllocObjectUninstrumented(Thread* self, mirror::Class* klass, size_t num_bytes)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    CHECK(!kMovingClasses);
-    if (kMovingCollector) {
-      return AllocMovableObjectUninstrumented(self, klass, num_bytes);
-    } else {
-      return AllocNonMovableObjectUninstrumented(self, klass, num_bytes);
-    }
-  }
-  mirror::Object* AllocNonMovableObjectInstrumented(Thread* self, mirror::Class* klass,
-                                                    size_t num_bytes)
+  template <bool kInstrumented>
+  ALWAYS_INLINE mirror::Object* AllocObjectWithAllocator(Thread* self, mirror::Class* klass,
+                                                         size_t num_bytes, AllocatorType allocator)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::Object* AllocNonMovableObjectUninstrumented(Thread* self, mirror::Class* klass,
-                                                      size_t num_bytes)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  AllocatorType GetCurrentAllocator() const {
+    return current_allocator_;
+  }
+
+  AllocatorType GetCurrentNonMovingAllocator() const {
+    return current_non_moving_allocator_;
+  }
 
   // Visit all of the live objects in the heap.
   void VisitObjects(ObjectVisitorCallback callback, void* arg)
@@ -488,13 +484,6 @@ class Heap {
   accounting::ModUnionTable* FindModUnionTableFromSpace(space::Space* space);
   void AddModUnionTable(accounting::ModUnionTable* mod_union_table);
 
-  mirror::Object* AllocMovableObjectInstrumented(Thread* self, mirror::Class* klass,
-                                                 size_t num_bytes)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::Object* AllocMovableObjectUninstrumented(Thread* self, mirror::Class* klass,
-                                                   size_t num_bytes)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   bool IsCompilingBoot() const;
   bool HasImageSpace() const;
 
@@ -502,30 +491,19 @@ class Heap {
   void Compact(space::ContinuousMemMapAllocSpace* target_space,
                space::ContinuousMemMapAllocSpace* source_space);
 
-  bool TryAllocLargeObjectInstrumented(Thread* self, mirror::Class* c, size_t byte_count,
-                                       mirror::Object** obj_ptr, size_t* bytes_allocated)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool TryAllocLargeObjectUninstrumented(Thread* self, mirror::Class* c, size_t byte_count,
-                                         mirror::Object** obj_ptr, size_t* bytes_allocated)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool ShouldAllocLargeObject(mirror::Class* c, size_t byte_count);
-  void CheckConcurrentGC(Thread* self, size_t new_num_bytes_allocated, mirror::Object* obj);
-
-  // Allocates uninitialized storage. Passing in a null space tries to place the object in the
-  // large object space.
-  template <class T> mirror::Object* AllocateInstrumented(Thread* self, T* space, size_t num_bytes,
-                                                          size_t* bytes_allocated)
-      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  template <class T> mirror::Object* AllocateUninstrumented(Thread* self, T* space, size_t num_bytes,
-                                                            size_t* bytes_allocated)
-      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static bool AllocatorHasAllocationStack(AllocatorType allocator_type) {
+    return allocator_type == kAllocatorTypeFreeList;
+  }
+  static bool AllocatorHasConcurrentGC(AllocatorType allocator_type) {
+    return allocator_type == kAllocatorTypeFreeList;
+  }
+  bool ShouldAllocLargeObject(mirror::Class* c, size_t byte_count) const;
+  ALWAYS_INLINE void CheckConcurrentGC(Thread* self, size_t new_num_bytes_allocated,
+                                       mirror::Object* obj);
 
   // Handles Allocate()'s slow allocation path with GC involved after
   // an initial allocation attempt failed.
-  mirror::Object* AllocateInternalWithGc(Thread* self, space::AllocSpace* space, size_t num_bytes,
+  mirror::Object* AllocateInternalWithGc(Thread* self, AllocatorType allocator, size_t num_bytes,
                                          size_t* bytes_allocated)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -535,37 +513,12 @@ class Heap {
                                size_t bytes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Try to allocate a number of bytes, this function never does any GCs.
-  mirror::Object* TryToAllocateInstrumented(Thread* self, space::AllocSpace* space, size_t alloc_size,
-                                            bool grow, size_t* bytes_allocated)
-      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  // Try to allocate a number of bytes, this function never does any GCs. DlMallocSpace-specialized version.
-  mirror::Object* TryToAllocateInstrumented(Thread* self, space::DlMallocSpace* space, size_t alloc_size,
-                                            bool grow, size_t* bytes_allocated)
-      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  // Try to allocate a number of bytes, this function never does any GCs. RosAllocSpace-specialized version.
-  mirror::Object* TryToAllocateInstrumented(Thread* self, space::RosAllocSpace* space, size_t alloc_size,
-                                            bool grow, size_t* bytes_allocated)
-      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  mirror::Object* TryToAllocateUninstrumented(Thread* self, space::AllocSpace* space, size_t alloc_size,
-                                              bool grow, size_t* bytes_allocated)
-      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  mirror::Object* TryToAllocateUninstrumented(Thread* self, space::DlMallocSpace* space, size_t alloc_size,
-                                              bool grow, size_t* bytes_allocated)
-      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  mirror::Object* TryToAllocateUninstrumented(Thread* self, space::RosAllocSpace* space, size_t alloc_size,
-                                              bool grow, size_t* bytes_allocated)
-      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
+  // Try to allocate a number of bytes, this function never does any GCs. Needs to be inlined so
+  // that the switch statement is constant optimized in the entrypoints.
+  template <const bool kInstrumented>
+  ALWAYS_INLINE mirror::Object* TryToAllocate(Thread* self, AllocatorType allocator_type,
+                                              size_t alloc_size, bool grow,
+                                              size_t* bytes_allocated)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void ThrowOutOfMemoryError(Thread* self, size_t byte_count, bool large_object_allocation)
@@ -816,11 +769,17 @@ class Heap {
   // Allocation stack, new allocations go here so that we can do sticky mark bits. This enables us
   // to use the live bitmap as the old mark bitmap.
   const size_t max_allocation_stack_size_;
-  bool is_allocation_stack_sorted_;
   UniquePtr<accounting::ObjectStack> allocation_stack_;
 
   // Second allocation stack so that we can process allocation with the heap unlocked.
   UniquePtr<accounting::ObjectStack> live_stack_;
+
+  // Allocator type.
+  const AllocatorType current_allocator_;
+  const AllocatorType current_non_moving_allocator_;
+
+  // Which GCs we run in order when we an allocation fails.
+  std::vector<collector::GcType> gc_plan_;
 
   // Bump pointer spaces.
   space::BumpPointerSpace* bump_pointer_space_;

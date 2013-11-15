@@ -59,8 +59,7 @@ static jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementCl
     return NULL;
   }
   DCHECK(array_class->IsArrayClass());
-  mirror::Array* new_array = mirror::Array::Alloc<kMovingCollector, true>(
-      soa.Self(), array_class, length);
+  mirror::Array* new_array = mirror::Array::Alloc<true>(soa.Self(), array_class, length);
   return soa.AddLocalReference<jobject>(new_array);
 }
 
