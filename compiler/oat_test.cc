@@ -67,6 +67,7 @@ class OatTest : public CommonTest {
 };
 
 TEST_F(OatTest, WriteRead) {
+  TimingLogger timings("CommonTest::WriteRead", false, false);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
   // TODO: make selectable
@@ -92,7 +93,8 @@ TEST_F(OatTest, WriteRead) {
                        42U,
                        4096U,
                        "lue.art",
-                       compiler_driver_.get());
+                       compiler_driver_.get(),
+                       &timings);
   bool success = compiler_driver_->WriteElf(GetTestAndroidRoot(),
                                             !kIsTargetBuild,
                                             class_linker->GetBootClassPath(),
@@ -101,7 +103,6 @@ TEST_F(OatTest, WriteRead) {
   ASSERT_TRUE(success);
 
   if (kCompile) {  // OatWriter strips the code, regenerate to compare
-    TimingLogger timings("CommonTest::WriteRead", false, false);
     compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), timings);
   }
   std::string error_msg;

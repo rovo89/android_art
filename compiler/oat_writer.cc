@@ -40,7 +40,8 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
                      uint32_t image_file_location_oat_checksum,
                      uint32_t image_file_location_oat_begin,
                      const std::string& image_file_location,
-                     const CompilerDriver* compiler)
+                     const CompilerDriver* compiler,
+                     TimingLogger* timings)
   : compiler_driver_(compiler),
     dex_files_(&dex_files),
     image_file_location_oat_checksum_(image_file_location_oat_checksum),
@@ -77,12 +78,31 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
     size_oat_class_status_(0),
     size_oat_class_method_bitmaps_(0),
     size_oat_class_method_offsets_(0) {
-  size_t offset = InitOatHeader();
-  offset = InitOatDexFiles(offset);
-  offset = InitDexFiles(offset);
-  offset = InitOatClasses(offset);
-  offset = InitOatCode(offset);
-  offset = InitOatCodeDexFiles(offset);
+  size_t offset;
+  {
+    TimingLogger::ScopedSplit split("InitOatHeader", timings);
+    offset = InitOatHeader();
+  }
+  {
+    TimingLogger::ScopedSplit split("InitOatDexFiles", timings);
+    offset = InitOatDexFiles(offset);
+  }
+  {
+    TimingLogger::ScopedSplit split("InitDexFiles", timings);
+    offset = InitDexFiles(offset);
+  }
+  {
+    TimingLogger::ScopedSplit split("InitOatClasses", timings);
+    offset = InitOatClasses(offset);
+  }
+  {
+    TimingLogger::ScopedSplit split("InitOatCode", timings);
+    offset = InitOatCode(offset);
+  }
+  {
+    TimingLogger::ScopedSplit split("InitOatCodeDexFiles", timings);
+    offset = InitOatCodeDexFiles(offset);
+  }
   size_ = offset;
 
   CHECK_EQ(dex_files_->size(), oat_dex_files_.size());

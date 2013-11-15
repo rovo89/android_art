@@ -67,7 +67,8 @@ class OatWriter {
             uint32_t image_file_location_oat_checksum,
             uint32_t image_file_location_oat_begin,
             const std::string& image_file_location,
-            const CompilerDriver* compiler);
+            const CompilerDriver* compiler,
+            TimingLogger* timings);
 
   const OatHeader& GetOatHeader() const {
     return *oat_header_;
