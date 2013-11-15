@@ -47,7 +47,7 @@ template <class Value> class Histogram {
   // cumulative_freq[i] = sum(frequency[j] : 0 < j < i )
   // Accumulative summation of percentiles; which is the frequency / SampleSize
   // cumulative_perc[i] = sum(frequency[j] / SampleSize : 0 < j < i )
-  void CreateHistogram(CumulativeData& data);
+  void CreateHistogram(CumulativeData* data);
   // Reset the cumulative values, next time CreateHistogram is called it will recreate the cache.
   void Reset();
   double Mean() const;

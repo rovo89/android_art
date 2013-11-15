@@ -22,6 +22,7 @@ TEST_COMMON_SRC_FILES := \
 	compiler/elf_writer_test.cc \
 	compiler/image_test.cc \
 	compiler/jni/jni_compiler_test.cc \
+	compiler/leb128_encoder_test.cc \
 	compiler/oat_test.cc \
 	compiler/output_stream_test.cc \
 	compiler/utils/dedupe_set_test.cc \

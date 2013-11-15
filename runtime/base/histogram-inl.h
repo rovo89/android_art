@@ -170,20 +170,20 @@ inline void Histogram<Value>::PrintConfidenceIntervals(std::ostream &os, double 
   os << FormatDuration(Max() * kAdjust, unit) << "\n";
 }
 
-template <class Value> inline void Histogram<Value>::CreateHistogram(CumulativeData& out_data) {
+template <class Value> inline void Histogram<Value>::CreateHistogram(CumulativeData* out_data) {
   DCHECK_GT(sample_size_, 0ull);
-  out_data.freq_.clear();
-  out_data.perc_.clear();
+  out_data->freq_.clear();
+  out_data->perc_.clear();
   uint64_t accumulated = 0;
-  out_data.freq_.push_back(accumulated);
-  out_data.perc_.push_back(0.0);
+  out_data->freq_.push_back(accumulated);
+  out_data->perc_.push_back(0.0);
   for (size_t idx = 0; idx < frequency_.size(); idx++) {
     accumulated += frequency_[idx];
-    out_data.freq_.push_back(accumulated);
-    out_data.perc_.push_back(static_cast<double>(accumulated) / static_cast<double>(sample_size_));
+    out_data->freq_.push_back(accumulated);
+    out_data->perc_.push_back(static_cast<double>(accumulated) / static_cast<double>(sample_size_));
   }
-  DCHECK_EQ(out_data.freq_.back(), sample_size_);
-  DCHECK_LE(std::abs(out_data.perc_.back() - 1.0), 0.001);
+  DCHECK_EQ(out_data->freq_.back(), sample_size_);
+  DCHECK_LE(std::abs(out_data->perc_.back() - 1.0), 0.001);
 }
 
 template <class Value>

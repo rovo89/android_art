@@ -115,7 +115,7 @@ void CumulativeLogger::DumpHistogram(std::ostream &os) {
   for (CumulativeLogger::HistogramsIterator it = histograms_.begin(), end = histograms_.end();
        it != end; ++it) {
     Histogram<uint64_t>::CumulativeData cumulative_data;
-    it->second->CreateHistogram(cumulative_data);
+    it->second->CreateHistogram(&cumulative_data);
     it->second->PrintConfidenceIntervals(os, 0.99, cumulative_data);
     // Reset cumulative values to save memory. We don't expect DumpHistogram to be called often, so
     // it is not performance critical.
