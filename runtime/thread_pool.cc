@@ -43,6 +43,8 @@ ThreadPoolWorker::ThreadPoolWorker(ThreadPool* thread_pool, const std::string& n
 
 ThreadPoolWorker::~ThreadPoolWorker() {
   CHECK_PTHREAD_CALL(pthread_join, (pthread_, NULL), "thread pool worker shutdown");
+  // TODO: Delete this when race condition in pthread_join is fixed.
+  usleep(500);
 }
 
 void ThreadPoolWorker::Run() {
