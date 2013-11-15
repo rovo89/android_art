@@ -427,9 +427,9 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
           args << Rt << "," << Rd << ", [" << Rn;
           const char *sign = U ? "+" : "-";
           if (P == 0 && W == 1) {
-            args << "], #" << sign << imm8;
+            args << "], #" << sign << (imm8 << 2);
           } else {
-            args << ", #" << sign << imm8 << "]";
+            args << ", #" << sign << (imm8 << 2) << "]";
             if (W == 1) {
               args << "!";
             }
