@@ -36,8 +36,6 @@ class ThrowLocation;
 
 namespace instrumentation {
 
-const bool kVerboseInstrumentation = false;
-
 // Interpreter handler tables.
 enum InterpreterHandlerTable {
   kMainHandlerTable = 0,          // Main handler table: no suspend check, no instrumentation.
