@@ -253,15 +253,15 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
   cu.mir_graph->InlineMethod(code_item, access_flags, invoke_type, class_def_idx, method_idx,
                               class_loader, dex_file);
 
+  cu.NewTimingSplit("MIROpt:CheckFilters");
 #if !defined(ART_USE_PORTABLE_COMPILER)
   if (cu.mir_graph->SkipCompilation(Runtime::Current()->GetCompilerFilter())) {
     return NULL;
   }
 #endif
 
-  cu.NewTimingSplit("MIROpt:CodeLayout");
-
   /* Do a code layout pass */
+  cu.NewTimingSplit("MIROpt:CodeLayout");
   cu.mir_graph->CodeLayout();
 
   /* Perform SSA transformation for the whole method */
@@ -272,18 +272,23 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
   cu.NewTimingSplit("MIROpt:ConstantProp");
   cu.mir_graph->PropagateConstants();
 
+  cu.NewTimingSplit("MIROpt:InitRegLoc");
+  cu.mir_graph->InitRegLocations();
+
   /* Count uses */
+  cu.NewTimingSplit("MIROpt:UseCount");
   cu.mir_graph->MethodUseCount();
 
-  /* Perform null check elimination */
-  cu.NewTimingSplit("MIROpt:NullCheckElimination");
-  cu.mir_graph->NullCheckElimination();
+  /* Perform null check elimination and type inference*/
+  cu.NewTimingSplit("MIROpt:NCE_TypeInference");
+  cu.mir_graph->NullCheckEliminationAndTypeInference();
 
   /* Combine basic blocks where possible */
-  cu.NewTimingSplit("MIROpt:BBOpt");
+  cu.NewTimingSplit("MIROpt:BBCombine");
   cu.mir_graph->BasicBlockCombine();
 
   /* Do some basic block optimizations */
+  cu.NewTimingSplit("MIROpt:BBOpt");
   cu.mir_graph->BasicBlockOptimization();
 
   if (cu.enable_debug & (1 << kDebugDumpCheckStats)) {
@@ -294,8 +299,8 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
     cu.mir_graph->ShowOpcodeStats();
   }
 
-  /* Set up regLocation[] array to describe values - one for each ssa_name. */
-  cu.mir_graph->BuildRegLocations();
+  /* Reassociate sreg names with original Dalvik vreg names. */
+  cu.mir_graph->RemapRegLocations();
 
   CompiledMethod* result = NULL;
 
@@ -323,8 +328,9 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
 
   cu.cg->Materialize();
 
-  cu.NewTimingSplit("Cleanup");
+  cu.NewTimingSplit("Dedupe");  /* deduping takes up the vast majority of time in GetCompiledMethod(). */
   result = cu.cg->GetCompiledMethod();
+  cu.NewTimingSplit("Cleanup");
 
   if (result) {
     VLOG(compiler) << "Compiled " << PrettyMethod(method_idx, dex_file);

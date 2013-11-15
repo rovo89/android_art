@@ -793,7 +793,6 @@ void MipsMir2Lir::AssembleLIR() {
   }
 
   // Install literals
-  cu_->NewTimingSplit("LiteralData");
   InstallLiteralPools();
 
   // Install switch tables

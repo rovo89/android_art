@@ -650,10 +650,14 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
 
     int flags = Instruction::FlagsOf(insn->dalvikInsn.opcode);
 
-    int df_flags = oat_data_flow_attributes_[insn->dalvikInsn.opcode];
+    uint64_t df_flags = oat_data_flow_attributes_[insn->dalvikInsn.opcode];
 
     if (df_flags & DF_HAS_DEFS) {
       def_count_ += (df_flags & DF_A_WIDE) ? 2 : 1;
+    }
+
+    if (df_flags & DF_LVN) {
+      cur_block->use_lvn = true;  // Run local value numbering on this basic block.
     }
 
     // Check for inline data block signatures

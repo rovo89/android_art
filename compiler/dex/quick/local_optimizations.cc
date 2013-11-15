@@ -291,9 +291,9 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
 
     uint64_t target_flags = GetTargetInstFlags(this_lir->opcode);
     /* Skip non-interesting instructions */
-    if ((this_lir->flags.is_nop == true) ||
-        ((target_flags & (REG_DEF0 | REG_DEF1)) == (REG_DEF0 | REG_DEF1)) ||
-        !(target_flags & IS_LOAD)) {
+    if (!(target_flags & IS_LOAD) ||
+        (this_lir->flags.is_nop == true) ||
+        ((target_flags & (REG_DEF0 | REG_DEF1)) == (REG_DEF0 | REG_DEF1))) {
       continue;
     }
 
