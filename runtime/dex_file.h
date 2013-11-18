@@ -661,7 +661,11 @@ class DexFile {
 
   // Looks up a proto id for a given return type and signature type list
   const ProtoId* FindProtoId(uint16_t return_type_idx,
-                             const std::vector<uint16_t>& signature_type_idxs_) const;
+                             const uint16_t* signature_type_idxs, uint32_t signature_length) const;
+  const ProtoId* FindProtoId(uint16_t return_type_idx,
+                             const std::vector<uint16_t>& signature_type_idxs) const {
+    return FindProtoId(return_type_idx, &signature_type_idxs[0], signature_type_idxs.size());
+  }
 
   // Given a signature place the type ids into the given vector, returns true on success
   bool CreateTypeList(const StringPiece& signature, uint16_t* return_type_idx,

@@ -31,6 +31,8 @@
 #include "llvm/llvm_compilation_unit.h"
 #endif
 
+#include "dex/quick/dex_file_to_method_inliner_map.h"
+
 namespace {
 #if !defined(ART_USE_PORTABLE_COMPILER)
   pthread_once_t llvm_multi_init = PTHREAD_ONCE_INIT;
@@ -61,14 +63,21 @@ LLVMInfo::LLVMInfo() {
 LLVMInfo::~LLVMInfo() {
 }
 
+QuickCompilerContext::QuickCompilerContext(CompilerDriver& compiler)
+  : inliner_map_(new DexFileToMethodInlinerMap(&compiler))
+{
+}
+
+QuickCompilerContext::~QuickCompilerContext() {
+}
+
 extern "C" void ArtInitQuickCompilerContext(art::CompilerDriver& compiler) {
   CHECK(compiler.GetCompilerContext() == NULL);
-  LLVMInfo* llvm_info = new LLVMInfo();
-  compiler.SetCompilerContext(llvm_info);
+  compiler.SetCompilerContext(new QuickCompilerContext(compiler));
 }
 
 extern "C" void ArtUnInitQuickCompilerContext(art::CompilerDriver& compiler) {
-  delete reinterpret_cast<LLVMInfo*>(compiler.GetCompilerContext());
+  delete reinterpret_cast<QuickCompilerContext*>(compiler.GetCompilerContext());
   compiler.SetCompilerContext(NULL);
 }
 
