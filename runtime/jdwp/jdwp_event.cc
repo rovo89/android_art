@@ -719,7 +719,8 @@ bool JdwpState::PostVMStart() {
  *  - Single-step to a line with a breakpoint.  Should get a single
  *    event message with both events in it.
  */
-bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, int eventFlags) {
+bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, int eventFlags,
+                                  const JValue* returnValue) {
   ModBasket basket;
   basket.pLoc = pLoc;
   basket.classId = pLoc->class_id;
@@ -771,9 +772,7 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
     }
     if ((eventFlags & Dbg::kMethodExit) != 0) {
       FindMatchingEvents(EK_METHOD_EXIT, &basket, match_list, &match_count);
-
-      // TODO: match EK_METHOD_EXIT_WITH_RETURN_VALUE too; we need to include the 'value', though.
-      // FindMatchingEvents(EK_METHOD_EXIT_WITH_RETURN_VALUE, &basket, match_list, &match_count);
+      FindMatchingEvents(EK_METHOD_EXIT_WITH_RETURN_VALUE, &basket, match_list, &match_count);
     }
     if (match_count != 0) {
       VLOG(jdwp) << "EVENT: " << match_list[0]->eventKind << "(" << match_count << " total) "
@@ -792,6 +791,9 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
         expandBufAdd4BE(pReq, match_list[i]->requestId);
         expandBufAdd8BE(pReq, basket.threadId);
         expandBufAddLocation(pReq, *pLoc);
+        if (match_list[i]->eventKind == EK_METHOD_EXIT_WITH_RETURN_VALUE) {
+          Dbg::OutputMethodReturnValue(pLoc->method_id, returnValue, pReq);
+        }
       }
     }
 

@@ -230,6 +230,9 @@ class Dbg {
   static void OutputVariableTable(JDWP::RefTypeId ref_type_id, JDWP::MethodId id, bool with_generic,
                                   JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static void OutputMethodReturnValue(JDWP::MethodId method_id, const JValue* return_value,
+                                      JDWP::ExpandBuf* pReply)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetBytecodes(JDWP::RefTypeId class_id, JDWP::MethodId method_id,
                                       std::vector<uint8_t>& bytecodes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -253,6 +256,8 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static std::string StringToUtf8(JDWP::ObjectId string_id)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static void OutputJValue(JDWP::JdwpTag tag, const JValue* return_value, JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
@@ -327,7 +332,8 @@ class Dbg {
     kMethodExit     = 0x08,
   };
   static void PostLocationEvent(const mirror::ArtMethod* method, int pcOffset,
-                                mirror::Object* thisPtr, int eventFlags)
+                                mirror::Object* thisPtr, int eventFlags,
+                                const JValue* return_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostException(Thread* thread, const ThrowLocation& throw_location,
                             mirror::ArtMethod* catch_method,

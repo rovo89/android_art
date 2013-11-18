@@ -121,19 +121,18 @@ class DebugInstrumentationListener : public instrumentation::InstrumentationList
       // TODO: post location events is a suspension point and native method entry stubs aren't.
       return;
     }
-    Dbg::PostLocationEvent(method, 0, this_object, Dbg::kMethodEntry);
+    Dbg::PostLocationEvent(method, 0, this_object, Dbg::kMethodEntry, nullptr);
   }
 
   virtual void MethodExited(Thread* thread, mirror::Object* this_object,
                             const mirror::ArtMethod* method,
                             uint32_t dex_pc, const JValue& return_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    UNUSED(return_value);
     if (method->IsNative()) {
       // TODO: post location events is a suspension point and native method entry stubs aren't.
       return;
     }
-    Dbg::PostLocationEvent(method, dex_pc, this_object, Dbg::kMethodExit);
+    Dbg::PostLocationEvent(method, dex_pc, this_object, Dbg::kMethodExit, &return_value);
   }
 
   virtual void MethodUnwind(Thread* thread, const mirror::ArtMethod* method,
@@ -1393,6 +1392,13 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId method_id, bool wi
   JDWP::Set4BE(expandBufGetBuffer(pReply) + variable_count_offset, context.variable_count);
 }
 
+void Dbg::OutputMethodReturnValue(JDWP::MethodId method_id, const JValue* return_value,
+                                  JDWP::ExpandBuf* pReply) {
+  mirror::ArtMethod* m = FromMethodId(method_id);
+  JDWP::JdwpTag tag = BasicTagFromDescriptor(MethodHelper(m).GetShorty());
+  OutputJValue(tag, return_value, pReply);
+}
+
 JDWP::JdwpError Dbg::GetBytecodes(JDWP::RefTypeId, JDWP::MethodId method_id,
                                   std::vector<uint8_t>& bytecodes)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -1461,25 +1467,18 @@ static JDWP::JdwpError GetFieldValueImpl(JDWP::RefTypeId ref_type_id, JDWP::Obje
   }
 
   JDWP::JdwpTag tag = BasicTagFromDescriptor(FieldHelper(f).GetTypeDescriptor());
-
-  if (IsPrimitiveTag(tag)) {
-    expandBufAdd1(pReply, tag);
-    if (tag == JDWP::JT_BOOLEAN || tag == JDWP::JT_BYTE) {
-      expandBufAdd1(pReply, f->Get32(o));
-    } else if (tag == JDWP::JT_CHAR || tag == JDWP::JT_SHORT) {
-      expandBufAdd2BE(pReply, f->Get32(o));
-    } else if (tag == JDWP::JT_FLOAT || tag == JDWP::JT_INT) {
-      expandBufAdd4BE(pReply, f->Get32(o));
-    } else if (tag == JDWP::JT_DOUBLE || tag == JDWP::JT_LONG) {
-      expandBufAdd8BE(pReply, f->Get64(o));
-    } else {
-      LOG(FATAL) << "Unknown tag: " << tag;
-    }
+  JValue field_value;
+  if (tag == JDWP::JT_VOID) {
+    LOG(FATAL) << "Unknown tag: " << tag;
+  } else if (!IsPrimitiveTag(tag)) {
+    field_value.SetL(f->GetObject(o));
+  } else if (tag == JDWP::JT_DOUBLE || tag == JDWP::JT_LONG) {
+    field_value.SetJ(f->Get64(o));
   } else {
-    mirror::Object* value = f->GetObject(o);
-    expandBufAdd1(pReply, TagFromObject(value));
-    expandBufAddObjectId(pReply, gRegistry->Add(value));
+    field_value.SetI(f->Get32(o));
   }
+  Dbg::OutputJValue(tag, &field_value, pReply);
+
   return JDWP::ERR_NONE;
 }
 
@@ -1555,6 +1554,27 @@ JDWP::JdwpError Dbg::SetStaticFieldValue(JDWP::FieldId field_id, uint64_t value,
 std::string Dbg::StringToUtf8(JDWP::ObjectId string_id) {
   mirror::String* s = gRegistry->Get<mirror::String*>(string_id);
   return s->ToModifiedUtf8();
+}
+
+void Dbg::OutputJValue(JDWP::JdwpTag tag, const JValue* return_value, JDWP::ExpandBuf* pReply) {
+  if (IsPrimitiveTag(tag)) {
+    expandBufAdd1(pReply, tag);
+    if (tag == JDWP::JT_BOOLEAN || tag == JDWP::JT_BYTE) {
+      expandBufAdd1(pReply, return_value->GetI());
+    } else if (tag == JDWP::JT_CHAR || tag == JDWP::JT_SHORT) {
+      expandBufAdd2BE(pReply, return_value->GetI());
+    } else if (tag == JDWP::JT_FLOAT || tag == JDWP::JT_INT) {
+      expandBufAdd4BE(pReply, return_value->GetI());
+    } else if (tag == JDWP::JT_DOUBLE || tag == JDWP::JT_LONG) {
+      expandBufAdd8BE(pReply, return_value->GetJ());
+    } else {
+      CHECK_EQ(tag, JDWP::JT_VOID);
+    }
+  } else {
+    mirror::Object* value = return_value->GetL();
+    expandBufAdd1(pReply, TagFromObject(value));
+    expandBufAddObjectId(pReply, gRegistry->Add(value));
+  }
 }
 
 JDWP::JdwpError Dbg::GetThreadName(JDWP::ObjectId thread_id, std::string& name) {
@@ -2226,8 +2246,8 @@ void Dbg::SetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int sl
   visitor.WalkStack();
 }
 
-void Dbg::PostLocationEvent(const mirror::ArtMethod* m, int dex_pc,
-                            mirror::Object* this_object, int event_flags) {
+void Dbg::PostLocationEvent(const mirror::ArtMethod* m, int dex_pc, mirror::Object* this_object,
+                            int event_flags, const JValue* return_value) {
   mirror::Class* c = m->GetDeclaringClass();
 
   JDWP::JdwpLocation location;
@@ -2242,7 +2262,7 @@ void Dbg::PostLocationEvent(const mirror::ArtMethod* m, int dex_pc,
   if (gRegistry->Contains(this_object)) {
     this_id = gRegistry->Add(this_object);
   }
-  gJdwpState->PostLocationEvent(&location, this_id, event_flags);
+  gJdwpState->PostLocationEvent(&location, this_id, event_flags, return_value);
 }
 
 void Dbg::PostException(Thread* thread, const ThrowLocation& throw_location,
@@ -2356,7 +2376,7 @@ void Dbg::UpdateDebugger(Thread* thread, mirror::Object* this_object,
   // If there's something interesting going on, see if it matches one
   // of the debugger filters.
   if (event_flags != 0) {
-    Dbg::PostLocationEvent(m, dex_pc, this_object, event_flags);
+    Dbg::PostLocationEvent(m, dex_pc, this_object, event_flags, nullptr);
   }
 }
 
