@@ -157,8 +157,7 @@ DexFileMethodInliner::~DexFileMethodInliner() {
 }
 
 DexFileMethodInliner::DexFileMethodInliner()
-    : dex_file_(NULL)
-{
+    : dex_file_(NULL) {
   COMPILE_ASSERT(kClassCacheFirst == 0, kClassCacheFirst_not_0);
   COMPILE_ASSERT(arraysize(kClassCacheNames) == kClassCacheLast, bad_arraysize_kClassCacheNames);
   COMPILE_ASSERT(kNameCacheFirst == 0, kNameCacheFirst_not_0);

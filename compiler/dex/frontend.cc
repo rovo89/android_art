@@ -64,8 +64,7 @@ LLVMInfo::~LLVMInfo() {
 }
 
 QuickCompilerContext::QuickCompilerContext(CompilerDriver& compiler)
-  : inliner_map_(new DexFileToMethodInlinerMap(&compiler))
-{
+  : inliner_map_(new DexFileToMethodInlinerMap(&compiler)) {
 }
 
 QuickCompilerContext::~QuickCompilerContext() {

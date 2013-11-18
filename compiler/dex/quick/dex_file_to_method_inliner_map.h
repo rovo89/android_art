@@ -37,7 +37,7 @@ class DexFile;
  */
 class DexFileToMethodInlinerMap {
   public:
-    DexFileToMethodInlinerMap(const CompilerDriver* compiler);
+    explicit DexFileToMethodInlinerMap(const CompilerDriver* compiler);
     ~DexFileToMethodInlinerMap();
 
     const DexFileMethodInliner& GetMethodInliner(const DexFile* dex_file) LOCKS_EXCLUDED(mutex_);
@@ -50,4 +50,4 @@ class DexFileToMethodInlinerMap {
 
 }  // namespace art
 
-#endif // ART_COMPILER_DEX_QUICK_DEX_FILE_TO_METHOD_INLINER_MAP_H_
+#endif  // ART_COMPILER_DEX_QUICK_DEX_FILE_TO_METHOD_INLINER_MAP_H_

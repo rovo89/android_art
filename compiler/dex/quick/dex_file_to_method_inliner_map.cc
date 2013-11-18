@@ -32,8 +32,7 @@ namespace art {
 
 DexFileToMethodInlinerMap::DexFileToMethodInlinerMap(const CompilerDriver* compiler)
     : compiler_(compiler),
-      mutex_("inline_helper_mutex")
-{
+      mutex_("inline_helper_mutex") {
 }
 
 DexFileToMethodInlinerMap::~DexFileToMethodInlinerMap() {
