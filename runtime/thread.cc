@@ -930,6 +930,7 @@ Thread::Thread(bool daemon)
   state_and_flags_.as_struct.flags = 0;
   state_and_flags_.as_struct.state = kNative;
   memset(&held_mutexes_[0], 0, sizeof(held_mutexes_));
+  memset(rosalloc_runs_, 0, sizeof(rosalloc_runs_));
 }
 
 bool Thread::IsStillStarting() const {
@@ -1021,6 +1022,8 @@ Thread::~Thread() {
   delete instrumentation_stack_;
   delete name_;
   delete stack_trace_sample_;
+
+  Runtime::Current()->GetHeap()->RevokeThreadLocalBuffers(this);
 
   TearDownAlternateSignalStack();
 }

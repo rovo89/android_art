@@ -41,6 +41,7 @@
 #include "gc/space/dlmalloc_space-inl.h"
 #include "gc/space/image_space.h"
 #include "gc/space/large_object_space.h"
+#include "gc/space/rosalloc_space-inl.h"
 #include "gc/space/space-inl.h"
 #include "heap-inl.h"
 #include "image.h"
@@ -167,9 +168,13 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   }
 
   const char* name = Runtime::Current()->IsZygote() ? "zygote space" : "alloc space";
-  non_moving_space_ = space::DlMallocSpace::Create(name, initial_size, growth_limit, capacity,
-                                                   requested_alloc_space_begin);
-
+  if (!kUseRosAlloc) {
+    non_moving_space_ = space::DlMallocSpace::Create(name, initial_size, growth_limit, capacity,
+                                                     requested_alloc_space_begin);
+  } else {
+    non_moving_space_ = space::RosAllocSpace::Create(name, initial_size, growth_limit, capacity,
+                                                     requested_alloc_space_begin);
+  }
   if (kMovingCollector) {
     // TODO: Place bump-pointer spaces somewhere to minimize size of card table.
     // TODO: Having 3+ spaces as big as the large heap size can cause virtual memory fragmentation
@@ -482,8 +487,8 @@ void Heap::AddSpace(space::Space* space) {
     }
 
     continuous_spaces_.push_back(continuous_space);
-    if (continuous_space->IsDlMallocSpace()) {
-      non_moving_space_ = continuous_space->AsDlMallocSpace();
+    if (continuous_space->IsMallocSpace()) {
+      non_moving_space_ = continuous_space->AsMallocSpace();
     }
 
     // Ensure that spaces remain sorted in increasing order of start address.
@@ -501,7 +506,7 @@ void Heap::AddSpace(space::Space* space) {
       } else if (space->IsZygoteSpace()) {
         CHECK(!seen_alloc);
         seen_zygote = true;
-      } else if (space->IsDlMallocSpace()) {
+      } else if (space->IsMallocSpace()) {
         seen_alloc = true;
       }
     }
@@ -757,8 +762,15 @@ void Heap::ThrowOutOfMemoryError(Thread* self, size_t byte_count, bool large_obj
   if (!large_object_allocation && total_bytes_free >= byte_count) {
     size_t max_contiguous_allocation = 0;
     for (const auto& space : continuous_spaces_) {
-      if (space->IsDlMallocSpace()) {
-        space->AsDlMallocSpace()->Walk(MSpaceChunkCallback, &max_contiguous_allocation);
+      if (space->IsMallocSpace()) {
+        // To allow the Walk/InspectAll() to exclusively-lock the mutator
+        // lock, temporarily release the shared access to the mutator
+        // lock here by transitioning to the suspended state.
+        Locks::mutator_lock_->AssertSharedHeld(self);
+        self->TransitionFromRunnableToSuspended(kSuspended);
+        space->AsMallocSpace()->Walk(MSpaceChunkCallback, &max_contiguous_allocation);
+        self->TransitionFromSuspendedToRunnable();
+        Locks::mutator_lock_->AssertSharedHeld(self);
       }
     }
     oss << "; failed due to fragmentation (largest possible contiguous allocation "
@@ -834,7 +846,15 @@ mirror::Object* Heap::AllocNonMovableObjectInstrumented(Thread* self, mirror::Cl
                                                                  &bytes_allocated);
   if (LIKELY(!large_object_allocation)) {
     // Non-large object allocation.
-    obj = AllocateInstrumented(self, non_moving_space_, byte_count, &bytes_allocated);
+    if (!kUseRosAlloc) {
+      DCHECK(non_moving_space_->IsDlMallocSpace());
+      obj = AllocateInstrumented(self, reinterpret_cast<space::DlMallocSpace*>(non_moving_space_),
+                                 byte_count, &bytes_allocated);
+    } else {
+      DCHECK(non_moving_space_->IsRosAllocSpace());
+      obj = AllocateInstrumented(self, reinterpret_cast<space::RosAllocSpace*>(non_moving_space_),
+                                 byte_count, &bytes_allocated);
+    }
     // Ensure that we did not allocate into a zygote space.
     DCHECK(obj == NULL || !have_zygote_space_ || !FindSpaceFromObject(obj, false)->IsZygoteSpace());
   }
@@ -866,8 +886,8 @@ void Heap::Trim() {
   uint64_t total_alloc_space_size = 0;
   uint64_t managed_reclaimed = 0;
   for (const auto& space : continuous_spaces_) {
-    if (space->IsDlMallocSpace() && !space->IsZygoteSpace()) {
-      gc::space::DlMallocSpace* alloc_space = space->AsDlMallocSpace();
+    if (space->IsMallocSpace() && !space->IsZygoteSpace()) {
+      gc::space::MallocSpace* alloc_space = space->AsMallocSpace();
       total_alloc_space_size += alloc_space->Size();
       managed_reclaimed += alloc_space->Trim();
     }
@@ -1093,6 +1113,19 @@ inline mirror::Object* Heap::TryToAllocateInstrumented(Thread* self, space::DlMa
                                                        bool grow, size_t* bytes_allocated) {
   if (UNLIKELY(IsOutOfMemoryOnAllocation(alloc_size, grow))) {
     return nullptr;
+  }
+  if (LIKELY(!running_on_valgrind_)) {
+    return space->AllocNonvirtual(self, alloc_size, bytes_allocated);
+  } else {
+    return space->Alloc(self, alloc_size, bytes_allocated);
+  }
+}
+
+// RosAllocSpace-specific version.
+inline mirror::Object* Heap::TryToAllocateInstrumented(Thread* self, space::RosAllocSpace* space, size_t alloc_size,
+                                                       bool grow, size_t* bytes_allocated) {
+  if (UNLIKELY(IsOutOfMemoryOnAllocation(alloc_size, grow))) {
+    return NULL;
   }
   if (LIKELY(!running_on_valgrind_)) {
     return space->AllocNonvirtual(self, alloc_size, bytes_allocated);
@@ -1390,14 +1423,14 @@ void Heap::PreZygoteFork() {
   }
   // Turn the current alloc space into a zygote space and obtain the new alloc space composed of
   // the remaining available heap memory.
-  space::DlMallocSpace* zygote_space = non_moving_space_;
+  space::MallocSpace* zygote_space = non_moving_space_;
   non_moving_space_ = zygote_space->CreateZygoteSpace("alloc space");
   non_moving_space_->SetFootprintLimit(non_moving_space_->Capacity());
   // Change the GC retention policy of the zygote space to only collect when full.
   zygote_space->SetGcRetentionPolicy(space::kGcRetentionPolicyFullCollect);
   AddSpace(non_moving_space_);
   have_zygote_space_ = true;
-  zygote_space->InvalidateMSpace();
+  zygote_space->InvalidateAllocator();
   // Create the zygote space mod union table.
   accounting::ModUnionTable* mod_union_table =
       new accounting::ModUnionTableCardCache("zygote space mod-union table", this, zygote_space);
@@ -1639,8 +1672,8 @@ class VerifyReferenceVisitor {
 
         // Attmept to find the class inside of the recently freed objects.
         space::ContinuousSpace* ref_space = heap_->FindContinuousSpaceFromObject(ref, true);
-        if (ref_space != nullptr && ref_space->IsDlMallocSpace()) {
-          space::DlMallocSpace* space = ref_space->AsDlMallocSpace();
+        if (ref_space != nullptr && ref_space->IsMallocSpace()) {
+          space::MallocSpace* space = ref_space->AsMallocSpace();
           mirror::Class* ref_class = space->FindRecentFreedObject(ref);
           if (ref_class != nullptr) {
             LOG(ERROR) << "Reference " << ref << " found as a recently freed object with class "
@@ -2278,6 +2311,14 @@ void Heap::RequestHeapTrim() {
                               WellKnownClasses::java_lang_Daemons_requestHeapTrim);
     CHECK(!env->ExceptionCheck());
   }
+}
+
+void Heap::RevokeThreadLocalBuffers(Thread* thread) {
+  non_moving_space_->RevokeThreadLocalBuffers(thread);
+}
+
+void Heap::RevokeAllThreadLocalBuffers() {
+  non_moving_space_->RevokeAllThreadLocalBuffers();
 }
 
 bool Heap::IsGCRequestPending() const {

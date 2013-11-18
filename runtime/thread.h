@@ -790,6 +790,15 @@ class PACKED(4) Thread {
 
   friend class ScopedThreadStateChange;
 
+ public:
+  // Thread-local rosalloc runs. There are 34 size brackets in rosalloc
+  // runs (RosAlloc::kNumOfSizeBrackets). We can't refer to the
+  // RosAlloc class due to a header file circular dependency issue.
+  // To compensate, we check that the two values match at RosAlloc
+  // initialization time.
+  static const size_t kRosAllocNumOfSizeBrackets = 34;
+  void* rosalloc_runs_[kRosAllocNumOfSizeBrackets];
+
   DISALLOW_COPY_AND_ASSIGN(Thread);
 };
 

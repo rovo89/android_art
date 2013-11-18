@@ -44,8 +44,10 @@ namespace space {
 
 class AllocSpace;
 class ContinuousSpace;
-class DlMallocSpace;
 class DiscontinuousSpace;
+class MallocSpace;
+class DlMallocSpace;
+class RosAllocSpace;
 class ImageSpace;
 class LargeObjectSpace;
 
@@ -106,11 +108,26 @@ class Space {
   ImageSpace* AsImageSpace();
 
   // Is this a dlmalloc backed allocation space?
-  bool IsDlMallocSpace() const {
+  bool IsMallocSpace() const {
     SpaceType type = GetType();
     return type == kSpaceTypeAllocSpace || type == kSpaceTypeZygoteSpace;
   }
-  DlMallocSpace* AsDlMallocSpace();
+  MallocSpace* AsMallocSpace();
+
+  virtual bool IsDlMallocSpace() const {
+    return false;
+  }
+  virtual DlMallocSpace* AsDlMallocSpace() {
+    LOG(FATAL) << "Unreachable";
+    return NULL;
+  }
+  virtual bool IsRosAllocSpace() const {
+    return false;
+  }
+  virtual RosAllocSpace* AsRosAllocSpace() {
+    LOG(FATAL) << "Unreachable";
+    return NULL;
+  }
 
   // Is this the space allocated into by the Zygote and no-longer in use?
   bool IsZygoteSpace() const {
@@ -194,6 +211,16 @@ class AllocSpace {
 
   // Returns how many bytes were freed.
   virtual size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) = 0;
+
+  // Revoke any sort of thread-local buffers that are used to speed up
+  // allocations for the given thread, if the alloc space
+  // implementation uses any. No-op by default.
+  virtual void RevokeThreadLocalBuffers(Thread* /*thread*/) {}
+
+  // Revoke any sort of thread-local buffers that are used to speed up
+  // allocations for all the threads, if the alloc space
+  // implementation uses any. No-op by default.
+  virtual void RevokeAllThreadLocalBuffers() {}
 
  protected:
   AllocSpace() {}

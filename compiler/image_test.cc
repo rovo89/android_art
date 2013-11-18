@@ -99,7 +99,7 @@ TEST_F(ImageTest, WriteRead) {
     gc::space::ContinuousSpace* space = heap->GetNonMovingSpace();
     ASSERT_FALSE(space->IsImageSpace());
     ASSERT_TRUE(space != NULL);
-    ASSERT_TRUE(space->IsDlMallocSpace());
+    ASSERT_TRUE(space->IsMallocSpace());
     ASSERT_GE(sizeof(image_header) + space->Size(), static_cast<size_t>(file->GetLength()));
   }
 
@@ -141,7 +141,7 @@ TEST_F(ImageTest, WriteRead) {
 
   gc::Heap* heap = Runtime::Current()->GetHeap();
   ASSERT_TRUE(heap->HasImageSpace());
-  ASSERT_TRUE(heap->GetNonMovingSpace()->IsDlMallocSpace());
+  ASSERT_TRUE(heap->GetNonMovingSpace()->IsMallocSpace());
 
   gc::space::ImageSpace* image_space = heap->GetImageSpace();
   image_space->VerifyImageAllocations();

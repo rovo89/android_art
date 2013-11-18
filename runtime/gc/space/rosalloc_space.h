@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 The Android Open Source Project
+ * Copyright (C) 2013 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_GC_SPACE_DLMALLOC_SPACE_H_
-#define ART_RUNTIME_GC_SPACE_DLMALLOC_SPACE_H_
+#ifndef ART_RUNTIME_GC_SPACE_ROSALLOC_SPACE_H_
+#define ART_RUNTIME_GC_SPACE_ROSALLOC_SPACE_H_
 
-#include "gc/allocator/dlmalloc.h"
+#include "gc/allocator/rosalloc.h"
 #include "malloc_space.h"
 #include "space.h"
 
@@ -31,14 +31,13 @@ namespace collector {
 namespace space {
 
 // An alloc space is a space where objects may be allocated and garbage collected.
-class DlMallocSpace : public MallocSpace {
+class RosAllocSpace : public MallocSpace {
  public:
-
-  // Create a DlMallocSpace with the requested sizes. The requested
+  // Create a RosAllocSpace with the requested sizes. The requested
   // base address is not guaranteed to be granted, if it is required,
   // the caller should call Begin on the returned space to confirm the
   // request was granted.
-  static DlMallocSpace* Create(const std::string& name, size_t initial_size, size_t growth_limit,
+  static RosAllocSpace* Create(const std::string& name, size_t initial_size, size_t growth_limit,
                                size_t capacity, byte* requested_begin);
 
   virtual mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes,
@@ -50,36 +49,33 @@ class DlMallocSpace : public MallocSpace {
 
   mirror::Object* AllocNonvirtual(Thread* self, size_t num_bytes, size_t* bytes_allocated);
 
-  size_t AllocationSizeNonvirtual(const mirror::Object* obj) {
+  size_t AllocationSizeNonvirtual(const mirror::Object* obj)
+      NO_THREAD_SAFETY_ANALYSIS {
+    // TODO: NO_THREAD_SAFETY_ANALYSIS because SizeOf() requires that mutator_lock is held.
     void* obj_ptr = const_cast<void*>(reinterpret_cast<const void*>(obj));
-    return mspace_usable_size(obj_ptr) + kChunkOverhead;
+    // obj is a valid object. Use its class in the header to get the size.
+    size_t size = obj->SizeOf();
+    size_t size_by_size = rosalloc_->UsableSize(size);
+    if (kIsDebugBuild) {
+      size_t size_by_ptr = rosalloc_->UsableSize(obj_ptr);
+      if (size_by_size != size_by_ptr) {
+        LOG(INFO) << "Found a bad sized obj of size " << size
+                  << " at " << std::hex << reinterpret_cast<intptr_t>(obj_ptr) << std::dec
+                  << " size_by_size=" << size_by_size << " size_by_ptr=" << size_by_ptr;
+      }
+      DCHECK_EQ(size_by_size, size_by_ptr);
+    }
+    return size_by_size;
   }
 
-#ifndef NDEBUG
-  // Override only in the debug build.
-  void CheckMoreCoreForPrecondition();
-#endif
-
-  void* GetMspace() const {
-    return mspace_;
+  art::gc::allocator::RosAlloc* GetRosAlloc() {
+    return rosalloc_;
   }
 
   size_t Trim();
-
-  // Perform a mspace_inspect_all which calls back for each allocation chunk. The chunk may not be
-  // in use, indicated by num_bytes equaling zero.
   void Walk(WalkCallback callback, void* arg) LOCKS_EXCLUDED(lock_);
-
-  // Returns the number of bytes that the space has currently obtained from the system. This is
-  // greater or equal to the amount of live data in the space.
   size_t GetFootprint();
-
-  // Returns the number of bytes that the heap is allowed to obtain from the system via MoreCore.
   size_t GetFootprintLimit();
-
-  // Set the maximum number of bytes that the heap is allowed to obtain from the system via
-  // MoreCore. Note this is used to stop the mspace growing beyond the limit to Capacity. When
-  // allocations fail we GC before increasing the footprint limit and allowing the mspace to grow.
   void SetFootprintLimit(size_t limit);
 
   MallocSpace* CreateInstance(const std::string& name, MemMap* mem_map, void* allocator,
@@ -88,58 +84,61 @@ class DlMallocSpace : public MallocSpace {
   uint64_t GetBytesAllocated();
   uint64_t GetObjectsAllocated();
   uint64_t GetTotalBytesAllocated() {
-    return GetBytesAllocated() + total_bytes_freed_;
+    return GetBytesAllocated() + total_bytes_freed_atomic_;
   }
   uint64_t GetTotalObjectsAllocated() {
-    return GetObjectsAllocated() + total_objects_freed_;
+    return GetObjectsAllocated() + total_objects_freed_atomic_;
   }
+
+  void RevokeThreadLocalBuffers(Thread* thread);
+  void RevokeAllThreadLocalBuffers();
 
   // Returns the class of a recently freed object.
   mirror::Class* FindRecentFreedObject(const mirror::Object* obj);
 
   virtual void InvalidateAllocator() {
-    mspace_ = nullptr;
+    rosalloc_ = NULL;
   }
 
-  virtual bool IsDlMallocSpace() const {
+  virtual bool IsRosAllocSpace() const {
     return true;
   }
-  virtual DlMallocSpace* AsDlMallocSpace() {
+  virtual RosAllocSpace* AsRosAllocSpace() {
     return this;
   }
 
  protected:
-  DlMallocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin, byte* end,
-                byte* limit, size_t growth_limit);
+  RosAllocSpace(const std::string& name, MemMap* mem_map, allocator::RosAlloc* rosalloc,
+                byte* begin, byte* end, byte* limit, size_t growth_limit);
 
  private:
   size_t InternalAllocationSize(const mirror::Object* obj);
-
-  mirror::Object* AllocWithoutGrowthLocked(Thread* self, size_t num_bytes, size_t* bytes_allocated)
-      EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  mirror::Object* AllocWithoutGrowthLocked(Thread* self, size_t num_bytes, size_t* bytes_allocated);
 
   void* CreateAllocator(void* base, size_t morecore_start, size_t initial_size) {
-    return CreateMspace(base, morecore_start, initial_size);
+    return CreateRosAlloc(base, morecore_start, initial_size);
   }
-  static void* CreateMspace(void* base, size_t morecore_start, size_t initial_size);
+  static allocator::RosAlloc* CreateRosAlloc(void* base, size_t morecore_start, size_t initial_size);
+
+
+  void InspectAllRosAlloc(void (*callback)(void *start, void *end, size_t num_bytes, void* callback_arg),
+                          void* arg)
+      LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_, Locks::thread_list_lock_);
 
   // Approximate number of bytes and objects which have been deallocated in the space.
-  size_t total_bytes_freed_;
-  size_t total_objects_freed_;
+  AtomicInteger total_bytes_freed_atomic_;
+  AtomicInteger total_objects_freed_atomic_;
 
-  // The boundary tag overhead.
-  static const size_t kChunkOverhead = kWordSize;
-
-  // Underlying malloc space
-  void* mspace_;
+  // Underlying rosalloc.
+  art::gc::allocator::RosAlloc* rosalloc_;
 
   friend class collector::MarkSweep;
 
-  DISALLOW_COPY_AND_ASSIGN(DlMallocSpace);
+  DISALLOW_COPY_AND_ASSIGN(RosAllocSpace);
 };
 
 }  // namespace space
 }  // namespace gc
 }  // namespace art
 
-#endif  // ART_RUNTIME_GC_SPACE_DLMALLOC_SPACE_H_
+#endif  // ART_RUNTIME_GC_SPACE_ROSALLOC_SPACE_H_
