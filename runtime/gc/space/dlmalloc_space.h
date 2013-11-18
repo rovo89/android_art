@@ -97,7 +97,7 @@ class DlMallocSpace : public MallocSpace {
   mirror::Class* FindRecentFreedObject(const mirror::Object* obj);
 
   virtual void InvalidateAllocator() {
-    mspace_ = nullptr;
+    mspace_for_alloc_ = nullptr;
   }
 
   virtual bool IsDlMallocSpace() const {
@@ -130,7 +130,11 @@ class DlMallocSpace : public MallocSpace {
   static const size_t kChunkOverhead = kWordSize;
 
   // Underlying malloc space
-  void* mspace_;
+  void* const mspace_;
+
+  // A mspace pointer used for allocation. Equals to what mspace_
+  // points to or nullptr after InvalidateAllocator() is called.
+  void* mspace_for_alloc_;
 
   friend class collector::MarkSweep;
 

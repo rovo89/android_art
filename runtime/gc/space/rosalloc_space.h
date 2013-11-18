@@ -97,7 +97,7 @@ class RosAllocSpace : public MallocSpace {
   mirror::Class* FindRecentFreedObject(const mirror::Object* obj);
 
   virtual void InvalidateAllocator() {
-    rosalloc_ = NULL;
+    rosalloc_for_alloc_ = NULL;
   }
 
   virtual bool IsRosAllocSpace() const {
@@ -130,7 +130,11 @@ class RosAllocSpace : public MallocSpace {
   AtomicInteger total_objects_freed_atomic_;
 
   // Underlying rosalloc.
-  art::gc::allocator::RosAlloc* rosalloc_;
+  art::gc::allocator::RosAlloc* const rosalloc_;
+
+  // A rosalloc pointer used for allocation. Equals to what rosalloc_
+  // points to or nullptr after InvalidateAllocator() is called.
+  art::gc::allocator::RosAlloc* rosalloc_for_alloc_;
 
   friend class collector::MarkSweep;
 

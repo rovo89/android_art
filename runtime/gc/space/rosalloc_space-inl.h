@@ -35,8 +35,9 @@ inline mirror::Object* RosAllocSpace::AllocNonvirtual(Thread* self, size_t num_b
 inline mirror::Object* RosAllocSpace::AllocWithoutGrowthLocked(Thread* self, size_t num_bytes,
                                                                size_t* bytes_allocated) {
   size_t rosalloc_size = 0;
-  mirror::Object* result = reinterpret_cast<mirror::Object*>(rosalloc_->Alloc(self, num_bytes,
-                                                                              &rosalloc_size));
+  mirror::Object* result = reinterpret_cast<mirror::Object*>(
+      rosalloc_for_alloc_->Alloc(self, num_bytes,
+                                 &rosalloc_size));
   if (LIKELY(result != NULL)) {
     if (kDebugSpaces) {
       CHECK(Contains(result)) << "Allocation (" << reinterpret_cast<void*>(result)

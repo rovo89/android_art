@@ -111,7 +111,7 @@ class ValgrindDlMallocSpace : public DlMallocSpace {
 DlMallocSpace::DlMallocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin,
                              byte* end, byte* limit, size_t growth_limit)
     : MallocSpace(name, mem_map, begin, end, limit, growth_limit),
-      total_bytes_freed_(0), total_objects_freed_(0), mspace_(mspace) {
+      total_bytes_freed_(0), total_objects_freed_(0), mspace_(mspace), mspace_for_alloc_(mspace) {
   CHECK(mspace != NULL);
 }
 
@@ -334,25 +334,17 @@ void DlMallocSpace::SetFootprintLimit(size_t new_size) {
 }
 
 uint64_t DlMallocSpace::GetBytesAllocated() {
-  if (mspace_ != nullptr) {
-    MutexLock mu(Thread::Current(), lock_);
-    size_t bytes_allocated = 0;
-    mspace_inspect_all(mspace_, DlmallocBytesAllocatedCallback, &bytes_allocated);
-    return bytes_allocated;
-  } else {
-    return Size();
-  }
+  MutexLock mu(Thread::Current(), lock_);
+  size_t bytes_allocated = 0;
+  mspace_inspect_all(mspace_, DlmallocBytesAllocatedCallback, &bytes_allocated);
+  return bytes_allocated;
 }
 
 uint64_t DlMallocSpace::GetObjectsAllocated() {
-  if (mspace_ != nullptr) {
-    MutexLock mu(Thread::Current(), lock_);
-    size_t objects_allocated = 0;
-    mspace_inspect_all(mspace_, DlmallocObjectsAllocatedCallback, &objects_allocated);
-    return objects_allocated;
-  } else {
-    return 0;
-  }
+  MutexLock mu(Thread::Current(), lock_);
+  size_t objects_allocated = 0;
+  mspace_inspect_all(mspace_, DlmallocObjectsAllocatedCallback, &objects_allocated);
+  return objects_allocated;
 }
 
 #ifndef NDEBUG

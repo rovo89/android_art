@@ -38,7 +38,8 @@ static const bool kPrefetchDuringRosAllocFreeList = true;
 RosAllocSpace::RosAllocSpace(const std::string& name, MemMap* mem_map,
                              art::gc::allocator::RosAlloc* rosalloc, byte* begin, byte* end,
                              byte* limit, size_t growth_limit)
-    : MallocSpace(name, mem_map, begin, end, limit, growth_limit), rosalloc_(rosalloc) {
+    : MallocSpace(name, mem_map, begin, end, limit, growth_limit), rosalloc_(rosalloc),
+      rosalloc_for_alloc_(rosalloc) {
   CHECK(rosalloc != NULL);
 }
 
@@ -252,23 +253,15 @@ void RosAllocSpace::SetFootprintLimit(size_t new_size) {
 }
 
 uint64_t RosAllocSpace::GetBytesAllocated() {
-  if (rosalloc_ != NULL) {
-    size_t bytes_allocated = 0;
-    InspectAllRosAlloc(art::gc::allocator::RosAlloc::BytesAllocatedCallback, &bytes_allocated);
-    return bytes_allocated;
-  } else {
-    return Size();
-  }
+  size_t bytes_allocated = 0;
+  InspectAllRosAlloc(art::gc::allocator::RosAlloc::BytesAllocatedCallback, &bytes_allocated);
+  return bytes_allocated;
 }
 
 uint64_t RosAllocSpace::GetObjectsAllocated() {
-  if (rosalloc_ != NULL) {
-    size_t objects_allocated = 0;
-    InspectAllRosAlloc(art::gc::allocator::RosAlloc::ObjectsAllocatedCallback, &objects_allocated);
-    return objects_allocated;
-  } else {
-    return 0;
-  }
+  size_t objects_allocated = 0;
+  InspectAllRosAlloc(art::gc::allocator::RosAlloc::ObjectsAllocatedCallback, &objects_allocated);
+  return objects_allocated;
 }
 
 void RosAllocSpace::InspectAllRosAlloc(void (*callback)(void *start, void *end, size_t num_bytes, void* callback_arg),
