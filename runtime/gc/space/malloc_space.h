@@ -181,6 +181,7 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
 
   friend class collector::MarkSweep;
 
+ private:
   DISALLOW_COPY_AND_ASSIGN(MallocSpace);
 };
 
@@ -188,4 +189,4 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
 }  // namespace gc
 }  // namespace art
 
-#endif  // ART_RUNTIME_GC_SPACE_DLMALLOC_SPACE_H_
+#endif  // ART_RUNTIME_GC_SPACE_MALLOC_SPACE_H_

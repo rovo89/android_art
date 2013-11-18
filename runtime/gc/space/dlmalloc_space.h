@@ -33,7 +33,6 @@ namespace space {
 // An alloc space is a space where objects may be allocated and garbage collected.
 class DlMallocSpace : public MallocSpace {
  public:
-
   // Create a DlMallocSpace with the requested sizes. The requested
   // base address is not guaranteed to be granted, if it is required,
   // the caller should call Begin on the returned space to confirm the

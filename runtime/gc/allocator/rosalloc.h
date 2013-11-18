@@ -151,12 +151,12 @@ class RosAlloc {
   //
   class Run {
    public:
-    byte magic_num_;            // The magic number used for debugging.
-    byte size_bracket_idx_;     // The index of the size bracket of this run.
-    byte is_thread_local_;      // True if this run is used as a thread-local run.
-    byte to_be_bulk_freed_;     // Used within BulkFree() to flag a run that's involved with a bulk free.
-    uint32_t top_slot_idx_;     // The top slot index when this run is in bump index mode.
-    uint32_t alloc_bit_map_[0]; // The bit map that allocates if each slot is in use.
+    byte magic_num_;             // The magic number used for debugging.
+    byte size_bracket_idx_;      // The index of the size bracket of this run.
+    byte is_thread_local_;       // True if this run is used as a thread-local run.
+    byte to_be_bulk_freed_;      // Used within BulkFree() to flag a run that's involved with a bulk free.
+    uint32_t top_slot_idx_;      // The top slot index when this run is in bump index mode.
+    uint32_t alloc_bit_map_[0];  // The bit map that allocates if each slot is in use.
 
     // bulk_free_bit_map_[] : The bit map that is used for GC to
     // temporarily mark the slots to free without using a lock. After
