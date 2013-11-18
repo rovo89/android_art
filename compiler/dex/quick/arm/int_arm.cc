@@ -97,7 +97,7 @@ void ArmMir2Lir::GenCmpLong(RegLocation rl_dest, RegLocation rl_src1,
   LIR* branch3 = OpCondBranch(kCondEq, NULL);
 
   OpIT(kCondHi, "E");
-  NewLIR2(kThumb2MovImmShift, t_reg, ModifiedImmediate(-1));
+  NewLIR2(kThumb2MovI8M, t_reg, ModifiedImmediate(-1));
   LoadConstant(t_reg, 1);
   GenBarrier();
 
@@ -321,7 +321,7 @@ LIR* ArmMir2Lir::OpCmpImmBranch(ConditionCode cond, int reg, int check_value,
     if (ARM_LOWREG(reg) && ((check_value & 0xff) == check_value)) {
       NewLIR2(kThumbCmpRI8, reg, check_value);
     } else if (mod_imm >= 0) {
-      NewLIR2(kThumb2CmpRI12, reg, mod_imm);
+      NewLIR2(kThumb2CmpRI8M, reg, mod_imm);
     } else {
       int t_reg = AllocTemp();
       LoadConstant(t_reg, check_value);
@@ -1124,8 +1124,8 @@ void ArmMir2Lir::GenArithImmOpLong(Instruction::Code opcode,
   switch (opcode) {
     case Instruction::ADD_LONG:
     case Instruction::ADD_LONG_2ADDR:
-      NewLIR3(kThumb2AddRRI8, rl_result.low_reg, rl_src1.low_reg, mod_imm_lo);
-      NewLIR3(kThumb2AdcRRI8, rl_result.high_reg, rl_src1.high_reg, mod_imm_hi);
+      NewLIR3(kThumb2AddRRI8M, rl_result.low_reg, rl_src1.low_reg, mod_imm_lo);
+      NewLIR3(kThumb2AdcRRI8M, rl_result.high_reg, rl_src1.high_reg, mod_imm_hi);
       break;
     case Instruction::OR_LONG:
     case Instruction::OR_LONG_2ADDR:
@@ -1152,8 +1152,8 @@ void ArmMir2Lir::GenArithImmOpLong(Instruction::Code opcode,
       break;
     case Instruction::SUB_LONG_2ADDR:
     case Instruction::SUB_LONG:
-      NewLIR3(kThumb2SubRRI8, rl_result.low_reg, rl_src1.low_reg, mod_imm_lo);
-      NewLIR3(kThumb2SbcRRI8, rl_result.high_reg, rl_src1.high_reg, mod_imm_hi);
+      NewLIR3(kThumb2SubRRI8M, rl_result.low_reg, rl_src1.low_reg, mod_imm_lo);
+      NewLIR3(kThumb2SbcRRI8M, rl_result.high_reg, rl_src1.high_reg, mod_imm_hi);
       break;
     default:
       LOG(FATAL) << "Unexpected opcode " << opcode;
