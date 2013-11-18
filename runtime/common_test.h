@@ -237,7 +237,6 @@ static InstructionSetFeatures GuessInstructionFeatures() {
 // input 'str' is a comma separated list of feature names.  Parse it and
 // return the InstructionSetFeatures object.
 static InstructionSetFeatures ParseFeatureList(std::string str) {
-  LOG(INFO) << "Parsing features " << str;
   InstructionSetFeatures result;
   typedef std::vector<std::string> FeatureList;
   FeatureList features;
