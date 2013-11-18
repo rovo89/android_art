@@ -43,8 +43,8 @@ const DexFileMethodInliner::IntrinsicDef X86DexFileMethodInliner::kIntrinsicMeth
     INTRINSIC(JavaLangStrictMath, Min, II_I, kIntrinsicMinMaxInt, kIntrinsicFlagMin),
     INTRINSIC(JavaLangMath,       Max, II_I, kIntrinsicMinMaxInt, kIntrinsicFlagMax),
     INTRINSIC(JavaLangStrictMath, Max, II_I, kIntrinsicMinMaxInt, kIntrinsicFlagMax),
-    //INTRINSIC(JavaLangMath,       Sqrt, D_D, kIntrinsicSqrt, 0),
-    //INTRINSIC(JavaLangStrictMath, Sqrt, D_D, kIntrinsicSqrt, 0),
+    // INTRINSIC(JavaLangMath,       Sqrt, D_D, kIntrinsicSqrt, 0),
+    // INTRINSIC(JavaLangStrictMath, Sqrt, D_D, kIntrinsicSqrt, 0),
 
     INTRINSIC(JavaLangString, CharAt, I_C, kIntrinsicCharAt, 0),
     INTRINSIC(JavaLangString, CompareTo, String_I, kIntrinsicCompareTo, 0),
@@ -64,10 +64,10 @@ const DexFileMethodInliner::IntrinsicDef X86DexFileMethodInliner::kIntrinsicMeth
     INTRINSIC(LibcoreIoMemory, PokeLongNative, JJ_V, kIntrinsicPoke, kLong),
     INTRINSIC(LibcoreIoMemory, PokeShortNative, JS_V, kIntrinsicPoke, kSignedHalf),
 
-    //INTRINSIC(SunMiscUnsafe, CompareAndSwapInt, ObjectJII_Z, kIntrinsicCas32,
-    //          kIntrinsicFlagDontNeedWriteBarrier),
-    //INTRINSIC(SunMiscUnsafe, CompareAndSwapObject, ObjectJObjectObject_Z, kIntrinsicCas32,
-    //          kIntrinsicFlagNeedWriteBarrier),
+    // INTRINSIC(SunMiscUnsafe, CompareAndSwapInt, ObjectJII_Z, kIntrinsicCas32,
+    //           kIntrinsicFlagDontNeedWriteBarrier),
+    // INTRINSIC(SunMiscUnsafe, CompareAndSwapObject, ObjectJObjectObject_Z, kIntrinsicCas32,
+    //           kIntrinsicFlagNeedWriteBarrier),
 
 #define UNSAFE_GET_PUT(type, code, type_flags) \
     INTRINSIC(SunMiscUnsafe, Get ## type, ObjectJ_ ## code, kIntrinsicUnsafeGet, \
@@ -84,7 +84,7 @@ const DexFileMethodInliner::IntrinsicDef X86DexFileMethodInliner::kIntrinsicMeth
     UNSAFE_GET_PUT(Int, I, kIntrinsicFlagNone),
     UNSAFE_GET_PUT(Long, J, kIntrinsicFlagIsLong),
 
-    //UNSAFE_GET_PUT(Object, Object, kIntrinsicFlagIsObject),
+    // UNSAFE_GET_PUT(Object, Object, kIntrinsicFlagIsObject),
     // PutObject: "TODO: fix X86, it exhausts registers for card marking."
     INTRINSIC(SunMiscUnsafe, GetObject, ObjectJ_Object, kIntrinsicUnsafeGet,
               kIntrinsicFlagNone),
