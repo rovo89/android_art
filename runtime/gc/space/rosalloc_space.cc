@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C) 2013 The Android Open Source Project
  *
@@ -83,9 +84,8 @@ RosAllocSpace* RosAllocSpace::Create(const std::string& name, size_t initial_siz
   RosAllocSpace* space;
   byte* begin = mem_map->Begin();
   if (RUNNING_ON_VALGRIND > 0) {
-    // TODO: support valgrind.
-    LOG(FATAL) << "Unimplemented";
-    space = NULL;
+    space = new ValgrindMallocSpace<RosAllocSpace, art::gc::allocator::RosAlloc*>(
+        name, mem_map, rosalloc, begin, end, begin + capacity, growth_limit, initial_size);
   } else {
     space = new RosAllocSpace(name, mem_map, rosalloc, begin, end, begin + capacity, growth_limit);
   }
