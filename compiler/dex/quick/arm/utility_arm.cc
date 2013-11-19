@@ -596,13 +596,10 @@ LIR* ArmMir2Lir::OpRegImm(OpKind op, int r_dest_src1, int value) {
       }
       break;
     case kOpCmp:
-      if (ARM_LOWREG(r_dest_src1) && short_form) {
-        opcode = (short_form) ?  kThumbCmpRI8 : kThumbCmpRR;
-      } else if (ARM_LOWREG(r_dest_src1)) {
-        opcode = kThumbCmpRR;
+      if (!neg && short_form) {
+        opcode = kThumbCmpRI8;
       } else {
         short_form = false;
-        opcode = kThumbCmpHL;
       }
       break;
     default:
