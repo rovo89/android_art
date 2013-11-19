@@ -299,7 +299,6 @@ void ArmMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
 LIR* ArmMir2Lir::OpCmpImmBranch(ConditionCode cond, int reg, int check_value,
                                 LIR* target) {
   LIR* branch;
-  int mod_imm;
   ArmConditionCode arm_cond = ArmConditionEncoding(cond);
   /*
    * A common use of OpCmpImmBranch is for null checks, and using the Thumb 16-bit
@@ -317,16 +316,7 @@ LIR* ArmMir2Lir::OpCmpImmBranch(ConditionCode cond, int reg, int check_value,
     branch = NewLIR2((arm_cond == kArmCondEq) ? kThumb2Cbz : kThumb2Cbnz,
                      reg, 0);
   } else {
-    mod_imm = ModifiedImmediate(check_value);
-    if (ARM_LOWREG(reg) && ((check_value & 0xff) == check_value)) {
-      NewLIR2(kThumbCmpRI8, reg, check_value);
-    } else if (mod_imm >= 0) {
-      NewLIR2(kThumb2CmpRI8M, reg, mod_imm);
-    } else {
-      int t_reg = AllocTemp();
-      LoadConstant(t_reg, check_value);
-      OpRegReg(kOpCmp, reg, t_reg);
-    }
+    OpRegImm(kOpCmp, reg, check_value);
     branch = NewLIR2(kThumbBCond, 0, arm_cond);
   }
   branch->target = target;

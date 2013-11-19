@@ -854,7 +854,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
           } else if (op3 == 0x4) {
             opcode << "teq";
           } else if (op3 == 0x8) {
-            opcode << "cmw";
+            opcode << "cmn.w";
           } else {
             opcode << "cmp.w";
           }
