@@ -614,10 +614,10 @@ class MethodVerifier {
    * encode it in some clever fashion.
    * Returns a pointer to a newly-allocated RegisterMap, or NULL on failure.
    */
-  const std::vector<uint8_t>* GenerateGcMap();
+  const std::vector<uint8_t>* GenerateLengthPrefixedGcMap();
 
   // Verify that the GC map associated with method_ is well formed
-  void VerifyGcMap(const std::vector<uint8_t>& data);
+  void VerifyLengthPrefixedGcMap(const std::vector<uint8_t>& data);
 
   // Compute sizes for GC map data
   void ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bits, size_t* log2_max_gc_pc);
@@ -629,7 +629,7 @@ class MethodVerifier {
       MethodReferenceComparator> DexGcMapTable;
   static ReaderWriterMutex* dex_gc_maps_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   static DexGcMapTable* dex_gc_maps_ GUARDED_BY(dex_gc_maps_lock_);
-  static void SetDexGcMap(MethodReference ref, const std::vector<uint8_t>& dex_gc_map)
+  static void SetDexGcMap(MethodReference ref, const std::vector<uint8_t>* dex_gc_map)
       LOCKS_EXCLUDED(dex_gc_maps_lock_);
 
 
