@@ -109,7 +109,7 @@ enum HeapVerificationMode {
 static constexpr HeapVerificationMode kDesiredHeapVerification = kNoHeapVerification;
 
 // If true, use rosalloc/RosAllocSpace instead of dlmalloc/DlMallocSpace
-static constexpr bool kUseRosAlloc = false;
+static constexpr bool kUseRosAlloc = true;
 
 class Heap {
  public:
