@@ -501,7 +501,7 @@ void Instrumentation::MethodUnwindEvent(Thread* thread, mirror::Object* this_obj
                                         uint32_t dex_pc) const {
   if (have_method_unwind_listeners_) {
     for (InstrumentationListener* listener : method_unwind_listeners_) {
-      listener->MethodUnwind(thread, method, dex_pc);
+      listener->MethodUnwind(thread, this_object, method, dex_pc);
     }
   }
 }

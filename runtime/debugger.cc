@@ -136,11 +136,12 @@ class DebugInstrumentationListener : public instrumentation::InstrumentationList
     Dbg::PostLocationEvent(method, dex_pc, this_object, Dbg::kMethodExit);
   }
 
-  virtual void MethodUnwind(Thread* thread, const mirror::ArtMethod* method,
-                            uint32_t dex_pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  virtual void MethodUnwind(Thread* thread, mirror::Object* this_object,
+                            const mirror::ArtMethod* method, uint32_t dex_pc)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // We're not recorded to listen to this kind of event, so complain.
     LOG(ERROR) << "Unexpected method unwind event in debugger " << PrettyMethod(method)
-        << " " << dex_pc;
+               << " " << dex_pc;
   }
 
   virtual void DexPcMoved(Thread* thread, mirror::Object* this_object,

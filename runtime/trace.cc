@@ -570,7 +570,8 @@ void Trace::MethodExited(Thread* thread, mirror::Object* this_object,
                       thread_clock_diff, wall_clock_diff);
 }
 
-void Trace::MethodUnwind(Thread* thread, const mirror::ArtMethod* method, uint32_t dex_pc) {
+void Trace::MethodUnwind(Thread* thread, mirror::Object* this_object,
+                         const mirror::ArtMethod* method, uint32_t dex_pc) {
   uint32_t thread_clock_diff = 0;
   uint32_t wall_clock_diff = 0;
   ReadClocks(thread, &thread_clock_diff, &wall_clock_diff);
