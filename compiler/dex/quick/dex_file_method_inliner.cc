@@ -58,8 +58,8 @@ const char* DexFileMethodInliner::kNameCacheNames[] = {
     "sqrt",                  // kNameCacheSqrt
     "charAt",                // kNameCacheCharAt
     "compareTo",             // kNameCacheCompareTo
-    "is_empty",              // kNameCacheIsEmpty
-    "index_of",              // kNameCacheIndexOf
+    "isEmpty",               // kNameCacheIsEmpty
+    "indexOf",               // kNameCacheIndexOf
     "length",                // kNameCacheLength
     "currentThread",         // kNameCacheCurrentThread
     "peekByte",              // kNameCachePeekByte
