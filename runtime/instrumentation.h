@@ -66,8 +66,9 @@ struct InstrumentationListener {
 
   // Call-back for when a method is popped due to an exception throw. A method will either cause a
   // MethodExited call-back or a MethodUnwind call-back when its activation is removed.
-  virtual void MethodUnwind(Thread* thread, const mirror::ArtMethod* method,
-                            uint32_t dex_pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
+  virtual void MethodUnwind(Thread* thread, mirror::Object* this_object,
+                            const mirror::ArtMethod* method, uint32_t dex_pc)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
 
   // Call-back for when the dex pc moves in a method.
   virtual void DexPcMoved(Thread* thread, mirror::Object* this_object,
