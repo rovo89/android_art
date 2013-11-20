@@ -39,6 +39,13 @@ template <class Value> inline void Histogram<Value>::AddValue(Value value) {
   BucketiseValue(value);
 }
 
+template <class Value> inline Histogram<Value>::Histogram(const char* name)
+    : kAdjust(0),
+      kInitialBucketCount(0),
+      name_(name),
+      max_buckets_(0) {
+}
+
 template <class Value>
 inline Histogram<Value>::Histogram(const char* name, Value initial_bucket_width,
                                    size_t max_buckets)
@@ -162,8 +169,9 @@ inline void Histogram<Value>::PrintConfidenceIntervals(std::ostream &os, double 
 
   double per_0 = (1.0 - interval) / 2.0;
   double per_1 = per_0 + interval;
-  os << Name() << ":\t";
   TimeUnit unit = GetAppropriateTimeUnit(Mean() * kAdjust);
+  os << Name() << ":\tSum: ";
+  os << PrettyDuration(Sum() * kAdjust) << " ";
   os << (interval * 100) << "% C.I. " << FormatDuration(Percentile(per_0, data) * kAdjust, unit);
   os << "-" << FormatDuration(Percentile(per_1, data) * kAdjust, unit) << " ";
   os << "Avg: " << FormatDuration(Mean() * kAdjust, unit) << " Max: ";

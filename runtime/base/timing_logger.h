@@ -21,9 +21,9 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 
+#include <set>
 #include <string>
 #include <vector>
-#include <map>
 
 namespace art {
 class TimingLogger;
@@ -45,15 +45,23 @@ class CumulativeLogger {
   size_t GetIterations() const;
 
  private:
-  typedef std::map<std::string, Histogram<uint64_t> *> Histograms;
-  typedef std::map<std::string, Histogram<uint64_t> *>::const_iterator HistogramsIterator;
+  class HistogramComparator {
+   public:
+    bool operator()(const Histogram<uint64_t>* a, const Histogram<uint64_t>* b) const {
+      return a->Name() < b->Name();
+    }
+  };
+
+  static constexpr size_t kLowMemoryBucketCount = 16;
+  static constexpr size_t kDefaultBucketCount = 100;
+  static constexpr size_t kInitialBucketSize = 50;  // 50 microseconds.
 
   void AddPair(const std::string &label, uint64_t delta_time)
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
   void DumpHistogram(std::ostream &os) EXCLUSIVE_LOCKS_REQUIRED(lock_);
   uint64_t GetTotalTime() const;
   static const uint64_t kAdjust = 1000;
-  Histograms histograms_ GUARDED_BY(lock_);
+  std::set<Histogram<uint64_t>*, HistogramComparator> histograms_ GUARDED_BY(lock_);
   std::string name_;
   const std::string lock_name_;
   mutable Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;

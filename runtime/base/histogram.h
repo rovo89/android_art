@@ -40,6 +40,8 @@ template <class Value> class Histogram {
     std::vector<double> perc_;
   };
 
+  // Used for name based comparators in the timing loggers.
+  explicit Histogram(const char* name);
   Histogram(const char* name, Value initial_bucket_width, size_t max_buckets = 100);
   void AddValue(Value);
   // Builds the cumulative distribution function from the frequency data.

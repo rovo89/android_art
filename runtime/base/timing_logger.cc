@@ -39,7 +39,7 @@ CumulativeLogger::CumulativeLogger(const std::string& name)
 }
 
 CumulativeLogger::~CumulativeLogger() {
-  STLDeleteValues(&histograms_);
+  STLDeleteElements(&histograms_);
 }
 
 void CumulativeLogger::SetName(const std::string& name) {
@@ -57,7 +57,7 @@ void CumulativeLogger::End() {
 void CumulativeLogger::Reset() {
   MutexLock mu(Thread::Current(), lock_);
   iterations_ = 0;
-  STLDeleteValues(&histograms_);
+  STLDeleteElements(&histograms_);
 }
 
 uint64_t CumulativeLogger::GetTotalNs() const {
@@ -67,9 +67,8 @@ uint64_t CumulativeLogger::GetTotalNs() const {
 uint64_t CumulativeLogger::GetTotalTime() const {
   MutexLock mu(Thread::Current(), lock_);
   uint64_t total = 0;
-  for (CumulativeLogger::HistogramsIterator it = histograms_.begin(), end = histograms_.end();
-       it != end; ++it) {
-    total += it->second->Sum();
+  for (Histogram<uint64_t>* histogram : histograms_) {
+    total += histogram->Sum();
   }
   return total;
 }
@@ -95,30 +94,41 @@ void CumulativeLogger::Dump(std::ostream &os) {
   DumpHistogram(os);
 }
 
-void CumulativeLogger::AddPair(const std::string &label, uint64_t delta_time) {
+void CumulativeLogger::AddPair(const std::string& label, uint64_t delta_time) {
   // Convert delta time to microseconds so that we don't overflow our counters.
   delta_time /= kAdjust;
 
-  if (histograms_.find(label) == histograms_.end()) {
-    // TODO: Should this be a defined constant so we we know out of which orifice 16 and 100 were
-    //       picked?
-    const size_t max_buckets = Runtime::Current()->GetHeap()->IsLowMemoryMode() ? 16 : 100;
-    // TODO: Should this be a defined constant so we know 50 of WTF?
-    histograms_[label] = new Histogram<uint64_t>(label.c_str(), 50, max_buckets);
+  Histogram<uint64_t>* histogram;
+  Histogram<uint64_t> dummy(label.c_str());
+  auto it = histograms_.find(&dummy);
+  if (it == histograms_.end()) {
+    const size_t max_buckets = Runtime::Current()->GetHeap()->IsLowMemoryMode() ?
+        kLowMemoryBucketCount : kDefaultBucketCount;
+    histogram = new Histogram<uint64_t>(label.c_str(), kInitialBucketSize, max_buckets);
+    histograms_.insert(histogram);
+  } else {
+    histogram = *it;
   }
-  histograms_[label]->AddValue(delta_time);
+  histogram->AddValue(delta_time);
 }
+
+class CompareHistorgramByTimeSpentDeclining {
+ public:
+  bool operator()(const Histogram<uint64_t>* a, const Histogram<uint64_t>* b) const {
+    return a->Sum() > b->Sum();
+  }
+};
 
 void CumulativeLogger::DumpHistogram(std::ostream &os) {
   os << "Start Dumping histograms for " << iterations_ << " iterations"
      << " for " << name_ << "\n";
-  for (CumulativeLogger::HistogramsIterator it = histograms_.begin(), end = histograms_.end();
-       it != end; ++it) {
+  std::set<Histogram<uint64_t>*, CompareHistorgramByTimeSpentDeclining>
+      sorted_histograms(histograms_.begin(), histograms_.end());
+  for (Histogram<uint64_t>* histogram : sorted_histograms) {
     Histogram<uint64_t>::CumulativeData cumulative_data;
-    it->second->CreateHistogram(&cumulative_data);
-    it->second->PrintConfidenceIntervals(os, 0.99, cumulative_data);
-    // Reset cumulative values to save memory. We don't expect DumpHistogram to be called often, so
-    // it is not performance critical.
+    // We don't expect DumpHistogram to be called often, so it is not performance critical.
+    histogram->CreateHistogram(&cumulative_data);
+    histogram->PrintConfidenceIntervals(os, 0.99, cumulative_data);
   }
   os << "Done Dumping histograms \n";
 }
