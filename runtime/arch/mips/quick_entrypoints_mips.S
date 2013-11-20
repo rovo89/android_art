@@ -231,7 +231,7 @@
     DELIVER_PENDING_EXCEPTION
 .endm
 
-.macro RETURN_IF_NONZERO
+.macro RETURN_IF_RESULT_IS_NON_ZERO
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     beqz   $v0, 1f                       # success?
     nop
@@ -689,7 +689,7 @@ ENTRY art_quick_initialize_static_storage
     # artInitializeStaticStorageFromCode(uint32_t type_idx, Method* referrer, Thread*, $sp)
     jal     artInitializeStaticStorageFromCode
     move    $a3, $sp                            # pass $sp
-    RETURN_IF_NONZERO
+    RETURN_IF_RESULT_IS_NON_ZERO
 END art_quick_initialize_static_storage
 
     /*
@@ -703,7 +703,7 @@ ENTRY art_quick_initialize_type
     # artInitializeTypeFromCode(uint32_t type_idx, Method* referrer, Thread*, $sp)
     jal     artInitializeTypeFromCode
     move    $a3, $sp                           # pass $sp
-    RETURN_IF_NONZERO
+    RETURN_IF_RESULT_IS_NON_ZERO
 END art_quick_initialize_type
 
     /*
@@ -718,7 +718,7 @@ ENTRY art_quick_initialize_type_and_verify_access
     # artInitializeTypeFromCode(uint32_t type_idx, Method* referrer, Thread*, $sp)
     jal     artInitializeTypeAndVerifyAccessFromCode
     move    $a3, $sp                           # pass $sp
-    RETURN_IF_NONZERO
+    RETURN_IF_RESULT_IS_NON_ZERO
 END art_quick_initialize_type_and_verify_access
 
     /*
@@ -902,156 +902,36 @@ ENTRY art_quick_resolve_string
     # artResolveStringFromCode(Method* referrer, uint32_t string_idx, Thread*, $sp)
     jal     artResolveStringFromCode
     move    $a3, $sp                  # pass $sp
-    RETURN_IF_NONZERO
+    RETURN_IF_RESULT_IS_NON_ZERO
 END art_quick_resolve_string
 
-    /*
-     * Called by managed code to allocate an object.
-     */
-    .extern artAllocObjectFromCode
-ENTRY art_quick_alloc_object
+
+// Macro to facilitate adding new allocation entrypoints.
+.macro TWO_ARG_DOWNCALL name, entrypoint, return
+    .extern \entrypoint
+ENTRY \name
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
     move    $a2, rSELF                # pass Thread::Current
-    jal     artAllocObjectFromCode    # (uint32_t type_idx, Method* method, Thread*, $sp)
+    jal     \entrypoint
     move    $a3, $sp                  # pass $sp
-    RETURN_IF_NONZERO
-END art_quick_alloc_object
+    \return
+END \name
+.endm
 
-    .extern artAllocObjectFromCodeInstrumented
-ENTRY art_quick_alloc_object_instrumented
-    GENERATE_GLOBAL_POINTER
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
-    move    $a2, rSELF                # pass Thread::Current
-    jal     artAllocObjectFromCodeInstrumented    # (uint32_t type_idx, Method* method, Thread*, $sp)
-    move    $a3, $sp                  # pass $sp
-    RETURN_IF_NONZERO
-END art_quick_alloc_object_instrumented
-
-    /*
-     * Called by managed code to allocate an object when the caller doesn't know whether it has
-     * access to the created type.
-     */
-    .extern artAllocObjectFromCodeWithAccessCheck
-ENTRY art_quick_alloc_object_with_access_check
-    GENERATE_GLOBAL_POINTER
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
-    move    $a2, rSELF                # pass Thread::Current
-    jal     artAllocObjectFromCodeWithAccessCheck  # (uint32_t type_idx, Method* method, Thread*, $sp)
-    move    $a3, $sp                  # pass $sp
-    RETURN_IF_NONZERO
-END art_quick_alloc_object_with_access_check
-
-    .extern artAllocObjectFromCodeWithAccessCheckInstrumented
-ENTRY art_quick_alloc_object_with_access_check_instrumented
-    GENERATE_GLOBAL_POINTER
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
-    move    $a2, rSELF                # pass Thread::Current
-    jal     artAllocObjectFromCodeWithAccessCheckInstrumented  # (uint32_t type_idx, Method* method, Thread*, $sp)
-    move    $a3, $sp                  # pass $sp
-    RETURN_IF_NONZERO
-END art_quick_alloc_object_with_access_check_instrumented
-
-    /*
-     * Called by managed code to allocate an array.
-     */
-    .extern artAllocArrayFromCode
-ENTRY art_quick_alloc_array
+.macro THREE_ARG_DOWNCALL name, entrypoint, return
+    .extern \entrypoint
+ENTRY \name
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
     move    $a3, rSELF                # pass Thread::Current
-    # artAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count, Thread*, $sp)
-    jal     artAllocArrayFromCode
+    jal     \entrypoint
     sw      $sp, 16($sp)              # pass $sp
-    RETURN_IF_NONZERO
-END art_quick_alloc_array
+    \return
+END \name
+.endm
 
-    .extern artAllocArrayFromCodeInstrumented
-ENTRY art_quick_alloc_array_instrumented
-    GENERATE_GLOBAL_POINTER
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
-    move    $a3, rSELF                # pass Thread::Current
-    # artAllocArrayFromCodeInstrumented(uint32_t type_idx, Method* method, int32_t component_count, Thread*, $sp)
-    jal     artAllocArrayFromCodeInstrumented
-    sw      $sp, 16($sp)              # pass $sp
-    RETURN_IF_NONZERO
-END art_quick_alloc_array_instrumented
-
-    /*
-     * Called by managed code to allocate an array when the caller doesn't know whether it has
-     * access to the created type.
-     */
-    .extern artAllocArrayFromCodeWithAccessCheck
-ENTRY art_quick_alloc_array_with_access_check
-    GENERATE_GLOBAL_POINTER
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
-    move    $a3, rSELF                # pass Thread::Current
-    # artAllocArrayFromCodeWithAccessCheck(type_idx, method, component_count, Thread*, $sp)
-    jal     artAllocArrayFromCodeWithAccessCheck
-    sw      $sp, 16($sp)              # pass $sp
-    RETURN_IF_NONZERO
-END art_quick_alloc_array_with_access_check
-
-    .extern artAllocArrayFromCodeWithAccessCheckInstrumented
-ENTRY art_quick_alloc_array_with_access_check_instrumented
-    GENERATE_GLOBAL_POINTER
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
-    move    $a3, rSELF                # pass Thread::Current
-    # artAllocArrayFromCodeWithAccessCheckInstrumented(type_idx, method, component_count, Thread*, $sp)
-    jal     artAllocArrayFromCodeWithAccessCheckInstrumented
-    sw      $sp, 16($sp)              # pass $sp
-    RETURN_IF_NONZERO
-END art_quick_alloc_array_with_access_check_instrumented
-
-    /*
-     * Called by managed code to allocate an array in a special case for FILLED_NEW_ARRAY.
-     */
-    .extern artCheckAndAllocArrayFromCode
-ENTRY art_quick_check_and_alloc_array
-    GENERATE_GLOBAL_POINTER
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
-    move    $a3, rSELF                # pass Thread::Current
-    # artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t count, Thread* , $sp)
-    jal     artCheckAndAllocArrayFromCode
-    sw      $sp, 16($sp)              # pass $sp
-    RETURN_IF_NONZERO
-END art_quick_check_and_alloc_array
-
-    .extern artCheckAndAllocArrayFromCodeInstrumented
-ENTRY art_quick_check_and_alloc_array_instrumented
-    GENERATE_GLOBAL_POINTER
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
-    move    $a3, rSELF                # pass Thread::Current
-    # artCheckAndAllocArrayFromCodeInstrumented(uint32_t type_idx, Method* method, int32_t count, Thread* , $sp)
-    jal     artCheckAndAllocArrayFromCodeInstrumented
-    sw      $sp, 16($sp)              # pass $sp
-    RETURN_IF_NONZERO
-END art_quick_check_and_alloc_array_instrumented
-
-    /*
-     * Called by managed code to allocate an array in a special case for FILLED_NEW_ARRAY.
-     */
-    .extern artCheckAndAllocArrayFromCodeWithAccessCheck
-ENTRY art_quick_check_and_alloc_array_with_access_check
-    GENERATE_GLOBAL_POINTER
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
-    move    $a3, rSELF                # pass Thread::Current
-    # artCheckAndAllocArrayFromCodeWithAccessCheck(type_idx, method, count, Thread* , $sp)
-    jal     artCheckAndAllocArrayFromCodeWithAccessCheck
-    sw      $sp, 16($sp)              # pass $sp
-    RETURN_IF_NONZERO
-END art_quick_check_and_alloc_array_with_access_check
-
-    .extern artCheckAndAllocArrayFromCodeWithAccessCheckInstrumented
-ENTRY art_quick_check_and_alloc_array_with_access_check_instrumented
-    GENERATE_GLOBAL_POINTER
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
-    move    $a3, rSELF                # pass Thread::Current
-    # artCheckAndAllocArrayFromCodeWithAccessCheckInstrumented(type_idx, method, count, Thread* , $sp)
-    jal     artCheckAndAllocArrayFromCodeWithAccessCheckInstrumented
-    sw      $sp, 16($sp)              # pass $sp
-    RETURN_IF_NONZERO
-END art_quick_check_and_alloc_array_with_access_check_instrumented
+#include "arch/quick_alloc_entrypoints.S"
 
     /*
      * Called by managed code when the value in rSUSPEND has been decremented to 0.

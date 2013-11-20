@@ -193,7 +193,7 @@ bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
     }
     return false;
   }
-  Object* newArray = Array::Alloc<kMovingCollector, true>(self, arrayClass, length);
+  Object* newArray = Array::Alloc<true>(self, arrayClass, length);
   if (UNLIKELY(newArray == NULL)) {
     DCHECK(self->IsExceptionPending());
     return false;
@@ -279,7 +279,7 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     // TODO: getDeclaredField calls GetType once the field is found to ensure a
     //       NoClassDefFoundError is thrown if the field's type cannot be resolved.
     Class* jlr_Field = self->DecodeJObject(WellKnownClasses::java_lang_reflect_Field)->AsClass();
-    SirtRef<Object> field(self, jlr_Field->AllocObject(self));
+    SirtRef<Object> field(self, jlr_Field->AllocNonMovableObject(self));
     CHECK(field.get() != NULL);
     ArtMethod* c = jlr_Field->FindDeclaredDirectMethod("<init>", "(Ljava/lang/reflect/ArtField;)V");
     uint32_t args[1];

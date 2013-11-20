@@ -144,15 +144,15 @@ TEST_F(ObjectTest, AllocObjectArray) {
 TEST_F(ObjectTest, AllocArray) {
   ScopedObjectAccess soa(Thread::Current());
   Class* c = class_linker_->FindSystemClass("[I");
-  SirtRef<Array> a(soa.Self(), Array::Alloc<kMovingCollector, true>(soa.Self(), c, 1));
+  SirtRef<Array> a(soa.Self(), Array::Alloc<true>(soa.Self(), c, 1));
   ASSERT_TRUE(c == a->GetClass());
 
   c = class_linker_->FindSystemClass("[Ljava/lang/Object;");
-  a.reset(Array::Alloc<kMovingCollector, true>(soa.Self(), c, 1));
+  a.reset(Array::Alloc<true>(soa.Self(), c, 1));
   ASSERT_TRUE(c == a->GetClass());
 
   c = class_linker_->FindSystemClass("[[Ljava/lang/Object;");
-  a.reset(Array::Alloc<kMovingCollector, true>(soa.Self(), c, 1));
+  a.reset(Array::Alloc<true>(soa.Self(), c, 1));
   ASSERT_TRUE(c == a->GetClass());
 }
 
@@ -221,7 +221,8 @@ TEST_F(ObjectTest, CheckAndAllocArrayFromCode) {
       java_lang_dex_file_->GetIndexForStringId(*string_id));
   ASSERT_TRUE(type_id != NULL);
   uint32_t type_idx = java_lang_dex_file_->GetIndexForTypeId(*type_id);
-  Object* array = CheckAndAllocArrayFromCode(type_idx, sort, 3, Thread::Current(), false);
+  Object* array = CheckAndAllocArrayFromCode(type_idx, sort, 3, Thread::Current(), false,
+                                             Runtime::Current()->GetHeap()->GetCurrentAllocator());
   EXPECT_TRUE(array->IsArrayInstance());
   EXPECT_EQ(3, array->AsArray()->GetLength());
   EXPECT_TRUE(array->GetClass()->IsArrayClass());

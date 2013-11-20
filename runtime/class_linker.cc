@@ -199,9 +199,8 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   gc::Heap* heap = Runtime::Current()->GetHeap();
   // The GC can't handle an object with a null class since we can't get the size of this object.
   heap->IncrementDisableGC(self);
-  SirtRef<mirror::Class> java_lang_Class(
-      self, down_cast<mirror::Class*>(
-          heap->AllocNonMovableObject(self, NULL, sizeof(mirror::ClassClass))));
+  SirtRef<mirror::Class> java_lang_Class(self, down_cast<mirror::Class*>(
+      heap->AllocNonMovableObject<true>(self, nullptr, sizeof(mirror::ClassClass))));
   CHECK(java_lang_Class.get() != NULL);
   mirror::Class::SetClassClass(java_lang_Class.get());
   java_lang_Class->SetClass(java_lang_Class.get());
@@ -239,7 +238,8 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   java_lang_String->SetStatus(mirror::Class::kStatusResolved, self);
 
   // Create storage for root classes, save away our work so far (requires descriptors).
-  class_roots_ = mirror::ObjectArray<mirror::Class>::Alloc(self, object_array_class.get(), kClassRootsMax);
+  class_roots_ = mirror::ObjectArray<mirror::Class>::Alloc(self, object_array_class.get(),
+                                                           kClassRootsMax);
   CHECK(class_roots_ != NULL);
   SetClassRoot(kJavaLangClass, java_lang_Class.get());
   SetClassRoot(kJavaLangObject, java_lang_Object.get());
@@ -1204,7 +1204,7 @@ mirror::DexCache* ClassLinker::AllocDexCache(Thread* self, const DexFile& dex_fi
   SirtRef<mirror::Class> dex_cache_class(self, GetClassRoot(kJavaLangDexCache));
   SirtRef<mirror::DexCache> dex_cache(
       self, down_cast<mirror::DexCache*>(
-          heap->AllocObject(self, dex_cache_class.get(), dex_cache_class->GetObjectSize())));
+          heap->AllocObject<true>(self, dex_cache_class.get(), dex_cache_class->GetObjectSize())));
   if (dex_cache.get() == NULL) {
     return NULL;
   }
@@ -1249,7 +1249,7 @@ mirror::Class* ClassLinker::AllocClass(Thread* self, mirror::Class* java_lang_Cl
                                        size_t class_size) {
   DCHECK_GE(class_size, sizeof(mirror::Class));
   gc::Heap* heap = Runtime::Current()->GetHeap();
-  mirror::Object* k = heap->AllocNonMovableObject(self, java_lang_Class, class_size);
+  mirror::Object* k = heap->AllocNonMovableObject<true>(self, java_lang_Class, class_size);
   if (UNLIKELY(k == NULL)) {
     CHECK(self->IsExceptionPending());  // OOME.
     return NULL;
@@ -1268,12 +1268,12 @@ mirror::Class* ClassLinker::AllocClass(Thread* self, size_t class_size) {
 
 mirror::ArtField* ClassLinker::AllocArtField(Thread* self) {
   return down_cast<mirror::ArtField*>(
-      GetClassRoot(kJavaLangReflectArtField)->Alloc<false, true>(self));
+      GetClassRoot(kJavaLangReflectArtField)->AllocNonMovableObject(self));
 }
 
 mirror::ArtMethod* ClassLinker::AllocArtMethod(Thread* self) {
   return down_cast<mirror::ArtMethod*>(
-      GetClassRoot(kJavaLangReflectArtMethod)->Alloc<false, true>(self));
+      GetClassRoot(kJavaLangReflectArtMethod)->AllocNonMovableObject(self));
 }
 
 mirror::ObjectArray<mirror::StackTraceElement>* ClassLinker::AllocStackTraceElementArray(

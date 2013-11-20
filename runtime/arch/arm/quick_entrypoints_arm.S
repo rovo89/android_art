@@ -864,7 +864,7 @@ ENTRY \name
 END \name
 .endm
 
-#include "arch/alloc_entrypoints.S"
+#include "arch/quick_alloc_entrypoints.S"
 
     /*
      * Called by managed code when the value in rSUSPEND has been decremented to 0.

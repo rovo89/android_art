@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_MIRROR_CLASS_H_
 #define ART_RUNTIME_MIRROR_CLASS_H_
 
+#include "gc/heap.h"
 #include "modifiers.h"
 #include "object.h"
 #include "primitive.h"
@@ -377,13 +378,14 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   // Creates a raw object instance but does not invoke the default constructor.
-  Object* AllocObject(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return Alloc<kMovingCollector, true>(self);
-  }
+  template <bool kIsInstrumented>
+  ALWAYS_INLINE Object* Alloc(Thread* self, gc::AllocatorType allocator_type)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Creates a raw object instance but does not invoke the default constructor.
-  template <bool kIsMovable, bool kIsInstrumented>
-  Object* Alloc(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  Object* AllocObject(Thread* self)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  Object* AllocNonMovableObject(Thread* self)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsVariableSize() const {
     // Classes and arrays vary in size, and so the object_size_ field cannot

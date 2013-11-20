@@ -147,6 +147,7 @@ LIBART_COMMON_SRC_FILES += \
 	arch/arm/registers_arm.cc \
 	arch/x86/registers_x86.cc \
 	arch/mips/registers_mips.cc \
+	arch/quick_alloc_entrypoints.cc \
 	entrypoints/entrypoint_utils.cc \
 	entrypoints/interpreter/interpreter_entrypoints.cc \
 	entrypoints/jni/jni_entrypoints.cc \

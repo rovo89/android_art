@@ -44,8 +44,7 @@ static Array* RecursiveCreateMultiArray(Thread* self, Class* array_class, int cu
                                         SirtRef<mirror::IntArray>& dimensions)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   int32_t array_length = dimensions->Get(current_dimension);
-  SirtRef<Array> new_array(self, Array::Alloc<kMovingCollector, true>(self, array_class,
-                                                                      array_length));
+  SirtRef<Array> new_array(self, Array::Alloc<true>(self, array_class, array_length));
   if (UNLIKELY(new_array.get() == NULL)) {
     CHECK(self->IsExceptionPending());
     return NULL;
@@ -115,7 +114,7 @@ void Array::ThrowArrayStoreException(Object* object) const {
 template<typename T>
 PrimitiveArray<T>* PrimitiveArray<T>::Alloc(Thread* self, size_t length) {
   DCHECK(array_class_ != NULL);
-  Array* raw_array = Array::Alloc<kMovingCollector, true>(self, array_class_, length, sizeof(T));
+  Array* raw_array = Array::Alloc<true>(self, array_class_, length, sizeof(T));
   return down_cast<PrimitiveArray<T>*>(raw_array);
 }
 

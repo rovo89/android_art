@@ -34,21 +34,6 @@ extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& m
 extern "C" void art_portable_resolution_trampoline(mirror::ArtMethod*);
 extern "C" void art_portable_to_interpreter_bridge(mirror::ArtMethod*);
 
-// Alloc entrypoints.
-extern "C" void* art_quick_alloc_array(uint32_t, void*, int32_t);
-extern "C" void* art_quick_alloc_array_with_access_check(uint32_t, void*, int32_t);
-extern "C" void* art_quick_alloc_object(uint32_t type_idx, void* method);
-extern "C" void* art_quick_alloc_object_with_access_check(uint32_t type_idx, void* method);
-extern "C" void* art_quick_check_and_alloc_array(uint32_t, void*, int32_t);
-extern "C" void* art_quick_check_and_alloc_array_with_access_check(uint32_t, void*, int32_t);
-
-extern "C" void* art_quick_alloc_array_instrumented(uint32_t, void*, int32_t);
-extern "C" void* art_quick_alloc_array_with_access_check_instrumented(uint32_t, void*, int32_t);
-extern "C" void* art_quick_alloc_object_instrumented(uint32_t type_idx, void* method);
-extern "C" void* art_quick_alloc_object_with_access_check_instrumented(uint32_t type_idx, void* method);
-extern "C" void* art_quick_check_and_alloc_array_instrumented(uint32_t, void*, int32_t);
-extern "C" void* art_quick_check_and_alloc_array_with_access_check_instrumented(uint32_t, void*, int32_t);
-
 // Cast entrypoints.
 extern "C" uint32_t artIsAssignableFromCode(const mirror::Class* klass,
                                             const mirror::Class* ref_class);
@@ -142,29 +127,7 @@ extern "C" void art_quick_throw_no_such_method(int32_t method_idx);
 extern "C" void art_quick_throw_null_pointer_exception();
 extern "C" void art_quick_throw_stack_overflow(void*);
 
-static bool quick_alloc_entry_points_instrumented = false;
-
-void SetQuickAllocEntryPointsInstrumented(bool instrumented) {
-  quick_alloc_entry_points_instrumented = instrumented;
-}
-
-void ResetQuickAllocEntryPoints(QuickEntryPoints* qpoints) {
-  if (quick_alloc_entry_points_instrumented) {
-    qpoints->pAllocArray = art_quick_alloc_array_instrumented;
-    qpoints->pAllocArrayWithAccessCheck = art_quick_alloc_array_with_access_check_instrumented;
-    qpoints->pAllocObject = art_quick_alloc_object_instrumented;
-    qpoints->pAllocObjectWithAccessCheck = art_quick_alloc_object_with_access_check_instrumented;
-    qpoints->pCheckAndAllocArray = art_quick_check_and_alloc_array_instrumented;
-    qpoints->pCheckAndAllocArrayWithAccessCheck = art_quick_check_and_alloc_array_with_access_check_instrumented;
-  } else {
-    qpoints->pAllocArray = art_quick_alloc_array;
-    qpoints->pAllocArrayWithAccessCheck = art_quick_alloc_array_with_access_check;
-    qpoints->pAllocObject = art_quick_alloc_object;
-    qpoints->pAllocObjectWithAccessCheck = art_quick_alloc_object_with_access_check;
-    qpoints->pCheckAndAllocArray = art_quick_check_and_alloc_array;
-    qpoints->pCheckAndAllocArrayWithAccessCheck = art_quick_check_and_alloc_array_with_access_check;
-  }
-}
+extern void ResetQuickAllocEntryPoints(QuickEntryPoints* qpoints);
 
 void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
                      PortableEntryPoints* ppoints, QuickEntryPoints* qpoints) {

@@ -71,7 +71,8 @@ static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaEle
   descriptor += ClassHelper(element_class).GetDescriptor();
   SirtRef<mirror::ClassLoader> class_loader(soa.Self(), nullptr);
   mirror::Class* array_class = class_linker->FindClass(descriptor.c_str(), class_loader);
-  mirror::Array* result = mirror::Array::Alloc<false, true>(soa.Self(), array_class, length);
+  mirror::Array* result = mirror::Array::Alloc<true>(soa.Self(), array_class, length,
+                                                     Runtime::Current()->GetHeap()->GetCurrentNonMovingAllocator());
   return soa.AddLocalReference<jobject>(result);
 }
 

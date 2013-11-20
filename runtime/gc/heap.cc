@@ -74,7 +74,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
            bool concurrent_gc, size_t parallel_gc_threads, size_t conc_gc_threads,
            bool low_memory_mode, size_t long_pause_log_threshold, size_t long_gc_log_threshold,
            bool ignore_max_footprint)
-    : non_moving_space_(NULL),
+    : non_moving_space_(nullptr),
       concurrent_gc_(!kMovingCollector && concurrent_gc),
       parallel_gc_threads_(parallel_gc_threads),
       conc_gc_threads_(conc_gc_threads),
@@ -128,6 +128,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
        */
       max_allocation_stack_size_(kGCALotMode ? kGcAlotInterval
           : (kDesiredHeapVerification > kVerifyAllFast) ? KB : MB),
+      current_allocator_(kMovingCollector ? kAllocatorTypeBumpPointer : kAllocatorTypeFreeList),
+      current_non_moving_allocator_(kAllocatorTypeFreeList),
       bump_pointer_space_(nullptr),
       temp_space_(nullptr),
       reference_referent_offset_(0),
@@ -256,9 +258,13 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       garbage_collectors_.push_back(new collector::PartialMarkSweep(this, concurrent));
       garbage_collectors_.push_back(new collector::StickyMarkSweep(this, concurrent));
     }
+    gc_plan_.push_back(collector::kGcTypeSticky);
+    gc_plan_.push_back(collector::kGcTypePartial);
+    gc_plan_.push_back(collector::kGcTypeFull);
   } else {
     semi_space_collector_ = new collector::SemiSpace(this);
     garbage_collectors_.push_back(semi_space_collector_);
+    gc_plan_.push_back(collector::kGcTypeFull);
   }
 
   if (running_on_valgrind_) {
@@ -779,106 +785,6 @@ void Heap::ThrowOutOfMemoryError(Thread* self, size_t byte_count, bool large_obj
   self->ThrowOutOfMemoryError(oss.str().c_str());
 }
 
-inline bool Heap::TryAllocLargeObjectInstrumented(Thread* self, mirror::Class* c, size_t byte_count,
-                                                  mirror::Object** obj_ptr, size_t* bytes_allocated) {
-  bool large_object_allocation = ShouldAllocLargeObject(c, byte_count);
-  if (UNLIKELY(large_object_allocation)) {
-    mirror::Object* obj = AllocateInstrumented(self, large_object_space_, byte_count, bytes_allocated);
-    // Make sure that our large object didn't get placed anywhere within the space interval or else
-    // it breaks the immune range.
-    DCHECK(obj == nullptr ||
-           reinterpret_cast<byte*>(obj) < continuous_spaces_.front()->Begin() ||
-           reinterpret_cast<byte*>(obj) >= continuous_spaces_.back()->End());
-    *obj_ptr = obj;
-  }
-  return large_object_allocation;
-}
-
-mirror::Object* Heap::AllocMovableObjectInstrumented(Thread* self, mirror::Class* c,
-                                                     size_t byte_count) {
-  DebugCheckPreconditionsForAllocObject(c, byte_count);
-  mirror::Object* obj;
-  AllocationTimer alloc_timer(this, &obj);
-  byte_count = RoundUp(byte_count, 8);
-  if (UNLIKELY(IsOutOfMemoryOnAllocation(byte_count, false))) {
-    CollectGarbageInternal(collector::kGcTypeFull, kGcCauseForAlloc, false);
-    if (UNLIKELY(IsOutOfMemoryOnAllocation(byte_count, true))) {
-      CollectGarbageInternal(collector::kGcTypeFull, kGcCauseForAlloc, true);
-    }
-  }
-  obj = bump_pointer_space_->AllocNonvirtual(byte_count);
-  if (LIKELY(obj != NULL)) {
-    obj->SetClass(c);
-    DCHECK(!obj->IsClass());
-    // Record allocation after since we want to use the atomic add for the atomic fence to guard
-    // the SetClass since we do not want the class to appear NULL in another thread.
-    num_bytes_allocated_.fetch_add(byte_count);
-    if (Runtime::Current()->HasStatsEnabled()) {
-      RuntimeStats* thread_stats = Thread::Current()->GetStats();
-      ++thread_stats->allocated_objects;
-      thread_stats->allocated_bytes += byte_count;
-      RuntimeStats* global_stats = Runtime::Current()->GetStats();
-      ++global_stats->allocated_objects;
-      global_stats->allocated_bytes += byte_count;
-    }
-    if (Dbg::IsAllocTrackingEnabled()) {
-      Dbg::RecordAllocation(c, byte_count);
-    }
-    if (kDesiredHeapVerification > kNoHeapVerification) {
-      VerifyObject(obj);
-    }
-  } else {
-    ThrowOutOfMemoryError(self, byte_count, false);
-  }
-  if (kIsDebugBuild) {
-    self->VerifyStack();
-  }
-  return obj;
-}
-
-mirror::Object* Heap::AllocNonMovableObjectInstrumented(Thread* self, mirror::Class* c,
-                                                        size_t byte_count) {
-  DebugCheckPreconditionsForAllocObject(c, byte_count);
-  mirror::Object* obj;
-  size_t bytes_allocated;
-  AllocationTimer alloc_timer(this, &obj);
-  bool large_object_allocation = TryAllocLargeObjectInstrumented(self, c, byte_count, &obj,
-                                                                 &bytes_allocated);
-  if (LIKELY(!large_object_allocation)) {
-    // Non-large object allocation.
-    if (!kUseRosAlloc) {
-      DCHECK(non_moving_space_->IsDlMallocSpace());
-      obj = AllocateInstrumented(self, reinterpret_cast<space::DlMallocSpace*>(non_moving_space_),
-                                 byte_count, &bytes_allocated);
-    } else {
-      DCHECK(non_moving_space_->IsRosAllocSpace());
-      obj = AllocateInstrumented(self, reinterpret_cast<space::RosAllocSpace*>(non_moving_space_),
-                                 byte_count, &bytes_allocated);
-    }
-    // Ensure that we did not allocate into a zygote space.
-    DCHECK(obj == NULL || !have_zygote_space_ || !FindSpaceFromObject(obj, false)->IsZygoteSpace());
-  }
-  if (LIKELY(obj != NULL)) {
-    obj->SetClass(c);
-    // Record allocation after since we want to use the atomic add for the atomic fence to guard
-    // the SetClass since we do not want the class to appear NULL in another thread.
-    size_t new_num_bytes_allocated = RecordAllocationInstrumented(bytes_allocated, obj);
-    if (Dbg::IsAllocTrackingEnabled()) {
-      Dbg::RecordAllocation(c, byte_count);
-    }
-    CheckConcurrentGC(self, new_num_bytes_allocated, obj);
-    if (kDesiredHeapVerification > kNoHeapVerification) {
-      VerifyObject(obj);
-    }
-  } else {
-    ThrowOutOfMemoryError(self, byte_count, large_object_allocation);
-  }
-  if (kIsDebugBuild) {
-    self->VerifyStack();
-  }
-  return obj;
-}
-
 void Heap::Trim() {
   uint64_t start_ns = NanoTime();
   // Trim the managed spaces.
@@ -1059,31 +965,6 @@ void Heap::VerifyHeap() {
   GetLiveBitmap()->Walk(Heap::VerificationCallback, this);
 }
 
-inline size_t Heap::RecordAllocationInstrumented(size_t size, mirror::Object* obj) {
-  DCHECK(obj != NULL);
-  DCHECK_GT(size, 0u);
-  size_t old_num_bytes_allocated = static_cast<size_t>(num_bytes_allocated_.fetch_add(size));
-
-  if (Runtime::Current()->HasStatsEnabled()) {
-    RuntimeStats* thread_stats = Thread::Current()->GetStats();
-    ++thread_stats->allocated_objects;
-    thread_stats->allocated_bytes += size;
-
-    // TODO: Update these atomically.
-    RuntimeStats* global_stats = Runtime::Current()->GetStats();
-    ++global_stats->allocated_objects;
-    global_stats->allocated_bytes += size;
-  }
-
-  // This is safe to do since the GC will never free objects which are neither in the allocation
-  // stack or the live bitmap.
-  while (!allocation_stack_->AtomicPushBack(obj)) {
-    CollectGarbageInternal(collector::kGcTypeSticky, kGcCauseForAlloc, false);
-  }
-
-  return old_num_bytes_allocated + size;
-}
-
 void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
   DCHECK_LE(freed_bytes, static_cast<size_t>(num_bytes_allocated_));
   num_bytes_allocated_.fetch_sub(freed_bytes);
@@ -1100,125 +981,50 @@ void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
   }
 }
 
-inline mirror::Object* Heap::TryToAllocateInstrumented(Thread* self, space::AllocSpace* space, size_t alloc_size,
-                                                       bool grow, size_t* bytes_allocated) {
-  if (UNLIKELY(IsOutOfMemoryOnAllocation(alloc_size, grow))) {
-    return NULL;
-  }
-  return space->Alloc(self, alloc_size, bytes_allocated);
-}
-
-// DlMallocSpace-specific version.
-inline mirror::Object* Heap::TryToAllocateInstrumented(Thread* self, space::DlMallocSpace* space, size_t alloc_size,
-                                                       bool grow, size_t* bytes_allocated) {
-  if (UNLIKELY(IsOutOfMemoryOnAllocation(alloc_size, grow))) {
-    return nullptr;
-  }
-  if (LIKELY(!running_on_valgrind_)) {
-    return space->AllocNonvirtual(self, alloc_size, bytes_allocated);
-  } else {
-    return space->Alloc(self, alloc_size, bytes_allocated);
-  }
-}
-
-// RosAllocSpace-specific version.
-inline mirror::Object* Heap::TryToAllocateInstrumented(Thread* self, space::RosAllocSpace* space, size_t alloc_size,
-                                                       bool grow, size_t* bytes_allocated) {
-  if (UNLIKELY(IsOutOfMemoryOnAllocation(alloc_size, grow))) {
-    return NULL;
-  }
-  if (LIKELY(!running_on_valgrind_)) {
-    return space->AllocNonvirtual(self, alloc_size, bytes_allocated);
-  } else {
-    return space->Alloc(self, alloc_size, bytes_allocated);
-  }
-}
-
-template <class T>
-inline mirror::Object* Heap::AllocateInstrumented(Thread* self, T* space, size_t alloc_size,
-                                                  size_t* bytes_allocated) {
-  // Since allocation can cause a GC which will need to SuspendAll, make sure all allocations are
-  // done in the runnable state where suspension is expected.
-  DCHECK_EQ(self->GetState(), kRunnable);
-  self->AssertThreadSuspensionIsAllowable();
-
-  mirror::Object* ptr = TryToAllocateInstrumented(self, space, alloc_size, false, bytes_allocated);
-  if (LIKELY(ptr != NULL)) {
-    return ptr;
-  }
-  return AllocateInternalWithGc(self, space, alloc_size, bytes_allocated);
-}
-
-mirror::Object* Heap::AllocateInternalWithGc(Thread* self, space::AllocSpace* space,
+mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocator,
                                              size_t alloc_size, size_t* bytes_allocated) {
-  mirror::Object* ptr;
-
+  mirror::Object* ptr = nullptr;
   // The allocation failed. If the GC is running, block until it completes, and then retry the
   // allocation.
   collector::GcType last_gc = WaitForGcToComplete(self);
   if (last_gc != collector::kGcTypeNone) {
     // A GC was in progress and we blocked, retry allocation now that memory has been freed.
-    ptr = TryToAllocateInstrumented(self, space, alloc_size, false, bytes_allocated);
-    if (ptr != NULL) {
-      return ptr;
-    }
+    ptr = TryToAllocate<true>(self, allocator, alloc_size, false, bytes_allocated);
   }
 
   // Loop through our different Gc types and try to Gc until we get enough free memory.
-  for (size_t i = static_cast<size_t>(last_gc) + 1;
-      i < static_cast<size_t>(collector::kGcTypeMax); ++i) {
-    bool run_gc = false;
-    collector::GcType gc_type = static_cast<collector::GcType>(i);
-    switch (gc_type) {
-      case collector::kGcTypeSticky: {
-          const size_t alloc_space_size = non_moving_space_->Size();
-          run_gc = alloc_space_size > min_alloc_space_size_for_sticky_gc_ &&
-              non_moving_space_->Capacity() - alloc_space_size >=
-              min_remaining_space_for_sticky_gc_;
-          break;
-        }
-      case collector::kGcTypePartial:
-        run_gc = have_zygote_space_;
-        break;
-      case collector::kGcTypeFull:
-        run_gc = true;
-        break;
-      default:
-        LOG(FATAL) << "Invalid GC type";
+  for (collector::GcType gc_type : gc_plan_) {
+    if (ptr != nullptr) {
+      break;
     }
-
-    if (run_gc) {
-      // If we actually ran a different type of Gc than requested, we can skip the index forwards.
-      collector::GcType gc_type_ran = CollectGarbageInternal(gc_type, kGcCauseForAlloc, false);
-      DCHECK_GE(static_cast<size_t>(gc_type_ran), i);
-      i = static_cast<size_t>(gc_type_ran);
-
+    // Attempt to run the collector, if we succeed, re-try the allocation.
+    if (CollectGarbageInternal(gc_type, kGcCauseForAlloc, false) != collector::kGcTypeNone) {
       // Did we free sufficient memory for the allocation to succeed?
-      ptr = TryToAllocateInstrumented(self, space, alloc_size, false, bytes_allocated);
-      if (ptr != NULL) {
-        return ptr;
-      }
+      ptr = TryToAllocate<true>(self, allocator, alloc_size, false, bytes_allocated);
     }
   }
-
   // Allocations have failed after GCs;  this is an exceptional state.
-  // Try harder, growing the heap if necessary.
-  ptr = TryToAllocateInstrumented(self, space, alloc_size, true, bytes_allocated);
-  if (ptr != NULL) {
-    return ptr;
+  if (ptr == nullptr) {
+    // Try harder, growing the heap if necessary.
+    ptr = TryToAllocate<true>(self, allocator, alloc_size, true, bytes_allocated);
   }
-
-  // Most allocations should have succeeded by now, so the heap is really full, really fragmented,
-  // or the requested size is really big. Do another GC, collecting SoftReferences this time. The
-  // VM spec requires that all SoftReferences have been collected and cleared before throwing OOME.
-
-  // TODO: Run finalization, but this can cause more allocations to occur.
-  VLOG(gc) << "Forcing collection of SoftReferences for " << PrettySize(alloc_size)
-           << " allocation";
-
-  // We don't need a WaitForGcToComplete here either.
-  CollectGarbageInternal(collector::kGcTypeFull, kGcCauseForAlloc, true);
-  return TryToAllocateInstrumented(self, space, alloc_size, true, bytes_allocated);
+  if (ptr == nullptr) {
+    // Most allocations should have succeeded by now, so the heap is really full, really fragmented,
+    // or the requested size is really big. Do another GC, collecting SoftReferences this time. The
+    // VM spec requires that all SoftReferences have been collected and cleared before throwing
+    // OOME.
+    VLOG(gc) << "Forcing collection of SoftReferences for " << PrettySize(alloc_size)
+             << " allocation";
+    // TODO: Run finalization, but this may cause more allocations to occur.
+    // We don't need a WaitForGcToComplete here either.
+    DCHECK(!gc_plan_.empty());
+    CollectGarbageInternal(gc_plan_.back(), kGcCauseForAlloc, true);
+    ptr = TryToAllocate<true>(self, allocator, alloc_size, true, bytes_allocated);
+    if (ptr == nullptr) {
+      ThrowOutOfMemoryError(self, alloc_size, false);
+    }
+  }
+  return ptr;
 }
 
 void Heap::SetTargetHeapUtilization(float target) {
@@ -1493,6 +1299,27 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
                                                bool clear_soft_references) {
   Thread* self = Thread::Current();
   Runtime* runtime = Runtime::Current();
+  // If the heap can't run the GC, silently fail and return that no GC was run.
+  switch (gc_type) {
+    case collector::kGcTypeSticky: {
+      const size_t alloc_space_size = non_moving_space_->Size();
+      if (alloc_space_size < min_alloc_space_size_for_sticky_gc_ ||
+        non_moving_space_->Capacity() - alloc_space_size < min_remaining_space_for_sticky_gc_) {
+        return collector::kGcTypeNone;
+      }
+      break;
+    }
+    case collector::kGcTypePartial: {
+      if (!have_zygote_space_) {
+        return collector::kGcTypeNone;
+      }
+      break;
+    }
+    default: {
+      // Other GC types don't have any special cases which makes them not runnable. The main case
+      // here is full GC.
+    }
+  }
   ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
   Locks::mutator_lock_->AssertNotHeld(self);
   if (self->IsHandlingStackOverflow()) {
@@ -1512,12 +1339,10 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
     }
     is_gc_running_ = true;
   }
-
   if (gc_cause == kGcCauseForAlloc && runtime->HasStatsEnabled()) {
     ++runtime->GetStats()->gc_for_alloc_count;
     ++self->GetStats()->gc_for_alloc_count;
   }
-
   uint64_t gc_start_time_ns = NanoTime();
   uint64_t gc_start_size = GetBytesAllocated();
   // Approximate allocation rate in bytes / second.
@@ -1526,11 +1351,6 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   if (LIKELY(ms_delta != 0)) {
     allocation_rate_ = ((gc_start_size - last_gc_size_) * 1000) / ms_delta;
     VLOG(heap) << "Allocation rate: " << PrettySize(allocation_rate_) << "/s";
-  }
-
-  if (gc_type == collector::kGcTypeSticky &&
-      non_moving_space_->Size() < min_alloc_space_size_for_sticky_gc_) {
-    gc_type = collector::kGcTypePartial;
   }
 
   DCHECK_LT(gc_type, collector::kGcTypeMax);
@@ -2347,6 +2167,9 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, int bytes) {
   // Total number of native bytes allocated.
   native_bytes_allocated_.fetch_add(bytes);
   if (static_cast<size_t>(native_bytes_allocated_) > native_footprint_gc_watermark_) {
+    collector::GcType gc_type = have_zygote_space_ ? collector::kGcTypePartial :
+        collector::kGcTypeFull;
+
     // The second watermark is higher than the gc watermark. If you hit this it means you are
     // allocating native objects faster than the GC can keep up with.
     if (static_cast<size_t>(native_bytes_allocated_) > native_footprint_limit_) {
@@ -2357,7 +2180,7 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, int bytes) {
       }
       // If we still are over the watermark, attempt a GC for alloc and run finalizers.
       if (static_cast<size_t>(native_bytes_allocated_) > native_footprint_limit_) {
-        CollectGarbageInternal(collector::kGcTypePartial, kGcCauseForAlloc, false);
+        CollectGarbageInternal(gc_type, kGcCauseForAlloc, false);
         RunFinalization(env);
         native_need_to_run_finalization_ = false;
         CHECK(!env->ExceptionCheck());
@@ -2369,7 +2192,7 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, int bytes) {
       if (concurrent_gc_) {
         RequestConcurrentGC(self);
       } else {
-        CollectGarbageInternal(collector::kGcTypePartial, kGcCauseForAlloc, false);
+        CollectGarbageInternal(gc_type, kGcCauseForAlloc, false);
       }
     }
   }
