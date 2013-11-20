@@ -162,9 +162,10 @@ class Heap {
     return AllocObjectWithAllocator<kInstrumented>(self, klass, num_bytes,
                                                    GetCurrentNonMovingAllocator());
   }
-  template <bool kInstrumented>
-  ALWAYS_INLINE mirror::Object* AllocObjectWithAllocator(Thread* self, mirror::Class* klass,
-                                                         size_t num_bytes, AllocatorType allocator)
+  template <bool kInstrumented, typename PreFenceVisitor = VoidFunctor>
+  ALWAYS_INLINE mirror::Object* AllocObjectWithAllocator(
+      Thread* self, mirror::Class* klass, size_t byte_count, AllocatorType allocator,
+      const PreFenceVisitor& pre_fence_visitor = VoidFunctor())
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   AllocatorType GetCurrentAllocator() const {

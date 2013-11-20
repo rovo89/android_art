@@ -58,13 +58,20 @@ static inline size_t ComputeArraySize(Thread* self, Class* array_class, int32_t 
   return size;
 }
 
-static inline Array* SetArrayLength(Array* array, size_t length) {
-  if (LIKELY(array != nullptr)) {
-    DCHECK(array->IsArrayInstance());
-    array->SetLength(length);
+class SetLengthVisitor {
+ public:
+  explicit SetLengthVisitor(int32_t length) : length_(length) {
   }
-  return array;
-}
+
+  void operator()(mirror::Object* obj) const {
+    mirror::Array* array = obj->AsArray();
+    DCHECK(array->IsArrayInstance());
+    array->SetLength(length_);
+  }
+
+ private:
+  const int32_t length_;
+};
 
 template <bool kIsInstrumented>
 inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count,
@@ -74,9 +81,10 @@ inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_c
     return nullptr;
   }
   gc::Heap* heap = Runtime::Current()->GetHeap();
-  Array* array = down_cast<Array*>(
-      heap->AllocObjectWithAllocator<kIsInstrumented>(self, array_class, size, allocator_type));
-  return SetArrayLength(array, component_count);
+  SetLengthVisitor visitor(component_count);
+  return down_cast<Array*>(
+      heap->AllocObjectWithAllocator<kIsInstrumented>(self, array_class, size, allocator_type,
+                                                      visitor));
 }
 
 template <bool kIsInstrumented>

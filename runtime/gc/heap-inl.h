@@ -32,10 +32,11 @@
 namespace art {
 namespace gc {
 
-template <const bool kInstrumented>
-inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Class* c,
-                                                      size_t byte_count, AllocatorType allocator) {
-  DebugCheckPreconditionsForAllocObject(c, byte_count);
+template <bool kInstrumented, typename PreFenceVisitor>
+inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Class* klass,
+                                                      size_t byte_count, AllocatorType allocator,
+                                                      const PreFenceVisitor& pre_fence_visitor) {
+  DebugCheckPreconditionsForAllocObject(klass, byte_count);
   // Since allocation can cause a GC which will need to SuspendAll, make sure all allocations are
   // done in the runnable state where suspension is expected.
   DCHECK_EQ(self->GetState(), kRunnable);
@@ -43,7 +44,7 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
   mirror::Object* obj;
   size_t bytes_allocated;
   AllocationTimer alloc_timer(this, &obj);
-  if (UNLIKELY(ShouldAllocLargeObject(c, byte_count))) {
+  if (UNLIKELY(ShouldAllocLargeObject(klass, byte_count))) {
     obj = TryToAllocate<kInstrumented>(self, kAllocatorTypeLOS, byte_count, false,
                                        &bytes_allocated);
     allocator = kAllocatorTypeLOS;
@@ -52,16 +53,16 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
   }
 
   if (UNLIKELY(obj == nullptr)) {
-    SirtRef<mirror::Class> sirt_c(self, c);
+    SirtRef<mirror::Class> sirt_c(self, klass);
     obj = AllocateInternalWithGc(self, allocator, byte_count, &bytes_allocated);
     if (obj == nullptr) {
       return nullptr;
     } else {
-      c = sirt_c.get();
+      klass = sirt_c.get();
     }
   }
-  obj->SetClass(c);
-  // TODO: Set array length here.
+  obj->SetClass(klass);
+  pre_fence_visitor(obj);
   DCHECK_GT(bytes_allocated, 0u);
   const size_t new_num_bytes_allocated =
       static_cast<size_t>(num_bytes_allocated_.fetch_add(bytes_allocated)) + bytes_allocated;
@@ -87,7 +88,7 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
   }
   if (kInstrumented) {
     if (Dbg::IsAllocTrackingEnabled()) {
-      Dbg::RecordAllocation(c, bytes_allocated);
+      Dbg::RecordAllocation(klass, bytes_allocated);
     }
   } else {
     DCHECK(!Dbg::IsAllocTrackingEnabled());
