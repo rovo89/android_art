@@ -23,6 +23,7 @@
 
 #include <pthread.h>
 
+#include <set>
 #include <string>
 
 #include "jdwp/jdwp.h"
@@ -79,6 +80,39 @@ struct DebugInvokeReq {
   /* condition variable to wait on while the method executes */
   Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   ConditionVariable cond_ GUARDED_BY(lock_);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DebugInvokeReq);
+};
+
+// Thread local data-structure that holds fields for controlling single-stepping.
+struct SingleStepControl {
+  SingleStepControl()
+      : is_active(false), step_size(JDWP::SS_MIN), step_depth(JDWP::SD_INTO),
+        method(nullptr), stack_depth(0) {
+  }
+
+  // Are we single-stepping right now?
+  bool is_active;
+
+  // See JdwpStepSize and JdwpStepDepth for details.
+  JDWP::JdwpStepSize step_size;
+  JDWP::JdwpStepDepth step_depth;
+
+  // The location this single-step was initiated from.
+  // A single-step is initiated in a suspended thread. We save here the current method and the
+  // set of DEX pcs associated to the source line number where the suspension occurred.
+  // This is used to support SD_INTO and SD_OVER single-step depths so we detect when a single-step
+  // causes the execution of an instruction in a different method or at a different line number.
+  mirror::ArtMethod* method;
+  std::set<uint32_t> dex_pcs;
+
+  // The stack depth when this single-step was initiated. This is used to support SD_OVER and SD_OUT
+  // single-step depth.
+  int stack_depth;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SingleStepControl);
 };
 
 class Dbg {
@@ -359,9 +393,9 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize size,
                                        JDWP::JdwpStepDepth depth)
-      LOCKS_EXCLUDED(Locks::breakpoint_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void UnconfigureStep(JDWP::ObjectId thread_id) LOCKS_EXCLUDED(Locks::breakpoint_lock_);
+  static void UnconfigureStep(JDWP::ObjectId thread_id)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static JDWP::JdwpError InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId object_id,
                                       JDWP::RefTypeId class_id, JDWP::MethodId method_id,

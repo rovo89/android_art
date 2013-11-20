@@ -68,6 +68,7 @@ class Runtime;
 class ScopedObjectAccess;
 class ScopedObjectAccessUnchecked;
 class ShadowFrame;
+struct SingleStepControl;
 class Thread;
 class ThreadList;
 
@@ -513,6 +514,10 @@ class PACKED(4) Thread {
     return debug_invoke_req_;
   }
 
+  SingleStepControl* GetSingleStepControl() const {
+    return single_step_control_;
+  }
+
   void SetDeoptimizationShadowFrame(ShadowFrame* sf);
   void SetDeoptimizationReturnValue(const JValue& ret_val);
 
@@ -745,6 +750,9 @@ class PACKED(4) Thread {
 
   // JDWP invoke-during-breakpoint support.
   DebugInvokeReq* debug_invoke_req_;
+
+  // JDWP single-stepping support.
+  SingleStepControl* single_step_control_;
 
   // Shadow frame that is used temporarily during the deoptimization of a method.
   ShadowFrame* deoptimization_shadow_frame_;

@@ -917,6 +917,7 @@ Thread::Thread(bool daemon)
       throwing_OutOfMemoryError_(false),
       debug_suspend_count_(0),
       debug_invoke_req_(new DebugInvokeReq),
+      single_step_control_(new SingleStepControl),
       deoptimization_shadow_frame_(NULL),
       instrumentation_stack_(new std::deque<instrumentation::InstrumentationStackFrame>),
       name_(new std::string(kThreadNameDuringStartup)),
@@ -1019,6 +1020,7 @@ Thread::~Thread() {
   }
 
   delete debug_invoke_req_;
+  delete single_step_control_;
   delete instrumentation_stack_;
   delete name_;
   delete stack_trace_sample_;
