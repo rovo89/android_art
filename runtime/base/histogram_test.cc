@@ -122,7 +122,7 @@ TEST(Histtest, UpdateRange) {
 
   std::string text;
   std::stringstream stream;
-  std::string expected("UpdateRange:\t99% C.I. 15us-212us Avg: 126.380us Max: 212us\n");
+  std::string expected("UpdateRange:\tSum: 2.654ms 99% C.I. 15us-212us Avg: 126.380us Max: 212us\n");
   hist->PrintConfidenceIntervals(stream, 0.99, data);
 
   EXPECT_EQ(expected, stream.str());
@@ -165,7 +165,7 @@ TEST(Histtest, Reset) {
 
   std::string text;
   std::stringstream stream;
-  std::string expected("Reset:\t99% C.I. 15us-212us Avg: 126.380us Max: 212us\n");
+  std::string expected("Reset:\tSum: 2.654ms 99% C.I. 15us-212us Avg: 126.380us Max: 212us\n");
   hist->PrintConfidenceIntervals(stream, 0.99, data);
 
   EXPECT_EQ(expected, stream.str());
@@ -204,7 +204,7 @@ TEST(Histtest, MultipleCreateHist) {
   hist->CreateHistogram(&data);
   PerValue = hist->Percentile(0.50, data);
   std::stringstream stream;
-  std::string expected("MultipleCreateHist:\t99% C.I. 15us-212us Avg: 126.380us Max: 212us\n");
+  std::string expected("MultipleCreateHist:\tSum: 2.654ms 99% C.I. 15us-212us Avg: 126.380us Max: 212us\n");
   hist->PrintConfidenceIntervals(stream, 0.99, data);
 
   EXPECT_EQ(expected, stream.str());
@@ -219,7 +219,7 @@ TEST(Histtest, SingleValue) {
   hist->AddValue(1);
   hist->CreateHistogram(&data);
   std::stringstream stream;
-  std::string expected = "SingleValue:\t99% C.I. 1us-1us Avg: 1us Max: 1us\n";
+  std::string expected = "SingleValue:\tSum: 1us 99% C.I. 1us-1us Avg: 1us Max: 1us\n";
   hist->PrintConfidenceIntervals(stream, 0.99, data);
   EXPECT_EQ(expected, stream.str());
 }
@@ -262,7 +262,7 @@ TEST(Histtest, SpikyValues) {
   hist->AddValue(10000);
   hist->CreateHistogram(&data);
   std::stringstream stream;
-  std::string expected = "SpikyValues:\t99% C.I. 0.089us-2541.825us Avg: 95.033us Max: 10000us\n";
+  std::string expected = "SpikyValues:\tSum: 14.350ms 99% C.I. 0.089us-2541.825us Avg: 95.033us Max: 10000us\n";
   hist->PrintConfidenceIntervals(stream, 0.99, data);
   EXPECT_EQ(expected, stream.str());
 }
