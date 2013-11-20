@@ -493,10 +493,10 @@ class Heap {
                space::ContinuousMemMapAllocSpace* source_space);
 
   static bool AllocatorHasAllocationStack(AllocatorType allocator_type) {
-    return allocator_type == kAllocatorTypeFreeList;
+    return allocator_type != kAllocatorTypeBumpPointer;
   }
   static bool AllocatorHasConcurrentGC(AllocatorType allocator_type) {
-    return allocator_type == kAllocatorTypeFreeList;
+    return allocator_type != kAllocatorTypeBumpPointer;
   }
   bool ShouldAllocLargeObject(mirror::Class* c, size_t byte_count) const;
   ALWAYS_INLINE void CheckConcurrentGC(Thread* self, size_t new_num_bytes_allocated,
