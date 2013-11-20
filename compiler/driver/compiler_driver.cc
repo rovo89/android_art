@@ -284,10 +284,10 @@ class AOTCompilationStats {
 };
 
 extern "C" void ArtInitCompilerContext(art::CompilerDriver& driver);
-extern "C" void ArtInitQuickCompilerContext(art::CompilerDriver& compiler);
+extern "C" void ArtInitQuickCompilerContext(art::CompilerDriver& driver);
 
 extern "C" void ArtUnInitCompilerContext(art::CompilerDriver& driver);
-extern "C" void ArtUnInitQuickCompilerContext(art::CompilerDriver& compiler);
+extern "C" void ArtUnInitQuickCompilerContext(art::CompilerDriver& driver);
 
 extern "C" art::CompiledMethod* ArtCompileMethod(art::CompilerDriver& driver,
                                                  const art::DexFile::CodeItem* code_item,
