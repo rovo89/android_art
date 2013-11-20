@@ -1404,7 +1404,7 @@ class ParallelCompilationManager {
   }
 
   size_t NextIndex() {
-    return index_.fetch_add(1);
+    return index_.FetchAndAdd(1);
   }
 
  private:

@@ -169,7 +169,7 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
           // If access checks are required then the dex-to-dex compiler and analysis of
           // whether the class has final fields hasn't been performed. Conservatively
           // perform the memory barrier now.
-          ANDROID_MEMBAR_STORE();
+          QuasiAtomic::MembarStoreLoad();
         }
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);
@@ -183,7 +183,7 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
       }
       case Instruction::RETURN_VOID_BARRIER: {
         PREAMBLE();
-        ANDROID_MEMBAR_STORE();
+        QuasiAtomic::MembarStoreLoad();
         JValue result;
         if (UNLIKELY(self->TestAllFlags())) {
           CheckSuspend(self);

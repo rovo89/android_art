@@ -68,7 +68,7 @@ class AtomicStack {
         // Stack overflow.
         return false;
       }
-    } while (!back_index_.compare_and_swap(index, index + 1));
+    } while (!back_index_.CompareAndSwap(index, index + 1));
     begin_[index] = value;
     return true;
   }
@@ -93,7 +93,7 @@ class AtomicStack {
   // Take an item from the front of the stack.
   T PopFront() {
     int32_t index = front_index_;
-    DCHECK_LT(index, back_index_.load());
+    DCHECK_LT(index, back_index_.Load());
     front_index_ = front_index_ + 1;
     return begin_[index];
   }
@@ -101,7 +101,7 @@ class AtomicStack {
   // Pop a number of elements.
   void PopBackCount(int32_t n) {
     DCHECK_GE(Size(), static_cast<size_t>(n));
-    back_index_.fetch_sub(n);
+    back_index_.FetchAndSub(n);
   }
 
   bool IsEmpty() const {
@@ -132,11 +132,11 @@ class AtomicStack {
   }
 
   void Sort() {
-    int32_t start_back_index = back_index_.load();
-    int32_t start_front_index = front_index_.load();
+    int32_t start_back_index = back_index_.Load();
+    int32_t start_front_index = front_index_.Load();
     std::sort(Begin(), End());
-    CHECK_EQ(start_back_index, back_index_.load());
-    CHECK_EQ(start_front_index, front_index_.load());
+    CHECK_EQ(start_back_index, back_index_.Load());
+    CHECK_EQ(start_front_index, front_index_.Load());
     if (kIsDebugBuild) {
       debug_is_sorted_ = true;
     }

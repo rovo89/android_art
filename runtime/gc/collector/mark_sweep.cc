@@ -1109,8 +1109,8 @@ void MarkSweep::SweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
   // AllocSpace::FreeList clears the value in ptrs, so perform after clearing the live bit
   size_t freed_bytes = space->FreeList(self, num_ptrs, ptrs);
   heap->RecordFree(freed_objects, freed_bytes);
-  mark_sweep->freed_objects_.fetch_add(freed_objects);
-  mark_sweep->freed_bytes_.fetch_add(freed_bytes);
+  mark_sweep->freed_objects_.FetchAndAdd(freed_objects);
+  mark_sweep->freed_bytes_.FetchAndAdd(freed_bytes);
 }
 
 void MarkSweep::ZygoteSweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
@@ -1192,10 +1192,10 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
   VLOG(heap) << "Freed " << freed_objects << "/" << count
              << " objects with size " << PrettySize(freed_bytes);
   heap_->RecordFree(freed_objects + freed_large_objects, freed_bytes + freed_large_object_bytes);
-  freed_objects_.fetch_add(freed_objects);
-  freed_large_objects_.fetch_add(freed_large_objects);
-  freed_bytes_.fetch_add(freed_bytes);
-  freed_large_object_bytes_.fetch_add(freed_large_object_bytes);
+  freed_objects_.FetchAndAdd(freed_objects);
+  freed_large_objects_.FetchAndAdd(freed_large_objects);
+  freed_bytes_.FetchAndAdd(freed_bytes);
+  freed_large_object_bytes_.FetchAndAdd(freed_large_object_bytes);
   timings_.EndSplit();
 
   timings_.StartSplit("ResetStack");
@@ -1267,8 +1267,8 @@ void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
       ++freed_objects;
     }
   }
-  freed_large_objects_.fetch_add(freed_objects);
-  freed_large_object_bytes_.fetch_add(freed_bytes);
+  freed_large_objects_.FetchAndAdd(freed_objects);
+  freed_large_object_bytes_.FetchAndAdd(freed_bytes);
   GetHeap()->RecordFree(freed_objects, freed_bytes);
 }
 

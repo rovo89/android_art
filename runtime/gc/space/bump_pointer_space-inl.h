@@ -44,8 +44,8 @@ inline mirror::Object* BumpPointerSpace::AllocNonvirtualWithoutAccounting(size_t
 inline mirror::Object* BumpPointerSpace::AllocNonvirtual(size_t num_bytes) {
   mirror::Object* ret = AllocNonvirtualWithoutAccounting(num_bytes);
   if (ret != nullptr) {
-    objects_allocated_.fetch_add(1);
-    bytes_allocated_.fetch_add(num_bytes);
+    objects_allocated_.FetchAndAdd(1);
+    bytes_allocated_.FetchAndAdd(num_bytes);
   }
   return ret;
 }
