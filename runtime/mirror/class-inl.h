@@ -241,7 +241,7 @@ inline ArtMethod* Class::FindVirtualMethodForVirtualOrInterface(ArtMethod* metho
   if (method->IsDirect()) {
     return method;
   }
-  if (method->GetDeclaringClass()->IsInterface()) {
+  if (method->GetDeclaringClass()->IsInterface() && !method->IsMiranda()) {
     return FindVirtualMethodForInterface(method);
   }
   return FindVirtualMethodForVirtual(method);
