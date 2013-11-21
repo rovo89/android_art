@@ -57,14 +57,22 @@ extern "C" mirror::Array* artCheckAndAllocArrayFromCode##suffix##suffix2( \
     mirror::ArtMethod** sp) \
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly); \
-  return CheckAndAllocArrayFromCode(type_idx, method, component_count, self, false, allocator_type); \
+  if (!instrumented_bool) { \
+    return CheckAndAllocArrayFromCode(type_idx, method, component_count, self, false, allocator_type); \
+  } else { \
+    return CheckAndAllocArrayFromCodeInstrumented(type_idx, method, component_count, self, false, allocator_type); \
+  } \
 } \
 extern "C" mirror::Array* artCheckAndAllocArrayFromCodeWithAccessCheck##suffix##suffix2( \
     uint32_t type_idx, mirror::ArtMethod* method, int32_t component_count, Thread* self, \
     mirror::ArtMethod** sp) \
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly); \
-  return CheckAndAllocArrayFromCode(type_idx, method, component_count, self, true, allocator_type); \
+  if (!instrumented_bool) { \
+    return CheckAndAllocArrayFromCode(type_idx, method, component_count, self, true, allocator_type); \
+  } else { \
+    return CheckAndAllocArrayFromCodeInstrumented(type_idx, method, component_count, self, true, allocator_type); \
+  } \
 }
 
 #define GENERATE_ENTRYPOINTS_FOR_ALLOCATOR(suffix, allocator_type) \
