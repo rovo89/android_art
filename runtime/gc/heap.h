@@ -189,6 +189,9 @@ class Heap {
   void RegisterNativeAllocation(JNIEnv* env, int bytes);
   void RegisterNativeFree(JNIEnv* env, int bytes);
 
+  // Change the allocator, updates entrypoints.
+  void ChangeAllocator(AllocatorType allocator);
+
   // The given reference is believed to be to an object in the Java heap, check the soundness of it.
   void VerifyObjectImpl(const mirror::Object* o);
   void VerifyObject(const mirror::Object* o) {
@@ -541,8 +544,6 @@ class Heap {
   bool IsEnqueued(mirror::Object* ref) const;
   void DelayReferenceReferent(mirror::Class* klass, mirror::Object* obj, RootVisitor mark_visitor,
                               void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  // Print a reference queue.
-  void PrintReferenceQueue(std::ostream& os, mirror::Object** queue);
 
   // Run the finalizers.
   void RunFinalization(JNIEnv* env);
@@ -628,7 +629,7 @@ class Heap {
 
   // What kind of concurrency behavior is the runtime after? True for concurrent mark sweep GC,
   // false for stop-the-world mark sweep.
-  const bool concurrent_gc_;
+  bool concurrent_gc_;
 
   // How many GC threads we may use for paused parts of garbage collection.
   const size_t parallel_gc_threads_;
@@ -776,7 +777,7 @@ class Heap {
   UniquePtr<accounting::ObjectStack> live_stack_;
 
   // Allocator type.
-  const AllocatorType current_allocator_;
+  AllocatorType current_allocator_;
   const AllocatorType current_non_moving_allocator_;
 
   // Which GCs we run in order when we an allocation fails.
