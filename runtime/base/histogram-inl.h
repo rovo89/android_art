@@ -178,7 +178,8 @@ inline void Histogram<Value>::PrintConfidenceIntervals(std::ostream &os, double 
   os << FormatDuration(Max() * kAdjust, unit) << "\n";
 }
 
-template <class Value> inline void Histogram<Value>::CreateHistogram(CumulativeData* out_data) {
+template <class Value>
+inline void Histogram<Value>::CreateHistogram(CumulativeData* out_data) const {
   DCHECK_GT(sample_size_, 0ull);
   out_data->freq_.clear();
   out_data->perc_.clear();

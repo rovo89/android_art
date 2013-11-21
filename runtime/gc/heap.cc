@@ -23,6 +23,7 @@
 #include <vector>
 #include <valgrind.h>
 
+#include "base/histogram-inl.h"
 #include "base/stl_util.h"
 #include "common_throws.h"
 #include "cutils/sched_policy.h"
@@ -558,8 +559,10 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
       double seconds = NsToMs(logger.GetTotalNs()) / 1000.0;
       const uint64_t freed_bytes = collector->GetTotalFreedBytes();
       const uint64_t freed_objects = collector->GetTotalFreedObjects();
+      Histogram<uint64_t>::CumulativeData cumulative_data;
+      collector->GetPauseHistogram().CreateHistogram(&cumulative_data);
+      collector->GetPauseHistogram().PrintConfidenceIntervals(os, 0.99, cumulative_data);
       os << collector->GetName() << " total time: " << PrettyDuration(total_ns) << "\n"
-         << collector->GetName() << " paused time: " << PrettyDuration(total_pause_ns) << "\n"
          << collector->GetName() << " freed: " << freed_objects
          << " objects with total size " << PrettySize(freed_bytes) << "\n"
          << collector->GetName() << " throughput: " << freed_objects / seconds << "/s / "

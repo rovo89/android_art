@@ -1449,9 +1449,6 @@ void MarkSweep::FinishPhase() {
   heap->RequestHeapTrim();
 
   // Update the cumulative statistics
-  total_time_ns_ += GetDurationNs();
-  total_paused_time_ns_ += std::accumulate(GetPauseTimes().begin(), GetPauseTimes().end(), 0,
-                                           std::plus<uint64_t>());
   total_freed_objects_ += GetFreedObjects() + GetFreedLargeObjects();
   total_freed_bytes_ += GetFreedBytes() + GetFreedLargeObjectBytes();
 

@@ -17,10 +17,10 @@
 #ifndef ART_RUNTIME_GC_COLLECTOR_GARBAGE_COLLECTOR_H_
 #define ART_RUNTIME_GC_COLLECTOR_GARBAGE_COLLECTOR_H_
 
+#include "base/histogram.h"
+#include "base/timing_logger.h"
 #include "gc_type.h"
 #include "locks.h"
-#include "base/timing_logger.h"
-
 #include <stdint.h>
 #include <vector>
 
@@ -95,7 +95,7 @@ class GarbageCollector {
   }
 
   uint64_t GetTotalPausedTimeNs() const {
-    return total_paused_time_ns_;
+    return pause_histogram_.Sum();
   }
 
   uint64_t GetTotalFreedBytes() const {
@@ -104,6 +104,10 @@ class GarbageCollector {
 
   uint64_t GetTotalFreedObjects() const {
     return total_freed_objects_;
+  }
+
+  const Histogram<uint64_t>& GetPauseHistogram() const {
+    return pause_histogram_;
   }
 
  protected:
@@ -122,6 +126,9 @@ class GarbageCollector {
   // Called after the GC is finished. Done without mutators paused.
   virtual void FinishPhase() = 0;
 
+  static constexpr size_t kPauseBucketSize = 500;
+  static constexpr size_t kPauseBucketCount = 32;
+
   Heap* const heap_;
 
   std::string name_;
@@ -134,8 +141,8 @@ class GarbageCollector {
   TimingLogger timings_;
 
   // Cumulative statistics.
+  Histogram<uint64_t> pause_histogram_;
   uint64_t total_time_ns_;
-  uint64_t total_paused_time_ns_;
   uint64_t total_freed_objects_;
   uint64_t total_freed_bytes_;
 
