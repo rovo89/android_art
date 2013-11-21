@@ -697,11 +697,11 @@ void CompilerDriver::LoadImageClasses(TimingLogger& timings)
   ScopedObjectAccess soa(self);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   for (auto it = image_classes_->begin(), end = image_classes_->end(); it != end;) {
-    std::string descriptor(*it);
+    const std::string& descriptor(*it);
     SirtRef<mirror::Class> klass(self, class_linker->FindSystemClass(descriptor.c_str()));
     if (klass.get() == NULL) {
-      image_classes_->erase(it++);
       VLOG(compiler) << "Failed to find class " << descriptor;
+      image_classes_->erase(it++);
       self->ClearException();
     } else {
       ++it;
