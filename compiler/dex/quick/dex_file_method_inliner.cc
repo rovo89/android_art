@@ -71,6 +71,7 @@ const char* DexFileMethodInliner::kNameCacheNames[] = {
     "pokeLongNative",        // kNameCachePokeLongNative
     "pokeShortNative",       // kNameCachePokeShortNative
     "compareAndSwapInt",     // kNameCacheCompareAndSwapInt
+    "compareAndSwapLong",    // kNameCacheCompareAndSwapLong
     "compareAndSwapObject",  // kNameCacheCompareAndSwapObject
     "getInt",                // kNameCacheGetInt
     "getIntVolatile",        // kNameCacheGetIntVolatile
@@ -135,6 +136,9 @@ const DexFileMethodInliner::ProtoDef DexFileMethodInliner::kProtoCacheDefs[] = {
     // kProtoCacheObjectJII_Z
     { kClassCacheBoolean, 4, { kClassCacheJavaLangObject, kClassCacheLong,
         kClassCacheInt, kClassCacheInt } },
+    // kProtoCacheObjectJJJ_Z
+    { kClassCacheBoolean, 4, { kClassCacheJavaLangObject, kClassCacheLong,
+        kClassCacheLong, kClassCacheLong } },
     // kProtoCacheObjectJObjectObject_Z
     { kClassCacheBoolean, 4, { kClassCacheJavaLangObject, kClassCacheLong,
         kClassCacheJavaLangObject, kClassCacheJavaLangObject } },
@@ -205,8 +209,9 @@ bool DexFileMethodInliner::GenIntrinsic(Mir2Lir* backend, CallInfo* info) const 
       return backend->GenInlinedPeek(info, static_cast<OpSize>(intrinsic.data));
     case kIntrinsicPoke:
       return backend->GenInlinedPoke(info, static_cast<OpSize>(intrinsic.data));
-    case kIntrinsicCas32:
-      return backend->GenInlinedCas32(info, intrinsic.data & kIntrinsicFlagNeedWriteBarrier);
+    case kIntrinsicCas:
+      return backend->GenInlinedCas(info, intrinsic.data & kIntrinsicFlagIsLong,
+                                    intrinsic.data & kIntrinsicFlagIsObject);
     case kIntrinsicUnsafeGet:
       return backend->GenInlinedUnsafeGet(info, intrinsic.data & kIntrinsicFlagIsLong,
                                           intrinsic.data & kIntrinsicFlagIsVolatile);

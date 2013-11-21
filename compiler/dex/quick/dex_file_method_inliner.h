@@ -41,7 +41,7 @@ enum IntrinsicOpcode {
   kIntrinsicCurrentThread,
   kIntrinsicPeek,
   kIntrinsicPoke,
-  kIntrinsicCas32,
+  kIntrinsicCas,
   kIntrinsicUnsafeGet,
   kIntrinsicUnsafePut,
 };
@@ -60,15 +60,13 @@ enum IntrinsicFlags {
   // kIntrinsicIndexOf
   kIntrinsicFlagBase0 = 1,
 
-  // kIntrinsicUnsafeCas32
-  kIntrinsicFlagDontNeedWriteBarrier = 0,
-  kIntrinsicFlagNeedWriteBarrier = 1,
-
-  // kIntrinsicUnsafeGet, kIntrinsicUnsafePut
+  // kIntrinsicUnsafeGet, kIntrinsicUnsafePut, kIntrinsicUnsafeCas
   kIntrinsicFlagIsLong     = 1,
+  // kIntrinsicUnsafeGet, kIntrinsicUnsafePut
   kIntrinsicFlagIsVolatile = 2,
-  // kIntrinsicUnsafePut
+  // kIntrinsicUnsafePut, kIntrinsicUnsafeCas
   kIntrinsicFlagIsObject   = 4,
+  // kIntrinsicUnsafePut
   kIntrinsicFlagIsOrdered  = 8,
 };
 
@@ -176,6 +174,7 @@ class DexFileMethodInliner {
       kNameCachePokeLongNative,
       kNameCachePokeShortNative,
       kNameCacheCompareAndSwapInt,
+      kNameCacheCompareAndSwapLong,
       kNameCacheCompareAndSwapObject,
       kNameCacheGetInt,
       kNameCacheGetIntVolatile,
@@ -224,6 +223,7 @@ class DexFileMethodInliner {
       kProtoCacheJJ_V,
       kProtoCacheJS_V,
       kProtoCacheObjectJII_Z,
+      kProtoCacheObjectJJJ_Z,
       kProtoCacheObjectJObjectObject_Z,
       kProtoCacheObjectJ_I,
       kProtoCacheObjectJI_V,
