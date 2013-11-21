@@ -338,7 +338,7 @@ int Mir2Lir::AllocTempDouble() {
 int Mir2Lir::AllocFreeTemp() {
   return AllocTempBody(reg_pool_->core_regs,
              reg_pool_->num_core_regs,
-             &reg_pool_->next_core_reg, true);
+             &reg_pool_->next_core_reg, false);
 }
 
 int Mir2Lir::AllocTemp() {
