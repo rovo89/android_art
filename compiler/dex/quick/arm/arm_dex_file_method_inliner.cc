@@ -66,8 +66,8 @@ const DexFileMethodInliner::IntrinsicDef ArmDexFileMethodInliner::kIntrinsicMeth
 
     INTRINSIC(SunMiscUnsafe, CompareAndSwapInt, ObjectJII_Z, kIntrinsicCas,
               kIntrinsicFlagNone),
-    // INTRINSIC(SunMiscUnsafe, CompareAndSwapLong, ObjectJJJ_Z, kIntrinsicCas,
-    //           kIntrinsicFlagIsLong),
+    INTRINSIC(SunMiscUnsafe, CompareAndSwapLong, ObjectJJJ_Z, kIntrinsicCas,
+              kIntrinsicFlagIsLong),
     INTRINSIC(SunMiscUnsafe, CompareAndSwapObject, ObjectJObjectObject_Z, kIntrinsicCas,
               kIntrinsicFlagIsObject),
 
