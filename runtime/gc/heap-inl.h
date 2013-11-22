@@ -140,11 +140,10 @@ inline mirror::Object* Heap::TryToAllocate(Thread* self, AllocatorType allocator
     }
     case kAllocatorTypeLOS: {
       ret = large_object_space_->Alloc(self, alloc_size, bytes_allocated);
-      // Make sure that our large object didn't get placed anywhere within the space interval or
-      // else it breaks the immune range.
-      DCHECK(ret == nullptr ||
-             reinterpret_cast<byte*>(ret) < continuous_spaces_.front()->Begin() ||
-             reinterpret_cast<byte*>(ret) >= continuous_spaces_.back()->End());
+      // Note that the bump pointer spaces aren't necessarily next to
+      // the other continuous spaces like the non-moving alloc space or
+      // the zygote space.
+      DCHECK(ret == nullptr || large_object_space_->Contains(ret));
       break;
     }
     default: {
