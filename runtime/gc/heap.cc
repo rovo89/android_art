@@ -2090,7 +2090,18 @@ void Heap::ConcurrentGC(Thread* self) {
   }
   // Wait for any GCs currently running to finish.
   if (WaitForGcToComplete(self) == collector::kGcTypeNone) {
-    CollectGarbageInternal(next_gc_type_, kGcCauseBackground, false);
+    // If the we can't run the GC type we wanted to run, find the next appropriate one and try that
+    // instead. E.g. can't do partial, so do full instead.
+    if (CollectGarbageInternal(next_gc_type_, kGcCauseBackground, false) ==
+        collector::kGcTypeNone) {
+      for (collector::GcType gc_type : gc_plan_) {
+        // Attempt to run the collector, if we succeed, we are done.
+        if (gc_type > next_gc_type_ &&
+            CollectGarbageInternal(gc_type, kGcCauseBackground, false) != collector::kGcTypeNone) {
+          break;
+        }
+      }
+    }
   }
 }
 
