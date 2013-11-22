@@ -27,11 +27,6 @@ namespace art {
 namespace gc {
 namespace allocator {
 
-// If true, log verbose details of operations.
-static const bool kTraceRosAlloc = false;
-// If true, check that the returned memory is actually zero.
-static const bool kCheckZeroMemory = kIsDebugBuild;
-
 extern "C" void* art_heap_rosalloc_morecore(RosAlloc* rosalloc, intptr_t increment);
 
 size_t RosAlloc::bracketSizes[kNumOfSizeBrackets];
@@ -401,44 +396,34 @@ void RosAlloc::FreePages(Thread* self, void* ptr) {
   }
 }
 
-void* RosAlloc::Alloc(Thread* self, size_t size, size_t* bytes_allocated) {
-  if (UNLIKELY(size > kLargeSizeThreshold)) {
-    size_t num_pages = RoundUp(size, kPageSize) / kPageSize;
-    void* r;
-    {
-      MutexLock mu(self, lock_);
-      r = AllocPages(self, num_pages, kPageMapLargeObject);
-    }
-    if (bytes_allocated != NULL) {
-      *bytes_allocated = num_pages * kPageSize;
-    }
-    if (kTraceRosAlloc) {
-      if (r != NULL) {
-        LOG(INFO) << "RosAlloc::Alloc() : (large obj) 0x" << std::hex << reinterpret_cast<intptr_t>(r)
-                  << "-0x" << (reinterpret_cast<intptr_t>(r) + num_pages * kPageSize)
-                  << "(" << std::dec << (num_pages * kPageSize) << ")";
-      } else {
-        LOG(INFO) << "RosAlloc::Alloc() : (large obj) NULL";
-      }
-    }
-    // Check if the returned memory is really all zero.
-    if (kCheckZeroMemory && r != NULL) {
-      byte* bytes = reinterpret_cast<byte*>(r);
-      for (size_t i = 0; i < size; ++i) {
-        DCHECK_EQ(bytes[i], 0);
-      }
-    }
-    return r;
+void* RosAlloc::AllocLargeObject(Thread* self, size_t size, size_t* bytes_allocated) {
+  DCHECK(size > kLargeSizeThreshold);
+  size_t num_pages = RoundUp(size, kPageSize) / kPageSize;
+  void* r;
+  {
+    MutexLock mu(self, lock_);
+    r = AllocPages(self, num_pages, kPageMapLargeObject);
   }
-  void* m = AllocFromRun(self, size, bytes_allocated);
+  if (bytes_allocated != NULL) {
+    *bytes_allocated = num_pages * kPageSize;
+  }
+  if (kTraceRosAlloc) {
+    if (r != NULL) {
+      LOG(INFO) << "RosAlloc::AllocLargeObject() : 0x" << std::hex << reinterpret_cast<intptr_t>(r)
+                << "-0x" << (reinterpret_cast<intptr_t>(r) + num_pages * kPageSize)
+                << "(" << std::dec << (num_pages * kPageSize) << ")";
+    } else {
+      LOG(INFO) << "RosAlloc::AllocLargeObject() : NULL";
+    }
+  }
   // Check if the returned memory is really all zero.
-  if (kCheckZeroMemory && m != NULL) {
-    byte* bytes = reinterpret_cast<byte*>(m);
+  if (kCheckZeroMemory && r != NULL) {
+    byte* bytes = reinterpret_cast<byte*>(r);
     for (size_t i = 0; i < size; ++i) {
       DCHECK_EQ(bytes[i], 0);
     }
   }
-  return m;
+  return r;
 }
 
 void RosAlloc::FreeInternal(Thread* self, void* ptr) {

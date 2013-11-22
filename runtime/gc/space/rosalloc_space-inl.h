@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_GC_SPACE_ROSALLOC_SPACE_INL_H_
 #define ART_RUNTIME_GC_SPACE_ROSALLOC_SPACE_INL_H_
 
+#include "gc/allocator/rosalloc-inl.h"
 #include "rosalloc_space.h"
 #include "thread.h"
 

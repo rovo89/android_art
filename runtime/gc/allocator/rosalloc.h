@@ -345,6 +345,12 @@ class RosAlloc {
   // runs for the rest.
   static const size_t kMaxThreadLocalSizeBracketIdx = 10;
 
+  // If true, check that the returned memory is actually zero.
+  static constexpr bool kCheckZeroMemory = kIsDebugBuild;
+
+  // If true, log verbose details of operations.
+  static constexpr bool kTraceRosAlloc = false;
+
   struct hash_run {
     size_t operator()(const RosAlloc::Run* r) const {
       return reinterpret_cast<size_t>(r);
@@ -428,6 +434,9 @@ class RosAlloc {
 
   // The internal of non-bulk Free().
   void FreeInternal(Thread* self, void* ptr) LOCKS_EXCLUDED(lock_);
+
+  // Allocates large objects.
+  void* AllocLargeObject(Thread* self, size_t size, size_t* bytes_allocated) LOCKS_EXCLUDED(lock_);
 
  public:
   RosAlloc(void* base, size_t capacity);
