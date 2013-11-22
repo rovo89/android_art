@@ -1098,10 +1098,8 @@ bool MethodVerifier::VerifyCodeFlow() {
 
 std::ostream& MethodVerifier::DumpFailures(std::ostream& os) {
   DCHECK_EQ(failures_.size(), failure_messages_.size());
-  if (VLOG_IS_ON(verifier)) {
-      for (size_t i = 0; i < failures_.size(); ++i) {
-          os << failure_messages_[i]->str() << "\n";
-      }
+  for (size_t i = 0; i < failures_.size(); ++i) {
+      os << failure_messages_[i]->str() << "\n";
   }
   return os;
 }
