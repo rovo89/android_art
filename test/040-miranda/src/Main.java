@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import java.lang.reflect.Method;
+
 /**
  * Miranda testing.
  */
@@ -37,5 +39,16 @@ public class Main {
         System.out.println("  inInterface:  " + mira2.inInterface());
         System.out.println("  inInterface2: " + mira2.inInterface2());
         System.out.println("  inAbstract:   " + mira2.inAbstract());
+
+        System.out.println("Test getting miranda method via reflection:");
+        try {
+          Class mirandaClass = Class.forName("MirandaAbstract");
+          Method mirandaMethod = mirandaClass.getDeclaredMethod("inInterface", (Class[]) null);
+          System.out.println("  did not expect to find miranda method");
+        } catch (NoSuchMethodException nsme) {
+          System.out.println("  caught expected NoSuchMethodException");
+        } catch (Exception e) {
+          System.out.println("  caught unexpected exception " + e);
+        }
     }
 }
