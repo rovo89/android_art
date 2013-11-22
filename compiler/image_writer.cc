@@ -525,7 +525,7 @@ void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_d
 
   // Return to write header at start of image with future location of image_roots. At this point,
   // image_end_ is the size of the image (excluding bitmaps).
-  const size_t heap_bytes_per_bitmap_byte = 8 * gc::accounting::SpaceBitmap::kAlignment;
+  const size_t heap_bytes_per_bitmap_byte = kBitsPerByte * gc::accounting::SpaceBitmap::kAlignment;
   const size_t bitmap_bytes = RoundUp(image_end_, heap_bytes_per_bitmap_byte) /
       heap_bytes_per_bitmap_byte;
   ImageHeader image_header(reinterpret_cast<uint32_t>(image_begin_),
