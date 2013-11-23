@@ -560,14 +560,15 @@ void ArmMir2Lir::OpTlsCmp(ThreadOffset offset, int val) {
   LOG(FATAL) << "Unexpected use of OpTlsCmp for Arm";
 }
 
-bool ArmMir2Lir::GenInlinedCas32(CallInfo* info, bool need_write_barrier) {
+bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
+  DCHECK(!is_long);  // not supported yet
   DCHECK_EQ(cu_->instruction_set, kThumb2);
   // Unused - RegLocation rl_src_unsafe = info->args[0];
-  RegLocation rl_src_obj= info->args[1];  // Object - known non-null
-  RegLocation rl_src_offset= info->args[2];  // long low
+  RegLocation rl_src_obj = info->args[1];  // Object - known non-null
+  RegLocation rl_src_offset = info->args[2];  // long low
   rl_src_offset.wide = 0;  // ignore high half in info->args[3]
-  RegLocation rl_src_expected= info->args[4];  // int or Object
-  RegLocation rl_src_new_value= info->args[5];  // int or Object
+  RegLocation rl_src_expected = info->args[4];  // int, long or Object
+  RegLocation rl_src_new_value = info->args[5];  // int, long or Object
   RegLocation rl_dest = InlineTarget(info);  // boolean place for result
 
 
@@ -577,7 +578,7 @@ bool ArmMir2Lir::GenInlinedCas32(CallInfo* info, bool need_write_barrier) {
   RegLocation rl_object = LoadValue(rl_src_obj, kCoreReg);
   RegLocation rl_new_value = LoadValue(rl_src_new_value, kCoreReg);
 
-  if (need_write_barrier && !mir_graph_->IsConstantNullRef(rl_new_value)) {
+  if (is_object && !mir_graph_->IsConstantNullRef(rl_new_value)) {
     // Mark card for object assuming new value is stored.
     MarkGCCard(rl_new_value.low_reg, rl_object.low_reg);
   }

@@ -661,7 +661,7 @@ class Mir2Lir : public Backend {
                           RegLocation rl_src1, RegLocation rl_src2) = 0;
     virtual void GenConversion(Instruction::Code opcode, RegLocation rl_dest,
                                RegLocation rl_src) = 0;
-    virtual bool GenInlinedCas32(CallInfo* info, bool need_write_barrier) = 0;
+    virtual bool GenInlinedCas(CallInfo* info, bool is_long, bool is_object) = 0;
     virtual bool GenInlinedMinMaxInt(CallInfo* info, bool is_min) = 0;
     virtual bool GenInlinedSqrt(CallInfo* info) = 0;
     virtual bool GenInlinedPeek(CallInfo* info, OpSize size) = 0;

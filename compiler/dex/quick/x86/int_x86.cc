@@ -281,7 +281,7 @@ void X86Mir2Lir::OpTlsCmp(ThreadOffset offset, int val) {
   NewLIR2(kX86Cmp16TI8, offset.Int32Value(), val);
 }
 
-bool X86Mir2Lir::GenInlinedCas32(CallInfo* info, bool need_write_barrier) {
+bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   DCHECK_NE(cu_->instruction_set, kThumb2);
   return false;
 }
