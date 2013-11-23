@@ -103,6 +103,7 @@ class Runtime {
     bool is_explicit_gc_disabled_;
     size_t long_pause_log_threshold_;
     size_t long_gc_log_threshold_;
+    bool dump_gc_performance_on_shutdown_;
     bool ignore_max_footprint_;
     size_t heap_initial_size_;
     size_t heap_maximum_size_;

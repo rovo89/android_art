@@ -368,6 +368,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
 
   parsed->long_pause_log_threshold_ = gc::Heap::kDefaultLongPauseLogThreshold;
   parsed->long_gc_log_threshold_ = gc::Heap::kDefaultLongGCLogThreshold;
+  parsed->dump_gc_performance_on_shutdown_ = false;
   parsed->ignore_max_footprint_ = false;
 
   parsed->lock_profiling_threshold_ = 0;
@@ -528,6 +529,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     } else if (option == "-XX:LongGCLogThreshold") {
           parsed->long_gc_log_threshold_ =
               ParseMemoryOption(option.substr(strlen("-XX:LongGCLogThreshold")).c_str(), 1024);
+    } else if (option == "-XX:DumpGCPerformanceOnShutdown") {
+      parsed->dump_gc_performance_on_shutdown_ = true;
     } else if (option == "-XX:IgnoreMaxFootprint") {
       parsed->ignore_max_footprint_ = true;
     } else if (option == "-XX:LowMemoryMode") {
@@ -912,6 +915,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
                        options->low_memory_mode_,
                        options->long_pause_log_threshold_,
                        options->long_gc_log_threshold_,
+                       options->dump_gc_performance_on_shutdown_,
                        options->ignore_max_footprint_);
 
   BlockSignals();
