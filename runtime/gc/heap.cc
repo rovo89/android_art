@@ -54,6 +54,7 @@
 #include "mirror/object_array-inl.h"
 #include "object_utils.h"
 #include "os.h"
+#include "runtime.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
 #include "sirt_ref.h"
@@ -72,15 +73,15 @@ static constexpr size_t kGcAlotInterval = KB;
 // Minimum amount of remaining bytes before a concurrent GC is triggered.
 static constexpr size_t kMinConcurrentRemainingBytes = 128 * KB;
 static constexpr AllocatorType kDefaultPreZygoteAllocator = kAllocatorTypeFreeList;
-static constexpr AllocatorType kDefaultPostZygoteAllocator = kAllocatorTypeFreeList;
 
 Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max_free,
            double target_utilization, size_t capacity, const std::string& image_file_name,
-           bool concurrent_gc, size_t parallel_gc_threads, size_t conc_gc_threads,
+           CollectorType collector_type, size_t parallel_gc_threads, size_t conc_gc_threads,
            bool low_memory_mode, size_t long_pause_log_threshold, size_t long_gc_log_threshold,
            bool ignore_max_footprint)
     : non_moving_space_(nullptr),
-      concurrent_gc_(concurrent_gc),
+      concurrent_gc_(collector_type == gc::kCollectorTypeCMS),
+      collector_type_(collector_type),
       parallel_gc_threads_(parallel_gc_threads),
       conc_gc_threads_(conc_gc_threads),
       low_memory_mode_(low_memory_mode),
@@ -156,7 +157,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   // If we aren't the zygote, switch to the default non zygote allocator. This may update the
   // entrypoints.
   if (!Runtime::Current()->IsZygote()) {
-    ChangeAllocator(kDefaultPreZygoteAllocator);
+    ChangeCollector(collector_type_);
   }
   live_bitmap_.reset(new accounting::HeapBitmap(this));
   mark_bitmap_.reset(new accounting::HeapBitmap(this));
@@ -1203,6 +1204,21 @@ void Heap::CollectGarbage(bool clear_soft_references) {
   CollectGarbageInternal(collector::kGcTypeFull, kGcCauseExplicit, clear_soft_references);
 }
 
+void Heap::ChangeCollector(CollectorType collector_type) {
+  switch (collector_type) {
+    case kCollectorTypeSS: {
+      ChangeAllocator(kAllocatorTypeBumpPointer);
+      break;
+    }
+    case kCollectorTypeMS:
+      // Fall-through.
+    case kCollectorTypeCMS: {
+      ChangeAllocator(kAllocatorTypeFreeList);
+      break;
+    }
+  }
+}
+
 void Heap::PreZygoteFork() {
   static Mutex zygote_creation_lock_("zygote creation lock", kZygoteCreationLock);
   Thread* self = Thread::Current();
@@ -1218,7 +1234,7 @@ void Heap::PreZygoteFork() {
   non_moving_space_->Trim();
   non_moving_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
   // Change the allocator to the post zygote one.
-  ChangeAllocator(kDefaultPostZygoteAllocator);
+  ChangeCollector(collector_type_);
   // TODO: Delete bump_pointer_space_ and temp_pointer_space_?
   if (semi_space_collector_ != nullptr) {
     // Create a new bump pointer space which we will compact into.

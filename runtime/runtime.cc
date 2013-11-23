@@ -363,6 +363,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->parallel_gc_threads_ = sysconf(_SC_NPROCESSORS_CONF) - 1;
   // Only the main GC thread, no workers.
   parsed->conc_gc_threads_ = 0;
+  // Default is CMS which is Sticky + Partial + Full CMS GC.
+  parsed->collector_type_ = gc::kCollectorTypeCMS;
   parsed->stack_size_ = 0;  // 0 means default.
   parsed->max_spins_before_thin_lock_inflation_ = Monitor::kDefaultMaxSpinsBeforeThinLockInflation;
   parsed->low_memory_mode_ = false;
@@ -370,7 +372,6 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->is_compiler_ = false;
   parsed->is_zygote_ = false;
   parsed->interpreter_only_ = false;
-  parsed->is_concurrent_gc_enabled_ = true;
   parsed->is_explicit_gc_disabled_ = false;
 
   parsed->long_pause_log_threshold_ = gc::Heap::kDefaultLongPauseLogThreshold;
@@ -556,10 +557,12 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       std::vector<std::string> gc_options;
       Split(option.substr(strlen("-Xgc:")), ',', gc_options);
       for (size_t i = 0; i < gc_options.size(); ++i) {
-        if (gc_options[i] == "noconcurrent") {
-          parsed->is_concurrent_gc_enabled_ = false;
-        } else if (gc_options[i] == "concurrent") {
-          parsed->is_concurrent_gc_enabled_ = true;
+        if (gc_options[i] == "MS" || gc_options[i] == "nonconcurrent") {
+          parsed->collector_type_ = gc::kCollectorTypeMS;
+        } else if (gc_options[i] == "CMS" || gc_options[i] == "concurrent") {
+          parsed->collector_type_ = gc::kCollectorTypeCMS;
+        } else if (gc_options[i] == "SS") {
+          parsed->collector_type_ = gc::kCollectorTypeSS;
         } else {
           LOG(WARNING) << "Ignoring unknown -Xgc option: " << gc_options[i];
         }
@@ -916,7 +919,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
                        options->heap_target_utilization_,
                        options->heap_maximum_size_,
                        options->image_,
-                       options->is_concurrent_gc_enabled_,
+                       options->collector_type_,
                        options->parallel_gc_threads_,
                        options->conc_gc_threads_,
                        options->low_memory_mode_,
