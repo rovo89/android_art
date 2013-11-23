@@ -78,7 +78,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
            double target_utilization, size_t capacity, const std::string& image_file_name,
            bool concurrent_gc, size_t parallel_gc_threads, size_t conc_gc_threads,
            bool low_memory_mode, size_t long_pause_log_threshold, size_t long_gc_log_threshold,
-           bool dump_gc_performance_on_shutdown, bool ignore_max_footprint)
+           bool ignore_max_footprint)
     : non_moving_space_(nullptr),
       concurrent_gc_(concurrent_gc),
       parallel_gc_threads_(parallel_gc_threads),
@@ -86,7 +86,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       low_memory_mode_(low_memory_mode),
       long_pause_log_threshold_(long_pause_log_threshold),
       long_gc_log_threshold_(long_gc_log_threshold),
-      dump_gc_performance_on_shutdown_(dump_gc_performance_on_shutdown),
       ignore_max_footprint_(ignore_max_footprint),
       have_zygote_space_(false),
       soft_reference_queue_(this),
@@ -610,9 +609,6 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
 
 Heap::~Heap() {
   VLOG(heap) << "Starting ~Heap()";
-  if (dump_gc_performance_on_shutdown_) {
-    DumpGcPerformanceInfo(LOG(INFO));
-  }
   STLDeleteElements(&garbage_collectors_);
   // If we don't reset then the mark stack complains in its destructor.
   allocation_stack_->Reset();

@@ -146,7 +146,7 @@ class Heap {
                 const std::string& original_image_file_name, bool concurrent_gc,
                 size_t parallel_gc_threads, size_t conc_gc_threads, bool low_memory_mode,
                 size_t long_pause_threshold, size_t long_gc_threshold,
-                bool dump_gc_performance_on_shutdown, bool ignore_max_footprint);
+                bool ignore_max_footprint);
 
   ~Heap();
 
@@ -647,9 +647,6 @@ class Heap {
 
   // If we get a GC longer than long GC log threshold, then we print out the GC after it finishes.
   const size_t long_gc_log_threshold_;
-
-  // If true, then we dump the GC cumulative timings on shutdown.
-  const bool dump_gc_performance_on_shutdown_;
 
   // If we ignore the max footprint it lets the heap grow until it hits the heap capacity, this is
   // useful for benchmarking since it reduces time spent in GC to a low %.

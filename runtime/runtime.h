@@ -562,6 +562,9 @@ class Runtime {
   // As returned by ClassLoader.getSystemClassLoader().
   jobject system_class_loader_;
 
+  // If true, then we dump the GC cumulative timings on shutdown.
+  bool dump_gc_performance_on_shutdown_;
+
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
 

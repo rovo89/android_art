@@ -109,6 +109,13 @@ Runtime::Runtime()
 }
 
 Runtime::~Runtime() {
+  if (dump_gc_performance_on_shutdown_) {
+    // This can't be called from the Heap destructor below because it
+    // could call RosAlloc::InspectAll() which needs the thread_list
+    // to be still alive.
+    heap_->DumpGcPerformanceInfo(LOG(INFO));
+  }
+
   Thread* self = Thread::Current();
   {
     MutexLock mu(self, *Locks::runtime_shutdown_lock_);
@@ -915,8 +922,9 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
                        options->low_memory_mode_,
                        options->long_pause_log_threshold_,
                        options->long_gc_log_threshold_,
-                       options->dump_gc_performance_on_shutdown_,
                        options->ignore_max_footprint_);
+
+  dump_gc_performance_on_shutdown_ = options->dump_gc_performance_on_shutdown_;
 
   BlockSignals();
   InitPlatformSignalHandlers();
