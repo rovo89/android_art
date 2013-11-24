@@ -58,6 +58,7 @@ static inline size_t ComputeArraySize(Thread* self, Class* array_class, int32_t 
   return size;
 }
 
+// Used for setting the array length in the allocation code path to ensure it is guarded by a CAS.
 class SetLengthVisitor {
  public:
   explicit SetLengthVisitor(int32_t length) : length_(length) {

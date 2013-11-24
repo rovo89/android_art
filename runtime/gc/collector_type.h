@@ -24,8 +24,11 @@ namespace gc {
 
 // Which types of collections are able to be performed.
 enum CollectorType {
+  // Non concurrent mark-sweep.
   kCollectorTypeMS,
+  // Concurrent mark-sweep.
   kCollectorTypeCMS,
+  // Semi-space / mark-sweep hybrid, enables compaction.
   kCollectorTypeSS,
 };
 std::ostream& operator<<(std::ostream& os, const CollectorType& collector_type);

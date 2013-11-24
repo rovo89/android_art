@@ -40,8 +40,10 @@ template <class Value> class Histogram {
     std::vector<double> perc_;
   };
 
-  // Used for name based comparators in the timing loggers.
+  // Used by the cumulative timing logger to search the histogram set using for an existing split
+  // with the same name using CumulativeLogger::HistogramComparator.
   explicit Histogram(const char* name);
+  // This is the expected constructor when creating new Histograms.
   Histogram(const char* name, Value initial_bucket_width, size_t max_buckets = 100);
   void AddValue(Value);
   // Builds the cumulative distribution function from the frequency data.

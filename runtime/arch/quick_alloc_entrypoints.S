@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 .macro GENERATE_ALLOC_ENTRYPOINTS c_suffix, cxx_suffix
 // Called by managed code to allocate an object.
 TWO_ARG_DOWNCALL art_quick_alloc_object\c_suffix, artAllocObjectFromCode\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO
@@ -32,7 +31,9 @@ THREE_ARG_DOWNCALL art_quick_check_and_alloc_array\c_suffix, artCheckAndAllocArr
 THREE_ARG_DOWNCALL art_quick_check_and_alloc_array_with_access_check\c_suffix, artCheckAndAllocArrayFromCodeWithAccessCheck\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO
 .endm
 
+.macro GENERATE_ALL_ALLOC_ENTRYPOINTS
 GENERATE_ALLOC_ENTRYPOINTS
 GENERATE_ALLOC_ENTRYPOINTS _instrumented, Instrumented
 GENERATE_ALLOC_ENTRYPOINTS _bump_pointer, BumpPointer
 GENERATE_ALLOC_ENTRYPOINTS _bump_pointer_instrumented, BumpPointerInstrumented
+.endm

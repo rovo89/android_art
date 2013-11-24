@@ -43,6 +43,7 @@ class Heap;
 namespace space {
 
 class AllocSpace;
+class BumpPointerSpace;
 class ContinuousSpace;
 class DiscontinuousSpace;
 class MallocSpace;
@@ -137,6 +138,10 @@ class Space {
   // Is this space a bump pointer space?
   bool IsBumpPointerSpace() const {
     return GetType() == kSpaceTypeBumpPointerSpace;
+  }
+  virtual BumpPointerSpace* AsBumpPointerSpace() {
+    LOG(FATAL) << "Unreachable";
+    return NULL;
   }
 
   // Does this space hold large objects and implement the large object space abstraction?

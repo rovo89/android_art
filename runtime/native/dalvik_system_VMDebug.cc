@@ -20,6 +20,7 @@
 #include "class_linker.h"
 #include "common_throws.h"
 #include "debugger.h"
+#include "gc/space/bump_pointer_space.h"
 #include "gc/space/dlmalloc_space.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
@@ -247,7 +248,7 @@ static jlong VMDebug_countInstancesOfClass(JNIEnv* env, jclass, jclass javaClass
 // /proc/<pid>/smaps.
 static void VMDebug_getHeapSpaceStats(JNIEnv* env, jclass, jlongArray data) {
   jlong* arr = reinterpret_cast<jlong*>(env->GetPrimitiveArrayCritical(data, 0));
-  if (arr == NULL || env->GetArrayLength(data) < 9) {
+  if (arr == nullptr || env->GetArrayLength(data) < 9) {
     return;
   }
 
@@ -257,29 +258,26 @@ static void VMDebug_getHeapSpaceStats(JNIEnv* env, jclass, jlongArray data) {
   size_t zygoteUsed = 0;
   size_t largeObjectsSize = 0;
   size_t largeObjectsUsed = 0;
-
   gc::Heap* heap = Runtime::Current()->GetHeap();
-  const std::vector<gc::space::ContinuousSpace*>& continuous_spaces = heap->GetContinuousSpaces();
-  const std::vector<gc::space::DiscontinuousSpace*>& discontinuous_spaces = heap->GetDiscontinuousSpaces();
-  typedef std::vector<gc::space::ContinuousSpace*>::const_iterator It;
-  for (It it = continuous_spaces.begin(), end = continuous_spaces.end(); it != end; ++it) {
-    gc::space::ContinuousSpace* space = *it;
+  for (gc::space::ContinuousSpace* space : heap->GetContinuousSpaces()) {
     if (space->IsImageSpace()) {
       // Currently don't include the image space.
     } else if (space->IsZygoteSpace()) {
       gc::space::MallocSpace* malloc_space = space->AsMallocSpace();
       zygoteSize += malloc_space->GetFootprint();
       zygoteUsed += malloc_space->GetBytesAllocated();
-    } else {
-      // This is the alloc space.
+    } else if (space->IsMallocSpace()) {
+      // This is a malloc space.
       gc::space::MallocSpace* malloc_space = space->AsMallocSpace();
       allocSize += malloc_space->GetFootprint();
       allocUsed += malloc_space->GetBytesAllocated();
+    } else if (space->IsBumpPointerSpace()) {
+      gc::space::BumpPointerSpace* bump_pointer_space = space->AsBumpPointerSpace();
+      allocSize += bump_pointer_space->Size();
+      allocUsed += bump_pointer_space->GetBytesAllocated();
     }
   }
-  typedef std::vector<gc::space::DiscontinuousSpace*>::const_iterator It2;
-  for (It2 it = discontinuous_spaces.begin(), end = discontinuous_spaces.end(); it != end; ++it) {
-    gc::space::DiscontinuousSpace* space = *it;
+  for (gc::space::DiscontinuousSpace* space : heap->GetDiscontinuousSpaces()) {
     if (space->IsLargeObjectSpace()) {
       largeObjectsSize += space->AsLargeObjectSpace()->GetBytesAllocated();
       largeObjectsUsed += largeObjectsSize;

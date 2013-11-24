@@ -72,7 +72,6 @@ static constexpr bool kGCALotMode = false;
 static constexpr size_t kGcAlotInterval = KB;
 // Minimum amount of remaining bytes before a concurrent GC is triggered.
 static constexpr size_t kMinConcurrentRemainingBytes = 128 * KB;
-static constexpr AllocatorType kDefaultPreZygoteAllocator = kAllocatorTypeFreeList;
 
 Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max_free,
            double target_utilization, size_t capacity, const std::string& image_file_name,
@@ -1215,6 +1214,8 @@ void Heap::ChangeCollector(CollectorType collector_type) {
     case kCollectorTypeCMS: {
       ChangeAllocator(kAllocatorTypeFreeList);
       break;
+    default:
+      LOG(FATAL) << "Unimplemented";
     }
   }
 }

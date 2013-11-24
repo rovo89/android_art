@@ -120,7 +120,11 @@ class BumpPointerSpace : public ContinuousMemMapAllocSpace {
   static mirror::Object* GetNextObject(mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Alignment.
+  virtual BumpPointerSpace* AsBumpPointerSpace() {
+    return this;
+  }
+
+  // Object alignment within the space.
   static constexpr size_t kAlignment = 8;
 
  protected:

@@ -16,6 +16,8 @@
 
 #include "asm_support_arm.S"
 
+#include "arch/quick_alloc_entrypoints.S"
+
     /* Deliver the given exception */
     .extern artDeliverExceptionFromCode
     /* Deliver an exception pending on a thread */
@@ -864,7 +866,8 @@ ENTRY \name
 END \name
 .endm
 
-#include "arch/quick_alloc_entrypoints.S"
+// Generate the allocation entrypoints for each allocator.
+GENERATE_ALL_ALLOC_ENTRYPOINTS
 
     /*
      * Called by managed code when the value in rSUSPEND has been decremented to 0.

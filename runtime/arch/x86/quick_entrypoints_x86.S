@@ -16,6 +16,8 @@
 
 #include "asm_support_x86.S"
 
+#include "arch/quick_alloc_entrypoints.S"
+
 // For x86, the CFA is esp+4, the address above the pushed return address on the stack.
 
     /*
@@ -426,7 +428,8 @@ MACRO0(RETURN_OR_DELIVER_PENDING_EXCEPTION)
     DELIVER_PENDING_EXCEPTION
 END_MACRO
 
-#include "arch/quick_alloc_entrypoints.S"
+// Generate the allocation entrypoints for each allocator.
+GENERATE_ALL_ALLOC_ENTRYPOINTS
 
 TWO_ARG_DOWNCALL art_quick_resolve_string, artResolveStringFromCode, RETURN_IF_RESULT_IS_NON_ZERO
 TWO_ARG_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode, RETURN_IF_RESULT_IS_NON_ZERO
