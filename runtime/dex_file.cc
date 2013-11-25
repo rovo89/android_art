@@ -876,6 +876,32 @@ std::string Signature::ToString() const {
   return result;
 }
 
+bool Signature::operator==(const StringPiece& rhs) const {
+  if (dex_file_ == nullptr) {
+    return false;
+  }
+  StringPiece tail(rhs);
+  if (!tail.starts_with("(")) {
+    return false;  // Invalid signature
+  }
+  tail.remove_prefix(1);  // "(";
+  const DexFile::TypeList* params = dex_file_->GetProtoParameters(*proto_id_);
+  if (params != nullptr) {
+    for (uint32_t i = 0; i < params->Size(); ++i) {
+      StringPiece param(dex_file_->StringByTypeIdx(params->GetTypeItem(i).type_idx_));
+      if (!tail.starts_with(param)) {
+        return false;
+      }
+      tail.remove_prefix(param.length());
+    }
+  }
+  if (!tail.starts_with(")")) {
+    return false;
+  }
+  tail.remove_prefix(1);  // ")";
+  return tail == dex_file_->StringByTypeIdx(proto_id_->return_type_idx_);
+}
+
 std::ostream& operator<<(std::ostream& os, const Signature& sig) {
   return os << sig.ToString();
 }

@@ -964,10 +964,7 @@ class Signature {
     return !(*this == rhs);
   }
 
-  bool operator==(const StringPiece& rhs) const {
-    // TODO: Avoid temporary string allocation.
-    return ToString() == rhs;
-  }
+  bool operator==(const StringPiece& rhs) const;
 
  private:
   Signature(const DexFile* dex, const DexFile::ProtoId& proto) : dex_file_(dex), proto_id_(&proto) {
