@@ -26,7 +26,7 @@ namespace gc {
 namespace collector {
 
 PartialMarkSweep::PartialMarkSweep(Heap* heap, bool is_concurrent, const std::string& name_prefix)
-    : MarkSweep(heap, is_concurrent, name_prefix + (name_prefix.empty() ? "" : " ") + "partial") {
+    : MarkSweep(heap, is_concurrent, name_prefix.empty() ? "partial " : name_prefix) {
   cumulative_timings_.SetName(GetName());
 }
 

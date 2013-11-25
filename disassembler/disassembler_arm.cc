@@ -180,6 +180,44 @@ std::ostream& operator<<(std::ostream& os, const RegisterList& rhs) {
   return os;
 }
 
+struct FpRegister {
+  explicit FpRegister(uint32_t instr, uint16_t at_bit, uint16_t extra_at_bit) {
+    size = (instr >> 8) & 1;
+    uint32_t Vn = (instr >> at_bit) & 0xF;
+    uint32_t N = (instr >> extra_at_bit) & 1;
+    r = (size != 0 ? ((N << 4) | Vn) : ((Vn << 1) | N));
+  }
+  FpRegister(const FpRegister& other, uint32_t offset)
+      : size(other.size), r(other.r + offset) {}
+
+  uint32_t size;  // 0 = f32, 1 = f64
+  uint32_t r;
+};
+std::ostream& operator<<(std::ostream& os, const FpRegister& rhs) {
+  return os << ((rhs.size != 0) ? "d" : "s") << rhs.r;
+}
+
+struct FpRegisterRange {
+  explicit FpRegisterRange(uint32_t instr)
+      : first(instr, 12, 22), imm8(instr & 0xFF) {}
+  FpRegister first;
+  uint32_t imm8;
+};
+std::ostream& operator<<(std::ostream& os, const FpRegisterRange& rhs) {
+  os << "{" << rhs.first;
+  int count = (rhs.first.size != 0 ? ((rhs.imm8 + 1u) >> 1) : rhs.imm8);
+  if (count > 1) {
+    os << "-" << FpRegister(rhs.first, count - 1);
+  }
+  if (rhs.imm8 == 0) {
+    os << " (EMPTY)";
+  } else if (rhs.first.size != 0 && (rhs.imm8 & 1) != 0) {
+    os << rhs.first << " (HALF)";
+  }
+  os << "}";
+  return os;
+}
+
 void DisassemblerArm::DumpArm(std::ostream& os, const uint8_t* instr_ptr) {
   uint32_t instruction = ReadU32(instr_ptr);
   uint32_t cond = (instruction >> 28) & 0xf;
@@ -389,9 +427,9 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
           args << Rt << "," << Rd << ", [" << Rn;
           const char *sign = U ? "+" : "-";
           if (P == 0 && W == 1) {
-            args << "], #" << sign << imm8;
+            args << "], #" << sign << (imm8 << 2);
           } else {
-            args << ", #" << sign << imm8 << "]";
+            args << ", #" << sign << (imm8 << 2) << "]";
             if (W == 1) {
               args << "!";
             }
@@ -616,57 +654,115 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
         uint32_t op4 = (instr >> 4) & 0x1;
 
         if (coproc == 10 || coproc == 11) {   // 101x
-          if (op3 < 0x20 && (op3 >> 1) != 2) {     // 0xxxxx and not 00010x
-            // extension load/store instructions
-            int op = op3 & 0x1f;
+          if (op3 < 0x20 && (op3 & ~5) != 0) {     // 0xxxxx and not 000x0x
+            // Extension register load/store instructions
+            // |1111|110|00000|0000|1111|110|0|00000000|
+            // |5  2|1 9|87654|3  0|5  2|1 9|8|7      0|
+            // |----|---|-----|----|----|---|-|--------|
+            // |3322|222|22222|1111|1111|110|0|00000000|
+            // |1  8|7 5|4   0|9  6|5  2|1 9|8|7      0|
+            // |----|---|-----|----|----|---|-|--------|
+            // |1110|110|PUDWL| Rn | Vd |101|S|  imm8  |
             uint32_t P = (instr >> 24) & 1;
             uint32_t U = (instr >> 23) & 1;
-            uint32_t D = (instr >> 22) & 1;
             uint32_t W = (instr >> 21) & 1;
-            uint32_t S = (instr >> 8) & 1;
-            ArmRegister Rn(instr, 16);
-            uint32_t Vd = (instr >> 12) & 0xF;
-            uint32_t imm8 = instr & 0xFF;
-            uint32_t d = (S == 0 ? ((Vd << 1) | D) : (Vd | (D << 4)));
-            ArmRegister Rd(d, 0);
-
-            if (op == 8 || op == 12 || op == 10 || op == 14 ||
-                op == 18 || op == 22) {   // 01x00 or 01x10
-              // vector store multiple or vpush
-              if (P == 1 && U == 0 && W == 1 && Rn.r == 13) {
-                opcode << "vpush" << (S == 0 ? ".f64" : ".f32");
-                args << Rd << " .. " << (Rd.r + imm8);
-              } else {
-                opcode << "vstm" << (S == 0 ? ".f64" : ".f32");
-                args << Rn << ", " << Rd << " .. " << (Rd.r + imm8);
+            if (P == U && W == 1) {
+              opcode << "UNDEFINED";
+            } else {
+              uint32_t L = (instr >> 20) & 1;
+              uint32_t S = (instr >> 8) & 1;
+              ArmRegister Rn(instr, 16);
+              if (P == 1 && W == 0) {  // VLDR
+                FpRegister d(instr, 12, 22);
+                uint32_t imm8 = instr & 0xFF;
+                opcode << (L == 1 ? "vldr" : "vstr");
+                args << d << ", [" << Rn << ", #" << ((U == 1) ? "" : "-")
+                     << (imm8 << 2) << "]";
+              } else if (Rn.r == 13 && W == 1 && U == L) {  // VPUSH/VPOP
+                opcode << (L == 1 ? "vpop" : "vpush");
+                args << FpRegisterRange(instr);
+              } else {  // VLDM
+                opcode << (L == 1 ? "vldm" : "vstm");
+                args << Rn << ((W == 1) ? "!" : "") << ", "
+                     << FpRegisterRange(instr);
               }
-            } else if (op == 16 || op == 20 || op == 24 || op == 28) {
-              // 1xx00
-              // vector store register
-              opcode << "vstr" << (S == 0 ? ".f64" : ".f32");
-              args << Rd << ", [" << Rn << ", #" << imm8 << "]";
-            } else if (op == 17 || op == 21 || op == 25 || op == 29) {
-              // 1xx01
-              // vector load register
-               opcode << "vldr" << (S == 0 ? ".f64" : ".f32");
-               args << Rd << ", [" << Rn << ", #" << imm8 << "]";
-            } else if (op == 9 || op == 13 || op == 11 || op == 15 ||
-                op == 19 || op == 23 ) {    // 01x11 10x11
-              // vldm or vpop
-              if (P == 1 && U == 0 && W == 1 && Rn.r == 13) {
-                opcode << "vpop" << (S == 0 ? ".f64" : ".f32");
-                args <<  Rd << " .. " << (Rd.r + imm8);
-              } else {
-                opcode << "vldm" << (S == 0 ? ".f64" : ".f32");
-                args << Rn << ", " << Rd << " .. " << (Rd.r + imm8);
-              }
+              opcode << (S == 1 ? ".f64" : ".f32");
             }
           } else if ((op3 >> 1) == 2) {      // 00010x
-            // 64 bit transfers
+            if ((instr & 0xD0) == 0x10) {
+              // 64bit transfers between ARM core and extension registers.
+              uint32_t L = (instr >> 20) & 1;
+              uint32_t S = (instr >> 8) & 1;
+              ArmRegister Rt2(instr, 16);
+              ArmRegister Rt(instr, 12);
+              FpRegister m(instr, 0, 5);
+              opcode << "vmov" << (S ? ".f64" : ".f32");
+              if (L == 1) {
+                args << Rt << ", " << Rt2 << ", ";
+              }
+              if (S) {
+                args << m;
+              } else {
+                args << m << ", " << FpRegister(m, 1);
+              }
+              if (L == 0) {
+                args << ", " << Rt << ", " << Rt2;
+              }
+              if (Rt.r == 15 || Rt.r == 13 || Rt2.r == 15 || Rt2.r == 13 ||
+                  (S == 0 && m.r == 31) || (L == 1 && Rt.r == Rt2.r)) {
+                args << " (UNPREDICTABLE)";
+              }
+            }
           } else if ((op3 >> 4) == 2 && op4 == 0) {     // 10xxxx, op = 0
             // fp data processing
           } else if ((op3 >> 4) == 2 && op4 == 1) {     // 10xxxx, op = 1
-            // 8,16,32 bit transfers
+            if (coproc == 10 && (op3 & 0xE) == 0) {
+              // VMOV (between ARM core register and single-precision register)
+              // |1111|1100|000|0 |0000|1111|1100|0|00|0|0000|
+              // |5   |1  8|7 5|4 |3  0|5  2|1  8|7|65|4|3  0|
+              // |----|----|---|- |----|----|----|-|--|-|----|
+              // |3322|2222|222|2 |1111|1111|1100|0|00|0|0000|
+              // |1  8|7  4|3 1|0 |9  6|5  2|1  8|7|65|4|3  0|
+              // |----|----|---|- |----|----|----|-|--|-|----|
+              // |1110|1110|000|op| Vn | Rt |1010|N|00|1|0000|
+              uint32_t op = op3 & 1;
+              ArmRegister Rt(instr, 12);
+              FpRegister n(instr, 16, 7);
+              opcode << "vmov.f32";
+              if (op) {
+                args << Rt << ", " << n;
+              } else {
+                args << n << ", " << Rt;
+              }
+              if (Rt.r == 13 || Rt.r == 15 || (instr & 0x6F) != 0) {
+                args << " (UNPREDICTABLE)";
+              }
+            } else if (coproc == 10 && op3 == 0x2F) {
+              // VMRS
+              // |1111|11000000|0000|1111|1100|000|0|0000|
+              // |5   |1      4|3  0|5  2|1  8|7 5|4|3  0|
+              // |----|--------|----|----|----|---|-|----|
+              // |3322|22222222|1111|1111|1100|000|0|0000|
+              // |1  8|7      0|9  6|5  2|1  8|7 5|4|3  0|
+              // |----|--------|----|----|----|---|-|----|
+              // |1110|11101111|reg | Rt |1010|000|1|0000| - last 7 0s are (0)
+              uint32_t spec_reg = (instr >> 16) & 0xF;
+              ArmRegister Rt(instr, 12);
+              opcode << "vmrs";
+              if (spec_reg == 1) {
+                if (Rt.r == 15) {
+                  args << "APSR_nzcv, FPSCR";
+                } else if (Rt.r == 13) {
+                  args << Rt << ", FPSCR (UNPREDICTABLE)";
+                } else {
+                  args << Rt << ", FPSCR";
+                }
+              } else {
+                args << "(PRIVILEGED)";
+              }
+            } else if (coproc == 11 && (op3 & 0x9) != 8) {
+              // VMOV (ARM core register to scalar or vice versa; 8/16/32-bit)
+            }
           }
         }
 
@@ -686,30 +782,19 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             uint32_t opc3 = (instr >> 6) & 0x3;
             if ((opc1 & 0xB) == 0xB) {  // 1x11
               // Other VFP data-processing instructions.
-              uint32_t D  = (instr >> 22) & 0x1;
-              uint32_t Vd = (instr >> 12) & 0xF;
               uint32_t sz = (instr >> 8) & 1;
-              uint32_t M  = (instr >> 5) & 1;
-              uint32_t Vm = instr & 0xF;
-              bool dp_operation = sz == 1;
+              FpRegister d(instr, 12, 22);
+              FpRegister m(instr, 0, 5);
               switch (opc2) {
                 case 0x1:  // Vneg/Vsqrt
                   //  1110 11101 D 11 0001 dddd 101s o1M0 mmmm
-                  opcode << (opc3 == 1 ? "vneg" : "vsqrt") << (dp_operation ? ".f64" : ".f32");
-                  if (dp_operation) {
-                    args << "f" << ((D << 4) | Vd) << ", " << "f" << ((M << 4) | Vm);
-                  } else {
-                    args << "f" << ((Vd << 1) | D) << ", " << "f" << ((Vm << 1) | M);
-                  }
+                  opcode << (opc3 == 1 ? "vneg" : "vsqrt") << (sz == 1 ? ".f64" : ".f32");
+                  args << d << ", " << m;
                   break;
                 case 0x4: case 0x5:  {  // Vector compare
                   // 1110 11101 D 11 0100 dddd 101 sE1M0 mmmm
-                  opcode << (opc3 == 1 ? "vcmp" : "vcmpe") << (dp_operation ? ".f64" : ".f32");
-                  if (dp_operation) {
-                    args << "f" << ((D << 4) | Vd) << ", " << "f" << ((M << 4) | Vm);
-                  } else {
-                    args << "f" << ((Vd << 1) | D) << ", " << "f" << ((Vm << 1) | M);
-                  }
+                  opcode << (opc3 == 1 ? "vcmp" : "vcmpe") << (sz == 1 ? ".f64" : ".f32");
+                  args << d << ", " << m;
                   break;
                 }
               }
@@ -720,18 +805,11 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
           if ((instr & 0xFFBF0ED0) == 0xeeb10ac0) {  // Vsqrt
             //  1110 11101 D 11 0001 dddd 101S 11M0 mmmm
             //  1110 11101 0 11 0001 1101 1011 1100 1000 - eeb1dbc8
-            uint32_t D = (instr >> 22) & 1;
-            uint32_t Vd = (instr >> 12) & 0xF;
             uint32_t sz = (instr >> 8) & 1;
-            uint32_t M = (instr >> 5) & 1;
-            uint32_t Vm = instr & 0xF;
-            bool dp_operation = sz == 1;
-            opcode << "vsqrt" << (dp_operation ? ".f64" : ".f32");
-            if (dp_operation) {
-              args << "f" << ((D << 4) | Vd) << ", " << "f" << ((M << 4) | Vm);
-            } else {
-              args << "f" << ((Vd << 1) | D) << ", " << "f" << ((Vm << 1) | M);
-            }
+            FpRegister d(instr, 12, 22);
+            FpRegister m(instr, 0, 5);
+            opcode << "vsqrt" << (sz == 1 ? ".f64" : ".f32");
+            args << d << ", " << m;
           }
         }
       }
@@ -776,7 +854,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
           } else if (op3 == 0x4) {
             opcode << "teq";
           } else if (op3 == 0x8) {
-            opcode << "cmw";
+            opcode << "cmn.w";
           } else {
             opcode << "cmp.w";
           }

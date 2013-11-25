@@ -21,6 +21,7 @@
 
 #include "garbage_collector.h"
 
+#include "base/histogram-inl.h"
 #include "base/logging.h"
 #include "base/mutex-inl.h"
 #include "gc/accounting/heap_bitmap.h"
@@ -36,9 +37,11 @@ namespace collector {
 GarbageCollector::GarbageCollector(Heap* heap, const std::string& name)
     : heap_(heap),
       name_(name),
+      clear_soft_references_(false),
       verbose_(VLOG_IS_ON(heap)),
       duration_ns_(0),
       timings_(name_.c_str(), true, verbose_),
+      pause_histogram_((name_ + " paused").c_str(), kPauseBucketSize, kPauseBucketCount),
       cumulative_timings_(name) {
   ResetCumulativeStatistics();
 }
@@ -54,17 +57,24 @@ void GarbageCollector::RegisterPause(uint64_t nano_length) {
 
 void GarbageCollector::ResetCumulativeStatistics() {
   cumulative_timings_.Reset();
+  pause_histogram_.Reset();
   total_time_ns_ = 0;
-  total_paused_time_ns_ = 0;
   total_freed_objects_ = 0;
   total_freed_bytes_ = 0;
 }
 
-void GarbageCollector::Run() {
+void GarbageCollector::Run(bool clear_soft_references) {
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   uint64_t start_time = NanoTime();
   pause_times_.clear();
   duration_ns_ = 0;
+  clear_soft_references_ = clear_soft_references;
+
+  // Reset stats.
+  freed_bytes_ = 0;
+  freed_large_object_bytes_ = 0;
+  freed_objects_ = 0;
+  freed_large_objects_ = 0;
 
   InitializePhase();
 
@@ -75,10 +85,10 @@ void GarbageCollector::Run() {
     thread_list->SuspendAll();
     MarkingPhase();
     ReclaimPhase();
+    GetHeap()->RevokeAllThreadLocalBuffers();
     thread_list->ResumeAll();
     ATRACE_END();
-    uint64_t pause_end = NanoTime();
-    pause_times_.push_back(pause_end - pause_start);
+    RegisterPause(NanoTime() - pause_start);
   } else {
     Thread* self = Thread::Current();
     {
@@ -93,23 +103,28 @@ void GarbageCollector::Run() {
       ATRACE_END();
       ATRACE_BEGIN("All mutator threads suspended");
       done = HandleDirtyObjectsPhase();
+      if (done) {
+        GetHeap()->RevokeAllThreadLocalBuffers();
+      }
       ATRACE_END();
       uint64_t pause_end = NanoTime();
       ATRACE_BEGIN("Resuming mutator threads");
       thread_list->ResumeAll();
       ATRACE_END();
-      pause_times_.push_back(pause_end - pause_start);
+      RegisterPause(pause_end - pause_start);
     }
     {
       ReaderMutexLock mu(self, *Locks::mutator_lock_);
       ReclaimPhase();
     }
   }
-
+  FinishPhase();
   uint64_t end_time = NanoTime();
   duration_ns_ = end_time - start_time;
-
-  FinishPhase();
+  total_time_ns_ += GetDurationNs();
+  for (uint64_t pause_time : pause_times_) {
+    pause_histogram_.AddValue(pause_time / 1000);
+  }
 }
 
 void GarbageCollector::SwapBitmaps() {
@@ -127,7 +142,7 @@ void GarbageCollector::SwapBitmaps() {
       if (live_bitmap != mark_bitmap) {
         heap_->GetLiveBitmap()->ReplaceBitmap(live_bitmap, mark_bitmap);
         heap_->GetMarkBitmap()->ReplaceBitmap(mark_bitmap, live_bitmap);
-        space->AsDlMallocSpace()->SwapBitmaps();
+        space->AsMallocSpace()->SwapBitmaps();
       }
     }
   }

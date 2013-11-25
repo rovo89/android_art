@@ -358,10 +358,11 @@ void ElfWriterMclinker::FixupOatMethodOffsets(const std::vector<const DexFile*>&
     mirror::ArtMethod* method = NULL;
     if (compiler_driver_->IsImage()) {
       ClassLinker* linker = Runtime::Current()->GetClassLinker();
-      mirror::DexCache* dex_cache = linker->FindDexCache(dex_file);
       // Unchecked as we hold mutator_lock_ on entry.
       ScopedObjectAccessUnchecked soa(Thread::Current());
-      method = linker->ResolveMethod(dex_file, method_idx, dex_cache, NULL, NULL, invoke_type);
+      SirtRef<mirror::DexCache> dex_cache(soa.Self(), linker->FindDexCache(dex_file));
+      SirtRef<mirror::ClassLoader> class_loader(soa.Self(), nullptr);
+      method = linker->ResolveMethod(dex_file, method_idx, dex_cache, class_loader, NULL, invoke_type);
       CHECK(method != NULL);
     }
     const CompiledMethod* compiled_method =

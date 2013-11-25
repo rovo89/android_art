@@ -82,6 +82,7 @@ void Monitor::Init(uint32_t lock_profiling_threshold, bool (*is_sensitive_thread
 Monitor::Monitor(Thread* owner, mirror::Object* obj, int32_t hash_code)
     : monitor_lock_("a monitor lock", kMonitorLock),
       monitor_contenders_("monitor contenders", monitor_lock_),
+      num_waiters_(0),
       owner_(owner),
       lock_count_(0),
       obj_(obj),
@@ -128,6 +129,10 @@ bool Monitor::Install(Thread* self) {
       LOG(FATAL) << "Inflating unlocked lock word";
       break;
     }
+    default: {
+      LOG(FATAL) << "Invalid monitor state " << lw.GetState();
+      return false;
+    }
   }
   LockWord fat(this);
   // Publish the updated lock word, which may race with other threads.
@@ -140,8 +145,7 @@ bool Monitor::Install(Thread* self) {
 }
 
 Monitor::~Monitor() {
-  CHECK(obj_ != NULL);
-  CHECK_EQ(obj_->GetLockWord().GetState(), LockWord::kFatLocked);
+  // Deflated monitors have a null object.
 }
 
 /*
@@ -222,7 +226,9 @@ void Monitor::Lock(Thread* self) {
       ScopedThreadStateChange tsc(self, kBlocked);  // Change to blocked and give up mutator_lock_.
       MutexLock mu2(self, monitor_lock_);  // Reacquire monitor_lock_ without mutator_lock_ for Wait.
       if (owner_ != NULL) {  // Did the owner_ give the lock up?
+        ++num_waiters_;
         monitor_contenders_.Wait(self);  // Still contended so wait.
+        --num_waiters_;
         // Woken from contention.
         if (log_contention) {
           uint64_t wait_ms = MilliTime() - wait_start_ms;
@@ -559,6 +565,43 @@ void Monitor::NotifyAll(Thread* self) {
   }
 }
 
+bool Monitor::Deflate(Thread* self, mirror::Object* obj) {
+  DCHECK(obj != nullptr);
+  LockWord lw(obj->GetLockWord());
+  // If the lock isn't an inflated monitor, then we don't need to deflate anything.
+  if (lw.GetState() == LockWord::kFatLocked) {
+    Monitor* monitor = lw.FatLockMonitor();
+    CHECK(monitor != nullptr);
+    MutexLock mu(self, monitor->monitor_lock_);
+    Thread* owner = monitor->owner_;
+    if (owner != nullptr) {
+      // Can't deflate if we are locked and have a hash code.
+      if (monitor->HasHashCode()) {
+        return false;
+      }
+      // Can't deflate if our lock count is too high.
+      if (monitor->lock_count_ > LockWord::kThinLockMaxCount) {
+        return false;
+      }
+      // Can't deflate if we have anybody waiting on the CV.
+      if (monitor->num_waiters_ > 0) {
+        return false;
+      }
+      // Deflate to a thin lock.
+      obj->SetLockWord(LockWord::FromThinLockId(owner->GetTid(), monitor->lock_count_));
+    } else if (monitor->HasHashCode()) {
+      obj->SetLockWord(LockWord::FromHashCode(monitor->GetHashCode()));
+    } else {
+      // No lock and no hash, just put an empty lock word inside the object.
+      obj->SetLockWord(LockWord());
+    }
+    // The monitor is deflated, mark the object as nullptr so that we know to delete it during the
+    // next GC.
+    monitor->obj_ = nullptr;
+  }
+  return true;
+}
+
 /*
  * Changes the shape of a monitor from thin to fat, preserving the internal lock state. The calling
  * thread must own the lock or the owner must be suspended. There's a race with other threads
@@ -577,13 +620,13 @@ void Monitor::Inflate(Thread* self, Thread* owner, mirror::Object* obj, int32_t 
   }
 }
 
-void Monitor::InflateThinLocked(Thread* self, mirror::Object* obj, LockWord lock_word,
+void Monitor::InflateThinLocked(Thread* self, SirtRef<mirror::Object>& obj, LockWord lock_word,
                                 uint32_t hash_code) {
   DCHECK_EQ(lock_word.GetState(), LockWord::kThinLocked);
   uint32_t owner_thread_id = lock_word.ThinLockOwner();
   if (owner_thread_id == self->GetThreadId()) {
     // We own the monitor, we can easily inflate it.
-    Inflate(self, self, obj, hash_code);
+    Inflate(self, self, obj.get(), hash_code);
   } else {
     ThreadList* thread_list = Runtime::Current()->GetThreadList();
     // Suspend the owner, inflate. First change to blocked and give up mutator_lock_.
@@ -598,7 +641,7 @@ void Monitor::InflateThinLocked(Thread* self, mirror::Object* obj, LockWord lock
         if (lock_word.GetState() == LockWord::kThinLocked &&
             lock_word.ThinLockOwner() == owner_thread_id) {
           // Go ahead and inflate the lock.
-          Inflate(self, owner, obj, hash_code);
+          Inflate(self, owner, obj.get(), hash_code);
         }
         thread_list->Resume(owner, false);
       }
@@ -611,12 +654,13 @@ void Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
   DCHECK(obj != NULL);
   uint32_t thread_id = self->GetThreadId();
   size_t contention_count = 0;
+  SirtRef<mirror::Object> sirt_obj(self, obj);
   while (true) {
-    LockWord lock_word = obj->GetLockWord();
+    LockWord lock_word = sirt_obj->GetLockWord();
     switch (lock_word.GetState()) {
       case LockWord::kUnlocked: {
         LockWord thin_locked(LockWord::FromThinLockId(thread_id, 0));
-        if (obj->CasLockWord(lock_word, thin_locked)) {
+        if (sirt_obj->CasLockWord(lock_word, thin_locked)) {
           return;  // Success!
         }
         continue;  // Go again.
@@ -628,11 +672,11 @@ void Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
           uint32_t new_count = lock_word.ThinLockCount() + 1;
           if (LIKELY(new_count <= LockWord::kThinLockMaxCount)) {
             LockWord thin_locked(LockWord::FromThinLockId(thread_id, new_count));
-            obj->SetLockWord(thin_locked);
+            sirt_obj->SetLockWord(thin_locked);
             return;  // Success!
           } else {
             // We'd overflow the recursion count, so inflate the monitor.
-            InflateThinLocked(self, obj, lock_word, 0);
+            InflateThinLocked(self, sirt_obj, lock_word, 0);
           }
         } else {
           // Contention.
@@ -642,7 +686,7 @@ void Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
             NanoSleep(1000);  // Sleep for 1us and re-attempt.
           } else {
             contention_count = 0;
-            InflateThinLocked(self, obj, lock_word, 0);
+            InflateThinLocked(self, sirt_obj, lock_word, 0);
           }
         }
         continue;  // Start from the beginning.
@@ -654,8 +698,12 @@ void Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
       }
       case LockWord::kHashCode: {
         // Inflate with the existing hashcode.
-        Inflate(self, nullptr, obj, lock_word.GetHashCode());
+        Inflate(self, nullptr, sirt_obj.get(), lock_word.GetHashCode());
         break;
+      }
+      default: {
+        LOG(FATAL) << "Invalid monitor state " << lock_word.GetState();
+        return;
       }
     }
   }
@@ -666,11 +714,12 @@ bool Monitor::MonitorExit(Thread* self, mirror::Object* obj) {
   DCHECK(obj != NULL);
 
   LockWord lock_word = obj->GetLockWord();
+  SirtRef<mirror::Object> sirt_obj(self, obj);
   switch (lock_word.GetState()) {
     case LockWord::kHashCode:
       // Fall-through.
     case LockWord::kUnlocked:
-      FailedUnlock(obj, self, NULL, NULL);
+      FailedUnlock(sirt_obj.get(), self, NULL, NULL);
       return false;  // Failure.
     case LockWord::kThinLocked: {
       uint32_t thread_id = self->GetThreadId();
@@ -679,16 +728,16 @@ bool Monitor::MonitorExit(Thread* self, mirror::Object* obj) {
         // TODO: there's a race here with the owner dying while we unlock.
         Thread* owner =
             Runtime::Current()->GetThreadList()->FindThreadByThreadId(lock_word.ThinLockOwner());
-        FailedUnlock(obj, self, owner, NULL);
+        FailedUnlock(sirt_obj.get(), self, owner, NULL);
         return false;  // Failure.
       } else {
         // We own the lock, decrease the recursion count.
         if (lock_word.ThinLockCount() != 0) {
           uint32_t new_count = lock_word.ThinLockCount() - 1;
           LockWord thin_locked(LockWord::FromThinLockId(thread_id, new_count));
-          obj->SetLockWord(thin_locked);
+          sirt_obj->SetLockWord(thin_locked);
         } else {
-          obj->SetLockWord(LockWord());
+          sirt_obj->SetLockWord(LockWord());
         }
         return true;  // Success!
       }
@@ -697,9 +746,10 @@ bool Monitor::MonitorExit(Thread* self, mirror::Object* obj) {
       Monitor* mon = lock_word.FatLockMonitor();
       return mon->Unlock(self);
     }
-    default:
-      LOG(FATAL) << "Unreachable";
+    default: {
+      LOG(FATAL) << "Invalid monitor state " << lock_word.GetState();
       return false;
+    }
   }
 }
 
@@ -733,6 +783,10 @@ void Monitor::Wait(Thread* self, mirror::Object *obj, int64_t ms, int32_t ns,
     }
     case LockWord::kFatLocked:
       break;  // Already set for a wait.
+    default: {
+      LOG(FATAL) << "Invalid monitor state " << lock_word.GetState();
+      return;
+    }
   }
   Monitor* mon = lock_word.FatLockMonitor();
   mon->Wait(self, ms, ns, interruptShouldThrow, why);
@@ -769,6 +823,10 @@ void Monitor::DoNotify(Thread* self, mirror::Object* obj, bool notify_all) {
       }
       return;  // Success.
     }
+    default: {
+      LOG(FATAL) << "Invalid monitor state " << lock_word.GetState();
+      return;
+    }
   }
 }
 
@@ -787,9 +845,10 @@ uint32_t Monitor::GetLockOwnerThreadId(mirror::Object* obj) {
       Monitor* mon = lock_word.FatLockMonitor();
       return mon->GetOwnerThreadId();
     }
-    default:
+    default: {
       LOG(FATAL) << "Unreachable";
       return ThreadList::kInvalidThreadId;
+    }
   }
 }
 
@@ -1011,7 +1070,8 @@ void MonitorList::SweepMonitorList(RootVisitor visitor, void* arg) {
   for (auto it = list_.begin(); it != list_.end(); ) {
     Monitor* m = *it;
     mirror::Object* obj = m->GetObject();
-    mirror::Object* new_obj = visitor(obj, arg);
+    // The object of a monitor can be null if we have deflated it.
+    mirror::Object* new_obj = obj != nullptr ? visitor(obj, arg) : nullptr;
     if (new_obj == nullptr) {
       VLOG(monitor) << "freeing monitor " << m << " belonging to unmarked object "
                     << m->GetObject();
@@ -1030,6 +1090,8 @@ MonitorInfo::MonitorInfo(mirror::Object* obj) : owner_(NULL), entry_count_(0) {
   LockWord lock_word = obj->GetLockWord();
   switch (lock_word.GetState()) {
     case LockWord::kUnlocked:
+      // Fall-through.
+    case LockWord::kForwardingAddress:
       // Fall-through.
     case LockWord::kHashCode:
       break;

@@ -56,6 +56,7 @@ enum opt_control_vector {
   kMatch,
   kPromoteCompilerTemps,
   kBranchFusing,
+  kSuppressExceptionEdges,
 };
 
 // Force code generation paths for testing.
@@ -80,6 +81,9 @@ enum debugControlVector {
   kDebugShowFilterStats,
   kDebugTimings
 };
+
+class DexFileToMethodInlinerMap;
+class CompilerDriver;
 
 class LLVMInfo {
   public:
@@ -107,6 +111,19 @@ class LLVMInfo {
     ::llvm::Module* llvm_module_;  // Managed by context_.
     UniquePtr<art::llvm::IntrinsicHelper> intrinsic_helper_;
     UniquePtr<art::llvm::IRBuilder> ir_builder_;
+};
+
+class QuickCompilerContext {
+  public:
+    explicit QuickCompilerContext(CompilerDriver& compiler);
+    ~QuickCompilerContext();
+
+    DexFileToMethodInlinerMap* GetInlinerMap() {
+      return inliner_map_.get();
+    }
+
+  private:
+    UniquePtr<DexFileToMethodInlinerMap> inliner_map_;
 };
 
 struct CompilationUnit;

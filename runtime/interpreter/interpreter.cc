@@ -430,8 +430,8 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh
   if (method->IsStatic()) {
     Class* declaringClass = method->GetDeclaringClass();
     if (UNLIKELY(!declaringClass->IsInitializing())) {
-      if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(declaringClass,
-                                                                            true, true))) {
+      if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(declaringClass, true,
+                                                                            true))) {
         DCHECK(Thread::Current()->IsExceptionPending());
         self->PopShadowFrame();
         return;

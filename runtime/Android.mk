@@ -42,6 +42,7 @@ LIBART_COMMON_SRC_FILES := \
 	dex_instruction.cc \
 	elf_file.cc \
 	gc/allocator/dlmalloc.cc \
+	gc/allocator/rosalloc.cc \
 	gc/accounting/card_table.cc \
 	gc/accounting/gc_allocator.cc \
 	gc/accounting/heap_bitmap.cc \
@@ -50,11 +51,16 @@ LIBART_COMMON_SRC_FILES := \
 	gc/collector/garbage_collector.cc \
 	gc/collector/mark_sweep.cc \
 	gc/collector/partial_mark_sweep.cc \
+	gc/collector/semi_space.cc \
 	gc/collector/sticky_mark_sweep.cc \
 	gc/heap.cc \
+	gc/reference_queue.cc \
+	gc/space/bump_pointer_space.cc \
 	gc/space/dlmalloc_space.cc \
 	gc/space/image_space.cc \
 	gc/space/large_object_space.cc \
+	gc/space/malloc_space.cc \
+	gc/space/rosalloc_space.cc \
 	gc/space/space.cc \
 	hprof/hprof.cc \
 	image.cc \
@@ -141,6 +147,7 @@ LIBART_COMMON_SRC_FILES += \
 	arch/arm/registers_arm.cc \
 	arch/x86/registers_x86.cc \
 	arch/mips/registers_mips.cc \
+	arch/quick_alloc_entrypoints.cc \
 	entrypoints/entrypoint_utils.cc \
 	entrypoints/interpreter/interpreter_entrypoints.cc \
 	entrypoints/jni/jni_entrypoints.cc \

@@ -10,3 +10,5 @@ MirandaAbstract / MirandaClass2:
   inInterface:  true
   inInterface2: 28
   inAbstract:   true
+Test getting miranda method via reflection:
+  caught expected NoSuchMethodException

@@ -31,6 +31,7 @@
 struct iovec;
 
 namespace art {
+  union JValue;
 namespace mirror {
   class ArtMethod;
 }  // namespace mirror
@@ -185,8 +186,11 @@ struct JdwpState {
    * issuing a MethodEntry on a native method.
    *
    * "eventFlags" indicates the types of events that have occurred.
+   *
+   * "returnValue" is non-null for MethodExit events only.
    */
-  bool PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, int eventFlags)
+  bool PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, int eventFlags,
+                         const JValue* returnValue)
      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*

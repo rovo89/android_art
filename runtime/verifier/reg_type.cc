@@ -928,7 +928,8 @@ mirror::Class* RegType::ClassJoin(mirror::Class* s, mirror::Class* t) {
     }
     mirror::Class* common_elem = ClassJoin(s_ct, t_ct);
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    mirror::ClassLoader* class_loader = s->GetClassLoader();
+    Thread* self = Thread::Current();
+    SirtRef<mirror::ClassLoader> class_loader(self, s->GetClassLoader());
     std::string descriptor("[");
     descriptor += ClassHelper(common_elem).GetDescriptor();
     mirror::Class* array_class = class_linker->FindClass(descriptor.c_str(), class_loader);

@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_SIRT_REF_H_
 #define ART_RUNTIME_SIRT_REF_H_
 
+#include "base/casts.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "thread.h"

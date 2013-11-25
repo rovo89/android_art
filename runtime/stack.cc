@@ -22,11 +22,16 @@
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "object_utils.h"
+#include "runtime.h"
 #include "thread_list.h"
 #include "throw_location.h"
 #include "vmap_table.h"
 
 namespace art {
+
+bool ShadowFrame::VerifyReference(const mirror::Object* val) const {
+  return !Runtime::Current()->GetHeap()->IsInTempSpace(val);
+}
 
 mirror::Object* ShadowFrame::GetThisObject() const {
   mirror::ArtMethod* m = GetMethod();

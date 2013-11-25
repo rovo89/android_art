@@ -39,6 +39,13 @@ template <class Value> inline void Histogram<Value>::AddValue(Value value) {
   BucketiseValue(value);
 }
 
+template <class Value> inline Histogram<Value>::Histogram(const char* name)
+    : kAdjust(0),
+      kInitialBucketCount(0),
+      name_(name),
+      max_buckets_(0) {
+}
+
 template <class Value>
 inline Histogram<Value>::Histogram(const char* name, Value initial_bucket_width,
                                    size_t max_buckets)
@@ -162,28 +169,30 @@ inline void Histogram<Value>::PrintConfidenceIntervals(std::ostream &os, double 
 
   double per_0 = (1.0 - interval) / 2.0;
   double per_1 = per_0 + interval;
-  os << Name() << ":\t";
   TimeUnit unit = GetAppropriateTimeUnit(Mean() * kAdjust);
+  os << Name() << ":\tSum: ";
+  os << PrettyDuration(Sum() * kAdjust) << " ";
   os << (interval * 100) << "% C.I. " << FormatDuration(Percentile(per_0, data) * kAdjust, unit);
   os << "-" << FormatDuration(Percentile(per_1, data) * kAdjust, unit) << " ";
   os << "Avg: " << FormatDuration(Mean() * kAdjust, unit) << " Max: ";
   os << FormatDuration(Max() * kAdjust, unit) << "\n";
 }
 
-template <class Value> inline void Histogram<Value>::CreateHistogram(CumulativeData& out_data) {
+template <class Value>
+inline void Histogram<Value>::CreateHistogram(CumulativeData* out_data) const {
   DCHECK_GT(sample_size_, 0ull);
-  out_data.freq_.clear();
-  out_data.perc_.clear();
+  out_data->freq_.clear();
+  out_data->perc_.clear();
   uint64_t accumulated = 0;
-  out_data.freq_.push_back(accumulated);
-  out_data.perc_.push_back(0.0);
+  out_data->freq_.push_back(accumulated);
+  out_data->perc_.push_back(0.0);
   for (size_t idx = 0; idx < frequency_.size(); idx++) {
     accumulated += frequency_[idx];
-    out_data.freq_.push_back(accumulated);
-    out_data.perc_.push_back(static_cast<double>(accumulated) / static_cast<double>(sample_size_));
+    out_data->freq_.push_back(accumulated);
+    out_data->perc_.push_back(static_cast<double>(accumulated) / static_cast<double>(sample_size_));
   }
-  DCHECK_EQ(out_data.freq_.back(), sample_size_);
-  DCHECK_LE(std::abs(out_data.perc_.back() - 1.0), 0.001);
+  DCHECK_EQ(out_data->freq_.back(), sample_size_);
+  DCHECK_LE(std::abs(out_data->perc_.back() - 1.0), 0.001);
 }
 
 template <class Value>

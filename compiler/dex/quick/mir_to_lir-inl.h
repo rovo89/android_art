@@ -198,6 +198,10 @@ inline void Mir2Lir::SetupResourceMasks(LIR* lir) {
     SetupRegMask(&lir->u.m.use_mask, lir->operands[3]);
   }
 
+  if (flags & REG_USE4) {
+    SetupRegMask(&lir->u.m.use_mask, lir->operands[4]);
+  }
+
   if (flags & SETS_CCODES) {
     lir->u.m.def_mask |= ENCODE_CCODE;
   }

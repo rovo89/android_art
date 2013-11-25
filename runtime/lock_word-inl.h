@@ -36,6 +36,11 @@ inline Monitor* LockWord::FatLockMonitor() const {
   return reinterpret_cast<Monitor*>(value_ << kStateSize);
 }
 
+inline size_t LockWord::ForwardingAddress() const {
+  DCHECK_EQ(GetState(), kForwardingAddress);
+  return static_cast<size_t>(value_ << kStateSize);
+}
+
 inline LockWord::LockWord() : value_(0) {
   DCHECK_EQ(GetState(), kUnlocked);
 }

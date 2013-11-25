@@ -82,7 +82,7 @@ class ModUnionUpdateObjectReferencesVisitor {
     if (ref != nullptr) {
       Object* new_ref = visitor_(ref, arg_);
       if (new_ref != ref) {
-        obj->SetFieldObject(offset, ref, false, true);
+        obj->SetFieldObject(offset, new_ref, true);
       }
     }
   }
@@ -154,7 +154,7 @@ class ModUnionReferenceVisitor {
     // We don't have an early exit since we use the visitor pattern, an early
     // exit should significantly speed this up.
     AddToReferenceArrayVisitor visitor(mod_union_table_, references_);
-    collector::MarkSweep::VisitObjectReferences(obj, visitor);
+    collector::MarkSweep::VisitObjectReferences(obj, visitor, true);
   }
  private:
   ModUnionTableReferenceCache* const mod_union_table_;
@@ -206,7 +206,7 @@ class ModUnionCheckReferences {
     Locks::heap_bitmap_lock_->AssertSharedHeld(Thread::Current());
     DCHECK(obj != NULL);
     CheckReferenceVisitor visitor(mod_union_table_, references_);
-    collector::MarkSweep::VisitObjectReferences(obj, visitor);
+    collector::MarkSweep::VisitObjectReferences(obj, visitor, true);
   }
 
  private:
@@ -334,7 +334,7 @@ void ModUnionTableCardCache::Dump(std::ostream& os) {
   for (const byte* card_addr : cleared_cards_) {
     auto start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card_addr));
     auto end = start + CardTable::kCardSize;
-    os << reinterpret_cast<void*>(start) << "-" << reinterpret_cast<void*>(end) << ",";
+    os << reinterpret_cast<void*>(start) << "-" << reinterpret_cast<void*>(end) << "\n";
   }
   os << "]";
 }

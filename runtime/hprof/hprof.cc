@@ -537,7 +537,7 @@ class Hprof {
     HprofRecord* rec = &current_record_;
 
     for (StringMapIterator it = strings_.begin(); it != strings_.end(); ++it) {
-      std::string string((*it).first);
+      const std::string& string = (*it).first;
       size_t id = (*it).second;
 
       int err = current_record_.StartNewRecord(header_fp_, HPROF_TAG_STRING, HPROF_TIME);

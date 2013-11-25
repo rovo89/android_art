@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_INSTRUMENTATION_H_
 #define ART_RUNTIME_INSTRUMENTATION_H_
 
+#include "atomic_integer.h"
 #include "base/macros.h"
 #include "locks.h"
 
@@ -35,8 +36,6 @@ class Thread;
 class ThrowLocation;
 
 namespace instrumentation {
-
-const bool kVerboseInstrumentation = false;
 
 // Interpreter handler tables.
 enum InterpreterHandlerTable {
@@ -68,8 +67,9 @@ struct InstrumentationListener {
 
   // Call-back for when a method is popped due to an exception throw. A method will either cause a
   // MethodExited call-back or a MethodUnwind call-back when its activation is removed.
-  virtual void MethodUnwind(Thread* thread, const mirror::ArtMethod* method,
-                            uint32_t dex_pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
+  virtual void MethodUnwind(Thread* thread, mirror::Object* this_object,
+                            const mirror::ArtMethod* method, uint32_t dex_pc)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
 
   // Call-back for when the dex pc moves in a method.
   virtual void DexPcMoved(Thread* thread, mirror::Object* this_object,
@@ -104,7 +104,8 @@ class Instrumentation {
       have_method_entry_listeners_(false), have_method_exit_listeners_(false),
       have_method_unwind_listeners_(false), have_dex_pc_listeners_(false),
       have_exception_caught_listeners_(false),
-      interpreter_handler_table_(kMainHandlerTable) {}
+      interpreter_handler_table_(kMainHandlerTable),
+      quick_alloc_entry_points_instrumentation_counter_(0) {}
 
   // Add a listener to be notified of the masked together sent of instrumentation events. This
   // suspend the runtime to install stubs. You are expected to hold the mutator lock as a proxy
@@ -122,6 +123,10 @@ class Instrumentation {
   InterpreterHandlerTable GetInterpreterHandlerTable() const {
     return interpreter_handler_table_;
   }
+
+  void InstrumentQuickAllocEntryPoints() LOCKS_EXCLUDED(Locks::thread_list_lock_);
+  void UninstrumentQuickAllocEntryPoints() LOCKS_EXCLUDED(Locks::thread_list_lock_);
+  void ResetQuickAllocEntryPoints();
 
   // Update the code of a method respecting any installed stubs.
   void UpdateMethodsCode(mirror::ArtMethod* method, const void* code) const;
@@ -289,8 +294,13 @@ class Instrumentation {
   std::list<InstrumentationListener*> dex_pc_listeners_ GUARDED_BY(Locks::mutator_lock_);
   std::list<InstrumentationListener*> exception_caught_listeners_ GUARDED_BY(Locks::mutator_lock_);
 
-  // Current interpreter handler table. This is updated each time the thread state flags are modified.
+  // Current interpreter handler table. This is updated each time the thread state flags are
+  // modified.
   InterpreterHandlerTable interpreter_handler_table_;
+
+  // Greater than 0 if quick alloc entry points instrumented.
+  // TODO: The access and changes to this is racy and should be guarded by a lock.
+  AtomicInteger quick_alloc_entry_points_instrumentation_counter_;
 
   DISALLOW_COPY_AND_ASSIGN(Instrumentation);
 };

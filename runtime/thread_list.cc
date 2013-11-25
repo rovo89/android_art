@@ -74,6 +74,15 @@ pid_t ThreadList::GetLockOwner() {
   return Locks::thread_list_lock_->GetExclusiveOwnerTid();
 }
 
+void ThreadList::DumpNativeStacks(std::ostream& os) {
+  MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
+  for (const auto& thread : list_) {
+    os << "DUMPING THREAD " << thread->tid_ << "\n";
+    DumpNativeStack(os, thread->tid_, "\t", true);
+    os << "\n";
+  }
+}
+
 void ThreadList::DumpForSigQuit(std::ostream& os) {
   {
     MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
@@ -413,7 +422,7 @@ Thread* ThreadList::SuspendThreadByPeer(jobject peer, bool request_suspension,
           return thread;
         }
         if (total_delay_us >= kTimeoutUs) {
-          ThreadSuspendByPeerWarning(self, ERROR, "Thread suspension timed out", peer);
+          ThreadSuspendByPeerWarning(self, FATAL, "Thread suspension timed out", peer);
           if (did_suspend_request) {
             thread->ModifySuspendCount(soa.Self(), -1, debug_suspension);
           }
@@ -477,7 +486,7 @@ Thread* ThreadList::SuspendThreadByThreadId(uint32_t thread_id, bool debug_suspe
           return thread;
         }
         if (total_delay_us >= kTimeoutUs) {
-          ThreadSuspendByThreadIdWarning(ERROR, "Thread suspension timed out", thread_id);
+          ThreadSuspendByThreadIdWarning(WARNING, "Thread suspension timed out", thread_id);
           if (did_suspend_request) {
             thread->ModifySuspendCount(soa.Self(), -1, debug_suspension);
           }
@@ -626,7 +635,7 @@ void ThreadList::WaitForOtherNonDaemonThreadsToExit() {
     {
       // No more threads can be born after we start to shutdown.
       MutexLock mu(self, *Locks::runtime_shutdown_lock_);
-      CHECK(Runtime::Current()->IsShuttingDown());
+      CHECK(Runtime::Current()->IsShuttingDownLocked());
       CHECK_EQ(Runtime::Current()->NumberOfThreadsBeingBorn(), 0U);
     }
     all_threads_are_daemons = true;

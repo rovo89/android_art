@@ -274,7 +274,7 @@ void ArmMir2Lir::GenCmpFP(Instruction::Code opcode, RegLocation rl_dest,
   NewLIR0(kThumb2Fmstat);
 
   OpIT((default_result == -1) ? kCondGt : kCondMi, "");
-  NewLIR2(kThumb2MovImmShift, rl_result.low_reg,
+  NewLIR2(kThumb2MovI8M, rl_result.low_reg,
           ModifiedImmediate(-default_result));  // Must not alter ccodes
   GenBarrier();
 
