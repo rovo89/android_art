@@ -41,6 +41,54 @@ static inline int futex(volatile int *uaddr, int op, int val, const struct times
 }
 #endif  // ART_USE_FUTEXES
 
+#if defined(__APPLE__)
+
+// This works on Mac OS 10.6 but hasn't been tested on older releases.
+struct __attribute__((__may_alias__)) darwin_pthread_mutex_t {
+  long padding0;  // NOLINT(runtime/int) exact match to darwin type
+  int padding1;
+  uint32_t padding2;
+  int16_t padding3;
+  int16_t padding4;
+  uint32_t padding5;
+  pthread_t darwin_pthread_mutex_owner;
+  // ...other stuff we don't care about.
+};
+
+struct __attribute__((__may_alias__)) darwin_pthread_rwlock_t {
+  long padding0;  // NOLINT(runtime/int) exact match to darwin type
+  pthread_mutex_t padding1;
+  int padding2;
+  pthread_cond_t padding3;
+  pthread_cond_t padding4;
+  int padding5;
+  int padding6;
+  pthread_t darwin_pthread_rwlock_owner;
+  // ...other stuff we don't care about.
+};
+
+#endif  // __APPLE__
+
+#if defined(__GLIBC__)
+
+struct __attribute__((__may_alias__)) glibc_pthread_mutex_t {
+  int32_t padding0[2];
+  int owner;
+  // ...other stuff we don't care about.
+};
+
+struct __attribute__((__may_alias__)) glibc_pthread_rwlock_t {
+#ifdef __LP64__
+  int32_t padding0[6];
+#else
+  int32_t padding0[7];
+#endif
+  int writer;
+  // ...other stuff we don't care about.
+};
+
+#endif  // __GLIBC__
+
 class ScopedContentionRecorder {
  public:
   ScopedContentionRecorder(BaseMutex* mutex, uint64_t blocked_tid, uint64_t owner_tid)
@@ -182,6 +230,84 @@ inline void ReaderWriterMutex::SharedUnlock(Thread* self) {
   } while (!done);
 #else
   CHECK_MUTEX_CALL(pthread_rwlock_unlock, (&rwlock_));
+#endif
+}
+
+inline bool Mutex::IsExclusiveHeld(const Thread* self) const {
+  DCHECK(self == NULL || self == Thread::Current());
+  bool result = (GetExclusiveOwnerTid() == SafeGetTid(self));
+  if (kDebugLocking) {
+    // Sanity debug check that if we think it is locked we have it in our held mutexes.
+    if (result && self != NULL && level_ != kMonitorLock && !gAborting) {
+      CHECK_EQ(self->GetHeldMutex(level_), this);
+    }
+  }
+  return result;
+}
+
+inline uint64_t Mutex::GetExclusiveOwnerTid() const {
+#if ART_USE_FUTEXES
+  return exclusive_owner_;
+#elif defined(__BIONIC__)
+  return static_cast<uint64_t>((mutex_.value >> 16) & 0xffff);
+#elif defined(__GLIBC__)
+  return reinterpret_cast<const glibc_pthread_mutex_t*>(&mutex_)->owner;
+#elif defined(__APPLE__)
+  const darwin_pthread_mutex_t* dpmutex = reinterpret_cast<const darwin_pthread_mutex_t*>(&mutex_);
+  pthread_t owner = dpmutex->darwin_pthread_mutex_owner;
+  // 0 for unowned, -1 for PTHREAD_MTX_TID_SWITCHING
+  // TODO: should we make darwin_pthread_mutex_owner volatile and recheck until not -1?
+  if ((owner == (pthread_t)0) || (owner == (pthread_t)-1)) {
+    return 0;
+  }
+  uint64_t tid;
+  CHECK_PTHREAD_CALL(pthread_threadid_np, (owner, &tid), __FUNCTION__);  // Requires Mac OS 10.6
+  return tid;
+#else
+#error unsupported C library
+#endif
+}
+
+inline bool ReaderWriterMutex::IsExclusiveHeld(const Thread* self) const {
+  DCHECK(self == NULL || self == Thread::Current());
+  bool result = (GetExclusiveOwnerTid() == SafeGetTid(self));
+  if (kDebugLocking) {
+    // Sanity that if the pthread thinks we own the lock the Thread agrees.
+    if (self != NULL && result)  {
+      CHECK_EQ(self->GetHeldMutex(level_), this);
+    }
+  }
+  return result;
+}
+
+inline uint64_t ReaderWriterMutex::GetExclusiveOwnerTid() const {
+#if ART_USE_FUTEXES
+  int32_t state = state_;
+  if (state == 0) {
+    return 0;  // No owner.
+  } else if (state > 0) {
+    return -1;  // Shared.
+  } else {
+    return exclusive_owner_;
+  }
+#else
+#if defined(__BIONIC__)
+  return rwlock_.writerThreadId;
+#elif defined(__GLIBC__)
+  return reinterpret_cast<const glibc_pthread_rwlock_t*>(&rwlock_)->writer;
+#elif defined(__APPLE__)
+  const darwin_pthread_rwlock_t*
+      dprwlock = reinterpret_cast<const darwin_pthread_rwlock_t*>(&rwlock_);
+  pthread_t owner = dprwlock->darwin_pthread_rwlock_owner;
+  if (owner == (pthread_t)0) {
+    return 0;
+  }
+  uint64_t tid;
+  CHECK_PTHREAD_CALL(pthread_threadid_np, (owner, &tid), __FUNCTION__);  // Requires Mac OS 10.6
+  return tid;
+#else
+#error unsupported C library
+#endif
 #endif
 }
 

@@ -24,29 +24,29 @@ namespace art {
 //------------------------------------------------------------------------------
 // VRegA
 //------------------------------------------------------------------------------
-inline int8_t Instruction::VRegA_10t() const {
+inline int8_t Instruction::VRegA_10t(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k10t);
-  return static_cast<int8_t>(InstAA());
+  return static_cast<int8_t>(InstAA(inst_data));
 }
 
-inline uint8_t Instruction::VRegA_10x() const {
+inline uint8_t Instruction::VRegA_10x(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k10x);
-  return InstAA();
+  return InstAA(inst_data);
 }
 
-inline uint4_t Instruction::VRegA_11n() const {
+inline uint4_t Instruction::VRegA_11n(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k11n);
-  return InstA();
+  return InstA(inst_data);
 }
 
-inline uint8_t Instruction::VRegA_11x() const {
+inline uint8_t Instruction::VRegA_11x(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k11x);
-  return InstAA();
+  return InstAA(inst_data);
 }
 
-inline uint4_t Instruction::VRegA_12x() const {
+inline uint4_t Instruction::VRegA_12x(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k12x);
-  return InstA();
+  return InstA(inst_data);
 }
 
 inline int16_t Instruction::VRegA_20t() const {
@@ -54,54 +54,54 @@ inline int16_t Instruction::VRegA_20t() const {
   return static_cast<int16_t>(Fetch16(1));
 }
 
-inline uint8_t Instruction::VRegA_21c() const {
+inline uint8_t Instruction::VRegA_21c(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k21c);
-  return InstAA();
+  return InstAA(inst_data);
 }
 
-inline uint8_t Instruction::VRegA_21h() const {
+inline uint8_t Instruction::VRegA_21h(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k21h);
-  return InstAA();
+  return InstAA(inst_data);
 }
 
-inline uint8_t Instruction::VRegA_21s() const {
+inline uint8_t Instruction::VRegA_21s(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k21s);
-  return InstAA();
+  return InstAA(inst_data);
 }
 
-inline uint8_t Instruction::VRegA_21t() const {
+inline uint8_t Instruction::VRegA_21t(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k21t);
-  return InstAA();
+  return InstAA(inst_data);
 }
 
-inline uint8_t Instruction::VRegA_22b() const {
+inline uint8_t Instruction::VRegA_22b(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k22b);
-  return InstAA();
+  return InstAA(inst_data);
 }
 
-inline uint4_t Instruction::VRegA_22c() const {
+inline uint4_t Instruction::VRegA_22c(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k22c);
-  return InstA();
+  return InstA(inst_data);
 }
 
-inline uint4_t Instruction::VRegA_22s() const {
+inline uint4_t Instruction::VRegA_22s(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k22s);
-  return InstA();
+  return InstA(inst_data);
 }
 
-inline uint4_t Instruction::VRegA_22t() const {
+inline uint4_t Instruction::VRegA_22t(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k22t);
-  return InstA();
+  return InstA(inst_data);
 }
 
-inline uint8_t Instruction::VRegA_22x() const {
+inline uint8_t Instruction::VRegA_22x(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k22x);
-  return InstAA();
+  return InstAA(inst_data);
 }
 
-inline uint8_t Instruction::VRegA_23x() const {
+inline uint8_t Instruction::VRegA_23x(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k23x);
-  return InstAA();
+  return InstAA(inst_data);
 }
 
 inline int32_t Instruction::VRegA_30t() const {
@@ -109,19 +109,19 @@ inline int32_t Instruction::VRegA_30t() const {
   return static_cast<int32_t>(Fetch32(1));
 }
 
-inline uint8_t Instruction::VRegA_31c() const {
+inline uint8_t Instruction::VRegA_31c(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k31c);
-  return InstAA();
+  return InstAA(inst_data);
 }
 
-inline uint8_t Instruction::VRegA_31i() const {
+inline uint8_t Instruction::VRegA_31i(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k31i);
-  return InstAA();
+  return InstAA(inst_data);
 }
 
-inline uint8_t Instruction::VRegA_31t() const {
+inline uint8_t Instruction::VRegA_31t(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k31t);
-  return InstAA();
+  return InstAA(inst_data);
 }
 
 inline uint16_t Instruction::VRegA_32x() const {
@@ -129,32 +129,32 @@ inline uint16_t Instruction::VRegA_32x() const {
   return Fetch16(1);
 }
 
-inline uint4_t Instruction::VRegA_35c() const {
+inline uint4_t Instruction::VRegA_35c(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k35c);
-  return InstB();  // This is labeled A in the spec.
+  return InstB(inst_data);  // This is labeled A in the spec.
 }
 
-inline uint8_t Instruction::VRegA_3rc() const {
+inline uint8_t Instruction::VRegA_3rc(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k3rc);
-  return InstAA();
+  return InstAA(inst_data);
 }
 
-inline uint8_t Instruction::VRegA_51l() const {
+inline uint8_t Instruction::VRegA_51l(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k51l);
-  return InstAA();
+  return InstAA(inst_data);
 }
 
 //------------------------------------------------------------------------------
 // VRegB
 //------------------------------------------------------------------------------
-inline int4_t Instruction::VRegB_11n() const {
+inline int4_t Instruction::VRegB_11n(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k11n);
-  return static_cast<int4_t>((InstB() << 28) >> 28);
+  return static_cast<int4_t>((InstB(inst_data) << 28) >> 28);
 }
 
-inline uint4_t Instruction::VRegB_12x() const {
+inline uint4_t Instruction::VRegB_12x(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k12x);
-  return InstB();
+  return InstB(inst_data);
 }
 
 inline uint16_t Instruction::VRegB_21c() const {
@@ -182,19 +182,19 @@ inline uint8_t Instruction::VRegB_22b() const {
   return static_cast<uint8_t>(Fetch16(1) & 0xff);
 }
 
-inline uint4_t Instruction::VRegB_22c() const {
+inline uint4_t Instruction::VRegB_22c(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k22c);
-  return InstB();
+  return InstB(inst_data);
 }
 
-inline uint4_t Instruction::VRegB_22s() const {
+inline uint4_t Instruction::VRegB_22s(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k22s);
-  return InstB();
+  return InstB(inst_data);
 }
 
-inline uint4_t Instruction::VRegB_22t() const {
+inline uint4_t Instruction::VRegB_22t(uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k22t);
-  return InstB();
+  return InstB(inst_data);
 }
 
 inline uint16_t Instruction::VRegB_22x() const {
@@ -281,7 +281,7 @@ inline uint16_t Instruction::VRegC_3rc() const {
   return Fetch16(2);
 }
 
-inline void Instruction::GetArgs(uint32_t arg[5]) const {
+inline void Instruction::GetArgs(uint32_t arg[5], uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k35c);
 
   /*
@@ -295,7 +295,8 @@ inline void Instruction::GetArgs(uint32_t arg[5]) const {
    * method constant (or equivalent) is always in vB.
    */
   uint16_t regList = Fetch16(2);
-  uint4_t count = InstB();  // This is labeled A in the spec.
+  uint4_t count = InstB(inst_data);  // This is labeled A in the spec.
+  DCHECK_LE(count, 5U) << "Invalid arg count in 35c (" << count << ")";
 
   /*
    * Copy the argument registers into the arg[] array, and
@@ -305,15 +306,13 @@ inline void Instruction::GetArgs(uint32_t arg[5]) const {
    * copies of those.) Note that cases 5..2 fall through.
    */
   switch (count) {
-    case 5: arg[4] = InstA();
+    case 5: arg[4] = InstA(inst_data);
     case 4: arg[3] = (regList >> 12) & 0x0f;
     case 3: arg[2] = (regList >> 8) & 0x0f;
     case 2: arg[1] = (regList >> 4) & 0x0f;
     case 1: arg[0] = regList & 0x0f; break;
-    case 0: break;  // Valid, but no need to do anything.
-    default:
-      LOG(ERROR) << "Invalid arg count in 35c (" << count << ")";
-      return;
+    default:  // case 0
+      break;  // Valid, but no need to do anything.
   }
 }
 

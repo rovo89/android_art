@@ -9,7 +9,6 @@ msg() {
     fi
 }
 
-LIB="libartd.so"
 GDB="n"
 DEBUGGER="n"
 INTERPRETER="n"
@@ -24,11 +23,17 @@ while true; do
     if [ "x$1" = "x--quiet" ]; then
         QUIET="y"
         shift
-    elif [ "x$1" = "x-lib" ]; then
+    elif [ "x$1" = "x--lib" ]; then
         shift
+        if [ "x$1" = "x" ]; then
+            echo "$0 missing argument to --lib" 1>&2
+            exit 1
+        fi
         LIB="$1"
-    elif [ "x$1" = "x-O" ]; then
-        LIB="libart.so"
+        shift
+    elif [ "x$1" = "x--boot" ]; then
+        shift
+        BOOT_OPT="$1"
         shift
     elif [ "x$1" = "x--debug" ]; then
         DEBUGGER="y"
@@ -49,6 +54,10 @@ while true; do
         shift
     elif [ "x$1" = "x--invoke-with" ]; then
         shift
+        if [ "x$1" = "x" ]; then
+            echo "$0 missing argument to --invoke-with" 1>&2
+            exit 1
+        fi
         if [ "x$INVOKE_WITH" = "x" ]; then
             INVOKE_WITH="$1"
         else
@@ -132,7 +141,7 @@ fi
 JNI_OPTS="-Xjnigreflimit:512 -Xcheck:jni"
 
 cmdline="cd $DEX_LOCATION && mkdir dalvik-cache && export ANDROID_DATA=$DEX_LOCATION && export DEX_LOCATION=$DEX_LOCATION && \
-    $INVOKE_WITH $gdb dalvikvm $gdbargs -XXlib:$LIB $ZYGOTE $JNI_OPTS $INT_OPTS $DEBUGGER_OPTS -Ximage:/data/art-test/core.art -cp $DEX_LOCATION/$TEST_NAME.jar Main"
+    $INVOKE_WITH $gdb dalvikvm $gdbargs -XXlib:$LIB $ZYGOTE $JNI_OPTS $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar Main"
 if [ "$DEV_MODE" = "y" ]; then
   echo $cmdline "$@"
 fi

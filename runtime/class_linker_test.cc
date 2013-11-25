@@ -152,7 +152,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(method != NULL);
     EXPECT_TRUE(method->GetClass() != NULL);
     EXPECT_TRUE(mh.GetName() != NULL);
-    EXPECT_TRUE(mh.GetSignature() != NULL);
+    EXPECT_TRUE(mh.GetSignature() != Signature::NoSignature());
 
     EXPECT_TRUE(method->GetDexCacheStrings() != NULL);
     EXPECT_TRUE(method->GetDexCacheResolvedMethods() != NULL);
@@ -340,8 +340,9 @@ class ClassLinkerTest : public CommonTest {
     }
   }
 
-  static void TestRootVisitor(const mirror::Object* root, void*) {
+  static mirror::Object* TestRootVisitor(mirror::Object* root, void*) {
     EXPECT_TRUE(root != NULL);
+    return root;
   }
 };
 
@@ -496,6 +497,7 @@ struct ClassOffsets : public CheckOffsets<mirror::Class> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, direct_methods_),                "directMethods"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, ifields_),                       "iFields"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, iftable_),                       "ifTable"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, imtable_),                       "imTable"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, name_),                          "name"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, sfields_),                       "sFields"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, super_class_),                   "superClass"));
@@ -581,11 +583,11 @@ struct StringClassOffsets : public CheckOffsets<mirror::StringClass> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, ASCII_),                  "ASCII"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, CASE_INSENSITIVE_ORDER_), "CASE_INSENSITIVE_ORDER"));
 
-    // alphabetical 64-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, serialVersionUID_),       "serialVersionUID"));
-
     // alphabetical 32-bit
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, REPLACEMENT_CHAR_),       "REPLACEMENT_CHAR"));
+
+    // alphabetical 64-bit
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, serialVersionUID_),       "serialVersionUID"));
   };
 };
 
@@ -941,15 +943,16 @@ TEST_F(ClassLinkerTest, Interfaces) {
   EXPECT_TRUE(K->IsAssignableFrom(B));
   EXPECT_TRUE(J->IsAssignableFrom(B));
 
-  mirror::ArtMethod* Ii = I->FindVirtualMethod("i", "()V");
-  mirror::ArtMethod* Jj1 = J->FindVirtualMethod("j1", "()V");
-  mirror::ArtMethod* Jj2 = J->FindVirtualMethod("j2", "()V");
-  mirror::ArtMethod* Kj1 = K->FindInterfaceMethod("j1", "()V");
-  mirror::ArtMethod* Kj2 = K->FindInterfaceMethod("j2", "()V");
-  mirror::ArtMethod* Kk = K->FindInterfaceMethod("k", "()V");
-  mirror::ArtMethod* Ai = A->FindVirtualMethod("i", "()V");
-  mirror::ArtMethod* Aj1 = A->FindVirtualMethod("j1", "()V");
-  mirror::ArtMethod* Aj2 = A->FindVirtualMethod("j2", "()V");
+  const Signature void_sig = I->GetDexCache()->GetDexFile()->CreateSignature("()V");
+  mirror::ArtMethod* Ii = I->FindVirtualMethod("i", void_sig);
+  mirror::ArtMethod* Jj1 = J->FindVirtualMethod("j1", void_sig);
+  mirror::ArtMethod* Jj2 = J->FindVirtualMethod("j2", void_sig);
+  mirror::ArtMethod* Kj1 = K->FindInterfaceMethod("j1", void_sig);
+  mirror::ArtMethod* Kj2 = K->FindInterfaceMethod("j2", void_sig);
+  mirror::ArtMethod* Kk = K->FindInterfaceMethod("k", void_sig);
+  mirror::ArtMethod* Ai = A->FindVirtualMethod("i", void_sig);
+  mirror::ArtMethod* Aj1 = A->FindVirtualMethod("j1", void_sig);
+  mirror::ArtMethod* Aj2 = A->FindVirtualMethod("j2", void_sig);
   ASSERT_TRUE(Ii != NULL);
   ASSERT_TRUE(Jj1 != NULL);
   ASSERT_TRUE(Jj2 != NULL);
@@ -994,7 +997,7 @@ TEST_F(ClassLinkerTest, ResolveVerifyAndClinit) {
   CHECK(dex_file != NULL);
 
   mirror::Class* klass = class_linker_->FindClass("LStaticsFromCode;", class_loader.get());
-  mirror::ArtMethod* clinit = klass->FindDirectMethod("<clinit>", "()V");
+  mirror::ArtMethod* clinit = klass->FindClassInitializer();
   mirror::ArtMethod* getS0 = klass->FindDirectMethod("getS0", "()Ljava/lang/Object;");
   const DexFile::StringId* string_id = dex_file->FindStringId("LStaticsFromCode;");
   ASSERT_TRUE(string_id != NULL);

@@ -74,7 +74,6 @@ LIBART_COMPILER_SRC_FILES := \
 	llvm/md_builder.cc \
 	llvm/runtime_support_builder.cc \
 	llvm/runtime_support_builder_arm.cc \
-	llvm/runtime_support_builder_thumb2.cc \
 	llvm/runtime_support_builder_x86.cc \
 	trampolines/trampoline_compiler.cc \
 	utils/arm/assembler_arm.cc \

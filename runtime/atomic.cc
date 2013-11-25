@@ -23,7 +23,7 @@
 #include "base/mutex.h"
 #include "base/stl_util.h"
 #include "base/stringprintf.h"
-#include "thread.h"
+#include "thread-inl.h"
 #endif
 
 namespace art {

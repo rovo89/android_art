@@ -103,6 +103,10 @@ static const char* kThumbDataProcessingOperations[] = {
   "tst", "rsb", "cmp", "cmn", "orr", "mul", "bic", "mvn",
 };
 
+static const char* kThumbReverseOperations[] = {
+    "rev", "rev16", "rbit", "revsh"
+};
+
 struct ArmRegister {
   explicit ArmRegister(uint32_t r) : r(r) { CHECK_LE(r, 15U); }
   ArmRegister(uint32_t instruction, uint32_t at_bit) : r((instruction >> at_bit) & 0xf) { CHECK_LE(r, 15U); }
@@ -278,6 +282,26 @@ void DisassemblerArm::DumpArm(std::ostream& os, const uint8_t* instr_ptr) {
     os << StringPrintf("%p: %08x\t%-7s ", instr_ptr, instruction, opcode.c_str()) << args.str() << '\n';
 }
 
+int32_t ThumbExpand(int32_t imm12) {
+  if ((imm12 & 0xC00) == 0) {
+    switch ((imm12 >> 8) & 3) {
+      case 0:
+        return imm12 & 0xFF;
+      case 1:
+        return ((imm12 & 0xFF) << 16) | (imm12 & 0xFF);
+      case 2:
+        return ((imm12 & 0xFF) << 24) | ((imm12 & 0xFF) << 8);
+      default:  // 3
+        return ((imm12 & 0xFF) << 24) | ((imm12 & 0xFF) << 16) | ((imm12 & 0xFF) << 8) |
+            (imm12 & 0xFF);
+    }
+  } else {
+    uint32_t val = 0x80 | (imm12 & 0x7F);
+    int32_t rotate = (imm12 >> 7) & 0x1F;
+    return (val >> rotate) | (val << (32 - rotate));
+  }
+}
+
 size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) {
   uint32_t instr = (ReadU16(instr_ptr) << 16) | ReadU16(instr_ptr + 2);
   // |111|1 1|1000000|0000|1111110000000000|
@@ -350,7 +374,102 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
         // uint32_t op5 = (instr >> 4) & 0xF;
         ArmRegister Rn(instr, 16);
         ArmRegister Rt(instr, 12);
+        ArmRegister Rd(instr, 8);
         uint32_t imm8 = instr & 0xFF;
+        if ((op3 & 2) == 2) {     // 1x
+          int W = (instr >> 21) & 1;
+          int U = (instr >> 23) & 1;
+          int P = (instr >> 24) & 1;
+
+          if ((op4 & 1) == 1) {
+            opcode << "ldrd";
+          } else {
+            opcode << "strd";
+          }
+          args << Rt << "," << Rd << ", [" << Rn;
+          const char *sign = U ? "+" : "-";
+          if (P == 0 && W == 1) {
+            args << "], #" << sign << imm8;
+          } else {
+            args << ", #" << sign << imm8 << "]";
+            if (W == 1) {
+              args << "!";
+            }
+          }
+        } else {                  // 0x
+          switch (op4) {
+            case 0:
+              if (op3 == 0) {   // op3 is 00, op4 is 00
+                opcode << "strex";
+                args << Rd << ", " << Rt << ", [" << Rn << ", #" << (imm8 << 2) << "]";
+              } else {          // op3 is 01, op4 is 00
+                // this is one of strexb, strexh or strexd
+                int op5 = (instr >> 4) & 0xf;
+                switch (op5) {
+                  case 4:
+                    opcode << "strexb";
+                    break;
+                  case 5:
+                    opcode << "strexh";
+                    break;
+                  case 7:
+                    opcode << "strexd";
+                    break;
+                }
+              }
+              break;
+            case 1:
+              if (op3 == 0) {   // op3 is 00, op4 is 01
+                opcode << "ldrex";
+                args << Rt << ", [" << Rn << ", #" << (imm8 << 2) << "]";
+              } else {          // op3 is 01, op4 is 01
+                // this is one of strexb, strexh or strexd
+                int op5 = (instr >> 4) & 0xf;
+                switch (op5) {
+                  case 0:
+                    opcode << "tbb";
+                    break;
+                  case 1:
+                    opcode << "tbh";
+                    break;
+                  case 4:
+                    opcode << "ldrexb";
+                    break;
+                  case 5:
+                    opcode << "ldrexh";
+                    break;
+                  case 7:
+                    opcode << "ldrexd";
+                    break;
+                }
+              }
+              break;
+            case 2:     // op3 is 0x, op4 is 10
+            case 3:   // op3 is 0x, op4 is 11
+              if (op4 == 2) {
+                opcode << "strd";
+              } else {
+                opcode << "ldrd";
+              }
+              int W = (instr >> 21) & 1;
+              int U = (instr >> 23) & 1;
+              int P = (instr >> 24) & 1;
+
+              args << Rt << "," << Rd << ", [" << Rn;
+              const char *sign = U ? "+" : "-";
+              if (P == 0 && W == 1) {
+                args << "], #" << sign << imm8;
+              } else {
+                args << ", #" << sign << imm8 << "]";
+                if (W == 1) {
+                  args << "!";
+                }
+              }
+              break;
+          }
+        }
+
+
         if (op3 == 0 && op4 == 0) {  // STREX
           ArmRegister Rd(instr, 8);
           opcode << "strex";
@@ -495,19 +614,11 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
         uint32_t op3 = (instr >> 20) & 0x3F;
         uint32_t coproc = (instr >> 8) & 0xF;
         uint32_t op4 = (instr >> 4) & 0x1;
-        if ((op3 == 2 || op3 == 2 || op3 == 6 || op3 == 7) ||  // 00x1x
-            (op3 >= 8 && op3 <= 15) || (op3 >= 16 && op3 <= 31)) {  // 001xxx, 01xxxx
-          // Extension register load/store instructions
-          // |111|1|110|00000|0000|1111|110|000000000|
-          // |5 3|2|109|87654|3  0|54 2|10 |87 54   0|
-          // |---|-|---|-----|----|----|---|---------|
-          // |332|2|222|22222|1111|1111|110|000000000|
-          // |1 9|8|765|43210|9  6|54 2|10 |87 54   0|
-          // |---|-|---|-----|----|----|---|---------|
-          // |111|T|110| op3 | Rn |    |101|         |
-          //  111 0 110 01001 0011 0000 101 000000011 - ec930a03
-          if (op3 == 9 || op3 == 0xD) {  // VLDM
-            //  1110 110 PUDW1 nnnn dddd 101S iiii iiii
+
+        if (coproc == 10 || coproc == 11) {   // 101x
+          if (op3 < 0x20 && (op3 >> 1) != 2) {     // 0xxxxx and not 00010x
+            // extension load/store instructions
+            int op = op3 & 0x1f;
             uint32_t P = (instr >> 24) & 1;
             uint32_t U = (instr >> 23) & 1;
             uint32_t D = (instr >> 22) & 1;
@@ -517,20 +628,49 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             uint32_t Vd = (instr >> 12) & 0xF;
             uint32_t imm8 = instr & 0xFF;
             uint32_t d = (S == 0 ? ((Vd << 1) | D) : (Vd | (D << 4)));
-            if (P == 0 && U == 0 && W == 0) {
-              // TODO: 64bit transfers between ARM core and extension registers.
-            } else if (P == 0 && U == 1 && Rn.r == 13) {  // VPOP
-              opcode << "vpop" << (S == 0 ? ".f64" : ".f32");
-              args << d << " .. " << (d + imm8);
-            } else if (P == 1 && W == 0) {  // VLDR
-              opcode << "vldr" << (S == 0 ? ".f64" : ".f32");
-              args << d << ", [" << Rn << ", #" << imm8 << "]";
-            } else {  // VLDM
-              opcode << "vldm" << (S == 0 ? ".f64" : ".f32");
-              args << Rn << ", " << d << " .. " << (d + imm8);
+            ArmRegister Rd(d, 0);
+
+            if (op == 8 || op == 12 || op == 10 || op == 14 ||
+                op == 18 || op == 22) {   // 01x00 or 01x10
+              // vector store multiple or vpush
+              if (P == 1 && U == 0 && W == 1 && Rn.r == 13) {
+                opcode << "vpush" << (S == 0 ? ".f64" : ".f32");
+                args << Rd << " .. " << (Rd.r + imm8);
+              } else {
+                opcode << "vstm" << (S == 0 ? ".f64" : ".f32");
+                args << Rn << ", " << Rd << " .. " << (Rd.r + imm8);
+              }
+            } else if (op == 16 || op == 20 || op == 24 || op == 28) {
+              // 1xx00
+              // vector store register
+              opcode << "vstr" << (S == 0 ? ".f64" : ".f32");
+              args << Rd << ", [" << Rn << ", #" << imm8 << "]";
+            } else if (op == 17 || op == 21 || op == 25 || op == 29) {
+              // 1xx01
+              // vector load register
+               opcode << "vldr" << (S == 0 ? ".f64" : ".f32");
+               args << Rd << ", [" << Rn << ", #" << imm8 << "]";
+            } else if (op == 9 || op == 13 || op == 11 || op == 15 ||
+                op == 19 || op == 23 ) {    // 01x11 10x11
+              // vldm or vpop
+              if (P == 1 && U == 0 && W == 1 && Rn.r == 13) {
+                opcode << "vpop" << (S == 0 ? ".f64" : ".f32");
+                args <<  Rd << " .. " << (Rd.r + imm8);
+              } else {
+                opcode << "vldm" << (S == 0 ? ".f64" : ".f32");
+                args << Rn << ", " << Rd << " .. " << (Rd.r + imm8);
+              }
             }
+          } else if ((op3 >> 1) == 2) {      // 00010x
+            // 64 bit transfers
+          } else if ((op3 >> 4) == 2 && op4 == 0) {     // 10xxxx, op = 0
+            // fp data processing
+          } else if ((op3 >> 4) == 2 && op4 == 1) {     // 10xxxx, op = 1
+            // 8,16,32 bit transfers
           }
-        } else if ((op3 & 0x30) == 0x20 && op4 == 0) {  // 10 xxxx ... 0
+        }
+
+        if ((op3 & 0x30) == 0x20 && op4 == 0) {  // 10 xxxx ... 0
           if ((coproc & 0xE) == 0xA) {
             // VFP data-processing instructions
             // |111|1|1100|0000|0000|1111|110|0|00  |0|0|0000|
@@ -628,7 +768,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
               opcode << "s";
             }
           }
-          args << Rd << ", ThumbExpand(" << imm32 << ")";
+          args << Rd << ", #" << ThumbExpand(imm32);
         } else if (Rd.r == 0xF && S == 1 &&
                    (op3 == 0x0 || op3 == 0x4 || op3 == 0x8 || op3 == 0xD)) {
           if (op3 == 0x0) {
@@ -640,7 +780,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
           } else {
             opcode << "cmp.w";
           }
-          args << Rn << ", ThumbExpand(" << imm32 << ")";
+          args << Rn << ", #" << ThumbExpand(imm32);
         } else {
           switch (op3) {
             case 0x0: opcode << "and"; break;
@@ -658,7 +798,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
           if (S == 1) {
             opcode << "s";
           }
-          args << Rd << ", " << Rn << ", ThumbExpand(" << imm32 << ")";
+          args << Rd << ", " << Rn << ", #" << ThumbExpand(imm32);
         }
       } else if ((instr & 0x8000) == 0 && (op2 & 0x20) != 0) {
         // Data-processing (plain binary immediate)
@@ -975,6 +1115,31 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
           }
           break;
         }
+        case 0x29: {  // 0101001
+          // |111|11|1000000|0000|1111|1100|00|0 0|0000|
+          // |5 3|21|0     4|3  0|5  2|1  8|76|5 4|3  0|
+          // |---|--|-------|----|----|----|--|---|----|
+          // |332|22|2222222|1111|1111|1100|00|0 0|0000|
+          // |1 9|87|6     0|9  6|5  2|1  8|76|5 4|3  0|
+          // |---|--|-------|----|----|----|--|---|----|
+          // |111|11|0101001| Rm |1111| Rd |11|op3| Rm |
+          // REV   - 111 11 0101001 mmmm 1111 dddd 1000 mmmm
+          // REV16 - 111 11 0101001 mmmm 1111 dddd 1001 mmmm
+          // RBIT  - 111 11 0101001 mmmm 1111 dddd 1010 mmmm
+          // REVSH - 111 11 0101001 mmmm 1111 dddd 1011 mmmm
+          if ((instr & 0xf0c0) == 0xf080) {
+            uint32_t op3 = (instr >> 4) & 3;
+            opcode << kThumbReverseOperations[op3];
+            ArmRegister Rm(instr, 0);
+            ArmRegister Rd(instr, 8);
+            args << Rd << ", " << Rm;
+            ArmRegister Rm2(instr, 16);
+            if (Rm.r != Rm2.r || Rm.r == 13 || Rm.r == 15 || Rd.r == 13 || Rd.r == 15) {
+              args << " (UNPREDICTABLE)";
+            }
+          }  // else unknown instruction
+          break;
+        }
         case 0x05: case 0x0D: case 0x15: case 0x1D: {  // 00xx101
           // Load word
           // |111|11|10|0 0|00|0|0000|1111|110000|000000|
@@ -1020,6 +1185,72 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             args << Rt << ", [" << Rn << ", #" << imm8 << "]";
           }
           break;
+        }
+      default:      // more formats
+        if ((op2 >> 4) == 2) {      // 010xxxx
+          // data processing (register)
+        } else if ((op2 >> 3) == 6) {       // 0110xxx
+          // Multiply, multiply accumulate, and absolute difference
+          op1 = (instr >> 20) & 0x7;
+          op2 = (instr >> 4) & 0x2;
+          ArmRegister Ra(instr, 12);
+          ArmRegister Rn(instr, 16);
+          ArmRegister Rm(instr, 0);
+          ArmRegister Rd(instr, 8);
+          switch (op1) {
+          case 0:
+            if (op2 == 0) {
+              if (Ra.r == 0xf) {
+                opcode << "mul";
+                args << Rd << ", " << Rn << ", " << Rm;
+              } else {
+                opcode << "mla";
+                args << Rd << ", " << Rn << ", " << Rm << ", " << Ra;
+              }
+            } else {
+              opcode << "mls";
+              args << Rd << ", " << Rn << ", " << Rm << ", " << Ra;
+            }
+            break;
+          case 1:
+          case 2:
+          case 3:
+          case 4:
+          case 5:
+          case 6:
+              break;        // do these sometime
+          }
+        } else if ((op2 >> 3) == 7) {       // 0111xxx
+          // Long multiply, long multiply accumulate, and divide
+          op1 = (instr >> 20) & 0x7;
+          op2 = (instr >> 4) & 0xf;
+          ArmRegister Rn(instr, 16);
+          ArmRegister Rm(instr, 0);
+          ArmRegister Rd(instr, 8);
+          ArmRegister RdHi(instr, 8);
+          ArmRegister RdLo(instr, 12);
+          switch (op1) {
+          case 0:
+            opcode << "smull";
+            args << RdLo << ", " << RdHi << ", " << Rn << ", " << Rm;
+            break;
+          case 1:
+            opcode << "sdiv";
+            args << Rd << ", " << Rn << ", " << Rm;
+            break;
+          case 2:
+            opcode << "umull";
+            args << RdLo << ", " << RdHi << ", " << Rn << ", " << Rm;
+            break;
+          case 3:
+            opcode << "udiv";
+            args << Rd << ", " << Rn << ", " << Rm;
+            break;
+          case 4:
+          case 5:
+          case 6:
+            break;      // TODO: when we generate these...
+          }
         }
       }
     default:
@@ -1263,6 +1494,16 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
           uint32_t imm32 = (i << 6) | (imm5 << 1);
           args << Rn << ", ";
           DumpBranchTarget(args, instr_ptr + 4, imm32);
+          break;
+        }
+        case 0x50: case 0x51:    // 101000x
+        case 0x52: case 0x53:    // 101001x
+        case 0x56: case 0x57: {  // 101011x
+          uint16_t op = (instr >> 6) & 3;
+          opcode << kThumbReverseOperations[op];
+          ThumbRegister Rm(instr, 3);
+          ThumbRegister Rd(instr, 0);
+          args << Rd << ", " << Rm;
           break;
         }
         case 0x78: case 0x79: case 0x7A: case 0x7B:  // 1111xxx

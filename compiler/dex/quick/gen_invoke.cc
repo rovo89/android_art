@@ -214,6 +214,7 @@ void Mir2Lir::CallRuntimeHelperImmRegLocationRegLocation(ThreadOffset helper_off
                                                          int arg0, RegLocation arg1,
                                                          RegLocation arg2, bool safepoint_pc) {
   int r_tgt = CallHelperSetup(helper_offset);
+  DCHECK_EQ(arg1.wide, 0U);
   LoadValueDirectFixed(arg1, TargetReg(kArg1));
   if (arg2.wide == 0) {
     LoadValueDirectFixed(arg2, TargetReg(kArg2));
@@ -221,6 +222,21 @@ void Mir2Lir::CallRuntimeHelperImmRegLocationRegLocation(ThreadOffset helper_off
     LoadValueDirectWideFixed(arg2, TargetReg(kArg2), TargetReg(kArg3));
   }
   LoadConstant(TargetReg(kArg0), arg0);
+  ClobberCalleeSave();
+  CallHelper(r_tgt, helper_offset, safepoint_pc);
+}
+
+void Mir2Lir::CallRuntimeHelperRegLocationRegLocationRegLocation(ThreadOffset helper_offset,
+                                                                 RegLocation arg0, RegLocation arg1,
+                                                                 RegLocation arg2,
+                                                                 bool safepoint_pc) {
+  int r_tgt = CallHelperSetup(helper_offset);
+  DCHECK_EQ(arg0.wide, 0U);
+  LoadValueDirectFixed(arg0, TargetReg(kArg0));
+  DCHECK_EQ(arg1.wide, 0U);
+  LoadValueDirectFixed(arg1, TargetReg(kArg1));
+  DCHECK_EQ(arg1.wide, 0U);
+  LoadValueDirectFixed(arg2, TargetReg(kArg2));
   ClobberCalleeSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
@@ -334,16 +350,13 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
                           uintptr_t direct_code, uintptr_t direct_method,
                           InvokeType type) {
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
-  if (cu->instruction_set != kThumb2) {
-    // Disable sharpening
-    direct_code = 0;
-    direct_method = 0;
-  }
   if (direct_code != 0 && direct_method != 0) {
     switch (state) {
     case 0:  // Get the current Method* [sets kArg0]
       if (direct_code != static_cast<unsigned int>(-1)) {
-        cg->LoadConstant(cg->TargetReg(kInvokeTgt), direct_code);
+        if (cu->instruction_set != kX86) {
+          cg->LoadConstant(cg->TargetReg(kInvokeTgt), direct_code);
+        }
       } else {
         CHECK_EQ(cu->dex_file, target_method.dex_file);
         LIR* data_target = cg->ScanLiteralPool(cg->code_literal_list_,
@@ -389,6 +402,7 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
           cg->LoadConstant(cg->TargetReg(kInvokeTgt), direct_code);
         } else {
           CHECK_EQ(cu->dex_file, target_method.dex_file);
+          CHECK_LT(target_method.dex_method_index, target_method.dex_file->NumMethodIds());
           LIR* data_target = cg->ScanLiteralPool(cg->code_literal_list_,
                                                  target_method.dex_method_index, 0);
           if (data_target == NULL) {
@@ -477,73 +491,56 @@ static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
 }
 
 /*
- * All invoke-interface calls bounce off of art_quick_invoke_interface_trampoline,
- * which will locate the target and continue on via a tail call.
+ * Emit the next instruction in an invoke interface sequence. This will do a lookup in the
+ * class's IMT, calling either the actual method or art_quick_imt_conflict_trampoline if
+ * more than one interface method map to the same index. Note also that we'll load the first
+ * argument ("this") into kArg1 here rather than the standard LoadArgRegs.
  */
 static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
                                  const MethodReference& target_method,
-                                 uint32_t unused, uintptr_t unused2,
-                                 uintptr_t direct_method, InvokeType unused4) {
+                                 uint32_t method_idx, uintptr_t unused,
+                                 uintptr_t direct_method, InvokeType unused2) {
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
-  if (cu->instruction_set != kThumb2) {
-    // Disable sharpening
-    direct_method = 0;
-  }
-  ThreadOffset trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeInterfaceTrampoline);
 
-  if (direct_method != 0) {
-    switch (state) {
-      case 0:  // Load the trampoline target [sets kInvokeTgt].
-        if (cu->instruction_set != kX86) {
-          cg->LoadWordDisp(cg->TargetReg(kSelf), trampoline.Int32Value(),
-                           cg->TargetReg(kInvokeTgt));
-        }
-        // Get the interface Method* [sets kArg0]
-        if (direct_method != static_cast<unsigned int>(-1)) {
-          cg->LoadConstant(cg->TargetReg(kArg0), direct_method);
-        } else {
-          CHECK_EQ(cu->dex_file, target_method.dex_file);
-          LIR* data_target = cg->ScanLiteralPool(cg->method_literal_list_,
-                                                 target_method.dex_method_index, 0);
-          if (data_target == NULL) {
-            data_target = cg->AddWordData(&cg->method_literal_list_,
-                                          target_method.dex_method_index);
-            data_target->operands[1] = kInterface;
-          }
-          LIR* load_pc_rel = cg->OpPcRelLoad(cg->TargetReg(kArg0), data_target);
-          cg->AppendLIR(load_pc_rel);
-          DCHECK_EQ(cu->instruction_set, kThumb2) << reinterpret_cast<void*>(data_target);
-        }
-        break;
-      default:
-        return -1;
-    }
-  } else {
-    switch (state) {
-      case 0:
-        // Get the current Method* [sets kArg0] - TUNING: remove copy of method if it is promoted.
-        cg->LoadCurrMethodDirect(cg->TargetReg(kArg0));
-        // Load the trampoline target [sets kInvokeTgt].
-        if (cu->instruction_set != kX86) {
-          cg->LoadWordDisp(cg->TargetReg(kSelf), trampoline.Int32Value(),
-                           cg->TargetReg(kInvokeTgt));
-        }
-        break;
-    case 1:  // Get method->dex_cache_resolved_methods_ [set/use kArg0]
-      cg->LoadWordDisp(cg->TargetReg(kArg0),
-                       mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(),
-                       cg->TargetReg(kArg0));
-      break;
-    case 2:  // Grab target method* [set/use kArg0]
+  switch (state) {
+    case 0:  // Set target method index in case of conflict [set kHiddenArg, kHiddenFpArg (x86)]
       CHECK_EQ(cu->dex_file, target_method.dex_file);
-      cg->LoadWordDisp(cg->TargetReg(kArg0),
-                       mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
-                           (target_method.dex_method_index * 4),
+      CHECK_LT(target_method.dex_method_index, target_method.dex_file->NumMethodIds());
+      cg->LoadConstant(cg->TargetReg(kHiddenArg), target_method.dex_method_index);
+      if (cu->instruction_set == kX86) {
+        cg->OpRegCopy(cg->TargetReg(kHiddenFpArg), cg->TargetReg(kHiddenArg));
+      }
+      break;
+    case 1: {  // Get "this" [set kArg1]
+      RegLocation  rl_arg = info->args[0];
+      cg->LoadValueDirectFixed(rl_arg, cg->TargetReg(kArg1));
+      break;
+    }
+    case 2:  // Is "this" null? [use kArg1]
+      cg->GenNullCheck(info->args[0].s_reg_low, cg->TargetReg(kArg1), info->opt_flags);
+      // Get this->klass_ [use kArg1, set kInvokeTgt]
+      cg->LoadWordDisp(cg->TargetReg(kArg1), mirror::Object::ClassOffset().Int32Value(),
+                       cg->TargetReg(kInvokeTgt));
+      break;
+    case 3:  // Get this->klass_->imtable [use kInvokeTgt, set kInvokeTgt]
+      cg->LoadWordDisp(cg->TargetReg(kInvokeTgt), mirror::Class::ImTableOffset().Int32Value(),
+                       cg->TargetReg(kInvokeTgt));
+      break;
+    case 4:  // Get target method [use kInvokeTgt, set kArg0]
+      cg->LoadWordDisp(cg->TargetReg(kInvokeTgt), ((method_idx % ClassLinker::kImtSize) * 4) +
+                       mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value(),
                        cg->TargetReg(kArg0));
       break;
+    case 5:  // Get the compiled code address [use kArg0, set kInvokeTgt]
+      if (cu->instruction_set != kX86) {
+        cg->LoadWordDisp(cg->TargetReg(kArg0),
+                         mirror::ArtMethod::GetEntryPointFromCompiledCodeOffset().Int32Value(),
+                         cg->TargetReg(kInvokeTgt));
+        break;
+      }
+      // Intentional fallthrough for X86
     default:
       return -1;
-    }
   }
   return state + 1;
 }
@@ -810,7 +807,7 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
       OpRegRegImm(kOpAdd, TargetReg(kArg3), TargetReg(kSp), start_offset);
       LIR* ld = OpVldm(TargetReg(kArg3), regs_left);
       // TUNING: loosen barrier
-      ld->def_mask = ENCODE_ALL;
+      ld->u.m.def_mask = ENCODE_ALL;
       SetMemRefType(ld, true /* is_load */, kDalvikReg);
       call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                                direct_code, direct_method, type);
@@ -819,7 +816,7 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
                                direct_code, direct_method, type);
       LIR* st = OpVstm(TargetReg(kArg3), regs_left);
       SetMemRefType(st, false /* is_load */, kDalvikReg);
-      st->def_mask = ENCODE_ALL;
+      st->u.m.def_mask = ENCODE_ALL;
       call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                                direct_code, direct_method, type);
     }
@@ -892,7 +889,7 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
     LoadWordDisp(rl_obj.low_reg, value_offset, reg_ptr);
     if (range_check) {
       // Set up a launch pad to allow retry in case of bounds violation */
-      launch_pad = RawLIR(0, kPseudoIntrinsicRetry, reinterpret_cast<uintptr_t>(info));
+      launch_pad = RawLIR(0, kPseudoIntrinsicRetry, WrapPointer(info));
       intrinsic_launchpads_.Insert(launch_pad);
       OpRegReg(kOpCmp, rl_idx.low_reg, reg_max);
       FreeTemp(reg_max);
@@ -903,7 +900,7 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
       reg_max = AllocTemp();
       LoadWordDisp(rl_obj.low_reg, count_offset, reg_max);
       // Set up a launch pad to allow retry in case of bounds violation */
-      launch_pad = RawLIR(0, kPseudoIntrinsicRetry, reinterpret_cast<uintptr_t>(info));
+      launch_pad = RawLIR(0, kPseudoIntrinsicRetry, WrapPointer(info));
       intrinsic_launchpads_.Insert(launch_pad);
       OpRegReg(kOpCmp, rl_idx.low_reg, reg_max);
       FreeTemp(reg_max);
@@ -958,6 +955,31 @@ bool Mir2Lir::GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty) {
     }
   }
   StoreValue(rl_dest, rl_result);
+  return true;
+}
+
+bool Mir2Lir::GenInlinedReverseBytes(CallInfo* info, OpSize size) {
+  if (cu_->instruction_set == kMips) {
+    // TODO - add Mips implementation
+    return false;
+  }
+  RegLocation rl_src_i = info->args[0];
+  RegLocation rl_dest = InlineTarget(info);  // result reg
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  if (size == kLong) {
+    RegLocation rl_i = LoadValueWide(rl_src_i, kCoreReg);
+    int reg_tmp = AllocTemp();
+    OpRegCopy(reg_tmp, rl_result.low_reg);
+    OpRegReg(kOpRev, rl_result.low_reg, rl_i.high_reg);
+    OpRegReg(kOpRev, rl_result.high_reg, reg_tmp);
+    StoreValueWide(rl_dest, rl_result);
+  } else {
+    DCHECK(size == kWord || size == kSignedHalf);
+    OpKind op = (size == kWord) ? kOpRev : kOpRevsh;
+    RegLocation rl_i = LoadValue(rl_src_i, kCoreReg);
+    OpRegReg(op, rl_result.low_reg, rl_i.low_reg);
+    StoreValue(rl_dest, rl_result);
+  }
   return true;
 }
 
@@ -1069,7 +1091,7 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   }
   int r_tgt = (cu_->instruction_set != kX86) ? LoadHelper(QUICK_ENTRYPOINT_OFFSET(pIndexOf)) : 0;
   GenNullCheck(rl_obj.s_reg_low, reg_ptr, info->opt_flags);
-  LIR* launch_pad = RawLIR(0, kPseudoIntrinsicRetry, reinterpret_cast<uintptr_t>(info));
+  LIR* launch_pad = RawLIR(0, kPseudoIntrinsicRetry, WrapPointer(info));
   intrinsic_launchpads_.Insert(launch_pad);
   OpCmpImmBranch(kCondGt, reg_char, 0xFFFF, launch_pad);
   // NOTE: not a safepoint
@@ -1079,7 +1101,7 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
     OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(pIndexOf));
   }
   LIR* resume_tgt = NewLIR0(kPseudoTargetLabel);
-  launch_pad->operands[2] = reinterpret_cast<uintptr_t>(resume_tgt);
+  launch_pad->operands[2] = WrapPointer(resume_tgt);
   // Record that we've already inlined & null checked
   info->opt_flags |= (MIR_INLINED | MIR_IGNORE_NULL_CHECK);
   RegLocation rl_return = GetReturn(false);
@@ -1107,7 +1129,7 @@ bool Mir2Lir::GenInlinedStringCompareTo(CallInfo* info) {
       LoadHelper(QUICK_ENTRYPOINT_OFFSET(pStringCompareTo)) : 0;
   GenNullCheck(rl_this.s_reg_low, reg_this, info->opt_flags);
   // TUNING: check if rl_cmp.s_reg_low is already null checked
-  LIR* launch_pad = RawLIR(0, kPseudoIntrinsicRetry, reinterpret_cast<uintptr_t>(info));
+  LIR* launch_pad = RawLIR(0, kPseudoIntrinsicRetry, WrapPointer(info));
   intrinsic_launchpads_.Insert(launch_pad);
   OpCmpImmBranch(kCondEq, reg_cmp, 0, launch_pad);
   // NOTE: not a safepoint
@@ -1219,8 +1241,10 @@ bool Mir2Lir::GenIntrinsic(CallInfo* info) {
    * method.  By doing this during basic block construction, we can also
    * take advantage of/generate new useful dataflow info.
    */
+  const DexFile::MethodId& target_mid = cu_->dex_file->GetMethodId(info->index);
+  const DexFile::TypeId& declaring_type = cu_->dex_file->GetTypeId(target_mid.class_idx_);
   StringPiece tgt_methods_declaring_class(
-      cu_->dex_file->GetMethodDeclaringClassDescriptor(cu_->dex_file->GetMethodId(info->index)));
+      cu_->dex_file->StringDataByIdx(declaring_type.descriptor_idx_));
   if (tgt_methods_declaring_class.starts_with("Ljava/lang/Double;")) {
     std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
     if (tgt_method == "long java.lang.Double.doubleToRawLongBits(double)") {
@@ -1231,11 +1255,21 @@ bool Mir2Lir::GenIntrinsic(CallInfo* info) {
     }
   } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Float;")) {
     std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
-    if (tgt_method == "int java.lang.Float.float_to_raw_int_bits(float)") {
+    if (tgt_method == "int java.lang.Float.floatToRawIntBits(float)") {
       return GenInlinedFloatCvt(info);
     }
     if (tgt_method == "float java.lang.Float.intBitsToFloat(int)") {
       return GenInlinedFloatCvt(info);
+    }
+  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Integer;")) {
+    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
+    if (tgt_method == "int java.lang.Integer.reverseBytes(int)") {
+      return GenInlinedReverseBytes(info, kWord);
+    }
+  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Long;")) {
+    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
+    if (tgt_method == "long java.lang.Long.reverseBytes(long)") {
+      return GenInlinedReverseBytes(info, kLong);
     }
   } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Math;") ||
              tgt_methods_declaring_class.starts_with("Ljava/lang/StrictMath;")) {
@@ -1259,6 +1293,11 @@ bool Mir2Lir::GenIntrinsic(CallInfo* info) {
     if (tgt_method == "double java.lang.Math.sqrt(double)" ||
         tgt_method == "double java.lang.StrictMath.sqrt(double)") {
       return GenInlinedSqrt(info);
+    }
+  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Short;")) {
+    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
+    if (tgt_method == "short java.lang.Short.reverseBytes(short)") {
+      return GenInlinedReverseBytes(info, kSignedHalf);
     }
   } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/String;")) {
     std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
@@ -1284,6 +1323,32 @@ bool Mir2Lir::GenIntrinsic(CallInfo* info) {
     std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
     if (tgt_method == "java.lang.Thread java.lang.Thread.currentThread()") {
       return GenInlinedCurrentThread(info);
+    }
+  } else if (tgt_methods_declaring_class.starts_with("Llibcore/io/Memory;")) {
+    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
+    if (tgt_method == "byte libcore.io.Memory.peekByte(long)") {
+      return GenInlinedPeek(info, kSignedByte);
+    }
+    if (tgt_method == "int libcore.io.Memory.peekIntNative(long)") {
+      return GenInlinedPeek(info, kWord);
+    }
+    if (tgt_method == "long libcore.io.Memory.peekLongNative(long)") {
+      return GenInlinedPeek(info, kLong);
+    }
+    if (tgt_method == "short libcore.io.Memory.peekShortNative(long)") {
+      return GenInlinedPeek(info, kSignedHalf);
+    }
+    if (tgt_method == "void libcore.io.Memory.pokeByte(long, byte)") {
+      return GenInlinedPoke(info, kSignedByte);
+    }
+    if (tgt_method == "void libcore.io.Memory.pokeIntNative(long, int)") {
+      return GenInlinedPoke(info, kWord);
+    }
+    if (tgt_method == "void libcore.io.Memory.pokeLongNative(long, long)") {
+      return GenInlinedPoke(info, kLong);
+    }
+    if (tgt_method == "void libcore.io.Memory.pokeShortNative(long, short)") {
+      return GenInlinedPoke(info, kSignedHalf);
     }
   } else if (tgt_methods_declaring_class.starts_with("Lsun/misc/Unsafe;")) {
     std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
@@ -1373,16 +1438,13 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
   bool fast_path =
       cu_->compiler_driver->ComputeInvokeInfo(mir_graph_->GetCurrentDexCompilationUnit(),
                                               current_dalvik_offset_,
-                                              info->type, target_method,
-                                              vtable_idx,
-                                              direct_code, direct_method,
-                                              true) && !SLOW_INVOKE_PATH;
+                                              true, true,
+                                              &info->type, &target_method,
+                                              &vtable_idx,
+                                              &direct_code, &direct_method) && !SLOW_INVOKE_PATH;
   if (info->type == kInterface) {
-    if (fast_path) {
-      p_null_ck = &null_ck;
-    }
     next_call_insn = fast_path ? NextInterfaceCallInsn : NextInterfaceCallInsnWithAccessCheck;
-    skip_this = false;
+    skip_this = fast_path;
   } else if (info->type == kDirect) {
     if (fast_path) {
       p_null_ck = &null_ck;
@@ -1422,15 +1484,14 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
   if (cu_->instruction_set != kX86) {
     call_inst = OpReg(kOpBlx, TargetReg(kInvokeTgt));
   } else {
-    if (fast_path && info->type != kInterface) {
+    if (fast_path) {
       call_inst = OpMem(kOpBlx, TargetReg(kArg0),
                         mirror::ArtMethod::GetEntryPointFromCompiledCodeOffset().Int32Value());
     } else {
       ThreadOffset trampoline(-1);
       switch (info->type) {
       case kInterface:
-        trampoline = fast_path ? QUICK_ENTRYPOINT_OFFSET(pInvokeInterfaceTrampoline)
-            : QUICK_ENTRYPOINT_OFFSET(pInvokeInterfaceTrampolineWithAccessCheck);
+        trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeInterfaceTrampolineWithAccessCheck);
         break;
       case kDirect:
         trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeDirectTrampolineWithAccessCheck);

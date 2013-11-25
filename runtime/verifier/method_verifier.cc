@@ -51,7 +51,8 @@ void PcToRegisterLineTable::Init(RegisterTrackingMode mode, InstructionFlags* fl
                                  uint32_t insns_size, uint16_t registers_size,
                                  MethodVerifier* verifier) {
   DCHECK_GT(insns_size, 0U);
-
+  register_lines_.reset(new RegisterLine*[insns_size]());
+  size_ = insns_size;
   for (uint32_t i = 0; i < insns_size; i++) {
     bool interesting = false;
     switch (mode) {
@@ -68,7 +69,16 @@ void PcToRegisterLineTable::Init(RegisterTrackingMode mode, InstructionFlags* fl
         break;
     }
     if (interesting) {
-      pc_to_register_line_.Put(i, new RegisterLine(registers_size, verifier));
+      register_lines_[i] = RegisterLine::Create(registers_size, verifier);
+    }
+  }
+}
+
+PcToRegisterLineTable::~PcToRegisterLineTable() {
+  for (size_t i = 0; i < size_; i++) {
+    delete register_lines_[i];
+    if (kIsDebugBuild) {
+      register_lines_[i] = nullptr;
     }
   }
 }
@@ -80,7 +90,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const mirror::Class* kla
     return kNoFailure;
   }
   mirror::Class* super = klass->GetSuperClass();
-  if (super == NULL && StringPiece(ClassHelper(klass).GetDescriptor()) != "Ljava/lang/Object;") {
+  if (super == NULL && strcmp("Ljava/lang/Object;", ClassHelper(klass).GetDescriptor()) != 0) {
     *error = "Verifier rejected class ";
     *error += PrettyDescriptor(klass);
     *error += " that has no super class";
@@ -293,6 +303,7 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, mirror::DexCache* dex_ca
       dex_method_idx_(dex_method_idx),
       mirror_method_(method),
       method_access_flags_(method_access_flags),
+      return_type_(nullptr),
       dex_file_(dex_file),
       dex_cache_(dex_cache),
       class_loader_(class_loader),
@@ -300,7 +311,7 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, mirror::DexCache* dex_ca
       code_item_(code_item),
       declaring_class_(NULL),
       interesting_dex_pc_(-1),
-      monitor_enter_dex_pcs_(NULL),
+      monitor_enter_dex_pcs_(nullptr),
       have_pending_hard_failure_(false),
       have_pending_runtime_throw_failure_(false),
       new_instance_count_(0),
@@ -309,7 +320,7 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, mirror::DexCache* dex_ca
       allow_soft_failures_(allow_soft_failures),
       has_check_casts_(false),
       has_virtual_or_interface_invokes_(false) {
-  DCHECK(class_def != NULL);
+  DCHECK(class_def != nullptr);
 }
 
 void MethodVerifier::FindLocksAtDexPc(mirror::ArtMethod* m, uint32_t dex_pc,
@@ -495,17 +506,25 @@ bool MethodVerifier::ComputeWidthsAndCountOps() {
 
   while (dex_pc < insns_size) {
     Instruction::Code opcode = inst->Opcode();
-    if (opcode == Instruction::NEW_INSTANCE) {
-      new_instance_count++;
-    } else if (opcode == Instruction::MONITOR_ENTER) {
-      monitor_enter_count++;
-    } else if (opcode == Instruction::CHECK_CAST) {
-      has_check_casts_ = true;
-    } else if ((inst->Opcode() == Instruction::INVOKE_VIRTUAL) ||
-              (inst->Opcode() ==  Instruction::INVOKE_VIRTUAL_RANGE) ||
-              (inst->Opcode() == Instruction::INVOKE_INTERFACE) ||
-              (inst->Opcode() == Instruction::INVOKE_INTERFACE_RANGE)) {
-      has_virtual_or_interface_invokes_ = true;
+    switch (opcode) {
+      case Instruction::APUT_OBJECT:
+      case Instruction::CHECK_CAST:
+        has_check_casts_ = true;
+        break;
+      case Instruction::INVOKE_VIRTUAL:
+      case Instruction::INVOKE_VIRTUAL_RANGE:
+      case Instruction::INVOKE_INTERFACE:
+      case Instruction::INVOKE_INTERFACE_RANGE:
+        has_virtual_or_interface_invokes_ = true;
+        break;
+      case Instruction::MONITOR_ENTER:
+        monitor_enter_count++;
+        break;
+      case Instruction::NEW_INSTANCE:
+        new_instance_count++;
+        break;
+      default:
+        break;
     }
     size_t inst_size = inst->SizeInCodeUnits();
     insn_flags_[dex_pc].SetLengthInCodeUnits(inst_size);
@@ -1034,8 +1053,8 @@ bool MethodVerifier::VerifyCodeFlow() {
                   this);
 
 
-  work_line_.reset(new RegisterLine(registers_size, this));
-  saved_line_.reset(new RegisterLine(registers_size, this));
+  work_line_.reset(RegisterLine::Create(registers_size, this));
+  saved_line_.reset(RegisterLine::Create(registers_size, this));
 
   /* Initialize register types of method arguments. */
   if (!SetTypesFromSignature()) {
@@ -1935,7 +1954,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
 
         if (!cast_type.IsUnresolvedTypes() && !orig_type.IsUnresolvedTypes() &&
             !cast_type.GetClass()->IsInterface() && !cast_type.IsAssignableFrom(orig_type)) {
-          RegisterLine* update_line = new RegisterLine(code_item_->registers_size_, this);
+          RegisterLine* update_line = RegisterLine::Create(code_item_->registers_size_, this);
           if (inst->Opcode() == Instruction::IF_EQZ) {
             fallthrough_line.reset(update_line);
           } else {
@@ -2131,20 +2150,30 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
                         inst->Opcode() == Instruction::INVOKE_SUPER_RANGE);
       mirror::ArtMethod* called_method = VerifyInvocationArgs(inst, METHOD_VIRTUAL,
                                                                    is_range, is_super);
-      const char* descriptor;
-      if (called_method == NULL) {
+      const RegType* return_type = nullptr;
+      if (called_method != nullptr) {
+        MethodHelper mh(called_method);
+        mirror::Class* return_type_class = mh.GetReturnType();
+        if (return_type_class != nullptr) {
+          return_type = &reg_types_.FromClass(mh.GetReturnTypeDescriptor(), return_type_class,
+                                              return_type_class->CannotBeAssignedFromOtherTypes());
+        } else {
+          Thread* self = Thread::Current();
+          DCHECK(self->IsExceptionPending());
+          self->ClearException();
+        }
+      }
+      if (return_type == nullptr) {
         uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
         const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
         uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
-        descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
-      } else {
-        descriptor = MethodHelper(called_method).GetReturnTypeDescriptor();
+        const char* descriptor = dex_file_->StringByTypeIdx(return_type_idx);
+        return_type = &reg_types_.FromDescriptor(class_loader_, descriptor, false);
       }
-      const RegType& return_type = reg_types_.FromDescriptor(class_loader_, descriptor, false);
-      if (!return_type.IsLowHalf()) {
-        work_line_->SetResultRegisterType(return_type);
+      if (!return_type->IsLowHalf()) {
+        work_line_->SetResultRegisterType(*return_type);
       } else {
-        work_line_->SetResultRegisterTypeWide(return_type, return_type.HighHalf(&reg_types_));
+        work_line_->SetResultRegisterTypeWide(*return_type, return_type->HighHalf(&reg_types_));
       }
       just_set_result = true;
       break;
@@ -2159,7 +2188,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       if (called_method == NULL) {
         uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
         const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
-        is_constructor = StringPiece(dex_file_->GetMethodName(method_id)) == "<init>";
+        is_constructor = strcmp("<init>", dex_file_->StringDataByIdx(method_id.name_idx_)) == 0;
         uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
         return_type_descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
       } else {
@@ -2863,11 +2892,14 @@ const RegType& MethodVerifier::GetCaughtExceptionType() {
               // as that is caught at runtime
               common_super = &exception;
             } else if (!reg_types_.JavaLangThrowable(false).IsAssignableFrom(exception)) {
-              // We don't know enough about the type and the common path merge will result in
-              // Conflict. Fail here knowing the correct thing can be done at runtime.
-              Fail(exception.IsUnresolvedTypes() ? VERIFY_ERROR_NO_CLASS :
-                  VERIFY_ERROR_BAD_CLASS_SOFT) << "unexpected non-exception class " << exception;
-              return reg_types_.Conflict();
+              if (exception.IsUnresolvedTypes()) {
+                // We don't know enough about the type. Fail here and let runtime handle it.
+                Fail(VERIFY_ERROR_NO_CLASS) << "unresolved exception class " << exception;
+                return exception;
+              } else {
+                Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "unexpected non-exception class " << exception;
+                return reg_types_.Conflict();
+              }
             } else if (common_super->Equals(exception)) {
               // odd case, but nothing to do
             } else {
@@ -2889,7 +2921,7 @@ const RegType& MethodVerifier::GetCaughtExceptionType() {
 }
 
 mirror::ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(uint32_t dex_method_idx,
-                                                                    MethodType method_type) {
+                                                               MethodType method_type) {
   const DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx);
   const RegType& klass_type = ResolveClassAndCheckAccess(method_id.class_idx_);
   if (klass_type.IsConflict()) {
@@ -2906,7 +2938,7 @@ mirror::ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(uint32_t dex_meth
   mirror::ArtMethod* res_method = dex_cache_->GetResolvedMethod(dex_method_idx);
   if (res_method == NULL) {
     const char* name = dex_file_->GetMethodName(method_id);
-    std::string signature(dex_file_->CreateMethodSignature(method_id.proto_idx_, NULL));
+    const Signature signature = dex_file_->GetMethodSignature(method_id);
 
     if (method_type == METHOD_DIRECT || method_type == METHOD_STATIC) {
       res_method = klass->FindDirectMethod(name, signature);
@@ -3110,6 +3142,8 @@ mirror::ArtMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction* inst
          inst->Opcode() == Instruction::INVOKE_VIRTUAL_RANGE_QUICK);
   const RegType& actual_arg_type = reg_line->GetInvocationThis(inst, is_range);
   if (actual_arg_type.IsConflict()) {  // GetInvocationThis failed.
+    return NULL;
+  } else if (actual_arg_type.IsZero()) {  // Invoke on "null" instance: we can't go further.
     return NULL;
   }
   mirror::Class* this_class = NULL;
@@ -3504,22 +3538,26 @@ void MethodVerifier::VerifyISGet(const Instruction* inst, const RegType& insn_ty
     const RegType& object_type = work_line_->GetRegisterType(inst->VRegB_22c());
     field = GetInstanceField(object_type, field_idx);
   }
-  const char* descriptor;
-  mirror::ClassLoader* loader;
+  const RegType* field_type = nullptr;
   if (field != NULL) {
-    descriptor = FieldHelper(field).GetTypeDescriptor();
-    loader = field->GetDeclaringClass()->GetClassLoader();
-  } else {
-    const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
-    descriptor = dex_file_->GetFieldTypeDescriptor(field_id);
-    loader = class_loader_;
+    FieldHelper fh(field);
+    mirror::Class* field_type_class = fh.GetType(false);
+    if (field_type_class != nullptr) {
+      field_type = &reg_types_.FromClass(fh.GetTypeDescriptor(), field_type_class,
+                                         field_type_class->CannotBeAssignedFromOtherTypes());
+    }
   }
-  const RegType& field_type = reg_types_.FromDescriptor(loader, descriptor, false);
+  if (field_type == nullptr) {
+    const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
+    const char* descriptor = dex_file_->GetFieldTypeDescriptor(field_id);
+    mirror::ClassLoader* loader = class_loader_;
+    field_type = &reg_types_.FromDescriptor(loader, descriptor, false);
+  }
   const uint32_t vregA = (is_static) ? inst->VRegA_21c() : inst->VRegA_22c();
   if (is_primitive) {
-    if (field_type.Equals(insn_type) ||
-        (field_type.IsFloat() && insn_type.IsInteger()) ||
-        (field_type.IsDouble() && insn_type.IsLong())) {
+    if (field_type->Equals(insn_type) ||
+        (field_type->IsFloat() && insn_type.IsInteger()) ||
+        (field_type->IsDouble() && insn_type.IsLong())) {
       // expected that read is of the correct primitive type or that int reads are reading
       // floats or long reads are reading doubles
     } else {
@@ -3532,7 +3570,7 @@ void MethodVerifier::VerifyISGet(const Instruction* inst, const RegType& insn_ty
       return;
     }
   } else {
-    if (!insn_type.IsAssignableFrom(field_type)) {
+    if (!insn_type.IsAssignableFrom(*field_type)) {
       Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << PrettyField(field)
                                         << " to be compatible with type '" << insn_type
                                         << "' but found type '" << field_type
@@ -3541,10 +3579,10 @@ void MethodVerifier::VerifyISGet(const Instruction* inst, const RegType& insn_ty
       return;
     }
   }
-  if (!field_type.IsLowHalf()) {
-    work_line_->SetRegisterType(vregA, field_type);
+  if (!field_type->IsLowHalf()) {
+    work_line_->SetRegisterType(vregA, *field_type);
   } else {
-    work_line_->SetRegisterTypeWide(vregA, field_type, field_type.HighHalf(&reg_types_));
+    work_line_->SetRegisterTypeWide(vregA, *field_type, field_type->HighHalf(&reg_types_));
   }
 }
 
@@ -3558,36 +3596,38 @@ void MethodVerifier::VerifyISPut(const Instruction* inst, const RegType& insn_ty
     const RegType& object_type = work_line_->GetRegisterType(inst->VRegB_22c());
     field = GetInstanceField(object_type, field_idx);
   }
-  const char* descriptor;
-  mirror::ClassLoader* loader;
-  if (field != NULL) {
-    descriptor = FieldHelper(field).GetTypeDescriptor();
-    loader = field->GetDeclaringClass()->GetClassLoader();
-  } else {
-    const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
-    descriptor = dex_file_->GetFieldTypeDescriptor(field_id);
-    loader = class_loader_;
-  }
-  const RegType& field_type = reg_types_.FromDescriptor(loader, descriptor, false);
+  const RegType* field_type = nullptr;
   if (field != NULL) {
     if (field->IsFinal() && field->GetDeclaringClass() != GetDeclaringClass().GetClass()) {
       Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot modify final field " << PrettyField(field)
                                       << " from other class " << GetDeclaringClass();
       return;
     }
+    FieldHelper fh(field);
+    mirror::Class* field_type_class = fh.GetType(false);
+    if (field_type_class != nullptr) {
+      field_type = &reg_types_.FromClass(fh.GetTypeDescriptor(), field_type_class,
+                                         field_type_class->CannotBeAssignedFromOtherTypes());
+    }
+  }
+  if (field_type == nullptr) {
+    const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
+    const char* descriptor = dex_file_->GetFieldTypeDescriptor(field_id);
+    mirror::ClassLoader* loader = class_loader_;
+    field_type = &reg_types_.FromDescriptor(loader, descriptor, false);
   }
   const uint32_t vregA = (is_static) ? inst->VRegA_21c() : inst->VRegA_22c();
   if (is_primitive) {
-    VerifyPrimitivePut(field_type, insn_type, vregA);
+    VerifyPrimitivePut(*field_type, insn_type, vregA);
   } else {
-    if (!insn_type.IsAssignableFrom(field_type)) {
+    if (!insn_type.IsAssignableFrom(*field_type)) {
       Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << PrettyField(field)
                                         << " to be compatible with type '" << insn_type
                                         << "' but found type '" << field_type
                                         << "' in put-object";
       return;
     }
-    work_line_->VerifyRegisterType(vregA, field_type);
+    work_line_->VerifyRegisterType(vregA, *field_type);
   }
 }
 
@@ -3655,14 +3695,21 @@ void MethodVerifier::VerifyIGetQuick(const Instruction* inst, const RegType& ins
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Cannot infer field from " << inst->Name();
     return;
   }
-  const char* descriptor = FieldHelper(field).GetTypeDescriptor();
-  mirror::ClassLoader* loader = field->GetDeclaringClass()->GetClassLoader();
-  const RegType& field_type = reg_types_.FromDescriptor(loader, descriptor, false);
+  FieldHelper fh(field);
+  mirror::Class* field_type_class = fh.GetType(false);
+  const RegType* field_type;
+  if (field_type_class != nullptr) {
+    field_type = &reg_types_.FromClass(fh.GetTypeDescriptor(), field_type_class,
+                                       field_type_class->CannotBeAssignedFromOtherTypes());
+  } else {
+    field_type = &reg_types_.FromDescriptor(field->GetDeclaringClass()->GetClassLoader(),
+                                            fh.GetTypeDescriptor(), false);
+  }
   const uint32_t vregA = inst->VRegA_22c();
   if (is_primitive) {
-    if (field_type.Equals(insn_type) ||
-        (field_type.IsFloat() && insn_type.IsIntegralTypes()) ||
-        (field_type.IsDouble() && insn_type.IsLongTypes())) {
+    if (field_type->Equals(insn_type) ||
+        (field_type->IsFloat() && insn_type.IsIntegralTypes()) ||
+        (field_type->IsDouble() && insn_type.IsLongTypes())) {
       // expected that read is of the correct primitive type or that int reads are reading
       // floats or long reads are reading doubles
     } else {
@@ -3675,7 +3722,7 @@ void MethodVerifier::VerifyIGetQuick(const Instruction* inst, const RegType& ins
       return;
     }
   } else {
-    if (!insn_type.IsAssignableFrom(field_type)) {
+    if (!insn_type.IsAssignableFrom(*field_type)) {
       Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << PrettyField(field)
                                         << " to be compatible with type '" << insn_type
                                         << "' but found type '" << field_type
@@ -3684,10 +3731,10 @@ void MethodVerifier::VerifyIGetQuick(const Instruction* inst, const RegType& ins
       return;
     }
   }
-  if (!field_type.IsLowHalf()) {
-    work_line_->SetRegisterType(vregA, field_type);
+  if (!field_type->IsLowHalf()) {
+    work_line_->SetRegisterType(vregA, *field_type);
   } else {
-    work_line_->SetRegisterTypeWide(vregA, field_type, field_type.HighHalf(&reg_types_));
+    work_line_->SetRegisterTypeWide(vregA, *field_type, field_type->HighHalf(&reg_types_));
   }
 }
 
@@ -3801,7 +3848,7 @@ bool MethodVerifier::UpdateRegisters(uint32_t next_insn, const RegisterLine* mer
     }
   } else {
     UniquePtr<RegisterLine> copy(gDebugVerify ?
-                                 new RegisterLine(target_line->NumRegs(), this) :
+                                 RegisterLine::Create(target_line->NumRegs(), this) :
                                  NULL);
     if (gDebugVerify) {
       copy->CopyFromLine(target_line);
@@ -3829,11 +3876,28 @@ InstructionFlags* MethodVerifier::CurrentInsnFlags() {
 }
 
 const RegType& MethodVerifier::GetMethodReturnType() {
-  const DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx_);
-  const DexFile::ProtoId& proto_id = dex_file_->GetMethodPrototype(method_id);
-  uint16_t return_type_idx = proto_id.return_type_idx_;
-  const char* descriptor = dex_file_->GetTypeDescriptor(dex_file_->GetTypeId(return_type_idx));
-  return reg_types_.FromDescriptor(class_loader_, descriptor, false);
+  if (return_type_ == nullptr) {
+    if (mirror_method_ != NULL) {
+      MethodHelper mh(mirror_method_);
+      mirror::Class* return_type_class = mh.GetReturnType();
+      if (return_type_class != nullptr) {
+        return_type_ =&reg_types_.FromClass(mh.GetReturnTypeDescriptor(), return_type_class,
+                                            return_type_class->CannotBeAssignedFromOtherTypes());
+      } else {
+        Thread* self = Thread::Current();
+        DCHECK(self->IsExceptionPending());
+        self->ClearException();
+      }
+    }
+    if (return_type_ == nullptr) {
+      const DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx_);
+      const DexFile::ProtoId& proto_id = dex_file_->GetMethodPrototype(method_id);
+      uint16_t return_type_idx = proto_id.return_type_idx_;
+      const char* descriptor = dex_file_->GetTypeDescriptor(dex_file_->GetTypeId(return_type_idx));
+      return_type_ = &reg_types_.FromDescriptor(class_loader_, descriptor, false);
+    }
+  }
+  return *return_type_;
 }
 
 const RegType& MethodVerifier::GetDeclaringClass() {
@@ -3889,18 +3953,32 @@ MethodVerifier::MethodSafeCastSet* MethodVerifier::GenerateSafeCastSet() {
                                            code_item_->insns_size_in_code_units_);
 
   for (; inst < end; inst = inst->Next()) {
-    if (Instruction::CHECK_CAST != inst->Opcode()) {
-      continue;
-    }
-    uint32_t dex_pc = inst->GetDexPc(code_item_->insns_);
-    RegisterLine* line = reg_table_.GetLine(dex_pc);
-    const RegType& reg_type(line->GetRegisterType(inst->VRegA_21c()));
-    const RegType& cast_type = ResolveClassAndCheckAccess(inst->VRegB_21c());
-    if (cast_type.IsStrictlyAssignableFrom(reg_type)) {
-      if (mscs.get() == NULL) {
-        mscs.reset(new MethodSafeCastSet());
+    Instruction::Code code = inst->Opcode();
+    if ((code == Instruction::CHECK_CAST) || (code == Instruction::APUT_OBJECT)) {
+      uint32_t dex_pc = inst->GetDexPc(code_item_->insns_);
+      RegisterLine* line = reg_table_.GetLine(dex_pc);
+      bool is_safe_cast = false;
+      if (code == Instruction::CHECK_CAST) {
+        const RegType& reg_type(line->GetRegisterType(inst->VRegA_21c()));
+        const RegType& cast_type = ResolveClassAndCheckAccess(inst->VRegB_21c());
+        is_safe_cast = cast_type.IsStrictlyAssignableFrom(reg_type);
+      } else {
+        const RegType& array_type(line->GetRegisterType(inst->VRegB_23x()));
+        // We only know its safe to assign to an array if the array type is precise. For example,
+        // an Object[] can have any type of object stored in it, but it may also be assigned a
+        // String[] in which case the stores need to be of Strings.
+        if (array_type.IsPreciseReference()) {
+          const RegType& value_type(line->GetRegisterType(inst->VRegA_23x()));
+          const RegType& component_type(reg_types_.GetComponentType(array_type, class_loader_));
+          is_safe_cast = component_type.IsStrictlyAssignableFrom(value_type);
+        }
       }
-      mscs->insert(dex_pc);
+      if (is_safe_cast) {
+        if (mscs.get() == NULL) {
+          mscs.reset(new MethodSafeCastSet());
+        }
+        mscs->insert(dex_pc);
+      }
     }
   }
   return mscs.release();

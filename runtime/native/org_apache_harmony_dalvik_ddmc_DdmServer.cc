@@ -16,21 +16,21 @@
 
 #include "base/logging.h"
 #include "debugger.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_fast_native_object_access.h"
 #include "ScopedPrimitiveArray.h"
 
 namespace art {
 
 static void DdmServer_nativeSendChunk(JNIEnv* env, jclass, jint type,
                                       jbyteArray javaData, jint offset, jint length) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   ScopedByteArrayRO data(env, javaData);
   DCHECK_LE(offset + length, static_cast<int32_t>(data.size()));
   Dbg::DdmSendChunk(type, length, reinterpret_cast<const uint8_t*>(&data[offset]));
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(DdmServer, nativeSendChunk, "(I[BII)V"),
+  NATIVE_METHOD(DdmServer, nativeSendChunk, "!(I[BII)V"),
 };
 
 void register_org_apache_harmony_dalvik_ddmc_DdmServer(JNIEnv* env) {

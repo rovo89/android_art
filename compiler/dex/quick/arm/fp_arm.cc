@@ -176,7 +176,7 @@ void ArmMir2Lir::GenConversion(Instruction::Code opcode,
 
 void ArmMir2Lir::GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias,
                                      bool is_double) {
-  LIR* target = &block_label_list_[bb->taken->id];
+  LIR* target = &block_label_list_[bb->taken];
   RegLocation rl_src1;
   RegLocation rl_src2;
   if (is_double) {

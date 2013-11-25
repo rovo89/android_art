@@ -23,6 +23,7 @@
 #include "art_method.h"
 #include "class_loader.h"
 #include "dex_cache.h"
+#include "gc/heap-inl.h"
 #include "iftable.h"
 #include "object_array-inl.h"
 #include "runtime.h"
@@ -34,9 +35,7 @@ namespace mirror {
 inline size_t Class::GetObjectSize() const {
   DCHECK(!IsVariableSize()) << " class=" << PrettyTypeOf(this);
   DCHECK_EQ(sizeof(size_t), sizeof(int32_t));
-  size_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, object_size_), false);
-  DCHECK_GE(result, sizeof(Object)) << " class=" << PrettyTypeOf(this);
-  return result;
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, object_size_), false);
 }
 
 inline Class* Class::GetSuperClass() const {
@@ -138,6 +137,14 @@ inline ObjectArray<ArtMethod>* Class::GetVTableDuringLinking() const {
 inline void Class::SetVTable(ObjectArray<ArtMethod>* new_vtable)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, vtable_), new_vtable, false);
+}
+
+inline ObjectArray<ArtMethod>* Class::GetImTable() const {
+  return GetFieldObject<ObjectArray<ArtMethod>*>(OFFSET_OF_OBJECT_MEMBER(Class, imtable_), false);
+}
+
+inline void Class::SetImTable(ObjectArray<ArtMethod>* new_imtable) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, imtable_), new_imtable, false);
 }
 
 inline bool Class::Implements(const Class* klass) const {
@@ -340,6 +347,24 @@ inline String* Class::GetName() const {
 }
 inline void Class::SetName(String* name) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, name_), name, false);
+}
+
+inline void Class::CheckObjectAlloc() {
+  DCHECK(!IsArrayClass()) << PrettyClass(this);
+  DCHECK(IsInstantiable()) << PrettyClass(this);
+  // TODO: decide whether we want this check. It currently fails during bootstrap.
+  // DCHECK(!Runtime::Current()->IsStarted() || IsInitializing()) << PrettyClass(this);
+  DCHECK_GE(this->object_size_, sizeof(Object));
+}
+
+inline Object* Class::AllocObjectInstrumented(Thread* self) {
+  CheckObjectAlloc();
+  return Runtime::Current()->GetHeap()->AllocObjectInstrumented(self, this, this->object_size_);
+}
+
+inline Object* Class::AllocObjectUninstrumented(Thread* self) {
+  CheckObjectAlloc();
+  return Runtime::Current()->GetHeap()->AllocObjectUninstrumented(self, this, this->object_size_);
 }
 
 }  // namespace mirror

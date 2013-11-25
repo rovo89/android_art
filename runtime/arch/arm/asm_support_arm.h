@@ -25,7 +25,11 @@
 #define rSELF r9
 // Offset of field Thread::suspend_count_ verified in InitCpu
 #define THREAD_FLAGS_OFFSET 0
+// Offset of field Thread::card_table_ verified in InitCpu
+#define THREAD_CARD_TABLE_OFFSET 8
 // Offset of field Thread::exception_ verified in InitCpu
 #define THREAD_EXCEPTION_OFFSET 12
+// Offset of field Thread::thin_lock_thread_id_ verified in InitCpu
+#define THREAD_ID_OFFSET 60
 
 #endif  // ART_RUNTIME_ARCH_ARM_ASM_SUPPORT_ARM_H_

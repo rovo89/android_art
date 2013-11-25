@@ -32,6 +32,7 @@ class PACKED(4) OatHeader {
 
   OatHeader();
   OatHeader(InstructionSet instruction_set,
+            const InstructionSetFeatures& instruction_set_features,
             const std::vector<const DexFile*>* dex_files,
             uint32_t image_file_location_oat_checksum,
             uint32_t image_file_location_oat_data_begin,
@@ -62,6 +63,9 @@ class PACKED(4) OatHeader {
   const void* GetPortableResolutionTrampoline() const;
   uint32_t GetPortableResolutionTrampolineOffset() const;
   void SetPortableResolutionTrampolineOffset(uint32_t offset);
+  const void* GetPortableImtConflictTrampoline() const;
+  uint32_t GetPortableImtConflictTrampolineOffset() const;
+  void SetPortableImtConflictTrampolineOffset(uint32_t offset);
   const void* GetPortableToInterpreterBridge() const;
   uint32_t GetPortableToInterpreterBridgeOffset() const;
   void SetPortableToInterpreterBridgeOffset(uint32_t offset);
@@ -69,11 +73,15 @@ class PACKED(4) OatHeader {
   const void* GetQuickResolutionTrampoline() const;
   uint32_t GetQuickResolutionTrampolineOffset() const;
   void SetQuickResolutionTrampolineOffset(uint32_t offset);
+  const void* GetQuickImtConflictTrampoline() const;
+  uint32_t GetQuickImtConflictTrampolineOffset() const;
+  void SetQuickImtConflictTrampolineOffset(uint32_t offset);
   const void* GetQuickToInterpreterBridge() const;
   uint32_t GetQuickToInterpreterBridgeOffset() const;
   void SetQuickToInterpreterBridgeOffset(uint32_t offset);
 
   InstructionSet GetInstructionSet() const;
+  const InstructionSetFeatures& GetInstructionSetFeatures() const;
   uint32_t GetImageFileLocationOatChecksum() const;
   uint32_t GetImageFileLocationOatDataBegin() const;
   uint32_t GetImageFileLocationSize() const;
@@ -86,13 +94,16 @@ class PACKED(4) OatHeader {
   uint32_t adler32_checksum_;
 
   InstructionSet instruction_set_;
+  InstructionSetFeatures instruction_set_features_;
   uint32_t dex_file_count_;
   uint32_t executable_offset_;
   uint32_t interpreter_to_interpreter_bridge_offset_;
   uint32_t interpreter_to_compiled_code_bridge_offset_;
   uint32_t jni_dlsym_lookup_offset_;
+  uint32_t portable_imt_conflict_trampoline_offset_;
   uint32_t portable_resolution_trampoline_offset_;
   uint32_t portable_to_interpreter_bridge_offset_;
+  uint32_t quick_imt_conflict_trampoline_offset_;
   uint32_t quick_resolution_trampoline_offset_;
   uint32_t quick_to_interpreter_bridge_offset_;
 
@@ -103,6 +114,19 @@ class PACKED(4) OatHeader {
 
   DISALLOW_COPY_AND_ASSIGN(OatHeader);
 };
+
+// OatMethodOffsets are currently 7x32-bits=224-bits long, so if we can
+// save even one OatMethodOffsets struct, the more complicated encoding
+// using a bitmap pays for itself since few classes will have 224
+// methods.
+enum OatClassType {
+  kOatClassAllCompiled = 0,   // OatClass is followed by an OatMethodOffsets for each method.
+  kOatClassSomeCompiled = 1,  // A bitmap of which OatMethodOffsets are present follows the OatClass.
+  kOatClassNoneCompiled = 2,  // All methods are interpretted so no OatMethodOffsets are necessary.
+  kOatClassMax = 3,
+};
+
+std::ostream& operator<<(std::ostream& os, const OatClassType& rhs);
 
 class PACKED(4) OatMethodOffsets {
  public:

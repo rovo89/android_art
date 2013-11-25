@@ -152,7 +152,7 @@ TEST_F(JniCompilerTest, CompileAndRunIntMethodThroughStub) {
   std::string reason;
   ASSERT_TRUE(
       Runtime::Current()->GetJavaVM()->LoadNativeLibrary("", soa.Decode<mirror::ClassLoader*>(class_loader_),
-                                                         reason)) << reason;
+                                                         &reason)) << reason;
 
   jint result = env_->CallNonvirtualIntMethod(jobj_, jklass_, jmethod_, 24);
   EXPECT_EQ(25, result);
@@ -167,7 +167,7 @@ TEST_F(JniCompilerTest, CompileAndRunStaticIntMethodThroughStub) {
   std::string reason;
   ASSERT_TRUE(
       Runtime::Current()->GetJavaVM()->LoadNativeLibrary("", soa.Decode<mirror::ClassLoader*>(class_loader_),
-                                                         reason)) << reason;
+                                                         &reason)) << reason;
 
   jint result = env_->CallStaticIntMethod(jklass_, jmethod_, 42);
   EXPECT_EQ(43, result);

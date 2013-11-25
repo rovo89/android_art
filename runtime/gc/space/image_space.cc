@@ -44,12 +44,13 @@ ImageSpace::ImageSpace(const std::string& name, MemMap* mem_map,
   live_bitmap_.reset(live_bitmap);
 }
 
-static bool GenerateImage(const std::string& image_file_name) {
+static bool GenerateImage(const std::string& image_file_name, std::string* error_msg) {
   const std::string boot_class_path_string(Runtime::Current()->GetBootClassPathString());
   std::vector<std::string> boot_class_path;
   Split(boot_class_path_string, ':', boot_class_path);
   if (boot_class_path.empty()) {
-    LOG(FATAL) << "Failed to generate image because no boot class path specified";
+    *error_msg = "Failed to generate image because no boot class path specified";
+    return false;
   }
 
   std::vector<std::string> arg_vector;
@@ -112,41 +113,57 @@ static bool GenerateImage(const std::string& image_file_name) {
     return false;
   } else {
     if (pid == -1) {
-      PLOG(ERROR) << "fork failed";
+      *error_msg = StringPrintf("Failed to generate image '%s' because fork failed: %s",
+                                image_file_name.c_str(), strerror(errno));
+      return false;
     }
 
     // wait for dex2oat to finish
     int status;
     pid_t got_pid = TEMP_FAILURE_RETRY(waitpid(pid, &status, 0));
     if (got_pid != pid) {
-      PLOG(ERROR) << "waitpid failed: wanted " << pid << ", got " << got_pid;
+      *error_msg = StringPrintf("Failed to generate image '%s' because waitpid failed: "
+                                "wanted %d, got %d: %s",
+                                image_file_name.c_str(), pid, got_pid, strerror(errno));
       return false;
     }
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-      LOG(ERROR) << dex2oat << " failed: " << command_line;
+      *error_msg = StringPrintf("Failed to generate image '%s' because dex2oat failed: %s",
+                                image_file_name.c_str(), command_line.c_str());
       return false;
     }
   }
   return true;
 }
 
-ImageSpace* ImageSpace::Create(const std::string& original_image_file_name) {
-  if (OS::FileExists(original_image_file_name.c_str())) {
+ImageSpace* ImageSpace::Create(const char* original_image_file_name) {
+  if (OS::FileExists(original_image_file_name)) {
     // If the /system file exists, it should be up-to-date, don't try to generate
-    return space::ImageSpace::Init(original_image_file_name, false);
+    std::string error_msg;
+    ImageSpace* space = ImageSpace::Init(original_image_file_name, false, &error_msg);
+    if (space == nullptr) {
+      LOG(FATAL) << "Failed to load image '" << original_image_file_name << "': " << error_msg;
+    }
+    return space;
   }
   // If the /system file didn't exist, we need to use one from the dalvik-cache.
   // If the cache file exists, try to open, but if it fails, regenerate.
   // If it does not exist, generate.
   std::string image_file_name(GetDalvikCacheFilenameOrDie(original_image_file_name));
+  std::string error_msg;
   if (OS::FileExists(image_file_name.c_str())) {
-    space::ImageSpace* image_space = space::ImageSpace::Init(image_file_name, true);
-    if (image_space != NULL) {
+    space::ImageSpace* image_space = ImageSpace::Init(image_file_name.c_str(), true, &error_msg);
+    if (image_space != nullptr) {
       return image_space;
     }
   }
-  CHECK(GenerateImage(image_file_name)) << "Failed to generate image: " << image_file_name;
-  return space::ImageSpace::Init(image_file_name, true);
+  CHECK(GenerateImage(image_file_name, &error_msg))
+      << "Failed to generate image '" << image_file_name << "': " << error_msg;
+  ImageSpace* space = ImageSpace::Init(image_file_name.c_str(), true, &error_msg);
+  if (space == nullptr) {
+    LOG(FATAL) << "Failed to load image '" << original_image_file_name << "': " << error_msg;
+  }
+  return space;
 }
 
 void ImageSpace::VerifyImageAllocations() {
@@ -160,8 +177,9 @@ void ImageSpace::VerifyImageAllocations() {
   }
 }
 
-ImageSpace* ImageSpace::Init(const std::string& image_file_name, bool validate_oat_file) {
-  CHECK(!image_file_name.empty());
+ImageSpace* ImageSpace::Init(const char* image_file_name, bool validate_oat_file,
+                             std::string* error_msg) {
+  CHECK(image_file_name != nullptr);
 
   uint64_t start_time = 0;
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
@@ -169,16 +187,16 @@ ImageSpace* ImageSpace::Init(const std::string& image_file_name, bool validate_o
     LOG(INFO) << "ImageSpace::Init entering image_file_name=" << image_file_name;
   }
 
-  UniquePtr<File> file(OS::OpenFileForReading(image_file_name.c_str()));
+  UniquePtr<File> file(OS::OpenFileForReading(image_file_name));
   if (file.get() == NULL) {
-    LOG(ERROR) << "Failed to open " << image_file_name;
-    return NULL;
+    *error_msg = StringPrintf("Failed to open '%s'", image_file_name);
+    return nullptr;
   }
   ImageHeader image_header;
   bool success = file->ReadFully(&image_header, sizeof(image_header));
   if (!success || !image_header.IsValid()) {
-    LOG(ERROR) << "Invalid image header " << image_file_name;
-    return NULL;
+    *error_msg = StringPrintf("Invalid image header in '%s'", image_file_name);
+    return nullptr;
   }
 
   // Note: The image header is part of the image due to mmap page alignment required of offset.
@@ -188,10 +206,12 @@ ImageSpace* ImageSpace::Init(const std::string& image_file_name, bool validate_o
                                                  MAP_PRIVATE | MAP_FIXED,
                                                  file->Fd(),
                                                  0,
-                                                 false));
+                                                 false,
+                                                 image_file_name,
+                                                 error_msg));
   if (map.get() == NULL) {
-    LOG(ERROR) << "Failed to map " << image_file_name;
-    return NULL;
+    DCHECK(!error_msg->empty());
+    return nullptr;
   }
   CHECK_EQ(image_header.GetImageBegin(), map->Begin());
   DCHECK_EQ(0, memcmp(&image_header, map->Begin(), sizeof(ImageHeader)));
@@ -199,20 +219,32 @@ ImageSpace* ImageSpace::Init(const std::string& image_file_name, bool validate_o
   UniquePtr<MemMap> image_map(MemMap::MapFileAtAddress(nullptr, image_header.GetImageBitmapSize(),
                                                        PROT_READ, MAP_PRIVATE,
                                                        file->Fd(), image_header.GetBitmapOffset(),
-                                                       false));
-  CHECK(image_map.get() != nullptr) << "failed to map image bitmap";
+                                                       false,
+                                                       image_file_name,
+                                                       error_msg));
+  if (image_map.get() == nullptr) {
+    *error_msg = StringPrintf("Failed to map image bitmap: %s", error_msg->c_str());
+    return nullptr;
+  }
   size_t bitmap_index = bitmap_index_.fetch_add(1);
-  std::string bitmap_name(StringPrintf("imagespace %s live-bitmap %u", image_file_name.c_str(),
+  std::string bitmap_name(StringPrintf("imagespace %s live-bitmap %u", image_file_name,
                                        bitmap_index));
   UniquePtr<accounting::SpaceBitmap> bitmap(
       accounting::SpaceBitmap::CreateFromMemMap(bitmap_name, image_map.release(),
                                                 reinterpret_cast<byte*>(map->Begin()),
                                                 map->Size()));
-  CHECK(bitmap.get() != nullptr) << "could not create " << bitmap_name;
+  if (bitmap.get() == nullptr) {
+    *error_msg = StringPrintf("Could not create bitmap '%s'", bitmap_name.c_str());
+    return nullptr;
+  }
 
   Runtime* runtime = Runtime::Current();
   mirror::Object* resolution_method = image_header.GetImageRoot(ImageHeader::kResolutionMethod);
   runtime->SetResolutionMethod(down_cast<mirror::ArtMethod*>(resolution_method));
+  mirror::Object* imt_conflict_method = image_header.GetImageRoot(ImageHeader::kImtConflictMethod);
+  runtime->SetImtConflictMethod(down_cast<mirror::ArtMethod*>(imt_conflict_method));
+  mirror::Object* default_imt = image_header.GetImageRoot(ImageHeader::kDefaultImt);
+  runtime->SetDefaultImt(down_cast<mirror::ObjectArray<mirror::ArtMethod>*>(default_imt));
 
   mirror::Object* callee_save_method = image_header.GetImageRoot(ImageHeader::kCalleeSaveMethod);
   runtime->SetCalleeSaveMethod(down_cast<mirror::ArtMethod*>(callee_save_method), Runtime::kSaveAll);
@@ -226,15 +258,15 @@ ImageSpace* ImageSpace::Init(const std::string& image_file_name, bool validate_o
     space->VerifyImageAllocations();
   }
 
-  space->oat_file_.reset(space->OpenOatFile());
-  if (space->oat_file_.get() == NULL) {
-    LOG(ERROR) << "Failed to open oat file for image: " << image_file_name;
-    return NULL;
+  space->oat_file_.reset(space->OpenOatFile(error_msg));
+  if (space->oat_file_.get() == nullptr) {
+    DCHECK(!error_msg->empty());
+    return nullptr;
   }
 
-  if (validate_oat_file && !space->ValidateOatFile()) {
-    LOG(WARNING) << "Failed to validate oat file for image: " << image_file_name;
-    return NULL;
+  if (validate_oat_file && !space->ValidateOatFile(error_msg)) {
+    DCHECK(!error_msg->empty());
+    return nullptr;
   }
 
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
@@ -244,7 +276,7 @@ ImageSpace* ImageSpace::Init(const std::string& image_file_name, bool validate_o
   return space.release();
 }
 
-OatFile* ImageSpace::OpenOatFile() const {
+OatFile* ImageSpace::OpenOatFile(std::string* error_msg) const {
   const Runtime* runtime = Runtime::Current();
   const ImageHeader& image_header = GetImageHeader();
   // Grab location but don't use Object::AsString as we haven't yet initialized the roots to
@@ -255,45 +287,47 @@ OatFile* ImageSpace::OpenOatFile() const {
   oat_filename += runtime->GetHostPrefix();
   oat_filename += oat_location->ToModifiedUtf8();
   OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, image_header.GetOatDataBegin(),
-                                    !Runtime::Current()->IsCompiler());
+                                    !Runtime::Current()->IsCompiler(), error_msg);
   if (oat_file == NULL) {
-    LOG(ERROR) << "Failed to open oat file " << oat_filename << " referenced from image.";
-    return NULL;
+    *error_msg = StringPrintf("Failed to open oat file '%s' referenced from image %s: %s",
+                              oat_filename.c_str(), GetName(), error_msg->c_str());
+    return nullptr;
   }
   uint32_t oat_checksum = oat_file->GetOatHeader().GetChecksum();
   uint32_t image_oat_checksum = image_header.GetOatChecksum();
   if (oat_checksum != image_oat_checksum) {
-    LOG(ERROR) << "Failed to match oat file checksum " << std::hex << oat_checksum
-               << " to expected oat checksum " << std::hex << image_oat_checksum
-               << " in image";
-    return NULL;
+    *error_msg = StringPrintf("Failed to match oat file checksum 0x%x to expected oat checksum 0x%x"
+                              " in image %s", oat_checksum, image_oat_checksum, GetName());
+    return nullptr;
   }
   return oat_file;
 }
 
-bool ImageSpace::ValidateOatFile() const {
+bool ImageSpace::ValidateOatFile(std::string* error_msg) const {
   CHECK(oat_file_.get() != NULL);
   for (const OatFile::OatDexFile* oat_dex_file : oat_file_->GetOatDexFiles()) {
     const std::string& dex_file_location = oat_dex_file->GetDexFileLocation();
     uint32_t dex_file_location_checksum;
-    if (!DexFile::GetChecksum(dex_file_location.c_str(), &dex_file_location_checksum)) {
-      LOG(WARNING) << "ValidateOatFile could not find checksum for " << dex_file_location;
+    if (!DexFile::GetChecksum(dex_file_location.c_str(), &dex_file_location_checksum, error_msg)) {
+      *error_msg = StringPrintf("Failed to get checksum of dex file '%s' referenced by image %s: "
+                                "%s", dex_file_location.c_str(), GetName(), error_msg->c_str());
       return false;
     }
     if (dex_file_location_checksum != oat_dex_file->GetDexFileLocationChecksum()) {
-      LOG(WARNING) << "ValidateOatFile found checksum mismatch between oat file "
-                   << oat_file_->GetLocation() << " and dex file " << dex_file_location
-                   << " (" << oat_dex_file->GetDexFileLocationChecksum() << " != "
-                   << dex_file_location_checksum << ")";
+      *error_msg = StringPrintf("ValidateOatFile found checksum mismatch between oat file '%s' and "
+                                "dex file '%s' (0x%x != 0x%x)",
+                                oat_file_->GetLocation().c_str(), dex_file_location.c_str(),
+                                oat_dex_file->GetDexFileLocationChecksum(),
+                                dex_file_location_checksum);
       return false;
     }
   }
   return true;
 }
 
-OatFile& ImageSpace::ReleaseOatFile() {
+OatFile* ImageSpace::ReleaseOatFile() {
   CHECK(oat_file_.get() != NULL);
-  return *oat_file_.release();
+  return oat_file_.release();
 }
 
 void ImageSpace::Dump(std::ostream& os) const {

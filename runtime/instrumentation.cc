@@ -41,6 +41,11 @@
 namespace art {
 namespace instrumentation {
 
+// Do we want to deoptimize for method entry and exit listeners or just try to intercept
+// invocations? Deoptimization forces all code to run in the interpreter and considerably hurts the
+// application's performance.
+static constexpr bool kDeoptimizeForAccurateMethodEntryExitListeners = false;
+
 static bool InstallStubsClassVisitor(mirror::Class* klass, void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Instrumentation* instrumentation = reinterpret_cast<Instrumentation*>(arg);
@@ -56,10 +61,10 @@ bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
   bool is_initialized = klass->IsInitialized();
   for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
     mirror::ArtMethod* method = klass->GetDirectMethod(i);
-    if (!method->IsAbstract()) {
+    if (!method->IsAbstract() && !method->IsProxyMethod()) {
       const void* new_code;
       if (uninstall) {
-        if (forced_interpret_only_ && !method->IsNative() && !method->IsProxyMethod()) {
+        if (forced_interpret_only_ && !method->IsNative()) {
           new_code = GetCompiledCodeToInterpreterBridge();
         } else if (is_initialized || !method->IsStatic() || method->IsConstructor()) {
           new_code = class_linker->GetOatCodeFor(method);
@@ -78,10 +83,10 @@ bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
   }
   for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
     mirror::ArtMethod* method = klass->GetVirtualMethod(i);
-    if (!method->IsAbstract()) {
+    if (!method->IsAbstract() && !method->IsProxyMethod()) {
       const void* new_code;
       if (uninstall) {
-        if (forced_interpret_only_ && !method->IsNative() && !method->IsProxyMethod()) {
+        if (forced_interpret_only_ && !method->IsNative()) {
           new_code = GetCompiledCodeToInterpreterBridge();
         } else {
           new_code = class_linker->GetOatCodeFor(method);
@@ -264,12 +269,14 @@ void Instrumentation::AddListener(InstrumentationListener* listener, uint32_t ev
   bool require_interpreter = false;
   if ((events & kMethodEntered) != 0) {
     method_entry_listeners_.push_back(listener);
-    require_entry_exit_stubs = true;
+    require_interpreter = kDeoptimizeForAccurateMethodEntryExitListeners;
+    require_entry_exit_stubs = !kDeoptimizeForAccurateMethodEntryExitListeners;
     have_method_entry_listeners_ = true;
   }
   if ((events & kMethodExited) != 0) {
     method_exit_listeners_.push_back(listener);
-    require_entry_exit_stubs = true;
+    require_interpreter = kDeoptimizeForAccurateMethodEntryExitListeners;
+    require_entry_exit_stubs = !kDeoptimizeForAccurateMethodEntryExitListeners;
     have_method_exit_listeners_ = true;
   }
   if ((events & kMethodUnwind) != 0) {
@@ -286,6 +293,7 @@ void Instrumentation::AddListener(InstrumentationListener* listener, uint32_t ev
     have_exception_caught_listeners_ = true;
   }
   ConfigureStubs(require_entry_exit_stubs, require_interpreter);
+  UpdateInterpreterHandlerTable();
 }
 
 void Instrumentation::RemoveListener(InstrumentationListener* listener, uint32_t events) {
@@ -300,7 +308,10 @@ void Instrumentation::RemoveListener(InstrumentationListener* listener, uint32_t
       method_entry_listeners_.remove(listener);
     }
     have_method_entry_listeners_ = method_entry_listeners_.size() > 0;
-    require_entry_exit_stubs |= have_method_entry_listeners_;
+    require_entry_exit_stubs |= have_method_entry_listeners_ &&
+        !kDeoptimizeForAccurateMethodEntryExitListeners;
+    require_interpreter = have_method_entry_listeners_ &&
+        kDeoptimizeForAccurateMethodEntryExitListeners;
   }
   if ((events & kMethodExited) != 0) {
     bool contains = std::find(method_exit_listeners_.begin(), method_exit_listeners_.end(),
@@ -309,7 +320,10 @@ void Instrumentation::RemoveListener(InstrumentationListener* listener, uint32_t
       method_exit_listeners_.remove(listener);
     }
     have_method_exit_listeners_ = method_exit_listeners_.size() > 0;
-    require_entry_exit_stubs |= have_method_exit_listeners_;
+    require_entry_exit_stubs |= have_method_exit_listeners_ &&
+        !kDeoptimizeForAccurateMethodEntryExitListeners;
+    require_interpreter = have_method_exit_listeners_ &&
+        kDeoptimizeForAccurateMethodEntryExitListeners;
   }
   if ((events & kMethodUnwind) != 0) {
     method_unwind_listeners_.remove(listener);
@@ -328,6 +342,7 @@ void Instrumentation::RemoveListener(InstrumentationListener* listener, uint32_t
     have_exception_caught_listeners_ = exception_caught_listeners_.size() > 0;
   }
   ConfigureStubs(require_entry_exit_stubs, require_interpreter);
+  UpdateInterpreterHandlerTable();
 }
 
 void Instrumentation::ConfigureStubs(bool require_entry_exit_stubs, bool require_interpreter) {
@@ -455,7 +470,7 @@ void Instrumentation::DexPcMovedEventImpl(Thread* thread, mirror::Object* this_o
 void Instrumentation::ExceptionCaughtEvent(Thread* thread, const ThrowLocation& throw_location,
                                            mirror::ArtMethod* catch_method,
                                            uint32_t catch_dex_pc,
-                                           mirror::Throwable* exception_object) {
+                                           mirror::Throwable* exception_object) const {
   if (have_exception_caught_listeners_) {
     DCHECK_EQ(thread->GetException(NULL), exception_object);
     thread->ClearException();

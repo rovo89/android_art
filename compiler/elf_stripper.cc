@@ -27,9 +27,11 @@
 
 namespace art {
 
-bool ElfStripper::Strip(File* file) {
-  UniquePtr<ElfFile> elf_file(ElfFile::Open(file, true, false));
-  CHECK(elf_file.get() != NULL);
+bool ElfStripper::Strip(File* file, std::string* error_msg) {
+  UniquePtr<ElfFile> elf_file(ElfFile::Open(file, true, false, error_msg));
+  if (elf_file.get() == nullptr) {
+    return false;
+  }
 
   // ELF files produced by MCLinker look roughly like this
   //
@@ -120,7 +122,8 @@ bool ElfStripper::Strip(File* file) {
   elf_file->GetHeader().e_shoff = shoff;
   int result = ftruncate(file->Fd(), offset);
   if (result != 0) {
-    PLOG(ERROR) << "Failed to truncate while stripping ELF file: " << file->GetPath();
+    *error_msg = StringPrintf("Failed to truncate while stripping ELF file: '%s': %s",
+                              file->GetPath().c_str(), strerror(errno));
     return false;
   }
   return true;

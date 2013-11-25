@@ -19,7 +19,7 @@
 #include "base/casts.h"
 #include "base/stl_util.h"
 #include "runtime.h"
-#include "thread.h"
+#include "thread-inl.h"
 
 namespace art {
 

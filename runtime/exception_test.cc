@@ -146,7 +146,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
   ScopedObjectAccess soa(env);
 
   std::vector<uintptr_t> fake_stack;
-  ASSERT_EQ(kStackAlignment, 16);
+  ASSERT_EQ(kStackAlignment, 16U);
   ASSERT_EQ(sizeof(uintptr_t), sizeof(uint32_t));
 
 #if !defined(ART_USE_PORTABLE_COMPILER)

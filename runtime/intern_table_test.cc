@@ -81,8 +81,11 @@ class TestPredicate {
   mutable std::vector<const mirror::String*> expected_;
 };
 
-bool IsMarked(const mirror::Object* object, void* arg) {
-  return reinterpret_cast<TestPredicate*>(arg)->IsMarked(object);
+mirror::Object* IsMarkedSweepingVisitor(mirror::Object* object, void* arg) {
+  if (reinterpret_cast<TestPredicate*>(arg)->IsMarked(object)) {
+    return object;
+  }
+  return nullptr;
 }
 
 TEST_F(InternTableTest, SweepInternTableWeaks) {
@@ -105,7 +108,7 @@ TEST_F(InternTableTest, SweepInternTableWeaks) {
   p.Expect(s1.get());
   {
     ReaderMutexLock mu(soa.Self(), *Locks::heap_bitmap_lock_);
-    t.SweepInternTableWeaks(IsMarked, &p);
+    t.SweepInternTableWeaks(IsMarkedSweepingVisitor, &p);
   }
 
   EXPECT_EQ(2U, t.Size());

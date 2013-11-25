@@ -148,8 +148,8 @@ uint32_t StackVisitor::GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kin
       const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
       DCHECK(code_item != NULL) << PrettyMethod(m);  // Can't be NULL or how would we compile its instructions?
       size_t frame_size = m->GetFrameSizeInBytes();
-      return GetVReg(cur_quick_frame_, code_item, m->GetCoreSpillMask(), m->GetFpSpillMask(),
-                     frame_size, vreg);
+      return *GetVRegAddr(cur_quick_frame_, code_item, m->GetCoreSpillMask(), m->GetFpSpillMask(),
+                          frame_size, vreg);
     }
   } else {
     return cur_shadow_frame_->GetVReg(vreg);
@@ -253,7 +253,7 @@ std::string StackVisitor::DescribeLocation() const {
   return result;
 }
 
-instrumentation::InstrumentationStackFrame StackVisitor::GetInstrumentationStackFrame(uint32_t depth) const {
+instrumentation::InstrumentationStackFrame& StackVisitor::GetInstrumentationStackFrame(uint32_t depth) const {
   return thread_->GetInstrumentationStack()->at(depth);
 }
 
@@ -309,7 +309,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
           // While profiling, the return pc is restored from the side stack, except when walking
           // the stack for an exception where the side stack will be unwound in VisitFrame.
           if (GetQuickInstrumentationExitPc() == return_pc) {
-            instrumentation::InstrumentationStackFrame instrumentation_frame =
+            const instrumentation::InstrumentationStackFrame& instrumentation_frame =
                 GetInstrumentationStackFrame(instrumentation_stack_depth);
             instrumentation_stack_depth++;
             if (GetMethod() == Runtime::Current()->GetCalleeSaveMethod(Runtime::kSaveAll)) {

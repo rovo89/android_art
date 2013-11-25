@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_DISASSEMBLER_X86_H_
-#define ART_RUNTIME_DISASSEMBLER_X86_H_
+#ifndef ART_DISASSEMBLER_DISASSEMBLER_X86_H_
+#define ART_DISASSEMBLER_DISASSEMBLER_X86_H_
 
 #include "disassembler.h"
 
@@ -35,4 +35,4 @@ class DisassemblerX86 : public Disassembler {
 }  // namespace x86
 }  // namespace art
 
-#endif  // ART_RUNTIME_DISASSEMBLER_X86_H_
+#endif  // ART_DISASSEMBLER_DISASSEMBLER_X86_H_

@@ -45,29 +45,54 @@ bool Mir2Lir::IsInexpensiveConstant(RegLocation rl_src) {
 }
 
 void Mir2Lir::MarkSafepointPC(LIR* inst) {
-  inst->def_mask = ENCODE_ALL;
+  DCHECK(!inst->flags.use_def_invalid);
+  inst->u.m.def_mask = ENCODE_ALL;
   LIR* safepoint_pc = NewLIR0(kPseudoSafepointPC);
-  DCHECK_EQ(safepoint_pc->def_mask, ENCODE_ALL);
+  DCHECK_EQ(safepoint_pc->u.m.def_mask, ENCODE_ALL);
 }
 
-bool Mir2Lir::FastInstance(uint32_t field_idx, int& field_offset, bool& is_volatile, bool is_put) {
+bool Mir2Lir::FastInstance(uint32_t field_idx, bool is_put, int* field_offset, bool* is_volatile) {
   return cu_->compiler_driver->ComputeInstanceFieldInfo(
-      field_idx, mir_graph_->GetCurrentDexCompilationUnit(), field_offset, is_volatile, is_put);
+      field_idx, mir_graph_->GetCurrentDexCompilationUnit(), is_put, field_offset, is_volatile);
+}
+
+/* Remove a LIR from the list. */
+void Mir2Lir::UnlinkLIR(LIR* lir) {
+  if (UNLIKELY(lir == first_lir_insn_)) {
+    first_lir_insn_ = lir->next;
+    if (lir->next != NULL) {
+      lir->next->prev = NULL;
+    } else {
+      DCHECK(lir->next == NULL);
+      DCHECK(lir == last_lir_insn_);
+      last_lir_insn_ = NULL;
+    }
+  } else if (lir == last_lir_insn_) {
+    last_lir_insn_ = lir->prev;
+    lir->prev->next = NULL;
+  } else if ((lir->prev != NULL) && (lir->next != NULL)) {
+    lir->prev->next = lir->next;
+    lir->next->prev = lir->prev;
+  }
 }
 
 /* Convert an instruction to a NOP */
 void Mir2Lir::NopLIR(LIR* lir) {
   lir->flags.is_nop = true;
+  if (!cu_->verbose) {
+    UnlinkLIR(lir);
+  }
 }
 
 void Mir2Lir::SetMemRefType(LIR* lir, bool is_load, int mem_type) {
   uint64_t *mask_ptr;
   uint64_t mask = ENCODE_MEM;
   DCHECK(GetTargetInstFlags(lir->opcode) & (IS_LOAD | IS_STORE));
+  DCHECK(!lir->flags.use_def_invalid);
   if (is_load) {
-    mask_ptr = &lir->use_mask;
+    mask_ptr = &lir->u.m.use_mask;
   } else {
-    mask_ptr = &lir->def_mask;
+    mask_ptr = &lir->u.m.def_mask;
   }
   /* Clear out the memref flags */
   *mask_ptr &= ~mask;
@@ -104,7 +129,7 @@ void Mir2Lir::AnnotateDalvikRegAccess(LIR* lir, int reg_id, bool is_load,
    * Store the Dalvik register id in alias_info. Mark the MSB if it is a 64-bit
    * access.
    */
-  lir->alias_info = ENCODE_ALIAS_INFO(reg_id, is64bit);
+  lir->flags.alias_info = ENCODE_ALIAS_INFO(reg_id, is64bit);
 }
 
 /*
@@ -135,10 +160,12 @@ void Mir2Lir::DumpLIRInsn(LIR* lir, unsigned char* base_addr) {
       break;
     case kPseudoDalvikByteCodeBoundary:
       if (lir->operands[0] == 0) {
-         lir->operands[0] = reinterpret_cast<uintptr_t>("No instruction string");
+         // NOTE: only used for debug listings.
+         lir->operands[0] = WrapPointer(ArenaStrdup("No instruction string"));
       }
       LOG(INFO) << "-------- dalvik offset: 0x" << std::hex
-                << lir->dalvik_offset << " @ " << reinterpret_cast<char*>(lir->operands[0]);
+                << lir->dalvik_offset << " @ "
+                << reinterpret_cast<char*>(UnwrapPointer(lir->operands[0]));
       break;
     case kPseudoExitBlock:
       LOG(INFO) << "-------- exit offset: 0x" << std::hex << dest;
@@ -190,11 +217,11 @@ void Mir2Lir::DumpLIRInsn(LIR* lir, unsigned char* base_addr) {
       break;
   }
 
-  if (lir->use_mask && (!lir->flags.is_nop || dump_nop)) {
-    DUMP_RESOURCE_MASK(DumpResourceMask(lir, lir->use_mask, "use"));
+  if (lir->u.m.use_mask && (!lir->flags.is_nop || dump_nop)) {
+    DUMP_RESOURCE_MASK(DumpResourceMask(lir, lir->u.m.use_mask, "use"));
   }
-  if (lir->def_mask && (!lir->flags.is_nop || dump_nop)) {
-    DUMP_RESOURCE_MASK(DumpResourceMask(lir, lir->def_mask, "def"));
+  if (lir->u.m.def_mask && (!lir->flags.is_nop || dump_nop)) {
+    DUMP_RESOURCE_MASK(DumpResourceMask(lir, lir->u.m.def_mask, "def"));
   }
 }
 
@@ -225,12 +252,12 @@ void Mir2Lir::DumpPromotionMap() {
 }
 
 /* Dump a mapping table */
-void Mir2Lir::DumpMappingTable(const char* table_name, const std::string& descriptor,
-                               const std::string& name, const std::string& signature,
+void Mir2Lir::DumpMappingTable(const char* table_name, const char* descriptor,
+                               const char* name, const Signature& signature,
                                const std::vector<uint32_t>& v) {
   if (v.size() > 0) {
     std::string line(StringPrintf("\n  %s %s%s_%s_table[%zu] = {", table_name,
-                     descriptor.c_str(), name.c_str(), signature.c_str(), v.size()));
+                     descriptor, name, signature.ToString().c_str(), v.size()));
     std::replace(line.begin(), line.end(), ';', '_');
     LOG(INFO) << line;
     for (uint32_t i = 0; i < v.size(); i+=2) {
@@ -270,9 +297,9 @@ void Mir2Lir::CodegenDump() {
 
   const DexFile::MethodId& method_id =
       cu_->dex_file->GetMethodId(cu_->method_idx);
-  std::string signature(cu_->dex_file->GetMethodSignature(method_id));
-  std::string name(cu_->dex_file->GetMethodName(method_id));
-  std::string descriptor(cu_->dex_file->GetMethodDeclaringClassDescriptor(method_id));
+  const Signature signature = cu_->dex_file->GetMethodSignature(method_id);
+  const char* name = cu_->dex_file->GetMethodName(method_id);
+  const char* descriptor(cu_->dex_file->GetMethodDeclaringClassDescriptor(method_id));
 
   // Dump mapping tables
   DumpMappingTable("PC2Dex_MappingTable", descriptor, name, signature, pc2dex_mapping_table_);
@@ -325,6 +352,7 @@ LIR* Mir2Lir::AddWordData(LIR* *constant_list_p, int value) {
     new_value->operands[0] = value;
     new_value->next = *constant_list_p;
     *constant_list_p = new_value;
+    estimated_native_code_size_ += sizeof(value);
     return new_value;
   }
   return NULL;
@@ -341,6 +369,17 @@ static void PushWord(std::vector<uint8_t>&buf, int data) {
   buf.push_back((data >> 8) & 0xff);
   buf.push_back((data >> 16) & 0xff);
   buf.push_back((data >> 24) & 0xff);
+}
+
+// Push 8 bytes on 64-bit systems; 4 on 32-bit systems.
+static void PushPointer(std::vector<uint8_t>&buf, void const* pointer) {
+  uintptr_t data = reinterpret_cast<uintptr_t>(pointer);
+  if (sizeof(void*) == sizeof(uint64_t)) {
+    PushWord(buf, (data >> (sizeof(void*) * 4)) & 0xFFFFFFFF);
+    PushWord(buf, data & 0xFFFFFFFF);
+  } else {
+    PushWord(buf, data);
+  }
 }
 
 static void AlignBuffer(std::vector<uint8_t>&buf, size_t offset) {
@@ -369,9 +408,8 @@ void Mir2Lir::InstallLiteralPools() {
                                        static_cast<InvokeType>(data_lir->operands[1]),
                                        code_buffer_.size());
     const DexFile::MethodId& id = cu_->dex_file->GetMethodId(target);
-    // unique based on target to ensure code deduplication works
-    uint32_t unique_patch_value = reinterpret_cast<uint32_t>(&id);
-    PushWord(code_buffer_, unique_patch_value);
+    // unique value based on target to ensure code deduplication works
+    PushPointer(code_buffer_, &id);
     data_lir = NEXT_LIR(data_lir);
   }
   data_lir = method_literal_list_;
@@ -385,9 +423,8 @@ void Mir2Lir::InstallLiteralPools() {
                                          static_cast<InvokeType>(data_lir->operands[1]),
                                          code_buffer_.size());
     const DexFile::MethodId& id = cu_->dex_file->GetMethodId(target);
-    // unique based on target to ensure code deduplication works
-    uint32_t unique_patch_value = reinterpret_cast<uint32_t>(&id);
-    PushWord(code_buffer_, unique_patch_value);
+    // unique value based on target to ensure code deduplication works
+    PushPointer(code_buffer_, &id);
     data_lir = NEXT_LIR(data_lir);
   }
 }
@@ -408,6 +445,7 @@ void Mir2Lir::InstallSwitchTables() {
     int bx_offset = INVALID_OFFSET;
     switch (cu_->instruction_set) {
       case kThumb2:
+        DCHECK(tab_rec->anchor->flags.fixup != kFixupNone);
         bx_offset = tab_rec->anchor->offset + 4;
         break;
       case kX86:
@@ -422,7 +460,7 @@ void Mir2Lir::InstallSwitchTables() {
       LOG(INFO) << "Switch table for offset 0x" << std::hex << bx_offset;
     }
     if (tab_rec->table[0] == Instruction::kSparseSwitchSignature) {
-      const int* keys = reinterpret_cast<const int*>(&(tab_rec->table[2]));
+      const int32_t* keys = reinterpret_cast<const int32_t*>(&(tab_rec->table[2]));
       for (int elems = 0; elems < tab_rec->table[1]; elems++) {
         int disp = tab_rec->targets[elems]->offset - bx_offset;
         if (cu_->verbose) {
@@ -463,10 +501,21 @@ void Mir2Lir::InstallFillArrayData() {
   }
 }
 
-static int AssignLiteralOffsetCommon(LIR* lir, int offset) {
+static int AssignLiteralOffsetCommon(LIR* lir, CodeOffset offset) {
   for (; lir != NULL; lir = lir->next) {
     lir->offset = offset;
     offset += 4;
+  }
+  return offset;
+}
+
+static int AssignLiteralPointerOffsetCommon(LIR* lir, CodeOffset offset) {
+  unsigned int element_size = sizeof(void*);
+  // Align to natural pointer size.
+  offset = (offset + (element_size - 1)) & ~(element_size - 1);
+  for (; lir != NULL; lir = lir->next) {
+    lir->offset = offset;
+    offset += element_size;
   }
   return offset;
 }
@@ -580,8 +629,8 @@ class NativePcToReferenceMapBuilder {
       table_index = (table_index + 1) % entries_;
     }
     in_use_[table_index] = true;
-    SetNativeOffset(table_index, native_offset);
-    DCHECK_EQ(native_offset, GetNativeOffset(table_index));
+    SetCodeOffset(table_index, native_offset);
+    DCHECK_EQ(native_offset, GetCodeOffset(table_index));
     SetReferences(table_index, references);
   }
 
@@ -590,7 +639,7 @@ class NativePcToReferenceMapBuilder {
     return NativePcOffsetToReferenceMap::Hash(native_offset) % entries_;
   }
 
-  uint32_t GetNativeOffset(size_t table_index) {
+  uint32_t GetCodeOffset(size_t table_index) {
     uint32_t native_offset = 0;
     size_t table_offset = (table_index * EntryWidth()) + sizeof(uint32_t);
     for (size_t i = 0; i < native_offset_width_; i++) {
@@ -599,7 +648,7 @@ class NativePcToReferenceMapBuilder {
     return native_offset;
   }
 
-  void SetNativeOffset(size_t table_index, uint32_t native_offset) {
+  void SetCodeOffset(size_t table_index, uint32_t native_offset) {
     size_t table_offset = (table_index * EntryWidth()) + sizeof(uint32_t);
     for (size_t i = 0; i < native_offset_width_; i++) {
       (*table_)[table_offset + i] = (native_offset >> (i * 8)) & 0xFF;
@@ -654,17 +703,17 @@ void Mir2Lir::CreateNativeGcMap() {
 }
 
 /* Determine the offset of each literal field */
-int Mir2Lir::AssignLiteralOffset(int offset) {
+int Mir2Lir::AssignLiteralOffset(CodeOffset offset) {
   offset = AssignLiteralOffsetCommon(literal_list_, offset);
-  offset = AssignLiteralOffsetCommon(code_literal_list_, offset);
-  offset = AssignLiteralOffsetCommon(method_literal_list_, offset);
+  offset = AssignLiteralPointerOffsetCommon(code_literal_list_, offset);
+  offset = AssignLiteralPointerOffsetCommon(method_literal_list_, offset);
   return offset;
 }
 
-int Mir2Lir::AssignSwitchTablesOffset(int offset) {
+int Mir2Lir::AssignSwitchTablesOffset(CodeOffset offset) {
   GrowableArray<SwitchTable*>::Iterator iterator(&switch_tables_);
   while (true) {
-    Mir2Lir::SwitchTable *tab_rec = iterator.Next();
+    Mir2Lir::SwitchTable* tab_rec = iterator.Next();
     if (tab_rec == NULL) break;
     tab_rec->offset = offset;
     if (tab_rec->table[0] == Instruction::kSparseSwitchSignature) {
@@ -678,7 +727,7 @@ int Mir2Lir::AssignSwitchTablesOffset(int offset) {
   return offset;
 }
 
-int Mir2Lir::AssignFillArrayDataOffset(int offset) {
+int Mir2Lir::AssignFillArrayDataOffset(CodeOffset offset) {
   GrowableArray<FillArrayData*>::Iterator iterator(&fill_array_data_);
   while (true) {
     Mir2Lir::FillArrayData *tab_rec = iterator.Next();
@@ -691,122 +740,35 @@ int Mir2Lir::AssignFillArrayDataOffset(int offset) {
   return offset;
 }
 
-// LIR offset assignment.
-int Mir2Lir::AssignInsnOffsets() {
-  LIR* lir;
-  int offset = 0;
-
-  for (lir = first_lir_insn_; lir != NULL; lir = NEXT_LIR(lir)) {
-    lir->offset = offset;
-    if (lir->opcode >= 0) {
-      if (!lir->flags.is_nop) {
-        offset += lir->flags.size;
-      }
-    } else if (lir->opcode == kPseudoPseudoAlign4) {
-      if (offset & 0x2) {
-        offset += 2;
-        lir->operands[0] = 1;
-      } else {
-        lir->operands[0] = 0;
-      }
-    }
-    /* Pseudo opcodes don't consume space */
-  }
-
-  return offset;
-}
-
-/*
- * Walk the compilation unit and assign offsets to instructions
- * and literals and compute the total size of the compiled unit.
- */
-void Mir2Lir::AssignOffsets() {
-  int offset = AssignInsnOffsets();
-
-  /* Const values have to be word aligned */
-  offset = (offset + 3) & ~3;
-
-  /* Set up offsets for literals */
-  data_offset_ = offset;
-
-  offset = AssignLiteralOffset(offset);
-
-  offset = AssignSwitchTablesOffset(offset);
-
-  offset = AssignFillArrayDataOffset(offset);
-
-  total_size_ = offset;
-}
-
-/*
- * Go over each instruction in the list and calculate the offset from the top
- * before sending them off to the assembler. If out-of-range branch distance is
- * seen rearrange the instructions a bit to correct it.
- */
-void Mir2Lir::AssembleLIR() {
-  AssignOffsets();
-  int assembler_retries = 0;
-  /*
-   * Assemble here.  Note that we generate code with optimistic assumptions
-   * and if found now to work, we'll have to redo the sequence and retry.
-   */
-
-  while (true) {
-    AssemblerStatus res = AssembleInstructions(0);
-    if (res == kSuccess) {
-      break;
-    } else {
-      assembler_retries++;
-      if (assembler_retries > MAX_ASSEMBLER_RETRIES) {
-        CodegenDump();
-        LOG(FATAL) << "Assembler error - too many retries";
-      }
-      // Redo offsets and try again
-      AssignOffsets();
-      code_buffer_.clear();
-    }
-  }
-
-  // Install literals
-  InstallLiteralPools();
-
-  // Install switch tables
-  InstallSwitchTables();
-
-  // Install fill array data
-  InstallFillArrayData();
-
-  // Create the mapping table and native offset to reference map.
-  CreateMappingTables();
-
-  CreateNativeGcMap();
-}
-
 /*
  * Insert a kPseudoCaseLabel at the beginning of the Dalvik
- * offset vaddr.  This label will be used to fix up the case
- * branch table during the assembly phase.  Be sure to set
- * all resource flags on this to prevent code motion across
- * target boundaries.  KeyVal is just there for debugging.
+ * offset vaddr if pretty-printing, otherise use the standard block
+ * label.  The selected label will be used to fix up the case
+ * branch table during the assembly phase.  All resource flags
+ * are set to prevent code motion.  KeyVal is just there for debugging.
  */
-LIR* Mir2Lir::InsertCaseLabel(int vaddr, int keyVal) {
-  SafeMap<unsigned int, LIR*>::iterator it;
-  it = boundary_map_.find(vaddr);
-  if (it == boundary_map_.end()) {
-    LOG(FATAL) << "Error: didn't find vaddr 0x" << std::hex << vaddr;
+LIR* Mir2Lir::InsertCaseLabel(DexOffset vaddr, int keyVal) {
+  LIR* boundary_lir = &block_label_list_[mir_graph_->FindBlock(vaddr)->id];
+  LIR* res = boundary_lir;
+  if (cu_->verbose) {
+    // Only pay the expense if we're pretty-printing.
+    LIR* new_label = static_cast<LIR*>(arena_->Alloc(sizeof(LIR), ArenaAllocator::kAllocLIR));
+    new_label->dalvik_offset = vaddr;
+    new_label->opcode = kPseudoCaseLabel;
+    new_label->operands[0] = keyVal;
+    new_label->flags.fixup = kFixupLabel;
+    DCHECK(!new_label->flags.use_def_invalid);
+    new_label->u.m.def_mask = ENCODE_ALL;
+    InsertLIRAfter(boundary_lir, new_label);
+    res = new_label;
   }
-  LIR* new_label = static_cast<LIR*>(arena_->Alloc(sizeof(LIR), ArenaAllocator::kAllocLIR));
-  new_label->dalvik_offset = vaddr;
-  new_label->opcode = kPseudoCaseLabel;
-  new_label->operands[0] = keyVal;
-  InsertLIRAfter(it->second, new_label);
-  return new_label;
+  return res;
 }
 
-void Mir2Lir::MarkPackedCaseLabels(Mir2Lir::SwitchTable *tab_rec) {
+void Mir2Lir::MarkPackedCaseLabels(Mir2Lir::SwitchTable* tab_rec) {
   const uint16_t* table = tab_rec->table;
-  int base_vaddr = tab_rec->vaddr;
-  const int *targets = reinterpret_cast<const int*>(&table[4]);
+  DexOffset base_vaddr = tab_rec->vaddr;
+  const int32_t *targets = reinterpret_cast<const int32_t*>(&table[4]);
   int entries = table[1];
   int low_key = s4FromSwitchData(&table[2]);
   for (int i = 0; i < entries; i++) {
@@ -814,12 +776,12 @@ void Mir2Lir::MarkPackedCaseLabels(Mir2Lir::SwitchTable *tab_rec) {
   }
 }
 
-void Mir2Lir::MarkSparseCaseLabels(Mir2Lir::SwitchTable *tab_rec) {
+void Mir2Lir::MarkSparseCaseLabels(Mir2Lir::SwitchTable* tab_rec) {
   const uint16_t* table = tab_rec->table;
-  int base_vaddr = tab_rec->vaddr;
+  DexOffset base_vaddr = tab_rec->vaddr;
   int entries = table[1];
-  const int* keys = reinterpret_cast<const int*>(&table[2]);
-  const int* targets = &keys[entries];
+  const int32_t* keys = reinterpret_cast<const int32_t*>(&table[2]);
+  const int32_t* targets = &keys[entries];
   for (int i = 0; i < entries; i++) {
     tab_rec->targets[i] = InsertCaseLabel(base_vaddr + targets[i], keys[i]);
   }
@@ -852,8 +814,8 @@ void Mir2Lir::DumpSparseSwitchTable(const uint16_t* table) {
    */
   uint16_t ident = table[0];
   int entries = table[1];
-  const int* keys = reinterpret_cast<const int*>(&table[2]);
-  const int* targets = &keys[entries];
+  const int32_t* keys = reinterpret_cast<const int32_t*>(&table[2]);
+  const int32_t* targets = &keys[entries];
   LOG(INFO) <<  "Sparse switch table - ident:0x" << std::hex << ident
             << ", entries: " << std::dec << entries;
   for (int i = 0; i < entries; i++) {
@@ -872,7 +834,7 @@ void Mir2Lir::DumpPackedSwitchTable(const uint16_t* table) {
    * Total size is (4+size*2) 16-bit code units.
    */
   uint16_t ident = table[0];
-  const int* targets = reinterpret_cast<const int*>(&table[4]);
+  const int32_t* targets = reinterpret_cast<const int32_t*>(&table[4]);
   int entries = table[1];
   int low_key = s4FromSwitchData(&table[2]);
   LOG(INFO) << "Packed switch table - ident:0x" << std::hex << ident
@@ -883,18 +845,10 @@ void Mir2Lir::DumpPackedSwitchTable(const uint16_t* table) {
   }
 }
 
-/*
- * Set up special LIR to mark a Dalvik byte-code instruction start and
- * record it in the boundary_map.  NOTE: in cases such as kMirOpCheck in
- * which we split a single Dalvik instruction, only the first MIR op
- * associated with a Dalvik PC should be entered into the map.
- */
-LIR* Mir2Lir::MarkBoundary(int offset, const char* inst_str) {
-  LIR* res = NewLIR1(kPseudoDalvikByteCodeBoundary, reinterpret_cast<uintptr_t>(inst_str));
-  if (boundary_map_.find(offset) == boundary_map_.end()) {
-    boundary_map_.Put(offset, res);
-  }
-  return res;
+/* Set up special LIR to mark a Dalvik byte-code instruction start for pretty printing */
+void Mir2Lir::MarkBoundary(DexOffset offset, const char* inst_str) {
+  // NOTE: only used for debug listings.
+  NewLIR1(kPseudoDalvikByteCodeBoundary, WrapPointer(ArenaStrdup(inst_str)));
 }
 
 bool Mir2Lir::EvaluateBranch(Instruction::Code opcode, int32_t src1, int32_t src2) {
@@ -942,6 +896,7 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       literal_list_(NULL),
       method_literal_list_(NULL),
       code_literal_list_(NULL),
+      first_fixup_(NULL),
       cu_(cu),
       mir_graph_(mir_graph),
       switch_tables_(arena, 4, kGrowableArraySwitchTables),
@@ -949,10 +904,14 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       throw_launchpads_(arena, 2048, kGrowableArrayThrowLaunchPads),
       suspend_launchpads_(arena, 4, kGrowableArraySuspendLaunchPads),
       intrinsic_launchpads_(arena, 2048, kGrowableArrayMisc),
+      tempreg_info_(arena, 20, kGrowableArrayMisc),
+      reginfo_map_(arena, 64, kGrowableArrayMisc),
+      pointer_storage_(arena, 128, kGrowableArrayMisc),
       data_offset_(0),
       total_size_(0),
       block_label_list_(NULL),
       current_dalvik_offset_(0),
+      estimated_native_code_size_(0),
       reg_pool_(NULL),
       live_sreg_(0),
       num_core_spills_(0),
@@ -965,9 +924,13 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
   promotion_map_ = static_cast<PromotionMap*>
       (arena_->Alloc((cu_->num_dalvik_registers  + cu_->num_compiler_temps + 1) *
                       sizeof(promotion_map_[0]), ArenaAllocator::kAllocRegAlloc));
+  // Reserve pointer id 0 for NULL.
+  size_t null_idx = WrapPointer(NULL);
+  DCHECK_EQ(null_idx, 0U);
 }
 
 void Mir2Lir::Materialize() {
+  cu_->NewTimingSplit("RegisterAllocation");
   CompilerInitializeRegAlloc();  // Needs to happen after SSA naming
 
   /* Allocate Registers using simple local allocation scheme */
@@ -979,6 +942,7 @@ void Mir2Lir::Materialize() {
        * special codegen doesn't succeed, first_lir_insn_ will
        * set to NULL;
        */
+      cu_->NewTimingSplit("SpecialMIR2LIR");
       SpecialMIR2LIR(mir_graph_->GetSpecialCase());
     }
 
@@ -1090,6 +1054,5 @@ void Mir2Lir::InsertLIRAfter(LIR* current_lir, LIR* new_lir) {
   current_lir->next = new_lir;
   new_lir->next->prev = new_lir;
 }
-
 
 }  // namespace art

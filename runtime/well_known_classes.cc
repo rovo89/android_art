@@ -21,7 +21,7 @@
 #include "base/logging.h"
 #include "mirror/class.h"
 #include "ScopedLocalRef.h"
-#include "thread.h"
+#include "thread-inl.h"
 
 namespace art {
 

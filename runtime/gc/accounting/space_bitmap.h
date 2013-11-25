@@ -212,7 +212,7 @@ class SpaceSetMap {
  public:
   typedef std::set<
       const mirror::Object*, std::less<const mirror::Object*>,
-      GCAllocator<const mirror::Object*> > Objects;
+      GcAllocator<const mirror::Object*> > Objects;
 
   bool IsEmpty() const {
     return contained_.empty();
@@ -247,8 +247,8 @@ class SpaceSetMap {
 
   template <typename Visitor>
   void Visit(const Visitor& visitor) NO_THREAD_SAFETY_ANALYSIS {
-    for (Objects::iterator it = contained_.begin(); it != contained_.end(); ++it) {
-      visitor(*it);
+    for (const mirror::Object* obj : contained_) {
+      visitor(const_cast<mirror::Object*>(obj));
     }
   }
 

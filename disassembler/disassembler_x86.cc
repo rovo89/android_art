@@ -520,6 +520,10 @@ DISASSEMBLER_ENTRY(cmp,
       case 0xB7: opcode << "movzxw"; has_modrm = true; load = true; break;
       case 0xBE: opcode << "movsxb"; has_modrm = true; load = true; break;
       case 0xBF: opcode << "movsxw"; has_modrm = true; load = true; break;
+      case 0xC8: case 0xC9: case 0xCA: case 0xCB: case 0xCC: case 0xCD: case 0xCE: case 0xCF:
+        opcode << "bswap";
+        reg_in_opcode = true;
+        break;
       default:
         opcode << StringPrintf("unknown opcode '0F %02X'", *instr);
         break;

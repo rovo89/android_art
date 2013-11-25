@@ -18,7 +18,28 @@ class JniTest {
     public static void main(String[] args) {
         System.loadLibrary("arttest");
         testFindClassOnAttachedNativeThread();
+        testCallStaticVoidMethodOnSubClass();
     }
 
     private static native void testFindClassOnAttachedNativeThread();
+
+    private static void testCallStaticVoidMethodOnSubClass() {
+        testCallStaticVoidMethodOnSubClassNative();
+        if (!testCallStaticVoidMethodOnSubClass_SuperClass.executed) {
+            throw new AssertionError();
+        }
+    }
+
+    private static native void testCallStaticVoidMethodOnSubClassNative();
+
+    private static class testCallStaticVoidMethodOnSubClass_SuperClass {
+        private static boolean executed = false;
+        private static void execute() {
+            executed = true;
+        }
+    }
+
+    private static class testCallStaticVoidMethodOnSubClass_SubClass
+        extends testCallStaticVoidMethodOnSubClass_SuperClass {
+    }
 }

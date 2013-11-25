@@ -29,6 +29,7 @@
 
 namespace art {
 
+class BitVector;
 class ElfFile;
 class MemMap;
 class OatMethodOffsets;
@@ -45,18 +46,20 @@ class OatFile {
   static OatFile* Open(const std::string& filename,
                        const std::string& location,
                        byte* requested_base,
-                       bool executable);
+                       bool executable,
+                       std::string* error_msg);
 
   // Open an oat file from an already opened File.
   // Does not use dlopen underneath so cannot be used for runtime use
   // where relocations may be required. Currently used from
   // ImageWriter which wants to open a writable version from an existing
   // file descriptor for patching.
-  static OatFile* OpenWritable(File* file, const std::string& location);
+  static OatFile* OpenWritable(File* file, const std::string& location, std::string* error_msg);
 
   // Open an oat file backed by a std::vector with the given location.
   static OatFile* OpenMemory(std::vector<uint8_t>& oat_contents,
-                             const std::string& location);
+                             const std::string& location,
+                             std::string* error_msg);
 
   ~OatFile();
 
@@ -143,7 +146,13 @@ class OatFile {
 
   class OatClass {
    public:
-    mirror::Class::Status GetStatus() const;
+    mirror::Class::Status GetStatus() const {
+      return status_;
+    }
+
+    OatClassType GetType() const {
+      return type_;
+    }
 
     // get the OatMethod entry based on its index into the class
     // defintion. direct methods come first, followed by virtual
@@ -155,10 +164,21 @@ class OatFile {
    private:
     OatClass(const OatFile* oat_file,
              mirror::Class::Status status,
+             OatClassType type,
+             uint32_t bitmap_size,
+             const uint32_t* bitmap_pointer,
              const OatMethodOffsets* methods_pointer);
 
     const OatFile* oat_file_;
+
     const mirror::Class::Status status_;
+    COMPILE_ASSERT(mirror::Class::Status::kStatusMax < (2 ^ 16), class_status_wont_fit_in_16bits);
+
+    OatClassType type_;
+    COMPILE_ASSERT(OatClassType::kOatClassMax < (2 ^ 16), oat_class_type_wont_fit_in_16bits);
+
+    const BitVector* bitmap_;
+
     const OatMethodOffsets* methods_pointer_;
 
     friend class OatDexFile;
@@ -167,7 +187,7 @@ class OatFile {
   class OatDexFile {
    public:
     // Opens the DexFile referred to by this OatDexFile from within the containing OatFile.
-    const DexFile* OpenDexFile() const;
+    const DexFile* OpenDexFile(std::string* error_msg) const;
 
     // Returns the size of the DexFile refered to by this OatDexFile.
     size_t FileSize() const;
@@ -204,10 +224,10 @@ class OatFile {
     DISALLOW_COPY_AND_ASSIGN(OatDexFile);
   };
 
-  const OatDexFile* GetOatDexFile(const std::string& dex_location,
+  const OatDexFile* GetOatDexFile(const char* dex_location,
                                   const uint32_t* const dex_location_checksum,
-                                  bool exception_if_not_found = true) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+                                  bool exception_if_not_found = true) const;
+
   std::vector<const OatDexFile*> GetOatDexFiles() const;
 
   size_t Size() const {
@@ -219,18 +239,21 @@ class OatFile {
 
   static OatFile* OpenDlopen(const std::string& elf_filename,
                              const std::string& location,
-                             byte* requested_base);
+                             byte* requested_base,
+                             std::string* error_msg);
 
   static OatFile* OpenElfFile(File* file,
                               const std::string& location,
                               byte* requested_base,
                               bool writable,
-                              bool executable);
+                              bool executable,
+                              std::string* error_msg);
 
   explicit OatFile(const std::string& filename);
-  bool Dlopen(const std::string& elf_filename, byte* requested_base);
-  bool ElfFileOpen(File* file, byte* requested_base, bool writable, bool executable);
-  bool Setup();
+  bool Dlopen(const std::string& elf_filename, byte* requested_base, std::string* error_msg);
+  bool ElfFileOpen(File* file, byte* requested_base, bool writable, bool executable,
+                   std::string* error_msg);
+  bool Setup(std::string* error_msg);
 
   const byte* Begin() const;
   const byte* End() const;

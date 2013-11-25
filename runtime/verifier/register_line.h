@@ -17,7 +17,6 @@
 #ifndef ART_RUNTIME_VERIFIER_REGISTER_LINE_H_
 #define ART_RUNTIME_VERIFIER_REGISTER_LINE_H_
 
-#include <deque>
 #include <vector>
 
 #include "dex_instruction.h"
@@ -51,12 +50,10 @@ enum TypeCategory {
 // stack of entered monitors (identified by code unit offset).
 class RegisterLine {
  public:
-  RegisterLine(size_t num_regs, MethodVerifier* verifier)
-      : line_(new uint16_t[num_regs]),
-        verifier_(verifier),
-        num_regs_(num_regs) {
-    memset(line_.get(), 0, num_regs_ * sizeof(uint16_t));
-    SetResultTypeToUnknown();
+  static RegisterLine* Create(size_t num_regs, MethodVerifier* verifier) {
+    uint8_t* memory = new uint8_t[sizeof(RegisterLine) + (num_regs * sizeof(uint16_t))];
+    RegisterLine* rl = new (memory) RegisterLine(num_regs, verifier);
+    return rl;
   }
 
   // Implement category-1 "move" instructions. Copy a 32-bit value from "vsrc" to "vdst".
@@ -108,7 +105,7 @@ class RegisterLine {
 
   void CopyFromLine(const RegisterLine* src) {
     DCHECK_EQ(num_regs_, src->num_regs_);
-    memcpy(line_.get(), src->line_.get(), num_regs_ * sizeof(uint16_t));
+    memcpy(&line_, &src->line_, num_regs_ * sizeof(uint16_t));
     monitors_ = src->monitors_;
     reg_to_lock_depths_ = src->reg_to_lock_depths_;
   }
@@ -116,7 +113,7 @@ class RegisterLine {
   std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void FillWithGarbage() {
-    memset(line_.get(), 0xf1, num_regs_ * sizeof(uint16_t));
+    memset(&line_, 0xf1, num_regs_ * sizeof(uint16_t));
     while (!monitors_.empty()) {
       monitors_.pop_back();
     }
@@ -161,7 +158,7 @@ class RegisterLine {
   int CompareLine(const RegisterLine* line2) const {
     DCHECK(monitors_ == line2->monitors_);
     // TODO: DCHECK(reg_to_lock_depths_ == line2->reg_to_lock_depths_);
-    return memcmp(line_.get(), line2->line_.get(), num_regs_ * sizeof(uint16_t));
+    return memcmp(&line_, &line2->line_, num_regs_ * sizeof(uint16_t));
   }
 
   size_t NumRegs() const {
@@ -339,11 +336,15 @@ class RegisterLine {
     reg_to_lock_depths_.erase(reg);
   }
 
+  RegisterLine(size_t num_regs, MethodVerifier* verifier)
+      : verifier_(verifier),
+        num_regs_(num_regs) {
+    memset(&line_, 0, num_regs_ * sizeof(uint16_t));
+    SetResultTypeToUnknown();
+  }
+
   // Storage for the result register's type, valid after an invocation
   uint16_t result_[2];
-
-  // An array of RegType Ids associated with each dex register
-  UniquePtr<uint16_t[]> line_;
 
   // Back link to the verifier
   MethodVerifier* verifier_;
@@ -351,11 +352,14 @@ class RegisterLine {
   // Length of reg_types_
   const uint32_t num_regs_;
   // A stack of monitor enter locations
-  std::deque<uint32_t> monitors_;
+  std::vector<uint32_t> monitors_;
   // A map from register to a bit vector of indices into the monitors_ stack. As we pop the monitor
   // stack we verify that monitor-enter/exit are correctly nested. That is, if there was a
   // monitor-enter on v5 and then on v6, we expect the monitor-exit to be on v6 then on v5
   SafeMap<uint32_t, uint32_t> reg_to_lock_depths_;
+
+  // An array of RegType Ids associated with each dex register.
+  uint16_t line_[0];
 };
 std::ostream& operator<<(std::ostream& os, const RegisterLine& rhs);
 

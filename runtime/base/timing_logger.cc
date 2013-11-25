@@ -22,7 +22,7 @@
 #include "timing_logger.h"
 
 #include "base/logging.h"
-#include "thread.h"
+#include "thread-inl.h"
 #include "base/stl_util.h"
 #include "base/histogram-inl.h"
 

@@ -76,6 +76,8 @@ int MipsMir2Lir::TargetReg(SpecialTargetRegister reg) {
     case kRet0: res = rMIPS_RET0; break;
     case kRet1: res = rMIPS_RET1; break;
     case kInvokeTgt: res = rMIPS_INVOKE_TGT; break;
+    case kHiddenArg: res = r_T0; break;
+    case kHiddenFpArg: res = INVALID_REG; break;
     case kCount: res = rMIPS_COUNT; break;
   }
   return res;
@@ -120,22 +122,21 @@ uint64_t MipsMir2Lir::GetPCUseDefEncoding() {
 }
 
 
-void MipsMir2Lir::SetupTargetResourceMasks(LIR* lir) {
+void MipsMir2Lir::SetupTargetResourceMasks(LIR* lir, uint64_t flags) {
   DCHECK_EQ(cu_->instruction_set, kMips);
+  DCHECK(!lir->flags.use_def_invalid);
 
   // Mips-specific resource map setup here.
-  uint64_t flags = MipsMir2Lir::EncodingMap[lir->opcode].flags;
-
   if (flags & REG_DEF_SP) {
-    lir->def_mask |= ENCODE_MIPS_REG_SP;
+    lir->u.m.def_mask |= ENCODE_MIPS_REG_SP;
   }
 
   if (flags & REG_USE_SP) {
-    lir->use_mask |= ENCODE_MIPS_REG_SP;
+    lir->u.m.use_mask |= ENCODE_MIPS_REG_SP;
   }
 
   if (flags & REG_DEF_LR) {
-    lir->def_mask |= ENCODE_MIPS_REG_LR;
+    lir->u.m.def_mask |= ENCODE_MIPS_REG_LR;
   }
 }
 
@@ -269,8 +270,8 @@ void MipsMir2Lir::DumpResourceMask(LIR *mips_lir, uint64_t mask, const char *pre
     }
     /* Memory bits */
     if (mips_lir && (mask & ENCODE_DALVIK_REG)) {
-      sprintf(buf + strlen(buf), "dr%d%s", mips_lir->alias_info & 0xffff,
-              (mips_lir->alias_info & 0x80000000) ? "(+1)" : "");
+      sprintf(buf + strlen(buf), "dr%d%s", DECODE_ALIAS_INFO_REG(mips_lir->flags.alias_info),
+              DECODE_ALIAS_INFO_WIDE(mips_lir->flags.alias_info) ? "(+1)" : "");
     }
     if (mask & ENCODE_LITERAL) {
       strcat(buf, "lit ");
@@ -397,11 +398,6 @@ RegLocation MipsMir2Lir::GetReturnAlt() {
   UNIMPLEMENTED(FATAL) << "No GetReturnAlt for MIPS";
   RegLocation res = LocCReturn();
   return res;
-}
-
-MipsMir2Lir::RegisterInfo* MipsMir2Lir::GetRegInfo(int reg) {
-  return MIPS_FPREG(reg) ? &reg_pool_->FPRegs[reg & MIPS_FP_REG_MASK]
-            : &reg_pool_->core_regs[reg];
 }
 
 /* To be used when explicitly managing register use */
@@ -559,14 +555,17 @@ Mir2Lir* MipsCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
 }
 
 uint64_t MipsMir2Lir::GetTargetInstFlags(int opcode) {
+  DCHECK(!IsPseudoLirOp(opcode));
   return MipsMir2Lir::EncodingMap[opcode].flags;
 }
 
 const char* MipsMir2Lir::GetTargetInstName(int opcode) {
+  DCHECK(!IsPseudoLirOp(opcode));
   return MipsMir2Lir::EncodingMap[opcode].name;
 }
 
 const char* MipsMir2Lir::GetTargetInstFmt(int opcode) {
+  DCHECK(!IsPseudoLirOp(opcode));
   return MipsMir2Lir::EncodingMap[opcode].fmt;
 }
 

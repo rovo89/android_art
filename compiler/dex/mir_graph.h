@@ -149,7 +149,7 @@ enum DataFlowAttributePos {
 #define DF_C_IS_REG             (DF_UC)
 #define DF_IS_GETTER_OR_SETTER  (DF_IS_GETTER | DF_IS_SETTER)
 #define DF_USES_FP              (DF_FP_A | DF_FP_B | DF_FP_C)
-
+#define DF_NULL_TRANSFER        (DF_NULL_TRANSFER_0 | DF_NULL_TRANSFER_N)
 enum OatMethodAttributes {
   kIsLeaf,            // Method is leaf.
   kHasLoop,           // Method contains simple loop.
@@ -183,6 +183,9 @@ enum OatMethodAttributes {
 
 #define BLOCK_NAME_LEN 80
 
+typedef uint16_t BasicBlockId;
+static const BasicBlockId NullBasicBlockId = 0;
+
 /*
  * In general, vreg/sreg describe Dalvik registers that originated with dx.  However,
  * it is useful to have compiler-generated temporary registers and have them treated
@@ -190,15 +193,15 @@ enum OatMethodAttributes {
  * name of compiler-introduced temporaries.
  */
 struct CompilerTemp {
-  int s_reg;
+  int32_t s_reg;
 };
 
 // When debug option enabled, records effectiveness of null and range check elimination.
 struct Checkstats {
-  int null_checks;
-  int null_checks_eliminated;
-  int range_checks;
-  int range_checks_eliminated;
+  int32_t null_checks;
+  int32_t null_checks_eliminated;
+  int32_t range_checks;
+  int32_t range_checks_eliminated;
 };
 
 // Dataflow attributes of a basic block.
@@ -207,7 +210,7 @@ struct BasicBlockDataFlow {
   ArenaBitVector* def_v;
   ArenaBitVector* live_in_v;
   ArenaBitVector* phi_v;
-  int* vreg_to_ssa_map;
+  int32_t* vreg_to_ssa_map;
   ArenaBitVector* ending_null_check_v;
 };
 
@@ -220,11 +223,11 @@ struct BasicBlockDataFlow {
  * we may want to revisit in the future.
  */
 struct SSARepresentation {
-  int num_uses;
-  int* uses;
+  int16_t num_uses;
+  int16_t num_defs;
+  int32_t* uses;
   bool* fp_use;
-  int num_defs;
-  int* defs;
+  int32_t* defs;
   bool* fp_def;
 };
 
@@ -233,51 +236,53 @@ struct SSARepresentation {
  * wrapper around a Dalvik byte code.
  */
 struct MIR {
+  /*
+   * TODO: remove embedded DecodedInstruction to save space, keeping only opcode.  Recover
+   * additional fields on as-needed basis.  Question: how to support MIR Pseudo-ops; probably
+   * need to carry aux data pointer.
+   */
   DecodedInstruction dalvikInsn;
-  uint32_t width;                 // NOTE: only need 16 bits for width.
-  unsigned int offset;
-  int m_unit_index;               // From which method was this MIR included
-  MIR* prev;
+  uint16_t width;                 // Note: width can include switch table or fill array data.
+  NarrowDexOffset offset;         // Offset of the instruction in code units.
+  uint16_t optimization_flags;
+  int16_t m_unit_index;           // From which method was this MIR included
   MIR* next;
   SSARepresentation* ssa_rep;
-  int optimization_flags;
   union {
+    // Incoming edges for phi node.
+    BasicBlockId* phi_incoming;
     // Establish link between two halves of throwing instructions.
     MIR* throw_insn;
-    // Saved opcode for NOP'd MIRs
-    Instruction::Code original_opcode;
   } meta;
 };
 
 struct SuccessorBlockInfo;
 
 struct BasicBlock {
-  int id;
-  int dfs_id;
-  bool visited;
-  bool hidden;
-  bool catch_entry;
-  bool explicit_throw;
-  bool conditional_branch;
-  bool terminated_by_return;        // Block ends with a Dalvik return opcode.
-  bool dominates_return;            // Is a member of return extended basic block.
-  uint16_t start_offset;
+  BasicBlockId id;
+  BasicBlockId dfs_id;
+  NarrowDexOffset start_offset;     // Offset in code units.
+  BasicBlockId fall_through;
+  BasicBlockId taken;
+  BasicBlockId i_dom;               // Immediate dominator.
   uint16_t nesting_depth;
-  BBType block_type;
+  BBType block_type:4;
+  BlockListType successor_block_list_type:4;
+  bool visited:1;
+  bool hidden:1;
+  bool catch_entry:1;
+  bool explicit_throw:1;
+  bool conditional_branch:1;
+  bool terminated_by_return:1;        // Block ends with a Dalvik return opcode.
+  bool dominates_return:1;            // Is a member of return extended basic block.
   MIR* first_mir_insn;
   MIR* last_mir_insn;
-  BasicBlock* fall_through;
-  BasicBlock* taken;
-  BasicBlock* i_dom;                // Immediate dominator.
   BasicBlockDataFlow* data_flow_info;
-  GrowableArray<BasicBlock*>* predecessors;
   ArenaBitVector* dominators;
   ArenaBitVector* i_dominated;      // Set nodes being immediately dominated.
   ArenaBitVector* dom_frontier;     // Dominance frontier.
-  struct {                          // For one-to-many successors like.
-    BlockListType block_list_type;  // switch and exception handling.
-    GrowableArray<SuccessorBlockInfo*>* blocks;
-  } successor_block_list;
+  GrowableArray<BasicBlockId>* predecessors;
+  GrowableArray<SuccessorBlockInfo*>* successor_blocks;
 };
 
 /*
@@ -285,9 +290,8 @@ struct BasicBlock {
  * "SuccessorBlockInfo".  For catch blocks, key is type index for the exception.  For swtich
  * blocks, key is the case value.
  */
-// TODO: make class with placement new.
 struct SuccessorBlockInfo {
-  BasicBlock* block;
+  BasicBlockId block;
   int key;
 };
 
@@ -296,6 +300,15 @@ struct SuccessorBlockInfo {
  * the type of an SSA name (and, can also be used by code generators to record where the
  * value is located (i.e. - physical register, frame, spill, etc.).  For each SSA name (SReg)
  * there is a RegLocation.
+ * A note on SSA names:
+ *   o SSA names for Dalvik vRegs v0..vN will be assigned 0..N.  These represent the "vN_0"
+ *     names.  Negative SSA names represent special values not present in the Dalvik byte code.
+ *     For example, SSA name -1 represents an invalid SSA name, and SSA name -2 represents the
+ *     the Method pointer.  SSA names < -2 are reserved for future use.
+ *   o The vN_0 names for non-argument Dalvik should in practice never be used (as they would
+ *     represent the read of an undefined local variable).  The first definition of the
+ *     underlying Dalvik vReg will result in a vN_1 name.
+ *
  * FIXME: The orig_sreg field was added as a workaround for llvm bitcode generation.  With
  * the latest restructuring, we should be able to remove it and rely on s_reg_low throughout.
  */
@@ -311,9 +324,9 @@ struct RegLocation {
   unsigned home:1;      // Does this represent the home location?
   uint8_t low_reg;      // First physical register.
   uint8_t high_reg;     // 2nd physical register (if wide).
-  int32_t s_reg_low;    // SSA name for low Dalvik word.
-  int32_t orig_sreg;    // TODO: remove after Bitcode gen complete
-                        // and consolodate usage w/ s_reg_low.
+  int16_t s_reg_low;    // SSA name for low Dalvik word.
+  int16_t orig_sreg;    // TODO: remove after Bitcode gen complete
+                        // and consolidate usage w/ s_reg_low.
 };
 
 /*
@@ -334,7 +347,7 @@ struct CallInfo {
   RegLocation target;    // Target of following move_result.
   bool skip_this;
   bool is_range;
-  int offset;            // Dalvik offset.
+  DexOffset offset;      // Offset in code units.
 };
 
 
@@ -361,7 +374,7 @@ class MIRGraph {
                     uint32_t method_idx, jobject class_loader, const DexFile& dex_file);
 
   /* Find existing block */
-  BasicBlock* FindBlock(unsigned int code_offset) {
+  BasicBlock* FindBlock(DexOffset code_offset) {
     return FindBlock(code_offset, false, false, NULL);
   }
 
@@ -394,7 +407,7 @@ class MIRGraph {
   }
 
   BasicBlock* GetBasicBlock(int block_id) const {
-    return block_list_.Get(block_id);
+    return (block_id == NullBasicBlockId) ? NULL : block_list_.Get(block_id);
   }
 
   size_t GetBasicBlockListCount() const {
@@ -405,15 +418,15 @@ class MIRGraph {
     return &block_list_;
   }
 
-  GrowableArray<int>* GetDfsOrder() {
+  GrowableArray<BasicBlockId>* GetDfsOrder() {
     return dfs_order_;
   }
 
-  GrowableArray<int>* GetDfsPostOrder() {
+  GrowableArray<BasicBlockId>* GetDfsPostOrder() {
     return dfs_post_order_;
   }
 
-  GrowableArray<int>* GetDomPostOrder() {
+  GrowableArray<BasicBlockId>* GetDomPostOrder() {
     return dom_post_order_traversal_;
   }
 
@@ -477,6 +490,12 @@ class MIRGraph {
   }
 
   void SetNumSSARegs(int new_num) {
+     /*
+      * TODO: It's theoretically possible to exceed 32767, though any cases which did
+      * would be filtered out with current settings.  When orig_sreg field is removed
+      * from RegLocation, expand s_reg_low to handle all possible cases and remove DCHECK().
+      */
+    DCHECK_EQ(new_num, static_cast<int16_t>(new_num));
     num_ssa_regs_ = new_num;
   }
 
@@ -561,12 +580,33 @@ class MIRGraph {
     return special_case_;
   }
 
-  bool IsBackedge(BasicBlock* branch_bb, BasicBlock* target_bb) {
-    return ((target_bb != NULL) && (target_bb->start_offset <= branch_bb->start_offset));
+  bool IsBackedge(BasicBlock* branch_bb, BasicBlockId target_bb_id) {
+    return ((target_bb_id != NullBasicBlockId) &&
+            (GetBasicBlock(target_bb_id)->start_offset <= branch_bb->start_offset));
   }
 
   bool IsBackwardsBranch(BasicBlock* branch_bb) {
     return IsBackedge(branch_bb, branch_bb->taken) || IsBackedge(branch_bb, branch_bb->fall_through);
+  }
+
+  void CountBranch(DexOffset target_offset) {
+    if (target_offset <= current_offset_) {
+      backward_branches_++;
+    } else {
+      forward_branches_++;
+    }
+  }
+
+  int GetBranchCount() {
+    return backward_branches_ + forward_branches_;
+  }
+
+  bool IsPseudoMirOp(Instruction::Code opcode) {
+    return static_cast<int>(opcode) >= static_cast<int>(kMirOpFirst);
+  }
+
+  bool IsPseudoMirOp(int opcode) {
+    return opcode >= static_cast<int>(kMirOpFirst);
   }
 
   void BasicBlockCombine();
@@ -580,11 +620,34 @@ class MIRGraph {
   void SSATransformation();
   void CheckForDominanceFrontier(BasicBlock* dom_bb, const BasicBlock* succ_bb);
   void NullCheckElimination();
+  /*
+   * Type inference handling helpers.  Because Dalvik's bytecode is not fully typed,
+   * we have to do some work to figure out the sreg type.  For some operations it is
+   * clear based on the opcode (i.e. ADD_FLOAT v0, v1, v2), but for others (MOVE), we
+   * may never know the "real" type.
+   *
+   * We perform the type inference operation by using an iterative  walk over
+   * the graph, propagating types "defined" by typed opcodes to uses and defs in
+   * non-typed opcodes (such as MOVE).  The Setxx(index) helpers are used to set defined
+   * types on typed opcodes (such as ADD_INT).  The Setxx(index, is_xx) form is used to
+   * propagate types through non-typed opcodes such as PHI and MOVE.  The is_xx flag
+   * tells whether our guess of the type is based on a previously typed definition.
+   * If so, the defined type takes precedence.  Note that it's possible to have the same sreg
+   * show multiple defined types because dx treats constants as untyped bit patterns.
+   * The return value of the Setxx() helpers says whether or not the Setxx() action changed
+   * the current guess, and is used to know when to terminate the iterative walk.
+   */
   bool SetFp(int index, bool is_fp);
+  bool SetFp(int index);
   bool SetCore(int index, bool is_core);
+  bool SetCore(int index);
   bool SetRef(int index, bool is_ref);
+  bool SetRef(int index);
   bool SetWide(int index, bool is_wide);
+  bool SetWide(int index);
   bool SetHigh(int index, bool is_high);
+  bool SetHigh(int index);
+
   void AppendMIR(BasicBlock* bb, MIR* mir);
   void PrependMIR(BasicBlock* bb, MIR* mir);
   void InsertMIRAfter(BasicBlock* bb, MIR* current_mir, MIR* new_mir);
@@ -597,6 +660,9 @@ class MIRGraph {
   void DumpMIRGraph();
   CallInfo* NewMemCallInfo(BasicBlock* bb, MIR* mir, InvokeType type, bool is_range);
   BasicBlock* NewMemBB(BBType block_type, int block_id);
+  MIR* AdvanceMIR(BasicBlock** p_bb, MIR* mir);
+  BasicBlock* NextDominatedBlock(BasicBlock* bb);
+  bool LayoutBlocks(BasicBlock* bb);
 
   /*
    * IsDebugBuild sanity check: keep track of the Dex PCs for catch entries so that later on
@@ -625,15 +691,16 @@ class MIRGraph {
   bool InvokeUsesMethodStar(MIR* mir);
   int ParseInsn(const uint16_t* code_ptr, DecodedInstruction* decoded_instruction);
   bool ContentIsInsn(const uint16_t* code_ptr);
-  BasicBlock* SplitBlock(unsigned int code_offset, BasicBlock* orig_block,
+  BasicBlock* SplitBlock(DexOffset code_offset, BasicBlock* orig_block,
                          BasicBlock** immed_pred_block_p);
-  BasicBlock* FindBlock(unsigned int code_offset, bool split, bool create,
+  BasicBlock* FindBlock(DexOffset code_offset, bool split, bool create,
                         BasicBlock** immed_pred_block_p);
   void ProcessTryCatchBlocks();
-  BasicBlock* ProcessCanBranch(BasicBlock* cur_block, MIR* insn, int cur_offset, int width,
+  BasicBlock* ProcessCanBranch(BasicBlock* cur_block, MIR* insn, DexOffset cur_offset, int width,
                                int flags, const uint16_t* code_ptr, const uint16_t* code_end);
-  void ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, int cur_offset, int width, int flags);
-  BasicBlock* ProcessCanThrow(BasicBlock* cur_block, MIR* insn, int cur_offset, int width,
+  void ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, DexOffset cur_offset, int width,
+                        int flags);
+  BasicBlock* ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffset cur_offset, int width,
                               int flags, ArenaBitVector* try_block_addr, const uint16_t* code_ptr,
                               const uint16_t* code_end);
   int AddNewSReg(int v_reg);
@@ -689,9 +756,9 @@ class MIRGraph {
   GrowableArray<uint32_t> use_counts_;      // Weighted by nesting depth
   GrowableArray<uint32_t> raw_use_counts_;  // Not weighted
   unsigned int num_reachable_blocks_;
-  GrowableArray<int>* dfs_order_;
-  GrowableArray<int>* dfs_post_order_;
-  GrowableArray<int>* dom_post_order_traversal_;
+  GrowableArray<BasicBlockId>* dfs_order_;
+  GrowableArray<BasicBlockId>* dfs_post_order_;
+  GrowableArray<BasicBlockId>* dom_post_order_traversal_;
   int* i_dom_list_;
   ArenaBitVector** def_block_matrix_;    // num_dalvik_register x num_blocks.
   ArenaBitVector* temp_block_v_;
@@ -702,24 +769,25 @@ class MIRGraph {
   ArenaBitVector* try_block_addr_;
   BasicBlock* entry_block_;
   BasicBlock* exit_block_;
-  BasicBlock* cur_block_;
   int num_blocks_;
   const DexFile::CodeItem* current_code_item_;
-  SafeMap<unsigned int, BasicBlock*> block_map_;  // FindBlock lookup cache.
+  GrowableArray<uint16_t> dex_pc_to_block_map_;  // FindBlock lookup cache.
   std::vector<DexCompilationUnit*> m_units_;     // List of methods included in this graph
   typedef std::pair<int, int> MIRLocation;       // Insert point, (m_unit_ index, offset)
   std::vector<MIRLocation> method_stack_;        // Include stack
   int current_method_;
-  int current_offset_;
+  DexOffset current_offset_;                     // Offset in code units
   int def_count_;                                // Used to estimate size of ssa name storage.
   int* opcode_count_;                            // Dex opcode coverage stats.
   int num_ssa_regs_;                             // Number of names following SSA transformation.
-  std::vector<BasicBlock*> extended_basic_blocks_;  // Heads of block "traces".
+  std::vector<BasicBlockId> extended_basic_blocks_;  // Heads of block "traces".
   int method_sreg_;
   unsigned int attributes_;
   Checkstats* checkstats_;
   SpecialCaseHandler special_case_;
   ArenaAllocator* arena_;
+  int backward_branches_;
+  int forward_branches_;
 };
 
 }  // namespace art

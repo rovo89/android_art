@@ -16,7 +16,7 @@
 
 #include "jni_internal.h"
 #include "mirror/object-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_fast_native_object_access.h"
 
 // TODO: better support for overloading.
 #undef NATIVE_METHOD
@@ -26,41 +26,41 @@
 namespace art {
 
 static jobject Object_internalClone(JNIEnv* env, jobject java_this) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   mirror::Object* o = soa.Decode<mirror::Object*>(java_this);
   return soa.AddLocalReference<jobject>(o->Clone(soa.Self()));
 }
 
 static void Object_notify(JNIEnv* env, jobject java_this) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   mirror::Object* o = soa.Decode<mirror::Object*>(java_this);
   o->Notify(soa.Self());
 }
 
 static void Object_notifyAll(JNIEnv* env, jobject java_this) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   mirror::Object* o = soa.Decode<mirror::Object*>(java_this);
   o->NotifyAll(soa.Self());
 }
 
 static void Object_wait(JNIEnv* env, jobject java_this) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   mirror::Object* o = soa.Decode<mirror::Object*>(java_this);
   o->Wait(soa.Self());
 }
 
 static void Object_waitJI(JNIEnv* env, jobject java_this, jlong ms, jint ns) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   mirror::Object* o = soa.Decode<mirror::Object*>(java_this);
   o->Wait(soa.Self(), ms, ns);
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Object, internalClone, "()Ljava/lang/Object;", internalClone),
-  NATIVE_METHOD(Object, notify, "()V", notify),
-  NATIVE_METHOD(Object, notifyAll, "()V", notifyAll),
-  NATIVE_METHOD(Object, wait, "()V", wait),
-  NATIVE_METHOD(Object, wait, "(JI)V", waitJI),
+  NATIVE_METHOD(Object, internalClone, "!()Ljava/lang/Object;", internalClone),
+  NATIVE_METHOD(Object, notify, "!()V", notify),
+  NATIVE_METHOD(Object, notifyAll, "!()V", notifyAll),
+  NATIVE_METHOD(Object, wait, "!()V", wait),
+  NATIVE_METHOD(Object, wait, "!(JI)V", waitJI),
 };
 
 void register_java_lang_Object(JNIEnv* env) {

@@ -48,7 +48,6 @@ struct PACKED(4) QuickEntryPoints {
 
   // Cast
   uint32_t (*pInstanceofNonTrivial)(const mirror::Class*, const mirror::Class*);
-  void (*pCanPutArrayElement)(void*, void*);
   void (*pCheckCast)(void*, void*);
 
   // DexCache
@@ -71,7 +70,10 @@ struct PACKED(4) QuickEntryPoints {
   void* (*pGetObjInstance)(uint32_t, void*);
   void* (*pGetObjStatic)(uint32_t);
 
-  // FillArray
+  // Array
+  void (*pAputObjectWithNullAndBoundCheck)(void*, uint32_t, void*);  // array, index, src
+  void (*pAputObjectWithBoundCheck)(void*, uint32_t, void*);  // array, index, src
+  void (*pAputObject)(void*, uint32_t, void*);  // array, index, src
   void (*pHandleFillArrayData)(void*, void*);
 
   // JNI
@@ -103,7 +105,7 @@ struct PACKED(4) QuickEntryPoints {
   int64_t (*pD2l)(double);
   int64_t (*pF2l)(float);
   int64_t (*pLdiv)(int64_t, int64_t);
-  int64_t (*pLdivmod)(int64_t, int64_t);
+  int64_t (*pLmod)(int64_t, int64_t);
   int64_t (*pLmul)(int64_t, int64_t);
   uint64_t (*pShlLong)(uint64_t, uint32_t);
   uint64_t (*pShrLong)(uint64_t, uint32_t);
@@ -116,10 +118,10 @@ struct PACKED(4) QuickEntryPoints {
   void* (*pMemcpy)(void*, const void*, size_t);
 
   // Invocation
+  void (*pQuickImtConflictTrampoline)(mirror::ArtMethod*);
   void (*pQuickResolutionTrampoline)(mirror::ArtMethod*);
   void (*pQuickToInterpreterBridge)(mirror::ArtMethod*);
   void (*pInvokeDirectTrampolineWithAccessCheck)(uint32_t, void*);
-  void (*pInvokeInterfaceTrampoline)(uint32_t, void*);
   void (*pInvokeInterfaceTrampolineWithAccessCheck)(uint32_t, void*);
   void (*pInvokeStaticTrampolineWithAccessCheck)(uint32_t, void*);
   void (*pInvokeSuperTrampolineWithAccessCheck)(uint32_t, void*);
@@ -140,22 +142,23 @@ struct PACKED(4) QuickEntryPoints {
 
 
 // JNI entrypoints.
-extern uint32_t JniMethodStart(Thread* self) UNLOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
+// TODO: NO_THREAD_SAFETY_ANALYSIS due to different control paths depending on fast JNI.
+extern uint32_t JniMethodStart(Thread* self) NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 extern uint32_t JniMethodStartSynchronized(jobject to_lock, Thread* self)
-    UNLOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
+    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 extern void JniMethodEnd(uint32_t saved_local_ref_cookie, Thread* self)
-    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
+    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie, jobject locked,
                                      Thread* self)
-    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
+    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 extern mirror::Object* JniMethodEndWithReference(jobject result, uint32_t saved_local_ref_cookie,
                                                  Thread* self)
-    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
+    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 
 extern mirror::Object* JniMethodEndWithReferenceSynchronized(jobject result,
                                                              uint32_t saved_local_ref_cookie,
                                                              jobject locked, Thread* self)
-    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
+    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 
 }  // namespace art
 

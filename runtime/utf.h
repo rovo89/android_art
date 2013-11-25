@@ -29,9 +29,10 @@
  * See http://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8 for the details.
  */
 namespace art {
+
 namespace mirror {
-template<class T> class PrimitiveArray;
-typedef PrimitiveArray<uint16_t> CharArray;
+  template<class T> class PrimitiveArray;
+  typedef PrimitiveArray<uint16_t> CharArray;
 }  // namespace mirror
 
 /*

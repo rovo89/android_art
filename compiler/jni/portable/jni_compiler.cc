@@ -50,9 +50,9 @@ using ::art::llvm::runtime_support::JniMethodStartSynchronized;
 using ::art::llvm::runtime_support::RuntimeId;
 
 JniCompiler::JniCompiler(LlvmCompilationUnit* cunit,
-                         CompilerDriver& driver,
+                         CompilerDriver* driver,
                          const DexCompilationUnit* dex_compilation_unit)
-    : cunit_(cunit), driver_(&driver), module_(cunit_->GetModule()),
+    : cunit_(cunit), driver_(driver), module_(cunit_->GetModule()),
       context_(cunit_->GetLLVMContext()), irb_(*cunit_->GetIRBuilder()),
       dex_compilation_unit_(dex_compilation_unit),
       func_(NULL), elf_func_idx_(0) {

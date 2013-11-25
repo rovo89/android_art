@@ -58,7 +58,7 @@ const bool kLogLockContentions = false;
 // futex.
 const bool kLogLockContentions = false;
 #endif
-const size_t kContentionLogSize = 64;
+const size_t kContentionLogSize = 4;
 const size_t kContentionLogDataSize = kLogLockContentions ? 1 : 0;
 const size_t kAllMutexDataSize = kLogLockContentions ? 1 : 0;
 

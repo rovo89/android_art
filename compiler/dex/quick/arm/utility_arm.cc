@@ -22,14 +22,14 @@ namespace art {
 
 /* This file contains codegen for the Thumb ISA. */
 
-static int EncodeImmSingle(int value) {
-  int res;
-  int bit_a =  (value & 0x80000000) >> 31;
-  int not_bit_b = (value & 0x40000000) >> 30;
-  int bit_b =  (value & 0x20000000) >> 29;
-  int b_smear =  (value & 0x3e000000) >> 25;
-  int slice =   (value & 0x01f80000) >> 19;
-  int zeroes =  (value & 0x0007ffff);
+static int32_t EncodeImmSingle(int32_t value) {
+  int32_t res;
+  int32_t bit_a =  (value & 0x80000000) >> 31;
+  int32_t not_bit_b = (value & 0x40000000) >> 30;
+  int32_t bit_b =  (value & 0x20000000) >> 29;
+  int32_t b_smear =  (value & 0x3e000000) >> 25;
+  int32_t slice =   (value & 0x01f80000) >> 19;
+  int32_t zeroes =  (value & 0x0007ffff);
   if (zeroes != 0)
     return -1;
   if (bit_b) {
@@ -47,15 +47,15 @@ static int EncodeImmSingle(int value) {
  * Determine whether value can be encoded as a Thumb2 floating point
  * immediate.  If not, return -1.  If so return encoded 8-bit value.
  */
-static int EncodeImmDouble(int64_t value) {
-  int res;
-  int bit_a = (value & 0x8000000000000000ll) >> 63;
-  int not_bit_b = (value & 0x4000000000000000ll) >> 62;
-  int bit_b = (value & 0x2000000000000000ll) >> 61;
-  int b_smear = (value & 0x3fc0000000000000ll) >> 54;
-  int slice =  (value & 0x003f000000000000ll) >> 48;
+static int32_t EncodeImmDouble(int64_t value) {
+  int32_t res;
+  int32_t bit_a = (value & 0x8000000000000000ll) >> 63;
+  int32_t not_bit_b = (value & 0x4000000000000000ll) >> 62;
+  int32_t bit_b = (value & 0x2000000000000000ll) >> 61;
+  int32_t b_smear = (value & 0x3fc0000000000000ll) >> 54;
+  int32_t slice =  (value & 0x003f000000000000ll) >> 48;
   uint64_t zeroes = (value & 0x0000ffffffffffffll);
-  if (zeroes != 0)
+  if (zeroes != 0ull)
     return -1;
   if (bit_b) {
     if ((not_bit_b != 0) || (b_smear != 0xff))
@@ -90,15 +90,14 @@ LIR* ArmMir2Lir::LoadFPConstantValue(int r_dest, int value) {
   LIR* load_pc_rel = RawLIR(current_dalvik_offset_, kThumb2Vldrs,
                           r_dest, r15pc, 0, 0, 0, data_target);
   SetMemRefType(load_pc_rel, true, kLiteral);
-  load_pc_rel->alias_info = reinterpret_cast<uintptr_t>(data_target);
   AppendLIR(load_pc_rel);
   return load_pc_rel;
 }
 
 static int LeadingZeros(uint32_t val) {
   uint32_t alt;
-  int n;
-  int count;
+  int32_t n;
+  int32_t count;
 
   count = 16;
   n = 32;
@@ -118,8 +117,8 @@ static int LeadingZeros(uint32_t val) {
  * immediate.  If not, return -1.  If so, return i:imm3:a:bcdefgh form.
  */
 int ArmMir2Lir::ModifiedImmediate(uint32_t value) {
-  int z_leading;
-  int z_trailing;
+  int32_t z_leading;
+  int32_t z_trailing;
   uint32_t b0 = value & 0xff;
 
   /* Note: case of value==0 must use 0:000:0:0000000 encoding */
@@ -315,6 +314,22 @@ LIR* ArmMir2Lir::OpRegRegShift(OpKind op, int r_dest_src1, int r_src2,
     case kOpSub:
       opcode = (thumb_form) ? kThumbSubRRR : kThumb2SubRRR;
       break;
+    case kOpRev:
+      DCHECK_EQ(shift, 0);
+      if (!thumb_form) {
+        // Binary, but rm is encoded twice.
+        return NewLIR3(kThumb2RevRR, r_dest_src1, r_src2, r_src2);
+      }
+      opcode = kThumbRev;
+      break;
+    case kOpRevsh:
+      DCHECK_EQ(shift, 0);
+      if (!thumb_form) {
+        // Binary, but rm is encoded twice.
+        return NewLIR3(kThumb2RevshRR, r_dest_src1, r_src2, r_src2);
+      }
+      opcode = kThumbRevsh;
+      break;
     case kOp2Byte:
       DCHECK_EQ(shift, 0);
       return NewLIR4(kThumb2Sbfx, r_dest_src1, r_src2, 0, 8);
@@ -328,7 +343,7 @@ LIR* ArmMir2Lir::OpRegRegShift(OpKind op, int r_dest_src1, int r_src2,
       LOG(FATAL) << "Bad opcode: " << op;
       break;
   }
-  DCHECK_GE(static_cast<int>(opcode), 0);
+  DCHECK(!IsPseudoLirOp(opcode));
   if (EncodingMap[opcode].flags & IS_BINARY_OP) {
     return NewLIR2(opcode, r_dest_src1, r_src2);
   } else if (EncodingMap[opcode].flags & IS_TERTIARY_OP) {
@@ -380,6 +395,10 @@ LIR* ArmMir2Lir::OpRegRegRegShift(OpKind op, int r_dest, int r_src1,
       DCHECK_EQ(shift, 0);
       opcode = kThumb2MulRRR;
       break;
+    case kOpDiv:
+      DCHECK_EQ(shift, 0);
+      opcode = kThumb2SdivRRR;
+      break;
     case kOpOr:
       opcode = kThumb2OrrRRR;
       break;
@@ -406,7 +425,7 @@ LIR* ArmMir2Lir::OpRegRegRegShift(OpKind op, int r_dest, int r_src1,
       LOG(FATAL) << "Bad opcode: " << op;
       break;
   }
-  DCHECK_GE(static_cast<int>(opcode), 0);
+  DCHECK(!IsPseudoLirOp(opcode));
   if (EncodingMap[opcode].flags & IS_QUAD_OP) {
     return NewLIR4(opcode, r_dest, r_src1, r_src2, shift);
   } else {
@@ -422,12 +441,12 @@ LIR* ArmMir2Lir::OpRegRegReg(OpKind op, int r_dest, int r_src1, int r_src2) {
 LIR* ArmMir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src1, int value) {
   LIR* res;
   bool neg = (value < 0);
-  int abs_value = (neg) ? -value : value;
+  int32_t abs_value = (neg) ? -value : value;
   ArmOpcode opcode = kThumbBkpt;
   ArmOpcode alt_opcode = kThumbBkpt;
   bool all_low_regs = (ARM_LOWREG(r_dest) && ARM_LOWREG(r_src1));
-  int mod_imm = ModifiedImmediate(value);
-  int mod_imm_neg = ModifiedImmediate(-value);
+  int32_t mod_imm = ModifiedImmediate(value);
+  int32_t mod_imm_neg = ModifiedImmediate(-value);
 
   switch (op) {
     case kOpLsl:
@@ -545,7 +564,7 @@ LIR* ArmMir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src1, int value) {
 /* Handle Thumb-only variants here - otherwise punt to OpRegRegImm */
 LIR* ArmMir2Lir::OpRegImm(OpKind op, int r_dest_src1, int value) {
   bool neg = (value < 0);
-  int abs_value = (neg) ? -value : value;
+  int32_t abs_value = (neg) ? -value : value;
   bool short_form = (((abs_value & 0xff) == abs_value) && ARM_LOWREG(r_dest_src1));
   ArmOpcode opcode = kThumbBkpt;
   switch (op) {
@@ -626,7 +645,6 @@ LIR* ArmMir2Lir::LoadConstantWide(int r_dest_lo, int r_dest_hi, int64_t value) {
                    r_dest_lo, r_dest_hi, r15pc, 0, 0, data_target);
     }
     SetMemRefType(res, true, kLiteral);
-    res->alias_info = reinterpret_cast<uintptr_t>(data_target);
     AppendLIR(res);
   }
   return res;

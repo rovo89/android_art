@@ -82,7 +82,8 @@ ART_USE_PORTABLE_COMPILER := true
 endif
 
 LLVM_ROOT_PATH := external/llvm
-include $(LLVM_ROOT_PATH)/llvm.mk
+# Don't fail a dalvik minimal host build.
+-include $(LLVM_ROOT_PATH)/llvm.mk
 
 # Clang build.
 # ART_TARGET_CLANG := true
@@ -104,6 +105,7 @@ ART_HOST_SHLIB_EXTENSION ?= .so
 ART_C_INCLUDES := \
 	external/gtest/include \
 	external/valgrind/main/include \
+	external/valgrind/main \
 	external/zlib \
 	frameworks/compile/mclinker/include
 
@@ -147,17 +149,25 @@ else
 IMG_TARGET_BASE_ADDRESS := 0x60000000
 endif
 
-ART_HOST_CFLAGS := $(art_cflags) -DANDROID_SMP=1 -DART_BASE_ADDRESS=$(IMG_HOST_BASE_ADDRESS)
-
-ifeq ($(TARGET_ARCH),x86)
-ART_TARGET_CFLAGS += -msse2
-endif
+ART_HOST_CFLAGS := $(art_cflags) -DANDROID_SMP=1 -DART_BASE_ADDRESS=$(IMG_HOST_BASE_ADDRESS) 
+ART_HOST_CFLAGS += -DART_DEFAULT_INSTRUCTION_SET_FEATURES=default
 
 ART_TARGET_CFLAGS := $(art_cflags) -DART_TARGET -DART_BASE_ADDRESS=$(IMG_TARGET_BASE_ADDRESS)
 ifeq ($(TARGET_CPU_SMP),true)
   ART_TARGET_CFLAGS += -DANDROID_SMP=1
 else
   ART_TARGET_CFLAGS += -DANDROID_SMP=0
+endif
+
+# DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES is set in ../build/core/dex_preopt.mk based on
+# the TARGET_CPU_VARIANT
+ifeq ($(DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES),)
+$(error Required DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES is not set)
+endif
+ART_TARGET_CFLAGS += -DART_DEFAULT_INSTRUCTION_SET_FEATURES=$(DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES)
+
+ifeq ($(TARGET_ARCH),x86)
+ART_TARGET_CFLAGS += -msse2
 endif
 
 # Enable thread-safety for GCC 4.6 on the target but not for GCC 4.7 where this feature was removed.

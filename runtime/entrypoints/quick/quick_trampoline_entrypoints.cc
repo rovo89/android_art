@@ -19,6 +19,7 @@
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
 #include "entrypoints/entrypoint_utils.h"
+#include "gc/accounting/card_table-inl.h"
 #include "interpreter/interpreter.h"
 #include "invoke_arg_array_builder.h"
 #include "mirror/art_method-inl.h"
@@ -423,13 +424,23 @@ class RememberFoGcArgumentVisitor : public QuickArgumentVisitor {
 
   virtual void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (IsParamAReference()) {
-      soa_->AddLocalReference<jobject>(*reinterpret_cast<mirror::Object**>(GetParamAddress()));
+      mirror::Object** param_address = reinterpret_cast<mirror::Object**>(GetParamAddress());
+      jobject reference =
+          soa_->AddLocalReference<jobject>(*param_address);
+      references_.push_back(std::make_pair(reference, param_address));
+    }
+  }
+
+  void FixupReferences() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // Fixup any references which may have changed.
+    for (std::pair<jobject, mirror::Object**>& it : references_) {
+      *it.second = soa_->Decode<mirror::Object*>(it.first);
     }
   }
 
  private:
   ScopedObjectAccessUnchecked* soa_;
-
+  std::vector<std::pair<jobject, mirror::Object**> > references_;
   DISALLOW_COPY_AND_ASSIGN(RememberFoGcArgumentVisitor);
 };
 
@@ -537,6 +548,21 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
     } else if (invoke_type == kInterface) {
       called = receiver->GetClass()->FindVirtualMethodForInterface(called);
     }
+    if ((invoke_type == kVirtual) || (invoke_type == kInterface)) {
+      // We came here because of sharpening. Ensure the dex cache is up-to-date on the method index
+      // of the sharpened method.
+      if (called->GetDexCacheResolvedMethods() == caller->GetDexCacheResolvedMethods()) {
+        caller->GetDexCacheResolvedMethods()->Set(called->GetDexMethodIndex(), called);
+      } else {
+        // Calling from one dex file to another, need to compute the method index appropriate to
+        // the caller's dex file.
+        uint32_t method_index =
+            MethodHelper(called).FindDexMethodIndexInOtherDexFile(MethodHelper(caller).GetDexFile());
+        if (method_index != DexFile::kDexNoIndex) {
+          caller->GetDexCacheResolvedMethods()->Set(method_index, called);
+        }
+      }
+    }
     // Ensure that the called method's class is initialized.
     mirror::Class* called_class = called->GetDeclaringClass();
     linker->EnsureInitialized(called_class, true, true);
@@ -556,11 +582,8 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
     }
   }
   CHECK_EQ(code == NULL, thread->IsExceptionPending());
-#ifdef MOVING_GARBAGE_COLLECTOR
-  // TODO: locally saved objects may have moved during a GC during resolution. Need to update the
-  //       registers so that the stale objects aren't passed to the method we've resolved.
-    UNIMPLEMENTED(WARNING);
-#endif
+  // Fixup any locally saved objects may have moved during a GC.
+  visitor.FixupReferences();
   // Place called method in callee-save frame to be placed as first argument to quick method.
   *sp = called;
   return code;

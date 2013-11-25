@@ -574,9 +574,12 @@ class ConstantType : public RegType {
 
   // If this is a 32-bit constant, what is the value? This value may be imprecise in which case
   // the value represents part of the integer range of values that may be held in the register.
-  virtual int32_t ConstantValue() const;
-  virtual int32_t ConstantValueLo() const;
-  virtual int32_t ConstantValueHi() const;
+  int32_t ConstantValue() const {
+    DCHECK(IsConstantTypes());
+    return constant_;
+  }
+  int32_t ConstantValueLo() const;
+  int32_t ConstantValueHi() const;
 
   bool IsZero() const {
     return IsPreciseConstant() && ConstantValue() == 0;

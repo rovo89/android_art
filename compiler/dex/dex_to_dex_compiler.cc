@@ -24,6 +24,7 @@
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
+#include "thread-inl.h"
 
 namespace art {
 namespace optimizer {
@@ -216,8 +217,8 @@ void DexCompiler::CompileInstanceFieldAccess(Instruction* inst,
   uint32_t field_idx = inst->VRegC_22c();
   int field_offset;
   bool is_volatile;
-  bool fast_path = driver_.ComputeInstanceFieldInfo(field_idx, &unit_, field_offset,
-                                                    is_volatile, is_put);
+  bool fast_path = driver_.ComputeInstanceFieldInfo(field_idx, &unit_, is_put,
+                                                    &field_offset, &is_volatile);
   if (fast_path && !is_volatile && IsUint(16, field_offset)) {
     VLOG(compiler) << "Quickening " << Instruction::Name(inst->Opcode())
                    << " to " << Instruction::Name(new_opcode)
@@ -246,11 +247,13 @@ void DexCompiler::CompileInvokeVirtual(Instruction* inst,
   int vtable_idx;
   uintptr_t direct_code;
   uintptr_t direct_method;
-  bool fast_path = driver_.ComputeInvokeInfo(&unit_, dex_pc, invoke_type,
-                                             target_method, vtable_idx,
-                                             direct_code, direct_method,
-                                             false);
   // TODO: support devirtualization.
+  const bool kEnableDevirtualization = false;
+  bool fast_path = driver_.ComputeInvokeInfo(&unit_, dex_pc,
+                                             false, kEnableDevirtualization,
+                                             &invoke_type,
+                                             &target_method, &vtable_idx,
+                                             &direct_code, &direct_method);
   if (fast_path && original_invoke_type == invoke_type) {
     if (vtable_idx >= 0 && IsUint(16, vtable_idx)) {
       VLOG(compiler) << "Quickening " << Instruction::Name(inst->Opcode())

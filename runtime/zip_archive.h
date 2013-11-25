@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 #include <zlib.h>
+#include <string>
 
 #include "base/logging.h"
 #include "base/stringpiece.h"
@@ -36,9 +37,9 @@ class MemMap;
 
 class ZipEntry {
  public:
-  bool ExtractToFile(File& file);
-  bool ExtractToMemory(uint8_t* begin, size_t size);
-  MemMap* ExtractToMemMap(const char* entry_filename);
+  bool ExtractToFile(File& file, std::string* error_msg);
+  bool ExtractToMemory(uint8_t* begin, size_t size, std::string* error_msg);
+  MemMap* ExtractToMemMap(const char* entry_filename, std::string* error_msg);
 
   uint32_t GetUncompressedLength();
   uint32_t GetCrc32();
@@ -109,8 +110,8 @@ class ZipArchive {
   static const int32_t kGPFUnsupportedMask = (kGPFEncryptedFlag);
 
   // return new ZipArchive instance on success, NULL on error.
-  static ZipArchive* Open(const std::string& filename);
-  static ZipArchive* OpenFromFd(int fd);
+  static ZipArchive* Open(const char* filename, std::string* error_msg);
+  static ZipArchive* OpenFromFd(int fd, const char* filename, std::string* error_msg);
 
   ZipEntry* Find(const char* name) const;
 
@@ -119,11 +120,14 @@ class ZipArchive {
   }
 
  private:
-  explicit ZipArchive(int fd) : fd_(fd), num_entries_(0), dir_offset_(0) {}
+  explicit ZipArchive(int fd, const char* filename)
+      : fd_(fd), num_entries_(0), dir_offset_(0), filename_(filename) {}
 
-  bool MapCentralDirectory();
-  bool Parse();
+  bool MapCentralDirectory(std::string* error_msg);
+  bool Parse(std::string* error_msg);
   void Close();
+  std::string ErrorStringPrintf(const char* fmt, ...)
+          __attribute__((__format__(__printf__, 2, 3))) COLD_ATTR;
 
   int fd_;
   uint16_t num_entries_;
@@ -131,6 +135,8 @@ class ZipArchive {
   UniquePtr<MemMap> dir_map_;
   typedef SafeMap<StringPiece, const byte*> DirEntries;
   DirEntries dir_entries_;
+  // Containing file for error reporting.
+  const std::string filename_;
 
   friend class ZipEntry;
 

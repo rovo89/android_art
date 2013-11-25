@@ -38,16 +38,16 @@ ReferenceTable::ReferenceTable(const char* name, size_t initial_size, size_t max
 ReferenceTable::~ReferenceTable() {
 }
 
-void ReferenceTable::Add(const mirror::Object* obj) {
+void ReferenceTable::Add(mirror::Object* obj) {
   DCHECK(obj != NULL);
-  if (entries_.size() == max_size_) {
+  if (entries_.size() >= max_size_) {
     LOG(FATAL) << "ReferenceTable '" << name_ << "' "
                << "overflowed (" << max_size_ << " entries)";
   }
   entries_.push_back(obj);
 }
 
-void ReferenceTable::Remove(const mirror::Object* obj) {
+void ReferenceTable::Remove(mirror::Object* obj) {
   // We iterate backwards on the assumption that references are LIFO.
   for (int i = entries_.size() - 1; i >= 0; --i) {
     if (entries_[i] == obj) {
@@ -232,8 +232,8 @@ void ReferenceTable::Dump(std::ostream& os, const Table& entries) {
 }
 
 void ReferenceTable::VisitRoots(RootVisitor* visitor, void* arg) {
-  for (const auto& ref : entries_) {
-    visitor(ref, arg);
+  for (auto& ref : entries_) {
+    ref = visitor(const_cast<mirror::Object*>(ref), arg);
   }
 }
 

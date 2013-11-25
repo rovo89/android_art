@@ -38,6 +38,14 @@ namespace instrumentation {
 
 const bool kVerboseInstrumentation = false;
 
+// Interpreter handler tables.
+enum InterpreterHandlerTable {
+  kMainHandlerTable = 0,          // Main handler table: no suspend check, no instrumentation.
+  kAlternativeHandlerTable = 1,   // Alternative handler table: suspend check and/or instrumentation
+                                  // enabled.
+  kNumHandlerTables
+};
+
 // Instrumentation event listener API. Registered listeners will get the appropriate call back for
 // the events they are listening for. The call backs supply the thread, method and dex_pc the event
 // occurred upon. The thread may or may not be Thread::Current().
@@ -95,7 +103,8 @@ class Instrumentation {
       interpret_only_(false), forced_interpret_only_(false),
       have_method_entry_listeners_(false), have_method_exit_listeners_(false),
       have_method_unwind_listeners_(false), have_dex_pc_listeners_(false),
-      have_exception_caught_listeners_(false) {}
+      have_exception_caught_listeners_(false),
+      interpreter_handler_table_(kMainHandlerTable) {}
 
   // Add a listener to be notified of the masked together sent of instrumentation events. This
   // suspend the runtime to install stubs. You are expected to hold the mutator lock as a proxy
@@ -109,6 +118,10 @@ class Instrumentation {
   void RemoveListener(InstrumentationListener* listener, uint32_t events)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::classlinker_classes_lock_);
+
+  InterpreterHandlerTable GetInterpreterHandlerTable() const {
+    return interpreter_handler_table_;
+  }
 
   // Update the code of a method respecting any installed stubs.
   void UpdateMethodsCode(mirror::ArtMethod* method, const void* code) const;
@@ -149,6 +162,11 @@ class Instrumentation {
     return have_dex_pc_listeners_;
   }
 
+  bool IsActive() const {
+    return have_dex_pc_listeners_ || have_method_entry_listeners_ || have_method_exit_listeners_ ||
+        have_exception_caught_listeners_ || have_method_unwind_listeners_;
+  }
+
   // Inform listeners that a method has been entered. A dex PC is provided as we may install
   // listeners into executing code and get method enter events for methods already on the stack.
   void MethodEnterEvent(Thread* thread, mirror::Object* this_object,
@@ -186,7 +204,7 @@ class Instrumentation {
   // Inform listeners that an exception was caught.
   void ExceptionCaughtEvent(Thread* thread, const ThrowLocation& throw_location,
                             mirror::ArtMethod* catch_method, uint32_t catch_dex_pc,
-                            mirror::Throwable* exception_object)
+                            mirror::Throwable* exception_object) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Called when an instrumented method is entered. The intended link register (lr) is saved so
@@ -214,6 +232,10 @@ class Instrumentation {
   void ConfigureStubs(bool require_entry_exit_stubs, bool require_interpreter)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::classlinker_classes_lock_);
+
+  void UpdateInterpreterHandlerTable() {
+    interpreter_handler_table_ = IsActive() ? kAlternativeHandlerTable : kMainHandlerTable;
+  }
 
   void MethodEnterEventImpl(Thread* thread, mirror::Object* this_object,
                             const mirror::ArtMethod* method, uint32_t dex_pc) const
@@ -266,6 +288,9 @@ class Instrumentation {
   std::list<InstrumentationListener*> method_unwind_listeners_ GUARDED_BY(Locks::mutator_lock_);
   std::list<InstrumentationListener*> dex_pc_listeners_ GUARDED_BY(Locks::mutator_lock_);
   std::list<InstrumentationListener*> exception_caught_listeners_ GUARDED_BY(Locks::mutator_lock_);
+
+  // Current interpreter handler table. This is updated each time the thread state flags are modified.
+  InterpreterHandlerTable interpreter_handler_table_;
 
   DISALLOW_COPY_AND_ASSIGN(Instrumentation);
 };
