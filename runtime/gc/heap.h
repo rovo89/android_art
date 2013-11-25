@@ -26,6 +26,7 @@
 #include "gc/accounting/atomic_stack.h"
 #include "gc/accounting/card_table.h"
 #include "gc/collector/gc_type.h"
+#include "gc/collector_type.h"
 #include "globals.h"
 #include "gtest/gtest.h"
 #include "jni.h"
@@ -143,7 +144,7 @@ class Heap {
   // ImageWriter output.
   explicit Heap(size_t initial_size, size_t growth_limit, size_t min_free,
                 size_t max_free, double target_utilization, size_t capacity,
-                const std::string& original_image_file_name, bool concurrent_gc,
+                const std::string& original_image_file_name, CollectorType collector_type_,
                 size_t parallel_gc_threads, size_t conc_gc_threads, bool low_memory_mode,
                 size_t long_pause_threshold, size_t long_gc_threshold,
                 bool ignore_max_footprint);
@@ -192,6 +193,9 @@ class Heap {
 
   // Change the allocator, updates entrypoints.
   void ChangeAllocator(AllocatorType allocator);
+
+  // Change the collector to be one of the possible options (MS, CMS, SS).
+  void ChangeCollector(CollectorType collector_type);
 
   // The given reference is believed to be to an object in the Java heap, check the soundness of it.
   void VerifyObjectImpl(const mirror::Object* o);
@@ -630,7 +634,10 @@ class Heap {
 
   // What kind of concurrency behavior is the runtime after? True for concurrent mark sweep GC,
   // false for stop-the-world mark sweep.
-  bool concurrent_gc_;
+  const bool concurrent_gc_;
+
+  // The current collector type.
+  CollectorType collector_type_;
 
   // How many GC threads we may use for paused parts of garbage collection.
   const size_t parallel_gc_threads_;

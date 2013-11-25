@@ -27,6 +27,7 @@
 
 #include "base/macros.h"
 #include "base/stringpiece.h"
+#include "gc/collector_type.h"
 #include "gc/heap.h"
 #include "globals.h"
 #include "instruction_set.h"
@@ -99,7 +100,6 @@ class Runtime {
     bool is_compiler_;
     bool is_zygote_;
     bool interpreter_only_;
-    bool is_concurrent_gc_enabled_;
     bool is_explicit_gc_disabled_;
     size_t long_pause_log_threshold_;
     size_t long_gc_log_threshold_;
@@ -113,6 +113,7 @@ class Runtime {
     double heap_target_utilization_;
     size_t parallel_gc_threads_;
     size_t conc_gc_threads_;
+    gc::CollectorType collector_type_;
     size_t stack_size_;
     size_t max_spins_before_thin_lock_inflation_;
     bool low_memory_mode_;
