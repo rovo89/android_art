@@ -48,28 +48,28 @@ class ThrowLocation;
  */
 struct DebugInvokeReq {
   DebugInvokeReq()
-      : ready(false), invoke_needed_(false),
-        receiver_(NULL), thread_(NULL), class_(NULL), method_(NULL),
-        arg_count_(0), arg_values_(NULL), options_(0), error(JDWP::ERR_NONE),
+      : ready(false), invoke_needed(false),
+        receiver(NULL), thread(NULL), klass(NULL), method(NULL),
+        arg_count(0), arg_values(NULL), options(0), error(JDWP::ERR_NONE),
         result_tag(JDWP::JT_VOID), exception(0),
-        lock_("a DebugInvokeReq lock", kBreakpointInvokeLock),
-        cond_("a DebugInvokeReq condition variable", lock_) {
+        lock("a DebugInvokeReq lock", kBreakpointInvokeLock),
+        cond("a DebugInvokeReq condition variable", lock) {
   }
 
   /* boolean; only set when we're in the tail end of an event handler */
   bool ready;
 
   /* boolean; set if the JDWP thread wants this thread to do work */
-  bool invoke_needed_;
+  bool invoke_needed;
 
   /* request */
-  mirror::Object* receiver_;      /* not used for ClassType.InvokeMethod */
-  mirror::Object* thread_;
-  mirror::Class* class_;
-  mirror::ArtMethod* method_;
-  uint32_t arg_count_;
-  uint64_t* arg_values_;   /* will be NULL if arg_count_ == 0 */
-  uint32_t options_;
+  mirror::Object* receiver;      /* not used for ClassType.InvokeMethod */
+  mirror::Object* thread;
+  mirror::Class* klass;
+  mirror::ArtMethod* method;
+  uint32_t arg_count;
+  uint64_t* arg_values;   /* will be NULL if arg_count_ == 0 */
+  uint32_t options;
 
   /* result */
   JDWP::JdwpError error;
@@ -78,8 +78,8 @@ struct DebugInvokeReq {
   JDWP::ObjectId exception;
 
   /* condition variable to wait on while the method executes */
-  Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  ConditionVariable cond_ GUARDED_BY(lock_);
+  Mutex lock DEFAULT_MUTEX_ACQUIRED_AFTER;
+  ConditionVariable cond GUARDED_BY(lock);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(DebugInvokeReq);

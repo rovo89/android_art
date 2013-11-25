@@ -2723,14 +2723,14 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
       }
     }
 
-    req->receiver_ = receiver;
-    req->thread_ = thread;
-    req->class_ = c;
-    req->method_ = m;
-    req->arg_count_ = arg_count;
-    req->arg_values_ = arg_values;
-    req->options_ = options;
-    req->invoke_needed_ = true;
+    req->receiver = receiver;
+    req->thread = thread;
+    req->klass = c;
+    req->method = m;
+    req->arg_count = arg_count;
+    req->arg_values = arg_values;
+    req->options = options;
+    req->invoke_needed = true;
   }
 
   // The fact that we've released the thread list lock is a bit risky --- if the thread goes
@@ -2748,7 +2748,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
 
     VLOG(jdwp) << "    Transferring control to event thread";
     {
-      MutexLock mu(self, req->lock_);
+      MutexLock mu(self, req->lock);
 
       if ((options & JDWP::INVOKE_SINGLE_THREADED) == 0) {
         VLOG(jdwp) << "      Resuming all threads";
@@ -2759,8 +2759,8 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
       }
 
       // Wait for the request to finish executing.
-      while (req->invoke_needed_) {
-        req->cond_.Wait(self);
+      while (req->invoke_needed) {
+        req->cond.Wait(self);
       }
     }
     VLOG(jdwp) << "    Control has returned from event thread";
@@ -2817,24 +2817,24 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   }
 
   // Translate the method through the vtable, unless the debugger wants to suppress it.
-  mirror::ArtMethod* m = pReq->method_;
-  if ((pReq->options_ & JDWP::INVOKE_NONVIRTUAL) == 0 && pReq->receiver_ != NULL) {
-    mirror::ArtMethod* actual_method = pReq->class_->FindVirtualMethodForVirtualOrInterface(pReq->method_);
+  mirror::ArtMethod* m = pReq->method;
+  if ((pReq->options & JDWP::INVOKE_NONVIRTUAL) == 0 && pReq->receiver != NULL) {
+    mirror::ArtMethod* actual_method = pReq->klass->FindVirtualMethodForVirtualOrInterface(pReq->method);
     if (actual_method != m) {
       VLOG(jdwp) << "ExecuteMethod translated " << PrettyMethod(m) << " to " << PrettyMethod(actual_method);
       m = actual_method;
     }
   }
   VLOG(jdwp) << "ExecuteMethod " << PrettyMethod(m)
-             << " receiver=" << pReq->receiver_
-             << " arg_count=" << pReq->arg_count_;
+             << " receiver=" << pReq->receiver
+             << " arg_count=" << pReq->arg_count;
   CHECK(m != NULL);
 
   CHECK_EQ(sizeof(jvalue), sizeof(uint64_t));
 
   MethodHelper mh(m);
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
-  arg_array.BuildArgArray(soa, pReq->receiver_, reinterpret_cast<jvalue*>(pReq->arg_values_));
+  arg_array.BuildArgArray(soa, pReq->receiver, reinterpret_cast<jvalue*>(pReq->arg_values));
   InvokeWithArgArray(soa, m, &arg_array, &pReq->result_value, mh.GetShorty()[0]);
 
   mirror::Throwable* exception = soa.Self()->GetException(NULL);
