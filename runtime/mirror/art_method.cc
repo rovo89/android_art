@@ -40,6 +40,13 @@ extern "C" void art_quick_invoke_stub(ArtMethod*, uint32_t*, uint32_t, Thread*, 
 // TODO: get global references for these
 Class* ArtMethod::java_lang_reflect_ArtMethod_ = NULL;
 
+void ArtMethod::VisitRoots(RootVisitor* visitor, void* arg) {
+  if (java_lang_reflect_ArtMethod_ != nullptr) {
+    java_lang_reflect_ArtMethod_ = down_cast<mirror::Class*>(
+        visitor(java_lang_reflect_ArtMethod_, arg));
+  }
+}
+
 InvokeType ArtMethod::GetInvokeType() const {
   // TODO: kSuper?
   if (GetDeclaringClass()->IsInterface()) {

@@ -173,6 +173,10 @@ void SemiSpace::MarkingPhase() {
   BindBitmaps();
   // Process dirty cards and add dirty cards to mod-union tables.
   heap_->ProcessCards(timings_);
+  // Clear the whole card table since we can not get any additional dirty cards during the
+  // paused GC. This saves memory but only works for pause the world collectors.
+  timings_.NewSplit("ClearCardTable");
+  heap_->GetCardTable()->ClearCardTable();
   // Need to do this before the checkpoint since we don't want any threads to add references to
   // the live stack during the recursive mark.
   timings_.NewSplit("SwapStacks");
@@ -318,8 +322,6 @@ Object* SemiSpace::MarkObject(Object* obj) {
         memcpy(reinterpret_cast<void*>(forward_address), obj, object_size);
         // Make sure to only update the forwarding address AFTER you copy the object so that the
         // monitor word doesn't get stomped over.
-        COMPILE_ASSERT(sizeof(uint32_t) == sizeof(mirror::Object*),
-                       monitor_size_must_be_same_as_object);
         obj->SetLockWord(LockWord::FromForwardingAddress(reinterpret_cast<size_t>(forward_address)));
         MarkStackPush(forward_address);
       }
@@ -508,7 +510,10 @@ void SemiSpace::ScanObject(Object* obj) {
     mirror::Object* new_address = MarkObject(ref);
     if (new_address != ref) {
       DCHECK(new_address != nullptr);
-      obj->SetFieldObject(offset, new_address, false);
+      // Don't need to mark the card since we updating the object address and not changing the
+      // actual objects its pointing to. Using SetFieldPtr is better in this case since it does not
+      // dirty cards and use additional memory.
+      obj->SetFieldPtr(offset, new_address, false);
     }
   }, kMovingClasses);
   mirror::Class* klass = obj->GetClass();

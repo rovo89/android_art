@@ -554,5 +554,11 @@ void RegTypeCache::Dump(std::ostream& os) {
   }
 }
 
+void RegTypeCache::VisitRoots(RootVisitor* visitor, void* arg) {
+  for (RegType* entry : entries_) {
+    entry->VisitRoots(visitor, arg);
+  }
+}
+
 }  // namespace verifier
 }  // namespace art

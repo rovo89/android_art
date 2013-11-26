@@ -25,7 +25,7 @@
 namespace art {
 
 std::string ThrowLocation::Dump() const {
-  if (method_ != NULL) {
+  if (method_ != nullptr) {
     return StringPrintf("%s:%d", PrettyMethod(method_).c_str(),
                         MethodHelper(method_).GetLineNumFromDexPC(dex_pc_));
   } else {
@@ -35,12 +35,11 @@ std::string ThrowLocation::Dump() const {
 
 void ThrowLocation::VisitRoots(RootVisitor* visitor, void* arg) {
   if (this_object_ != nullptr) {
-    this_object_ = const_cast<mirror::Object*>(visitor(this_object_, arg));
+    this_object_ = visitor(this_object_, arg);
     DCHECK(this_object_ != nullptr);
   }
   if (method_ != nullptr) {
-    method_ = const_cast<mirror::ArtMethod*>(
-        reinterpret_cast<const mirror::ArtMethod*>(visitor(method_, arg)));
+    method_ = down_cast<mirror::ArtMethod*>(visitor(method_, arg));
     DCHECK(method_ != nullptr);
   }
 }

@@ -57,8 +57,9 @@ class MANAGED StackTraceElement : public Object {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void SetClass(Class* java_lang_StackTraceElement);
-
   static void ResetClass();
+  static void VisitRoots(RootVisitor* visitor, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".

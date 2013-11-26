@@ -225,13 +225,24 @@ static void ThrowNoSuchMethodError(ScopedObjectAccess& soa, Class* c,
                                  kind, ClassHelper(c).GetDescriptor(), name, sig);
 }
 
+static mirror::Class* EnsureInitialized(Thread* self, mirror::Class* klass)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (LIKELY(klass->IsInitialized())) {
+    return klass;
+  }
+  SirtRef<mirror::Class> sirt_klass(self, klass);
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(sirt_klass, true, true)) {
+    return nullptr;
+  }
+  return sirt_klass.get();
+}
+
 static jmethodID FindMethodID(ScopedObjectAccess& soa, jclass jni_class,
                               const char* name, const char* sig, bool is_static)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  Class* c = soa.Decode<Class*>(jni_class);
-  DCHECK(c != nullptr);
-  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
-    return NULL;
+  Class* c = EnsureInitialized(soa.Self(), soa.Decode<Class*>(jni_class));
+  if (c == nullptr) {
+    return nullptr;
   }
 
   ArtMethod* method = NULL;
@@ -284,9 +295,9 @@ static ClassLoader* GetClassLoader(const ScopedObjectAccess& soa)
 static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, const char* name,
                             const char* sig, bool is_static)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  Class* c = soa.Decode<Class*>(jni_class);
-  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
-    return NULL;
+  Class* c = EnsureInitialized(soa.Self(), soa.Decode<Class*>(jni_class));
+  if (c == nullptr) {
+    return nullptr;
   }
 
   ArtField* field = NULL;
@@ -910,9 +921,9 @@ class JNI {
   static jobject AllocObject(JNIEnv* env, jclass java_class) {
     CHECK_NON_NULL_ARGUMENT(AllocObject, java_class);
     ScopedObjectAccess soa(env);
-    Class* c = soa.Decode<Class*>(java_class);
-    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
-      return NULL;
+    Class* c = EnsureInitialized(soa.Self(), soa.Decode<Class*>(java_class));
+    if (c == nullptr) {
+      return nullptr;
     }
     return soa.AddLocalReference<jobject>(c->AllocObject(soa.Self()));
   }
@@ -931,20 +942,20 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT(NewObjectV, java_class);
     CHECK_NON_NULL_ARGUMENT(NewObjectV, mid);
     ScopedObjectAccess soa(env);
-    Class* c = soa.Decode<Class*>(java_class);
-    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
-      return NULL;
+    Class* c = EnsureInitialized(soa.Self(), soa.Decode<Class*>(java_class));
+    if (c == nullptr) {
+      return nullptr;
     }
     Object* result = c->AllocObject(soa.Self());
-    if (result == NULL) {
-      return NULL;
+    if (result == nullptr) {
+      return nullptr;
     }
     jobject local_result = soa.AddLocalReference<jobject>(result);
     CallNonvirtualVoidMethodV(env, local_result, java_class, mid, args);
     if (!soa.Self()->IsExceptionPending()) {
       return local_result;
     } else {
-      return NULL;
+      return nullptr;
     }
   }
 
@@ -952,9 +963,9 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT(NewObjectA, java_class);
     CHECK_NON_NULL_ARGUMENT(NewObjectA, mid);
     ScopedObjectAccess soa(env);
-    Class* c = soa.Decode<Class*>(java_class);
-    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
-      return NULL;
+    Class* c = EnsureInitialized(soa.Self(), soa.Decode<Class*>(java_class));
+    if (c == nullptr) {
+      return nullptr;
     }
     Object* result = c->AllocObject(soa.Self());
     if (result == NULL) {
@@ -3303,8 +3314,9 @@ void* JavaVMExt::FindCodeForNativeMethod(ArtMethod* m) {
   // If this is a static method, it could be called before the class
   // has been initialized.
   if (m->IsStatic()) {
-    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
-      return NULL;
+    c = EnsureInitialized(Thread::Current(), c);
+    if (c == nullptr) {
+      return nullptr;
     }
   } else {
     CHECK(c->IsInitializing()) << c->GetStatus() << " " << PrettyMethod(m);

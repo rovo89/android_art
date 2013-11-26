@@ -46,8 +46,8 @@ static mirror::Class* DecodeClass(const ScopedFastNativeObjectAccess& soa, jobje
 static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean initialize, jobject javaLoader) {
   ScopedObjectAccess soa(env);
   ScopedUtfChars name(env, javaName);
-  if (name.c_str() == NULL) {
-    return NULL;
+  if (name.c_str() == nullptr) {
+    return nullptr;
   }
 
   // We need to validate and convert the name (from x.y.z to x/y/z).  This
@@ -57,27 +57,27 @@ static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean
     ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
     soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/ClassNotFoundException;",
                                    "Invalid name: %s", name.c_str());
-    return NULL;
+    return nullptr;
   }
 
   std::string descriptor(DotToDescriptor(name.c_str()));
   SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
                                             soa.Decode<mirror::ClassLoader*>(javaLoader));
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  mirror::Class* c = class_linker->FindClass(descriptor.c_str(), class_loader);
-  if (c == NULL) {
+  SirtRef<mirror::Class> c(soa.Self(), class_linker->FindClass(descriptor.c_str(), class_loader));
+  if (c.get() == nullptr) {
     ScopedLocalRef<jthrowable> cause(env, env->ExceptionOccurred());
     env->ExceptionClear();
     jthrowable cnfe = reinterpret_cast<jthrowable>(env->NewObject(WellKnownClasses::java_lang_ClassNotFoundException,
                                                                   WellKnownClasses::java_lang_ClassNotFoundException_init,
                                                                   javaName, cause.get()));
     env->Throw(cnfe);
-    return NULL;
+    return nullptr;
   }
   if (initialize) {
     class_linker->EnsureInitialized(c, true, true);
   }
-  return soa.AddLocalReference<jclass>(c);
+  return soa.AddLocalReference<jclass>(c.get());
 }
 
 static jstring Class_getNameNative(JNIEnv* env, jobject javaThis) {

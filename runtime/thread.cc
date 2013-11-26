@@ -987,8 +987,9 @@ void Thread::Destroy() {
     mirror::Object* lock =
         soa.DecodeField(WellKnownClasses::java_lang_Thread_lock)->GetObject(opeer_);
     // (This conditional is only needed for tests, where Thread.lock won't have been set.)
-    if (lock != NULL) {
-      ObjectLock locker(self, lock);
+    if (lock != nullptr) {
+      SirtRef<mirror::Object> sirt_obj(self, lock);
+      ObjectLock<mirror::Object> locker(self, &sirt_obj);
       locker.Notify();
     }
   }
@@ -1444,9 +1445,9 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
   ClearException();
   Runtime* runtime = Runtime::Current();
 
-  mirror::ClassLoader* cl = NULL;
-  if (throw_location.GetMethod() != NULL) {
-    cl = throw_location.GetMethod()->GetDeclaringClass()->GetClassLoader();
+  mirror::ClassLoader* cl = nullptr;
+  if (saved_throw_method.get() != nullptr) {
+    cl = saved_throw_method.get()->GetDeclaringClass()->GetClassLoader();
   }
   SirtRef<mirror::ClassLoader> class_loader(this, cl);
   SirtRef<mirror::Class>
@@ -1458,7 +1459,7 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
     return;
   }
 
-  if (UNLIKELY(!runtime->GetClassLinker()->EnsureInitialized(exception_class.get(), true, true))) {
+  if (UNLIKELY(!runtime->GetClassLinker()->EnsureInitialized(exception_class, true, true))) {
     DCHECK(IsExceptionPending());
     return;
   }
@@ -1468,7 +1469,9 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
 
   // If we couldn't allocate the exception, throw the pre-allocated out of memory exception.
   if (exception.get() == nullptr) {
-    SetException(throw_location, Runtime::Current()->GetPreAllocatedOutOfMemoryError());
+    ThrowLocation gc_safe_throw_location(saved_throw_this.get(), saved_throw_method.get(),
+                                         throw_location.GetDexPc());
+    SetException(gc_safe_throw_location, Runtime::Current()->GetPreAllocatedOutOfMemoryError());
     return;
   }
 

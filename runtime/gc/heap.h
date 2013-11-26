@@ -126,11 +126,6 @@ enum ProcessState {
   kProcessStateJankImperceptible = 1,
 };
 
-// If true, measure the total allocation time.
-static constexpr bool kMeasureAllocationTime = false;
-// Primitive arrays larger than this size are put in the large object space.
-static constexpr size_t kLargeObjectThreshold = 3 * kPageSize;
-
 class Heap {
  public:
   // If true, measure the total allocation time.
@@ -522,10 +517,16 @@ class Heap {
   ALWAYS_INLINE void CheckConcurrentGC(Thread* self, size_t new_num_bytes_allocated,
                                        mirror::Object* obj);
 
+  // We don't force this to be inline since it is a slow path.
+  template <bool kInstrumented, typename PreFenceVisitor>
+  mirror::Object* AllocLargeObject(Thread* self, mirror::Class* klass, size_t byte_count,
+                                   const PreFenceVisitor& pre_fence_visitor)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Handles Allocate()'s slow allocation path with GC involved after
   // an initial allocation attempt failed.
   mirror::Object* AllocateInternalWithGc(Thread* self, AllocatorType allocator, size_t num_bytes,
-                                         size_t* bytes_allocated)
+                                         size_t* bytes_allocated, mirror::Class** klass)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -536,15 +537,15 @@ class Heap {
 
   // Try to allocate a number of bytes, this function never does any GCs. Needs to be inlined so
   // that the switch statement is constant optimized in the entrypoints.
-  template <const bool kInstrumented>
+  template <const bool kInstrumented, const bool kGrow>
   ALWAYS_INLINE mirror::Object* TryToAllocate(Thread* self, AllocatorType allocator_type,
-                                              size_t alloc_size, bool grow,
-                                              size_t* bytes_allocated)
+                                              size_t alloc_size, size_t* bytes_allocated)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void ThrowOutOfMemoryError(Thread* self, size_t byte_count, bool large_object_allocation)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool IsOutOfMemoryOnAllocation(size_t alloc_size, bool grow);
+  template <const bool kGrow>
+  bool IsOutOfMemoryOnAllocation(size_t alloc_size);
 
   // Pushes a list of cleared references out to the managed heap.
   void SetReferenceReferent(mirror::Object* reference, mirror::Object* referent)

@@ -298,8 +298,8 @@ extern "C" uint64_t artQuickToInterpreterBridge(mirror::ArtMethod* method, Threa
 
     if (method->IsStatic() && !method->GetDeclaringClass()->IsInitializing()) {
       // Ensure static method's class is initialized.
-      if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(method->GetDeclaringClass(),
-                                                                   true, true)) {
+      SirtRef<mirror::Class> sirt_c(self, method->GetDeclaringClass());
+      if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(sirt_c, true, true)) {
         DCHECK(Thread::Current()->IsExceptionPending());
         self->PopManagedStackFragment(fragment);
         return 0;
@@ -564,7 +564,7 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
       }
     }
     // Ensure that the called method's class is initialized.
-    mirror::Class* called_class = called->GetDeclaringClass();
+    SirtRef<mirror::Class> called_class(soa.Self(), called->GetDeclaringClass());
     linker->EnsureInitialized(called_class, true, true);
     if (LIKELY(called_class->IsInitialized())) {
       code = called->GetEntryPointFromCompiledCode();

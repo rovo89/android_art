@@ -47,6 +47,7 @@
 #include "mirror/array.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
+#include "mirror/stack_trace_element.h"
 #include "mirror/throwable.h"
 #include "monitor.h"
 #include "oat_file.h"
@@ -86,6 +87,7 @@ Runtime::Runtime()
       resolution_method_(NULL),
       imt_conflict_method_(NULL),
       default_imt_(NULL),
+      method_verifiers_lock_("Method verifiers lock"),
       threads_being_born_(0),
       shutdown_cond_(new ConditionVariable("Runtime shutdown", *Locks::runtime_shutdown_lock_)),
       shutting_down_(false),
@@ -699,35 +701,38 @@ jobject CreateSystemClassLoader() {
   }
 
   ScopedObjectAccess soa(Thread::Current());
+  ClassLinker* cl = Runtime::Current()->GetClassLinker();
 
-  mirror::Class* class_loader_class =
-      soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ClassLoader);
-  CHECK(Runtime::Current()->GetClassLinker()->EnsureInitialized(class_loader_class, true, true));
+  SirtRef<mirror::Class> class_loader_class(
+      soa.Self(), soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ClassLoader));
+  CHECK(cl->EnsureInitialized(class_loader_class, true, true));
 
   mirror::ArtMethod* getSystemClassLoader =
       class_loader_class->FindDirectMethod("getSystemClassLoader", "()Ljava/lang/ClassLoader;");
   CHECK(getSystemClassLoader != NULL);
 
   JValue result;
-  ArgArray arg_array(NULL, 0);
+  ArgArray arg_array(nullptr, 0);
   InvokeWithArgArray(soa, getSystemClassLoader, &arg_array, &result, 'L');
-  mirror::ClassLoader* class_loader = down_cast<mirror::ClassLoader*>(result.GetL());
-  CHECK(class_loader != NULL);
-
+  SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
+                                            down_cast<mirror::ClassLoader*>(result.GetL()));
+  CHECK(class_loader.get() != nullptr);
   JNIEnv* env = soa.Self()->GetJniEnv();
-  ScopedLocalRef<jobject> system_class_loader(env, soa.AddLocalReference<jobject>(class_loader));
-  CHECK(system_class_loader.get() != NULL);
+  ScopedLocalRef<jobject> system_class_loader(env,
+                                              soa.AddLocalReference<jobject>(class_loader.get()));
+  CHECK(system_class_loader.get() != nullptr);
 
-  soa.Self()->SetClassLoaderOverride(class_loader);
+  soa.Self()->SetClassLoaderOverride(class_loader.get());
 
-  mirror::Class* thread_class = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_Thread);
-  CHECK(Runtime::Current()->GetClassLinker()->EnsureInitialized(thread_class, true, true));
+  SirtRef<mirror::Class> thread_class(soa.Self(),
+                                      soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_Thread));
+  CHECK(cl->EnsureInitialized(thread_class, true, true));
 
-  mirror::ArtField* contextClassLoader = thread_class->FindDeclaredInstanceField("contextClassLoader",
-                                                                                 "Ljava/lang/ClassLoader;");
+  mirror::ArtField* contextClassLoader =
+      thread_class->FindDeclaredInstanceField("contextClassLoader", "Ljava/lang/ClassLoader;");
   CHECK(contextClassLoader != NULL);
 
-  contextClassLoader->SetObject(soa.Self()->GetPeer(), class_loader);
+  contextClassLoader->SetObject(soa.Self()->GetPeer(), class_loader.get());
 
   return env->NewGlobalRef(system_class_loader.get());
 }
@@ -1188,9 +1193,25 @@ void Runtime::VisitConcurrentRoots(RootVisitor* visitor, void* arg, bool only_di
 }
 
 void Runtime::VisitNonThreadRoots(RootVisitor* visitor, void* arg) {
+  // Visit the classes held as static in mirror classes.
+  mirror::ArtField::VisitRoots(visitor, arg);
+  mirror::ArtMethod::VisitRoots(visitor, arg);
+  mirror::Class::VisitRoots(visitor, arg);
+  mirror::StackTraceElement::VisitRoots(visitor, arg);
+  mirror::String::VisitRoots(visitor, arg);
+  mirror::Throwable::VisitRoots(visitor, arg);
+  // Visit all the primitive array types classes.
+  mirror::PrimitiveArray<uint8_t>::VisitRoots(visitor, arg);   // BooleanArray
+  mirror::PrimitiveArray<int8_t>::VisitRoots(visitor, arg);    // ByteArray
+  mirror::PrimitiveArray<uint16_t>::VisitRoots(visitor, arg);  // CharArray
+  mirror::PrimitiveArray<double>::VisitRoots(visitor, arg);    // DoubleArray
+  mirror::PrimitiveArray<float>::VisitRoots(visitor, arg);     // FloatArray
+  mirror::PrimitiveArray<int32_t>::VisitRoots(visitor, arg);   // IntArray
+  mirror::PrimitiveArray<int64_t>::VisitRoots(visitor, arg);   // LongArray
+  mirror::PrimitiveArray<int16_t>::VisitRoots(visitor, arg);   // ShortArray
   java_vm_->VisitRoots(visitor, arg);
   if (pre_allocated_OutOfMemoryError_ != nullptr) {
-    pre_allocated_OutOfMemoryError_ = reinterpret_cast<mirror::Throwable*>(
+    pre_allocated_OutOfMemoryError_ = down_cast<mirror::Throwable*>(
         visitor(pre_allocated_OutOfMemoryError_, arg));
     DCHECK(pre_allocated_OutOfMemoryError_ != nullptr);
   }
@@ -1207,6 +1228,12 @@ void Runtime::VisitNonThreadRoots(RootVisitor* visitor, void* arg) {
     if (callee_save_methods_[i] != nullptr) {
       callee_save_methods_[i] = down_cast<mirror::ArtMethod*>(
           visitor(callee_save_methods_[i], arg));
+    }
+  }
+  {
+    MutexLock mu(Thread::Current(), method_verifiers_lock_);
+    for (verifier::MethodVerifier* verifier : method_verifiers_) {
+      verifier->VisitRoots(visitor, arg);
     }
   }
 }
@@ -1353,6 +1380,20 @@ void Runtime::SetCompileTimeClassPath(jobject class_loader, std::vector<const De
   CHECK(!IsStarted());
   use_compile_time_class_path_ = true;
   compile_time_class_paths_.Put(class_loader, class_path);
+}
+
+void Runtime::AddMethodVerifier(verifier::MethodVerifier* verifier) {
+  DCHECK(verifier != nullptr);
+  MutexLock mu(Thread::Current(), method_verifiers_lock_);
+  method_verifiers_.insert(verifier);
+}
+
+void Runtime::RemoveMethodVerifier(verifier::MethodVerifier* verifier) {
+  DCHECK(verifier != nullptr);
+  MutexLock mu(Thread::Current(), method_verifiers_lock_);
+  auto it = method_verifiers_.find(verifier);
+  CHECK(it != method_verifiers_.end());
+  method_verifiers_.erase(it);
 }
 
 }  // namespace art
