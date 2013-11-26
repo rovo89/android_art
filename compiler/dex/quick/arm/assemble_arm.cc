@@ -1615,7 +1615,6 @@ void ArmMir2Lir::AssembleLIR() {
 
   data_offset_ = (code_buffer_.size() + 0x3) & ~0x3;
 
-  cu_->NewTimingSplit("LiteralData");
   // Install literals
   InstallLiteralPools();
 
