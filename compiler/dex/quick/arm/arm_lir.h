@@ -426,9 +426,11 @@ enum ArmOpcode {
   kThumb2Vmovd_IMM8,  // vmov.f64 [111011101] D [11] imm4h[19-16] vd[15-12] [10110000] imm4l[3-0].
   kThumb2Mla,        // mla [111110110000] rn[19-16] ra[15-12] rd[7-4] [0000] rm[3-0].
   kThumb2Umull,      // umull [111110111010] rn[19-16], rdlo[15-12] rdhi[11-8] [0000] rm[3-0].
-  kThumb2Ldrex,      // ldrex [111010000101] rn[19-16] rt[11-8] [1111] imm8[7-0].
-  kThumb2Strex,      // strex [111010000100] rn[19-16] rt[11-8] rd[11-8] imm8[7-0].
-  kThumb2Clrex,      // clrex [111100111011111110000111100101111].
+  kThumb2Ldrex,      // ldrex [111010000101] rn[19-16] rt[15-12] [1111] imm8[7-0].
+  kThumb2Ldrexd,     // ldrexd [111010001101] rn[19-16] rt[15-12] rt2[11-8] [11111111].
+  kThumb2Strex,      // strex [111010000100] rn[19-16] rt[15-12] rd[11-8] imm8[7-0].
+  kThumb2Strexd,     // strexd [111010001100] rn[19-16] rt[15-12] rt2[11-8] [0111] Rd[3-0].
+  kThumb2Clrex,      // clrex [11110011101111111000111100101111].
   kThumb2Bfi,        // bfi [111100110110] rn[19-16] [0] imm3[14-12] rd[11-8] imm2[7-6] [0] msb[4-0].
   kThumb2Bfc,        // bfc [11110011011011110] [0] imm3[14-12] rd[11-8] imm2[7-6] [0] msb[4-0].
   kThumb2Dmb,        // dmb [1111001110111111100011110101] option[3-0].
@@ -447,7 +449,7 @@ enum ArmOpcode {
   kThumb2MovImm16HST,  // Special purpose version for switch table use.
   kThumb2LdmiaWB,    // ldmia  [111010011001[ rn[19..16] mask[15..0].
   kThumb2SubsRRI12,  // setflags encoding.
-  kThumb2OrrRRRs,    // orrx [111010100101] rn[19..16] [0000] rd[11..8] [0000] rm[3..0].
+  kThumb2OrrRRRs,    // orrs [111010100101] rn[19..16] [0000] rd[11..8] [0000] rm[3..0].
   kThumb2Push1,      // t3 encoding of push.
   kThumb2Pop1,       // t3 encoding of pop.
   kThumb2RsubRRR,    // rsb [111010111101] rn[19..16] [0000] rd[11..8] [0000] rm[3..0].
