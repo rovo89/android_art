@@ -19,12 +19,15 @@
 #include "arena_allocator.h"
 #include "base/logging.h"
 #include "base/mutex.h"
+#include "thread-inl.h"
+#include <memcheck/memcheck.h>
 
 namespace art {
 
 // Memmap is a bit slower than malloc according to my measurements.
 static constexpr bool kUseMemMap = false;
 static constexpr bool kUseMemSet = true && kUseMemMap;
+static constexpr size_t kValgrindRedZoneBytes = 8;
 
 static const char* alloc_names[ArenaAllocator::kNumAllocKinds] = {
   "Misc       ",
@@ -47,7 +50,9 @@ Arena::Arena(size_t size)
       map_(nullptr),
       next_(nullptr) {
   if (kUseMemMap) {
-    map_ = MemMap::MapAnonymous("dalvik-arena", NULL, size, PROT_READ | PROT_WRITE);
+    std::string error_msg;
+    map_ = MemMap::MapAnonymous("dalvik-arena", NULL, size, PROT_READ | PROT_WRITE, &error_msg);
+    CHECK(map_ != nullptr) << error_msg;
     memory_ = map_->Begin();
     size_ = map_->Size();
   } else {
@@ -107,6 +112,9 @@ Arena* ArenaPool::AllocArena(size_t size) {
 
 void ArenaPool::FreeArena(Arena* arena) {
   Thread* self = Thread::Current();
+  if (UNLIKELY(RUNNING_ON_VALGRIND)) {
+    VALGRIND_MAKE_MEM_UNDEFINED(arena->memory_, arena->bytes_allocated_);
+  }
   {
     MutexLock lock(self, lock_);
     arena->next_ = free_arenas_;
@@ -128,7 +136,8 @@ ArenaAllocator::ArenaAllocator(ArenaPool* pool)
     end_(nullptr),
     ptr_(nullptr),
     arena_head_(nullptr),
-    num_allocations_(0) {
+    num_allocations_(0),
+    running_on_valgrind_(RUNNING_ON_VALGRIND) {
   memset(&alloc_stats_[0], 0, sizeof(alloc_stats_));
 }
 
@@ -138,6 +147,29 @@ void ArenaAllocator::UpdateBytesAllocated() {
     // much memory to zero out.
     arena_head_->bytes_allocated_ = ptr_ - begin_;
   }
+}
+
+void* ArenaAllocator::AllocValgrind(size_t bytes, ArenaAllocKind kind) {
+  size_t rounded_bytes = (bytes + 3 + kValgrindRedZoneBytes) & ~3;
+  if (UNLIKELY(ptr_ + rounded_bytes > end_)) {
+    // Obtain a new block.
+    ObtainNewArenaForAllocation(rounded_bytes);
+    if (UNLIKELY(ptr_ == nullptr)) {
+      return nullptr;
+    }
+  }
+  if (kCountAllocations) {
+    alloc_stats_[kind] += rounded_bytes;
+    ++num_allocations_;
+  }
+  uint8_t* ret = ptr_;
+  ptr_ += rounded_bytes;
+  // Check that the memory is already zeroed out.
+  for (uint8_t* ptr = ret; ptr < ptr_; ++ptr) {
+    CHECK_EQ(*ptr, 0U);
+  }
+  VALGRIND_MAKE_MEM_NOACCESS(ret + bytes, rounded_bytes - bytes);
+  return ret;
 }
 
 ArenaAllocator::~ArenaAllocator() {

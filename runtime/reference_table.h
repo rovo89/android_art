@@ -39,9 +39,9 @@ class ReferenceTable {
   ReferenceTable(const char* name, size_t initial_size, size_t max_size);
   ~ReferenceTable();
 
-  void Add(const mirror::Object* obj);
+  void Add(mirror::Object* obj);
 
-  void Remove(const mirror::Object* obj);
+  void Remove(mirror::Object* obj);
 
   size_t Size() const;
 
@@ -50,7 +50,7 @@ class ReferenceTable {
   void VisitRoots(RootVisitor* visitor, void* arg);
 
  private:
-  typedef std::vector<const mirror::Object*> Table;
+  typedef std::vector<mirror::Object*> Table;
   static void Dump(std::ostream& os, const Table& entries)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   friend class IndirectReferenceTable;  // For Dump.

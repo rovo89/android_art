@@ -35,19 +35,18 @@ namespace verifier {
 
 class RegType;
 
-const size_t kNumPrimitives = 12;
 class RegTypeCache {
  public:
   explicit RegTypeCache(bool can_load_classes) : can_load_classes_(can_load_classes) {
     entries_.reserve(64);
-    FillPrimitiveTypes();
+    FillPrimitiveAndSmallConstantTypes();
   }
   ~RegTypeCache();
   static void Init() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (!RegTypeCache::primitive_initialized_) {
       CHECK_EQ(RegTypeCache::primitive_count_, 0);
-      CreatePrimitiveTypes();
-      CHECK_EQ(RegTypeCache::primitive_count_, kNumPrimitives);
+      CreatePrimitiveAndSmallConstantTypes();
+      CHECK_EQ(RegTypeCache::primitive_count_, kNumPrimitivesAndSmallConstants);
       RegTypeCache::primitive_initialized_ = true;
     }
   }
@@ -55,17 +54,13 @@ class RegTypeCache {
   const art::verifier::RegType& GetFromId(uint16_t id) const;
   const RegType& From(mirror::ClassLoader* loader, const char* descriptor, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  template <class Type>
-  static Type* CreatePrimitiveTypeInstance(const std::string& descriptor)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FillPrimitiveTypes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const RegType& FromClass(const char* descriptor, mirror::Class* klass, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const RegType& FromCat1Const(int32_t value, bool precise)
+  const ConstantType& FromCat1Const(int32_t value, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const RegType& FromCat2ConstLo(int32_t value, bool precise)
+  const ConstantType& FromCat2ConstLo(int32_t value, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const RegType& FromCat2ConstHi(int32_t value, bool precise)
+  const ConstantType& FromCat2ConstHi(int32_t value, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const RegType& FromDescriptor(mirror::ClassLoader* loader, const char* descriptor, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -129,34 +124,56 @@ class RegTypeCache {
   const RegType& JavaLangObject(bool precise) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return From(NULL, "Ljava/lang/Object;", precise);
   }
-  const RegType& Uninitialized(const RegType& type, uint32_t allocation_pc)
+  const UninitializedType& Uninitialized(const RegType& type, uint32_t allocation_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Create an uninitialized 'this' argument for the given type.
-  const RegType& UninitializedThisArgument(const RegType& type)
+  const UninitializedType& UninitializedThisArgument(const RegType& type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const RegType& FromUninitialized(const RegType& uninit_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const RegType& ByteConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const RegType& ShortConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const RegType& IntConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const ImpreciseConstType& ByteConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const ImpreciseConstType& ShortConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const ImpreciseConstType& IntConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const RegType& GetComponentType(const RegType& array, mirror::ClassLoader* loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void Dump(std::ostream& os) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const RegType& RegTypeFromPrimitiveType(Primitive::Type) const;
 
  private:
-  std::vector<RegType*> entries_;
-  static bool primitive_initialized_;
-  static uint16_t primitive_start_;
-  static uint16_t primitive_count_;
-  static void CreatePrimitiveTypes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  // Whether or not we're allowed to load classes.
-  const bool can_load_classes_;
+  void FillPrimitiveAndSmallConstantTypes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   mirror::Class* ResolveClass(const char* descriptor, mirror::ClassLoader* loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void ClearException();
   bool MatchDescriptor(size_t idx, const char* descriptor, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const ConstantType& FromCat1NonSmallConstant(int32_t value, bool precise)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  template <class Type>
+  static Type* CreatePrimitiveTypeInstance(const std::string& descriptor)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static void CreatePrimitiveAndSmallConstantTypes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // The actual storage for the RegTypes.
+  std::vector<RegType*> entries_;
+
+  // A quick look up for popular small constants.
+  static constexpr int32_t kMinSmallConstant = -1;
+  static constexpr int32_t kMaxSmallConstant = 4;
+  static PreciseConstType* small_precise_constants_[kMaxSmallConstant - kMinSmallConstant + 1];
+
+  static constexpr size_t kNumPrimitivesAndSmallConstants =
+      12 + (kMaxSmallConstant - kMinSmallConstant + 1);
+
+  // Have the well known global primitives been created?
+  static bool primitive_initialized_;
+
+  // Number of well known primitives that will be copied into a RegTypeCache upon construction.
+  static uint16_t primitive_count_;
+
+  // Whether or not we're allowed to load classes.
+  const bool can_load_classes_;
+
   DISALLOW_COPY_AND_ASSIGN(RegTypeCache);
 };
 

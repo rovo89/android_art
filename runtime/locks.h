@@ -53,8 +53,8 @@ enum LockLevel {
   kJdwpAttachLock,
   kJdwpStartLock,
   kRuntimeShutdownLock,
-  kHeapBitmapLock,
   kMonitorLock,
+  kHeapBitmapLock,
   kMutatorLock,
   kZygoteCreationLock,
 

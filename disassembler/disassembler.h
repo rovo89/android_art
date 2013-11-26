@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_DISASSEMBLER_H_
-#define ART_RUNTIME_DISASSEMBLER_H_
+#ifndef ART_DISASSEMBLER_DISASSEMBLER_H_
+#define ART_DISASSEMBLER_DISASSEMBLER_H_
 
 #include <stdint.h>
 
@@ -45,4 +45,4 @@ class Disassembler {
 
 }  // namespace art
 
-#endif  // ART_RUNTIME_DISASSEMBLER_H_
+#endif  // ART_DISASSEMBLER_DISASSEMBLER_H_

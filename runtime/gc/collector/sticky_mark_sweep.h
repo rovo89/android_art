@@ -31,6 +31,10 @@ class StickyMarkSweep : public PartialMarkSweep {
     return kGcTypeSticky;
   }
 
+  // Don't need to do anything special here since we scan all the cards which may have references
+  // to the newly allocated objects.
+  virtual void UpdateAndMarkModUnion() { }
+
   explicit StickyMarkSweep(Heap* heap, bool is_concurrent, const std::string& name_prefix = "");
   ~StickyMarkSweep() {}
 

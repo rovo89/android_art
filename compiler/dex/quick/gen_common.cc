@@ -30,16 +30,17 @@ namespace art {
  */
 
 /*
- * Generate an kPseudoBarrier marker to indicate the boundary of special
+ * Generate a kPseudoBarrier marker to indicate the boundary of special
  * blocks.
  */
 void Mir2Lir::GenBarrier() {
   LIR* barrier = NewLIR0(kPseudoBarrier);
   /* Mark all resources as being clobbered */
-  barrier->def_mask = -1;
+  DCHECK(!barrier->flags.use_def_invalid);
+  barrier->u.m.def_mask = ENCODE_ALL;
 }
 
-// FIXME: need to do some work to split out targets with
+// TODO: need to do some work to split out targets with
 // condition codes and those without
 LIR* Mir2Lir::GenCheck(ConditionCode c_code, ThrowKind kind) {
   DCHECK_NE(cu_->instruction_set, kMips);
@@ -65,8 +66,7 @@ LIR* Mir2Lir::GenImmedCheck(ConditionCode c_code, int reg, int imm_val, ThrowKin
 
 /* Perform null-check on a register.  */
 LIR* Mir2Lir::GenNullCheck(int s_reg, int m_reg, int opt_flags) {
-  if (!(cu_->disable_opt & (1 << kNullCheckElimination)) &&
-    opt_flags & MIR_IGNORE_NULL_CHECK) {
+  if (!(cu_->disable_opt & (1 << kNullCheckElimination)) && (opt_flags & MIR_IGNORE_NULL_CHECK)) {
     return NULL;
   }
   return GenImmedCheck(kCondEq, m_reg, 0, kThrowNullPointer);
@@ -127,13 +127,11 @@ void Mir2Lir::GenCompareAndBranch(Instruction::Code opcode, RegLocation rl_src1,
         InexpensiveConstantInt(mir_graph_->ConstantValue(rl_src2))) {
       // OK - convert this to a compare immediate and branch
       OpCmpImmBranch(cond, rl_src1.low_reg, mir_graph_->ConstantValue(rl_src2), taken);
-      OpUnconditionalBranch(fall_through);
       return;
     }
   }
   rl_src2 = LoadValue(rl_src2, kCoreReg);
   OpCmpBranch(cond, rl_src1.low_reg, rl_src2.low_reg, taken);
-  OpUnconditionalBranch(fall_through);
 }
 
 void Mir2Lir::GenCompareZeroAndBranch(Instruction::Code opcode, RegLocation rl_src, LIR* taken,
@@ -164,7 +162,6 @@ void Mir2Lir::GenCompareZeroAndBranch(Instruction::Code opcode, RegLocation rl_s
       LOG(FATAL) << "Unexpected opcode " << opcode;
   }
   OpCmpImmBranch(cond, rl_src.low_reg, 0, taken);
-  OpUnconditionalBranch(fall_through);
 }
 
 void Mir2Lir::GenIntToLong(RegLocation rl_dest, RegLocation rl_src) {
@@ -337,8 +334,8 @@ void Mir2Lir::GenSput(uint32_t field_idx, RegLocation rl_src, bool is_long_or_do
   bool is_volatile;
   bool is_referrers_class;
   bool fast_path = cu_->compiler_driver->ComputeStaticFieldInfo(
-      field_idx, mir_graph_->GetCurrentDexCompilationUnit(), field_offset, ssb_index,
-      is_referrers_class, is_volatile, true);
+      field_idx, mir_graph_->GetCurrentDexCompilationUnit(), true,
+      &field_offset, &ssb_index, &is_referrers_class, &is_volatile);
   if (fast_path && !SLOW_FIELD_PATH) {
     DCHECK_GE(field_offset, 0);
     int rBase;
@@ -423,8 +420,8 @@ void Mir2Lir::GenSget(uint32_t field_idx, RegLocation rl_dest,
   bool is_volatile;
   bool is_referrers_class;
   bool fast_path = cu_->compiler_driver->ComputeStaticFieldInfo(
-      field_idx, mir_graph_->GetCurrentDexCompilationUnit(), field_offset, ssb_index,
-      is_referrers_class, is_volatile, false);
+      field_idx, mir_graph_->GetCurrentDexCompilationUnit(), false,
+      &field_offset, &ssb_index, &is_referrers_class, &is_volatile);
   if (fast_path && !SLOW_FIELD_PATH) {
     DCHECK_GE(field_offset, 0);
     int rBase;
@@ -506,7 +503,7 @@ void Mir2Lir::HandleSuspendLaunchPads() {
     ResetRegPool();
     ResetDefTracking();
     LIR* lab = suspend_launchpads_.Get(i);
-    LIR* resume_lab = reinterpret_cast<LIR*>(lab->operands[0]);
+    LIR* resume_lab = reinterpret_cast<LIR*>(UnwrapPointer(lab->operands[0]));
     current_dalvik_offset_ = lab->operands[1];
     AppendLIR(lab);
     int r_tgt = CallHelperSetup(helper_offset);
@@ -521,12 +518,12 @@ void Mir2Lir::HandleIntrinsicLaunchPads() {
     ResetRegPool();
     ResetDefTracking();
     LIR* lab = intrinsic_launchpads_.Get(i);
-    CallInfo* info = reinterpret_cast<CallInfo*>(lab->operands[0]);
+    CallInfo* info = reinterpret_cast<CallInfo*>(UnwrapPointer(lab->operands[0]));
     current_dalvik_offset_ = info->offset;
     AppendLIR(lab);
     // NOTE: GenInvoke handles MarkSafepointPC
     GenInvoke(info);
-    LIR* resume_lab = reinterpret_cast<LIR*>(lab->operands[2]);
+    LIR* resume_lab = reinterpret_cast<LIR*>(UnwrapPointer(lab->operands[2]));
     if (resume_lab != NULL) {
       OpUnconditionalBranch(resume_lab);
     }
@@ -626,7 +623,7 @@ void Mir2Lir::GenIGet(uint32_t field_idx, int opt_flags, OpSize size,
   int field_offset;
   bool is_volatile;
 
-  bool fast_path = FastInstance(field_idx, field_offset, is_volatile, false);
+  bool fast_path = FastInstance(field_idx, false, &field_offset, &is_volatile);
 
   if (fast_path && !SLOW_FIELD_PATH) {
     RegLocation rl_result;
@@ -687,8 +684,7 @@ void Mir2Lir::GenIPut(uint32_t field_idx, int opt_flags, OpSize size,
   int field_offset;
   bool is_volatile;
 
-  bool fast_path = FastInstance(field_idx, field_offset, is_volatile,
-                 true);
+  bool fast_path = FastInstance(field_idx, true, &field_offset, &is_volatile);
   if (fast_path && !SLOW_FIELD_PATH) {
     RegisterClass reg_class = oat_reg_class_by_size(size);
     DCHECK_GE(field_offset, 0);
@@ -728,6 +724,18 @@ void Mir2Lir::GenIPut(uint32_t field_idx, int opt_flags, OpSize size,
                                        : QUICK_ENTRYPOINT_OFFSET(pSet32Instance));
     CallRuntimeHelperImmRegLocationRegLocation(setter_offset, field_idx, rl_obj, rl_src, true);
   }
+}
+
+void Mir2Lir::GenArrayObjPut(int opt_flags, RegLocation rl_array, RegLocation rl_index,
+                             RegLocation rl_src) {
+  bool needs_range_check = !(opt_flags & MIR_IGNORE_RANGE_CHECK);
+  bool needs_null_check = !((cu_->disable_opt & (1 << kNullCheckElimination)) &&
+      (opt_flags & MIR_IGNORE_NULL_CHECK));
+  ThreadOffset helper = needs_range_check
+      ? (needs_null_check ? QUICK_ENTRYPOINT_OFFSET(pAputObjectWithNullAndBoundCheck)
+                          : QUICK_ENTRYPOINT_OFFSET(pAputObjectWithBoundCheck))
+      : QUICK_ENTRYPOINT_OFFSET(pAputObject);
+  CallRuntimeHelperRegLocationRegLocationRegLocation(helper, rl_array, rl_index, rl_src, true);
 }
 
 void Mir2Lir::GenConstClass(uint32_t type_idx, RegLocation rl_dest) {
@@ -1113,8 +1121,8 @@ void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_
   if (!type_known_abstract) {
     branch2 = OpCmpBranch(kCondEq, TargetReg(kArg1), class_reg, NULL);
   }
-  CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(pCheckCast), TargetReg(kArg1),
-                          TargetReg(kArg2), true);
+  CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(pCheckCast), TargetReg(kArg2),
+                          TargetReg(kArg1), true);
   /* branch target here */
   LIR* target = NewLIR0(kPseudoTargetLabel);
   branch1->target = target;
@@ -1299,6 +1307,7 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
     }
     StoreValue(rl_dest, rl_result);
   } else {
+    bool done = false;      // Set to true if we happen to find a way to use a real instruction.
     if (cu_->instruction_set == kMips) {
       rl_src1 = LoadValue(rl_src1, kCoreReg);
       rl_src2 = LoadValue(rl_src2, kCoreReg);
@@ -1306,7 +1315,23 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
           GenImmedCheck(kCondEq, rl_src2.low_reg, 0, kThrowDivZero);
       }
       rl_result = GenDivRem(rl_dest, rl_src1.low_reg, rl_src2.low_reg, op == kOpDiv);
-    } else {
+      done = true;
+    } else if (cu_->instruction_set == kThumb2) {
+      if (cu_->GetInstructionSetFeatures().HasDivideInstruction()) {
+        // Use ARM SDIV instruction for division.  For remainder we also need to
+        // calculate using a MUL and subtract.
+        rl_src1 = LoadValue(rl_src1, kCoreReg);
+        rl_src2 = LoadValue(rl_src2, kCoreReg);
+        if (check_zero) {
+            GenImmedCheck(kCondEq, rl_src2.low_reg, 0, kThrowDivZero);
+        }
+        rl_result = GenDivRem(rl_dest, rl_src1.low_reg, rl_src2.low_reg, op == kOpDiv);
+        done = true;
+      }
+    }
+
+    // If we haven't already generated the code use the callout function.
+    if (!done) {
       ThreadOffset func_offset = QUICK_ENTRYPOINT_OFFSET(pIdivmod);
       FlushAllRegs();   /* Send everything to home location */
       LoadValueDirectFixed(rl_src2, TargetReg(kArg1));
@@ -1315,7 +1340,7 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
       if (check_zero) {
         GenImmedCheck(kCondEq, TargetReg(kArg1), 0, kThrowDivZero);
       }
-      // NOTE: callout here is not a safepoint
+      // NOTE: callout here is not a safepoint.
       CallHelper(r_tgt, func_offset, false /* not a safepoint */);
       if (op == kOpDiv)
         rl_result = GetReturn(false);
@@ -1343,7 +1368,7 @@ static bool IsPopCountLE2(unsigned int x) {
 }
 
 // Returns the index of the lowest set bit in 'x'.
-static int LowestSetBit(unsigned int x) {
+static int32_t LowestSetBit(uint32_t x) {
   int bit_posn = 0;
   while ((x & 0xf) == 0) {
     bit_posn += 4;
@@ -1553,11 +1578,24 @@ void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, Re
       if (HandleEasyDivRem(opcode, is_div, rl_src, rl_dest, lit)) {
         return;
       }
+
+      bool done = false;
       if (cu_->instruction_set == kMips) {
         rl_src = LoadValue(rl_src, kCoreReg);
         rl_result = GenDivRemLit(rl_dest, rl_src.low_reg, lit, is_div);
-      } else {
-        FlushAllRegs();   /* Everything to home location */
+        done = true;
+      } else if (cu_->instruction_set == kThumb2) {
+        if (cu_->GetInstructionSetFeatures().HasDivideInstruction()) {
+          // Use ARM SDIV instruction for division.  For remainder we also need to
+          // calculate using a MUL and subtract.
+          rl_src = LoadValue(rl_src, kCoreReg);
+          rl_result = GenDivRemLit(rl_dest, rl_src.low_reg, lit, is_div);
+          done = true;
+        }
+      }
+
+      if (!done) {
+        FlushAllRegs();   /* Everything to home location. */
         LoadValueDirectFixed(rl_src, TargetReg(kArg0));
         Clobber(TargetReg(kArg0));
         ThreadOffset func_offset = QUICK_ENTRYPOINT_OFFSET(pIdivmod);
@@ -1575,7 +1613,7 @@ void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, Re
   }
   rl_src = LoadValue(rl_src, kCoreReg);
   rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  // Avoid shifts by literal 0 - no support in Thumb.  Change to copy
+  // Avoid shifts by literal 0 - no support in Thumb.  Change to copy.
   if (shift_op && (lit == 0)) {
     OpRegCopy(rl_result.low_reg, rl_src.low_reg);
   } else {
@@ -1651,7 +1689,7 @@ void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
     case Instruction::REM_LONG_2ADDR:
       call_out = true;
       check_zero = true;
-      func_offset = QUICK_ENTRYPOINT_OFFSET(pLdivmod);
+      func_offset = QUICK_ENTRYPOINT_OFFSET(pLmod);
       /* NOTE - for Arm, result is in kArg2/kArg3 instead of kRet0/kRet1 */
       ret_reg = (cu_->instruction_set == kThumb2) ? TargetReg(kArg2) : TargetReg(kRet0);
       break;
@@ -1744,8 +1782,8 @@ void Mir2Lir::GenSuspendTest(int opt_flags) {
   FlushAllRegs();
   LIR* branch = OpTestSuspend(NULL);
   LIR* ret_lab = NewLIR0(kPseudoTargetLabel);
-  LIR* target = RawLIR(current_dalvik_offset_, kPseudoSuspendTarget,
-                       reinterpret_cast<uintptr_t>(ret_lab), current_dalvik_offset_);
+  LIR* target = RawLIR(current_dalvik_offset_, kPseudoSuspendTarget, WrapPointer(ret_lab),
+                       current_dalvik_offset_);
   branch->target = target;
   suspend_launchpads_.Insert(target);
 }
@@ -1758,11 +1796,23 @@ void Mir2Lir::GenSuspendTestAndBranch(int opt_flags, LIR* target) {
   }
   OpTestSuspend(target);
   LIR* launch_pad =
-      RawLIR(current_dalvik_offset_, kPseudoSuspendTarget,
-             reinterpret_cast<uintptr_t>(target), current_dalvik_offset_);
+      RawLIR(current_dalvik_offset_, kPseudoSuspendTarget, WrapPointer(target),
+             current_dalvik_offset_);
   FlushAllRegs();
   OpUnconditionalBranch(launch_pad);
   suspend_launchpads_.Insert(launch_pad);
+}
+
+/* Call out to helper assembly routine that will null check obj and then lock it. */
+void Mir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
+  FlushAllRegs();
+  CallRuntimeHelperRegLocation(QUICK_ENTRYPOINT_OFFSET(pLockObject), rl_src, true);
+}
+
+/* Call out to helper assembly routine that will null check obj and then unlock it. */
+void Mir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
+  FlushAllRegs();
+  CallRuntimeHelperRegLocation(QUICK_ENTRYPOINT_OFFSET(pUnlockObject), rl_src, true);
 }
 
 }  // namespace art

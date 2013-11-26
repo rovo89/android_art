@@ -38,14 +38,16 @@ class MemMap {
   // a name.
   //
   // On success, returns returns a MemMap instance.  On failure, returns a NULL;
-  static MemMap* MapAnonymous(const char* ashmem_name, byte* addr, size_t byte_count, int prot);
+  static MemMap* MapAnonymous(const char* ashmem_name, byte* addr, size_t byte_count, int prot,
+                              std::string* error_msg);
 
   // Map part of a file, taking care of non-page aligned offsets.  The
   // "start" offset is absolute, not relative.
   //
   // On success, returns returns a MemMap instance.  On failure, returns a NULL;
-  static MemMap* MapFile(size_t byte_count, int prot, int flags, int fd, off_t start) {
-    return MapFileAtAddress(NULL, byte_count, prot, flags, fd, start, false);
+  static MemMap* MapFile(size_t byte_count, int prot, int flags, int fd, off_t start,
+                         const char* filename, std::string* error_msg) {
+    return MapFileAtAddress(NULL, byte_count, prot, flags, fd, start, false, filename, error_msg);
   }
 
   // Map part of a file, taking care of non-page aligned offsets.  The
@@ -53,8 +55,9 @@ class MemMap {
   // requesting a specific address for the base of the mapping.
   //
   // On success, returns returns a MemMap instance.  On failure, returns a NULL;
-  static MemMap* MapFileAtAddress(
-      byte* addr, size_t byte_count, int prot, int flags, int fd, off_t start, bool reuse);
+  static MemMap* MapFileAtAddress(byte* addr, size_t byte_count, int prot, int flags, int fd,
+                                  off_t start, bool reuse, const char* filename,
+                                  std::string* error_msg);
 
   // Releases the memory mapping
   ~MemMap();
@@ -81,8 +84,9 @@ class MemMap {
     return Begin() <= addr && addr < End();
   }
 
-  // Trim by unmapping pages at the end of the map.
-  void UnMapAtEnd(byte* new_end);
+  // Unmap the pages at end and remap them to create another memory map.
+  MemMap* RemapAtEnd(byte* new_end, const char* tail_name, int tail_prot,
+                     std::string* error_msg);
 
  private:
   MemMap(const std::string& name, byte* begin, size_t size, void* base_begin, size_t base_size,
@@ -93,8 +97,10 @@ class MemMap {
   size_t size_;  // Length of data.
 
   void* const base_begin_;  // Page-aligned base address.
-  const size_t base_size_;  // Length of mapping.
+  size_t base_size_;  // Length of mapping. May be changed by RemapAtEnd (ie Zygote).
   int prot_;  // Protection of the map.
+
+  friend class MemMapTest;  // To allow access to base_begin_ and base_size_.
 };
 
 }  // namespace art

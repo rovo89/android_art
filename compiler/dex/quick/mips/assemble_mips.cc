@@ -489,12 +489,12 @@ void MipsMir2Lir::ConvertShortToLongBranch(LIR* lir) {
   LIR* curr_pc = RawLIR(dalvik_offset, kMipsCurrPC);
   InsertLIRBefore(lir, curr_pc);
   LIR* anchor = RawLIR(dalvik_offset, kPseudoTargetLabel);
-  LIR* delta_hi = RawLIR(dalvik_offset, kMipsDeltaHi, r_AT, 0,
-                        reinterpret_cast<uintptr_t>(anchor), 0, 0, lir->target);
+  LIR* delta_hi = RawLIR(dalvik_offset, kMipsDeltaHi, r_AT, 0, WrapPointer(anchor), 0, 0,
+                         lir->target);
   InsertLIRBefore(lir, delta_hi);
   InsertLIRBefore(lir, anchor);
-  LIR* delta_lo = RawLIR(dalvik_offset, kMipsDeltaLo, r_AT, 0,
-                        reinterpret_cast<uintptr_t>(anchor), 0, 0, lir->target);
+  LIR* delta_lo = RawLIR(dalvik_offset, kMipsDeltaLo, r_AT, 0, WrapPointer(anchor), 0, 0,
+                         lir->target);
   InsertLIRBefore(lir, delta_lo);
   LIR* addu = RawLIR(dalvik_offset, kMipsAddu, r_AT, r_AT, r_RA);
   InsertLIRBefore(lir, addu);
@@ -503,7 +503,7 @@ void MipsMir2Lir::ConvertShortToLongBranch(LIR* lir) {
   if (!unconditional) {
     InsertLIRBefore(lir, hop_target);
   }
-  lir->flags.is_nop = true;
+  NopLIR(lir);
 }
 
 /*
@@ -512,7 +512,7 @@ void MipsMir2Lir::ConvertShortToLongBranch(LIR* lir) {
  * instruction.  In those cases we will try to substitute a new code
  * sequence or request that the trace be shortened and retried.
  */
-AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
+AssemblerStatus MipsMir2Lir::AssembleInstructions(CodeOffset start_addr) {
   LIR *lir;
   AssemblerStatus res = kSuccess;  // Assume success
 
@@ -526,7 +526,7 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
       continue;
     }
 
-    if (lir->flags.pcRelFixup) {
+    if (lir->flags.fixup != kFixupNone) {
       if (lir->opcode == kMipsDelta) {
         /*
          * The "Delta" pseudo-ops load the difference between
@@ -538,8 +538,8 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
          * and is found in lir->target.  If operands[3] is non-NULL,
          * then it is a Switch/Data table.
          */
-        int offset1 = (reinterpret_cast<LIR*>(lir->operands[2]))->offset;
-        SwitchTable *tab_rec = reinterpret_cast<SwitchTable*>(lir->operands[3]);
+        int offset1 = (reinterpret_cast<LIR*>(UnwrapPointer(lir->operands[2])))->offset;
+        EmbeddedData *tab_rec = reinterpret_cast<EmbeddedData*>(UnwrapPointer(lir->operands[3]));
         int offset2 = tab_rec ? tab_rec->offset : lir->target->offset;
         int delta = offset2 - offset1;
         if ((delta & 0xffff) == delta && ((delta & 0x8000) == 0)) {
@@ -561,25 +561,25 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
               RawLIR(lir->dalvik_offset, kMipsAddu,
                      lir->operands[0], lir->operands[0], r_RA);
           InsertLIRBefore(lir, new_addu);
-          lir->flags.is_nop = true;
+          NopLIR(lir);
           res = kRetryAll;
         }
       } else if (lir->opcode == kMipsDeltaLo) {
-        int offset1 = (reinterpret_cast<LIR*>(lir->operands[2]))->offset;
-        SwitchTable *tab_rec = reinterpret_cast<SwitchTable*>(lir->operands[3]);
+        int offset1 = (reinterpret_cast<LIR*>(UnwrapPointer(lir->operands[2])))->offset;
+        EmbeddedData *tab_rec = reinterpret_cast<EmbeddedData*>(UnwrapPointer(lir->operands[3]));
         int offset2 = tab_rec ? tab_rec->offset : lir->target->offset;
         int delta = offset2 - offset1;
         lir->operands[1] = delta & 0xffff;
       } else if (lir->opcode == kMipsDeltaHi) {
-        int offset1 = (reinterpret_cast<LIR*>(lir->operands[2]))->offset;
-        SwitchTable *tab_rec = reinterpret_cast<SwitchTable*>(lir->operands[3]);
+        int offset1 = (reinterpret_cast<LIR*>(UnwrapPointer(lir->operands[2])))->offset;
+        EmbeddedData *tab_rec = reinterpret_cast<EmbeddedData*>(UnwrapPointer(lir->operands[3]));
         int offset2 = tab_rec ? tab_rec->offset : lir->target->offset;
         int delta = offset2 - offset1;
         lir->operands[1] = (delta >> 16) & 0xffff;
       } else if (lir->opcode == kMipsB || lir->opcode == kMipsBal) {
         LIR *target_lir = lir->target;
-        uintptr_t pc = lir->offset + 4;
-        uintptr_t target = target_lir->offset;
+        CodeOffset pc = lir->offset + 4;
+        CodeOffset target = target_lir->offset;
         int delta = target - pc;
         if (delta & 0x3) {
           LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
@@ -592,8 +592,8 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
         }
       } else if (lir->opcode >= kMipsBeqz && lir->opcode <= kMipsBnez) {
         LIR *target_lir = lir->target;
-        uintptr_t pc = lir->offset + 4;
-        uintptr_t target = target_lir->offset;
+        CodeOffset pc = lir->offset + 4;
+        CodeOffset target = target_lir->offset;
         int delta = target - pc;
         if (delta & 0x3) {
           LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
@@ -606,8 +606,8 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
         }
       } else if (lir->opcode == kMipsBeq || lir->opcode == kMipsBne) {
         LIR *target_lir = lir->target;
-        uintptr_t pc = lir->offset + 4;
-        uintptr_t target = target_lir->offset;
+        CodeOffset pc = lir->offset + 4;
+        CodeOffset target = target_lir->offset;
         int delta = target - pc;
         if (delta & 0x3) {
           LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
@@ -619,8 +619,8 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
           lir->operands[2] = delta >> 2;
         }
       } else if (lir->opcode == kMipsJal) {
-        uintptr_t cur_pc = (start_addr + lir->offset + 4) & ~3;
-        uintptr_t target = lir->operands[0];
+        CodeOffset cur_pc = (start_addr + lir->offset + 4) & ~3;
+        CodeOffset target = lir->operands[0];
         /* ensure PC-region branch can be used */
         DCHECK_EQ((cur_pc & 0xF0000000), (target & 0xF0000000));
         if (target & 0x3) {
@@ -629,11 +629,11 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
         lir->operands[0] =  target >> 2;
       } else if (lir->opcode == kMipsLahi) { /* ld address hi (via lui) */
         LIR *target_lir = lir->target;
-        uintptr_t target = start_addr + target_lir->offset;
+        CodeOffset target = start_addr + target_lir->offset;
         lir->operands[1] = target >> 16;
       } else if (lir->opcode == kMipsLalo) { /* ld address lo (via ori) */
         LIR *target_lir = lir->target;
-        uintptr_t target = start_addr + target_lir->offset;
+        CodeOffset target = start_addr + target_lir->offset;
         lir->operands[2] = lir->operands[2] + target;
       }
     }
@@ -646,6 +646,7 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
     if (res != kSuccess) {
       continue;
     }
+    DCHECK(!IsPseudoLirOp(lir->opcode));
     const MipsEncodingMap *encoder = &EncodingMap[lir->opcode];
     uint32_t bits = encoder->skeleton;
     int i;
@@ -695,6 +696,7 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
     code_buffer_.push_back((bits >> 24) & 0xff);
     // TUNING: replace with proper delay slot handling
     if (encoder->size == 8) {
+      DCHECK(!IsPseudoLirOp(lir->opcode));
       const MipsEncodingMap *encoder = &EncodingMap[kMipsNop];
       uint32_t bits = encoder->skeleton;
       code_buffer_.push_back(bits & 0xff);
@@ -707,7 +709,105 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr) {
 }
 
 int MipsMir2Lir::GetInsnSize(LIR* lir) {
+  DCHECK(!IsPseudoLirOp(lir->opcode));
   return EncodingMap[lir->opcode].size;
+}
+
+// LIR offset assignment.
+// TODO: consolidate w/ Arm assembly mechanism.
+int MipsMir2Lir::AssignInsnOffsets() {
+  LIR* lir;
+  int offset = 0;
+
+  for (lir = first_lir_insn_; lir != NULL; lir = NEXT_LIR(lir)) {
+    lir->offset = offset;
+    if (LIKELY(lir->opcode >= 0)) {
+      if (!lir->flags.is_nop) {
+        offset += lir->flags.size;
+      }
+    } else if (UNLIKELY(lir->opcode == kPseudoPseudoAlign4)) {
+      if (offset & 0x2) {
+        offset += 2;
+        lir->operands[0] = 1;
+      } else {
+        lir->operands[0] = 0;
+      }
+    }
+    /* Pseudo opcodes don't consume space */
+  }
+  return offset;
+}
+
+/*
+ * Walk the compilation unit and assign offsets to instructions
+ * and literals and compute the total size of the compiled unit.
+ * TODO: consolidate w/ Arm assembly mechanism.
+ */
+void MipsMir2Lir::AssignOffsets() {
+  int offset = AssignInsnOffsets();
+
+  /* Const values have to be word aligned */
+  offset = (offset + 3) & ~3;
+
+  /* Set up offsets for literals */
+  data_offset_ = offset;
+
+  offset = AssignLiteralOffset(offset);
+
+  offset = AssignSwitchTablesOffset(offset);
+
+  offset = AssignFillArrayDataOffset(offset);
+
+  total_size_ = offset;
+}
+
+/*
+ * Go over each instruction in the list and calculate the offset from the top
+ * before sending them off to the assembler. If out-of-range branch distance is
+ * seen rearrange the instructions a bit to correct it.
+ * TODO: consolidate w/ Arm assembly mechanism.
+ */
+void MipsMir2Lir::AssembleLIR() {
+  cu_->NewTimingSplit("Assemble");
+  AssignOffsets();
+  int assembler_retries = 0;
+  /*
+   * Assemble here.  Note that we generate code with optimistic assumptions
+   * and if found now to work, we'll have to redo the sequence and retry.
+   */
+
+  while (true) {
+    AssemblerStatus res = AssembleInstructions(0);
+    if (res == kSuccess) {
+      break;
+    } else {
+      assembler_retries++;
+      if (assembler_retries > MAX_ASSEMBLER_RETRIES) {
+        CodegenDump();
+        LOG(FATAL) << "Assembler error - too many retries";
+      }
+      // Redo offsets and try again
+      AssignOffsets();
+      code_buffer_.clear();
+    }
+  }
+
+  // Install literals
+  cu_->NewTimingSplit("LiteralData");
+  InstallLiteralPools();
+
+  // Install switch tables
+  InstallSwitchTables();
+
+  // Install fill array data
+  InstallFillArrayData();
+
+  // Create the mapping table and native offset to reference map.
+  cu_->NewTimingSplit("PcMappingTable");
+  CreateMappingTables();
+
+  cu_->NewTimingSplit("GcMap");
+  CreateNativeGcMap();
 }
 
 }  // namespace art

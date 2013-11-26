@@ -21,6 +21,8 @@ include art/build/Android.common.mk
 LIBART_COMMON_SRC_FILES := \
 	atomic.cc.arm \
 	barrier.cc \
+	base/allocator.cc \
+	base/bit_vector.cc \
 	base/logging.cc \
 	base/mutex.cc \
 	base/stringpiece.cc \
@@ -38,10 +40,6 @@ LIBART_COMMON_SRC_FILES := \
 	dex_file.cc \
 	dex_file_verifier.cc \
 	dex_instruction.cc \
-	disassembler.cc \
-	disassembler_arm.cc \
-	disassembler_mips.cc \
-	disassembler_x86.cc \
 	elf_file.cc \
 	gc/allocator/dlmalloc.cc \
 	gc/accounting/card_table.cc \
@@ -64,6 +62,9 @@ LIBART_COMMON_SRC_FILES := \
 	instrumentation.cc \
 	intern_table.cc \
 	interpreter/interpreter.cc \
+	interpreter/interpreter_common.cc \
+	interpreter/interpreter_goto_table_impl.cc \
+	interpreter/interpreter_switch_impl.cc \
 	jdwp/jdwp_event.cc \
 	jdwp/jdwp_expand_buf.cc \
 	jdwp/jdwp_handler.cc \
@@ -186,6 +187,7 @@ LIBART_TARGET_SRC_FILES += \
 	arch/arm/jni_entrypoints_arm.S \
 	arch/arm/portable_entrypoints_arm.S \
 	arch/arm/quick_entrypoints_arm.S \
+	arch/arm/arm_sdiv.S \
 	arch/arm/thread_arm.cc
 else # TARGET_ARCH != arm
 ifeq ($(TARGET_ARCH),x86)
@@ -246,7 +248,9 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
 	jdwp/jdwp.h \
 	jdwp/jdwp_constants.h \
 	locks.h \
+	lock_word.h \
 	mirror/class.h \
+	oat.h \
 	thread.h \
 	thread_state.h \
 	verifier/method_verifier.h
@@ -331,7 +335,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   endif
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   LOCAL_SHARED_LIBRARIES += liblog libnativehelper
-  LOCAL_SHARED_LIBRARIES += libcorkscrew # native stack trace support
+  LOCAL_SHARED_LIBRARIES += libbacktrace # native stack trace support
   ifeq ($$(art_target_or_host),target)
     LOCAL_SHARED_LIBRARIES += libcutils libz libdl libselinux
   else # host

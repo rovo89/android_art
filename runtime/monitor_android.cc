@@ -81,7 +81,7 @@ void Monitor::LogContentionEvent(Thread* self, uint32_t wait_ms, uint32_t sample
   mirror::ArtMethod* m = self->GetCurrentMethod(&pc);
   const char* filename;
   uint32_t line_number;
-  TranslateLocation(m, pc, filename, line_number);
+  TranslateLocation(m, pc, &filename, &line_number);
   cp = EventLogWriteString(cp, filename, strlen(filename));
 
   // Emit the source code line number, 5 bytes.

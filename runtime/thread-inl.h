@@ -19,10 +19,31 @@
 
 #include "thread.h"
 
+#include <pthread.h>
+
+#include "base/casts.h"
 #include "base/mutex-inl.h"
 #include "cutils/atomic-inline.h"
+#include "jni_internal.h"
 
 namespace art {
+
+// Quickly access the current thread from a JNIEnv.
+static inline Thread* ThreadForEnv(JNIEnv* env) {
+  JNIEnvExt* full_env(down_cast<JNIEnvExt*>(env));
+  return full_env->self;
+}
+
+inline Thread* Thread::Current() {
+  // We rely on Thread::Current returning NULL for a detached thread, so it's not obvious
+  // that we can replace this with a direct %fs access on x86.
+  if (!is_started_) {
+    return NULL;
+  } else {
+    void* thread = pthread_getspecific(Thread::pthread_key_self_);
+    return reinterpret_cast<Thread*>(thread);
+  }
+}
 
 inline ThreadState Thread::SetState(ThreadState new_state) {
   // Cannot use this code to change into Runnable as changing to Runnable should fail if
@@ -67,17 +88,16 @@ inline void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
   union StateAndFlags new_state_and_flags;
   do {
     old_state_and_flags = state_and_flags_;
+    if (UNLIKELY((old_state_and_flags.as_struct.flags & kCheckpointRequest) != 0)) {
+      RunCheckpointFunction();
+      continue;
+    }
     // Copy over flags and try to clear the checkpoint bit if it is set.
     new_state_and_flags.as_struct.flags = old_state_and_flags.as_struct.flags & ~kCheckpointRequest;
     new_state_and_flags.as_struct.state = new_state;
     // CAS the value without a memory barrier, that will occur in the unlock below.
   } while (UNLIKELY(android_atomic_cas(old_state_and_flags.as_int, new_state_and_flags.as_int,
                                        &state_and_flags_.as_int) != 0));
-  // If we toggled the checkpoint flag we must have cleared it.
-  uint16_t flag_change = new_state_and_flags.as_struct.flags ^ old_state_and_flags.as_struct.flags;
-  if (UNLIKELY((flag_change & kCheckpointRequest) != 0)) {
-    RunCheckpointFunction();
-  }
   // Release share on mutator_lock_.
   Locks::mutator_lock_->SharedUnlock(this);
 }

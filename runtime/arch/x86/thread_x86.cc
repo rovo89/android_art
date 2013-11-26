@@ -21,7 +21,7 @@
 
 #include "asm_support_x86.h"
 #include "base/macros.h"
-#include "thread.h"
+#include "thread-inl.h"
 #include "thread_list.h"
 
 #if defined(__APPLE__)
@@ -134,6 +134,8 @@ void Thread::InitCpu() {
 
   // Sanity check other offsets.
   CHECK_EQ(THREAD_EXCEPTION_OFFSET, OFFSETOF_MEMBER(Thread, exception_));
+  CHECK_EQ(THREAD_CARD_TABLE_OFFSET, OFFSETOF_MEMBER(Thread, card_table_));
+  CHECK_EQ(THREAD_ID_OFFSET, OFFSETOF_MEMBER(Thread, thin_lock_thread_id_));
 }
 
 }  // namespace art

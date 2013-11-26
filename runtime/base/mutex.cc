@@ -31,54 +31,6 @@
 
 namespace art {
 
-#if defined(__APPLE__)
-
-// This works on Mac OS 10.6 but hasn't been tested on older releases.
-struct __attribute__((__may_alias__)) darwin_pthread_mutex_t {
-  long padding0;  // NOLINT(runtime/int) exact match to darwin type
-  int padding1;
-  uint32_t padding2;
-  int16_t padding3;
-  int16_t padding4;
-  uint32_t padding5;
-  pthread_t darwin_pthread_mutex_owner;
-  // ...other stuff we don't care about.
-};
-
-struct __attribute__((__may_alias__)) darwin_pthread_rwlock_t {
-  long padding0;  // NOLINT(runtime/int) exact match to darwin type
-  pthread_mutex_t padding1;
-  int padding2;
-  pthread_cond_t padding3;
-  pthread_cond_t padding4;
-  int padding5;
-  int padding6;
-  pthread_t darwin_pthread_rwlock_owner;
-  // ...other stuff we don't care about.
-};
-
-#endif  // __APPLE__
-
-#if defined(__GLIBC__)
-
-struct __attribute__((__may_alias__)) glibc_pthread_mutex_t {
-  int32_t padding0[2];
-  int owner;
-  // ...other stuff we don't care about.
-};
-
-struct __attribute__((__may_alias__)) glibc_pthread_rwlock_t {
-#ifdef __LP64__
-  int32_t padding0[6];
-#else
-  int32_t padding0[7];
-#endif
-  int writer;
-  // ...other stuff we don't care about.
-};
-
-#endif  // __GLIBC__
-
 #if ART_USE_FUTEXES
 static bool ComputeRelativeTimeSpec(timespec* result_ts, const timespec& lhs, const timespec& rhs) {
   const int32_t one_sec = 1000 * 1000 * 1000;  // one second in nanoseconds.
@@ -102,17 +54,17 @@ struct AllMutexData {
   std::set<BaseMutex*>* all_mutexes;
   AllMutexData() : all_mutexes(NULL) {}
 };
-static struct AllMutexData all_mutex_data[kAllMutexDataSize];
+static struct AllMutexData gAllMutexData[kAllMutexDataSize];
 
 class ScopedAllMutexesLock {
  public:
   explicit ScopedAllMutexesLock(const BaseMutex* mutex) : mutex_(mutex) {
-    while (!all_mutex_data->all_mutexes_guard.compare_and_swap(0, reinterpret_cast<int32_t>(mutex))) {
+    while (!gAllMutexData->all_mutexes_guard.compare_and_swap(0, reinterpret_cast<int32_t>(mutex))) {
       NanoSleep(100);
     }
   }
   ~ScopedAllMutexesLock() {
-    while (!all_mutex_data->all_mutexes_guard.compare_and_swap(reinterpret_cast<int32_t>(mutex_), 0)) {
+    while (!gAllMutexData->all_mutexes_guard.compare_and_swap(reinterpret_cast<int32_t>(mutex_), 0)) {
       NanoSleep(100);
     }
   }
@@ -123,7 +75,7 @@ class ScopedAllMutexesLock {
 BaseMutex::BaseMutex(const char* name, LockLevel level) : level_(level), name_(name) {
   if (kLogLockContentions) {
     ScopedAllMutexesLock mu(this);
-    std::set<BaseMutex*>** all_mutexes_ptr = &all_mutex_data->all_mutexes;
+    std::set<BaseMutex*>** all_mutexes_ptr = &gAllMutexData->all_mutexes;
     if (*all_mutexes_ptr == NULL) {
       // We leak the global set of all mutexes to avoid ordering issues in global variable
       // construction/destruction.
@@ -136,7 +88,7 @@ BaseMutex::BaseMutex(const char* name, LockLevel level) : level_(level), name_(n
 BaseMutex::~BaseMutex() {
   if (kLogLockContentions) {
     ScopedAllMutexesLock mu(this);
-    all_mutex_data->all_mutexes->erase(this);
+    gAllMutexData->all_mutexes->erase(this);
   }
 }
 
@@ -144,13 +96,13 @@ void BaseMutex::DumpAll(std::ostream& os) {
   if (kLogLockContentions) {
     os << "Mutex logging:\n";
     ScopedAllMutexesLock mu(reinterpret_cast<const BaseMutex*>(-1));
-    std::set<BaseMutex*>* all_mutexes = all_mutex_data->all_mutexes;
+    std::set<BaseMutex*>* all_mutexes = gAllMutexData->all_mutexes;
     if (all_mutexes == NULL) {
       // No mutexes have been created yet during at startup.
       return;
     }
     typedef std::set<BaseMutex*>::const_iterator It;
-    os << "(Contented)\n";
+    os << "(Contended)\n";
     for (It it = all_mutexes->begin(); it != all_mutexes->end(); ++it) {
       BaseMutex* mutex = *it;
       if (mutex->HasEverContended()) {
@@ -175,7 +127,8 @@ void BaseMutex::CheckSafeToWait(Thread* self) {
     return;
   }
   if (kDebugLocking) {
-    CHECK(self->GetHeldMutex(level_) == this) << "Waiting on unacquired mutex: " << name_;
+    CHECK(self->GetHeldMutex(level_) == this || level_ == kMonitorLock)
+        << "Waiting on unacquired mutex: " << name_;
     bool bad_mutexes_held = false;
     for (int i = kLockLevelCount - 1; i >= 0; --i) {
       if (i != level_) {
@@ -346,7 +299,7 @@ void Mutex::ExclusiveLock(Thread* self) {
     bool done = false;
     do {
       int32_t cur_state = state_;
-      if (cur_state == 0) {
+      if (LIKELY(cur_state == 0)) {
         // Change state from 0 to 1.
         done = android_atomic_acquire_cas(0, 1, &state_) == 0;
       } else {
@@ -432,14 +385,14 @@ void Mutex::ExclusiveUnlock(Thread* self) {
   bool done = false;
   do {
     int32_t cur_state = state_;
-    if (cur_state == 1) {
+    if (LIKELY(cur_state == 1)) {
       // We're no longer the owner.
       exclusive_owner_ = 0;
       // Change state to 0.
       done = android_atomic_release_cas(cur_state, 0, &state_) == 0;
-      if (done) {  // Spurious fail?
+      if (LIKELY(done)) {  // Spurious fail?
         // Wake a contender
-        if (num_contenders_ > 0) {
+        if (UNLIKELY(num_contenders_ > 0)) {
           futex(&state_, FUTEX_WAKE, 1, NULL, NULL, 0);
         }
       }
@@ -459,41 +412,6 @@ void Mutex::ExclusiveUnlock(Thread* self) {
     CHECK_MUTEX_CALL(pthread_mutex_unlock, (&mutex_));
 #endif
   }
-}
-
-bool Mutex::IsExclusiveHeld(const Thread* self) const {
-  DCHECK(self == NULL || self == Thread::Current());
-  bool result = (GetExclusiveOwnerTid() == SafeGetTid(self));
-  if (kDebugLocking) {
-    // Sanity debug check that if we think it is locked we have it in our held mutexes.
-    if (result && self != NULL && level_ != kMonitorLock && !gAborting) {
-      CHECK_EQ(self->GetHeldMutex(level_), this);
-    }
-  }
-  return result;
-}
-
-uint64_t Mutex::GetExclusiveOwnerTid() const {
-#if ART_USE_FUTEXES
-  return exclusive_owner_;
-#elif defined(__BIONIC__)
-  return static_cast<uint64_t>((mutex_.value >> 16) & 0xffff);
-#elif defined(__GLIBC__)
-  return reinterpret_cast<const glibc_pthread_mutex_t*>(&mutex_)->owner;
-#elif defined(__APPLE__)
-  const darwin_pthread_mutex_t* dpmutex = reinterpret_cast<const darwin_pthread_mutex_t*>(&mutex_);
-  pthread_t owner = dpmutex->darwin_pthread_mutex_owner;
-  // 0 for unowned, -1 for PTHREAD_MTX_TID_SWITCHING
-  // TODO: should we make darwin_pthread_mutex_owner volatile and recheck until not -1?
-  if ((owner == (pthread_t)0) || (owner == (pthread_t)-1)) {
-    return 0;
-  }
-  uint64_t tid;
-  CHECK_PTHREAD_CALL(pthread_threadid_np, (owner, &tid), __FUNCTION__);  // Requires Mac OS 10.6
-  return tid;
-#else
-#error unsupported C library
-#endif
 }
 
 void Mutex::Dump(std::ostream& os) const {
@@ -549,7 +467,7 @@ void ReaderWriterMutex::ExclusiveLock(Thread* self) {
   bool done = false;
   do {
     int32_t cur_state = state_;
-    if (cur_state == 0) {
+    if (LIKELY(cur_state == 0)) {
       // Change state from 0 to -1.
       done = android_atomic_acquire_cas(0, -1, &state_) == 0;
     } else {
@@ -583,14 +501,14 @@ void ReaderWriterMutex::ExclusiveUnlock(Thread* self) {
   bool done = false;
   do {
     int32_t cur_state = state_;
-    if (cur_state == -1) {
+    if (LIKELY(cur_state == -1)) {
       // We're no longer the owner.
       exclusive_owner_ = 0;
       // Change state from -1 to 0.
       done = android_atomic_release_cas(-1, 0, &state_) == 0;
-      if (done) {  // cmpxchg may fail due to noise?
+      if (LIKELY(done)) {  // cmpxchg may fail due to noise?
         // Wake any waiters.
-        if (num_pending_readers_ > 0 || num_pending_writers_ > 0) {
+        if (UNLIKELY(num_pending_readers_ > 0 || num_pending_writers_ > 0)) {
           futex(&state_, FUTEX_WAKE, -1, NULL, NULL, 0);
         }
       }
@@ -687,18 +605,6 @@ bool ReaderWriterMutex::SharedTryLock(Thread* self) {
   return true;
 }
 
-bool ReaderWriterMutex::IsExclusiveHeld(const Thread* self) const {
-  DCHECK(self == NULL || self == Thread::Current());
-  bool result = (GetExclusiveOwnerTid() == SafeGetTid(self));
-  if (kDebugLocking) {
-    // Sanity that if the pthread thinks we own the lock the Thread agrees.
-    if (self != NULL && result)  {
-      CHECK_EQ(self->GetHeldMutex(level_), this);
-    }
-  }
-  return result;
-}
-
 bool ReaderWriterMutex::IsSharedHeld(const Thread* self) const {
   DCHECK(self == NULL || self == Thread::Current());
   bool result;
@@ -708,37 +614,6 @@ bool ReaderWriterMutex::IsSharedHeld(const Thread* self) const {
     result = (self->GetHeldMutex(level_) == this);
   }
   return result;
-}
-
-uint64_t ReaderWriterMutex::GetExclusiveOwnerTid() const {
-#if ART_USE_FUTEXES
-  int32_t state = state_;
-  if (state == 0) {
-    return 0;  // No owner.
-  } else if (state > 0) {
-    return -1;  // Shared.
-  } else {
-    return exclusive_owner_;
-  }
-#else
-#if defined(__BIONIC__)
-  return rwlock_.writerThreadId;
-#elif defined(__GLIBC__)
-  return reinterpret_cast<const glibc_pthread_rwlock_t*>(&rwlock_)->writer;
-#elif defined(__APPLE__)
-  const darwin_pthread_rwlock_t*
-      dprwlock = reinterpret_cast<const darwin_pthread_rwlock_t*>(&rwlock_);
-  pthread_t owner = dprwlock->darwin_pthread_rwlock_owner;
-  if (owner == (pthread_t)0) {
-    return 0;
-  }
-  uint64_t tid;
-  CHECK_PTHREAD_CALL(pthread_threadid_np, (owner, &tid), __FUNCTION__);  // Requires Mac OS 10.6
-  return tid;
-#else
-#error unsupported C library
-#endif
-#endif
 }
 
 void ReaderWriterMutex::Dump(std::ostream& os) const {

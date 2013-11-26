@@ -112,6 +112,10 @@ class MANAGED ArtMethod : public Object {
     return (GetAccessFlags() & kAccNative) != 0;
   }
 
+  bool IsFastNative() const {
+    return (GetAccessFlags() & kAccFastNative) != 0;
+  }
+
   bool IsAbstract() const {
     return (GetAccessFlags() & kAccAbstract) != 0;
   }
@@ -307,7 +311,7 @@ class MANAGED ArtMethod : public Object {
 
   bool IsRegistered() const;
 
-  void RegisterNative(Thread* self, const void* native_method)
+  void RegisterNative(Thread* self, const void* native_method, bool is_fast)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void UnregisterNative(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -352,6 +356,8 @@ class MANAGED ArtMethod : public Object {
   bool IsCalleeSaveMethod() const;
 
   bool IsResolutionMethod() const;
+
+  bool IsImtConflictMethod() const;
 
   uintptr_t NativePcOffset(const uintptr_t pc) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

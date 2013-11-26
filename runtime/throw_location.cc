@@ -34,11 +34,14 @@ std::string ThrowLocation::Dump() const {
 }
 
 void ThrowLocation::VisitRoots(RootVisitor* visitor, void* arg) {
-  if (this_object_ != NULL) {
-    visitor(this_object_, arg);
+  if (this_object_ != nullptr) {
+    this_object_ = const_cast<mirror::Object*>(visitor(this_object_, arg));
+    DCHECK(this_object_ != nullptr);
   }
-  if (method_ != NULL) {
-    visitor(method_, arg);
+  if (method_ != nullptr) {
+    method_ = const_cast<mirror::ArtMethod*>(
+        reinterpret_cast<const mirror::ArtMethod*>(visitor(method_, arg)));
+    DCHECK(method_ != nullptr);
   }
 }
 

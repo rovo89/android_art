@@ -44,6 +44,8 @@ enum SpecialTargetRegister {
   kRet0,
   kRet1,
   kInvokeTgt,
+  kHiddenArg,
+  kHiddenFpArg,
   kCount
 };
 
@@ -55,6 +57,7 @@ enum RegLocationType {
 };
 
 enum BBType {
+  kNullBlock,
   kEntryBlock,
   kDalvikByteCode,
   kExitBlock,
@@ -180,6 +183,8 @@ enum OpKind {
   kOpBic,
   kOpCmn,
   kOpTst,
+  kOpRev,
+  kOpRevsh,
   kOpBkpt,
   kOpBlx,
   kOpPush,
@@ -411,6 +416,27 @@ enum OatBitMapKind {
 };
 
 std::ostream& operator<<(std::ostream& os, const OatBitMapKind& kind);
+
+// LIR fixup kinds for Arm
+enum FixupKind {
+  kFixupNone,
+  kFixupLabel,       // For labels we just adjust the offset.
+  kFixupLoad,        // Mostly for imediates.
+  kFixupVLoad,       // FP load which *may* be pc-relative.
+  kFixupCBxZ,        // Cbz, Cbnz.
+  kFixupPushPop,     // Not really pc relative, but changes size based on args.
+  kFixupCondBranch,  // Conditional branch
+  kFixupT1Branch,    // Thumb1 Unconditional branch
+  kFixupT2Branch,    // Thumb2 Unconditional branch
+  kFixupBlx1,        // Blx1 (start of Blx1/Blx2 pair).
+  kFixupBl1,         // Bl1 (start of Bl1/Bl2 pair).
+  kFixupAdr,         // Adr.
+  kFixupMovImmLST,   // kThumb2MovImm16LST.
+  kFixupMovImmHST,   // kThumb2MovImm16HST.
+  kFixupAlign4,      // Align to 4-byte boundary.
+};
+
+std::ostream& operator<<(std::ostream& os, const FixupKind& kind);
 
 }  // namespace art
 

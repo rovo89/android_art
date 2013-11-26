@@ -243,7 +243,7 @@ enum X86OpCode {
   //             - lir operands - 0: base, 1: disp, 2: immediate
   // AI - Array Immediate  - opcode [base + index * scale + disp], #immediate
   //             - lir operands - 0: base, 1: index, 2: scale, 3: disp 4: immediate
-  // TI - Thread Register  - opcode fs:[disp], imm - where fs: is equal to Thread::Current()
+  // TI - Thread Immediate  - opcode fs:[disp], imm - where fs: is equal to Thread::Current()
   //             - lir operands - 0: disp, 1: imm
 #define BinaryOpCode(opcode) \
   opcode ## 8MR, opcode ## 8AR, opcode ## 8TR, \
@@ -313,6 +313,7 @@ enum X86OpCode {
   UnaryOpcode(kX86Imul, DaR, DaM, DaA),
   UnaryOpcode(kX86Divmod,  DaR, DaM, DaA),
   UnaryOpcode(kX86Idivmod, DaR, DaM, DaA),
+  kX86Bswap32R,
 #undef UnaryOpcode
 #define Binary0fOpCode(opcode) \
   opcode ## RR, opcode ## RM, opcode ## RA
@@ -381,6 +382,7 @@ enum X86EncodingKind {
   kData,                                   // Special case for raw data.
   kNop,                                    // Special case for variable length nop.
   kNullary,                                // Opcode that takes no arguments.
+  kRegOpcode,                              // Shorter form of R instruction kind (opcode+rd)
   kReg, kMem, kArray,                      // R, M and A instruction kinds.
   kMemReg, kArrayReg, kThreadReg,          // MR, AR and TR instruction kinds.
   kRegReg, kRegMem, kRegArray, kRegThread,  // RR, RM, RA and RT instruction kinds.

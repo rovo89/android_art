@@ -36,6 +36,7 @@
 #include "globals.h"
 #include "image.h"
 #include "intern_table.h"
+#include "lock_word.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/array-inl.h"
@@ -82,12 +83,14 @@ bool ImageWriter::Write(const std::string& image_filename,
     LOG(ERROR) << "Failed to open oat file " << oat_filename << " for " << oat_location;
     return false;
   }
-  oat_file_ = OatFile::OpenWritable(oat_file.get(), oat_location);
-  if (oat_file_ == NULL) {
-    LOG(ERROR) << "Failed to open writable oat file " << oat_filename << " for " << oat_location;
+  std::string error_msg;
+  oat_file_ = OatFile::OpenWritable(oat_file.get(), oat_location, &error_msg);
+  if (oat_file_ == nullptr) {
+    LOG(ERROR) << "Failed to open writable oat file " << oat_filename << " for " << oat_location
+        << ": " << error_msg;
     return false;
   }
-  class_linker->RegisterOatFile(*oat_file_);
+  CHECK_EQ(class_linker->RegisterOatFile(oat_file_), oat_file_);
 
   interpreter_to_interpreter_bridge_offset_ =
       oat_file_->GetOatHeader().GetInterpreterToInterpreterBridgeOffset();
@@ -96,11 +99,15 @@ bool ImageWriter::Write(const std::string& image_filename,
 
   jni_dlsym_lookup_offset_ = oat_file_->GetOatHeader().GetJniDlsymLookupOffset();
 
+  portable_imt_conflict_trampoline_offset_ =
+      oat_file_->GetOatHeader().GetPortableImtConflictTrampolineOffset();
   portable_resolution_trampoline_offset_ =
       oat_file_->GetOatHeader().GetPortableResolutionTrampolineOffset();
   portable_to_interpreter_bridge_offset_ =
       oat_file_->GetOatHeader().GetPortableToInterpreterBridgeOffset();
 
+  quick_imt_conflict_trampoline_offset_ =
+      oat_file_->GetOatHeader().GetQuickImtConflictTrampolineOffset();
   quick_resolution_trampoline_offset_ =
       oat_file_->GetOatHeader().GetQuickResolutionTrampolineOffset();
   quick_to_interpreter_bridge_offset_ =
@@ -192,9 +199,10 @@ bool ImageWriter::AllocMemory() {
 
   int prot = PROT_READ | PROT_WRITE;
   size_t length = RoundUp(size, kPageSize);
-  image_.reset(MemMap::MapAnonymous("image writer image", NULL, length, prot));
-  if (image_.get() == NULL) {
-    LOG(ERROR) << "Failed to allocate memory for image file generation";
+  std::string error_msg;
+  image_.reset(MemMap::MapAnonymous("image writer image", NULL, length, prot, &error_msg));
+  if (UNLIKELY(image_.get() == nullptr)) {
+    LOG(ERROR) << "Failed to allocate memory for image file generation: " << error_msg;
     return false;
   }
   return true;
@@ -387,6 +395,8 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
                   ObjectArray<Object>::Alloc(self, object_array_class,
                                              ImageHeader::kImageRootsMax));
   image_roots->Set(ImageHeader::kResolutionMethod, runtime->GetResolutionMethod());
+  image_roots->Set(ImageHeader::kImtConflictMethod, runtime->GetImtConflictMethod());
+  image_roots->Set(ImageHeader::kDefaultImt, runtime->GetDefaultImt());
   image_roots->Set(ImageHeader::kCalleeSaveMethod,
                    runtime->GetCalleeSaveMethod(Runtime::kSaveAll));
   image_roots->Set(ImageHeader::kRefsOnlySaveMethod,
@@ -486,7 +496,35 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object* object, void* arg) {
   DCHECK_LT(offset + n, image_writer->image_->Size());
   memcpy(dst, src, n);
   Object* copy = reinterpret_cast<Object*>(dst);
-  copy->SetField32(Object::MonitorOffset(), 0, false);  // We may have inflated the lock during compilation.
+  // Write in a hash code of objects which have inflated monitors or a hash code in their monitor
+  // word.
+  LockWord lw(copy->GetLockWord());
+  switch (lw.GetState()) {
+    case LockWord::kFatLocked: {
+      Monitor* monitor = lw.FatLockMonitor();
+      CHECK(monitor != nullptr);
+      CHECK(!monitor->IsLocked());
+      if (monitor->HasHashCode()) {
+        copy->SetLockWord(LockWord::FromHashCode(monitor->GetHashCode()));
+      } else {
+        copy->SetLockWord(LockWord());
+      }
+      break;
+    }
+    case LockWord::kThinLocked: {
+      LOG(FATAL) << "Thin locked object " << obj << " found during object copy";
+      break;
+    }
+    case LockWord::kUnlocked:
+      break;
+    case LockWord::kHashCode:
+      // Do nothing since we can just keep the same hash code.
+      CHECK_NE(lw.GetHashCode(), 0);
+      break;
+    default:
+      LOG(FATAL) << "Unreachable.";
+      break;
+  }
   image_writer->FixupObject(obj, copy);
 }
 
@@ -523,6 +561,12 @@ void ImageWriter::FixupMethod(const ArtMethod* orig, ArtMethod* copy) {
     copy->SetEntryPointFromCompiledCode(GetOatAddress(portable_resolution_trampoline_offset_));
 #else
     copy->SetEntryPointFromCompiledCode(GetOatAddress(quick_resolution_trampoline_offset_));
+#endif
+  } else if (UNLIKELY(orig == Runtime::Current()->GetImtConflictMethod())) {
+#if defined(ART_USE_PORTABLE_COMPILER)
+    copy->SetEntryPointFromCompiledCode(GetOatAddress(portable_imt_conflict_trampoline_offset_));
+#else
+    copy->SetEntryPointFromCompiledCode(GetOatAddress(quick_imt_conflict_trampoline_offset_));
 #endif
   } else {
     // We assume all methods have code. If they don't currently then we set them to the use the

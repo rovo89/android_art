@@ -62,9 +62,11 @@ SpaceBitmap* SpaceBitmap::Create(const std::string& name, byte* heap_begin, size
   CHECK(heap_begin != NULL);
   // Round up since heap_capacity is not necessarily a multiple of kAlignment * kBitsPerWord.
   size_t bitmap_size = OffsetToIndex(RoundUp(heap_capacity, kAlignment * kBitsPerWord)) * kWordSize;
-  UniquePtr<MemMap> mem_map(MemMap::MapAnonymous(name.c_str(), NULL, bitmap_size, PROT_READ | PROT_WRITE));
-  if (mem_map.get() == NULL) {
-    LOG(ERROR) << "Failed to allocate bitmap " << name;
+  std::string error_msg;
+  UniquePtr<MemMap> mem_map(MemMap::MapAnonymous(name.c_str(), NULL, bitmap_size,
+                                                 PROT_READ | PROT_WRITE, &error_msg));
+  if (UNLIKELY(mem_map.get() == nullptr)) {
+    LOG(ERROR) << "Failed to allocate bitmap " << name << ": " << error_msg;
     return NULL;
   }
   return CreateFromMemMap(name, mem_map.release(), heap_begin, heap_capacity);

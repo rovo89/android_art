@@ -38,7 +38,7 @@
 #include "safe_map.h"
 #include "thread.h"
 #include "UniquePtr.h"
-#include "utf.h"
+#include "utf-inl.h"
 #include "utils.h"
 #include "well_known_classes.h"
 #include "zip_archive.h"
@@ -62,72 +62,77 @@ DexFile::ClassPathEntry DexFile::FindInClassPath(const char* descriptor,
                         reinterpret_cast<const DexFile::ClassDef*>(NULL));
 }
 
-int OpenAndReadMagic(const std::string& filename, uint32_t* magic) {
+static int OpenAndReadMagic(const char* filename, uint32_t* magic, std::string* error_msg) {
   CHECK(magic != NULL);
-  int fd = open(filename.c_str(), O_RDONLY, 0);
+  int fd = open(filename, O_RDONLY, 0);
   if (fd == -1) {
-    PLOG(WARNING) << "Unable to open '" << filename << "'";
+    *error_msg = StringPrintf("Unable to open '%s' : %s", filename, strerror(errno));
     return -1;
   }
   int n = TEMP_FAILURE_RETRY(read(fd, magic, sizeof(*magic)));
   if (n != sizeof(*magic)) {
-    PLOG(ERROR) << "Failed to find magic in '" << filename << "'";
+    *error_msg = StringPrintf("Failed to find magic in '%s'", filename);
     return -1;
   }
   if (lseek(fd, 0, SEEK_SET) != 0) {
-    PLOG(ERROR) << "Failed to seek to beginning of file '" << filename << "'";
+    *error_msg = StringPrintf("Failed to seek to beginning of file '%s' : %s", filename,
+                              strerror(errno));
     return -1;
   }
   return fd;
 }
 
-bool DexFile::GetChecksum(const std::string& filename, uint32_t* checksum) {
+bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string* error_msg) {
   CHECK(checksum != NULL);
   uint32_t magic;
-  int fd = OpenAndReadMagic(filename, &magic);
+  int fd = OpenAndReadMagic(filename, &magic, error_msg);
   if (fd == -1) {
+    DCHECK(!error_msg->empty());
     return false;
   }
   if (IsZipMagic(magic)) {
-    UniquePtr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(fd));
+    UniquePtr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(fd, filename, error_msg));
     if (zip_archive.get() == NULL) {
+      *error_msg = StringPrintf("Failed to open zip archive '%s'", filename);
       return false;
     }
     UniquePtr<ZipEntry> zip_entry(zip_archive->Find(kClassesDex));
     if (zip_entry.get() == NULL) {
-      LOG(ERROR) << "Zip archive '" << filename << "' doesn't contain " << kClassesDex;
+      *error_msg = StringPrintf("Zip archive '%s' doesn\'t contain %s", filename, kClassesDex);
       return false;
     }
     *checksum = zip_entry->GetCrc32();
     return true;
   }
   if (IsDexMagic(magic)) {
-    UniquePtr<const DexFile> dex_file(DexFile::OpenFile(fd, filename, false));
+    UniquePtr<const DexFile> dex_file(DexFile::OpenFile(fd, filename, false, error_msg));
     if (dex_file.get() == NULL) {
       return false;
     }
     *checksum = dex_file->GetHeader().checksum_;
     return true;
   }
-  LOG(ERROR) << "Expected valid zip or dex file: " << filename;
+  *error_msg = StringPrintf("Expected valid zip or dex file: '%s'", filename);
   return false;
 }
 
-const DexFile* DexFile::Open(const std::string& filename,
-                             const std::string& location) {
+const DexFile* DexFile::Open(const char* filename,
+                             const char* location,
+                             std::string* error_msg) {
   uint32_t magic;
-  int fd = OpenAndReadMagic(filename, &magic);
+  int fd = OpenAndReadMagic(filename, &magic, error_msg);
   if (fd == -1) {
+    DCHECK(!error_msg->empty());
     return NULL;
   }
   if (IsZipMagic(magic)) {
-    return DexFile::OpenZip(fd, location);
+    return DexFile::OpenZip(fd, location, error_msg);
   }
   if (IsDexMagic(magic)) {
-    return DexFile::OpenFile(fd, location, true);
+    return DexFile::OpenFile(fd, location, true, error_msg);
   }
-  LOG(ERROR) << "Expected valid zip or dex file: " << filename;
-  return NULL;
+  *error_msg = StringPrintf("Expected valid zip or dex file: '%s'", filename);
+  return nullptr;
 }
 
 int DexFile::GetPermissions() const {
@@ -160,46 +165,48 @@ bool DexFile::DisableWrite() const {
   }
 }
 
-const DexFile* DexFile::OpenFile(int fd,
-                                 const std::string& location,
-                                 bool verify) {
-  CHECK(!location.empty());
+const DexFile* DexFile::OpenFile(int fd, const char* location, bool verify,
+                                 std::string* error_msg) {
+  CHECK(location != nullptr);
   struct stat sbuf;
   memset(&sbuf, 0, sizeof(sbuf));
   if (fstat(fd, &sbuf) == -1) {
-    PLOG(ERROR) << "fstat \"" << location << "\" failed";
+    *error_msg = StringPrintf("DexFile: fstat \'%s\' failed: %s", location, strerror(errno));
     close(fd);
-    return NULL;
+    return nullptr;
   }
   if (S_ISDIR(sbuf.st_mode)) {
-    LOG(ERROR) << "attempt to mmap directory \"" << location << "\"";
-    return NULL;
+    *error_msg = StringPrintf("Attempt to mmap directory '%s'", location);
+    return nullptr;
   }
   size_t length = sbuf.st_size;
-  UniquePtr<MemMap> map(MemMap::MapFile(length, PROT_READ, MAP_PRIVATE, fd, 0));
-  if (map.get() == NULL) {
-    LOG(ERROR) << "mmap \"" << location << "\" failed";
+  UniquePtr<MemMap> map(MemMap::MapFile(length, PROT_READ, MAP_PRIVATE, fd, 0, location,
+                                        error_msg));
+  if (map.get() == nullptr) {
+    DCHECK(!error_msg->empty());
     close(fd);
-    return NULL;
+    return nullptr;
   }
   close(fd);
 
   if (map->Size() < sizeof(DexFile::Header)) {
-    LOG(ERROR) << "Failed to open dex file '" << location << "' that is too short to have a header";
-    return NULL;
+    *error_msg = StringPrintf(
+        "DexFile: failed to open dex file \'%s\' that is too short to have a header", location);
+    return nullptr;
   }
 
   const Header* dex_header = reinterpret_cast<const Header*>(map->Begin());
 
-  const DexFile* dex_file = OpenMemory(location, dex_header->checksum_, map.release());
-  if (dex_file == NULL) {
-    LOG(ERROR) << "Failed to open dex file '" << location << "' from memory";
-    return NULL;
+  const DexFile* dex_file = OpenMemory(location, dex_header->checksum_, map.release(), error_msg);
+  if (dex_file == nullptr) {
+    *error_msg = StringPrintf("Failed to open dex file '%s' from memory: %s", location,
+                              error_msg->c_str());
+    return nullptr;
   }
 
-  if (verify && !DexFileVerifier::Verify(dex_file, dex_file->Begin(), dex_file->Size())) {
-    LOG(ERROR) << "Failed to verify dex file '" << location << "'";
-    return NULL;
+  if (verify && !DexFileVerifier::Verify(dex_file, dex_file->Begin(), dex_file->Size(), location,
+                                         error_msg)) {
+    return nullptr;
   }
 
   return dex_file;
@@ -207,49 +214,55 @@ const DexFile* DexFile::OpenFile(int fd,
 
 const char* DexFile::kClassesDex = "classes.dex";
 
-const DexFile* DexFile::OpenZip(int fd, const std::string& location) {
-  UniquePtr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(fd));
-  if (zip_archive.get() == NULL) {
-    LOG(ERROR) << "Failed to open " << location << " when looking for classes.dex";
-    return NULL;
+const DexFile* DexFile::OpenZip(int fd, const std::string& location, std::string* error_msg) {
+  UniquePtr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(fd, location.c_str(), error_msg));
+  if (zip_archive.get() == nullptr) {
+    DCHECK(!error_msg->empty());
+    return nullptr;
   }
-  return DexFile::Open(*zip_archive.get(), location);
+  return DexFile::Open(*zip_archive.get(), location, error_msg);
 }
 
 const DexFile* DexFile::OpenMemory(const std::string& location,
                                    uint32_t location_checksum,
-                                   MemMap* mem_map) {
+                                   MemMap* mem_map,
+                                   std::string* error_msg) {
   return OpenMemory(mem_map->Begin(),
                     mem_map->Size(),
                     location,
                     location_checksum,
-                    mem_map);
+                    mem_map,
+                    error_msg);
 }
 
-const DexFile* DexFile::Open(const ZipArchive& zip_archive, const std::string& location) {
+const DexFile* DexFile::Open(const ZipArchive& zip_archive, const std::string& location,
+                             std::string* error_msg) {
   CHECK(!location.empty());
   UniquePtr<ZipEntry> zip_entry(zip_archive.Find(kClassesDex));
   if (zip_entry.get() == NULL) {
-    LOG(ERROR) << "Failed to find classes.dex within '" << location << "'";
-    return NULL;
+    *error_msg = StringPrintf("Failed to find classes.dex within '%s'", location.c_str());
+    return nullptr;
   }
-  UniquePtr<MemMap> map(zip_entry->ExtractToMemMap(kClassesDex));
+  UniquePtr<MemMap> map(zip_entry->ExtractToMemMap(kClassesDex, error_msg));
   if (map.get() == NULL) {
-    LOG(ERROR) << "Failed to extract '" << kClassesDex << "' from '" << location << "'";
-    return NULL;
+    *error_msg = StringPrintf("Failed to extract '%s' from '%s': %s", kClassesDex, location.c_str(),
+                              error_msg->c_str());
+    return nullptr;
   }
-  UniquePtr<const DexFile> dex_file(OpenMemory(location, zip_entry->GetCrc32(), map.release()));
-  if (dex_file.get() == NULL) {
-    LOG(ERROR) << "Failed to open dex file '" << location << "' from memory";
-    return NULL;
+  UniquePtr<const DexFile> dex_file(OpenMemory(location, zip_entry->GetCrc32(), map.release(),
+                                               error_msg));
+  if (dex_file.get() == nullptr) {
+    *error_msg = StringPrintf("Failed to open dex file '%s' from memory: %s", location.c_str(),
+                              error_msg->c_str());
+    return nullptr;
   }
-  if (!DexFileVerifier::Verify(dex_file.get(), dex_file->Begin(), dex_file->Size())) {
-    LOG(ERROR) << "Failed to verify dex file '" << location << "'";
-    return NULL;
+  if (!DexFileVerifier::Verify(dex_file.get(), dex_file->Begin(), dex_file->Size(),
+                               location.c_str(), error_msg)) {
+    return nullptr;
   }
   if (!dex_file->DisableWrite()) {
-    LOG(ERROR) << "Failed to make dex file read only '" << location << "'";
-    return NULL;
+    *error_msg = StringPrintf("Failed to make dex file '%s' read only", location.c_str());
+    return nullptr;
   }
   CHECK(dex_file->IsReadOnly()) << location;
   return dex_file.release();
@@ -259,11 +272,11 @@ const DexFile* DexFile::OpenMemory(const byte* base,
                                    size_t size,
                                    const std::string& location,
                                    uint32_t location_checksum,
-                                   MemMap* mem_map) {
+                                   MemMap* mem_map, std::string* error_msg) {
   CHECK_ALIGNED(base, 4);  // various dex file structures must be word aligned
   UniquePtr<DexFile> dex_file(new DexFile(base, size, location, location_checksum, mem_map));
-  if (!dex_file->Init()) {
-    return NULL;
+  if (!dex_file->Init(error_msg)) {
+    return nullptr;
   } else {
     return dex_file.release();
   }
@@ -276,9 +289,9 @@ DexFile::~DexFile() {
   // the global reference table is otherwise empty!
 }
 
-bool DexFile::Init() {
+bool DexFile::Init(std::string* error_msg) {
   InitMembers();
-  if (!CheckMagicAndVersion()) {
+  if (!CheckMagicAndVersion(error_msg)) {
     return false;
   }
   return true;
@@ -296,22 +309,26 @@ void DexFile::InitMembers() {
   class_defs_ = reinterpret_cast<const ClassDef*>(b + h->class_defs_off_);
 }
 
-bool DexFile::CheckMagicAndVersion() const {
+bool DexFile::CheckMagicAndVersion(std::string* error_msg) const {
   CHECK(header_->magic_ != NULL) << GetLocation();
   if (!IsMagicValid(header_->magic_)) {
-    LOG(ERROR) << "Unrecognized magic number in "  << GetLocation() << ":"
+    std::ostringstream oss;
+    oss << "Unrecognized magic number in "  << GetLocation() << ":"
             << " " << header_->magic_[0]
             << " " << header_->magic_[1]
             << " " << header_->magic_[2]
             << " " << header_->magic_[3];
+    *error_msg = oss.str();
     return false;
   }
   if (!IsVersionValid(header_->magic_)) {
-    LOG(ERROR) << "Unrecognized version number in "  << GetLocation() << ":"
+    std::ostringstream oss;
+    oss << "Unrecognized version number in "  << GetLocation() << ":"
             << " " << header_->magic_[4]
             << " " << header_->magic_[5]
             << " " << header_->magic_[6]
             << " " << header_->magic_[7];
+    *error_msg = oss.str();
     return false;
   }
   return true;
@@ -440,9 +457,8 @@ const DexFile::StringId* DexFile::FindStringId(const char* string) const {
   int32_t hi = NumStringIds() - 1;
   while (hi >= lo) {
     int32_t mid = (hi + lo) / 2;
-    uint32_t length;
     const DexFile::StringId& str_id = GetStringId(mid);
-    const char* str = GetStringDataAndLength(str_id, &length);
+    const char* str = GetStringData(str_id);
     int compare = CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(string, str);
     if (compare > 0) {
       lo = mid + 1;
@@ -460,9 +476,8 @@ const DexFile::StringId* DexFile::FindStringId(const uint16_t* string) const {
   int32_t hi = NumStringIds() - 1;
   while (hi >= lo) {
     int32_t mid = (hi + lo) / 2;
-    uint32_t length;
     const DexFile::StringId& str_id = GetStringId(mid);
-    const char* str = GetStringDataAndLength(str_id, &length);
+    const char* str = GetStringData(str_id);
     int compare = CompareModifiedUtf8ToUtf16AsCodePointValues(str, string);
     if (compare > 0) {
       lo = mid + 1;
@@ -528,8 +543,8 @@ const DexFile::ProtoId* DexFile::FindProtoId(uint16_t return_type_idx,
 }
 
 // Given a signature place the type ids into the given vector
-bool DexFile::CreateTypeList(uint16_t* return_type_idx, std::vector<uint16_t>* param_type_idxs,
-                             const std::string& signature) const {
+bool DexFile::CreateTypeList(const StringPiece& signature, uint16_t* return_type_idx,
+                             std::vector<uint16_t>* param_type_idxs) const {
   if (signature[0] != '(') {
     return false;
   }
@@ -543,6 +558,7 @@ bool DexFile::CreateTypeList(uint16_t* return_type_idx, std::vector<uint16_t>* p
       process_return = true;
       continue;
     }
+    // TODO: avoid building a string.
     std::string descriptor;
     descriptor += c;
     while (c == '[') {  // process array prefix
@@ -582,35 +598,18 @@ bool DexFile::CreateTypeList(uint16_t* return_type_idx, std::vector<uint16_t>* p
   return false;  // failed to correctly parse return type
 }
 
-// Materializes the method descriptor for a method prototype.  Method
-// descriptors are not stored directly in the dex file.  Instead, one
-// must assemble the descriptor from references in the prototype.
-std::string DexFile::CreateMethodSignature(uint32_t proto_idx, int32_t* unicode_length) const {
-  const ProtoId& proto_id = GetProtoId(proto_idx);
-  std::string descriptor;
-  descriptor.push_back('(');
-  const TypeList* type_list = GetProtoParameters(proto_id);
-  size_t parameter_length = 0;
-  if (type_list != NULL) {
-    // A non-zero number of arguments.  Append the type names.
-    for (size_t i = 0; i < type_list->Size(); ++i) {
-      const TypeItem& type_item = type_list->GetTypeItem(i);
-      uint32_t type_idx = type_item.type_idx_;
-      uint32_t type_length;
-      const char* name = StringByTypeIdx(type_idx, &type_length);
-      parameter_length += type_length;
-      descriptor.append(name);
-    }
+const Signature DexFile::CreateSignature(const StringPiece& signature) const {
+  uint16_t return_type_idx;
+  std::vector<uint16_t> param_type_indices;
+  bool success = CreateTypeList(signature, &return_type_idx, &param_type_indices);
+  if (!success) {
+    return Signature::NoSignature();
   }
-  descriptor.push_back(')');
-  uint32_t return_type_idx = proto_id.return_type_idx_;
-  uint32_t return_type_length;
-  const char* name = StringByTypeIdx(return_type_idx, &return_type_length);
-  descriptor.append(name);
-  if (unicode_length != NULL) {
-    *unicode_length = parameter_length + return_type_length + 2;  // 2 for ( and )
+  const ProtoId* proto_id = FindProtoId(return_type_idx, param_type_indices);
+  if (proto_id == NULL) {
+    return Signature::NoSignature();
   }
-  return descriptor;
+  return Signature(this, *proto_id);
 }
 
 int32_t DexFile::GetLineNumFromPC(const mirror::ArtMethod* method, uint32_t rel_pc) const {
@@ -854,6 +853,30 @@ bool DexFile::LineNumForPcCb(void* raw_context, uint32_t address, uint32_t line_
     context->line_num_ = line_num;
     return address == context->address_;
   }
+}
+
+std::string Signature::ToString() const {
+  if (dex_file_ == nullptr) {
+    CHECK(proto_id_ == nullptr);
+    return "<no signature>";
+  }
+  const DexFile::TypeList* params = dex_file_->GetProtoParameters(*proto_id_);
+  std::string result;
+  if (params == nullptr) {
+    result += "()";
+  } else {
+    result += "(";
+    for (uint32_t i = 0; i < params->Size(); ++i) {
+      result += dex_file_->StringByTypeIdx(params->GetTypeItem(i).type_idx_);
+    }
+    result += ")";
+  }
+  result += dex_file_->StringByTypeIdx(proto_id_->return_type_idx_);
+  return result;
+}
+
+std::ostream& operator<<(std::ostream& os, const Signature& sig) {
+  return os << sig.ToString();
 }
 
 // Decodes the header section from the class data bytes.

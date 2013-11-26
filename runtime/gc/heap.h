@@ -101,6 +101,11 @@ enum HeapVerificationMode {
 };
 static constexpr HeapVerificationMode kDesiredHeapVerification = kNoHeapVerification;
 
+// If true, measure the total allocation time.
+static constexpr bool kMeasureAllocationTime = false;
+// Primitive arrays larger than this size are put in the large object space.
+static constexpr size_t kLargeObjectThreshold = 3 * kPageSize;
+
 class Heap {
  public:
   static constexpr size_t kDefaultInitialSize = 2 * MB;
@@ -129,11 +134,20 @@ class Heap {
 
   // Allocates and initializes storage for an object instance.
   mirror::Object* AllocObject(Thread* self, mirror::Class* klass, size_t num_bytes)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return AllocObjectInstrumented(self, klass, num_bytes);
+  }
+  mirror::Object* AllocObjectInstrumented(Thread* self, mirror::Class* klass, size_t num_bytes)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::Object* AllocObjectUninstrumented(Thread* self, mirror::Class* klass, size_t num_bytes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void RegisterNativeAllocation(int bytes)
+  void DebugCheckPreconditionsForAllobObject(mirror::Class* c, size_t byte_count)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void RegisterNativeFree(int bytes) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void ThrowOutOfMemoryError(size_t byte_count, bool large_object_allocation);
+
+  void RegisterNativeAllocation(JNIEnv* env, int bytes);
+  void RegisterNativeFree(JNIEnv* env, int bytes);
 
   // The given reference is believed to be to an object in the Java heap, check the soundness of it.
   void VerifyObjectImpl(const mirror::Object* o);
@@ -368,11 +382,6 @@ class Heap {
                       accounting::ObjectStack* stack)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  // Update and mark mod union table based on gc type.
-  void UpdateAndMarkModUnion(collector::MarkSweep* mark_sweep, base::TimingLogger& timings,
-                             collector::GcType gc_type)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
   // Gets called when we get notified by ActivityThread that the process state has changed.
   void ListenForProcessStateChange();
 
@@ -426,11 +435,28 @@ class Heap {
   size_t GetConcGCThreadCount() const {
     return conc_gc_threads_;
   }
+  accounting::ModUnionTable* FindModUnionTableFromSpace(space::Space* space);
+  void AddModUnionTable(accounting::ModUnionTable* mod_union_table);
 
  private:
+  bool TryAllocLargeObjectInstrumented(Thread* self, mirror::Class* c, size_t byte_count,
+                                       mirror::Object** obj_ptr, size_t* bytes_allocated)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool TryAllocLargeObjectUninstrumented(Thread* self, mirror::Class* c, size_t byte_count,
+                                         mirror::Object** obj_ptr, size_t* bytes_allocated)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool ShouldAllocLargeObject(mirror::Class* c, size_t byte_count);
+  void CheckConcurrentGC(Thread* self, size_t new_num_bytes_allocated, mirror::Object* obj);
+
   // Allocates uninitialized storage. Passing in a null space tries to place the object in the
   // large object space.
-  template <class T> mirror::Object* Allocate(Thread* self, T* space, size_t num_bytes, size_t* bytes_allocated)
+  template <class T> mirror::Object* AllocateInstrumented(Thread* self, T* space, size_t num_bytes,
+                                                          size_t* bytes_allocated)
+      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  template <class T> mirror::Object* AllocateUninstrumented(Thread* self, T* space, size_t num_bytes,
+                                                            size_t* bytes_allocated)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -442,17 +468,29 @@ class Heap {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Try to allocate a number of bytes, this function never does any GCs.
-  mirror::Object* TryToAllocate(Thread* self, space::AllocSpace* space, size_t alloc_size, bool grow,
-                                size_t* bytes_allocated)
+  mirror::Object* TryToAllocateInstrumented(Thread* self, space::AllocSpace* space, size_t alloc_size,
+                                            bool grow, size_t* bytes_allocated)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Try to allocate a number of bytes, this function never does any GCs. DlMallocSpace-specialized version.
-  mirror::Object* TryToAllocate(Thread* self, space::DlMallocSpace* space, size_t alloc_size, bool grow,
-                                size_t* bytes_allocated)
+  mirror::Object* TryToAllocateInstrumented(Thread* self, space::DlMallocSpace* space, size_t alloc_size,
+                                            bool grow, size_t* bytes_allocated)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  mirror::Object* TryToAllocateUninstrumented(Thread* self, space::AllocSpace* space, size_t alloc_size,
+                                              bool grow, size_t* bytes_allocated)
+      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  mirror::Object* TryToAllocateUninstrumented(Thread* self, space::DlMallocSpace* space, size_t alloc_size,
+                                              bool grow, size_t* bytes_allocated)
+      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void ThrowOutOfMemoryError(Thread* self, size_t byte_count, bool large_object_allocation)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsOutOfMemoryOnAllocation(size_t alloc_size, bool grow);
 
   // Pushes a list of cleared references out to the managed heap.
@@ -462,7 +500,11 @@ class Heap {
   void RequestConcurrentGC(Thread* self) LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
   bool IsGCRequestPending() const;
 
-  void RecordAllocation(size_t size, mirror::Object* object)
+  size_t RecordAllocationInstrumented(size_t size, mirror::Object* object)
+      LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  size_t RecordAllocationUninstrumented(size_t size, mirror::Object* object)
       LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -476,8 +518,9 @@ class Heap {
 
   void PreGcVerification(collector::GarbageCollector* gc);
   void PreSweepingGcVerification(collector::GarbageCollector* gc)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void PostGcVerification(collector::GarbageCollector* gc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void PostGcVerification(collector::GarbageCollector* gc);
 
   // Update the watermark for the native allocated bytes based on the current number of native
   // bytes allocated and the target utilization ratio.
@@ -522,12 +565,8 @@ class Heap {
   // The card table, dirtied by the write barrier.
   UniquePtr<accounting::CardTable> card_table_;
 
-  // The mod-union table remembers all of the references from the image space to the alloc /
-  // zygote spaces to allow the card table to be cleared.
-  UniquePtr<accounting::ModUnionTable> image_mod_union_table_;
-
-  // This table holds all of the references from the zygote space to the alloc space.
-  UniquePtr<accounting::ModUnionTable> zygote_mod_union_table_;
+  // A mod-union table remembers all of the references from the it's space to other spaces.
+  SafeMap<space::Space*, accounting::ModUnionTable*> mod_union_tables_;
 
   // What kind of concurrency behavior is the runtime after? True for concurrent mark sweep GC,
   // false for stop-the-world mark sweep.
@@ -614,9 +653,6 @@ class Heap {
 
   // Since the heap was created, how many objects have been freed.
   size_t total_objects_freed_ever_;
-
-  // Primitive objects larger than this size are put in the large object space.
-  const size_t large_object_threshold_;
 
   // Number of bytes allocated.  Adjusted after each allocation and free.
   AtomicInteger num_bytes_allocated_;
@@ -718,6 +754,16 @@ class Heap {
   friend class VerifyObjectVisitor;
   friend class ScopedHeapLock;
   friend class space::SpaceTest;
+
+  class AllocationTimer {
+   private:
+    Heap* heap_;
+    mirror::Object** allocated_obj_ptr_;
+    uint64_t allocation_start_time_;
+   public:
+    AllocationTimer(Heap* heap, mirror::Object** allocated_obj_ptr);
+    ~AllocationTimer();
+  };
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Heap);
 };

@@ -23,17 +23,6 @@
 
 namespace art {
 namespace verifier {
-template <class Type>
-Type* RegTypeCache::CreatePrimitiveTypeInstance(const std::string& descriptor) {
-  mirror::Class* klass = NULL;
-  // Try loading the class from linker.
-  if (!descriptor.empty()) {
-    klass = art::Runtime::Current()->GetClassLinker()->FindSystemClass(descriptor.c_str());
-  }
-  Type* entry = Type::CreateInstance(klass, descriptor, RegTypeCache::primitive_count_);
-  RegTypeCache::primitive_count_++;
-  return entry;
-}
 
 inline const art::verifier::RegType& RegTypeCache::GetFromId(uint16_t id) const {
   DCHECK_LT(id, entries_.size());
@@ -41,6 +30,16 @@ inline const art::verifier::RegType& RegTypeCache::GetFromId(uint16_t id) const 
   DCHECK(result != NULL);
   return *result;
 }
+
+inline const ConstantType& RegTypeCache::FromCat1Const(int32_t value, bool precise) {
+  // We only expect 0 to be a precise constant.
+  DCHECK(value != 0 || precise);
+  if (precise && (value >= kMinSmallConstant) && (value <= kMaxSmallConstant)) {
+    return *small_precise_constants_[value - kMinSmallConstant];
+  }
+  return FromCat1NonSmallConstant(value, precise);
+}
+
 }  // namespace verifier
 }  // namespace art
 #endif  // ART_RUNTIME_VERIFIER_REG_TYPE_CACHE_INL_H_
