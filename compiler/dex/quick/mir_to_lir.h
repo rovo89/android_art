@@ -87,6 +87,7 @@ typedef uint32_t CodeOffset;         // Native code offset in bytes.
 #define REG_DEF0_USE01       (REG_DEF0 | REG_USE01)
 #define REG_DEF0_USE0        (REG_DEF0 | REG_USE0)
 #define REG_DEF0_USE12       (REG_DEF0 | REG_USE12)
+#define REG_DEF0_USE123      (REG_DEF0 | REG_USE123)
 #define REG_DEF0_USE1        (REG_DEF0 | REG_USE1)
 #define REG_DEF0_USE2        (REG_DEF0 | REG_USE2)
 #define REG_DEFAD_USEAD      (REG_DEFAD_USEA | REG_USED)
@@ -98,6 +99,7 @@ typedef uint32_t CodeOffset;         // Native code offset in bytes.
 #define REG_USE02            (REG_USE0 | REG_USE2)
 #define REG_USE12            (REG_USE1 | REG_USE2)
 #define REG_USE23            (REG_USE2 | REG_USE3)
+#define REG_USE123           (REG_USE1 | REG_USE2 | REG_USE3)
 
 struct BasicBlock;
 struct CallInfo;
