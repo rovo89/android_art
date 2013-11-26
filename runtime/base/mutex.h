@@ -32,7 +32,7 @@
 #if defined(__APPLE__)
 #define ART_USE_FUTEXES 0
 #else
-#define ART_USE_FUTEXES !defined(__mips__)
+#define ART_USE_FUTEXES 1
 #endif
 
 // Currently Darwin doesn't support locks with timeouts.
