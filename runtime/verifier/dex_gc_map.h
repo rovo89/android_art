@@ -38,11 +38,13 @@ enum RegisterMapFormat {
 // Lightweight wrapper for Dex PC to reference bit maps.
 class DexPcToReferenceMap {
  public:
-  DexPcToReferenceMap(const uint8_t* data, size_t data_length) : data_(data) {
+  DexPcToReferenceMap(const uint8_t* data) : data_(data) {
     CHECK(data_ != NULL);
-    // Check the size of the table agrees with the number of entries
-    size_t data_size = data_length - 4;
-    DCHECK_EQ(EntryWidth() * NumEntries(), data_size);
+  }
+
+  // The total size of the reference bit map including header.
+  size_t RawSize() const {
+    return EntryWidth() * NumEntries() + 4u /* header */;
   }
 
   // The number of entries in the table

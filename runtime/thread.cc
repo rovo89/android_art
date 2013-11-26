@@ -1994,11 +1994,7 @@ class ReferenceMapVisitor : public StackVisitor {
         // Portable path use DexGcMap and store in Method.native_gc_map_.
         const uint8_t* gc_map = m->GetNativeGcMap();
         CHECK(gc_map != NULL) << PrettyMethod(m);
-        uint32_t gc_map_length = static_cast<uint32_t>((gc_map[0] << 24) |
-                                                       (gc_map[1] << 16) |
-                                                       (gc_map[2] << 8) |
-                                                       (gc_map[3] << 0));
-        verifier::DexPcToReferenceMap dex_gc_map(gc_map + 4, gc_map_length);
+        verifier::DexPcToReferenceMap dex_gc_map(gc_map);
         uint32_t dex_pc = GetDexPc();
         const uint8_t* reg_bitmap = dex_gc_map.FindBitMap(dex_pc);
         DCHECK(reg_bitmap != NULL);
