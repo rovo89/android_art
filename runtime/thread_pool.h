@@ -24,6 +24,7 @@
 #include "base/mutex.h"
 #include "closure.h"
 #include "locks.h"
+#include "mem_map.h"
 
 namespace art {
 
@@ -40,7 +41,8 @@ class ThreadPoolWorker {
   static const size_t kDefaultStackSize = 1 * MB;
 
   size_t GetStackSize() const {
-    return stack_size_;
+    DCHECK(stack_.get() != nullptr);
+    return stack_->Size();
   }
 
   virtual ~ThreadPoolWorker();
@@ -52,7 +54,7 @@ class ThreadPoolWorker {
 
   ThreadPool* const thread_pool_;
   const std::string name_;
-  const size_t stack_size_;
+  UniquePtr<MemMap> stack_;
   pthread_t pthread_;
 
  private:
@@ -77,7 +79,7 @@ class ThreadPool {
   // after running it, it is the caller's responsibility.
   void AddTask(Thread* self, Task* task);
 
-  explicit ThreadPool(size_t num_threads);
+  explicit ThreadPool(const char* name, size_t num_threads);
   virtual ~ThreadPool();
 
   // Wait for all tasks currently on queue to get completed.
@@ -107,6 +109,7 @@ class ThreadPool {
     return shutting_down_;
   }
 
+  const std::string name_;
   Mutex task_queue_lock_;
   ConditionVariable task_queue_condition_ GUARDED_BY(task_queue_lock_);
   ConditionVariable completion_condition_ GUARDED_BY(task_queue_lock_);
@@ -167,7 +170,7 @@ class WorkStealingWorker : public ThreadPoolWorker {
 
 class WorkStealingThreadPool : public ThreadPool {
  public:
-  explicit WorkStealingThreadPool(size_t num_threads);
+  explicit WorkStealingThreadPool(const char* name, size_t num_threads);
   virtual ~WorkStealingThreadPool();
 
  private:

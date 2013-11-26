@@ -67,12 +67,9 @@ class ObjectLock {
 
 class ClassHelper {
  public:
-  ClassHelper(const mirror::Class* c = NULL, ClassLinker* l = NULL)
+  explicit ClassHelper(const mirror::Class* c )
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : class_linker_(l),
-        dex_cache_(NULL),
-        dex_file_(NULL),
-        interface_type_list_(NULL),
+      : interface_type_list_(NULL),
         klass_(NULL) {
     if (c != NULL) {
       ChangeClass(c);
@@ -82,13 +79,9 @@ class ClassHelper {
   void ChangeClass(const mirror::Class* new_c)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(new_c != NULL) << "klass_=" << klass_;  // Log what we were changing from if any
-    CHECK(new_c->IsClass()) << "new_c=" << new_c;
-    if (dex_cache_ != NULL) {
-      mirror::DexCache* new_c_dex_cache = new_c->GetDexCache();
-      if (new_c_dex_cache != dex_cache_) {
-        dex_cache_ = new_c_dex_cache;
-        dex_file_ = NULL;
-      }
+    if (!new_c->IsClass()) {
+      LOG(FATAL) << "new_c=" << new_c << " cc " << new_c->GetClass() << " ccc "
+          << ((new_c->GetClass() != nullptr) ? new_c->GetClass()->GetClass() : NULL);
     }
     klass_ = new_c;
     interface_type_list_ = NULL;
@@ -201,20 +194,11 @@ class ClassHelper {
   }
 
   const DexFile& GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (dex_file_ == NULL) {
-      dex_file_ = GetDexCache()->GetDexFile();
-    }
-    return *dex_file_;
+    return *GetDexCache()->GetDexFile();
   }
 
   mirror::DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::DexCache* result = dex_cache_;
-    if (result == NULL) {
-      DCHECK(klass_ != NULL);
-      result = klass_->GetDexCache();
-      dex_cache_ = result;
-    }
-    return result;
+    return klass_->GetDexCache();
   }
 
  private:
@@ -231,18 +215,10 @@ class ClassHelper {
     return result;
   }
 
-  ClassLinker* GetClassLinker() {
-    ClassLinker* result = class_linker_;
-    if (result == NULL) {
-      result = Runtime::Current()->GetClassLinker();
-      class_linker_ = result;
-    }
-    return result;
+  ClassLinker* GetClassLinker() ALWAYS_INLINE {
+    return Runtime::Current()->GetClassLinker();
   }
 
-  ClassLinker* class_linker_;
-  mirror::DexCache* dex_cache_;
-  const DexFile* dex_file_;
   const DexFile::TypeList* interface_type_list_;
   const mirror::Class* klass_;
   std::string descriptor_;
@@ -252,20 +228,11 @@ class ClassHelper {
 
 class FieldHelper {
  public:
-  FieldHelper() : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), field_(NULL) {}
-  explicit FieldHelper(const mirror::ArtField* f) : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), field_(f) {}
-  FieldHelper(const mirror::ArtField* f, ClassLinker* l)
-      : class_linker_(l), dex_cache_(NULL), dex_file_(NULL), field_(f) {}
+  FieldHelper() : field_(NULL) {}
+  explicit FieldHelper(const mirror::ArtField* f) : field_(f) {}
 
   void ChangeField(const mirror::ArtField* new_f) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(new_f != NULL);
-    if (dex_cache_ != NULL) {
-      mirror::DexCache* new_f_dex_cache = new_f->GetDeclaringClass()->GetDexCache();
-      if (new_f_dex_cache != dex_cache_) {
-        dex_cache_ = new_f_dex_cache;
-        dex_file_ = NULL;
-      }
-    }
     field_ = new_f;
   }
 
@@ -343,31 +310,14 @@ class FieldHelper {
 
  private:
   mirror::DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::DexCache* result = dex_cache_;
-    if (result == NULL) {
-      result = field_->GetDeclaringClass()->GetDexCache();
-      dex_cache_ = result;
-    }
-    return result;
+    return field_->GetDeclaringClass()->GetDexCache();
   }
-  ClassLinker* GetClassLinker() {
-    ClassLinker* result = class_linker_;
-    if (result == NULL) {
-      result = Runtime::Current()->GetClassLinker();
-      class_linker_ = result;
-    }
-    return result;
+  ClassLinker* GetClassLinker() ALWAYS_INLINE {
+    return Runtime::Current()->GetClassLinker();
   }
   const DexFile& GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (dex_file_ == NULL) {
-      dex_file_ = GetDexCache()->GetDexFile();
-    }
-    return *dex_file_;
+    return *GetDexCache()->GetDexFile();
   }
-
-  ClassLinker* class_linker_;
-  mirror::DexCache* dex_cache_;
-  const DexFile* dex_file_;
   const mirror::ArtField* field_;
   std::string declaring_class_descriptor_;
 
@@ -377,38 +327,17 @@ class FieldHelper {
 class MethodHelper {
  public:
   MethodHelper()
-     : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), method_(NULL), shorty_(NULL),
+     : method_(NULL), shorty_(NULL),
        shorty_len_(0) {}
 
   explicit MethodHelper(const mirror::ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), method_(NULL), shorty_(NULL),
-        shorty_len_(0) {
-    SetMethod(m);
-  }
-
-  MethodHelper(const mirror::ArtMethod* m, ClassLinker* l)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : class_linker_(l), dex_cache_(NULL), dex_file_(NULL), method_(NULL), shorty_(NULL),
-        shorty_len_(0) {
+      : method_(NULL), shorty_(NULL), shorty_len_(0) {
     SetMethod(m);
   }
 
   void ChangeMethod(mirror::ArtMethod* new_m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(new_m != NULL);
-    if (dex_cache_ != NULL) {
-      mirror::Class* klass = new_m->GetDeclaringClass();
-      if (klass->IsProxyClass()) {
-        dex_cache_ = NULL;
-        dex_file_ = NULL;
-      } else {
-        mirror::DexCache* new_m_dex_cache = klass->GetDexCache();
-        if (new_m_dex_cache != dex_cache_) {
-          dex_cache_ = new_m_dex_cache;
-          dex_file_ = NULL;
-        }
-      }
-    }
     SetMethod(new_m);
     shorty_ = NULL;
   }
@@ -444,7 +373,8 @@ class MethodHelper {
     const DexFile& dex_file = GetDexFile();
     uint32_t dex_method_idx = method_->GetDexMethodIndex();
     const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_idx);
-    return GetClassLinker()->ResolveString(dex_file, method_id.name_idx_, GetDexCache());
+    SirtRef<mirror::DexCache> dex_cache(Thread::Current(), GetDexCache());
+    return GetClassLinker()->ResolveString(dex_file, method_id.name_idx_, dex_cache);
   }
 
   const char* GetShorty() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -622,28 +552,18 @@ class MethodHelper {
   }
 
   const DexFile& GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile* result = dex_file_;
-    if (result == NULL) {
-      const mirror::DexCache* dex_cache = GetDexCache();
-      result = dex_file_ = dex_cache->GetDexFile();
-    }
-    return *result;
+    return *GetDexCache()->GetDexFile();
   }
 
   mirror::DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::DexCache* result = dex_cache_;
-    if (result == NULL) {
-      mirror::Class* klass = method_->GetDeclaringClass();
-      result = klass->GetDexCache();
-      dex_cache_ = result;
-    }
-    return result;
+    return method_->GetDeclaringClass()->GetDexCache();
   }
 
   mirror::String* ResolveString(uint32_t string_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::String* s = method_->GetDexCacheStrings()->Get(string_idx);
     if (UNLIKELY(s == NULL)) {
-      s = GetClassLinker()->ResolveString(GetDexFile(), string_idx, GetDexCache());
+      SirtRef<mirror::DexCache> dex_cache(Thread::Current(), GetDexCache());
+      s = GetClassLinker()->ResolveString(GetDexFile(), string_idx, dex_cache);
     }
     return s;
   }
@@ -705,18 +625,10 @@ class MethodHelper {
     method_ = method;
   }
 
-  ClassLinker* GetClassLinker() {
-    ClassLinker* result = class_linker_;
-    if (result == NULL) {
-      result = Runtime::Current()->GetClassLinker();
-      class_linker_ = result;
-    }
-    return result;
+  ClassLinker* GetClassLinker() ALWAYS_INLINE {
+    return Runtime::Current()->GetClassLinker();
   }
 
-  ClassLinker* class_linker_;
-  mirror::DexCache* dex_cache_;
-  const DexFile* dex_file_;
   const mirror::ArtMethod* method_;
   const char* shorty_;
   uint32_t shorty_len_;

@@ -48,7 +48,7 @@ void InternTable::VisitRoots(RootVisitor* visitor, void* arg,
   MutexLock mu(Thread::Current(), intern_table_lock_);
   if (!only_dirty || is_dirty_) {
     for (auto& strong_intern : strong_interns_) {
-      strong_intern.second = reinterpret_cast<mirror::String*>(visitor(strong_intern.second, arg));
+      strong_intern.second = down_cast<mirror::String*>(visitor(strong_intern.second, arg));
       DCHECK(strong_intern.second != nullptr);
     }
 
@@ -59,8 +59,7 @@ void InternTable::VisitRoots(RootVisitor* visitor, void* arg,
   // Note: we deliberately don't visit the weak_interns_ table and the immutable image roots.
 }
 
-mirror::String* InternTable::Lookup(Table& table, mirror::String* s,
-                                    uint32_t hash_code) {
+mirror::String* InternTable::Lookup(Table& table, mirror::String* s, uint32_t hash_code) {
   intern_table_lock_.AssertHeld(Thread::Current());
   for (auto it = table.find(hash_code), end = table.end(); it != end; ++it) {
     mirror::String* existing_string = it->second;
@@ -71,8 +70,7 @@ mirror::String* InternTable::Lookup(Table& table, mirror::String* s,
   return NULL;
 }
 
-mirror::String* InternTable::Insert(Table& table, mirror::String* s,
-                                    uint32_t hash_code) {
+mirror::String* InternTable::Insert(Table& table, mirror::String* s, uint32_t hash_code) {
   intern_table_lock_.AssertHeld(Thread::Current());
   table.insert(std::make_pair(hash_code, s));
   return s;

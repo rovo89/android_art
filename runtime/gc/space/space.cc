@@ -34,7 +34,6 @@ std::ostream& operator<<(std::ostream& os, const Space& space) {
   return os;
 }
 
-
 DiscontinuousSpace::DiscontinuousSpace(const std::string& name,
                                        GcRetentionPolicy gc_retention_policy) :
     Space(name, gc_retention_policy),

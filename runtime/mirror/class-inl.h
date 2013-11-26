@@ -248,7 +248,7 @@ inline ArtMethod* Class::FindVirtualMethodForVirtualOrInterface(ArtMethod* metho
   if (method->IsDirect()) {
     return method;
   }
-  if (method->GetDeclaringClass()->IsInterface()) {
+  if (method->GetDeclaringClass()->IsInterface() && !method->IsMiranda()) {
     return FindVirtualMethodForInterface(method);
   }
   return FindVirtualMethodForVirtual(method);
@@ -357,14 +357,20 @@ inline void Class::CheckObjectAlloc() {
   DCHECK_GE(this->object_size_, sizeof(Object));
 }
 
-inline Object* Class::AllocObjectInstrumented(Thread* self) {
+template <bool kIsInstrumented>
+inline Object* Class::Alloc(Thread* self, gc::AllocatorType allocator_type) {
   CheckObjectAlloc();
-  return Runtime::Current()->GetHeap()->AllocObjectInstrumented(self, this, this->object_size_);
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  return heap->AllocObjectWithAllocator<kIsInstrumented>(self, this, this->object_size_,
+                                                         allocator_type);
 }
 
-inline Object* Class::AllocObjectUninstrumented(Thread* self) {
-  CheckObjectAlloc();
-  return Runtime::Current()->GetHeap()->AllocObjectUninstrumented(self, this, this->object_size_);
+inline Object* Class::AllocObject(Thread* self) {
+  return Alloc<true>(self, Runtime::Current()->GetHeap()->GetCurrentAllocator());
+}
+
+inline Object* Class::AllocNonMovableObject(Thread* self) {
+  return Alloc<true>(self, Runtime::Current()->GetHeap()->GetCurrentNonMovingAllocator());
 }
 
 }  // namespace mirror

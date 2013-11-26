@@ -43,6 +43,8 @@ namespace mirror {
 }  // namespace mirror
 class ClassLinker;
 class Signature;
+template <typename T>
+class SirtRef;
 class StringPiece;
 class ZipArchive;
 
@@ -659,7 +661,11 @@ class DexFile {
 
   // Looks up a proto id for a given return type and signature type list
   const ProtoId* FindProtoId(uint16_t return_type_idx,
-                             const std::vector<uint16_t>& signature_type_idxs_) const;
+                             const uint16_t* signature_type_idxs, uint32_t signature_length) const;
+  const ProtoId* FindProtoId(uint16_t return_type_idx,
+                             const std::vector<uint16_t>& signature_type_idxs) const {
+    return FindProtoId(return_type_idx, &signature_type_idxs[0], signature_type_idxs.size());
+  }
 
   // Given a signature place the type ids into the given vector, returns true on success
   bool CreateTypeList(const StringPiece& signature, uint16_t* return_type_idx,
@@ -958,10 +964,7 @@ class Signature {
     return !(*this == rhs);
   }
 
-  bool operator==(const StringPiece& rhs) const {
-    // TODO: Avoid temporary string allocation.
-    return ToString() == rhs;
-  }
+  bool operator==(const StringPiece& rhs) const;
 
  private:
   Signature(const DexFile* dex, const DexFile::ProtoId& proto) : dex_file_(dex), proto_id_(&proto) {
@@ -1152,8 +1155,8 @@ class ClassDataItemIterator {
 
 class EncodedStaticFieldValueIterator {
  public:
-  EncodedStaticFieldValueIterator(const DexFile& dex_file, mirror::DexCache* dex_cache,
-                                  mirror::ClassLoader* class_loader,
+  EncodedStaticFieldValueIterator(const DexFile& dex_file, SirtRef<mirror::DexCache>* dex_cache,
+                                  SirtRef<mirror::ClassLoader>* class_loader,
                                   ClassLinker* linker, const DexFile::ClassDef& class_def)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -1187,8 +1190,8 @@ class EncodedStaticFieldValueIterator {
   static const byte kEncodedValueArgShift = 5;
 
   const DexFile& dex_file_;
-  mirror::DexCache* dex_cache_;  // Dex cache to resolve literal objects.
-  mirror::ClassLoader* class_loader_;  // ClassLoader to resolve types.
+  SirtRef<mirror::DexCache>* const dex_cache_;  // Dex cache to resolve literal objects.
+  SirtRef<mirror::ClassLoader>* const class_loader_;  // ClassLoader to resolve types.
   ClassLinker* linker_;  // Linker to resolve literal objects.
   size_t array_size_;  // Size of array.
   size_t pos_;  // Current position.

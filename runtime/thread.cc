@@ -152,7 +152,7 @@ void* Thread::CreateCallback(void* arg) {
     MutexLock mu(NULL, *Locks::runtime_shutdown_lock_);
     // Check that if we got here we cannot be shutting down (as shutdown should never have started
     // while threads are being born).
-    CHECK(!runtime->IsShuttingDown());
+    CHECK(!runtime->IsShuttingDownLocked());
     self->Init(runtime->GetThreadList(), runtime->GetJavaVM());
     Runtime::Current()->EndThreadBirth();
   }
@@ -241,7 +241,7 @@ void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_siz
   bool thread_start_during_shutdown = false;
   {
     MutexLock mu(self, *Locks::runtime_shutdown_lock_);
-    if (runtime->IsShuttingDown()) {
+    if (runtime->IsShuttingDownLocked()) {
       thread_start_during_shutdown = true;
     } else {
       runtime->StartThreadBirth();
@@ -328,7 +328,7 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_g
   }
   {
     MutexLock mu(NULL, *Locks::runtime_shutdown_lock_);
-    if (runtime->IsShuttingDown()) {
+    if (runtime->IsShuttingDownLocked()) {
       LOG(ERROR) << "Thread attaching while runtime is shutting down: " << thread_name;
       return NULL;
     } else {
@@ -917,6 +917,7 @@ Thread::Thread(bool daemon)
       throwing_OutOfMemoryError_(false),
       debug_suspend_count_(0),
       debug_invoke_req_(new DebugInvokeReq),
+      single_step_control_(new SingleStepControl),
       deoptimization_shadow_frame_(NULL),
       instrumentation_stack_(new std::deque<instrumentation::InstrumentationStackFrame>),
       name_(new std::string(kThreadNameDuringStartup)),
@@ -930,6 +931,7 @@ Thread::Thread(bool daemon)
   state_and_flags_.as_struct.flags = 0;
   state_and_flags_.as_struct.state = kNative;
   memset(&held_mutexes_[0], 0, sizeof(held_mutexes_));
+  memset(rosalloc_runs_, 0, sizeof(rosalloc_runs_));
 }
 
 bool Thread::IsStillStarting() const {
@@ -1018,9 +1020,12 @@ Thread::~Thread() {
   }
 
   delete debug_invoke_req_;
+  delete single_step_control_;
   delete instrumentation_stack_;
   delete name_;
   delete stack_trace_sample_;
+
+  Runtime::Current()->GetHeap()->RevokeThreadLocalBuffers(this);
 
   TearDownAlternateSignalStack();
 }
@@ -1352,13 +1357,12 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
     *stack_depth = depth;
   }
 
-  MethodHelper mh;
   for (int32_t i = 0; i < depth; ++i) {
     mirror::ObjectArray<mirror::Object>* method_trace =
           soa.Decode<mirror::ObjectArray<mirror::Object>*>(internal);
     // Prepare parameters for StackTraceElement(String cls, String method, String file, int line)
     mirror::ArtMethod* method = down_cast<mirror::ArtMethod*>(method_trace->Get(i));
-    mh.ChangeMethod(method);
+    MethodHelper mh(method);
     mirror::IntArray* pc_trace = down_cast<mirror::IntArray*>(method_trace->Get(depth));
     uint32_t dex_pc = pc_trace->Get(i);
     int32_t line_number = mh.GetLineNumFromDexPC(dex_pc);
@@ -1385,11 +1389,8 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
     SirtRef<mirror::String> source_name_object(soa.Self(),
                                                mirror::String::AllocFromModifiedUtf8(soa.Self(),
                                                                                      source_file));
-    mirror::StackTraceElement* obj = mirror::StackTraceElement::Alloc(soa.Self(),
-                                                                      class_name_object.get(),
-                                                                      method_name_object.get(),
-                                                                      source_name_object.get(),
-                                                                      line_number);
+    mirror::StackTraceElement* obj = mirror::StackTraceElement::Alloc(
+        soa.Self(), class_name_object, method_name_object, source_name_object, line_number);
     if (obj == NULL) {
       return NULL;
     }
@@ -1437,8 +1438,10 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
   if (throw_location.GetMethod() != NULL) {
     cl = throw_location.GetMethod()->GetDeclaringClass()->GetClassLoader();
   }
+  SirtRef<mirror::ClassLoader> class_loader(this, cl);
   SirtRef<mirror::Class>
-      exception_class(this, runtime->GetClassLinker()->FindClass(exception_class_descriptor, cl));
+      exception_class(this, runtime->GetClassLinker()->FindClass(exception_class_descriptor,
+                                                                 class_loader));
   if (UNLIKELY(exception_class.get() == NULL)) {
     CHECK(IsExceptionPending());
     LOG(ERROR) << "No exception class " << PrettyDescriptor(exception_class_descriptor);
@@ -1452,6 +1455,12 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
   DCHECK(!runtime->IsStarted() || exception_class->IsThrowableClass());
   SirtRef<mirror::Throwable> exception(this,
                                 down_cast<mirror::Throwable*>(exception_class->AllocObject(this)));
+
+  // If we couldn't allocate the exception, throw the pre-allocated out of memory exception.
+  if (exception.get() == nullptr) {
+    SetException(throw_location, Runtime::Current()->GetPreAllocatedOutOfMemoryError());
+    return;
+  }
 
   // Choose an appropriate constructor and set up the arguments.
   const char* signature;
@@ -1741,18 +1750,21 @@ class CatchBlockStackVisitor : public StackVisitor {
     return true;  // Continue stack walk.
   }
 
-  bool HandleDeoptimization(mirror::ArtMethod* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool HandleDeoptimization(mirror::ArtMethod* m)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     MethodHelper mh(m);
     const DexFile::CodeItem* code_item = mh.GetCodeItem();
     CHECK(code_item != NULL);
-    uint16_t num_regs =  code_item->registers_size_;
+    uint16_t num_regs = code_item->registers_size_;
     uint32_t dex_pc = GetDexPc();
     const Instruction* inst = Instruction::At(code_item->insns_ + dex_pc);
     uint32_t new_dex_pc = dex_pc + inst->SizeInCodeUnits();
     ShadowFrame* new_frame = ShadowFrame::Create(num_regs, NULL, m, new_dex_pc);
-    verifier::MethodVerifier verifier(&mh.GetDexFile(), mh.GetDexCache(), mh.GetClassLoader(),
-                                      &mh.GetClassDef(), code_item,
-                                      m->GetDexMethodIndex(), m, m->GetAccessFlags(), false, true);
+    SirtRef<mirror::DexCache> dex_cache(self_, mh.GetDexCache());
+    SirtRef<mirror::ClassLoader> class_loader(self_, mh.GetClassLoader());
+    verifier::MethodVerifier verifier(&mh.GetDexFile(), &dex_cache, &class_loader,
+                                      &mh.GetClassDef(), code_item, m->GetDexMethodIndex(), m,
+                                      m->GetAccessFlags(), false, true);
     verifier.Verify();
     std::vector<int32_t> kinds = verifier.DescribeVRegs(dex_pc);
     for (uint16_t reg = 0; reg < num_regs; reg++) {
@@ -2088,6 +2100,13 @@ class VerifyCallbackVisitor {
   void* const arg_;
 };
 
+void Thread::SetClassLoaderOverride(mirror::ClassLoader* class_loader_override) {
+  if (kIsDebugBuild) {
+    Runtime::Current()->GetHeap()->VerifyObject(class_loader_override);
+  }
+  class_loader_override_ = class_loader_override;
+}
+
 void Thread::VisitRoots(RootVisitor* visitor, void* arg) {
   if (opeer_ != nullptr) {
     opeer_ = visitor(opeer_, arg);
@@ -2115,10 +2134,9 @@ void Thread::VisitRoots(RootVisitor* visitor, void* arg) {
   for (instrumentation::InstrumentationStackFrame& frame : *GetInstrumentationStack()) {
     if (frame.this_object_ != nullptr) {
       frame.this_object_ = visitor(frame.this_object_, arg);
-      DCHECK(frame.this_object_ != nullptr);
     }
-    frame.method_ = reinterpret_cast<mirror::ArtMethod*>(visitor(frame.method_, arg));
     DCHECK(frame.method_ != nullptr);
+    frame.method_ = reinterpret_cast<mirror::ArtMethod*>(visitor(frame.method_, arg));
   }
 }
 

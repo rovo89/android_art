@@ -205,7 +205,7 @@ class ScopedCheck {
         // If java_object is a weak global ref whose referent has been cleared,
         // obj will be NULL.  Otherwise, obj should always be non-NULL
         // and valid.
-        if (!Runtime::Current()->GetHeap()->IsHeapAddress(obj)) {
+        if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(obj)) {
           Runtime::Current()->GetHeap()->DumpSpaces();
           JniAbortF(function_name_, "field operation on invalid %s: %p",
                     ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(), java_object);
@@ -242,7 +242,7 @@ class ScopedCheck {
   void CheckInstanceFieldID(jobject java_object, jfieldID fid)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::Object* o = soa_.Decode<mirror::Object*>(java_object);
-    if (o == NULL || !Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
+    if (o == NULL || !Runtime::Current()->GetHeap()->IsValidObjectAddress(o)) {
       Runtime::Current()->GetHeap()->DumpSpaces();
       JniAbortF(function_name_, "field operation on invalid %s: %p",
                 ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(), java_object);
@@ -455,7 +455,8 @@ class ScopedCheck {
           mirror::Class* c = reinterpret_cast<mirror::Class*>(Thread::Current()->DecodeJObject(jc));
           if (c == NULL) {
             msg += "NULL";
-          } else if (c == kInvalidIndirectRefObject || !Runtime::Current()->GetHeap()->IsHeapAddress(c)) {
+          } else if (c == kInvalidIndirectRefObject ||
+              !Runtime::Current()->GetHeap()->IsValidObjectAddress(c)) {
             StringAppendF(&msg, "INVALID POINTER:%p", jc);
           } else if (!c->IsClass()) {
             msg += "INVALID NON-CLASS OBJECT OF TYPE:" + PrettyTypeOf(c);
@@ -621,7 +622,7 @@ class ScopedCheck {
     }
 
     mirror::Object* obj = soa_.Decode<mirror::Object*>(java_object);
-    if (!Runtime::Current()->GetHeap()->IsHeapAddress(obj)) {
+    if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(obj)) {
       Runtime::Current()->GetHeap()->DumpSpaces();
       JniAbortF(function_name_, "%s is an invalid %s: %p (%p)",
                 what, ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(), java_object, obj);
@@ -675,7 +676,7 @@ class ScopedCheck {
     }
 
     mirror::Array* a = soa_.Decode<mirror::Array*>(java_array);
-    if (!Runtime::Current()->GetHeap()->IsHeapAddress(a)) {
+    if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(a)) {
       Runtime::Current()->GetHeap()->DumpSpaces();
       JniAbortF(function_name_, "jarray is an invalid %s: %p (%p)",
                 ToStr<IndirectRefKind>(GetIndirectRefKind(java_array)).c_str(), java_array, a);
@@ -696,7 +697,7 @@ class ScopedCheck {
       return NULL;
     }
     mirror::ArtField* f = soa_.DecodeField(fid);
-    if (!Runtime::Current()->GetHeap()->IsHeapAddress(f) || !f->IsArtField()) {
+    if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(f) || !f->IsArtField()) {
       Runtime::Current()->GetHeap()->DumpSpaces();
       JniAbortF(function_name_, "invalid jfieldID: %p", fid);
       return NULL;
@@ -710,7 +711,7 @@ class ScopedCheck {
       return NULL;
     }
     mirror::ArtMethod* m = soa_.DecodeMethod(mid);
-    if (!Runtime::Current()->GetHeap()->IsHeapAddress(m) || !m->IsArtMethod()) {
+    if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(m) || !m->IsArtMethod()) {
       Runtime::Current()->GetHeap()->DumpSpaces();
       JniAbortF(function_name_, "invalid jmethodID: %p", mid);
       return NULL;
@@ -731,7 +732,7 @@ class ScopedCheck {
     }
 
     mirror::Object* o = soa_.Decode<mirror::Object*>(java_object);
-    if (!Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
+    if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(o)) {
       Runtime::Current()->GetHeap()->DumpSpaces();
       // TODO: when we remove work_around_app_jni_bugs, this should be impossible.
       JniAbortF(function_name_, "native code passing in reference to invalid %s: %p",

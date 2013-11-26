@@ -46,7 +46,7 @@ TEST_F(ImageTest, WriteRead) {
     {
       jobject class_loader = NULL;
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-      base::TimingLogger timings("ImageTest::WriteRead", false, false);
+      TimingLogger timings("ImageTest::WriteRead", false, false);
       timings.StartSplit("CompileAll");
 #if defined(ART_USE_PORTABLE_COMPILER)
       // TODO: we disable this for portable so the test executes in a reasonable amount of time.
@@ -60,13 +60,14 @@ TEST_F(ImageTest, WriteRead) {
 
       ScopedObjectAccess soa(Thread::Current());
       OatWriter oat_writer(class_linker->GetBootClassPath(),
-                           0, 0, "", compiler_driver_.get());
+                           0, 0, "", compiler_driver_.get(), &timings);
       bool success = compiler_driver_->WriteElf(GetTestAndroidRoot(),
                                                 !kIsTargetBuild,
                                                 class_linker->GetBootClassPath(),
                                                 oat_writer,
                                                 tmp_elf.GetFile());
       ASSERT_TRUE(success);
+      timings.EndSplit();
     }
   }
   // Workound bug that mcld::Linker::emit closes tmp_elf by reopening as tmp_oat.
@@ -94,11 +95,11 @@ TEST_F(ImageTest, WriteRead) {
     ASSERT_NE(0U, image_header.GetImageBitmapSize());
 
     gc::Heap* heap = Runtime::Current()->GetHeap();
-    ASSERT_EQ(1U, heap->GetContinuousSpaces().size());
-    gc::space::ContinuousSpace* space = heap->GetContinuousSpaces().front();
+    ASSERT_TRUE(!heap->GetContinuousSpaces().empty());
+    gc::space::ContinuousSpace* space = heap->GetNonMovingSpace();
     ASSERT_FALSE(space->IsImageSpace());
     ASSERT_TRUE(space != NULL);
-    ASSERT_TRUE(space->IsDlMallocSpace());
+    ASSERT_TRUE(space->IsMallocSpace());
     ASSERT_GE(sizeof(image_header) + space->Size(), static_cast<size_t>(file->GetLength()));
   }
 
@@ -139,11 +140,8 @@ TEST_F(ImageTest, WriteRead) {
   class_linker_ = runtime_->GetClassLinker();
 
   gc::Heap* heap = Runtime::Current()->GetHeap();
-  ASSERT_EQ(2U, heap->GetContinuousSpaces().size());
-  ASSERT_TRUE(heap->GetContinuousSpaces()[0]->IsImageSpace());
-  ASSERT_FALSE(heap->GetContinuousSpaces()[0]->IsDlMallocSpace());
-  ASSERT_FALSE(heap->GetContinuousSpaces()[1]->IsImageSpace());
-  ASSERT_TRUE(heap->GetContinuousSpaces()[1]->IsDlMallocSpace());
+  ASSERT_TRUE(heap->HasImageSpace());
+  ASSERT_TRUE(heap->GetNonMovingSpace()->IsMallocSpace());
 
   gc::space::ImageSpace* image_space = heap->GetImageSpace();
   image_space->VerifyImageAllocations();

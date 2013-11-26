@@ -920,7 +920,8 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       core_spill_mask_(0),
       fp_spill_mask_(0),
       first_lir_insn_(NULL),
-      last_lir_insn_(NULL) {
+      last_lir_insn_(NULL),
+      inliner_(nullptr) {
   promotion_map_ = static_cast<PromotionMap*>
       (arena_->Alloc((cu_->num_dalvik_registers  + cu_->num_compiler_temps + 1) *
                       sizeof(promotion_map_[0]), ArenaAllocator::kAllocRegAlloc));

@@ -26,7 +26,7 @@ LIBART_COMPILER := $(LIBARTD_COMPILER)
 
 # By default, do not run rerun dex2oat if the tool changes.
 # Comment out the | to force dex2oat to rerun on after all changes.
-DEX2OAT_DEPENDENCY := #|
+DEX2OAT_DEPENDENCY := |
 DEX2OAT_DEPENDENCY += $(DEX2OAT)
 DEX2OAT_DEPENDENCY += $(LIBART_COMPILER)
 

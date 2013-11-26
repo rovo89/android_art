@@ -97,7 +97,7 @@ void ArmMir2Lir::GenCmpLong(RegLocation rl_dest, RegLocation rl_src1,
   LIR* branch3 = OpCondBranch(kCondEq, NULL);
 
   OpIT(kCondHi, "E");
-  NewLIR2(kThumb2MovImmShift, t_reg, ModifiedImmediate(-1));
+  NewLIR2(kThumb2MovI8M, t_reg, ModifiedImmediate(-1));
   LoadConstant(t_reg, 1);
   GenBarrier();
 
@@ -299,7 +299,6 @@ void ArmMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
 LIR* ArmMir2Lir::OpCmpImmBranch(ConditionCode cond, int reg, int check_value,
                                 LIR* target) {
   LIR* branch;
-  int mod_imm;
   ArmConditionCode arm_cond = ArmConditionEncoding(cond);
   /*
    * A common use of OpCmpImmBranch is for null checks, and using the Thumb 16-bit
@@ -317,16 +316,7 @@ LIR* ArmMir2Lir::OpCmpImmBranch(ConditionCode cond, int reg, int check_value,
     branch = NewLIR2((arm_cond == kArmCondEq) ? kThumb2Cbz : kThumb2Cbnz,
                      reg, 0);
   } else {
-    mod_imm = ModifiedImmediate(check_value);
-    if (ARM_LOWREG(reg) && ((check_value & 0xff) == check_value)) {
-      NewLIR2(kThumbCmpRI8, reg, check_value);
-    } else if (mod_imm >= 0) {
-      NewLIR2(kThumb2CmpRI12, reg, mod_imm);
-    } else {
-      int t_reg = AllocTemp();
-      LoadConstant(t_reg, check_value);
-      OpRegReg(kOpCmp, reg, t_reg);
-    }
+    OpRegImm(kOpCmp, reg, check_value);
     branch = NewLIR2(kThumbBCond, 0, arm_cond);
   }
   branch->target = target;
@@ -570,14 +560,15 @@ void ArmMir2Lir::OpTlsCmp(ThreadOffset offset, int val) {
   LOG(FATAL) << "Unexpected use of OpTlsCmp for Arm";
 }
 
-bool ArmMir2Lir::GenInlinedCas32(CallInfo* info, bool need_write_barrier) {
+bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
+  DCHECK(!is_long);  // not supported yet
   DCHECK_EQ(cu_->instruction_set, kThumb2);
   // Unused - RegLocation rl_src_unsafe = info->args[0];
-  RegLocation rl_src_obj= info->args[1];  // Object - known non-null
-  RegLocation rl_src_offset= info->args[2];  // long low
+  RegLocation rl_src_obj = info->args[1];  // Object - known non-null
+  RegLocation rl_src_offset = info->args[2];  // long low
   rl_src_offset.wide = 0;  // ignore high half in info->args[3]
-  RegLocation rl_src_expected= info->args[4];  // int or Object
-  RegLocation rl_src_new_value= info->args[5];  // int or Object
+  RegLocation rl_src_expected = info->args[4];  // int, long or Object
+  RegLocation rl_src_new_value = info->args[5];  // int, long or Object
   RegLocation rl_dest = InlineTarget(info);  // boolean place for result
 
 
@@ -587,7 +578,7 @@ bool ArmMir2Lir::GenInlinedCas32(CallInfo* info, bool need_write_barrier) {
   RegLocation rl_object = LoadValue(rl_src_obj, kCoreReg);
   RegLocation rl_new_value = LoadValue(rl_src_new_value, kCoreReg);
 
-  if (need_write_barrier && !mir_graph_->IsConstantNullRef(rl_new_value)) {
+  if (is_object && !mir_graph_->IsConstantNullRef(rl_new_value)) {
     // Mark card for object assuming new value is stored.
     MarkGCCard(rl_new_value.low_reg, rl_object.low_reg);
   }
@@ -1124,8 +1115,8 @@ void ArmMir2Lir::GenArithImmOpLong(Instruction::Code opcode,
   switch (opcode) {
     case Instruction::ADD_LONG:
     case Instruction::ADD_LONG_2ADDR:
-      NewLIR3(kThumb2AddRRI8, rl_result.low_reg, rl_src1.low_reg, mod_imm_lo);
-      NewLIR3(kThumb2AdcRRI8, rl_result.high_reg, rl_src1.high_reg, mod_imm_hi);
+      NewLIR3(kThumb2AddRRI8M, rl_result.low_reg, rl_src1.low_reg, mod_imm_lo);
+      NewLIR3(kThumb2AdcRRI8M, rl_result.high_reg, rl_src1.high_reg, mod_imm_hi);
       break;
     case Instruction::OR_LONG:
     case Instruction::OR_LONG_2ADDR:
@@ -1152,8 +1143,8 @@ void ArmMir2Lir::GenArithImmOpLong(Instruction::Code opcode,
       break;
     case Instruction::SUB_LONG_2ADDR:
     case Instruction::SUB_LONG:
-      NewLIR3(kThumb2SubRRI8, rl_result.low_reg, rl_src1.low_reg, mod_imm_lo);
-      NewLIR3(kThumb2SbcRRI8, rl_result.high_reg, rl_src1.high_reg, mod_imm_hi);
+      NewLIR3(kThumb2SubRRI8M, rl_result.low_reg, rl_src1.low_reg, mod_imm_lo);
+      NewLIR3(kThumb2SbcRRI8M, rl_result.high_reg, rl_src1.high_reg, mod_imm_hi);
       break;
     default:
       LOG(FATAL) << "Unexpected opcode " << opcode;

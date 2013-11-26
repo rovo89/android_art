@@ -18,6 +18,7 @@
 #define ART_RUNTIME_MIRROR_STACK_TRACE_ELEMENT_H_
 
 #include "object.h"
+#include "sirt_ref.h"
 
 namespace art {
 
@@ -49,9 +50,9 @@ class MANAGED StackTraceElement : public Object {
   }
 
   static StackTraceElement* Alloc(Thread* self,
-                                  String* declaring_class,
-                                  String* method_name,
-                                  String* file_name,
+                                  SirtRef<String>& declaring_class,
+                                  SirtRef<String>& method_name,
+                                  SirtRef<String>& file_name,
                                   int32_t line_number)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

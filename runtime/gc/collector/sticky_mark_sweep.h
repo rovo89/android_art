@@ -31,10 +31,6 @@ class StickyMarkSweep : public PartialMarkSweep {
     return kGcTypeSticky;
   }
 
-  // Don't need to do anything special here since we scan all the cards which may have references
-  // to the newly allocated objects.
-  virtual void UpdateAndMarkModUnion() { }
-
   explicit StickyMarkSweep(Heap* heap, bool is_concurrent, const std::string& name_prefix = "");
   ~StickyMarkSweep() {}
 
@@ -52,6 +48,10 @@ class StickyMarkSweep : public PartialMarkSweep {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   void Sweep(bool swap_bitmaps) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
+  // Don't need to do anything special here since we scan all the cards which may have references
+  // to the newly allocated objects.
+  virtual void UpdateAndMarkModUnion() { }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(StickyMarkSweep);

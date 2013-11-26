@@ -65,7 +65,7 @@ target_mode="yes"
 dev_mode="no"
 update_mode="no"
 debug_mode="no"
-dalvik_mode="no"
+runtime="art"
 usage="no"
 build_only="no"
 
@@ -77,6 +77,7 @@ while true; do
         shift
     elif [ "x$1" = "x--jvm" ]; then
         target_mode="no"
+        runtime="jvm"
         RUN="${progdir}/etc/reference-run-test-classes"
         NEED_DEX="false"
         shift
@@ -85,7 +86,7 @@ while true; do
         shift
     elif [ "x$1" = "x--dalvik" ]; then
         lib="libdvm.so"
-        dalvik_mode="yes"
+        runtime="dalvik"
         shift
     elif [ "x$1" = "x--image" ]; then
         shift
@@ -155,21 +156,23 @@ while true; do
     fi
 done
 
-run_args="${run_args} --lib $lib"
+if [ ! "$runtime" = "jvm" ]; then
+  run_args="${run_args} --lib $lib"
+fi
 
-if [ "$dalvik_mode" = "no" ]; then
-    if [ "$target_mode" = "no" ]; then
-        run_args="${run_args} --boot -Ximage:${ANDROID_HOST_OUT}/framework/core.art"
-    else
-        run_args="${run_args} --boot -Ximage:/data/art-test/core.art"
-    fi
-else
+if [ "$runtime" = "dalvik" ]; then
     if [ "$target_mode" = "no" ]; then
         framework="${OUT}/system/framework"
         bpath="${framework}/core.jar:${framework}/conscrypt.jar:${framework}/okhttp.jar:${framework}/core-junit.jar:${framework}/bouncycastle.jar:${framework}/ext.jar"
         run_args="${run_args} --boot -Xbootclasspath:${bpath}"
     else
         true # defaults to using target BOOTCLASSPATH
+    fi
+elif [ "$runtime" = "art" ]; then
+    if [ "$target_mode" = "no" ]; then
+        run_args="${run_args} --boot -Ximage:${ANDROID_HOST_OUT}/framework/core.art"
+    else
+        run_args="${run_args} --boot -Ximage:/data/art-test/core.art"
     fi
 fi
 

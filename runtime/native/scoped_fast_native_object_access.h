@@ -63,10 +63,6 @@ class ScopedFastNativeObjectAccess {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     // Don't work with raw objects in non-runnable states.
     DCHECK_EQ(Self()->GetState(), kRunnable);
-#ifdef MOVING_GARBAGE_COLLECTOR
-    // TODO: we should make these unique weak globals if Field instances can ever move.
-    UNIMPLEMENTED(WARNING);
-#endif
     return reinterpret_cast<mirror::ArtField*>(fid);
   }
 
@@ -81,6 +77,10 @@ class ScopedFastNativeObjectAccess {
     DCHECK_EQ(Self()->GetState(), kRunnable);
     if (obj == NULL) {
       return NULL;
+    }
+
+    if (kIsDebugBuild) {
+      Runtime::Current()->GetHeap()->VerifyObject(obj);
     }
 
     DCHECK_NE((reinterpret_cast<uintptr_t>(obj) & 0xffff0000), 0xebad0000);

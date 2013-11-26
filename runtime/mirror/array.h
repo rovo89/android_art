@@ -18,33 +18,32 @@
 #define ART_RUNTIME_MIRROR_ARRAY_H_
 
 #include "object.h"
+#include "gc/heap.h"
 
 namespace art {
 namespace mirror {
 
 class MANAGED Array : public Object {
  public:
-  // A convenience for code that doesn't know the component size,
-  // and doesn't want to have to work it out itself.
-  static Array* Alloc(Thread* self, Class* array_class, int32_t component_count)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return AllocInstrumented(self, array_class, component_count);
-  }
-  static Array* AllocUninstrumented(Thread* self, Class* array_class, int32_t component_count)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static Array* AllocInstrumented(Thread* self, Class* array_class, int32_t component_count)
+  // A convenience for code that doesn't know the component size, and doesn't want to have to work
+  // it out itself.
+  template <bool kIsInstrumented>
+  static Array* Alloc(Thread* self, Class* array_class, int32_t component_count,
+                      gc::AllocatorType allocator_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  template <bool kIsInstrumented>
+  static Array* Alloc(Thread* self, Class* array_class, int32_t component_count,
+                      size_t component_size, gc::AllocatorType allocator_type)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  template <bool kIsInstrumented>
+  static Array* Alloc(Thread* self, Class* array_class, int32_t component_count)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  template <bool kIsInstrumented>
   static Array* Alloc(Thread* self, Class* array_class, int32_t component_count,
                       size_t component_size)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return AllocInstrumented(self, array_class, component_count, component_size);
-  }
-  static Array* AllocUninstrumented(Thread* self, Class* array_class, int32_t component_count,
-                                    size_t component_size)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static Array* AllocInstrumented(Thread* self, Class* array_class, int32_t component_count,
-                                  size_t component_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static Array* CreateMultiArray(Thread* self, Class* element_class, IntArray* dimensions)

@@ -37,7 +37,7 @@ class ModUnionTableToZygoteAllocspace : public ModUnionTableReferenceCache {
     typedef std::vector<space::ContinuousSpace*>::const_iterator It;
     for (It it = spaces.begin(); it != spaces.end(); ++it) {
       if ((*it)->Contains(ref)) {
-        return (*it)->IsDlMallocSpace();
+        return (*it)->IsMallocSpace();
       }
     }
     // Assume it points to a large object.

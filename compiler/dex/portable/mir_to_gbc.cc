@@ -1970,7 +1970,7 @@ void MirConverter::MethodMIR2Bitcode() {
 
     ::llvm::OwningPtr< ::llvm::tool_output_file> out_file(
         new ::llvm::tool_output_file(fname.c_str(), errmsg,
-                                   ::llvm::sys::fs::F_Binary));
+                                   ::llvm::raw_fd_ostream::F_Binary));
 
     if (!errmsg.empty()) {
       LOG(ERROR) << "Failed to create bitcode output file: " << errmsg;

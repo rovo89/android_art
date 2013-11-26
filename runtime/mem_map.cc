@@ -133,12 +133,13 @@ MemMap* MemMap::MapFileAtAddress(byte* addr, size_t byte_count, int prot, int fl
                                               fd,
                                               page_aligned_offset));
   if (actual == MAP_FAILED) {
+    std::string strerr(strerror(errno));
     std::string maps;
     ReadFileToString("/proc/self/maps", &maps);
-    *error_msg = StringPrintf("mmap(%p, %zd, %x, %x, %d, %lld) of file '%s' failed\n%s",
+    *error_msg = StringPrintf("mmap(%p, %zd, %x, %x, %d, %lld) of file '%s' failed: %s\n%s",
                               page_aligned_addr, page_aligned_byte_count, prot, flags, fd,
-                              static_cast<int64_t>(page_aligned_offset),
-                              filename, maps.c_str());
+                              static_cast<int64_t>(page_aligned_offset), filename, strerr.c_str(),
+                              maps.c_str());
     return NULL;
   }
   return new MemMap("file", actual + page_offset, byte_count, actual, page_aligned_byte_count,

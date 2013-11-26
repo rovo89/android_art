@@ -30,6 +30,7 @@ class LockWord;
 class Monitor;
 struct ObjectOffsets;
 class Thread;
+template <typename T> class SirtRef;
 
 namespace mirror {
 

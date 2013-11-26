@@ -242,7 +242,7 @@ class Dex2Oat {
                                       bool image,
                                       UniquePtr<CompilerDriver::DescriptorSet>& image_classes,
                                       bool dump_stats,
-                                      base::TimingLogger& timings) {
+                                      TimingLogger& timings) {
     // SirtRef and ClassLoader creation needs to come after Runtime::Create
     jobject class_loader = NULL;
     Thread* self = Thread::Current();
@@ -280,6 +280,7 @@ class Dex2Oat {
     uint32_t image_file_location_oat_checksum = 0;
     uint32_t image_file_location_oat_data_begin = 0;
     if (!driver->IsImage()) {
+      TimingLogger::ScopedSplit split("Loading image checksum", &timings);
       gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetImageSpace();
       image_file_location_oat_checksum = image_space->GetImageHeader().GetOatChecksum();
       image_file_location_oat_data_begin =
@@ -294,8 +295,10 @@ class Dex2Oat {
                          image_file_location_oat_checksum,
                          image_file_location_oat_data_begin,
                          image_file_location,
-                         driver.get());
+                         driver.get(),
+                         &timings);
 
+    TimingLogger::ScopedSplit split("Writing ELF", &timings);
     if (!driver->WriteElf(android_root, is_host, dex_files, oat_writer, oat_file)) {
       LOG(ERROR) << "Failed to write ELF file " << oat_file->GetPath();
       return NULL;
@@ -600,7 +603,7 @@ static InstructionSetFeatures ParseFeatureList(std::string str) {
 }
 
 static int dex2oat(int argc, char** argv) {
-  base::TimingLogger timings("compiler", false, false);
+  TimingLogger timings("compiler", false, false);
 
   InitLogging(argv);
 
@@ -1091,7 +1094,7 @@ static int dex2oat(int argc, char** argv) {
 
   if (is_host) {
     if (dump_timing || (dump_slow_timing && timings.GetTotalNs() > MsToNs(1000))) {
-      LOG(INFO) << Dumpable<base::TimingLogger>(timings);
+      LOG(INFO) << Dumpable<TimingLogger>(timings);
     }
     return EXIT_SUCCESS;
   }
@@ -1133,7 +1136,7 @@ static int dex2oat(int argc, char** argv) {
   timings.EndSplit();
 
   if (dump_timing || (dump_slow_timing && timings.GetTotalNs() > MsToNs(1000))) {
-    LOG(INFO) << Dumpable<base::TimingLogger>(timings);
+    LOG(INFO) << Dumpable<TimingLogger>(timings);
   }
 
   // Everything was successfully written, do an explicit exit here to avoid running Runtime

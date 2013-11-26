@@ -184,12 +184,12 @@ LIR* ArmMir2Lir::LoadConstantNoClobber(int r_dest, int value) {
   /* Check Modified immediate special cases */
   mod_imm = ModifiedImmediate(value);
   if (mod_imm >= 0) {
-    res = NewLIR2(kThumb2MovImmShift, r_dest, mod_imm);
+    res = NewLIR2(kThumb2MovI8M, r_dest, mod_imm);
     return res;
   }
   mod_imm = ModifiedImmediate(~value);
   if (mod_imm >= 0) {
-    res = NewLIR2(kThumb2MvnImm12, r_dest, mod_imm);
+    res = NewLIR2(kThumb2MvnI8M, r_dest, mod_imm);
     return res;
   }
   /* 16-bit immediate? */
@@ -446,7 +446,6 @@ LIR* ArmMir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src1, int value) {
   ArmOpcode alt_opcode = kThumbBkpt;
   bool all_low_regs = (ARM_LOWREG(r_dest) && ARM_LOWREG(r_src1));
   int32_t mod_imm = ModifiedImmediate(value);
-  int32_t mod_imm_neg = ModifiedImmediate(-value);
 
   switch (op) {
     case kOpLsl:
@@ -482,47 +481,55 @@ LIR* ArmMir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src1, int value) {
         else
           opcode = (neg) ? kThumbAddRRI3 : kThumbSubRRI3;
         return NewLIR3(opcode, r_dest, r_src1, abs_value);
-      } else if ((abs_value & 0xff) == abs_value) {
+      } else if ((abs_value & 0x3ff) == abs_value) {
         if (op == kOpAdd)
           opcode = (neg) ? kThumb2SubRRI12 : kThumb2AddRRI12;
         else
           opcode = (neg) ? kThumb2AddRRI12 : kThumb2SubRRI12;
         return NewLIR3(opcode, r_dest, r_src1, abs_value);
       }
-      if (mod_imm_neg >= 0) {
-        op = (op == kOpAdd) ? kOpSub : kOpAdd;
-        mod_imm = mod_imm_neg;
+      if (mod_imm < 0) {
+        mod_imm = ModifiedImmediate(-value);
+        if (mod_imm >= 0) {
+          op = (op == kOpAdd) ? kOpSub : kOpAdd;
+        }
       }
       if (op == kOpSub) {
-        opcode = kThumb2SubRRI8;
+        opcode = kThumb2SubRRI8M;
         alt_opcode = kThumb2SubRRR;
       } else {
-        opcode = kThumb2AddRRI8;
+        opcode = kThumb2AddRRI8M;
         alt_opcode = kThumb2AddRRR;
       }
       break;
     case kOpRsub:
-      opcode = kThumb2RsubRRI8;
+      opcode = kThumb2RsubRRI8M;
       alt_opcode = kThumb2RsubRRR;
       break;
     case kOpAdc:
-      opcode = kThumb2AdcRRI8;
+      opcode = kThumb2AdcRRI8M;
       alt_opcode = kThumb2AdcRRR;
       break;
     case kOpSbc:
-      opcode = kThumb2SbcRRI8;
+      opcode = kThumb2SbcRRI8M;
       alt_opcode = kThumb2SbcRRR;
       break;
     case kOpOr:
-      opcode = kThumb2OrrRRI8;
+      opcode = kThumb2OrrRRI8M;
       alt_opcode = kThumb2OrrRRR;
       break;
     case kOpAnd:
-      opcode = kThumb2AndRRI8;
+      if (mod_imm < 0) {
+        mod_imm = ModifiedImmediate(~value);
+        if (mod_imm >= 0) {
+          return NewLIR3(kThumb2BicRRI8M, r_dest, r_src1, mod_imm);
+        }
+      }
+      opcode = kThumb2AndRRI8M;
       alt_opcode = kThumb2AndRRR;
       break;
     case kOpXor:
-      opcode = kThumb2EorRRI8;
+      opcode = kThumb2EorRRI8M;
       alt_opcode = kThumb2EorRRR;
       break;
     case kOpMul:
@@ -531,15 +538,19 @@ LIR* ArmMir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src1, int value) {
       alt_opcode = kThumb2MulRRR;
       break;
     case kOpCmp: {
-      int mod_imm = ModifiedImmediate(value);
       LIR* res;
       if (mod_imm >= 0) {
-        res = NewLIR2(kThumb2CmpRI12, r_src1, mod_imm);
+        res = NewLIR2(kThumb2CmpRI8M, r_src1, mod_imm);
       } else {
-        int r_tmp = AllocTemp();
-        res = LoadConstant(r_tmp, value);
-        OpRegReg(kOpCmp, r_src1, r_tmp);
-        FreeTemp(r_tmp);
+        mod_imm = ModifiedImmediate(-value);
+        if (mod_imm >= 0) {
+          res = NewLIR2(kThumb2CmnRI8M, r_src1, mod_imm);
+        } else {
+          int r_tmp = AllocTemp();
+          res = LoadConstant(r_tmp, value);
+          OpRegReg(kOpCmp, r_src1, r_tmp);
+          FreeTemp(r_tmp);
+        }
       }
       return res;
     }
@@ -585,13 +596,10 @@ LIR* ArmMir2Lir::OpRegImm(OpKind op, int r_dest_src1, int value) {
       }
       break;
     case kOpCmp:
-      if (ARM_LOWREG(r_dest_src1) && short_form) {
-        opcode = (short_form) ?  kThumbCmpRI8 : kThumbCmpRR;
-      } else if (ARM_LOWREG(r_dest_src1)) {
-        opcode = kThumbCmpRR;
+      if (!neg && short_form) {
+        opcode = kThumbCmpRI8;
       } else {
         short_form = false;
-        opcode = kThumbCmpHL;
       }
       break;
     default:

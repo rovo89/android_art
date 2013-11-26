@@ -503,9 +503,9 @@ const std::vector<uint8_t>* CompilerDriver::CreateQuickToInterpreterBridge() con
 
 void CompilerDriver::CompileAll(jobject class_loader,
                                 const std::vector<const DexFile*>& dex_files,
-                                base::TimingLogger& timings) {
+                                TimingLogger& timings) {
   DCHECK(!Runtime::Current()->IsStarted());
-  UniquePtr<ThreadPool> thread_pool(new ThreadPool(thread_count_ - 1));
+  UniquePtr<ThreadPool> thread_pool(new ThreadPool("Compiler driver thread pool", thread_count_ - 1));
   PreCompile(class_loader, dex_files, *thread_pool.get(), timings);
   Compile(class_loader, dex_files, *thread_pool.get(), timings);
   if (dump_stats_) {
@@ -513,10 +513,9 @@ void CompilerDriver::CompileAll(jobject class_loader,
   }
 }
 
-static DexToDexCompilationLevel GetDexToDexCompilationlevel(mirror::ClassLoader* class_loader,
-                                                            const DexFile& dex_file,
-                                                            const DexFile::ClassDef& class_def)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static DexToDexCompilationLevel GetDexToDexCompilationlevel(
+    SirtRef<mirror::ClassLoader>& class_loader, const DexFile& dex_file,
+    const DexFile::ClassDef& class_def) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   const char* descriptor = dex_file.GetClassDescriptor(class_def);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   mirror::Class* klass = class_linker->FindClass(descriptor, class_loader);
@@ -531,7 +530,7 @@ static DexToDexCompilationLevel GetDexToDexCompilationlevel(mirror::ClassLoader*
   // function). Since image classes can be verified again while compiling an application,
   // we must prevent the DEX-to-DEX compiler from introducing them.
   // TODO: find a way to enable "quick" instructions for image classes and remove this check.
-  bool compiling_image_classes = (class_loader == NULL);
+  bool compiling_image_classes = class_loader.get() == nullptr;
   if (compiling_image_classes) {
     return kRequired;
   } else if (klass->IsVerified()) {
@@ -547,7 +546,7 @@ static DexToDexCompilationLevel GetDexToDexCompilationlevel(mirror::ClassLoader*
   }
 }
 
-void CompilerDriver::CompileOne(const mirror::ArtMethod* method, base::TimingLogger& timings) {
+void CompilerDriver::CompileOne(const mirror::ArtMethod* method, TimingLogger& timings) {
   DCHECK(!Runtime::Current()->IsStarted());
   Thread* self = Thread::Current();
   jobject jclass_loader;
@@ -569,7 +568,7 @@ void CompilerDriver::CompileOne(const mirror::ArtMethod* method, base::TimingLog
   std::vector<const DexFile*> dex_files;
   dex_files.push_back(dex_file);
 
-  UniquePtr<ThreadPool> thread_pool(new ThreadPool(0U));
+  UniquePtr<ThreadPool> thread_pool(new ThreadPool("Compiler driver thread pool", 0U));
   PreCompile(jclass_loader, dex_files, *thread_pool.get(), timings);
 
   uint32_t method_idx = method->GetDexMethodIndex();
@@ -579,7 +578,8 @@ void CompilerDriver::CompileOne(const mirror::ArtMethod* method, base::TimingLog
   {
     ScopedObjectAccess soa(Thread::Current());
     const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_idx);
-    mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(jclass_loader);
+    SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
+                                              soa.Decode<mirror::ClassLoader*>(jclass_loader));
     dex_to_dex_compilation_level = GetDexToDexCompilationlevel(class_loader, *dex_file, class_def);
   }
   CompileMethod(code_item, method->GetAccessFlags(), method->GetInvokeType(),
@@ -591,7 +591,7 @@ void CompilerDriver::CompileOne(const mirror::ArtMethod* method, base::TimingLog
 }
 
 void CompilerDriver::Resolve(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                             ThreadPool& thread_pool, base::TimingLogger& timings) {
+                             ThreadPool& thread_pool, TimingLogger& timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
@@ -600,7 +600,7 @@ void CompilerDriver::Resolve(jobject class_loader, const std::vector<const DexFi
 }
 
 void CompilerDriver::PreCompile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                                ThreadPool& thread_pool, base::TimingLogger& timings) {
+                                ThreadPool& thread_pool, TimingLogger& timings) {
   LoadImageClasses(timings);
 
   Resolve(class_loader, dex_files, thread_pool, timings);
@@ -685,7 +685,7 @@ static bool RecordImageClassesVisitor(mirror::Class* klass, void* arg)
 }
 
 // Make a list of descriptors for classes to include in the image
-void CompilerDriver::LoadImageClasses(base::TimingLogger& timings)
+void CompilerDriver::LoadImageClasses(TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_) {
   if (!IsImage()) {
     return;
@@ -697,11 +697,11 @@ void CompilerDriver::LoadImageClasses(base::TimingLogger& timings)
   ScopedObjectAccess soa(self);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   for (auto it = image_classes_->begin(), end = image_classes_->end(); it != end;) {
-    std::string descriptor(*it);
+    const std::string& descriptor(*it);
     SirtRef<mirror::Class> klass(self, class_linker->FindSystemClass(descriptor.c_str()));
     if (klass.get() == NULL) {
-      image_classes_->erase(it++);
       VLOG(compiler) << "Failed to find class " << descriptor;
+      image_classes_->erase(it++);
       self->ClearException();
     } else {
       ++it;
@@ -721,8 +721,8 @@ void CompilerDriver::LoadImageClasses(base::TimingLogger& timings)
     for (const std::pair<uint16_t, const DexFile*>& exception_type : unresolved_exception_types) {
       uint16_t exception_type_idx = exception_type.first;
       const DexFile* dex_file = exception_type.second;
-      mirror::DexCache* dex_cache = class_linker->FindDexCache(*dex_file);
-      mirror:: ClassLoader* class_loader = NULL;
+      SirtRef<mirror::DexCache> dex_cache(self, class_linker->FindDexCache(*dex_file));
+      SirtRef<mirror::ClassLoader> class_loader(self, nullptr);
       SirtRef<mirror::Class> klass(self, class_linker->ResolveType(*dex_file, exception_type_idx,
                                                                    dex_cache, class_loader));
       if (klass.get() == NULL) {
@@ -773,7 +773,7 @@ void CompilerDriver::FindClinitImageClassesCallback(mirror::Object* object, void
   MaybeAddToImageClasses(object->GetClass(), compiler_driver->image_classes_.get());
 }
 
-void CompilerDriver::UpdateImageClasses(base::TimingLogger& timings) {
+void CompilerDriver::UpdateImageClasses(TimingLogger& timings) {
   if (IsImage()) {
     timings.NewSplit("UpdateImageClasses");
 
@@ -782,15 +782,14 @@ void CompilerDriver::UpdateImageClasses(base::TimingLogger& timings) {
     const char* old_cause = self->StartAssertNoThreadSuspension("ImageWriter");
     gc::Heap* heap = Runtime::Current()->GetHeap();
     // TODO: Image spaces only?
+    ScopedObjectAccess soa(Thread::Current());
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-    heap->FlushAllocStack();
-    heap->GetLiveBitmap()->Walk(FindClinitImageClassesCallback, this);
+    heap->VisitObjects(FindClinitImageClassesCallback, this);
     self->EndAssertNoThreadSuspension(old_cause);
   }
 }
 
-bool CompilerDriver::CanAssumeTypeIsPresentInDexCache(const DexFile& dex_file,
-                                                      uint32_t type_idx) {
+bool CompilerDriver::CanAssumeTypeIsPresentInDexCache(const DexFile& dex_file, uint32_t type_idx) {
   if (IsImage() &&
       IsImageClass(dex_file.StringDataByIdx(dex_file.GetTypeId(type_idx).descriptor_idx_))) {
     if (kIsDebugBuild) {
@@ -815,7 +814,7 @@ bool CompilerDriver::CanAssumeStringIsPresentInDexCache(const DexFile& dex_file,
   if (IsImage()) {
     // We resolve all const-string strings when building for the image.
     ScopedObjectAccess soa(Thread::Current());
-    mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
+    SirtRef<mirror::DexCache> dex_cache(soa.Self(), Runtime::Current()->GetClassLinker()->FindDexCache(dex_file));
     Runtime::Current()->GetClassLinker()->ResolveString(dex_file, string_idx, dex_cache);
     result = true;
   }
@@ -903,26 +902,27 @@ bool CompilerDriver::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_id
 }
 
 static mirror::Class* ComputeCompilingMethodsClass(ScopedObjectAccess& soa,
-                                                   mirror::DexCache* dex_cache,
+                                                   SirtRef<mirror::DexCache>& dex_cache,
                                                    const DexCompilationUnit* mUnit)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // The passed dex_cache is a hint, sanity check before asking the class linker that will take a
   // lock.
   if (dex_cache->GetDexFile() != mUnit->GetDexFile()) {
-    dex_cache = mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile());
+    dex_cache.reset(mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile()));
   }
-  mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader());
-  const DexFile::MethodId& referrer_method_id = mUnit->GetDexFile()->GetMethodId(mUnit->GetDexMethodIndex());
+  SirtRef<mirror::ClassLoader>
+      class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
+  const DexFile::MethodId& referrer_method_id =
+      mUnit->GetDexFile()->GetMethodId(mUnit->GetDexMethodIndex());
   return mUnit->GetClassLinker()->ResolveType(*mUnit->GetDexFile(), referrer_method_id.class_idx_,
                                               dex_cache, class_loader);
 }
 
-static mirror::ArtField* ComputeFieldReferencedFromCompilingMethod(ScopedObjectAccess& soa,
-                                                                const DexCompilationUnit* mUnit,
-                                                                uint32_t field_idx)
+static mirror::ArtField* ComputeFieldReferencedFromCompilingMethod(
+    ScopedObjectAccess& soa, const DexCompilationUnit* mUnit, uint32_t field_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::DexCache* dex_cache = mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile());
-  mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader());
+  SirtRef<mirror::DexCache> dex_cache(soa.Self(), mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile()));
+  SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
   return mUnit->GetClassLinker()->ResolveField(*mUnit->GetDexFile(), field_idx, dex_cache,
                                                class_loader, false);
 }
@@ -932,8 +932,8 @@ static mirror::ArtMethod* ComputeMethodReferencedFromCompilingMethod(ScopedObjec
                                                                      uint32_t method_idx,
                                                                      InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::DexCache* dex_cache = mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile());
-  mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader());
+  SirtRef<mirror::DexCache> dex_cache(soa.Self(), mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile()));
+  SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
   return mUnit->GetClassLinker()->ResolveMethod(*mUnit->GetDexFile(), method_idx, dex_cache,
                                                 class_loader, NULL, type);
 }
@@ -947,9 +947,10 @@ bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompi
   // Try to resolve field and ignore if an Incompatible Class Change Error (ie is static).
   mirror::ArtField* resolved_field = ComputeFieldReferencedFromCompilingMethod(soa, mUnit, field_idx);
   if (resolved_field != NULL && !resolved_field->IsStatic()) {
+    SirtRef<mirror::DexCache> dex_cache(soa.Self(),
+                                        resolved_field->GetDeclaringClass()->GetDexCache());
     mirror::Class* referrer_class =
-        ComputeCompilingMethodsClass(soa, resolved_field->GetDeclaringClass()->GetDexCache(),
-                                     mUnit);
+        ComputeCompilingMethodsClass(soa, dex_cache, mUnit);
     if (referrer_class != NULL) {
       mirror::Class* fields_class = resolved_field->GetDeclaringClass();
       bool access_ok = referrer_class->CanAccess(fields_class) &&
@@ -997,9 +998,9 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
   // Try to resolve field and ignore if an Incompatible Class Change Error (ie isn't static).
   mirror::ArtField* resolved_field = ComputeFieldReferencedFromCompilingMethod(soa, mUnit, field_idx);
   if (resolved_field != NULL && resolved_field->IsStatic()) {
+    SirtRef<mirror::DexCache> dex_cache(soa.Self(), resolved_field->GetDeclaringClass()->GetDexCache());
     mirror::Class* referrer_class =
-        ComputeCompilingMethodsClass(soa, resolved_field->GetDeclaringClass()->GetDexCache(),
-                                     mUnit);
+        ComputeCompilingMethodsClass(soa, dex_cache, mUnit);
     if (referrer_class != NULL) {
       mirror::Class* fields_class = resolved_field->GetDeclaringClass();
       if (fields_class == referrer_class) {
@@ -1085,7 +1086,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
   *direct_code = 0;
   *direct_method = 0;
   bool use_dex_cache = false;
-  bool compiling_boot = Runtime::Current()->GetHeap()->GetContinuousSpaces().size() == 1;
+  const bool compiling_boot = Runtime::Current()->GetHeap()->IsCompilingBoot();
   if (compiler_backend_ == kPortable) {
     if (sharp_type != kStatic && sharp_type != kDirect) {
       return;
@@ -1198,9 +1199,9 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
     }
     // Don't try to fast-path if we don't understand the caller's class or this appears to be an
     // Incompatible Class Change Error.
+    SirtRef<mirror::DexCache> dex_cache(soa.Self(), resolved_method->GetDeclaringClass()->GetDexCache());
     mirror::Class* referrer_class =
-        ComputeCompilingMethodsClass(soa, resolved_method->GetDeclaringClass()->GetDexCache(),
-                                     mUnit);
+        ComputeCompilingMethodsClass(soa, dex_cache, mUnit);
     bool icce = resolved_method->CheckIncompatibleClassChange(*invoke_type);
     if (referrer_class != NULL && !icce) {
       mirror::Class* methods_class = resolved_method->GetDeclaringClass();
@@ -1254,10 +1255,8 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
           const MethodReference* devirt_map_target =
               verifier::MethodVerifier::GetDevirtMap(caller_method, dex_pc);
           if (devirt_map_target != NULL) {
-            mirror::DexCache* target_dex_cache =
-                mUnit->GetClassLinker()->FindDexCache(*devirt_map_target->dex_file);
-            mirror::ClassLoader* class_loader =
-                soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader());
+            SirtRef<mirror::DexCache> target_dex_cache(soa.Self(), mUnit->GetClassLinker()->FindDexCache(*devirt_map_target->dex_file));
+            SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
             mirror::ArtMethod* called_method =
                 mUnit->GetClassLinker()->ResolveMethod(*devirt_map_target->dex_file,
                                                        devirt_map_target->dex_method_index,
@@ -1509,13 +1508,11 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
   if (!SkipClass(class_linker, jclass_loader, dex_file, class_def)) {
     ScopedObjectAccess soa(self);
-    mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(jclass_loader);
-    mirror::DexCache* dex_cache = class_linker->FindDexCache(dex_file);
-
+    SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(jclass_loader));
+    SirtRef<mirror::DexCache> dex_cache(soa.Self(), class_linker->FindDexCache(dex_file));
     // Resolve the class.
     mirror::Class* klass = class_linker->ResolveType(dex_file, class_def.class_idx_, dex_cache,
                                                      class_loader);
-
     bool resolve_fields_and_methods;
     if (klass == NULL) {
       // Class couldn't be resolved, for example, super-class is in a different dex file. Don't
@@ -1598,8 +1595,8 @@ static void ResolveType(const ParallelCompilationManager* manager, size_t type_i
   ScopedObjectAccess soa(Thread::Current());
   ClassLinker* class_linker = manager->GetClassLinker();
   const DexFile& dex_file = *manager->GetDexFile();
-  mirror::DexCache* dex_cache = class_linker->FindDexCache(dex_file);
-  mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader());
+  SirtRef<mirror::DexCache> dex_cache(soa.Self(), class_linker->FindDexCache(dex_file));
+  SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader()));
   mirror::Class* klass = class_linker->ResolveType(dex_file, type_idx, dex_cache, class_loader);
 
   if (klass == NULL) {
@@ -1616,7 +1613,7 @@ static void ResolveType(const ParallelCompilationManager* manager, size_t type_i
 }
 
 void CompilerDriver::ResolveDexFile(jobject class_loader, const DexFile& dex_file,
-                                    ThreadPool& thread_pool, base::TimingLogger& timings) {
+                                    ThreadPool& thread_pool, TimingLogger& timings) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
   // TODO: we could resolve strings here, although the string table is largely filled with class
@@ -1635,7 +1632,7 @@ void CompilerDriver::ResolveDexFile(jobject class_loader, const DexFile& dex_fil
 }
 
 void CompilerDriver::Verify(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                            ThreadPool& thread_pool, base::TimingLogger& timings) {
+                            ThreadPool& thread_pool, TimingLogger& timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
@@ -1652,8 +1649,9 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
   const char* descriptor = dex_file.GetClassDescriptor(class_def);
   ClassLinker* class_linker = manager->GetClassLinker();
   jobject jclass_loader = manager->GetClassLoader();
-  mirror::Class* klass = class_linker->FindClass(descriptor,
-                                                 soa.Decode<mirror::ClassLoader*>(jclass_loader));
+  SirtRef<mirror::ClassLoader> class_loader(
+      soa.Self(), soa.Decode<mirror::ClassLoader*>(jclass_loader));
+  mirror::Class* klass = class_linker->FindClass(descriptor, class_loader);
   if (klass == NULL) {
     CHECK(soa.Self()->IsExceptionPending());
     soa.Self()->ClearException();
@@ -1663,11 +1661,10 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
      * This is to ensure the class is structurally sound for compilation. An unsound class
      * will be rejected by the verifier and later skipped during compilation in the compiler.
      */
-    mirror::DexCache* dex_cache = class_linker->FindDexCache(dex_file);
+    SirtRef<mirror::DexCache> dex_cache(soa.Self(), class_linker->FindDexCache(dex_file));
     std::string error_msg;
-    if (verifier::MethodVerifier::VerifyClass(&dex_file, dex_cache,
-                                              soa.Decode<mirror::ClassLoader*>(jclass_loader),
-                                              &class_def, true, &error_msg) ==
+    if (verifier::MethodVerifier::VerifyClass(&dex_file, dex_cache, class_loader, &class_def, true,
+                                              &error_msg) ==
                                                   verifier::MethodVerifier::kHardFailure) {
       LOG(ERROR) << "Verification failed on class " << PrettyDescriptor(descriptor)
                  << " because: " << error_msg;
@@ -1689,7 +1686,7 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
 }
 
 void CompilerDriver::VerifyDexFile(jobject class_loader, const DexFile& dex_file,
-                                   ThreadPool& thread_pool, base::TimingLogger& timings) {
+                                   ThreadPool& thread_pool, TimingLogger& timings) {
   timings.NewSplit("Verify Dex File");
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   ParallelCompilationManager context(class_linker, class_loader, this, &dex_file, thread_pool);
@@ -2124,7 +2121,8 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
   const char* descriptor = dex_file.StringDataByIdx(class_type_id.descriptor_idx_);
 
   ScopedObjectAccess soa(Thread::Current());
-  mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(jclass_loader);
+  SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
+                                            soa.Decode<mirror::ClassLoader*>(jclass_loader));
   mirror::Class* klass = manager->GetClassLinker()->FindClass(descriptor, class_loader);
 
   if (klass != NULL && !SkipClass(jclass_loader, dex_file, klass)) {
@@ -2194,7 +2192,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
 }
 
 void CompilerDriver::InitializeClasses(jobject jni_class_loader, const DexFile& dex_file,
-                                       ThreadPool& thread_pool, base::TimingLogger& timings) {
+                                       ThreadPool& thread_pool, TimingLogger& timings) {
   timings.NewSplit("InitializeNoClinit");
 #ifndef NDEBUG
   // Sanity check blacklist descriptors.
@@ -2212,7 +2210,7 @@ void CompilerDriver::InitializeClasses(jobject jni_class_loader, const DexFile& 
 
 void CompilerDriver::InitializeClasses(jobject class_loader,
                                        const std::vector<const DexFile*>& dex_files,
-                                       ThreadPool& thread_pool, base::TimingLogger& timings) {
+                                       ThreadPool& thread_pool, TimingLogger& timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
@@ -2221,7 +2219,7 @@ void CompilerDriver::InitializeClasses(jobject class_loader,
 }
 
 void CompilerDriver::Compile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                       ThreadPool& thread_pool, base::TimingLogger& timings) {
+                       ThreadPool& thread_pool, TimingLogger& timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
@@ -2253,7 +2251,8 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
   DexToDexCompilationLevel dex_to_dex_compilation_level = kDontDexToDexCompile;
   {
     ScopedObjectAccess soa(Thread::Current());
-    mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(jclass_loader);
+    SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
+                                              soa.Decode<mirror::ClassLoader*>(jclass_loader));
     dex_to_dex_compilation_level = GetDexToDexCompilationlevel(class_loader, dex_file, class_def);
   }
   ClassDataItemIterator it(dex_file, class_data);
@@ -2301,7 +2300,7 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
 }
 
 void CompilerDriver::CompileDexFile(jobject class_loader, const DexFile& dex_file,
-                                    ThreadPool& thread_pool, base::TimingLogger& timings) {
+                                    ThreadPool& thread_pool, TimingLogger& timings) {
   timings.NewSplit("Compile Dex File");
   ParallelCompilationManager context(Runtime::Current()->GetClassLinker(), class_loader, this,
                                      &dex_file, thread_pool);

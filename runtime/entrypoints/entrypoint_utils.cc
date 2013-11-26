@@ -33,20 +33,20 @@
 
 namespace art {
 
-static inline bool CheckFilledNewArrayAlloc(uint32_t type_idx, mirror::ArtMethod* referrer,
-                                            int32_t component_count, Thread* self,
-                                            bool access_check, mirror::Class** klass_ptr)
+static inline mirror::Class* CheckFilledNewArrayAlloc(uint32_t type_idx, mirror::ArtMethod* referrer,
+                                                      int32_t component_count, Thread* self,
+                                                      bool access_check)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(component_count < 0)) {
     ThrowNegativeArraySizeException(component_count);
-    return false;  // Failure
+    return nullptr;  // Failure
   }
   mirror::Class* klass = referrer->GetDexCacheResolvedTypes()->GetWithoutChecks(type_idx);
   if (UNLIKELY(klass == NULL)) {  // Not in dex cache so try to resolve
     klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, referrer);
     if (klass == NULL) {  // Error
       DCHECK(self->IsExceptionPending());
-      return false;  // Failure
+      return nullptr;  // Failure
     }
   }
   if (UNLIKELY(klass->IsPrimitive() && !klass->IsPrimitiveInt())) {
@@ -60,40 +60,43 @@ static inline bool CheckFilledNewArrayAlloc(uint32_t type_idx, mirror::ArtMethod
                                "Found type %s; filled-new-array not implemented for anything but \'int\'",
                                PrettyDescriptor(klass).c_str());
     }
-    return false;  // Failure
+    return nullptr;  // Failure
   }
   if (access_check) {
     mirror::Class* referrer_klass = referrer->GetDeclaringClass();
     if (UNLIKELY(!referrer_klass->CanAccess(klass))) {
       ThrowIllegalAccessErrorClass(referrer_klass, klass);
-      return false;  // Failure
+      return nullptr;  // Failure
     }
   }
   DCHECK(klass->IsArrayClass()) << PrettyClass(klass);
-  *klass_ptr = klass;
-  return true;
+  return klass;
 }
 
 // Helper function to allocate array for FILLED_NEW_ARRAY.
 mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::ArtMethod* referrer,
                                           int32_t component_count, Thread* self,
-                                          bool access_check) {
-  mirror::Class* klass;
-  if (UNLIKELY(!CheckFilledNewArrayAlloc(type_idx, referrer, component_count, self, access_check, &klass))) {
-    return NULL;
+                                          bool access_check,
+                                          gc::AllocatorType allocator_type) {
+  mirror::Class* klass = CheckFilledNewArrayAlloc(type_idx, referrer, component_count, self,
+                                                  access_check);
+  if (UNLIKELY(klass == nullptr)) {
+    return nullptr;
   }
-  return mirror::Array::AllocUninstrumented(self, klass, component_count);
+  return mirror::Array::Alloc<false>(self, klass, component_count, allocator_type);
 }
 
 // Helper function to allocate array for FILLED_NEW_ARRAY.
 mirror::Array* CheckAndAllocArrayFromCodeInstrumented(uint32_t type_idx, mirror::ArtMethod* referrer,
                                                       int32_t component_count, Thread* self,
-                                                      bool access_check) {
-  mirror::Class* klass;
-  if (UNLIKELY(!CheckFilledNewArrayAlloc(type_idx, referrer, component_count, self, access_check, &klass))) {
-    return NULL;
+                                                      bool access_check,
+                                                      gc::AllocatorType allocator_type) {
+  mirror::Class* klass = CheckFilledNewArrayAlloc(type_idx, referrer, component_count, self,
+                                                  access_check);
+  if (UNLIKELY(klass == nullptr)) {
+    return nullptr;
   }
-  return mirror::Array::AllocInstrumented(self, klass, component_count);
+  return mirror::Array::Alloc<true>(self, klass, component_count, allocator_type);
 }
 
 void ThrowStackOverflowError(Thread* self) {

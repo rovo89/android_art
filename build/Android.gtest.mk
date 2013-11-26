@@ -22,6 +22,7 @@ TEST_COMMON_SRC_FILES := \
 	compiler/elf_writer_test.cc \
 	compiler/image_test.cc \
 	compiler/jni/jni_compiler_test.cc \
+	compiler/leb128_encoder_test.cc \
 	compiler/oat_test.cc \
 	compiler/output_stream_test.cc \
 	compiler/utils/dedupe_set_test.cc \
@@ -80,6 +81,7 @@ TEST_HOST_SRC_FILES := \
 ART_HOST_TEST_EXECUTABLES :=
 ART_TARGET_TEST_EXECUTABLES :=
 ART_HOST_TEST_TARGETS :=
+ART_HOST_VALGRIND_TEST_TARGETS :=
 ART_TARGET_TEST_TARGETS :=
 
 ART_TEST_CFLAGS :=
@@ -170,6 +172,13 @@ $$(art_gtest_target): $$(art_gtest_exe) test-art-host-dependencies
 	@echo $$@ PASSED
 
 ART_HOST_TEST_TARGETS += $$(art_gtest_target)
+
+.PHONY: valgrind-$$(art_gtest_target)
+valgrind-$$(art_gtest_target): $$(art_gtest_exe) test-art-host-dependencies
+	valgrind --leak-check=full --error-exitcode=1 $$<
+	@echo $$@ PASSED
+
+ART_HOST_VALGRIND_TEST_TARGETS += valgrind-$$(art_gtest_target)
 endif
 endef
 
