@@ -521,7 +521,7 @@ void JdwpState::SuspendByPolicy(JdwpSuspendPolicy suspend_policy, JDWP::ObjectId
      * The JDWP thread has told us (and possibly all other threads) to
      * resume.  See if it has left anything in our DebugInvokeReq mailbox.
      */
-    if (!pReq->invoke_needed_) {
+    if (!pReq->invoke_needed) {
       /*LOGD("SuspendByPolicy: no invoke needed");*/
       break;
     }
@@ -535,12 +535,12 @@ void JdwpState::SuspendByPolicy(JdwpSuspendPolicy suspend_policy, JDWP::ObjectId
     pReq->error = ERR_NONE;
 
     /* clear this before signaling */
-    pReq->invoke_needed_ = false;
+    pReq->invoke_needed = false;
 
     VLOG(jdwp) << "invoke complete, signaling and self-suspending";
     Thread* self = Thread::Current();
-    MutexLock mu(self, pReq->lock_);
-    pReq->cond_.Signal(self);
+    MutexLock mu(self, pReq->lock);
+    pReq->cond.Signal(self);
   }
 }
 
@@ -570,7 +570,7 @@ void JdwpState::SendRequestAndPossiblySuspend(ExpandBuf* pReq, JdwpSuspendPolicy
  */
 bool JdwpState::InvokeInProgress() {
   DebugInvokeReq* pReq = Dbg::GetInvokeReq();
-  return pReq->invoke_needed_;
+  return pReq->invoke_needed;
 }
 
 /*
@@ -719,7 +719,8 @@ bool JdwpState::PostVMStart() {
  *  - Single-step to a line with a breakpoint.  Should get a single
  *    event message with both events in it.
  */
-bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, int eventFlags) {
+bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, int eventFlags,
+                                  const JValue* returnValue) {
   ModBasket basket;
   basket.pLoc = pLoc;
   basket.classId = pLoc->class_id;
@@ -771,9 +772,7 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
     }
     if ((eventFlags & Dbg::kMethodExit) != 0) {
       FindMatchingEvents(EK_METHOD_EXIT, &basket, match_list, &match_count);
-
-      // TODO: match EK_METHOD_EXIT_WITH_RETURN_VALUE too; we need to include the 'value', though.
-      // FindMatchingEvents(EK_METHOD_EXIT_WITH_RETURN_VALUE, &basket, match_list, &match_count);
+      FindMatchingEvents(EK_METHOD_EXIT_WITH_RETURN_VALUE, &basket, match_list, &match_count);
     }
     if (match_count != 0) {
       VLOG(jdwp) << "EVENT: " << match_list[0]->eventKind << "(" << match_count << " total) "
@@ -792,6 +791,9 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
         expandBufAdd4BE(pReq, match_list[i]->requestId);
         expandBufAdd8BE(pReq, basket.threadId);
         expandBufAddLocation(pReq, *pLoc);
+        if (match_list[i]->eventKind == EK_METHOD_EXIT_WITH_RETURN_VALUE) {
+          Dbg::OutputMethodReturnValue(pLoc->method_id, returnValue, pReq);
+        }
       }
     }
 

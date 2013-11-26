@@ -39,49 +39,50 @@
 namespace art {
 namespace mirror {
 
-Object* Object::Clone(Thread* self) {
-  Class* c = GetClass();
-  DCHECK(!c->IsClassClass());
-
-  // Object::SizeOf gets the right size even if we're an array.
-  // Using c->AllocObject() here would be wrong.
-  size_t num_bytes = SizeOf();
-  gc::Heap* heap = Runtime::Current()->GetHeap();
-  SirtRef<Object> copy(self, heap->AllocObject(self, c, num_bytes));
-  if (copy.get() == NULL) {
-    return NULL;
-  }
-
+static Object* CopyObject(Thread* self, mirror::Object* dest, mirror::Object* src, size_t num_bytes)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Copy instance data.  We assume memcpy copies by words.
   // TODO: expose and use move32.
-  byte* src_bytes = reinterpret_cast<byte*>(this);
-  byte* dst_bytes = reinterpret_cast<byte*>(copy.get());
+  byte* src_bytes = reinterpret_cast<byte*>(src);
+  byte* dst_bytes = reinterpret_cast<byte*>(dest);
   size_t offset = sizeof(Object);
   memcpy(dst_bytes + offset, src_bytes + offset, num_bytes - offset);
-
+  gc::Heap* heap = Runtime::Current()->GetHeap();
   // Perform write barriers on copied object references.
+  Class* c = src->GetClass();
   if (c->IsArrayClass()) {
     if (!c->GetComponentType()->IsPrimitive()) {
-      const ObjectArray<Object>* array = copy->AsObjectArray<Object>();
-      heap->WriteBarrierArray(copy.get(), 0, array->GetLength());
+      const ObjectArray<Object>* array = dest->AsObjectArray<Object>();
+      heap->WriteBarrierArray(dest, 0, array->GetLength());
     }
   } else {
-    for (const Class* klass = c; klass != NULL; klass = klass->GetSuperClass()) {
-      size_t num_reference_fields = klass->NumReferenceInstanceFields();
-      for (size_t i = 0; i < num_reference_fields; ++i) {
-        ArtField* field = klass->GetInstanceField(i);
-        MemberOffset field_offset = field->GetOffset();
-        const Object* ref = copy->GetFieldObject<const Object*>(field_offset, false);
-        heap->WriteBarrierField(copy.get(), field_offset, ref);
-      }
-    }
+    heap->WriteBarrierEveryFieldOf(dest);
   }
-
   if (c->IsFinalizable()) {
-    heap->AddFinalizerReference(Thread::Current(), copy.get());
+    SirtRef<Object> sirt_dest(self, dest);
+    heap->AddFinalizerReference(self, dest);
+    return sirt_dest.get();
   }
+  return dest;
+}
 
-  return copy.get();
+Object* Object::Clone(Thread* self) {
+  CHECK(!IsClass()) << "Can't clone classes.";
+  // Object::SizeOf gets the right size even if we're an array. Using c->AllocObject() here would
+  // be wrong.
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  size_t num_bytes = SizeOf();
+  SirtRef<Object> this_object(self, this);
+  Object* copy;
+  if (heap->IsMovableObject(this)) {
+    copy = heap->AllocObject<true>(self, GetClass(), num_bytes);
+  } else {
+    copy = heap->AllocNonMovableObject<true>(self, GetClass(), num_bytes);
+  }
+  if (LIKELY(copy != nullptr)) {
+    return CopyObject(self, copy, this_object.get(), num_bytes);
+  }
+  return copy;
 }
 
 int32_t Object::GenerateIdentityHashCode() {
@@ -96,8 +97,9 @@ int32_t Object::GenerateIdentityHashCode() {
 }
 
 int32_t Object::IdentityHashCode() const {
+  mirror::Object* current_this = const_cast<mirror::Object*>(this);
   while (true) {
-    LockWord lw = GetLockWord();
+    LockWord lw = current_this->GetLockWord();
     switch (lw.GetState()) {
       case LockWord::kUnlocked: {
         // Try to compare and swap in a new hash, if we succeed we will return the hash on the next
@@ -112,7 +114,10 @@ int32_t Object::IdentityHashCode() const {
       case LockWord::kThinLocked: {
         // Inflate the thin lock to a monitor and stick the hash code inside of the monitor.
         Thread* self = Thread::Current();
-        Monitor::InflateThinLocked(self, const_cast<Object*>(this), lw, GenerateIdentityHashCode());
+        SirtRef<mirror::Object> sirt_this(self, current_this);
+        Monitor::InflateThinLocked(self, sirt_this, lw, GenerateIdentityHashCode());
+        // A GC may have occurred when we switched to kBlocked.
+        current_this = sirt_this.get();
         break;
       }
       case LockWord::kFatLocked: {
@@ -123,6 +128,10 @@ int32_t Object::IdentityHashCode() const {
       }
       case LockWord::kHashCode: {
         return lw.GetHashCode();
+      }
+      default: {
+        LOG(FATAL) << "Invalid state during hashcode " << lw.GetState();
+        break;
       }
     }
   }

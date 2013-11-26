@@ -81,3 +81,11 @@ extern "C" JNIEXPORT void JNICALL Java_JniTest_testCallStaticVoidMethodOnSubClas
 
   env->CallStaticVoidMethod(sub_class, execute);
 }
+
+extern "C" JNIEXPORT jobject JNICALL Java_JniTest_testGetMirandaMethodNative(JNIEnv* env, jclass) {
+  jclass abstract_class = env->FindClass("JniTest$testGetMirandaMethod_MirandaAbstract");
+  assert(abstract_class != NULL);
+  jmethodID miranda_method = env->GetMethodID(abstract_class, "inInterface", "()Z");
+  assert(miranda_method != NULL);
+  return env->ToReflectedMethod(abstract_class, miranda_method, JNI_FALSE);
+}

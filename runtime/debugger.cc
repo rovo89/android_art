@@ -95,20 +95,6 @@ static std::ostream& operator<<(std::ostream& os, const Breakpoint& rhs)
   return os;
 }
 
-struct SingleStepControl {
-  // Are we single-stepping right now?
-  bool is_active;
-  Thread* thread;
-
-  JDWP::JdwpStepSize step_size;
-  JDWP::JdwpStepDepth step_depth;
-
-  const mirror::ArtMethod* method;
-  int32_t line_number;  // Or -1 for native methods.
-  std::set<uint32_t> dex_pcs;
-  int stack_depth;
-};
-
 class DebugInstrumentationListener : public instrumentation::InstrumentationListener {
  public:
   DebugInstrumentationListener() {}
@@ -121,26 +107,26 @@ class DebugInstrumentationListener : public instrumentation::InstrumentationList
       // TODO: post location events is a suspension point and native method entry stubs aren't.
       return;
     }
-    Dbg::PostLocationEvent(method, 0, this_object, Dbg::kMethodEntry);
+    Dbg::PostLocationEvent(method, 0, this_object, Dbg::kMethodEntry, nullptr);
   }
 
   virtual void MethodExited(Thread* thread, mirror::Object* this_object,
                             const mirror::ArtMethod* method,
                             uint32_t dex_pc, const JValue& return_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    UNUSED(return_value);
     if (method->IsNative()) {
       // TODO: post location events is a suspension point and native method entry stubs aren't.
       return;
     }
-    Dbg::PostLocationEvent(method, dex_pc, this_object, Dbg::kMethodExit);
+    Dbg::PostLocationEvent(method, dex_pc, this_object, Dbg::kMethodExit, &return_value);
   }
 
-  virtual void MethodUnwind(Thread* thread, const mirror::ArtMethod* method,
-                            uint32_t dex_pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  virtual void MethodUnwind(Thread* thread, mirror::Object* this_object,
+                            const mirror::ArtMethod* method, uint32_t dex_pc)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // We're not recorded to listen to this kind of event, so complain.
     LOG(ERROR) << "Unexpected method unwind event in debugger " << PrettyMethod(method)
-        << " " << dex_pc;
+               << " " << dex_pc;
   }
 
   virtual void DexPcMoved(Thread* thread, mirror::Object* this_object,
@@ -192,7 +178,6 @@ static size_t gAllocRecordCount GUARDED_BY(gAllocTrackerLock) = 0;
 
 // Breakpoints and single-stepping.
 static std::vector<Breakpoint> gBreakpoints GUARDED_BY(Locks::breakpoint_lock_);
-static SingleStepControl gSingleStepControl GUARDED_BY(Locks::breakpoint_lock_);
 
 static bool IsBreakpoint(const mirror::ArtMethod* m, uint32_t dex_pc)
     LOCKS_EXCLUDED(Locks::breakpoint_lock_)
@@ -1118,7 +1103,7 @@ JDWP::JdwpError Dbg::CreateArrayObject(JDWP::RefTypeId array_class_id, uint32_t 
   if (c == NULL) {
     return status;
   }
-  new_array = gRegistry->Add(mirror::Array::Alloc(Thread::Current(), c, length));
+  new_array = gRegistry->Add(mirror::Array::Alloc<true>(Thread::Current(), c, length));
   return JDWP::ERR_NONE;
 }
 
@@ -1133,38 +1118,26 @@ bool Dbg::MatchType(JDWP::RefTypeId instance_class_id, JDWP::RefTypeId class_id)
 
 static JDWP::FieldId ToFieldId(const mirror::ArtField* f)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-#ifdef MOVING_GARBAGE_COLLECTOR
-  UNIMPLEMENTED(FATAL);
-#else
+  CHECK(!kMovingFields);
   return static_cast<JDWP::FieldId>(reinterpret_cast<uintptr_t>(f));
-#endif
 }
 
 static JDWP::MethodId ToMethodId(const mirror::ArtMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-#ifdef MOVING_GARBAGE_COLLECTOR
-  UNIMPLEMENTED(FATAL);
-#else
+  CHECK(!kMovingMethods);
   return static_cast<JDWP::MethodId>(reinterpret_cast<uintptr_t>(m));
-#endif
 }
 
 static mirror::ArtField* FromFieldId(JDWP::FieldId fid)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-#ifdef MOVING_GARBAGE_COLLECTOR
-  UNIMPLEMENTED(FATAL);
-#else
+  CHECK(!kMovingFields);
   return reinterpret_cast<mirror::ArtField*>(static_cast<uintptr_t>(fid));
-#endif
 }
 
 static mirror::ArtMethod* FromMethodId(JDWP::MethodId mid)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-#ifdef MOVING_GARBAGE_COLLECTOR
-  UNIMPLEMENTED(FATAL);
-#else
+  CHECK(!kMovingMethods);
   return reinterpret_cast<mirror::ArtMethod*>(static_cast<uintptr_t>(mid));
-#endif
 }
 
 static void SetLocation(JDWP::JdwpLocation& location, mirror::ArtMethod* m, uint32_t dex_pc)
@@ -1205,41 +1178,37 @@ static uint32_t MangleAccessFlags(uint32_t accessFlags) {
   return accessFlags;
 }
 
-static const uint16_t kEclipseWorkaroundSlot = 1000;
-
 /*
- * Eclipse appears to expect that the "this" reference is in slot zero.
- * If it's not, the "variables" display will show two copies of "this",
- * possibly because it gets "this" from SF.ThisObject and then displays
- * all locals with nonzero slot numbers.
- *
- * So, we remap the item in slot 0 to 1000, and remap "this" to zero.  On
- * SF.GetValues / SF.SetValues we map them back.
- *
- * TODO: jdb uses the value to determine whether a variable is a local or an argument,
- * by checking whether it's less than the number of arguments. To make that work, we'd
- * have to "mangle" all the arguments to come first, not just the implicit argument 'this'.
+ * Circularly shifts registers so that arguments come first. Debuggers
+ * expect slots to begin with arguments, but dex code places them at
+ * the end.
  */
-static uint16_t MangleSlot(uint16_t slot, const char* name) {
-  uint16_t newSlot = slot;
-  if (strcmp(name, "this") == 0) {
-    newSlot = 0;
-  } else if (slot == 0) {
-    newSlot = kEclipseWorkaroundSlot;
+static uint16_t MangleSlot(uint16_t slot, mirror::ArtMethod* m)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+  uint16_t ins_size = code_item->ins_size_;
+  uint16_t locals_size = code_item->registers_size_ - ins_size;
+  if (slot >= locals_size) {
+    return slot - locals_size;
+  } else {
+    return slot + ins_size;
   }
-  return newSlot;
 }
 
+/*
+ * Circularly shifts registers so that arguments come last. Reverts
+ * slots to dex style argument placement.
+ */
 static uint16_t DemangleSlot(uint16_t slot, mirror::ArtMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  if (slot == kEclipseWorkaroundSlot) {
-    return 0;
-  } else if (slot == 0) {
-    const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
-    CHECK(code_item != NULL) << PrettyMethod(m);
-    return code_item->registers_size_ - code_item->ins_size_;
+  const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+  uint16_t ins_size = code_item->ins_size_;
+  uint16_t locals_size = code_item->registers_size_ - ins_size;
+  if (slot < ins_size) {
+    return slot + locals_size;
+  } else {
+    return slot - ins_size;
   }
-  return slot;
 }
 
 JDWP::JdwpError Dbg::OutputDeclaredFields(JDWP::RefTypeId class_id, bool with_generic, JDWP::ExpandBuf* pReply) {
@@ -1358,16 +1327,18 @@ void Dbg::OutputLineTable(JDWP::RefTypeId, JDWP::MethodId method_id, JDWP::Expan
 
 void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId method_id, bool with_generic, JDWP::ExpandBuf* pReply) {
   struct DebugCallbackContext {
+    mirror::ArtMethod* method;
     JDWP::ExpandBuf* pReply;
     size_t variable_count;
     bool with_generic;
 
-    static void Callback(void* context, uint16_t slot, uint32_t startAddress, uint32_t endAddress, const char* name, const char* descriptor, const char* signature) {
+    static void Callback(void* context, uint16_t slot, uint32_t startAddress, uint32_t endAddress, const char* name, const char* descriptor, const char* signature)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       DebugCallbackContext* pContext = reinterpret_cast<DebugCallbackContext*>(context);
 
-      VLOG(jdwp) << StringPrintf("    %2zd: %d(%d) '%s' '%s' '%s' actual slot=%d mangled slot=%d", pContext->variable_count, startAddress, endAddress - startAddress, name, descriptor, signature, slot, MangleSlot(slot, name));
+      VLOG(jdwp) << StringPrintf("    %2zd: %d(%d) '%s' '%s' '%s' actual slot=%d mangled slot=%d", pContext->variable_count, startAddress, endAddress - startAddress, name, descriptor, signature, slot, MangleSlot(slot, pContext->method));
 
-      slot = MangleSlot(slot, name);
+      slot = MangleSlot(slot, pContext->method);
 
       expandBufAdd8BE(pContext->pReply, startAddress);
       expandBufAddUtf8String(pContext->pReply, name);
@@ -1395,6 +1366,7 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId method_id, bool wi
   expandBufAdd4BE(pReply, 0);
 
   DebugCallbackContext context;
+  context.method = m;
   context.pReply = pReply;
   context.variable_count = 0;
   context.with_generic = with_generic;
@@ -1403,6 +1375,13 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId method_id, bool wi
                                   DebugCallbackContext::Callback, &context);
 
   JDWP::Set4BE(expandBufGetBuffer(pReply) + variable_count_offset, context.variable_count);
+}
+
+void Dbg::OutputMethodReturnValue(JDWP::MethodId method_id, const JValue* return_value,
+                                  JDWP::ExpandBuf* pReply) {
+  mirror::ArtMethod* m = FromMethodId(method_id);
+  JDWP::JdwpTag tag = BasicTagFromDescriptor(MethodHelper(m).GetShorty());
+  OutputJValue(tag, return_value, pReply);
 }
 
 JDWP::JdwpError Dbg::GetBytecodes(JDWP::RefTypeId, JDWP::MethodId method_id,
@@ -1473,25 +1452,18 @@ static JDWP::JdwpError GetFieldValueImpl(JDWP::RefTypeId ref_type_id, JDWP::Obje
   }
 
   JDWP::JdwpTag tag = BasicTagFromDescriptor(FieldHelper(f).GetTypeDescriptor());
-
-  if (IsPrimitiveTag(tag)) {
-    expandBufAdd1(pReply, tag);
-    if (tag == JDWP::JT_BOOLEAN || tag == JDWP::JT_BYTE) {
-      expandBufAdd1(pReply, f->Get32(o));
-    } else if (tag == JDWP::JT_CHAR || tag == JDWP::JT_SHORT) {
-      expandBufAdd2BE(pReply, f->Get32(o));
-    } else if (tag == JDWP::JT_FLOAT || tag == JDWP::JT_INT) {
-      expandBufAdd4BE(pReply, f->Get32(o));
-    } else if (tag == JDWP::JT_DOUBLE || tag == JDWP::JT_LONG) {
-      expandBufAdd8BE(pReply, f->Get64(o));
-    } else {
-      LOG(FATAL) << "Unknown tag: " << tag;
-    }
+  JValue field_value;
+  if (tag == JDWP::JT_VOID) {
+    LOG(FATAL) << "Unknown tag: " << tag;
+  } else if (!IsPrimitiveTag(tag)) {
+    field_value.SetL(f->GetObject(o));
+  } else if (tag == JDWP::JT_DOUBLE || tag == JDWP::JT_LONG) {
+    field_value.SetJ(f->Get64(o));
   } else {
-    mirror::Object* value = f->GetObject(o);
-    expandBufAdd1(pReply, TagFromObject(value));
-    expandBufAddObjectId(pReply, gRegistry->Add(value));
+    field_value.SetI(f->Get32(o));
   }
+  Dbg::OutputJValue(tag, &field_value, pReply);
+
   return JDWP::ERR_NONE;
 }
 
@@ -1567,6 +1539,27 @@ JDWP::JdwpError Dbg::SetStaticFieldValue(JDWP::FieldId field_id, uint64_t value,
 std::string Dbg::StringToUtf8(JDWP::ObjectId string_id) {
   mirror::String* s = gRegistry->Get<mirror::String*>(string_id);
   return s->ToModifiedUtf8();
+}
+
+void Dbg::OutputJValue(JDWP::JdwpTag tag, const JValue* return_value, JDWP::ExpandBuf* pReply) {
+  if (IsPrimitiveTag(tag)) {
+    expandBufAdd1(pReply, tag);
+    if (tag == JDWP::JT_BOOLEAN || tag == JDWP::JT_BYTE) {
+      expandBufAdd1(pReply, return_value->GetI());
+    } else if (tag == JDWP::JT_CHAR || tag == JDWP::JT_SHORT) {
+      expandBufAdd2BE(pReply, return_value->GetI());
+    } else if (tag == JDWP::JT_FLOAT || tag == JDWP::JT_INT) {
+      expandBufAdd4BE(pReply, return_value->GetI());
+    } else if (tag == JDWP::JT_DOUBLE || tag == JDWP::JT_LONG) {
+      expandBufAdd8BE(pReply, return_value->GetJ());
+    } else {
+      CHECK_EQ(tag, JDWP::JT_VOID);
+    }
+  } else {
+    mirror::Object* value = return_value->GetL();
+    expandBufAdd1(pReply, TagFromObject(value));
+    expandBufAddObjectId(pReply, gRegistry->Add(value));
+  }
 }
 
 JDWP::JdwpError Dbg::GetThreadName(JDWP::ObjectId thread_id, std::string& name) {
@@ -2079,7 +2072,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int sl
           CHECK_EQ(width_, sizeof(JDWP::ObjectId));
           mirror::Object* o = reinterpret_cast<mirror::Object*>(GetVReg(m, reg, kReferenceVReg));
           VLOG(jdwp) << "get array local " << reg << " = " << o;
-          if (!Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
+          if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(o)) {
             LOG(FATAL) << "Register " << reg << " expected to hold array: " << o;
           }
           JDWP::SetObjectId(buf_+1, gRegistry->Add(o));
@@ -2095,7 +2088,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int sl
           CHECK_EQ(width_, sizeof(JDWP::ObjectId));
           mirror::Object* o = reinterpret_cast<mirror::Object*>(GetVReg(m, reg, kReferenceVReg));
           VLOG(jdwp) << "get object local " << reg << " = " << o;
-          if (!Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
+          if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(o)) {
             LOG(FATAL) << "Register " << reg << " expected to hold object: " << o;
           }
           tag_ = TagFromObject(o);
@@ -2238,8 +2231,8 @@ void Dbg::SetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int sl
   visitor.WalkStack();
 }
 
-void Dbg::PostLocationEvent(const mirror::ArtMethod* m, int dex_pc,
-                            mirror::Object* this_object, int event_flags) {
+void Dbg::PostLocationEvent(const mirror::ArtMethod* m, int dex_pc, mirror::Object* this_object,
+                            int event_flags, const JValue* return_value) {
   mirror::Class* c = m->GetDeclaringClass();
 
   JDWP::JdwpLocation location;
@@ -2254,7 +2247,7 @@ void Dbg::PostLocationEvent(const mirror::ArtMethod* m, int dex_pc,
   if (gRegistry->Contains(this_object)) {
     this_id = gRegistry->Add(this_object);
   }
-  gJdwpState->PostLocationEvent(&location, this_id, event_flags);
+  gJdwpState->PostLocationEvent(&location, this_id, event_flags, return_value);
 }
 
 void Dbg::PostException(Thread* thread, const ThrowLocation& throw_location,
@@ -2304,63 +2297,62 @@ void Dbg::UpdateDebugger(Thread* thread, mirror::Object* this_object,
     event_flags |= kBreakpoint;
   }
 
-  {
-    // If the debugger is single-stepping one of our threads, check to
-    // see if we're that thread and we've reached a step point.
-    MutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
-    if (gSingleStepControl.is_active && gSingleStepControl.thread == thread) {
-      CHECK(!m->IsNative());
-      if (gSingleStepControl.step_depth == JDWP::SD_INTO) {
-        // Step into method calls.  We break when the line number
-        // or method pointer changes.  If we're in SS_MIN mode, we
-        // always stop.
-        if (gSingleStepControl.method != m) {
-          event_flags |= kSingleStep;
-          VLOG(jdwp) << "SS new method";
-        } else if (gSingleStepControl.step_size == JDWP::SS_MIN) {
+  // If the debugger is single-stepping one of our threads, check to
+  // see if we're that thread and we've reached a step point.
+  const SingleStepControl* single_step_control = thread->GetSingleStepControl();
+  DCHECK(single_step_control != nullptr);
+  if (single_step_control->is_active) {
+    CHECK(!m->IsNative());
+    if (single_step_control->step_depth == JDWP::SD_INTO) {
+      // Step into method calls.  We break when the line number
+      // or method pointer changes.  If we're in SS_MIN mode, we
+      // always stop.
+      if (single_step_control->method != m) {
+        event_flags |= kSingleStep;
+        VLOG(jdwp) << "SS new method";
+      } else if (single_step_control->step_size == JDWP::SS_MIN) {
+        event_flags |= kSingleStep;
+        VLOG(jdwp) << "SS new instruction";
+      } else if (single_step_control->dex_pcs.find(dex_pc) == single_step_control->dex_pcs.end()) {
+        event_flags |= kSingleStep;
+        VLOG(jdwp) << "SS new line";
+      }
+    } else if (single_step_control->step_depth == JDWP::SD_OVER) {
+      // Step over method calls.  We break when the line number is
+      // different and the frame depth is <= the original frame
+      // depth.  (We can't just compare on the method, because we
+      // might get unrolled past it by an exception, and it's tricky
+      // to identify recursion.)
+
+      int stack_depth = GetStackDepth(thread);
+
+      if (stack_depth < single_step_control->stack_depth) {
+        // Popped up one or more frames, always trigger.
+        event_flags |= kSingleStep;
+        VLOG(jdwp) << "SS method pop";
+      } else if (stack_depth == single_step_control->stack_depth) {
+        // Same depth, see if we moved.
+        if (single_step_control->step_size == JDWP::SS_MIN) {
           event_flags |= kSingleStep;
           VLOG(jdwp) << "SS new instruction";
-        } else if (gSingleStepControl.dex_pcs.find(dex_pc) == gSingleStepControl.dex_pcs.end()) {
+        } else if (single_step_control->dex_pcs.find(dex_pc) == single_step_control->dex_pcs.end()) {
           event_flags |= kSingleStep;
           VLOG(jdwp) << "SS new line";
         }
-      } else if (gSingleStepControl.step_depth == JDWP::SD_OVER) {
-        // Step over method calls.  We break when the line number is
-        // different and the frame depth is <= the original frame
-        // depth.  (We can't just compare on the method, because we
-        // might get unrolled past it by an exception, and it's tricky
-        // to identify recursion.)
+      }
+    } else {
+      CHECK_EQ(single_step_control->step_depth, JDWP::SD_OUT);
+      // Return from the current method.  We break when the frame
+      // depth pops up.
 
-        int stack_depth = GetStackDepth(thread);
+      // This differs from the "method exit" break in that it stops
+      // with the PC at the next instruction in the returned-to
+      // function, rather than the end of the returning function.
 
-        if (stack_depth < gSingleStepControl.stack_depth) {
-          // popped up one or more frames, always trigger
-          event_flags |= kSingleStep;
-          VLOG(jdwp) << "SS method pop";
-        } else if (stack_depth == gSingleStepControl.stack_depth) {
-          // same depth, see if we moved
-          if (gSingleStepControl.step_size == JDWP::SS_MIN) {
-            event_flags |= kSingleStep;
-            VLOG(jdwp) << "SS new instruction";
-          } else if (gSingleStepControl.dex_pcs.find(dex_pc) == gSingleStepControl.dex_pcs.end()) {
-            event_flags |= kSingleStep;
-            VLOG(jdwp) << "SS new line";
-          }
-        }
-      } else {
-        CHECK_EQ(gSingleStepControl.step_depth, JDWP::SD_OUT);
-        // Return from the current method.  We break when the frame
-        // depth pops up.
-
-        // This differs from the "method exit" break in that it stops
-        // with the PC at the next instruction in the returned-to
-        // function, rather than the end of the returning function.
-
-        int stack_depth = GetStackDepth(thread);
-        if (stack_depth < gSingleStepControl.stack_depth) {
-          event_flags |= kSingleStep;
-          VLOG(jdwp) << "SS method pop";
-        }
+      int stack_depth = GetStackDepth(thread);
+      if (stack_depth < single_step_control->stack_depth) {
+        event_flags |= kSingleStep;
+        VLOG(jdwp) << "SS method pop";
       }
     }
   }
@@ -2368,7 +2360,7 @@ void Dbg::UpdateDebugger(Thread* thread, mirror::Object* this_object,
   // If there's something interesting going on, see if it matches one
   // of the debugger filters.
   if (event_flags != 0) {
-    Dbg::PostLocationEvent(m, dex_pc, this_object, event_flags);
+    Dbg::PostLocationEvent(m, dex_pc, this_object, event_flags, nullptr);
   }
 }
 
@@ -2456,50 +2448,50 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
     return sts.GetError();
   }
 
-  MutexLock mu2(self, *Locks::breakpoint_lock_);
-  // TODO: there's no theoretical reason why we couldn't support single-stepping
-  // of multiple threads at once, but we never did so historically.
-  if (gSingleStepControl.thread != NULL && sts.GetThread() != gSingleStepControl.thread) {
-    LOG(WARNING) << "single-step already active for " << *gSingleStepControl.thread
-                 << "; switching to " << *sts.GetThread();
-  }
-
   //
   // Work out what Method* we're in, the current line number, and how deep the stack currently
   // is for step-out.
   //
 
   struct SingleStepStackVisitor : public StackVisitor {
-    explicit SingleStepStackVisitor(Thread* thread)
-        EXCLUSIVE_LOCKS_REQUIRED(Locks::breakpoint_lock_)
+    explicit SingleStepStackVisitor(Thread* thread, SingleStepControl* single_step_control,
+                                    int32_t* line_number)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-        : StackVisitor(thread, NULL) {
-      gSingleStepControl.method = NULL;
-      gSingleStepControl.stack_depth = 0;
+        : StackVisitor(thread, NULL), single_step_control_(single_step_control),
+          line_number_(line_number) {
+      DCHECK_EQ(single_step_control_, thread->GetSingleStepControl());
+      single_step_control_->method = NULL;
+      single_step_control_->stack_depth = 0;
     }
 
     // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
     // annotalysis.
     bool VisitFrame() NO_THREAD_SAFETY_ANALYSIS {
-      Locks::breakpoint_lock_->AssertHeld(Thread::Current());
-      const mirror::ArtMethod* m = GetMethod();
+      mirror::ArtMethod* m = GetMethod();
       if (!m->IsRuntimeMethod()) {
-        ++gSingleStepControl.stack_depth;
-        if (gSingleStepControl.method == NULL) {
+        ++single_step_control_->stack_depth;
+        if (single_step_control_->method == NULL) {
           const mirror::DexCache* dex_cache = m->GetDeclaringClass()->GetDexCache();
-          gSingleStepControl.method = m;
-          gSingleStepControl.line_number = -1;
+          single_step_control_->method = m;
+          *line_number_ = -1;
           if (dex_cache != NULL) {
             const DexFile& dex_file = *dex_cache->GetDexFile();
-            gSingleStepControl.line_number = dex_file.GetLineNumFromPC(m, GetDexPc());
+            *line_number_ = dex_file.GetLineNumFromPC(m, GetDexPc());
           }
         }
       }
       return true;
     }
+
+    SingleStepControl* const single_step_control_;
+    int32_t* const line_number_;
   };
 
-  SingleStepStackVisitor visitor(sts.GetThread());
+  Thread* const thread = sts.GetThread();
+  SingleStepControl* const single_step_control = thread->GetSingleStepControl();
+  DCHECK(single_step_control != nullptr);
+  int32_t line_number = -1;
+  SingleStepStackVisitor visitor(thread, single_step_control, &line_number);
   visitor.WalkStack();
 
   //
@@ -2507,17 +2499,14 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
   //
 
   struct DebugCallbackContext {
-    DebugCallbackContext() EXCLUSIVE_LOCKS_REQUIRED(Locks::breakpoint_lock_) {
-      last_pc_valid = false;
-      last_pc = 0;
+    explicit DebugCallbackContext(SingleStepControl* single_step_control, int32_t line_number)
+      : single_step_control_(single_step_control), line_number_(line_number),
+        last_pc_valid(false), last_pc(0) {
     }
 
-    // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
-    // annotalysis.
-    static bool Callback(void* raw_context, uint32_t address, uint32_t line_number) NO_THREAD_SAFETY_ANALYSIS {
-      Locks::breakpoint_lock_->AssertHeld(Thread::Current());
+    static bool Callback(void* raw_context, uint32_t address, uint32_t line_number) {
       DebugCallbackContext* context = reinterpret_cast<DebugCallbackContext*>(raw_context);
-      if (static_cast<int32_t>(line_number) == gSingleStepControl.line_number) {
+      if (static_cast<int32_t>(line_number) == context->line_number_) {
         if (!context->last_pc_valid) {
           // Everything from this address until the next line change is ours.
           context->last_pc = address;
@@ -2528,35 +2517,32 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
       } else if (context->last_pc_valid) {  // and the line number is new
         // Add everything from the last entry up until here to the set
         for (uint32_t dex_pc = context->last_pc; dex_pc < address; ++dex_pc) {
-          gSingleStepControl.dex_pcs.insert(dex_pc);
+          context->single_step_control_->dex_pcs.insert(dex_pc);
         }
         context->last_pc_valid = false;
       }
       return false;  // There may be multiple entries for any given line.
     }
 
-    // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
-    // annotalysis.
-    ~DebugCallbackContext() NO_THREAD_SAFETY_ANALYSIS {
-      Locks::breakpoint_lock_->AssertHeld(Thread::Current());
+    ~DebugCallbackContext() {
       // If the line number was the last in the position table...
       if (last_pc_valid) {
-        size_t end = MethodHelper(gSingleStepControl.method).GetCodeItem()->insns_size_in_code_units_;
+        size_t end = MethodHelper(single_step_control_->method).GetCodeItem()->insns_size_in_code_units_;
         for (uint32_t dex_pc = last_pc; dex_pc < end; ++dex_pc) {
-          gSingleStepControl.dex_pcs.insert(dex_pc);
+          single_step_control_->dex_pcs.insert(dex_pc);
         }
       }
     }
 
+    SingleStepControl* const single_step_control_;
+    const int32_t line_number_;
     bool last_pc_valid;
     uint32_t last_pc;
   };
-  gSingleStepControl.dex_pcs.clear();
-  const mirror::ArtMethod* m = gSingleStepControl.method;
-  if (m->IsNative()) {
-    gSingleStepControl.line_number = -1;
-  } else {
-    DebugCallbackContext context;
+  single_step_control->dex_pcs.clear();
+  const mirror::ArtMethod* m = single_step_control->method;
+  if (!m->IsNative()) {
+    DebugCallbackContext context(single_step_control, line_number);
     MethodHelper mh(m);
     mh.GetDexFile().DecodeDebugInfo(mh.GetCodeItem(), m->IsStatic(), m->GetDexMethodIndex(),
                                     DebugCallbackContext::Callback, NULL, &context);
@@ -2566,20 +2552,19 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
   // Everything else...
   //
 
-  gSingleStepControl.thread = sts.GetThread();
-  gSingleStepControl.step_size = step_size;
-  gSingleStepControl.step_depth = step_depth;
-  gSingleStepControl.is_active = true;
+  single_step_control->step_size = step_size;
+  single_step_control->step_depth = step_depth;
+  single_step_control->is_active = true;
 
   if (VLOG_IS_ON(jdwp)) {
-    VLOG(jdwp) << "Single-step thread: " << *gSingleStepControl.thread;
-    VLOG(jdwp) << "Single-step step size: " << gSingleStepControl.step_size;
-    VLOG(jdwp) << "Single-step step depth: " << gSingleStepControl.step_depth;
-    VLOG(jdwp) << "Single-step current method: " << PrettyMethod(gSingleStepControl.method);
-    VLOG(jdwp) << "Single-step current line: " << gSingleStepControl.line_number;
-    VLOG(jdwp) << "Single-step current stack depth: " << gSingleStepControl.stack_depth;
+    VLOG(jdwp) << "Single-step thread: " << *thread;
+    VLOG(jdwp) << "Single-step step size: " << single_step_control->step_size;
+    VLOG(jdwp) << "Single-step step depth: " << single_step_control->step_depth;
+    VLOG(jdwp) << "Single-step current method: " << PrettyMethod(single_step_control->method);
+    VLOG(jdwp) << "Single-step current line: " << line_number;
+    VLOG(jdwp) << "Single-step current stack depth: " << single_step_control->stack_depth;
     VLOG(jdwp) << "Single-step dex_pc values:";
-    for (std::set<uint32_t>::iterator it = gSingleStepControl.dex_pcs.begin() ; it != gSingleStepControl.dex_pcs.end(); ++it) {
+    for (std::set<uint32_t>::iterator it = single_step_control->dex_pcs.begin(); it != single_step_control->dex_pcs.end(); ++it) {
       VLOG(jdwp) << StringPrintf(" %#x", *it);
     }
   }
@@ -2587,12 +2572,17 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
   return JDWP::ERR_NONE;
 }
 
-void Dbg::UnconfigureStep(JDWP::ObjectId /*thread_id*/) {
-  MutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
-
-  gSingleStepControl.is_active = false;
-  gSingleStepControl.thread = NULL;
-  gSingleStepControl.dex_pcs.clear();
+void Dbg::UnconfigureStep(JDWP::ObjectId thread_id) {
+  ScopedObjectAccessUnchecked soa(Thread::Current());
+  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
+  Thread* thread;
+  JDWP::JdwpError error = DecodeThread(soa, thread_id, thread);
+  if (error != JDWP::ERR_NONE) {
+    SingleStepControl* single_step_control = thread->GetSingleStepControl();
+    DCHECK(single_step_control != nullptr);
+    single_step_control->is_active = false;
+    single_step_control->dex_pcs.clear();
+  }
 }
 
 static char JdwpTagToShortyChar(JDWP::JdwpTag tag) {
@@ -2732,14 +2722,14 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
       }
     }
 
-    req->receiver_ = receiver;
-    req->thread_ = thread;
-    req->class_ = c;
-    req->method_ = m;
-    req->arg_count_ = arg_count;
-    req->arg_values_ = arg_values;
-    req->options_ = options;
-    req->invoke_needed_ = true;
+    req->receiver = receiver;
+    req->thread = thread;
+    req->klass = c;
+    req->method = m;
+    req->arg_count = arg_count;
+    req->arg_values = arg_values;
+    req->options = options;
+    req->invoke_needed = true;
   }
 
   // The fact that we've released the thread list lock is a bit risky --- if the thread goes
@@ -2757,7 +2747,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
 
     VLOG(jdwp) << "    Transferring control to event thread";
     {
-      MutexLock mu(self, req->lock_);
+      MutexLock mu(self, req->lock);
 
       if ((options & JDWP::INVOKE_SINGLE_THREADED) == 0) {
         VLOG(jdwp) << "      Resuming all threads";
@@ -2768,8 +2758,8 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
       }
 
       // Wait for the request to finish executing.
-      while (req->invoke_needed_) {
-        req->cond_.Wait(self);
+      while (req->invoke_needed) {
+        req->cond.Wait(self);
       }
     }
     VLOG(jdwp) << "    Control has returned from event thread";
@@ -2826,24 +2816,24 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   }
 
   // Translate the method through the vtable, unless the debugger wants to suppress it.
-  mirror::ArtMethod* m = pReq->method_;
-  if ((pReq->options_ & JDWP::INVOKE_NONVIRTUAL) == 0 && pReq->receiver_ != NULL) {
-    mirror::ArtMethod* actual_method = pReq->class_->FindVirtualMethodForVirtualOrInterface(pReq->method_);
+  mirror::ArtMethod* m = pReq->method;
+  if ((pReq->options & JDWP::INVOKE_NONVIRTUAL) == 0 && pReq->receiver != NULL) {
+    mirror::ArtMethod* actual_method = pReq->klass->FindVirtualMethodForVirtualOrInterface(pReq->method);
     if (actual_method != m) {
       VLOG(jdwp) << "ExecuteMethod translated " << PrettyMethod(m) << " to " << PrettyMethod(actual_method);
       m = actual_method;
     }
   }
   VLOG(jdwp) << "ExecuteMethod " << PrettyMethod(m)
-             << " receiver=" << pReq->receiver_
-             << " arg_count=" << pReq->arg_count_;
+             << " receiver=" << pReq->receiver
+             << " arg_count=" << pReq->arg_count;
   CHECK(m != NULL);
 
   CHECK_EQ(sizeof(jvalue), sizeof(uint64_t));
 
   MethodHelper mh(m);
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
-  arg_array.BuildArgArray(soa, pReq->receiver_, reinterpret_cast<jvalue*>(pReq->arg_values_));
+  arg_array.BuildArgArray(soa, pReq->receiver, reinterpret_cast<jvalue*>(pReq->arg_values));
   InvokeWithArgArray(soa, m, &arg_array, &pReq->result_value, mh.GetShorty()[0]);
 
   mirror::Throwable* exception = soa.Self()->GetException(NULL);
@@ -3372,7 +3362,7 @@ class HeapChunkContext {
       return HPSG_STATE(SOLIDITY_HARD, KIND_OBJECT);
     }
 
-    if (!Runtime::Current()->GetHeap()->IsHeapAddress(c)) {
+    if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(c)) {
       LOG(ERROR) << "Invalid class for managed heap object: " << o << " " << c;
       return HPSG_STATE(SOLIDITY_HARD, KIND_UNKNOWN);
     }
@@ -3430,6 +3420,14 @@ void Dbg::DdmSendHeapSegments(bool native) {
   JDWP::Set4BE(&heap_id[0], 1);  // Heap id (bogus; we only have one heap).
   Dbg::DdmSendChunk(native ? CHUNK_TYPE("NHST") : CHUNK_TYPE("HPST"), sizeof(heap_id), heap_id);
 
+  Thread* self = Thread::Current();
+
+  // To allow the Walk/InspectAll() below to exclusively-lock the
+  // mutator lock, temporarily release the shared access to the
+  // mutator lock here by transitioning to the suspended state.
+  Locks::mutator_lock_->AssertSharedHeld(self);
+  self->TransitionFromRunnableToSuspended(kSuspended);
+
   // Send a series of heap segment chunks.
   HeapChunkContext context((what == HPSG_WHAT_MERGED_OBJECTS), native);
   if (native) {
@@ -3437,17 +3435,20 @@ void Dbg::DdmSendHeapSegments(bool native) {
   } else {
     gc::Heap* heap = Runtime::Current()->GetHeap();
     const std::vector<gc::space::ContinuousSpace*>& spaces = heap->GetContinuousSpaces();
-    Thread* self = Thread::Current();
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     typedef std::vector<gc::space::ContinuousSpace*>::const_iterator It;
     for (It cur = spaces.begin(), end = spaces.end(); cur != end; ++cur) {
-      if ((*cur)->IsDlMallocSpace()) {
-        (*cur)->AsDlMallocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
+      if ((*cur)->IsMallocSpace()) {
+        (*cur)->AsMallocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
       }
     }
     // Walk the large objects, these are not in the AllocSpace.
     heap->GetLargeObjectsSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
   }
+
+  // Shared-lock the mutator lock back.
+  self->TransitionFromSuspendedToRunnable();
+  Locks::mutator_lock_->AssertSharedHeld(self);
 
   // Finally, send a heap end chunk.
   Dbg::DdmSendChunk(native ? CHUNK_TYPE("NHEN") : CHUNK_TYPE("HPEN"), sizeof(heap_id), heap_id);
@@ -3489,9 +3490,9 @@ void Dbg::SetAllocTrackingEnabled(bool enabled) {
       recent_allocation_records_ = new AllocRecord[gAllocRecordMax];
       CHECK(recent_allocation_records_ != NULL);
     }
-    Runtime::Current()->InstrumentQuickAllocEntryPoints();
+    Runtime::Current()->GetInstrumentation()->InstrumentQuickAllocEntryPoints();
   } else {
-    Runtime::Current()->UninstrumentQuickAllocEntryPoints();
+    Runtime::Current()->GetInstrumentation()->UninstrumentQuickAllocEntryPoints();
     delete[] recent_allocation_records_;
     recent_allocation_records_ = NULL;
   }
@@ -3752,7 +3753,6 @@ jbyteArray Dbg::GetRecentAllocations() {
 
     count = gAllocRecordCount;
     idx = HeadIndex();
-    ClassHelper kh;
     while (count--) {
       // For each entry:
       // (4b) total allocation size
@@ -3761,7 +3761,7 @@ jbyteArray Dbg::GetRecentAllocations() {
       // (1b) stack depth
       AllocRecord* record = &recent_allocation_records_[idx];
       size_t stack_depth = record->GetDepth();
-      kh.ChangeClass(record->type);
+      ClassHelper kh(record->type);
       size_t allocated_object_class_name_index = class_names.IndexOf(kh.GetDescriptor());
       JDWP::Append4BE(bytes, record->byte_count);
       JDWP::Append2BE(bytes, record->thin_lock_id);

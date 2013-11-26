@@ -52,7 +52,8 @@ void Class::ResetClass() {
 
 void Class::SetStatus(Status new_status, Thread* self) {
   Status old_status = GetStatus();
-  bool class_linker_initialized = Runtime::Current()->GetClassLinker() != nullptr;
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  bool class_linker_initialized = class_linker != nullptr && class_linker->IsInitialized();
   if (LIKELY(class_linker_initialized)) {
     if (UNLIKELY(new_status <= old_status && new_status != kStatusError)) {
       LOG(FATAL) << "Unexpected change back of class status for " << PrettyClass(this) << " "
@@ -588,7 +589,6 @@ ArtField* Class::FindDeclaredStaticField(const DexCache* dex_cache, uint32_t dex
 ArtField* Class::FindStaticField(const StringPiece& name, const StringPiece& type) {
   // Is the field in this class (or its interfaces), or any of its
   // superclasses (or their interfaces)?
-  ClassHelper kh;
   for (Class* k = this; k != NULL; k = k->GetSuperClass()) {
     // Is the field in this class?
     ArtField* f = k->FindDeclaredStaticField(name, type);
@@ -596,7 +596,7 @@ ArtField* Class::FindStaticField(const StringPiece& name, const StringPiece& typ
       return f;
     }
     // Is this field in any of this class' interfaces?
-    kh.ChangeClass(k);
+    ClassHelper kh(k);
     for (uint32_t i = 0; i < kh.NumDirectInterfaces(); ++i) {
       Class* interface = kh.GetDirectInterface(i);
       f = interface->FindStaticField(name, type);
@@ -609,7 +609,6 @@ ArtField* Class::FindStaticField(const StringPiece& name, const StringPiece& typ
 }
 
 ArtField* Class::FindStaticField(const DexCache* dex_cache, uint32_t dex_field_idx) {
-  ClassHelper kh;
   for (Class* k = this; k != NULL; k = k->GetSuperClass()) {
     // Is the field in this class?
     ArtField* f = k->FindDeclaredStaticField(dex_cache, dex_field_idx);
@@ -617,7 +616,7 @@ ArtField* Class::FindStaticField(const DexCache* dex_cache, uint32_t dex_field_i
       return f;
     }
     // Is this field in any of this class' interfaces?
-    kh.ChangeClass(k);
+    ClassHelper kh(k);
     for (uint32_t i = 0; i < kh.NumDirectInterfaces(); ++i) {
       Class* interface = kh.GetDirectInterface(i);
       f = interface->FindStaticField(dex_cache, dex_field_idx);
@@ -631,7 +630,6 @@ ArtField* Class::FindStaticField(const DexCache* dex_cache, uint32_t dex_field_i
 
 ArtField* Class::FindField(const StringPiece& name, const StringPiece& type) {
   // Find a field using the JLS field resolution order
-  ClassHelper kh;
   for (Class* k = this; k != NULL; k = k->GetSuperClass()) {
     // Is the field in this class?
     ArtField* f = k->FindDeclaredInstanceField(name, type);
@@ -643,7 +641,7 @@ ArtField* Class::FindField(const StringPiece& name, const StringPiece& type) {
       return f;
     }
     // Is this field in any of this class' interfaces?
-    kh.ChangeClass(k);
+    ClassHelper kh(k);
     for (uint32_t i = 0; i < kh.NumDirectInterfaces(); ++i) {
       Class* interface = kh.GetDirectInterface(i);
       f = interface->FindStaticField(name, type);

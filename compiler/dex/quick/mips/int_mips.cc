@@ -258,7 +258,7 @@ void MipsMir2Lir::OpTlsCmp(ThreadOffset offset, int val) {
   LOG(FATAL) << "Unexpected use of OpTlsCmp for Arm";
 }
 
-bool MipsMir2Lir::GenInlinedCas32(CallInfo* info, bool need_write_barrier) {
+bool MipsMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   DCHECK_NE(cu_->instruction_set, kThumb2);
   return false;
 }

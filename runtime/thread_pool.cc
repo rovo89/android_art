@@ -28,12 +28,15 @@ static constexpr bool kMeasureWaitTime = false;
 ThreadPoolWorker::ThreadPoolWorker(ThreadPool* thread_pool, const std::string& name,
                                    size_t stack_size)
     : thread_pool_(thread_pool),
-      name_(name),
-      stack_size_(stack_size) {
+      name_(name) {
+  std::string error_msg;
+  stack_.reset(MemMap::MapAnonymous(name.c_str(), nullptr, stack_size, PROT_READ | PROT_WRITE,
+                                    &error_msg));
+  CHECK(stack_.get() != nullptr) << error_msg;
   const char* reason = "new thread pool worker thread";
   pthread_attr_t attr;
   CHECK_PTHREAD_CALL(pthread_attr_init, (&attr), reason);
-  CHECK_PTHREAD_CALL(pthread_attr_setstacksize, (&attr, stack_size), reason);
+  CHECK_PTHREAD_CALL(pthread_attr_setstack, (&attr, stack_->Begin(), stack_->Size()), reason);
   CHECK_PTHREAD_CALL(pthread_create, (&pthread_, &attr, &Callback, this), reason);
   CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attr), reason);
 }
@@ -71,8 +74,9 @@ void ThreadPool::AddTask(Thread* self, Task* task) {
   }
 }
 
-ThreadPool::ThreadPool(size_t num_threads)
-  : task_queue_lock_("task queue lock"),
+ThreadPool::ThreadPool(const char* name, size_t num_threads)
+  : name_(name),
+    task_queue_lock_("task queue lock"),
     task_queue_condition_("task queue condition", task_queue_lock_),
     completion_condition_("task completion condition", task_queue_lock_),
     started_(false),
@@ -85,7 +89,7 @@ ThreadPool::ThreadPool(size_t num_threads)
     max_active_workers_(num_threads) {
   Thread* self = Thread::Current();
   while (GetThreadCount() < num_threads) {
-    const std::string name = StringPrintf("Thread pool worker %zu", GetThreadCount());
+    const std::string name = StringPrintf("%s worker thread %zu", name_.c_str(), GetThreadCount());
     threads_.push_back(new ThreadPoolWorker(this, name, ThreadPoolWorker::kDefaultStackSize));
   }
   // Wait for all of the threads to attach.
@@ -270,8 +274,8 @@ void WorkStealingWorker::Run() {
 
 WorkStealingWorker::~WorkStealingWorker() {}
 
-WorkStealingThreadPool::WorkStealingThreadPool(size_t num_threads)
-    : ThreadPool(0),
+WorkStealingThreadPool::WorkStealingThreadPool(const char* name, size_t num_threads)
+    : ThreadPool(name, 0),
       work_steal_lock_("work stealing lock"),
       steal_index_(0) {
   while (GetThreadCount() < num_threads) {

@@ -61,7 +61,8 @@ static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean
   }
 
   std::string descriptor(DotToDescriptor(name.c_str()));
-  mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(javaLoader);
+  SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
+                                            soa.Decode<mirror::ClassLoader*>(javaLoader));
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   mirror::Class* c = class_linker->FindClass(descriptor.c_str(), class_loader);
   if (c == NULL) {

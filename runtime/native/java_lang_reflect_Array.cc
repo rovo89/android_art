@@ -52,13 +52,14 @@ static jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementCl
   descriptor += ClassHelper(element_class).GetDescriptor();
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  mirror::Class* array_class = class_linker->FindClass(descriptor.c_str(), element_class->GetClassLoader());
+  SirtRef<mirror::ClassLoader> class_loader(soa.Self(), element_class->GetClassLoader());
+  mirror::Class* array_class = class_linker->FindClass(descriptor.c_str(), class_loader);
   if (UNLIKELY(array_class == NULL)) {
     CHECK(soa.Self()->IsExceptionPending());
     return NULL;
   }
   DCHECK(array_class->IsArrayClass());
-  mirror::Array* new_array = mirror::Array::Alloc(soa.Self(), array_class, length);
+  mirror::Array* new_array = mirror::Array::Alloc<true>(soa.Self(), array_class, length);
   return soa.AddLocalReference<jobject>(new_array);
 }
 

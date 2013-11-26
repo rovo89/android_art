@@ -36,12 +36,13 @@ namespace art {
 class CompilerDriverTest : public CommonTest {
  protected:
   void CompileAll(jobject class_loader) LOCKS_EXCLUDED(Locks::mutator_lock_) {
-    base::TimingLogger timings("CompilerDriverTest::CompileAll", false, false);
+    TimingLogger timings("CompilerDriverTest::CompileAll", false, false);
     timings.StartSplit("CompileAll");
     compiler_driver_->CompileAll(class_loader,
                                  Runtime::Current()->GetCompileTimeClassPath(class_loader),
                                  timings);
     MakeAllExecutable(class_loader);
+    timings.EndSplit();
   }
 
   void EnsureCompiled(jobject class_loader, const char* class_name, const char* method,
@@ -78,7 +79,9 @@ class CompilerDriverTest : public CommonTest {
       const DexFile::ClassDef& class_def = dex_file.GetClassDef(i);
       const char* descriptor = dex_file.GetClassDescriptor(class_def);
       ScopedObjectAccess soa(Thread::Current());
-      mirror::Class* c = class_linker->FindClass(descriptor, soa.Decode<mirror::ClassLoader*>(class_loader));
+      Thread* self = Thread::Current();
+      SirtRef<mirror::ClassLoader> loader(self, soa.Decode<mirror::ClassLoader*>(class_loader));
+      mirror::Class* c = class_linker->FindClass(descriptor, loader);
       CHECK(c != NULL);
       for (size_t i = 0; i < c->NumDirectMethods(); i++) {
         MakeExecutable(c->GetDirectMethod(i));
@@ -142,8 +145,9 @@ TEST_F(CompilerDriverTest, AbstractMethodErrorStub) {
   jobject class_loader;
   {
     ScopedObjectAccess soa(Thread::Current());
-    CompileVirtualMethod(NULL, "java.lang.Class", "isFinalizable", "()Z");
-    CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
+    SirtRef<mirror::ClassLoader> null_loader(soa.Self(), nullptr);
+    CompileVirtualMethod(null_loader, "java.lang.Class", "isFinalizable", "()Z");
+    CompileDirectMethod(null_loader, "java.lang.Object", "<init>", "()V");
     class_loader = LoadDex("AbstractMethod");
   }
   ASSERT_TRUE(class_loader != NULL);

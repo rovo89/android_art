@@ -40,6 +40,10 @@ template <class Value> class Histogram {
     std::vector<double> perc_;
   };
 
+  // Used by the cumulative timing logger to search the histogram set using for an existing split
+  // with the same name using CumulativeLogger::HistogramComparator.
+  explicit Histogram(const char* name);
+  // This is the expected constructor when creating new Histograms.
   Histogram(const char* name, Value initial_bucket_width, size_t max_buckets = 100);
   void AddValue(Value);
   // Builds the cumulative distribution function from the frequency data.
@@ -47,7 +51,7 @@ template <class Value> class Histogram {
   // cumulative_freq[i] = sum(frequency[j] : 0 < j < i )
   // Accumulative summation of percentiles; which is the frequency / SampleSize
   // cumulative_perc[i] = sum(frequency[j] / SampleSize : 0 < j < i )
-  void CreateHistogram(CumulativeData& data);
+  void CreateHistogram(CumulativeData* data) const;
   // Reset the cumulative values, next time CreateHistogram is called it will recreate the cache.
   void Reset();
   double Mean() const;

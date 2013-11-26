@@ -23,6 +23,7 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/local_value_numbering.cc \
 	dex/arena_allocator.cc \
 	dex/arena_bit_vector.cc \
+	dex/quick/arm/arm_dex_file_method_inliner.cc \
 	dex/quick/arm/assemble_arm.cc \
 	dex/quick/arm/call_arm.cc \
 	dex/quick/arm/fp_arm.cc \
@@ -30,6 +31,8 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/quick/arm/target_arm.cc \
 	dex/quick/arm/utility_arm.cc \
 	dex/quick/codegen_util.cc \
+	dex/quick/dex_file_method_inliner.cc \
+	dex/quick/dex_file_to_method_inliner_map.cc \
 	dex/quick/gen_common.cc \
 	dex/quick/gen_invoke.cc \
 	dex/quick/gen_loadstore.cc \
@@ -38,6 +41,7 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/quick/mips/call_mips.cc \
 	dex/quick/mips/fp_mips.cc \
 	dex/quick/mips/int_mips.cc \
+	dex/quick/mips/mips_dex_file_method_inliner.cc \
 	dex/quick/mips/target_mips.cc \
 	dex/quick/mips/utility_mips.cc \
 	dex/quick/mir_to_lir.cc \
@@ -48,6 +52,7 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/quick/x86/int_x86.cc \
 	dex/quick/x86/target_x86.cc \
 	dex/quick/x86/utility_x86.cc \
+	dex/quick/x86/x86_dex_file_method_inliner.cc \
 	dex/portable/mir_to_gbc.cc \
 	dex/dex_to_dex_compiler.cc \
 	dex/mir_dataflow.cc \

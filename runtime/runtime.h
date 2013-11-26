@@ -27,6 +27,7 @@
 
 #include "base/macros.h"
 #include "base/stringpiece.h"
+#include "gc/collector_type.h"
 #include "gc/heap.h"
 #include "globals.h"
 #include "instruction_set.h"
@@ -99,10 +100,10 @@ class Runtime {
     bool is_compiler_;
     bool is_zygote_;
     bool interpreter_only_;
-    bool is_concurrent_gc_enabled_;
     bool is_explicit_gc_disabled_;
     size_t long_pause_log_threshold_;
     size_t long_gc_log_threshold_;
+    bool dump_gc_performance_on_shutdown_;
     bool ignore_max_footprint_;
     size_t heap_initial_size_;
     size_t heap_maximum_size_;
@@ -112,6 +113,7 @@ class Runtime {
     double heap_target_utilization_;
     size_t parallel_gc_threads_;
     size_t conc_gc_threads_;
+    gc::CollectorType collector_type_;
     size_t stack_size_;
     size_t max_spins_before_thin_lock_inflation_;
     bool low_memory_mode_;
@@ -147,10 +149,6 @@ class Runtime {
 
   bool IsZygote() const {
     return is_zygote_;
-  }
-
-  bool IsConcurrentGcEnabled() const {
-    return is_concurrent_gc_enabled_;
   }
 
   bool IsExplicitGcDisabled() const {
@@ -203,7 +201,8 @@ class Runtime {
   // Starts a runtime, which may cause threads to be started and code to run.
   bool Start() UNLOCK_FUNCTION(Locks::mutator_lock_);
 
-  bool IsShuttingDown() const EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_) {
+  bool IsShuttingDown(Thread* self);
+  bool IsShuttingDownLocked() const EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_) {
     return shutting_down_;
   }
 
@@ -442,9 +441,6 @@ class Runtime {
   const std::vector<const DexFile*>& GetCompileTimeClassPath(jobject class_loader);
   void SetCompileTimeClassPath(jobject class_loader, std::vector<const DexFile*>& class_path);
 
-  void InstrumentQuickAllocEntryPoints();
-  void UninstrumentQuickAllocEntryPoints();
-
  private:
   static void InitPlatformSignalHandlers();
 
@@ -567,7 +563,8 @@ class Runtime {
   // As returned by ClassLoader.getSystemClassLoader().
   jobject system_class_loader_;
 
-  int quick_alloc_entry_points_instrumentation_counter_;
+  // If true, then we dump the GC cumulative timings on shutdown.
+  bool dump_gc_performance_on_shutdown_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
