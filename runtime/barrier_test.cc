@@ -66,7 +66,7 @@ int32_t BarrierTest::num_threads = 4;
 // Check that barrier wait and barrier increment work.
 TEST_F(BarrierTest, CheckWait) {
   Thread* self = Thread::Current();
-  ThreadPool thread_pool(num_threads);
+  ThreadPool thread_pool("Barrier test thread pool", num_threads);
   Barrier barrier(0);
   AtomicInteger count1(0);
   AtomicInteger count2(0);
@@ -121,7 +121,7 @@ class CheckPassTask : public Task {
 // Check that barrier pass through works.
 TEST_F(BarrierTest, CheckPass) {
   Thread* self = Thread::Current();
-  ThreadPool thread_pool(num_threads);
+  ThreadPool thread_pool("Barrier test thread pool", num_threads);
   Barrier barrier(0);
   AtomicInteger count(0);
   const int32_t num_tasks = num_threads * 4;

@@ -26,52 +26,67 @@ typedef uint8_t byte;
 typedef intptr_t word;
 typedef uintptr_t uword;
 
-const size_t KB = 1024;
-const size_t MB = KB * KB;
-const size_t GB = KB * KB * KB;
+static constexpr size_t KB = 1024;
+static constexpr size_t MB = KB * KB;
+static constexpr size_t GB = KB * KB * KB;
 
-const size_t kWordSize = sizeof(word);
-const size_t kPointerSize = sizeof(void*);
+static constexpr size_t kWordSize = sizeof(word);
+static constexpr size_t kPointerSize = sizeof(void*);
 
-const size_t kBitsPerByte = 8;
-const size_t kBitsPerByteLog2 = 3;
-const int kBitsPerWord = kWordSize * kBitsPerByte;
-const size_t kWordHighBitMask = 1 << (kBitsPerWord - 1);
+static constexpr size_t kBitsPerByte = 8;
+static constexpr size_t kBitsPerByteLog2 = 3;
+static constexpr int kBitsPerWord = kWordSize * kBitsPerByte;
+static constexpr size_t kWordHighBitMask = 1 << (kBitsPerWord - 1);
 
 // Required stack alignment
-const size_t kStackAlignment = 16;
+static constexpr size_t kStackAlignment = 16;
 
 // Required object alignment
-const size_t kObjectAlignment = 8;
+static constexpr size_t kObjectAlignment = 8;
 
 // ARM instruction alignment. ARM processors require code to be 4-byte aligned,
 // but ARM ELF requires 8..
-const size_t kArmAlignment = 8;
+static constexpr size_t kArmAlignment = 8;
 
 // MIPS instruction alignment.  MIPS processors require code to be 4-byte aligned.
 // TODO: Can this be 4?
-const size_t kMipsAlignment = 8;
+static constexpr size_t kMipsAlignment = 8;
 
 // X86 instruction alignment. This is the recommended alignment for maximum performance.
-const size_t kX86Alignment = 16;
+static constexpr size_t kX86Alignment = 16;
 
 // System page size. We check this against sysconf(_SC_PAGE_SIZE) at runtime, but use a simple
 // compile-time constant so the compiler can generate better code.
-const int kPageSize = 4096;
+static constexpr int kPageSize = 4096;
 
 // Whether or not this is a debug build. Useful in conditionals where NDEBUG isn't.
 #if defined(NDEBUG)
-const bool kIsDebugBuild = false;
+static constexpr bool kIsDebugBuild = false;
 #else
-const bool kIsDebugBuild = true;
+static constexpr bool kIsDebugBuild = true;
 #endif
 
 // Whether or not this is a target (vs host) build. Useful in conditionals where ART_TARGET isn't.
 #if defined(ART_TARGET)
-const bool kIsTargetBuild = true;
+static constexpr bool kIsTargetBuild = true;
 #else
-const bool kIsTargetBuild = false;
+static constexpr bool kIsTargetBuild = false;
 #endif
+
+#if defined(ART_USE_PORTABLE_COMPILER)
+static constexpr bool kUsePortableCompiler = true;
+#else
+static constexpr bool kUsePortableCompiler = false;
+#endif
+
+// Garbage collector constants.
+static constexpr bool kMovingCollector = true && !kUsePortableCompiler;
+// True if we allow moving classes.
+static constexpr bool kMovingClasses = false;
+// True if we allow moving fields.
+static constexpr bool kMovingFields = false;
+// True if we allow moving methods.
+static constexpr bool kMovingMethods = false;
 
 }  // namespace art
 

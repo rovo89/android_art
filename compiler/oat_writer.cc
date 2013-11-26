@@ -40,7 +40,8 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
                      uint32_t image_file_location_oat_checksum,
                      uint32_t image_file_location_oat_begin,
                      const std::string& image_file_location,
-                     const CompilerDriver* compiler)
+                     const CompilerDriver* compiler,
+                     TimingLogger* timings)
   : compiler_driver_(compiler),
     dex_files_(&dex_files),
     image_file_location_oat_checksum_(image_file_location_oat_checksum),
@@ -77,12 +78,31 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
     size_oat_class_status_(0),
     size_oat_class_method_bitmaps_(0),
     size_oat_class_method_offsets_(0) {
-  size_t offset = InitOatHeader();
-  offset = InitOatDexFiles(offset);
-  offset = InitDexFiles(offset);
-  offset = InitOatClasses(offset);
-  offset = InitOatCode(offset);
-  offset = InitOatCodeDexFiles(offset);
+  size_t offset;
+  {
+    TimingLogger::ScopedSplit split("InitOatHeader", timings);
+    offset = InitOatHeader();
+  }
+  {
+    TimingLogger::ScopedSplit split("InitOatDexFiles", timings);
+    offset = InitOatDexFiles(offset);
+  }
+  {
+    TimingLogger::ScopedSplit split("InitDexFiles", timings);
+    offset = InitDexFiles(offset);
+  }
+  {
+    TimingLogger::ScopedSplit split("InitOatClasses", timings);
+    offset = InitOatClasses(offset);
+  }
+  {
+    TimingLogger::ScopedSplit split("InitOatCode", timings);
+    offset = InitOatCode(offset);
+  }
+  {
+    TimingLogger::ScopedSplit split("InitOatCodeDexFiles", timings);
+    offset = InitOatCodeDexFiles(offset);
+  }
   size_ = offset;
 
   CHECK_EQ(dex_files_->size(), oat_dex_files_.size());
@@ -405,23 +425,23 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
     size_t gc_map_size = gc_map.size() * sizeof(gc_map[0]);
     gc_map_offset = (gc_map_size == 0) ? 0 : offset;
 
-#if !defined(NDEBUG)
-    // We expect GC maps except when the class hasn't been verified or the method is native
-    ClassReference class_ref(&dex_file, class_def_index);
-    CompiledClass* compiled_class = compiler_driver_->GetCompiledClass(class_ref);
-    mirror::Class::Status status;
-    if (compiled_class != NULL) {
-      status = compiled_class->GetStatus();
-    } else if (verifier::MethodVerifier::IsClassRejected(class_ref)) {
-      status = mirror::Class::kStatusError;
-    } else {
-      status = mirror::Class::kStatusNotReady;
+    if (kIsDebugBuild) {
+      // We expect GC maps except when the class hasn't been verified or the method is native
+      ClassReference class_ref(&dex_file, class_def_index);
+      CompiledClass* compiled_class = compiler_driver_->GetCompiledClass(class_ref);
+      mirror::Class::Status status;
+      if (compiled_class != NULL) {
+        status = compiled_class->GetStatus();
+      } else if (verifier::MethodVerifier::IsClassRejected(class_ref)) {
+        status = mirror::Class::kStatusError;
+      } else {
+        status = mirror::Class::kStatusNotReady;
+      }
+      CHECK(gc_map_size != 0 || is_native || status < mirror::Class::kStatusVerified)
+          << &gc_map << " " << gc_map_size << " " << (is_native ? "true" : "false") << " "
+          << (status < mirror::Class::kStatusVerified) << " " << status << " "
+          << PrettyMethod(method_idx, dex_file);
     }
-    CHECK(gc_map_size != 0 || is_native || status < mirror::Class::kStatusVerified)
-        << &gc_map << " " << gc_map_size << " " << (is_native ? "true" : "false") << " "
-        << (status < mirror::Class::kStatusVerified) << " " << status << " "
-        << PrettyMethod(method_idx, dex_file);
-#endif
 
     // Deduplicate GC maps
     SafeMap<const std::vector<uint8_t>*, uint32_t>::iterator gc_map_iter =
@@ -448,11 +468,12 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
 
   if (compiler_driver_->IsImage()) {
     ClassLinker* linker = Runtime::Current()->GetClassLinker();
-    mirror::DexCache* dex_cache = linker->FindDexCache(dex_file);
     // Unchecked as we hold mutator_lock_ on entry.
     ScopedObjectAccessUnchecked soa(Thread::Current());
+    SirtRef<mirror::DexCache> dex_cache(soa.Self(), linker->FindDexCache(dex_file));
+    SirtRef<mirror::ClassLoader> class_loader(soa.Self(), nullptr);
     mirror::ArtMethod* method = linker->ResolveMethod(dex_file, method_idx, dex_cache,
-                                                      NULL, NULL, invoke_type);
+                                                      class_loader, nullptr, invoke_type);
     CHECK(method != NULL);
     method->SetFrameSizeInBytes(frame_size_in_bytes);
     method->SetCoreSpillMask(core_spill_mask);

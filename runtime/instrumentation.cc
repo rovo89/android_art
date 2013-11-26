@@ -39,7 +39,12 @@
 #include "thread_list.h"
 
 namespace art {
+
+extern void SetQuickAllocEntryPointsInstrumented(bool instrumented);
+
 namespace instrumentation {
+
+const bool kVerboseInstrumentation = false;
 
 // Do we want to deoptimize for method entry and exit listeners or just try to intercept
 // invocations? Deoptimization forces all code to run in the interpreter and considerably hurts the
@@ -54,10 +59,7 @@ static bool InstallStubsClassVisitor(mirror::Class* klass, void* arg)
 
 bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
   bool uninstall = !entry_exit_stubs_installed_ && !interpreter_stubs_installed_;
-  ClassLinker* class_linker = NULL;
-  if (uninstall) {
-    class_linker = Runtime::Current()->GetClassLinker();
-  }
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   bool is_initialized = klass->IsInitialized();
   for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
     mirror::ArtMethod* method = klass->GetDirectMethod(i);
@@ -73,7 +75,14 @@ bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
         }
       } else {  // !uninstall
         if (!interpreter_stubs_installed_ || method->IsNative()) {
-          new_code = GetQuickInstrumentationEntryPoint();
+          // Do not overwrite resolution trampoline. When the trampoline initializes the method's
+          // class, all its static methods' code will be set to the instrumentation entry point.
+          // For more details, see ClassLinker::FixupStaticTrampolines.
+          if (is_initialized || !method->IsStatic() || method->IsConstructor()) {
+            new_code = GetQuickInstrumentationEntryPoint();
+          } else {
+            new_code = GetResolutionTrampoline(class_linker);
+          }
         } else {
           new_code = GetCompiledCodeToInterpreterBridge();
         }
@@ -391,12 +400,62 @@ void Instrumentation::ConfigureStubs(bool require_entry_exit_stubs, bool require
   }
 }
 
+static void ResetQuickAllocEntryPointsForThread(Thread* thread, void* arg) {
+  thread->ResetQuickAllocEntryPointsForThread();
+}
+
+void Instrumentation::InstrumentQuickAllocEntryPoints() {
+  // TODO: the read of quick_alloc_entry_points_instrumentation_counter_ is racey and this code
+  //       should be guarded by a lock.
+  DCHECK_GE(quick_alloc_entry_points_instrumentation_counter_.load(), 0);
+  const bool enable_instrumentation =
+      quick_alloc_entry_points_instrumentation_counter_.fetch_add(1) == 0;
+  if (enable_instrumentation) {
+    // Instrumentation wasn't enabled so enable it.
+    SetQuickAllocEntryPointsInstrumented(true);
+    ResetQuickAllocEntryPoints();
+  }
+}
+
+void Instrumentation::UninstrumentQuickAllocEntryPoints() {
+  // TODO: the read of quick_alloc_entry_points_instrumentation_counter_ is racey and this code
+  //       should be guarded by a lock.
+  DCHECK_GT(quick_alloc_entry_points_instrumentation_counter_.load(), 0);
+  const bool disable_instrumentation =
+      quick_alloc_entry_points_instrumentation_counter_.fetch_sub(1) == 1;
+  if (disable_instrumentation) {
+    SetQuickAllocEntryPointsInstrumented(false);
+    ResetQuickAllocEntryPoints();
+  }
+}
+
+void Instrumentation::ResetQuickAllocEntryPoints() {
+  Runtime* runtime = Runtime::Current();
+  if (runtime->IsStarted()) {
+    ThreadList* tl = runtime->GetThreadList();
+    Thread* self = Thread::Current();
+    tl->SuspendAll();
+    {
+      MutexLock mu(self, *Locks::thread_list_lock_);
+      tl->ForEach(ResetQuickAllocEntryPointsForThread, NULL);
+    }
+    tl->ResumeAll();
+  }
+}
+
 void Instrumentation::UpdateMethodsCode(mirror::ArtMethod* method, const void* code) const {
   if (LIKELY(!instrumentation_stubs_installed_)) {
     method->SetEntryPointFromCompiledCode(code);
   } else {
     if (!interpreter_stubs_installed_ || method->IsNative()) {
-      method->SetEntryPointFromCompiledCode(GetQuickInstrumentationEntryPoint());
+      // Do not overwrite resolution trampoline. When the trampoline initializes the method's
+      // class, all its static methods' code will be set to the instrumentation entry point.
+      // For more details, see ClassLinker::FixupStaticTrampolines.
+      if (code == GetResolutionTrampoline(Runtime::Current()->GetClassLinker())) {
+        method->SetEntryPointFromCompiledCode(code);
+      } else {
+        method->SetEntryPointFromCompiledCode(GetQuickInstrumentationEntryPoint());
+      }
     } else {
       method->SetEntryPointFromCompiledCode(GetCompiledCodeToInterpreterBridge());
     }
@@ -449,7 +508,7 @@ void Instrumentation::MethodUnwindEvent(Thread* thread, mirror::Object* this_obj
                                         uint32_t dex_pc) const {
   if (have_method_unwind_listeners_) {
     for (InstrumentationListener* listener : method_unwind_listeners_) {
-      listener->MethodUnwind(thread, method, dex_pc);
+      listener->MethodUnwind(thread, this_object, method, dex_pc);
     }
   }
 }

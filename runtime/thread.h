@@ -68,6 +68,7 @@ class Runtime;
 class ScopedObjectAccess;
 class ScopedObjectAccessUnchecked;
 class ShadowFrame;
+struct SingleStepControl;
 class Thread;
 class ThreadList;
 
@@ -177,34 +178,27 @@ class PACKED(4) Thread {
       ALWAYS_INLINE;
 
   // Once called thread suspension will cause an assertion failure.
-#ifndef NDEBUG
   const char* StartAssertNoThreadSuspension(const char* cause) {
-    CHECK(cause != NULL);
-    const char* previous_cause = last_no_thread_suspension_cause_;
-    no_thread_suspension_++;
-    last_no_thread_suspension_cause_ = cause;
-    return previous_cause;
+    if (kIsDebugBuild) {
+      CHECK(cause != NULL);
+      const char* previous_cause = last_no_thread_suspension_cause_;
+      no_thread_suspension_++;
+      last_no_thread_suspension_cause_ = cause;
+      return previous_cause;
+    } else {
+      return nullptr;
+    }
   }
-#else
-  const char* StartAssertNoThreadSuspension(const char* cause) {
-    CHECK(cause != NULL);
-    return NULL;
-  }
-#endif
 
   // End region where no thread suspension is expected.
-#ifndef NDEBUG
   void EndAssertNoThreadSuspension(const char* old_cause) {
-    CHECK(old_cause != NULL || no_thread_suspension_ == 1);
-    CHECK_GT(no_thread_suspension_, 0U);
-    no_thread_suspension_--;
-    last_no_thread_suspension_cause_ = old_cause;
+    if (kIsDebugBuild) {
+      CHECK(old_cause != NULL || no_thread_suspension_ == 1);
+      CHECK_GT(no_thread_suspension_, 0U);
+      no_thread_suspension_--;
+      last_no_thread_suspension_cause_ = old_cause;
+    }
   }
-#else
-  void EndAssertNoThreadSuspension(const char*) {
-  }
-#endif
-
 
   void AssertThreadSuspensionIsAllowable(bool check_locks = true) const;
 
@@ -370,9 +364,7 @@ class PACKED(4) Thread {
     return class_loader_override_;
   }
 
-  void SetClassLoaderOverride(mirror::ClassLoader* class_loader_override) {
-    class_loader_override_ = class_loader_override;
-  }
+  void SetClassLoaderOverride(mirror::ClassLoader* class_loader_override);
 
   // Create the internal representation of a stack trace, that is more time
   // and space efficient to compute than the StackTraceElement[]
@@ -520,6 +512,10 @@ class PACKED(4) Thread {
 
   DebugInvokeReq* GetInvokeReq() {
     return debug_invoke_req_;
+  }
+
+  SingleStepControl* GetSingleStepControl() const {
+    return single_step_control_;
   }
 
   void SetDeoptimizationShadowFrame(ShadowFrame* sf);
@@ -755,6 +751,9 @@ class PACKED(4) Thread {
   // JDWP invoke-during-breakpoint support.
   DebugInvokeReq* debug_invoke_req_;
 
+  // JDWP single-stepping support.
+  SingleStepControl* single_step_control_;
+
   // Shadow frame that is used temporarily during the deoptimization of a method.
   ShadowFrame* deoptimization_shadow_frame_;
   JValue deoptimization_return_value_;
@@ -798,6 +797,15 @@ class PACKED(4) Thread {
   uint32_t thread_exit_check_count_;
 
   friend class ScopedThreadStateChange;
+
+ public:
+  // Thread-local rosalloc runs. There are 34 size brackets in rosalloc
+  // runs (RosAlloc::kNumOfSizeBrackets). We can't refer to the
+  // RosAlloc class due to a header file circular dependency issue.
+  // To compensate, we check that the two values match at RosAlloc
+  // initialization time.
+  static const size_t kRosAllocNumOfSizeBrackets = 34;
+  void* rosalloc_runs_[kRosAllocNumOfSizeBrackets];
 
   DISALLOW_COPY_AND_ASSIGN(Thread);
 };

@@ -21,15 +21,12 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 
+#include <set>
 #include <string>
 #include <vector>
-#include <map>
 
 namespace art {
-
-namespace base {
-  class TimingLogger;
-}  // namespace base
+class TimingLogger;
 
 class CumulativeLogger {
  public:
@@ -44,18 +41,27 @@ class CumulativeLogger {
   // Allow the name to be modified, particularly when the cumulative logger is a field within a
   // parent class that is unable to determine the "name" of a sub-class.
   void SetName(const std::string& name);
-  void AddLogger(const base::TimingLogger& logger) LOCKS_EXCLUDED(lock_);
+  void AddLogger(const TimingLogger& logger) LOCKS_EXCLUDED(lock_);
+  size_t GetIterations() const;
 
  private:
-  typedef std::map<std::string, Histogram<uint64_t> *> Histograms;
-  typedef std::map<std::string, Histogram<uint64_t> *>::const_iterator HistogramsIterator;
+  class HistogramComparator {
+   public:
+    bool operator()(const Histogram<uint64_t>* a, const Histogram<uint64_t>* b) const {
+      return a->Name() < b->Name();
+    }
+  };
+
+  static constexpr size_t kLowMemoryBucketCount = 16;
+  static constexpr size_t kDefaultBucketCount = 100;
+  static constexpr size_t kInitialBucketSize = 50;  // 50 microseconds.
 
   void AddPair(const std::string &label, uint64_t delta_time)
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
   void DumpHistogram(std::ostream &os) EXCLUSIVE_LOCKS_REQUIRED(lock_);
   uint64_t GetTotalTime() const;
   static const uint64_t kAdjust = 1000;
-  Histograms histograms_ GUARDED_BY(lock_);
+  std::set<Histogram<uint64_t>*, HistogramComparator> histograms_ GUARDED_BY(lock_);
   std::string name_;
   const std::string lock_name_;
   mutable Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
@@ -64,19 +70,17 @@ class CumulativeLogger {
   DISALLOW_COPY_AND_ASSIGN(CumulativeLogger);
 };
 
-namespace base {
-
-
 // A timing logger that knows when a split starts for the purposes of logging tools, like systrace.
 class TimingLogger {
  public:
   // Splits are nanosecond times and split names.
   typedef std::pair<uint64_t, const char*> SplitTiming;
   typedef std::vector<SplitTiming> SplitTimings;
-  typedef std::vector<SplitTiming>::const_iterator SplitTimingsIterator;
 
   explicit TimingLogger(const char* name, bool precise, bool verbose);
-
+  ~TimingLogger() {
+    // TODO: DCHECK(current_split_ == nullptr) << "Forgot to end split: " << current_split_->label_;
+  }
   // Clears current splits and labels.
   void Reset();
 
@@ -142,7 +146,7 @@ class TimingLogger {
   friend class ScopedSplit;
  protected:
   // The name of the timing logger.
-  const char* name_;
+  const char* const name_;
 
   // Do we want to print the exactly recorded split (true) or round down to the time unit being
   // used (false).
@@ -161,7 +165,6 @@ class TimingLogger {
   DISALLOW_COPY_AND_ASSIGN(TimingLogger);
 };
 
-}  // namespace base
 }  // namespace art
 
 #endif  // ART_RUNTIME_BASE_TIMING_LOGGER_H_

@@ -211,6 +211,7 @@ bool LlvmCompilationUnit::MaterializeToRawOStream(::llvm::raw_ostream& out_strea
   ::llvm::TargetOptions target_options;
   target_options.FloatABIType = ::llvm::FloatABI::Soft;
   target_options.NoFramePointerElim = true;
+  target_options.NoFramePointerElimNonLeaf = true;
   target_options.UseSoftFloat = false;
   target_options.EnableFastISel = false;
 
@@ -254,7 +255,7 @@ bool LlvmCompilationUnit::MaterializeToRawOStream(::llvm::raw_ostream& out_strea
 
     ::llvm::OwningPtr< ::llvm::tool_output_file> out_file(
       new ::llvm::tool_output_file(bitcode_filename_.c_str(), errmsg,
-                                 ::llvm::sys::fs::F_Binary));
+                                 ::llvm::raw_fd_ostream::F_Binary));
 
 
     if (!errmsg.empty()) {
@@ -274,6 +275,7 @@ bool LlvmCompilationUnit::MaterializeToRawOStream(::llvm::raw_ostream& out_strea
   // pm_builder.Inliner = ::llvm::createAlwaysInlinerPass();
   // pm_builder.Inliner = ::llvm::createPartialInliningPass();
   pm_builder.OptLevel = 3;
+  pm_builder.DisableSimplifyLibCalls = 1;
   pm_builder.DisableUnitAtATime = 1;
   pm_builder.populateFunctionPassManager(fpm);
   pm_builder.populateModulePassManager(pm);

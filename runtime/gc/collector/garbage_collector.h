@@ -17,10 +17,10 @@
 #ifndef ART_RUNTIME_GC_COLLECTOR_GARBAGE_COLLECTOR_H_
 #define ART_RUNTIME_GC_COLLECTOR_GARBAGE_COLLECTOR_H_
 
+#include "base/histogram.h"
+#include "base/timing_logger.h"
 #include "gc_type.h"
 #include "locks.h"
-#include "base/timing_logger.h"
-
 #include <stdint.h>
 #include <vector>
 
@@ -46,7 +46,7 @@ class GarbageCollector {
   virtual GcType GetGcType() const = 0;
 
   // Run the garbage collector.
-  void Run();
+  void Run(bool clear_soft_references);
 
   Heap* GetHeap() const {
     return heap_;
@@ -64,7 +64,7 @@ class GarbageCollector {
 
   void RegisterPause(uint64_t nano_length);
 
-  base::TimingLogger& GetTimings() {
+  TimingLogger& GetTimings() {
     return timings_;
   }
 
@@ -77,6 +77,38 @@ class GarbageCollector {
   // Swap the live and mark bitmaps of spaces that are active for the collector. For partial GC,
   // this is the allocation space, for full GC then we swap the zygote bitmaps too.
   void SwapBitmaps() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
+  size_t GetFreedBytes() const {
+    return freed_bytes_;
+  }
+
+  size_t GetFreedLargeObjectBytes() const {
+    return freed_large_object_bytes_;
+  }
+
+  size_t GetFreedObjects() const {
+    return freed_objects_;
+  }
+
+  size_t GetFreedLargeObjects() const {
+    return freed_large_objects_;
+  }
+
+  uint64_t GetTotalPausedTimeNs() const {
+    return pause_histogram_.Sum();
+  }
+
+  uint64_t GetTotalFreedBytes() const {
+    return total_freed_bytes_;
+  }
+
+  uint64_t GetTotalFreedObjects() const {
+    return total_freed_objects_;
+  }
+
+  const Histogram<uint64_t>& GetPauseHistogram() const {
+    return pause_histogram_;
+  }
 
  protected:
   // The initial phase. Done without mutators paused.
@@ -94,20 +126,31 @@ class GarbageCollector {
   // Called after the GC is finished. Done without mutators paused.
   virtual void FinishPhase() = 0;
 
+  static constexpr size_t kPauseBucketSize = 500;
+  static constexpr size_t kPauseBucketCount = 32;
+
   Heap* const heap_;
 
   std::string name_;
 
+  bool clear_soft_references_;
+
   const bool verbose_;
 
   uint64_t duration_ns_;
-  base::TimingLogger timings_;
+  TimingLogger timings_;
 
   // Cumulative statistics.
+  Histogram<uint64_t> pause_histogram_;
   uint64_t total_time_ns_;
-  uint64_t total_paused_time_ns_;
   uint64_t total_freed_objects_;
   uint64_t total_freed_bytes_;
+
+  // Single GC statitstics.
+  AtomicInteger freed_bytes_;
+  AtomicInteger freed_large_object_bytes_;
+  AtomicInteger freed_objects_;
+  AtomicInteger freed_large_objects_;
 
   CumulativeLogger cumulative_timings_;
 

@@ -39,8 +39,9 @@ AtomicInteger ImageSpace::bitmap_index_(0);
 
 ImageSpace::ImageSpace(const std::string& name, MemMap* mem_map,
                        accounting::SpaceBitmap* live_bitmap)
-    : MemMapSpace(name, mem_map, mem_map->Size(), kGcRetentionPolicyNeverCollect) {
-  DCHECK(live_bitmap != NULL);
+    : MemMapSpace(name, mem_map, mem_map->Begin(), mem_map->End(), mem_map->End(),
+                  kGcRetentionPolicyNeverCollect) {
+  DCHECK(live_bitmap != nullptr);
   live_bitmap_.reset(live_bitmap);
 }
 
@@ -332,7 +333,7 @@ OatFile* ImageSpace::ReleaseOatFile() {
 
 void ImageSpace::Dump(std::ostream& os) const {
   os << GetType()
-      << "begin=" << reinterpret_cast<void*>(Begin())
+      << " begin=" << reinterpret_cast<void*>(Begin())
       << ",end=" << reinterpret_cast<void*>(End())
       << ",size=" << PrettySize(Size())
       << ",name=\"" << GetName() << "\"]";

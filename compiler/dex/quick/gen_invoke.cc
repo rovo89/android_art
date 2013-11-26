@@ -15,6 +15,9 @@
  */
 
 #include "dex/compiler_ir.h"
+#include "dex/frontend.h"
+#include "dex/quick/dex_file_method_inliner.h"
+#include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex_file-inl.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "invoke_type.h"
@@ -1227,198 +1230,16 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
   return true;
 }
 
-bool Mir2Lir::GenIntrinsic(CallInfo* info) {
-  if (info->opt_flags & MIR_INLINED) {
-    return false;
-  }
-  /*
-   * TODO: move these to a target-specific structured constant array
-   * and use a generic match function.  The list of intrinsics may be
-   * slightly different depending on target.
-   * TODO: Fold this into a matching function that runs during
-   * basic block building.  This should be part of the action for
-   * small method inlining and recognition of the special object init
-   * method.  By doing this during basic block construction, we can also
-   * take advantage of/generate new useful dataflow info.
-   */
-  const DexFile::MethodId& target_mid = cu_->dex_file->GetMethodId(info->index);
-  const DexFile::TypeId& declaring_type = cu_->dex_file->GetTypeId(target_mid.class_idx_);
-  StringPiece tgt_methods_declaring_class(
-      cu_->dex_file->StringDataByIdx(declaring_type.descriptor_idx_));
-  if (tgt_methods_declaring_class.starts_with("Ljava/lang/Double;")) {
-    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
-    if (tgt_method == "long java.lang.Double.doubleToRawLongBits(double)") {
-      return GenInlinedDoubleCvt(info);
-    }
-    if (tgt_method == "double java.lang.Double.longBitsToDouble(long)") {
-      return GenInlinedDoubleCvt(info);
-    }
-  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Float;")) {
-    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
-    if (tgt_method == "int java.lang.Float.floatToRawIntBits(float)") {
-      return GenInlinedFloatCvt(info);
-    }
-    if (tgt_method == "float java.lang.Float.intBitsToFloat(int)") {
-      return GenInlinedFloatCvt(info);
-    }
-  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Integer;")) {
-    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
-    if (tgt_method == "int java.lang.Integer.reverseBytes(int)") {
-      return GenInlinedReverseBytes(info, kWord);
-    }
-  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Long;")) {
-    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
-    if (tgt_method == "long java.lang.Long.reverseBytes(long)") {
-      return GenInlinedReverseBytes(info, kLong);
-    }
-  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Math;") ||
-             tgt_methods_declaring_class.starts_with("Ljava/lang/StrictMath;")) {
-    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
-    if (tgt_method == "int java.lang.Math.abs(int)" ||
-        tgt_method == "int java.lang.StrictMath.abs(int)") {
-      return GenInlinedAbsInt(info);
-    }
-    if (tgt_method == "long java.lang.Math.abs(long)" ||
-        tgt_method == "long java.lang.StrictMath.abs(long)") {
-      return GenInlinedAbsLong(info);
-    }
-    if (tgt_method == "int java.lang.Math.max(int, int)" ||
-        tgt_method == "int java.lang.StrictMath.max(int, int)") {
-      return GenInlinedMinMaxInt(info, false /* is_min */);
-    }
-    if (tgt_method == "int java.lang.Math.min(int, int)" ||
-        tgt_method == "int java.lang.StrictMath.min(int, int)") {
-      return GenInlinedMinMaxInt(info, true /* is_min */);
-    }
-    if (tgt_method == "double java.lang.Math.sqrt(double)" ||
-        tgt_method == "double java.lang.StrictMath.sqrt(double)") {
-      return GenInlinedSqrt(info);
-    }
-  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Short;")) {
-    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
-    if (tgt_method == "short java.lang.Short.reverseBytes(short)") {
-      return GenInlinedReverseBytes(info, kSignedHalf);
-    }
-  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/String;")) {
-    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
-    if (tgt_method == "char java.lang.String.charAt(int)") {
-      return GenInlinedCharAt(info);
-    }
-    if (tgt_method == "int java.lang.String.compareTo(java.lang.String)") {
-      return GenInlinedStringCompareTo(info);
-    }
-    if (tgt_method == "boolean java.lang.String.is_empty()") {
-      return GenInlinedStringIsEmptyOrLength(info, true /* is_empty */);
-    }
-    if (tgt_method == "int java.lang.String.index_of(int, int)") {
-      return GenInlinedIndexOf(info, false /* base 0 */);
-    }
-    if (tgt_method == "int java.lang.String.index_of(int)") {
-      return GenInlinedIndexOf(info, true /* base 0 */);
-    }
-    if (tgt_method == "int java.lang.String.length()") {
-      return GenInlinedStringIsEmptyOrLength(info, false /* is_empty */);
-    }
-  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Thread;")) {
-    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
-    if (tgt_method == "java.lang.Thread java.lang.Thread.currentThread()") {
-      return GenInlinedCurrentThread(info);
-    }
-  } else if (tgt_methods_declaring_class.starts_with("Llibcore/io/Memory;")) {
-    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
-    if (tgt_method == "byte libcore.io.Memory.peekByte(long)") {
-      return GenInlinedPeek(info, kSignedByte);
-    }
-    if (tgt_method == "int libcore.io.Memory.peekIntNative(long)") {
-      return GenInlinedPeek(info, kWord);
-    }
-    if (tgt_method == "long libcore.io.Memory.peekLongNative(long)") {
-      return GenInlinedPeek(info, kLong);
-    }
-    if (tgt_method == "short libcore.io.Memory.peekShortNative(long)") {
-      return GenInlinedPeek(info, kSignedHalf);
-    }
-    if (tgt_method == "void libcore.io.Memory.pokeByte(long, byte)") {
-      return GenInlinedPoke(info, kSignedByte);
-    }
-    if (tgt_method == "void libcore.io.Memory.pokeIntNative(long, int)") {
-      return GenInlinedPoke(info, kWord);
-    }
-    if (tgt_method == "void libcore.io.Memory.pokeLongNative(long, long)") {
-      return GenInlinedPoke(info, kLong);
-    }
-    if (tgt_method == "void libcore.io.Memory.pokeShortNative(long, short)") {
-      return GenInlinedPoke(info, kSignedHalf);
-    }
-  } else if (tgt_methods_declaring_class.starts_with("Lsun/misc/Unsafe;")) {
-    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
-    if (tgt_method == "boolean sun.misc.Unsafe.compareAndSwapInt(java.lang.Object, long, int, int)") {
-      return GenInlinedCas32(info, false);
-    }
-    if (tgt_method == "boolean sun.misc.Unsafe.compareAndSwapObject(java.lang.Object, long, java.lang.Object, java.lang.Object)") {
-      return GenInlinedCas32(info, true);
-    }
-    if (tgt_method == "int sun.misc.Unsafe.getInt(java.lang.Object, long)") {
-      return GenInlinedUnsafeGet(info, false /* is_long */, false /* is_volatile */);
-    }
-    if (tgt_method == "int sun.misc.Unsafe.getIntVolatile(java.lang.Object, long)") {
-      return GenInlinedUnsafeGet(info, false /* is_long */, true /* is_volatile */);
-    }
-    if (tgt_method == "void sun.misc.Unsafe.putInt(java.lang.Object, long, int)") {
-      return GenInlinedUnsafePut(info, false /* is_long */, false /* is_object */,
-                                 false /* is_volatile */, false /* is_ordered */);
-    }
-    if (tgt_method == "void sun.misc.Unsafe.putIntVolatile(java.lang.Object, long, int)") {
-      return GenInlinedUnsafePut(info, false /* is_long */, false /* is_object */,
-                                 true /* is_volatile */, false /* is_ordered */);
-    }
-    if (tgt_method == "void sun.misc.Unsafe.putOrderedInt(java.lang.Object, long, int)") {
-      return GenInlinedUnsafePut(info, false /* is_long */, false /* is_object */,
-                                 false /* is_volatile */, true /* is_ordered */);
-    }
-    if (tgt_method == "long sun.misc.Unsafe.getLong(java.lang.Object, long)") {
-      return GenInlinedUnsafeGet(info, true /* is_long */, false /* is_volatile */);
-    }
-    if (tgt_method == "long sun.misc.Unsafe.getLongVolatile(java.lang.Object, long)") {
-      return GenInlinedUnsafeGet(info, true /* is_long */, true /* is_volatile */);
-    }
-    if (tgt_method == "void sun.misc.Unsafe.putLong(java.lang.Object, long, long)") {
-      return GenInlinedUnsafePut(info, true /* is_long */, false /* is_object */,
-                                 false /* is_volatile */, false /* is_ordered */);
-    }
-    if (tgt_method == "void sun.misc.Unsafe.putLongVolatile(java.lang.Object, long, long)") {
-      return GenInlinedUnsafePut(info, true /* is_long */, false /* is_object */,
-                                 true /* is_volatile */, false /* is_ordered */);
-    }
-    if (tgt_method == "void sun.misc.Unsafe.putOrderedLong(java.lang.Object, long, long)") {
-      return GenInlinedUnsafePut(info, true /* is_long */, false /* is_object */,
-                                 false /* is_volatile */, true /* is_ordered */);
-    }
-    if (tgt_method == "java.lang.Object sun.misc.Unsafe.getObject(java.lang.Object, long)") {
-      return GenInlinedUnsafeGet(info, false /* is_long */, false /* is_volatile */);
-    }
-    if (tgt_method == "java.lang.Object sun.misc.Unsafe.getObjectVolatile(java.lang.Object, long)") {
-      return GenInlinedUnsafeGet(info, false /* is_long */, true /* is_volatile */);
-    }
-    if (tgt_method == "void sun.misc.Unsafe.putObject(java.lang.Object, long, java.lang.Object)") {
-      return GenInlinedUnsafePut(info, false /* is_long */, true /* is_object */,
-                                 false /* is_volatile */, false /* is_ordered */);
-    }
-    if (tgt_method == "void sun.misc.Unsafe.putObjectVolatile(java.lang.Object, long, java.lang.Object)") {
-      return GenInlinedUnsafePut(info, false /* is_long */, true /* is_object */,
-                                 true /* is_volatile */, false /* is_ordered */);
-    }
-    if (tgt_method == "void sun.misc.Unsafe.putOrderedObject(java.lang.Object, long, java.lang.Object)") {
-      return GenInlinedUnsafePut(info, false /* is_long */, true /* is_object */,
-                                 false /* is_volatile */, true /* is_ordered */);
-    }
-  }
-  return false;
-}
-
 void Mir2Lir::GenInvoke(CallInfo* info) {
-  if (GenIntrinsic(info)) {
-    return;
+  if (!(info->opt_flags & MIR_INLINED)) {
+    if (inliner_ == nullptr) {
+      QuickCompilerContext* context = reinterpret_cast<QuickCompilerContext*>(
+          cu_->compiler_driver->GetCompilerContext());
+      inliner_ = &context->GetInlinerMap()->GetMethodInliner(cu_->dex_file);
+    }
+    if (inliner_->GenIntrinsic(this, info)) {
+      return;
+    }
   }
   InvokeType original_type = info->type;  // avoiding mutation by ComputeInvokeInfo
   int call_state = 0;

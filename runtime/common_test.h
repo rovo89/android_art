@@ -237,7 +237,6 @@ static InstructionSetFeatures GuessInstructionFeatures() {
 // input 'str' is a comma separated list of feature names.  Parse it and
 // return the InstructionSetFeatures object.
 static InstructionSetFeatures ParseFeatureList(std::string str) {
-  LOG(INFO) << "Parsing features " << str;
   InstructionSetFeatures result;
   typedef std::vector<std::string> FeatureList;
   FeatureList features;
@@ -569,7 +568,8 @@ class CommonTest : public testing::Test {
   void CompileClass(mirror::ClassLoader* class_loader, const char* class_name)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string class_descriptor(DotToDescriptor(class_name));
-    mirror::Class* klass = class_linker_->FindClass(class_descriptor.c_str(), class_loader);
+    SirtRef<mirror::ClassLoader> loader(Thread::Current(), class_loader);
+    mirror::Class* klass = class_linker_->FindClass(class_descriptor.c_str(), loader);
     CHECK(klass != NULL) << "Class not found " << class_name;
     for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
       CompileMethod(klass->GetDirectMethod(i));
@@ -581,16 +581,15 @@ class CommonTest : public testing::Test {
 
   void CompileMethod(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(method != NULL);
-    base::TimingLogger timings("CommonTest::CompileMethod", false, false);
+    TimingLogger timings("CommonTest::CompileMethod", false, false);
     timings.StartSplit("CompileOne");
     compiler_driver_->CompileOne(method, timings);
     MakeExecutable(method);
+    timings.EndSplit();
   }
 
-  void CompileDirectMethod(mirror::ClassLoader* class_loader,
-                           const char* class_name,
-                           const char* method_name,
-                           const char* signature)
+  void CompileDirectMethod(SirtRef<mirror::ClassLoader>& class_loader, const char* class_name,
+                           const char* method_name, const char* signature)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string class_descriptor(DotToDescriptor(class_name));
     mirror::Class* klass = class_linker_->FindClass(class_descriptor.c_str(), class_loader);
@@ -601,10 +600,8 @@ class CommonTest : public testing::Test {
     CompileMethod(method);
   }
 
-  void CompileVirtualMethod(mirror::ClassLoader* class_loader,
-                            const char* class_name,
-                            const char* method_name,
-                            const char* signature)
+  void CompileVirtualMethod(SirtRef<mirror::ClassLoader>& class_loader, const char* class_name,
+                            const char* method_name, const char* signature)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string class_descriptor(DotToDescriptor(class_name));
     mirror::Class* klass = class_linker_->FindClass(class_descriptor.c_str(), class_loader);

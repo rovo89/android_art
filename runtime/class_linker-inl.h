@@ -18,20 +18,21 @@
 #define ART_RUNTIME_CLASS_LINKER_INL_H_
 
 #include "class_linker.h"
-
 #include "mirror/art_field.h"
+#include "mirror/class_loader.h"
 #include "mirror/dex_cache.h"
 #include "mirror/iftable.h"
 #include "mirror/object_array.h"
+#include "sirt_ref.h"
 
 namespace art {
 
 inline mirror::String* ClassLinker::ResolveString(uint32_t string_idx,
-                                           const mirror::ArtMethod* referrer) {
+                                                  const mirror::ArtMethod* referrer) {
   mirror::String* resolved_string = referrer->GetDexCacheStrings()->Get(string_idx);
   if (UNLIKELY(resolved_string == NULL)) {
     mirror::Class* declaring_class = referrer->GetDeclaringClass();
-    mirror::DexCache* dex_cache = declaring_class->GetDexCache();
+    SirtRef<mirror::DexCache> dex_cache(Thread::Current(), declaring_class->GetDexCache());
     const DexFile& dex_file = *dex_cache->GetDexFile();
     resolved_string = ResolveString(dex_file, string_idx, dex_cache);
   }
@@ -43,8 +44,9 @@ inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx,
   mirror::Class* resolved_type = referrer->GetDexCacheResolvedTypes()->Get(type_idx);
   if (UNLIKELY(resolved_type == NULL)) {
     mirror::Class* declaring_class = referrer->GetDeclaringClass();
-    mirror::DexCache* dex_cache = declaring_class->GetDexCache();
-    mirror::ClassLoader* class_loader = declaring_class->GetClassLoader();
+    Thread* self = Thread::Current();
+    SirtRef<mirror::DexCache> dex_cache(self, declaring_class->GetDexCache());
+    SirtRef<mirror::ClassLoader> class_loader(self, declaring_class->GetClassLoader());
     const DexFile& dex_file = *dex_cache->GetDexFile();
     resolved_type = ResolveType(dex_file, type_idx, dex_cache, class_loader);
   }
@@ -53,10 +55,12 @@ inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx,
 
 inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx, const mirror::ArtField* referrer) {
   mirror::Class* declaring_class = referrer->GetDeclaringClass();
-  mirror::DexCache* dex_cache = declaring_class->GetDexCache();
-  mirror::Class* resolved_type = dex_cache->GetResolvedType(type_idx);
+  mirror::DexCache* dex_cache_ptr = declaring_class->GetDexCache();
+  mirror::Class* resolved_type = dex_cache_ptr->GetResolvedType(type_idx);
   if (UNLIKELY(resolved_type == NULL)) {
-    mirror::ClassLoader* class_loader = declaring_class->GetClassLoader();
+    Thread* self = Thread::Current();
+    SirtRef<mirror::DexCache> dex_cache(self, dex_cache_ptr);
+    SirtRef<mirror::ClassLoader> class_loader(self, declaring_class->GetClassLoader());
     const DexFile& dex_file = *dex_cache->GetDexFile();
     resolved_type = ResolveType(dex_file, type_idx, dex_cache, class_loader);
   }
@@ -70,8 +74,9 @@ inline mirror::ArtMethod* ClassLinker::ResolveMethod(uint32_t method_idx,
       referrer->GetDexCacheResolvedMethods()->Get(method_idx);
   if (UNLIKELY(resolved_method == NULL || resolved_method->IsRuntimeMethod())) {
     mirror::Class* declaring_class = referrer->GetDeclaringClass();
-    mirror::DexCache* dex_cache = declaring_class->GetDexCache();
-    mirror::ClassLoader* class_loader = declaring_class->GetClassLoader();
+    Thread* self = Thread::Current();
+    SirtRef<mirror::DexCache> dex_cache(self, declaring_class->GetDexCache());
+    SirtRef<mirror::ClassLoader> class_loader(self, declaring_class->GetClassLoader());
     const DexFile& dex_file = *dex_cache->GetDexFile();
     resolved_method = ResolveMethod(dex_file, method_idx, dex_cache, class_loader, referrer, type);
   }
@@ -81,12 +86,13 @@ inline mirror::ArtMethod* ClassLinker::ResolveMethod(uint32_t method_idx,
 inline mirror::ArtField* ClassLinker::ResolveField(uint32_t field_idx,
                                                    const mirror::ArtMethod* referrer,
                                                    bool is_static) {
+  mirror::Class* declaring_class = referrer->GetDeclaringClass();
   mirror::ArtField* resolved_field =
-      referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
+      declaring_class->GetDexCache()->GetResolvedField(field_idx);
   if (UNLIKELY(resolved_field == NULL)) {
-    mirror::Class* declaring_class = referrer->GetDeclaringClass();
-    mirror::DexCache* dex_cache = declaring_class->GetDexCache();
-    mirror::ClassLoader* class_loader = declaring_class->GetClassLoader();
+    Thread* self = Thread::Current();
+    SirtRef<mirror::DexCache>  dex_cache(self, declaring_class->GetDexCache());
+    SirtRef<mirror::ClassLoader> class_loader(self, declaring_class->GetClassLoader());
     const DexFile& dex_file = *dex_cache->GetDexFile();
     resolved_field = ResolveField(dex_file, field_idx, dex_cache, class_loader, is_static);
   }

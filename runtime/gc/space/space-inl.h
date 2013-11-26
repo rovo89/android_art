@@ -27,18 +27,29 @@ namespace gc {
 namespace space {
 
 inline ImageSpace* Space::AsImageSpace() {
-  DCHECK_EQ(GetType(), kSpaceTypeImageSpace);
+  DCHECK(IsImageSpace());
   return down_cast<ImageSpace*>(down_cast<MemMapSpace*>(this));
 }
 
-inline DlMallocSpace* Space::AsDlMallocSpace() {
+inline MallocSpace* Space::AsMallocSpace() {
   DCHECK(GetType() == kSpaceTypeAllocSpace || GetType() == kSpaceTypeZygoteSpace);
-  return down_cast<DlMallocSpace*>(down_cast<MemMapSpace*>(this));
+  DCHECK(IsDlMallocSpace() || IsRosAllocSpace());
+  return down_cast<MallocSpace*>(down_cast<MemMapSpace*>(this));
 }
 
 inline LargeObjectSpace* Space::AsLargeObjectSpace() {
-  DCHECK_EQ(GetType(), kSpaceTypeLargeObjectSpace);
-  return reinterpret_cast<LargeObjectSpace*>(this);
+  DCHECK(IsLargeObjectSpace());
+  return down_cast<LargeObjectSpace*>(this);
+}
+
+inline ContinuousSpace* Space::AsContinuousSpace() {
+  DCHECK(IsContinuousSpace());
+  return down_cast<ContinuousSpace*>(this);
+}
+
+inline DiscontinuousSpace* Space::AsDiscontinuousSpace() {
+  DCHECK(IsDiscontinuousSpace());
+  return down_cast<DiscontinuousSpace*>(this);
 }
 
 }  // namespace space

@@ -27,9 +27,11 @@
 #include "mirror/art_method.h"
 #include "mirror/array.h"
 #include "mirror/class-inl.h"
+#include "mirror/object-inl.h"
 #include "mirror/throwable.h"
+#include "locks.h"
 #include "object_utils.h"
-
+#include "sirt_ref.h"
 #include "thread.h"
 
 namespace art {
@@ -40,130 +42,122 @@ namespace mirror {
   class Object;
 }  // namespace mirror
 
-static inline bool CheckObjectAlloc(uint32_t type_idx, mirror::ArtMethod* method,
-                                    Thread* self,
-                                    bool access_check,
-                                    mirror::Class** klass_ptr)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+// TODO: Fix no thread safety analysis when GCC can handle template specialization.
+template <const bool kAccessCheck>
+ALWAYS_INLINE static inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
+                                                            mirror::ArtMethod* method,
+                                                            Thread* self)
+    NO_THREAD_SAFETY_ANALYSIS {
   mirror::Class* klass = method->GetDexCacheResolvedTypes()->GetWithoutChecks(type_idx);
-  Runtime* runtime = Runtime::Current();
   if (UNLIKELY(klass == NULL)) {
-    klass = runtime->GetClassLinker()->ResolveType(type_idx, method);
+    klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
     if (klass == NULL) {
       DCHECK(self->IsExceptionPending());
-      return false;  // Failure
+      return nullptr;  // Failure
     }
   }
-  if (access_check) {
+  if (kAccessCheck) {
     if (UNLIKELY(!klass->IsInstantiable())) {
       ThrowLocation throw_location = self->GetCurrentLocationForThrow();
       self->ThrowNewException(throw_location, "Ljava/lang/InstantiationError;",
                               PrettyDescriptor(klass).c_str());
-      return false;  // Failure
+      return nullptr;  // Failure
     }
     mirror::Class* referrer = method->GetDeclaringClass();
     if (UNLIKELY(!referrer->CanAccess(klass))) {
       ThrowIllegalAccessErrorClass(referrer, klass);
-      return false;  // Failure
+      return nullptr;  // Failure
     }
   }
-  if (!klass->IsInitialized() &&
-      !runtime->GetClassLinker()->EnsureInitialized(klass, true, true)) {
-    DCHECK(self->IsExceptionPending());
-    return false;  // Failure
+  if (UNLIKELY(!klass->IsInitialized())) {
+    SirtRef<mirror::Class> sirt_klass(self, klass);
+    // The class initializer might cause a GC.
+    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(klass, true, true)) {
+      DCHECK(self->IsExceptionPending());
+      return nullptr;  // Failure
+    }
+    return sirt_klass.get();
   }
-  *klass_ptr = klass;
-  return true;
+  return klass;
 }
 
 // Given the context of a calling Method, use its DexCache to resolve a type to a Class. If it
 // cannot be resolved, throw an error. If it can, use it to create an instance.
 // When verification/compiler hasn't been able to verify access, optionally perform an access
 // check.
-static inline mirror::Object* AllocObjectFromCode(uint32_t type_idx, mirror::ArtMethod* method,
-                                                  Thread* self,
-                                                  bool access_check)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Class* klass;
-  if (UNLIKELY(!CheckObjectAlloc(type_idx, method, self, access_check, &klass))) {
-    return NULL;
+// TODO: Fix NO_THREAD_SAFETY_ANALYSIS when GCC is smarter.
+template <bool kAccessCheck, bool kInstrumented>
+ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCode(uint32_t type_idx,
+                                                                mirror::ArtMethod* method,
+                                                                Thread* self,
+                                                                gc::AllocatorType allocator_type)
+    NO_THREAD_SAFETY_ANALYSIS {
+  mirror::Class* klass = CheckObjectAlloc<kAccessCheck>(type_idx, method, self);
+  if (UNLIKELY(klass == nullptr)) {
+    return nullptr;
   }
-  return klass->AllocObjectUninstrumented(self);
+  return klass->Alloc<kInstrumented>(self, allocator_type);
 }
 
-static inline mirror::Object* AllocObjectFromCodeInstrumented(uint32_t type_idx, mirror::ArtMethod* method,
-                                                              Thread* self,
-                                                              bool access_check)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Class* klass;
-  if (UNLIKELY(!CheckObjectAlloc(type_idx, method, self, access_check, &klass))) {
-    return NULL;
-  }
-  return klass->AllocObjectInstrumented(self);
-}
-
-static inline bool CheckArrayAlloc(uint32_t type_idx, mirror::ArtMethod* method,
-                                   int32_t component_count,
-                                   bool access_check, mirror::Class** klass_ptr)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+// TODO: Fix no thread safety analysis when GCC can handle template specialization.
+template <bool kAccessCheck>
+ALWAYS_INLINE static inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
+                                                           mirror::ArtMethod* method,
+                                                           int32_t component_count)
+    NO_THREAD_SAFETY_ANALYSIS {
   if (UNLIKELY(component_count < 0)) {
     ThrowNegativeArraySizeException(component_count);
-    return false;  // Failure
+    return nullptr;  // Failure
   }
   mirror::Class* klass = method->GetDexCacheResolvedTypes()->GetWithoutChecks(type_idx);
-  if (UNLIKELY(klass == NULL)) {  // Not in dex cache so try to resolve
+  if (UNLIKELY(klass == nullptr)) {  // Not in dex cache so try to resolve
     klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
     if (klass == NULL) {  // Error
       DCHECK(Thread::Current()->IsExceptionPending());
-      return false;  // Failure
+      return nullptr;  // Failure
     }
     CHECK(klass->IsArrayClass()) << PrettyClass(klass);
   }
-  if (access_check) {
+  if (kAccessCheck) {
     mirror::Class* referrer = method->GetDeclaringClass();
     if (UNLIKELY(!referrer->CanAccess(klass))) {
       ThrowIllegalAccessErrorClass(referrer, klass);
-      return false;  // Failure
+      return nullptr;  // Failure
     }
   }
-  *klass_ptr = klass;
-  return true;
+  return klass;
 }
 
 // Given the context of a calling Method, use its DexCache to resolve a type to an array Class. If
 // it cannot be resolved, throw an error. If it can, use it to create an array.
 // When verification/compiler hasn't been able to verify access, optionally perform an access
 // check.
-static inline mirror::Array* AllocArrayFromCode(uint32_t type_idx, mirror::ArtMethod* method,
-                                                int32_t component_count,
-                                                Thread* self, bool access_check)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Class* klass;
-  if (UNLIKELY(!CheckArrayAlloc(type_idx, method, component_count, access_check, &klass))) {
-    return NULL;
+// TODO: Fix no thread safety analysis when GCC can handle template specialization.
+template <bool kAccessCheck, bool kInstrumented>
+ALWAYS_INLINE static inline mirror::Array* AllocArrayFromCode(uint32_t type_idx,
+                                                              mirror::ArtMethod* method,
+                                                              int32_t component_count,
+                                                              Thread* self,
+                                                              gc::AllocatorType allocator_type)
+    NO_THREAD_SAFETY_ANALYSIS {
+  mirror::Class* klass = CheckArrayAlloc<kAccessCheck>(type_idx, method, component_count);
+  if (UNLIKELY(klass == nullptr)) {
+    return nullptr;
   }
-  return mirror::Array::AllocUninstrumented(self, klass, component_count);
-}
-
-static inline mirror::Array* AllocArrayFromCodeInstrumented(uint32_t type_idx, mirror::ArtMethod* method,
-                                                            int32_t component_count,
-                                                            Thread* self, bool access_check)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Class* klass;
-  if (UNLIKELY(!CheckArrayAlloc(type_idx, method, component_count, access_check, &klass))) {
-    return NULL;
-  }
-  return mirror::Array::AllocInstrumented(self, klass, component_count);
+  return mirror::Array::Alloc<kInstrumented>(self, klass, component_count, allocator_type);
 }
 
 extern mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::ArtMethod* method,
-                                                 int32_t component_count,
-                                                 Thread* self, bool access_check)
+                                                 int32_t component_count, Thread* self,
+                                                 bool access_check,
+                                                 gc::AllocatorType allocator_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-extern mirror::Array* CheckAndAllocArrayFromCodeInstrumented(uint32_t type_idx, mirror::ArtMethod* method,
-                                                             int32_t component_count,
-                                                             Thread* self, bool access_check)
+extern mirror::Array* CheckAndAllocArrayFromCodeInstrumented(uint32_t type_idx,
+                                                             mirror::ArtMethod* method,
+                                                             int32_t component_count, Thread* self,
+                                                             bool access_check,
+                                                             gc::AllocatorType allocator_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Type of find field operation for fast and slow case.

@@ -123,8 +123,8 @@ String* String::AllocFromUtf16(Thread* self,
                                int32_t hash_code) {
   CHECK(utf16_data_in != NULL || utf16_length == 0);
   String* string = Alloc(self, GetJavaLangString(), utf16_length);
-  if (string == NULL) {
-    return NULL;
+  if (UNLIKELY(string == nullptr)) {
+    return nullptr;
   }
   // TODO: use 16-bit wide memset variant
   CharArray* array = const_cast<CharArray*>(string->GetCharArray());
@@ -143,8 +143,8 @@ String* String::AllocFromUtf16(Thread* self,
 }
 
 String* String::AllocFromModifiedUtf8(Thread* self, const char* utf) {
-  if (utf == NULL) {
-    return NULL;
+  if (UNLIKELY(utf == nullptr)) {
+    return nullptr;
   }
   size_t char_count = CountModifiedUtf8Chars(utf);
   return AllocFromModifiedUtf8(self, char_count, utf);
@@ -153,8 +153,8 @@ String* String::AllocFromModifiedUtf8(Thread* self, const char* utf) {
 String* String::AllocFromModifiedUtf8(Thread* self, int32_t utf16_length,
                                       const char* utf8_data_in) {
   String* string = Alloc(self, GetJavaLangString(), utf16_length);
-  if (string == NULL) {
-    return NULL;
+  if (UNLIKELY(string == nullptr)) {
+    return nullptr;
   }
   uint16_t* utf16_data_out =
       const_cast<uint16_t*>(string->GetCharArray()->GetData());
@@ -164,22 +164,21 @@ String* String::AllocFromModifiedUtf8(Thread* self, int32_t utf16_length,
 }
 
 String* String::Alloc(Thread* self, Class* java_lang_String, int32_t utf16_length) {
-  SirtRef<CharArray> array(self, CharArray::Alloc(self, utf16_length));
-  if (array.get() == NULL) {
-    return NULL;
+  CharArray* array = CharArray::Alloc(self, utf16_length);
+  if (UNLIKELY(array == nullptr)) {
+    return nullptr;
   }
-  return Alloc(self, java_lang_String, array.get());
+  return Alloc(self, java_lang_String, array);
 }
 
 String* String::Alloc(Thread* self, Class* java_lang_String, CharArray* array) {
   // Hold reference in case AllocObject causes GC.
   SirtRef<CharArray> array_ref(self, array);
   String* string = down_cast<String*>(java_lang_String->AllocObject(self));
-  if (string == NULL) {
-    return NULL;
+  if (LIKELY(string != nullptr)) {
+    string->SetArray(array_ref.get());
+    string->SetCount(array_ref->GetLength());
   }
-  string->SetArray(array);
-  string->SetCount(array->GetLength());
   return string;
 }
 

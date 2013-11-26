@@ -257,6 +257,9 @@ class OatDumper {
     os << "OAT DEX FILE:\n";
     os << StringPrintf("location: %s\n", oat_dex_file.GetDexFileLocation().c_str());
     os << StringPrintf("checksum: 0x%08x\n", oat_dex_file.GetDexFileLocationChecksum());
+
+    // Create the verifier early.
+
     std::string error_msg;
     UniquePtr<const DexFile> dex_file(oat_dex_file.OpenDexFile(&error_msg));
     if (dex_file.get() == NULL) {
@@ -377,8 +380,20 @@ class OatDumper {
                                  oat_method.GetCode() != NULL ? "..." : "");
       Indenter indent2_filter(indent1_os.rdbuf(), kIndentChar, kIndentBy1Count);
       std::ostream indent2_os(&indent2_filter);
-      DumpCode(indent2_os, oat_method, dex_method_idx, &dex_file, class_def, code_item,
-               method_access_flags);
+
+      Runtime* runtime = Runtime::Current();
+      if (runtime != nullptr) {
+        ScopedObjectAccess soa(Thread::Current());
+        SirtRef<mirror::DexCache> dex_cache(
+            soa.Self(), runtime->GetClassLinker()->FindDexCache(dex_file));
+        SirtRef<mirror::ClassLoader> class_loader(soa.Self(), nullptr);
+        verifier::MethodVerifier verifier(&dex_file, &dex_cache, &class_loader, &class_def, code_item,
+                                          dex_method_idx, nullptr, method_access_flags, true, true);
+        verifier.Verify();
+        DumpCode(indent2_os, &verifier, oat_method, code_item);
+      } else {
+        DumpCode(indent2_os, nullptr, oat_method, code_item);
+      }
     }
   }
 
@@ -566,24 +581,10 @@ class OatDumper {
     }
   }
 
-  void DumpVRegsAtDexPc(std::ostream& os,  const OatFile::OatMethod& oat_method,
-                        uint32_t dex_method_idx, const DexFile* dex_file,
-                        const DexFile::ClassDef& class_def, const DexFile::CodeItem* code_item,
-                        uint32_t method_access_flags, uint32_t dex_pc) {
-    static UniquePtr<verifier::MethodVerifier> verifier;
-    static const DexFile* verified_dex_file = NULL;
-    static uint32_t verified_dex_method_idx = DexFile::kDexNoIndex;
-    if (dex_file != verified_dex_file || verified_dex_method_idx != dex_method_idx) {
-      ScopedObjectAccess soa(Thread::Current());
-      mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file);
-      mirror::ClassLoader* class_loader = NULL;
-      verifier.reset(new verifier::MethodVerifier(dex_file, dex_cache, class_loader, &class_def,
-                                                  code_item, dex_method_idx, NULL,
-                                                  method_access_flags, true, true));
-      verifier->Verify();
-      verified_dex_file = dex_file;
-      verified_dex_method_idx = dex_method_idx;
-    }
+  void DumpVRegsAtDexPc(std::ostream& os, verifier::MethodVerifier* verifier,
+                        const OatFile::OatMethod& oat_method,
+                        const DexFile::CodeItem* code_item, uint32_t dex_pc) {
+    DCHECK(verifier != nullptr);
     std::vector<int32_t> kinds = verifier->DescribeVRegs(dex_pc);
     bool first = true;
     for (size_t reg = 0; reg < code_item->registers_size_; reg++) {
@@ -633,18 +634,16 @@ class OatDumper {
                     uint32_t method_access_flags) {
     if ((method_access_flags & kAccNative) == 0) {
       ScopedObjectAccess soa(Thread::Current());
-      mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file);
-      mirror::ClassLoader* class_loader = NULL;
+      SirtRef<mirror::DexCache> dex_cache(soa.Self(), Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file));
+      SirtRef<mirror::ClassLoader> class_loader(soa.Self(), nullptr);
       verifier::MethodVerifier::VerifyMethodAndDump(os, dex_method_idx, dex_file, dex_cache,
                                                     class_loader, &class_def, code_item, NULL,
                                                     method_access_flags);
     }
   }
 
-  void DumpCode(std::ostream& os,  const OatFile::OatMethod& oat_method,
-                uint32_t dex_method_idx, const DexFile* dex_file,
-                const DexFile::ClassDef& class_def, const DexFile::CodeItem* code_item,
-                uint32_t method_access_flags) {
+  void DumpCode(std::ostream& os, verifier::MethodVerifier* verifier,
+                const OatFile::OatMethod& oat_method, const DexFile::CodeItem* code_item) {
     const void* code = oat_method.GetCode();
     size_t code_size = oat_method.GetCodeSize();
     if (code == NULL || code_size == 0) {
@@ -653,16 +652,14 @@ class OatDumper {
     }
     const uint8_t* native_pc = reinterpret_cast<const uint8_t*>(code);
     size_t offset = 0;
-    const bool kDumpVRegs = (Runtime::Current() != NULL);
     while (offset < code_size) {
       DumpMappingAtOffset(os, oat_method, offset, false);
       offset += disassembler_->Dump(os, native_pc + offset);
       uint32_t dex_pc = DumpMappingAtOffset(os, oat_method, offset, true);
       if (dex_pc != DexFile::kDexNoIndex) {
         DumpGcMapAtNativePcOffset(os, oat_method, code_item, offset);
-        if (kDumpVRegs) {
-          DumpVRegsAtDexPc(os, oat_method, dex_method_idx, dex_file, class_def, code_item,
-                           method_access_flags, dex_pc);
+        if (verifier != nullptr) {
+          DumpVRegsAtDexPc(os, verifier, oat_method, code_item, dex_pc);
         }
       }
     }
@@ -715,14 +712,25 @@ class ImageDumper {
         if (image_root_object->IsObjectArray()) {
           Indenter indent2_filter(indent1_os.rdbuf(), kIndentChar, kIndentBy1Count);
           std::ostream indent2_os(&indent2_filter);
-          // TODO: replace down_cast with AsObjectArray (g++ currently has a problem with this)
           mirror::ObjectArray<mirror::Object>* image_root_object_array
-              = down_cast<mirror::ObjectArray<mirror::Object>*>(image_root_object);
-          //  = image_root_object->AsObjectArray<Object>();
+              = image_root_object->AsObjectArray<mirror::Object>();
           for (int i = 0; i < image_root_object_array->GetLength(); i++) {
             mirror::Object* value = image_root_object_array->Get(i);
+            size_t run = 0;
+            for (int32_t j = i + 1; j < image_root_object_array->GetLength(); j++) {
+              if (value == image_root_object_array->Get(j)) {
+                run++;
+              } else {
+                break;
+              }
+            }
+            if (run == 0) {
+              indent2_os << StringPrintf("%d: ", i);
+            } else {
+              indent2_os << StringPrintf("%d to %zd: ", i, i + run);
+              i = i + run;
+            }
             if (value != NULL) {
-              indent2_os << i << ": ";
               PrettyObjectValue(indent2_os, value->GetClass(), value);
             } else {
               indent2_os << i << ": null\n";

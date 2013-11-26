@@ -86,19 +86,19 @@ class JniInternalTest : public CommonTest {
     const char* class_name = is_static ? "StaticLeafMethods" : "NonStaticLeafMethods";
     jobject jclass_loader(LoadDex(class_name));
     Thread* self = Thread::Current();
+    SirtRef<mirror::ClassLoader> null_class_loader(self, nullptr);
     SirtRef<mirror::ClassLoader>
         class_loader(self,
                      ScopedObjectAccessUnchecked(self).Decode<mirror::ClassLoader*>(jclass_loader));
     if (is_static) {
-      CompileDirectMethod(class_loader.get(), class_name, method_name, method_signature);
+      CompileDirectMethod(class_loader, class_name, method_name, method_signature);
     } else {
-      CompileVirtualMethod(NULL, "java.lang.Class", "isFinalizable", "()Z");
-      CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
-      CompileVirtualMethod(class_loader.get(), class_name, method_name, method_signature);
+      CompileVirtualMethod(null_class_loader, "java.lang.Class", "isFinalizable", "()Z");
+      CompileDirectMethod(null_class_loader, "java.lang.Object", "<init>", "()V");
+      CompileVirtualMethod(class_loader, class_name, method_name, method_signature);
     }
 
-    mirror::Class* c = class_linker_->FindClass(DotToDescriptor(class_name).c_str(),
-                                                class_loader.get());
+    mirror::Class* c = class_linker_->FindClass(DotToDescriptor(class_name).c_str(), class_loader);
     CHECK(c != NULL);
 
     method = is_static ? c->FindDirectMethod(method_name, method_signature)
@@ -1081,7 +1081,6 @@ TEST_F(JniInternalTest, RegisterNatives) {
   EXPECT_EQ(memcmp(&src_buf[0], xs, size * sizeof(scalar_type)), 0) \
     << # get_elements_fn " not equal"; \
   env_->release_elements_fn(a, xs, 0); \
-  EXPECT_EQ(reinterpret_cast<uintptr_t>(v), reinterpret_cast<uintptr_t>(xs))
 
 TEST_F(JniInternalTest, BooleanArrays) {
   EXPECT_PRIMITIVE_ARRAY(NewBooleanArray, GetBooleanArrayRegion, SetBooleanArrayRegion,
@@ -1337,7 +1336,7 @@ TEST_F(JniInternalTest, GetStringChars_ReleaseStringChars) {
 
   jboolean is_copy = JNI_FALSE;
   chars = env_->GetStringChars(s, &is_copy);
-  EXPECT_EQ(JNI_FALSE, is_copy);
+  EXPECT_EQ(JNI_TRUE, is_copy);
   EXPECT_EQ(expected[0], chars[0]);
   EXPECT_EQ(expected[1], chars[1]);
   EXPECT_EQ(expected[2], chars[2]);
@@ -1361,7 +1360,8 @@ TEST_F(JniInternalTest, GetStringCritical_ReleaseStringCritical) {
 
   jboolean is_copy = JNI_FALSE;
   chars = env_->GetStringCritical(s, &is_copy);
-  EXPECT_EQ(JNI_FALSE, is_copy);
+  // TODO: Fix GetStringCritical to use the same mechanism as GetPrimitiveArrayElementsCritical.
+  EXPECT_EQ(JNI_TRUE, is_copy);
   EXPECT_EQ(expected[0], chars[0]);
   EXPECT_EQ(expected[1], chars[1]);
   EXPECT_EQ(expected[2], chars[2]);
@@ -1669,9 +1669,9 @@ TEST_F(JniInternalTest, StaticMainMethod) {
   jobject jclass_loader = LoadDex("Main");
   SirtRef<mirror::ClassLoader>
       class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(jclass_loader));
-  CompileDirectMethod(class_loader.get(), "Main", "main", "([Ljava/lang/String;)V");
+  CompileDirectMethod(class_loader, "Main", "main", "([Ljava/lang/String;)V");
 
-  mirror::Class* klass = class_linker_->FindClass("LMain;", class_loader.get());
+  mirror::Class* klass = class_linker_->FindClass("LMain;", class_loader);
   ASSERT_TRUE(klass != NULL);
 
   mirror::ArtMethod* method = klass->FindDirectMethod("main", "([Ljava/lang/String;)V");

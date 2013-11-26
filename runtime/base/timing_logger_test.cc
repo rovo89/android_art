@@ -26,13 +26,13 @@ class TimingLoggerTest : public CommonTest {};
 
 TEST_F(TimingLoggerTest, StartEnd) {
   const char* split1name = "First Split";
-  base::TimingLogger timings("StartEnd", true, false);
+  TimingLogger timings("StartEnd", true, false);
 
   timings.StartSplit(split1name);
 
   timings.EndSplit();  // Ends split1.
 
-  const base::TimingLogger::SplitTimings& splits = timings.GetSplits();
+  const TimingLogger::SplitTimings& splits = timings.GetSplits();
 
   EXPECT_EQ(1U, splits.size());
   EXPECT_STREQ(splits[0].second, split1name);
@@ -43,7 +43,7 @@ TEST_F(TimingLoggerTest, StartNewEnd) {
   const char* split1name = "First Split";
   const char* split2name = "Second Split";
   const char* split3name = "Third Split";
-  base::TimingLogger timings("StartNewEnd", true, false);
+  TimingLogger timings("StartNewEnd", true, false);
 
   timings.StartSplit(split1name);
 
@@ -53,7 +53,7 @@ TEST_F(TimingLoggerTest, StartNewEnd) {
 
   timings.EndSplit();  // Ends split3.
 
-  const base::TimingLogger::SplitTimings& splits = timings.GetSplits();
+  const TimingLogger::SplitTimings& splits = timings.GetSplits();
 
   EXPECT_EQ(3U, splits.size());
   EXPECT_STREQ(splits[0].second, split1name);
@@ -67,7 +67,7 @@ TEST_F(TimingLoggerTest, StartNewEndNested) {
   const char* split3name = "Third Split";
   const char* split4name = "Fourth Split";
   const char* split5name = "Fifth Split";
-  base::TimingLogger timings("StartNewEndNested", true, false);
+  TimingLogger timings("StartNewEndNested", true, false);
 
   timings.StartSplit(split1name);
 
@@ -85,7 +85,7 @@ TEST_F(TimingLoggerTest, StartNewEndNested) {
 
   timings.EndSplit();  // Ends split2.
 
-  const base::TimingLogger::SplitTimings& splits = timings.GetSplits();
+  const TimingLogger::SplitTimings& splits = timings.GetSplits();
 
   EXPECT_EQ(5U, splits.size());
   EXPECT_STREQ(splits[0].second, split1name);
@@ -101,25 +101,25 @@ TEST_F(TimingLoggerTest, Scoped) {
   const char* innersplit1 = "Inner Split 1";
   const char* innerinnersplit1 = "Inner Inner Split 1";
   const char* innersplit2 = "Inner Split 2";
-  base::TimingLogger timings("Scoped", true, false);
+  TimingLogger timings("Scoped", true, false);
 
   {
-      base::TimingLogger::ScopedSplit outer(outersplit, &timings);
+      TimingLogger::ScopedSplit outer(outersplit, &timings);
 
       {
-          base::TimingLogger::ScopedSplit inner1(innersplit1, &timings);
+          TimingLogger::ScopedSplit inner1(innersplit1, &timings);
 
           {
-              base::TimingLogger::ScopedSplit innerinner1(innerinnersplit1, &timings);
+              TimingLogger::ScopedSplit innerinner1(innerinnersplit1, &timings);
           }  // Ends innerinnersplit1.
       }  // Ends innersplit1.
 
       {
-          base::TimingLogger::ScopedSplit inner2(innersplit2, &timings);
+          TimingLogger::ScopedSplit inner2(innersplit2, &timings);
       }  // Ends innersplit2.
   }  // Ends outersplit.
 
-  const base::TimingLogger::SplitTimings& splits = timings.GetSplits();
+  const TimingLogger::SplitTimings& splits = timings.GetSplits();
 
   EXPECT_EQ(4U, splits.size());
   EXPECT_STREQ(splits[0].second, innerinnersplit1);
@@ -134,12 +134,12 @@ TEST_F(TimingLoggerTest, ScopedAndExplicit) {
   const char* innersplit = "Inner Split";
   const char* innerinnersplit1 = "Inner Inner Split 1";
   const char* innerinnersplit2 = "Inner Inner Split 2";
-  base::TimingLogger timings("Scoped", true, false);
+  TimingLogger timings("Scoped", true, false);
 
   timings.StartSplit(outersplit);
 
   {
-      base::TimingLogger::ScopedSplit inner(innersplit, &timings);
+      TimingLogger::ScopedSplit inner(innersplit, &timings);
 
       timings.StartSplit(innerinnersplit1);
 
@@ -148,7 +148,7 @@ TEST_F(TimingLoggerTest, ScopedAndExplicit) {
 
   timings.EndSplit();  // Ends outersplit.
 
-  const base::TimingLogger::SplitTimings& splits = timings.GetSplits();
+  const TimingLogger::SplitTimings& splits = timings.GetSplits();
 
   EXPECT_EQ(4U, splits.size());
   EXPECT_STREQ(splits[0].second, innerinnersplit1);

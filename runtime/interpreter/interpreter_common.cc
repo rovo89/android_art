@@ -29,7 +29,7 @@ static inline void AssignRegister(ShadowFrame& new_shadow_frame, const ShadowFra
                                   size_t dest_reg, size_t src_reg) {
   // If both register locations contains the same value, the register probably holds a reference.
   int32_t src_value = shadow_frame.GetVReg(src_reg);
-  mirror::Object* o = shadow_frame.GetVRegReference(src_reg);
+  mirror::Object* o = shadow_frame.GetVRegReference<false>(src_reg);
   if (src_value == reinterpret_cast<int32_t>(o)) {
     new_shadow_frame.SetVRegReference(dest_reg, o);
   } else {
@@ -193,7 +193,7 @@ bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
     }
     return false;
   }
-  Object* newArray = Array::Alloc(self, arrayClass, length);
+  Object* newArray = Array::Alloc<true>(self, arrayClass, length);
   if (UNLIKELY(newArray == NULL)) {
     DCHECK(self->IsExceptionPending());
     return false;
@@ -233,7 +233,8 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
   std::string name(PrettyMethod(shadow_frame->GetMethod()));
   if (name == "java.lang.Class java.lang.Class.forName(java.lang.String)") {
     std::string descriptor(DotToDescriptor(shadow_frame->GetVRegReference(arg_offset)->AsString()->ToModifiedUtf8().c_str()));
-    ClassLoader* class_loader = NULL;  // shadow_frame.GetMethod()->GetDeclaringClass()->GetClassLoader();
+
+    SirtRef<ClassLoader> class_loader(self, nullptr);  // shadow_frame.GetMethod()->GetDeclaringClass()->GetClassLoader();
     Class* found = Runtime::Current()->GetClassLinker()->FindClass(descriptor.c_str(),
                                                                    class_loader);
     CHECK(found != NULL) << "Class.forName failed in un-started runtime for class: "
@@ -278,7 +279,7 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     // TODO: getDeclaredField calls GetType once the field is found to ensure a
     //       NoClassDefFoundError is thrown if the field's type cannot be resolved.
     Class* jlr_Field = self->DecodeJObject(WellKnownClasses::java_lang_reflect_Field)->AsClass();
-    SirtRef<Object> field(self, jlr_Field->AllocObject(self));
+    SirtRef<Object> field(self, jlr_Field->AllocNonMovableObject(self));
     CHECK(field.get() != NULL);
     ArtMethod* c = jlr_Field->FindDeclaredDirectMethod("<init>", "(Ljava/lang/reflect/ArtField;)V");
     uint32_t args[1];

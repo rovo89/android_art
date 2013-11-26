@@ -18,6 +18,7 @@ LOCAL_PATH := $(call my-dir)
 
 art_path := $(LOCAL_PATH)
 art_build_path := $(art_path)/build
+include $(art_build_path)/Android.common.mk
 
 ########################################################################
 # clean-oat targets
@@ -146,14 +147,9 @@ test-art-host-dependencies: $(ART_HOST_TEST_DEPENDENCIES) $(HOST_OUT_SHARED_LIBR
 test-art-host-gtest: $(ART_HOST_TEST_TARGETS)
 	@echo test-art-host-gtest PASSED
 
-define run-host-gtests-with
-  $(foreach file,$(sort $(ART_HOST_TEST_EXECUTABLES)),$(1) $(file) &&) true
-endef
-
 # "mm valgrind-test-art-host-gtest" to build and run the host gtests under valgrind.
 .PHONY: valgrind-test-art-host-gtest
-valgrind-test-art-host-gtest: test-art-host-dependencies
-	$(call run-host-gtests-with,valgrind --leak-check=full)
+valgrind-test-art-host-gtest: $(ART_HOST_VALGRIND_TEST_TARGETS)
 	@echo valgrind-test-art-host-gtest PASSED
 
 .PHONY: test-art-host-oat-default
@@ -305,6 +301,8 @@ build-art-target: $(ART_TARGET_EXECUTABLES) $(ART_TARGET_TEST_EXECUTABLES) $(TAR
 ########################################################################
 # oatdump targets
 
+ART_DUMP_OAT_PATH ?= $(OUT_DIR)
+
 .PHONY: dump-oat
 dump-oat: dump-oat-core dump-oat-boot
 
@@ -314,29 +312,29 @@ dump-oat-core: dump-oat-core-host dump-oat-core-target
 .PHONY: dump-oat-core-host
 ifeq ($(ART_BUILD_HOST),true)
 dump-oat-core-host: $(HOST_CORE_IMG_OUT) $(OATDUMP)
-	$(OATDUMP) --image=$(HOST_CORE_IMG_OUT) --output=/tmp/core.host.oatdump.txt --host-prefix=""
-	@echo Output in /tmp/core.host.oatdump.txt
+	$(OATDUMP) --image=$(HOST_CORE_IMG_OUT) --output=$(ART_DUMP_OAT_PATH)/core.host.oatdump.txt --host-prefix=""
+	@echo Output in $(ART_DUMP_OAT_PATH)/core.host.oatdump.txt
 endif
 
 .PHONY: dump-oat-core-target
 ifeq ($(ART_BUILD_TARGET),true)
 dump-oat-core-target: $(TARGET_CORE_IMG_OUT) $(OATDUMP)
-	$(OATDUMP) --image=$(TARGET_CORE_IMG_OUT) --output=/tmp/core.target.oatdump.txt
-	@echo Output in /tmp/core.target.oatdump.txt
+	$(OATDUMP) --image=$(TARGET_CORE_IMG_OUT) --output=$(ART_DUMP_OAT_PATH)/core.target.oatdump.txt
+	@echo Output in $(ART_DUMP_OAT_PATH)/core.target.oatdump.txt
 endif
 
 .PHONY: dump-oat-boot
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
 dump-oat-boot: $(TARGET_BOOT_IMG_OUT) $(OATDUMP)
-	$(OATDUMP) --image=$(TARGET_BOOT_IMG_OUT) --output=/tmp/boot.oatdump.txt
-	@echo Output in /tmp/boot.oatdump.txt
+	$(OATDUMP) --image=$(TARGET_BOOT_IMG_OUT) --output=$(ART_DUMP_OAT_PATH)/boot.oatdump.txt
+	@echo Output in $(ART_DUMP_OAT_PATH)/boot.oatdump.txt
 endif
 
 .PHONY: dump-oat-Calculator
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
 dump-oat-Calculator: $(TARGET_OUT_APPS)/Calculator.odex $(TARGET_BOOT_IMG_OUT) $(OATDUMP)
-	$(OATDUMP) --oat-file=$< --output=/tmp/Calculator.oatdump.txt
-	@echo Output in /tmp/Calculator.oatdump.txt
+	$(OATDUMP) --oat-file=$< --output=$(ART_DUMP_OAT_PATH)/Calculator.oatdump.txt
+	@echo Output in $(ART_DUMP_OAT_PATH)/Calculator.oatdump.txt
 endif
 
 ########################################################################

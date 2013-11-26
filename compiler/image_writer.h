@@ -63,31 +63,11 @@ class ImageWriter {
   void RecordImageAllocations() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // We use the lock word to store the offset of the object in the image.
-  void AssignImageOffset(mirror::Object* object)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(object != NULL);
-    SetImageOffset(object, image_end_);
-    image_end_ += RoundUp(object->SizeOf(), 8);  // 64-bit alignment
-    DCHECK_LT(image_end_, image_->Size());
-  }
-
-  void SetImageOffset(mirror::Object* object, size_t offset) {
-    DCHECK(object != NULL);
-    DCHECK_NE(offset, 0U);
-    DCHECK(!IsImageOffsetAssigned(object));
-    offsets_.Put(object, offset);
-  }
-
-  size_t IsImageOffsetAssigned(const mirror::Object* object) const {
-    DCHECK(object != NULL);
-    return offsets_.find(object) != offsets_.end();
-  }
-
-  size_t GetImageOffset(const mirror::Object* object) const {
-    DCHECK(object != NULL);
-    DCHECK(IsImageOffsetAssigned(object));
-    return offsets_.find(object)->second;
-  }
+  void AssignImageOffset(mirror::Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetImageOffset(mirror::Object* object, size_t offset)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool IsImageOffsetAssigned(const mirror::Object* object) const;
+  size_t GetImageOffset(const mirror::Object* object) const;
 
   mirror::Object* GetImageAddress(const mirror::Object* object) const {
     if (object == NULL) {
@@ -147,7 +127,14 @@ class ImageWriter {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::Object>* CreateImageRoots() const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void CalculateNewObjectOffsetsCallback(mirror::Object* obj, void* arg)
+  void CalculateObjectOffsets(mirror::Object* obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void WalkInstanceFields(mirror::Object* obj, mirror::Class* klass)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void WalkFieldsInOrder(mirror::Object* obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static void WalkFieldsCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Creates the contiguous image in memory and adjusts pointers.
@@ -180,9 +167,6 @@ class ImageWriter {
 
   const CompilerDriver& compiler_driver_;
 
-  // Map of Object to where it will be at runtime.
-  SafeMap<const mirror::Object*, size_t> offsets_;
-
   // oat file with code for this image
   OatFile* oat_file_;
 
@@ -194,6 +178,9 @@ class ImageWriter {
 
   // Beginning target image address for the output image.
   byte* image_begin_;
+
+  // Saved hashes (objects are inside of the image so that they don't move).
+  std::vector<std::pair<mirror::Object*, uint32_t> > saved_hashes_;
 
   // Beginning target oat address for the pointers from the output image to its oat file.
   const byte* oat_data_begin_;
@@ -211,9 +198,6 @@ class ImageWriter {
   uint32_t quick_imt_conflict_trampoline_offset_;
   uint32_t quick_resolution_trampoline_offset_;
   uint32_t quick_to_interpreter_bridge_offset_;
-
-  // DexCaches seen while scanning for fixing up CodeAndDirectMethods
-  std::set<mirror::DexCache*> dex_caches_;
 };
 
 }  // namespace art
