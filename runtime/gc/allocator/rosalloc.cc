@@ -15,7 +15,7 @@
  */
 
 #include "base/mutex-inl.h"
-#include "thread.h"
+#include "thread-inl.h"
 #include "thread_list.h"
 #include "rosalloc.h"
 
