@@ -28,6 +28,7 @@
 #include "base/timing_logger.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/heap_bitmap.h"
+#include "gc/accounting/mod_union_table.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/heap.h"
 #include "gc/space/image_space.h"
@@ -99,7 +100,7 @@ void MarkSweep::ImmuneSpace(space::ContinuousSpace* space) {
   } else {
     const space::ContinuousSpace* prev_space = nullptr;
     // Find out if the previous space is immune.
-    for (space::ContinuousSpace* cur_space : GetHeap()->GetContinuousSpaces()) {
+    for (const space::ContinuousSpace* cur_space : GetHeap()->GetContinuousSpaces()) {
       if (cur_space == space) {
         break;
       }
@@ -107,13 +108,17 @@ void MarkSweep::ImmuneSpace(space::ContinuousSpace* space) {
     }
     // If previous space was immune, then extend the immune region. Relies on continuous spaces
     // being sorted by Heap::AddContinuousSpace.
-    if (prev_space != NULL &&
-        immune_begin_ <= reinterpret_cast<Object*>(prev_space->Begin()) &&
-        immune_end_ >= reinterpret_cast<Object*>(prev_space->End())) {
+    if (prev_space != NULL && IsImmuneSpace(prev_space)) {
       immune_begin_ = std::min(reinterpret_cast<Object*>(space->Begin()), immune_begin_);
       immune_end_ = std::max(reinterpret_cast<Object*>(space->End()), immune_end_);
     }
   }
+}
+
+bool MarkSweep::IsImmuneSpace(const space::ContinuousSpace* space) {
+  return
+      immune_begin_ <= reinterpret_cast<Object*>(space->Begin()) &&
+      immune_end_ >= reinterpret_cast<Object*>(space->End());
 }
 
 void MarkSweep::BindBitmaps() {
@@ -263,9 +268,21 @@ void MarkSweep::MarkingPhase() {
   }
   live_stack_freeze_size_ = heap_->GetLiveStack()->Size();
   MarkConcurrentRoots();
-
-  heap_->UpdateAndMarkModUnion(this, timings_, GetGcType());
+  UpdateAndMarkModUnion();
   MarkReachableObjects();
+}
+
+void MarkSweep::UpdateAndMarkModUnion() {
+  for (const auto& space : heap_->GetContinuousSpaces()) {
+    if (IsImmuneSpace(space)) {
+      const char* name = space->IsZygoteSpace() ? "UpdateAndMarkZygoteModUnionTable" :
+          "UpdateAndMarkImageModUnionTable";
+      base::TimingLogger::ScopedSplit split(name, &timings_);
+      accounting::ModUnionTable* mod_union_table = heap_->FindModUnionTableFromSpace(space);
+      CHECK(mod_union_table != nullptr);
+      mod_union_table->UpdateAndMarkReferences(MarkRootCallback, this);
+    }
+  }
 }
 
 void MarkSweep::MarkThreadRoots(Thread* self) {
@@ -519,24 +536,18 @@ void MarkSweep::MarkRoot(const Object* obj) {
   }
 }
 
-void MarkSweep::MarkRootParallelCallback(const Object* root, void* arg) {
+Object* MarkSweep::MarkRootParallelCallback(Object* root, void* arg) {
   DCHECK(root != NULL);
   DCHECK(arg != NULL);
   reinterpret_cast<MarkSweep*>(arg)->MarkObjectNonNullParallel(root);
+  return root;
 }
 
-void MarkSweep::MarkObjectCallback(const Object* root, void* arg) {
-  DCHECK(root != NULL);
-  DCHECK(arg != NULL);
-  MarkSweep* mark_sweep = reinterpret_cast<MarkSweep*>(arg);
-  mark_sweep->MarkObjectNonNull(root);
-}
-
-void MarkSweep::ReMarkObjectVisitor(const Object* root, void* arg) {
-  DCHECK(root != NULL);
-  DCHECK(arg != NULL);
-  MarkSweep* mark_sweep = reinterpret_cast<MarkSweep*>(arg);
-  mark_sweep->MarkObjectNonNull(root);
+Object* MarkSweep::MarkRootCallback(Object* root, void* arg) {
+  DCHECK(root != nullptr);
+  DCHECK(arg != nullptr);
+  reinterpret_cast<MarkSweep*>(arg)->MarkObjectNonNull(root);
+  return root;
 }
 
 void MarkSweep::VerifyRootCallback(const Object* root, void* arg, size_t vreg,
@@ -564,30 +575,30 @@ void MarkSweep::VerifyRoots() {
 // Marks all objects in the root set.
 void MarkSweep::MarkRoots() {
   timings_.StartSplit("MarkRoots");
-  Runtime::Current()->VisitNonConcurrentRoots(MarkObjectCallback, this);
+  Runtime::Current()->VisitNonConcurrentRoots(MarkRootCallback, this);
   timings_.EndSplit();
 }
 
 void MarkSweep::MarkNonThreadRoots() {
   timings_.StartSplit("MarkNonThreadRoots");
-  Runtime::Current()->VisitNonThreadRoots(MarkObjectCallback, this);
+  Runtime::Current()->VisitNonThreadRoots(MarkRootCallback, this);
   timings_.EndSplit();
 }
 
 void MarkSweep::MarkConcurrentRoots() {
   timings_.StartSplit("MarkConcurrentRoots");
   // Visit all runtime roots and clear dirty flags.
-  Runtime::Current()->VisitConcurrentRoots(MarkObjectCallback, this, false, true);
+  Runtime::Current()->VisitConcurrentRoots(MarkRootCallback, this, false, true);
   timings_.EndSplit();
 }
 
 void MarkSweep::CheckObject(const Object* obj) {
   DCHECK(obj != NULL);
-  VisitObjectReferences(obj, [this](const Object* obj, const Object* ref, MemberOffset offset,
-      bool is_static) NO_THREAD_SAFETY_ANALYSIS {
+  VisitObjectReferences(const_cast<Object*>(obj), [this](const Object* obj, const Object* ref,
+      MemberOffset offset, bool is_static) NO_THREAD_SAFETY_ANALYSIS {
     Locks::heap_bitmap_lock_->AssertSharedHeld(Thread::Current());
     CheckReference(obj, ref, offset, is_static);
-  });
+  }, true);
 }
 
 void MarkSweep::VerifyImageRootVisitor(Object* root, void* arg) {
@@ -653,11 +664,11 @@ class MarkStackTask : public Task {
     explicit ScanObjectParallelVisitor(MarkStackTask<kUseFinger>* chunk_task) ALWAYS_INLINE
         : chunk_task_(chunk_task) {}
 
-    void operator()(const Object* obj) const {
+    void operator()(Object* obj) const {
       MarkSweep* mark_sweep = chunk_task_->mark_sweep_;
       mark_sweep->ScanObjectVisit(obj,
-          [mark_sweep, this](const Object* /* obj */, const Object* ref,
-              const MemberOffset& /* offset */, bool /* is_static */) ALWAYS_INLINE {
+          [mark_sweep, this](Object* /* obj */, Object* ref, const MemberOffset& /* offset */,
+              bool /* is_static */) ALWAYS_INLINE {
         if (ref != nullptr && mark_sweep->MarkObjectParallel(ref)) {
           if (kUseFinger) {
             android_memory_barrier();
@@ -714,11 +725,11 @@ class MarkStackTask : public Task {
     static const size_t kFifoSize = 4;
     BoundedFifoPowerOfTwo<const Object*, kFifoSize> prefetch_fifo;
     for (;;) {
-      const Object* obj = NULL;
+      const Object* obj = nullptr;
       if (kUseMarkStackPrefetch) {
         while (mark_stack_pos_ != 0 && prefetch_fifo.size() < kFifoSize) {
           const Object* obj = mark_stack_[--mark_stack_pos_];
-          DCHECK(obj != NULL);
+          DCHECK(obj != nullptr);
           __builtin_prefetch(obj);
           prefetch_fifo.push_back(obj);
         }
@@ -733,8 +744,8 @@ class MarkStackTask : public Task {
         }
         obj = mark_stack_[--mark_stack_pos_];
       }
-      DCHECK(obj != NULL);
-      visitor(obj);
+      DCHECK(obj != nullptr);
+      visitor(const_cast<mirror::Object*>(obj));
     }
   }
 };
@@ -765,7 +776,6 @@ class CardScanTask : public MarkStackTask<false> {
     ScanObjectParallelVisitor visitor(this);
     accounting::CardTable* card_table = mark_sweep_->GetHeap()->GetCardTable();
     size_t cards_scanned = card_table->Scan(bitmap_, begin_, end_, visitor, minimum_age_);
-    mark_sweep_->cards_scanned_.fetch_add(cards_scanned);
     VLOG(heap) << "Parallel scanning cards " << reinterpret_cast<void*>(begin_) << " - "
         << reinterpret_cast<void*>(end_) << " = " << cards_scanned;
     // Finish by emptying our local mark stack.
@@ -803,11 +813,14 @@ void MarkSweep::ScanGrayObjects(bool paused, byte minimum_age) {
     DCHECK_NE(mark_stack_tasks, 0U);
     const size_t mark_stack_delta = std::min(CardScanTask::kMaxSize / 2,
                                              mark_stack_size / mark_stack_tasks + 1);
-    size_t ref_card_count = 0;
-    cards_scanned_ = 0;
     for (const auto& space : GetHeap()->GetContinuousSpaces()) {
       byte* card_begin = space->Begin();
       byte* card_end = space->End();
+      // Align up the end address. For example, the image space's end
+      // may not be card-size-aligned.
+      card_end = AlignUp(card_end, accounting::CardTable::kCardSize);
+      DCHECK(IsAligned<accounting::CardTable::kCardSize>(card_begin));
+      DCHECK(IsAligned<accounting::CardTable::kCardSize>(card_end));
       // Calculate how many bytes of heap we will scan,
       const size_t address_range = card_end - card_begin;
       // Calculate how much address range each task gets.
@@ -831,24 +844,15 @@ void MarkSweep::ScanGrayObjects(bool paused, byte minimum_age) {
         thread_pool->AddTask(self, task);
         card_begin += card_increment;
       }
-
-      if (paused && kIsDebugBuild) {
-        // Make sure we don't miss scanning any cards.
-        size_t scanned_cards = card_table->Scan(space->GetMarkBitmap(), space->Begin(),
-                                                space->End(), VoidFunctor(), minimum_age);
-        VLOG(heap) << "Scanning space cards " << reinterpret_cast<void*>(space->Begin()) << " - "
-            << reinterpret_cast<void*>(space->End()) << " = " << scanned_cards;
-        ref_card_count += scanned_cards;
-      }
     }
 
+    // Note: the card scan below may dirty new cards (and scan them)
+    // as a side effect when a Reference object is encountered and
+    // queued during the marking. See b/11465268.
     thread_pool->SetMaxActiveWorkers(thread_count - 1);
     thread_pool->StartWorkers(self);
     thread_pool->Wait(self, true, true);
     thread_pool->StopWorkers(self);
-    if (paused) {
-      DCHECK_EQ(ref_card_count, static_cast<size_t>(cards_scanned_.load()));
-    }
     timings_.EndSplit();
   } else {
     for (const auto& space : GetHeap()->GetContinuousSpaces()) {
@@ -990,8 +994,11 @@ void MarkSweep::RecursiveMark() {
   ProcessMarkStack(false);
 }
 
-bool MarkSweep::IsMarkedCallback(const Object* object, void* arg) {
-  return reinterpret_cast<MarkSweep*>(arg)->IsMarked(object);
+mirror::Object* MarkSweep::SystemWeakIsMarkedCallback(Object* object, void* arg) {
+  if (reinterpret_cast<MarkSweep*>(arg)->IsMarked(object)) {
+    return object;
+  }
+  return nullptr;
 }
 
 void MarkSweep::RecursiveMarkDirtyObjects(bool paused, byte minimum_age) {
@@ -1001,45 +1008,21 @@ void MarkSweep::RecursiveMarkDirtyObjects(bool paused, byte minimum_age) {
 
 void MarkSweep::ReMarkRoots() {
   timings_.StartSplit("ReMarkRoots");
-  Runtime::Current()->VisitRoots(ReMarkObjectVisitor, this, true, true);
+  Runtime::Current()->VisitRoots(MarkRootCallback, this, true, true);
   timings_.EndSplit();
-}
-
-void MarkSweep::SweepJniWeakGlobals(IsMarkedTester is_marked, void* arg) {
-  Runtime::Current()->GetJavaVM()->SweepWeakGlobals(is_marked, arg);
-}
-
-struct ArrayMarkedCheck {
-  accounting::ObjectStack* live_stack;
-  MarkSweep* mark_sweep;
-};
-
-// Either marked or not live.
-bool MarkSweep::IsMarkedArrayCallback(const Object* object, void* arg) {
-  ArrayMarkedCheck* array_check = reinterpret_cast<ArrayMarkedCheck*>(arg);
-  if (array_check->mark_sweep->IsMarked(object)) {
-    return true;
-  }
-  accounting::ObjectStack* live_stack = array_check->live_stack;
-  if (std::find(live_stack->Begin(), live_stack->End(), object) == live_stack->End()) {
-    return true;
-  }
-  return false;
 }
 
 void MarkSweep::SweepSystemWeaks() {
   Runtime* runtime = Runtime::Current();
   timings_.StartSplit("SweepSystemWeaks");
-  runtime->GetInternTable()->SweepInternTableWeaks(IsMarkedCallback, this);
-  runtime->GetMonitorList()->SweepMonitorList(IsMarkedCallback, this);
-  SweepJniWeakGlobals(IsMarkedCallback, this);
+  runtime->SweepSystemWeaks(SystemWeakIsMarkedCallback, this);
   timings_.EndSplit();
 }
 
-bool MarkSweep::VerifyIsLiveCallback(const Object* obj, void* arg) {
+mirror::Object* MarkSweep::VerifySystemWeakIsLiveCallback(Object* obj, void* arg) {
   reinterpret_cast<MarkSweep*>(arg)->VerifyIsLive(obj);
   // We don't actually want to sweep the object, so lets return "marked"
-  return true;
+  return obj;
 }
 
 void MarkSweep::VerifyIsLive(const Object* obj) {
@@ -1058,11 +1041,8 @@ void MarkSweep::VerifyIsLive(const Object* obj) {
 }
 
 void MarkSweep::VerifySystemWeaks() {
-  Runtime* runtime = Runtime::Current();
-  // Verify system weaks, uses a special IsMarked callback which always returns true.
-  runtime->GetInternTable()->SweepInternTableWeaks(VerifyIsLiveCallback, this);
-  runtime->GetMonitorList()->SweepMonitorList(VerifyIsLiveCallback, this);
-  runtime->GetJavaVM()->SweepWeakGlobals(VerifyIsLiveCallback, this);
+  // Verify system weaks, uses a special object visitor which returns the input object.
+  Runtime::Current()->SweepSystemWeaks(VerifySystemWeakIsLiveCallback, this);
 }
 
 struct SweepCallbackContext {
@@ -1369,10 +1349,6 @@ void MarkSweep::DelayReferenceReferent(mirror::Class* klass, Object* obj) {
   }
 }
 
-void MarkSweep::ScanRoot(const Object* obj) {
-  ScanObject(obj);
-}
-
 class MarkObjectVisitor {
  public:
   explicit MarkObjectVisitor(MarkSweep* const mark_sweep) ALWAYS_INLINE : mark_sweep_(mark_sweep) {}
@@ -1396,7 +1372,7 @@ class MarkObjectVisitor {
 // and dispatches to a specialized scanning routine.
 void MarkSweep::ScanObject(const Object* obj) {
   MarkObjectVisitor visitor(this);
-  ScanObjectVisit(obj, visitor);
+  ScanObjectVisit(const_cast<Object*>(obj), visitor);
 }
 
 void MarkSweep::ProcessMarkStackParallel(size_t thread_count) {

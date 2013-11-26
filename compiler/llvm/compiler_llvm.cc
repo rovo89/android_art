@@ -26,6 +26,7 @@
 #include "ir_builder.h"
 #include "jni/portable/jni_compiler.h"
 #include "llvm_compilation_unit.h"
+#include "thread-inl.h"
 #include "utils_llvm.h"
 #include "verifier/method_verifier.h"
 
@@ -164,7 +165,7 @@ CompileNativeMethod(DexCompilationUnit* dex_compilation_unit) {
   UniquePtr<LlvmCompilationUnit> cunit(AllocateCompilationUnit());
 
   UniquePtr<JniCompiler> jni_compiler(
-      new JniCompiler(cunit.get(), *compiler_driver_, dex_compilation_unit));
+      new JniCompiler(cunit.get(), compiler_driver_, dex_compilation_unit));
 
   return jni_compiler->Compile();
 }

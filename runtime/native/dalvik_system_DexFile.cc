@@ -89,43 +89,40 @@ static jint DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceNam
   if (sourceName.c_str() == NULL) {
     return 0;
   }
-  std::string dex_location(sourceName.c_str());
   NullableScopedUtfChars outputName(env, javaOutputName);
   if (env->ExceptionCheck()) {
     return 0;
   }
-  ScopedObjectAccess soa(env);
 
   uint32_t dex_location_checksum;
-  if (!DexFile::GetChecksum(dex_location, &dex_location_checksum)) {
-    LOG(WARNING) << "Failed to compute checksum: " << dex_location;
-    ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
-    soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/io/IOException;",
-                                   "Unable to get checksum of dex file: %s", dex_location.c_str());
+  std::string error_msg;
+  if (!DexFile::GetChecksum(sourceName.c_str(), &dex_location_checksum, &error_msg)) {
+    ScopedObjectAccess soa(env);
+    DCHECK(!error_msg.empty());
+    ThrowIOException("%s", error_msg.c_str());
     return 0;
   }
 
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   const DexFile* dex_file;
-  if (outputName.c_str() == NULL) {
-    dex_file = linker->FindDexFileInOatFileFromDexLocation(dex_location, dex_location_checksum);
+  if (outputName.c_str() == nullptr) {
+    dex_file = linker->FindDexFileInOatFileFromDexLocation(sourceName.c_str(),
+                                                           dex_location_checksum, &error_msg);
   } else {
-    std::string oat_location(outputName.c_str());
-    dex_file = linker->FindOrCreateOatFileForDexLocation(dex_location, dex_location_checksum, oat_location);
+    dex_file = linker->FindOrCreateOatFileForDexLocation(sourceName.c_str(), dex_location_checksum,
+                                                         outputName.c_str(), &error_msg);
   }
-  if (dex_file == NULL) {
-    LOG(WARNING) << "Failed to open dex file: " << dex_location;
-    ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
-    soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/io/IOException;",
-                                   "Unable to open dex file: %s", dex_location.c_str());
+  if (dex_file == nullptr) {
+    CHECK_EQ(env->ExceptionCheck(), JNI_TRUE);
     return 0;
   }
   return static_cast<jint>(reinterpret_cast<uintptr_t>(dex_file));
 }
 
-static const DexFile* toDexFile(int dex_file_address) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static const DexFile* toDexFile(int dex_file_address, JNIEnv* env) {
   const DexFile* dex_file = reinterpret_cast<const DexFile*>(static_cast<uintptr_t>(dex_file_address));
-  if (dex_file == NULL) {
+  if (UNLIKELY(dex_file == nullptr)) {
+    ScopedObjectAccess soa(env);
     ThrowNullPointerException(NULL, "dex_file == null");
   }
   return dex_file;
@@ -133,11 +130,8 @@ static const DexFile* toDexFile(int dex_file_address) SHARED_LOCKS_REQUIRED(Lock
 
 static void DexFile_closeDexFile(JNIEnv* env, jclass, jint cookie) {
   const DexFile* dex_file;
-  {
-    ScopedObjectAccess soa(env);
-    dex_file = toDexFile(cookie);
-  }
-  if (dex_file == NULL) {
+  dex_file = toDexFile(cookie, env);
+  if (dex_file == nullptr) {
     return;
   }
   if (Runtime::Current()->GetClassLinker()->IsDexFileRegistered(*dex_file)) {
@@ -148,8 +142,7 @@ static void DexFile_closeDexFile(JNIEnv* env, jclass, jint cookie) {
 
 static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, jobject javaLoader,
                                         jint cookie) {
-  ScopedObjectAccess soa(env);
-  const DexFile* dex_file = toDexFile(cookie);
+  const DexFile* dex_file = toDexFile(cookie, env);
   if (dex_file == NULL) {
     VLOG(class_linker) << "Failed to find dex_file";
     return NULL;
@@ -165,6 +158,7 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
     VLOG(class_linker) << "Failed to find dex_class_def";
     return NULL;
   }
+  ScopedObjectAccess soa(env);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   class_linker->RegisterDexFile(*dex_file);
   mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(javaLoader);
@@ -176,12 +170,9 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
 
 static jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jint cookie) {
   const DexFile* dex_file;
-  {
-    ScopedObjectAccess soa(env);
-    dex_file = toDexFile(cookie);
-  }
-  if (dex_file == NULL) {
-    return NULL;
+  dex_file = toDexFile(cookie, env);
+  if (dex_file == nullptr) {
+    return nullptr;
   }
 
   std::vector<std::string> class_names;
@@ -194,21 +185,17 @@ static jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jint cookie) {
 }
 
 static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename) {
-  bool debug_logging = false;
+  const bool kVerboseLogging = false;  // Spammy logging.
+  const bool kDebugLogging = true;  // Logging useful for debugging.
 
   ScopedUtfChars filename(env, javaFilename);
-  if (filename.c_str() == NULL) {
-    LOG(ERROR) << "DexFile_isDexOptNeeded null filename";
-    return JNI_TRUE;
-  }
 
-  if (!OS::FileExists(filename.c_str())) {
+  if ((filename.c_str() == nullptr) || !OS::FileExists(filename.c_str())) {
     LOG(ERROR) << "DexFile_isDexOptNeeded file '" << filename.c_str() << "' does not exist";
-    ScopedObjectAccess soa(env);
-    ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
-    soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/io/FileNotFoundException;",
-                                   "%s", filename.c_str());
-    return JNI_TRUE;
+    ScopedLocalRef<jclass> fnfe(env, env->FindClass("java/io/FileNotFoundException"));
+    const char* message = (filename.c_str() == nullptr) ? "<empty file name>" : filename.c_str();
+    env->ThrowNew(fnfe.get(), message);
+    return JNI_FALSE;
   }
 
   // Always treat elements of the bootclasspath as up-to-date.  The
@@ -218,7 +205,7 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
   const std::vector<const DexFile*>& boot_class_path = class_linker->GetBootClassPath();
   for (size_t i = 0; i < boot_class_path.size(); i++) {
     if (boot_class_path[i]->GetLocation() == filename.c_str()) {
-      if (debug_logging) {
+      if (kVerboseLogging) {
         LOG(INFO) << "DexFile_isDexOptNeeded ignoring boot class path file: " << filename.c_str();
       }
       return JNI_FALSE;
@@ -227,40 +214,55 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
 
   // Check if we have an odex file next to the dex file.
   std::string odex_filename(OatFile::DexFilenameToOdexFilename(filename.c_str()));
-  UniquePtr<const OatFile> oat_file(OatFile::Open(odex_filename, odex_filename, NULL, false));
-  if (oat_file.get() != NULL) {
-    ScopedObjectAccess soa(env);
-    const art::OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(filename.c_str(), NULL);
-    if (oat_dex_file == NULL) {
-      if (debug_logging) {
-        LOG(INFO) << "DexFile_isDexOptNeeded GetOatDexFile failed";
-      }
-    } else {
+  std::string error_msg;
+  UniquePtr<const OatFile> oat_file(OatFile::Open(odex_filename, odex_filename, NULL, false,
+                                                  &error_msg));
+  if (oat_file.get() == nullptr) {
+    if (kVerboseLogging) {
+      LOG(INFO) << "DexFile_isDexOptNeeded failed to open oat file '" << filename.c_str()
+          << "': " << error_msg;
+    }
+    error_msg.clear();
+  } else {
+    const art::OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(filename.c_str(), NULL,
+                                                                           kDebugLogging);
+    if (oat_dex_file != nullptr) {
       uint32_t location_checksum;
-      // If we have no classes.dex checksum such as in a user build, assume up-to-date.
-      if (!DexFile::GetChecksum(filename.c_str(), &location_checksum)) {
-        if (debug_logging) {
+      // If its not possible to read the classes.dex assume up-to-date as we won't be able to
+      // compile it anyway.
+      if (!DexFile::GetChecksum(filename.c_str(), &location_checksum, &error_msg)) {
+        if (kVerboseLogging) {
           LOG(INFO) << "DexFile_isDexOptNeeded ignoring precompiled stripped file: "
-              << filename.c_str();
+              << filename.c_str() << ": " << error_msg;
         }
         return JNI_FALSE;
       }
-      if (ClassLinker::VerifyOatFileChecksums(oat_file.get(), filename.c_str(), location_checksum)) {
-        if (debug_logging) {
+      if (ClassLinker::VerifyOatFileChecksums(oat_file.get(), filename.c_str(), location_checksum,
+                                              &error_msg)) {
+        if (kVerboseLogging) {
           LOG(INFO) << "DexFile_isDexOptNeeded precompiled file " << odex_filename
-              << " is up-to-date checksum compared to " << filename.c_str();
+              << " has an up-to-date checksum compared to " << filename.c_str();
         }
         return JNI_FALSE;
+      } else {
+        if (kVerboseLogging) {
+          LOG(INFO) << "DexFile_isDexOptNeeded found precompiled file " << odex_filename
+              << " with an out-of-date checksum compared to " << filename.c_str()
+              << ": " << error_msg;
+        }
+        error_msg.clear();
       }
     }
   }
 
   // Check if we have an oat file in the cache
   std::string cache_location(GetDalvikCacheFilenameOrDie(filename.c_str()));
-  oat_file.reset(OatFile::Open(cache_location, filename.c_str(), NULL, false));
-  if (oat_file.get() == NULL) {
-    LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
-              << " does not exist for " << filename.c_str();
+  oat_file.reset(OatFile::Open(cache_location, filename.c_str(), NULL, false, &error_msg));
+  if (oat_file.get() == nullptr) {
+    if (kDebugLogging) {
+      LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
+          << " does not exist for " << filename.c_str() << ": " << error_msg;
+    }
     return JNI_TRUE;
   }
 
@@ -268,41 +270,53 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
     if (space->IsImageSpace()) {
       // TODO: Ensure this works with multiple image spaces.
       const ImageHeader& image_header = space->AsImageSpace()->GetImageHeader();
-      if (oat_file->GetOatHeader().GetImageFileLocationOatChecksum() != image_header.GetOatChecksum()) {
-        ScopedObjectAccess soa(env);
-        LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
-                  << " has out-of-date oat checksum compared to "
-                  << image_header.GetImageRoot(ImageHeader::kOatLocation)->AsString()->ToModifiedUtf8();
+      if (oat_file->GetOatHeader().GetImageFileLocationOatChecksum() !=
+          image_header.GetOatChecksum()) {
+        if (kDebugLogging) {
+          ScopedObjectAccess soa(env);
+          LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
+              << " has out-of-date oat checksum compared to "
+              << image_header.GetImageRoot(ImageHeader::kOatLocation)->AsString()->ToModifiedUtf8();
+        }
         return JNI_TRUE;
       }
       if (oat_file->GetOatHeader().GetImageFileLocationOatDataBegin()
           != reinterpret_cast<uint32_t>(image_header.GetOatDataBegin())) {
-        ScopedObjectAccess soa(env);
-        LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
-                  << " has out-of-date oat begin compared to "
-                  << image_header.GetImageRoot(ImageHeader::kOatLocation)->AsString()->ToModifiedUtf8();
+        if (kDebugLogging) {
+          ScopedObjectAccess soa(env);
+          LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
+              << " has out-of-date oat begin compared to "
+              << image_header.GetImageRoot(ImageHeader::kOatLocation)->AsString()->ToModifiedUtf8();
+        }
         return JNI_TRUE;
       }
     }
   }
 
-  ScopedObjectAccess soa(env);
   uint32_t location_checksum;
-  if (!DexFile::GetChecksum(filename.c_str(), &location_checksum)) {
-    LOG(ERROR) << "DexFile_isDexOptNeeded failed to compute checksum of " << filename.c_str();
+  if (!DexFile::GetChecksum(filename.c_str(), &location_checksum, &error_msg)) {
+    if (kDebugLogging) {
+      LOG(ERROR) << "DexFile_isDexOptNeeded failed to compute checksum of " << filename.c_str()
+            << " (error " << error_msg << ")";
+    }
     return JNI_TRUE;
   }
 
-  if (!ClassLinker::VerifyOatFileChecksums(oat_file.get(), filename.c_str(), location_checksum)) {
-    LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
-        << " has out-of-date checksum compared to " << filename.c_str();
+  if (!ClassLinker::VerifyOatFileChecksums(oat_file.get(), filename.c_str(), location_checksum,
+                                           &error_msg)) {
+    if (kDebugLogging) {
+      LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
+          << " has out-of-date checksum compared to " << filename.c_str()
+          << " (error " << error_msg << ")";
+    }
     return JNI_TRUE;
   }
 
-  if (debug_logging) {
+  if (kVerboseLogging) {
     LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
               << " is up-to-date for " << filename.c_str();
   }
+  CHECK(error_msg.empty()) << error_msg;
   return JNI_FALSE;
 }
 

@@ -64,7 +64,7 @@ static void DumpStat(size_t x, size_t y, const char* str) {
   if (x == 0 && y == 0) {
     return;
   }
-  VLOG(compiler) << Percentage(x, y) << "% of " << str << " for " << (x + y) << " cases";
+  LOG(INFO) << Percentage(x, y) << "% of " << str << " for " << (x + y) << " cases";
 }
 
 class AOTCompilationStats {
@@ -336,10 +336,12 @@ extern "C" void compilerLLVMSetBitcodeFileName(art::CompilerDriver& driver,
                                                std::string const& filename);
 
 CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet instruction_set,
+                               InstructionSetFeatures instruction_set_features,
                                bool image, DescriptorSet* image_classes, size_t thread_count,
                                bool dump_stats)
     : compiler_backend_(compiler_backend),
       instruction_set_(instruction_set),
+      instruction_set_features_(instruction_set_features),
       freezing_constructor_lock_("freezing constructor lock"),
       compiled_classes_lock_("compiled classes lock"),
       compiled_methods_lock_("compiled method lock"),
@@ -355,7 +357,11 @@ CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet 
       jni_compiler_(NULL),
       compiler_enable_auto_elf_loading_(NULL),
       compiler_get_method_code_addr_(NULL),
-      support_boot_image_fixup_(true) {
+      support_boot_image_fixup_(instruction_set == kThumb2),
+      dedupe_code_("dedupe code"),
+      dedupe_mapping_table_("dedupe mapping table"),
+      dedupe_vmap_table_("dedupe vmap table"),
+      dedupe_gc_map_("dedupe gc map") {
 
   CHECK_PTHREAD_CALL(pthread_key_create, (&tls_key_, NULL), "compiler tls key");
 
@@ -465,6 +471,11 @@ const std::vector<uint8_t>* CompilerDriver::CreateJniDlsymLookup() const {
   return CreateTrampoline(instruction_set_, kJniAbi, JNI_ENTRYPOINT_OFFSET(pDlsymLookup));
 }
 
+const std::vector<uint8_t>* CompilerDriver::CreatePortableImtConflictTrampoline() const {
+  return CreateTrampoline(instruction_set_, kPortableAbi,
+                          PORTABLE_ENTRYPOINT_OFFSET(pPortableImtConflictTrampoline));
+}
+
 const std::vector<uint8_t>* CompilerDriver::CreatePortableResolutionTrampoline() const {
   return CreateTrampoline(instruction_set_, kPortableAbi,
                           PORTABLE_ENTRYPOINT_OFFSET(pPortableResolutionTrampoline));
@@ -473,6 +484,11 @@ const std::vector<uint8_t>* CompilerDriver::CreatePortableResolutionTrampoline()
 const std::vector<uint8_t>* CompilerDriver::CreatePortableToInterpreterBridge() const {
   return CreateTrampoline(instruction_set_, kPortableAbi,
                           PORTABLE_ENTRYPOINT_OFFSET(pPortableToInterpreterBridge));
+}
+
+const std::vector<uint8_t>* CompilerDriver::CreateQuickImtConflictTrampoline() const {
+  return CreateTrampoline(instruction_set_, kQuickAbi,
+                          QUICK_ENTRYPOINT_OFFSET(pQuickImtConflictTrampoline));
 }
 
 const std::vector<uint8_t>* CompilerDriver::CreateQuickResolutionTrampoline() const {
@@ -597,7 +613,6 @@ void CompilerDriver::PreCompile(jobject class_loader, const std::vector<const De
 }
 
 bool CompilerDriver::IsImageClass(const char* descriptor) const {
-  DCHECK(descriptor != NULL);
   if (!IsImage()) {
     return true;
   } else {
@@ -776,7 +791,8 @@ void CompilerDriver::UpdateImageClasses(base::TimingLogger& timings) {
 
 bool CompilerDriver::CanAssumeTypeIsPresentInDexCache(const DexFile& dex_file,
                                                       uint32_t type_idx) {
-  if (IsImage() && IsImageClass(dex_file.GetTypeDescriptor(dex_file.GetTypeId(type_idx)))) {
+  if (IsImage() &&
+      IsImageClass(dex_file.StringDataByIdx(dex_file.GetTypeId(type_idx).descriptor_idx_))) {
     if (kIsDebugBuild) {
       ScopedObjectAccess soa(Thread::Current());
       mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
@@ -912,9 +928,9 @@ static mirror::ArtField* ComputeFieldReferencedFromCompilingMethod(ScopedObjectA
 }
 
 static mirror::ArtMethod* ComputeMethodReferencedFromCompilingMethod(ScopedObjectAccess& soa,
-                                                                          const DexCompilationUnit* mUnit,
-                                                                          uint32_t method_idx,
-                                                                          InvokeType type)
+                                                                     const DexCompilationUnit* mUnit,
+                                                                     uint32_t method_idx,
+                                                                     InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::DexCache* dex_cache = mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile());
   mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader());
@@ -923,11 +939,11 @@ static mirror::ArtMethod* ComputeMethodReferencedFromCompilingMethod(ScopedObjec
 }
 
 bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit,
-                                              int& field_offset, bool& is_volatile, bool is_put) {
+                                              bool is_put, int* field_offset, bool* is_volatile) {
   ScopedObjectAccess soa(Thread::Current());
   // Conservative defaults.
-  field_offset = -1;
-  is_volatile = true;
+  *field_offset = -1;
+  *is_volatile = true;
   // Try to resolve field and ignore if an Incompatible Class Change Error (ie is static).
   mirror::ArtField* resolved_field = ComputeFieldReferencedFromCompilingMethod(soa, mUnit, field_idx);
   if (resolved_field != NULL && !resolved_field->IsStatic()) {
@@ -954,8 +970,8 @@ bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompi
       bool is_write_to_final_from_wrong_class = is_put && resolved_field->IsFinal() &&
           fields_class != referrer_class;
       if (access_ok && !is_write_to_final_from_wrong_class) {
-        field_offset = resolved_field->GetOffset().Int32Value();
-        is_volatile = resolved_field->IsVolatile();
+        *field_offset = resolved_field->GetOffset().Int32Value();
+        *is_volatile = resolved_field->IsVolatile();
         stats_->ResolvedInstanceField();
         return true;  // Fast path.
       }
@@ -970,15 +986,14 @@ bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompi
 }
 
 bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit,
-                                            int& field_offset, int& ssb_index,
-                                            bool& is_referrers_class, bool& is_volatile,
-                                            bool is_put) {
+                                            bool is_put, int* field_offset, int* ssb_index,
+                                            bool* is_referrers_class, bool* is_volatile) {
   ScopedObjectAccess soa(Thread::Current());
   // Conservative defaults.
-  field_offset = -1;
-  ssb_index = -1;
-  is_referrers_class = false;
-  is_volatile = true;
+  *field_offset = -1;
+  *ssb_index = -1;
+  *is_referrers_class = false;
+  *is_volatile = true;
   // Try to resolve field and ignore if an Incompatible Class Change Error (ie isn't static).
   mirror::ArtField* resolved_field = ComputeFieldReferencedFromCompilingMethod(soa, mUnit, field_idx);
   if (resolved_field != NULL && resolved_field->IsStatic()) {
@@ -988,9 +1003,9 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
     if (referrer_class != NULL) {
       mirror::Class* fields_class = resolved_field->GetDeclaringClass();
       if (fields_class == referrer_class) {
-        is_referrers_class = true;  // implies no worrying about class initialization
-        field_offset = resolved_field->GetOffset().Int32Value();
-        is_volatile = resolved_field->IsVolatile();
+        *is_referrers_class = true;  // implies no worrying about class initialization
+        *field_offset = resolved_field->GetOffset().Int32Value();
+        *is_volatile = resolved_field->IsVolatile();
         stats_->ResolvedLocalStaticField();
         return true;  // fast path
       } else {
@@ -1021,9 +1036,9 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
           if (fields_class->GetDexCache() == dex_cache) {
             // common case where the dex cache of both the referrer and the field are the same,
             // no need to search the dex file
-            ssb_index = fields_class->GetDexTypeIndex();
-            field_offset = resolved_field->GetOffset().Int32Value();
-            is_volatile = resolved_field->IsVolatile();
+            *ssb_index = fields_class->GetDexTypeIndex();
+            *field_offset = resolved_field->GetOffset().Int32Value();
+            *is_volatile = resolved_field->IsVolatile();
             stats_->ResolvedStaticField();
             return true;
           }
@@ -1036,9 +1051,9 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
                mUnit->GetDexFile()->FindTypeId(mUnit->GetDexFile()->GetIndexForStringId(*string_id));
             if (type_id != NULL) {
               // medium path, needs check of static storage base being initialized
-              ssb_index = mUnit->GetDexFile()->GetIndexForTypeId(*type_id);
-              field_offset = resolved_field->GetOffset().Int32Value();
-              is_volatile = resolved_field->IsVolatile();
+              *ssb_index = mUnit->GetDexFile()->GetIndexForTypeId(*type_id);
+              *field_offset = resolved_field->GetOffset().Int32Value();
+              *is_volatile = resolved_field->IsVolatile();
               stats_->ResolvedStaticField();
               return true;
             }
@@ -1055,81 +1070,138 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
   return false;  // Incomplete knowledge needs slow path.
 }
 
-void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type,
+void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType sharp_type,
+                                                   bool no_guarantee_of_dex_cache_entry,
                                                    mirror::Class* referrer_class,
                                                    mirror::ArtMethod* method,
-                                                   uintptr_t& direct_code,
-                                                   uintptr_t& direct_method,
-                                                   bool update_stats) {
+                                                   bool update_stats,
+                                                   MethodReference* target_method,
+                                                   uintptr_t* direct_code,
+                                                   uintptr_t* direct_method) {
   // For direct and static methods compute possible direct_code and direct_method values, ie
   // an address for the Method* being invoked and an address of the code for that Method*.
   // For interface calls compute a value for direct_method that is the interface method being
   // invoked, so this can be passed to the out-of-line runtime support code.
-  direct_code = 0;
-  direct_method = 0;
+  *direct_code = 0;
+  *direct_method = 0;
+  bool use_dex_cache = false;
+  bool compiling_boot = Runtime::Current()->GetHeap()->GetContinuousSpaces().size() == 1;
   if (compiler_backend_ == kPortable) {
     if (sharp_type != kStatic && sharp_type != kDirect) {
       return;
     }
+    use_dex_cache = true;
   } else {
-    if (sharp_type != kStatic && sharp_type != kDirect && sharp_type != kInterface) {
+    if (sharp_type != kStatic && sharp_type != kDirect) {
       return;
     }
+    // TODO: support patching on all architectures.
+    use_dex_cache = compiling_boot && !support_boot_image_fixup_;
   }
-  bool method_code_in_boot = method->GetDeclaringClass()->GetClassLoader() == NULL;
-  if (!method_code_in_boot) {
-    return;
-  }
-  bool has_clinit_trampoline = method->IsStatic() && !method->GetDeclaringClass()->IsInitialized();
-  if (has_clinit_trampoline && (method->GetDeclaringClass() != referrer_class)) {
-    // Ensure we run the clinit trampoline unless we are invoking a static method in the same class.
-    return;
-  }
-  if (update_stats) {
-    if (sharp_type != kInterface) {  // Interfaces always go via a trampoline.
-      stats_->DirectCallsToBoot(type);
-    }
-    stats_->DirectMethodsToBoot(type);
-  }
-  bool compiling_boot = Runtime::Current()->GetHeap()->GetContinuousSpaces().size() == 1;
-  if (compiling_boot) {
-    if (support_boot_image_fixup_) {
-      MethodHelper mh(method);
-      if (IsImageClass(mh.GetDeclaringClassDescriptor())) {
-        // We can only branch directly to Methods that are resolved in the DexCache.
-        // Otherwise we won't invoke the resolution trampoline.
-        direct_method = -1;
-        direct_code = -1;
+  bool method_code_in_boot = (method->GetDeclaringClass()->GetClassLoader() == nullptr);
+  if (!use_dex_cache) {
+    if (!method_code_in_boot) {
+      use_dex_cache = true;
+    } else {
+      bool has_clinit_trampoline =
+          method->IsStatic() && !method->GetDeclaringClass()->IsInitialized();
+      if (has_clinit_trampoline && (method->GetDeclaringClass() != referrer_class)) {
+        // Ensure we run the clinit trampoline unless we are invoking a static method in the same
+        // class.
+        use_dex_cache = true;
       }
     }
-  } else {
-    if (Runtime::Current()->GetHeap()->FindSpaceFromObject(method, false)->IsImageSpace()) {
-      direct_method = reinterpret_cast<uintptr_t>(method);
+  }
+  if (update_stats && method_code_in_boot) {
+    stats_->DirectCallsToBoot(*type);
+    stats_->DirectMethodsToBoot(*type);
+  }
+  if (!use_dex_cache && compiling_boot) {
+    MethodHelper mh(method);
+    if (!IsImageClass(mh.GetDeclaringClassDescriptor())) {
+      // We can only branch directly to Methods that are resolved in the DexCache.
+      // Otherwise we won't invoke the resolution trampoline.
+      use_dex_cache = true;
     }
-    direct_code = reinterpret_cast<uintptr_t>(method->GetEntryPointFromCompiledCode());
+  }
+  // The method is defined not within this dex file. We need a dex cache slot within the current
+  // dex file or direct pointers.
+  bool must_use_direct_pointers = false;
+  if (target_method->dex_file == method->GetDeclaringClass()->GetDexCache()->GetDexFile()) {
+    target_method->dex_method_index = method->GetDexMethodIndex();
+  } else {
+    // TODO: support patching from one dex file to another in the boot image.
+    use_dex_cache = use_dex_cache || compiling_boot;
+    if (no_guarantee_of_dex_cache_entry) {
+      // See if the method is also declared in this dex cache.
+      uint32_t dex_method_idx = MethodHelper(method).FindDexMethodIndexInOtherDexFile(
+          *referrer_class->GetDexCache()->GetDexFile());
+      if (dex_method_idx != DexFile::kDexNoIndex) {
+        target_method->dex_method_index = dex_method_idx;
+      } else {
+        must_use_direct_pointers = true;
+      }
+    }
+  }
+  if (use_dex_cache) {
+    if (must_use_direct_pointers) {
+      // Fail. Test above showed the only safe dispatch was via the dex cache, however, the direct
+      // pointers are required as the dex cache lacks an appropriate entry.
+      VLOG(compiler) << "Dex cache devirtualization failed for: " << PrettyMethod(method);
+    } else {
+      *type = sharp_type;
+    }
+  } else {
+    if (compiling_boot) {
+      *type = sharp_type;
+      *direct_method = -1;
+      *direct_code = -1;
+    } else {
+      bool method_in_image =
+          Runtime::Current()->GetHeap()->FindSpaceFromObject(method, false)->IsImageSpace();
+      if (method_in_image) {
+        CHECK(!method->IsAbstract());
+        *type = sharp_type;
+        *direct_method = reinterpret_cast<uintptr_t>(method);
+        *direct_code = reinterpret_cast<uintptr_t>(method->GetEntryPointFromCompiledCode());
+        target_method->dex_file = method->GetDeclaringClass()->GetDexCache()->GetDexFile();
+        target_method->dex_method_index = method->GetDexMethodIndex();
+      } else if (!must_use_direct_pointers) {
+        // Set the code and rely on the dex cache for the method.
+        *type = sharp_type;
+        *direct_code = reinterpret_cast<uintptr_t>(method->GetEntryPointFromCompiledCode());
+      } else {
+        // Direct pointers were required but none were available.
+        VLOG(compiler) << "Dex cache devirtualization failed for: " << PrettyMethod(method);
+      }
+    }
   }
 }
 
 bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const uint32_t dex_pc,
-                                       InvokeType& invoke_type,
-                                       MethodReference& target_method,
-                                       int& vtable_idx,
-                                       uintptr_t& direct_code, uintptr_t& direct_method,
-                                       bool update_stats) {
+                                       bool update_stats, bool enable_devirtualization,
+                                       InvokeType* invoke_type, MethodReference* target_method,
+                                       int* vtable_idx, uintptr_t* direct_code,
+                                       uintptr_t* direct_method) {
   ScopedObjectAccess soa(Thread::Current());
-  vtable_idx = -1;
-  direct_code = 0;
-  direct_method = 0;
+  *vtable_idx = -1;
+  *direct_code = 0;
+  *direct_method = 0;
   mirror::ArtMethod* resolved_method =
-      ComputeMethodReferencedFromCompilingMethod(soa, mUnit, target_method.dex_method_index,
-                                                 invoke_type);
+      ComputeMethodReferencedFromCompilingMethod(soa, mUnit, target_method->dex_method_index,
+                                                 *invoke_type);
   if (resolved_method != NULL) {
+    if (*invoke_type == kVirtual || *invoke_type == kSuper) {
+      *vtable_idx = resolved_method->GetMethodIndex();
+    } else if (*invoke_type == kInterface) {
+      *vtable_idx = resolved_method->GetDexMethodIndex();
+    }
     // Don't try to fast-path if we don't understand the caller's class or this appears to be an
     // Incompatible Class Change Error.
     mirror::Class* referrer_class =
         ComputeCompilingMethodsClass(soa, resolved_method->GetDeclaringClass()->GetDexCache(),
                                      mUnit);
-    bool icce = resolved_method->CheckIncompatibleClassChange(invoke_type);
+    bool icce = resolved_method->CheckIncompatibleClassChange(*invoke_type);
     if (referrer_class != NULL && !icce) {
       mirror::Class* methods_class = resolved_method->GetDeclaringClass();
       if (!referrer_class->CanAccess(methods_class) ||
@@ -1140,42 +1212,43 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
         // method public. Resort to the dex file to determine the correct class for the access
         // check.
         uint16_t class_idx =
-            target_method.dex_file->GetMethodId(target_method.dex_method_index).class_idx_;
-        methods_class = mUnit->GetClassLinker()->ResolveType(*target_method.dex_file,
+            target_method->dex_file->GetMethodId(target_method->dex_method_index).class_idx_;
+        methods_class = mUnit->GetClassLinker()->ResolveType(*target_method->dex_file,
                                                              class_idx, referrer_class);
       }
       if (referrer_class->CanAccess(methods_class) &&
           referrer_class->CanAccessMember(methods_class, resolved_method->GetAccessFlags())) {
-        const bool kEnableFinalBasedSharpening = true;
+        const bool enableFinalBasedSharpening = enable_devirtualization;
         // Sharpen a virtual call into a direct call when the target is known not to have been
         // overridden (ie is final).
         bool can_sharpen_virtual_based_on_type =
-            (invoke_type == kVirtual) && (resolved_method->IsFinal() || methods_class->IsFinal());
+            (*invoke_type == kVirtual) && (resolved_method->IsFinal() || methods_class->IsFinal());
         // For invoke-super, ensure the vtable index will be correct to dispatch in the vtable of
         // the super class.
-        bool can_sharpen_super_based_on_type = (invoke_type == kSuper) &&
+        bool can_sharpen_super_based_on_type = (*invoke_type == kSuper) &&
             (referrer_class != methods_class) && referrer_class->IsSubClass(methods_class) &&
             resolved_method->GetMethodIndex() < methods_class->GetVTable()->GetLength() &&
             (methods_class->GetVTable()->Get(resolved_method->GetMethodIndex()) == resolved_method);
 
-        if (kEnableFinalBasedSharpening && (can_sharpen_virtual_based_on_type ||
+        if (enableFinalBasedSharpening && (can_sharpen_virtual_based_on_type ||
                                             can_sharpen_super_based_on_type)) {
           // Sharpen a virtual call into a direct call. The method_idx is into referrer's
           // dex cache, check that this resolved method is where we expect it.
-          CHECK(referrer_class->GetDexCache()->GetResolvedMethod(target_method.dex_method_index) ==
+          CHECK(referrer_class->GetDexCache()->GetResolvedMethod(target_method->dex_method_index) ==
                 resolved_method) << PrettyMethod(resolved_method);
-          if (update_stats) {
-            stats_->ResolvedMethod(invoke_type);
-            stats_->VirtualMadeDirect(invoke_type);
+          InvokeType orig_invoke_type = *invoke_type;
+          GetCodeAndMethodForDirectCall(invoke_type, kDirect, false, referrer_class, resolved_method,
+                                        update_stats, target_method, direct_code, direct_method);
+          if (update_stats && (*invoke_type == kDirect)) {
+            stats_->ResolvedMethod(orig_invoke_type);
+            stats_->VirtualMadeDirect(orig_invoke_type);
           }
-          GetCodeAndMethodForDirectCall(invoke_type, kDirect, referrer_class, resolved_method,
-                                        direct_code, direct_method, update_stats);
-          invoke_type = kDirect;
+          DCHECK_NE(*invoke_type, kSuper) << PrettyMethod(resolved_method);
           return true;
         }
-        const bool kEnableVerifierBasedSharpening = true;
-        if (kEnableVerifierBasedSharpening && (invoke_type == kVirtual ||
-                                               invoke_type == kInterface)) {
+        const bool enableVerifierBasedSharpening = enable_devirtualization;
+        if (enableVerifierBasedSharpening && (*invoke_type == kVirtual ||
+                                              *invoke_type == kInterface)) {
           // Did the verifier record a more precise invoke target based on its type information?
           const MethodReference caller_method(mUnit->GetDexFile(), mUnit->GetDexMethodIndex());
           const MethodReference* devirt_map_target =
@@ -1192,88 +1265,27 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
                                                        kVirtual);
             CHECK(called_method != NULL);
             CHECK(!called_method->IsAbstract());
-            GetCodeAndMethodForDirectCall(invoke_type, kDirect, referrer_class, called_method,
-                                          direct_code, direct_method, update_stats);
-            bool compiler_needs_dex_cache =
-                (GetCompilerBackend() == kPortable) ||
-                (GetCompilerBackend() == kQuick && instruction_set_ != kThumb2) ||
-                (direct_code == 0) || (direct_code == static_cast<unsigned int>(-1)) ||
-                (direct_method == 0) || (direct_method == static_cast<unsigned int>(-1));
-            if ((devirt_map_target->dex_file != target_method.dex_file) &&
-                compiler_needs_dex_cache) {
-              // We need to use the dex cache to find either the method or code, and the dex file
-              // containing the method isn't the one expected for the target method. Try to find
-              // the method within the expected target dex file.
-              // TODO: the -1 could be handled as direct code if the patching new the target dex
-              //       file.
-              // TODO: quick only supports direct pointers with Thumb2.
-              // TODO: the following should be factored into a common helper routine to find
-              //       one dex file's method within another.
-              const DexFile* dexfile = target_method.dex_file;
-              const DexFile* cm_dexfile =
-                  called_method->GetDeclaringClass()->GetDexCache()->GetDexFile();
-              const DexFile::MethodId& cm_method_id =
-                  cm_dexfile->GetMethodId(called_method->GetDexMethodIndex());
-              const char* cm_descriptor = cm_dexfile->StringByTypeIdx(cm_method_id.class_idx_);
-              const DexFile::StringId* descriptor = dexfile->FindStringId(cm_descriptor);
-              if (descriptor != NULL) {
-                const DexFile::TypeId* type_id =
-                    dexfile->FindTypeId(dexfile->GetIndexForStringId(*descriptor));
-                if (type_id != NULL) {
-                  const char* cm_name = cm_dexfile->GetMethodName(cm_method_id);
-                  const DexFile::StringId* name = dexfile->FindStringId(cm_name);
-                  if (name != NULL) {
-                    uint16_t return_type_idx;
-                    std::vector<uint16_t> param_type_idxs;
-                    bool success = dexfile->CreateTypeList(&return_type_idx, &param_type_idxs,
-                                                           cm_dexfile->GetMethodSignature(cm_method_id));
-                    if (success) {
-                      const DexFile::ProtoId* sig =
-                          dexfile->FindProtoId(return_type_idx, param_type_idxs);
-                      if (sig != NULL) {
-                        const  DexFile::MethodId* method_id = dexfile->FindMethodId(*type_id,
-                                                                                    *name, *sig);
-                        if (method_id != NULL) {
-                          if (update_stats) {
-                            stats_->ResolvedMethod(invoke_type);
-                            stats_->VirtualMadeDirect(invoke_type);
-                            stats_->PreciseTypeDevirtualization();
-                          }
-                          target_method.dex_method_index = dexfile->GetIndexForMethodId(*method_id);
-                          invoke_type = kDirect;
-                          return true;
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-              // TODO: the stats for direct code and method are off as we failed to find the direct
-              //       method in the referring method's dex cache/file.
-            } else {
-              if (update_stats) {
-                stats_->ResolvedMethod(invoke_type);
-                stats_->VirtualMadeDirect(invoke_type);
-                stats_->PreciseTypeDevirtualization();
-              }
-              target_method = *devirt_map_target;
-              invoke_type = kDirect;
-              return true;
+            InvokeType orig_invoke_type = *invoke_type;
+            GetCodeAndMethodForDirectCall(invoke_type, kDirect, true, referrer_class, called_method,
+                                          update_stats, target_method, direct_code, direct_method);
+            if (update_stats && (*invoke_type == kDirect)) {
+              stats_->ResolvedMethod(orig_invoke_type);
+              stats_->VirtualMadeDirect(orig_invoke_type);
+              stats_->PreciseTypeDevirtualization();
             }
+            DCHECK_NE(*invoke_type, kSuper);
+            return true;
           }
         }
-        if (invoke_type == kSuper) {
+        if (*invoke_type == kSuper) {
           // Unsharpened super calls are suspicious so go slow-path.
         } else {
           // Sharpening failed so generate a regular resolved method dispatch.
           if (update_stats) {
-            stats_->ResolvedMethod(invoke_type);
+            stats_->ResolvedMethod(*invoke_type);
           }
-          if (invoke_type == kVirtual || invoke_type == kSuper) {
-            vtable_idx = resolved_method->GetMethodIndex();
-          }
-          GetCodeAndMethodForDirectCall(invoke_type, invoke_type, referrer_class, resolved_method,
-                                        direct_code, direct_method, update_stats);
+          GetCodeAndMethodForDirectCall(invoke_type, *invoke_type, false, referrer_class, resolved_method,
+                                        update_stats, target_method, direct_code, direct_method);
           return true;
         }
       }
@@ -1284,7 +1296,7 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
       soa.Self()->ClearException();
   }
   if (update_stats) {
-    stats_->UnresolvedMethod(invoke_type);
+    stats_->UnresolvedMethod(*invoke_type);
   }
   return false;  // Incomplete knowledge needs slow path.
 }
@@ -1432,20 +1444,45 @@ class ParallelCompilationManager {
   DISALLOW_COPY_AND_ASSIGN(ParallelCompilationManager);
 };
 
-// Return true if the class should be skipped during compilation. We
-// never skip classes in the boot class loader. However, if we have a
-// non-boot class loader and we can resolve the class in the boot
-// class loader, we do skip the class. This happens if an app bundles
-// classes found in the boot classpath. Since at runtime we will
-// select the class from the boot classpath, do not attempt to resolve
-// or compile it now.
+// Return true if the class should be skipped during compilation.
+//
+// The first case where we skip is for redundant class definitions in
+// the boot classpath. We skip all but the first definition in that case.
+//
+// The second case where we skip is when an app bundles classes found
+// in the boot classpath. Since at runtime we will select the class from
+// the boot classpath, we ignore the one from the app.
 static bool SkipClass(ClassLinker* class_linker, jobject class_loader, const DexFile& dex_file,
                       const DexFile::ClassDef& class_def) {
+  const char* descriptor = dex_file.GetClassDescriptor(class_def);
   if (class_loader == NULL) {
+    DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, class_linker->GetBootClassPath());
+    CHECK(pair.second != NULL);
+    if (pair.first != &dex_file) {
+      LOG(WARNING) << "Skipping class " << descriptor << " from " << dex_file.GetLocation()
+                   << " previously found in " << pair.first->GetLocation();
+      return true;
+    }
     return false;
   }
-  const char* descriptor = dex_file.GetClassDescriptor(class_def);
   return class_linker->IsInBootClassPath(descriptor);
+}
+
+// A fast version of SkipClass above if the class pointer is available
+// that avoids the expensive FindInClassPath search.
+static bool SkipClass(jobject class_loader, const DexFile& dex_file, mirror::Class* klass)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  DCHECK(klass != NULL);
+  const DexFile& original_dex_file = *klass->GetDexCache()->GetDexFile();
+  if (&dex_file != &original_dex_file) {
+    if (class_loader == NULL) {
+      LOG(WARNING) << "Skipping class " << PrettyDescriptor(klass) << " from "
+                   << dex_file.GetLocation() << " previously found in "
+                   << original_dex_file.GetLocation();
+    }
+    return true;
+  }
+  return false;
 }
 
 static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manager,
@@ -1569,8 +1606,8 @@ static void ResolveType(const ParallelCompilationManager* manager, size_t type_i
     CHECK(soa.Self()->IsExceptionPending());
     mirror::Throwable* exception = soa.Self()->GetException(NULL);
     VLOG(compiler) << "Exception during type resolution: " << exception->Dump();
-    if (strcmp(ClassHelper(exception->GetClass()).GetDescriptor(),
-               "Ljava/lang/OutOfMemoryError;") == 0) {
+    if (strcmp("Ljava/lang/OutOfMemoryError;",
+               ClassHelper(exception->GetClass()).GetDescriptor()) == 0) {
       // There's little point continuing compilation if the heap is exhausted.
       LOG(FATAL) << "Out of memory during type resolution for compilation";
     }
@@ -1589,13 +1626,11 @@ void CompilerDriver::ResolveDexFile(jobject class_loader, const DexFile& dex_fil
   if (IsImage()) {
     // For images we resolve all types, such as array, whereas for applications just those with
     // classdefs are resolved by ResolveClassFieldsAndMethods.
-    // TODO: strdup memory leak.
-    timings.NewSplit(strdup(("Resolve " + dex_file.GetLocation() + " Types").c_str()));
+    timings.NewSplit("Resolve Types");
     context.ForAll(0, dex_file.NumTypeIds(), ResolveType, thread_count_);
   }
 
-  // TODO: strdup memory leak.
-  timings.NewSplit(strdup(("Resolve " + dex_file.GetLocation() + " MethodsAndFields").c_str()));
+  timings.NewSplit("Resolve MethodsAndFields");
   context.ForAll(0, dex_file.NumClassDefs(), ResolveClassFieldsAndMethods, thread_count_);
 }
 
@@ -1612,11 +1647,13 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
     LOCKS_EXCLUDED(Locks::mutator_lock_) {
   ATRACE_CALL();
   ScopedObjectAccess soa(Thread::Current());
-  const DexFile::ClassDef& class_def = manager->GetDexFile()->GetClassDef(class_def_index);
-  const char* descriptor = manager->GetDexFile()->GetClassDescriptor(class_def);
-  mirror::Class* klass =
-      manager->GetClassLinker()->FindClass(descriptor,
-                                           soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader()));
+  const DexFile& dex_file = *manager->GetDexFile();
+  const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
+  const char* descriptor = dex_file.GetClassDescriptor(class_def);
+  ClassLinker* class_linker = manager->GetClassLinker();
+  jobject jclass_loader = manager->GetClassLoader();
+  mirror::Class* klass = class_linker->FindClass(descriptor,
+                                                 soa.Decode<mirror::ClassLoader*>(jclass_loader));
   if (klass == NULL) {
     CHECK(soa.Self()->IsExceptionPending());
     soa.Self()->ClearException();
@@ -1626,23 +1663,18 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
      * This is to ensure the class is structurally sound for compilation. An unsound class
      * will be rejected by the verifier and later skipped during compilation in the compiler.
      */
-    mirror::DexCache* dex_cache =  manager->GetClassLinker()->FindDexCache(*manager->GetDexFile());
+    mirror::DexCache* dex_cache = class_linker->FindDexCache(dex_file);
     std::string error_msg;
-    const DexFile* dex_file = manager->GetDexFile();
-    const DexFile::ClassDef* class_def = &dex_file->GetClassDef(class_def_index);
-    if (verifier::MethodVerifier::VerifyClass(dex_file,
-                                              dex_cache,
-                                              soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader()),
-                                              class_def, true, &error_msg) ==
+    if (verifier::MethodVerifier::VerifyClass(&dex_file, dex_cache,
+                                              soa.Decode<mirror::ClassLoader*>(jclass_loader),
+                                              &class_def, true, &error_msg) ==
                                                   verifier::MethodVerifier::kHardFailure) {
-      const DexFile::ClassDef& class_def = manager->GetDexFile()->GetClassDef(class_def_index);
-      LOG(ERROR) << "Verification failed on class "
-                 << PrettyDescriptor(manager->GetDexFile()->GetClassDescriptor(class_def))
+      LOG(ERROR) << "Verification failed on class " << PrettyDescriptor(descriptor)
                  << " because: " << error_msg;
     }
-  } else {
+  } else if (!SkipClass(jclass_loader, dex_file, klass)) {
     CHECK(klass->IsResolved()) << PrettyClass(klass);
-    manager->GetClassLinker()->VerifyClass(klass);
+    class_linker->VerifyClass(klass);
 
     if (klass->IsErroneous()) {
       // ClassLinker::VerifyClass throws, which isn't useful in the compiler.
@@ -1658,8 +1690,7 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
 
 void CompilerDriver::VerifyDexFile(jobject class_loader, const DexFile& dex_file,
                                    ThreadPool& thread_pool, base::TimingLogger& timings) {
-  // TODO: strdup memory leak.
-  timings.NewSplit(strdup(("Verify " + dex_file.GetLocation()).c_str()));
+  timings.NewSplit("Verify Dex File");
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   ParallelCompilationManager context(class_linker, class_loader, this, &dex_file, thread_pool);
   context.ForAll(0, dex_file.NumClassDefs(), VerifyClass, thread_count_);
@@ -1746,6 +1777,7 @@ static const char* class_initializer_black_list[] = {
   "Landroid/opengl/GLUtils;",  // Calls android.opengl.GLUtils.nativeClassInit.
   "Landroid/os/Build;",  // Calls -..-> android.os.SystemProperties.native_get.
   "Landroid/os/Build$VERSION;",  // Requires Build.
+  "Landroid/os/Bundle;",  // Calls android.os.Parcel.obtain -..> Parcel.nativeCreate.
   "Landroid/os/Debug;",  // Requires android.os.Environment.
   "Landroid/os/Environment;",  // Calls System.getenv.
   "Landroid/os/FileUtils;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
@@ -2085,12 +2117,17 @@ static const char* class_initializer_black_list[] = {
 static void InitializeClass(const ParallelCompilationManager* manager, size_t class_def_index)
     LOCKS_EXCLUDED(Locks::mutator_lock_) {
   ATRACE_CALL();
-  const DexFile::ClassDef& class_def = manager->GetDexFile()->GetClassDef(class_def_index);
+  jobject jclass_loader = manager->GetClassLoader();
+  const DexFile& dex_file = *manager->GetDexFile();
+  const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
+  const DexFile::TypeId& class_type_id = dex_file.GetTypeId(class_def.class_idx_);
+  const char* descriptor = dex_file.StringDataByIdx(class_type_id.descriptor_idx_);
+
   ScopedObjectAccess soa(Thread::Current());
-  mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader());
-  const char* descriptor = manager->GetDexFile()->GetClassDescriptor(class_def);
+  mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(jclass_loader);
   mirror::Class* klass = manager->GetClassLinker()->FindClass(descriptor, class_loader);
-  if (klass != NULL) {
+
+  if (klass != NULL && !SkipClass(jclass_loader, dex_file, klass)) {
     // Only try to initialize classes that were successfully verified.
     if (klass->IsVerified()) {
       // Attempt to initialize the class but bail if we either need to initialize the super-class
@@ -2119,7 +2156,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
             bool is_black_listed = StringPiece(descriptor).ends_with("$NoPreloadHolder;");
             if (!is_black_listed) {
               for (size_t i = 0; i < arraysize(class_initializer_black_list); ++i) {
-                if (StringPiece(descriptor) == class_initializer_black_list[i]) {
+                if (strcmp(descriptor, class_initializer_black_list[i]) == 0) {
                   is_black_listed = true;
                   break;
                 }
@@ -2127,7 +2164,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
             }
             if (!is_black_listed) {
               VLOG(compiler) << "Initializing: " << descriptor;
-              if (StringPiece(descriptor) == "Ljava/lang/Void;") {
+              if (strcmp("Ljava/lang/Void;", descriptor) == 0) {
                 // Hand initialize j.l.Void to avoid Dex file operations in un-started runtime.
                 ObjectLock lock(soa.Self(), klass);
                 mirror::ObjectArray<mirror::ArtField>* fields = klass->GetSFields();
@@ -2158,8 +2195,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
 
 void CompilerDriver::InitializeClasses(jobject jni_class_loader, const DexFile& dex_file,
                                        ThreadPool& thread_pool, base::TimingLogger& timings) {
-  // TODO: strdup memory leak.
-  timings.NewSplit(strdup(("InitializeNoClinit " + dex_file.GetLocation()).c_str()));
+  timings.NewSplit("InitializeNoClinit");
 #ifndef NDEBUG
   // Sanity check blacklist descriptors.
   if (IsImage()) {
@@ -2266,8 +2302,7 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
 
 void CompilerDriver::CompileDexFile(jobject class_loader, const DexFile& dex_file,
                                     ThreadPool& thread_pool, base::TimingLogger& timings) {
-  // TODO: strdup memory leak.
-  timings.NewSplit(strdup(("Compile " + dex_file.GetLocation()).c_str()));
+  timings.NewSplit("Compile Dex File");
   ParallelCompilationManager context(Runtime::Current()->GetClassLinker(), class_loader, this,
                                      &dex_file, thread_pool);
   context.ForAll(0, dex_file.NumClassDefs(), CompilerDriver::CompileClass, thread_count_);

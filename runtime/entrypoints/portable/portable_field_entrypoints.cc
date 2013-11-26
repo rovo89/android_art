@@ -33,12 +33,8 @@ extern "C" int32_t art_portable_set32_static_from_code(uint32_t field_idx,
     field->Set32(field->GetDeclaringClass(), new_value);
     return 0;
   }
-  field = FindFieldFromCode(field_idx,
-                            referrer,
-                            Thread::Current(),
-                            StaticPrimitiveWrite,
-                            sizeof(uint32_t),
-                            true);
+  field = FindFieldFromCode<StaticPrimitiveWrite, true>(field_idx, referrer, Thread::Current(),
+                                                        sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     field->Set32(field->GetDeclaringClass(), new_value);
     return 0;
@@ -55,12 +51,8 @@ extern "C" int32_t art_portable_set64_static_from_code(uint32_t field_idx,
     field->Set64(field->GetDeclaringClass(), new_value);
     return 0;
   }
-  field = FindFieldFromCode(field_idx,
-                            referrer,
-                            Thread::Current(),
-                            StaticPrimitiveWrite,
-                            sizeof(uint64_t),
-                            true);
+  field = FindFieldFromCode<StaticPrimitiveWrite, true>(field_idx, referrer, Thread::Current(),
+                                                        sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     field->Set64(field->GetDeclaringClass(), new_value);
     return 0;
@@ -78,8 +70,8 @@ extern "C" int32_t art_portable_set_obj_static_from_code(uint32_t field_idx,
     field->SetObj(field->GetDeclaringClass(), new_value);
     return 0;
   }
-  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
-                            StaticObjectWrite, sizeof(mirror::Object*), true);
+  field = FindFieldFromCode<StaticObjectWrite, true>(field_idx, referrer, Thread::Current(),
+                                                     sizeof(mirror::Object*));
   if (LIKELY(field != NULL)) {
     field->SetObj(field->GetDeclaringClass(), new_value);
     return 0;
@@ -94,8 +86,8 @@ extern "C" int32_t art_portable_get32_static_from_code(uint32_t field_idx,
   if (LIKELY(field != NULL)) {
     return field->Get32(field->GetDeclaringClass());
   }
-  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
-                            StaticPrimitiveRead, sizeof(uint32_t), true);
+  field = FindFieldFromCode<StaticPrimitiveRead, true>(field_idx, referrer, Thread::Current(),
+                                                       sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     return field->Get32(field->GetDeclaringClass());
   }
@@ -109,8 +101,8 @@ extern "C" int64_t art_portable_get64_static_from_code(uint32_t field_idx,
   if (LIKELY(field != NULL)) {
     return field->Get64(field->GetDeclaringClass());
   }
-  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
-                            StaticPrimitiveRead, sizeof(uint64_t), true);
+  field = FindFieldFromCode<StaticPrimitiveRead, true>(field_idx, referrer, Thread::Current(),
+                                                       sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     return field->Get64(field->GetDeclaringClass());
   }
@@ -125,8 +117,8 @@ extern "C" mirror::Object* art_portable_get_obj_static_from_code(uint32_t field_
   if (LIKELY(field != NULL)) {
     return field->GetObj(field->GetDeclaringClass());
   }
-  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
-                            StaticObjectRead, sizeof(mirror::Object*), true);
+  field = FindFieldFromCode<StaticObjectRead, true>(field_idx, referrer, Thread::Current(),
+                                                    sizeof(mirror::Object*));
   if (LIKELY(field != NULL)) {
     return field->GetObj(field->GetDeclaringClass());
   }
@@ -142,8 +134,8 @@ extern "C" int32_t art_portable_set32_instance_from_code(uint32_t field_idx,
     field->Set32(obj, new_value);
     return 0;
   }
-  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
-                            InstancePrimitiveWrite, sizeof(uint32_t), true);
+  field = FindFieldFromCode<InstancePrimitiveWrite, true>(field_idx, referrer, Thread::Current(),
+                                                          sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     field->Set32(obj, new_value);
     return 0;
@@ -160,8 +152,8 @@ extern "C" int32_t art_portable_set64_instance_from_code(uint32_t field_idx,
     field->Set64(obj, new_value);
     return 0;
   }
-  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
-                            InstancePrimitiveWrite, sizeof(uint64_t), true);
+  field = FindFieldFromCode<InstancePrimitiveWrite, true>(field_idx, referrer, Thread::Current(),
+                                                          sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     field->Set64(obj, new_value);
     return 0;
@@ -180,8 +172,8 @@ extern "C" int32_t art_portable_set_obj_instance_from_code(uint32_t field_idx,
     field->SetObj(obj, new_value);
     return 0;
   }
-  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
-                            InstanceObjectWrite, sizeof(mirror::Object*), true);
+  field = FindFieldFromCode<InstanceObjectWrite, true>(field_idx, referrer, Thread::Current(),
+                                                       sizeof(mirror::Object*));
   if (LIKELY(field != NULL)) {
     field->SetObj(obj, new_value);
     return 0;
@@ -197,8 +189,8 @@ extern "C" int32_t art_portable_get32_instance_from_code(uint32_t field_idx,
   if (LIKELY(field != NULL)) {
     return field->Get32(obj);
   }
-  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
-                            InstancePrimitiveRead, sizeof(uint32_t), true);
+  field = FindFieldFromCode<InstancePrimitiveRead, true>(field_idx, referrer, Thread::Current(),
+                                                         sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     return field->Get32(obj);
   }
@@ -213,8 +205,8 @@ extern "C" int64_t art_portable_get64_instance_from_code(uint32_t field_idx,
   if (LIKELY(field != NULL)) {
     return field->Get64(obj);
   }
-  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
-                            InstancePrimitiveRead, sizeof(uint64_t), true);
+  field = FindFieldFromCode<InstancePrimitiveRead, true>(field_idx, referrer, Thread::Current(),
+                                                         sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     return field->Get64(obj);
   }
@@ -230,8 +222,8 @@ extern "C" mirror::Object* art_portable_get_obj_instance_from_code(uint32_t fiel
   if (LIKELY(field != NULL)) {
     return field->GetObj(obj);
   }
-  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
-                            InstanceObjectRead, sizeof(mirror::Object*), true);
+  field = FindFieldFromCode<InstanceObjectRead, true>(field_idx, referrer, Thread::Current(),
+                                                      sizeof(mirror::Object*));
   if (LIKELY(field != NULL)) {
     return field->GetObj(obj);
   }

@@ -29,7 +29,7 @@ namespace gc {
 namespace collector {
 
 template <typename MarkVisitor>
-inline void MarkSweep::ScanObjectVisit(const mirror::Object* obj, const MarkVisitor& visitor) {
+inline void MarkSweep::ScanObjectVisit(mirror::Object* obj, const MarkVisitor& visitor) {
   DCHECK(obj != NULL);
   if (kIsDebugBuild && !IsMarked(obj)) {
     heap_->DumpSpaces();
@@ -62,7 +62,8 @@ inline void MarkSweep::ScanObjectVisit(const mirror::Object* obj, const MarkVisi
 }
 
 template <typename Visitor>
-inline void MarkSweep::VisitObjectReferences(const mirror::Object* obj, const Visitor& visitor)
+inline void MarkSweep::VisitObjectReferences(mirror::Object* obj, const Visitor& visitor,
+                                             bool visit_class)
     SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
                           Locks::mutator_lock_) {
   DCHECK(obj != NULL);
@@ -70,6 +71,9 @@ inline void MarkSweep::VisitObjectReferences(const mirror::Object* obj, const Vi
 
   mirror::Class* klass = obj->GetClass();
   DCHECK(klass != NULL);
+  if (visit_class) {
+    visitor(obj, klass, MemberOffset(0), false);
+  }
   if (klass == mirror::Class::GetJavaLangClass()) {
     DCHECK_EQ(klass->GetClass(), mirror::Class::GetJavaLangClass());
     VisitClassReferences(klass, obj, visitor);
@@ -86,8 +90,8 @@ inline void MarkSweep::VisitObjectReferences(const mirror::Object* obj, const Vi
 }
 
 template <typename Visitor>
-inline void MarkSweep::VisitInstanceFieldsReferences(const mirror::Class* klass,
-                                                     const mirror::Object* obj,
+inline void MarkSweep::VisitInstanceFieldsReferences(mirror::Class* klass,
+                                                     mirror::Object* obj,
                                                      const Visitor& visitor)
     SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
   DCHECK(obj != NULL);
@@ -96,7 +100,7 @@ inline void MarkSweep::VisitInstanceFieldsReferences(const mirror::Class* klass,
 }
 
 template <typename Visitor>
-inline void MarkSweep::VisitClassReferences(const mirror::Class* klass, const mirror::Object* obj,
+inline void MarkSweep::VisitClassReferences(mirror::Class* klass, mirror::Object* obj,
                                             const Visitor& visitor)
     SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
   VisitInstanceFieldsReferences(klass, obj, visitor);
@@ -104,15 +108,14 @@ inline void MarkSweep::VisitClassReferences(const mirror::Class* klass, const mi
 }
 
 template <typename Visitor>
-inline void MarkSweep::VisitStaticFieldsReferences(const mirror::Class* klass,
-                                                   const Visitor& visitor)
+inline void MarkSweep::VisitStaticFieldsReferences(mirror::Class* klass, const Visitor& visitor)
     SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
   DCHECK(klass != NULL);
   VisitFieldsReferences(klass, klass->GetReferenceStaticOffsets(), true, visitor);
 }
 
 template <typename Visitor>
-inline void MarkSweep::VisitFieldsReferences(const mirror::Object* obj, uint32_t ref_offsets,
+inline void MarkSweep::VisitFieldsReferences(mirror::Object* obj, uint32_t ref_offsets,
                                              bool is_static, const Visitor& visitor) {
   if (LIKELY(ref_offsets != CLASS_WALK_SUPER)) {
     // Found a reference offset bitmap.  Mark the specified offsets.
@@ -124,7 +127,7 @@ inline void MarkSweep::VisitFieldsReferences(const mirror::Object* obj, uint32_t
     while (ref_offsets != 0) {
       size_t right_shift = CLZ(ref_offsets);
       MemberOffset field_offset = CLASS_OFFSET_FROM_CLZ(right_shift);
-      const mirror::Object* ref = obj->GetFieldObject<const mirror::Object*>(field_offset, false);
+      mirror::Object* ref = obj->GetFieldObject<mirror::Object*>(field_offset, false);
       visitor(obj, ref, field_offset, is_static);
       ref_offsets &= ~(CLASS_HIGH_BIT >> right_shift);
     }
@@ -143,7 +146,7 @@ inline void MarkSweep::VisitFieldsReferences(const mirror::Object* obj, uint32_t
         mirror::ArtField* field = (is_static ? klass->GetStaticField(i)
                                    : klass->GetInstanceField(i));
         MemberOffset field_offset = field->GetOffset();
-        const mirror::Object* ref = obj->GetFieldObject<const mirror::Object*>(field_offset, false);
+        mirror::Object* ref = obj->GetFieldObject<mirror::Object*>(field_offset, false);
         visitor(obj, ref, field_offset, is_static);
       }
     }
@@ -151,11 +154,11 @@ inline void MarkSweep::VisitFieldsReferences(const mirror::Object* obj, uint32_t
 }
 
 template <typename Visitor>
-inline void MarkSweep::VisitObjectArrayReferences(const mirror::ObjectArray<mirror::Object>* array,
+inline void MarkSweep::VisitObjectArrayReferences(mirror::ObjectArray<mirror::Object>* array,
                                                   const Visitor& visitor) {
   const size_t length = static_cast<size_t>(array->GetLength());
   for (size_t i = 0; i < length; ++i) {
-    const mirror::Object* element = array->GetWithoutChecks(static_cast<int32_t>(i));
+    mirror::Object* element = array->GetWithoutChecks(static_cast<int32_t>(i));
     const size_t width = sizeof(mirror::Object*);
     MemberOffset offset(i * width + mirror::Array::DataOffset(width).Int32Value());
     visitor(array, element, offset, false);

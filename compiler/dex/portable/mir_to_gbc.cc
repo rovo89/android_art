@@ -30,10 +30,10 @@
 #include "dex/compiler_internals.h"
 #include "dex/dataflow_iterator-inl.h"
 #include "dex/frontend.h"
-#include "mir_to_gbc.h"
-
 #include "llvm/llvm_compilation_unit.h"
 #include "llvm/utils_llvm.h"
+#include "mir_to_gbc.h"
+#include "thread-inl.h"
 
 const char* kLabelFormat = "%c0x%x_%d";
 const char kInvalidBlock = 0xff;
@@ -132,7 +132,7 @@ void MirConverter::ConvertPackedSwitch(BasicBlock* bb,
   ::llvm::Value* value = GetLLVMValue(rl_src.orig_sreg);
 
   ::llvm::SwitchInst* sw =
-    irb_->CreateSwitch(value, GetLLVMBlock(bb->fall_through->id),
+    irb_->CreateSwitch(value, GetLLVMBlock(bb->fall_through),
                              payload->case_count);
 
   for (uint16_t i = 0; i < payload->case_count; ++i) {
@@ -143,8 +143,8 @@ void MirConverter::ConvertPackedSwitch(BasicBlock* bb,
   ::llvm::MDNode* switch_node =
       ::llvm::MDNode::get(*context_, irb_->getInt32(table_offset));
   sw->setMetadata("SwitchTable", switch_node);
-  bb->taken = NULL;
-  bb->fall_through = NULL;
+  bb->taken = NullBasicBlockId;
+  bb->fall_through = NullBasicBlockId;
 }
 
 void MirConverter::ConvertSparseSwitch(BasicBlock* bb,
@@ -159,7 +159,7 @@ void MirConverter::ConvertSparseSwitch(BasicBlock* bb,
   ::llvm::Value* value = GetLLVMValue(rl_src.orig_sreg);
 
   ::llvm::SwitchInst* sw =
-    irb_->CreateSwitch(value, GetLLVMBlock(bb->fall_through->id),
+    irb_->CreateSwitch(value, GetLLVMBlock(bb->fall_through),
                              payload->case_count);
 
   for (size_t i = 0; i < payload->case_count; ++i) {
@@ -170,8 +170,8 @@ void MirConverter::ConvertSparseSwitch(BasicBlock* bb,
   ::llvm::MDNode* switch_node =
       ::llvm::MDNode::get(*context_, irb_->getInt32(table_offset));
   sw->setMetadata("SwitchTable", switch_node);
-  bb->taken = NULL;
-  bb->fall_through = NULL;
+  bb->taken = NullBasicBlockId;
+  bb->fall_through = NullBasicBlockId;
 }
 
 void MirConverter::ConvertSget(int32_t field_index,
@@ -311,22 +311,22 @@ void MirConverter::EmitSuspendCheck() {
 
 void MirConverter::ConvertCompareAndBranch(BasicBlock* bb, MIR* mir,
                                     ConditionCode cc, RegLocation rl_src1, RegLocation rl_src2) {
-  if (bb->taken->start_offset <= mir->offset) {
+  if (mir_graph_->GetBasicBlock(bb->taken)->start_offset <= mir->offset) {
     EmitSuspendCheck();
   }
   ::llvm::Value* src1 = GetLLVMValue(rl_src1.orig_sreg);
   ::llvm::Value* src2 = GetLLVMValue(rl_src2.orig_sreg);
   ::llvm::Value* cond_value = ConvertCompare(cc, src1, src2);
   cond_value->setName(StringPrintf("t%d", temp_name_++));
-  irb_->CreateCondBr(cond_value, GetLLVMBlock(bb->taken->id),
-                           GetLLVMBlock(bb->fall_through->id));
+  irb_->CreateCondBr(cond_value, GetLLVMBlock(bb->taken),
+                           GetLLVMBlock(bb->fall_through));
   // Don't redo the fallthrough branch in the BB driver
-  bb->fall_through = NULL;
+  bb->fall_through = NullBasicBlockId;
 }
 
 void MirConverter::ConvertCompareZeroAndBranch(BasicBlock* bb,
                                         MIR* mir, ConditionCode cc, RegLocation rl_src1) {
-  if (bb->taken->start_offset <= mir->offset) {
+  if (mir_graph_->GetBasicBlock(bb->taken)->start_offset <= mir->offset) {
     EmitSuspendCheck();
   }
   ::llvm::Value* src1 = GetLLVMValue(rl_src1.orig_sreg);
@@ -337,10 +337,10 @@ void MirConverter::ConvertCompareZeroAndBranch(BasicBlock* bb,
     src2 = irb_->getInt32(0);
   }
   ::llvm::Value* cond_value = ConvertCompare(cc, src1, src2);
-  irb_->CreateCondBr(cond_value, GetLLVMBlock(bb->taken->id),
-                           GetLLVMBlock(bb->fall_through->id));
+  irb_->CreateCondBr(cond_value, GetLLVMBlock(bb->taken),
+                           GetLLVMBlock(bb->fall_through));
   // Don't redo the fallthrough branch in the BB driver
-  bb->fall_through = NULL;
+  bb->fall_through = NullBasicBlockId;
 }
 
 ::llvm::Value* MirConverter::GenDivModOp(bool is_div, bool is_long,
@@ -941,10 +941,10 @@ bool MirConverter::ConvertMIRNode(MIR* mir, BasicBlock* bb,
     case Instruction::GOTO:
     case Instruction::GOTO_16:
     case Instruction::GOTO_32: {
-        if (bb->taken->start_offset <= bb->start_offset) {
+        if (mir_graph_->GetBasicBlock(bb->taken)->start_offset <= bb->start_offset) {
           EmitSuspendCheck();
         }
-        irb_->CreateBr(GetLLVMBlock(bb->taken->id));
+        irb_->CreateBr(GetLLVMBlock(bb->taken));
       }
       break;
 
@@ -1190,11 +1190,11 @@ bool MirConverter::ConvertMIRNode(MIR* mir, BasicBlock* bb,
        * If it might rethrow, force termination
        * of the following block.
        */
-      if (bb->fall_through == NULL) {
+      if (bb->fall_through == NullBasicBlockId) {
         irb_->CreateUnreachable();
       } else {
-        bb->fall_through->fall_through = NULL;
-        bb->fall_through->taken = NULL;
+        mir_graph_->GetBasicBlock(bb->fall_through)->fall_through = NullBasicBlockId;
+        mir_graph_->GetBasicBlock(bb->fall_through)->taken = NullBasicBlockId;
       }
       break;
 
@@ -1552,7 +1552,7 @@ void MirConverter::HandlePhiNodes(BasicBlock* bb, ::llvm::BasicBlock* llvm_bb) {
     if (rl_dest.high_word) {
       continue;  // No Phi node - handled via low word
     }
-    int* incoming = reinterpret_cast<int*>(mir->dalvikInsn.vB);
+    BasicBlockId* incoming = mir->meta.phi_incoming;
     ::llvm::Type* phi_type =
         LlvmTypeFromLocRec(rl_dest);
     ::llvm::PHINode* phi = irb_->CreatePHI(phi_type, mir->ssa_rep->num_uses);
@@ -1597,8 +1597,8 @@ void MirConverter::ConvertExtendedMIR(BasicBlock* bb, MIR* mir,
       break;
     }
     case kMirOpNop:
-      if ((mir == bb->last_mir_insn) && (bb->taken == NULL) &&
-          (bb->fall_through == NULL)) {
+      if ((mir == bb->last_mir_insn) && (bb->taken == NullBasicBlockId) &&
+          (bb->fall_through == NullBasicBlockId)) {
         irb_->CreateUnreachable();
       }
       break;
@@ -1718,25 +1718,23 @@ bool MirConverter::BlockBitcodeConversion(BasicBlock* bb) {
       SSARepresentation* ssa_rep = work_half->ssa_rep;
       work_half->ssa_rep = mir->ssa_rep;
       mir->ssa_rep = ssa_rep;
-      work_half->meta.original_opcode = work_half->dalvikInsn.opcode;
       work_half->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
-      if (bb->successor_block_list.block_list_type == kCatch) {
+      if (bb->successor_block_list_type == kCatch) {
         ::llvm::Function* intr = intrinsic_helper_->GetIntrinsicFunction(
             art::llvm::IntrinsicHelper::CatchTargets);
         ::llvm::Value* switch_key =
             irb_->CreateCall(intr, irb_->getInt32(mir->offset));
-        GrowableArray<SuccessorBlockInfo*>::Iterator iter(bb->successor_block_list.blocks);
+        GrowableArray<SuccessorBlockInfo*>::Iterator iter(bb->successor_blocks);
         // New basic block to use for work half
         ::llvm::BasicBlock* work_bb =
             ::llvm::BasicBlock::Create(*context_, "", func_);
         ::llvm::SwitchInst* sw =
-            irb_->CreateSwitch(switch_key, work_bb,
-                                     bb->successor_block_list.blocks->Size());
+            irb_->CreateSwitch(switch_key, work_bb, bb->successor_blocks->Size());
         while (true) {
           SuccessorBlockInfo *successor_block_info = iter.Next();
           if (successor_block_info == NULL) break;
           ::llvm::BasicBlock *target =
-              GetLLVMBlock(successor_block_info->block->id);
+              GetLLVMBlock(successor_block_info->block);
           int type_index = successor_block_info->key;
           sw->addCase(irb_->getInt32(type_index), target);
         }
@@ -1761,9 +1759,9 @@ bool MirConverter::BlockBitcodeConversion(BasicBlock* bb) {
   }
 
   if (bb->block_type == kEntryBlock) {
-    entry_target_bb_ = GetLLVMBlock(bb->fall_through->id);
-  } else if ((bb->fall_through != NULL) && !bb->terminated_by_return) {
-    irb_->CreateBr(GetLLVMBlock(bb->fall_through->id));
+    entry_target_bb_ = GetLLVMBlock(bb->fall_through);
+  } else if ((bb->fall_through != NullBasicBlockId) && !bb->terminated_by_return) {
+    irb_->CreateBr(GetLLVMBlock(bb->fall_through));
   }
 
   return false;
@@ -1877,7 +1875,7 @@ void MirConverter::MethodMIR2Bitcode() {
   CreateFunction();
 
   // Create an LLVM basic block for each MIR block in dfs preorder
-  PreOrderDfsIterator iter(mir_graph_, false /* not iterative */);
+  PreOrderDfsIterator iter(mir_graph_);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     CreateLLVMBasicBlock(bb);
   }
@@ -1909,7 +1907,7 @@ void MirConverter::MethodMIR2Bitcode() {
     }
   }
 
-  PreOrderDfsIterator iter2(mir_graph_, false /* not iterative */);
+  PreOrderDfsIterator iter2(mir_graph_);
   for (BasicBlock* bb = iter2.Next(); bb != NULL; bb = iter2.Next()) {
     BlockBitcodeConversion(bb);
   }

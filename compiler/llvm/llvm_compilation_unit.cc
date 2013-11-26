@@ -82,7 +82,6 @@
 #include "ir_builder.h"
 #include "os.h"
 #include "runtime_support_builder_arm.h"
-#include "runtime_support_builder_thumb2.h"
 #include "runtime_support_builder_x86.h"
 #include "utils_llvm.h"
 
@@ -118,11 +117,9 @@ LlvmCompilationUnit::LlvmCompilationUnit(const CompilerLLVM* compiler_llvm, size
   default:
     runtime_support_.reset(new RuntimeSupportBuilder(*context_, *module_, *irb_));
     break;
+  case kThumb2:
   case kArm:
     runtime_support_.reset(new RuntimeSupportBuilderARM(*context_, *module_, *irb_));
-    break;
-  case kThumb2:
-    runtime_support_.reset(new RuntimeSupportBuilderThumb2(*context_, *module_, *irb_));
     break;
   case kX86:
     runtime_support_.reset(new RuntimeSupportBuilderX86(*context_, *module_, *irb_));

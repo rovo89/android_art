@@ -117,6 +117,7 @@ LIR* X86Mir2Lir::OpReg(OpKind op, int r_dest_src) {
   switch (op) {
     case kOpNeg: opcode = kX86Neg32R; break;
     case kOpNot: opcode = kX86Not32R; break;
+    case kOpRev: opcode = kX86Bswap32R; break;
     case kOpBlx: opcode = kX86CallR; break;
     default:
       LOG(FATAL) << "Bad case in OpReg " << op;
@@ -161,6 +162,13 @@ LIR* X86Mir2Lir::OpRegReg(OpKind op, int r_dest_src1, int r_src2) {
       case kOpNeg:
         OpRegCopy(r_dest_src1, r_src2);
         return OpReg(kOpNeg, r_dest_src1);
+      case kOpRev:
+        OpRegCopy(r_dest_src1, r_src2);
+        return OpReg(kOpRev, r_dest_src1);
+      case kOpRevsh:
+        OpRegCopy(r_dest_src1, r_src2);
+        OpReg(kOpRev, r_dest_src1);
+        return OpRegImm(kOpAsr, r_dest_src1, 16);
         // X86 binary opcodes
       case kOpSub: opcode = kX86Sub32RR; break;
       case kOpSbc: opcode = kX86Sbb32RR; break;

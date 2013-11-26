@@ -17,11 +17,12 @@
 #include "large_object_space.h"
 
 #include "base/logging.h"
+#include "base/mutex-inl.h"
 #include "base/stl_util.h"
 #include "UniquePtr.h"
 #include "image.h"
 #include "os.h"
-#include "thread.h"
+#include "thread-inl.h"
 #include "utils.h"
 
 namespace art {
@@ -55,10 +56,13 @@ LargeObjectMapSpace* LargeObjectMapSpace::Create(const std::string& name) {
   return new LargeObjectMapSpace(name);
 }
 
-mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated) {
+mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes,
+                                           size_t* bytes_allocated) {
+  std::string error_msg;
   MemMap* mem_map = MemMap::MapAnonymous("large object space allocation", NULL, num_bytes,
-                                         PROT_READ | PROT_WRITE);
-  if (mem_map == NULL) {
+                                         PROT_READ | PROT_WRITE, &error_msg);
+  if (UNLIKELY(mem_map == NULL)) {
+    LOG(WARNING) << "Large object allocation failed: " << error_msg;
     return NULL;
   }
   MutexLock mu(self, lock_);
@@ -128,9 +132,10 @@ bool LargeObjectMapSpace::Contains(const mirror::Object* obj) const {
 
 FreeListSpace* FreeListSpace::Create(const std::string& name, byte* requested_begin, size_t size) {
   CHECK_EQ(size % kAlignment, 0U);
+  std::string error_msg;
   MemMap* mem_map = MemMap::MapAnonymous(name.c_str(), requested_begin, size,
-                                         PROT_READ | PROT_WRITE);
-  CHECK(mem_map != NULL) << "Failed to allocate large object space mem map";
+                                         PROT_READ | PROT_WRITE, &error_msg);
+  CHECK(mem_map != NULL) << "Failed to allocate large object space mem map: " << error_msg;
   return new FreeListSpace(name, mem_map, mem_map->Begin(), mem_map->End());
 }
 

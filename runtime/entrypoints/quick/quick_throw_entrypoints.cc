@@ -15,8 +15,9 @@
  */
 
 #include "callee_save_frame.h"
+#include "common_throws.h"
 #include "entrypoints/entrypoint_utils.h"
-#include "mirror/object.h"
+#include "mirror/object-inl.h"
 #include "object_utils.h"
 #include "thread.h"
 #include "well_known_classes.h"
@@ -92,6 +93,23 @@ extern "C" void artThrowNoSuchMethodFromCode(int32_t method_idx, Thread* self,
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
   ThrowNoSuchMethodError(method_idx);
+  self->QuickDeliverException();
+}
+
+extern "C" void artThrowClassCastException(mirror::Class* dest_type, mirror::Class* src_type,
+                                           Thread* self, mirror::ArtMethod** sp)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
+  CHECK(!dest_type->IsAssignableFrom(src_type));
+  ThrowClassCastException(dest_type, src_type);
+  self->QuickDeliverException();
+}
+
+extern "C" void artThrowArrayStoreException(mirror::Object* array, mirror::Object* value,
+                                            Thread* self, mirror::ArtMethod** sp)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
+  ThrowArrayStoreException(value->GetClass(), array->GetClass());
   self->QuickDeliverException();
 }
 

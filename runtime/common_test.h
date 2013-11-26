@@ -22,6 +22,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <fstream>
 
 #include "../../external/icu4c/common/unicode/uvernum.h"
 #include "base/macros.h"
@@ -151,6 +152,113 @@ class ScratchFile {
   std::string filename_;
   UniquePtr<File> file_;
 };
+
+#if defined(__arm__)
+
+
+#include <signal.h>
+#include <asm/sigcontext.h>
+#include <asm/ucontext.h>
+
+
+// A signal handler called when have an illegal instruction.  We record the fact in
+// a global boolean and then increment the PC in the signal context to return to
+// the next instruction.  We know the instruction is an sdiv (4 bytes long).
+static void baddivideinst(int signo, siginfo *si, void *data) {
+  (void)signo;
+  (void)si;
+  struct ucontext *uc = (struct ucontext *)data;
+  struct sigcontext *sc = &uc->uc_mcontext;
+  sc->arm_r0 = 0;     // set R0 to #0 to signal error
+  sc->arm_pc += 4;    // skip offending instruction
+}
+
+// This is in arch/arm/arm_sdiv.S.  It does the following:
+// mov r1,#1
+// sdiv r0,r1,r1
+// bx lr
+//
+// the result will be the value 1 if sdiv is supported.  If it is not supported
+// a SIGILL signal will be raised and the signal handler (baddivideinst) called.
+// The signal handler sets r0 to #0 and then increments pc beyond the failed instruction.
+// Thus if the instruction is not supported, the result of this function will be #0
+
+extern "C" bool CheckForARMSDIVInstruction();
+
+static InstructionSetFeatures GuessInstructionFeatures() {
+  InstructionSetFeatures f;
+
+  // Uncomment this for processing of /proc/cpuinfo.
+  if (false) {
+    // Look in /proc/cpuinfo for features we need.  Only use this when we can guarantee that
+    // the kernel puts the appropriate feature flags in here.  Sometimes it doesn't.
+    std::ifstream in("/proc/cpuinfo");
+    if (in) {
+      while (!in.eof()) {
+        std::string line;
+        std::getline(in, line);
+        if (!in.eof()) {
+          if (line.find("Features") != std::string::npos) {
+            if (line.find("idivt") != std::string::npos) {
+              f.SetHasDivideInstruction(true);
+            }
+          }
+        }
+        in.close();
+      }
+    } else {
+      LOG(INFO) << "Failed to open /proc/cpuinfo";
+    }
+  }
+
+  // See if have a sdiv instruction.  Register a signal handler and try to execute
+  // an sdiv instruction.  If we get a SIGILL then it's not supported.  We can't use
+  // the /proc/cpuinfo method for this because Krait devices don't always put the idivt
+  // feature in the list.
+  struct sigaction sa, osa;
+  sa.sa_flags = SA_ONSTACK | SA_RESTART | SA_SIGINFO;
+  sa.sa_sigaction = baddivideinst;
+  sigaction(SIGILL, &sa, &osa);
+
+  if (CheckForARMSDIVInstruction()) {
+    f.SetHasDivideInstruction(true);
+  }
+
+  // Restore the signal handler.
+  sigaction(SIGILL, &osa, NULL);
+
+  // Other feature guesses in here.
+  return f;
+}
+
+#endif
+
+// Given a set of instruction features from the build, parse it.  The
+// input 'str' is a comma separated list of feature names.  Parse it and
+// return the InstructionSetFeatures object.
+static InstructionSetFeatures ParseFeatureList(std::string str) {
+  LOG(INFO) << "Parsing features " << str;
+  InstructionSetFeatures result;
+  typedef std::vector<std::string> FeatureList;
+  FeatureList features;
+  Split(str, ',', features);
+  for (FeatureList::iterator i = features.begin(); i != features.end(); i++) {
+    std::string feature = Trim(*i);
+    if (feature == "default") {
+      // Nothing to do.
+    } else if (feature == "div") {
+      // Supports divide instruction.
+      result.SetHasDivideInstruction(true);
+    } else if (feature == "nodiv") {
+      // Turn off support for divide instruction.
+      result.SetHasDivideInstruction(false);
+    } else {
+      LOG(FATAL) << "Unknown instruction set feature: '" << feature << "'";
+    }
+  }
+  // Others...
+  return result;
+}
 
 class CommonTest : public testing::Test {
  public:
@@ -282,16 +390,14 @@ class CommonTest : public testing::Test {
     int mkdir_result = mkdir(dalvik_cache_.c_str(), 0700);
     ASSERT_EQ(mkdir_result, 0);
 
-    java_lang_dex_file_ = DexFile::Open(GetLibCoreDexFileName(), GetLibCoreDexFileName());
+    std::string error_msg;
+    java_lang_dex_file_ = DexFile::Open(GetLibCoreDexFileName().c_str(),
+                                        GetLibCoreDexFileName().c_str(), &error_msg);
     if (java_lang_dex_file_ == NULL) {
-      LOG(FATAL) << "Could not open .dex file '" << GetLibCoreDexFileName() << "'\n";
-    }
-    conscrypt_file_ = DexFile::Open(GetConscryptFileName(), GetConscryptFileName());
-    if (conscrypt_file_  == NULL) {
-      LOG(FATAL) << "Could not open .dex file '" << GetConscryptFileName() << "'\n";
+      LOG(FATAL) << "Could not open .dex file '" << GetLibCoreDexFileName() << "': "
+          << error_msg << "\n";
     }
     boot_class_path_.push_back(java_lang_dex_file_);
-    boot_class_path_.push_back(conscrypt_file_);
 
     std::string min_heap_string(StringPrintf("-Xms%zdm", gc::Heap::kDefaultInitialSize / MB));
     std::string max_heap_string(StringPrintf("-Xmx%zdm", gc::Heap::kDefaultMaximumSize / MB));
@@ -316,8 +422,18 @@ class CommonTest : public testing::Test {
       class_linker_ = runtime_->GetClassLinker();
 
       InstructionSet instruction_set = kNone;
+
+      // Take the default set of instruction features from the build.
+      InstructionSetFeatures instruction_set_features =
+          ParseFeatureList(STRINGIFY(ART_DEFAULT_INSTRUCTION_SET_FEATURES));
+
 #if defined(__arm__)
       instruction_set = kThumb2;
+      InstructionSetFeatures runtime_features = GuessInstructionFeatures();
+
+      // for ARM, do a runtime check to make sure that the features we are passed from
+      // the build match the features we actually determine at runtime.
+      ASSERT_EQ(instruction_set_features, runtime_features);
 #elif defined(__mips__)
       instruction_set = kMips;
 #elif defined(__i386__)
@@ -331,9 +447,6 @@ class CommonTest : public testing::Test {
       CompilerBackend compiler_backend = kQuick;
 #endif
 
-      if (!runtime_->HasResolutionMethod()) {
-        runtime_->SetResolutionMethod(runtime_->CreateResolutionMethod());
-      }
       for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
         Runtime::CalleeSaveType type = Runtime::CalleeSaveType(i);
         if (!runtime_->HasCalleeSaveMethod(type)) {
@@ -343,6 +456,7 @@ class CommonTest : public testing::Test {
       }
       class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
       compiler_driver_.reset(new CompilerDriver(compiler_backend, instruction_set,
+                                                instruction_set_features,
                                                 true, new CompilerDriver::DescriptorSet,
                                                 2, true));
     }
@@ -398,10 +512,6 @@ class CommonTest : public testing::Test {
     return GetDexFileName("core-libart");
   }
 
-  std::string GetConscryptFileName() {
-    return GetDexFileName("conscrypt");
-  }
-
   std::string GetDexFileName(const std::string& jar_prefix) {
     if (IsHost()) {
       const char* host_dir = getenv("ANDROID_HOST_OUT");
@@ -432,8 +542,9 @@ class CommonTest : public testing::Test {
     filename += "art-test-dex-";
     filename += name;
     filename += ".jar";
-    const DexFile* dex_file = DexFile::Open(filename, filename);
-    CHECK(dex_file != NULL) << "Failed to open " << filename;
+    std::string error_msg;
+    const DexFile* dex_file = DexFile::Open(filename.c_str(), filename.c_str(), &error_msg);
+    CHECK(dex_file != NULL) << "Failed to open '" << filename << "': " << error_msg;
     CHECK_EQ(PROT_READ, dex_file->GetPermissions());
     CHECK(dex_file->IsReadOnly());
     opened_dex_files_.push_back(dex_file);
@@ -507,10 +618,12 @@ class CommonTest : public testing::Test {
   void ReserveImageSpace() {
     // Reserve where the image will be loaded up front so that other parts of test set up don't
     // accidentally end up colliding with the fixed memory address when we need to load the image.
+    std::string error_msg;
     image_reservation_.reset(MemMap::MapAnonymous("image reservation",
                                                   reinterpret_cast<byte*>(ART_BASE_ADDRESS),
                                                   (size_t)100 * 1024 * 1024,  // 100MB
-                                                  PROT_NONE));
+                                                  PROT_NONE, &error_msg));
+    CHECK(image_reservation_.get() != nullptr) << error_msg;
   }
 
   void UnreserveImageSpace() {
@@ -520,7 +633,6 @@ class CommonTest : public testing::Test {
   std::string android_data_;
   std::string dalvik_cache_;
   const DexFile* java_lang_dex_file_;  // owned by runtime_
-  const DexFile* conscrypt_file_;  // owned by runtime_
   std::vector<const DexFile*> boot_class_path_;
   UniquePtr<Runtime> runtime_;
   // Owned by the runtime
@@ -575,7 +687,6 @@ class CheckJniAbortCatcher {
 #else
 #define TEST_DISABLED_FOR_PORTABLE()
 #endif
-
 }  // namespace art
 
 namespace std {

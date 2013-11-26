@@ -17,6 +17,7 @@
 LOCAL_PATH := art
 
 TEST_COMMON_SRC_FILES := \
+	compiler/dex/arena_allocator_test.cc \
 	compiler/driver/compiler_driver_test.cc \
 	compiler/elf_writer_test.cc \
 	compiler/image_test.cc \
@@ -27,6 +28,7 @@ TEST_COMMON_SRC_FILES := \
 	compiler/utils/arm/managed_register_arm_test.cc \
 	compiler/utils/x86/managed_register_x86_test.cc \
 	runtime/barrier_test.cc \
+	runtime/base/bit_vector_test.cc \
 	runtime/base/histogram_test.cc \
 	runtime/base/mutex_test.cc \
 	runtime/base/timing_logger_test.cc \

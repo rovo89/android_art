@@ -674,15 +674,15 @@ JDWP::JdwpError Dbg::GetMonitorInfo(JDWP::ObjectId object_id, JDWP::ExpandBuf* r
   Locks::mutator_lock_->ExclusiveUnlock(self);
   Locks::mutator_lock_->SharedLock(self);
 
-  if (monitor_info.owner != NULL) {
-    expandBufAddObjectId(reply, gRegistry->Add(monitor_info.owner->GetPeer()));
+  if (monitor_info.owner_ != NULL) {
+    expandBufAddObjectId(reply, gRegistry->Add(monitor_info.owner_->GetPeer()));
   } else {
     expandBufAddObjectId(reply, gRegistry->Add(NULL));
   }
-  expandBufAdd4BE(reply, monitor_info.entry_count);
-  expandBufAdd4BE(reply, monitor_info.waiters.size());
-  for (size_t i = 0; i < monitor_info.waiters.size(); ++i) {
-    expandBufAddObjectId(reply, gRegistry->Add(monitor_info.waiters[i]->GetPeer()));
+  expandBufAdd4BE(reply, monitor_info.entry_count_);
+  expandBufAdd4BE(reply, monitor_info.waiters_.size());
+  for (size_t i = 0; i < monitor_info.waiters_.size(); ++i) {
+    expandBufAddObjectId(reply, gRegistry->Add(monitor_info.waiters_[i]->GetPeer()));
   }
   return JDWP::ERR_NONE;
 }
@@ -928,13 +928,13 @@ JDWP::JdwpError Dbg::GetReferenceType(JDWP::ObjectId object_id, JDWP::ExpandBuf*
   return JDWP::ERR_NONE;
 }
 
-JDWP::JdwpError Dbg::GetSignature(JDWP::RefTypeId class_id, std::string& signature) {
+JDWP::JdwpError Dbg::GetSignature(JDWP::RefTypeId class_id, std::string* signature) {
   JDWP::JdwpError status;
   mirror::Class* c = DecodeClass(class_id, status);
   if (c == NULL) {
     return status;
   }
-  signature = ClassHelper(c).GetDescriptor();
+  *signature = ClassHelper(c).GetDescriptor();
   return JDWP::ERR_NONE;
 }
 
@@ -1065,8 +1065,8 @@ JDWP::JdwpError Dbg::SetArrayElements(JDWP::ObjectId array_id, int offset, int c
     LOG(WARNING) << __FUNCTION__ << " access out of bounds: offset=" << offset << "; count=" << count;
     return JDWP::ERR_INVALID_LENGTH;
   }
-  std::string descriptor(ClassHelper(dst->GetClass()).GetDescriptor());
-  JDWP::JdwpTag tag = BasicTagFromDescriptor(descriptor.c_str() + 1);
+  const char* descriptor = ClassHelper(dst->GetClass()).GetDescriptor();
+  JDWP::JdwpTag tag = BasicTagFromDescriptor(descriptor + 1);
 
   if (IsPrimitiveTag(tag)) {
     size_t width = GetTagWidth(tag);
@@ -1287,7 +1287,7 @@ JDWP::JdwpError Dbg::OutputDeclaredMethods(JDWP::RefTypeId class_id, bool with_g
     MethodHelper mh(m);
     expandBufAddMethodId(pReply, ToMethodId(m));
     expandBufAddUtf8String(pReply, mh.GetName());
-    expandBufAddUtf8String(pReply, mh.GetSignature());
+    expandBufAddUtf8String(pReply, mh.GetSignature().ToString());
     if (with_generic) {
       static const char genericSignature[1] = "";
       expandBufAddUtf8String(pReply, genericSignature);
@@ -1324,7 +1324,7 @@ void Dbg::OutputLineTable(JDWP::RefTypeId, JDWP::MethodId method_id, JDWP::Expan
       expandBufAdd8BE(pContext->pReply, address);
       expandBufAdd4BE(pContext->pReply, line_number);
       pContext->numItems++;
-      return true;
+      return false;
     }
   };
   mirror::ArtMethod* m = FromMethodId(method_id);
@@ -1935,7 +1935,8 @@ JDWP::JdwpError Dbg::SuspendThread(JDWP::ObjectId thread_id, bool request_suspen
   }
   // Suspend thread to build stack trace.
   bool timed_out;
-  Thread* thread = Thread::SuspendForDebugger(peer.get(), request_suspension, &timed_out);
+  Thread* thread = ThreadList::SuspendThreadByPeer(peer.get(), request_suspension, true,
+                                                   &timed_out);
   if (thread != NULL) {
     return JDWP::ERR_NONE;
   } else if (timed_out) {
@@ -2287,7 +2288,8 @@ void Dbg::PostClassPrepare(mirror::Class* c) {
   // since the class may not yet be verified.
   int state = JDWP::CS_VERIFIED | JDWP::CS_PREPARED;
   JDWP::JdwpTypeTag tag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
-  gJdwpState->PostClassPrepare(tag, gRegistry->Add(c), ClassHelper(c).GetDescriptor(), state);
+  gJdwpState->PostClassPrepare(tag, gRegistry->Add(c),
+                               ClassHelper(c).GetDescriptor(), state);
 }
 
 void Dbg::UpdateDebugger(Thread* thread, mirror::Object* this_object,
@@ -2411,7 +2413,8 @@ class ScopedThreadSuspension {
         soa.Self()->TransitionFromRunnableToSuspended(kWaitingForDebuggerSuspension);
         jobject thread_peer = gRegistry->GetJObject(thread_id);
         bool timed_out;
-        Thread* suspended_thread = Thread::SuspendForDebugger(thread_peer, true, &timed_out);
+        Thread* suspended_thread = ThreadList::SuspendThreadByPeer(thread_peer, true, true,
+                                                                   &timed_out);
         CHECK_EQ(soa.Self()->TransitionFromSuspendedToRunnable(), kWaitingForDebuggerSuspension);
         if (suspended_thread == NULL) {
           // Thread terminated from under us while suspending.
@@ -3011,7 +3014,7 @@ void Dbg::DdmSendThreadNotification(Thread* t, uint32_t type) {
 
   if (type == CHUNK_TYPE("THDE")) {
     uint8_t buf[4];
-    JDWP::Set4BE(&buf[0], t->GetThinLockId());
+    JDWP::Set4BE(&buf[0], t->GetThreadId());
     Dbg::DdmSendChunk(CHUNK_TYPE("THDE"), 4, buf);
   } else {
     CHECK(type == CHUNK_TYPE("THCR") || type == CHUNK_TYPE("THNM")) << type;
@@ -3021,7 +3024,7 @@ void Dbg::DdmSendThreadNotification(Thread* t, uint32_t type) {
     const jchar* chars = (name.get() != NULL) ? name->GetCharArray()->GetData() : NULL;
 
     std::vector<uint8_t> bytes;
-    JDWP::Append4BE(bytes, t->GetThinLockId());
+    JDWP::Append4BE(bytes, t->GetThreadId());
     JDWP::AppendUtf16BE(bytes, chars, char_count);
     CHECK_EQ(bytes.size(), char_count*2 + sizeof(uint32_t)*2);
     Dbg::DdmSendChunk(type, bytes);
@@ -3486,7 +3489,9 @@ void Dbg::SetAllocTrackingEnabled(bool enabled) {
       recent_allocation_records_ = new AllocRecord[gAllocRecordMax];
       CHECK(recent_allocation_records_ != NULL);
     }
+    Runtime::Current()->InstrumentQuickAllocEntryPoints();
   } else {
+    Runtime::Current()->UninstrumentQuickAllocEntryPoints();
     delete[] recent_allocation_records_;
     recent_allocation_records_ = NULL;
   }
@@ -3542,7 +3547,7 @@ void Dbg::RecordAllocation(mirror::Class* type, size_t byte_count) {
   AllocRecord* record = &recent_allocation_records_[gAllocRecordHead];
   record->type = type;
   record->byte_count = byte_count;
-  record->thin_lock_id = self->GetThinLockId();
+  record->thin_lock_id = self->GetThreadId();
 
   // Fill in the stack trace.
   AllocRecordStackVisitor visitor(self, record);

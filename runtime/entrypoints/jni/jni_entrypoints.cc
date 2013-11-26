@@ -41,7 +41,7 @@ extern "C" void* artFindNativeMethod() {
     return NULL;
   } else {
     // Register so that future calls don't come here
-    method->RegisterNative(self, native_code);
+    method->RegisterNative(self, native_code, false);
     return native_code;
   }
 }
@@ -115,7 +115,7 @@ extern "C" const void* artWorkAroundAppJniBugs(Thread* self, intptr_t* sp)
   const void* code = reinterpret_cast<const void*>(jni_method->GetNativeGcMap());
   if (UNLIKELY(code == NULL)) {
     code = GetJniDlsymLookupStub();
-    jni_method->RegisterNative(self, code);
+    jni_method->RegisterNative(self, code, false);
   }
   return code;
 }

@@ -58,12 +58,14 @@ run="run"
 expected="expected.txt"
 output="output.txt"
 build_output="build-output.txt"
+lib="libartd.so"
 run_args="--quiet"
 
 target_mode="yes"
 dev_mode="no"
 update_mode="no"
 debug_mode="no"
+dalvik_mode="no"
 usage="no"
 build_only="no"
 
@@ -79,7 +81,16 @@ while true; do
         NEED_DEX="false"
         shift
     elif [ "x$1" = "x-O" ]; then
-        run_args="${run_args} -O"
+        lib="libart.so"
+        shift
+    elif [ "x$1" = "x--dalvik" ]; then
+        lib="libdvm.so"
+        dalvik_mode="yes"
+        shift
+    elif [ "x$1" = "x--image" ]; then
+        shift
+        image="$1"
+        run_args="${run_args} --image $image"
         shift
     elif [ "x$1" = "x--debug" ]; then
         run_args="${run_args} --debug"
@@ -106,6 +117,11 @@ while true; do
     elif [ "x$1" = "x--invoke-with" ]; then
         shift
         what="$1"
+        if [ "x$what" = "x" ]; then
+            echo "$0 missing argument to --invoke-with" 1>&2
+            usage="yes"
+            break
+        fi
         run_args="${run_args} --invoke-with ${what}"
         shift
     elif [ "x$1" = "x--dev" ]; then
@@ -118,6 +134,11 @@ while true; do
     elif [ "x$1" = "x--output-path" ]; then
         shift
         tmp_dir=$1
+        if [ "x$tmp_dir" = "x" ]; then
+            echo "$0 missing argument to --output-path" 1>&2
+            usage="yes"
+            break
+        fi
         shift
     elif [ "x$1" = "x--update" ]; then
         update_mode="yes"
@@ -133,6 +154,24 @@ while true; do
         break
     fi
 done
+
+run_args="${run_args} --lib $lib"
+
+if [ "$dalvik_mode" = "no" ]; then
+    if [ "$target_mode" = "no" ]; then
+        run_args="${run_args} --boot -Ximage:${ANDROID_HOST_OUT}/framework/core.art"
+    else
+        run_args="${run_args} --boot -Ximage:/data/art-test/core.art"
+    fi
+else
+    if [ "$target_mode" = "no" ]; then
+        framework="${OUT}/system/framework"
+        bpath="${framework}/core.jar:${framework}/conscrypt.jar:${framework}/okhttp.jar:${framework}/core-junit.jar:${framework}/bouncycastle.jar:${framework}/ext.jar"
+        run_args="${run_args} --boot -Xbootclasspath:${bpath}"
+    else
+        true # defaults to using target BOOTCLASSPATH
+    fi
+fi
 
 if [ "$dev_mode" = "yes" -a "$update_mode" = "yes" ]; then
     echo "--dev and --update are mutually exclusive" 1>&2
@@ -185,6 +224,7 @@ if [ "$usage" = "yes" ]; then
         echo "                   other runtime options are ignored."
         echo "    --host         Use the host-mode virtual machine."
         echo "    --invoke-with  Pass --invoke-with option to runtime."
+        echo "    --dalvik       Use Dalvik (off by default)."
         echo "    --jvm          Use a host-local RI virtual machine."
         echo "    --output-path [path] Location where to store the build" \
              "files."
@@ -237,7 +277,7 @@ if [ "$dev_mode" = "yes" ]; then
     if [ "$build_exit" = '0' ]; then
         echo "${test_dir}: running..." 1>&2
         "./${run}" $run_args "$@" 2>&1
-	run_exit="$?"
+        run_exit="$?"
         echo "run exit status: $run_exit" 1>&2
         if [ "$run_exit" = "0" ]; then
             good="yes"
@@ -269,7 +309,7 @@ elif [ "$build_only" = "yes" ]; then
         fi
     fi
     # Clean up extraneous files that are not used by tests.
-    find $tmp_dir -mindepth 1  ! -regex ".*/\(.*jar\|$build_output\|$expected\)" | xargs rm -rf
+    find $tmp_dir -mindepth 1  ! -regex ".*/\(.*jar\|$output\|$expected\)" | xargs rm -rf
     exit 0
 else
     "./${build}" >"$build_output" 2>&1

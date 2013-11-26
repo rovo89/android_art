@@ -40,7 +40,7 @@ IndirectReferenceTable::IndirectReferenceTable(size_t initialCount,
   CHECK_LE(initialCount, maxCount);
   CHECK_NE(desiredKind, kSirtOrInvalid);
 
-  table_ = reinterpret_cast<const mirror::Object**>(malloc(initialCount * sizeof(const mirror::Object*)));
+  table_ = reinterpret_cast<mirror::Object**>(malloc(initialCount * sizeof(const mirror::Object*)));
   CHECK(table_ != NULL);
   memset(table_, 0xd1, initialCount * sizeof(const mirror::Object*));
 
@@ -75,7 +75,7 @@ bool IndirectReferenceTable::CheckEntry(const char* what, IndirectRef iref, int 
   return true;
 }
 
-IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const mirror::Object* obj) {
+IndirectRef IndirectReferenceTable::Add(uint32_t cookie, mirror::Object* obj) {
   IRTSegmentState prevState;
   prevState.all = cookie;
   size_t topIndex = segment_state_.parts.topIndex;
@@ -101,7 +101,7 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const mirror::Object* o
     }
     DCHECK_GT(newSize, alloc_entries_);
 
-    table_ = reinterpret_cast<const mirror::Object**>(realloc(table_, newSize * sizeof(const mirror::Object*)));
+    table_ = reinterpret_cast<mirror::Object**>(realloc(table_, newSize * sizeof(mirror::Object*)));
     slot_data_ = reinterpret_cast<IndirectRefSlot*>(realloc(slot_data_,
                                                             newSize * sizeof(IndirectRefSlot)));
     if (table_ == NULL || slot_data_ == NULL) {
@@ -126,7 +126,7 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const mirror::Object* o
   if (numHoles > 0) {
     DCHECK_GT(topIndex, 1U);
     // Find the first hole; likely to be near the end of the list.
-    const mirror::Object** pScan = &table_[topIndex - 1];
+    mirror::Object** pScan = &table_[topIndex - 1];
     DCHECK(*pScan != NULL);
     while (*--pScan != NULL) {
       DCHECK_GE(pScan, table_ + prevState.parts.topIndex);
@@ -194,7 +194,8 @@ bool IndirectReferenceTable::GetChecked(IndirectRef iref) const {
   return true;
 }
 
-static int Find(mirror::Object* direct_pointer, int bottomIndex, int topIndex, const mirror::Object** table) {
+static int Find(mirror::Object* direct_pointer, int bottomIndex, int topIndex,
+                mirror::Object** table) {
   for (int i = bottomIndex; i < topIndex; ++i) {
     if (table[i] == direct_pointer) {
       return i;
@@ -310,13 +311,14 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
 
 void IndirectReferenceTable::VisitRoots(RootVisitor* visitor, void* arg) {
   for (auto ref : *this) {
-    visitor(*ref, arg);
+    *ref = visitor(const_cast<mirror::Object*>(*ref), arg);
+    DCHECK(*ref != nullptr);
   }
 }
 
 void IndirectReferenceTable::Dump(std::ostream& os) const {
   os << kind_ << " table dump:\n";
-  std::vector<const mirror::Object*> entries(table_, table_ + Capacity());
+  ReferenceTable::Table entries(table_, table_ + Capacity());
   // Remove NULLs.
   for (int i = entries.size() - 1; i >= 0; --i) {
     if (entries[i] == NULL) {

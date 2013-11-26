@@ -57,7 +57,9 @@ class FdFile : public RandomAccessFile {
   // Bonus API.
   int Fd() const;
   bool IsOpened() const;
-  std::string GetPath() const;
+  const std::string& GetPath() const {
+    return file_path_;
+  }
   void DisableAutoClose();
   bool ReadFully(void* buffer, int64_t byte_count);
   bool WriteFully(const void* buffer, int64_t byte_count);

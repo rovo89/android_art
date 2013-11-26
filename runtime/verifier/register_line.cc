@@ -456,8 +456,7 @@ bool RegisterLine::VerifyMonitorStackEmpty() const {
 
 bool RegisterLine::MergeRegisters(const RegisterLine* incoming_line) {
   bool changed = false;
-  CHECK(NULL != incoming_line);
-  CHECK(NULL != line_.get());
+  DCHECK(incoming_line != nullptr);
   for (size_t idx = 0; idx < num_regs_; idx++) {
     if (line_[idx] != incoming_line->line_[idx]) {
       const RegType& incoming_reg_type = incoming_line->GetRegisterType(idx);
@@ -468,8 +467,8 @@ bool RegisterLine::MergeRegisters(const RegisterLine* incoming_line) {
     }
   }
   if (monitors_.size() != incoming_line->monitors_.size()) {
-    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "mismatched stack depths (depth="
-        << MonitorStackDepth() << ", incoming depth=" << incoming_line->MonitorStackDepth() << ")";
+    LOG(WARNING) << "mismatched stack depths (depth=" << MonitorStackDepth()
+                 << ", incoming depth=" << incoming_line->MonitorStackDepth() << ")";
   } else if (reg_to_lock_depths_ != incoming_line->reg_to_lock_depths_) {
     for (uint32_t idx = 0; idx < num_regs_; idx++) {
       size_t depths = reg_to_lock_depths_.count(idx);
@@ -478,8 +477,8 @@ bool RegisterLine::MergeRegisters(const RegisterLine* incoming_line) {
         if (depths == 0 || incoming_depths == 0) {
           reg_to_lock_depths_.erase(idx);
         } else {
-          verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "mismatched stack depths for register v" << idx
-                                                       << ": " << depths  << " != " << incoming_depths;
+          LOG(WARNING) << "mismatched stack depths for register v" << idx
+                       << ": " << depths  << " != " << incoming_depths;
           break;
         }
       }

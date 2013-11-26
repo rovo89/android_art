@@ -82,7 +82,7 @@ Got expected exception
 Invoke public abstract void InterfaceW1.bothThrowBase() throws BaseException,SubException,SubSubException
  (no args)
 Got expected exception
-Proxy methods: [public final boolean $Proxy7.equals(java.lang.Object), public final java.lang.Object $Proxy7.foo(), public final java.lang.String $Proxy7.foo(), public final int $Proxy7.hashCode(), public final java.lang.String $Proxy7.toString()]
+Proxy methods: [public final boolean $Proxy3.equals(java.lang.Object), public final java.lang.Object $Proxy3.foo(), public final java.lang.String $Proxy3.foo(), public final int $Proxy3.hashCode(), public final java.lang.String $Proxy3.toString()]
 Invocation of public abstract java.lang.String NarrowingTest$I2.foo()
 Invoking foo using I2 type: hello
 Invocation of public abstract java.lang.Object NarrowingTest$I1.foo()

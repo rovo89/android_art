@@ -90,12 +90,6 @@ static bool IsSirtLocalRef(JNIEnv* env, jobject localRef) {
       reinterpret_cast<JNIEnvExt*>(env)->self->SirtContains(localRef);
 }
 
-// Hack to allow forcecopy to work with jniGetNonMovableArrayElements.
-// The code deliberately uses an invalid sequence of operations, so we
-// need to pass it through unmodified.  Review that code before making
-// any changes here.
-#define kNoCopyMagic    0xd5aab57f
-
 // Flags passed into ScopedCheck.
 #define kFlag_Default       0x0000
 
@@ -335,7 +329,7 @@ class ScopedCheck {
       return;
     }
     mirror::Class* c = soa_.Decode<mirror::Class*>(java_class);
-    if (!c->IsAssignableFrom(m->GetDeclaringClass())) {
+    if (!m->GetDeclaringClass()->IsAssignableFrom(c)) {
       JniAbortF(function_name_, "can't call static %s on class %s",
                 PrettyMethod(m).c_str(), PrettyClass(c).c_str());
     }
@@ -1098,10 +1092,6 @@ static void* CreateGuardedPACopy(JNIEnv* env, const jarray java_array, jboolean*
  * back into the managed heap, and may or may not release the underlying storage.
  */
 static void ReleaseGuardedPACopy(JNIEnv* env, jarray java_array, void* dataBuf, int mode) {
-  if (reinterpret_cast<uintptr_t>(dataBuf) == kNoCopyMagic) {
-    return;
-  }
-
   ScopedObjectAccess soa(env);
   mirror::Array* a = soa.Decode<mirror::Array*>(java_array);
 
@@ -1596,9 +1586,7 @@ struct ForceCopyGetChecker {
   template<typename ResultT>
   ResultT Check(JNIEnv* env, jarray array, jboolean* isCopy, ResultT result) {
     if (force_copy && result != NULL) {
-      if (no_copy != kNoCopyMagic) {
-        result = reinterpret_cast<ResultT>(CreateGuardedPACopy(env, array, isCopy));
-      }
+      result = reinterpret_cast<ResultT>(CreateGuardedPACopy(env, array, isCopy));
     }
     return result;
   }

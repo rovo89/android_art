@@ -30,7 +30,8 @@ class SirtRef {
     self_->PushSirt(&sirt_);
   }
   ~SirtRef() {
-    CHECK(self_->PopSirt() == &sirt_);
+    StackIndirectReferenceTable* top_sirt = self_->PopSirt();
+    DCHECK_EQ(top_sirt, &sirt_);
   }
 
   T& operator*() const { return *get(); }

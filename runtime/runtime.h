@@ -45,6 +45,7 @@ namespace gc {
 namespace mirror {
   class ArtMethod;
   class ClassLoader;
+  template<class T> class ObjectArray;
   template<class T> class PrimitiveArray;
   typedef PrimitiveArray<int8_t> ByteArray;
   class String;
@@ -112,6 +113,7 @@ class Runtime {
     size_t parallel_gc_threads_;
     size_t conc_gc_threads_;
     size_t stack_size_;
+    size_t max_spins_before_thin_lock_inflation_;
     bool low_memory_mode_;
     size_t lock_profiling_threshold_;
     std::string stack_trace_file_;
@@ -279,11 +281,16 @@ class Runtime {
   }
 
   InternTable* GetInternTable() const {
+    DCHECK(intern_table_ != NULL);
     return intern_table_;
   }
 
   JavaVMExt* GetJavaVM() const {
     return java_vm_;
+  }
+
+  size_t GetMaxSpinsBeforeThinkLockInflation() const {
+    return max_spins_before_thin_lock_inflation_;
   }
 
   MonitorList* GetMonitorList() const {
@@ -323,6 +330,11 @@ class Runtime {
   void VisitNonConcurrentRoots(RootVisitor* visitor, void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Sweep system weaks, the system weak is deleted if the visitor return nullptr. Otherwise, the
+  // system weak is updated to be the visitor's returned value.
+  void SweepSystemWeaks(RootVisitor* visitor, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Returns a special method that calls into a trampoline for runtime method resolution
   mirror::ArtMethod* GetResolutionMethod() const {
     CHECK(HasResolutionMethod());
@@ -338,6 +350,39 @@ class Runtime {
   }
 
   mirror::ArtMethod* CreateResolutionMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Returns a special method that calls into a trampoline for runtime imt conflicts
+  mirror::ArtMethod* GetImtConflictMethod() const {
+    CHECK(HasImtConflictMethod());
+    return imt_conflict_method_;
+  }
+
+  bool HasImtConflictMethod() const {
+    return imt_conflict_method_ != NULL;
+  }
+
+  void SetImtConflictMethod(mirror::ArtMethod* method) {
+    imt_conflict_method_ = method;
+  }
+
+  mirror::ArtMethod* CreateImtConflictMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Returns an imt with every entry set to conflict, used as default imt for all classes.
+  mirror::ObjectArray<mirror::ArtMethod>* GetDefaultImt() const {
+    CHECK(HasDefaultImt());
+    return default_imt_;
+  }
+
+  bool HasDefaultImt() const {
+    return default_imt_ != NULL;
+  }
+
+  void SetDefaultImt(mirror::ObjectArray<mirror::ArtMethod>* imt) {
+    default_imt_ = imt;
+  }
+
+  mirror::ObjectArray<mirror::ArtMethod>* CreateDefaultImt(ClassLinker* cl)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns a special method that describes all callee saves being spilled to the stack.
   enum CalleeSaveType {
@@ -397,6 +442,9 @@ class Runtime {
   const std::vector<const DexFile*>& GetCompileTimeClassPath(jobject class_loader);
   void SetCompileTimeClassPath(jobject class_loader, std::vector<const DexFile*>& class_path);
 
+  void InstrumentQuickAllocEntryPoints();
+  void UninstrumentQuickAllocEntryPoints();
+
  private:
   static void InitPlatformSignalHandlers();
 
@@ -451,6 +499,8 @@ class Runtime {
 
   gc::Heap* heap_;
 
+  // The number of spins that are done before thread suspension is used to forcibly inflate.
+  size_t max_spins_before_thin_lock_inflation_;
   MonitorList* monitor_list_;
 
   ThreadList* thread_list_;
@@ -469,6 +519,10 @@ class Runtime {
   mirror::ArtMethod* callee_save_methods_[kLastCalleeSaveType];
 
   mirror::ArtMethod* resolution_method_;
+
+  mirror::ArtMethod* imt_conflict_method_;
+
+  mirror::ObjectArray<mirror::ArtMethod>* default_imt_;
 
   // A non-zero value indicates that a thread has been created but not yet initialized. Guarded by
   // the shutdown lock so that threads aren't born while we're shutting down.
@@ -512,6 +566,8 @@ class Runtime {
 
   // As returned by ClassLoader.getSystemClassLoader().
   jobject system_class_loader_;
+
+  int quick_alloc_entry_points_instrumentation_counter_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };

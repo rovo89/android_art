@@ -96,19 +96,19 @@ void MIRGraph::PropagateConstants() {
   is_constant_v_ = new (arena_) ArenaBitVector(arena_, GetNumSSARegs(), false);
   constant_values_ = static_cast<int*>(arena_->Alloc(sizeof(int) * GetNumSSARegs(),
                                                      ArenaAllocator::kAllocDFInfo));
-  AllNodesIterator iter(this, false /* not iterative */);
+  AllNodesIterator iter(this);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     DoConstantPropogation(bb);
   }
 }
 
 /* Advance to next strictly dominated MIR node in an extended basic block */
-static MIR* AdvanceMIR(BasicBlock** p_bb, MIR* mir) {
+MIR* MIRGraph::AdvanceMIR(BasicBlock** p_bb, MIR* mir) {
   BasicBlock* bb = *p_bb;
   if (mir != NULL) {
     mir = mir->next;
     if (mir == NULL) {
-      bb = bb->fall_through;
+      bb = GetBasicBlock(bb->fall_through);
       if ((bb == NULL) || Predecessors(bb) != 1) {
         mir = NULL;
       } else {
@@ -147,19 +147,21 @@ MIR* MIRGraph::FindMoveResult(BasicBlock* bb, MIR* mir) {
   return mir;
 }
 
-static BasicBlock* NextDominatedBlock(BasicBlock* bb) {
+BasicBlock* MIRGraph::NextDominatedBlock(BasicBlock* bb) {
   if (bb->block_type == kDead) {
     return NULL;
   }
   DCHECK((bb->block_type == kEntryBlock) || (bb->block_type == kDalvikByteCode)
       || (bb->block_type == kExitBlock));
-  if (((bb->taken != NULL) && (bb->fall_through == NULL)) &&
-      ((bb->taken->block_type == kDalvikByteCode) || (bb->taken->block_type == kExitBlock))) {
+  BasicBlock* bb_taken = GetBasicBlock(bb->taken);
+  BasicBlock* bb_fall_through = GetBasicBlock(bb->fall_through);
+  if (((bb_taken != NULL) && (bb_fall_through == NULL)) &&
+      ((bb_taken->block_type == kDalvikByteCode) || (bb_taken->block_type == kExitBlock))) {
     // Follow simple unconditional branches.
-    bb = bb->taken;
+    bb = bb_taken;
   } else {
     // Follow simple fallthrough
-    bb = (bb->taken != NULL) ? NULL : bb->fall_through;
+    bb = (bb_taken != NULL) ? NULL : bb_fall_through;
   }
   if (bb == NULL || (Predecessors(bb) != 1)) {
     return NULL;
@@ -311,11 +313,13 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
         case Instruction::IF_GTZ:
         case Instruction::IF_LEZ:
           // If we've got a backwards branch to return, no need to suspend check.
-          if ((IsBackedge(bb, bb->taken) && bb->taken->dominates_return) ||
-              (IsBackedge(bb, bb->fall_through) && bb->fall_through->dominates_return)) {
+          if ((IsBackedge(bb, bb->taken) && GetBasicBlock(bb->taken)->dominates_return) ||
+              (IsBackedge(bb, bb->fall_through) &&
+                          GetBasicBlock(bb->fall_through)->dominates_return)) {
             mir->optimization_flags |= MIR_IGNORE_SUSPEND_CHECK;
             if (cu_->verbose) {
-              LOG(INFO) << "Suppressed suspend check on branch to return at 0x" << std::hex << mir->offset;
+              LOG(INFO) << "Suppressed suspend check on branch to return at 0x" << std::hex
+                        << mir->offset;
             }
           }
           break;
@@ -328,15 +332,15 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
       if (!(cu_->compiler_backend == kPortable) && (cu_->instruction_set == kThumb2) &&
           ((mir->dalvikInsn.opcode == Instruction::IF_EQZ) ||
           (mir->dalvikInsn.opcode == Instruction::IF_NEZ))) {
-        BasicBlock* ft = bb->fall_through;
+        BasicBlock* ft = GetBasicBlock(bb->fall_through);
         DCHECK(ft != NULL);
-        BasicBlock* ft_ft = ft->fall_through;
-        BasicBlock* ft_tk = ft->taken;
+        BasicBlock* ft_ft = GetBasicBlock(ft->fall_through);
+        BasicBlock* ft_tk = GetBasicBlock(ft->taken);
 
-        BasicBlock* tk = bb->taken;
+        BasicBlock* tk = GetBasicBlock(bb->taken);
         DCHECK(tk != NULL);
-        BasicBlock* tk_ft = tk->fall_through;
-        BasicBlock* tk_tk = tk->taken;
+        BasicBlock* tk_ft = GetBasicBlock(tk->fall_through);
+        BasicBlock* tk_tk = GetBasicBlock(tk->taken);
 
         /*
          * In the select pattern, the taken edge goes to a block that unconditionally
@@ -434,7 +438,7 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
                 int dead_def = if_false->ssa_rep->defs[0];
                 int live_def = if_true->ssa_rep->defs[0];
                 mir->ssa_rep->defs[0] = live_def;
-                int* incoming = reinterpret_cast<int*>(phi->dalvikInsn.vB);
+                BasicBlockId* incoming = phi->meta.phi_incoming;
                 for (int i = 0; i < phi->ssa_rep->num_uses; i++) {
                   if (phi->ssa_rep->uses[i] == live_def) {
                     incoming[i] = bb->id;
@@ -449,7 +453,7 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
                 }
               }
               phi->ssa_rep->num_uses--;
-              bb->taken = NULL;
+              bb->taken = NullBasicBlockId;
               tk->block_type = kDead;
               for (MIR* tmir = ft->first_mir_insn; tmir != NULL; tmir = tmir->next) {
                 tmir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
@@ -500,7 +504,7 @@ void MIRGraph::CountChecks(struct BasicBlock* bb) {
 }
 
 /* Try to make common case the fallthrough path */
-static bool LayoutBlocks(struct BasicBlock* bb) {
+bool MIRGraph::LayoutBlocks(BasicBlock* bb) {
   // TODO: For now, just looking for direct throws.  Consider generalizing for profile feedback
   if (!bb->explicit_throw) {
     return false;
@@ -511,13 +515,13 @@ static bool LayoutBlocks(struct BasicBlock* bb) {
     if ((walker->block_type == kEntryBlock) || (Predecessors(walker) != 1)) {
       break;
     }
-    BasicBlock* prev = walker->predecessors->Get(0);
+    BasicBlock* prev = GetBasicBlock(walker->predecessors->Get(0));
     if (prev->conditional_branch) {
-      if (prev->fall_through == walker) {
+      if (GetBasicBlock(prev->fall_through) == walker) {
         // Already done - return
         break;
       }
-      DCHECK_EQ(walker, prev->taken);
+      DCHECK_EQ(walker, GetBasicBlock(prev->taken));
       // Got one.  Flip it and exit
       Instruction::Code opcode = prev->last_mir_insn->dalvikInsn.opcode;
       switch (opcode) {
@@ -536,7 +540,7 @@ static bool LayoutBlocks(struct BasicBlock* bb) {
         default: LOG(FATAL) << "Unexpected opcode " << opcode;
       }
       prev->last_mir_insn->dalvikInsn.opcode = opcode;
-      BasicBlock* t_bb = prev->taken;
+      BasicBlockId t_bb = prev->taken;
       prev->taken = prev->fall_through;
       prev->fall_through = t_bb;
       break;
@@ -556,8 +560,9 @@ bool MIRGraph::CombineBlocks(struct BasicBlock* bb) {
         || (bb->block_type == kExceptionHandling)
         || (bb->block_type == kExitBlock)
         || (bb->block_type == kDead)
-        || ((bb->taken == NULL) || (bb->taken->block_type != kExceptionHandling))
-        || (bb->successor_block_list.block_list_type != kNotUsed)
+        || (bb->taken == NullBasicBlockId)
+        || (GetBasicBlock(bb->taken)->block_type != kExceptionHandling)
+        || (bb->successor_block_list_type != kNotUsed)
         || (static_cast<int>(bb->last_mir_insn->dalvikInsn.opcode) != kMirOpCheck)) {
       break;
     }
@@ -578,19 +583,18 @@ bool MIRGraph::CombineBlocks(struct BasicBlock* bb) {
       break;
     }
     // OK - got one.  Combine
-    BasicBlock* bb_next = bb->fall_through;
+    BasicBlock* bb_next = GetBasicBlock(bb->fall_through);
     DCHECK(!bb_next->catch_entry);
     DCHECK_EQ(Predecessors(bb_next), 1U);
-    MIR* t_mir = bb->last_mir_insn->prev;
     // Overwrite the kOpCheck insn with the paired opcode
     DCHECK_EQ(bb_next->first_mir_insn, throw_insn);
     *bb->last_mir_insn = *throw_insn;
-    bb->last_mir_insn->prev = t_mir;
     // Use the successor info from the next block
-    bb->successor_block_list = bb_next->successor_block_list;
+    bb->successor_block_list_type = bb_next->successor_block_list_type;
+    bb->successor_blocks = bb_next->successor_blocks;
     // Use the ending block linkage from the next block
     bb->fall_through = bb_next->fall_through;
-    bb->taken->block_type = kDead;  // Kill the unused exception block
+    GetBasicBlock(bb->taken)->block_type = kDead;  // Kill the unused exception block
     bb->taken = bb_next->taken;
     // Include the rest of the instructions
     bb->last_mir_insn = bb_next->last_mir_insn;
@@ -625,48 +629,56 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb) {
    */
   if ((bb->block_type == kEntryBlock) | bb->catch_entry) {
     temp_ssa_register_v_->ClearAllBits();
+    // Assume all ins are objects.
+    for (uint16_t in_reg = cu_->num_dalvik_registers - cu_->num_ins;
+         in_reg < cu_->num_dalvik_registers; in_reg++) {
+      temp_ssa_register_v_->SetBit(in_reg);
+    }
     if ((cu_->access_flags & kAccStatic) == 0) {
       // If non-static method, mark "this" as non-null
       int this_reg = cu_->num_dalvik_registers - cu_->num_ins;
-      temp_ssa_register_v_->SetBit(this_reg);
+      temp_ssa_register_v_->ClearBit(this_reg);
     }
   } else if (bb->predecessors->Size() == 1) {
-    BasicBlock* pred_bb = bb->predecessors->Get(0);
+    BasicBlock* pred_bb = GetBasicBlock(bb->predecessors->Get(0));
     temp_ssa_register_v_->Copy(pred_bb->data_flow_info->ending_null_check_v);
     if (pred_bb->block_type == kDalvikByteCode) {
       // Check to see if predecessor had an explicit null-check.
       MIR* last_insn = pred_bb->last_mir_insn;
       Instruction::Code last_opcode = last_insn->dalvikInsn.opcode;
       if (last_opcode == Instruction::IF_EQZ) {
-        if (pred_bb->fall_through == bb) {
+        if (pred_bb->fall_through == bb->id) {
           // The fall-through of a block following a IF_EQZ, set the vA of the IF_EQZ to show that
           // it can't be null.
-          temp_ssa_register_v_->SetBit(last_insn->ssa_rep->uses[0]);
+          temp_ssa_register_v_->ClearBit(last_insn->ssa_rep->uses[0]);
         }
       } else if (last_opcode == Instruction::IF_NEZ) {
-        if (pred_bb->taken == bb) {
+        if (pred_bb->taken == bb->id) {
           // The taken block following a IF_NEZ, set the vA of the IF_NEZ to show that it can't be
           // null.
-          temp_ssa_register_v_->SetBit(last_insn->ssa_rep->uses[0]);
+          temp_ssa_register_v_->ClearBit(last_insn->ssa_rep->uses[0]);
         }
       }
     }
   } else {
-    // Starting state is intersection of all incoming arcs
-    GrowableArray<BasicBlock*>::Iterator iter(bb->predecessors);
-    BasicBlock* pred_bb = iter.Next();
+    // Starting state is union of all incoming arcs
+    GrowableArray<BasicBlockId>::Iterator iter(bb->predecessors);
+    BasicBlock* pred_bb = GetBasicBlock(iter.Next());
     DCHECK(pred_bb != NULL);
     temp_ssa_register_v_->Copy(pred_bb->data_flow_info->ending_null_check_v);
     while (true) {
-      pred_bb = iter.Next();
+      pred_bb = GetBasicBlock(iter.Next());
       if (!pred_bb) break;
       if ((pred_bb->data_flow_info == NULL) ||
           (pred_bb->data_flow_info->ending_null_check_v == NULL)) {
         continue;
       }
-      temp_ssa_register_v_->Intersect(pred_bb->data_flow_info->ending_null_check_v);
+      temp_ssa_register_v_->Union(pred_bb->data_flow_info->ending_null_check_v);
     }
   }
+
+  // At this point, temp_ssa_register_v_ shows which sregs have an object definition with
+  // no intervening uses.
 
   // Walk through the instruction in the block, updating as necessary
   for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
@@ -675,9 +687,47 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb) {
     }
     int df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
 
-    // Mark target of NEW* as non-null
-    if (df_attributes & DF_NON_NULL_DST) {
+    // Might need a null check?
+    if (df_attributes & DF_HAS_NULL_CHKS) {
+      int src_idx;
+      if (df_attributes & DF_NULL_CHK_1) {
+        src_idx = 1;
+      } else if (df_attributes & DF_NULL_CHK_2) {
+        src_idx = 2;
+      } else {
+        src_idx = 0;
+      }
+      int src_sreg = mir->ssa_rep->uses[src_idx];
+      if (!temp_ssa_register_v_->IsBitSet(src_sreg)) {
+        // Eliminate the null check.
+        mir->optimization_flags |= MIR_IGNORE_NULL_CHECK;
+      } else {
+        // Do the null check.
+        mir->optimization_flags &= ~MIR_IGNORE_NULL_CHECK;
+        // Mark s_reg as null-checked
+        temp_ssa_register_v_->ClearBit(src_sreg);
+      }
+    }
+
+    if ((df_attributes & DF_A_WIDE) ||
+        (df_attributes & (DF_REF_A | DF_SETS_CONST | DF_NULL_TRANSFER)) == 0) {
+      continue;
+    }
+
+    /*
+     * First, mark all object definitions as requiring null check.
+     * Note: we can't tell if a CONST definition might be used as an object, so treat
+     * them all as object definitions.
+     */
+    if (((df_attributes & (DF_DA | DF_REF_A)) == (DF_DA | DF_REF_A)) ||
+        (df_attributes & DF_SETS_CONST))  {
       temp_ssa_register_v_->SetBit(mir->ssa_rep->defs[0]);
+    }
+
+    // Now, remove mark from all object definitions we know are non-null.
+    if (df_attributes & DF_NON_NULL_DST) {
+      // Mark target of NEW* as non-null
+      temp_ssa_register_v_->ClearBit(mir->ssa_rep->defs[0]);
     }
 
     // Mark non-null returns from invoke-style NEW*
@@ -687,13 +737,13 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb) {
       if (next_mir &&
           next_mir->dalvikInsn.opcode == Instruction::MOVE_RESULT_OBJECT) {
         // Mark as null checked
-        temp_ssa_register_v_->SetBit(next_mir->ssa_rep->defs[0]);
+        temp_ssa_register_v_->ClearBit(next_mir->ssa_rep->defs[0]);
       } else {
         if (next_mir) {
           LOG(WARNING) << "Unexpected opcode following new: " << next_mir->dalvikInsn.opcode;
-        } else if (bb->fall_through) {
+        } else if (bb->fall_through != NullBasicBlockId) {
           // Look in next basic block
-          struct BasicBlock* next_bb = bb->fall_through;
+          struct BasicBlock* next_bb = GetBasicBlock(bb->fall_through);
           for (MIR* tmir = next_bb->first_mir_insn; tmir != NULL;
             tmir =tmir->next) {
             if (static_cast<int>(tmir->dalvikInsn.opcode) >= static_cast<int>(kMirOpFirst)) {
@@ -702,7 +752,7 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb) {
             // First non-pseudo should be MOVE_RESULT_OBJECT
             if (tmir->dalvikInsn.opcode == Instruction::MOVE_RESULT_OBJECT) {
               // Mark as null checked
-              temp_ssa_register_v_->SetBit(tmir->ssa_rep->defs[0]);
+              temp_ssa_register_v_->ClearBit(tmir->ssa_rep->defs[0]);
             } else {
               LOG(WARNING) << "Unexpected op after new: " << tmir->dalvikInsn.opcode;
             }
@@ -715,40 +765,22 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb) {
     /*
      * Propagate nullcheck state on register copies (including
      * Phi pseudo copies.  For the latter, nullcheck state is
-     * the "and" of all the Phi's operands.
+     * the "or" of all the Phi's operands.
      */
     if (df_attributes & (DF_NULL_TRANSFER_0 | DF_NULL_TRANSFER_N)) {
       int tgt_sreg = mir->ssa_rep->defs[0];
       int operands = (df_attributes & DF_NULL_TRANSFER_0) ? 1 :
           mir->ssa_rep->num_uses;
-      bool null_checked = true;
+      bool needs_null_check = false;
       for (int i = 0; i < operands; i++) {
-        null_checked &= temp_ssa_register_v_->IsBitSet(mir->ssa_rep->uses[i]);
+        needs_null_check |= temp_ssa_register_v_->IsBitSet(mir->ssa_rep->uses[i]);
       }
-      if (null_checked) {
+      if (needs_null_check) {
         temp_ssa_register_v_->SetBit(tgt_sreg);
+      } else {
+        temp_ssa_register_v_->ClearBit(tgt_sreg);
       }
     }
-
-    // Already nullchecked?
-    if ((df_attributes & DF_HAS_NULL_CHKS) && !(mir->optimization_flags & MIR_IGNORE_NULL_CHECK)) {
-      int src_idx;
-      if (df_attributes & DF_NULL_CHK_1) {
-        src_idx = 1;
-      } else if (df_attributes & DF_NULL_CHK_2) {
-        src_idx = 2;
-      } else {
-        src_idx = 0;
-      }
-      int src_sreg = mir->ssa_rep->uses[src_idx];
-        if (temp_ssa_register_v_->IsBitSet(src_sreg)) {
-          // Eliminate the null check
-          mir->optimization_flags |= MIR_IGNORE_NULL_CHECK;
-        } else {
-          // Mark s_reg as null-checked
-          temp_ssa_register_v_->SetBit(src_sreg);
-        }
-     }
   }
 
   // Did anything change?
@@ -762,11 +794,11 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb) {
 void MIRGraph::NullCheckElimination() {
   if (!(cu_->disable_opt & (1 << kNullCheckElimination))) {
     DCHECK(temp_ssa_register_v_ != NULL);
-    AllNodesIterator iter(this, false /* not iterative */);
+    AllNodesIterator iter(this);
     for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
       NullCheckEliminationInit(bb);
     }
-    PreOrderDfsIterator iter2(this, true /* iterative */);
+    RepeatingPreOrderDfsIterator iter2(this);
     bool change = false;
     for (BasicBlock* bb = iter2.Next(change); bb != NULL; bb = iter2.Next(change)) {
       change = EliminateNullChecks(bb);
@@ -778,7 +810,7 @@ void MIRGraph::NullCheckElimination() {
 }
 
 void MIRGraph::BasicBlockCombine() {
-  PreOrderDfsIterator iter(this, false /* not iterative */);
+  PreOrderDfsIterator iter(this);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     CombineBlocks(bb);
   }
@@ -791,7 +823,7 @@ void MIRGraph::CodeLayout() {
   if (cu_->enable_debug & (1 << kDebugVerifyDataflow)) {
     VerifyDataflow();
   }
-  AllNodesIterator iter(this, false /* not iterative */);
+  AllNodesIterator iter(this);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     LayoutBlocks(bb);
   }
@@ -804,7 +836,7 @@ void MIRGraph::DumpCheckStats() {
   Checkstats* stats =
       static_cast<Checkstats*>(arena_->Alloc(sizeof(Checkstats), ArenaAllocator::kAllocDFInfo));
   checkstats_ = stats;
-  AllNodesIterator iter(this, false /* not iterative */);
+  AllNodesIterator iter(this);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     CountChecks(bb);
   }
@@ -834,7 +866,7 @@ bool MIRGraph::BuildExtendedBBList(struct BasicBlock* bb) {
   }
   // Must be head of extended basic block.
   BasicBlock* start_bb = bb;
-  extended_basic_blocks_.push_back(bb);
+  extended_basic_blocks_.push_back(bb->id);
   bool terminated_by_return = false;
   // Visit blocks strictly dominated by this head.
   while (bb != NULL) {
@@ -858,13 +890,13 @@ void MIRGraph::BasicBlockOptimization() {
   if (!(cu_->disable_opt & (1 << kBBOpt))) {
     DCHECK_EQ(cu_->num_compiler_temps, 0);
     ClearAllVisitedFlags();
-    PreOrderDfsIterator iter2(this, false /* not iterative */);
+    PreOrderDfsIterator iter2(this);
     for (BasicBlock* bb = iter2.Next(); bb != NULL; bb = iter2.Next()) {
       BuildExtendedBBList(bb);
     }
     // Perform extended basic block optimizations.
     for (unsigned int i = 0; i < extended_basic_blocks_.size(); i++) {
-      BasicBlockOpt(extended_basic_blocks_[i]);
+      BasicBlockOpt(GetBasicBlock(extended_basic_blocks_[i]));
     }
   }
   if (cu_->enable_debug & (1 << kDebugDumpCFG)) {

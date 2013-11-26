@@ -17,19 +17,24 @@
 #include "string.h"
 
 #include "array.h"
+#include "class-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "intern_table.h"
 #include "object-inl.h"
 #include "runtime.h"
 #include "sirt_ref.h"
 #include "thread.h"
-#include "utf.h"
+#include "utf-inl.h"
 
 namespace art {
 namespace mirror {
 
 const CharArray* String::GetCharArray() const {
   return GetFieldObject<const CharArray*>(ValueOffset(), false);
+}
+
+CharArray* String::GetCharArray() {
+  return GetFieldObject<CharArray*>(ValueOffset(), false);
 }
 
 void String::ComputeHashCode() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -285,4 +290,3 @@ int32_t String::CompareTo(String* rhs) const {
 
 }  // namespace mirror
 }  // namespace art
-

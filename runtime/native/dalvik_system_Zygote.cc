@@ -35,7 +35,8 @@
 #include "ScopedLocalRef.h"
 #include "ScopedPrimitiveArray.h"
 #include "ScopedUtfChars.h"
-#include "thread.h"
+#include "thread-inl.h"
+#include "utils.h"
 
 #if defined(HAVE_PRCTL)
 #include <sys/prctl.h>
@@ -230,18 +231,18 @@ static void DropCapabilitiesBoundingSet() {
 
 static void SetCapabilities(int64_t permitted, int64_t effective) {
   __user_cap_header_struct capheader;
-  __user_cap_data_struct capdata;
-
   memset(&capheader, 0, sizeof(capheader));
-  memset(&capdata, 0, sizeof(capdata));
-
-  capheader.version = _LINUX_CAPABILITY_VERSION;
+  capheader.version = _LINUX_CAPABILITY_VERSION_3;
   capheader.pid = 0;
 
-  capdata.effective = effective;
-  capdata.permitted = permitted;
+  __user_cap_data_struct capdata[2];
+  memset(&capdata, 0, sizeof(capdata));
+  capdata[0].effective = effective;
+  capdata[1].effective = effective >> 32;
+  capdata[0].permitted = permitted;
+  capdata[1].permitted = permitted >> 32;
 
-  if (capset(&capheader, &capdata) != 0) {
+  if (capset(&capheader, &capdata[0]) == -1) {
     PLOG(FATAL) << "capset(" << permitted << ", " << effective << ") failed";
   }
 }
@@ -495,6 +496,15 @@ static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArra
         PLOG(FATAL) << "selinux_android_setcontext(" << uid << ", "
                     << (is_system_server ? "true" : "false") << ", "
                     << "\"" << se_info_c_str << "\", \"" << se_name_c_str << "\") failed";
+      }
+
+      // Make it easier to debug audit logs by setting the main thread's name to the
+      // nice name rather than "app_process".
+      if (se_info_c_str == NULL && is_system_server) {
+        se_name_c_str = "system_server";
+      }
+      if (se_info_c_str != NULL) {
+        SetThreadName(se_name_c_str);
       }
     }
 #else
