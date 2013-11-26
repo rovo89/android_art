@@ -440,18 +440,34 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
               if (op3 == 0) {   // op3 is 00, op4 is 00
                 opcode << "strex";
                 args << Rd << ", " << Rt << ", [" << Rn << ", #" << (imm8 << 2) << "]";
+                if (Rd.r == 13 || Rd.r == 15 || Rt.r == 13 || Rt.r == 15 || Rn.r == 15 ||
+                    Rd.r == Rn.r || Rd.r == Rt.r) {
+                  args << " (UNPREDICTABLE)";
+                }
               } else {          // op3 is 01, op4 is 00
                 // this is one of strexb, strexh or strexd
                 int op5 = (instr >> 4) & 0xf;
                 switch (op5) {
                   case 4:
-                    opcode << "strexb";
-                    break;
                   case 5:
-                    opcode << "strexh";
+                    opcode << ((op5 == 4) ? "strexb" : "strexh");
+                    Rd = ArmRegister(instr, 0);
+                    args << Rd << ", " << Rt << ", [" << Rn << "]";
+                    if (Rd.r == 13 || Rd.r == 15 || Rt.r == 13 || Rt.r == 15 || Rn.r == 15 ||
+                        Rd.r == Rn.r || Rd.r == Rt.r || (instr & 0xf00) != 0xf00) {
+                      args << " (UNPREDICTABLE)";
+                    }
                     break;
                   case 7:
                     opcode << "strexd";
+                    ArmRegister Rt2 = Rd;
+                    Rd = ArmRegister(instr, 0);
+                    args << Rd << ", " << Rt << ", " << Rt2 << ", [" << Rn << "]";
+                    if (Rd.r == 13 || Rd.r == 15 || Rt.r == 13 || Rt.r == 15 ||
+                        Rt2.r == 13 || Rt2.r == 15 || Rn.r == 15 ||
+                        Rd.r == Rn.r || Rd.r == Rt.r || Rd.r == Rt2.r) {
+                      args << " (UNPREDICTABLE)";
+                    }
                     break;
                 }
               }
@@ -460,6 +476,9 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
               if (op3 == 0) {   // op3 is 00, op4 is 01
                 opcode << "ldrex";
                 args << Rt << ", [" << Rn << ", #" << (imm8 << 2) << "]";
+                if (Rt.r == 13 || Rt.r == 15 || Rn.r == 15 || (instr & 0xf00) != 0xf00) {
+                  args << " (UNPREDICTABLE)";
+                }
               } else {          // op3 is 01, op4 is 01
                 // this is one of strexb, strexh or strexd
                 int op5 = (instr >> 4) & 0xf;
@@ -471,13 +490,20 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
                     opcode << "tbh";
                     break;
                   case 4:
-                    opcode << "ldrexb";
-                    break;
                   case 5:
-                    opcode << "ldrexh";
+                    opcode << ((op5 == 4) ? "ldrexb" : "ldrexh");
+                    args << Rt << ", [" << Rn << "]";
+                    if (Rt.r == 13 || Rt.r == 15 || Rn.r == 15 || (instr & 0xf0f) != 0xf0f) {
+                      args << " (UNPREDICTABLE)";
+                    }
                     break;
                   case 7:
                     opcode << "ldrexd";
+                    args << Rt << ", " << Rd /* Rt2 */ << ", [" << Rn << "]";
+                    if (Rt.r == 13 || Rt.r == 15 || Rd.r == 13 /* Rt2 */ || Rd.r == 15 /* Rt2 */ ||
+                        Rn.r == 15 || (instr & 0x00f) != 0x00f) {
+                      args << " (UNPREDICTABLE)";
+                    }
                     break;
                 }
               }
@@ -507,15 +533,6 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
           }
         }
 
-
-        if (op3 == 0 && op4 == 0) {  // STREX
-          ArmRegister Rd(instr, 8);
-          opcode << "strex";
-          args << Rd << ", " << Rt << ", [" << Rn << ", #" << (imm8 << 2) << "]";
-        } else if (op3 == 0 && op4 == 1) {  // LDREX
-          opcode << "ldrex";
-          args << Rt << ", [" << Rn << ", #" << (imm8 << 2) << "]";
-        }
       } else if ((op2 & 0x60) == 0x20) {  // 01x xxxx
         // Data-processing (shifted register)
         // |111|1110|0000|0|0000|1111|1100|00|00|0000|
