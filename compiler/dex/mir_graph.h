@@ -92,41 +92,43 @@ enum DataFlowAttributePos {
   kRefB,
   kRefC,
   kUsesMethodStar,       // Implicit use of Method*.
+  kDoLVN,                // Worth computing local value numbers.
 };
 
-#define DF_NOP                  0
-#define DF_UA                   (1 << kUA)
-#define DF_UB                   (1 << kUB)
-#define DF_UC                   (1 << kUC)
-#define DF_A_WIDE               (1 << kAWide)
-#define DF_B_WIDE               (1 << kBWide)
-#define DF_C_WIDE               (1 << kCWide)
-#define DF_DA                   (1 << kDA)
-#define DF_IS_MOVE              (1 << kIsMove)
-#define DF_SETS_CONST           (1 << kSetsConst)
-#define DF_FORMAT_35C           (1 << kFormat35c)
-#define DF_FORMAT_3RC           (1 << kFormat3rc)
-#define DF_NULL_CHK_0           (1 << kNullCheckSrc0)
-#define DF_NULL_CHK_1           (1 << kNullCheckSrc1)
-#define DF_NULL_CHK_2           (1 << kNullCheckSrc2)
-#define DF_NULL_CHK_OUT0        (1 << kNullCheckOut0)
-#define DF_NON_NULL_DST         (1 << kDstNonNull)
-#define DF_NON_NULL_RET         (1 << kRetNonNull)
-#define DF_NULL_TRANSFER_0      (1 << kNullTransferSrc0)
-#define DF_NULL_TRANSFER_N      (1 << kNullTransferSrcN)
-#define DF_RANGE_CHK_1          (1 << kRangeCheckSrc1)
-#define DF_RANGE_CHK_2          (1 << kRangeCheckSrc2)
-#define DF_RANGE_CHK_3          (1 << kRangeCheckSrc3)
-#define DF_FP_A                 (1 << kFPA)
-#define DF_FP_B                 (1 << kFPB)
-#define DF_FP_C                 (1 << kFPC)
-#define DF_CORE_A               (1 << kCoreA)
-#define DF_CORE_B               (1 << kCoreB)
-#define DF_CORE_C               (1 << kCoreC)
-#define DF_REF_A                (1 << kRefA)
-#define DF_REF_B                (1 << kRefB)
-#define DF_REF_C                (1 << kRefC)
-#define DF_UMS                  (1 << kUsesMethodStar)
+#define DF_NOP                  0ULL
+#define DF_UA                   (1ULL << kUA)
+#define DF_UB                   (1ULL << kUB)
+#define DF_UC                   (1ULL << kUC)
+#define DF_A_WIDE               (1ULL << kAWide)
+#define DF_B_WIDE               (1ULL << kBWide)
+#define DF_C_WIDE               (1ULL << kCWide)
+#define DF_DA                   (1ULL << kDA)
+#define DF_IS_MOVE              (1ULL << kIsMove)
+#define DF_SETS_CONST           (1ULL << kSetsConst)
+#define DF_FORMAT_35C           (1ULL << kFormat35c)
+#define DF_FORMAT_3RC           (1ULL << kFormat3rc)
+#define DF_NULL_CHK_0           (1ULL << kNullCheckSrc0)
+#define DF_NULL_CHK_1           (1ULL << kNullCheckSrc1)
+#define DF_NULL_CHK_2           (1ULL << kNullCheckSrc2)
+#define DF_NULL_CHK_OUT0        (1ULL << kNullCheckOut0)
+#define DF_NON_NULL_DST         (1ULL << kDstNonNull)
+#define DF_NON_NULL_RET         (1ULL << kRetNonNull)
+#define DF_NULL_TRANSFER_0      (1ULL << kNullTransferSrc0)
+#define DF_NULL_TRANSFER_N      (1ULL << kNullTransferSrcN)
+#define DF_RANGE_CHK_1          (1ULL << kRangeCheckSrc1)
+#define DF_RANGE_CHK_2          (1ULL << kRangeCheckSrc2)
+#define DF_RANGE_CHK_3          (1ULL << kRangeCheckSrc3)
+#define DF_FP_A                 (1ULL << kFPA)
+#define DF_FP_B                 (1ULL << kFPB)
+#define DF_FP_C                 (1ULL << kFPC)
+#define DF_CORE_A               (1ULL << kCoreA)
+#define DF_CORE_B               (1ULL << kCoreB)
+#define DF_CORE_C               (1ULL << kCoreC)
+#define DF_REF_A                (1ULL << kRefA)
+#define DF_REF_B                (1ULL << kRefB)
+#define DF_REF_C                (1ULL << kRefC)
+#define DF_UMS                  (1ULL << kUsesMethodStar)
+#define DF_LVN                  (1ULL << kDoLVN)
 
 #define DF_HAS_USES             (DF_UA | DF_UB | DF_UC)
 
@@ -273,8 +275,9 @@ struct BasicBlock {
   bool catch_entry:1;
   bool explicit_throw:1;
   bool conditional_branch:1;
-  bool terminated_by_return:1;        // Block ends with a Dalvik return opcode.
-  bool dominates_return:1;            // Is a member of return extended basic block.
+  bool terminated_by_return:1;  // Block ends with a Dalvik return opcode.
+  bool dominates_return:1;      // Is a member of return extended basic block.
+  bool use_lvn:1;               // Run local value numbering on this block.
   MIR* first_mir_insn;
   MIR* last_mir_insn;
   BasicBlockDataFlow* data_flow_info;
@@ -451,7 +454,9 @@ class MIRGraph {
 
   void DumpCFG(const char* dir_prefix, bool all_blocks);
 
-  void BuildRegLocations();
+  void InitRegLocations();
+
+  void RemapRegLocations();
 
   void DumpRegLocTable(RegLocation* table, int count);
 
@@ -619,7 +624,7 @@ class MIRGraph {
   void MethodUseCount();
   void SSATransformation();
   void CheckForDominanceFrontier(BasicBlock* dom_bb, const BasicBlock* succ_bb);
-  void NullCheckElimination();
+  void NullCheckEliminationAndTypeInference();
   /*
    * Type inference handling helpers.  Because Dalvik's bytecode is not fully typed,
    * we have to do some work to figure out the sreg type.  For some operations it is
@@ -675,7 +680,7 @@ class MIRGraph {
   GrowableArray<CompilerTemp*> compiler_temps_;
   SafeMap<unsigned int, unsigned int> block_id_map_;  // Block collapse lookup cache.
 
-  static const int oat_data_flow_attributes_[kMirOpLast];
+  static const uint64_t oat_data_flow_attributes_[kMirOpLast];
   static const char* extended_mir_op_names_[kMirOpLast - kMirOpFirst];
   static const uint32_t analysis_attributes_[kMirOpLast];
 
@@ -711,7 +716,7 @@ class MIRGraph {
   bool FindLocalLiveIn(BasicBlock* bb);
   void ClearAllVisitedFlags();
   bool CountUses(struct BasicBlock* bb);
-  bool InferTypeAndSize(BasicBlock* bb);
+  bool InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed);
   bool VerifyPredInfo(BasicBlock* bb);
   BasicBlock* NeedsVisit(BasicBlock* bb);
   BasicBlock* NextUnvisitedSuccessor(BasicBlock* bb);
@@ -727,7 +732,7 @@ class MIRGraph {
   void SetConstantWide(int ssa_reg, int64_t value);
   int GetSSAUseCount(int s_reg);
   bool BasicBlockOpt(BasicBlock* bb);
-  bool EliminateNullChecks(BasicBlock* bb);
+  bool EliminateNullChecksAndInferTypes(BasicBlock* bb);
   void NullCheckEliminationInit(BasicBlock* bb);
   bool BuildExtendedBBList(struct BasicBlock* bb);
   bool FillDefBlockMatrix(BasicBlock* bb);

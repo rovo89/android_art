@@ -1503,7 +1503,6 @@ void X86Mir2Lir::AssembleLIR() {
     }
   }
 
-  cu_->NewTimingSplit("LiteralData");
   // Install literals
   InstallLiteralPools();
 

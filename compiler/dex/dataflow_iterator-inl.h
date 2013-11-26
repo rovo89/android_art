@@ -37,6 +37,7 @@ inline BasicBlock* DataflowIterator::ForwardRepeatNext(bool had_change) {
   BasicBlock* res = NULL;
   if ((idx_ >= end_idx_) && changed_) {
     idx_ = start_idx_;
+    repeats_++;
     changed_ = false;
   }
   if (idx_ < end_idx_) {
@@ -62,6 +63,7 @@ inline BasicBlock* DataflowIterator::ReverseRepeatNext(bool had_change) {
   BasicBlock* res = NULL;
   if ((idx_ < 0) && changed_) {
     idx_ = start_idx_;
+    repeats_++;
     changed_ = false;
   }
   if (idx_ >= 0) {
