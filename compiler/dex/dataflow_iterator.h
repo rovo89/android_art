@@ -37,6 +37,7 @@ namespace art {
   class DataflowIterator {
     public:
       virtual ~DataflowIterator() {}
+      int32_t GetRepeatCount() { return repeats_; }
 
     protected:
       DataflowIterator(MIRGraph* mir_graph, int32_t start_idx, int32_t end_idx)
@@ -45,6 +46,7 @@ namespace art {
             end_idx_(end_idx),
             block_id_list_(NULL),
             idx_(0),
+            repeats_(0),
             changed_(false) {}
 
       virtual BasicBlock* ForwardSingleNext() ALWAYS_INLINE;
@@ -52,11 +54,13 @@ namespace art {
       virtual BasicBlock* ForwardRepeatNext(bool had_change) ALWAYS_INLINE;
       virtual BasicBlock* ReverseRepeatNext(bool had_change) ALWAYS_INLINE;
 
+
       MIRGraph* const mir_graph_;
       const int32_t start_idx_;
       const int32_t end_idx_;
       GrowableArray<BasicBlockId>* block_id_list_;
       int32_t idx_;
+      int32_t repeats_;
       bool changed_;
   };  // DataflowIterator
 
