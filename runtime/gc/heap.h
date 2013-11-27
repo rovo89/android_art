@@ -119,6 +119,18 @@ static constexpr HeapVerificationMode kDesiredHeapVerification = kNoHeapVerifica
 // If true, use rosalloc/RosAllocSpace instead of dlmalloc/DlMallocSpace
 static constexpr bool kUseRosAlloc = true;
 
+// The process state passed in from the activity manager, used to determine when to do trimming
+// and compaction.
+enum ProcessState {
+  kProcessStateJankPerceptible = 0,
+  kProcessStateJankImperceptible = 1,
+};
+
+// If true, measure the total allocation time.
+static constexpr bool kMeasureAllocationTime = false;
+// Primitive arrays larger than this size are put in the large object space.
+static constexpr size_t kLargeObjectThreshold = 3 * kPageSize;
+
 class Heap {
  public:
   // If true, measure the total allocation time.
@@ -287,6 +299,9 @@ class Heap {
   // waited for.
   collector::GcType WaitForGcToComplete(Thread* self) LOCKS_EXCLUDED(gc_complete_lock_);
 
+  // Update the heap's process state to a new value, may cause compaction to occur.
+  void UpdateProcessState(ProcessState process_state);
+
   const std::vector<space::ContinuousSpace*>& GetContinuousSpaces() const {
     return continuous_spaces_;
   }
@@ -451,10 +466,7 @@ class Heap {
 
   // Mark the specified allocation stack as live.
   void MarkAllocStackAsLive(accounting::ObjectStack* stack)
-        EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
-  // Gets called when we get notified by ActivityThread that the process state has changed.
-  void ListenForProcessStateChange();
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // DEPRECATED: Should remove in "near" future when support for multiple image spaces is added.
   // Assumes there is only one image space.
@@ -475,7 +487,7 @@ class Heap {
 
   // Returns true if we currently care about pause times.
   bool CareAboutPauseTimes() const {
-    return care_about_pause_times_;
+    return process_state_ == kProcessStateJankPerceptible;
   }
 
   // Thread pool.
@@ -713,11 +725,8 @@ class Heap {
   jobject application_thread_;
   jfieldID last_process_state_id_;
 
-  // Process states which care about pause times.
-  std::set<int> process_state_cares_about_pause_time_;
-
   // Whether or not we currently care about pause times.
-  bool care_about_pause_times_;
+  ProcessState process_state_;
 
   // When num_bytes_allocated_ exceeds this amount then a concurrent GC should be requested so that
   // it completes ahead of an allocation failing.
