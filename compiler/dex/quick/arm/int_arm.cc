@@ -561,22 +561,67 @@ void ArmMir2Lir::OpTlsCmp(ThreadOffset offset, int val) {
 }
 
 bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
-  DCHECK(!is_long);  // not supported yet
   DCHECK_EQ(cu_->instruction_set, kThumb2);
   // Unused - RegLocation rl_src_unsafe = info->args[0];
   RegLocation rl_src_obj = info->args[1];  // Object - known non-null
   RegLocation rl_src_offset = info->args[2];  // long low
   rl_src_offset.wide = 0;  // ignore high half in info->args[3]
   RegLocation rl_src_expected = info->args[4];  // int, long or Object
-  RegLocation rl_src_new_value = info->args[5];  // int, long or Object
+  // If is_long, high half is in info->args[5]
+  RegLocation rl_src_new_value = info->args[is_long ? 6 : 5];  // int, long or Object
+  // If is_long, high half is in info->args[7]
   RegLocation rl_dest = InlineTarget(info);  // boolean place for result
 
+  // We have only 5 temporary registers available and actually only 4 if the InlineTarget
+  // above locked one of the temps. For a straightforward CAS64 we need 7 registers:
+  // r_ptr (1), new_value (2), expected(2) and ldrexd result (2). If neither expected nor
+  // new_value is in a non-temp core register we shall reload them in the ldrex/strex loop
+  // into the same temps, reducing the number of required temps down to 5. We shall work
+  // around the potentially locked temp by using LR for r_ptr, unconditionally.
+  // TODO: Pass information about the need for more temps to the stack frame generation
+  // code so that we can rely on being able to allocate enough temps.
+  DCHECK(!reg_pool_->core_regs[rARM_LR].is_temp);
+  MarkTemp(rARM_LR);
+  FreeTemp(rARM_LR);
+  LockTemp(rARM_LR);
+  bool load_early = true;
+  if (is_long) {
+    bool expected_is_core_reg =
+        rl_src_expected.location == kLocPhysReg && !IsFpReg(rl_src_expected.low_reg);
+    bool new_value_is_core_reg =
+        rl_src_new_value.location == kLocPhysReg && !IsFpReg(rl_src_new_value.low_reg);
+    bool expected_is_good_reg = expected_is_core_reg && !IsTemp(rl_src_expected.low_reg);
+    bool new_value_is_good_reg = new_value_is_core_reg && !IsTemp(rl_src_new_value.low_reg);
+
+    if (!expected_is_good_reg && !new_value_is_good_reg) {
+      // None of expected/new_value is non-temp reg, need to load both late
+      load_early = false;
+      // Make sure they are not in the temp regs and the load will not be skipped.
+      if (expected_is_core_reg) {
+        FlushRegWide(rl_src_expected.low_reg, rl_src_expected.high_reg);
+        ClobberSReg(rl_src_expected.s_reg_low);
+        ClobberSReg(GetSRegHi(rl_src_expected.s_reg_low));
+        rl_src_expected.location = kLocDalvikFrame;
+      }
+      if (new_value_is_core_reg) {
+        FlushRegWide(rl_src_new_value.low_reg, rl_src_new_value.high_reg);
+        ClobberSReg(rl_src_new_value.s_reg_low);
+        ClobberSReg(GetSRegHi(rl_src_new_value.s_reg_low));
+        rl_src_new_value.location = kLocDalvikFrame;
+      }
+    }
+  }
 
   // Release store semantics, get the barrier out of the way.  TODO: revisit
   GenMemBarrier(kStoreLoad);
 
   RegLocation rl_object = LoadValue(rl_src_obj, kCoreReg);
-  RegLocation rl_new_value = LoadValue(rl_src_new_value, kCoreReg);
+  RegLocation rl_new_value;
+  if (!is_long) {
+    rl_new_value = LoadValue(rl_src_new_value, kCoreReg);
+  } else if (load_early) {
+    rl_new_value = LoadValueWide(rl_src_new_value, kCoreReg);
+  }
 
   if (is_object && !mir_graph_->IsConstantNullRef(rl_new_value)) {
     // Mark card for object assuming new value is stored.
@@ -585,7 +630,7 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
 
   RegLocation rl_offset = LoadValue(rl_src_offset, kCoreReg);
 
-  int r_ptr = AllocTemp();
+  int r_ptr = rARM_LR;
   OpRegRegReg(kOpAdd, r_ptr, rl_object.low_reg, rl_offset.low_reg);
 
   // Free now unneeded rl_object and rl_offset to give more temps.
@@ -594,29 +639,77 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   ClobberSReg(rl_offset.s_reg_low);
   FreeTemp(rl_offset.low_reg);
 
-  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  LoadConstant(rl_result.low_reg, 0);  // r_result := 0
+  RegLocation rl_expected;
+  if (!is_long) {
+    rl_expected = LoadValue(rl_src_expected, kCoreReg);
+  } else if (load_early) {
+    rl_expected = LoadValueWide(rl_src_expected, kCoreReg);
+  } else {
+    rl_new_value.low_reg = rl_expected.low_reg = AllocTemp();
+    rl_new_value.high_reg = rl_expected.high_reg = AllocTemp();
+  }
 
-  // while ([r_ptr] == rExpected && r_result == 0) {
-  //   [r_ptr] <- r_new_value && r_result := success ? 0 : 1
-  //   r_result ^= 1
-  // }
-  int r_old_value = AllocTemp();
+  // do {
+  //   tmp = [r_ptr] - expected;
+  // } while (tmp == 0 && failure([r_ptr] <- r_new_value));
+  // result = tmp != 0;
+
+  int r_tmp = AllocTemp();
   LIR* target = NewLIR0(kPseudoTargetLabel);
-  NewLIR3(kThumb2Ldrex, r_old_value, r_ptr, 0);
 
-  RegLocation rl_expected = LoadValue(rl_src_expected, kCoreReg);
-  OpRegReg(kOpCmp, r_old_value, rl_expected.low_reg);
-  FreeTemp(r_old_value);  // Now unneeded.
-  OpIT(kCondEq, "TT");
-  NewLIR4(kThumb2Strex /* eq */, rl_result.low_reg, rl_new_value.low_reg, r_ptr, 0);
-  FreeTemp(r_ptr);  // Now unneeded.
-  OpRegImm(kOpXor /* eq */, rl_result.low_reg, 1);
-  OpRegImm(kOpCmp /* eq */, rl_result.low_reg, 0);
+  if (is_long) {
+    int r_tmp_high = AllocTemp();
+    if (!load_early) {
+      LoadValueDirectWide(rl_src_expected, rl_expected.low_reg, rl_expected.high_reg);
+    }
+    NewLIR3(kThumb2Ldrexd, r_tmp, r_tmp_high, r_ptr);
+    OpRegReg(kOpSub, r_tmp, rl_expected.low_reg);
+    OpRegReg(kOpSub, r_tmp_high, rl_expected.high_reg);
+    if (!load_early) {
+      LoadValueDirectWide(rl_src_new_value, rl_new_value.low_reg, rl_new_value.high_reg);
+    }
+    // Make sure we use ORR that sets the ccode
+    if (ARM_LOWREG(r_tmp) && ARM_LOWREG(r_tmp_high)) {
+      NewLIR2(kThumbOrr, r_tmp, r_tmp_high);
+    } else {
+      NewLIR4(kThumb2OrrRRRs, r_tmp, r_tmp, r_tmp_high, 0);
+    }
+    FreeTemp(r_tmp_high);  // Now unneeded
+
+    DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
+    OpIT(kCondEq, "T");
+    NewLIR4(kThumb2Strexd /* eq */, r_tmp, rl_new_value.low_reg, rl_new_value.high_reg, r_ptr);
+
+  } else {
+    NewLIR3(kThumb2Ldrex, r_tmp, r_ptr, 0);
+    OpRegReg(kOpSub, r_tmp, rl_expected.low_reg);
+    DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
+    OpIT(kCondEq, "T");
+    NewLIR4(kThumb2Strex /* eq */, r_tmp, rl_new_value.low_reg, r_ptr, 0);
+  }
+
+  // Still one conditional left from OpIT(kCondEq, "T") from either branch
+  OpRegImm(kOpCmp /* eq */, r_tmp, 1);
   OpCondBranch(kCondEq, target);
+
+  if (!load_early) {
+    FreeTemp(rl_expected.low_reg);  // Now unneeded.
+    FreeTemp(rl_expected.high_reg);  // Now unneeded.
+  }
+
+  // result := (tmp1 != 0) ? 0 : 1;
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  OpRegRegImm(kOpRsub, rl_result.low_reg, r_tmp, 1);
+  DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
+  OpIT(kCondCc, "");
+  LoadConstant(rl_result.low_reg, 0); /* cc */
+  FreeTemp(r_tmp);  // Now unneeded.
 
   StoreValue(rl_dest, rl_result);
 
+  // Now, restore lr to its non-temp status.
+  Clobber(rARM_LR);
+  UnmarkTemp(rARM_LR);
   return true;
 }
 
