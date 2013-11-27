@@ -107,9 +107,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       activity_thread_(NULL),
       application_thread_(NULL),
       last_process_state_id_(NULL),
-      // Initially care about pauses in case we never get notified of process states, or if the JNI
-      // code becomes broken.
-      care_about_pause_times_(true),
+      // Initially assume we perceive jank in case the process state is never updated.
+      process_state_(kProcessStateJankPerceptible),
       concurrent_start_bytes_(concurrent_gc_ ? initial_size - kMinConcurrentRemainingBytes
           :  std::numeric_limits<size_t>::max()),
       total_bytes_freed_ever_(0),
@@ -325,6 +324,10 @@ void Heap::DecrementDisableGC(Thread* self) {
   --gc_disable_count_;
 }
 
+void Heap::UpdateProcessState(ProcessState process_state) {
+  process_state_ = process_state;
+}
+
 void Heap::CreateThreadPool() {
   const size_t num_threads = std::max(parallel_gc_threads_, conc_gc_threads_);
   if (num_threads != 0) {
@@ -371,124 +374,6 @@ void Heap::MarkAllocStackAsLive(accounting::ObjectStack* stack) {
 
 void Heap::DeleteThreadPool() {
   thread_pool_.reset(nullptr);
-}
-
-static bool ReadStaticInt(JNIEnvExt* env, jclass clz, const char* name, int* out_value) {
-  DCHECK(out_value != NULL);
-  jfieldID field = env->GetStaticFieldID(clz, name, "I");
-  if (field == NULL) {
-    env->ExceptionClear();
-    return false;
-  }
-  *out_value = env->GetStaticIntField(clz, field);
-  return true;
-}
-
-void Heap::ListenForProcessStateChange() {
-  VLOG(heap) << "Heap notified of process state change";
-
-  Thread* self = Thread::Current();
-  JNIEnvExt* env = self->GetJniEnv();
-
-  if (!have_zygote_space_) {
-    return;
-  }
-
-  if (activity_thread_class_ == NULL) {
-    jclass clz = env->FindClass("android/app/ActivityThread");
-    if (clz == NULL) {
-      env->ExceptionClear();
-      LOG(WARNING) << "Could not find activity thread class in process state change";
-      return;
-    }
-    activity_thread_class_ = reinterpret_cast<jclass>(env->NewGlobalRef(clz));
-  }
-
-  if (activity_thread_class_ != NULL && activity_thread_ == NULL) {
-    jmethodID current_activity_method = env->GetStaticMethodID(activity_thread_class_,
-                                                               "currentActivityThread",
-                                                               "()Landroid/app/ActivityThread;");
-    if (current_activity_method == NULL) {
-      env->ExceptionClear();
-      LOG(WARNING) << "Could not get method for currentActivityThread";
-      return;
-    }
-
-    jobject obj = env->CallStaticObjectMethod(activity_thread_class_, current_activity_method);
-    if (obj == NULL) {
-      env->ExceptionClear();
-      LOG(WARNING) << "Could not get current activity";
-      return;
-    }
-    activity_thread_ = env->NewGlobalRef(obj);
-  }
-
-  if (process_state_cares_about_pause_time_.empty()) {
-    // Just attempt to do this the first time.
-    jclass clz = env->FindClass("android/app/ActivityManager");
-    if (clz == NULL) {
-      LOG(WARNING) << "Activity manager class is null";
-      return;
-    }
-    ScopedLocalRef<jclass> activity_manager(env, clz);
-    std::vector<const char*> care_about_pauses;
-    care_about_pauses.push_back("PROCESS_STATE_TOP");
-    care_about_pauses.push_back("PROCESS_STATE_IMPORTANT_BACKGROUND");
-    // Attempt to read the constants and classify them as whether or not we care about pause times.
-    for (size_t i = 0; i < care_about_pauses.size(); ++i) {
-      int process_state = 0;
-      if (ReadStaticInt(env, activity_manager.get(), care_about_pauses[i], &process_state)) {
-        process_state_cares_about_pause_time_.insert(process_state);
-        VLOG(heap) << "Adding process state " << process_state
-                   << " to set of states which care about pause time";
-      }
-    }
-  }
-
-  if (application_thread_class_ == NULL) {
-    jclass clz = env->FindClass("android/app/ActivityThread$ApplicationThread");
-    if (clz == NULL) {
-      env->ExceptionClear();
-      LOG(WARNING) << "Could not get application thread class";
-      return;
-    }
-    application_thread_class_ = reinterpret_cast<jclass>(env->NewGlobalRef(clz));
-    last_process_state_id_ = env->GetFieldID(application_thread_class_, "mLastProcessState", "I");
-    if (last_process_state_id_ == NULL) {
-      env->ExceptionClear();
-      LOG(WARNING) << "Could not get last process state member";
-      return;
-    }
-  }
-
-  if (application_thread_class_ != NULL && application_thread_ == NULL) {
-    jmethodID get_application_thread =
-        env->GetMethodID(activity_thread_class_, "getApplicationThread",
-                         "()Landroid/app/ActivityThread$ApplicationThread;");
-    if (get_application_thread == NULL) {
-      LOG(WARNING) << "Could not get method ID for get application thread";
-      return;
-    }
-
-    jobject obj = env->CallObjectMethod(activity_thread_, get_application_thread);
-    if (obj == NULL) {
-      LOG(WARNING) << "Could not get application thread";
-      return;
-    }
-
-    application_thread_ = env->NewGlobalRef(obj);
-  }
-
-  if (application_thread_ != NULL && last_process_state_id_ != NULL) {
-    int process_state = env->GetIntField(application_thread_, last_process_state_id_);
-    env->ExceptionClear();
-
-    care_about_pause_times_ = process_state_cares_about_pause_time_.find(process_state) !=
-        process_state_cares_about_pause_time_.end();
-
-    VLOG(heap) << "New process state " << process_state
-               << " care about pauses " << care_about_pause_times_;
-  }
 }
 
 void Heap::AddSpace(space::Space* space) {
@@ -1426,7 +1311,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   // Grow the heap so that we know when to perform the next GC.
   GrowForUtilization(gc_type, collector->GetDurationNs());
 
-  if (care_about_pause_times_) {
+  if (CareAboutPauseTimes()) {
     const size_t duration = collector->GetDurationNs();
     std::vector<uint64_t> pauses = collector->GetPauseTimes();
     // GC for alloc pauses the allocating thread, so consider it as a pause.
@@ -2143,10 +2028,9 @@ void Heap::RequestHeapTrim() {
   }
 
   last_trim_time_ms_ = ms_time;
-  ListenForProcessStateChange();
 
   // Trim only if we do not currently care about pause times.
-  if (!care_about_pause_times_) {
+  if (!CareAboutPauseTimes()) {
     JNIEnv* env = self->GetJniEnv();
     DCHECK(WellKnownClasses::java_lang_Daemons != NULL);
     DCHECK(WellKnownClasses::java_lang_Daemons_requestHeapTrim != NULL);
