@@ -452,6 +452,7 @@ void Dbg::StartJdwp() {
 
 void Dbg::StopJdwp() {
   delete gJdwpState;
+  gJdwpState = NULL;
   delete gRegistry;
   gRegistry = NULL;
 }
@@ -1113,7 +1114,7 @@ bool Dbg::MatchType(JDWP::RefTypeId instance_class_id, JDWP::RefTypeId class_id)
   CHECK(c1 != NULL);
   mirror::Class* c2 = DecodeClass(class_id, status);
   CHECK(c2 != NULL);
-  return c1->IsAssignableFrom(c2);
+  return c2->IsAssignableFrom(c1);
 }
 
 static JDWP::FieldId ToFieldId(const mirror::ArtField* f)

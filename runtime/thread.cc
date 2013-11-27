@@ -1818,6 +1818,12 @@ class CatchBlockStackVisitor : public StackVisitor {
     self_->EndAssertNoThreadSuspension(last_no_assert_suspension_cause_);
     // Do instrumentation events after allowing thread suspension again.
     instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+    if (!is_deoptimization_) {
+      // The debugger may suspend this thread and walk its stack. Let's do this before popping
+      // instrumentation frames.
+      instrumentation->ExceptionCaughtEvent(self_, throw_location_, catch_method, handler_dex_pc_,
+                                            exception_);
+    }
     for (size_t i = 0; i < instrumentation_frames_to_pop_; ++i) {
       // We pop the instrumentation stack here so as not to corrupt it during the stack walk.
       if (i != instrumentation_frames_to_pop_ - 1 || self_->GetInstrumentationStack()->front().method_ != catch_method) {
@@ -1825,10 +1831,7 @@ class CatchBlockStackVisitor : public StackVisitor {
         instrumentation->PopMethodForUnwind(self_, is_deoptimization_);
       }
     }
-    if (!is_deoptimization_) {
-      instrumentation->ExceptionCaughtEvent(self_, throw_location_, catch_method, handler_dex_pc_,
-                                            exception_);
-    } else {
+    if (is_deoptimization_) {
       // TODO: proper return value.
       self_->SetDeoptimizationShadowFrame(top_shadow_frame_);
     }
