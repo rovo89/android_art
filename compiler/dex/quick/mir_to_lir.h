@@ -105,6 +105,7 @@ typedef uint32_t CodeOffset;         // Native code offset in bytes.
 struct BasicBlock;
 struct CallInfo;
 struct CompilationUnit;
+struct InlineMethod;
 struct MIR;
 struct LIR;
 struct RegLocation;
@@ -582,7 +583,7 @@ class Mir2Lir : public Backend {
     void CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list);
     void HandleExtendedMethodMIR(BasicBlock* bb, MIR* mir);
     bool MethodBlockCodeGen(BasicBlock* bb);
-    void SpecialMIR2LIR(SpecialCaseHandler special_case);
+    void SpecialMIR2LIR(const InlineMethod& special);
     void MethodMIR2LIR();
 
 
@@ -703,7 +704,7 @@ class Mir2Lir : public Backend {
     virtual void GenSparseSwitch(MIR* mir, DexOffset table_offset,
                                  RegLocation rl_src) = 0;
     virtual void GenSpecialCase(BasicBlock* bb, MIR* mir,
-                                SpecialCaseHandler special_case) = 0;
+                                const InlineMethod& special) = 0;
     virtual void GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
                              RegLocation rl_index, RegLocation rl_dest, int scale) = 0;
     virtual void GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
@@ -826,8 +827,6 @@ class Mir2Lir : public Backend {
     unsigned int fp_spill_mask_;
     LIR* first_lir_insn_;
     LIR* last_lir_insn_;
-    // Lazily retrieved method inliner for intrinsics.
-    DexFileMethodInliner* inliner_;
 };  // Class Mir2Lir
 
 }  // namespace art

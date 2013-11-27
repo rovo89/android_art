@@ -21,15 +21,16 @@
 #include <map>
 #include "base/mutex.h"
 #include "base/macros.h"
+#include "dex/compiler_enums.h"
+#include "dex_file.h"
 #include "locks.h"
 
 namespace art {
 
 class CallInfo;
-class DexFile;
 class Mir2Lir;
 
-enum IntrinsicOpcode {
+enum InlineMethodOpcode : uint16_t {
   kIntrinsicDoubleCvt,
   kIntrinsicFloatCvt,
   kIntrinsicReverseBytes,
@@ -47,8 +48,26 @@ enum IntrinsicOpcode {
   kIntrinsicCas,
   kIntrinsicUnsafeGet,
   kIntrinsicUnsafePut,
+
+  kInlineOpNop,
+  kInlineOpReturnArg,
+  kInlineOpConst,
+  kInlineOpIGet,
+  kInlineOpIPut,
 };
 
+enum InlineMethodFlags {
+  kInlineIntrinsic = 0x0001,
+  kInlineSpecial   = 0x0002,
+};
+
+struct InlineMethod {
+  uint16_t opcode;
+  uint16_t flags;
+  uint32_t data;
+};
+
+// IntrinsicFlags are stored in InlineMethod::data
 enum IntrinsicFlags {
   kIntrinsicFlagNone = 0,
 
@@ -73,10 +92,32 @@ enum IntrinsicFlags {
   kIntrinsicFlagIsOrdered  = 8,
 };
 
-struct Intrinsic {
-  IntrinsicOpcode opcode;
+// Check that OpSize fits into 3 bits (at least the values the inliner uses).
+COMPILE_ASSERT(kWord < 8 && kLong < 8 && kSingle < 8 && kDouble < 8 && kUnsignedHalf < 8 &&
+               kSignedHalf < 8 && kUnsignedByte < 8 && kSignedByte < 8, op_size_field_too_narrow);
+
+union InlineIGetIPutData {
   uint32_t data;
+  struct {
+    uint16_t field;
+    uint32_t op_size : 3;  // OpSize
+    uint32_t is_object : 1;
+    uint32_t object_arg : 4;
+    uint32_t src_arg : 4;  // iput only
+    uint32_t reserved : 4;
+  } d;
 };
+COMPILE_ASSERT(sizeof(InlineIGetIPutData) == sizeof(uint32_t), InvalidSizeOfInlineIGetIPutData);
+
+union InlineReturnArgData {
+  uint32_t data;
+  struct {
+    uint16_t arg;
+    uint32_t op_size : 3;  // OpSize
+    uint32_t reserved : 13;
+  } d;
+};
+COMPILE_ASSERT(sizeof(InlineReturnArgData) == sizeof(uint32_t), InvalidSizeOfInlineReturnArgData);
 
 /**
  * Handles inlining of methods from a particular DexFile.
@@ -96,6 +137,16 @@ class DexFileMethodInliner {
     ~DexFileMethodInliner();
 
     /**
+     * Analyse method code to determine if the method is a candidate for inlining.
+     * If it is, record its data for later.
+     *
+     * @param method_idx the index of the inlining candidate.
+     * @param code_item a previously verified code item of the method.
+     */
+    bool AnalyseMethodCode(uint32_t method_idx,
+                           const DexFile::CodeItem* code_item) LOCKS_EXCLUDED(lock_);
+
+    /**
      * Check whether a particular method index corresponds to an intrinsic function.
      */
     bool IsIntrinsic(uint32_t method_index) LOCKS_EXCLUDED(lock_);
@@ -104,6 +155,16 @@ class DexFileMethodInliner {
      * Generate code for an intrinsic function invocation.
      */
     bool GenIntrinsic(Mir2Lir* backend, CallInfo* info) LOCKS_EXCLUDED(lock_);
+
+    /**
+     * Check whether a particular method index corresponds to a special function.
+     */
+    bool IsSpecial(uint32_t method_index) LOCKS_EXCLUDED(lock_);
+
+    /**
+     * Generate code for a special function.
+     */
+    bool GenSpecial(Mir2Lir* backend, uint32_t method_idx);
 
   private:
     /**
@@ -261,7 +322,7 @@ class DexFileMethodInliner {
      */
     struct IntrinsicDef {
       MethodDef method_def;
-      Intrinsic intrinsic;
+      InlineMethod intrinsic;
     };
 
     /**
@@ -281,8 +342,8 @@ class DexFileMethodInliner {
       uint32_t proto_indexes[kProtoCacheLast - kProtoCacheFirst];
     };
 
-    static const char* kClassCacheNames[];
-    static const char* kNameCacheNames[];
+    static const char* const kClassCacheNames[];
+    static const char* const kNameCacheNames[];
     static const ProtoDef kProtoCacheDefs[];
     static const IntrinsicDef kIntrinsicMethods[];
 
@@ -307,11 +368,23 @@ class DexFileMethodInliner {
 
     friend class DexFileToMethodInlinerMap;
 
+    bool AddInlineMethod(int32_t method_idx, InlineMethodOpcode opcode,
+                         uint16_t flags, uint32_t data) LOCKS_EXCLUDED(lock_);
+
+    bool AnalyseReturnMethod(int32_t method_idx, const DexFile::CodeItem* code_item,
+                             OpSize size) LOCKS_EXCLUDED(lock_);
+    bool AnalyseConstMethod(int32_t method_idx, const DexFile::CodeItem* code_item
+                            ) LOCKS_EXCLUDED(lock_);
+    bool AnalyseIGetMethod(int32_t method_idx, const DexFile::CodeItem* code_item,
+                           OpSize size, bool is_object) LOCKS_EXCLUDED(lock_);
+    bool AnalyseIPutMethod(int32_t method_idx, const DexFile::CodeItem* code_item,
+                           OpSize size, bool is_object) LOCKS_EXCLUDED(lock_);
+
     ReaderWriterMutex lock_;
     /*
      * Maps method indexes (for the particular DexFile) to Intrinsic defintions.
      */
-    std::map<uint32_t, Intrinsic> intrinsics_ GUARDED_BY(lock_);
+    std::map<uint32_t, InlineMethod> inline_methods_ GUARDED_BY(lock_);
     const DexFile* dex_file_;
 
     DISALLOW_COPY_AND_ASSIGN(DexFileMethodInliner);

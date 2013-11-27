@@ -133,7 +133,7 @@ class X86Mir2Lir : public Mir2Lir {
     void GenNegFloat(RegLocation rl_dest, RegLocation rl_src);
     void GenPackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
     void GenSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
-    void GenSpecialCase(BasicBlock* bb, MIR* mir, SpecialCaseHandler special_case);
+    void GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& special);
 
     // Single operation generators.
     LIR* OpUnconditionalBranch(LIR* target);

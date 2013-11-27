@@ -20,39 +20,12 @@
 #include "leb128.h"
 #include "mir_graph.h"
 
+#include "dex/quick/dex_file_to_method_inliner_map.h"
+#include "dex/quick/dex_file_method_inliner.h"
+
 namespace art {
 
 #define MAX_PATTERN_LEN 5
-
-struct CodePattern {
-  const Instruction::Code opcodes[MAX_PATTERN_LEN];
-  const SpecialCaseHandler handler_code;
-};
-
-static const CodePattern special_patterns[] = {
-  {{Instruction::RETURN_VOID}, kNullMethod},
-  {{Instruction::CONST, Instruction::RETURN}, kConstFunction},
-  {{Instruction::CONST_4, Instruction::RETURN}, kConstFunction},
-  {{Instruction::CONST_4, Instruction::RETURN_OBJECT}, kConstFunction},
-  {{Instruction::CONST_16, Instruction::RETURN}, kConstFunction},
-  {{Instruction::IGET, Instruction:: RETURN}, kIGet},
-  {{Instruction::IGET_BOOLEAN, Instruction::RETURN}, kIGetBoolean},
-  {{Instruction::IGET_OBJECT, Instruction::RETURN_OBJECT}, kIGetObject},
-  {{Instruction::IGET_BYTE, Instruction::RETURN}, kIGetByte},
-  {{Instruction::IGET_CHAR, Instruction::RETURN}, kIGetChar},
-  {{Instruction::IGET_SHORT, Instruction::RETURN}, kIGetShort},
-  {{Instruction::IGET_WIDE, Instruction::RETURN_WIDE}, kIGetWide},
-  {{Instruction::IPUT, Instruction::RETURN_VOID}, kIPut},
-  {{Instruction::IPUT_BOOLEAN, Instruction::RETURN_VOID}, kIPutBoolean},
-  {{Instruction::IPUT_OBJECT, Instruction::RETURN_VOID}, kIPutObject},
-  {{Instruction::IPUT_BYTE, Instruction::RETURN_VOID}, kIPutByte},
-  {{Instruction::IPUT_CHAR, Instruction::RETURN_VOID}, kIPutChar},
-  {{Instruction::IPUT_SHORT, Instruction::RETURN_VOID}, kIPutShort},
-  {{Instruction::IPUT_WIDE, Instruction::RETURN_VOID}, kIPutWide},
-  {{Instruction::RETURN}, kIdentity},
-  {{Instruction::RETURN_OBJECT}, kIdentity},
-  {{Instruction::RETURN_WIDE}, kIdentity},
-};
 
 const char* MIRGraph::extended_mir_op_names_[kMirOpLast - kMirOpFirst] = {
   "Phi",
@@ -107,7 +80,6 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       method_sreg_(0),
       attributes_(METHOD_IS_LEAF),  // Start with leaf assumption, change on encountering invoke.
       checkstats_(NULL),
-      special_case_(kNoHandler),
       arena_(arena),
       backward_branches_(0),
       forward_branches_(0) {
@@ -612,13 +584,6 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
     /* Identify code range in try blocks and set up the empty catch blocks */
   ProcessTryCatchBlocks();
 
-  /* Set up for simple method detection */
-  int num_patterns = sizeof(special_patterns)/sizeof(special_patterns[0]);
-  bool live_pattern = (num_patterns > 0) && !(cu_->disable_opt & (1 << kMatch));
-  bool* dead_pattern =
-      static_cast<bool*>(arena_->Alloc(sizeof(bool) * num_patterns, ArenaAllocator::kAllocMisc));
-  int pattern_pos = 0;
-
   /* Parse all instructions and put them into containing basic blocks */
   while (code_ptr < code_end) {
     MIR *insn = static_cast<MIR *>(arena_->Alloc(sizeof(MIR), ArenaAllocator::kAllocMIR));
@@ -629,23 +594,6 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
     Instruction::Code opcode = insn->dalvikInsn.opcode;
     if (opcode_count_ != NULL) {
       opcode_count_[static_cast<int>(opcode)]++;
-    }
-
-    /* Possible simple method? */
-    if (live_pattern) {
-      live_pattern = false;
-      special_case_ = kNoHandler;
-      for (int i = 0; i < num_patterns; i++) {
-        if (!dead_pattern[i]) {
-          if (special_patterns[i].opcodes[pattern_pos] == opcode) {
-            live_pattern = true;
-            special_case_ = special_patterns[i].handler_code;
-          } else {
-             dead_pattern[i] = true;
-          }
-        }
-      }
-    pattern_pos++;
     }
 
     int flags = Instruction::FlagsOf(insn->dalvikInsn.opcode);
@@ -736,6 +684,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
       cur_block = next_block;
     }
   }
+
   if (cu_->enable_debug & (1 << kDebugDumpCFG)) {
     DumpCFG("/sdcard/1_post_parse_cfg/", true);
   }

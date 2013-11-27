@@ -63,21 +63,12 @@ LLVMInfo::LLVMInfo() {
 LLVMInfo::~LLVMInfo() {
 }
 
-QuickCompilerContext::QuickCompilerContext()
-  : inliner_map_(new DexFileToMethodInlinerMap()) {
-}
-
-QuickCompilerContext::~QuickCompilerContext() {
-}
-
 extern "C" void ArtInitQuickCompilerContext(art::CompilerDriver& driver) {
   CHECK(driver.GetCompilerContext() == NULL);
-  driver.SetCompilerContext(new QuickCompilerContext());
 }
 
 extern "C" void ArtUnInitQuickCompilerContext(art::CompilerDriver& driver) {
-  delete reinterpret_cast<QuickCompilerContext*>(driver.GetCompilerContext());
-  driver.SetCompilerContext(NULL);
+  CHECK(driver.GetCompilerContext() == NULL);
 }
 
 /* Default optimizer/debug setting for the compiler. */
