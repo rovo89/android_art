@@ -2577,7 +2577,7 @@ void Dbg::UnconfigureStep(JDWP::ObjectId thread_id) {
   MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread;
   JDWP::JdwpError error = DecodeThread(soa, thread_id, thread);
-  if (error != JDWP::ERR_NONE) {
+  if (error == JDWP::ERR_NONE) {
     SingleStepControl* single_step_control = thread->GetSingleStepControl();
     DCHECK(single_step_control != nullptr);
     single_step_control->is_active = false;
