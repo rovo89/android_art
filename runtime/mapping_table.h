@@ -72,7 +72,8 @@ class MappingTable {
         if (end_ > 0) {
           encoded_table_ptr_ = table_->FirstDexToPcPtr();
           native_pc_offset_ = DecodeUnsignedLeb128(&encoded_table_ptr_);
-          dex_pc_ = DecodeUnsignedLeb128(&encoded_table_ptr_);
+          // First delta is always positive.
+          dex_pc_ = static_cast<uint32_t>(DecodeSignedLeb128(&encoded_table_ptr_));
         }
       } else {  // An iterator wanted from the end.
         DCHECK_EQ(table_->DexToPcSize(), element);
@@ -87,8 +88,9 @@ class MappingTable {
     void operator++() {
       ++element_;
       if (element_ != end_) {  // Avoid reading beyond the end of the table.
-        native_pc_offset_ = DecodeUnsignedLeb128(&encoded_table_ptr_);
-        dex_pc_ = DecodeUnsignedLeb128(&encoded_table_ptr_);
+        native_pc_offset_ += DecodeUnsignedLeb128(&encoded_table_ptr_);
+        // For negative delta, unsigned overflow after static_cast does exactly what we need.
+        dex_pc_ += static_cast<uint32_t>(DecodeSignedLeb128(&encoded_table_ptr_));
       }
     }
     bool operator==(const DexToPcIterator& rhs) const {
@@ -147,7 +149,8 @@ class MappingTable {
         if (end_ > 0) {
           encoded_table_ptr_ = table_->FirstPcToDexPtr();
           native_pc_offset_ = DecodeUnsignedLeb128(&encoded_table_ptr_);
-          dex_pc_ = DecodeUnsignedLeb128(&encoded_table_ptr_);
+          // First delta is always positive.
+          dex_pc_ = static_cast<uint32_t>(DecodeSignedLeb128(&encoded_table_ptr_));
         }
       } else {  // An iterator wanted from the end.
         DCHECK_EQ(table_->PcToDexSize(), element);
@@ -162,8 +165,9 @@ class MappingTable {
     void operator++() {
       ++element_;
       if (element_ != end_) {  // Avoid reading beyond the end of the table.
-        native_pc_offset_ = DecodeUnsignedLeb128(&encoded_table_ptr_);
-        dex_pc_ = DecodeUnsignedLeb128(&encoded_table_ptr_);
+        native_pc_offset_ += DecodeUnsignedLeb128(&encoded_table_ptr_);
+        // For negative delta, unsigned overflow after static_cast does exactly what we need.
+        dex_pc_ += static_cast<uint32_t>(DecodeSignedLeb128(&encoded_table_ptr_));
       }
     }
     bool operator==(const PcToDexIterator& rhs) const {

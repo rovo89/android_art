@@ -22,7 +22,7 @@
 namespace art {
 
 const uint8_t OatHeader::kOatMagic[] = { 'o', 'a', 't', '\n' };
-const uint8_t OatHeader::kOatVersion[] = { '0', '1', '1', '\0' };
+const uint8_t OatHeader::kOatVersion[] = { '0', '1', '2', '\0' };
 
 OatHeader::OatHeader() {
   memset(this, 0, sizeof(*this));
