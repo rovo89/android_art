@@ -971,10 +971,17 @@ bool Mir2Lir::GenInlinedReverseBytes(CallInfo* info, OpSize size) {
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   if (size == kLong) {
     RegLocation rl_i = LoadValueWide(rl_src_i, kCoreReg);
-    int reg_tmp = AllocTemp();
-    OpRegCopy(reg_tmp, rl_result.low_reg);
+    int r_i_low = rl_i.low_reg;
+    if (rl_i.low_reg == rl_result.low_reg) {
+      // First REV shall clobber rl_result.low_reg, save the value in a temp for the second REV.
+      r_i_low = AllocTemp();
+      OpRegCopy(r_i_low, rl_i.low_reg);
+    }
     OpRegReg(kOpRev, rl_result.low_reg, rl_i.high_reg);
-    OpRegReg(kOpRev, rl_result.high_reg, reg_tmp);
+    OpRegReg(kOpRev, rl_result.high_reg, r_i_low);
+    if (rl_i.low_reg == rl_result.low_reg) {
+      FreeTemp(r_i_low);
+    }
     StoreValueWide(rl_dest, rl_result);
   } else {
     DCHECK(size == kWord || size == kSignedHalf);
