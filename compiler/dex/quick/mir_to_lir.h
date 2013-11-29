@@ -828,7 +828,7 @@ class Mir2Lir : public Backend {
     int live_sreg_;
     CodeBuffer code_buffer_;
     // The encoding mapping table data (dex -> pc offset and pc offset -> dex) with a size prefix.
-    UnsignedLeb128EncodingVector encoded_mapping_table_;
+    Leb128EncodingVector encoded_mapping_table_;
     std::vector<uint32_t> core_vmap_table_;
     std::vector<uint32_t> fp_vmap_table_;
     std::vector<uint8_t> native_gc_map_;
