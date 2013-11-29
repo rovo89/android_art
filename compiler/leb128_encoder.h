@@ -18,33 +18,54 @@
 #define ART_COMPILER_LEB128_ENCODER_H_
 
 #include "base/macros.h"
+#include "leb128.h"
 
 namespace art {
 
 // An encoder with an API similar to vector<uint32_t> where the data is captured in ULEB128 format.
-class UnsignedLeb128EncodingVector {
+class Leb128EncodingVector {
  public:
-  UnsignedLeb128EncodingVector() {
+  Leb128EncodingVector() {
   }
 
-  void PushBack(uint32_t value) {
-    bool done = false;
-    do {
-      uint8_t out = value & 0x7f;
-      if (out != value) {
-        data_.push_back(out | 0x80);
-        value >>= 7;
-      } else {
-        data_.push_back(out);
-        done = true;
-      }
-    } while (!done);
+  void Reserve(uint32_t size) {
+    data_.reserve(size);
+  }
+
+  void PushBackUnsigned(uint32_t value) {
+    uint8_t out = value & 0x7f;
+    value >>= 7;
+    while (value != 0) {
+      data_.push_back(out | 0x80);
+      out = value & 0x7f;
+      value >>= 7;
+    }
+    data_.push_back(out);
   }
 
   template<typename It>
-  void InsertBack(It cur, It end) {
+  void InsertBackUnsigned(It cur, It end) {
     for (; cur != end; ++cur) {
-      PushBack(*cur);
+      PushBackUnsigned(*cur);
+    }
+  }
+
+  void PushBackSigned(int32_t value) {
+    uint32_t extra_bits = static_cast<uint32_t>(value ^ (value >> 31)) >> 6;
+    uint8_t out = value & 0x7f;
+    while (extra_bits != 0u) {
+      data_.push_back(out | 0x80);
+      value >>= 7;
+      out = value & 0x7f;
+      extra_bits >>= 7;
+    }
+    data_.push_back(out);
+  }
+
+  template<typename It>
+  void InsertBackSigned(It cur, It end) {
+    for (; cur != end; ++cur) {
+      PushBackSigned(*cur);
     }
   }
 
@@ -55,7 +76,7 @@ class UnsignedLeb128EncodingVector {
  private:
   std::vector<uint8_t> data_;
 
-  DISALLOW_COPY_AND_ASSIGN(UnsignedLeb128EncodingVector);
+  DISALLOW_COPY_AND_ASSIGN(Leb128EncodingVector);
 };
 
 }  // namespace art
