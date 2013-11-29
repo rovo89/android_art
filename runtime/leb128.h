@@ -18,6 +18,7 @@
 #define ART_RUNTIME_LEB128_H_
 
 #include "globals.h"
+#include "utils.h"
 
 namespace art {
 
@@ -95,12 +96,20 @@ static inline int32_t DecodeSignedLeb128(const uint8_t** data) {
 
 // Returns the number of bytes needed to encode the value in unsigned LEB128.
 static inline uint32_t UnsignedLeb128Size(uint32_t data) {
-  uint32_t count = 0;
-  do {
-    data >>= 7;
-    count++;
-  } while (data != 0);
-  return count;
+  // bits_to_encode = (data != 0) ? 32 - CLZ(x) : 1  // 32 - CLZ(data | 1)
+  // bytes = ceil(bits_to_encode / 7.0);             // (6 + bits_to_encode) / 7
+  uint32_t x = 6 + 32 - CLZ(data | 1);
+  // Division by 7 is done by (x * 37) >> 8 where 37 = ceil(256 / 7).
+  // This works for 0 <= x < 256 / (7 * 37 - 256), i.e. 0 <= x <= 85.
+  return (x * 37) >> 8;
+}
+
+// Returns the number of bytes needed to encode the value in unsigned LEB128.
+static inline uint32_t SignedLeb128Size(int32_t data) {
+  // Like UnsignedLeb128Size(), but we need one bit beyond the highest bit that differs from sign.
+  data = data ^ (data >> 31);
+  uint32_t x = 1 /* we need to encode the sign bit */ + 6 + 32 - CLZ(data | 1);
+  return (x * 37) >> 8;
 }
 
 }  // namespace art
