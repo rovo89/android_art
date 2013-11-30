@@ -81,5 +81,6 @@ extern "C" mirror::Array* artCheckAndAllocArrayFromCodeWithAccessCheck##suffix##
 
 GENERATE_ENTRYPOINTS_FOR_ALLOCATOR(, gc::kAllocatorTypeFreeList)
 GENERATE_ENTRYPOINTS_FOR_ALLOCATOR(BumpPointer, gc::kAllocatorTypeBumpPointer)
+GENERATE_ENTRYPOINTS_FOR_ALLOCATOR(TLAB, gc::kAllocatorTypeTLAB)
 
 }  // namespace art

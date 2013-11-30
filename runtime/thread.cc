@@ -928,7 +928,11 @@ Thread::Thread(bool daemon)
       no_thread_suspension_(0),
       last_no_thread_suspension_cause_(NULL),
       checkpoint_function_(0),
-      thread_exit_check_count_(0) {
+      thread_exit_check_count_(0),
+      thread_local_start_(nullptr),
+      thread_local_pos_(nullptr),
+      thread_local_end_(nullptr),
+      thread_local_objects_(0) {
   CHECK_EQ((sizeof(Thread) % 4), 0U) << sizeof(Thread);
   state_and_flags_.as_struct.flags = 0;
   state_and_flags_.as_struct.state = kNative;
@@ -2177,6 +2181,14 @@ void Thread::SetStackEndForStackOverflow() {
   }
 
   stack_end_ = stack_begin_;
+}
+
+void Thread::SetTLAB(byte* start, byte* end) {
+  DCHECK_LE(start, end);
+  thread_local_start_ = start;
+  thread_local_pos_  = thread_local_start_;
+  thread_local_end_ = end;
+  thread_local_objects_ = 0;
 }
 
 std::ostream& operator<<(std::ostream& os, const Thread& thread) {

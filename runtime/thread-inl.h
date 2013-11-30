@@ -154,6 +154,18 @@ inline void Thread::VerifyStack() {
   }
 }
 
+inline size_t Thread::TLABSize() const {
+  return thread_local_end_ - thread_local_pos_;
+}
+
+inline mirror::Object* Thread::AllocTLAB(size_t bytes) {
+  DCHECK_GE(TLABSize(), bytes);
+  ++thread_local_objects_;
+  mirror::Object* ret = reinterpret_cast<mirror::Object*>(thread_local_pos_);
+  thread_local_pos_ += bytes;
+  return ret;
+}
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_THREAD_INL_H_

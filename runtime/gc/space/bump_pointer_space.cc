@@ -18,6 +18,7 @@
 #include "bump_pointer_space-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/class-inl.h"
+#include "thread_list.h"
 
 namespace art {
 namespace gc {
@@ -40,18 +41,27 @@ BumpPointerSpace* BumpPointerSpace::Create(const std::string& name, size_t capac
 BumpPointerSpace::BumpPointerSpace(const std::string& name, byte* begin, byte* limit)
     : ContinuousMemMapAllocSpace(name, nullptr, begin, begin, limit,
                                  kGcRetentionPolicyAlwaysCollect),
-      num_objects_allocated_(0), total_bytes_allocated_(0), total_objects_allocated_(0),
-      growth_end_(limit) {
+      growth_end_(limit),
+      objects_allocated_(0), bytes_allocated_(0),
+      block_lock_("Block lock"),
+      num_blocks_(0) {
+  CHECK_GE(Capacity(), sizeof(BlockHeader));
+  end_ += sizeof(BlockHeader);
 }
 
 BumpPointerSpace::BumpPointerSpace(const std::string& name, MemMap* mem_map)
     : ContinuousMemMapAllocSpace(name, mem_map, mem_map->Begin(), mem_map->Begin(), mem_map->End(),
                                  kGcRetentionPolicyAlwaysCollect),
-      num_objects_allocated_(0), total_bytes_allocated_(0), total_objects_allocated_(0),
-      growth_end_(mem_map->End()) {
+      growth_end_(mem_map->End()),
+      objects_allocated_(0), bytes_allocated_(0),
+      block_lock_("Block lock"),
+      num_blocks_(0) {
+  CHECK_GE(Capacity(), sizeof(BlockHeader));
+  end_ += sizeof(BlockHeader);
 }
 
 mirror::Object* BumpPointerSpace::Alloc(Thread*, size_t num_bytes, size_t* bytes_allocated) {
+  num_bytes = RoundUp(num_bytes, kAlignment);
   mirror::Object* ret = AllocNonvirtual(num_bytes);
   if (LIKELY(ret != nullptr)) {
     *bytes_allocated = num_bytes;
@@ -68,9 +78,14 @@ void BumpPointerSpace::Clear() {
   CHECK_NE(madvise(Begin(), Limit() - Begin(), MADV_DONTNEED), -1) << "madvise failed";
   // Reset the end of the space back to the beginning, we move the end forward as we allocate
   // objects.
-  SetEnd(Begin());
+  SetEnd(Begin() + sizeof(BlockHeader));
+  objects_allocated_ = 0;
+  bytes_allocated_ = 0;
   growth_end_ = Limit();
-  num_objects_allocated_ = 0;
+  {
+    MutexLock mu(Thread::Current(), block_lock_);
+    num_blocks_ = 0;
+  }
 }
 
 void BumpPointerSpace::Dump(std::ostream& os) const {
@@ -81,6 +96,131 @@ void BumpPointerSpace::Dump(std::ostream& os) const {
 mirror::Object* BumpPointerSpace::GetNextObject(mirror::Object* obj) {
   const uintptr_t position = reinterpret_cast<uintptr_t>(obj) + obj->SizeOf();
   return reinterpret_cast<mirror::Object*>(RoundUp(position, kAlignment));
+}
+
+void BumpPointerSpace::RevokeThreadLocalBuffers(Thread* thread) {
+  MutexLock mu(Thread::Current(), block_lock_);
+  RevokeThreadLocalBuffersLocked(thread);
+}
+
+void BumpPointerSpace::RevokeAllThreadLocalBuffers() {
+  Thread* self = Thread::Current();
+  MutexLock mu(self, *Locks::runtime_shutdown_lock_);
+  MutexLock mu2(self, *Locks::thread_list_lock_);
+  // TODO: Not do a copy of the thread list?
+  std::list<Thread*> thread_list = Runtime::Current()->GetThreadList()->GetList();
+  for (Thread* thread : thread_list) {
+    RevokeThreadLocalBuffers(thread);
+  }
+}
+
+void BumpPointerSpace::UpdateMainBlock() {
+  BlockHeader* header = reinterpret_cast<BlockHeader*>(Begin());
+  header->size_ = Size() - sizeof(BlockHeader);
+  DCHECK_EQ(num_blocks_, 0U);
+}
+
+// Returns the start of the storage.
+byte* BumpPointerSpace::AllocBlock(size_t bytes) {
+  bytes = RoundUp(bytes, kAlignment);
+  if (!num_blocks_) {
+    UpdateMainBlock();
+  }
+  byte* storage = reinterpret_cast<byte*>(
+      AllocNonvirtualWithoutAccounting(bytes + sizeof(BlockHeader)));
+  if (LIKELY(storage != nullptr)) {
+    BlockHeader* header = reinterpret_cast<BlockHeader*>(storage);
+    header->size_ = bytes;  // Write out the block header.
+    storage += sizeof(BlockHeader);
+    ++num_blocks_;
+  }
+  return storage;
+}
+
+void BumpPointerSpace::Walk(ObjectVisitorCallback callback, void* arg) {
+  byte* pos = Begin();
+
+  {
+    MutexLock mu(Thread::Current(), block_lock_);
+    // If we have 0 blocks then we need to update the main header since we have bump pointer style
+    // allocation into an unbounded region (actually bounded by Capacity()).
+    if (num_blocks_ == 0) {
+      UpdateMainBlock();
+    }
+  }
+
+  while (pos < End()) {
+    BlockHeader* header = reinterpret_cast<BlockHeader*>(pos);
+    size_t block_size = header->size_;
+    pos += sizeof(BlockHeader);  // Skip the header so that we know where the objects
+    mirror::Object* obj = reinterpret_cast<mirror::Object*>(pos);
+    const mirror::Object* end = reinterpret_cast<const mirror::Object*>(pos + block_size);
+    CHECK_LE(reinterpret_cast<const byte*>(end), End());
+    // We don't know how many objects are allocated in the current block. When we hit a null class
+    // assume its the end. TODO: Have a thread update the header when it flushes the block?
+    while (obj < end && obj->GetClass() != nullptr) {
+      callback(obj, arg);
+      obj = GetNextObject(obj);
+    }
+    pos += block_size;
+  }
+}
+
+bool BumpPointerSpace::IsEmpty() const {
+  return Size() == sizeof(BlockHeader);
+}
+
+uint64_t BumpPointerSpace::GetBytesAllocated() {
+  // Start out pre-determined amount (blocks which are not being allocated into).
+  uint64_t total = static_cast<uint64_t>(bytes_allocated_.load());
+  Thread* self = Thread::Current();
+  MutexLock mu(self, *Locks::runtime_shutdown_lock_);
+  MutexLock mu2(self, *Locks::thread_list_lock_);
+  std::list<Thread*> thread_list = Runtime::Current()->GetThreadList()->GetList();
+  MutexLock mu3(Thread::Current(), block_lock_);
+  // If we don't have any blocks, we don't have any thread local buffers. This check is required
+  // since there can exist multiple bump pointer spaces which exist at the same time.
+  if (num_blocks_ > 0) {
+    for (Thread* thread : thread_list) {
+      total += thread->thread_local_pos_ - thread->thread_local_start_;
+    }
+  }
+  return total;
+}
+
+uint64_t BumpPointerSpace::GetObjectsAllocated() {
+  // Start out pre-determined amount (blocks which are not being allocated into).
+  uint64_t total = static_cast<uint64_t>(objects_allocated_.load());
+  Thread* self = Thread::Current();
+  MutexLock mu(self, *Locks::runtime_shutdown_lock_);
+  MutexLock mu2(self, *Locks::thread_list_lock_);
+  std::list<Thread*> thread_list = Runtime::Current()->GetThreadList()->GetList();
+  MutexLock mu3(Thread::Current(), block_lock_);
+  // If we don't have any blocks, we don't have any thread local buffers. This check is required
+  // since there can exist multiple bump pointer spaces which exist at the same time.
+  if (num_blocks_ > 0) {
+    for (Thread* thread : thread_list) {
+      total += thread->thread_local_objects_;
+    }
+  }
+  return total;
+}
+
+void BumpPointerSpace::RevokeThreadLocalBuffersLocked(Thread* thread) {
+  objects_allocated_.fetch_add(thread->thread_local_objects_);
+  bytes_allocated_.fetch_add(thread->thread_local_pos_ - thread->thread_local_start_);
+  thread->SetTLAB(nullptr, nullptr);
+}
+
+bool BumpPointerSpace::AllocNewTLAB(Thread* self, size_t bytes) {
+  MutexLock mu(Thread::Current(), block_lock_);
+  RevokeThreadLocalBuffersLocked(self);
+  byte* start = AllocBlock(bytes);
+  if (start == nullptr) {
+    return false;
+  }
+  self->SetTLAB(start, start + bytes);
+  return true;
 }
 
 }  // namespace space

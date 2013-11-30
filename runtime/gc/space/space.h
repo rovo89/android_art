@@ -198,10 +198,6 @@ class AllocSpace {
   virtual uint64_t GetBytesAllocated() = 0;
   // Number of objects currently allocated.
   virtual uint64_t GetObjectsAllocated() = 0;
-  // Number of bytes allocated since the space was created.
-  virtual uint64_t GetTotalBytesAllocated() = 0;
-  // Number of objects allocated since the space was created.
-  virtual uint64_t GetTotalObjectsAllocated() = 0;
 
   // Allocate num_bytes without allowing growth. If the allocation
   // succeeds, the output parameter bytes_allocated will be set to the
