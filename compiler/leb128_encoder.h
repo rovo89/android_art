@@ -22,6 +22,31 @@
 
 namespace art {
 
+static inline uint8_t* EncodeUnsignedLeb128(uint8_t* dest, uint32_t value) {
+  uint8_t out = value & 0x7f;
+  value >>= 7;
+  while (value != 0) {
+    *dest++ = out | 0x80;
+    out = value & 0x7f;
+    value >>= 7;
+  }
+  *dest++ = out;
+  return dest;
+}
+
+static inline uint8_t* EncodeSignedLeb128(uint8_t* dest, int32_t value) {
+  uint32_t extra_bits = static_cast<uint32_t>(value ^ (value >> 31)) >> 6;
+  uint8_t out = value & 0x7f;
+  while (extra_bits != 0u) {
+    *dest++ = out | 0x80;
+    value >>= 7;
+    out = value & 0x7f;
+    extra_bits >>= 7;
+  }
+  *dest++ = out;
+  return dest;
+}
+
 // An encoder with an API similar to vector<uint32_t> where the data is captured in ULEB128 format.
 class Leb128EncodingVector {
  public:
