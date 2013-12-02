@@ -166,6 +166,10 @@ static void VMRuntime_registerNativeFree(JNIEnv* env, jobject, jint bytes) {
   Runtime::Current()->GetHeap()->RegisterNativeFree(env, bytes);
 }
 
+static void VMRuntime_updateProcessState(JNIEnv* env, jobject, jint process_state) {
+  Runtime::Current()->GetHeap()->UpdateProcessState(static_cast<gc::ProcessState>(process_state));
+}
+
 static void VMRuntime_trimHeap(JNIEnv*, jobject) {
   Runtime::Current()->GetHeap()->Trim();
 }
@@ -496,6 +500,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, setTargetSdkVersionNative, "(I)V"),
   NATIVE_METHOD(VMRuntime, registerNativeAllocation, "(I)V"),
   NATIVE_METHOD(VMRuntime, registerNativeFree, "(I)V"),
+  NATIVE_METHOD(VMRuntime, updateProcessState, "(I)V"),
   NATIVE_METHOD(VMRuntime, startJitCompilation, "()V"),
   NATIVE_METHOD(VMRuntime, trimHeap, "()V"),
   NATIVE_METHOD(VMRuntime, vmVersion, "()Ljava/lang/String;"),
