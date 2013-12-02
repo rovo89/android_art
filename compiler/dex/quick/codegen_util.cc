@@ -556,12 +556,34 @@ bool Mir2Lir::VerifyCatchEntries() {
 
 
 void Mir2Lir::CreateMappingTables() {
+  uint32_t pc2dex_data_size = 0u;
+  uint32_t pc2dex_entries = 0u;
+  uint32_t pc2dex_offset = 0u;
+  uint32_t pc2dex_dalvik_offset = 0u;
+  uint32_t dex2pc_data_size = 0u;
+  uint32_t dex2pc_entries = 0u;
+  uint32_t dex2pc_offset = 0u;
+  uint32_t dex2pc_dalvik_offset = 0u;
   for (LIR* tgt_lir = first_lir_insn_; tgt_lir != NULL; tgt_lir = NEXT_LIR(tgt_lir)) {
     if (!tgt_lir->flags.is_nop && (tgt_lir->opcode == kPseudoSafepointPC)) {
+      pc2dex_entries += 1;
+      DCHECK(pc2dex_offset <= tgt_lir->offset);
+      pc2dex_data_size += UnsignedLeb128Size(tgt_lir->offset - pc2dex_offset);
+      pc2dex_data_size += SignedLeb128Size(static_cast<int32_t>(tgt_lir->dalvik_offset) -
+                                           static_cast<int32_t>(pc2dex_dalvik_offset));
+      pc2dex_offset = tgt_lir->offset;
+      pc2dex_dalvik_offset = tgt_lir->dalvik_offset;
       pc2dex_mapping_table_.push_back(tgt_lir->offset);
       pc2dex_mapping_table_.push_back(tgt_lir->dalvik_offset);
     }
     if (!tgt_lir->flags.is_nop && (tgt_lir->opcode == kPseudoExportedPC)) {
+      dex2pc_entries += 1;
+      DCHECK(dex2pc_offset <= tgt_lir->offset);
+      dex2pc_data_size += UnsignedLeb128Size(tgt_lir->offset - dex2pc_offset);
+      dex2pc_data_size += SignedLeb128Size(static_cast<int32_t>(tgt_lir->dalvik_offset) -
+                                           static_cast<int32_t>(dex2pc_dalvik_offset));
+      dex2pc_offset = tgt_lir->offset;
+      dex2pc_dalvik_offset = tgt_lir->dalvik_offset;
       dex2pc_mapping_table_.push_back(tgt_lir->offset);
       dex2pc_mapping_table_.push_back(tgt_lir->dalvik_offset);
     }
@@ -569,32 +591,57 @@ void Mir2Lir::CreateMappingTables() {
   if (kIsDebugBuild) {
     CHECK(VerifyCatchEntries());
   }
-  CHECK_EQ(pc2dex_mapping_table_.size() & 1, 0U);
-  CHECK_EQ(dex2pc_mapping_table_.size() & 1, 0U);
-  uint32_t total_entries = (pc2dex_mapping_table_.size() + dex2pc_mapping_table_.size()) / 2;
-  uint32_t pc2dex_entries = pc2dex_mapping_table_.size() / 2;
-  encoded_mapping_table_.PushBack(total_entries);
-  encoded_mapping_table_.PushBack(pc2dex_entries);
-  encoded_mapping_table_.InsertBack(pc2dex_mapping_table_.begin(), pc2dex_mapping_table_.end());
-  encoded_mapping_table_.InsertBack(dex2pc_mapping_table_.begin(), dex2pc_mapping_table_.end());
+  DCHECK_EQ(pc2dex_mapping_table_.size(), 2u * pc2dex_entries);
+  DCHECK_EQ(dex2pc_mapping_table_.size(), 2u * dex2pc_entries);
+
+  uint32_t total_entries = pc2dex_entries + dex2pc_entries;
+  uint32_t hdr_data_size = UnsignedLeb128Size(total_entries) + UnsignedLeb128Size(pc2dex_entries);
+  uint32_t data_size = hdr_data_size + pc2dex_data_size + dex2pc_data_size;
+  encoded_mapping_table_.Reserve(data_size);
+  encoded_mapping_table_.PushBackUnsigned(total_entries);
+  encoded_mapping_table_.PushBackUnsigned(pc2dex_entries);
+
+  dex2pc_offset = 0u;
+  dex2pc_dalvik_offset = 0u;
+  pc2dex_offset = 0u;
+  pc2dex_dalvik_offset = 0u;
+  for (uint32_t i = 0; i != pc2dex_entries; ++i) {
+    encoded_mapping_table_.PushBackUnsigned(pc2dex_mapping_table_[2 * i] - pc2dex_offset);
+    encoded_mapping_table_.PushBackSigned(static_cast<int32_t>(pc2dex_mapping_table_[2 * i + 1]) -
+                                          static_cast<int32_t>(pc2dex_dalvik_offset));
+    pc2dex_offset = pc2dex_mapping_table_[2 * i];
+    pc2dex_dalvik_offset = pc2dex_mapping_table_[2 * i + 1];
+  }
+  DCHECK(encoded_mapping_table_.GetData().size() == hdr_data_size + pc2dex_data_size);
+  for (uint32_t i = 0; i != dex2pc_entries; ++i) {
+    encoded_mapping_table_.PushBackUnsigned(dex2pc_mapping_table_[2 * i] - dex2pc_offset);
+    encoded_mapping_table_.PushBackSigned(static_cast<int32_t>(dex2pc_mapping_table_[2 * i + 1]) -
+                                          static_cast<int32_t>(dex2pc_dalvik_offset));
+    dex2pc_offset = dex2pc_mapping_table_[2 * i];
+    dex2pc_dalvik_offset = dex2pc_mapping_table_[2 * i + 1];
+  }
+  DCHECK(encoded_mapping_table_.GetData().size() == data_size);
+
   if (kIsDebugBuild) {
     // Verify the encoded table holds the expected data.
     MappingTable table(&encoded_mapping_table_.GetData()[0]);
     CHECK_EQ(table.TotalSize(), total_entries);
     CHECK_EQ(table.PcToDexSize(), pc2dex_entries);
     CHECK_EQ(table.DexToPcSize(), dex2pc_mapping_table_.size() / 2);
-    MappingTable::PcToDexIterator it = table.PcToDexBegin();
+    auto it = table.PcToDexBegin();
     for (uint32_t i = 0; i < pc2dex_mapping_table_.size(); ++i, ++it) {
       CHECK_EQ(pc2dex_mapping_table_.at(i), it.NativePcOffset());
       ++i;
       CHECK_EQ(pc2dex_mapping_table_.at(i), it.DexPc());
     }
-    MappingTable::DexToPcIterator it2 = table.DexToPcBegin();
+    CHECK(it == table.PcToDexEnd());
+    auto it2 = table.DexToPcBegin();
     for (uint32_t i = 0; i < dex2pc_mapping_table_.size(); ++i, ++it2) {
       CHECK_EQ(dex2pc_mapping_table_.at(i), it2.NativePcOffset());
       ++i;
       CHECK_EQ(dex2pc_mapping_table_.at(i), it2.DexPc());
     }
+    CHECK(it2 == table.DexToPcEnd());
   }
 }
 
@@ -986,11 +1033,11 @@ CompiledMethod* Mir2Lir::GetCompiledMethod() {
   for (uint32_t i = 0; i < fp_vmap_table_.size(); i++) {
     raw_vmap_table.push_back(fp_vmap_table_[i]);
   }
-  UnsignedLeb128EncodingVector vmap_encoder;
+  Leb128EncodingVector vmap_encoder;
   // Prefix the encoded data with its size.
-  vmap_encoder.PushBack(raw_vmap_table.size());
+  vmap_encoder.PushBackUnsigned(raw_vmap_table.size());
   for (uint16_t cur : raw_vmap_table) {
-    vmap_encoder.PushBack(cur);
+    vmap_encoder.PushBackUnsigned(cur);
   }
   CompiledMethod* result =
       new CompiledMethod(*cu_->compiler_driver, cu_->instruction_set, code_buffer_, frame_size_,

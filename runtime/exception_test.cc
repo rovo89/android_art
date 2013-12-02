@@ -54,17 +54,17 @@ class ExceptionTest : public CommonTest {
       fake_code_.push_back(0x70 | i);
     }
 
-    fake_mapping_data_.PushBack(4);  // first element is count
-    fake_mapping_data_.PushBack(4);  // total (non-length) elements
-    fake_mapping_data_.PushBack(2);  // count of pc to dex elements
+    fake_mapping_data_.PushBackUnsigned(4);  // first element is count
+    fake_mapping_data_.PushBackUnsigned(4);  // total (non-length) elements
+    fake_mapping_data_.PushBackUnsigned(2);  // count of pc to dex elements
                                       // ---  pc to dex table
-    fake_mapping_data_.PushBack(3);  // offset 3
-    fake_mapping_data_.PushBack(3);  // maps to dex offset 3
+    fake_mapping_data_.PushBackUnsigned(3 - 0);  // offset 3
+    fake_mapping_data_.PushBackSigned(3 - 0);    // maps to dex offset 3
                                       // ---  dex to pc table
-    fake_mapping_data_.PushBack(3);  // offset 3
-    fake_mapping_data_.PushBack(3);  // maps to dex offset 3
+    fake_mapping_data_.PushBackUnsigned(3 - 0);  // offset 3
+    fake_mapping_data_.PushBackSigned(3 - 0);    // maps to dex offset 3
 
-    fake_vmap_table_data_.PushBack(0);
+    fake_vmap_table_data_.PushBackUnsigned(0);
 
     fake_gc_map_.push_back(0);  // 0 bytes to encode references and native pc offsets.
     fake_gc_map_.push_back(0);
@@ -91,8 +91,8 @@ class ExceptionTest : public CommonTest {
   const DexFile* dex_;
 
   std::vector<uint8_t> fake_code_;
-  UnsignedLeb128EncodingVector fake_mapping_data_;
-  UnsignedLeb128EncodingVector fake_vmap_table_data_;
+  Leb128EncodingVector fake_mapping_data_;
+  Leb128EncodingVector fake_vmap_table_data_;
   std::vector<uint8_t> fake_gc_map_;
 
   mirror::ArtMethod* method_f_;
