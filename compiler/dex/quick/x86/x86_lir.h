@@ -354,7 +354,7 @@ enum X86OpCode {
   Binary0fOpCode(kX86Imul16),   // 16bit multiply
   Binary0fOpCode(kX86Imul32),   // 32bit multiply
   kX86CmpxchgRR, kX86CmpxchgMR, kX86CmpxchgAR,  // compare and exchange
-  kX86LockCmpxchgRR, kX86LockCmpxchgMR, kX86LockCmpxchgAR,  // locked compare and exchange
+  kX86LockCmpxchgMR, kX86LockCmpxchgAR,  // locked compare and exchange
   Binary0fOpCode(kX86Movzx8),   // zero-extend 8-bit value
   Binary0fOpCode(kX86Movzx16),  // zero-extend 16-bit value
   Binary0fOpCode(kX86Movsx8),   // sign-extend 8-bit value
