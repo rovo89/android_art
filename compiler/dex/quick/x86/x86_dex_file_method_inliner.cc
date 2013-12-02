@@ -64,12 +64,12 @@ const DexFileMethodInliner::IntrinsicDef X86DexFileMethodInliner::kIntrinsicMeth
     INTRINSIC(LibcoreIoMemory, PokeLongNative, JJ_V, kIntrinsicPoke, kLong),
     INTRINSIC(LibcoreIoMemory, PokeShortNative, JS_V, kIntrinsicPoke, kSignedHalf),
 
-    // INTRINSIC(SunMiscUnsafe, CompareAndSwapInt, ObjectJII_Z, kIntrinsicCas,
-    //           kIntrinsicFlagNone),
+    INTRINSIC(SunMiscUnsafe, CompareAndSwapInt, ObjectJII_Z, kIntrinsicCas,
+              kIntrinsicFlagNone),
     // INTRINSIC(SunMiscUnsafe, CompareAndSwapLong, ObjectJJJ_Z, kIntrinsicCas,
     //           kIntrinsicFlagIsLong),
-    // INTRINSIC(SunMiscUnsafe, CompareAndSwapObject, ObjectJObjectObject_Z, kIntrinsicCas,
-    //           kIntrinsicFlagIsObject),
+    INTRINSIC(SunMiscUnsafe, CompareAndSwapObject, ObjectJObjectObject_Z, kIntrinsicCas,
+              kIntrinsicFlagIsObject),
 
 #define UNSAFE_GET_PUT(type, code, type_flags) \
     INTRINSIC(SunMiscUnsafe, Get ## type, ObjectJ_ ## code, kIntrinsicUnsafeGet, \

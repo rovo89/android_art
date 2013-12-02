@@ -282,8 +282,50 @@ void X86Mir2Lir::OpTlsCmp(ThreadOffset offset, int val) {
 }
 
 bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
-  DCHECK_NE(cu_->instruction_set, kThumb2);
-  return false;
+  DCHECK_EQ(cu_->instruction_set, kX86);
+  // Unused - RegLocation rl_src_unsafe = info->args[0];
+  RegLocation rl_src_obj = info->args[1];  // Object - known non-null
+  RegLocation rl_src_offset = info->args[2];  // long low
+  rl_src_offset.wide = 0;  // ignore high half in info->args[3]
+  RegLocation rl_src_expected = info->args[4];  // int, long or Object
+  // If is_long, high half is in info->args[5]
+  RegLocation rl_src_new_value = info->args[is_long ? 6 : 5];  // int, long or Object
+  // If is_long, high half is in info->args[7]
+
+  if (is_long) {
+    LOG(FATAL) << "CAS64: Not implemented";
+  } else {
+    // EAX must hold expected for CMPXCHG. Neither rl_new_value, nor r_ptr may be in EAX.
+    FlushReg(r0);
+    LockTemp(r0);
+
+    // Release store semantics, get the barrier out of the way.  TODO: revisit
+    GenMemBarrier(kStoreLoad);
+
+    RegLocation rl_object = LoadValue(rl_src_obj, kCoreReg);
+    RegLocation rl_new_value = LoadValue(rl_src_new_value, kCoreReg);
+
+    if (is_object && !mir_graph_->IsConstantNullRef(rl_new_value)) {
+      // Mark card for object assuming new value is stored.
+      FreeTemp(r0);  // Temporarily release EAX for MarkGCCard().
+      MarkGCCard(rl_new_value.low_reg, rl_object.low_reg);
+      LockTemp(r0);
+    }
+
+    RegLocation rl_offset = LoadValue(rl_src_offset, kCoreReg);
+    LoadValueDirect(rl_src_expected, r0);
+    NewLIR5(kX86LockCmpxchgAR, rl_object.low_reg, rl_offset.low_reg, 0, 0, rl_new_value.low_reg);
+
+    FreeTemp(r0);
+  }
+
+  // Convert ZF to boolean
+  RegLocation rl_dest = InlineTarget(info);  // boolean place for result
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  NewLIR2(kX86Set8R, rl_result.low_reg, kX86CondZ);
+  NewLIR2(kX86Movzx8RR, rl_result.low_reg, rl_result.low_reg);
+  StoreValue(rl_dest, rl_result);
+  return true;
 }
 
 LIR* X86Mir2Lir::OpPcRelLoad(int reg, LIR* target) {
