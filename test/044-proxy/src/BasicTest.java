@@ -51,6 +51,8 @@ public class BasicTest {
         colors.blue(777);
         colors.mauve("sorry");
         colors.blob();
+        Trace trace = (Trace) proxy;
+        trace.getTrace();
 
         try {
             shapes.upChuck();
@@ -96,7 +98,7 @@ public class BasicTest {
 
         /* create the proxy class */
         Class proxyClass = Proxy.getProxyClass(Shapes.class.getClassLoader(),
-                            new Class[] { Quads.class, Colors.class });
+                            new Class[] { Quads.class, Colors.class, Trace.class });
 
         /* create a proxy object, passing the handler object in */
         Object proxy = null;
@@ -154,6 +156,10 @@ interface Colors {
     public String blob();
 
     public R0aa checkMe();
+}
+
+interface Trace {
+    public void getTrace();
 }
 
 /*
@@ -246,6 +252,20 @@ class MyInvocationHandler implements InvocationHandler {
                 return Boolean.valueOf(super.equals(args[0]));
             else
                 throw new RuntimeException("huh?");
+        }
+
+        if (method.getDeclaringClass() == Trace.class) {
+          if (method.getName().equals("getTrace")) {
+            StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+            for (int i = 0; i < stackTrace.length; i++) {
+                StackTraceElement ste = stackTrace[i];
+                if (ste.getMethodName().equals("getTrace")) {
+                  System.out.println(ste.getClassName() + "." + ste.getMethodName() + " " +
+                                     ste.getFileName() + ":" + ste.getLineNumber());
+                }
+            }
+            return null;
+          }
         }
 
         System.out.println("Invoke " + method);
