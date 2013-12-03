@@ -42,6 +42,7 @@ Invoke public abstract java.lang.String Shapes.blob()
  (no args)
 --- blob
 Success: method blob res=mix
+$Proxy1.getTrace null:-1
 Invoke public abstract void Shapes.upChuck()
  (no args)
 Got expected ioobe
@@ -49,8 +50,8 @@ Invoke public abstract void Shapes.upCheck() throws java.lang.InterruptedExcepti
  (no args)
 Got expected ie
 
-Proxy interfaces: [interface Quads, interface Colors]
-Proxy methods: [public final java.lang.String $Proxy1.blob(), public final double $Proxy1.blue(int), public final R0a $Proxy1.checkMe(), public final R0aa $Proxy1.checkMe(), public final R0base $Proxy1.checkMe(), public final void $Proxy1.circle(int), public final boolean $Proxy1.equals(java.lang.Object), public final int $Proxy1.green(double), public final int $Proxy1.hashCode(), public final int $Proxy1.mauve(java.lang.String), public final int $Proxy1.rectangle(int,int), public final int $Proxy1.red(float), public final int $Proxy1.square(int,int), public final java.lang.String $Proxy1.toString(), public final int $Proxy1.trapezoid(int,double,int), public final void $Proxy1.upCheck() throws java.lang.InterruptedException, public final void $Proxy1.upChuck()]
+Proxy interfaces: [interface Quads, interface Colors, interface Trace]
+Proxy methods: [public final java.lang.String $Proxy1.blob(), public final double $Proxy1.blue(int), public final R0a $Proxy1.checkMe(), public final R0aa $Proxy1.checkMe(), public final R0base $Proxy1.checkMe(), public final void $Proxy1.circle(int), public final boolean $Proxy1.equals(java.lang.Object), public final void $Proxy1.getTrace(), public final int $Proxy1.green(double), public final int $Proxy1.hashCode(), public final int $Proxy1.mauve(java.lang.String), public final int $Proxy1.rectangle(int,int), public final int $Proxy1.red(float), public final int $Proxy1.square(int,int), public final java.lang.String $Proxy1.toString(), public final int $Proxy1.trapezoid(int,double,int), public final void $Proxy1.upCheck() throws java.lang.InterruptedException, public final void $Proxy1.upChuck()]
 Decl annos: []
 Param annos (0) : []
 Dupe threw expected exception
