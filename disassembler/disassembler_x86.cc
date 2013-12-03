@@ -520,6 +520,13 @@ DISASSEMBLER_ENTRY(cmp,
       case 0xB7: opcode << "movzxw"; has_modrm = true; load = true; break;
       case 0xBE: opcode << "movsxb"; has_modrm = true; load = true; break;
       case 0xBF: opcode << "movsxw"; has_modrm = true; load = true; break;
+      case 0xC7:
+        static const char* x0FxC7_opcodes[] = { "unknown-0f-c7", "cmpxchg8b", "unknown-0f-c7", "unknown-0f-c7", "unknown-0f-c7", "unknown-0f-c7", "unknown-0f-c7", "unknown-0f-c7" };
+        modrm_opcodes = x0FxC7_opcodes;
+        has_modrm = true;
+        reg_is_opcode = true;
+        store = true;
+        break;
       case 0xC8: case 0xC9: case 0xCA: case 0xCB: case 0xCC: case 0xCD: case 0xCE: case 0xCF:
         opcode << "bswap";
         reg_in_opcode = true;

@@ -71,6 +71,7 @@ typedef uint32_t CodeOffset;         // Native code offset in bytes.
 #define REG_USEA             (1ULL << kRegUseA)
 #define REG_USEC             (1ULL << kRegUseC)
 #define REG_USED             (1ULL << kRegUseD)
+#define REG_USEB             (1ULL << kRegUseB)
 #define REG_USE_FPCS_LIST0   (1ULL << kRegUseFPCSList0)
 #define REG_USE_FPCS_LIST2   (1ULL << kRegUseFPCSList2)
 #define REG_USE_LIST0        (1ULL << kRegUseList0)

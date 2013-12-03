@@ -293,7 +293,26 @@ bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   // If is_long, high half is in info->args[7]
 
   if (is_long) {
-    LOG(FATAL) << "CAS64: Not implemented";
+    FlushAllRegs();
+    LockCallTemps();
+    NewLIR1(kX86Push32R, rDI);
+    MarkTemp(rDI);
+    LockTemp(rDI);
+    NewLIR1(kX86Push32R, rSI);
+    MarkTemp(rSI);
+    LockTemp(rSI);
+    LoadValueDirectFixed(rl_src_obj, rDI);
+    LoadValueDirectFixed(rl_src_offset, rSI);
+    LoadValueDirectWideFixed(rl_src_expected, rAX, rDX);
+    LoadValueDirectWideFixed(rl_src_new_value, rBX, rCX);
+    NewLIR4(kX86LockCmpxchg8bA, rDI, rSI, 0, 0);
+    FreeTemp(rSI);
+    UnmarkTemp(rSI);
+    NewLIR1(kX86Pop32R, rSI);
+    FreeTemp(rDI);
+    UnmarkTemp(rDI);
+    NewLIR1(kX86Pop32R, rDI);
+    FreeCallTemps();
   } else {
     // EAX must hold expected for CMPXCHG. Neither rl_new_value, nor r_ptr may be in EAX.
     FlushReg(r0);
