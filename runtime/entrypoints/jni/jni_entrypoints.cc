@@ -50,7 +50,7 @@ static void WorkAroundJniBugsForJobject(intptr_t* arg_ptr) {
   intptr_t value = *arg_ptr;
   mirror::Object** value_as_jni_rep = reinterpret_cast<mirror::Object**>(value);
   mirror::Object* value_as_work_around_rep = value_as_jni_rep != NULL ? *value_as_jni_rep : NULL;
-  CHECK(Runtime::Current()->GetHeap()->IsHeapAddress(value_as_work_around_rep))
+  CHECK(Runtime::Current()->GetHeap()->IsValidObjectAddress(value_as_work_around_rep))
       << value_as_work_around_rep;
   *arg_ptr = reinterpret_cast<intptr_t>(value_as_work_around_rep);
 }
