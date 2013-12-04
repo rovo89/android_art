@@ -1281,7 +1281,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
       return true;  // Ignore runtime frames (in particular callee save).
     }
     method_trace_->Set(count_, m);
-    dex_pc_trace_->Set(count_, GetDexPc());
+    dex_pc_trace_->Set(count_, m->IsProxyMethod() ? DexFile::kDexNoIndex : GetDexPc());
     ++count_;
     return true;
   }
@@ -1363,19 +1363,31 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
     // Prepare parameters for StackTraceElement(String cls, String method, String file, int line)
     mirror::ArtMethod* method = down_cast<mirror::ArtMethod*>(method_trace->Get(i));
     MethodHelper mh(method);
-    mirror::IntArray* pc_trace = down_cast<mirror::IntArray*>(method_trace->Get(depth));
-    uint32_t dex_pc = pc_trace->Get(i);
-    int32_t line_number = mh.GetLineNumFromDexPC(dex_pc);
-    // Allocate element, potentially triggering GC
-    // TODO: reuse class_name_object via Class::name_?
-    const char* descriptor = mh.GetDeclaringClassDescriptor();
-    CHECK(descriptor != NULL);
-    std::string class_name(PrettyDescriptor(descriptor));
-    SirtRef<mirror::String> class_name_object(soa.Self(),
-                                              mirror::String::AllocFromModifiedUtf8(soa.Self(),
-                                                                                    class_name.c_str()));
-    if (class_name_object.get() == NULL) {
-      return NULL;
+    int32_t line_number;
+    SirtRef<mirror::String> class_name_object(soa.Self(), NULL);
+    SirtRef<mirror::String> source_name_object(soa.Self(), NULL);
+    if (method->IsProxyMethod()) {
+      line_number = -1;
+      class_name_object.reset(method->GetDeclaringClass()->GetName());
+      // source_name_object intentionally left null for proxy methods
+    } else {
+      mirror::IntArray* pc_trace = down_cast<mirror::IntArray*>(method_trace->Get(depth));
+      uint32_t dex_pc = pc_trace->Get(i);
+      line_number = mh.GetLineNumFromDexPC(dex_pc);
+      // Allocate element, potentially triggering GC
+      // TODO: reuse class_name_object via Class::name_?
+      const char* descriptor = mh.GetDeclaringClassDescriptor();
+      CHECK(descriptor != NULL);
+      std::string class_name(PrettyDescriptor(descriptor));
+      class_name_object.reset(mirror::String::AllocFromModifiedUtf8(soa.Self(), class_name.c_str()));
+      if (class_name_object.get() == NULL) {
+        return NULL;
+      }
+      const char* source_file = mh.GetDeclaringClassSourceFile();
+      source_name_object.reset(mirror::String::AllocFromModifiedUtf8(soa.Self(), source_file));
+      if (source_name_object.get() == NULL) {
+        return NULL;
+      }
     }
     const char* method_name = mh.GetName();
     CHECK(method_name != NULL);
@@ -1385,10 +1397,6 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
     if (method_name_object.get() == NULL) {
       return NULL;
     }
-    const char* source_file = mh.GetDeclaringClassSourceFile();
-    SirtRef<mirror::String> source_name_object(soa.Self(),
-                                               mirror::String::AllocFromModifiedUtf8(soa.Self(),
-                                                                                     source_file));
     mirror::StackTraceElement* obj = mirror::StackTraceElement::Alloc(
         soa.Self(), class_name_object, method_name_object, source_name_object, line_number);
     if (obj == NULL) {
