@@ -586,11 +586,11 @@ bool Thread::RequestCheckpoint(Closure* function) {
   if ((old_state_and_flags.as_struct.flags & kCheckpointRequest) != 0) {
     return false;  // Fail, already a checkpoint pending.
   }
-  CHECK(checkpoint_function_ == NULL);
+  CHECK(checkpoint_function_ == nullptr);
   checkpoint_function_ = function;
   // Checkpoint function installed now install flag bit.
   // We must be runnable to request a checkpoint.
-  old_state_and_flags.as_struct.state = kRunnable;
+  DCHECK_EQ(old_state_and_flags.as_struct.state, kRunnable);
   union StateAndFlags new_state_and_flags = old_state_and_flags;
   new_state_and_flags.as_struct.flags |= kCheckpointRequest;
   int succeeded = android_atomic_cmpxchg(old_state_and_flags.as_int, new_state_and_flags.as_int,
@@ -2120,12 +2120,11 @@ void Thread::VisitRoots(RootVisitor* visitor, void* arg) {
     opeer_ = visitor(opeer_, arg);
   }
   if (exception_ != nullptr) {
-    exception_ = reinterpret_cast<mirror::Throwable*>(visitor(exception_, arg));
+    exception_ = down_cast<mirror::Throwable*>(visitor(exception_, arg));
   }
   throw_location_.VisitRoots(visitor, arg);
   if (class_loader_override_ != nullptr) {
-    class_loader_override_ = reinterpret_cast<mirror::ClassLoader*>(
-        visitor(class_loader_override_, arg));
+    class_loader_override_ = down_cast<mirror::ClassLoader*>(visitor(class_loader_override_, arg));
   }
   jni_env_->locals.VisitRoots(visitor, arg);
   jni_env_->monitors.VisitRoots(visitor, arg);
@@ -2144,7 +2143,7 @@ void Thread::VisitRoots(RootVisitor* visitor, void* arg) {
       frame.this_object_ = visitor(frame.this_object_, arg);
     }
     DCHECK(frame.method_ != nullptr);
-    frame.method_ = reinterpret_cast<mirror::ArtMethod*>(visitor(frame.method_, arg));
+    frame.method_ = down_cast<mirror::ArtMethod*>(visitor(frame.method_, arg));
   }
 }
 
