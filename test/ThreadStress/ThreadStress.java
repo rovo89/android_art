@@ -128,13 +128,13 @@ class ThreadStress implements Runnable {
         Thread[] runners = new Thread[numberOfThreads];
         for (int r = 0; r < runners.length; r++) {
             final ThreadStress ts = threadStresses[r];
-            runners[r] = new Thread() {
+            runners[r] = new Thread("Runner thread " + r) {
                 final ThreadStress threadStress = ts;
                 public void run() {
                     int id = threadStress.id;
-                    System.out.println("Starting runner for " + id);
+                    System.out.println("Starting worker for " + id);
                     while (threadStress.nextOperation < operationsPerThread) {
-                        Thread thread = new Thread(ts);
+                        Thread thread = new Thread(ts, "Worker thread " + id);
                         thread.start();
                         try {
                             thread.join();
@@ -144,14 +144,14 @@ class ThreadStress implements Runnable {
                                            + (operationsPerThread - threadStress.nextOperation)
                                            + " operations remaining.");
                     }
-                    System.out.println("Finishing runner for " + id);
+                    System.out.println("Finishing worker for " + id);
                 }
             };
         }
 
         // The notifier thread is a daemon just loops forever to wake
         // up threads in Operation.WAIT
-        Thread notifier = new Thread() {
+        Thread notifier = new Thread("Notifier") {
             public void run() {
                 while (true) {
                     synchronized (lock) {
