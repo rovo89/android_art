@@ -633,8 +633,7 @@ void Monitor::InflateThinLocked(Thread* self, SirtRef<mirror::Object>& obj, Lock
     ScopedThreadStateChange tsc(self, kBlocked);
     if (lock_word == obj->GetLockWord()) {  // If lock word hasn't changed.
       bool timed_out;
-      Thread* owner = thread_list->SuspendThreadByThreadId(lock_word.ThinLockOwner(), false,
-                                                           &timed_out);
+      Thread* owner = thread_list->SuspendThreadByThreadId(owner_thread_id, false, &timed_out);
       if (owner != nullptr) {
         // We succeeded in suspending the thread, check the lock's status didn't change.
         lock_word = obj->GetLockWord();
