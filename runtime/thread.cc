@@ -579,7 +579,8 @@ void Thread::RunCheckpointFunction() {
 }
 
 bool Thread::RequestCheckpoint(Closure* function) {
-  union StateAndFlags old_state_and_flags = state_and_flags_;
+  union StateAndFlags old_state_and_flags;
+  old_state_and_flags.as_int = state_and_flags_.as_int;
   if (old_state_and_flags.as_struct.state != kRunnable) {
     return false;  // Fail, thread is suspended and so can't run a checkpoint.
   }
@@ -591,7 +592,8 @@ bool Thread::RequestCheckpoint(Closure* function) {
   // Checkpoint function installed now install flag bit.
   // We must be runnable to request a checkpoint.
   DCHECK_EQ(old_state_and_flags.as_struct.state, kRunnable);
-  union StateAndFlags new_state_and_flags = old_state_and_flags;
+  union StateAndFlags new_state_and_flags;
+  new_state_and_flags.as_int = old_state_and_flags.as_int;
   new_state_and_flags.as_struct.flags |= kCheckpointRequest;
   int succeeded = android_atomic_cmpxchg(old_state_and_flags.as_int, new_state_and_flags.as_int,
                                          &state_and_flags_.as_int);
