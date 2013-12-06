@@ -50,7 +50,8 @@ inline ThreadState Thread::SetState(ThreadState new_state) {
   // old_state_and_flags.suspend_request is true.
   DCHECK_NE(new_state, kRunnable);
   DCHECK_EQ(this, Thread::Current());
-  union StateAndFlags old_state_and_flags = state_and_flags_;
+  union StateAndFlags old_state_and_flags;
+  old_state_and_flags.as_int = state_and_flags_.as_int;
   state_and_flags_.as_struct.state = new_state;
   return static_cast<ThreadState>(old_state_and_flags.as_struct.state);
 }
@@ -87,7 +88,7 @@ inline void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
   union StateAndFlags old_state_and_flags;
   union StateAndFlags new_state_and_flags;
   do {
-    old_state_and_flags = state_and_flags_;
+    old_state_and_flags.as_int = state_and_flags_.as_int;
     if (UNLIKELY((old_state_and_flags.as_struct.flags & kCheckpointRequest) != 0)) {
       RunCheckpointFunction();
       continue;
@@ -104,22 +105,23 @@ inline void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
 
 inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
   bool done = false;
-  union StateAndFlags old_state_and_flags = state_and_flags_;
+  union StateAndFlags old_state_and_flags;
+  old_state_and_flags.as_int = state_and_flags_.as_int;
   int16_t old_state = old_state_and_flags.as_struct.state;
   DCHECK_NE(static_cast<ThreadState>(old_state), kRunnable);
   do {
     Locks::mutator_lock_->AssertNotHeld(this);  // Otherwise we starve GC..
-    old_state_and_flags = state_and_flags_;
+    old_state_and_flags.as_int = state_and_flags_.as_int;
     DCHECK_EQ(old_state_and_flags.as_struct.state, old_state);
     if (UNLIKELY((old_state_and_flags.as_struct.flags & kSuspendRequest) != 0)) {
       // Wait while our suspend count is non-zero.
       MutexLock mu(this, *Locks::thread_suspend_count_lock_);
-      old_state_and_flags = state_and_flags_;
+      old_state_and_flags.as_int = state_and_flags_.as_int;
       DCHECK_EQ(old_state_and_flags.as_struct.state, old_state);
       while ((old_state_and_flags.as_struct.flags & kSuspendRequest) != 0) {
         // Re-check when Thread::resume_cond_ is notified.
         Thread::resume_cond_->Wait(this);
-        old_state_and_flags = state_and_flags_;
+        old_state_and_flags.as_int = state_and_flags_.as_int;
         DCHECK_EQ(old_state_and_flags.as_struct.state, old_state);
       }
       DCHECK_EQ(GetSuspendCount(), 0);
@@ -127,10 +129,11 @@ inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
     // Re-acquire shared mutator_lock_ access.
     Locks::mutator_lock_->SharedLock(this);
     // Atomically change from suspended to runnable if no suspend request pending.
-    old_state_and_flags = state_and_flags_;
+    old_state_and_flags.as_int = state_and_flags_.as_int;
     DCHECK_EQ(old_state_and_flags.as_struct.state, old_state);
     if (LIKELY((old_state_and_flags.as_struct.flags & kSuspendRequest) == 0)) {
-      union StateAndFlags new_state_and_flags = old_state_and_flags;
+      union StateAndFlags new_state_and_flags;
+      new_state_and_flags.as_int = old_state_and_flags.as_int;
       new_state_and_flags.as_struct.state = kRunnable;
       // CAS the value without a memory barrier, that occurred in the lock above.
       done = android_atomic_cas(old_state_and_flags.as_int, new_state_and_flags.as_int,

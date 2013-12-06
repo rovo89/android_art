@@ -147,7 +147,8 @@ class PACKED(4) Thread {
   }
 
   bool IsSuspended() const {
-    union StateAndFlags state_and_flags = state_and_flags_;
+    union StateAndFlags state_and_flags;
+    state_and_flags.as_int = state_and_flags_.as_int;
     return state_and_flags.as_struct.state != kRunnable &&
         (state_and_flags.as_struct.flags & kSuspendRequest) != 0;
   }
@@ -638,7 +639,8 @@ class PACKED(4) Thread {
 
   // 32 bits of atomically changed state and flags. Keeping as 32 bits allows and atomic CAS to
   // change from being Suspended to Runnable without a suspend request occurring.
-  union StateAndFlags {
+  union PACKED(4) StateAndFlags {
+    StateAndFlags() {}
     struct PACKED(4) {
       // Bitfield of flag values. Must be changed atomically so that flag values aren't lost. See
       // ThreadFlags for bit field meanings.
@@ -650,6 +652,11 @@ class PACKED(4) Thread {
       volatile uint16_t state;
     } as_struct;
     volatile int32_t as_int;
+
+   private:
+    // gcc does not handle struct with volatile member assignments correctly.
+    // See http://gcc.gnu.org/bugzilla/show_bug.cgi?id=47409
+    DISALLOW_COPY_AND_ASSIGN(StateAndFlags);
   };
   union StateAndFlags state_and_flags_;
   COMPILE_ASSERT(sizeof(union StateAndFlags) == sizeof(int32_t),
