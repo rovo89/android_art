@@ -92,11 +92,12 @@ static DecodeSignedLeb128TestCase sleb128_tests[] = {
     {(-1) << 31, {0x80, 0x80, 0x80, 0x80, 0x78}},
 };
 
-TEST_F(Leb128Test, UnsignedSingles) {
+TEST_F(Leb128Test, UnsignedSinglesVector) {
   // Test individual encodings.
   for (size_t i = 0; i < arraysize(uleb128_tests); ++i) {
     Leb128EncodingVector builder;
     builder.PushBackUnsigned(uleb128_tests[i].decoded);
+    EXPECT_EQ(UnsignedLeb128Size(uleb128_tests[i].decoded), builder.GetData().size());
     const uint8_t* data_ptr = &uleb128_tests[i].leb128_data[0];
     const uint8_t* encoded_data_ptr = &builder.GetData()[0];
     for (size_t j = 0; j < 5; ++j) {
@@ -110,7 +111,26 @@ TEST_F(Leb128Test, UnsignedSingles) {
   }
 }
 
-TEST_F(Leb128Test, UnsignedStream) {
+TEST_F(Leb128Test, UnsignedSingles) {
+  // Test individual encodings.
+  for (size_t i = 0; i < arraysize(uleb128_tests); ++i) {
+    uint8_t encoded_data[5];
+    uint8_t* end = EncodeUnsignedLeb128(encoded_data, uleb128_tests[i].decoded);
+    size_t data_size = static_cast<size_t>(end - encoded_data);
+    EXPECT_EQ(UnsignedLeb128Size(uleb128_tests[i].decoded), data_size);
+    const uint8_t* data_ptr = &uleb128_tests[i].leb128_data[0];
+    for (size_t j = 0; j < 5; ++j) {
+      if (j < data_size) {
+        EXPECT_EQ(data_ptr[j], encoded_data[j]) << " i = " << i << " j = " << j;
+      } else {
+        EXPECT_EQ(data_ptr[j], 0U) << " i = " << i << " j = " << j;
+      }
+    }
+    EXPECT_EQ(DecodeUnsignedLeb128(&data_ptr), uleb128_tests[i].decoded) << " i = " << i;
+  }
+}
+
+TEST_F(Leb128Test, UnsignedStreamVector) {
   // Encode a number of entries.
   Leb128EncodingVector builder;
   for (size_t i = 0; i < arraysize(uleb128_tests); ++i) {
@@ -119,20 +139,46 @@ TEST_F(Leb128Test, UnsignedStream) {
   const uint8_t* encoded_data_ptr = &builder.GetData()[0];
   for (size_t i = 0; i < arraysize(uleb128_tests); ++i) {
     const uint8_t* data_ptr = &uleb128_tests[i].leb128_data[0];
-    for (size_t j = 0; j < 5; ++j) {
-      if (data_ptr[j] != 0) {
-        EXPECT_EQ(data_ptr[j], encoded_data_ptr[j]) << " i = " << i << " j = " << j;
-      }
+    for (size_t j = 0; j < UnsignedLeb128Size(uleb128_tests[i].decoded); ++j) {
+      EXPECT_EQ(data_ptr[j], encoded_data_ptr[j]) << " i = " << i << " j = " << j;
+    }
+    for (size_t j = UnsignedLeb128Size(uleb128_tests[i].decoded); j < 5; ++j) {
+      EXPECT_EQ(data_ptr[j], 0) << " i = " << i << " j = " << j;
     }
     EXPECT_EQ(DecodeUnsignedLeb128(&encoded_data_ptr), uleb128_tests[i].decoded) << " i = " << i;
   }
+  EXPECT_EQ(builder.GetData().size(),
+            static_cast<size_t>(encoded_data_ptr - &builder.GetData()[0]));
 }
 
-TEST_F(Leb128Test, SignedSingles) {
+TEST_F(Leb128Test, UnsignedStream) {
+  // Encode a number of entries.
+  uint8_t encoded_data[5 * arraysize(uleb128_tests)];
+  uint8_t* end = encoded_data;
+  for (size_t i = 0; i < arraysize(uleb128_tests); ++i) {
+    end = EncodeUnsignedLeb128(end, uleb128_tests[i].decoded);
+  }
+  size_t data_size = static_cast<size_t>(end - encoded_data);
+  const uint8_t* encoded_data_ptr = encoded_data;
+  for (size_t i = 0; i < arraysize(uleb128_tests); ++i) {
+    const uint8_t* data_ptr = &uleb128_tests[i].leb128_data[0];
+    for (size_t j = 0; j < UnsignedLeb128Size(uleb128_tests[i].decoded); ++j) {
+      EXPECT_EQ(data_ptr[j], encoded_data_ptr[j]) << " i = " << i << " j = " << j;
+    }
+    for (size_t j = UnsignedLeb128Size(uleb128_tests[i].decoded); j < 5; ++j) {
+      EXPECT_EQ(data_ptr[j], 0) << " i = " << i << " j = " << j;
+    }
+    EXPECT_EQ(DecodeUnsignedLeb128(&encoded_data_ptr), uleb128_tests[i].decoded) << " i = " << i;
+  }
+  EXPECT_EQ(data_size, static_cast<size_t>(encoded_data_ptr - encoded_data));
+}
+
+TEST_F(Leb128Test, SignedSinglesVector) {
   // Test individual encodings.
   for (size_t i = 0; i < arraysize(sleb128_tests); ++i) {
     Leb128EncodingVector builder;
     builder.PushBackSigned(sleb128_tests[i].decoded);
+    EXPECT_EQ(SignedLeb128Size(sleb128_tests[i].decoded), builder.GetData().size());
     const uint8_t* data_ptr = &sleb128_tests[i].leb128_data[0];
     const uint8_t* encoded_data_ptr = &builder.GetData()[0];
     for (size_t j = 0; j < 5; ++j) {
@@ -146,7 +192,26 @@ TEST_F(Leb128Test, SignedSingles) {
   }
 }
 
-TEST_F(Leb128Test, SignedStream) {
+TEST_F(Leb128Test, SignedSingles) {
+  // Test individual encodings.
+  for (size_t i = 0; i < arraysize(sleb128_tests); ++i) {
+    uint8_t encoded_data[5];
+    uint8_t* end = EncodeSignedLeb128(encoded_data, sleb128_tests[i].decoded);
+    size_t data_size = static_cast<size_t>(end - encoded_data);
+    EXPECT_EQ(SignedLeb128Size(sleb128_tests[i].decoded), data_size);
+    const uint8_t* data_ptr = &sleb128_tests[i].leb128_data[0];
+    for (size_t j = 0; j < 5; ++j) {
+      if (j < data_size) {
+        EXPECT_EQ(data_ptr[j], encoded_data[j]) << " i = " << i << " j = " << j;
+      } else {
+        EXPECT_EQ(data_ptr[j], 0U) << " i = " << i << " j = " << j;
+      }
+    }
+    EXPECT_EQ(DecodeSignedLeb128(&data_ptr), sleb128_tests[i].decoded) << " i = " << i;
+  }
+}
+
+TEST_F(Leb128Test, SignedStreamVector) {
   // Encode a number of entries.
   Leb128EncodingVector builder;
   for (size_t i = 0; i < arraysize(sleb128_tests); ++i) {
@@ -155,13 +220,38 @@ TEST_F(Leb128Test, SignedStream) {
   const uint8_t* encoded_data_ptr = &builder.GetData()[0];
   for (size_t i = 0; i < arraysize(sleb128_tests); ++i) {
     const uint8_t* data_ptr = &sleb128_tests[i].leb128_data[0];
-    for (size_t j = 0; j < 5; ++j) {
-      if (data_ptr[j] != 0) {
-        EXPECT_EQ(data_ptr[j], encoded_data_ptr[j]) << " i = " << i << " j = " << j;
-      }
+    for (size_t j = 0; j < SignedLeb128Size(sleb128_tests[i].decoded); ++j) {
+      EXPECT_EQ(data_ptr[j], encoded_data_ptr[j]) << " i = " << i << " j = " << j;
+    }
+    for (size_t j = SignedLeb128Size(sleb128_tests[i].decoded); j < 5; ++j) {
+      EXPECT_EQ(data_ptr[j], 0) << " i = " << i << " j = " << j;
     }
     EXPECT_EQ(DecodeSignedLeb128(&encoded_data_ptr), sleb128_tests[i].decoded) << " i = " << i;
   }
+  EXPECT_EQ(builder.GetData().size(),
+            static_cast<size_t>(encoded_data_ptr - &builder.GetData()[0]));
+}
+
+TEST_F(Leb128Test, SignedStream) {
+  // Encode a number of entries.
+  uint8_t encoded_data[5 * arraysize(sleb128_tests)];
+  uint8_t* end = encoded_data;
+  for (size_t i = 0; i < arraysize(sleb128_tests); ++i) {
+    end = EncodeSignedLeb128(end, sleb128_tests[i].decoded);
+  }
+  size_t data_size = static_cast<size_t>(end - encoded_data);
+  const uint8_t* encoded_data_ptr = encoded_data;
+  for (size_t i = 0; i < arraysize(sleb128_tests); ++i) {
+    const uint8_t* data_ptr = &sleb128_tests[i].leb128_data[0];
+    for (size_t j = 0; j < SignedLeb128Size(sleb128_tests[i].decoded); ++j) {
+      EXPECT_EQ(data_ptr[j], encoded_data_ptr[j]) << " i = " << i << " j = " << j;
+    }
+    for (size_t j = SignedLeb128Size(sleb128_tests[i].decoded); j < 5; ++j) {
+      EXPECT_EQ(data_ptr[j], 0) << " i = " << i << " j = " << j;
+    }
+    EXPECT_EQ(DecodeSignedLeb128(&encoded_data_ptr), sleb128_tests[i].decoded) << " i = " << i;
+  }
+  EXPECT_EQ(data_size, static_cast<size_t>(encoded_data_ptr - encoded_data));
 }
 
 TEST_F(Leb128Test, Speed) {

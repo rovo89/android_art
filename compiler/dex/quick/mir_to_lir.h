@@ -341,9 +341,6 @@ class Mir2Lir : public Backend {
     bool EvaluateBranch(Instruction::Code opcode, int src1, int src2);
     bool IsInexpensiveConstant(RegLocation rl_src);
     ConditionCode FlipComparisonOrder(ConditionCode before);
-    void DumpMappingTable(const char* table_name, const char* descriptor,
-                          const char* name, const Signature& signature,
-                          const std::vector<uint32_t>& v);
     void InstallLiteralPools();
     void InstallSwitchTables();
     void InstallFillArrayData();
@@ -792,17 +789,6 @@ class Mir2Lir : public Backend {
     GrowableArray<RegisterInfo*> tempreg_info_;
     GrowableArray<RegisterInfo*> reginfo_map_;
     GrowableArray<void*> pointer_storage_;
-    /*
-     * Holds mapping from native PC to dex PC for safepoints where we may deoptimize.
-     * Native PC is on the return address of the safepointed operation.  Dex PC is for
-     * the instruction being executed at the safepoint.
-     */
-    std::vector<uint32_t> pc2dex_mapping_table_;
-    /*
-     * Holds mapping from Dex PC to native PC for catch entry points.  Native PC and Dex PC
-     * immediately preceed the instruction.
-     */
-    std::vector<uint32_t> dex2pc_mapping_table_;
     CodeOffset current_code_offset_;    // Working byte offset of machine instructons.
     CodeOffset data_offset_;            // starting offset of literal pool.
     size_t total_size_;                   // header + code size.
@@ -828,7 +814,7 @@ class Mir2Lir : public Backend {
     int live_sreg_;
     CodeBuffer code_buffer_;
     // The encoding mapping table data (dex -> pc offset and pc offset -> dex) with a size prefix.
-    Leb128EncodingVector encoded_mapping_table_;
+    std::vector<uint8_t> encoded_mapping_table_;
     std::vector<uint32_t> core_vmap_table_;
     std::vector<uint32_t> fp_vmap_table_;
     std::vector<uint8_t> native_gc_map_;

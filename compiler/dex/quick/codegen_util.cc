@@ -24,6 +24,28 @@
 
 namespace art {
 
+namespace {
+
+/* Dump a mapping table */
+template <typename It>
+void DumpMappingTable(const char* table_name, const char* descriptor, const char* name,
+                      const Signature& signature, uint32_t size, It first) {
+  if (size != 0) {
+    std::string line(StringPrintf("\n  %s %s%s_%s_table[%zu] = {", table_name,
+                     descriptor, name, signature.ToString().c_str(), size));
+    std::replace(line.begin(), line.end(), ';', '_');
+    LOG(INFO) << line;
+    for (uint32_t i = 0; i != size; ++i) {
+      line = StringPrintf("    {0x%05x, 0x%04x},", first.NativePcOffset(), first.DexPc());
+      ++first;
+      LOG(INFO) << line;
+    }
+    LOG(INFO) <<"  };\n\n";
+  }
+}
+
+}  // anonymous namespace
+
 bool Mir2Lir::IsInexpensiveConstant(RegLocation rl_src) {
   bool res = false;
   if (rl_src.is_const) {
@@ -251,23 +273,6 @@ void Mir2Lir::DumpPromotionMap() {
   }
 }
 
-/* Dump a mapping table */
-void Mir2Lir::DumpMappingTable(const char* table_name, const char* descriptor,
-                               const char* name, const Signature& signature,
-                               const std::vector<uint32_t>& v) {
-  if (v.size() > 0) {
-    std::string line(StringPrintf("\n  %s %s%s_%s_table[%zu] = {", table_name,
-                     descriptor, name, signature.ToString().c_str(), v.size()));
-    std::replace(line.begin(), line.end(), ';', '_');
-    LOG(INFO) << line;
-    for (uint32_t i = 0; i < v.size(); i+=2) {
-      line = StringPrintf("    {0x%05x, 0x%04x},", v[i], v[i+1]);
-      LOG(INFO) << line;
-    }
-    LOG(INFO) <<"  };\n\n";
-  }
-}
-
 /* Dump instructions and constant pool contents */
 void Mir2Lir::CodegenDump() {
   LOG(INFO) << "Dumping LIR insns for "
@@ -302,8 +307,13 @@ void Mir2Lir::CodegenDump() {
   const char* descriptor(cu_->dex_file->GetMethodDeclaringClassDescriptor(method_id));
 
   // Dump mapping tables
-  DumpMappingTable("PC2Dex_MappingTable", descriptor, name, signature, pc2dex_mapping_table_);
-  DumpMappingTable("Dex2PC_MappingTable", descriptor, name, signature, dex2pc_mapping_table_);
+  if (!encoded_mapping_table_.empty()) {
+    MappingTable table(&encoded_mapping_table_[0]);
+    DumpMappingTable("PC2Dex_MappingTable", descriptor, name, signature,
+                     table.PcToDexSize(), table.PcToDexBegin());
+    DumpMappingTable("Dex2PC_MappingTable", descriptor, name, signature,
+                     table.DexToPcSize(), table.DexToPcBegin());
+  }
 }
 
 /*
@@ -522,34 +532,34 @@ static int AssignLiteralPointerOffsetCommon(LIR* lir, CodeOffset offset) {
 
 // Make sure we have a code address for every declared catch entry
 bool Mir2Lir::VerifyCatchEntries() {
+  MappingTable table(&encoded_mapping_table_[0]);
+  std::vector<uint32_t> dex_pcs;
+  dex_pcs.reserve(table.DexToPcSize());
+  for (auto it = table.DexToPcBegin(), end = table.DexToPcEnd(); it != end; ++it) {
+    dex_pcs.push_back(it.DexPc());
+  }
+  // Sort dex_pcs, so that we can quickly check it against the ordered mir_graph_->catches_.
+  std::sort(dex_pcs.begin(), dex_pcs.end());
+
   bool success = true;
-  for (std::set<uint32_t>::const_iterator it = mir_graph_->catches_.begin();
-       it != mir_graph_->catches_.end(); ++it) {
-    uint32_t dex_pc = *it;
-    bool found = false;
-    for (size_t i = 0; i < dex2pc_mapping_table_.size(); i += 2) {
-      if (dex_pc == dex2pc_mapping_table_[i+1]) {
-        found = true;
-        break;
-      }
+  auto it = dex_pcs.begin(), end = dex_pcs.end();
+  for (uint32_t dex_pc : mir_graph_->catches_) {
+    while (it != end && *it < dex_pc) {
+      LOG(INFO) << "Unexpected catch entry @ dex pc 0x" << std::hex << *it;
+      ++it;
+      success = false;
     }
-    if (!found) {
+    if (it == end || *it > dex_pc) {
       LOG(INFO) << "Missing native PC for catch entry @ 0x" << std::hex << dex_pc;
       success = false;
-    }
-  }
-  // Now, try in the other direction
-  for (size_t i = 0; i < dex2pc_mapping_table_.size(); i += 2) {
-    uint32_t dex_pc = dex2pc_mapping_table_[i+1];
-    if (mir_graph_->catches_.find(dex_pc) == mir_graph_->catches_.end()) {
-      LOG(INFO) << "Unexpected catch entry @ dex pc 0x" << std::hex << dex_pc;
-      success = false;
+    } else {
+      ++it;
     }
   }
   if (!success) {
     LOG(INFO) << "Bad dex2pcMapping table in " << PrettyMethod(cu_->method_idx, *cu_->dex_file);
     LOG(INFO) << "Entries @ decode: " << mir_graph_->catches_.size() << ", Entries in table: "
-              << dex2pc_mapping_table_.size()/2;
+              << table.DexToPcSize();
   }
   return success;
 }
@@ -573,8 +583,6 @@ void Mir2Lir::CreateMappingTables() {
                                            static_cast<int32_t>(pc2dex_dalvik_offset));
       pc2dex_offset = tgt_lir->offset;
       pc2dex_dalvik_offset = tgt_lir->dalvik_offset;
-      pc2dex_mapping_table_.push_back(tgt_lir->offset);
-      pc2dex_mapping_table_.push_back(tgt_lir->dalvik_offset);
     }
     if (!tgt_lir->flags.is_nop && (tgt_lir->opcode == kPseudoExportedPC)) {
       dex2pc_entries += 1;
@@ -584,63 +592,67 @@ void Mir2Lir::CreateMappingTables() {
                                            static_cast<int32_t>(dex2pc_dalvik_offset));
       dex2pc_offset = tgt_lir->offset;
       dex2pc_dalvik_offset = tgt_lir->dalvik_offset;
-      dex2pc_mapping_table_.push_back(tgt_lir->offset);
-      dex2pc_mapping_table_.push_back(tgt_lir->dalvik_offset);
     }
   }
-  if (kIsDebugBuild) {
-    CHECK(VerifyCatchEntries());
-  }
-  DCHECK_EQ(pc2dex_mapping_table_.size(), 2u * pc2dex_entries);
-  DCHECK_EQ(dex2pc_mapping_table_.size(), 2u * dex2pc_entries);
 
   uint32_t total_entries = pc2dex_entries + dex2pc_entries;
   uint32_t hdr_data_size = UnsignedLeb128Size(total_entries) + UnsignedLeb128Size(pc2dex_entries);
   uint32_t data_size = hdr_data_size + pc2dex_data_size + dex2pc_data_size;
-  encoded_mapping_table_.Reserve(data_size);
-  encoded_mapping_table_.PushBackUnsigned(total_entries);
-  encoded_mapping_table_.PushBackUnsigned(pc2dex_entries);
+  encoded_mapping_table_.resize(data_size);
+  uint8_t* write_pos = &encoded_mapping_table_[0];
+  write_pos = EncodeUnsignedLeb128(write_pos, total_entries);
+  write_pos = EncodeUnsignedLeb128(write_pos, pc2dex_entries);
+  DCHECK_EQ(static_cast<size_t>(write_pos - &encoded_mapping_table_[0]), hdr_data_size);
+  uint8_t* write_pos2 = write_pos + pc2dex_data_size;
 
-  dex2pc_offset = 0u;
-  dex2pc_dalvik_offset = 0u;
   pc2dex_offset = 0u;
   pc2dex_dalvik_offset = 0u;
-  for (uint32_t i = 0; i != pc2dex_entries; ++i) {
-    encoded_mapping_table_.PushBackUnsigned(pc2dex_mapping_table_[2 * i] - pc2dex_offset);
-    encoded_mapping_table_.PushBackSigned(static_cast<int32_t>(pc2dex_mapping_table_[2 * i + 1]) -
-                                          static_cast<int32_t>(pc2dex_dalvik_offset));
-    pc2dex_offset = pc2dex_mapping_table_[2 * i];
-    pc2dex_dalvik_offset = pc2dex_mapping_table_[2 * i + 1];
+  dex2pc_offset = 0u;
+  dex2pc_dalvik_offset = 0u;
+  for (LIR* tgt_lir = first_lir_insn_; tgt_lir != NULL; tgt_lir = NEXT_LIR(tgt_lir)) {
+    if (!tgt_lir->flags.is_nop && (tgt_lir->opcode == kPseudoSafepointPC)) {
+      DCHECK(pc2dex_offset <= tgt_lir->offset);
+      write_pos = EncodeUnsignedLeb128(write_pos, tgt_lir->offset - pc2dex_offset);
+      write_pos = EncodeSignedLeb128(write_pos, static_cast<int32_t>(tgt_lir->dalvik_offset) -
+                                     static_cast<int32_t>(pc2dex_dalvik_offset));
+      pc2dex_offset = tgt_lir->offset;
+      pc2dex_dalvik_offset = tgt_lir->dalvik_offset;
+    }
+    if (!tgt_lir->flags.is_nop && (tgt_lir->opcode == kPseudoExportedPC)) {
+      DCHECK(dex2pc_offset <= tgt_lir->offset);
+      write_pos2 = EncodeUnsignedLeb128(write_pos2, tgt_lir->offset - dex2pc_offset);
+      write_pos2 = EncodeSignedLeb128(write_pos2, static_cast<int32_t>(tgt_lir->dalvik_offset) -
+                                      static_cast<int32_t>(dex2pc_dalvik_offset));
+      dex2pc_offset = tgt_lir->offset;
+      dex2pc_dalvik_offset = tgt_lir->dalvik_offset;
+    }
   }
-  DCHECK(encoded_mapping_table_.GetData().size() == hdr_data_size + pc2dex_data_size);
-  for (uint32_t i = 0; i != dex2pc_entries; ++i) {
-    encoded_mapping_table_.PushBackUnsigned(dex2pc_mapping_table_[2 * i] - dex2pc_offset);
-    encoded_mapping_table_.PushBackSigned(static_cast<int32_t>(dex2pc_mapping_table_[2 * i + 1]) -
-                                          static_cast<int32_t>(dex2pc_dalvik_offset));
-    dex2pc_offset = dex2pc_mapping_table_[2 * i];
-    dex2pc_dalvik_offset = dex2pc_mapping_table_[2 * i + 1];
-  }
-  DCHECK(encoded_mapping_table_.GetData().size() == data_size);
+  DCHECK_EQ(static_cast<size_t>(write_pos - &encoded_mapping_table_[0]),
+            hdr_data_size + pc2dex_data_size);
+  DCHECK_EQ(static_cast<size_t>(write_pos2 - &encoded_mapping_table_[0]), data_size);
 
   if (kIsDebugBuild) {
+    CHECK(VerifyCatchEntries());
+
     // Verify the encoded table holds the expected data.
-    MappingTable table(&encoded_mapping_table_.GetData()[0]);
+    MappingTable table(&encoded_mapping_table_[0]);
     CHECK_EQ(table.TotalSize(), total_entries);
     CHECK_EQ(table.PcToDexSize(), pc2dex_entries);
-    CHECK_EQ(table.DexToPcSize(), dex2pc_mapping_table_.size() / 2);
     auto it = table.PcToDexBegin();
-    for (uint32_t i = 0; i < pc2dex_mapping_table_.size(); ++i, ++it) {
-      CHECK_EQ(pc2dex_mapping_table_.at(i), it.NativePcOffset());
-      ++i;
-      CHECK_EQ(pc2dex_mapping_table_.at(i), it.DexPc());
+    auto it2 = table.DexToPcBegin();
+    for (LIR* tgt_lir = first_lir_insn_; tgt_lir != NULL; tgt_lir = NEXT_LIR(tgt_lir)) {
+      if (!tgt_lir->flags.is_nop && (tgt_lir->opcode == kPseudoSafepointPC)) {
+        CHECK_EQ(tgt_lir->offset, it.NativePcOffset());
+        CHECK_EQ(tgt_lir->dalvik_offset, it.DexPc());
+        ++it;
+      }
+      if (!tgt_lir->flags.is_nop && (tgt_lir->opcode == kPseudoExportedPC)) {
+        CHECK_EQ(tgt_lir->offset, it2.NativePcOffset());
+        CHECK_EQ(tgt_lir->dalvik_offset, it2.DexPc());
+        ++it2;
+      }
     }
     CHECK(it == table.PcToDexEnd());
-    auto it2 = table.DexToPcBegin();
-    for (uint32_t i = 0; i < dex2pc_mapping_table_.size(); ++i, ++it2) {
-      CHECK_EQ(dex2pc_mapping_table_.at(i), it2.NativePcOffset());
-      ++i;
-      CHECK_EQ(dex2pc_mapping_table_.at(i), it2.DexPc());
-    }
     CHECK(it2 == table.DexToPcEnd());
   }
 }
@@ -724,10 +736,11 @@ class NativePcToReferenceMapBuilder {
 };
 
 void Mir2Lir::CreateNativeGcMap() {
-  const std::vector<uint32_t>& mapping_table = pc2dex_mapping_table_;
+  DCHECK(!encoded_mapping_table_.empty());
+  MappingTable mapping_table(&encoded_mapping_table_[0]);
   uint32_t max_native_offset = 0;
-  for (size_t i = 0; i < mapping_table.size(); i += 2) {
-    uint32_t native_offset = mapping_table[i + 0];
+  for (auto it = mapping_table.PcToDexBegin(), end = mapping_table.PcToDexEnd(); it != end; ++it) {
+    uint32_t native_offset = it.NativePcOffset();
     if (native_offset > max_native_offset) {
       max_native_offset = native_offset;
     }
@@ -737,12 +750,12 @@ void Mir2Lir::CreateNativeGcMap() {
   verifier::DexPcToReferenceMap dex_gc_map(&(*gc_map_raw)[4], gc_map_raw->size() - 4);
   // Compute native offset to references size.
   NativePcToReferenceMapBuilder native_gc_map_builder(&native_gc_map_,
-                                                      mapping_table.size() / 2, max_native_offset,
-                                                      dex_gc_map.RegWidth());
+                                                      mapping_table.PcToDexSize(),
+                                                      max_native_offset, dex_gc_map.RegWidth());
 
-  for (size_t i = 0; i < mapping_table.size(); i += 2) {
-    uint32_t native_offset = mapping_table[i + 0];
-    uint32_t dex_pc = mapping_table[i + 1];
+  for (auto it = mapping_table.PcToDexBegin(), end = mapping_table.PcToDexEnd(); it != end; ++it) {
+    uint32_t native_offset = it.NativePcOffset();
+    uint32_t dex_pc = it.DexPc();
     const uint8_t* references = dex_gc_map.FindBitMap(dex_pc, false);
     CHECK(references != NULL) << "Missing ref for dex pc 0x" << std::hex << dex_pc;
     native_gc_map_builder.AddEntry(native_offset, references);
@@ -1041,7 +1054,7 @@ CompiledMethod* Mir2Lir::GetCompiledMethod() {
   }
   CompiledMethod* result =
       new CompiledMethod(*cu_->compiler_driver, cu_->instruction_set, code_buffer_, frame_size_,
-                         core_spill_mask_, fp_spill_mask_, encoded_mapping_table_.GetData(),
+                         core_spill_mask_, fp_spill_mask_, encoded_mapping_table_,
                          vmap_encoder.GetData(), native_gc_map_);
   return result;
 }
