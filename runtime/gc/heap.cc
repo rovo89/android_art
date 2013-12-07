@@ -75,12 +75,13 @@ static constexpr size_t kMinConcurrentRemainingBytes = 128 * KB;
 
 Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max_free,
            double target_utilization, size_t capacity, const std::string& image_file_name,
-           CollectorType collector_type, size_t parallel_gc_threads, size_t conc_gc_threads,
-           bool low_memory_mode, size_t long_pause_log_threshold, size_t long_gc_log_threshold,
-           bool ignore_max_footprint)
+           CollectorType post_zygote_collector_type, size_t parallel_gc_threads,
+           size_t conc_gc_threads, bool low_memory_mode, size_t long_pause_log_threshold,
+           size_t long_gc_log_threshold, bool ignore_max_footprint)
     : non_moving_space_(nullptr),
-      concurrent_gc_(collector_type == gc::kCollectorTypeCMS),
-      collector_type_(collector_type),
+      concurrent_gc_(false),
+      collector_type_(kCollectorTypeNone),
+      post_zygote_collector_type_(post_zygote_collector_type),
       parallel_gc_threads_(parallel_gc_threads),
       conc_gc_threads_(conc_gc_threads),
       low_memory_mode_(low_memory_mode),
@@ -109,8 +110,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       last_process_state_id_(NULL),
       // Initially assume we perceive jank in case the process state is never updated.
       process_state_(kProcessStateJankPerceptible),
-      concurrent_start_bytes_(concurrent_gc_ ? initial_size - kMinConcurrentRemainingBytes
-          :  std::numeric_limits<size_t>::max()),
+      concurrent_start_bytes_(std::numeric_limits<size_t>::max()),
       total_bytes_freed_ever_(0),
       total_objects_freed_ever_(0),
       num_bytes_allocated_(0),
@@ -155,8 +155,12 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   // If we aren't the zygote, switch to the default non zygote allocator. This may update the
   // entrypoints.
   if (!Runtime::Current()->IsZygote()) {
-    ChangeCollector(collector_type_);
+    ChangeCollector(post_zygote_collector_type_);
+  } else {
+    // We are the zygote, use bump pointer allocation + semi space collector.
+    ChangeCollector(kCollectorTypeSS);
   }
+
   live_bitmap_.reset(new accounting::HeapBitmap(this));
   mark_bitmap_.reset(new accounting::HeapBitmap(this));
   // Requested begin for the alloc space, to follow the mapped image and oat files
@@ -262,9 +266,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     garbage_collectors_.push_back(new collector::PartialMarkSweep(this, concurrent));
     garbage_collectors_.push_back(new collector::StickyMarkSweep(this, concurrent));
   }
-  gc_plan_.push_back(collector::kGcTypeSticky);
-  gc_plan_.push_back(collector::kGcTypePartial);
-  gc_plan_.push_back(collector::kGcTypeFull);
   if (kMovingCollector) {
     // TODO: Clean this up.
     semi_space_collector_ = new collector::SemiSpace(this);
@@ -1085,22 +1086,46 @@ void Heap::GetReferringObjects(mirror::Object* o, int32_t max_count,
 void Heap::CollectGarbage(bool clear_soft_references) {
   // Even if we waited for a GC we still need to do another GC since weaks allocated during the
   // last GC will not have necessarily been cleared.
-  CollectGarbageInternal(collector::kGcTypeFull, kGcCauseExplicit, clear_soft_references);
+  CollectGarbageInternal(gc_plan_.back(), kGcCauseExplicit, clear_soft_references);
 }
 
 void Heap::ChangeCollector(CollectorType collector_type) {
-  switch (collector_type) {
-    case kCollectorTypeSS: {
-      ChangeAllocator(kAllocatorTypeBumpPointer);
-      break;
+  // TODO: Only do this with all mutators suspended to avoid races.
+  if (collector_type != collector_type_) {
+    collector_type_ = collector_type;
+    gc_plan_.clear();
+    switch (collector_type_) {
+      case kCollectorTypeSS: {
+        concurrent_gc_ = false;
+        gc_plan_.push_back(collector::kGcTypeFull);
+        ChangeAllocator(kAllocatorTypeBumpPointer);
+        break;
+      }
+      case kCollectorTypeMS: {
+        concurrent_gc_ = false;
+        gc_plan_.push_back(collector::kGcTypeSticky);
+        gc_plan_.push_back(collector::kGcTypePartial);
+        gc_plan_.push_back(collector::kGcTypeFull);
+        ChangeAllocator(kAllocatorTypeFreeList);
+        break;
+      }
+      case kCollectorTypeCMS: {
+        concurrent_gc_ = true;
+        gc_plan_.push_back(collector::kGcTypeSticky);
+        gc_plan_.push_back(collector::kGcTypePartial);
+        gc_plan_.push_back(collector::kGcTypeFull);
+        ChangeAllocator(kAllocatorTypeFreeList);
+        break;
+      }
+      default: {
+        LOG(FATAL) << "Unimplemented";
+      }
     }
-    case kCollectorTypeMS:
-      // Fall-through.
-    case kCollectorTypeCMS: {
-      ChangeAllocator(kAllocatorTypeFreeList);
-      break;
-    default:
-      LOG(FATAL) << "Unimplemented";
+    if (concurrent_gc_) {
+      concurrent_start_bytes_ =
+          std::max(max_allowed_footprint_, kMinConcurrentRemainingBytes) - kMinConcurrentRemainingBytes;
+    } else {
+      concurrent_start_bytes_ = std::numeric_limits<size_t>::max();
     }
   }
 }
@@ -1119,8 +1144,8 @@ void Heap::PreZygoteFork() {
   // Trim the pages at the end of the non moving space.
   non_moving_space_->Trim();
   non_moving_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
-  // Change the allocator to the post zygote one.
-  ChangeCollector(collector_type_);
+  // Change the collector to the post zygote one.
+  ChangeCollector(post_zygote_collector_type_);
   // TODO: Delete bump_pointer_space_ and temp_pointer_space_?
   if (semi_space_collector_ != nullptr) {
     // Create a new bump pointer space which we will compact into.
@@ -1295,7 +1320,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   } else {
     LOG(FATAL) << "Invalid current allocator " << current_allocator_;
   }
-  CHECK(collector != NULL)
+  CHECK(collector != nullptr)
       << "Could not find garbage collector with concurrent=" << concurrent_gc_
       << " and type=" << gc_type;
 
@@ -1876,7 +1901,7 @@ void Heap::GrowForUtilization(collector::GcType gc_type, uint64_t gc_duration) {
   }
   if (!ignore_max_footprint_) {
     SetIdealFootprint(target_size);
-    if (concurrent_gc_ && AllocatorHasConcurrentGC(current_allocator_)) {
+    if (concurrent_gc_) {
       // Calculate when to perform the next ConcurrentGC.
       // Calculate the estimated GC duration.
       double gc_duration_seconds = NsToMs(gc_duration) / 1000.0;
@@ -1962,7 +1987,6 @@ void Heap::EnqueueClearedReferences() {
 void Heap::RequestConcurrentGC(Thread* self) {
   // Make sure that we can do a concurrent GC.
   Runtime* runtime = Runtime::Current();
-  DCHECK(concurrent_gc_);
   if (runtime == NULL || !runtime->IsFinishedStarting() || runtime->IsShuttingDown(self) ||
       self->IsHandlingStackOverflow()) {
     return;
@@ -2096,7 +2120,7 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, int bytes) {
       // finalizers released native managed allocations.
       UpdateMaxNativeFootprint();
     } else if (!IsGCRequestPending()) {
-      if (concurrent_gc_ && AllocatorHasConcurrentGC(current_allocator_)) {
+      if (concurrent_gc_) {
         RequestConcurrentGC(self);
       } else {
         CollectGarbageInternal(gc_type, kGcCauseForAlloc, false);
