@@ -116,6 +116,9 @@ inline mirror::Object* Heap::TryToAllocate(Thread* self, AllocatorType allocator
     if (UNLIKELY(running_on_valgrind_ && allocator_type == kAllocatorTypeFreeList)) {
       return non_moving_space_->Alloc(self, alloc_size, bytes_allocated);
     }
+  } else {
+    // If running on valgrind, we should be using the instrumented path.
+    DCHECK(!running_on_valgrind_);
   }
   mirror::Object* ret;
   switch (allocator_type) {

@@ -221,8 +221,8 @@ TEST_F(ObjectTest, CheckAndAllocArrayFromCode) {
       java_lang_dex_file_->GetIndexForStringId(*string_id));
   ASSERT_TRUE(type_id != NULL);
   uint32_t type_idx = java_lang_dex_file_->GetIndexForTypeId(*type_id);
-  Object* array = CheckAndAllocArrayFromCode(type_idx, sort, 3, Thread::Current(), false,
-                                             Runtime::Current()->GetHeap()->GetCurrentAllocator());
+  Object* array = CheckAndAllocArrayFromCodeInstrumented(type_idx, sort, 3, Thread::Current(), false,
+                                                         Runtime::Current()->GetHeap()->GetCurrentAllocator());
   EXPECT_TRUE(array->IsArrayInstance());
   EXPECT_EQ(3, array->AsArray()->GetLength());
   EXPECT_TRUE(array->GetClass()->IsArrayClass());
