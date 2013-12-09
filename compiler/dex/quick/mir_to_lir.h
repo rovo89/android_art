@@ -621,7 +621,7 @@ class Mir2Lir : public Backend {
     virtual uint32_t FpRegMask() = 0;
     virtual uint64_t GetRegMaskCommon(int reg) = 0;
     virtual void AdjustSpillMask() = 0;
-    virtual void ClobberCalleeSave() = 0;
+    virtual void ClobberCallerSave() = 0;
     virtual void FlushReg(int reg) = 0;
     virtual void FlushRegWide(int reg1, int reg2) = 0;
     virtual void FreeCallTemps() = 0;

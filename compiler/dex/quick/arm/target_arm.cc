@@ -653,7 +653,7 @@ bool ArmMir2Lir::IsFpReg(int reg) {
 }
 
 /* Clobber all regs that might be used by an external C call */
-void ArmMir2Lir::ClobberCalleeSave() {
+void ArmMir2Lir::ClobberCallerSave() {
   Clobber(r0);
   Clobber(r1);
   Clobber(r2);

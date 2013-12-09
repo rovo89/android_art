@@ -62,14 +62,14 @@ LIR* Mir2Lir::CallHelper(int r_tgt, ThreadOffset helper_offset, bool safepoint_p
 void Mir2Lir::CallRuntimeHelperImm(ThreadOffset helper_offset, int arg0, bool safepoint_pc) {
   int r_tgt = CallHelperSetup(helper_offset);
   LoadConstant(TargetReg(kArg0), arg0);
-  ClobberCalleeSave();
+  ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
 void Mir2Lir::CallRuntimeHelperReg(ThreadOffset helper_offset, int arg0, bool safepoint_pc) {
   int r_tgt = CallHelperSetup(helper_offset);
   OpRegCopy(TargetReg(kArg0), arg0);
-  ClobberCalleeSave();
+  ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
@@ -81,7 +81,7 @@ void Mir2Lir::CallRuntimeHelperRegLocation(ThreadOffset helper_offset, RegLocati
   } else {
     LoadValueDirectWideFixed(arg0, TargetReg(kArg0), TargetReg(kArg1));
   }
-  ClobberCalleeSave();
+  ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
@@ -90,7 +90,7 @@ void Mir2Lir::CallRuntimeHelperImmImm(ThreadOffset helper_offset, int arg0, int 
   int r_tgt = CallHelperSetup(helper_offset);
   LoadConstant(TargetReg(kArg0), arg0);
   LoadConstant(TargetReg(kArg1), arg1);
-  ClobberCalleeSave();
+  ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
@@ -103,7 +103,7 @@ void Mir2Lir::CallRuntimeHelperImmRegLocation(ThreadOffset helper_offset, int ar
     LoadValueDirectWideFixed(arg1, TargetReg(kArg1), TargetReg(kArg2));
   }
   LoadConstant(TargetReg(kArg0), arg0);
-  ClobberCalleeSave();
+  ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
@@ -112,7 +112,7 @@ void Mir2Lir::CallRuntimeHelperRegLocationImm(ThreadOffset helper_offset, RegLoc
   int r_tgt = CallHelperSetup(helper_offset);
   LoadValueDirectFixed(arg0, TargetReg(kArg0));
   LoadConstant(TargetReg(kArg1), arg1);
-  ClobberCalleeSave();
+  ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
@@ -121,7 +121,7 @@ void Mir2Lir::CallRuntimeHelperImmReg(ThreadOffset helper_offset, int arg0, int 
   int r_tgt = CallHelperSetup(helper_offset);
   OpRegCopy(TargetReg(kArg1), arg1);
   LoadConstant(TargetReg(kArg0), arg0);
-  ClobberCalleeSave();
+  ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
@@ -130,7 +130,7 @@ void Mir2Lir::CallRuntimeHelperRegImm(ThreadOffset helper_offset, int arg0, int 
   int r_tgt = CallHelperSetup(helper_offset);
   OpRegCopy(TargetReg(kArg0), arg0);
   LoadConstant(TargetReg(kArg1), arg1);
-  ClobberCalleeSave();
+  ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
@@ -138,7 +138,7 @@ void Mir2Lir::CallRuntimeHelperImmMethod(ThreadOffset helper_offset, int arg0, b
   int r_tgt = CallHelperSetup(helper_offset);
   LoadCurrMethodDirect(TargetReg(kArg1));
   LoadConstant(TargetReg(kArg0), arg0);
-  ClobberCalleeSave();
+  ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
@@ -168,7 +168,7 @@ void Mir2Lir::CallRuntimeHelperRegLocationRegLocation(ThreadOffset helper_offset
       LoadValueDirectWideFixed(arg1, arg1.fp ? TargetReg(kFArg2) : TargetReg(kArg2), arg1.fp ? TargetReg(kFArg3) : TargetReg(kArg3));
     }
   }
-  ClobberCalleeSave();
+  ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
@@ -178,7 +178,7 @@ void Mir2Lir::CallRuntimeHelperRegReg(ThreadOffset helper_offset, int arg0, int 
   DCHECK_NE(TargetReg(kArg0), arg1);  // check copy into arg0 won't clobber arg1
   OpRegCopy(TargetReg(kArg0), arg0);
   OpRegCopy(TargetReg(kArg1), arg1);
-  ClobberCalleeSave();
+  ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
@@ -189,7 +189,7 @@ void Mir2Lir::CallRuntimeHelperRegRegImm(ThreadOffset helper_offset, int arg0, i
   OpRegCopy(TargetReg(kArg0), arg0);
   OpRegCopy(TargetReg(kArg1), arg1);
   LoadConstant(TargetReg(kArg2), arg2);
-  ClobberCalleeSave();
+  ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
@@ -199,7 +199,7 @@ void Mir2Lir::CallRuntimeHelperImmMethodRegLocation(ThreadOffset helper_offset,
   LoadValueDirectFixed(arg2, TargetReg(kArg2));
   LoadCurrMethodDirect(TargetReg(kArg1));
   LoadConstant(TargetReg(kArg0), arg0);
-  ClobberCalleeSave();
+  ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
@@ -209,7 +209,7 @@ void Mir2Lir::CallRuntimeHelperImmMethodImm(ThreadOffset helper_offset, int arg0
   LoadCurrMethodDirect(TargetReg(kArg1));
   LoadConstant(TargetReg(kArg2), arg2);
   LoadConstant(TargetReg(kArg0), arg0);
-  ClobberCalleeSave();
+  ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
@@ -225,7 +225,7 @@ void Mir2Lir::CallRuntimeHelperImmRegLocationRegLocation(ThreadOffset helper_off
     LoadValueDirectWideFixed(arg2, TargetReg(kArg2), TargetReg(kArg3));
   }
   LoadConstant(TargetReg(kArg0), arg0);
-  ClobberCalleeSave();
+  ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
@@ -240,7 +240,7 @@ void Mir2Lir::CallRuntimeHelperRegLocationRegLocationRegLocation(ThreadOffset he
   LoadValueDirectFixed(arg1, TargetReg(kArg1));
   DCHECK_EQ(arg1.wide, 0U);
   LoadValueDirectFixed(arg2, TargetReg(kArg2));
-  ClobberCalleeSave();
+  ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
@@ -1083,7 +1083,7 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
     // TODO - add Mips implementation
     return false;
   }
-  ClobberCalleeSave();
+  ClobberCallerSave();
   LockCallTemps();  // Using fixed registers
   int reg_ptr = TargetReg(kArg0);
   int reg_char = TargetReg(kArg1);
@@ -1126,7 +1126,7 @@ bool Mir2Lir::GenInlinedStringCompareTo(CallInfo* info) {
     // TODO - add Mips implementation
     return false;
   }
-  ClobberCalleeSave();
+  ClobberCallerSave();
   LockCallTemps();  // Using fixed registers
   int reg_this = TargetReg(kArg0);
   int reg_cmp = TargetReg(kArg1);
@@ -1341,7 +1341,7 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
   }
   MarkSafepointPC(call_inst);
 
-  ClobberCalleeSave();
+  ClobberCallerSave();
   if (info->result.location != kLocInvalid) {
     // We have a following MOVE_RESULT - do it now.
     if (info->result.wide) {

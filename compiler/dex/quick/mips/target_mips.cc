@@ -346,7 +346,7 @@ bool MipsMir2Lir::IsFpReg(int reg) {
 }
 
 /* Clobber all regs that might be used by an external C call */
-void MipsMir2Lir::ClobberCalleeSave() {
+void MipsMir2Lir::ClobberCallerSave() {
   Clobber(r_ZERO);
   Clobber(r_AT);
   Clobber(r_V0);

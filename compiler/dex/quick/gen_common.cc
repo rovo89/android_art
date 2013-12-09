@@ -611,7 +611,7 @@ void Mir2Lir::HandleThrowLaunchPads() {
       default:
         LOG(FATAL) << "Unexpected throw kind: " << lab->operands[0];
     }
-    ClobberCalleeSave();
+    ClobberCallerSave();
     int r_tgt = CallHelperSetup(func_offset);
     CallHelper(r_tgt, func_offset, true /* MarkSafepointPC */);
   }
@@ -1026,7 +1026,7 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
     }
   }
   // TODO: only clobber when type isn't final?
-  ClobberCalleeSave();
+  ClobberCallerSave();
   /* branch targets here */
   LIR* target = NewLIR0(kPseudoTargetLabel);
   StoreValue(rl_dest, rl_result);
