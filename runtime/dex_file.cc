@@ -98,9 +98,10 @@ bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string*
       *error_msg = StringPrintf("Failed to open zip archive '%s'", filename);
       return false;
     }
-    UniquePtr<ZipEntry> zip_entry(zip_archive->Find(kClassesDex));
+    UniquePtr<ZipEntry> zip_entry(zip_archive->Find(kClassesDex, error_msg));
     if (zip_entry.get() == NULL) {
-      *error_msg = StringPrintf("Zip archive '%s' doesn\'t contain %s", filename, kClassesDex);
+      *error_msg = StringPrintf("Zip archive '%s' doesn\'t contain %s (error msg: %s)", filename,
+                                kClassesDex, error_msg->c_str());
       return false;
     }
     *checksum = zip_entry->GetCrc32();
@@ -240,9 +241,8 @@ const DexFile* DexFile::OpenMemory(const std::string& location,
 const DexFile* DexFile::Open(const ZipArchive& zip_archive, const std::string& location,
                              std::string* error_msg) {
   CHECK(!location.empty());
-  UniquePtr<ZipEntry> zip_entry(zip_archive.Find(kClassesDex));
+  UniquePtr<ZipEntry> zip_entry(zip_archive.Find(kClassesDex, error_msg));
   if (zip_entry.get() == NULL) {
-    *error_msg = StringPrintf("Failed to find classes.dex within '%s'", location.c_str());
     return nullptr;
   }
   UniquePtr<MemMap> map(zip_entry->ExtractToMemMap(kClassesDex, error_msg));
