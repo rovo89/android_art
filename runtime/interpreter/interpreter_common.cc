@@ -231,7 +231,10 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
   // In a runtime that's not started we intercept certain methods to avoid complicated dependency
   // problems in core libraries.
   std::string name(PrettyMethod(shadow_frame->GetMethod()));
-  if (name == "java.lang.Class java.lang.Class.forName(java.lang.String)") {
+  if (name == "java.lang.Class java.lang.Class.forName(java.lang.String)"
+      || name == "java.lang.Class java.lang.VMClassLoader.loadClass(java.lang.String, boolean)") {
+    // TODO Class#forName should actually call Class::EnsureInitialized always. Support for the
+    // other variants that take more arguments should also be added.
     std::string descriptor(DotToDescriptor(shadow_frame->GetVRegReference(arg_offset)->AsString()->ToModifiedUtf8().c_str()));
 
     SirtRef<ClassLoader> class_loader(self, nullptr);  // shadow_frame.GetMethod()->GetDeclaringClass()->GetClassLoader();
@@ -239,6 +242,13 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
                                                                    class_loader);
     CHECK(found != NULL) << "Class.forName failed in un-started runtime for class: "
         << PrettyDescriptor(descriptor);
+    result->SetL(found);
+  } else if (name == "java.lang.Class java.lang.VMClassLoader.findLoadedClass(java.lang.ClassLoader, java.lang.String)") {
+    SirtRef<ClassLoader> class_loader(self, down_cast<mirror::ClassLoader*>(shadow_frame->GetVRegReference(arg_offset)));
+    std::string descriptor(DotToDescriptor(shadow_frame->GetVRegReference(arg_offset + 1)->AsString()->ToModifiedUtf8().c_str()));
+
+    Class* found = Runtime::Current()->GetClassLinker()->FindClass(descriptor.c_str(),
+                                                                   class_loader);
     result->SetL(found);
   } else if (name == "java.lang.Object java.lang.Class.newInstance()") {
     Class* klass = shadow_frame->GetVRegReference(arg_offset)->AsClass();
