@@ -504,13 +504,13 @@ LIR* MipsMir2Lir::LoadBaseDispBody(int rBase, int displacement, int r_dest,
     }
   } else {
     if (pair) {
-      int r_tmp = AllocFreeTemp();
+      int r_tmp = AllocTemp();
       res = OpRegRegImm(kOpAdd, r_tmp, rBase, displacement);
       load = NewLIR3(opcode, r_dest, LOWORD_OFFSET, r_tmp);
       load2 = NewLIR3(opcode, r_dest_hi, HIWORD_OFFSET, r_tmp);
       FreeTemp(r_tmp);
     } else {
-      int r_tmp = (rBase == r_dest) ? AllocFreeTemp() : r_dest;
+      int r_tmp = (rBase == r_dest) ? AllocTemp() : r_dest;
       res = OpRegRegImm(kOpAdd, r_tmp, rBase, displacement);
       load = NewLIR3(opcode, r_dest, 0, r_tmp);
       if (r_tmp != r_dest)
