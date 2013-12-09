@@ -253,7 +253,7 @@ void MipsMir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
   NewLIR4(kMipsDelta, rMIPS_ARG1, 0, WrapPointer(base_label), WrapPointer(tab_rec));
 
   // And go...
-  ClobberCalleeSave();
+  ClobberCallerSave();
   LIR* call_inst = OpReg(kOpBlx, r_tgt);  // ( array*, fill_data* )
   MarkSafepointPC(call_inst);
 }

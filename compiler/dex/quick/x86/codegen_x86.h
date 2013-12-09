@@ -61,7 +61,7 @@ class X86Mir2Lir : public Mir2Lir {
     uint32_t FpRegMask();
     uint64_t GetRegMaskCommon(int reg);
     void AdjustSpillMask();
-    void ClobberCalleeSave();
+    void ClobberCallerSave();
     void FlushReg(int reg);
     void FlushRegWide(int reg1, int reg2);
     void FreeCallTemps();

@@ -350,10 +350,11 @@ bool X86Mir2Lir::IsFpReg(int reg) {
 }
 
 /* Clobber all regs that might be used by an external C call */
-void X86Mir2Lir::ClobberCalleeSave() {
+void X86Mir2Lir::ClobberCallerSave() {
   Clobber(rAX);
   Clobber(rCX);
   Clobber(rDX);
+  Clobber(rBX);
 }
 
 RegLocation X86Mir2Lir::GetReturnWideAlt() {

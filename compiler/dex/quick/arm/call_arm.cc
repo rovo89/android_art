@@ -434,7 +434,7 @@ void ArmMir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
                rARM_LR);
   // Materialize a pointer to the fill data image
   NewLIR3(kThumb2Adr, r1, 0, WrapPointer(tab_rec));
-  ClobberCalleeSave();
+  ClobberCallerSave();
   LIR* call_inst = OpReg(kOpBlx, rARM_LR);
   MarkSafepointPC(call_inst);
 }
@@ -471,7 +471,7 @@ void ArmMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
     // TODO: move to a slow path.
     // Go expensive route - artLockObjectFromCode(obj);
     LoadWordDisp(rARM_SELF, QUICK_ENTRYPOINT_OFFSET(pLockObject).Int32Value(), rARM_LR);
-    ClobberCalleeSave();
+    ClobberCallerSave();
     LIR* call_inst = OpReg(kOpBlx, rARM_LR);
     MarkSafepointPC(call_inst);
 
@@ -490,7 +490,7 @@ void ArmMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
     OpIT(kCondNe, "T");
     // Go expensive route - artLockObjectFromCode(self, obj);
     LoadWordDisp/*ne*/(rARM_SELF, QUICK_ENTRYPOINT_OFFSET(pLockObject).Int32Value(), rARM_LR);
-    ClobberCalleeSave();
+    ClobberCallerSave();
     LIR* call_inst = OpReg(kOpBlx/*ne*/, rARM_LR);
     MarkSafepointPC(call_inst);
     GenMemBarrier(kLoadLoad);
@@ -530,7 +530,7 @@ void ArmMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
     // TODO: move to a slow path.
     // Go expensive route - artUnlockObjectFromCode(obj);
     LoadWordDisp(rARM_SELF, QUICK_ENTRYPOINT_OFFSET(pUnlockObject).Int32Value(), rARM_LR);
-    ClobberCalleeSave();
+    ClobberCallerSave();
     LIR* call_inst = OpReg(kOpBlx, rARM_LR);
     MarkSafepointPC(call_inst);
 
@@ -549,7 +549,7 @@ void ArmMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
     StoreWordDisp/*eq*/(r0, mirror::Object::MonitorOffset().Int32Value(), r3);
     // Go expensive route - UnlockObjectFromCode(obj);
     LoadWordDisp/*ne*/(rARM_SELF, QUICK_ENTRYPOINT_OFFSET(pUnlockObject).Int32Value(), rARM_LR);
-    ClobberCalleeSave();
+    ClobberCallerSave();
     LIR* call_inst = OpReg(kOpBlx/*ne*/, rARM_LR);
     MarkSafepointPC(call_inst);
     GenMemBarrier(kStoreLoad);
