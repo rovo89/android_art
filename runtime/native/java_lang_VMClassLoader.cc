@@ -78,7 +78,7 @@ static jstring VMClassLoader_getBootClassPathResource(JNIEnv* env, jclass, jstri
     LOG(WARNING) << "Failed to open zip archive '" << location << "': " << error_msg;
     return NULL;
   }
-  UniquePtr<ZipEntry> zip_entry(zip_archive->Find(name.c_str()));
+  UniquePtr<ZipEntry> zip_entry(zip_archive->Find(name.c_str(), &error_msg));
   if (zip_entry.get() == NULL) {
     return NULL;
   }
