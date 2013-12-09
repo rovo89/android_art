@@ -315,7 +315,7 @@ bool ArmMir2Lir::GenInlinedSqrt(CallInfo* info) {
           S2d(rl_result.low_reg, rl_result.high_reg));
   NewLIR0(kThumb2Fmstat);
   branch = NewLIR2(kThumbBCond, 0, kArmCondEq);
-  ClobberCalleeSave();
+  ClobberCallerSave();
   LockCallTemps();  // Using fixed registers
   int r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pSqrt));
   NewLIR3(kThumb2Fmrrd, r0, r1, S2d(rl_src.low_reg, rl_src.high_reg));
