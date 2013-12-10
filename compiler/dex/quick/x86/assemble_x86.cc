@@ -246,7 +246,9 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   UNARY_ENCODING_MAP(Idivmod, 0x7, 0, SETS_CCODES, DaR, kRegRegReg, IS_UNARY_OP | REG_USE0, DaM, kRegRegMem, IS_BINARY_OP | REG_USE0, DaA, kRegRegArray, IS_QUAD_OP | REG_USE01, 0, REG_DEFA_USEA, REG_DEFAD_USEAD, REG_DEFAD_USEAD, "ah:al,ax,", "dx:ax,dx:ax,", "edx:eax,edx:eax,"),
 #undef UNARY_ENCODING_MAP
 
-  { kX86Bswap32R, kRegOpcode, IS_UNARY_OP | REG_DEF0_USE0, { 0, 0, 0x0F, 0xC8, 0, 0, 0, 0 }, "Bswap32R", "!0r" },
+  { kX86Bswap32R, kRegOpcode, IS_UNARY_OP | REG_DEF0_USE0,       { 0, 0, 0x0F, 0xC8, 0, 0, 0, 0 }, "Bswap32R", "!0r" },
+  { kX86Push32R,  kRegOpcode, IS_UNARY_OP | REG_USE0 | IS_STORE, { 0, 0, 0x50, 0,    0, 0, 0, 0 }, "Push32R",  "!0r" },
+  { kX86Pop32R,   kRegOpcode, IS_UNARY_OP | REG_DEF0 | IS_LOAD,  { 0, 0, 0x58, 0,    0, 0, 0, 0 }, "Pop32R",   "!0r" },
 
 #define EXT_0F_ENCODING_MAP(opname, prefix, opcode, reg_def) \
 { kX86 ## opname ## RR, kRegReg,             IS_BINARY_OP   | reg_def | REG_USE01,  { prefix, 0, 0x0F, opcode, 0, 0, 0, 0 }, #opname "RR", "!0r,!1r" }, \
@@ -308,6 +310,8 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86CmpxchgAR, kArrayReg, IS_STORE | IS_QUIN_OP | REG_USE014 | REG_DEFA_USEA | SETS_CCODES, { 0, 0, 0x0F, 0xB1, 0, 0, 0, 0 }, "Cmpxchg", "[!0r+!1r<<!2d+!3d],!4r" },
   { kX86LockCmpxchgMR, kMemReg,   IS_STORE | IS_TERTIARY_OP | REG_USE02 | REG_DEFA_USEA | SETS_CCODES, { 0xF0, 0, 0x0F, 0xB1, 0, 0, 0, 0 }, "Lock Cmpxchg", "[!0r+!1d],!2r" },
   { kX86LockCmpxchgAR, kArrayReg, IS_STORE | IS_QUIN_OP | REG_USE014 | REG_DEFA_USEA | SETS_CCODES, { 0xF0, 0, 0x0F, 0xB1, 0, 0, 0, 0 }, "Lock Cmpxchg", "[!0r+!1r<<!2d+!3d],!4r" },
+  { kX86LockCmpxchg8bM, kMem,   IS_STORE | IS_BINARY_OP | REG_USE0 | REG_DEFAD_USEAD | REG_USEC | REG_USEB | SETS_CCODES, { 0xF0, 0, 0x0F, 0xC7, 0, 1, 0, 0 }, "Lock Cmpxchg8b", "[!0r+!1d]" },
+  { kX86LockCmpxchg8bA, kArray, IS_STORE | IS_QUAD_OP | REG_USE01 | REG_DEFAD_USEAD | REG_USEC | REG_USEB | SETS_CCODES, { 0xF0, 0, 0x0F, 0xC7, 0, 1, 0, 0 }, "Lock Cmpxchg8b", "[!0r+!1r<<!2d+!3d]" },
 
   EXT_0F_ENCODING_MAP(Movzx8,  0x00, 0xB6, REG_DEF0),
   EXT_0F_ENCODING_MAP(Movzx16, 0x00, 0xB7, REG_DEF0),
