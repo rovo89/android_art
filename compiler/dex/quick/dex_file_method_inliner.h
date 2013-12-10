@@ -89,12 +89,8 @@ struct Intrinsic {
  */
 class DexFileMethodInliner {
   public:
-    virtual ~DexFileMethodInliner();
-
-    /**
-     * Find all known intrinsic methods in the dex_file and cache their indices.
-     */
-    virtual void FindIntrinsics(const DexFile* dex_file) = 0;
+    DexFileMethodInliner();
+    ~DexFileMethodInliner();
 
     /**
      * Check whether a particular method index corresponds to an intrinsic function.
@@ -103,15 +99,10 @@ class DexFileMethodInliner {
 
     /**
      * Generate code for an intrinsic function invocation.
-     *
-     * TODO: This should be target-specific. For the time being,
-     * it's shared since it dispatches everything to backend.
      */
     bool GenIntrinsic(Mir2Lir* backend, CallInfo* info) const;
 
-  protected:
-    DexFileMethodInliner();
-
+  private:
     /**
      * To avoid multiple lookups of a class by its descriptor, we cache its
      * type index in the IndexCache. These are the indexes into the IndexCache
@@ -290,6 +281,7 @@ class DexFileMethodInliner {
     static const char* kClassCacheNames[];
     static const char* kNameCacheNames[];
     static const ProtoDef kProtoCacheDefs[];
+    static const IntrinsicDef kIntrinsicMethods[];
 
     static const uint32_t kIndexNotFound = static_cast<uint32_t>(-1);
     static const uint32_t kIndexUnresolved = static_cast<uint32_t>(-2);
@@ -303,14 +295,22 @@ class DexFileMethodInliner {
     static uint32_t FindMethodIndex(const DexFile* dex_file, IndexCache* cache,
                                     const MethodDef& method_def);
 
-    void DoFindIntrinsics(const DexFile* dex_file, IndexCache* cache,
-                          const IntrinsicDef* defs, uint32_t def_count);
+    /**
+     * Find all known intrinsic methods in the dex_file and cache their indices.
+     *
+     * Only DexFileToMethodInlinerMap may call this function to initialize the inliner.
+     */
+    void FindIntrinsics(const DexFile* dex_file);
+
+    friend class DexFileToMethodInlinerMap;
 
     /*
      * Maps method indexes (for the particular DexFile) to Intrinsic defintions.
      */
     std::map<uint32_t, Intrinsic> intrinsics_;
     const DexFile* dex_file_;
+
+    DISALLOW_COPY_AND_ASSIGN(DexFileMethodInliner);
 };
 
 }  // namespace art

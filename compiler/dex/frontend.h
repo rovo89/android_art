@@ -115,7 +115,7 @@ class LLVMInfo {
 
 class QuickCompilerContext {
   public:
-    explicit QuickCompilerContext(CompilerDriver& compiler);
+    QuickCompilerContext();
     ~QuickCompilerContext();
 
     DexFileToMethodInlinerMap* GetInlinerMap() {
