@@ -22,17 +22,13 @@
 #include "base/mutex-inl.h"
 #include "base/logging.h"
 #include "driver/compiler_driver.h"
-#include "dex/quick/arm/arm_dex_file_method_inliner.h"
-#include "dex/quick/mips/mips_dex_file_method_inliner.h"
-#include "dex/quick/x86/x86_dex_file_method_inliner.h"
 
 #include "dex_file_to_method_inliner_map.h"
 
 namespace art {
 
-DexFileToMethodInlinerMap::DexFileToMethodInlinerMap(const CompilerDriver* compiler)
-    : compiler_(compiler),
-      mutex_("inline_helper_mutex") {
+DexFileToMethodInlinerMap::DexFileToMethodInlinerMap()
+    : lock_("inline_helper_mutex") {
 }
 
 DexFileToMethodInlinerMap::~DexFileToMethodInlinerMap() {
@@ -44,31 +40,19 @@ DexFileToMethodInlinerMap::~DexFileToMethodInlinerMap() {
 const DexFileMethodInliner& DexFileToMethodInlinerMap::GetMethodInliner(const DexFile* dex_file) {
   Thread* self = Thread::Current();
   {
-    ReaderMutexLock lock(self, mutex_);
+    ReaderMutexLock lock(self, lock_);
     auto it = inliners_.find(dex_file);
     if (it != inliners_.end()) {
       return *it->second;
     }
   }
 
-  WriterMutexLock lock(self, mutex_);
+  WriterMutexLock lock(self, lock_);
   DexFileMethodInliner** inliner = &inliners_[dex_file];  // inserts new entry if not found
   if (*inliner) {
     return **inliner;
   }
-  switch (compiler_->GetInstructionSet()) {
-    case kThumb2:
-      *inliner = new ArmDexFileMethodInliner;
-      break;
-    case kX86:
-      *inliner = new X86DexFileMethodInliner;
-      break;
-    case kMips:
-      *inliner = new MipsDexFileMethodInliner;
-      break;
-    default:
-      LOG(FATAL) << "Unexpected instruction set: " << compiler_->GetInstructionSet();
-  }
+  *inliner = new DexFileMethodInliner();
   DCHECK(*inliner != nullptr);
   // TODO: per-dex file locking for the intrinsics container filling.
   (*inliner)->FindIntrinsics(dex_file);
