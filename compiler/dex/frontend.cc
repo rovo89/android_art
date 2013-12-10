@@ -63,21 +63,21 @@ LLVMInfo::LLVMInfo() {
 LLVMInfo::~LLVMInfo() {
 }
 
-QuickCompilerContext::QuickCompilerContext(CompilerDriver& compiler)
-  : inliner_map_(new DexFileToMethodInlinerMap(&compiler)) {
+QuickCompilerContext::QuickCompilerContext()
+  : inliner_map_(new DexFileToMethodInlinerMap()) {
 }
 
 QuickCompilerContext::~QuickCompilerContext() {
 }
 
-extern "C" void ArtInitQuickCompilerContext(art::CompilerDriver& compiler) {
-  CHECK(compiler.GetCompilerContext() == NULL);
-  compiler.SetCompilerContext(new QuickCompilerContext(compiler));
+extern "C" void ArtInitQuickCompilerContext(art::CompilerDriver& driver) {
+  CHECK(driver.GetCompilerContext() == NULL);
+  driver.SetCompilerContext(new QuickCompilerContext());
 }
 
-extern "C" void ArtUnInitQuickCompilerContext(art::CompilerDriver& compiler) {
-  delete reinterpret_cast<QuickCompilerContext*>(compiler.GetCompilerContext());
-  compiler.SetCompilerContext(NULL);
+extern "C" void ArtUnInitQuickCompilerContext(art::CompilerDriver& driver) {
+  delete reinterpret_cast<QuickCompilerContext*>(driver.GetCompilerContext());
+  driver.SetCompilerContext(NULL);
 }
 
 /* Default optimizer/debug setting for the compiler. */

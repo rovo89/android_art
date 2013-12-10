@@ -37,15 +37,16 @@ class DexFile;
  */
 class DexFileToMethodInlinerMap {
   public:
-    explicit DexFileToMethodInlinerMap(const CompilerDriver* compiler);
+    DexFileToMethodInlinerMap();
     ~DexFileToMethodInlinerMap();
 
-    const DexFileMethodInliner& GetMethodInliner(const DexFile* dex_file) LOCKS_EXCLUDED(mutex_);
+    const DexFileMethodInliner& GetMethodInliner(const DexFile* dex_file) LOCKS_EXCLUDED(lock_);
 
   private:
-    const CompilerDriver* const compiler_;
-    ReaderWriterMutex mutex_;
-    std::map<const DexFile*, DexFileMethodInliner*> inliners_ GUARDED_BY(mutex_);
+    ReaderWriterMutex lock_;
+    std::map<const DexFile*, DexFileMethodInliner*> inliners_ GUARDED_BY(lock_);
+
+    DISALLOW_COPY_AND_ASSIGN(DexFileToMethodInlinerMap);
 };
 
 }  // namespace art
