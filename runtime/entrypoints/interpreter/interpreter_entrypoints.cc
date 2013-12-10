@@ -33,11 +33,14 @@ extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& m
   if (method->IsStatic()) {
     mirror::Class* declaringClass = method->GetDeclaringClass();
     if (UNLIKELY(!declaringClass->IsInitializing())) {
+      self->PushShadowFrame(shadow_frame);
       if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(declaringClass,
                                                                             true, true))) {
-        DCHECK(Thread::Current()->IsExceptionPending());
+        self->PopShadowFrame();
+        DCHECK(self->IsExceptionPending());
         return;
       }
+      self->PopShadowFrame();
       CHECK(declaringClass->IsInitializing());
     }
   }
