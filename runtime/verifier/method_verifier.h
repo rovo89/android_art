@@ -614,10 +614,10 @@ class MethodVerifier {
    * encode it in some clever fashion.
    * Returns a pointer to a newly-allocated RegisterMap, or NULL on failure.
    */
-  const std::vector<uint8_t>* GenerateLengthPrefixedGcMap();
+  const std::vector<uint8_t>* GenerateGcMap();
 
   // Verify that the GC map associated with method_ is well formed
-  void VerifyLengthPrefixedGcMap(const std::vector<uint8_t>& data);
+  void VerifyGcMap(const std::vector<uint8_t>& data);
 
   // Compute sizes for GC map data
   void ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bits, size_t* log2_max_gc_pc);
