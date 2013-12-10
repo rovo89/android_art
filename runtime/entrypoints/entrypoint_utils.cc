@@ -57,7 +57,7 @@ static inline mirror::Class* CheckFilledNewArrayAlloc(uint32_t type_idx, mirror:
       ThrowLocation throw_location = self->GetCurrentLocationForThrow();
       DCHECK(throw_location.GetMethod() == referrer);
       self->ThrowNewExceptionF(throw_location, "Ljava/lang/InternalError;",
-                               "Found type %s; filled-new-array not implemented for anything but \'int\'",
+                               "Found type %s; filled-new-array not implemented for anything but 'int'",
                                PrettyDescriptor(klass).c_str());
     }
     return nullptr;  // Failure
