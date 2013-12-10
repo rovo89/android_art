@@ -188,7 +188,7 @@ bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
     } else {
       self->ThrowNewExceptionF(shadow_frame.GetCurrentLocationForThrow(),
                                "Ljava/lang/InternalError;",
-                               "Found type %s; filled-new-array not implemented for anything but \'int\'",
+                               "Found type %s; filled-new-array not implemented for anything but 'int'",
                                PrettyDescriptor(componentClass).c_str());
     }
     return false;

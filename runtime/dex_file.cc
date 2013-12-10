@@ -100,7 +100,7 @@ bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string*
     }
     UniquePtr<ZipEntry> zip_entry(zip_archive->Find(kClassesDex, error_msg));
     if (zip_entry.get() == NULL) {
-      *error_msg = StringPrintf("Zip archive '%s' doesn\'t contain %s (error msg: %s)", filename,
+      *error_msg = StringPrintf("Zip archive '%s' doesn't contain %s (error msg: %s)", filename,
                                 kClassesDex, error_msg->c_str());
       return false;
     }
@@ -177,7 +177,7 @@ const DexFile* DexFile::OpenFile(int fd, const char* location, bool verify,
     struct stat sbuf;
     memset(&sbuf, 0, sizeof(sbuf));
     if (fstat(fd, &sbuf) == -1) {
-      *error_msg = StringPrintf("DexFile: fstat \'%s\' failed: %s", location, strerror(errno));
+      *error_msg = StringPrintf("DexFile: fstat '%s' failed: %s", location, strerror(errno));
       return nullptr;
     }
     if (S_ISDIR(sbuf.st_mode)) {
@@ -194,7 +194,7 @@ const DexFile* DexFile::OpenFile(int fd, const char* location, bool verify,
 
   if (map->Size() < sizeof(DexFile::Header)) {
     *error_msg = StringPrintf(
-        "DexFile: failed to open dex file \'%s\' that is too short to have a header", location);
+        "DexFile: failed to open dex file '%s' that is too short to have a header", location);
     return nullptr;
   }
 
