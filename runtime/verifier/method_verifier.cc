@@ -1068,13 +1068,13 @@ bool MethodVerifier::VerifyCodeFlow() {
     bool compile = IsCandidateForCompilation(ref, method_access_flags_);
     if (compile) {
       /* Generate a register map and add it to the method. */
-      const std::vector<uint8_t>* dex_gc_map = GenerateLengthPrefixedGcMap();
+      const std::vector<uint8_t>* dex_gc_map = GenerateGcMap();
       if (dex_gc_map == NULL) {
         DCHECK_NE(failures_.size(), 0U);
         return false;  // Not a real failure, but a failure to encode
       }
       if (kIsDebugBuild) {
-        VerifyLengthPrefixedGcMap(*dex_gc_map);
+        VerifyGcMap(*dex_gc_map);
       }
       verifier::MethodVerifier::SetDexGcMap(ref, dex_gc_map);
     }
@@ -4054,7 +4054,7 @@ MethodVerifier::PcToConcreteMethodMap* MethodVerifier::GenerateDevirtMap() {
   return pc_to_concrete_method_map.release();
 }
 
-const std::vector<uint8_t>* MethodVerifier::GenerateLengthPrefixedGcMap() {
+const std::vector<uint8_t>* MethodVerifier::GenerateGcMap() {
   size_t num_entries, ref_bitmap_bits, pc_bits;
   ComputeGcMapSizes(&num_entries, &ref_bitmap_bits, &pc_bits);
   // There's a single byte to encode the size of each bitmap
@@ -4092,12 +4092,7 @@ const std::vector<uint8_t>* MethodVerifier::GenerateLengthPrefixedGcMap() {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Failed to encode GC map (size=" << table_size << ")";
     return NULL;
   }
-  table->reserve(table_size + 4);  // table_size plus the length prefix
-  // Write table size
-  table->push_back((table_size & 0xff000000) >> 24);
-  table->push_back((table_size & 0x00ff0000) >> 16);
-  table->push_back((table_size & 0x0000ff00) >> 8);
-  table->push_back((table_size & 0x000000ff) >> 0);
+  table->reserve(table_size);
   // Write table header
   table->push_back(format | ((ref_bitmap_bytes >> DexPcToReferenceMap::kRegMapFormatShift) &
                              ~DexPcToReferenceMap::kRegMapFormatMask));
@@ -4115,18 +4110,15 @@ const std::vector<uint8_t>* MethodVerifier::GenerateLengthPrefixedGcMap() {
       line->WriteReferenceBitMap(*table, ref_bitmap_bytes);
     }
   }
-  DCHECK_EQ(table->size(), table_size + 4);  // table_size plus the length prefix
+  DCHECK_EQ(table->size(), table_size);
   return table;
 }
 
-void MethodVerifier::VerifyLengthPrefixedGcMap(const std::vector<uint8_t>& data) {
+void MethodVerifier::VerifyGcMap(const std::vector<uint8_t>& data) {
   // Check that for every GC point there is a map entry, there aren't entries for non-GC points,
   // that the table data is well formed and all references are marked (or not) in the bitmap
-  DCHECK_GE(data.size(), 4u);
-  size_t table_size = data.size() - 4u;
-  DCHECK_EQ(table_size, static_cast<size_t>((data[0] << 24) | (data[1] << 16) |
-                                            (data[2] << 8) | (data[3] << 0)));
-  DexPcToReferenceMap map(&data[4], table_size);
+  DexPcToReferenceMap map(&data[0]);
+  DCHECK_EQ(data.size(), map.RawSize());
   size_t map_index = 0;
   for (size_t i = 0; i < code_item_->insns_size_in_code_units_; i++) {
     const uint8_t* reg_bitmap = map.FindBitMap(i, false);
