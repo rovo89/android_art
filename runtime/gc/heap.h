@@ -644,12 +644,14 @@ class Heap {
   // A mod-union table remembers all of the references from the it's space to other spaces.
   SafeMap<space::Space*, accounting::ModUnionTable*> mod_union_tables_;
 
-  // What kind of concurrency behavior is the runtime after? True for concurrent mark sweep GC,
-  // false for stop-the-world mark sweep.
-  const bool concurrent_gc_;
+  // What kind of concurrency behavior is the runtime after? Currently true for concurrent mark
+  // sweep GC, false for other GC types.
+  bool concurrent_gc_;
 
   // The current collector type.
   CollectorType collector_type_;
+  // Which collector we will switch to after zygote fork.
+  CollectorType post_zygote_collector_type_;
 
   // How many GC threads we may use for paused parts of garbage collection.
   const size_t parallel_gc_threads_;

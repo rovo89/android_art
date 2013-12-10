@@ -93,7 +93,7 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
   } else {
     DCHECK(!Dbg::IsAllocTrackingEnabled());
   }
-  if (AllocatorHasConcurrentGC(allocator)) {
+  if (concurrent_gc_) {
     CheckConcurrentGC(self, new_num_bytes_allocated, obj);
   }
   if (kIsDebugBuild) {
@@ -199,9 +199,11 @@ inline bool Heap::IsOutOfMemoryOnAllocation(size_t alloc_size, bool grow) {
     if (!concurrent_gc_) {
       if (!grow) {
         return true;
-      } else {
-        max_allowed_footprint_ = new_footprint;
       }
+      // TODO: Grow for allocation is racy, fix it.
+      VLOG(heap) << "Growing heap from " << PrettySize(max_allowed_footprint_) << " to "
+          << PrettySize(new_footprint) << " for a " << PrettySize(alloc_size) << " allocation";
+      max_allowed_footprint_ = new_footprint;
     }
   }
   return false;
