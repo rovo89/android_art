@@ -38,7 +38,7 @@ enum RegisterMapFormat {
 // Lightweight wrapper for Dex PC to reference bit maps.
 class DexPcToReferenceMap {
  public:
-  DexPcToReferenceMap(const uint8_t* data) : data_(data) {
+  explicit DexPcToReferenceMap(const uint8_t* data) : data_(data) {
     CHECK(data_ != NULL);
   }
 
