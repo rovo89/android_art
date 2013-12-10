@@ -171,10 +171,18 @@ class X86Mir2Lir : public Mir2Lir {
     bool InexpensiveConstantDouble(int64_t value);
 
   private:
-    void EmitDisp(int base, int disp);
+    void EmitPrefix(const X86EncodingMap* entry);
+    void EmitOpcode(const X86EncodingMap* entry);
+    void EmitPrefixAndOpcode(const X86EncodingMap* entry);
+    void EmitDisp(uint8_t base, int disp);
+    void EmitModrmDisp(uint8_t reg_or_opcode, uint8_t base, int disp);
+    void EmitModrmSibDisp(uint8_t reg_or_opcode, uint8_t base, uint8_t index, int scale, int disp);
+    void EmitImm(const X86EncodingMap* entry, int imm);
     void EmitOpRegOpcode(const X86EncodingMap* entry, uint8_t reg);
     void EmitOpReg(const X86EncodingMap* entry, uint8_t reg);
     void EmitOpMem(const X86EncodingMap* entry, uint8_t base, int disp);
+    void EmitOpArray(const X86EncodingMap* entry, uint8_t base, uint8_t index,
+                     int scale, int disp);
     void EmitMemReg(const X86EncodingMap* entry, uint8_t base, int disp, uint8_t reg);
     void EmitRegMem(const X86EncodingMap* entry, uint8_t reg, uint8_t base, int disp);
     void EmitRegArray(const X86EncodingMap* entry, uint8_t reg, uint8_t base, uint8_t index,
