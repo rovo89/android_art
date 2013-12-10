@@ -165,6 +165,10 @@ void X86Mir2Lir::SetupTargetResourceMasks(LIR* lir, uint64_t flags) {
   if (flags & REG_USED) {
     SetupRegMask(&lir->u.m.use_mask, rDX);
   }
+
+  if (flags & REG_USEB) {
+    SetupRegMask(&lir->u.m.use_mask, rBX);
+  }
 }
 
 /* For dumping instructions */
