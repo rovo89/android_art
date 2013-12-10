@@ -374,6 +374,7 @@ enum OpFeatureFlags {
   kRegUseA,
   kRegUseC,
   kRegUseD,
+  kRegUseB,
   kRegUseFPCSList0,
   kRegUseFPCSList2,
   kRegUseList0,
