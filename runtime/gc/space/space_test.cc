@@ -31,10 +31,6 @@ namespace space {
 
 class SpaceTest : public CommonTest {
  public:
-  void SizeFootPrintGrowthLimitAndTrimBody(DlMallocSpace* space, intptr_t object_size,
-                                           int round, size_t growth_limit);
-  void SizeFootPrintGrowthLimitAndTrimDriver(size_t object_size);
-
   void AddSpace(ContinuousSpace* space) {
     // For RosAlloc, revoke the thread local runs before moving onto a
     // new alloc space.
@@ -55,6 +51,26 @@ class SpaceTest : public CommonTest {
     arr->SetLength(length);
     EXPECT_EQ(arr->SizeOf(), size);
   }
+
+  static MallocSpace* CreateDlMallocSpace(const std::string& name, size_t initial_size, size_t growth_limit,
+                                          size_t capacity, byte* requested_begin) {
+    return DlMallocSpace::Create(name, initial_size, growth_limit, capacity, requested_begin);
+  }
+  static MallocSpace* CreateRosAllocSpace(const std::string& name, size_t initial_size, size_t growth_limit,
+                                          size_t capacity, byte* requested_begin) {
+    return RosAllocSpace::Create(name, initial_size, growth_limit, capacity, requested_begin);
+  }
+
+  typedef MallocSpace* (*CreateSpaceFn)(const std::string& name, size_t initial_size, size_t growth_limit,
+                                        size_t capacity, byte* requested_begin);
+  void InitTestBody(CreateSpaceFn create_space);
+  void ZygoteSpaceTestBody(CreateSpaceFn create_space);
+  void AllocAndFreeTestBody(CreateSpaceFn create_space);
+  void AllocAndFreeListTestBody(CreateSpaceFn create_space);
+
+  void SizeFootPrintGrowthLimitAndTrimBody(MallocSpace* space, intptr_t object_size,
+                                           int round, size_t growth_limit);
+  void SizeFootPrintGrowthLimitAndTrimDriver(size_t object_size, CreateSpaceFn create_space);
 };
 
 static size_t test_rand(size_t* seed) {
@@ -62,128 +78,143 @@ static size_t test_rand(size_t* seed) {
   return *seed;
 }
 
-TEST_F(SpaceTest, Init) {
+void SpaceTest::InitTestBody(CreateSpaceFn create_space) {
   {
     // Init < max == growth
-    UniquePtr<Space> space(DlMallocSpace::Create("test", 16 * MB, 32 * MB, 32 * MB, NULL));
+    UniquePtr<Space> space(create_space("test", 16 * MB, 32 * MB, 32 * MB, NULL));
     EXPECT_TRUE(space.get() != NULL);
   }
   {
     // Init == max == growth
-    UniquePtr<Space> space(DlMallocSpace::Create("test", 16 * MB, 16 * MB, 16 * MB, NULL));
+    UniquePtr<Space> space(create_space("test", 16 * MB, 16 * MB, 16 * MB, NULL));
     EXPECT_TRUE(space.get() != NULL);
   }
   {
     // Init > max == growth
-    UniquePtr<Space> space(DlMallocSpace::Create("test", 32 * MB, 16 * MB, 16 * MB, NULL));
+    UniquePtr<Space> space(create_space("test", 32 * MB, 16 * MB, 16 * MB, NULL));
     EXPECT_TRUE(space.get() == NULL);
   }
   {
     // Growth == init < max
-    UniquePtr<Space> space(DlMallocSpace::Create("test", 16 * MB, 16 * MB, 32 * MB, NULL));
+    UniquePtr<Space> space(create_space("test", 16 * MB, 16 * MB, 32 * MB, NULL));
     EXPECT_TRUE(space.get() != NULL);
   }
   {
     // Growth < init < max
-    UniquePtr<Space> space(DlMallocSpace::Create("test", 16 * MB, 8 * MB, 32 * MB, NULL));
+    UniquePtr<Space> space(create_space("test", 16 * MB, 8 * MB, 32 * MB, NULL));
     EXPECT_TRUE(space.get() == NULL);
   }
   {
     // Init < growth < max
-    UniquePtr<Space> space(DlMallocSpace::Create("test", 8 * MB, 16 * MB, 32 * MB, NULL));
+    UniquePtr<Space> space(create_space("test", 8 * MB, 16 * MB, 32 * MB, NULL));
     EXPECT_TRUE(space.get() != NULL);
   }
   {
     // Init < max < growth
-    UniquePtr<Space> space(DlMallocSpace::Create("test", 8 * MB, 32 * MB, 16 * MB, NULL));
+    UniquePtr<Space> space(create_space("test", 8 * MB, 32 * MB, 16 * MB, NULL));
     EXPECT_TRUE(space.get() == NULL);
   }
+}
+
+TEST_F(SpaceTest, Init_DlMallocSpace) {
+  InitTestBody(SpaceTest::CreateDlMallocSpace);
+}
+TEST_F(SpaceTest, Init_RosAllocSpace) {
+  InitTestBody(SpaceTest::CreateRosAllocSpace);
 }
 
 // TODO: This test is not very good, we should improve it.
 // The test should do more allocations before the creation of the ZygoteSpace, and then do
 // allocations after the ZygoteSpace is created. The test should also do some GCs to ensure that
 // the GC works with the ZygoteSpace.
-TEST_F(SpaceTest, ZygoteSpace) {
-    size_t dummy = 0;
-    MallocSpace* space(DlMallocSpace::Create("test", 4 * MB, 16 * MB, 16 * MB, NULL));
-    ASSERT_TRUE(space != NULL);
+void SpaceTest::ZygoteSpaceTestBody(CreateSpaceFn create_space) {
+  size_t dummy = 0;
+  MallocSpace* space(create_space("test", 4 * MB, 16 * MB, 16 * MB, NULL));
+  ASSERT_TRUE(space != NULL);
 
-    // Make space findable to the heap, will also delete space when runtime is cleaned up
-    AddSpace(space);
-    Thread* self = Thread::Current();
+  // Make space findable to the heap, will also delete space when runtime is cleaned up
+  AddSpace(space);
+  Thread* self = Thread::Current();
 
-    // Succeeds, fits without adjusting the footprint limit.
-    mirror::Object* ptr1 = space->Alloc(self, 1 * MB, &dummy);
-    EXPECT_TRUE(ptr1 != NULL);
-    InstallClass(ptr1, 1 * MB);
+  // Succeeds, fits without adjusting the footprint limit.
+  mirror::Object* ptr1 = space->Alloc(self, 1 * MB, &dummy);
+  EXPECT_TRUE(ptr1 != NULL);
+  InstallClass(ptr1, 1 * MB);
 
-    // Fails, requires a higher footprint limit.
-    mirror::Object* ptr2 = space->Alloc(self, 8 * MB, &dummy);
-    EXPECT_TRUE(ptr2 == NULL);
+  // Fails, requires a higher footprint limit.
+  mirror::Object* ptr2 = space->Alloc(self, 8 * MB, &dummy);
+  EXPECT_TRUE(ptr2 == NULL);
 
-    // Succeeds, adjusts the footprint.
-    size_t ptr3_bytes_allocated;
-    mirror::Object* ptr3 = space->AllocWithGrowth(self, 8 * MB, &ptr3_bytes_allocated);
-    EXPECT_TRUE(ptr3 != NULL);
-    EXPECT_LE(8U * MB, ptr3_bytes_allocated);
-    InstallClass(ptr3, 8 * MB);
+  // Succeeds, adjusts the footprint.
+  size_t ptr3_bytes_allocated;
+  mirror::Object* ptr3 = space->AllocWithGrowth(self, 8 * MB, &ptr3_bytes_allocated);
+  EXPECT_TRUE(ptr3 != NULL);
+  EXPECT_LE(8U * MB, ptr3_bytes_allocated);
+  InstallClass(ptr3, 8 * MB);
 
-    // Fails, requires a higher footprint limit.
-    mirror::Object* ptr4 = space->Alloc(self, 8 * MB, &dummy);
-    EXPECT_TRUE(ptr4 == NULL);
+  // Fails, requires a higher footprint limit.
+  mirror::Object* ptr4 = space->Alloc(self, 8 * MB, &dummy);
+  EXPECT_TRUE(ptr4 == NULL);
 
-    // Also fails, requires a higher allowed footprint.
-    mirror::Object* ptr5 = space->AllocWithGrowth(self, 8 * MB, &dummy);
-    EXPECT_TRUE(ptr5 == NULL);
+  // Also fails, requires a higher allowed footprint.
+  mirror::Object* ptr5 = space->AllocWithGrowth(self, 8 * MB, &dummy);
+  EXPECT_TRUE(ptr5 == NULL);
 
-    // Release some memory.
-    size_t free3 = space->AllocationSize(ptr3);
-    EXPECT_EQ(free3, ptr3_bytes_allocated);
-    EXPECT_EQ(free3, space->Free(self, ptr3));
-    EXPECT_LE(8U * MB, free3);
+  // Release some memory.
+  size_t free3 = space->AllocationSize(ptr3);
+  EXPECT_EQ(free3, ptr3_bytes_allocated);
+  EXPECT_EQ(free3, space->Free(self, ptr3));
+  EXPECT_LE(8U * MB, free3);
 
-    // Succeeds, now that memory has been freed.
-    mirror::Object* ptr6 = space->AllocWithGrowth(self, 9 * MB, &dummy);
-    EXPECT_TRUE(ptr6 != NULL);
-    InstallClass(ptr6, 9 * MB);
+  // Succeeds, now that memory has been freed.
+  mirror::Object* ptr6 = space->AllocWithGrowth(self, 9 * MB, &dummy);
+  EXPECT_TRUE(ptr6 != NULL);
+  InstallClass(ptr6, 9 * MB);
 
-    // Final clean up.
-    size_t free1 = space->AllocationSize(ptr1);
-    space->Free(self, ptr1);
-    EXPECT_LE(1U * MB, free1);
+  // Final clean up.
+  size_t free1 = space->AllocationSize(ptr1);
+  space->Free(self, ptr1);
+  EXPECT_LE(1U * MB, free1);
 
-    // Make sure that the zygote space isn't directly at the start of the space.
-    space->Alloc(self, 1U * MB, &dummy);
-    space = space->CreateZygoteSpace("alloc space");
+  // Make sure that the zygote space isn't directly at the start of the space.
+  space->Alloc(self, 1U * MB, &dummy);
+  space = space->CreateZygoteSpace("alloc space");
 
-    // Make space findable to the heap, will also delete space when runtime is cleaned up
-    AddSpace(space);
+  // Make space findable to the heap, will also delete space when runtime is cleaned up
+  AddSpace(space);
 
-    // Succeeds, fits without adjusting the footprint limit.
-    ptr1 = space->Alloc(self, 1 * MB, &dummy);
-    EXPECT_TRUE(ptr1 != NULL);
-    InstallClass(ptr1, 1 * MB);
+  // Succeeds, fits without adjusting the footprint limit.
+  ptr1 = space->Alloc(self, 1 * MB, &dummy);
+  EXPECT_TRUE(ptr1 != NULL);
+  InstallClass(ptr1, 1 * MB);
 
-    // Fails, requires a higher footprint limit.
-    ptr2 = space->Alloc(self, 8 * MB, &dummy);
-    EXPECT_TRUE(ptr2 == NULL);
+  // Fails, requires a higher footprint limit.
+  ptr2 = space->Alloc(self, 8 * MB, &dummy);
+  EXPECT_TRUE(ptr2 == NULL);
 
-    // Succeeds, adjusts the footprint.
-    ptr3 = space->AllocWithGrowth(self, 2 * MB, &dummy);
-    EXPECT_TRUE(ptr3 != NULL);
-    InstallClass(ptr3, 2 * MB);
-    space->Free(self, ptr3);
+  // Succeeds, adjusts the footprint.
+  ptr3 = space->AllocWithGrowth(self, 2 * MB, &dummy);
+  EXPECT_TRUE(ptr3 != NULL);
+  InstallClass(ptr3, 2 * MB);
+  space->Free(self, ptr3);
 
-    // Final clean up.
-    free1 = space->AllocationSize(ptr1);
-    space->Free(self, ptr1);
-    EXPECT_LE(1U * MB, free1);
+  // Final clean up.
+  free1 = space->AllocationSize(ptr1);
+  space->Free(self, ptr1);
+  EXPECT_LE(1U * MB, free1);
 }
 
-TEST_F(SpaceTest, AllocAndFree) {
+TEST_F(SpaceTest, ZygoteSpace_DlMallocSpace) {
+  ZygoteSpaceTestBody(SpaceTest::CreateDlMallocSpace);
+}
+
+TEST_F(SpaceTest, ZygoteSpace_RosAllocSpace) {
+  ZygoteSpaceTestBody(SpaceTest::CreateRosAllocSpace);
+}
+
+void SpaceTest::AllocAndFreeTestBody(CreateSpaceFn create_space) {
   size_t dummy = 0;
-  DlMallocSpace* space(DlMallocSpace::Create("test", 4 * MB, 16 * MB, 16 * MB, NULL));
+  MallocSpace* space(create_space("test", 4 * MB, 16 * MB, 16 * MB, NULL));
   ASSERT_TRUE(space != NULL);
   Thread* self = Thread::Current();
 
@@ -229,6 +260,13 @@ TEST_F(SpaceTest, AllocAndFree) {
   size_t free1 = space->AllocationSize(ptr1);
   space->Free(self, ptr1);
   EXPECT_LE(1U * MB, free1);
+}
+
+TEST_F(SpaceTest, AllocAndFree_DlMallocSpace) {
+  AllocAndFreeTestBody(SpaceTest::CreateDlMallocSpace);
+}
+TEST_F(SpaceTest, AllocAndFree_RosAllocSpace) {
+  AllocAndFreeTestBody(SpaceTest::CreateRosAllocSpace);
 }
 
 TEST_F(SpaceTest, LargeObjectTest) {
@@ -292,8 +330,8 @@ TEST_F(SpaceTest, LargeObjectTest) {
   }
 }
 
-TEST_F(SpaceTest, AllocAndFreeList) {
-  DlMallocSpace* space(DlMallocSpace::Create("test", 4 * MB, 16 * MB, 16 * MB, NULL));
+void SpaceTest::AllocAndFreeListTestBody(CreateSpaceFn create_space) {
+  MallocSpace* space(create_space("test", 4 * MB, 16 * MB, 16 * MB, NULL));
   ASSERT_TRUE(space != NULL);
 
   // Make space findable to the heap, will also delete space when runtime is cleaned up
@@ -332,7 +370,14 @@ TEST_F(SpaceTest, AllocAndFreeList) {
   }
 }
 
-void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(DlMallocSpace* space, intptr_t object_size,
+TEST_F(SpaceTest, AllocAndFreeList_DlMallocSpace) {
+  AllocAndFreeListTestBody(SpaceTest::CreateDlMallocSpace);
+}
+TEST_F(SpaceTest, AllocAndFreeList_RosAllocSpace) {
+  AllocAndFreeListTestBody(SpaceTest::CreateRosAllocSpace);
+}
+
+void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(MallocSpace* space, intptr_t object_size,
                                                     int round, size_t growth_limit) {
   if (((object_size > 0 && object_size >= static_cast<intptr_t>(growth_limit))) ||
       ((object_size < 0 && -object_size >= static_cast<intptr_t>(growth_limit)))) {
@@ -493,11 +538,11 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(DlMallocSpace* space, intptr
   EXPECT_LE(space->Size(), growth_limit);
 }
 
-void SpaceTest::SizeFootPrintGrowthLimitAndTrimDriver(size_t object_size) {
+void SpaceTest::SizeFootPrintGrowthLimitAndTrimDriver(size_t object_size, CreateSpaceFn create_space) {
   size_t initial_size = 4 * MB;
   size_t growth_limit = 8 * MB;
   size_t capacity = 16 * MB;
-  DlMallocSpace* space(DlMallocSpace::Create("test", initial_size, growth_limit, capacity, NULL));
+  MallocSpace* space(create_space("test", initial_size, growth_limit, capacity, NULL));
   ASSERT_TRUE(space != NULL);
 
   // Basic sanity
@@ -518,16 +563,25 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimDriver(size_t object_size) {
 }
 
 #define TEST_SizeFootPrintGrowthLimitAndTrim(name, size) \
-  TEST_F(SpaceTest, SizeFootPrintGrowthLimitAndTrim_AllocationsOf_##name) { \
-    SizeFootPrintGrowthLimitAndTrimDriver(size); \
+  TEST_F(SpaceTest, SizeFootPrintGrowthLimitAndTrim_AllocationsOf_##name##_DlMallocSpace) { \
+    SizeFootPrintGrowthLimitAndTrimDriver(size, SpaceTest::CreateDlMallocSpace); \
   } \
-  TEST_F(SpaceTest, SizeFootPrintGrowthLimitAndTrim_RandomAllocationsWithMax_##name) { \
-    SizeFootPrintGrowthLimitAndTrimDriver(-size); \
+  TEST_F(SpaceTest, SizeFootPrintGrowthLimitAndTrim_RandomAllocationsWithMax_##name##_DlMallocSpace) { \
+    SizeFootPrintGrowthLimitAndTrimDriver(-size, SpaceTest::CreateDlMallocSpace); \
+  } \
+  TEST_F(SpaceTest, SizeFootPrintGrowthLimitAndTrim_AllocationsOf_##name##_RosAllocSpace) { \
+    SizeFootPrintGrowthLimitAndTrimDriver(size, SpaceTest::CreateRosAllocSpace); \
+  } \
+  TEST_F(SpaceTest, SizeFootPrintGrowthLimitAndTrim_RandomAllocationsWithMax_##name##_RosAllocSpace) { \
+    SizeFootPrintGrowthLimitAndTrimDriver(-size, SpaceTest::CreateRosAllocSpace); \
   }
 
 // Each size test is its own test so that we get a fresh heap each time
-TEST_F(SpaceTest, SizeFootPrintGrowthLimitAndTrim_AllocationsOf_12B) {
-  SizeFootPrintGrowthLimitAndTrimDriver(12);
+TEST_F(SpaceTest, SizeFootPrintGrowthLimitAndTrim_AllocationsOf_12B_DlMallocSpace) {
+  SizeFootPrintGrowthLimitAndTrimDriver(12, SpaceTest::CreateDlMallocSpace);
+}
+TEST_F(SpaceTest, SizeFootPrintGrowthLimitAndTrim_AllocationsOf_12B_RosAllocSpace) {
+  SizeFootPrintGrowthLimitAndTrimDriver(12, SpaceTest::CreateRosAllocSpace);
 }
 TEST_SizeFootPrintGrowthLimitAndTrim(16B, 16)
 TEST_SizeFootPrintGrowthLimitAndTrim(24B, 24)
