@@ -673,18 +673,19 @@ OatFile& ClassLinker::GetImageOatFile(gc::space::ImageSpace* space) {
 }
 
 const OatFile* ClassLinker::FindOpenedOatFileForDexFile(const DexFile& dex_file) {
-  return FindOpenedOatFileFromDexLocation(dex_file.GetLocation().c_str(),
-                                          dex_file.GetLocationChecksum());
+  const char* dex_location = dex_file.GetLocation().c_str();
+  uint32_t dex_location_checksum = dex_file.GetLocationChecksum();
+  return FindOpenedOatFileFromDexLocation(dex_location, &dex_location_checksum);
 }
 
 const OatFile* ClassLinker::FindOpenedOatFileFromDexLocation(const char* dex_location,
-                                                             uint32_t dex_location_checksum) {
+                                                             const uint32_t* const dex_location_checksum) {
   ReaderMutexLock mu(Thread::Current(), dex_lock_);
   for (size_t i = 0; i < oat_files_.size(); i++) {
     const OatFile* oat_file = oat_files_[i];
     DCHECK(oat_file != NULL);
     const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location,
-                                                                      &dex_location_checksum,
+                                                                      dex_location_checksum,
                                                                       false);
     if (oat_dex_file != NULL) {
       return oat_file;
@@ -943,13 +944,13 @@ const DexFile* ClassLinker::VerifyAndOpenDexFileFromOatFile(const std::string& o
 }
 
 const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const char* dex_location,
-                                                                uint32_t dex_location_checksum,
+                                                                const uint32_t* const dex_location_checksum,
                                                                 std::string* error_msg) {
   const OatFile* open_oat_file = FindOpenedOatFileFromDexLocation(dex_location,
                                                                   dex_location_checksum);
   if (open_oat_file != nullptr) {
     const OatFile::OatDexFile* oat_dex_file = open_oat_file->GetOatDexFile(dex_location,
-                                                                           &dex_location_checksum);
+                                                                           dex_location_checksum);
     return oat_dex_file->OpenDexFile(error_msg);
   }
 
@@ -962,6 +963,12 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const char* dex_
   if (dex_file != nullptr) {
     return dex_file;
   }
+  if (dex_location_checksum == nullptr) {
+    *error_msg = StringPrintf("Failed to open oat file from %s and no classes.dex found in %s: %s",
+                              odex_filename.c_str(), dex_location, error_msg->c_str());
+    return nullptr;
+  }
+
   std::string cache_error_msg;
   std::string cache_location(GetDalvikCacheFilenameOrDie(dex_location));
   dex_file = VerifyAndOpenDexFileFromOatFile(cache_location, dex_location, &cache_error_msg,
@@ -978,7 +985,7 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const char* dex_
 
   // Try to generate oat file if it wasn't found or was obsolete.
   error_msg->clear();
-  return FindOrCreateOatFileForDexLocation(dex_location, dex_location_checksum,
+  return FindOrCreateOatFileForDexLocation(dex_location, *dex_location_checksum,
                                            cache_location.c_str(), error_msg);
 }
 
