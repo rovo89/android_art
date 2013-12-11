@@ -281,6 +281,15 @@ class SemiSpace : public GarbageCollector {
 
   Thread* self_;
 
+  // Used for kEnableSimplePromo. The end/top of the bump pointer
+  // space at the end of the last collection.
+  byte* last_gc_to_space_end_;
+
+  // Used for kEnableSimplePromo. During a collection, keeps track of
+  // how many bytes of objects have been copied so far from the bump
+  // pointer space to the non-moving space.
+  uint64_t bytes_promoted_;
+
  private:
   DISALLOW_COPY_AND_ASSIGN(SemiSpace);
 };
