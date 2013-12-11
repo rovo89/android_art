@@ -259,6 +259,7 @@ std::string StackVisitor::DescribeLocation() const {
 }
 
 instrumentation::InstrumentationStackFrame& StackVisitor::GetInstrumentationStackFrame(uint32_t depth) const {
+  CHECK_LT(depth, thread_->GetInstrumentationStack()->size());
   return thread_->GetInstrumentationStack()->at(depth);
 }
 
