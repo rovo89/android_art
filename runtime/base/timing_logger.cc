@@ -31,6 +31,8 @@
 
 namespace art {
 
+constexpr size_t CumulativeLogger::kLowMemoryBucketCount;
+constexpr size_t CumulativeLogger::kDefaultBucketCount;
 CumulativeLogger::CumulativeLogger(const std::string& name)
     : name_(name),
       lock_name_("CumulativeLoggerLock" + name),
