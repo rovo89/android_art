@@ -67,6 +67,42 @@ extern "C" JNIEXPORT void JNICALL Java_JniTest_testFindClassOnAttachedNativeThre
   assert(pthread_join_result == 0);
 }
 
+static void* testFindFieldOnAttachedNativeThread(void*) {
+  assert(jvm != NULL);
+
+  JNIEnv* env = NULL;
+  JavaVMAttachArgs args = { JNI_VERSION_1_6, __FUNCTION__, NULL };
+  int attach_result = jvm->AttachCurrentThread(&env, &args);
+  assert(attach_result == 0);
+
+  jclass clazz = env->FindClass("JniTest");
+  assert(clazz != NULL);
+  assert(!env->ExceptionCheck());
+
+  jfieldID field = env->GetStaticFieldID(clazz, "testFindFieldOnAttachedNativeThreadField", "Z");
+  assert(field != NULL);
+  assert(!env->ExceptionCheck());
+
+  env->SetStaticBooleanField(clazz, field, JNI_TRUE);
+
+  int detach_result = jvm->DetachCurrentThread();
+  assert(detach_result == 0);
+  return NULL;
+}
+
+extern "C" JNIEXPORT void JNICALL Java_JniTest_testFindFieldOnAttachedNativeThreadNative(JNIEnv*,
+                                                                                         jclass) {
+  pthread_t pthread;
+  int pthread_create_result = pthread_create(&pthread,
+                                             NULL,
+                                             testFindFieldOnAttachedNativeThread,
+                                             NULL);
+  assert(pthread_create_result == 0);
+  int pthread_join_result = pthread_join(pthread, NULL);
+  assert(pthread_join_result == 0);
+}
+
+
 // http://b/11243757
 extern "C" JNIEXPORT void JNICALL Java_JniTest_testCallStaticVoidMethodOnSubClassNative(JNIEnv* env,
                                                                                         jclass) {
