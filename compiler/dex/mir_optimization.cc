@@ -923,11 +923,11 @@ void MIRGraph::BasicBlockOptimization() {
       for (unsigned int i = 0; i < extended_basic_blocks_.size(); i++) {
         BasicBlockOpt(GetBasicBlock(extended_basic_blocks_[i]));
       }
-    }
-  } else {
-    PreOrderDfsIterator iter(this);
-    for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
-      BasicBlockOpt(bb);
+    } else {
+      PreOrderDfsIterator iter(this);
+      for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
+        BasicBlockOpt(bb);
+      }
     }
   }
   if (cu_->enable_debug & (1 << kDebugDumpCFG)) {
