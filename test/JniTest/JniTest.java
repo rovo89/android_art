@@ -18,10 +18,22 @@ class JniTest {
     public static void main(String[] args) {
         System.loadLibrary("arttest");
         testFindClassOnAttachedNativeThread();
+        testFindFieldOnAttachedNativeThread();
         testCallStaticVoidMethodOnSubClass();
     }
 
     private static native void testFindClassOnAttachedNativeThread();
+
+    private static boolean testFindFieldOnAttachedNativeThreadField;
+
+    private static void testFindFieldOnAttachedNativeThread() {
+      testFindFieldOnAttachedNativeThreadNative();
+      if (!testFindFieldOnAttachedNativeThreadField) {
+            throw new AssertionError();
+        }
+    }
+
+    private static native void testFindFieldOnAttachedNativeThreadNative();
 
     private static void testCallStaticVoidMethodOnSubClass() {
         testCallStaticVoidMethodOnSubClassNative();

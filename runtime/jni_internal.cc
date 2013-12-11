@@ -291,8 +291,8 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
   Class* field_type;
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   if (sig[1] != '\0') {
-    ClassLoader* cl = GetClassLoader(soa);
-    field_type = class_linker->FindClass(sig, cl);
+    SirtRef<mirror::ClassLoader> class_loader(soa.Self(), c->GetClassLoader());
+    field_type = class_linker->FindClass(sig, class_loader.get());
   } else {
     field_type = class_linker->FindPrimitiveClass(*sig);
   }
