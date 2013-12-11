@@ -225,16 +225,16 @@ class MANAGED Object {
 
   void SetField64(MemberOffset field_offset, uint64_t new_value, bool is_volatile);
 
+  template<typename T>
+  void SetFieldPtr(MemberOffset field_offset, T new_value, bool is_volatile, bool this_is_valid = true) {
+    SetField32(field_offset, reinterpret_cast<uint32_t>(new_value), is_volatile, this_is_valid);
+  }
+
  protected:
   // Accessors for non-Java type fields
   template<class T>
   T GetFieldPtr(MemberOffset field_offset, bool is_volatile) const {
     return reinterpret_cast<T>(GetField32(field_offset, is_volatile));
-  }
-
-  template<typename T>
-  void SetFieldPtr(MemberOffset field_offset, T new_value, bool is_volatile, bool this_is_valid = true) {
-    SetField32(field_offset, reinterpret_cast<uint32_t>(new_value), is_volatile, this_is_valid);
   }
 
  private:

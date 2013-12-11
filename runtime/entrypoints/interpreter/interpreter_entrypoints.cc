@@ -34,14 +34,14 @@ extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& m
     mirror::Class* declaringClass = method->GetDeclaringClass();
     if (UNLIKELY(!declaringClass->IsInitializing())) {
       self->PushShadowFrame(shadow_frame);
-      if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(declaringClass,
-                                                                            true, true))) {
+      SirtRef<mirror::Class> sirt_c(self, declaringClass);
+      if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(sirt_c, true, true))) {
         self->PopShadowFrame();
         DCHECK(self->IsExceptionPending());
         return;
       }
       self->PopShadowFrame();
-      CHECK(declaringClass->IsInitializing());
+      CHECK(sirt_c->IsInitializing());
     }
   }
   uint16_t arg_offset = (code_item == NULL) ? 0 : code_item->registers_size_ - code_item->ins_size_;

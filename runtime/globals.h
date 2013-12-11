@@ -82,7 +82,7 @@ static constexpr bool kUsePortableCompiler = false;
 // Garbage collector constants.
 static constexpr bool kMovingCollector = true && !kUsePortableCompiler;
 // True if we allow moving classes.
-static constexpr bool kMovingClasses = false;
+static constexpr bool kMovingClasses = true;
 // True if we allow moving fields.
 static constexpr bool kMovingFields = false;
 // True if we allow moving methods.

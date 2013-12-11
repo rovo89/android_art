@@ -50,6 +50,12 @@ void Class::ResetClass() {
   java_lang_Class_ = NULL;
 }
 
+void Class::VisitRoots(RootVisitor* visitor, void* arg) {
+  if (java_lang_Class_ != nullptr) {
+    java_lang_Class_ = down_cast<Class*>(visitor(java_lang_Class_, arg));
+  }
+}
+
 void Class::SetStatus(Status new_status, Thread* self) {
   Status old_status = GetStatus();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();

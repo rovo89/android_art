@@ -41,24 +41,24 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
       javaMethod, WellKnownClasses::java_lang_reflect_AbstractMethod_artMethod);
 
   mirror::ArtMethod* m = soa.Decode<mirror::Object*>(art_method)->AsArtMethod();
-  mirror::Class* c = m->GetDeclaringClass();
+  SirtRef<mirror::Class> c(soa.Self(), m->GetDeclaringClass());
   if (UNLIKELY(c->IsAbstract())) {
     ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
     soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/InstantiationException;",
                                    "Can't instantiate %s %s",
                                    c->IsInterface() ? "interface" : "abstract class",
-                                   PrettyDescriptor(c).c_str());
-    return NULL;
+                                   PrettyDescriptor(c.get()).c_str());
+    return nullptr;
   }
 
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
     DCHECK(soa.Self()->IsExceptionPending());
-    return NULL;
+    return nullptr;
   }
 
   mirror::Object* receiver = c->AllocNonMovableObject(soa.Self());
-  if (receiver == NULL) {
-    return NULL;
+  if (receiver == nullptr) {
+    return nullptr;
   }
 
   jobject javaReceiver = soa.AddLocalReference<jobject>(receiver);

@@ -52,5 +52,12 @@ void ArtField::SetOffset(MemberOffset num_bytes) {
   SetField32(OFFSET_OF_OBJECT_MEMBER(ArtField, offset_), num_bytes.Uint32Value(), false);
 }
 
+void ArtField::VisitRoots(RootVisitor* visitor, void* arg) {
+  if (java_lang_reflect_ArtField_ != nullptr) {
+    java_lang_reflect_ArtField_ = down_cast<mirror::Class*>(
+        visitor(java_lang_reflect_ArtField_, arg));
+  }
+}
+
 }  // namespace mirror
 }  // namespace art

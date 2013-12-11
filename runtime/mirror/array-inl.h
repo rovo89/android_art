@@ -108,6 +108,13 @@ inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_c
                Runtime::Current()->GetHeap()->GetCurrentAllocator());
 }
 
+template<class T>
+inline void PrimitiveArray<T>::VisitRoots(RootVisitor* visitor, void* arg) {
+  if (array_class_ != nullptr) {
+    array_class_ = down_cast<Class*>(visitor(array_class_, arg));
+  }
+}
+
 }  // namespace mirror
 }  // namespace art
 
