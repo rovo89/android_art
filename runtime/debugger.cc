@@ -2817,30 +2817,30 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   }
 
   // Translate the method through the vtable, unless the debugger wants to suppress it.
-  mirror::ArtMethod* m = pReq->method;
+  SirtRef<mirror::ArtMethod> m(soa.Self(), pReq->method);
   if ((pReq->options & JDWP::INVOKE_NONVIRTUAL) == 0 && pReq->receiver != NULL) {
     mirror::ArtMethod* actual_method = pReq->klass->FindVirtualMethodForVirtualOrInterface(pReq->method);
-    if (actual_method != m) {
-      VLOG(jdwp) << "ExecuteMethod translated " << PrettyMethod(m) << " to " << PrettyMethod(actual_method);
-      m = actual_method;
+    if (actual_method != m.get()) {
+      VLOG(jdwp) << "ExecuteMethod translated " << PrettyMethod(m.get()) << " to " << PrettyMethod(actual_method);
+      m.reset(actual_method);
     }
   }
-  VLOG(jdwp) << "ExecuteMethod " << PrettyMethod(m)
+  VLOG(jdwp) << "ExecuteMethod " << PrettyMethod(m.get())
              << " receiver=" << pReq->receiver
              << " arg_count=" << pReq->arg_count;
-  CHECK(m != NULL);
+  CHECK(m.get() != nullptr);
 
   CHECK_EQ(sizeof(jvalue), sizeof(uint64_t));
 
-  MethodHelper mh(m);
+  MethodHelper mh(m.get());
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArray(soa, pReq->receiver, reinterpret_cast<jvalue*>(pReq->arg_values));
-  InvokeWithArgArray(soa, m, &arg_array, &pReq->result_value, mh.GetShorty()[0]);
+  InvokeWithArgArray(soa, m.get(), &arg_array, &pReq->result_value, mh.GetShorty()[0]);
 
   mirror::Throwable* exception = soa.Self()->GetException(NULL);
   soa.Self()->ClearException();
   pReq->exception = gRegistry->Add(exception);
-  pReq->result_tag = BasicTagFromDescriptor(MethodHelper(m).GetShorty());
+  pReq->result_tag = BasicTagFromDescriptor(MethodHelper(m.get()).GetShorty());
   if (pReq->exception != 0) {
     VLOG(jdwp) << "  JDWP invocation returning with exception=" << exception
         << " " << exception->Dump();

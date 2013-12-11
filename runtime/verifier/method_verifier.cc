@@ -319,10 +319,12 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, SirtRef<mirror::DexCache
       allow_soft_failures_(allow_soft_failures),
       has_check_casts_(false),
       has_virtual_or_interface_invokes_(false) {
+  Runtime::Current()->AddMethodVerifier(this);
   DCHECK(class_def != nullptr);
 }
 
 MethodVerifier::~MethodVerifier() {
+  Runtime::Current()->RemoveMethodVerifier(this);
   STLDeleteElements(&failure_messages_);
 }
 
@@ -4383,6 +4385,10 @@ bool MethodVerifier::IsClassRejected(ClassReference ref) {
   DCHECK(Runtime::Current()->IsCompiler());
   ReaderMutexLock mu(Thread::Current(), *rejected_classes_lock_);
   return (rejected_classes_->find(ref) != rejected_classes_->end());
+}
+
+void MethodVerifier::VisitRoots(RootVisitor* visitor, void* arg) {
+  reg_types_.VisitRoots(visitor, arg);
 }
 
 }  // namespace verifier

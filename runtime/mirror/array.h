@@ -149,6 +149,9 @@ class MANAGED PrimitiveArray : public Array {
     array_class_ = NULL;
   }
 
+  static void VisitRoots(RootVisitor* visitor, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  private:
   static Class* array_class_;
 

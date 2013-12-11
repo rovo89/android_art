@@ -34,34 +34,36 @@
 
 namespace art {
 
+template <typename T>
 class ObjectLock {
  public:
-  explicit ObjectLock(Thread* self, mirror::Object* object)
+  explicit ObjectLock(Thread* self, const SirtRef<T>* object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : self_(self), obj_(object) {
-    CHECK(object != NULL);
-    obj_->MonitorEnter(self_);
+    CHECK(object != nullptr);
+    CHECK(object->get() != nullptr);
+    obj_->get()->MonitorEnter(self_);
   }
 
   ~ObjectLock() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    obj_->MonitorExit(self_);
+    obj_->get()->MonitorExit(self_);
   }
 
   void WaitIgnoringInterrupts() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Monitor::Wait(self_, obj_, 0, 0, false, kWaiting);
+    Monitor::Wait(self_, obj_->get(), 0, 0, false, kWaiting);
   }
 
   void Notify() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    obj_->Notify(self_);
+    obj_->get()->Notify(self_);
   }
 
   void NotifyAll() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    obj_->NotifyAll(self_);
+    obj_->get()->NotifyAll(self_);
   }
 
  private:
   Thread* const self_;
-  mirror::Object* obj_;
+  const SirtRef<T>* obj_;
   DISALLOW_COPY_AND_ASSIGN(ObjectLock);
 };
 

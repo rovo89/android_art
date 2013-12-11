@@ -82,7 +82,7 @@ class ModUnionUpdateObjectReferencesVisitor {
     if (ref != nullptr) {
       Object* new_ref = visitor_(ref, arg_);
       if (new_ref != ref) {
-        obj->SetFieldObject(offset, new_ref, true);
+        obj->SetFieldPtr(offset, new_ref, true);
       }
     }
   }

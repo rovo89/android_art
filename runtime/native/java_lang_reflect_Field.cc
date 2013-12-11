@@ -31,10 +31,13 @@ static bool GetFieldValue(const ScopedFastNativeObjectAccess& soa, mirror::Objec
                           mirror::ArtField* f, JValue& value, bool allow_references)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK_EQ(value.GetJ(), 0LL);
-  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(f->GetDeclaringClass(),
-                                                               true, true)) {
+  CHECK(!kMovingFields);
+  SirtRef<mirror::Object> sirt_obj(soa.Self(), o);
+  SirtRef<mirror::Class> sirt_klass(soa.Self(), f->GetDeclaringClass());
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(sirt_klass, true, true)) {
     return false;
   }
+  o = sirt_obj.get();
   switch (FieldHelper(f).GetTypeAsPrimitiveType()) {
   case Primitive::kPrimBoolean:
     value.SetZ(f->GetBoolean(o));
@@ -168,13 +171,16 @@ static jshort Field_getShort(JNIEnv* env, jobject javaField, jobject javaObj) {
   return GetPrimitiveField(env, javaField, javaObj, 'S').GetS();
 }
 
-static void SetFieldValue(mirror::Object* o, mirror::ArtField* f, const JValue& new_value,
-                          bool allow_references)
+static void SetFieldValue(ScopedFastNativeObjectAccess& soa, mirror::Object* o,
+                          mirror::ArtField* f, const JValue& new_value, bool allow_references)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(f->GetDeclaringClass(),
-                                                               true, true)) {
+  CHECK(!kMovingFields);
+  SirtRef<mirror::Object> sirt_obj(soa.Self(), o);
+  SirtRef<mirror::Class> sirt_klass(soa.Self(), f->GetDeclaringClass());
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(sirt_klass, true, true)) {
     return;
   }
+  o = sirt_obj.get();
   switch (FieldHelper(f).GetTypeAsPrimitiveType()) {
   case Primitive::kPrimBoolean:
     f->SetBoolean(o, new_value.GetZ());
@@ -237,7 +243,7 @@ static void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject j
     return;
   }
 
-  SetFieldValue(o, f, unboxed_value, true);
+  SetFieldValue(soa, o, f, unboxed_value, true);
 }
 
 static void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, char src_descriptor,
@@ -264,7 +270,7 @@ static void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, c
   }
 
   // Write the value.
-  SetFieldValue(o, f, wide_value, false);
+  SetFieldValue(soa, o, f, wide_value, false);
 }
 
 static void Field_setBoolean(JNIEnv* env, jobject javaField, jobject javaObj, jboolean z) {

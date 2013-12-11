@@ -43,6 +43,7 @@ CumulativeLogger::~CumulativeLogger() {
 }
 
 void CumulativeLogger::SetName(const std::string& name) {
+  MutexLock mu(Thread::Current(), lock_);
   name_.assign(name);
 }
 
@@ -61,6 +62,7 @@ void CumulativeLogger::Reset() {
 }
 
 uint64_t CumulativeLogger::GetTotalNs() const {
+  MutexLock mu(Thread::Current(), lock_);
   return GetTotalTime() * kAdjust;
 }
 

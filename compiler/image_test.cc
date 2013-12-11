@@ -152,14 +152,14 @@ TEST_F(ImageTest, WriteRead) {
     const DexFile::ClassDef& class_def = dex->GetClassDef(i);
     const char* descriptor = dex->GetClassDescriptor(class_def);
     mirror::Class* klass = class_linker_->FindSystemClass(descriptor);
-    EXPECT_TRUE(klass != NULL) << descriptor;
-    EXPECT_LT(image_begin, reinterpret_cast<byte*>(klass)) << descriptor;
+    EXPECT_TRUE(klass != nullptr) << descriptor;
     if (image_classes.find(descriptor) != image_classes.end()) {
-      // image classes should be located before the end of the image.
+      // Image classes should be located inside the image.
+      EXPECT_LT(image_begin, reinterpret_cast<byte*>(klass)) << descriptor;
       EXPECT_LT(reinterpret_cast<byte*>(klass), image_end) << descriptor;
     } else {
-      // non image classes should be in a space after the image.
-      EXPECT_GT(reinterpret_cast<byte*>(klass), image_end) << descriptor;
+      EXPECT_TRUE(reinterpret_cast<byte*>(klass) >= image_end ||
+                  reinterpret_cast<byte*>(klass) < image_begin) << descriptor;
     }
     EXPECT_TRUE(Monitor::IsValidLockWord(klass->GetLockWord()));
   }

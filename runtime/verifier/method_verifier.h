@@ -237,6 +237,8 @@ class MethodVerifier {
   static bool IsCandidateForCompilation(MethodReference& method_ref,
                                         const uint32_t access_flags);
 
+  void VisitRoots(RootVisitor* visitor, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  private:
   // Adds the given string to the beginning of the last failure message.
   void PrependToLastFailMessage(std::string);

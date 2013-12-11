@@ -334,13 +334,14 @@ static inline bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instructio
 // java.lang.String class is initialized.
 static inline String* ResolveString(Thread* self, MethodHelper& mh, uint32_t string_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  CHECK(!kMovingMethods);
   Class* java_lang_string_class = String::GetJavaLangString();
   if (UNLIKELY(!java_lang_string_class->IsInitialized())) {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    if (UNLIKELY(!class_linker->EnsureInitialized(java_lang_string_class,
-                                                  true, true))) {
+    SirtRef<mirror::Class> sirt_class(self, java_lang_string_class);
+    if (UNLIKELY(!class_linker->EnsureInitialized(sirt_class, true, true))) {
       DCHECK(self->IsExceptionPending());
-      return NULL;
+      return nullptr;
     }
   }
   return mh.ResolveString(string_idx);

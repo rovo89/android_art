@@ -58,5 +58,12 @@ StackTraceElement* StackTraceElement::Alloc(Thread* self,
   return trace;
 }
 
+void StackTraceElement::VisitRoots(RootVisitor* visitor, void* arg) {
+  if (java_lang_StackTraceElement_ != nullptr) {
+    java_lang_StackTraceElement_ = down_cast<Class*>(visitor(java_lang_StackTraceElement_, arg));
+  }
+}
+
+
 }  // namespace mirror
 }  // namespace art

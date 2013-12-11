@@ -72,7 +72,7 @@ ALWAYS_INLINE static inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
   if (UNLIKELY(!klass->IsInitialized())) {
     SirtRef<mirror::Class> sirt_klass(self, klass);
     // The class initializer might cause a GC.
-    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(klass, true, true)) {
+    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(sirt_klass, true, true)) {
       DCHECK(self->IsExceptionPending());
       return nullptr;  // Failure
     }
@@ -246,12 +246,15 @@ static inline mirror::ArtField* FindFieldFromCode(uint32_t field_idx, const mirr
     // If the class is initialized we're done.
     if (LIKELY(fields_class->IsInitialized())) {
       return resolved_field;
-    } else if (LIKELY(class_linker->EnsureInitialized(fields_class, true, true))) {
-      // Otherwise let's ensure the class is initialized before resolving the field.
-      return resolved_field;
     } else {
-      DCHECK(self->IsExceptionPending());  // Throw exception and unwind
-      return nullptr;  // failure
+      SirtRef<mirror::Class> sirt_class(self, fields_class);
+      if (LIKELY(class_linker->EnsureInitialized(sirt_class, true, true))) {
+        // Otherwise let's ensure the class is initialized before resolving the field.
+        return resolved_field;
+      } else {
+        DCHECK(self->IsExceptionPending());  // Throw exception and unwind
+        return nullptr;  // failure
+      }
     }
   }
 }
@@ -535,12 +538,13 @@ static inline mirror::Class* ResolveVerifyAndClinit(uint32_t type_idx,
   if (klass == referring_class && referrer->IsConstructor() && referrer->IsStatic()) {
     return klass;
   }
-  if (!class_linker->EnsureInitialized(klass, true, true)) {
+  SirtRef<mirror::Class> sirt_class(self, klass);
+  if (!class_linker->EnsureInitialized(sirt_class, true, true)) {
     CHECK(self->IsExceptionPending());
     return NULL;  // Failure - Indicate to caller to deliver exception
   }
-  referrer->GetDexCacheInitializedStaticStorage()->Set(type_idx, klass);
-  return klass;
+  referrer->GetDexCacheInitializedStaticStorage()->Set(type_idx, sirt_class.get());
+  return sirt_class.get();
 }
 
 extern void ThrowStackOverflowError(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

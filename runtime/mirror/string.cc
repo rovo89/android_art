@@ -122,7 +122,7 @@ String* String::AllocFromUtf16(Thread* self,
                                const uint16_t* utf16_data_in,
                                int32_t hash_code) {
   CHECK(utf16_data_in != NULL || utf16_length == 0);
-  String* string = Alloc(self, GetJavaLangString(), utf16_length);
+  String* string = Alloc(self, utf16_length);
   if (UNLIKELY(string == nullptr)) {
     return nullptr;
   }
@@ -152,7 +152,7 @@ String* String::AllocFromModifiedUtf8(Thread* self, const char* utf) {
 
 String* String::AllocFromModifiedUtf8(Thread* self, int32_t utf16_length,
                                       const char* utf8_data_in) {
-  String* string = Alloc(self, GetJavaLangString(), utf16_length);
+  String* string = Alloc(self, utf16_length);
   if (UNLIKELY(string == nullptr)) {
     return nullptr;
   }
@@ -163,21 +163,20 @@ String* String::AllocFromModifiedUtf8(Thread* self, int32_t utf16_length,
   return string;
 }
 
-String* String::Alloc(Thread* self, Class* java_lang_String, int32_t utf16_length) {
-  CharArray* array = CharArray::Alloc(self, utf16_length);
-  if (UNLIKELY(array == nullptr)) {
+String* String::Alloc(Thread* self, int32_t utf16_length) {
+  SirtRef<CharArray> array(self, CharArray::Alloc(self, utf16_length));
+  if (UNLIKELY(array.get() == nullptr)) {
     return nullptr;
   }
-  return Alloc(self, java_lang_String, array);
+  return Alloc(self, array);
 }
 
-String* String::Alloc(Thread* self, Class* java_lang_String, CharArray* array) {
+String* String::Alloc(Thread* self, const SirtRef<CharArray>& array) {
   // Hold reference in case AllocObject causes GC.
-  SirtRef<CharArray> array_ref(self, array);
-  String* string = down_cast<String*>(java_lang_String->AllocObject(self));
+  String* string = down_cast<String*>(GetJavaLangString()->AllocObject(self));
   if (LIKELY(string != nullptr)) {
-    string->SetArray(array_ref.get());
-    string->SetCount(array_ref->GetLength());
+    string->SetArray(array.get());
+    string->SetCount(array->GetLength());
   }
   return string;
 }
@@ -285,6 +284,12 @@ int32_t String::CompareTo(String* rhs) const {
     return otherRes;
   }
   return countDiff;
+}
+
+void String::VisitRoots(RootVisitor* visitor, void* arg) {
+  if (java_lang_String_ != nullptr) {
+    java_lang_String_ = down_cast<Class*>(visitor(java_lang_String_, arg));
+  }
 }
 
 }  // namespace mirror

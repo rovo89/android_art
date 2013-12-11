@@ -41,24 +41,20 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
   // done in the runnable state where suspension is expected.
   DCHECK_EQ(self->GetState(), kRunnable);
   self->AssertThreadSuspensionIsAllowable();
+  // Need to check that we arent the large object allocator since the large object allocation code
+  // path this function. If we didn't check we would have an infinite loop.
+  if (allocator != kAllocatorTypeLOS && UNLIKELY(ShouldAllocLargeObject(klass, byte_count))) {
+    return AllocLargeObject<kInstrumented, PreFenceVisitor>(self, klass, byte_count,
+                                                            pre_fence_visitor);
+  }
   mirror::Object* obj;
   size_t bytes_allocated;
   AllocationTimer alloc_timer(this, &obj);
-  if (UNLIKELY(ShouldAllocLargeObject(klass, byte_count))) {
-    obj = TryToAllocate<kInstrumented>(self, kAllocatorTypeLOS, byte_count, false,
-                                       &bytes_allocated);
-    allocator = kAllocatorTypeLOS;
-  } else {
-    obj = TryToAllocate<kInstrumented>(self, allocator, byte_count, false, &bytes_allocated);
-  }
-
+  obj = TryToAllocate<kInstrumented, false>(self, allocator, byte_count, &bytes_allocated);
   if (UNLIKELY(obj == nullptr)) {
-    SirtRef<mirror::Class> sirt_c(self, klass);
-    obj = AllocateInternalWithGc(self, allocator, byte_count, &bytes_allocated);
+    obj = AllocateInternalWithGc(self, allocator, byte_count, &bytes_allocated, &klass);
     if (obj == nullptr) {
       return nullptr;
-    } else {
-      klass = sirt_c.get();
     }
   }
   obj->SetClass(klass);
@@ -105,11 +101,19 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
   return obj;
 }
 
-template <const bool kInstrumented>
+template <bool kInstrumented, typename PreFenceVisitor>
+inline mirror::Object* Heap::AllocLargeObject(Thread* self, mirror::Class* klass,
+                                              size_t byte_count,
+                                              const PreFenceVisitor& pre_fence_visitor) {
+  return AllocObjectWithAllocator<kInstrumented, PreFenceVisitor>(self, klass, byte_count,
+                                                                  kAllocatorTypeLOS,
+                                                                  pre_fence_visitor);
+}
+
+template <const bool kInstrumented, const bool kGrow>
 inline mirror::Object* Heap::TryToAllocate(Thread* self, AllocatorType allocator_type,
-                                           size_t alloc_size, bool grow,
-                                           size_t* bytes_allocated) {
-  if (UNLIKELY(IsOutOfMemoryOnAllocation(alloc_size, grow))) {
+                                           size_t alloc_size, size_t* bytes_allocated) {
+  if (UNLIKELY(IsOutOfMemoryOnAllocation<kGrow>(alloc_size))) {
     return nullptr;
   }
   if (kInstrumented) {
@@ -190,14 +194,15 @@ inline bool Heap::ShouldAllocLargeObject(mirror::Class* c, size_t byte_count) co
   return byte_count >= kLargeObjectThreshold && have_zygote_space_ && c->IsPrimitiveArray();
 }
 
-inline bool Heap::IsOutOfMemoryOnAllocation(size_t alloc_size, bool grow) {
+template <const bool kGrow>
+inline bool Heap::IsOutOfMemoryOnAllocation(size_t alloc_size) {
   size_t new_footprint = num_bytes_allocated_ + alloc_size;
   if (UNLIKELY(new_footprint > max_allowed_footprint_)) {
     if (UNLIKELY(new_footprint > growth_limit_)) {
       return true;
     }
     if (!concurrent_gc_) {
-      if (!grow) {
+      if (!kGrow) {
         return true;
       }
       // TODO: Grow for allocation is racy, fix it.

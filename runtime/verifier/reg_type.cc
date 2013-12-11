@@ -969,6 +969,12 @@ void RegType::CheckInvariants() const {
   }
 }
 
+void RegType::VisitRoots(RootVisitor* visitor, void* arg) {
+  if (klass_ != nullptr) {
+    klass_ = down_cast<mirror::Class*>(visitor(klass_, arg));
+  }
+}
+
 void UninitializedThisReferenceType::CheckInvariants() const {
   CHECK_EQ(GetAllocationPc(), 0U) << *this;
 }
