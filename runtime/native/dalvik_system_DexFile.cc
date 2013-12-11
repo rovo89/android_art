@@ -95,20 +95,27 @@ static jint DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceNam
   }
 
   uint32_t dex_location_checksum;
+  uint32_t* dex_location_checksum_pointer = &dex_location_checksum;
   std::string error_msg;
-  if (!DexFile::GetChecksum(sourceName.c_str(), &dex_location_checksum, &error_msg)) {
-    ScopedObjectAccess soa(env);
-    DCHECK(!error_msg.empty());
-    ThrowIOException("%s", error_msg.c_str());
-    return 0;
+  if (!DexFile::GetChecksum(sourceName.c_str(), dex_location_checksum_pointer, &error_msg)) {
+    dex_location_checksum_pointer = NULL;
   }
 
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   const DexFile* dex_file;
   if (outputName.c_str() == nullptr) {
+    // FindOrCreateOatFileForDexLocation can tolerate a missing dex_location_checksum
+    error_msg.clear();
     dex_file = linker->FindDexFileInOatFileFromDexLocation(sourceName.c_str(),
-                                                           dex_location_checksum, &error_msg);
+                                                           dex_location_checksum_pointer, &error_msg);
   } else {
+    // FindOrCreateOatFileForDexLocation requires the dex_location_checksum
+    if (dex_location_checksum_pointer == NULL) {
+      ScopedObjectAccess soa(env);
+      DCHECK(!error_msg.empty());
+      ThrowIOException("%s", error_msg.c_str());
+      return 0;
+    }
     dex_file = linker->FindOrCreateOatFileForDexLocation(sourceName.c_str(), dex_location_checksum,
                                                          outputName.c_str(), &error_msg);
   }

@@ -268,7 +268,7 @@ class ClassLinker {
   // that this returns null if the location checksum of the DexFile
   // does not match the OatFile.
   const DexFile* FindDexFileInOatFileFromDexLocation(const char* location,
-                                                     uint32_t location_checksum,
+                                                     const uint32_t* const location_checksum,
                                                      std::string* error_msg)
       LOCKS_EXCLUDED(dex_lock_, Locks::mutator_lock_);
 
@@ -495,7 +495,7 @@ class ClassLinker {
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const OatFile* FindOpenedOatFileFromDexLocation(const char* dex_location,
-                                                  uint32_t dex_location_checksum)
+                                                  const uint32_t* const dex_location_checksum)
       LOCKS_EXCLUDED(dex_lock);
   const OatFile* FindOpenedOatFileFromOatLocation(const std::string& oat_location)
       LOCKS_EXCLUDED(dex_lock_);

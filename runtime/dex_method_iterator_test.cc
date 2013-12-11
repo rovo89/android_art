@@ -36,7 +36,7 @@ class DexMethodIteratorTest : public CommonTest {
 TEST_F(DexMethodIteratorTest, Basic) {
   ScopedObjectAccess soa(Thread::Current());
   std::vector<const DexFile*> dex_files;
-  dex_files.push_back(OpenDexFile("core"));
+  dex_files.push_back(OpenDexFile("core-libart"));
   dex_files.push_back(OpenDexFile("conscrypt"));
   dex_files.push_back(OpenDexFile("okhttp"));
   dex_files.push_back(OpenDexFile("core-junit"));
