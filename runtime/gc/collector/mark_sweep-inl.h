@@ -69,15 +69,14 @@ inline void MarkSweep::VisitObjectReferences(mirror::Object* obj, const Visitor&
   DCHECK(obj->GetClass() != NULL);
   mirror::Class* klass = obj->GetClass();
   DCHECK(klass != NULL);
-  if (visit_class) {
-    visitor(obj, klass, mirror::Object::ClassOffset(), false);
-  }
   if (klass == mirror::Class::GetJavaLangClass()) {
     DCHECK_EQ(klass->GetClass(), mirror::Class::GetJavaLangClass());
     VisitClassReferences(klass, obj, visitor);
   } else {
     if (klass->IsArrayClass()) {
-      visitor(obj, klass, mirror::Object::ClassOffset(), false);
+      if (visit_class) {
+        visitor(obj, klass, mirror::Object::ClassOffset(), false);
+      }
       if (klass->IsObjectArrayClass()) {
         VisitObjectArrayReferences(obj->AsObjectArray<mirror::Object>(), visitor);
       }

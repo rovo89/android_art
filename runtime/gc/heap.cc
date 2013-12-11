@@ -881,14 +881,17 @@ void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
 }
 
 mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocator,
-                                             size_t alloc_size, size_t* bytes_allocated) {
+                                             size_t alloc_size, size_t* bytes_allocated,
+                                             mirror::Class** klass) {
   mirror::Object* ptr = nullptr;
+  DCHECK(klass != nullptr);
+  SirtRef<mirror::Class> sirt_klass(self, *klass);
   // The allocation failed. If the GC is running, block until it completes, and then retry the
   // allocation.
   collector::GcType last_gc = WaitForGcToComplete(self);
   if (last_gc != collector::kGcTypeNone) {
     // A GC was in progress and we blocked, retry allocation now that memory has been freed.
-    ptr = TryToAllocate<true>(self, allocator, alloc_size, false, bytes_allocated);
+    ptr = TryToAllocate<true, false>(self, allocator, alloc_size, bytes_allocated);
   }
 
   // Loop through our different Gc types and try to Gc until we get enough free memory.
@@ -899,13 +902,13 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
     // Attempt to run the collector, if we succeed, re-try the allocation.
     if (CollectGarbageInternal(gc_type, kGcCauseForAlloc, false) != collector::kGcTypeNone) {
       // Did we free sufficient memory for the allocation to succeed?
-      ptr = TryToAllocate<true>(self, allocator, alloc_size, false, bytes_allocated);
+      ptr = TryToAllocate<true, false>(self, allocator, alloc_size, bytes_allocated);
     }
   }
   // Allocations have failed after GCs;  this is an exceptional state.
   if (ptr == nullptr) {
     // Try harder, growing the heap if necessary.
-    ptr = TryToAllocate<true>(self, allocator, alloc_size, true, bytes_allocated);
+    ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated);
   }
   if (ptr == nullptr) {
     // Most allocations should have succeeded by now, so the heap is really full, really fragmented,
@@ -918,11 +921,12 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
     // We don't need a WaitForGcToComplete here either.
     DCHECK(!gc_plan_.empty());
     CollectGarbageInternal(gc_plan_.back(), kGcCauseForAlloc, true);
-    ptr = TryToAllocate<true>(self, allocator, alloc_size, true, bytes_allocated);
+    ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated);
     if (ptr == nullptr) {
       ThrowOutOfMemoryError(self, alloc_size, false);
     }
   }
+  *klass = sirt_klass.get();
   return ptr;
 }
 

@@ -19,6 +19,7 @@
 
 #include "class.h"
 #include "gtest/gtest.h"
+#include "root_visitor.h"
 
 namespace art {
 
@@ -77,12 +78,6 @@ class MANAGED String : public Object {
                                        const char* utf8_data_in)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static String* Alloc(Thread* self, Class* java_lang_String, int32_t utf16_length)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  static String* Alloc(Thread* self, Class* java_lang_String, CharArray* array)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   bool Equals(const char* modified_utf8) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -114,6 +109,8 @@ class MANAGED String : public Object {
 
   static void SetClass(Class* java_lang_String);
   static void ResetClass();
+  static void VisitRoots(RootVisitor* visitor, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   void SetHashCode(int32_t new_hash_code) {
@@ -131,6 +128,12 @@ class MANAGED String : public Object {
     DCHECK_GE(GetLength(), new_offset);
     SetField32(OFFSET_OF_OBJECT_MEMBER(String, offset_), new_offset, false);
   }
+
+  static String* Alloc(Thread* self, int32_t utf16_length)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static String* Alloc(Thread* self, const SirtRef<CharArray>& array)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetArray(CharArray* new_array) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

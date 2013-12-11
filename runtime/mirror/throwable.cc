@@ -93,5 +93,11 @@ void Throwable::ResetClass() {
   java_lang_Throwable_ = NULL;
 }
 
+void Throwable::VisitRoots(RootVisitor* visitor, void* arg) {
+  if (java_lang_Throwable_ != nullptr) {
+    java_lang_Throwable_ = down_cast<Class*>(visitor(java_lang_Throwable_, arg));
+  }
+}
+
 }  // namespace mirror
 }  // namespace art

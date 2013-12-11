@@ -31,16 +31,15 @@ class TimingLogger;
 class CumulativeLogger {
  public:
   explicit CumulativeLogger(const std::string& name);
-  void prepare_stats();
   ~CumulativeLogger();
   void Start();
-  void End();
-  void Reset();
+  void End() LOCKS_EXCLUDED(lock_);
+  void Reset() LOCKS_EXCLUDED(lock_);
   void Dump(std::ostream& os) LOCKS_EXCLUDED(lock_);
   uint64_t GetTotalNs() const;
   // Allow the name to be modified, particularly when the cumulative logger is a field within a
   // parent class that is unable to determine the "name" of a sub-class.
-  void SetName(const std::string& name);
+  void SetName(const std::string& name) LOCKS_EXCLUDED(lock_);
   void AddLogger(const TimingLogger& logger) LOCKS_EXCLUDED(lock_);
   size_t GetIterations() const;
 

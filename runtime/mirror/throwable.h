@@ -18,6 +18,7 @@
 #define ART_RUNTIME_MIRROR_THROWABLE_H_
 
 #include "object.h"
+#include "root_visitor.h"
 #include "string.h"
 
 namespace art {
@@ -50,6 +51,8 @@ class MANAGED Throwable : public Object {
 
   static void SetClass(Class* java_lang_Throwable);
   static void ResetClass();
+  static void VisitRoots(RootVisitor* visitor, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   Object* GetStackState() const {

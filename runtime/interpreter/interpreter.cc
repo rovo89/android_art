@@ -343,12 +343,13 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
     ++cur_reg;
   } else if (UNLIKELY(!method->GetDeclaringClass()->IsInitializing())) {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    if (UNLIKELY(!class_linker->EnsureInitialized(method->GetDeclaringClass(), true, true))) {
+    SirtRef<mirror::Class> sirt_c(self, method->GetDeclaringClass());
+    if (UNLIKELY(!class_linker->EnsureInitialized(sirt_c, true, true))) {
       CHECK(self->IsExceptionPending());
       self->PopShadowFrame();
       return;
     }
-    CHECK(method->GetDeclaringClass()->IsInitializing());
+    CHECK(sirt_c->IsInitializing());
   }
   const char* shorty = mh.GetShorty();
   for (size_t shorty_pos = 0, arg_pos = 0; cur_reg < num_regs; ++shorty_pos, ++arg_pos, cur_reg++) {
@@ -428,7 +429,7 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh
   ArtMethod* method = shadow_frame->GetMethod();
   // Ensure static methods are initialized.
   if (method->IsStatic()) {
-    Class* declaringClass = method->GetDeclaringClass();
+    SirtRef<Class> declaringClass(self, method->GetDeclaringClass());
     if (UNLIKELY(!declaringClass->IsInitializing())) {
       if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(declaringClass, true,
                                                                             true))) {

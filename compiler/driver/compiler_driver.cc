@@ -1596,7 +1596,8 @@ static void ResolveType(const ParallelCompilationManager* manager, size_t type_i
   ClassLinker* class_linker = manager->GetClassLinker();
   const DexFile& dex_file = *manager->GetDexFile();
   SirtRef<mirror::DexCache> dex_cache(soa.Self(), class_linker->FindDexCache(dex_file));
-  SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader()));
+  SirtRef<mirror::ClassLoader> class_loader(
+      soa.Self(), soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader()));
   mirror::Class* klass = class_linker->ResolveType(dex_file, type_idx, dex_cache, class_loader);
 
   if (klass == NULL) {
@@ -1651,8 +1652,8 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
   jobject jclass_loader = manager->GetClassLoader();
   SirtRef<mirror::ClassLoader> class_loader(
       soa.Self(), soa.Decode<mirror::ClassLoader*>(jclass_loader));
-  mirror::Class* klass = class_linker->FindClass(descriptor, class_loader);
-  if (klass == NULL) {
+  SirtRef<mirror::Class> klass(soa.Self(), class_linker->FindClass(descriptor, class_loader));
+  if (klass.get() == nullptr) {
     CHECK(soa.Self()->IsExceptionPending());
     soa.Self()->ClearException();
 
@@ -1669,8 +1670,8 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
       LOG(ERROR) << "Verification failed on class " << PrettyDescriptor(descriptor)
                  << " because: " << error_msg;
     }
-  } else if (!SkipClass(jclass_loader, dex_file, klass)) {
-    CHECK(klass->IsResolved()) << PrettyClass(klass);
+  } else if (!SkipClass(jclass_loader, dex_file, klass.get())) {
+    CHECK(klass->IsResolved()) << PrettyClass(klass.get());
     class_linker->VerifyClass(klass);
 
     if (klass->IsErroneous()) {
@@ -1680,7 +1681,7 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
     }
 
     CHECK(klass->IsCompileTimeVerified() || klass->IsErroneous())
-        << PrettyDescriptor(klass) << ": state=" << klass->GetStatus();
+        << PrettyDescriptor(klass.get()) << ": state=" << klass->GetStatus();
   }
   soa.Self()->AssertNoPendingException();
 }
@@ -2123,9 +2124,10 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
   ScopedObjectAccess soa(Thread::Current());
   SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
                                             soa.Decode<mirror::ClassLoader*>(jclass_loader));
-  mirror::Class* klass = manager->GetClassLinker()->FindClass(descriptor, class_loader);
+  SirtRef<mirror::Class> klass(soa.Self(),
+                               manager->GetClassLinker()->FindClass(descriptor, class_loader));
 
-  if (klass != NULL && !SkipClass(jclass_loader, dex_file, klass)) {
+  if (klass.get() != nullptr && !SkipClass(jclass_loader, dex_file, klass.get())) {
     // Only try to initialize classes that were successfully verified.
     if (klass->IsVerified()) {
       // Attempt to initialize the class but bail if we either need to initialize the super-class
@@ -2140,7 +2142,8 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
         // parent-to-child and a child-to-parent lock ordering and consequent potential deadlock.
         // We need to use an ObjectLock due to potential suspension in the interpreting code. Rather
         // than use a special Object for the purpose we use the Class of java.lang.Class.
-        ObjectLock lock(soa.Self(), klass->GetClass());
+        SirtRef<mirror::Class> sirt_klass(soa.Self(), klass->GetClass());
+        ObjectLock<mirror::Class> lock(soa.Self(), &sirt_klass);
         // Attempt to initialize allowing initialization of parent classes but still not static
         // fields.
         manager->GetClassLinker()->EnsureInitialized(klass, false, true);
@@ -2164,10 +2167,11 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
               VLOG(compiler) << "Initializing: " << descriptor;
               if (strcmp("Ljava/lang/Void;", descriptor) == 0) {
                 // Hand initialize j.l.Void to avoid Dex file operations in un-started runtime.
-                ObjectLock lock(soa.Self(), klass);
+                ObjectLock<mirror::Class> lock(soa.Self(), &klass);
                 mirror::ObjectArray<mirror::ArtField>* fields = klass->GetSFields();
                 CHECK_EQ(fields->GetLength(), 1);
-                fields->Get(0)->SetObj(klass, manager->GetClassLinker()->FindPrimitiveClass('V'));
+                fields->Get(0)->SetObj(klass.get(),
+                                       manager->GetClassLinker()->FindPrimitiveClass('V'));
                 klass->SetStatus(mirror::Class::kStatusInitialized, soa.Self());
               } else {
                 manager->GetClassLinker()->EnsureInitialized(klass, true, true);
@@ -2180,7 +2184,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
       // If successfully initialized place in SSB array.
       if (klass->IsInitialized()) {
         int32_t ssb_index = klass->GetDexTypeIndex();
-        klass->GetDexCache()->GetInitializedStaticStorage()->Set(ssb_index, klass);
+        klass->GetDexCache()->GetInitializedStaticStorage()->Set(ssb_index, klass.get());
       }
     }
     // Record the final class status if necessary.

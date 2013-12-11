@@ -95,8 +95,8 @@ void CardTable::ClearSpaceCards(space::ContinuousSpace* space) {
 }
 
 void CardTable::ClearCardTable() {
-  // TODO: clear just the range of the table that has been modified
-  memset(mem_map_->Begin(), kCardClean, mem_map_->Size());
+  COMPILE_ASSERT(kCardClean == 0, clean_card_must_be_0);
+  madvise(mem_map_->Begin(), mem_map_->Size(), MADV_DONTNEED);
 }
 
 bool CardTable::AddrIsInCardTable(const void* addr) const {

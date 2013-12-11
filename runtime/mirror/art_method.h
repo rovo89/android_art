@@ -23,6 +23,7 @@
 #include "locks.h"
 #include "modifiers.h"
 #include "object.h"
+#include "root_visitor.h"
 
 namespace art {
 
@@ -380,6 +381,9 @@ class MANAGED ArtMethod : public Object {
   }
 
   static void ResetClass();
+
+  static void VisitRoots(RootVisitor* visitor, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  protected:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
