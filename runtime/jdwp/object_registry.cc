@@ -118,6 +118,9 @@ mirror::Object* ObjectRegistry::InternalGet(JDWP::ObjectId id) {
 }
 
 jobject ObjectRegistry::GetJObject(JDWP::ObjectId id) {
+  if (id == 0) {
+    return NULL;
+  }
   Thread* self = Thread::Current();
   MutexLock mu(self, lock_);
   id_iterator it = id_to_entry_.find(id);

@@ -2713,7 +2713,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
         if (argument == ObjectRegistry::kInvalidObject) {
           return JDWP::ERR_INVALID_OBJECT;
         }
-        if (!argument->InstanceOf(parameter_type)) {
+        if (argument != NULL && !argument->InstanceOf(parameter_type)) {
           return JDWP::ERR_ILLEGAL_ARGUMENT;
         }
 
