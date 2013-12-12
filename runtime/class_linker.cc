@@ -2489,6 +2489,8 @@ void ClassLinker::VerifyClass(const SirtRef<mirror::Class>& klass) {
       if (cause.get() != nullptr) {
         self->GetException(nullptr)->SetCause(cause.get());
       }
+      ClassReference ref(klass->GetDexCache()->GetDexFile(), klass->GetDexClassDefIndex());
+      verifier::MethodVerifier::AddRejectedClass(ref);
       klass->SetStatus(mirror::Class::kStatusError, self);
       return;
     }
