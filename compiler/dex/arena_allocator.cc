@@ -28,6 +28,7 @@ namespace art {
 static constexpr bool kUseMemMap = false;
 static constexpr bool kUseMemSet = true && kUseMemMap;
 static constexpr size_t kValgrindRedZoneBytes = 8;
+constexpr size_t Arena::kDefaultSize;
 
 static const char* alloc_names[ArenaAllocator::kNumAllocKinds] = {
   "Misc       ",
