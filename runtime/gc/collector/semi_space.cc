@@ -558,7 +558,7 @@ void SemiSpace::ScanObject(Object* obj) {
   DCHECK(obj != NULL);
   DCHECK(!from_space_->HasAddress(obj)) << "Scanning object " << obj << " in from space";
   MarkSweep::VisitObjectReferences(obj, [this](Object* obj, Object* ref, const MemberOffset& offset,
-     bool /* is_static */) ALWAYS_INLINE NO_THREAD_SAFETY_ANALYSIS {
+     bool /* is_static */) ALWAYS_INLINE_LAMBDA NO_THREAD_SAFETY_ANALYSIS {
     mirror::Object* new_address = MarkObject(ref);
     if (new_address != ref) {
       DCHECK(new_address != nullptr);
