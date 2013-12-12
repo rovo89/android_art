@@ -22,6 +22,7 @@
 
 namespace art {
 
+const uint32_t DexFileMethodInliner::kIndexUnresolved;
 const char* DexFileMethodInliner::kClassCacheNames[] = {
     "Z",                       // kClassCacheBoolean
     "B",                       // kClassCacheByte
