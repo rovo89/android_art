@@ -142,9 +142,9 @@ extern "C" uint64_t artInvokeInterfaceTrampoline(mirror::ArtMethod* interface_me
 }
 
 template<InvokeType type, bool access_check>
-static uint64_t artInvokeCommon(uint32_t method_idx, mirror::Object* this_object,
-                                mirror::ArtMethod* caller_method,
-                                Thread* self, mirror::ArtMethod** sp) {
+uint64_t artInvokeCommon(uint32_t method_idx, mirror::Object* this_object,
+                         mirror::ArtMethod* caller_method,
+                         Thread* self, mirror::ArtMethod** sp) {
   mirror::ArtMethod* method = FindMethodFast(method_idx, this_object, caller_method,
                                                   access_check, type);
   if (UNLIKELY(method == NULL)) {
@@ -174,12 +174,12 @@ static uint64_t artInvokeCommon(uint32_t method_idx, mirror::Object* this_object
 }
 
 // Explicit template declarations of artInvokeCommon for all invoke types.
-#define EXPLICIT_ART_INVOKE_COMMON_TEMPLATE_DECL(_type, _access_check)                        \
-  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                        \
-  static uint64_t artInvokeCommon<_type, _access_check>(uint32_t method_idx,                  \
-                                                        mirror::Object* this_object,          \
-                                                        mirror::ArtMethod* caller_method,     \
-                                                        Thread* self, mirror::ArtMethod** sp)
+#define EXPLICIT_ART_INVOKE_COMMON_TEMPLATE_DECL(_type, _access_check)                 \
+  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                 \
+  uint64_t artInvokeCommon<_type, _access_check>(uint32_t method_idx,                  \
+                                                 mirror::Object* this_object,          \
+                                                 mirror::ArtMethod* caller_method,     \
+                                                 Thread* self, mirror::ArtMethod** sp)
 
 #define EXPLICIT_ART_INVOKE_COMMON_TYPED_TEMPLATE_DECL(_type) \
     EXPLICIT_ART_INVOKE_COMMON_TEMPLATE_DECL(_type, false);   \

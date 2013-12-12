@@ -90,8 +90,8 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
   ScopedObjectAccessUnchecked soa(self);
   if (method->IsStatic()) {
     if (shorty == "L") {
-      typedef jobject (fnptr)(JNIEnv*, jclass);
-      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
+      typedef jobject (fntype)(JNIEnv*, jclass);
+      fntype* const fn = reinterpret_cast<fntype*>(const_cast<void*>(method->GetNativeMethod()));
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       jobject jresult;
@@ -101,36 +101,36 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
       }
       result->SetL(soa.Decode<Object*>(jresult));
     } else if (shorty == "V") {
-      typedef void (fnptr)(JNIEnv*, jclass);
-      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
+      typedef void (fntype)(JNIEnv*, jclass);
+      fntype* const fn = reinterpret_cast<fntype*>(const_cast<void*>(method->GetNativeMethod()));
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedThreadStateChange tsc(self, kNative);
       fn(soa.Env(), klass.get());
     } else if (shorty == "Z") {
-      typedef jboolean (fnptr)(JNIEnv*, jclass);
-      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
+      typedef jboolean (fntype)(JNIEnv*, jclass);
+      fntype* const fn = reinterpret_cast<fntype*>(const_cast<void*>(method->GetNativeMethod()));
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedThreadStateChange tsc(self, kNative);
       result->SetZ(fn(soa.Env(), klass.get()));
     } else if (shorty == "BI") {
-      typedef jbyte (fnptr)(JNIEnv*, jclass, jint);
-      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
+      typedef jbyte (fntype)(JNIEnv*, jclass, jint);
+      fntype* const fn = reinterpret_cast<fntype*>(const_cast<void*>(method->GetNativeMethod()));
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedThreadStateChange tsc(self, kNative);
       result->SetB(fn(soa.Env(), klass.get(), args[0]));
     } else if (shorty == "II") {
-      typedef jint (fnptr)(JNIEnv*, jclass, jint);
-      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
+      typedef jint (fntype)(JNIEnv*, jclass, jint);
+      fntype* const fn = reinterpret_cast<fntype*>(const_cast<void*>(method->GetNativeMethod()));
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedThreadStateChange tsc(self, kNative);
       result->SetI(fn(soa.Env(), klass.get(), args[0]));
     } else if (shorty == "LL") {
-      typedef jobject (fnptr)(JNIEnv*, jclass, jobject);
-      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
+      typedef jobject (fntype)(JNIEnv*, jclass, jobject);
+      fntype* const fn = reinterpret_cast<fntype*>(const_cast<void*>(method->GetNativeMethod()));
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedLocalRef<jobject> arg0(soa.Env(),
@@ -142,15 +142,15 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
       }
       result->SetL(soa.Decode<Object*>(jresult));
     } else if (shorty == "IIZ") {
-      typedef jint (fnptr)(JNIEnv*, jclass, jint, jboolean);
-      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
+      typedef jint (fntype)(JNIEnv*, jclass, jint, jboolean);
+      fntype* const fn = reinterpret_cast<fntype*>(const_cast<void*>(method->GetNativeMethod()));
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedThreadStateChange tsc(self, kNative);
       result->SetI(fn(soa.Env(), klass.get(), args[0], args[1]));
     } else if (shorty == "ILI") {
-      typedef jint (fnptr)(JNIEnv*, jclass, jobject, jint);
-      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
+      typedef jint (fntype)(JNIEnv*, jclass, jobject, jint);
+      fntype* const fn = reinterpret_cast<fntype*>(const_cast<void*>(method->GetNativeMethod()));
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedLocalRef<jobject> arg0(soa.Env(),
@@ -158,22 +158,22 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
       ScopedThreadStateChange tsc(self, kNative);
       result->SetI(fn(soa.Env(), klass.get(), arg0.get(), args[1]));
     } else if (shorty == "SIZ") {
-      typedef jshort (fnptr)(JNIEnv*, jclass, jint, jboolean);
-      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
+      typedef jshort (fntype)(JNIEnv*, jclass, jint, jboolean);
+      fntype* const fn = reinterpret_cast<fntype*>(const_cast<void*>(method->GetNativeMethod()));
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedThreadStateChange tsc(self, kNative);
       result->SetS(fn(soa.Env(), klass.get(), args[0], args[1]));
     } else if (shorty == "VIZ") {
-      typedef void (fnptr)(JNIEnv*, jclass, jint, jboolean);
-      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
+      typedef void (fntype)(JNIEnv*, jclass, jint, jboolean);
+      fntype* const fn = reinterpret_cast<fntype*>(const_cast<void*>(method->GetNativeMethod()));
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedThreadStateChange tsc(self, kNative);
       fn(soa.Env(), klass.get(), args[0], args[1]);
     } else if (shorty == "ZLL") {
-      typedef jboolean (fnptr)(JNIEnv*, jclass, jobject, jobject);
-      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
+      typedef jboolean (fntype)(JNIEnv*, jclass, jobject, jobject);
+      fntype* const fn = reinterpret_cast<fntype*>(const_cast<void*>(method->GetNativeMethod()));
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedLocalRef<jobject> arg0(soa.Env(),
@@ -183,8 +183,8 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
       ScopedThreadStateChange tsc(self, kNative);
       result->SetZ(fn(soa.Env(), klass.get(), arg0.get(), arg1.get()));
     } else if (shorty == "ZILL") {
-      typedef jboolean (fnptr)(JNIEnv*, jclass, jint, jobject, jobject);
-      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
+      typedef jboolean (fntype)(JNIEnv*, jclass, jint, jobject, jobject);
+      fntype* const fn = reinterpret_cast<fntype*>(const_cast<void*>(method->GetNativeMethod()));
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedLocalRef<jobject> arg1(soa.Env(),
@@ -194,8 +194,8 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
       ScopedThreadStateChange tsc(self, kNative);
       result->SetZ(fn(soa.Env(), klass.get(), args[0], arg1.get(), arg2.get()));
     } else if (shorty == "VILII") {
-      typedef void (fnptr)(JNIEnv*, jclass, jint, jobject, jint, jint);
-      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
+      typedef void (fntype)(JNIEnv*, jclass, jint, jobject, jint, jint);
+      fntype* const fn = reinterpret_cast<fntype*>(const_cast<void*>(method->GetNativeMethod()));
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedLocalRef<jobject> arg1(soa.Env(),
@@ -203,8 +203,8 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
       ScopedThreadStateChange tsc(self, kNative);
       fn(soa.Env(), klass.get(), args[0], arg1.get(), args[2], args[3]);
     } else if (shorty == "VLILII") {
-      typedef void (fnptr)(JNIEnv*, jclass, jobject, jint, jobject, jint, jint);
-      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
+      typedef void (fntype)(JNIEnv*, jclass, jobject, jint, jobject, jint, jint);
+      fntype* const fn = reinterpret_cast<fntype*>(const_cast<void*>(method->GetNativeMethod()));
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedLocalRef<jobject> arg0(soa.Env(),
@@ -219,8 +219,8 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
     }
   } else {
     if (shorty == "L") {
-      typedef jobject (fnptr)(JNIEnv*, jobject);
-      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
+      typedef jobject (fntype)(JNIEnv*, jobject);
+      fntype* const fn = reinterpret_cast<fntype*>(const_cast<void*>(method->GetNativeMethod()));
       ScopedLocalRef<jobject> rcvr(soa.Env(),
                                    soa.AddLocalReference<jobject>(receiver));
       jobject jresult;
@@ -230,15 +230,15 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
       }
       result->SetL(soa.Decode<Object*>(jresult));
     } else if (shorty == "V") {
-      typedef void (fnptr)(JNIEnv*, jobject);
-      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
+      typedef void (fntype)(JNIEnv*, jobject);
+      fntype* const fn = reinterpret_cast<fntype*>(const_cast<void*>(method->GetNativeMethod()));
       ScopedLocalRef<jobject> rcvr(soa.Env(),
                                    soa.AddLocalReference<jobject>(receiver));
       ScopedThreadStateChange tsc(self, kNative);
       fn(soa.Env(), rcvr.get());
     } else if (shorty == "LL") {
-      typedef jobject (fnptr)(JNIEnv*, jobject, jobject);
-      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
+      typedef jobject (fntype)(JNIEnv*, jobject, jobject);
+      fntype* const fn = reinterpret_cast<fntype*>(const_cast<void*>(method->GetNativeMethod()));
       ScopedLocalRef<jobject> rcvr(soa.Env(),
                                    soa.AddLocalReference<jobject>(receiver));
       ScopedLocalRef<jobject> arg0(soa.Env(),
@@ -251,8 +251,8 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
       result->SetL(soa.Decode<Object*>(jresult));
       ScopedThreadStateChange tsc(self, kNative);
     } else if (shorty == "III") {
-      typedef jint (fnptr)(JNIEnv*, jobject, jint, jint);
-      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
+      typedef jint (fntype)(JNIEnv*, jobject, jint, jint);
+      fntype* const fn = reinterpret_cast<fntype*>(const_cast<void*>(method->GetNativeMethod()));
       ScopedLocalRef<jobject> rcvr(soa.Env(),
                                    soa.AddLocalReference<jobject>(receiver));
       ScopedThreadStateChange tsc(self, kNative);
