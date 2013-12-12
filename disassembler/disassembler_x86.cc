@@ -208,7 +208,9 @@ DISASSEMBLER_ENTRY(cmp,
     reg_in_opcode = true;
     break;
   case 0x68: opcode << "push"; immediate_bytes = 4; break;
+  case 0x69: opcode << "imul"; load = true; has_modrm = true; immediate_bytes = 4; break;
   case 0x6A: opcode << "push"; immediate_bytes = 1; break;
+  case 0x6B: opcode << "imul"; load = true; has_modrm = true; immediate_bytes = 1; break;
   case 0x70: case 0x71: case 0x72: case 0x73: case 0x74: case 0x75: case 0x76: case 0x77:
   case 0x78: case 0x79: case 0x7A: case 0x7B: case 0x7C: case 0x7D: case 0x7E: case 0x7F:
     static const char* condition_codes[] =
@@ -595,6 +597,20 @@ DISASSEMBLER_ENTRY(cmp,
     reg_is_opcode = true;
     break;
   case 0xCC: opcode << "int 3"; break;
+  case 0xD9:
+    static const char* d9_opcodes[] = {"flds", "unknown-d9", "fsts", "fstps", "fldenv", "fldcw", "fnstenv", "fnstcw"};
+    modrm_opcodes = d9_opcodes;
+    store = true;
+    has_modrm = true;
+    reg_is_opcode = true;
+    break;
+  case 0xDD:
+    static const char* dd_opcodes[] = {"fldl", "fisttp", "fstl", "fstpl", "frstor", "unknown-dd", "fnsave", "fnstsw"};
+    modrm_opcodes = dd_opcodes;
+    store = true;
+    has_modrm = true;
+    reg_is_opcode = true;
+    break;
   case 0xE8: opcode << "call"; branch_bytes = 4; break;
   case 0xE9: opcode << "jmp"; branch_bytes = 4; break;
   case 0xEB: opcode << "jmp"; branch_bytes = 1; break;
