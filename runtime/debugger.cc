@@ -796,18 +796,37 @@ JDWP::JdwpError Dbg::GetReferringObjects(JDWP::ObjectId object_id, int32_t max_c
 
 JDWP::JdwpError Dbg::DisableCollection(JDWP::ObjectId object_id)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::Object* o = gRegistry->Get<mirror::Object*>(object_id);
+  if (o == NULL || o == ObjectRegistry::kInvalidObject) {
+    return JDWP::ERR_INVALID_OBJECT;
+  }
   gRegistry->DisableCollection(object_id);
   return JDWP::ERR_NONE;
 }
 
 JDWP::JdwpError Dbg::EnableCollection(JDWP::ObjectId object_id)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::Object* o = gRegistry->Get<mirror::Object*>(object_id);
+  // Unlike DisableCollection, JDWP specs do not state an invalid object causes an error. The RI
+  // also ignores these cases and never return an error. However it's not obvious why this command
+  // should behave differently from DisableCollection and IsCollected commands. So let's be more
+  // strict and return an error if this happens.
+  if (o == NULL || o == ObjectRegistry::kInvalidObject) {
+    return JDWP::ERR_INVALID_OBJECT;
+  }
   gRegistry->EnableCollection(object_id);
   return JDWP::ERR_NONE;
 }
 
 JDWP::JdwpError Dbg::IsCollected(JDWP::ObjectId object_id, bool& is_collected)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::Object* o = gRegistry->Get<mirror::Object*>(object_id);
+  // JDWP specs state an INVALID_OBJECT error is returned if the object ID is not valid. However
+  // the RI seems to ignore this and does not return any error in this case. Let's comply with
+  // JDWP specs here.
+  if (o == NULL || o == ObjectRegistry::kInvalidObject) {
+    return JDWP::ERR_INVALID_OBJECT;
+  }
   is_collected = gRegistry->IsCollected(object_id);
   return JDWP::ERR_NONE;
 }
