@@ -52,12 +52,6 @@ class DexCompiler {
     return *unit_.GetDexFile();
   }
 
-  // TODO: since the whole compilation pipeline uses a "const DexFile", we need
-  // to "unconst" here. The DEX-to-DEX compiler should work on a non-const DexFile.
-  DexFile& GetModifiableDexFile() {
-    return *const_cast<DexFile*>(unit_.GetDexFile());
-  }
-
   bool PerformOptimizations() const {
     return dex_to_dex_compilation_level_ >= kOptimize;
   }
