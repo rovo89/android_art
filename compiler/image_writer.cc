@@ -630,10 +630,10 @@ void ImageWriter::FixupMethod(const ArtMethod* orig, ArtMethod* copy) {
       copy->SetEntryPointFromCompiledCode(GetOatAddress(quick_to_interpreter_bridge_offset_));
 #endif
       copy->SetEntryPointFromInterpreter(reinterpret_cast<EntryPointFromInterpreter*>
-      (GetOatAddress(interpreter_to_interpreter_bridge_offset_)));
+      (const_cast<byte*>(GetOatAddress(interpreter_to_interpreter_bridge_offset_))));
     } else {
       copy->SetEntryPointFromInterpreter(reinterpret_cast<EntryPointFromInterpreter*>
-      (GetOatAddress(interpreter_to_compiled_code_bridge_offset_)));
+      (const_cast<byte*>(GetOatAddress(interpreter_to_compiled_code_bridge_offset_))));
       // Use original code if it exists. Otherwise, set the code pointer to the resolution
       // trampoline.
       const byte* code = GetOatAddress(orig->GetOatCodeOffset());

@@ -262,9 +262,9 @@ static inline mirror::ArtField* FindFieldFromCode(uint32_t field_idx, const mirr
 // Explicit template declarations of FindFieldFromCode for all field access types.
 #define EXPLICIT_FIND_FIELD_FROM_CODE_TEMPLATE_DECL(_type, _access_check) \
 template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE \
-static mirror::ArtField* FindFieldFromCode<_type, _access_check>(uint32_t field_idx, \
-                                                                 const mirror::ArtMethod* referrer, \
-                                                                 Thread* self, size_t expected_size) \
+mirror::ArtField* FindFieldFromCode<_type, _access_check>(uint32_t field_idx, \
+                                                          const mirror::ArtMethod* referrer, \
+                                                          Thread* self, size_t expected_size) \
 
 #define EXPLICIT_FIND_FIELD_FROM_CODE_TYPED_TEMPLATE_DECL(_type) \
     EXPLICIT_FIND_FIELD_FROM_CODE_TEMPLATE_DECL(_type, false); \
@@ -393,12 +393,12 @@ static inline mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror:
 }
 
 // Explicit template declarations of FindMethodFromCode for all invoke types.
-#define EXPLICIT_FIND_METHOD_FROM_CODE_TEMPLATE_DECL(_type, _access_check)                        \
-  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE                              \
-  static mirror::ArtMethod* FindMethodFromCode<_type, _access_check>(uint32_t method_idx,         \
-                                                                     mirror::Object* this_object, \
-                                                                     mirror::ArtMethod* referrer, \
-                                                                     Thread* self)
+#define EXPLICIT_FIND_METHOD_FROM_CODE_TEMPLATE_DECL(_type, _access_check)                 \
+  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE                       \
+  mirror::ArtMethod* FindMethodFromCode<_type, _access_check>(uint32_t method_idx,         \
+                                                              mirror::Object* this_object, \
+                                                              mirror::ArtMethod* referrer, \
+                                                              Thread* self)
 #define EXPLICIT_FIND_METHOD_FROM_CODE_TYPED_TEMPLATE_DECL(_type) \
     EXPLICIT_FIND_METHOD_FROM_CODE_TEMPLATE_DECL(_type, false);   \
     EXPLICIT_FIND_METHOD_FROM_CODE_TEMPLATE_DECL(_type, true)

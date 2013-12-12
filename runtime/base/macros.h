@@ -140,6 +140,13 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 #define ALWAYS_INLINE  __attribute__ ((always_inline))
 #endif
 
+#ifdef __clang__
+/* clang doesn't like attributes on lambda functions */
+#define ALWAYS_INLINE_LAMBDA
+#else
+#define ALWAYS_INLINE_LAMBDA ALWAYS_INLINE
+#endif
+
 #if defined (__APPLE__)
 #define HOT_ATTR
 #define COLD_ATTR
