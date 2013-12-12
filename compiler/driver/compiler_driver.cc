@@ -1430,7 +1430,7 @@ class ParallelCompilationManager {
    private:
     ParallelCompilationManager* const manager_;
     const size_t end_;
-    const Callback* const callback_;
+    Callback* const callback_;
   };
 
   AtomicInteger index_;

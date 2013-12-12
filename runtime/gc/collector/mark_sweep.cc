@@ -669,7 +669,7 @@ class MarkStackTask : public Task {
       MarkSweep* mark_sweep = chunk_task_->mark_sweep_;
       mark_sweep->ScanObjectVisit(obj,
           [mark_sweep, this](Object* /* obj */, Object* ref, const MemberOffset& /* offset */,
-              bool /* is_static */) ALWAYS_INLINE {
+              bool /* is_static */) ALWAYS_INLINE_LAMBDA {
         if (ref != nullptr && mark_sweep->MarkObjectParallel(ref)) {
           if (kUseFinger) {
             android_memory_barrier();

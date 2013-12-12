@@ -1660,7 +1660,6 @@ bool MirConverter::BlockBitcodeConversion(BasicBlock* bb) {
       uint16_t arg_reg = cu_->num_regs;
 
       ::llvm::Function::arg_iterator arg_iter(func_->arg_begin());
-      ::llvm::Function::arg_iterator arg_end(func_->arg_end());
 
       const char* shorty = cu_->shorty;
       uint32_t shorty_size = strlen(shorty);
