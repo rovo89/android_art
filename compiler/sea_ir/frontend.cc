@@ -59,7 +59,7 @@ static CompiledMethod* CompileMethodWithSeaIr(CompilerDriver& compiler,
   std::string llvm_code = llvm_data->GetElf(compiler.GetInstructionSet());
   CompiledMethod* compiled_method =
       new CompiledMethod(compiler, compiler.GetInstructionSet(), llvm_code,
-                         *verifier::MethodVerifier::GetDexGcMap(mref), symbol);
+                         *compiler.GetVerifiedMethodsData()->GetDexGcMap(mref), symbol);
   LOG(INFO) << "Compiled SEA IR method " << PrettyMethod(method_idx, dex_file) << ".";
   return compiled_method;
 }

@@ -56,6 +56,7 @@ namespace verifier {
 class MethodVerifier;
 }
 class ClassLinker;
+class CompilerCallbacks;
 class DexFile;
 class InternTable;
 struct JavaVMExt;
@@ -100,7 +101,7 @@ class Runtime {
     std::string image_;
     bool check_jni_;
     std::string jni_trace_;
-    bool is_compiler_;
+    CompilerCallbacks* compiler_callbacks_;
     bool is_zygote_;
     bool interpreter_only_;
     bool is_explicit_gc_disabled_;
@@ -148,7 +149,11 @@ class Runtime {
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_);
 
   bool IsCompiler() const {
-    return is_compiler_;
+    return compiler_callbacks_ != nullptr;
+  }
+
+  CompilerCallbacks* GetCompilerCallbacks() {
+    return compiler_callbacks_;
   }
 
   bool IsZygote() const {
@@ -469,7 +474,7 @@ class Runtime {
   // A pointer to the active runtime or NULL.
   static Runtime* instance_;
 
-  bool is_compiler_;
+  CompilerCallbacks* compiler_callbacks_;
   bool is_zygote_;
   bool is_concurrent_gc_enabled_;
   bool is_explicit_gc_disabled_;
