@@ -369,8 +369,14 @@ void X86Mir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src) {
 }
 
 bool X86Mir2Lir::GenInlinedSqrt(CallInfo* info) {
-  DCHECK_NE(cu_->instruction_set, kThumb2);
-  return false;
+  RegLocation rl_src = info->args[0];
+  RegLocation rl_dest = InlineTargetWide(info);  // double place for result
+  rl_src = LoadValueWide(rl_src, kFPReg);
+  RegLocation rl_result = EvalLoc(rl_dest, kFPReg, true);
+  NewLIR2(kX86SqrtsdRR, S2d(rl_result.low_reg, rl_result.high_reg),
+          S2d(rl_src.low_reg, rl_src.high_reg));
+  StoreValueWide(rl_dest, rl_result);
+  return true;
 }
 
 
