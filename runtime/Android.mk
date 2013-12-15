@@ -207,6 +207,16 @@ LIBART_TARGET_SRC_FILES += \
 	arch/x86/thread_x86.cc
 LIBART_LDFLAGS += -Wl,--no-fatal-warnings
 else # TARGET_ARCH != x86
+ifeq ($(TARGET_ARCH),x86_64)
+LIBART_TARGET_SRC_FILES += \
+	arch/x86/context_x86.cc \
+	arch/x86/entrypoints_init_x86.cc \
+	arch/x86/jni_entrypoints_x86.S \
+	arch/x86/portable_entrypoints_x86.S \
+	arch/x86/quick_entrypoints_x86.S \
+	arch/x86/thread_x86.cc
+LIBART_LDFLAGS += -Wl,--no-fatal-warnings
+else # TARGET_ARCH != x86_64
 ifeq ($(TARGET_ARCH),mips)
 LIBART_TARGET_SRC_FILES += \
 	arch/mips/context_mips.cc \
@@ -219,6 +229,7 @@ else # TARGET_ARCH != mips
 $(error unsupported TARGET_ARCH=$(TARGET_ARCH))
 endif # TARGET_ARCH != mips
 endif # TARGET_ARCH != x86
+endif # TARGET_ARCH != x86_64
 endif # TARGET_ARCH != arm
 
 
