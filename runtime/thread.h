@@ -814,10 +814,10 @@ class PACKED(4) Thread {
   byte* thread_local_end_;
   size_t thread_local_objects_;
   // Returns the remaining space in the TLAB.
-  size_t TLABSize() const;
+  size_t TlabSize() const;
   // Doesn't check that there is room.
-  mirror::Object* AllocTLAB(size_t bytes);
-  void SetTLAB(byte* start, byte* end);
+  mirror::Object* AllocTlab(size_t bytes);
+  void SetTlab(byte* start, byte* end);
 
   // Thread-local rosalloc runs. There are 34 size brackets in rosalloc
   // runs (RosAlloc::kNumOfSizeBrackets). We can't refer to the
@@ -828,7 +828,7 @@ class PACKED(4) Thread {
   void* rosalloc_runs_[kRosAllocNumOfSizeBrackets];
 
  private:
-  friend class Dbg;  // F or SetStateUnsafe.
+  friend class Dbg;  // For SetStateUnsafe.
   friend class Monitor;
   friend class MonitorInfo;
   friend class Runtime;  // For CreatePeer.

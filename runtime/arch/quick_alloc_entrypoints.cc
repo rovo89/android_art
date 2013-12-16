@@ -51,13 +51,13 @@ void SetQuickAllocEntryPoints##suffix(QuickEntryPoints* qpoints, bool instrument
 namespace art {
 
 // Generate the entrypoint functions.
-GENERATE_ENTRYPOINTS();
+GENERATE_ENTRYPOINTS(_dlmalloc);
+GENERATE_ENTRYPOINTS(_rosalloc);
 GENERATE_ENTRYPOINTS(_bump_pointer);
 GENERATE_ENTRYPOINTS(_tlab);
 
 static bool entry_points_instrumented = false;
-static gc::AllocatorType entry_points_allocator = kMovingCollector ?
-    gc::kAllocatorTypeBumpPointer : gc::kAllocatorTypeFreeList;
+static gc::AllocatorType entry_points_allocator = gc::kAllocatorTypeDlMalloc;
 
 void SetQuickAllocEntryPointsAllocator(gc::AllocatorType allocator) {
   entry_points_allocator = allocator;
@@ -69,15 +69,21 @@ void SetQuickAllocEntryPointsInstrumented(bool instrumented) {
 
 void ResetQuickAllocEntryPoints(QuickEntryPoints* qpoints) {
   switch (entry_points_allocator) {
-    case gc::kAllocatorTypeFreeList: {
-      SetQuickAllocEntryPoints(qpoints, entry_points_instrumented);
+    case gc::kAllocatorTypeDlMalloc: {
+      SetQuickAllocEntryPoints_dlmalloc(qpoints, entry_points_instrumented);
+      break;
+    }
+    case gc::kAllocatorTypeRosAlloc: {
+      SetQuickAllocEntryPoints_rosalloc(qpoints, entry_points_instrumented);
       break;
     }
     case gc::kAllocatorTypeBumpPointer: {
+      CHECK(kMovingCollector);
       SetQuickAllocEntryPoints_bump_pointer(qpoints, entry_points_instrumented);
       break;
     }
     case gc::kAllocatorTypeTLAB: {
+      CHECK(kMovingCollector);
       SetQuickAllocEntryPoints_tlab(qpoints, entry_points_instrumented);
       break;
     }

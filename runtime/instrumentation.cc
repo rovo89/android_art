@@ -413,7 +413,10 @@ void Instrumentation::InstrumentQuickAllocEntryPoints() {
   if (enable_instrumentation) {
     // Instrumentation wasn't enabled so enable it.
     SetQuickAllocEntryPointsInstrumented(true);
+    ThreadList* tl = Runtime::Current()->GetThreadList();
+    tl->SuspendAll();
     ResetQuickAllocEntryPoints();
+    tl->ResumeAll();
   }
 }
 
@@ -425,21 +428,18 @@ void Instrumentation::UninstrumentQuickAllocEntryPoints() {
       quick_alloc_entry_points_instrumentation_counter_.FetchAndSub(1) == 1;
   if (disable_instrumentation) {
     SetQuickAllocEntryPointsInstrumented(false);
+    ThreadList* tl = Runtime::Current()->GetThreadList();
+    tl->SuspendAll();
     ResetQuickAllocEntryPoints();
+    tl->ResumeAll();
   }
 }
 
 void Instrumentation::ResetQuickAllocEntryPoints() {
   Runtime* runtime = Runtime::Current();
   if (runtime->IsStarted()) {
-    ThreadList* tl = runtime->GetThreadList();
-    Thread* self = Thread::Current();
-    tl->SuspendAll();
-    {
-      MutexLock mu(self, *Locks::thread_list_lock_);
-      tl->ForEach(ResetQuickAllocEntryPointsForThread, NULL);
-    }
-    tl->ResumeAll();
+    MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
+    runtime->GetThreadList()->ForEach(ResetQuickAllocEntryPointsForThread, NULL);
   }
 }
 

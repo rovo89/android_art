@@ -63,7 +63,7 @@ class ObjectLock {
 
  private:
   Thread* const self_;
-  const SirtRef<T>* obj_;
+  const SirtRef<T>* const obj_;
   DISALLOW_COPY_AND_ASSIGN(ObjectLock);
 };
 

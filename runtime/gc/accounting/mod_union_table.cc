@@ -82,6 +82,8 @@ class ModUnionUpdateObjectReferencesVisitor {
     if (ref != nullptr) {
       Object* new_ref = visitor_(ref, arg_);
       if (new_ref != ref) {
+        // Use SetFieldPtr to avoid card mark as an optimization which reduces dirtied pages and
+        // improves performance.
         obj->SetFieldPtr(offset, new_ref, true);
       }
     }

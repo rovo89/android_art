@@ -158,12 +158,12 @@ inline void Thread::VerifyStack() {
   }
 }
 
-inline size_t Thread::TLABSize() const {
+inline size_t Thread::TlabSize() const {
   return thread_local_end_ - thread_local_pos_;
 }
 
-inline mirror::Object* Thread::AllocTLAB(size_t bytes) {
-  DCHECK_GE(TLABSize(), bytes);
+inline mirror::Object* Thread::AllocTlab(size_t bytes) {
+  DCHECK_GE(TlabSize(), bytes);
   ++thread_local_objects_;
   mirror::Object* ret = reinterpret_cast<mirror::Object*>(thread_local_pos_);
   thread_local_pos_ += bytes;
