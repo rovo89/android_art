@@ -1384,11 +1384,9 @@ class ParallelCompilationManager {
     self->AssertNoPendingException();
     CHECK_GT(work_units, 0U);
 
-    std::vector<ForAllClosure*> closures(work_units);
     index_ = begin;
     for (size_t i = 0; i < work_units; ++i) {
-      closures[i] = new ForAllClosure(this, end, callback);
-      thread_pool_->AddTask(self, closures[i]);
+      thread_pool_->AddTask(self, new ForAllClosure(this, end, callback));
     }
     thread_pool_->StartWorkers(self);
 
