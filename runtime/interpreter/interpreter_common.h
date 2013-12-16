@@ -87,7 +87,7 @@ static inline void DoMonitorExit(Thread* self, Object* ref) NO_THREAD_SAFETY_ANA
 // DoInvokeVirtualQuick functions.
 // Returns true on success, otherwise throws an exception and returns false.
 template<bool is_range, bool do_assignability_check>
-bool DoCall(ArtMethod* method, Object* receiver, Thread* self, ShadowFrame& shadow_frame,
+bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
             const Instruction* inst, uint16_t inst_data, JValue* result);
 
 // Handles invoke-XXX/range instructions.
@@ -101,10 +101,6 @@ static inline bool DoInvoke(Thread* self, ShadowFrame& shadow_frame, const Instr
   ArtMethod* const method = FindMethodFromCode<type, do_access_check>(method_idx, receiver,
                                                                       shadow_frame.GetMethod(),
                                                                       self);
-  if (type != kStatic) {
-    // Reload the vreg since the GC may have moved the object.
-    receiver = shadow_frame.GetVRegReference(vregC);
-  }
   if (UNLIKELY(method == nullptr)) {
     CHECK(self->IsExceptionPending());
     result->SetJ(0);
@@ -114,8 +110,7 @@ static inline bool DoInvoke(Thread* self, ShadowFrame& shadow_frame, const Instr
     result->SetJ(0);
     return false;
   } else {
-    return DoCall<is_range, do_access_check>(method, receiver, self, shadow_frame, inst,
-                                             inst_data, result);
+    return DoCall<is_range, do_access_check>(method, self, shadow_frame, inst, inst_data, result);
   }
 }
 
@@ -145,7 +140,7 @@ static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
     return false;
   } else {
     // No need to check since we've been quickened.
-    return DoCall<is_range, false>(method, receiver, self, shadow_frame, inst, inst_data, result);
+    return DoCall<is_range, false>(method, self, shadow_frame, inst, inst_data, result);
   }
 }
 
