@@ -827,7 +827,7 @@ class Mir2Lir : public Backend {
     LIR* first_lir_insn_;
     LIR* last_lir_insn_;
     // Lazily retrieved method inliner for intrinsics.
-    const DexFileMethodInliner* inliner_;
+    DexFileMethodInliner* inliner_;
 };  // Class Mir2Lir
 
 }  // namespace art

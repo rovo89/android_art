@@ -40,7 +40,7 @@ class DexFileToMethodInlinerMap {
     DexFileToMethodInlinerMap();
     ~DexFileToMethodInlinerMap();
 
-    const DexFileMethodInliner& GetMethodInliner(const DexFile* dex_file) LOCKS_EXCLUDED(lock_);
+    DexFileMethodInliner* GetMethodInliner(const DexFile* dex_file) LOCKS_EXCLUDED(lock_);
 
   private:
     ReaderWriterMutex lock_;
