@@ -19,6 +19,9 @@
 
 #include <stdint.h>
 #include <map>
+#include "base/mutex.h"
+#include "base/macros.h"
+#include "locks.h"
 
 namespace art {
 
@@ -95,12 +98,12 @@ class DexFileMethodInliner {
     /**
      * Check whether a particular method index corresponds to an intrinsic function.
      */
-    bool IsIntrinsic(uint32_t method_index) const;
+    bool IsIntrinsic(uint32_t method_index) LOCKS_EXCLUDED(lock_);
 
     /**
      * Generate code for an intrinsic function invocation.
      */
-    bool GenIntrinsic(Mir2Lir* backend, CallInfo* info) const;
+    bool GenIntrinsic(Mir2Lir* backend, CallInfo* info) LOCKS_EXCLUDED(lock_);
 
   private:
     /**
@@ -300,14 +303,15 @@ class DexFileMethodInliner {
      *
      * Only DexFileToMethodInlinerMap may call this function to initialize the inliner.
      */
-    void FindIntrinsics(const DexFile* dex_file);
+    void FindIntrinsics(const DexFile* dex_file) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
     friend class DexFileToMethodInlinerMap;
 
+    ReaderWriterMutex lock_;
     /*
      * Maps method indexes (for the particular DexFile) to Intrinsic defintions.
      */
-    std::map<uint32_t, Intrinsic> intrinsics_;
+    std::map<uint32_t, Intrinsic> intrinsics_ GUARDED_BY(lock_);
     const DexFile* dex_file_;
 
     DISALLOW_COPY_AND_ASSIGN(DexFileMethodInliner);

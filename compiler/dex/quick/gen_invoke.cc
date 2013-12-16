@@ -1242,7 +1242,7 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
     if (inliner_ == nullptr) {
       QuickCompilerContext* context = reinterpret_cast<QuickCompilerContext*>(
           cu_->compiler_driver->GetCompilerContext());
-      inliner_ = &context->GetInlinerMap()->GetMethodInliner(cu_->dex_file);
+      inliner_ = context->GetInlinerMap()->GetMethodInliner(cu_->dex_file);
     }
     if (inliner_->GenIntrinsic(this, info)) {
       return;
