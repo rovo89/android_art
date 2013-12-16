@@ -176,6 +176,7 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   // points->pCmplDouble = NULL;  // Not needed on x86.
   // points->pCmplFloat = NULL;  // Not needed on x86.
   qpoints->pFmod = art_quick_fmod;
+  // qpoints->pSqrt = NULL; // Not needed on x86.
   qpoints->pL2d = art_quick_l2d;
   qpoints->pFmodf = art_quick_fmodf;
   qpoints->pL2f = art_quick_l2f;
