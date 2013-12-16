@@ -28,7 +28,7 @@
 namespace art {
 
 DexFileToMethodInlinerMap::DexFileToMethodInlinerMap()
-    : lock_("inline_helper_mutex") {
+    : lock_("DexFileToMethodInlinerMap lock", kDexFileToMethodInlinerMapLock) {
 }
 
 DexFileToMethodInlinerMap::~DexFileToMethodInlinerMap() {
@@ -37,26 +37,37 @@ DexFileToMethodInlinerMap::~DexFileToMethodInlinerMap() {
   }
 }
 
-const DexFileMethodInliner& DexFileToMethodInlinerMap::GetMethodInliner(const DexFile* dex_file) {
+DexFileMethodInliner* DexFileToMethodInlinerMap::GetMethodInliner(const DexFile* dex_file) {
   Thread* self = Thread::Current();
   {
-    ReaderMutexLock lock(self, lock_);
+    ReaderMutexLock mu(self, lock_);
     auto it = inliners_.find(dex_file);
     if (it != inliners_.end()) {
-      return *it->second;
+      return it->second;
     }
   }
 
-  WriterMutexLock lock(self, lock_);
-  DexFileMethodInliner** inliner = &inliners_[dex_file];  // inserts new entry if not found
-  if (*inliner) {
-    return **inliner;
+  // We need to acquire our lock_ to modify inliners_ but we want to release it
+  // before we initialize the new inliner. However, we need to acquire the
+  // new inliner's lock_ before we release our lock_ to prevent another thread
+  // from using the uninitialized inliner. This requires explicit calls to
+  // ExclusiveLock()/ExclusiveUnlock() on one of the locks, the other one
+  // can use WriterMutexLock.
+  DexFileMethodInliner* locked_inliner;
+  {
+    WriterMutexLock mu(self, lock_);
+    DexFileMethodInliner** inliner = &inliners_[dex_file];  // inserts new entry if not found
+    if (*inliner) {
+      return *inliner;
+    }
+    *inliner = new DexFileMethodInliner;
+    DCHECK(*inliner != nullptr);
+    locked_inliner = *inliner;
+    locked_inliner->lock_.ExclusiveLock(self);  // Acquire inliner's lock_ before releasing lock_.
   }
-  *inliner = new DexFileMethodInliner();
-  DCHECK(*inliner != nullptr);
-  // TODO: per-dex file locking for the intrinsics container filling.
-  (*inliner)->FindIntrinsics(dex_file);
-  return **inliner;
+  locked_inliner->FindIntrinsics(dex_file);
+  locked_inliner->lock_.ExclusiveUnlock(self);
+  return locked_inliner;
 }
 
 }  // namespace art
