@@ -158,7 +158,7 @@ class ScratchFile {
 
 #include <signal.h>
 #include <asm/sigcontext.h>
-#include <asm/ucontext.h>
+#include <asm-generic/ucontext.h>
 
 
 // A signal handler called when have an illegal instruction.  We record the fact in
