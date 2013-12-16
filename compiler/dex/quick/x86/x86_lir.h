@@ -349,7 +349,7 @@ enum X86OpCode {
   kX86PsrlqRI,                  // right shift of floating point registers
   kX86PsllqRI,                  // left shift of floating point registers
   kX86SqrtsdRR,                 // sqrt of floating point register
-  kX86FSTPdM,                   // Store and pop top x87 fp stack
+  kX86FstpdM,                   // Store and pop top x87 fp stack
   Binary0fOpCode(kX86Movdxr),   // move into xmm from gpr
   kX86MovdrxRR, kX86MovdrxMR, kX86MovdrxAR,  // move into reg from xmm
   kX86Set8R, kX86Set8M, kX86Set8A,  // set byte depending on condition operand
