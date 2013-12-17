@@ -130,8 +130,8 @@ bool VerifiedMethodsData::IsSafeCast(MethodReference ref, uint32_t pc) {
   }
 
   // Look up the cast address in the set of safe casts
-  MethodSafeCastSet::const_iterator cast_it = it->second->find(pc);
-  return cast_it != it->second->end();
+  // Use binary_search for lookup in the sorted vector.
+  return std::binary_search(it->second->begin(), it->second->end(), pc);
 }
 
 void VerifiedMethodsData::AddRejectedClass(ClassReference ref) {
@@ -337,8 +337,10 @@ VerifiedMethodsData::MethodSafeCastSet* VerifiedMethodsData::GenerateSafeCastSet
       if (is_safe_cast) {
         if (mscs.get() == nullptr) {
           mscs.reset(new MethodSafeCastSet());
+        } else {
+          DCHECK_LT(mscs->back(), dex_pc);  // Verify ordering for push_back() to the sorted vector.
         }
-        mscs->insert(dex_pc);
+        mscs->push_back(dex_pc);
       }
     }
   }
