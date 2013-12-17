@@ -139,9 +139,11 @@ void Class::SetClassSize(size_t new_class_size) {
 // slashes (so "java.lang.String" but "[Ljava.lang.String;"). Madness.
 String* Class::ComputeName() {
   String* name = GetName();
-  if (name != NULL) {
+  if (name != nullptr) {
     return name;
   }
+  Thread* self = Thread::Current();
+  SirtRef<mirror::Class> sirt_c(self, this);
   std::string descriptor(ClassHelper(this).GetDescriptor());
   if ((descriptor[0] != 'L') && (descriptor[0] != '[')) {
     // The descriptor indicates that this is the class for
@@ -160,7 +162,7 @@ String* Class::ComputeName() {
     default:
       LOG(FATAL) << "Unknown primitive type: " << PrintableChar(descriptor[0]);
     }
-    name = String::AllocFromModifiedUtf8(Thread::Current(), c_name);
+    name = String::AllocFromModifiedUtf8(self, c_name);
   } else {
     // Convert the UTF-8 name to a java.lang.String. The name must use '.' to separate package
     // components.
@@ -169,9 +171,9 @@ String* Class::ComputeName() {
       descriptor.erase(descriptor.size() - 1);
     }
     std::replace(descriptor.begin(), descriptor.end(), '/', '.');
-    name = String::AllocFromModifiedUtf8(Thread::Current(), descriptor.c_str());
+    name = String::AllocFromModifiedUtf8(self, descriptor.c_str());
   }
-  SetName(name);
+  sirt_c->SetName(name);
   return name;
 }
 

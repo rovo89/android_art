@@ -577,10 +577,8 @@ class PACKED(4) Thread {
   ~Thread() LOCKS_EXCLUDED(Locks::mutator_lock_,
                            Locks::thread_suspend_count_lock_);
   void Destroy();
-  friend class ThreadList;  // For ~Thread and Destroy.
 
   void CreatePeer(const char* name, bool as_daemon, jobject thread_group);
-  friend class Runtime;  // For CreatePeer.
 
   // Avoid use, callers should use SetState. Used only by SignalCatcher::HandleSigQuit, ~Thread and
   // Dbg::Disconnected.
@@ -589,8 +587,6 @@ class PACKED(4) Thread {
     state_and_flags_.as_struct.state = new_state;
     return old_state;
   }
-  friend class SignalCatcher;  // For SetStateUnsafe.
-  friend class Dbg;  // F or SetStateUnsafe.
 
   void VerifyStackImpl() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -731,9 +727,6 @@ class PACKED(4) Thread {
   // If we're blocked in MonitorEnter, this is the object we're trying to lock.
   mirror::Object* monitor_enter_object_;
 
-  friend class Monitor;
-  friend class MonitorInfo;
-
   // Top of linked list of stack indirect reference tables or NULL for none
   StackIndirectReferenceTable* top_sirt_;
 
@@ -799,13 +792,20 @@ class PACKED(4) Thread {
   PortableEntryPoints portable_entrypoints_;
   QuickEntryPoints quick_entrypoints_;
 
- private:
   // How many times has our pthread key's destructor been called?
   uint32_t thread_exit_check_count_;
 
-  friend class ScopedThreadStateChange;
+  // Thread-local allocation pointer.
+  byte* thread_local_start_;
+  byte* thread_local_pos_;
+  byte* thread_local_end_;
+  size_t thread_local_objects_;
+  // Returns the remaining space in the TLAB.
+  size_t TLABSize() const;
+  // Doesn't check that there is room.
+  mirror::Object* AllocTLAB(size_t bytes);
+  void SetTLAB(byte* start, byte* end);
 
- public:
   // Thread-local rosalloc runs. There are 34 size brackets in rosalloc
   // runs (RosAlloc::kNumOfSizeBrackets). We can't refer to the
   // RosAlloc class due to a header file circular dependency issue.
@@ -813,6 +813,15 @@ class PACKED(4) Thread {
   // initialization time.
   static const size_t kRosAllocNumOfSizeBrackets = 34;
   void* rosalloc_runs_[kRosAllocNumOfSizeBrackets];
+
+ private:
+  friend class Dbg;  // F or SetStateUnsafe.
+  friend class Monitor;
+  friend class MonitorInfo;
+  friend class Runtime;  // For CreatePeer.
+  friend class ScopedThreadStateChange;
+  friend class SignalCatcher;  // For SetStateUnsafe.
+  friend class ThreadList;  // For ~Thread and Destroy.
 
   DISALLOW_COPY_AND_ASSIGN(Thread);
 };

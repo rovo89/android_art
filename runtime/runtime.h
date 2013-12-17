@@ -104,6 +104,7 @@ class Runtime {
     bool is_zygote_;
     bool interpreter_only_;
     bool is_explicit_gc_disabled_;
+    bool use_tlab_;
     size_t long_pause_log_threshold_;
     size_t long_gc_log_threshold_;
     bool dump_gc_performance_on_shutdown_;

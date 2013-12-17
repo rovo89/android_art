@@ -14,22 +14,6 @@
  * limitations under the License.
  */
 
-/*
- * Copyright (C) 2011 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 #include "semi_space.h"
 
 #include <functional>
@@ -337,7 +321,7 @@ Object* SemiSpace::MarkObject(Object* obj) {
       if (forward_address == nullptr) {
         // Otherwise, we need to move the object and add it to the markstack for processing.
         size_t object_size = obj->SizeOf();
-        size_t dummy = 0;
+        size_t bytes_allocated = 0;
         if (kEnableSimplePromo && reinterpret_cast<byte*>(obj) < last_gc_to_space_end_) {
           // If it's allocated before the last GC (older), move (pseudo-promote) it to
           // the non-moving space (as sort of an old generation.)
@@ -346,7 +330,7 @@ Object* SemiSpace::MarkObject(Object* obj) {
           forward_address = non_moving_space->Alloc(self_, object_size, &bytes_promoted);
           if (forward_address == nullptr) {
             // If out of space, fall back to the to-space.
-            forward_address = to_space_->Alloc(self_, object_size, &dummy);
+            forward_address = to_space_->Alloc(self_, object_size, &bytes_allocated);
           } else {
             GetHeap()->num_bytes_allocated_.fetch_add(bytes_promoted);
             bytes_promoted_ += bytes_promoted;
@@ -364,7 +348,7 @@ Object* SemiSpace::MarkObject(Object* obj) {
           DCHECK(forward_address != nullptr);
         } else {
           // If it's allocated after the last GC (younger), copy it to the to-space.
-          forward_address = to_space_->Alloc(self_, object_size, &dummy);
+          forward_address = to_space_->Alloc(self_, object_size, &bytes_allocated);
         }
         // Copy over the object and add it to the mark stack since we still need to update it's
         // references.

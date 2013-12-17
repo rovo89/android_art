@@ -53,6 +53,7 @@ namespace art {
 // Generate the entrypoint functions.
 GENERATE_ENTRYPOINTS();
 GENERATE_ENTRYPOINTS(_bump_pointer);
+GENERATE_ENTRYPOINTS(_tlab);
 
 static bool entry_points_instrumented = false;
 static gc::AllocatorType entry_points_allocator = kMovingCollector ?
@@ -74,6 +75,10 @@ void ResetQuickAllocEntryPoints(QuickEntryPoints* qpoints) {
     }
     case gc::kAllocatorTypeBumpPointer: {
       SetQuickAllocEntryPoints_bump_pointer(qpoints, entry_points_instrumented);
+      break;
+    }
+    case gc::kAllocatorTypeTLAB: {
+      SetQuickAllocEntryPoints_tlab(qpoints, entry_points_instrumented);
       break;
     }
     default: {
