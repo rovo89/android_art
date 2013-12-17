@@ -117,7 +117,7 @@ class DlMallocSpace : public MallocSpace {
   mirror::Object* AllocWithoutGrowthLocked(Thread* self, size_t num_bytes, size_t* bytes_allocated)
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
-  void* CreateAllocator(void* base, size_t morecore_start, size_t initial_size) {
+  void* CreateAllocator(void* base, size_t morecore_start, size_t initial_size, bool /*low_memory_mode*/) {
     return CreateMspace(base, morecore_start, initial_size);
   }
   static void* CreateMspace(void* base, size_t morecore_start, size_t initial_size);

@@ -127,8 +127,11 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
   virtual MallocSpace* CreateInstance(const std::string& name, MemMap* mem_map, void* allocator,
                                       byte* begin, byte* end, byte* limit, size_t growth_limit) = 0;
 
-  // Turn ourself into a zygote space and return a new alloc space which has our unused memory.
-  MallocSpace* CreateZygoteSpace(const char* alloc_space_name);
+  // Turn ourself into a zygote space and return a new alloc space
+  // which has our unused memory.  When true, the low memory mode
+  // argument specifies that the heap wishes the created space to be
+  // more aggressive in releasing unused pages.
+  MallocSpace* CreateZygoteSpace(const char* alloc_space_name, bool low_memory_mode);
 
   virtual uint64_t GetBytesAllocated() = 0;
   virtual uint64_t GetObjectsAllocated() = 0;
@@ -154,7 +157,11 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
   static MemMap* CreateMemMap(const std::string& name, size_t starting_size, size_t* initial_size,
                               size_t* growth_limit, size_t* capacity, byte* requested_begin);
 
-  virtual void* CreateAllocator(void* base, size_t morecore_start, size_t initial_size) = 0;
+  // When true the low memory mode argument specifies that the heap
+  // wishes the created allocator to be more aggressive in releasing
+  // unused pages.
+  virtual void* CreateAllocator(void* base, size_t morecore_start, size_t initial_size,
+                                bool low_memory_mode) = 0;
 
   void RegisterRecentFree(mirror::Object* ptr) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 

@@ -58,7 +58,8 @@ class SpaceTest : public CommonTest {
   }
   static MallocSpace* CreateRosAllocSpace(const std::string& name, size_t initial_size, size_t growth_limit,
                                           size_t capacity, byte* requested_begin) {
-    return RosAllocSpace::Create(name, initial_size, growth_limit, capacity, requested_begin);
+    return RosAllocSpace::Create(name, initial_size, growth_limit, capacity, requested_begin,
+                                 Runtime::Current()->GetHeap()->IsLowMemoryMode());
   }
 
   typedef MallocSpace* (*CreateSpaceFn)(const std::string& name, size_t initial_size, size_t growth_limit,
@@ -178,7 +179,7 @@ void SpaceTest::ZygoteSpaceTestBody(CreateSpaceFn create_space) {
 
   // Make sure that the zygote space isn't directly at the start of the space.
   space->Alloc(self, 1U * MB, &dummy);
-  space = space->CreateZygoteSpace("alloc space");
+  space = space->CreateZygoteSpace("alloc space", Runtime::Current()->GetHeap()->IsLowMemoryMode());
 
   // Make space findable to the heap, will also delete space when runtime is cleaned up
   AddSpace(space);
