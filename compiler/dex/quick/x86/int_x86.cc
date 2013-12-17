@@ -295,16 +295,17 @@ bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   if (is_long) {
     FlushAllRegs();
     LockCallTemps();
+    LoadValueDirectWideFixed(rl_src_expected, rAX, rDX);
+    LoadValueDirectWideFixed(rl_src_new_value, rBX, rCX);
     NewLIR1(kX86Push32R, rDI);
     MarkTemp(rDI);
     LockTemp(rDI);
     NewLIR1(kX86Push32R, rSI);
     MarkTemp(rSI);
     LockTemp(rSI);
-    LoadValueDirectFixed(rl_src_obj, rDI);
-    LoadValueDirectFixed(rl_src_offset, rSI);
-    LoadValueDirectWideFixed(rl_src_expected, rAX, rDX);
-    LoadValueDirectWideFixed(rl_src_new_value, rBX, rCX);
+    const int push_offset = 4 /* push edi */ + 4 /* push esi */;
+    LoadWordDisp(TargetReg(kSp), SRegOffset(rl_src_obj.s_reg_low) + push_offset, rDI);
+    LoadWordDisp(TargetReg(kSp), SRegOffset(rl_src_offset.s_reg_low) + push_offset, rSI);
     NewLIR4(kX86LockCmpxchg8bA, rDI, rSI, 0, 0);
     FreeTemp(rSI);
     UnmarkTemp(rSI);
