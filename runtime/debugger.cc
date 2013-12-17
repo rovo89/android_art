@@ -1982,13 +1982,14 @@ JDWP::JdwpThreadStatus Dbg::ToJdwpThreadStatus(ThreadState state) {
     case kTerminated:
       return JDWP::TS_ZOMBIE;
     case kTimedWaiting:
+    case kWaitingForCheckPointsToRun:
     case kWaitingForDebuggerSend:
     case kWaitingForDebuggerSuspension:
     case kWaitingForDebuggerToAttach:
     case kWaitingForDeoptimization:
     case kWaitingForGcToComplete:
-    case kWaitingForCheckPointsToRun:
     case kWaitingForJniOnLoad:
+    case kWaitingForMethodTracingStart:
     case kWaitingForSignalCatcherOutput:
     case kWaitingInMainDebuggerLoop:
     case kWaitingInMainSignalCatcherLoop:

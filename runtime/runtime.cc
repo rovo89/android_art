@@ -147,6 +147,13 @@ Runtime::Runtime()
 }
 
 Runtime::~Runtime() {
+  if (method_trace_ && Thread::Current() == nullptr) {
+    // We need a current thread to shutdown method tracing: re-attach it now.
+    JNIEnv* unused_env;
+    if (GetJavaVM()->AttachCurrentThread(&unused_env, nullptr) != JNI_OK) {
+      LOG(ERROR) << "Could not attach current thread before runtime shutdown.";
+    }
+  }
   if (dump_gc_performance_on_shutdown_) {
     // This can't be called from the Heap destructor below because it
     // could call RosAlloc::InspectAll() which needs the thread_list
@@ -675,6 +682,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   Trace::SetDefaultClockSource(options->profile_clock_source_);
 
   if (options->method_trace_) {
+    ScopedThreadStateChange tsc(self, kWaitingForMethodTracingStart);
     Trace::Start(options->method_trace_file_.c_str(), -1, options->method_trace_file_size_, 0,
                  false, false, 0);
   }
