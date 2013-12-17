@@ -83,9 +83,10 @@ inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_c
   }
   gc::Heap* heap = Runtime::Current()->GetHeap();
   SetLengthVisitor visitor(component_count);
+  DCHECK(allocator_type != gc::kAllocatorTypeLOS);
   return down_cast<Array*>(
-      heap->AllocObjectWithAllocator<kIsInstrumented>(self, array_class, size, allocator_type,
-                                                      visitor));
+      heap->AllocObjectWithAllocator<kIsInstrumented, true>(self, array_class, size,
+                                                            allocator_type, visitor));
 }
 
 template <bool kIsInstrumented>

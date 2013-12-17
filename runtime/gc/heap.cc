@@ -77,7 +77,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
            double target_utilization, size_t capacity, const std::string& image_file_name,
            CollectorType post_zygote_collector_type, size_t parallel_gc_threads,
            size_t conc_gc_threads, bool low_memory_mode, size_t long_pause_log_threshold,
-           size_t long_gc_log_threshold, bool ignore_max_footprint)
+           size_t long_gc_log_threshold, bool ignore_max_footprint, bool use_tlab)
     : non_moving_space_(nullptr),
       concurrent_gc_(false),
       collector_type_(kCollectorTypeNone),
@@ -103,11 +103,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       native_footprint_gc_watermark_(initial_size),
       native_footprint_limit_(2 * initial_size),
       native_need_to_run_finalization_(false),
-      activity_thread_class_(NULL),
-      application_thread_class_(NULL),
-      activity_thread_(NULL),
-      application_thread_(NULL),
-      last_process_state_id_(NULL),
       // Initially assume we perceive jank in case the process state is never updated.
       process_state_(kProcessStateJankPerceptible),
       concurrent_start_bytes_(std::numeric_limits<size_t>::max()),
@@ -148,7 +143,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       total_allocation_time_(0),
       verify_object_mode_(kHeapVerificationNotPermitted),
       gc_disable_count_(0),
-      running_on_valgrind_(RUNNING_ON_VALGRIND) {
+      running_on_valgrind_(RUNNING_ON_VALGRIND),
+      use_tlab_(use_tlab) {
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() entering";
   }
@@ -337,36 +333,21 @@ void Heap::CreateThreadPool() {
 }
 
 void Heap::VisitObjects(ObjectVisitorCallback callback, void* arg) {
-  // Visit objects in bump pointer space.
   Thread* self = Thread::Current();
-  // TODO: Use reference block.
-  std::vector<SirtRef<mirror::Object>*> saved_refs;
+  // GCs can move objects, so don't allow this.
+  const char* old_cause = self->StartAssertNoThreadSuspension("Visiting objects");
   if (bump_pointer_space_ != nullptr) {
-    // Need to put all these in sirts since the callback may trigger a GC. TODO: Use a better data
-    // structure.
-    mirror::Object* obj = reinterpret_cast<mirror::Object*>(bump_pointer_space_->Begin());
-    const mirror::Object* end = reinterpret_cast<const mirror::Object*>(
-        bump_pointer_space_->End());
-    while (obj < end) {
-      saved_refs.push_back(new SirtRef<mirror::Object>(self, obj));
-      obj = space::BumpPointerSpace::GetNextObject(obj);
-    }
+    // Visit objects in bump pointer space.
+    bump_pointer_space_->Walk(callback, arg);
   }
   // TODO: Switch to standard begin and end to use ranged a based loop.
   for (mirror::Object** it = allocation_stack_->Begin(), **end = allocation_stack_->End();
       it < end; ++it) {
     mirror::Object* obj = *it;
-    // Objects in the allocation stack might be in a movable space.
-    saved_refs.push_back(new SirtRef<mirror::Object>(self, obj));
+    callback(obj, arg);
   }
   GetLiveBitmap()->Walk(callback, arg);
-  for (const auto& ref : saved_refs) {
-    callback(ref->get(), arg);
-  }
-  // Need to free the sirts in reverse order they were allocated.
-  for (size_t i = saved_refs.size(); i != 0; --i) {
-    delete saved_refs[i - 1];
-  }
+  self->EndAssertNoThreadSuspension(old_cause);
 }
 
 void Heap::MarkAllocStackAsLive(accounting::ObjectStack* stack) {
@@ -471,8 +452,6 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
     }
   }
   uint64_t allocation_time = static_cast<uint64_t>(total_allocation_time_) * kTimeAdjust;
-  size_t total_objects_allocated = GetObjectsAllocatedEver();
-  size_t total_bytes_allocated = GetBytesAllocatedEver();
   if (total_duration != 0) {
     const double total_seconds = static_cast<double>(total_duration / 1000) / 1000000.0;
     os << "Total time spent in GC: " << PrettyDuration(total_duration) << "\n";
@@ -481,7 +460,9 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
     os << "Mean GC object throughput: "
        << (GetObjectsFreedEver() / total_seconds) << " objects/s\n";
   }
+  size_t total_objects_allocated = GetObjectsAllocatedEver();
   os << "Total number of allocations: " << total_objects_allocated << "\n";
+  size_t total_bytes_allocated = GetBytesAllocatedEver();
   os << "Total bytes allocated " << PrettySize(total_bytes_allocated) << "\n";
   if (kMeasureAllocationTime) {
     os << "Total time spent allocating: " << PrettyDuration(allocation_time) << "\n";
@@ -698,7 +679,7 @@ void Heap::Trim() {
     }
   }
   total_alloc_space_allocated = GetBytesAllocated() - large_object_space_->GetBytesAllocated() -
-      bump_pointer_space_->GetBytesAllocated();
+      bump_pointer_space_->Size();
   const float managed_utilization = static_cast<float>(total_alloc_space_allocated) /
       static_cast<float>(total_alloc_space_size);
   uint64_t gc_heap_end_ns = NanoTime();
@@ -867,12 +848,10 @@ void Heap::VerifyHeap() {
 void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
   DCHECK_LE(freed_bytes, static_cast<size_t>(num_bytes_allocated_));
   num_bytes_allocated_.fetch_sub(freed_bytes);
-
   if (Runtime::Current()->HasStatsEnabled()) {
     RuntimeStats* thread_stats = Thread::Current()->GetStats();
     thread_stats->freed_objects += freed_objects;
     thread_stats->freed_bytes += freed_bytes;
-
     // TODO: Do this concurrently.
     RuntimeStats* global_stats = Runtime::Current()->GetStats();
     global_stats->freed_objects += freed_objects;
@@ -945,19 +924,11 @@ size_t Heap::GetObjectsAllocated() const {
 }
 
 size_t Heap::GetObjectsAllocatedEver() const {
-  size_t total = 0;
-  for (space::AllocSpace* space : alloc_spaces_) {
-    total += space->GetTotalObjectsAllocated();
-  }
-  return total;
+  return GetObjectsFreedEver() + GetObjectsAllocated();
 }
 
 size_t Heap::GetBytesAllocatedEver() const {
-  size_t total = 0;
-  for (space::AllocSpace* space : alloc_spaces_) {
-    total += space->GetTotalBytesAllocated();
-  }
-  return total;
+  return GetBytesFreedEver() + GetBytesAllocated();
 }
 
 class InstanceCounter {
@@ -1102,7 +1073,11 @@ void Heap::ChangeCollector(CollectorType collector_type) {
       case kCollectorTypeSS: {
         concurrent_gc_ = false;
         gc_plan_.push_back(collector::kGcTypeFull);
-        ChangeAllocator(kAllocatorTypeBumpPointer);
+        if (use_tlab_) {
+          ChangeAllocator(kAllocatorTypeTLAB);
+        } else {
+          ChangeAllocator(kAllocatorTypeBumpPointer);
+        }
         break;
       }
       case kCollectorTypeMS: {
@@ -1134,6 +1109,10 @@ void Heap::ChangeCollector(CollectorType collector_type) {
   }
 }
 
+static void MarkInBitmapCallback(mirror::Object* obj, void* arg) {
+  reinterpret_cast<accounting::SpaceBitmap*>(arg)->Set(obj);
+}
+
 void Heap::PreZygoteFork() {
   static Mutex zygote_creation_lock_("zygote creation lock", kZygoteCreationLock);
   Thread* self = Thread::Current();
@@ -1158,7 +1137,7 @@ void Heap::PreZygoteFork() {
     // Compact the bump pointer space to a new zygote bump pointer space.
     temp_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
     Compact(&target_space, bump_pointer_space_);
-    CHECK_EQ(temp_space_->GetBytesAllocated(), 0U);
+    CHECK(temp_space_->IsEmpty());
     total_objects_freed_ever_ += semi_space_collector_->GetFreedObjects();
     total_bytes_freed_ever_ += semi_space_collector_->GetFreedBytes();
     // Update the end and write out image.
@@ -1167,12 +1146,7 @@ void Heap::PreZygoteFork() {
     accounting::SpaceBitmap* bitmap = non_moving_space_->GetLiveBitmap();
     // Record the allocations in the bitmap.
     VLOG(heap) << "Recording zygote allocations";
-    mirror::Object* obj = reinterpret_cast<mirror::Object*>(target_space.Begin());
-    const mirror::Object* end = reinterpret_cast<const mirror::Object*>(target_space.End());
-    while (obj < end) {
-      bitmap->Set(obj);
-      obj = space::BumpPointerSpace::GetNextObject(obj);
-    }
+    target_space.Walk(MarkInBitmapCallback, bitmap);
   }
   // Turn the current alloc space into a zygote space and obtain the new alloc space composed of
   // the remaining available heap memory.
@@ -1305,9 +1279,11 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
 
   collector::GarbageCollector* collector = nullptr;
   // TODO: Clean this up.
-  if (current_allocator_ == kAllocatorTypeBumpPointer) {
+  if (collector_type_ == kCollectorTypeSS) {
+    DCHECK(current_allocator_ == kAllocatorTypeBumpPointer ||
+           current_allocator_ == kAllocatorTypeTLAB);
     gc_type = semi_space_collector_->GetGcType();
-    CHECK_EQ(temp_space_->GetObjectsAllocated(), 0U);
+    CHECK(temp_space_->IsEmpty());
     semi_space_collector_->SetFromSpace(bump_pointer_space_);
     semi_space_collector_->SetToSpace(temp_space_);
     mprotect(temp_space_->Begin(), temp_space_->Capacity(), PROT_READ | PROT_WRITE);
@@ -2070,10 +2046,16 @@ void Heap::RequestHeapTrim() {
 
 void Heap::RevokeThreadLocalBuffers(Thread* thread) {
   non_moving_space_->RevokeThreadLocalBuffers(thread);
+  if (bump_pointer_space_ != nullptr) {
+    bump_pointer_space_->RevokeThreadLocalBuffers(thread);
+  }
 }
 
 void Heap::RevokeAllThreadLocalBuffers() {
   non_moving_space_->RevokeAllThreadLocalBuffers();
+  if (bump_pointer_space_ != nullptr) {
+    bump_pointer_space_->RevokeAllThreadLocalBuffers();
+  }
 }
 
 bool Heap::IsGCRequestPending() const {
