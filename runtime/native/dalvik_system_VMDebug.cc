@@ -272,6 +272,7 @@ static void VMDebug_getHeapSpaceStats(JNIEnv* env, jclass, jlongArray data) {
       allocSize += malloc_space->GetFootprint();
       allocUsed += malloc_space->GetBytesAllocated();
     } else if (space->IsBumpPointerSpace()) {
+      ScopedObjectAccess soa(env);
       gc::space::BumpPointerSpace* bump_pointer_space = space->AsBumpPointerSpace();
       allocSize += bump_pointer_space->Size();
       allocUsed += bump_pointer_space->GetBytesAllocated();

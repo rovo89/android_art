@@ -17,6 +17,9 @@
 #ifndef ART_RUNTIME_ROOT_VISITOR_H_
 #define ART_RUNTIME_ROOT_VISITOR_H_
 
+// For size_t.
+#include <stdlib.h>
+
 namespace art {
 namespace mirror {
 class Object;

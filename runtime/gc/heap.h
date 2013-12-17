@@ -91,6 +91,7 @@ class AgeCardVisitor {
 // Different types of allocators.
 enum AllocatorType {
   kAllocatorTypeBumpPointer,
+  kAllocatorTypeTLAB,
   kAllocatorTypeFreeList,  // ROSAlloc / dlmalloc
   kAllocatorTypeLOS,  // Large object space.
 };
@@ -139,6 +140,7 @@ class Heap {
   static constexpr size_t kDefaultMinFree = kDefaultMaxFree / 4;
   static constexpr size_t kDefaultLongPauseLogThreshold = MsToNs(5);
   static constexpr size_t kDefaultLongGCLogThreshold = MsToNs(100);
+  static constexpr size_t kDefaultTLABSize = 256 * KB;
 
   // Default target utilization.
   static constexpr double kDefaultTargetUtilization = 0.5;
@@ -154,24 +156,25 @@ class Heap {
                 const std::string& original_image_file_name, CollectorType collector_type_,
                 size_t parallel_gc_threads, size_t conc_gc_threads, bool low_memory_mode,
                 size_t long_pause_threshold, size_t long_gc_threshold,
-                bool ignore_max_footprint);
+                bool ignore_max_footprint, bool use_tlab);
 
   ~Heap();
 
   // Allocates and initializes storage for an object instance.
-  template <const bool kInstrumented>
+  template <bool kInstrumented>
   inline mirror::Object* AllocObject(Thread* self, mirror::Class* klass, size_t num_bytes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return AllocObjectWithAllocator<kInstrumented>(self, klass, num_bytes, GetCurrentAllocator());
+    return AllocObjectWithAllocator<kInstrumented, true>(self, klass, num_bytes,
+                                                         GetCurrentAllocator());
   }
-  template <const bool kInstrumented>
+  template <bool kInstrumented>
   inline mirror::Object* AllocNonMovableObject(Thread* self, mirror::Class* klass,
                                                size_t num_bytes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return AllocObjectWithAllocator<kInstrumented>(self, klass, num_bytes,
-                                                   GetCurrentNonMovingAllocator());
+    return AllocObjectWithAllocator<kInstrumented, true>(self, klass, num_bytes,
+                                                         GetCurrentNonMovingAllocator());
   }
-  template <bool kInstrumented, typename PreFenceVisitor = VoidFunctor>
+  template <bool kInstrumented, bool kCheckLargeObject, typename PreFenceVisitor = VoidFunctor>
   ALWAYS_INLINE mirror::Object* AllocObjectWithAllocator(
       Thread* self, mirror::Class* klass, size_t byte_count, AllocatorType allocator,
       const PreFenceVisitor& pre_fence_visitor = VoidFunctor())
@@ -507,17 +510,19 @@ class Heap {
   void Compact(space::ContinuousMemMapAllocSpace* target_space,
                space::ContinuousMemMapAllocSpace* source_space);
 
-  static bool AllocatorHasAllocationStack(AllocatorType allocator_type) {
-    return allocator_type != kAllocatorTypeBumpPointer;
+  static ALWAYS_INLINE bool AllocatorHasAllocationStack(AllocatorType allocator_type) {
+    return
+        allocator_type != kAllocatorTypeBumpPointer &&
+        allocator_type != kAllocatorTypeTLAB;
   }
-  static bool AllocatorHasConcurrentGC(AllocatorType allocator_type) {
-    return allocator_type != kAllocatorTypeBumpPointer;
+  static ALWAYS_INLINE bool AllocatorMayHaveConcurrentGC(AllocatorType allocator_type) {
+    return AllocatorHasAllocationStack(allocator_type);
   }
   bool ShouldAllocLargeObject(mirror::Class* c, size_t byte_count) const;
   ALWAYS_INLINE void CheckConcurrentGC(Thread* self, size_t new_num_bytes_allocated,
                                        mirror::Object* obj);
 
-  // We don't force this to be inline since it is a slow path.
+  // We don't force this to be inlined since it is a slow path.
   template <bool kInstrumented, typename PreFenceVisitor>
   mirror::Object* AllocLargeObject(Thread* self, mirror::Class* klass, size_t byte_count,
                                    const PreFenceVisitor& pre_fence_visitor)
@@ -544,8 +549,9 @@ class Heap {
 
   void ThrowOutOfMemoryError(Thread* self, size_t byte_count, bool large_object_allocation)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  template <const bool kGrow>
-  bool IsOutOfMemoryOnAllocation(size_t alloc_size);
+
+  template <bool kGrow>
+  bool IsOutOfMemoryOnAllocation(AllocatorType allocator_type, size_t alloc_size);
 
   // Pushes a list of cleared references out to the managed heap.
   void SetReferenceReferent(mirror::Object* reference, mirror::Object* referent)
@@ -721,13 +727,6 @@ class Heap {
   // Whether or not we need to run finalizers in the next native allocation.
   bool native_need_to_run_finalization_;
 
-  // Activity manager members.
-  jclass activity_thread_class_;
-  jclass application_thread_class_;
-  jobject activity_thread_;
-  jobject application_thread_;
-  jfieldID last_process_state_id_;
-
   // Whether or not we currently care about pause times.
   ProcessState process_state_;
 
@@ -845,6 +844,7 @@ class Heap {
   collector::SemiSpace* semi_space_collector_;
 
   const bool running_on_valgrind_;
+  const bool use_tlab_;
 
   friend class collector::MarkSweep;
   friend class collector::SemiSpace;

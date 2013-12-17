@@ -83,9 +83,9 @@ void GarbageCollector::Run(bool clear_soft_references) {
     uint64_t pause_start = NanoTime();
     ATRACE_BEGIN("Application threads suspended");
     thread_list->SuspendAll();
+    GetHeap()->RevokeAllThreadLocalBuffers();
     MarkingPhase();
     ReclaimPhase();
-    GetHeap()->RevokeAllThreadLocalBuffers();
     thread_list->ResumeAll();
     ATRACE_END();
     RegisterPause(NanoTime() - pause_start);

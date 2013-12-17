@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_GC_SPACE_BUMP_POINTER_SPACE_H_
 #define ART_RUNTIME_GC_SPACE_BUMP_POINTER_SPACE_H_
 
+#include "root_visitor.h"
 #include "space.h"
 
 namespace art {
@@ -45,12 +46,13 @@ class BumpPointerSpace : public ContinuousMemMapAllocSpace {
   // Allocate num_bytes, returns nullptr if the space is full.
   virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated);
   mirror::Object* AllocNonvirtual(size_t num_bytes);
+  mirror::Object* AllocNonvirtualWithoutAccounting(size_t num_bytes);
 
   // Return the storage space required by obj.
   virtual size_t AllocationSize(const mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Nos unless we support free lists.
+  // NOPS unless we support free lists.
   virtual size_t Free(Thread*, mirror::Object*) {
     return 0;
   }
@@ -92,21 +94,12 @@ class BumpPointerSpace : public ContinuousMemMapAllocSpace {
 
   void Dump(std::ostream& os) const;
 
-  uint64_t GetBytesAllocated() {
-    return Size();
-  }
+  void RevokeThreadLocalBuffers(Thread* thread);
+  void RevokeAllThreadLocalBuffers();
 
-  uint64_t GetObjectsAllocated() {
-    return num_objects_allocated_;
-  }
-
-  uint64_t GetTotalBytesAllocated() {
-    return total_bytes_allocated_;
-  }
-
-  uint64_t GetTotalObjectsAllocated() {
-    return total_objects_allocated_;
-  }
+  uint64_t GetBytesAllocated() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  uint64_t GetObjectsAllocated() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool IsEmpty() const;
 
   bool Contains(const mirror::Object* obj) const {
     const byte* byte_obj = reinterpret_cast<const byte*>(obj);
@@ -120,9 +113,16 @@ class BumpPointerSpace : public ContinuousMemMapAllocSpace {
   static mirror::Object* GetNextObject(mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Allocate a new TLAB, returns false if the allocation failed.
+  bool AllocNewTLAB(Thread* self, size_t bytes);
+
   virtual BumpPointerSpace* AsBumpPointerSpace() {
     return this;
   }
+
+  // Go through all of the blocks and visit the continuous objects.
+  void Walk(ObjectVisitorCallback callback, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Object alignment within the space.
   static constexpr size_t kAlignment = 8;
@@ -130,18 +130,38 @@ class BumpPointerSpace : public ContinuousMemMapAllocSpace {
  protected:
   BumpPointerSpace(const std::string& name, MemMap* mem_map);
 
+  // Allocate a raw block of bytes.
+  byte* AllocBlock(size_t bytes) EXCLUSIVE_LOCKS_REQUIRED(block_lock_);
+  void RevokeThreadLocalBuffersLocked(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(block_lock_);
+
   size_t InternalAllocationSize(const mirror::Object* obj);
   mirror::Object* AllocWithoutGrowthLocked(size_t num_bytes, size_t* bytes_allocated)
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
-  // Approximate number of bytes which have been allocated into the space.
-  AtomicInteger num_objects_allocated_;
-  AtomicInteger total_bytes_allocated_;
-  AtomicInteger total_objects_allocated_;
+  // The main block is an unbounded block where objects go when there are no other blocks. This
+  // enables us to maintain tightly packed objects when you are not using thread local buffers for
+  // allocation.
+  // The main block is also the block which starts at address 0.
+  void UpdateMainBlock() EXCLUSIVE_LOCKS_REQUIRED(block_lock_);
 
   byte* growth_end_;
+  AtomicInteger objects_allocated_;  // Accumulated from revoked thread local regions.
+  AtomicInteger bytes_allocated_;  // Accumulated from revoked thread local regions.
+  Mutex block_lock_;
+
+  // The number of blocks in the space, if it is 0 then the space has one long continuous block
+  // which doesn't have an updated header.
+  size_t num_blocks_ GUARDED_BY(block_lock_);
 
  private:
+  struct BlockHeader {
+    size_t size_;  // Size of the block in bytes, does not include the header.
+    size_t unused_;  // Ensures alignment of kAlignment.
+  };
+
+  COMPILE_ASSERT(sizeof(BlockHeader) % kAlignment == 0,
+                 continuous_block_must_be_kAlignment_aligned);
+
   friend class collector::MarkSweep;
   DISALLOW_COPY_AND_ASSIGN(BumpPointerSpace);
 };

@@ -23,8 +23,8 @@ namespace art {
 namespace gc {
 namespace space {
 
-inline mirror::Object* BumpPointerSpace::AllocNonvirtual(size_t num_bytes) {
-  num_bytes = RoundUp(num_bytes, kAlignment);
+inline mirror::Object* BumpPointerSpace::AllocNonvirtualWithoutAccounting(size_t num_bytes) {
+  DCHECK(IsAligned<kAlignment>(num_bytes));
   byte* old_end;
   byte* new_end;
   do {
@@ -38,11 +38,16 @@ inline mirror::Object* BumpPointerSpace::AllocNonvirtual(size_t num_bytes) {
   } while (android_atomic_cas(reinterpret_cast<int32_t>(old_end),
                               reinterpret_cast<int32_t>(new_end),
                               reinterpret_cast<volatile int32_t*>(&end_)) != 0);
-  // TODO: Less statistics?
-  total_bytes_allocated_.fetch_add(num_bytes);
-  num_objects_allocated_.fetch_add(1);
-  total_objects_allocated_.fetch_add(1);
   return reinterpret_cast<mirror::Object*>(old_end);
+}
+
+inline mirror::Object* BumpPointerSpace::AllocNonvirtual(size_t num_bytes) {
+  mirror::Object* ret = AllocNonvirtualWithoutAccounting(num_bytes);
+  if (ret != nullptr) {
+    objects_allocated_.fetch_add(1);
+    bytes_allocated_.fetch_add(num_bytes);
+  }
+  return ret;
 }
 
 }  // namespace space
