@@ -772,6 +772,13 @@ void X86Mir2Lir::EmitRegImm(const X86EncodingMap* entry, uint8_t reg, int imm) {
   EmitImm(entry, imm);
 }
 
+void X86Mir2Lir::EmitMemImm(const X86EncodingMap* entry, uint8_t base, int disp, int32_t imm) {
+  EmitPrefixAndOpcode(entry);
+  EmitModrmDisp(entry->skeleton.modrm_opcode, base, disp);
+  DCHECK_EQ(0, entry->skeleton.ax_opcode);
+  EmitImm(entry, imm);
+}
+
 void X86Mir2Lir::EmitThreadImm(const X86EncodingMap* entry, int disp, int imm) {
   EmitPrefixAndOpcode(entry);
   uint8_t modrm = (0 << 6) | (entry->skeleton.modrm_opcode << 3) | rBP;
@@ -1126,6 +1133,9 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
         break;
       case kMemReg:  // lir operands - 0: base, 1: disp, 2: reg
         EmitMemReg(entry, lir->operands[0], lir->operands[1], lir->operands[2]);
+        break;
+      case kMemImm:  // lir operands - 0: base, 1: disp, 2: immediate
+        EmitMemImm(entry, lir->operands[0], lir->operands[1], lir->operands[2]);
         break;
       case kArrayReg:  // lir operands - 0: base, 1: index, 2: scale, 3: disp, 4: reg
         EmitArrayReg(entry, lir->operands[0], lir->operands[1], lir->operands[2],
