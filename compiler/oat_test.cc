@@ -79,7 +79,11 @@ TEST_F(OatTest, WriteRead) {
   InstructionSet insn_set = kIsTargetBuild ? kThumb2 : kX86;
 
   InstructionSetFeatures insn_features;
-  compiler_driver_.reset(new CompilerDriver(compiler_backend, insn_set,
+  verified_methods_data_.reset(new VerifiedMethodsData);
+  method_inliner_map_.reset(new DexFileToMethodInlinerMap);
+  compiler_driver_.reset(new CompilerDriver(verified_methods_data_.get(),
+                                            method_inliner_map_.get(),
+                                            compiler_backend, insn_set,
                                             insn_features, false, NULL, 2, true));
   jobject class_loader = NULL;
   if (kCompile) {
