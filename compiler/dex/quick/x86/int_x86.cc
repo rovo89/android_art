@@ -183,11 +183,23 @@ void X86Mir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
   LIR* taken = &block_label_list_[bb->taken];
   RegLocation rl_src1 = mir_graph_->GetSrcWide(mir, 0);
   RegLocation rl_src2 = mir_graph_->GetSrcWide(mir, 2);
+  ConditionCode ccode = static_cast<ConditionCode>(mir->dalvikInsn.arg[0]);
+
+  if (rl_src1.is_const) {
+    std::swap(rl_src1, rl_src2);
+    ccode = FlipComparisonOrder(ccode);
+  }
+  if (rl_src2.is_const) {
+    // Do special compare/branch against simple const operand
+    int64_t val = mir_graph_->ConstantValueWide(rl_src2);
+    GenFusedLongCmpImmBranch(bb, rl_src1, val, ccode);
+    return;
+  }
+
   FlushAllRegs();
   LockCallTemps();  // Prepare for explicit register usage
   LoadValueDirectWideFixed(rl_src1, r0, r1);
   LoadValueDirectWideFixed(rl_src2, r2, r3);
-  ConditionCode ccode = static_cast<ConditionCode>(mir->dalvikInsn.arg[0]);
   // Swap operands and condition code to prevent use of zero flag.
   if (ccode == kCondLe || ccode == kCondGt) {
     // Compute (r3:r2) = (r3:r2) - (r1:r0)
@@ -216,6 +228,56 @@ void X86Mir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
       LOG(FATAL) << "Unexpected ccode: " << ccode;
   }
   OpCondBranch(ccode, taken);
+}
+
+void X86Mir2Lir::GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1,
+                                          int64_t val, ConditionCode ccode) {
+  int32_t val_lo = Low32Bits(val);
+  int32_t val_hi = High32Bits(val);
+  LIR* taken = &block_label_list_[bb->taken];
+  LIR* not_taken = &block_label_list_[bb->fall_through];
+  rl_src1 = LoadValueWide(rl_src1, kCoreReg);
+  int32_t low_reg = rl_src1.low_reg;
+  int32_t high_reg = rl_src1.high_reg;
+
+  if (val == 0 && (ccode == kCondEq || ccode == kCondNe)) {
+    int t_reg = AllocTemp();
+    OpRegRegReg(kOpOr, t_reg, low_reg, high_reg);
+    FreeTemp(t_reg);
+    OpCondBranch(ccode, taken);
+    return;
+  }
+
+  OpRegImm(kOpCmp, high_reg, val_hi);
+  switch (ccode) {
+    case kCondEq:
+    case kCondNe:
+      OpCondBranch(kCondNe, (ccode == kCondEq) ? not_taken : taken);
+      break;
+    case kCondLt:
+      OpCondBranch(kCondLt, taken);
+      OpCondBranch(kCondGt, not_taken);
+      ccode = kCondUlt;
+      break;
+    case kCondLe:
+      OpCondBranch(kCondLt, taken);
+      OpCondBranch(kCondGt, not_taken);
+      ccode = kCondLs;
+      break;
+    case kCondGt:
+      OpCondBranch(kCondGt, taken);
+      OpCondBranch(kCondLt, not_taken);
+      ccode = kCondHi;
+      break;
+    case kCondGe:
+      OpCondBranch(kCondGt, taken);
+      OpCondBranch(kCondLt, not_taken);
+      ccode = kCondUge;
+      break;
+    default:
+      LOG(FATAL) << "Unexpected ccode: " << ccode;
+  }
+  OpCmpImmBranch(ccode, low_reg, val_lo, taken);
 }
 
 RegLocation X86Mir2Lir::GenDivRemLit(RegLocation rl_dest, int reg_lo,
