@@ -83,7 +83,9 @@ class VerifiedMethodsData {
         LOCKS_EXCLUDED(dex_gc_maps_lock_);
 
     // Cast elision types.
-    typedef std::set<uint32_t> MethodSafeCastSet;
+    // Since we're adding the dex PCs to the set in increasing order, a sorted vector
+    // is better for performance (not just memory usage), especially for large sets.
+    typedef std::vector<uint32_t> MethodSafeCastSet;
     typedef SafeMap<MethodReference, const MethodSafeCastSet*,
         MethodReferenceComparator> SafeCastMap;
     MethodSafeCastSet* GenerateSafeCastSet(verifier::MethodVerifier* method_verifier)
