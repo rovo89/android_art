@@ -38,7 +38,7 @@ class RosAllocSpace : public MallocSpace {
   // the caller should call Begin on the returned space to confirm the
   // request was granted.
   static RosAllocSpace* Create(const std::string& name, size_t initial_size, size_t growth_limit,
-                               size_t capacity, byte* requested_begin);
+                               size_t capacity, byte* requested_begin, bool low_memory_mode);
 
   virtual mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes,
                                           size_t* bytes_allocated) LOCKS_EXCLUDED(lock_);
@@ -115,11 +115,11 @@ class RosAllocSpace : public MallocSpace {
   size_t InternalAllocationSize(const mirror::Object* obj);
   mirror::Object* AllocWithoutGrowthLocked(Thread* self, size_t num_bytes, size_t* bytes_allocated);
 
-  void* CreateAllocator(void* base, size_t morecore_start, size_t initial_size) {
-    return CreateRosAlloc(base, morecore_start, initial_size);
+  void* CreateAllocator(void* base, size_t morecore_start, size_t initial_size, bool low_memory_mode) {
+    return CreateRosAlloc(base, morecore_start, initial_size, low_memory_mode);
   }
-  static allocator::RosAlloc* CreateRosAlloc(void* base, size_t morecore_start, size_t initial_size);
-
+  static allocator::RosAlloc* CreateRosAlloc(void* base, size_t morecore_start, size_t initial_size,
+                                             bool low_memory_mode);
 
   void InspectAllRosAlloc(void (*callback)(void *start, void *end, size_t num_bytes, void* callback_arg),
                           void* arg)
