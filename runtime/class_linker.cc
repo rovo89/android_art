@@ -32,6 +32,7 @@
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker-inl.h"
+#include "compiler_callbacks.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
 #include "gc/accounting/card_table-inl.h"
@@ -2490,7 +2491,9 @@ void ClassLinker::VerifyClass(const SirtRef<mirror::Class>& klass) {
         self->GetException(nullptr)->SetCause(cause.get());
       }
       ClassReference ref(klass->GetDexCache()->GetDexFile(), klass->GetDexClassDefIndex());
-      verifier::MethodVerifier::AddRejectedClass(ref);
+      if (Runtime::Current()->IsCompiler()) {
+        Runtime::Current()->GetCompilerCallbacks()->ClassRejected(ref);
+      }
       klass->SetStatus(mirror::Class::kStatusError, self);
       return;
     }

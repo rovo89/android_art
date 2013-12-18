@@ -19,6 +19,7 @@
 #include "gc_map.h"
 #include "mapping_table.h"
 #include "mir_to_lir-inl.h"
+#include "dex/verified_methods_data.h"
 #include "verifier/dex_gc_map.h"
 #include "verifier/method_verifier.h"
 
@@ -746,7 +747,8 @@ void Mir2Lir::CreateNativeGcMap() {
     }
   }
   MethodReference method_ref(cu_->dex_file, cu_->method_idx);
-  const std::vector<uint8_t>* gc_map_raw = verifier::MethodVerifier::GetDexGcMap(method_ref);
+  const std::vector<uint8_t>* gc_map_raw =
+      cu_->compiler_driver->GetVerifiedMethodsData()->GetDexGcMap(method_ref);
   verifier::DexPcToReferenceMap dex_gc_map(&(*gc_map_raw)[0]);
   DCHECK_EQ(gc_map_raw->size(), dex_gc_map.RawSize());
   // Compute native offset to references size.
