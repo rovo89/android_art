@@ -510,7 +510,9 @@ bool DexFileMethodInliner::AddInlineMethod(int32_t method_idx, InlineMethodOpcod
   WriterMutexLock mu(Thread::Current(), lock_);
   InlineMethod* im = &inline_methods_[method_idx];
   if (im->flags == 0) {
-    *im = InlineMethod{opcode, flags, data};
+    im->opcode = opcode;
+    im->flags = flags;
+    im->data = data;
     return true;
   } else {
     // TODO: Warning about a method being already inlined?

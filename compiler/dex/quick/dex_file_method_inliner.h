@@ -373,8 +373,8 @@ class DexFileMethodInliner {
 
     bool AnalyseReturnMethod(int32_t method_idx, const DexFile::CodeItem* code_item,
                              OpSize size) LOCKS_EXCLUDED(lock_);
-    bool AnalyseConstMethod(int32_t method_idx, const DexFile::CodeItem* code_item
-                            ) LOCKS_EXCLUDED(lock_);
+    bool AnalyseConstMethod(int32_t method_idx, const DexFile::CodeItem* code_item)
+                            LOCKS_EXCLUDED(lock_);
     bool AnalyseIGetMethod(int32_t method_idx, const DexFile::CodeItem* code_item,
                            OpSize size, bool is_object) LOCKS_EXCLUDED(lock_);
     bool AnalyseIPutMethod(int32_t method_idx, const DexFile::CodeItem* code_item,
