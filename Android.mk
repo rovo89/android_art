@@ -264,9 +264,9 @@ else
 .PHONY: oat-target-$(1)
 oat-target-$(1): $$(OUT_OAT_FILE)
 
-$$(OUT_OAT_FILE): $(PRODUCT_OUT)/$(1) $(TARGET_BOOT_IMG_OUT) $(DEX2OAT_DEPENDENCY)
+$$(OUT_OAT_FILE): $(PRODUCT_OUT)/$(1) $(DEFAULT_DEX_PREOPT_BUILT_IMAGE) $(DEX2OAT_DEPENDENCY)
 	@mkdir -p $$(dir $$@)
-	$(DEX2OAT) $(PARALLEL_ART_COMPILE_JOBS) --runtime-arg -Xms64m --runtime-arg -Xmx64m --boot-image=$(TARGET_BOOT_IMG_OUT) --dex-file=$(PRODUCT_OUT)/$(1) --dex-location=/$(1) --oat-file=$$@ --host-prefix=$(PRODUCT_OUT) --instruction-set=$(TARGET_ARCH) --instruction-set-features=$(TARGET_INSTRUCTION_SET_FEATURES) --android-root=$(PRODUCT_OUT)/system
+	$(DEX2OAT) --runtime-arg -Xms64m --runtime-arg -Xmx64m --boot-image=$(DEFAULT_DEX_PREOPT_BUILT_IMAGE) --dex-file=$(PRODUCT_OUT)/$(1) --dex-location=/$(1) --oat-file=$$@ --host-prefix=$(PRODUCT_OUT) --instruction-set=$(TARGET_ARCH) --instruction-set-features=$(TARGET_INSTRUCTION_SET_FEATURES) --android-root=$(PRODUCT_OUT)/system
 
 endif
 
@@ -275,12 +275,12 @@ endef
 
 $(foreach file,\
   $(filter-out\
-    $(addprefix $(TARGET_OUT_JAVA_LIBRARIES)/,$(addsuffix .jar,$(TARGET_BOOT_JARS))),\
+    $(addprefix $(TARGET_OUT_JAVA_LIBRARIES)/,$(addsuffix .jar,$(LIBART_TARGET_BOOT_JARS))),\
     $(wildcard $(TARGET_OUT_APPS)/*.apk) $(wildcard $(TARGET_OUT_JAVA_LIBRARIES)/*.jar)),\
   $(eval $(call declare-oat-target-target,$(subst $(PRODUCT_OUT)/,,$(file)))))
 
 .PHONY: oat-target
-oat-target: $(ART_TARGET_DEPENDENCIES) $(TARGET_BOOT_OAT_OUT) $(OAT_TARGET_TARGETS)
+oat-target: $(ART_TARGET_DEPENDENCIES) $(DEFAULT_DEX_PREOPT_INSTALLED_IMAGE) $(OAT_TARGET_TARGETS)
 
 .PHONY: oat-target-sync
 oat-target-sync: oat-target
@@ -302,6 +302,11 @@ build-art-target: $(ART_TARGET_EXECUTABLES) $(ART_TARGET_TEST_EXECUTABLES) $(TAR
 # oatdump targets
 
 ART_DUMP_OAT_PATH ?= $(OUT_DIR)
+
+OATDUMP := $(HOST_OUT_EXECUTABLES)/oatdump$(HOST_EXECUTABLE_SUFFIX)
+OATDUMPD := $(HOST_OUT_EXECUTABLES)/oatdumpd$(HOST_EXECUTABLE_SUFFIX)
+# TODO: for now, override with debug version for better error reporting
+OATDUMP := $(OATDUMPD)
 
 .PHONY: dump-oat
 dump-oat: dump-oat-core dump-oat-boot
@@ -325,14 +330,14 @@ endif
 
 .PHONY: dump-oat-boot
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
-dump-oat-boot: $(TARGET_BOOT_IMG_OUT) $(OATDUMP)
-	$(OATDUMP) --image=$(TARGET_BOOT_IMG_OUT) --output=$(ART_DUMP_OAT_PATH)/boot.oatdump.txt
+dump-oat-boot: $(DEFAULT_DEX_PREOPT_BUILT_IMAGE) $(OATDUMP)
+	$(OATDUMP) --image=$(DEFAULT_DEX_PREOPT_BUILT_IMAGE) --output=$(ART_DUMP_OAT_PATH)/boot.oatdump.txt
 	@echo Output in $(ART_DUMP_OAT_PATH)/boot.oatdump.txt
 endif
 
 .PHONY: dump-oat-Calculator
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
-dump-oat-Calculator: $(TARGET_OUT_APPS)/Calculator.odex $(TARGET_BOOT_IMG_OUT) $(OATDUMP)
+dump-oat-Calculator: $(TARGET_OUT_APPS)/Calculator.odex $(DEFAULT_DEX_PREOPT_BUILT_IMAGE) $(OATDUMP)
 	$(OATDUMP) --oat-file=$< --output=$(ART_DUMP_OAT_PATH)/Calculator.oatdump.txt
 	@echo Output in $(ART_DUMP_OAT_PATH)/Calculator.oatdump.txt
 endif
