@@ -27,6 +27,7 @@
 #include "class_linker.h"
 #include "dex_compilation_unit.h"
 #include "dex_file-inl.h"
+#include "dex/verified_methods_data.h"
 #include "jni_internal.h"
 #include "object_utils.h"
 #include "runtime.h"
@@ -335,11 +336,13 @@ extern "C" art::CompiledMethod* ArtQuickJniCompileMethod(art::CompilerDriver& co
 extern "C" void compilerLLVMSetBitcodeFileName(art::CompilerDriver& driver,
                                                std::string const& filename);
 
-CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet instruction_set,
+CompilerDriver::CompilerDriver(VerifiedMethodsData* verified_methods_data,
+                               CompilerBackend compiler_backend, InstructionSet instruction_set,
                                InstructionSetFeatures instruction_set_features,
                                bool image, DescriptorSet* image_classes, size_t thread_count,
                                bool dump_stats)
-    : compiler_backend_(compiler_backend),
+    : verified_methods_data_(verified_methods_data),
+      compiler_backend_(compiler_backend),
       instruction_set_(instruction_set),
       instruction_set_features_(instruction_set_features),
       freezing_constructor_lock_("freezing constructor lock"),
@@ -1253,7 +1256,7 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
           // Did the verifier record a more precise invoke target based on its type information?
           const MethodReference caller_method(mUnit->GetDexFile(), mUnit->GetDexMethodIndex());
           const MethodReference* devirt_map_target =
-              verifier::MethodVerifier::GetDevirtMap(caller_method, dex_pc);
+              verified_methods_data_->GetDevirtMap(caller_method, dex_pc);
           if (devirt_map_target != NULL) {
             SirtRef<mirror::DexCache> target_dex_cache(soa.Self(), mUnit->GetClassLinker()->FindDexCache(*devirt_map_target->dex_file));
             SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
@@ -1301,7 +1304,7 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
 }
 
 bool CompilerDriver::IsSafeCast(const MethodReference& mr, uint32_t dex_pc) {
-  bool result = verifier::MethodVerifier::IsSafeCast(mr, dex_pc);
+  bool result = verified_methods_data_->IsSafeCast(mr, dex_pc);
   if (result) {
     stats_->SafeCast();
   } else {
@@ -2240,7 +2243,7 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
   }
   ClassReference ref(&dex_file, class_def_index);
   // Skip compiling classes with generic verifier failures since they will still fail at runtime
-  if (verifier::MethodVerifier::IsClassRejected(ref)) {
+  if (manager->GetCompiler()->verified_methods_data_->IsClassRejected(ref)) {
     return;
   }
   const byte* class_data = dex_file.GetClassData(class_def);
@@ -2323,7 +2326,7 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {
     MethodReference method_ref(&dex_file, method_idx);
-    bool compile = verifier::MethodVerifier::IsCandidateForCompilation(method_ref, access_flags);
+    bool compile = VerifiedMethodsData::IsCandidateForCompilation(method_ref, access_flags);
 
     if (compile) {
       CompilerFn compiler = compiler_;

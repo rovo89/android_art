@@ -183,16 +183,6 @@ class MethodVerifier {
   // information
   void Dump(std::ostream& os) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static const std::vector<uint8_t>* GetDexGcMap(MethodReference ref)
-      LOCKS_EXCLUDED(dex_gc_maps_lock_);
-
-  static const MethodReference* GetDevirtMap(const MethodReference& ref, uint32_t dex_pc)
-      LOCKS_EXCLUDED(devirt_maps_lock_);
-
-  // Returns true if the cast can statically be verified to be redundant
-  // by using the check-cast elision peephole optimization in the verifier
-  static bool IsSafeCast(MethodReference ref, uint32_t pc) LOCKS_EXCLUDED(safecast_map_lock_);
-
   // Fills 'monitor_enter_dex_pcs' with the dex pcs of the monitor-enter instructions corresponding
   // to the locks held at 'dex_pc' in method 'm'.
   static void FindLocksAtDexPc(mirror::ArtMethod* m, uint32_t dex_pc,
@@ -211,11 +201,6 @@ class MethodVerifier {
 
   static void Init() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void Shutdown();
-
-  static void AddRejectedClass(ClassReference ref)
-      LOCKS_EXCLUDED(rejected_classes_lock_);
-  static bool IsClassRejected(ClassReference ref)
-      LOCKS_EXCLUDED(rejected_classes_lock_);
 
   bool CanLoadClasses() const {
     return can_load_classes_;
@@ -236,10 +221,21 @@ class MethodVerifier {
   // Describe VRegs at the given dex pc.
   std::vector<int32_t> DescribeVRegs(uint32_t dex_pc);
 
-  static bool IsCandidateForCompilation(MethodReference& method_ref,
-                                        const uint32_t access_flags);
-
   void VisitRoots(RootVisitor* visitor, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Accessors used by the compiler via CompilerCallback
+  const DexFile::CodeItem* CodeItem() const;
+  RegisterLine* GetRegLine(uint32_t dex_pc);
+  const InstructionFlags& GetInstructionFlags(size_t index) const;
+  mirror::ClassLoader* GetClassLoader() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  MethodReference GetMethodReference() const;
+  uint32_t GetAccessFlags() const;
+  bool HasCheckCasts() const;
+  bool HasVirtualOrInterfaceInvokes() const;
+  bool HasFailures() const;
+  const RegType& ResolveCheckedClass(uint32_t class_idx)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   // Adds the given string to the beginning of the last failure message.
@@ -612,57 +608,8 @@ class MethodVerifier {
   // Get a type representing the declaring class of the method.
   const RegType& GetDeclaringClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  /*
-   * Generate the GC map for a method that has just been verified (i.e. we're doing this as part of
-   * verification). For type-precise determination we have all the data we need, so we just need to
-   * encode it in some clever fashion.
-   * Returns a pointer to a newly-allocated RegisterMap, or NULL on failure.
-   */
-  const std::vector<uint8_t>* GenerateGcMap();
-
-  // Verify that the GC map associated with method_ is well formed
-  void VerifyGcMap(const std::vector<uint8_t>& data);
-
-  // Compute sizes for GC map data
-  void ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bits, size_t* log2_max_gc_pc);
-
   InstructionFlags* CurrentInsnFlags();
 
-  // All the GC maps that the verifier has created
-  typedef SafeMap<const MethodReference, const std::vector<uint8_t>*,
-      MethodReferenceComparator> DexGcMapTable;
-  static ReaderWriterMutex* dex_gc_maps_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  static DexGcMapTable* dex_gc_maps_ GUARDED_BY(dex_gc_maps_lock_);
-  static void SetDexGcMap(MethodReference ref, const std::vector<uint8_t>* dex_gc_map)
-      LOCKS_EXCLUDED(dex_gc_maps_lock_);
-
-
-  // Cast elision types.
-  typedef std::set<uint32_t> MethodSafeCastSet;
-  typedef SafeMap<const MethodReference, const MethodSafeCastSet*,
-      MethodReferenceComparator> SafeCastMap;
-  MethodVerifier::MethodSafeCastSet* GenerateSafeCastSet()
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void SetSafeCastMap(MethodReference ref, const MethodSafeCastSet* mscs);
-      LOCKS_EXCLUDED(safecast_map_lock_);
-  static ReaderWriterMutex* safecast_map_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  static SafeCastMap* safecast_map_ GUARDED_BY(safecast_map_lock_);
-
-  // Devirtualization map.
-  typedef SafeMap<const uint32_t, MethodReference> PcToConcreteMethodMap;
-  typedef SafeMap<const MethodReference, const PcToConcreteMethodMap*,
-      MethodReferenceComparator> DevirtualizationMapTable;
-  MethodVerifier::PcToConcreteMethodMap* GenerateDevirtMap()
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  static ReaderWriterMutex* devirt_maps_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  static DevirtualizationMapTable* devirt_maps_ GUARDED_BY(devirt_maps_lock_);
-  static void SetDevirtMap(MethodReference ref,
-                           const PcToConcreteMethodMap* pc_method_map)
-        LOCKS_EXCLUDED(devirt_maps_lock_);
-  typedef std::set<ClassReference> RejectedClassesTable;
-  static ReaderWriterMutex* rejected_classes_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  static RejectedClassesTable* rejected_classes_ GUARDED_BY(rejected_classes_lock_);
 
   RegTypeCache reg_types_;
 

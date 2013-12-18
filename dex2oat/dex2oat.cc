@@ -30,7 +30,9 @@
 #include "base/timing_logger.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
+#include "compiler_callbacks.h"
 #include "dex_file-inl.h"
+#include "dex/verified_methods_data.h"
 #include "driver/compiler_driver.h"
 #include "elf_fixup.h"
 #include "elf_stripper.h"
@@ -162,12 +164,13 @@ class Dex2Oat {
                      InstructionSetFeatures instruction_set_features,
                      size_t thread_count)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_) {
-    if (!CreateRuntime(options, instruction_set)) {
+    UniquePtr<Dex2Oat> dex2oat(new Dex2Oat(compiler_backend, instruction_set,
+                                           instruction_set_features, thread_count));
+    if (!dex2oat->CreateRuntime(options, instruction_set)) {
       *p_dex2oat = NULL;
       return false;
     }
-    *p_dex2oat = new Dex2Oat(Runtime::Current(), compiler_backend, instruction_set,
-        instruction_set_features, thread_count);
+    *p_dex2oat = dex2oat.release();
     return true;
   }
 
@@ -261,7 +264,8 @@ class Dex2Oat {
       Runtime::Current()->SetCompileTimeClassPath(class_loader, class_path_files);
     }
 
-    UniquePtr<CompilerDriver> driver(new CompilerDriver(compiler_backend_,
+    UniquePtr<CompilerDriver> driver(new CompilerDriver(verified_methods_data_.get(),
+                                                        compiler_backend_,
                                                         instruction_set_,
                                                         instruction_set_features_,
                                                         image,
@@ -337,21 +341,42 @@ class Dex2Oat {
   }
 
  private:
-  explicit Dex2Oat(Runtime* runtime,
-                   CompilerBackend compiler_backend,
+  class Dex2OatCompilerCallbacks : public CompilerCallbacks {
+    public:
+      explicit Dex2OatCompilerCallbacks(VerifiedMethodsData* verified_methods_data)
+          : verified_methods_data_(verified_methods_data) { }
+      virtual ~Dex2OatCompilerCallbacks() { }
+
+      virtual bool MethodVerified(verifier::MethodVerifier* verifier)
+          SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+        return verified_methods_data_->ProcessVerifiedMethod(verifier);
+      }
+      virtual void ClassRejected(ClassReference ref) {
+        verified_methods_data_->AddRejectedClass(ref);
+      }
+
+    private:
+      VerifiedMethodsData* verified_methods_data_;
+  };
+
+  explicit Dex2Oat(CompilerBackend compiler_backend,
                    InstructionSet instruction_set,
                    InstructionSetFeatures instruction_set_features,
                    size_t thread_count)
       : compiler_backend_(compiler_backend),
         instruction_set_(instruction_set),
         instruction_set_features_(instruction_set_features),
-        runtime_(runtime),
+        verified_methods_data_(new VerifiedMethodsData),
+        callbacks_(verified_methods_data_.get()),
+        runtime_(nullptr),
         thread_count_(thread_count),
         start_ns_(NanoTime()) {
   }
 
-  static bool CreateRuntime(Runtime::Options& options, InstructionSet instruction_set)
+  bool CreateRuntime(Runtime::Options& options, InstructionSet instruction_set)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_) {
+    options.push_back(
+        std::make_pair("compilercallbacks", static_cast<CompilerCallbacks*>(&callbacks_)));
     if (!Runtime::Create(options, false)) {
       LOG(ERROR) << "Failed to create runtime";
       return false;
@@ -364,6 +389,7 @@ class Dex2Oat {
       }
     }
     runtime->GetClassLinker()->FixupDexCaches(runtime->GetResolutionMethod());
+    runtime_ = runtime;
     return true;
   }
 
@@ -405,6 +431,8 @@ class Dex2Oat {
   const InstructionSet instruction_set_;
   const InstructionSetFeatures instruction_set_features_;
 
+  UniquePtr<VerifiedMethodsData> verified_methods_data_;
+  Dex2OatCompilerCallbacks callbacks_;
   Runtime* runtime_;
   size_t thread_count_;
   uint64_t start_ns_;
@@ -899,7 +927,6 @@ static int dex2oat(int argc, char** argv) {
   }
 
   Runtime::Options options;
-  options.push_back(std::make_pair("compiler", reinterpret_cast<void*>(NULL)));
   std::vector<const DexFile*> boot_class_path;
   if (boot_image_option.empty()) {
     size_t failure_count = OpenDexFiles(dex_filenames, dex_locations, boot_class_path);
