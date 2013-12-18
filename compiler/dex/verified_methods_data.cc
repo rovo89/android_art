@@ -78,19 +78,20 @@ bool VerifiedMethodsData::ProcessVerifiedMethod(verifier::MethodVerifier* method
       VerifyGcMap(method_verifier, *dex_gc_map);
     }
     SetDexGcMap(ref, dex_gc_map);
+
+    // TODO: move this out when DEX-to-DEX supports devirtualization.
+    if (method_verifier->HasVirtualOrInterfaceInvokes()) {
+      PcToConcreteMethodMap* pc_to_concrete_method = GenerateDevirtMap(method_verifier);
+      if (pc_to_concrete_method != NULL) {
+        SetDevirtMap(ref, pc_to_concrete_method);
+      }
+    }
   }
 
   if (method_verifier->HasCheckCasts()) {
     MethodSafeCastSet* method_to_safe_casts = GenerateSafeCastSet(method_verifier);
     if (method_to_safe_casts != NULL) {
       SetSafeCastMap(ref, method_to_safe_casts);
-    }
-  }
-
-  if (method_verifier->HasVirtualOrInterfaceInvokes()) {
-    PcToConcreteMethodMap* pc_to_concrete_method = GenerateDevirtMap(method_verifier);
-    if (pc_to_concrete_method != NULL) {
-      SetDevirtMap(ref, pc_to_concrete_method);
     }
   }
   return true;
