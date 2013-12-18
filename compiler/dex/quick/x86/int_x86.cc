@@ -38,6 +38,20 @@ LIR* X86Mir2Lir::GenRegMemCheck(ConditionCode c_code,
 }
 
 /*
+ * Perform a compare of memory to immediate value
+ */
+LIR* X86Mir2Lir::GenMemImmedCheck(ConditionCode c_code,
+                                int base, int offset, int check_value, ThrowKind kind) {
+  LIR* tgt = RawLIR(0, kPseudoThrowTarget, kind,
+                    current_dalvik_offset_, base, check_value, 0);
+  NewLIR3(IS_SIMM8(check_value) ? kX86Cmp32MI8 : kX86Cmp32MI, base, offset, check_value);
+  LIR* branch = OpCondBranch(c_code, tgt);
+  // Remember branch target - will process later
+  throw_launchpads_.Insert(tgt);
+  return branch;
+}
+
+/*
  * Compare two 64-bit values
  *    x = y     return  0
  *    x < y     return -1
@@ -521,41 +535,49 @@ void X86Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
                              RegLocation rl_index, RegLocation rl_dest, int scale) {
   RegisterClass reg_class = oat_reg_class_by_size(size);
   int len_offset = mirror::Array::LengthOffset().Int32Value();
-  int data_offset;
   RegLocation rl_result;
   rl_array = LoadValue(rl_array, kCoreReg);
-  rl_index = LoadValue(rl_index, kCoreReg);
 
+  int data_offset;
   if (size == kLong || size == kDouble) {
     data_offset = mirror::Array::DataOffset(sizeof(int64_t)).Int32Value();
   } else {
     data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Int32Value();
   }
 
+  bool constant_index = rl_index.is_const;
+  int32_t constant_index_value = 0;
+  if (!constant_index) {
+    rl_index = LoadValue(rl_index, kCoreReg);
+  } else {
+    constant_index_value = mir_graph_->ConstantValue(rl_index);
+    // If index is constant, just fold it into the data offset
+    data_offset += constant_index_value << scale;
+    // treat as non array below
+    rl_index.low_reg = INVALID_REG;
+  }
+
   /* null object? */
   GenNullCheck(rl_array.s_reg_low, rl_array.low_reg, opt_flags);
 
   if (!(opt_flags & MIR_IGNORE_RANGE_CHECK)) {
-    /* if (rl_index >= [rl_array + len_offset]) goto kThrowArrayBounds */
-    GenRegMemCheck(kCondUge, rl_index.low_reg, rl_array.low_reg,
-                   len_offset, kThrowArrayBounds);
+    if (constant_index) {
+      GenMemImmedCheck(kCondLs, rl_array.low_reg, len_offset,
+                       constant_index_value, kThrowConstantArrayBounds);
+    } else {
+      GenRegMemCheck(kCondUge, rl_index.low_reg, rl_array.low_reg,
+                     len_offset, kThrowArrayBounds);
+    }
   }
+  rl_result = EvalLoc(rl_dest, reg_class, true);
   if ((size == kLong) || (size == kDouble)) {
-    int reg_addr = AllocTemp();
-    OpLea(reg_addr, rl_array.low_reg, rl_index.low_reg, scale, data_offset);
-    FreeTemp(rl_array.low_reg);
-    FreeTemp(rl_index.low_reg);
-    rl_result = EvalLoc(rl_dest, reg_class, true);
-    LoadBaseIndexedDisp(reg_addr, INVALID_REG, 0, 0, rl_result.low_reg,
+    LoadBaseIndexedDisp(rl_array.low_reg, rl_index.low_reg, scale, data_offset, rl_result.low_reg,
                         rl_result.high_reg, size, INVALID_SREG);
     StoreValueWide(rl_dest, rl_result);
   } else {
-    rl_result = EvalLoc(rl_dest, reg_class, true);
-
     LoadBaseIndexedDisp(rl_array.low_reg, rl_index.low_reg, scale,
                         data_offset, rl_result.low_reg, INVALID_REG, size,
                         INVALID_SREG);
-
     StoreValue(rl_dest, rl_result);
   }
 }
@@ -577,14 +599,29 @@ void X86Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   }
 
   rl_array = LoadValue(rl_array, kCoreReg);
-  rl_index = LoadValue(rl_index, kCoreReg);
+  bool constant_index = rl_index.is_const;
+  int32_t constant_index_value = 0;
+  if (!constant_index) {
+    rl_index = LoadValue(rl_index, kCoreReg);
+  } else {
+    // If index is constant, just fold it into the data offset
+    constant_index_value = mir_graph_->ConstantValue(rl_index);
+    data_offset += constant_index_value << scale;
+    // treat as non array below
+    rl_index.low_reg = INVALID_REG;
+  }
 
   /* null object? */
   GenNullCheck(rl_array.s_reg_low, rl_array.low_reg, opt_flags);
 
   if (!(opt_flags & MIR_IGNORE_RANGE_CHECK)) {
-    /* if (rl_index >= [rl_array + len_offset]) goto kThrowArrayBounds */
-    GenRegMemCheck(kCondUge, rl_index.low_reg, rl_array.low_reg, len_offset, kThrowArrayBounds);
+    if (constant_index) {
+      GenMemImmedCheck(kCondLs, rl_array.low_reg, len_offset,
+                       constant_index_value, kThrowConstantArrayBounds);
+    } else {
+      GenRegMemCheck(kCondUge, rl_index.low_reg, rl_array.low_reg,
+                     len_offset, kThrowArrayBounds);
+    }
   }
   if ((size == kLong) || (size == kDouble)) {
     rl_src = LoadValueWide(rl_src, reg_class);
@@ -603,7 +640,9 @@ void X86Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   }
   if (card_mark) {
     // Free rl_index if its a temp. Ensures there are 2 free regs for card mark.
-    FreeTemp(rl_index.low_reg);
+    if (!constant_index) {
+      FreeTemp(rl_index.low_reg);
+    }
     MarkGCCard(rl_src.low_reg, rl_array.low_reg);
   }
 }

@@ -115,6 +115,8 @@ class X86Mir2Lir : public Mir2Lir {
     void GenXorLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
     LIR* GenRegMemCheck(ConditionCode c_code, int reg1, int base, int offset,
                                 ThrowKind kind);
+    LIR* GenMemImmedCheck(ConditionCode c_code, int base, int offset, int check_value,
+                          ThrowKind kind);
     RegLocation GenDivRem(RegLocation rl_dest, int reg_lo, int reg_hi, bool is_div);
     RegLocation GenDivRemLit(RegLocation rl_dest, int reg_lo, int lit, bool is_div);
     void GenCmpLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
@@ -184,6 +186,7 @@ class X86Mir2Lir : public Mir2Lir {
     void EmitOpArray(const X86EncodingMap* entry, uint8_t base, uint8_t index,
                      int scale, int disp);
     void EmitMemReg(const X86EncodingMap* entry, uint8_t base, int disp, uint8_t reg);
+    void EmitMemImm(const X86EncodingMap* entry, uint8_t base, int disp, int32_t imm);
     void EmitRegMem(const X86EncodingMap* entry, uint8_t reg, uint8_t base, int disp);
     void EmitRegArray(const X86EncodingMap* entry, uint8_t reg, uint8_t base, uint8_t index,
                       int scale, int disp);
