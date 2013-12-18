@@ -38,7 +38,7 @@ static const bool kPrefetchDuringDlMallocFreeList = true;
 DlMallocSpace::DlMallocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin,
                              byte* end, byte* limit, size_t growth_limit)
     : MallocSpace(name, mem_map, begin, end, limit, growth_limit),
-      total_bytes_freed_(0), total_objects_freed_(0), mspace_(mspace), mspace_for_alloc_(mspace) {
+      mspace_(mspace), mspace_for_alloc_(mspace) {
   CHECK(mspace != NULL);
 }
 
@@ -148,9 +148,7 @@ size_t DlMallocSpace::Free(Thread* self, mirror::Object* ptr) {
     CHECK(ptr != NULL);
     CHECK(Contains(ptr)) << "Free (" << ptr << ") not in bounds of heap " << *this;
   }
-  const size_t bytes_freed = InternalAllocationSize(ptr);
-  total_bytes_freed_ += bytes_freed;
-  ++total_objects_freed_;
+  const size_t bytes_freed = AllocationSizeNonvirtual(ptr);
   if (kRecentFreeCount > 0) {
     RegisterRecentFree(ptr);
   }
@@ -170,7 +168,7 @@ size_t DlMallocSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** p
       // The head of chunk for the allocation is sizeof(size_t) behind the allocation.
       __builtin_prefetch(reinterpret_cast<char*>(ptrs[i + look_ahead]) - sizeof(size_t));
     }
-    bytes_freed += InternalAllocationSize(ptr);
+    bytes_freed += AllocationSizeNonvirtual(ptr);
   }
 
   if (kRecentFreeCount > 0) {
@@ -196,8 +194,6 @@ size_t DlMallocSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** p
 
   {
     MutexLock mu(self, lock_);
-    total_bytes_freed_ += bytes_freed;
-    total_objects_freed_ += num_ptrs;
     mspace_bulk_free(mspace_, reinterpret_cast<void**>(ptrs), num_ptrs);
     return bytes_freed;
   }
@@ -211,13 +207,8 @@ extern "C" void* art_heap_morecore(void* mspace, intptr_t increment) {
   return heap->GetNonMovingSpace()->MoreCore(increment);
 }
 
-// Virtual functions can't get inlined.
-inline size_t DlMallocSpace::InternalAllocationSize(const mirror::Object* obj) {
-  return AllocationSizeNonvirtual(obj);
-}
-
 size_t DlMallocSpace::AllocationSize(const mirror::Object* obj) {
-  return InternalAllocationSize(obj);
+  return AllocationSizeNonvirtual(obj);
 }
 
 size_t DlMallocSpace::Trim() {

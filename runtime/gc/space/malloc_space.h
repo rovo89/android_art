@@ -132,8 +132,6 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
 
   virtual uint64_t GetBytesAllocated() = 0;
   virtual uint64_t GetObjectsAllocated() = 0;
-  virtual uint64_t GetTotalBytesAllocated() = 0;
-  virtual uint64_t GetTotalObjectsAllocated() = 0;
 
   // Returns the old mark bitmap.
   accounting::SpaceBitmap* BindLiveToMarkBitmap();

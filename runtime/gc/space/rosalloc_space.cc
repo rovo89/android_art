@@ -146,9 +146,7 @@ size_t RosAllocSpace::Free(Thread* self, mirror::Object* ptr) {
     CHECK(ptr != NULL);
     CHECK(Contains(ptr)) << "Free (" << ptr << ") not in bounds of heap " << *this;
   }
-  const size_t bytes_freed = InternalAllocationSize(ptr);
-  total_bytes_freed_atomic_.fetch_add(bytes_freed);
-  ++total_objects_freed_atomic_;
+  const size_t bytes_freed = AllocationSizeNonvirtual(ptr);
   if (kRecentFreeCount > 0) {
     MutexLock mu(self, lock_);
     RegisterRecentFree(ptr);
@@ -168,7 +166,7 @@ size_t RosAllocSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** p
     if (kPrefetchDuringRosAllocFreeList && i + look_ahead < num_ptrs) {
       __builtin_prefetch(reinterpret_cast<char*>(ptrs[i + look_ahead]));
     }
-    bytes_freed += InternalAllocationSize(ptr);
+    bytes_freed += AllocationSizeNonvirtual(ptr);
   }
 
   if (kRecentFreeCount > 0) {
@@ -193,8 +191,6 @@ size_t RosAllocSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** p
   }
 
   rosalloc_->BulkFree(self, reinterpret_cast<void**>(ptrs), num_ptrs);
-  total_bytes_freed_atomic_.fetch_add(bytes_freed);
-  total_objects_freed_atomic_.fetch_add(num_ptrs);
   return bytes_freed;
 }
 
@@ -206,13 +202,8 @@ extern "C" void* art_heap_rosalloc_morecore(allocator::RosAlloc* rosalloc, intpt
   return heap->GetNonMovingSpace()->MoreCore(increment);
 }
 
-// Virtual functions can't get inlined.
-inline size_t RosAllocSpace::InternalAllocationSize(const mirror::Object* obj) {
-  return AllocationSizeNonvirtual(obj);
-}
-
 size_t RosAllocSpace::AllocationSize(const mirror::Object* obj) {
-  return InternalAllocationSize(obj);
+  return AllocationSizeNonvirtual(obj);
 }
 
 size_t RosAllocSpace::Trim() {
