@@ -25,12 +25,14 @@
 #include <fstream>
 
 #include "../../external/icu4c/common/unicode/uvernum.h"
+#include "../compiler/dex/quick/dex_file_to_method_inliner_map.h"
+#include "../compiler/dex/verified_methods_data.h"
+#include "../compiler/driver/compiler_driver.h"
 #include "base/macros.h"
 #include "base/stl_util.h"
 #include "base/stringprintf.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
-#include "compiler/driver/compiler_driver.h"
 #include "dex_file-inl.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "gc/heap.h"
@@ -454,7 +456,11 @@ class CommonTest : public testing::Test {
         }
       }
       class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
-      compiler_driver_.reset(new CompilerDriver(compiler_backend, instruction_set,
+      verified_methods_data_.reset(new VerifiedMethodsData);
+      method_inliner_map_.reset(new DexFileToMethodInlinerMap);
+      compiler_driver_.reset(new CompilerDriver(verified_methods_data_.get(),
+                                                method_inliner_map_.get(),
+                                                compiler_backend, instruction_set,
                                                 instruction_set_features,
                                                 true, new CompilerDriver::DescriptorSet,
                                                 2, true));
@@ -634,6 +640,8 @@ class CommonTest : public testing::Test {
   UniquePtr<Runtime> runtime_;
   // Owned by the runtime
   ClassLinker* class_linker_;
+  UniquePtr<VerifiedMethodsData> verified_methods_data_;
+  UniquePtr<DexFileToMethodInlinerMap> method_inliner_map_;
   UniquePtr<CompilerDriver> compiler_driver_;
 
  private:
