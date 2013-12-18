@@ -80,7 +80,8 @@ TEST_F(OatTest, WriteRead) {
 
   InstructionSetFeatures insn_features;
   verified_methods_data_.reset(new VerifiedMethodsData);
-  method_inliner_map_.reset(new DexFileToMethodInlinerMap);
+  method_inliner_map_.reset(compiler_backend == kQuick ? new DexFileToMethodInlinerMap : nullptr);
+  callbacks_.Reset(verified_methods_data_.get(), method_inliner_map_.get());
   compiler_driver_.reset(new CompilerDriver(verified_methods_data_.get(),
                                             method_inliner_map_.get(),
                                             compiler_backend, insn_set,
