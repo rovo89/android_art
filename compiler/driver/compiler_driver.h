@@ -41,6 +41,7 @@ namespace art {
 class AOTCompilationStats;
 class ParallelCompilationManager;
 class DexCompilationUnit;
+class DexFileToMethodInlinerMap;
 class OatWriter;
 class TimingLogger;
 class VerifiedMethodsData;
@@ -92,6 +93,7 @@ class CompilerDriver {
   // can assume will be in the image, with NULL implying all available
   // classes.
   explicit CompilerDriver(VerifiedMethodsData* verified_methods_data,
+                          DexFileToMethodInlinerMap* method_inliner_map,
                           CompilerBackend compiler_backend, InstructionSet instruction_set,
                           InstructionSetFeatures instruction_set_features,
                           bool image, DescriptorSet* image_classes,
@@ -109,6 +111,10 @@ class CompilerDriver {
 
   VerifiedMethodsData* GetVerifiedMethodsData() const {
     return verified_methods_data_;
+  }
+
+  DexFileToMethodInlinerMap* GetMethodInlinerMap() const {
+    return method_inliner_map_;
   }
 
   const InstructionSet& GetInstructionSet() const {
@@ -397,6 +403,7 @@ class CompilerDriver {
   std::vector<const PatchInformation*> methods_to_patch_;
 
   VerifiedMethodsData* verified_methods_data_;
+  DexFileToMethodInlinerMap* method_inliner_map_;
 
   CompilerBackend compiler_backend_;
 
