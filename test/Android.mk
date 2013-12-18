@@ -71,7 +71,6 @@ define build-art-test-dex
     LOCAL_NO_STANDARD_LIBRARIES := true
     LOCAL_MODULE_PATH := $(3)
     LOCAL_DEX_PREOPT_IMAGE := $(TARGET_CORE_IMG_OUT)
-    LOCAL_DEX_PREOPT := false
     LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
     LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
     include $(BUILD_JAVA_LIBRARY)
