@@ -37,12 +37,16 @@ size_t RosAlloc::bulkFreeBitMapOffsets[kNumOfSizeBrackets];
 size_t RosAlloc::threadLocalFreeBitMapOffsets[kNumOfSizeBrackets];
 bool RosAlloc::initialized_ = false;
 
-RosAlloc::RosAlloc(void* base, size_t capacity)
+RosAlloc::RosAlloc(void* base, size_t capacity,
+                   PageReleaseMode page_release_mode, size_t page_release_size_threshold)
     : base_(reinterpret_cast<byte*>(base)), footprint_(capacity),
       capacity_(capacity),
       lock_("rosalloc global lock", kRosAllocGlobalLock),
-      bulk_free_lock_("rosalloc bulk free lock", kRosAllocBulkFreeLock) {
+      bulk_free_lock_("rosalloc bulk free lock", kRosAllocBulkFreeLock),
+      page_release_mode_(page_release_mode),
+      page_release_size_threshold_(page_release_size_threshold) {
   DCHECK(RoundUp(capacity, kPageSize) == capacity);
+  CHECK(IsAligned<kPageSize>(page_release_size_threshold_));
   if (!initialized_) {
     Initialize();
   }
@@ -65,7 +69,9 @@ RosAlloc::RosAlloc(void* base, size_t capacity)
   }
   free_pages->SetByteSize(this, capacity_);
   DCHECK_EQ(capacity_ % kPageSize, static_cast<size_t>(0));
+  DCHECK(free_pages->IsFree());
   free_pages->ReleasePages(this);
+  DCHECK(free_pages->IsFree());
   free_page_runs_.insert(free_pages);
   if (kTraceRosAlloc) {
     LOG(INFO) << "RosAlloc::RosAlloc() : Inserted run 0x" << std::hex
@@ -387,7 +393,9 @@ void RosAlloc::FreePages(Thread* self, void* ptr) {
   // Insert it.
   DCHECK_EQ(fpr->ByteSize(this) % kPageSize, static_cast<size_t>(0));
   DCHECK(free_page_runs_.find(fpr) == free_page_runs_.end());
+  DCHECK(fpr->IsFree());
   fpr->ReleasePages(this);
+  DCHECK(fpr->IsFree());
   free_page_runs_.insert(fpr);
   DCHECK(free_page_runs_.find(fpr) != free_page_runs_.end());
   if (kTraceRosAlloc) {
@@ -404,20 +412,26 @@ void* RosAlloc::AllocLargeObject(Thread* self, size_t size, size_t* bytes_alloca
     MutexLock mu(self, lock_);
     r = AllocPages(self, num_pages, kPageMapLargeObject);
   }
+  if (UNLIKELY(r == nullptr)) {
+    if (kTraceRosAlloc) {
+      LOG(INFO) << "RosAlloc::AllocLargeObject() : NULL";
+    }
+    return nullptr;
+  }
   if (bytes_allocated != NULL) {
     *bytes_allocated = num_pages * kPageSize;
   }
   if (kTraceRosAlloc) {
-    if (r != NULL) {
-      LOG(INFO) << "RosAlloc::AllocLargeObject() : 0x" << std::hex << reinterpret_cast<intptr_t>(r)
-                << "-0x" << (reinterpret_cast<intptr_t>(r) + num_pages * kPageSize)
-                << "(" << std::dec << (num_pages * kPageSize) << ")";
-    } else {
-      LOG(INFO) << "RosAlloc::AllocLargeObject() : NULL";
-    }
+    LOG(INFO) << "RosAlloc::AllocLargeObject() : 0x" << std::hex << reinterpret_cast<intptr_t>(r)
+              << "-0x" << (reinterpret_cast<intptr_t>(r) + num_pages * kPageSize)
+              << "(" << std::dec << (num_pages * kPageSize) << ")";
+  }
+  if (!DoesReleaseAllPages()) {
+    // If it does not release all pages, pages may not be zeroed out.
+    memset(r, 0, size);
   }
   // Check if the returned memory is really all zero.
-  if (kCheckZeroMemory && r != NULL) {
+  if (kCheckZeroMemory) {
     byte* bytes = reinterpret_cast<byte*>(r);
     for (size_t i = 0; i < size; ++i) {
       DCHECK_EQ(bytes[i], 0);
@@ -1366,7 +1380,12 @@ void RosAlloc::InspectAll(void (*handler)(void* start, void* end, size_t used_by
         size_t fpr_size = fpr->ByteSize(this);
         DCHECK(IsAligned<kPageSize>(fpr_size));
         void* start = fpr;
-        void* end = reinterpret_cast<byte*>(start) + fpr_size;
+        if (kIsDebugBuild) {
+          // In the debug build, the first page of a free page run
+          // contains a magic number for debugging. Exclude it.
+          start = reinterpret_cast<byte*>(fpr) + kPageSize;
+        }
+        void* end = reinterpret_cast<byte*>(fpr) + fpr_size;
         handler(start, end, 0, arg);
         size_t num_pages = fpr_size / kPageSize;
         if (kIsDebugBuild) {

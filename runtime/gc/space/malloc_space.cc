@@ -176,7 +176,7 @@ void MallocSpace::UnBindBitmaps() {
   DCHECK(temp_bitmap_.get() == NULL);
 }
 
-MallocSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name) {
+MallocSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool low_memory_mode) {
   // For RosAlloc, revoke thread local runs before creating a new
   // alloc space so that we won't mix thread local runs from different
   // alloc spaces.
@@ -213,7 +213,7 @@ MallocSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name) {
   UniquePtr<MemMap> mem_map(GetMemMap()->RemapAtEnd(end_, alloc_space_name,
                                                     PROT_READ | PROT_WRITE, &error_msg));
   CHECK(mem_map.get() != nullptr) << error_msg;
-  void* allocator = CreateAllocator(end_, starting_size, initial_size);
+  void* allocator = CreateAllocator(end_, starting_size, initial_size, low_memory_mode);
   // Protect memory beyond the initial size.
   byte* end = mem_map->Begin() + starting_size;
   if (capacity - initial_size > 0) {

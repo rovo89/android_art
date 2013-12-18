@@ -91,18 +91,50 @@ class RosAlloc {
       byte* end = fpr_base + ByteSize(rosalloc);
       return end;
     }
+    bool IsLargerThanPageReleaseThreshold(RosAlloc* rosalloc)
+        EXCLUSIVE_LOCKS_REQUIRED(rosalloc->lock_) {
+      return ByteSize(rosalloc) >= rosalloc->page_release_size_threshold_;
+    }
+    bool IsAtEndOfSpace(RosAlloc* rosalloc)
+        EXCLUSIVE_LOCKS_REQUIRED(rosalloc->lock_) {
+      return reinterpret_cast<byte*>(this) + ByteSize(rosalloc) == rosalloc->base_ + rosalloc->footprint_;
+    }
+    bool ShouldReleasePages(RosAlloc* rosalloc) EXCLUSIVE_LOCKS_REQUIRED(rosalloc->lock_) {
+      switch (rosalloc->page_release_mode_) {
+        case kPageReleaseModeNone:
+          return false;
+        case kPageReleaseModeEnd:
+          return IsAtEndOfSpace(rosalloc);
+        case kPageReleaseModeSize:
+          return IsLargerThanPageReleaseThreshold(rosalloc);
+        case kPageReleaseModeSizeAndEnd:
+          return IsLargerThanPageReleaseThreshold(rosalloc) && IsAtEndOfSpace(rosalloc);
+        case kPageReleaseModeAll:
+          return true;
+        default:
+          LOG(FATAL) << "Unexpected page release mode ";
+          return false;
+      }
+    }
     void ReleasePages(RosAlloc* rosalloc) EXCLUSIVE_LOCKS_REQUIRED(rosalloc->lock_) {
+      byte* start = reinterpret_cast<byte*>(this);
       size_t byte_size = ByteSize(rosalloc);
       DCHECK_EQ(byte_size % kPageSize, static_cast<size_t>(0));
+      bool release_pages = ShouldReleasePages(rosalloc);
       if (kIsDebugBuild) {
         // Exclude the first page that stores the magic number.
         DCHECK_GE(byte_size, static_cast<size_t>(kPageSize));
+        start += kPageSize;
         byte_size -= kPageSize;
         if (byte_size > 0) {
-          madvise(reinterpret_cast<byte*>(this) + kPageSize, byte_size, MADV_DONTNEED);
+          if (release_pages) {
+            madvise(start, byte_size, MADV_DONTNEED);
+          }
         }
       } else {
-        madvise(this, byte_size, MADV_DONTNEED);
+        if (release_pages) {
+          madvise(start, byte_size, MADV_DONTNEED);
+        }
       }
     }
   };
@@ -363,6 +395,21 @@ class RosAlloc {
     }
   };
 
+ public:
+  // Different page release modes.
+  enum PageReleaseMode {
+    kPageReleaseModeNone,         // Release no empty pages.
+    kPageReleaseModeEnd,          // Release empty pages at the end of the space.
+    kPageReleaseModeSize,         // Release empty pages that are larger than the threshold.
+    kPageReleaseModeSizeAndEnd,   // Release empty pages that are larger than the threshold or
+                                  // at the end of the space.
+    kPageReleaseModeAll,          // Release all empty pages.
+  };
+
+  // The default value for page_release_size_threshold_.
+  static constexpr size_t kDefaultPageReleaseSizeThreshold = 4 * MB;
+
+ private:
   // The base address of the memory region that's managed by this allocator.
   byte* base_;
 
@@ -412,6 +459,12 @@ class RosAlloc {
   // allowing multiple individual frees at the same time.
   ReaderWriterMutex bulk_free_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 
+  // The page release mode.
+  const PageReleaseMode page_release_mode_;
+  // Under kPageReleaseModeSize(AndEnd), if the free page run size is
+  // greater than or equal to this value, release pages.
+  const size_t page_release_size_threshold_;
+
   // The base address of the memory region that's managed by this allocator.
   byte* Begin() { return base_; }
   // The end address of the memory region that's managed by this allocator.
@@ -439,7 +492,9 @@ class RosAlloc {
   void* AllocLargeObject(Thread* self, size_t size, size_t* bytes_allocated) LOCKS_EXCLUDED(lock_);
 
  public:
-  RosAlloc(void* base, size_t capacity);
+  RosAlloc(void* base, size_t capacity,
+           PageReleaseMode page_release_mode,
+           size_t page_release_size_threshold = kDefaultPageReleaseSizeThreshold);
   void* Alloc(Thread* self, size_t size, size_t* bytes_allocated)
       LOCKS_EXCLUDED(lock_);
   void Free(Thread* self, void* ptr)
@@ -480,6 +535,10 @@ class RosAlloc {
   // allocated and objects allocated, respectively.
   static void BytesAllocatedCallback(void* start, void* end, size_t used_bytes, void* arg);
   static void ObjectsAllocatedCallback(void* start, void* end, size_t used_bytes, void* arg);
+
+  bool DoesReleaseAllPages() const {
+    return page_release_mode_ == kPageReleaseModeAll;
+  }
 };
 
 }  // namespace allocator
