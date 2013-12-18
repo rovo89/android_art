@@ -180,7 +180,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
                                                      requested_alloc_space_begin);
   } else {
     non_moving_space_ = space::RosAllocSpace::Create(name, initial_size, growth_limit, capacity,
-                                                     requested_alloc_space_begin);
+                                                     requested_alloc_space_begin, low_memory_mode_);
   }
   if (kMovingCollector) {
     // TODO: Place bump-pointer spaces somewhere to minimize size of card table.
@@ -1151,7 +1151,7 @@ void Heap::PreZygoteFork() {
   // Turn the current alloc space into a zygote space and obtain the new alloc space composed of
   // the remaining available heap memory.
   space::MallocSpace* zygote_space = non_moving_space_;
-  non_moving_space_ = zygote_space->CreateZygoteSpace("alloc space");
+  non_moving_space_ = zygote_space->CreateZygoteSpace("alloc space", low_memory_mode_);
   non_moving_space_->SetFootprintLimit(non_moving_space_->Capacity());
   // Change the GC retention policy of the zygote space to only collect when full.
   zygote_space->SetGcRetentionPolicy(space::kGcRetentionPolicyFullCollect);

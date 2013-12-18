@@ -45,7 +45,7 @@ RosAllocSpace::RosAllocSpace(const std::string& name, MemMap* mem_map,
 }
 
 RosAllocSpace* RosAllocSpace::Create(const std::string& name, size_t initial_size, size_t growth_limit,
-                                     size_t capacity, byte* requested_begin) {
+                                     size_t capacity, byte* requested_begin, bool low_memory_mode) {
   uint64_t start_time = 0;
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     start_time = NanoTime();
@@ -68,7 +68,8 @@ RosAllocSpace* RosAllocSpace::Create(const std::string& name, size_t initial_siz
                << PrettySize(capacity);
     return NULL;
   }
-  allocator::RosAlloc* rosalloc = CreateRosAlloc(mem_map->Begin(), starting_size, initial_size);
+  allocator::RosAlloc* rosalloc = CreateRosAlloc(mem_map->Begin(), starting_size, initial_size,
+                                                 low_memory_mode);
   if (rosalloc == NULL) {
     LOG(ERROR) << "Failed to initialize rosalloc for alloc space (" << name << ")";
     return NULL;
@@ -97,13 +98,18 @@ RosAllocSpace* RosAllocSpace::Create(const std::string& name, size_t initial_siz
   return space;
 }
 
-allocator::RosAlloc* RosAllocSpace::CreateRosAlloc(void* begin, size_t morecore_start, size_t initial_size) {
+allocator::RosAlloc* RosAllocSpace::CreateRosAlloc(void* begin, size_t morecore_start, size_t initial_size,
+                                                   bool low_memory_mode) {
   // clear errno to allow PLOG on error
   errno = 0;
   // create rosalloc using our backing storage starting at begin and
   // with a footprint of morecore_start. When morecore_start bytes of
   // memory is exhaused morecore will be called.
-  allocator::RosAlloc* rosalloc = new art::gc::allocator::RosAlloc(begin, morecore_start);
+  allocator::RosAlloc* rosalloc = new art::gc::allocator::RosAlloc(
+      begin, morecore_start,
+      low_memory_mode ?
+          art::gc::allocator::RosAlloc::kPageReleaseModeAll :
+          art::gc::allocator::RosAlloc::kPageReleaseModeSizeAndEnd);
   if (rosalloc != NULL) {
     rosalloc->SetFootprintLimit(initial_size);
   } else {
@@ -216,10 +222,18 @@ size_t RosAllocSpace::AllocationSize(const mirror::Object* obj) {
 }
 
 size_t RosAllocSpace::Trim() {
-  MutexLock mu(Thread::Current(), lock_);
-  // Trim to release memory at the end of the space.
-  rosalloc_->Trim();
-  // No inspect_all necessary here as trimming of pages is built-in.
+  {
+    MutexLock mu(Thread::Current(), lock_);
+    // Trim to release memory at the end of the space.
+    rosalloc_->Trim();
+  }
+  // Attempt to release pages if it does not release all empty pages.
+  if (!rosalloc_->DoesReleaseAllPages()) {
+    VLOG(heap) << "RosAllocSpace::Trim() ";
+    size_t reclaimed = 0;
+    InspectAllRosAlloc(DlmallocMadviseCallback, &reclaimed);
+    return reclaimed;
+  }
   return 0;
 }
 
