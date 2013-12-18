@@ -302,27 +302,6 @@ enum ThrowKind {
   kThrowStackOverflow,
 };
 
-enum SpecialCaseHandler {
-  kNoHandler,
-  kNullMethod,
-  kConstFunction,
-  kIGet,
-  kIGetBoolean,
-  kIGetObject,
-  kIGetByte,
-  kIGetChar,
-  kIGetShort,
-  kIGetWide,
-  kIPut,
-  kIPutBoolean,
-  kIPutObject,
-  kIPutByte,
-  kIPutChar,
-  kIPutShort,
-  kIPutWide,
-  kIdentity,
-};
-
 enum DividePattern {
   DivideNone,
   Divide3,

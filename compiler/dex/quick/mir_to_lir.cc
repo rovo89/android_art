@@ -789,7 +789,8 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
   return false;
 }
 
-void Mir2Lir::SpecialMIR2LIR(SpecialCaseHandler special_case) {
+void Mir2Lir::SpecialMIR2LIR(const InlineMethod& special) {
+  cu_->NewTimingSplit("SpecialMIR2LIR");
   // Find the first DalvikByteCode block.
   int num_reachable_blocks = mir_graph_->GetNumReachableBlocks();
   BasicBlock*bb = NULL;
@@ -815,7 +816,7 @@ void Mir2Lir::SpecialMIR2LIR(SpecialCaseHandler special_case) {
   ResetDefTracking();
   ClobberAllRegs();
 
-  GenSpecialCase(bb, mir, special_case);
+  GenSpecialCase(bb, mir, special);
 }
 
 void Mir2Lir::MethodMIR2LIR() {

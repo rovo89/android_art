@@ -337,11 +337,13 @@ extern "C" void compilerLLVMSetBitcodeFileName(art::CompilerDriver& driver,
                                                std::string const& filename);
 
 CompilerDriver::CompilerDriver(VerifiedMethodsData* verified_methods_data,
+                               DexFileToMethodInlinerMap* method_inliner_map,
                                CompilerBackend compiler_backend, InstructionSet instruction_set,
                                InstructionSetFeatures instruction_set_features,
                                bool image, DescriptorSet* image_classes, size_t thread_count,
                                bool dump_stats)
     : verified_methods_data_(verified_methods_data),
+      method_inliner_map_(method_inliner_map),
       compiler_backend_(compiler_backend),
       instruction_set_(instruction_set),
       instruction_set_features_(instruction_set_features),

@@ -113,19 +113,6 @@ class LLVMInfo {
     UniquePtr<art::llvm::IRBuilder> ir_builder_;
 };
 
-class QuickCompilerContext {
-  public:
-    QuickCompilerContext();
-    ~QuickCompilerContext();
-
-    DexFileToMethodInlinerMap* GetInlinerMap() {
-      return inliner_map_.get();
-    }
-
-  private:
-    UniquePtr<DexFileToMethodInlinerMap> inliner_map_;
-};
-
 struct CompilationUnit;
 struct BasicBlock;
 

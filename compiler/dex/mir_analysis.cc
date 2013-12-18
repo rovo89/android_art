@@ -16,6 +16,8 @@
 
 #include "compiler_internals.h"
 #include "dataflow_iterator-inl.h"
+#include "dex/quick/dex_file_method_inliner.h"
+#include "dex/quick/dex_file_to_method_inliner_map.h"
 
 namespace art {
 
@@ -1052,7 +1054,9 @@ bool MIRGraph::SkipCompilation(Runtime::CompilerFilter compiler_filter) {
   }
 
   // Filter 3: if this method is a special pattern, go ahead and emit the canned pattern.
-  if (IsSpecialCase()) {
+  if (cu_->compiler_driver->GetMethodInlinerMap() != nullptr &&
+      cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file)
+          ->IsSpecial(cu_->method_idx)) {
     return false;
   }
 

@@ -24,7 +24,7 @@
 namespace art {
 
 void MipsMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
-                                 SpecialCaseHandler special_case) {
+                                 const InlineMethod& special) {
     // TODO
 }
 
