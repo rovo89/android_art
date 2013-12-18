@@ -23,7 +23,7 @@
 namespace art {
 
 void X86Mir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
-                                SpecialCaseHandler special_case) {
+                                const InlineMethod& special) {
   // TODO
 }
 

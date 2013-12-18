@@ -577,14 +577,6 @@ class MIRGraph {
     return reg_location_[method_sreg_];
   }
 
-  bool IsSpecialCase() {
-    return special_case_ != kNoHandler;
-  }
-
-  SpecialCaseHandler GetSpecialCase() {
-    return special_case_;
-  }
-
   bool IsBackedge(BasicBlock* branch_bb, BasicBlockId target_bb_id) {
     return ((target_bb_id != NullBasicBlockId) &&
             (GetBasicBlock(target_bb_id)->start_offset <= branch_bb->start_offset));
@@ -789,7 +781,6 @@ class MIRGraph {
   int method_sreg_;
   unsigned int attributes_;
   Checkstats* checkstats_;
-  SpecialCaseHandler special_case_;
   ArenaAllocator* arena_;
   int backward_branches_;
   int forward_branches_;

@@ -18,6 +18,7 @@
 
 #include "arm_lir.h"
 #include "codegen_arm.h"
+#include "dex/quick/dex_file_method_inliner.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 
@@ -217,58 +218,43 @@ MIR* ArmMir2Lir::SpecialIdentity(MIR* mir) {
  * Special-case code genration for simple non-throwing leaf methods.
  */
 void ArmMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
-                                SpecialCaseHandler special_case) {
+                                const InlineMethod& special) {
+  // TODO: Generate the method using only the data in special. (Requires FastInstance() field
+  // validation in DexFileMethodInliner::AnalyseIGetMethod()/AnalyseIPutMethod().)
+  DCHECK(special.flags & kInlineSpecial);
   current_dalvik_offset_ = mir->offset;
   MIR* next_mir = NULL;
-  switch (special_case) {
-    case kNullMethod:
+  switch (special.opcode) {
+    case kInlineOpNop:
       DCHECK(mir->dalvikInsn.opcode == Instruction::RETURN_VOID);
       next_mir = mir;
       break;
-    case kConstFunction:
+    case kInlineOpConst:
       ArmMir2Lir::GenPrintLabel(mir);
-      LoadConstant(rARM_RET0, mir->dalvikInsn.vB);
+      LoadConstant(rARM_RET0, special.data);
       next_mir = GetNextMir(&bb, mir);
       break;
-    case kIGet:
-      next_mir = SpecialIGet(&bb, mir, kWord, false, false);
+    case kInlineOpIGet: {
+      InlineIGetIPutData data;
+      data.data = special.data;
+      OpSize op_size = static_cast<OpSize>(data.d.op_size);
+      DCHECK_NE(data.d.op_size, kDouble);  // The inliner doesn't distinguish kDouble, uses kLong.
+      bool long_or_double = (data.d.op_size == kLong);
+      bool is_object = data.d.is_object;
+      next_mir = SpecialIGet(&bb, mir, op_size, long_or_double, is_object);
       break;
-    case kIGetBoolean:
-    case kIGetByte:
-      next_mir = SpecialIGet(&bb, mir, kUnsignedByte, false, false);
+    }
+    case kInlineOpIPut: {
+      InlineIGetIPutData data;
+      data.data = special.data;
+      OpSize op_size = static_cast<OpSize>(data.d.op_size);
+      DCHECK_NE(data.d.op_size, kDouble);  // The inliner doesn't distinguish kDouble, uses kLong.
+      bool long_or_double = (data.d.op_size == kLong);
+      bool is_object = data.d.is_object;
+      next_mir = SpecialIPut(&bb, mir, op_size, long_or_double, is_object);
       break;
-    case kIGetObject:
-      next_mir = SpecialIGet(&bb, mir, kWord, false, true);
-      break;
-    case kIGetChar:
-      next_mir = SpecialIGet(&bb, mir, kUnsignedHalf, false, false);
-      break;
-    case kIGetShort:
-      next_mir = SpecialIGet(&bb, mir, kSignedHalf, false, false);
-      break;
-    case kIGetWide:
-      next_mir = SpecialIGet(&bb, mir, kLong, true, false);
-      break;
-    case kIPut:
-      next_mir = SpecialIPut(&bb, mir, kWord, false, false);
-      break;
-    case kIPutBoolean:
-    case kIPutByte:
-      next_mir = SpecialIPut(&bb, mir, kUnsignedByte, false, false);
-      break;
-    case kIPutObject:
-      next_mir = SpecialIPut(&bb, mir, kWord, false, true);
-      break;
-    case kIPutChar:
-      next_mir = SpecialIPut(&bb, mir, kUnsignedHalf, false, false);
-      break;
-    case kIPutShort:
-      next_mir = SpecialIPut(&bb, mir, kSignedHalf, false, false);
-      break;
-    case kIPutWide:
-      next_mir = SpecialIPut(&bb, mir, kLong, true, false);
-      break;
-    case kIdentity:
+    }
+    case kInlineOpReturnArg:
       next_mir = SpecialIdentity(mir);
       break;
     default:
@@ -276,7 +262,7 @@ void ArmMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
   }
   if (next_mir != NULL) {
     current_dalvik_offset_ = next_mir->offset;
-    if (special_case != kIdentity) {
+    if (special.opcode != kInlineOpReturnArg) {
       ArmMir2Lir::GenPrintLabel(next_mir);
     }
     NewLIR1(kThumbBx, rARM_LR);

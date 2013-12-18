@@ -19,6 +19,8 @@
 #include "gc_map.h"
 #include "mapping_table.h"
 #include "mir_to_lir-inl.h"
+#include "dex/quick/dex_file_method_inliner.h"
+#include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/verified_methods_data.h"
 #include "verifier/dex_gc_map.h"
 #include "verifier/method_verifier.h"
@@ -983,8 +985,7 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       core_spill_mask_(0),
       fp_spill_mask_(0),
       first_lir_insn_(NULL),
-      last_lir_insn_(NULL),
-      inliner_(nullptr) {
+      last_lir_insn_(NULL) {
   promotion_map_ = static_cast<PromotionMap*>
       (arena_->Alloc((cu_->num_dalvik_registers  + cu_->num_compiler_temps + 1) *
                       sizeof(promotion_map_[0]), ArenaAllocator::kAllocRegAlloc));
@@ -1000,15 +1001,16 @@ void Mir2Lir::Materialize() {
   /* Allocate Registers using simple local allocation scheme */
   SimpleRegAlloc();
 
-  if (mir_graph_->IsSpecialCase()) {
-      /*
-       * Custom codegen for special cases.  If for any reason the
-       * special codegen doesn't succeed, first_lir_insn_ will
-       * set to NULL;
-       */
-      cu_->NewTimingSplit("SpecialMIR2LIR");
-      SpecialMIR2LIR(mir_graph_->GetSpecialCase());
-    }
+  /*
+   * Custom codegen for special cases.  If for any reason the
+   * special codegen doesn't succeed, first_lir_insn_ will
+   * set to NULL;
+   */
+  // TODO: Clean up GenSpecial() and return true only if special implementation is emitted.
+  // Currently, GenSpecial() returns IsSpecial() but doesn't check after SpecialMIR2LIR().
+  DCHECK(cu_->compiler_driver->GetMethodInlinerMap() != nullptr);
+  cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file)
+      ->GenSpecial(this, cu_->method_idx);
 
   /* Convert MIR to LIR, etc. */
   if (first_lir_insn_ == NULL) {
