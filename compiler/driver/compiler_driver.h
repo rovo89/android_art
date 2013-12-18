@@ -43,6 +43,7 @@ class ParallelCompilationManager;
 class DexCompilationUnit;
 class OatWriter;
 class TimingLogger;
+class VerifiedMethodsData;
 
 enum CompilerBackend {
   kQuick,
@@ -90,7 +91,8 @@ class CompilerDriver {
   // enabled.  "image_classes" lets the compiler know what classes it
   // can assume will be in the image, with NULL implying all available
   // classes.
-  explicit CompilerDriver(CompilerBackend compiler_backend, InstructionSet instruction_set,
+  explicit CompilerDriver(VerifiedMethodsData* verified_methods_data,
+                          CompilerBackend compiler_backend, InstructionSet instruction_set,
                           InstructionSetFeatures instruction_set_features,
                           bool image, DescriptorSet* image_classes,
                           size_t thread_count, bool dump_stats);
@@ -104,6 +106,10 @@ class CompilerDriver {
   // Compile a single Method
   void CompileOne(const mirror::ArtMethod* method, TimingLogger& timings)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  VerifiedMethodsData* GetVerifiedMethodsData() const {
+    return verified_methods_data_;
+  }
 
   const InstructionSet& GetInstructionSet() const {
     return instruction_set_;
@@ -389,6 +395,8 @@ class CompilerDriver {
 
   std::vector<const PatchInformation*> code_to_patch_;
   std::vector<const PatchInformation*> methods_to_patch_;
+
+  VerifiedMethodsData* verified_methods_data_;
 
   CompilerBackend compiler_backend_;
 

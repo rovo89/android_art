@@ -110,8 +110,6 @@ class DexPcToReferenceMap {
     return data_;
   }
 
-  friend class MethodVerifier;
-
   static const int kRegMapFormatShift = 5;
   static const uint8_t kRegMapFormatMask = 0x7;
 
