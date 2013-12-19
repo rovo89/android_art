@@ -1754,8 +1754,8 @@ PRIMITIVE_ARRAY_FUNCTIONS(jdouble, Double, 'D');
     if (address == NULL) {
       JniAbortF(__FUNCTION__, "non-nullable address is NULL");
     }
-    if (capacity <= 0) {
-      JniAbortF(__FUNCTION__, "capacity must be greater than 0: %lld", capacity);
+    if (capacity < 0) {
+      JniAbortF(__FUNCTION__, "capacity must be non negative: %lld", capacity);
     }
     return CHECK_JNI_EXIT("L", baseEnv(env)->NewDirectByteBuffer(env, address, capacity));
   }
