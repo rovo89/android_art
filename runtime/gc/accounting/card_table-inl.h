@@ -29,14 +29,15 @@ namespace accounting {
 
 static inline bool byte_cas(byte old_value, byte new_value, byte* address) {
   // Little endian means most significant byte is on the left.
-  const size_t shift = reinterpret_cast<uintptr_t>(address) % sizeof(uintptr_t);
+  const size_t shift_in_bytes = reinterpret_cast<uintptr_t>(address) % sizeof(uintptr_t);
   // Align the address down.
-  address -= shift;
+  address -= shift_in_bytes;
+  const size_t shift_in_bits = shift_in_bytes * kBitsPerByte;
   int32_t* word_address = reinterpret_cast<int32_t*>(address);
   // Word with the byte we are trying to cas cleared.
-  const int32_t cur_word = *word_address & ~(0xFF << shift);
-  const int32_t old_word = cur_word | (static_cast<int32_t>(old_value) << shift);
-  const int32_t new_word = cur_word | (static_cast<int32_t>(new_value) << shift);
+  const int32_t cur_word = *word_address & ~(0xFF << shift_in_bits);
+  const int32_t old_word = cur_word | (static_cast<int32_t>(old_value) << shift_in_bits);
+  const int32_t new_word = cur_word | (static_cast<int32_t>(new_value) << shift_in_bits);
   bool success = android_atomic_cas(old_word, new_word, word_address) == 0;
   return success;
 }
