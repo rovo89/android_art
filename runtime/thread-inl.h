@@ -87,18 +87,22 @@ inline void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
   DCHECK_EQ(GetState(), kRunnable);
   union StateAndFlags old_state_and_flags;
   union StateAndFlags new_state_and_flags;
-  do {
+  while (true) {
     old_state_and_flags.as_int = state_and_flags_.as_int;
     if (UNLIKELY((old_state_and_flags.as_struct.flags & kCheckpointRequest) != 0)) {
       RunCheckpointFunction();
       continue;
     }
-    // Copy over flags and try to clear the checkpoint bit if it is set.
-    new_state_and_flags.as_struct.flags = old_state_and_flags.as_struct.flags & ~kCheckpointRequest;
+    // Change the state but keep the current flags (kCheckpointRequest is clear).
+    DCHECK_EQ((old_state_and_flags.as_struct.flags & kCheckpointRequest), 0);
+    new_state_and_flags.as_struct.flags = old_state_and_flags.as_struct.flags;
     new_state_and_flags.as_struct.state = new_state;
-    // CAS the value without a memory barrier, that will occur in the unlock below.
-  } while (UNLIKELY(android_atomic_cas(old_state_and_flags.as_int, new_state_and_flags.as_int,
-                                       &state_and_flags_.as_int) != 0));
+    int status = android_atomic_cas(old_state_and_flags.as_int, new_state_and_flags.as_int,
+                                       &state_and_flags_.as_int);
+    if (LIKELY(status == 0)) {
+      break;
+    }
+  }
   // Release share on mutator_lock_.
   Locks::mutator_lock_->SharedUnlock(this);
 }
