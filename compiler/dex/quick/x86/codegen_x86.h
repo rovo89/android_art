@@ -209,6 +209,8 @@ class X86Mir2Lir : public Mir2Lir {
                    int scale, int table_or_disp);
     void EmitMacro(const X86EncodingMap* entry, uint8_t reg, int offset);
     void EmitUnimplemented(const X86EncodingMap* entry, LIR* lir);
+    void GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1,
+                                  int64_t val, ConditionCode ccode);
 };
 
 }  // namespace art
