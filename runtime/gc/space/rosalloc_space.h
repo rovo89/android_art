@@ -83,12 +83,6 @@ class RosAllocSpace : public MallocSpace {
 
   uint64_t GetBytesAllocated();
   uint64_t GetObjectsAllocated();
-  uint64_t GetTotalBytesAllocated() {
-    return GetBytesAllocated() + total_bytes_freed_atomic_;
-  }
-  uint64_t GetTotalObjectsAllocated() {
-    return GetObjectsAllocated() + total_objects_freed_atomic_;
-  }
 
   void RevokeThreadLocalBuffers(Thread* thread);
   void RevokeAllThreadLocalBuffers();
@@ -112,7 +106,6 @@ class RosAllocSpace : public MallocSpace {
                 byte* begin, byte* end, byte* limit, size_t growth_limit);
 
  private:
-  size_t InternalAllocationSize(const mirror::Object* obj);
   mirror::Object* AllocWithoutGrowthLocked(Thread* self, size_t num_bytes, size_t* bytes_allocated);
 
   void* CreateAllocator(void* base, size_t morecore_start, size_t initial_size, bool low_memory_mode) {
@@ -124,10 +117,6 @@ class RosAllocSpace : public MallocSpace {
   void InspectAllRosAlloc(void (*callback)(void *start, void *end, size_t num_bytes, void* callback_arg),
                           void* arg)
       LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_, Locks::thread_list_lock_);
-
-  // Approximate number of bytes and objects which have been deallocated in the space.
-  AtomicInteger total_bytes_freed_atomic_;
-  AtomicInteger total_objects_freed_atomic_;
 
   // Underlying rosalloc.
   art::gc::allocator::RosAlloc* const rosalloc_;

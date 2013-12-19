@@ -86,12 +86,6 @@ class DlMallocSpace : public MallocSpace {
 
   uint64_t GetBytesAllocated();
   uint64_t GetObjectsAllocated();
-  uint64_t GetTotalBytesAllocated() {
-    return GetBytesAllocated() + total_bytes_freed_;
-  }
-  uint64_t GetTotalObjectsAllocated() {
-    return GetObjectsAllocated() + total_objects_freed_;
-  }
 
   // Returns the class of a recently freed object.
   mirror::Class* FindRecentFreedObject(const mirror::Object* obj);
@@ -112,8 +106,6 @@ class DlMallocSpace : public MallocSpace {
                 byte* limit, size_t growth_limit);
 
  private:
-  size_t InternalAllocationSize(const mirror::Object* obj);
-
   mirror::Object* AllocWithoutGrowthLocked(Thread* self, size_t num_bytes, size_t* bytes_allocated)
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
@@ -121,10 +113,6 @@ class DlMallocSpace : public MallocSpace {
     return CreateMspace(base, morecore_start, initial_size);
   }
   static void* CreateMspace(void* base, size_t morecore_start, size_t initial_size);
-
-  // Approximate number of bytes and objects which have been deallocated in the space.
-  size_t total_bytes_freed_;
-  size_t total_objects_freed_;
 
   // The boundary tag overhead.
   static const size_t kChunkOverhead = kWordSize;
