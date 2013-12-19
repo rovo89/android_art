@@ -1191,7 +1191,7 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
     result = Runtime::Current()->GetJavaVM()->DecodeWeakGlobal(const_cast<Thread*>(this), ref);
     if (result == kClearedJniWeakGlobal) {
       // This is a special case where it's okay to return NULL.
-      return NULL;
+      return nullptr;
     }
   }
 
