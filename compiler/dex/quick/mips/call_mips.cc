@@ -318,7 +318,7 @@ void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) 
   DCHECK_EQ(num_fp_spills_, 0);
   if (!skip_overflow_check) {
     OpRegRegImm(kOpSub, new_sp, rMIPS_SP, frame_size_ - (spill_count * 4));
-    GenRegRegCheck(kCondCc, new_sp, check_reg, kThrowStackOverflow);
+    GenRegRegCheck(kCondUlt, new_sp, check_reg, kThrowStackOverflow);
     OpRegCopy(rMIPS_SP, new_sp);     // Establish stack
   } else {
     OpRegImm(kOpSub, rMIPS_SP, frame_size_ - (spill_count * 4));

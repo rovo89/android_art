@@ -207,6 +207,8 @@ ArmConditionCode ArmMir2Lir::ArmConditionEncoding(ConditionCode ccode) {
     case kCondNe: res = kArmCondNe; break;
     case kCondCs: res = kArmCondCs; break;
     case kCondCc: res = kArmCondCc; break;
+    case kCondUlt: res = kArmCondCc; break;
+    case kCondUge: res = kArmCondCs; break;
     case kCondMi: res = kArmCondMi; break;
     case kCondPl: res = kArmCondPl; break;
     case kCondVs: res = kArmCondVs; break;

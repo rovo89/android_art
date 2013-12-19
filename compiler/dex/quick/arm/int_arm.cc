@@ -128,31 +128,23 @@ void ArmMir2Lir::GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1,
   int32_t low_reg = rl_src1.low_reg;
   int32_t high_reg = rl_src1.high_reg;
 
+  if (val == 0 && (ccode == kCondEq || ccode == kCondNe)) {
+    int t_reg = AllocTemp();
+    NewLIR4(kThumb2OrrRRRs, t_reg, low_reg, high_reg, 0);
+    FreeTemp(t_reg);
+    OpCondBranch(ccode, taken);
+    return;
+  }
+
   switch (ccode) {
     case kCondEq:
     case kCondNe:
-      LIR* target;
-      ConditionCode condition;
-      if (ccode == kCondEq) {
-        target = not_taken;
-        condition = kCondEq;
-      } else {
-        target = taken;
-        condition = kCondNe;
-      }
-      if (val == 0) {
-        int t_reg = AllocTemp();
-        NewLIR4(kThumb2OrrRRRs, t_reg, low_reg, high_reg, 0);
-        FreeTemp(t_reg);
-        OpCondBranch(condition, taken);
-        return;
-      }
-      OpCmpImmBranch(kCondNe, high_reg, val_hi, target);
+      OpCmpImmBranch(kCondNe, high_reg, val_hi, (ccode == kCondEq) ? not_taken : taken);
       break;
     case kCondLt:
       OpCmpImmBranch(kCondLt, high_reg, val_hi, taken);
       OpCmpImmBranch(kCondGt, high_reg, val_hi, not_taken);
-      ccode = kCondCc;
+      ccode = kCondUlt;
       break;
     case kCondLe:
       OpCmpImmBranch(kCondLt, high_reg, val_hi, taken);
@@ -167,7 +159,7 @@ void ArmMir2Lir::GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1,
     case kCondGe:
       OpCmpImmBranch(kCondGt, high_reg, val_hi, taken);
       OpCmpImmBranch(kCondLt, high_reg, val_hi, not_taken);
-      ccode = kCondCs;
+      ccode = kCondUge;
       break;
     default:
       LOG(FATAL) << "Unexpected ccode: " << ccode;
@@ -187,7 +179,7 @@ void ArmMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
     rl_result = EvalLoc(rl_dest, kCoreReg, true);
     if ((true_val == 1) && (false_val == 0)) {
       OpRegRegImm(kOpRsub, rl_result.low_reg, rl_src.low_reg, 1);
-      OpIT(kCondCc, "");
+      OpIT(kCondUlt, "");
       LoadConstant(rl_result.low_reg, 0);
       GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
     } else if (InexpensiveConstantInt(true_val) && InexpensiveConstantInt(false_val)) {
@@ -238,9 +230,7 @@ void ArmMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
   // Normalize such that if either operand is constant, src2 will be constant.
   ConditionCode ccode = static_cast<ConditionCode>(mir->dalvikInsn.arg[0]);
   if (rl_src1.is_const) {
-    RegLocation rl_temp = rl_src1;
-    rl_src1 = rl_src2;
-    rl_src2 = rl_temp;
+    std::swap(rl_src1, rl_src2);
     ccode = FlipComparisonOrder(ccode);
   }
   if (rl_src2.is_const) {
@@ -268,7 +258,7 @@ void ArmMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
     case kCondLt:
       OpCondBranch(kCondLt, taken);
       OpCondBranch(kCondGt, not_taken);
-      ccode = kCondCc;
+      ccode = kCondUlt;
       break;
     case kCondLe:
       OpCondBranch(kCondLt, taken);
@@ -283,7 +273,7 @@ void ArmMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
     case kCondGe:
       OpCondBranch(kCondGt, taken);
       OpCondBranch(kCondLt, not_taken);
-      ccode = kCondCs;
+      ccode = kCondUge;
       break;
     default:
       LOG(FATAL) << "Unexpected ccode: " << ccode;
@@ -701,7 +691,7 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   OpRegRegImm(kOpRsub, rl_result.low_reg, r_tmp, 1);
   DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
-  OpIT(kCondCc, "");
+  OpIT(kCondUlt, "");
   LoadConstant(rl_result.low_reg, 0); /* cc */
   FreeTemp(r_tmp);  // Now unneeded.
 
@@ -981,9 +971,7 @@ void ArmMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
     rl_result = EvalLoc(rl_dest, reg_class, true);
 
     if (needs_range_check) {
-      // TODO: change kCondCS to a more meaningful name, is the sense of
-      // carry-set/clear flipped?
-      GenRegRegCheck(kCondCs, rl_index.low_reg, reg_len, kThrowArrayBounds);
+      GenRegRegCheck(kCondUge, rl_index.low_reg, reg_len, kThrowArrayBounds);
       FreeTemp(reg_len);
     }
     LoadBaseIndexed(reg_ptr, rl_index.low_reg, rl_result.low_reg, scale, size);
@@ -1072,7 +1060,7 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     OpRegRegImm(kOpAdd, reg_ptr, rl_array.low_reg, data_offset);
     rl_src = LoadValue(rl_src, reg_class);
     if (needs_range_check) {
-      GenRegRegCheck(kCondCs, rl_index.low_reg, reg_len, kThrowArrayBounds);
+      GenRegRegCheck(kCondUge, rl_index.low_reg, reg_len, kThrowArrayBounds);
       FreeTemp(reg_len);
     }
     StoreBaseIndexed(reg_ptr, rl_index.low_reg, rl_src.low_reg,
@@ -1172,9 +1160,7 @@ void ArmMir2Lir::GenArithImmOpLong(Instruction::Code opcode,
     // Normalize
     if (!rl_src2.is_const) {
       DCHECK(rl_src1.is_const);
-      RegLocation rl_temp = rl_src1;
-      rl_src1 = rl_src2;
-      rl_src2 = rl_temp;
+      std::swap(rl_src1, rl_src2);
     }
   }
   if (BadOverlap(rl_src1, rl_dest)) {

@@ -216,7 +216,7 @@ void ArmMir2Lir::GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias,
       break;
     case kCondGe:
       if (gt_bias) {
-        ccode = kCondCs;
+        ccode = kCondUge;
       }
       break;
     default:
