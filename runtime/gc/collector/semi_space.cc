@@ -236,8 +236,8 @@ void SemiSpace::ReclaimPhase() {
   int freed_bytes = from_bytes - to_bytes;
   int freed_objects = from_objects - to_objects;
   CHECK_GE(freed_bytes, 0);
-  freed_bytes_.fetch_add(freed_bytes);
-  freed_objects_.fetch_add(freed_objects);
+  freed_bytes_.FetchAndAdd(freed_bytes);
+  freed_objects_.FetchAndAdd(freed_objects);
   heap_->RecordFree(static_cast<size_t>(freed_objects), static_cast<size_t>(freed_bytes));
 
   timings_.StartSplit("PreSweepingGcVerification");
@@ -332,7 +332,7 @@ Object* SemiSpace::MarkObject(Object* obj) {
             // If out of space, fall back to the to-space.
             forward_address = to_space_->Alloc(self_, object_size, &bytes_allocated);
           } else {
-            GetHeap()->num_bytes_allocated_.fetch_add(bytes_promoted);
+            GetHeap()->num_bytes_allocated_.FetchAndAdd(bytes_promoted);
             bytes_promoted_ += bytes_promoted;
             // Mark forward_address on the live bit map.
             accounting::SpaceBitmap* live_bitmap = non_moving_space->GetLiveBitmap();
@@ -446,8 +446,8 @@ void SemiSpace::SweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
   Locks::heap_bitmap_lock_->AssertExclusiveHeld(self);
   size_t freed_bytes = space->FreeList(self, num_ptrs, ptrs);
   heap->RecordFree(num_ptrs, freed_bytes);
-  gc->freed_objects_.fetch_add(num_ptrs);
-  gc->freed_bytes_.fetch_add(freed_bytes);
+  gc->freed_objects_.FetchAndAdd(num_ptrs);
+  gc->freed_bytes_.FetchAndAdd(freed_bytes);
 }
 
 void SemiSpace::ZygoteSweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
@@ -526,8 +526,8 @@ void SemiSpace::SweepLargeObjects(bool swap_bitmaps) {
       ++freed_objects;
     }
   }
-  freed_large_objects_.fetch_add(freed_objects);
-  freed_large_object_bytes_.fetch_add(freed_bytes);
+  freed_large_objects_.FetchAndAdd(freed_objects);
+  freed_large_object_bytes_.FetchAndAdd(freed_bytes);
   GetHeap()->RecordFree(freed_objects, freed_bytes);
 }
 

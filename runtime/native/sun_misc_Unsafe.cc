@@ -86,7 +86,7 @@ static void Unsafe_putIntVolatile(JNIEnv* env, jobject, jobject javaObj, jlong o
 static void Unsafe_putOrderedInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  ANDROID_MEMBAR_STORE();
+  QuasiAtomic::MembarStoreStore();
   obj->SetField32(MemberOffset(offset), newValue, false);
 }
 
@@ -117,7 +117,7 @@ static void Unsafe_putLongVolatile(JNIEnv* env, jobject, jobject javaObj, jlong 
 static void Unsafe_putOrderedLong(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong newValue) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  ANDROID_MEMBAR_STORE();
+  QuasiAtomic::MembarStoreStore();
   obj->SetField64(MemberOffset(offset), newValue, false);
 }
 
@@ -153,7 +153,7 @@ static void Unsafe_putOrderedObject(JNIEnv* env, jobject, jobject javaObj, jlong
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   mirror::Object* newValue = soa.Decode<mirror::Object*>(javaNewValue);
-  ANDROID_MEMBAR_STORE();
+  QuasiAtomic::MembarStoreStore();
   obj->SetFieldObject(MemberOffset(offset), newValue, false);
 }
 

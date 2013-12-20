@@ -413,13 +413,13 @@ void Heap::AddSpace(space::Space* space) {
 
 void Heap::RegisterGCAllocation(size_t bytes) {
   if (this != nullptr) {
-    gc_memory_overhead_.fetch_add(bytes);
+    gc_memory_overhead_.FetchAndAdd(bytes);
   }
 }
 
 void Heap::RegisterGCDeAllocation(size_t bytes) {
   if (this != nullptr) {
-    gc_memory_overhead_.fetch_sub(bytes);
+    gc_memory_overhead_.FetchAndSub(bytes);
   }
 }
 
@@ -802,7 +802,7 @@ void Heap::DumpSpaces(std::ostream& stream) {
 void Heap::VerifyObjectBody(const mirror::Object* obj) {
   CHECK(IsAligned<kObjectAlignment>(obj)) << "Object isn't aligned: " << obj;
   // Ignore early dawn of the universe verifications.
-  if (UNLIKELY(static_cast<size_t>(num_bytes_allocated_.load()) < 10 * KB)) {
+  if (UNLIKELY(static_cast<size_t>(num_bytes_allocated_.Load()) < 10 * KB)) {
     return;
   }
   const byte* raw_addr = reinterpret_cast<const byte*>(obj) +
@@ -847,7 +847,8 @@ void Heap::VerifyHeap() {
 
 void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
   DCHECK_LE(freed_bytes, static_cast<size_t>(num_bytes_allocated_));
-  num_bytes_allocated_.fetch_sub(freed_bytes);
+  num_bytes_allocated_.FetchAndSub(freed_bytes);
+
   if (Runtime::Current()->HasStatsEnabled()) {
     RuntimeStats* thread_stats = Thread::Current()->GetStats();
     thread_stats->freed_objects += freed_objects;
@@ -2082,7 +2083,7 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, int bytes) {
     native_need_to_run_finalization_ = false;
   }
   // Total number of native bytes allocated.
-  native_bytes_allocated_.fetch_add(bytes);
+  native_bytes_allocated_.FetchAndAdd(bytes);
   if (static_cast<size_t>(native_bytes_allocated_) > native_footprint_gc_watermark_) {
     collector::GcType gc_type = have_zygote_space_ ? collector::kGcTypePartial :
         collector::kGcTypeFull;
@@ -2118,7 +2119,7 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, int bytes) {
 void Heap::RegisterNativeFree(JNIEnv* env, int bytes) {
   int expected_size, new_size;
   do {
-    expected_size = native_bytes_allocated_.load();
+    expected_size = native_bytes_allocated_.Load();
     new_size = expected_size - bytes;
     if (UNLIKELY(new_size < 0)) {
       ScopedObjectAccess soa(env);
@@ -2127,7 +2128,7 @@ void Heap::RegisterNativeFree(JNIEnv* env, int bytes) {
                                  "registered as allocated", bytes, expected_size).c_str());
       break;
     }
-  } while (!native_bytes_allocated_.compare_and_swap(expected_size, new_size));
+  } while (!native_bytes_allocated_.CompareAndSwap(expected_size, new_size));
 }
 
 int64_t Heap::GetTotalMemory() const {

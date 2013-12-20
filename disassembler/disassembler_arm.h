@@ -30,6 +30,7 @@ class DisassemblerArm : public Disassembler {
 
   virtual size_t Dump(std::ostream& os, const uint8_t* begin);
   virtual void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end);
+
  private:
   void DumpArm(std::ostream& os, const uint8_t* instr);
 
@@ -39,6 +40,7 @@ class DisassemblerArm : public Disassembler {
 
   void DumpBranchTarget(std::ostream& os, const uint8_t* instr_ptr, int32_t imm32);
   void DumpCond(std::ostream& os, uint32_t cond);
+  void DumpMemoryDomain(std::ostream& os, uint32_t domain);
 
   std::vector<const char*> it_conditions_;
 
