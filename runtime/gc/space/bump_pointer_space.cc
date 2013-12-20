@@ -172,7 +172,7 @@ bool BumpPointerSpace::IsEmpty() const {
 
 uint64_t BumpPointerSpace::GetBytesAllocated() {
   // Start out pre-determined amount (blocks which are not being allocated into).
-  uint64_t total = static_cast<uint64_t>(bytes_allocated_.load());
+  uint64_t total = static_cast<uint64_t>(bytes_allocated_.Load());
   Thread* self = Thread::Current();
   MutexLock mu(self, *Locks::runtime_shutdown_lock_);
   MutexLock mu2(self, *Locks::thread_list_lock_);
@@ -190,7 +190,7 @@ uint64_t BumpPointerSpace::GetBytesAllocated() {
 
 uint64_t BumpPointerSpace::GetObjectsAllocated() {
   // Start out pre-determined amount (blocks which are not being allocated into).
-  uint64_t total = static_cast<uint64_t>(objects_allocated_.load());
+  uint64_t total = static_cast<uint64_t>(objects_allocated_.Load());
   Thread* self = Thread::Current();
   MutexLock mu(self, *Locks::runtime_shutdown_lock_);
   MutexLock mu2(self, *Locks::thread_list_lock_);
@@ -207,8 +207,8 @@ uint64_t BumpPointerSpace::GetObjectsAllocated() {
 }
 
 void BumpPointerSpace::RevokeThreadLocalBuffersLocked(Thread* thread) {
-  objects_allocated_.fetch_add(thread->thread_local_objects_);
-  bytes_allocated_.fetch_add(thread->thread_local_pos_ - thread->thread_local_start_);
+  objects_allocated_.FetchAndAdd(thread->thread_local_objects_);
+  bytes_allocated_.FetchAndAdd(thread->thread_local_pos_ - thread->thread_local_start_);
   thread->SetTLAB(nullptr, nullptr);
 }
 

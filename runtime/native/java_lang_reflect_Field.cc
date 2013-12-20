@@ -222,7 +222,7 @@ static void SetFieldValue(ScopedFastNativeObjectAccess& soa, mirror::Object* o,
   // Special handling for final fields on SMP systems.
   // We need a store/store barrier here (JMM requirement).
   if (f->IsFinal()) {
-    ANDROID_MEMBAR_STORE();
+    QuasiAtomic::MembarStoreLoad();
   }
 }
 

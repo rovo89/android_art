@@ -98,12 +98,12 @@ Monitor::Monitor(Thread* owner, mirror::Object* obj, int32_t hash_code)
 
 int32_t Monitor::GetHashCode() {
   while (!HasHashCode()) {
-    if (hash_code_.compare_and_swap(0, mirror::Object::GenerateIdentityHashCode())) {
+    if (hash_code_.CompareAndSwap(0, mirror::Object::GenerateIdentityHashCode())) {
       break;
     }
   }
   DCHECK(HasHashCode());
-  return hash_code_.load();
+  return hash_code_.Load();
 }
 
 bool Monitor::Install(Thread* self) {
@@ -660,6 +660,7 @@ void Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
       case LockWord::kUnlocked: {
         LockWord thin_locked(LockWord::FromThinLockId(thread_id, 0));
         if (sirt_obj->CasLockWord(lock_word, thin_locked)) {
+          QuasiAtomic::MembarLoadLoad();
           return;  // Success!
         }
         continue;  // Go again.

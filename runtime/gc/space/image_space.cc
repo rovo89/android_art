@@ -227,7 +227,7 @@ ImageSpace* ImageSpace::Init(const char* image_file_name, bool validate_oat_file
     *error_msg = StringPrintf("Failed to map image bitmap: %s", error_msg->c_str());
     return nullptr;
   }
-  size_t bitmap_index = bitmap_index_.fetch_add(1);
+  size_t bitmap_index = bitmap_index_.FetchAndAdd(1);
   std::string bitmap_name(StringPrintf("imagespace %s live-bitmap %u", image_file_name,
                                        bitmap_index));
   UniquePtr<accounting::SpaceBitmap> bitmap(

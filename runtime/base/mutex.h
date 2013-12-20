@@ -191,7 +191,7 @@ class LOCKABLE Mutex : public BaseMutex {
   // Exclusive owner.
   volatile uint64_t exclusive_owner_;
   // Number of waiting contenders.
-  volatile int32_t num_contenders_;
+  AtomicInteger num_contenders_;
 #else
   pthread_mutex_t mutex_;
 #endif
@@ -304,7 +304,7 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
   // Pending readers.
   volatile int32_t num_pending_readers_;
   // Pending writers.
-  volatile int32_t num_pending_writers_;
+  AtomicInteger num_pending_writers_;
 #else
   pthread_rwlock_t rwlock_;
 #endif
@@ -339,7 +339,7 @@ class ConditionVariable {
   // their Mutex and another thread takes it and signals, the waiting thread observes that sequence_
   // changed and doesn't enter the wait. Modified while holding guard_, but is read by futex wait
   // without guard_ held.
-  volatile int32_t sequence_;
+  AtomicInteger sequence_;
   // Number of threads that have come into to wait, not the length of the waiters on the futex as
   // waiters may have been requeued onto guard_. Guarded by guard_.
   volatile int32_t num_waiters_;

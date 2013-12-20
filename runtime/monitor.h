@@ -105,7 +105,7 @@ class Monitor {
   bool IsLocked() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasHashCode() const {
-    return hash_code_.load() != 0;
+    return hash_code_.Load() != 0;
   }
 
   static void InflateThinLocked(Thread* self, SirtRef<mirror::Object>& obj, LockWord lock_word,

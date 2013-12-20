@@ -17,9 +17,6 @@
 #ifndef ART_RUNTIME_BASE_BOUNDED_FIFO_H_
 #define ART_RUNTIME_BASE_BOUNDED_FIFO_H_
 
-#include "cutils/atomic.h"
-#include "cutils/atomic-inline.h"
-
 namespace art {
 
 // A bounded fifo is a fifo which has a bounded size. The power of two version uses a bit mask to
@@ -49,7 +46,7 @@ class BoundedFifoPowerOfTwo {
   void push_back(const T& value) {
     ++size_;
     DCHECK_LE(size_, MaxSize);
-    // Relies on integer overflow behaviour.
+    // Relies on integer overflow behavior.
     data_[back_index_++ & mask_] = value;
   }
 

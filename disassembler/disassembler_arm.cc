@@ -81,6 +81,19 @@ void DisassemblerArm::DumpCond(std::ostream& os, uint32_t cond) {
   }
 }
 
+void DisassemblerArm::DumpMemoryDomain(std::ostream& os, uint32_t domain) {
+  switch (domain) {
+    case 0b1111: os << "sy"; break;
+    case 0b1110: os << "st"; break;
+    case 0b1011: os << "ish"; break;
+    case 0b1010: os << "ishst"; break;
+    case 0b0111: os << "nsh"; break;
+    case 0b0110: os << "nshst"; break;
+    case 0b0011: os << "osh"; break;
+    case 0b0010: os << "oshst"; break;
+  }
+}
+
 void DisassemblerArm::DumpBranchTarget(std::ostream& os, const uint8_t* instr_ptr, int32_t imm32) {
   os << StringPrintf("%+d (%p)", imm32, instr_ptr + imm32);
 }
@@ -996,9 +1009,9 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
               // Miscellaneous control instructions
               uint32_t op5 = (instr >> 4) & 0xF;
               switch (op5) {
-                case 4: opcode << "dsb"; break;
-                case 5: opcode << "dmb"; break;
-                case 6: opcode << "isb"; break;
+                case 4: opcode << "dsb"; DumpMemoryDomain(args, instr & 0xF); break;
+                case 5: opcode << "dmb"; DumpMemoryDomain(args, instr & 0xF); break;
+                case 6: opcode << "isb"; DumpMemoryDomain(args, instr & 0xF); break;
               }
             }
             break;

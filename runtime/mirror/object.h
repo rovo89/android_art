@@ -187,37 +187,10 @@ class MANAGED Object {
     return reinterpret_cast<Object**>(reinterpret_cast<byte*>(this) + field_offset.Int32Value());
   }
 
-  uint32_t GetField32(MemberOffset field_offset, bool is_volatile) const {
-    VerifyObject(this);
-    const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset.Int32Value();
-    const int32_t* word_addr = reinterpret_cast<const int32_t*>(raw_addr);
-    if (UNLIKELY(is_volatile)) {
-      return android_atomic_acquire_load(word_addr);
-    } else {
-      return *word_addr;
-    }
-  }
+  uint32_t GetField32(MemberOffset field_offset, bool is_volatile) const;
 
   void SetField32(MemberOffset field_offset, uint32_t new_value, bool is_volatile,
-                  bool this_is_valid = true) {
-    if (this_is_valid) {
-      VerifyObject(this);
-    }
-    byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
-    uint32_t* word_addr = reinterpret_cast<uint32_t*>(raw_addr);
-    if (UNLIKELY(is_volatile)) {
-      /*
-       * TODO: add an android_atomic_synchronization_store() function and
-       * use it in the 32-bit volatile set handlers.  On some platforms we
-       * can use a fast atomic instruction and avoid the barriers.
-       */
-      ANDROID_MEMBAR_STORE();
-      *word_addr = new_value;
-      ANDROID_MEMBAR_FULL();
-    } else {
-      *word_addr = new_value;
-    }
-  }
+                  bool this_is_valid = true);
 
   bool CasField32(MemberOffset field_offset, uint32_t old_value, uint32_t new_value);
 
