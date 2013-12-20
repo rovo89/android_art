@@ -80,7 +80,7 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, mirror::Object* obj) {
   prevState.all = cookie;
   size_t topIndex = segment_state_.parts.topIndex;
 
-  DCHECK(obj != NULL);
+  CHECK(obj != NULL);
   // TODO: stronger sanity check on the object (such as in heap)
   DCHECK_ALIGNED(reinterpret_cast<uintptr_t>(obj), 8);
   DCHECK(table_ != NULL);
