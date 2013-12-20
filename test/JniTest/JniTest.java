@@ -23,6 +23,7 @@ class JniTest {
         testFindFieldOnAttachedNativeThread();
         testCallStaticVoidMethodOnSubClass();
         testGetMirandaMethod();
+        testZeroLengthByteBuffers();
     }
 
     private static native void testFindClassOnAttachedNativeThread();
@@ -66,6 +67,8 @@ class JniTest {
             throw new AssertionError();
         }
     }
+
+    private static native void testZeroLengthByteBuffers();
 
     private static abstract class testGetMirandaMethod_MirandaAbstract implements testGetMirandaMethod_MirandaInterface {
         public boolean inAbstract() {
