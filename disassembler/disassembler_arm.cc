@@ -683,7 +683,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
         uint32_t coproc = (instr >> 8) & 0xF;
         uint32_t op4 = (instr >> 4) & 0x1;
 
-        if (coproc == 10 || coproc == 11) {   // 101x
+        if (coproc == 0xA || coproc == 0xB) {   // 101x
           if (op3 < 0x20 && (op3 & ~5) != 0) {     // 0xxxxx and not 000x0x
             // Extension register load/store instructions
             // |1111|110|00000|0000|1111|110|0|00000000|
@@ -708,6 +708,11 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
                 opcode << (L == 1 ? "vldr" : "vstr");
                 args << d << ", [" << Rn << ", #" << ((U == 1) ? "" : "-")
                      << (imm8 << 2) << "]";
+                if (Rn.r == 15 && U == 1) {
+                  intptr_t lit_adr = reinterpret_cast<intptr_t>(instr_ptr);
+                  lit_adr = RoundDown(lit_adr, 4) + 4 + (imm8 << 2);
+                  args << StringPrintf("  ; 0x%llx", *reinterpret_cast<int64_t*>(lit_adr));
+                }
               } else if (Rn.r == 13 && W == 1 && U == L) {  // VPUSH/VPOP
                 opcode << (L == 1 ? "vpop" : "vpush");
                 args << FpRegisterRange(instr);
