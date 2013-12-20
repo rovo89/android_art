@@ -203,10 +203,10 @@ std::ostream& operator<<(std::ostream& os, const OpKind& kind);
 enum ConditionCode {
   kCondEq,  // equal
   kCondNe,  // not equal
-  kCondCs,  // carry set (unsigned less than)
-  kCondUlt = kCondCs,
-  kCondCc,  // carry clear (unsigned greater than or same)
-  kCondUge = kCondCc,
+  kCondCs,  // carry set
+  kCondCc,  // carry clear
+  kCondUlt, // unsigned less than
+  kCondUge, // unsigned greater than or same
   kCondMi,  // minus
   kCondPl,  // plus, positive or zero
   kCondVs,  // overflow

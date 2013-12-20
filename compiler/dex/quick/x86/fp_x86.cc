@@ -322,7 +322,7 @@ void X86Mir2Lir::GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias,
         branch = NewLIR2(kX86Jcc8, 0, kX86CondPE);
         branch->target = not_taken;
       }
-      ccode = kCondCs;
+      ccode = kCondUlt;
       break;
     case kCondLe:
       if (gt_bias) {
@@ -343,7 +343,7 @@ void X86Mir2Lir::GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias,
         branch = NewLIR2(kX86Jcc8, 0, kX86CondPE);
         branch->target = taken;
       }
-      ccode = kCondCc;
+      ccode = kCondUge;
       break;
     default:
       LOG(FATAL) << "Unexpected ccode: " << ccode;
