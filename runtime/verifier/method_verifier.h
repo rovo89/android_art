@@ -610,6 +610,8 @@ class MethodVerifier {
 
   InstructionFlags* CurrentInsnFlags();
 
+  const RegType& DetermineCat1Constant(int32_t value, bool precise)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   RegTypeCache reg_types_;
 

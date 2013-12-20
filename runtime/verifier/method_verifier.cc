@@ -1432,6 +1432,9 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   UniquePtr<RegisterLine> branch_line;
   UniquePtr<RegisterLine> fallthrough_line;
 
+  // We need precise constant types only for deoptimization which happens at runtime.
+  const bool need_precise_constant = !Runtime::Current()->IsCompiler();
+
   switch (inst->Opcode()) {
     case Instruction::NOP:
       /*
@@ -1582,22 +1585,28 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       /* could be boolean, int, float, or a null reference */
     case Instruction::CONST_4: {
       int32_t val = static_cast<int32_t>(inst->VRegB_11n() << 28) >> 28;
-      work_line_->SetRegisterType(inst->VRegA_11n(), reg_types_.FromCat1Const(val, true));
+      work_line_->SetRegisterType(inst->VRegA_11n(),
+                                  DetermineCat1Constant(val, need_precise_constant));
       break;
     }
     case Instruction::CONST_16: {
       int16_t val = static_cast<int16_t>(inst->VRegB_21s());
-      work_line_->SetRegisterType(inst->VRegA_21s(), reg_types_.FromCat1Const(val, true));
+      work_line_->SetRegisterType(inst->VRegA_21s(),
+                                  DetermineCat1Constant(val, need_precise_constant));
       break;
     }
-    case Instruction::CONST:
+    case Instruction::CONST: {
+      int32_t val = inst->VRegB_31i();
       work_line_->SetRegisterType(inst->VRegA_31i(),
-                                  reg_types_.FromCat1Const(inst->VRegB_31i(), true));
+                                  DetermineCat1Constant(val, need_precise_constant));
       break;
-    case Instruction::CONST_HIGH16:
+    }
+    case Instruction::CONST_HIGH16: {
+      int32_t val = static_cast<int32_t>(inst->VRegB_21h() << 16);
       work_line_->SetRegisterType(inst->VRegA_21h(),
-                                  reg_types_.FromCat1Const(inst->VRegB_21h() << 16, true));
+                                  DetermineCat1Constant(val, need_precise_constant));
       break;
+    }
       /* could be long or double; resolved upon use */
     case Instruction::CONST_WIDE_16: {
       int64_t val = static_cast<int16_t>(inst->VRegB_21s());
@@ -3926,6 +3935,34 @@ std::vector<int32_t> MethodVerifier::DescribeVRegs(uint32_t dex_pc) {
     }
   }
   return result;
+}
+
+const RegType& MethodVerifier::DetermineCat1Constant(int32_t value, bool precise) {
+  if (precise) {
+    // Precise constant type.
+    return reg_types_.FromCat1Const(value, true);
+  } else {
+    // Imprecise constant type.
+    if (value < -32768) {
+      return reg_types_.IntConstant();
+    } else if (value < -128) {
+      return reg_types_.ShortConstant();
+    } else if (value < 0) {
+      return reg_types_.ByteConstant();
+    } else if (value == 0) {
+      return reg_types_.Zero();
+    } else if (value == 1) {
+      return reg_types_.One();
+    } else if (value < 128) {
+      return reg_types_.PosByteConstant();
+    } else if (value < 32768) {
+      return reg_types_.PosShortConstant();
+    } else if (value < 65536) {
+      return reg_types_.CharConstant();
+    } else {
+      return reg_types_.IntConstant();
+    }
+  }
 }
 
 void MethodVerifier::Init() {

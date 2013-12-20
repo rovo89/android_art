@@ -77,8 +77,11 @@ class RegTypeCache {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return From(NULL, "Ljava/lang/Throwable;", precise);
   }
-  const RegType& Zero() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const ConstantType& Zero() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return FromCat1Const(0, true);
+  }
+  const ConstantType& One() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return FromCat1Const(1, true);
   }
   size_t GetCacheSize() {
     return entries_.size();
@@ -133,8 +136,11 @@ class RegTypeCache {
   const RegType& FromUninitialized(const RegType& uninit_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const ImpreciseConstType& ByteConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const ImpreciseConstType& CharConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const ImpreciseConstType& ShortConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const ImpreciseConstType& IntConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const ImpreciseConstType& PosByteConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const ImpreciseConstType& PosShortConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const RegType& GetComponentType(const RegType& array, mirror::ClassLoader* loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void Dump(std::ostream& os) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
