@@ -205,8 +205,8 @@ enum ConditionCode {
   kCondNe,  // not equal
   kCondCs,  // carry set
   kCondCc,  // carry clear
-  kCondUlt, // unsigned less than
-  kCondUge, // unsigned greater than or same
+  kCondUlt,  // unsigned less than
+  kCondUge,  // unsigned greater than or same
   kCondMi,  // minus
   kCondPl,  // plus, positive or zero
   kCondVs,  // overflow
