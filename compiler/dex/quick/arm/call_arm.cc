@@ -608,7 +608,7 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
   }
   if (!skip_overflow_check) {
     OpRegRegImm(kOpSub, rARM_LR, rARM_SP, frame_size_ - (spill_count * 4));
-    GenRegRegCheck(kCondCc, rARM_LR, r12, kThrowStackOverflow);
+    GenRegRegCheck(kCondUlt, rARM_LR, r12, kThrowStackOverflow);
     OpRegCopy(rARM_SP, rARM_LR);     // Establish stack
   } else {
     OpRegImm(kOpSub, rARM_SP, frame_size_ - (spill_count * 4));

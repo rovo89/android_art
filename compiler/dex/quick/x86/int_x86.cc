@@ -83,6 +83,8 @@ X86ConditionCode X86ConditionEncoding(ConditionCode cond) {
     case kCondNe: return kX86CondNe;
     case kCondCs: return kX86CondC;
     case kCondCc: return kX86CondNc;
+    case kCondUlt: return kX86CondC;
+    case kCondUge: return kX86CondNc;
     case kCondMi: return kX86CondS;
     case kCondPl: return kX86CondNs;
     case kCondVs: return kX86CondO;
