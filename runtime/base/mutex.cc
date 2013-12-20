@@ -21,8 +21,6 @@
 
 #include "atomic.h"
 #include "base/logging.h"
-#include "cutils/atomic.h"
-#include "cutils/atomic-inline.h"
 #include "mutex-inl.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
@@ -59,12 +57,12 @@ static struct AllMutexData gAllMutexData[kAllMutexDataSize];
 class ScopedAllMutexesLock {
  public:
   explicit ScopedAllMutexesLock(const BaseMutex* mutex) : mutex_(mutex) {
-    while (!gAllMutexData->all_mutexes_guard.compare_and_swap(0, reinterpret_cast<int32_t>(mutex))) {
+    while (!gAllMutexData->all_mutexes_guard.CompareAndSwap(0, reinterpret_cast<int32_t>(mutex))) {
       NanoSleep(100);
     }
   }
   ~ScopedAllMutexesLock() {
-    while (!gAllMutexData->all_mutexes_guard.compare_and_swap(reinterpret_cast<int32_t>(mutex_), 0)) {
+    while (!gAllMutexData->all_mutexes_guard.CompareAndSwap(reinterpret_cast<int32_t>(mutex_), 0)) {
       NanoSleep(100);
     }
   }
@@ -176,7 +174,7 @@ void BaseMutex::RecordContention(uint64_t blocked_tid,
       do {
         slot = data->cur_content_log_entry;
         new_slot = (slot + 1) % kContentionLogSize;
-      } while (!data->cur_content_log_entry.compare_and_swap(slot, new_slot));
+      } while (!data->cur_content_log_entry.CompareAndSwap(slot, new_slot));
       log[new_slot].blocked_tid = blocked_tid;
       log[new_slot].owner_tid = owner_tid;
       log[new_slot].count = 1;
@@ -300,11 +298,11 @@ void Mutex::ExclusiveLock(Thread* self) {
       int32_t cur_state = state_;
       if (LIKELY(cur_state == 0)) {
         // Change state from 0 to 1.
-        done = android_atomic_acquire_cas(0, 1, &state_) == 0;
+        done = __sync_bool_compare_and_swap(&state_, 0 /* cur_state */, 1 /* new state */);
       } else {
         // Failed to acquire, hang up.
         ScopedContentionRecorder scr(this, SafeGetTid(self), GetExclusiveOwnerTid());
-        android_atomic_inc(&num_contenders_);
+        num_contenders_++;
         if (futex(&state_, FUTEX_WAIT, 1, NULL, NULL, 0) != 0) {
           // EAGAIN and EINTR both indicate a spurious failure, try again from the beginning.
           // We don't use TEMP_FAILURE_RETRY so we can intentionally retry to acquire the lock.
@@ -312,9 +310,10 @@ void Mutex::ExclusiveLock(Thread* self) {
             PLOG(FATAL) << "futex wait failed for " << name_;
           }
         }
-        android_atomic_dec(&num_contenders_);
+        num_contenders_--;
       }
     } while (!done);
+    QuasiAtomic::MembarStoreLoad();
     DCHECK_EQ(state_, 1);
     exclusive_owner_ = SafeGetTid(self);
 #else
@@ -342,11 +341,12 @@ bool Mutex::ExclusiveTryLock(Thread* self) {
       int32_t cur_state = state_;
       if (cur_state == 0) {
         // Change state from 0 to 1.
-        done = android_atomic_acquire_cas(0, 1, &state_) == 0;
+        done = __sync_bool_compare_and_swap(&state_, 0 /* cur_state */, 1 /* new state */);
       } else {
         return false;
       }
     } while (!done);
+    QuasiAtomic::MembarStoreLoad();
     DCHECK_EQ(state_, 1);
     exclusive_owner_ = SafeGetTid(self);
 #else
@@ -385,10 +385,11 @@ void Mutex::ExclusiveUnlock(Thread* self) {
   do {
     int32_t cur_state = state_;
     if (LIKELY(cur_state == 1)) {
+      QuasiAtomic::MembarStoreStore();
       // We're no longer the owner.
       exclusive_owner_ = 0;
       // Change state to 0.
-      done = android_atomic_release_cas(cur_state, 0, &state_) == 0;
+      done =  __sync_bool_compare_and_swap(&state_, cur_state, 0 /* new state */);
       if (LIKELY(done)) {  // Spurious fail?
         // Wake a contender
         if (UNLIKELY(num_contenders_ > 0)) {
@@ -407,6 +408,7 @@ void Mutex::ExclusiveUnlock(Thread* self) {
       }
     }
   } while (!done);
+  QuasiAtomic::MembarStoreLoad();
 #else
     CHECK_MUTEX_CALL(pthread_mutex_unlock, (&mutex_));
 #endif
@@ -468,11 +470,11 @@ void ReaderWriterMutex::ExclusiveLock(Thread* self) {
     int32_t cur_state = state_;
     if (LIKELY(cur_state == 0)) {
       // Change state from 0 to -1.
-      done = android_atomic_acquire_cas(0, -1, &state_) == 0;
+      done =  __sync_bool_compare_and_swap(&state_, 0 /* cur_state*/, -1 /* new state */);
     } else {
       // Failed to acquire, hang up.
       ScopedContentionRecorder scr(this, SafeGetTid(self), GetExclusiveOwnerTid());
-      android_atomic_inc(&num_pending_writers_);
+      num_pending_writers_++;
       if (futex(&state_, FUTEX_WAIT, cur_state, NULL, NULL, 0) != 0) {
         // EAGAIN and EINTR both indicate a spurious failure, try again from the beginning.
         // We don't use TEMP_FAILURE_RETRY so we can intentionally retry to acquire the lock.
@@ -480,7 +482,7 @@ void ReaderWriterMutex::ExclusiveLock(Thread* self) {
           PLOG(FATAL) << "futex wait failed for " << name_;
         }
       }
-      android_atomic_dec(&num_pending_writers_);
+      num_pending_writers_--;
     }
   } while (!done);
   DCHECK_EQ(state_, -1);
@@ -504,7 +506,7 @@ void ReaderWriterMutex::ExclusiveUnlock(Thread* self) {
       // We're no longer the owner.
       exclusive_owner_ = 0;
       // Change state from -1 to 0.
-      done = android_atomic_release_cas(-1, 0, &state_) == 0;
+      done =  __sync_bool_compare_and_swap(&state_, -1 /* cur_state*/, 0 /* new state */);
       if (LIKELY(done)) {  // cmpxchg may fail due to noise?
         // Wake any waiters.
         if (UNLIKELY(num_pending_readers_ > 0 || num_pending_writers_ > 0)) {
@@ -531,7 +533,7 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, int64_t ms, int32
     int32_t cur_state = state_;
     if (cur_state == 0) {
       // Change state from 0 to -1.
-      done = android_atomic_acquire_cas(0, -1, &state_) == 0;
+      done =  __sync_bool_compare_and_swap(&state_, 0 /* cur_state */, -1 /* new state */);
     } else {
       // Failed to acquire, hang up.
       timespec now_abs_ts;
@@ -541,10 +543,10 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, int64_t ms, int32
         return false;  // Timed out.
       }
       ScopedContentionRecorder scr(this, SafeGetTid(self), GetExclusiveOwnerTid());
-      android_atomic_inc(&num_pending_writers_);
+      num_pending_writers_++;
       if (futex(&state_, FUTEX_WAIT, cur_state, &rel_ts, NULL, 0) != 0) {
         if (errno == ETIMEDOUT) {
-          android_atomic_dec(&num_pending_writers_);
+          num_pending_writers_--;
           return false;  // Timed out.
         } else if ((errno != EAGAIN) && (errno != EINTR)) {
           // EAGAIN and EINTR both indicate a spurious failure,
@@ -553,7 +555,7 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, int64_t ms, int32
           PLOG(FATAL) << "timed futex wait failed for " << name_;
         }
       }
-      android_atomic_dec(&num_pending_writers_);
+      num_pending_writers_--;
     }
   } while (!done);
   exclusive_owner_ = SafeGetTid(self);
@@ -583,7 +585,7 @@ bool ReaderWriterMutex::SharedTryLock(Thread* self) {
     int32_t cur_state = state_;
     if (cur_state >= 0) {
       // Add as an extra reader.
-      done = android_atomic_acquire_cas(cur_state, cur_state + 1, &state_) == 0;
+      done =  __sync_bool_compare_and_swap(&state_, cur_state, cur_state + 1);
     } else {
       // Owner holds it exclusively.
       return false;
@@ -666,13 +668,13 @@ void ConditionVariable::Broadcast(Thread* self) {
   DCHECK_EQ(guard_.GetExclusiveOwnerTid(), SafeGetTid(self));
 #if ART_USE_FUTEXES
   if (num_waiters_ > 0) {
-    android_atomic_inc(&sequence_);  // Indicate the broadcast occurred.
+    sequence_++;  // Indicate the broadcast occurred.
     bool done = false;
     do {
       int32_t cur_sequence = sequence_;
       // Requeue waiters onto mutex. The waiter holds the contender count on the mutex high ensuring
       // mutex unlocks will awaken the requeued waiter thread.
-      done = futex(&sequence_, FUTEX_CMP_REQUEUE, 0,
+      done = futex(sequence_.Address(), FUTEX_CMP_REQUEUE, 0,
                    reinterpret_cast<const timespec*>(std::numeric_limits<int32_t>::max()),
                    &guard_.state_, cur_sequence) != -1;
       if (!done) {
@@ -692,10 +694,10 @@ void ConditionVariable::Signal(Thread* self) {
   guard_.AssertExclusiveHeld(self);
 #if ART_USE_FUTEXES
   if (num_waiters_ > 0) {
-    android_atomic_inc(&sequence_);  // Indicate a signal occurred.
+    sequence_++;  // Indicate a signal occurred.
     // Futex wake 1 waiter who will then come and in contend on mutex. It'd be nice to requeue them
     // to avoid this, however, requeueing can only move all waiters.
-    int num_woken = futex(&sequence_, FUTEX_WAKE, 1, NULL, NULL, 0);
+    int num_woken = futex(sequence_.Address(), FUTEX_WAKE, 1, NULL, NULL, 0);
     // Check something was woken or else we changed sequence_ before they had chance to wait.
     CHECK((num_woken == 0) || (num_woken == 1));
   }
@@ -716,11 +718,11 @@ void ConditionVariable::WaitHoldingLocks(Thread* self) {
 #if ART_USE_FUTEXES
   num_waiters_++;
   // Ensure the Mutex is contended so that requeued threads are awoken.
-  android_atomic_inc(&guard_.num_contenders_);
+  guard_.num_contenders_++;
   guard_.recursion_count_ = 1;
   int32_t cur_sequence = sequence_;
   guard_.ExclusiveUnlock(self);
-  if (futex(&sequence_, FUTEX_WAIT, cur_sequence, NULL, NULL, 0) != 0) {
+  if (futex(sequence_.Address(), FUTEX_WAIT, cur_sequence, NULL, NULL, 0) != 0) {
     // Futex failed, check it is an expected error.
     // EAGAIN == EWOULDBLK, so we let the caller try again.
     // EINTR implies a signal was sent to this thread.
@@ -733,7 +735,7 @@ void ConditionVariable::WaitHoldingLocks(Thread* self) {
   num_waiters_--;
   // We awoke and so no longer require awakes from the guard_'s unlock.
   CHECK_GE(guard_.num_contenders_, 0);
-  android_atomic_dec(&guard_.num_contenders_);
+  guard_.num_contenders_--;
 #else
   guard_.recursion_count_ = 0;
   CHECK_MUTEX_CALL(pthread_cond_wait, (&cond_, &guard_.mutex_));
@@ -751,11 +753,11 @@ void ConditionVariable::TimedWait(Thread* self, int64_t ms, int32_t ns) {
   InitTimeSpec(false, CLOCK_REALTIME, ms, ns, &rel_ts);
   num_waiters_++;
   // Ensure the Mutex is contended so that requeued threads are awoken.
-  android_atomic_inc(&guard_.num_contenders_);
+  guard_.num_contenders_++;
   guard_.recursion_count_ = 1;
   int32_t cur_sequence = sequence_;
   guard_.ExclusiveUnlock(self);
-  if (futex(&sequence_, FUTEX_WAIT, cur_sequence, &rel_ts, NULL, 0) != 0) {
+  if (futex(sequence_.Address(), FUTEX_WAIT, cur_sequence, &rel_ts, NULL, 0) != 0) {
     if (errno == ETIMEDOUT) {
       // Timed out we're done.
     } else if ((errno == EAGAIN) || (errno == EINTR)) {
@@ -769,7 +771,7 @@ void ConditionVariable::TimedWait(Thread* self, int64_t ms, int32_t ns) {
   num_waiters_--;
   // We awoke and so no longer require awakes from the guard_'s unlock.
   CHECK_GE(guard_.num_contenders_, 0);
-  android_atomic_dec(&guard_.num_contenders_);
+  guard_.num_contenders_--;
 #else
 #ifdef HAVE_TIMEDWAIT_MONOTONIC
 #define TIMEDWAIT pthread_cond_timedwait_monotonic

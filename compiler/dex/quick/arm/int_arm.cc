@@ -760,10 +760,10 @@ void ArmMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
   int dmb_flavor;
   // TODO: revisit Arm barrier kinds
   switch (barrier_kind) {
-    case kLoadStore: dmb_flavor = kSY; break;
-    case kLoadLoad: dmb_flavor = kSY; break;
-    case kStoreStore: dmb_flavor = kST; break;
-    case kStoreLoad: dmb_flavor = kSY; break;
+    case kLoadStore: dmb_flavor = kISH; break;
+    case kLoadLoad: dmb_flavor = kISH; break;
+    case kStoreStore: dmb_flavor = kISHST; break;
+    case kStoreLoad: dmb_flavor = kISH; break;
     default:
       LOG(FATAL) << "Unexpected MemBarrierKind: " << barrier_kind;
       dmb_flavor = kSY;  // quiet gcc.

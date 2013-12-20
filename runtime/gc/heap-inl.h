@@ -61,7 +61,7 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
   pre_fence_visitor(obj);
   DCHECK_GT(bytes_allocated, 0u);
   const size_t new_num_bytes_allocated =
-      static_cast<size_t>(num_bytes_allocated_.fetch_add(bytes_allocated)) + bytes_allocated;
+      static_cast<size_t>(num_bytes_allocated_.FetchAndAdd(bytes_allocated)) + bytes_allocated;
   // TODO: Deprecate.
   if (kInstrumented) {
     if (Runtime::Current()->HasStatsEnabled()) {
@@ -200,7 +200,7 @@ inline Heap::AllocationTimer::~AllocationTimer() {
     // Only if the allocation succeeded, record the time.
     if (allocated_obj != nullptr) {
       uint64_t allocation_end_time = NanoTime() / kTimeAdjust;
-      heap_->total_allocation_time_.fetch_add(allocation_end_time - allocation_start_time_);
+      heap_->total_allocation_time_.FetchAndAdd(allocation_end_time - allocation_start_time_);
     }
   }
 };

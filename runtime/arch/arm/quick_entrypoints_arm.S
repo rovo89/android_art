@@ -359,6 +359,7 @@ retry_lock:
     @ unlocked case - r2 holds thread id with count of 0
     strex  r3, r2, [r0, #LOCK_WORD_OFFSET]
     cbnz   r3, strex_fail             @ store failed, retry
+    dmb    ish                        @ full (LoadLoad) memory barrier
     bx lr
 strex_fail:
     b retry_lock                      @ unlikely forward branch, need to reload and recheck r1/r2
@@ -402,6 +403,7 @@ ENTRY art_quick_unlock_object
     bpl    recursive_thin_unlock
     @ transition to unlocked, r3 holds 0
     str    r3, [r0, #LOCK_WORD_OFFSET]
+    dmb    ish                        @ full (StoreLoad) memory barrier
     bx     lr
 recursive_thin_unlock:
     sub    r1, r1, #65536
