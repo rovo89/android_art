@@ -454,9 +454,17 @@ void X86Mir2Lir::GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
 }
 
 void X86Mir2Lir::GenDivZeroCheck(int reg_lo, int reg_hi) {
+  // We are not supposed to clobber either of the provided registers, so allocate
+  // a temporary to use for the check.
   int t_reg = AllocTemp();
+
+  // Doing an OR is a quick way to check if both registers are zero. This will set the flags.
   OpRegRegReg(kOpOr, t_reg, reg_lo, reg_hi);
-  GenImmedCheck(kCondEq, t_reg, 0, kThrowDivZero);
+
+  // In case of zero, throw ArithmeticException.
+  GenCheck(kCondEq, kThrowDivZero);
+
+  // The temp is no longer needed so free it at this time.
   FreeTemp(t_reg);
 }
 
