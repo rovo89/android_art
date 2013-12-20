@@ -77,11 +77,11 @@ LIR* MipsMir2Lir::OpCmpBranch(ConditionCode cond, int src1, int src2,
       br_op = kMipsBne;
       cmp_zero = true;
       break;
-    case kCondCc:
+    case kCondUlt:
       slt_op = kMipsSltu;
       br_op = kMipsBnez;
       break;
-    case kCondCs:
+    case kCondUge:
       slt_op = kMipsSltu;
       br_op = kMipsBeqz;
       break;
@@ -485,9 +485,7 @@ void MipsMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
     rl_result = EvalLoc(rl_dest, reg_class, true);
 
     if (needs_range_check) {
-      // TODO: change kCondCS to a more meaningful name, is the sense of
-      // carry-set/clear flipped?
-      GenRegRegCheck(kCondCs, rl_index.low_reg, reg_len, kThrowArrayBounds);
+      GenRegRegCheck(kCondUge, rl_index.low_reg, reg_len, kThrowArrayBounds);
       FreeTemp(reg_len);
     }
     LoadBaseDispWide(reg_ptr, 0, rl_result.low_reg, rl_result.high_reg, INVALID_SREG);
@@ -498,9 +496,7 @@ void MipsMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
     rl_result = EvalLoc(rl_dest, reg_class, true);
 
     if (needs_range_check) {
-      // TODO: change kCondCS to a more meaningful name, is the sense of
-      // carry-set/clear flipped?
-      GenRegRegCheck(kCondCs, rl_index.low_reg, reg_len, kThrowArrayBounds);
+      GenRegRegCheck(kCondUge, rl_index.low_reg, reg_len, kThrowArrayBounds);
       FreeTemp(reg_len);
     }
     LoadBaseIndexed(reg_ptr, rl_index.low_reg, rl_result.low_reg, scale, size);
@@ -566,7 +562,7 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     rl_src = LoadValueWide(rl_src, reg_class);
 
     if (needs_range_check) {
-      GenRegRegCheck(kCondCs, rl_index.low_reg, reg_len, kThrowArrayBounds);
+      GenRegRegCheck(kCondUge, rl_index.low_reg, reg_len, kThrowArrayBounds);
       FreeTemp(reg_len);
     }
 
@@ -574,7 +570,7 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   } else {
     rl_src = LoadValue(rl_src, reg_class);
     if (needs_range_check) {
-      GenRegRegCheck(kCondCs, rl_index.low_reg, reg_len, kThrowArrayBounds);
+      GenRegRegCheck(kCondUge, rl_index.low_reg, reg_len, kThrowArrayBounds);
       FreeTemp(reg_len);
     }
     StoreBaseIndexed(reg_ptr, rl_index.low_reg, rl_src.low_reg,

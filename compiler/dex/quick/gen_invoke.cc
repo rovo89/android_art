@@ -896,7 +896,7 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
       intrinsic_launchpads_.Insert(launch_pad);
       OpRegReg(kOpCmp, rl_idx.low_reg, reg_max);
       FreeTemp(reg_max);
-      OpCondBranch(kCondCs, launch_pad);
+      OpCondBranch(kCondUge, launch_pad);
     }
   } else {
     if (range_check) {
@@ -907,7 +907,7 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
       intrinsic_launchpads_.Insert(launch_pad);
       OpRegReg(kOpCmp, rl_idx.low_reg, reg_max);
       FreeTemp(reg_max);
-      OpCondBranch(kCondCc, launch_pad);
+      OpCondBranch(kCondUge, launch_pad);
     }
     reg_off = AllocTemp();
     reg_ptr = AllocTemp();
