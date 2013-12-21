@@ -682,7 +682,15 @@ class Mir2Lir : public Backend {
                                      bool is_div) = 0;
     virtual void GenCmpLong(RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2) = 0;
+
+    /**
+     * @brief Used for generating code that throws ArithmeticException if both registers are zero.
+     * @details This is used for generating DivideByZero checks when divisor is held in two separate registers.
+     * @param reg_lo The register holding the lower 32-bits.
+     * @param reg_hi The register holding the upper 32-bits.
+     */
     virtual void GenDivZeroCheck(int reg_lo, int reg_hi) = 0;
+
     virtual void GenEntrySequence(RegLocation* ArgLocs,
                                   RegLocation rl_method) = 0;
     virtual void GenExitSequence() = 0;
