@@ -421,8 +421,26 @@ class Mir2Lir : public Backend {
     RegLocation UpdateLoc(RegLocation loc);
     RegLocation UpdateLocWide(RegLocation loc);
     RegLocation UpdateRawLoc(RegLocation loc);
+
+    /**
+     * @brief Used to load register location into a typed temporary or pair of temporaries.
+     * @see EvalLoc
+     * @param loc The register location to load from.
+     * @param reg_class Type of register needed.
+     * @param update Whether the liveness information should be updated.
+     * @return Returns the properly typed temporary in physical register pairs.
+     */
     RegLocation EvalLocWide(RegLocation loc, int reg_class, bool update);
+
+    /**
+     * @brief Used to load register location into a typed temporary.
+     * @param loc The register location to load from.
+     * @param reg_class Type of register needed.
+     * @param update Whether the liveness information should be updated.
+     * @return Returns the properly typed temporary in physical register.
+     */
     RegLocation EvalLoc(RegLocation loc, int reg_class, bool update);
+
     void CountRefs(RefCounts* core_counts, RefCounts* fp_counts, size_t num_regs);
     void DumpCounts(const RefCounts* arr, int size, const char* msg);
     void DoPromotion();
@@ -541,7 +559,22 @@ class Mir2Lir : public Backend {
                            uint32_t vtable_idx,
                            uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
                            bool skip_this);
+
+    /**
+     * @brief Used to determine the register location of destination.
+     * @details This is needed during generation of inline intrinsics because it finds destination of return,
+     * either the physical register or the target of move-result.
+     * @param info Information about the invoke.
+     * @return Returns the destination location.
+     */
     RegLocation InlineTarget(CallInfo* info);
+
+    /**
+     * @brief Used to determine the wide register location of destination.
+     * @see InlineTarget
+     * @param info Information about the invoke.
+     * @return Returns the destination location.
+     */
     RegLocation InlineTargetWide(CallInfo* info);
 
     bool GenInlinedCharAt(CallInfo* info);
@@ -576,7 +609,20 @@ class Mir2Lir : public Backend {
     void LoadValueDirectWide(RegLocation rl_src, int reg_lo, int reg_hi);
     void LoadValueDirectWideFixed(RegLocation rl_src, int reg_lo, int reg_hi);
     LIR* StoreWordDisp(int rBase, int displacement, int r_src);
+
+    /**
+     * @brief Used to do the final store in the destination as per bytecode semantics.
+     * @param rl_dest The destination dalvik register location.
+     * @param rl_src The source register location. Can be either physical register or dalvik register.
+     */
     void StoreValue(RegLocation rl_dest, RegLocation rl_src);
+
+    /**
+     * @brief Used to do the final store in a wide destination as per bytecode semantics.
+     * @see StoreValue
+     * @param rl_dest The destination dalvik register location.
+     * @param rl_src The source register location. Can be either physical register or dalvik register.
+     */
     void StoreValueWide(RegLocation rl_dest, RegLocation rl_src);
 
     // Shared by all targets - implemented in mir_to_lir.cc.
@@ -663,7 +709,18 @@ class Mir2Lir : public Backend {
     virtual void GenConversion(Instruction::Code opcode, RegLocation rl_dest,
                                RegLocation rl_src) = 0;
     virtual bool GenInlinedCas(CallInfo* info, bool is_long, bool is_object) = 0;
+
+    /**
+     * @brief Used to generate code for intrinsic java\.lang\.Math methods min and max.
+     * @details This is also applicable for java\.lang\.StrictMath since it is a simple algorithm
+     * that applies on integers. The generated code will write the smallest or largest value
+     * directly into the destination register as specified by the invoke information.
+     * @param info Information about the invoke.
+     * @param is_min If true generates code that computes minimum. Otherwise computes maximum.
+     * @return Returns true if successfully generated
+     */
     virtual bool GenInlinedMinMaxInt(CallInfo* info, bool is_min) = 0;
+
     virtual bool GenInlinedSqrt(CallInfo* info) = 0;
     virtual bool GenInlinedPeek(CallInfo* info, OpSize size) = 0;
     virtual bool GenInlinedPoke(CallInfo* info, OpSize size) = 0;
@@ -738,6 +795,17 @@ class Mir2Lir : public Backend {
     virtual LIR* OpRegImm(OpKind op, int r_dest_src1, int value) = 0;
     virtual LIR* OpRegMem(OpKind op, int r_dest, int rBase, int offset) = 0;
     virtual LIR* OpRegReg(OpKind op, int r_dest_src1, int r_src2) = 0;
+
+    /**
+     * @brief Used for generating a conditional register to register operation.
+     * @param op The opcode kind.
+     * @param cc The condition code that when true will perform the opcode.
+     * @param r_dest The destination physical register.
+     * @param r_src The source physical register.
+     * @return Returns the newly created LIR or null in case of creation failure.
+     */
+    virtual LIR* OpCondRegReg(OpKind op, ConditionCode cc, int r_dest, int r_src) = 0;
+
     virtual LIR* OpRegRegImm(OpKind op, int r_dest, int r_src1, int value) = 0;
     virtual LIR* OpRegRegReg(OpKind op, int r_dest, int r_src1, int r_src2) = 0;
     virtual LIR* OpTestSuspend(LIR* target) = 0;

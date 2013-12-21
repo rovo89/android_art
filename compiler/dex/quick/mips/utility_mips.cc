@@ -325,6 +325,11 @@ LIR* MipsMir2Lir::OpRegReg(OpKind op, int r_dest_src1, int r_src2) {
   return NewLIR2(opcode, r_dest_src1, r_src2);
 }
 
+LIR* MipsMir2Lir::OpCondRegReg(OpKind op, ConditionCode cc, int r_dest, int r_src) {
+  LOG(FATAL) << "Unexpected use of OpCondRegReg for MIPS";
+  return NULL;
+}
+
 LIR* MipsMir2Lir::LoadConstantWide(int r_dest_lo, int r_dest_hi, int64_t value) {
   LIR *res;
   res = LoadConstantNoClobber(r_dest_lo, Low32Bits(value));
