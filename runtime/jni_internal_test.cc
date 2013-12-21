@@ -1204,6 +1204,21 @@ TEST_F(JniInternalTest, GetObjectRefType) {
   // TODO: invoke a native method and test that its arguments are considered local references.
 }
 
+TEST_F(JniInternalTest, StaleWeakGlobal) {
+  jclass java_lang_Class = env_->FindClass("java/lang/Class");
+  ASSERT_TRUE(java_lang_Class != NULL);
+  jobjectArray local_ref = env_->NewObjectArray(1, java_lang_Class, NULL);
+  ASSERT_TRUE(local_ref != NULL);
+  jweak weak_global = env_->NewWeakGlobalRef(local_ref);
+  ASSERT_TRUE(weak_global != NULL);
+  env_->DeleteLocalRef(local_ref);
+  Runtime::Current()->GetHeap()->CollectGarbage(false);  // GC should clear the weak global.
+  jobject new_global_ref = env_->NewGlobalRef(weak_global);
+  EXPECT_TRUE(new_global_ref == NULL);
+  jobject new_local_ref = env_->NewLocalRef(weak_global);
+  EXPECT_TRUE(new_local_ref == NULL);
+}
+
 TEST_F(JniInternalTest, NewStringUTF) {
   EXPECT_TRUE(env_->NewStringUTF(NULL) == NULL);
   jstring s;
