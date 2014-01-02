@@ -17,6 +17,8 @@
 #include "compiler_internals.h"
 #include "local_value_numbering.h"
 #include "dataflow_iterator-inl.h"
+#include "dex/quick/dex_file_method_inliner.h"
+#include "dex/quick/dex_file_to_method_inliner_map.h"
 
 namespace art {
 
@@ -1109,6 +1111,97 @@ void MIRGraph::EliminateClassInitChecksEnd() {
 
   DCHECK(temp_insn_data_ != nullptr);
   temp_insn_data_ = nullptr;
+  DCHECK(temp_scoped_alloc_.get() != nullptr);
+  temp_scoped_alloc_.reset();
+}
+
+void MIRGraph::ComputeInlineIFieldLoweringInfo(uint16_t field_idx, MIR* invoke, MIR* iget_or_iput) {
+  uint32_t method_index = invoke->meta.method_lowering_info;
+  if (temp_bit_vector_->IsBitSet(method_index)) {
+    iget_or_iput->meta.ifield_lowering_info = temp_insn_data_[method_index];
+    DCHECK_EQ(field_idx, GetIFieldLoweringInfo(iget_or_iput).FieldIndex());
+    return;
+  }
+
+  const MirMethodLoweringInfo& method_info = GetMethodLoweringInfo(invoke);
+  MethodReference target = method_info.GetTargetMethod();
+  DexCompilationUnit inlined_unit(
+      cu_, cu_->class_loader, cu_->class_linker, *target.dex_file,
+      nullptr /* code_item not used */, 0u /* class_def_idx not used */, target.dex_method_index,
+      0u /* access_flags not used */, nullptr /* verified_method not used */);
+  MirIFieldLoweringInfo inlined_field_info(field_idx);
+  MirIFieldLoweringInfo::Resolve(cu_->compiler_driver, &inlined_unit, &inlined_field_info, 1u);
+  DCHECK(inlined_field_info.IsResolved());
+
+  uint32_t field_info_index = ifield_lowering_infos_.Size();
+  ifield_lowering_infos_.Insert(inlined_field_info);
+  temp_bit_vector_->SetBit(method_index);
+  temp_insn_data_[method_index] = field_info_index;
+  iget_or_iput->meta.ifield_lowering_info = field_info_index;
+}
+
+bool MIRGraph::InlineCallsGate() {
+  if ((cu_->disable_opt & (1 << kSuppressMethodInlining)) != 0 ||
+      method_lowering_infos_.Size() == 0u) {
+    return false;
+  }
+  if (cu_->compiler_driver->GetMethodInlinerMap() == nullptr) {
+    // This isn't the Quick compiler.
+    return false;
+  }
+  return true;
+}
+
+void MIRGraph::InlineCallsStart() {
+  // Prepare for inlining getters/setters. Since we're inlining at most 1 IGET/IPUT from
+  // each INVOKE, we can index the data by the MIR::meta::method_lowering_info index.
+
+  DCHECK(temp_scoped_alloc_.get() == nullptr);
+  temp_scoped_alloc_.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
+  temp_bit_vector_size_ = method_lowering_infos_.Size();
+  temp_bit_vector_ = new (temp_scoped_alloc_.get()) ArenaBitVector(
+      temp_scoped_alloc_.get(), temp_bit_vector_size_, false, kBitMapMisc);
+  temp_bit_vector_->ClearAllBits();
+  temp_insn_data_ = static_cast<uint16_t*>(temp_scoped_alloc_->Alloc(
+      temp_bit_vector_size_ * sizeof(*temp_insn_data_), kArenaAllocGrowableArray));
+}
+
+void MIRGraph::InlineCalls(BasicBlock* bb) {
+  if (bb->block_type != kDalvikByteCode) {
+    return;
+  }
+  for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
+    if (!(Instruction::FlagsOf(mir->dalvikInsn.opcode) & Instruction::kInvoke)) {
+      continue;
+    }
+    const MirMethodLoweringInfo& method_info = GetMethodLoweringInfo(mir);
+    if (!method_info.FastPath()) {
+      continue;
+    }
+    InvokeType sharp_type = method_info.GetSharpType();
+    if ((sharp_type != kDirect) &&
+        (sharp_type != kStatic || method_info.NeedsClassInitialization())) {
+      continue;
+    }
+    DCHECK(cu_->compiler_driver->GetMethodInlinerMap() != nullptr);
+    MethodReference target = method_info.GetTargetMethod();
+    if (cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(target.dex_file)
+            ->GenInline(this, bb, mir, target.dex_method_index)) {
+      if (cu_->verbose) {
+        LOG(INFO) << "In \"" << PrettyMethod(cu_->method_idx, *cu_->dex_file)
+            << "\" @0x" << std::hex << mir->offset
+            << " inlined " << method_info.GetInvokeType() << " (" << sharp_type << ") call to \""
+            << PrettyMethod(target.dex_method_index, *target.dex_file) << "\"";
+      }
+    }
+  }
+}
+
+void MIRGraph::InlineCallsEnd() {
+  DCHECK(temp_insn_data_ != nullptr);
+  temp_insn_data_ = nullptr;
+  DCHECK(temp_bit_vector_ != nullptr);
+  temp_bit_vector_ = nullptr;
   DCHECK(temp_scoped_alloc_.get() != nullptr);
   temp_scoped_alloc_.reset();
 }
