@@ -26,6 +26,7 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
+#include "compiler_callbacks.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
 #include "disassembler.h"
@@ -1456,7 +1457,12 @@ static int oatdump(int argc, char** argv) {
   std::string boot_oat_option;
 
   // We are more like a compiler than a run-time. We don't want to execute code.
-  options.push_back(std::make_pair("compiler", reinterpret_cast<void*>(NULL)));
+  struct OatDumpCompilerCallbacks : CompilerCallbacks {
+    virtual bool MethodVerified(verifier::MethodVerifier* /*verifier*/) { return true; }
+    virtual void ClassRejected(ClassReference /*ref*/) { }
+  } callbacks;
+  options.push_back(std::make_pair("compilercallbacks",
+                                   static_cast<CompilerCallbacks*>(&callbacks)));
 
   if (boot_image_filename != NULL) {
     boot_image_option += "-Ximage:";

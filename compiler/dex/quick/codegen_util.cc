@@ -1003,7 +1003,7 @@ void Mir2Lir::Materialize() {
 
   /*
    * Custom codegen for special cases.  If for any reason the
-   * special codegen doesn't succeed, first_lir_insn_ will
+   * special codegen doesn't succeed, first_lir_insn_ will be
    * set to NULL;
    */
   // TODO: Clean up GenSpecial() and return true only if special implementation is emitted.
