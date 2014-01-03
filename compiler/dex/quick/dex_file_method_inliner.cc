@@ -499,25 +499,25 @@ void DexFileMethodInliner::FindIntrinsics(const DexFile* dex_file) {
     uint32_t method_idx = FindMethodIndex(dex_file, &cache, def.method_def);
     if (method_idx != kIndexNotFound) {
       DCHECK(inline_methods_.find(method_idx) == inline_methods_.end());
-      inline_methods_[method_idx] = def.intrinsic;
+      inline_methods_.Put(method_idx, def.intrinsic);
     }
   }
   dex_file_ = dex_file;
 }
 
 bool DexFileMethodInliner::AddInlineMethod(int32_t method_idx, InlineMethodOpcode opcode,
-                                           uint16_t flags, uint32_t data) {
+                                           InlineMethodFlags flags, uint32_t data) {
   WriterMutexLock mu(Thread::Current(), lock_);
-  InlineMethod* im = &inline_methods_[method_idx];
-  if (im->flags == 0) {
-    im->opcode = opcode;
-    im->flags = flags;
-    im->data = data;
+  if (LIKELY(inline_methods_.find(method_idx) == inline_methods_.end())) {
+    InlineMethod im = {opcode, flags, data};
+    inline_methods_.Put(method_idx, im);
     return true;
   } else {
-    // TODO: Warning about a method being already inlined?
-    LOG(WARNING) << "Inliner: " << PrettyMethod(method_idx, *dex_file_) << " already inline, "
-        << im->flags;
+    if (PrettyMethod(method_idx, *dex_file_) == "int java.lang.String.length()") {
+      // TODO: String.length is both kIntrinsicIsEmptyOrLength and kInlineOpIGet.
+    } else {
+      LOG(ERROR) << "Inliner: " << PrettyMethod(method_idx, *dex_file_) << " already inline";
+    }
     return false;
   }
 }
