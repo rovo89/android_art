@@ -121,20 +121,18 @@ String* String::AllocFromUtf16(Thread* self,
                                int32_t utf16_length,
                                const uint16_t* utf16_data_in,
                                int32_t hash_code) {
-  CHECK(utf16_data_in != NULL || utf16_length == 0);
+  CHECK(utf16_data_in != nullptr || utf16_length == 0);
   String* string = Alloc(self, utf16_length);
   if (UNLIKELY(string == nullptr)) {
     return nullptr;
   }
-  // TODO: use 16-bit wide memset variant
   CharArray* array = const_cast<CharArray*>(string->GetCharArray());
-  if (array == NULL) {
-    return NULL;
+  if (UNLIKELY(array == nullptr)) {
+    return nullptr;
   }
-  for (int i = 0; i < utf16_length; i++) {
-    array->Set(i, utf16_data_in[i]);
-  }
+  memcpy(array->GetData(), utf16_data_in, utf16_length * sizeof(uint16_t));
   if (hash_code != 0) {
+    DCHECK_EQ(hash_code, ComputeUtf16Hash(utf16_data_in, utf16_length));
     string->SetHashCode(hash_code);
   } else {
     string->ComputeHashCode();
