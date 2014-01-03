@@ -296,7 +296,6 @@ class CommonTest : public testing::Test {
 
   void MakeExecutable(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(method != NULL);
-    LOG(INFO) << "MakeExecutable " << PrettyMethod(method);
 
     const CompiledMethod* compiled_method = NULL;
     if (!method->IsAbstract()) {
@@ -325,7 +324,6 @@ class CommonTest : public testing::Test {
       const void* method_code;
       // No code? You must mean to go into the interpreter.
       method_code = GetCompiledCodeToInterpreterBridge();
-      LOG(INFO) << "MakeExecutable " << PrettyMethod(method) << " code=" << method_code;
       OatFile::OatMethod oat_method = CreateOatMethod(method_code,
                                                       kStackAlignment,
                                                       0,
@@ -380,6 +378,20 @@ class CommonTest : public testing::Test {
       PLOG(FATAL) << "mkdtemp(\"" << &android_data[0] << "\") failed";
     }
     setenv("ANDROID_DATA", android_data.c_str(), 1);
+  }
+
+  void MakeExecutable(mirror::ClassLoader* class_loader, const char* class_name)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    std::string class_descriptor(DotToDescriptor(class_name));
+    SirtRef<mirror::ClassLoader> loader(Thread::Current(), class_loader);
+    mirror::Class* klass = class_linker_->FindClass(class_descriptor.c_str(), loader);
+    CHECK(klass != NULL) << "Class not found " << class_name;
+    for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
+      MakeExecutable(klass->GetDirectMethod(i));
+    }
+    for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
+      MakeExecutable(klass->GetVirtualMethod(i));
+    }
   }
 
  protected:
