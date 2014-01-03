@@ -151,6 +151,9 @@ bool DoCall(ArtMethod* method, Object* receiver, Thread* self, ShadowFrame& shad
 
   // Do the call now.
   if (LIKELY(Runtime::Current()->IsStarted())) {
+    if (kIsDebugBuild && method->GetEntryPointFromInterpreter() == nullptr) {
+      LOG(FATAL) << "Attempt to invoke non-executable method: " << PrettyMethod(method);
+    }
     (method->GetEntryPointFromInterpreter())(self, mh, code_item, new_shadow_frame, result);
   } else {
     UnstartedRuntimeInvoke(self, mh, code_item, new_shadow_frame, result, first_dest_reg);
