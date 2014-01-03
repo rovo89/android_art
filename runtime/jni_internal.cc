@@ -1954,8 +1954,13 @@ class JNI {
   }
 
   static jstring NewString(JNIEnv* env, const jchar* chars, jsize char_count) {
-    if (UNLIKELY(chars == NULL && char_count > 0)) { \
-      JniAbortF("NewString", "char == null && char_count > 0"); \
+    if (UNLIKELY(char_count < 0)) {
+      JniAbortF("NewString", "char_count < 0: %d", char_count);
+      return nullptr;
+    }
+    if (UNLIKELY(chars == nullptr && char_count > 0)) {
+      JniAbortF("NewString", "chars == null && char_count > 0");
+      return nullptr;
     }
     ScopedObjectAccess soa(env);
     String* result = String::AllocFromUtf16(soa.Self(), char_count, chars);
@@ -2129,32 +2134,51 @@ class JNI {
     return NewPrimitiveArray<jlongArray, LongArray>(soa, length);
   }
 
-  static jobjectArray NewObjectArray(JNIEnv* env, jsize length, jclass element_jclass, jobject initial_element) {
-    if (length < 0) {
+  static jobjectArray NewObjectArray(JNIEnv* env, jsize length, jclass element_jclass,
+                                     jobject initial_element) {
+    if (UNLIKELY(length < 0)) {
       JniAbortF("NewObjectArray", "negative array length: %d", length);
+      return nullptr;
     }
 
     // Compute the array class corresponding to the given element class.
     ScopedObjectAccess soa(env);
-    Class* element_class = soa.Decode<Class*>(element_jclass);
-    std::string descriptor;
-    descriptor += "[";
-    descriptor += ClassHelper(element_class).GetDescriptor();
+    Class* array_class;
+    {
+      Class* element_class = soa.Decode<Class*>(element_jclass);
+      if (UNLIKELY(element_class->IsPrimitive())) {
+        JniAbortF("NewObjectArray", "not an object type: %s",
+                  PrettyDescriptor(element_class).c_str());
+        return nullptr;
+      }
+      std::string descriptor("[");
+      descriptor += ClassHelper(element_class).GetDescriptor();
 
-    // Find the class.
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    SirtRef<mirror::ClassLoader> class_loader(soa.Self(), element_class->GetClassLoader());
-    Class* array_class = class_linker->FindClass(descriptor.c_str(), class_loader);
-    if (array_class == NULL) {
-      return NULL;
+      // Find the class.
+      ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+      SirtRef<mirror::ClassLoader> class_loader(soa.Self(), element_class->GetClassLoader());
+      array_class = class_linker->FindClass(descriptor.c_str(), class_loader);
+      if (UNLIKELY(array_class == nullptr)) {
+        return nullptr;
+      }
     }
 
     // Allocate and initialize if necessary.
     ObjectArray<Object>* result = ObjectArray<Object>::Alloc(soa.Self(), array_class, length);
-    if (initial_element != NULL) {
+    if (result != nullptr && initial_element != nullptr) {
       Object* initial_object = soa.Decode<Object*>(initial_element);
-      for (jsize i = 0; i < length; ++i) {
-        result->Set(i, initial_object);
+      if (initial_object != nullptr) {
+        mirror::Class* element_class = result->GetClass()->GetComponentType();
+        if (UNLIKELY(!element_class->IsAssignableFrom(initial_object->GetClass()))) {
+          JniAbortF("NewObjectArray", "cannot assign object of type '%s' to array with element "
+                    "type of '%s'", PrettyDescriptor(initial_object->GetClass()).c_str(),
+                    PrettyDescriptor(element_class).c_str());
+
+        } else {
+          for (jsize i = 0; i < length; ++i) {
+            result->SetWithoutChecks(i, initial_object);
+          }
+        }
       }
     }
     return soa.AddLocalReference<jobjectArray>(result);
@@ -2572,8 +2596,9 @@ class JNI {
   template<typename JniT, typename ArtT>
   static JniT NewPrimitiveArray(const ScopedObjectAccess& soa, jsize length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (length < 0) {
+    if (UNLIKELY(length < 0)) {
       JniAbortF("NewPrimitiveArray", "negative array length: %d", length);
+      return nullptr;
     }
     ArtT* result = ArtT::Alloc(soa.Self(), length);
     return soa.AddLocalReference<JniT>(result);
