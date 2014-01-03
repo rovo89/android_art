@@ -18,9 +18,9 @@
 #define ART_COMPILER_DEX_QUICK_DEX_FILE_METHOD_INLINER_H_
 
 #include <stdint.h>
-#include <map>
 #include "base/mutex.h"
 #include "base/macros.h"
+#include "safe_map.h"
 #include "dex/compiler_enums.h"
 #include "dex_file.h"
 #include "locks.h"
@@ -56,14 +56,15 @@ enum InlineMethodOpcode : uint16_t {
   kInlineOpIPut,
 };
 
-enum InlineMethodFlags {
-  kInlineIntrinsic = 0x0001,
-  kInlineSpecial   = 0x0002,
+enum InlineMethodFlags : uint16_t {
+  kNoInlineMethodFlags = 0x0000,
+  kInlineIntrinsic     = 0x0001,
+  kInlineSpecial       = 0x0002,
 };
 
 struct InlineMethod {
-  uint16_t opcode;
-  uint16_t flags;
+  InlineMethodOpcode opcode;
+  InlineMethodFlags flags;
   uint32_t data;
 };
 
@@ -369,7 +370,7 @@ class DexFileMethodInliner {
     friend class DexFileToMethodInlinerMap;
 
     bool AddInlineMethod(int32_t method_idx, InlineMethodOpcode opcode,
-                         uint16_t flags, uint32_t data) LOCKS_EXCLUDED(lock_);
+                         InlineMethodFlags flags, uint32_t data) LOCKS_EXCLUDED(lock_);
 
     bool AnalyseReturnMethod(int32_t method_idx, const DexFile::CodeItem* code_item,
                              OpSize size) LOCKS_EXCLUDED(lock_);
@@ -384,7 +385,7 @@ class DexFileMethodInliner {
     /*
      * Maps method indexes (for the particular DexFile) to Intrinsic defintions.
      */
-    std::map<uint32_t, InlineMethod> inline_methods_ GUARDED_BY(lock_);
+    SafeMap<uint32_t, InlineMethod> inline_methods_ GUARDED_BY(lock_);
     const DexFile* dex_file_;
 
     DISALLOW_COPY_AND_ASSIGN(DexFileMethodInliner);
