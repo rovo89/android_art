@@ -2390,22 +2390,7 @@ mirror::Class* ClassLinker::LookupClassFromImage(const char* descriptor) {
   for (int32_t i = 0; i < dex_caches->GetLength(); ++i) {
     mirror::DexCache* dex_cache = dex_caches->Get(i);
     const DexFile* dex_file = dex_cache->GetDexFile();
-    // First search using the class def map, but don't bother for non-class types.
-    if (descriptor[0] == 'L') {
-      const DexFile::StringId* descriptor_string_id = dex_file->FindStringId(descriptor);
-      if (descriptor_string_id != NULL) {
-        const DexFile::TypeId* type_id =
-            dex_file->FindTypeId(dex_file->GetIndexForStringId(*descriptor_string_id));
-        if (type_id != NULL) {
-          mirror::Class* klass = dex_cache->GetResolvedType(dex_file->GetIndexForTypeId(*type_id));
-          if (klass != NULL) {
-            self->EndAssertNoThreadSuspension(old_no_suspend_cause);
-            return klass;
-          }
-        }
-      }
-    }
-    // Now try binary searching the string/type index.
+    // Try binary searching the string/type index.
     const DexFile::StringId* string_id = dex_file->FindStringId(descriptor);
     if (string_id != NULL) {
       const DexFile::TypeId* type_id =
@@ -4097,11 +4082,10 @@ mirror::Class* ClassLinker::ResolveType(const DexFile& dex_file, uint16_t type_i
       // Convert a ClassNotFoundException to a NoClassDefFoundError.
       SirtRef<mirror::Throwable> cause(self, self->GetException(NULL));
       if (cause->InstanceOf(GetClassRoot(kJavaLangClassNotFoundException))) {
-        SirtRef<mirror::Class> sirt_resolved(self, resolved);
+        DCHECK(resolved == NULL);  // No SirtRef needed to preserve resolved.
         Thread::Current()->ClearException();
         ThrowNoClassDefFoundError("Failed resolution of: %s", descriptor);
         self->GetException(NULL)->SetCause(cause.get());
-        resolved = sirt_resolved.get();
       }
     }
   }
