@@ -18,7 +18,7 @@
 
 #include <string>
 
-#include "atomic_integer.h"
+#include "atomic.h"
 #include "common_test.h"
 #include "mirror/object_array-inl.h"
 #include "thread_pool.h"

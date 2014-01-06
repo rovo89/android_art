@@ -29,7 +29,7 @@ class FileOutputStream : public OutputStream {
 
   virtual ~FileOutputStream() {}
 
-  virtual bool WriteFully(const void* buffer, int64_t byte_count);
+  virtual bool WriteFully(const void* buffer, size_t byte_count);
 
   virtual off_t Seek(off_t offset, Whence whence);
 

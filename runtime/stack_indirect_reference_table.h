@@ -19,6 +19,7 @@
 
 #include "base/logging.h"
 #include "base/macros.h"
+#include "stack.h"
 
 namespace art {
 namespace mirror {
@@ -33,7 +34,7 @@ class StackIndirectReferenceTable {
  public:
   explicit StackIndirectReferenceTable(mirror::Object* object) :
       number_of_references_(1), link_(NULL) {
-    references_[0] = object;
+    references_[0].Assign(object);
   }
 
   ~StackIndirectReferenceTable() {}
@@ -53,17 +54,17 @@ class StackIndirectReferenceTable {
     link_ = sirt;
   }
 
-  mirror::Object* GetReference(size_t i) const {
+  mirror::Object* GetReference(size_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK_LT(i, number_of_references_);
-    return references_[i];
+    return references_[i].AsMirrorPtr();
   }
 
-  void SetReference(size_t i, mirror::Object* object) {
+  void SetReference(size_t i, mirror::Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK_LT(i, number_of_references_);
-    references_[i] = object;
+    references_[i].Assign(object);
   }
 
-  bool Contains(mirror::Object** sirt_entry) const {
+  bool Contains(StackReference<mirror::Object>* sirt_entry) const {
     // A SIRT should always contain something. One created by the
     // jni_compiler should have a jobject/jclass as a native method is
     // passed in a this pointer or a class
@@ -89,7 +90,7 @@ class StackIndirectReferenceTable {
   StackIndirectReferenceTable* link_;
 
   // number_of_references_ are available if this is allocated and filled in by jni_compiler.
-  mirror::Object* references_[1];
+  StackReference<mirror::Object> references_[1];
 
   DISALLOW_COPY_AND_ASSIGN(StackIndirectReferenceTable);
 };

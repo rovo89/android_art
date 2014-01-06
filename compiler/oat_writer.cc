@@ -39,7 +39,7 @@ namespace art {
 
 OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
                      uint32_t image_file_location_oat_checksum,
-                     uint32_t image_file_location_oat_begin,
+                     uintptr_t image_file_location_oat_begin,
                      const std::string& image_file_location,
                      const CompilerDriver* compiler,
                      TimingLogger* timings)
@@ -348,8 +348,8 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
                                     bool __attribute__((unused)) is_native,
                                     InvokeType invoke_type,
                                     uint32_t method_idx, const DexFile& dex_file) {
-  // derived from CompiledMethod if available
-  uint32_t code_offset = 0;
+  // Derived from CompiledMethod if available.
+  uint32_t quick_code_offset = 0;
   uint32_t frame_size_in_bytes = kStackAlignment;
   uint32_t core_spill_mask = 0;
   uint32_t fp_spill_mask = 0;
@@ -358,36 +358,38 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
   uint32_t gc_map_offset = 0;
 
   OatClass* oat_class = oat_classes_[oat_class_index];
-#if defined(ART_USE_PORTABLE_COMPILER)
-  size_t oat_method_offsets_offset =
-      oat_class->GetOatMethodOffsetsOffsetFromOatHeader(class_def_method_index);
-#endif
-
   CompiledMethod* compiled_method = oat_class->GetCompiledMethod(class_def_method_index);
-  if (compiled_method != NULL) {
-#if defined(ART_USE_PORTABLE_COMPILER)
-    compiled_method->AddOatdataOffsetToCompliledCodeOffset(
-        oat_method_offsets_offset + OFFSETOF_MEMBER(OatMethodOffsets, code_offset_));
-#else
-    const std::vector<uint8_t>& code = compiled_method->GetCode();
-    offset = compiled_method->AlignCode(offset);
-    DCHECK_ALIGNED(offset, kArmAlignment);
-    uint32_t code_size = code.size() * sizeof(code[0]);
-    CHECK_NE(code_size, 0U);
-    uint32_t thumb_offset = compiled_method->CodeDelta();
-    code_offset = offset + sizeof(code_size) + thumb_offset;
 
-    // Deduplicate code arrays
-    SafeMap<const std::vector<uint8_t>*, uint32_t>::iterator code_iter = code_offsets_.find(&code);
-    if (code_iter != code_offsets_.end()) {
-      code_offset = code_iter->second;
+  if (compiled_method != NULL) {
+    const std::vector<uint8_t>* portable_code = compiled_method->GetPortableCode();
+    const std::vector<uint8_t>* quick_code = compiled_method->GetQuickCode();
+    if (portable_code != nullptr) {
+      CHECK(quick_code == nullptr);
+      size_t oat_method_offsets_offset =
+          oat_class->GetOatMethodOffsetsOffsetFromOatHeader(class_def_method_index);
+      compiled_method->AddOatdataOffsetToCompliledCodeOffset(
+          oat_method_offsets_offset + OFFSETOF_MEMBER(OatMethodOffsets, code_offset_));
     } else {
-      code_offsets_.Put(&code, code_offset);
-      offset += sizeof(code_size);  // code size is prepended before code
-      offset += code_size;
-      oat_header_->UpdateChecksum(&code[0], code_size);
+      CHECK(quick_code != nullptr);
+      offset = compiled_method->AlignCode(offset);
+      DCHECK_ALIGNED(offset, kArmAlignment);
+      uint32_t code_size = quick_code->size() * sizeof(uint8_t);
+      CHECK_NE(code_size, 0U);
+      uint32_t thumb_offset = compiled_method->CodeDelta();
+      quick_code_offset = offset + sizeof(code_size) + thumb_offset;
+
+      // Deduplicate code arrays
+      SafeMap<const std::vector<uint8_t>*, uint32_t>::iterator code_iter =
+          code_offsets_.find(quick_code);
+      if (code_iter != code_offsets_.end()) {
+        quick_code_offset = code_iter->second;
+      } else {
+        code_offsets_.Put(quick_code, quick_code_offset);
+        offset += sizeof(code_size);  // code size is prepended before code
+        offset += code_size;
+        oat_header_->UpdateChecksum(&(*quick_code)[0], code_size);
+      }
     }
-#endif
     frame_size_in_bytes = compiled_method->GetFrameSizeInBytes();
     core_spill_mask = compiled_method->GetCoreSpillMask();
     fp_spill_mask = compiled_method->GetFpSpillMask();
@@ -456,7 +458,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
     }
 
     oat_class->method_offsets_[*method_offsets_index] =
-        OatMethodOffsets(code_offset,
+        OatMethodOffsets(quick_code_offset,
                          frame_size_in_bytes,
                          core_spill_mask,
                          fp_spill_mask,
@@ -483,9 +485,11 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
     // Don't overwrite static method trampoline
     if (!method->IsStatic() || method->IsConstructor() ||
         method->GetDeclaringClass()->IsInitialized()) {
-      method->SetOatCodeOffset(code_offset);
+      // TODO: record portable code offsets: method->SetPortableOatCodeOffset(portable_code_offset);
+      method->SetQuickOatCodeOffset(quick_code_offset);
     } else {
-      method->SetEntryPointFromCompiledCode(NULL);
+      method->SetEntryPointFromPortableCompiledCode(nullptr);
+      method->SetEntryPointFromQuickCompiledCode(nullptr);
     }
     method->SetOatVmapTableOffset(vmap_table_offset);
     method->SetOatNativeGcMapOffset(gc_map_offset);
@@ -753,52 +757,52 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, const size_t file_offset,
   if (compiled_method != NULL) {  // ie. not an abstract method
     const OatMethodOffsets method_offsets = oat_class->method_offsets_[*method_offsets_index];
     (*method_offsets_index)++;
-
-#if !defined(ART_USE_PORTABLE_COMPILER)
-    uint32_t aligned_offset = compiled_method->AlignCode(relative_offset);
-    uint32_t aligned_code_delta = aligned_offset - relative_offset;
-    if (aligned_code_delta != 0) {
-      off_t new_offset = out.Seek(aligned_code_delta, kSeekCurrent);
-      size_code_alignment_ += aligned_code_delta;
-      uint32_t expected_offset = file_offset + aligned_offset;
-      if (static_cast<uint32_t>(new_offset) != expected_offset) {
-        PLOG(ERROR) << "Failed to seek to align oat code. Actual: " << new_offset
-                    << " Expected: " << expected_offset << " File: " << out.GetLocation();
-        return 0;
+    const std::vector<uint8_t>* quick_code = compiled_method->GetQuickCode();
+    if (quick_code != nullptr) {
+      CHECK(compiled_method->GetPortableCode() == nullptr);
+      uint32_t aligned_offset = compiled_method->AlignCode(relative_offset);
+      uint32_t aligned_code_delta = aligned_offset - relative_offset;
+      if (aligned_code_delta != 0) {
+        off_t new_offset = out.Seek(aligned_code_delta, kSeekCurrent);
+        size_code_alignment_ += aligned_code_delta;
+        uint32_t expected_offset = file_offset + aligned_offset;
+        if (static_cast<uint32_t>(new_offset) != expected_offset) {
+          PLOG(ERROR) << "Failed to seek to align oat code. Actual: " << new_offset
+              << " Expected: " << expected_offset << " File: " << out.GetLocation();
+          return 0;
+        }
+        relative_offset += aligned_code_delta;
+        DCHECK_OFFSET();
       }
-      relative_offset += aligned_code_delta;
+      DCHECK_ALIGNED(relative_offset, kArmAlignment);
+      uint32_t code_size = quick_code->size() * sizeof(uint8_t);
+      CHECK_NE(code_size, 0U);
+
+      // Deduplicate code arrays
+      size_t code_offset = relative_offset + sizeof(code_size) + compiled_method->CodeDelta();
+      SafeMap<const std::vector<uint8_t>*, uint32_t>::iterator code_iter =
+          code_offsets_.find(quick_code);
+      if (code_iter != code_offsets_.end() && code_offset != method_offsets.code_offset_) {
+        DCHECK(code_iter->second == method_offsets.code_offset_)
+              << PrettyMethod(method_idx, dex_file);
+      } else {
+        DCHECK(code_offset == method_offsets.code_offset_) << PrettyMethod(method_idx, dex_file);
+        if (!out.WriteFully(&code_size, sizeof(code_size))) {
+          ReportWriteFailure("method code size", method_idx, dex_file, out);
+          return 0;
+        }
+        size_code_size_ += sizeof(code_size);
+        relative_offset += sizeof(code_size);
+        DCHECK_OFFSET();
+        if (!out.WriteFully(&(*quick_code)[0], code_size)) {
+          ReportWriteFailure("method code", method_idx, dex_file, out);
+          return 0;
+        }
+        size_code_ += code_size;
+        relative_offset += code_size;
+      }
       DCHECK_OFFSET();
     }
-    DCHECK_ALIGNED(relative_offset, kArmAlignment);
-    const std::vector<uint8_t>& code = compiled_method->GetCode();
-    uint32_t code_size = code.size() * sizeof(code[0]);
-    CHECK_NE(code_size, 0U);
-
-    // Deduplicate code arrays
-    size_t code_offset = relative_offset + sizeof(code_size) + compiled_method->CodeDelta();
-    SafeMap<const std::vector<uint8_t>*, uint32_t>::iterator code_iter = code_offsets_.find(&code);
-    if (code_iter != code_offsets_.end() && code_offset != method_offsets.code_offset_) {
-      DCHECK(code_iter->second == method_offsets.code_offset_)
-          << PrettyMethod(method_idx, dex_file);
-    } else {
-      DCHECK(code_offset == method_offsets.code_offset_) << PrettyMethod(method_idx, dex_file);
-      if (!out.WriteFully(&code_size, sizeof(code_size))) {
-        ReportWriteFailure("method code size", method_idx, dex_file, out);
-        return 0;
-      }
-      size_code_size_ += sizeof(code_size);
-      relative_offset += sizeof(code_size);
-      DCHECK_OFFSET();
-      if (!out.WriteFully(&code[0], code_size)) {
-        ReportWriteFailure("method code", method_idx, dex_file, out);
-        return 0;
-      }
-      size_code_ += code_size;
-      relative_offset += code_size;
-    }
-    DCHECK_OFFSET();
-#endif
-
     const std::vector<uint8_t>& mapping_table = compiled_method->GetMappingTable();
     size_t mapping_table_size = mapping_table.size() * sizeof(mapping_table[0]);
 
@@ -994,7 +998,6 @@ OatWriter::OatClass::~OatClass() {
   delete compiled_methods_;
 }
 
-#if defined(ART_USE_PORTABLE_COMPILER)
 size_t OatWriter::OatClass::GetOatMethodOffsetsOffsetFromOatHeader(
     size_t class_def_method_index_) const {
   uint32_t method_offset = GetOatMethodOffsetsOffsetFromOatClass(class_def_method_index_);
@@ -1008,7 +1011,6 @@ size_t OatWriter::OatClass::GetOatMethodOffsetsOffsetFromOatClass(
     size_t class_def_method_index_) const {
   return oat_method_offsets_offsets_from_oat_class_[class_def_method_index_];
 }
-#endif
 
 size_t OatWriter::OatClass::SizeOf() const {
   return sizeof(status_)

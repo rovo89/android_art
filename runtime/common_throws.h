@@ -33,7 +33,7 @@ class ThrowLocation;
 
 // AbstractMethodError
 
-void ThrowAbstractMethodError(const mirror::ArtMethod* method)
+void ThrowAbstractMethodError(mirror::ArtMethod* method)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
 // ArithmeticException
@@ -47,8 +47,7 @@ void ThrowArrayIndexOutOfBoundsException(int index, int length)
 
 // ArrayStoreException
 
-void ThrowArrayStoreException(const mirror::Class* element_class,
-                              const mirror::Class* array_class)
+void ThrowArrayStoreException(mirror::Class* element_class, mirror::Class* array_class)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
 // ClassCircularityError
@@ -58,7 +57,7 @@ void ThrowClassCircularityError(mirror::Class* c)
 
 // ClassCastException
 
-void ThrowClassCastException(const mirror::Class* dest_type, const mirror::Class* src_type)
+void ThrowClassCastException(mirror::Class* dest_type, mirror::Class* src_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
 void ThrowClassCastException(const ThrowLocation* throw_location, const char* msg)
@@ -66,7 +65,7 @@ void ThrowClassCastException(const ThrowLocation* throw_location, const char* ms
 
 // ClassFormatError
 
-void ThrowClassFormatError(const mirror::Class* referrer, const char* fmt, ...)
+void ThrowClassFormatError(mirror::Class* referrer, const char* fmt, ...)
     __attribute__((__format__(__printf__, 2, 3)))
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
@@ -76,7 +75,7 @@ void ThrowIllegalAccessErrorClass(mirror::Class* referrer, mirror::Class* access
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
 void ThrowIllegalAccessErrorClassForMethodDispatch(mirror::Class* referrer, mirror::Class* accessed,
-                                                   const mirror::ArtMethod* called,
+                                                   mirror::ArtMethod* called,
                                                    InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
@@ -86,8 +85,7 @@ void ThrowIllegalAccessErrorMethod(mirror::Class* referrer, mirror::ArtMethod* a
 void ThrowIllegalAccessErrorField(mirror::Class* referrer, mirror::ArtField* accessed)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowIllegalAccessErrorFinalField(const mirror::ArtMethod* referrer,
-                                       mirror::ArtField* accessed)
+void ThrowIllegalAccessErrorFinalField(mirror::ArtMethod* referrer, mirror::ArtField* accessed)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
 void ThrowIllegalAccessError(mirror::Class* referrer, const char* fmt, ...)
@@ -102,20 +100,19 @@ void ThrowIllegalArgumentException(const ThrowLocation* throw_location, const ch
 // IncompatibleClassChangeError
 
 void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType found_type,
-                                       mirror::ArtMethod* method,
-                                       const mirror::ArtMethod* referrer)
+                                       mirror::ArtMethod* method, mirror::ArtMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(const mirror::ArtMethod* interface_method,
+void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(mirror::ArtMethod* interface_method,
                                                                 mirror::Object* this_object,
-                                                                const mirror::ArtMethod* referrer)
+                                                                mirror::ArtMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowIncompatibleClassChangeErrorField(const mirror::ArtField* resolved_field, bool is_static,
-                                            const mirror::ArtMethod* referrer)
+void ThrowIncompatibleClassChangeErrorField(mirror::ArtField* resolved_field, bool is_static,
+                                            mirror::ArtMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowIncompatibleClassChangeError(const mirror::Class* referrer, const char* fmt, ...)
+void ThrowIncompatibleClassChangeError(mirror::Class* referrer, const char* fmt, ...)
     __attribute__((__format__(__printf__, 2, 3)))
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
@@ -126,7 +123,7 @@ void ThrowIOException(const char* fmt, ...) __attribute__((__format__(__printf__
 
 // LinkageError
 
-void ThrowLinkageError(const mirror::Class* referrer, const char* fmt, ...)
+void ThrowLinkageError(mirror::Class* referrer, const char* fmt, ...)
     __attribute__((__format__(__printf__, 2, 3)))
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
@@ -185,7 +182,7 @@ void ThrowRuntimeException(const char* fmt, ...)
 
 // VerifyError
 
-void ThrowVerifyError(const mirror::Class* referrer, const char* fmt, ...)
+void ThrowVerifyError(mirror::Class* referrer, const char* fmt, ...)
     __attribute__((__format__(__printf__, 2, 3)))
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 

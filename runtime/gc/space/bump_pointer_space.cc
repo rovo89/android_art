@@ -29,7 +29,7 @@ BumpPointerSpace* BumpPointerSpace::Create(const std::string& name, size_t capac
   capacity = RoundUp(capacity, kPageSize);
   std::string error_msg;
   UniquePtr<MemMap> mem_map(MemMap::MapAnonymous(name.c_str(), requested_begin, capacity,
-                                                 PROT_READ | PROT_WRITE, &error_msg));
+                                                 PROT_READ | PROT_WRITE, true, &error_msg));
   if (mem_map.get() == nullptr) {
     LOG(ERROR) << "Failed to allocate pages for alloc space (" << name << ") of size "
         << PrettySize(capacity) << " with message " << error_msg;
@@ -69,7 +69,7 @@ mirror::Object* BumpPointerSpace::Alloc(Thread*, size_t num_bytes, size_t* bytes
   return ret;
 }
 
-size_t BumpPointerSpace::AllocationSize(const mirror::Object* obj) {
+size_t BumpPointerSpace::AllocationSize(mirror::Object* obj) {
   return AllocationSizeNonvirtual(obj);
 }
 

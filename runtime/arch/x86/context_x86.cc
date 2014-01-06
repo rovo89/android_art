@@ -23,7 +23,7 @@
 namespace art {
 namespace x86 {
 
-static const uint32_t gZero = 0;
+static const uintptr_t gZero = 0;
 
 void X86Context::Reset() {
   for (int i = 0; i < kNumberOfCpuRegisters; i++) {
@@ -55,8 +55,8 @@ void X86Context::FillCalleeSaves(const StackVisitor& fr) {
 
 void X86Context::SmashCallerSaves() {
   // This needs to be 0 because we want a null/zero return value.
-  gprs_[EAX] = const_cast<uint32_t*>(&gZero);
-  gprs_[EDX] = const_cast<uint32_t*>(&gZero);
+  gprs_[EAX] = const_cast<uintptr_t*>(&gZero);
+  gprs_[EDX] = const_cast<uintptr_t*>(&gZero);
   gprs_[ECX] = NULL;
   gprs_[EBX] = NULL;
 }
@@ -89,7 +89,7 @@ void X86Context::DoLongJump() {
       : "g"(&gprs[0])  // input.
       :);  // clobber.
 #else
-    UNIMPLEMENTED(FATAL);
+  UNIMPLEMENTED(FATAL);
 #endif
 }
 

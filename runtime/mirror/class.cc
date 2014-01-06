@@ -125,7 +125,7 @@ void Class::SetDexCache(DexCache* new_dex_cache) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_), new_dex_cache, false);
 }
 
-void Class::SetClassSize(size_t new_class_size) {
+void Class::SetClassSize(uint32_t new_class_size) {
   if (kIsDebugBuild && (new_class_size < GetClassSize())) {
     DumpClass(LOG(ERROR), kDumpClassFullDetail);
     CHECK_GE(new_class_size, GetClassSize()) << " class=" << PrettyTypeOf(this);
@@ -177,7 +177,7 @@ String* Class::ComputeName() {
   return name;
 }
 
-void Class::DumpClass(std::ostream& os, int flags) const {
+void Class::DumpClass(std::ostream& os, int flags) {
   if ((flags & kDumpClassFullDetail) == 0) {
     os << PrettyClass(this);
     if ((flags & kDumpClassClassLoader) != 0) {
@@ -281,9 +281,9 @@ bool Class::IsInSamePackage(const StringPiece& descriptor1, const StringPiece& d
   }
 }
 
-bool Class::IsInSamePackage(const Class* that) const {
-  const Class* klass1 = this;
-  const Class* klass2 = that;
+bool Class::IsInSamePackage(Class* that) {
+  Class* klass1 = this;
+  Class* klass2 = that;
   if (klass1 == klass2) {
     return true;
   }
@@ -307,7 +307,7 @@ bool Class::IsInSamePackage(const Class* that) const {
                          ClassHelper(klass2).GetDescriptor());
 }
 
-bool Class::IsClassClass() const {
+bool Class::IsClassClass() {
   Class* java_lang_Class = GetClass()->GetClass();
   return this == java_lang_Class;
 }
@@ -316,17 +316,17 @@ bool Class::IsStringClass() const {
   return this == String::GetJavaLangString();
 }
 
-bool Class::IsThrowableClass() const {
+bool Class::IsThrowableClass() {
   return WellKnownClasses::ToClass(WellKnownClasses::java_lang_Throwable)->IsAssignableFrom(this);
 }
 
-bool Class::IsArtFieldClass() const {
+bool Class::IsArtFieldClass() {
   Class* java_lang_Class = GetClass();
   Class* java_lang_reflect_ArtField = java_lang_Class->GetInstanceField(0)->GetClass();
   return this == java_lang_reflect_ArtField;
 }
 
-bool Class::IsArtMethodClass() const {
+bool Class::IsArtMethodClass() {
   return this == ArtMethod::GetJavaLangReflectArtMethod();
 }
 
@@ -334,7 +334,7 @@ void Class::SetClassLoader(ClassLoader* new_class_loader) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), new_class_loader, false);
 }
 
-ArtMethod* Class::FindInterfaceMethod(const StringPiece& name, const Signature& signature) const {
+ArtMethod* Class::FindInterfaceMethod(const StringPiece& name, const Signature& signature) {
   // Check the current class before checking the interfaces.
   ArtMethod* method = FindDeclaredVirtualMethod(name, signature);
   if (method != NULL) {
@@ -352,7 +352,7 @@ ArtMethod* Class::FindInterfaceMethod(const StringPiece& name, const Signature& 
   return NULL;
 }
 
-ArtMethod* Class::FindInterfaceMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
+ArtMethod* Class::FindInterfaceMethod(const DexCache* dex_cache, uint32_t dex_method_idx) {
   // Check the current class before checking the interfaces.
   ArtMethod* method = FindDeclaredVirtualMethod(dex_cache, dex_method_idx);
   if (method != NULL) {
@@ -370,7 +370,7 @@ ArtMethod* Class::FindInterfaceMethod(const DexCache* dex_cache, uint32_t dex_me
   return NULL;
 }
 
-ArtMethod* Class::FindDeclaredDirectMethod(const StringPiece& name, const StringPiece& signature) const {
+ArtMethod* Class::FindDeclaredDirectMethod(const StringPiece& name, const StringPiece& signature) {
   MethodHelper mh;
   for (size_t i = 0; i < NumDirectMethods(); ++i) {
     ArtMethod* method = GetDirectMethod(i);
@@ -382,7 +382,7 @@ ArtMethod* Class::FindDeclaredDirectMethod(const StringPiece& name, const String
   return NULL;
 }
 
-ArtMethod* Class::FindDeclaredDirectMethod(const StringPiece& name, const Signature& signature) const {
+ArtMethod* Class::FindDeclaredDirectMethod(const StringPiece& name, const Signature& signature) {
   MethodHelper mh;
   for (size_t i = 0; i < NumDirectMethods(); ++i) {
     ArtMethod* method = GetDirectMethod(i);
@@ -394,7 +394,7 @@ ArtMethod* Class::FindDeclaredDirectMethod(const StringPiece& name, const Signat
   return NULL;
 }
 
-ArtMethod* Class::FindDeclaredDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
+ArtMethod* Class::FindDeclaredDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) {
   if (GetDexCache() == dex_cache) {
     for (size_t i = 0; i < NumDirectMethods(); ++i) {
       ArtMethod* method = GetDirectMethod(i);
@@ -406,8 +406,8 @@ ArtMethod* Class::FindDeclaredDirectMethod(const DexCache* dex_cache, uint32_t d
   return NULL;
 }
 
-ArtMethod* Class::FindDirectMethod(const StringPiece& name, const StringPiece& signature) const {
-  for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
+ArtMethod* Class::FindDirectMethod(const StringPiece& name, const StringPiece& signature) {
+  for (Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
     ArtMethod* method = klass->FindDeclaredDirectMethod(name, signature);
     if (method != NULL) {
       return method;
@@ -416,8 +416,8 @@ ArtMethod* Class::FindDirectMethod(const StringPiece& name, const StringPiece& s
   return NULL;
 }
 
-ArtMethod* Class::FindDirectMethod(const StringPiece& name, const Signature& signature) const {
-  for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
+ArtMethod* Class::FindDirectMethod(const StringPiece& name, const Signature& signature) {
+  for (Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
     ArtMethod* method = klass->FindDeclaredDirectMethod(name, signature);
     if (method != NULL) {
       return method;
@@ -426,8 +426,8 @@ ArtMethod* Class::FindDirectMethod(const StringPiece& name, const Signature& sig
   return NULL;
 }
 
-ArtMethod* Class::FindDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
-  for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
+ArtMethod* Class::FindDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) {
+  for (Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
     ArtMethod* method = klass->FindDeclaredDirectMethod(dex_cache, dex_method_idx);
     if (method != NULL) {
       return method;
@@ -436,7 +436,7 @@ ArtMethod* Class::FindDirectMethod(const DexCache* dex_cache, uint32_t dex_metho
   return NULL;
 }
 
-ArtMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name, const StringPiece& signature) const {
+ArtMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name, const StringPiece& signature) {
   MethodHelper mh;
   for (size_t i = 0; i < NumVirtualMethods(); ++i) {
     ArtMethod* method = GetVirtualMethod(i);
@@ -449,7 +449,7 @@ ArtMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name, const Strin
 }
 
 ArtMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name,
-                                            const Signature& signature) const {
+                                            const Signature& signature) {
   MethodHelper mh;
   for (size_t i = 0; i < NumVirtualMethods(); ++i) {
     ArtMethod* method = GetVirtualMethod(i);
@@ -461,7 +461,7 @@ ArtMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name,
   return NULL;
 }
 
-ArtMethod* Class::FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
+ArtMethod* Class::FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) {
   if (GetDexCache() == dex_cache) {
     for (size_t i = 0; i < NumVirtualMethods(); ++i) {
       ArtMethod* method = GetVirtualMethod(i);
@@ -473,8 +473,8 @@ ArtMethod* Class::FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t 
   return NULL;
 }
 
-ArtMethod* Class::FindVirtualMethod(const StringPiece& name, const StringPiece& signature) const {
-  for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
+ArtMethod* Class::FindVirtualMethod(const StringPiece& name, const StringPiece& signature) {
+  for (Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
     ArtMethod* method = klass->FindDeclaredVirtualMethod(name, signature);
     if (method != NULL) {
       return method;
@@ -483,8 +483,8 @@ ArtMethod* Class::FindVirtualMethod(const StringPiece& name, const StringPiece& 
   return NULL;
 }
 
-ArtMethod* Class::FindVirtualMethod(const StringPiece& name, const Signature& signature) const {
-  for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
+ArtMethod* Class::FindVirtualMethod(const StringPiece& name, const Signature& signature) {
+  for (Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
     ArtMethod* method = klass->FindDeclaredVirtualMethod(name, signature);
     if (method != NULL) {
       return method;
@@ -493,8 +493,8 @@ ArtMethod* Class::FindVirtualMethod(const StringPiece& name, const Signature& si
   return NULL;
 }
 
-ArtMethod* Class::FindVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
-  for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
+ArtMethod* Class::FindVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) {
+  for (Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
     ArtMethod* method = klass->FindDeclaredVirtualMethod(dex_cache, dex_method_idx);
     if (method != NULL) {
       return method;
@@ -503,7 +503,7 @@ ArtMethod* Class::FindVirtualMethod(const DexCache* dex_cache, uint32_t dex_meth
   return NULL;
 }
 
-ArtMethod* Class::FindClassInitializer() const {
+ArtMethod* Class::FindClassInitializer() {
   for (size_t i = 0; i < NumDirectMethods(); ++i) {
     ArtMethod* method = GetDirectMethod(i);
     if (method->IsConstructor() && method->IsStatic()) {

@@ -122,7 +122,11 @@ TEST_F(CompilerDriverTest, DISABLED_LARGE_CompileDexLibCore) {
     EXPECT_TRUE(method != NULL) << "method_idx=" << i
                                 << " " << dex->GetMethodDeclaringClassDescriptor(dex->GetMethodId(i))
                                 << " " << dex->GetMethodName(dex->GetMethodId(i));
-    EXPECT_TRUE(method->GetEntryPointFromCompiledCode() != NULL) << "method_idx=" << i
+    EXPECT_TRUE(method->GetEntryPointFromQuickCompiledCode() != NULL) << "method_idx=" << i
+                                           << " "
+                                           << dex->GetMethodDeclaringClassDescriptor(dex->GetMethodId(i))
+                                           << " " << dex->GetMethodName(dex->GetMethodId(i));
+    EXPECT_TRUE(method->GetEntryPointFromPortableCompiledCode() != NULL) << "method_idx=" << i
                                            << " "
                                            << dex->GetMethodDeclaringClassDescriptor(dex->GetMethodId(i))
                                            << " " << dex->GetMethodName(dex->GetMethodId(i));

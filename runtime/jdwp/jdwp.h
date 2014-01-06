@@ -17,7 +17,7 @@
 #ifndef ART_RUNTIME_JDWP_JDWP_H_
 #define ART_RUNTIME_JDWP_JDWP_H_
 
-#include "atomic_integer.h"
+#include "atomic.h"
 #include "base/mutex.h"
 #include "jdwp/jdwp_bits.h"
 #include "jdwp/jdwp_constants.h"

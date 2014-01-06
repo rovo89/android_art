@@ -45,7 +45,7 @@ typedef void (EntryPointFromInterpreter)(Thread* self, MethodHelper& mh,
 // C++ mirror of java.lang.reflect.Method and java.lang.reflect.Constructor
 class MANAGED ArtMethod : public Object {
  public:
-  Class* GetDeclaringClass() const;
+  Class* GetDeclaringClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetDeclaringClass(Class *new_declaring_class) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -53,41 +53,37 @@ class MANAGED ArtMethod : public Object {
     return MemberOffset(OFFSETOF_MEMBER(ArtMethod, declaring_class_));
   }
 
-  static MemberOffset EntryPointFromCompiledCodeOffset() {
-    return MemberOffset(OFFSETOF_MEMBER(ArtMethod, entry_point_from_compiled_code_));
-  }
+  uint32_t GetAccessFlags() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  uint32_t GetAccessFlags() const;
-
-  void SetAccessFlags(uint32_t new_access_flags) {
+  void SetAccessFlags(uint32_t new_access_flags) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     SetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, access_flags_), new_access_flags, false);
   }
 
   // Approximate what kind of method call would be used for this method.
-  InvokeType GetInvokeType() const;
+  InvokeType GetInvokeType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns true if the method is declared public.
-  bool IsPublic() const {
+  bool IsPublic() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccPublic) != 0;
   }
 
   // Returns true if the method is declared private.
-  bool IsPrivate() const {
+  bool IsPrivate() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccPrivate) != 0;
   }
 
   // Returns true if the method is declared static.
-  bool IsStatic() const {
+  bool IsStatic() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccStatic) != 0;
   }
 
   // Returns true if the method is a constructor.
-  bool IsConstructor() const {
+  bool IsConstructor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccConstructor) != 0;
   }
 
   // Returns true if the method is static, private, or a constructor.
-  bool IsDirect() const {
+  bool IsDirect() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return IsDirect(GetAccessFlags());
   }
 
@@ -96,55 +92,70 @@ class MANAGED ArtMethod : public Object {
   }
 
   // Returns true if the method is declared synchronized.
-  bool IsSynchronized() const {
+  bool IsSynchronized() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t synchonized = kAccSynchronized | kAccDeclaredSynchronized;
     return (GetAccessFlags() & synchonized) != 0;
   }
 
-  bool IsFinal() const {
+  bool IsFinal() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccFinal) != 0;
   }
 
-  bool IsMiranda() const {
+  bool IsMiranda() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccMiranda) != 0;
   }
 
-  bool IsNative() const {
+  bool IsNative() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccNative) != 0;
   }
 
-  bool IsFastNative() const {
+  bool IsFastNative() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t mask = kAccFastNative | kAccNative;
     return (GetAccessFlags() & mask) == mask;
   }
 
-  bool IsAbstract() const {
+  bool IsAbstract() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccAbstract) != 0;
   }
 
-  bool IsSynthetic() const {
+  bool IsSynthetic() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccSynthetic) != 0;
   }
 
-  bool IsProxyMethod() const;
+  bool IsProxyMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsPreverified() const {
+  bool IsPreverified() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccPreverified) != 0;
   }
 
-  void SetPreverified() {
+  void SetPreverified() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(!IsPreverified());
     SetAccessFlags(GetAccessFlags() | kAccPreverified);
+  }
+
+  bool IsPortableCompiled() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return (GetAccessFlags() & kAccPortableCompiled) != 0;
+  }
+
+  void SetIsPortableCompiled() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(!IsPortableCompiled());
+    SetAccessFlags(GetAccessFlags() | kAccPortableCompiled);
+  }
+
+  void ClearIsPortableCompiled() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(IsPortableCompiled());
+    SetAccessFlags(GetAccessFlags() & ~kAccPortableCompiled);
   }
 
   bool CheckIncompatibleClassChange(InvokeType type) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  uint16_t GetMethodIndex() const;
+  uint16_t GetMethodIndex() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  size_t GetVtableIndex() const {
+  size_t GetVtableIndex() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetMethodIndex();
   }
 
-  void SetMethodIndex(uint16_t new_method_index) {
+  void SetMethodIndex(uint16_t new_method_index) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     SetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, method_index_), new_method_index, false);
   }
 
@@ -152,24 +163,24 @@ class MANAGED ArtMethod : public Object {
     return OFFSET_OF_OBJECT_MEMBER(ArtMethod, method_index_);
   }
 
-  uint32_t GetCodeItemOffset() const {
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, code_item_offset_), false);
+  uint32_t GetCodeItemOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_code_item_offset_), false);
   }
 
   void SetCodeItemOffset(uint32_t new_code_off) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, code_item_offset_), new_code_off, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_code_item_offset_), new_code_off, false);
   }
 
   // Number of 32bit registers that would be required to hold all the arguments
   static size_t NumArgRegisters(const StringPiece& shorty);
 
-  uint32_t GetDexMethodIndex() const;
+  uint32_t GetDexMethodIndex() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetDexMethodIndex(uint32_t new_idx) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, method_dex_index_), new_idx, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_method_index_), new_idx, false);
   }
 
-  ObjectArray<String>* GetDexCacheStrings() const;
+  ObjectArray<String>* GetDexCacheStrings() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetDexCacheStrings(ObjectArray<String>* new_dex_cache_strings)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -185,41 +196,62 @@ class MANAGED ArtMethod : public Object {
     return OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_types_);
   }
 
-  ObjectArray<ArtMethod>* GetDexCacheResolvedMethods() const;
+  ObjectArray<ArtMethod>* GetDexCacheResolvedMethods() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetDexCacheResolvedMethods(ObjectArray<ArtMethod>* new_dex_cache_methods)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  ObjectArray<Class>* GetDexCacheResolvedTypes() const;
+  ObjectArray<Class>* GetDexCacheResolvedTypes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cache_types)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Find the method that this method overrides
-  ArtMethod* FindOverriddenMethod() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ArtMethod* FindOverriddenMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result, char result_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  EntryPointFromInterpreter* GetEntryPointFromInterpreter() const {
-    return GetFieldPtr<EntryPointFromInterpreter*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_interpreter_), false);
+  EntryPointFromInterpreter* GetEntryPointFromInterpreter() {
+    return GetFieldPtr<EntryPointFromInterpreter*>(
+               OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_interpreter_), false);
   }
 
   void SetEntryPointFromInterpreter(EntryPointFromInterpreter* entry_point_from_interpreter) {
-    SetFieldPtr<EntryPointFromInterpreter*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_interpreter_), entry_point_from_interpreter, false);
+    SetFieldPtr<EntryPointFromInterpreter*>(
+        OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_interpreter_),
+        entry_point_from_interpreter, false);
   }
 
-  const void* GetEntryPointFromCompiledCode() const {
-    return GetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_compiled_code_), false);
+  static MemberOffset EntryPointFromPortableCompiledCodeOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(ArtMethod, entry_point_from_portable_compiled_code_));
   }
 
-  void SetEntryPointFromCompiledCode(const void* entry_point_from_compiled_code) {
-    SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_compiled_code_), entry_point_from_compiled_code, false);
+  const void* GetEntryPointFromPortableCompiledCode() {
+    return GetFieldPtr<const void*>(EntryPointFromPortableCompiledCodeOffset(), false);
   }
 
-  uint32_t GetCodeSize() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetEntryPointFromPortableCompiledCode(const void* entry_point_from_portable_compiled_code) {
+    SetFieldPtr<const void*>(EntryPointFromPortableCompiledCodeOffset(),
+        entry_point_from_portable_compiled_code, false);
+  }
 
-  bool IsWithinCode(uintptr_t pc) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    uintptr_t code = reinterpret_cast<uintptr_t>(GetEntryPointFromCompiledCode());
+  static MemberOffset EntryPointFromQuickCompiledCodeOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(ArtMethod, entry_point_from_quick_compiled_code_));
+  }
+
+  const void* GetEntryPointFromQuickCompiledCode() {
+    return GetFieldPtr<const void*>(EntryPointFromQuickCompiledCodeOffset(), false);
+  }
+
+  void SetEntryPointFromQuickCompiledCode(const void* entry_point_from_quick_compiled_code) {
+    SetFieldPtr<const void*>(EntryPointFromQuickCompiledCodeOffset(),
+        entry_point_from_quick_compiled_code, false);
+  }
+
+
+  uint32_t GetCodeSize() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  bool IsWithinQuickCode(uintptr_t pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    uintptr_t code = reinterpret_cast<uintptr_t>(GetEntryPointFromQuickCompiledCode());
     if (code == 0) {
       return pc == 0;
     }
@@ -231,45 +263,44 @@ class MANAGED ArtMethod : public Object {
     return (code <= pc && pc <= code + GetCodeSize());
   }
 
-  void AssertPcIsWithinCode(uintptr_t pc) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void AssertPcIsWithinQuickCode(uintptr_t pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  uint32_t GetOatCodeOffset() const;
-
-  void SetOatCodeOffset(uint32_t code_offset);
-
-  static MemberOffset GetEntryPointFromCompiledCodeOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_compiled_code_);
-  }
+  uint32_t GetQuickOatCodeOffset();
+  uint32_t GetPortableOatCodeOffset();
+  void SetQuickOatCodeOffset(uint32_t code_offset);
+  void SetPortableOatCodeOffset(uint32_t code_offset);
 
   // Callers should wrap the uint8_t* in a MappingTable instance for convenient access.
-  const uint8_t* GetMappingTable() const {
-    return GetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, mapping_table_), false);
+  const uint8_t* GetMappingTable() {
+    return GetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_mapping_table_),
+        false);
   }
 
   void SetMappingTable(const uint8_t* mapping_table) {
-    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, mapping_table_),
-                                 mapping_table, false);
+    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_mapping_table_),
+                                mapping_table, false);
   }
 
-  uint32_t GetOatMappingTableOffset() const;
+  uint32_t GetOatMappingTableOffset();
 
   void SetOatMappingTableOffset(uint32_t mapping_table_offset);
 
   // Callers should wrap the uint8_t* in a VmapTable instance for convenient access.
-  const uint8_t* GetVmapTable() const {
-    return GetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, vmap_table_), false);
+  const uint8_t* GetVmapTable() {
+    return GetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_vmap_table_),
+        false);
   }
 
   void SetVmapTable(const uint8_t* vmap_table) {
-    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, vmap_table_), vmap_table, false);
+    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_vmap_table_), vmap_table,
+        false);
   }
 
-  uint32_t GetOatVmapTableOffset() const;
+  uint32_t GetOatVmapTableOffset();
 
   void SetOatVmapTableOffset(uint32_t vmap_table_offset);
 
-  const uint8_t* GetNativeGcMap() const {
+  const uint8_t* GetNativeGcMap() {
     return GetFieldPtr<uint8_t*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, gc_map_), false);
   }
   void SetNativeGcMap(const uint8_t* data) {
@@ -278,31 +309,30 @@ class MANAGED ArtMethod : public Object {
 
   // When building the oat need a convenient place to stuff the offset of the native GC map.
   void SetOatNativeGcMapOffset(uint32_t gc_map_offset);
-  uint32_t GetOatNativeGcMapOffset() const;
+  uint32_t GetOatNativeGcMapOffset();
 
-  size_t GetFrameSizeInBytes() const {
+  size_t GetFrameSizeInBytes() {
     DCHECK_EQ(sizeof(size_t), sizeof(uint32_t));
-    size_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, frame_size_in_bytes_), false);
+    size_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_frame_size_in_bytes_), false);
     DCHECK_LE(static_cast<size_t>(kStackAlignment), result);
     return result;
   }
 
   void SetFrameSizeInBytes(size_t new_frame_size_in_bytes) {
-    DCHECK_EQ(sizeof(size_t), sizeof(uint32_t));
-    SetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, frame_size_in_bytes_),
+    SetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_frame_size_in_bytes_),
                new_frame_size_in_bytes, false);
   }
 
-  size_t GetReturnPcOffsetInBytes() const {
+  size_t GetReturnPcOffsetInBytes() {
     return GetFrameSizeInBytes() - kPointerSize;
   }
 
-  size_t GetSirtOffsetInBytes() const {
+  size_t GetSirtOffsetInBytes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(IsNative());
     return kPointerSize;
   }
 
-  bool IsRegistered() const;
+  bool IsRegistered();
 
   void RegisterNative(Thread* self, const void* native_method, bool is_fast)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -310,10 +340,10 @@ class MANAGED ArtMethod : public Object {
   void UnregisterNative(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static MemberOffset NativeMethodOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(ArtMethod, native_method_);
+    return OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_jni_);
   }
 
-  const void* GetNativeMethod() const {
+  const void* GetNativeMethod() {
     return reinterpret_cast<const void*>(GetField32(NativeMethodOffset(), false));
   }
 
@@ -323,47 +353,47 @@ class MANAGED ArtMethod : public Object {
     return OFFSET_OF_OBJECT_MEMBER(ArtMethod, method_index_);
   }
 
-  uint32_t GetCoreSpillMask() const {
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, core_spill_mask_), false);
+  uint32_t GetCoreSpillMask() {
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_core_spill_mask_), false);
   }
 
   void SetCoreSpillMask(uint32_t core_spill_mask) {
     // Computed during compilation
-    SetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, core_spill_mask_), core_spill_mask, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_core_spill_mask_), core_spill_mask, false);
   }
 
-  uint32_t GetFpSpillMask() const {
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, fp_spill_mask_), false);
+  uint32_t GetFpSpillMask() {
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_fp_spill_mask_), false);
   }
 
   void SetFpSpillMask(uint32_t fp_spill_mask) {
     // Computed during compilation
-    SetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, fp_spill_mask_), fp_spill_mask, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_fp_spill_mask_), fp_spill_mask, false);
   }
 
   // Is this a CalleSaveMethod or ResolutionMethod and therefore doesn't adhere to normal
   // conventions for a method of managed code. Returns false for Proxy methods.
-  bool IsRuntimeMethod() const;
+  bool IsRuntimeMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Is this a hand crafted method used for something like describing callee saves?
-  bool IsCalleeSaveMethod() const;
+  bool IsCalleeSaveMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsResolutionMethod() const;
+  bool IsResolutionMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsImtConflictMethod() const;
+  bool IsImtConflictMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  uintptr_t NativePcOffset(const uintptr_t pc) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  uintptr_t NativePcOffset(const uintptr_t pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Converts a native PC to a dex PC.
-  uint32_t ToDexPc(const uintptr_t pc) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  uint32_t ToDexPc(const uintptr_t pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Converts a dex PC to a native PC.
-  uintptr_t ToNativePc(const uint32_t dex_pc) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  uintptr_t ToNativePc(const uint32_t dex_pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Find the catch block for the given exception type and dex_pc. When a catch block is found,
   // indicates whether the found catch block is responsible for clearing the exception or whether
   // a move-exception instruction is present.
-  uint32_t FindCatchBlock(Class* exception_type, uint32_t dex_pc, bool* has_no_move_exception) const
+  uint32_t FindCatchBlock(Class* exception_type, uint32_t dex_pc, bool* has_no_move_exception)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void SetClass(Class* java_lang_reflect_ArtMethod);
@@ -379,65 +409,83 @@ class MANAGED ArtMethod : public Object {
 
  protected:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
-  // The class we are a part of
-  Class* declaring_class_;
+  // The class we are a part of.
+  HeapReference<Class> declaring_class_;
 
-  // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
-  ObjectArray<ArtMethod>* dex_cache_resolved_methods_;
+  // Short cuts to declaring_class_->dex_cache_ member for fast compiled code access.
+  HeapReference<ObjectArray<ArtMethod> > dex_cache_resolved_methods_;
 
-  // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
-  ObjectArray<Class>* dex_cache_resolved_types_;
+  // Short cuts to declaring_class_->dex_cache_ member for fast compiled code access.
+  HeapReference<ObjectArray<Class> > dex_cache_resolved_types_;
 
-  // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
-  ObjectArray<String>* dex_cache_strings_;
+  // Short cuts to declaring_class_->dex_cache_ member for fast compiled code access.
+  HeapReference<ObjectArray<String> > dex_cache_strings_;
 
-  // Access flags; low 16 bits are defined by spec.
-  uint32_t access_flags_;
+  // Method dispatch from the interpreter invokes this pointer which may cause a bridge into
+  // compiled code.
+  uint64_t entry_point_from_interpreter_;
 
-  // Offset to the CodeItem.
-  uint32_t code_item_offset_;
+  // Pointer to JNI function registered to this method, or a function to resolve the JNI function.
+  uint64_t entry_point_from_jni_;
 
-  // Architecture-dependent register spill mask
-  uint32_t core_spill_mask_;
+  // Method dispatch from portable compiled code invokes this pointer which may cause bridging into
+  // quick compiled code or the interpreter.
+  uint64_t entry_point_from_portable_compiled_code_;
 
-  // Compiled code associated with this method for callers from managed code.
-  // May be compiled managed code or a bridge for invoking a native method.
-  // TODO: Break apart this into portable and quick.
-  const void* entry_point_from_compiled_code_;
+  // Method dispatch from quick compiled code invokes this pointer which may cause bridging into
+  // portable compiled code or the interpreter.
+  uint64_t entry_point_from_quick_compiled_code_;
 
-  // Called by the interpreter to execute this method.
-  EntryPointFromInterpreter* entry_point_from_interpreter_;
+  // Pointer to a data structure created by the compiler and used by the garbage collector to
+  // determine which registers hold live references to objects within the heap. Keyed by native PC
+  // offsets for the quick compiler and dex PCs for the portable.
+  uint64_t gc_map_;
 
-  // Architecture-dependent register spill mask
-  uint32_t fp_spill_mask_;
+  // --- Quick compiler meta-data. ---
+  // TODO: merge and place in native heap, such as done with the code size.
 
-  // Total size in bytes of the frame
-  size_t frame_size_in_bytes_;
-
-  // Garbage collection map of native PC offsets (quick) or dex PCs (portable) to reference bitmaps.
-  const uint8_t* gc_map_;
-
-  // Mapping from native pc to dex pc
-  const uint32_t* mapping_table_;
-
-  // Index into method_ids of the dex file associated with this method
-  uint32_t method_dex_index_;
-
-  // For concrete virtual methods, this is the offset of the method in Class::vtable_.
-  //
-  // For abstract methods in an interface class, this is the offset of the method in
-  // "iftable_->Get(n)->GetMethodArray()".
-  //
-  // For static and direct methods this is the index in the direct methods table.
-  uint32_t method_index_;
-
-  // The target native method registered with this method
-  const void* native_method_;
+  // Pointer to a data structure created by the quick compiler to map between dex PCs and native
+  // PCs, and vice-versa.
+  uint64_t quick_mapping_table_;
 
   // When a register is promoted into a register, the spill mask holds which registers hold dex
   // registers. The first promoted register's corresponding dex register is vmap_table_[1], the Nth
   // is vmap_table_[N]. vmap_table_[0] holds the length of the table.
-  const uint16_t* vmap_table_;
+  uint64_t quick_vmap_table_;
+
+  // --- End of quick compiler meta-data. ---
+
+  // Access flags; low 16 bits are defined by spec.
+  uint32_t access_flags_;
+
+  /* Dex file fields. The defining dex file is available via declaring_class_->dex_cache_ */
+
+  // Offset to the CodeItem.
+  uint32_t dex_code_item_offset_;
+
+  // Index into method_ids of the dex file associated with this method.
+  uint32_t dex_method_index_;
+
+  /* End of dex file fields. */
+
+  // Entry within a dispatch table for this method. For static/direct methods the index is into
+  // the declaringClass.directMethods, for virtual methods the vtable and for interface methods the
+  // ifTable.
+  uint32_t method_index_;
+
+  // --- Quick compiler meta-data. ---
+  // TODO: merge and place in native heap, such as done with the code size.
+
+  // Bit map of spilled machine registers.
+  uint32_t quick_core_spill_mask_;
+
+  // Bit map of spilled floating point machine registers.
+  uint32_t quick_fp_spill_mask_;
+
+  // Fixed frame size for this method when executed.
+  uint32_t quick_frame_size_in_bytes_;
+
+  // --- End of quick compiler meta-data. ---
 
   static Class* java_lang_reflect_ArtMethod_;
 

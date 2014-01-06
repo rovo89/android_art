@@ -646,7 +646,8 @@ bool ElfFile::Load(bool executable, std::string* error_msg) {
       reservation_name += file_->GetPath();
       std::string error_msg;
       UniquePtr<MemMap> reserve(MemMap::MapAnonymous(reservation_name.c_str(),
-                                                     NULL, GetLoadedSize(), PROT_NONE, &error_msg));
+                                                     NULL, GetLoadedSize(), PROT_NONE, false,
+                                                     &error_msg));
       CHECK(reserve.get() != NULL) << file_->GetPath() << ": " << error_msg;
       base_address_ = reserve->Begin();
       segments_.push_back(reserve.release());

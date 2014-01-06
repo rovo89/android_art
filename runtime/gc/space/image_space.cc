@@ -35,7 +35,7 @@ namespace art {
 namespace gc {
 namespace space {
 
-AtomicInteger ImageSpace::bitmap_index_(0);
+Atomic<uint32_t> ImageSpace::bitmap_index_(0);
 
 ImageSpace::ImageSpace(const std::string& name, MemMap* mem_map,
                        accounting::SpaceBitmap* live_bitmap)
@@ -171,7 +171,7 @@ void ImageSpace::VerifyImageAllocations() {
   byte* current = Begin() + RoundUp(sizeof(ImageHeader), kObjectAlignment);
   while (current < End()) {
     DCHECK_ALIGNED(current, kObjectAlignment);
-    const mirror::Object* obj = reinterpret_cast<const mirror::Object*>(current);
+    mirror::Object* obj = reinterpret_cast<mirror::Object*>(current);
     CHECK(live_bitmap_->Test(obj));
     CHECK(obj->GetClass() != nullptr) << "Image object at address " << obj << " has null class";
     current += RoundUp(obj->SizeOf(), kObjectAlignment);
@@ -227,7 +227,7 @@ ImageSpace* ImageSpace::Init(const char* image_file_name, bool validate_oat_file
     *error_msg = StringPrintf("Failed to map image bitmap: %s", error_msg->c_str());
     return nullptr;
   }
-  size_t bitmap_index = bitmap_index_.FetchAndAdd(1);
+  uint32_t bitmap_index = bitmap_index_.FetchAndAdd(1);
   std::string bitmap_name(StringPrintf("imagespace %s live-bitmap %u", image_file_name,
                                        bitmap_index));
   UniquePtr<accounting::SpaceBitmap> bitmap(

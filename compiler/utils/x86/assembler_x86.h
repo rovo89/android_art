@@ -452,9 +452,6 @@ class X86Assembler : public Assembler {
   void Align(int alignment, int offset);
   void Bind(Label* label);
 
-  // Debugging and bringup support.
-  void Stop(const char* message);
-
   //
   // Overridden common assembler high-level functionality
   //

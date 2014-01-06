@@ -106,8 +106,8 @@ class CompilerDriver {
                   TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  // Compile a single Method
-  void CompileOne(const mirror::ArtMethod* method, TimingLogger& timings)
+  // Compile a single Method.
+  void CompileOne(mirror::ArtMethod* method, TimingLogger& timings)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   VerificationResults* GetVerificationResults() const {

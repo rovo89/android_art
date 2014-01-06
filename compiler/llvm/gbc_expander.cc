@@ -897,7 +897,7 @@ llvm::Value* GBCExpanderPass::EmitInvoke(llvm::CallInst& call_inst) {
   } else {
     code_addr =
         irb_.LoadFromObjectOffset(callee_method_object_addr,
-                                  art::mirror::ArtMethod::GetEntryPointFromCompiledCodeOffset().Int32Value(),
+                                  art::mirror::ArtMethod::EntryPointFromPortableCompiledCodeOffset().Int32Value(),
                                   func_type->getPointerTo(), kTBAARuntimeInfo);
   }
 
@@ -1234,7 +1234,7 @@ llvm::Value* GBCExpanderPass::Expand_Invoke(llvm::CallInst& call_inst) {
 
   llvm::Value* code_addr =
     irb_.LoadFromObjectOffset(callee_method_object_addr,
-                              art::mirror::ArtMethod::GetEntryPointFromCompiledCodeOffset().Int32Value(),
+                              art::mirror::ArtMethod::EntryPointFromPortableCompiledCodeOffset().Int32Value(),
                               callee_method_type->getPointerTo(),
                               kTBAARuntimeInfo);
 

@@ -455,9 +455,7 @@ void ProfileSampleResults::Clear() {
 }
 
 uint32_t ProfileSampleResults::Hash(mirror::ArtMethod* method) {
-  uint32_t value = reinterpret_cast<uint32_t>(method);
-  value >>= 2;
-  return value % kHashSize;
+  return (PointerToLowMemUInt32(method) >> 3) % kHashSize;
 }
 
 }  // namespace art

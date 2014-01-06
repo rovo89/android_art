@@ -55,7 +55,7 @@ class ClassLinkerTest : public CommonTest {
     AssertPrimitiveClass(descriptor, class_linker_->FindSystemClass(descriptor.c_str()));
   }
 
-  void AssertPrimitiveClass(const std::string& descriptor, const mirror::Class* primitive)
+  void AssertPrimitiveClass(const std::string& descriptor, mirror::Class* primitive)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ClassHelper primitive_ch(primitive);
     ASSERT_TRUE(primitive != NULL);
@@ -212,7 +212,7 @@ class ClassLinkerTest : public CommonTest {
       }
     }
     EXPECT_EQ(klass->IsInterface(), klass->GetVTable() == NULL);
-    const mirror::IfTable* iftable = klass->GetIfTable();
+    mirror::IfTable* iftable = klass->GetIfTable();
     for (int i = 0; i < klass->GetIfTableCount(); i++) {
       mirror::Class* interface = iftable->GetInterface(i);
       ASSERT_TRUE(interface != NULL);
@@ -469,20 +469,23 @@ struct ArtMethodOffsets : public CheckOffsets<mirror::ArtMethod> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_cache_resolved_types_),             "dexCacheResolvedTypes"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_cache_strings_),                    "dexCacheStrings"));
 
+    // alphabetical 64-bit
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, entry_point_from_interpreter_),            "entryPointFromInterpreter"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, entry_point_from_jni_),                    "entryPointFromJni"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, entry_point_from_portable_compiled_code_), "entryPointFromPortableCompiledCode"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, entry_point_from_quick_compiled_code_),    "entryPointFromQuickCompiledCode"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, gc_map_),                                  "gcMap"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, quick_mapping_table_),                     "quickMappingTable"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, quick_vmap_table_),                        "quickVmapTable"));
+
     // alphabetical 32-bit
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, access_flags_),                   "accessFlags"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, code_item_offset_),               "codeItemOffset"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, core_spill_mask_),                "coreSpillMask"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, entry_point_from_compiled_code_), "entryPointFromCompiledCode"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, entry_point_from_interpreter_),   "entryPointFromInterpreter"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, fp_spill_mask_),                  "fpSpillMask"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, frame_size_in_bytes_),            "frameSizeInBytes"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, gc_map_),                         "gcMap"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, mapping_table_),                  "mappingTable"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, method_dex_index_),               "methodDexIndex"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_code_item_offset_),           "dexCodeItemOffset"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_method_index_),               "dexMethodIndex"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, method_index_),                   "methodIndex"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, native_method_),                  "nativeMethod"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, vmap_table_),                     "vmapTable"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, quick_core_spill_mask_),          "quickCoreSpillMask"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, quick_fp_spill_mask_),            "quickFpSpillMask"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, quick_frame_size_in_bytes_),      "quickFrameSizeInBytes"));
   };
 };
 
@@ -762,10 +765,10 @@ TEST_F(ClassLinkerTest, ValidateObjectArrayElementsOffset) {
   mirror::Class* array_class = class_linker_->FindSystemClass("[Ljava/lang/String;");
   mirror::ObjectArray<mirror::String>* array =
       mirror::ObjectArray<mirror::String>::Alloc(soa.Self(), array_class, 0);
-  uint32_t array_offset = reinterpret_cast<uint32_t>(array);
-  uint32_t data_offset =
-      array_offset + mirror::ObjectArray<mirror::String>::DataOffset(sizeof(mirror::String*)).Uint32Value();
-  if (sizeof(mirror::String*) == sizeof(int32_t)) {
+  uintptr_t data_offset =
+      reinterpret_cast<uintptr_t>(array->GetRawData(sizeof(mirror::HeapReference<mirror::String>),
+                                                    0));
+  if (sizeof(mirror::HeapReference<mirror::String>) == sizeof(int32_t)) {
     EXPECT_TRUE(IsAligned<4>(data_offset));  // Check 4 byte alignment.
   } else {
     EXPECT_TRUE(IsAligned<8>(data_offset));  // Check 8 byte alignment.

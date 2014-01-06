@@ -30,98 +30,74 @@ namespace mirror {
 // C++ mirror of java.lang.reflect.ArtField
 class MANAGED ArtField : public Object {
  public:
-  Class* GetDeclaringClass() const;
+  Class* GetDeclaringClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetDeclaringClass(Class *new_declaring_class) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  uint32_t GetAccessFlags() const;
+  uint32_t GetAccessFlags() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetAccessFlags(uint32_t new_access_flags) {
+  void SetAccessFlags(uint32_t new_access_flags) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     SetField32(OFFSET_OF_OBJECT_MEMBER(ArtField, access_flags_), new_access_flags, false);
   }
 
-  bool IsPublic() const {
+  bool IsPublic() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccPublic) != 0;
   }
 
-  bool IsStatic() const {
+  bool IsStatic() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccStatic) != 0;
   }
 
-  bool IsFinal() const {
+  bool IsFinal() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccFinal) != 0;
   }
 
-  uint32_t GetDexFieldIndex() const {
+  uint32_t GetDexFieldIndex() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtField, field_dex_idx_), false);
   }
 
-  void SetDexFieldIndex(uint32_t new_idx) {
+  void SetDexFieldIndex(uint32_t new_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     SetField32(OFFSET_OF_OBJECT_MEMBER(ArtField, field_dex_idx_), new_idx, false);
   }
 
-  // Offset to field within an Object
-  MemberOffset GetOffset() const;
+  // Offset to field within an Object.
+  MemberOffset GetOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static MemberOffset OffsetOffset() {
     return MemberOffset(OFFSETOF_MEMBER(ArtField, offset_));
   }
 
-  MemberOffset GetOffsetDuringLinking() const;
+  MemberOffset GetOffsetDuringLinking() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetOffset(MemberOffset num_bytes);
+  void SetOffset(MemberOffset num_bytes) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // field access, null object for static fields
-  bool GetBoolean(const Object* object) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SetBoolean(Object* object, bool z) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  int8_t GetByte(const Object* object) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SetByte(Object* object, int8_t b) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  uint16_t GetChar(const Object* object) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SetChar(Object* object, uint16_t c) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  int16_t GetShort(const Object* object) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SetShort(Object* object, int16_t s) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  int32_t GetInt(const Object* object) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SetInt(Object* object, int32_t i) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  int64_t GetLong(const Object* object) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SetLong(Object* object, int64_t j) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  float GetFloat(const Object* object) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SetFloat(Object* object, float f) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  double GetDouble(const Object* object) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SetDouble(Object* object, double d) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  Object* GetObject(const Object* object) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SetObject(Object* object, const Object* l) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool GetBoolean(Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetBoolean(Object* object, bool z) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  int8_t GetByte(Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetByte(Object* object, int8_t b) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  uint16_t GetChar(Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetChar(Object* object, uint16_t c) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  int16_t GetShort(Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetShort(Object* object, int16_t s) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  int32_t GetInt(Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetInt(Object* object, int32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  int64_t GetLong(Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetLong(Object* object, int64_t j) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  float GetFloat(Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetFloat(Object* object, float f) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  double GetDouble(Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetDouble(Object* object, double d) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  Object* GetObject(Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetObject(Object* object, Object* l) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // raw field accesses
-  uint32_t Get32(const Object* object) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void Set32(Object* object, uint32_t new_value) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  uint64_t Get64(const Object* object) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void Set64(Object* object, uint64_t new_value) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  Object* GetObj(const Object* object) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SetObj(Object* object, const Object* new_value) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  // Raw field accesses.
+  uint32_t Get32(Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void Set32(Object* object, uint32_t new_value) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  uint64_t Get64(Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void Set64(Object* object, uint64_t new_value) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  Object* GetObj(Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetObj(Object* object, Object* new_value) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static Class* GetJavaLangReflectArtField() {
     DCHECK(java_lang_reflect_ArtField_ != NULL);
@@ -133,14 +109,14 @@ class MANAGED ArtField : public Object {
   static void VisitRoots(RootVisitor* visitor, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsVolatile() const {
+  bool IsVolatile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccVolatile) != 0;
   }
 
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   // The class we are a part of
-  Class* declaring_class_;
+  HeapReference<Class> declaring_class_;
 
   uint32_t access_flags_;
 

@@ -37,9 +37,11 @@ inline bool SpaceBitmap::AtomicTestAndSet(const mirror::Object* obj) {
     old_word = *address;
     // Fast path: The bit is already set.
     if ((old_word & mask) != 0) {
+      DCHECK(Test(obj));
       return true;
     }
   } while (!__sync_bool_compare_and_swap(address, old_word, old_word | mask));
+  DCHECK(Test(obj));
   return false;
 }
 
@@ -56,6 +58,15 @@ template <typename Visitor>
 void SpaceBitmap::VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end,
                                    const Visitor& visitor) const {
   DCHECK_LT(visit_begin, visit_end);
+#ifdef __LP64__
+  // TODO: make the optimized code below work in the 64bit case.
+  for (uintptr_t i = visit_begin; i < visit_end; i += kAlignment) {
+    mirror::Object* obj = reinterpret_cast<mirror::Object*>(i);
+    if (Test(obj)) {
+      visitor(obj);
+    }
+  }
+#else
   const size_t bit_index_start = (visit_begin - heap_begin_) / kAlignment;
   const size_t bit_index_end = (visit_end - heap_begin_ - 1) / kAlignment;
 
@@ -114,6 +125,7 @@ void SpaceBitmap::VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end,
     visitor(obj);
     edge_word ^= static_cast<size_t>(kWordHighBitMask) >> shift;
   }
+#endif
 }
 
 inline bool SpaceBitmap::Modify(const mirror::Object* obj, bool do_set) {
@@ -130,6 +142,7 @@ inline bool SpaceBitmap::Modify(const mirror::Object* obj, bool do_set) {
   } else {
     *address = old_word & ~mask;
   }
+  DCHECK_EQ(Test(obj), do_set);
   return (old_word & mask) != 0;
 }
 

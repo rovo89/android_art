@@ -17,7 +17,7 @@
 #include "asm_support_x86.S"
 
     /*
-     * Portable resolution trampoline.
+     * Jni dlsym lookup stub.
      */
 DEFINE_FUNCTION art_jni_dlsym_lookup_stub
     subl LITERAL(4), %esp         // align stack

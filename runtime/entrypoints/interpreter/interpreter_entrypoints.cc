@@ -45,15 +45,15 @@ extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& m
     }
   }
   uint16_t arg_offset = (code_item == NULL) ? 0 : code_item->registers_size_ - code_item->ins_size_;
-#if defined(ART_USE_PORTABLE_COMPILER)
-  ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
-  arg_array.BuildArgArrayFromFrame(shadow_frame, arg_offset);
-  method->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(), result, mh.GetShorty()[0]);
-#else
-  method->Invoke(self, shadow_frame->GetVRegArgs(arg_offset),
-                 (shadow_frame->NumberOfVRegs() - arg_offset) * sizeof(uint32_t),
-                 result, mh.GetShorty()[0]);
-#endif
+  if (kUsePortableCompiler) {
+    ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
+    arg_array.BuildArgArrayFromFrame(shadow_frame, arg_offset);
+    method->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(), result, mh.GetShorty()[0]);
+  } else {
+    method->Invoke(self, shadow_frame->GetVRegArgs(arg_offset),
+                   (shadow_frame->NumberOfVRegs() - arg_offset) * sizeof(uint32_t),
+                   result, mh.GetShorty()[0]);
+  }
 }
 
 }  // namespace art

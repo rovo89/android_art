@@ -27,7 +27,7 @@
 namespace art {
 namespace mirror {
 
-inline size_t Array::SizeOf() const {
+inline size_t Array::SizeOf() {
   // This is safe from overflow because the array was already allocated, so we know it's sane.
   size_t component_size = GetClass()->GetComponentSize();
   int32_t component_count = GetLength();
@@ -64,9 +64,10 @@ class SetLengthVisitor {
   explicit SetLengthVisitor(int32_t length) : length_(length) {
   }
 
-  void operator()(mirror::Object* obj) const {
-    mirror::Array* array = obj->AsArray();
-    DCHECK(array->IsArrayInstance());
+  void operator()(Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // Avoid AsArray as object is not yet in live bitmap or allocation stack.
+    Array* array = down_cast<Array*>(obj);
+    // DCHECK(array->IsArrayInstance());
     array->SetLength(length_);
   }
 
@@ -113,6 +114,114 @@ template<class T>
 inline void PrimitiveArray<T>::VisitRoots(RootVisitor* visitor, void* arg) {
   if (array_class_ != nullptr) {
     array_class_ = down_cast<Class*>(visitor(array_class_, arg));
+  }
+}
+
+// Similar to memmove except elements are of aligned appropriately for T, count is in T sized units
+// copies are guaranteed not to tear when T is less-than 64bit.
+template<typename T>
+static inline void ArrayBackwardCopy(T* d, const T* s, int32_t count) {
+  d += count;
+  s += count;
+  for (int32_t i = 0; i < count; ++i) {
+    d--;
+    s--;
+    *d = *s;
+  }
+}
+
+template<class T>
+void PrimitiveArray<T>::Memmove(int32_t dst_pos, PrimitiveArray<T>* src, int32_t src_pos,
+                                int32_t count) {
+  if (UNLIKELY(count == 0)) {
+    return;
+  }
+  DCHECK_GE(dst_pos, 0);
+  DCHECK_GE(src_pos, 0);
+  DCHECK_GT(count, 0);
+  DCHECK(src != nullptr);
+  DCHECK_LT(dst_pos, GetLength());
+  DCHECK_LE(dst_pos, GetLength() - count);
+  DCHECK_LT(src_pos, src->GetLength());
+  DCHECK_LE(src_pos, src->GetLength() - count);
+
+  // Note for non-byte copies we can't rely on standard libc functions like memcpy(3) and memmove(3)
+  // in our implementation, because they may copy byte-by-byte.
+  if (LIKELY(src != this) || (dst_pos < src_pos) || (dst_pos - src_pos >= count)) {
+    // Forward copy ok.
+    Memcpy(dst_pos, src, src_pos, count);
+  } else {
+    // Backward copy necessary.
+    void* dst_raw = GetRawData(sizeof(T), dst_pos);
+    const void* src_raw = src->GetRawData(sizeof(T), src_pos);
+    if (sizeof(T) == sizeof(uint8_t)) {
+      // TUNING: use memmove here?
+      uint8_t* d = reinterpret_cast<uint8_t*>(dst_raw);
+      const uint8_t* s = reinterpret_cast<const uint8_t*>(src_raw);
+      ArrayBackwardCopy<uint8_t>(d, s, count);
+    } else if (sizeof(T) == sizeof(uint16_t)) {
+      uint16_t* d = reinterpret_cast<uint16_t*>(dst_raw);
+      const uint16_t* s = reinterpret_cast<const uint16_t*>(src_raw);
+      ArrayBackwardCopy<uint16_t>(d, s, count);
+    } else if (sizeof(T) == sizeof(uint32_t)) {
+      uint32_t* d = reinterpret_cast<uint32_t*>(dst_raw);
+      const uint32_t* s = reinterpret_cast<const uint32_t*>(src_raw);
+      ArrayBackwardCopy<uint32_t>(d, s, count);
+    } else {
+      DCHECK_EQ(sizeof(T), sizeof(uint64_t));
+      uint64_t* d = reinterpret_cast<uint64_t*>(dst_raw);
+      const uint64_t* s = reinterpret_cast<const uint64_t*>(src_raw);
+      ArrayBackwardCopy<uint64_t>(d, s, count);
+    }
+  }
+}
+
+// Similar to memcpy except elements are of aligned appropriately for T, count is in T sized units
+// copies are guaranteed not to tear when T is less-than 64bit.
+template<typename T>
+static inline void ArrayForwardCopy(T* d, const T* s, int32_t count) {
+  for (int32_t i = 0; i < count; ++i) {
+    *d = *s;
+    d++;
+    s++;
+  }
+}
+
+
+template<class T>
+void PrimitiveArray<T>::Memcpy(int32_t dst_pos, PrimitiveArray<T>* src, int32_t src_pos,
+                               int32_t count) {
+  if (UNLIKELY(count == 0)) {
+    return;
+  }
+  DCHECK_GE(dst_pos, 0);
+  DCHECK_GE(src_pos, 0);
+  DCHECK_GT(count, 0);
+  DCHECK(src != nullptr);
+  DCHECK_LT(dst_pos, GetLength());
+  DCHECK_LE(dst_pos, GetLength() - count);
+  DCHECK_LT(src_pos, src->GetLength());
+  DCHECK_LE(src_pos, src->GetLength() - count);
+
+  // Note for non-byte copies we can't rely on standard libc functions like memcpy(3) and memmove(3)
+  // in our implementation, because they may copy byte-by-byte.
+  void* dst_raw = GetRawData(sizeof(T), dst_pos);
+  const void* src_raw = src->GetRawData(sizeof(T), src_pos);
+  if (sizeof(T) == sizeof(uint8_t)) {
+    memcpy(dst_raw, src_raw, count);
+  } else if (sizeof(T) == sizeof(uint16_t)) {
+    uint16_t* d = reinterpret_cast<uint16_t*>(dst_raw);
+    const uint16_t* s = reinterpret_cast<const uint16_t*>(src_raw);
+    ArrayForwardCopy<uint16_t>(d, s, count);
+  } else if (sizeof(T) == sizeof(uint32_t)) {
+    uint32_t* d = reinterpret_cast<uint32_t*>(dst_raw);
+    const uint32_t* s = reinterpret_cast<const uint32_t*>(src_raw);
+    ArrayForwardCopy<uint32_t>(d, s, count);
+  } else {
+    DCHECK_EQ(sizeof(T), sizeof(uint64_t));
+    uint64_t* d = reinterpret_cast<uint64_t*>(dst_raw);
+    const uint64_t* s = reinterpret_cast<const uint64_t*>(src_raw);
+    ArrayForwardCopy<uint64_t>(d, s, count);
   }
 }
 

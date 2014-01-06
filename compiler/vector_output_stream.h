@@ -31,7 +31,7 @@ class VectorOutputStream : public OutputStream {
 
   virtual ~VectorOutputStream() {}
 
-  bool WriteFully(const void* buffer, int64_t byte_count) {
+  bool WriteFully(const void* buffer, size_t byte_count) {
     if (static_cast<size_t>(offset_) == vector_.size()) {
       const uint8_t* start = reinterpret_cast<const uint8_t*>(buffer);
       vector_.insert(vector_.end(), &start[0], &start[byte_count]);

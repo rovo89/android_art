@@ -24,17 +24,6 @@
 namespace art {
 namespace x86 {
 
-class DirectCallRelocation : public AssemblerFixup {
- public:
-  void Process(const MemoryRegion& region, int position) {
-    // Direct calls are relative to the following instruction on x86.
-    int32_t pointer = region.Load<int32_t>(position);
-    int32_t start = reinterpret_cast<int32_t>(region.start());
-    int32_t delta = start + position + sizeof(int32_t);
-    region.Store<int32_t>(position, pointer - delta);
-  }
-};
-
 std::ostream& operator<<(std::ostream& os, const XmmRegister& reg) {
   return os << "XMM" << static_cast<int>(reg);
 }
@@ -1301,15 +1290,6 @@ void X86Assembler::Bind(Label* label) {
     label->position_ = next;
   }
   label->BindTo(bound);
-}
-
-
-void X86Assembler::Stop(const char* message) {
-  // Emit the message address as immediate operand in the test rax instruction,
-  // followed by the int3 instruction.
-  // Execution can be resumed with the 'cont' command in gdb.
-  testl(EAX, Immediate(reinterpret_cast<int32_t>(message)));
-  int3();
 }
 
 

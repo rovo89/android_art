@@ -77,7 +77,7 @@ TEST_F(ObjectTest, AsmConstants) {
   EXPECT_EQ(CLASS_COMPONENT_TYPE_OFFSET, Class::ComponentTypeOffset().Int32Value());
 
   EXPECT_EQ(ARRAY_LENGTH_OFFSET, Array::LengthOffset().Int32Value());
-  EXPECT_EQ(OBJECT_ARRAY_DATA_OFFSET, Array::DataOffset(sizeof(Object*)).Int32Value());
+  EXPECT_EQ(OBJECT_ARRAY_DATA_OFFSET, Array::DataOffset(sizeof(HeapReference<Object>)).Int32Value());
 
   EXPECT_EQ(STRING_VALUE_OFFSET, String::ValueOffset().Int32Value());
   EXPECT_EQ(STRING_COUNT_OFFSET, String::CountOffset().Int32Value());
@@ -85,7 +85,8 @@ TEST_F(ObjectTest, AsmConstants) {
   EXPECT_EQ(STRING_DATA_OFFSET, Array::DataOffset(sizeof(uint16_t)).Int32Value());
 
   EXPECT_EQ(METHOD_DEX_CACHE_METHODS_OFFSET, ArtMethod::DexCacheResolvedMethodsOffset().Int32Value());
-  EXPECT_EQ(METHOD_CODE_OFFSET, ArtMethod::EntryPointFromCompiledCodeOffset().Int32Value());
+  EXPECT_EQ(METHOD_PORTABLE_CODE_OFFSET, ArtMethod::EntryPointFromPortableCompiledCodeOffset().Int32Value());
+  EXPECT_EQ(METHOD_QUICK_CODE_OFFSET, ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value());
 }
 
 TEST_F(ObjectTest, IsInSamePackage) {
@@ -295,7 +296,7 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
   uint32_t field_idx = dex_file->GetIndexForFieldId(*field_id);
 
   ArtField* field = FindFieldFromCode<StaticObjectRead, true>(field_idx, clinit, Thread::Current(),
-                                                              sizeof(Object*));
+                                                              sizeof(HeapReference<Object>));
   Object* s0 = field->GetObj(klass);
   EXPECT_TRUE(s0 != NULL);
 

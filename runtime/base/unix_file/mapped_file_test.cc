@@ -65,7 +65,7 @@ TEST_F(MappedFileTest, OpenClose) {
   ASSERT_TRUE(file.Open(good_path_, MappedFile::kReadOnlyMode));
   EXPECT_GE(file.Fd(), 0);
   EXPECT_TRUE(file.IsOpened());
-  EXPECT_EQ(kContent.size(), file.size());
+  EXPECT_EQ(kContent.size(), static_cast<uint64_t>(file.size()));
   EXPECT_EQ(0, file.Close());
   EXPECT_EQ(-1, file.Fd());
   EXPECT_FALSE(file.IsOpened());
@@ -86,7 +86,7 @@ TEST_F(MappedFileTest, CanUseAfterMapReadOnly) {
   EXPECT_FALSE(file.IsMapped());
   EXPECT_TRUE(file.MapReadOnly());
   EXPECT_TRUE(file.IsMapped());
-  EXPECT_EQ(kContent.size(), file.size());
+  EXPECT_EQ(kContent.size(), static_cast<uint64_t>(file.size()));
   ASSERT_TRUE(file.data());
   EXPECT_EQ(0, memcmp(kContent.c_str(), file.data(), file.size()));
   EXPECT_EQ(0, file.Flush());
@@ -113,7 +113,7 @@ TEST_F(MappedFileTest, CanWriteNewData) {
   ASSERT_TRUE(file.Open(new_path, MappedFile::kReadWriteMode));
   EXPECT_TRUE(file.MapReadWrite(kContent.size()));
   EXPECT_TRUE(file.IsMapped());
-  EXPECT_EQ(kContent.size(), file.size());
+  EXPECT_EQ(kContent.size(), static_cast<uint64_t>(file.size()));
   ASSERT_TRUE(file.data());
   memcpy(file.data(), kContent.c_str(), kContent.size());
   EXPECT_EQ(0, file.Close());
@@ -200,15 +200,16 @@ TEST_F(MappedFileTest, WriteMappedReadWrite) {
   // A zero-length write is a no-op.
   EXPECT_EQ(0, file.Write(kContent.c_str(), 0, 0));
   // But the file size is as given when mapped.
-  EXPECT_EQ(kContent.size(), file.GetLength());
+  EXPECT_EQ(kContent.size(), static_cast<uint64_t>(file.GetLength()));
 
   // Data written past the end are discarded.
   EXPECT_EQ(kContent.size() - 1,
-            file.Write(kContent.c_str(), kContent.size(), 1));
+            static_cast<uint64_t>(file.Write(kContent.c_str(), kContent.size(), 1)));
   EXPECT_EQ(0, memcmp(kContent.c_str(), file.data() + 1, kContent.size() - 1));
 
   // Data can be overwritten.
-  EXPECT_EQ(kContent.size(), file.Write(kContent.c_str(), kContent.size(), 0));
+  EXPECT_EQ(kContent.size(),
+            static_cast<uint64_t>(file.Write(kContent.c_str(), kContent.size(), 0)));
   EXPECT_EQ(0, memcmp(kContent.c_str(), file.data(), kContent.size()));
 }
 

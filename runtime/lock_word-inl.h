@@ -18,6 +18,7 @@
 #define ART_RUNTIME_LOCK_WORD_INL_H_
 
 #include "lock_word.h"
+#include "monitor_pool.h"
 
 namespace art {
 
@@ -33,7 +34,8 @@ inline uint32_t LockWord::ThinLockCount() const {
 
 inline Monitor* LockWord::FatLockMonitor() const {
   DCHECK_EQ(GetState(), kFatLocked);
-  return reinterpret_cast<Monitor*>(value_ << kStateSize);
+  MonitorId mon_id = static_cast<MonitorId>(value_ & ~(kStateMask << kStateShift));
+  return MonitorPool::MonitorFromMonitorId(mon_id);
 }
 
 inline size_t LockWord::ForwardingAddress() const {
@@ -46,8 +48,7 @@ inline LockWord::LockWord() : value_(0) {
 }
 
 inline LockWord::LockWord(Monitor* mon)
-    : value_(((reinterpret_cast<uintptr_t>(mon) >> kStateSize) | (kStateFat << kStateShift)) &
-             0xFFFFFFFFU) {
+    : value_(mon->GetMonitorId() | (kStateFat << kStateShift)) {
   DCHECK_EQ(FatLockMonitor(), mon);
 }
 

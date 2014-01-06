@@ -44,7 +44,7 @@ extern "C" void art_portable_fill_array_data_from_code(mirror::ArtMethod* method
     return;  // Error
   }
   uint32_t size_in_bytes = payload->element_count * payload->element_width;
-  memcpy(array->GetRawData(payload->element_width), payload->data, size_in_bytes);
+  memcpy(array->GetRawData(payload->element_width, 0), payload->data, size_in_bytes);
 }
 
 }  // namespace art

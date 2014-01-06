@@ -22,6 +22,10 @@
 #include "mips/context_mips.h"
 #elif defined(__i386__)
 #include "x86/context_x86.h"
+#elif defined(__x86_64__)
+#include "x86_64/context_x86_64.h"
+#else
+#include "base/logging.h"
 #endif
 
 namespace art {
@@ -33,8 +37,11 @@ Context* Context::Create() {
   return new mips::MipsContext();
 #elif defined(__i386__)
   return new x86::X86Context();
+#elif defined(__x86_64__)
+  return new x86_64::X86_64Context();
 #else
   UNIMPLEMENTED(FATAL);
+  return nullptr;
 #endif
 }
 

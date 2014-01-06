@@ -712,11 +712,11 @@ const DexFile* ClassLinker::FindDexFileInOatLocation(const char* dex_location,
     return nullptr;
   }
 
-  uint32_t expected_image_oat_offset = reinterpret_cast<uint32_t>(image_header.GetOatDataBegin());
+  uintptr_t expected_image_oat_offset = reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin());
   uint32_t actual_image_oat_offset = oat_file->GetOatHeader().GetImageFileLocationOatDataBegin();
   if (expected_image_oat_offset != actual_image_oat_offset) {
-    *error_msg = StringPrintf("Failed to find oat file at '%s' with expected image oat offset %ud, "
-                              "found %ud", oat_location, expected_image_oat_offset,
+    *error_msg = StringPrintf("Failed to find oat file at '%s' with expected image oat offset %"
+                              PRIuPTR ", found %ud", oat_location, expected_image_oat_offset,
                               actual_image_oat_offset);
     return nullptr;
   }
@@ -858,7 +858,7 @@ bool ClassLinker::VerifyOatFileChecksums(const OatFile* oat_file,
   Runtime* runtime = Runtime::Current();
   const ImageHeader& image_header = runtime->GetHeap()->GetImageSpace()->GetImageHeader();
   uint32_t image_oat_checksum = image_header.GetOatChecksum();
-  uint32_t image_oat_data_begin = reinterpret_cast<uint32_t>(image_header.GetOatDataBegin());
+  uintptr_t image_oat_data_begin = reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin());
   bool image_check = ((oat_file->GetOatHeader().GetImageFileLocationOatChecksum() == image_oat_checksum)
                       && (oat_file->GetOatHeader().GetImageFileLocationOatDataBegin() == image_oat_data_begin));
 
@@ -885,7 +885,7 @@ bool ClassLinker::VerifyOatFileChecksums(const OatFile* oat_file,
     ScopedObjectAccess soa(Thread::Current());
     mirror::String* oat_location = image_header.GetImageRoot(ImageHeader::kOatLocation)->AsString();
     std::string image_file(oat_location->ToModifiedUtf8());
-    *error_msg = StringPrintf("oat file '%s' mismatch (0x%x, %d) with '%s' (0x%x, %d)",
+    *error_msg = StringPrintf("oat file '%s' mismatch (0x%x, %d) with '%s' (0x%x, %" PRIdPTR ")",
                               oat_file->GetLocation().c_str(),
                               oat_file->GetOatHeader().GetImageFileLocationOatChecksum(),
                               oat_file->GetOatHeader().GetImageFileLocationOatDataBegin(),
@@ -1023,7 +1023,8 @@ static void InitFromImageInterpretOnlyCallback(mirror::Object* obj, void* arg)
     if (!method->IsNative()) {
       method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterBridge);
       if (method != Runtime::Current()->GetResolutionMethod()) {
-        method->SetEntryPointFromCompiledCode(GetCompiledCodeToInterpreterBridge());
+        method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
+        method->SetEntryPointFromPortableCompiledCode(GetPortableToInterpreterBridge());
       }
     }
   }
@@ -1572,7 +1573,7 @@ static uint32_t GetOatMethodIndexFromMethodIndex(const DexFile& dex_file, uint16
   return 0;
 }
 
-const OatFile::OatMethod ClassLinker::GetOatMethodFor(const mirror::ArtMethod* method) {
+const OatFile::OatMethod ClassLinker::GetOatMethodFor(mirror::ArtMethod* method) {
   // Although we overwrite the trampoline of non-static methods, we may get here via the resolution
   // method for direct methods (or virtual methods made direct).
   mirror::Class* declaring_class = method->GetDeclaringClass();
@@ -1608,35 +1609,68 @@ const OatFile::OatMethod ClassLinker::GetOatMethodFor(const mirror::ArtMethod* m
 }
 
 // Special case to get oat code without overwriting a trampoline.
-const void* ClassLinker::GetOatCodeFor(const mirror::ArtMethod* method) {
+const void* ClassLinker::GetQuickOatCodeFor(mirror::ArtMethod* method) {
   CHECK(!method->IsAbstract()) << PrettyMethod(method);
   if (method->IsProxyMethod()) {
-#if !defined(ART_USE_PORTABLE_COMPILER)
-    return reinterpret_cast<void*>(art_quick_proxy_invoke_handler);
-#else
-    return reinterpret_cast<void*>(art_portable_proxy_invoke_handler);
-#endif
+    return GetQuickProxyInvokeHandler();
   }
-  const void* result = GetOatMethodFor(method).GetCode();
-  if (result == NULL) {
-    // No code? You must mean to go into the interpreter.
-    result = GetCompiledCodeToInterpreterBridge();
+  const void* result = GetOatMethodFor(method).GetQuickCode();
+  if (result == nullptr) {
+    if (method->IsPortableCompiled()) {
+      // No code? Do we expect portable code?
+      result = GetQuickToPortableBridge();
+    } else {
+      // No code? You must mean to go into the interpreter.
+      result = GetQuickToInterpreterBridge();
+    }
   }
   return result;
 }
 
-const void* ClassLinker::GetOatCodeFor(const DexFile& dex_file, uint16_t class_def_idx,
-                                       uint32_t method_idx) {
+const void* ClassLinker::GetPortableOatCodeFor(mirror::ArtMethod* method,
+                                               bool* have_portable_code) {
+  CHECK(!method->IsAbstract()) << PrettyMethod(method);
+  *have_portable_code = false;
+  if (method->IsProxyMethod()) {
+    return GetPortableProxyInvokeHandler();
+  }
+  const void* result = GetOatMethodFor(method).GetPortableCode();
+  if (result == nullptr) {
+    if (GetOatMethodFor(method).GetQuickCode() == nullptr) {
+      // No code? You must mean to go into the interpreter.
+      result = GetPortableToInterpreterBridge();
+    } else {
+      // No code? But there's quick code, so use a bridge.
+      result = GetPortableToQuickBridge();
+    }
+  } else {
+    *have_portable_code = true;
+  }
+  return result;
+}
+
+const void* ClassLinker::GetQuickOatCodeFor(const DexFile& dex_file, uint16_t class_def_idx,
+                                            uint32_t method_idx) {
   UniquePtr<const OatFile::OatClass> oat_class(GetOatClass(dex_file, class_def_idx));
   CHECK(oat_class.get() != nullptr);
   uint32_t oat_method_idx = GetOatMethodIndexFromMethodIndex(dex_file, class_def_idx, method_idx);
-  return oat_class->GetOatMethod(oat_method_idx).GetCode();
+  return oat_class->GetOatMethod(oat_method_idx).GetQuickCode();
+}
+
+const void* ClassLinker::GetPortableOatCodeFor(const DexFile& dex_file, uint16_t class_def_idx,
+                                               uint32_t method_idx) {
+  UniquePtr<const OatFile::OatClass> oat_class(GetOatClass(dex_file, class_def_idx));
+  CHECK(oat_class.get() != nullptr);
+  uint32_t oat_method_idx = GetOatMethodIndexFromMethodIndex(dex_file, class_def_idx, method_idx);
+  return oat_class->GetOatMethod(oat_method_idx).GetPortableCode();
 }
 
 // Returns true if the method must run with interpreter, false otherwise.
-static bool NeedsInterpreter(const mirror::ArtMethod* method, const void* code) {
-  if (code == NULL) {
+static bool NeedsInterpreter(mirror::ArtMethod* method, const void* quick_code,
+                             const void* portable_code) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if ((quick_code == nullptr) && (portable_code == nullptr)) {
     // No code: need interpreter.
+    DCHECK(!method->IsNative());
     return true;
   }
 #ifdef ART_SEA_IR_MODE
@@ -1684,13 +1718,26 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
       // Only update static methods.
       continue;
     }
-    const void* code = oat_class->GetOatMethod(method_index).GetCode();
-    const bool enter_interpreter = NeedsInterpreter(method, code);
+    const void* portable_code = oat_class->GetOatMethod(method_index).GetPortableCode();
+    const void* quick_code = oat_class->GetOatMethod(method_index).GetQuickCode();
+    const bool enter_interpreter = NeedsInterpreter(method, quick_code, portable_code);
+    bool have_portable_code = false;
     if (enter_interpreter) {
       // Use interpreter entry point.
-      code = GetCompiledCodeToInterpreterBridge();
+      portable_code = GetPortableToInterpreterBridge();
+      quick_code = GetQuickToInterpreterBridge();
+    } else {
+      if (portable_code == nullptr) {
+        portable_code = GetPortableToQuickBridge();
+      } else {
+        have_portable_code = true;
+      }
+      if (quick_code == nullptr) {
+        quick_code = GetQuickToPortableBridge();
+      }
     }
-    runtime->GetInstrumentation()->UpdateMethodsCode(method, code);
+    runtime->GetInstrumentation()->UpdateMethodsCode(method, quick_code, portable_code,
+                                                     have_portable_code);
   }
   // Ignore virtual methods on the iterator.
 }
@@ -1699,7 +1746,8 @@ static void LinkCode(const SirtRef<mirror::ArtMethod>& method, const OatFile::Oa
                      uint32_t method_index)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Method shouldn't have already been linked.
-  DCHECK(method->GetEntryPointFromCompiledCode() == NULL);
+  DCHECK(method->GetEntryPointFromQuickCompiledCode() == nullptr);
+  DCHECK(method->GetEntryPointFromPortableCompiledCode() == nullptr);
   // Every kind of method should at least get an invoke stub from the oat_method.
   // non-abstract methods also get their code pointers.
   const OatFile::OatMethod oat_method = oat_class->GetOatMethod(method_index);
@@ -1707,7 +1755,9 @@ static void LinkCode(const SirtRef<mirror::ArtMethod>& method, const OatFile::Oa
 
   // Install entry point from interpreter.
   Runtime* runtime = Runtime::Current();
-  bool enter_interpreter = NeedsInterpreter(method.get(), method->GetEntryPointFromCompiledCode());
+  bool enter_interpreter = NeedsInterpreter(method.get(),
+                                            method->GetEntryPointFromQuickCompiledCode(),
+                                            method->GetEntryPointFromPortableCompiledCode());
   if (enter_interpreter) {
     method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterBridge);
   } else {
@@ -1715,18 +1765,29 @@ static void LinkCode(const SirtRef<mirror::ArtMethod>& method, const OatFile::Oa
   }
 
   if (method->IsAbstract()) {
-    method->SetEntryPointFromCompiledCode(GetCompiledCodeToInterpreterBridge());
+    method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
+    method->SetEntryPointFromPortableCompiledCode(GetPortableToInterpreterBridge());
     return;
   }
 
+  bool have_portable_code = false;
   if (method->IsStatic() && !method->IsConstructor()) {
     // For static methods excluding the class initializer, install the trampoline.
     // It will be replaced by the proper entry point by ClassLinker::FixupStaticTrampolines
     // after initializing class (see ClassLinker::InitializeClass method).
-    method->SetEntryPointFromCompiledCode(GetResolutionTrampoline(runtime->GetClassLinker()));
+    method->SetEntryPointFromQuickCompiledCode(GetQuickResolutionTrampoline(runtime->GetClassLinker()));
+    method->SetEntryPointFromPortableCompiledCode(GetPortableResolutionTrampoline(runtime->GetClassLinker()));
   } else if (enter_interpreter) {
     // Set entry point from compiled code if there's no code or in interpreter only mode.
-    method->SetEntryPointFromCompiledCode(GetCompiledCodeToInterpreterBridge());
+    method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
+    method->SetEntryPointFromPortableCompiledCode(GetPortableToInterpreterBridge());
+  } else if (method->GetEntryPointFromPortableCompiledCode() != nullptr) {
+    DCHECK(method->GetEntryPointFromQuickCompiledCode() == nullptr);
+    have_portable_code = true;
+    method->SetEntryPointFromQuickCompiledCode(GetQuickToPortableBridge());
+  } else {
+    DCHECK(method->GetEntryPointFromQuickCompiledCode() != nullptr);
+    method->SetEntryPointFromPortableCompiledCode(GetPortableToQuickBridge());
   }
 
   if (method->IsNative()) {
@@ -1736,7 +1797,9 @@ static void LinkCode(const SirtRef<mirror::ArtMethod>& method, const OatFile::Oa
 
   // Allow instrumentation its chance to hijack code.
   runtime->GetInstrumentation()->UpdateMethodsCode(method.get(),
-                                                   method->GetEntryPointFromCompiledCode());
+                                                   method->GetEntryPointFromQuickCompiledCode(),
+                                                   method->GetEntryPointFromPortableCompiledCode(),
+                                                   have_portable_code);
 }
 
 void ClassLinker::LoadClass(const DexFile& dex_file,
@@ -2803,15 +2866,15 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccess& soa, jstring na
   return klass.get();
 }
 
-std::string ClassLinker::GetDescriptorForProxy(const mirror::Class* proxy_class) {
+std::string ClassLinker::GetDescriptorForProxy(mirror::Class* proxy_class) {
   DCHECK(proxy_class->IsProxyClass());
   mirror::String* name = proxy_class->GetName();
   DCHECK(name != NULL);
   return DotToDescriptor(name->ToModifiedUtf8().c_str());
 }
 
-mirror::ArtMethod* ClassLinker::FindMethodForProxy(const mirror::Class* proxy_class,
-                                                        const mirror::ArtMethod* proxy_method) {
+mirror::ArtMethod* ClassLinker::FindMethodForProxy(mirror::Class* proxy_class,
+                                                   mirror::ArtMethod* proxy_method) {
   DCHECK(proxy_class->IsProxyClass());
   DCHECK(proxy_method->IsProxyMethod());
   // Locate the dex cache of the original interface/Object
@@ -2892,7 +2955,8 @@ mirror::ArtMethod* ClassLinker::CreateProxyMethod(Thread* self,
   method->SetCoreSpillMask(refs_and_args->GetCoreSpillMask());
   method->SetFpSpillMask(refs_and_args->GetFpSpillMask());
   method->SetFrameSizeInBytes(refs_and_args->GetFrameSizeInBytes());
-  method->SetEntryPointFromCompiledCode(GetProxyInvokeHandler());
+  method->SetEntryPointFromQuickCompiledCode(GetQuickProxyInvokeHandler());
+  method->SetEntryPointFromPortableCompiledCode(GetPortableProxyInvokeHandler());
   method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
 
   return method;
@@ -3175,7 +3239,7 @@ bool ClassLinker::ValidateSuperClassDescriptors(const SirtRef<mirror::Class>& kl
       klass->GetClassLoader() != klass->GetSuperClass()->GetClassLoader()) {
     SirtRef<mirror::Class> super(self, klass->GetSuperClass());
     for (int i = super->GetVTable()->GetLength() - 1; i >= 0; --i) {
-      const mirror::ArtMethod* method = klass->GetVTable()->Get(i);
+      mirror::ArtMethod* method = klass->GetVTable()->Get(i);
       if (method != super->GetVTable()->Get(i) &&
           !IsSameMethodSignatureInDifferentClassContexts(method, super.get(), klass.get())) {
         ThrowLinkageError(klass.get(), "Class %s method %s resolves differently in superclass %s",
@@ -3189,7 +3253,7 @@ bool ClassLinker::ValidateSuperClassDescriptors(const SirtRef<mirror::Class>& kl
     SirtRef<mirror::Class> interface(self, klass->GetIfTable()->GetInterface(i));
     if (klass->GetClassLoader() != interface->GetClassLoader()) {
       for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
-        const mirror::ArtMethod* method = klass->GetIfTable()->GetMethodArray(i)->Get(j);
+        mirror::ArtMethod* method = klass->GetIfTable()->GetMethodArray(i)->Get(j);
         if (!IsSameMethodSignatureInDifferentClassContexts(method, interface.get(),
                                                            method->GetDeclaringClass())) {
           ThrowLinkageError(klass.get(), "Class %s method %s resolves differently in interface %s",
@@ -3206,9 +3270,9 @@ bool ClassLinker::ValidateSuperClassDescriptors(const SirtRef<mirror::Class>& kl
 
 // Returns true if classes referenced by the signature of the method are the
 // same classes in klass1 as they are in klass2.
-bool ClassLinker::IsSameMethodSignatureInDifferentClassContexts(const mirror::ArtMethod* method,
-                                                                const mirror::Class* klass1,
-                                                                const mirror::Class* klass2) {
+bool ClassLinker::IsSameMethodSignatureInDifferentClassContexts(mirror::ArtMethod* method,
+                                                                mirror::Class* klass1,
+                                                                mirror::Class* klass2) {
   if (klass1 == klass2) {
     return true;
   }
@@ -3790,23 +3854,24 @@ struct LinkFieldsComparator {
   explicit LinkFieldsComparator() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   }
   // No thread safety analysis as will be called from STL. Checked lock held in constructor.
-  bool operator()(const mirror::ArtField* field1, const mirror::ArtField* field2)
+  bool operator()(mirror::ArtField* field1, mirror::ArtField* field2)
       NO_THREAD_SAFETY_ANALYSIS {
     // First come reference fields, then 64-bit, and finally 32-bit
     FieldHelper fh1(field1);
     Primitive::Type type1 = fh1.GetTypeAsPrimitiveType();
     FieldHelper fh2(field2);
     Primitive::Type type2 = fh2.GetTypeAsPrimitiveType();
-    bool isPrimitive1 = type1 != Primitive::kPrimNot;
-    bool isPrimitive2 = type2 != Primitive::kPrimNot;
-    bool is64bit1 = isPrimitive1 && (type1 == Primitive::kPrimLong || type1 == Primitive::kPrimDouble);
-    bool is64bit2 = isPrimitive2 && (type2 == Primitive::kPrimLong || type2 == Primitive::kPrimDouble);
-    int order1 = (!isPrimitive1 ? 0 : (is64bit1 ? 1 : 2));
-    int order2 = (!isPrimitive2 ? 0 : (is64bit2 ? 1 : 2));
-    if (order1 != order2) {
-      return order1 < order2;
+    if (type1 != type2) {
+      bool is_primitive1 = type1 != Primitive::kPrimNot;
+      bool is_primitive2 = type2 != Primitive::kPrimNot;
+      bool is64bit1 = is_primitive1 && (type1 == Primitive::kPrimLong || type1 == Primitive::kPrimDouble);
+      bool is64bit2 = is_primitive2 && (type2 == Primitive::kPrimLong || type2 == Primitive::kPrimDouble);
+      int order1 = !is_primitive1 ? 0 : (is64bit1 ? 1 : 2);
+      int order2 = !is_primitive2 ? 0 : (is64bit2 ? 1 : 2);
+      if (order1 != order2) {
+        return order1 < order2;
+      }
     }
-
     // same basic group? then sort by string.
     const char* name1 = fh1.GetName();
     const char* name2 = fh2.GetName();
@@ -3996,14 +4061,14 @@ void ClassLinker::CreateReferenceOffsets(const SirtRef<mirror::Class>& klass, bo
   size_t num_reference_fields =
       is_static ? klass->NumReferenceStaticFieldsDuringLinking()
                 : klass->NumReferenceInstanceFieldsDuringLinking();
-  const mirror::ObjectArray<mirror::ArtField>* fields =
+  mirror::ObjectArray<mirror::ArtField>* fields =
       is_static ? klass->GetSFields() : klass->GetIFields();
   // All of the fields that contain object references are guaranteed
   // to be at the beginning of the fields list.
   for (size_t i = 0; i < num_reference_fields; ++i) {
     // Note that byte_offset is the offset from the beginning of
     // object, not the offset into instance data
-    const mirror::ArtField* field = fields->Get(i);
+    mirror::ArtField* field = fields->Get(i);
     MemberOffset byte_offset = field->GetOffsetDuringLinking();
     CHECK_EQ(byte_offset.Uint32Value() & (CLASS_OFFSET_ALIGNMENT - 1), 0U);
     if (CLASS_CAN_ENCODE_OFFSET(byte_offset.Uint32Value())) {
@@ -4038,7 +4103,7 @@ mirror::String* ClassLinker::ResolveString(const DexFile& dex_file, uint32_t str
 }
 
 mirror::Class* ClassLinker::ResolveType(const DexFile& dex_file, uint16_t type_idx,
-                                        const mirror::Class* referrer) {
+                                        mirror::Class* referrer) {
   Thread* self = Thread::Current();
   SirtRef<mirror::DexCache> dex_cache(self, referrer->GetDexCache());
   SirtRef<mirror::ClassLoader> class_loader(self, referrer->GetClassLoader());
@@ -4081,7 +4146,7 @@ mirror::ArtMethod* ClassLinker::ResolveMethod(const DexFile& dex_file,
                                               uint32_t method_idx,
                                               const SirtRef<mirror::DexCache>& dex_cache,
                                               const SirtRef<mirror::ClassLoader>& class_loader,
-                                              const mirror::ArtMethod* referrer,
+                                              mirror::ArtMethod* referrer,
                                               InvokeType type) {
   DCHECK(dex_cache.get() != NULL);
   // Check for hit in the dex cache.

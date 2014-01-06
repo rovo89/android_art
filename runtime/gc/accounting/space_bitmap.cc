@@ -64,7 +64,7 @@ SpaceBitmap* SpaceBitmap::Create(const std::string& name, byte* heap_begin, size
   size_t bitmap_size = OffsetToIndex(RoundUp(heap_capacity, kAlignment * kBitsPerWord)) * kWordSize;
   std::string error_msg;
   UniquePtr<MemMap> mem_map(MemMap::MapAnonymous(name.c_str(), NULL, bitmap_size,
-                                                 PROT_READ | PROT_WRITE, &error_msg));
+                                                 PROT_READ | PROT_WRITE, false, &error_msg));
   if (UNLIKELY(mem_map.get() == nullptr)) {
     LOG(ERROR) << "Failed to allocate bitmap " << name << ": " << error_msg;
     return NULL;

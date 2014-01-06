@@ -72,8 +72,8 @@ class SpaceBitmap {
   }
 
   // Pack the bits in backwards so they come out in address order when using CLZ.
-  static word OffsetToMask(uintptr_t offset_) {
-    return static_cast<uintptr_t>(kWordHighBitMask) >> ((offset_ / kAlignment) % kBitsPerWord);
+  static word OffsetToMask(uintptr_t offset) {
+    return static_cast<uintptr_t>(kWordHighBitMask) >> ((offset / kAlignment) % kBitsPerWord);
   }
 
   inline bool Set(const mirror::Object* obj) {
