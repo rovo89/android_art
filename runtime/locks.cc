@@ -30,6 +30,7 @@ Mutex* Locks::runtime_shutdown_lock_ = NULL;
 Mutex* Locks::thread_list_lock_ = NULL;
 Mutex* Locks::thread_suspend_count_lock_ = NULL;
 Mutex* Locks::trace_lock_ = NULL;
+Mutex* Locks::profiler_lock_ = NULL;
 Mutex* Locks::unexpected_signal_lock_ = NULL;
 
 void Locks::Init() {
@@ -44,6 +45,7 @@ void Locks::Init() {
     DCHECK(thread_list_lock_ != NULL);
     DCHECK(thread_suspend_count_lock_ != NULL);
     DCHECK(trace_lock_ != NULL);
+    DCHECK(profiler_lock_ != NULL);
     DCHECK(unexpected_signal_lock_ != NULL);
   } else {
     logging_lock_ = new Mutex("logging lock", kLoggingLock, true);
@@ -66,6 +68,8 @@ void Locks::Init() {
     thread_suspend_count_lock_ = new Mutex("thread suspend count lock", kThreadSuspendCountLock);
     DCHECK(trace_lock_ == NULL);
     trace_lock_ = new Mutex("trace lock", kTraceLock);
+    DCHECK(profiler_lock_ == NULL);
+    profiler_lock_ = new Mutex("profiler lock", kProfilerLock);
     DCHECK(unexpected_signal_lock_ == NULL);
     unexpected_signal_lock_ = new Mutex("unexpected signal lock", kUnexpectedSignalLock, true);
   }

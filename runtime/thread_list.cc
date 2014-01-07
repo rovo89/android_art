@@ -211,7 +211,7 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function) {
       if (thread != self) {
         while (true) {
           if (thread->RequestCheckpoint(checkpoint_function)) {
-            // This thread will run it's checkpoint some time in the near future.
+            // This thread will run its checkpoint some time in the near future.
             count++;
             break;
           } else {
