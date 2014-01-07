@@ -77,10 +77,10 @@ class ArmMir2Lir : public Mir2Lir {
 
     // Required for target - miscellaneous.
     void AssembleLIR();
-    uint32_t EncodeRange(LIR* head_lir, LIR* tail_lir, uint32_t starting_offset);
+    uint32_t LinkFixupInsns(LIR* head_lir, LIR* tail_lir, CodeOffset offset);
     int AssignInsnOffsets();
     void AssignOffsets();
-    void EncodeLIR(LIR* lir);
+    static uint8_t* EncodeLIRs(uint8_t* write_pos, LIR* lir);
     void DumpResourceMask(LIR* lir, uint64_t mask, const char* prefix);
     void SetupTargetResourceMasks(LIR* lir, uint64_t flags);
     const char* GetTargetInstFmt(int opcode);
