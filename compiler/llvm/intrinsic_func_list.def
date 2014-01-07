@@ -863,13 +863,6 @@ _EVAL_DEF_INTRINSICS_FUNC(LoadDeclaringClassSSB,
                           kJavaObjectTy,
                           _EXPAND_ARG1(kJavaMethodTy))
 
-// JavaObject* art_portable_load_class_ssb_from_dex_cache(uint32_t type_idx)
-_EVAL_DEF_INTRINSICS_FUNC(LoadClassSSBFromDexCache,
-                          art_portable_load_class_ssb_from_dex_cache,
-                          kAttrReadOnly | kAttrNoThrow,
-                          kJavaObjectTy,
-                          _EXPAND_ARG1(kInt32ConstantTy))
-
 // JavaObject* art_portable_init_and_load_class_ssb(uint32_t type_idx,
 //                                              Method* referrer,
 //                                              Thread* thread)
