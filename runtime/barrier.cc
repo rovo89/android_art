@@ -44,8 +44,24 @@ void Barrier::Init(Thread* self, int count) {
 void Barrier::Increment(Thread* self, int delta) {
   MutexLock mu(self, lock_);
   SetCountLocked(self, count_ + delta);
+
+  // Increment the count.  If it becomes zero after the increment
+  // then all the threads have already passed the barrier.  If
+  // it is non-zero then there is still one or more threads
+  // that have not yet called the Pass function.  When the
+  // Pass function is called by the last thread, the count will
+  // be decremented to zero and a Broadcast will be made on the
+  // condition variable, thus waking this up.
   if (count_ != 0) {
     condition_.Wait(self);
+  }
+}
+
+void Barrier::Increment(Thread* self, int delta, uint32_t timeout_ms) {
+  MutexLock mu(self, lock_);
+  SetCountLocked(self, count_ + delta);
+  if (count_ != 0) {
+    condition_.TimedWait(self, timeout_ms, 0);
   }
 }
 
