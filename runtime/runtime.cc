@@ -59,6 +59,7 @@
 #include "thread.h"
 #include "thread_list.h"
 #include "trace.h"
+#include "profiler.h"
 #include "UniquePtr.h"
 #include "verifier/method_verifier.h"
 #include "well_known_classes.h"
@@ -331,6 +332,24 @@ size_t ParseIntegerOrDie(const std::string& s) {
   return result;
 }
 
+double ParseDoubleOrDie(const std::string& option, const char* prefix,
+                        double min, double max, bool ignore_unrecognized,
+                        double defval) {
+  std::istringstream iss(option.substr(strlen(prefix)));
+  double value;
+  iss >> value;
+  // Ensure that we have a value, there was no cruft after it and it satisfies a sensible range.
+  const bool sane_val = iss.eof() && (value >= min) && (value <= max);
+  if (!sane_val) {
+    if (ignore_unrecognized) {
+      return defval;
+    }
+    LOG(FATAL)<< "Invalid option '" << option << "'";
+    return defval;
+  }
+  return value;
+}
+
 void Runtime::SweepSystemWeaks(RootVisitor* visitor, void* arg) {
   GetInternTable()->SweepInternTableWeaks(visitor, arg);
   GetMonitorList()->SweepMonitorList(visitor, arg);
@@ -407,6 +426,12 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->method_trace_ = false;
   parsed->method_trace_file_ = "/data/method-trace-file.bin";
   parsed->method_trace_file_size_ = 10 * MB;
+
+  parsed->profile_ = false;
+  parsed->profile_period_s_ = 10;           // Seconds.
+  parsed->profile_duration_s_ = 20;          // Seconds.
+  parsed->profile_interval_us_ = 500;       // Microseconds.
+  parsed->profile_backoff_coefficient_ = 2.0;
 
   for (size_t i = 0; i < options.size(); ++i) {
     const std::string option(options[i].first);
@@ -495,19 +520,9 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       }
       parsed->heap_max_free_ = size;
     } else if (StartsWith(option, "-XX:HeapTargetUtilization=")) {
-      std::istringstream iss(option.substr(strlen("-XX:HeapTargetUtilization=")));
-      double value;
-      iss >> value;
-      // Ensure that we have a value, there was no cruft after it and it satisfies a sensible range.
-      const bool sane_val = iss.eof() && (value >= 0.1) && (value <= 0.9);
-      if (!sane_val) {
-        if (ignore_unrecognized) {
-          continue;
-        }
-        LOG(FATAL) << "Invalid option '" << option << "'";
-        return NULL;
-      }
-      parsed->heap_target_utilization_ = value;
+      parsed->heap_target_utilization_ = ParseDoubleOrDie(option, "-XX:HeapTargetUtilization=",
+          0.1, 0.9, ignore_unrecognized,
+          parsed->heap_target_utilization_);
     } else if (StartsWith(option, "-XX:ParallelGCThreads=")) {
       parsed->parallel_gc_threads_ =
           ParseMemoryOption(option.substr(strlen("-XX:ParallelGCThreads=")).c_str(), 1024);
@@ -631,6 +646,19 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       Trace::SetDefaultClockSource(kProfilerClockSourceWall);
     } else if (option == "-Xprofile:dualclock") {
       Trace::SetDefaultClockSource(kProfilerClockSourceDual);
+    } else if (StartsWith(option, "-Xprofile:")) {
+      parsed->profile_output_filename_ = option.substr(strlen("-Xprofile:"));
+      parsed->profile_ = true;
+    } else if (StartsWith(option, "-Xprofile-period:")) {
+      parsed->profile_period_s_ = ParseIntegerOrDie(option);
+    } else if (StartsWith(option, "-Xprofile-duration:")) {
+      parsed->profile_duration_s_ = ParseIntegerOrDie(option);
+    } else if (StartsWith(option, "-Xprofile-interval:")) {
+      parsed->profile_interval_us_ = ParseIntegerOrDie(option);
+    } else if (StartsWith(option, "-Xprofile-backoff:")) {
+      parsed->profile_backoff_coefficient_ = ParseDoubleOrDie(option, "-Xprofile-backoff:",
+          1.0, 10.0, ignore_unrecognized,
+          parsed->profile_backoff_coefficient_);
     } else if (option == "-compiler-filter:interpret-only") {
       parsed->compiler_filter_ = kInterpretOnly;
     } else if (option == "-compiler-filter:space") {
@@ -778,6 +806,11 @@ bool Runtime::Start() {
   VLOG(startup) << "Runtime::Start exiting";
 
   finished_starting_ = true;
+
+  if (profile_) {
+    // User has asked for a profile using -Xprofile
+    StartProfiler(profile_output_filename_.c_str(), true);
+  }
 
   return true;
 }
@@ -969,6 +1002,14 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   method_trace_ = options->method_trace_;
   method_trace_file_ = options->method_trace_file_;
   method_trace_file_size_ = options->method_trace_file_size_;
+
+  // Extract the profile options.
+  profile_period_s_ = options->profile_period_s_;
+  profile_duration_s_ = options->profile_duration_s_;
+  profile_interval_us_ = options->profile_interval_us_;
+  profile_backoff_coefficient_ = options->profile_backoff_coefficient_;
+  profile_ = options->profile_;
+  profile_output_filename_ = options->profile_output_filename_;
 
   if (options->method_trace_) {
     Trace::Start(options->method_trace_file_.c_str(), -1, options->method_trace_file_size_, 0,
@@ -1401,4 +1442,8 @@ void Runtime::RemoveMethodVerifier(verifier::MethodVerifier* verifier) {
   method_verifiers_.erase(it);
 }
 
+void Runtime::StartProfiler(const char *appDir, bool startImmediately) {
+  BackgroundMethodSamplingProfiler::Start(profile_period_s_, profile_duration_s_, appDir, profile_interval_us_,
+      profile_backoff_coefficient_, startImmediately);
+}
 }  // namespace art

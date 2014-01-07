@@ -21,7 +21,7 @@ namespace art {
 
 enum ThreadState {
   //                                   Thread.State   JDWP state
-  kTerminated,                      // TERMINATED     TS_ZOMBIE    Thread.run has returned, but Thread* still around
+  kTerminated = 66,                 // TERMINATED     TS_ZOMBIE    Thread.run has returned, but Thread* still around
   kRunnable,                        // RUNNABLE       TS_RUNNING   runnable
   kTimedWaiting,                    // TIMED_WAITING  TS_WAIT      in Object.wait() with a timeout
   kSleeping,                        // TIMED_WAITING  TS_SLEEPING  in Thread.sleep()

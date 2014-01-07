@@ -54,6 +54,7 @@ enum LockLevel {
   kThreadListLock,
   kBreakpointInvokeLock,
   kTraceLock,
+  kProfilerLock,
   kJdwpEventListLock,
   kJdwpAttachLock,
   kJdwpStartLock,
@@ -148,8 +149,11 @@ class Locks {
   // Guards trace requests.
   static Mutex* trace_lock_ ACQUIRED_AFTER(breakpoint_lock_);
 
+  // Guards profile objects.
+  static Mutex* profiler_lock_ ACQUIRED_AFTER(trace_lock_);
+
   // Guards lists of classes within the class linker.
-  static ReaderWriterMutex* classlinker_classes_lock_ ACQUIRED_AFTER(trace_lock_);
+  static ReaderWriterMutex* classlinker_classes_lock_ ACQUIRED_AFTER(profiler_lock_);
 
   // When declaring any Mutex add DEFAULT_MUTEX_ACQUIRED_AFTER to use annotalysis to check the code
   // doesn't try to hold a higher level Mutex.
