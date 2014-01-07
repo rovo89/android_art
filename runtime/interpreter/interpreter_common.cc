@@ -38,7 +38,7 @@ static inline void AssignRegister(ShadowFrame& new_shadow_frame, const ShadowFra
 }
 
 template<bool is_range, bool do_assignability_check>
-bool DoCall(ArtMethod* method, Object* receiver, Thread* self, ShadowFrame& shadow_frame,
+bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
             const Instruction* inst, uint16_t inst_data, JValue* result) {
   // Compute method information.
   MethodHelper mh(method);
@@ -66,17 +66,6 @@ bool DoCall(ArtMethod* method, Object* receiver, Thread* self, ShadowFrame& shad
     const DexFile::TypeList* params = mh.GetParameterTypeList();
     const char* shorty = mh.GetShorty();
 
-    // Handle receiver apart since it's not part of the shorty.
-    size_t dest_reg = first_dest_reg;
-    size_t arg_offset = 0;
-    if (receiver != NULL) {
-      DCHECK(!method->IsStatic());
-      new_shadow_frame->SetVRegReference(dest_reg, receiver);
-      ++dest_reg;
-      ++arg_offset;
-    } else {
-      DCHECK(method->IsStatic());
-    }
     // TODO: find a cleaner way to separate non-range and range information without duplicating code.
     uint32_t arg[5];  // only used in invoke-XXX.
     uint32_t vregC;   // only used in invoke-XXX-range.
@@ -84,6 +73,16 @@ bool DoCall(ArtMethod* method, Object* receiver, Thread* self, ShadowFrame& shad
       vregC = inst->VRegC_3rc();
     } else {
       inst->GetArgs(arg, inst_data);
+    }
+
+    // Handle receiver apart since it's not part of the shorty.
+    size_t dest_reg = first_dest_reg;
+    size_t arg_offset = 0;
+    if (!method->IsStatic()) {
+      size_t receiver_reg = (is_range) ? vregC : arg[0];
+      new_shadow_frame->SetVRegReference(dest_reg, shadow_frame.GetVRegReference(receiver_reg));
+      ++dest_reg;
+      ++arg_offset;
     }
     for (size_t shorty_pos = 0; dest_reg < num_regs; ++shorty_pos, ++dest_reg, ++arg_offset) {
       DCHECK_LT(shorty_pos + 1, mh.GetShortyLength());
@@ -336,8 +335,8 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
 // Explicit DoCall template function declarations.
 #define EXPLICIT_DO_CALL_TEMPLATE_DECL(_is_range, _do_assignability_check)                      \
   template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                          \
-  bool DoCall<_is_range, _do_assignability_check>(ArtMethod* method, Object* receiver,          \
-                                                  Thread* self, ShadowFrame& shadow_frame,      \
+  bool DoCall<_is_range, _do_assignability_check>(ArtMethod* method, Thread* self,              \
+                                                  ShadowFrame& shadow_frame,                    \
                                                   const Instruction* inst, uint16_t inst_data,  \
                                                   JValue* result)
 EXPLICIT_DO_CALL_TEMPLATE_DECL(false, false);
