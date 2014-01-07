@@ -615,17 +615,12 @@ class MIRGraph {
     return opcode >= static_cast<int>(kMirOpFirst);
   }
 
-  void BasicBlockCombine();
-  void CodeLayout();
   void DumpCheckStats();
-  void PropagateConstants();
   MIR* FindMoveResult(BasicBlock* bb, MIR* mir);
   int SRegToVReg(int ssa_reg) const;
   void VerifyDataflow();
-  void MethodUseCount();
-  void SSATransformation();
   void CheckForDominanceFrontier(BasicBlock* dom_bb, const BasicBlock* succ_bb);
-  void NullCheckEliminationAndTypeInference();
+  bool EliminateNullChecksAndInferTypes(BasicBlock *bb);
   /*
    * Type inference handling helpers.  Because Dalvik's bytecode is not fully typed,
    * we have to do some work to figure out the sreg type.  For some operations it is
@@ -670,6 +665,58 @@ class MIRGraph {
   BasicBlock* NextDominatedBlock(BasicBlock* bb);
   bool LayoutBlocks(BasicBlock* bb);
 
+  /**
+   * @brief Perform the initial preparation for the Method Uses.
+   */
+  void InitializeMethodUses();
+
+  /**
+   * @brief Perform the initial preparation for the Constant Propagation.
+   */
+  void InitializeConstantPropagation();
+
+  /**
+   * @brief Perform the initial preparation for the SSA Transformation.
+   */
+  void InitializeSSATransformation();
+
+  /**
+   * @brief Insert a the operands for the Phi nodes.
+   * @param bb the considered BasicBlock.
+   * @return true
+   */
+  bool InsertPhiNodeOperands(BasicBlock* bb);
+
+  /**
+   * @brief Perform constant propagation on a BasicBlock.
+   * @param bb the considered BasicBlock.
+   */
+  void DoConstantPropagation(BasicBlock* bb);
+
+  /**
+   * @brief Count the uses in the BasicBlock
+   * @param bb the BasicBlock
+   */
+  void CountUses(struct BasicBlock* bb);
+
+  /**
+   * @brief Initialize the data structures with Null Check data
+   * @param bb the considered BasicBlock
+   */
+  void NullCheckEliminationInit(BasicBlock* bb);
+
+  /**
+   * @brief Check if the temporary ssa register vector is allocated
+   */
+  void CheckSSARegisterVector();
+
+  /**
+   * @brief Combine BasicBlocks
+   * @param the BasicBlock we are considering
+   */
+  void CombineBlocks(BasicBlock* bb);
+
+  void ClearAllVisitedFlags();
   /*
    * IsDebugBuild sanity check: keep track of the Dex PCs for catch entries so that later on
    * we can verify that all catch entries have native PC entries.
@@ -715,8 +762,6 @@ class MIRGraph {
   void DataFlowSSAFormat35C(MIR* mir);
   void DataFlowSSAFormat3RC(MIR* mir);
   bool FindLocalLiveIn(BasicBlock* bb);
-  void ClearAllVisitedFlags();
-  bool CountUses(struct BasicBlock* bb);
   bool InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed);
   bool VerifyPredInfo(BasicBlock* bb);
   BasicBlock* NeedsVisit(BasicBlock* bb);
@@ -733,8 +778,6 @@ class MIRGraph {
   void SetConstantWide(int ssa_reg, int64_t value);
   int GetSSAUseCount(int s_reg);
   bool BasicBlockOpt(BasicBlock* bb);
-  bool EliminateNullChecksAndInferTypes(BasicBlock* bb);
-  void NullCheckEliminationInit(BasicBlock* bb);
   bool BuildExtendedBBList(struct BasicBlock* bb);
   bool FillDefBlockMatrix(BasicBlock* bb);
   void InitializeDominationInfo(BasicBlock* bb);
@@ -742,11 +785,9 @@ class MIRGraph {
   bool ComputeBlockDominators(BasicBlock* bb);
   bool SetDominators(BasicBlock* bb);
   bool ComputeBlockLiveIns(BasicBlock* bb);
-  bool InsertPhiNodeOperands(BasicBlock* bb);
   bool ComputeDominanceFrontier(BasicBlock* bb);
-  void DoConstantPropogation(BasicBlock* bb);
+
   void CountChecks(BasicBlock* bb);
-  bool CombineBlocks(BasicBlock* bb);
   void AnalyzeBlock(BasicBlock* bb, struct MethodStats* stats);
   bool ComputeSkipCompilation(struct MethodStats* stats, bool skip_default);
 

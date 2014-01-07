@@ -1147,4 +1147,53 @@ BasicBlock* MIRGraph::NewMemBB(BBType block_type, int block_id) {
   return bb;
 }
 
+void MIRGraph::InitializeConstantPropagation() {
+  is_constant_v_ = new (arena_) ArenaBitVector(arena_, GetNumSSARegs(), false);
+  constant_values_ = static_cast<int*>(arena_->Alloc(sizeof(int) * GetNumSSARegs(), ArenaAllocator::kAllocDFInfo));
+}
+
+void MIRGraph::InitializeMethodUses() {
+  // The gate starts by initializing the use counts
+  int num_ssa_regs = GetNumSSARegs();
+  use_counts_.Resize(num_ssa_regs + 32);
+  raw_use_counts_.Resize(num_ssa_regs + 32);
+  // Initialize list
+  for (int i = 0; i < num_ssa_regs; i++) {
+    use_counts_.Insert(0);
+    raw_use_counts_.Insert(0);
+  }
+}
+
+void MIRGraph::InitializeSSATransformation() {
+  /* Compute the DFS order */
+  ComputeDFSOrders();
+
+  /* Compute the dominator info */
+  ComputeDominators();
+
+  /* Allocate data structures in preparation for SSA conversion */
+  CompilerInitializeSSAConversion();
+
+  /* Find out the "Dalvik reg def x block" relation */
+  ComputeDefBlockMatrix();
+
+  /* Insert phi nodes to dominance frontiers for all variables */
+  InsertPhiNodes();
+
+  /* Rename register names by local defs and phi nodes */
+  ClearAllVisitedFlags();
+  DoDFSPreOrderSSARename(GetEntryBlock());
+
+  /*
+   * Shared temp bit vector used by each block to count the number of defs
+   * from all the predecessor blocks.
+   */
+  temp_ssa_register_v_ =
+    new (arena_) ArenaBitVector(arena_, GetNumSSARegs(), false, kBitMapTempSSARegisterV);
+}
+
+void MIRGraph::CheckSSARegisterVector() {
+  DCHECK(temp_ssa_register_v_ != nullptr);
+}
+
 }  // namespace art
