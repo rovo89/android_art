@@ -40,7 +40,9 @@ class DexFileToMethodInlinerMap {
     DexFileToMethodInlinerMap();
     ~DexFileToMethodInlinerMap();
 
-    DexFileMethodInliner* GetMethodInliner(const DexFile* dex_file) LOCKS_EXCLUDED(lock_);
+    DexFileMethodInliner* GetMethodInliner(const DexFile* dex_file) NO_THREAD_SAFETY_ANALYSIS;
+        // TODO: There is an irregular non-scoped use of locks that defeats annotalysis with -O0.
+        // Fix the NO_THREAD_SAFETY_ANALYSIS when this works and add the appropriate LOCKS_EXCLUDED.
 
   private:
     ReaderWriterMutex lock_;
