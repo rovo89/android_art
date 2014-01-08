@@ -177,6 +177,8 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
 
   { kX86Lea32RA, kRegArray, IS_QUIN_OP | REG_DEF0_USE12, { 0, 0, 0x8D, 0, 0, 0, 0, 0 }, "Lea32RA", "!0r,[!1r+!2r<<!3d+!4d]" },
 
+  { kX86Cmov32RRC, kRegRegCond, IS_TERTIARY_OP | REG_DEF0_USE01 | USES_CCODES, {0, 0, 0x0F, 0x40, 0, 0, 0, 0}, "Cmovcc32RR", "!2c !0r,!1r" },
+
 #define SHIFT_ENCODING_MAP(opname, modrm_opcode) \
 { kX86 ## opname ## 8RI, kShiftRegImm,                        IS_BINARY_OP   | REG_DEF0_USE0 |            SETS_CCODES, { 0,    0, 0xC0, 0, 0, modrm_opcode, 0xD1, 1 }, #opname "8RI", "!0r,!1d" }, \
 { kX86 ## opname ## 8MI, kShiftMemImm,   IS_LOAD | IS_STORE | IS_TERTIARY_OP | REG_USE0      |            SETS_CCODES, { 0,    0, 0xC0, 0, 0, modrm_opcode, 0xD1, 1 }, #opname "8MI", "[!0r+!1d],!2d" }, \
@@ -449,6 +451,8 @@ int X86Mir2Lir::GetInsnSize(LIR* lir) {
       return ComputeSize(entry, lir->operands[0], lir->operands[1], false);
     case kArrayCond:  // lir operands - 0: base, 1: index, 2: scale, 3: disp, 4: cond
       return ComputeSize(entry, lir->operands[0], lir->operands[3], true);
+    case kRegRegCond:  // lir operands - 0: reg, 1: reg, 2: cond
+      return ComputeSize(entry, 0, 0, false);
     case kJcc:
       if (lir->opcode == kX86Jcc8) {
         return 2;  // opcode + rel8
@@ -860,6 +864,30 @@ void X86Mir2Lir::EmitRegCond(const X86EncodingMap* entry, uint8_t reg, uint8_t c
   DCHECK_EQ(entry->skeleton.immediate_bytes, 0);
 }
 
+void X86Mir2Lir::EmitRegRegCond(const X86EncodingMap* entry, uint8_t reg1, uint8_t reg2, uint8_t condition) {
+  // Generate prefix and opcode without the condition
+  EmitPrefixAndOpcode(entry);
+
+  // Now add the condition. The last byte of opcode is the one that receives it.
+  DCHECK_LE(condition, 0xF);
+  code_buffer_.back() += condition;
+
+  // Not expecting to have to encode immediate or do anything special for ModR/M since there are two registers.
+  DCHECK_EQ(0, entry->skeleton.immediate_bytes);
+  DCHECK_EQ(0, entry->skeleton.modrm_opcode);
+
+  // Check that registers requested for encoding are sane.
+  DCHECK_LT(reg1, 8);
+  DCHECK_LT(reg2, 8);
+
+  // For register to register encoding, the mod is 3.
+  const uint8_t mod = (3 << 6);
+
+  // Encode the ModR/M byte now.
+  const uint8_t modrm = mod | (reg1 << 3) | reg2;
+  code_buffer_.push_back(modrm);
+}
+
 void X86Mir2Lir::EmitJmp(const X86EncodingMap* entry, int rel) {
   if (entry->opcode == kX86Jmp8) {
     DCHECK(IS_SIMM8(rel));
@@ -1177,6 +1205,9 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
         break;
       case kRegCond:  // lir operands - 0: reg, 1: condition
         EmitRegCond(entry, lir->operands[0], lir->operands[1]);
+        break;
+      case kRegRegCond:  // lir operands - 0: reg, 1: reg, 2: condition
+        EmitRegRegCond(entry, lir->operands[0], lir->operands[1], lir->operands[2]);
         break;
       case kJmp:  // lir operands - 0: rel
         EmitJmp(entry, lir->operands[0]);

@@ -367,6 +367,11 @@ LIR* ArmMir2Lir::OpRegReg(OpKind op, int r_dest_src1, int r_src2) {
   return OpRegRegShift(op, r_dest_src1, r_src2, 0);
 }
 
+LIR* ArmMir2Lir::OpCondRegReg(OpKind op, ConditionCode cc, int r_dest, int r_src) {
+  LOG(FATAL) << "Unexpected use of OpCondRegReg for Arm";
+  return NULL;
+}
+
 LIR* ArmMir2Lir::OpRegRegRegShift(OpKind op, int r_dest, int r_src1,
                                   int r_src2, int shift) {
   ArmOpcode opcode = kThumbBkpt;

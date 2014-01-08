@@ -130,7 +130,7 @@ LIR* X86Mir2Lir::OpRegCopyNoInsert(int r_dest, int r_src) {
     return OpFpRegCopy(r_dest, r_src);
   LIR* res = RawLIR(current_dalvik_offset_, kX86Mov32RR,
                     r_dest, r_src);
-  if (r_dest == r_src) {
+  if (!(cu_->disable_opt & (1 << kSafeOptimizations)) && r_dest == r_src) {
     res->flags.is_nop = true;
   }
   return res;
@@ -296,20 +296,39 @@ RegLocation X86Mir2Lir::GenDivRem(RegLocation rl_dest, int reg_lo,
 
 bool X86Mir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min) {
   DCHECK_EQ(cu_->instruction_set, kX86);
+
+  // Get the two arguments to the invoke and place them in GP registers.
   RegLocation rl_src1 = info->args[0];
   RegLocation rl_src2 = info->args[1];
   rl_src1 = LoadValue(rl_src1, kCoreReg);
   rl_src2 = LoadValue(rl_src2, kCoreReg);
+
   RegLocation rl_dest = InlineTarget(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  OpRegReg(kOpCmp, rl_src1.low_reg, rl_src2.low_reg);
-  DCHECK_EQ(cu_->instruction_set, kX86);
-  LIR* branch = NewLIR2(kX86Jcc8, 0, is_min ? kX86CondG : kX86CondL);
-  OpRegReg(kOpMov, rl_result.low_reg, rl_src1.low_reg);
-  LIR* branch2 = NewLIR1(kX86Jmp8, 0);
-  branch->target = NewLIR0(kPseudoTargetLabel);
-  OpRegReg(kOpMov, rl_result.low_reg, rl_src2.low_reg);
-  branch2->target = NewLIR0(kPseudoTargetLabel);
+
+  /*
+   * If the result register is the same as the second element, then we need to be careful.
+   * The reason is that the first copy will inadvertently clobber the second element with
+   * the first one thus yielding the wrong result. Thus we do a swap in that case.
+   */
+  if (rl_result.low_reg == rl_src2.low_reg) {
+    std::swap(rl_src1, rl_src2);
+  }
+
+  // Pick the first integer as min/max.
+  OpRegCopy(rl_result.low_reg, rl_src1.low_reg);
+
+  // If the integers are both in the same register, then there is nothing else to do
+  // because they are equal and we have already moved one into the result.
+  if (rl_src1.low_reg != rl_src2.low_reg) {
+    // It is possible we didn't pick correctly so do the actual comparison now.
+    OpRegReg(kOpCmp, rl_src1.low_reg, rl_src2.low_reg);
+
+    // Conditionally move the other integer into the destination register.
+    ConditionCode condition_code = is_min ? kCondGt : kCondLt;
+    OpCondRegReg(kOpCmov, condition_code, rl_result.low_reg, rl_src2.low_reg);
+  }
+
   StoreValue(rl_dest, rl_result);
   return true;
 }
