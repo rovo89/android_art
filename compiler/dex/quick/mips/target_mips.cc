@@ -180,34 +180,35 @@ std::string MipsMir2Lir::BuildInsnString(const char *fmt, LIR *lir, unsigned cha
              }
              break;
            case 's':
-             sprintf(tbuf, "$f%d", operand & MIPS_FP_REG_MASK);
+             snprintf(tbuf, arraysize(tbuf), "$f%d", operand & MIPS_FP_REG_MASK);
              break;
            case 'S':
              DCHECK_EQ(((operand & MIPS_FP_REG_MASK) & 1), 0);
-             sprintf(tbuf, "$f%d", operand & MIPS_FP_REG_MASK);
+             snprintf(tbuf, arraysize(tbuf), "$f%d", operand & MIPS_FP_REG_MASK);
              break;
            case 'h':
-             sprintf(tbuf, "%04x", operand);
+             snprintf(tbuf, arraysize(tbuf), "%04x", operand);
              break;
            case 'M':
            case 'd':
-             sprintf(tbuf, "%d", operand);
+             snprintf(tbuf, arraysize(tbuf), "%d", operand);
              break;
            case 'D':
-             sprintf(tbuf, "%d", operand+1);
+             snprintf(tbuf, arraysize(tbuf), "%d", operand+1);
              break;
            case 'E':
-             sprintf(tbuf, "%d", operand*4);
+             snprintf(tbuf, arraysize(tbuf), "%d", operand*4);
              break;
            case 'F':
-             sprintf(tbuf, "%d", operand*2);
+             snprintf(tbuf, arraysize(tbuf), "%d", operand*2);
              break;
            case 't':
-             sprintf(tbuf, "0x%08x (L%p)", reinterpret_cast<uintptr_t>(base_addr) + lir->offset + 4 +
-                     (operand << 2), lir->target);
+             snprintf(tbuf, arraysize(tbuf), "0x%08x (L%p)",
+                      reinterpret_cast<uintptr_t>(base_addr) + lir->offset + 4 + (operand << 2),
+                      lir->target);
              break;
            case 'T':
-             sprintf(tbuf, "0x%08x", operand << 2);
+             snprintf(tbuf, arraysize(tbuf), "0x%08x", operand << 2);
              break;
            case 'u': {
              int offset_1 = lir->operands[0];
@@ -215,7 +216,7 @@ std::string MipsMir2Lir::BuildInsnString(const char *fmt, LIR *lir, unsigned cha
              uintptr_t target =
                  (((reinterpret_cast<uintptr_t>(base_addr) + lir->offset + 4) & ~3) +
                  (offset_1 << 21 >> 9) + (offset_2 << 1)) & 0xfffffffc;
-             sprintf(tbuf, "%p", reinterpret_cast<void*>(target));
+             snprintf(tbuf, arraysize(tbuf), "%p", reinterpret_cast<void*>(target));
              break;
           }
 
@@ -257,7 +258,7 @@ void MipsMir2Lir::DumpResourceMask(LIR *mips_lir, uint64_t mask, const char *pre
 
     for (i = 0; i < kMipsRegEnd; i++) {
       if (mask & (1ULL << i)) {
-        sprintf(num, "%d ", i);
+        snprintf(num, arraysize(num), "%d ", i);
         strcat(buf, num);
       }
     }
@@ -270,8 +271,9 @@ void MipsMir2Lir::DumpResourceMask(LIR *mips_lir, uint64_t mask, const char *pre
     }
     /* Memory bits */
     if (mips_lir && (mask & ENCODE_DALVIK_REG)) {
-      sprintf(buf + strlen(buf), "dr%d%s", DECODE_ALIAS_INFO_REG(mips_lir->flags.alias_info),
-              DECODE_ALIAS_INFO_WIDE(mips_lir->flags.alias_info) ? "(+1)" : "");
+      snprintf(buf + strlen(buf), arraysize(buf) - strlen(buf), "dr%d%s",
+               DECODE_ALIAS_INFO_REG(mips_lir->flags.alias_info),
+               DECODE_ALIAS_INFO_WIDE(mips_lir->flags.alias_info) ? "(+1)" : "");
     }
     if (mask & ENCODE_LITERAL) {
       strcat(buf, "lit ");
