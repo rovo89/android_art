@@ -100,11 +100,6 @@ class MarkSweep : public GarbageCollector {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Verify that image roots point to only marked objects within the alloc space.
-  void VerifyImageRoots()
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   // Builds a mark stack and recursively mark until it empties.
   void RecursiveMark()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
@@ -250,20 +245,6 @@ class MarkSweep : public GarbageCollector {
 
   // Returns true if we need to add obj to a mark stack.
   bool MarkObjectParallel(const mirror::Object* obj) NO_THREAD_SAFETY_ANALYSIS;
-
-  static void SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
-  // Special sweep for zygote that just marks objects / dirties cards.
-  static void ZygoteSweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
-  void CheckReference(const mirror::Object* obj, const mirror::Object* ref, MemberOffset offset,
-                      bool is_static)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
-  void CheckObject(const mirror::Object* obj)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // Verify the roots of the heap and print out information related to any invalid roots.
   // Called in MarkObject, so may we may not hold the mutator lock.
