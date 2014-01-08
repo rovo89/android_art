@@ -465,45 +465,19 @@ void SemiSpace::ZygoteSweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
 void SemiSpace::Sweep(bool swap_bitmaps) {
   DCHECK(mark_stack_->IsEmpty());
   TimingLogger::ScopedSplit("Sweep", &timings_);
-
-  const bool partial = (GetGcType() == kGcTypePartial);
-  SweepCallbackContext scc;
-  scc.mark_sweep = this;
-  scc.self = Thread::Current();
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
-    if (!space->IsMallocSpace()) {
-      continue;
-    }
-    // We always sweep always collect spaces.
-    bool sweep_space = (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyAlwaysCollect);
-    if (!partial && !sweep_space) {
-      // We sweep full collect spaces when the GC isn't a partial GC (ie its full).
-      sweep_space = (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyFullCollect);
-    }
-    if (sweep_space && space->IsMallocSpace()) {
-      uintptr_t begin = reinterpret_cast<uintptr_t>(space->Begin());
-      uintptr_t end = reinterpret_cast<uintptr_t>(space->End());
-      scc.space = space->AsMallocSpace();
-      accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
-      accounting::SpaceBitmap* mark_bitmap = space->GetMarkBitmap();
-      if (swap_bitmaps) {
-        std::swap(live_bitmap, mark_bitmap);
-      }
-      if (!space->IsZygoteSpace()) {
-        TimingLogger::ScopedSplit split("SweepAllocSpace", &timings_);
-        // Bitmaps are pre-swapped for optimization which enables sweeping with the heap unlocked.
-        accounting::SpaceBitmap::SweepWalk(*live_bitmap, *mark_bitmap, begin, end,
-                                           &SweepCallback, reinterpret_cast<void*>(&scc));
-      } else {
-        TimingLogger::ScopedSplit split("SweepZygote", &timings_);
-        // Zygote sweep takes care of dirtying cards and clearing live bits, does not free actual
-        // memory.
-        accounting::SpaceBitmap::SweepWalk(*live_bitmap, *mark_bitmap, begin, end,
-                                           &ZygoteSweepCallback, reinterpret_cast<void*>(&scc));
-      }
+    if (space->IsMallocSpace() && space != from_space_ && space != to_space_) {
+      space::MallocSpace* malloc_space = space->AsMallocSpace();
+      TimingLogger::ScopedSplit split(
+          malloc_space->IsZygoteSpace() ? "SweepZygoteSpace" : "SweepAllocSpace", &timings_);
+      size_t freed_objects = 0;
+      size_t freed_bytes = 0;
+      malloc_space->Sweep(swap_bitmaps, &freed_objects, &freed_bytes);
+      heap_->RecordFree(freed_objects, freed_bytes);
+      freed_objects_.FetchAndAdd(freed_objects);
+      freed_bytes_.FetchAndAdd(freed_bytes);
     }
   }
-
   SweepLargeObjects(swap_bitmaps);
 }
 
