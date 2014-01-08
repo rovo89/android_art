@@ -119,6 +119,7 @@ class Runtime {
     size_t parallel_gc_threads_;
     size_t conc_gc_threads_;
     gc::CollectorType collector_type_;
+    gc::CollectorType background_collector_type_;
     size_t stack_size_;
     size_t max_spins_before_thin_lock_inflation_;
     bool low_memory_mode_;
@@ -455,8 +456,9 @@ class Runtime {
     return use_compile_time_class_path_;
   }
 
-  void AddMethodVerifier(verifier::MethodVerifier* verifier);
-  void RemoveMethodVerifier(verifier::MethodVerifier* verifier);
+  void AddMethodVerifier(verifier::MethodVerifier* verifier) LOCKS_EXCLUDED(method_verifier_lock_);
+  void RemoveMethodVerifier(verifier::MethodVerifier* verifier)
+      LOCKS_EXCLUDED(method_verifier_lock_);
 
   const std::vector<const DexFile*>& GetCompileTimeClassPath(jobject class_loader);
   void SetCompileTimeClassPath(jobject class_loader, std::vector<const DexFile*>& class_path);
@@ -543,7 +545,7 @@ class Runtime {
   mirror::ObjectArray<mirror::ArtMethod>* default_imt_;
 
   // Method verifier set, used so that we can update their GC roots.
-  Mutex method_verifiers_lock_;
+  Mutex method_verifiers_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::set<verifier::MethodVerifier*> method_verifiers_;
 
   // A non-zero value indicates that a thread has been created but not yet initialized. Guarded by

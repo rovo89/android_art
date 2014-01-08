@@ -33,6 +33,11 @@ namespace space {
 // An alloc space is a space where objects may be allocated and garbage collected.
 class DlMallocSpace : public MallocSpace {
  public:
+  // Create a DlMallocSpace from an existing mem_map.
+  static DlMallocSpace* CreateFromMemMap(MemMap* mem_map, const std::string& name,
+                                         size_t starting_size, size_t initial_size,
+                                         size_t growth_limit, size_t capacity);
+
   // Create a DlMallocSpace with the requested sizes. The requested
   // base address is not guaranteed to be granted, if it is required,
   // the caller should call Begin on the returned space to confirm the
@@ -89,6 +94,8 @@ class DlMallocSpace : public MallocSpace {
 
   // Returns the class of a recently freed object.
   mirror::Class* FindRecentFreedObject(const mirror::Object* obj);
+
+  virtual void Clear();
 
   virtual void InvalidateAllocator() {
     mspace_for_alloc_ = nullptr;

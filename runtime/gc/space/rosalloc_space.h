@@ -39,6 +39,10 @@ class RosAllocSpace : public MallocSpace {
   // request was granted.
   static RosAllocSpace* Create(const std::string& name, size_t initial_size, size_t growth_limit,
                                size_t capacity, byte* requested_begin, bool low_memory_mode);
+  static RosAllocSpace* CreateFromMemMap(MemMap* mem_map, const std::string& name,
+                                         size_t starting_size, size_t initial_size,
+                                         size_t growth_limit, size_t capacity,
+                                         bool low_memory_mode);
 
   virtual mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes,
                                           size_t* bytes_allocated) LOCKS_EXCLUDED(lock_);
@@ -78,6 +82,7 @@ class RosAllocSpace : public MallocSpace {
   size_t GetFootprintLimit();
   void SetFootprintLimit(size_t limit);
 
+  virtual void Clear();
   MallocSpace* CreateInstance(const std::string& name, MemMap* mem_map, void* allocator,
                               byte* begin, byte* end, byte* limit, size_t growth_limit);
 

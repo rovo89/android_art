@@ -90,12 +90,13 @@ class BumpPointerSpace : public ContinuousMemMapAllocSpace {
   }
 
   // Clear the memory and reset the pointer to the start of the space.
-  void Clear();
+  void Clear() LOCKS_EXCLUDED(block_lock_);
 
   void Dump(std::ostream& os) const;
 
-  void RevokeThreadLocalBuffers(Thread* thread);
-  void RevokeAllThreadLocalBuffers();
+  void RevokeThreadLocalBuffers(Thread* thread) LOCKS_EXCLUDED(block_lock_);
+  void RevokeAllThreadLocalBuffers() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_,
+                                                    Locks::thread_list_lock_);
 
   uint64_t GetBytesAllocated() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   uint64_t GetObjectsAllocated() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -114,7 +115,7 @@ class BumpPointerSpace : public ContinuousMemMapAllocSpace {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Allocate a new TLAB, returns false if the allocation failed.
-  bool AllocNewTLAB(Thread* self, size_t bytes);
+  bool AllocNewTlab(Thread* self, size_t bytes);
 
   virtual BumpPointerSpace* AsBumpPointerSpace() {
     return this;
@@ -147,7 +148,7 @@ class BumpPointerSpace : public ContinuousMemMapAllocSpace {
   byte* growth_end_;
   AtomicInteger objects_allocated_;  // Accumulated from revoked thread local regions.
   AtomicInteger bytes_allocated_;  // Accumulated from revoked thread local regions.
-  Mutex block_lock_;
+  Mutex block_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 
   // The number of blocks in the space, if it is 0 then the space has one long continuous block
   // which doesn't have an updated header.

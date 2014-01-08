@@ -42,34 +42,15 @@ DlMallocSpace::DlMallocSpace(const std::string& name, MemMap* mem_map, void* msp
   CHECK(mspace != NULL);
 }
 
-DlMallocSpace* DlMallocSpace::Create(const std::string& name, size_t initial_size, size_t growth_limit,
-                                     size_t capacity, byte* requested_begin) {
-  uint64_t start_time = 0;
-  if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
-    start_time = NanoTime();
-    VLOG(startup) << "DlMallocSpace::Create entering " << name
-                  << " initial_size=" << PrettySize(initial_size)
-                  << " growth_limit=" << PrettySize(growth_limit)
-                  << " capacity=" << PrettySize(capacity)
-                  << " requested_begin=" << reinterpret_cast<void*>(requested_begin);
-  }
-
-  // Memory we promise to dlmalloc before it asks for morecore.
-  // Note: making this value large means that large allocations are unlikely to succeed as dlmalloc
-  // will ask for this memory from sys_alloc which will fail as the footprint (this value plus the
-  // size of the large allocation) will be greater than the footprint limit.
-  size_t starting_size = kPageSize;
-  MemMap* mem_map = CreateMemMap(name, starting_size, &initial_size, &growth_limit, &capacity,
-                                 requested_begin);
-  if (mem_map == NULL) {
-    LOG(ERROR) << "Failed to create mem map for alloc space (" << name << ") of size "
-               << PrettySize(capacity);
-    return NULL;
-  }
+DlMallocSpace* DlMallocSpace::CreateFromMemMap(MemMap* mem_map, const std::string& name,
+                                               size_t starting_size,
+                                               size_t initial_size, size_t growth_limit,
+                                               size_t capacity) {
+  DCHECK(mem_map != nullptr);
   void* mspace = CreateMspace(mem_map->Begin(), starting_size, initial_size);
-  if (mspace == NULL) {
+  if (mspace == nullptr) {
     LOG(ERROR) << "Failed to initialize mspace for alloc space (" << name << ")";
-    return NULL;
+    return nullptr;
   }
 
   // Protect memory beyond the initial size.
@@ -79,14 +60,41 @@ DlMallocSpace* DlMallocSpace::Create(const std::string& name, size_t initial_siz
   }
 
   // Everything is set so record in immutable structure and leave
-  DlMallocSpace* space;
   byte* begin = mem_map->Begin();
   if (RUNNING_ON_VALGRIND > 0) {
-    space = new ValgrindMallocSpace<DlMallocSpace, void*>(
+    return new ValgrindMallocSpace<DlMallocSpace, void*>(
         name, mem_map, mspace, begin, end, begin + capacity, growth_limit, initial_size);
   } else {
-    space = new DlMallocSpace(name, mem_map, mspace, begin, end, begin + capacity, growth_limit);
+    return new DlMallocSpace(name, mem_map, mspace, begin, end, begin + capacity, growth_limit);
   }
+}
+
+DlMallocSpace* DlMallocSpace::Create(const std::string& name, size_t initial_size, size_t growth_limit,
+                                     size_t capacity, byte* requested_begin) {
+  uint64_t start_time = 0;
+  if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
+    start_time = NanoTime();
+    LOG(INFO) << "DlMallocSpace::Create entering " << name
+        << " initial_size=" << PrettySize(initial_size)
+        << " growth_limit=" << PrettySize(growth_limit)
+        << " capacity=" << PrettySize(capacity)
+        << " requested_begin=" << reinterpret_cast<void*>(requested_begin);
+  }
+
+  // Memory we promise to dlmalloc before it asks for morecore.
+  // Note: making this value large means that large allocations are unlikely to succeed as dlmalloc
+  // will ask for this memory from sys_alloc which will fail as the footprint (this value plus the
+  // size of the large allocation) will be greater than the footprint limit.
+  size_t starting_size = kPageSize;
+  MemMap* mem_map = CreateMemMap(name, starting_size, &initial_size, &growth_limit, &capacity,
+                                 requested_begin);
+  if (mem_map == nullptr) {
+    LOG(ERROR) << "Failed to create mem map for alloc space (" << name << ") of size "
+               << PrettySize(capacity);
+    return nullptr;
+  }
+  DlMallocSpace* space = CreateFromMemMap(mem_map, name, starting_size, initial_size,
+                                          growth_limit, capacity);
   // We start out with only the initial size possibly containing objects.
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "DlMallocSpace::Create exiting (" << PrettyDuration(NanoTime() - start_time)
@@ -102,7 +110,7 @@ void* DlMallocSpace::CreateMspace(void* begin, size_t morecore_start, size_t ini
   // morecore_start. Don't use an internal dlmalloc lock (as we already hold heap lock). When
   // morecore_start bytes of memory is exhaused morecore will be called.
   void* msp = create_mspace_with_base(begin, morecore_start, false /*locked*/);
-  if (msp != NULL) {
+  if (msp != nullptr) {
     // Do not allow morecore requests to succeed beyond the initial size of the heap
     mspace_set_footprint_limit(msp, initial_size);
   } else {
@@ -202,9 +210,22 @@ size_t DlMallocSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** p
 // Callback from dlmalloc when it needs to increase the footprint
 extern "C" void* art_heap_morecore(void* mspace, intptr_t increment) {
   Heap* heap = Runtime::Current()->GetHeap();
-  DCHECK(heap->GetNonMovingSpace()->IsDlMallocSpace());
-  DCHECK_EQ(heap->GetNonMovingSpace()->AsDlMallocSpace()->GetMspace(), mspace);
-  return heap->GetNonMovingSpace()->MoreCore(increment);
+  DlMallocSpace* dlmalloc_space = heap->GetDlMallocSpace();
+  // Support for multiple DlMalloc provided by a slow path.
+  if (UNLIKELY(dlmalloc_space == nullptr || dlmalloc_space->GetMspace() != mspace)) {
+    dlmalloc_space = nullptr;
+    for (space::ContinuousSpace* space : heap->GetContinuousSpaces()) {
+      if (space->IsDlMallocSpace()) {
+        DlMallocSpace* cur_dlmalloc_space = space->AsDlMallocSpace();
+        if (cur_dlmalloc_space->GetMspace() == mspace) {
+          dlmalloc_space = cur_dlmalloc_space;
+          break;
+        }
+      }
+    }
+    CHECK(dlmalloc_space != nullptr) << "Couldn't find DlmMallocSpace with mspace=" << mspace;
+  }
+  return dlmalloc_space->MoreCore(increment);
 }
 
 size_t DlMallocSpace::AllocationSize(const mirror::Object* obj) {
@@ -263,6 +284,12 @@ uint64_t DlMallocSpace::GetObjectsAllocated() {
   size_t objects_allocated = 0;
   mspace_inspect_all(mspace_, DlmallocObjectsAllocatedCallback, &objects_allocated);
   return objects_allocated;
+}
+
+void DlMallocSpace::Clear() {
+  madvise(GetMemMap()->Begin(), GetMemMap()->Size(), MADV_DONTNEED);
+  GetLiveBitmap()->Clear();
+  GetMarkBitmap()->Clear();
 }
 
 #ifndef NDEBUG

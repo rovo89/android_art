@@ -239,7 +239,7 @@ std::string PrettyClassAndClassLoader(const mirror::Class* c)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Returns a human-readable size string such as "1MB".
-std::string PrettySize(size_t size_in_bytes);
+std::string PrettySize(int64_t size_in_bytes);
 
 // Returns a human-readable time string which prints every nanosecond while trying to limit the
 // number of trailing zeros. Prints using the largest human readable unit up to a second.

@@ -131,10 +131,6 @@ class SemiSpace : public GarbageCollector {
   void SweepArray(accounting::ObjectStack* allocation_stack_, bool swap_bitmaps)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  mirror::Object* GetClearedReferences() {
-    return cleared_reference_list_;
-  }
-
   // TODO: enable thread safety analysis when in use by multiple worker threads.
   template <typename MarkVisitor>
   void ScanObjectVisit(const mirror::Object* obj, const MarkVisitor& visitor)
@@ -269,15 +265,11 @@ class SemiSpace : public GarbageCollector {
   mirror::Object* immune_begin_;
   mirror::Object* immune_end_;
 
-  // Destination and source spaces.
+  // Destination and source spaces (can be any type of ContinuousMemMapAllocSpace which either has
+  // a live bitmap or doesn't).
   space::ContinuousMemMapAllocSpace* to_space_;
+  accounting::SpaceBitmap* to_space_live_bitmap_;  // Cached live bitmap as an optimization.
   space::ContinuousMemMapAllocSpace* from_space_;
-
-  mirror::Object* soft_reference_list_;
-  mirror::Object* weak_reference_list_;
-  mirror::Object* finalizer_reference_list_;
-  mirror::Object* phantom_reference_list_;
-  mirror::Object* cleared_reference_list_;
 
   Thread* self_;
 

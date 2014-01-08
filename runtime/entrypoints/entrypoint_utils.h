@@ -46,11 +46,12 @@ namespace mirror {
 template <const bool kAccessCheck>
 ALWAYS_INLINE static inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
                                                             mirror::ArtMethod* method,
-                                                            Thread* self)
+                                                            Thread* self, bool* slow_path)
     NO_THREAD_SAFETY_ANALYSIS {
   mirror::Class* klass = method->GetDexCacheResolvedTypes()->GetWithoutChecks(type_idx);
   if (UNLIKELY(klass == NULL)) {
     klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
+    *slow_path = true;
     if (klass == NULL) {
       DCHECK(self->IsExceptionPending());
       return nullptr;  // Failure
@@ -61,11 +62,13 @@ ALWAYS_INLINE static inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
       ThrowLocation throw_location = self->GetCurrentLocationForThrow();
       self->ThrowNewException(throw_location, "Ljava/lang/InstantiationError;",
                               PrettyDescriptor(klass).c_str());
+      *slow_path = true;
       return nullptr;  // Failure
     }
     mirror::Class* referrer = method->GetDeclaringClass();
     if (UNLIKELY(!referrer->CanAccess(klass))) {
       ThrowIllegalAccessErrorClass(referrer, klass);
+      *slow_path = true;
       return nullptr;  // Failure
     }
   }
@@ -76,6 +79,11 @@ ALWAYS_INLINE static inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
       DCHECK(self->IsExceptionPending());
       return nullptr;  // Failure
     }
+    // TODO: EnsureInitialized may cause us to suspend meaning that another thread may try to
+    // change the allocator while we are stuck in the entrypoints of an old allocator. To handle
+    // this case we mark the slow path boolean as true so that the caller knows to check the
+    // allocator type to see if it has changed.
+    *slow_path = true;
     return sirt_klass.get();
   }
   return klass;
@@ -92,9 +100,14 @@ ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCode(uint32_t type_id
                                                                 Thread* self,
                                                                 gc::AllocatorType allocator_type)
     NO_THREAD_SAFETY_ANALYSIS {
-  mirror::Class* klass = CheckObjectAlloc<kAccessCheck>(type_idx, method, self);
-  if (UNLIKELY(klass == nullptr)) {
-    return nullptr;
+  bool slow_path = false;
+  mirror::Class* klass = CheckObjectAlloc<kAccessCheck>(type_idx, method, self, &slow_path);
+  if (UNLIKELY(slow_path)) {
+    if (klass == nullptr) {
+      return nullptr;
+    }
+    gc::Heap* heap = Runtime::Current()->GetHeap();
+    return klass->Alloc<kInstrumented>(self, heap->GetCurrentAllocator());
   }
   return klass->Alloc<kInstrumented>(self, allocator_type);
 }
@@ -103,16 +116,19 @@ ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCode(uint32_t type_id
 template <bool kAccessCheck>
 ALWAYS_INLINE static inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
                                                            mirror::ArtMethod* method,
-                                                           int32_t component_count)
+                                                           int32_t component_count,
+                                                           bool* slow_path)
     NO_THREAD_SAFETY_ANALYSIS {
   if (UNLIKELY(component_count < 0)) {
     ThrowNegativeArraySizeException(component_count);
+    *slow_path = true;
     return nullptr;  // Failure
   }
   mirror::Class* klass = method->GetDexCacheResolvedTypes()->GetWithoutChecks(type_idx);
   if (UNLIKELY(klass == nullptr)) {  // Not in dex cache so try to resolve
     klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
-    if (klass == NULL) {  // Error
+    *slow_path = true;
+    if (klass == nullptr) {  // Error
       DCHECK(Thread::Current()->IsExceptionPending());
       return nullptr;  // Failure
     }
@@ -122,6 +138,7 @@ ALWAYS_INLINE static inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
     mirror::Class* referrer = method->GetDeclaringClass();
     if (UNLIKELY(!referrer->CanAccess(klass))) {
       ThrowIllegalAccessErrorClass(referrer, klass);
+      *slow_path = true;
       return nullptr;  // Failure
     }
   }
@@ -140,9 +157,16 @@ ALWAYS_INLINE static inline mirror::Array* AllocArrayFromCode(uint32_t type_idx,
                                                               Thread* self,
                                                               gc::AllocatorType allocator_type)
     NO_THREAD_SAFETY_ANALYSIS {
-  mirror::Class* klass = CheckArrayAlloc<kAccessCheck>(type_idx, method, component_count);
-  if (UNLIKELY(klass == nullptr)) {
-    return nullptr;
+  bool slow_path = false;
+  mirror::Class* klass = CheckArrayAlloc<kAccessCheck>(type_idx, method, component_count,
+                                                       &slow_path);
+  if (UNLIKELY(slow_path)) {
+    if (klass == nullptr) {
+      return nullptr;
+    }
+    gc::Heap* heap = Runtime::Current()->GetHeap();
+    return mirror::Array::Alloc<kInstrumented>(self, klass, component_count,
+                                               heap->GetCurrentAllocator());
   }
   return mirror::Array::Alloc<kInstrumented>(self, klass, component_count, allocator_type);
 }

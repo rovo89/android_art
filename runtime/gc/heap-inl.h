@@ -52,8 +52,14 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
   size_t bytes_allocated;
   obj = TryToAllocate<kInstrumented, false>(self, allocator, byte_count, &bytes_allocated);
   if (UNLIKELY(obj == nullptr)) {
+    bool is_current_allocator = allocator == GetCurrentAllocator();
     obj = AllocateInternalWithGc(self, allocator, byte_count, &bytes_allocated, &klass);
     if (obj == nullptr) {
+      bool after_is_current_allocator = allocator == GetCurrentAllocator();
+      if (is_current_allocator && !after_is_current_allocator) {
+        // If the allocator changed, we need to restart the allocation.
+        return AllocObject<kInstrumented>(self, klass, byte_count);
+      }
       return nullptr;
     }
   }
@@ -120,14 +126,6 @@ inline mirror::Object* Heap::TryToAllocate(Thread* self, AllocatorType allocator
   if (UNLIKELY(IsOutOfMemoryOnAllocation<kGrow>(allocator_type, alloc_size))) {
     return nullptr;
   }
-  if (kInstrumented) {
-    if (UNLIKELY(running_on_valgrind_ && allocator_type == kAllocatorTypeFreeList)) {
-      return non_moving_space_->Alloc(self, alloc_size, bytes_allocated);
-    }
-  } else {
-    // If running on valgrind, we should be using the instrumented path.
-    DCHECK(!running_on_valgrind_);
-  }
   mirror::Object* ret;
   switch (allocator_type) {
     case kAllocatorTypeBumpPointer: {
@@ -139,14 +137,28 @@ inline mirror::Object* Heap::TryToAllocate(Thread* self, AllocatorType allocator
       }
       break;
     }
-    case kAllocatorTypeFreeList: {
-      if (kUseRosAlloc) {
-        ret = reinterpret_cast<space::RosAllocSpace*>(non_moving_space_)->AllocNonvirtual(
-            self, alloc_size, bytes_allocated);
+    case kAllocatorTypeRosAlloc: {
+      if (kInstrumented && UNLIKELY(running_on_valgrind_)) {
+        // If running on valgrind, we should be using the instrumented path.
+        ret = rosalloc_space_->Alloc(self, alloc_size, bytes_allocated);
       } else {
-        ret = reinterpret_cast<space::DlMallocSpace*>(non_moving_space_)->AllocNonvirtual(
-            self, alloc_size, bytes_allocated);
+        DCHECK(!running_on_valgrind_);
+        ret = rosalloc_space_->AllocNonvirtual(self, alloc_size, bytes_allocated);
       }
+      break;
+    }
+    case kAllocatorTypeDlMalloc: {
+      if (kInstrumented && UNLIKELY(running_on_valgrind_)) {
+        // If running on valgrind, we should be using the instrumented path.
+        ret = dlmalloc_space_->Alloc(self, alloc_size, bytes_allocated);
+      } else {
+        DCHECK(!running_on_valgrind_);
+        ret = dlmalloc_space_->AllocNonvirtual(self, alloc_size, bytes_allocated);
+      }
+      break;
+    }
+    case kAllocatorTypeNonMoving: {
+      ret = non_moving_space_->Alloc(self, alloc_size, bytes_allocated);
       break;
     }
     case kAllocatorTypeLOS: {
@@ -159,15 +171,15 @@ inline mirror::Object* Heap::TryToAllocate(Thread* self, AllocatorType allocator
     }
     case kAllocatorTypeTLAB: {
       alloc_size = RoundUp(alloc_size, space::BumpPointerSpace::kAlignment);
-      if (UNLIKELY(self->TLABSize() < alloc_size)) {
+      if (UNLIKELY(self->TlabSize() < alloc_size)) {
         // Try allocating a new thread local buffer, if the allocaiton fails the space must be
         // full so return nullptr.
-        if (!bump_pointer_space_->AllocNewTLAB(self, alloc_size + kDefaultTLABSize)) {
+        if (!bump_pointer_space_->AllocNewTlab(self, alloc_size + kDefaultTLABSize)) {
           return nullptr;
         }
       }
       // The allocation can't fail.
-      ret = self->AllocTLAB(alloc_size);
+      ret = self->AllocTlab(alloc_size);
       DCHECK(ret != nullptr);
       *bytes_allocated = alloc_size;
       break;
