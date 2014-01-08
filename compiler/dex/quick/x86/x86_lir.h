@@ -279,6 +279,9 @@ enum X86OpCode {
   kX86Mov32RR, kX86Mov32RM, kX86Mov32RA, kX86Mov32RT,
   kX86Mov32RI, kX86Mov32MI, kX86Mov32AI, kX86Mov32TI,
   kX86Lea32RA,
+  // RRC - Register Register ConditionCode - cond_opcode reg1, reg2
+  //             - lir operands - 0: reg1, 1: reg2, 2: CC
+  kX86Cmov32RRC,
   // RC - Register CL - opcode reg, CL
   //          - lir operands - 0: reg, 1: CL
   // MC - Memory CL   - opcode [base + disp], CL
@@ -398,6 +401,7 @@ enum X86EncodingKind {
   kShiftRegCl, kShiftMemCl, kShiftArrayCl,     // Shift opcode with register CL.
   kRegRegReg, kRegRegMem, kRegRegArray,    // RRR, RRM, RRA instruction kinds.
   kRegCond, kMemCond, kArrayCond,          // R, M, A instruction kinds following by a condition.
+  kRegRegCond,                             // RR instruction kind followed by a condition.
   kJmp, kJcc, kCall,                       // Branch instruction kinds.
   kPcRel,                                  // Operation with displacement that is PC relative
   kMacro,                                  // An instruction composing multiple others

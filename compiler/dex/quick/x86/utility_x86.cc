@@ -203,6 +203,12 @@ LIR* X86Mir2Lir::OpRegReg(OpKind op, int r_dest_src1, int r_src2) {
     return NewLIR2(opcode, r_dest_src1, r_src2);
 }
 
+LIR* X86Mir2Lir::OpCondRegReg(OpKind op, ConditionCode cc, int r_dest, int r_src) {
+  // The only conditional reg to reg operation supported is Cmov
+  DCHECK_EQ(op, kOpCmov);
+  return NewLIR3(kX86Cmov32RRC, r_dest, r_src, X86ConditionEncoding(cc));
+}
+
 LIR* X86Mir2Lir::OpRegMem(OpKind op, int r_dest, int rBase,
               int offset) {
   X86OpCode opcode = kX86Nop;

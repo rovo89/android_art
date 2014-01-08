@@ -161,6 +161,7 @@ std::ostream& operator<<(std::ostream& os, const OpSize& kind);
 
 enum OpKind {
   kOpMov,
+  kOpCmov,
   kOpMvn,
   kOpCmp,
   kOpLsl,
