@@ -255,7 +255,7 @@ static const char* shift_names[4] = {
   "ror"};
 
 /* Decode and print a ARM register name */
-static char* DecodeRegList(int opcode, int vector, char* buf) {
+static char* DecodeRegList(int opcode, int vector, char* buf, size_t buf_size) {
   int i;
   bool printed = false;
   buf[0] = 0;
@@ -268,20 +268,20 @@ static char* DecodeRegList(int opcode, int vector, char* buf) {
         reg_id = r15pc;
       }
       if (printed) {
-        sprintf(buf + strlen(buf), ", r%d", reg_id);
+        snprintf(buf + strlen(buf), buf_size - strlen(buf), ", r%d", reg_id);
       } else {
         printed = true;
-        sprintf(buf, "r%d", reg_id);
+        snprintf(buf, buf_size, "r%d", reg_id);
       }
     }
   }
   return buf;
 }
 
-static char*  DecodeFPCSRegList(int count, int base, char* buf) {
-  sprintf(buf, "s%d", base);
+static char*  DecodeFPCSRegList(int count, int base, char* buf, size_t buf_size) {
+  snprintf(buf, buf_size, "s%d", base);
   for (int i = 1; i < count; i++) {
-    sprintf(buf + strlen(buf), ", s%d", base + i);
+    snprintf(buf + strlen(buf), buf_size - strlen(buf), ", s%d", base + i);
   }
   return buf;
 }
@@ -333,7 +333,7 @@ std::string ArmMir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned char
          switch (*fmt++) {
            case 'H':
              if (operand != 0) {
-               sprintf(tbuf, ", %s %d", shift_names[operand & 0x3], operand >> 2);
+               snprintf(tbuf, arraysize(tbuf), ", %s %d", shift_names[operand & 0x3], operand >> 2);
              } else {
                strcpy(tbuf, "");
              }
@@ -373,41 +373,41 @@ std::string ArmMir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned char
              break;
            case 'n':
              operand = ~ExpandImmediate(operand);
-             sprintf(tbuf, "%d [%#x]", operand, operand);
+             snprintf(tbuf, arraysize(tbuf), "%d [%#x]", operand, operand);
              break;
            case 'm':
              operand = ExpandImmediate(operand);
-             sprintf(tbuf, "%d [%#x]", operand, operand);
+             snprintf(tbuf, arraysize(tbuf), "%d [%#x]", operand, operand);
              break;
            case 's':
-             sprintf(tbuf, "s%d", operand & ARM_FP_REG_MASK);
+             snprintf(tbuf, arraysize(tbuf), "s%d", operand & ARM_FP_REG_MASK);
              break;
            case 'S':
-             sprintf(tbuf, "d%d", (operand & ARM_FP_REG_MASK) >> 1);
+             snprintf(tbuf, arraysize(tbuf), "d%d", (operand & ARM_FP_REG_MASK) >> 1);
              break;
            case 'h':
-             sprintf(tbuf, "%04x", operand);
+             snprintf(tbuf, arraysize(tbuf), "%04x", operand);
              break;
            case 'M':
            case 'd':
-             sprintf(tbuf, "%d", operand);
+             snprintf(tbuf, arraysize(tbuf), "%d", operand);
              break;
            case 'C':
              DCHECK_LT(operand, static_cast<int>(
                  sizeof(core_reg_names)/sizeof(core_reg_names[0])));
-             sprintf(tbuf, "%s", core_reg_names[operand]);
+             snprintf(tbuf, arraysize(tbuf), "%s", core_reg_names[operand]);
              break;
            case 'E':
-             sprintf(tbuf, "%d", operand*4);
+             snprintf(tbuf, arraysize(tbuf), "%d", operand*4);
              break;
            case 'F':
-             sprintf(tbuf, "%d", operand*2);
+             snprintf(tbuf, arraysize(tbuf), "%d", operand*2);
              break;
            case 'c':
              strcpy(tbuf, cc_names[operand]);
              break;
            case 't':
-             sprintf(tbuf, "0x%08x (L%p)",
+             snprintf(tbuf, arraysize(tbuf), "0x%08x (L%p)",
                  reinterpret_cast<uintptr_t>(base_addr) + lir->offset + 4 +
                  (operand << 1),
                  lir->target);
@@ -419,7 +419,7 @@ std::string ArmMir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned char
                  (((reinterpret_cast<uintptr_t>(base_addr) + lir->offset + 4) &
                  ~3) + (offset_1 << 21 >> 9) + (offset_2 << 1)) &
                  0xfffffffc;
-             sprintf(tbuf, "%p", reinterpret_cast<void *>(target));
+             snprintf(tbuf, arraysize(tbuf), "%p", reinterpret_cast<void *>(target));
              break;
           }
 
@@ -428,13 +428,13 @@ std::string ArmMir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned char
              strcpy(tbuf, "see above");
              break;
            case 'R':
-             DecodeRegList(lir->opcode, operand, tbuf);
+             DecodeRegList(lir->opcode, operand, tbuf, arraysize(tbuf));
              break;
            case 'P':
-             DecodeFPCSRegList(operand, 16, tbuf);
+             DecodeFPCSRegList(operand, 16, tbuf, arraysize(tbuf));
              break;
            case 'Q':
-             DecodeFPCSRegList(operand, 0, tbuf);
+             DecodeFPCSRegList(operand, 0, tbuf, arraysize(tbuf));
              break;
            default:
              strcpy(tbuf, "DecodeError1");
@@ -461,7 +461,7 @@ void ArmMir2Lir::DumpResourceMask(LIR* arm_lir, uint64_t mask, const char* prefi
 
     for (i = 0; i < kArmRegEnd; i++) {
       if (mask & (1ULL << i)) {
-        sprintf(num, "%d ", i);
+        snprintf(num, arraysize(num), "%d ", i);
         strcat(buf, num);
       }
     }
@@ -475,8 +475,9 @@ void ArmMir2Lir::DumpResourceMask(LIR* arm_lir, uint64_t mask, const char* prefi
 
     /* Memory bits */
     if (arm_lir && (mask & ENCODE_DALVIK_REG)) {
-      sprintf(buf + strlen(buf), "dr%d%s", DECODE_ALIAS_INFO_REG(arm_lir->flags.alias_info),
-              DECODE_ALIAS_INFO_WIDE(arm_lir->flags.alias_info) ? "(+1)" : "");
+      snprintf(buf + strlen(buf), arraysize(buf) - strlen(buf), "dr%d%s",
+               DECODE_ALIAS_INFO_REG(arm_lir->flags.alias_info),
+               DECODE_ALIAS_INFO_WIDE(arm_lir->flags.alias_info) ? "(+1)" : "");
     }
     if (mask & ENCODE_LITERAL) {
       strcat(buf, "lit ");

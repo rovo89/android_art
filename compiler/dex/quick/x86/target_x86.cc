@@ -270,7 +270,7 @@ void X86Mir2Lir::DumpResourceMask(LIR *x86LIR, uint64_t mask, const char *prefix
 
     for (i = 0; i < kX86RegEnd; i++) {
       if (mask & (1ULL << i)) {
-        sprintf(num, "%d ", i);
+        snprintf(num, arraysize(num), "%d ", i);
         strcat(buf, num);
       }
     }
@@ -280,8 +280,9 @@ void X86Mir2Lir::DumpResourceMask(LIR *x86LIR, uint64_t mask, const char *prefix
     }
     /* Memory bits */
     if (x86LIR && (mask & ENCODE_DALVIK_REG)) {
-      sprintf(buf + strlen(buf), "dr%d%s", DECODE_ALIAS_INFO_REG(x86LIR->flags.alias_info),
-              (DECODE_ALIAS_INFO_WIDE(x86LIR->flags.alias_info)) ? "(+1)" : "");
+      snprintf(buf + strlen(buf), arraysize(buf) - strlen(buf), "dr%d%s",
+               DECODE_ALIAS_INFO_REG(x86LIR->flags.alias_info),
+               (DECODE_ALIAS_INFO_WIDE(x86LIR->flags.alias_info)) ? "(+1)" : "");
     }
     if (mask & ENCODE_LITERAL) {
       strcat(buf, "lit ");
