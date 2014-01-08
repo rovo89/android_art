@@ -199,8 +199,6 @@ class GBCExpanderPass : public llvm::FunctionPass {
   //----------------------------------------------------------------------------
   llvm::Value* EmitLoadDexCacheAddr(art::MemberOffset dex_cache_offset);
 
-  llvm::Value* EmitLoadDexCacheStaticStorageFieldAddr(uint32_t type_idx);
-
   llvm::Value* EmitLoadDexCacheResolvedTypeFieldAddr(uint32_t type_idx);
 
   llvm::Value* EmitLoadDexCacheResolvedMethodFieldAddr(uint32_t method_idx);
@@ -286,8 +284,6 @@ class GBCExpanderPass : public llvm::FunctionPass {
                        JType field_jty);
 
   llvm::Value* Expand_LoadDeclaringClassSSB(llvm::Value* method_object_addr);
-
-  llvm::Value* Expand_LoadClassSSBFromDexCache(llvm::Value* type_idx_value);
 
   llvm::Value*
   Expand_GetSDCalleeMethodObjAddrFast(llvm::Value* callee_method_idx_value);
@@ -717,16 +713,6 @@ llvm::Value* GBCExpanderPass::EmitLoadDexCacheAddr(art::MemberOffset offset) {
                                    offset.Int32Value(),
                                    irb_.getJObjectTy(),
                                    kTBAAConstJObject);
-}
-
-llvm::Value*
-GBCExpanderPass::EmitLoadDexCacheStaticStorageFieldAddr(uint32_t type_idx) {
-  llvm::Value* static_storage_dex_cache_addr =
-    EmitLoadDexCacheAddr(art::mirror::ArtMethod::DexCacheInitializedStaticStorageOffset());
-
-  llvm::Value* type_idx_value = irb_.getPtrEquivInt(type_idx);
-
-  return EmitArrayGEP(static_storage_dex_cache_addr, type_idx_value, kObject);
 }
 
 llvm::Value*
@@ -1210,17 +1196,6 @@ GBCExpanderPass::Expand_LoadDeclaringClassSSB(llvm::Value* method_object_addr) {
                                    art::mirror::ArtMethod::DeclaringClassOffset().Int32Value(),
                                    irb_.getJObjectTy(),
                                    kTBAAConstJObject);
-}
-
-llvm::Value*
-GBCExpanderPass::Expand_LoadClassSSBFromDexCache(llvm::Value* type_idx_value) {
-  uint32_t type_idx =
-    llvm::cast<llvm::ConstantInt>(type_idx_value)->getZExtValue();
-
-  llvm::Value* storage_field_addr =
-    EmitLoadDexCacheStaticStorageFieldAddr(type_idx);
-
-  return irb_.CreateLoad(storage_field_addr, kTBAARuntimeInfo);
 }
 
 llvm::Value*
@@ -1837,21 +1812,31 @@ llvm::Value* GBCExpanderPass::EmitLoadStaticStorage(uint32_t dex_pc,
   llvm::BasicBlock* block_load_static =
     CreateBasicBlockWithDexPC(dex_pc, "load_static");
 
+  llvm::BasicBlock* block_check_init = CreateBasicBlockWithDexPC(dex_pc, "init");
   llvm::BasicBlock* block_cont = CreateBasicBlockWithDexPC(dex_pc, "cont");
 
   // Load static storage from dex cache
-  llvm::Value* storage_field_addr =
-    EmitLoadDexCacheStaticStorageFieldAddr(type_idx);
+  llvm::Value* storage_field_addr = EmitLoadDexCacheResolvedTypeFieldAddr(type_idx);
 
   llvm::Value* storage_object_addr = irb_.CreateLoad(storage_field_addr, kTBAARuntimeInfo);
 
-  llvm::BasicBlock* block_original = irb_.GetInsertBlock();
+  // Test: Is the class resolved?
+  llvm::Value* equal_null = irb_.CreateICmpEQ(storage_object_addr, irb_.getJNull());
 
-  // Test: Is the static storage of this class initialized?
-  llvm::Value* equal_null =
-    irb_.CreateICmpEQ(storage_object_addr, irb_.getJNull());
+  irb_.CreateCondBr(equal_null, block_load_static, block_check_init, kUnlikely);
 
-  irb_.CreateCondBr(equal_null, block_load_static, block_cont, kUnlikely);
+  // storage_object_addr != null, so check if its initialized.
+  irb_.SetInsertPoint(block_check_init);
+
+  llvm::Value* class_status =
+      irb_.LoadFromObjectOffset(storage_object_addr,
+                                art::mirror::Class::StatusOffset().Int32Value(),
+                                irb_.getJIntTy(), kTBAAHeapInstance);
+
+  llvm::Value* is_not_initialized =
+      irb_.CreateICmpULT(class_status, irb_.getInt32(art::mirror::Class::kStatusInitialized));
+
+  irb_.CreateCondBr(is_not_initialized, block_load_static, block_cont, kUnlikely);
 
   // Failback routine to load the class object
   irb_.SetInsertPoint(block_load_static);
@@ -1880,9 +1865,8 @@ llvm::Value* GBCExpanderPass::EmitLoadStaticStorage(uint32_t dex_pc,
 
   llvm::PHINode* phi = irb_.CreatePHI(irb_.getJObjectTy(), 2);
 
-  phi->addIncoming(storage_object_addr, block_original);
+  phi->addIncoming(storage_object_addr, block_check_init);
   phi->addIncoming(loaded_storage_object_addr, block_after_load_static);
-
   return phi;
 }
 
@@ -1895,10 +1879,11 @@ llvm::Value* GBCExpanderPass::Expand_HLSget(llvm::CallInst& call_inst,
   int ssb_index;
   bool is_referrers_class;
   bool is_volatile;
+  bool is_initialized;
 
   bool is_fast_path = driver_->ComputeStaticFieldInfo(
     field_idx, dex_compilation_unit_, false,
-    &field_offset, &ssb_index, &is_referrers_class, &is_volatile);
+    &field_offset, &ssb_index, &is_referrers_class, &is_volatile, &is_initialized);
 
   llvm::Value* static_field_value;
 
@@ -1979,10 +1964,11 @@ void GBCExpanderPass::Expand_HLSput(llvm::CallInst& call_inst,
   int ssb_index;
   bool is_referrers_class;
   bool is_volatile;
+  bool is_initialized;
 
   bool is_fast_path = driver_->ComputeStaticFieldInfo(
     field_idx, dex_compilation_unit_, true,
-    &field_offset, &ssb_index, &is_referrers_class, &is_volatile);
+    &field_offset, &ssb_index, &is_referrers_class, &is_volatile, &is_initialized);
 
   if (!is_fast_path) {
     llvm::Function* runtime_func;
@@ -3359,9 +3345,6 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
     }
     case IntrinsicHelper::LoadDeclaringClassSSB: {
       return Expand_LoadDeclaringClassSSB(call_inst.getArgOperand(0));
-    }
-    case IntrinsicHelper::LoadClassSSBFromDexCache: {
-      return Expand_LoadClassSSBFromDexCache(call_inst.getArgOperand(0));
     }
     case IntrinsicHelper::InitializeAndLoadClassSSB: {
       return ExpandToRuntime(InitializeStaticStorage, call_inst);

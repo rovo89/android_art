@@ -1242,15 +1242,8 @@ mirror::DexCache* ClassLinker::AllocDexCache(Thread* self, const DexFile& dex_fi
   if (fields.get() == NULL) {
     return NULL;
   }
-  SirtRef<mirror::ObjectArray<mirror::StaticStorageBase> >
-      initialized_static_storage(self,
-                          AllocObjectArray<mirror::StaticStorageBase>(self, dex_file.NumTypeIds()));
-  if (initialized_static_storage.get() == NULL) {
-    return NULL;
-  }
-
   dex_cache->Init(&dex_file, location.get(), strings.get(), types.get(), methods.get(),
-                  fields.get(), initialized_static_storage.get());
+                  fields.get());
   return dex_cache.get();
 }
 
@@ -1905,7 +1898,6 @@ mirror::ArtMethod* ClassLinker::LoadMethod(Thread* self, const DexFile& dex_file
   dst->SetDexCacheStrings(klass->GetDexCache()->GetStrings());
   dst->SetDexCacheResolvedMethods(klass->GetDexCache()->GetResolvedMethods());
   dst->SetDexCacheResolvedTypes(klass->GetDexCache()->GetResolvedTypes());
-  dst->SetDexCacheInitializedStaticStorage(klass->GetDexCache()->GetInitializedStaticStorage());
 
   uint32_t access_flags = it.GetMemberAccessFlags();
 
@@ -2926,8 +2918,6 @@ static void CheckProxyMethod(mirror::ArtMethod* method,
   CHECK_EQ(prototype->GetDexCacheStrings(), method->GetDexCacheStrings());
   CHECK_EQ(prototype->GetDexCacheResolvedMethods(), method->GetDexCacheResolvedMethods());
   CHECK_EQ(prototype->GetDexCacheResolvedTypes(), method->GetDexCacheResolvedTypes());
-  CHECK_EQ(prototype->GetDexCacheInitializedStaticStorage(),
-           method->GetDexCacheInitializedStaticStorage());
   CHECK_EQ(prototype->GetDexMethodIndex(), method->GetDexMethodIndex());
 
   MethodHelper mh(method);

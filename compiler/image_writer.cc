@@ -316,7 +316,6 @@ void ImageWriter::PruneNonImageClasses() {
       Class* klass = dex_cache->GetResolvedType(i);
       if (klass != NULL && !IsImageClass(klass)) {
         dex_cache->SetResolvedType(i, NULL);
-        dex_cache->GetInitializedStaticStorage()->Set(i, NULL);
       }
     }
     for (size_t i = 0; i < dex_cache->NumResolvedMethods(); i++) {
