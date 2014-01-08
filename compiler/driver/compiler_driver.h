@@ -172,8 +172,7 @@ class CompilerDriver {
 
   // Callbacks from compiler to see what runtime checks must be generated.
 
-  bool CanAssumeTypeIsPresentInDexCache(const DexFile& dex_file, uint32_t type_idx)
-      LOCKS_EXCLUDED(Locks::mutator_lock_);
+  bool CanAssumeTypeIsPresentInDexCache(const DexFile& dex_file, uint32_t type_idx);
 
   bool CanAssumeStringIsPresentInDexCache(const DexFile& dex_file, uint32_t string_idx)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
@@ -198,8 +197,8 @@ class CompilerDriver {
   // Can we fastpath static field access? Computes field's offset, volatility and whether the
   // field is within the referrer (which can avoid checking class initialization).
   bool ComputeStaticFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit, bool is_put,
-                              int* field_offset, int* ssb_index,
-                              bool* is_referrers_class, bool* is_volatile)
+                              int* field_offset, int* storage_index,
+                              bool* is_referrers_class, bool* is_volatile, bool* is_initialized)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Can we fastpath a interface, super class or virtual method call? Computes method's vtable

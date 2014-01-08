@@ -330,21 +330,22 @@ void Mir2Lir::GenFilledNewArray(CallInfo* info) {
 void Mir2Lir::GenSput(uint32_t field_idx, RegLocation rl_src, bool is_long_or_double,
                       bool is_object) {
   int field_offset;
-  int ssb_index;
+  int storage_index;
   bool is_volatile;
   bool is_referrers_class;
+  bool is_initialized;
   bool fast_path = cu_->compiler_driver->ComputeStaticFieldInfo(
       field_idx, mir_graph_->GetCurrentDexCompilationUnit(), true,
-      &field_offset, &ssb_index, &is_referrers_class, &is_volatile);
+      &field_offset, &storage_index, &is_referrers_class, &is_volatile, &is_initialized);
   if (fast_path && !SLOW_FIELD_PATH) {
     DCHECK_GE(field_offset, 0);
-    int rBase;
+    int r_base;
     if (is_referrers_class) {
       // Fast path, static storage base is this method's class
       RegLocation rl_method  = LoadCurrMethod();
-      rBase = AllocTemp();
+      r_base = AllocTemp();
       LoadWordDisp(rl_method.low_reg,
-                   mirror::ArtMethod::DeclaringClassOffset().Int32Value(), rBase);
+                   mirror::ArtMethod::DeclaringClassOffset().Int32Value(), r_base);
       if (IsTemp(rl_method.low_reg)) {
         FreeTemp(rl_method.low_reg);
       }
@@ -352,33 +353,44 @@ void Mir2Lir::GenSput(uint32_t field_idx, RegLocation rl_src, bool is_long_or_do
       // Medium path, static storage base in a different class which requires checks that the other
       // class is initialized.
       // TODO: remove initialized check now that we are initializing classes in the compiler driver.
-      DCHECK_GE(ssb_index, 0);
+      DCHECK_GE(storage_index, 0);
       // May do runtime call so everything to home locations.
       FlushAllRegs();
       // Using fixed register to sync with possible call to runtime support.
       int r_method = TargetReg(kArg1);
       LockTemp(r_method);
       LoadCurrMethodDirect(r_method);
-      rBase = TargetReg(kArg0);
-      LockTemp(rBase);
+      r_base = TargetReg(kArg0);
+      LockTemp(r_base);
       LoadWordDisp(r_method,
-                   mirror::ArtMethod::DexCacheInitializedStaticStorageOffset().Int32Value(),
-                   rBase);
-      LoadWordDisp(rBase,
-                   mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
-                   sizeof(int32_t*) * ssb_index, rBase);
-      // rBase now points at appropriate static storage base (Class*)
-      // or NULL if not initialized. Check for NULL and call helper if NULL.
-      // TUNING: fast path should fall through
-      LIR* branch_over = OpCmpImmBranch(kCondNe, rBase, 0, NULL);
-      LoadConstant(TargetReg(kArg0), ssb_index);
-      CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(pInitializeStaticStorage), ssb_index, true);
-      if (cu_->instruction_set == kMips) {
-        // For Arm, kRet0 = kArg0 = rBase, for Mips, we need to copy
-        OpRegCopy(rBase, TargetReg(kRet0));
+                   mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
+                   r_base);
+      LoadWordDisp(r_base, mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
+                   sizeof(int32_t*) * storage_index, r_base);
+      // r_base now points at static storage (Class*) or NULL if the type is not yet resolved.
+      if (!is_initialized) {
+        // Check if r_base is NULL or a not yet initialized class.
+        // TUNING: fast path should fall through
+        LIR* unresolved_branch = OpCmpImmBranch(kCondEq, r_base, 0, NULL);
+        int r_tmp = TargetReg(kArg2);
+        LockTemp(r_tmp);
+        // TODO: Fuse the compare of a constant with memory on X86 and avoid the load.
+        LoadWordDisp(r_base, mirror::Class::StatusOffset().Int32Value(), r_tmp);
+        LIR* initialized_branch = OpCmpImmBranch(kCondGe, r_tmp, mirror::Class::kStatusInitialized,
+                                                 NULL);
+
+        LIR* unresolved_target = NewLIR0(kPseudoTargetLabel);
+        unresolved_branch->target = unresolved_target;
+        CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(pInitializeStaticStorage), storage_index,
+                             true);
+        // Copy helper's result into r_base, a no-op on all but MIPS.
+        OpRegCopy(r_base, TargetReg(kRet0));
+
+        LIR* initialized_target = NewLIR0(kPseudoTargetLabel);
+        initialized_branch->target = initialized_target;
+
+        FreeTemp(r_tmp);
       }
-      LIR* skip_target = NewLIR0(kPseudoTargetLabel);
-      branch_over->target = skip_target;
       FreeTemp(r_method);
     }
     // rBase now holds static storage base
@@ -391,18 +403,18 @@ void Mir2Lir::GenSput(uint32_t field_idx, RegLocation rl_src, bool is_long_or_do
       GenMemBarrier(kStoreStore);
     }
     if (is_long_or_double) {
-      StoreBaseDispWide(rBase, field_offset, rl_src.low_reg,
+      StoreBaseDispWide(r_base, field_offset, rl_src.low_reg,
                         rl_src.high_reg);
     } else {
-      StoreWordDisp(rBase, field_offset, rl_src.low_reg);
+      StoreWordDisp(r_base, field_offset, rl_src.low_reg);
     }
     if (is_volatile) {
       GenMemBarrier(kStoreLoad);
     }
     if (is_object && !mir_graph_->IsConstantNullRef(rl_src)) {
-      MarkGCCard(rl_src.low_reg, rBase);
+      MarkGCCard(rl_src.low_reg, r_base);
     }
-    FreeTemp(rBase);
+    FreeTemp(r_base);
   } else {
     FlushAllRegs();  // Everything to home locations
     ThreadOffset setter_offset =
@@ -416,64 +428,77 @@ void Mir2Lir::GenSput(uint32_t field_idx, RegLocation rl_src, bool is_long_or_do
 void Mir2Lir::GenSget(uint32_t field_idx, RegLocation rl_dest,
                       bool is_long_or_double, bool is_object) {
   int field_offset;
-  int ssb_index;
+  int storage_index;
   bool is_volatile;
   bool is_referrers_class;
+  bool is_initialized;
   bool fast_path = cu_->compiler_driver->ComputeStaticFieldInfo(
       field_idx, mir_graph_->GetCurrentDexCompilationUnit(), false,
-      &field_offset, &ssb_index, &is_referrers_class, &is_volatile);
+      &field_offset, &storage_index, &is_referrers_class, &is_volatile, &is_initialized);
   if (fast_path && !SLOW_FIELD_PATH) {
     DCHECK_GE(field_offset, 0);
-    int rBase;
+    int r_base;
     if (is_referrers_class) {
       // Fast path, static storage base is this method's class
       RegLocation rl_method  = LoadCurrMethod();
-      rBase = AllocTemp();
+      r_base = AllocTemp();
       LoadWordDisp(rl_method.low_reg,
-                   mirror::ArtMethod::DeclaringClassOffset().Int32Value(), rBase);
+                   mirror::ArtMethod::DeclaringClassOffset().Int32Value(), r_base);
     } else {
       // Medium path, static storage base in a different class which requires checks that the other
       // class is initialized
-      // TODO: remove initialized check now that we are initializing classes in the compiler driver.
-      DCHECK_GE(ssb_index, 0);
+      DCHECK_GE(storage_index, 0);
       // May do runtime call so everything to home locations.
       FlushAllRegs();
       // Using fixed register to sync with possible call to runtime support.
       int r_method = TargetReg(kArg1);
       LockTemp(r_method);
       LoadCurrMethodDirect(r_method);
-      rBase = TargetReg(kArg0);
-      LockTemp(rBase);
+      r_base = TargetReg(kArg0);
+      LockTemp(r_base);
       LoadWordDisp(r_method,
-                   mirror::ArtMethod::DexCacheInitializedStaticStorageOffset().Int32Value(),
-                   rBase);
-      LoadWordDisp(rBase, mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
-                   sizeof(int32_t*) * ssb_index, rBase);
-      // rBase now points at appropriate static storage base (Class*)
-      // or NULL if not initialized. Check for NULL and call helper if NULL.
-      // TUNING: fast path should fall through
-      LIR* branch_over = OpCmpImmBranch(kCondNe, rBase, 0, NULL);
-      CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(pInitializeStaticStorage), ssb_index, true);
-      if (cu_->instruction_set == kMips) {
-        // For Arm, kRet0 = kArg0 = rBase, for Mips, we need to copy
-        OpRegCopy(rBase, TargetReg(kRet0));
+                   mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
+                   r_base);
+      LoadWordDisp(r_base, mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
+                   sizeof(int32_t*) * storage_index, r_base);
+      // r_base now points at static storage (Class*) or NULL if the type is not yet resolved.
+      if (!is_initialized) {
+        // Check if r_base is NULL or a not yet initialized class.
+        // TUNING: fast path should fall through
+        LIR* unresolved_branch = OpCmpImmBranch(kCondEq, r_base, 0, NULL);
+        int r_tmp = TargetReg(kArg2);
+        LockTemp(r_tmp);
+        // TODO: Fuse the compare of a constant with memory on X86 and avoid the load.
+        LoadWordDisp(r_base, mirror::Class::StatusOffset().Int32Value(), r_tmp);
+        LIR* initialized_branch = OpCmpImmBranch(kCondGe, r_tmp, mirror::Class::kStatusInitialized,
+                                                 NULL);
+
+        LIR* unresolved_target = NewLIR0(kPseudoTargetLabel);
+        unresolved_branch->target = unresolved_target;
+        CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(pInitializeStaticStorage), storage_index,
+                             true);
+        // Copy helper's result into r_base, a no-op on all but MIPS.
+        OpRegCopy(r_base, TargetReg(kRet0));
+
+        LIR* initialized_target = NewLIR0(kPseudoTargetLabel);
+        initialized_branch->target = initialized_target;
+
+        FreeTemp(r_tmp);
       }
-      LIR* skip_target = NewLIR0(kPseudoTargetLabel);
-      branch_over->target = skip_target;
       FreeTemp(r_method);
     }
-    // rBase now holds static storage base
+    // r_base now holds static storage base
     RegLocation rl_result = EvalLoc(rl_dest, kAnyReg, true);
     if (is_volatile) {
       GenMemBarrier(kLoadLoad);
     }
     if (is_long_or_double) {
-      LoadBaseDispWide(rBase, field_offset, rl_result.low_reg,
+      LoadBaseDispWide(r_base, field_offset, rl_result.low_reg,
                        rl_result.high_reg, INVALID_SREG);
     } else {
-      LoadWordDisp(rBase, field_offset, rl_result.low_reg);
+      LoadWordDisp(r_base, field_offset, rl_result.low_reg);
     }
-    FreeTemp(rBase);
+    FreeTemp(r_base);
     if (is_long_or_double) {
       StoreValueWide(rl_dest, rl_result);
     } else {

@@ -47,8 +47,7 @@ class MANAGED DexCache : public Object {
             ObjectArray<String>* strings,
             ObjectArray<Class>* types,
             ObjectArray<ArtMethod>* methods,
-            ObjectArray<ArtField>* fields,
-            ObjectArray<StaticStorageBase>* initialized_static_storage)
+            ObjectArray<ArtField>* fields)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void Fixup(ArtMethod* trampoline) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -83,11 +82,6 @@ class MANAGED DexCache : public Object {
 
   size_t NumResolvedFields() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetResolvedFields()->GetLength();
-  }
-
-  size_t NumInitializedStaticStorage() const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetInitializedStaticStorage()->GetLength();
   }
 
   String* GetResolvedString(uint32_t string_idx) const
@@ -149,12 +143,6 @@ class MANAGED DexCache : public Object {
     return GetFieldObject< ObjectArray<ArtField>* >(ResolvedFieldsOffset(), false);
   }
 
-  ObjectArray<StaticStorageBase>* GetInitializedStaticStorage() const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject< ObjectArray<StaticStorageBase>* >(
-        OFFSET_OF_OBJECT_MEMBER(DexCache, initialized_static_storage_), false);
-  }
-
   const DexFile* GetDexFile() const {
     return GetFieldPtr<const DexFile*>(OFFSET_OF_OBJECT_MEMBER(DexCache, dex_file_), false);
   }
@@ -165,7 +153,6 @@ class MANAGED DexCache : public Object {
 
  private:
   Object* dex_;
-  ObjectArray<StaticStorageBase>* initialized_static_storage_;
   String* location_;
   ObjectArray<ArtField>* resolved_fields_;
   ObjectArray<ArtMethod>* resolved_methods_;

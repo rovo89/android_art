@@ -184,21 +184,12 @@ class MANAGED ArtMethod : public Object {
     return OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_types_);
   }
 
-  static MemberOffset DexCacheInitializedStaticStorageOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(ArtMethod,
-        dex_cache_initialized_static_storage_);
-  }
-
   ObjectArray<ArtMethod>* GetDexCacheResolvedMethods() const;
   void SetDexCacheResolvedMethods(ObjectArray<ArtMethod>* new_dex_cache_methods)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ObjectArray<Class>* GetDexCacheResolvedTypes() const;
   void SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cache_types)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  ObjectArray<StaticStorageBase>* GetDexCacheInitializedStaticStorage() const;
-  void SetDexCacheInitializedStaticStorage(ObjectArray<StaticStorageBase>* new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Find the method that this method overrides
@@ -389,9 +380,6 @@ class MANAGED ArtMethod : public Object {
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   // The class we are a part of
   Class* declaring_class_;
-
-  // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
-  ObjectArray<StaticStorageBase>* dex_cache_initialized_static_storage_;
 
   // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
   ObjectArray<ArtMethod>* dex_cache_resolved_methods_;

@@ -70,15 +70,8 @@ class ClassLoader;
 class DexCache;
 class IfTable;
 
-// Type for the InitializedStaticStorage table. Currently the Class
-// provides the static storage. However, this might change to an Array
-// to improve image sharing, so we use this type to avoid assumptions
-// on the current storage.
-class MANAGED StaticStorageBase : public Object {
-};
-
 // C++ mirror of java.lang.Class
-class MANAGED Class : public StaticStorageBase {
+class MANAGED Class : public Object {
  public:
   // Class Status
   //
@@ -132,6 +125,10 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   void SetStatus(Status new_status, Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static MemberOffset StatusOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Class, status_);
+  }
 
   // Returns true if the class has failed to link.
   bool IsErroneous() const {

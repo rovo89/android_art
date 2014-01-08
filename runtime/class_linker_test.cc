@@ -159,15 +159,12 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(method->GetDexCacheStrings() != NULL);
     EXPECT_TRUE(method->GetDexCacheResolvedMethods() != NULL);
     EXPECT_TRUE(method->GetDexCacheResolvedTypes() != NULL);
-    EXPECT_TRUE(method->GetDexCacheInitializedStaticStorage() != NULL);
     EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetStrings(),
               method->GetDexCacheStrings());
     EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetResolvedMethods(),
               method->GetDexCacheResolvedMethods());
     EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetResolvedTypes(),
               method->GetDexCacheResolvedTypes());
-    EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetInitializedStaticStorage(),
-              method->GetDexCacheInitializedStaticStorage());
   }
 
   void AssertField(mirror::Class* klass, mirror::ArtField* field)
@@ -468,7 +465,6 @@ struct ArtMethodOffsets : public CheckOffsets<mirror::ArtMethod> {
   ArtMethodOffsets() : CheckOffsets<mirror::ArtMethod>(false, "Ljava/lang/reflect/ArtMethod;") {
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, declaring_class_),                      "declaringClass"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_cache_initialized_static_storage_), "dexCacheInitializedStaticStorage"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_cache_resolved_methods_),           "dexCacheResolvedMethods"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_cache_resolved_types_),             "dexCacheResolvedTypes"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_cache_strings_),                    "dexCacheStrings"));
@@ -607,7 +603,6 @@ struct DexCacheOffsets : public CheckOffsets<mirror::DexCache> {
   DexCacheOffsets() : CheckOffsets<mirror::DexCache>(false, "Ljava/lang/DexCache;") {
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, dex_),                        "dex"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, initialized_static_storage_), "initializedStaticStorage"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, location_),                   "location"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_fields_),            "resolvedFields"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_methods_),           "resolvedMethods"));
@@ -1006,13 +1001,12 @@ TEST_F(ClassLinkerTest, ResolveVerifyAndClinit) {
   const DexFile::TypeId* type_id = dex_file->FindTypeId(dex_file->GetIndexForStringId(*string_id));
   ASSERT_TRUE(type_id != NULL);
   uint32_t type_idx = dex_file->GetIndexForTypeId(*type_id);
-  EXPECT_TRUE(clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx) == NULL);
-  mirror::StaticStorageBase* uninit = ResolveVerifyAndClinit(type_idx, clinit, Thread::Current(), true, false);
+  mirror::Class* uninit = ResolveVerifyAndClinit(type_idx, clinit, Thread::Current(), true, false);
   EXPECT_TRUE(uninit != NULL);
-  EXPECT_TRUE(clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx) == NULL);
-  mirror::StaticStorageBase* init = ResolveVerifyAndClinit(type_idx, getS0, Thread::Current(), true, false);
+  EXPECT_FALSE(uninit->IsInitialized());
+  mirror::Class* init = ResolveVerifyAndClinit(type_idx, getS0, Thread::Current(), true, false);
   EXPECT_TRUE(init != NULL);
-  EXPECT_EQ(init, clinit->GetDexCacheInitializedStaticStorage()->Get(type_idx));
+  EXPECT_TRUE(init->IsInitialized());
 }
 
 TEST_F(ClassLinkerTest, FinalizableBit) {

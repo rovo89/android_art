@@ -234,7 +234,6 @@ static void PreloadDexCachesResolveType(mirror::DexCache* dex_cache, uint32_t ty
     return;
   }
   // LOG(INFO) << "VMRuntime.preloadDexCaches static storage klass=" << class_name;
-  dex_cache->GetInitializedStaticStorage()->Set(type_idx, klass);
 }
 
 // Based on ClassLinker::ResolveField.
@@ -306,12 +305,10 @@ struct DexCacheStats {
     uint32_t num_types;
     uint32_t num_fields;
     uint32_t num_methods;
-    uint32_t num_static_storage;
     DexCacheStats() : num_strings(0),
                       num_types(0),
                       num_fields(0),
-                      num_methods(0),
-                      num_static_storage(0) {}
+                      num_methods(0) {}
 };
 
 static const bool kPreloadDexCachesEnabled = true;
@@ -339,7 +336,6 @@ static void PreloadDexCachesStatsTotal(DexCacheStats* total) {
     total->num_fields += dex_file->NumFieldIds();
     total->num_methods += dex_file->NumMethodIds();
     total->num_types += dex_file->NumTypeIds();
-    total->num_static_storage += dex_file->NumTypeIds();
   }
 }
 
@@ -376,12 +372,6 @@ static void PreloadDexCachesStatsFilled(DexCacheStats* filled)
       mirror::ArtMethod* method = dex_cache->GetResolvedMethod(i);
       if (method != NULL) {
         filled->num_methods++;
-      }
-    }
-    for (size_t i = 0; i < dex_cache->NumInitializedStaticStorage(); i++) {
-      mirror::StaticStorageBase* klass = dex_cache->GetInitializedStaticStorage()->Get(i);
-      if (klass != NULL) {
-        filled->num_static_storage++;
       }
     }
   }
@@ -477,10 +467,6 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
                               total.num_fields, before.num_fields, after.num_fields);
     LOG(INFO) << StringPrintf("VMRuntime.preloadDexCaches methods total=%d before=%d after=%d",
                               total.num_methods, before.num_methods, after.num_methods);
-    LOG(INFO) << StringPrintf("VMRuntime.preloadDexCaches storage total=%d before=%d after=%d",
-                              total.num_static_storage,
-                              before.num_static_storage,
-                              after.num_static_storage);
     LOG(INFO) << StringPrintf("VMRuntime.preloadDexCaches finished");
   }
 }
