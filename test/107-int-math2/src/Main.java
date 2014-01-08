@@ -297,6 +297,24 @@ class Main extends IntMathBase {
         l = -5678956789L;
         i = (int) l;
         if (i != -1383989493) { return 4; }
+
+        /* long --> double */
+        l = 0x7FFFFFFFL;
+        d = (double) l;
+        if (Double.doubleToRawLongBits(d) != 0x41dfffffffc00000L) { return 5; }
+
+        l = 0xFFFFFFFFL;
+        d = (double) l;
+        if (Double.doubleToRawLongBits(d) != 0x41efffffffe00000L) { return 6; }
+
+        l = 0x7FFFFFFFFFFFFFFFL;
+        d = (double) l;
+        if (Double.doubleToRawLongBits(d) != 0x43e0000000000000L) { return 7; }
+
+        l = 0xFFFFFFFFFFFFFFFFL;
+        d = (double) l;
+        if (Double.doubleToRawLongBits(d) != 0xbff0000000000000L) { return 8; }
+
         return 0;
     }
 
