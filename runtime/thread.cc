@@ -2222,7 +2222,7 @@ void Thread::SetStackEndForStackOverflow() {
   stack_end_ = stack_begin_;
 }
 
-void Thread::SetTLAB(byte* start, byte* end) {
+void Thread::SetTlab(byte* start, byte* end) {
   DCHECK_LE(start, end);
   thread_local_start_ = start;
   thread_local_pos_  = thread_local_start_;

@@ -65,6 +65,7 @@ void GarbageCollector::ResetCumulativeStatistics() {
 
 void GarbageCollector::Run(bool clear_soft_references) {
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
+  Thread* self = Thread::Current();
   uint64_t start_time = NanoTime();
   pause_times_.clear();
   duration_ns_ = 0;
@@ -82,14 +83,23 @@ void GarbageCollector::Run(bool clear_soft_references) {
     // Pause is the entire length of the GC.
     uint64_t pause_start = NanoTime();
     ATRACE_BEGIN("Application threads suspended");
-    thread_list->SuspendAll();
-    GetHeap()->RevokeAllThreadLocalBuffers();
-    MarkingPhase();
-    ReclaimPhase();
-    thread_list->ResumeAll();
+    // Mutator lock may be already exclusively held when we do garbage collections for changing the
+    // current collector / allocator during process state updates.
+    if (Locks::mutator_lock_->IsExclusiveHeld(self)) {
+      GetHeap()->RevokeAllThreadLocalBuffers();
+      MarkingPhase();
+      ReclaimPhase();
+    } else {
+      thread_list->SuspendAll();
+      GetHeap()->RevokeAllThreadLocalBuffers();
+      MarkingPhase();
+      ReclaimPhase();
+      thread_list->ResumeAll();
+    }
     ATRACE_END();
     RegisterPause(NanoTime() - pause_start);
   } else {
+    CHECK(!Locks::mutator_lock_->IsExclusiveHeld(self));
     Thread* self = Thread::Current();
     {
       ReaderMutexLock mu(self, *Locks::mutator_lock_);

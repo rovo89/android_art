@@ -77,26 +77,33 @@ static inline mirror::Class* CheckFilledNewArrayAlloc(uint32_t type_idx, mirror:
 mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::ArtMethod* referrer,
                                           int32_t component_count, Thread* self,
                                           bool access_check,
-                                          gc::AllocatorType allocator_type) {
+                                          gc::AllocatorType /* allocator_type */) {
   mirror::Class* klass = CheckFilledNewArrayAlloc(type_idx, referrer, component_count, self,
                                                   access_check);
   if (UNLIKELY(klass == nullptr)) {
     return nullptr;
   }
-  return mirror::Array::Alloc<false>(self, klass, component_count, allocator_type);
+  // Always go slow path for now, filled new array is not common.
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  // Use the current allocator type in case CheckFilledNewArrayAlloc caused us to suspend and then
+  // the heap switched the allocator type while we were suspended.
+  return mirror::Array::Alloc<false>(self, klass, component_count, heap->GetCurrentAllocator());
 }
 
 // Helper function to allocate array for FILLED_NEW_ARRAY.
 mirror::Array* CheckAndAllocArrayFromCodeInstrumented(uint32_t type_idx, mirror::ArtMethod* referrer,
                                                       int32_t component_count, Thread* self,
                                                       bool access_check,
-                                                      gc::AllocatorType allocator_type) {
+                                                      gc::AllocatorType /* allocator_type */) {
   mirror::Class* klass = CheckFilledNewArrayAlloc(type_idx, referrer, component_count, self,
                                                   access_check);
   if (UNLIKELY(klass == nullptr)) {
     return nullptr;
   }
-  return mirror::Array::Alloc<true>(self, klass, component_count, allocator_type);
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  // Use the current allocator type in case CheckFilledNewArrayAlloc caused us to suspend and then
+  // the heap switched the allocator type while we were suspended.
+  return mirror::Array::Alloc<true>(self, klass, component_count, heap->GetCurrentAllocator());
 }
 
 void ThrowStackOverflowError(Thread* self) {

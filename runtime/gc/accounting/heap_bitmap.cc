@@ -55,9 +55,21 @@ void HeapBitmap::AddContinuousSpaceBitmap(accounting::SpaceBitmap* bitmap) {
   continuous_space_bitmaps_.push_back(bitmap);
 }
 
+void HeapBitmap::RemoveContinuousSpaceBitmap(accounting::SpaceBitmap* bitmap) {
+  auto it = std::find(continuous_space_bitmaps_.begin(), continuous_space_bitmaps_.end(), bitmap);
+  DCHECK(it != continuous_space_bitmaps_.end());
+  continuous_space_bitmaps_.erase(it);
+}
+
 void HeapBitmap::AddDiscontinuousObjectSet(SpaceSetMap* set) {
   DCHECK(set != NULL);
   discontinuous_space_sets_.push_back(set);
+}
+
+void HeapBitmap::RemoveDiscontinuousObjectSet(SpaceSetMap* set) {
+  auto it = std::find(discontinuous_space_sets_.begin(), discontinuous_space_sets_.end(), set);
+  DCHECK(it != discontinuous_space_sets_.end());
+  discontinuous_space_sets_.erase(it);
 }
 
 void HeapBitmap::Walk(SpaceBitmap::Callback* callback, void* arg) {

@@ -105,7 +105,9 @@ class HeapBitmap {
   const Heap* const heap_;
 
   void AddContinuousSpaceBitmap(SpaceBitmap* bitmap);
+  void RemoveContinuousSpaceBitmap(SpaceBitmap* bitmap);
   void AddDiscontinuousObjectSet(SpaceSetMap* set);
+  void RemoveDiscontinuousObjectSet(SpaceSetMap* set);
 
   // Bitmaps covering continuous spaces.
   SpaceBitmapVector continuous_space_bitmaps_;

@@ -354,6 +354,10 @@ class MemMapSpace : public ContinuousSpace {
     return mem_map_.get();
   }
 
+  MemMap* ReleaseMemMap() {
+    return mem_map_.release();
+  }
+
  protected:
   MemMapSpace(const std::string& name, MemMap* mem_map, byte* begin, byte* end, byte* limit,
               GcRetentionPolicy gc_retention_policy)
