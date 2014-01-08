@@ -517,15 +517,15 @@ static inline mirror::Class* ResolveVerifyAndClinit(uint32_t type_idx,
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   mirror::Class* klass = class_linker->ResolveType(type_idx, referrer);
-  if (UNLIKELY(klass == NULL)) {
+  if (UNLIKELY(klass == nullptr)) {
     CHECK(self->IsExceptionPending());
-    return NULL;  // Failure - Indicate to caller to deliver exception
+    return nullptr;  // Failure - Indicate to caller to deliver exception
   }
   // Perform access check if necessary.
   mirror::Class* referring_class = referrer->GetDeclaringClass();
   if (verify_access && UNLIKELY(!referring_class->CanAccess(klass))) {
     ThrowIllegalAccessErrorClass(referring_class, klass);
-    return NULL;  // Failure - Indicate to caller to deliver exception
+    return nullptr;  // Failure - Indicate to caller to deliver exception
   }
   // If we're just implementing const-class, we shouldn't call <clinit>.
   if (!can_run_clinit) {
@@ -541,9 +541,8 @@ static inline mirror::Class* ResolveVerifyAndClinit(uint32_t type_idx,
   SirtRef<mirror::Class> sirt_class(self, klass);
   if (!class_linker->EnsureInitialized(sirt_class, true, true)) {
     CHECK(self->IsExceptionPending());
-    return NULL;  // Failure - Indicate to caller to deliver exception
+    return nullptr;  // Failure - Indicate to caller to deliver exception
   }
-  referrer->GetDexCacheInitializedStaticStorage()->Set(type_idx, sirt_class.get());
   return sirt_class.get();
 }
 

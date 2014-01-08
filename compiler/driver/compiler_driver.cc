@@ -992,14 +992,16 @@ bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompi
 }
 
 bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit,
-                                            bool is_put, int* field_offset, int* ssb_index,
-                                            bool* is_referrers_class, bool* is_volatile) {
+                                            bool is_put, int* field_offset, int* storage_index,
+                                            bool* is_referrers_class, bool* is_volatile,
+                                            bool* is_initialized) {
   ScopedObjectAccess soa(Thread::Current());
   // Conservative defaults.
   *field_offset = -1;
-  *ssb_index = -1;
+  *storage_index = -1;
   *is_referrers_class = false;
   *is_volatile = true;
+  *is_initialized = false;
   // Try to resolve field and ignore if an Incompatible Class Change Error (ie isn't static).
   mirror::ArtField* resolved_field = ComputeFieldReferencedFromCompilingMethod(soa, mUnit, field_idx);
   if (resolved_field != NULL && resolved_field->IsStatic()) {
@@ -1010,6 +1012,7 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
       mirror::Class* fields_class = resolved_field->GetDeclaringClass();
       if (fields_class == referrer_class) {
         *is_referrers_class = true;  // implies no worrying about class initialization
+        *is_initialized = true;
         *field_offset = resolved_field->GetOffset().Int32Value();
         *is_volatile = resolved_field->IsVolatile();
         stats_->ResolvedLocalStaticField();
@@ -1034,17 +1037,19 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
         }
         bool is_write_to_final_from_wrong_class = is_put && resolved_field->IsFinal();
         if (access_ok && !is_write_to_final_from_wrong_class) {
-          // We have the resolved field, we must make it into a ssbIndex for the referrer
-          // in its static storage base (which may fail if it doesn't have a slot for it)
+          // We have the resolved field, we must make it into a index for the referrer
+          // in its static storage (which may fail if it doesn't have a slot for it)
           // TODO: for images we can elide the static storage base null check
           // if we know there's a non-null entry in the image
           mirror::DexCache* dex_cache = mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile());
           if (fields_class->GetDexCache() == dex_cache) {
             // common case where the dex cache of both the referrer and the field are the same,
             // no need to search the dex file
-            *ssb_index = fields_class->GetDexTypeIndex();
+            *storage_index = fields_class->GetDexTypeIndex();
             *field_offset = resolved_field->GetOffset().Int32Value();
             *is_volatile = resolved_field->IsVolatile();
+            *is_initialized = fields_class->IsInitialized() &&
+                CanAssumeTypeIsPresentInDexCache(*mUnit->GetDexFile(), *storage_index);
             stats_->ResolvedStaticField();
             return true;
           }
@@ -1057,9 +1062,11 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
                mUnit->GetDexFile()->FindTypeId(mUnit->GetDexFile()->GetIndexForStringId(*string_id));
             if (type_id != NULL) {
               // medium path, needs check of static storage base being initialized
-              *ssb_index = mUnit->GetDexFile()->GetIndexForTypeId(*type_id);
+              *storage_index = mUnit->GetDexFile()->GetIndexForTypeId(*type_id);
               *field_offset = resolved_field->GetOffset().Int32Value();
               *is_volatile = resolved_field->IsVolatile();
+              *is_initialized = fields_class->IsInitialized() &&
+                  CanAssumeTypeIsPresentInDexCache(*mUnit->GetDexFile(), *storage_index);
               stats_->ResolvedStaticField();
               return true;
             }
@@ -2183,11 +2190,6 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
           }
         }
         soa.Self()->AssertNoPendingException();
-      }
-      // If successfully initialized place in SSB array.
-      if (klass->IsInitialized()) {
-        int32_t ssb_index = klass->GetDexTypeIndex();
-        klass->GetDexCache()->GetInitializedStaticStorage()->Set(ssb_index, klass.get());
       }
     }
     // Record the final class status if necessary.

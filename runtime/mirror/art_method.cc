@@ -86,11 +86,6 @@ void ArtMethod::SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cache_class
                  new_dex_cache_classes, false);
 }
 
-void ArtMethod::SetDexCacheInitializedStaticStorage(ObjectArray<StaticStorageBase>* new_value) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_initialized_static_storage_),
-      new_value, false);
-}
-
 size_t ArtMethod::NumArgRegisters(const StringPiece& shorty) {
   CHECK_LE(1, shorty.length());
   uint32_t num_registers = 0;

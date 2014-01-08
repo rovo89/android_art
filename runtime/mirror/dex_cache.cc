@@ -36,15 +36,13 @@ void DexCache::Init(const DexFile* dex_file,
                     ObjectArray<String>* strings,
                     ObjectArray<Class>* resolved_types,
                     ObjectArray<ArtMethod>* resolved_methods,
-                    ObjectArray<ArtField>* resolved_fields,
-                    ObjectArray<StaticStorageBase>* initialized_static_storage) {
-  CHECK(dex_file != NULL);
-  CHECK(location != NULL);
-  CHECK(strings != NULL);
-  CHECK(resolved_types != NULL);
-  CHECK(resolved_methods != NULL);
-  CHECK(resolved_fields != NULL);
-  CHECK(initialized_static_storage != NULL);
+                    ObjectArray<ArtField>* resolved_fields) {
+  CHECK(dex_file != nullptr);
+  CHECK(location != nullptr);
+  CHECK(strings != nullptr);
+  CHECK(resolved_types != nullptr);
+  CHECK(resolved_methods != nullptr);
+  CHECK(resolved_fields != nullptr);
 
   SetFieldPtr(OFFSET_OF_OBJECT_MEMBER(DexCache, dex_file_), dex_file, false);
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(DexCache, location_), location, false);
@@ -52,8 +50,6 @@ void DexCache::Init(const DexFile* dex_file,
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_types_), resolved_types, false);
   SetFieldObject(ResolvedMethodsOffset(), resolved_methods, false);
   SetFieldObject(ResolvedFieldsOffset(), resolved_fields, false);
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(DexCache, initialized_static_storage_),
-                 initialized_static_storage, false);
 
   Runtime* runtime = Runtime::Current();
   if (runtime->HasResolutionMethod()) {
@@ -68,11 +64,11 @@ void DexCache::Init(const DexFile* dex_file,
 
 void DexCache::Fixup(ArtMethod* trampoline) {
   // Fixup the resolve methods array to contain trampoline for resolution.
-  CHECK(trampoline != NULL);
+  CHECK(trampoline != nullptr);
   ObjectArray<ArtMethod>* resolved_methods = GetResolvedMethods();
   size_t length = resolved_methods->GetLength();
   for (size_t i = 0; i < length; i++) {
-    if (resolved_methods->GetWithoutChecks(i) == NULL) {
+    if (resolved_methods->GetWithoutChecks(i) == nullptr) {
       resolved_methods->SetWithoutChecks(i, trampoline);
     }
   }
