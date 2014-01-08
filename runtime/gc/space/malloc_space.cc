@@ -16,7 +16,8 @@
 
 #include "malloc_space.h"
 
-#include "gc/accounting/card_table.h"
+#include "gc/accounting/card_table-inl.h"
+#include "gc/accounting/space_bitmap-inl.h"
 #include "gc/heap.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
@@ -236,6 +237,83 @@ void MallocSpace::Dump(std::ostream& os) const {
       << ",end=" << reinterpret_cast<void*>(End())
       << ",size=" << PrettySize(Size()) << ",capacity=" << PrettySize(Capacity())
       << ",name=\"" << GetName() << "\"]";
+}
+
+struct SweepCallbackContext {
+  bool swap_bitmaps;
+  Heap* heap;
+  space::MallocSpace* space;
+  Thread* self;
+  size_t freed_objects;
+  size_t freed_bytes;
+};
+
+static void SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg) {
+  SweepCallbackContext* context = static_cast<SweepCallbackContext*>(arg);
+  space::AllocSpace* space = context->space;
+  Thread* self = context->self;
+  Locks::heap_bitmap_lock_->AssertExclusiveHeld(self);
+  // If the bitmaps aren't swapped we need to clear the bits since the GC isn't going to re-swap
+  // the bitmaps as an optimization.
+  if (!context->swap_bitmaps) {
+    accounting::SpaceBitmap* bitmap = context->space->GetLiveBitmap();
+    for (size_t i = 0; i < num_ptrs; ++i) {
+      bitmap->Clear(ptrs[i]);
+    }
+  }
+  // Use a bulk free, that merges consecutive objects before freeing or free per object?
+  // Documentation suggests better free performance with merging, but this may be at the expensive
+  // of allocation.
+  context->freed_objects += num_ptrs;
+  context->freed_bytes += space->FreeList(self, num_ptrs, ptrs);
+}
+
+static void ZygoteSweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg) {
+  SweepCallbackContext* context = static_cast<SweepCallbackContext*>(arg);
+  Locks::heap_bitmap_lock_->AssertExclusiveHeld(context->self);
+  accounting::CardTable* card_table = context->heap->GetCardTable();
+  // If the bitmaps aren't swapped we need to clear the bits since the GC isn't going to re-swap
+  // the bitmaps as an optimization.
+  if (!context->swap_bitmaps) {
+    accounting::SpaceBitmap* bitmap = context->space->GetLiveBitmap();
+    for (size_t i = 0; i < num_ptrs; ++i) {
+      bitmap->Clear(ptrs[i]);
+    }
+  }
+  // We don't free any actual memory to avoid dirtying the shared zygote pages.
+  for (size_t i = 0; i < num_ptrs; ++i) {
+    // Need to mark the card since this will update the mod-union table next GC cycle.
+    card_table->MarkCard(ptrs[i]);
+  }
+}
+
+void MallocSpace::Sweep(bool swap_bitmaps, size_t* freed_objects, size_t* freed_bytes) {
+  DCHECK(freed_objects != nullptr);
+  DCHECK(freed_bytes != nullptr);
+  accounting::SpaceBitmap* live_bitmap = GetLiveBitmap();
+  accounting::SpaceBitmap* mark_bitmap = GetMarkBitmap();
+  // If the bitmaps are bound then sweeping this space clearly won't do anything.
+  if (live_bitmap == mark_bitmap) {
+    return;
+  }
+  SweepCallbackContext scc;
+  scc.swap_bitmaps = swap_bitmaps;
+  scc.heap = Runtime::Current()->GetHeap();
+  scc.self = Thread::Current();
+  scc.space = this;
+  scc.freed_objects = 0;
+  scc.freed_bytes = 0;
+  if (swap_bitmaps) {
+    std::swap(live_bitmap, mark_bitmap);
+  }
+  // Bitmaps are pre-swapped for optimization which enables sweeping with the heap unlocked.
+  accounting::SpaceBitmap::SweepWalk(*live_bitmap, *mark_bitmap,
+                                     reinterpret_cast<uintptr_t>(Begin()),
+                                     reinterpret_cast<uintptr_t>(End()),
+                                     IsZygoteSpace() ? &ZygoteSweepCallback : &SweepCallback,
+                                     reinterpret_cast<void*>(&scc));
+  *freed_objects += scc.freed_objects;
+  *freed_bytes += scc.freed_bytes;
 }
 
 }  // namespace space

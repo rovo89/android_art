@@ -148,6 +148,9 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
   // don't do this we may get heap corruption instead of a segfault at null.
   virtual void InvalidateAllocator() = 0;
 
+  // Sweep the references in the malloc space.
+  void Sweep(bool swap_bitmaps, size_t* freed_objects, size_t* freed_bytes);
+
  protected:
   MallocSpace(const std::string& name, MemMap* mem_map, byte* begin, byte* end,
               byte* limit, size_t growth_limit);
