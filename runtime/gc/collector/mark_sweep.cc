@@ -1043,66 +1043,88 @@ void MarkSweep::MarkRootsCheckpoint(Thread* self) {
 }
 
 void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitmaps) {
-  space::MallocSpace* space = heap_->GetNonMovingSpace();
   timings_.StartSplit("SweepArray");
-  // Newly allocated objects MUST be in the alloc space and those are the only objects which we are
-  // going to free.
-  accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
-  accounting::SpaceBitmap* mark_bitmap = space->GetMarkBitmap();
-  space::LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
-  accounting::SpaceSetMap* large_live_objects = large_object_space->GetLiveObjects();
-  accounting::SpaceSetMap* large_mark_objects = large_object_space->GetMarkObjects();
-  if (swap_bitmaps) {
-    std::swap(live_bitmap, mark_bitmap);
-    std::swap(large_live_objects, large_mark_objects);
-  }
-
+  Thread* self = Thread::Current();
+  mirror::Object* chunk_free_buffer[kSweepArrayChunkFreeSize];
+  size_t chunk_free_pos = 0;
   size_t freed_bytes = 0;
   size_t freed_large_object_bytes = 0;
   size_t freed_objects = 0;
   size_t freed_large_objects = 0;
-  size_t count = allocations->Size();
+  // How many objects are left in the array, modified after each space is swept.
   Object** objects = const_cast<Object**>(allocations->Begin());
-  Object** out = objects;
-  Object** objects_to_chunk_free = out;
-
-  // Empty the allocation stack.
-  Thread* self = Thread::Current();
+  size_t count = allocations->Size();
+  // Change the order to ensure that the non-moving space last swept as an optimization.
+  std::vector<space::ContinuousSpace*> sweep_spaces;
+  space::ContinuousSpace* non_moving_space = nullptr;
+  for (space::ContinuousSpace* space : heap_->GetContinuousSpaces()) {
+    if (space->IsAllocSpace() && !IsImmuneSpace(space) && space->GetLiveBitmap() != nullptr) {
+      if (space == heap_->GetNonMovingSpace()) {
+        non_moving_space = space;
+      } else {
+        sweep_spaces.push_back(space);
+      }
+    }
+  }
+  // Unlikely to sweep a significant amount of non_movable objects, so we do these after the after
+  // the other alloc spaces as an optimization.
+  if (non_moving_space != nullptr) {
+    sweep_spaces.push_back(non_moving_space);
+  }
+  // Start by sweeping the continuous spaces.
+  for (space::ContinuousSpace* space : sweep_spaces) {
+    space::AllocSpace* alloc_space = space->AsAllocSpace();
+    accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
+    accounting::SpaceBitmap* mark_bitmap = space->GetMarkBitmap();
+    if (swap_bitmaps) {
+      std::swap(live_bitmap, mark_bitmap);
+    }
+    Object** out = objects;
+    for (size_t i = 0; i < count; ++i) {
+      Object* obj = objects[i];
+      if (space->HasAddress(obj)) {
+        // This object is in the space, remove it from the array and add it to the sweep buffer
+        // if needed.
+        if (!mark_bitmap->Test(obj)) {
+          if (chunk_free_pos >= kSweepArrayChunkFreeSize) {
+            timings_.StartSplit("FreeList");
+            freed_objects += chunk_free_pos;
+            freed_bytes += alloc_space->FreeList(self, chunk_free_pos, chunk_free_buffer);
+            timings_.EndSplit();
+            chunk_free_pos = 0;
+          }
+          chunk_free_buffer[chunk_free_pos++] = obj;
+        }
+      } else {
+        *(out++) = obj;
+      }
+    }
+    if (chunk_free_pos > 0) {
+      timings_.StartSplit("FreeList");
+      freed_objects += chunk_free_pos;
+      freed_bytes += alloc_space->FreeList(self, chunk_free_pos, chunk_free_buffer);
+      timings_.EndSplit();
+      chunk_free_pos = 0;
+    }
+    // All of the references which space contained are no longer in the allocation stack, update
+    // the count.
+    count = out - objects;
+  }
+  // Handle the large object space.
+  space::LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
+  accounting::SpaceSetMap* large_live_objects = large_object_space->GetLiveObjects();
+  accounting::SpaceSetMap* large_mark_objects = large_object_space->GetMarkObjects();
+  if (swap_bitmaps) {
+    std::swap(large_live_objects, large_mark_objects);
+  }
   for (size_t i = 0; i < count; ++i) {
     Object* obj = objects[i];
-    // There should only be objects in the AllocSpace/LargeObjectSpace in the allocation stack.
-    if (LIKELY(mark_bitmap->HasAddress(obj))) {
-      if (!mark_bitmap->Test(obj)) {
-        // Don't bother un-marking since we clear the mark bitmap anyways.
-        *(out++) = obj;
-        // Free objects in chunks.
-        DCHECK_GE(out, objects_to_chunk_free);
-        DCHECK_LE(static_cast<size_t>(out - objects_to_chunk_free), kSweepArrayChunkFreeSize);
-        if (static_cast<size_t>(out - objects_to_chunk_free) == kSweepArrayChunkFreeSize) {
-          timings_.StartSplit("FreeList");
-          size_t chunk_freed_objects = out - objects_to_chunk_free;
-          freed_objects += chunk_freed_objects;
-          freed_bytes += space->FreeList(self, chunk_freed_objects, objects_to_chunk_free);
-          objects_to_chunk_free = out;
-          timings_.EndSplit();
-        }
-      }
-    } else if (!large_mark_objects->Test(obj)) {
+    // Handle large objects.
+    if (!large_mark_objects->Test(obj)) {
       ++freed_large_objects;
       freed_large_object_bytes += large_object_space->Free(self, obj);
     }
   }
-  // Free the remaining objects in chunks.
-  DCHECK_GE(out, objects_to_chunk_free);
-  DCHECK_LE(static_cast<size_t>(out - objects_to_chunk_free), kSweepArrayChunkFreeSize);
-  if (out - objects_to_chunk_free > 0) {
-    timings_.StartSplit("FreeList");
-    size_t chunk_freed_objects = out - objects_to_chunk_free;
-    freed_objects += chunk_freed_objects;
-    freed_bytes += space->FreeList(self, chunk_freed_objects, objects_to_chunk_free);
-    timings_.EndSplit();
-  }
-  CHECK_EQ(count, allocations->Size());
   timings_.EndSplit();
 
   timings_.StartSplit("RecordFree");

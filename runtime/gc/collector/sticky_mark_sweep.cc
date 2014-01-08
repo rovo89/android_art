@@ -56,8 +56,7 @@ void StickyMarkSweep::MarkReachableObjects() {
 }
 
 void StickyMarkSweep::Sweep(bool swap_bitmaps) {
-  accounting::ObjectStack* live_stack = GetHeap()->GetLiveStack();
-  SweepArray(live_stack, false);
+  SweepArray(GetHeap()->GetLiveStack(), false);
 }
 
 void StickyMarkSweep::MarkThreadRoots(Thread* self) {

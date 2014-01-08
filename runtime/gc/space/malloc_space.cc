@@ -81,10 +81,9 @@ MemMap* MallocSpace::CreateMemMap(const std::string& name, size_t starting_size,
   std::string error_msg;
   MemMap* mem_map = MemMap::MapAnonymous(name.c_str(), requested_begin, *capacity,
                                          PROT_READ | PROT_WRITE, &error_msg);
-  if (mem_map == NULL) {
+  if (mem_map == nullptr) {
     LOG(ERROR) << "Failed to allocate pages for alloc space (" << name << ") of size "
                << PrettySize(*capacity) << ": " << error_msg;
-    return NULL;
   }
   return mem_map;
 }
@@ -190,9 +189,6 @@ MallocSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
   size_t size = RoundUp(Size(), kPageSize);
   // Trim the heap so that we minimize the size of the Zygote space.
   Trim();
-  // TODO: Not hardcode these in?
-  const size_t starting_size = kPageSize;
-  const size_t initial_size = 2 * MB;
   // Remaining size is for the new alloc space.
   const size_t growth_limit = growth_limit_ - size;
   const size_t capacity = Capacity() - size;
@@ -203,6 +199,10 @@ MallocSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
              << "Capacity " << Capacity();
   SetGrowthLimit(RoundUp(size, kPageSize));
   SetFootprintLimit(RoundUp(size, kPageSize));
+
+  // TODO: Not hardcode these in?
+  const size_t starting_size = kPageSize;
+  const size_t initial_size = 2 * MB;
   // FIXME: Do we need reference counted pointers here?
   // Make the two spaces share the same mark bitmaps since the bitmaps span both of the spaces.
   VLOG(heap) << "Creating new AllocSpace: ";

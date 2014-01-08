@@ -209,17 +209,17 @@ uint64_t BumpPointerSpace::GetObjectsAllocated() {
 void BumpPointerSpace::RevokeThreadLocalBuffersLocked(Thread* thread) {
   objects_allocated_.FetchAndAdd(thread->thread_local_objects_);
   bytes_allocated_.FetchAndAdd(thread->thread_local_pos_ - thread->thread_local_start_);
-  thread->SetTLAB(nullptr, nullptr);
+  thread->SetTlab(nullptr, nullptr);
 }
 
-bool BumpPointerSpace::AllocNewTLAB(Thread* self, size_t bytes) {
+bool BumpPointerSpace::AllocNewTlab(Thread* self, size_t bytes) {
   MutexLock mu(Thread::Current(), block_lock_);
   RevokeThreadLocalBuffersLocked(self);
   byte* start = AllocBlock(bytes);
   if (start == nullptr) {
     return false;
   }
-  self->SetTLAB(start, start + bytes);
+  self->SetTlab(start, start + bytes);
   return true;
 }
 

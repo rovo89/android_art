@@ -285,7 +285,7 @@ class RegType {
 
 
   const std::string descriptor_;
-  mirror::Class* klass_;
+  mirror::Class* klass_;  // Non-const only due to moving classes.
   const uint16_t cache_id_;
 
   friend class RegTypeCache;

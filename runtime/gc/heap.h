@@ -90,10 +90,12 @@ class AgeCardVisitor {
 
 // Different types of allocators.
 enum AllocatorType {
-  kAllocatorTypeBumpPointer,
-  kAllocatorTypeTLAB,
-  kAllocatorTypeFreeList,  // ROSAlloc / dlmalloc
-  kAllocatorTypeLOS,  // Large object space.
+  kAllocatorTypeBumpPointer,  // Use BumpPointer allocator, has entrypoints.
+  kAllocatorTypeTLAB,  // Use TLAB allocator, has entrypoints.
+  kAllocatorTypeRosAlloc,  // Use RosAlloc allocator, has entrypoints.
+  kAllocatorTypeDlMalloc,  // Use dlmalloc allocator, has entrypoints.
+  kAllocatorTypeNonMoving,  // Special allocator for non moving objects, doesn't have entrypoints.
+  kAllocatorTypeLOS,  // Large object space, also doesn't have entrypoints.
 };
 
 // What caused the GC?
@@ -126,6 +128,7 @@ enum ProcessState {
   kProcessStateJankPerceptible = 0,
   kProcessStateJankImperceptible = 1,
 };
+std::ostream& operator<<(std::ostream& os, const ProcessState& process_state);
 
 class Heap {
  public:
@@ -153,7 +156,8 @@ class Heap {
   // ImageWriter output.
   explicit Heap(size_t initial_size, size_t growth_limit, size_t min_free,
                 size_t max_free, double target_utilization, size_t capacity,
-                const std::string& original_image_file_name, CollectorType collector_type_,
+                const std::string& original_image_file_name,
+                CollectorType post_zygote_collector_type, CollectorType background_collector_type,
                 size_t parallel_gc_threads, size_t conc_gc_threads, bool low_memory_mode,
                 size_t long_pause_threshold, size_t long_gc_threshold,
                 bool ignore_max_footprint, bool use_tlab);
@@ -162,14 +166,13 @@ class Heap {
 
   // Allocates and initializes storage for an object instance.
   template <bool kInstrumented>
-  inline mirror::Object* AllocObject(Thread* self, mirror::Class* klass, size_t num_bytes)
+  mirror::Object* AllocObject(Thread* self, mirror::Class* klass, size_t num_bytes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return AllocObjectWithAllocator<kInstrumented, true>(self, klass, num_bytes,
                                                          GetCurrentAllocator());
   }
   template <bool kInstrumented>
-  inline mirror::Object* AllocNonMovableObject(Thread* self, mirror::Class* klass,
-                                               size_t num_bytes)
+  mirror::Object* AllocNonMovableObject(Thread* self, mirror::Class* klass, size_t num_bytes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return AllocObjectWithAllocator<kInstrumented, true>(self, klass, num_bytes,
                                                          GetCurrentNonMovingAllocator());
@@ -203,6 +206,9 @@ class Heap {
 
   // Change the allocator, updates entrypoints.
   void ChangeAllocator(AllocatorType allocator);
+
+  // Transition the garbage collector during runtime, may copy objects from one space to another.
+  void TransitionCollector(CollectorType collector_type);
 
   // Change the collector to be one of the possible options (MS, CMS, SS).
   void ChangeCollector(CollectorType collector_type);
@@ -358,11 +364,14 @@ class Heap {
     return low_memory_mode_;
   }
 
-  void RecordFree(size_t freed_objects, size_t freed_bytes);
+  // Freed bytes can be negative in cases where we copy objects from a compacted space to a
+  // free-list backed space.
+  void RecordFree(int64_t freed_objects, int64_t freed_bytes);
 
   // Must be called if a field of an Object in the heap changes, and before any GC safe-point.
   // The call is not needed if NULL is stored in the field.
-  void WriteBarrierField(const mirror::Object* dst, MemberOffset /*offset*/, const mirror::Object* /*new_value*/) {
+  void WriteBarrierField(const mirror::Object* dst, MemberOffset /*offset*/,
+                         const mirror::Object* /*new_value*/) {
     card_table_->MarkCard(dst);
   }
 
@@ -458,8 +467,8 @@ class Heap {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Mark all the objects in the allocation stack in the specified bitmap.
-  void MarkAllocStack(accounting::SpaceBitmap* bitmap, accounting::SpaceSetMap* large_objects,
-                      accounting::ObjectStack* stack)
+  void MarkAllocStack(accounting::SpaceBitmap* bitmap1, accounting::SpaceBitmap* bitmap2,
+                      accounting::SpaceSetMap* large_objects, accounting::ObjectStack* stack)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Mark the specified allocation stack as live.
@@ -469,6 +478,14 @@ class Heap {
   // DEPRECATED: Should remove in "near" future when support for multiple image spaces is added.
   // Assumes there is only one image space.
   space::ImageSpace* GetImageSpace() const;
+
+  space::DlMallocSpace* GetDlMallocSpace() const {
+    return dlmalloc_space_;
+  }
+
+  space::RosAllocSpace* GetRosAllocSpace() const {
+    return rosalloc_space_;
+  }
 
   space::MallocSpace* GetNonMovingSpace() const {
     return non_moving_space_;
@@ -509,6 +526,9 @@ class Heap {
  private:
   void Compact(space::ContinuousMemMapAllocSpace* target_space,
                space::ContinuousMemMapAllocSpace* source_space);
+
+  bool StartGC(Thread* self) LOCKS_EXCLUDED(gc_complete_lock_);
+  void FinishGC(Thread* self, collector::GcType gc_type) LOCKS_EXCLUDED(gc_complete_lock_);
 
   static ALWAYS_INLINE bool AllocatorHasAllocationStack(AllocatorType allocator_type) {
     return
@@ -614,7 +634,9 @@ class Heap {
 
   size_t GetPercentFree();
 
-  void AddSpace(space::Space* space) LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
+  void AddSpace(space::Space* space, bool set_as_default = true)
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
+  void RemoveSpace(space::Space* space) LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
   // No thread saftey analysis since we call this everywhere and it is impossible to find a proper
   // lock ordering for it.
@@ -642,6 +664,12 @@ class Heap {
   // Classes, ArtMethods, ArtFields, and non moving objects.
   space::MallocSpace* non_moving_space_;
 
+  // Space which we use for the kAllocatorTypeROSAlloc.
+  space::RosAllocSpace* rosalloc_space_;
+
+  // Space which we use for the kAllocatorTypeDlMalloc.
+  space::DlMallocSpace* dlmalloc_space_;
+
   // The large object space we are currently allocating into.
   space::LargeObjectSpace* large_object_space_;
 
@@ -651,6 +679,10 @@ class Heap {
   // A mod-union table remembers all of the references from the it's space to other spaces.
   SafeMap<space::Space*, accounting::ModUnionTable*> mod_union_tables_;
 
+  // Keep the free list allocator mem map lying around when we transition to background so that we
+  // don't have to worry about virtual address space fragmentation.
+  UniquePtr<MemMap> allocator_mem_map_;
+
   // What kind of concurrency behavior is the runtime after? Currently true for concurrent mark
   // sweep GC, false for other GC types.
   bool concurrent_gc_;
@@ -659,6 +691,8 @@ class Heap {
   CollectorType collector_type_;
   // Which collector we will switch to after zygote fork.
   CollectorType post_zygote_collector_type_;
+  // Which collector we will use when the app is notified of a transition to background.
+  CollectorType background_collector_type_;
 
   // How many GC threads we may use for paused parts of garbage collection.
   const size_t parallel_gc_threads_;
