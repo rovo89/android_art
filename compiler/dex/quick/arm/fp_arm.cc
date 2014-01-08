@@ -141,9 +141,24 @@ void ArmMir2Lir::GenConversion(Instruction::Code opcode,
     case Instruction::DOUBLE_TO_INT:
       op = kThumb2VcvtDI;
       break;
-    case Instruction::LONG_TO_DOUBLE:
-      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pL2d), rl_dest, rl_src);
+    case Instruction::LONG_TO_DOUBLE: {
+      rl_src = LoadValueWide(rl_src, kFPReg);
+      src_reg = S2d(rl_src.low_reg, rl_src.high_reg);
+      rl_result = EvalLoc(rl_dest, kFPReg, true);
+      // TODO: clean up AllocTempDouble so that its result has the double bits set.
+      int tmp1 = AllocTempDouble();
+      int tmp2 = AllocTempDouble();
+
+      NewLIR2(kThumb2VcvtF64S32, tmp1 | ARM_FP_DOUBLE, (src_reg & ~ARM_FP_DOUBLE) + 1);
+      NewLIR2(kThumb2VcvtF64U32, S2d(rl_result.low_reg, rl_result.high_reg), (src_reg & ~ARM_FP_DOUBLE));
+      LoadConstantWide(tmp2, tmp2 + 1, 0x41f0000000000000LL);
+      NewLIR3(kThumb2VmlaF64, S2d(rl_result.low_reg, rl_result.high_reg), tmp1 | ARM_FP_DOUBLE,
+              tmp2 | ARM_FP_DOUBLE);
+      FreeTemp(tmp1);
+      FreeTemp(tmp2);
+      StoreValueWide(rl_dest, rl_result);
       return;
+    }
     case Instruction::FLOAT_TO_LONG:
       GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pF2l), rl_dest, rl_src);
       return;
