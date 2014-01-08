@@ -153,6 +153,7 @@ class X86Mir2Lir : public Mir2Lir {
     LIR* OpRegImm(OpKind op, int r_dest_src1, int value);
     LIR* OpRegMem(OpKind op, int r_dest, int rBase, int offset);
     LIR* OpRegReg(OpKind op, int r_dest_src1, int r_src2);
+    LIR* OpCondRegReg(OpKind op, ConditionCode cc, int r_dest, int r_src);
     LIR* OpRegRegImm(OpKind op, int r_dest, int r_src1, int value);
     LIR* OpRegRegReg(OpKind op, int r_dest, int r_src1, int r_src2);
     LIR* OpTestSuspend(LIR* target);
@@ -201,6 +202,16 @@ class X86Mir2Lir : public Mir2Lir {
     void EmitShiftRegImm(const X86EncodingMap* entry, uint8_t reg, int imm);
     void EmitShiftRegCl(const X86EncodingMap* entry, uint8_t reg, uint8_t cl);
     void EmitRegCond(const X86EncodingMap* entry, uint8_t reg, uint8_t condition);
+
+    /**
+     * @brief Used for encoding conditional register to register operation.
+     * @param entry The entry in the encoding map for the opcode.
+     * @param reg1 The first physical register.
+     * @param reg2 The second physical register.
+     * @param condition The condition code for operation.
+     */
+    void EmitRegRegCond(const X86EncodingMap* entry, uint8_t reg1, uint8_t reg2, uint8_t condition);
+
     void EmitJmp(const X86EncodingMap* entry, int rel);
     void EmitJcc(const X86EncodingMap* entry, int rel, uint8_t cc);
     void EmitCallMem(const X86EncodingMap* entry, uint8_t base, int disp);
