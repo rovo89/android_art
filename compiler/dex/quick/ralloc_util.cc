@@ -132,9 +132,15 @@ int Mir2Lir::SRegToPMap(int s_reg) {
     DCHECK_LT(v_reg, cu_->num_dalvik_registers);
     return v_reg;
   } else {
-    int pos = std::abs(v_reg) - std::abs(SSA_METHOD_BASEREG);
-    DCHECK_LE(pos, cu_->num_compiler_temps);
-    return cu_->num_dalvik_registers + pos;
+    /*
+     * It must be the case that the v_reg for temporary is less than or equal to the
+     * base reg for temps. For that reason, "position" must be zero or positive.
+     */
+    unsigned int position = std::abs(v_reg) - std::abs(static_cast<int>(kVRegTempBaseReg));
+
+    // The temporaries are placed after dalvik registers in the promotion map
+    DCHECK_LT(position, mir_graph_->GetNumUsedCompilerTemps());
+    return cu_->num_dalvik_registers + position;
   }
 }
 
@@ -897,9 +903,8 @@ void Mir2Lir::DumpCounts(const RefCounts* arr, int size, const char* msg) {
  * optimization is disabled.
  */
 void Mir2Lir::DoPromotion() {
-  int reg_bias = cu_->num_compiler_temps + 1;
   int dalvik_regs = cu_->num_dalvik_registers;
-  int num_regs = dalvik_regs + reg_bias;
+  int num_regs = dalvik_regs + mir_graph_->GetNumUsedCompilerTemps();
   const int promotion_threshold = 1;
 
   // Allow target code to add any special registers
@@ -926,16 +931,13 @@ void Mir2Lir::DoPromotion() {
   for (int i = 0; i < dalvik_regs; i++) {
     core_regs[i].s_reg = FpRegs[i].s_reg = i;
   }
-  // Set ssa name for Method*
-  core_regs[dalvik_regs].s_reg = mir_graph_->GetMethodSReg();
-  FpRegs[dalvik_regs].s_reg = mir_graph_->GetMethodSReg();  // For consistecy.
-  FpRegs[dalvik_regs + num_regs].s_reg = mir_graph_->GetMethodSReg();  // for consistency.
-  // Set ssa names for compiler_temps
-  for (int i = 1; i <= cu_->num_compiler_temps; i++) {
-    CompilerTemp* ct = mir_graph_->compiler_temps_.Get(i);
-    core_regs[dalvik_regs + i].s_reg = ct->s_reg;
-    FpRegs[dalvik_regs + i].s_reg = ct->s_reg;
-    FpRegs[num_regs + dalvik_regs + i].s_reg = ct->s_reg;
+
+  // Set ssa names for compiler temporaries
+  for (unsigned int ct_idx = 0; ct_idx < mir_graph_->GetNumUsedCompilerTemps(); ct_idx++) {
+    CompilerTemp* ct = mir_graph_->GetCompilerTemp(ct_idx);
+    core_regs[dalvik_regs + ct_idx].s_reg = ct->s_reg_low;
+    FpRegs[dalvik_regs + ct_idx].s_reg = ct->s_reg_low;
+    FpRegs[num_regs + dalvik_regs + ct_idx].s_reg = ct->s_reg_low;
   }
 
   // Duplicate in upper half to represent possible fp double starting sregs.

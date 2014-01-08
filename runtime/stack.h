@@ -52,6 +52,50 @@ enum VRegKind {
   kUndefined,
 };
 
+/**
+ * @brief Represents the virtual register numbers that denote special meaning.
+ * @details This is used to make some virtual register numbers to have specific
+ * semantic meaning. This is done so that the compiler can treat all virtual
+ * registers the same way and only special case when needed. For example,
+ * calculating SSA does not care whether a virtual register is a normal one or
+ * a compiler temporary, so it can deal with them in a consistent manner. But,
+ * for example if backend cares about temporaries because it has custom spill
+ * location, then it can special case them only then.
+ */
+enum VRegBaseRegNum : int {
+  /**
+   * @brief Virtual registers originating from dex have number >= 0.
+   */
+  kVRegBaseReg = 0,
+
+  /**
+   * @brief Invalid virtual register number.
+   */
+  kVRegInvalid = -1,
+
+  /**
+   * @brief Used to denote the base register for compiler temporaries.
+   * @details Compiler temporaries are virtual registers not originating
+   * from dex but that are created by compiler.  All virtual register numbers
+   * that are <= kVRegTempBaseReg are categorized as compiler temporaries.
+   */
+  kVRegTempBaseReg = -2,
+
+  /**
+   * @brief Base register of temporary that holds the method pointer.
+   * @details This is a special compiler temporary because it has a specific
+   * location on stack.
+   */
+  kVRegMethodPtrBaseReg = kVRegTempBaseReg,
+
+  /**
+   * @brief Base register of non-special compiler temporary.
+   * @details A non-special compiler temporary is one whose spill location
+   * is flexible.
+   */
+  kVRegNonSpecialTempBaseReg = -3,
+};
+
 // ShadowFrame has 3 possible layouts:
 //  - portable - a unified array of VRegs and references. Precise references need GC maps.
 //  - interpreter - separate VRegs and reference arrays. References are in the reference array.
@@ -524,8 +568,15 @@ class StackVisitor {
   /*
    * Return sp-relative offset for a Dalvik virtual register, compiler
    * spill or Method* in bytes using Method*.
-   * Note that (reg >= 0) refers to a Dalvik register, (reg == -2)
-   * denotes Method* and (reg <= -3) denotes a compiler temp.
+   * Note that (reg >= 0) refers to a Dalvik register, (reg == -1)
+   * denotes an invalid Dalvik register, (reg == -2) denotes Method*
+   * and (reg <= -3) denotes a compiler temporary. A compiler temporary
+   * can be thought of as a virtual register that does not exist in the
+   * dex but holds intermediate values to help optimizations and code
+   * generation. A special compiler temporary is one whose location
+   * in frame is well known while non-special ones do not have a requirement
+   * on location in frame as long as code generator itself knows how
+   * to access them.
    *
    *     +------------------------+
    *     | IN[ins-1]              |  {Note: resides in caller's frame}
@@ -546,9 +597,9 @@ class StackVisitor {
    *     | V[1]                   |  ... (reg == 1)
    *     | V[0]                   |  ... (reg == 0) <---- "locals_start"
    *     +------------------------+
-   *     | Compiler temps         |  ... (reg == -2)
-   *     |                        |  ... (reg == -3)
-   *     |                        |  ... (reg == -4)
+   *     | Compiler temp region   |  ... (reg <= -3)
+   *     |                        |
+   *     |                        |
    *     +------------------------+
    *     | stack alignment padding|  {0 to (kStackAlignWords-1) of padding}
    *     +------------------------+
@@ -556,23 +607,35 @@ class StackVisitor {
    *     | OUT[outs-2]            |
    *     |       .                |
    *     | OUT[0]                 |
-   *     | curMethod*             |  ... (reg == -1) <<== sp, 16-byte aligned
+   *     | curMethod*             |  ... (reg == -2) <<== sp, 16-byte aligned
    *     +========================+
    */
   static int GetVRegOffset(const DexFile::CodeItem* code_item,
                            uint32_t core_spills, uint32_t fp_spills,
                            size_t frame_size, int reg) {
     DCHECK_EQ(frame_size & (kStackAlignment - 1), 0U);
+    DCHECK_NE(reg, static_cast<int>(kVRegInvalid));
+
     int num_spills = __builtin_popcount(core_spills) + __builtin_popcount(fp_spills) + 1;  // Filler.
     int num_ins = code_item->ins_size_;
     int num_regs = code_item->registers_size_ - num_ins;
     int locals_start = frame_size - ((num_spills + num_regs) * sizeof(uint32_t));
-    if (reg == -2) {
-      return 0;  // Method*
-    } else if (reg <= -3) {
-      return locals_start - ((reg + 1) * sizeof(uint32_t));  // Compiler temp.
-    } else if (reg < num_regs) {
-      return locals_start + (reg * sizeof(uint32_t));        // Dalvik local reg.
+    if (reg == static_cast<int>(kVRegMethodPtrBaseReg)) {
+      // The current method pointer corresponds to special location on stack.
+      return 0;
+    } else if (reg <= static_cast<int>(kVRegNonSpecialTempBaseReg)) {
+      /*
+       * Special temporaries may have custom locations and the logic above deals with that.
+       * However, non-special temporaries are placed relative to the locals. Since the
+       * virtual register numbers for temporaries "grow" in negative direction, reg number
+       * will always be <= to the temp base reg. Thus, the logic ensures that the first
+       * temp is at offset -4 bytes from locals, the second is at -8 bytes from locals,
+       * and so on.
+       */
+      int relative_offset = (reg + std::abs(static_cast<int>(kVRegNonSpecialTempBaseReg)) - 1) * sizeof(uint32_t);
+      return locals_start + relative_offset;
+    }  else if (reg < num_regs) {
+      return locals_start + (reg * sizeof(uint32_t));
     } else {
       return frame_size + ((reg - num_regs) * sizeof(uint32_t)) + sizeof(uint32_t);  // Dalvik in.
     }

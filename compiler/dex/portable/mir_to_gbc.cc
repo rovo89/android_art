@@ -1522,7 +1522,7 @@ void MirConverter::SetMethodInfo() {
   reg_info.push_back(irb_->getInt32(cu_->num_ins));
   reg_info.push_back(irb_->getInt32(cu_->num_regs));
   reg_info.push_back(irb_->getInt32(cu_->num_outs));
-  reg_info.push_back(irb_->getInt32(cu_->num_compiler_temps));
+  reg_info.push_back(irb_->getInt32(mir_graph_->GetNumUsedCompilerTemps()));
   reg_info.push_back(irb_->getInt32(mir_graph_->GetNumSSARegs()));
   ::llvm::MDNode* reg_info_node = ::llvm::MDNode::get(*context_, reg_info);
   inst->setMetadata("RegInfo", reg_info_node);
