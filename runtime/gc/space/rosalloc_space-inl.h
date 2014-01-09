@@ -50,7 +50,7 @@ inline mirror::Object* RosAllocSpace::AllocCommon(Thread* self, size_t num_bytes
                                                   size_t* bytes_allocated, size_t* usable_size) {
   size_t rosalloc_size = 0;
   mirror::Object* result = reinterpret_cast<mirror::Object*>(
-      rosalloc_for_alloc_->Alloc(self, num_bytes, &rosalloc_size));
+      rosalloc_->Alloc(self, num_bytes, &rosalloc_size));
   if (LIKELY(result != NULL)) {
     if (kDebugSpaces) {
       CHECK(Contains(result)) << "Allocation (" << reinterpret_cast<void*>(result)

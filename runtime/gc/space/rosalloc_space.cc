@@ -39,8 +39,7 @@ template class ValgrindMallocSpace<RosAllocSpace, allocator::RosAlloc*>;
 RosAllocSpace::RosAllocSpace(const std::string& name, MemMap* mem_map,
                              art::gc::allocator::RosAlloc* rosalloc, byte* begin, byte* end,
                              byte* limit, size_t growth_limit)
-    : MallocSpace(name, mem_map, begin, end, limit, growth_limit), rosalloc_(rosalloc),
-      rosalloc_for_alloc_(rosalloc) {
+    : MallocSpace(name, mem_map, begin, end, limit, growth_limit), rosalloc_(rosalloc) {
   CHECK(rosalloc != NULL);
 }
 
@@ -64,12 +63,18 @@ RosAllocSpace* RosAllocSpace::CreateFromMemMap(MemMap* mem_map, const std::strin
 
   // Everything is set so record in immutable structure and leave
   byte* begin = mem_map->Begin();
-  if (RUNNING_ON_VALGRIND > 0) {
+  // TODO: Fix RosAllocSpace to support valgrind. There is currently some issues with
+  // AllocationSize caused by redzones. b/12944686
+  if (false && RUNNING_ON_VALGRIND > 0) {
     return new ValgrindMallocSpace<RosAllocSpace, allocator::RosAlloc*>(
         name, mem_map, rosalloc, begin, end, begin + capacity, growth_limit, initial_size);
   } else {
     return new RosAllocSpace(name, mem_map, rosalloc, begin, end, begin + capacity, growth_limit);
   }
+}
+
+RosAllocSpace::~RosAllocSpace() {
+  delete rosalloc_;
 }
 
 RosAllocSpace* RosAllocSpace::Create(const std::string& name, size_t initial_size,

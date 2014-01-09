@@ -112,7 +112,7 @@ Arena* ArenaPool::AllocArena(size_t size) {
 
 void ArenaPool::FreeArena(Arena* arena) {
   Thread* self = Thread::Current();
-  if (UNLIKELY(RUNNING_ON_VALGRIND)) {
+  if (UNLIKELY(RUNNING_ON_VALGRIND > 0)) {
     VALGRIND_MAKE_MEM_UNDEFINED(arena->memory_, arena->bytes_allocated_);
   }
   {
@@ -137,7 +137,7 @@ ArenaAllocator::ArenaAllocator(ArenaPool* pool)
     ptr_(nullptr),
     arena_head_(nullptr),
     num_allocations_(0),
-    running_on_valgrind_(RUNNING_ON_VALGRIND) {
+    running_on_valgrind_(RUNNING_ON_VALGRIND > 0) {
   memset(&alloc_stats_[0], 0, sizeof(alloc_stats_));
 }
 
