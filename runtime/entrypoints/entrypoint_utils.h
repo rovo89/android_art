@@ -226,28 +226,14 @@ static inline mirror::ArtField* FindFieldFromCode(uint32_t field_idx, const mirr
       return nullptr;
     }
     mirror::Class* referring_class = referrer->GetDeclaringClass();
-    if (UNLIKELY(!referring_class->CanAccess(fields_class) ||
-                 !referring_class->CanAccessMember(fields_class,
-                                                   resolved_field->GetAccessFlags()))) {
-      // The referring class can't access the resolved field, this may occur as a result of a
-      // protected field being made public by a sub-class. Resort to the dex file to determine
-      // the correct class for the access check.
-      const DexFile& dex_file = *referring_class->GetDexCache()->GetDexFile();
-      fields_class = class_linker->ResolveType(dex_file,
-                                               dex_file.GetFieldId(field_idx).class_idx_,
-                                               referring_class);
-      if (UNLIKELY(!referring_class->CanAccess(fields_class))) {
-        ThrowIllegalAccessErrorClass(referring_class, fields_class);
-        return nullptr;  // failure
-      } else if (UNLIKELY(!referring_class->CanAccessMember(fields_class,
-                                                            resolved_field->GetAccessFlags()))) {
-        ThrowIllegalAccessErrorField(referring_class, resolved_field);
-        return nullptr;  // failure
-      }
+    if (UNLIKELY(!referring_class->CanAccessResolvedField<true>(fields_class, resolved_field,
+                                                                field_idx))) {
+      DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
+      return nullptr;  // Failure.
     }
     if (UNLIKELY(is_set && resolved_field->IsFinal() && (fields_class != referring_class))) {
       ThrowIllegalAccessErrorFinalField(referrer, resolved_field);
-      return nullptr;  // failure
+      return nullptr;  // Failure.
     } else {
       FieldHelper fh(resolved_field);
       if (UNLIKELY(fh.IsPrimitiveType() != is_primitive ||
@@ -259,7 +245,7 @@ static inline mirror::ArtField* FindFieldFromCode(uint32_t field_idx, const mirr
                                  expected_size * (32 / sizeof(int32_t)),
                                  is_primitive ? "primitive" : "non-primitive",
                                  PrettyField(resolved_field, true).c_str());
-        return nullptr;  // failure
+        return nullptr;  // Failure.
       }
     }
   }
@@ -277,7 +263,7 @@ static inline mirror::ArtField* FindFieldFromCode(uint32_t field_idx, const mirr
         return resolved_field;
       } else {
         DCHECK(self->IsExceptionPending());  // Throw exception and unwind
-        return nullptr;  // failure
+        return nullptr;  // Failure.
       }
     }
   }
@@ -330,26 +316,10 @@ static inline mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror:
     }
     mirror::Class* methods_class = resolved_method->GetDeclaringClass();
     mirror::Class* referring_class = referrer->GetDeclaringClass();
-    if (UNLIKELY(!referring_class->CanAccess(methods_class) ||
-                 !referring_class->CanAccessMember(methods_class,
-                                                   resolved_method->GetAccessFlags()))) {
-      // The referring class can't access the resolved method, this may occur as a result of a
-      // protected method being made public by implementing an interface that re-declares the
-      // method public. Resort to the dex file to determine the correct class for the access check
-      const DexFile& dex_file = *referring_class->GetDexCache()->GetDexFile();
-      ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-      methods_class = class_linker->ResolveType(dex_file,
-                                                dex_file.GetMethodId(method_idx).class_idx_,
-                                                referring_class);
-      if (UNLIKELY(!referring_class->CanAccess(methods_class))) {
-        ThrowIllegalAccessErrorClassForMethodDispatch(referring_class, methods_class,
-                                                      referrer, resolved_method, type);
-        return nullptr;  // Failure.
-      } else if (UNLIKELY(!referring_class->CanAccessMember(methods_class,
-                                                            resolved_method->GetAccessFlags()))) {
-        ThrowIllegalAccessErrorMethod(referring_class, resolved_method);
-        return nullptr;  // Failure.
-      }
+    if (!referring_class->CanAccessResolvedMethod<true, type>(methods_class, resolved_method,
+                                                              method_idx)) {
+      DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
+      return nullptr;  // Failure.
     }
   }
   switch (type) {

@@ -958,21 +958,8 @@ bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompi
         ComputeCompilingMethodsClass(soa, dex_cache, mUnit);
     if (referrer_class != NULL) {
       mirror::Class* fields_class = resolved_field->GetDeclaringClass();
-      bool access_ok = referrer_class->CanAccess(fields_class) &&
-                       referrer_class->CanAccessMember(fields_class,
-                                                       resolved_field->GetAccessFlags());
-      if (!access_ok) {
-        // The referring class can't access the resolved field, this may occur as a result of a
-        // protected field being made public by a sub-class. Resort to the dex file to determine
-        // the correct class for the access check.
-        const DexFile& dex_file = *referrer_class->GetDexCache()->GetDexFile();
-        mirror::Class* dex_fields_class = mUnit->GetClassLinker()->ResolveType(dex_file,
-                                                         dex_file.GetFieldId(field_idx).class_idx_,
-                                                         referrer_class);
-        access_ok = referrer_class->CanAccess(dex_fields_class) &&
-                    referrer_class->CanAccessMember(dex_fields_class,
-                                                    resolved_field->GetAccessFlags());
-      }
+      bool access_ok =
+          referrer_class->CanAccessResolvedField<false>(fields_class, resolved_field, field_idx);
       bool is_write_to_final_from_wrong_class = is_put && resolved_field->IsFinal() &&
           fields_class != referrer_class;
       if (access_ok && !is_write_to_final_from_wrong_class) {
@@ -1018,23 +1005,8 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
         stats_->ResolvedLocalStaticField();
         return true;  // fast path
       } else {
-        bool access_ok = referrer_class->CanAccess(fields_class) &&
-                         referrer_class->CanAccessMember(fields_class,
-                                                         resolved_field->GetAccessFlags());
-        if (!access_ok) {
-          // The referring class can't access the resolved field, this may occur as a result of a
-          // protected field being made public by a sub-class. Resort to the dex file to determine
-          // the correct class for the access check. Don't change the field's class as that is
-          // used to identify the SSB.
-          const DexFile& dex_file = *referrer_class->GetDexCache()->GetDexFile();
-          mirror::Class* dex_fields_class =
-              mUnit->GetClassLinker()->ResolveType(dex_file,
-                                                   dex_file.GetFieldId(field_idx).class_idx_,
-                                                   referrer_class);
-          access_ok = referrer_class->CanAccess(dex_fields_class) &&
-                      referrer_class->CanAccessMember(dex_fields_class,
-                                                      resolved_field->GetAccessFlags());
-        }
+        bool access_ok =
+            referrer_class->CanAccessResolvedField<false>(fields_class, resolved_field, field_idx);
         bool is_write_to_final_from_wrong_class = is_put && resolved_field->IsFinal();
         if (access_ok && !is_write_to_final_from_wrong_class) {
           // We have the resolved field, we must make it into a index for the referrer
@@ -1217,20 +1189,8 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
     bool icce = resolved_method->CheckIncompatibleClassChange(*invoke_type);
     if (referrer_class != NULL && !icce) {
       mirror::Class* methods_class = resolved_method->GetDeclaringClass();
-      if (!referrer_class->CanAccess(methods_class) ||
-          !referrer_class->CanAccessMember(methods_class,
-                                           resolved_method->GetAccessFlags())) {
-        // The referring class can't access the resolved method, this may occur as a result of a
-        // protected method being made public by implementing an interface that re-declares the
-        // method public. Resort to the dex file to determine the correct class for the access
-        // check.
-        uint16_t class_idx =
-            target_method->dex_file->GetMethodId(target_method->dex_method_index).class_idx_;
-        methods_class = mUnit->GetClassLinker()->ResolveType(*target_method->dex_file,
-                                                             class_idx, referrer_class);
-      }
-      if (referrer_class->CanAccess(methods_class) &&
-          referrer_class->CanAccessMember(methods_class, resolved_method->GetAccessFlags())) {
+      if (referrer_class->CanAccessResolvedMethod<false>(methods_class, resolved_method,
+                                                         target_method->dex_method_index)) {
         const bool enableFinalBasedSharpening = enable_devirtualization;
         // Sharpen a virtual call into a direct call when the target is known not to have been
         // overridden (ie is final).

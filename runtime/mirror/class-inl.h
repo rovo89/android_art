@@ -22,6 +22,7 @@
 #include "art_field.h"
 #include "art_method.h"
 #include "class_loader.h"
+#include "common_throws.h"
 #include "dex_cache.h"
 #include "gc/heap-inl.h"
 #include "iftable.h"
@@ -200,6 +201,68 @@ inline bool Class::IsAssignableFromArray(const Class* src) const {
     return this == java_lang_Object;
   }
   return IsArrayAssignableFromArray(src);
+}
+
+template <bool throw_on_failure>
+inline bool Class::CanAccessResolvedField(Class* access_to, ArtField* field,
+                                          uint32_t field_idx) {
+  if (UNLIKELY(!this->CanAccess(access_to))) {
+    // The referrer class can't access the field's declaring class but may still be able
+    // to access the field if the FieldId specifies an accessible subclass of the declaring
+    // class rather than the declaring class itself.
+    DexCache* referrer_dex_cache = this->GetDexCache();
+    uint32_t class_idx = referrer_dex_cache->GetDexFile()->GetFieldId(field_idx).class_idx_;
+    // The referenced class has already been resolved with the field, get it from the dex cache.
+    Class* dex_access_to = referrer_dex_cache->GetResolvedType(class_idx);
+    DCHECK(dex_access_to != nullptr);
+    if (UNLIKELY(!this->CanAccess(dex_access_to))) {
+      if (throw_on_failure) {
+        ThrowIllegalAccessErrorClass(this, dex_access_to);
+      }
+      return false;
+    }
+    DCHECK_EQ(this->CanAccessMember(access_to, field->GetAccessFlags()),
+              this->CanAccessMember(dex_access_to, field->GetAccessFlags()));
+  }
+  if (LIKELY(this->CanAccessMember(access_to, field->GetAccessFlags()))) {
+    return true;
+  }
+  if (throw_on_failure) {
+    ThrowIllegalAccessErrorField(this, field);
+  }
+  return false;
+}
+
+template <bool throw_on_failure, InvokeType throw_invoke_type>
+inline bool Class::CanAccessResolvedMethod(Class* access_to, ArtMethod* method,
+                                           uint32_t method_idx) {
+  COMPILE_ASSERT(throw_on_failure || throw_invoke_type == kStatic, non_default_throw_invoke_type);
+  if (UNLIKELY(!this->CanAccess(access_to))) {
+    // The referrer class can't access the method's declaring class but may still be able
+    // to access the method if the MethodId specifies an accessible subclass of the declaring
+    // class rather than the declaring class itself.
+    DexCache* referrer_dex_cache = this->GetDexCache();
+    uint32_t class_idx = referrer_dex_cache->GetDexFile()->GetMethodId(method_idx).class_idx_;
+    // The referenced class has already been resolved with the method, get it from the dex cache.
+    Class* dex_access_to = referrer_dex_cache->GetResolvedType(class_idx);
+    DCHECK(dex_access_to != nullptr);
+    if (UNLIKELY(!this->CanAccess(dex_access_to))) {
+      if (throw_on_failure) {
+        ThrowIllegalAccessErrorClassForMethodDispatch(this, dex_access_to,
+                                                      method, throw_invoke_type);
+      }
+      return false;
+    }
+    DCHECK_EQ(this->CanAccessMember(access_to, method->GetAccessFlags()),
+              this->CanAccessMember(dex_access_to, method->GetAccessFlags()));
+  }
+  if (LIKELY(this->CanAccessMember(access_to, method->GetAccessFlags()))) {
+    return true;
+  }
+  if (throw_on_failure) {
+    ThrowIllegalAccessErrorMethod(this, method);
+  }
+  return false;
 }
 
 inline bool Class::IsSubClass(const Class* klass) const {
