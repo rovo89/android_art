@@ -1275,6 +1275,92 @@ static void MarkInBitmapCallback(mirror::Object* obj, void* arg) {
   reinterpret_cast<accounting::SpaceBitmap*>(arg)->Set(obj);
 }
 
+// Special compacting collector which uses sub-optimal bin packing to reduce zygote space size.
+class ZygoteCompactingCollector : public collector::SemiSpace {
+ public:
+  explicit ZygoteCompactingCollector(gc::Heap* heap) : SemiSpace(heap, "zygote collector") {
+  }
+
+  void BuildBins(space::ContinuousSpace* space) {
+    bin_live_bitmap_ = space->GetLiveBitmap();
+    bin_mark_bitmap_ = space->GetMarkBitmap();
+    BinContext context;
+    context.prev_ = reinterpret_cast<uintptr_t>(space->Begin());
+    context.collector_ = this;
+    WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
+    // Note: This requires traversing the space in increasing order of object addresses.
+    bin_live_bitmap_->Walk(Callback, reinterpret_cast<void*>(&context));
+    // Add the last bin which spans after the last object to the end of the space.
+    AddBin(reinterpret_cast<uintptr_t>(space->End()) - context.prev_, context.prev_);
+  }
+
+ private:
+  struct BinContext {
+    uintptr_t prev_;  // The end of the previous object.
+    ZygoteCompactingCollector* collector_;
+  };
+  // Maps from bin sizes to locations.
+  std::multimap<size_t, uintptr_t> bins_;
+  // Live bitmap of the space which contains the bins.
+  accounting::SpaceBitmap* bin_live_bitmap_;
+  // Mark bitmap of the space which contains the bins.
+  accounting::SpaceBitmap* bin_mark_bitmap_;
+
+  static void Callback(mirror::Object* obj, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(arg != nullptr);
+    BinContext* context = reinterpret_cast<BinContext*>(arg);
+    ZygoteCompactingCollector* collector = context->collector_;
+    uintptr_t object_addr = reinterpret_cast<uintptr_t>(obj);
+    size_t bin_size = object_addr - context->prev_;
+    // Add the bin consisting of the end of the previous object to the start of the current object.
+    collector->AddBin(bin_size, context->prev_);
+    context->prev_ = object_addr + RoundUp(obj->SizeOf(), kObjectAlignment);
+  }
+
+  void AddBin(size_t size, uintptr_t position) {
+    if (size != 0) {
+      bins_.insert(std::make_pair(size, position));
+    }
+  }
+
+  virtual bool ShouldSweepSpace(space::MallocSpace* space) const {
+    // Don't sweep any spaces since we probably blasted the internal accounting of the free list
+    // allocator.
+    return false;
+  }
+
+  virtual mirror::Object* MarkNonForwardedObject(mirror::Object* obj)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
+    size_t object_size = RoundUp(obj->SizeOf(), kObjectAlignment);
+    mirror::Object* forward_address = nullptr;
+    // Find the smallest bin which we can move obj in.
+    auto it = bins_.lower_bound(object_size);
+    if (it == bins_.end()) {
+      // No available space in the bins, place it in the target space instead (grows the zygote
+      // space).
+      size_t bytes_allocated = 0;
+      forward_address = to_space_->Alloc(self_, object_size, &bytes_allocated);
+      if (to_space_live_bitmap_ != nullptr) {
+        to_space_live_bitmap_->Set(forward_address);
+      }
+    } else {
+      size_t size = it->first;
+      uintptr_t pos = it->second;
+      bins_.erase(it);  // Erase the old bin which we replace with the new smaller bin.
+      forward_address = reinterpret_cast<mirror::Object*>(pos);
+      // Set the live and mark bits so that sweeping system weaks works properly.
+      bin_live_bitmap_->Set(forward_address);
+      bin_mark_bitmap_->Set(forward_address);
+      DCHECK_GE(size, object_size);
+      AddBin(size - object_size, pos + object_size);  // Add a new bin with the remaining space.
+    }
+    // Copy the object over to its new location.
+    memcpy(reinterpret_cast<void*>(forward_address), obj, object_size);
+    return forward_address;
+  }
+};
+
 void Heap::PreZygoteFork() {
   static Mutex zygote_creation_lock_("zygote creation lock", kZygoteCreationLock);
   Thread* self = Thread::Current();
@@ -1292,12 +1378,16 @@ void Heap::PreZygoteFork() {
   ChangeCollector(post_zygote_collector_type_);
   // TODO: Delete bump_pointer_space_ and temp_pointer_space_?
   if (semi_space_collector_ != nullptr) {
+    ZygoteCompactingCollector zygote_collector(this);
+    zygote_collector.BuildBins(non_moving_space_);
     // Create a new bump pointer space which we will compact into.
     space::BumpPointerSpace target_space("zygote bump space", non_moving_space_->End(),
                                          non_moving_space_->Limit());
     // Compact the bump pointer space to a new zygote bump pointer space.
     temp_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
-    Compact(&target_space, bump_pointer_space_);
+    zygote_collector.SetFromSpace(bump_pointer_space_);
+    zygote_collector.SetToSpace(&target_space);
+    zygote_collector.Run(false);
     CHECK(temp_space_->IsEmpty());
     total_objects_freed_ever_ += semi_space_collector_->GetFreedObjects();
     total_bytes_freed_ever_ += semi_space_collector_->GetFreedBytes();
@@ -1306,7 +1396,7 @@ void Heap::PreZygoteFork() {
     non_moving_space_->SetLimit(target_space.Limit());
     accounting::SpaceBitmap* bitmap = non_moving_space_->GetLiveBitmap();
     // Record the allocations in the bitmap.
-    VLOG(heap) << "Recording zygote allocations";
+    VLOG(heap) << "Zygote size " << non_moving_space_->Size() << " bytes";
     target_space.Walk(MarkInBitmapCallback, bitmap);
   }
   // Turn the current alloc space into a zygote space and obtain the new alloc space composed of
