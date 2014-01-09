@@ -187,8 +187,8 @@ MallocSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
   DCHECK(IsAligned<kPageSize>(begin_));
   DCHECK(IsAligned<kPageSize>(end_));
   size_t size = RoundUp(Size(), kPageSize);
-  // Trim the heap so that we minimize the size of the Zygote space.
-  Trim();
+  // Trimming the heap should be done by the caller since we may have invalidated the accounting
+  // stored in between objects.
   // Remaining size is for the new alloc space.
   const size_t growth_limit = growth_limit_ - size;
   const size_t capacity = Capacity() - size;

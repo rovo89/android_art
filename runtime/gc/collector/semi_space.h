@@ -54,6 +54,7 @@ namespace space {
   class BumpPointerSpace;
   class ContinuousMemMapAllocSpace;
   class ContinuousSpace;
+  class MallocSpace;
 }  // namespace space
 
 class Heap;
@@ -149,6 +150,9 @@ class SemiSpace : public GarbageCollector {
   static mirror::Object* RecursiveMarkObjectCallback(mirror::Object* root, void* arg)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
+  virtual mirror::Object* MarkNonForwardedObject(mirror::Object* obj)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+
  protected:
   // Returns null if the object is not marked, otherwise returns the forwarding address (same as
   // object for non movable things).
@@ -162,15 +166,11 @@ class SemiSpace : public GarbageCollector {
   bool MarkLargeObject(const mirror::Object* obj)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  static void SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
-  // Special sweep for zygote that just marks objects / dirties cards.
-  static void ZygoteSweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
   // Expand mark stack to 2x its current size.
   void ResizeMarkStack(size_t new_size);
+
+  // Returns true if we should sweep the space.
+  virtual bool ShouldSweepSpace(space::MallocSpace* space) const;
 
   // Returns how many threads we should use for the current GC phase based on if we are paused,
   // whether or not we care about pauses.
