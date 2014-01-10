@@ -118,9 +118,9 @@ namespace art {
 #define ARM_FP_REG_MASK (ARM_FP_REG_OFFSET-1)
 
 // RegisterLocation templates return values (r0, or r0/r1).
-#define ARM_LOC_C_RETURN {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, r0, INVALID_REG, \
+#define ARM_LOC_C_RETURN {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed, r0, INVALID_REG, \
                           INVALID_SREG, INVALID_SREG}
-#define ARM_LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1, \
+#define ARM_LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed, r0, r1, \
                                INVALID_SREG, INVALID_SREG}
 #define ARM_LOC_C_RETURN_FLOAT  ARM_LOC_C_RETURN
 #define ARM_LOC_C_RETURN_DOUBLE  ARM_LOC_C_RETURN_WIDE
