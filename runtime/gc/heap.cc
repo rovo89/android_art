@@ -82,6 +82,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     : non_moving_space_(nullptr),
       rosalloc_space_(nullptr),
       dlmalloc_space_(nullptr),
+      main_space_(nullptr),
       concurrent_gc_(false),
       collector_type_(kCollectorTypeNone),
       post_zygote_collector_type_(post_zygote_collector_type),
@@ -450,6 +451,9 @@ void Heap::RemoveSpace(space::Space* space) {
       dlmalloc_space_ = nullptr;
     } else if (continuous_space == rosalloc_space_) {
       rosalloc_space_ = nullptr;
+    }
+    if (continuous_space == main_space_) {
+      main_space_ = nullptr;
     }
   } else {
     DCHECK(space->IsDiscontinuousSpace());
@@ -1160,19 +1164,12 @@ void Heap::TransitionCollector(CollectorType collector_type) {
   switch (collector_type) {
     case kCollectorTypeSS: {
       mprotect(temp_space_->Begin(), temp_space_->Capacity(), PROT_READ | PROT_WRITE);
-      space::MallocSpace* main_space;
-      if (rosalloc_space_ != nullptr) {
-        DCHECK(kUseRosAlloc);
-        main_space = rosalloc_space_;
-      } else {
-        DCHECK(dlmalloc_space_ != nullptr);
-        main_space = dlmalloc_space_;
-      }
-      Compact(temp_space_, main_space);
+      CHECK(main_space_ != nullptr);
+      Compact(temp_space_, main_space_);
       DCHECK(allocator_mem_map_.get() == nullptr);
-      allocator_mem_map_.reset(main_space->ReleaseMemMap());
-      madvise(main_space->Begin(), main_space->Size(), MADV_DONTNEED);
-      RemoveSpace(main_space);
+      allocator_mem_map_.reset(main_space_->ReleaseMemMap());
+      madvise(main_space_->Begin(), main_space_->Size(), MADV_DONTNEED);
+      RemoveSpace(main_space_);
       break;
     }
     case kCollectorTypeMS:
@@ -1184,21 +1181,21 @@ void Heap::TransitionCollector(CollectorType collector_type) {
         CHECK(mem_map != nullptr);
         size_t initial_size = kDefaultInitialSize;
         mprotect(mem_map->Begin(), initial_size, PROT_READ | PROT_WRITE);
-        space::MallocSpace* malloc_space;
+        CHECK(main_space_ == nullptr);
         if (kUseRosAlloc) {
-          malloc_space =
+          main_space_ =
               space::RosAllocSpace::CreateFromMemMap(mem_map, "alloc space", kPageSize,
                                                      initial_size, mem_map->Size(),
                                                      mem_map->Size(), low_memory_mode_);
         } else {
-          malloc_space =
+          main_space_ =
               space::DlMallocSpace::CreateFromMemMap(mem_map, "alloc space", kPageSize,
                                                      initial_size, mem_map->Size(),
                                                      mem_map->Size());
         }
-        malloc_space->SetFootprintLimit(malloc_space->Capacity());
-        AddSpace(malloc_space);
-        Compact(malloc_space, bump_pointer_space_);
+        main_space_->SetFootprintLimit(main_space_->Capacity());
+        AddSpace(main_space_);
+        Compact(main_space_, bump_pointer_space_);
       }
       break;
     }
@@ -1402,17 +1399,16 @@ void Heap::PreZygoteFork() {
   // Turn the current alloc space into a zygote space and obtain the new alloc space composed of
   // the remaining available heap memory.
   space::MallocSpace* zygote_space = non_moving_space_;
-  non_moving_space_ = non_moving_space_->CreateZygoteSpace("alloc space", low_memory_mode_);
-  if (non_moving_space_->IsRosAllocSpace()) {
-    rosalloc_space_ = non_moving_space_->AsRosAllocSpace();
-  } else if (non_moving_space_->IsDlMallocSpace()) {
-    dlmalloc_space_ = non_moving_space_->AsDlMallocSpace();
+  main_space_ = non_moving_space_->CreateZygoteSpace("alloc space", low_memory_mode_);
+  if (main_space_->IsRosAllocSpace()) {
+    rosalloc_space_ = main_space_->AsRosAllocSpace();
+  } else if (main_space_->IsDlMallocSpace()) {
+    dlmalloc_space_ = main_space_->AsDlMallocSpace();
   }
-  // Can't use RosAlloc for non moving space due to thread local buffers.
-  non_moving_space_->SetFootprintLimit(non_moving_space_->Capacity());
+  main_space_->SetFootprintLimit(main_space_->Capacity());
   // Change the GC retention policy of the zygote space to only collect when full.
   zygote_space->SetGcRetentionPolicy(space::kGcRetentionPolicyFullCollect);
-  AddSpace(non_moving_space_);
+  AddSpace(main_space_);
   have_zygote_space_ = true;
   zygote_space->InvalidateAllocator();
   // Create the zygote space mod union table.
@@ -1424,7 +1420,8 @@ void Heap::PreZygoteFork() {
   for (const auto& collector : garbage_collectors_) {
     collector->ResetCumulativeStatistics();
   }
-  // TODO: Not limited space for non-movable objects?
+  // Can't use RosAlloc for non moving space due to thread local buffers.
+  // TODO: Non limited space for non-movable objects?
   space::MallocSpace* new_non_moving_space
       = space::DlMallocSpace::Create("Non moving dlmalloc space", 2 * MB, 64 * MB, 64 * MB,
                                      nullptr);
@@ -2090,6 +2087,9 @@ bool Heap::IsMovableObject(const mirror::Object* obj) const {
   if (kMovingCollector) {
     DCHECK(!IsInTempSpace(obj));
     if (bump_pointer_space_->HasAddress(obj)) {
+      return true;
+    }
+    if (main_space_ != nullptr && main_space_->HasAddress(obj)) {
       return true;
     }
   }
