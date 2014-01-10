@@ -44,7 +44,7 @@ std::string SpaceBitmap::Dump() const {
                       reinterpret_cast<void*>(HeapLimit()));
 }
 
-void SpaceSetMap::Walk(SpaceBitmap::Callback* callback, void* arg) {
+void ObjectSet::Walk(SpaceBitmap::Callback* callback, void* arg) {
   for (const mirror::Object* obj : contained_) {
     callback(const_cast<mirror::Object*>(obj), arg);
   }
@@ -265,18 +265,6 @@ void SpaceBitmap::InOrderWalk(SpaceBitmap::Callback* callback, void* arg) {
       }
     }
   }
-}
-
-std::string SpaceSetMap::GetName() const {
-  return name_;
-}
-
-void SpaceSetMap::SetName(const std::string& name) {
-  name_ = name;
-}
-
-void SpaceSetMap::CopyFrom(const SpaceSetMap& space_set) {
-  contained_ = space_set.contained_;
 }
 
 std::ostream& operator << (std::ostream& stream, const SpaceBitmap& bitmap) {

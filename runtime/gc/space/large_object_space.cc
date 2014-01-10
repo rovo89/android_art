@@ -331,6 +331,29 @@ void FreeListSpace::Dump(std::ostream& os) const {
   }
 }
 
+void LargeObjectSpace::Sweep(bool swap_bitmaps, size_t* freed_objects, size_t* freed_bytes) {
+  // Sweep large objects
+  accounting::ObjectSet* large_live_objects = GetLiveObjects();
+  accounting::ObjectSet* large_mark_objects = GetMarkObjects();
+  if (swap_bitmaps) {
+    std::swap(large_live_objects, large_mark_objects);
+  }
+  DCHECK(freed_objects != nullptr);
+  DCHECK(freed_bytes != nullptr);
+  // O(n*log(n)) but hopefully there are not too many large objects.
+  size_t objects = 0;
+  size_t bytes = 0;
+  Thread* self = Thread::Current();
+  for (const mirror::Object* obj : large_live_objects->GetObjects()) {
+    if (!large_mark_objects->Test(obj)) {
+      bytes += Free(self, const_cast<mirror::Object*>(obj));
+      ++objects;
+    }
+  }
+  *freed_objects += objects;
+  *freed_bytes += bytes;
+}
+
 }  // namespace space
 }  // namespace gc
 }  // namespace art

@@ -298,7 +298,7 @@ inline void SemiSpace::MarkStackPush(Object* obj) {
 bool SemiSpace::MarkLargeObject(const Object* obj) {
   // TODO: support >1 discontinuous space.
   space::LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
-  accounting::SpaceSetMap* large_objects = large_object_space->GetMarkObjects();
+  accounting::ObjectSet* large_objects = large_object_space->GetMarkObjects();
   if (UNLIKELY(!large_objects->Test(obj))) {
     large_objects->Set(obj);
     return true;
@@ -457,23 +457,9 @@ void SemiSpace::Sweep(bool swap_bitmaps) {
 
 void SemiSpace::SweepLargeObjects(bool swap_bitmaps) {
   TimingLogger::ScopedSplit("SweepLargeObjects", &timings_);
-  // Sweep large objects
-  space::LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
-  accounting::SpaceSetMap* large_live_objects = large_object_space->GetLiveObjects();
-  accounting::SpaceSetMap* large_mark_objects = large_object_space->GetMarkObjects();
-  if (swap_bitmaps) {
-    std::swap(large_live_objects, large_mark_objects);
-  }
-  // O(n*log(n)) but hopefully there are not too many large objects.
   size_t freed_objects = 0;
   size_t freed_bytes = 0;
-  Thread* self = Thread::Current();
-  for (const Object* obj : large_live_objects->GetObjects()) {
-    if (!large_mark_objects->Test(obj)) {
-      freed_bytes += large_object_space->Free(self, const_cast<Object*>(obj));
-      ++freed_objects;
-    }
-  }
+  GetHeap()->GetLargeObjectsSpace()->Sweep(swap_bitmaps, &freed_objects, &freed_bytes);
   freed_large_objects_.FetchAndAdd(freed_objects);
   freed_large_object_bytes_.FetchAndAdd(freed_bytes);
   GetHeap()->RecordFree(freed_objects, freed_bytes);
