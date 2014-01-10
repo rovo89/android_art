@@ -472,6 +472,7 @@ void Heap::RemoveSpace(space::Space* space) {
     DCHECK(it != alloc_spaces_.end());
     alloc_spaces_.erase(it);
   }
+  delete space;
 }
 
 void Heap::RegisterGCAllocation(size_t bytes) {
@@ -1169,6 +1170,7 @@ void Heap::TransitionCollector(CollectorType collector_type) {
       DCHECK(allocator_mem_map_.get() == nullptr);
       allocator_mem_map_.reset(main_space_->ReleaseMemMap());
       madvise(main_space_->Begin(), main_space_->Size(), MADV_DONTNEED);
+      // RemoveSpace deletes the removed space.
       RemoveSpace(main_space_);
       break;
     }
