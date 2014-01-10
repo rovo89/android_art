@@ -1440,7 +1440,7 @@ void Heap::FlushAllocStack() {
 
 void Heap::MarkAllocStack(accounting::SpaceBitmap* bitmap1,
                           accounting::SpaceBitmap* bitmap2,
-                          accounting::SpaceSetMap* large_objects,
+                          accounting::ObjectSet* large_objects,
                           accounting::ObjectStack* stack) {
   DCHECK(bitmap1 != nullptr);
   DCHECK(bitmap2 != nullptr);

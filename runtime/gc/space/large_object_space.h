@@ -67,6 +67,8 @@ class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
     return this;
   }
 
+  virtual void Sweep(bool swap_bitmaps, size_t* freed_objects, size_t* freed_bytes);
+
  protected:
   explicit LargeObjectSpace(const std::string& name);
 

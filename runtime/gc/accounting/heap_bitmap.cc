@@ -32,7 +32,7 @@ void HeapBitmap::ReplaceBitmap(SpaceBitmap* old_bitmap, SpaceBitmap* new_bitmap)
   LOG(FATAL) << "bitmap " << static_cast<const void*>(old_bitmap) << " not found";
 }
 
-void HeapBitmap::ReplaceObjectSet(SpaceSetMap* old_set, SpaceSetMap* new_set) {
+void HeapBitmap::ReplaceObjectSet(ObjectSet* old_set, ObjectSet* new_set) {
   for (auto& space_set : discontinuous_space_sets_) {
     if (space_set == old_set) {
       space_set = new_set;
@@ -61,12 +61,12 @@ void HeapBitmap::RemoveContinuousSpaceBitmap(accounting::SpaceBitmap* bitmap) {
   continuous_space_bitmaps_.erase(it);
 }
 
-void HeapBitmap::AddDiscontinuousObjectSet(SpaceSetMap* set) {
+void HeapBitmap::AddDiscontinuousObjectSet(ObjectSet* set) {
   DCHECK(set != NULL);
   discontinuous_space_sets_.push_back(set);
 }
 
-void HeapBitmap::RemoveDiscontinuousObjectSet(SpaceSetMap* set) {
+void HeapBitmap::RemoveDiscontinuousObjectSet(ObjectSet* set) {
   auto it = std::find(discontinuous_space_sets_.begin(), discontinuous_space_sets_.end(), set);
   DCHECK(it != discontinuous_space_sets_.end());
   discontinuous_space_sets_.erase(it);
