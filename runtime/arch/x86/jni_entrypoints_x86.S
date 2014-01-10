@@ -20,12 +20,14 @@
      * Portable resolution trampoline.
      */
 DEFINE_FUNCTION art_jni_dlsym_lookup_stub
-    subl LITERAL(8), %esp         // align stack
-    .cfi_adjust_cfa_offset 8
+    subl LITERAL(4), %esp         // align stack
+    .cfi_adjust_cfa_offset 4
+    SETUP_GOT                     // pushes ebx
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     .cfi_adjust_cfa_offset 4
-    call SYMBOL(artFindNativeMethod)  // (Thread*)
-    addl LITERAL(12), %esp        // restore the stack
+    call SYMBOL(artFindNativeMethod)@PLT  // (Thread*)
+    UNDO_SETUP_GOT
+    addl LITERAL(8), %esp         // restore the stack
     .cfi_adjust_cfa_offset -12
     cmpl LITERAL(0), %eax         // check if returned method code is null
     je no_native_code_found       // if null, jump to return to handle
