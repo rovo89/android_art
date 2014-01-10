@@ -255,8 +255,6 @@ class SemiSpace : public GarbageCollector {
 
   inline mirror::Object* GetForwardingAddressInFromSpace(mirror::Object* obj) const;
 
-  mirror::Object* GetForwardingAddress(mirror::Object* obj);
-
   // Current space, we check this space first to avoid searching for the appropriate space for an
   // object.
   accounting::ObjectStack* mark_stack_;

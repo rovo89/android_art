@@ -1330,13 +1330,13 @@ class ZygoteCompactingCollector : public collector::SemiSpace {
   virtual mirror::Object* MarkNonForwardedObject(mirror::Object* obj)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
     size_t object_size = RoundUp(obj->SizeOf(), kObjectAlignment);
-    mirror::Object* forward_address = nullptr;
+    mirror::Object* forward_address;
     // Find the smallest bin which we can move obj in.
     auto it = bins_.lower_bound(object_size);
     if (it == bins_.end()) {
       // No available space in the bins, place it in the target space instead (grows the zygote
       // space).
-      size_t bytes_allocated = 0;
+      size_t bytes_allocated;
       forward_address = to_space_->Alloc(self_, object_size, &bytes_allocated);
       if (to_space_live_bitmap_ != nullptr) {
         to_space_live_bitmap_->Set(forward_address);
