@@ -452,7 +452,13 @@ class MIRGraph {
     return m_units_[current_method_];
   }
 
-  void DumpCFG(const char* dir_prefix, bool all_blocks);
+  /**
+   * @brief Dump a CFG into a dot file format.
+   * @param dir_prefix the directory the file will be created in.
+   * @param all_blocks does the dumper use all the basic blocks or use the reachable blocks.
+   * @param suffix does the filename require a suffix or not (default = nullptr).
+   */
+  void DumpCFG(const char* dir_prefix, bool all_blocks, const char* suffix = nullptr);
 
   void InitRegLocations();
 
