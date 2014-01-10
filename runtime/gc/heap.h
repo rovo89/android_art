@@ -670,6 +670,10 @@ class Heap {
   // Space which we use for the kAllocatorTypeDlMalloc.
   space::DlMallocSpace* dlmalloc_space_;
 
+  // The main space is the space which the GC copies to and from on process state updates. This
+  // space is typically either the dlmalloc_space_ or the rosalloc_space_.
+  space::MallocSpace* main_space_;
+
   // The large object space we are currently allocating into.
   space::LargeObjectSpace* large_object_space_;
 
