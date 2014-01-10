@@ -308,7 +308,7 @@ bool SemiSpace::MarkLargeObject(const Object* obj) {
 
 mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
   size_t object_size = obj->SizeOf();
-  size_t bytes_allocated = 0;
+  size_t bytes_allocated;
   mirror::Object* forward_address = nullptr;
   if (kEnableSimplePromo && reinterpret_cast<byte*>(obj) < last_gc_to_space_end_) {
     // If it's allocated before the last GC (older), move (pseudo-promote) it to
@@ -344,6 +344,8 @@ mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
   if (to_space_live_bitmap_ != nullptr) {
     to_space_live_bitmap_->Set(forward_address);
   }
+  DCHECK(to_space_->HasAddress(forward_address) ||
+         (kEnableSimplePromo && GetHeap()->GetNonMovingSpace()->HasAddress(forward_address)));
   return forward_address;
 }
 
@@ -365,9 +367,6 @@ Object* SemiSpace::MarkObject(Object* obj) {
             reinterpret_cast<size_t>(forward_address)));
         // Push the object onto the mark stack for later processing.
         MarkStackPush(forward_address);
-      } else {
-        DCHECK(to_space_->HasAddress(forward_address) ||
-               (kEnableSimplePromo && GetHeap()->GetNonMovingSpace()->HasAddress(forward_address)));
       }
       // TODO: Do we need this if in the else statement?
     } else {
@@ -418,14 +417,6 @@ void SemiSpace::BindLiveToMarkBitmap(space::ContinuousSpace* space) {
   accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
   accounting::SpaceBitmap* mark_bitmap = alloc_space->BindLiveToMarkBitmap();
   GetHeap()->GetMarkBitmap()->ReplaceBitmap(mark_bitmap, live_bitmap);
-}
-
-mirror::Object* SemiSpace::GetForwardingAddress(mirror::Object* obj) {
-  if (from_space_->HasAddress(obj)) {
-    LOG(FATAL) << "Shouldn't happen!";
-    return GetForwardingAddressInFromSpace(obj);
-  }
-  return obj;
 }
 
 mirror::Object* SemiSpace::MarkedForwardingAddressCallback(Object* object, void* arg) {
@@ -532,9 +523,6 @@ inline Object* SemiSpace::GetMarkedForwardAddress(mirror::Object* obj) const
   }
   if (from_space_->HasAddress(obj)) {
     mirror::Object* forwarding_address = GetForwardingAddressInFromSpace(const_cast<Object*>(obj));
-    // If the object is forwarded then it MUST be marked.
-    DCHECK(forwarding_address == nullptr || to_space_->HasAddress(forwarding_address) ||
-           (kEnableSimplePromo && GetHeap()->GetNonMovingSpace()->HasAddress(forwarding_address)));
     return forwarding_address;  // Returns either the forwarding address or nullptr.
   } else if (to_space_->HasAddress(obj)) {
     // Should be unlikely.
