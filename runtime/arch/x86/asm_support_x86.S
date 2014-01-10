@@ -77,15 +77,15 @@ MACRO1(END_FUNCTION, c_name)
 END_MACRO
 
 MACRO1(PUSH, reg)
-  pushl REG_VAR(reg, 0)
-  .cfi_adjust_cfa_offset 4
-  .cfi_rel_offset REG_VAR(reg, 0), 0
+    pushl REG_VAR(reg, 0)
+    .cfi_adjust_cfa_offset 4
+    .cfi_rel_offset REG_VAR(reg, 0), 0
 END_MACRO
 
 MACRO1(POP, reg)
-  popl REG_VAR(reg,0)
-  .cfi_adjust_cfa_offset -4
-  .cfi_restore REG_VAR(reg,0)
+    popl REG_VAR(reg,0)
+    .cfi_adjust_cfa_offset -4
+    .cfi_restore REG_VAR(reg,0)
 END_MACRO
 
 MACRO1(UNIMPLEMENTED,name)
@@ -98,6 +98,20 @@ VAR(name, 0):
     int3
     .cfi_endproc
     .size \name, .-\name
+END_MACRO
+
+MACRO0(SETUP_GOT_NOSAVE)
+    call __x86.get_pc_thunk.bx
+    addl $_GLOBAL_OFFSET_TABLE_, %ebx
+END_MACRO
+
+MACRO0(SETUP_GOT)
+    PUSH  ebx
+    SETUP_GOT_NOSAVE
+END_MACRO
+
+MACRO0(UNDO_SETUP_GOT)
+    POP  ebx
 END_MACRO
 
 #endif  // ART_RUNTIME_ARCH_X86_ASM_SUPPORT_X86_S_
