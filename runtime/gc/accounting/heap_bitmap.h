@@ -32,7 +32,7 @@ namespace accounting {
 class HeapBitmap {
  public:
   typedef std::vector<SpaceBitmap*, GcAllocator<SpaceBitmap*> > SpaceBitmapVector;
-  typedef std::vector<SpaceSetMap*, GcAllocator<SpaceSetMap*> > SpaceSetMapVector;
+  typedef std::vector<ObjectSet*, GcAllocator<ObjectSet*> > ObjectSetVector;
 
   bool Test(const mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     SpaceBitmap* bitmap = GetContinuousSpaceBitmap(obj);
@@ -48,7 +48,7 @@ class HeapBitmap {
     if (LIKELY(bitmap != NULL)) {
       bitmap->Clear(obj);
     } else {
-      SpaceSetMap* set = GetDiscontinuousSpaceObjectSet(obj);
+      ObjectSet* set = GetDiscontinuousSpaceObjectSet(obj);
       DCHECK(set != NULL);
       set->Clear(obj);
     }
@@ -59,7 +59,7 @@ class HeapBitmap {
     if (LIKELY(bitmap != NULL)) {
       bitmap->Set(obj);
     } else {
-      SpaceSetMap* set = GetDiscontinuousSpaceObjectSet(obj);
+      ObjectSet* set = GetDiscontinuousSpaceObjectSet(obj);
       DCHECK(set != NULL);
       set->Set(obj);
     }
@@ -74,7 +74,7 @@ class HeapBitmap {
     return NULL;
   }
 
-  SpaceSetMap* GetDiscontinuousSpaceObjectSet(const mirror::Object* obj) {
+  ObjectSet* GetDiscontinuousSpaceObjectSet(const mirror::Object* obj) {
     for (const auto& space_set : discontinuous_space_sets_) {
       if (space_set->Test(obj)) {
         return space_set;
@@ -96,7 +96,7 @@ class HeapBitmap {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Find and replace a object set pointer, this is used by for the bitmap swapping in the GC.
-  void ReplaceObjectSet(SpaceSetMap* old_set, SpaceSetMap* new_set)
+  void ReplaceObjectSet(ObjectSet* old_set, ObjectSet* new_set)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   explicit HeapBitmap(Heap* heap) : heap_(heap) {}
@@ -106,14 +106,14 @@ class HeapBitmap {
 
   void AddContinuousSpaceBitmap(SpaceBitmap* bitmap);
   void RemoveContinuousSpaceBitmap(SpaceBitmap* bitmap);
-  void AddDiscontinuousObjectSet(SpaceSetMap* set);
-  void RemoveDiscontinuousObjectSet(SpaceSetMap* set);
+  void AddDiscontinuousObjectSet(ObjectSet* set);
+  void RemoveDiscontinuousObjectSet(ObjectSet* set);
 
   // Bitmaps covering continuous spaces.
   SpaceBitmapVector continuous_space_bitmaps_;
 
   // Sets covering discontinuous spaces.
-  SpaceSetMapVector discontinuous_space_sets_;
+  ObjectSetVector discontinuous_space_sets_;
 
   friend class art::gc::Heap;
 };
