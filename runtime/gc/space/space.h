@@ -314,11 +314,11 @@ class ContinuousSpace : public Space {
 // is suitable for use for large primitive arrays.
 class DiscontinuousSpace : public Space {
  public:
-  accounting::SpaceSetMap* GetLiveObjects() const {
+  accounting::ObjectSet* GetLiveObjects() const {
     return live_objects_.get();
   }
 
-  accounting::SpaceSetMap* GetMarkObjects() const {
+  accounting::ObjectSet* GetMarkObjects() const {
     return mark_objects_.get();
   }
 
@@ -331,8 +331,8 @@ class DiscontinuousSpace : public Space {
  protected:
   DiscontinuousSpace(const std::string& name, GcRetentionPolicy gc_retention_policy);
 
-  UniquePtr<accounting::SpaceSetMap> live_objects_;
-  UniquePtr<accounting::SpaceSetMap> mark_objects_;
+  UniquePtr<accounting::ObjectSet> live_objects_;
+  UniquePtr<accounting::ObjectSet> mark_objects_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(DiscontinuousSpace);

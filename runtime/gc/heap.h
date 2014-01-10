@@ -54,7 +54,7 @@ namespace gc {
 namespace accounting {
   class HeapBitmap;
   class ModUnionTable;
-  class SpaceSetMap;
+  class ObjectSet;
 }  // namespace accounting
 
 namespace collector {
@@ -468,7 +468,7 @@ class Heap {
 
   // Mark all the objects in the allocation stack in the specified bitmap.
   void MarkAllocStack(accounting::SpaceBitmap* bitmap1, accounting::SpaceBitmap* bitmap2,
-                      accounting::SpaceSetMap* large_objects, accounting::ObjectStack* stack)
+                      accounting::ObjectSet* large_objects, accounting::ObjectStack* stack)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Mark the specified allocation stack as live.

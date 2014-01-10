@@ -208,7 +208,7 @@ class SpaceBitmap {
 };
 
 // Like a bitmap except it keeps track of objects using sets.
-class SpaceSetMap {
+class ObjectSet {
  public:
   typedef std::set<
       const mirror::Object*, std::less<const mirror::Object*>,
@@ -237,13 +237,20 @@ class SpaceSetMap {
     return contained_.find(obj) != contained_.end();
   }
 
-  std::string GetName() const;
-  void SetName(const std::string& name);
+  const std::string& GetName() const {
+    return name_;
+  }
+
+  void SetName(const std::string& name) {
+    name_ = name;
+  }
+
+  void CopyFrom(const ObjectSet& space_set) {
+    contained_ = space_set.contained_;
+  }
 
   void Walk(SpaceBitmap::Callback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
-
-  void CopyFrom(const SpaceSetMap& space_set);
 
   template <typename Visitor>
   void Visit(const Visitor& visitor) NO_THREAD_SAFETY_ANALYSIS {
@@ -252,8 +259,8 @@ class SpaceSetMap {
     }
   }
 
-  explicit SpaceSetMap(const std::string& name) : name_(name) {}
-  ~SpaceSetMap() {}
+  explicit ObjectSet(const std::string& name) : name_(name) {}
+  ~ObjectSet() {}
 
   Objects& GetObjects() {
     return contained_;
