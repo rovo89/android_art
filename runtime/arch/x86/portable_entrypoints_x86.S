@@ -37,11 +37,12 @@ DEFINE_FUNCTION art_portable_invoke_stub
     andl LITERAL(0xFFFFFFF0), %ebx    // align frame size to 16 bytes
     subl LITERAL(12), %ebx        // remove space for return address, ebx, and ebp
     subl %ebx, %esp               // reserve stack space for argument array
+    SETUP_GOT_NOSAVE              // reset ebx to GOT table
     lea  4(%esp), %eax            // use stack pointer + method ptr as dest for memcpy
     pushl 20(%ebp)                // push size of region to memcpy
     pushl 16(%ebp)                // push arg array as source of memcpy
     pushl %eax                    // push stack pointer as destination of memcpy
-    call SYMBOL(memcpy)           // (void*, const void*, size_t)
+    call SYMBOL(memcpy)@PLT       // (void*, const void*, size_t)
     addl LITERAL(12), %esp        // pop arguments to memcpy
     mov 12(%ebp), %eax            // move method pointer into eax
     mov %eax, (%esp)              // push method pointer onto stack
@@ -69,7 +70,8 @@ DEFINE_FUNCTION art_portable_proxy_invoke_handler
     PUSH ebp                        // Set up frame.
     movl %esp, %ebp
     .cfi_def_cfa_register %ebp
-    subl LITERAL(8), %esp           // Align stack
+    subl LITERAL(4), %esp           // Align stack
+    SETUP_GOT                       // pushes ebx
     leal 8(%ebp), %edx              // %edx = ArtMethod** called_addr
     movl 12(%ebp), %ecx             // %ecx = receiver
     movl 0(%edx), %eax              // %eax = ArtMethod* called
@@ -77,7 +79,8 @@ DEFINE_FUNCTION art_portable_proxy_invoke_handler
     pushl %fs:THREAD_SELF_OFFSET    // Pass thread.
     pushl %ecx                      // Pass receiver.
     pushl %eax                      // Pass called.
-    call SYMBOL(artPortableProxyInvokeHandler)  // (called, receiver, Thread*, &called)
+    call SYMBOL(artPortableProxyInvokeHandler)@PLT  // (called, receiver, Thread*, &called)
+    UNDO_SETUP_GOT
     leave
     .cfi_restore %ebp
     .cfi_def_cfa %esp, 4
@@ -91,7 +94,8 @@ DEFINE_FUNCTION art_portable_resolution_trampoline
   PUSH ebp                        // Set up frame.
   movl %esp, %ebp
   .cfi_def_cfa_register %ebp
-  subl LITERAL(8), %esp           // Align stack
+  subl LITERAL(4), %esp           // Align stack
+  SETUP_GOT                       // pushes ebx
   leal 8(%ebp), %edx              // %edx = ArtMethod** called_addr
   movl 12(%ebp), %ecx             // %ecx = receiver
   movl 0(%edx), %eax              // %eax = ArtMethod* called
@@ -99,7 +103,8 @@ DEFINE_FUNCTION art_portable_resolution_trampoline
   pushl %fs:THREAD_SELF_OFFSET    // Pass thread.
   pushl %ecx                      // Pass receiver.
   pushl %eax                      // Pass called.
-  call SYMBOL(artPortableResolutionTrampoline)  // (called, receiver, Thread*, &called)
+  call SYMBOL(artPortableResolutionTrampoline)@PLT  // (called, receiver, Thread*, &called)
+  UNDO_SETUP_GOT
   leave
   .cfi_restore %ebp
   .cfi_def_cfa %esp, 4
@@ -114,13 +119,15 @@ DEFINE_FUNCTION art_portable_to_interpreter_bridge
   PUSH ebp                        // Set up frame.
   movl %esp, %ebp
   .cfi_def_cfa_register %ebp
-  subl LITERAL(12), %esp          // Align stack
+  subl LITERAL(8), %esp           // Align stack
+  SETUP_GOT
   leal 8(%ebp), %edx              // %edx = ArtMethod** called_addr
   movl 0(%edx), %eax              // %eax = ArtMethod* called
   pushl %edx                      // Pass called_addr.
   pushl %fs:THREAD_SELF_OFFSET    // Pass thread.
   pushl %eax                      // Pass called.
-  call SYMBOL(artPortableToInterpreterBridge)  // (called, Thread*, &called)
+  call SYMBOL(artPortableToInterpreterBridge)@PLT  // (called, Thread*, &called)
+  UNDO_SETUP_GOT
   leave
   .cfi_restore %ebp
   .cfi_def_cfa %esp, 4
