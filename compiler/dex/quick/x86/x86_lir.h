@@ -128,11 +128,11 @@ namespace art {
 #define X86_FP_REG_MASK 0xF
 
 // RegisterLocation templates return values (rAX, rAX/rDX or XMM0).
-//                               location,     wide, defined, const, fp, core, ref, high_word, home, vec_len, low_reg, high_reg,     s_reg_low
-#define X86_LOC_C_RETURN             {kLocPhysReg, 0,    0,       0,     0,  0,    0,   0,        1,    kVectorNotUsed, rAX,    INVALID_REG, INVALID_SREG, INVALID_SREG}
-#define X86_LOC_C_RETURN_WIDE        {kLocPhysReg, 1,    0,       0,     0,  0,    0,   0,        1,    kVectorNotUsed, rAX,    rDX,         INVALID_SREG, INVALID_SREG}
-#define X86_LOC_C_RETURN_FLOAT       {kLocPhysReg, 0,    0,       0,     1,  0,    0,   0,        1,    kVectorLength4, fr0,    INVALID_REG, INVALID_SREG, INVALID_SREG}
-#define X86_LOC_C_RETURN_DOUBLE      {kLocPhysReg, 1,    0,       0,     1,  0,    0,   0,        1,    kVectorLength8, fr0,    fr0,         INVALID_SREG, INVALID_SREG}
+//                               location,     wide, defined, const, fp, core, ref, high_word, home, low_reg, high_reg,     s_reg_low
+#define X86_LOC_C_RETURN             {kLocPhysReg, 0,    0,       0,     0,  0,    0,   0,        1,    rAX,    INVALID_REG, INVALID_SREG, INVALID_SREG}
+#define X86_LOC_C_RETURN_WIDE        {kLocPhysReg, 1,    0,       0,     0,  0,    0,   0,        1,    rAX,    rDX,         INVALID_SREG, INVALID_SREG}
+#define X86_LOC_C_RETURN_FLOAT       {kLocPhysReg, 0,    0,       0,     1,  0,    0,   0,        1,    fr0,    INVALID_REG, INVALID_SREG, INVALID_SREG}
+#define X86_LOC_C_RETURN_DOUBLE      {kLocPhysReg, 1,    0,       0,     1,  0,    0,   0,        1,    fr0,    fr1,         INVALID_SREG, INVALID_SREG}
 
 enum X86ResourceEncodingPos {
   kX86GPReg0   = 0,

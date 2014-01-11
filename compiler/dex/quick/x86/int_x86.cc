@@ -155,11 +155,9 @@ void X86Mir2Lir::OpRegCopyWide(int dest_lo, int dest_hi,
       // TODO: Prevent this from happening in the code. The result is often
       // unused or could have been loaded more easily from memory.
       NewLIR2(kX86MovdxrRR, dest_lo, src_lo);
-      dest_hi = AllocTempDouble();
       NewLIR2(kX86MovdxrRR, dest_hi, src_hi);
       NewLIR2(kX86PsllqRI, dest_hi, 32);
       NewLIR2(kX86OrpsRR, dest_lo, dest_hi);
-      FreeTemp(dest_hi);
     }
   } else {
     if (src_fp) {
@@ -527,7 +525,7 @@ void X86Mir2Lir::GenAddLong(RegLocation rl_dest, RegLocation rl_src1,
   // Compute (r1:r0) = (r1:r0) + (r2:r3)
   OpRegReg(kOpAdd, r0, r2);  // r0 = r0 + r2
   OpRegReg(kOpAdc, r1, r3);  // r1 = r1 + r3 + CF
-  RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed, r0, r1,
+  RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
                           INVALID_SREG, INVALID_SREG};
   StoreValueWide(rl_dest, rl_result);
 }
@@ -543,7 +541,7 @@ void X86Mir2Lir::GenSubLong(RegLocation rl_dest, RegLocation rl_src1,
   // Compute (r1:r0) = (r1:r0) + (r2:r3)
   OpRegReg(kOpSub, r0, r2);  // r0 = r0 - r2
   OpRegReg(kOpSbc, r1, r3);  // r1 = r1 - r3 - CF
-  RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed, r0, r1,
+  RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
                           INVALID_SREG, INVALID_SREG};
   StoreValueWide(rl_dest, rl_result);
 }
@@ -559,7 +557,7 @@ void X86Mir2Lir::GenAndLong(RegLocation rl_dest, RegLocation rl_src1,
   // Compute (r1:r0) = (r1:r0) & (r2:r3)
   OpRegReg(kOpAnd, r0, r2);  // r0 = r0 & r2
   OpRegReg(kOpAnd, r1, r3);  // r1 = r1 & r3
-  RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed, r0, r1,
+  RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
                           INVALID_SREG, INVALID_SREG};
   StoreValueWide(rl_dest, rl_result);
 }
@@ -575,7 +573,7 @@ void X86Mir2Lir::GenOrLong(RegLocation rl_dest,
   // Compute (r1:r0) = (r1:r0) | (r2:r3)
   OpRegReg(kOpOr, r0, r2);  // r0 = r0 | r2
   OpRegReg(kOpOr, r1, r3);  // r1 = r1 | r3
-  RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed, r0, r1,
+  RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
                           INVALID_SREG, INVALID_SREG};
   StoreValueWide(rl_dest, rl_result);
 }
@@ -591,7 +589,7 @@ void X86Mir2Lir::GenXorLong(RegLocation rl_dest,
   // Compute (r1:r0) = (r1:r0) ^ (r2:r3)
   OpRegReg(kOpXor, r0, r2);  // r0 = r0 ^ r2
   OpRegReg(kOpXor, r1, r3);  // r1 = r1 ^ r3
-  RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed, r0, r1,
+  RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
                           INVALID_SREG, INVALID_SREG};
   StoreValueWide(rl_dest, rl_result);
 }
@@ -604,7 +602,7 @@ void X86Mir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
   OpRegReg(kOpNeg, r0, r0);  // r0 = -r0
   OpRegImm(kOpAdc, r1, 0);   // r1 = r1 + CF
   OpRegReg(kOpNeg, r1, r1);  // r1 = -r1
-  RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed, r0, r1,
+  RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
                           INVALID_SREG, INVALID_SREG};
   StoreValueWide(rl_dest, rl_result);
 }
