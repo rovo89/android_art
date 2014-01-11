@@ -334,6 +334,7 @@ LIR* X86Mir2Lir::LoadConstantWide(int r_dest_lo, int r_dest_hi, int64_t value) {
     LIR *res;
     if (X86_FPREG(r_dest_lo)) {
       DCHECK(X86_FPREG(r_dest_hi));  // ignore r_dest_hi
+      DCHECK_EQ(r_dest_lo, r_dest_hi);
       if (value == 0) {
         return NewLIR2(kX86XorpsRR, r_dest_lo, r_dest_lo);
       } else {
@@ -343,9 +344,11 @@ LIR* X86Mir2Lir::LoadConstantWide(int r_dest_lo, int r_dest_hi, int64_t value) {
           res = LoadConstantNoClobber(r_dest_lo, val_lo);
         }
         if (val_hi != 0) {
+          r_dest_hi = AllocTempDouble();
           LoadConstantNoClobber(r_dest_hi, val_hi);
           NewLIR2(kX86PsllqRI, r_dest_hi, 32);
           NewLIR2(kX86OrpsRR, r_dest_lo, r_dest_hi);
+          FreeTemp(r_dest_hi);
         }
       }
     } else {
@@ -370,12 +373,6 @@ LIR* X86Mir2Lir::LoadBaseIndexedDisp(int rBase, int r_index, int scale,
       is64bit = true;
       if (X86_FPREG(r_dest)) {
         opcode = is_array ? kX86MovsdRA : kX86MovsdRM;
-        if (X86_SINGLEREG(r_dest)) {
-          DCHECK(X86_FPREG(r_dest_hi));
-          DCHECK_EQ(r_dest, (r_dest_hi - 1));
-          r_dest = S2d(r_dest, r_dest_hi);
-        }
-        r_dest_hi = r_dest + 1;
       } else {
         pair = true;
         opcode = is_array ? kX86Mov32RA  : kX86Mov32RM;
@@ -488,12 +485,6 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(int rBase, int r_index, int scale,
       is64bit = true;
       if (X86_FPREG(r_src)) {
         opcode = is_array ? kX86MovsdAR : kX86MovsdMR;
-        if (X86_SINGLEREG(r_src)) {
-          DCHECK(X86_FPREG(r_src_hi));
-          DCHECK_EQ(r_src, (r_src_hi - 1));
-          r_src = S2d(r_src, r_src_hi);
-        }
-        r_src_hi = r_src + 1;
       } else {
         pair = true;
         opcode = is_array ? kX86Mov32AR  : kX86Mov32MR;
@@ -571,6 +562,19 @@ LIR* X86Mir2Lir::StoreBaseDispWide(int rBase, int displacement,
                                    int r_src_lo, int r_src_hi) {
   return StoreBaseIndexedDisp(rBase, INVALID_REG, 0, displacement,
                               r_src_lo, r_src_hi, kLong, INVALID_SREG);
+}
+
+/*
+ * Copy a long value in Core registers to an XMM register
+ *
+ */
+void X86Mir2Lir::OpVectorRegCopyWide(uint8_t fp_reg, uint8_t low_reg, uint8_t high_reg) {
+  NewLIR2(kX86MovdxrRR, fp_reg, low_reg);
+  int tmp_reg = AllocTempDouble();
+  NewLIR2(kX86MovdxrRR, tmp_reg, high_reg);
+  NewLIR2(kX86PsllqRI, tmp_reg, 32);
+  NewLIR2(kX86OrpsRR, fp_reg, tmp_reg);
+  FreeTemp(tmp_reg);
 }
 
 }  // namespace art
