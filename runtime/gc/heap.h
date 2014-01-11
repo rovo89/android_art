@@ -495,6 +495,21 @@ class Heap {
     return large_object_space_;
   }
 
+  // Returns the free list space that may contain movable objects (the
+  // one that's not the non-moving space), either rosalloc_space_ or
+  // dlmalloc_space_.
+  space::MallocSpace* GetPrimaryFreeListSpace() {
+    if (kUseRosAlloc) {
+      DCHECK(rosalloc_space_ != nullptr);
+      // reinterpret_cast is necessary as the space class hierarchy
+      // isn't known (#included) yet here.
+      return reinterpret_cast<space::MallocSpace*>(rosalloc_space_);
+    } else {
+      DCHECK(dlmalloc_space_ != nullptr);
+      return reinterpret_cast<space::MallocSpace*>(dlmalloc_space_);
+    }
+  }
+
   void DumpSpaces(std::ostream& stream = LOG(INFO));
 
   // GC performance measuring
