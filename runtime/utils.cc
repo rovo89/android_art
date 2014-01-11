@@ -358,13 +358,16 @@ std::string PrettyReturnType(const char* signature) {
 }
 
 std::string PrettyMethod(const mirror::ArtMethod* m, bool with_signature) {
-  if (m == NULL) {
+  if (m == nullptr) {
     return "null";
   }
   MethodHelper mh(m);
   std::string result(PrettyDescriptor(mh.GetDeclaringClassDescriptor()));
   result += '.';
   result += mh.GetName();
+  if (UNLIKELY(m->IsFastNative())) {
+    result += "!";
+  }
   if (with_signature) {
     const Signature signature = mh.GetSignature();
     std::string sig_as_string(signature.ToString());
