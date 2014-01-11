@@ -114,7 +114,8 @@ class MANAGED ArtMethod : public Object {
   }
 
   bool IsFastNative() const {
-    return (GetAccessFlags() & kAccFastNative) != 0;
+    uint32_t mask = kAccFastNative | kAccNative;
+    return (GetAccessFlags() & mask) == mask;
   }
 
   bool IsAbstract() const {
