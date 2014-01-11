@@ -56,17 +56,6 @@ enum RegLocationType {
   kLocInvalid
 };
 
-/**
- * Support for vector registers.  Initially used for x86 floats.  This will be used
- * to replace the assumption that a double takes up 2 single FP registers
- */
-enum VectorLengthType {
-  kVectorNotUsed = 0,   // This value is NOT in a vector register.
-  kVectorLength4,       // The value occupies 4 bytes in a vector register.
-  kVectorLength8,       // The value occupies 8 bytes in a vector register.
-  kVectorLength16       // The value occupies 16 bytes in a vector register (unused now).
-};
-
 enum BBType {
   kNullBlock,
   kEntryBlock,

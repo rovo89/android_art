@@ -385,7 +385,7 @@ class Mir2Lir : public Backend {
     int AllocPreservedSingle(int s_reg);
     int AllocPreservedDouble(int s_reg);
     int AllocTempBody(RegisterInfo* p, int num_regs, int* next_temp, bool required);
-    virtual int AllocTempDouble();
+    int AllocTempDouble();
     int AllocFreeTemp();
     int AllocTemp();
     int AllocTempFloat();
@@ -403,7 +403,7 @@ class Mir2Lir : public Backend {
     void MarkDefWide(RegLocation rl, LIR *start, LIR *finish);
     RegLocation WideToNarrow(RegLocation rl);
     void ResetDefLoc(RegLocation rl);
-    virtual void ResetDefLocWide(RegLocation rl);
+    void ResetDefLocWide(RegLocation rl);
     void ResetDefTracking();
     void ClobberAllRegs();
     void FlushAllRegsBody(RegisterInfo* info, int num_regs);
@@ -419,7 +419,7 @@ class Mir2Lir : public Backend {
     void CopyRegInfo(int new_reg, int old_reg);
     bool CheckCorePoolSanity();
     RegLocation UpdateLoc(RegLocation loc);
-    virtual RegLocation UpdateLocWide(RegLocation loc);
+    RegLocation UpdateLocWide(RegLocation loc);
     RegLocation UpdateRawLoc(RegLocation loc);
 
     /**
@@ -430,7 +430,7 @@ class Mir2Lir : public Backend {
      * @param update Whether the liveness information should be updated.
      * @return Returns the properly typed temporary in physical register pairs.
      */
-    virtual RegLocation EvalLocWide(RegLocation loc, int reg_class, bool update);
+    RegLocation EvalLocWide(RegLocation loc, int reg_class, bool update);
 
     /**
      * @brief Used to load register location into a typed temporary.
@@ -439,7 +439,7 @@ class Mir2Lir : public Backend {
      * @param update Whether the liveness information should be updated.
      * @return Returns the properly typed temporary in physical register.
      */
-    virtual RegLocation EvalLoc(RegLocation loc, int reg_class, bool update);
+    RegLocation EvalLoc(RegLocation loc, int reg_class, bool update);
 
     void CountRefs(RefCounts* core_counts, RefCounts* fp_counts, size_t num_regs);
     void DumpCounts(const RefCounts* arr, int size, const char* msg);
@@ -507,8 +507,6 @@ class Mir2Lir : public Backend {
                            RegLocation rl_src);
     void GenSuspendTest(int opt_flags);
     void GenSuspendTestAndBranch(int opt_flags, LIR* target);
-    // This will be overridden by x86 implementation.
-    virtual void GenConstWide(RegLocation rl_dest, int64_t value);
 
     // Shared by all targets - implemented in gen_invoke.cc.
     int CallHelperSetup(ThreadOffset helper_offset);
