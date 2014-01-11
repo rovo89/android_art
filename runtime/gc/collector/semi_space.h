@@ -263,6 +263,9 @@ class SemiSpace : public GarbageCollector {
   mirror::Object* immune_begin_;
   mirror::Object* immune_end_;
 
+  // If true, the large object space is immune.
+  bool is_large_object_space_immune_;
+
   // Destination and source spaces (can be any type of ContinuousMemMapAllocSpace which either has
   // a live bitmap or doesn't).
   space::ContinuousMemMapAllocSpace* to_space_;
@@ -279,6 +282,18 @@ class SemiSpace : public GarbageCollector {
   // how many bytes of objects have been copied so far from the bump
   // pointer space to the non-moving space.
   uint64_t bytes_promoted_;
+
+  // When true, collect the whole heap. When false, collect only the
+  // bump pointer spaces.
+  bool whole_heap_collection_;
+
+  // A counter used to enable whole_heap_collection_ once per
+  // interval.
+  int whole_heap_collection_interval_counter_;
+
+  // The default interval of the whole heap collection. If N, the
+  // whole heap collection occurs every N collections.
+  static constexpr int kDefaultWholeHeapCollectionInterval = 5;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(SemiSpace);
