@@ -1840,11 +1840,4 @@ void Mir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
   CallRuntimeHelperRegLocation(QUICK_ENTRYPOINT_OFFSET(pUnlockObject), rl_src, true);
 }
 
-/* Generic code for generating a wide constant into a VR. */
-void Mir2Lir::GenConstWide(RegLocation rl_dest, int64_t value) {
-  RegLocation rl_result = EvalLoc(rl_dest, kAnyReg, true);
-  LoadConstantWide(rl_result.low_reg, rl_result.high_reg, value);
-  StoreValueWide(rl_dest, rl_result);
-}
-
 }  // namespace art
