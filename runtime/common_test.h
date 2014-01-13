@@ -474,12 +474,13 @@ class CommonTest : public testing::Test {
         }
       }
       class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
+      CumulativeLogger timer("Compilation times");
       compiler_driver_.reset(new CompilerDriver(verified_methods_data_.get(),
                                                 method_inliner_map_.get(),
                                                 compiler_backend, instruction_set,
                                                 instruction_set_features,
                                                 true, new CompilerDriver::DescriptorSet,
-                                                2, true));
+                                                2, true, true, &timer));
     }
     // We typically don't generate an image in unit tests, disable this optimization by default.
     compiler_driver_->SetSupportBootImageFixup(false);
