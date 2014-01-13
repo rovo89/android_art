@@ -135,6 +135,18 @@ static void dumpEvent(const JdwpEvent* pEvent) {
   }
 }
 
+static bool NeedsFullDeoptimization(JdwpEventKind eventKind) {
+  switch (eventKind) {
+      case EK_METHOD_ENTRY:
+      case EK_METHOD_EXIT:
+      case EK_METHOD_EXIT_WITH_RETURN_VALUE:
+      case EK_SINGLE_STEP:
+        return true;
+      default:
+        return false;
+    }
+}
+
 /*
  * Add an event to the list.  Ordering is not important.
  *
@@ -170,16 +182,31 @@ JdwpError JdwpState::RegisterEvent(JdwpEvent* pEvent) {
     }
   }
 
-  /*
-   * Add to list.
-   */
-  MutexLock mu(Thread::Current(), event_list_lock_);
-  if (event_list_ != NULL) {
-    pEvent->next = event_list_;
-    event_list_->prev = pEvent;
+  {
+    /*
+     * Add to list.
+     */
+    MutexLock mu(Thread::Current(), event_list_lock_);
+    if (event_list_ != NULL) {
+      pEvent->next = event_list_;
+      event_list_->prev = pEvent;
+    }
+    event_list_ = pEvent;
+    ++event_list_size_;
+
+    /**
+     * Do we need to enable full deoptimization ?
+     */
+    if (NeedsFullDeoptimization(pEvent->eventKind)) {
+      if (full_deoptimization_requests_ == 0) {
+        // This is the first event that needs full deoptimization: enable it.
+        Dbg::EnableFullDeoptimization();
+      }
+      ++full_deoptimization_requests_;
+    }
   }
-  event_list_ = pEvent;
-  ++event_list_size_;
+
+  Dbg::ManageDeoptimization();
 
   return ERR_NONE;
 }
@@ -225,6 +252,17 @@ void JdwpState::UnregisterEvent(JdwpEvent* pEvent) {
 
   --event_list_size_;
   CHECK(event_list_size_ != 0 || event_list_ == NULL);
+
+  /**
+   * Can we disable full deoptimization ?
+   */
+  if (NeedsFullDeoptimization(pEvent->eventKind)) {
+    --full_deoptimization_requests_;
+    if (full_deoptimization_requests_ == 0) {
+      // We no longer need full deoptimization.
+      Dbg::DisableFullDeoptimization();
+    }
+  }
 }
 
 /*
@@ -235,20 +273,25 @@ void JdwpState::UnregisterEvent(JdwpEvent* pEvent) {
  * explicitly remove one-off single-step events.)
  */
 void JdwpState::UnregisterEventById(uint32_t requestId) {
-  MutexLock mu(Thread::Current(), event_list_lock_);
+  bool found = false;
+  {
+    MutexLock mu(Thread::Current(), event_list_lock_);
 
-  JdwpEvent* pEvent = event_list_;
-  while (pEvent != NULL) {
-    if (pEvent->requestId == requestId) {
-      UnregisterEvent(pEvent);
-      EventFree(pEvent);
-      return;      /* there can be only one with a given ID */
+    for (JdwpEvent* pEvent = event_list_; pEvent != nullptr; pEvent = pEvent->next) {
+      if (pEvent->requestId == requestId) {
+        found = true;
+        UnregisterEvent(pEvent);
+        EventFree(pEvent);
+        break;      /* there can be only one with a given ID */
+      }
     }
-
-    pEvent = pEvent->next;
   }
 
-  // ALOGD("Odd: no match when removing event reqId=0x%04x", requestId);
+  if (found) {
+    Dbg::ManageDeoptimization();
+  } else {
+    LOG(DEBUG) << StringPrintf("Odd: no match when removing event reqId=0x%04x", requestId);
+  }
 }
 
 /*
@@ -692,6 +735,8 @@ bool JdwpState::PostVMStart() {
     expandBufAdd8BE(pReq, threadId);
   }
 
+  Dbg::ManageDeoptimization();
+
   /* send request and possibly suspend ourselves */
   SendRequestAndPossiblySuspend(pReq, suspend_policy, threadId);
 
@@ -753,14 +798,12 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
     return false;
   }
 
-  JdwpEvent** match_list = NULL;
   int match_count = 0;
   ExpandBuf* pReq = NULL;
   JdwpSuspendPolicy suspend_policy = SP_NONE;
-
   {
     MutexLock mu(Thread::Current(), event_list_lock_);
-    match_list = AllocMatchList(event_list_size_);
+    JdwpEvent** match_list = AllocMatchList(event_list_size_);
     if ((eventFlags & Dbg::kBreakpoint) != 0) {
       FindMatchingEvents(EK_BREAKPOINT, &basket, match_list, &match_count);
     }
@@ -799,6 +842,8 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
 
     CleanupMatchList(match_list, match_count);
   }
+
+  Dbg::ManageDeoptimization();
 
   SendRequestAndPossiblySuspend(pReq, suspend_policy, basket.threadId);
   return match_count != 0;
@@ -859,6 +904,8 @@ bool JdwpState::PostThreadChange(ObjectId threadId, bool start) {
     CleanupMatchList(match_list, match_count);
   }
 
+  Dbg::ManageDeoptimization();
+
   SendRequestAndPossiblySuspend(pReq, suspend_policy, basket.threadId);
 
   return match_count != 0;
@@ -912,13 +959,12 @@ bool JdwpState::PostException(const JdwpLocation* pThrowLoc,
     return false;
   }
 
-  JdwpEvent** match_list = NULL;
   int match_count = 0;
   ExpandBuf* pReq = NULL;
   JdwpSuspendPolicy suspend_policy = SP_NONE;
   {
     MutexLock mu(Thread::Current(), event_list_lock_);
-    match_list = AllocMatchList(event_list_size_);
+    JdwpEvent** match_list = AllocMatchList(event_list_size_);
     FindMatchingEvents(EK_EXCEPTION, &basket, match_list, &match_count);
     if (match_count != 0) {
       VLOG(jdwp) << "EVENT: " << match_list[0]->eventKind << "(" << match_count << " total)"
@@ -953,6 +999,8 @@ bool JdwpState::PostException(const JdwpLocation* pThrowLoc,
 
     CleanupMatchList(match_list, match_count);
   }
+
+  Dbg::ManageDeoptimization();
 
   SendRequestAndPossiblySuspend(pReq, suspend_policy, basket.threadId);
 
@@ -1023,6 +1071,8 @@ bool JdwpState::PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std
     }
     CleanupMatchList(match_list, match_count);
   }
+
+  Dbg::ManageDeoptimization();
 
   SendRequestAndPossiblySuspend(pReq, suspend_policy, basket.threadId);
 

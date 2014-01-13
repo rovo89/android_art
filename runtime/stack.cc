@@ -323,10 +323,10 @@ void StackVisitor::WalkStack(bool include_transitions) {
             } else if (instrumentation_frame.interpreter_entry_) {
               mirror::ArtMethod* callee = Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs);
               CHECK_EQ(GetMethod(), callee) << "Expected: " << PrettyMethod(callee) << " Found: "
-                  << PrettyMethod(GetMethod());
+                                            << PrettyMethod(GetMethod());
             } else if (instrumentation_frame.method_ != GetMethod()) {
               LOG(FATAL)  << "Expected: " << PrettyMethod(instrumentation_frame.method_)
-                << " Found: " << PrettyMethod(GetMethod());
+                          << " Found: " << PrettyMethod(GetMethod());
             }
             if (num_frames_ != 0) {
               // Check agreement of frame Ids only if num_frames_ is computed to avoid infinite

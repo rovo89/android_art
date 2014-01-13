@@ -53,6 +53,7 @@ enum LockLevel {
   kBreakpointLock,
   kThreadListLock,
   kBreakpointInvokeLock,
+  kDeoptimizationLock,
   kTraceLock,
   kProfilerLock,
   kJdwpEventListLock,
@@ -143,11 +144,14 @@ class Locks {
   // attaching and detaching.
   static Mutex* thread_list_lock_ ACQUIRED_AFTER(runtime_shutdown_lock_);
 
-  // Guards breakpoints and single-stepping.
+  // Guards breakpoints.
   static Mutex* breakpoint_lock_ ACQUIRED_AFTER(thread_list_lock_);
 
+  // Guards deoptimization requests.
+  static Mutex* deoptimization_lock_ ACQUIRED_AFTER(breakpoint_lock_);
+
   // Guards trace requests.
-  static Mutex* trace_lock_ ACQUIRED_AFTER(breakpoint_lock_);
+  static Mutex* trace_lock_ ACQUIRED_AFTER(deoptimization_lock_);
 
   // Guards profile objects.
   static Mutex* profiler_lock_ ACQUIRED_AFTER(trace_lock_);
