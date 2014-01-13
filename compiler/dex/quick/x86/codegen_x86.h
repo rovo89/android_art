@@ -173,6 +173,12 @@ class X86Mir2Lir : public Mir2Lir {
     bool InexpensiveConstantLong(int64_t value);
     bool InexpensiveConstantDouble(int64_t value);
 
+    RegLocation UpdateLocWide(RegLocation loc);
+    RegLocation EvalLocWide(RegLocation loc, int reg_class, bool update);
+    RegLocation EvalLoc(RegLocation loc, int reg_class, bool update);
+    int AllocTempDouble();
+    void ResetDefLocWide(RegLocation rl);
+
   private:
     void EmitPrefix(const X86EncodingMap* entry);
     void EmitOpcode(const X86EncodingMap* entry);
@@ -222,6 +228,8 @@ class X86Mir2Lir : public Mir2Lir {
     void EmitUnimplemented(const X86EncodingMap* entry, LIR* lir);
     void GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1,
                                   int64_t val, ConditionCode ccode);
+    void OpVectorRegCopyWide(uint8_t fp_reg, uint8_t low_reg, uint8_t high_reg);
+    void GenConstWide(RegLocation rl_dest, int64_t value);
 };
 
 }  // namespace art

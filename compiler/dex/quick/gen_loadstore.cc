@@ -265,9 +265,17 @@ void Mir2Lir::StoreValueWide(RegLocation rl_dest, RegLocation rl_src) {
 
   // Dest is now live and dirty (until/if we flush it to home location)
   MarkLive(rl_dest.low_reg, rl_dest.s_reg_low);
-  MarkLive(rl_dest.high_reg, GetSRegHi(rl_dest.s_reg_low));
-  MarkDirty(rl_dest);
-  MarkPair(rl_dest.low_reg, rl_dest.high_reg);
+
+  // Does this wide value live in two registers (or one vector one)?
+  if (rl_dest.low_reg != rl_dest.high_reg) {
+    MarkLive(rl_dest.high_reg, GetSRegHi(rl_dest.s_reg_low));
+    MarkDirty(rl_dest);
+    MarkPair(rl_dest.low_reg, rl_dest.high_reg);
+  } else {
+    // This must be an x86 vector register value,
+    DCHECK(IsFpReg(rl_dest.low_reg) && (cu_->instruction_set == kX86));
+    MarkDirty(rl_dest);
+  }
 
 
   ResetDefLocWide(rl_dest);
