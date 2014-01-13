@@ -22,6 +22,7 @@
 #include "locks.h"
 
 #include <stdint.h>
+#include <set>
 #include <list>
 
 namespace art {
@@ -120,6 +121,47 @@ class Instrumentation {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::classlinker_classes_lock_);
 
+  // Deoptimization.
+  void EnableDeoptimization() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void DisableDeoptimization() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool IsDeoptimizationEnabled() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Executes everything with interpreter.
+  void DeoptimizeEverything()
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::classlinker_classes_lock_);
+
+  // Executes everything with compiled code (or interpreter if there is no code).
+  void UndeoptimizeEverything()
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::classlinker_classes_lock_);
+
+  // Deoptimize a method by forcing its execution with the interpreter. Nevertheless, a static
+  // method (except a class initializer) set to the resolution trampoline will be deoptimized only
+  // once its declaring class is initialized.
+  void Deoptimize(mirror::ArtMethod* method)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Undeoptimze the method by restoring its entrypoints. Nevertheless, a static method
+  // (except a class initializer) set to the resolution trampoline will be updated only once its
+  // declaring class is initialized.
+  void Undeoptimize(mirror::ArtMethod* method)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  bool IsDeoptimized(mirror::ArtMethod* method) const;
+
+  // Enable method tracing by installing instrumentation entry/exit stubs.
+  void EnableMethodTracing()
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::classlinker_classes_lock_);
+
+  // Disable method tracing by uninstalling instrumentation entry/exit stubs.
+  void DisableMethodTracing()
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::classlinker_classes_lock_);
+
   InterpreterHandlerTable GetInterpreterHandlerTable() const {
     return interpreter_handler_table_;
   }
@@ -129,7 +171,8 @@ class Instrumentation {
   void ResetQuickAllocEntryPoints();
 
   // Update the code of a method respecting any installed stubs.
-  void UpdateMethodsCode(mirror::ArtMethod* method, const void* code) const;
+  void UpdateMethodsCode(mirror::ArtMethod* method, const void* code) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get the quick code for the given method. More efficient than asking the class linker as it
   // will short-cut to GetCode if instrumentation and static method resolution stubs aren't
@@ -232,6 +275,9 @@ class Instrumentation {
   // Call back for configure stubs.
   bool InstallStubsForClass(mirror::Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void InstallStubsForMethod(mirror::ArtMethod* method)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  private:
   // Does the job of installing or removing instrumentation code within methods.
   void ConfigureStubs(bool require_entry_exit_stubs, bool require_interpreter)
@@ -294,6 +340,11 @@ class Instrumentation {
   std::list<InstrumentationListener*> dex_pc_listeners_ GUARDED_BY(Locks::mutator_lock_);
   std::list<InstrumentationListener*> exception_caught_listeners_ GUARDED_BY(Locks::mutator_lock_);
 
+  // The set of methods being deoptimized (by the debugger) which must be executed with interpreter
+  // only.
+  // TODO we need to visit these methods as roots.
+  std::set<mirror::ArtMethod*> deoptimized_methods_;
+
   // Current interpreter handler table. This is updated each time the thread state flags are
   // modified.
   InterpreterHandlerTable interpreter_handler_table_;
@@ -317,9 +368,9 @@ struct InstrumentationStackFrame {
 
   mirror::Object* this_object_;
   mirror::ArtMethod* method_;
-  const uintptr_t return_pc_;
-  const size_t frame_id_;
-  const bool interpreter_entry_;
+  uintptr_t return_pc_;
+  size_t frame_id_;
+  bool interpreter_entry_;
 };
 
 }  // namespace instrumentation

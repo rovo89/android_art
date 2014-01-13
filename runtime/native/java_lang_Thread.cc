@@ -80,6 +80,7 @@ static jint Thread_nativeGetStatus(JNIEnv* env, jobject java_thread, jboolean ha
     case kWaitingForDebuggerToAttach:     return kJavaWaiting;
     case kWaitingInMainDebuggerLoop:      return kJavaWaiting;
     case kWaitingForDebuggerSuspension:   return kJavaWaiting;
+    case kWaitingForDeoptimization:       return kJavaWaiting;
     case kWaitingForJniOnLoad:            return kJavaWaiting;
     case kWaitingForSignalCatcherOutput:  return kJavaWaiting;
     case kWaitingInMainSignalCatcherLoop: return kJavaWaiting;

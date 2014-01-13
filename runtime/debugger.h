@@ -137,8 +137,9 @@ class Dbg {
    * when the debugger attaches.
    */
   static void Connected();
-  static void GoActive() LOCKS_EXCLUDED(Locks::breakpoint_lock_, Locks::mutator_lock_);
-  static void Disconnected() LOCKS_EXCLUDED(Locks::mutator_lock_);
+  static void GoActive()
+      LOCKS_EXCLUDED(Locks::breakpoint_lock_, Locks::deoptimization_lock_, Locks::mutator_lock_);
+  static void Disconnected() LOCKS_EXCLUDED(Locks::deoptimization_lock_, Locks::mutator_lock_);
   static void Disposed();
 
   // Returns true if we're actually debugging with a real debugger, false if it's
@@ -385,12 +386,29 @@ class Dbg {
       LOCKS_EXCLUDED(Locks::breakpoint_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Full Deoptimization control. Only used for method entry/exit and single-stepping.
+  static void EnableFullDeoptimization()
+      LOCKS_EXCLUDED(Locks::deoptimization_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static void DisableFullDeoptimization()
+      EXCLUSIVE_LOCKS_REQUIRED(event_list_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Manage deoptimization after updating JDWP events list. This must be done while all mutator
+  // threads are suspended.
+  static void ManageDeoptimization()
+      LOCKS_EXCLUDED(Locks::deoptimization_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Breakpoints.
   static void WatchLocation(const JDWP::JdwpLocation* pLoc)
-      LOCKS_EXCLUDED(Locks::breakpoint_lock_)
+      LOCKS_EXCLUDED(Locks::breakpoint_lock_, Locks::deoptimization_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void UnwatchLocation(const JDWP::JdwpLocation* pLoc)
-      LOCKS_EXCLUDED(Locks::breakpoint_lock_)
+      LOCKS_EXCLUDED(Locks::breakpoint_lock_, Locks::deoptimization_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Single-stepping.
   static JDWP::JdwpError ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize size,
                                        JDWP::JdwpStepDepth depth)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
