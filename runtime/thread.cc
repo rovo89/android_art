@@ -32,6 +32,7 @@
 
 #include "arch/context.h"
 #include "base/mutex.h"
+#include "catch_finder.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
 #include "cutils/atomic.h"
@@ -65,7 +66,6 @@
 #include "thread_list.h"
 #include "utils.h"
 #include "verifier/dex_gc_map.h"
-#include "verifier/method_verifier.h"
 #include "vmap_table.h"
 #include "well_known_classes.h"
 
@@ -1740,194 +1740,6 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset, size_t size_of_
   os << offset;
 }
 
-static const bool kDebugExceptionDelivery = false;
-class CatchBlockStackVisitor : public StackVisitor {
- public:
-  CatchBlockStackVisitor(Thread* self, const ThrowLocation& throw_location,
-                         mirror::Throwable* exception, bool is_deoptimization)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(self, self->GetLongJumpContext()),
-        self_(self), exception_(exception), is_deoptimization_(is_deoptimization),
-        to_find_(is_deoptimization ? nullptr : exception->GetClass()), throw_location_(throw_location),
-        handler_quick_frame_(nullptr), handler_quick_frame_pc_(0), handler_dex_pc_(0),
-        native_method_count_(0), clear_exception_(false),
-        method_tracing_active_(is_deoptimization ||
-                               Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()),
-        instrumentation_frames_to_pop_(0), top_shadow_frame_(nullptr), prev_shadow_frame_(nullptr) {
-    // Exception not in root sets, can't allow GC.
-    last_no_assert_suspension_cause_ = self->StartAssertNoThreadSuspension("Finding catch block");
-  }
-
-  ~CatchBlockStackVisitor() {
-    LOG(FATAL) << "UNREACHABLE";  // Expected to take long jump.
-  }
-
-  bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ArtMethod* method = GetMethod();
-    if (method == nullptr) {
-      // This is the upcall, we remember the frame and last pc so that we may long jump to them.
-      handler_quick_frame_pc_ = GetCurrentQuickFramePc();
-      handler_quick_frame_ = GetCurrentQuickFrame();
-      return false;  // End stack walk.
-    } else {
-      if (UNLIKELY(method_tracing_active_ &&
-                   GetQuickInstrumentationExitPc() == GetReturnPc())) {
-        // Keep count of the number of unwinds during instrumentation.
-        ++instrumentation_frames_to_pop_;
-      }
-      if (method->IsRuntimeMethod()) {
-        // Ignore callee save method.
-        DCHECK(method->IsCalleeSaveMethod());
-        return true;
-      } else if (is_deoptimization_) {
-        return HandleDeoptimization(method);
-      } else {
-        return HandleTryItems(method);
-      }
-    }
-  }
-
-  bool HandleTryItems(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    uint32_t dex_pc = DexFile::kDexNoIndex;
-    if (method->IsNative()) {
-      ++native_method_count_;
-    } else {
-      dex_pc = GetDexPc();
-    }
-    if (dex_pc != DexFile::kDexNoIndex) {
-      uint32_t found_dex_pc = method->FindCatchBlock(to_find_, dex_pc, &clear_exception_);
-      if (found_dex_pc != DexFile::kDexNoIndex) {
-        handler_dex_pc_ = found_dex_pc;
-        handler_quick_frame_pc_ = method->ToNativePc(found_dex_pc);
-        handler_quick_frame_ = GetCurrentQuickFrame();
-        return false;  // End stack walk.
-      }
-    }
-    return true;  // Continue stack walk.
-  }
-
-  bool HandleDeoptimization(mirror::ArtMethod* m)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    MethodHelper mh(m);
-    const DexFile::CodeItem* code_item = mh.GetCodeItem();
-    CHECK(code_item != nullptr);
-    uint16_t num_regs = code_item->registers_size_;
-    uint32_t dex_pc = GetDexPc();
-    const Instruction* inst = Instruction::At(code_item->insns_ + dex_pc);
-    uint32_t new_dex_pc = dex_pc + inst->SizeInCodeUnits();
-    ShadowFrame* new_frame = ShadowFrame::Create(num_regs, nullptr, m, new_dex_pc);
-    SirtRef<mirror::DexCache> dex_cache(self_, mh.GetDexCache());
-    SirtRef<mirror::ClassLoader> class_loader(self_, mh.GetClassLoader());
-    verifier::MethodVerifier verifier(&mh.GetDexFile(), &dex_cache, &class_loader,
-                                      &mh.GetClassDef(), code_item, m->GetDexMethodIndex(), m,
-                                      m->GetAccessFlags(), false, true);
-    verifier.Verify();
-    std::vector<int32_t> kinds = verifier.DescribeVRegs(dex_pc);
-    for (uint16_t reg = 0; reg < num_regs; ++reg) {
-      VRegKind kind = static_cast<VRegKind>(kinds.at(reg * 2));
-      switch (kind) {
-        case kUndefined:
-          new_frame->SetVReg(reg, 0xEBADDE09);
-          break;
-        case kConstant:
-          new_frame->SetVReg(reg, kinds.at((reg * 2) + 1));
-          break;
-        case kReferenceVReg:
-          new_frame->SetVRegReference(reg,
-                                      reinterpret_cast<mirror::Object*>(GetVReg(m, reg, kind)));
-          break;
-        default:
-          new_frame->SetVReg(reg, GetVReg(m, reg, kind));
-          break;
-      }
-    }
-    if (prev_shadow_frame_ != nullptr) {
-      prev_shadow_frame_->SetLink(new_frame);
-    } else {
-      top_shadow_frame_ = new_frame;
-    }
-    prev_shadow_frame_ = new_frame;
-    return true;
-  }
-
-  void DoLongJump() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::ArtMethod* catch_method = *handler_quick_frame_;
-    if (catch_method == nullptr) {
-      if (kDebugExceptionDelivery) {
-        LOG(INFO) << "Handler is upcall";
-      }
-    } else {
-      CHECK(!is_deoptimization_);
-      if (kDebugExceptionDelivery) {
-        const DexFile& dex_file = *catch_method->GetDeclaringClass()->GetDexCache()->GetDexFile();
-        int line_number = dex_file.GetLineNumFromPC(catch_method, handler_dex_pc_);
-        LOG(INFO) << "Handler: " << PrettyMethod(catch_method) << " (line: " << line_number << ")";
-      }
-    }
-    if (clear_exception_) {
-      // Exception was cleared as part of delivery.
-      DCHECK(!self_->IsExceptionPending());
-    } else {
-      // Put exception back in root set with clear throw location.
-      self_->SetException(ThrowLocation(), exception_);
-    }
-    self_->EndAssertNoThreadSuspension(last_no_assert_suspension_cause_);
-    // Do instrumentation events after allowing thread suspension again.
-    instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
-    if (!is_deoptimization_) {
-      // The debugger may suspend this thread and walk its stack. Let's do this before popping
-      // instrumentation frames.
-      instrumentation->ExceptionCaughtEvent(self_, throw_location_, catch_method, handler_dex_pc_,
-                                            exception_);
-    }
-    for (size_t i = 0; i < instrumentation_frames_to_pop_; ++i) {
-      // We pop the instrumentation stack here so as not to corrupt it during the stack walk.
-      if (i != instrumentation_frames_to_pop_ - 1 || self_->GetInstrumentationStack()->front().method_ != catch_method) {
-        // Don't pop the instrumentation frame of the catch handler.
-        instrumentation->PopMethodForUnwind(self_, is_deoptimization_);
-      }
-    }
-    if (is_deoptimization_) {
-      // TODO: proper return value.
-      self_->SetDeoptimizationShadowFrame(top_shadow_frame_);
-    }
-    // Place context back on thread so it will be available when we continue.
-    self_->ReleaseLongJumpContext(context_);
-    context_->SetSP(reinterpret_cast<uintptr_t>(handler_quick_frame_));
-    CHECK_NE(handler_quick_frame_pc_, 0u);
-    context_->SetPC(handler_quick_frame_pc_);
-    context_->SmashCallerSaves();
-    context_->DoLongJump();
-  }
-
- private:
-  Thread* const self_;
-  mirror::Throwable* const exception_;
-  const bool is_deoptimization_;
-  // The type of the exception catch block to find.
-  mirror::Class* const to_find_;
-  // Location of the throw.
-  const ThrowLocation& throw_location_;
-  // Quick frame with found handler or last frame if no handler found.
-  mirror::ArtMethod** handler_quick_frame_;
-  // PC to branch to for the handler.
-  uintptr_t handler_quick_frame_pc_;
-  // Associated dex PC.
-  uint32_t handler_dex_pc_;
-  // Number of native methods passed in crawl (equates to number of SIRTs to pop)
-  uint32_t native_method_count_;
-  // Should the exception be cleared as the catch block has no move-exception?
-  bool clear_exception_;
-  // Is method tracing active?
-  const bool method_tracing_active_;
-  // Support for nesting no thread suspension checks.
-  const char* last_no_assert_suspension_cause_;
-  // Number of frames to pop in long jump.
-  size_t instrumentation_frames_to_pop_;
-  ShadowFrame* top_shadow_frame_;
-  ShadowFrame* prev_shadow_frame_;
-};
-
 void Thread::QuickDeliverException() {
   // Get exception from thread.
   ThrowLocation throw_location;
@@ -1947,8 +1759,9 @@ void Thread::QuickDeliverException() {
       DumpStack(LOG(INFO) << "Deoptimizing: ");
     }
   }
-  CatchBlockStackVisitor catch_finder(this, throw_location, exception, is_deoptimization);
-  catch_finder.WalkStack(true);
+  CatchFinder catch_finder(this, throw_location, exception, is_deoptimization);
+  catch_finder.FindCatch();
+  catch_finder.UpdateInstrumentationStack();
   catch_finder.DoLongJump();
   LOG(FATAL) << "UNREACHABLE";
 }
