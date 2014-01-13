@@ -34,6 +34,8 @@ LIBART_COMMON_SRC_FILES := \
 	base/unix_file/random_access_file_utils.cc \
 	base/unix_file/string_file.cc \
 	check_jni.cc \
+	catch_block_stack_visitor.cc \
+	catch_finder.cc \
 	class_linker.cc \
 	common_throws.cc \
 	debugger.cc \
