@@ -707,12 +707,13 @@ void MIRGraph::ShowOpcodeStats() {
 
 // TODO: use a configurable base prefix, and adjust callers to supply pass name.
 /* Dump the CFG into a DOT graph */
-void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks) {
+void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suffix) {
   FILE* file;
   std::string fname(PrettyMethod(cu_->method_idx, *cu_->dex_file));
   ReplaceSpecialChars(fname);
-  fname = StringPrintf("%s%s%x.dot", dir_prefix, fname.c_str(),
-                      GetBasicBlock(GetEntryBlock()->fall_through)->start_offset);
+  fname = StringPrintf("%s%s%x%s.dot", dir_prefix, fname.c_str(),
+                      GetBasicBlock(GetEntryBlock()->fall_through)->start_offset,
+                      suffix == nullptr ? "" : suffix);
   file = fopen(fname.c_str(), "w");
   if (file == NULL) {
     return;
