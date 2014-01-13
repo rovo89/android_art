@@ -602,6 +602,7 @@ void Mir2Lir::UnmarkTemp(int reg) {
 }
 
 void Mir2Lir::MarkPair(int low_reg, int high_reg) {
+  DCHECK_NE(low_reg, high_reg);
   RegisterInfo* info_lo = GetRegInfo(low_reg);
   RegisterInfo* info_hi = GetRegInfo(high_reg);
   info_lo->pair = info_hi->pair = true;
@@ -807,7 +808,10 @@ RegLocation Mir2Lir::EvalLocWide(RegLocation loc, int reg_class, bool update) {
   if (update) {
     loc.location = kLocPhysReg;
     MarkLive(loc.low_reg, loc.s_reg_low);
-    MarkLive(loc.high_reg, GetSRegHi(loc.s_reg_low));
+    // Does this wide value live in two registers or one vector register?
+    if (loc.low_reg != loc.high_reg) {
+      MarkLive(loc.high_reg, GetSRegHi(loc.s_reg_low));
+    }
   }
   DCHECK(!IsFpReg(loc.low_reg) || ((loc.low_reg & 0x1) == 0));
   return loc;
@@ -1059,7 +1063,10 @@ RegLocation Mir2Lir::GetReturnWide(bool is_double) {
   Clobber(res.high_reg);
   LockTemp(res.low_reg);
   LockTemp(res.high_reg);
-  MarkPair(res.low_reg, res.high_reg);
+  // Does this wide value live in two registers or one vector register?
+  if (res.low_reg != res.high_reg) {
+    MarkPair(res.low_reg, res.high_reg);
+  }
   return res;
 }
 

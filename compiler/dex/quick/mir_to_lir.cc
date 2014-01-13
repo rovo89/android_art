@@ -157,16 +157,11 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
 
     case Instruction::CONST_WIDE_16:
     case Instruction::CONST_WIDE_32:
-      rl_result = EvalLoc(rl_dest, kAnyReg, true);
-      LoadConstantWide(rl_result.low_reg, rl_result.high_reg,
-                           static_cast<int64_t>(static_cast<int32_t>(vB)));
-      StoreValueWide(rl_dest, rl_result);
+      GenConstWide(rl_dest, static_cast<int64_t>(static_cast<int32_t>(vB)));
       break;
 
     case Instruction::CONST_WIDE:
-      rl_result = EvalLoc(rl_dest, kAnyReg, true);
-      LoadConstantWide(rl_result.low_reg, rl_result.high_reg, mir->dalvikInsn.vB_wide);
-      StoreValueWide(rl_dest, rl_result);
+      GenConstWide(rl_dest, mir->dalvikInsn.vB_wide);
       break;
 
     case Instruction::CONST_WIDE_HIGH16:
