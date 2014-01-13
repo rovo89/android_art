@@ -383,6 +383,7 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
                                                    instrumentation::Instrumentation::kMethodEntered |
                                                    instrumentation::Instrumentation::kMethodExited |
                                                    instrumentation::Instrumentation::kMethodUnwind);
+        runtime->GetInstrumentation()->EnableMethodTracing();
       }
     }
   }
@@ -412,6 +413,7 @@ void Trace::Stop() {
       MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
       runtime->GetThreadList()->ForEach(ClearThreadStackTraceAndClockBase, NULL);
     } else {
+      runtime->GetInstrumentation()->DisableMethodTracing();
       runtime->GetInstrumentation()->RemoveListener(the_trace,
                                                     instrumentation::Instrumentation::kMethodEntered |
                                                     instrumentation::Instrumentation::kMethodExited |
