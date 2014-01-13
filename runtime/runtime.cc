@@ -367,6 +367,8 @@ static gc::CollectorType ParseCollectorType(const std::string& option) {
       collector_type = gc::kCollectorTypeCMS;
     } else if (gc_options[i] == "SS") {
       collector_type = gc::kCollectorTypeSS;
+    } else if (gc_options[i] == "GSS") {
+      collector_type = gc::kCollectorTypeGSS;
     } else {
       LOG(WARNING) << "Ignoring unknown -Xgc option: " << gc_options[i];
       return gc::kCollectorTypeNone;
@@ -399,7 +401,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   // Only the main GC thread, no workers.
   parsed->conc_gc_threads_ = 0;
   // Default is CMS which is Sticky + Partial + Full CMS GC.
-  parsed->collector_type_ = gc::kCollectorTypeCMS;
+  // parsed->collector_type_ = gc::kCollectorTypeCMS;
+  parsed->collector_type_ = gc::kCollectorTypeGSS;
   // If background_collector_type_ is kCollectorTypeNone, it defaults to the collector_type_ after
   // parsing options.
   parsed->background_collector_type_ = gc::kCollectorTypeNone;
