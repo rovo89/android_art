@@ -669,46 +669,4 @@ void MIRGraph::DoDFSPreOrderSSARename(BasicBlock* block) {
   return;
 }
 
-/* Perform SSA transformation for the whole method */
-void MIRGraph::SSATransformation() {
-  /* Compute the DFS order */
-  ComputeDFSOrders();
-
-  /* Compute the dominator info */
-  ComputeDominators();
-
-  /* Allocate data structures in preparation for SSA conversion */
-  CompilerInitializeSSAConversion();
-
-  /* Find out the "Dalvik reg def x block" relation */
-  ComputeDefBlockMatrix();
-
-  /* Insert phi nodes to dominance frontiers for all variables */
-  InsertPhiNodes();
-
-  /* Rename register names by local defs and phi nodes */
-  ClearAllVisitedFlags();
-  DoDFSPreOrderSSARename(GetEntryBlock());
-
-  /*
-   * Shared temp bit vector used by each block to count the number of defs
-   * from all the predecessor blocks.
-   */
-  temp_ssa_register_v_ =
-      new (arena_) ArenaBitVector(arena_, GetNumSSARegs(), false, kBitMapTempSSARegisterV);
-
-  /* Insert phi-operands with latest SSA names from predecessor blocks */
-  PreOrderDfsIterator iter2(this);
-  for (BasicBlock* bb = iter2.Next(); bb != NULL; bb = iter2.Next()) {
-    InsertPhiNodeOperands(bb);
-  }
-
-  if (cu_->enable_debug & (1 << kDebugDumpCFG)) {
-    DumpCFG("/sdcard/3_post_ssa_cfg/", false);
-  }
-  if (cu_->enable_debug & (1 << kDebugVerifyDataflow)) {
-    VerifyDataflow();
-  }
-}
-
 }  // namespace art
