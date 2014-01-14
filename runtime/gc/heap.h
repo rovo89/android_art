@@ -25,6 +25,7 @@
 #include "base/timing_logger.h"
 #include "gc/accounting/atomic_stack.h"
 #include "gc/accounting/card_table.h"
+#include "gc/gc_cause.h"
 #include "gc/collector/gc_type.h"
 #include "gc/collector_type.h"
 #include "globals.h"
@@ -97,18 +98,6 @@ enum AllocatorType {
   kAllocatorTypeNonMoving,  // Special allocator for non moving objects, doesn't have entrypoints.
   kAllocatorTypeLOS,  // Large object space, also doesn't have entrypoints.
 };
-
-// What caused the GC?
-enum GcCause {
-  // GC triggered by a failed allocation. Thread doing allocation is blocked waiting for GC before
-  // retrying allocation.
-  kGcCauseForAlloc,
-  // A background GC trying to ensure there is free memory ahead of allocations.
-  kGcCauseBackground,
-  // An explicit System.gc() call.
-  kGcCauseExplicit,
-};
-std::ostream& operator<<(std::ostream& os, const GcCause& policy);
 
 // How we want to sanity check the heap's correctness.
 enum HeapVerificationMode {
