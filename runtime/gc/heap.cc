@@ -44,6 +44,7 @@
 #include "gc/space/large_object_space.h"
 #include "gc/space/rosalloc_space-inl.h"
 #include "gc/space/space-inl.h"
+#include "gc/space/zygote_space.h"
 #include "heap-inl.h"
 #include "image.h"
 #include "invoke_arg_array_builder.h"
@@ -485,7 +486,6 @@ void Heap::RemoveSpace(space::Space* space) {
     DCHECK(it != alloc_spaces_.end());
     alloc_spaces_.erase(it);
   }
-  delete space;
 }
 
 void Heap::RegisterGCAllocation(size_t bytes) {
@@ -605,7 +605,7 @@ struct SoftReferenceArgs {
 };
 
 mirror::Object* Heap::PreserveSoftReferenceCallback(mirror::Object* obj, void* arg) {
-  SoftReferenceArgs* args  = reinterpret_cast<SoftReferenceArgs*>(arg);
+  SoftReferenceArgs* args = reinterpret_cast<SoftReferenceArgs*>(arg);
   // TODO: Not preserve all soft references.
   return args->recursive_mark_callback_(obj, args->arg_);
 }
@@ -749,7 +749,7 @@ void Heap::Trim() {
   uint64_t total_alloc_space_size = 0;
   uint64_t managed_reclaimed = 0;
   for (const auto& space : continuous_spaces_) {
-    if (space->IsMallocSpace() && !space->IsZygoteSpace()) {
+    if (space->IsMallocSpace()) {
       gc::space::MallocSpace* alloc_space = space->AsMallocSpace();
       total_alloc_space_size += alloc_space->Size();
       managed_reclaimed += alloc_space->Trim();
@@ -1198,8 +1198,10 @@ void Heap::TransitionCollector(CollectorType collector_type) {
       DCHECK(allocator_mem_map_.get() == nullptr);
       allocator_mem_map_.reset(main_space_->ReleaseMemMap());
       madvise(main_space_->Begin(), main_space_->Size(), MADV_DONTNEED);
-      // RemoveSpace deletes the removed space.
-      RemoveSpace(main_space_);
+      // RemoveSpace does not delete the removed space.
+      space::Space* old_space = main_space_;
+      RemoveSpace(old_space);
+      delete old_space;
       break;
     }
     case kCollectorTypeMS:
@@ -1349,7 +1351,7 @@ class ZygoteCompactingCollector : public collector::SemiSpace {
     }
   }
 
-  virtual bool ShouldSweepSpace(space::MallocSpace* space) const {
+  virtual bool ShouldSweepSpace(space::ContinuousSpace* space) const {
     // Don't sweep any spaces since we probably blasted the internal accounting of the free list
     // allocator.
     return false;
@@ -1389,6 +1391,17 @@ class ZygoteCompactingCollector : public collector::SemiSpace {
   }
 };
 
+void Heap::UnBindBitmaps() {
+  for (const auto& space : GetContinuousSpaces()) {
+    if (space->IsContinuousMemMapAllocSpace()) {
+      space::ContinuousMemMapAllocSpace* alloc_space = space->AsContinuousMemMapAllocSpace();
+      if (alloc_space->HasBoundBitmaps()) {
+        alloc_space->UnBindBitmaps();
+      }
+    }
+  }
+}
+
 void Heap::PreZygoteFork() {
   static Mutex zygote_creation_lock_("zygote creation lock", kZygoteCreationLock);
   Thread* self = Thread::Current();
@@ -1424,30 +1437,28 @@ void Heap::PreZygoteFork() {
     non_moving_space_->SetLimit(target_space.Limit());
     VLOG(heap) << "Zygote size " << non_moving_space_->Size() << " bytes";
   }
+  // Save the old space so that we can remove it after we complete creating the zygote space.
+  space::MallocSpace* old_alloc_space = non_moving_space_;
   // Turn the current alloc space into a zygote space and obtain the new alloc space composed of
-  // the remaining available heap memory.
-  space::MallocSpace* zygote_space = non_moving_space_;
-  main_space_ = non_moving_space_->CreateZygoteSpace("alloc space", low_memory_mode_);
+  // the remaining available space.
+  // Remove the old space before creating the zygote space since creating the zygote space sets
+  // the old alloc space's bitmaps to nullptr.
+  RemoveSpace(old_alloc_space);
+  space::ZygoteSpace* zygote_space = old_alloc_space->CreateZygoteSpace("alloc space",
+                                                                        low_memory_mode_,
+                                                                        &main_space_);
+  delete old_alloc_space;
+  CHECK(zygote_space != nullptr) << "Failed creating zygote space";
+  AddSpace(zygote_space, false);
+  CHECK(main_space_ != nullptr);
   if (main_space_->IsRosAllocSpace()) {
     rosalloc_space_ = main_space_->AsRosAllocSpace();
   } else if (main_space_->IsDlMallocSpace()) {
     dlmalloc_space_ = main_space_->AsDlMallocSpace();
   }
   main_space_->SetFootprintLimit(main_space_->Capacity());
-  // Change the GC retention policy of the zygote space to only collect when full.
-  zygote_space->SetGcRetentionPolicy(space::kGcRetentionPolicyFullCollect);
   AddSpace(main_space_);
   have_zygote_space_ = true;
-  // Remove the zygote space from alloc_spaces_ array since not doing so causes crashes in
-  // GetObjectsAllocated. This happens because the bin packing blows away the internal accounting
-  // stored in between objects.
-  if (zygote_space->IsAllocSpace()) {
-    // TODO: Refactor zygote spaces to be a new space type to avoid more of these types of issues.
-    auto it = std::find(alloc_spaces_.begin(), alloc_spaces_.end(), zygote_space->AsAllocSpace());
-    CHECK(it != alloc_spaces_.end());
-    alloc_spaces_.erase(it);
-    zygote_space->InvalidateAllocator();
-  }
   // Create the zygote space mod union table.
   accounting::ModUnionTable* mod_union_table =
       new accounting::ModUnionTableCardCache("zygote space mod-union table", this, zygote_space);

@@ -19,6 +19,8 @@
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/heap.h"
+#include "gc/space/space-inl.h"
+#include "gc/space/zygote_space.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "runtime.h"
@@ -33,22 +35,27 @@ namespace space {
 size_t MallocSpace::bitmap_index_ = 0;
 
 MallocSpace::MallocSpace(const std::string& name, MemMap* mem_map,
-                         byte* begin, byte* end, byte* limit, size_t growth_limit)
+                         byte* begin, byte* end, byte* limit, size_t growth_limit,
+                         bool create_bitmaps)
     : ContinuousMemMapAllocSpace(name, mem_map, begin, end, limit, kGcRetentionPolicyAlwaysCollect),
       recent_free_pos_(0), lock_("allocation space lock", kAllocSpaceLock),
       growth_limit_(growth_limit) {
-  size_t bitmap_index = bitmap_index_++;
-  static const uintptr_t kGcCardSize = static_cast<uintptr_t>(accounting::CardTable::kCardSize);
-  CHECK(IsAligned<kGcCardSize>(reinterpret_cast<uintptr_t>(mem_map->Begin())));
-  CHECK(IsAligned<kGcCardSize>(reinterpret_cast<uintptr_t>(mem_map->End())));
-  live_bitmap_.reset(accounting::SpaceBitmap::Create(
-      StringPrintf("allocspace %s live-bitmap %d", name.c_str(), static_cast<int>(bitmap_index)),
-      Begin(), Capacity()));
-  DCHECK(live_bitmap_.get() != NULL) << "could not create allocspace live bitmap #" << bitmap_index;
-  mark_bitmap_.reset(accounting::SpaceBitmap::Create(
-      StringPrintf("allocspace %s mark-bitmap %d", name.c_str(), static_cast<int>(bitmap_index)),
-      Begin(), Capacity()));
-  DCHECK(live_bitmap_.get() != NULL) << "could not create allocspace mark bitmap #" << bitmap_index;
+  if (create_bitmaps) {
+    size_t bitmap_index = bitmap_index_++;
+    static const uintptr_t kGcCardSize = static_cast<uintptr_t>(accounting::CardTable::kCardSize);
+    CHECK(IsAligned<kGcCardSize>(reinterpret_cast<uintptr_t>(mem_map->Begin())));
+    CHECK(IsAligned<kGcCardSize>(reinterpret_cast<uintptr_t>(mem_map->End())));
+    live_bitmap_.reset(accounting::SpaceBitmap::Create(
+        StringPrintf("allocspace %s live-bitmap %d", name.c_str(), static_cast<int>(bitmap_index)),
+        Begin(), Capacity()));
+    DCHECK(live_bitmap_.get() != NULL) << "could not create allocspace live bitmap #"
+        << bitmap_index;
+    mark_bitmap_.reset(accounting::SpaceBitmap::Create(
+        StringPrintf("allocspace %s mark-bitmap %d", name.c_str(), static_cast<int>(bitmap_index)),
+        Begin(), Capacity()));
+    DCHECK(live_bitmap_.get() != NULL) << "could not create allocspace mark bitmap #"
+        << bitmap_index;
+  }
   for (auto& freed : recent_freed_objects_) {
     freed.first = nullptr;
     freed.second = nullptr;
@@ -154,29 +161,8 @@ void* MallocSpace::MoreCore(intptr_t increment) {
   return original_end;
 }
 
-// Returns the old mark bitmap.
-accounting::SpaceBitmap* MallocSpace::BindLiveToMarkBitmap() {
-  accounting::SpaceBitmap* live_bitmap = GetLiveBitmap();
-  accounting::SpaceBitmap* mark_bitmap = mark_bitmap_.release();
-  temp_bitmap_.reset(mark_bitmap);
-  mark_bitmap_.reset(live_bitmap);
-  return mark_bitmap;
-}
-
-bool MallocSpace::HasBoundBitmaps() const {
-  return temp_bitmap_.get() != nullptr;
-}
-
-void MallocSpace::UnBindBitmaps() {
-  CHECK(HasBoundBitmaps());
-  // At this point, the temp_bitmap holds our old mark bitmap.
-  accounting::SpaceBitmap* new_bitmap = temp_bitmap_.release();
-  CHECK_EQ(mark_bitmap_.release(), live_bitmap_.get());
-  mark_bitmap_.reset(new_bitmap);
-  DCHECK(temp_bitmap_.get() == NULL);
-}
-
-MallocSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool low_memory_mode) {
+ZygoteSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool low_memory_mode,
+                                            MallocSpace** out_malloc_space) {
   // For RosAlloc, revoke thread local runs before creating a new
   // alloc space so that we won't mix thread local runs from different
   // alloc spaces.
@@ -220,15 +206,23 @@ MallocSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
   if (capacity - initial_size > 0) {
     CHECK_MEMORY_CALL(mprotect, (end, capacity - initial_size, PROT_NONE), alloc_space_name);
   }
-  MallocSpace* alloc_space = CreateInstance(alloc_space_name, mem_map.release(), allocator,
-                                            end_, end, limit_, growth_limit);
+  *out_malloc_space = CreateInstance(alloc_space_name, mem_map.release(), allocator, end_, end,
+                                     limit_, growth_limit);
   SetLimit(End());
   live_bitmap_->SetHeapLimit(reinterpret_cast<uintptr_t>(End()));
   CHECK_EQ(live_bitmap_->HeapLimit(), reinterpret_cast<uintptr_t>(End()));
   mark_bitmap_->SetHeapLimit(reinterpret_cast<uintptr_t>(End()));
   CHECK_EQ(mark_bitmap_->HeapLimit(), reinterpret_cast<uintptr_t>(End()));
-  VLOG(heap) << "zygote space creation done";
-  return alloc_space;
+
+  // Create the actual zygote space.
+  ZygoteSpace* zygote_space = ZygoteSpace::Create("Zygote space", ReleaseMemMap(),
+                                                  live_bitmap_.release(), mark_bitmap_.release());
+  if (UNLIKELY(zygote_space == nullptr)) {
+    VLOG(heap) << "Failed creating zygote space from space " << GetName();
+  } else {
+    VLOG(heap) << "zygote space creation done";
+  }
+  return zygote_space;
 }
 
 void MallocSpace::Dump(std::ostream& os) const {
@@ -239,24 +233,16 @@ void MallocSpace::Dump(std::ostream& os) const {
       << ",name=\"" << GetName() << "\"]";
 }
 
-struct SweepCallbackContext {
-  bool swap_bitmaps;
-  Heap* heap;
-  space::MallocSpace* space;
-  Thread* self;
-  size_t freed_objects;
-  size_t freed_bytes;
-};
-
-static void SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg) {
+void MallocSpace::SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg) {
   SweepCallbackContext* context = static_cast<SweepCallbackContext*>(arg);
-  space::AllocSpace* space = context->space;
+  DCHECK(context->space->IsMallocSpace());
+  space::MallocSpace* space = context->space->AsMallocSpace();
   Thread* self = context->self;
   Locks::heap_bitmap_lock_->AssertExclusiveHeld(self);
   // If the bitmaps aren't swapped we need to clear the bits since the GC isn't going to re-swap
   // the bitmaps as an optimization.
   if (!context->swap_bitmaps) {
-    accounting::SpaceBitmap* bitmap = context->space->GetLiveBitmap();
+    accounting::SpaceBitmap* bitmap = space->GetLiveBitmap();
     for (size_t i = 0; i < num_ptrs; ++i) {
       bitmap->Clear(ptrs[i]);
     }
@@ -266,54 +252,6 @@ static void SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg) {
   // of allocation.
   context->freed_objects += num_ptrs;
   context->freed_bytes += space->FreeList(self, num_ptrs, ptrs);
-}
-
-static void ZygoteSweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg) {
-  SweepCallbackContext* context = static_cast<SweepCallbackContext*>(arg);
-  Locks::heap_bitmap_lock_->AssertExclusiveHeld(context->self);
-  accounting::CardTable* card_table = context->heap->GetCardTable();
-  // If the bitmaps aren't swapped we need to clear the bits since the GC isn't going to re-swap
-  // the bitmaps as an optimization.
-  if (!context->swap_bitmaps) {
-    accounting::SpaceBitmap* bitmap = context->space->GetLiveBitmap();
-    for (size_t i = 0; i < num_ptrs; ++i) {
-      bitmap->Clear(ptrs[i]);
-    }
-  }
-  // We don't free any actual memory to avoid dirtying the shared zygote pages.
-  for (size_t i = 0; i < num_ptrs; ++i) {
-    // Need to mark the card since this will update the mod-union table next GC cycle.
-    card_table->MarkCard(ptrs[i]);
-  }
-}
-
-void MallocSpace::Sweep(bool swap_bitmaps, size_t* freed_objects, size_t* freed_bytes) {
-  DCHECK(freed_objects != nullptr);
-  DCHECK(freed_bytes != nullptr);
-  accounting::SpaceBitmap* live_bitmap = GetLiveBitmap();
-  accounting::SpaceBitmap* mark_bitmap = GetMarkBitmap();
-  // If the bitmaps are bound then sweeping this space clearly won't do anything.
-  if (live_bitmap == mark_bitmap) {
-    return;
-  }
-  SweepCallbackContext scc;
-  scc.swap_bitmaps = swap_bitmaps;
-  scc.heap = Runtime::Current()->GetHeap();
-  scc.self = Thread::Current();
-  scc.space = this;
-  scc.freed_objects = 0;
-  scc.freed_bytes = 0;
-  if (swap_bitmaps) {
-    std::swap(live_bitmap, mark_bitmap);
-  }
-  // Bitmaps are pre-swapped for optimization which enables sweeping with the heap unlocked.
-  accounting::SpaceBitmap::SweepWalk(*live_bitmap, *mark_bitmap,
-                                     reinterpret_cast<uintptr_t>(Begin()),
-                                     reinterpret_cast<uintptr_t>(End()),
-                                     IsZygoteSpace() ? &ZygoteSweepCallback : &SweepCallback,
-                                     reinterpret_cast<void*>(&scc));
-  *freed_objects += scc.freed_objects;
-  *freed_bytes += scc.freed_bytes;
 }
 
 }  // namespace space
