@@ -2129,13 +2129,13 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       const RegType* return_type = nullptr;
       if (called_method != nullptr) {
         MethodHelper mh(called_method);
-        mirror::Class* return_type_class = mh.GetReturnType();
+        mirror::Class* return_type_class = mh.GetReturnType(can_load_classes_);
         if (return_type_class != nullptr) {
           return_type = &reg_types_.FromClass(mh.GetReturnTypeDescriptor(), return_type_class,
                                               return_type_class->CannotBeAssignedFromOtherTypes());
         } else {
           Thread* self = Thread::Current();
-          DCHECK(self->IsExceptionPending());
+          DCHECK(!can_load_classes_ || self->IsExceptionPending());
           self->ClearException();
         }
       }
@@ -3518,10 +3518,14 @@ void MethodVerifier::VerifyISGet(const Instruction* inst, const RegType& insn_ty
   const RegType* field_type = nullptr;
   if (field != NULL) {
     FieldHelper fh(field);
-    mirror::Class* field_type_class = fh.GetType(false);
+    mirror::Class* field_type_class = fh.GetType(can_load_classes_);
     if (field_type_class != nullptr) {
       field_type = &reg_types_.FromClass(fh.GetTypeDescriptor(), field_type_class,
                                          field_type_class->CannotBeAssignedFromOtherTypes());
+    } else {
+      Thread* self = Thread::Current();
+      DCHECK(!can_load_classes_ || self->IsExceptionPending());
+      self->ClearException();
     }
   }
   if (field_type == nullptr) {
@@ -3580,10 +3584,14 @@ void MethodVerifier::VerifyISPut(const Instruction* inst, const RegType& insn_ty
       return;
     }
     FieldHelper fh(field);
-    mirror::Class* field_type_class = fh.GetType(false);
+    mirror::Class* field_type_class = fh.GetType(can_load_classes_);
     if (field_type_class != nullptr) {
       field_type = &reg_types_.FromClass(fh.GetTypeDescriptor(), field_type_class,
                                          field_type_class->CannotBeAssignedFromOtherTypes());
+    } else {
+      Thread* self = Thread::Current();
+      DCHECK(!can_load_classes_ || self->IsExceptionPending());
+      self->ClearException();
     }
   }
   if (field_type == nullptr) {
@@ -3673,12 +3681,15 @@ void MethodVerifier::VerifyIGetQuick(const Instruction* inst, const RegType& ins
     return;
   }
   FieldHelper fh(field);
-  mirror::Class* field_type_class = fh.GetType(false);
+  mirror::Class* field_type_class = fh.GetType(can_load_classes_);
   const RegType* field_type;
   if (field_type_class != nullptr) {
     field_type = &reg_types_.FromClass(fh.GetTypeDescriptor(), field_type_class,
                                        field_type_class->CannotBeAssignedFromOtherTypes());
   } else {
+    Thread* self = Thread::Current();
+    DCHECK(!can_load_classes_ || self->IsExceptionPending());
+    self->ClearException();
     field_type = &reg_types_.FromDescriptor(field->GetDeclaringClass()->GetClassLoader(),
                                             fh.GetTypeDescriptor(), false);
   }
@@ -3856,13 +3867,13 @@ const RegType& MethodVerifier::GetMethodReturnType() {
   if (return_type_ == nullptr) {
     if (mirror_method_ != NULL) {
       MethodHelper mh(mirror_method_);
-      mirror::Class* return_type_class = mh.GetReturnType();
+      mirror::Class* return_type_class = mh.GetReturnType(can_load_classes_);
       if (return_type_class != nullptr) {
         return_type_ = &reg_types_.FromClass(mh.GetReturnTypeDescriptor(), return_type_class,
                                              return_type_class->CannotBeAssignedFromOtherTypes());
       } else {
         Thread* self = Thread::Current();
-        DCHECK(self->IsExceptionPending());
+        DCHECK(!can_load_classes_ || self->IsExceptionPending());
         self->ClearException();
       }
     }
