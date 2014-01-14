@@ -36,7 +36,7 @@ void MIRGraph::SetConstantWide(int ssa_reg, int64_t value) {
   constant_values_[ssa_reg + 1] = High32Bits(value);
 }
 
-void MIRGraph::DoConstantPropogation(BasicBlock* bb) {
+void MIRGraph::DoConstantPropagation(BasicBlock* bb) {
   MIR* mir;
 
   for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
@@ -90,16 +90,6 @@ void MIRGraph::DoConstantPropogation(BasicBlock* bb) {
     }
   }
   /* TODO: implement code to handle arithmetic operations */
-}
-
-void MIRGraph::PropagateConstants() {
-  is_constant_v_ = new (arena_) ArenaBitVector(arena_, GetNumSSARegs(), false);
-  constant_values_ = static_cast<int*>(arena_->Alloc(sizeof(int) * GetNumSSARegs(),
-                                                     ArenaAllocator::kAllocDFInfo));
-  AllNodesIterator iter(this);
-  for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
-    DoConstantPropogation(bb);
-  }
 }
 
 /* Advance to next strictly dominated MIR node in an extended basic block */
@@ -557,7 +547,7 @@ bool MIRGraph::LayoutBlocks(BasicBlock* bb) {
 }
 
 /* Combine any basic blocks terminated by instructions that we now know can't throw */
-bool MIRGraph::CombineBlocks(struct BasicBlock* bb) {
+void MIRGraph::CombineBlocks(struct BasicBlock* bb) {
   // Loop here to allow combining a sequence of blocks
   while (true) {
     // Check termination conditions
@@ -621,14 +611,13 @@ bool MIRGraph::CombineBlocks(struct BasicBlock* bb) {
 
     // Now, loop back and see if we can keep going
   }
-  return false;
 }
 
 /*
  * Eliminate unnecessary null checks for a basic block.   Also, while we're doing
  * an iterative walk go ahead and perform type and size inference.
  */
-bool MIRGraph::EliminateNullChecksAndInferTypes(struct BasicBlock* bb) {
+bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
   if (bb->data_flow_info == NULL) return false;
   bool infer_changed = false;
   bool do_nce = ((cu_->disable_opt & (1 << kNullCheckElimination)) == 0);
@@ -810,49 +799,6 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(struct BasicBlock* bb) {
   return infer_changed | nce_changed;
 }
 
-void MIRGraph::NullCheckEliminationAndTypeInference() {
-  DCHECK(temp_ssa_register_v_ != NULL);
-  if ((cu_->disable_opt & (1 << kNullCheckElimination)) == 0) {
-    AllNodesIterator iter(this);
-    for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
-      NullCheckEliminationInit(bb);
-    }
-  }
-  RepeatingPreOrderDfsIterator iter2(this);
-  bool change = false;
-  for (BasicBlock* bb = iter2.Next(change); bb != NULL; bb = iter2.Next(change)) {
-    change = EliminateNullChecksAndInferTypes(bb);
-  }
-  if (cu_->enable_debug & (1 << kDebugDumpCFG)) {
-    DumpCFG("/sdcard/4_post_nce_cfg/", false);
-  }
-}
-
-void MIRGraph::BasicBlockCombine() {
-  if ((cu_->disable_opt & (1 << kSuppressExceptionEdges)) != 0) {
-    PreOrderDfsIterator iter(this);
-    for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
-      CombineBlocks(bb);
-    }
-    if (cu_->enable_debug & (1 << kDebugDumpCFG)) {
-      DumpCFG("/sdcard/5_post_bbcombine_cfg/", false);
-    }
-  }
-}
-
-void MIRGraph::CodeLayout() {
-  if (cu_->enable_debug & (1 << kDebugVerifyDataflow)) {
-    VerifyDataflow();
-  }
-  AllNodesIterator iter(this);
-  for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
-    LayoutBlocks(bb);
-  }
-  if (cu_->enable_debug & (1 << kDebugDumpCFG)) {
-    DumpCFG("/sdcard/2_post_layout_cfg/", true);
-  }
-}
-
 void MIRGraph::DumpCheckStats() {
   Checkstats* stats =
       static_cast<Checkstats*>(arena_->Alloc(sizeof(Checkstats), ArenaAllocator::kAllocDFInfo));
@@ -909,29 +855,22 @@ bool MIRGraph::BuildExtendedBBList(struct BasicBlock* bb) {
   return false;  // Not iterative - return value will be ignored
 }
 
-
 void MIRGraph::BasicBlockOptimization() {
-  if (!(cu_->disable_opt & (1 << kBBOpt))) {
-    DCHECK_EQ(cu_->num_compiler_temps, 0);
-    if ((cu_->disable_opt & (1 << kSuppressExceptionEdges)) != 0) {
-      ClearAllVisitedFlags();
-      PreOrderDfsIterator iter2(this);
-      for (BasicBlock* bb = iter2.Next(); bb != NULL; bb = iter2.Next()) {
-        BuildExtendedBBList(bb);
-      }
-      // Perform extended basic block optimizations.
-      for (unsigned int i = 0; i < extended_basic_blocks_.size(); i++) {
-        BasicBlockOpt(GetBasicBlock(extended_basic_blocks_[i]));
-      }
-    } else {
-      PreOrderDfsIterator iter(this);
-      for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
-        BasicBlockOpt(bb);
-      }
+  if ((cu_->disable_opt & (1 << kSuppressExceptionEdges)) != 0) {
+    ClearAllVisitedFlags();
+    PreOrderDfsIterator iter2(this);
+    for (BasicBlock* bb = iter2.Next(); bb != NULL; bb = iter2.Next()) {
+      BuildExtendedBBList(bb);
     }
-  }
-  if (cu_->enable_debug & (1 << kDebugDumpCFG)) {
-    DumpCFG("/sdcard/6_post_bbo_cfg/", false);
+    // Perform extended basic block optimizations.
+    for (unsigned int i = 0; i < extended_basic_blocks_.size(); i++) {
+      BasicBlockOpt(GetBasicBlock(extended_basic_blocks_[i]));
+    }
+  } else {
+    PreOrderDfsIterator iter(this);
+    for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
+      BasicBlockOpt(bb);
+    }
   }
 }
 
