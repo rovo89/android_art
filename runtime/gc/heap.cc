@@ -273,7 +273,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   }
   if (kMovingCollector) {
     // TODO: Clean this up.
-    semi_space_collector_ = new collector::SemiSpace(this);
+    bool generational = post_zygote_collector_type_ == kCollectorTypeGSS;
+    semi_space_collector_ = new collector::SemiSpace(this, generational);
     garbage_collectors_.push_back(semi_space_collector_);
   }
 
@@ -1165,7 +1166,8 @@ void Heap::TransitionCollector(CollectorType collector_type) {
   }
   tl->SuspendAll();
   switch (collector_type) {
-    case kCollectorTypeSS: {
+    case kCollectorTypeSS:
+    case kCollectorTypeGSS: {
       mprotect(temp_space_->Begin(), temp_space_->Capacity(), PROT_READ | PROT_WRITE);
       CHECK(main_space_ != nullptr);
       Compact(temp_space_, main_space_);
@@ -1179,7 +1181,7 @@ void Heap::TransitionCollector(CollectorType collector_type) {
     case kCollectorTypeMS:
       // Fall through.
     case kCollectorTypeCMS: {
-      if (collector_type_ == kCollectorTypeSS) {
+      if (collector_type_ == kCollectorTypeSS || collector_type_ == kCollectorTypeGSS) {
         // TODO: Use mem-map from temp space?
         MemMap* mem_map = allocator_mem_map_.release();
         CHECK(mem_map != nullptr);
@@ -1233,7 +1235,8 @@ void Heap::ChangeCollector(CollectorType collector_type) {
     collector_type_ = collector_type;
     gc_plan_.clear();
     switch (collector_type_) {
-      case kCollectorTypeSS: {
+      case kCollectorTypeSS:
+      case kCollectorTypeGSS: {
         concurrent_gc_ = false;
         gc_plan_.push_back(collector::kGcTypeFull);
         if (use_tlab_) {
@@ -1388,7 +1391,7 @@ void Heap::PreZygoteFork() {
     temp_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
     zygote_collector.SetFromSpace(bump_pointer_space_);
     zygote_collector.SetToSpace(&target_space);
-    zygote_collector.Run(false);
+    zygote_collector.Run(kGcCauseCollectorTransition, false);
     CHECK(temp_space_->IsEmpty());
     total_objects_freed_ever_ += semi_space_collector_->GetFreedObjects();
     total_bytes_freed_ever_ += semi_space_collector_->GetFreedBytes();
@@ -1469,17 +1472,6 @@ void Heap::MarkAllocStack(accounting::SpaceBitmap* bitmap1,
   }
 }
 
-const char* PrettyCause(GcCause cause) {
-  switch (cause) {
-    case kGcCauseForAlloc: return "Alloc";
-    case kGcCauseBackground: return "Background";
-    case kGcCauseExplicit: return "Explicit";
-    default:
-      LOG(FATAL) << "Unreachable";
-  }
-  return "";
-}
-
 void Heap::SwapSemiSpaces() {
   // Swap the spaces so we allocate into the space which we just evacuated.
   std::swap(bump_pointer_space_, temp_space_);
@@ -1492,7 +1484,7 @@ void Heap::Compact(space::ContinuousMemMapAllocSpace* target_space,
   if (target_space != source_space) {
     semi_space_collector_->SetFromSpace(source_space);
     semi_space_collector_->SetToSpace(target_space);
-    semi_space_collector_->Run(false);
+    semi_space_collector_->Run(kGcCauseCollectorTransition, false);
   }
 }
 
@@ -1541,7 +1533,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
 
   collector::GarbageCollector* collector = nullptr;
   // TODO: Clean this up.
-  if (collector_type_ == kCollectorTypeSS) {
+  if (collector_type_ == kCollectorTypeSS || collector_type_ == kCollectorTypeGSS) {
     DCHECK(current_allocator_ == kAllocatorTypeBumpPointer ||
            current_allocator_ == kAllocatorTypeTLAB);
     gc_type = semi_space_collector_->GetGcType();
@@ -1569,7 +1561,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
 
   ATRACE_BEGIN(StringPrintf("%s %s GC", PrettyCause(gc_cause), collector->GetName()).c_str());
 
-  collector->Run(clear_soft_references);
+  collector->Run(gc_cause, clear_soft_references);
   total_objects_freed_ever_ += collector->GetFreedObjects();
   total_bytes_freed_ever_ += collector->GetFreedBytes();
 
@@ -2383,7 +2375,7 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, int bytes) {
       }
       // If we still are over the watermark, attempt a GC for alloc and run finalizers.
       if (static_cast<size_t>(native_bytes_allocated_) > native_footprint_limit_) {
-        CollectGarbageInternal(gc_type, kGcCauseForAlloc, false);
+        CollectGarbageInternal(gc_type, kGcCauseForNativeAlloc, false);
         RunFinalization(env);
         native_need_to_run_finalization_ = false;
         CHECK(!env->ExceptionCheck());

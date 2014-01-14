@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 The Android Open Source Project
+ * Copyright (C) 2014 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,30 +14,32 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_GC_COLLECTOR_TYPE_H_
-#define ART_RUNTIME_GC_COLLECTOR_TYPE_H_
+#include "gc_cause.h"
+#include "globals.h"
+#include "base/logging.h"
 
 #include <ostream>
 
 namespace art {
 namespace gc {
 
-// Which types of collections are able to be performed.
-enum CollectorType {
-  // No collector selected.
-  kCollectorTypeNone,
-  // Non concurrent mark-sweep.
-  kCollectorTypeMS,
-  // Concurrent mark-sweep.
-  kCollectorTypeCMS,
-  // Semi-space / mark-sweep hybrid, enables compaction.
-  kCollectorTypeSS,
-  // A generational variant of kCollectorTypeSS.
-  kCollectorTypeGSS,
-};
-std::ostream& operator<<(std::ostream& os, const CollectorType& collector_type);
+const char* PrettyCause(GcCause cause) {
+  switch (cause) {
+    case kGcCauseForAlloc: return "Alloc";
+    case kGcCauseBackground: return "Background";
+    case kGcCauseExplicit: return "Explicit";
+    case kGcCauseForNativeAlloc: return "NativeAlloc";
+    case kGcCauseCollectorTransition: return" CollectorTransition";
+    default:
+      LOG(FATAL) << "Unreachable";
+  }
+  return "";
+}
+
+std::ostream& operator<<(std::ostream& os, const GcCause& gc_cause) {
+  os << PrettyCause(gc_cause);
+  return os;
+}
 
 }  // namespace gc
 }  // namespace art
-
-#endif  // ART_RUNTIME_GC_COLLECTOR_TYPE_H_

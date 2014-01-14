@@ -19,6 +19,7 @@
 
 #include "base/histogram.h"
 #include "base/timing_logger.h"
+#include "gc/gc_cause.h"
 #include "gc_type.h"
 #include "locks.h"
 #include <stdint.h>
@@ -46,7 +47,7 @@ class GarbageCollector {
   virtual GcType GetGcType() const = 0;
 
   // Run the garbage collector.
-  void Run(bool clear_soft_references);
+  void Run(GcCause gc_cause, bool clear_soft_references);
 
   Heap* GetHeap() const {
     return heap_;
@@ -133,6 +134,7 @@ class GarbageCollector {
 
   std::string name_;
 
+  GcCause gc_cause_;
   bool clear_soft_references_;
 
   const bool verbose_;

@@ -63,7 +63,8 @@ namespace collector {
 
 class SemiSpace : public GarbageCollector {
  public:
-  explicit SemiSpace(Heap* heap, const std::string& name_prefix = "");
+  explicit SemiSpace(Heap* heap, bool generational = false,
+                     const std::string& name_prefix = "");
 
   ~SemiSpace() {}
 
@@ -274,25 +275,31 @@ class SemiSpace : public GarbageCollector {
 
   Thread* self_;
 
-  // Used for kEnableSimplePromo. The end/top of the bump pointer
-  // space at the end of the last collection.
+  // When true, the generational mode (promotion and the bump pointer
+  // space only collection) is enabled. TODO: move these to a new file
+  // as a new garbage collector?
+  bool generational_;
+
+  // Used for the generational mode. the end/top of the bump
+  // pointer space at the end of the last collection.
   byte* last_gc_to_space_end_;
 
-  // Used for kEnableSimplePromo. During a collection, keeps track of
-  // how many bytes of objects have been copied so far from the bump
-  // pointer space to the non-moving space.
+  // Used for the generational mode. During a collection, keeps track
+  // of how many bytes of objects have been copied so far from the
+  // bump pointer space to the non-moving space.
   uint64_t bytes_promoted_;
 
-  // When true, collect the whole heap. When false, collect only the
-  // bump pointer spaces.
+  // Used for the generational mode. When true, collect the whole
+  // heap. When false, collect only the bump pointer spaces.
   bool whole_heap_collection_;
 
-  // A counter used to enable whole_heap_collection_ once per
-  // interval.
+  // Used for the generational mode. A counter used to enable
+  // whole_heap_collection_ once per interval.
   int whole_heap_collection_interval_counter_;
 
-  // The default interval of the whole heap collection. If N, the
-  // whole heap collection occurs every N collections.
+  // Used for the generational mode. The default interval of the whole
+  // heap collection. If N, the whole heap collection occurs every N
+  // collections.
   static constexpr int kDefaultWholeHeapCollectionInterval = 5;
 
  private:
