@@ -473,6 +473,7 @@ static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
   for (size_t i = 0; i < dex_filenames.size(); i++) {
     const char* dex_filename = dex_filenames[i];
     const char* dex_location = dex_locations[i];
+    ATRACE_BEGIN(StringPrintf("Opening dex file '%s'", dex_filenames[i]).c_str());
     std::string error_msg;
     if (!OS::FileExists(dex_filename)) {
       LOG(WARNING) << "Skipping non-existent dex file '" << dex_filename << "'";
@@ -485,6 +486,7 @@ static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
     } else {
       dex_files.push_back(dex_file);
     }
+    ATRACE_END();
   }
   return failure_count;
 }
@@ -1005,6 +1007,7 @@ static int dex2oat(int argc, char** argv) {
     dex_files = Runtime::Current()->GetClassLinker()->GetBootClassPath();
   } else {
     if (dex_filenames.empty()) {
+      ATRACE_BEGIN("Opening zip archive from file descriptor");
       std::string error_msg;
       UniquePtr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(zip_fd, zip_location.c_str(),
                                                                &error_msg));
@@ -1020,6 +1023,7 @@ static int dex2oat(int argc, char** argv) {
         return EXIT_FAILURE;
       }
       dex_files.push_back(dex_file);
+      ATRACE_END();
     } else {
       size_t failure_count = OpenDexFiles(dex_filenames, dex_locations, dex_files);
       if (failure_count > 0) {
