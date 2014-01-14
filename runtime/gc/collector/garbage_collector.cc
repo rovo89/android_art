@@ -37,6 +37,7 @@ namespace collector {
 GarbageCollector::GarbageCollector(Heap* heap, const std::string& name)
     : heap_(heap),
       name_(name),
+      gc_cause_(kGcCauseForAlloc),
       clear_soft_references_(false),
       verbose_(VLOG_IS_ON(heap)),
       duration_ns_(0),
@@ -63,13 +64,14 @@ void GarbageCollector::ResetCumulativeStatistics() {
   total_freed_bytes_ = 0;
 }
 
-void GarbageCollector::Run(bool clear_soft_references) {
+void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   Thread* self = Thread::Current();
   uint64_t start_time = NanoTime();
   pause_times_.clear();
   duration_ns_ = 0;
   clear_soft_references_ = clear_soft_references;
+  gc_cause_ = gc_cause;
 
   // Reset stats.
   freed_bytes_ = 0;
