@@ -1235,9 +1235,9 @@ bool MIRGraph::InvokeUsesMethodStar(MIR* mir) {
  * counts explicitly used s_regs.  A later phase will add implicit
  * counts for things such as Method*, null-checked references, etc.
  */
-bool MIRGraph::CountUses(struct BasicBlock* bb) {
+void MIRGraph::CountUses(struct BasicBlock* bb) {
   if (bb->block_type != kDalvikByteCode) {
-    return false;
+    return;
   }
   // Each level of nesting adds *100 to count, up to 3 levels deep.
   uint32_t depth = std::min(3U, static_cast<uint32_t>(bb->nesting_depth));
@@ -1268,26 +1268,6 @@ bool MIRGraph::CountUses(struct BasicBlock* bb) {
         use_counts_.Put(method_sreg_, use_counts_.Get(method_sreg_) + weight);
       }
     }
-  }
-  return false;
-}
-
-void MIRGraph::MethodUseCount() {
-  // Now that we know, resize the lists.
-  int num_ssa_regs = GetNumSSARegs();
-  use_counts_.Resize(num_ssa_regs + 32);
-  raw_use_counts_.Resize(num_ssa_regs + 32);
-  // Initialize list
-  for (int i = 0; i < num_ssa_regs; i++) {
-    use_counts_.Insert(0);
-    raw_use_counts_.Insert(0);
-  }
-  if (cu_->disable_opt & (1 << kPromoteRegs)) {
-    return;
-  }
-  AllNodesIterator iter(this);
-  for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
-    CountUses(bb);
   }
 }
 
