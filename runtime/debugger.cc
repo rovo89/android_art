@@ -847,14 +847,18 @@ JDWP::JdwpError Dbg::EnableCollection(JDWP::ObjectId object_id)
 
 JDWP::JdwpError Dbg::IsCollected(JDWP::ObjectId object_id, bool& is_collected)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Object* o = gRegistry->Get<mirror::Object*>(object_id);
-  // JDWP specs state an INVALID_OBJECT error is returned if the object ID is not valid. However
-  // the RI seems to ignore this and does not return any error in this case. Let's comply with
-  // JDWP specs here.
-  if (o == NULL || o == ObjectRegistry::kInvalidObject) {
+  if (object_id == 0) {
+    // Null object id is invalid.
     return JDWP::ERR_INVALID_OBJECT;
   }
-  is_collected = gRegistry->IsCollected(object_id);
+  // JDWP specs state an INVALID_OBJECT error is returned if the object ID is not valid. However
+  // the RI seems to ignore this and assume object has been collected.
+  mirror::Object* o = gRegistry->Get<mirror::Object*>(object_id);
+  if (o == NULL || o == ObjectRegistry::kInvalidObject) {
+    is_collected = true;
+  } else {
+    is_collected = gRegistry->IsCollected(object_id);
+  }
   return JDWP::ERR_NONE;
 }
 
