@@ -1414,7 +1414,16 @@ void Heap::PreZygoteFork() {
   zygote_space->SetGcRetentionPolicy(space::kGcRetentionPolicyFullCollect);
   AddSpace(main_space_);
   have_zygote_space_ = true;
-  zygote_space->InvalidateAllocator();
+  // Remove the zygote space from alloc_spaces_ array since not doing so causes crashes in
+  // GetObjectsAllocated. This happens because the bin packing blows away the internal accounting
+  // stored in between objects.
+  if (zygote_space->IsAllocSpace()) {
+    // TODO: Refactor zygote spaces to be a new space type to avoid more of these types of issues.
+    auto it = std::find(alloc_spaces_.begin(), alloc_spaces_.end(), zygote_space->AsAllocSpace());
+    CHECK(it != alloc_spaces_.end());
+    alloc_spaces_.erase(it);
+    zygote_space->InvalidateAllocator();
+  }
   // Create the zygote space mod union table.
   accounting::ModUnionTable* mod_union_table =
       new accounting::ModUnionTableCardCache("zygote space mod-union table", this, zygote_space);
