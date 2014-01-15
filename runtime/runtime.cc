@@ -401,8 +401,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   // Only the main GC thread, no workers.
   parsed->conc_gc_threads_ = 0;
   // Default is CMS which is Sticky + Partial + Full CMS GC.
-  // parsed->collector_type_ = gc::kCollectorTypeCMS;
-  parsed->collector_type_ = gc::kCollectorTypeGSS;
+  parsed->collector_type_ = gc::kCollectorTypeCMS;
   // If background_collector_type_ is kCollectorTypeNone, it defaults to the collector_type_ after
   // parsing options.
   parsed->background_collector_type_ = gc::kCollectorTypeNone;
