@@ -398,20 +398,30 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
     // non-null value. However, because we can run without code
     // available (in the compiler, in tests), we manually assign the
     // fields the constructor should have set.
-    soa.DecodeField(WellKnownClasses::java_lang_Thread_daemon)->
-        SetBoolean(opeer_, thread_is_daemon);
-    soa.DecodeField(WellKnownClasses::java_lang_Thread_group)->
-        SetObject(opeer_, soa.Decode<mirror::Object*>(thread_group));
-    soa.DecodeField(WellKnownClasses::java_lang_Thread_name)->
-        SetObject(opeer_, soa.Decode<mirror::Object*>(thread_name.get()));
-    soa.DecodeField(WellKnownClasses::java_lang_Thread_priority)->
-        SetInt(opeer_, thread_priority);
+    if (runtime->IsActiveTransaction()) {
+      InitPeer<true>(soa, thread_is_daemon, thread_group, thread_name.get(), thread_priority);
+    } else {
+      InitPeer<false>(soa, thread_is_daemon, thread_group, thread_name.get(), thread_priority);
+    }
     peer_thread_name.reset(GetThreadName(soa));
   }
   // 'thread_name' may have been null, so don't trust 'peer_thread_name' to be non-null.
   if (peer_thread_name.get() != nullptr) {
     SetThreadName(peer_thread_name->ToModifiedUtf8().c_str());
   }
+}
+
+template<bool kTransactionActive>
+void Thread::InitPeer(ScopedObjectAccess& soa, jboolean thread_is_daemon, jobject thread_group,
+                      jobject thread_name, jint thread_priority) {
+  soa.DecodeField(WellKnownClasses::java_lang_Thread_daemon)->
+      SetBoolean<kTransactionActive>(opeer_, thread_is_daemon);
+  soa.DecodeField(WellKnownClasses::java_lang_Thread_group)->
+      SetObject<kTransactionActive>(opeer_, soa.Decode<mirror::Object*>(thread_group));
+  soa.DecodeField(WellKnownClasses::java_lang_Thread_name)->
+      SetObject<kTransactionActive>(opeer_, soa.Decode<mirror::Object*>(thread_name));
+  soa.DecodeField(WellKnownClasses::java_lang_Thread_priority)->
+      SetInt<kTransactionActive>(opeer_, thread_priority);
 }
 
 void Thread::SetThreadName(const char* name) {
@@ -1020,7 +1030,11 @@ void Thread::Destroy() {
     RemoveFromThreadGroup(soa);
 
     // this.nativePeer = 0;
-    soa.DecodeField(WellKnownClasses::java_lang_Thread_nativePeer)->SetLong(opeer_, 0);
+    if (Runtime::Current()->IsActiveTransaction()) {
+      soa.DecodeField(WellKnownClasses::java_lang_Thread_nativePeer)->SetLong<true>(opeer_, 0);
+    } else {
+      soa.DecodeField(WellKnownClasses::java_lang_Thread_nativePeer)->SetLong<false>(opeer_, 0);
+    }
     Dbg::PostThreadDeath(self);
 
     // Thread.join() is implemented as an Object.wait() on the Thread.lock object. Signal anyone
@@ -1309,7 +1323,8 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
     }
     // Save PC trace in last element of method trace, also places it into the
     // object graph.
-    method_trace->Set(depth, dex_pc_trace);
+    // We are called from native: use non-transactional mode.
+    method_trace->Set<false>(depth, dex_pc_trace);
     // Set the Object*s and assert that no thread suspension is now possible.
     const char* last_no_suspend_cause =
         self_->StartAssertNoThreadSuspension("Building internal stack trace");
@@ -1337,8 +1352,14 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
     if (m->IsRuntimeMethod()) {
       return true;  // Ignore runtime frames (in particular callee save).
     }
-    method_trace_->Set(count_, m);
-    dex_pc_trace_->Set(count_, m->IsProxyMethod() ? DexFile::kDexNoIndex : GetDexPc());
+    // TODO dedup this code.
+    if (Runtime::Current()->IsActiveTransaction()) {
+      method_trace_->Set<true>(count_, m);
+      dex_pc_trace_->Set<true>(count_, m->IsProxyMethod() ? DexFile::kDexNoIndex : GetDexPc());
+    } else {
+      method_trace_->Set<false>(count_, m);
+      dex_pc_trace_->Set<false>(count_, m->IsProxyMethod() ? DexFile::kDexNoIndex : GetDexPc());
+    }
     ++count_;
     return true;
   }
@@ -1461,7 +1482,8 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
     if (obj == nullptr) {
       return nullptr;
     }
-    soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>*>(result)->Set(i, obj);
+    // We are called from native: use non-transactional mode.
+    soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>*>(result)->Set<false>(i, obj);
   }
   return result;
 }

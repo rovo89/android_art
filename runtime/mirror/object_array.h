@@ -40,12 +40,20 @@ class MANAGED ObjectArray : public Array {
   bool CheckAssignable(T* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void Set(int32_t i, T* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  // TODO fix thread safety analysis: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_).
+  template<bool kTransactionActive, bool kCheckTransaction = true>
+  void Set(int32_t i, T* object) NO_THREAD_SAFETY_ANALYSIS;
 
   // Set element without bound and element type checks, to be used in limited
-  // circumstances, such as during boot image writing
-  void SetWithoutChecks(int32_t i, T* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SetWithoutChecksAndWriteBarrier(int32_t i, T* object)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  // circumstances, such as during boot image writing.
+  // TODO fix thread safety analysis broken by the use of template. This should be
+  // SHARED_LOCKS_REQUIRED(Locks::mutator_lock_).
+  template<bool kTransactionActive, bool kCheckTransaction = true>
+  void SetWithoutChecks(int32_t i, T* object) NO_THREAD_SAFETY_ANALYSIS;
+  // TODO fix thread safety analysis broken by the use of template. This should be
+  // SHARED_LOCKS_REQUIRED(Locks::mutator_lock_).
+  template<bool kTransactionActive, bool kCheckTransaction = true>
+  void SetWithoutChecksAndWriteBarrier(int32_t i, T* object) NO_THREAD_SAFETY_ANALYSIS;
 
   T* GetWithoutChecks(int32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

@@ -60,6 +60,7 @@
 #include "thread.h"
 #include "thread_list.h"
 #include "trace.h"
+#include "transaction.h"
 #include "profiler.h"
 #include "UniquePtr.h"
 #include "verifier/method_verifier.h"
@@ -120,7 +121,8 @@ Runtime::Runtime()
       main_thread_group_(nullptr),
       system_thread_group_(nullptr),
       system_class_loader_(nullptr),
-      dump_gc_performance_on_shutdown_(false) {
+      dump_gc_performance_on_shutdown_(false),
+      preinitialization_transaction(nullptr) {
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
     callee_save_methods_[i] = nullptr;
   }
@@ -826,7 +828,8 @@ jobject CreateSystemClassLoader() {
       thread_class->FindDeclaredInstanceField("contextClassLoader", "Ljava/lang/ClassLoader;");
   CHECK(contextClassLoader != NULL);
 
-  contextClassLoader->SetObject(soa.Self()->GetPeer(), class_loader.get());
+  // We can't run in a transaction yet.
+  contextClassLoader->SetObject<false>(soa.Self()->GetPeer(), class_loader.get());
 
   return env->NewGlobalRef(system_class_loader.get());
 }
@@ -1305,6 +1308,10 @@ void Runtime::VisitConcurrentRoots(RootCallback* callback, void* arg, bool only_
                                    bool clean_dirty) {
   intern_table_->VisitRoots(callback, arg, only_dirty, clean_dirty);
   class_linker_->VisitRoots(callback, arg, only_dirty, clean_dirty);
+  // TODO: is it the right place ?
+  if (preinitialization_transaction != nullptr) {
+    preinitialization_transaction->VisitRoots(callback, arg);
+  }
 }
 
 void Runtime::VisitNonThreadRoots(RootCallback* callback, void* arg) {
@@ -1371,7 +1378,7 @@ mirror::ObjectArray<mirror::ArtMethod>* Runtime::CreateDefaultImt(ClassLinker* c
   SirtRef<mirror::ObjectArray<mirror::ArtMethod> > imtable(self, cl->AllocArtMethodArray(self, 64));
   mirror::ArtMethod* imt_conflict_method = Runtime::Current()->GetImtConflictMethod();
   for (size_t i = 0; i < static_cast<size_t>(imtable->GetLength()); i++) {
-    imtable->Set(i, imt_conflict_method);
+    imtable->Set<false>(i, imt_conflict_method);
   }
   return imtable.get();
 }
@@ -1546,5 +1553,75 @@ void Runtime::RemoveMethodVerifier(verifier::MethodVerifier* verifier) {
 void Runtime::StartProfiler(const char *appDir, bool startImmediately) {
   BackgroundMethodSamplingProfiler::Start(profile_period_s_, profile_duration_s_, appDir, profile_interval_us_,
       profile_backoff_coefficient_, startImmediately);
+}
+
+// Transaction support.
+// TODO move them to header file for inlining.
+bool Runtime::IsActiveTransaction() const {
+  return preinitialization_transaction != nullptr;
+}
+
+void Runtime::EnterTransactionMode(Transaction* transaction) {
+  DCHECK(IsCompiler());
+  DCHECK(transaction != nullptr);
+  DCHECK(!IsActiveTransaction());
+  preinitialization_transaction = transaction;
+}
+
+void Runtime::ExitTransactionMode() {
+  DCHECK(IsCompiler());
+  DCHECK(IsActiveTransaction());
+  preinitialization_transaction = nullptr;
+}
+
+void Runtime::RecordWriteField32(mirror::Object* obj, MemberOffset field_offset,
+                                 uint32_t value, bool is_volatile) const {
+  DCHECK(IsCompiler());
+  DCHECK(IsActiveTransaction());
+  preinitialization_transaction->RecordWriteField32(obj, field_offset, value, is_volatile);
+}
+
+void Runtime::RecordWriteField64(mirror::Object* obj, MemberOffset field_offset,
+                                 uint64_t value, bool is_volatile) const {
+  DCHECK(IsCompiler());
+  DCHECK(IsActiveTransaction());
+  preinitialization_transaction->RecordWriteField64(obj, field_offset, value, is_volatile);
+}
+
+void Runtime::RecordWriteFieldReference(mirror::Object* obj, MemberOffset field_offset,
+                                        mirror::Object* value, bool is_volatile) const {
+  DCHECK(IsCompiler());
+  DCHECK(IsActiveTransaction());
+  preinitialization_transaction->RecordWriteFieldReference(obj, field_offset, value, is_volatile);
+}
+
+void Runtime::RecordWriteArray(mirror::Array* array, size_t index, uint64_t value) const {
+  DCHECK(IsCompiler());
+  DCHECK(IsActiveTransaction());
+  preinitialization_transaction->RecordWriteArray(array, index, value);
+}
+
+void Runtime::RecordStrongStringInsertion(mirror::String* s, uint32_t hash_code) const {
+  DCHECK(IsCompiler());
+  DCHECK(IsActiveTransaction());
+  preinitialization_transaction->RecordStrongStringInsertion(s, hash_code);
+}
+
+void Runtime::RecordWeakStringInsertion(mirror::String* s, uint32_t hash_code) const {
+  DCHECK(IsCompiler());
+  DCHECK(IsActiveTransaction());
+  preinitialization_transaction->RecordWeakStringInsertion(s, hash_code);
+}
+
+void Runtime::RecordStrongStringRemoval(mirror::String* s, uint32_t hash_code) const {
+  DCHECK(IsCompiler());
+  DCHECK(IsActiveTransaction());
+  preinitialization_transaction->RecordStrongStringRemoval(s, hash_code);
+}
+
+void Runtime::RecordWeakStringRemoval(mirror::String* s, uint32_t hash_code) const {
+  DCHECK(IsCompiler());
+  DCHECK(IsActiveTransaction());
+  preinitialization_transaction->RecordWeakStringRemoval(s, hash_code);
 }
 }  // namespace art

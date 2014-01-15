@@ -27,7 +27,8 @@ static jboolean Unsafe_compareAndSwapInt(JNIEnv* env, jobject, jobject javaObj, 
                                          jint expectedValue, jint newValue) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  bool success = obj->CasField32(MemberOffset(offset), expectedValue, newValue);
+  // JNI must use non transactional mode.
+  bool success = obj->CasField32<false>(MemberOffset(offset), expectedValue, newValue);
   return success ? JNI_TRUE : JNI_FALSE;
 }
 
@@ -35,7 +36,8 @@ static jboolean Unsafe_compareAndSwapLong(JNIEnv* env, jobject, jobject javaObj,
                                           jlong expectedValue, jlong newValue) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  bool success = obj->CasField64(MemberOffset(offset), expectedValue, newValue);
+  // JNI must use non transactional mode.
+  bool success = obj->CasField64<false>(MemberOffset(offset), expectedValue, newValue);
   return success ? JNI_TRUE : JNI_FALSE;
 }
 
@@ -45,7 +47,8 @@ static jboolean Unsafe_compareAndSwapObject(JNIEnv* env, jobject, jobject javaOb
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   mirror::Object* expectedValue = soa.Decode<mirror::Object*>(javaExpectedValue);
   mirror::Object* newValue = soa.Decode<mirror::Object*>(javaNewValue);
-  bool success = obj->CasFieldObject(MemberOffset(offset), expectedValue, newValue);
+  // JNI must use non transactional mode.
+  bool success = obj->CasFieldObject<false>(MemberOffset(offset), expectedValue, newValue);
   return success ? JNI_TRUE : JNI_FALSE;
 }
 
@@ -64,14 +67,16 @@ static jint Unsafe_getIntVolatile(JNIEnv* env, jobject, jobject javaObj, jlong o
 static void Unsafe_putInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  obj->SetField32(MemberOffset(offset), newValue, false);
+  // JNI must use non transactional mode.
+  obj->SetField32<false>(MemberOffset(offset), newValue, false);
 }
 
 static void Unsafe_putIntVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset,
                                   jint newValue) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  obj->SetField32(MemberOffset(offset), newValue, true);
+  // JNI must use non transactional mode.
+  obj->SetField32<false>(MemberOffset(offset), newValue, true);
 }
 
 static void Unsafe_putOrderedInt(JNIEnv* env, jobject, jobject javaObj, jlong offset,
@@ -79,7 +84,8 @@ static void Unsafe_putOrderedInt(JNIEnv* env, jobject, jobject javaObj, jlong of
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   QuasiAtomic::MembarStoreStore();
-  obj->SetField32(MemberOffset(offset), newValue, false);
+  // JNI must use non transactional mode.
+  obj->SetField32<false>(MemberOffset(offset), newValue, false);
 }
 
 static jlong Unsafe_getLong(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
@@ -97,14 +103,16 @@ static jlong Unsafe_getLongVolatile(JNIEnv* env, jobject, jobject javaObj, jlong
 static void Unsafe_putLong(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong newValue) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  obj->SetField64(MemberOffset(offset), newValue, false);
+  // JNI must use non transactional mode.
+  obj->SetField64<false>(MemberOffset(offset), newValue, false);
 }
 
 static void Unsafe_putLongVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset,
                                    jlong newValue) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  obj->SetField64(MemberOffset(offset), newValue, true);
+  // JNI must use non transactional mode.
+  obj->SetField64<false>(MemberOffset(offset), newValue, true);
 }
 
 static void Unsafe_putOrderedLong(JNIEnv* env, jobject, jobject javaObj, jlong offset,
@@ -112,7 +120,8 @@ static void Unsafe_putOrderedLong(JNIEnv* env, jobject, jobject javaObj, jlong o
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   QuasiAtomic::MembarStoreStore();
-  obj->SetField64(MemberOffset(offset), newValue, false);
+  // JNI must use non transactional mode.
+  obj->SetField64<false>(MemberOffset(offset), newValue, false);
 }
 
 static jobject Unsafe_getObjectVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
@@ -134,7 +143,8 @@ static void Unsafe_putObject(JNIEnv* env, jobject, jobject javaObj, jlong offset
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   mirror::Object* newValue = soa.Decode<mirror::Object*>(javaNewValue);
-  obj->SetFieldObject(MemberOffset(offset), newValue, false);
+  // JNI must use non transactional mode.
+  obj->SetFieldObject<false>(MemberOffset(offset), newValue, false);
 }
 
 static void Unsafe_putObjectVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset,
@@ -142,7 +152,8 @@ static void Unsafe_putObjectVolatile(JNIEnv* env, jobject, jobject javaObj, jlon
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   mirror::Object* newValue = soa.Decode<mirror::Object*>(javaNewValue);
-  obj->SetFieldObject(MemberOffset(offset), newValue, true);
+  // JNI must use non transactional mode.
+  obj->SetFieldObject<false>(MemberOffset(offset), newValue, true);
 }
 
 static void Unsafe_putOrderedObject(JNIEnv* env, jobject, jobject javaObj, jlong offset,
@@ -151,7 +162,8 @@ static void Unsafe_putOrderedObject(JNIEnv* env, jobject, jobject javaObj, jlong
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   mirror::Object* newValue = soa.Decode<mirror::Object*>(javaNewValue);
   QuasiAtomic::MembarStoreStore();
-  obj->SetFieldObject(MemberOffset(offset), newValue, false);
+  // JNI must use non transactional mode.
+  obj->SetFieldObject<false>(MemberOffset(offset), newValue, false);
 }
 
 static jint Unsafe_getArrayBaseOffsetForComponentType(JNIEnv* env, jclass, jobject component_class) {

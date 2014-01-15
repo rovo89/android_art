@@ -15,6 +15,7 @@
  */
 
 #include "interpreter_common.h"
+#include "mirror/array-inl.h"
 
 namespace art {
 namespace interpreter {
@@ -161,7 +162,7 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
   return !self->IsExceptionPending();
 }
 
-template <bool is_range, bool do_access_check>
+template <bool is_range, bool do_access_check, bool transaction_active>
 bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
                       Thread* self, JValue* result) {
   DCHECK(inst->Opcode() == Instruction::FILLED_NEW_ARRAY ||
@@ -212,14 +213,58 @@ bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
   for (int32_t i = 0; i < length; ++i) {
     size_t src_reg = is_range ? vregC + i : arg[i];
     if (is_primitive_int_component) {
-      newArray->AsIntArray()->SetWithoutChecks(i, shadow_frame.GetVReg(src_reg));
+      newArray->AsIntArray()->SetWithoutChecks<transaction_active>(i, shadow_frame.GetVReg(src_reg));
     } else {
-      newArray->AsObjectArray<Object>()->SetWithoutChecks(i, shadow_frame.GetVRegReference(src_reg));
+      newArray->AsObjectArray<Object>()->SetWithoutChecks<transaction_active>(i, shadow_frame.GetVRegReference(src_reg));
     }
   }
 
   result->SetL(newArray);
   return true;
+}
+
+// TODO fix thread analysis: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_).
+template<typename T>
+static void RecordArrayElementsInTransactionImpl(mirror::PrimitiveArray<T>* array, int32_t count)
+    NO_THREAD_SAFETY_ANALYSIS {
+  Runtime* runtime = Runtime::Current();
+  for (int32_t i = 0; i < count; ++i) {
+    runtime->RecordWriteArray(array, i, array->GetWithoutChecks(i));
+  }
+}
+
+void RecordArrayElementsInTransaction(mirror::Array* array, int32_t count)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  DCHECK(Runtime::Current()->IsActiveTransaction());
+  DCHECK(array != nullptr);
+  DCHECK_LE(count, array->GetLength());
+  Primitive::Type primitive_component_type = array->GetClass()->GetComponentType()->GetPrimitiveType();
+  switch (primitive_component_type) {
+    case Primitive::kPrimBoolean:
+      RecordArrayElementsInTransactionImpl(array->AsBooleanArray(), count);
+      break;
+    case Primitive::kPrimByte:
+      RecordArrayElementsInTransactionImpl(array->AsByteArray(), count);
+      break;
+    case Primitive::kPrimChar:
+      RecordArrayElementsInTransactionImpl(array->AsCharArray(), count);
+      break;
+    case Primitive::kPrimShort:
+      RecordArrayElementsInTransactionImpl(array->AsShortArray(), count);
+      break;
+    case Primitive::kPrimInt:
+    case Primitive::kPrimFloat:
+      RecordArrayElementsInTransactionImpl(array->AsIntArray(), count);
+      break;
+    case Primitive::kPrimLong:
+    case Primitive::kPrimDouble:
+      RecordArrayElementsInTransactionImpl(array->AsLongArray(), count);
+      break;
+    default:
+      LOG(FATAL) << "Unsupported primitive type " << primitive_component_type
+                 << " in fill-array-data";
+      break;
+  }
 }
 
 static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
@@ -341,15 +386,19 @@ EXPLICIT_DO_CALL_TEMPLATE_DECL(true, true);
 #undef EXPLICIT_DO_CALL_TEMPLATE_DECL
 
 // Explicit DoFilledNewArray template function declarations.
-#define EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(_is_range_, _check)                \
-  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                \
-  bool DoFilledNewArray<_is_range_, _check>(const Instruction* inst,                  \
-                                                     const ShadowFrame& shadow_frame, \
-                                                     Thread* self, JValue* result)
-EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(false, false);
-EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(false, true);
-EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(true, false);
-EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(true, true);
+#define EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(_is_range_, _check, _transaction_active)       \
+  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)                                            \
+  bool DoFilledNewArray<_is_range_, _check, _transaction_active>(const Instruction* inst,         \
+                                                                 const ShadowFrame& shadow_frame, \
+                                                                 Thread* self, JValue* result)
+#define EXPLICIT_DO_FILLED_NEW_ARRAY_ALL_TEMPLATE_DECL(_transaction_active)       \
+  EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(false, false, _transaction_active);  \
+  EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(false, true, _transaction_active);   \
+  EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(true, false, _transaction_active);   \
+  EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(true, true, _transaction_active)
+EXPLICIT_DO_FILLED_NEW_ARRAY_ALL_TEMPLATE_DECL(false);
+EXPLICIT_DO_FILLED_NEW_ARRAY_ALL_TEMPLATE_DECL(true);
+#undef EXPLICIT_DO_FILLED_NEW_ARRAY_ALL_TEMPLATE_DECL
 #undef EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL
 
 }  // namespace interpreter

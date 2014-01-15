@@ -56,7 +56,8 @@ class MANAGED ArtMethod : public Object {
   uint32_t GetAccessFlags() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetAccessFlags(uint32_t new_access_flags) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, access_flags_), new_access_flags, false);
+    // Not called within a transaction.
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, access_flags_), new_access_flags, false);
   }
 
   // Approximate what kind of method call would be used for this method.
@@ -156,7 +157,8 @@ class MANAGED ArtMethod : public Object {
   }
 
   void SetMethodIndex(uint16_t new_method_index) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, method_index_), new_method_index, false);
+    // Not called within a transaction.
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, method_index_), new_method_index, false);
   }
 
   static MemberOffset MethodIndexOffset() {
@@ -168,7 +170,8 @@ class MANAGED ArtMethod : public Object {
   }
 
   void SetCodeItemOffset(uint32_t new_code_off) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_code_item_offset_), new_code_off, false);
+    // Not called within a transaction.
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_code_item_offset_), new_code_off, false);
   }
 
   // Number of 32bit registers that would be required to hold all the arguments
@@ -177,7 +180,8 @@ class MANAGED ArtMethod : public Object {
   uint32_t GetDexMethodIndex() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetDexMethodIndex(uint32_t new_idx) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_method_index_), new_idx, false);
+    // Not called within a transaction.
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_method_index_), new_idx, false);
   }
 
   ObjectArray<String>* GetDexCacheStrings() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -216,9 +220,8 @@ class MANAGED ArtMethod : public Object {
   }
 
   void SetEntryPointFromInterpreter(EntryPointFromInterpreter* entry_point_from_interpreter) {
-    SetFieldPtr<EntryPointFromInterpreter*>(
-        OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_interpreter_),
-        entry_point_from_interpreter, false);
+    SetFieldPtr<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_interpreter_),
+                       entry_point_from_interpreter, false);
   }
 
   static MemberOffset EntryPointFromPortableCompiledCodeOffset() {
@@ -230,8 +233,8 @@ class MANAGED ArtMethod : public Object {
   }
 
   void SetEntryPointFromPortableCompiledCode(const void* entry_point_from_portable_compiled_code) {
-    SetFieldPtr<const void*>(EntryPointFromPortableCompiledCodeOffset(),
-        entry_point_from_portable_compiled_code, false);
+    SetFieldPtr<false>(EntryPointFromPortableCompiledCodeOffset(),
+                       entry_point_from_portable_compiled_code, false);
   }
 
   static MemberOffset EntryPointFromQuickCompiledCodeOffset() {
@@ -243,8 +246,8 @@ class MANAGED ArtMethod : public Object {
   }
 
   void SetEntryPointFromQuickCompiledCode(const void* entry_point_from_quick_compiled_code) {
-    SetFieldPtr<const void*>(EntryPointFromQuickCompiledCodeOffset(),
-        entry_point_from_quick_compiled_code, false);
+    SetFieldPtr<false>(EntryPointFromQuickCompiledCodeOffset(),
+                       entry_point_from_quick_compiled_code, false);
   }
 
 
@@ -277,8 +280,8 @@ class MANAGED ArtMethod : public Object {
   }
 
   void SetMappingTable(const uint8_t* mapping_table) {
-    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_mapping_table_),
-                                mapping_table, false);
+    SetFieldPtr<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_mapping_table_),
+                       mapping_table, false);
   }
 
   uint32_t GetOatMappingTableOffset();
@@ -292,8 +295,7 @@ class MANAGED ArtMethod : public Object {
   }
 
   void SetVmapTable(const uint8_t* vmap_table) {
-    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_vmap_table_), vmap_table,
-        false);
+    SetFieldPtr<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_vmap_table_), vmap_table, false);
   }
 
   uint32_t GetOatVmapTableOffset();
@@ -304,7 +306,7 @@ class MANAGED ArtMethod : public Object {
     return GetFieldPtr<uint8_t*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, gc_map_), false);
   }
   void SetNativeGcMap(const uint8_t* data) {
-    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, gc_map_), data, false);
+    SetFieldPtr<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, gc_map_), data, false);
   }
 
   // When building the oat need a convenient place to stuff the offset of the native GC map.
@@ -319,8 +321,9 @@ class MANAGED ArtMethod : public Object {
   }
 
   void SetFrameSizeInBytes(size_t new_frame_size_in_bytes) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_frame_size_in_bytes_),
-               new_frame_size_in_bytes, false);
+    // Not called within a transaction.
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_frame_size_in_bytes_),
+                      new_frame_size_in_bytes, false);
   }
 
   size_t GetReturnPcOffsetInBytes() {
@@ -358,8 +361,9 @@ class MANAGED ArtMethod : public Object {
   }
 
   void SetCoreSpillMask(uint32_t core_spill_mask) {
-    // Computed during compilation
-    SetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_core_spill_mask_), core_spill_mask, false);
+    // Computed during compilation.
+    // Not called within a transaction.
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_core_spill_mask_), core_spill_mask, false);
   }
 
   uint32_t GetFpSpillMask() {
@@ -367,8 +371,9 @@ class MANAGED ArtMethod : public Object {
   }
 
   void SetFpSpillMask(uint32_t fp_spill_mask) {
-    // Computed during compilation
-    SetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_fp_spill_mask_), fp_spill_mask, false);
+    // Computed during compilation.
+    // Not called within a transaction.
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_fp_spill_mask_), fp_spill_mask, false);
   }
 
   // Is this a CalleSaveMethod or ResolutionMethod and therefore doesn't adhere to normal
