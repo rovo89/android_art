@@ -795,8 +795,8 @@ bool ArmMir2Lir::BadOverlap(RegLocation rl_src, RegLocation rl_dest) {
   return (abs(mir_graph_->SRegToVReg(rl_src.s_reg_low) - mir_graph_->SRegToVReg(rl_dest.s_reg_low)) == 1);
 }
 
-void ArmMir2Lir::GenMulLong(RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) {
+void ArmMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
+                            RegLocation rl_src1, RegLocation rl_src2) {
     /*
      * To pull off inline multiply, we have a worst-case requirement of 8 temporary
      * registers.  Normally for Arm, we get 5.  We can get to 6 by including
@@ -868,27 +868,27 @@ void ArmMir2Lir::GenMulLong(RegLocation rl_dest, RegLocation rl_src1,
     UnmarkTemp(rARM_LR);
 }
 
-void ArmMir2Lir::GenAddLong(RegLocation rl_dest, RegLocation rl_src1,
+void ArmMir2Lir::GenAddLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2) {
   LOG(FATAL) << "Unexpected use of GenAddLong for Arm";
 }
 
-void ArmMir2Lir::GenSubLong(RegLocation rl_dest, RegLocation rl_src1,
+void ArmMir2Lir::GenSubLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2) {
   LOG(FATAL) << "Unexpected use of GenSubLong for Arm";
 }
 
-void ArmMir2Lir::GenAndLong(RegLocation rl_dest, RegLocation rl_src1,
+void ArmMir2Lir::GenAndLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2) {
   LOG(FATAL) << "Unexpected use of GenAndLong for Arm";
 }
 
-void ArmMir2Lir::GenOrLong(RegLocation rl_dest, RegLocation rl_src1,
+void ArmMir2Lir::GenOrLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                            RegLocation rl_src2) {
   LOG(FATAL) << "Unexpected use of GenOrLong for Arm";
 }
 
-void ArmMir2Lir::GenXorLong(RegLocation rl_dest, RegLocation rl_src1,
+void ArmMir2Lir::GenXorLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2) {
   LOG(FATAL) << "Unexpected use of genXoLong for Arm";
 }

@@ -627,6 +627,18 @@ class Mir2Lir : public Backend {
      */
     void StoreValueWide(RegLocation rl_dest, RegLocation rl_src);
 
+    /**
+     * @brief Used to do the final store in a wide destination as per bytecode semantics.
+     * @see StoreValueWide
+     * @param rl_dest The destination dalvik register location.
+     * @param rl_src The source register location. It must be kLocPhysReg
+     *
+     * This is used for x86 two operand computations, where we have computed the correct
+     * register values that now need to be properly registered.  This is used to avoid an
+     * extra pair of register copies that would result if StoreValueWide was called.
+     */
+    void StoreFinalValueWide(RegLocation rl_dest, RegLocation rl_src);
+
     // Shared by all targets - implemented in mir_to_lir.cc.
     void CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list);
     void HandleExtendedMethodMIR(BasicBlock* bb, MIR* mir);
@@ -695,11 +707,14 @@ class Mir2Lir : public Backend {
     // Required for target - Dalvik-level generators.
     virtual void GenArithImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
                                    RegLocation rl_src1, RegLocation rl_src2) = 0;
-    virtual void GenMulLong(RegLocation rl_dest, RegLocation rl_src1,
+    virtual void GenMulLong(Instruction::Code,
+                            RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2) = 0;
-    virtual void GenAddLong(RegLocation rl_dest, RegLocation rl_src1,
+    virtual void GenAddLong(Instruction::Code,
+                            RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2) = 0;
-    virtual void GenAndLong(RegLocation rl_dest, RegLocation rl_src1,
+    virtual void GenAndLong(Instruction::Code,
+                            RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2) = 0;
     virtual void GenArithOpDouble(Instruction::Code opcode,
                                   RegLocation rl_dest, RegLocation rl_src1,
@@ -727,11 +742,14 @@ class Mir2Lir : public Backend {
     virtual bool GenInlinedPeek(CallInfo* info, OpSize size) = 0;
     virtual bool GenInlinedPoke(CallInfo* info, OpSize size) = 0;
     virtual void GenNegLong(RegLocation rl_dest, RegLocation rl_src) = 0;
-    virtual void GenOrLong(RegLocation rl_dest, RegLocation rl_src1,
+    virtual void GenOrLong(Instruction::Code,
+                           RegLocation rl_dest, RegLocation rl_src1,
                            RegLocation rl_src2) = 0;
-    virtual void GenSubLong(RegLocation rl_dest, RegLocation rl_src1,
+    virtual void GenSubLong(Instruction::Code,
+                            RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2) = 0;
-    virtual void GenXorLong(RegLocation rl_dest, RegLocation rl_src1,
+    virtual void GenXorLong(Instruction::Code,
+                            RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2) = 0;
     virtual LIR* GenRegMemCheck(ConditionCode c_code, int reg1, int base,
                                 int offset, ThrowKind kind) = 0;
@@ -835,6 +853,20 @@ class Mir2Lir : public Backend {
     CompilationUnit* GetCompilationUnit() {
       return cu_;
     }
+
+    /*
+     * @brief Force a location (in a register) into a temporary register
+     * @param loc location of result
+     * @returns update location
+     */
+    RegLocation ForceTemp(RegLocation loc);
+
+    /*
+     * @brief Force a wide location (in registers) into temporary registers
+     * @param loc location of result
+     * @returns update location
+     */
+    RegLocation ForceTempWide(RegLocation loc);
 
   private:
     void GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx, RegLocation rl_dest,

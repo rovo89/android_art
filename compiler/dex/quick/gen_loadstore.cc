@@ -294,6 +294,53 @@ void Mir2Lir::StoreValueWide(RegLocation rl_dest, RegLocation rl_src) {
   }
 }
 
+void Mir2Lir::StoreFinalValueWide(RegLocation rl_dest, RegLocation rl_src) {
+  DCHECK_EQ(IsFpReg(rl_src.low_reg), IsFpReg(rl_src.high_reg));
+  DCHECK(rl_dest.wide);
+  DCHECK(rl_src.wide);
+  DCHECK_EQ(rl_src.location, kLocPhysReg);
+
+  if (rl_dest.location == kLocPhysReg) {
+    OpRegCopyWide(rl_dest.low_reg, rl_dest.high_reg, rl_src.low_reg, rl_src.high_reg);
+  } else {
+    // Just re-assign the registers.  Dest gets Src's regs.
+    rl_dest.low_reg = rl_src.low_reg;
+    rl_dest.high_reg = rl_src.high_reg;
+    rl_dest.location = kLocPhysReg;
+    Clobber(rl_src.low_reg);
+    Clobber(rl_src.high_reg);
+  }
+
+  // Dest is now live and dirty (until/if we flush it to home location).
+  MarkLive(rl_dest.low_reg, rl_dest.s_reg_low);
+
+  // Does this wide value live in two registers (or one vector one)?
+  if (rl_dest.low_reg != rl_dest.high_reg) {
+    MarkLive(rl_dest.high_reg, GetSRegHi(rl_dest.s_reg_low));
+    MarkDirty(rl_dest);
+    MarkPair(rl_dest.low_reg, rl_dest.high_reg);
+  } else {
+    // This must be an x86 vector register value,
+    DCHECK(IsFpReg(rl_dest.low_reg) && (cu_->instruction_set == kX86));
+    MarkDirty(rl_dest);
+  }
+
+  ResetDefLocWide(rl_dest);
+  if ((IsDirty(rl_dest.low_reg) ||
+      IsDirty(rl_dest.high_reg)) &&
+      (oat_live_out(rl_dest.s_reg_low) ||
+      oat_live_out(GetSRegHi(rl_dest.s_reg_low)))) {
+    LIR *def_start = last_lir_insn_;
+    DCHECK_EQ((mir_graph_->SRegToVReg(rl_dest.s_reg_low)+1),
+              mir_graph_->SRegToVReg(GetSRegHi(rl_dest.s_reg_low)));
+    StoreBaseDispWide(TargetReg(kSp), SRegOffset(rl_dest.s_reg_low),
+                      rl_dest.low_reg, rl_dest.high_reg);
+    MarkClean(rl_dest);
+    LIR *def_end = last_lir_insn_;
+    MarkDefWide(rl_dest, def_start, def_end);
+  }
+}
+
 /* Utilities to load the current Method* */
 void Mir2Lir::LoadCurrMethodDirect(int r_tgt) {
   LoadValueDirectFixed(mir_graph_->GetMethodLoc(), r_tgt);
@@ -301,6 +348,49 @@ void Mir2Lir::LoadCurrMethodDirect(int r_tgt) {
 
 RegLocation Mir2Lir::LoadCurrMethod() {
   return LoadValue(mir_graph_->GetMethodLoc(), kCoreReg);
+}
+
+RegLocation Mir2Lir::ForceTemp(RegLocation loc) {
+  DCHECK(!loc.wide);
+  DCHECK(loc.location == kLocPhysReg);
+  DCHECK(!IsFpReg(loc.low_reg));
+  DCHECK(!IsFpReg(loc.high_reg));
+  if (IsTemp(loc.low_reg)) {
+    Clobber(loc.low_reg);
+  } else {
+    int temp_low = AllocTemp();
+    OpRegCopy(temp_low, loc.low_reg);
+    loc.low_reg = temp_low;
+  }
+
+  // Ensure that this doesn't represent the original SR any more.
+  loc.s_reg_low = INVALID_SREG;
+  return loc;
+}
+
+RegLocation Mir2Lir::ForceTempWide(RegLocation loc) {
+  DCHECK(loc.wide);
+  DCHECK(loc.location == kLocPhysReg);
+  DCHECK(!IsFpReg(loc.low_reg));
+  DCHECK(!IsFpReg(loc.high_reg));
+  if (IsTemp(loc.low_reg)) {
+    Clobber(loc.low_reg);
+  } else {
+    int temp_low = AllocTemp();
+    OpRegCopy(temp_low, loc.low_reg);
+    loc.low_reg = temp_low;
+  }
+  if (IsTemp(loc.high_reg)) {
+    Clobber(loc.high_reg);
+  } else {
+    int temp_high = AllocTemp();
+    OpRegCopy(temp_high, loc.high_reg);
+    loc.high_reg = temp_high;
+  }
+
+  // Ensure that this doesn't represent the original SR any more.
+  loc.s_reg_low = INVALID_SREG;
+  return loc;
 }
 
 }  // namespace art
