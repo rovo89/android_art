@@ -189,6 +189,10 @@ class CompilerDriver {
                                               uint32_t type_idx)
      LOCKS_EXCLUDED(Locks::mutator_lock_);
 
+  bool CanEmbedTypeInCode(const DexFile& dex_file, uint32_t type_idx,
+                          bool* is_type_initialized, bool* use_direct_type_ptr,
+                          uintptr_t* direct_type_ptr);
+
   // Can we fast path instance field access? Computes field's offset and volatility.
   bool ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit, bool is_put,
                                 int* field_offset, bool* is_volatile)
@@ -227,6 +231,12 @@ class CompilerDriver {
                       uint32_t target_method_idx,
                       InvokeType target_invoke_type,
                       size_t literal_offset)
+      LOCKS_EXCLUDED(compiled_methods_lock_);
+  void AddClassPatch(const DexFile* dex_file,
+                     uint16_t referrer_class_def_idx,
+                     uint32_t referrer_method_idx,
+                     uint32_t target_method_idx,
+                     size_t literal_offset)
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
   void SetBitcodeFileName(std::string const& filename);
@@ -267,6 +277,8 @@ class CompilerDriver {
     return thread_count_;
   }
 
+  class CallPatchInformation;
+  class TypePatchInformation;
   class PatchInformation {
    public:
     const DexFile& GetDexFile() const {
@@ -278,6 +290,48 @@ class CompilerDriver {
     uint32_t GetReferrerMethodIdx() const {
       return referrer_method_idx_;
     }
+    size_t GetLiteralOffset() const {
+      return literal_offset_;
+    }
+
+    virtual bool IsCall() const {
+      return false;
+    }
+    virtual bool IsType() const {
+      return false;
+    }
+    virtual const CallPatchInformation* AsCall() const {
+      LOG(FATAL) << "Unreachable";
+      return nullptr;
+    }
+    virtual const TypePatchInformation* AsType() const {
+      LOG(FATAL) << "Unreachable";
+      return nullptr;
+    }
+
+   protected:
+    PatchInformation(const DexFile* dex_file,
+                     uint16_t referrer_class_def_idx,
+                     uint32_t referrer_method_idx,
+                     size_t literal_offset)
+      : dex_file_(dex_file),
+        referrer_class_def_idx_(referrer_class_def_idx),
+        referrer_method_idx_(referrer_method_idx),
+        literal_offset_(literal_offset) {
+      CHECK(dex_file_ != NULL);
+    }
+    virtual ~PatchInformation() {}
+
+    const DexFile* const dex_file_;
+    const uint16_t referrer_class_def_idx_;
+    const uint32_t referrer_method_idx_;
+    const size_t literal_offset_;
+
+    friend class CompilerDriver;
+  };
+
+  class CallPatchInformation : public PatchInformation {
+   public:
     InvokeType GetReferrerInvokeType() const {
       return referrer_invoke_type_;
     }
@@ -287,45 +341,75 @@ class CompilerDriver {
     InvokeType GetTargetInvokeType() const {
       return target_invoke_type_;
     }
-    size_t GetLiteralOffset() const {;
-      return literal_offset_;
+
+    const CallPatchInformation* AsCall() const {
+      return this;
+    }
+    bool IsCall() const {
+      return true;
     }
 
    private:
-    PatchInformation(const DexFile* dex_file,
-                     uint16_t referrer_class_def_idx,
-                     uint32_t referrer_method_idx,
-                     InvokeType referrer_invoke_type,
-                     uint32_t target_method_idx,
-                     InvokeType target_invoke_type,
-                     size_t literal_offset)
-      : dex_file_(dex_file),
-        referrer_class_def_idx_(referrer_class_def_idx),
-        referrer_method_idx_(referrer_method_idx),
-        referrer_invoke_type_(referrer_invoke_type),
-        target_method_idx_(target_method_idx),
-        target_invoke_type_(target_invoke_type),
-        literal_offset_(literal_offset) {
-      CHECK(dex_file_ != NULL);
+    CallPatchInformation(const DexFile* dex_file,
+                         uint16_t referrer_class_def_idx,
+                         uint32_t referrer_method_idx,
+                         InvokeType referrer_invoke_type,
+                         uint32_t target_method_idx,
+                         InvokeType target_invoke_type,
+                         size_t literal_offset)
+        : PatchInformation(dex_file, referrer_class_def_idx,
+                           referrer_method_idx, literal_offset),
+          referrer_invoke_type_(referrer_invoke_type),
+          target_method_idx_(target_method_idx),
+          target_invoke_type_(target_invoke_type) {
     }
 
-    const DexFile* const dex_file_;
-    const uint16_t referrer_class_def_idx_;
-    const uint32_t referrer_method_idx_;
     const InvokeType referrer_invoke_type_;
     const uint32_t target_method_idx_;
     const InvokeType target_invoke_type_;
-    const size_t literal_offset_;
 
     friend class CompilerDriver;
-    DISALLOW_COPY_AND_ASSIGN(PatchInformation);
+    DISALLOW_COPY_AND_ASSIGN(CallPatchInformation);
   };
 
-  const std::vector<const PatchInformation*>& GetCodeToPatch() const {
+  class TypePatchInformation : public PatchInformation {
+   public:
+    uint32_t GetTargetTypeIdx() const {
+      return target_type_idx_;
+    }
+
+    bool IsType() const {
+      return true;
+    }
+    const TypePatchInformation* AsType() const {
+      return this;
+    }
+
+   private:
+    TypePatchInformation(const DexFile* dex_file,
+                         uint16_t referrer_class_def_idx,
+                         uint32_t referrer_method_idx,
+                         uint32_t target_type_idx,
+                         size_t literal_offset)
+        : PatchInformation(dex_file, referrer_class_def_idx,
+                           referrer_method_idx, literal_offset),
+          target_type_idx_(target_type_idx) {
+    }
+
+    const uint32_t target_type_idx_;
+
+    friend class CompilerDriver;
+    DISALLOW_COPY_AND_ASSIGN(TypePatchInformation);
+  };
+
+  const std::vector<const CallPatchInformation*>& GetCodeToPatch() const {
     return code_to_patch_;
   }
-  const std::vector<const PatchInformation*>& GetMethodsToPatch() const {
+  const std::vector<const CallPatchInformation*>& GetMethodsToPatch() const {
     return methods_to_patch_;
+  }
+  const std::vector<const TypePatchInformation*>& GetClassesToPatch() const {
+    return classes_to_patch_;
   }
 
   // Checks if class specified by type_idx is one of the image_classes_
@@ -398,8 +482,9 @@ class CompilerDriver {
   static void CompileClass(const ParallelCompilationManager* context, size_t class_def_index)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  std::vector<const PatchInformation*> code_to_patch_;
-  std::vector<const PatchInformation*> methods_to_patch_;
+  std::vector<const CallPatchInformation*> code_to_patch_;
+  std::vector<const CallPatchInformation*> methods_to_patch_;
+  std::vector<const TypePatchInformation*> classes_to_patch_;
 
   VerifiedMethodsData* verified_methods_data_;
   DexFileToMethodInlinerMap* method_inliner_map_;

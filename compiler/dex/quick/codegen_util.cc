@@ -440,6 +440,20 @@ void Mir2Lir::InstallLiteralPools() {
     PushPointer(code_buffer_, &id);
     data_lir = NEXT_LIR(data_lir);
   }
+  // Push class literals.
+  data_lir = class_literal_list_;
+  while (data_lir != NULL) {
+    uint32_t target = data_lir->operands[0];
+    cu_->compiler_driver->AddClassPatch(cu_->dex_file,
+                                        cu_->class_def_idx,
+                                        cu_->method_idx,
+                                        target,
+                                        code_buffer_.size());
+    const DexFile::TypeId& id = cu_->dex_file->GetTypeId(target);
+    // unique value based on target to ensure code deduplication works
+    PushPointer(code_buffer_, &id);
+    data_lir = NEXT_LIR(data_lir);
+  }
 }
 
 /* Write the switch tables to the output stream */
@@ -772,6 +786,7 @@ int Mir2Lir::AssignLiteralOffset(CodeOffset offset) {
   offset = AssignLiteralOffsetCommon(literal_list_, offset);
   offset = AssignLiteralPointerOffsetCommon(code_literal_list_, offset);
   offset = AssignLiteralPointerOffsetCommon(method_literal_list_, offset);
+  offset = AssignLiteralPointerOffsetCommon(class_literal_list_, offset);
   return offset;
 }
 
@@ -960,6 +975,7 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
     : Backend(arena),
       literal_list_(NULL),
       method_literal_list_(NULL),
+      class_literal_list_(NULL),
       code_literal_list_(NULL),
       first_fixup_(NULL),
       cu_(cu),

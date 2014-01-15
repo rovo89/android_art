@@ -88,6 +88,10 @@ static constexpr bool kMovingFields = false;
 // True if we allow moving methods.
 static constexpr bool kMovingMethods = false;
 
+// If true, the quick compiler embeds class pointers in the compiled
+// code, if possible.
+static constexpr bool kEmbedClassInCode = true;
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_GLOBALS_H_

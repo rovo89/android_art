@@ -1626,6 +1626,8 @@ static const EntryPointInfo gThreadEntryPointInfo[] = {
   QUICK_ENTRY_POINT_INFO(pAllocArray),
   QUICK_ENTRY_POINT_INFO(pAllocArrayWithAccessCheck),
   QUICK_ENTRY_POINT_INFO(pAllocObject),
+  QUICK_ENTRY_POINT_INFO(pAllocObjectResolved),
+  QUICK_ENTRY_POINT_INFO(pAllocObjectInitialized),
   QUICK_ENTRY_POINT_INFO(pAllocObjectWithAccessCheck),
   QUICK_ENTRY_POINT_INFO(pCheckAndAllocArray),
   QUICK_ENTRY_POINT_INFO(pCheckAndAllocArrayWithAccessCheck),

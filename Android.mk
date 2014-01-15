@@ -63,6 +63,7 @@ clean-oat-host:
 	rm -f $(TARGET_OUT_INTERMEDIATES)/JAVA_LIBRARIES/*_intermediates/javalib.odex
 	rm -f $(TARGET_OUT_INTERMEDIATES)/APPS/*_intermediates/*.odex
 	rm -rf /tmp/test-*/dalvik-cache/*@classes.dex
+	rm -rf /tmp/android-data/dalvik-cache/*@classes.dex
 
 .PHONY: clean-oat-target
 clean-oat-target:
