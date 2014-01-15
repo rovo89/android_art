@@ -145,12 +145,13 @@ void SignalCatcher::HandleSigQuit() {
   }
   os << "----- end " << getpid() << " -----\n";
   CHECK_EQ(self->SetStateUnsafe(old_state), kRunnable);
+  self->EndAssertNoThreadSuspension(old_cause);
+  thread_list->ResumeAll();
+  // Run the checkpoints after resuming the threads to prevent deadlocks if the checkpoint function
+  // acquires the mutator lock.
   if (self->ReadFlag(kCheckpointRequest)) {
     self->RunCheckpointFunction();
   }
-  self->EndAssertNoThreadSuspension(old_cause);
-  thread_list->ResumeAll();
-
   Output(os.str());
 }
 
