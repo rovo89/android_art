@@ -981,7 +981,7 @@ void Hprof::DumpHeapClass(mirror::Class* klass) {
     // ClassObjects have their static fields appended, so aren't all the same size.
     // But they're at least this size.
     __ AddU4(sizeof(mirror::Class));  // instance size
-  } else if (klass->IsArrayClass() || klass->IsPrimitive()) {
+  } else if (klass->IsArrayClass() || klass->IsStringClass() || klass->IsPrimitive()) {
     __ AddU4(0);
   } else {
     __ AddU4(klass->GetObjectSize());  // instance size
@@ -1036,12 +1036,21 @@ void Hprof::DumpHeapClass(mirror::Class* klass) {
 
   // Instance fields for this class (no superclass fields)
   int iFieldCount = klass->IsObjectClass() ? 0 : klass->NumInstanceFields();
-  __ AddU2((uint16_t)iFieldCount);
+  if (klass->IsStringClass()) {
+    __ AddU2((uint16_t)iFieldCount + 1);
+  } else {
+    __ AddU2((uint16_t)iFieldCount);
+  }
   for (int i = 0; i < iFieldCount; ++i) {
     ArtField* f = klass->GetInstanceField(i);
     __ AddStringId(LookupStringId(f->GetName()));
     HprofBasicType t = SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), nullptr);
     __ AddU1(t);
+  }
+  // Add native value character array for strings.
+  if (klass->IsStringClass()) {
+    __ AddStringId(LookupStringId("value"));
+    __ AddU1(hprof_basic_object);
   }
 }
 
@@ -1099,6 +1108,7 @@ void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass) {
 
   // Write the instance data;  fields for this class, followed by super class fields,
   // and so on. Don't write the klass or monitor fields of Object.class.
+  mirror::Class* orig_klass = klass;
   while (!klass->IsObjectClass()) {
     int ifieldCount = klass->NumInstanceFields();
     for (int i = 0; i < ifieldCount; ++i) {
@@ -1133,8 +1143,24 @@ void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass) {
     klass = klass->GetSuperClass();
   }
 
-  // Patch the instance field length.
-  __ UpdateU4(size_patch_offset, output_->Length() - (size_patch_offset + 4));
+  // Output native value character array for strings.
+  if (orig_klass->IsStringClass()) {
+    mirror::String* s = obj->AsString();
+    __ AddObjectId(reinterpret_cast<mirror::Object*>(s->GetValue()));
+
+    // Patch the instance field length.
+    __ UpdateU4(size_patch_offset, output_->Length() - (size_patch_offset + 4));
+
+    __ AddU1(HPROF_PRIMITIVE_ARRAY_DUMP);
+    __ AddObjectId(reinterpret_cast<mirror::Object*>(s->GetValue()));
+    __ AddU4(StackTraceSerialNumber(obj));
+    __ AddU4(s->GetLength());
+    __ AddU1(hprof_basic_char);
+    __ AddU2List(s->GetValue(), s->GetLength());
+  } else {
+    // Patch the instance field length.
+    __ UpdateU4(size_patch_offset, output_->Length() - (size_patch_offset + 4));
+  }
 }
 
 void Hprof::VisitRoot(mirror::Object* obj, const RootInfo& info) {

@@ -167,7 +167,13 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pCheckAndAllocArray, pCheckAndAllocArrayWithAccessCheck,
                          sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pCheckAndAllocArrayWithAccessCheck,
-                         pInstanceofNonTrivial, sizeof(void*));
+                         pAllocStringFromBytes, sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pAllocStringFromBytes, pAllocStringFromChars,
+                         sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pAllocStringFromChars, pAllocStringFromString,
+                         sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pAllocStringFromString, pInstanceofNonTrivial,
+                         sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pInstanceofNonTrivial, pCheckCast, sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pCheckCast, pInitializeStaticStorage, sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pInitializeStaticStorage, pInitializeTypeAndVerifyAccess,
@@ -269,7 +275,38 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pDeoptimize, pA64Load, sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pA64Load, pA64Store, sizeof(void*));
 
-    CHECKED(OFFSETOF_MEMBER(QuickEntryPoints, pA64Store)
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pA64Store, pNewEmptyString, sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewEmptyString, pNewStringFromBytes_B, sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromBytes_B, pNewStringFromBytes_BI,
+                         sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromBytes_BI, pNewStringFromBytes_BII,
+                         sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromBytes_BII, pNewStringFromBytes_BIII,
+                         sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromBytes_BIII, pNewStringFromBytes_BIIString,
+                         sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromBytes_BIIString,
+                         pNewStringFromBytes_BString, sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromBytes_BString,
+                         pNewStringFromBytes_BIICharset, sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromBytes_BIICharset,
+                         pNewStringFromBytes_BCharset, sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromBytes_BCharset,
+                         pNewStringFromChars_C, sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromChars_C, pNewStringFromChars_CII,
+                         sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromChars_CII, pNewStringFromChars_IIC,
+                         sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromChars_IIC, pNewStringFromCodePoints,
+                         sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromCodePoints, pNewStringFromString,
+                         sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromString, pNewStringFromStringBuffer,
+                         sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromStringBuffer, pNewStringFromStringBuilder,
+                         sizeof(void*));
+
+    CHECKED(OFFSETOF_MEMBER(QuickEntryPoints, pNewStringFromStringBuilder)
             + sizeof(void*) == sizeof(QuickEntryPoints), QuickEntryPoints_all);
   }
 };

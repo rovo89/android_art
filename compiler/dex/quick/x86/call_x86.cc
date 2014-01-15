@@ -19,6 +19,7 @@
 #include "codegen_x86.h"
 
 #include "base/logging.h"
+#include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
@@ -343,11 +344,20 @@ void X86Mir2Lir::GenImplicitNullCheck(RegStorage reg, int opt_flags) {
 int X86Mir2Lir::X86NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
                                   int state, const MethodReference& target_method,
                                   uint32_t,
-                                  uintptr_t direct_code, uintptr_t direct_method,
+                                  uintptr_t direct_code ATTRIBUTE_UNUSED, uintptr_t direct_method,
                                   InvokeType type) {
-  UNUSED(info, direct_code);
   X86Mir2Lir* cg = static_cast<X86Mir2Lir*>(cu->cg.get());
-  if (direct_method != 0) {
+  if (info->string_init_offset != 0) {
+    RegStorage arg0_ref = cg->TargetReg(kArg0, kRef);
+    switch (state) {
+    case 0: {  // Grab target method* from thread pointer
+      cg->NewLIR2(kX86Mov32RT, arg0_ref.GetReg(), info->string_init_offset);
+      break;
+    }
+    default:
+      return -1;
+    }
+  } else if (direct_method != 0) {
     switch (state) {
     case 0:  // Get the current Method* [sets kArg0]
       if (direct_method != static_cast<uintptr_t>(-1)) {

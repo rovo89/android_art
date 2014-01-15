@@ -21,6 +21,7 @@
 #include "arm_lir.h"
 #include "base/logging.h"
 #include "dex/mir_graph.h"
+#include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
@@ -619,13 +620,31 @@ static bool ArmUseRelativeCall(CompilationUnit* cu, const MethodReference& targe
  * Bit of a hack here - in the absence of a real scheduling pass,
  * emit the next instruction in static & direct invoke sequences.
  */
-int ArmMir2Lir::ArmNextSDCallInsn(CompilationUnit* cu, CallInfo* info ATTRIBUTE_UNUSED,
+int ArmMir2Lir::ArmNextSDCallInsn(CompilationUnit* cu, CallInfo* info,
                                   int state, const MethodReference& target_method,
                                   uint32_t unused_idx ATTRIBUTE_UNUSED,
                                   uintptr_t direct_code, uintptr_t direct_method,
                                   InvokeType type) {
   ArmMir2Lir* cg = static_cast<ArmMir2Lir*>(cu->cg.get());
-  if (direct_code != 0 && direct_method != 0) {
+  if (info->string_init_offset != 0) {
+    RegStorage arg0_ref = cg->TargetReg(kArg0, kRef);
+    switch (state) {
+    case 0: {  // Grab target method* from thread pointer
+      cg->LoadRefDisp(rs_rARM_SELF, info->string_init_offset, arg0_ref, kNotVolatile);
+      break;
+    }
+    case 1:  // Grab the code from the method*
+      if (direct_code == 0) {
+        // kInvokeTgt := arg0_ref->entrypoint
+        cg->LoadWordDisp(arg0_ref,
+                         mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+                             kArmPointerSize).Int32Value(), cg->TargetPtrReg(kInvokeTgt));
+      }
+      break;
+    default:
+      return -1;
+    }
+  } else if (direct_code != 0 && direct_method != 0) {
     switch (state) {
     case 0:  // Get the current Method* [sets kArg0]
       if (direct_code != static_cast<uintptr_t>(-1)) {

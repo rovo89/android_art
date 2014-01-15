@@ -235,6 +235,15 @@ class MANAGED Class FINAL : public Object {
     SetAccessFlags(flags | kAccClassIsFinalizable);
   }
 
+  ALWAYS_INLINE bool IsStringClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return (GetField32(AccessFlagsOffset()) & kAccClassIsStringClass) != 0;
+  }
+
+  ALWAYS_INLINE void SetStringClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    uint32_t flags = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_));
+    SetAccessFlags(flags | kAccClassIsStringClass);
+  }
+
   // Returns true if the class is abstract.
   ALWAYS_INLINE bool IsAbstract() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccAbstract) != 0;
@@ -416,8 +425,6 @@ class MANAGED Class FINAL : public Object {
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsClassClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsStringClass() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   bool IsThrowableClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
@@ -484,10 +491,10 @@ class MANAGED Class FINAL : public Object {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsVariableSize() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // Classes and arrays vary in size, and so the object_size_ field cannot
+    // Classes, arrays, and strings vary in size, and so the object_size_ field cannot
     // be used to Get their instance size
     return IsClassClass<kVerifyFlags, kReadBarrierOption>() ||
-        IsArrayClass<kVerifyFlags, kReadBarrierOption>();
+        IsArrayClass<kVerifyFlags, kReadBarrierOption>() || IsStringClass();
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,

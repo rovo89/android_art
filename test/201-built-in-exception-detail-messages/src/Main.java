@@ -358,7 +358,8 @@ public class Main {
       field.set(new A(), 5);
       fail();
     } catch (IllegalArgumentException expected) {
-      assertEquals("field A.b has type java.lang.String, got java.lang.Integer", expected.getMessage());
+      assertEquals("field A.b has type java.lang.String, got java.lang.Integer",
+          expected.getMessage());
     }
 
     // Can't unbox null to a primitive.
@@ -385,7 +386,8 @@ public class Main {
       m.invoke(new A(), 2, 2);
       fail();
     } catch (IllegalArgumentException expected) {
-      assertEquals("method A.m argument 2 has type java.lang.String, got java.lang.Integer", expected.getMessage());
+      assertEquals("method A.m argument 2 has type java.lang.String, got java.lang.Integer",
+          expected.getMessage());
     }
 
     // Can't pass null as an int.
@@ -409,21 +411,24 @@ public class Main {
       m.invoke("hello", "world"); // Wrong type.
       fail();
     } catch (IllegalArgumentException iae) {
-      assertEquals("method java.lang.String.charAt argument 1 has type int, got java.lang.String", iae.getMessage());
+      assertEquals("method java.lang.String.charAt! argument 1 has type int, got java.lang.String",
+          iae.getMessage());
     }
     try {
       Method m = String.class.getMethod("charAt", int.class);
       m.invoke("hello", (Object) null); // Null for a primitive argument.
       fail();
     } catch (IllegalArgumentException iae) {
-      assertEquals("method java.lang.String.charAt argument 1 has type int, got null", iae.getMessage());
+      assertEquals("method java.lang.String.charAt! argument 1 has type int, got null",
+          iae.getMessage());
     }
     try {
       Method m = String.class.getMethod("charAt", int.class);
       m.invoke(new Integer(5)); // Wrong type for 'this'.
       fail();
     } catch (IllegalArgumentException iae) {
-      assertEquals("Expected receiver of type java.lang.String, but got java.lang.Integer", iae.getMessage());
+      assertEquals("Expected receiver of type java.lang.String, but got java.lang.Integer",
+          iae.getMessage());
     }
     try {
       Method m = String.class.getMethod("charAt", int.class);

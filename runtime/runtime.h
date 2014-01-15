@@ -31,6 +31,7 @@
 #include "gc_root.h"
 #include "instrumentation.h"
 #include "jobject_comparator.h"
+#include "method_reference.h"
 #include "object_callbacks.h"
 #include "offsets.h"
 #include "profiler_options.h"
@@ -86,6 +87,8 @@ struct TraceConfig;
 class Transaction;
 
 typedef std::vector<std::pair<std::string, const void*>> RuntimeOptions;
+typedef SafeMap<MethodReference, SafeMap<uint32_t, std::set<uint32_t>>,
+    MethodReferenceComparator> MethodRefToStringInitRegMap;
 
 // Not all combinations of flags are valid. You may not visit all roots as well as the new roots
 // (no logical reason to do this). You also may not start logging new roots and stop logging new
@@ -558,6 +561,10 @@ class Runtime {
     return jit_options_.get();
   }
 
+  MethodRefToStringInitRegMap& GetStringInitMap() {
+    return method_ref_string_init_reg_map_;
+  }
+
  private:
   static void InitPlatformSignalHandlers();
 
@@ -736,6 +743,8 @@ class Runtime {
   // and trying again. This option is only inspected when we're running as a
   // zygote.
   uint32_t zygote_max_failed_boots_;
+
+  MethodRefToStringInitRegMap method_ref_string_init_reg_map_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };

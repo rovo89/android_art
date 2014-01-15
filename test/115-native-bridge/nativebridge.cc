@@ -122,6 +122,14 @@ static jobject trampoline_Java_Main_testGetMirandaMethodNative(JNIEnv* env, jcla
   return fnPtr(env, klass);
 }
 
+static void trampoline_Java_Main_testNewStringObject(JNIEnv* env, jclass klass) {
+  typedef void (*FnPtr_t)(JNIEnv*, jclass);
+  FnPtr_t fnPtr = reinterpret_cast<FnPtr_t>
+    (find_native_bridge_method("testNewStringObject")->fnPtr);
+  printf("%s called!\n", __FUNCTION__);
+  return fnPtr(env, klass);
+}
+
 static void trampoline_Java_Main_testZeroLengthByteBuffers(JNIEnv* env, jclass klass) {
   typedef void (*FnPtr_t)(JNIEnv*, jclass);
   FnPtr_t fnPtr = reinterpret_cast<FnPtr_t>
@@ -190,6 +198,8 @@ NativeBridgeMethod gNativeBridgeMethods[] = {
     reinterpret_cast<void*>(trampoline_Java_Main_testFindFieldOnAttachedNativeThreadNative) },
   { "testGetMirandaMethodNative", "()Ljava/lang/reflect/Method;", true, nullptr,
     reinterpret_cast<void*>(trampoline_Java_Main_testGetMirandaMethodNative) },
+  { "testNewStringObject", "()V", true, nullptr,
+    reinterpret_cast<void*>(trampoline_Java_Main_testNewStringObject) },
   { "testZeroLengthByteBuffers", "()V", true, nullptr,
     reinterpret_cast<void*>(trampoline_Java_Main_testZeroLengthByteBuffers) },
 };

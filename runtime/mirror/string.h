@@ -18,6 +18,7 @@
 #define ART_RUNTIME_MIRROR_STRING_H_
 
 #include "gc_root.h"
+#include "gc/allocator_type.h"
 #include "object.h"
 #include "object_callbacks.h"
 
@@ -45,22 +46,27 @@ class MANAGED String FINAL : public Object {
   }
 
   static MemberOffset ValueOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(String, array_);
+    return OFFSET_OF_OBJECT_MEMBER(String, value_);
   }
 
-  static MemberOffset OffsetOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(String, offset_);
+  uint16_t* GetValue() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return &value_[0];
   }
 
-  CharArray* GetCharArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  size_t SizeOf() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  int32_t GetOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    int32_t result = GetField32(OffsetOffset());
-    DCHECK_LE(0, result);
-    return result;
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  int32_t GetLength() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(String, count_));
   }
 
-  int32_t GetLength() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetCount(int32_t new_count) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // Count is invariant so use non-transactional mode. Also disable check as we may run inside
+    // a transaction.
+    DCHECK_LE(0, new_count);
+    SetField32<false, false>(OFFSET_OF_OBJECT_MEMBER(String, count_), new_count);
+  }
 
   int32_t GetHashCode() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -69,19 +75,47 @@ class MANAGED String FINAL : public Object {
 
   int32_t GetUtfLength() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  uint16_t CharAt(int32_t index) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void SetCharAt(int32_t index, uint16_t c) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   String* Intern() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static String* AllocFromUtf16(Thread* self,
-                                int32_t utf16_length,
-                                const uint16_t* utf16_data_in,
-                                int32_t hash_code = 0)
+  template <bool kIsInstrumented, typename PreFenceVisitor>
+  ALWAYS_INLINE static String* Alloc(Thread* self, int32_t utf16_length,
+                                     gc::AllocatorType allocator_type,
+                                     const PreFenceVisitor& pre_fence_visitor)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  template <bool kIsInstrumented>
+  ALWAYS_INLINE static String* AllocFromByteArray(Thread* self, int32_t byte_length,
+                                                  Handle<ByteArray> array, int32_t offset,
+                                                  int32_t high_byte,
+                                                  gc::AllocatorType allocator_type)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  template <bool kIsInstrumented>
+  ALWAYS_INLINE static String* AllocFromCharArray(Thread* self, int32_t array_length,
+                                                  Handle<CharArray> array, int32_t offset,
+                                                  gc::AllocatorType allocator_type)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  template <bool kIsInstrumented>
+  ALWAYS_INLINE static String* AllocFromString(Thread* self, int32_t string_length,
+                                               Handle<String> string, int32_t offset,
+                                               gc::AllocatorType allocator_type)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static String* AllocFromStrings(Thread* self, Handle<String> string, Handle<String> string2)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static String* AllocFromUtf16(Thread* self, int32_t utf16_length, const uint16_t* utf16_data_in)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static String* AllocFromModifiedUtf8(Thread* self, const char* utf)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static String* AllocFromModifiedUtf8(Thread* self, int32_t utf16_length,
-                                       const char* utf8_data_in)
+  static String* AllocFromModifiedUtf8(Thread* self, int32_t utf16_length, const char* utf8_data_in)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // TODO: This is only used in the interpreter to compare against
@@ -112,13 +146,10 @@ class MANAGED String FINAL : public Object {
 
   int32_t CompareTo(String* other) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetOffset(int32_t new_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // Offset is only used during testing so use non-transactional mode.
-    DCHECK_LE(0, new_offset);
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(String, offset_), new_offset);
-  }
+  CharArray* ToCharArray(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetArray(CharArray* new_array) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void GetChars(int32_t start, int32_t end, Handle<CharArray> array, int32_t index)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static Class* GetJavaLangString() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(!java_lang_String_.IsNull());
@@ -130,9 +161,6 @@ class MANAGED String FINAL : public Object {
   static void VisitRoots(RootVisitor* visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // TODO: Make this private. It's only used on ObjectTest at the moment.
-  uint16_t UncheckedCharAt(int32_t index) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
  private:
   void SetHashCode(int32_t new_hash_code) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Hash code is invariant so use non-transactional mode. Also disable check as we may run inside
@@ -141,27 +169,12 @@ class MANAGED String FINAL : public Object {
     SetField32<false, false>(OFFSET_OF_OBJECT_MEMBER(String, hash_code_), new_hash_code);
   }
 
-  void SetCount(int32_t new_count) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // Count is invariant so use non-transactional mode. Also disable check as we may run inside
-    // a transaction.
-    DCHECK_LE(0, new_count);
-    SetField32<false, false>(OFFSET_OF_OBJECT_MEMBER(String, count_), new_count);
-  }
-
-  static String* Alloc(Thread* self, int32_t utf16_length)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  static String* Alloc(Thread* self, Handle<CharArray> array)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
-  HeapReference<CharArray> array_;
-
   int32_t count_;
 
   uint32_t hash_code_;
 
-  int32_t offset_;
+  uint16_t value_[0];
 
   static GcRoot<Class> java_lang_String_;
 

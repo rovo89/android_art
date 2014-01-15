@@ -35,6 +35,12 @@ THREE_ARG_DOWNCALL art_quick_alloc_array_with_access_check\c_suffix, artAllocArr
 THREE_ARG_DOWNCALL art_quick_check_and_alloc_array\c_suffix, artCheckAndAllocArrayFromCode\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 // Called by managed code to allocate an array in a special case for FILLED_NEW_ARRAY.
 THREE_ARG_DOWNCALL art_quick_check_and_alloc_array_with_access_check\c_suffix, artCheckAndAllocArrayFromCodeWithAccessCheck\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+// Called by managed code to allocate a string from bytes
+FOUR_ARG_DOWNCALL art_quick_alloc_string_from_bytes\c_suffix, artAllocStringFromBytesFromCode\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO
+// Called by managed code to allocate a string from chars
+THREE_ARG_DOWNCALL art_quick_alloc_string_from_chars\c_suffix, artAllocStringFromCharsFromCode\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO
+// Called by managed code to allocate a string from string
+ONE_ARG_DOWNCALL art_quick_alloc_string_from_string\c_suffix, artAllocStringFromStringFromCode\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO
 .endm
 
 .macro GENERATE_ALL_ALLOC_ENTRYPOINTS

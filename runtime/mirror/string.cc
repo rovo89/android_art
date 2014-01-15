@@ -20,10 +20,11 @@
 #include "array.h"
 #include "class-inl.h"
 #include "gc/accounting/card_table-inl.h"
+#include "handle_scope-inl.h"
 #include "intern_table.h"
 #include "object-inl.h"
 #include "runtime.h"
-#include "handle_scope-inl.h"
+#include "string-inl.h"
 #include "thread.h"
 #include "utf-inl.h"
 
@@ -40,7 +41,7 @@ int32_t String::FastIndexOf(int32_t ch, int32_t start) {
   } else if (start > count) {
     start = count;
   }
-  const uint16_t* chars = GetCharArray()->GetData() + GetOffset();
+  const uint16_t* chars = GetValue();
   const uint16_t* p = chars + start;
   const uint16_t* end = chars + count;
   while (p < end) {
@@ -62,36 +63,46 @@ void String::ResetClass() {
   java_lang_String_ = GcRoot<Class>(nullptr);
 }
 
-int32_t String::ComputeHashCode() {
-  const int32_t hash_code = ComputeUtf16Hash(GetCharArray(), GetOffset(), GetLength());
+int String::ComputeHashCode() {
+  const int32_t hash_code = ComputeUtf16Hash(GetValue(), GetLength());
   SetHashCode(hash_code);
   return hash_code;
 }
 
 int32_t String::GetUtfLength() {
-  return CountUtf8Bytes(GetCharArray()->GetData() + GetOffset(), GetLength());
+  return CountUtf8Bytes(GetValue(), GetLength());
 }
 
-String* String::AllocFromUtf16(Thread* self,
-                               int32_t utf16_length,
-                               const uint16_t* utf16_data_in,
-                               int32_t hash_code) {
+void String::SetCharAt(int32_t index, uint16_t c) {
+  DCHECK((index >= 0) && (index < count_));
+  GetValue()[index] = c;
+}
+
+String* String::AllocFromStrings(Thread* self, Handle<String> string, Handle<String> string2) {
+  int32_t length = string->GetLength();
+  int32_t length2 = string2->GetLength();
+  gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
+  SetStringCountVisitor visitor(length + length2);
+  String* new_string = Alloc<true>(self, length + length2, allocator_type, visitor);
+  if (UNLIKELY(new_string == nullptr)) {
+    return nullptr;
+  }
+  uint16_t* new_value = new_string->GetValue();
+  memcpy(new_value, string->GetValue(), length * sizeof(uint16_t));
+  memcpy(new_value + length, string2->GetValue(), length2 * sizeof(uint16_t));
+  return new_string;
+}
+
+String* String::AllocFromUtf16(Thread* self, int32_t utf16_length, const uint16_t* utf16_data_in) {
   CHECK(utf16_data_in != nullptr || utf16_length == 0);
-  String* string = Alloc(self, utf16_length);
+  gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
+  SetStringCountVisitor visitor(utf16_length);
+  String* string = Alloc<true>(self, utf16_length, allocator_type, visitor);
   if (UNLIKELY(string == nullptr)) {
     return nullptr;
   }
-  CharArray* array = const_cast<CharArray*>(string->GetCharArray());
-  if (UNLIKELY(array == nullptr)) {
-    return nullptr;
-  }
-  memcpy(array->GetData(), utf16_data_in, utf16_length * sizeof(uint16_t));
-  if (hash_code != 0) {
-    DCHECK_EQ(hash_code, ComputeUtf16Hash(utf16_data_in, utf16_length));
-    string->SetHashCode(hash_code);
-  } else {
-    string->ComputeHashCode();
-  }
+  uint16_t* array = string->GetValue();
+  memcpy(array, utf16_data_in, utf16_length * sizeof(uint16_t));
   return string;
 }
 
@@ -103,33 +114,14 @@ String* String::AllocFromModifiedUtf8(Thread* self, const char* utf) {
 
 String* String::AllocFromModifiedUtf8(Thread* self, int32_t utf16_length,
                                       const char* utf8_data_in) {
-  String* string = Alloc(self, utf16_length);
+  gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
+  SetStringCountVisitor visitor(utf16_length);
+  String* string = Alloc<true>(self, utf16_length, allocator_type, visitor);
   if (UNLIKELY(string == nullptr)) {
     return nullptr;
   }
-  uint16_t* utf16_data_out =
-      const_cast<uint16_t*>(string->GetCharArray()->GetData());
+  uint16_t* utf16_data_out = string->GetValue();
   ConvertModifiedUtf8ToUtf16(utf16_data_out, utf8_data_in);
-  string->ComputeHashCode();
-  return string;
-}
-
-String* String::Alloc(Thread* self, int32_t utf16_length) {
-  StackHandleScope<1> hs(self);
-  Handle<CharArray> array(hs.NewHandle(CharArray::Alloc(self, utf16_length)));
-  if (UNLIKELY(array.Get() == nullptr)) {
-    return nullptr;
-  }
-  return Alloc(self, array);
-}
-
-String* String::Alloc(Thread* self, Handle<CharArray> array) {
-  // Hold reference in case AllocObject causes GC.
-  String* string = down_cast<String*>(GetJavaLangString()->AllocObject(self));
-  if (LIKELY(string != nullptr)) {
-    string->SetArray(array.Get());
-    string->SetCount(array->GetLength());
-  }
   return string;
 }
 
@@ -147,7 +139,7 @@ bool String::Equals(String* that) {
     // Note: don't short circuit on hash code as we're presumably here as the
     // hash code was already equal
     for (int32_t i = 0; i < that->GetLength(); ++i) {
-      if (this->UncheckedCharAt(i) != that->UncheckedCharAt(i)) {
+      if (this->CharAt(i) != that->CharAt(i)) {
         return false;
       }
     }
@@ -160,7 +152,7 @@ bool String::Equals(const uint16_t* that_chars, int32_t that_offset, int32_t tha
     return false;
   } else {
     for (int32_t i = 0; i < that_length; ++i) {
-      if (this->UncheckedCharAt(i) != that_chars[that_offset + i]) {
+      if (this->CharAt(i) != that_chars[that_offset + i]) {
         return false;
       }
     }
@@ -177,7 +169,7 @@ bool String::Equals(const char* modified_utf8) {
       return false;
     }
 
-    if (GetLeadingUtf16Char(ch) != UncheckedCharAt(i++)) {
+    if (GetLeadingUtf16Char(ch) != CharAt(i++)) {
       return false;
     }
 
@@ -187,7 +179,7 @@ bool String::Equals(const char* modified_utf8) {
         return false;
       }
 
-      if (UncheckedCharAt(i++) != trailing) {
+      if (CharAt(i++) != trailing) {
         return false;
       }
     }
@@ -201,7 +193,7 @@ bool String::Equals(const StringPiece& modified_utf8) {
   for (int32_t i = 0; i < length; ++i) {
     uint32_t ch = GetUtf16FromUtf8(&p);
 
-    if (GetLeadingUtf16Char(ch) != UncheckedCharAt(i)) {
+    if (GetLeadingUtf16Char(ch) != CharAt(i)) {
       return false;
     }
 
@@ -211,7 +203,7 @@ bool String::Equals(const StringPiece& modified_utf8) {
         return false;
       }
 
-      if (UncheckedCharAt(++i) != trailing) {
+      if (CharAt(++i) != trailing) {
         return false;
       }
     }
@@ -221,7 +213,7 @@ bool String::Equals(const StringPiece& modified_utf8) {
 
 // Create a modified UTF-8 encoded std::string from a java/lang/String object.
 std::string String::ToModifiedUtf8() {
-  const uint16_t* chars = GetCharArray()->GetData() + GetOffset();
+  const uint16_t* chars = GetValue();
   size_t byte_count = GetUtfLength();
   std::string result(byte_count, static_cast<char>(0));
   ConvertUtf16ToModifiedUtf8(&result[0], chars, GetLength());
@@ -244,8 +236,8 @@ int32_t String::CompareTo(String* rhs) {
   int32_t rhsCount = rhs->GetLength();
   int32_t countDiff = lhsCount - rhsCount;
   int32_t minCount = (countDiff < 0) ? lhsCount : rhsCount;
-  const uint16_t* lhsChars = lhs->GetCharArray()->GetData() + lhs->GetOffset();
-  const uint16_t* rhsChars = rhs->GetCharArray()->GetData() + rhs->GetOffset();
+  const uint16_t* lhsChars = lhs->GetValue();
+  const uint16_t* rhsChars = rhs->GetValue();
   int32_t otherRes = MemCmp16(lhsChars, rhsChars, minCount);
   if (otherRes != 0) {
     return otherRes;
@@ -255,6 +247,20 @@ int32_t String::CompareTo(String* rhs) {
 
 void String::VisitRoots(RootVisitor* visitor) {
   java_lang_String_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
+}
+
+CharArray* String::ToCharArray(Thread* self) {
+  StackHandleScope<1> hs(self);
+  Handle<String> string(hs.NewHandle(this));
+  CharArray* result = CharArray::Alloc(self, GetLength());
+  memcpy(result->GetData(), string->GetValue(), string->GetLength() * sizeof(uint16_t));
+  return result;
+}
+
+void String::GetChars(int32_t start, int32_t end, Handle<CharArray> array, int32_t index) {
+  uint16_t* data = array->GetData() + index;
+  uint16_t* value = GetValue() + start;
+  memcpy(data, value, (end - start) * sizeof(uint16_t));
 }
 
 }  // namespace mirror
