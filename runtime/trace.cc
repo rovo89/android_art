@@ -299,6 +299,7 @@ void Trace::CompareAndUpdateStackTrace(Thread* thread,
 void* Trace::RunSamplingThread(void* arg) {
   Runtime* runtime = Runtime::Current();
   int interval_us = reinterpret_cast<int>(arg);
+  CHECK_GE(interval_us, 0);
   CHECK(runtime->AttachCurrentThread("Sampling Profiler", true, runtime->GetSystemThreadGroup(),
                                      !runtime->IsCompiler()));
 
