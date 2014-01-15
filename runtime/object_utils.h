@@ -417,12 +417,12 @@ class MethodHelper {
     return GetDexFile().GetProtoParameters(proto);
   }
 
-  mirror::Class* GetReturnType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::Class* GetReturnType(bool resolve = true) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile& dex_file = GetDexFile();
     const DexFile::MethodId& method_id = dex_file.GetMethodId(method_->GetDexMethodIndex());
     const DexFile::ProtoId& proto_id = dex_file.GetMethodPrototype(method_id);
     uint16_t return_type_idx = proto_id.return_type_idx_;
-    return GetClassFromTypeIdx(return_type_idx);
+    return GetClassFromTypeIdx(return_type_idx, resolve);
   }
 
   const char* GetReturnTypeDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -532,10 +532,10 @@ class MethodHelper {
     return method_->GetDexCacheResolvedTypes()->Get(type_idx) != NULL;
   }
 
-  mirror::Class* GetClassFromTypeIdx(uint16_t type_idx)
+  mirror::Class* GetClassFromTypeIdx(uint16_t type_idx, bool resolve = true)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::Class* type = method_->GetDexCacheResolvedTypes()->Get(type_idx);
-    if (type == NULL) {
+    if (type == NULL && resolve) {
       type = GetClassLinker()->ResolveType(type_idx, method_);
       CHECK(type != NULL || Thread::Current()->IsExceptionPending());
     }
