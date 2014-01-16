@@ -540,7 +540,8 @@ void ClassLinker::RunRootClinits() {
 
 bool ClassLinker::GenerateOatFile(const char* dex_filename,
                                   int oat_fd,
-                                  const char* oat_cache_filename) {
+                                  const char* oat_cache_filename,
+                                  std::string* error_msg) {
   Locks::mutator_lock_->AssertNotHeld(Thread::Current());  // Avoid starving GC.
   std::string dex2oat_string(GetAndroidRoot());
   dex2oat_string += (kIsDebugBuild ? "/bin/dex2oatd" : "/bin/dex2oat");
@@ -633,15 +634,13 @@ bool ClassLinker::GenerateOatFile(const char* dex_filename,
     int status;
     pid_t got_pid = TEMP_FAILURE_RETRY(waitpid(pid, &status, 0));
     if (got_pid != pid) {
-      ScopedObjectAccess soa(Thread::Current());
-      ThrowIOException("Failed to create oat file. Waitpid failed: wanted %d, got %d", pid,
-                       got_pid);
+      *error_msg = StringPrintf("Failed to create oat file. Waitpid failed: wanted %d, got %d",
+                                pid, got_pid);
       return false;
     }
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-      ScopedObjectAccess soa(Thread::Current());
-      ThrowIOException("Failed to create oat file. %s failed with dex-file '%s'", dex2oat,
-                       dex_filename);
+      *error_msg = StringPrintf("Failed to create oat file. %s failed with dex-file '%s'",
+                                dex2oat, dex_filename);
       return false;
     }
   }
@@ -827,10 +826,24 @@ const DexFile* ClassLinker::FindOrCreateOatFileForDexLocation(const char* dex_lo
       << oat_location << "': " << *error_msg;
   error_msg->clear();
 
+  {
+    // We might have registered an outdated OatFile in FindDexFileInOatLocation().
+    // Get rid of it as its MAP_PRIVATE mapping may not reflect changes we're about to do.
+    WriterMutexLock mu(Thread::Current(), dex_lock_);
+    for (size_t i = 0; i < oat_files_.size(); ++i) {
+      if (oat_location == oat_files_[i]->GetLocation()) {
+        VLOG(class_linker) << "De-registering old OatFile: " << oat_location;
+        delete oat_files_[i];
+        oat_files_.erase(oat_files_.begin() + i);
+        break;
+      }
+    }
+  }
+
   // Generate the output oat file for the dex file
   VLOG(class_linker) << "Generating oat file " << oat_location << " for " << dex_location;
-  if (!GenerateOatFile(dex_location, scoped_flock.GetFile().Fd(), oat_location)) {
-    CHECK(Thread::Current()->IsExceptionPending());
+  if (!GenerateOatFile(dex_location, scoped_flock.GetFile().Fd(), oat_location, error_msg)) {
+    CHECK(!error_msg->empty());
     return nullptr;
   }
   const OatFile* oat_file = OatFile::Open(oat_location, oat_location, NULL,
