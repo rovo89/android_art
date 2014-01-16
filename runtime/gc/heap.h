@@ -149,7 +149,8 @@ class Heap {
                 CollectorType post_zygote_collector_type, CollectorType background_collector_type,
                 size_t parallel_gc_threads, size_t conc_gc_threads, bool low_memory_mode,
                 size_t long_pause_threshold, size_t long_gc_threshold,
-                bool ignore_max_footprint, bool use_tlab);
+                bool ignore_max_footprint, bool use_tlab, bool verify_pre_gc_heap,
+                bool verify_post_gc_heap);
 
   ~Heap();
 
@@ -209,6 +210,8 @@ class Heap {
       VerifyObjectImpl(o);
     }
   }
+  // Check that c.getClass() == c.getClass().getClass().
+  bool VerifyClassClass(const mirror::Class* c) const;
 
   // Check sanity of all live references.
   void VerifyHeap() LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
@@ -691,6 +694,9 @@ class Heap {
   // don't have to worry about virtual address space fragmentation.
   UniquePtr<MemMap> allocator_mem_map_;
 
+  // The mem-map which we will use for the non-moving space after the zygote is done forking:
+  UniquePtr<MemMap> post_zygote_non_moving_space_mem_map_;
+
   // What kind of concurrency behavior is the runtime after? Currently true for concurrent mark
   // sweep GC, false for other GC types.
   bool concurrent_gc_;
@@ -800,14 +806,6 @@ class Heap {
 
   // Parallel GC data structures.
   UniquePtr<ThreadPool> thread_pool_;
-
-  // Sticky mark bits GC has some overhead, so if we have less a few megabytes of AllocSpace then
-  // it's probably better to just do a partial GC.
-  const size_t min_alloc_space_size_for_sticky_gc_;
-
-  // Minimum remaining size for sticky GC. Since sticky GC doesn't free up as much memory as a
-  // normal GC, it is important to not use it when we are almost out of memory.
-  const size_t min_remaining_space_for_sticky_gc_;
 
   // The last time a heap trim occurred.
   uint64_t last_trim_time_ms_;

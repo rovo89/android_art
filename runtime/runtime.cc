@@ -357,24 +357,17 @@ void Runtime::SweepSystemWeaks(RootVisitor* visitor, void* arg) {
 }
 
 static gc::CollectorType ParseCollectorType(const std::string& option) {
-  std::vector<std::string> gc_options;
-  Split(option, ',', gc_options);
-  gc::CollectorType collector_type = gc::kCollectorTypeNone;
-  for (size_t i = 0; i < gc_options.size(); ++i) {
-    if (gc_options[i] == "MS" || gc_options[i] == "nonconcurrent") {
-      collector_type = gc::kCollectorTypeMS;
-    } else if (gc_options[i] == "CMS" || gc_options[i] == "concurrent") {
-      collector_type = gc::kCollectorTypeCMS;
-    } else if (gc_options[i] == "SS") {
-      collector_type = gc::kCollectorTypeSS;
-    } else if (gc_options[i] == "GSS") {
-      collector_type = gc::kCollectorTypeGSS;
-    } else {
-      LOG(WARNING) << "Ignoring unknown -Xgc option: " << gc_options[i];
-      return gc::kCollectorTypeNone;
-    }
+  if (option == "MS" || option == "nonconcurrent") {
+    return gc::kCollectorTypeMS;
+  } else if (option == "CMS" || option == "concurrent") {
+    return gc::kCollectorTypeCMS;
+  } else if (option == "SS") {
+    return gc::kCollectorTypeSS;
+  } else if (option == "GSS") {
+    return gc::kCollectorTypeGSS;
+  } else {
+    return gc::kCollectorTypeNone;
   }
-  return collector_type;
 }
 
 Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, bool ignore_unrecognized) {
@@ -409,6 +402,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->max_spins_before_thin_lock_inflation_ = Monitor::kDefaultMaxSpinsBeforeThinLockInflation;
   parsed->low_memory_mode_ = false;
   parsed->use_tlab_ = false;
+  parsed->verify_pre_gc_heap_ = false;
+  parsed->verify_post_gc_heap_ = kIsDebugBuild;
 
   parsed->compiler_callbacks_ = nullptr;
   parsed->is_zygote_ = false;
@@ -594,15 +589,31 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     } else if (option == "-Xint") {
       parsed->interpreter_only_ = true;
     } else if (StartsWith(option, "-Xgc:")) {
-      gc::CollectorType collector_type = ParseCollectorType(option.substr(strlen("-Xgc:")));
-      if (collector_type != gc::kCollectorTypeNone) {
-        parsed->collector_type_ = collector_type;
+      std::vector<std::string> gc_options;
+      Split(option.substr(strlen("-Xgc:")), ',', gc_options);
+      for (const std::string& gc_option : gc_options) {
+        gc::CollectorType collector_type = ParseCollectorType(gc_option);
+        if (collector_type != gc::kCollectorTypeNone) {
+          parsed->collector_type_ = gc::kCollectorTypeGSS;
+        } else if (gc_option == "preverify") {
+          parsed->verify_pre_gc_heap_ = true;
+        }  else if (gc_option == "nopreverify") {
+          parsed->verify_pre_gc_heap_ = false;
+        }  else if (gc_option == "postverify") {
+          parsed->verify_post_gc_heap_ = true;
+        } else if (gc_option == "nopostverify") {
+          parsed->verify_post_gc_heap_ = false;
+        } else {
+          LOG(WARNING) << "Ignoring unknown -Xgc option: " << gc_option;
+        }
       }
     } else if (StartsWith(option, "-XX:BackgroundGC=")) {
-      gc::CollectorType collector_type = ParseCollectorType(
-          option.substr(strlen("-XX:BackgroundGC=")));
+      const std::string substring = option.substr(strlen("-XX:BackgroundGC="));
+      gc::CollectorType collector_type = ParseCollectorType(substring);
       if (collector_type != gc::kCollectorTypeNone) {
         parsed->background_collector_type_ = collector_type;
+      } else {
+        LOG(WARNING) << "Ignoring unknown -XX:BackgroundGC option: " << substring;
       }
     } else if (option == "-XX:+DisableExplicitGC") {
       parsed->is_explicit_gc_disabled_ = true;
@@ -987,7 +998,9 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
                        options->long_pause_log_threshold_,
                        options->long_gc_log_threshold_,
                        options->ignore_max_footprint_,
-                       options->use_tlab_);
+                       options->use_tlab_,
+                       options->verify_pre_gc_heap_,
+                       options->verify_post_gc_heap_);
 
   dump_gc_performance_on_shutdown_ = options->dump_gc_performance_on_shutdown_;
 
