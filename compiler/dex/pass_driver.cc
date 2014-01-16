@@ -161,9 +161,7 @@ bool PassDriver::RunPass(CompilationUnit* c_unit, Pass* curPass, bool time_split
 
   // Do we perform a time split
   if (time_split == true) {
-    std::string name = "MIROpt:";
-    name += curPass->GetName();
-    c_unit->NewTimingSplit(name.c_str());
+    c_unit->NewTimingSplit(curPass->GetName());
   }
 
   // Check the pass gate first.
