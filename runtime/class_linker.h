@@ -251,7 +251,8 @@ class ClassLinker {
   // Generate an oat file from a dex file
   bool GenerateOatFile(const char* dex_filename,
                        int oat_fd,
-                       const char* oat_cache_filename);
+                       const char* oat_cache_filename,
+                       std::string* error_msg);
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   const OatFile* FindOatFileFromOatLocation(const std::string& location,
