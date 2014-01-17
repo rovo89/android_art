@@ -121,7 +121,7 @@ template <typename Visitor, typename ModifiedVisitor>
 inline void CardTable::ModifyCardsAtomic(byte* scan_begin, byte* scan_end, const Visitor& visitor,
                                          const ModifiedVisitor& modified) {
   byte* card_cur = CardFromAddr(scan_begin);
-  byte* card_end = CardFromAddr(scan_end);
+  byte* card_end = CardFromAddr(AlignUp(scan_end, kCardSize));
   CheckCardValid(card_cur);
   CheckCardValid(card_end);
 
@@ -147,7 +147,7 @@ inline void CardTable::ModifyCardsAtomic(byte* scan_begin, byte* scan_end, const
       new_value = visitor(expected);
     } while (expected != new_value && UNLIKELY(!byte_cas(expected, new_value, card_end)));
     if (expected != new_value) {
-      modified(card_cur, expected, new_value);
+      modified(card_end, expected, new_value);
     }
   }
 
