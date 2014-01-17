@@ -25,7 +25,20 @@
 
 namespace art {
 
-PassDriver::PassDriver(CompilationUnit* const cu, bool create_default_passes) : cu_(cu) {
+namespace {  // anonymous namespace
+
+/**
+ * @brief Helper function to create a single instance of a given Pass and can be shared across the threads
+ */
+template <typename PassType>
+const Pass* GetPassInstance() {
+  static const PassType pass;
+  return &pass;
+}
+
+}  // anonymous namespace
+
+PassDriver::PassDriver(CompilationUnit* cu, bool create_default_passes) : cu_(cu) {
   dump_cfg_folder_ = "/sdcard/";
 
   // If need be, create the default passes.
@@ -39,7 +52,7 @@ PassDriver::~PassDriver() {
   pass_map_.clear();
 }
 
-void PassDriver::InsertPass(Pass* new_pass, bool warn_override) {
+void PassDriver::InsertPass(const Pass* new_pass, bool warn_override) {
   assert(new_pass != 0);
 
   // Get name here to not do it all over the method.
@@ -47,7 +60,7 @@ void PassDriver::InsertPass(Pass* new_pass, bool warn_override) {
 
   // Do we want to warn the user about squashing a pass?
   if (warn_override == false) {
-    SafeMap<std::string, Pass* >::iterator it = pass_map_.find(name);
+    auto it = pass_map_.find(name);
 
     if (it != pass_map_.end()) {
       LOG(INFO) << "Pass name " << name << " already used, overwriting pass";
@@ -71,16 +84,16 @@ void PassDriver::CreatePasses() {
    * Disadvantage is the passes can't change their internal states depending on CompilationUnit:
    *   - This is not yet an issue: no current pass would require it.
    */
-  static UniquePtr<Pass> *passes[] = {
-      new UniquePtr<Pass>(new CodeLayout()),
-      new UniquePtr<Pass>(new SSATransformation()),
-      new UniquePtr<Pass>(new ConstantPropagation()),
-      new UniquePtr<Pass>(new InitRegLocations()),
-      new UniquePtr<Pass>(new MethodUseCount()),
-      new UniquePtr<Pass>(new NullCheckEliminationAndTypeInferenceInit()),
-      new UniquePtr<Pass>(new NullCheckEliminationAndTypeInference()),
-      new UniquePtr<Pass>(new BBCombine()),
-      new UniquePtr<Pass>(new BBOptimizations()),
+  static const Pass* passes[] = {
+      GetPassInstance<CodeLayout>(),
+      GetPassInstance<SSATransformation>(),
+      GetPassInstance<ConstantPropagation>(),
+      GetPassInstance<InitRegLocations>(),
+      GetPassInstance<MethodUseCount>(),
+      GetPassInstance<NullCheckEliminationAndTypeInferenceInit>(),
+      GetPassInstance<NullCheckEliminationAndTypeInference>(),
+      GetPassInstance<BBCombine>(),
+      GetPassInstance<BBOptimizations>(),
   };
 
   // Get number of elements in the array.
@@ -90,17 +103,17 @@ void PassDriver::CreatePasses() {
   //   - Map is used for the lookup
   //   - List is used for the pass walk
   for (unsigned int i = 0; i < nbr; i++) {
-    InsertPass(passes[i]->get());
+    InsertPass(passes[i]);
   }
 }
 
-void PassDriver::HandlePassFlag(CompilationUnit* c_unit, Pass* pass) {
+void PassDriver::HandlePassFlag(CompilationUnit* c_unit, const Pass* pass) {
   // Unused parameters for the moment.
   UNUSED(c_unit);
   UNUSED(pass);
 }
 
-void PassDriver::DispatchPass(CompilationUnit* c_unit, Pass* curPass) {
+void PassDriver::DispatchPass(CompilationUnit* c_unit, const Pass* curPass) {
   DataflowIterator* iterator = 0;
 
   LOG(DEBUG) << "Dispatching " << curPass->GetName();
@@ -147,13 +160,13 @@ void PassDriver::DispatchPass(CompilationUnit* c_unit, Pass* curPass) {
   }
 }
 
-void PassDriver::ApplyPass(CompilationUnit* c_unit, Pass* curPass) {
+void PassDriver::ApplyPass(CompilationUnit* c_unit, const Pass* curPass) {
   curPass->Start(c_unit);
   DispatchPass(c_unit, curPass);
   curPass->End(c_unit);
 }
 
-bool PassDriver::RunPass(CompilationUnit* c_unit, Pass* curPass, bool time_split) {
+bool PassDriver::RunPass(CompilationUnit* c_unit, const Pass* curPass, bool time_split) {
   // Paranoid: c_unit or curPass cannot be 0, and the pass should have a name.
   if (c_unit == 0 || curPass == 0 || (strcmp(curPass->GetName(), "") == 0)) {
     return false;
@@ -200,7 +213,7 @@ bool PassDriver::RunPass(CompilationUnit* c_unit, const std::string& pass_name) 
     return false;
   }
 
-  Pass* curPass = GetPass(pass_name);
+  const Pass* curPass = GetPass(pass_name);
 
   if (curPass != 0) {
     return RunPass(c_unit, curPass);
@@ -211,8 +224,7 @@ bool PassDriver::RunPass(CompilationUnit* c_unit, const std::string& pass_name) 
 }
 
 void PassDriver::Launch() {
-  for (std::list<Pass* >::iterator it = pass_list_.begin(); it != pass_list_.end(); it++) {
-    Pass* curPass = *it;
+  for (const Pass *curPass : pass_list_) {
     RunPass(cu_, curPass, true);
   }
 }
@@ -220,14 +232,13 @@ void PassDriver::Launch() {
 void PassDriver::PrintPassNames() const {
   LOG(INFO) << "Loop Passes are:";
 
-  for (std::list<Pass* >::const_iterator it = pass_list_.begin(); it != pass_list_.end(); it++) {
-    const Pass* curPass = *it;
+  for (const Pass *curPass : pass_list_) {
     LOG(INFO) << "\t-" << curPass->GetName();
   }
 }
 
-Pass* PassDriver::GetPass(const std::string& name) const {
-  SafeMap<std::string, Pass*>::const_iterator it = pass_map_.find(name);
+const Pass* PassDriver::GetPass(const std::string& name) const {
+  auto it = pass_map_.find(name);
 
   if (it != pass_map_.end()) {
     return it->second;
