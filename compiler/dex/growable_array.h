@@ -40,6 +40,7 @@ enum OatListKind {
   kGrowableArrayFillArrayData,
   kGrowableArraySuccessorBlocks,
   kGrowableArrayPredecessors,
+  kGrowableArraySlowPaths,
   kGNumListKinds
 };
 

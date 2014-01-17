@@ -1003,7 +1003,8 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       core_spill_mask_(0),
       fp_spill_mask_(0),
       first_lir_insn_(NULL),
-      last_lir_insn_(NULL) {
+      last_lir_insn_(NULL),
+      slow_paths_(arena, 32, kGrowableArraySlowPaths) {
   // Reserve pointer id 0 for NULL.
   size_t null_idx = WrapPointer(NULL);
   DCHECK_EQ(null_idx, 0U);
@@ -1182,4 +1183,7 @@ LIR *Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, int temp_reg, int base_reg,
   return branch;
 }
 
+void Mir2Lir::AddSlowPath(LIRSlowPath* slowpath) {
+  slow_paths_.Insert(slowpath);
+}
 }  // namespace art
