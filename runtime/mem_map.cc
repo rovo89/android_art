@@ -16,7 +16,7 @@
 
 #include "mem_map.h"
 
-#include <backtrace/backtrace.h>
+#include <backtrace/BacktraceMap.h>
 
 #include "base/stringprintf.h"
 #include "ScopedFd.h"
@@ -32,12 +32,16 @@ namespace art {
 
 #if !defined(NDEBUG)
 
-static std::ostream& operator<<(std::ostream& os, backtrace_map_info_t* rhs) {
-  for (backtrace_map_info_t* m = rhs; m != NULL; m = m->next) {
-    os << StringPrintf("0x%08x-0x%08x %c%c %s\n",
-                       static_cast<uint32_t>(m->start),
-                       static_cast<uint32_t>(m->end),
-                       m->is_readable ? 'r' : '-', m->is_executable ? 'x' : '-', m->name);
+static std::ostream& operator<<(
+    std::ostream& os,
+    std::pair<BacktraceMap::const_iterator, BacktraceMap::const_iterator> iters) {
+  for (BacktraceMap::const_iterator it = iters.first; it != iters.second; ++it) {
+    os << StringPrintf("0x%08x-0x%08x %c%c%c %s\n",
+                       static_cast<uint32_t>(it->start),
+                       static_cast<uint32_t>(it->end),
+                       (it->flags & PROT_READ) ? 'r' : '-',
+                       (it->flags & PROT_WRITE) ? 'w' : '-',
+                       (it->flags & PROT_EXEC) ? 'x' : '-', it->name.c_str());
   }
   return os;
 }
@@ -47,20 +51,24 @@ static void CheckMapRequest(byte* addr, size_t byte_count) {
     return;
   }
 
-  uint32_t base = reinterpret_cast<size_t>(addr);
-  uint32_t limit = base + byte_count;
+  uintptr_t base = reinterpret_cast<uintptr_t>(addr);
+  uintptr_t limit = base + byte_count;
 
-  backtrace_map_info_t* map_info_list = backtrace_create_map_info_list(getpid());
-  for (backtrace_map_info_t* m = map_info_list; m != NULL; m = m->next) {
-    CHECK(!(base >= m->start && base < m->end)     // start of new within old
-        && !(limit > m->start && limit < m->end)   // end of new within old
-        && !(base <= m->start && limit > m->end))  // start/end of new includes all of old
+  BacktraceMap map(getpid());
+  if (!map.Build()) {
+    PLOG(WARNING) << "Failed to build process map";
+    return;
+  }
+  for (BacktraceMap::const_iterator it = map.begin(); it != map.end(); ++it) {
+    CHECK(!(base >= it->start && base < it->end)     // start of new within old
+        && !(limit > it->start && limit < it->end)   // end of new within old
+        && !(base <= it->start && limit > it->end))  // start/end of new includes all of old
         << StringPrintf("Requested region 0x%08x-0x%08x overlaps with existing map 0x%08x-0x%08x (%s)\n",
                         base, limit,
-                        static_cast<uint32_t>(m->start), static_cast<uint32_t>(m->end), m->name)
-        << map_info_list;
+                        static_cast<uint32_t>(it->start), static_cast<uint32_t>(it->end),
+                        it->name.c_str())
+        << std::make_pair(it, map.end());
   }
-  backtrace_destroy_map_info_list(map_info_list);
 }
 
 #else

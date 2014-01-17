@@ -16,6 +16,7 @@
 
 #include "utils.h"
 
+#include <inttypes.h>
 #include <pthread.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
@@ -1035,17 +1036,17 @@ std::string GetSchedulerGroupName(pid_t tid) {
   return "";
 }
 
-static const char* CleanMapName(const char* map_name) {
-  if (map_name == NULL) {
+static std::string CleanMapName(const backtrace_map_t* map) {
+  if (map == NULL || map->name.empty()) {
     return "???";
   }
   // Turn "/usr/local/google/home/enh/clean-dalvik-dev/out/host/linux-x86/lib/libartd.so"
   // into "libartd.so".
-  const char* last_slash = strrchr(map_name, '/');
-  if (last_slash != NULL) {
-    map_name = last_slash + 1;
+  size_t last_slash = map->name.rfind('/');
+  if (last_slash == std::string::npos) {
+    return map->name;
   }
-  return map_name;
+  return map->name.substr(last_slash);
 }
 
 void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix, bool include_count) {
@@ -1058,25 +1059,24 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix, bool inclu
     return;
   }
 
-  for (size_t i = 0; i < backtrace->NumFrames(); ++i) {
+  for (Backtrace::const_iterator it = backtrace->begin();
+       it != backtrace->end(); ++it) {
     // We produce output like this:
     // ]    #00 unwind_backtrace_thread+536 [0x55d75bb8] (libbacktrace.so)
-    const backtrace_frame_data_t* frame = backtrace->GetFrame(i);
-
     os << prefix;
     if (include_count) {
-      os << StringPrintf("#%02zu ", i);
+      os << StringPrintf("#%02zu ", it->num);
     }
-    if (frame->func_name) {
-      os << frame->func_name;
+    if (!it->func_name.empty()) {
+      os << it->func_name;
     } else {
       os << "???";
     }
-    if (frame->func_offset != 0) {
-      os << "+" << frame->func_offset;
+    if (it->func_offset != 0) {
+      os << "+" << it->func_offset;
     }
-    os << StringPrintf(" [%p]", reinterpret_cast<void*>(frame->pc));
-    os << " (" << CleanMapName(frame->map_name) << ")\n";
+    os << StringPrintf(" [%p]", reinterpret_cast<void*>(it->pc));
+    os << " (" << CleanMapName(it->map) << ")\n";
   }
 }
 
