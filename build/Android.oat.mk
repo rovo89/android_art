@@ -83,6 +83,7 @@ include $(BUILD_PHONY_PACKAGE)
 endif
 
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
+ifneq ($(PRODUCT_DEX_PREOPT_IMAGE_IN_DATA),true)
 include $(CLEAR_VARS)
 LOCAL_MODULE := boot.art
 LOCAL_MODULE_TAGS := optional
@@ -90,5 +91,6 @@ LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
 LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.oat.mk
 LOCAL_ADDITIONAL_DEPENDENCIES += $(DEFAULT_DEX_PREOPT_INSTALLED_IMAGE)
 include $(BUILD_PHONY_PACKAGE)
+endif
 endif
 endif
