@@ -178,6 +178,8 @@ class MirMethodLoweringInfo : public MirMethodInfo {
   uint16_t target_method_idx_;
   uint16_t vtable_idx_;
   int stats_flags_;
+
+  friend class ClassInitCheckEliminationTest;
 };
 
 }  // namespace art

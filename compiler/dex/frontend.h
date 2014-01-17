@@ -44,6 +44,7 @@ enum opt_control_vector {
   kLoadHoisting,
   kSuppressLoads,
   kNullCheckElimination,
+  kClassInitCheckElimination,
   kPromoteRegs,
   kTrackLiveTemps,
   kSafeOptimizations,
