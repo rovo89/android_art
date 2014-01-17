@@ -120,7 +120,9 @@ static jint DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceNam
                                                          outputName.c_str(), &error_msg);
   }
   if (dex_file == nullptr) {
-    CHECK_EQ(env->ExceptionCheck(), JNI_TRUE);
+    ScopedObjectAccess soa(env);
+    CHECK(!error_msg.empty());
+    ThrowIOException("%s", error_msg.c_str());
     return 0;
   }
   return static_cast<jint>(reinterpret_cast<uintptr_t>(dex_file));
