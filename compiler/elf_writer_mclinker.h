@@ -29,6 +29,7 @@ class LDSection;
 class LDSymbol;
 class Linker;
 class LinkerConfig;
+class LinkerScript;
 class Module;
 }  // namespace mcld
 
@@ -74,6 +75,7 @@ class ElfWriterMclinker : public ElfWriter {
 
   // Setup by Init()
   UniquePtr<mcld::LinkerConfig> linker_config_;
+  UniquePtr<mcld::LinkerScript> linker_script_;
   UniquePtr<mcld::Module> module_;
   UniquePtr<mcld::IRBuilder> ir_builder_;
   UniquePtr<mcld::Linker> linker_;

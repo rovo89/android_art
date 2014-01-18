@@ -236,8 +236,8 @@ else
 $(error unsupported TARGET_ARCH=$(TARGET_ARCH))
 endif # TARGET_ARCH != aarch64
 endif # TARGET_ARCH != mips
-endif # TARGET_ARCH != x86
 endif # TARGET_ARCH != x86_64
+endif # TARGET_ARCH != x86
 endif # TARGET_ARCH != arm
 
 
