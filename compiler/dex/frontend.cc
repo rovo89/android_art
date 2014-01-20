@@ -141,25 +141,24 @@ CompilationUnit::CompilationUnit(ArenaPool* pool)
 CompilationUnit::~CompilationUnit() {
 }
 
+// TODO: Add a cumulative version of logging, and combine with dex2oat --dump-timing
 void CompilationUnit::StartTimingSplit(const char* label) {
-  if (compiler_driver->GetDumpPasses()) {
+  if (enable_debug & (1 << kDebugTimings)) {
     timings.StartSplit(label);
   }
 }
 
 void CompilationUnit::NewTimingSplit(const char* label) {
-  if (compiler_driver->GetDumpPasses()) {
+  if (enable_debug & (1 << kDebugTimings)) {
     timings.NewSplit(label);
   }
 }
 
 void CompilationUnit::EndTiming() {
-  if (compiler_driver->GetDumpPasses()) {
+  if (enable_debug & (1 << kDebugTimings)) {
     timings.EndSplit();
-    if (enable_debug & (1 << kDebugTimings)) {
-      LOG(INFO) << "TIMINGS " << PrettyMethod(method_idx, *dex_file);
-      LOG(INFO) << Dumpable<TimingLogger>(timings);
-    }
+    LOG(INFO) << "TIMINGS " << PrettyMethod(method_idx, *dex_file);
+    LOG(INFO) << Dumpable<TimingLogger>(timings);
   }
 }
 
@@ -317,9 +316,6 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
   }
 
   cu.EndTiming();
-  compiler.GetTimingsLogger().Start();
-  compiler.GetTimingsLogger().AddLogger(cu.timings);
-  compiler.GetTimingsLogger().End();
   return result;
 }
 

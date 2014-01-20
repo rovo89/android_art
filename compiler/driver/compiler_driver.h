@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "base/mutex.h"
-#include "base/timing_logger.h"
 #include "class_reference.h"
 #include "compiled_class.h"
 #include "compiled_method.h"
@@ -98,8 +97,7 @@ class CompilerDriver {
                           CompilerBackend compiler_backend, InstructionSet instruction_set,
                           InstructionSetFeatures instruction_set_features,
                           bool image, DescriptorSet* image_classes,
-                          size_t thread_count, bool dump_stats, bool dump_passes,
-                          CumulativeLogger* timer);
+                          size_t thread_count, bool dump_stats);
 
   ~CompilerDriver();
 
@@ -267,14 +265,6 @@ class CompilerDriver {
 
   size_t GetThreadCount() const {
     return thread_count_;
-  }
-
-  bool GetDumpPasses() const {
-    return dump_passes_;
-  }
-
-  CumulativeLogger& GetTimingsLogger() const {
-    return *timings_logger_;
   }
 
   class PatchInformation {
@@ -446,9 +436,6 @@ class CompilerDriver {
   UniquePtr<AOTCompilationStats> stats_;
 
   bool dump_stats_;
-  const bool dump_passes_;
-
-  CumulativeLogger* const timings_logger_;
 
   typedef void (*CompilerCallbackFn)(CompilerDriver& driver);
   typedef MutexLock* (*CompilerMutexLockFn)(CompilerDriver& driver);
