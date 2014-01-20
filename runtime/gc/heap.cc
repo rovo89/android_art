@@ -78,7 +78,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
            CollectorType post_zygote_collector_type, CollectorType background_collector_type,
            size_t parallel_gc_threads, size_t conc_gc_threads, bool low_memory_mode,
            size_t long_pause_log_threshold, size_t long_gc_log_threshold,
-           bool ignore_max_footprint, bool use_tlab)
+           bool ignore_max_footprint, bool use_tlab, bool verify_pre_gc_heap,
+           bool verify_post_gc_heap)
     : non_moving_space_(nullptr),
       rosalloc_space_(nullptr),
       dlmalloc_space_(nullptr),
@@ -118,11 +119,9 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       gc_memory_overhead_(0),
       verify_missing_card_marks_(false),
       verify_system_weaks_(false),
-      verify_pre_gc_heap_(false),
-      verify_post_gc_heap_(false),
+      verify_pre_gc_heap_(verify_pre_gc_heap),
+      verify_post_gc_heap_(verify_post_gc_heap),
       verify_mod_union_table_(false),
-      min_alloc_space_size_for_sticky_gc_(1112 * MB),
-      min_remaining_space_for_sticky_gc_(1 * MB),
       last_trim_time_ms_(0),
       allocation_rate_(0),
       /* For GC a lot mode, we limit the allocations stacks to be kGcAlotInterval allocations. This
@@ -222,9 +221,17 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
 
   // Compute heap capacity. Continuous spaces are sorted in order of Begin().
   CHECK(!continuous_spaces_.empty());
+
+  std::string error_str;
+  post_zygote_non_moving_space_mem_map_.reset(
+      MemMap::MapAnonymous("post zygote non-moving space", nullptr, 64 * MB,
+                           PROT_READ | PROT_WRITE, &error_str));
+  CHECK(post_zygote_non_moving_space_mem_map_.get() != nullptr) << error_str;
   // Relies on the spaces being sorted.
-  byte* heap_begin = continuous_spaces_.front()->Begin();
-  byte* heap_end = continuous_spaces_.back()->Limit();
+  byte* heap_begin = std::min(post_zygote_non_moving_space_mem_map_->Begin(),
+                              continuous_spaces_.front()->Begin());
+  byte* heap_end = std::max(post_zygote_non_moving_space_mem_map_->End(),
+                            continuous_spaces_.back()->Limit());
   size_t heap_capacity = heap_end - heap_begin;
 
   // Allocate the card table.
@@ -772,7 +779,7 @@ bool Heap::IsValidObjectAddress(const mirror::Object* obj) const {
 }
 
 bool Heap::IsHeapAddress(const mirror::Object* obj) const {
-  if (kMovingCollector && bump_pointer_space_->HasAddress(obj)) {
+  if (kMovingCollector && bump_pointer_space_ && bump_pointer_space_->HasAddress(obj)) {
     return true;
   }
   // TODO: This probably doesn't work for large objects.
@@ -781,21 +788,27 @@ bool Heap::IsHeapAddress(const mirror::Object* obj) const {
 
 bool Heap::IsLiveObjectLocked(const mirror::Object* obj, bool search_allocation_stack,
                               bool search_live_stack, bool sorted) {
-  // Locks::heap_bitmap_lock_->AssertReaderHeld(Thread::Current());
-  if (obj == nullptr || UNLIKELY(!IsAligned<kObjectAlignment>(obj))) {
+  if (UNLIKELY(!IsAligned<kObjectAlignment>(obj))) {
+    return false;
+  }
+  if (bump_pointer_space_ != nullptr && bump_pointer_space_->HasAddress(obj)) {
+    mirror::Class* klass = obj->GetClass();
+    if (obj == klass) {
+      return true;
+    }
+    return VerifyClassClass(klass) && IsLiveObjectLocked(klass);
+  } else if (temp_space_ != nullptr && temp_space_->HasAddress(obj)) {
     return false;
   }
   space::ContinuousSpace* c_space = FindContinuousSpaceFromObject(obj, true);
   space::DiscontinuousSpace* d_space = NULL;
-  if (c_space != NULL) {
+  if (c_space != nullptr) {
     if (c_space->GetLiveBitmap()->Test(obj)) {
       return true;
     }
-  } else if (bump_pointer_space_->Contains(obj) || temp_space_->Contains(obj)) {
-      return true;
   } else {
     d_space = FindDiscontinuousSpaceFromObject(obj, true);
-    if (d_space != NULL) {
+    if (d_space != nullptr) {
       if (d_space->GetLiveObjects()->Test(obj)) {
         return true;
       }
@@ -828,13 +841,13 @@ bool Heap::IsLiveObjectLocked(const mirror::Object* obj, bool search_allocation_
   }
   // We need to check the bitmaps again since there is a race where we mark something as live and
   // then clear the stack containing it.
-  if (c_space != NULL) {
+  if (c_space != nullptr) {
     if (c_space->GetLiveBitmap()->Test(obj)) {
       return true;
     }
   } else {
     d_space = FindDiscontinuousSpaceFromObject(obj, true);
-    if (d_space != NULL && d_space->GetLiveObjects()->Test(obj)) {
+    if (d_space != nullptr && d_space->GetLiveObjects()->Test(obj)) {
       return true;
     }
   }
@@ -847,6 +860,17 @@ void Heap::VerifyObjectImpl(const mirror::Object* obj) {
     return;
   }
   VerifyObjectBody(obj);
+}
+
+bool Heap::VerifyClassClass(const mirror::Class* c) const {
+  // Note: we don't use the accessors here as they have internal sanity checks that we don't want
+  // to run
+  const byte* raw_addr =
+      reinterpret_cast<const byte*>(c) + mirror::Object::ClassOffset().Int32Value();
+  const mirror::Class* c_c = *reinterpret_cast<mirror::Class* const *>(raw_addr);
+  raw_addr = reinterpret_cast<const byte*>(c_c) + mirror::Object::ClassOffset().Int32Value();
+  const mirror::Class* c_c_c = *reinterpret_cast<mirror::Class* const *>(raw_addr);
+  return c_c == c_c_c;
 }
 
 void Heap::DumpSpaces(std::ostream& stream) {
@@ -880,14 +904,7 @@ void Heap::VerifyObjectBody(const mirror::Object* obj) {
   } else if (UNLIKELY(!IsAligned<kObjectAlignment>(c))) {
     LOG(FATAL) << "Class isn't aligned: " << c << " in object: " << obj;
   }
-  // Check obj.getClass().getClass() == obj.getClass().getClass().getClass()
-  // Note: we don't use the accessors here as they have internal sanity checks
-  // that we don't want to run
-  raw_addr = reinterpret_cast<const byte*>(c) + mirror::Object::ClassOffset().Int32Value();
-  const mirror::Class* c_c = *reinterpret_cast<mirror::Class* const *>(raw_addr);
-  raw_addr = reinterpret_cast<const byte*>(c_c) + mirror::Object::ClassOffset().Int32Value();
-  const mirror::Class* c_c_c = *reinterpret_cast<mirror::Class* const *>(raw_addr);
-  CHECK_EQ(c_c, c_c_c);
+  CHECK(VerifyClassClass(c));
 
   if (verify_object_mode_ > kVerifyAllFast) {
     // TODO: the bitmap tests below are racy if VerifyObjectBody is called without the
@@ -1275,10 +1292,6 @@ void Heap::ChangeCollector(CollectorType collector_type) {
   }
 }
 
-static void MarkInBitmapCallback(mirror::Object* obj, void* arg) {
-  reinterpret_cast<accounting::SpaceBitmap*>(arg)->Set(obj);
-}
-
 // Special compacting collector which uses sub-optimal bin packing to reduce zygote space size.
 class ZygoteCompactingCollector : public collector::SemiSpace {
  public:
@@ -1347,6 +1360,9 @@ class ZygoteCompactingCollector : public collector::SemiSpace {
       forward_address = to_space_->Alloc(self_, object_size, &bytes_allocated);
       if (to_space_live_bitmap_ != nullptr) {
         to_space_live_bitmap_->Set(forward_address);
+      } else {
+        GetHeap()->GetNonMovingSpace()->GetLiveBitmap()->Set(forward_address);
+        GetHeap()->GetNonMovingSpace()->GetMarkBitmap()->Set(forward_address);
       }
     } else {
       size_t size = it->first;
@@ -1398,10 +1414,7 @@ void Heap::PreZygoteFork() {
     // Update the end and write out image.
     non_moving_space_->SetEnd(target_space.End());
     non_moving_space_->SetLimit(target_space.Limit());
-    accounting::SpaceBitmap* bitmap = non_moving_space_->GetLiveBitmap();
-    // Record the allocations in the bitmap.
     VLOG(heap) << "Zygote size " << non_moving_space_->Size() << " bytes";
-    target_space.Walk(MarkInBitmapCallback, bitmap);
   }
   // Turn the current alloc space into a zygote space and obtain the new alloc space composed of
   // the remaining available heap memory.
@@ -1438,9 +1451,10 @@ void Heap::PreZygoteFork() {
   }
   // Can't use RosAlloc for non moving space due to thread local buffers.
   // TODO: Non limited space for non-movable objects?
-  space::MallocSpace* new_non_moving_space
-      = space::DlMallocSpace::Create("Non moving dlmalloc space", 2 * MB, 64 * MB, 64 * MB,
-                                     nullptr);
+  MemMap* mem_map = post_zygote_non_moving_space_mem_map_.release();
+  space::MallocSpace* new_non_moving_space =
+      space::DlMallocSpace::CreateFromMemMap(mem_map, "Non moving dlmalloc space", kPageSize,
+                                             2 * MB, mem_map->Size(), mem_map->Size());
   AddSpace(new_non_moving_space, false);
   CHECK(new_non_moving_space != nullptr) << "Failed to create new non-moving space";
   new_non_moving_space->SetFootprintLimit(new_non_moving_space->Capacity());
@@ -1667,57 +1681,65 @@ class VerifyReferenceVisitor {
   void operator()(const mirror::Object* obj, const mirror::Object* ref,
                   const MemberOffset& offset, bool /* is_static */) const
       NO_THREAD_SAFETY_ANALYSIS {
-    // Verify that the reference is live.
-    if (UNLIKELY(ref != NULL && !IsLive(ref))) {
+    if (ref == nullptr || IsLive(ref)) {
+      // Verify that the reference is live.
+      return;
+    }
+    if (!failed_) {
+      // Print message on only on first failure to prevent spam.
+      LOG(ERROR) << "!!!!!!!!!!!!!!Heap corruption detected!!!!!!!!!!!!!!!!!!!";
+      failed_ = true;
+    }
+    if (obj != nullptr) {
       accounting::CardTable* card_table = heap_->GetCardTable();
       accounting::ObjectStack* alloc_stack = heap_->allocation_stack_.get();
       accounting::ObjectStack* live_stack = heap_->live_stack_.get();
-      if (!failed_) {
-        // Print message on only on first failure to prevent spam.
-        LOG(ERROR) << "!!!!!!!!!!!!!!Heap corruption detected!!!!!!!!!!!!!!!!!!!";
-        failed_ = true;
+      byte* card_addr = card_table->CardFromAddr(obj);
+      LOG(ERROR) << "Object " << obj << " references dead object " << ref << " at offset "
+                 << offset << "\n card value = " << static_cast<int>(*card_addr);
+      if (heap_->IsValidObjectAddress(obj->GetClass())) {
+        LOG(ERROR) << "Obj type " << PrettyTypeOf(obj);
+      } else {
+        LOG(ERROR) << "Object " << obj << " class(" << obj->GetClass() << ") not a heap address";
       }
-      if (obj != nullptr) {
-        byte* card_addr = card_table->CardFromAddr(obj);
-        LOG(ERROR) << "Object " << obj << " references dead object " << ref << " at offset "
-                   << offset << "\n card value = " << static_cast<int>(*card_addr);
-        if (heap_->IsValidObjectAddress(obj->GetClass())) {
-          LOG(ERROR) << "Obj type " << PrettyTypeOf(obj);
+
+      // Attmept to find the class inside of the recently freed objects.
+      space::ContinuousSpace* ref_space = heap_->FindContinuousSpaceFromObject(ref, true);
+      if (ref_space != nullptr && ref_space->IsMallocSpace()) {
+        space::MallocSpace* space = ref_space->AsMallocSpace();
+        mirror::Class* ref_class = space->FindRecentFreedObject(ref);
+        if (ref_class != nullptr) {
+          LOG(ERROR) << "Reference " << ref << " found as a recently freed object with class "
+                     << PrettyClass(ref_class);
         } else {
-          LOG(ERROR) << "Object " << obj << " class(" << obj->GetClass() << ") not a heap address";
+          LOG(ERROR) << "Reference " << ref << " not found as a recently freed object";
         }
+      }
 
-        // Attmept to find the class inside of the recently freed objects.
-        space::ContinuousSpace* ref_space = heap_->FindContinuousSpaceFromObject(ref, true);
-        if (ref_space != nullptr && ref_space->IsMallocSpace()) {
-          space::MallocSpace* space = ref_space->AsMallocSpace();
-          mirror::Class* ref_class = space->FindRecentFreedObject(ref);
-          if (ref_class != nullptr) {
-            LOG(ERROR) << "Reference " << ref << " found as a recently freed object with class "
-                       << PrettyClass(ref_class);
-          } else {
-            LOG(ERROR) << "Reference " << ref << " not found as a recently freed object";
-          }
+      if (ref->GetClass() != nullptr && heap_->IsValidObjectAddress(ref->GetClass()) &&
+          ref->GetClass()->IsClass()) {
+        LOG(ERROR) << "Ref type " << PrettyTypeOf(ref);
+      } else {
+        LOG(ERROR) << "Ref " << ref << " class(" << ref->GetClass()
+                   << ") is not a valid heap address";
+      }
+
+      card_table->CheckAddrIsInCardTable(reinterpret_cast<const byte*>(obj));
+      void* cover_begin = card_table->AddrFromCard(card_addr);
+      void* cover_end = reinterpret_cast<void*>(reinterpret_cast<size_t>(cover_begin) +
+          accounting::CardTable::kCardSize);
+      LOG(ERROR) << "Card " << reinterpret_cast<void*>(card_addr) << " covers " << cover_begin
+          << "-" << cover_end;
+      accounting::SpaceBitmap* bitmap = heap_->GetLiveBitmap()->GetContinuousSpaceBitmap(obj);
+
+      if (bitmap == nullptr) {
+        LOG(ERROR) << "Object " << obj << " has no bitmap";
+        if (!heap_->VerifyClassClass(obj->GetClass())) {
+          LOG(ERROR) << "Object " << obj << " failed class verification!";
         }
-
-        if (ref->GetClass() != nullptr && heap_->IsValidObjectAddress(ref->GetClass()) &&
-            ref->GetClass()->IsClass()) {
-          LOG(ERROR) << "Ref type " << PrettyTypeOf(ref);
-        } else {
-          LOG(ERROR) << "Ref " << ref << " class(" << ref->GetClass()
-                     << ") is not a valid heap address";
-        }
-
-        card_table->CheckAddrIsInCardTable(reinterpret_cast<const byte*>(obj));
-        void* cover_begin = card_table->AddrFromCard(card_addr);
-        void* cover_end = reinterpret_cast<void*>(reinterpret_cast<size_t>(cover_begin) +
-            accounting::CardTable::kCardSize);
-        LOG(ERROR) << "Card " << reinterpret_cast<void*>(card_addr) << " covers " << cover_begin
-            << "-" << cover_end;
-        accounting::SpaceBitmap* bitmap = heap_->GetLiveBitmap()->GetContinuousSpaceBitmap(obj);
-
+      } else {
         // Print out how the object is live.
-        if (bitmap != NULL && bitmap->Test(obj)) {
+        if (bitmap->Test(obj)) {
           LOG(ERROR) << "Object " << obj << " found in live bitmap";
         }
         if (alloc_stack->Contains(const_cast<mirror::Object*>(obj))) {
@@ -1737,17 +1759,17 @@ class VerifyReferenceVisitor {
         byte* byte_cover_begin = reinterpret_cast<byte*>(card_table->AddrFromCard(card_addr));
         card_table->Scan(bitmap, byte_cover_begin,
                          byte_cover_begin + accounting::CardTable::kCardSize, scan_visitor);
-
-        // Search to see if any of the roots reference our object.
-        void* arg = const_cast<void*>(reinterpret_cast<const void*>(obj));
-        Runtime::Current()->VisitRoots(&RootMatchesObjectVisitor, arg, false, false);
-
-        // Search to see if any of the roots reference our reference.
-        arg = const_cast<void*>(reinterpret_cast<const void*>(ref));
-        Runtime::Current()->VisitRoots(&RootMatchesObjectVisitor, arg, false, false);
-      } else {
-        LOG(ERROR) << "Root references dead object " << ref << "\nRef type " << PrettyTypeOf(ref);
       }
+
+      // Search to see if any of the roots reference our object.
+      void* arg = const_cast<void*>(reinterpret_cast<const void*>(obj));
+      Runtime::Current()->VisitRoots(&RootMatchesObjectVisitor, arg, false, false);
+
+      // Search to see if any of the roots reference our reference.
+      arg = const_cast<void*>(reinterpret_cast<const void*>(ref));
+      Runtime::Current()->VisitRoots(&RootMatchesObjectVisitor, arg, false, false);
+    } else {
+      LOG(ERROR) << "Root " << ref << " is dead with type " << PrettyTypeOf(ref);
     }
   }
 
@@ -1848,6 +1870,7 @@ class VerifyReferenceCardVisitor {
         LOG(ERROR) << "Object " << obj << " is not in the address range of the card table";
         *failed_ = true;
       } else if (!card_table->IsDirty(obj)) {
+        // TODO: Check mod-union tables.
         // Card should be either kCardDirty if it got re-dirtied after we aged it, or
         // kCardDirty - 1 if it didnt get touched since we aged it.
         accounting::ObjectStack* live_stack = heap_->live_stack_.get();
@@ -1965,7 +1988,7 @@ void Heap::ProcessCards(TimingLogger& timings) {
       // were dirty before the GC started.
       // TODO: Don't need to use atomic.
       // The races are we either end up with: Aged card, unaged card. Since we have the checkpoint
-      // roots and then we scan / update mod union tables after. We will always scan either card.//
+      // roots and then we scan / update mod union tables after. We will always scan either card.
       // If we end up with the non aged card, we scan it it in the pause.
       card_table_->ModifyCardsAtomic(space->Begin(), space->End(), AgeCardVisitor(), VoidFunctor());
     }
