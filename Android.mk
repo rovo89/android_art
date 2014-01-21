@@ -55,6 +55,8 @@ clean-oat-host:
 	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.odex
 	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.oat
 	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.art
+	rm -f $(DEXPREOPT_PRODUCT_DIR_FULL_PATH)/$(DEXPREOPT_BOOT_JAR_DIR)/*.oat
+	rm -f $(DEXPREOPT_PRODUCT_DIR_FULL_PATH)/$(DEXPREOPT_BOOT_JAR_DIR)/*.art
 	rm -f $(TARGET_OUT_UNSTRIPPED)/system/framework/*.odex
 	rm -f $(TARGET_OUT_UNSTRIPPED)/system/framework/*.oat
 	rm -f $(TARGET_OUT_APPS)/*.odex
@@ -71,9 +73,9 @@ clean-oat-target:
 	adb shell rm $(ART_TEST_DIR)/*.odex
 	adb shell rm $(ART_TEST_DIR)/*.oat
 	adb shell rm $(ART_TEST_DIR)/*.art
-	adb shell rm $(DALVIK_CACHE_DIR)/*.dex
-	adb shell rm $(DALVIK_CACHE_DIR)/*.oat
-	adb shell rm $(DALVIK_CACHE_DIR)/*.art
+	adb shell rm $(ART_DALVIK_CACHE_DIR)/*.dex
+	adb shell rm $(ART_DALVIK_CACHE_DIR)/*.oat
+	adb shell rm $(ART_DALVIK_CACHE_DIR)/*.art
 	adb shell rm $(DEXPREOPT_BOOT_JAR_DIR)/*.oat
 	adb shell rm $(DEXPREOPT_BOOT_JAR_DIR)/*.art
 	adb shell rm system/app/*.odex
