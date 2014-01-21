@@ -21,14 +21,14 @@
      */
 DEFINE_FUNCTION art_jni_dlsym_lookup_stub
     subl LITERAL(4), %esp         // align stack
-    .cfi_adjust_cfa_offset 4
+    CFI_ADJUST_CFA_OFFSET(4)
     SETUP_GOT                     // pushes ebx
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    .cfi_adjust_cfa_offset 4
-    call SYMBOL(artFindNativeMethod)@PLT  // (Thread*)
+    CFI_ADJUST_CFA_OFFSET(4)
+    call PLT_SYMBOL(artFindNativeMethod)  // (Thread*)
     UNDO_SETUP_GOT
     addl LITERAL(8), %esp         // restore the stack
-    .cfi_adjust_cfa_offset -12
+    CFI_ADJUST_CFA_OFFSET(-12)
     cmpl LITERAL(0), %eax         // check if returned method code is null
     je no_native_code_found       // if null, jump to return to handle
     jmp *%eax                     // otherwise, tail call to intended method
