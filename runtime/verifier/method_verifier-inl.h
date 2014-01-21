@@ -25,47 +25,47 @@
 namespace art {
 namespace verifier {
 
-const DexFile::CodeItem* MethodVerifier::CodeItem() const {
+inline const DexFile::CodeItem* MethodVerifier::CodeItem() const {
   return code_item_;
 }
 
-RegisterLine* MethodVerifier::GetRegLine(uint32_t dex_pc) {
+inline RegisterLine* MethodVerifier::GetRegLine(uint32_t dex_pc) {
   return reg_table_.GetLine(dex_pc);
 }
 
-const InstructionFlags& MethodVerifier::GetInstructionFlags(size_t index) const {
+inline const InstructionFlags& MethodVerifier::GetInstructionFlags(size_t index) const {
   return insn_flags_[index];
 }
 
-mirror::ClassLoader* MethodVerifier::GetClassLoader() {
+inline mirror::ClassLoader* MethodVerifier::GetClassLoader() {
   return class_loader_->get();
 }
 
-mirror::DexCache* MethodVerifier::GetDexCache() {
+inline mirror::DexCache* MethodVerifier::GetDexCache() {
   return dex_cache_->get();
 }
 
-MethodReference MethodVerifier::GetMethodReference() const {
+inline MethodReference MethodVerifier::GetMethodReference() const {
   return MethodReference(dex_file_, dex_method_idx_);
 }
 
-uint32_t MethodVerifier::GetAccessFlags() const {
+inline uint32_t MethodVerifier::GetAccessFlags() const {
   return method_access_flags_;
 }
 
-bool MethodVerifier::HasCheckCasts() const {
+inline bool MethodVerifier::HasCheckCasts() const {
   return has_check_casts_;
 }
 
-bool MethodVerifier::HasVirtualOrInterfaceInvokes() const {
+inline bool MethodVerifier::HasVirtualOrInterfaceInvokes() const {
   return has_virtual_or_interface_invokes_;
 }
 
-bool MethodVerifier::HasFailures() const {
+inline bool MethodVerifier::HasFailures() const {
   return !failure_messages_.empty();
 }
 
-const RegType& MethodVerifier::ResolveCheckedClass(uint32_t class_idx) {
+inline const RegType& MethodVerifier::ResolveCheckedClass(uint32_t class_idx) {
   DCHECK(!HasFailures());
   const RegType& result = ResolveClassAndCheckAccess(class_idx);
   DCHECK(!HasFailures());
