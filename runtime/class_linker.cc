@@ -4186,7 +4186,7 @@ mirror::ArtMethod* ClassLinker::ResolveMethod(const DexFile& dex_file,
       mirror::Class* referring_class = referrer->GetDeclaringClass();
       if (!referring_class->CanAccess(methods_class)) {
         ThrowIllegalAccessErrorClassForMethodDispatch(referring_class, methods_class,
-                                                      referrer, resolved, type);
+                                                      resolved, type);
         return NULL;
       } else if (!referring_class->CanAccessMember(methods_class,
                                                    resolved->GetAccessFlags())) {
