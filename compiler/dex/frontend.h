@@ -18,12 +18,7 @@
 #define ART_COMPILER_DEX_FRONTEND_H_
 
 #include "dex_file.h"
-#include "dex_instruction.h"
-
-
-
-
-
+#include "invoke_type.h"
 
 namespace llvm {
   class Module;
@@ -82,9 +77,6 @@ enum debugControlVector {
   kDebugTimings
 };
 
-class DexFileToMethodInlinerMap;
-class CompilerDriver;
-
 class LLVMInfo {
   public:
     LLVMInfo();
@@ -113,8 +105,8 @@ class LLVMInfo {
     UniquePtr<art::llvm::IRBuilder> ir_builder_;
 };
 
-struct CompilationUnit;
-struct BasicBlock;
+struct CompiledMethod;
+class CompilerDriver;
 
 }  // namespace art
 
