@@ -76,7 +76,6 @@ void ThrowIllegalAccessErrorClass(mirror::Class* referrer, mirror::Class* access
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
 void ThrowIllegalAccessErrorClassForMethodDispatch(mirror::Class* referrer, mirror::Class* accessed,
-                                                   const mirror::ArtMethod* caller,
                                                    const mirror::ArtMethod* called,
                                                    InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;

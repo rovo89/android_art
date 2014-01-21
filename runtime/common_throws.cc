@@ -136,7 +136,6 @@ void ThrowIllegalAccessErrorClass(mirror::Class* referrer, mirror::Class* access
 }
 
 void ThrowIllegalAccessErrorClassForMethodDispatch(mirror::Class* referrer, mirror::Class* accessed,
-                                                   const mirror::ArtMethod* caller,
                                                    const mirror::ArtMethod* called,
                                                    InvokeType type) {
   std::ostringstream msg;
