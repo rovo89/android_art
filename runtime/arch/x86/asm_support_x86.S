@@ -31,11 +31,26 @@
     // are mangled with an extra underscore prefix. The use of $x for arguments
     // mean that literals need to be represented with $$x in macros.
     #define SYMBOL(name) _ ## name
+    #define PLT_SYMBOL(name) _ ## name
     #define VAR(name,index) SYMBOL($index)
+    #define PLT_VAR(name, index) SYMBOL($index)
     #define REG_VAR(name,index) %$index
     #define CALL_MACRO(name,index) $index
     #define LITERAL(value) $value
     #define MACRO_LITERAL(value) $$value
+
+    // Mac OS' doesn't like cfi_* directives
+    #define CFI_STARTPROC
+    #define CFI_ENDPROC
+    #define CFI_ADJUST_CFA_OFFSET(size)
+    #define CFI_DEF_CFA(reg,size)
+    #define CFI_DEF_CFA_REGISTER(reg)
+    #define CFI_RESTORE(reg)
+    #define CFI_REL_OFFSET(reg,size)
+
+    // Mac OS' doesn't support certain directives
+    #define FUNCTION_TYPE(name)
+    #define SIZE(name)
 #else
     // Regular gas(1) lets you name macro parameters.
     #define MACRO0(macro_name) .macro macro_name
@@ -51,11 +66,25 @@
     // special character meaning care needs to be taken when passing registers as macro arguments.
     .altmacro
     #define SYMBOL(name) name
+    #define PLT_SYMBOL(name) name@PLT
     #define VAR(name,index) name&
+    #define PLT_VAR(name, index) name&@PLT
     #define REG_VAR(name,index) %name
     #define CALL_MACRO(name,index) name&
     #define LITERAL(value) $value
     #define MACRO_LITERAL(value) $value
+
+    // CFI support
+    #define CFI_STARTPROC .cfi_startproc
+    #define CFI_ENDPROC .cfi_endproc
+    #define CFI_ADJUST_CFA_OFFSET(size) .cfi_adjust_cfa_offset size
+    #define CFI_DEF_CFA(reg,size) .cfi_def_cfa reg,size
+    #define CFI_DEF_CFA_REGISTER(reg) .cfi_def_cfa_register reg
+    #define CFI_RESTORE(reg) .cfi_restore reg
+    #define CFI_REL_OFFSET(reg,size) .cfi_rel_offset reg,size
+
+    #define FUNCTION_TYPE(name) .type name&, @function
+    #define SIZE(name) .size name, .-name
 #endif
 
     /* Cache alignment for function entry */
@@ -64,40 +93,40 @@ MACRO0(ALIGN_FUNCTION_ENTRY)
 END_MACRO
 
 MACRO1(DEFINE_FUNCTION, c_name)
-    .type VAR(c_name, 0), @function
+    FUNCTION_TYPE(\c_name)
     .globl VAR(c_name, 0)
     ALIGN_FUNCTION_ENTRY
 VAR(c_name, 0):
-    .cfi_startproc
+    CFI_STARTPROC
 END_MACRO
 
 MACRO1(END_FUNCTION, c_name)
-    .cfi_endproc
-    .size \c_name, .-\c_name
+    CFI_ENDPROC
+    SIZE(\c_name)
 END_MACRO
 
 MACRO1(PUSH, reg)
     pushl REG_VAR(reg, 0)
-    .cfi_adjust_cfa_offset 4
-    .cfi_rel_offset REG_VAR(reg, 0), 0
+    CFI_ADJUST_CFA_OFFSET(4)
+    CFI_REL_OFFSET(REG_VAR(reg, 0), 0)
 END_MACRO
 
 MACRO1(POP, reg)
     popl REG_VAR(reg,0)
-    .cfi_adjust_cfa_offset -4
-    .cfi_restore REG_VAR(reg,0)
+    CFI_ADJUST_CFA_OFFSET(-4)
+    CFI_RESTORE(REG_VAR(reg,0))
 END_MACRO
 
 MACRO1(UNIMPLEMENTED,name)
-    .type VAR(name, 0), @function
+    FUNCTION_TYPE(\name)
     .globl VAR(name, 0)
     ALIGN_FUNCTION_ENTRY
 VAR(name, 0):
-    .cfi_startproc
+    CFI_STARTPROC
     int3
     int3
-    .cfi_endproc
-    .size \name, .-\name
+    CFI_ENDPROC
+    SIZE(\name)
 END_MACRO
 
 MACRO0(SETUP_GOT_NOSAVE)

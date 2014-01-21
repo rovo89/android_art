@@ -87,7 +87,9 @@ LLVM_ROOT_PATH := external/llvm
 
 # Clang build.
 # ART_TARGET_CLANG := true
-# ART_HOST_CLANG := true
+ifeq ($(HOST_OS),darwin)
+ART_HOST_CLANG := true
+endif
 
 # directory used for dalvik-cache on device
 ART_DALVIK_CACHE_DIR := /data/dalvik-cache
@@ -119,7 +121,7 @@ art_cflags := \
 	-Wall \
 	-Werror \
 	-Wextra \
-	-Wstrict-aliasing=3 \
+	-Wstrict-aliasing \
 	-fstrict-aliasing
 
 ifeq ($(ART_SMALL_MODE),true)
