@@ -794,18 +794,6 @@ void ArmMir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
   StoreValueWide(rl_dest, rl_result);
 }
 
-
- /*
-  * Check to see if a result pair has a misaligned overlap with an operand pair.  This
-  * is not usual for dx to generate, but it is legal (for now).  In a future rev of
-  * dex, we'll want to make this case illegal.
-  */
-bool ArmMir2Lir::BadOverlap(RegLocation rl_src, RegLocation rl_dest) {
-  DCHECK(rl_src.wide);
-  DCHECK(rl_dest.wide);
-  return (abs(mir_graph_->SRegToVReg(rl_src.s_reg_low) - mir_graph_->SRegToVReg(rl_dest.s_reg_low)) == 1);
-}
-
 void ArmMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
                             RegLocation rl_src1, RegLocation rl_src2) {
     /*

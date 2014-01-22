@@ -211,6 +211,8 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
 #undef SHIFT_ENCODING_MAP
 
   { kX86Cmc, kNullary, NO_OPERAND, { 0, 0, 0xF5, 0, 0, 0, 0, 0}, "Cmc", "" },
+  { kX86Shld32RRI,  kRegRegImmRev, IS_TERTIARY_OP | REG_DEF0_USE01  | SETS_CCODES, { 0,    0, 0x0F, 0xA4, 0, 0, 0, 1}, "Shld32", "!0r,!1r,!2d" },
+  { kX86Shrd32RRI,  kRegRegImmRev, IS_TERTIARY_OP | REG_DEF0_USE01  | SETS_CCODES, { 0,    0, 0x0F, 0xAC, 0, 0, 0, 1}, "Shrd32", "!0r,!1r,!2d" },
 
   { kX86Test8RI,  kRegImm,             IS_BINARY_OP   | REG_USE0  | SETS_CCODES, { 0,    0, 0xF6, 0, 0, 0, 0, 1}, "Test8RI", "!0r,!1d" },
   { kX86Test8MI,  kMemImm,   IS_LOAD | IS_TERTIARY_OP | REG_USE0  | SETS_CCODES, { 0,    0, 0xF6, 0, 0, 0, 0, 1}, "Test8MI", "[!0r+!1d],!2d" },
@@ -422,6 +424,7 @@ int X86Mir2Lir::GetInsnSize(LIR* lir) {
     case kThreadImm:  // lir operands - 0: disp, 1: imm
       return ComputeSize(entry, 0, 0x12345678, false);  // displacement size is always 32bit
     case kRegRegImm:  // lir operands - 0: reg, 1: reg, 2: imm
+    case kRegRegImmRev:
       return ComputeSize(entry, 0, 0, false);
     case kRegMemImm:  // lir operands - 0: reg, 1: base, 2: disp, 3: imm
       return ComputeSize(entry, lir->operands[1], lir->operands[2], false);
@@ -642,7 +645,6 @@ void X86Mir2Lir::EmitOpMem(const X86EncodingMap* entry, uint8_t base, int disp) 
   DCHECK_NE(0x0F, entry->skeleton.opcode);
   DCHECK_EQ(0, entry->skeleton.extra_opcode1);
   DCHECK_EQ(0, entry->skeleton.extra_opcode2);
-  DCHECK_NE(rX86_SP, base);
   EmitModrmDisp(entry->skeleton.modrm_opcode, base, disp);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
@@ -750,6 +752,22 @@ void X86Mir2Lir::EmitRegRegImm(const X86EncodingMap* entry,
   DCHECK_LT(reg2, 8);
   uint8_t modrm = (3 << 6) | (reg1 << 3) | reg2;
   code_buffer_.push_back(modrm);
+  DCHECK_EQ(0, entry->skeleton.modrm_opcode);
+  DCHECK_EQ(0, entry->skeleton.ax_opcode);
+  EmitImm(entry, imm);
+}
+
+void X86Mir2Lir::EmitRegRegImmRev(const X86EncodingMap* entry,
+                                  uint8_t reg1, uint8_t reg2, int32_t imm) {
+  EmitRegRegImm(entry, reg2, reg1, imm);
+}
+
+void X86Mir2Lir::EmitRegMemImm(const X86EncodingMap* entry,
+                               uint8_t reg, uint8_t base, int disp, int32_t imm) {
+  EmitPrefixAndOpcode(entry);
+  DCHECK(!X86_FPREG(reg));
+  DCHECK_LT(reg, 8);
+  EmitModrmDisp(reg, base, disp);
   DCHECK_EQ(0, entry->skeleton.modrm_opcode);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
   EmitImm(entry, imm);
@@ -1186,8 +1204,15 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
       case kRegRegStore:  // lir operands - 0: reg2, 1: reg1
         EmitRegReg(entry, lir->operands[1], lir->operands[0]);
         break;
+      case kRegRegImmRev:
+        EmitRegRegImmRev(entry, lir->operands[0], lir->operands[1], lir->operands[2]);
+        break;
       case kRegRegImm:
         EmitRegRegImm(entry, lir->operands[0], lir->operands[1], lir->operands[2]);
+        break;
+      case kRegMemImm:
+        EmitRegMemImm(entry, lir->operands[0], lir->operands[1], lir->operands[2],
+                      lir->operands[3]);
         break;
       case kRegImm:  // lir operands - 0: reg, 1: immediate
         EmitRegImm(entry, lir->operands[0], lir->operands[1]);

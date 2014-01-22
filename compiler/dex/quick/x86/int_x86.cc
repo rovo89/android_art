@@ -755,9 +755,188 @@ LIR* X86Mir2Lir::OpIT(ConditionCode cond, const char* guide) {
   return NULL;
 }
 
+void X86Mir2Lir::GenImulRegImm(int dest, int src, int val) {
+  switch (val) {
+    case 0:
+      NewLIR2(kX86Xor32RR, dest, dest);
+      break;
+    case 1:
+      OpRegCopy(dest, src);
+      break;
+    default:
+      OpRegRegImm(kOpMul, dest, src, val);
+      break;
+  }
+}
+
+void X86Mir2Lir::GenImulMemImm(int dest, int sreg, int displacement, int val) {
+  LIR *m;
+  switch (val) {
+    case 0:
+      NewLIR2(kX86Xor32RR, dest, dest);
+      break;
+    case 1:
+      LoadBaseDisp(rX86_SP, displacement, dest, kWord, sreg);
+      break;
+    default:
+      m = NewLIR4(IS_SIMM8(val) ? kX86Imul32RMI8 : kX86Imul32RMI, dest, rX86_SP,
+                  displacement, val);
+      AnnotateDalvikRegAccess(m, displacement >> 2, true /* is_load */, true /* is_64bit */);
+      break;
+  }
+}
+
 void X86Mir2Lir::GenMulLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2) {
-  LOG(FATAL) << "Unexpected use of GenX86Long for x86";
+  if (rl_src1.is_const) {
+    std::swap(rl_src1, rl_src2);
+  }
+  // Are we multiplying by a constant?
+  if (rl_src2.is_const) {
+    // Do special compare/branch against simple const operand
+    int64_t val = mir_graph_->ConstantValueWide(rl_src2);
+    if (val == 0) {
+      RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
+      OpRegReg(kOpXor, rl_result.low_reg, rl_result.low_reg);
+      OpRegReg(kOpXor, rl_result.high_reg, rl_result.high_reg);
+      StoreValueWide(rl_dest, rl_result);
+      return;
+    } else if (val == 1) {
+      rl_src1 = EvalLocWide(rl_src1, kCoreReg, true);
+      StoreValueWide(rl_dest, rl_src1);
+      return;
+    } else if (val == 2) {
+      GenAddLong(Instruction::ADD_LONG, rl_dest, rl_src1, rl_src1);
+      return;
+    } else if (IsPowerOfTwo(val)) {
+      int shift_amount = LowestSetBit(val);
+      if (!BadOverlap(rl_src1, rl_dest)) {
+        rl_src1 = LoadValueWide(rl_src1, kCoreReg);
+        RegLocation rl_result = GenShiftImmOpLong(Instruction::SHL_LONG, rl_dest,
+                                                  rl_src1, shift_amount);
+        StoreValueWide(rl_dest, rl_result);
+        return;
+      }
+    }
+
+    // Okay, just bite the bullet and do it.
+    int32_t val_lo = Low32Bits(val);
+    int32_t val_hi = High32Bits(val);
+    FlushAllRegs();
+    LockCallTemps();  // Prepare for explicit register usage.
+    rl_src1 = UpdateLocWide(rl_src1);
+    bool src1_in_reg = rl_src1.location == kLocPhysReg;
+    int displacement = SRegOffset(rl_src1.s_reg_low);
+
+    // ECX <- 1H * 2L
+    // EAX <- 1L * 2H
+    if (src1_in_reg) {
+      GenImulRegImm(r1, rl_src1.high_reg, val_lo);
+      GenImulRegImm(r0, rl_src1.low_reg, val_hi);
+    } else {
+      GenImulMemImm(r1, GetSRegHi(rl_src1.s_reg_low), displacement + HIWORD_OFFSET, val_lo);
+      GenImulMemImm(r0, rl_src1.s_reg_low, displacement + LOWORD_OFFSET, val_hi);
+    }
+
+    // ECX <- ECX + EAX  (2H * 1L) + (1H * 2L)
+    NewLIR2(kX86Add32RR, r1, r0);
+
+    // EAX <- 2L
+    LoadConstantNoClobber(r0, val_lo);
+
+    // EDX:EAX <- 2L * 1L (double precision)
+    if (src1_in_reg) {
+      NewLIR1(kX86Mul32DaR, rl_src1.low_reg);
+    } else {
+      LIR *m = NewLIR2(kX86Mul32DaM, rX86_SP, displacement + LOWORD_OFFSET);
+      AnnotateDalvikRegAccess(m, (displacement + LOWORD_OFFSET) >> 2,
+                              true /* is_load */, true /* is_64bit */);
+    }
+
+    // EDX <- EDX + ECX (add high words)
+    NewLIR2(kX86Add32RR, r2, r1);
+
+    // Result is EDX:EAX
+    RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed, r0, r2,
+                             INVALID_SREG, INVALID_SREG};
+    StoreValueWide(rl_dest, rl_result);
+    return;
+  }
+
+  // Nope.  Do it the hard way
+  FlushAllRegs();
+  LockCallTemps();  // Prepare for explicit register usage.
+  rl_src1 = UpdateLocWide(rl_src1);
+  rl_src2 = UpdateLocWide(rl_src2);
+
+  // At this point, the VRs are in their home locations.
+  bool src1_in_reg = rl_src1.location == kLocPhysReg;
+  bool src2_in_reg = rl_src2.location == kLocPhysReg;
+
+  // ECX <- 1H
+  if (src1_in_reg) {
+    NewLIR2(kX86Mov32RR, r1, rl_src1.high_reg);
+  } else {
+    LoadBaseDisp(rX86_SP, SRegOffset(rl_src1.s_reg_low) + HIWORD_OFFSET, r1,
+                 kWord, GetSRegHi(rl_src1.s_reg_low));
+  }
+
+  // EAX <- 2H
+  if (src2_in_reg) {
+    NewLIR2(kX86Mov32RR, r0, rl_src2.high_reg);
+  } else {
+    LoadBaseDisp(rX86_SP, SRegOffset(rl_src2.s_reg_low) + HIWORD_OFFSET, r0,
+                 kWord, GetSRegHi(rl_src2.s_reg_low));
+  }
+
+  // EAX <- EAX * 1L  (2H * 1L)
+  if (src1_in_reg) {
+    NewLIR2(kX86Imul32RR, r0, rl_src1.low_reg);
+  } else {
+    int displacement = SRegOffset(rl_src1.s_reg_low);
+    LIR *m = NewLIR3(kX86Imul32RM, r0, rX86_SP, displacement + LOWORD_OFFSET);
+    AnnotateDalvikRegAccess(m, (displacement + LOWORD_OFFSET) >> 2,
+                            true /* is_load */, true /* is_64bit */);
+  }
+
+  // ECX <- ECX * 2L  (1H * 2L)
+  if (src2_in_reg) {
+    NewLIR2(kX86Imul32RR, r1, rl_src2.low_reg);
+  } else {
+    int displacement = SRegOffset(rl_src2.s_reg_low);
+    LIR *m = NewLIR3(kX86Imul32RM, r1, rX86_SP, displacement + LOWORD_OFFSET);
+    AnnotateDalvikRegAccess(m, (displacement + LOWORD_OFFSET) >> 2,
+                            true /* is_load */, true /* is_64bit */);
+  }
+
+  // ECX <- ECX + EAX  (2H * 1L) + (1H * 2L)
+  NewLIR2(kX86Add32RR, r1, r0);
+
+  // EAX <- 2L
+  if (src2_in_reg) {
+    NewLIR2(kX86Mov32RR, r0, rl_src2.low_reg);
+  } else {
+    LoadBaseDisp(rX86_SP, SRegOffset(rl_src2.s_reg_low) + LOWORD_OFFSET, r0,
+                 kWord, rl_src2.s_reg_low);
+  }
+
+  // EDX:EAX <- 2L * 1L (double precision)
+  if (src1_in_reg) {
+    NewLIR1(kX86Mul32DaR, rl_src1.low_reg);
+  } else {
+    int displacement = SRegOffset(rl_src1.s_reg_low);
+    LIR *m = NewLIR2(kX86Mul32DaM, rX86_SP, displacement + LOWORD_OFFSET);
+    AnnotateDalvikRegAccess(m, (displacement + LOWORD_OFFSET) >> 2,
+                            true /* is_load */, true /* is_64bit */);
+  }
+
+  // EDX <- EDX + ECX (add high words)
+  NewLIR2(kX86Add32RR, r2, r1);
+
+  // Result is EDX:EAX
+  RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed, r0, r2,
+                           INVALID_SREG, INVALID_SREG};
+  StoreValueWide(rl_dest, rl_result);
 }
 
 void X86Mir2Lir::GenLongRegOrMemOp(RegLocation rl_dest, RegLocation rl_src,
@@ -1057,10 +1236,89 @@ void X86Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   }
 }
 
+RegLocation X86Mir2Lir::GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
+                                          RegLocation rl_src, int shift_amount) {
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  switch (opcode) {
+    case Instruction::SHL_LONG:
+    case Instruction::SHL_LONG_2ADDR:
+      DCHECK_NE(shift_amount, 1);  // Prevent a double store from happening.
+      if (shift_amount == 32) {
+        OpRegCopy(rl_result.high_reg, rl_src.low_reg);
+        LoadConstant(rl_result.low_reg, 0);
+      } else if (shift_amount > 31) {
+        OpRegCopy(rl_result.high_reg, rl_src.low_reg);
+        FreeTemp(rl_src.high_reg);
+        NewLIR2(kX86Sal32RI, rl_result.high_reg, shift_amount - 32);
+        LoadConstant(rl_result.low_reg, 0);
+      } else {
+        OpRegCopy(rl_result.low_reg, rl_src.low_reg);
+        OpRegCopy(rl_result.high_reg, rl_src.high_reg);
+        NewLIR3(kX86Shld32RRI, rl_result.high_reg, rl_result.low_reg, shift_amount);
+        NewLIR2(kX86Sal32RI, rl_result.low_reg, shift_amount);
+      }
+      break;
+    case Instruction::SHR_LONG:
+    case Instruction::SHR_LONG_2ADDR:
+      if (shift_amount == 32) {
+        OpRegCopy(rl_result.low_reg, rl_src.high_reg);
+        OpRegCopy(rl_result.high_reg, rl_src.high_reg);
+        NewLIR2(kX86Sar32RI, rl_result.high_reg, 31);
+      } else if (shift_amount > 31) {
+        OpRegCopy(rl_result.low_reg, rl_src.high_reg);
+        OpRegCopy(rl_result.high_reg, rl_src.high_reg);
+        NewLIR2(kX86Sar32RI, rl_result.low_reg, shift_amount - 32);
+        NewLIR2(kX86Sar32RI, rl_result.high_reg, 31);
+      } else {
+        OpRegCopy(rl_result.low_reg, rl_src.low_reg);
+        OpRegCopy(rl_result.high_reg, rl_src.high_reg);
+        NewLIR3(kX86Shrd32RRI, rl_result.low_reg, rl_result.high_reg, shift_amount);
+        NewLIR2(kX86Sar32RI, rl_result.high_reg, shift_amount);
+      }
+      break;
+    case Instruction::USHR_LONG:
+    case Instruction::USHR_LONG_2ADDR:
+      if (shift_amount == 32) {
+        OpRegCopy(rl_result.low_reg, rl_src.high_reg);
+        LoadConstant(rl_result.high_reg, 0);
+      } else if (shift_amount > 31) {
+        OpRegCopy(rl_result.low_reg, rl_src.high_reg);
+        NewLIR2(kX86Shr32RI, rl_result.low_reg, shift_amount - 32);
+        LoadConstant(rl_result.high_reg, 0);
+      } else {
+        OpRegCopy(rl_result.low_reg, rl_src.low_reg);
+        OpRegCopy(rl_result.high_reg, rl_src.high_reg);
+        NewLIR3(kX86Shrd32RRI, rl_result.low_reg, rl_result.high_reg, shift_amount);
+        NewLIR2(kX86Shr32RI, rl_result.high_reg, shift_amount);
+      }
+      break;
+    default:
+      LOG(FATAL) << "Unexpected case";
+  }
+  return rl_result;
+}
+
 void X86Mir2Lir::GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
-                                   RegLocation rl_src1, RegLocation rl_shift) {
-  // Default implementation is just to ignore the constant case.
-  GenShiftOpLong(opcode, rl_dest, rl_src1, rl_shift);
+                                   RegLocation rl_src, RegLocation rl_shift) {
+  // Per spec, we only care about low 6 bits of shift amount.
+  int shift_amount = mir_graph_->ConstantValue(rl_shift) & 0x3f;
+  if (shift_amount == 0) {
+    rl_src = LoadValueWide(rl_src, kCoreReg);
+    StoreValueWide(rl_dest, rl_src);
+    return;
+  } else if (shift_amount == 1 &&
+            (opcode ==  Instruction::SHL_LONG || opcode == Instruction::SHL_LONG_2ADDR)) {
+    // Need to handle this here to avoid calling StoreValueWide twice.
+    GenAddLong(Instruction::ADD_LONG, rl_dest, rl_src, rl_src);
+    return;
+  }
+  if (BadOverlap(rl_src, rl_dest)) {
+    GenShiftOpLong(opcode, rl_dest, rl_src, rl_shift);
+    return;
+  }
+  rl_src = LoadValueWide(rl_src, kCoreReg);
+  RegLocation rl_result = GenShiftImmOpLong(opcode, rl_dest, rl_src, shift_amount);
+  StoreValueWide(rl_dest, rl_result);
 }
 
 void X86Mir2Lir::GenArithImmOpLong(Instruction::Code opcode,

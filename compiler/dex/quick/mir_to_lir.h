@@ -873,6 +873,29 @@ class Mir2Lir : public Backend {
     CompilationUnit* GetCompilationUnit() {
       return cu_;
     }
+    /*
+     * @brief Returns the index of the lowest set bit in 'x'.
+     * @param x Value to be examined.
+     * @returns The bit number of the lowest bit set in the value.
+     */
+    int32_t LowestSetBit(uint64_t x);
+    /*
+     * @brief Is this value a power of two?
+     * @param x Value to be examined.
+     * @returns 'true' if only 1 bit is set in the value.
+     */
+    bool IsPowerOfTwo(uint64_t x);
+    /*
+     * @brief Do these SRs overlap?
+     * @param rl_op1 One RegLocation
+     * @param rl_op2 The other RegLocation
+     * @return 'true' if the VR pairs overlap
+     *
+     * Check to see if a result pair has a misaligned overlap with an operand pair.  This
+     * is not usual for dx to generate, but it is legal (for now).  In a future rev of
+     * dex, we'll want to make this case illegal.
+     */
+    bool BadOverlap(RegLocation rl_op1, RegLocation rl_op2);
 
     /*
      * @brief Force a location (in a register) into a temporary register

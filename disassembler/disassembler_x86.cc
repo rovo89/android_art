@@ -485,6 +485,18 @@ DISASSEMBLER_ENTRY(cmp,
         has_modrm = true;
         store = true;
         break;
+      case 0xA4:
+        opcode << "shld";
+        has_modrm = true;
+        load = true;
+        immediate_bytes = 1;
+        break;
+      case 0xAC:
+        opcode << "shrd";
+        has_modrm = true;
+        load = true;
+        immediate_bytes = 1;
+        break;
       case 0xAE:
         if (prefix[0] == 0xF3) {
           prefix[0] = 0;  // clear prefix now it's served its purpose as part of the opcode
