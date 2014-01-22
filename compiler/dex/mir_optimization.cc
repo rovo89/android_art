@@ -259,7 +259,7 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
             if ((ccode != kCondNv) &&
                 (mir->ssa_rep->defs[0] == mir_next->ssa_rep->uses[0]) &&
                 (GetSSAUseCount(mir->ssa_rep->defs[0]) == 1)) {
-              mir_next->dalvikInsn.arg[0] = ccode;
+              mir_next->meta.ccode = ccode;
               switch (opcode) {
                 case Instruction::CMPL_FLOAT:
                   mir_next->dalvikInsn.opcode =
