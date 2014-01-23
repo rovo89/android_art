@@ -44,7 +44,7 @@ class ElfWriter {
                                    size_t& oat_data_offset);
 
   // Returns runtime oat_data runtime address for an opened ElfFile.
-  static llvm::ELF::Elf32_Addr GetOatDataAddress(ElfFile* elf_file);
+  static ::llvm::ELF::Elf32_Addr GetOatDataAddress(ElfFile* elf_file);
 
  protected:
   ElfWriter(const CompilerDriver& driver, File* elf_file);
