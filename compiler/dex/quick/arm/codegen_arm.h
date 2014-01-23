@@ -195,6 +195,9 @@ class ArmMir2Lir : public Mir2Lir {
     void ReplaceFixup(LIR* prev_lir, LIR* orig_lir, LIR* new_lir);
     void InsertFixupBefore(LIR* prev_lir, LIR* orig_lir, LIR* new_lir);
     void AssignDataOffsets();
+    RegLocation GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
+                          RegLocation rl_src2, bool is_div, bool check_zero);
+    RegLocation GenDivRemLit(RegLocation rl_dest, RegLocation rl_src1, int lit, bool is_div);
 };
 
 }  // namespace art

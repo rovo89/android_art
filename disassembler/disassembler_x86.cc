@@ -571,6 +571,9 @@ DISASSEMBLER_ENTRY(cmp,
     reg_is_opcode = true;
     store = true;
     break;
+  case 0x99:
+    opcode << "cdq";
+    break;
   case 0xB0: case 0xB1: case 0xB2: case 0xB3: case 0xB4: case 0xB5: case 0xB6: case 0xB7:
     opcode << "mov";
     immediate_bytes = 1;
