@@ -113,13 +113,13 @@ bool DexFileVerifier::CheckShortyDescriptorMatch(char shorty_char, const char* d
 }
 
 bool DexFileVerifier::CheckPointerRange(const void* start, const void* end, const char* label) {
-  uint32_t range_start = reinterpret_cast<uint32_t>(start);
-  uint32_t range_end = reinterpret_cast<uint32_t>(end);
-  uint32_t file_start = reinterpret_cast<uint32_t>(begin_);
-  uint32_t file_end = file_start + size_;
+  const byte* range_start = reinterpret_cast<const byte*>(start);
+  const byte* range_end = reinterpret_cast<const byte*>(end);
+  const byte* file_start = reinterpret_cast<const byte*>(begin_);
+  const byte* file_end = file_start + size_;
   if (UNLIKELY((range_start < file_start) || (range_start > file_end) ||
                (range_end < file_start) || (range_end > file_end))) {
-    ErrorStringPrintf("Bad range for %s: %x to %x", label,
+    ErrorStringPrintf("Bad range for %s: %zx to %zx", label,
                       range_start - file_start, range_end - file_start);
     return false;
   }
@@ -284,7 +284,7 @@ bool DexFileVerifier::CheckAndGetHandlerOffsets(const DexFile::CodeItem* code_it
 
   for (uint32_t i = 0; i < handlers_size; i++) {
     bool catch_all;
-    uint32_t offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(handlers_base);
+    size_t offset = ptr_ - handlers_base;
     int32_t size = DecodeSignedLeb128(&ptr_);
 
     if (UNLIKELY((size < -65536) || (size > 65536))) {
@@ -299,7 +299,7 @@ bool DexFileVerifier::CheckAndGetHandlerOffsets(const DexFile::CodeItem* code_it
       catch_all = false;
     }
 
-    handler_offsets[i] = offset;
+    handler_offsets[i] = static_cast<uint32_t>(offset);
 
     while (size-- > 0) {
       uint32_t type_idx = DecodeUnsignedLeb128(&ptr_);
@@ -386,14 +386,14 @@ bool DexFileVerifier::CheckClassDataItemMethod(uint32_t idx, uint32_t access_fla
   return true;
 }
 
-bool DexFileVerifier::CheckPadding(uint32_t offset, uint32_t aligned_offset) {
+bool DexFileVerifier::CheckPadding(size_t offset, uint32_t aligned_offset) {
   if (offset < aligned_offset) {
     if (!CheckPointerRange(begin_ + offset, begin_ + aligned_offset, "section")) {
       return false;
     }
     while (offset < aligned_offset) {
       if (UNLIKELY(*ptr_ != '\0')) {
-        ErrorStringPrintf("Non-zero padding %x before section start at %x", *ptr_, offset);
+        ErrorStringPrintf("Non-zero padding %x before section start at %zx", *ptr_, offset);
         return false;
       }
       ptr_++;
@@ -634,7 +634,7 @@ bool DexFileVerifier::CheckIntraCodeItem() {
   }
 
   // try_items are 4-byte aligned. Verify the spacer is 0.
-  if ((((uint32_t) &insns[insns_size] & 3) != 0) && (insns[insns_size] != 0)) {
+  if (((reinterpret_cast<uintptr_t>(&insns[insns_size]) & 3) != 0) && (insns[insns_size] != 0)) {
     ErrorStringPrintf("Non-zero padding: %x", insns[insns_size]);
     return false;
   }
@@ -975,9 +975,9 @@ bool DexFileVerifier::CheckIntraAnnotationsDirectoryItem() {
   return true;
 }
 
-bool DexFileVerifier::CheckIntraSectionIterate(uint32_t offset, uint32_t count, uint16_t type) {
+bool DexFileVerifier::CheckIntraSectionIterate(size_t offset, uint32_t count, uint16_t type) {
   // Get the right alignment mask for the type of section.
-  uint32_t alignment_mask;
+  size_t alignment_mask;
   switch (type) {
     case DexFile::kDexTypeClassDataItem:
     case DexFile::kDexTypeStringDataItem:
@@ -993,7 +993,7 @@ bool DexFileVerifier::CheckIntraSectionIterate(uint32_t offset, uint32_t count, 
 
   // Iterate through the items in the section.
   for (uint32_t i = 0; i < count; i++) {
-    uint32_t aligned_offset = (offset + alignment_mask) & ~alignment_mask;
+    size_t aligned_offset = (offset + alignment_mask) & ~alignment_mask;
 
     // Check the padding between items.
     if (!CheckPadding(offset, aligned_offset)) {
@@ -1134,7 +1134,7 @@ bool DexFileVerifier::CheckIntraSectionIterate(uint32_t offset, uint32_t count, 
       offset_to_type_map_.Put(aligned_offset, type);
     }
 
-    aligned_offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(begin_);
+    aligned_offset = ptr_ - begin_;
     if (UNLIKELY(aligned_offset > size_)) {
       ErrorStringPrintf("Item %d at ends out of bounds", i);
       return false;
@@ -1146,7 +1146,7 @@ bool DexFileVerifier::CheckIntraSectionIterate(uint32_t offset, uint32_t count, 
   return true;
 }
 
-bool DexFileVerifier::CheckIntraIdSection(uint32_t offset, uint32_t count, uint16_t type) {
+bool DexFileVerifier::CheckIntraIdSection(size_t offset, uint32_t count, uint16_t type) {
   uint32_t expected_offset;
   uint32_t expected_size;
 
@@ -1183,7 +1183,7 @@ bool DexFileVerifier::CheckIntraIdSection(uint32_t offset, uint32_t count, uint1
 
   // Check that the offset and size are what were expected from the header.
   if (UNLIKELY(offset != expected_offset)) {
-    ErrorStringPrintf("Bad offset for section: got %x, expected %x", offset, expected_offset);
+    ErrorStringPrintf("Bad offset for section: got %zx, expected %x", offset, expected_offset);
     return false;
   }
   if (UNLIKELY(count != expected_size)) {
@@ -1194,13 +1194,13 @@ bool DexFileVerifier::CheckIntraIdSection(uint32_t offset, uint32_t count, uint1
   return CheckIntraSectionIterate(offset, count, type);
 }
 
-bool DexFileVerifier::CheckIntraDataSection(uint32_t offset, uint32_t count, uint16_t type) {
-  uint32_t data_start = header_->data_off_;
-  uint32_t data_end = data_start + header_->data_size_;
+bool DexFileVerifier::CheckIntraDataSection(size_t offset, uint32_t count, uint16_t type) {
+  size_t data_start = header_->data_off_;
+  size_t data_end = data_start + header_->data_size_;
 
   // Sanity check the offset of the section.
   if (UNLIKELY((offset < data_start) || (offset > data_end))) {
-    ErrorStringPrintf("Bad offset for data subsection: %x", offset);
+    ErrorStringPrintf("Bad offset for data subsection: %zx", offset);
     return false;
   }
 
@@ -1208,9 +1208,9 @@ bool DexFileVerifier::CheckIntraDataSection(uint32_t offset, uint32_t count, uin
     return false;
   }
 
-  uint32_t next_offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(begin_);
+  size_t next_offset = ptr_ - begin_;
   if (next_offset > data_end) {
-    ErrorStringPrintf("Out-of-bounds end of data subsection: %x", next_offset);
+    ErrorStringPrintf("Out-of-bounds end of data subsection: %zx", next_offset);
     return false;
   }
 
@@ -1222,7 +1222,7 @@ bool DexFileVerifier::CheckIntraSection() {
   const DexFile::MapItem* item = map->list_;
 
   uint32_t count = map->size_;
-  uint32_t offset = 0;
+  size_t offset = 0;
   ptr_ = begin_;
 
   // Check the items listed in the map.
@@ -1235,7 +1235,7 @@ bool DexFileVerifier::CheckIntraSection() {
     if (!CheckPadding(offset, section_offset)) {
       return false;
     } else if (UNLIKELY(offset > section_offset)) {
-      ErrorStringPrintf("Section overlap or out-of-order map: %x, %x", offset, section_offset);
+      ErrorStringPrintf("Section overlap or out-of-order map: %zx, %x", offset, section_offset);
       return false;
     }
 
@@ -1262,7 +1262,7 @@ bool DexFileVerifier::CheckIntraSection() {
         if (!CheckIntraIdSection(section_offset, section_count, type)) {
           return false;
         }
-        offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(begin_);
+        offset = ptr_ - begin_;
         break;
       case DexFile::kDexTypeMapList:
         if (UNLIKELY(section_count != 1)) {
@@ -1290,7 +1290,7 @@ bool DexFileVerifier::CheckIntraSection() {
         if (!CheckIntraDataSection(section_offset, section_count, type)) {
           return false;
         }
-        offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(begin_);
+        offset = ptr_ - begin_;
         break;
       default:
         ErrorStringPrintf("Unknown map item type %x", type);
@@ -1303,14 +1303,14 @@ bool DexFileVerifier::CheckIntraSection() {
   return true;
 }
 
-bool DexFileVerifier::CheckOffsetToTypeMap(uint32_t offset, uint16_t type) {
+bool DexFileVerifier::CheckOffsetToTypeMap(size_t offset, uint16_t type) {
   auto it = offset_to_type_map_.find(offset);
   if (UNLIKELY(it == offset_to_type_map_.end())) {
-    ErrorStringPrintf("No data map entry found @ %x; expected %x", offset, type);
+    ErrorStringPrintf("No data map entry found @ %zx; expected %x", offset, type);
     return false;
   }
   if (UNLIKELY(it->second != type)) {
-    ErrorStringPrintf("Unexpected data map entry @ %x; expected %x, found %x",
+    ErrorStringPrintf("Unexpected data map entry @ %zx; expected %x, found %x",
                       offset, type, it->second);
     return false;
   }
@@ -1784,9 +1784,9 @@ bool DexFileVerifier::CheckInterAnnotationsDirectoryItem() {
   return true;
 }
 
-bool DexFileVerifier::CheckInterSectionIterate(uint32_t offset, uint32_t count, uint16_t type) {
+bool DexFileVerifier::CheckInterSectionIterate(size_t offset, uint32_t count, uint16_t type) {
   // Get the right alignment mask for the type of section.
-  uint32_t alignment_mask;
+  size_t alignment_mask;
   switch (type) {
     case DexFile::kDexTypeClassDataItem:
       alignment_mask = sizeof(uint8_t) - 1;
@@ -1871,7 +1871,7 @@ bool DexFileVerifier::CheckInterSectionIterate(uint32_t offset, uint32_t count, 
     }
 
     previous_item_ = prev_ptr;
-    offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(begin_);
+    offset = ptr_ - begin_;
   }
 
   return true;
