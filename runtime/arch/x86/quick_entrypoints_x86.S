@@ -1177,7 +1177,7 @@ DEFINE_FUNCTION art_quick_instrumentation_entry
     addl  LITERAL(28), %esp       // Pop arguments upto saved Method*.
     movl 28(%esp), %edi           // Restore edi.
     movl %eax, 28(%esp)           // Place code* over edi, just under return pc.
-    movl LITERAL(SYMBOL(art_quick_instrumentation_exit)), 32(%esp)
+    movl LITERAL(PLT_SYMBOL(art_quick_instrumentation_exit)), 32(%esp)
                                   // Place instrumentation exit as return pc.
     movl (%esp), %eax             // Restore eax.
     movl 8(%esp), %ecx            // Restore ecx.
