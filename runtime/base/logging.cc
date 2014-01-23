@@ -177,36 +177,43 @@ void HexDump::Dump(std::ostream& os) const {
 
   static const char gHexDigit[] = "0123456789abcdef";
   const unsigned char* addr = reinterpret_cast<const unsigned char*>(address_);
-  char out[76];           /* exact fit */
-  unsigned int offset;    /* offset to show while printing */
+  // 01234560: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff  0123456789abcdef
+  char out[(kBitsPerWord / 4) + /* offset */
+           1 + /* colon */
+           (16 * 3) + /* 16 hex digits and space */
+           2 + /* white space */
+           16 + /* 16 characters*/
+           1 /* \0 */ ];
+  size_t offset;    /* offset to show while printing */
 
   if (show_actual_addresses_) {
-    offset = reinterpret_cast<int>(addr);
+    offset = reinterpret_cast<size_t>(addr);
   } else {
     offset = 0;
   }
   memset(out, ' ', sizeof(out)-1);
-  out[8] = ':';
+  out[kBitsPerWord / 4] = ':';
   out[sizeof(out)-1] = '\0';
 
   size_t byte_count = byte_count_;
-  int gap = static_cast<int>(offset & 0x0f);
+  size_t gap = offset & 0x0f;
   while (byte_count) {
-    unsigned int line_offset = offset & ~0x0f;
+    size_t line_offset = offset & ~0x0f;
 
     char* hex = out;
-    char* asc = out + 59;
+    char* asc = out + (kBitsPerWord / 4) + /* offset */ 1 + /* colon */
+        (16 * 3) + /* 16 hex digits and space */ 2 /* white space */;
 
-    for (int i = 0; i < 8; i++) {
-      *hex++ = gHexDigit[line_offset >> 28];
+    for (int i = 0; i < (kBitsPerWord / 4); i++) {
+      *hex++ = gHexDigit[line_offset >> (kBitsPerWord - 4)];
       line_offset <<= 4;
     }
     hex++;
     hex++;
 
-    int count = std::min(static_cast<int>(byte_count), 16 - gap);
-    CHECK_NE(count, 0);
-    CHECK_LE(count + gap, 16);
+    size_t count = std::min(byte_count, 16 - gap);
+    CHECK_NE(count, 0U);
+    CHECK_LE(count + gap, 16U);
 
     if (gap) {
       /* only on first line */
@@ -214,8 +221,8 @@ void HexDump::Dump(std::ostream& os) const {
       asc += gap;
     }
 
-    int i;
-    for (i = gap ; i < count+gap; i++) {
+    size_t i;
+    for (i = gap ; i < count + gap; i++) {
       *hex++ = gHexDigit[*addr >> 4];
       *hex++ = gHexDigit[*addr & 0x0f];
       hex++;
