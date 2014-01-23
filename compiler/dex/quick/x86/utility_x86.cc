@@ -141,7 +141,14 @@ LIR* X86Mir2Lir::OpRegImm(OpKind op, int r_dest_src1, int value) {
     case kOpSub: opcode = byte_imm ? kX86Sub32RI8 : kX86Sub32RI; break;
     case kOpXor: opcode = byte_imm ? kX86Xor32RI8 : kX86Xor32RI; break;
     case kOpCmp: opcode = byte_imm ? kX86Cmp32RI8 : kX86Cmp32RI; break;
-    case kOpMov: return LoadConstantNoClobber(r_dest_src1, value);
+    case kOpMov:
+      /*
+       * Moving the constant zero into register can be specialized as an xor of the register.
+       * However, that sets eflags while the move does not. For that reason here, always do
+       * the move and if caller is flexible, they should be calling LoadConstantNoClobber instead.
+       */
+      opcode = kX86Mov32RI;
+      break;
     case kOpMul:
       opcode = byte_imm ? kX86Imul32RRI8 : kX86Imul32RRI;
       return NewLIR3(opcode, r_dest_src1, r_dest_src1, value);
