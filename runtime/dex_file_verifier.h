@@ -53,7 +53,7 @@ class DexFileVerifier {
   bool CheckClassDataItemField(uint32_t idx, uint32_t access_flags, bool expect_static);
   bool CheckClassDataItemMethod(uint32_t idx, uint32_t access_flags, uint32_t code_offset,
                                 bool expect_direct);
-  bool CheckPadding(uint32_t offset, uint32_t aligned_offset);
+  bool CheckPadding(size_t offset, uint32_t aligned_offset);
   bool CheckEncodedValue();
   bool CheckEncodedArray();
   bool CheckEncodedAnnotation();
@@ -65,12 +65,12 @@ class DexFileVerifier {
   bool CheckIntraAnnotationItem();
   bool CheckIntraAnnotationsDirectoryItem();
 
-  bool CheckIntraSectionIterate(uint32_t offset, uint32_t count, uint16_t type);
-  bool CheckIntraIdSection(uint32_t offset, uint32_t count, uint16_t type);
-  bool CheckIntraDataSection(uint32_t offset, uint32_t count, uint16_t type);
+  bool CheckIntraSectionIterate(size_t offset, uint32_t count, uint16_t type);
+  bool CheckIntraIdSection(size_t offset, uint32_t count, uint16_t type);
+  bool CheckIntraDataSection(size_t offset, uint32_t count, uint16_t type);
   bool CheckIntraSection();
 
-  bool CheckOffsetToTypeMap(uint32_t offset, uint16_t type);
+  bool CheckOffsetToTypeMap(size_t offset, uint16_t type);
   uint16_t FindFirstClassDataDefiner(const byte* ptr) const;
   uint16_t FindFirstAnnotationsDirectoryDefiner(const byte* ptr) const;
 
@@ -85,7 +85,7 @@ class DexFileVerifier {
   bool CheckInterClassDataItem();
   bool CheckInterAnnotationsDirectoryItem();
 
-  bool CheckInterSectionIterate(uint32_t offset, uint32_t count, uint16_t type);
+  bool CheckInterSectionIterate(size_t offset, uint32_t count, uint16_t type);
   bool CheckInterSection();
 
   void ErrorStringPrintf(const char* fmt, ...)
