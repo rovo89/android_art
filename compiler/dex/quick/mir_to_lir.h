@@ -529,6 +529,7 @@ class Mir2Lir : public Backend {
                                  bool safepoint_pc);
     void CallRuntimeHelperImmMethod(ThreadOffset helper_offset, int arg0,
                                     bool safepoint_pc);
+    void CallRuntimeHelperRegMethod(ThreadOffset helper_offset, int arg0, bool safepoint_pc);
     void CallRuntimeHelperRegLocationRegLocation(ThreadOffset helper_offset,
                                                  RegLocation arg0, RegLocation arg1,
                                                  bool safepoint_pc);
@@ -855,6 +856,7 @@ class Mir2Lir : public Backend {
     // TODO: add accessors for these.
     LIR* literal_list_;                        // Constants.
     LIR* method_literal_list_;                 // Method literals requiring patching.
+    LIR* class_literal_list_;                  // Class literals requiring patching.
     LIR* code_literal_list_;                   // Code literals requiring patching.
     LIR* first_fixup_;                         // Doubly-linked list of LIR nodes requiring fixups.
 

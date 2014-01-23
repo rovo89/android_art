@@ -42,6 +42,8 @@ struct PACKED(4) QuickEntryPoints {
   void* (*pAllocArray)(uint32_t, void*, int32_t);
   void* (*pAllocArrayWithAccessCheck)(uint32_t, void*, int32_t);
   void* (*pAllocObject)(uint32_t, void*);
+  void* (*pAllocObjectResolved)(void*, void*);
+  void* (*pAllocObjectInitialized)(void*, void*);
   void* (*pAllocObjectWithAccessCheck)(uint32_t, void*);
   void* (*pCheckAndAllocArray)(uint32_t, void*, int32_t);
   void* (*pCheckAndAllocArrayWithAccessCheck)(uint32_t, void*, int32_t);
