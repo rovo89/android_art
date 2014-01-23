@@ -17,6 +17,9 @@
 #ifndef ART_RUNTIME_BASE_MUTEX_INL_H_
 #define ART_RUNTIME_BASE_MUTEX_INL_H_
 
+#define __STDC_FORMAT_MACROS 1
+#include <inttypes.h>
+
 #include "mutex.h"
 
 #define ATRACE_TAG ATRACE_TAG_DALVIK
@@ -96,7 +99,7 @@ class ScopedContentionRecorder {
         blocked_tid_(kLogLockContentions ? blocked_tid : 0),
         owner_tid_(kLogLockContentions ? owner_tid : 0),
         start_nano_time_(kLogLockContentions ? NanoTime() : 0) {
-    std::string msg = StringPrintf("Lock contention on %s (owner tid: %llu)",
+    std::string msg = StringPrintf("Lock contention on %s (owner tid: %" PRIu64 ")",
                                    mutex->GetName(), owner_tid);
     ATRACE_BEGIN(msg.c_str());
   }
