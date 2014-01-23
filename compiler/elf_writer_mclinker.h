@@ -68,7 +68,7 @@ class ElfWriterMclinker : public ElfWriter {
   void FixupOatMethodOffsets(const std::vector<const DexFile*>& dex_files)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   uint32_t FixupCompiledCodeOffset(ElfFile& elf_file,
-                                   llvm::ELF::Elf32_Addr oatdata_address,
+                                   ::llvm::ELF::Elf32_Addr oatdata_address,
                                    const CompiledCode& compiled_code);
 #endif
 
