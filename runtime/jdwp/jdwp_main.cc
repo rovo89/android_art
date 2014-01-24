@@ -156,11 +156,11 @@ void JdwpState::SendBufferedRequest(uint32_t type, const std::vector<iovec>& iov
   errno = 0;
   ssize_t actual = netState->WriteBufferedPacket(iov);
   if (static_cast<size_t>(actual) != expected) {
-    PLOG(ERROR) << StringPrintf("Failed to send JDWP packet %c%c%c%c to debugger (%d of %d)",
-                                static_cast<uint8_t>(type >> 24),
-                                static_cast<uint8_t>(type >> 16),
-                                static_cast<uint8_t>(type >> 8),
-                                static_cast<uint8_t>(type),
+    PLOG(ERROR) << StringPrintf("Failed to send JDWP packet %c%c%c%c to debugger (%zd of %zu)",
+                                static_cast<char>(type >> 24),
+                                static_cast<char>(type >> 16),
+                                static_cast<char>(type >> 8),
+                                static_cast<char>(type),
                                 actual, expected);
   }
 }
@@ -175,7 +175,7 @@ void JdwpState::SendRequest(ExpandBuf* pReq) {
   errno = 0;
   ssize_t actual = netState->WritePacket(pReq);
   if (static_cast<size_t>(actual) != expandBufGetLength(pReq)) {
-    PLOG(ERROR) << StringPrintf("Failed to send JDWP packet to debugger (%d of %d)",
+    PLOG(ERROR) << StringPrintf("Failed to send JDWP packet to debugger (%zd of %zu)",
                                 actual, expandBufGetLength(pReq));
   }
 }
@@ -607,7 +607,7 @@ void JdwpState::ExitAfterReplying(int exit_status) {
 std::ostream& operator<<(std::ostream& os, const JdwpLocation& rhs) {
   os << "JdwpLocation["
      << Dbg::GetClassName(rhs.class_id) << "." << Dbg::GetMethodName(rhs.method_id)
-     << "@" << StringPrintf("%#llx", rhs.dex_pc) << " " << rhs.type_tag << "]";
+     << "@" << StringPrintf("%#" PRIx64, rhs.dex_pc) << " " << rhs.type_tag << "]";
   return os;
 }
 

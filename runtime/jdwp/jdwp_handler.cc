@@ -48,7 +48,7 @@ std::string DescribeMethod(const MethodId& method_id) {
 std::string DescribeRefTypeId(const RefTypeId& ref_type_id) {
   std::string signature("unknown");
   Dbg::GetSignature(ref_type_id, &signature);
-  return StringPrintf("%#llx (%s)", ref_type_id, signature.c_str());
+  return StringPrintf("%#" PRIx64 " (%s)", ref_type_id, signature.c_str());
 }
 
 // Helper function: write a variable-width value into the output input buffer.
@@ -99,8 +99,9 @@ static JdwpError FinishInvoke(JdwpState*, Request& request, ExpandBuf* pReply,
 
   int32_t arg_count = request.ReadSigned32("argument count");
 
-  VLOG(jdwp) << StringPrintf("    --> thread_id=%#llx object_id=%#llx", thread_id, object_id);
-  VLOG(jdwp) << StringPrintf("        class_id=%#llx method_id=%x %s.%s", class_id,
+  VLOG(jdwp) << StringPrintf("    --> thread_id=%#" PRIx64 " object_id=%#" PRIx64,
+                             thread_id, object_id);
+  VLOG(jdwp) << StringPrintf("        class_id=%#" PRIx64 " method_id=%x %s.%s", class_id,
                              method_id, Dbg::GetClassName(class_id).c_str(),
                              Dbg::GetMethodName(method_id).c_str());
   VLOG(jdwp) << StringPrintf("        %d args:", arg_count);
@@ -111,7 +112,8 @@ static JdwpError FinishInvoke(JdwpState*, Request& request, ExpandBuf* pReply,
     argTypes[i] = request.ReadTag();
     size_t width = Dbg::GetTagWidth(argTypes[i]);
     argValues[i] = request.ReadValue(width);
-    VLOG(jdwp) << "          " << argTypes[i] << StringPrintf("(%zd): %#llx", width, argValues[i]);
+    VLOG(jdwp) << "          " << argTypes[i] << StringPrintf("(%zd): %#" PRIx64, width,
+                                                              argValues[i]);
   }
 
   uint32_t options = request.ReadUnsigned32("InvokeOptions bit flags");
@@ -143,7 +145,8 @@ static JdwpError FinishInvoke(JdwpState*, Request& request, ExpandBuf* pReply,
     expandBufAdd1(pReply, JT_OBJECT);
     expandBufAddObjectId(pReply, exceptObjId);
 
-    VLOG(jdwp) << "  --> returned " << resultTag << StringPrintf(" %#llx (except=%#llx)", resultValue, exceptObjId);
+    VLOG(jdwp) << "  --> returned " << resultTag
+        << StringPrintf(" %#" PRIx64 " (except=%#" PRIx64 ")", resultValue, exceptObjId);
 
     /* show detailed debug output */
     if (resultTag == JT_STRING && exceptObjId == 0) {
@@ -526,7 +529,7 @@ static JdwpError RT_ClassObject(JdwpState*, Request& request, ExpandBuf* pReply)
   if (status != ERR_NONE) {
     return status;
   }
-  VLOG(jdwp) << StringPrintf("    --> ObjectId %#llx", class_object_id);
+  VLOG(jdwp) << StringPrintf("    --> ObjectId %#" PRIx64, class_object_id);
   expandBufAddObjectId(pReply, class_object_id);
   return ERR_NONE;
 }
@@ -936,7 +939,7 @@ static JdwpError TR_Name(JdwpState*, Request& request, ExpandBuf* pReply)
   if (error != ERR_NONE) {
     return error;
   }
-  VLOG(jdwp) << StringPrintf("  Name of thread %#llx is \"%s\"", thread_id, name.c_str());
+  VLOG(jdwp) << StringPrintf("  Name of thread %#" PRIx64 " is \"%s\"", thread_id, name.c_str());
   expandBufAddUtf8String(pReply, name);
 
   return ERR_NONE;
@@ -1335,7 +1338,7 @@ static JdwpError ER_Set(JdwpState* state, Request& request, ExpandBuf* pReply)
         ObjectId thread_id = request.ReadThreadId();
         uint32_t size = request.ReadUnsigned32("step size");
         uint32_t depth = request.ReadUnsigned32("step depth");
-        VLOG(jdwp) << StringPrintf("    Step: thread=%#llx", thread_id)
+        VLOG(jdwp) << StringPrintf("    Step: thread=%#" PRIx64, thread_id)
                      << " size=" << JdwpStepSize(size) << " depth=" << JdwpStepDepth(depth);
 
         mod.step.threadId = thread_id;
@@ -1640,7 +1643,7 @@ static std::string DescribeCommand(Request& request) {
   std::string result;
   result += "REQUEST: ";
   result += GetCommandName(request);
-  result += StringPrintf(" (length=%d id=0x%06x)", request.GetLength(), request.GetId());
+  result += StringPrintf(" (length=%zu id=0x%06x)", request.GetLength(), request.GetId());
   return result;
 }
 
