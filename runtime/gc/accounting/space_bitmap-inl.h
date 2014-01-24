@@ -18,7 +18,6 @@
 #define ART_RUNTIME_GC_ACCOUNTING_SPACE_BITMAP_INL_H_
 
 #include "base/logging.h"
-#include "cutils/atomic-inline.h"
 #include "utils.h"
 
 namespace art {
@@ -40,7 +39,7 @@ inline bool SpaceBitmap::AtomicTestAndSet(const mirror::Object* obj) {
     if ((old_word & mask) != 0) {
       return true;
     }
-  } while (UNLIKELY(android_atomic_cas(old_word, old_word | mask, address) != 0));
+  } while (!__sync_bool_compare_and_swap(address, old_word, old_word | mask));
   return false;
 }
 
