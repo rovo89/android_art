@@ -435,15 +435,37 @@ LIR* X86Mir2Lir::LoadBaseIndexedDisp(int rBase, int r_index, int scale,
                      displacement + LOWORD_OFFSET);
     } else {
       if (rBase == r_dest) {
-        load2 = NewLIR5(opcode, r_dest_hi, rBase, r_index, scale,
-                        displacement + HIWORD_OFFSET);
-        load = NewLIR5(opcode, r_dest, rBase, r_index, scale,
-                       displacement + LOWORD_OFFSET);
+        if (r_dest_hi == r_index) {
+          // We can't use either register for the first load.
+          int temp = AllocTemp();
+          load2 = NewLIR5(opcode, temp, rBase, r_index, scale,
+                          displacement + HIWORD_OFFSET);
+          load = NewLIR5(opcode, r_dest, rBase, r_index, scale,
+                         displacement + LOWORD_OFFSET);
+          OpRegCopy(r_dest_hi, temp);
+          FreeTemp(temp);
+        } else {
+          load2 = NewLIR5(opcode, r_dest_hi, rBase, r_index, scale,
+                          displacement + HIWORD_OFFSET);
+          load = NewLIR5(opcode, r_dest, rBase, r_index, scale,
+                         displacement + LOWORD_OFFSET);
+        }
       } else {
-        load = NewLIR5(opcode, r_dest, rBase, r_index, scale,
-                       displacement + LOWORD_OFFSET);
-        load2 = NewLIR5(opcode, r_dest_hi, rBase, r_index, scale,
-                        displacement + HIWORD_OFFSET);
+        if (r_dest == r_index) {
+          // We can't use either register for the first load.
+          int temp = AllocTemp();
+          load = NewLIR5(opcode, temp, rBase, r_index, scale,
+                         displacement + LOWORD_OFFSET);
+          load2 = NewLIR5(opcode, r_dest_hi, rBase, r_index, scale,
+                          displacement + HIWORD_OFFSET);
+          OpRegCopy(r_dest, temp);
+          FreeTemp(temp);
+        } else {
+          load = NewLIR5(opcode, r_dest, rBase, r_index, scale,
+                         displacement + LOWORD_OFFSET);
+          load2 = NewLIR5(opcode, r_dest_hi, rBase, r_index, scale,
+                          displacement + HIWORD_OFFSET);
+        }
       }
     }
   }
