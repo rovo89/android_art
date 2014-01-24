@@ -17,7 +17,6 @@
 #ifndef ART_RUNTIME_BASE_MUTEX_INL_H_
 #define ART_RUNTIME_BASE_MUTEX_INL_H_
 
-#define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
 #include "mutex.h"
