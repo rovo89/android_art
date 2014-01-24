@@ -1382,6 +1382,9 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
       }
       rl_result = GenDivRem(rl_dest, rl_src1.low_reg, rl_src2.low_reg, op == kOpDiv);
       done = true;
+    } else if (cu_->instruction_set == kX86) {
+      rl_result = GenDivRem(rl_dest, rl_src1, rl_src2, op == kOpDiv, check_zero);
+      done = true;
     } else if (cu_->instruction_set == kThumb2) {
       if (cu_->GetInstructionSetFeatures().HasDivideInstruction()) {
         // Use ARM SDIV instruction for division.  For remainder we also need to
@@ -1649,6 +1652,9 @@ void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, Re
       if (cu_->instruction_set == kMips) {
         rl_src = LoadValue(rl_src, kCoreReg);
         rl_result = GenDivRemLit(rl_dest, rl_src.low_reg, lit, is_div);
+        done = true;
+      } else if (cu_->instruction_set == kX86) {
+        rl_result = GenDivRemLit(rl_dest, rl_src, lit, is_div);
         done = true;
       } else if (cu_->instruction_set == kThumb2) {
         if (cu_->GetInstructionSetFeatures().HasDivideInstruction()) {

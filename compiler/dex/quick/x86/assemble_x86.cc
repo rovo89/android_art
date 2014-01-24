@@ -242,12 +242,13 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   UNARY_ENCODING_MAP(Not, 0x2, IS_STORE, 0,           R, kReg, IS_UNARY_OP | REG_DEF0_USE0, M, kMem, IS_BINARY_OP | REG_USE0, A, kArray, IS_QUAD_OP | REG_USE01, 0, 0, 0, 0, "", "", ""),
   UNARY_ENCODING_MAP(Neg, 0x3, IS_STORE, SETS_CCODES, R, kReg, IS_UNARY_OP | REG_DEF0_USE0, M, kMem, IS_BINARY_OP | REG_USE0, A, kArray, IS_QUAD_OP | REG_USE01, 0, 0, 0, 0, "", "", ""),
 
-  UNARY_ENCODING_MAP(Mul,     0x4, 0, SETS_CCODES, DaR, kRegRegReg, IS_UNARY_OP | REG_USE0, DaM, kRegRegMem, IS_BINARY_OP | REG_USE0, DaA, kRegRegArray, IS_QUAD_OP | REG_USE01, 0, REG_DEFA_USEA, REG_DEFAD_USEA,  REG_DEFAD_USEA,  "ax,al,", "dx:ax,ax,", "edx:eax,eax,"),
-  UNARY_ENCODING_MAP(Imul,    0x5, 0, SETS_CCODES, DaR, kRegRegReg, IS_UNARY_OP | REG_USE0, DaM, kRegRegMem, IS_BINARY_OP | REG_USE0, DaA, kRegRegArray, IS_QUAD_OP | REG_USE01, 0, REG_DEFA_USEA, REG_DEFAD_USEA,  REG_DEFAD_USEA,  "ax,al,", "dx:ax,ax,", "edx:eax,eax,"),
-  UNARY_ENCODING_MAP(Divmod,  0x6, 0, SETS_CCODES, DaR, kRegRegReg, IS_UNARY_OP | REG_USE0, DaM, kRegRegMem, IS_BINARY_OP | REG_USE0, DaA, kRegRegArray, IS_QUAD_OP | REG_USE01, 0, REG_DEFA_USEA, REG_DEFAD_USEAD, REG_DEFAD_USEAD, "ah:al,ax,", "dx:ax,dx:ax,", "edx:eax,edx:eax,"),
-  UNARY_ENCODING_MAP(Idivmod, 0x7, 0, SETS_CCODES, DaR, kRegRegReg, IS_UNARY_OP | REG_USE0, DaM, kRegRegMem, IS_BINARY_OP | REG_USE0, DaA, kRegRegArray, IS_QUAD_OP | REG_USE01, 0, REG_DEFA_USEA, REG_DEFAD_USEAD, REG_DEFAD_USEAD, "ah:al,ax,", "dx:ax,dx:ax,", "edx:eax,edx:eax,"),
+  UNARY_ENCODING_MAP(Mul,     0x4, 0, SETS_CCODES, DaR, kReg, IS_UNARY_OP | REG_USE0, DaM, kMem, IS_BINARY_OP | REG_USE0, DaA, kArray, IS_QUAD_OP | REG_USE01, 0, REG_DEFA_USEA, REG_DEFAD_USEA,  REG_DEFAD_USEA,  "ax,al,", "dx:ax,ax,", "edx:eax,eax,"),
+  UNARY_ENCODING_MAP(Imul,    0x5, 0, SETS_CCODES, DaR, kReg, IS_UNARY_OP | REG_USE0, DaM, kMem, IS_BINARY_OP | REG_USE0, DaA, kArray, IS_QUAD_OP | REG_USE01, 0, REG_DEFA_USEA, REG_DEFAD_USEA,  REG_DEFAD_USEA,  "ax,al,", "dx:ax,ax,", "edx:eax,eax,"),
+  UNARY_ENCODING_MAP(Divmod,  0x6, 0, SETS_CCODES, DaR, kReg, IS_UNARY_OP | REG_USE0, DaM, kMem, IS_BINARY_OP | REG_USE0, DaA, kArray, IS_QUAD_OP | REG_USE01, 0, REG_DEFA_USEA, REG_DEFAD_USEAD, REG_DEFAD_USEAD, "ah:al,ax,", "dx:ax,dx:ax,", "edx:eax,edx:eax,"),
+  UNARY_ENCODING_MAP(Idivmod, 0x7, 0, SETS_CCODES, DaR, kReg, IS_UNARY_OP | REG_USE0, DaM, kMem, IS_BINARY_OP | REG_USE0, DaA, kArray, IS_QUAD_OP | REG_USE01, 0, REG_DEFA_USEA, REG_DEFAD_USEAD, REG_DEFAD_USEAD, "ah:al,ax,", "dx:ax,dx:ax,", "edx:eax,edx:eax,"),
 #undef UNARY_ENCODING_MAP
 
+  { kx86Cdq32Da, kRegOpcode, NO_OPERAND | REG_DEFAD_USEA,                                  { 0, 0, 0x99, 0, 0, 0, 0, 0 }, "Cdq", "" },
   { kX86Bswap32R, kRegOpcode, IS_UNARY_OP | REG_DEF0_USE0,                                 { 0, 0, 0x0F, 0xC8, 0, 0, 0, 0 }, "Bswap32R", "!0r" },
   { kX86Push32R,  kRegOpcode, IS_UNARY_OP | REG_USE0 | REG_USE_SP | REG_DEF_SP | IS_STORE, { 0, 0, 0x50, 0,    0, 0, 0, 0 }, "Push32R",  "!0r" },
   { kX86Pop32R,   kRegOpcode, IS_UNARY_OP | REG_DEF0 | REG_USE_SP | REG_DEF_SP | IS_LOAD,  { 0, 0, 0x58, 0,    0, 0, 0, 0 }, "Pop32R",   "!0r" },
