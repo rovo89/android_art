@@ -253,7 +253,7 @@ struct MIR {
   union {
     // Incoming edges for phi node.
     BasicBlockId* phi_incoming;
-    // Establish link between two halves of throwing instructions.
+    // Establish link from check instruction (kMirOpCheck) to the actual throwing instruction.
     MIR* throw_insn;
     // Fused cmp branch condition.
     ConditionCode ccode;

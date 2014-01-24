@@ -380,9 +380,6 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
           }
           mir->optimization_flags |= MIR_IGNORE_RANGE_CHECK;
         }
-        if (mir->meta.throw_insn != NULL) {
-          mir->meta.throw_insn->optimization_flags |= mir->optimization_flags;
-        }
         // Use side effect to note range check completed.
         (void)LookupValue(ARRAY_REF, array, index, NO_VALUE);
         // Establish value number for loaded register. Note use of memory version.
@@ -421,9 +418,6 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
           }
           mir->optimization_flags |= MIR_IGNORE_RANGE_CHECK;
         }
-        if (mir->meta.throw_insn != NULL) {
-          mir->meta.throw_insn->optimization_flags |= mir->optimization_flags;
-        }
         // Use side effect to note range check completed.
         (void)LookupValue(ARRAY_REF, array, index, NO_VALUE);
         // Rev the memory version
@@ -446,9 +440,6 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
           mir->optimization_flags |= MIR_IGNORE_NULL_CHECK;
         } else {
           null_checked_.insert(base);
-        }
-        if (mir->meta.throw_insn != NULL) {
-          mir->meta.throw_insn->optimization_flags |= mir->optimization_flags;
         }
         uint16_t field_ref = mir->dalvikInsn.vC;
         uint16_t memory_version = GetMemoryVersion(base, field_ref);
@@ -478,9 +469,6 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
           mir->optimization_flags |= MIR_IGNORE_NULL_CHECK;
         } else {
           null_checked_.insert(base);
-        }
-        if (mir->meta.throw_insn != NULL) {
-          mir->meta.throw_insn->optimization_flags |= mir->optimization_flags;
         }
         uint16_t field_ref = mir->dalvikInsn.vC;
         AdvanceMemoryVersion(base, field_ref);
