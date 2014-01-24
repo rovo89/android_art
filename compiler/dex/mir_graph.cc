@@ -979,7 +979,7 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
         str.append(StringPrintf(", #%d", insn.vB));
         break;
       case Instruction::k51l:  // Add one wide immediate
-        str.append(StringPrintf(", #%lld", insn.vB_wide));
+        str.append(StringPrintf(", #%" PRId64, insn.vB_wide));
         break;
       case Instruction::k21c:  // One register, one string/type/method index
       case Instruction::k31c:
@@ -1032,7 +1032,7 @@ std::string MIRGraph::GetSSANameWithConst(int ssa_reg, bool singles_only) {
   }
   if (IsConst(reg_location_[ssa_reg])) {
     if (!singles_only && reg_location_[ssa_reg].wide) {
-      return StringPrintf("v%d_%d#0x%llx", SRegToVReg(ssa_reg), GetSSASubscript(ssa_reg),
+      return StringPrintf("v%d_%d#0x%" PRIx64, SRegToVReg(ssa_reg), GetSSASubscript(ssa_reg),
                           ConstantValueWide(reg_location_[ssa_reg]));
     } else {
       return StringPrintf("v%d_%d#0x%x", SRegToVReg(ssa_reg), GetSSASubscript(ssa_reg),
