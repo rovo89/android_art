@@ -255,6 +255,8 @@ struct MIR {
     BasicBlockId* phi_incoming;
     // Establish link between two halves of throwing instructions.
     MIR* throw_insn;
+    // Fused cmp branch condition.
+    ConditionCode ccode;
   } meta;
 };
 

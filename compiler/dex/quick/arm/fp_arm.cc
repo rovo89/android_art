@@ -209,7 +209,7 @@ void ArmMir2Lir::GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias,
     NewLIR2(kThumb2Vcmps, rl_src1.low_reg, rl_src2.low_reg);
   }
   NewLIR0(kThumb2Fmstat);
-  ConditionCode ccode = static_cast<ConditionCode>(mir->dalvikInsn.arg[0]);
+  ConditionCode ccode = mir->meta.ccode;
   switch (ccode) {
     case kCondEq:
     case kCondNe:
