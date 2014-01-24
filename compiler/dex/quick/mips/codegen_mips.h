@@ -94,9 +94,9 @@ class MipsMir2Lir : public Mir2Lir {
                      RegLocation rl_index, RegLocation rl_src, int scale, bool card_mark);
     void GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
                                    RegLocation rl_src1, RegLocation rl_shift);
-    void GenMulLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
-    void GenAddLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
-    void GenAndLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
+    void GenMulLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
+    void GenAddLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
+    void GenAndLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
     void GenArithOpDouble(Instruction::Code opcode, RegLocation rl_dest,
                                   RegLocation rl_src1, RegLocation rl_src2);
     void GenArithOpFloat(Instruction::Code opcode, RegLocation rl_dest,
@@ -110,9 +110,9 @@ class MipsMir2Lir : public Mir2Lir {
     bool GenInlinedPeek(CallInfo* info, OpSize size);
     bool GenInlinedPoke(CallInfo* info, OpSize size);
     void GenNegLong(RegLocation rl_dest, RegLocation rl_src);
-    void GenOrLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
-    void GenSubLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
-    void GenXorLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
+    void GenOrLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
+    void GenSubLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
+    void GenXorLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
     LIR* GenRegMemCheck(ConditionCode c_code, int reg1, int base, int offset,
                                 ThrowKind kind);
     RegLocation GenDivRem(RegLocation rl_dest, int reg_lo, int reg_hi, bool is_div);
