@@ -288,6 +288,7 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   EXT_0F_ENCODING_MAP(Subss,     0xF3, 0x5C, REG_DEF0),
   EXT_0F_ENCODING_MAP(Divsd,     0xF2, 0x5E, REG_DEF0),
   EXT_0F_ENCODING_MAP(Divss,     0xF3, 0x5E, REG_DEF0),
+  EXT_0F_ENCODING_MAP(Punpckldq, 0x66, 0x62, REG_DEF0),
 
   { kX86PsrlqRI, kRegImm, IS_BINARY_OP | REG_DEF0_USE0, { 0x66, 0, 0x0F, 0x73, 0, 2, 0, 1 }, "PsrlqRI", "!0r,!1d" },
   { kX86PsllqRI, kRegImm, IS_BINARY_OP | REG_DEF0_USE0, { 0x66, 0, 0x0F, 0x73, 0, 6, 0, 1 }, "PsllqRI", "!0r,!1d" },
