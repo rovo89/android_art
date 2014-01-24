@@ -316,6 +316,7 @@ enum X86OpCode {
   UnaryOpcode(kX86Imul, DaR, DaM, DaA),
   UnaryOpcode(kX86Divmod,  DaR, DaM, DaA),
   UnaryOpcode(kX86Idivmod, DaR, DaM, DaA),
+  kx86Cdq32Da,
   kX86Bswap32R,
   kX86Push32R, kX86Pop32R,
 #undef UnaryOpcode

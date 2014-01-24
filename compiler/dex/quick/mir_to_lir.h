@@ -758,6 +758,25 @@ class Mir2Lir : public Backend {
                                   bool is_div) = 0;
     virtual RegLocation GenDivRemLit(RegLocation rl_dest, int reg_lo, int lit,
                                      bool is_div) = 0;
+    /*
+     * @brief Generate an integer div or rem operation by a literal.
+     * @param rl_dest Destination Location.
+     * @param rl_src1 Numerator Location.
+     * @param rl_src2 Divisor Location.
+     * @param is_div 'true' if this is a division, 'false' for a remainder.
+     * @param check_zero 'true' if an exception should be generated if the divisor is 0.
+     */
+    virtual RegLocation GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
+                                  RegLocation rl_src2, bool is_div, bool check_zero) = 0;
+    /*
+     * @brief Generate an integer div or rem operation by a literal.
+     * @param rl_dest Destination Location.
+     * @param rl_src Numerator Location.
+     * @param lit Divisor.
+     * @param is_div 'true' if this is a division, 'false' for a remainder.
+     */
+    virtual RegLocation GenDivRemLit(RegLocation rl_dest, RegLocation rl_src1,
+                                     int lit, bool is_div) = 0;
     virtual void GenCmpLong(RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2) = 0;
 

@@ -284,16 +284,259 @@ void X86Mir2Lir::GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1,
   OpCmpImmBranch(ccode, low_reg, val_lo, taken);
 }
 
+void X86Mir2Lir::CalculateMagicAndShift(int divisor, int& magic, int& shift) {
+  // It does not make sense to calculate magic and shift for zero divisor.
+  DCHECK_NE(divisor, 0);
+
+  /* According to H.S.Warren's Hacker's Delight Chapter 10 and
+   * T,Grablund, P.L.Montogomery's Division by invariant integers using multiplication.
+   * The magic number M and shift S can be calculated in the following way:
+   * Let nc be the most positive value of numerator(n) such that nc = kd - 1,
+   * where divisor(d) >=2.
+   * Let nc be the most negative value of numerator(n) such that nc = kd + 1,
+   * where divisor(d) <= -2.
+   * Thus nc can be calculated like:
+   * nc = 2^31 + 2^31 % d - 1, where d >= 2
+   * nc = -2^31 + (2^31 + 1) % d, where d >= 2.
+   *
+   * So the shift p is the smallest p satisfying
+   * 2^p > nc * (d - 2^p % d), where d >= 2
+   * 2^p > nc * (d + 2^p % d), where d <= -2.
+   *
+   * the magic number M is calcuated by
+   * M = (2^p + d - 2^p % d) / d, where d >= 2
+   * M = (2^p - d - 2^p % d) / d, where d <= -2.
+   *
+   * Notice that p is always bigger than or equal to 32, so we just return 32-p as
+   * the shift number S.
+   */
+
+  int32_t p = 31;
+  const uint32_t two31 = 0x80000000U;
+
+  // Initialize the computations.
+  uint32_t abs_d = (divisor >= 0) ? divisor : -divisor;
+  uint32_t tmp = two31 + (static_cast<uint32_t>(divisor) >> 31);
+  uint32_t abs_nc = tmp - 1 - tmp % abs_d;
+  uint32_t quotient1 = two31 / abs_nc;
+  uint32_t remainder1 = two31 % abs_nc;
+  uint32_t quotient2 = two31 / abs_d;
+  uint32_t remainder2 = two31 % abs_d;
+
+  /*
+   * To avoid handling both positive and negative divisor, Hacker's Delight
+   * introduces a method to handle these 2 cases together to avoid duplication.
+   */
+  uint32_t delta;
+  do {
+    p++;
+    quotient1 = 2 * quotient1;
+    remainder1 = 2 * remainder1;
+    if (remainder1 >= abs_nc) {
+      quotient1++;
+      remainder1 = remainder1 - abs_nc;
+    }
+    quotient2 = 2 * quotient2;
+    remainder2 = 2 * remainder2;
+    if (remainder2 >= abs_d) {
+      quotient2++;
+      remainder2 = remainder2 - abs_d;
+    }
+    delta = abs_d - remainder2;
+  } while (quotient1 < delta || (quotient1 == delta && remainder1 == 0));
+
+  magic = (divisor > 0) ? (quotient2 + 1) : (-quotient2 - 1);
+  shift = p - 32;
+}
+
 RegLocation X86Mir2Lir::GenDivRemLit(RegLocation rl_dest, int reg_lo,
                                      int lit, bool is_div) {
   LOG(FATAL) << "Unexpected use of GenDivRemLit for x86";
   return rl_dest;
 }
 
+RegLocation X86Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src,
+                                     int imm, bool is_div) {
+  // Use a multiply (and fixup) to perform an int div/rem by a constant.
+
+  // We have to use fixed registers, so flush all the temps.
+  FlushAllRegs();
+  LockCallTemps();  // Prepare for explicit register usage.
+
+  // Assume that the result will be in EDX.
+  RegLocation rl_result = {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed,
+                          r2, INVALID_REG, INVALID_SREG, INVALID_SREG};
+
+  // handle 0x80000000 / -1 special case.
+  LIR *minint_branch = 0;
+  if (imm == -1) {
+    if (is_div) {
+      LoadValueDirectFixed(rl_src, r0);
+      OpRegImm(kOpCmp, r0, 0x80000000);
+      minint_branch = NewLIR2(kX86Jcc8, 0, kX86CondEq);
+
+      // for x != MIN_INT, x / -1 == -x.
+      NewLIR1(kX86Neg32R, r0);
+
+      LIR* branch_around = NewLIR1(kX86Jmp8, 0);
+      // The target for cmp/jmp above.
+      minint_branch->target = NewLIR0(kPseudoTargetLabel);
+      // EAX already contains the right value (0x80000000),
+      branch_around->target = NewLIR0(kPseudoTargetLabel);
+    } else {
+      // x % -1 == 0.
+      LoadConstantNoClobber(r0, 0);
+    }
+    // For this case, return the result in EAX.
+    rl_result.low_reg = r0;
+  } else {
+    DCHECK(imm <= -2 || imm >= 2);
+    // Use H.S.Warren's Hacker's Delight Chapter 10 and
+    // T,Grablund, P.L.Montogomery's Division by invariant integers using multiplication.
+    int magic, shift;
+    CalculateMagicAndShift(imm, magic, shift);
+
+    /*
+     * For imm >= 2,
+     *     int(n/imm) = floor(n/imm) = floor(M*n/2^S), while n > 0
+     *     int(n/imm) = ceil(n/imm) = floor(M*n/2^S) +1, while n < 0.
+     * For imm <= -2,
+     *     int(n/imm) = ceil(n/imm) = floor(M*n/2^S) +1 , while n > 0
+     *     int(n/imm) = floor(n/imm) = floor(M*n/2^S), while n < 0.
+     * We implement this algorithm in the following way:
+     * 1. multiply magic number m and numerator n, get the higher 32bit result in EDX
+     * 2. if imm > 0 and magic < 0, add numerator to EDX
+     *    if imm < 0 and magic > 0, sub numerator from EDX
+     * 3. if S !=0, SAR S bits for EDX
+     * 4. add 1 to EDX if EDX < 0
+     * 5. Thus, EDX is the quotient
+     */
+
+    // Numerator into EAX.
+    int numerator_reg = -1;
+    if (!is_div || (imm > 0 && magic < 0) || (imm < 0 && magic > 0)) {
+      // We will need the value later.
+      if (rl_src.location == kLocPhysReg) {
+        // We can use it directly.
+        DCHECK(rl_src.low_reg != r0 && rl_src.low_reg != r2);
+        numerator_reg = rl_src.low_reg;
+      } else {
+        LoadValueDirectFixed(rl_src, r1);
+        numerator_reg = r1;
+      }
+      OpRegCopy(r0, numerator_reg);
+    } else {
+      // Only need this once.  Just put it into EAX.
+      LoadValueDirectFixed(rl_src, r0);
+    }
+
+    // EDX = magic.
+    LoadConstantNoClobber(r2, magic);
+
+    // EDX:EAX = magic & dividend.
+    NewLIR1(kX86Imul32DaR, r2);
+
+    if (imm > 0 && magic < 0) {
+      // Add numerator to EDX.
+      DCHECK_NE(numerator_reg, -1);
+      NewLIR2(kX86Add32RR, r2, numerator_reg);
+    } else if (imm < 0 && magic > 0) {
+      DCHECK_NE(numerator_reg, -1);
+      NewLIR2(kX86Sub32RR, r2, numerator_reg);
+    }
+
+    // Do we need the shift?
+    if (shift != 0) {
+      // Shift EDX by 'shift' bits.
+      NewLIR2(kX86Sar32RI, r2, shift);
+    }
+
+    // Add 1 to EDX if EDX < 0.
+
+    // Move EDX to EAX.
+    OpRegCopy(r0, r2);
+
+    // Move sign bit to bit 0, zeroing the rest.
+    NewLIR2(kX86Shr32RI, r2, 31);
+
+    // EDX = EDX + EAX.
+    NewLIR2(kX86Add32RR, r2, r0);
+
+    // Quotient is in EDX.
+    if (!is_div) {
+      // We need to compute the remainder.
+      // Remainder is divisor - (quotient * imm).
+      DCHECK_NE(numerator_reg, -1);
+      OpRegCopy(r0, numerator_reg);
+
+      // EAX = numerator * imm.
+      OpRegRegImm(kOpMul, r2, r2, imm);
+
+      // EDX -= EAX.
+      NewLIR2(kX86Sub32RR, r0, r2);
+
+      // For this case, return the result in EAX.
+      rl_result.low_reg = r0;
+    }
+  }
+
+  return rl_result;
+}
+
 RegLocation X86Mir2Lir::GenDivRem(RegLocation rl_dest, int reg_lo,
                                   int reg_hi, bool is_div) {
   LOG(FATAL) << "Unexpected use of GenDivRem for x86";
   return rl_dest;
+}
+
+RegLocation X86Mir2Lir::GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
+                                  RegLocation rl_src2, bool is_div, bool check_zero) {
+  // We have to use fixed registers, so flush all the temps.
+  FlushAllRegs();
+  LockCallTemps();  // Prepare for explicit register usage.
+
+  // Load LHS into EAX.
+  LoadValueDirectFixed(rl_src1, r0);
+
+  // Load RHS into EBX.
+  LoadValueDirectFixed(rl_src2, r1);
+
+  // Copy LHS sign bit into EDX.
+  NewLIR0(kx86Cdq32Da);
+
+  if (check_zero) {
+    // Handle division by zero case.
+    GenImmedCheck(kCondEq, r1, 0, kThrowDivZero);
+  }
+
+  // Have to catch 0x80000000/-1 case, or we will get an exception!
+  OpRegImm(kOpCmp, r1, -1);
+  LIR *minus_one_branch = NewLIR2(kX86Jcc8, 0, kX86CondNe);
+
+  // RHS is -1.
+  OpRegImm(kOpCmp, r0, 0x80000000);
+  LIR * minint_branch = NewLIR2(kX86Jcc8, 0, kX86CondNe);
+
+  // In 0x80000000/-1 case.
+  if (!is_div) {
+    // For DIV, EAX is already right. For REM, we need EDX 0.
+    LoadConstantNoClobber(r2, 0);
+  }
+  LIR* done = NewLIR1(kX86Jmp8, 0);
+
+  // Expected case.
+  minus_one_branch->target = NewLIR0(kPseudoTargetLabel);
+  minint_branch->target = minus_one_branch->target;
+  NewLIR1(kX86Idivmod32DaR, r1);
+  done->target = NewLIR0(kPseudoTargetLabel);
+
+  // Result is in EAX for div and EDX for rem.
+  RegLocation rl_result = {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed,
+                          r0, INVALID_REG, INVALID_SREG, INVALID_SREG};
+  if (!is_div) {
+    rl_result.low_reg = r2;
+  }
+  return rl_result;
 }
 
 bool X86Mir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min) {

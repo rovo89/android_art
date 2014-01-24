@@ -444,6 +444,17 @@ LIR* ArmMir2Lir::GenRegMemCheck(ConditionCode c_code,
   return NULL;
 }
 
+RegLocation ArmMir2Lir::GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
+                      RegLocation rl_src2, bool is_div, bool check_zero) {
+  LOG(FATAL) << "Unexpected use of GenDivRem for Arm";
+  return rl_dest;
+}
+
+RegLocation ArmMir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src1, int lit, bool is_div) {
+  LOG(FATAL) << "Unexpected use of GenDivRemLit for Arm";
+  return rl_dest;
+}
+
 RegLocation ArmMir2Lir::GenDivRemLit(RegLocation rl_dest, int reg1, int lit,
                                      bool is_div) {
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
