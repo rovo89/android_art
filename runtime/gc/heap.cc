@@ -72,6 +72,7 @@ static constexpr bool kGCALotMode = false;
 static constexpr size_t kGcAlotInterval = KB;
 // Minimum amount of remaining bytes before a concurrent GC is triggered.
 static constexpr size_t kMinConcurrentRemainingBytes = 128 * KB;
+static constexpr size_t kMaxConcurrentRemainingBytes = 512 * KB;
 
 Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max_free,
            double target_utilization, size_t capacity, const std::string& image_file_name,
@@ -2167,7 +2168,7 @@ void Heap::GrowForUtilization(collector::GcType gc_type, uint64_t gc_duration) {
     if (bytes_allocated + min_free_ <= max_allowed_footprint_) {
       next_gc_type_ = collector::kGcTypeSticky;
     } else {
-      next_gc_type_ = collector::kGcTypePartial;
+      next_gc_type_ = have_zygote_space_ ? collector::kGcTypePartial : collector::kGcTypeFull;
     }
     // If we have freed enough memory, shrink the heap back down.
     if (bytes_allocated + max_free_ < max_allowed_footprint_) {
@@ -2181,24 +2182,23 @@ void Heap::GrowForUtilization(collector::GcType gc_type, uint64_t gc_duration) {
     if (concurrent_gc_) {
       // Calculate when to perform the next ConcurrentGC.
       // Calculate the estimated GC duration.
-      double gc_duration_seconds = NsToMs(gc_duration) / 1000.0;
+      const double gc_duration_seconds = NsToMs(gc_duration) / 1000.0;
       // Estimate how many remaining bytes we will have when we need to start the next GC.
       size_t remaining_bytes = allocation_rate_ * gc_duration_seconds;
+      remaining_bytes = std::min(remaining_bytes, kMaxConcurrentRemainingBytes);
       remaining_bytes = std::max(remaining_bytes, kMinConcurrentRemainingBytes);
       if (UNLIKELY(remaining_bytes > max_allowed_footprint_)) {
         // A never going to happen situation that from the estimated allocation rate we will exceed
         // the applications entire footprint with the given estimated allocation rate. Schedule
-        // another GC straight away.
-        concurrent_start_bytes_ = bytes_allocated;
-      } else {
-        // Start a concurrent GC when we get close to the estimated remaining bytes. When the
-        // allocation rate is very high, remaining_bytes could tell us that we should start a GC
-        // right away.
-        concurrent_start_bytes_ = std::max(max_allowed_footprint_ - remaining_bytes,
-                                           bytes_allocated);
+        // another GC nearly straight away.
+        remaining_bytes = kMinConcurrentRemainingBytes;
       }
-      DCHECK_LE(concurrent_start_bytes_, max_allowed_footprint_);
+      DCHECK_LE(remaining_bytes, max_allowed_footprint_);
       DCHECK_LE(max_allowed_footprint_, growth_limit_);
+      // Start a concurrent GC when we get close to the estimated remaining bytes. When the
+      // allocation rate is very high, remaining_bytes could tell us that we should start a GC
+      // right away.
+      concurrent_start_bytes_ = std::max(max_allowed_footprint_ - remaining_bytes, bytes_allocated);
     }
   }
 }
