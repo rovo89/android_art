@@ -594,7 +594,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       for (const std::string& gc_option : gc_options) {
         gc::CollectorType collector_type = ParseCollectorType(gc_option);
         if (collector_type != gc::kCollectorTypeNone) {
-          parsed->collector_type_ = gc::kCollectorTypeGSS;
+          parsed->collector_type_ = collector_type;
         } else if (gc_option == "preverify") {
           parsed->verify_pre_gc_heap_ = true;
         }  else if (gc_option == "nopreverify") {

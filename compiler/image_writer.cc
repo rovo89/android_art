@@ -734,7 +734,7 @@ void ImageWriter::FixupFields(const Object* orig,
   }
 }
 
-static ArtMethod* GetTargetMethod(const CompilerDriver::PatchInformation* patch)
+static ArtMethod* GetTargetMethod(const CompilerDriver::CallPatchInformation* patch)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Thread* self = Thread::Current();
@@ -757,15 +757,34 @@ static ArtMethod* GetTargetMethod(const CompilerDriver::PatchInformation* patch)
   return method;
 }
 
+static Class* GetTargetType(const CompilerDriver::TypePatchInformation* patch)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Thread* self = Thread::Current();
+  SirtRef<mirror::DexCache> dex_cache(self, class_linker->FindDexCache(patch->GetDexFile()));
+  SirtRef<mirror::ClassLoader> class_loader(self, nullptr);
+  Class* klass = class_linker->ResolveType(patch->GetDexFile(),
+                                           patch->GetTargetTypeIdx(),
+                                           dex_cache,
+                                           class_loader);
+  CHECK(klass != NULL)
+    << patch->GetDexFile().GetLocation() << " " << patch->GetTargetTypeIdx();
+  CHECK(dex_cache->GetResolvedTypes()->Get(patch->GetTargetTypeIdx()) == klass)
+    << patch->GetDexFile().GetLocation() << " " << patch->GetReferrerMethodIdx() << " "
+    << PrettyClass(dex_cache->GetResolvedTypes()->Get(patch->GetTargetTypeIdx())) << " "
+    << PrettyClass(klass);
+  return klass;
+}
+
 void ImageWriter::PatchOatCodeAndMethods() {
   Thread* self = Thread::Current();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const char* old_cause = self->StartAssertNoThreadSuspension("ImageWriter");
 
-  typedef std::vector<const CompilerDriver::PatchInformation*> Patches;
-  const Patches& code_to_patch = compiler_driver_.GetCodeToPatch();
+  typedef std::vector<const CompilerDriver::CallPatchInformation*> CallPatches;
+  const CallPatches& code_to_patch = compiler_driver_.GetCodeToPatch();
   for (size_t i = 0; i < code_to_patch.size(); i++) {
-    const CompilerDriver::PatchInformation* patch = code_to_patch[i];
+    const CompilerDriver::CallPatchInformation* patch = code_to_patch[i];
     ArtMethod* target = GetTargetMethod(patch);
     uint32_t code = reinterpret_cast<uint32_t>(class_linker->GetOatCodeFor(target));
     uint32_t code_base = reinterpret_cast<uint32_t>(&oat_file_->GetOatHeader());
@@ -773,10 +792,18 @@ void ImageWriter::PatchOatCodeAndMethods() {
     SetPatchLocation(patch, reinterpret_cast<uint32_t>(GetOatAddress(code_offset)));
   }
 
-  const Patches& methods_to_patch = compiler_driver_.GetMethodsToPatch();
+  const CallPatches& methods_to_patch = compiler_driver_.GetMethodsToPatch();
   for (size_t i = 0; i < methods_to_patch.size(); i++) {
-    const CompilerDriver::PatchInformation* patch = methods_to_patch[i];
+    const CompilerDriver::CallPatchInformation* patch = methods_to_patch[i];
     ArtMethod* target = GetTargetMethod(patch);
+    SetPatchLocation(patch, reinterpret_cast<uint32_t>(GetImageAddress(target)));
+  }
+
+  const std::vector<const CompilerDriver::TypePatchInformation*>& classes_to_patch =
+      compiler_driver_.GetClassesToPatch();
+  for (size_t i = 0; i < classes_to_patch.size(); i++) {
+    const CompilerDriver::TypePatchInformation* patch = classes_to_patch[i];
+    Class* target = GetTargetType(patch);
     SetPatchLocation(patch, reinterpret_cast<uint32_t>(GetImageAddress(target)));
   }
 
@@ -796,13 +823,26 @@ void ImageWriter::SetPatchLocation(const CompilerDriver::PatchInformation* patch
   uint8_t* base = reinterpret_cast<uint8_t*>(reinterpret_cast<uint32_t>(oat_code) & ~0x1);
   uint32_t* patch_location = reinterpret_cast<uint32_t*>(base + patch->GetLiteralOffset());
   if (kIsDebugBuild) {
-    const DexFile::MethodId& id = patch->GetDexFile().GetMethodId(patch->GetTargetMethodIdx());
-    uint32_t expected = reinterpret_cast<uint32_t>(&id);
-    uint32_t actual = *patch_location;
-    CHECK(actual == expected || actual == value) << std::hex
-      << "actual=" << actual
-      << "expected=" << expected
-      << "value=" << value;
+    if (patch->IsCall()) {
+      const CompilerDriver::CallPatchInformation* cpatch = patch->AsCall();
+      const DexFile::MethodId& id = cpatch->GetDexFile().GetMethodId(cpatch->GetTargetMethodIdx());
+      uint32_t expected = reinterpret_cast<uint32_t>(&id);
+      uint32_t actual = *patch_location;
+      CHECK(actual == expected || actual == value) << std::hex
+          << "actual=" << actual
+          << "expected=" << expected
+          << "value=" << value;
+    }
+    if (patch->IsType()) {
+      const CompilerDriver::TypePatchInformation* tpatch = patch->AsType();
+      const DexFile::TypeId& id = tpatch->GetDexFile().GetTypeId(tpatch->GetTargetTypeIdx());
+      uint32_t expected = reinterpret_cast<uint32_t>(&id);
+      uint32_t actual = *patch_location;
+      CHECK(actual == expected || actual == value) << std::hex
+          << "actual=" << actual
+          << "expected=" << expected
+          << "value=" << value;
+    }
   }
   *patch_location = value;
   oat_header.UpdateChecksum(patch_location, sizeof(value));
