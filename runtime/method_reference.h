@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_METHOD_REFERENCE_H_
 #define ART_RUNTIME_METHOD_REFERENCE_H_
 
+#include <stdint.h>
+
 namespace art {
 
 class DexFile;

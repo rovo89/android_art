@@ -44,7 +44,7 @@ class DexCompilationUnit;
 class DexFileToMethodInlinerMap;
 class OatWriter;
 class TimingLogger;
-class VerifiedMethodsData;
+class VerificationResults;
 
 enum CompilerBackend {
   kQuick,
@@ -92,7 +92,7 @@ class CompilerDriver {
   // enabled.  "image_classes" lets the compiler know what classes it
   // can assume will be in the image, with NULL implying all available
   // classes.
-  explicit CompilerDriver(VerifiedMethodsData* verified_methods_data,
+  explicit CompilerDriver(VerificationResults* verification_results,
                           DexFileToMethodInlinerMap* method_inliner_map,
                           CompilerBackend compiler_backend, InstructionSet instruction_set,
                           InstructionSetFeatures instruction_set_features,
@@ -109,8 +109,8 @@ class CompilerDriver {
   void CompileOne(const mirror::ArtMethod* method, TimingLogger& timings)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  VerifiedMethodsData* GetVerifiedMethodsData() const {
-    return verified_methods_data_;
+  VerificationResults* GetVerificationResults() const {
+    return verification_results_;
   }
 
   DexFileToMethodInlinerMap* GetMethodInlinerMap() const {
@@ -486,7 +486,7 @@ class CompilerDriver {
   std::vector<const CallPatchInformation*> methods_to_patch_;
   std::vector<const TypePatchInformation*> classes_to_patch_;
 
-  VerifiedMethodsData* verified_methods_data_;
+  VerificationResults* verification_results_;
   DexFileToMethodInlinerMap* method_inliner_map_;
 
   CompilerBackend compiler_backend_;

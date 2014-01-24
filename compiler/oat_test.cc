@@ -79,10 +79,10 @@ TEST_F(OatTest, WriteRead) {
   InstructionSet insn_set = kIsTargetBuild ? kThumb2 : kX86;
 
   InstructionSetFeatures insn_features;
-  verified_methods_data_.reset(new VerifiedMethodsData);
+  verification_results_.reset(new VerificationResults);
   method_inliner_map_.reset(compiler_backend == kQuick ? new DexFileToMethodInlinerMap : nullptr);
-  callbacks_.Reset(verified_methods_data_.get(), method_inliner_map_.get());
-  compiler_driver_.reset(new CompilerDriver(verified_methods_data_.get(),
+  callbacks_.Reset(verification_results_.get(), method_inliner_map_.get());
+  compiler_driver_.reset(new CompilerDriver(verification_results_.get(),
                                             method_inliner_map_.get(),
                                             compiler_backend, insn_set,
                                             insn_features, false, NULL, 2, true));

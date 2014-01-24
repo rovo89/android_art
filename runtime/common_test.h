@@ -26,7 +26,7 @@
 
 #include "../../external/icu4c/common/unicode/uvernum.h"
 #include "../compiler/dex/quick/dex_file_to_method_inliner_map.h"
-#include "../compiler/dex/verified_methods_data.h"
+#include "../compiler/dex/verification_results.h"
 #include "../compiler/driver/compiler_driver.h"
 #include "base/macros.h"
 #include "base/stl_util.h"
@@ -425,9 +425,9 @@ class CommonTest : public testing::Test {
     CompilerBackend compiler_backend = kQuick;
 #endif
 
-    verified_methods_data_.reset(new VerifiedMethodsData);
+    verification_results_.reset(new VerificationResults);
     method_inliner_map_.reset(compiler_backend == kQuick ? new DexFileToMethodInlinerMap : nullptr);
-    callbacks_.Reset(verified_methods_data_.get(), method_inliner_map_.get());
+    callbacks_.Reset(verification_results_.get(), method_inliner_map_.get());
     Runtime::Options options;
     options.push_back(std::make_pair("compilercallbacks", static_cast<CompilerCallbacks*>(&callbacks_)));
     options.push_back(std::make_pair("bootclasspath", &boot_class_path_));
@@ -474,7 +474,7 @@ class CommonTest : public testing::Test {
         }
       }
       class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
-      compiler_driver_.reset(new CompilerDriver(verified_methods_data_.get(),
+      compiler_driver_.reset(new CompilerDriver(verification_results_.get(),
                                                 method_inliner_map_.get(),
                                                 compiler_backend, instruction_set,
                                                 instruction_set_features,
@@ -526,7 +526,7 @@ class CommonTest : public testing::Test {
     compiler_driver_.reset();
     callbacks_.Reset(nullptr, nullptr);
     method_inliner_map_.reset();
-    verified_methods_data_.reset();
+    verification_results_.reset();
     STLDeleteElements(&opened_dex_files_);
 
     Runtime::Current()->GetHeap()->VerifyHeap();  // Check for heap corruption after the test
@@ -654,18 +654,18 @@ class CommonTest : public testing::Test {
 
   class TestCompilerCallbacks : public CompilerCallbacks {
    public:
-    TestCompilerCallbacks() : verified_methods_data_(nullptr), method_inliner_map_(nullptr) { }
+    TestCompilerCallbacks() : verification_results_(nullptr), method_inliner_map_(nullptr) { }
 
-    void Reset(VerifiedMethodsData* verified_methods_data,
+    void Reset(VerificationResults* verification_results,
                DexFileToMethodInlinerMap* method_inliner_map) {
-        verified_methods_data_ = verified_methods_data;
+        verification_results_ = verification_results;
         method_inliner_map_ = method_inliner_map;
     }
 
     virtual bool MethodVerified(verifier::MethodVerifier* verifier)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-      CHECK(verified_methods_data_);
-      bool result = verified_methods_data_->ProcessVerifiedMethod(verifier);
+      CHECK(verification_results_);
+      bool result = verification_results_->ProcessVerifiedMethod(verifier);
       if (result && method_inliner_map_ != nullptr) {
         MethodReference ref = verifier->GetMethodReference();
         method_inliner_map_->GetMethodInliner(ref.dex_file)
@@ -674,11 +674,11 @@ class CommonTest : public testing::Test {
       return result;
     }
     virtual void ClassRejected(ClassReference ref) {
-      verified_methods_data_->AddRejectedClass(ref);
+      verification_results_->AddRejectedClass(ref);
     }
 
    private:
-    VerifiedMethodsData* verified_methods_data_;
+    VerificationResults* verification_results_;
     DexFileToMethodInlinerMap* method_inliner_map_;
   };
 
@@ -689,7 +689,7 @@ class CommonTest : public testing::Test {
   UniquePtr<Runtime> runtime_;
   // Owned by the runtime
   ClassLinker* class_linker_;
-  UniquePtr<VerifiedMethodsData> verified_methods_data_;
+  UniquePtr<VerificationResults> verification_results_;
   UniquePtr<DexFileToMethodInlinerMap> method_inliner_map_;
   TestCompilerCallbacks callbacks_;
   UniquePtr<CompilerDriver> compiler_driver_;
