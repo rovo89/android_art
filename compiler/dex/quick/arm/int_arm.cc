@@ -228,7 +228,7 @@ void ArmMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
   RegLocation rl_src1 = mir_graph_->GetSrcWide(mir, 0);
   RegLocation rl_src2 = mir_graph_->GetSrcWide(mir, 2);
   // Normalize such that if either operand is constant, src2 will be constant.
-  ConditionCode ccode = static_cast<ConditionCode>(mir->dalvikInsn.arg[0]);
+  ConditionCode ccode = mir->meta.ccode;
   if (rl_src1.is_const) {
     std::swap(rl_src1, rl_src2);
     ccode = FlipComparisonOrder(ccode);

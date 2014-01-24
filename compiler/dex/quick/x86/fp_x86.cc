@@ -303,7 +303,7 @@ void X86Mir2Lir::GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias,
     rl_src2 = LoadValue(rl_src2, kFPReg);
     NewLIR2(kX86UcomissRR, rl_src1.low_reg, rl_src2.low_reg);
   }
-  ConditionCode ccode = static_cast<ConditionCode>(mir->dalvikInsn.arg[0]);
+  ConditionCode ccode = mir->meta.ccode;
   switch (ccode) {
     case kCondEq:
       if (!gt_bias) {
