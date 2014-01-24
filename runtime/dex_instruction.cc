@@ -16,9 +16,12 @@
 
 #include "dex_instruction-inl.h"
 
+#include <inttypes.h>
+
+#include <iomanip>
+
 #include "dex_file-inl.h"
 #include "utils.h"
-#include <iomanip>
 
 namespace art {
 
@@ -403,7 +406,8 @@ std::string Instruction::DumpString(const DexFile* file) const {
           os << StringPrintf("%s v%d, #int %+d // 0x%x", opcode, VRegA_21h(), value, value);
         } else {
           uint64_t value = static_cast<uint64_t>(VRegB_21h()) << 48;
-          os << StringPrintf("%s v%d, #long %+lld // 0x%llx", opcode, VRegA_21h(), value, value);
+          os << StringPrintf("%s v%d, #long %+" PRId64 " // 0x%" PRIx64, opcode, VRegA_21h(),
+                             value, value);
         }
       }
       break;
@@ -611,7 +615,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
       }
       break;
     }
-    case k51l: os << StringPrintf("%s v%d, #%+lld", opcode, VRegA_51l(), VRegB_51l()); break;
+    case k51l: os << StringPrintf("%s v%d, #%+" PRId64, opcode, VRegA_51l(), VRegB_51l()); break;
     default: os << " unknown format (" << DumpHex(5) << ")"; break;
   }
   return os.str();
