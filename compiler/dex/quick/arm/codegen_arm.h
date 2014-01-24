@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_DEX_QUICK_ARM_CODEGEN_ARM_H_
 #define ART_COMPILER_DEX_QUICK_ARM_CODEGEN_ARM_H_
 
+#include "arm_lir.h"
 #include "dex/compiler_internals.h"
 
 namespace art {
