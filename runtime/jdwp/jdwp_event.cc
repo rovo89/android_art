@@ -638,13 +638,14 @@ void JdwpState::SetWaitForEventThread(ObjectId threadId) {
    * go to sleep indefinitely.
    */
   while (event_thread_id_ != 0) {
-    VLOG(jdwp) << StringPrintf("event in progress (%#llx), %#llx sleeping", event_thread_id_, threadId);
+    VLOG(jdwp) << StringPrintf("event in progress (%#" PRIx64 "), %#" PRIx64 " sleeping",
+                               event_thread_id_, threadId);
     waited = true;
     event_thread_cond_.Wait(self);
   }
 
   if (waited || threadId != 0) {
-    VLOG(jdwp) << StringPrintf("event token grabbed (%#llx)", threadId);
+    VLOG(jdwp) << StringPrintf("event token grabbed (%#" PRIx64 ")", threadId);
   }
   if (threadId != 0) {
     event_thread_id_ = threadId;
@@ -664,7 +665,7 @@ void JdwpState::ClearWaitForEventThread() {
   MutexLock mu(self, event_thread_lock_);
 
   CHECK_NE(event_thread_id_, 0U);
-  VLOG(jdwp) << StringPrintf("cleared event token (%#llx)", event_thread_id_);
+  VLOG(jdwp) << StringPrintf("cleared event token (%#" PRIx64 ")", event_thread_id_);
 
   event_thread_id_ = 0;
 
@@ -820,7 +821,8 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
     if (match_count != 0) {
       VLOG(jdwp) << "EVENT: " << match_list[0]->eventKind << "(" << match_count << " total) "
                  << basket.className << "." << Dbg::GetMethodName(pLoc->method_id)
-                 << StringPrintf(" thread=%#llx dex_pc=%#llx)", basket.threadId, pLoc->dex_pc);
+                 << StringPrintf(" thread=%#" PRIx64 "  dex_pc=%#" PRIx64 ")",
+                                 basket.threadId, pLoc->dex_pc);
 
       suspend_policy = scanSuspendPolicy(match_list, match_count);
       VLOG(jdwp) << "  suspend_policy=" << suspend_policy;
@@ -885,7 +887,7 @@ bool JdwpState::PostThreadChange(ObjectId threadId, bool start) {
 
     if (match_count != 0) {
       VLOG(jdwp) << "EVENT: " << match_list[0]->eventKind << "(" << match_count << " total) "
-                 << StringPrintf("thread=%#llx", basket.threadId) << ")";
+                 << StringPrintf("thread=%#" PRIx64, basket.threadId) << ")";
 
       suspend_policy = scanSuspendPolicy(match_list, match_count);
       VLOG(jdwp) << "  suspend_policy=" << suspend_policy;
@@ -968,8 +970,8 @@ bool JdwpState::PostException(const JdwpLocation* pThrowLoc,
     FindMatchingEvents(EK_EXCEPTION, &basket, match_list, &match_count);
     if (match_count != 0) {
       VLOG(jdwp) << "EVENT: " << match_list[0]->eventKind << "(" << match_count << " total)"
-                 << StringPrintf(" thread=%#llx", basket.threadId)
-                 << StringPrintf(" exceptId=%#llx", exceptionId)
+                 << StringPrintf(" thread=%#" PRIx64, basket.threadId)
+                 << StringPrintf(" exceptId=%#" PRIx64, exceptionId)
                  << " caught=" << basket.caught << ")"
                  << "  throw: " << *pThrowLoc;
       if (pCatchLoc->class_id == 0) {
@@ -1036,7 +1038,7 @@ bool JdwpState::PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std
     FindMatchingEvents(EK_CLASS_PREPARE, &basket, match_list, &match_count);
     if (match_count != 0) {
       VLOG(jdwp) << "EVENT: " << match_list[0]->eventKind << "(" << match_count << " total) "
-                 << StringPrintf("thread=%#llx", basket.threadId) << ") " << signature;
+                 << StringPrintf("thread=%#" PRIx64, basket.threadId) << ") " << signature;
 
       suspend_policy = scanSuspendPolicy(match_list, match_count);
       VLOG(jdwp) << "  suspend_policy=" << suspend_policy;
