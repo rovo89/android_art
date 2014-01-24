@@ -16,6 +16,8 @@
 
 #include "mem_map.h"
 
+#define __STDC_FORMAT_MACROS 1
+#include <inttypes.h>
 #include <backtrace/BacktraceMap.h>
 
 #include "base/stringprintf.h"
@@ -63,9 +65,10 @@ static void CheckMapRequest(byte* addr, size_t byte_count) {
     CHECK(!(base >= it->start && base < it->end)     // start of new within old
         && !(limit > it->start && limit < it->end)   // end of new within old
         && !(base <= it->start && limit > it->end))  // start/end of new includes all of old
-        << StringPrintf("Requested region 0x%08x-0x%08x overlaps with existing map 0x%08x-0x%08x (%s)\n",
+        << StringPrintf("Requested region 0x%08" PRIxPTR "-0x%08" PRIxPTR " overlaps with "
+                        "existing map 0x%08" PRIxPTR "-0x%08" PRIxPTR " (%s)\n",
                         base, limit,
-                        static_cast<uint32_t>(it->start), static_cast<uint32_t>(it->end),
+                        static_cast<uintptr_t>(it->start), static_cast<uintptr_t>(it->end),
                         it->name.c_str())
         << std::make_pair(it, map.end());
   }
@@ -144,7 +147,7 @@ MemMap* MemMap::MapFileAtAddress(byte* addr, size_t byte_count, int prot, int fl
     std::string strerr(strerror(errno));
     std::string maps;
     ReadFileToString("/proc/self/maps", &maps);
-    *error_msg = StringPrintf("mmap(%p, %zd, %x, %x, %d, %lld) of file '%s' failed: %s\n%s",
+    *error_msg = StringPrintf("mmap(%p, %zd, %x, %x, %d, %" PRId64 ") of file '%s' failed: %s\n%s",
                               page_aligned_addr, page_aligned_byte_count, prot, flags, fd,
                               static_cast<int64_t>(page_aligned_offset), filename, strerr.c_str(),
                               maps.c_str());
