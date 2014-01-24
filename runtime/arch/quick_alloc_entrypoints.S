@@ -17,6 +17,10 @@
 .macro GENERATE_ALLOC_ENTRYPOINTS c_suffix, cxx_suffix
 // Called by managed code to allocate an object.
 TWO_ARG_DOWNCALL art_quick_alloc_object\c_suffix, artAllocObjectFromCode\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO
+// Called by managed code to allocate an object of a resolved class.
+TWO_ARG_DOWNCALL art_quick_alloc_object_resolved\c_suffix, artAllocObjectFromCodeResolved\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO
+// Called by managed code to allocate an object of an initialized class.
+TWO_ARG_DOWNCALL art_quick_alloc_object_initialized\c_suffix, artAllocObjectFromCodeInitialized\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO
 // Called by managed code to allocate an object when the caller doesn't know whether it has access
 // to the created type.
 TWO_ARG_DOWNCALL art_quick_alloc_object_with_access_check\c_suffix, artAllocObjectFromCodeWithAccessCheck\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO

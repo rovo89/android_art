@@ -30,6 +30,18 @@ extern "C" mirror::Object* artAllocObjectFromCode ##suffix##suffix2( \
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly); \
   return AllocObjectFromCode<false, instrumented_bool>(type_idx, method, self, allocator_type); \
 } \
+extern "C" mirror::Object* artAllocObjectFromCodeResolved##suffix##suffix2( \
+    mirror::Class* klass, mirror::ArtMethod* method, Thread* self, mirror::ArtMethod** sp) \
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly); \
+  return AllocObjectFromCodeResolved<instrumented_bool>(klass, method, self, allocator_type); \
+} \
+extern "C" mirror::Object* artAllocObjectFromCodeInitialized##suffix##suffix2( \
+    mirror::Class* klass, mirror::ArtMethod* method, Thread* self, mirror::ArtMethod** sp) \
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly); \
+  return AllocObjectFromCodeInitialized<instrumented_bool>(klass, method, self, allocator_type); \
+} \
 extern "C" mirror::Object* artAllocObjectFromCodeWithAccessCheck##suffix##suffix2( \
     uint32_t type_idx, mirror::ArtMethod* method, Thread* self, mirror::ArtMethod** sp) \
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \

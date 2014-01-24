@@ -142,6 +142,17 @@ void Mir2Lir::CallRuntimeHelperImmMethod(ThreadOffset helper_offset, int arg0, b
   CallHelper(r_tgt, helper_offset, safepoint_pc);
 }
 
+void Mir2Lir::CallRuntimeHelperRegMethod(ThreadOffset helper_offset, int arg0, bool safepoint_pc) {
+  int r_tgt = CallHelperSetup(helper_offset);
+  DCHECK_NE(TargetReg(kArg1), arg0);
+  if (TargetReg(kArg0) != arg0) {
+    OpRegCopy(TargetReg(kArg0), arg0);
+  }
+  LoadCurrMethodDirect(TargetReg(kArg1));
+  ClobberCallerSave();
+  CallHelper(r_tgt, helper_offset, safepoint_pc);
+}
+
 void Mir2Lir::CallRuntimeHelperRegLocationRegLocation(ThreadOffset helper_offset, RegLocation arg0,
                                                       RegLocation arg1, bool safepoint_pc) {
   int r_tgt = CallHelperSetup(helper_offset);

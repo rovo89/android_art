@@ -74,17 +74,44 @@ ALWAYS_INLINE static inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
   }
   if (UNLIKELY(!klass->IsInitialized())) {
     SirtRef<mirror::Class> sirt_klass(self, klass);
-    // The class initializer might cause a GC.
+    // EnsureInitialized (the class initializer) might cause a GC.
+    // may cause us to suspend meaning that another thread may try to
+    // change the allocator while we are stuck in the entrypoints of
+    // an old allocator. Also, the class initialization may fail. To
+    // handle these cases we mark the slow path boolean as true so
+    // that the caller knows to check the allocator type to see if it
+    // has changed and to null-check the return value in case the
+    // initialization fails.
+    *slow_path = true;
     if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(sirt_klass, true, true)) {
       DCHECK(self->IsExceptionPending());
       return nullptr;  // Failure
     }
-    // TODO: EnsureInitialized may cause us to suspend meaning that another thread may try to
-    // change the allocator while we are stuck in the entrypoints of an old allocator. To handle
-    // this case we mark the slow path boolean as true so that the caller knows to check the
-    // allocator type to see if it has changed.
-    *slow_path = true;
     return sirt_klass.get();
+  }
+  return klass;
+}
+
+// TODO: Fix no thread safety analysis when annotalysis is smarter.
+ALWAYS_INLINE static inline mirror::Class* CheckClassInitializedForObjectAlloc(mirror::Class* klass,
+                                                                               Thread* self, bool* slow_path)
+    NO_THREAD_SAFETY_ANALYSIS {
+  if (UNLIKELY(!klass->IsInitialized())) {
+    SirtRef<mirror::Class> sirt_class(self, klass);
+    // EnsureInitialized (the class initializer) might cause a GC.
+    // may cause us to suspend meaning that another thread may try to
+    // change the allocator while we are stuck in the entrypoints of
+    // an old allocator. Also, the class initialization may fail. To
+    // handle these cases we mark the slow path boolean as true so
+    // that the caller knows to check the allocator type to see if it
+    // has changed and to null-check the return value in case the
+    // initialization fails.
+    *slow_path = true;
+    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(sirt_class, true, true)) {
+      DCHECK(self->IsExceptionPending());
+      return nullptr;  // Failure
+    }
+    return sirt_class.get();
   }
   return klass;
 }
@@ -111,6 +138,40 @@ ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCode(uint32_t type_id
   }
   return klass->Alloc<kInstrumented>(self, allocator_type);
 }
+
+// Given the context of a calling Method and a resolved class, create an instance.
+// TODO: Fix NO_THREAD_SAFETY_ANALYSIS when GCC is smarter.
+template <bool kInstrumented>
+ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCodeResolved(mirror::Class* klass,
+                                                                        mirror::ArtMethod* method,
+                                                                        Thread* self,
+                                                                        gc::AllocatorType allocator_type)
+    NO_THREAD_SAFETY_ANALYSIS {
+  DCHECK(klass != nullptr);
+  bool slow_path = false;
+  klass = CheckClassInitializedForObjectAlloc(klass, self, &slow_path);
+  if (UNLIKELY(slow_path)) {
+    if (klass == nullptr) {
+      return nullptr;
+    }
+    gc::Heap* heap = Runtime::Current()->GetHeap();
+    return klass->Alloc<kInstrumented>(self, heap->GetCurrentAllocator());
+  }
+  return klass->Alloc<kInstrumented>(self, allocator_type);
+}
+
+// Given the context of a calling Method and an initialized class, create an instance.
+// TODO: Fix NO_THREAD_SAFETY_ANALYSIS when GCC is smarter.
+template <bool kInstrumented>
+ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCodeInitialized(mirror::Class* klass,
+                                                                           mirror::ArtMethod* method,
+                                                                           Thread* self,
+                                                                           gc::AllocatorType allocator_type)
+    NO_THREAD_SAFETY_ANALYSIS {
+  DCHECK(klass != nullptr);
+  return klass->Alloc<kInstrumented>(self, allocator_type);
+}
+
 
 // TODO: Fix no thread safety analysis when GCC can handle template specialization.
 template <bool kAccessCheck>
@@ -316,8 +377,10 @@ static inline mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror:
     }
     mirror::Class* methods_class = resolved_method->GetDeclaringClass();
     mirror::Class* referring_class = referrer->GetDeclaringClass();
-    if (!referring_class->CanAccessResolvedMethod<true, type>(methods_class, resolved_method,
-                                                              method_idx)) {
+    bool can_access_resolved_method =
+        referring_class->CanAccessResolvedMethod<true, type>(methods_class, resolved_method,
+                                                             method_idx);
+    if (UNLIKELY(!can_access_resolved_method)) {
       DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
       return nullptr;  // Failure.
     }
