@@ -15,11 +15,14 @@
  */
 
 #include "codegen_mips.h"
+
+#include <inttypes.h>
+
+#include <string>
+
 #include "dex/compiler_internals.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "mips_lir.h"
-
-#include <string>
 
 namespace art {
 
@@ -203,9 +206,9 @@ std::string MipsMir2Lir::BuildInsnString(const char *fmt, LIR *lir, unsigned cha
              snprintf(tbuf, arraysize(tbuf), "%d", operand*2);
              break;
            case 't':
-             snprintf(tbuf, arraysize(tbuf), "0x%08x (L%p)",
-                      reinterpret_cast<uintptr_t>(base_addr) + lir->offset + 4 + (operand << 2),
-                      lir->target);
+             snprintf(tbuf, arraysize(tbuf), "0x%08" PRIxPTR " (L%p)",
+                 reinterpret_cast<uintptr_t>(base_addr) + lir->offset + 4 + (operand << 1),
+                 lir->target);
              break;
            case 'T':
              snprintf(tbuf, arraysize(tbuf), "0x%08x", operand << 2);
