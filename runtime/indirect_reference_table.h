@@ -326,7 +326,7 @@ class IndirectReferenceTable {
    * Extract the table index from an indirect reference.
    */
   static uint32_t ExtractIndex(IndirectRef iref) {
-    uint32_t uref = (uint32_t) iref;
+    uintptr_t uref = reinterpret_cast<uintptr_t>(iref);
     return (uref >> 2) & 0xffff;
   }
 
@@ -337,8 +337,8 @@ class IndirectReferenceTable {
   IndirectRef ToIndirectRef(const mirror::Object* /*o*/, uint32_t tableIndex) const {
     DCHECK_LT(tableIndex, 65536U);
     uint32_t serialChunk = slot_data_[tableIndex].serial;
-    uint32_t uref = serialChunk << 20 | (tableIndex << 2) | kind_;
-    return (IndirectRef) uref;
+    uintptr_t uref = serialChunk << 20 | (tableIndex << 2) | kind_;
+    return reinterpret_cast<IndirectRef>(uref);
   }
 
   /*
