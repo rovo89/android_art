@@ -1718,7 +1718,7 @@ void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
     case Instruction::ADD_LONG:
     case Instruction::ADD_LONG_2ADDR:
       if (cu_->instruction_set != kThumb2) {
-        GenAddLong(rl_dest, rl_src1, rl_src2);
+        GenAddLong(opcode, rl_dest, rl_src1, rl_src2);
         return;
       }
       first_op = kOpAdd;
@@ -1727,7 +1727,7 @@ void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
     case Instruction::SUB_LONG:
     case Instruction::SUB_LONG_2ADDR:
       if (cu_->instruction_set != kThumb2) {
-        GenSubLong(rl_dest, rl_src1, rl_src2);
+        GenSubLong(opcode, rl_dest, rl_src1, rl_src2);
         return;
       }
       first_op = kOpSub;
@@ -1736,7 +1736,7 @@ void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
     case Instruction::MUL_LONG:
     case Instruction::MUL_LONG_2ADDR:
       if (cu_->instruction_set == kThumb2) {
-        GenMulLong(rl_dest, rl_src1, rl_src2);
+        GenMulLong(opcode, rl_dest, rl_src1, rl_src2);
         return;
       } else {
         call_out = true;
@@ -1762,7 +1762,7 @@ void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
     case Instruction::AND_LONG_2ADDR:
     case Instruction::AND_LONG:
       if (cu_->instruction_set == kX86) {
-        return GenAndLong(rl_dest, rl_src1, rl_src2);
+        return GenAndLong(opcode, rl_dest, rl_src1, rl_src2);
       }
       first_op = kOpAnd;
       second_op = kOpAnd;
@@ -1770,7 +1770,7 @@ void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
     case Instruction::OR_LONG:
     case Instruction::OR_LONG_2ADDR:
       if (cu_->instruction_set == kX86) {
-        GenOrLong(rl_dest, rl_src1, rl_src2);
+        GenOrLong(opcode, rl_dest, rl_src1, rl_src2);
         return;
       }
       first_op = kOpOr;
@@ -1779,7 +1779,7 @@ void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
     case Instruction::XOR_LONG:
     case Instruction::XOR_LONG_2ADDR:
       if (cu_->instruction_set == kX86) {
-        GenXorLong(rl_dest, rl_src1, rl_src2);
+        GenXorLong(opcode, rl_dest, rl_src1, rl_src2);
         return;
       }
       first_op = kOpXor;
