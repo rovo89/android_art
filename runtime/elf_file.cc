@@ -64,15 +64,16 @@ bool ElfFile::Setup(File* file, bool writable, bool program_header_only, std::st
     prot = PROT_READ;
     flags = MAP_PRIVATE;
   }
-  int64_t file_length = file_->GetLength();
-  if (file_length < 0) {
-    errno = -file_length;
+  int64_t temp_file_length = file_->GetLength();
+  if (temp_file_length < 0) {
+    errno = -temp_file_length;
     *error_msg = StringPrintf("Failed to get length of file: '%s' fd=%d: %s",
                               file_->GetPath().c_str(), file_->Fd(), strerror(errno));
     return false;
   }
+  size_t file_length = static_cast<size_t>(temp_file_length);
   if (file_length < sizeof(llvm::ELF::Elf32_Ehdr)) {
-    *error_msg = StringPrintf("File size of %lld bytes not large enough to contain ELF header of "
+    *error_msg = StringPrintf("File size of %zd bytes not large enough to contain ELF header of "
                               "%zd bytes: '%s'", file_length, sizeof(llvm::ELF::Elf32_Ehdr),
                               file_->GetPath().c_str());
     return false;
@@ -89,7 +90,7 @@ bool ElfFile::Setup(File* file, bool writable, bool program_header_only, std::st
     // then remap to cover program header
     size_t program_header_size = header_->e_phoff + (header_->e_phentsize * header_->e_phnum);
     if (file_length < program_header_size) {
-      *error_msg = StringPrintf("File size of %lld bytes not large enough to contain ELF program "
+      *error_msg = StringPrintf("File size of %zd bytes not large enough to contain ELF program "
                                 "header of %zd bytes: '%s'", file_length,
                                 sizeof(llvm::ELF::Elf32_Ehdr), file_->GetPath().c_str());
       return false;
@@ -632,7 +633,14 @@ bool ElfFile::Load(bool executable, std::string* error_msg) {
     // non-zero, the segments require the specific address specified,
     // which either was specified in the file because we already set
     // base_address_ after the first zero segment).
-    int64_t file_length = file_->GetLength();
+    int64_t temp_file_length = file_->GetLength();
+    if (temp_file_length < 0) {
+      errno = -temp_file_length;
+      *error_msg = StringPrintf("Failed to get length of file: '%s' fd=%d: %s",
+                                file_->GetPath().c_str(), file_->Fd(), strerror(errno));
+      return false;
+    }
+    size_t file_length = static_cast<size_t>(temp_file_length);
     if (program_header.p_vaddr == 0) {
       std::string reservation_name("ElfFile reservation for ");
       reservation_name += file_->GetPath();
@@ -666,7 +674,7 @@ bool ElfFile::Load(bool executable, std::string* error_msg) {
       flags |= MAP_PRIVATE;
     }
     if (file_length < (program_header.p_offset + program_header.p_memsz)) {
-      *error_msg = StringPrintf("File size of %lld bytes not large enough to contain ELF segment "
+      *error_msg = StringPrintf("File size of %zd bytes not large enough to contain ELF segment "
                                 "%d of %d bytes: '%s'", file_length, i,
                                 program_header.p_offset + program_header.p_memsz,
                                 file_->GetPath().c_str());
