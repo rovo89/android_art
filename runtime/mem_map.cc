@@ -16,7 +16,6 @@
 
 #include "mem_map.h"
 
-#define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 #include <backtrace/BacktraceMap.h>
 
