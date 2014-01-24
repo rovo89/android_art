@@ -243,9 +243,9 @@ std::string X86Mir2Lir::BuildInsnString(const char *fmt, LIR *lir, unsigned char
             }
             break;
           case 't':
-            buf += StringPrintf("0x%08x (L%p)",
-                                reinterpret_cast<uintptr_t>(base_addr)
-                                + lir->offset + operand, lir->target);
+            buf += StringPrintf("0x%08" PRIxPTR " (L%p)",
+                                reinterpret_cast<uintptr_t>(base_addr) + lir->offset + operand,
+                                lir->target);
             break;
           default:
             buf += StringPrintf("DecodeError '%c'", fmt[i]);

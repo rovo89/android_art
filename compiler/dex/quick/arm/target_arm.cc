@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
+#include "codegen_arm.h"
+
+#include <inttypes.h>
+
 #include <string>
 
-#include "arm_lir.h"
-#include "codegen_arm.h"
 #include "dex/compiler_internals.h"
 #include "dex/quick/mir_to_lir-inl.h"
 
@@ -407,9 +409,8 @@ std::string ArmMir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned char
              strcpy(tbuf, cc_names[operand]);
              break;
            case 't':
-             snprintf(tbuf, arraysize(tbuf), "0x%08x (L%p)",
-                 reinterpret_cast<uintptr_t>(base_addr) + lir->offset + 4 +
-                 (operand << 1),
+             snprintf(tbuf, arraysize(tbuf), "0x%08" PRIxPTR " (L%p)",
+                 reinterpret_cast<uintptr_t>(base_addr) + lir->offset + 4 + (operand << 1),
                  lir->target);
              break;
            case 'u': {
