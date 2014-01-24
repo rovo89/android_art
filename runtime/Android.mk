@@ -230,11 +230,11 @@ LIBART_TARGET_SRC_FILES += \
 	arch/mips/quick_entrypoints_mips.S \
 	arch/mips/thread_mips.cc
 else # TARGET_ARCH != mips
-ifeq ($(TARGET_ARCH),aarch64)
-$(info TODOAArch64: $(LOCAL_PATH)/Android.mk Add AArch64 specific runtime files)
+ifeq ($(TARGET_ARCH),arm64)
+$(info TODOArm64: $(LOCAL_PATH)/Android.mk Add Arm64 specific runtime files)
 else
 $(error unsupported TARGET_ARCH=$(TARGET_ARCH))
-endif # TARGET_ARCH != aarch64
+endif # TARGET_ARCH != arm64
 endif # TARGET_ARCH != mips
 endif # TARGET_ARCH != x86_64
 endif # TARGET_ARCH != x86
