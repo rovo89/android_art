@@ -22,6 +22,7 @@
 #include <mcld/IRBuilder.h>
 #include <mcld/Linker.h>
 #include <mcld/LinkerConfig.h>
+#include <mcld/LinkerScript.h>
 #include <mcld/MC/ZOption.h>
 #include <mcld/Module.h>
 #include <mcld/Support/Path.h>
@@ -142,13 +143,14 @@ void ElfWriterMclinker::Init() {
   }
 
   // Based on alone::Linker::config
-  module_.reset(new mcld::Module(linker_config_->options().soname()));
+  linker_script_.reset(new mcld::LinkerScript());
+  module_.reset(new mcld::Module(linker_config_->options().soname(), *linker_script_.get()));
   CHECK(module_.get() != NULL);
   ir_builder_.reset(new mcld::IRBuilder(*module_.get(), *linker_config_.get()));
   CHECK(ir_builder_.get() != NULL);
   linker_.reset(new mcld::Linker());
   CHECK(linker_.get() != NULL);
-  linker_->config(*linker_config_.get());
+  linker_->emulate(*linker_script_.get(), *linker_config_.get());
 }
 
 void ElfWriterMclinker::AddOatInput(std::vector<uint8_t>& oat_contents) {
