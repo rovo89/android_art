@@ -356,13 +356,13 @@ LIR* MipsMir2Lir::OpIT(ConditionCode cond, const char* guide) {
   return NULL;
 }
 
-void MipsMir2Lir::GenMulLong(RegLocation rl_dest, RegLocation rl_src1,
-                             RegLocation rl_src2) {
+void MipsMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
+                             RegLocation rl_src1, RegLocation rl_src2) {
   LOG(FATAL) << "Unexpected use of GenMulLong for Mips";
 }
 
-void MipsMir2Lir::GenAddLong(RegLocation rl_dest, RegLocation rl_src1,
-                             RegLocation rl_src2) {
+void MipsMir2Lir::GenAddLong(Instruction::Code opcode, RegLocation rl_dest,
+                             RegLocation rl_src1, RegLocation rl_src2) {
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
   rl_src2 = LoadValueWide(rl_src2, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
@@ -383,8 +383,8 @@ void MipsMir2Lir::GenAddLong(RegLocation rl_dest, RegLocation rl_src1,
   StoreValueWide(rl_dest, rl_result);
 }
 
-void MipsMir2Lir::GenSubLong(RegLocation rl_dest, RegLocation rl_src1,
-                             RegLocation rl_src2) {
+void MipsMir2Lir::GenSubLong(Instruction::Code opcode, RegLocation rl_dest,
+                             RegLocation rl_src1, RegLocation rl_src2) {
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
   rl_src2 = LoadValueWide(rl_src2, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
@@ -425,18 +425,19 @@ void MipsMir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
   StoreValueWide(rl_dest, rl_result);
 }
 
-void MipsMir2Lir::GenAndLong(RegLocation rl_dest, RegLocation rl_src1,
+void MipsMir2Lir::GenAndLong(Instruction::Code opcode, RegLocation rl_dest,
+                             RegLocation rl_src1,
                              RegLocation rl_src2) {
   LOG(FATAL) << "Unexpected use of GenAndLong for Mips";
 }
 
-void MipsMir2Lir::GenOrLong(RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2) {
+void MipsMir2Lir::GenOrLong(Instruction::Code opcode, RegLocation rl_dest,
+                            RegLocation rl_src1, RegLocation rl_src2) {
   LOG(FATAL) << "Unexpected use of GenOrLong for Mips";
 }
 
-void MipsMir2Lir::GenXorLong(RegLocation rl_dest, RegLocation rl_src1,
-                             RegLocation rl_src2) {
+void MipsMir2Lir::GenXorLong(Instruction::Code opcode, RegLocation rl_dest,
+                             RegLocation rl_src1, RegLocation rl_src2) {
   LOG(FATAL) << "Unexpected use of GenXorLong for Mips";
 }
 

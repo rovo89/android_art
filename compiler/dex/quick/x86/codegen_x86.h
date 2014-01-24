@@ -94,9 +94,9 @@ class X86Mir2Lir : public Mir2Lir {
                      RegLocation rl_index, RegLocation rl_src, int scale, bool card_mark);
     void GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
                            RegLocation rl_src1, RegLocation rl_shift);
-    void GenMulLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
-    void GenAddLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
-    void GenAndLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
+    void GenMulLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
+    void GenAddLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
+    void GenAndLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
     void GenArithOpDouble(Instruction::Code opcode, RegLocation rl_dest,
                                   RegLocation rl_src1, RegLocation rl_src2);
     void GenArithOpFloat(Instruction::Code opcode, RegLocation rl_dest,
@@ -110,9 +110,9 @@ class X86Mir2Lir : public Mir2Lir {
     bool GenInlinedPeek(CallInfo* info, OpSize size);
     bool GenInlinedPoke(CallInfo* info, OpSize size);
     void GenNegLong(RegLocation rl_dest, RegLocation rl_src);
-    void GenOrLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
-    void GenSubLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
-    void GenXorLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
+    void GenOrLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
+    void GenSubLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
+    void GenXorLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
     LIR* GenRegMemCheck(ConditionCode c_code, int reg1, int base, int offset,
                                 ThrowKind kind);
     LIR* GenMemImmedCheck(ConditionCode c_code, int base, int offset, int check_value,
@@ -136,6 +136,49 @@ class X86Mir2Lir : public Mir2Lir {
     void GenPackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
     void GenSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
     void GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& special);
+    /*
+     * @brief Generate a two address long operation with a constant value
+     * @param rl_dest location of result
+     * @param rl_src constant source operand
+     * @param op Opcode to be generated
+     */
+    void GenLongImm(RegLocation rl_dest, RegLocation rl_src, Instruction::Code op);
+    /*
+     * @brief Generate a three address long operation with a constant value
+     * @param rl_dest location of result
+     * @param rl_src1 source operand
+     * @param rl_src2 constant source operand
+     * @param op Opcode to be generated
+     */
+    void GenLongLongImm(RegLocation rl_dest, RegLocation rl_src1,
+                        RegLocation rl_src2, Instruction::Code op);
+
+    /**
+      * @brief Generate a long arithmetic operation.
+      * @param rl_dest The destination.
+      * @param rl_src1 First operand.
+      * @param rl_src2 Second operand.
+      * @param op The DEX opcode for the operation.
+      * @param is_commutative The sources can be swapped if needed.
+      */
+    void GenLongArith(RegLocation rl_dest, RegLocation rl_src1,
+                      RegLocation rl_src2, Instruction::Code op, bool is_commutative);
+
+    /**
+      * @brief Generate a two operand long arithmetic operation.
+      * @param rl_dest The destination.
+      * @param rl_src Second operand.
+      * @param op The DEX opcode for the operation.
+      */
+    void GenLongArith(RegLocation rl_dest, RegLocation rl_src, Instruction::Code op);
+
+    /**
+      * @brief Generate a long operation.
+      * @param rl_dest The destination.  Must be in a register
+      * @param rl_src The other operand.  May be in a register or in memory.
+      * @param op The DEX opcode for the operation.
+      */
+    void GenLongRegOrMemOp(RegLocation rl_dest, RegLocation rl_src, Instruction::Code op);
 
     // Single operation generators.
     LIR* OpUnconditionalBranch(LIR* target);
@@ -230,6 +273,42 @@ class X86Mir2Lir : public Mir2Lir {
                                   int64_t val, ConditionCode ccode);
     void OpVectorRegCopyWide(uint8_t fp_reg, uint8_t low_reg, uint8_t high_reg);
     void GenConstWide(RegLocation rl_dest, int64_t value);
+
+    /*
+     * @brief Return the correct x86 opcode for the Dex operation
+     * @param op Dex opcode for the operation
+     * @param loc Register location of the operand
+     * @param is_high_op 'true' if this is an operation on the high word
+     * @param value Immediate value for the operation.  Used for byte variants
+     * @returns the correct x86 opcode to perform the operation
+     */
+    X86OpCode GetOpcode(Instruction::Code op, RegLocation loc, bool is_high_op, int32_t value);
+
+    /*
+     * @brief Return the correct x86 opcode for the Dex operation
+     * @param op Dex opcode for the operation
+     * @param dest location of the destination.  May be register or memory.
+     * @param rhs Location for the rhs of the operation.  May be in register or memory.
+     * @param is_high_op 'true' if this is an operation on the high word
+     * @returns the correct x86 opcode to perform the operation
+     * @note at most one location may refer to memory
+     */
+    X86OpCode GetOpcode(Instruction::Code op, RegLocation dest, RegLocation rhs,
+                        bool is_high_op);
+
+    /*
+     * @brief Is this operation a no-op for this opcode and value
+     * @param op Dex opcode for the operation
+     * @param value Immediate value for the operation.
+     * @returns 'true' if the operation will have no effect
+     */
+    bool IsNoOp(Instruction::Code op, int32_t value);
+
+    /*
+     * @brief Dump a RegLocation using printf
+     * @param loc Register location to dump
+     */
+    static void DumpRegLocation(RegLocation loc);
 };
 
 }  // namespace art
