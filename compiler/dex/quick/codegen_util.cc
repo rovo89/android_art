@@ -34,7 +34,7 @@ template <typename It>
 void DumpMappingTable(const char* table_name, const char* descriptor, const char* name,
                       const Signature& signature, uint32_t size, It first) {
   if (size != 0) {
-    std::string line(StringPrintf("\n  %s %s%s_%s_table[%zu] = {", table_name,
+    std::string line(StringPrintf("\n  %s %s%s_%s_table[%u] = {", table_name,
                      descriptor, name, signature.ToString().c_str(), size));
     std::replace(line.begin(), line.end(), ';', '_');
     LOG(INFO) << line;
@@ -234,8 +234,8 @@ void Mir2Lir::DumpLIRInsn(LIR* lir, unsigned char* base_addr) {
                                                lir, base_addr));
         std::string op_operands(BuildInsnString(GetTargetInstFmt(lir->opcode),
                                                     lir, base_addr));
-        LOG(INFO) << StringPrintf("%05x: %-9s%s%s",
-                                  reinterpret_cast<unsigned int>(base_addr + offset),
+        LOG(INFO) << StringPrintf("%5p: %-9s%s%s",
+                                  base_addr + offset,
                                   op_name.c_str(), op_operands.c_str(),
                                   lir->flags.is_nop ? "(nop)" : "");
       }
