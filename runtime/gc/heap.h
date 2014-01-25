@@ -545,6 +545,9 @@ class Heap {
   static ALWAYS_INLINE bool AllocatorMayHaveConcurrentGC(AllocatorType allocator_type) {
     return AllocatorHasAllocationStack(allocator_type);
   }
+  static bool IsCompactingGC(CollectorType collector_type) {
+    return collector_type == kCollectorTypeSS || collector_type == kCollectorTypeGSS;
+  }
   bool ShouldAllocLargeObject(mirror::Class* c, size_t byte_count) const;
   ALWAYS_INLINE void CheckConcurrentGC(Thread* self, size_t new_num_bytes_allocated,
                                        mirror::Object* obj);
