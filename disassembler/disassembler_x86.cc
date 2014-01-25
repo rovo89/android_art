@@ -392,6 +392,17 @@ DISASSEMBLER_ENTRY(cmp,
         has_modrm = true;
         src_reg_file = dst_reg_file = SSE;
         break;
+      case 0x62:
+        if (prefix[2] == 0x66) {
+          src_reg_file = dst_reg_file = SSE;
+          prefix[2] = 0;  // Clear prefix now. It has served its purpose as part of the opcode.
+        } else {
+          src_reg_file = dst_reg_file = MMX;
+        }
+        opcode << "punpckldq";
+        load = true;
+        has_modrm = true;
+        break;
       case 0x6E:
         if (prefix[2] == 0x66) {
           dst_reg_file = SSE;
