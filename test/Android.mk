@@ -74,7 +74,7 @@ define build-art-test-dex
     LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
     LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
     include $(BUILD_JAVA_LIBRARY)
-    ART_TEST_TARGET_DEX_FILES += $(3)/$$(LOCAL_MODULE).jar
+    ART_TEST_TARGET_DEX_FILES += $$(LOCAL_INSTALLED_MODULE)
   endif
 
   ifeq ($(ART_BUILD_HOST),true)
@@ -87,7 +87,7 @@ define build-art-test-dex
     LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
     LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
     include $(BUILD_HOST_DALVIK_JAVA_LIBRARY)
-    ART_TEST_HOST_DEX_FILES += $$(LOCAL_MODULE_PATH)/$$(LOCAL_MODULE).jar
+    ART_TEST_HOST_DEX_FILES += $$(LOCAL_INSTALLED_MODULE)
   endif
 endef
 $(foreach dir,$(TEST_DEX_DIRECTORIES), $(eval $(call build-art-test-dex,art-test-dex,$(dir),$(ART_NATIVETEST_OUT))))
