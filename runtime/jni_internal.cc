@@ -2203,8 +2203,7 @@ class JNI {
     if (is_copy != nullptr) {
       *is_copy = JNI_FALSE;
     }
-    void* address = array->GetRawData(array->GetClass()->GetComponentSize());;
-    return address;
+    return array->GetRawData(array->GetClass()->GetComponentSize());
   }
 
   static void ReleasePrimitiveArrayCritical(JNIEnv* env, jarray array, void* elements, jint mode) {
@@ -2639,9 +2638,6 @@ class JNI {
     size_t bytes = array->GetLength() * component_size;
     VLOG(heap) << "Release primitive array " << env << " array_data " << array_data
                << " elements " << reinterpret_cast<void*>(elements);
-    if (!is_copy && heap->IsMovableObject(array)) {
-      heap->DecrementDisableGC(soa.Self());
-    }
     // Don't need to copy if we had a direct pointer.
     if (mode != JNI_ABORT && is_copy) {
       memcpy(array_data, elements, bytes);
@@ -2649,10 +2645,11 @@ class JNI {
     if (mode != JNI_COMMIT) {
       if (is_copy) {
         delete[] reinterpret_cast<uint64_t*>(elements);
+      } else if (heap->IsMovableObject(array)) {
+        heap->DecrementDisableGC(soa.Self());
       }
+      UnpinPrimitiveArray(soa, array);
     }
-    // TODO: Do we always unpin primitive array?
-    UnpinPrimitiveArray(soa, array);
   }
 
   template <typename JavaArrayT, typename JavaT, typename ArrayT>
