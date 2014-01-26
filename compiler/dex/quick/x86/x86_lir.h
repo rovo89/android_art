@@ -350,6 +350,7 @@ enum X86OpCode {
   Binary0fOpCode(kX86Subss),    // float subtract
   Binary0fOpCode(kX86Divsd),    // double divide
   Binary0fOpCode(kX86Divss),    // float divide
+  Binary0fOpCode(kX86Punpckldq),  // Interleave low-order double words
   kX86PsrlqRI,                  // right shift of floating point registers
   kX86PsllqRI,                  // left shift of floating point registers
   kX86SqrtsdRR,                 // sqrt of floating point register
