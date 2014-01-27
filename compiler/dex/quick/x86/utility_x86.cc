@@ -604,4 +604,12 @@ void X86Mir2Lir::OpVectorRegCopyWide(uint8_t fp_reg, uint8_t low_reg, uint8_t hi
   FreeTemp(tmp_reg);
 }
 
+LIR* X86Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, int temp_reg, int base_reg,
+                                   int offset, int check_value, LIR* target) {
+    NewLIR3(IS_SIMM8(check_value) ? kX86Cmp32MI8 : kX86Cmp32MI, base_reg, offset,
+            check_value);
+    LIR* branch = OpCondBranch(cond, target);
+    return branch;
+}
+
 }  // namespace art

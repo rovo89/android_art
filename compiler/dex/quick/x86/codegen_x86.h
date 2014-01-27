@@ -365,6 +365,18 @@ class X86Mir2Lir : public Mir2Lir {
      * @param val Constant multiplier.
      */
     void GenImulMemImm(int dest, int sreg, int displacement, int val);
+
+    /*
+     * @brief Compare memory to immediate, and branch if condition true.
+     * @param cond The condition code that when true will branch to the target.
+     * @param temp_reg A temporary register that can be used if compare memory is not
+     * supported by the architecture.
+     * @param base_reg The register holding the base address.
+     * @param offset The offset from the base.
+     * @param check_value The immediate to compare to.
+     */
+    LIR* OpCmpMemImmBranch(ConditionCode cond, int temp_reg, int base_reg,
+                           int offset, int check_value, LIR* target);
 };
 
 }  // namespace art
