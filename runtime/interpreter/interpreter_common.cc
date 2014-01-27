@@ -200,26 +200,20 @@ bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
     DCHECK(self->IsExceptionPending());
     return false;
   }
+  uint32_t arg[5];  // only used in filled-new-array.
+  uint32_t vregC;   // only used in filled-new-array-range.
   if (is_range) {
-    uint32_t vregC = inst->VRegC_3rc();
-    const bool is_primitive_int_component = componentClass->IsPrimitiveInt();
-    for (int32_t i = 0; i < length; ++i) {
-      if (is_primitive_int_component) {
-        newArray->AsIntArray()->Set(i, shadow_frame.GetVReg(vregC + i));
-      } else {
-        newArray->AsObjectArray<Object>()->Set(i, shadow_frame.GetVRegReference(vregC + i));
-      }
-    }
+    vregC = inst->VRegC_3rc();
   } else {
-    uint32_t arg[5];
     inst->GetArgs(arg);
-    const bool is_primitive_int_component = componentClass->IsPrimitiveInt();
-    for (int32_t i = 0; i < length; ++i) {
-      if (is_primitive_int_component) {
-        newArray->AsIntArray()->Set(i, shadow_frame.GetVReg(arg[i]));
-      } else {
-        newArray->AsObjectArray<Object>()->Set(i, shadow_frame.GetVRegReference(arg[i]));
-      }
+  }
+  const bool is_primitive_int_component = componentClass->IsPrimitiveInt();
+  for (int32_t i = 0; i < length; ++i) {
+    size_t src_reg = is_range ? vregC + i : arg[i];
+    if (is_primitive_int_component) {
+      newArray->AsIntArray()->SetWithoutChecks(i, shadow_frame.GetVReg(src_reg));
+    } else {
+      newArray->AsObjectArray<Object>()->SetWithoutChecks(i, shadow_frame.GetVRegReference(src_reg));
     }
   }
 

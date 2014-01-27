@@ -830,8 +830,8 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         }
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
         BooleanArray* array = a->AsBooleanArray();
-        if (LIKELY(array->IsValidIndex(index))) {
-          shadow_frame.SetVReg(inst->VRegA_23x(inst_data), array->GetData()[index]);
+        if (LIKELY(array->CheckIsValidIndex(index))) {
+          shadow_frame.SetVReg(inst->VRegA_23x(inst_data), array->GetWithoutChecks(index));
           inst = inst->Next_2xx();
         } else {
           HANDLE_PENDING_EXCEPTION();
@@ -848,8 +848,8 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         }
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
         ByteArray* array = a->AsByteArray();
-        if (LIKELY(array->IsValidIndex(index))) {
-          shadow_frame.SetVReg(inst->VRegA_23x(inst_data), array->GetData()[index]);
+        if (LIKELY(array->CheckIsValidIndex(index))) {
+          shadow_frame.SetVReg(inst->VRegA_23x(inst_data), array->GetWithoutChecks(index));
           inst = inst->Next_2xx();
         } else {
           HANDLE_PENDING_EXCEPTION();
@@ -866,8 +866,8 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         }
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
         CharArray* array = a->AsCharArray();
-        if (LIKELY(array->IsValidIndex(index))) {
-          shadow_frame.SetVReg(inst->VRegA_23x(inst_data), array->GetData()[index]);
+        if (LIKELY(array->CheckIsValidIndex(index))) {
+          shadow_frame.SetVReg(inst->VRegA_23x(inst_data), array->GetWithoutChecks(index));
           inst = inst->Next_2xx();
         } else {
           HANDLE_PENDING_EXCEPTION();
@@ -884,8 +884,8 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         }
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
         ShortArray* array = a->AsShortArray();
-        if (LIKELY(array->IsValidIndex(index))) {
-          shadow_frame.SetVReg(inst->VRegA_23x(inst_data), array->GetData()[index]);
+        if (LIKELY(array->CheckIsValidIndex(index))) {
+          shadow_frame.SetVReg(inst->VRegA_23x(inst_data), array->GetWithoutChecks(index));
           inst = inst->Next_2xx();
         } else {
           HANDLE_PENDING_EXCEPTION();
@@ -902,8 +902,8 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         }
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
         IntArray* array = a->AsIntArray();
-        if (LIKELY(array->IsValidIndex(index))) {
-          shadow_frame.SetVReg(inst->VRegA_23x(inst_data), array->GetData()[index]);
+        if (LIKELY(array->CheckIsValidIndex(index))) {
+          shadow_frame.SetVReg(inst->VRegA_23x(inst_data), array->GetWithoutChecks(index));
           inst = inst->Next_2xx();
         } else {
           HANDLE_PENDING_EXCEPTION();
@@ -920,8 +920,8 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         }
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
         LongArray* array = a->AsLongArray();
-        if (LIKELY(array->IsValidIndex(index))) {
-          shadow_frame.SetVRegLong(inst->VRegA_23x(inst_data), array->GetData()[index]);
+        if (LIKELY(array->CheckIsValidIndex(index))) {
+          shadow_frame.SetVRegLong(inst->VRegA_23x(inst_data), array->GetWithoutChecks(index));
           inst = inst->Next_2xx();
         } else {
           HANDLE_PENDING_EXCEPTION();
@@ -938,7 +938,7 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         }
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
         ObjectArray<Object>* array = a->AsObjectArray<Object>();
-        if (LIKELY(array->IsValidIndex(index))) {
+        if (LIKELY(array->CheckIsValidIndex(index))) {
           shadow_frame.SetVRegReference(inst->VRegA_23x(inst_data), array->GetWithoutChecks(index));
           inst = inst->Next_2xx();
         } else {
@@ -957,8 +957,8 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         uint8_t val = shadow_frame.GetVReg(inst->VRegA_23x(inst_data));
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
         BooleanArray* array = a->AsBooleanArray();
-        if (LIKELY(array->IsValidIndex(index))) {
-          array->GetData()[index] = val;
+        if (LIKELY(array->CheckIsValidIndex(index))) {
+          array->SetWithoutChecks(index, val);
           inst = inst->Next_2xx();
         } else {
           HANDLE_PENDING_EXCEPTION();
@@ -976,8 +976,8 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         int8_t val = shadow_frame.GetVReg(inst->VRegA_23x(inst_data));
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
         ByteArray* array = a->AsByteArray();
-        if (LIKELY(array->IsValidIndex(index))) {
-          array->GetData()[index] = val;
+        if (LIKELY(array->CheckIsValidIndex(index))) {
+          array->SetWithoutChecks(index, val);
           inst = inst->Next_2xx();
         } else {
           HANDLE_PENDING_EXCEPTION();
@@ -995,8 +995,8 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         uint16_t val = shadow_frame.GetVReg(inst->VRegA_23x(inst_data));
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
         CharArray* array = a->AsCharArray();
-        if (LIKELY(array->IsValidIndex(index))) {
-          array->GetData()[index] = val;
+        if (LIKELY(array->CheckIsValidIndex(index))) {
+          array->SetWithoutChecks(index, val);
           inst = inst->Next_2xx();
         } else {
           HANDLE_PENDING_EXCEPTION();
@@ -1014,8 +1014,8 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         int16_t val = shadow_frame.GetVReg(inst->VRegA_23x(inst_data));
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
         ShortArray* array = a->AsShortArray();
-        if (LIKELY(array->IsValidIndex(index))) {
-          array->GetData()[index] = val;
+        if (LIKELY(array->CheckIsValidIndex(index))) {
+          array->SetWithoutChecks(index, val);
           inst = inst->Next_2xx();
         } else {
           HANDLE_PENDING_EXCEPTION();
@@ -1033,8 +1033,8 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         int32_t val = shadow_frame.GetVReg(inst->VRegA_23x(inst_data));
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
         IntArray* array = a->AsIntArray();
-        if (LIKELY(array->IsValidIndex(index))) {
-          array->GetData()[index] = val;
+        if (LIKELY(array->CheckIsValidIndex(index))) {
+          array->SetWithoutChecks(index, val);
           inst = inst->Next_2xx();
         } else {
           HANDLE_PENDING_EXCEPTION();
@@ -1052,8 +1052,8 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         int64_t val = shadow_frame.GetVRegLong(inst->VRegA_23x(inst_data));
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
         LongArray* array = a->AsLongArray();
-        if (LIKELY(array->IsValidIndex(index))) {
-          array->GetData()[index] = val;
+        if (LIKELY(array->CheckIsValidIndex(index))) {
+          array->SetWithoutChecks(index, val);
           inst = inst->Next_2xx();
         } else {
           HANDLE_PENDING_EXCEPTION();
@@ -1071,7 +1071,7 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
         Object* val = shadow_frame.GetVRegReference(inst->VRegA_23x(inst_data));
         ObjectArray<Object>* array = a->AsObjectArray<Object>();
-        if (LIKELY(array->IsValidIndex(index) && array->CheckAssignable(val))) {
+        if (LIKELY(array->CheckIsValidIndex(index) && array->CheckAssignable(val))) {
           array->SetWithoutChecks(index, val);
           inst = inst->Next_2xx();
         } else {
