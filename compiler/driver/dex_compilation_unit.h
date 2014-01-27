@@ -29,6 +29,7 @@ class DexCache;
 }  // namespace mirror
 class ClassLinker;
 struct CompilationUnit;
+class VerifiedMethod;
 
 class DexCompilationUnit {
  public:
@@ -36,7 +37,8 @@ class DexCompilationUnit {
 
   DexCompilationUnit(CompilationUnit* cu, jobject class_loader, ClassLinker* class_linker,
                      const DexFile& dex_file, const DexFile::CodeItem* code_item,
-                     uint16_t class_def_idx, uint32_t method_idx, uint32_t access_flags);
+                     uint16_t class_def_idx, uint32_t method_idx, uint32_t access_flags,
+                     const VerifiedMethod* verified_method);
 
   CompilationUnit* GetCompilationUnit() const {
     return cu_;
@@ -96,6 +98,10 @@ class DexCompilationUnit {
     return ((access_flags_ & kAccSynchronized) != 0);
   }
 
+  const VerifiedMethod* GetVerifiedMethod() const {
+    return verified_method_;
+  }
+
   const std::string& GetSymbol();
 
  private:
@@ -111,6 +117,7 @@ class DexCompilationUnit {
   const uint16_t class_def_idx_;
   const uint32_t dex_method_idx_;
   const uint32_t access_flags_;
+  const VerifiedMethod* const verified_method_;
 
   std::string symbol_;
 };
