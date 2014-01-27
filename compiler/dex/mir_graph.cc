@@ -126,9 +126,6 @@ BasicBlock* MIRGraph::SplitBlock(DexOffset code_offset,
   bottom_block->terminated_by_return = orig_block->terminated_by_return;
   orig_block->terminated_by_return = false;
 
-  /* Add it to the quick lookup cache */
-  dex_pc_to_block_map_.Put(bottom_block->start_offset, bottom_block->id);
-
   /* Handle the taken path */
   bottom_block->taken = orig_block->taken;
   if (bottom_block->taken != NullBasicBlockId) {
@@ -177,19 +174,29 @@ BasicBlock* MIRGraph::SplitBlock(DexOffset code_offset,
   }
 
   // Associate dex instructions in the bottom block with the new container.
-  MIR* p = bottom_block->first_mir_insn;
-  while (p != NULL) {
+  DCHECK(insn != nullptr);
+  DCHECK(insn != orig_block->first_mir_insn);
+  DCHECK(insn == bottom_block->first_mir_insn);
+  DCHECK_EQ(insn->offset, bottom_block->start_offset);
+  DCHECK(static_cast<int>(insn->dalvikInsn.opcode) == kMirOpCheck ||
+         !IsPseudoMirOp(insn->dalvikInsn.opcode));
+  DCHECK_EQ(dex_pc_to_block_map_.Get(insn->offset), orig_block->id);
+  MIR* p = insn;
+  dex_pc_to_block_map_.Put(p->offset, bottom_block->id);
+  while (p != bottom_block->last_mir_insn) {
+    p = p->next;
+    DCHECK(p != nullptr);
     int opcode = p->dalvikInsn.opcode;
     /*
      * Some messiness here to ensure that we only enter real opcodes and only the
      * first half of a potentially throwing instruction that has been split into
-     * CHECK and work portions.  The 2nd half of a split operation will have a non-null
-     * throw_insn pointer that refers to the 1st half.
+     * CHECK and work portions. Since the 2nd half of a split operation is always
+     * the first in a BasicBlock, we can't hit it here.
      */
-    if ((opcode == kMirOpCheck) || (!IsPseudoMirOp(opcode) && (p->meta.throw_insn == NULL))) {
+    if ((opcode == kMirOpCheck) || !IsPseudoMirOp(opcode)) {
+      DCHECK_EQ(dex_pc_to_block_map_.Get(p->offset), orig_block->id);
       dex_pc_to_block_map_.Put(p->offset, bottom_block->id);
     }
-    p = (p == bottom_block->last_mir_insn) ? NULL : p->next;
   }
 
   return bottom_block;
@@ -508,7 +515,6 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
       static_cast<Instruction::Code>(kMirOpCheck);
   // Associate the two halves
   insn->meta.throw_insn = new_insn;
-  new_insn->meta.throw_insn = insn;
   AppendMIR(new_block, new_insn);
   return new_block;
 }
