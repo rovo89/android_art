@@ -180,7 +180,97 @@ void X86Mir2Lir::OpRegCopyWide(int dest_lo, int dest_hi,
 }
 
 void X86Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
-  UNIMPLEMENTED(FATAL) << "Need codegen for GenSelect";
+  RegLocation rl_result;
+  RegLocation rl_src = mir_graph_->GetSrc(mir, 0);
+  RegLocation rl_dest = mir_graph_->GetDest(mir);
+  rl_src = LoadValue(rl_src, kCoreReg);
+
+  // The kMirOpSelect has two variants, one for constants and one for moves.
+  const bool is_constant_case = (mir->ssa_rep->num_uses == 1);
+
+  if (is_constant_case) {
+    int true_val = mir->dalvikInsn.vB;
+    int false_val = mir->dalvikInsn.vC;
+    rl_result = EvalLoc(rl_dest, kCoreReg, true);
+
+    /*
+     * 1) When the true case is zero and result_reg is not same as src_reg:
+     *     xor result_reg, result_reg
+     *     cmp $0, src_reg
+     *     mov t1, $false_case
+     *     cmovnz result_reg, t1
+     * 2) When the false case is zero and result_reg is not same as src_reg:
+     *     xor result_reg, result_reg
+     *     cmp $0, src_reg
+     *     mov t1, $true_case
+     *     cmovz result_reg, t1
+     * 3) All other cases (we do compare first to set eflags):
+     *     cmp $0, src_reg
+     *     mov result_reg, $true_case
+     *     mov t1, $false_case
+     *     cmovnz result_reg, t1
+     */
+    const bool result_reg_same_as_src = (rl_src.location == kLocPhysReg && rl_src.low_reg == rl_result.low_reg);
+    const bool true_zero_case = (true_val == 0 && false_val != 0 && !result_reg_same_as_src);
+    const bool false_zero_case = (false_val == 0 && true_val != 0 && !result_reg_same_as_src);
+    const bool catch_all_case = !(true_zero_case || false_zero_case);
+
+    if (true_zero_case || false_zero_case) {
+      OpRegReg(kOpXor, rl_result.low_reg, rl_result.low_reg);
+    }
+
+    if (true_zero_case || false_zero_case || catch_all_case) {
+      OpRegImm(kOpCmp, rl_src.low_reg, 0);
+    }
+
+    if (catch_all_case) {
+      OpRegImm(kOpMov, rl_result.low_reg, true_val);
+    }
+
+    if (true_zero_case || false_zero_case || catch_all_case) {
+      int immediateForTemp = false_zero_case ? true_val : false_val;
+      int temp1_reg = AllocTemp();
+      OpRegImm(kOpMov, temp1_reg, immediateForTemp);
+
+      ConditionCode cc = false_zero_case ? kCondEq : kCondNe;
+      OpCondRegReg(kOpCmov, cc, rl_result.low_reg, temp1_reg);
+
+      FreeTemp(temp1_reg);
+    }
+  } else {
+    RegLocation rl_true = mir_graph_->GetSrc(mir, 1);
+    RegLocation rl_false = mir_graph_->GetSrc(mir, 2);
+    rl_true = LoadValue(rl_true, kCoreReg);
+    rl_false = LoadValue(rl_false, kCoreReg);
+    rl_result = EvalLoc(rl_dest, kCoreReg, true);
+
+    /*
+     * 1) When true case is already in place:
+     *     cmp $0, src_reg
+     *     cmovnz result_reg, false_reg
+     * 2) When false case is already in place:
+     *     cmp $0, src_reg
+     *     cmovz result_reg, true_reg
+     * 3) When neither cases are in place:
+     *     cmp $0, src_reg
+     *     mov result_reg, true_reg
+     *     cmovnz result_reg, false_reg
+     */
+
+    // kMirOpSelect is generated just for conditional cases when comparison is done with zero.
+    OpRegImm(kOpCmp, rl_src.low_reg, 0);
+
+    if (rl_result.low_reg == rl_true.low_reg) {
+      OpCondRegReg(kOpCmov, kCondNe, rl_result.low_reg, rl_false.low_reg);
+    } else if (rl_result.low_reg == rl_false.low_reg) {
+      OpCondRegReg(kOpCmov, kCondEq, rl_result.low_reg, rl_true.low_reg);
+    } else {
+      OpRegCopy(rl_result.low_reg, rl_true.low_reg);
+      OpCondRegReg(kOpCmov, kCondNe, rl_result.low_reg, rl_false.low_reg);
+    }
+  }
+
+  StoreValue(rl_dest, rl_result);
 }
 
 void X86Mir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {

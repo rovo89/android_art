@@ -796,7 +796,14 @@ class Mir2Lir : public Backend {
     virtual void GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias,
                                      bool is_double) = 0;
     virtual void GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) = 0;
+
+    /**
+     * @brief Lowers the kMirOpSelect MIR into LIR.
+     * @param bb The basic block in which the MIR is from.
+     * @param mir The MIR whose opcode is kMirOpSelect.
+     */
     virtual void GenSelect(BasicBlock* bb, MIR* mir) = 0;
+
     virtual void GenMemBarrier(MemBarrierKind barrier_kind) = 0;
     virtual void GenMoveException(RegLocation rl_dest) = 0;
     virtual void GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
