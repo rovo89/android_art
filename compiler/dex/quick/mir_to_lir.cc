@@ -762,11 +762,13 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
       // Combine check and work halves of throwing instruction.
       MIR* work_half = mir->meta.throw_insn;
       mir->dalvikInsn.opcode = work_half->dalvikInsn.opcode;
+      mir->meta = work_half->meta;  // Whatever the work_half had, we need to copy it.
       opcode = work_half->dalvikInsn.opcode;
       SSARepresentation* ssa_rep = work_half->ssa_rep;
       work_half->ssa_rep = mir->ssa_rep;
       mir->ssa_rep = ssa_rep;
       work_half->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpCheckPart2);
+      work_half->meta.throw_insn = mir;
     }
 
     if (opcode >= kMirOpFirst) {
