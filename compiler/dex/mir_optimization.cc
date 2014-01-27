@@ -323,9 +323,10 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
           break;
       }
       // Is this the select pattern?
-      // TODO: flesh out support for Mips and X86.  NOTE: llvm's select op doesn't quite work here.
+      // TODO: flesh out support for Mips.  NOTE: llvm's select op doesn't quite work here.
       // TUNING: expand to support IF_xx compare & branches
-      if (!(cu_->compiler_backend == kPortable) && (cu_->instruction_set == kThumb2) &&
+      if ((cu_->compiler_backend != kPortable) &&
+          (cu_->instruction_set == kThumb2 || cu_->instruction_set == kX86) &&
           ((mir->dalvikInsn.opcode == Instruction::IF_EQZ) ||
           (mir->dalvikInsn.opcode == Instruction::IF_NEZ))) {
         BasicBlock* ft = GetBasicBlock(bb->fall_through);
@@ -391,6 +392,11 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
                 }
               }
               if (const_form) {
+                /*
+                 * TODO: If both constants are the same value, then instead of generating
+                 * a select, we should simply generate a const bytecode. This should be
+                 * considered after inlining which can lead to CFG of this form.
+                 */
                 // "true" set val in vB
                 mir->dalvikInsn.vB = if_true->dalvikInsn.vB;
                 // "false" set val in vC
