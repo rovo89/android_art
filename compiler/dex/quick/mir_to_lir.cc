@@ -342,8 +342,8 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       bool is_safe = is_null;  // Always safe to store null.
       if (!is_safe) {
         // Check safety from verifier type information.
-        const MethodReference mr(cu_->dex_file, cu_->method_idx);
-        is_safe = cu_->compiler_driver->IsSafeCast(mr, mir->offset);
+        const DexCompilationUnit* unit = mir_graph_->GetCurrentDexCompilationUnit();
+        is_safe = cu_->compiler_driver->IsSafeCast(unit, mir->offset);
       }
       if (is_null || is_safe) {
         // Store of constant null doesn't require an assignability test and can be generated inline

@@ -176,8 +176,7 @@ Instruction* DexCompiler::CompileCheckCast(Instruction* inst, uint32_t dex_pc) {
   if (!kEnableCheckCastEllision || !PerformOptimizations()) {
     return inst;
   }
-  MethodReference referrer(&GetDexFile(), unit_.GetDexMethodIndex());
-  if (!driver_.IsSafeCast(referrer, dex_pc)) {
+  if (!driver_.IsSafeCast(&unit_, dex_pc)) {
     return inst;
   }
   // Ok, this is a safe cast. Since the "check-cast" instruction size is 2 code
@@ -272,15 +271,16 @@ void DexCompiler::CompileInvokeVirtual(Instruction* inst,
 }  // namespace optimizer
 }  // namespace art
 
-extern "C" void ArtCompileDEX(art::CompilerDriver& compiler, const art::DexFile::CodeItem* code_item,
+extern "C" void ArtCompileDEX(art::CompilerDriver& driver, const art::DexFile::CodeItem* code_item,
                   uint32_t access_flags, art::InvokeType invoke_type,
                   uint16_t class_def_idx, uint32_t method_idx, jobject class_loader,
                   const art::DexFile& dex_file,
                   art::DexToDexCompilationLevel dex_to_dex_compilation_level) {
   if (dex_to_dex_compilation_level != art::kDontDexToDexCompile) {
     art::DexCompilationUnit unit(NULL, class_loader, art::Runtime::Current()->GetClassLinker(),
-                                 dex_file, code_item, class_def_idx, method_idx, access_flags);
-    art::optimizer::DexCompiler dex_compiler(compiler, unit, dex_to_dex_compilation_level);
+                                 dex_file, code_item, class_def_idx, method_idx, access_flags,
+                                 driver.GetVerifiedMethod(&dex_file, method_idx));
+    art::optimizer::DexCompiler dex_compiler(driver, unit, dex_to_dex_compilation_level);
     dex_compiler.Compile();
   }
 }

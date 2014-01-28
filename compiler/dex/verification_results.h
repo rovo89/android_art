@@ -47,16 +47,6 @@ class VerificationResults {
     const VerifiedMethod* GetVerifiedMethod(MethodReference ref)
         LOCKS_EXCLUDED(verified_methods_lock_);
 
-    const std::vector<uint8_t>* GetDexGcMap(MethodReference ref)
-        LOCKS_EXCLUDED(verified_methods_lock_);
-
-    const MethodReference* GetDevirtMap(const MethodReference& ref, uint32_t dex_pc)
-        LOCKS_EXCLUDED(verified_methods_lock_);
-
-    // Returns true if the cast can statically be verified to be redundant
-    // by using the check-cast elision peephole optimization in the verifier.
-    bool IsSafeCast(MethodReference ref, uint32_t pc) LOCKS_EXCLUDED(safecast_map_lock_);
-
     void AddRejectedClass(ClassReference ref) LOCKS_EXCLUDED(rejected_classes_lock_);
     bool IsClassRejected(ClassReference ref) LOCKS_EXCLUDED(rejected_classes_lock_);
 
