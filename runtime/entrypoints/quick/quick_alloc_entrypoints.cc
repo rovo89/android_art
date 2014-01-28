@@ -56,6 +56,14 @@ extern "C" mirror::Array* artAllocArrayFromCode##suffix##suffix2( \
   return AllocArrayFromCode<false, instrumented_bool>(type_idx, method, component_count, self, \
                                                       allocator_type); \
 } \
+extern "C" mirror::Array* artAllocArrayFromCodeResolved##suffix##suffix2( \
+    mirror::Class* klass, mirror::ArtMethod* method, int32_t component_count, Thread* self, \
+    mirror::ArtMethod** sp) \
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly); \
+  return AllocArrayFromCodeResolved<false, instrumented_bool>(klass, method, component_count, self, \
+                                                              allocator_type); \
+} \
 extern "C" mirror::Array* artAllocArrayFromCodeWithAccessCheck##suffix##suffix2( \
     uint32_t type_idx, mirror::ArtMethod* method, int32_t component_count, Thread* self, \
     mirror::ArtMethod** sp) \

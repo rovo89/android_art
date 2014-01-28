@@ -232,6 +232,30 @@ ALWAYS_INLINE static inline mirror::Array* AllocArrayFromCode(uint32_t type_idx,
   return mirror::Array::Alloc<kInstrumented>(self, klass, component_count, allocator_type);
 }
 
+template <bool kAccessCheck, bool kInstrumented>
+ALWAYS_INLINE static inline mirror::Array* AllocArrayFromCodeResolved(mirror::Class* klass,
+                                                                      mirror::ArtMethod* method,
+                                                                      int32_t component_count,
+                                                                      Thread* self,
+                                                                      gc::AllocatorType allocator_type)
+    NO_THREAD_SAFETY_ANALYSIS {
+  DCHECK(klass != nullptr);
+  if (UNLIKELY(component_count < 0)) {
+    ThrowNegativeArraySizeException(component_count);
+    return nullptr;  // Failure
+  }
+  if (kAccessCheck) {
+    mirror::Class* referrer = method->GetDeclaringClass();
+    if (UNLIKELY(!referrer->CanAccess(klass))) {
+      ThrowIllegalAccessErrorClass(referrer, klass);
+      return nullptr;  // Failure
+    }
+  }
+  // No need to retry a slow-path allocation as the above code won't
+  // cause a GC or thread suspension.
+  return mirror::Array::Alloc<kInstrumented>(self, klass, component_count, allocator_type);
+}
+
 extern mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::ArtMethod* method,
                                                  int32_t component_count, Thread* self,
                                                  bool access_check,
