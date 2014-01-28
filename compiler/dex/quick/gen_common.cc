@@ -1426,28 +1426,10 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
  * or produce corresponding Thumb instructions directly.
  */
 
-static bool IsPowerOfTwo(int x) {
-  return (x & (x - 1)) == 0;
-}
-
 // Returns true if no more than two bits are set in 'x'.
 static bool IsPopCountLE2(unsigned int x) {
   x &= x - 1;
   return (x & (x - 1)) == 0;
-}
-
-// Returns the index of the lowest set bit in 'x'.
-static int32_t LowestSetBit(uint32_t x) {
-  int bit_posn = 0;
-  while ((x & 0xf) == 0) {
-    bit_posn += 4;
-    x >>= 4;
-  }
-  while ((x & 1) == 0) {
-    bit_posn++;
-    x >>= 1;
-  }
-  return bit_posn;
 }
 
 // Returns true if it added instructions to 'cu' to divide 'rl_src' by 'lit'
@@ -1741,7 +1723,7 @@ void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
       break;
     case Instruction::MUL_LONG:
     case Instruction::MUL_LONG_2ADDR:
-      if (cu_->instruction_set == kThumb2) {
+      if (cu_->instruction_set != kMips) {
         GenMulLong(opcode, rl_dest, rl_src1, rl_src2);
         return;
       } else {

@@ -192,7 +192,6 @@ class ArmMir2Lir : public Mir2Lir {
     MIR* SpecialIPut(BasicBlock** bb, MIR* mir, OpSize size, bool long_or_double, bool is_object);
     MIR* SpecialIdentity(MIR* mir);
     LIR* LoadFPConstantValue(int r_dest, int value);
-    bool BadOverlap(RegLocation rl_src, RegLocation rl_dest);
     void ReplaceFixup(LIR* prev_lir, LIR* orig_lir, LIR* new_lir);
     void InsertFixupBefore(LIR* prev_lir, LIR* orig_lir, LIR* new_lir);
     void AssignDataOffsets();
