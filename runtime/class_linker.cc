@@ -199,14 +199,14 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   Thread* self = Thread::Current();
   gc::Heap* heap = Runtime::Current()->GetHeap();
   // The GC can't handle an object with a null class since we can't get the size of this object.
-  heap->IncrementDisableGC(self);
+  heap->IncrementDisableMovingGC(self);
   SirtRef<mirror::Class> java_lang_Class(self, down_cast<mirror::Class*>(
       heap->AllocNonMovableObject<true>(self, nullptr, sizeof(mirror::ClassClass))));
   CHECK(java_lang_Class.get() != NULL);
   mirror::Class::SetClassClass(java_lang_Class.get());
   java_lang_Class->SetClass(java_lang_Class.get());
   java_lang_Class->SetClassSize(sizeof(mirror::ClassClass));
-  heap->DecrementDisableGC(self);
+  heap->DecrementDisableMovingGC(self);
   // AllocClass(mirror::Class*) can now be used
 
   // Class[] is used for reflection support.
