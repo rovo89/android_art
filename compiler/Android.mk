@@ -59,7 +59,8 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/frontend.cc \
 	dex/mir_graph.cc \
 	dex/mir_analysis.cc \
-	dex/verified_methods_data.cc \
+	dex/verified_method.cc \
+	dex/verification_results.cc \
 	dex/vreg_analysis.cc \
 	dex/ssa_transformation.cc \
 	driver/compiler_driver.cc \

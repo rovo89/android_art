@@ -23,7 +23,7 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "dex_file-inl.h"
-#include "dex/verified_methods_data.h"
+#include "dex/verification_results.h"
 #include "gc/space/space.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/array.h"
@@ -218,7 +218,7 @@ size_t OatWriter::InitOatClasses(size_t offset) {
       mirror::Class::Status status;
       if (compiled_class != NULL) {
         status = compiled_class->GetStatus();
-      } else if (compiler_driver_->GetVerifiedMethodsData()->IsClassRejected(class_ref)) {
+      } else if (compiler_driver_->GetVerificationResults()->IsClassRejected(class_ref)) {
         status = mirror::Class::kStatusError;
       } else {
         status = mirror::Class::kStatusNotReady;
@@ -433,7 +433,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
       mirror::Class::Status status;
       if (compiled_class != NULL) {
         status = compiled_class->GetStatus();
-      } else if (compiler_driver_->GetVerifiedMethodsData()->IsClassRejected(class_ref)) {
+      } else if (compiler_driver_->GetVerificationResults()->IsClassRejected(class_ref)) {
         status = mirror::Class::kStatusError;
       } else {
         status = mirror::Class::kStatusNotReady;
