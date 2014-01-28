@@ -1216,10 +1216,6 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
     // TODO - add Mips implementation
     return false;
   }
-  if (cu_->instruction_set == kX86 && is_object) {
-    // TODO: fix X86, it exhausts registers for card marking.
-    return false;
-  }
   // Unused - RegLocation rl_src_unsafe = info->args[0];
   RegLocation rl_src_obj = info->args[1];  // Object
   RegLocation rl_src_offset = info->args[2];  // long low
@@ -1239,6 +1235,9 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
     rl_value = LoadValue(rl_src_value, kCoreReg);
     StoreBaseIndexed(rl_object.low_reg, rl_offset.low_reg, rl_value.low_reg, 0, kWord);
   }
+
+  // Free up the temp early, to ensure x86 doesn't run out of temporaries in MarkGCCard.
+  FreeTemp(rl_offset.low_reg);
   if (is_volatile) {
     GenMemBarrier(kStoreLoad);
   }
