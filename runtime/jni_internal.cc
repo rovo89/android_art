@@ -2195,7 +2195,7 @@ class JNI {
     Array* array = soa.Decode<Array*>(java_array);
     gc::Heap* heap = Runtime::Current()->GetHeap();
     if (heap->IsMovableObject(array)) {
-      heap->IncrementDisableGC(soa.Self());
+      heap->IncrementDisableMovingGC(soa.Self());
       // Re-decode in case the object moved since IncrementDisableGC waits for GC to complete.
       array = soa.Decode<Array*>(java_array);
     }
@@ -2646,7 +2646,8 @@ class JNI {
       if (is_copy) {
         delete[] reinterpret_cast<uint64_t*>(elements);
       } else if (heap->IsMovableObject(array)) {
-        heap->DecrementDisableGC(soa.Self());
+        // Non copy to a movable object must means that we had disabled the moving GC.
+        heap->DecrementDisableMovingGC(soa.Self());
       }
       UnpinPrimitiveArray(soa, array);
     }
