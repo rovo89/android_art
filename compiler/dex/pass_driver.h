@@ -17,7 +17,7 @@
 #ifndef ART_COMPILER_DEX_PASS_DRIVER_H_
 #define ART_COMPILER_DEX_PASS_DRIVER_H_
 
-#include <list>
+#include <vector>
 #include "pass.h"
 #include "safe_map.h"
 
@@ -42,7 +42,7 @@ class PassDriver {
    * @param new_pass the new Pass to insert in the map and list.
    * @param warn_override warn if the name of the Pass is already used.
    */
-  void InsertPass(const Pass* new_pass, bool warn_override = true);
+  void InsertPass(const Pass* new_pass);
 
   /**
    * @brief Run a pass using the name as key.
@@ -50,7 +50,7 @@ class PassDriver {
    * @param pass_name the Pass name.
    * @return whether the pass was applied.
    */
-  bool RunPass(CompilationUnit* c_unit, const std::string& pass_name);
+  bool RunPass(CompilationUnit* c_unit, const char* pass_name);
 
   /**
    * @brief Run a pass using the Pass itself.
@@ -75,20 +75,17 @@ class PassDriver {
 
   void PrintPassNames() const;
 
-  const Pass* GetPass(const std::string& name) const;
+  const Pass* GetPass(const char* name) const;
 
-  const char *GetDumpCFGFolder() const {
+  const char* GetDumpCFGFolder() const {
     return dump_cfg_folder_;
   }
 
  protected:
   void CreatePasses();
 
-  /** @brief The Pass Map: contains name -> pass for quick lookup. */
-  SafeMap<std::string, const Pass*> pass_map_;
-
   /** @brief List of passes: provides the order to execute the passes. */
-  std::list<const Pass*> pass_list_;
+  std::vector<const Pass*> pass_list_;
 
   /** @brief The CompilationUnit on which to execute the passes on. */
   CompilationUnit* const cu_;

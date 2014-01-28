@@ -41,6 +41,7 @@ enum DataFlowAnalysisMode {
   kRepeatingPostOrderDFSTraversal,         /**< @brief Depth-First-Search / Repeating Post-Order. */
   kRepeatingReversePostOrderDFSTraversal,  /**< @brief Depth-First-Search / Repeating Reverse Post-Order. */
   kPostOrderDOMTraversal,                  /**< @brief Dominator tree / Post-Order. */
+  kNoNodes,                                /**< @brief Skip BasicBlock traversal. */
 };
 
 /**
@@ -50,19 +51,21 @@ enum DataFlowAnalysisMode {
  */
 class Pass {
  public:
-  Pass(const char *name, DataFlowAnalysisMode type, bool freed, const unsigned int f, const char *dump): pass_name_(name), traversal_type_(type), flags_(f), dump_cfg_folder_(dump) {
+  explicit Pass(const char* name, DataFlowAnalysisMode type = kAllNodes,
+                unsigned int flags = 0u, const char* dump = "")
+    : pass_name_(name), traversal_type_(type), flags_(flags), dump_cfg_folder_(dump) {
   }
 
-  Pass(const char *name, const char *dump): pass_name_(name), traversal_type_(kAllNodes), flags_(0), dump_cfg_folder_(dump) {
+  Pass(const char* name, DataFlowAnalysisMode type, const char* dump)
+    : pass_name_(name), traversal_type_(type), flags_(0), dump_cfg_folder_(dump) {
   }
 
-  explicit Pass(const char *name):pass_name_(name), traversal_type_(kAllNodes), flags_(0), dump_cfg_folder_("") {
+  Pass(const char* name, const char* dump)
+    : pass_name_(name), traversal_type_(kAllNodes), flags_(0), dump_cfg_folder_(dump) {
   }
 
-  Pass(const char *name, DataFlowAnalysisMode type, const char *dump):pass_name_(name), traversal_type_(type), flags_(false), dump_cfg_folder_(dump) {
+  virtual ~Pass() {
   }
-
-  virtual ~Pass() {}
 
   virtual const char* GetName() const {
     return pass_name_;
@@ -76,14 +79,16 @@ class Pass {
     return (flags_ & flag);
   }
 
-  const char* GetDumpCFGFolder() const {return dump_cfg_folder_;}
+  const char* GetDumpCFGFolder() const {
+    return dump_cfg_folder_;
+  }
 
   /**
    * @brief Gate for the pass: determines whether to execute the pass or not considering a CompilationUnit
    * @param c_unit the CompilationUnit.
    * @return whether or not to execute the pass
    */
-  virtual bool Gate(const CompilationUnit *c_unit) const {
+  virtual bool Gate(const CompilationUnit* c_unit) const {
     // Unused parameter.
     UNUSED(c_unit);
 
@@ -95,7 +100,7 @@ class Pass {
    * @brief Start of the pass: called before the WalkBasicBlocks function
    * @param c_unit the considered CompilationUnit.
    */
-  virtual void Start(CompilationUnit *c_unit) const {
+  virtual void Start(CompilationUnit* c_unit) const {
     // Unused parameter.
     UNUSED(c_unit);
   }
@@ -104,7 +109,7 @@ class Pass {
    * @brief End of the pass: called after the WalkBasicBlocks function
    * @param c_unit the considered CompilationUnit.
    */
-  virtual void End(CompilationUnit *c_unit) const {
+  virtual void End(CompilationUnit* c_unit) const {
     // Unused parameter.
     UNUSED(c_unit);
   }
@@ -115,7 +120,7 @@ class Pass {
    * @param bb the BasicBlock.
    * @return whether or not there is a change when walking the BasicBlock
    */
-  virtual bool WalkBasicBlocks(CompilationUnit *c_unit, BasicBlock *bb) const {
+  virtual bool WalkBasicBlocks(CompilationUnit* c_unit, BasicBlock* bb) const {
     // Unused parameters.
     UNUSED(c_unit);
     UNUSED(bb);
