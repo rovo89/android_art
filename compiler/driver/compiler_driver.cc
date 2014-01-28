@@ -28,6 +28,7 @@
 #include "dex_compilation_unit.h"
 #include "dex_file-inl.h"
 #include "dex/verification_results.h"
+#include "dex/verified_method.h"
 #include "jni_internal.h"
 #include "object_utils.h"
 #include "runtime.h"
@@ -1272,9 +1273,9 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
         if (enableVerifierBasedSharpening && (*invoke_type == kVirtual ||
                                               *invoke_type == kInterface)) {
           // Did the verifier record a more precise invoke target based on its type information?
-          const MethodReference caller_method(mUnit->GetDexFile(), mUnit->GetDexMethodIndex());
+          DCHECK(mUnit->GetVerifiedMethod() != nullptr);
           const MethodReference* devirt_map_target =
-              verification_results_->GetDevirtMap(caller_method, dex_pc);
+              mUnit->GetVerifiedMethod()->GetDevirtTarget(dex_pc);
           if (devirt_map_target != NULL) {
             SirtRef<mirror::DexCache> target_dex_cache(soa.Self(), mUnit->GetClassLinker()->FindDexCache(*devirt_map_target->dex_file));
             SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
@@ -1321,8 +1322,15 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
   return false;  // Incomplete knowledge needs slow path.
 }
 
-bool CompilerDriver::IsSafeCast(const MethodReference& mr, uint32_t dex_pc) {
-  bool result = verification_results_->IsSafeCast(mr, dex_pc);
+const VerifiedMethod* CompilerDriver::GetVerifiedMethod(const DexFile* dex_file,
+                                                        uint32_t method_idx) const {
+  MethodReference ref(dex_file, method_idx);
+  return verification_results_->GetVerifiedMethod(ref);
+}
+
+bool CompilerDriver::IsSafeCast(const DexCompilationUnit* mUnit, uint32_t dex_pc) {
+  DCHECK(mUnit->GetVerifiedMethod() != nullptr);
+  bool result = mUnit->GetVerifiedMethod()->IsSafeCast(dex_pc);
   if (result) {
     stats_->SafeCast();
   } else {

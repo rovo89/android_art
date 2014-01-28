@@ -79,24 +79,6 @@ const VerifiedMethod* VerificationResults::GetVerifiedMethod(MethodReference ref
   return (it != verified_methods_.end()) ? it->second : nullptr;
 }
 
-const std::vector<uint8_t>* VerificationResults::GetDexGcMap(MethodReference ref) {
-  const VerifiedMethod* verified_method = GetVerifiedMethod(ref);
-  CHECK(verified_method != nullptr)
-    << "Didn't find GC map for: " << PrettyMethod(ref.dex_method_index, *ref.dex_file);
-  return &verified_method->GetDexGcMap();
-}
-
-const MethodReference* VerificationResults::GetDevirtMap(const MethodReference& ref,
-                                                                    uint32_t dex_pc) {
-  const VerifiedMethod* verified_method = GetVerifiedMethod(ref);
-  return (verified_method != nullptr) ? verified_method->GetDevirtTarget(dex_pc) : nullptr;
-}
-
-bool VerificationResults::IsSafeCast(MethodReference ref, uint32_t pc) {
-  const VerifiedMethod* verified_method = GetVerifiedMethod(ref);
-  return (verified_method != nullptr) && (verified_method->IsSafeCast(pc));
-}
-
 void VerificationResults::AddRejectedClass(ClassReference ref) {
   {
     WriterMutexLock mu(Thread::Current(), rejected_classes_lock_);
