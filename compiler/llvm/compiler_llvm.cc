@@ -20,7 +20,7 @@
 #include "base/stl_util.h"
 #include "class_linker.h"
 #include "compiled_method.h"
-#include "dex/verified_methods_data.h"
+#include "dex/verification_results.h"
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
 #include "globals.h"
@@ -157,7 +157,7 @@ CompileDexMethod(DexCompilationUnit* dex_compilation_unit, InvokeType invoke_typ
                        dex_compilation_unit->GetDexMethodIndex());
   return new CompiledMethod(*compiler_driver_, compiler_driver_->GetInstructionSet(),
                             cunit->GetElfObject(),
-                            *compiler_driver_->GetVerifiedMethodsData()->GetDexGcMap(mref),
+                            *compiler_driver_->GetVerificationResults()->GetDexGcMap(mref),
                             cunit->GetDexCompilationUnit()->GetSymbol());
 }
 

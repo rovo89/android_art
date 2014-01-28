@@ -32,7 +32,7 @@
 #include "class_linker.h"
 #include "compiler_callbacks.h"
 #include "dex_file-inl.h"
-#include "dex/verified_methods_data.h"
+#include "dex/verification_results.h"
 #include "driver/compiler_driver.h"
 #include "elf_fixup.h"
 #include "elf_stripper.h"
@@ -268,7 +268,7 @@ class Dex2Oat {
       Runtime::Current()->SetCompileTimeClassPath(class_loader, class_path_files);
     }
 
-    UniquePtr<CompilerDriver> driver(new CompilerDriver(verified_methods_data_.get(),
+    UniquePtr<CompilerDriver> driver(new CompilerDriver(verification_results_.get(),
                                                         method_inliner_map_.get(),
                                                         compiler_backend_,
                                                         instruction_set_,
@@ -348,15 +348,15 @@ class Dex2Oat {
  private:
   class Dex2OatCompilerCallbacks : public CompilerCallbacks {
     public:
-      Dex2OatCompilerCallbacks(VerifiedMethodsData* verified_methods_data,
+      Dex2OatCompilerCallbacks(VerificationResults* verification_results,
                                DexFileToMethodInlinerMap* method_inliner_map)
-          : verified_methods_data_(verified_methods_data),
+          : verification_results_(verification_results),
             method_inliner_map_(method_inliner_map) { }
       virtual ~Dex2OatCompilerCallbacks() { }
 
       virtual bool MethodVerified(verifier::MethodVerifier* verifier)
           SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-        bool result = verified_methods_data_->ProcessVerifiedMethod(verifier);
+        bool result = verification_results_->ProcessVerifiedMethod(verifier);
         if (result && method_inliner_map_ != nullptr) {
           MethodReference ref = verifier->GetMethodReference();
           method_inliner_map_->GetMethodInliner(ref.dex_file)
@@ -365,11 +365,11 @@ class Dex2Oat {
         return result;
       }
       virtual void ClassRejected(ClassReference ref) {
-        verified_methods_data_->AddRejectedClass(ref);
+        verification_results_->AddRejectedClass(ref);
       }
 
     private:
-      VerifiedMethodsData* verified_methods_data_;
+      VerificationResults* verification_results_;
       DexFileToMethodInlinerMap* method_inliner_map_;
   };
 
@@ -380,9 +380,9 @@ class Dex2Oat {
       : compiler_backend_(compiler_backend),
         instruction_set_(instruction_set),
         instruction_set_features_(instruction_set_features),
-        verified_methods_data_(new VerifiedMethodsData),
+        verification_results_(new VerificationResults),
         method_inliner_map_(compiler_backend == kQuick ? new DexFileToMethodInlinerMap : nullptr),
-        callbacks_(verified_methods_data_.get(), method_inliner_map_.get()),
+        callbacks_(verification_results_.get(), method_inliner_map_.get()),
         runtime_(nullptr),
         thread_count_(thread_count),
         start_ns_(NanoTime()) {
@@ -446,7 +446,7 @@ class Dex2Oat {
   const InstructionSet instruction_set_;
   const InstructionSetFeatures instruction_set_features_;
 
-  UniquePtr<VerifiedMethodsData> verified_methods_data_;
+  UniquePtr<VerificationResults> verification_results_;
   UniquePtr<DexFileToMethodInlinerMap> method_inliner_map_;
   Dex2OatCompilerCallbacks callbacks_;
   Runtime* runtime_;
