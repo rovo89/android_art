@@ -19,6 +19,7 @@
 
 #define GENERATE_ENTRYPOINTS(suffix) \
 extern "C" void* art_quick_alloc_array##suffix(uint32_t, void*, int32_t); \
+extern "C" void* art_quick_alloc_array_resolved##suffix(void* klass, void*, int32_t); \
 extern "C" void* art_quick_alloc_array_with_access_check##suffix(uint32_t, void*, int32_t); \
 extern "C" void* art_quick_alloc_object##suffix(uint32_t type_idx, void* method); \
 extern "C" void* art_quick_alloc_object_resolved##suffix(void* klass, void* method); \
@@ -27,6 +28,7 @@ extern "C" void* art_quick_alloc_object_with_access_check##suffix(uint32_t type_
 extern "C" void* art_quick_check_and_alloc_array##suffix(uint32_t, void*, int32_t); \
 extern "C" void* art_quick_check_and_alloc_array_with_access_check##suffix(uint32_t, void*, int32_t); \
 extern "C" void* art_quick_alloc_array##suffix##_instrumented(uint32_t, void*, int32_t); \
+extern "C" void* art_quick_alloc_array_resolved##suffix##_instrumented(void* klass, void*, int32_t); \
 extern "C" void* art_quick_alloc_array_with_access_check##suffix##_instrumented(uint32_t, void*, int32_t); \
 extern "C" void* art_quick_alloc_object##suffix##_instrumented(uint32_t type_idx, void* method); \
 extern "C" void* art_quick_alloc_object_resolved##suffix##_instrumented(void* klass, void* method); \
@@ -37,6 +39,7 @@ extern "C" void* art_quick_check_and_alloc_array_with_access_check##suffix##_ins
 void SetQuickAllocEntryPoints##suffix(QuickEntryPoints* qpoints, bool instrumented) { \
   if (instrumented) { \
     qpoints->pAllocArray = art_quick_alloc_array##suffix##_instrumented; \
+    qpoints->pAllocArrayResolved = art_quick_alloc_array_resolved##suffix##_instrumented; \
     qpoints->pAllocArrayWithAccessCheck = art_quick_alloc_array_with_access_check##suffix##_instrumented; \
     qpoints->pAllocObject = art_quick_alloc_object##suffix##_instrumented; \
     qpoints->pAllocObjectResolved = art_quick_alloc_object_resolved##suffix##_instrumented; \
@@ -46,6 +49,7 @@ void SetQuickAllocEntryPoints##suffix(QuickEntryPoints* qpoints, bool instrument
     qpoints->pCheckAndAllocArrayWithAccessCheck = art_quick_check_and_alloc_array_with_access_check##suffix##_instrumented; \
   } else { \
     qpoints->pAllocArray = art_quick_alloc_array##suffix; \
+    qpoints->pAllocArrayResolved = art_quick_alloc_array_resolved##suffix; \
     qpoints->pAllocArrayWithAccessCheck = art_quick_alloc_array_with_access_check##suffix; \
     qpoints->pAllocObject = art_quick_alloc_object##suffix; \
     qpoints->pAllocObjectResolved = art_quick_alloc_object_resolved##suffix; \
