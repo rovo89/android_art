@@ -1624,6 +1624,7 @@ static const EntryPointInfo gThreadEntryPointInfo[] = {
   PORTABLE_ENTRY_POINT_INFO(pPortableResolutionTrampoline),
   PORTABLE_ENTRY_POINT_INFO(pPortableToInterpreterBridge),
   QUICK_ENTRY_POINT_INFO(pAllocArray),
+  QUICK_ENTRY_POINT_INFO(pAllocArrayResolved),
   QUICK_ENTRY_POINT_INFO(pAllocArrayWithAccessCheck),
   QUICK_ENTRY_POINT_INFO(pAllocObject),
   QUICK_ENTRY_POINT_INFO(pAllocObjectResolved),
