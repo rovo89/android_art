@@ -245,6 +245,8 @@ class X86Mir2Lir : public Mir2Lir {
     void EmitRegThread(const X86EncodingMap* entry, uint8_t reg, int disp);
     void EmitRegReg(const X86EncodingMap* entry, uint8_t reg1, uint8_t reg2);
     void EmitRegRegImm(const X86EncodingMap* entry, uint8_t reg1, uint8_t reg2, int32_t imm);
+    void EmitRegRegImmRev(const X86EncodingMap* entry, uint8_t reg1, uint8_t reg2, int32_t imm);
+    void EmitRegMemImm(const X86EncodingMap* entry, uint8_t reg1, uint8_t base, int disp, int32_t imm);
     void EmitRegImm(const X86EncodingMap* entry, uint8_t reg, int imm);
     void EmitThreadImm(const X86EncodingMap* entry, int disp, int imm);
     void EmitMovRegImm(const X86EncodingMap* entry, uint8_t reg, int imm);
@@ -337,6 +339,32 @@ class X86Mir2Lir : public Mir2Lir {
      * @param is_div 'true' if this is a division, 'false' for a remainder.
      */
     RegLocation GenDivRemLit(RegLocation rl_dest, RegLocation rl_src, int lit, bool is_div);
+
+    /*
+     * Generate code to implement long shift operations.
+     * @param opcode The DEX opcode to specify the shift type.
+     * @param rl_dest The destination.
+     * @param rl_src The value to be shifted.
+     * @param shift_amount How much to shift.
+     * @returns the RegLocation of the result.
+     */
+    RegLocation GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
+                                  RegLocation rl_src, int shift_amount);
+    /*
+     * Generate an imul of a register by a constant or a better sequence.
+     * @param dest Destination Register.
+     * @param src Source Register.
+     * @param val Constant multiplier.
+     */
+    void GenImulRegImm(int dest, int src, int val);
+    /*
+     * Generate an imul of a memory location by a constant or a better sequence.
+     * @param dest Destination Register.
+     * @param sreg Symbolic register.
+     * @param displacement Displacement on stack of Symbolic Register.
+     * @param val Constant multiplier.
+     */
+    void GenImulMemImm(int dest, int sreg, int displacement, int val);
 };
 
 }  // namespace art
