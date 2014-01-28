@@ -45,6 +45,7 @@ class DexFileToMethodInlinerMap;
 class OatWriter;
 class TimingLogger;
 class VerificationResults;
+class VerifiedMethod;
 
 enum CompilerBackend {
   kQuick,
@@ -213,7 +214,8 @@ class CompilerDriver {
                          uintptr_t* direct_code, uintptr_t* direct_method)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  bool IsSafeCast(const MethodReference& mr, uint32_t dex_pc);
+  const VerifiedMethod* GetVerifiedMethod(const DexFile* dex_file, uint32_t method_idx) const;
+  bool IsSafeCast(const DexCompilationUnit* mUnit, uint32_t dex_pc);
 
   // Record patch information for later fix up.
   void AddCodePatch(const DexFile* dex_file,

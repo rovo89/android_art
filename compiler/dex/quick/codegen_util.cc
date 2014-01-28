@@ -22,6 +22,7 @@
 #include "dex/quick/dex_file_method_inliner.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/verification_results.h"
+#include "dex/verified_method.h"
 #include "verifier/dex_gc_map.h"
 #include "verifier/method_verifier.h"
 
@@ -763,10 +764,10 @@ void Mir2Lir::CreateNativeGcMap() {
     }
   }
   MethodReference method_ref(cu_->dex_file, cu_->method_idx);
-  const std::vector<uint8_t>* gc_map_raw =
-      cu_->compiler_driver->GetVerificationResults()->GetDexGcMap(method_ref);
-  verifier::DexPcToReferenceMap dex_gc_map(&(*gc_map_raw)[0]);
-  DCHECK_EQ(gc_map_raw->size(), dex_gc_map.RawSize());
+  const std::vector<uint8_t>& gc_map_raw =
+      mir_graph_->GetCurrentDexCompilationUnit()->GetVerifiedMethod()->GetDexGcMap();
+  verifier::DexPcToReferenceMap dex_gc_map(&(gc_map_raw)[0]);
+  DCHECK_EQ(gc_map_raw.size(), dex_gc_map.RawSize());
   // Compute native offset to references size.
   NativePcToReferenceMapBuilder native_gc_map_builder(&native_gc_map_,
                                                       mapping_table.PcToDexSize(),

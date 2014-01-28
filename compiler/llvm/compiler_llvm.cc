@@ -21,6 +21,7 @@
 #include "class_linker.h"
 #include "compiled_method.h"
 #include "dex/verification_results.h"
+#include "dex/verified_method.h"
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
 #include "globals.h"
@@ -153,11 +154,9 @@ CompileDexMethod(DexCompilationUnit* dex_compilation_unit, InvokeType invoke_typ
 
   cunit->Materialize();
 
-  MethodReference mref(dex_compilation_unit->GetDexFile(),
-                       dex_compilation_unit->GetDexMethodIndex());
   return new CompiledMethod(*compiler_driver_, compiler_driver_->GetInstructionSet(),
                             cunit->GetElfObject(),
-                            *compiler_driver_->GetVerificationResults()->GetDexGcMap(mref),
+                            dex_compilation_unit->GetVerifiedMethod()->GetDexGcMap(),
                             cunit->GetDexCompilationUnit()->GetSymbol());
 }
 
@@ -214,7 +213,7 @@ extern "C" art::CompiledMethod* ArtCompileMethod(art::CompilerDriver& driver,
 
   art::DexCompilationUnit dex_compilation_unit(
     NULL, class_loader, class_linker, dex_file, code_item,
-    class_def_idx, method_idx, access_flags);
+    class_def_idx, method_idx, access_flags, driver.GetVerifiedMethod(&dex_file, method_idx));
   art::llvm::CompilerLLVM* compiler_llvm = ContextOf(driver);
   art::CompiledMethod* result = compiler_llvm->CompileDexMethod(&dex_compilation_unit, invoke_type);
   return result;
@@ -226,8 +225,8 @@ extern "C" art::CompiledMethod* ArtLLVMJniCompileMethod(art::CompilerDriver& dri
   art::ClassLinker *class_linker = art::Runtime::Current()->GetClassLinker();
 
   art::DexCompilationUnit dex_compilation_unit(
-    NULL, NULL, class_linker, dex_file, NULL,
-    0, method_idx, access_flags);
+      nullptr, nullptr, class_linker, dex_file, nullptr,
+      0, method_idx, access_flags, nullptr);
 
   art::llvm::CompilerLLVM* compiler_llvm = ContextOf(driver);
   art::CompiledMethod* result = compiler_llvm->CompileNativeMethod(&dex_compilation_unit);

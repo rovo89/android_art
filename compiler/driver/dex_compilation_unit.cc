@@ -31,7 +31,8 @@ DexCompilationUnit::DexCompilationUnit(CompilationUnit* cu)
       code_item_(cu->code_item),
       class_def_idx_(cu->class_def_idx),
       dex_method_idx_(cu->method_idx),
-      access_flags_(cu->access_flags) {
+      access_flags_(cu->access_flags),
+      verified_method_(cu_->compiler_driver->GetVerifiedMethod(cu->dex_file, cu->method_idx)) {
 }
 
 DexCompilationUnit::DexCompilationUnit(CompilationUnit* cu,
@@ -41,7 +42,8 @@ DexCompilationUnit::DexCompilationUnit(CompilationUnit* cu,
                                        const DexFile::CodeItem* code_item,
                                        uint16_t class_def_idx,
                                        uint32_t method_idx,
-                                       uint32_t access_flags)
+                                       uint32_t access_flags,
+                                       const VerifiedMethod* verified_method)
     : cu_(cu),
       class_loader_(class_loader),
       class_linker_(class_linker),
@@ -49,7 +51,8 @@ DexCompilationUnit::DexCompilationUnit(CompilationUnit* cu,
       code_item_(code_item),
       class_def_idx_(class_def_idx),
       dex_method_idx_(method_idx),
-      access_flags_(access_flags) {
+      access_flags_(access_flags),
+      verified_method_(verified_method) {
 }
 
 const std::string& DexCompilationUnit::GetSymbol() {
