@@ -294,6 +294,38 @@ void Mir2Lir::StoreValueWide(RegLocation rl_dest, RegLocation rl_src) {
   }
 }
 
+void Mir2Lir::StoreFinalValue(RegLocation rl_dest, RegLocation rl_src) {
+  DCHECK_EQ(rl_src.location, kLocPhysReg);
+
+  if (rl_dest.location == kLocPhysReg) {
+    OpRegCopy(rl_dest.low_reg, rl_src.low_reg);
+  } else {
+    // Just re-assign the register.  Dest gets Src's reg.
+    rl_dest.low_reg = rl_src.low_reg;
+    rl_dest.location = kLocPhysReg;
+    Clobber(rl_src.low_reg);
+  }
+
+  // Dest is now live and dirty (until/if we flush it to home location)
+  MarkLive(rl_dest.low_reg, rl_dest.s_reg_low);
+  MarkDirty(rl_dest);
+
+
+  ResetDefLoc(rl_dest);
+  if (IsDirty(rl_dest.low_reg) &&
+      oat_live_out(rl_dest.s_reg_low)) {
+    LIR *def_start = last_lir_insn_;
+    StoreBaseDisp(TargetReg(kSp), SRegOffset(rl_dest.s_reg_low),
+                  rl_dest.low_reg, kWord);
+    MarkClean(rl_dest);
+    LIR *def_end = last_lir_insn_;
+    if (!rl_dest.ref) {
+      // Exclude references from store elimination
+      MarkDef(rl_dest, def_start, def_end);
+    }
+  }
+}
+
 void Mir2Lir::StoreFinalValueWide(RegLocation rl_dest, RegLocation rl_src) {
   DCHECK_EQ(IsFpReg(rl_src.low_reg), IsFpReg(rl_src.high_reg));
   DCHECK(rl_dest.wide);

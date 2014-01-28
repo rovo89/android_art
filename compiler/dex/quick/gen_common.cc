@@ -1323,6 +1323,7 @@ void Mir2Lir::GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
 
 void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
                             RegLocation rl_src1, RegLocation rl_src2) {
+  DCHECK_NE(cu_->instruction_set, kX86);
   OpKind op = kOpBkpt;
   bool is_div_rem = false;
   bool check_zero = false;
@@ -1401,15 +1402,9 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
     } else {
       if (shift_op) {
         int t_reg = INVALID_REG;
-        if (cu_->instruction_set == kX86) {
-          // X86 doesn't require masking and must use ECX
-          t_reg = TargetReg(kCount);  // rCX
-          LoadValueDirectFixed(rl_src2, t_reg);
-        } else {
-          rl_src2 = LoadValue(rl_src2, kCoreReg);
-          t_reg = AllocTemp();
-          OpRegRegImm(kOpAnd, t_reg, rl_src2.low_reg, 31);
-        }
+        rl_src2 = LoadValue(rl_src2, kCoreReg);
+        t_reg = AllocTemp();
+        OpRegRegImm(kOpAnd, t_reg, rl_src2.low_reg, 31);
         rl_src1 = LoadValue(rl_src1, kCoreReg);
         rl_result = EvalLoc(rl_dest, kCoreReg, true);
         OpRegRegReg(op, rl_result.low_reg, rl_src1.low_reg, t_reg);
@@ -1431,9 +1426,6 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
           GenImmedCheck(kCondEq, rl_src2.low_reg, 0, kThrowDivZero);
       }
       rl_result = GenDivRem(rl_dest, rl_src1.low_reg, rl_src2.low_reg, op == kOpDiv);
-      done = true;
-    } else if (cu_->instruction_set == kX86) {
-      rl_result = GenDivRem(rl_dest, rl_src1, rl_src2, op == kOpDiv, check_zero);
       done = true;
     } else if (cu_->instruction_set == kThumb2) {
       if (cu_->GetInstructionSetFeatures().HasDivideInstruction()) {
