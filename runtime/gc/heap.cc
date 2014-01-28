@@ -147,7 +147,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       total_wait_time_(0),
       total_allocation_time_(0),
       verify_object_mode_(kHeapVerificationNotPermitted),
-      gc_disable_count_(0),
+      disable_moving_gc_count_(0),
       running_on_valgrind_(RUNNING_ON_VALGRIND),
       use_tlab_(use_tlab) {
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
@@ -328,19 +328,19 @@ bool Heap::HasImageSpace() const {
   return false;
 }
 
-void Heap::IncrementDisableGC(Thread* self) {
+void Heap::IncrementDisableMovingGC(Thread* self) {
   // Need to do this holding the lock to prevent races where the GC is about to run / running when
   // we attempt to disable it.
   ScopedThreadStateChange tsc(self, kWaitingForGcToComplete);
   MutexLock mu(self, *gc_complete_lock_);
-  WaitForGcToCompleteLocked(self);
-  ++gc_disable_count_;
+  ++disable_moving_gc_count_;
+  // TODO: Wait for compacting GC to complete if we ever have a concurrent compacting GC.
 }
 
-void Heap::DecrementDisableGC(Thread* self) {
+void Heap::DecrementDisableMovingGC(Thread* self) {
   MutexLock mu(self, *gc_complete_lock_);
-  CHECK_GE(gc_disable_count_, 0U);
-  --gc_disable_count_;
+  CHECK_GE(disable_moving_gc_count_, 0U);
+  --disable_moving_gc_count_;
 }
 
 void Heap::UpdateProcessState(ProcessState process_state) {
@@ -1180,14 +1180,17 @@ void Heap::TransitionCollector(CollectorType collector_type) {
   Thread* self = Thread::Current();
   ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
   Locks::mutator_lock_->AssertNotHeld(self);
-  // Busy wait until we can GC (StartGC can fail if we have a non-zero gc_disable_count_, this
-  // rarely occurs however).
-  while (!StartGC(self)) {
+  // Busy wait until we can GC (StartGC can fail if we have a non-zero
+  // compacting_gc_disable_count_, this should rarely occurs).
+  bool copying_transition =
+      IsCompactingGC(background_collector_type_) || IsCompactingGC(post_zygote_collector_type_);
+  while (!StartGC(self, copying_transition)) {
     usleep(100);
   }
   tl->SuspendAll();
   switch (collector_type) {
     case kCollectorTypeSS:
+      // Fall-through.
     case kCollectorTypeGSS: {
       mprotect(temp_space_->Begin(), temp_space_->Capacity(), PROT_READ | PROT_WRITE);
       CHECK(main_space_ != nullptr);
@@ -1202,7 +1205,7 @@ void Heap::TransitionCollector(CollectorType collector_type) {
     case kCollectorTypeMS:
       // Fall through.
     case kCollectorTypeCMS: {
-      if (collector_type_ == kCollectorTypeSS || collector_type_ == kCollectorTypeGSS) {
+      if (IsCompactingGC(collector_type_)) {
         // TODO: Use mem-map from temp space?
         MemMap* mem_map = allocator_mem_map_.release();
         CHECK(mem_map != nullptr);
@@ -1257,6 +1260,7 @@ void Heap::ChangeCollector(CollectorType collector_type) {
     gc_plan_.clear();
     switch (collector_type_) {
       case kCollectorTypeSS:
+        // Fall-through.
       case kCollectorTypeGSS: {
         concurrent_gc_ = false;
         gc_plan_.push_back(collector::kGcTypeFull);
@@ -1529,7 +1533,8 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
     LOG(WARNING) << "Performing GC on a thread that is handling a stack overflow.";
   }
   gc_complete_lock_->AssertNotHeld(self);
-  if (!StartGC(self)) {
+  const bool compacting_gc = IsCompactingGC(collector_type_);
+  if (!StartGC(self, compacting_gc)) {
     return collector::kGcTypeNone;
   }
   if (gc_cause == kGcCauseForAlloc && runtime->HasStatsEnabled()) {
@@ -1551,7 +1556,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
 
   collector::GarbageCollector* collector = nullptr;
   // TODO: Clean this up.
-  if (collector_type_ == kCollectorTypeSS || collector_type_ == kCollectorTypeGSS) {
+  if (compacting_gc) {
     DCHECK(current_allocator_ == kAllocatorTypeBumpPointer ||
            current_allocator_ == kAllocatorTypeTLAB);
     gc_type = semi_space_collector_->GetGcType();
@@ -1631,15 +1636,15 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   return gc_type;
 }
 
-bool Heap::StartGC(Thread* self) {
+bool Heap::StartGC(Thread* self, bool is_compacting) {
   MutexLock mu(self, *gc_complete_lock_);
   // Ensure there is only one GC at a time.
   WaitForGcToCompleteLocked(self);
   // TODO: if another thread beat this one to do the GC, perhaps we should just return here?
   //       Not doing at the moment to ensure soft references are cleared.
   // GC can be disabled if someone has a used GetPrimitiveArrayCritical.
-  if (gc_disable_count_ != 0) {
-    LOG(WARNING) << "Skipping GC due to disable count " << gc_disable_count_;
+  if (is_compacting && disable_moving_gc_count_ != 0) {
+    LOG(WARNING) << "Skipping GC due to disable moving GC count " << disable_moving_gc_count_;
     return false;
   }
   is_gc_running_ = true;
@@ -2125,7 +2130,8 @@ bool Heap::IsMovableObject(const mirror::Object* obj) const {
     // Objects in the main space are only copied during background -> foreground transitions or
     // visa versa.
     if (main_space_ != nullptr && main_space_->HasAddress(obj) &&
-        (IsCompactingGC(background_collector_type_) || IsCompactingGC(collector_type_))) {
+        (IsCompactingGC(background_collector_type_) ||
+            IsCompactingGC(post_zygote_collector_type_))) {
       return true;
     }
   }

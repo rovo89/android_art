@@ -243,9 +243,9 @@ class Heap {
   // compaction related errors.
   bool IsInTempSpace(const mirror::Object* obj) const;
 
-  // Enables us to prevent GC until objects are released.
-  void IncrementDisableGC(Thread* self);
-  void DecrementDisableGC(Thread* self);
+  // Enables us to compacting GC until objects are released.
+  void IncrementDisableMovingGC(Thread* self);
+  void DecrementDisableMovingGC(Thread* self);
 
   // Initiates an explicit garbage collection.
   void CollectGarbage(bool clear_soft_references) LOCKS_EXCLUDED(Locks::mutator_lock_);
@@ -534,7 +534,7 @@ class Heap {
   void Compact(space::ContinuousMemMapAllocSpace* target_space,
                space::ContinuousMemMapAllocSpace* source_space);
 
-  bool StartGC(Thread* self) LOCKS_EXCLUDED(gc_complete_lock_);
+  bool StartGC(Thread* self, bool is_compacting) LOCKS_EXCLUDED(gc_complete_lock_);
   void FinishGC(Thread* self, collector::GcType gc_type) LOCKS_EXCLUDED(gc_complete_lock_);
 
   static ALWAYS_INLINE bool AllocatorHasAllocationStack(AllocatorType allocator_type) {
@@ -880,8 +880,8 @@ class Heap {
   // The current state of heap verification, may be enabled or disabled.
   HeapVerificationMode verify_object_mode_;
 
-  // GC disable count, error on GC if > 0.
-  size_t gc_disable_count_ GUARDED_BY(gc_complete_lock_);
+  // Compacting GC disable count, prevents compacting GC from running iff > 0.
+  size_t disable_moving_gc_count_ GUARDED_BY(gc_complete_lock_);
 
   std::vector<collector::GarbageCollector*> garbage_collectors_;
   collector::SemiSpace* semi_space_collector_;
