@@ -19,7 +19,7 @@
 
 #include "base/mutex.h"
 #include "jni.h"
-#include "root_visitor.h"
+#include "object_callbacks.h"
 
 #include <bitset>
 #include <list>
@@ -113,10 +113,10 @@ class ThreadList {
       LOCKS_EXCLUDED(Locks::mutator_lock_, Locks::thread_list_lock_);
   void Unregister(Thread* self) LOCKS_EXCLUDED(Locks::mutator_lock_, Locks::thread_list_lock_);
 
-  void VisitRoots(RootVisitor* visitor, void* arg) const
+  void VisitRoots(RootCallback* callback, void* arg) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void VerifyRoots(VerifyRootVisitor* visitor, void* arg) const
+  void VerifyRoots(VerifyRootCallback* callback, void* arg) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Return a copy of the thread list.

@@ -525,14 +525,16 @@ void MarkSweep::MarkRoot(const Object* obj) {
   }
 }
 
-Object* MarkSweep::MarkRootParallelCallback(Object* root, void* arg) {
+mirror::Object* MarkSweep::MarkRootParallelCallback(mirror::Object* root, void* arg,
+                                                    uint32_t /*thread_id*/, RootType /*root_type*/) {
   DCHECK(root != NULL);
   DCHECK(arg != NULL);
   reinterpret_cast<MarkSweep*>(arg)->MarkObjectNonNullParallel(root);
   return root;
 }
 
-Object* MarkSweep::MarkRootCallback(Object* root, void* arg) {
+Object* MarkSweep::MarkRootCallback(Object* root, void* arg, uint32_t /*thread_id*/,
+                                    RootType /*root_type*/) {
   DCHECK(root != nullptr);
   DCHECK(arg != nullptr);
   reinterpret_cast<MarkSweep*>(arg)->MarkObjectNonNull(root);
@@ -930,7 +932,7 @@ void MarkSweep::RecursiveMark() {
   ProcessMarkStack(false);
 }
 
-mirror::Object* MarkSweep::IsMarkedCallback(Object* object, void* arg) {
+mirror::Object* MarkSweep::IsMarkedCallback(mirror::Object* object, void* arg) {
   if (reinterpret_cast<MarkSweep*>(arg)->IsMarked(object)) {
     return object;
   }

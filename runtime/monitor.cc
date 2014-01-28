@@ -1067,13 +1067,13 @@ void MonitorList::Add(Monitor* m) {
   list_.push_front(m);
 }
 
-void MonitorList::SweepMonitorList(RootVisitor visitor, void* arg) {
+void MonitorList::SweepMonitorList(IsMarkedCallback* callback, void* arg) {
   MutexLock mu(Thread::Current(), monitor_list_lock_);
   for (auto it = list_.begin(); it != list_.end(); ) {
     Monitor* m = *it;
     mirror::Object* obj = m->GetObject();
     // The object of a monitor can be null if we have deflated it.
-    mirror::Object* new_obj = obj != nullptr ? visitor(obj, arg) : nullptr;
+    mirror::Object* new_obj = obj != nullptr ? callback(obj, arg) : nullptr;
     if (new_obj == nullptr) {
       VLOG(monitor) << "freeing monitor " << m << " belonging to unmarked object "
                     << m->GetObject();

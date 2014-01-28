@@ -70,8 +70,8 @@ class ModUnionClearCardVisitor {
 
 class ModUnionUpdateObjectReferencesVisitor {
  public:
-  ModUnionUpdateObjectReferencesVisitor(RootVisitor visitor, void* arg)
-    : visitor_(visitor),
+  ModUnionUpdateObjectReferencesVisitor(RootCallback* callback, void* arg)
+    : callback_(callback),
       arg_(arg) {
   }
 
@@ -80,7 +80,7 @@ class ModUnionUpdateObjectReferencesVisitor {
                   bool /* is_static */) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Only add the reference if it is non null and fits our criteria.
     if (ref != nullptr) {
-      Object* new_ref = visitor_(ref, arg_);
+      Object* new_ref = callback_(ref, arg_, 0, kRootVMInternal);
       if (new_ref != ref) {
         // Use SetFieldObjectWithoutWriteBarrier to avoid card mark as an optimization which
         // reduces dirtied pages and improves performance.
@@ -90,26 +90,26 @@ class ModUnionUpdateObjectReferencesVisitor {
   }
 
  private:
-  RootVisitor* visitor_;
+  RootCallback* const callback_;
   void* arg_;
 };
 
 class ModUnionScanImageRootVisitor {
  public:
-  ModUnionScanImageRootVisitor(RootVisitor visitor, void* arg)
-      : visitor_(visitor), arg_(arg) {}
+  ModUnionScanImageRootVisitor(RootCallback* callback, void* arg)
+      : callback_(callback), arg_(arg) {}
 
   void operator()(Object* root) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(root != NULL);
-    ModUnionUpdateObjectReferencesVisitor ref_visitor(visitor_, arg_);
+    ModUnionUpdateObjectReferencesVisitor ref_visitor(callback_, arg_);
     collector::MarkSweep::VisitObjectReferences(root, ref_visitor, true);
   }
 
  private:
-  RootVisitor* visitor_;
-  void* arg_;
+  RootCallback* const callback_;
+  void* const arg_;
 };
 
 void ModUnionTableReferenceCache::ClearCards() {
@@ -261,7 +261,7 @@ void ModUnionTableReferenceCache::Dump(std::ostream& os) {
   }
 }
 
-void ModUnionTableReferenceCache::UpdateAndMarkReferences(RootVisitor visitor, void* arg) {
+void ModUnionTableReferenceCache::UpdateAndMarkReferences(RootCallback* callback, void* arg) {
   Heap* heap = GetHeap();
   CardTable* card_table = heap->GetCardTable();
 
@@ -296,7 +296,7 @@ void ModUnionTableReferenceCache::UpdateAndMarkReferences(RootVisitor visitor, v
     for (mirror::HeapReference<Object>* obj_ptr : ref.second) {
       Object* obj = obj_ptr->AsMirrorPtr();
       if (obj != nullptr) {
-        Object* new_obj = visitor(obj, arg);
+        Object* new_obj = callback(obj, arg, 0, kRootVMInternal);
         // Avoid dirtying pages in the image unless necessary.
         if (new_obj != obj) {
           obj_ptr->Assign(new_obj);
@@ -318,9 +318,9 @@ void ModUnionTableCardCache::ClearCards() {
 }
 
 // Mark all references to the alloc space(s).
-void ModUnionTableCardCache::UpdateAndMarkReferences(RootVisitor visitor, void* arg) {
+void ModUnionTableCardCache::UpdateAndMarkReferences(RootCallback* callback, void* arg) {
   CardTable* card_table = heap_->GetCardTable();
-  ModUnionScanImageRootVisitor scan_visitor(visitor, arg);
+  ModUnionScanImageRootVisitor scan_visitor(callback, arg);
   SpaceBitmap* bitmap = space_->GetLiveBitmap();
   for (const byte* card_addr : cleared_cards_) {
     uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card_addr));

@@ -523,9 +523,9 @@ class SharedLibrary {
     return dlsym(handle_, symbol_name.c_str());
   }
 
-  void VisitRoots(RootVisitor* visitor, void* arg) {
+  void VisitRoots(RootCallback* visitor, void* arg) {
     if (class_loader_ != nullptr) {
-      class_loader_ = visitor(class_loader_, arg);
+      class_loader_ = visitor(class_loader_, arg, 0, kRootVMInternal);
     }
   }
 
@@ -619,9 +619,9 @@ class Libraries {
     return NULL;
   }
 
-  void VisitRoots(RootVisitor* visitor, void* arg) {
+  void VisitRoots(RootCallback* callback, void* arg) {
     for (auto& lib_pair : libraries_) {
-      lib_pair.second->VisitRoots(visitor, arg);
+      lib_pair.second->VisitRoots(callback, arg);
     }
   }
 
@@ -3373,11 +3373,11 @@ void* JavaVMExt::FindCodeForNativeMethod(ArtMethod* m) {
   return native_method;
 }
 
-void JavaVMExt::SweepJniWeakGlobals(RootVisitor visitor, void* arg) {
+void JavaVMExt::SweepJniWeakGlobals(IsMarkedCallback* callback, void* arg) {
   MutexLock mu(Thread::Current(), weak_globals_lock_);
   for (mirror::Object** entry : weak_globals_) {
     mirror::Object* obj = *entry;
-    mirror::Object* new_obj = visitor(obj, arg);
+    mirror::Object* new_obj = callback(obj, arg);
     if (new_obj == nullptr) {
       new_obj = kClearedJniWeakGlobal;
     }
@@ -3385,20 +3385,20 @@ void JavaVMExt::SweepJniWeakGlobals(RootVisitor visitor, void* arg) {
   }
 }
 
-void JavaVMExt::VisitRoots(RootVisitor* visitor, void* arg) {
+void JavaVMExt::VisitRoots(RootCallback* callback, void* arg) {
   Thread* self = Thread::Current();
   {
     ReaderMutexLock mu(self, globals_lock);
-    globals.VisitRoots(visitor, arg);
+    globals.VisitRoots(callback, arg, 0, kRootJNIGlobal);
   }
   {
     MutexLock mu(self, pins_lock);
-    pin_table.VisitRoots(visitor, arg);
+    pin_table.VisitRoots(callback, arg, 0, kRootVMInternal);
   }
   {
     MutexLock mu(self, libraries_lock);
     // Libraries contains shared libraries which hold a pointer to a class loader.
-    libraries->VisitRoots(visitor, arg);
+    libraries->VisitRoots(callback, arg);
   }
   // The weak_globals table is visited by the GC itself (because it mutates the table).
 }

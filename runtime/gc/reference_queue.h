@@ -27,8 +27,8 @@
 #include "gtest/gtest.h"
 #include "jni.h"
 #include "locks.h"
+#include "object_callbacks.h"
 #include "offsets.h"
-#include "root_visitor.h"
 #include "thread_pool.h"
 
 namespace art {
@@ -56,17 +56,18 @@ class ReferenceQueue {
   // Enqueues finalizer references with white referents.  White referents are blackened, moved to the
   // zombie field, and the referent field is cleared.
   void EnqueueFinalizerReferences(ReferenceQueue& cleared_references,
-                                  RootVisitor is_marked_callback,
-                                  RootVisitor recursive_mark_callback, void* arg)
+                                  IsMarkedCallback is_marked_callback,
+                                  MarkObjectCallback recursive_mark_callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Walks the reference list marking any references subject to the reference clearing policy.
   // References with a black referent are removed from the list.  References with white referents
   // biased toward saving are blackened and also removed from the list.
-  void PreserveSomeSoftReferences(RootVisitor preserve_callback, void* arg)
+  void PreserveSomeSoftReferences(IsMarkedCallback* preserve_callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Unlink the reference list clearing references objects with white referents.  Cleared references
   // registered to a reference queue are scheduled for appending by the heap worker thread.
-  void ClearWhiteReferences(ReferenceQueue& cleared_references, RootVisitor visitor, void* arg)
+  void ClearWhiteReferences(ReferenceQueue& cleared_references, IsMarkedCallback is_marked_callback,
+                            void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void Dump(std::ostream& os) const
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

@@ -33,13 +33,13 @@ std::string ThrowLocation::Dump() const {
   }
 }
 
-void ThrowLocation::VisitRoots(RootVisitor* visitor, void* arg) {
+void ThrowLocation::VisitRoots(RootCallback* visitor, void* arg) {
   if (this_object_ != nullptr) {
-    this_object_ = visitor(this_object_, arg);
+    this_object_ = visitor(this_object_, arg, 0, kRootVMInternal);
     DCHECK(this_object_ != nullptr);
   }
   if (method_ != nullptr) {
-    method_ = down_cast<mirror::ArtMethod*>(visitor(method_, arg));
+    method_ = down_cast<mirror::ArtMethod*>(visitor(method_, arg, 0, kRootVMInternal));
     DCHECK(method_ != nullptr);
   }
 }

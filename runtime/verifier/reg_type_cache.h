@@ -20,8 +20,8 @@
 #include "base/casts.h"
 #include "base/macros.h"
 #include "base/stl_util.h"
+#include "object_callbacks.h"
 #include "reg_type.h"
-#include "root_visitor.h"
 #include "runtime.h"
 
 #include <stdint.h>
@@ -146,7 +146,7 @@ class RegTypeCache {
   void Dump(std::ostream& os) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const RegType& RegTypeFromPrimitiveType(Primitive::Type) const;
 
-  void VisitRoots(RootVisitor* visitor, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void VisitRoots(RootCallback* callback, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   void FillPrimitiveAndSmallConstantTypes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

@@ -20,6 +20,7 @@
 #include "class.h"
 #include "modifiers.h"
 #include "object.h"
+#include "object_callbacks.h"
 
 namespace art {
 
@@ -106,7 +107,7 @@ class MANAGED ArtField : public Object {
 
   static void SetClass(Class* java_lang_reflect_ArtField);
   static void ResetClass();
-  static void VisitRoots(RootVisitor* visitor, void* arg)
+  static void VisitRoots(RootCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsVolatile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

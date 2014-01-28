@@ -58,9 +58,10 @@ StackTraceElement* StackTraceElement::Alloc(Thread* self,
   return trace;
 }
 
-void StackTraceElement::VisitRoots(RootVisitor* visitor, void* arg) {
+void StackTraceElement::VisitRoots(RootCallback* callback, void* arg) {
   if (java_lang_StackTraceElement_ != nullptr) {
-    java_lang_StackTraceElement_ = down_cast<Class*>(visitor(java_lang_StackTraceElement_, arg));
+    java_lang_StackTraceElement_ = down_cast<Class*>(
+        callback(java_lang_StackTraceElement_, arg, 0, kRootStickyClass));
   }
 }
 

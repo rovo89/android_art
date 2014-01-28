@@ -22,8 +22,8 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "indirect_reference_table.h"
+#include "object_callbacks.h"
 #include "reference_table.h"
-#include "root_visitor.h"
 #include "runtime.h"
 #include "sirt_ref.h"
 
@@ -91,7 +91,7 @@ class JavaVMExt : public JavaVM {
 
   void SetCheckJniEnabled(bool enabled);
 
-  void VisitRoots(RootVisitor*, void*);
+  void VisitRoots(RootCallback* callback, void* arg);
 
   void DisallowNewWeakGlobals() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   void AllowNewWeakGlobals() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -99,7 +99,7 @@ class JavaVMExt : public JavaVM {
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DeleteWeakGlobalRef(Thread* self, jweak obj)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SweepJniWeakGlobals(RootVisitor visitor, void* arg);
+  void SweepJniWeakGlobals(IsMarkedCallback* callback, void* arg);
   mirror::Object* DecodeWeakGlobal(Thread* self, IndirectRef ref);
 
   Runtime* runtime;

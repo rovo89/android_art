@@ -206,7 +206,7 @@ void ObjectRegistry::DisposeObject(JDWP::ObjectId id, uint32_t reference_count) 
   }
 }
 
-void ObjectRegistry::UpdateObjectPointers(RootVisitor visitor, void* arg) {
+void ObjectRegistry::UpdateObjectPointers(IsMarkedCallback* callback, void* arg) {
   MutexLock mu(Thread::Current(), lock_);
   if (object_to_entry_.empty()) {
     return;
@@ -215,7 +215,7 @@ void ObjectRegistry::UpdateObjectPointers(RootVisitor visitor, void* arg) {
   for (auto& pair : object_to_entry_) {
     mirror::Object* new_obj;
     if (pair.first != nullptr) {
-      new_obj = visitor(pair.first, arg);
+      new_obj = callback(pair.first, arg);
       if (new_obj != nullptr) {
         new_object_to_entry.insert(std::make_pair(new_obj, pair.second));
       }
