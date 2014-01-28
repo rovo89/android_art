@@ -207,13 +207,43 @@ void Mir2Lir::GenNewArray(uint32_t type_idx, RegLocation rl_dest,
                           RegLocation rl_src) {
   FlushAllRegs();  /* Everything to home location */
   ThreadOffset func_offset(-1);
-  if (cu_->compiler_driver->CanAccessTypeWithoutChecks(cu_->method_idx, *cu_->dex_file,
+  const DexFile* dex_file = cu_->dex_file;
+  CompilerDriver* driver = cu_->compiler_driver;
+  if (cu_->compiler_driver->CanAccessTypeWithoutChecks(cu_->method_idx, *dex_file,
                                                        type_idx)) {
-    func_offset = QUICK_ENTRYPOINT_OFFSET(pAllocArray);
+    bool is_type_initialized;  // Ignored as an array does not have an initializer.
+    bool use_direct_type_ptr;
+    uintptr_t direct_type_ptr;
+    if (kEmbedClassInCode &&
+        driver->CanEmbedTypeInCode(*dex_file, type_idx,
+                                   &is_type_initialized, &use_direct_type_ptr, &direct_type_ptr)) {
+      // The fast path.
+      if (!use_direct_type_ptr) {
+        // Use the literal pool and a PC-relative load from a data word.
+        LIR* data_target = ScanLiteralPool(class_literal_list_, type_idx, 0);
+        if (data_target == nullptr) {
+          data_target = AddWordData(&class_literal_list_, type_idx);
+        }
+        LIR* load_pc_rel = OpPcRelLoad(TargetReg(kArg0), data_target);
+        AppendLIR(load_pc_rel);
+        func_offset = QUICK_ENTRYPOINT_OFFSET(pAllocArrayResolved);
+        CallRuntimeHelperRegMethodRegLocation(func_offset, TargetReg(kArg0), rl_src, true);
+      } else {
+        // Use the direct pointer.
+        func_offset = QUICK_ENTRYPOINT_OFFSET(pAllocArrayResolved);
+        CallRuntimeHelperImmMethodRegLocation(func_offset, direct_type_ptr, rl_src, true);
+      }
+    } else {
+      // The slow path.
+      DCHECK_EQ(func_offset.Int32Value(), -1);
+      func_offset = QUICK_ENTRYPOINT_OFFSET(pAllocArray);
+      CallRuntimeHelperImmMethodRegLocation(func_offset, type_idx, rl_src, true);
+    }
+    DCHECK_NE(func_offset.Int32Value(), -1);
   } else {
     func_offset= QUICK_ENTRYPOINT_OFFSET(pAllocArrayWithAccessCheck);
+    CallRuntimeHelperImmMethodRegLocation(func_offset, type_idx, rl_src, true);
   }
-  CallRuntimeHelperImmMethodRegLocation(func_offset, type_idx, rl_src, true);
   RegLocation rl_result = GetReturn(false);
   StoreValue(rl_dest, rl_result);
 }

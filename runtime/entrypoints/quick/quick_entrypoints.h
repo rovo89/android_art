@@ -40,6 +40,7 @@ class Thread;
 struct PACKED(4) QuickEntryPoints {
   // Alloc
   void* (*pAllocArray)(uint32_t, void*, int32_t);
+  void* (*pAllocArrayResolved)(void*, void*, int32_t);
   void* (*pAllocArrayWithAccessCheck)(uint32_t, void*, int32_t);
   void* (*pAllocObject)(uint32_t, void*);
   void* (*pAllocObjectResolved)(void*, void*);

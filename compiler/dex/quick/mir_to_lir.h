@@ -530,6 +530,8 @@ class Mir2Lir : public Backend {
     void CallRuntimeHelperImmMethod(ThreadOffset helper_offset, int arg0,
                                     bool safepoint_pc);
     void CallRuntimeHelperRegMethod(ThreadOffset helper_offset, int arg0, bool safepoint_pc);
+    void CallRuntimeHelperRegMethodRegLocation(ThreadOffset helper_offset, int arg0,
+                                               RegLocation arg2, bool safepoint_pc);
     void CallRuntimeHelperRegLocationRegLocation(ThreadOffset helper_offset,
                                                  RegLocation arg0, RegLocation arg1,
                                                  bool safepoint_pc);
