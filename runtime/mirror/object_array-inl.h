@@ -50,11 +50,11 @@ inline ObjectArray<T>* ObjectArray<T>::Alloc(Thread* self, Class* object_array_c
 
 template<class T>
 inline T* ObjectArray<T>::Get(int32_t i) const {
-  if (UNLIKELY(!IsValidIndex(i))) {
+  if (UNLIKELY(!CheckIsValidIndex(i))) {
+    DCHECK(Thread::Current()->IsExceptionPending());
     return NULL;
   }
-  MemberOffset data_offset(DataOffset(sizeof(Object*)).Int32Value() + i * sizeof(Object*));
-  return GetFieldObject<T*>(data_offset, false);
+  return GetWithoutChecks(i);
 }
 
 template<class T>
@@ -71,9 +71,8 @@ inline bool ObjectArray<T>::CheckAssignable(T* object) {
 
 template<class T>
 inline void ObjectArray<T>::Set(int32_t i, T* object) {
-  if (LIKELY(IsValidIndex(i) && CheckAssignable(object))) {
-    MemberOffset data_offset(DataOffset(sizeof(Object*)).Int32Value() + i * sizeof(Object*));
-    SetFieldObject(data_offset, object, false);
+  if (LIKELY(CheckIsValidIndex(i) && CheckAssignable(object))) {
+    SetWithoutChecks(i, object);
   } else {
     DCHECK(Thread::Current()->IsExceptionPending());
   }
@@ -81,21 +80,24 @@ inline void ObjectArray<T>::Set(int32_t i, T* object) {
 
 template<class T>
 inline void ObjectArray<T>::SetWithoutChecks(int32_t i, T* object) {
-  DCHECK(IsValidIndex(i));
+  DCHECK(CheckIsValidIndex(i));
+  DCHECK(CheckAssignable(object));
   MemberOffset data_offset(DataOffset(sizeof(Object*)).Int32Value() + i * sizeof(Object*));
   SetFieldObject(data_offset, object, false);
 }
 
 template<class T>
 inline void ObjectArray<T>::SetPtrWithoutChecks(int32_t i, T* object) {
-  DCHECK(IsValidIndex(i));
+  DCHECK(CheckIsValidIndex(i));
+  // TODO enable this check. It fails when writing the image in ImageWriter::FixupObjectArray.
+  // DCHECK(CheckAssignable(object));
   MemberOffset data_offset(DataOffset(sizeof(Object*)).Int32Value() + i * sizeof(Object*));
   SetFieldPtr(data_offset, object, false);
 }
 
 template<class T>
 inline T* ObjectArray<T>::GetWithoutChecks(int32_t i) const {
-  DCHECK(IsValidIndex(i));
+  DCHECK(CheckIsValidIndex(i));
   MemberOffset data_offset(DataOffset(sizeof(Object*)).Int32Value() + i * sizeof(Object*));
   return GetFieldObject<T*>(data_offset, false);
 }
@@ -104,10 +106,10 @@ template<class T>
 inline void ObjectArray<T>::Copy(const ObjectArray<T>* src, int src_pos,
                                  ObjectArray<T>* dst, int dst_pos,
                                  size_t length) {
-  if (src->IsValidIndex(src_pos) &&
-      src->IsValidIndex(src_pos+length-1) &&
-      dst->IsValidIndex(dst_pos) &&
-      dst->IsValidIndex(dst_pos+length-1)) {
+  if (src->CheckIsValidIndex(src_pos) &&
+      src->CheckIsValidIndex(src_pos + length - 1) &&
+      dst->CheckIsValidIndex(dst_pos) &&
+      dst->CheckIsValidIndex(dst_pos + length - 1)) {
     MemberOffset src_offset(DataOffset(sizeof(Object*)).Int32Value() + src_pos * sizeof(Object*));
     MemberOffset dst_offset(DataOffset(sizeof(Object*)).Int32Value() + dst_pos * sizeof(Object*));
     Class* array_class = dst->GetClass();
@@ -139,6 +141,8 @@ inline void ObjectArray<T>::Copy(const ObjectArray<T>* src, int src_pos,
       }
     }
     heap->WriteBarrierArray(dst, dst_pos, length);
+  } else {
+    DCHECK(Thread::Current()->IsExceptionPending());
   }
 }
 
