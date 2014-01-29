@@ -558,13 +558,13 @@ class Mir2Lir : public Backend {
     void GenNewArray(uint32_t type_idx, RegLocation rl_dest,
                      RegLocation rl_src);
     void GenFilledNewArray(CallInfo* info);
-    void GenSput(uint32_t field_idx, RegLocation rl_src,
+    void GenSput(MIR* mir, RegLocation rl_src,
                  bool is_long_or_double, bool is_object);
-    void GenSget(uint32_t field_idx, RegLocation rl_dest,
+    void GenSget(MIR* mir, RegLocation rl_dest,
                  bool is_long_or_double, bool is_object);
-    void GenIGet(uint32_t field_idx, int opt_flags, OpSize size,
+    void GenIGet(MIR* mir, int opt_flags, OpSize size,
                  RegLocation rl_dest, RegLocation rl_obj, bool is_long_or_double, bool is_object);
-    void GenIPut(uint32_t field_idx, int opt_flags, OpSize size,
+    void GenIPut(MIR* mir, int opt_flags, OpSize size,
                  RegLocation rl_src, RegLocation rl_obj, bool is_long_or_double, bool is_object);
     void GenArrayObjPut(int opt_flags, RegLocation rl_array, RegLocation rl_index,
                         RegLocation rl_src);
