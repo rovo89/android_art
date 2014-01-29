@@ -90,6 +90,10 @@ class ThreadList {
       LOCKS_EXCLUDED(Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
 
+  size_t RunCheckpointOnRunnableThreads(Closure* checkpoint_function);
+      LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                 Locks::thread_suspend_count_lock_);
+
   // Suspends all threads
   void SuspendAllForDebugger()
       LOCKS_EXCLUDED(Locks::mutator_lock_,

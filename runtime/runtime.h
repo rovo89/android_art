@@ -373,7 +373,8 @@ class Runtime {
   const std::vector<const DexFile*>& GetCompileTimeClassPath(jobject class_loader);
   void SetCompileTimeClassPath(jobject class_loader, std::vector<const DexFile*>& class_path);
 
-  void StartProfiler(const char *appDir, bool startImmediately = false);
+  void StartProfiler(const char* appDir, const char* procName, bool startImmediately = false);
+  void UpdateProfilerState(int state);
 
   // Transaction support.
   bool IsActiveTransaction() const;
@@ -418,6 +419,12 @@ class Runtime {
 
   void StartDaemonThreads();
   void StartSignalCatcher();
+
+  // NOTE: these must match the gc::ProcessState values as they come directly
+  // from the framework.
+  static constexpr int kProfileForground = 0;
+  static constexpr int kProfileBackgrouud = 1;
+
 
   // A pointer to the active runtime or NULL.
   static Runtime* instance_;
