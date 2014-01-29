@@ -523,6 +523,12 @@ class SharedLibrary {
     return dlsym(handle_, symbol_name.c_str());
   }
 
+  void VisitRoots(RootVisitor* visitor, void* arg) {
+    if (class_loader_ != nullptr) {
+      class_loader_ = visitor(class_loader_, arg);
+    }
+  }
+
  private:
   enum JNI_OnLoadState {
     kPending,
@@ -611,6 +617,12 @@ class Libraries {
     detail += " (tried " + jni_short_name + " and " + jni_long_name + ")";
     LOG(ERROR) << detail;
     return NULL;
+  }
+
+  void VisitRoots(RootVisitor* visitor, void* arg) {
+    for (auto& lib_pair : libraries_) {
+      lib_pair.second->VisitRoots(visitor, arg);
+    }
   }
 
  private:
@@ -3384,6 +3396,11 @@ void JavaVMExt::VisitRoots(RootVisitor* visitor, void* arg) {
   {
     MutexLock mu(self, pins_lock);
     pin_table.VisitRoots(visitor, arg);
+  }
+  {
+    MutexLock mu(self, libraries_lock);
+    // Libraries contains shared libraries which hold a pointer to a class loader.
+    libraries->VisitRoots(visitor, arg);
   }
   // The weak_globals table is visited by the GC itself (because it mutates the table).
 }
