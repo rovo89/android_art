@@ -356,7 +356,10 @@ enum X86OpCode {
   kX86PsrlqRI,                  // right shift of floating point registers
   kX86PsllqRI,                  // left shift of floating point registers
   kX86SqrtsdRR,                 // sqrt of floating point register
-  kX86FstpdM,                   // Store and pop top x87 fp stack
+  kX86Fild32M,                  // push 32-bit integer on x87 stack
+  kX86Fild64M,                  // push 64-bit integer on x87 stack
+  kX86Fstp32M,                  // pop top x87 fp stack and do 32-bit store
+  kX86Fstp64M,                  // pop top x87 fp stack and do 64-bit store
   Binary0fOpCode(kX86Movups),   // load unaligned packed single FP values from xmm2/m128 to xmm1
   kX86MovupsMR, kX86MovupsAR,   // store unaligned packed single FP values from xmm1 to m128
   Binary0fOpCode(kX86Movaps),   // load aligned packed single FP values from xmm2/m128 to xmm1
