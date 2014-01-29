@@ -68,7 +68,7 @@ LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
 LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.oat.mk
 LOCAL_ADDITIONAL_DEPENDENCIES += $(HOST_CORE_IMG_OUT)
 include $(BUILD_PHONY_PACKAGE)
-endif
+endif # ART_BUILD_HOST
 
 # If we aren't building the host toolchain, skip building the target core.art.
 ifeq ($(WITH_HOST_DALVIK),true)
@@ -80,17 +80,5 @@ LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
 LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.oat.mk
 LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_CORE_IMG_OUT)
 include $(BUILD_PHONY_PACKAGE)
-endif
-
-ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
-ifneq ($(PRODUCT_DEX_PREOPT_IMAGE_IN_DATA),true)
-include $(CLEAR_VARS)
-LOCAL_MODULE := boot.art
-LOCAL_MODULE_TAGS := optional
-LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
-LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.oat.mk
-LOCAL_ADDITIONAL_DEPENDENCIES += $(DEFAULT_DEX_PREOPT_INSTALLED_IMAGE)
-include $(BUILD_PHONY_PACKAGE)
-endif
-endif
-endif
+endif # ART_BUILD_TARGET
+endif # WITH_HOST_DALVIK
