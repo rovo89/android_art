@@ -318,10 +318,19 @@ size_t ParseMemoryOption(const char* s, size_t div) {
   return 0;
 }
 
-size_t ParseIntegerOrDie(const std::string& s) {
-  std::string::size_type colon = s.find(':');
+static const std::string StringAfterChar(const std::string& s, char c) {
+  std::string::size_type colon = s.find(c);
   if (colon == std::string::npos) {
-    LOG(FATAL) << "Missing integer: " << s;
+    LOG(FATAL) << "Missing char " << c << " in string " << s;
+  }
+  // Add one to remove the char we were trimming until.
+  return s.substr(colon + 1);
+}
+
+static size_t ParseIntegerOrDie(const std::string& s, char after_char) {
+  std::string::size_type colon = s.find(after_char);
+  if (colon == std::string::npos) {
+    LOG(FATAL) << "Missing char " << after_char << " in string " << s;
   }
   const char* begin = &s[colon + 1];
   char* end;
@@ -332,10 +341,10 @@ size_t ParseIntegerOrDie(const std::string& s) {
   return result;
 }
 
-double ParseDoubleOrDie(const std::string& option, const char* prefix,
-                        double min, double max, bool ignore_unrecognized,
-                        double defval) {
-  std::istringstream iss(option.substr(strlen(prefix)));
+
+static double ParseDoubleOrDie(const std::string& option, char after_char, double min, double max,
+                               bool ignore_unrecognized, double defval) {
+  std::istringstream iss(StringAfterChar(option, after_char));
   double value;
   iss >> value;
   // Ensure that we have a value, there was no cruft after it and it satisfies a sensible range.
@@ -473,7 +482,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       parsed->boot_class_path_
           = reinterpret_cast<const std::vector<const DexFile*>*>(options[i].second);
     } else if (StartsWith(option, "-Ximage:")) {
-      parsed->image_ = option.substr(strlen("-Ximage:")).data();
+      parsed->image_ = StringAfterChar(option, ':');
     } else if (StartsWith(option, "-Xcheck:jni")) {
       parsed->check_jni_ = true;
     } else if (StartsWith(option, "-Xrunjdwp:") || StartsWith(option, "-agentlib:jdwp=")) {
@@ -539,15 +548,12 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       }
       parsed->heap_max_free_ = size;
     } else if (StartsWith(option, "-XX:HeapTargetUtilization=")) {
-      parsed->heap_target_utilization_ = ParseDoubleOrDie(option, "-XX:HeapTargetUtilization=",
-          0.1, 0.9, ignore_unrecognized,
-          parsed->heap_target_utilization_);
+      parsed->heap_target_utilization_ = ParseDoubleOrDie(
+          option, '=', 0.1, 0.9, ignore_unrecognized, parsed->heap_target_utilization_);
     } else if (StartsWith(option, "-XX:ParallelGCThreads=")) {
-      parsed->parallel_gc_threads_ =
-          ParseMemoryOption(option.substr(strlen("-XX:ParallelGCThreads=")).c_str(), 1024);
+      parsed->parallel_gc_threads_ = ParseIntegerOrDie(option, '=');
     } else if (StartsWith(option, "-XX:ConcGCThreads=")) {
-      parsed->conc_gc_threads_ =
-          ParseMemoryOption(option.substr(strlen("-XX:ConcGCThreads=")).c_str(), 1024);
+      parsed->conc_gc_threads_ = ParseIntegerOrDie(option, '=');
     } else if (StartsWith(option, "-Xss")) {
       size_t size = ParseMemoryOption(option.substr(strlen("-Xss")).c_str(), 1);
       if (size == 0) {
@@ -560,15 +566,11 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       }
       parsed->stack_size_ = size;
     } else if (StartsWith(option, "-XX:MaxSpinsBeforeThinLockInflation=")) {
-      parsed->max_spins_before_thin_lock_inflation_ =
-          strtoul(option.substr(strlen("-XX:MaxSpinsBeforeThinLockInflation=")).c_str(),
-                  nullptr, 10);
-    } else if (option == "-XX:LongPauseLogThreshold") {
-      parsed->long_pause_log_threshold_ =
-          ParseMemoryOption(option.substr(strlen("-XX:LongPauseLogThreshold=")).c_str(), 1024);
-    } else if (option == "-XX:LongGCLogThreshold") {
-          parsed->long_gc_log_threshold_ =
-              ParseMemoryOption(option.substr(strlen("-XX:LongGCLogThreshold")).c_str(), 1024);
+      parsed->max_spins_before_thin_lock_inflation_ = ParseIntegerOrDie(option, '=');
+    } else if (StartsWith(option, "-XX:LongPauseLogThreshold=")) {
+      parsed->long_pause_log_threshold_ = MsToNs(ParseIntegerOrDie(option, '='));
+    } else if (StartsWith(option, "-XX:LongGCLogThreshold=")) {
+      parsed->long_gc_log_threshold_ = MsToNs(ParseIntegerOrDie(option, '='));
     } else if (option == "-XX:DumpGCPerformanceOnShutdown") {
       parsed->dump_gc_performance_on_shutdown_ = true;
     } else if (option == "-XX:IgnoreMaxFootprint") {
@@ -608,7 +610,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         }
       }
     } else if (StartsWith(option, "-XX:BackgroundGC=")) {
-      const std::string substring = option.substr(strlen("-XX:BackgroundGC="));
+      const std::string substring = StringAfterChar(option, '=');
       gc::CollectorType collector_type = ParseCollectorType(substring);
       if (collector_type != gc::kCollectorTypeNone) {
         parsed->background_collector_type_ = collector_type;
@@ -650,9 +652,9 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     } else if (StartsWith(option, "-Xjnigreflimit:")) {
       // Silently ignored for backwards compatibility.
     } else if (StartsWith(option, "-Xlockprofthreshold:")) {
-      parsed->lock_profiling_threshold_ = ParseIntegerOrDie(option);
+      parsed->lock_profiling_threshold_ = ParseIntegerOrDie(option, ':');
     } else if (StartsWith(option, "-Xstacktracefile:")) {
-      parsed->stack_trace_file_ = option.substr(strlen("-Xstacktracefile:"));
+      parsed->stack_trace_file_ = StringAfterChar(option, ':');
     } else if (option == "sensitiveThread") {
       parsed->hook_is_sensitive_thread_ = reinterpret_cast<bool (*)()>(const_cast<void*>(options[i].second));
     } else if (option == "vfprintf") {
@@ -671,7 +673,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     } else if (StartsWith(option, "-Xmethod-trace-file:")) {
       parsed->method_trace_file_ = option.substr(strlen("-Xmethod-trace-file:"));
     } else if (StartsWith(option, "-Xmethod-trace-file-size:")) {
-      parsed->method_trace_file_size_ = ParseIntegerOrDie(option);
+      parsed->method_trace_file_size_ = ParseIntegerOrDie(option, ':');
     } else if (option == "-Xprofile:threadcpuclock") {
       Trace::SetDefaultClockSource(kProfilerClockSourceThreadCpu);
     } else if (option == "-Xprofile:wallclock") {
@@ -679,18 +681,17 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     } else if (option == "-Xprofile:dualclock") {
       Trace::SetDefaultClockSource(kProfilerClockSourceDual);
     } else if (StartsWith(option, "-Xprofile:")) {
-      parsed->profile_output_filename_ = option.substr(strlen("-Xprofile:"));
+      parsed->profile_output_filename_ = StringAfterChar(option, ';');
       parsed->profile_ = true;
     } else if (StartsWith(option, "-Xprofile-period:")) {
-      parsed->profile_period_s_ = ParseIntegerOrDie(option);
+      parsed->profile_period_s_ = ParseIntegerOrDie(option, ':');
     } else if (StartsWith(option, "-Xprofile-duration:")) {
-      parsed->profile_duration_s_ = ParseIntegerOrDie(option);
+      parsed->profile_duration_s_ = ParseIntegerOrDie(option, ':');
     } else if (StartsWith(option, "-Xprofile-interval:")) {
-      parsed->profile_interval_us_ = ParseIntegerOrDie(option);
+      parsed->profile_interval_us_ = ParseIntegerOrDie(option, ':');
     } else if (StartsWith(option, "-Xprofile-backoff:")) {
-      parsed->profile_backoff_coefficient_ = ParseDoubleOrDie(option, "-Xprofile-backoff:",
-          1.0, 10.0, ignore_unrecognized,
-          parsed->profile_backoff_coefficient_);
+      parsed->profile_backoff_coefficient_ = ParseDoubleOrDie(
+          option, ':', 1.0, 10.0, ignore_unrecognized, parsed->profile_backoff_coefficient_);
     } else if (option == "-compiler-filter:interpret-only") {
       parsed->compiler_filter_ = kInterpretOnly;
     } else if (option == "-compiler-filter:space") {
@@ -704,15 +705,15 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     } else if (option == "-sea_ir") {
       parsed->sea_ir_mode_ = true;
     } else if (StartsWith(option, "-huge-method-max:")) {
-      parsed->huge_method_threshold_ = ParseIntegerOrDie(option);
+      parsed->huge_method_threshold_ = ParseIntegerOrDie(option, ':');
     } else if (StartsWith(option, "-large-method-max:")) {
-      parsed->large_method_threshold_ = ParseIntegerOrDie(option);
+      parsed->large_method_threshold_ = ParseIntegerOrDie(option, ':');
     } else if (StartsWith(option, "-small-method-max:")) {
-      parsed->small_method_threshold_ = ParseIntegerOrDie(option);
+      parsed->small_method_threshold_ = ParseIntegerOrDie(option, ':');
     } else if (StartsWith(option, "-tiny-method-max:")) {
-      parsed->tiny_method_threshold_ = ParseIntegerOrDie(option);
+      parsed->tiny_method_threshold_ = ParseIntegerOrDie(option, ':');
     } else if (StartsWith(option, "-num-dex-methods-max:")) {
-      parsed->num_dex_methods_threshold_ = ParseIntegerOrDie(option);
+      parsed->num_dex_methods_threshold_ = ParseIntegerOrDie(option, ':');
     } else {
       if (!ignore_unrecognized) {
         // TODO: print usage via vfprintf
