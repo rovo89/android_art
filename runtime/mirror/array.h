@@ -19,6 +19,7 @@
 
 #include "object.h"
 #include "gc/heap.h"
+#include "thread.h"
 
 namespace art {
 namespace mirror {
@@ -83,7 +84,9 @@ class MANAGED Array : public Object {
     return reinterpret_cast<const void*>(data);
   }
 
-  bool IsValidIndex(int32_t index) const
+  // Returns true if the index is valid. If not, throws an ArrayIndexOutOfBoundsException and
+  // returns false.
+  bool CheckIsValidIndex(int32_t index) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (UNLIKELY(static_cast<uint32_t>(index) >= static_cast<uint32_t>(GetLength()))) {
       ThrowArrayIndexOutOfBoundsException(index);
@@ -93,12 +96,13 @@ class MANAGED Array : public Object {
   }
 
  protected:
-  void ThrowArrayIndexOutOfBoundsException(int32_t index) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void ThrowArrayStoreException(Object* object) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
+  void ThrowArrayIndexOutOfBoundsException(int32_t index) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // The number of array elements.
   int32_t length_;
   // Marker for the data (used by generated code)
@@ -126,16 +130,29 @@ class MANAGED PrimitiveArray : public Array {
   }
 
   T Get(int32_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (!IsValidIndex(i)) {
+    if (UNLIKELY(!CheckIsValidIndex(i))) {
+      DCHECK(Thread::Current()->IsExceptionPending());
       return T(0);
     }
+    return GetWithoutChecks(i);
+  }
+
+  T GetWithoutChecks(int32_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(CheckIsValidIndex(i));
     return GetData()[i];
   }
 
   void Set(int32_t i, T value) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (IsValidIndex(i)) {
-      GetData()[i] = value;
+    if (LIKELY(CheckIsValidIndex(i))) {
+      SetWithoutChecks(i, value);
+    } else {
+      DCHECK(Thread::Current()->IsExceptionPending());
     }
+  }
+
+  void SetWithoutChecks(int32_t i, T value) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(CheckIsValidIndex(i));
+    GetData()[i] = value;
   }
 
   static void SetArrayClass(Class* array_class) {
