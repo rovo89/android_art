@@ -19,6 +19,7 @@
 #include <inttypes.h>
 #include <backtrace/BacktraceMap.h>
 
+#include "UniquePtr.h"
 #include "base/stringprintf.h"
 #include "ScopedFd.h"
 #include "utils.h"
@@ -55,12 +56,12 @@ static void CheckMapRequest(byte* addr, size_t byte_count) {
   uintptr_t base = reinterpret_cast<uintptr_t>(addr);
   uintptr_t limit = base + byte_count;
 
-  BacktraceMap map(getpid());
-  if (!map.Build()) {
+  UniquePtr<BacktraceMap> map(BacktraceMap::Create(getpid()));
+  if (!map->Build()) {
     PLOG(WARNING) << "Failed to build process map";
     return;
   }
-  for (BacktraceMap::const_iterator it = map.begin(); it != map.end(); ++it) {
+  for (BacktraceMap::const_iterator it = map->begin(); it != map->end(); ++it) {
     CHECK(!(base >= it->start && base < it->end)     // start of new within old
         && !(limit > it->start && limit < it->end)   // end of new within old
         && !(base <= it->start && limit > it->end))  // start/end of new includes all of old
@@ -69,7 +70,7 @@ static void CheckMapRequest(byte* addr, size_t byte_count) {
                         base, limit,
                         static_cast<uintptr_t>(it->start), static_cast<uintptr_t>(it->end),
                         it->name.c_str())
-        << std::make_pair(it, map.end());
+        << std::make_pair(it, map->end());
   }
 }
 
