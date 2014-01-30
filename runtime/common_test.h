@@ -160,11 +160,7 @@ class ScratchFile {
 
 #if defined(__arm__)
 
-
-#include <signal.h>
-#include <asm/sigcontext.h>
-#include <asm-generic/ucontext.h>
-
+#include <sys/ucontext.h>
 
 // A signal handler called when have an illegal instruction.  We record the fact in
 // a global boolean and then increment the PC in the signal context to return to
