@@ -297,6 +297,24 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86SqrtsdRR, kRegReg, IS_BINARY_OP | REG_DEF0_USE1, { 0xF2, 0, 0x0F, 0x51, 0, 0, 0, 0 }, "SqrtsdRR", "!0r,!1r" },
   { kX86FstpdM, kMem, IS_STORE | IS_BINARY_OP | REG_USE0, { 0x0, 0, 0xDD, 0x00, 0, 3, 0, 0 }, "FstpdM", "[!0r,!1d]" },
 
+  EXT_0F_ENCODING_MAP(Movups,    0x0, 0x10, REG_DEF0),
+  { kX86MovupsMR, kMemReg,      IS_STORE | IS_TERTIARY_OP | REG_USE02,  { 0x0, 0, 0x0F, 0x11, 0, 0, 0, 0 }, "MovupsMR", "[!0r+!1d],!2r" },
+  { kX86MovupsAR, kArrayReg,    IS_STORE | IS_QUIN_OP     | REG_USE014, { 0x0, 0, 0x0F, 0x11, 0, 0, 0, 0 }, "MovupsAR", "[!0r+!1r<<!2d+!3d],!4r" },
+
+  EXT_0F_ENCODING_MAP(Movaps,    0x0, 0x28, REG_DEF0),
+  { kX86MovapsMR, kMemReg,      IS_STORE | IS_TERTIARY_OP | REG_USE02,  { 0x0, 0, 0x0F, 0x29, 0, 0, 0, 0 }, "MovapsMR", "[!0r+!1d],!2r" },
+  { kX86MovapsAR, kArrayReg,    IS_STORE | IS_QUIN_OP     | REG_USE014, { 0x0, 0, 0x0F, 0x29, 0, 0, 0, 0 }, "MovapsAR", "[!0r+!1r<<!2d+!3d],!4r" },
+
+  { kX86MovlpsRM, kRegMem,      IS_LOAD | IS_TERTIARY_OP | REG_DEF0 | REG_USE01,  { 0x0, 0, 0x0F, 0x12, 0, 0, 0, 0 }, "MovlpsRM", "!0r,[!1r+!2d]" },
+  { kX86MovlpsRA, kRegArray,    IS_LOAD | IS_QUIN_OP     | REG_DEF0 | REG_USE012, { 0x0, 0, 0x0F, 0x12, 0, 0, 0, 0 }, "MovlpsRA", "!0r,[!1r+!2r<<!3d+!4d]" },
+  { kX86MovlpsMR, kMemReg,      IS_STORE | IS_TERTIARY_OP | REG_USE02,  { 0x0, 0, 0x0F, 0x13, 0, 0, 0, 0 }, "MovlpsMR", "[!0r+!1d],!2r" },
+  { kX86MovlpsAR, kArrayReg,    IS_STORE | IS_QUIN_OP     | REG_USE014, { 0x0, 0, 0x0F, 0x13, 0, 0, 0, 0 }, "MovlpsAR", "[!0r+!1r<<!2d+!3d],!4r" },
+
+  { kX86MovhpsRM, kRegMem,      IS_LOAD | IS_TERTIARY_OP | REG_DEF0 | REG_USE01,  { 0x0, 0, 0x0F, 0x16, 0, 0, 0, 0 }, "MovhpsRM", "!0r,[!1r+!2d]" },
+  { kX86MovhpsRA, kRegArray,    IS_LOAD | IS_QUIN_OP     | REG_DEF0 | REG_USE012, { 0x0, 0, 0x0F, 0x16, 0, 0, 0, 0 }, "MovhpsRA", "!0r,[!1r+!2r<<!3d+!4d]" },
+  { kX86MovhpsMR, kMemReg,      IS_STORE | IS_TERTIARY_OP | REG_USE02,  { 0x0, 0, 0x0F, 0x17, 0, 0, 0, 0 }, "MovhpsMR", "[!0r+!1d],!2r" },
+  { kX86MovhpsAR, kArrayReg,    IS_STORE | IS_QUIN_OP     | REG_USE014, { 0x0, 0, 0x0F, 0x17, 0, 0, 0, 0 }, "MovhpsAR", "[!0r+!1r<<!2d+!3d],!4r" },
+
   EXT_0F_ENCODING_MAP(Movdxr,    0x66, 0x6E, REG_DEF0),
   { kX86MovdrxRR, kRegRegStore, IS_BINARY_OP | REG_DEF0   | REG_USE01,  { 0x66, 0, 0x0F, 0x7E, 0, 0, 0, 0 }, "MovdrxRR", "!0r,!1r" },
   { kX86MovdrxMR, kMemReg,      IS_STORE | IS_TERTIARY_OP | REG_USE02,  { 0x66, 0, 0x0F, 0x7E, 0, 0, 0, 0 }, "MovdrxMR", "[!0r+!1d],!2r" },

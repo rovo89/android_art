@@ -357,6 +357,14 @@ enum X86OpCode {
   kX86PsllqRI,                  // left shift of floating point registers
   kX86SqrtsdRR,                 // sqrt of floating point register
   kX86FstpdM,                   // Store and pop top x87 fp stack
+  Binary0fOpCode(kX86Movups),   // load unaligned packed single FP values from xmm2/m128 to xmm1
+  kX86MovupsMR, kX86MovupsAR,   // store unaligned packed single FP values from xmm1 to m128
+  Binary0fOpCode(kX86Movaps),   // load aligned packed single FP values from xmm2/m128 to xmm1
+  kX86MovapsMR, kX86MovapsAR,   // store aligned packed single FP values from xmm1 to m128
+  kX86MovlpsRM, kX86MovlpsRA,   // load packed single FP values from m64 to low quadword of xmm
+  kX86MovlpsMR, kX86MovlpsAR,   // store packed single FP values from low quadword of xmm to m64
+  kX86MovhpsRM, kX86MovhpsRA,   // load packed single FP values from m64 to high quadword of xmm
+  kX86MovhpsMR, kX86MovhpsAR,   // store packed single FP values from high quadword of xmm to m64
   Binary0fOpCode(kX86Movdxr),   // move into xmm from gpr
   kX86MovdrxRR, kX86MovdrxMR, kX86MovdrxAR,  // move into reg from xmm
   kX86Set8R, kX86Set8M, kX86Set8A,  // set byte depending on condition operand

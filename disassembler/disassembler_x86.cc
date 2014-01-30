@@ -246,6 +246,42 @@ DISASSEMBLER_ENTRY(cmp,
         load = *instr == 0x10;
         store = !load;
         break;
+      case 0x12: case 0x13:
+        if (prefix[2] == 0x66) {
+          opcode << "movlpd";
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else if (prefix[0] == 0) {
+          opcode << "movlps";
+        }
+        has_modrm = true;
+        src_reg_file = dst_reg_file = SSE;
+        load = *instr == 0x12;
+        store = !load;
+        break;
+      case 0x16: case 0x17:
+        if (prefix[2] == 0x66) {
+          opcode << "movhpd";
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else if (prefix[0] == 0) {
+          opcode << "movhps";
+        }
+        has_modrm = true;
+        src_reg_file = dst_reg_file = SSE;
+        load = *instr == 0x16;
+        store = !load;
+        break;
+      case 0x28: case 0x29:
+        if (prefix[2] == 0x66) {
+          opcode << "movapd";
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else if (prefix[0] == 0) {
+          opcode << "movaps";
+        }
+        has_modrm = true;
+        src_reg_file = dst_reg_file = SSE;
+        load = *instr == 0x28;
+        store = !load;
+        break;
       case 0x2A:
         if (prefix[2] == 0x66) {
           opcode << "cvtpi2pd";

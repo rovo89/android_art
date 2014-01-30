@@ -946,6 +946,27 @@ class Mir2Lir : public Backend {
     virtual LIR* OpRegReg(OpKind op, int r_dest_src1, int r_src2) = 0;
 
     /**
+     * @brief Used to generate an LIR that does a load from mem to reg.
+     * @param r_dest The destination physical register.
+     * @param r_base The base physical register for memory operand.
+     * @param offset The displacement for memory operand.
+     * @param move_type Specification on the move desired (size, alignment, register kind).
+     * @return Returns the generate move LIR.
+     */
+    virtual LIR* OpMovRegMem(int r_dest, int r_base, int offset, MoveType move_type) = 0;
+
+    /**
+     * @brief Used to generate an LIR that does a store from reg to mem.
+     * @param r_base The base physical register for memory operand.
+     * @param offset The displacement for memory operand.
+     * @param r_src The destination physical register.
+     * @param bytes_to_move The number of bytes to move.
+     * @param is_aligned Whether the memory location is known to be aligned.
+     * @return Returns the generate move LIR.
+     */
+    virtual LIR* OpMovMemReg(int r_base, int offset, int r_src, MoveType move_type) = 0;
+
+    /**
      * @brief Used for generating a conditional register to register operation.
      * @param op The opcode kind.
      * @param cc The condition code that when true will perform the opcode.
