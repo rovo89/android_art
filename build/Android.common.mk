@@ -182,9 +182,6 @@ ART_HOST_CFLAGS += -Wthread-safety
 # Make host builds easier to debug and profile by not omitting the frame pointer.
 ART_HOST_CFLAGS += -fno-omit-frame-pointer
 
-# Workaround differences in inttypes.h.
-ART_HOST_CFLAGS += -D__STDC_FORMAT_MACROS=1
-
 # To use oprofile_android --callgraph, uncomment this and recompile with "mmm art -B -j16"
 # ART_TARGET_CFLAGS += -fno-omit-frame-pointer -marm -mapcs
 
