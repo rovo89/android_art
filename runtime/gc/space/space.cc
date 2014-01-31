@@ -17,6 +17,9 @@
 #include "space.h"
 
 #include "base/logging.h"
+#include "gc/accounting/heap_bitmap.h"
+#include "runtime.h"
+#include "thread-inl.h"
 
 namespace art {
 namespace gc {
@@ -39,6 +42,59 @@ DiscontinuousSpace::DiscontinuousSpace(const std::string& name,
     Space(name, gc_retention_policy),
     live_objects_(new accounting::ObjectSet("large live objects")),
     mark_objects_(new accounting::ObjectSet("large marked objects")) {
+}
+
+void ContinuousMemMapAllocSpace::Sweep(bool swap_bitmaps, size_t* freed_objects, size_t* freed_bytes) {
+  DCHECK(freed_objects != nullptr);
+  DCHECK(freed_bytes != nullptr);
+  accounting::SpaceBitmap* live_bitmap = GetLiveBitmap();
+  accounting::SpaceBitmap* mark_bitmap = GetMarkBitmap();
+  // If the bitmaps are bound then sweeping this space clearly won't do anything.
+  if (live_bitmap == mark_bitmap) {
+    return;
+  }
+  SweepCallbackContext scc;
+  scc.swap_bitmaps = swap_bitmaps;
+  scc.heap = Runtime::Current()->GetHeap();
+  scc.self = Thread::Current();
+  scc.space = this;
+  scc.freed_objects = 0;
+  scc.freed_bytes = 0;
+  if (swap_bitmaps) {
+    std::swap(live_bitmap, mark_bitmap);
+  }
+  // Bitmaps are pre-swapped for optimization which enables sweeping with the heap unlocked.
+  accounting::SpaceBitmap::SweepWalk(*live_bitmap, *mark_bitmap,
+                                     reinterpret_cast<uintptr_t>(Begin()),
+                                     reinterpret_cast<uintptr_t>(End()),
+                                     GetSweepCallback(),
+                                     reinterpret_cast<void*>(&scc));
+  *freed_objects += scc.freed_objects;
+  *freed_bytes += scc.freed_bytes;
+}
+
+// Returns the old mark bitmap.
+void ContinuousMemMapAllocSpace::BindLiveToMarkBitmap() {
+  CHECK(!HasBoundBitmaps());
+  accounting::SpaceBitmap* live_bitmap = GetLiveBitmap();
+  accounting::SpaceBitmap* mark_bitmap = mark_bitmap_.release();
+  Runtime::Current()->GetHeap()->GetMarkBitmap()->ReplaceBitmap(mark_bitmap, live_bitmap);
+  temp_bitmap_.reset(mark_bitmap);
+  mark_bitmap_.reset(live_bitmap);
+}
+
+bool ContinuousMemMapAllocSpace::HasBoundBitmaps() const {
+  return temp_bitmap_.get() != nullptr;
+}
+
+void ContinuousMemMapAllocSpace::UnBindBitmaps() {
+  CHECK(HasBoundBitmaps());
+  // At this point, the temp_bitmap holds our old mark bitmap.
+  accounting::SpaceBitmap* new_bitmap = temp_bitmap_.release();
+  Runtime::Current()->GetHeap()->GetMarkBitmap()->ReplaceBitmap(mark_bitmap_.get(), new_bitmap);
+  CHECK_EQ(mark_bitmap_.release(), live_bitmap_.get());
+  mark_bitmap_.reset(new_bitmap);
+  DCHECK(temp_bitmap_.get() == nullptr);
 }
 
 }  // namespace space

@@ -29,10 +29,6 @@ namespace space {
 // An image space is a space backed with a memory mapped image.
 class ImageSpace : public MemMapSpace {
  public:
-  bool CanAllocateInto() const {
-    return false;
-  }
-
   SpaceType GetType() const {
     return kSpaceTypeImageSpace;
   }
@@ -74,6 +70,10 @@ class ImageSpace : public MemMapSpace {
   }
 
   void Dump(std::ostream& os) const;
+
+  // Sweeping image spaces is a NOP.
+  void Sweep(bool /* swap_bitmaps */, size_t* /* freed_objects */, size_t* /* freed_bytes */) {
+  }
 
  private:
   // Tries to initialize an ImageSpace from the given image path,

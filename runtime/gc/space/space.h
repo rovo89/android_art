@@ -44,6 +44,7 @@ namespace space {
 
 class AllocSpace;
 class BumpPointerSpace;
+class ContinuousMemMapAllocSpace;
 class ContinuousSpace;
 class DiscontinuousSpace;
 class MallocSpace;
@@ -51,6 +52,7 @@ class DlMallocSpace;
 class RosAllocSpace;
 class ImageSpace;
 class LargeObjectSpace;
+class ZygoteSpace;
 
 static constexpr bool kDebugSpaces = kIsDebugBuild;
 
@@ -68,7 +70,7 @@ std::ostream& operator<<(std::ostream& os, const GcRetentionPolicy& policy);
 
 enum SpaceType {
   kSpaceTypeImageSpace,
-  kSpaceTypeAllocSpace,
+  kSpaceTypeMallocSpace,
   kSpaceTypeZygoteSpace,
   kSpaceTypeBumpPointerSpace,
   kSpaceTypeLargeObjectSpace,
@@ -91,11 +93,6 @@ class Space {
     return gc_retention_policy_;
   }
 
-  // Does the space support allocation?
-  virtual bool CanAllocateInto() const {
-    return true;
-  }
-
   // Is the given object contained within this space?
   virtual bool Contains(const mirror::Object* obj) const = 0;
 
@@ -111,7 +108,7 @@ class Space {
   // Is this a dlmalloc backed allocation space?
   bool IsMallocSpace() const {
     SpaceType type = GetType();
-    return type == kSpaceTypeAllocSpace || type == kSpaceTypeZygoteSpace;
+    return type == kSpaceTypeMallocSpace;
   }
   MallocSpace* AsMallocSpace();
 
@@ -120,19 +117,23 @@ class Space {
   }
   virtual DlMallocSpace* AsDlMallocSpace() {
     LOG(FATAL) << "Unreachable";
-    return NULL;
+    return nullptr;
   }
   virtual bool IsRosAllocSpace() const {
     return false;
   }
   virtual RosAllocSpace* AsRosAllocSpace() {
     LOG(FATAL) << "Unreachable";
-    return NULL;
+    return nullptr;
   }
 
   // Is this the space allocated into by the Zygote and no-longer in use?
   bool IsZygoteSpace() const {
     return GetType() == kSpaceTypeZygoteSpace;
+  }
+  virtual ZygoteSpace* AsZygoteSpace() {
+    LOG(FATAL) << "Unreachable";
+    return nullptr;
   }
 
   // Is this space a bump pointer space?
@@ -141,7 +142,7 @@ class Space {
   }
   virtual BumpPointerSpace* AsBumpPointerSpace() {
     LOG(FATAL) << "Unreachable";
-    return NULL;
+    return nullptr;
   }
 
   // Does this space hold large objects and implement the large object space abstraction?
@@ -168,6 +169,14 @@ class Space {
     return nullptr;
   }
 
+  virtual bool IsContinuousMemMapAllocSpace() const {
+    return false;
+  }
+  virtual ContinuousMemMapAllocSpace* AsContinuousMemMapAllocSpace() {
+    LOG(FATAL) << "Unimplemented";
+    return nullptr;
+  }
+
   virtual ~Space() {}
 
  protected:
@@ -181,6 +190,15 @@ class Space {
   std::string name_;
 
  protected:
+  struct SweepCallbackContext {
+    bool swap_bitmaps;
+    Heap* heap;
+    space::Space* space;
+    Thread* self;
+    size_t freed_objects;
+    size_t freed_bytes;
+  };
+
   // When should objects within this space be reclaimed? Not constant as we vary it in the case
   // of Zygote forking.
   GcRetentionPolicy gc_retention_policy_;
@@ -378,22 +396,51 @@ class ContinuousMemMapAllocSpace : public MemMapSpace, public AllocSpace {
   virtual bool IsAllocSpace() const {
     return true;
   }
-
   virtual AllocSpace* AsAllocSpace() {
     return this;
   }
+
+  virtual bool IsContinuousMemMapAllocSpace() const {
+    return true;
+  }
+  virtual ContinuousMemMapAllocSpace* AsContinuousMemMapAllocSpace() {
+    return this;
+  }
+
+  bool HasBoundBitmaps() const EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  void BindLiveToMarkBitmap()
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  void UnBindBitmaps() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   virtual void Clear() {
     LOG(FATAL) << "Unimplemented";
   }
 
+  virtual accounting::SpaceBitmap* GetLiveBitmap() const {
+    return live_bitmap_.get();
+  }
+  virtual accounting::SpaceBitmap* GetMarkBitmap() const {
+    return mark_bitmap_.get();
+  }
+
+  virtual void Sweep(bool swap_bitmaps, size_t* freed_objects, size_t* freed_bytes);
+  virtual accounting::SpaceBitmap::SweepCallback* GetSweepCallback() {
+    LOG(FATAL) << "Unimplemented";
+    return nullptr;
+  }
+
  protected:
+  UniquePtr<accounting::SpaceBitmap> live_bitmap_;
+  UniquePtr<accounting::SpaceBitmap> mark_bitmap_;
+  UniquePtr<accounting::SpaceBitmap> temp_bitmap_;
+
   ContinuousMemMapAllocSpace(const std::string& name, MemMap* mem_map, byte* begin,
                              byte* end, byte* limit, GcRetentionPolicy gc_retention_policy)
       : MemMapSpace(name, mem_map, begin, end, limit, gc_retention_policy) {
   }
 
  private:
+  friend class gc::Heap;
   DISALLOW_COPY_AND_ASSIGN(ContinuousMemMapAllocSpace);
 };
 
