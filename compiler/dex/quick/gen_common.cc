@@ -974,6 +974,9 @@ void Mir2Lir::GenThrow(RegLocation rl_src) {
 // question with simple comparisons.
 void Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx, RegLocation rl_dest,
                                  RegLocation rl_src) {
+  // X86 has its own implementation.
+  DCHECK_NE(cu_->instruction_set, kX86);
+
   RegLocation object = LoadValue(rl_src, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   int result_reg = rl_result.low_reg;
