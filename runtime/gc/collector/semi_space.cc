@@ -119,7 +119,6 @@ void SemiSpace::BindBitmaps() {
   if (generational_ && !whole_heap_collection_) {
     // We won't collect the large object space if a bump pointer space only collection.
     is_large_object_space_immune_ = true;
-    GetHeap()->GetLargeObjectsSpace()->CopyLiveToMarked();
   }
   timings_.EndSplit();
 }
@@ -287,6 +286,11 @@ void SemiSpace::MarkReachableObjects() {
 
   if (is_large_object_space_immune_) {
     DCHECK(generational_ && !whole_heap_collection_);
+    // Delay copying the live set to the marked set until here from
+    // BindBitmaps() as the large objects on the allocation stack may
+    // be newly added to the live set above in MarkAllocStackAsLive().
+    GetHeap()->GetLargeObjectsSpace()->CopyLiveToMarked();
+
     // When the large object space is immune, we need to scan the
     // large object space as roots as they contain references to their
     // classes (primitive array classes) that could move though they
