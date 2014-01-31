@@ -199,13 +199,94 @@ int MIRGraph::GetSSAUseCount(int s_reg) {
   return raw_use_counts_.Get(s_reg);
 }
 
+size_t MIRGraph::GetNumAvailableNonSpecialCompilerTemps() {
+  if (num_non_special_compiler_temps_ >= max_available_non_special_compiler_temps_) {
+    return 0;
+  } else {
+    return max_available_non_special_compiler_temps_ - num_non_special_compiler_temps_;
+  }
+}
+
+static const RegLocation temp_loc = {kLocCompilerTemp,
+                                     0, 1 /*defined*/, 0, 0, 0, 0, 0, 1 /*home*/,
+                                     kVectorNotUsed, INVALID_REG, INVALID_REG, INVALID_SREG,
+                                     INVALID_SREG};
+
+CompilerTemp* MIRGraph::GetNewCompilerTemp(CompilerTempType ct_type, bool wide) {
+  // There is a limit to the number of non-special temps so check to make sure it wasn't exceeded.
+  if (ct_type == kCompilerTempVR) {
+    size_t available_temps = GetNumAvailableNonSpecialCompilerTemps();
+    if (available_temps <= 0 || (available_temps <= 1 && wide)) {
+      return 0;
+    }
+  }
+
+  CompilerTemp *compiler_temp = static_cast<CompilerTemp *>(arena_->Alloc(sizeof(CompilerTemp),
+                                                            ArenaAllocator::kAllocRegAlloc));
+
+  // Create the type of temp requested. Special temps need special handling because
+  // they have a specific virtual register assignment.
+  if (ct_type == kCompilerTempSpecialMethodPtr) {
+    DCHECK_EQ(wide, false);
+    compiler_temp->v_reg = static_cast<int>(kVRegMethodPtrBaseReg);
+    compiler_temp->s_reg_low = AddNewSReg(compiler_temp->v_reg);
+
+    // The MIR graph keeps track of the sreg for method pointer specially, so record that now.
+    method_sreg_ = compiler_temp->s_reg_low;
+  } else {
+    DCHECK_EQ(ct_type, kCompilerTempVR);
+
+    // The new non-special compiler temp must receive a unique v_reg with a negative value.
+    compiler_temp->v_reg = static_cast<int>(kVRegNonSpecialTempBaseReg) - num_non_special_compiler_temps_;
+    compiler_temp->s_reg_low = AddNewSReg(compiler_temp->v_reg);
+    num_non_special_compiler_temps_++;
+
+    if (wide) {
+      // Ensure that the two registers are consecutive. Since the virtual registers used for temps grow in a
+      // negative fashion, we need the smaller to refer to the low part. Thus, we redefine the v_reg and s_reg_low.
+      compiler_temp->v_reg--;
+      int ssa_reg_high = compiler_temp->s_reg_low;
+      compiler_temp->s_reg_low = AddNewSReg(compiler_temp->v_reg);
+      int ssa_reg_low = compiler_temp->s_reg_low;
+
+      // If needed initialize the register location for the high part.
+      // The low part is handled later in this method on a common path.
+      if (reg_location_ != nullptr) {
+        reg_location_[ssa_reg_high] = temp_loc;
+        reg_location_[ssa_reg_high].high_word = 1;
+        reg_location_[ssa_reg_high].s_reg_low = ssa_reg_low;
+        reg_location_[ssa_reg_high].wide = true;
+
+        // A new SSA needs new use counts.
+        use_counts_.Insert(0);
+        raw_use_counts_.Insert(0);
+      }
+
+      num_non_special_compiler_temps_++;
+    }
+  }
+
+  // Have we already allocated the register locations?
+  if (reg_location_ != nullptr) {
+    int ssa_reg_low = compiler_temp->s_reg_low;
+    reg_location_[ssa_reg_low] = temp_loc;
+    reg_location_[ssa_reg_low].s_reg_low = ssa_reg_low;
+    reg_location_[ssa_reg_low].wide = wide;
+
+    // A new SSA needs new use counts.
+    use_counts_.Insert(0);
+    raw_use_counts_.Insert(0);
+  }
+
+  compiler_temps_.Insert(compiler_temp);
+  return compiler_temp;
+}
 
 /* Do some MIR-level extended basic block optimizations */
 bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
   if (bb->block_type == kDead) {
     return true;
   }
-  int num_temps = 0;
   bool use_lvn = bb->use_lvn;
   UniquePtr<LocalValueNumbering> local_valnum;
   if (use_lvn) {
@@ -468,9 +549,6 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
     bb = ((cu_->disable_opt & (1 << kSuppressExceptionEdges)) != 0) ? NextDominatedBlock(bb) : NULL;
   }
 
-  if (num_temps > cu_->num_compiler_temps) {
-    cu_->num_compiler_temps = num_temps;
-  }
   return true;
 }
 

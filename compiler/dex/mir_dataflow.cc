@@ -1158,8 +1158,8 @@ void MIRGraph::CompilerInitializeSSAConversion() {
     ssa_last_defs_[i] = 0;
   }
 
-  /* Add ssa reg for Method* */
-  method_sreg_ = AddNewSReg(SSA_METHOD_BASEREG);
+  // Create a compiler temporary for Method*. This is done after SSA initialization.
+  GetNewCompilerTemp(kCompilerTempSpecialMethodPtr, false);
 
   /*
    * Allocate the BasicBlockDataFlow structure for the entry and code blocks

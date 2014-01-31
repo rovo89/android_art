@@ -81,9 +81,6 @@ struct CompilationUnit {
   uint16_t num_outs;
   uint16_t num_regs;            // Unlike num_dalvik_registers, does not include ins.
 
-  // TODO: may want to move this to MIRGraph.
-  uint16_t num_compiler_temps;
-
   // If non-empty, apply optimizer/debug flags only to matching methods.
   std::string compiler_method_match;
   // Flips sense of compiler_method_match - apply flags if doesn't match.

@@ -130,7 +130,6 @@ CompilationUnit::CompilationUnit(ArenaPool* pool)
     num_ins(0),
     num_outs(0),
     num_regs(0),
-    num_compiler_temps(0),
     compiler_flip_match(false),
     arena(pool),
     mir_graph(NULL),
@@ -236,6 +235,43 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
   cu.StartTimingSplit("BuildMIRGraph");
   cu.mir_graph.reset(new MIRGraph(&cu, &cu.arena));
 
+  /*
+   * After creation of the MIR graph, also create the code generator.
+   * The reason we do this is that optimizations on the MIR graph may need to get information
+   * that is only available if a CG exists.
+   */
+#if defined(ART_USE_PORTABLE_COMPILER)
+  if (compiler_backend == kPortable) {
+    cu.cg.reset(PortableCodeGenerator(&cu, cu.mir_graph.get(), &cu.arena, llvm_compilation_unit));
+  } else {
+#endif
+    Mir2Lir* mir_to_lir = nullptr;
+    switch (compiler.GetInstructionSet()) {
+      case kThumb2:
+        mir_to_lir = ArmCodeGenerator(&cu, cu.mir_graph.get(), &cu.arena);
+        break;
+      case kMips:
+        mir_to_lir = MipsCodeGenerator(&cu, cu.mir_graph.get(), &cu.arena);
+        break;
+      case kX86:
+        mir_to_lir = X86CodeGenerator(&cu, cu.mir_graph.get(), &cu.arena);
+        break;
+      default:
+        LOG(FATAL) << "Unexpected instruction set: " << compiler.GetInstructionSet();
+    }
+
+    cu.cg.reset(mir_to_lir);
+
+    /* The number of compiler temporaries depends on backend so set it up now if possible */
+    if (mir_to_lir) {
+      size_t max_temps = mir_to_lir->GetMaxPossibleCompilerTemps();
+      bool set_max = cu.mir_graph->SetMaxAvailableNonSpecialCompilerTemps(max_temps);
+      CHECK(set_max);
+    }
+#if defined(ART_USE_PORTABLE_COMPILER)
+  }
+#endif
+
   /* Gathering opcode stats? */
   if (kCompilerDebugFlags & (1 << kDebugCountOpcodes)) {
     cu.mir_graph->EnableOpcodeCounting();
@@ -268,28 +304,6 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
   cu.mir_graph->RemapRegLocations();
 
   CompiledMethod* result = NULL;
-
-#if defined(ART_USE_PORTABLE_COMPILER)
-  if (compiler_backend == kPortable) {
-    cu.cg.reset(PortableCodeGenerator(&cu, cu.mir_graph.get(), &cu.arena, llvm_compilation_unit));
-  } else {
-#endif
-    switch (compiler.GetInstructionSet()) {
-      case kThumb2:
-        cu.cg.reset(ArmCodeGenerator(&cu, cu.mir_graph.get(), &cu.arena));
-        break;
-      case kMips:
-        cu.cg.reset(MipsCodeGenerator(&cu, cu.mir_graph.get(), &cu.arena));
-        break;
-      case kX86:
-        cu.cg.reset(X86CodeGenerator(&cu, cu.mir_graph.get(), &cu.arena));
-        break;
-      default:
-        LOG(FATAL) << "Unexpected instruction set: " << compiler.GetInstructionSet();
-    }
-#if defined(ART_USE_PORTABLE_COMPILER)
-  }
-#endif
 
   cu.cg->Materialize();
 
