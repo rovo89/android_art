@@ -920,9 +920,10 @@ class Mir2Lir : public Backend {
      */
     RegLocation ForceTempWide(RegLocation loc);
 
+    virtual void GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx,
+                                    RegLocation rl_dest, RegLocation rl_src);
+
   private:
-    void GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx, RegLocation rl_dest,
-                            RegLocation rl_src);
     void GenInstanceofCallingHelper(bool needs_access_check, bool type_known_final,
                                     bool type_known_abstract, bool use_declaring_class,
                                     bool can_assume_type_is_in_dex_cache,
