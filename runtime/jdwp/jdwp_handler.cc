@@ -21,6 +21,7 @@
 #include <string>
 
 #include "atomic.h"
+#include "base/hex_dump.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "base/stringprintf.h"
@@ -1705,7 +1706,7 @@ void JdwpState::ProcessRequest(Request& request, ExpandBuf* pReply) {
   }
   if (i == arraysize(gHandlers)) {
     LOG(ERROR) << "Command not implemented: " << DescribeCommand(request);
-    LOG(ERROR) << HexDump(request.data(), request.size());
+    LOG(ERROR) << HexDump(request.data(), request.size(), false, "");
     result = ERR_NOT_IMPLEMENTED;
   }
 
@@ -1729,7 +1730,7 @@ void JdwpState::ProcessRequest(Request& request, ExpandBuf* pReply) {
   size_t respLen = expandBufGetLength(pReply) - kJDWPHeaderLen;
   VLOG(jdwp) << "REPLY: " << GetCommandName(request) << " " << result << " (length=" << respLen << ")";
   if (false) {
-    VLOG(jdwp) << HexDump(expandBufGetBuffer(pReply) + kJDWPHeaderLen, respLen);
+    VLOG(jdwp) << HexDump(expandBufGetBuffer(pReply) + kJDWPHeaderLen, respLen, false, "");
   }
 
   VLOG(jdwp) << "----------";

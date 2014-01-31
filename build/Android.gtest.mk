@@ -30,6 +30,7 @@ TEST_COMMON_SRC_FILES := \
 	compiler/utils/x86/managed_register_x86_test.cc \
 	runtime/barrier_test.cc \
 	runtime/base/bit_vector_test.cc \
+	runtime/base/hex_dump_test.cc \
 	runtime/base/histogram_test.cc \
 	runtime/base/mutex_test.cc \
 	runtime/base/timing_logger_test.cc \

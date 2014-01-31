@@ -23,6 +23,7 @@ LIBART_COMMON_SRC_FILES := \
 	barrier.cc \
 	base/allocator.cc \
 	base/bit_vector.cc \
+	base/hex_dump.cc \
 	base/logging.cc \
 	base/mutex.cc \
 	base/stringpiece.cc \
