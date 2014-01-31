@@ -36,6 +36,11 @@
 #include "ScopedLocalRef.h"
 #include "thread.h"
 #include "thread_list.h"
+
+#ifdef HAVE_ANDROID_OS
+#include "cutils/properties.h"
+#endif
+
 #if !defined(ART_USE_PORTABLE_COMPILER)
 #include "entrypoints/quick/quick_entrypoints.h"
 #endif
@@ -258,6 +263,17 @@ void BackgroundMethodSamplingProfiler::Start(int period, int duration,
       return;
     }
   }
+
+  // Only on target...
+#ifdef HAVE_ANDROID_OS
+  // Switch off profiler if the dalvik.vm.profiler property has value 0.
+  char buf[PROP_VALUE_MAX];
+  property_get("dalvik.vm.profiler", buf, "0");
+  if (strcmp(buf, "0") == 0) {
+    LOG(INFO) << "Profiler disabled.  To enable setprop dalvik.vm.profiler 1";
+    return;
+  }
+#endif
 
   LOG(INFO) << "Starting profile with period " << period << "s, duration " << duration <<
       "s, interval " << interval_us << "us.  Profile file " << profile_file_name;
