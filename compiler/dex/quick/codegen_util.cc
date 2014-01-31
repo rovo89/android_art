@@ -1162,4 +1162,12 @@ bool Mir2Lir::BadOverlap(RegLocation rl_src, RegLocation rl_dest) {
   return (abs(mir_graph_->SRegToVReg(rl_src.s_reg_low) - mir_graph_->SRegToVReg(rl_dest.s_reg_low)) == 1);
 }
 
+LIR *Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, int temp_reg, int base_reg,
+                                int offset, int check_value, LIR* target) {
+  // Handle this for architectures that can't compare to memory.
+  LoadWordDisp(base_reg, offset, temp_reg);
+  LIR* branch = OpCmpImmBranch(cond, temp_reg, check_value, target);
+  return branch;
+}
+
 }  // namespace art
