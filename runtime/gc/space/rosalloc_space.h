@@ -95,10 +95,6 @@ class RosAllocSpace : public MallocSpace {
   // Returns the class of a recently freed object.
   mirror::Class* FindRecentFreedObject(const mirror::Object* obj);
 
-  virtual void InvalidateAllocator() {
-    rosalloc_for_alloc_ = NULL;
-  }
-
   virtual bool IsRosAllocSpace() const {
     return true;
   }

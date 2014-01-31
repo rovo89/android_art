@@ -97,10 +97,6 @@ class DlMallocSpace : public MallocSpace {
 
   virtual void Clear();
 
-  virtual void InvalidateAllocator() {
-    mspace_for_alloc_ = nullptr;
-  }
-
   virtual bool IsDlMallocSpace() const {
     return true;
   }

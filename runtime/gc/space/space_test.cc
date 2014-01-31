@@ -16,6 +16,7 @@
 
 #include "dlmalloc_space.h"
 #include "large_object_space.h"
+#include "zygote_space.h"
 
 #include "common_test.h"
 #include "globals.h"
@@ -179,7 +180,16 @@ void SpaceTest::ZygoteSpaceTestBody(CreateSpaceFn create_space) {
 
   // Make sure that the zygote space isn't directly at the start of the space.
   space->Alloc(self, 1U * MB, &dummy);
-  space = space->CreateZygoteSpace("alloc space", Runtime::Current()->GetHeap()->IsLowMemoryMode());
+
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  space::Space* old_space = space;
+  heap->RemoveSpace(old_space);
+  space::ZygoteSpace* zygote_space = space->CreateZygoteSpace("alloc space",
+                                                              heap->IsLowMemoryMode(),
+                                                              &space);
+  delete old_space;
+  // Add the zygote space.
+  AddSpace(zygote_space);
 
   // Make space findable to the heap, will also delete space when runtime is cleaned up
   AddSpace(space);
