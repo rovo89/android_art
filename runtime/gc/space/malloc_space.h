@@ -31,6 +31,8 @@ namespace collector {
 
 namespace space {
 
+class ZygoteSpace;
+
 // TODO: Remove define macro
 #define CHECK_MEMORY_CALL(call, args, what) \
   do { \
@@ -41,19 +43,13 @@ namespace space {
     } \
   } while (false)
 
-// const bool kUseRosAlloc = true;
-
 // A common parent of DlMallocSpace and RosAllocSpace.
 class MallocSpace : public ContinuousMemMapAllocSpace {
  public:
   typedef void(*WalkCallback)(void *start, void *end, size_t num_bytes, void* callback_arg);
 
   SpaceType GetType() const {
-    if (GetGcRetentionPolicy() == kGcRetentionPolicyFullCollect) {
-      return kSpaceTypeZygoteSpace;
-    } else {
-      return kSpaceTypeAllocSpace;
-    }
+    return kSpaceTypeMallocSpace;
   }
 
   // Allocate num_bytes without allowing the underlying space to grow.
@@ -109,14 +105,6 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
     return GetMemMap()->Size();
   }
 
-  accounting::SpaceBitmap* GetLiveBitmap() const {
-    return live_bitmap_.get();
-  }
-
-  accounting::SpaceBitmap* GetMarkBitmap() const {
-    return mark_bitmap_.get();
-  }
-
   void Dump(std::ostream& os) const;
 
   void SetGrowthLimit(size_t growth_limit);
@@ -127,33 +115,20 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
   virtual MallocSpace* CreateInstance(const std::string& name, MemMap* mem_map, void* allocator,
                                       byte* begin, byte* end, byte* limit, size_t growth_limit) = 0;
 
-  // Turn ourself into a zygote space and return a new alloc space
-  // which has our unused memory.  When true, the low memory mode
-  // argument specifies that the heap wishes the created space to be
-  // more aggressive in releasing unused pages.
-  MallocSpace* CreateZygoteSpace(const char* alloc_space_name, bool low_memory_mode);
-
+  // Splits ourself into a zygote space and new malloc space which has our unused memory. When true,
+  // the low memory mode argument specifies that the heap wishes the created space to be more
+  // aggressive in releasing unused pages. Invalidates the space its called on.
+  ZygoteSpace* CreateZygoteSpace(const char* alloc_space_name, bool low_memory_mode,
+                                 MallocSpace** out_malloc_space) NO_THREAD_SAFETY_ANALYSIS;
   virtual uint64_t GetBytesAllocated() = 0;
   virtual uint64_t GetObjectsAllocated() = 0;
-
-  // Returns the old mark bitmap.
-  accounting::SpaceBitmap* BindLiveToMarkBitmap();
-  bool HasBoundBitmaps() const;
-  void UnBindBitmaps();
 
   // Returns the class of a recently freed object.
   mirror::Class* FindRecentFreedObject(const mirror::Object* obj);
 
-  // Used to ensure that failure happens when you free / allocate into an invalidated space. If we
-  // don't do this we may get heap corruption instead of a segfault at null.
-  virtual void InvalidateAllocator() = 0;
-
-  // Sweep the references in the malloc space.
-  void Sweep(bool swap_bitmaps, size_t* freed_objects, size_t* freed_bytes);
-
  protected:
   MallocSpace(const std::string& name, MemMap* mem_map, byte* begin, byte* end,
-              byte* limit, size_t growth_limit);
+              byte* limit, size_t growth_limit, bool create_bitmaps = true);
 
   static MemMap* CreateMemMap(const std::string& name, size_t starting_size, size_t* initial_size,
                               size_t* growth_limit, size_t* capacity, byte* requested_begin);
@@ -166,9 +141,9 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
 
   void RegisterRecentFree(mirror::Object* ptr) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
-  UniquePtr<accounting::SpaceBitmap> live_bitmap_;
-  UniquePtr<accounting::SpaceBitmap> mark_bitmap_;
-  UniquePtr<accounting::SpaceBitmap> temp_bitmap_;
+  virtual accounting::SpaceBitmap::SweepCallback* GetSweepCallback() {
+    return &SweepCallback;
+  }
 
   // Recent allocation buffer.
   static constexpr size_t kRecentFreeCount = kDebugSpaces ? (1 << 16) : 0;
@@ -190,9 +165,9 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
   // one time by a call to ClearGrowthLimit.
   size_t growth_limit_;
 
-  friend class collector::MarkSweep;
-
  private:
+  static void SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg);
+
   DISALLOW_COPY_AND_ASSIGN(MallocSpace);
 };
 

@@ -40,10 +40,10 @@ void StickyMarkSweep::BindBitmaps() {
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     if (space->IsMallocSpace() &&
         space->GetGcRetentionPolicy() == space::kGcRetentionPolicyAlwaysCollect) {
-      BindLiveToMarkBitmap(space);
+      DCHECK(space->IsContinuousMemMapAllocSpace());
+      space->AsContinuousMemMapAllocSpace()->BindLiveToMarkBitmap();
     }
   }
-
   GetHeap()->GetLargeObjectsSpace()->CopyLiveToMarked();
 }
 

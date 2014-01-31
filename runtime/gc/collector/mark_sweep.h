@@ -118,12 +118,6 @@ class MarkSweep : public GarbageCollector {
   // the image. Mark that portion of the heap as immune.
   virtual void BindBitmaps() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void BindLiveToMarkBitmap(space::ContinuousSpace* space)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
-  void UnBindBitmaps()
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
   // Builds a mark stack with objects on dirty cards and recursively mark until it empties.
   void RecursiveMarkDirtyObjects(bool paused, byte minimum_age)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
@@ -150,10 +144,6 @@ class MarkSweep : public GarbageCollector {
   // Sweep only pointers within an array. WARNING: Trashes objects.
   void SweepArray(accounting::ObjectStack* allocation_stack_, bool swap_bitmaps)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
-  mirror::Object* GetClearedReferences() {
-    return cleared_reference_list_;
-  }
 
   // Blackens an object.
   void ScanObject(mirror::Object* obj)
@@ -345,12 +335,6 @@ class MarkSweep : public GarbageCollector {
   // Immune range, every object inside the immune range is assumed to be marked.
   mirror::Object* immune_begin_;
   mirror::Object* immune_end_;
-
-  mirror::Object* soft_reference_list_;
-  mirror::Object* weak_reference_list_;
-  mirror::Object* finalizer_reference_list_;
-  mirror::Object* phantom_reference_list_;
-  mirror::Object* cleared_reference_list_;
 
   // Parallel finger.
   AtomicInteger atomic_finger_;

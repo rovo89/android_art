@@ -128,9 +128,9 @@ void SpaceBitmap::Walk(SpaceBitmap::Callback* callback, void* arg) {
 //
 // The callback is not permitted to increase the max of either bitmap.
 void SpaceBitmap::SweepWalk(const SpaceBitmap& live_bitmap,
-                           const SpaceBitmap& mark_bitmap,
-                           uintptr_t sweep_begin, uintptr_t sweep_end,
-                           SpaceBitmap::SweepCallback* callback, void* arg) {
+                            const SpaceBitmap& mark_bitmap,
+                            uintptr_t sweep_begin, uintptr_t sweep_end,
+                            SpaceBitmap::SweepCallback* callback, void* arg) {
   CHECK(live_bitmap.bitmap_begin_ != NULL);
   CHECK(mark_bitmap.bitmap_begin_ != NULL);
   CHECK_EQ(live_bitmap.heap_begin_, mark_bitmap.heap_begin_);

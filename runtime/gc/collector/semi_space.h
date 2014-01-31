@@ -114,9 +114,6 @@ class SemiSpace : public GarbageCollector {
   // the image. Mark that portion of the heap as immune.
   virtual void BindBitmaps() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void BindLiveToMarkBitmap(space::ContinuousSpace* space)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
   void UnBindBitmaps()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
@@ -171,7 +168,7 @@ class SemiSpace : public GarbageCollector {
   void ResizeMarkStack(size_t new_size);
 
   // Returns true if we should sweep the space.
-  virtual bool ShouldSweepSpace(space::MallocSpace* space) const;
+  virtual bool ShouldSweepSpace(space::ContinuousSpace* space) const;
 
   // Returns how many threads we should use for the current GC phase based on if we are paused,
   // whether or not we care about pauses.
