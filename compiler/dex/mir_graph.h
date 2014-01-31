@@ -168,11 +168,6 @@ enum OatMethodAttributes {
 #define INVALID_REG (0xFF)
 #define INVALID_OFFSET (0xDEADF00FU)
 
-/* SSA encodings for special registers */
-#define SSA_METHOD_BASEREG (-2)
-/* First compiler temp basereg, grows smaller */
-#define SSA_CTEMP_BASEREG (SSA_METHOD_BASEREG - 1)
-
 #define MIR_IGNORE_NULL_CHECK           (1 << kMIRIgnoreNullCheck)
 #define MIR_NULL_CHECK_ONLY             (1 << kMIRNullCheckOnly)
 #define MIR_IGNORE_RANGE_CHECK          (1 << kMIRIgnoreRangeCheck)
@@ -195,7 +190,13 @@ static const BasicBlockId NullBasicBlockId = 0;
  * name of compiler-introduced temporaries.
  */
 struct CompilerTemp {
-  int32_t s_reg;
+  int32_t v_reg;      // Virtual register number for temporary.
+  int32_t s_reg_low;  // SSA name for low Dalvik word.
+};
+
+enum CompilerTempType {
+  kCompilerTempVR,                // A virtual register temporary.
+  kCompilerTempSpecialMethodPtr,  // Temporary that keeps track of current method pointer.
 };
 
 // When debug option enabled, records effectiveness of null and range check elimination.
@@ -571,9 +572,75 @@ class MIRGraph {
     return bad_loc;
   }
 
-  int GetMethodSReg() {
+  int GetMethodSReg() const {
     return method_sreg_;
   }
+
+  /**
+   * @brief Used to obtain the number of compiler temporaries being used.
+   * @return Returns the number of compiler temporaries.
+   */
+  size_t GetNumUsedCompilerTemps() const {
+    size_t total_num_temps = compiler_temps_.Size();
+    DCHECK_LE(num_non_special_compiler_temps_, total_num_temps);
+    return total_num_temps;
+  }
+
+  /**
+   * @brief Used to obtain the number of non-special compiler temporaries being used.
+   * @return Returns the number of non-special compiler temporaries.
+   */
+  size_t GetNumNonSpecialCompilerTemps() const {
+    return num_non_special_compiler_temps_;
+  }
+
+  /**
+   * @brief Used to set the total number of available non-special compiler temporaries.
+   * @details Can fail setting the new max if there are more temps being used than the new_max.
+   * @param new_max The new maximum number of non-special compiler temporaries.
+   * @return Returns true if the max was set and false if failed to set.
+   */
+  bool SetMaxAvailableNonSpecialCompilerTemps(size_t new_max) {
+    if (new_max < GetNumNonSpecialCompilerTemps()) {
+      return false;
+    } else {
+      max_available_non_special_compiler_temps_ = new_max;
+      return true;
+    }
+  }
+
+  /**
+   * @brief Provides the number of non-special compiler temps available.
+   * @details Even if this returns zero, special compiler temps are guaranteed to be available.
+   * @return Returns the number of available temps.
+   */
+  size_t GetNumAvailableNonSpecialCompilerTemps();
+
+  /**
+   * @brief Used to obtain an existing compiler temporary.
+   * @param index The index of the temporary which must be strictly less than the
+   * number of temporaries.
+   * @return Returns the temporary that was asked for.
+   */
+  CompilerTemp* GetCompilerTemp(size_t index) const {
+    return compiler_temps_.Get(index);
+  }
+
+  /**
+   * @brief Used to obtain the maximum number of compiler temporaries that can be requested.
+   * @return Returns the maximum number of compiler temporaries, whether used or not.
+   */
+  size_t GetMaxPossibleCompilerTemps() const {
+    return max_available_special_compiler_temps_ + max_available_non_special_compiler_temps_;
+  }
+
+  /**
+   * @brief Used to obtain a new unique compiler temporary.
+   * @param ct_type Type of compiler temporary requested.
+   * @param wide Whether we should allocate a wide temporary.
+   * @return Returns the newly created compiler temporary.
+   */
+  CompilerTemp* GetNewCompilerTemp(CompilerTempType ct_type, bool wide);
 
   bool MethodIsLeaf() {
     return attributes_ & METHOD_IS_LEAF;
@@ -727,7 +794,6 @@ class MIRGraph {
 
   // TODO: make these private.
   RegLocation* reg_location_;                         // Map SSA names to location.
-  GrowableArray<CompilerTemp*> compiler_temps_;
   SafeMap<unsigned int, unsigned int> block_id_map_;  // Block collapse lookup cache.
 
   static const uint64_t oat_data_flow_attributes_[kMirOpLast];
@@ -836,6 +902,10 @@ class MIRGraph {
   ArenaAllocator* arena_;
   int backward_branches_;
   int forward_branches_;
+  GrowableArray<CompilerTemp*> compiler_temps_;
+  size_t num_non_special_compiler_temps_;
+  size_t max_available_non_special_compiler_temps_;
+  size_t max_available_special_compiler_temps_;
 };
 
 }  // namespace art
