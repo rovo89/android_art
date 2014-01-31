@@ -66,11 +66,6 @@ class GrowableArray {
           idx_ = 0;
         }
 
-        static void* operator new(size_t size, ArenaAllocator* arena) {
-          return arena->Alloc(sizeof(GrowableArray::Iterator), ArenaAllocator::kAllocGrowableArray);
-        };
-        static void operator delete(void* p) {}  // Nop.
-
       private:
         size_t idx_;
         GrowableArray* const g_list_;

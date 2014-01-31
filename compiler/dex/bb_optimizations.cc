@@ -23,7 +23,7 @@ namespace art {
 /*
  * Code Layout pass implementation start.
  */
-bool CodeLayout::WalkBasicBlocks(CompilationUnit *cUnit, BasicBlock *bb) const {
+bool CodeLayout::WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const {
   cUnit->mir_graph->LayoutBlocks(bb);
   // No need of repeating, so just return false.
   return false;
@@ -32,13 +32,13 @@ bool CodeLayout::WalkBasicBlocks(CompilationUnit *cUnit, BasicBlock *bb) const {
 /*
  * SSATransformation pass implementation start.
  */
-bool SSATransformation::WalkBasicBlocks(CompilationUnit *cUnit, BasicBlock *bb) const {
+bool SSATransformation::WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const {
   cUnit->mir_graph->InsertPhiNodeOperands(bb);
   // No need of repeating, so just return false.
   return false;
 }
 
-void SSATransformation::End(CompilationUnit *cUnit) const {
+void SSATransformation::End(CompilationUnit* cUnit) const {
   // Verify the dataflow information after the pass.
   if (cUnit->enable_debug & (1 << kDebugVerifyDataflow)) {
     cUnit->mir_graph->VerifyDataflow();
@@ -48,7 +48,7 @@ void SSATransformation::End(CompilationUnit *cUnit) const {
 /*
  * ConstantPropagation pass implementation start
  */
-bool ConstantPropagation::WalkBasicBlocks(CompilationUnit *cUnit, BasicBlock *bb) const {
+bool ConstantPropagation::WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const {
   cUnit->mir_graph->DoConstantPropagation(bb);
   // No need of repeating, so just return false.
   return false;
@@ -57,7 +57,7 @@ bool ConstantPropagation::WalkBasicBlocks(CompilationUnit *cUnit, BasicBlock *bb
 /*
  * MethodUseCount pass implementation start.
  */
-bool MethodUseCount::Gate(const CompilationUnit *cUnit) const {
+bool MethodUseCount::Gate(const CompilationUnit* cUnit) const {
   // First initialize the data.
   cUnit->mir_graph->InitializeMethodUses();
 
@@ -67,7 +67,7 @@ bool MethodUseCount::Gate(const CompilationUnit *cUnit) const {
   return res;
 }
 
-bool MethodUseCount::WalkBasicBlocks(CompilationUnit *cUnit, BasicBlock *bb) const {
+bool MethodUseCount::WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const {
   cUnit->mir_graph->CountUses(bb);
   // No need of repeating, so just return false.
   return false;
@@ -77,7 +77,7 @@ bool MethodUseCount::WalkBasicBlocks(CompilationUnit *cUnit, BasicBlock *bb) con
  * Null Check Elimination and Type Inference Initialization pass implementation start.
  */
 
-bool NullCheckEliminationAndTypeInferenceInit::Gate(const CompilationUnit *cUnit) const {
+bool NullCheckEliminationAndTypeInferenceInit::Gate(const CompilationUnit* cUnit) const {
   // First check the ssa register vector
   cUnit->mir_graph->CheckSSARegisterVector();
 
@@ -87,7 +87,8 @@ bool NullCheckEliminationAndTypeInferenceInit::Gate(const CompilationUnit *cUnit
   return performInit;
 }
 
-bool NullCheckEliminationAndTypeInferenceInit::WalkBasicBlocks(CompilationUnit *cUnit, BasicBlock *bb) const {
+bool NullCheckEliminationAndTypeInferenceInit::WalkBasicBlocks(CompilationUnit* cUnit,
+                                                               BasicBlock* bb) const {
   cUnit->mir_graph->NullCheckEliminationInit(bb);
   // No need of repeating, so just return false.
   return false;
@@ -96,7 +97,7 @@ bool NullCheckEliminationAndTypeInferenceInit::WalkBasicBlocks(CompilationUnit *
 /*
  * BasicBlock Combine pass implementation start.
  */
-bool BBCombine::WalkBasicBlocks(CompilationUnit *cUnit, BasicBlock *bb) const {
+bool BBCombine::WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const {
   cUnit->mir_graph->CombineBlocks(bb);
 
   // No need of repeating, so just return false.
@@ -106,7 +107,7 @@ bool BBCombine::WalkBasicBlocks(CompilationUnit *cUnit, BasicBlock *bb) const {
 /*
  * BasicBlock Optimization pass implementation start.
  */
-void BBOptimizations::Start(CompilationUnit *cUnit) const {
+void BBOptimizations::Start(CompilationUnit* cUnit) const {
   DCHECK_EQ(cUnit->num_compiler_temps, 0);
 
   /*
