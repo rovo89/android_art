@@ -16,6 +16,8 @@
 
 #include <dlfcn.h>
 
+#include "base/logging.h"
+#include "base/macros.h"
 #include "bb_optimizations.h"
 #include "compiler_internals.h"
 #include "dataflow_iterator.h"
@@ -28,7 +30,8 @@ namespace art {
 namespace {  // anonymous namespace
 
 /**
- * @brief Helper function to create a single instance of a given Pass and can be shared across the threads
+ * @brief Helper function to create a single instance of a given Pass and can be shared across
+ * the threads.
  */
 template <typename PassType>
 const Pass* GetPassInstance() {
@@ -36,55 +39,58 @@ const Pass* GetPassInstance() {
   return &pass;
 }
 
+void DoWalkBasicBlocks(CompilationUnit* c_unit, const Pass* pass, DataflowIterator* iterator) {
+  // Paranoid: Check the iterator before walking the BasicBlocks.
+  DCHECK(iterator != nullptr);
+
+  bool change = false;
+  for (BasicBlock *bb = iterator->Next(change); bb != 0; bb = iterator->Next(change)) {
+    change = pass->WalkBasicBlocks(c_unit, bb);
+  }
+}
+
+template <typename Iterator>
+inline void DoWalkBasicBlocks(CompilationUnit* c_unit, const Pass* pass) {
+  Iterator iterator(c_unit->mir_graph.get());
+  DoWalkBasicBlocks(c_unit, pass, &iterator);
+}
+
 }  // anonymous namespace
 
-PassDriver::PassDriver(CompilationUnit* cu, bool create_default_passes) : cu_(cu) {
-  dump_cfg_folder_ = "/sdcard/";
+PassDriver::PassDriver(CompilationUnit* cu, bool create_default_passes)
+    : cu_(cu), dump_cfg_folder_("/sdcard/") {
+  DCHECK(cu != nullptr);
 
   // If need be, create the default passes.
-  if (create_default_passes == true) {
+  if (create_default_passes) {
     CreatePasses();
   }
 }
 
 PassDriver::~PassDriver() {
-  // Clear the map: done to remove any chance of having a pointer after freeing below
-  pass_map_.clear();
 }
 
-void PassDriver::InsertPass(const Pass* new_pass, bool warn_override) {
-  assert(new_pass != 0);
+void PassDriver::InsertPass(const Pass* new_pass) {
+  DCHECK(new_pass != nullptr);
+  DCHECK(new_pass->GetName() != nullptr && new_pass->GetName()[0] != 0);
 
-  // Get name here to not do it all over the method.
-  const std::string& name = new_pass->GetName();
+  // It is an error to override an existing pass.
+  DCHECK(GetPass(new_pass->GetName()) == nullptr)
+      << "Pass name " << new_pass->GetName() << " already used.";
 
-  // Do we want to warn the user about squashing a pass?
-  if (warn_override == false) {
-    auto it = pass_map_.find(name);
-
-    if (it != pass_map_.end()) {
-      LOG(INFO) << "Pass name " << name << " already used, overwriting pass";
-    }
-  }
-
-  // Now add to map and list.
-  pass_map_.Put(name, new_pass);
+  // Now add to the list.
   pass_list_.push_back(new_pass);
 }
 
 void PassDriver::CreatePasses() {
   /*
-   * Create the pass list:
-   *   - These passes are immutable and are shared across the threads:
-   *    - This is achieved via:
-   *     - The UniquePtr used here.
-   *     - DISALLOW_COPY_AND_ASSIGN in the base Pass class.
+   * Create the pass list. These passes are immutable and are shared across the threads.
    *
    * Advantage is that there will be no race conditions here.
    * Disadvantage is the passes can't change their internal states depending on CompilationUnit:
    *   - This is not yet an issue: no current pass would require it.
    */
-  static const Pass* passes[] = {
+  static const Pass* const passes[] = {
       GetPassInstance<CodeLayout>(),
       GetPassInstance<SSATransformation>(),
       GetPassInstance<ConstantPropagation>(),
@@ -96,14 +102,10 @@ void PassDriver::CreatePasses() {
       GetPassInstance<BBOptimizations>(),
   };
 
-  // Get number of elements in the array.
-  unsigned int nbr = (sizeof(passes) / sizeof(passes[0]));
-
-  // Insert each pass into the map and into the list via the InsertPass method:
-  //   - Map is used for the lookup
-  //   - List is used for the pass walk
-  for (unsigned int i = 0; i < nbr; i++) {
-    InsertPass(passes[i]);
+  // Insert each pass into the list via the InsertPass method.
+  pass_list_.reserve(arraysize(passes));
+  for (const Pass* pass : passes) {
+    InsertPass(pass);
   }
 }
 
@@ -114,49 +116,37 @@ void PassDriver::HandlePassFlag(CompilationUnit* c_unit, const Pass* pass) {
 }
 
 void PassDriver::DispatchPass(CompilationUnit* c_unit, const Pass* curPass) {
-  DataflowIterator* iterator = 0;
-
   LOG(DEBUG) << "Dispatching " << curPass->GetName();
 
-  MIRGraph* mir_graph = c_unit->mir_graph.get();
-  ArenaAllocator *arena = &(c_unit->arena);
-
-  // Let us start by getting the right iterator.
   DataFlowAnalysisMode mode = curPass->GetTraversal();
 
   switch (mode) {
     case kPreOrderDFSTraversal:
-      iterator = new (arena) PreOrderDfsIterator(mir_graph);
+      DoWalkBasicBlocks<PreOrderDfsIterator>(c_unit, curPass);
       break;
     case kRepeatingPreOrderDFSTraversal:
-      iterator = new (arena) RepeatingPreOrderDfsIterator(mir_graph);
+      DoWalkBasicBlocks<RepeatingPreOrderDfsIterator>(c_unit, curPass);
       break;
     case kRepeatingPostOrderDFSTraversal:
-      iterator = new (arena) RepeatingPostOrderDfsIterator(mir_graph);
+      DoWalkBasicBlocks<RepeatingPostOrderDfsIterator>(c_unit, curPass);
       break;
     case kReversePostOrderDFSTraversal:
-      iterator = new (arena) ReversePostOrderDfsIterator(mir_graph);
+      DoWalkBasicBlocks<ReversePostOrderDfsIterator>(c_unit, curPass);
       break;
     case kRepeatingReversePostOrderDFSTraversal:
-      iterator = new (arena) RepeatingReversePostOrderDfsIterator(mir_graph);
+      DoWalkBasicBlocks<RepeatingReversePostOrderDfsIterator>(c_unit, curPass);
       break;
     case kPostOrderDOMTraversal:
-      iterator = new (arena) PostOrderDOMIterator(mir_graph);
+      DoWalkBasicBlocks<PostOrderDOMIterator>(c_unit, curPass);
       break;
     case kAllNodes:
-      iterator = new (arena) AllNodesIterator(mir_graph);
+      DoWalkBasicBlocks<AllNodesIterator>(c_unit, curPass);
+      break;
+    case kNoNodes:
       break;
     default:
       LOG(DEBUG) << "Iterator mode not handled in dispatcher: " << mode;
-      return;
-  }
-
-  // Paranoid: Check the iterator before walking the BasicBlocks.
-  assert(iterator != 0);
-
-  bool change = false;
-  for (BasicBlock *bb = iterator->Next(change); bb != 0; bb = iterator->Next(change)) {
-    change = curPass->WalkBasicBlocks(c_unit, bb);
+      break;
   }
 }
 
@@ -166,33 +156,34 @@ void PassDriver::ApplyPass(CompilationUnit* c_unit, const Pass* curPass) {
   curPass->End(c_unit);
 }
 
-bool PassDriver::RunPass(CompilationUnit* c_unit, const Pass* curPass, bool time_split) {
-  // Paranoid: c_unit or curPass cannot be 0, and the pass should have a name.
-  if (c_unit == 0 || curPass == 0 || (strcmp(curPass->GetName(), "") == 0)) {
-    return false;
-  }
+bool PassDriver::RunPass(CompilationUnit* c_unit, const Pass* pass, bool time_split) {
+  // Paranoid: c_unit and pass cannot be nullptr, and the pass should have a name.
+  DCHECK(c_unit != nullptr);
+  DCHECK(pass != nullptr);
+  DCHECK(pass->GetName() != nullptr && pass->GetName()[0] != 0);
 
   // Do we perform a time split
-  if (time_split == true) {
-    c_unit->NewTimingSplit(curPass->GetName());
+  if (time_split) {
+    c_unit->NewTimingSplit(pass->GetName());
   }
 
   // Check the pass gate first.
-  bool shouldApplyPass = curPass->Gate(c_unit);
+  bool should_apply_pass = pass->Gate(c_unit);
 
-  if (shouldApplyPass == true) {
+  if (should_apply_pass) {
     // Applying the pass: first start, doWork, and end calls.
-    ApplyPass(c_unit, curPass);
+    ApplyPass(c_unit, pass);
 
     // Clean up if need be.
-    HandlePassFlag(c_unit, curPass);
+    HandlePassFlag(c_unit, pass);
 
     // Do we want to log it?
     if ((c_unit->enable_debug&  (1 << kDebugDumpCFG)) != 0) {
       // Do we have a pass folder?
-      const std::string& passFolder = curPass->GetDumpCFGFolder();
+      const char* passFolder = pass->GetDumpCFGFolder();
+      DCHECK(passFolder != nullptr);
 
-      if (passFolder != "") {
+      if (passFolder[0] != 0) {
         // Create directory prefix.
         std::string prefix = GetDumpCFGFolder();
         prefix += passFolder;
@@ -204,19 +195,18 @@ bool PassDriver::RunPass(CompilationUnit* c_unit, const Pass* curPass, bool time
   }
 
   // If the pass gate passed, we can declare success.
-  return shouldApplyPass;
+  return should_apply_pass;
 }
 
-bool PassDriver::RunPass(CompilationUnit* c_unit, const std::string& pass_name) {
-  // Paranoid: c_unit cannot be 0 and we need a pass name.
-  if (c_unit == 0 || pass_name == "") {
-    return false;
-  }
+bool PassDriver::RunPass(CompilationUnit* c_unit, const char* pass_name) {
+  // Paranoid: c_unit cannot be nullptr and we need a pass name.
+  DCHECK(c_unit != nullptr);
+  DCHECK(pass_name != nullptr && pass_name[0] != 0);
 
-  const Pass* curPass = GetPass(pass_name);
+  const Pass* cur_pass = GetPass(pass_name);
 
-  if (curPass != 0) {
-    return RunPass(c_unit, curPass);
+  if (cur_pass != nullptr) {
+    return RunPass(c_unit, cur_pass);
   }
 
   // Return false, we did not find the pass.
@@ -224,27 +214,26 @@ bool PassDriver::RunPass(CompilationUnit* c_unit, const std::string& pass_name) 
 }
 
 void PassDriver::Launch() {
-  for (const Pass *curPass : pass_list_) {
-    RunPass(cu_, curPass, true);
+  for (const Pass* cur_pass : pass_list_) {
+    RunPass(cu_, cur_pass, true);
   }
 }
 
 void PassDriver::PrintPassNames() const {
   LOG(INFO) << "Loop Passes are:";
 
-  for (const Pass *curPass : pass_list_) {
-    LOG(INFO) << "\t-" << curPass->GetName();
+  for (const Pass* cur_pass : pass_list_) {
+    LOG(INFO) << "\t-" << cur_pass->GetName();
   }
 }
 
-const Pass* PassDriver::GetPass(const std::string& name) const {
-  auto it = pass_map_.find(name);
-
-  if (it != pass_map_.end()) {
-    return it->second;
+const Pass* PassDriver::GetPass(const char* name) const {
+  for (const Pass* cur_pass : pass_list_) {
+    if (strcmp(name, cur_pass->GetName()) == 0) {
+      return cur_pass;
+    }
   }
-
-  return 0;
+  return nullptr;
 }
 
 }  // namespace art

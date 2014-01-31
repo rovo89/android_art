@@ -138,21 +138,6 @@ namespace art {
 
         return ForwardSingleNext();
       }
-
-      /**
-       * @brief Redefine the new operator to use the arena
-       * @param size actually unused, we use our own class size
-       * @param arena the arena to perform the actual allocation
-       * @return the pointer to the newly allocated object
-       */
-      static void* operator new(size_t size, ArenaAllocator* arena) {
-        return arena->Alloc(sizeof(PreOrderDfsIterator), ArenaAllocator::kAllocGrowableBitMap);
-      }
-
-      /**
-       * @brief Redefine delete to not actually delete anything since we are using the arena
-       */
-      static void operator delete(void* p) {}
   };
 
   /**
@@ -184,21 +169,6 @@ namespace art {
 
         return ForwardRepeatNext();
       }
-
-      /**
-       * @brief Redefine the new operator to use the arena
-       * @param size actually unused, we use our own class size
-       * @param arena the arena to perform the actual allocation
-       * @return the pointer to the newly allocated object
-       */
-      static void* operator new(size_t size, ArenaAllocator* arena) {
-        return arena->Alloc(sizeof(RepeatingPreOrderDfsIterator), ArenaAllocator::kAllocGrowableBitMap);
-      }
-
-      /**
-       * @brief Redefine delete to not actually delete anything since we are using the arena
-       */
-      static void operator delete(void* p) {}
   };
 
   /**
@@ -230,21 +200,6 @@ namespace art {
 
         return ForwardRepeatNext();
       }
-
-      /**
-       * @brief Redefine the new operator to use the arena
-       * @param size actually unused, we use our own class size
-       * @param arena the arena to perform the actual allocation
-       * @return the pointer to the newly allocated object
-       */
-      static void* operator new(size_t size, ArenaAllocator* arena) {
-        return arena->Alloc(sizeof(RepeatingPostOrderDfsIterator), ArenaAllocator::kAllocGrowableBitMap);
-      }
-
-      /**
-       * @brief Redefine delete to not actually delete anything since we are using the arena
-       */
-      static void operator delete(void* p) {}
   };
 
   /**
@@ -275,21 +230,6 @@ namespace art {
 
         return ReverseSingleNext();
       }
-
-      /**
-       * @brief Redefine the new operator to use the arena
-       * @param size actually unused, we use our own class size
-       * @param arena the arena to perform the actual allocation
-       * @return the pointer to the newly allocated object
-       */
-      static void* operator new(size_t size, ArenaAllocator* arena) {
-        return arena->Alloc(sizeof(ReversePostOrderDfsIterator), ArenaAllocator::kAllocGrowableBitMap);
-      }
-
-      /**
-       * @brief Redefine delete to not actually delete anything since we are using the arena
-       */
-      static void operator delete(void* p) {}
   };
 
   /**
@@ -321,21 +261,6 @@ namespace art {
 
         return ReverseRepeatNext();
       }
-
-      /**
-       * @brief Redefine the new operator to use the arena
-       * @param size actually unused, we use our own class size
-       * @param arena the arena to perform the actual allocation
-       * @return the pointer to the newly allocated object
-       */
-      static void* operator new(size_t size, ArenaAllocator* arena) {
-        return arena->Alloc(sizeof(RepeatingReversePostOrderDfsIterator), ArenaAllocator::kAllocGrowableBitMap);
-      }
-
-      /**
-       * @brief Redefine delete to not actually delete anything since we are using the arena
-       */
-      static void operator delete(void* p) {}
   };
 
   /**
@@ -366,21 +291,6 @@ namespace art {
 
         return ForwardSingleNext();
       }
-
-      /**
-       * @brief Redefine the new operator to use the arena
-       * @param size actually unused, we use our own class size
-       * @param arena the arena to perform the actual allocation
-       * @return the pointer to the newly allocated object
-       */
-      static void* operator new(size_t size, ArenaAllocator* arena) {
-        return arena->Alloc(sizeof(PostOrderDOMIterator), ArenaAllocator::kAllocGrowableBitMap);
-      }
-
-      /**
-       * @brief Redefine delete to not actually delete anything since we are using the arena
-       */
-      static void operator delete(void* p) {}
   };
 
   /**
@@ -394,16 +304,15 @@ namespace art {
        * @param mir_graph The MIRGraph considered.
        */
       explicit AllNodesIterator(MIRGraph* mir_graph)
-          : DataflowIterator(mir_graph, 0, 0) {
-        all_nodes_iterator_ = new
-            (mir_graph->GetArena()) GrowableArray<BasicBlock*>::Iterator(mir_graph->GetBlockList());
+          : DataflowIterator(mir_graph, 0, 0),
+            all_nodes_iterator_(mir_graph->GetBlockList()) {
       }
 
       /**
        * @brief Resetting the iterator.
        */
       void Reset() {
-        all_nodes_iterator_->Reset();
+        all_nodes_iterator_.Reset();
       }
 
       /**
@@ -413,23 +322,8 @@ namespace art {
        */
       virtual BasicBlock* Next(bool had_change = false) ALWAYS_INLINE;
 
-      /**
-       * @brief Redefine the new operator to use the arena
-       * @param size actually unused, we use our own class size
-       * @param arena the arena to perform the actual allocation
-       * @return the pointer to the newly allocated object
-       */
-      static void* operator new(size_t size, ArenaAllocator* arena) {
-        return arena->Alloc(sizeof(AllNodesIterator), ArenaAllocator::kAllocGrowableBitMap);
-      }
-
-      /**
-       * @brief Redefine delete to not actually delete anything since we are using the arena
-       */
-      static void operator delete(void* p) {}
-
     private:
-      GrowableArray<BasicBlock*>::Iterator* all_nodes_iterator_;    /**< @brief The list of all the nodes */
+      GrowableArray<BasicBlock*>::Iterator all_nodes_iterator_;    /**< @brief The list of all the nodes */
   };
 
 }  // namespace art
