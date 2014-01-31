@@ -405,10 +405,9 @@ void Mir2Lir::GenSput(uint32_t field_idx, RegLocation rl_src, bool is_long_or_do
         LIR* unresolved_branch = OpCmpImmBranch(kCondEq, r_base, 0, NULL);
         int r_tmp = TargetReg(kArg2);
         LockTemp(r_tmp);
-        // TODO: Fuse the compare of a constant with memory on X86 and avoid the load.
-        LoadWordDisp(r_base, mirror::Class::StatusOffset().Int32Value(), r_tmp);
-        LIR* initialized_branch = OpCmpImmBranch(kCondGe, r_tmp, mirror::Class::kStatusInitialized,
-                                                 NULL);
+        LIR* initialized_branch = OpCmpMemImmBranch(kCondGe, r_tmp, r_base,
+                                          mirror::Class::StatusOffset().Int32Value(),
+                                          mirror::Class::kStatusInitialized, NULL);
 
         LIR* unresolved_target = NewLIR0(kPseudoTargetLabel);
         unresolved_branch->target = unresolved_target;
@@ -499,10 +498,9 @@ void Mir2Lir::GenSget(uint32_t field_idx, RegLocation rl_dest,
         LIR* unresolved_branch = OpCmpImmBranch(kCondEq, r_base, 0, NULL);
         int r_tmp = TargetReg(kArg2);
         LockTemp(r_tmp);
-        // TODO: Fuse the compare of a constant with memory on X86 and avoid the load.
-        LoadWordDisp(r_base, mirror::Class::StatusOffset().Int32Value(), r_tmp);
-        LIR* initialized_branch = OpCmpImmBranch(kCondGe, r_tmp, mirror::Class::kStatusInitialized,
-                                                 NULL);
+        LIR* initialized_branch = OpCmpMemImmBranch(kCondGe, r_tmp, r_base,
+                                          mirror::Class::StatusOffset().Int32Value(),
+                                          mirror::Class::kStatusInitialized, NULL);
 
         LIR* unresolved_target = NewLIR0(kPseudoTargetLabel);
         unresolved_branch->target = unresolved_target;
@@ -861,27 +859,43 @@ void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
     // slow path, resolve string if not in dex cache
     FlushAllRegs();
     LockCallTemps();  // Using explicit registers
-    LoadCurrMethodDirect(TargetReg(kArg2));
-    LoadWordDisp(TargetReg(kArg2),
-                 mirror::ArtMethod::DexCacheStringsOffset().Int32Value(), TargetReg(kArg0));
+
+    // If the Method* is already in a register, we can save a copy.
+    RegLocation rl_method = mir_graph_->GetMethodLoc();
+    int r_method;
+    if (rl_method.location == kLocPhysReg) {
+      // A temp would conflict with register use below.
+      DCHECK(!IsTemp(rl_method.low_reg));
+      r_method = rl_method.low_reg;
+    } else {
+      r_method = TargetReg(kArg2);
+      LoadCurrMethodDirect(r_method);
+    }
+    LoadWordDisp(r_method, mirror::ArtMethod::DexCacheStringsOffset().Int32Value(),
+                 TargetReg(kArg0));
+
     // Might call out to helper, which will return resolved string in kRet0
     int r_tgt = CallHelperSetup(QUICK_ENTRYPOINT_OFFSET(pResolveString));
     LoadWordDisp(TargetReg(kArg0), offset_of_string, TargetReg(kRet0));
-    LoadConstant(TargetReg(kArg1), string_idx);
     if (cu_->instruction_set == kThumb2) {
+      LoadConstant(TargetReg(kArg1), string_idx);
       OpRegImm(kOpCmp, TargetReg(kRet0), 0);  // Is resolved?
       GenBarrier();
       // For testing, always force through helper
       if (!EXERCISE_SLOWEST_STRING_PATH) {
         OpIT(kCondEq, "T");
       }
-      OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));   // .eq
+      // The copy MUST generate exactly one instruction (for OpIT).
+      DCHECK_NE(TargetReg(kArg0), r_method);
+      OpRegCopy(TargetReg(kArg0), r_method);   // .eq
+
       LIR* call_inst = OpReg(kOpBlx, r_tgt);    // .eq, helper(Method*, string_idx)
       MarkSafepointPC(call_inst);
       FreeTemp(r_tgt);
     } else if (cu_->instruction_set == kMips) {
       LIR* branch = OpCmpImmBranch(kCondNe, TargetReg(kRet0), 0, NULL);
-      OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));   // .eq
+      LoadConstant(TargetReg(kArg1), string_idx);
+      OpRegCopy(TargetReg(kArg0), r_method);   // .eq
       LIR* call_inst = OpReg(kOpBlx, r_tgt);
       MarkSafepointPC(call_inst);
       FreeTemp(r_tgt);
@@ -889,8 +903,12 @@ void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
       branch->target = target;
     } else {
       DCHECK_EQ(cu_->instruction_set, kX86);
-      CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(pResolveString), TargetReg(kArg2),
+      LIR* branch = OpCmpImmBranch(kCondNe, TargetReg(kRet0), 0, NULL);
+      LoadConstant(TargetReg(kArg1), string_idx);
+      CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(pResolveString), r_method,
                               TargetReg(kArg1), true);
+      LIR* target = NewLIR0(kPseudoTargetLabel);
+      branch->target = target;
     }
     GenBarrier();
     StoreValue(rl_dest, GetReturn(false));
