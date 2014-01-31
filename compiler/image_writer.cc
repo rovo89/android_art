@@ -583,6 +583,12 @@ void ImageWriter::FixupObject(Object* orig, Object* copy) {
   DCHECK(orig != NULL);
   DCHECK(copy != NULL);
   copy->SetClass<kVerifyNone>(down_cast<Class*>(GetImageAddress(orig->GetClass())));
+  if (kUseBrooksPointer) {
+    orig->AssertSelfBrooksPointer();
+    // Note the address 'copy' isn't the same as the image address of 'orig'.
+    copy->SetBrooksPointer(GetImageAddress(orig));
+    DCHECK(copy->GetBrooksPointer() == GetImageAddress(orig));
+  }
   // TODO: special case init of pointers to malloc data (or removal of these pointers)
   if (orig->IsClass<kVerifyNone>()) {
     FixupClass(orig->AsClass<kVerifyNone>(), down_cast<Class*>(copy));

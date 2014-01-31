@@ -49,6 +49,9 @@ class SpaceTest : public CommonTest {
                                                                                       null_loader);
     EXPECT_TRUE(byte_array_class != nullptr);
     o->SetClass(byte_array_class);
+    if (kUseBrooksPointer) {
+      o->SetBrooksPointer(o.get());
+    }
     mirror::Array* arr = o->AsArray<kVerifyNone>();
     size_t header_size = SizeOfZeroLengthByteArray();
     int32_t length = size - header_size;

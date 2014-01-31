@@ -65,6 +65,10 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
     }
   }
   obj->SetClass(klass);
+  if (kUseBrooksPointer) {
+    obj->SetBrooksPointer(obj);
+    obj->AssertSelfBrooksPointer();
+  }
   pre_fence_visitor(obj);
   DCHECK_GT(bytes_allocated, 0u);
   const size_t new_num_bytes_allocated =
