@@ -1650,4 +1650,72 @@ void X86Mir2Lir::GenLongLongImm(RegLocation rl_dest, RegLocation rl_src1,
   StoreFinalValueWide(rl_dest, rl_result);
 }
 
+// For final classes there are no sub-classes to check and so we can answer the instance-of
+// question with simple comparisons. Use compares to memory and SETEQ to optimize for x86.
+void X86Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx,
+                                    RegLocation rl_dest, RegLocation rl_src) {
+  RegLocation object = LoadValue(rl_src, kCoreReg);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  int result_reg = rl_result.low_reg;
+
+  // SETcc only works with EAX..EDX.
+  if (result_reg == object.low_reg || result_reg >= 4) {
+    result_reg = AllocTypedTemp(false, kCoreReg);
+    DCHECK_LT(result_reg, 4);
+  }
+
+  // Assume that there is no match.
+  LoadConstant(result_reg, 0);
+  LIR* null_branchover = OpCmpImmBranch(kCondEq, object.low_reg, 0, NULL);
+
+  int check_class = AllocTypedTemp(false, kCoreReg);
+
+  // If Method* is already in a register, we can save a copy.
+  RegLocation rl_method = mir_graph_->GetMethodLoc();
+  int32_t offset_of_type = mirror::Array::DataOffset(sizeof(mirror::Class*)).Int32Value() +
+    (sizeof(mirror::Class*) * type_idx);
+
+  if (rl_method.location == kLocPhysReg) {
+    if (use_declaring_class) {
+      LoadWordDisp(rl_method.low_reg,
+                   mirror::ArtMethod::DeclaringClassOffset().Int32Value(),
+                   check_class);
+    } else {
+      LoadWordDisp(rl_method.low_reg,
+                   mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
+                   check_class);
+      LoadWordDisp(check_class, offset_of_type, check_class);
+    }
+  } else {
+    LoadCurrMethodDirect(check_class);
+    if (use_declaring_class) {
+      LoadWordDisp(check_class,
+                   mirror::ArtMethod::DeclaringClassOffset().Int32Value(),
+                   check_class);
+    } else {
+      LoadWordDisp(check_class,
+                   mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
+                   check_class);
+      LoadWordDisp(check_class, offset_of_type, check_class);
+    }
+  }
+
+  // Compare the computed class to the class in the object.
+  DCHECK_EQ(object.location, kLocPhysReg);
+  OpRegMem(kOpCmp, check_class, object.low_reg,
+           mirror::Object::ClassOffset().Int32Value());
+
+  // Set the low byte of the result to 0 or 1 from the compare condition code.
+  NewLIR2(kX86Set8R, result_reg, kX86CondEq);
+
+  LIR* target = NewLIR0(kPseudoTargetLabel);
+  null_branchover->target = target;
+  FreeTemp(check_class);
+  if (IsTemp(result_reg)) {
+    OpRegCopy(rl_result.low_reg, result_reg);
+    FreeTemp(result_reg);
+  }
+  StoreValue(rl_dest, rl_result);
+}
+
 }  // namespace art

@@ -180,6 +180,15 @@ class X86Mir2Lir : public Mir2Lir {
       */
     void GenLongRegOrMemOp(RegLocation rl_dest, RegLocation rl_src, Instruction::Code op);
 
+    /**
+     * @brief Implement instanceof a final class with x86 specific code.
+     * @param use_declaring_class 'true' if we can use the class itself.
+     * @param type_idx Type index to use if use_declaring_class is 'false'.
+     * @param rl_dest Result to be set to 0 or 1.
+     * @param rl_src Object to be tested.
+     */
+    void GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx,
+                            RegLocation rl_dest, RegLocation rl_src);
     // Single operation generators.
     LIR* OpUnconditionalBranch(LIR* target);
     LIR* OpCmpBranch(ConditionCode cond, int src1, int src2, LIR* target);
