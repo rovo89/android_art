@@ -410,7 +410,8 @@ static const RegLocation fresh_loc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
 
 void MIRGraph::InitRegLocations() {
   /* Allocate the location map */
-  RegLocation* loc = static_cast<RegLocation*>(arena_->Alloc(GetNumSSARegs() * sizeof(*loc),
+  int max_regs = GetNumSSARegs() + GetMaxPossibleCompilerTemps();
+  RegLocation* loc = static_cast<RegLocation*>(arena_->Alloc(max_regs * sizeof(*loc),
                                                              ArenaAllocator::kAllocRegAlloc));
   for (int i = 0; i < GetNumSSARegs(); i++) {
     loc[i] = fresh_loc;
@@ -418,13 +419,11 @@ void MIRGraph::InitRegLocations() {
     loc[i].is_const = is_constant_v_->IsBitSet(i);
   }
 
-  /* Patch up the locations for Method* and the compiler temps */
-  loc[method_sreg_].location = kLocCompilerTemp;
-  loc[method_sreg_].defined = true;
-  for (int i = 0; i < cu_->num_compiler_temps; i++) {
-    CompilerTemp* ct = compiler_temps_.Get(i);
-    loc[ct->s_reg].location = kLocCompilerTemp;
-    loc[ct->s_reg].defined = true;
+  /* Patch up the locations for the compiler temps */
+  GrowableArray<CompilerTemp*>::Iterator iter(&compiler_temps_);
+  for (CompilerTemp* ct = iter.Next(); ct != NULL; ct = iter.Next()) {
+    loc[ct->s_reg_low].location = kLocCompilerTemp;
+    loc[ct->s_reg_low].defined = true;
   }
 
   reg_location_ = loc;

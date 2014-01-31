@@ -310,6 +310,19 @@ class Mir2Lir : public Backend {
     void InsertLIRBefore(LIR* current_lir, LIR* new_lir);
     void InsertLIRAfter(LIR* current_lir, LIR* new_lir);
 
+    /**
+     * @brief Provides the maximum number of compiler temporaries that the backend can/wants
+     * to place in a frame.
+     * @return Returns the maximum number of compiler temporaries.
+     */
+    size_t GetMaxPossibleCompilerTemps() const;
+
+    /**
+     * @brief Provides the number of bytes needed in frame for spilling of compiler temporaries.
+     * @return Returns the size in bytes for space needed for compiler temporary spill region.
+     */
+    size_t GetNumBytesForCompilerTempSpillRegion();
+
     int ComputeFrameSize();
     virtual void Materialize();
     virtual CompiledMethod* GetCompiledMethod();

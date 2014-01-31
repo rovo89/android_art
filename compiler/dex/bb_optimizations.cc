@@ -108,8 +108,6 @@ bool BBCombine::WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const {
  * BasicBlock Optimization pass implementation start.
  */
 void BBOptimizations::Start(CompilationUnit* cUnit) const {
-  DCHECK_EQ(cUnit->num_compiler_temps, 0);
-
   /*
    * This pass has a different ordering depEnding on the suppress exception,
    * so do the pass here for now:
