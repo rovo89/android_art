@@ -34,6 +34,8 @@ enum CollectorType {
   kCollectorTypeSS,
   // A generational variant of kCollectorTypeSS.
   kCollectorTypeGSS,
+  // Heap trimming collector, doesn't do any actual collecting.
+  kCollectorTypeHeapTrim,
 };
 std::ostream& operator<<(std::ostream& os, const CollectorType& collector_type);
 
