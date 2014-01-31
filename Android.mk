@@ -92,7 +92,6 @@ include $(art_path)/dex2oat/Android.mk
 include $(art_path)/disassembler/Android.mk
 include $(art_path)/oatdump/Android.mk
 include $(art_path)/dalvikvm/Android.mk
-include $(art_path)/jdwpspy/Android.mk
 include $(art_build_path)/Android.oat.mk
 
 # ART_HOST_DEPENDENCIES depends on Android.executable.mk above for ART_HOST_EXECUTABLES
