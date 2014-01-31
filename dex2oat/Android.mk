@@ -33,7 +33,7 @@ ifeq ($(WITH_HOST_DALVIK),true)
   ifeq ($(ART_BUILD_NDEBUG),true)
     $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libart-compiler,art/compiler,host,ndebug))
   endif
-  ifeq ($(ART_BUILD_NDEBUG),true)
+  ifeq ($(ART_BUILD_DEBUG),true)
     $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libartd-compiler,art/compiler,host,debug))
   endif
 endif
