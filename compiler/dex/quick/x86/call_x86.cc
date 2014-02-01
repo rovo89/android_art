@@ -84,10 +84,19 @@ void X86Mir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
 
   // Get the switch value
   rl_src = LoadValue(rl_src, kCoreReg);
-  int start_of_method_reg = AllocTemp();
-  // Materialize a pointer to the switch table
   // NewLIR0(kX86Bkpt);
-  NewLIR1(kX86StartOfMethod, start_of_method_reg);
+
+  // Materialize a pointer to the switch table
+  int start_of_method_reg;
+  if (base_of_code_ != nullptr) {
+    // We can use the saved value.
+    RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
+    rl_method = LoadValue(rl_method, kCoreReg);
+    start_of_method_reg = rl_method.low_reg;
+  } else {
+    start_of_method_reg = AllocTemp();
+    NewLIR1(kX86StartOfMethod, start_of_method_reg);
+  }
   int low_key = s4FromSwitchData(&table[2]);
   int keyReg;
   // Remove the bias, if necessary
@@ -142,7 +151,13 @@ void X86Mir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
   FlushAllRegs();   /* Everything to home location */
   LoadValueDirectFixed(rl_src, rX86_ARG0);
   // Materialize a pointer to the fill data image
-  NewLIR1(kX86StartOfMethod, rX86_ARG2);
+  if (base_of_code_ != nullptr) {
+    // We can use the saved value.
+    RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
+    LoadValueDirect(rl_method, rX86_ARG2);
+  } else {
+    NewLIR1(kX86StartOfMethod, rX86_ARG2);
+  }
   NewLIR2(kX86PcRelAdr, rX86_ARG1, WrapPointer(tab_rec));
   NewLIR2(kX86Add32RR, rX86_ARG1, rX86_ARG2);
   CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(pHandleFillArrayData), rX86_ARG0,
@@ -210,6 +225,13 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
   }
 
   FlushIns(ArgLocs, rl_method);
+
+  if (base_of_code_ != nullptr) {
+    // We have been asked to save the address of the method start for later use.
+    NewLIR1(kX86StartOfMethod, rX86_ARG0);
+    int displacement = SRegOffset(base_of_code_->s_reg_low);
+    StoreBaseDisp(rX86_SP, displacement, rX86_ARG0, kWord);
+  }
 
   FreeTemp(rX86_ARG0);
   FreeTemp(rX86_ARG1);

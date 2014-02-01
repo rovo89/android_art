@@ -808,4 +808,12 @@ void X86Mir2Lir::DumpRegLocation(RegLocation loc) {
              << ", orig: " << loc.orig_sreg;
 }
 
+void X86Mir2Lir::Materialize() {
+  // A good place to put the analysis before starting.
+  AnalyzeMIR();
+
+  // Now continue with regular code generation.
+  Mir2Lir::Materialize();
+}
+
 }  // namespace art
