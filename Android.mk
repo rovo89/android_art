@@ -333,7 +333,7 @@ endif
 .PHONY: dump-oat-boot
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
 dump-oat-boot: $(DEFAULT_DEX_PREOPT_BUILT_IMAGE) $(OATDUMP)
-	$(OATDUMP) --image=$(DEFAULT_DEX_PREOPT_BUILT_IMAGE) --output=$(ART_DUMP_OAT_PATH)/boot.oatdump.txt
+	$(OATDUMP) --image=$(DEFAULT_DEX_PREOPT_BUILT_IMAGE) --output=$(ART_DUMP_OAT_PATH)/boot.oatdump.txt --host-prefix=$(DEXPREOPT_PRODUCT_DIR_FULL_PATH)
 	@echo Output in $(ART_DUMP_OAT_PATH)/boot.oatdump.txt
 endif
 
