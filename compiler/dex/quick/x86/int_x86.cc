@@ -830,7 +830,7 @@ LIR* X86Mir2Lir::OpTestSuspend(LIR* target) {
 // Decrement register and branch on condition
 LIR* X86Mir2Lir::OpDecAndBranch(ConditionCode c_code, int reg, LIR* target) {
   OpRegImm(kOpSub, reg, 1);
-  return OpCmpImmBranch(c_code, reg, 0, target);
+  return OpCondBranch(c_code, target);
 }
 
 bool X86Mir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div,
