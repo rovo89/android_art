@@ -180,7 +180,11 @@ class Dex2Oat {
 
   ~Dex2Oat() {
     delete runtime_;
-    VLOG(compiler) << "dex2oat took " << PrettyDuration(NanoTime() - start_ns_)
+    LogCompletionTime();
+  }
+
+  void LogCompletionTime() {
+    LOG(INFO) << "dex2oat took " << PrettyDuration(NanoTime() - start_ns_)
               << " (threads: " << thread_count_ << ")";
   }
 
@@ -1189,6 +1193,7 @@ static int dex2oat(int argc, char** argv) {
   // Everything was successfully written, do an explicit exit here to avoid running Runtime
   // destructors that take time (bug 10645725) unless we're a debug build or running on valgrind.
   if (!kIsDebugBuild || (RUNNING_ON_VALGRIND == 0)) {
+    dex2oat->LogCompletionTime();
     exit(EXIT_SUCCESS);
   }
 
