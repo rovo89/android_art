@@ -992,6 +992,7 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       data_offset_(0),
       total_size_(0),
       block_label_list_(NULL),
+      promotion_map_(NULL),
       current_dalvik_offset_(0),
       estimated_native_code_size_(0),
       reg_pool_(NULL),
@@ -1003,9 +1004,6 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       fp_spill_mask_(0),
       first_lir_insn_(NULL),
       last_lir_insn_(NULL) {
-  promotion_map_ = static_cast<PromotionMap*>
-      (arena_->Alloc((cu_->num_dalvik_registers  + mir_graph_->GetNumUsedCompilerTemps()) *
-                      sizeof(promotion_map_[0]), ArenaAllocator::kAllocRegAlloc));
   // Reserve pointer id 0 for NULL.
   size_t null_idx = WrapPointer(NULL);
   DCHECK_EQ(null_idx, 0U);
