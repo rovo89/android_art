@@ -537,7 +537,6 @@ class Heap {
   void Compact(space::ContinuousMemMapAllocSpace* target_space,
                space::ContinuousMemMapAllocSpace* source_space);
 
-  bool StartGC(Thread* self, bool is_compacting) LOCKS_EXCLUDED(gc_complete_lock_);
   void FinishGC(Thread* self, collector::GcType gc_type) LOCKS_EXCLUDED(gc_complete_lock_);
 
   static ALWAYS_INLINE bool AllocatorHasAllocationStack(AllocatorType allocator_type) {
@@ -755,7 +754,7 @@ class Heap {
   ReferenceQueue cleared_references_;
 
   // True while the garbage collector is running.
-  volatile bool is_gc_running_ GUARDED_BY(gc_complete_lock_);
+  volatile CollectorType collector_type_running_ GUARDED_BY(gc_complete_lock_);
 
   // Last Gc type we ran. Used by WaitForConcurrentGc to know which Gc was waited on.
   volatile collector::GcType last_gc_type_ GUARDED_BY(gc_complete_lock_);

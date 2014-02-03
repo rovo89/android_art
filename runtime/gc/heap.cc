@@ -102,7 +102,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       finalizer_reference_queue_(this),
       phantom_reference_queue_(this),
       cleared_references_(this),
-      is_gc_running_(false),
+      collector_type_running_(kCollectorTypeNone),
       last_gc_type_(collector::kGcTypeNone),
       next_gc_type_(collector::kGcTypePartial),
       capacity_(capacity),
@@ -332,10 +332,11 @@ bool Heap::HasImageSpace() const {
 void Heap::IncrementDisableMovingGC(Thread* self) {
   // Need to do this holding the lock to prevent races where the GC is about to run / running when
   // we attempt to disable it.
-  ScopedThreadStateChange tsc(self, kWaitingForGcToComplete);
   MutexLock mu(self, *gc_complete_lock_);
   ++disable_moving_gc_count_;
-  // TODO: Wait for compacting GC to complete if we ever have a concurrent compacting GC.
+  if (IsCompactingGC(collector_type_running_)) {
+    WaitForGcToCompleteLocked(self);
+  }
 }
 
 void Heap::DecrementDisableMovingGC(Thread* self) {
@@ -743,6 +744,15 @@ void Heap::ThrowOutOfMemoryError(Thread* self, size_t byte_count, bool large_obj
 }
 
 void Heap::Trim() {
+  Thread* self = Thread::Current();
+  {
+    // Pretend we are doing a GC to prevent background compaction from deleting the space we are
+    // trimming.
+    MutexLock mu(self, *gc_complete_lock_);
+    // Ensure there is only one GC at a time.
+    WaitForGcToCompleteLocked(self);
+    collector_type_running_ = kCollectorTypeHeapTrim;
+  }
   uint64_t start_ns = NanoTime();
   // Trim the managed spaces.
   uint64_t total_alloc_space_allocated = 0;
@@ -760,6 +770,8 @@ void Heap::Trim() {
   const float managed_utilization = static_cast<float>(total_alloc_space_allocated) /
       static_cast<float>(total_alloc_space_size);
   uint64_t gc_heap_end_ns = NanoTime();
+  // We never move things in the native heap, so we can finish the GC at this point.
+  FinishGC(self, collector::kGcTypeNone);
   // Trim the native heap.
   dlmalloc_trim(0);
   size_t native_reclaimed = 0;
@@ -1180,12 +1192,21 @@ void Heap::TransitionCollector(CollectorType collector_type) {
   Thread* self = Thread::Current();
   ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
   Locks::mutator_lock_->AssertNotHeld(self);
+  const bool copying_transition =
+      IsCompactingGC(background_collector_type_) || IsCompactingGC(post_zygote_collector_type_);
   // Busy wait until we can GC (StartGC can fail if we have a non-zero
   // compacting_gc_disable_count_, this should rarely occurs).
-  bool copying_transition =
-      IsCompactingGC(background_collector_type_) || IsCompactingGC(post_zygote_collector_type_);
-  while (!StartGC(self, copying_transition)) {
-    usleep(100);
+  for (;;) {
+    MutexLock mu(self, *gc_complete_lock_);
+    // Ensure there is only one GC at a time.
+    WaitForGcToCompleteLocked(self);
+    // GC can be disabled if someone has a used GetPrimitiveArrayCritical.
+    if (copying_transition && disable_moving_gc_count_ != 0) {
+      usleep(1000);
+      continue;
+    }
+    collector_type_running_ = copying_transition ? kCollectorTypeSS : collector_type;
+    break;
   }
   tl->SuspendAll();
   switch (collector_type) {
@@ -1543,11 +1564,21 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   if (self->IsHandlingStackOverflow()) {
     LOG(WARNING) << "Performing GC on a thread that is handling a stack overflow.";
   }
-  gc_complete_lock_->AssertNotHeld(self);
-  const bool compacting_gc = IsCompactingGC(collector_type_);
-  if (!StartGC(self, compacting_gc)) {
-    return collector::kGcTypeNone;
+  bool compacting_gc;
+  {
+    gc_complete_lock_->AssertNotHeld(self);
+    MutexLock mu(self, *gc_complete_lock_);
+    // Ensure there is only one GC at a time.
+    WaitForGcToCompleteLocked(self);
+    compacting_gc = IsCompactingGC(collector_type_);
+    // GC can be disabled if someone has a used GetPrimitiveArrayCritical.
+    if (compacting_gc && disable_moving_gc_count_ != 0) {
+      LOG(WARNING) << "Skipping GC due to disable moving GC count " << disable_moving_gc_count_;
+      return collector::kGcTypeNone;
+    }
+    collector_type_running_ = collector_type_;
   }
+
   if (gc_cause == kGcCauseForAlloc && runtime->HasStatsEnabled()) {
     ++runtime->GetStats()->gc_for_alloc_count;
     ++self->GetStats()->gc_for_alloc_count;
@@ -1592,20 +1623,14 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   CHECK(collector != nullptr)
       << "Could not find garbage collector with concurrent=" << concurrent_gc_
       << " and type=" << gc_type;
-
   ATRACE_BEGIN(StringPrintf("%s %s GC", PrettyCause(gc_cause), collector->GetName()).c_str());
-
   collector->Run(gc_cause, clear_soft_references);
   total_objects_freed_ever_ += collector->GetFreedObjects();
   total_bytes_freed_ever_ += collector->GetFreedBytes();
-
   // Enqueue cleared references.
-  Locks::mutator_lock_->AssertNotHeld(self);
   EnqueueClearedReferences();
-
   // Grow the heap so that we know when to perform the next GC.
   GrowForUtilization(gc_type, collector->GetDurationNs());
-
   if (CareAboutPauseTimes()) {
     const size_t duration = collector->GetDurationNs();
     std::vector<uint64_t> pauses = collector->GetPauseTimes();
@@ -1647,25 +1672,12 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   return gc_type;
 }
 
-bool Heap::StartGC(Thread* self, bool is_compacting) {
-  MutexLock mu(self, *gc_complete_lock_);
-  // Ensure there is only one GC at a time.
-  WaitForGcToCompleteLocked(self);
-  // TODO: if another thread beat this one to do the GC, perhaps we should just return here?
-  //       Not doing at the moment to ensure soft references are cleared.
-  // GC can be disabled if someone has a used GetPrimitiveArrayCritical.
-  if (is_compacting && disable_moving_gc_count_ != 0) {
-    LOG(WARNING) << "Skipping GC due to disable moving GC count " << disable_moving_gc_count_;
-    return false;
-  }
-  is_gc_running_ = true;
-  return true;
-}
-
 void Heap::FinishGC(Thread* self, collector::GcType gc_type) {
   MutexLock mu(self, *gc_complete_lock_);
-  is_gc_running_ = false;
-  last_gc_type_ = gc_type;
+  collector_type_running_ = kCollectorTypeNone;
+  if (gc_type != collector::kGcTypeNone) {
+    last_gc_type_ = gc_type;
+  }
   // Wake anyone who may have been waiting for the GC to complete.
   gc_complete_cond_->Broadcast(self);
 }
@@ -2089,7 +2101,6 @@ void Heap::PostGcVerification(collector::GarbageCollector* gc) {
 }
 
 collector::GcType Heap::WaitForGcToComplete(Thread* self) {
-  ScopedThreadStateChange tsc(self, kWaitingForGcToComplete);
   MutexLock mu(self, *gc_complete_lock_);
   return WaitForGcToCompleteLocked(self);
 }
@@ -2097,7 +2108,8 @@ collector::GcType Heap::WaitForGcToComplete(Thread* self) {
 collector::GcType Heap::WaitForGcToCompleteLocked(Thread* self) {
   collector::GcType last_gc_type = collector::kGcTypeNone;
   uint64_t wait_start = NanoTime();
-  while (is_gc_running_) {
+  while (collector_type_running_ != kCollectorTypeNone) {
+    ScopedThreadStateChange tsc(self, kWaitingForGcToComplete);
     ATRACE_BEGIN("GC: Wait For Completion");
     // We must wait, change thread state then sleep on gc_complete_cond_;
     gc_complete_cond_->Wait(self);
@@ -2271,10 +2283,12 @@ void Heap::AddFinalizerReference(Thread* self, mirror::Object* object) {
 }
 
 void Heap::EnqueueClearedReferences() {
+  Thread* self = Thread::Current();
+  Locks::mutator_lock_->AssertNotHeld(self);
   if (!cleared_references_.IsEmpty()) {
     // When a runtime isn't started there are no reference queues to care about so ignore.
     if (LIKELY(Runtime::Current()->IsStarted())) {
-      ScopedObjectAccess soa(Thread::Current());
+      ScopedObjectAccess soa(self);
       JValue result;
       ArgArray arg_array(NULL, 0);
       arg_array.Append(reinterpret_cast<uint32_t>(cleared_references_.GetList()));
