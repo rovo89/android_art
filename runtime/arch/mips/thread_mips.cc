@@ -27,4 +27,8 @@ void Thread::InitCpu() {
   CHECK_EQ(THREAD_EXCEPTION_OFFSET, OFFSETOF_MEMBER(Thread, exception_));
 }
 
+void Thread::CleanupCpu() {
+  // Do nothing.
+}
+
 }  // namespace art

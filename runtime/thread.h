@@ -619,6 +619,7 @@ class PACKED(4) Thread {
   void Init(ThreadList*, JavaVMExt*) EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_);
   void InitCardTable();
   void InitCpu();
+  void CleanupCpu();
   void InitTlsEntryPoints();
   void InitTid();
   void InitPthreadKeySelf();
