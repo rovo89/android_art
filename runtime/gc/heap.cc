@@ -332,6 +332,7 @@ bool Heap::HasImageSpace() const {
 void Heap::IncrementDisableMovingGC(Thread* self) {
   // Need to do this holding the lock to prevent races where the GC is about to run / running when
   // we attempt to disable it.
+  ScopedThreadStateChange tsc(self, kWaitingForGcToComplete);
   MutexLock mu(self, *gc_complete_lock_);
   ++disable_moving_gc_count_;
   if (IsCompactingGC(collector_type_running_)) {
@@ -746,6 +747,9 @@ void Heap::ThrowOutOfMemoryError(Thread* self, size_t byte_count, bool large_obj
 void Heap::Trim() {
   Thread* self = Thread::Current();
   {
+    // Need to do this before acquiring the locks since we don't want to get suspended while
+    // holding any locks.
+    ScopedThreadStateChange tsc(self, kWaitingForGcToComplete);
     // Pretend we are doing a GC to prevent background compaction from deleting the space we are
     // trimming.
     MutexLock mu(self, *gc_complete_lock_);
@@ -1197,16 +1201,19 @@ void Heap::TransitionCollector(CollectorType collector_type) {
   // Busy wait until we can GC (StartGC can fail if we have a non-zero
   // compacting_gc_disable_count_, this should rarely occurs).
   for (;;) {
-    MutexLock mu(self, *gc_complete_lock_);
-    // Ensure there is only one GC at a time.
-    WaitForGcToCompleteLocked(self);
-    // GC can be disabled if someone has a used GetPrimitiveArrayCritical.
-    if (copying_transition && disable_moving_gc_count_ != 0) {
-      usleep(1000);
-      continue;
+    {
+      ScopedThreadStateChange tsc(self, kWaitingForGcToComplete);
+      MutexLock mu(self, *gc_complete_lock_);
+      // Ensure there is only one GC at a time.
+      WaitForGcToCompleteLocked(self);
+      // GC can be disabled if someone has a used GetPrimitiveArrayCritical but not yet released.
+      if (!copying_transition || disable_moving_gc_count_ == 0) {
+        // TODO: Not hard code in semi-space collector?
+        collector_type_running_ = copying_transition ? kCollectorTypeSS : collector_type;
+        break;
+      }
     }
-    collector_type_running_ = copying_transition ? kCollectorTypeSS : collector_type;
-    break;
+    usleep(1000);
   }
   tl->SuspendAll();
   switch (collector_type) {
@@ -1567,6 +1574,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   bool compacting_gc;
   {
     gc_complete_lock_->AssertNotHeld(self);
+    ScopedThreadStateChange tsc(self, kWaitingForGcToComplete);
     MutexLock mu(self, *gc_complete_lock_);
     // Ensure there is only one GC at a time.
     WaitForGcToCompleteLocked(self);
@@ -2101,6 +2109,7 @@ void Heap::PostGcVerification(collector::GarbageCollector* gc) {
 }
 
 collector::GcType Heap::WaitForGcToComplete(Thread* self) {
+  ScopedThreadStateChange tsc(self, kWaitingForGcToComplete);
   MutexLock mu(self, *gc_complete_lock_);
   return WaitForGcToCompleteLocked(self);
 }
@@ -2109,7 +2118,6 @@ collector::GcType Heap::WaitForGcToCompleteLocked(Thread* self) {
   collector::GcType last_gc_type = collector::kGcTypeNone;
   uint64_t wait_start = NanoTime();
   while (collector_type_running_ != kCollectorTypeNone) {
-    ScopedThreadStateChange tsc(self, kWaitingForGcToComplete);
     ATRACE_BEGIN("GC: Wait For Completion");
     // We must wait, change thread state then sleep on gc_complete_cond_;
     gc_complete_cond_->Wait(self);
