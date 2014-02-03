@@ -77,10 +77,12 @@ void ContinuousMemMapAllocSpace::Sweep(bool swap_bitmaps, size_t* freed_objects,
 void ContinuousMemMapAllocSpace::BindLiveToMarkBitmap() {
   CHECK(!HasBoundBitmaps());
   accounting::SpaceBitmap* live_bitmap = GetLiveBitmap();
-  accounting::SpaceBitmap* mark_bitmap = mark_bitmap_.release();
-  Runtime::Current()->GetHeap()->GetMarkBitmap()->ReplaceBitmap(mark_bitmap, live_bitmap);
-  temp_bitmap_.reset(mark_bitmap);
-  mark_bitmap_.reset(live_bitmap);
+  if (live_bitmap != mark_bitmap_.get()) {
+    accounting::SpaceBitmap* mark_bitmap = mark_bitmap_.release();
+    Runtime::Current()->GetHeap()->GetMarkBitmap()->ReplaceBitmap(mark_bitmap, live_bitmap);
+    temp_bitmap_.reset(mark_bitmap);
+    mark_bitmap_.reset(live_bitmap);
+  }
 }
 
 bool ContinuousMemMapAllocSpace::HasBoundBitmaps() const {
@@ -95,6 +97,14 @@ void ContinuousMemMapAllocSpace::UnBindBitmaps() {
   CHECK_EQ(mark_bitmap_.release(), live_bitmap_.get());
   mark_bitmap_.reset(new_bitmap);
   DCHECK(temp_bitmap_.get() == nullptr);
+}
+
+void ContinuousMemMapAllocSpace::SwapBitmaps() {
+  live_bitmap_.swap(mark_bitmap_);
+  // Swap names to get more descriptive diagnostics.
+  std::string temp_name(live_bitmap_->GetName());
+  live_bitmap_->SetName(mark_bitmap_->GetName());
+  mark_bitmap_->SetName(temp_name);
 }
 
 }  // namespace space
