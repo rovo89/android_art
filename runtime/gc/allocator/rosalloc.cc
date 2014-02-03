@@ -904,7 +904,7 @@ inline void RosAlloc::Run::UnionBulkFreeBitMapToThreadLocalFreeBitMap() {
     uint32_t from_vec = *from_vecp;
     if (from_vec != 0) {
       *to_vecp |= from_vec;
-      *from_vecp = 0;  // clear the from free bit map.
+      *from_vecp = 0;  // clear the bulk free bit map.
     }
     DCHECK_EQ(*from_vecp, static_cast<uint32_t>(0));
   }
@@ -1468,6 +1468,8 @@ void RosAlloc::SetFootprintLimit(size_t new_capacity) {
 
 void RosAlloc::RevokeThreadLocalRuns(Thread* thread) {
   Thread* self = Thread::Current();
+  // Avoid race conditions on the bulk free bit maps with BulkFree() (GC).
+  WriterMutexLock wmu(self, bulk_free_lock_);
   for (size_t idx = 0; idx < kNumOfSizeBrackets; idx++) {
     MutexLock mu(self, *size_bracket_locks_[idx]);
     Run* thread_local_run = reinterpret_cast<Run*>(thread->rosalloc_runs_[idx]);
