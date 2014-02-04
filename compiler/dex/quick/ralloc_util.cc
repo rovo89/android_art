@@ -906,6 +906,9 @@ void Mir2Lir::DoPromotion() {
   int dalvik_regs = cu_->num_dalvik_registers;
   int num_regs = dalvik_regs + mir_graph_->GetNumUsedCompilerTemps();
   const int promotion_threshold = 1;
+  // Allocate the promotion map - one entry for each Dalvik vReg or compiler temp
+  promotion_map_ = static_cast<PromotionMap*>
+      (arena_->Alloc(num_regs * sizeof(promotion_map_[0]), ArenaAllocator::kAllocRegAlloc));
 
   // Allow target code to add any special registers
   AdjustSpillMask();
