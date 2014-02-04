@@ -95,14 +95,6 @@ MemMap* MallocSpace::CreateMemMap(const std::string& name, size_t starting_size,
   return mem_map;
 }
 
-void MallocSpace::SwapBitmaps() {
-  live_bitmap_.swap(mark_bitmap_);
-  // Swap names to get more descriptive diagnostics.
-  std::string temp_name(live_bitmap_->GetName());
-  live_bitmap_->SetName(mark_bitmap_->GetName());
-  mark_bitmap_->SetName(temp_name);
-}
-
 mirror::Class* MallocSpace::FindRecentFreedObject(const mirror::Object* obj) {
   size_t pos = recent_free_pos_;
   // Start at the most recently freed object and work our way back since there may be duplicates
