@@ -170,7 +170,7 @@ public class Main {
                 ite.printStackTrace();
             }
         }
-        System.gc();
+        Runtime.getRuntime().gc();
         System.out.println("GC complete.");
     }
 }

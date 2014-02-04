@@ -93,7 +93,7 @@ public class Main {
 
         /* this will try to collect and finalize ft */
         System.out.println("gc");
-        System.gc();
+        Runtime.getRuntime().gc();
 
         System.out.println("wimp: " + wimpString(wimp));
         System.out.println("finalize");
@@ -106,7 +106,7 @@ public class Main {
         System.out.println("reborn: " + FinalizerTest.mReborn);
         System.out.println("wimp: " + wimpString(wimp));
         System.out.println("reset reborn");
-        System.gc();
+        Runtime.getRuntime().gc();
         FinalizerTest.mReborn = FinalizerTest.mNothing;
         System.out.println("gc + finalize");
         System.gc();
