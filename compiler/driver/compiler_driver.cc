@@ -1008,8 +1008,8 @@ bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompi
         ComputeCompilingMethodsClass(soa, dex_cache, mUnit);
     if (referrer_class != NULL) {
       mirror::Class* fields_class = resolved_field->GetDeclaringClass();
-      bool access_ok =
-          referrer_class->CanAccessResolvedField<false>(fields_class, resolved_field, field_idx);
+      bool access_ok = referrer_class->CanAccessResolvedField(fields_class, resolved_field,
+                                                              *dex_cache, field_idx);
       bool is_write_to_final_from_wrong_class = is_put && resolved_field->IsFinal() &&
           fields_class != referrer_class;
       if (access_ok && !is_write_to_final_from_wrong_class) {
@@ -1055,8 +1055,8 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
         stats_->ResolvedLocalStaticField();
         return true;  // fast path
       } else {
-        bool access_ok =
-            referrer_class->CanAccessResolvedField<false>(fields_class, resolved_field, field_idx);
+        bool access_ok = referrer_class->CanAccessResolvedField(fields_class, resolved_field,
+                                                                *dex_cache, field_idx);
         bool is_write_to_final_from_wrong_class = is_put && resolved_field->IsFinal();
         if (access_ok && !is_write_to_final_from_wrong_class) {
           // We have the resolved field, we must make it into a index for the referrer
@@ -1170,7 +1170,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
     if (no_guarantee_of_dex_cache_entry) {
       // See if the method is also declared in this dex cache.
       uint32_t dex_method_idx = MethodHelper(method).FindDexMethodIndexInOtherDexFile(
-          *referrer_class->GetDexCache()->GetDexFile());
+          *target_method->dex_file);
       if (dex_method_idx != DexFile::kDexNoIndex) {
         target_method->dex_method_index = dex_method_idx;
       } else {
@@ -1239,8 +1239,8 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
     bool icce = resolved_method->CheckIncompatibleClassChange(*invoke_type);
     if (referrer_class != NULL && !icce) {
       mirror::Class* methods_class = resolved_method->GetDeclaringClass();
-      if (referrer_class->CanAccessResolvedMethod<false>(methods_class, resolved_method,
-                                                         target_method->dex_method_index)) {
+      if (referrer_class->CanAccessResolvedMethod(methods_class, resolved_method,
+                                                  *dex_cache, target_method->dex_method_index)) {
         const bool enableFinalBasedSharpening = enable_devirtualization;
         // Sharpen a virtual call into a direct call when the target is known not to have been
         // overridden (ie is final).
@@ -1255,9 +1255,11 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
 
         if (enableFinalBasedSharpening && (can_sharpen_virtual_based_on_type ||
                                             can_sharpen_super_based_on_type)) {
-          // Sharpen a virtual call into a direct call. The method_idx is into referrer's
-          // dex cache, check that this resolved method is where we expect it.
-          CHECK(referrer_class->GetDexCache()->GetResolvedMethod(target_method->dex_method_index) ==
+          // Sharpen a virtual call into a direct call. The method_idx is into the DexCache
+          // associated with target_method->dex_file.
+          CHECK(target_method->dex_file == mUnit->GetDexFile());
+          DCHECK(dex_cache.get() == mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile()));
+          CHECK(dex_cache->GetResolvedMethod(target_method->dex_method_index) ==
                 resolved_method) << PrettyMethod(resolved_method);
           InvokeType orig_invoke_type = *invoke_type;
           GetCodeAndMethodForDirectCall(invoke_type, kDirect, false, referrer_class, resolved_method,
