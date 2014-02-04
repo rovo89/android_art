@@ -24,6 +24,7 @@
 #include "gc/space/dlmalloc_space.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
+#include "gc/space/zygote_space.h"
 #include "hprof/hprof.h"
 #include "jni_internal.h"
 #include "mirror/class.h"
@@ -265,9 +266,9 @@ static void VMDebug_getHeapSpaceStats(JNIEnv* env, jclass, jlongArray data) {
     if (space->IsImageSpace()) {
       // Currently don't include the image space.
     } else if (space->IsZygoteSpace()) {
-      gc::space::MallocSpace* malloc_space = space->AsMallocSpace();
-      zygoteSize += malloc_space->GetFootprint();
-      zygoteUsed += malloc_space->GetBytesAllocated();
+      gc::space::ZygoteSpace* zygote_space = space->AsZygoteSpace();
+      zygoteSize += zygote_space->Size();
+      zygoteUsed += zygote_space->GetBytesAllocated();
     } else if (space->IsMallocSpace()) {
       // This is a malloc space.
       gc::space::MallocSpace* malloc_space = space->AsMallocSpace();

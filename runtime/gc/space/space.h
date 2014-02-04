@@ -411,6 +411,8 @@ class ContinuousMemMapAllocSpace : public MemMapSpace, public AllocSpace {
   void BindLiveToMarkBitmap()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
   void UnBindBitmaps() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  // Swap the live and mark bitmaps of this space. This is used by the GC for concurrent sweeping.
+  void SwapBitmaps();
 
   virtual void Clear() {
     LOG(FATAL) << "Unimplemented";

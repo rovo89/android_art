@@ -32,7 +32,7 @@ inline ImageSpace* Space::AsImageSpace() {
 }
 
 inline MallocSpace* Space::AsMallocSpace() {
-  DCHECK(GetType() == kSpaceTypeMallocSpace);
+  DCHECK(IsMallocSpace());
   DCHECK(IsDlMallocSpace() || IsRosAllocSpace());
   return down_cast<MallocSpace*>(down_cast<MemMapSpace*>(this));
 }

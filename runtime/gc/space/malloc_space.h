@@ -109,9 +109,6 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
 
   void SetGrowthLimit(size_t growth_limit);
 
-  // Swap the live and mark bitmaps of this space. This is used by the GC for concurrent sweeping.
-  void SwapBitmaps();
-
   virtual MallocSpace* CreateInstance(const std::string& name, MemMap* mem_map, void* allocator,
                                       byte* begin, byte* end, byte* limit, size_t growth_limit) = 0;
 
