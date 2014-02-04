@@ -200,7 +200,7 @@ public class ManyInterfaces
          * Clear the heap.  The various classes involved should already
          * be loaded and ready as a result of instantiating ManyInterfaces.
          */
-        System.gc();
+        Runtime.getRuntime().gc();
 
         start = System.nanoTime();
         testIface001(obj, iter);

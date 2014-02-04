@@ -38,29 +38,29 @@ public class Main {
     public void run() {
         createBitmaps();
 
-        System.gc();
+        Runtime.getRuntime().gc();
         sleep(250);
 
         mBitmap2.drawAt(0, 0);
 
         System.out.println("nulling 1");
         mBitmap1 = null;
-        System.gc();
+        Runtime.getRuntime().gc();
         sleep(500);
 
         System.out.println("nulling 2");
         mBitmap2 = null;
-        System.gc();
+        Runtime.getRuntime().gc();
         sleep(500);
 
         System.out.println("nulling 3");
         mBitmap3 = null;
-        System.gc();
+        Runtime.getRuntime().gc();
         sleep(500);
 
         System.out.println("nulling 4");
         mBitmap4 = null;
-        System.gc();
+        Runtime.getRuntime().gc();
         sleep(500);
 
         Bitmap.shutDown();
