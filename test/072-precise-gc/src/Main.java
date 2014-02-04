@@ -88,7 +88,7 @@ public class Main {
          * Getting a zero result here isn't conclusive, but it's a strong
          * indicator that precise GC is having an impact.
          */
-        System.gc();
+        Runtime.getRuntime().gc();
 
         for (int i = 0; i < wrefs.length; i++) {
             if (wrefs[i].get() != null)

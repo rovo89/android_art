@@ -25,12 +25,12 @@ public class Main {
         bf = null;
 
         System.out.println("Nulled. Requestion gc.");
-        System.gc();
+        Runtime.getRuntime().gc();
 
         for (int i = 0; i < 8; i++) {
             BadFinalizer.snooze(4000);
             System.out.println("Requesting another GC.");
-            System.gc();
+            Runtime.getRuntime().gc();
         }
 
         System.out.println("Done waiting.");

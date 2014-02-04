@@ -172,7 +172,7 @@ public class Main {
     }
 
     static void b2302318Test() {
-        System.gc();
+        Runtime.getRuntime().gc();
 
         SpinThread slow = new SpinThread(Thread.MIN_PRIORITY);
         SpinThread fast1 = new SpinThread(Thread.NORM_PRIORITY);
@@ -188,7 +188,7 @@ public class Main {
         try {
             Thread.sleep(3000);
         } catch (InterruptedException ie) {/*ignore */}
-        System.gc();
+        Runtime.getRuntime().gc();
 
         System.out.println("b2302318 passes");
     }
