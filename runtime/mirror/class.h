@@ -453,16 +453,23 @@ class MANAGED Class : public Object {
   // Can this class access a resolved field?
   // Note that access to field's class is checked and this may require looking up the class
   // referenced by the FieldId in the DexFile in case the declaring class is inaccessible.
-  template <bool throw_on_failure>
   bool CanAccessResolvedField(Class* access_to, ArtField* field,
-                              uint32_t field_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+                              DexCache& dex_cache, uint32_t field_idx)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool CheckResolvedFieldAccess(Class* access_to, ArtField* field,
+                                uint32_t field_idx)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Can this class access a resolved method?
   // Note that access to methods's class is checked and this may require looking up the class
   // referenced by the MethodId in the DexFile in case the declaring class is inaccessible.
-  template <bool throw_on_failure, InvokeType throw_invoke_type = kStatic>
   bool CanAccessResolvedMethod(Class* access_to, ArtMethod* resolved_method,
-                               uint32_t method_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+                               DexCache& dex_cache, uint32_t method_idx)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  template <InvokeType throw_invoke_type>
+  bool CheckResolvedMethodAccess(Class* access_to, ArtMethod* resolved_method,
+                                 uint32_t method_idx)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsSubClass(const Class* klass) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -807,6 +814,15 @@ class MANAGED Class : public Object {
 
  private:
   void SetVerifyErrorClass(Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  template <bool throw_on_failure, bool use_referrers_cache>
+  bool ResolvedFieldAccessTest(Class* access_to, ArtField* field,
+                               uint32_t field_idx, DexCache* dex_cache)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  template <bool throw_on_failure, bool use_referrers_cache, InvokeType throw_invoke_type>
+  bool ResolvedMethodAccessTest(Class* access_to, ArtMethod* resolved_method,
+                                uint32_t method_idx, DexCache* dex_cache)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool Implements(const Class* klass) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
