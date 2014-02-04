@@ -456,7 +456,9 @@ class RosAlloc {
   // and the footprint.
   Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   // The reader-writer lock to allow one bulk free at a time while
-  // allowing multiple individual frees at the same time.
+  // allowing multiple individual frees at the same time. Also, this
+  // is used to avoid race conditions between BulkFree() and
+  // RevokeThreadLocalRuns() on the bulk free bitmaps.
   ReaderWriterMutex bulk_free_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 
   // The page release mode.
