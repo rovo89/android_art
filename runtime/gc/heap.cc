@@ -1431,6 +1431,7 @@ void Heap::UnBindBitmaps() {
 }
 
 void Heap::PreZygoteFork() {
+  CollectGarbageInternal(collector::kGcTypeFull, kGcCauseBackground, false);
   static Mutex zygote_creation_lock_("zygote creation lock", kZygoteCreationLock);
   Thread* self = Thread::Current();
   MutexLock mu(self, zygote_creation_lock_);
@@ -1439,7 +1440,6 @@ void Heap::PreZygoteFork() {
     return;
   }
   VLOG(heap) << "Starting PreZygoteFork";
-  CollectGarbageInternal(collector::kGcTypeFull, kGcCauseBackground, false);
   // Trim the pages at the end of the non moving space.
   non_moving_space_->Trim();
   non_moving_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
