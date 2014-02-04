@@ -18,6 +18,7 @@ public class Main {
 
         System.out.println("GC'ing");
         System.gc();
+        System.runFinalization();
         System.gc();
 
         System.out.println("Asking thread to park");
