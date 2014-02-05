@@ -88,14 +88,18 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
     // Mutator lock may be already exclusively held when we do garbage collections for changing the
     // current collector / allocator during process state updates.
     if (Locks::mutator_lock_->IsExclusiveHeld(self)) {
+      // PreGcRosAllocVerification() is called in Heap::TransitionCollector().
       GetHeap()->RevokeAllThreadLocalBuffers();
       MarkingPhase();
       ReclaimPhase();
+      // PostGcRosAllocVerification() is called in Heap::TransitionCollector().
     } else {
       thread_list->SuspendAll();
+      GetHeap()->PreGcRosAllocVerification(&timings_);
       GetHeap()->RevokeAllThreadLocalBuffers();
       MarkingPhase();
       ReclaimPhase();
+      GetHeap()->PostGcRosAllocVerification(&timings_);
       thread_list->ResumeAll();
     }
     ATRACE_END();
@@ -114,10 +118,12 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
       thread_list->SuspendAll();
       ATRACE_END();
       ATRACE_BEGIN("All mutator threads suspended");
+      GetHeap()->PreGcRosAllocVerification(&timings_);
       done = HandleDirtyObjectsPhase();
       if (done) {
         GetHeap()->RevokeAllThreadLocalBuffers();
       }
+      GetHeap()->PostGcRosAllocVerification(&timings_);
       ATRACE_END();
       uint64_t pause_end = NanoTime();
       ATRACE_BEGIN("Resuming mutator threads");

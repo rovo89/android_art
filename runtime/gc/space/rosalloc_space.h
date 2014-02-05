@@ -104,6 +104,10 @@ class RosAllocSpace : public MallocSpace {
     return this;
   }
 
+  void Verify() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    rosalloc_->Verify();
+  }
+
  protected:
   RosAllocSpace(const std::string& name, MemMap* mem_map, allocator::RosAlloc* rosalloc,
                 byte* begin, byte* end, byte* limit, size_t growth_limit);

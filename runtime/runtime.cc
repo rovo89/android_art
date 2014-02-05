@@ -429,6 +429,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->use_tlab_ = false;
   parsed->verify_pre_gc_heap_ = false;
   parsed->verify_post_gc_heap_ = kIsDebugBuild;
+  parsed->verify_pre_gc_rosalloc_ = kIsDebugBuild;
+  parsed->verify_post_gc_rosalloc_ = false;
 
   parsed->compiler_callbacks_ = nullptr;
   parsed->is_zygote_ = false;
@@ -615,12 +617,20 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
           parsed->collector_type_ = collector_type;
         } else if (gc_option == "preverify") {
           parsed->verify_pre_gc_heap_ = true;
-        }  else if (gc_option == "nopreverify") {
+        } else if (gc_option == "nopreverify") {
           parsed->verify_pre_gc_heap_ = false;
         }  else if (gc_option == "postverify") {
           parsed->verify_post_gc_heap_ = true;
         } else if (gc_option == "nopostverify") {
           parsed->verify_post_gc_heap_ = false;
+        } else if (gc_option == "preverify_rosalloc") {
+          parsed->verify_pre_gc_rosalloc_ = true;
+        } else if (gc_option == "nopreverify_rosalloc") {
+          parsed->verify_pre_gc_rosalloc_ = false;
+        } else if (gc_option == "postverify_rosalloc") {
+          parsed->verify_post_gc_rosalloc_ = true;
+        } else if (gc_option == "nopostverify_rosalloc") {
+          parsed->verify_post_gc_rosalloc_ = false;
         } else {
           LOG(WARNING) << "Ignoring unknown -Xgc option: " << gc_option;
         }
@@ -1018,7 +1028,9 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
                        options->ignore_max_footprint_,
                        options->use_tlab_,
                        options->verify_pre_gc_heap_,
-                       options->verify_post_gc_heap_);
+                       options->verify_post_gc_heap_,
+                       options->verify_pre_gc_rosalloc_,
+                       options->verify_post_gc_rosalloc_);
 
   dump_gc_performance_on_shutdown_ = options->dump_gc_performance_on_shutdown_;
 

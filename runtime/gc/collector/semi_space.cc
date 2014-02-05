@@ -182,6 +182,7 @@ void SemiSpace::MarkingPhase() {
     }
   }
   Locks::mutator_lock_->AssertExclusiveHeld(self_);
+
   TimingLogger::ScopedSplit split("MarkingPhase", &timings_);
   // Need to do this with mutators paused so that somebody doesn't accidentally allocate into the
   // wrong space.
