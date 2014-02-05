@@ -381,11 +381,12 @@ template<InvokeType type, bool access_check>
 static inline mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object* this_object,
                                                     mirror::ArtMethod* referrer, Thread* self) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  SirtRef<mirror::Object> sirt_this(self, this_object);
   mirror::ArtMethod* resolved_method = class_linker->ResolveMethod(method_idx, referrer, type);
   if (UNLIKELY(resolved_method == nullptr)) {
     DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
     return nullptr;  // Failure.
-  } else if (UNLIKELY(this_object == nullptr && type != kStatic)) {
+  } else if (UNLIKELY(sirt_this.get() == nullptr && type != kStatic)) {
     // Maintain interpreter-like semantics where NullPointerException is thrown
     // after potential NoSuchMethodError from class linker.
     ThrowLocation throw_location = self->GetCurrentLocationForThrow();
@@ -414,7 +415,7 @@ static inline mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror:
     case kDirect:
       return resolved_method;
     case kVirtual: {
-      mirror::ObjectArray<mirror::ArtMethod>* vtable = this_object->GetClass()->GetVTable();
+      mirror::ObjectArray<mirror::ArtMethod>* vtable = sirt_this->GetClass()->GetVTable();
       uint16_t vtable_index = resolved_method->GetMethodIndex();
       if (access_check &&
           (vtable == nullptr || vtable_index >= static_cast<uint32_t>(vtable->GetLength()))) {
@@ -451,16 +452,16 @@ static inline mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror:
     }
     case kInterface: {
       uint32_t imt_index = resolved_method->GetDexMethodIndex() % ClassLinker::kImtSize;
-      mirror::ObjectArray<mirror::ArtMethod>* imt_table = this_object->GetClass()->GetImTable();
+      mirror::ObjectArray<mirror::ArtMethod>* imt_table = sirt_this->GetClass()->GetImTable();
       mirror::ArtMethod* imt_method = imt_table->Get(imt_index);
       if (!imt_method->IsImtConflictMethod()) {
         return imt_method;
       } else {
         mirror::ArtMethod* interface_method =
-            this_object->GetClass()->FindVirtualMethodForInterface(resolved_method);
+            sirt_this->GetClass()->FindVirtualMethodForInterface(resolved_method);
         if (UNLIKELY(interface_method == nullptr)) {
-          ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(resolved_method, this_object,
-                                                                     referrer);
+          ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(resolved_method,
+                                                                     sirt_this.get(), referrer);
           return nullptr;  // Failure.
         } else {
           return interface_method;
