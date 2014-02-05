@@ -84,7 +84,7 @@ class NullableScopedUtfChars {
   void operator=(const NullableScopedUtfChars&);
 };
 
-static jint DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceName, jstring javaOutputName, jint) {
+static jlong DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceName, jstring javaOutputName, jint) {
   ScopedUtfChars sourceName(env, javaSourceName);
   if (sourceName.c_str() == NULL) {
     return 0;
@@ -125,10 +125,10 @@ static jint DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceNam
     ThrowIOException("%s", error_msg.c_str());
     return 0;
   }
-  return static_cast<jint>(reinterpret_cast<uintptr_t>(dex_file));
+  return static_cast<jlong>(reinterpret_cast<uintptr_t>(dex_file));
 }
 
-static const DexFile* toDexFile(int dex_file_address, JNIEnv* env) {
+static const DexFile* toDexFile(jlong dex_file_address, JNIEnv* env) {
   const DexFile* dex_file = reinterpret_cast<const DexFile*>(static_cast<uintptr_t>(dex_file_address));
   if (UNLIKELY(dex_file == nullptr)) {
     ScopedObjectAccess soa(env);
@@ -137,7 +137,7 @@ static const DexFile* toDexFile(int dex_file_address, JNIEnv* env) {
   return dex_file;
 }
 
-static void DexFile_closeDexFile(JNIEnv* env, jclass, jint cookie) {
+static void DexFile_closeDexFile(JNIEnv* env, jclass, jlong cookie) {
   const DexFile* dex_file;
   dex_file = toDexFile(cookie, env);
   if (dex_file == nullptr) {
@@ -150,7 +150,7 @@ static void DexFile_closeDexFile(JNIEnv* env, jclass, jint cookie) {
 }
 
 static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, jobject javaLoader,
-                                        jint cookie) {
+                                        jlong cookie) {
   const DexFile* dex_file = toDexFile(cookie, env);
   if (dex_file == NULL) {
     VLOG(class_linker) << "Failed to find dex_file";
@@ -177,7 +177,7 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
   return soa.AddLocalReference<jclass>(result);
 }
 
-static jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jint cookie) {
+static jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jlong cookie) {
   const DexFile* dex_file;
   dex_file = toDexFile(cookie, env);
   if (dex_file == nullptr) {
@@ -330,11 +330,11 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(DexFile, closeDexFile, "(I)V"),
-  NATIVE_METHOD(DexFile, defineClassNative, "(Ljava/lang/String;Ljava/lang/ClassLoader;I)Ljava/lang/Class;"),
-  NATIVE_METHOD(DexFile, getClassNameList, "(I)[Ljava/lang/String;"),
+  NATIVE_METHOD(DexFile, closeDexFile, "(J)V"),
+  NATIVE_METHOD(DexFile, defineClassNative, "(Ljava/lang/String;Ljava/lang/ClassLoader;J)Ljava/lang/Class;"),
+  NATIVE_METHOD(DexFile, getClassNameList, "(J)[Ljava/lang/String;"),
   NATIVE_METHOD(DexFile, isDexOptNeeded, "(Ljava/lang/String;)Z"),
-  NATIVE_METHOD(DexFile, openDexFileNative, "(Ljava/lang/String;Ljava/lang/String;I)I"),
+  NATIVE_METHOD(DexFile, openDexFileNative, "(Ljava/lang/String;Ljava/lang/String;I)J"),
 };
 
 void register_dalvik_system_DexFile(JNIEnv* env) {
