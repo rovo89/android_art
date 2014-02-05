@@ -155,7 +155,7 @@ define build-libart-compiler
 
   LOCAL_SRC_FILES := $$(LIBART_COMPILER_SRC_FILES)
 
-  GENERATED_SRC_DIR := $$(call intermediates-dir-for,$$(LOCAL_MODULE_CLASS),$$(LOCAL_MODULE),$$(LOCAL_IS_HOST_MODULE),)
+  GENERATED_SRC_DIR := $$(call local-generated-sources-dir)
   ENUM_OPERATOR_OUT_CC_FILES := $$(patsubst %.h,%_operator_out.cc,$$(LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES))
   ENUM_OPERATOR_OUT_GEN := $$(addprefix $$(GENERATED_SRC_DIR)/,$$(ENUM_OPERATOR_OUT_CC_FILES))
 
@@ -198,27 +198,13 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   ifeq ($(ART_USE_PORTABLE_COMPILER),true)
     LOCAL_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
     ifeq ($$(art_target_or_host),target)
-      ifeq ($(TARGET_ARCH),arm)
-        LOCAL_STATIC_LIBRARIES += libmcldARMInfo libmcldARMTarget
-      else # TARGET_ARCH != arm
-      ifeq ($(TARGET_ARCH),x86)
-        LOCAL_STATIC_LIBRARIES += libmcldX86Info libmcldX86Target
-      else # TARGET_ARCH != x86
-      ifeq ($(TARGET_ARCH),x86_64)
-        LOCAL_STATIC_LIBRARIES += libmcldX86Info libmcldX86Target
-      else # TARGET_ARCH != x86_64
-      ifeq ($(TARGET_ARCH),mips)
-        LOCAL_STATIC_LIBRARIES += libmcldMipsInfo libmcldMipsTarget
-      else # TARGET_ARCH != mips
-      ifeq ($(TARGET_ARCH),aarch64)
-         $$(info TODOAArch64: $$(LOCAL_PATH)/Android.mk Add AArch64 specific MCLinker libraries)
-      else # TARGET_ARCH != aarch64
-        $$(error unsupported TARGET_ARCH=$(TARGET_ARCH))
-      endif # TARGET_ARCH != aarch64
-      endif # TARGET_ARCH != mips
-      endif # TARGET_ARCH != x86_64
-      endif # TARGET_ARCH != x86
-      endif # TARGET_ARCH != arm
+      LOCAL_STATIC_LIBRARIES_arm += libmcldARMInfo libmcldARMTarget
+      LOCAL_STATIC_LIBRARIES_x86 += libmcldX86Info libmcldX86Target
+      LOCAL_STATIC_LIBRARIES_x86_64 += libmcldX86Info libmcldX86Target
+      LOCAL_STATIC_LIBRARIES_mips += libmcldMipsInfo libmcldMipsTarget
+      ifeq ($(TARGET_ARCH),arm64)
+         $$(info TODOAArch64: $$(LOCAL_PATH)/Android.mk Add Arm64 specific MCLinker libraries)
+      endif # TARGET_ARCH != arm64
     else # host
       LOCAL_STATIC_LIBRARIES += libmcldARMInfo libmcldARMTarget
       LOCAL_STATIC_LIBRARIES += libmcldX86Info libmcldX86Target
@@ -284,6 +270,9 @@ ifeq ($(ART_USE_PORTABLE_COMPILER),true)
 ifeq ($(ART_BUILD_TARGET),true)
 # TODO: Move to external/compiler_rt
 $(eval $(call copy-one-file, $(call intermediates-dir-for,STATIC_LIBRARIES,libcompiler_rt,,)/libcompiler_rt.a, $(TARGET_OUT_SHARED_LIBRARIES)/libcompiler_rt.a))
+ifdef TARGET_2ND_ARCH
+$(eval $(call copy-one-file, $(call intermediates-dir-for,STATIC_LIBRARIES,libcompiler_rt,,,t)/libcompiler_rt.a, $(2ND_TARGET_OUT_SHARED_LIBRARIES)/libcompiler_rt.a))
+endif
 
 $(DEX2OAT): $(TARGET_OUT_SHARED_LIBRARIES)/libcompiler_rt.a
 

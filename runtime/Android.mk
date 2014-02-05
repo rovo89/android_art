@@ -184,6 +184,8 @@ LIBART_COMMON_SRC_FILES += \
 	entrypoints/quick/quick_throw_entrypoints.cc \
 	entrypoints/quick/quick_trampoline_entrypoints.cc
 
+LIBART_LDFLAGS := -Wl,--no-fatal-warnings
+
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
 	base/logging_android.cc \
@@ -192,9 +194,7 @@ LIBART_TARGET_SRC_FILES := \
 	runtime_android.cc \
 	thread_android.cc
 
-LIBART_LDFLAGS :=
-ifeq ($(TARGET_ARCH),arm)
-LIBART_TARGET_SRC_FILES += \
+LIBART_TARGET_SRC_FILES_arm := \
 	arch/arm/context_arm.cc.arm \
 	arch/arm/entrypoints_init_arm.cc \
 	arch/arm/jni_entrypoints_arm.S \
@@ -202,19 +202,16 @@ LIBART_TARGET_SRC_FILES += \
 	arch/arm/quick_entrypoints_arm.S \
 	arch/arm/arm_sdiv.S \
 	arch/arm/thread_arm.cc
-else # TARGET_ARCH != arm
-ifeq ($(TARGET_ARCH),x86)
-LIBART_TARGET_SRC_FILES += \
+
+LIBART_TARGET_SRC_FILES_x86 := \
 	arch/x86/context_x86.cc \
 	arch/x86/entrypoints_init_x86.cc \
 	arch/x86/jni_entrypoints_x86.S \
 	arch/x86/portable_entrypoints_x86.S \
 	arch/x86/quick_entrypoints_x86.S \
 	arch/x86/thread_x86.cc
-LIBART_LDFLAGS += -Wl,--no-fatal-warnings
-else # TARGET_ARCH != x86
-ifeq ($(TARGET_ARCH),x86_64)
-LIBART_TARGET_SRC_FILES += \
+
+LIBART_TARGET_SRC_FILES_x86_64 := \
 	arch/x86_64/context_x86_64.cc \
 	arch/x86_64/entrypoints_init_x86_64.cc \
 	arch/x86_64/jni_entrypoints_x86_64.S \
@@ -222,31 +219,27 @@ LIBART_TARGET_SRC_FILES += \
 	arch/x86_64/quick_entrypoints_x86_64.S \
 	arch/x86_64/thread_x86_64.cc \
 	monitor_pool.cc
-LIBART_LDFLAGS += -Wl,--no-fatal-warnings
-else # TARGET_ARCH != x86_64
-ifeq ($(TARGET_ARCH),mips)
-LIBART_TARGET_SRC_FILES += \
+
+
+LIBART_TARGET_SRC_FILES_mips := \
 	arch/mips/context_mips.cc \
 	arch/mips/entrypoints_init_mips.cc \
 	arch/mips/jni_entrypoints_mips.S \
 	arch/mips/portable_entrypoints_mips.S \
 	arch/mips/quick_entrypoints_mips.S \
 	arch/mips/thread_mips.cc
-else # TARGET_ARCH != mips
+
 ifeq ($(TARGET_ARCH),arm64)
 $(info TODOArm64: $(LOCAL_PATH)/Android.mk Add Arm64 specific runtime files)
 else
 ifeq ($(TARGET_ARCH),mips64)
 $(info TODOMips64: $(LOCAL_PATH)/Android.mk Add mips64 specific runtime files)
-else
-$(error unsupported TARGET_ARCH=$(TARGET_ARCH))
 endif # TARGET_ARCH != mips64
 endif # TARGET_ARCH != arm64
-endif # TARGET_ARCH != mips
-endif # TARGET_ARCH != x86_64
-endif # TARGET_ARCH != x86
-endif # TARGET_ARCH != arm
 
+ifeq (,$(filter $(TARGET_ARCH),$(ART_SUPPORTED_ARCH)))
+$(warning unsupported TARGET_ARCH=$(TARGET_ARCH))
+endif
 
 LIBART_HOST_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
@@ -337,12 +330,14 @@ define build-libart
 
   ifeq ($$(art_target_or_host),target)
     LOCAL_SRC_FILES := $(LIBART_TARGET_SRC_FILES)
+    $(foreach arch,$(ART_SUPPORTED_ARCH),
+      LOCAL_SRC_FILES_$(arch) := $$(LIBART_TARGET_SRC_FILES_$(arch))))
   else # host
     LOCAL_SRC_FILES := $(LIBART_HOST_SRC_FILES)
     LOCAL_IS_HOST_MODULE := true
   endif
 
-  GENERATED_SRC_DIR := $$(call intermediates-dir-for,$$(LOCAL_MODULE_CLASS),$$(LOCAL_MODULE),$$(LOCAL_IS_HOST_MODULE),)
+  GENERATED_SRC_DIR := $$(call local-generated-sources-dir)
   ENUM_OPERATOR_OUT_CC_FILES := $$(patsubst %.h,%_operator_out.cc,$$(LIBART_ENUM_OPERATOR_OUT_HEADER_FILES))
   ENUM_OPERATOR_OUT_GEN := $$(addprefix $$(GENERATED_SRC_DIR)/,$$(ENUM_OPERATOR_OUT_CC_FILES))
 
@@ -355,6 +350,9 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
 
   LOCAL_CFLAGS := $(LIBART_CFLAGS)
   LOCAL_LDFLAGS := $(LIBART_LDFLAGS)
+  $(foreach arch,$(ART_SUPPORTED_ARCH),
+    LOCAL_LDFLAGS_$(arch) := $$(LIBART_TARGET_LDFLAGS_$(arch))))
+
   ifeq ($$(art_target_or_host),target)
     LOCAL_CLANG := $(ART_TARGET_CLANG)
     LOCAL_CFLAGS += $(ART_TARGET_CFLAGS)
@@ -393,6 +391,11 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   include $(LLVM_GEN_INTRINSICS_MK)
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
+
+  ifeq ($$(art_target_or_host),target)
+    LOCAL_MODULE_TARGET_ARCH := $(ART_SUPPORTED_ARCH)
+  endif
+
   ifeq ($$(art_target_or_host),target)
     include $(LLVM_DEVICE_BUILD_MK)
     include $(BUILD_SHARED_LIBRARY)

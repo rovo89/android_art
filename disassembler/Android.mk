@@ -59,8 +59,6 @@ define build-libart-disassembler
 
   LOCAL_SRC_FILES := $$(LIBART_DISASSEMBLER_SRC_FILES)
 
-  GENERATED_SRC_DIR := $$(call intermediates-dir-for,$$(LOCAL_MODULE_CLASS),$$(LOCAL_MODULE),$$(LOCAL_IS_HOST_MODULE),)
-
   ifeq ($$(art_target_or_host),target)
     LOCAL_CLANG := $(ART_TARGET_CLANG)
     LOCAL_CFLAGS += $(ART_TARGET_CFLAGS)
