@@ -502,7 +502,7 @@ Object* SemiSpace::MarkObject(Object* obj) {
           MarkStackPush(obj);
         }
       } else {
-        DCHECK(!to_space_->HasAddress(obj)) << "Marking object in to_space_";
+        CHECK(!to_space_->HasAddress(obj)) << "Marking object in to_space_";
         if (MarkLargeObject(obj)) {
           MarkStackPush(obj);
         }
