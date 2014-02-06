@@ -25,6 +25,7 @@
 #include "reference_table.h"
 #include "root_visitor.h"
 #include "runtime.h"
+#include "sirt_ref.h"
 
 #include <iosfwd>
 #include <string>
@@ -72,7 +73,7 @@ class JavaVMExt : public JavaVM {
    * Returns 'true' on success. On failure, sets 'detail' to a
    * human-readable description of the error.
    */
-  bool LoadNativeLibrary(const std::string& path, mirror::ClassLoader* class_loader,
+  bool LoadNativeLibrary(const std::string& path, const SirtRef<mirror::ClassLoader>& class_loader,
                          std::string* detail)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

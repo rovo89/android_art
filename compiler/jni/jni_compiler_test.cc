@@ -150,9 +150,10 @@ TEST_F(JniCompilerTest, CompileAndRunIntMethodThroughStub) {
 
   ScopedObjectAccess soa(Thread::Current());
   std::string reason;
+  SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
+                                            soa.Decode<mirror::ClassLoader*>(class_loader_));
   ASSERT_TRUE(
-      Runtime::Current()->GetJavaVM()->LoadNativeLibrary("", soa.Decode<mirror::ClassLoader*>(class_loader_),
-                                                         &reason)) << reason;
+      Runtime::Current()->GetJavaVM()->LoadNativeLibrary("", class_loader, &reason)) << reason;
 
   jint result = env_->CallNonvirtualIntMethod(jobj_, jklass_, jmethod_, 24);
   EXPECT_EQ(25, result);
@@ -165,9 +166,10 @@ TEST_F(JniCompilerTest, CompileAndRunStaticIntMethodThroughStub) {
 
   ScopedObjectAccess soa(Thread::Current());
   std::string reason;
+  SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
+                                            soa.Decode<mirror::ClassLoader*>(class_loader_));
   ASSERT_TRUE(
-      Runtime::Current()->GetJavaVM()->LoadNativeLibrary("", soa.Decode<mirror::ClassLoader*>(class_loader_),
-                                                         &reason)) << reason;
+      Runtime::Current()->GetJavaVM()->LoadNativeLibrary("", class_loader, &reason)) << reason;
 
   jint result = env_->CallStaticIntMethod(jklass_, jmethod_, 42);
   EXPECT_EQ(43, result);
