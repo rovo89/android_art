@@ -338,12 +338,17 @@ const OatFile::OatDexFile* OatFile::GetOatDexFile(const char* dex_location,
   }
 
   if (warn_if_not_found) {
+    std::string checksum("<unspecified>");
+    if (dex_location_checksum != NULL) {
+      checksum = StringPrintf("0x%08x", *dex_location_checksum);
+    }
     LOG(WARNING) << "Failed to find OatDexFile for DexFile " << dex_location
-                 << " in OatFile " << GetLocation();
+                 << " with checksum " << checksum << " in OatFile " << GetLocation();
     if (kIsDebugBuild) {
       for (Table::const_iterator it = oat_dex_files_.begin(); it != oat_dex_files_.end(); ++it) {
         LOG(WARNING) << "OatFile " << GetLocation()
-                     << " contains OatDexFile " << it->second->GetDexFileLocation();
+                     << " contains OatDexFile " << it->second->GetDexFileLocation()
+                     << " with checksum 0x" << std::hex << it->second->GetDexFileLocationChecksum();
       }
     }
   }
