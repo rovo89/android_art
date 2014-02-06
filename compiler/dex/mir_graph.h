@@ -647,7 +647,7 @@ class MIRGraph {
   }
 
   RegLocation GetRegLocation(int index) {
-    DCHECK((index >= 0) && (index > num_ssa_regs_));
+    DCHECK((index >= 0) && (index < num_ssa_regs_));
     return reg_location_[index];
   }
 
