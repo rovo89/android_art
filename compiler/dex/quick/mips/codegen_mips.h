@@ -151,6 +151,8 @@ class MipsMir2Lir : public Mir2Lir {
     LIR* OpRegImm(OpKind op, int r_dest_src1, int value);
     LIR* OpRegMem(OpKind op, int r_dest, int rBase, int offset);
     LIR* OpRegReg(OpKind op, int r_dest_src1, int r_src2);
+    LIR* OpMovRegMem(int r_dest, int r_base, int offset, MoveType move_type);
+    LIR* OpMovMemReg(int r_base, int offset, int r_src, MoveType move_type);
     LIR* OpCondRegReg(OpKind op, ConditionCode cc, int r_dest, int r_src);
     LIR* OpRegRegImm(OpKind op, int r_dest, int r_src1, int value);
     LIR* OpRegRegReg(OpKind op, int r_dest, int r_src1, int r_src2);
