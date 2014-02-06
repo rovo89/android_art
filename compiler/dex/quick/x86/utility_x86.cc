@@ -236,7 +236,57 @@ LIR* X86Mir2Lir::OpRegMem(OpKind op, int r_dest, int rBase,
       LOG(FATAL) << "Bad case in OpRegMem " << op;
       break;
   }
-  return NewLIR3(opcode, r_dest, rBase, offset);
+  LIR *l = NewLIR3(opcode, r_dest, rBase, offset);
+  if (rBase == rX86_SP) {
+    AnnotateDalvikRegAccess(l, offset >> 2, true /* is_load */, false /* is_64bit */);
+  }
+  return l;
+}
+
+LIR* X86Mir2Lir::OpMemReg(OpKind op, RegLocation rl_dest, int r_value) {
+  DCHECK_NE(rl_dest.location, kLocPhysReg);
+  int displacement = SRegOffset(rl_dest.s_reg_low);
+  X86OpCode opcode = kX86Nop;
+  switch (op) {
+    case kOpSub: opcode = kX86Sub32MR; break;
+    case kOpMov: opcode = kX86Mov32MR; break;
+    case kOpCmp: opcode = kX86Cmp32MR; break;
+    case kOpAdd: opcode = kX86Add32MR; break;
+    case kOpAnd: opcode = kX86And32MR; break;
+    case kOpOr:  opcode = kX86Or32MR; break;
+    case kOpXor: opcode = kX86Xor32MR; break;
+    case kOpLsl: opcode = kX86Sal32MC; break;
+    case kOpLsr: opcode = kX86Shr32MC; break;
+    case kOpAsr: opcode = kX86Sar32MC; break;
+    default:
+      LOG(FATAL) << "Bad case in OpMemReg " << op;
+      break;
+  }
+  LIR *l = NewLIR3(opcode, rX86_SP, displacement, r_value);
+  AnnotateDalvikRegAccess(l, displacement >> 2, false /* is_load */, false /* is_64bit */);
+  return l;
+}
+
+LIR* X86Mir2Lir::OpRegMem(OpKind op, int r_dest, RegLocation rl_value) {
+  DCHECK_NE(rl_value.location, kLocPhysReg);
+  int displacement = SRegOffset(rl_value.s_reg_low);
+  X86OpCode opcode = kX86Nop;
+  switch (op) {
+    case kOpSub: opcode = kX86Sub32RM; break;
+    case kOpMov: opcode = kX86Mov32RM; break;
+    case kOpCmp: opcode = kX86Cmp32RM; break;
+    case kOpAdd: opcode = kX86Add32RM; break;
+    case kOpAnd: opcode = kX86And32RM; break;
+    case kOpOr:  opcode = kX86Or32RM; break;
+    case kOpXor: opcode = kX86Xor32RM; break;
+    case kOpMul: opcode = kX86Imul32RM; break;
+    default:
+      LOG(FATAL) << "Bad case in OpRegMem " << op;
+      break;
+  }
+  LIR *l = NewLIR3(opcode, r_dest, rX86_SP, displacement);
+  AnnotateDalvikRegAccess(l, displacement >> 2, true /* is_load */, false /* is_64bit */);
+  return l;
 }
 
 LIR* X86Mir2Lir::OpRegRegReg(OpKind op, int r_dest, int r_src1,

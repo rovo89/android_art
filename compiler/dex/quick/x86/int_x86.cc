@@ -1717,4 +1717,234 @@ void X86Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx,
   StoreValue(rl_dest, rl_result);
 }
 
+void X86Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
+                            RegLocation rl_lhs, RegLocation rl_rhs) {
+  OpKind op = kOpBkpt;
+  bool is_div_rem = false;
+  bool unary = false;
+  bool shift_op = false;
+  bool is_two_addr = false;
+  RegLocation rl_result;
+  switch (opcode) {
+    case Instruction::NEG_INT:
+      op = kOpNeg;
+      unary = true;
+      break;
+    case Instruction::NOT_INT:
+      op = kOpMvn;
+      unary = true;
+      break;
+    case Instruction::ADD_INT_2ADDR:
+      is_two_addr = true;
+      // Fallthrough
+    case Instruction::ADD_INT:
+      op = kOpAdd;
+      break;
+    case Instruction::SUB_INT_2ADDR:
+      is_two_addr = true;
+      // Fallthrough
+    case Instruction::SUB_INT:
+      op = kOpSub;
+      break;
+    case Instruction::MUL_INT_2ADDR:
+      is_two_addr = true;
+      // Fallthrough
+    case Instruction::MUL_INT:
+      op = kOpMul;
+      break;
+    case Instruction::DIV_INT_2ADDR:
+      is_two_addr = true;
+      // Fallthrough
+    case Instruction::DIV_INT:
+      op = kOpDiv;
+      is_div_rem = true;
+      break;
+    /* NOTE: returns in kArg1 */
+    case Instruction::REM_INT_2ADDR:
+      is_two_addr = true;
+      // Fallthrough
+    case Instruction::REM_INT:
+      op = kOpRem;
+      is_div_rem = true;
+      break;
+    case Instruction::AND_INT_2ADDR:
+      is_two_addr = true;
+      // Fallthrough
+    case Instruction::AND_INT:
+      op = kOpAnd;
+      break;
+    case Instruction::OR_INT_2ADDR:
+      is_two_addr = true;
+      // Fallthrough
+    case Instruction::OR_INT:
+      op = kOpOr;
+      break;
+    case Instruction::XOR_INT_2ADDR:
+      is_two_addr = true;
+      // Fallthrough
+    case Instruction::XOR_INT:
+      op = kOpXor;
+      break;
+    case Instruction::SHL_INT_2ADDR:
+      is_two_addr = true;
+      // Fallthrough
+    case Instruction::SHL_INT:
+      shift_op = true;
+      op = kOpLsl;
+      break;
+    case Instruction::SHR_INT_2ADDR:
+      is_two_addr = true;
+      // Fallthrough
+    case Instruction::SHR_INT:
+      shift_op = true;
+      op = kOpAsr;
+      break;
+    case Instruction::USHR_INT_2ADDR:
+      is_two_addr = true;
+      // Fallthrough
+    case Instruction::USHR_INT:
+      shift_op = true;
+      op = kOpLsr;
+      break;
+    default:
+      LOG(FATAL) << "Invalid word arith op: " << opcode;
+  }
+
+    // Can we convert to a two address instruction?
+  if (!is_two_addr &&
+        (mir_graph_->SRegToVReg(rl_dest.s_reg_low) ==
+         mir_graph_->SRegToVReg(rl_lhs.s_reg_low))) {
+      is_two_addr = true;
+    }
+
+  // Get the div/rem stuff out of the way.
+  if (is_div_rem) {
+    rl_result = GenDivRem(rl_dest, rl_lhs, rl_rhs, op == kOpDiv, true);
+    StoreValue(rl_dest, rl_result);
+    return;
+  }
+
+  if (unary) {
+    rl_lhs = LoadValue(rl_lhs, kCoreReg);
+    rl_result = UpdateLoc(rl_dest);
+    rl_result = EvalLoc(rl_dest, kCoreReg, true);
+    OpRegReg(op, rl_result.low_reg, rl_lhs.low_reg);
+  } else {
+    if (shift_op) {
+      // X86 doesn't require masking and must use ECX.
+      int t_reg = TargetReg(kCount);  // rCX
+      LoadValueDirectFixed(rl_rhs, t_reg);
+      if (is_two_addr) {
+        // Can we do this directly into memory?
+        rl_result = UpdateLoc(rl_dest);
+        rl_rhs = LoadValue(rl_rhs, kCoreReg);
+        if (rl_result.location != kLocPhysReg) {
+          // Okay, we can do this into memory
+          OpMemReg(op, rl_result, t_reg);
+          FreeTemp(t_reg);
+          return;
+        } else if (!IsFpReg(rl_result.low_reg)) {
+          // Can do this directly into the result register
+          OpRegReg(op, rl_result.low_reg, t_reg);
+          FreeTemp(t_reg);
+          StoreFinalValue(rl_dest, rl_result);
+          return;
+        }
+      }
+      // Three address form, or we can't do directly.
+      rl_lhs = LoadValue(rl_lhs, kCoreReg);
+      rl_result = EvalLoc(rl_dest, kCoreReg, true);
+      OpRegRegReg(op, rl_result.low_reg, rl_lhs.low_reg, t_reg);
+      FreeTemp(t_reg);
+    } else {
+      // Multiply is 3 operand only (sort of).
+      if (is_two_addr && op != kOpMul) {
+        // Can we do this directly into memory?
+        rl_result = UpdateLoc(rl_dest);
+        if (rl_result.location == kLocPhysReg) {
+          // Can we do this from memory directly?
+          rl_rhs = UpdateLoc(rl_rhs);
+          if (rl_rhs.location != kLocPhysReg) {
+            OpRegMem(op, rl_result.low_reg, rl_rhs);
+            StoreFinalValue(rl_dest, rl_result);
+            return;
+          } else if (!IsFpReg(rl_rhs.low_reg)) {
+            OpRegReg(op, rl_result.low_reg, rl_rhs.low_reg);
+            StoreFinalValue(rl_dest, rl_result);
+            return;
+          }
+        }
+        rl_rhs = LoadValue(rl_rhs, kCoreReg);
+        if (rl_result.location != kLocPhysReg) {
+          // Okay, we can do this into memory.
+          OpMemReg(op, rl_result, rl_rhs.low_reg);
+          return;
+        } else if (!IsFpReg(rl_result.low_reg)) {
+          // Can do this directly into the result register.
+          OpRegReg(op, rl_result.low_reg, rl_rhs.low_reg);
+          StoreFinalValue(rl_dest, rl_result);
+          return;
+        } else {
+          rl_lhs = LoadValue(rl_lhs, kCoreReg);
+          rl_result = EvalLoc(rl_dest, kCoreReg, true);
+          OpRegRegReg(op, rl_result.low_reg, rl_lhs.low_reg, rl_rhs.low_reg);
+        }
+      } else {
+        // Try to use reg/memory instructions.
+        rl_lhs = UpdateLoc(rl_lhs);
+        rl_rhs = UpdateLoc(rl_rhs);
+        // We can't optimize with FP registers.
+        if (!IsOperationSafeWithoutTemps(rl_lhs, rl_rhs)) {
+          // Something is difficult, so fall back to the standard case.
+          rl_lhs = LoadValue(rl_lhs, kCoreReg);
+          rl_rhs = LoadValue(rl_rhs, kCoreReg);
+          rl_result = EvalLoc(rl_dest, kCoreReg, true);
+          OpRegRegReg(op, rl_result.low_reg, rl_lhs.low_reg, rl_rhs.low_reg);
+        } else {
+          // We can optimize by moving to result and using memory operands.
+          if (rl_rhs.location != kLocPhysReg) {
+            // Force LHS into result.
+            rl_result = EvalLoc(rl_dest, kCoreReg, true);
+            LoadValueDirect(rl_lhs, rl_result.low_reg);
+            OpRegMem(op, rl_result.low_reg, rl_rhs);
+          } else if (rl_lhs.location != kLocPhysReg) {
+            // RHS is in a register; LHS is in memory.
+            if (op != kOpSub) {
+              // Force RHS into result and operate on memory.
+              rl_result = EvalLoc(rl_dest, kCoreReg, true);
+              OpRegCopy(rl_result.low_reg, rl_rhs.low_reg);
+              OpRegMem(op, rl_result.low_reg, rl_lhs);
+            } else {
+              // Subtraction isn't commutative.
+              rl_lhs = LoadValue(rl_lhs, kCoreReg);
+              rl_rhs = LoadValue(rl_rhs, kCoreReg);
+              rl_result = EvalLoc(rl_dest, kCoreReg, true);
+              OpRegRegReg(op, rl_result.low_reg, rl_lhs.low_reg, rl_rhs.low_reg);
+            }
+          } else {
+            // Both are in registers.
+            rl_lhs = LoadValue(rl_lhs, kCoreReg);
+            rl_rhs = LoadValue(rl_rhs, kCoreReg);
+            rl_result = EvalLoc(rl_dest, kCoreReg, true);
+            OpRegRegReg(op, rl_result.low_reg, rl_lhs.low_reg, rl_rhs.low_reg);
+          }
+        }
+      }
+    }
+  }
+  StoreValue(rl_dest, rl_result);
+}
+
+bool X86Mir2Lir::IsOperationSafeWithoutTemps(RegLocation rl_lhs, RegLocation rl_rhs) {
+  // If we have non-core registers, then we can't do good things.
+  if (rl_lhs.location == kLocPhysReg && IsFpReg(rl_lhs.low_reg)) {
+    return false;
+  }
+  if (rl_rhs.location == kLocPhysReg && IsFpReg(rl_rhs.low_reg)) {
+    return false;
+  }
+
+  // Everything will be fine :-).
+  return true;
+}
 }  // namespace art
