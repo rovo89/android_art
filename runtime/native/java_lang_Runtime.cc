@@ -64,7 +64,8 @@ static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, job
   std::string detail;
   {
     ScopedObjectAccess soa(env);
-    mirror::ClassLoader* classLoader = soa.Decode<mirror::ClassLoader*>(javaLoader);
+    SirtRef<mirror::ClassLoader> classLoader(soa.Self(),
+                                             soa.Decode<mirror::ClassLoader*>(javaLoader));
     JavaVMExt* vm = Runtime::Current()->GetJavaVM();
     bool success = vm->LoadNativeLibrary(filename.c_str(), classLoader, &detail);
     if (success) {

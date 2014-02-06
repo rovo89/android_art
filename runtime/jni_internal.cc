@@ -3217,7 +3217,8 @@ void JavaVMExt::DumpReferenceTables(std::ostream& os) {
   }
 }
 
-bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_loader,
+bool JavaVMExt::LoadNativeLibrary(const std::string& path,
+                                  const SirtRef<ClassLoader>& class_loader,
                                   std::string* detail) {
   detail->clear();
 
@@ -3233,18 +3234,18 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
     library = libraries->Get(path);
   }
   if (library != NULL) {
-    if (library->GetClassLoader() != class_loader) {
+    if (library->GetClassLoader() != class_loader.get()) {
       // The library will be associated with class_loader. The JNI
       // spec says we can't load the same library into more than one
       // class loader.
       StringAppendF(detail, "Shared library \"%s\" already opened by "
           "ClassLoader %p; can't open in ClassLoader %p",
-          path.c_str(), library->GetClassLoader(), class_loader);
+          path.c_str(), library->GetClassLoader(), class_loader.get());
       LOG(WARNING) << detail;
       return false;
     }
     VLOG(jni) << "[Shared library \"" << path << "\" already loaded in "
-              << "ClassLoader " << class_loader << "]";
+              << "ClassLoader " << class_loader.get() << "]";
     if (!library->CheckOnLoadResult()) {
       StringAppendF(detail, "JNI_OnLoad failed on a previous attempt "
           "to load \"%s\"", path.c_str());
@@ -3285,18 +3286,19 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
     MutexLock mu(self, libraries_lock);
     library = libraries->Get(path);
     if (library == NULL) {  // We won race to get libraries_lock
-      library = new SharedLibrary(path, handle, class_loader);
+      library = new SharedLibrary(path, handle, class_loader.get());
       libraries->Put(path, library);
       created_library = true;
     }
   }
   if (!created_library) {
     LOG(INFO) << "WOW: we lost a race to add shared library: "
-        << "\"" << path << "\" ClassLoader=" << class_loader;
+        << "\"" << path << "\" ClassLoader=" << class_loader.get();
     return library->CheckOnLoadResult();
   }
 
-  VLOG(jni) << "[Added shared library \"" << path << "\" for ClassLoader " << class_loader << "]";
+  VLOG(jni) << "[Added shared library \"" << path << "\" for ClassLoader " << class_loader.get()
+      << "]";
 
   bool was_successful = false;
   void* sym = dlsym(handle, "JNI_OnLoad");
@@ -3311,7 +3313,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
     typedef int (*JNI_OnLoadFn)(JavaVM*, void*);
     JNI_OnLoadFn jni_on_load = reinterpret_cast<JNI_OnLoadFn>(sym);
     SirtRef<ClassLoader> old_class_loader(self, self->GetClassLoaderOverride());
-    self->SetClassLoaderOverride(class_loader);
+    self->SetClassLoaderOverride(class_loader.get());
 
     int version = 0;
     {
