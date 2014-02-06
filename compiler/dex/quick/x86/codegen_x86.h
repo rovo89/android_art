@@ -204,6 +204,8 @@ class X86Mir2Lir : public Mir2Lir {
     LIR* OpRegCopyNoInsert(int r_dest, int r_src);
     LIR* OpRegImm(OpKind op, int r_dest_src1, int value);
     LIR* OpRegMem(OpKind op, int r_dest, int rBase, int offset);
+    LIR* OpMemReg(OpKind op, RegLocation rl_dest, int value);
+    LIR* OpRegMem(OpKind op, int r_dest, RegLocation value);
     LIR* OpRegReg(OpKind op, int r_dest_src1, int r_src2);
     LIR* OpCondRegReg(OpKind op, ConditionCode cc, int r_dest, int r_src);
     LIR* OpRegRegImm(OpKind op, int r_dest, int r_src1, int value);
@@ -230,6 +232,16 @@ class X86Mir2Lir : public Mir2Lir {
     RegLocation EvalLoc(RegLocation loc, int reg_class, bool update);
     int AllocTempDouble();
     void ResetDefLocWide(RegLocation rl);
+
+    /*
+     * @brief x86 specific codegen for int operations.
+     * @param opcode Operation to perform.
+     * @param rl_dest Destination for the result.
+     * @param rl_lhs Left hand operand.
+     * @param rl_rhs Right hand operand.
+     */
+    void GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
+                       RegLocation rl_lhs, RegLocation rl_rhs);
 
   private:
     void EmitPrefix(const X86EncodingMap* entry);
@@ -260,6 +272,7 @@ class X86Mir2Lir : public Mir2Lir {
     void EmitThreadImm(const X86EncodingMap* entry, int disp, int imm);
     void EmitMovRegImm(const X86EncodingMap* entry, uint8_t reg, int imm);
     void EmitShiftRegImm(const X86EncodingMap* entry, uint8_t reg, int imm);
+    void EmitShiftMemCl(const X86EncodingMap* entry, uint8_t base, int displacement, uint8_t cl);
     void EmitShiftRegCl(const X86EncodingMap* entry, uint8_t reg, uint8_t cl);
     void EmitRegCond(const X86EncodingMap* entry, uint8_t reg, uint8_t condition);
 
@@ -366,6 +379,7 @@ class X86Mir2Lir : public Mir2Lir {
      * @param val Constant multiplier.
      */
     void GenImulRegImm(int dest, int src, int val);
+
     /*
      * Generate an imul of a memory location by a constant or a better sequence.
      * @param dest Destination Register.
@@ -386,6 +400,13 @@ class X86Mir2Lir : public Mir2Lir {
      */
     LIR* OpCmpMemImmBranch(ConditionCode cond, int temp_reg, int base_reg,
                            int offset, int check_value, LIR* target);
+    /*
+     * Can this operation be using core registers without temporaries?
+     * @param rl_lhs Left hand operand.
+     * @param rl_rhs Right hand operand.
+     * @returns 'true' if the operation can proceed without needing temporary regs.
+     */
+    bool IsOperationSafeWithoutTemps(RegLocation rl_lhs, RegLocation rl_rhs);
 };
 
 }  // namespace art

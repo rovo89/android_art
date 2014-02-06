@@ -572,8 +572,6 @@ class Mir2Lir : public Backend {
                       RegLocation rl_src1, RegLocation rl_src2);
     void GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
                         RegLocation rl_src1, RegLocation rl_shift);
-    void GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
-                       RegLocation rl_src1, RegLocation rl_src2);
     void GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest,
                           RegLocation rl_src, int lit);
     void GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
@@ -582,8 +580,11 @@ class Mir2Lir : public Backend {
                            RegLocation rl_src);
     void GenSuspendTest(int opt_flags);
     void GenSuspendTestAndBranch(int opt_flags, LIR* target);
+
     // This will be overridden by x86 implementation.
     virtual void GenConstWide(RegLocation rl_dest, int64_t value);
+    virtual void GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
+                       RegLocation rl_src1, RegLocation rl_src2);
 
     // Shared by all targets - implemented in gen_invoke.cc.
     int CallHelperSetup(ThreadOffset helper_offset);
@@ -704,6 +705,18 @@ class Mir2Lir : public Backend {
      * @param rl_src The source register location. Can be either physical register or dalvik register.
      */
     void StoreValueWide(RegLocation rl_dest, RegLocation rl_src);
+
+    /**
+     * @brief Used to do the final store to a destination as per bytecode semantics.
+     * @see StoreValue
+     * @param rl_dest The destination dalvik register location.
+     * @param rl_src The source register location. It must be kLocPhysReg
+     *
+     * This is used for x86 two operand computations, where we have computed the correct
+     * register value that now needs to be properly registered.  This is used to avoid an
+     * extra register copy that would result if StoreValue was called.
+     */
+    void StoreFinalValue(RegLocation rl_dest, RegLocation rl_src);
 
     /**
      * @brief Used to do the final store in a wide destination as per bytecode semantics.
