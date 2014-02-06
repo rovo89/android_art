@@ -510,7 +510,11 @@ bool X86Mir2Lir::IsUnconditionalBranch(LIR* lir) {
 }
 
 X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
-    : Mir2Lir(cu, mir_graph, arena) {
+    : Mir2Lir(cu, mir_graph, arena),
+      method_address_insns_(arena, 100, kGrowableArrayMisc),
+      class_type_address_insns_(arena, 100, kGrowableArrayMisc),
+      call_method_insns_(arena, 100, kGrowableArrayMisc) {
+  store_method_addr_used_ = false;
   for (int i = 0; i < kX86Last; i++) {
     if (X86Mir2Lir::EncodingMap[i].opcode != i) {
       LOG(FATAL) << "Encoding order for " << X86Mir2Lir::EncodingMap[i].name
@@ -814,6 +818,106 @@ void X86Mir2Lir::Materialize() {
 
   // Now continue with regular code generation.
   Mir2Lir::Materialize();
+}
+
+void X86Mir2Lir::LoadMethodAddress(int dex_method_index, InvokeType type,
+                                   SpecialTargetRegister symbolic_reg) {
+  /*
+   * For x86, just generate a 32 bit move immediate instruction, that will be filled
+   * in at 'link time'.  For now, put a unique value based on target to ensure that
+   * code deduplication works.
+   */
+  const DexFile::MethodId& id = cu_->dex_file->GetMethodId(dex_method_index);
+  uintptr_t ptr = reinterpret_cast<uintptr_t>(&id);
+
+  // Generate the move instruction with the unique pointer and save index and type.
+  LIR *move = RawLIR(current_dalvik_offset_, kX86Mov32RI, TargetReg(symbolic_reg),
+                     static_cast<int>(ptr), dex_method_index, type);
+  AppendLIR(move);
+  method_address_insns_.Insert(move);
+}
+
+void X86Mir2Lir::LoadClassType(uint32_t type_idx, SpecialTargetRegister symbolic_reg) {
+  /*
+   * For x86, just generate a 32 bit move immediate instruction, that will be filled
+   * in at 'link time'.  For now, put a unique value based on target to ensure that
+   * code deduplication works.
+   */
+  const DexFile::TypeId& id = cu_->dex_file->GetTypeId(type_idx);
+  uintptr_t ptr = reinterpret_cast<uintptr_t>(&id);
+
+  // Generate the move instruction with the unique pointer and save index and type.
+  LIR *move = RawLIR(current_dalvik_offset_, kX86Mov32RI, TargetReg(symbolic_reg),
+                     static_cast<int>(ptr), type_idx);
+  AppendLIR(move);
+  class_type_address_insns_.Insert(move);
+}
+
+LIR *X86Mir2Lir::CallWithLinkerFixup(int dex_method_index, InvokeType type) {
+  /*
+   * For x86, just generate a 32 bit call relative instruction, that will be filled
+   * in at 'link time'.  For now, put a unique value based on target to ensure that
+   * code deduplication works.
+   */
+  const DexFile::MethodId& id = cu_->dex_file->GetMethodId(dex_method_index);
+  uintptr_t ptr = reinterpret_cast<uintptr_t>(&id);
+
+  // Generate the call instruction with the unique pointer and save index and type.
+  LIR *call = RawLIR(current_dalvik_offset_, kX86CallI, static_cast<int>(ptr), dex_method_index,
+                     type);
+  AppendLIR(call);
+  call_method_insns_.Insert(call);
+  return call;
+}
+
+void X86Mir2Lir::InstallLiteralPools() {
+  // These are handled differently for x86.
+  DCHECK(code_literal_list_ == nullptr);
+  DCHECK(method_literal_list_ == nullptr);
+  DCHECK(class_literal_list_ == nullptr);
+
+  // Handle the fixups for methods.
+  for (uint32_t i = 0; i < method_address_insns_.Size(); i++) {
+      LIR* p = method_address_insns_.Get(i);
+      DCHECK_EQ(p->opcode, kX86Mov32RI);
+      uint32_t target = p->operands[2];
+
+      // The offset to patch is the last 4 bytes of the instruction.
+      int patch_offset = p->offset + p->flags.size - 4;
+      cu_->compiler_driver->AddMethodPatch(cu_->dex_file, cu_->class_def_idx,
+                                           cu_->method_idx, cu_->invoke_type,
+                                           target, static_cast<InvokeType>(p->operands[3]),
+                                           patch_offset);
+  }
+
+  // Handle the fixups for class types.
+  for (uint32_t i = 0; i < class_type_address_insns_.Size(); i++) {
+      LIR* p = class_type_address_insns_.Get(i);
+      DCHECK_EQ(p->opcode, kX86Mov32RI);
+      uint32_t target = p->operands[2];
+
+      // The offset to patch is the last 4 bytes of the instruction.
+      int patch_offset = p->offset + p->flags.size - 4;
+      cu_->compiler_driver->AddClassPatch(cu_->dex_file, cu_->class_def_idx,
+                                          cu_->method_idx, target, patch_offset);
+  }
+
+  // And now the PC-relative calls to methods.
+  for (uint32_t i = 0; i < call_method_insns_.Size(); i++) {
+      LIR* p = call_method_insns_.Get(i);
+      DCHECK_EQ(p->opcode, kX86CallI);
+      uint32_t target = p->operands[1];
+
+      // The offset to patch is the last 4 bytes of the instruction.
+      int patch_offset = p->offset + p->flags.size - 4;
+      cu_->compiler_driver->AddRelativeCodePatch(cu_->dex_file, cu_->class_def_idx,
+                                                 cu_->method_idx, cu_->invoke_type, target,
+                                                 static_cast<InvokeType>(p->operands[2]),
+                                                 patch_offset, -4 /* offset */);
+  }
+
+  // And do the normal processing.
+  Mir2Lir::InstallLiteralPools();
 }
 
 }  // namespace art

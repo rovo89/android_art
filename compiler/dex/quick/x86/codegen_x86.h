@@ -245,6 +245,43 @@ class X86Mir2Lir : public Mir2Lir {
     void GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
                        RegLocation rl_lhs, RegLocation rl_rhs);
 
+    /*
+     * @brief Dump a RegLocation using printf
+     * @param loc Register location to dump
+     */
+    static void DumpRegLocation(RegLocation loc);
+
+    /*
+     * @brief Load the Method* of a dex method into the register.
+     * @param dex_method_index The index of the method to be invoked.
+     * @param type How the method will be invoked.
+     * @param register that will contain the code address.
+     * @note register will be passed to TargetReg to get physical register.
+     */
+    void LoadMethodAddress(int dex_method_index, InvokeType type,
+                           SpecialTargetRegister symbolic_reg);
+
+    /*
+     * @brief Load the Class* of a Dex Class type into the register.
+     * @param type How the method will be invoked.
+     * @param register that will contain the code address.
+     * @note register will be passed to TargetReg to get physical register.
+     */
+    void LoadClassType(uint32_t type_idx, SpecialTargetRegister symbolic_reg);
+
+    /*
+     * @brief Generate a relative call to the method that will be patched at link time.
+     * @param dex_method_index The index of the method to be invoked.
+     * @param type How the method will be invoked.
+     * @returns Call instruction
+     */
+    LIR * CallWithLinkerFixup(int dex_method_index, InvokeType type);
+
+    /*
+     * @brief Handle x86 specific literals
+     */
+    void InstallLiteralPools();
+
   private:
     void EmitPrefix(const X86EncodingMap* entry);
     void EmitOpcode(const X86EncodingMap* entry);
@@ -290,6 +327,7 @@ class X86Mir2Lir : public Mir2Lir {
     void EmitJmp(const X86EncodingMap* entry, int rel);
     void EmitJcc(const X86EncodingMap* entry, int rel, uint8_t cc);
     void EmitCallMem(const X86EncodingMap* entry, uint8_t base, int disp);
+    void EmitCallImmediate(const X86EncodingMap* entry, int disp);
     void EmitCallThread(const X86EncodingMap* entry, int disp);
     void EmitPcRel(const X86EncodingMap* entry, uint8_t reg, int base_or_table, uint8_t index,
                    int scale, int table_or_disp);
@@ -329,12 +367,6 @@ class X86Mir2Lir : public Mir2Lir {
      * @returns 'true' if the operation will have no effect
      */
     bool IsNoOp(Instruction::Code op, int32_t value);
-
-    /*
-     * @brief Dump a RegLocation using printf
-     * @param loc Register location to dump
-     */
-    static void DumpRegLocation(RegLocation loc);
 
     /**
      * @brief Calculate magic number and shift for a given divisor
@@ -459,11 +491,26 @@ class X86Mir2Lir : public Mir2Lir {
 
     // Information derived from analysis of MIR
 
+    // The compiler temporary for the code address of the method.
+    CompilerTemp *base_of_code_;
+
     // Have we decided to compute a ptr to code and store in temporary VR?
     bool store_method_addr_;
 
-    // The compiler temporary for the code address of the method.
-    CompilerTemp *base_of_code_;
+    // Have we used the stored method address?
+    bool store_method_addr_used_;
+
+    // Instructions to remove if we didn't use the stored method address.
+    LIR* setup_method_address_[2];
+
+    // Instructions needing patching with Method* values.
+    GrowableArray<LIR*> method_address_insns_;
+
+    // Instructions needing patching with Class Type* values.
+    GrowableArray<LIR*> class_type_address_insns_;
+
+    // Instructions needing patching with PC relative code addresses.
+    GrowableArray<LIR*> call_method_insns_;
 };
 
 }  // namespace art

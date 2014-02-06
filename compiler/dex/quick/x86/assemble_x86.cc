@@ -354,6 +354,7 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86CallM, kCall, IS_BINARY_OP | IS_BRANCH | IS_LOAD | REG_USE0,        { 0,             0, 0xFF, 0,    0, 2, 0, 0 }, "CallM", "[!0r+!1d]" },
   { kX86CallA, kCall, IS_QUAD_OP   | IS_BRANCH | IS_LOAD | REG_USE01,       { 0,             0, 0xFF, 0,    0, 2, 0, 0 }, "CallA", "[!0r+!1r<<!2d+!3d]" },
   { kX86CallT, kCall, IS_UNARY_OP  | IS_BRANCH | IS_LOAD,                   { THREAD_PREFIX, 0, 0xFF, 0,    0, 2, 0, 0 }, "CallT", "fs:[!0d]" },
+  { kX86CallI, kCall, IS_UNARY_OP  | IS_BRANCH,                             { 0,             0, 0xE8, 0,    0, 0, 0, 4 }, "CallI", "!0d" },
   { kX86Ret,   kNullary, NO_OPERAND | IS_BRANCH,                            { 0,             0, 0xC3, 0,    0, 0, 0, 0 }, "Ret", "" },
 
   { kX86StartOfMethod, kMacro,  IS_UNARY_OP | SETS_CCODES,             { 0, 0, 0,    0, 0, 0, 0, 0 }, "StartOfMethod", "!0r" },
@@ -494,6 +495,7 @@ int X86Mir2Lir::GetInsnSize(LIR* lir) {
       }
     case kCall:
       switch (lir->opcode) {
+        case kX86CallI: return 5;  // opcode 0:disp
         case kX86CallR: return 2;  // opcode modrm
         case kX86CallM:  // lir operands - 0: base, 1: disp
           return ComputeSize(entry, lir->operands[0], lir->operands[1], false);
@@ -985,6 +987,16 @@ void X86Mir2Lir::EmitCallMem(const X86EncodingMap* entry, uint8_t base, int disp
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
+void X86Mir2Lir::EmitCallImmediate(const X86EncodingMap* entry, int disp) {
+  EmitPrefixAndOpcode(entry);
+  DCHECK_EQ(4, entry->skeleton.immediate_bytes);
+  code_buffer_.push_back(disp & 0xFF);
+  code_buffer_.push_back((disp >> 8) & 0xFF);
+  code_buffer_.push_back((disp >> 16) & 0xFF);
+  code_buffer_.push_back((disp >> 24) & 0xFF);
+  DCHECK_EQ(0, entry->skeleton.ax_opcode);
+}
+
 void X86Mir2Lir::EmitCallThread(const X86EncodingMap* entry, int disp) {
   DCHECK_NE(entry->skeleton.prefix1, 0);
   EmitPrefixAndOpcode(entry);
@@ -1290,6 +1302,9 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
         break;
       case kCall:
         switch (entry->opcode) {
+          case kX86CallI:  // lir operands - 0: disp
+            EmitCallImmediate(entry, lir->operands[0]);
+            break;
           case kX86CallM:  // lir operands - 0: base, 1: disp
             EmitCallMem(entry, lir->operands[0], lir->operands[1]);
             break;
@@ -1375,6 +1390,13 @@ void X86Mir2Lir::AssignOffsets() {
  */
 void X86Mir2Lir::AssembleLIR() {
   cu_->NewTimingSplit("Assemble");
+
+  // We will remove the method address if we never ended up using it
+  if (store_method_addr_ && !store_method_addr_used_) {
+    setup_method_address_[0]->flags.is_nop = true;
+    setup_method_address_[1]->flags.is_nop = true;
+  }
+
   AssignOffsets();
   int assembler_retries = 0;
   /*
