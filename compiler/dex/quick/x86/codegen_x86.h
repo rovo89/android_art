@@ -407,6 +407,61 @@ class X86Mir2Lir : public Mir2Lir {
      * @returns 'true' if the operation can proceed without needing temporary regs.
      */
     bool IsOperationSafeWithoutTemps(RegLocation rl_lhs, RegLocation rl_rhs);
+
+    /*
+     * @brief Perform MIR analysis before compiling method.
+     * @note Invokes Mir2LiR::Materialize after analysis.
+     */
+    void Materialize();
+
+    /*
+     * @brief Analyze MIR before generating code, to prepare for the code generation.
+     */
+    void AnalyzeMIR();
+
+    /*
+     * @brief Analyze one basic block.
+     * @param bb Basic block to analyze.
+     */
+    void AnalyzeBB(BasicBlock * bb);
+
+    /*
+     * @brief Analyze one extended MIR instruction
+     * @param opcode MIR instruction opcode.
+     * @param bb Basic block containing instruction.
+     * @param mir Extended instruction to analyze.
+     */
+    void AnalyzeExtendedMIR(int opcode, BasicBlock * bb, MIR *mir);
+
+    /*
+     * @brief Analyze one MIR instruction
+     * @param opcode MIR instruction opcode.
+     * @param bb Basic block containing instruction.
+     * @param mir Instruction to analyze.
+     */
+    void AnalyzeMIR(int opcode, BasicBlock * bb, MIR *mir);
+
+    /*
+     * @brief Analyze one MIR float/double instruction
+     * @param opcode MIR instruction opcode.
+     * @param bb Basic block containing instruction.
+     * @param mir Instruction to analyze.
+     */
+    void AnalyzeFPInstruction(int opcode, BasicBlock * bb, MIR *mir);
+
+    /*
+     * @brief Analyze one use of a double operand.
+     * @param rl_use Double RegLocation for the operand.
+     */
+    void AnalyzeDoubleUse(RegLocation rl_use);
+
+    // Information derived from analysis of MIR
+
+    // Have we decided to compute a ptr to code and store in temporary VR?
+    bool store_method_addr_;
+
+    // The compiler temporary for the code address of the method.
+    CompilerTemp *base_of_code_;
 };
 
 }  // namespace art
