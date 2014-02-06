@@ -210,6 +210,22 @@ enum OpKind {
   kOpInvalid,
 };
 
+enum MoveType {
+  kMov8GP,      // Move 8-bit general purpose register.
+  kMov16GP,     // Move 16-bit general purpose register.
+  kMov32GP,     // Move 32-bit general purpose register.
+  kMov64GP,     // Move 64-bit general purpose register.
+  kMov32FP,     // Move 32-bit FP register.
+  kMov64FP,     // Move 64-bit FP register.
+  kMovLo64FP,   // Move low 32-bits of 64-bit FP register.
+  kMovHi64FP,   // Move high 32-bits of 64-bit FP register.
+  kMovU128FP,   // Move 128-bit FP register to/from possibly unaligned region.
+  kMov128FP = kMovU128FP,
+  kMovA128FP,   // Move 128-bit FP register to/from region surely aligned to 16-bytes.
+  kMovLo128FP,  // Move low 64-bits of 128-bit FP register.
+  kMovHi128FP,  // Move high 64-bits of 128-bit FP register.
+};
+
 std::ostream& operator<<(std::ostream& os, const OpKind& kind);
 
 enum ConditionCode {
