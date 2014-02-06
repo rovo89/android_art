@@ -613,14 +613,6 @@ class Heap {
   void RequestConcurrentGC(Thread* self) LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
   bool IsGCRequestPending() const;
 
-  size_t RecordAllocationInstrumented(size_t size, mirror::Object* object)
-      LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  size_t RecordAllocationUninstrumented(size_t size, mirror::Object* object)
-      LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   // Sometimes CollectGarbageInternal decides to run a different Gc than you requested. Returns
   // which type of Gc was actually ran.
   collector::GcType CollectGarbageInternal(collector::GcType gc_plan, GcCause gc_cause,
@@ -735,11 +727,6 @@ class Heap {
 
   // If we have a zygote space.
   bool have_zygote_space_;
-
-  // Number of pinned primitive arrays in the movable space.
-  // Block all GC until this hits zero, or we hit the timeout!
-  size_t number_gc_blockers_;
-  static constexpr size_t KGCBlockTimeout = 30000;
 
   // Guards access to the state of GC, associated conditional variable is used to signal when a GC
   // completes.
