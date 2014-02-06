@@ -62,6 +62,10 @@ class MemMap {
   // Releases the memory mapping
   ~MemMap();
 
+  const std::string& GetName() const {
+    return name_;
+  }
+
   bool Protect(int prot);
 
   int GetProtect() const {
@@ -78,6 +82,18 @@ class MemMap {
 
   byte* End() const {
     return Begin() + Size();
+  }
+
+  void* BaseBegin() const {
+    return base_begin_;
+  }
+
+  size_t BaseSize() const {
+    return base_size_;
+  }
+
+  void* BaseEnd() const {
+    return reinterpret_cast<byte*>(BaseBegin()) + BaseSize();
   }
 
   bool HasAddress(const void* addr) const {
@@ -102,6 +118,7 @@ class MemMap {
 
   friend class MemMapTest;  // To allow access to base_begin_ and base_size_.
 };
+std::ostream& operator<<(std::ostream& os, const MemMap& mem_map);
 
 }  // namespace art
 

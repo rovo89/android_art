@@ -849,29 +849,10 @@ class DexFile {
   DexFile(const byte* base, size_t size,
           const std::string& location,
           uint32_t location_checksum,
-          MemMap* mem_map)
-      : begin_(base),
-        size_(size),
-        location_(location),
-        location_checksum_(location_checksum),
-        mem_map_(mem_map),
-        modification_lock("DEX modification lock"),
-        header_(0),
-        string_ids_(0),
-        type_ids_(0),
-        field_ids_(0),
-        method_ids_(0),
-        proto_ids_(0),
-        class_defs_(0) {
-    CHECK(begin_ != NULL) << GetLocation();
-    CHECK_GT(size_, 0U) << GetLocation();
-  }
+          MemMap* mem_map);
 
   // Top-level initializer that calls other Init methods.
   bool Init(std::string* error_msg);
-
-  // Caches pointers into to the various file sections.
-  void InitMembers();
 
   // Returns true if the header magic and version numbers are of the expected values.
   bool CheckMagicAndVersion(std::string* error_msg) const;
@@ -903,26 +884,27 @@ class DexFile {
   Mutex modification_lock;
 
   // Points to the header section.
-  const Header* header_;
+  const Header* const header_;
 
   // Points to the base of the string identifier list.
-  const StringId* string_ids_;
+  const StringId* const string_ids_;
 
   // Points to the base of the type identifier list.
-  const TypeId* type_ids_;
+  const TypeId* const type_ids_;
 
   // Points to the base of the field identifier list.
-  const FieldId* field_ids_;
+  const FieldId* const field_ids_;
 
   // Points to the base of the method identifier list.
-  const MethodId* method_ids_;
+  const MethodId* const method_ids_;
 
   // Points to the base of the prototype identifier list.
-  const ProtoId* proto_ids_;
+  const ProtoId* const proto_ids_;
 
   // Points to the base of the class definition list.
-  const ClassDef* class_defs_;
+  const ClassDef* const class_defs_;
 };
+std::ostream& operator<<(std::ostream& os, const DexFile& dex_file);
 
 // Iterate over a dex file's ProtoId's paramters
 class DexFileParameterIterator {
