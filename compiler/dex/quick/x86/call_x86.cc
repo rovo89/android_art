@@ -22,11 +22,6 @@
 
 namespace art {
 
-void X86Mir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
-                                const InlineMethod& special) {
-  // TODO
-}
-
 /*
  * The sparse table in the literal pool is an array of <key,displacement>
  * pairs.
@@ -252,6 +247,10 @@ void X86Mir2Lir::GenExitSequence() {
   UnSpillCoreRegs();
   /* Remove frame except for return address */
   OpRegImm(kOpAdd, rX86_SP, frame_size_ - 4);
+  NewLIR0(kX86Ret);
+}
+
+void X86Mir2Lir::GenSpecialExitSequence() {
   NewLIR0(kX86Ret);
 }
 

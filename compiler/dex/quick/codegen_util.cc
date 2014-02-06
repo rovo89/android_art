@@ -1017,19 +1017,13 @@ void Mir2Lir::Materialize() {
   /* Allocate Registers using simple local allocation scheme */
   SimpleRegAlloc();
 
-  /*
-   * Custom codegen for special cases.  If for any reason the
-   * special codegen doesn't succeed, first_lir_insn_ will be
-   * set to NULL;
-   */
-  // TODO: Clean up GenSpecial() and return true only if special implementation is emitted.
-  // Currently, GenSpecial() returns IsSpecial() but doesn't check after SpecialMIR2LIR().
+  /* First try the custom light codegen for special cases. */
   DCHECK(cu_->compiler_driver->GetMethodInlinerMap() != nullptr);
-  cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file)
+  bool special_worked = cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file)
       ->GenSpecial(this, cu_->method_idx);
 
-  /* Convert MIR to LIR, etc. */
-  if (first_lir_insn_ == NULL) {
+  /* Take normal path for converting MIR to LIR only if the special codegen did not succeed. */
+  if (special_worked == false) {
     MethodMIR2LIR();
   }
 

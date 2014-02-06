@@ -185,6 +185,13 @@ Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
 #define ENCODE_MEM              (ENCODE_DALVIK_REG | ENCODE_LITERAL | \
                                  ENCODE_HEAP_REF | ENCODE_MUST_NOT_ALIAS)
 
+#define ENCODE_REG_PAIR(low_reg, high_reg) ((low_reg & 0xff) | ((high_reg & 0xff) << 8))
+#define DECODE_REG_PAIR(both_regs, low_reg, high_reg) \
+  do { \
+    low_reg = both_regs & 0xff; \
+    high_reg = (both_regs >> 8) & 0xff; \
+  } while (false)
+
 // Mask to denote sreg as the start of a double.  Must not interfere with low 16 bits.
 #define STARTING_DOUBLE_SREG 0x10000
 
@@ -738,7 +745,7 @@ class Mir2Lir : public Backend {
     void CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list);
     void HandleExtendedMethodMIR(BasicBlock* bb, MIR* mir);
     bool MethodBlockCodeGen(BasicBlock* bb);
-    void SpecialMIR2LIR(const InlineMethod& special);
+    bool SpecialMIR2LIR(const InlineMethod& special);
     void MethodMIR2LIR();
 
     /*
@@ -809,6 +816,7 @@ class Mir2Lir : public Backend {
     virtual int AllocTypedTempPair(bool fp_hint, int reg_class) = 0;
     virtual int S2d(int low_reg, int high_reg) = 0;
     virtual int TargetReg(SpecialTargetRegister reg) = 0;
+    virtual int GetArgMappingToPhysicalReg(int arg_num) = 0;
     virtual RegLocation GetReturnAlt() = 0;
     virtual RegLocation GetReturnWideAlt() = 0;
     virtual RegLocation LocCReturn() = 0;
@@ -949,8 +957,6 @@ class Mir2Lir : public Backend {
                                  RegLocation rl_src) = 0;
     virtual void GenSparseSwitch(MIR* mir, DexOffset table_offset,
                                  RegLocation rl_src) = 0;
-    virtual void GenSpecialCase(BasicBlock* bb, MIR* mir,
-                                const InlineMethod& special) = 0;
     virtual void GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
                              RegLocation rl_index, RegLocation rl_dest, int scale) = 0;
     virtual void GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
@@ -1084,6 +1090,30 @@ class Mir2Lir : public Backend {
                                             uint32_t type_idx, RegLocation rl_dest,
                                             RegLocation rl_src);
 
+    /**
+     * @brief Used to insert marker that can be used to associate MIR with LIR.
+     * @details Only inserts marker if verbosity is enabled.
+     * @param mir The mir that is currently being generated.
+     */
+    void GenPrintLabel(MIR* mir);
+
+    /**
+     * @brief Used to generate return sequence when there is no frame.
+     * @details Assumes that the return registers have already been populated.
+     */
+    virtual void GenSpecialExitSequence() = 0;
+
+    /**
+     * @brief Used to generate code for special methods that are known to be
+     * small enough to work in frameless mode.
+     * @param bb The basic block of the first MIR.
+     * @param mir The first MIR of the special method.
+     * @param special Information about the special method.
+     * @return Returns whether or not this was handled successfully. Returns false
+     * if caller should punt to normal MIR2LIR conversion.
+     */
+    virtual bool GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& special);
+
   private:
     void ClobberBody(RegisterInfo* p);
     void ResetDefBody(RegisterInfo* p) {
@@ -1094,6 +1124,55 @@ class Mir2Lir : public Backend {
     void SetCurrentDexPc(DexOffset dexpc) {
       current_dalvik_offset_ = dexpc;
     }
+
+    /**
+     * @brief Used to lock register if argument at in_position was passed that way.
+     * @details Does nothing if the argument is passed via stack.
+     * @param in_position The argument number whose register to lock.
+     * @param wide Whether the argument is wide.
+     */
+    void LockArg(int in_position, bool wide = false);
+
+    /**
+     * @brief Used to load VR argument to a physical register.
+     * @details The load is only done if the argument is not already in physical register.
+     * LockArg must have been previously called.
+     * @param in_position The argument number to load.
+     * @param wide Whether the argument is 64-bit or not.
+     * @return Returns the register (or register pair) for the loaded argument.
+     */
+    int LoadArg(int in_position, bool wide = false);
+
+    /**
+     * @brief Used to load a VR argument directly to a specified register location.
+     * @param in_position The argument number to place in register.
+     * @param rl_dest The register location where to place argument.
+     */
+    void LoadArgDirect(int in_position, RegLocation rl_dest);
+
+    /**
+     * @brief Used to generate LIR for special getter method.
+     * @param mir The mir that represents the iget.
+     * @param special Information about the special getter method.
+     * @return Returns whether LIR was successfully generated.
+     */
+    bool GenSpecialIGet(MIR* mir, const InlineMethod& special);
+
+    /**
+     * @brief Used to generate LIR for special setter method.
+     * @param mir The mir that represents the iput.
+     * @param special Information about the special setter method.
+     * @return Returns whether LIR was successfully generated.
+     */
+    bool GenSpecialIPut(MIR* mir, const InlineMethod& special);
+
+    /**
+     * @brief Used to generate LIR for special return-args method.
+     * @param mir The mir that represents the return of argument.
+     * @param special Information about the special return-args method.
+     * @return Returns whether LIR was successfully generated.
+     */
+    bool GenSpecialIdentity(MIR* mir, const InlineMethod& special);
 
 
   public:
