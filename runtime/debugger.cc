@@ -464,6 +464,8 @@ void Dbg::StartJdwp() {
 }
 
 void Dbg::StopJdwp() {
+  // Prevent the JDWP thread from processing JDWP incoming packets after we close the connection.
+  Disposed();
   delete gJdwpState;
   gJdwpState = NULL;
   delete gRegistry;
