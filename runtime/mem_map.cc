@@ -120,7 +120,7 @@ MemMap* MemMap::MapFileAtAddress(byte* addr, size_t byte_count, int prot, int fl
   CHECK_NE(0, prot);
   CHECK_NE(0, flags & (MAP_SHARED | MAP_PRIVATE));
   if (byte_count == 0) {
-    return new MemMap("file", NULL, 0, NULL, 0, prot);
+    return new MemMap(filename, NULL, 0, NULL, 0, prot);
   }
   // Adjust 'offset' to be page-aligned as required by mmap.
   int page_offset = start % kPageSize;
@@ -153,7 +153,7 @@ MemMap* MemMap::MapFileAtAddress(byte* addr, size_t byte_count, int prot, int fl
                               maps.c_str());
     return NULL;
   }
-  return new MemMap("file", actual + page_offset, byte_count, actual, page_aligned_byte_count,
+  return new MemMap(filename, actual + page_offset, byte_count, actual, page_aligned_byte_count,
                     prot);
 }
 
@@ -265,6 +265,13 @@ bool MemMap::Protect(int prot) {
   PLOG(ERROR) << "mprotect(" << reinterpret_cast<void*>(base_begin_) << ", " << base_size_ << ", "
               << prot << ") failed";
   return false;
+}
+
+std::ostream& operator<<(std::ostream& os, const MemMap& mem_map) {
+  os << StringPrintf("[MemMap: %s prot=%x %p-%p]",
+                     mem_map.GetName().c_str(), mem_map.GetProtect(),
+                     mem_map.BaseBegin(), mem_map.BaseEnd());
+  return os;
 }
 
 }  // namespace art

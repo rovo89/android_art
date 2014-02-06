@@ -284,6 +284,27 @@ const DexFile* DexFile::OpenMemory(const byte* base,
   }
 }
 
+DexFile::DexFile(const byte* base, size_t size,
+                 const std::string& location,
+                 uint32_t location_checksum,
+                 MemMap* mem_map)
+    : begin_(base),
+      size_(size),
+      location_(location),
+      location_checksum_(location_checksum),
+      mem_map_(mem_map),
+      modification_lock("DEX modification lock"),
+      header_(reinterpret_cast<const Header*>(base)),
+      string_ids_(reinterpret_cast<const StringId*>(base + header_->string_ids_off_)),
+      type_ids_(reinterpret_cast<const TypeId*>(base + header_->type_ids_off_)),
+      field_ids_(reinterpret_cast<const FieldId*>(base + header_->field_ids_off_)),
+      method_ids_(reinterpret_cast<const MethodId*>(base + header_->method_ids_off_)),
+      proto_ids_(reinterpret_cast<const ProtoId*>(base + header_->proto_ids_off_)),
+      class_defs_(reinterpret_cast<const ClassDef*>(base + header_->class_defs_off_)) {
+  CHECK(begin_ != NULL) << GetLocation();
+  CHECK_GT(size_, 0U) << GetLocation();
+}
+
 DexFile::~DexFile() {
   // We don't call DeleteGlobalRef on dex_object_ because we're only called by DestroyJavaVM, and
   // that's only called after DetachCurrentThread, which means there's no JNIEnv. We could
@@ -292,23 +313,10 @@ DexFile::~DexFile() {
 }
 
 bool DexFile::Init(std::string* error_msg) {
-  InitMembers();
   if (!CheckMagicAndVersion(error_msg)) {
     return false;
   }
   return true;
-}
-
-void DexFile::InitMembers() {
-  const byte* b = begin_;
-  header_ = reinterpret_cast<const Header*>(b);
-  const Header* h = header_;
-  string_ids_ = reinterpret_cast<const StringId*>(b + h->string_ids_off_);
-  type_ids_ = reinterpret_cast<const TypeId*>(b + h->type_ids_off_);
-  field_ids_ = reinterpret_cast<const FieldId*>(b + h->field_ids_off_);
-  method_ids_ = reinterpret_cast<const MethodId*>(b + h->method_ids_off_);
-  proto_ids_ = reinterpret_cast<const ProtoId*>(b + h->proto_ids_off_);
-  class_defs_ = reinterpret_cast<const ClassDef*>(b + h->class_defs_off_);
 }
 
 bool DexFile::CheckMagicAndVersion(std::string* error_msg) const {
@@ -856,6 +864,13 @@ bool DexFile::LineNumForPcCb(void* raw_context, uint32_t address, uint32_t line_
   }
 }
 
+std::ostream& operator<<(std::ostream& os, const DexFile& dex_file) {
+  os << StringPrintf("[DexFile: %s dex-checksum=%08x location-checksum=%08x %p-%p]",
+                     dex_file.GetLocation().c_str(),
+                     dex_file.GetHeader().checksum_, dex_file.GetLocationChecksum(),
+                     dex_file.Begin(), dex_file.Begin() + dex_file.Size());
+  return os;
+}
 std::string Signature::ToString() const {
   if (dex_file_ == nullptr) {
     CHECK(proto_id_ == nullptr);
