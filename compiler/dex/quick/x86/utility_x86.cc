@@ -16,6 +16,7 @@
 
 #include "codegen_x86.h"
 #include "dex/quick/mir_to_lir-inl.h"
+#include "dex/dataflow_iterator-inl.h"
 #include "x86_lir.h"
 
 namespace art {
@@ -61,7 +62,7 @@ bool X86Mir2Lir::InexpensiveConstantLong(int64_t value) {
 }
 
 bool X86Mir2Lir::InexpensiveConstantDouble(int64_t value) {
-  return false;  // TUNING
+  return value == 0;
 }
 
 /*
@@ -394,6 +395,27 @@ LIR* X86Mir2Lir::LoadConstantWide(int r_dest_lo, int r_dest_hi, int64_t value) {
       DCHECK_EQ(r_dest_lo, r_dest_hi);
       if (value == 0) {
         return NewLIR2(kX86XorpsRR, r_dest_lo, r_dest_lo);
+      } else if (base_of_code_ != nullptr) {
+        // We will load the value from the literal area.
+        LIR* data_target = ScanLiteralPoolWide(literal_list_, val_lo, val_hi);
+        if (data_target == NULL) {
+          data_target = AddWideData(&literal_list_, val_lo, val_hi);
+        }
+
+        // Address the start of the method
+        RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
+        rl_method = LoadValue(rl_method, kCoreReg);
+
+        // Load the proper value from the literal area.
+        // We don't know the proper offset for the value, so pick one that will force
+        // 4 byte offset.  We will fix this up in the assembler later to have the right
+        // value.
+        res = LoadBaseDisp(rl_method.low_reg, 256 /* bogus */, r_dest_lo, kDouble, INVALID_SREG);
+        res->target = data_target;
+        res->flags.fixup = kFixupLoad;
+        SetMemRefType(res, true, kLiteral);
+        // Redo after we assign target to ensure size is correct.
+        SetupResourceMasks(res);
       } else {
         if (val_lo == 0) {
           res = NewLIR2(kX86XorpsRR, r_dest_lo, r_dest_lo);
@@ -660,6 +682,123 @@ LIR* X86Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, int temp_reg, int base_re
             check_value);
     LIR* branch = OpCondBranch(cond, target);
     return branch;
+}
+
+void X86Mir2Lir::AnalyzeMIR() {
+  // Assume we don't need a pointer to the base of the code.
+  cu_->NewTimingSplit("X86 MIR Analysis");
+  store_method_addr_ = false;
+
+  // Walk the MIR looking for interesting items.
+  PreOrderDfsIterator iter(mir_graph_);
+  BasicBlock* curr_bb = iter.Next();
+  while (curr_bb != NULL) {
+    AnalyzeBB(curr_bb);
+    curr_bb = iter.Next();
+  }
+
+  // Did we need a pointer to the method code?
+  if (store_method_addr_) {
+    base_of_code_ = mir_graph_->GetNewCompilerTemp(kCompilerTempVR, false);
+  } else {
+    base_of_code_ = nullptr;
+  }
+}
+
+void X86Mir2Lir::AnalyzeBB(BasicBlock * bb) {
+  if (bb->block_type == kDead) {
+    // Ignore dead blocks
+    return;
+  }
+
+  for (MIR *mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
+    int opcode = mir->dalvikInsn.opcode;
+    if (opcode >= kMirOpFirst) {
+      AnalyzeExtendedMIR(opcode, bb, mir);
+    } else {
+      AnalyzeMIR(opcode, bb, mir);
+    }
+  }
+}
+
+
+void X86Mir2Lir::AnalyzeExtendedMIR(int opcode, BasicBlock * bb, MIR *mir) {
+  switch (opcode) {
+    // Instructions referencing doubles.
+    case kMirOpFusedCmplDouble:
+    case kMirOpFusedCmpgDouble:
+      AnalyzeFPInstruction(opcode, bb, mir);
+      break;
+    default:
+      // Ignore the rest.
+      break;
+  }
+}
+
+void X86Mir2Lir::AnalyzeMIR(int opcode, BasicBlock * bb, MIR *mir) {
+  // Looking for
+  // - Do we need a pointer to the code (used for packed switches and double lits)?
+
+  switch (opcode) {
+    // Instructions referencing doubles.
+    case Instruction::CMPL_DOUBLE:
+    case Instruction::CMPG_DOUBLE:
+    case Instruction::NEG_DOUBLE:
+    case Instruction::ADD_DOUBLE:
+    case Instruction::SUB_DOUBLE:
+    case Instruction::MUL_DOUBLE:
+    case Instruction::DIV_DOUBLE:
+    case Instruction::REM_DOUBLE:
+    case Instruction::ADD_DOUBLE_2ADDR:
+    case Instruction::SUB_DOUBLE_2ADDR:
+    case Instruction::MUL_DOUBLE_2ADDR:
+    case Instruction::DIV_DOUBLE_2ADDR:
+    case Instruction::REM_DOUBLE_2ADDR:
+      AnalyzeFPInstruction(opcode, bb, mir);
+      break;
+    // Packed switches and array fills need a pointer to the base of the method.
+    case Instruction::FILL_ARRAY_DATA:
+    case Instruction::PACKED_SWITCH:
+      store_method_addr_ = true;
+      break;
+    default:
+      // Other instructions are not interesting yet.
+      break;
+  }
+}
+
+void X86Mir2Lir::AnalyzeFPInstruction(int opcode, BasicBlock * bb, MIR *mir) {
+  // Look at all the uses, and see if they are double constants.
+  uint64_t attrs = mir_graph_->oat_data_flow_attributes_[opcode];
+  int next_sreg = 0;
+  if (attrs & DF_UA) {
+    if (attrs & DF_A_WIDE) {
+      AnalyzeDoubleUse(mir_graph_->GetSrcWide(mir, next_sreg));
+      next_sreg += 2;
+    } else {
+      next_sreg++;
+    }
+  }
+  if (attrs & DF_UB) {
+    if (attrs & DF_B_WIDE) {
+      AnalyzeDoubleUse(mir_graph_->GetSrcWide(mir, next_sreg));
+      next_sreg += 2;
+    } else {
+      next_sreg++;
+    }
+  }
+  if (attrs & DF_UC) {
+    if (attrs & DF_C_WIDE) {
+      AnalyzeDoubleUse(mir_graph_->GetSrcWide(mir, next_sreg));
+    }
+  }
+}
+
+void X86Mir2Lir::AnalyzeDoubleUse(RegLocation use) {
+  // If this is a double literal, we will want it in the literal pool.
+  if (use.is_const) {
+    store_method_addr_ = true;
+  }
 }
 
 }  // namespace art

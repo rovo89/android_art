@@ -1154,6 +1154,17 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
           break;
         }
         default:
+          if (lir->flags.fixup == kFixupLoad) {
+            LIR *target_lir = lir->target;
+            DCHECK(target_lir != NULL);
+            CodeOffset target = target_lir->offset;
+            lir->operands[2] = target;
+            int newSize = GetInsnSize(lir);
+            if (newSize != lir->flags.size) {
+              lir->flags.size = newSize;
+              res = kRetryAll;
+            }
+          }
           break;
       }
     }
