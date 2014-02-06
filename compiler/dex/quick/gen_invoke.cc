@@ -1001,7 +1001,10 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
   RegLocation rl_obj = info->args[0];
   RegLocation rl_idx = info->args[1];
   rl_obj = LoadValue(rl_obj, kCoreReg);
-  rl_idx = LoadValue(rl_idx, kCoreReg);
+  // X86 wants to avoid putting a constant index into a register.
+  if (!(cu_->instruction_set == kX86 && rl_idx.is_const)) {
+    rl_idx = LoadValue(rl_idx, kCoreReg);
+  }
   int reg_max;
   GenNullCheck(rl_obj.s_reg_low, rl_obj.low_reg, info->opt_flags);
   bool range_check = (!(info->opt_flags & MIR_IGNORE_RANGE_CHECK));
@@ -1025,29 +1028,43 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
       FreeTemp(reg_max);
       OpCondBranch(kCondUge, launch_pad);
     }
+    OpRegImm(kOpAdd, reg_ptr, data_offset);
   } else {
     if (range_check) {
-      reg_max = AllocTemp();
-      LoadWordDisp(rl_obj.low_reg, count_offset, reg_max);
+      // On x86, we can compare to memory directly
       // Set up a launch pad to allow retry in case of bounds violation */
       launch_pad = RawLIR(0, kPseudoIntrinsicRetry, WrapPointer(info));
       intrinsic_launchpads_.Insert(launch_pad);
-      OpRegReg(kOpCmp, rl_idx.low_reg, reg_max);
-      FreeTemp(reg_max);
-      OpCondBranch(kCondUge, launch_pad);
+      if (rl_idx.is_const) {
+        OpCmpMemImmBranch(kCondUlt, INVALID_REG, rl_obj.low_reg, count_offset,
+                          mir_graph_->ConstantValue(rl_idx.orig_sreg), launch_pad);
+      } else {
+        OpRegMem(kOpCmp, rl_idx.low_reg, rl_obj.low_reg, count_offset);
+        OpCondBranch(kCondUge, launch_pad);
+      }
     }
     reg_off = AllocTemp();
     reg_ptr = AllocTemp();
     LoadWordDisp(rl_obj.low_reg, offset_offset, reg_off);
     LoadWordDisp(rl_obj.low_reg, value_offset, reg_ptr);
   }
-  OpRegImm(kOpAdd, reg_ptr, data_offset);
-  OpRegReg(kOpAdd, reg_off, rl_idx.low_reg);
+  if (rl_idx.is_const) {
+    OpRegImm(kOpAdd, reg_off, mir_graph_->ConstantValue(rl_idx.orig_sreg));
+  } else {
+    OpRegReg(kOpAdd, reg_off, rl_idx.low_reg);
+  }
   FreeTemp(rl_obj.low_reg);
-  FreeTemp(rl_idx.low_reg);
+  if (rl_idx.low_reg != INVALID_REG) {
+    FreeTemp(rl_idx.low_reg);
+  }
   RegLocation rl_dest = InlineTarget(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  LoadBaseIndexed(reg_ptr, reg_off, rl_result.low_reg, 1, kUnsignedHalf);
+  if (cu_->instruction_set != kX86) {
+    LoadBaseIndexed(reg_ptr, reg_off, rl_result.low_reg, 1, kUnsignedHalf);
+  } else {
+    LoadBaseIndexedDisp(reg_ptr, reg_off, 1, data_offset, rl_result.low_reg,
+                        INVALID_REG, kUnsignedHalf, INVALID_SREG);
+  }
   FreeTemp(reg_off);
   FreeTemp(reg_ptr);
   StoreValue(rl_dest, rl_result);
