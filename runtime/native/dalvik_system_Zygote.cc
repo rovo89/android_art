@@ -23,8 +23,10 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "cutils/fs.h"
 #include "cutils/multiuser.h"
@@ -404,13 +406,43 @@ static bool NeedsNoRandomizeWorkaround() {
 }
 #endif
 
+// Utility to close down the Zygote socket file descriptors while
+// the child is still running as root with Zygote's privileges.  Each
+// descriptor (if any) is closed via dup2(), replacing it with a valid
+// (open) descriptor to /dev/null.
+
+static void DetachDescriptors(JNIEnv* env, jintArray fdsToClose) {
+  if (!fdsToClose) {
+    return;
+  }
+  jsize count = env->GetArrayLength(fdsToClose);
+  jint *ar = env->GetIntArrayElements(fdsToClose, 0);
+  if (!ar) {
+      PLOG(FATAL) << "Bad fd array";
+  }
+  jsize i;
+  int devnull;
+  for (i = 0; i < count; i++) {
+    devnull = open("/dev/null", O_RDWR);
+    if (devnull < 0) {
+      PLOG(FATAL) << "Failed to open /dev/null";
+      continue;
+    }
+    PLOG(VERBOSE) << "Switching descriptor " << ar[i] << " to /dev/null";
+    if (dup2(devnull, ar[i]) < 0) {
+      PLOG(FATAL) << "Failed dup2() on descriptor " << ar[i];
+    }
+    close(devnull);
+  }
+}
+
 // Utility routine to fork zygote and specialize the child process.
 static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray javaGids,
                                      jint debug_flags, jobjectArray javaRlimits,
                                      jlong permittedCapabilities, jlong effectiveCapabilities,
                                      jint mount_external,
                                      jstring java_se_info, jstring java_se_name,
-                                     bool is_system_server) {
+                                     bool is_system_server, jintArray fdsToClose) {
   Runtime* runtime = Runtime::Current();
   CHECK(runtime->IsZygote()) << "runtime instance not started with -Xzygote";
   if (!runtime->PreZygoteFork()) {
@@ -428,6 +460,9 @@ static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArra
   if (pid == 0) {
     // The child process.
     gMallocLeakZygoteChild = 1;
+
+    // Clean up any descriptors which must be closed immediately
+    DetachDescriptors(env, fdsToClose);
 
     // Keep capabilities across UID change, unless we're staying root.
     if (uid != 0) {
@@ -529,11 +564,19 @@ static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArra
   return pid;
 }
 
+static jint Zygote_nativeForkAndSpecialize_new(JNIEnv* env, jclass, jint uid, jint gid, jintArray gids,
+                                           jint debug_flags, jobjectArray rlimits,
+                                           jint mount_external, jstring se_info, jstring se_name,
+                                           jintArray fdsToClose) {
+  return ForkAndSpecializeCommon(env, uid, gid, gids, debug_flags, rlimits, 0, 0, mount_external,
+                                 se_info, se_name, false, fdsToClose);
+}
+
 static jint Zygote_nativeForkAndSpecialize(JNIEnv* env, jclass, jint uid, jint gid, jintArray gids,
                                            jint debug_flags, jobjectArray rlimits,
                                            jint mount_external, jstring se_info, jstring se_name) {
   return ForkAndSpecializeCommon(env, uid, gid, gids, debug_flags, rlimits, 0, 0, mount_external,
-                                 se_info, se_name, false);
+                                 se_info, se_name, false, NULL);
 }
 
 static jint Zygote_nativeForkSystemServer(JNIEnv* env, jclass, uid_t uid, gid_t gid, jintArray gids,
@@ -543,7 +586,7 @@ static jint Zygote_nativeForkSystemServer(JNIEnv* env, jclass, uid_t uid, gid_t 
   pid_t pid = ForkAndSpecializeCommon(env, uid, gid, gids,
                                       debug_flags, rlimits,
                                       permittedCapabilities, effectiveCapabilities,
-                                      MOUNT_EXTERNAL_NONE, NULL, NULL, true);
+                                      MOUNT_EXTERNAL_NONE, NULL, NULL, true, NULL);
   if (pid > 0) {
       // The zygote process checks whether the child process has died or not.
       LOG(INFO) << "System server process " << pid << " has been created";
@@ -560,6 +603,7 @@ static jint Zygote_nativeForkSystemServer(JNIEnv* env, jclass, uid_t uid, gid_t 
 }
 
 static JNINativeMethod gMethods[] = {
+  NATIVE_METHOD(Zygote, nativeForkAndSpecialize_new, "(II[II[[IILjava/lang/String;Ljava/lang/String;[I)I"),
   NATIVE_METHOD(Zygote, nativeForkAndSpecialize, "(II[II[[IILjava/lang/String;Ljava/lang/String;)I"),
   NATIVE_METHOD(Zygote, nativeForkSystemServer, "(II[II[[IJJ)I"),
 };
