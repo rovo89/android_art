@@ -811,42 +811,145 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
     }
   }
 
+  // Logic below assumes that Method pointer is at offset zero from SP.
+  DCHECK_EQ(VRegOffset(static_cast<int>(kVRegMethodPtrBaseReg)), 0);
+
+  // The first 3 arguments are passed via registers.
+  // TODO: For 64-bit, instead of hardcoding 4 for Method* size, we should either
+  // get size of uintptr_t or size of object reference according to model being used.
+  int outs_offset = 4 /* Method* */ + (3 * sizeof(uint32_t));
   int start_offset = SRegOffset(info->args[3].s_reg_low);
-  int outs_offset = 4 /* Method* */ + (3 * 4);
-  if (cu_->instruction_set != kThumb2) {
+  int regs_left_to_pass_via_stack = info->num_arg_words - 3;
+  DCHECK_GT(regs_left_to_pass_via_stack, 0);
+
+  if (cu_->instruction_set == kThumb2 && regs_left_to_pass_via_stack <= 16) {
+    // Use vldm/vstm pair using kArg3 as a temp
+    call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
+                             direct_code, direct_method, type);
+    OpRegRegImm(kOpAdd, TargetReg(kArg3), TargetReg(kSp), start_offset);
+    LIR* ld = OpVldm(TargetReg(kArg3), regs_left_to_pass_via_stack);
+    // TUNING: loosen barrier
+    ld->u.m.def_mask = ENCODE_ALL;
+    SetMemRefType(ld, true /* is_load */, kDalvikReg);
+    call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
+                             direct_code, direct_method, type);
+    OpRegRegImm(kOpAdd, TargetReg(kArg3), TargetReg(kSp), 4 /* Method* */ + (3 * 4));
+    call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
+                             direct_code, direct_method, type);
+    LIR* st = OpVstm(TargetReg(kArg3), regs_left_to_pass_via_stack);
+    SetMemRefType(st, false /* is_load */, kDalvikReg);
+    st->u.m.def_mask = ENCODE_ALL;
+    call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
+                             direct_code, direct_method, type);
+  } else if (cu_->instruction_set == kX86) {
+    int current_src_offset = start_offset;
+    int current_dest_offset = outs_offset;
+
+    while (regs_left_to_pass_via_stack > 0) {
+      // This is based on the knowledge that the stack itself is 16-byte aligned.
+      bool src_is_16b_aligned = (current_src_offset & 0xF) == 0;
+      bool dest_is_16b_aligned = (current_dest_offset & 0xF) == 0;
+      size_t bytes_to_move;
+
+      /*
+       * The amount to move defaults to 32-bit. If there are 4 registers left to move, then do a
+       * a 128-bit move because we won't get the chance to try to aligned. If there are more than
+       * 4 registers left to move, consider doing a 128-bit only if either src or dest are aligned.
+       * We do this because we could potentially do a smaller move to align.
+       */
+      if (regs_left_to_pass_via_stack == 4 ||
+          (regs_left_to_pass_via_stack > 4 && (src_is_16b_aligned || dest_is_16b_aligned))) {
+        // Moving 128-bits via xmm register.
+        bytes_to_move = sizeof(uint32_t) * 4;
+
+        // Allocate a free xmm temp. Since we are working through the calling sequence,
+        // we expect to have an xmm temporary available.
+        int temp = AllocTempDouble();
+        CHECK_GT(temp, 0);
+
+        LIR* ld1 = nullptr;
+        LIR* ld2 = nullptr;
+        LIR* st1 = nullptr;
+        LIR* st2 = nullptr;
+
+        /*
+         * The logic is similar for both loads and stores. If we have 16-byte alignment,
+         * do an aligned move. If we have 8-byte alignment, then do the move in two
+         * parts. This approach prevents possible cache line splits. Finally, fall back
+         * to doing an unaligned move. In most cases we likely won't split the cache
+         * line but we cannot prove it and thus take a conservative approach.
+         */
+        bool src_is_8b_aligned = (current_src_offset & 0x7) == 0;
+        bool dest_is_8b_aligned = (current_dest_offset & 0x7) == 0;
+
+        if (src_is_16b_aligned) {
+          ld1 = OpMovRegMem(temp, TargetReg(kSp), current_src_offset, kMovA128FP);
+        } else if (src_is_8b_aligned) {
+          ld1 = OpMovRegMem(temp, TargetReg(kSp), current_src_offset, kMovLo128FP);
+          ld2 = OpMovRegMem(temp, TargetReg(kSp), current_src_offset + (bytes_to_move >> 1), kMovHi128FP);
+        } else {
+          ld1 = OpMovRegMem(temp, TargetReg(kSp), current_src_offset, kMovU128FP);
+        }
+
+        if (dest_is_16b_aligned) {
+          st1 = OpMovMemReg(TargetReg(kSp), current_dest_offset, temp, kMovA128FP);
+        } else if (dest_is_8b_aligned) {
+          st1 = OpMovMemReg(TargetReg(kSp), current_dest_offset, temp, kMovLo128FP);
+          st2 = OpMovMemReg(TargetReg(kSp), current_dest_offset + (bytes_to_move >> 1), temp, kMovHi128FP);
+        } else {
+          st1 = OpMovMemReg(TargetReg(kSp), current_dest_offset, temp, kMovU128FP);
+        }
+
+        // TODO If we could keep track of aliasing information for memory accesses that are wider
+        // than 64-bit, we wouldn't need to set up a barrier.
+        if (ld1 != nullptr) {
+          if (ld2 != nullptr) {
+            // For 64-bit load we can actually set up the aliasing information.
+            AnnotateDalvikRegAccess(ld1, current_src_offset >> 2, true, true);
+            AnnotateDalvikRegAccess(ld2, (current_src_offset + (bytes_to_move >> 1)) >> 2, true, true);
+          } else {
+            // Set barrier for 128-bit load.
+            SetMemRefType(ld1, true /* is_load */, kDalvikReg);
+            ld1->u.m.def_mask = ENCODE_ALL;
+          }
+        }
+        if (st1 != nullptr) {
+          if (st2 != nullptr) {
+            // For 64-bit store we can actually set up the aliasing information.
+            AnnotateDalvikRegAccess(st1, current_dest_offset >> 2, false, true);
+            AnnotateDalvikRegAccess(st2, (current_dest_offset + (bytes_to_move >> 1)) >> 2, false, true);
+          } else {
+            // Set barrier for 128-bit store.
+            SetMemRefType(st1, false /* is_load */, kDalvikReg);
+            st1->u.m.def_mask = ENCODE_ALL;
+          }
+        }
+
+        // Free the temporary used for the data movement.
+        FreeTemp(temp);
+      } else {
+        // Moving 32-bits via general purpose register.
+        bytes_to_move = sizeof(uint32_t);
+
+        // Instead of allocating a new temp, simply reuse one of the registers being used
+        // for argument passing.
+        int temp = TargetReg(kArg3);
+
+        // Now load the argument VR and store to the outs.
+        LoadWordDisp(TargetReg(kSp), current_src_offset, temp);
+        StoreWordDisp(TargetReg(kSp), current_dest_offset, temp);
+      }
+
+      current_src_offset += bytes_to_move;
+      current_dest_offset += bytes_to_move;
+      regs_left_to_pass_via_stack -= (bytes_to_move >> 2);
+    }
+  } else {
     // Generate memcpy
     OpRegRegImm(kOpAdd, TargetReg(kArg0), TargetReg(kSp), outs_offset);
     OpRegRegImm(kOpAdd, TargetReg(kArg1), TargetReg(kSp), start_offset);
     CallRuntimeHelperRegRegImm(QUICK_ENTRYPOINT_OFFSET(pMemcpy), TargetReg(kArg0),
                                TargetReg(kArg1), (info->num_arg_words - 3) * 4, false);
-  } else {
-    if (info->num_arg_words >= 20) {
-      // Generate memcpy
-      OpRegRegImm(kOpAdd, TargetReg(kArg0), TargetReg(kSp), outs_offset);
-      OpRegRegImm(kOpAdd, TargetReg(kArg1), TargetReg(kSp), start_offset);
-      CallRuntimeHelperRegRegImm(QUICK_ENTRYPOINT_OFFSET(pMemcpy), TargetReg(kArg0),
-                                 TargetReg(kArg1), (info->num_arg_words - 3) * 4, false);
-    } else {
-      // Use vldm/vstm pair using kArg3 as a temp
-      int regs_left = std::min(info->num_arg_words - 3, 16);
-      call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
-                               direct_code, direct_method, type);
-      OpRegRegImm(kOpAdd, TargetReg(kArg3), TargetReg(kSp), start_offset);
-      LIR* ld = OpVldm(TargetReg(kArg3), regs_left);
-      // TUNING: loosen barrier
-      ld->u.m.def_mask = ENCODE_ALL;
-      SetMemRefType(ld, true /* is_load */, kDalvikReg);
-      call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
-                               direct_code, direct_method, type);
-      OpRegRegImm(kOpAdd, TargetReg(kArg3), TargetReg(kSp), 4 /* Method* */ + (3 * 4));
-      call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
-                               direct_code, direct_method, type);
-      LIR* st = OpVstm(TargetReg(kArg3), regs_left);
-      SetMemRefType(st, false /* is_load */, kDalvikReg);
-      st->u.m.def_mask = ENCODE_ALL;
-      call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
-                               direct_code, direct_method, type);
-    }
   }
 
   call_state = LoadArgRegs(info, call_state, next_call_insn,

@@ -325,6 +325,16 @@ LIR* MipsMir2Lir::OpRegReg(OpKind op, int r_dest_src1, int r_src2) {
   return NewLIR2(opcode, r_dest_src1, r_src2);
 }
 
+LIR* MipsMir2Lir::OpMovRegMem(int r_dest, int r_base, int offset, MoveType move_type) {
+  UNIMPLEMENTED(FATAL);
+  return nullptr;
+}
+
+LIR* MipsMir2Lir::OpMovMemReg(int r_base, int offset, int r_src, MoveType move_type) {
+  UNIMPLEMENTED(FATAL);
+  return nullptr;
+}
+
 LIR* MipsMir2Lir::OpCondRegReg(OpKind op, ConditionCode cc, int r_dest, int r_src) {
   LOG(FATAL) << "Unexpected use of OpCondRegReg for MIPS";
   return NULL;

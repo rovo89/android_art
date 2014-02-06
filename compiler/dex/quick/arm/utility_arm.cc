@@ -367,6 +367,16 @@ LIR* ArmMir2Lir::OpRegReg(OpKind op, int r_dest_src1, int r_src2) {
   return OpRegRegShift(op, r_dest_src1, r_src2, 0);
 }
 
+LIR* ArmMir2Lir::OpMovRegMem(int r_dest, int r_base, int offset, MoveType move_type) {
+  UNIMPLEMENTED(FATAL);
+  return nullptr;
+}
+
+LIR* ArmMir2Lir::OpMovMemReg(int r_base, int offset, int r_src, MoveType move_type) {
+  UNIMPLEMENTED(FATAL);
+  return nullptr;
+}
+
 LIR* ArmMir2Lir::OpCondRegReg(OpKind op, ConditionCode cc, int r_dest, int r_src) {
   LOG(FATAL) << "Unexpected use of OpCondRegReg for Arm";
   return NULL;
