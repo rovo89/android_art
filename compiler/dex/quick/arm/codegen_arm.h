@@ -167,7 +167,6 @@ class ArmMir2Lir : public Mir2Lir {
     void OpRegCopyWide(int dest_lo, int dest_hi, int src_lo, int src_hi);
     void OpTlsCmp(ThreadOffset offset, int val);
 
-    RegLocation ArgLoc(RegLocation loc);
     LIR* LoadBaseDispBody(int rBase, int displacement, int r_dest, int r_dest_hi, OpSize size,
                           int s_reg);
     LIR* StoreBaseDispBody(int rBase, int displacement, int r_src, int r_src_hi, OpSize size);
@@ -186,13 +185,12 @@ class ArmMir2Lir : public Mir2Lir {
   private:
     void GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1, int64_t val,
                                   ConditionCode ccode);
-    int InPosition(int s_reg);
-    RegLocation LoadArg(RegLocation loc);
-    void LockLiveArgs(MIR* mir);
+    void LockArg(int in_position, bool wide = false);
+    int LoadArg(int in_position, bool wide = false);
     MIR* GetNextMir(BasicBlock** p_bb, MIR* mir);
     MIR* SpecialIGet(BasicBlock** bb, MIR* mir, const InlineMethod& special);
     MIR* SpecialIPut(BasicBlock** bb, MIR* mir, const InlineMethod& special);
-    MIR* SpecialIdentity(MIR* mir);
+    MIR* SpecialIdentity(MIR* mir, const InlineMethod& special);
     LIR* LoadFPConstantValue(int r_dest, int value);
     void ReplaceFixup(LIR* prev_lir, LIR* orig_lir, LIR* new_lir);
     void InsertFixupBefore(LIR* prev_lir, LIR* orig_lir, LIR* new_lir);
