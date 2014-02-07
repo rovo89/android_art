@@ -1046,9 +1046,11 @@ Thread::~Thread() {
   }
   opeer_ = nullptr;
 
-  delete jni_env_;
-  jni_env_ = nullptr;
-
+  bool initialized = (jni_env_ != nullptr);  // Did Thread::Init run?
+  if (initialized) {
+    delete jni_env_;
+    jni_env_ = nullptr;
+  }
   CHECK_NE(GetState(), kRunnable);
   CHECK_NE(ReadFlag(kCheckpointRequest), true);
   CHECK(checkpoint_functions_[0] == nullptr);
@@ -1063,6 +1065,10 @@ Thread::~Thread() {
 
   if (long_jump_context_ != nullptr) {
     delete long_jump_context_;
+  }
+
+  if (initialized) {
+    CleanupCpu();
   }
 
   delete debug_invoke_req_;
