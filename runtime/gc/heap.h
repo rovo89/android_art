@@ -249,7 +249,7 @@ class Heap {
   void DecrementDisableMovingGC(Thread* self);
 
   // Initiates an explicit garbage collection.
-  void CollectGarbage(bool clear_soft_references) LOCKS_EXCLUDED(Locks::mutator_lock_);
+  void CollectGarbage(bool clear_soft_references);
 
   // Does a concurrent GC, should only be called by the GC daemon thread
   // through runtime.

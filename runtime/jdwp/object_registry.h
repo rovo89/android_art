@@ -26,6 +26,7 @@
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
+#include "root_visitor.h"
 #include "safe_map.h"
 
 namespace art {
@@ -83,6 +84,15 @@ class ObjectRegistry {
   // Avoid using this and use standard Get when possible.
   jobject GetJObject(JDWP::ObjectId id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Visit, objects are treated as system weaks.
+  void UpdateObjectPointers(RootVisitor visitor, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // We have allow / disallow functionality since we use system weak sweeping logic to update moved
+  // objects inside of the object_to_entry_ map.
+  void AllowNewObjects() LOCKS_EXCLUDED(lock_);
+  void DisallowNewObjects() LOCKS_EXCLUDED(lock_);
+
  private:
   JDWP::ObjectId InternalAdd(mirror::Object* o) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   mirror::Object* InternalGet(JDWP::ObjectId id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -90,11 +100,10 @@ class ObjectRegistry {
   void Promote(ObjectRegistryEntry& entry) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, lock_);
 
   Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  bool allow_new_objects_ GUARDED_BY(lock_);
+  ConditionVariable condition_ GUARDED_BY(lock_);
 
-  typedef std::map<mirror::Object*, ObjectRegistryEntry>::iterator object_iterator;
-  std::map<mirror::Object*, ObjectRegistryEntry> object_to_entry_ GUARDED_BY(lock_);
-
-  typedef SafeMap<JDWP::ObjectId, ObjectRegistryEntry*>::iterator id_iterator;
+  std::map<mirror::Object*, ObjectRegistryEntry*> object_to_entry_ GUARDED_BY(lock_);
   SafeMap<JDWP::ObjectId, ObjectRegistryEntry*> id_to_entry_ GUARDED_BY(lock_);
 
   size_t next_id_ GUARDED_BY(lock_);
