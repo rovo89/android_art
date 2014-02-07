@@ -25,15 +25,16 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Assign register 'src_reg' from shadow_frame to register 'dest_reg' into new_shadow_frame.
-static inline void AssignRegister(ShadowFrame& new_shadow_frame, const ShadowFrame& shadow_frame,
-                                  size_t dest_reg, size_t src_reg) {
+static inline void AssignRegister(ShadowFrame* new_shadow_frame, const ShadowFrame& shadow_frame,
+                                  size_t dest_reg, size_t src_reg)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // If both register locations contains the same value, the register probably holds a reference.
   int32_t src_value = shadow_frame.GetVReg(src_reg);
   mirror::Object* o = shadow_frame.GetVRegReference<false>(src_reg);
-  if (src_value == reinterpret_cast<int32_t>(o)) {
-    new_shadow_frame.SetVRegReference(dest_reg, o);
+  if (src_value == reinterpret_cast<intptr_t>(o)) {
+    new_shadow_frame->SetVRegReference(dest_reg, o);
   } else {
-    new_shadow_frame.SetVReg(dest_reg, src_value);
+    new_shadow_frame->SetVReg(dest_reg, src_value);
   }
 }
 
@@ -84,7 +85,7 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
       ++dest_reg;
       ++arg_offset;
     }
-    for (size_t shorty_pos = 0; dest_reg < num_regs; ++shorty_pos, ++dest_reg, ++arg_offset) {
+    for (uint32_t shorty_pos = 0; dest_reg < num_regs; ++shorty_pos, ++dest_reg, ++arg_offset) {
       DCHECK_LT(shorty_pos + 1, mh.GetShortyLength());
       const size_t src_reg = (is_range) ? vregC + arg_offset : arg[arg_offset];
       switch (shorty[shorty_pos + 1]) {
@@ -131,18 +132,18 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
       const uint16_t first_src_reg = inst->VRegC_3rc();
       for (size_t src_reg = first_src_reg, dest_reg = first_dest_reg; dest_reg < num_regs;
           ++dest_reg, ++src_reg) {
-        AssignRegister(*new_shadow_frame, shadow_frame, dest_reg, src_reg);
+        AssignRegister(new_shadow_frame, shadow_frame, dest_reg, src_reg);
       }
     } else {
       DCHECK_LE(num_ins, 5U);
       uint16_t regList = inst->Fetch16(2);
       uint16_t count = num_ins;
       if (count == 5) {
-        AssignRegister(*new_shadow_frame, shadow_frame, first_dest_reg + 4U, (inst_data >> 8) & 0x0f);
+        AssignRegister(new_shadow_frame, shadow_frame, first_dest_reg + 4U, (inst_data >> 8) & 0x0f);
         --count;
        }
       for (size_t arg_index = 0; arg_index < count; ++arg_index, regList >>= 4) {
-        AssignRegister(*new_shadow_frame, shadow_frame, first_dest_reg + arg_index, regList & 0x0f);
+        AssignRegister(new_shadow_frame, shadow_frame, first_dest_reg + arg_index, regList & 0x0f);
       }
     }
   }
@@ -289,7 +290,7 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     CHECK(field.get() != NULL);
     ArtMethod* c = jlr_Field->FindDeclaredDirectMethod("<init>", "(Ljava/lang/reflect/ArtField;)V");
     uint32_t args[1];
-    args[0] = reinterpret_cast<uint32_t>(found);
+    args[0] = StackReference<mirror::Object>::FromMirrorPtr(found).AsVRegValue();
     EnterInterpreterFromInvoke(self, c, field.get(), args, NULL);
     result->SetL(field.get());
   } else if (name == "void java.lang.System.arraycopy(java.lang.Object, int, java.lang.Object, int, int)" ||

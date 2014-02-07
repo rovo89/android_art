@@ -26,6 +26,69 @@ namespace art {
 
 class Mutex;
 
+template<typename T>
+class Atomic {
+ public:
+  Atomic<T>() : value_(0) { }
+
+  explicit Atomic<T>(T value) : value_(value) { }
+
+  Atomic<T>& operator=(T desired) {
+    Store(desired);
+    return *this;
+  }
+
+  T Load() const {
+    return value_;
+  }
+
+  operator T() const {
+    return Load();
+  }
+
+  T FetchAndAdd(const T value) {
+    return __sync_fetch_and_add(&value_, value);  // Return old_value.
+  }
+
+  T FetchAndSub(const T value) {
+    return __sync_fetch_and_sub(&value_, value);  // Return old value.
+  }
+
+  T operator++() {  // Prefix operator.
+    return __sync_add_and_fetch(&value_, 1);  // Return new value.
+  }
+
+  T operator++(int) {  // Postfix operator.
+    return __sync_fetch_and_add(&value_, 1);  // Return old value.
+  }
+
+  T operator--() {  // Prefix operator.
+    return __sync_sub_and_fetch(&value_, 1);  // Return new value.
+  }
+
+  T operator--(int) {  // Postfix operator.
+    return __sync_fetch_and_sub(&value_, 1);  // Return old value.
+  }
+
+  bool CompareAndSwap(T expected_value, T desired_value) {
+    return __sync_bool_compare_and_swap(&value_, expected_value, desired_value);
+  }
+
+  volatile T* Address() {
+    return &value_;
+  }
+
+ private:
+  // Unsafe = operator for non atomic operations on the integer.
+  void Store(T desired) {
+    value_ = desired;
+  }
+
+  volatile T value_;
+};
+
+typedef Atomic<int32_t> AtomicInteger;
+
 // NOTE: Two "quasiatomic" operations on the exact same memory address
 // are guaranteed to operate atomically with respect to each other,
 // but no guarantees are made about quasiatomic operations mixed with
@@ -80,7 +143,7 @@ class QuasiAtomic {
   static void MembarLoadStore() {
   #if defined(__arm__)
     __asm__ __volatile__("dmb ish" : : : "memory");
-  #elif defined(__i386__)
+  #elif defined(__i386__) || defined(__x86_64__)
     __asm__ __volatile__("" : : : "memory");
   #elif defined(__mips__)
     __asm__ __volatile__("sync" : : : "memory");
@@ -92,7 +155,7 @@ class QuasiAtomic {
   static void MembarLoadLoad() {
   #if defined(__arm__)
     __asm__ __volatile__("dmb ish" : : : "memory");
-  #elif defined(__i386__)
+  #elif defined(__i386__) || defined(__x86_64__)
     __asm__ __volatile__("" : : : "memory");
   #elif defined(__mips__)
     __asm__ __volatile__("sync" : : : "memory");
@@ -104,7 +167,7 @@ class QuasiAtomic {
   static void MembarStoreStore() {
   #if defined(__arm__)
     __asm__ __volatile__("dmb ishst" : : : "memory");
-  #elif defined(__i386__)
+  #elif defined(__i386__) || defined(__x86_64__)
     __asm__ __volatile__("" : : : "memory");
   #elif defined(__mips__)
     __asm__ __volatile__("sync" : : : "memory");
@@ -116,7 +179,7 @@ class QuasiAtomic {
   static void MembarStoreLoad() {
   #if defined(__arm__)
     __asm__ __volatile__("dmb ish" : : : "memory");
-  #elif defined(__i386__)
+  #elif defined(__i386__) || defined(__x86_64__)
     __asm__ __volatile__("mfence" : : : "memory");
   #elif defined(__mips__)
     __asm__ __volatile__("sync" : : : "memory");

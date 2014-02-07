@@ -24,7 +24,7 @@ namespace mirror {
 
 class MANAGED IfTable : public ObjectArray<Object> {
  public:
-  Class* GetInterface(int32_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  Class* GetInterface(int32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Class* interface = Get((i * kMax) + kInterface)->AsClass();
     DCHECK(interface != NULL);
     return interface;
@@ -32,15 +32,14 @@ class MANAGED IfTable : public ObjectArray<Object> {
 
   void SetInterface(int32_t i, Class* interface) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  ObjectArray<ArtMethod>* GetMethodArray(int32_t i) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ObjectArray<ArtMethod>* GetMethodArray(int32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ObjectArray<ArtMethod>* method_array =
         down_cast<ObjectArray<ArtMethod>*>(Get((i * kMax) + kMethodArray));
     DCHECK(method_array != NULL);
     return method_array;
   }
 
-  size_t GetMethodArrayCount(int32_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  size_t GetMethodArrayCount(int32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ObjectArray<ArtMethod>* method_array =
         down_cast<ObjectArray<ArtMethod>*>(Get((i * kMax) + kMethodArray));
     if (method_array == NULL) {
@@ -56,7 +55,7 @@ class MANAGED IfTable : public ObjectArray<Object> {
     Set((i * kMax) + kMethodArray, new_ma);
   }
 
-  size_t Count() const {
+  size_t Count() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetLength() / kMax;
   }
 

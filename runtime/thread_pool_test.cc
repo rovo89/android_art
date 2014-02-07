@@ -17,7 +17,7 @@
 
 #include <string>
 
-#include "atomic_integer.h"
+#include "atomic.h"
 #include "common_test.h"
 #include "thread_pool.h"
 

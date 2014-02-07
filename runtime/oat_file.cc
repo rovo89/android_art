@@ -66,16 +66,16 @@ OatFile* OatFile::Open(const std::string& filename,
                        std::string* error_msg) {
   CHECK(!filename.empty()) << location;
   CheckLocation(filename);
-#ifdef ART_USE_PORTABLE_COMPILER
-  // If we are using PORTABLE, use dlopen to deal with relocations.
-  //
-  // We use our own ELF loader for Quick to deal with legacy apps that
-  // open a generated dex file by name, remove the file, then open
-  // another generated dex file with the same name. http://b/10614658
-  if (executable) {
-    return OpenDlopen(filename, location, requested_base, error_msg);
+  if (kUsePortableCompiler) {
+    // If we are using PORTABLE, use dlopen to deal with relocations.
+    //
+    // We use our own ELF loader for Quick to deal with legacy apps that
+    // open a generated dex file by name, remove the file, then open
+    // another generated dex file with the same name. http://b/10614658
+    if (executable) {
+      return OpenDlopen(filename, location, requested_base, error_msg);
+    }
   }
-#endif
   // If we aren't trying to execute, we just use our own ElfFile loader for a couple reasons:
   //
   // On target, dlopen may fail when compiling due to selinux restrictions on installd.
@@ -503,51 +503,40 @@ OatFile::OatMethod::OatMethod(const byte* base,
     mapping_table_offset_(mapping_table_offset),
     vmap_table_offset_(vmap_table_offset),
     native_gc_map_offset_(gc_map_offset) {
-#ifndef NDEBUG
-  if (mapping_table_offset_ != 0) {  // implies non-native, non-stub code
-    if (vmap_table_offset_ == 0) {
-      DCHECK_EQ(0U, static_cast<uint32_t>(__builtin_popcount(core_spill_mask_) +
-                                          __builtin_popcount(fp_spill_mask_)));
-    } else {
-      VmapTable vmap_table(reinterpret_cast<const uint8_t*>(begin_ + vmap_table_offset_));
+  if (kIsDebugBuild) {
+    if (mapping_table_offset_ != 0) {  // implies non-native, non-stub code
+      if (vmap_table_offset_ == 0) {
+        CHECK_EQ(0U, static_cast<uint32_t>(__builtin_popcount(core_spill_mask_) +
+                                           __builtin_popcount(fp_spill_mask_)));
+      } else {
+        VmapTable vmap_table(reinterpret_cast<const uint8_t*>(begin_ + vmap_table_offset_));
 
-      DCHECK_EQ(vmap_table.Size(), static_cast<uint32_t>(__builtin_popcount(core_spill_mask_) +
-                                                         __builtin_popcount(fp_spill_mask_)));
+        CHECK_EQ(vmap_table.Size(), static_cast<uint32_t>(__builtin_popcount(core_spill_mask_) +
+                                                          __builtin_popcount(fp_spill_mask_)));
+      }
+    } else {
+      CHECK_EQ(vmap_table_offset_, 0U);
     }
-  } else {
-    DCHECK_EQ(vmap_table_offset_, 0U);
   }
-#endif
 }
 
 OatFile::OatMethod::~OatMethod() {}
 
-const void* OatFile::OatMethod::GetCode() const {
-  return GetOatPointer<const void*>(code_offset_);
-}
 
-uint32_t OatFile::OatMethod::GetCodeSize() const {
-#if defined(ART_USE_PORTABLE_COMPILER)
-  // TODO: With Quick, we store the size before the code. With
-  // Portable, the code is in a .o file we don't manage ourselves. ELF
-  // symbols do have a concept of size, so we could capture that and
-  // store it somewhere, such as the OatMethod.
-  return 0;
-#else
-  uintptr_t code = reinterpret_cast<uint32_t>(GetCode());
-
+uint32_t OatFile::OatMethod::GetQuickCodeSize() const {
+  uintptr_t code = reinterpret_cast<uintptr_t>(GetQuickCode());
   if (code == 0) {
     return 0;
   }
   // TODO: make this Thumb2 specific
   code &= ~0x1;
   return reinterpret_cast<uint32_t*>(code)[-1];
-#endif
 }
 
 void OatFile::OatMethod::LinkMethod(mirror::ArtMethod* method) const {
   CHECK(method != NULL);
-  method->SetEntryPointFromCompiledCode(GetCode());
+  method->SetEntryPointFromPortableCompiledCode(GetPortableCode());
+  method->SetEntryPointFromQuickCompiledCode(GetQuickCode());
   method->SetFrameSizeInBytes(frame_size_in_bytes_);
   method->SetCoreSpillMask(core_spill_mask_);
   method->SetFpSpillMask(fp_spill_mask_);

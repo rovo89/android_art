@@ -140,8 +140,7 @@ class MethodVerifier {
   };
 
   /* Verify a class. Returns "kNoFailure" on success. */
-  static FailureKind VerifyClass(const mirror::Class* klass, bool allow_soft_failures,
-                                 std::string* error)
+  static FailureKind VerifyClass(mirror::Class* klass, bool allow_soft_failures, std::string* error)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static FailureKind VerifyClass(const DexFile* dex_file, SirtRef<mirror::DexCache>& dex_cache,
                                  SirtRef<mirror::ClassLoader>& class_loader,

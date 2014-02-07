@@ -29,6 +29,7 @@ enum InstructionSet {
   kArm,
   kThumb2,
   kX86,
+  kX86_64,
   kMips
 };
 

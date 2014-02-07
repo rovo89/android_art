@@ -40,23 +40,23 @@ namespace art {
 static void JniAbort(const char* jni_function_name, const char* msg) {
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
-  mirror::ArtMethod* current_method = self->GetCurrentMethod(NULL);
+  mirror::ArtMethod* current_method = self->GetCurrentMethod(nullptr);
 
   std::ostringstream os;
   os << "JNI DETECTED ERROR IN APPLICATION: " << msg;
 
-  if (jni_function_name != NULL) {
+  if (jni_function_name != nullptr) {
     os << "\n    in call to " << jni_function_name;
   }
   // TODO: is this useful given that we're about to dump the calling thread's stack?
-  if (current_method != NULL) {
+  if (current_method != nullptr) {
     os << "\n    from " << PrettyMethod(current_method);
   }
   os << "\n";
   self->Dump(os);
 
   JavaVMExt* vm = Runtime::Current()->GetJavaVM();
-  if (vm->check_jni_abort_hook != NULL) {
+  if (vm->check_jni_abort_hook != nullptr) {
     vm->check_jni_abort_hook(vm->check_jni_abort_hook_data, os.str());
   } else {
     // Ensure that we get a native stack trace for this thread.
@@ -118,10 +118,10 @@ static const char* gBuiltInPrefixes[] = {
   "Ljavax/",
   "Llibcore/",
   "Lorg/apache/harmony/",
-  NULL
+  nullptr
 };
 
-static bool ShouldTrace(JavaVMExt* vm, const mirror::ArtMethod* method)
+static bool ShouldTrace(JavaVMExt* vm, mirror::ArtMethod* method)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // If both "-Xcheck:jni" and "-Xjnitrace:" are enabled, we print trace messages
   // when a native method that matches the -Xjnitrace argument calls a JNI function
@@ -135,7 +135,7 @@ static bool ShouldTrace(JavaVMExt* vm, const mirror::ArtMethod* method)
   if (VLOG_IS_ON(third_party_jni)) {
     // Return true if we're trying to log all third-party JNI activity and 'method' doesn't look
     // like part of Android.
-    for (size_t i = 0; gBuiltInPrefixes[i] != NULL; ++i) {
+    for (size_t i = 0; gBuiltInPrefixes[i] != nullptr; ++i) {
       if (StartsWith(class_name, gBuiltInPrefixes[i])) {
         return false;
       }
@@ -192,15 +192,16 @@ class ScopedCheck {
    *
    * Works for both static and instance fields.
    */
-  void CheckFieldType(jobject java_object, jfieldID fid, char prim, bool isStatic)
+  void CheckFieldType(jvalue value, jfieldID fid, char prim, bool isStatic)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::ArtField* f = CheckFieldID(fid);
-    if (f == NULL) {
+    if (f == nullptr) {
       return;
     }
     mirror::Class* field_type = FieldHelper(f).GetType();
     if (!field_type->IsPrimitive()) {
-      if (java_object != NULL) {
+      jobject java_object = value.l;
+      if (java_object != nullptr) {
         mirror::Object* obj = soa_.Decode<mirror::Object*>(java_object);
         // If java_object is a weak global ref whose referent has been cleared,
         // obj will be NULL.  Otherwise, obj should always be non-NULL
@@ -242,7 +243,7 @@ class ScopedCheck {
   void CheckInstanceFieldID(jobject java_object, jfieldID fid)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::Object* o = soa_.Decode<mirror::Object*>(java_object);
-    if (o == NULL || !Runtime::Current()->GetHeap()->IsValidObjectAddress(o)) {
+    if (o == nullptr || !Runtime::Current()->GetHeap()->IsValidObjectAddress(o)) {
       Runtime::Current()->GetHeap()->DumpSpaces();
       JniAbortF(function_name_, "field operation on invalid %s: %p",
                 ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(), java_object);
@@ -250,12 +251,12 @@ class ScopedCheck {
     }
 
     mirror::ArtField* f = CheckFieldID(fid);
-    if (f == NULL) {
+    if (f == nullptr) {
       return;
     }
     mirror::Class* c = o->GetClass();
     FieldHelper fh(f);
-    if (c->FindInstanceField(fh.GetName(), fh.GetTypeDescriptor()) == NULL) {
+    if (c->FindInstanceField(fh.GetName(), fh.GetTypeDescriptor()) == nullptr) {
       JniAbortF(function_name_, "jfieldID %s not valid for an object of class %s",
                 PrettyField(f).c_str(), PrettyTypeOf(o).c_str());
     }
@@ -265,7 +266,7 @@ class ScopedCheck {
    * Verify that the pointer value is non-NULL.
    */
   void CheckNonNull(const void* ptr) {
-    if (ptr == NULL) {
+    if (ptr == nullptr) {
       JniAbortF(function_name_, "non-nullable argument was NULL");
     }
   }
@@ -277,7 +278,7 @@ class ScopedCheck {
   void CheckSig(jmethodID mid, const char* expectedType, bool isStatic)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::ArtMethod* m = CheckMethodID(mid);
-    if (m == NULL) {
+    if (m == nullptr) {
       return;
     }
     if (*expectedType != MethodHelper(m).GetShorty()[0]) {
@@ -303,8 +304,8 @@ class ScopedCheck {
   void CheckStaticFieldID(jclass java_class, jfieldID fid)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::Class* c = soa_.Decode<mirror::Class*>(java_class);
-    const mirror::ArtField* f = CheckFieldID(fid);
-    if (f == NULL) {
+    mirror::ArtField* f = CheckFieldID(fid);
+    if (f == nullptr) {
       return;
     }
     if (f->GetDeclaringClass() != c) {
@@ -324,8 +325,8 @@ class ScopedCheck {
    */
   void CheckStaticMethod(jclass java_class, jmethodID mid)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const mirror::ArtMethod* m = CheckMethodID(mid);
-    if (m == NULL) {
+    mirror::ArtMethod* m = CheckMethodID(mid);
+    if (m == nullptr) {
       return;
     }
     mirror::Class* c = soa_.Decode<mirror::Class*>(java_class);
@@ -344,8 +345,8 @@ class ScopedCheck {
    */
   void CheckVirtualMethod(jobject java_object, jmethodID mid)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const mirror::ArtMethod* m = CheckMethodID(mid);
-    if (m == NULL) {
+    mirror::ArtMethod* m = CheckMethodID(mid);
+    if (m == nullptr) {
       return;
     }
     mirror::Object* o = soa_.Decode<mirror::Object*>(java_object);
@@ -394,17 +395,18 @@ class ScopedCheck {
   void Check(bool entry, const char* fmt0, ...) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     va_list ap;
 
-    const mirror::ArtMethod* traceMethod = NULL;
+    mirror::ArtMethod* traceMethod = nullptr;
     if (has_method_ && (!soa_.Vm()->trace.empty() || VLOG_IS_ON(third_party_jni))) {
       // We need to guard some of the invocation interface's calls: a bad caller might
       // use DetachCurrentThread or GetEnv on a thread that's not yet attached.
       Thread* self = Thread::Current();
-      if ((flags_ & kFlag_Invocation) == 0 || self != NULL) {
-        traceMethod = self->GetCurrentMethod(NULL);
+      if ((flags_ & kFlag_Invocation) == 0 || self != nullptr) {
+        traceMethod = self->GetCurrentMethod(nullptr);
       }
     }
 
-    if (((flags_ & kFlag_ForceTrace) != 0) || (traceMethod != NULL && ShouldTrace(soa_.Vm(), traceMethod))) {
+    if (((flags_ & kFlag_ForceTrace) != 0) ||
+        (traceMethod != nullptr && ShouldTrace(soa_.Vm(), traceMethod))) {
       va_start(ap, fmt0);
       std::string msg;
       for (const char* fmt = fmt0; *fmt;) {
@@ -428,7 +430,7 @@ class ScopedCheck {
         } else if (ch == 'I' || ch == 'S') {  // jint, jshort
           StringAppendF(&msg, "%d", va_arg(ap, int));
         } else if (ch == 'J') {  // jlong
-          StringAppendF(&msg, "%lld", va_arg(ap, jlong));
+          StringAppendF(&msg, "%" PRId64, va_arg(ap, jlong));
         } else if (ch == 'Z') {  // jboolean
           StringAppendF(&msg, "%s", va_arg(ap, int) ? "true" : "false");
         } else if (ch == 'V') {  // void
@@ -442,7 +444,7 @@ class ScopedCheck {
         } else if (ch == 'L' || ch == 'a' || ch == 's') {  // jobject, jarray, jstring
           // For logging purposes, these are identical.
           jobject o = va_arg(ap, jobject);
-          if (o == NULL) {
+          if (o == nullptr) {
             msg += "NULL";
           } else {
             StringAppendF(&msg, "%p", o);
@@ -453,7 +455,7 @@ class ScopedCheck {
         } else if (ch == 'c') {  // jclass
           jclass jc = va_arg(ap, jclass);
           mirror::Class* c = reinterpret_cast<mirror::Class*>(Thread::Current()->DecodeJObject(jc));
-          if (c == NULL) {
+          if (c == nullptr) {
             msg += "NULL";
           } else if (c == kInvalidIndirectRefObject ||
               !Runtime::Current()->GetHeap()->IsValidObjectAddress(c)) {
@@ -488,7 +490,7 @@ class ScopedCheck {
           }
         } else if (ch == 'p') {  // void* ("pointer")
           void* p = va_arg(ap, void*);
-          if (p == NULL) {
+          if (p == nullptr) {
             msg += "NULL";
           } else {
             StringAppendF(&msg, "(void*) %p", p);
@@ -506,7 +508,7 @@ class ScopedCheck {
           }
         } else if (ch == 'u') {  // const char* (Modified UTF-8)
           const char* utf = va_arg(ap, const char*);
-          if (utf == NULL) {
+          if (utf == nullptr) {
             msg += "NULL";
           } else {
             StringAppendF(&msg, "\"%s\"", utf);
@@ -563,7 +565,7 @@ class ScopedCheck {
           }
         } else if (ch == 'z') {
           CheckLengthPositive(va_arg(ap, jsize));
-        } else if (strchr("BCISZbfmpEv", ch) != NULL) {
+        } else if (strchr("BCISZbfmpEv", ch) != nullptr) {
           va_arg(ap, uint32_t);  // Skip this argument.
         } else if (ch == 'D' || ch == 'F') {
           va_arg(ap, double);  // Skip this argument.
@@ -595,7 +597,7 @@ class ScopedCheck {
    */
   bool CheckInstance(InstanceKind kind, jobject java_object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const char* what = NULL;
+    const char* what = nullptr;
     switch (kind) {
     case kClass:
       what = "jclass";
@@ -616,7 +618,7 @@ class ScopedCheck {
       LOG(FATAL) << "Unknown kind " << static_cast<int>(kind);
     }
 
-    if (java_object == NULL) {
+    if (java_object == nullptr) {
       JniAbortF(function_name_, "%s received null %s", function_name_, what);
       return false;
     }
@@ -670,7 +672,7 @@ class ScopedCheck {
    * Since we're dealing with objects, switch to "running" mode.
    */
   void CheckArray(jarray java_array) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (java_array == NULL) {
+    if (java_array == nullptr) {
       JniAbortF(function_name_, "jarray was NULL");
       return;
     }
@@ -692,29 +694,29 @@ class ScopedCheck {
   }
 
   mirror::ArtField* CheckFieldID(jfieldID fid) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (fid == NULL) {
+    if (fid == nullptr) {
       JniAbortF(function_name_, "jfieldID was NULL");
-      return NULL;
+      return nullptr;
     }
     mirror::ArtField* f = soa_.DecodeField(fid);
     if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(f) || !f->IsArtField()) {
       Runtime::Current()->GetHeap()->DumpSpaces();
       JniAbortF(function_name_, "invalid jfieldID: %p", fid);
-      return NULL;
+      return nullptr;
     }
     return f;
   }
 
   mirror::ArtMethod* CheckMethodID(jmethodID mid) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (mid == NULL) {
+    if (mid == nullptr) {
       JniAbortF(function_name_, "jmethodID was NULL");
-      return NULL;
+      return nullptr;
     }
     mirror::ArtMethod* m = soa_.DecodeMethod(mid);
     if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(m) || !m->IsArtMethod()) {
       Runtime::Current()->GetHeap()->DumpSpaces();
       JniAbortF(function_name_, "invalid jmethodID: %p", mid);
-      return NULL;
+      return nullptr;
     }
     return m;
   }
@@ -727,7 +729,7 @@ class ScopedCheck {
    */
   void CheckObject(jobject java_object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (java_object == NULL) {
+    if (java_object == nullptr) {
       return;
     }
 
@@ -752,7 +754,7 @@ class ScopedCheck {
 
   void CheckThread(int flags) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Thread* self = Thread::Current();
-    if (self == NULL) {
+    if (self == nullptr) {
       JniAbortF(function_name_, "a thread (tid %d) is making JNI calls without being attached", GetTid());
       return;
     }
@@ -813,7 +815,7 @@ class ScopedCheck {
 
   // Verifies that "bytes" points to valid Modified UTF-8 data.
   void CheckUtfString(const char* bytes, bool nullable) {
-    if (bytes == NULL) {
+    if (bytes == nullptr) {
       if (!nullable) {
         JniAbortF(function_name_, "non-nullable const char* was NULL");
         return;
@@ -821,9 +823,9 @@ class ScopedCheck {
       return;
     }
 
-    const char* errorKind = NULL;
+    const char* errorKind = nullptr;
     uint8_t utf8 = CheckUtfBytes(bytes, &errorKind);
-    if (errorKind != NULL) {
+    if (errorKind != nullptr) {
       JniAbortF(function_name_,
                 "input is not valid Modified UTF-8: illegal %s byte %#x\n"
                 "    string: '%s'", errorKind, utf8, bytes);
@@ -998,7 +1000,7 @@ struct GuardedCopy {
     const uint16_t* pat = reinterpret_cast<const uint16_t*>(fullBuf);
     for (size_t i = sizeof(GuardedCopy) / 2; i < (kGuardLen / 2 - sizeof(GuardedCopy)) / 2; i++) {
       if (pat[i] != kGuardPattern) {
-        JniAbortF(functionName, "guard pattern(1) disturbed at %p +%d", fullBuf, i*2);
+        JniAbortF(functionName, "guard pattern(1) disturbed at %p +%zd", fullBuf, i*2);
       }
     }
 
@@ -1018,7 +1020,7 @@ struct GuardedCopy {
     pat = reinterpret_cast<const uint16_t*>(fullBuf + offset);
     for (size_t i = 0; i < kGuardLen / 4; i++) {
       if (pat[i] != kGuardPattern) {
-        JniAbortF(functionName, "guard pattern(2) disturbed at %p +%d", fullBuf, offset + i*2);
+        JniAbortF(functionName, "guard pattern(2) disturbed at %p +%zd", fullBuf, offset + i*2);
       }
     }
 
@@ -1037,7 +1039,7 @@ struct GuardedCopy {
 
  private:
   static uint8_t* DebugAlloc(size_t len) {
-    void* result = mmap(NULL, len, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON, -1, 0);
+    void* result = mmap(nullptr, len, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON, -1, 0);
     if (result == MAP_FAILED) {
       PLOG(FATAL) << "GuardedCopy::create mmap(" << len << ") failed";
     }
@@ -1081,8 +1083,8 @@ static void* CreateGuardedPACopy(JNIEnv* env, const jarray java_array, jboolean*
   mirror::Array* a = soa.Decode<mirror::Array*>(java_array);
   size_t component_size = a->GetClass()->GetComponentSize();
   size_t byte_count = a->GetLength() * component_size;
-  void* result = GuardedCopy::Create(a->GetRawData(component_size), byte_count, true);
-  if (isCopy != NULL) {
+  void* result = GuardedCopy::Create(a->GetRawData(component_size, 0), byte_count, true);
+  if (isCopy != nullptr) {
     *isCopy = JNI_TRUE;
   }
   return result;
@@ -1100,7 +1102,7 @@ static void ReleaseGuardedPACopy(JNIEnv* env, jarray java_array, void* dataBuf, 
 
   if (mode != JNI_ABORT) {
     size_t len = GuardedCopy::FromData(dataBuf)->original_length;
-    memcpy(a->GetRawData(a->GetClass()->GetComponentSize()), dataBuf, len);
+    memcpy(a->GetRawData(a->GetClass()->GetComponentSize(), 0), dataBuf, len);
   }
   if (mode != JNI_COMMIT) {
     GuardedCopy::Destroy(dataBuf);
@@ -1223,7 +1225,7 @@ class CheckJNI {
 
   static void DeleteGlobalRef(JNIEnv* env, jobject globalRef) {
     CHECK_JNI_ENTRY(kFlag_Default | kFlag_ExcepOkay, "EL", env, globalRef);
-    if (globalRef != NULL && GetIndirectRefKind(globalRef) != kGlobal) {
+    if (globalRef != nullptr && GetIndirectRefKind(globalRef) != kGlobal) {
       JniAbortF(__FUNCTION__, "DeleteGlobalRef on %s: %p",
                 ToStr<IndirectRefKind>(GetIndirectRefKind(globalRef)).c_str(), globalRef);
     } else {
@@ -1234,7 +1236,7 @@ class CheckJNI {
 
   static void DeleteWeakGlobalRef(JNIEnv* env, jweak weakGlobalRef) {
     CHECK_JNI_ENTRY(kFlag_Default | kFlag_ExcepOkay, "EL", env, weakGlobalRef);
-    if (weakGlobalRef != NULL && GetIndirectRefKind(weakGlobalRef) != kWeakGlobal) {
+    if (weakGlobalRef != nullptr && GetIndirectRefKind(weakGlobalRef) != kWeakGlobal) {
       JniAbortF(__FUNCTION__, "DeleteWeakGlobalRef on %s: %p",
                 ToStr<IndirectRefKind>(GetIndirectRefKind(weakGlobalRef)).c_str(), weakGlobalRef);
     } else {
@@ -1245,7 +1247,7 @@ class CheckJNI {
 
   static void DeleteLocalRef(JNIEnv* env, jobject localRef) {
     CHECK_JNI_ENTRY(kFlag_Default | kFlag_ExcepOkay, "EL", env, localRef);
-    if (localRef != NULL && GetIndirectRefKind(localRef) != kLocal && !IsSirtLocalRef(env, localRef)) {
+    if (localRef != nullptr && GetIndirectRefKind(localRef) != kLocal && !IsSirtLocalRef(env, localRef)) {
       JniAbortF(__FUNCTION__, "DeleteLocalRef on %s: %p",
                 ToStr<IndirectRefKind>(GetIndirectRefKind(localRef)).c_str(), localRef);
     } else {
@@ -1318,7 +1320,7 @@ class CheckJNI {
     return CHECK_JNI_EXIT("f", baseEnv(env)->GetStaticFieldID(env, c, name, sig));
   }
 
-#define FIELD_ACCESSORS(_ctype, _jname, _type) \
+#define FIELD_ACCESSORS(_ctype, _jname, _jvalue_type, _type) \
     static _ctype GetStatic##_jname##Field(JNIEnv* env, jclass c, jfieldID fid) { \
         CHECK_JNI_ENTRY(kFlag_Default, "Ecf", env, c, fid); \
         sc.CheckStaticFieldID(c, fid); \
@@ -1333,7 +1335,9 @@ class CheckJNI {
         CHECK_JNI_ENTRY(kFlag_Default, "Ecf" _type, env, c, fid, value); \
         sc.CheckStaticFieldID(c, fid); \
         /* "value" arg only used when type == ref */ \
-        sc.CheckFieldType((jobject)(uint32_t)value, fid, _type[0], true); \
+        jvalue java_type_value; \
+        java_type_value._jvalue_type = value; \
+        sc.CheckFieldType(java_type_value, fid, _type[0], true); \
         baseEnv(env)->SetStatic##_jname##Field(env, c, fid, value); \
         CHECK_JNI_EXIT_VOID(); \
     } \
@@ -1341,20 +1345,22 @@ class CheckJNI {
         CHECK_JNI_ENTRY(kFlag_Default, "ELf" _type, env, obj, fid, value); \
         sc.CheckInstanceFieldID(obj, fid); \
         /* "value" arg only used when type == ref */ \
-        sc.CheckFieldType((jobject)(uint32_t) value, fid, _type[0], false); \
+        jvalue java_type_value; \
+        java_type_value._jvalue_type = value; \
+        sc.CheckFieldType(java_type_value, fid, _type[0], false); \
         baseEnv(env)->Set##_jname##Field(env, obj, fid, value); \
         CHECK_JNI_EXIT_VOID(); \
     }
 
-FIELD_ACCESSORS(jobject, Object, "L");
-FIELD_ACCESSORS(jboolean, Boolean, "Z");
-FIELD_ACCESSORS(jbyte, Byte, "B");
-FIELD_ACCESSORS(jchar, Char, "C");
-FIELD_ACCESSORS(jshort, Short, "S");
-FIELD_ACCESSORS(jint, Int, "I");
-FIELD_ACCESSORS(jlong, Long, "J");
-FIELD_ACCESSORS(jfloat, Float, "F");
-FIELD_ACCESSORS(jdouble, Double, "D");
+FIELD_ACCESSORS(jobject, Object, l, "L");
+FIELD_ACCESSORS(jboolean, Boolean, z, "Z");
+FIELD_ACCESSORS(jbyte, Byte, b, "B");
+FIELD_ACCESSORS(jchar, Char, c, "C");
+FIELD_ACCESSORS(jshort, Short, s, "S");
+FIELD_ACCESSORS(jint, Int, i, "I");
+FIELD_ACCESSORS(jlong, Long, j, "J");
+FIELD_ACCESSORS(jfloat, Float, f, "F");
+FIELD_ACCESSORS(jdouble, Double, d, "D");
 
 #define CALL(_ctype, _jname, _retdecl, _retasgn, _retok, _retsig) \
     /* Virtual... */ \
@@ -1484,11 +1490,11 @@ CALL(void, Void, , , VOID_RETURN, "V");
   static const jchar* GetStringChars(JNIEnv* env, jstring java_string, jboolean* isCopy) {
     CHECK_JNI_ENTRY(kFlag_CritOkay, "Esp", env, java_string, isCopy);
     const jchar* result = baseEnv(env)->GetStringChars(env, java_string, isCopy);
-    if (sc.ForceCopy() && result != NULL) {
+    if (sc.ForceCopy() && result != nullptr) {
       mirror::String* s = sc.soa().Decode<mirror::String*>(java_string);
       int byteCount = s->GetLength() * 2;
       result = (const jchar*) GuardedCopy::Create(result, byteCount, false);
-      if (isCopy != NULL) {
+      if (isCopy != nullptr) {
         *isCopy = JNI_TRUE;
       }
     }
@@ -1519,9 +1525,9 @@ CALL(void, Void, , , VOID_RETURN, "V");
   static const char* GetStringUTFChars(JNIEnv* env, jstring string, jboolean* isCopy) {
     CHECK_JNI_ENTRY(kFlag_CritOkay, "Esp", env, string, isCopy);
     const char* result = baseEnv(env)->GetStringUTFChars(env, string, isCopy);
-    if (sc.ForceCopy() && result != NULL) {
+    if (sc.ForceCopy() && result != nullptr) {
       result = (const char*) GuardedCopy::Create(result, strlen(result) + 1, false);
-      if (isCopy != NULL) {
+      if (isCopy != nullptr) {
         *isCopy = JNI_TRUE;
       }
     }
@@ -1578,7 +1584,7 @@ struct ForceCopyGetChecker {
   ForceCopyGetChecker(ScopedCheck& sc, jboolean* isCopy) {
     force_copy = sc.ForceCopy();
     no_copy = 0;
-    if (force_copy && isCopy != NULL) {
+    if (force_copy && isCopy != nullptr) {
       // Capture this before the base call tramples on it.
       no_copy = *reinterpret_cast<uint32_t*>(isCopy);
     }
@@ -1586,7 +1592,7 @@ struct ForceCopyGetChecker {
 
   template<typename ResultT>
   ResultT Check(JNIEnv* env, jarray array, jboolean* isCopy, ResultT result) {
-    if (force_copy && result != NULL) {
+    if (force_copy && result != nullptr) {
       result = reinterpret_cast<ResultT>(CreateGuardedPACopy(env, array, isCopy));
     }
     return result;
@@ -1690,7 +1696,7 @@ PRIMITIVE_ARRAY_FUNCTIONS(jdouble, Double, 'D');
   static void* GetPrimitiveArrayCritical(JNIEnv* env, jarray array, jboolean* isCopy) {
     CHECK_JNI_ENTRY(kFlag_CritGet, "Eap", env, array, isCopy);
     void* result = baseEnv(env)->GetPrimitiveArrayCritical(env, array, isCopy);
-    if (sc.ForceCopy() && result != NULL) {
+    if (sc.ForceCopy() && result != nullptr) {
       result = CreateGuardedPACopy(env, array, isCopy);
     }
     return CHECK_JNI_EXIT("p", result);
@@ -1709,11 +1715,11 @@ PRIMITIVE_ARRAY_FUNCTIONS(jdouble, Double, 'D');
   static const jchar* GetStringCritical(JNIEnv* env, jstring java_string, jboolean* isCopy) {
     CHECK_JNI_ENTRY(kFlag_CritGet, "Esp", env, java_string, isCopy);
     const jchar* result = baseEnv(env)->GetStringCritical(env, java_string, isCopy);
-    if (sc.ForceCopy() && result != NULL) {
+    if (sc.ForceCopy() && result != nullptr) {
       mirror::String* s = sc.soa().Decode<mirror::String*>(java_string);
       int byteCount = s->GetLength() * 2;
       result = (const jchar*) GuardedCopy::Create(result, byteCount, false);
-      if (isCopy != NULL) {
+      if (isCopy != nullptr) {
         *isCopy = JNI_TRUE;
       }
     }
@@ -1751,11 +1757,11 @@ PRIMITIVE_ARRAY_FUNCTIONS(jdouble, Double, 'D');
 
   static jobject NewDirectByteBuffer(JNIEnv* env, void* address, jlong capacity) {
     CHECK_JNI_ENTRY(kFlag_Default, "EpJ", env, address, capacity);
-    if (address == NULL) {
+    if (address == nullptr) {
       JniAbortF(__FUNCTION__, "non-nullable address is NULL");
     }
     if (capacity < 0) {
-      JniAbortF(__FUNCTION__, "capacity must be non-negative: %lld", capacity);
+      JniAbortF(__FUNCTION__, "capacity must be non-negative: %" PRId64, capacity);
     }
     return CHECK_JNI_EXIT("L", baseEnv(env)->NewDirectByteBuffer(env, address, capacity));
   }
@@ -1779,10 +1785,10 @@ PRIMITIVE_ARRAY_FUNCTIONS(jdouble, Double, 'D');
 };
 
 const JNINativeInterface gCheckNativeInterface = {
-  NULL,  // reserved0.
-  NULL,  // reserved1.
-  NULL,  // reserved2.
-  NULL,  // reserved3.
+  nullptr,  // reserved0.
+  nullptr,  // reserved1.
+  nullptr,  // reserved2.
+  nullptr,  // reserved3.
   CheckJNI::GetVersion,
   CheckJNI::DefineClass,
   CheckJNI::FindClass,
@@ -2057,9 +2063,9 @@ class CheckJII {
 };
 
 const JNIInvokeInterface gCheckInvokeInterface = {
-  NULL,  // reserved0
-  NULL,  // reserved1
-  NULL,  // reserved2
+  nullptr,  // reserved0
+  nullptr,  // reserved1
+  nullptr,  // reserved2
   CheckJII::DestroyJavaVM,
   CheckJII::AttachCurrentThread,
   CheckJII::DetachCurrentThread,

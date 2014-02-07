@@ -52,8 +52,8 @@ class MANAGED DexCache : public Object {
 
   void Fixup(ArtMethod* trampoline) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  String* GetLocation() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject<String*>(OFFSET_OF_OBJECT_MEMBER(DexCache, location_), false);
+  String* GetLocation() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(DexCache, location_), false);
   }
 
   static MemberOffset StringsOffset() {
@@ -68,24 +68,23 @@ class MANAGED DexCache : public Object {
     return OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_methods_);
   }
 
-  size_t NumStrings() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  size_t NumStrings() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetStrings()->GetLength();
   }
 
-  size_t NumResolvedTypes() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  size_t NumResolvedTypes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetResolvedTypes()->GetLength();
   }
 
-  size_t NumResolvedMethods() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  size_t NumResolvedMethods() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetResolvedMethods()->GetLength();
   }
 
-  size_t NumResolvedFields() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  size_t NumResolvedFields() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetResolvedFields()->GetLength();
   }
 
-  String* GetResolvedString(uint32_t string_idx) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  String* GetResolvedString(uint32_t string_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetStrings()->Get(string_idx);
   }
 
@@ -94,8 +93,7 @@ class MANAGED DexCache : public Object {
     GetStrings()->Set(string_idx, resolved);
   }
 
-  Class* GetResolvedType(uint32_t type_idx) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  Class* GetResolvedType(uint32_t type_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetResolvedTypes()->Get(type_idx);
   }
 
@@ -104,16 +102,14 @@ class MANAGED DexCache : public Object {
     GetResolvedTypes()->Set(type_idx, resolved);
   }
 
-  ArtMethod* GetResolvedMethod(uint32_t method_idx) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ArtMethod* GetResolvedMethod(uint32_t method_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetResolvedMethod(uint32_t method_idx, ArtMethod* resolved)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     GetResolvedMethods()->Set(method_idx, resolved);
   }
 
-  ArtField* GetResolvedField(uint32_t field_idx) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ArtField* GetResolvedField(uint32_t field_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetResolvedFields()->Get(field_idx);
   }
 
@@ -122,28 +118,24 @@ class MANAGED DexCache : public Object {
     GetResolvedFields()->Set(field_idx, resolved);
   }
 
-  ObjectArray<String>* GetStrings() const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject< ObjectArray<String>* >(StringsOffset(), false);
+  ObjectArray<String>* GetStrings() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetFieldObject< ObjectArray<String> >(StringsOffset(), false);
   }
 
-  ObjectArray<Class>* GetResolvedTypes() const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject< ObjectArray<Class>* >(
+  ObjectArray<Class>* GetResolvedTypes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetFieldObject<ObjectArray<Class> >(
         OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_types_), false);
   }
 
-  ObjectArray<ArtMethod>* GetResolvedMethods() const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject< ObjectArray<ArtMethod>* >(ResolvedMethodsOffset(), false);
+  ObjectArray<ArtMethod>* GetResolvedMethods() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetFieldObject< ObjectArray<ArtMethod> >(ResolvedMethodsOffset(), false);
   }
 
-  ObjectArray<ArtField>* GetResolvedFields() const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldObject< ObjectArray<ArtField>* >(ResolvedFieldsOffset(), false);
+  ObjectArray<ArtField>* GetResolvedFields() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetFieldObject<ObjectArray<ArtField> >(ResolvedFieldsOffset(), false);
   }
 
-  const DexFile* GetDexFile() const {
+  const DexFile* GetDexFile() {
     return GetFieldPtr<const DexFile*>(OFFSET_OF_OBJECT_MEMBER(DexCache, dex_file_), false);
   }
 
@@ -152,13 +144,13 @@ class MANAGED DexCache : public Object {
   }
 
  private:
-  Object* dex_;
-  String* location_;
-  ObjectArray<ArtField>* resolved_fields_;
-  ObjectArray<ArtMethod>* resolved_methods_;
-  ObjectArray<Class>* resolved_types_;
-  ObjectArray<String>* strings_;
-  uint32_t dex_file_;
+  HeapReference<Object> dex_;
+  HeapReference<String> location_;
+  HeapReference<ObjectArray<ArtField> > resolved_fields_;
+  HeapReference<ObjectArray<ArtMethod> > resolved_methods_;
+  HeapReference<ObjectArray<Class> > resolved_types_;
+  HeapReference<ObjectArray<String> > strings_;
+  uint64_t dex_file_;
 
   friend struct art::DexCacheOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(DexCache);

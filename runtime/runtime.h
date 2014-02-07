@@ -61,6 +61,7 @@ class DexFile;
 class InternTable;
 struct JavaVMExt;
 class MonitorList;
+class MonitorPool;
 class SignalCatcher;
 class ThreadList;
 class Trace;
@@ -314,6 +315,10 @@ class Runtime {
     return monitor_list_;
   }
 
+  MonitorPool* GetMonitorPool() const {
+    return monitor_pool_;
+  }
+
   mirror::Throwable* GetPreAllocatedOutOfMemoryError() const
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -524,6 +529,7 @@ class Runtime {
   // The number of spins that are done before thread suspension is used to forcibly inflate.
   size_t max_spins_before_thin_lock_inflation_;
   MonitorList* monitor_list_;
+  MonitorPool* monitor_pool_;
 
   ThreadList* thread_list_;
 

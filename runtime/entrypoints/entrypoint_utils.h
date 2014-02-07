@@ -282,7 +282,7 @@ enum FindFieldType {
 };
 
 template<FindFieldType type, bool access_check>
-static inline mirror::ArtField* FindFieldFromCode(uint32_t field_idx, const mirror::ArtMethod* referrer,
+static inline mirror::ArtField* FindFieldFromCode(uint32_t field_idx, mirror::ArtMethod* referrer,
                                                   Thread* self, size_t expected_size) {
   bool is_primitive;
   bool is_set;
@@ -321,8 +321,7 @@ static inline mirror::ArtField* FindFieldFromCode(uint32_t field_idx, const mirr
       return nullptr;  // Failure.
     } else {
       FieldHelper fh(resolved_field);
-      if (UNLIKELY(fh.IsPrimitiveType() != is_primitive ||
-                   fh.FieldSize() != expected_size)) {
+      if (UNLIKELY(fh.IsPrimitiveType() != is_primitive || fh.FieldSize() != expected_size)) {
         ThrowLocation throw_location = self->GetCurrentLocationForThrow();
         DCHECK(throw_location.GetMethod() == referrer);
         self->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchFieldError;",
@@ -358,7 +357,7 @@ static inline mirror::ArtField* FindFieldFromCode(uint32_t field_idx, const mirr
 #define EXPLICIT_FIND_FIELD_FROM_CODE_TEMPLATE_DECL(_type, _access_check) \
 template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE \
 mirror::ArtField* FindFieldFromCode<_type, _access_check>(uint32_t field_idx, \
-                                                          const mirror::ArtMethod* referrer, \
+                                                          mirror::ArtMethod* referrer, \
                                                           Thread* self, size_t expected_size) \
 
 #define EXPLICIT_FIND_FIELD_FROM_CODE_TYPED_TEMPLATE_DECL(_type) \
@@ -496,7 +495,7 @@ EXPLICIT_FIND_METHOD_FROM_CODE_TYPED_TEMPLATE_DECL(kInterface);
 
 // Fast path field resolution that can't initialize classes or throw exceptions.
 static inline mirror::ArtField* FindFieldFast(uint32_t field_idx,
-                                              const mirror::ArtMethod* referrer,
+                                              mirror::ArtMethod* referrer,
                                               FindFieldType type, size_t expected_size)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtField* resolved_field =
@@ -552,7 +551,7 @@ static inline mirror::ArtField* FindFieldFast(uint32_t field_idx,
 // Fast path method resolution that can't throw exceptions.
 static inline mirror::ArtMethod* FindMethodFast(uint32_t method_idx,
                                                 mirror::Object* this_object,
-                                                const mirror::ArtMethod* referrer,
+                                                mirror::ArtMethod* referrer,
                                                 bool access_check, InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   bool is_direct = type == kStatic || type == kDirect;
@@ -593,7 +592,7 @@ static inline mirror::ArtMethod* FindMethodFast(uint32_t method_idx,
 }
 
 static inline mirror::Class* ResolveVerifyAndClinit(uint32_t type_idx,
-                                                    const mirror::ArtMethod* referrer,
+                                                    mirror::ArtMethod* referrer,
                                                     Thread* self, bool can_run_clinit,
                                                     bool verify_access)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -630,7 +629,7 @@ static inline mirror::Class* ResolveVerifyAndClinit(uint32_t type_idx,
 
 extern void ThrowStackOverflowError(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-static inline mirror::String* ResolveStringFromCode(const mirror::ArtMethod* referrer,
+static inline mirror::String* ResolveStringFromCode(mirror::ArtMethod* referrer,
                                                     uint32_t string_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -719,20 +718,20 @@ static inline const void* GetPortableToInterpreterBridge() {
   return reinterpret_cast<void*>(art_portable_to_interpreter_bridge);
 }
 
+static inline const void* GetPortableToQuickBridge() {
+  // TODO: portable to quick bridge. Bug: 8196384
+  return GetPortableToInterpreterBridge();
+}
+
 extern "C" void art_quick_to_interpreter_bridge(mirror::ArtMethod*);
 static inline const void* GetQuickToInterpreterBridge() {
   return reinterpret_cast<void*>(art_quick_to_interpreter_bridge);
 }
 
-// Return address of interpreter stub.
-static inline const void* GetCompiledCodeToInterpreterBridge() {
-#if defined(ART_USE_PORTABLE_COMPILER)
-  return GetPortableToInterpreterBridge();
-#else
+static inline const void* GetQuickToPortableBridge() {
+  // TODO: quick to portable bridge. Bug: 8196384
   return GetQuickToInterpreterBridge();
-#endif
 }
-
 
 static inline const void* GetPortableResolutionTrampoline(ClassLinker* class_linker) {
   return class_linker->GetPortableResolutionTrampoline();
@@ -740,15 +739,6 @@ static inline const void* GetPortableResolutionTrampoline(ClassLinker* class_lin
 
 static inline const void* GetQuickResolutionTrampoline(ClassLinker* class_linker) {
   return class_linker->GetQuickResolutionTrampoline();
-}
-
-// Return address of resolution trampoline stub for defined compiler.
-static inline const void* GetResolutionTrampoline(ClassLinker* class_linker) {
-#if defined(ART_USE_PORTABLE_COMPILER)
-  return GetPortableResolutionTrampoline(class_linker);
-#else
-  return GetQuickResolutionTrampoline(class_linker);
-#endif
 }
 
 static inline const void* GetPortableImtConflictTrampoline(ClassLinker* class_linker) {
@@ -759,15 +749,6 @@ static inline const void* GetQuickImtConflictTrampoline(ClassLinker* class_linke
   return class_linker->GetQuickImtConflictTrampoline();
 }
 
-// Return address of imt conflict trampoline stub for defined compiler.
-static inline const void* GetImtConflictTrampoline(ClassLinker* class_linker) {
-#if defined(ART_USE_PORTABLE_COMPILER)
-  return GetPortableImtConflictTrampoline(class_linker);
-#else
-  return GetQuickImtConflictTrampoline(class_linker);
-#endif
-}
-
 extern "C" void art_portable_proxy_invoke_handler();
 static inline const void* GetPortableProxyInvokeHandler() {
   return reinterpret_cast<void*>(art_portable_proxy_invoke_handler);
@@ -776,14 +757,6 @@ static inline const void* GetPortableProxyInvokeHandler() {
 extern "C" void art_quick_proxy_invoke_handler();
 static inline const void* GetQuickProxyInvokeHandler() {
   return reinterpret_cast<void*>(art_quick_proxy_invoke_handler);
-}
-
-static inline const void* GetProxyInvokeHandler() {
-#if defined(ART_USE_PORTABLE_COMPILER)
-  return GetPortableProxyInvokeHandler();
-#else
-  return GetQuickProxyInvokeHandler();
-#endif
 }
 
 extern "C" void* art_jni_dlsym_lookup_stub(JNIEnv*, jobject);

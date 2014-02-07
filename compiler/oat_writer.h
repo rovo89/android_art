@@ -65,7 +65,7 @@ class OatWriter {
  public:
   OatWriter(const std::vector<const DexFile*>& dex_files,
             uint32_t image_file_location_oat_checksum,
-            uint32_t image_file_location_oat_begin,
+            uintptr_t image_file_location_oat_begin,
             const std::string& image_file_location,
             const CompilerDriver* compiler,
             TimingLogger* timings);
@@ -150,10 +150,8 @@ class OatWriter {
                       uint32_t num_non_null_compiled_methods,
                       mirror::Class::Status status);
     ~OatClass();
-#if defined(ART_USE_PORTABLE_COMPILER)
     size_t GetOatMethodOffsetsOffsetFromOatHeader(size_t class_def_method_index_) const;
     size_t GetOatMethodOffsetsOffsetFromOatClass(size_t class_def_method_index_) const;
-#endif
     size_t SizeOf() const;
     void UpdateChecksum(OatHeader& oat_header) const;
     bool Write(OatWriter* oat_writer, OutputStream& out, const size_t file_offset) const;
@@ -217,7 +215,7 @@ class OatWriter {
 
   // dependencies on the image.
   uint32_t image_file_location_oat_checksum_;
-  uint32_t image_file_location_oat_begin_;
+  uintptr_t image_file_location_oat_begin_;
   std::string image_file_location_;
 
   // data to write

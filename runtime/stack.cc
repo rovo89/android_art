@@ -75,7 +75,7 @@ size_t ManagedStack::NumJniShadowFrameReferences() const {
   return count;
 }
 
-bool ManagedStack::ShadowFramesContain(mirror::Object** shadow_frame_entry) const {
+bool ManagedStack::ShadowFramesContain(StackReference<mirror::Object>* shadow_frame_entry) const {
   for (const ManagedStack* current_fragment = this; current_fragment != NULL;
        current_fragment = current_fragment->GetLink()) {
     for (ShadowFrame* current_frame = current_fragment->top_shadow_frame_; current_frame != NULL;
@@ -251,7 +251,7 @@ std::string StackVisitor::DescribeLocation() const {
     return "upcall";
   }
   result += PrettyMethod(m);
-  result += StringPrintf("' at dex PC 0x%04zx", GetDexPc());
+  result += StringPrintf("' at dex PC 0x%04x", GetDexPc());
   if (!IsShadowFrame()) {
     result += StringPrintf(" (native PC %p)", reinterpret_cast<void*>(GetCurrentQuickFramePc()));
   }
@@ -264,23 +264,23 @@ instrumentation::InstrumentationStackFrame& StackVisitor::GetInstrumentationStac
 }
 
 void StackVisitor::SanityCheckFrame() const {
-#ifndef NDEBUG
-  mirror::ArtMethod* method = GetMethod();
-  CHECK(method->GetClass() == mirror::ArtMethod::GetJavaLangReflectArtMethod());
-  if (cur_quick_frame_ != NULL) {
-    method->AssertPcIsWithinCode(cur_quick_frame_pc_);
-    // Frame sanity.
-    size_t frame_size = method->GetFrameSizeInBytes();
-    CHECK_NE(frame_size, 0u);
-    // A rough guess at an upper size we expect to see for a frame. The 256 is
-    // a dex register limit. The 16 incorporates callee save spills and
-    // outgoing argument set up.
-    const size_t kMaxExpectedFrameSize = 256 * sizeof(word) + 16;
-    CHECK_LE(frame_size, kMaxExpectedFrameSize);
-    size_t return_pc_offset = method->GetReturnPcOffsetInBytes();
-    CHECK_LT(return_pc_offset, frame_size);
+  if (kIsDebugBuild) {
+    mirror::ArtMethod* method = GetMethod();
+    CHECK(method->GetClass() == mirror::ArtMethod::GetJavaLangReflectArtMethod());
+    if (cur_quick_frame_ != nullptr) {
+      method->AssertPcIsWithinQuickCode(cur_quick_frame_pc_);
+      // Frame sanity.
+      size_t frame_size = method->GetFrameSizeInBytes();
+      CHECK_NE(frame_size, 0u);
+      // A rough guess at an upper size we expect to see for a frame. The 256 is
+      // a dex register limit. The 16 incorporates callee save spills and
+      // outgoing argument set up.
+      const size_t kMaxExpectedFrameSize = 256 * sizeof(word) + 16;
+      CHECK_LE(frame_size, kMaxExpectedFrameSize);
+      size_t return_pc_offset = method->GetReturnPcOffsetInBytes();
+      CHECK_LT(return_pc_offset, frame_size);
+    }
   }
-#endif
 }
 
 void StackVisitor::WalkStack(bool include_transitions) {

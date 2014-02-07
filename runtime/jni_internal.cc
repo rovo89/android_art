@@ -22,7 +22,7 @@
 #include <utility>
 #include <vector>
 
-#include "atomic_integer.h"
+#include "atomic.h"
 #include "base/logging.h"
 #include "base/mutex.h"
 #include "base/stl_util.h"
@@ -590,7 +590,7 @@ class Libraries {
   }
 
   // See section 11.3 "Linking Native Methods" of the JNI spec.
-  void* FindNativeMethod(const ArtMethod* m, std::string& detail)
+  void* FindNativeMethod(ArtMethod* m, std::string& detail)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string jni_short_name(JniShortName(m));
     std::string jni_long_name(JniLongName(m));
@@ -2215,7 +2215,7 @@ class JNI {
     if (is_copy != nullptr) {
       *is_copy = JNI_FALSE;
     }
-    return array->GetRawData(array->GetClass()->GetComponentSize());
+    return array->GetRawData(array->GetClass()->GetComponentSize(), 0);
   }
 
   static void ReleasePrimitiveArrayCritical(JNIEnv* env, jarray array, void* elements, jint mode) {
@@ -2518,10 +2518,10 @@ class JNI {
 
   static jobject NewDirectByteBuffer(JNIEnv* env, void* address, jlong capacity) {
     if (capacity < 0) {
-      JniAbortF("NewDirectByteBuffer", "negative buffer capacity: %lld", capacity);
+      JniAbortF("NewDirectByteBuffer", "negative buffer capacity: %" PRId64, capacity);
     }
     if (address == NULL && capacity != 0) {
-      JniAbortF("NewDirectByteBuffer", "non-zero capacity for NULL pointer: %lld", capacity);
+      JniAbortF("NewDirectByteBuffer", "non-zero capacity for NULL pointer: %" PRId64, capacity);
     }
 
     // At the moment, the Java side is limited to 32 bits.
@@ -2644,7 +2644,7 @@ class JNI {
     ScopedObjectAccess soa(env);
     Array* array = soa.Decode<Array*>(java_array);
     size_t component_size = array->GetClass()->GetComponentSize();
-    void* array_data = array->GetRawData(component_size);
+    void* array_data = array->GetRawData(component_size, 0);
     gc::Heap* heap = Runtime::Current()->GetHeap();
     bool is_copy = array_data != reinterpret_cast<void*>(elements);
     size_t bytes = array->GetLength() * component_size;
@@ -2944,10 +2944,6 @@ JNIEnvExt::JNIEnvExt(Thread* self, JavaVMExt* vm)
   if (vm->check_jni) {
     SetCheckJniEnabled(true);
   }
-  // The JniEnv local reference values must be at a consistent offset or else cross-compilation
-  // errors will ensue.
-  CHECK_EQ(JNIEnvExt::LocalRefCookieOffset().Int32Value(), 12);
-  CHECK_EQ(JNIEnvExt::SegmentStateOffset().Int32Value(), 16);
 }
 
 JNIEnvExt::~JNIEnvExt() {

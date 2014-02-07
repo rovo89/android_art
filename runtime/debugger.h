@@ -366,7 +366,7 @@ class Dbg {
     kMethodEntry    = 0x04,
     kMethodExit     = 0x08,
   };
-  static void PostLocationEvent(const mirror::ArtMethod* method, int pcOffset,
+  static void PostLocationEvent(mirror::ArtMethod* method, int pcOffset,
                                 mirror::Object* thisPtr, int eventFlags,
                                 const JValue* return_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -382,7 +382,7 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void UpdateDebugger(Thread* thread, mirror::Object* this_object,
-                             const mirror::ArtMethod* method, uint32_t new_dex_pc)
+                             mirror::ArtMethod* method, uint32_t new_dex_pc)
       LOCKS_EXCLUDED(Locks::breakpoint_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

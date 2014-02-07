@@ -131,7 +131,7 @@ class JniInternalTest : public CommonTest {
     JValue result;
 
     if (!is_static) {
-      arg_array.Append(reinterpret_cast<uint32_t>(receiver));
+      arg_array.Append(receiver);
     }
 
     method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'V');
@@ -148,11 +148,11 @@ class JniInternalTest : public CommonTest {
     JValue result;
 
     if (!is_static) {
-      arg_array.Append(reinterpret_cast<uint32_t>(receiver));
+      arg_array.Append(receiver);
       args++;
     }
 
-    arg_array.Append(0);
+    arg_array.Append(0U);
     result.SetB(-1);
     method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'B');
     EXPECT_EQ(0, result.GetB());
@@ -184,11 +184,11 @@ class JniInternalTest : public CommonTest {
     JValue result;
 
     if (!is_static) {
-      arg_array.Append(reinterpret_cast<uint32_t>(receiver));
+      arg_array.Append(receiver);
       args++;
     }
 
-    arg_array.Append(0);
+    arg_array.Append(0U);
     result.SetI(-1);
     method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
     EXPECT_EQ(0, result.GetI());
@@ -221,7 +221,7 @@ class JniInternalTest : public CommonTest {
     JValue result;
 
     if (!is_static) {
-      arg_array.Append(reinterpret_cast<uint32_t>(receiver));
+      arg_array.Append(receiver);
       args++;
     }
 
@@ -264,12 +264,12 @@ class JniInternalTest : public CommonTest {
     JValue result;
 
     if (!is_static) {
-      arg_array.Append(reinterpret_cast<uint32_t>(receiver));
+      arg_array.Append(receiver);
       args++;
     }
 
-    arg_array.Append(0);
-    arg_array.Append(0);
+    arg_array.Append(0U);
+    arg_array.Append(0U);
     result.SetI(-1);
     method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
     EXPECT_EQ(0, result.GetI());
@@ -310,13 +310,13 @@ class JniInternalTest : public CommonTest {
     JValue result;
 
     if (!is_static) {
-      arg_array.Append(reinterpret_cast<uint32_t>(receiver));
+      arg_array.Append(receiver);
       args++;
     }
 
-    arg_array.Append(0);
-    arg_array.Append(0);
-    arg_array.Append(0);
+    arg_array.Append(0U);
+    arg_array.Append(0U);
+    arg_array.Append(0U);
     result.SetI(-1);
     method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
     EXPECT_EQ(0, result.GetI());
@@ -361,14 +361,14 @@ class JniInternalTest : public CommonTest {
     JValue result;
 
     if (!is_static) {
-      arg_array.Append(reinterpret_cast<uint32_t>(receiver));
+      arg_array.Append(receiver);
       args++;
     }
 
-    arg_array.Append(0);
-    arg_array.Append(0);
-    arg_array.Append(0);
-    arg_array.Append(0);
+    arg_array.Append(0U);
+    arg_array.Append(0U);
+    arg_array.Append(0U);
+    arg_array.Append(0U);
     result.SetI(-1);
     method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
     EXPECT_EQ(0, result.GetI());
@@ -417,15 +417,15 @@ class JniInternalTest : public CommonTest {
     JValue result;
 
     if (!is_static) {
-      arg_array.Append(reinterpret_cast<uint32_t>(receiver));
+      arg_array.Append(receiver);
       args++;
     }
 
-    arg_array.Append(0);
-    arg_array.Append(0);
-    arg_array.Append(0);
-    arg_array.Append(0);
-    arg_array.Append(0);
+    arg_array.Append(0U);
+    arg_array.Append(0U);
+    arg_array.Append(0U);
+    arg_array.Append(0U);
+    arg_array.Append(0U);
     result.SetI(-1.0);
     method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
     EXPECT_EQ(0, result.GetI());
@@ -480,7 +480,7 @@ class JniInternalTest : public CommonTest {
     JValue result;
 
     if (!is_static) {
-      arg_array.Append(reinterpret_cast<uint32_t>(receiver));
+      arg_array.Append(receiver);
       args++;
     }
 
@@ -547,7 +547,7 @@ class JniInternalTest : public CommonTest {
     JValue result;
 
     if (!is_static) {
-      arg_array.Append(reinterpret_cast<uint32_t>(receiver));
+      arg_array.Append(receiver);
       args++;
     }
 
@@ -603,7 +603,7 @@ class JniInternalTest : public CommonTest {
     JValue result;
 
     if (!is_static) {
-      arg_array.Append(reinterpret_cast<uint32_t>(receiver));
+      arg_array.Append(receiver);
       args++;
     }
 
@@ -668,7 +668,7 @@ class JniInternalTest : public CommonTest {
     JValue result;
 
     if (!is_static) {
-      arg_array.Append(reinterpret_cast<uint32_t>(receiver));
+      arg_array.Append(receiver);
       args++;
     }
 
@@ -1492,8 +1492,8 @@ TEST_F(JniInternalTest, GetObjectArrayElement_SetObjectArrayElement) {
   } while (false)
 
 
-#if !defined(ART_USE_PORTABLE_COMPILER)
 TEST_F(JniInternalTest, GetPrimitiveField_SetPrimitiveField) {
+  TEST_DISABLED_FOR_PORTABLE();
   Thread::Current()->TransitionFromSuspendedToRunnable();
   LoadDex("AllFields");
   bool started = runtime_->Start();
@@ -1524,6 +1524,7 @@ TEST_F(JniInternalTest, GetPrimitiveField_SetPrimitiveField) {
 }
 
 TEST_F(JniInternalTest, GetObjectField_SetObjectField) {
+  TEST_DISABLED_FOR_PORTABLE();
   Thread::Current()->TransitionFromSuspendedToRunnable();
   LoadDex("AllFields");
   runtime_->Start();
@@ -1553,7 +1554,6 @@ TEST_F(JniInternalTest, GetObjectField_SetObjectField) {
   env_->SetObjectField(o, i_fid, s2);
   ASSERT_TRUE(env_->IsSameObject(s2, env_->GetObjectField(o, i_fid)));
 }
-#endif
 
 TEST_F(JniInternalTest, NewLocalRef_NULL) {
   EXPECT_TRUE(env_->NewLocalRef(NULL) == NULL);
@@ -1756,7 +1756,7 @@ TEST_F(JniInternalTest, StaticMainMethod) {
   ASSERT_TRUE(method != NULL);
 
   ArgArray arg_array(NULL, 0);
-  arg_array.Append(0);
+  arg_array.Append(0U);
   JValue result;
 
   // Start runtime.

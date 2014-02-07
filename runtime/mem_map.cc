@@ -79,7 +79,7 @@ static void CheckMapRequest(byte*, size_t) { }
 #endif
 
 MemMap* MemMap::MapAnonymous(const char* name, byte* addr, size_t byte_count, int prot,
-                             std::string* error_msg) {
+                             bool low_4gb, std::string* error_msg) {
   if (byte_count == 0) {
     return new MemMap(name, NULL, 0, NULL, 0, prot);
   }
@@ -101,7 +101,11 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* addr, size_t byte_count, in
   ScopedFd fd(-1);
   int flags = MAP_PRIVATE | MAP_ANONYMOUS;
 #endif
-
+#ifdef __LP64__
+  if (low_4gb) {
+    flags |= MAP_32BIT;
+  }
+#endif
   byte* actual = reinterpret_cast<byte*>(mmap(addr, page_aligned_byte_count, prot, flags, fd.get(), 0));
   if (actual == MAP_FAILED) {
     std::string maps;

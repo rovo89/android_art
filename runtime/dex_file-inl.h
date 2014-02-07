@@ -44,7 +44,7 @@ inline const Signature DexFile::GetMethodSignature(const MethodId& method_id) co
 inline const DexFile::TryItem* DexFile::GetTryItems(const CodeItem& code_item, uint32_t offset) {
   const uint16_t* insns_end_ = &code_item.insns_[code_item.insns_size_in_code_units_];
   return reinterpret_cast<const TryItem*>
-      (RoundUp(reinterpret_cast<uint32_t>(insns_end_), 4)) + offset;
+      (RoundUp(reinterpret_cast<uintptr_t>(insns_end_), 4)) + offset;
 }
 
 static inline bool DexFileStringEquals(const DexFile* df1, uint32_t sidx1,

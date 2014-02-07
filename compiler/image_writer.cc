@@ -208,12 +208,12 @@ void ImageWriter::AssignImageOffset(mirror::Object* object) {
   DCHECK_LT(image_end_, image_->Size());
 }
 
-bool ImageWriter::IsImageOffsetAssigned(const mirror::Object* object) const {
+bool ImageWriter::IsImageOffsetAssigned(mirror::Object* object) const {
   DCHECK(object != nullptr);
   return object->GetLockWord().GetState() == LockWord::kForwardingAddress;
 }
 
-size_t ImageWriter::GetImageOffset(const mirror::Object* object) const {
+size_t ImageWriter::GetImageOffset(mirror::Object* object) const {
   DCHECK(object != nullptr);
   DCHECK(IsImageOffsetAssigned(object));
   LockWord lock_word = object->GetLockWord();
@@ -226,7 +226,7 @@ bool ImageWriter::AllocMemory() {
   size_t length = RoundUp(Runtime::Current()->GetHeap()->GetTotalMemory(), kPageSize);
   std::string error_msg;
   image_.reset(MemMap::MapAnonymous("image writer image", NULL, length, PROT_READ | PROT_WRITE,
-                                    &error_msg));
+                                    true, &error_msg));
   if (UNLIKELY(image_.get() == nullptr)) {
     LOG(ERROR) << "Failed to allocate memory for image file generation: " << error_msg;
     return false;
@@ -281,7 +281,7 @@ void ImageWriter::ComputeEagerResolvedStrings() SHARED_LOCKS_REQUIRED(Locks::mut
   Runtime::Current()->GetHeap()->VisitObjects(ComputeEagerResolvedStringsCallback, this);
 }
 
-bool ImageWriter::IsImageClass(const Class* klass) {
+bool ImageWriter::IsImageClass(Class* klass) {
   return compiler_driver_.IsImageClass(ClassHelper(klass).GetDescriptor());
 }
 
@@ -447,7 +447,7 @@ void ImageWriter::WalkInstanceFields(mirror::Object* obj, mirror::Class* klass) 
   for (size_t i = 0; i < num_reference_fields; ++i) {
     mirror::ArtField* field = sirt_class->GetInstanceField(i);
     MemberOffset field_offset = field->GetOffset();
-    mirror::Object* value = obj->GetFieldObject<mirror::Object*>(field_offset, false);
+    mirror::Object* value = obj->GetFieldObject<mirror::Object>(field_offset, false);
     if (value != nullptr) {
       WalkFieldsInOrder(value);
     }
@@ -470,7 +470,7 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
       for (size_t i = 0; i < num_static_fields; ++i) {
         mirror::ArtField* field = klass->GetStaticField(i);
         MemberOffset field_offset = field->GetOffset();
-        mirror::Object* value = sirt_obj->GetFieldObject<mirror::Object*>(field_offset, false);
+        mirror::Object* value = sirt_obj->GetFieldObject<mirror::Object>(field_offset, false);
         if (value != nullptr) {
           WalkFieldsInOrder(value);
         }
@@ -527,16 +527,16 @@ void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_d
   const size_t heap_bytes_per_bitmap_byte = kBitsPerByte * gc::accounting::SpaceBitmap::kAlignment;
   const size_t bitmap_bytes = RoundUp(image_end_, heap_bytes_per_bitmap_byte) /
       heap_bytes_per_bitmap_byte;
-  ImageHeader image_header(reinterpret_cast<uint32_t>(image_begin_),
+  ImageHeader image_header(PointerToLowMemUInt32(image_begin_),
                            static_cast<uint32_t>(image_end_),
                            RoundUp(image_end_, kPageSize),
                            RoundUp(bitmap_bytes, kPageSize),
-                           reinterpret_cast<uint32_t>(GetImageAddress(image_roots.get())),
+                           PointerToLowMemUInt32(GetImageAddress(image_roots.get())),
                            oat_file_->GetOatHeader().GetChecksum(),
-                           reinterpret_cast<uint32_t>(oat_file_begin),
-                           reinterpret_cast<uint32_t>(oat_data_begin_),
-                           reinterpret_cast<uint32_t>(oat_data_end),
-                           reinterpret_cast<uint32_t>(oat_file_end));
+                           PointerToLowMemUInt32(oat_file_begin),
+                           PointerToLowMemUInt32(oat_data_begin_),
+                           PointerToLowMemUInt32(oat_data_end),
+                           PointerToLowMemUInt32(oat_file_end));
   memcpy(image_->Begin(), &image_header, sizeof(image_header));
 
   // Note that image_end_ is left at end of used space
@@ -578,7 +578,7 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object* obj, void* arg) {
   image_writer->FixupObject(obj, copy);
 }
 
-void ImageWriter::FixupObject(const Object* orig, Object* copy) {
+void ImageWriter::FixupObject(Object* orig, Object* copy) {
   DCHECK(orig != NULL);
   DCHECK(copy != NULL);
   copy->SetClass(down_cast<Class*>(GetImageAddress(orig->GetClass())));
@@ -594,12 +594,12 @@ void ImageWriter::FixupObject(const Object* orig, Object* copy) {
   }
 }
 
-void ImageWriter::FixupClass(const Class* orig, Class* copy) {
+void ImageWriter::FixupClass(Class* orig, Class* copy) {
   FixupInstanceFields(orig, copy);
   FixupStaticFields(orig, copy);
 }
 
-void ImageWriter::FixupMethod(const ArtMethod* orig, ArtMethod* copy) {
+void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
   FixupInstanceFields(orig, copy);
 
   // OatWriter replaces the code_ with an offset value. Here we re-adjust to a pointer relative to
@@ -607,43 +607,36 @@ void ImageWriter::FixupMethod(const ArtMethod* orig, ArtMethod* copy) {
 
   // The resolution method has a special trampoline to call.
   if (UNLIKELY(orig == Runtime::Current()->GetResolutionMethod())) {
-#if defined(ART_USE_PORTABLE_COMPILER)
-    copy->SetEntryPointFromCompiledCode(GetOatAddress(portable_resolution_trampoline_offset_));
-#else
-    copy->SetEntryPointFromCompiledCode(GetOatAddress(quick_resolution_trampoline_offset_));
-#endif
+    copy->SetEntryPointFromPortableCompiledCode(GetOatAddress(portable_resolution_trampoline_offset_));
+    copy->SetEntryPointFromQuickCompiledCode(GetOatAddress(quick_resolution_trampoline_offset_));
   } else if (UNLIKELY(orig == Runtime::Current()->GetImtConflictMethod())) {
-#if defined(ART_USE_PORTABLE_COMPILER)
-    copy->SetEntryPointFromCompiledCode(GetOatAddress(portable_imt_conflict_trampoline_offset_));
-#else
-    copy->SetEntryPointFromCompiledCode(GetOatAddress(quick_imt_conflict_trampoline_offset_));
-#endif
+    copy->SetEntryPointFromPortableCompiledCode(GetOatAddress(portable_imt_conflict_trampoline_offset_));
+    copy->SetEntryPointFromQuickCompiledCode(GetOatAddress(quick_imt_conflict_trampoline_offset_));
   } else {
     // We assume all methods have code. If they don't currently then we set them to the use the
     // resolution trampoline. Abstract methods never have code and so we need to make sure their
     // use results in an AbstractMethodError. We use the interpreter to achieve this.
     if (UNLIKELY(orig->IsAbstract())) {
-#if defined(ART_USE_PORTABLE_COMPILER)
-      copy->SetEntryPointFromCompiledCode(GetOatAddress(portable_to_interpreter_bridge_offset_));
-#else
-      copy->SetEntryPointFromCompiledCode(GetOatAddress(quick_to_interpreter_bridge_offset_));
-#endif
+      copy->SetEntryPointFromPortableCompiledCode(GetOatAddress(portable_to_interpreter_bridge_offset_));
+      copy->SetEntryPointFromQuickCompiledCode(GetOatAddress(quick_to_interpreter_bridge_offset_));
       copy->SetEntryPointFromInterpreter(reinterpret_cast<EntryPointFromInterpreter*>
-      (const_cast<byte*>(GetOatAddress(interpreter_to_interpreter_bridge_offset_))));
+          (const_cast<byte*>(GetOatAddress(interpreter_to_interpreter_bridge_offset_))));
     } else {
       copy->SetEntryPointFromInterpreter(reinterpret_cast<EntryPointFromInterpreter*>
-      (const_cast<byte*>(GetOatAddress(interpreter_to_compiled_code_bridge_offset_))));
+          (const_cast<byte*>(GetOatAddress(interpreter_to_compiled_code_bridge_offset_))));
       // Use original code if it exists. Otherwise, set the code pointer to the resolution
       // trampoline.
-      const byte* code = GetOatAddress(orig->GetOatCodeOffset());
-      if (code != NULL) {
-        copy->SetEntryPointFromCompiledCode(code);
+      const byte* quick_code = GetOatAddress(orig->GetQuickOatCodeOffset());
+      if (quick_code != nullptr) {
+        copy->SetEntryPointFromQuickCompiledCode(quick_code);
       } else {
-#if defined(ART_USE_PORTABLE_COMPILER)
-        copy->SetEntryPointFromCompiledCode(GetOatAddress(portable_resolution_trampoline_offset_));
-#else
-        copy->SetEntryPointFromCompiledCode(GetOatAddress(quick_resolution_trampoline_offset_));
-#endif
+        copy->SetEntryPointFromQuickCompiledCode(GetOatAddress(quick_resolution_trampoline_offset_));
+      }
+      const byte* portable_code = GetOatAddress(orig->GetPortableOatCodeOffset());
+      if (portable_code != nullptr) {
+        copy->SetEntryPointFromPortableCompiledCode(portable_code);
+      } else {
+        copy->SetEntryPointFromPortableCompiledCode(GetOatAddress(portable_resolution_trampoline_offset_));
       }
       if (orig->IsNative()) {
         // The native method's pointer is set to a stub to lookup via dlsym.
@@ -667,14 +660,14 @@ void ImageWriter::FixupMethod(const ArtMethod* orig, ArtMethod* copy) {
   }
 }
 
-void ImageWriter::FixupObjectArray(const ObjectArray<Object>* orig, ObjectArray<Object>* copy) {
+void ImageWriter::FixupObjectArray(ObjectArray<Object>* orig, ObjectArray<Object>* copy) {
   for (int32_t i = 0; i < orig->GetLength(); ++i) {
-    const Object* element = orig->Get(i);
-    copy->SetPtrWithoutChecks(i, GetImageAddress(element));
+    Object* element = orig->Get(i);
+    copy->SetWithoutChecksAndWriteBarrier(i, GetImageAddress(element));
   }
 }
 
-void ImageWriter::FixupInstanceFields(const Object* orig, Object* copy) {
+void ImageWriter::FixupInstanceFields(Object* orig, Object* copy) {
   DCHECK(orig != NULL);
   DCHECK(copy != NULL);
   Class* klass = orig->GetClass();
@@ -682,13 +675,13 @@ void ImageWriter::FixupInstanceFields(const Object* orig, Object* copy) {
   FixupFields(orig, copy, klass->GetReferenceInstanceOffsets(), false);
 }
 
-void ImageWriter::FixupStaticFields(const Class* orig, Class* copy) {
+void ImageWriter::FixupStaticFields(Class* orig, Class* copy) {
   DCHECK(orig != NULL);
   DCHECK(copy != NULL);
   FixupFields(orig, copy, orig->GetReferenceStaticOffsets(), true);
 }
 
-void ImageWriter::FixupFields(const Object* orig,
+void ImageWriter::FixupFields(Object* orig,
                               Object* copy,
                               uint32_t ref_offsets,
                               bool is_static) {
@@ -697,9 +690,10 @@ void ImageWriter::FixupFields(const Object* orig,
     while (ref_offsets != 0) {
       size_t right_shift = CLZ(ref_offsets);
       MemberOffset byte_offset = CLASS_OFFSET_FROM_CLZ(right_shift);
-      const Object* ref = orig->GetFieldObject<const Object*>(byte_offset, false);
-      // Use SetFieldPtr to avoid card marking since we are writing to the image.
-      copy->SetFieldPtr(byte_offset, GetImageAddress(ref), false);
+      Object* ref = orig->GetFieldObject<Object>(byte_offset, false);
+      // Use SetFieldObjectWithoutWriteBarrier to avoid card marking since we are writing to the
+      // image.
+      copy->SetFieldObjectWithoutWriteBarrier(byte_offset, GetImageAddress(ref), false);
       ref_offsets &= ~(CLASS_HIGH_BIT >> right_shift);
     }
   } else {
@@ -707,7 +701,7 @@ void ImageWriter::FixupFields(const Object* orig,
     // walk up the class inheritance hierarchy and find reference
     // offsets the hard way. In the static case, just consider this
     // class.
-    for (const Class *klass = is_static ? orig->AsClass() : orig->GetClass();
+    for (Class *klass = is_static ? orig->AsClass() : orig->GetClass();
          klass != NULL;
          klass = is_static ? NULL : klass->GetSuperClass()) {
       size_t num_reference_fields = (is_static
@@ -718,9 +712,10 @@ void ImageWriter::FixupFields(const Object* orig,
                            ? klass->GetStaticField(i)
                            : klass->GetInstanceField(i));
         MemberOffset field_offset = field->GetOffset();
-        const Object* ref = orig->GetFieldObject<const Object*>(field_offset, false);
-        // Use SetFieldPtr to avoid card marking since we are writing to the image.
-        copy->SetFieldPtr(field_offset, GetImageAddress(ref), false);
+        Object* ref = orig->GetFieldObject<Object>(field_offset, false);
+        // Use SetFieldObjectWithoutWriteBarrier to avoid card marking since we are writing to the
+        // image.
+        copy->SetFieldObjectWithoutWriteBarrier(field_offset, GetImageAddress(ref), false);
       }
     }
   }
@@ -728,9 +723,10 @@ void ImageWriter::FixupFields(const Object* orig,
     // Fix-up referent, that isn't marked as an object field, for References.
     ArtField* field = orig->GetClass()->FindInstanceField("referent", "Ljava/lang/Object;");
     MemberOffset field_offset = field->GetOffset();
-    const Object* ref = orig->GetFieldObject<const Object*>(field_offset, false);
-    // Use SetFieldPtr to avoid card marking since we are writing to the image.
-    copy->SetFieldPtr(field_offset, GetImageAddress(ref), false);
+    Object* ref = orig->GetFieldObject<Object>(field_offset, false);
+    // Use SetFieldObjectWithoutWriteBarrier to avoid card marking since we are writing to the
+    // image.
+    copy->SetFieldObjectWithoutWriteBarrier(field_offset, GetImageAddress(ref), false);
   }
 }
 
@@ -786,17 +782,17 @@ void ImageWriter::PatchOatCodeAndMethods() {
   for (size_t i = 0; i < code_to_patch.size(); i++) {
     const CompilerDriver::CallPatchInformation* patch = code_to_patch[i];
     ArtMethod* target = GetTargetMethod(patch);
-    uint32_t code = reinterpret_cast<uint32_t>(class_linker->GetOatCodeFor(target));
-    uint32_t code_base = reinterpret_cast<uint32_t>(&oat_file_->GetOatHeader());
-    uint32_t code_offset = code - code_base;
-    SetPatchLocation(patch, reinterpret_cast<uint32_t>(GetOatAddress(code_offset)));
+    uintptr_t quick_code = reinterpret_cast<uintptr_t>(class_linker->GetQuickOatCodeFor(target));
+    uintptr_t code_base = reinterpret_cast<uintptr_t>(&oat_file_->GetOatHeader());
+    uintptr_t code_offset = quick_code - code_base;
+    SetPatchLocation(patch, PointerToLowMemUInt32(GetOatAddress(code_offset)));
   }
 
   const CallPatches& methods_to_patch = compiler_driver_.GetMethodsToPatch();
   for (size_t i = 0; i < methods_to_patch.size(); i++) {
     const CompilerDriver::CallPatchInformation* patch = methods_to_patch[i];
     ArtMethod* target = GetTargetMethod(patch);
-    SetPatchLocation(patch, reinterpret_cast<uint32_t>(GetImageAddress(target)));
+    SetPatchLocation(patch, PointerToLowMemUInt32(GetImageAddress(target)));
   }
 
   const std::vector<const CompilerDriver::TypePatchInformation*>& classes_to_patch =
@@ -804,7 +800,7 @@ void ImageWriter::PatchOatCodeAndMethods() {
   for (size_t i = 0; i < classes_to_patch.size(); i++) {
     const CompilerDriver::TypePatchInformation* patch = classes_to_patch[i];
     Class* target = GetTargetType(patch);
-    SetPatchLocation(patch, reinterpret_cast<uint32_t>(GetImageAddress(target)));
+    SetPatchLocation(patch, PointerToLowMemUInt32(GetImageAddress(target)));
   }
 
   // Update the image header with the new checksum after patching
@@ -815,18 +811,18 @@ void ImageWriter::PatchOatCodeAndMethods() {
 
 void ImageWriter::SetPatchLocation(const CompilerDriver::PatchInformation* patch, uint32_t value) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  const void* oat_code = class_linker->GetOatCodeFor(patch->GetDexFile(),
-                                                     patch->GetReferrerClassDefIdx(),
-                                                     patch->GetReferrerMethodIdx());
+  const void* quick_oat_code = class_linker->GetQuickOatCodeFor(patch->GetDexFile(),
+                                                                patch->GetReferrerClassDefIdx(),
+                                                                patch->GetReferrerMethodIdx());
   OatHeader& oat_header = const_cast<OatHeader&>(oat_file_->GetOatHeader());
   // TODO: make this Thumb2 specific
-  uint8_t* base = reinterpret_cast<uint8_t*>(reinterpret_cast<uint32_t>(oat_code) & ~0x1);
+  uint8_t* base = reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(quick_oat_code) & ~0x1);
   uint32_t* patch_location = reinterpret_cast<uint32_t*>(base + patch->GetLiteralOffset());
   if (kIsDebugBuild) {
     if (patch->IsCall()) {
       const CompilerDriver::CallPatchInformation* cpatch = patch->AsCall();
       const DexFile::MethodId& id = cpatch->GetDexFile().GetMethodId(cpatch->GetTargetMethodIdx());
-      uint32_t expected = reinterpret_cast<uint32_t>(&id);
+      uintptr_t expected = reinterpret_cast<uintptr_t>(&id);
       uint32_t actual = *patch_location;
       CHECK(actual == expected || actual == value) << std::hex
           << "actual=" << actual
@@ -836,7 +832,7 @@ void ImageWriter::SetPatchLocation(const CompilerDriver::PatchInformation* patch
     if (patch->IsType()) {
       const CompilerDriver::TypePatchInformation* tpatch = patch->AsType();
       const DexFile::TypeId& id = tpatch->GetDexFile().GetTypeId(tpatch->GetTargetTypeIdx());
-      uint32_t expected = reinterpret_cast<uint32_t>(&id);
+      uintptr_t expected = reinterpret_cast<uintptr_t>(&id);
       uint32_t actual = *patch_location;
       CHECK(actual == expected || actual == value) << std::hex
           << "actual=" << actual

@@ -228,7 +228,7 @@ extern "C" void* art_heap_morecore(void* mspace, intptr_t increment) {
   return dlmalloc_space->MoreCore(increment);
 }
 
-size_t DlMallocSpace::AllocationSize(const mirror::Object* obj) {
+size_t DlMallocSpace::AllocationSize(mirror::Object* obj) {
   return AllocationSizeNonvirtual(obj);
 }
 

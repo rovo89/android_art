@@ -82,9 +82,9 @@ class ModUnionUpdateObjectReferencesVisitor {
     if (ref != nullptr) {
       Object* new_ref = visitor_(ref, arg_);
       if (new_ref != ref) {
-        // Use SetFieldPtr to avoid card mark as an optimization which reduces dirtied pages and
-        // improves performance.
-        obj->SetFieldPtr(offset, new_ref, true);
+        // Use SetFieldObjectWithoutWriteBarrier to avoid card mark as an optimization which
+        // reduces dirtied pages and improves performance.
+        obj->SetFieldObjectWithoutWriteBarrier(offset, new_ref, true);
       }
     }
   }
@@ -122,9 +122,8 @@ void ModUnionTableReferenceCache::ClearCards() {
 class AddToReferenceArrayVisitor {
  public:
   explicit AddToReferenceArrayVisitor(ModUnionTableReferenceCache* mod_union_table,
-                                      std::vector<Object**>* references)
-    : mod_union_table_(mod_union_table),
-      references_(references) {
+                                      std::vector<mirror::HeapReference<Object>*>* references)
+    : mod_union_table_(mod_union_table), references_(references) {
   }
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
@@ -133,19 +132,19 @@ class AddToReferenceArrayVisitor {
     // Only add the reference if it is non null and fits our criteria.
     if (ref != nullptr && mod_union_table_->AddReference(obj, ref)) {
       // Push the adddress of the reference.
-      references_->push_back(obj->GetFieldObjectAddr(offset));
+      references_->push_back(obj->GetFieldObjectReferenceAddr(offset));
     }
   }
 
  private:
   ModUnionTableReferenceCache* const mod_union_table_;
-  std::vector<Object**>* const references_;
+  std::vector<mirror::HeapReference<Object>*>* const references_;
 };
 
 class ModUnionReferenceVisitor {
  public:
   explicit ModUnionReferenceVisitor(ModUnionTableReferenceCache* const mod_union_table,
-                                    std::vector<Object**>* references)
+                                    std::vector<mirror::HeapReference<Object>*>* references)
     : mod_union_table_(mod_union_table),
       references_(references) {
   }
@@ -160,7 +159,7 @@ class ModUnionReferenceVisitor {
   }
  private:
   ModUnionTableReferenceCache* const mod_union_table_;
-  std::vector<Object**>* const references_;
+  std::vector<mirror::HeapReference<Object>*>* const references_;
 };
 
 class CheckReferenceVisitor {
@@ -173,7 +172,7 @@ class CheckReferenceVisitor {
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
   // TODO: Fixme when anotatalysis works with visitors.
-  void operator()(const Object* obj, const Object* ref,
+  void operator()(Object* obj, Object* ref,
                   const MemberOffset& /* offset */, bool /* is_static */) const
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
     Heap* heap = mod_union_table_->GetHeap();
@@ -219,8 +218,8 @@ class ModUnionCheckReferences {
 void ModUnionTableReferenceCache::Verify() {
   // Start by checking that everything in the mod union table is marked.
   for (const auto& ref_pair : references_) {
-    for (Object** ref : ref_pair.second) {
-      CHECK(heap_->IsLiveObjectLocked(*ref));
+    for (mirror::HeapReference<Object>* ref : ref_pair.second) {
+      CHECK(heap_->IsLiveObjectLocked(ref->AsMirrorPtr()));
     }
   }
 
@@ -231,8 +230,8 @@ void ModUnionTableReferenceCache::Verify() {
     const byte* card = ref_pair.first;
     if (*card == CardTable::kCardClean) {
       std::set<const Object*> reference_set;
-      for (Object** obj_ptr : ref_pair.second) {
-        reference_set.insert(*obj_ptr);
+      for (mirror::HeapReference<Object>* obj_ptr : ref_pair.second) {
+        reference_set.insert(obj_ptr->AsMirrorPtr());
       }
       ModUnionCheckReferences visitor(this, reference_set);
       uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card));
@@ -255,8 +254,8 @@ void ModUnionTableReferenceCache::Dump(std::ostream& os) {
     uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card_addr));
     uintptr_t end = start + CardTable::kCardSize;
     os << reinterpret_cast<void*>(start) << "-" << reinterpret_cast<void*>(end) << "->{";
-    for (Object** ref : ref_pair.second) {
-      os << reinterpret_cast<const void*>(*ref) << ",";
+    for (mirror::HeapReference<Object>* ref : ref_pair.second) {
+      os << reinterpret_cast<const void*>(ref->AsMirrorPtr()) << ",";
     }
     os << "},";
   }
@@ -266,7 +265,7 @@ void ModUnionTableReferenceCache::UpdateAndMarkReferences(RootVisitor visitor, v
   Heap* heap = GetHeap();
   CardTable* card_table = heap->GetCardTable();
 
-  std::vector<Object**> cards_references;
+  std::vector<mirror::HeapReference<Object>*> cards_references;
   ModUnionReferenceVisitor add_visitor(this, &cards_references);
 
   for (const auto& card : cleared_cards_) {
@@ -294,13 +293,13 @@ void ModUnionTableReferenceCache::UpdateAndMarkReferences(RootVisitor visitor, v
   cleared_cards_.clear();
   size_t count = 0;
   for (const auto& ref : references_) {
-    for (const auto& obj_ptr : ref.second) {
-      Object* obj = *obj_ptr;
+    for (mirror::HeapReference<Object>* obj_ptr : ref.second) {
+      Object* obj = obj_ptr->AsMirrorPtr();
       if (obj != nullptr) {
         Object* new_obj = visitor(obj, arg);
         // Avoid dirtying pages in the image unless necessary.
         if (new_obj != obj) {
-          *obj_ptr = new_obj;
+          obj_ptr->Assign(new_obj);
         }
       }
     }

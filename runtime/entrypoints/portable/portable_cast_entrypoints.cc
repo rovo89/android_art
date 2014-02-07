@@ -20,16 +20,16 @@
 
 namespace art {
 
-extern "C" int32_t art_portable_is_assignable_from_code(const mirror::Class* dest_type,
-                                                        const mirror::Class* src_type)
+extern "C" int32_t art_portable_is_assignable_from_code(mirror::Class* dest_type,
+                                                        mirror::Class* src_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(dest_type != NULL);
   DCHECK(src_type != NULL);
   return dest_type->IsAssignableFrom(src_type) ? 1 : 0;
 }
 
-extern "C" void art_portable_check_cast_from_code(const mirror::Class* dest_type,
-                                                  const mirror::Class* src_type)
+extern "C" void art_portable_check_cast_from_code(mirror::Class* dest_type,
+                                                  mirror::Class* src_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(dest_type->IsClass()) << PrettyClass(dest_type);
   DCHECK(src_type->IsClass()) << PrettyClass(src_type);
@@ -38,8 +38,8 @@ extern "C" void art_portable_check_cast_from_code(const mirror::Class* dest_type
   }
 }
 
-extern "C" void art_portable_check_put_array_element_from_code(const mirror::Object* element,
-                                                               const mirror::Object* array)
+extern "C" void art_portable_check_put_array_element_from_code(mirror::Object* element,
+                                                               mirror::Object* array)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (element == NULL) {
     return;

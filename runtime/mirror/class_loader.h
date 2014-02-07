@@ -32,9 +32,9 @@ namespace mirror {
 class MANAGED ClassLoader : public Object {
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
-  Object* packages_;
-  ClassLoader* parent_;
-  Object* proxyCache_;
+  HeapReference<Object> packages_;
+  HeapReference<ClassLoader> parent_;
+  HeapReference<Object> proxyCache_;
 
   friend struct art::ClassLoaderOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(ClassLoader);

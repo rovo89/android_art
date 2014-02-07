@@ -76,7 +76,7 @@ class ExceptionTest : public CommonTest {
     method_f_ = my_klass_->FindVirtualMethod("f", "()I");
     ASSERT_TRUE(method_f_ != NULL);
     method_f_->SetFrameSizeInBytes(kStackAlignment);
-    method_f_->SetEntryPointFromCompiledCode(CompiledMethod::CodePointer(&fake_code_[sizeof(code_size)], kThumb2));
+    method_f_->SetEntryPointFromQuickCompiledCode(CompiledMethod::CodePointer(&fake_code_[sizeof(code_size)], kThumb2));
     method_f_->SetMappingTable(&fake_mapping_data_.GetData()[0]);
     method_f_->SetVmapTable(&fake_vmap_table_data_.GetData()[0]);
     method_f_->SetNativeGcMap(&fake_gc_map_[0]);
@@ -84,7 +84,7 @@ class ExceptionTest : public CommonTest {
     method_g_ = my_klass_->FindVirtualMethod("g", "(I)V");
     ASSERT_TRUE(method_g_ != NULL);
     method_g_->SetFrameSizeInBytes(kStackAlignment);
-    method_g_->SetEntryPointFromCompiledCode(CompiledMethod::CodePointer(&fake_code_[sizeof(code_size)], kThumb2));
+    method_g_->SetEntryPointFromQuickCompiledCode(CompiledMethod::CodePointer(&fake_code_[sizeof(code_size)], kThumb2));
     method_g_->SetMappingTable(&fake_mapping_data_.GetData()[0]);
     method_g_->SetVmapTable(&fake_vmap_table_data_.GetData()[0]);
     method_g_->SetNativeGcMap(&fake_gc_map_[0]);
@@ -105,6 +105,7 @@ class ExceptionTest : public CommonTest {
 };
 
 TEST_F(ExceptionTest, FindCatchHandler) {
+  ScopedObjectAccess soa(Thread::Current());
   const DexFile::CodeItem* code_item = dex_->GetCodeItem(method_f_->GetCodeItemOffset());
 
   ASSERT_TRUE(code_item != NULL);
@@ -151,51 +152,51 @@ TEST_F(ExceptionTest, StackTraceElement) {
   ASSERT_EQ(kStackAlignment, 16U);
   ASSERT_EQ(sizeof(uintptr_t), sizeof(uint32_t));
 
-#if !defined(ART_USE_PORTABLE_COMPILER)
-  // Create two fake stack frames with mapping data created in SetUp. We map offset 3 in the code
-  // to dex pc 3.
-  const uint32_t dex_pc = 3;
+  if (!kUsePortableCompiler) {
+    // Create two fake stack frames with mapping data created in SetUp. We map offset 3 in the code
+    // to dex pc 3.
+    const uint32_t dex_pc = 3;
 
-  // Create/push fake 16byte stack frame for method g
-  fake_stack.push_back(reinterpret_cast<uintptr_t>(method_g_));
-  fake_stack.push_back(0);
-  fake_stack.push_back(0);
-  fake_stack.push_back(method_f_->ToNativePc(dex_pc));  // return pc
+    // Create/push fake 16byte stack frame for method g
+    fake_stack.push_back(reinterpret_cast<uintptr_t>(method_g_));
+    fake_stack.push_back(0);
+    fake_stack.push_back(0);
+    fake_stack.push_back(method_f_->ToNativePc(dex_pc));  // return pc
 
-  // Create/push fake 16byte stack frame for method f
-  fake_stack.push_back(reinterpret_cast<uintptr_t>(method_f_));
-  fake_stack.push_back(0);
-  fake_stack.push_back(0);
-  fake_stack.push_back(0xEBAD6070);  // return pc
+    // Create/push fake 16byte stack frame for method f
+    fake_stack.push_back(reinterpret_cast<uintptr_t>(method_f_));
+    fake_stack.push_back(0);
+    fake_stack.push_back(0);
+    fake_stack.push_back(0xEBAD6070);  // return pc
 
-  // Pull Method* of NULL to terminate the trace
-  fake_stack.push_back(0);
+    // Pull Method* of NULL to terminate the trace
+    fake_stack.push_back(0);
 
-  // Push null values which will become null incoming arguments.
-  fake_stack.push_back(0);
-  fake_stack.push_back(0);
-  fake_stack.push_back(0);
+    // Push null values which will become null incoming arguments.
+    fake_stack.push_back(0);
+    fake_stack.push_back(0);
+    fake_stack.push_back(0);
 
-  // Set up thread to appear as if we called out of method_g_ at pc dex 3
-  thread->SetTopOfStack(&fake_stack[0], method_g_->ToNativePc(dex_pc));  // return pc
-#else
-  // Create/push fake 20-byte shadow frame for method g
-  fake_stack.push_back(0);
-  fake_stack.push_back(0);
-  fake_stack.push_back(reinterpret_cast<uintptr_t>(method_g_));
-  fake_stack.push_back(3);
-  fake_stack.push_back(0);
+    // Set up thread to appear as if we called out of method_g_ at pc dex 3
+    thread->SetTopOfStack(&fake_stack[0], method_g_->ToNativePc(dex_pc));  // return pc
+  } else {
+    // Create/push fake 20-byte shadow frame for method g
+    fake_stack.push_back(0);
+    fake_stack.push_back(0);
+    fake_stack.push_back(reinterpret_cast<uintptr_t>(method_g_));
+    fake_stack.push_back(3);
+    fake_stack.push_back(0);
 
-  // Create/push fake 20-byte shadow frame for method f
-  fake_stack.push_back(0);
-  fake_stack.push_back(0);
-  fake_stack.push_back(reinterpret_cast<uintptr_t>(method_f_));
-  fake_stack.push_back(3);
-  fake_stack.push_back(0);
+    // Create/push fake 20-byte shadow frame for method f
+    fake_stack.push_back(0);
+    fake_stack.push_back(0);
+    fake_stack.push_back(reinterpret_cast<uintptr_t>(method_f_));
+    fake_stack.push_back(3);
+    fake_stack.push_back(0);
 
-  thread->PushShadowFrame(reinterpret_cast<ShadowFrame*>(&fake_stack[5]));
-  thread->PushShadowFrame(reinterpret_cast<ShadowFrame*>(&fake_stack[0]));
-#endif
+    thread->PushShadowFrame(reinterpret_cast<ShadowFrame*>(&fake_stack[5]));
+    thread->PushShadowFrame(reinterpret_cast<ShadowFrame*>(&fake_stack[0]));
+  }
 
   jobject internal = thread->CreateInternalStackTrace(soa);
   ASSERT_TRUE(internal != NULL);

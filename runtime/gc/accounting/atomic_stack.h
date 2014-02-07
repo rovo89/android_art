@@ -19,7 +19,7 @@
 
 #include <string>
 
-#include "atomic_integer.h"
+#include "atomic.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "UniquePtr.h"
@@ -165,7 +165,7 @@ class AtomicStack {
   void Init() {
     std::string error_msg;
     mem_map_.reset(MemMap::MapAnonymous(name_.c_str(), NULL, capacity_ * sizeof(T),
-                                        PROT_READ | PROT_WRITE, &error_msg));
+                                        PROT_READ | PROT_WRITE, false, &error_msg));
     CHECK(mem_map_.get() != NULL) << "couldn't allocate mark stack.\n" << error_msg;
     byte* addr = mem_map_->Begin();
     CHECK(addr != NULL);

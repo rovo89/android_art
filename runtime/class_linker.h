@@ -121,7 +121,7 @@ class ClassLinker {
   // Resolve a String with the given index from the DexFile, storing the
   // result in the DexCache. The referrer is used to identify the
   // target DexCache and ClassLoader to use for resolution.
-  mirror::String* ResolveString(uint32_t string_idx, const mirror::ArtMethod* referrer)
+  mirror::String* ResolveString(uint32_t string_idx, mirror::ArtMethod* referrer)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolve a String with the given index from the DexFile, storing the
@@ -133,17 +133,16 @@ class ClassLinker {
   // Resolve a Type with the given index from the DexFile, storing the
   // result in the DexCache. The referrer is used to identity the
   // target DexCache and ClassLoader to use for resolution.
-  mirror::Class* ResolveType(const DexFile& dex_file, uint16_t type_idx,
-                             const mirror::Class* referrer)
+  mirror::Class* ResolveType(const DexFile& dex_file, uint16_t type_idx, mirror::Class* referrer)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolve a Type with the given index from the DexFile, storing the
   // result in the DexCache. The referrer is used to identify the
   // target DexCache and ClassLoader to use for resolution.
-  mirror::Class* ResolveType(uint16_t type_idx, const mirror::ArtMethod* referrer)
+  mirror::Class* ResolveType(uint16_t type_idx, mirror::ArtMethod* referrer)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::Class* ResolveType(uint16_t type_idx, const mirror::ArtField* referrer)
+  mirror::Class* ResolveType(uint16_t type_idx, mirror::ArtField* referrer)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolve a type with the given ID from the DexFile, storing the
@@ -164,15 +163,15 @@ class ClassLinker {
                                    uint32_t method_idx,
                                    const SirtRef<mirror::DexCache>& dex_cache,
                                    const SirtRef<mirror::ClassLoader>& class_loader,
-                                   const mirror::ArtMethod* referrer,
+                                   mirror::ArtMethod* referrer,
                                    InvokeType type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::ArtMethod* ResolveMethod(uint32_t method_idx, const mirror::ArtMethod* referrer,
+  mirror::ArtMethod* ResolveMethod(uint32_t method_idx, mirror::ArtMethod* referrer,
                                    InvokeType type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::ArtField* ResolveField(uint32_t field_idx, const mirror::ArtMethod* referrer,
+  mirror::ArtField* ResolveField(uint32_t field_idx, mirror::ArtMethod* referrer,
                                  bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -319,19 +318,23 @@ class ClassLinker {
   mirror::Class* CreateProxyClass(ScopedObjectAccess& soa, jstring name, jobjectArray interfaces,
                                   jobject loader, jobjectArray methods, jobjectArray throws)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  std::string GetDescriptorForProxy(const mirror::Class* proxy_class)
+  std::string GetDescriptorForProxy(mirror::Class* proxy_class)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::ArtMethod* FindMethodForProxy(const mirror::Class* proxy_class,
-                                        const mirror::ArtMethod* proxy_method)
+  mirror::ArtMethod* FindMethodForProxy(mirror::Class* proxy_class,
+                                        mirror::ArtMethod* proxy_method)
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get the oat code for a method when its class isn't yet initialized
-  const void* GetOatCodeFor(const mirror::ArtMethod* method)
+  const void* GetQuickOatCodeFor(mirror::ArtMethod* method)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const void* GetPortableOatCodeFor(mirror::ArtMethod* method, bool* have_portable_code)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get the oat code for a method from a method index.
-  const void* GetOatCodeFor(const DexFile& dex_file, uint16_t class_def_idx, uint32_t method_idx)
+  const void* GetQuickOatCodeFor(const DexFile& dex_file, uint16_t class_def_idx, uint32_t method_idx)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const void* GetPortableOatCodeFor(const DexFile& dex_file, uint16_t class_def_idx, uint32_t method_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   pid_t GetClassesLockOwner();  // For SignalCatcher.
@@ -368,7 +371,7 @@ class ClassLinker {
   mirror::ArtMethod* AllocArtMethod(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
-  const OatFile::OatMethod GetOatMethodFor(const mirror::ArtMethod* method)
+  const OatFile::OatMethod GetOatMethodFor(mirror::ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   OatFile& GetImageOatFile(gc::space::ImageSpace* space)
@@ -451,9 +454,9 @@ class ClassLinker {
                                                 SirtRef<mirror::ClassLoader>& class_loader2)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsSameMethodSignatureInDifferentClassContexts(const mirror::ArtMethod* method,
-                                                     const mirror::Class* klass1,
-                                                     const mirror::Class* klass2)
+  bool IsSameMethodSignatureInDifferentClassContexts(mirror::ArtMethod* method,
+                                                     mirror::Class* klass1,
+                                                     mirror::Class* klass2)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool LinkClass(Thread* self, const SirtRef<mirror::Class>& klass,

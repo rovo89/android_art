@@ -21,7 +21,7 @@
 #include <string>
 #include <vector>
 
-#include "atomic_integer.h"
+#include "atomic.h"
 #include "base/timing_logger.h"
 #include "globals.h"
 #include "gtest/gtest.h"
@@ -83,7 +83,7 @@ class ReferenceQueue {
  private:
   // Lock, used for parallel GC reference enqueuing. It allows for multiple threads simultaneously
   // calling AtomicEnqueueIfNotEnqueued.
-  Mutex lock_;
+  Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   // The heap contains the reference offsets.
   Heap* const heap_;
   // The actual reference list. Not a root since it will be nullptr when the GC is not running.

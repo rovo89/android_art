@@ -41,7 +41,7 @@ class OutputStream {
     return location_;
   }
 
-  virtual bool WriteFully(const void* buffer, int64_t byte_count) = 0;
+  virtual bool WriteFully(const void* buffer, size_t byte_count) = 0;
 
   virtual off_t Seek(off_t offset, Whence whence) = 0;
 

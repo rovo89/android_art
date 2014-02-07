@@ -47,13 +47,15 @@ class RosAllocSpace : public MallocSpace {
   virtual mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes,
                                           size_t* bytes_allocated) LOCKS_EXCLUDED(lock_);
   virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated);
-  virtual size_t AllocationSize(const mirror::Object* obj);
-  virtual size_t Free(Thread* self, mirror::Object* ptr);
-  virtual size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs);
+  virtual size_t AllocationSize(mirror::Object* obj);
+  virtual size_t Free(Thread* self, mirror::Object* ptr)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::Object* AllocNonvirtual(Thread* self, size_t num_bytes, size_t* bytes_allocated);
 
-  size_t AllocationSizeNonvirtual(const mirror::Object* obj)
+  size_t AllocationSizeNonvirtual(mirror::Object* obj)
       NO_THREAD_SAFETY_ANALYSIS {
     // TODO: NO_THREAD_SAFETY_ANALYSIS because SizeOf() requires that mutator_lock is held.
     void* obj_ptr = const_cast<void*>(reinterpret_cast<const void*>(obj));

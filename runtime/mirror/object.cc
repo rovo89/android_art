@@ -52,7 +52,7 @@ static Object* CopyObject(Thread* self, mirror::Object* dest, mirror::Object* sr
   Class* c = src->GetClass();
   if (c->IsArrayClass()) {
     if (!c->GetComponentType()->IsPrimitive()) {
-      const ObjectArray<Object>* array = dest->AsObjectArray<Object>();
+      ObjectArray<Object>* array = dest->AsObjectArray<Object>();
       heap->WriteBarrierArray(dest, 0, array->GetLength());
     }
   } else {
@@ -139,14 +139,15 @@ int32_t Object::IdentityHashCode() const {
   return 0;
 }
 
-void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, const Object* new_value) {
-  const Class* c = GetClass();
+void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_value) {
+  Class* c = GetClass();
   if (Runtime::Current()->GetClassLinker() == NULL ||
+      !Runtime::Current()->IsStarted() ||
       !Runtime::Current()->GetHeap()->IsObjectValidationEnabled() ||
       !c->IsResolved()) {
     return;
   }
-  for (const Class* cur = c; cur != NULL; cur = cur->GetSuperClass()) {
+  for (Class* cur = c; cur != NULL; cur = cur->GetSuperClass()) {
     ObjectArray<ArtField>* fields = cur->GetIFields();
     if (fields != NULL) {
       size_t num_ref_ifields = cur->NumReferenceInstanceFields();

@@ -73,17 +73,17 @@ class Trace : public instrumentation::InstrumentationListener {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   virtual void MethodEntered(Thread* thread, mirror::Object* this_object,
-                             const mirror::ArtMethod* method, uint32_t dex_pc)
+                             mirror::ArtMethod* method, uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   virtual void MethodExited(Thread* thread, mirror::Object* this_object,
-                            const mirror::ArtMethod* method, uint32_t dex_pc,
+                            mirror::ArtMethod* method, uint32_t dex_pc,
                             const JValue& return_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   virtual void MethodUnwind(Thread* thread, mirror::Object* this_object,
-                            const mirror::ArtMethod* method, uint32_t dex_pc)
+                            mirror::ArtMethod* method, uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   virtual void DexPcMoved(Thread* thread, mirror::Object* this_object,
-                          const mirror::ArtMethod* method, uint32_t new_dex_pc)
+                          mirror::ArtMethod* method, uint32_t new_dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   virtual void ExceptionCaught(Thread* thread, const ThrowLocation& throw_location,
                                mirror::ArtMethod* catch_method, uint32_t catch_dex_pc,
@@ -105,7 +105,7 @@ class Trace : public instrumentation::InstrumentationListener {
 
   void ReadClocks(Thread* thread, uint32_t* thread_clock_diff, uint32_t* wall_clock_diff);
 
-  void LogMethodTraceEvent(Thread* thread, const mirror::ArtMethod* method,
+  void LogMethodTraceEvent(Thread* thread, mirror::ArtMethod* method,
                            instrumentation::Instrumentation::InstrumentationEvent event,
                            uint32_t thread_clock_diff, uint32_t wall_clock_diff);
 

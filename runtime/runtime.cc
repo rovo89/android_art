@@ -31,6 +31,7 @@
 #include "arch/arm/registers_arm.h"
 #include "arch/mips/registers_mips.h"
 #include "arch/x86/registers_x86.h"
+#include "arch/x86_64/registers_x86_64.h"
 #include "atomic.h"
 #include "class_linker.h"
 #include "debugger.h"
@@ -75,19 +76,27 @@ Runtime::Runtime()
       is_zygote_(false),
       is_concurrent_gc_enabled_(true),
       is_explicit_gc_disabled_(false),
+      compiler_filter_(kSpeed),
+      huge_method_threshold_(0),
+      large_method_threshold_(0),
+      small_method_threshold_(0),
+      tiny_method_threshold_(0),
+      num_dex_methods_threshold_(0),
+      sea_ir_mode_(false),
       default_stack_size_(0),
-      heap_(NULL),
+      heap_(nullptr),
       max_spins_before_thin_lock_inflation_(Monitor::kDefaultMaxSpinsBeforeThinLockInflation),
-      monitor_list_(NULL),
-      thread_list_(NULL),
-      intern_table_(NULL),
-      class_linker_(NULL),
-      signal_catcher_(NULL),
-      java_vm_(NULL),
-      pre_allocated_OutOfMemoryError_(NULL),
-      resolution_method_(NULL),
-      imt_conflict_method_(NULL),
-      default_imt_(NULL),
+      monitor_list_(nullptr),
+      monitor_pool_(nullptr),
+      thread_list_(nullptr),
+      intern_table_(nullptr),
+      class_linker_(nullptr),
+      signal_catcher_(nullptr),
+      java_vm_(nullptr),
+      pre_allocated_OutOfMemoryError_(nullptr),
+      resolution_method_(nullptr),
+      imt_conflict_method_(nullptr),
+      default_imt_(nullptr),
       method_verifiers_lock_("Method verifiers lock"),
       threads_being_born_(0),
       shutdown_cond_(new ConditionVariable("Runtime shutdown", *Locks::runtime_shutdown_lock_)),
@@ -95,19 +104,25 @@ Runtime::Runtime()
       shutting_down_started_(false),
       started_(false),
       finished_starting_(false),
-      vfprintf_(NULL),
-      exit_(NULL),
-      abort_(NULL),
+      vfprintf_(nullptr),
+      exit_(nullptr),
+      abort_(nullptr),
       stats_enabled_(false),
-      method_trace_(0),
+      profile_(false),
+      profile_period_s_(0),
+      profile_duration_s_(0),
+      profile_interval_us_(0),
+      profile_backoff_coefficient_(0),
+      method_trace_(false),
       method_trace_file_size_(0),
       instrumentation_(),
       use_compile_time_class_path_(false),
-      main_thread_group_(NULL),
-      system_thread_group_(NULL),
-      system_class_loader_(NULL) {
+      main_thread_group_(nullptr),
+      system_thread_group_(nullptr),
+      system_class_loader_(nullptr),
+      dump_gc_performance_on_shutdown_(false) {
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
-    callee_save_methods_[i] = NULL;
+    callee_save_methods_[i] = nullptr;
   }
 }
 
@@ -141,6 +156,7 @@ Runtime::~Runtime() {
   // Make sure all other non-daemon threads have terminated, and all daemon threads are suspended.
   delete thread_list_;
   delete monitor_list_;
+  delete monitor_pool_;
   delete class_linker_;
   delete heap_;
   delete intern_table_;
@@ -149,8 +165,8 @@ Runtime::~Runtime() {
   QuasiAtomic::Shutdown();
   verifier::MethodVerifier::Shutdown();
   // TODO: acquire a static mutex on Runtime to avoid racing.
-  CHECK(instance_ == NULL || instance_ == this);
-  instance_ = NULL;
+  CHECK(instance_ == nullptr || instance_ == this);
+  instance_ = nullptr;
 }
 
 struct AbortState {
@@ -976,6 +992,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   max_spins_before_thin_lock_inflation_ = options->max_spins_before_thin_lock_inflation_;
 
   monitor_list_ = new MonitorList;
+  monitor_pool_ = MonitorPool::Create();
   thread_list_ = new ThreadList;
   intern_table_ = new InternTable;
 
@@ -1345,40 +1362,53 @@ mirror::ObjectArray<mirror::ArtMethod>* Runtime::CreateDefaultImt(ClassLinker* c
 
 mirror::ArtMethod* Runtime::CreateImtConflictMethod() {
   Thread* self = Thread::Current();
-  Runtime* r = Runtime::Current();
-  ClassLinker* cl = r->GetClassLinker();
-  SirtRef<mirror::ArtMethod> method(self, cl->AllocArtMethod(self));
+  Runtime* runtime = Runtime::Current();
+  ClassLinker* class_linker = runtime->GetClassLinker();
+  SirtRef<mirror::ArtMethod> method(self, class_linker->AllocArtMethod(self));
   method->SetDeclaringClass(mirror::ArtMethod::GetJavaLangReflectArtMethod());
-  // TODO: use a special method for imt conflict method saves
+  // TODO: use a special method for imt conflict method saves.
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
   // When compiling, the code pointer will get set later when the image is loaded.
-  method->SetEntryPointFromCompiledCode(r->IsCompiler() ? NULL : GetImtConflictTrampoline(cl));
+  if (runtime->IsCompiler()) {
+    method->SetEntryPointFromPortableCompiledCode(nullptr);
+    method->SetEntryPointFromQuickCompiledCode(nullptr);
+  } else {
+    method->SetEntryPointFromPortableCompiledCode(GetPortableImtConflictTrampoline(class_linker));
+    method->SetEntryPointFromQuickCompiledCode(GetQuickImtConflictTrampoline(class_linker));
+  }
   return method.get();
 }
 
 mirror::ArtMethod* Runtime::CreateResolutionMethod() {
   Thread* self = Thread::Current();
-  Runtime* r = Runtime::Current();
-  ClassLinker* cl = r->GetClassLinker();
-  SirtRef<mirror::ArtMethod> method(self, cl->AllocArtMethod(self));
+  Runtime* runtime = Runtime::Current();
+  ClassLinker* class_linker = runtime->GetClassLinker();
+  SirtRef<mirror::ArtMethod> method(self, class_linker->AllocArtMethod(self));
   method->SetDeclaringClass(mirror::ArtMethod::GetJavaLangReflectArtMethod());
   // TODO: use a special method for resolution method saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
   // When compiling, the code pointer will get set later when the image is loaded.
-  method->SetEntryPointFromCompiledCode(r->IsCompiler() ? NULL : GetResolutionTrampoline(cl));
+  if (runtime->IsCompiler()) {
+    method->SetEntryPointFromPortableCompiledCode(nullptr);
+    method->SetEntryPointFromQuickCompiledCode(nullptr);
+  } else {
+    method->SetEntryPointFromPortableCompiledCode(GetPortableResolutionTrampoline(class_linker));
+    method->SetEntryPointFromQuickCompiledCode(GetQuickResolutionTrampoline(class_linker));
+  }
   return method.get();
 }
 
 mirror::ArtMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set,
                                                    CalleeSaveType type) {
   Thread* self = Thread::Current();
-  Runtime* r = Runtime::Current();
-  ClassLinker* cl = r->GetClassLinker();
-  SirtRef<mirror::ArtMethod> method(self, cl->AllocArtMethod(self));
+  Runtime* runtime = Runtime::Current();
+  ClassLinker* class_linker = runtime->GetClassLinker();
+  SirtRef<mirror::ArtMethod> method(self, class_linker->AllocArtMethod(self));
   method->SetDeclaringClass(mirror::ArtMethod::GetJavaLangReflectArtMethod());
   // TODO: use a special method for callee saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
-  method->SetEntryPointFromCompiledCode(NULL);
+  method->SetEntryPointFromPortableCompiledCode(nullptr);
+  method->SetEntryPointFromQuickCompiledCode(nullptr);
   if ((instruction_set == kThumb2) || (instruction_set == kArm)) {
     uint32_t ref_spills = (1 << art::arm::R5) | (1 << art::arm::R6)  | (1 << art::arm::R7) |
                           (1 << art::arm::R8) | (1 << art::arm::R10) | (1 << art::arm::R11);
@@ -1428,8 +1458,23 @@ mirror::ArtMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_se
     method->SetFrameSizeInBytes(frame_size);
     method->SetCoreSpillMask(core_spills);
     method->SetFpSpillMask(0);
+  } else if (instruction_set == kX86_64) {
+    uint32_t ref_spills =
+        (1 << art::x86_64::RBP) | (1 << art::x86_64::RSI) | (1 << art::x86_64::RDI) |
+        (1 << art::x86_64::R8)  | (1 << art::x86_64::R9)  | (1 << art::x86_64::R10) |
+        (1 << art::x86_64::R11) | (1 << art::x86_64::R12) | (1 << art::x86_64::R13) |
+        (1 << art::x86_64::R14) | (1 << art::x86_64::R15);
+    uint32_t arg_spills =
+        (1 << art::x86_64::RCX) | (1 << art::x86_64::RDX) | (1 << art::x86_64::RBX);
+    uint32_t core_spills = ref_spills | (type == kRefsAndArgs ? arg_spills : 0) |
+                         (1 << art::x86::kNumberOfCpuRegisters);  // fake return address callee save
+    size_t frame_size = RoundUp((__builtin_popcount(core_spills) /* gprs */ +
+                                 1 /* Method* */) * kPointerSize, kStackAlignment);
+    method->SetFrameSizeInBytes(frame_size);
+    method->SetCoreSpillMask(core_spills);
+    method->SetFpSpillMask(0);
   } else {
-    UNIMPLEMENTED(FATAL);
+    UNIMPLEMENTED(FATAL) << instruction_set;
   }
   return method.get();
 }

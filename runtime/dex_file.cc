@@ -621,7 +621,7 @@ const Signature DexFile::CreateSignature(const StringPiece& signature) const {
   return Signature(this, *proto_id);
 }
 
-int32_t DexFile::GetLineNumFromPC(const mirror::ArtMethod* method, uint32_t rel_pc) const {
+int32_t DexFile::GetLineNumFromPC(mirror::ArtMethod* method, uint32_t rel_pc) const {
   // For native method, lineno should be -2 to indicate it is native. Note that
   // "line number == -2" is how libcore tells from StackTraceElement.
   if (method->GetCodeItemOffset() == 0) {

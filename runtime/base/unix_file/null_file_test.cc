@@ -48,7 +48,7 @@ TEST_F(NullFileTest, GetLength) {
   NullFile f;
   // The length is always 0.
   ASSERT_EQ(0, f.GetLength());
-  ASSERT_EQ(content.size(), f.Write(content.data(), content.size(), 0));
+  ASSERT_EQ(content.size(), static_cast<uint64_t>(f.Write(content.data(), content.size(), 0)));
   ASSERT_EQ(0, f.GetLength());
 }
 
@@ -58,8 +58,8 @@ TEST_F(NullFileTest, Write) {
   // You can't write at a negative offset...
   ASSERT_EQ(-EINVAL, f.Write(content.data(), content.size(), -128));
   // But you can write anywhere else...
-  ASSERT_EQ(content.size(), f.Write(content.data(), content.size(), 0));
-  ASSERT_EQ(content.size(), f.Write(content.data(), content.size(), 128));
+  ASSERT_EQ(content.size(), static_cast<uint64_t>(f.Write(content.data(), content.size(), 0)));
+  ASSERT_EQ(content.size(), static_cast<uint64_t>(f.Write(content.data(), content.size(), 128)));
   // ...though the file will remain empty.
   ASSERT_EQ(0, f.GetLength());
 }

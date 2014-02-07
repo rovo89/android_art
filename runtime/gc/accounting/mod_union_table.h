@@ -112,20 +112,23 @@ class ModUnionTableReferenceCache : public ModUnionTable {
 
   // Exclusive lock is required since verify uses SpaceBitmap::VisitMarkedRange and
   // VisitMarkedRange can't know if the callback will modify the bitmap or not.
-  void Verify() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  void Verify()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Function that tells whether or not to add a reference to the table.
   virtual bool AddReference(const mirror::Object* obj, const mirror::Object* ref) = 0;
 
-  void Dump(std::ostream& os);
+  void Dump(std::ostream& os) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  protected:
   // Cleared card array, used to update the mod-union table.
   ModUnionTable::CardSet cleared_cards_;
 
   // Maps from dirty cards to their corresponding alloc space references.
-  SafeMap<const byte*, std::vector<mirror::Object**>, std::less<const byte*>,
-    GcAllocator<std::pair<const byte*, std::vector<mirror::Object**> > > > references_;
+  SafeMap<const byte*, std::vector<mirror::HeapReference<mirror::Object>*>, std::less<const byte*>,
+      GcAllocator<std::pair<const byte*, std::vector<mirror::HeapReference<mirror::Object>*> > > >
+      references_;
 };
 
 // Card caching implementation. Keeps track of which cards we cleared and only this information.

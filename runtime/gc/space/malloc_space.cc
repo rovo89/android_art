@@ -87,7 +87,7 @@ MemMap* MallocSpace::CreateMemMap(const std::string& name, size_t starting_size,
 
   std::string error_msg;
   MemMap* mem_map = MemMap::MapAnonymous(name.c_str(), requested_begin, *capacity,
-                                         PROT_READ | PROT_WRITE, &error_msg);
+                                         PROT_READ | PROT_WRITE, true, &error_msg);
   if (mem_map == nullptr) {
     LOG(ERROR) << "Failed to allocate pages for alloc space (" << name << ") of size "
                << PrettySize(*capacity) << ": " << error_msg;

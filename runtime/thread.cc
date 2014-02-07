@@ -178,7 +178,7 @@ void* Thread::CreateCallback(void* arg) {
         receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(soa.DecodeMethod(mid));
     JValue result;
     ArgArray arg_array(nullptr, 0);
-    arg_array.Append(reinterpret_cast<uint32_t>(receiver));
+    arg_array.Append(receiver);
     m->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'V');
   }
   // Detach and delete self.
@@ -190,7 +190,7 @@ void* Thread::CreateCallback(void* arg) {
 Thread* Thread::FromManagedThread(const ScopedObjectAccessUnchecked& soa,
                                   mirror::Object* thread_peer) {
   mirror::ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_nativePeer);
-  Thread* result = reinterpret_cast<Thread*>(static_cast<uintptr_t>(f->GetInt(thread_peer)));
+  Thread* result = reinterpret_cast<Thread*>(static_cast<uintptr_t>(f->GetLong(thread_peer)));
   // Sanity check that if we have a result it is either suspended or we hold the thread_list_lock_
   // to stop it from going away.
   if (kIsDebugBuild) {
@@ -260,8 +260,8 @@ void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_siz
 
   // Thread.start is synchronized, so we know that nativePeer is 0, and know that we're not racing to
   // assign it.
-  env->SetIntField(java_peer, WellKnownClasses::java_lang_Thread_nativePeer,
-                   reinterpret_cast<jint>(child_thread));
+  env->SetLongField(java_peer, WellKnownClasses::java_lang_Thread_nativePeer,
+                    reinterpret_cast<jlong>(child_thread));
 
   pthread_t new_pthread;
   pthread_attr_t attr;
@@ -283,7 +283,7 @@ void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_siz
     delete child_thread;
     child_thread = nullptr;
     // TODO: remove from thread group?
-    env->SetIntField(java_peer, WellKnownClasses::java_lang_Thread_nativePeer, 0);
+    env->SetLongField(java_peer, WellKnownClasses::java_lang_Thread_nativePeer, 0);
     {
       std::string msg(StringPrintf("pthread_create (%s stack) failed: %s",
                                    PrettySize(stack_size).c_str(), strerror(pthread_create_result)));
@@ -388,8 +388,8 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
 
   Thread* self = this;
   DCHECK_EQ(self, Thread::Current());
-  jni_env_->SetIntField(peer.get(), WellKnownClasses::java_lang_Thread_nativePeer,
-                        reinterpret_cast<jint>(self));
+  jni_env_->SetLongField(peer.get(), WellKnownClasses::java_lang_Thread_nativePeer,
+                         reinterpret_cast<jlong>(self));
 
   ScopedObjectAccess soa(self);
   SirtRef<mirror::String> peer_thread_name(soa.Self(), GetThreadName(soa));
@@ -767,7 +767,7 @@ struct StackDumpVisitor : public StackVisitor {
     }
     const int kMaxRepetition = 3;
     mirror::Class* c = m->GetDeclaringClass();
-    const mirror::DexCache* dex_cache = c->GetDexCache();
+    mirror::DexCache* dex_cache = c->GetDexCache();
     int line_number = -1;
     if (dex_cache != nullptr) {  // be tolerant of bad input
       const DexFile& dex_file = *dex_cache->GetDexFile();
@@ -1017,7 +1017,7 @@ void Thread::Destroy() {
     RemoveFromThreadGroup(soa);
 
     // this.nativePeer = 0;
-    soa.DecodeField(WellKnownClasses::java_lang_Thread_nativePeer)->SetInt(opeer_, 0);
+    soa.DecodeField(WellKnownClasses::java_lang_Thread_nativePeer)->SetLong(opeer_, 0);
     Dbg::PostThreadDeath(self);
 
     // Thread.join() is implemented as an Object.wait() on the Thread.lock object. Signal anyone
@@ -1133,7 +1133,8 @@ size_t Thread::NumSirtReferences() {
 }
 
 bool Thread::SirtContains(jobject obj) const {
-  mirror::Object** sirt_entry = reinterpret_cast<mirror::Object**>(obj);
+  StackReference<mirror::Object>* sirt_entry =
+      reinterpret_cast<StackReference<mirror::Object>*>(obj);
   for (StackIndirectReferenceTable* cur = top_sirt_; cur; cur = cur->GetLink()) {
     if (cur->Contains(sirt_entry)) {
       return true;
@@ -1172,10 +1173,11 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
     IndirectReferenceTable& locals = jni_env_->locals;
     result = const_cast<mirror::Object*>(locals.Get(ref));
   } else if (kind == kSirtOrInvalid) {
-    // TODO: make stack indirect reference table lookup more efficient
-    // Check if this is a local reference in the SIRT
+    // TODO: make stack indirect reference table lookup more efficient.
+    // Check if this is a local reference in the SIRT.
     if (LIKELY(SirtContains(obj))) {
-      result = *reinterpret_cast<mirror::Object**>(obj);  // Read from SIRT
+      // Read from SIRT.
+      result = reinterpret_cast<StackReference<mirror::Object>*>(obj)->AsMirrorPtr();
     } else if (Runtime::Current()->GetJavaVM()->work_around_app_jni_bugs) {
       // Assume an invalid local reference is actually a direct pointer.
       result = reinterpret_cast<mirror::Object*>(obj);
@@ -1569,12 +1571,12 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
     SetException(gc_safe_throw_location, exception.get());
   } else {
     ArgArray args("VLL", 3);
-    args.Append(reinterpret_cast<uint32_t>(exception.get()));
+    args.Append(exception.get());
     if (msg != nullptr) {
-      args.Append(reinterpret_cast<uint32_t>(msg_string.get()));
+      args.Append(msg_string.get());
     }
     if (cause.get() != nullptr) {
-      args.Append(reinterpret_cast<uint32_t>(cause.get()));
+      args.Append(cause.get());
     }
     JValue result;
     exception_init_method->Invoke(this, args.GetArray(), args.GetNumBytes(), &result, 'V');
@@ -1920,13 +1922,13 @@ class ReferenceMapVisitor : public StackVisitor {
                   }
                 }
               } else {
-                uint32_t* reg_addr =
-                    GetVRegAddr(cur_quick_frame, code_item, core_spills, fp_spills, frame_size, reg);
+                uintptr_t* reg_addr = reinterpret_cast<uintptr_t*>(
+                    GetVRegAddr(cur_quick_frame, code_item, core_spills, fp_spills, frame_size, reg));
                 mirror::Object* ref = reinterpret_cast<mirror::Object*>(*reg_addr);
                 if (ref != nullptr) {
                   mirror::Object* new_ref = visitor_(ref, reg, this);
                   if (ref != new_ref) {
-                    *reg_addr = reinterpret_cast<uint32_t>(new_ref);
+                    *reg_addr = reinterpret_cast<uintptr_t>(new_ref);
                   }
                 }
               }

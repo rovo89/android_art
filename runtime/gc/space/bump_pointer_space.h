@@ -49,8 +49,7 @@ class BumpPointerSpace : public ContinuousMemMapAllocSpace {
   mirror::Object* AllocNonvirtualWithoutAccounting(size_t num_bytes);
 
   // Return the storage space required by obj.
-  virtual size_t AllocationSize(const mirror::Object* obj)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual size_t AllocationSize(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // NOPS unless we support free lists.
   virtual size_t Free(Thread*, mirror::Object*) {
@@ -60,7 +59,7 @@ class BumpPointerSpace : public ContinuousMemMapAllocSpace {
     return 0;
   }
 
-  size_t AllocationSizeNonvirtual(const mirror::Object* obj)
+  size_t AllocationSizeNonvirtual(mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return obj->SizeOf();
   }
@@ -135,7 +134,6 @@ class BumpPointerSpace : public ContinuousMemMapAllocSpace {
   byte* AllocBlock(size_t bytes) EXCLUSIVE_LOCKS_REQUIRED(block_lock_);
   void RevokeThreadLocalBuffersLocked(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(block_lock_);
 
-  size_t InternalAllocationSize(const mirror::Object* obj);
   mirror::Object* AllocWithoutGrowthLocked(size_t num_bytes, size_t* bytes_allocated)
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
 

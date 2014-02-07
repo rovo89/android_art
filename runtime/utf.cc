@@ -68,7 +68,7 @@ void ConvertUtf16ToModifiedUtf8(char* utf8_out, const uint16_t* utf16_in, size_t
   }
 }
 
-int32_t ComputeUtf16Hash(const mirror::CharArray* chars, int32_t offset,
+int32_t ComputeUtf16Hash(mirror::CharArray* chars, int32_t offset,
                          size_t char_count) {
   int32_t hash = 0;
   for (size_t i = 0; i < char_count; i++) {
