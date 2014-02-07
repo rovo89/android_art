@@ -39,7 +39,7 @@ class MemMap {
   //
   // On success, returns returns a MemMap instance.  On failure, returns a NULL;
   static MemMap* MapAnonymous(const char* ashmem_name, byte* addr, size_t byte_count, int prot,
-                              std::string* error_msg);
+                              bool low_4gb, std::string* error_msg);
 
   // Map part of a file, taking care of non-page aligned offsets.  The
   // "start" offset is absolute, not relative.

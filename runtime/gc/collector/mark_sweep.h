@@ -17,7 +17,7 @@
 #ifndef ART_RUNTIME_GC_COLLECTOR_MARK_SWEEP_H_
 #define ART_RUNTIME_GC_COLLECTOR_MARK_SWEEP_H_
 
-#include "atomic_integer.h"
+#include "atomic.h"
 #include "barrier.h"
 #include "base/macros.h"
 #include "base/mutex.h"

@@ -102,11 +102,11 @@ bool FdFile::IsOpened() const {
   return fd_ >= 0;
 }
 
-bool FdFile::ReadFully(void* buffer, int64_t byte_count) {
+bool FdFile::ReadFully(void* buffer, size_t byte_count) {
   char* ptr = static_cast<char*>(buffer);
   while (byte_count > 0) {
-    int bytes_read = TEMP_FAILURE_RETRY(read(fd_, ptr, byte_count));
-    if (bytes_read <= 0) {
+    ssize_t bytes_read = TEMP_FAILURE_RETRY(read(fd_, ptr, byte_count));
+    if (bytes_read == -1) {
       return false;
     }
     byte_count -= bytes_read;  // Reduce the number of remaining bytes.
@@ -115,15 +115,15 @@ bool FdFile::ReadFully(void* buffer, int64_t byte_count) {
   return true;
 }
 
-bool FdFile::WriteFully(const void* buffer, int64_t byte_count) {
+bool FdFile::WriteFully(const void* buffer, size_t byte_count) {
   const char* ptr = static_cast<const char*>(buffer);
   while (byte_count > 0) {
-    int bytes_read = TEMP_FAILURE_RETRY(write(fd_, ptr, byte_count));
-    if (bytes_read < 0) {
+    ssize_t bytes_written = TEMP_FAILURE_RETRY(write(fd_, ptr, byte_count));
+    if (bytes_written == -1) {
       return false;
     }
-    byte_count -= bytes_read;  // Reduce the number of remaining bytes.
-    ptr += bytes_read;  // Move the buffer forward.
+    byte_count -= bytes_written;  // Reduce the number of remaining bytes.
+    ptr += bytes_written;  // Move the buffer forward.
   }
   return true;
 }

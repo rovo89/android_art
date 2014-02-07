@@ -94,7 +94,7 @@ class ImageSpace : public MemMapSpace {
 
   friend class Space;
 
-  static AtomicInteger bitmap_index_;
+  static Atomic<uint32_t> bitmap_index_;
 
   UniquePtr<accounting::SpaceBitmap> live_bitmap_;
 

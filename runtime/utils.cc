@@ -215,14 +215,14 @@ void InitTimeSpec(bool absolute, int clock, int64_t ms, int32_t ns, timespec* ts
   }
 }
 
-std::string PrettyDescriptor(const mirror::String* java_descriptor) {
+std::string PrettyDescriptor(mirror::String* java_descriptor) {
   if (java_descriptor == NULL) {
     return "null";
   }
   return PrettyDescriptor(java_descriptor->ToModifiedUtf8());
 }
 
-std::string PrettyDescriptor(const mirror::Class* klass) {
+std::string PrettyDescriptor(mirror::Class* klass) {
   if (klass == NULL) {
     return "null";
   }
@@ -283,7 +283,7 @@ std::string PrettyDescriptor(Primitive::Type type) {
   return PrettyDescriptor(descriptor_string);
 }
 
-std::string PrettyField(const mirror::ArtField* f, bool with_type) {
+std::string PrettyField(mirror::ArtField* f, bool with_type) {
   if (f == NULL) {
     return "null";
   }
@@ -358,7 +358,7 @@ std::string PrettyReturnType(const char* signature) {
   return PrettyDescriptor(return_type);
 }
 
-std::string PrettyMethod(const mirror::ArtMethod* m, bool with_signature) {
+std::string PrettyMethod(mirror::ArtMethod* m, bool with_signature) {
   if (m == nullptr) {
     return "null";
   }
@@ -401,7 +401,7 @@ std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with
   return result;
 }
 
-std::string PrettyTypeOf(const mirror::Object* obj) {
+std::string PrettyTypeOf(mirror::Object* obj) {
   if (obj == NULL) {
     return "null";
   }
@@ -417,7 +417,7 @@ std::string PrettyTypeOf(const mirror::Object* obj) {
   return result;
 }
 
-std::string PrettyClass(const mirror::Class* c) {
+std::string PrettyClass(mirror::Class* c) {
   if (c == NULL) {
     return "null";
   }
@@ -428,7 +428,7 @@ std::string PrettyClass(const mirror::Class* c) {
   return result;
 }
 
-std::string PrettyClassAndClassLoader(const mirror::Class* c) {
+std::string PrettyClassAndClassLoader(mirror::Class* c) {
   if (c == NULL) {
     return "null";
   }
@@ -445,7 +445,7 @@ std::string PrettyClassAndClassLoader(const mirror::Class* c) {
 std::string PrettySize(int64_t byte_count) {
   // The byte thresholds at which we display amounts.  A byte count is displayed
   // in unit U when kUnitThresholds[U] <= bytes < kUnitThresholds[U+1].
-  static const size_t kUnitThresholds[] = {
+  static const int64_t kUnitThresholds[] = {
     0,              // B up to...
     3*1024,         // KB up to...
     2*1024*1024,    // MB up to...
@@ -464,7 +464,7 @@ std::string PrettySize(int64_t byte_count) {
       break;
     }
   }
-  return StringPrintf("%s%lld%s", negative_str, byte_count / kBytesPerUnit[i], kUnitStrings[i]);
+  return StringPrintf("%s%" PRId64 "%s", negative_str, byte_count / kBytesPerUnit[i], kUnitStrings[i]);
 }
 
 std::string PrettyDuration(uint64_t nano_duration) {
@@ -534,18 +534,18 @@ std::string FormatDuration(uint64_t nano_duration, TimeUnit time_unit) {
   uint64_t whole_part = nano_duration / divisor;
   uint64_t fractional_part = nano_duration % divisor;
   if (fractional_part == 0) {
-    return StringPrintf("%llu%s", whole_part, unit);
+    return StringPrintf("%" PRIu64 "%s", whole_part, unit);
   } else {
     while ((fractional_part % 1000) == 0) {
       zero_fill -= 3;
       fractional_part /= 1000;
     }
     if (zero_fill == 3) {
-      return StringPrintf("%llu.%03llu%s", whole_part, fractional_part, unit);
+      return StringPrintf("%" PRIu64 ".%03" PRIu64 "%s", whole_part, fractional_part, unit);
     } else if (zero_fill == 6) {
-      return StringPrintf("%llu.%06llu%s", whole_part, fractional_part, unit);
+      return StringPrintf("%" PRIu64 ".%06" PRIu64 "%s", whole_part, fractional_part, unit);
     } else {
-      return StringPrintf("%llu.%09llu%s", whole_part, fractional_part, unit);
+      return StringPrintf("%" PRIu64 ".%09" PRIu64 "%s", whole_part, fractional_part, unit);
     }
   }
 }
@@ -627,7 +627,7 @@ std::string DescriptorToName(const char* descriptor) {
   return descriptor;
 }
 
-std::string JniShortName(const mirror::ArtMethod* m) {
+std::string JniShortName(mirror::ArtMethod* m) {
   MethodHelper mh(m);
   std::string class_name(mh.GetDeclaringClassDescriptor());
   // Remove the leading 'L' and trailing ';'...
@@ -646,7 +646,7 @@ std::string JniShortName(const mirror::ArtMethod* m) {
   return short_name;
 }
 
-std::string JniLongName(const mirror::ArtMethod* m) {
+std::string JniLongName(mirror::ArtMethod* m) {
   std::string long_name;
   long_name += JniShortName(m);
   long_name += "__";

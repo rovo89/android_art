@@ -62,7 +62,9 @@ class DedupeSet {
 
   explicit DedupeSet(const char* set_name) {
     for (HashType i = 0; i < kShard; ++i) {
-      lock_name_[i] = StringPrintf("%s lock %d", set_name, i);
+      std::ostringstream oss;
+      oss << set_name << " lock " << i;
+      lock_name_[i] = oss.str();
       lock_[i].reset(new Mutex(lock_name_[i].c_str()));
     }
   }

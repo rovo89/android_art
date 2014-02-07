@@ -151,7 +151,7 @@ static std::string DumpDirectory() {
 void LlvmCompilationUnit::DumpBitcodeToFile() {
   std::string bitcode;
   DumpBitcodeToString(bitcode);
-  std::string filename(StringPrintf("%s/Art%u.bc", DumpDirectory().c_str(), cunit_id_));
+  std::string filename(StringPrintf("%s/Art%zu.bc", DumpDirectory().c_str(), cunit_id_));
   UniquePtr<File> output(OS::CreateEmptyFile(filename.c_str()));
   output->WriteFully(bitcode.data(), bitcode.size());
   LOG(INFO) << ".bc file written successfully: " << filename;
@@ -178,7 +178,7 @@ bool LlvmCompilationUnit::Materialize() {
   const bool kDumpELF = false;
   if (kDumpELF) {
     // Dump the ELF image for debugging
-    std::string filename(StringPrintf("%s/Art%u.o", DumpDirectory().c_str(), cunit_id_));
+    std::string filename(StringPrintf("%s/Art%zu.o", DumpDirectory().c_str(), cunit_id_));
     UniquePtr<File> output(OS::CreateEmptyFile(filename.c_str()));
     output->WriteFully(elf_object_.data(), elf_object_.size());
     LOG(INFO) << ".o file written successfully: " << filename;

@@ -33,16 +33,16 @@ class MANAGED Throwable : public Object {
   void SetDetailMessage(String* new_detail_message) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_), new_detail_message, false);
   }
-  String* GetDetailMessage() const {
-    return GetFieldObject<String*>(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_), false);
+  String* GetDetailMessage() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_), false);
   }
-  std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  std::string Dump() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // This is a runtime version of initCause, you shouldn't use it if initCause may have been
   // overridden. Also it asserts rather than throwing exceptions. Currently this is only used
   // in cases like the verifier where the checks cannot fail and initCause isn't overridden.
   void SetCause(Throwable* cause) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool IsCheckedException() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool IsCheckedException() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static Class* GetJavaLangThrowable() {
     DCHECK(java_lang_Throwable_ != NULL);
@@ -55,16 +55,16 @@ class MANAGED Throwable : public Object {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
-  Object* GetStackState() const {
-    return GetFieldObject<Object*>(OFFSET_OF_OBJECT_MEMBER(Throwable, stack_state_), true);
+  Object* GetStackState() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetFieldObject<Object>(OFFSET_OF_OBJECT_MEMBER(Throwable, stack_state_), true);
   }
 
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
-  Throwable* cause_;
-  String* detail_message_;
-  Object* stack_state_;  // Note this is Java volatile:
-  Object* stack_trace_;
-  Object* suppressed_exceptions_;
+  HeapReference<Throwable> cause_;
+  HeapReference<String> detail_message_;
+  HeapReference<Object> stack_state_;  // Note this is Java volatile:
+  HeapReference<Object> stack_trace_;
+  HeapReference<Object> suppressed_exceptions_;
 
   static Class* java_lang_Throwable_;
 

@@ -66,17 +66,17 @@ class ImageWriter {
   void AssignImageOffset(mirror::Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetImageOffset(mirror::Object* object, size_t offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool IsImageOffsetAssigned(const mirror::Object* object) const;
-  size_t GetImageOffset(const mirror::Object* object) const;
+  bool IsImageOffsetAssigned(mirror::Object* object) const;
+  size_t GetImageOffset(mirror::Object* object) const;
 
-  mirror::Object* GetImageAddress(const mirror::Object* object) const {
+  mirror::Object* GetImageAddress(mirror::Object* object) const {
     if (object == NULL) {
       return NULL;
     }
     return reinterpret_cast<mirror::Object*>(image_begin_ + GetImageOffset(object));
   }
 
-  mirror::Object* GetLocalAddress(const mirror::Object* object) const {
+  mirror::Object* GetLocalAddress(mirror::Object* object) const {
     size_t offset = GetImageOffset(object);
     byte* dst = image_->Begin() + offset;
     return reinterpret_cast<mirror::Object*>(dst);
@@ -96,7 +96,7 @@ class ImageWriter {
   }
 
   // Returns true if the class was in the original requested image classes list.
-  bool IsImageClass(const mirror::Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool IsImageClass(mirror::Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Debug aid that list of requested image classes.
   void DumpImageClasses();
@@ -141,20 +141,20 @@ class ImageWriter {
   void CopyAndFixupObjects();
   static void CopyAndFixupObjectsCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupClass(const mirror::Class* orig, mirror::Class* copy)
+  void FixupClass(mirror::Class* orig, mirror::Class* copy)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupMethod(const mirror::ArtMethod* orig, mirror::ArtMethod* copy)
+  void FixupMethod(mirror::ArtMethod* orig, mirror::ArtMethod* copy)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupObject(const mirror::Object* orig, mirror::Object* copy)
+  void FixupObject(mirror::Object* orig, mirror::Object* copy)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupObjectArray(const mirror::ObjectArray<mirror::Object>* orig,
+  void FixupObjectArray(mirror::ObjectArray<mirror::Object>* orig,
                         mirror::ObjectArray<mirror::Object>* copy)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupInstanceFields(const mirror::Object* orig, mirror::Object* copy)
+  void FixupInstanceFields(mirror::Object* orig, mirror::Object* copy)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupStaticFields(const mirror::Class* orig, mirror::Class* copy)
+  void FixupStaticFields(mirror::Class* orig, mirror::Class* copy)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupFields(const mirror::Object* orig, mirror::Object* copy, uint32_t ref_offsets,
+  void FixupFields(mirror::Object* orig, mirror::Object* copy, uint32_t ref_offsets,
                    bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

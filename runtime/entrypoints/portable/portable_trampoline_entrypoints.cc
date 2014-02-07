@@ -47,6 +47,11 @@ class PortableArgumentVisitor {
 #define PORTABLE_CALLEE_SAVE_FRAME__REF_AND_ARGS__R1_OFFSET 0
 #define PORTABLE_CALLEE_SAVE_FRAME__REF_AND_ARGS__FRAME_SIZE 0
 #define PORTABLE_STACK_ARG_SKIP 4
+#elif defined(__x86_64__)
+// TODO: implement and check these.
+#define PORTABLE_CALLEE_SAVE_FRAME__REF_AND_ARGS__R1_OFFSET 16
+#define PORTABLE_CALLEE_SAVE_FRAME__REF_AND_ARGS__FRAME_SIZE 96
+#define PORTABLE_STACK_ARG_SKIP 0
 #else
 #error "Unsupported architecture"
 #define PORTABLE_CALLEE_SAVE_FRAME__REF_AND_ARGS__R1_OFFSET 0
@@ -387,43 +392,42 @@ extern "C" const void* artPortableResolutionTrampoline(mirror::ArtMethod* called
     // Incompatible class change should have been handled in resolve method.
     CHECK(!called->CheckIncompatibleClassChange(invoke_type));
   }
-  const void* code = NULL;
+  const void* code = nullptr;
   if (LIKELY(!thread->IsExceptionPending())) {
     // Ensure that the called method's class is initialized.
     SirtRef<mirror::Class> called_class(thread, called->GetDeclaringClass());
     linker->EnsureInitialized(called_class, true, true);
     if (LIKELY(called_class->IsInitialized())) {
-      code = called->GetEntryPointFromCompiledCode();
+      code = called->GetEntryPointFromPortableCompiledCode();
       // TODO: remove this after we solve the link issue.
-      {  // for lazy link.
-        if (code == NULL) {
-          code = linker->GetOatCodeFor(called);
-        }
+      if (code == nullptr) {
+        bool have_portable_code;
+        code = linker->GetPortableOatCodeFor(called, &have_portable_code);
       }
     } else if (called_class->IsInitializing()) {
       if (invoke_type == kStatic) {
         // Class is still initializing, go to oat and grab code (trampoline must be left in place
         // until class is initialized to stop races between threads).
-        code = linker->GetOatCodeFor(called);
+        bool have_portable_code;
+        code = linker->GetPortableOatCodeFor(called, &have_portable_code);
       } else {
         // No trampoline for non-static methods.
-        code = called->GetEntryPointFromCompiledCode();
+        code = called->GetEntryPointFromPortableCompiledCode();
         // TODO: remove this after we solve the link issue.
-        {  // for lazy link.
-          if (code == NULL) {
-            code = linker->GetOatCodeFor(called);
-          }
+        if (code == nullptr) {
+          bool have_portable_code;
+          code = linker->GetPortableOatCodeFor(called, &have_portable_code);
         }
       }
     } else {
       DCHECK(called_class->IsErroneous());
     }
   }
-  if (LIKELY(code != NULL)) {
+  if (LIKELY(code != nullptr)) {
     // Expect class to at least be initializing.
     DCHECK(called->GetDeclaringClass()->IsInitializing());
     // Don't want infinite recursion.
-    DCHECK(code != GetResolutionTrampoline(linker));
+    DCHECK(code != GetPortableResolutionTrampoline(linker));
     // Set up entry into main method
     *called_addr = called;
   }

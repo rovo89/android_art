@@ -101,7 +101,8 @@ int64_t MappedFile::Read(char* buf, int64_t byte_count, int64_t offset) const {
       errno = EINVAL;
       return -errno;
     }
-    int64_t read_size = std::max(0LL, std::min(byte_count, file_size_ - offset));
+    int64_t read_size = std::max(static_cast<int64_t>(0),
+                                 std::min(byte_count, file_size_ - offset));
     if (read_size > 0) {
       memcpy(buf, data() + offset, read_size);
     }
@@ -136,7 +137,8 @@ int64_t MappedFile::Write(const char* buf, int64_t byte_count, int64_t offset) {
       errno = EINVAL;
       return -errno;
     }
-    int64_t write_size = std::max(0LL, std::min(byte_count, file_size_ - offset));
+    int64_t write_size = std::max(static_cast<int64_t>(0),
+                                  std::min(byte_count, file_size_ - offset));
     if (write_size > 0) {
       memcpy(data() + offset, buf, write_size);
     }

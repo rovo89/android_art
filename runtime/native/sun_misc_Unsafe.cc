@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "atomic.h"
 #include "gc/accounting/card_table-inl.h"
 #include "jni_internal.h"
 #include "mirror/object.h"
@@ -23,40 +22,30 @@
 
 namespace art {
 
-static jboolean Unsafe_compareAndSwapInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint expectedValue, jint newValue) {
+static jboolean Unsafe_compareAndSwapInt(JNIEnv* env, jobject, jobject javaObj, jlong offset,
+                                         jint expectedValue, jint newValue) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
-  volatile int32_t* address = reinterpret_cast<volatile int32_t*>(raw_addr);
-  // Note: android_atomic_release_cas() returns 0 on success, not failure.
-  int result = android_atomic_release_cas(expectedValue, newValue, address);
-  return (result == 0) ? JNI_TRUE : JNI_FALSE;
-}
-
-static jboolean Unsafe_compareAndSwapLong(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong expectedValue, jlong newValue) {
-  ScopedFastNativeObjectAccess soa(env);
-  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
-  volatile int64_t* address = reinterpret_cast<volatile int64_t*>(raw_addr);
-  // Note: android_atomic_cmpxchg() returns 0 on success, not failure.
-  bool success = QuasiAtomic::Cas64(expectedValue, newValue, address);
+  bool success = obj->CasField32(MemberOffset(offset), expectedValue, newValue);
   return success ? JNI_TRUE : JNI_FALSE;
 }
 
-static jboolean Unsafe_compareAndSwapObject(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaExpectedValue, jobject javaNewValue) {
+static jboolean Unsafe_compareAndSwapLong(JNIEnv* env, jobject, jobject javaObj, jlong offset,
+                                          jlong expectedValue, jlong newValue) {
+  ScopedFastNativeObjectAccess soa(env);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  bool success = obj->CasField64(MemberOffset(offset), expectedValue, newValue);
+  return success ? JNI_TRUE : JNI_FALSE;
+}
+
+static jboolean Unsafe_compareAndSwapObject(JNIEnv* env, jobject, jobject javaObj, jlong offset,
+                                            jobject javaExpectedValue, jobject javaNewValue) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   mirror::Object* expectedValue = soa.Decode<mirror::Object*>(javaExpectedValue);
   mirror::Object* newValue = soa.Decode<mirror::Object*>(javaNewValue);
-  byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
-  int32_t* address = reinterpret_cast<int32_t*>(raw_addr);
-  // Note: android_atomic_cmpxchg() returns 0 on success, not failure.
-  int result = android_atomic_release_cas(reinterpret_cast<int32_t>(expectedValue),
-      reinterpret_cast<int32_t>(newValue), address);
-  if (result == 0) {
-    Runtime::Current()->GetHeap()->WriteBarrierField(obj, MemberOffset(offset), newValue);
-  }
-  return (result == 0) ? JNI_TRUE : JNI_FALSE;
+  bool success = obj->CasFieldObject(MemberOffset(offset), expectedValue, newValue);
+  return success ? JNI_TRUE : JNI_FALSE;
 }
 
 static jint Unsafe_getInt(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
@@ -77,13 +66,15 @@ static void Unsafe_putInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, j
   obj->SetField32(MemberOffset(offset), newValue, false);
 }
 
-static void Unsafe_putIntVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
+static void Unsafe_putIntVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset,
+                                  jint newValue) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   obj->SetField32(MemberOffset(offset), newValue, true);
 }
 
-static void Unsafe_putOrderedInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
+static void Unsafe_putOrderedInt(JNIEnv* env, jobject, jobject javaObj, jlong offset,
+                                 jint newValue) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   QuasiAtomic::MembarStoreStore();
@@ -108,13 +99,15 @@ static void Unsafe_putLong(JNIEnv* env, jobject, jobject javaObj, jlong offset, 
   obj->SetField64(MemberOffset(offset), newValue, false);
 }
 
-static void Unsafe_putLongVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong newValue) {
+static void Unsafe_putLongVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset,
+                                   jlong newValue) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   obj->SetField64(MemberOffset(offset), newValue, true);
 }
 
-static void Unsafe_putOrderedLong(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong newValue) {
+static void Unsafe_putOrderedLong(JNIEnv* env, jobject, jobject javaObj, jlong offset,
+                                  jlong newValue) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   QuasiAtomic::MembarStoreStore();
@@ -124,32 +117,35 @@ static void Unsafe_putOrderedLong(JNIEnv* env, jobject, jobject javaObj, jlong o
 static jobject Unsafe_getObjectVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  mirror::Object* value = obj->GetFieldObject<mirror::Object*>(MemberOffset(offset), true);
+  mirror::Object* value = obj->GetFieldObject<mirror::Object>(MemberOffset(offset), true);
   return soa.AddLocalReference<jobject>(value);
 }
 
 static jobject Unsafe_getObject(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
-  mirror::Object* value = obj->GetFieldObject<mirror::Object*>(MemberOffset(offset), false);
+  mirror::Object* value = obj->GetFieldObject<mirror::Object>(MemberOffset(offset), false);
   return soa.AddLocalReference<jobject>(value);
 }
 
-static void Unsafe_putObject(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaNewValue) {
+static void Unsafe_putObject(JNIEnv* env, jobject, jobject javaObj, jlong offset,
+                             jobject javaNewValue) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   mirror::Object* newValue = soa.Decode<mirror::Object*>(javaNewValue);
   obj->SetFieldObject(MemberOffset(offset), newValue, false);
 }
 
-static void Unsafe_putObjectVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaNewValue) {
+static void Unsafe_putObjectVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset,
+                                     jobject javaNewValue) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   mirror::Object* newValue = soa.Decode<mirror::Object*>(javaNewValue);
   obj->SetFieldObject(MemberOffset(offset), newValue, true);
 }
 
-static void Unsafe_putOrderedObject(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaNewValue) {
+static void Unsafe_putOrderedObject(JNIEnv* env, jobject, jobject javaObj, jlong offset,
+                                    jobject javaNewValue) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   mirror::Object* newValue = soa.Decode<mirror::Object*>(javaNewValue);

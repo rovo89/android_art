@@ -29,24 +29,23 @@ namespace mirror {
 // C++ mirror of java.lang.StackTraceElement
 class MANAGED StackTraceElement : public Object {
  public:
-  const String* GetDeclaringClass() const {
-    return GetFieldObject<const String*>(
-        OFFSET_OF_OBJECT_MEMBER(StackTraceElement, declaring_class_), false);
+  String* GetDeclaringClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, declaring_class_),
+                                  false);
   }
 
-  const String* GetMethodName() const {
-    return GetFieldObject<const String*>(
-        OFFSET_OF_OBJECT_MEMBER(StackTraceElement, method_name_), false);
+  String* GetMethodName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, method_name_),
+                                  false);
   }
 
-  const String* GetFileName() const {
-    return GetFieldObject<const String*>(
-        OFFSET_OF_OBJECT_MEMBER(StackTraceElement, file_name_), false);
+  String* GetFileName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, file_name_),
+                                  false);
   }
 
-  int32_t GetLineNumber() const {
-    return GetField32(
-        OFFSET_OF_OBJECT_MEMBER(StackTraceElement, line_number_), false);
+  int32_t GetLineNumber() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, line_number_), false);
   }
 
   static StackTraceElement* Alloc(Thread* self,
@@ -63,9 +62,9 @@ class MANAGED StackTraceElement : public Object {
 
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
-  String* declaring_class_;
-  String* file_name_;
-  String* method_name_;
+  HeapReference<String> declaring_class_;
+  HeapReference<String> file_name_;
+  HeapReference<String> method_name_;
   int32_t line_number_;
 
   static Class* GetStackTraceElement() {

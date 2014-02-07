@@ -291,13 +291,13 @@ class Dex2Oat {
     timings.NewSplit("dex2oat OatWriter");
     std::string image_file_location;
     uint32_t image_file_location_oat_checksum = 0;
-    uint32_t image_file_location_oat_data_begin = 0;
+    uintptr_t image_file_location_oat_data_begin = 0;
     if (!driver->IsImage()) {
       TimingLogger::ScopedSplit split("Loading image checksum", &timings);
       gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetImageSpace();
       image_file_location_oat_checksum = image_space->GetImageHeader().GetOatChecksum();
       image_file_location_oat_data_begin =
-          reinterpret_cast<uint32_t>(image_space->GetImageHeader().GetOatDataBegin());
+          reinterpret_cast<uintptr_t>(image_space->GetImageHeader().GetOatDataBegin());
       image_file_location = image_space->GetImageFilename();
       if (host_prefix != NULL && StartsWith(image_file_location, host_prefix->c_str())) {
         image_file_location = image_file_location.substr(host_prefix->size());
@@ -683,11 +683,7 @@ static int dex2oat(int argc, char** argv) {
   std::string android_root;
   std::vector<const char*> runtime_args;
   int thread_count = sysconf(_SC_NPROCESSORS_CONF);
-#if defined(ART_USE_PORTABLE_COMPILER)
-  CompilerBackend compiler_backend = kPortable;
-#else
-  CompilerBackend compiler_backend = kQuick;
-#endif
+  CompilerBackend compiler_backend = kUsePortableCompiler ? kPortable : kQuick;
 
   // Take the default set of instruction features from the build.
   InstructionSetFeatures instruction_set_features =
@@ -700,7 +696,7 @@ static int dex2oat(int argc, char** argv) {
 #elif defined(__mips__)
   InstructionSet instruction_set = kMips;
 #else
-#error "Unsupported architecture"
+  InstructionSet instruction_set = kNone;
 #endif
 
 
@@ -777,6 +773,8 @@ static int dex2oat(int argc, char** argv) {
         instruction_set = kMips;
       } else if (instruction_set_str == "x86") {
         instruction_set = kX86;
+      } else if (instruction_set_str == "x86_64") {
+        instruction_set = kX86_64;
       }
     } else if (option.starts_with("--instruction-set-features=")) {
       StringPiece str = option.substr(strlen("--instruction-set-features=")).data();

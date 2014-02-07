@@ -24,7 +24,7 @@ namespace art {
 std::vector<Mutex*>* QuasiAtomic::gSwapMutexes = nullptr;
 
 Mutex* QuasiAtomic::GetSwapMutex(const volatile int64_t* addr) {
-  return (*gSwapMutexes)[(reinterpret_cast<unsigned>(addr) >> 3U) % kSwapMutexCount];
+  return (*gSwapMutexes)[(reinterpret_cast<uintptr_t>(addr) >> 3U) % kSwapMutexCount];
 }
 
 void QuasiAtomic::Startup() {

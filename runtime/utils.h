@@ -166,8 +166,29 @@ static inline int CountOneBits(uint32_t x) {
   return static_cast<int>(x & 0x0000003F);
 }
 
-#define CLZ(x) __builtin_clz(x)
-#define CTZ(x) __builtin_ctz(x)
+template<typename T>
+static inline int CLZ(T x) {
+  if (sizeof(T) == sizeof(uint32_t)) {
+    return __builtin_clz(x);
+  } else {
+    return __builtin_clzll(x);
+  }
+}
+
+template<typename T>
+static inline int CTZ(T x) {
+  if (sizeof(T) == sizeof(uint32_t)) {
+    return __builtin_ctz(x);
+  } else {
+    return __builtin_ctzll(x);
+  }
+}
+
+static inline uint32_t PointerToLowMemUInt32(const void* p) {
+  uintptr_t intp = reinterpret_cast<uintptr_t>(p);
+  DCHECK_LE(intp, 0xFFFFFFFFU);
+  return intp & 0xFFFFFFFFU;
+}
 
 static inline bool NeedsEscaping(uint16_t ch) {
   return (ch < ' ' || ch > '~');
@@ -200,21 +221,22 @@ bool EndsWith(const std::string& s, const char* suffix);
 // Returns a human-readable equivalent of 'descriptor'. So "I" would be "int",
 // "[[I" would be "int[][]", "[Ljava/lang/String;" would be
 // "java.lang.String[]", and so forth.
-std::string PrettyDescriptor(const mirror::String* descriptor);
+std::string PrettyDescriptor(mirror::String* descriptor)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 std::string PrettyDescriptor(const std::string& descriptor);
 std::string PrettyDescriptor(Primitive::Type type);
-std::string PrettyDescriptor(const mirror::Class* klass)
+std::string PrettyDescriptor(mirror::Class* klass)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Returns a human-readable signature for 'f'. Something like "a.b.C.f" or
 // "int a.b.C.f" (depending on the value of 'with_type').
-std::string PrettyField(const mirror::ArtField* f, bool with_type = true)
+std::string PrettyField(mirror::ArtField* f, bool with_type = true)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 std::string PrettyField(uint32_t field_idx, const DexFile& dex_file, bool with_type = true);
 
 // Returns a human-readable signature for 'm'. Something like "a.b.C.m" or
 // "a.b.C.m(II)V" (depending on the value of 'with_signature').
-std::string PrettyMethod(const mirror::ArtMethod* m, bool with_signature = true)
+std::string PrettyMethod(mirror::ArtMethod* m, bool with_signature = true)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with_signature = true);
 
@@ -222,7 +244,7 @@ std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with
 // So given an instance of java.lang.String, the output would
 // be "java.lang.String". Given an array of int, the output would be "int[]".
 // Given String.class, the output would be "java.lang.Class<java.lang.String>".
-std::string PrettyTypeOf(const mirror::Object* obj)
+std::string PrettyTypeOf(mirror::Object* obj)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Returns a human-readable form of the type at an index in the specified dex file.
@@ -231,11 +253,11 @@ std::string PrettyType(uint32_t type_idx, const DexFile& dex_file);
 
 // Returns a human-readable form of the name of the given class.
 // Given String.class, the output would be "java.lang.Class<java.lang.String>".
-std::string PrettyClass(const mirror::Class* c)
+std::string PrettyClass(mirror::Class* c)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Returns a human-readable form of the name of the given class with its class loader.
-std::string PrettyClassAndClassLoader(const mirror::Class* c)
+std::string PrettyClassAndClassLoader(mirror::Class* c)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Returns a human-readable size string such as "1MB".
@@ -278,10 +300,10 @@ bool IsValidDescriptor(const char* s);       // "Ljava/lang/String;"
 bool IsValidMemberName(const char* s);
 
 // Returns the JNI native function name for the non-overloaded method 'm'.
-std::string JniShortName(const mirror::ArtMethod* m)
+std::string JniShortName(mirror::ArtMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 // Returns the JNI native function name for the overloaded method 'm'.
-std::string JniLongName(const mirror::ArtMethod* m)
+std::string JniLongName(mirror::ArtMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 bool ReadFileToString(const std::string& file_name, std::string* result);

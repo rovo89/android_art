@@ -25,7 +25,7 @@ TEST(BitVector, Test) {
 
   BitVector bv(kBits, false, Allocator::GetMallocAllocator());
   EXPECT_EQ(1U, bv.GetStorageSize());
-  EXPECT_EQ(kWordSize, bv.GetSizeOf());
+  EXPECT_EQ(sizeof(uint32_t), bv.GetSizeOf());
   EXPECT_FALSE(bv.IsExpandable());
 
   EXPECT_EQ(0U, bv.NumSetBits());
@@ -70,7 +70,7 @@ TEST(BitVector, NoopAllocator) {
 
   BitVector bv(0U, false, Allocator::GetNoopAllocator(), kWords, bits);
   EXPECT_EQ(kWords, bv.GetStorageSize());
-  EXPECT_EQ(kWords * kWordSize, bv.GetSizeOf());
+  EXPECT_EQ(kWords * sizeof(uint32_t), bv.GetSizeOf());
   EXPECT_EQ(bits, bv.GetRawStorage());
   EXPECT_EQ(0U, bv.NumSetBits());
 

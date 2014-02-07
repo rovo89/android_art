@@ -35,7 +35,7 @@ class ArmContext : public Context {
 
   virtual void Reset();
 
-  virtual void FillCalleeSaves(const StackVisitor& fr);
+  virtual void FillCalleeSaves(const StackVisitor& fr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   virtual void SetSP(uintptr_t new_sp) {
     SetGPR(SP, new_sp);

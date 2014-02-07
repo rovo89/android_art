@@ -101,10 +101,10 @@ class LlvmCompilationUnit {
 
  private:
   LlvmCompilationUnit(const CompilerLLVM* compiler_llvm,
-                      uint32_t cunit_id);
+                      size_t cunit_id);
 
   const CompilerLLVM* compiler_llvm_;
-  const uint32_t cunit_id_;
+  const size_t cunit_id_;
 
   UniquePtr< ::llvm::LLVMContext> context_;
   UniquePtr<IRBuilder> irb_;

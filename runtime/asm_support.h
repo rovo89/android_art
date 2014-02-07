@@ -40,6 +40,7 @@
 
 // Offsets within java.lang.Method.
 #define METHOD_DEX_CACHE_METHODS_OFFSET 12
-#define METHOD_CODE_OFFSET 36
+#define METHOD_PORTABLE_CODE_OFFSET 40
+#define METHOD_QUICK_CODE_OFFSET 48
 
 #endif  // ART_RUNTIME_ASM_SUPPORT_H_

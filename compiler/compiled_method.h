@@ -36,7 +36,7 @@ class CompiledCode {
  public:
   // For Quick to supply an code blob
   CompiledCode(CompilerDriver* compiler_driver, InstructionSet instruction_set,
-               const std::vector<uint8_t>& code);
+               const std::vector<uint8_t>& quick_code);
 
   // For Portable to supply an ELF object
   CompiledCode(CompilerDriver* compiler_driver, InstructionSet instruction_set,
@@ -46,15 +46,17 @@ class CompiledCode {
     return instruction_set_;
   }
 
-  const std::vector<uint8_t>& GetCode() const {
-    return *code_;
+  const std::vector<uint8_t>* GetPortableCode() const {
+    return portable_code_;
   }
 
-  void SetCode(const std::vector<uint8_t>& code);
-
-  bool operator==(const CompiledCode& rhs) const {
-    return (code_ == rhs.code_);
+  const std::vector<uint8_t>* GetQuickCode() const {
+    return quick_code_;
   }
+
+  void SetCode(const std::vector<uint8_t>* quick_code, const std::vector<uint8_t>* portable_code);
+
+  bool operator==(const CompiledCode& rhs) const;
 
   // To align an offset from a page-aligned value to make it suitable
   // for code storage. For example on ARM, to ensure that PC relative
@@ -72,19 +74,20 @@ class CompiledCode {
   static const void* CodePointer(const void* code_pointer,
                                  InstructionSet instruction_set);
 
-#if defined(ART_USE_PORTABLE_COMPILER)
   const std::string& GetSymbol() const;
   const std::vector<uint32_t>& GetOatdataOffsetsToCompliledCodeOffset() const;
   void AddOatdataOffsetToCompliledCodeOffset(uint32_t offset);
-#endif
 
  private:
-  CompilerDriver* compiler_driver_;
+  CompilerDriver* const compiler_driver_;
 
   const InstructionSet instruction_set_;
 
-  // Used to store the PIC code for Quick and an ELF image for portable.
-  std::vector<uint8_t>* code_;
+  // The ELF image for portable.
+  std::vector<uint8_t>* portable_code_;
+
+  // Used to store the PIC code for Quick.
+  std::vector<uint8_t>* quick_code_;
 
   // Used for the Portable ELF symbol name.
   const std::string symbol_;
@@ -101,7 +104,7 @@ class CompiledMethod : public CompiledCode {
   // Constructs a CompiledMethod for the non-LLVM compilers.
   CompiledMethod(CompilerDriver& driver,
                  InstructionSet instruction_set,
-                 const std::vector<uint8_t>& code,
+                 const std::vector<uint8_t>& quick_code,
                  const size_t frame_size_in_bytes,
                  const uint32_t core_spill_mask,
                  const uint32_t fp_spill_mask,
@@ -109,10 +112,10 @@ class CompiledMethod : public CompiledCode {
                  const std::vector<uint8_t>& vmap_table,
                  const std::vector<uint8_t>& native_gc_map);
 
-  // Constructs a CompiledMethod for the JniCompiler.
+  // Constructs a CompiledMethod for the QuickJniCompiler.
   CompiledMethod(CompilerDriver& driver,
                  InstructionSet instruction_set,
-                 const std::vector<uint8_t>& code,
+                 const std::vector<uint8_t>& quick_code,
                  const size_t frame_size_in_bytes,
                  const uint32_t core_spill_mask,
                  const uint32_t fp_spill_mask);

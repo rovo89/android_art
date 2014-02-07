@@ -85,7 +85,7 @@ PcToRegisterLineTable::~PcToRegisterLineTable() {
   }
 }
 
-MethodVerifier::FailureKind MethodVerifier::VerifyClass(const mirror::Class* klass,
+MethodVerifier::FailureKind MethodVerifier::VerifyClass(mirror::Class* klass,
                                                         bool allow_soft_failures,
                                                         std::string* error) {
   if (klass->IsVerified()) {
@@ -837,7 +837,7 @@ bool MethodVerifier::CheckArrayData(uint32_t cur_offset) {
   /* offset to array data table is a relative branch-style offset */
   array_data = insns + array_data_offset;
   /* make sure the table is 32-bit aligned */
-  if ((((uint32_t) array_data) & 0x03) != 0) {
+  if ((reinterpret_cast<uintptr_t>(array_data) & 0x03) != 0) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unaligned array data table: at " << cur_offset
                                       << ", data offset " << array_data_offset;
     return false;
@@ -941,7 +941,7 @@ bool MethodVerifier::CheckSwitchTargets(uint32_t cur_offset) {
   /* offset to switch table is a relative branch-style offset */
   const uint16_t* switch_insns = insns + switch_offset;
   /* make sure the table is 32-bit aligned */
-  if ((((uint32_t) switch_insns) & 0x03) != 0) {
+  if ((reinterpret_cast<uintptr_t>(switch_insns) & 0x03) != 0) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unaligned switch table: at " << cur_offset
                                       << ", switch offset " << switch_offset;
     return false;
@@ -3616,10 +3616,9 @@ void MethodVerifier::VerifyISPut(const Instruction* inst, const RegType& insn_ty
 
 // Look for an instance field with this offset.
 // TODO: we may speed up the search if offsets are sorted by doing a quick search.
-static mirror::ArtField* FindInstanceFieldWithOffset(const mirror::Class* klass,
-                                                  uint32_t field_offset)
+static mirror::ArtField* FindInstanceFieldWithOffset(mirror::Class* klass, uint32_t field_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  const mirror::ObjectArray<mirror::ArtField>* instance_fields = klass->GetIFields();
+  mirror::ObjectArray<mirror::ArtField>* instance_fields = klass->GetIFields();
   if (instance_fields != NULL) {
     for (int32_t i = 0, e = instance_fields->GetLength(); i < e; ++i) {
       mirror::ArtField* field = instance_fields->Get(i);

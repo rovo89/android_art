@@ -223,7 +223,7 @@ class AllocSpace {
   virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated) = 0;
 
   // Return the storage space required by obj.
-  virtual size_t AllocationSize(const mirror::Object* obj) = 0;
+  virtual size_t AllocationSize(mirror::Object* obj) = 0;
 
   // Returns how many bytes were freed.
   virtual size_t Free(Thread* self, mirror::Object* ptr) = 0;
