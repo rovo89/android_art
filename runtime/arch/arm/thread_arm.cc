@@ -28,4 +28,8 @@ void Thread::InitCpu() {
   CHECK_EQ(THREAD_ID_OFFSET, OFFSETOF_MEMBER(Thread, thin_lock_thread_id_));
 }
 
+void Thread::CleanupCpu() {
+  // Do nothing.
+}
+
 }  // namespace art
