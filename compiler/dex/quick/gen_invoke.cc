@@ -1076,6 +1076,43 @@ bool Mir2Lir::GenInlinedAbsLong(CallInfo* info) {
   }
 }
 
+bool Mir2Lir::GenInlinedAbsFloat(CallInfo* info) {
+  if (cu_->instruction_set == kMips) {
+    // TODO - add Mips implementation
+    return false;
+  }
+  RegLocation rl_src = info->args[0];
+  rl_src = LoadValue(rl_src, kCoreReg);
+  RegLocation rl_dest = InlineTarget(info);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  int signMask = AllocTemp();
+  LoadConstant(signMask, 0x7fffffff);
+  OpRegRegReg(kOpAnd, rl_result.low_reg, rl_src.low_reg, signMask);
+  FreeTemp(signMask);
+  StoreValue(rl_dest, rl_result);
+  return true;
+}
+
+bool Mir2Lir::GenInlinedAbsDouble(CallInfo* info) {
+  if (cu_->instruction_set == kMips) {
+    // TODO - add Mips implementation
+    return false;
+  }
+  RegLocation rl_src = info->args[0];
+  rl_src = LoadValueWide(rl_src, kCoreReg);
+  RegLocation rl_dest = InlineTargetWide(info);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  OpRegCopyWide(rl_result.low_reg, rl_result.high_reg, rl_src.low_reg, rl_src.high_reg);
+  FreeTemp(rl_src.low_reg);
+  FreeTemp(rl_src.high_reg);
+  int signMask = AllocTemp();
+  LoadConstant(signMask, 0x7fffffff);
+  OpRegReg(kOpAnd, rl_result.high_reg, signMask);
+  FreeTemp(signMask);
+  StoreValueWide(rl_dest, rl_result);
+  return true;
+}
+
 bool Mir2Lir::GenInlinedFloatCvt(CallInfo* info) {
   if (cu_->instruction_set == kMips) {
     // TODO - add Mips implementation

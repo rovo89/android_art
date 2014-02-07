@@ -107,6 +107,8 @@ const DexFileMethodInliner::ProtoDef DexFileMethodInliner::kProtoCacheDefs[] = {
     { kClassCacheShort, 1, { kClassCacheShort } },
     // kProtoCacheD_D
     { kClassCacheDouble, 1, { kClassCacheDouble } },
+    // kProtoCacheF_F
+    { kClassCacheFloat, 1, { kClassCacheFloat } },
     // kProtoCacheD_J
     { kClassCacheLong, 1, { kClassCacheDouble } },
     // kProtoCacheJ_D
@@ -182,6 +184,10 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
     INTRINSIC(JavaLangStrictMath, Abs, I_I, kIntrinsicAbsInt, 0),
     INTRINSIC(JavaLangMath,       Abs, J_J, kIntrinsicAbsLong, 0),
     INTRINSIC(JavaLangStrictMath, Abs, J_J, kIntrinsicAbsLong, 0),
+    INTRINSIC(JavaLangMath,       Abs, F_F, kIntrinsicAbsFloat, 0),
+    INTRINSIC(JavaLangStrictMath, Abs, F_F, kIntrinsicAbsFloat, 0),
+    INTRINSIC(JavaLangMath,       Abs, D_D, kIntrinsicAbsDouble, 0),
+    INTRINSIC(JavaLangStrictMath, Abs, D_D, kIntrinsicAbsDouble, 0),
     INTRINSIC(JavaLangMath,       Min, II_I, kIntrinsicMinMaxInt, kIntrinsicFlagMin),
     INTRINSIC(JavaLangStrictMath, Min, II_I, kIntrinsicMinMaxInt, kIntrinsicFlagMin),
     INTRINSIC(JavaLangMath,       Max, II_I, kIntrinsicMinMaxInt, kIntrinsicFlagMax),
@@ -328,6 +334,10 @@ bool DexFileMethodInliner::GenIntrinsic(Mir2Lir* backend, CallInfo* info) {
       return backend->GenInlinedAbsInt(info);
     case kIntrinsicAbsLong:
       return backend->GenInlinedAbsLong(info);
+    case kIntrinsicAbsFloat:
+      return backend->GenInlinedAbsFloat(info);
+    case kIntrinsicAbsDouble:
+      return backend->GenInlinedAbsDouble(info);
     case kIntrinsicMinMaxInt:
       return backend->GenInlinedMinMaxInt(info, intrinsic.data & kIntrinsicFlagMin);
     case kIntrinsicSqrt:
