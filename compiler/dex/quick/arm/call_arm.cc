@@ -24,43 +24,72 @@
 
 namespace art {
 
-// TODO: generalize & move to RegUtil.cc
-// The number of dalvik registers passed in core registers.
-constexpr int kInArgsInCoreRegs = 3;
-// The core register corresponding to the first (index 0) input argument.
-constexpr int kInArg0CoreReg = r1;  // r0 is Method*.
-// Offset, in words, for getting args from stack (even core reg args have space on stack).
-constexpr int kInArgToStackOffset = 1;
 
-/* Lock argument if it's in register. */
-void ArmMir2Lir::LockArg(int in_position, bool wide) {
-  if (in_position < kInArgsInCoreRegs) {
-    LockTemp(kInArg0CoreReg + in_position);
-  }
-  if (wide && in_position + 1 < kInArgsInCoreRegs) {
-    LockTemp(kInArg0CoreReg + in_position + 1);
-  }
+/* Return the position of an ssa name within the argument list */
+int ArmMir2Lir::InPosition(int s_reg) {
+  int v_reg = mir_graph_->SRegToVReg(s_reg);
+  return v_reg - cu_->num_regs;
 }
 
-/* Load argument into register. LockArg(in_position, wide) must have been previously called. */
-int ArmMir2Lir::LoadArg(int in_position, bool wide) {
-  if (in_position < kInArgsInCoreRegs) {
-    int low_reg = kInArg0CoreReg + in_position;
-    if (!wide) {
-      return low_reg;
+/*
+ * Describe an argument.  If it's already in an arg register, just leave it
+ * there.  NOTE: all live arg registers must be locked prior to this call
+ * to avoid having them allocated as a temp by downstream utilities.
+ */
+RegLocation ArmMir2Lir::ArgLoc(RegLocation loc) {
+  int arg_num = InPosition(loc.s_reg_low);
+  if (loc.wide) {
+    if (arg_num == 2) {
+      // Bad case - half in register, half in frame.  Just punt
+      loc.location = kLocInvalid;
+    } else if (arg_num < 2) {
+      loc.low_reg = rARM_ARG1 + arg_num;
+      loc.high_reg = loc.low_reg + 1;
+      loc.location = kLocPhysReg;
+    } else {
+      loc.location = kLocDalvikFrame;
     }
-    int high_reg = (in_position != kInArgsInCoreRegs - 1) ? low_reg + 1 : LoadArg(in_position + 1);
-    return (low_reg & 0xff) | ((high_reg & 0xff) << 8);
+  } else {
+    if (arg_num < 3) {
+      loc.low_reg = rARM_ARG1 + arg_num;
+      loc.location = kLocPhysReg;
+    } else {
+      loc.location = kLocDalvikFrame;
+    }
   }
-  int low_reg = AllocTemp();
-  int offset = (in_position + kInArgToStackOffset) * sizeof(uint32_t);
-  if (!wide) {
-    LoadWordDisp(rARM_SP, offset, low_reg);
-    return low_reg;
+  return loc;
+}
+
+/*
+ * Load an argument.  If already in a register, just return.  If in
+ * the frame, we can't use the normal LoadValue() because it assumed
+ * a proper frame - and we're frameless.
+ */
+RegLocation ArmMir2Lir::LoadArg(RegLocation loc) {
+  if (loc.location == kLocDalvikFrame) {
+    int start = (InPosition(loc.s_reg_low) + 1) * sizeof(uint32_t);
+    loc.low_reg = AllocTemp();
+    LoadWordDisp(rARM_SP, start, loc.low_reg);
+    if (loc.wide) {
+      loc.high_reg = AllocTemp();
+      LoadWordDisp(rARM_SP, start + sizeof(uint32_t), loc.high_reg);
+    }
+    loc.location = kLocPhysReg;
   }
-  int high_reg = AllocTemp();
-  LoadBaseDispWide(rARM_SP, offset, low_reg, high_reg, INVALID_SREG);
-  return (low_reg & 0xff) | ((high_reg & 0xff) << 8);
+  return loc;
+}
+
+/* Lock any referenced arguments that arrive in registers */
+void ArmMir2Lir::LockLiveArgs(MIR* mir) {
+  int first_in = cu_->num_regs;
+  const int num_arg_regs = 3;  // TODO: generalize & move to RegUtil.cc
+  for (int i = 0; i < mir->ssa_rep->num_uses; i++) {
+    int v_reg = mir_graph_->SRegToVReg(mir->ssa_rep->uses[i]);
+    int InPosition = v_reg - first_in;
+    if (InPosition < num_arg_regs) {
+      LockTemp(rARM_ARG1 + InPosition);
+    }
+  }
 }
 
 /* Find the next MIR, which may be in a following basic block */
@@ -101,80 +130,96 @@ void ArmMir2Lir::GenPrintLabel(MIR* mir) {
 MIR* ArmMir2Lir::SpecialIGet(BasicBlock** bb, MIR* mir, const InlineMethod& special) {
   // FastInstance() already checked by DexFileMethodInliner.
   const InlineIGetIPutData& data = special.d.ifield_data;
-  if (data.method_is_static || data.object_arg != 0) {
+  if (!data.method_is_static || data.object_arg != 0) {
     return NULL;  // The object is not "this" and has to be null-checked.
   }
 
+  OpSize size = static_cast<OpSize>(data.op_size);
   DCHECK_NE(data.op_size, kDouble);  // The inliner doesn't distinguish kDouble, uses kLong.
   bool long_or_double = (data.op_size == kLong);
+  bool is_object = data.is_object;
 
+  // TODO: Generate the method using only the data in special.
+  RegLocation rl_obj = mir_graph_->GetSrc(mir, 0);
+  LockLiveArgs(mir);
+  rl_obj = ArmMir2Lir::ArgLoc(rl_obj);
+  RegLocation rl_dest;
+  if (long_or_double) {
+    rl_dest = GetReturnWide(false);
+  } else {
+    rl_dest = GetReturn(false);
+  }
   // Point of no return - no aborts after this
   ArmMir2Lir::GenPrintLabel(mir);
-  LockArg(data.object_arg);
-  RegLocation rl_dest = long_or_double ? GetReturnWide(false) : GetReturn(false);
-  int reg_obj = LoadArg(data.object_arg);
-  if (long_or_double) {
-    LoadBaseDispWide(reg_obj, data.field_offset, rl_dest.low_reg, rl_dest.high_reg, INVALID_SREG);
-  } else {
-    LoadBaseDisp(reg_obj, data.field_offset, rl_dest.low_reg, kWord, INVALID_SREG);
-  }
-  if (data.is_volatile) {
-    GenMemBarrier(kLoadLoad);
-  }
+  rl_obj = LoadArg(rl_obj);
+  uint32_t field_idx = mir->dalvikInsn.vC;
+  GenIGet(field_idx, mir->optimization_flags, size, rl_dest, rl_obj, long_or_double, is_object);
   return GetNextMir(bb, mir);
 }
 
 MIR* ArmMir2Lir::SpecialIPut(BasicBlock** bb, MIR* mir, const InlineMethod& special) {
   // FastInstance() already checked by DexFileMethodInliner.
   const InlineIGetIPutData& data = special.d.ifield_data;
-  if (data.method_is_static || data.object_arg != 0) {
+  if (!data.method_is_static || data.object_arg != 0) {
     return NULL;  // The object is not "this" and has to be null-checked.
   }
 
+  OpSize size = static_cast<OpSize>(data.op_size);
   DCHECK_NE(data.op_size, kDouble);  // The inliner doesn't distinguish kDouble, uses kLong.
   bool long_or_double = (data.op_size == kLong);
+  bool is_object = data.is_object;
 
+  // TODO: Generate the method using only the data in special.
+  RegLocation rl_src;
+  RegLocation rl_obj;
+  LockLiveArgs(mir);
+  if (long_or_double) {
+    rl_src = mir_graph_->GetSrcWide(mir, 0);
+    rl_obj = mir_graph_->GetSrc(mir, 2);
+  } else {
+    rl_src = mir_graph_->GetSrc(mir, 0);
+    rl_obj = mir_graph_->GetSrc(mir, 1);
+  }
+  rl_src = ArmMir2Lir::ArgLoc(rl_src);
+  rl_obj = ArmMir2Lir::ArgLoc(rl_obj);
+  // Reject if source is split across registers & frame
+  if (rl_src.location == kLocInvalid) {
+    ResetRegPool();
+    return NULL;
+  }
   // Point of no return - no aborts after this
   ArmMir2Lir::GenPrintLabel(mir);
-  LockArg(data.object_arg);
-  LockArg(data.src_arg, long_or_double);
-  int reg_obj = LoadArg(data.object_arg);
-  int reg_src = LoadArg(data.src_arg, long_or_double);
-  if (data.is_volatile) {
-    GenMemBarrier(kStoreStore);
-  }
-  if (long_or_double) {
-    StoreBaseDispWide(reg_obj, data.field_offset, reg_src & 0xff, reg_src >> 8);
-  } else {
-    StoreBaseDisp(reg_obj, data.field_offset, reg_src, kWord);
-  }
-  if (data.is_volatile) {
-    GenMemBarrier(kLoadLoad);
-  }
-  if (data.is_object) {
-    MarkGCCard(reg_src, reg_obj);
-  }
+  rl_obj = LoadArg(rl_obj);
+  rl_src = LoadArg(rl_src);
+  uint32_t field_idx = mir->dalvikInsn.vC;
+  GenIPut(field_idx, mir->optimization_flags, size, rl_src, rl_obj, long_or_double, is_object);
   return GetNextMir(bb, mir);
 }
 
-MIR* ArmMir2Lir::SpecialIdentity(MIR* mir, const InlineMethod& special) {
-  const InlineReturnArgData& data = special.d.return_data;
-  DCHECK_NE(data.op_size, kDouble);  // The inliner doesn't distinguish kDouble, uses kLong.
-  bool long_or_double = (data.op_size == kLong);
-
+MIR* ArmMir2Lir::SpecialIdentity(MIR* mir) {
+  RegLocation rl_src;
+  RegLocation rl_dest;
+  bool wide = (mir->ssa_rep->num_uses == 2);
+  if (wide) {
+    rl_src = mir_graph_->GetSrcWide(mir, 0);
+    rl_dest = GetReturnWide(false);
+  } else {
+    rl_src = mir_graph_->GetSrc(mir, 0);
+    rl_dest = GetReturn(false);
+  }
+  LockLiveArgs(mir);
+  rl_src = ArmMir2Lir::ArgLoc(rl_src);
+  if (rl_src.location == kLocInvalid) {
+    ResetRegPool();
+    return NULL;
+  }
   // Point of no return - no aborts after this
   ArmMir2Lir::GenPrintLabel(mir);
-  LockArg(data.arg);
-  if (long_or_double) {
-    LockArg(data.arg + 1);
-  }
-  RegLocation rl_dest = long_or_double ? GetReturnWide(false) : GetReturn(false);
-  int reg_src = LoadArg(data.arg, rl_dest.low_reg);
-  OpRegCopy(rl_dest.low_reg, reg_src);
-  if (long_or_double) {
-    int reg_src_high = LoadArg(data.arg + 1, rl_dest.high_reg);
-    CHECK_NE(rl_dest.low_reg, reg_src_high);  // The high register hasn't been clobbered.
-    OpRegCopy(rl_dest.high_reg, reg_src_high);
+  rl_src = LoadArg(rl_src);
+  if (wide) {
+    StoreValueWide(rl_dest, rl_src);
+  } else {
+    StoreValue(rl_dest, rl_src);
   }
   return mir;
 }
@@ -204,7 +249,8 @@ void ArmMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
       next_mir = SpecialIPut(&bb, mir, special);
       break;
     case kInlineOpReturnArg:
-      next_mir = SpecialIdentity(mir, special);
+      // TODO: Generate the method using only the data in special.
+      next_mir = SpecialIdentity(mir);
       break;
     default:
       return;
