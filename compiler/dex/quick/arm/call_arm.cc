@@ -127,15 +127,19 @@ void ArmMir2Lir::GenPrintLabel(MIR* mir) {
   }
 }
 
-MIR* ArmMir2Lir::SpecialIGet(BasicBlock** bb, MIR* mir,
-                             OpSize size, bool long_or_double, bool is_object) {
-  int32_t field_offset;
-  bool is_volatile;
-  uint32_t field_idx = mir->dalvikInsn.vC;
-  bool fast_path = FastInstance(field_idx, false, &field_offset, &is_volatile);
-  if (!fast_path || !(mir->optimization_flags & MIR_IGNORE_NULL_CHECK)) {
-    return NULL;
+MIR* ArmMir2Lir::SpecialIGet(BasicBlock** bb, MIR* mir, const InlineMethod& special) {
+  // FastInstance() already checked by DexFileMethodInliner.
+  const InlineIGetIPutData& data = special.d.ifield_data;
+  if (!data.method_is_static || data.object_arg != 0) {
+    return NULL;  // The object is not "this" and has to be null-checked.
   }
+
+  OpSize size = static_cast<OpSize>(data.op_size);
+  DCHECK_NE(data.op_size, kDouble);  // The inliner doesn't distinguish kDouble, uses kLong.
+  bool long_or_double = (data.op_size == kLong);
+  bool is_object = data.is_object;
+
+  // TODO: Generate the method using only the data in special.
   RegLocation rl_obj = mir_graph_->GetSrc(mir, 0);
   LockLiveArgs(mir);
   rl_obj = ArmMir2Lir::ArgLoc(rl_obj);
@@ -148,19 +152,24 @@ MIR* ArmMir2Lir::SpecialIGet(BasicBlock** bb, MIR* mir,
   // Point of no return - no aborts after this
   ArmMir2Lir::GenPrintLabel(mir);
   rl_obj = LoadArg(rl_obj);
+  uint32_t field_idx = mir->dalvikInsn.vC;
   GenIGet(field_idx, mir->optimization_flags, size, rl_dest, rl_obj, long_or_double, is_object);
   return GetNextMir(bb, mir);
 }
 
-MIR* ArmMir2Lir::SpecialIPut(BasicBlock** bb, MIR* mir,
-                             OpSize size, bool long_or_double, bool is_object) {
-  int32_t field_offset;
-  bool is_volatile;
-  uint32_t field_idx = mir->dalvikInsn.vC;
-  bool fast_path = FastInstance(field_idx, false, &field_offset, &is_volatile);
-  if (!fast_path || !(mir->optimization_flags & MIR_IGNORE_NULL_CHECK)) {
-    return NULL;
+MIR* ArmMir2Lir::SpecialIPut(BasicBlock** bb, MIR* mir, const InlineMethod& special) {
+  // FastInstance() already checked by DexFileMethodInliner.
+  const InlineIGetIPutData& data = special.d.ifield_data;
+  if (!data.method_is_static || data.object_arg != 0) {
+    return NULL;  // The object is not "this" and has to be null-checked.
   }
+
+  OpSize size = static_cast<OpSize>(data.op_size);
+  DCHECK_NE(data.op_size, kDouble);  // The inliner doesn't distinguish kDouble, uses kLong.
+  bool long_or_double = (data.op_size == kLong);
+  bool is_object = data.is_object;
+
+  // TODO: Generate the method using only the data in special.
   RegLocation rl_src;
   RegLocation rl_obj;
   LockLiveArgs(mir);
@@ -174,7 +183,7 @@ MIR* ArmMir2Lir::SpecialIPut(BasicBlock** bb, MIR* mir,
   rl_src = ArmMir2Lir::ArgLoc(rl_src);
   rl_obj = ArmMir2Lir::ArgLoc(rl_obj);
   // Reject if source is split across registers & frame
-  if (rl_obj.location == kLocInvalid) {
+  if (rl_src.location == kLocInvalid) {
     ResetRegPool();
     return NULL;
   }
@@ -182,6 +191,7 @@ MIR* ArmMir2Lir::SpecialIPut(BasicBlock** bb, MIR* mir,
   ArmMir2Lir::GenPrintLabel(mir);
   rl_obj = LoadArg(rl_obj);
   rl_src = LoadArg(rl_src);
+  uint32_t field_idx = mir->dalvikInsn.vC;
   GenIPut(field_idx, mir->optimization_flags, size, rl_src, rl_obj, long_or_double, is_object);
   return GetNextMir(bb, mir);
 }
@@ -219,8 +229,6 @@ MIR* ArmMir2Lir::SpecialIdentity(MIR* mir) {
  */
 void ArmMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
                                 const InlineMethod& special) {
-  // TODO: Generate the method using only the data in special. (Requires FastInstance() field
-  // validation in DexFileMethodInliner::AnalyseIGetMethod()/AnalyseIPutMethod().)
   DCHECK(special.flags & kInlineSpecial);
   current_dalvik_offset_ = mir->offset;
   MIR* next_mir = NULL;
@@ -231,30 +239,17 @@ void ArmMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
       break;
     case kInlineOpConst:
       ArmMir2Lir::GenPrintLabel(mir);
-      LoadConstant(rARM_RET0, special.data);
+      LoadConstant(rARM_RET0, static_cast<int>(special.d.data));
       next_mir = GetNextMir(&bb, mir);
       break;
-    case kInlineOpIGet: {
-      InlineIGetIPutData data;
-      data.data = special.data;
-      OpSize op_size = static_cast<OpSize>(data.d.op_size);
-      DCHECK_NE(data.d.op_size, kDouble);  // The inliner doesn't distinguish kDouble, uses kLong.
-      bool long_or_double = (data.d.op_size == kLong);
-      bool is_object = data.d.is_object;
-      next_mir = SpecialIGet(&bb, mir, op_size, long_or_double, is_object);
+    case kInlineOpIGet:
+      next_mir = SpecialIGet(&bb, mir, special);
       break;
-    }
-    case kInlineOpIPut: {
-      InlineIGetIPutData data;
-      data.data = special.data;
-      OpSize op_size = static_cast<OpSize>(data.d.op_size);
-      DCHECK_NE(data.d.op_size, kDouble);  // The inliner doesn't distinguish kDouble, uses kLong.
-      bool long_or_double = (data.d.op_size == kLong);
-      bool is_object = data.d.is_object;
-      next_mir = SpecialIPut(&bb, mir, op_size, long_or_double, is_object);
+    case kInlineOpIPut:
+      next_mir = SpecialIPut(&bb, mir, special);
       break;
-    }
     case kInlineOpReturnArg:
+      // TODO: Generate the method using only the data in special.
       next_mir = SpecialIdentity(mir);
       break;
     default:
