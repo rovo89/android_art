@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-#include "base/histogram-inl.h"
-#include "common_test.h"
 #include "leb128.h"
 #include "leb128_encoder.h"
 
-namespace art {
+#include "gtest/gtest.h"
+#include "base/histogram-inl.h"
 
-class Leb128Test : public CommonTest {};
+namespace art {
 
 struct DecodeUnsignedLeb128TestCase {
   uint32_t decoded;
@@ -92,7 +91,7 @@ static DecodeSignedLeb128TestCase sleb128_tests[] = {
     {(-1) << 31, {0x80, 0x80, 0x80, 0x80, 0x78}},
 };
 
-TEST_F(Leb128Test, UnsignedSinglesVector) {
+TEST(Leb128Test, UnsignedSinglesVector) {
   // Test individual encodings.
   for (size_t i = 0; i < arraysize(uleb128_tests); ++i) {
     Leb128EncodingVector builder;
@@ -111,7 +110,7 @@ TEST_F(Leb128Test, UnsignedSinglesVector) {
   }
 }
 
-TEST_F(Leb128Test, UnsignedSingles) {
+TEST(Leb128Test, UnsignedSingles) {
   // Test individual encodings.
   for (size_t i = 0; i < arraysize(uleb128_tests); ++i) {
     uint8_t encoded_data[5];
@@ -130,7 +129,7 @@ TEST_F(Leb128Test, UnsignedSingles) {
   }
 }
 
-TEST_F(Leb128Test, UnsignedStreamVector) {
+TEST(Leb128Test, UnsignedStreamVector) {
   // Encode a number of entries.
   Leb128EncodingVector builder;
   for (size_t i = 0; i < arraysize(uleb128_tests); ++i) {
@@ -151,7 +150,7 @@ TEST_F(Leb128Test, UnsignedStreamVector) {
             static_cast<size_t>(encoded_data_ptr - &builder.GetData()[0]));
 }
 
-TEST_F(Leb128Test, UnsignedStream) {
+TEST(Leb128Test, UnsignedStream) {
   // Encode a number of entries.
   uint8_t encoded_data[5 * arraysize(uleb128_tests)];
   uint8_t* end = encoded_data;
@@ -173,7 +172,7 @@ TEST_F(Leb128Test, UnsignedStream) {
   EXPECT_EQ(data_size, static_cast<size_t>(encoded_data_ptr - encoded_data));
 }
 
-TEST_F(Leb128Test, SignedSinglesVector) {
+TEST(Leb128Test, SignedSinglesVector) {
   // Test individual encodings.
   for (size_t i = 0; i < arraysize(sleb128_tests); ++i) {
     Leb128EncodingVector builder;
@@ -192,7 +191,7 @@ TEST_F(Leb128Test, SignedSinglesVector) {
   }
 }
 
-TEST_F(Leb128Test, SignedSingles) {
+TEST(Leb128Test, SignedSingles) {
   // Test individual encodings.
   for (size_t i = 0; i < arraysize(sleb128_tests); ++i) {
     uint8_t encoded_data[5];
@@ -211,7 +210,7 @@ TEST_F(Leb128Test, SignedSingles) {
   }
 }
 
-TEST_F(Leb128Test, SignedStreamVector) {
+TEST(Leb128Test, SignedStreamVector) {
   // Encode a number of entries.
   Leb128EncodingVector builder;
   for (size_t i = 0; i < arraysize(sleb128_tests); ++i) {
@@ -232,7 +231,7 @@ TEST_F(Leb128Test, SignedStreamVector) {
             static_cast<size_t>(encoded_data_ptr - &builder.GetData()[0]));
 }
 
-TEST_F(Leb128Test, SignedStream) {
+TEST(Leb128Test, SignedStream) {
   // Encode a number of entries.
   uint8_t encoded_data[5 * arraysize(sleb128_tests)];
   uint8_t* end = encoded_data;
@@ -254,7 +253,7 @@ TEST_F(Leb128Test, SignedStream) {
   EXPECT_EQ(data_size, static_cast<size_t>(encoded_data_ptr - encoded_data));
 }
 
-TEST_F(Leb128Test, Speed) {
+TEST(Leb128Test, Speed) {
   UniquePtr<Histogram<uint64_t> > enc_hist(new Histogram<uint64_t>("Leb128EncodeSpeedTest", 5));
   UniquePtr<Histogram<uint64_t> > dec_hist(new Histogram<uint64_t>("Leb128DecodeSpeedTest", 5));
   Leb128EncodingVector builder;
