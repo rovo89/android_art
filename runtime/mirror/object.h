@@ -170,29 +170,29 @@ class MANAGED Object {
         field_offset.Int32Value());
   }
 
-  uint32_t GetField32(MemberOffset field_offset, bool is_volatile);
+  int32_t GetField32(MemberOffset field_offset, bool is_volatile);
 
-  void SetField32(MemberOffset field_offset, uint32_t new_value, bool is_volatile,
+  void SetField32(MemberOffset field_offset, int32_t new_value, bool is_volatile,
                   bool this_is_valid = true);
 
-  bool CasField32(MemberOffset field_offset, uint32_t old_value, uint32_t new_value)
+  bool CasField32(MemberOffset field_offset, int32_t old_value, int32_t new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  uint64_t GetField64(MemberOffset field_offset, bool is_volatile);
+  int64_t GetField64(MemberOffset field_offset, bool is_volatile);
 
-  void SetField64(MemberOffset field_offset, uint64_t new_value, bool is_volatile,
+  void SetField64(MemberOffset field_offset, int64_t new_value, bool is_volatile,
                   bool this_is_valid = true);
 
-  bool CasField64(MemberOffset field_offset, uint64_t old_value, uint64_t new_value)
+  bool CasField64(MemberOffset field_offset, int64_t old_value, int64_t new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<typename T>
   void SetFieldPtr(MemberOffset field_offset, T new_value, bool is_volatile,
                    bool this_is_valid = true) {
 #ifndef __LP64__
-    SetField32(field_offset, reinterpret_cast<uint32_t>(new_value), is_volatile, this_is_valid);
+    SetField32(field_offset, reinterpret_cast<int32_t>(new_value), is_volatile, this_is_valid);
 #else
-    SetField64(field_offset, reinterpret_cast<uint64_t>(new_value), is_volatile, this_is_valid);
+    SetField64(field_offset, reinterpret_cast<int64_t>(new_value), is_volatile, this_is_valid);
 #endif
   }
 
