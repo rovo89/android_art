@@ -27,10 +27,6 @@
 
 namespace art {
 
-namespace verifier {
-class MethodVerifier;
-}  // namespace verifier
-
 class CallInfo;
 class Mir2Lir;
 
@@ -66,7 +62,13 @@ enum InlineMethodFlags : uint16_t {
   kInlineSpecial       = 0x0002,
 };
 
-// IntrinsicFlags are stored in InlineMethod::d::raw_data
+struct InlineMethod {
+  InlineMethodOpcode opcode;
+  InlineMethodFlags flags;
+  uint32_t data;
+};
+
+// IntrinsicFlags are stored in InlineMethod::data
 enum IntrinsicFlags {
   kIntrinsicFlagNone = 0,
 
@@ -95,37 +97,28 @@ enum IntrinsicFlags {
 COMPILE_ASSERT(kWord < 8 && kLong < 8 && kSingle < 8 && kDouble < 8 && kUnsignedHalf < 8 &&
                kSignedHalf < 8 && kUnsignedByte < 8 && kSignedByte < 8, op_size_field_too_narrow);
 
-struct InlineIGetIPutData {
-  uint16_t op_size : 3;  // OpSize
-  uint16_t is_object : 1;
-  uint16_t object_arg : 4;
-  uint16_t src_arg : 4;  // iput only
-  uint16_t method_is_static : 1;
-  uint16_t reserved : 3;
-  uint16_t field_idx;
-  uint32_t is_volatile : 1;
-  uint32_t field_offset : 31;
-};
-COMPILE_ASSERT(sizeof(InlineIGetIPutData) == sizeof(uint64_t), InvalidSizeOfInlineIGetIPutData);
-
-struct InlineReturnArgData {
-  uint16_t arg;
-  uint16_t op_size : 3;  // OpSize
-  uint16_t is_object : 1;
-  uint16_t reserved : 12;
-  uint32_t reserved2;
-};
-COMPILE_ASSERT(sizeof(InlineReturnArgData) == sizeof(uint64_t), InvalidSizeOfInlineReturnArgData);
-
-struct InlineMethod {
-  InlineMethodOpcode opcode;
-  InlineMethodFlags flags;
-  union {
-    uint64_t data;
-    InlineIGetIPutData ifield_data;
-    InlineReturnArgData return_data;
+union InlineIGetIPutData {
+  uint32_t data;
+  struct {
+    uint16_t field;
+    uint32_t op_size : 3;  // OpSize
+    uint32_t is_object : 1;
+    uint32_t object_arg : 4;
+    uint32_t src_arg : 4;  // iput only
+    uint32_t reserved : 4;
   } d;
 };
+COMPILE_ASSERT(sizeof(InlineIGetIPutData) == sizeof(uint32_t), InvalidSizeOfInlineIGetIPutData);
+
+union InlineReturnArgData {
+  uint32_t data;
+  struct {
+    uint16_t arg;
+    uint32_t op_size : 3;  // OpSize
+    uint32_t reserved : 13;
+  } d;
+};
+COMPILE_ASSERT(sizeof(InlineReturnArgData) == sizeof(uint32_t), InvalidSizeOfInlineReturnArgData);
 
 /**
  * Handles inlining of methods from a particular DexFile.
@@ -151,8 +144,8 @@ class DexFileMethodInliner {
      * @param method_idx the index of the inlining candidate.
      * @param code_item a previously verified code item of the method.
      */
-    bool AnalyseMethodCode(verifier::MethodVerifier* verifier)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(lock_);
+    bool AnalyseMethodCode(uint32_t method_idx,
+                           const DexFile::CodeItem* code_item) LOCKS_EXCLUDED(lock_);
 
     /**
      * Check whether a particular method index corresponds to an intrinsic function.
@@ -376,14 +369,17 @@ class DexFileMethodInliner {
 
     friend class DexFileToMethodInlinerMap;
 
-    bool AddInlineMethod(int32_t method_idx, const InlineMethod& method) LOCKS_EXCLUDED(lock_);
+    bool AddInlineMethod(int32_t method_idx, InlineMethodOpcode opcode,
+                         InlineMethodFlags flags, uint32_t data) LOCKS_EXCLUDED(lock_);
 
-    static bool AnalyseReturnMethod(const DexFile::CodeItem* code_item, InlineMethod* result);
-    static bool AnalyseConstMethod(const DexFile::CodeItem* code_item, InlineMethod* result);
-    static bool AnalyseIGetMethod(verifier::MethodVerifier* verifier, InlineMethod* result)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-    static bool AnalyseIPutMethod(verifier::MethodVerifier* verifier, InlineMethod* result)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+    bool AnalyseReturnMethod(int32_t method_idx, const DexFile::CodeItem* code_item,
+                             OpSize size) LOCKS_EXCLUDED(lock_);
+    bool AnalyseConstMethod(int32_t method_idx, const DexFile::CodeItem* code_item)
+                            LOCKS_EXCLUDED(lock_);
+    bool AnalyseIGetMethod(int32_t method_idx, const DexFile::CodeItem* code_item,
+                           OpSize size, bool is_object) LOCKS_EXCLUDED(lock_);
+    bool AnalyseIPutMethod(int32_t method_idx, const DexFile::CodeItem* code_item,
+                           OpSize size, bool is_object) LOCKS_EXCLUDED(lock_);
 
     ReaderWriterMutex lock_;
     /*
