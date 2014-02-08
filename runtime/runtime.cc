@@ -379,6 +379,7 @@ void Runtime::SweepSystemWeaks(RootVisitor* visitor, void* arg) {
   GetInternTable()->SweepInternTableWeaks(visitor, arg);
   GetMonitorList()->SweepMonitorList(visitor, arg);
   GetJavaVM()->SweepJniWeakGlobals(visitor, arg);
+  Dbg::UpdateObjectPointers(visitor, arg);
 }
 
 static gc::CollectorType ParseCollectorType(const std::string& option) {
@@ -1495,12 +1496,14 @@ void Runtime::DisallowNewSystemWeaks() {
   monitor_list_->DisallowNewMonitors();
   intern_table_->DisallowNewInterns();
   java_vm_->DisallowNewWeakGlobals();
+  Dbg::DisallowNewObjectRegistryObjects();
 }
 
 void Runtime::AllowNewSystemWeaks() {
   monitor_list_->AllowNewMonitors();
   intern_table_->AllowNewInterns();
   java_vm_->AllowNewWeakGlobals();
+  Dbg::AllowNewObjectRegistryObjects();
 }
 
 void Runtime::SetCalleeSaveMethod(mirror::ArtMethod* method, CalleeSaveType type) {
