@@ -29,7 +29,6 @@
 #include "dex_file-inl.h"
 #include "dex/verification_results.h"
 #include "dex/verified_method.h"
-#include "dex/quick/dex_file_method_inliner.h"
 #include "jni_internal.h"
 #include "object_utils.h"
 #include "runtime.h"
@@ -50,7 +49,6 @@
 #include "thread_pool.h"
 #include "trampolines/trampoline_compiler.h"
 #include "verifier/method_verifier.h"
-#include "verifier/method_verifier-inl.h"
 
 #if defined(ART_USE_PORTABLE_COMPILER)
 #include "elf_writer_mclinker.h"
@@ -995,30 +993,6 @@ static mirror::ArtMethod* ComputeMethodReferencedFromCompilingMethod(ScopedObjec
   SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
   return mUnit->GetClassLinker()->ResolveMethod(*mUnit->GetDexFile(), method_idx, dex_cache,
                                                 class_loader, NULL, type);
-}
-
-bool CompilerDriver::ComputeSpecialAccessorInfo(uint32_t field_idx, bool is_put,
-                                                verifier::MethodVerifier* verifier,
-                                                InlineIGetIPutData* result) {
-  mirror::DexCache* dex_cache = verifier->GetDexCache();
-  uint32_t method_idx = verifier->GetMethodReference().dex_method_index;
-  mirror::ArtMethod* method = dex_cache->GetResolvedMethod(method_idx);
-  mirror::ArtField* field = dex_cache->GetResolvedField(field_idx);
-  if (method == nullptr || field == nullptr) {
-    return false;
-  }
-  mirror::Class* method_class = method->GetDeclaringClass();
-  mirror::Class* field_class = field->GetDeclaringClass();
-  if (!method_class->CanAccessResolvedField(field_class, field, dex_cache, field_idx) ||
-      (is_put && field->IsFinal() && method_class != field_class)) {
-    return false;
-  }
-  DCHECK_GE(field->GetOffset().Int32Value(), 0);
-  result->method_is_static = method->IsStatic();
-  result->field_idx = field_idx;
-  result->field_offset = field->GetOffset().Int32Value();
-  result->is_volatile = field->IsVolatile();
-  return true;
 }
 
 bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit,
