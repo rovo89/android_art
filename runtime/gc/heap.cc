@@ -1061,18 +1061,18 @@ class InstanceCounter {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : classes_(classes), use_is_assignable_from_(use_is_assignable_from), counts_(counts) {
   }
-
-  void operator()(mirror::Object* o) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    for (size_t i = 0; i < classes_.size(); ++i) {
-      mirror::Class* instance_class = o->GetClass();
-      if (use_is_assignable_from_) {
-        if (instance_class != NULL && classes_[i]->IsAssignableFrom(instance_class)) {
-          ++counts_[i];
+  static void Callback(mirror::Object* obj, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+    InstanceCounter* instance_counter = reinterpret_cast<InstanceCounter*>(arg);
+    mirror::Class* instance_class = obj->GetClass();
+    CHECK(instance_class != nullptr);
+    for (size_t i = 0; i < instance_counter->classes_.size(); ++i) {
+      if (instance_counter->use_is_assignable_from_) {
+        if (instance_counter->classes_[i]->IsAssignableFrom(instance_class)) {
+          ++instance_counter->counts_[i];
         }
-      } else {
-        if (instance_class == classes_[i]) {
-          ++counts_[i];
-        }
+      } else if (instance_class == instance_counter->classes_[i]) {
+        ++instance_counter->counts_[i];
       }
     }
   }
@@ -1081,22 +1081,18 @@ class InstanceCounter {
   const std::vector<mirror::Class*>& classes_;
   bool use_is_assignable_from_;
   uint64_t* const counts_;
-
   DISALLOW_COPY_AND_ASSIGN(InstanceCounter);
 };
 
 void Heap::CountInstances(const std::vector<mirror::Class*>& classes, bool use_is_assignable_from,
                           uint64_t* counts) {
-  // We only want reachable instances, so do a GC. This also ensures that the alloc stack
-  // is empty, so the live bitmap is the only place we need to look.
+  // Can't do any GC in this function since this may move classes.
   Thread* self = Thread::Current();
-  self->TransitionFromRunnableToSuspended(kNative);
-  CollectGarbage(false);
-  self->TransitionFromSuspendedToRunnable();
-
+  auto* old_cause = self->StartAssertNoThreadSuspension("CountInstances");
   InstanceCounter counter(classes, use_is_assignable_from, counts);
-  ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-  GetLiveBitmap()->Visit(counter);
+  WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+  VisitObjects(InstanceCounter::Callback, &counter);
+  self->EndAssertNoThreadSuspension(old_cause);
 }
 
 class InstanceCollector {
@@ -1105,12 +1101,15 @@ class InstanceCollector {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : class_(c), max_count_(max_count), instances_(instances) {
   }
-
-  void operator()(mirror::Object* o) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::Class* instance_class = o->GetClass();
-    if (instance_class == class_) {
-      if (max_count_ == 0 || instances_.size() < max_count_) {
-        instances_.push_back(o);
+  static void Callback(mirror::Object* obj, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+    DCHECK(arg != nullptr);
+    InstanceCollector* instance_collector = reinterpret_cast<InstanceCollector*>(arg);
+    mirror::Class* instance_class = obj->GetClass();
+    if (instance_class == instance_collector->class_) {
+      if (instance_collector->max_count_ == 0 ||
+          instance_collector->instances_.size() < instance_collector->max_count_) {
+        instance_collector->instances_.push_back(obj);
       }
     }
   }
@@ -1119,22 +1118,18 @@ class InstanceCollector {
   mirror::Class* class_;
   uint32_t max_count_;
   std::vector<mirror::Object*>& instances_;
-
   DISALLOW_COPY_AND_ASSIGN(InstanceCollector);
 };
 
 void Heap::GetInstances(mirror::Class* c, int32_t max_count,
                         std::vector<mirror::Object*>& instances) {
-  // We only want reachable instances, so do a GC. This also ensures that the alloc stack
-  // is empty, so the live bitmap is the only place we need to look.
+  // Can't do any GC in this function since this may move classes.
   Thread* self = Thread::Current();
-  self->TransitionFromRunnableToSuspended(kNative);
-  CollectGarbage(false);
-  self->TransitionFromSuspendedToRunnable();
-
+  auto* old_cause = self->StartAssertNoThreadSuspension("GetInstances");
   InstanceCollector collector(c, max_count, instances);
-  ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-  GetLiveBitmap()->Visit(collector);
+  WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+  VisitObjects(&InstanceCollector::Callback, &collector);
+  self->EndAssertNoThreadSuspension(old_cause);
 }
 
 class ReferringObjectsFinder {
@@ -1143,6 +1138,11 @@ class ReferringObjectsFinder {
                          std::vector<mirror::Object*>& referring_objects)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : object_(object), max_count_(max_count), referring_objects_(referring_objects) {
+  }
+
+  static void Callback(mirror::Object* obj, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+    reinterpret_cast<ReferringObjectsFinder*>(arg)->operator()(obj);
   }
 
   // For bitmap Visit.
@@ -1164,22 +1164,18 @@ class ReferringObjectsFinder {
   mirror::Object* object_;
   uint32_t max_count_;
   std::vector<mirror::Object*>& referring_objects_;
-
   DISALLOW_COPY_AND_ASSIGN(ReferringObjectsFinder);
 };
 
 void Heap::GetReferringObjects(mirror::Object* o, int32_t max_count,
                                std::vector<mirror::Object*>& referring_objects) {
-  // We only want reachable instances, so do a GC. This also ensures that the alloc stack
-  // is empty, so the live bitmap is the only place we need to look.
+  // Can't do any GC in this function since this may move classes.
   Thread* self = Thread::Current();
-  self->TransitionFromRunnableToSuspended(kNative);
-  CollectGarbage(false);
-  self->TransitionFromSuspendedToRunnable();
-
+  auto* old_cause = self->StartAssertNoThreadSuspension("GetReferringObjects");
   ReferringObjectsFinder finder(o, max_count, referring_objects);
-  ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-  GetLiveBitmap()->Visit(finder);
+  WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+  VisitObjects(&ReferringObjectsFinder::Callback, &finder);
+  self->EndAssertNoThreadSuspension(old_cause);
 }
 
 void Heap::CollectGarbage(bool clear_soft_references) {

@@ -31,7 +31,8 @@ std::ostream& operator<<(std::ostream& os, const ObjectRegistryEntry& rhs) {
 }
 
 ObjectRegistry::ObjectRegistry()
-    : lock_("ObjectRegistry lock", kJdwpObjectRegistryLock), next_id_(1) {
+    : lock_("ObjectRegistry lock", kJdwpObjectRegistryLock), allow_new_objects_(true),
+      condition_("object registry condition", lock_), next_id_(1) {
 }
 
 JDWP::RefTypeId ObjectRegistry::AddRefType(mirror::Class* c) {
@@ -49,58 +50,59 @@ JDWP::ObjectId ObjectRegistry::InternalAdd(mirror::Object* o) {
 
   ScopedObjectAccessUnchecked soa(Thread::Current());
   MutexLock mu(soa.Self(), lock_);
-  ObjectRegistryEntry dummy;
-  dummy.jni_reference_type = JNIWeakGlobalRefType;
-  dummy.jni_reference = NULL;
-  dummy.reference_count = 0;
-  dummy.id = 0;
-  std::pair<object_iterator, bool> result = object_to_entry_.insert(std::make_pair(o, dummy));
-  ObjectRegistryEntry& entry = result.first->second;
-  if (!result.second) {
-    // This object was already in our map.
-    entry.reference_count += 1;
-    return entry.id;
+  while (UNLIKELY(!allow_new_objects_)) {
+    condition_.WaitHoldingLocks(soa.Self());
   }
+  ObjectRegistryEntry* entry;
+  auto it = object_to_entry_.find(o);
+  if (it != object_to_entry_.end()) {
+    // This object was already in our map.
+    entry = it->second;
+    ++entry->reference_count;
+  } else {
+    entry = new ObjectRegistryEntry;
+    entry->jni_reference_type = JNIWeakGlobalRefType;
+    entry->jni_reference = nullptr;
+    entry->reference_count = 0;
+    entry->id = 0;
+    object_to_entry_.insert(std::make_pair(o, entry));
 
-  // This object isn't in the registry yet, so add it.
-  JNIEnv* env = soa.Env();
+    // This object isn't in the registry yet, so add it.
+    JNIEnv* env = soa.Env();
 
-  jobject local_reference = soa.AddLocalReference<jobject>(o);
+    jobject local_reference = soa.AddLocalReference<jobject>(o);
 
-  entry.jni_reference_type = JNIWeakGlobalRefType;
-  entry.jni_reference = env->NewWeakGlobalRef(local_reference);
-  entry.reference_count = 1;
-  entry.id = next_id_++;
+    entry->jni_reference_type = JNIWeakGlobalRefType;
+    entry->jni_reference = env->NewWeakGlobalRef(local_reference);
+    entry->reference_count = 1;
+    entry->id = next_id_++;
 
-  id_to_entry_.Put(entry.id, &entry);
+    id_to_entry_.Put(entry->id, entry);
 
-  env->DeleteLocalRef(local_reference);
-
-  return entry.id;
+    env->DeleteLocalRef(local_reference);
+  }
+  return entry->id;
 }
 
 bool ObjectRegistry::Contains(mirror::Object* o) {
-  Thread* self = Thread::Current();
-  MutexLock mu(self, lock_);
-  return (object_to_entry_.find(o) != object_to_entry_.end());
+  MutexLock mu(Thread::Current(), lock_);
+  return object_to_entry_.find(o) != object_to_entry_.end();
 }
 
 void ObjectRegistry::Clear() {
   Thread* self = Thread::Current();
   MutexLock mu(self, lock_);
   VLOG(jdwp) << "Object registry contained " << object_to_entry_.size() << " entries";
-
   // Delete all the JNI references.
   JNIEnv* env = self->GetJniEnv();
-  for (object_iterator it = object_to_entry_.begin(); it != object_to_entry_.end(); ++it) {
-    ObjectRegistryEntry& entry = (it->second);
+  for (const auto& pair : object_to_entry_) {
+    const ObjectRegistryEntry& entry = *pair.second;
     if (entry.jni_reference_type == JNIWeakGlobalRefType) {
       env->DeleteWeakGlobalRef(entry.jni_reference);
     } else {
       env->DeleteGlobalRef(entry.jni_reference);
     }
   }
-
   // Clear the maps.
   object_to_entry_.clear();
   id_to_entry_.clear();
@@ -109,11 +111,11 @@ void ObjectRegistry::Clear() {
 mirror::Object* ObjectRegistry::InternalGet(JDWP::ObjectId id) {
   Thread* self = Thread::Current();
   MutexLock mu(self, lock_);
-  id_iterator it = id_to_entry_.find(id);
+  auto it = id_to_entry_.find(id);
   if (it == id_to_entry_.end()) {
     return kInvalidObject;
   }
-  ObjectRegistryEntry& entry = *(it->second);
+  ObjectRegistryEntry& entry = *it->second;
   return self->DecodeJObject(entry.jni_reference);
 }
 
@@ -123,26 +125,26 @@ jobject ObjectRegistry::GetJObject(JDWP::ObjectId id) {
   }
   Thread* self = Thread::Current();
   MutexLock mu(self, lock_);
-  id_iterator it = id_to_entry_.find(id);
+  auto it = id_to_entry_.find(id);
   CHECK(it != id_to_entry_.end()) << id;
-  ObjectRegistryEntry& entry = *(it->second);
+  ObjectRegistryEntry& entry = *it->second;
   return entry.jni_reference;
 }
 
 void ObjectRegistry::DisableCollection(JDWP::ObjectId id) {
   Thread* self = Thread::Current();
   MutexLock mu(self, lock_);
-  id_iterator it = id_to_entry_.find(id);
+  auto it = id_to_entry_.find(id);
   CHECK(it != id_to_entry_.end());
-  Promote(*(it->second));
+  Promote(*it->second);
 }
 
 void ObjectRegistry::EnableCollection(JDWP::ObjectId id) {
   Thread* self = Thread::Current();
   MutexLock mu(self, lock_);
-  id_iterator it = id_to_entry_.find(id);
+  auto it = id_to_entry_.find(id);
   CHECK(it != id_to_entry_.end());
-  Demote(*(it->second));
+  Demote(*it->second);
 }
 
 void ObjectRegistry::Demote(ObjectRegistryEntry& entry) {
@@ -170,10 +172,9 @@ void ObjectRegistry::Promote(ObjectRegistryEntry& entry) {
 bool ObjectRegistry::IsCollected(JDWP::ObjectId id) {
   Thread* self = Thread::Current();
   MutexLock mu(self, lock_);
-  id_iterator it = id_to_entry_.find(id);
+  auto it = id_to_entry_.find(id);
   CHECK(it != id_to_entry_.end());
-
-  ObjectRegistryEntry& entry = *(it->second);
+  ObjectRegistryEntry& entry = *it->second;
   if (entry.jni_reference_type == JNIWeakGlobalRefType) {
     JNIEnv* env = self->GetJniEnv();
     return env->IsSameObject(entry.jni_reference, NULL);  // Has the jweak been collected?
@@ -185,24 +186,55 @@ bool ObjectRegistry::IsCollected(JDWP::ObjectId id) {
 void ObjectRegistry::DisposeObject(JDWP::ObjectId id, uint32_t reference_count) {
   Thread* self = Thread::Current();
   MutexLock mu(self, lock_);
-  id_iterator it = id_to_entry_.find(id);
+  auto it = id_to_entry_.find(id);
   if (it == id_to_entry_.end()) {
     return;
   }
-
-  ObjectRegistryEntry& entry = *(it->second);
-  entry.reference_count -= reference_count;
-  if (entry.reference_count <= 0) {
+  ObjectRegistryEntry* entry = it->second;
+  entry->reference_count -= reference_count;
+  if (entry->reference_count <= 0) {
     JNIEnv* env = self->GetJniEnv();
-    mirror::Object* object = self->DecodeJObject(entry.jni_reference);
-    if (entry.jni_reference_type == JNIWeakGlobalRefType) {
-      env->DeleteWeakGlobalRef(entry.jni_reference);
+    mirror::Object* object = self->DecodeJObject(entry->jni_reference);
+    if (entry->jni_reference_type == JNIWeakGlobalRefType) {
+      env->DeleteWeakGlobalRef(entry->jni_reference);
     } else {
-      env->DeleteGlobalRef(entry.jni_reference);
+      env->DeleteGlobalRef(entry->jni_reference);
     }
     object_to_entry_.erase(object);
     id_to_entry_.erase(id);
+    delete entry;
   }
+}
+
+void ObjectRegistry::UpdateObjectPointers(RootVisitor visitor, void* arg) {
+  MutexLock mu(Thread::Current(), lock_);
+  if (object_to_entry_.empty()) {
+    return;
+  }
+  std::map<mirror::Object*, ObjectRegistryEntry*> new_object_to_entry;
+  for (auto& pair : object_to_entry_) {
+    mirror::Object* new_obj;
+    if (pair.first != nullptr) {
+      new_obj = visitor(pair.first, arg);
+      if (new_obj != nullptr) {
+        new_object_to_entry.insert(std::make_pair(new_obj, pair.second));
+      }
+    }
+  }
+  object_to_entry_ = new_object_to_entry;
+}
+
+void ObjectRegistry::AllowNewObjects() {
+  Thread* self = Thread::Current();
+  MutexLock mu(self, lock_);
+  allow_new_objects_ = true;
+  condition_.Broadcast(self);
+}
+
+void ObjectRegistry::DisallowNewObjects() {
+  Thread* self = Thread::Current();
+  MutexLock mu(self, lock_);
+  allow_new_objects_ = false;
 }
 
 }  // namespace art
