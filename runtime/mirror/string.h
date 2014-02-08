@@ -112,7 +112,7 @@ class MANAGED String : public Object {
 
  private:
   void SetHashCode(int32_t new_hash_code) {
-    DCHECK_EQ(0u, GetField32(OFFSET_OF_OBJECT_MEMBER(String, hash_code_), false));
+    DCHECK_EQ(0, GetField32(OFFSET_OF_OBJECT_MEMBER(String, hash_code_), false));
     SetField32(OFFSET_OF_OBJECT_MEMBER(String, hash_code_), new_hash_code, false);
   }
 
