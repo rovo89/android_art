@@ -61,19 +61,19 @@ public class Main {
 
     static void wideIdentityTest() {
         Foo foo = new Foo();
-        long i = 1;
+        long i = 0x200000001L;
         i += foo.wideIdent0(i);
         i += foo.wideIdent1(0,i);
         i += foo.wideIdent2(0,0,i);
         i += foo.wideIdent3(0,0,0,i);
         i += foo.wideIdent4(0,0,0,0,i);
         i += foo.wideIdent5(0,0,0,0,0,i);
-        if (i == 64) {
+        if (i == 0x8000000040L) {
             System.out.println("wideIdentityTest passes");
         }
         else {
-            System.out.println("wideIdentityTest fails: " + i +
-                               " (expecting 64)");
+            System.out.println("wideIdentityTest fails: 0x" + Long.toHexString(i) +
+                               " (expecting 0x8000000040)");
         }
     }
 
