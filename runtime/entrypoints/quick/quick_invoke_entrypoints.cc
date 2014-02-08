@@ -124,21 +124,23 @@ extern "C" uint64_t artInvokeInterfaceTrampoline(mirror::ArtMethod* interface_me
       return 0;  // Failure.
     }
   }
-  const void* code = method->GetEntryPointFromCompiledCode();
+  const void* code = method->GetEntryPointFromQuickCompiledCode();
 
-#ifndef NDEBUG
   // When we return, the caller will branch to this address, so it had better not be 0!
-  if (UNLIKELY(code == NULL)) {
+  if (kIsDebugBuild && UNLIKELY(code == nullptr)) {
       MethodHelper mh(method);
       LOG(FATAL) << "Code was NULL in method: " << PrettyMethod(method)
                  << " location: " << mh.GetDexFile().GetLocation();
   }
-#endif
-
+#ifdef __LP64__
+  UNIMPLEMENTED(FATAL);
+  return 0;
+#else
   uint32_t method_uint = reinterpret_cast<uint32_t>(method);
   uint64_t code_uint = reinterpret_cast<uint32_t>(code);
   uint64_t result = ((code_uint << 32) | method_uint);
   return result;
+#endif
 }
 
 template<InvokeType type, bool access_check>
@@ -156,21 +158,23 @@ uint64_t artInvokeCommon(uint32_t method_idx, mirror::Object* this_object,
     }
   }
   DCHECK(!self->IsExceptionPending());
-  const void* code = method->GetEntryPointFromCompiledCode();
+  const void* code = method->GetEntryPointFromQuickCompiledCode();
 
-#ifndef NDEBUG
   // When we return, the caller will branch to this address, so it had better not be 0!
-  if (UNLIKELY(code == NULL)) {
+  if (kIsDebugBuild && UNLIKELY(code == NULL)) {
       MethodHelper mh(method);
       LOG(FATAL) << "Code was NULL in method: " << PrettyMethod(method)
                  << " location: " << mh.GetDexFile().GetLocation();
   }
-#endif
-
+#ifdef __LP64__
+  UNIMPLEMENTED(FATAL);
+  return 0;
+#else
   uint32_t method_uint = reinterpret_cast<uint32_t>(method);
   uint64_t code_uint = reinterpret_cast<uint32_t>(code);
   uint64_t result = ((code_uint << 32) | method_uint);
   return result;
+#endif
 }
 
 // Explicit template declarations of artInvokeCommon for all invoke types.

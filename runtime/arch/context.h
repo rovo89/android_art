@@ -20,6 +20,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "locks.h"
+
 namespace art {
 
 class StackVisitor;
@@ -38,7 +40,8 @@ class Context {
 
   // Read values from callee saves in the given frame. The frame also holds
   // the method that holds the layout.
-  virtual void FillCalleeSaves(const StackVisitor& fr) = 0;
+  virtual void FillCalleeSaves(const StackVisitor& fr)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
 
   // Set the stack pointer value
   virtual void SetSP(uintptr_t new_sp) = 0;

@@ -75,7 +75,7 @@ extern "C" int32_t art_portable_find_catch_block_from_code(mirror::ArtMethod* cu
   ThrowLocation throw_location;
   mirror::Throwable* exception = self->GetException(&throw_location);
   // Check for special deoptimization exception.
-  if (UNLIKELY(reinterpret_cast<int32_t>(exception) == -1)) {
+  if (UNLIKELY(reinterpret_cast<intptr_t>(exception) == -1)) {
     return -1;
   }
   mirror::Class* exception_type = exception->GetClass();

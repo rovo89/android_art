@@ -58,11 +58,14 @@ class JniCompilerTest : public CommonTest {
       method = c->FindVirtualMethod(method_name, method_sig);
     }
     ASSERT_TRUE(method != NULL) << method_name << " " << method_sig;
-    if (method->GetEntryPointFromCompiledCode() != NULL) {
-      return;
+    if (method->GetEntryPointFromQuickCompiledCode() == nullptr) {
+      ASSERT_TRUE(method->GetEntryPointFromPortableCompiledCode() == nullptr);
+      CompileMethod(method);
+      ASSERT_TRUE(method->GetEntryPointFromQuickCompiledCode() != nullptr)
+          << method_name << " " << method_sig;
+      ASSERT_TRUE(method->GetEntryPointFromPortableCompiledCode() != nullptr)
+          << method_name << " " << method_sig;
     }
-    CompileMethod(method);
-    ASSERT_TRUE(method->GetEntryPointFromCompiledCode() != NULL) << method_name << " " << method_sig;
   }
 
   void SetUpForTest(bool direct, const char* method_name, const char* method_sig,
@@ -122,19 +125,19 @@ jobject JniCompilerTest::class_loader_;
 int gJava_MyClassNatives_foo_calls = 0;
 void Java_MyClassNatives_foo(JNIEnv* env, jobject thisObj) {
   // 1 = thisObj
-  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   Locks::mutator_lock_->AssertNotHeld(Thread::Current());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
   gJava_MyClassNatives_foo_calls++;
+  ScopedObjectAccess soa(Thread::Current());
+  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
 }
 
 TEST_F(JniCompilerTest, CompileAndRunNoArgMethod) {
   TEST_DISABLED_FOR_PORTABLE();
-  SetUpForTest(false, "foo", "()V",
-               reinterpret_cast<void*>(&Java_MyClassNatives_foo));
+  SetUpForTest(false, "foo", "()V", reinterpret_cast<void*>(&Java_MyClassNatives_foo));
 
   EXPECT_EQ(0, gJava_MyClassNatives_foo_calls);
   env_->CallNonvirtualVoidMethod(jobj_, jklass_, jmethod_);
@@ -178,12 +181,13 @@ TEST_F(JniCompilerTest, CompileAndRunStaticIntMethodThroughStub) {
 int gJava_MyClassNatives_fooI_calls = 0;
 jint Java_MyClassNatives_fooI(JNIEnv* env, jobject thisObj, jint x) {
   // 1 = thisObj
-  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
   gJava_MyClassNatives_fooI_calls++;
+  ScopedObjectAccess soa(Thread::Current());
+  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   return x;
 }
 
@@ -204,12 +208,13 @@ TEST_F(JniCompilerTest, CompileAndRunIntMethod) {
 int gJava_MyClassNatives_fooII_calls = 0;
 jint Java_MyClassNatives_fooII(JNIEnv* env, jobject thisObj, jint x, jint y) {
   // 1 = thisObj
-  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
   gJava_MyClassNatives_fooII_calls++;
+  ScopedObjectAccess soa(Thread::Current());
+  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   return x - y;  // non-commutative operator
 }
 
@@ -231,12 +236,13 @@ TEST_F(JniCompilerTest, CompileAndRunIntIntMethod) {
 int gJava_MyClassNatives_fooJJ_calls = 0;
 jlong Java_MyClassNatives_fooJJ(JNIEnv* env, jobject thisObj, jlong x, jlong y) {
   // 1 = thisObj
-  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
   gJava_MyClassNatives_fooJJ_calls++;
+  ScopedObjectAccess soa(Thread::Current());
+  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   return x - y;  // non-commutative operator
 }
 
@@ -259,12 +265,13 @@ TEST_F(JniCompilerTest, CompileAndRunLongLongMethod) {
 int gJava_MyClassNatives_fooDD_calls = 0;
 jdouble Java_MyClassNatives_fooDD(JNIEnv* env, jobject thisObj, jdouble x, jdouble y) {
   // 1 = thisObj
-  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
   gJava_MyClassNatives_fooDD_calls++;
+  ScopedObjectAccess soa(Thread::Current());
+  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   return x - y;  // non-commutative operator
 }
 
@@ -288,12 +295,13 @@ TEST_F(JniCompilerTest, CompileAndRunDoubleDoubleMethod) {
 int gJava_MyClassNatives_fooJJ_synchronized_calls = 0;
 jlong Java_MyClassNatives_fooJJ_synchronized(JNIEnv* env, jobject thisObj, jlong x, jlong y) {
   // 1 = thisObj
-  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
   gJava_MyClassNatives_fooJJ_synchronized_calls++;
+  ScopedObjectAccess soa(Thread::Current());
+  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   return x | y;
 }
 
@@ -314,12 +322,13 @@ int gJava_MyClassNatives_fooIOO_calls = 0;
 jobject Java_MyClassNatives_fooIOO(JNIEnv* env, jobject thisObj, jint x, jobject y,
                             jobject z) {
   // 3 = this + y + z
-  EXPECT_EQ(3U, Thread::Current()->NumStackReferences());
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
   gJava_MyClassNatives_fooIOO_calls++;
+  ScopedObjectAccess soa(Thread::Current());
+  EXPECT_EQ(3U, Thread::Current()->NumStackReferences());
   switch (x) {
     case 1:
       return y;
@@ -365,12 +374,13 @@ TEST_F(JniCompilerTest, CompileAndRunIntObjectObjectMethod) {
 int gJava_MyClassNatives_fooSII_calls = 0;
 jint Java_MyClassNatives_fooSII(JNIEnv* env, jclass klass, jint x, jint y) {
   // 1 = klass
-  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(klass != NULL);
   EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
   gJava_MyClassNatives_fooSII_calls++;
+  ScopedObjectAccess soa(Thread::Current());
+  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   return x + y;
 }
 
@@ -388,12 +398,13 @@ TEST_F(JniCompilerTest, CompileAndRunStaticIntIntMethod) {
 int gJava_MyClassNatives_fooSDD_calls = 0;
 jdouble Java_MyClassNatives_fooSDD(JNIEnv* env, jclass klass, jdouble x, jdouble y) {
   // 1 = klass
-  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(klass != NULL);
   EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
   gJava_MyClassNatives_fooSDD_calls++;
+  ScopedObjectAccess soa(Thread::Current());
+  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   return x - y;  // non-commutative operator
 }
 
@@ -417,12 +428,13 @@ int gJava_MyClassNatives_fooSIOO_calls = 0;
 jobject Java_MyClassNatives_fooSIOO(JNIEnv* env, jclass klass, jint x, jobject y,
                              jobject z) {
   // 3 = klass + y + z
-  EXPECT_EQ(3U, Thread::Current()->NumStackReferences());
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(klass != NULL);
   EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
   gJava_MyClassNatives_fooSIOO_calls++;
+  ScopedObjectAccess soa(Thread::Current());
+  EXPECT_EQ(3U, Thread::Current()->NumStackReferences());
   switch (x) {
     case 1:
       return y;
@@ -469,12 +481,13 @@ TEST_F(JniCompilerTest, CompileAndRunStaticIntObjectObjectMethod) {
 int gJava_MyClassNatives_fooSSIOO_calls = 0;
 jobject Java_MyClassNatives_fooSSIOO(JNIEnv* env, jclass klass, jint x, jobject y, jobject z) {
   // 3 = klass + y + z
-  EXPECT_EQ(3U, Thread::Current()->NumStackReferences());
   EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(klass != NULL);
   EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
   gJava_MyClassNatives_fooSSIOO_calls++;
+  ScopedObjectAccess soa(Thread::Current());
+  EXPECT_EQ(3U, Thread::Current()->NumStackReferences());
   switch (x) {
     case 1:
       return y;

@@ -35,13 +35,17 @@ class SirtRef {
     DCHECK_EQ(top_sirt, &sirt_);
   }
 
-  T& operator*() const { return *get(); }
-  T* operator->() const { return get(); }
-  T* get() const {
+  T& operator*() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return *get();
+  }
+  T* operator->() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return get();
+  }
+  T* get() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return down_cast<T*>(sirt_.GetReference(0));
   }
 
-  void reset(T* object = NULL) {
+  void reset(T* object = nullptr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     sirt_.SetReference(0, object);
   }
 

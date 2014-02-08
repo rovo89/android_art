@@ -47,7 +47,7 @@ void ArtMethod::VisitRoots(RootVisitor* visitor, void* arg) {
   }
 }
 
-InvokeType ArtMethod::GetInvokeType() const {
+InvokeType ArtMethod::GetInvokeType() {
   // TODO: kSuper?
   if (GetDeclaringClass()->IsInterface()) {
     return kInterface;
@@ -100,11 +100,11 @@ size_t ArtMethod::NumArgRegisters(const StringPiece& shorty) {
   return num_registers;
 }
 
-bool ArtMethod::IsProxyMethod() const {
+bool ArtMethod::IsProxyMethod() {
   return GetDeclaringClass()->IsProxyClass();
 }
 
-ArtMethod* ArtMethod::FindOverriddenMethod() const {
+ArtMethod* ArtMethod::FindOverriddenMethod() {
   if (IsStatic()) {
     return NULL;
   }
@@ -147,13 +147,16 @@ ArtMethod* ArtMethod::FindOverriddenMethod() const {
   return result;
 }
 
-uintptr_t ArtMethod::NativePcOffset(const uintptr_t pc) const {
+uintptr_t ArtMethod::NativePcOffset(const uintptr_t pc) {
   const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this);
   return pc - reinterpret_cast<uintptr_t>(code);
 }
 
-uint32_t ArtMethod::ToDexPc(const uintptr_t pc) const {
-#if !defined(ART_USE_PORTABLE_COMPILER)
+uint32_t ArtMethod::ToDexPc(const uintptr_t pc) {
+  if (IsPortableCompiled()) {
+    // Portable doesn't use the machine pc, we just use dex pc instead.
+    return static_cast<uint32_t>(pc);
+  }
   MappingTable table(GetMappingTable());
   if (table.TotalSize() == 0) {
     DCHECK(IsNative() || IsCalleeSaveMethod() || IsProxyMethod()) << PrettyMethod(this);
@@ -176,16 +179,12 @@ uint32_t ArtMethod::ToDexPc(const uintptr_t pc) const {
     }
   }
   LOG(FATAL) << "Failed to find Dex offset for PC offset " << reinterpret_cast<void*>(sought_offset)
-             << "(PC " << reinterpret_cast<void*>(pc) << ", code=" << code
-             << ") in " << PrettyMethod(this);
+                     << "(PC " << reinterpret_cast<void*>(pc) << ", code=" << code
+                     << ") in " << PrettyMethod(this);
   return DexFile::kDexNoIndex;
-#else
-  // Compiler LLVM doesn't use the machine pc, we just use dex pc instead.
-  return static_cast<uint32_t>(pc);
-#endif
 }
 
-uintptr_t ArtMethod::ToNativePc(const uint32_t dex_pc) const {
+uintptr_t ArtMethod::ToNativePc(const uint32_t dex_pc) {
   MappingTable table(GetMappingTable());
   if (table.TotalSize() == 0) {
     DCHECK_EQ(dex_pc, 0U);
@@ -213,7 +212,7 @@ uintptr_t ArtMethod::ToNativePc(const uint32_t dex_pc) const {
 }
 
 uint32_t ArtMethod::FindCatchBlock(Class* exception_type, uint32_t dex_pc,
-                                   bool* has_no_move_exception) const {
+                                   bool* has_no_move_exception) {
   MethodHelper mh(this);
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
   // Default to handler not found.
@@ -265,16 +264,21 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
     }
   } else {
     const bool kLogInvocationStartAndReturn = false;
-    if (GetEntryPointFromCompiledCode() != NULL) {
+    bool have_quick_code = GetEntryPointFromQuickCompiledCode() != nullptr;
+    bool have_portable_code = GetEntryPointFromPortableCompiledCode() != nullptr;
+    if (LIKELY(have_quick_code || have_portable_code)) {
       if (kLogInvocationStartAndReturn) {
-        LOG(INFO) << StringPrintf("Invoking '%s' code=%p", PrettyMethod(this).c_str(), GetEntryPointFromCompiledCode());
+        LOG(INFO) << StringPrintf("Invoking '%s' %s code=%p", PrettyMethod(this).c_str(),
+                                  have_quick_code ? "quick" : "portable",
+                                  have_quick_code ? GetEntryPointFromQuickCompiledCode()
+                                                  : GetEntryPointFromPortableCompiledCode());
       }
-#ifdef ART_USE_PORTABLE_COMPILER
-      (*art_portable_invoke_stub)(this, args, args_size, self, result, result_type);
-#else
-      (*art_quick_invoke_stub)(this, args, args_size, self, result, result_type);
-#endif
-      if (UNLIKELY(reinterpret_cast<int32_t>(self->GetException(NULL)) == -1)) {
+      if (!IsPortableCompiled()) {
+        (*art_quick_invoke_stub)(this, args, args_size, self, result, result_type);
+      } else {
+        (*art_portable_invoke_stub)(this, args, args_size, self, result, result_type);
+      }
+      if (UNLIKELY(reinterpret_cast<intptr_t>(self->GetException(NULL)) == -1)) {
         // Unusual case where we were running LLVM generated code and an
         // exception was thrown to force the activations to be removed from the
         // stack. Continue execution in the interpreter.
@@ -285,11 +289,13 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
         interpreter::EnterInterpreterFromDeoptimize(self, shadow_frame, result);
       }
       if (kLogInvocationStartAndReturn) {
-        LOG(INFO) << StringPrintf("Returned '%s' code=%p", PrettyMethod(this).c_str(), GetEntryPointFromCompiledCode());
+        LOG(INFO) << StringPrintf("Returned '%s' %s code=%p", PrettyMethod(this).c_str(),
+                                  have_quick_code ? "quick" : "portable",
+                                  have_quick_code ? GetEntryPointFromQuickCompiledCode()
+                                                  : GetEntryPointFromPortableCompiledCode());
       }
     } else {
-      LOG(INFO) << "Not invoking '" << PrettyMethod(this)
-          << "' code=" << reinterpret_cast<const void*>(GetEntryPointFromCompiledCode());
+      LOG(INFO) << "Not invoking '" << PrettyMethod(this) << "' code=null";
       if (result != NULL) {
         result->SetJ(0);
       }
@@ -300,9 +306,10 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
   self->PopManagedStackFragment(fragment);
 }
 
-bool ArtMethod::IsRegistered() const {
-  void* native_method = GetFieldPtr<void*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, native_method_), false);
-  CHECK(native_method != NULL);
+bool ArtMethod::IsRegistered() {
+  void* native_method =
+      GetFieldPtr<void*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_jni_), false);
+  CHECK(native_method != nullptr);
   void* jni_stub = GetJniDlsymLookupStub();
   return native_method != jni_stub;
 }
@@ -323,7 +330,7 @@ void ArtMethod::RegisterNative(Thread* self, const void* native_method, bool is_
     // around JNI bugs, that include not giving Object** SIRT references to native methods. Direct
     // the native method to runtime support and store the target somewhere runtime support will
     // find it.
-#if defined(__i386__)
+#if defined(__i386__) || defined(__x86_64__)
     UNIMPLEMENTED(FATAL);
 #else
     SetNativeMethod(reinterpret_cast<void*>(art_work_around_app_jni_bugs));
@@ -340,7 +347,7 @@ void ArtMethod::UnregisterNative(Thread* self) {
 }
 
 void ArtMethod::SetNativeMethod(const void* native_method) {
-  SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, native_method_),
+  SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_jni_),
       native_method, false);
 }
 

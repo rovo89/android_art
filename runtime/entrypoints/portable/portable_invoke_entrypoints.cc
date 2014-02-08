@@ -34,7 +34,7 @@ mirror::ArtMethod* FindMethodHelper(uint32_t method_idx, mirror::Object* this_ob
     }
   }
   DCHECK(!thread->IsExceptionPending());
-  const void* code = method->GetEntryPointFromCompiledCode();
+  const void* code = method->GetEntryPointFromPortableCompiledCode();
 
   // When we return, the caller will branch to this address, so it had better not be 0!
   if (UNLIKELY(code == NULL)) {

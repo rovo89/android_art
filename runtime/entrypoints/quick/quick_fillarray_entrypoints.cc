@@ -56,7 +56,7 @@ extern "C" int artHandleFillArrayDataFromCode(mirror::Array* array,
     return -1;  // Error
   }
   uint32_t size_in_bytes = payload->element_count * payload->element_width;
-  memcpy(array->GetRawData(payload->element_width), payload->data, size_in_bytes);
+  memcpy(array->GetRawData(payload->element_width, 0), payload->data, size_in_bytes);
   return 0;  // Success
 }
 

@@ -215,12 +215,13 @@ LIBART_LDFLAGS += -Wl,--no-fatal-warnings
 else # TARGET_ARCH != x86
 ifeq ($(TARGET_ARCH),x86_64)
 LIBART_TARGET_SRC_FILES += \
-	arch/x86/context_x86.cc \
-	arch/x86/entrypoints_init_x86.cc \
-	arch/x86/jni_entrypoints_x86.S \
-	arch/x86/portable_entrypoints_x86.S \
-	arch/x86/quick_entrypoints_x86.S \
-	arch/x86/thread_x86.cc
+	arch/x86_64/context_x86_64.cc \
+	arch/x86_64/entrypoints_init_x86_64.cc \
+	arch/x86_64/jni_entrypoints_x86_64.S \
+	arch/x86_64/portable_entrypoints_x86_64.S \
+	arch/x86_64/quick_entrypoints_x86_64.S \
+	arch/x86_64/thread_x86_64.cc \
+	monitor_pool.cc
 LIBART_LDFLAGS += -Wl,--no-fatal-warnings
 else # TARGET_ARCH != x86_64
 ifeq ($(TARGET_ARCH),mips)
@@ -255,6 +256,16 @@ LIBART_HOST_SRC_FILES := \
 	thread_linux.cc
 
 ifeq ($(HOST_ARCH),x86)
+ifneq ($(BUILD_HOST_64bit),)
+LIBART_HOST_SRC_FILES += \
+	arch/x86_64/context_x86_64.cc \
+	arch/x86_64/entrypoints_init_x86_64.cc \
+	arch/x86_64/jni_entrypoints_x86_64.S \
+	arch/x86_64/portable_entrypoints_x86_64.S \
+	arch/x86_64/quick_entrypoints_x86_64.S \
+	arch/x86_64/thread_x86_64.cc \
+	monitor_pool.cc
+else
 LIBART_HOST_SRC_FILES += \
 	arch/x86/context_x86.cc \
 	arch/x86/entrypoints_init_x86.cc \
@@ -262,6 +273,7 @@ LIBART_HOST_SRC_FILES += \
 	arch/x86/portable_entrypoints_x86.S \
 	arch/x86/quick_entrypoints_x86.S \
 	arch/x86/thread_x86.cc
+endif
 else # HOST_ARCH != x86
 $(error unsupported HOST_ARCH=$(HOST_ARCH))
 endif # HOST_ARCH != x86

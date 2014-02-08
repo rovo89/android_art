@@ -163,6 +163,7 @@ void SpaceTest::ZygoteSpaceTestBody(CreateSpaceFn create_space) {
   EXPECT_TRUE(ptr5 == NULL);
 
   // Release some memory.
+  ScopedObjectAccess soa(self);
   size_t free3 = space->AllocationSize(ptr3);
   EXPECT_EQ(free3, ptr3_bytes_allocated);
   EXPECT_EQ(free3, space->Free(self, ptr3));
@@ -257,6 +258,7 @@ void SpaceTest::AllocAndFreeTestBody(CreateSpaceFn create_space) {
   EXPECT_TRUE(ptr5 == NULL);
 
   // Release some memory.
+  ScopedObjectAccess soa(self);
   size_t free3 = space->AllocationSize(ptr3);
   EXPECT_EQ(free3, ptr3_bytes_allocated);
   space->Free(self, ptr3);
@@ -354,30 +356,36 @@ void SpaceTest::AllocAndFreeListTestBody(CreateSpaceFn create_space) {
   for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
     size_t allocation_size = 0;
     lots_of_objects[i] = space->Alloc(self, 16, &allocation_size);
-    EXPECT_TRUE(lots_of_objects[i] != NULL);
+    EXPECT_TRUE(lots_of_objects[i] != nullptr);
     InstallClass(lots_of_objects[i], 16);
     EXPECT_EQ(allocation_size, space->AllocationSize(lots_of_objects[i]));
   }
 
-  // Release memory and check pointers are NULL
-  space->FreeList(self, arraysize(lots_of_objects), lots_of_objects);
-  for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
-    EXPECT_TRUE(lots_of_objects[i] == NULL);
+  // Release memory and check pointers are NULL.
+  {
+    ScopedObjectAccess soa(self);
+    space->FreeList(self, arraysize(lots_of_objects), lots_of_objects);
+    for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
+      EXPECT_TRUE(lots_of_objects[i] == nullptr);
+    }
   }
 
   // Succeeds, fits by adjusting the max allowed footprint.
   for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
     size_t allocation_size = 0;
     lots_of_objects[i] = space->AllocWithGrowth(self, 1024, &allocation_size);
-    EXPECT_TRUE(lots_of_objects[i] != NULL);
+    EXPECT_TRUE(lots_of_objects[i] != nullptr);
     InstallClass(lots_of_objects[i], 1024);
     EXPECT_EQ(allocation_size, space->AllocationSize(lots_of_objects[i]));
   }
 
   // Release memory and check pointers are NULL
-  space->FreeList(self, arraysize(lots_of_objects), lots_of_objects);
-  for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
-    EXPECT_TRUE(lots_of_objects[i] == NULL);
+  {
+    ScopedObjectAccess soa(self);
+    space->FreeList(self, arraysize(lots_of_objects), lots_of_objects);
+    for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
+      EXPECT_TRUE(lots_of_objects[i] == nullptr);
+    }
   }
 }
 
@@ -491,28 +499,30 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(MallocSpace* space, intptr_t
       break;
     }
 
-    // Free some objects
-    for (size_t i = 0; i < last_object; i += free_increment) {
-      mirror::Object* object = lots_of_objects.get()[i];
-      if (object == NULL) {
-        continue;
+    {
+      // Free some objects
+      ScopedObjectAccess soa(self);
+      for (size_t i = 0; i < last_object; i += free_increment) {
+        mirror::Object* object = lots_of_objects.get()[i];
+        if (object == NULL) {
+          continue;
+        }
+        size_t allocation_size = space->AllocationSize(object);
+        if (object_size > 0) {
+          EXPECT_GE(allocation_size, static_cast<size_t>(object_size));
+        } else {
+          EXPECT_GE(allocation_size, 8u);
+        }
+        space->Free(self, object);
+        lots_of_objects.get()[i] = NULL;
+        amount_allocated -= allocation_size;
+        footprint = space->GetFootprint();
+        EXPECT_GE(space->Size(), footprint);  // invariant
       }
-      size_t allocation_size = space->AllocationSize(object);
-      if (object_size > 0) {
-        EXPECT_GE(allocation_size, static_cast<size_t>(object_size));
-      } else {
-        EXPECT_GE(allocation_size, 8u);
-      }
-      space->Free(self, object);
-      lots_of_objects.get()[i] = NULL;
-      amount_allocated -= allocation_size;
-      footprint = space->GetFootprint();
-      EXPECT_GE(space->Size(), footprint);  // invariant
+
+      free_increment >>= 1;
     }
-
-    free_increment >>= 1;
   }
-
   // The space has become empty here before allocating a large object
   // below. For RosAlloc, revoke thread-local runs, which are kept
   // even when empty for a performance reason, so that they won't
@@ -540,8 +550,10 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(MallocSpace* space, intptr_t
   EXPECT_LE(space->Size(), growth_limit);
 
   // Clean up
-  space->Free(self, large_object);
-
+  {
+    ScopedObjectAccess soa(self);
+    space->Free(self, large_object);
+  }
   // Sanity check footprint
   footprint = space->GetFootprint();
   EXPECT_LE(footprint, growth_limit);

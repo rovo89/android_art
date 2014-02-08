@@ -23,18 +23,6 @@
 
 namespace art {
 namespace mips {
-#if 0
-class DirectCallRelocation : public AssemblerFixup {
- public:
-  void Process(const MemoryRegion& region, int position) {
-    // Direct calls are relative to the following instruction on mips.
-    int32_t pointer = region.Load<int32_t>(position);
-    int32_t start = reinterpret_cast<int32_t>(region.start());
-    int32_t delta = start + position + sizeof(int32_t);
-    region.Store<int32_t>(position, pointer - delta);
-  }
-};
-#endif
 
 std::ostream& operator<<(std::ostream& os, const DRegister& rhs) {
   if (rhs >= D0 && rhs < kNumberOfDRegisters) {

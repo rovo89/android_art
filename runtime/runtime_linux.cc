@@ -133,7 +133,7 @@ struct UContext {
 
   void Dump(std::ostream& os) {
     // TODO: support non-x86 hosts (not urgent because this code doesn't run on targets).
-#if defined(__APPLE__)
+#if defined(__APPLE__) && defined(__i386__)
     DumpRegister32(os, "eax", context->__ss.__eax);
     DumpRegister32(os, "ebx", context->__ss.__ebx);
     DumpRegister32(os, "ecx", context->__ss.__ecx);
@@ -159,7 +159,7 @@ struct UContext {
     os << '\n';
     DumpRegister32(os, "gs",  context->__ss.__gs);
     DumpRegister32(os, "ss",  context->__ss.__ss);
-#else
+#elif defined(__linux__) && defined(__i386__)
     DumpRegister32(os, "eax", context.gregs[REG_EAX]);
     DumpRegister32(os, "ebx", context.gregs[REG_EBX]);
     DumpRegister32(os, "ecx", context.gregs[REG_ECX]);
@@ -185,6 +185,8 @@ struct UContext {
     os << '\n';
     DumpRegister32(os, "gs",  context.gregs[REG_GS]);
     DumpRegister32(os, "ss",  context.gregs[REG_SS]);
+#else
+    os << "Unknown architecture/word size/OS in ucontext dump";
 #endif
   }
 

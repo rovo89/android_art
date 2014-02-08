@@ -78,6 +78,10 @@ class ArgArray {
     num_bytes_ += 4;
   }
 
+  void Append(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    Append(StackReference<mirror::Object>::FromMirrorPtr(obj).AsVRegValue());
+  }
+
   void AppendWide(uint64_t value) {
     // For ARM and MIPS portable, align wide values to 8 bytes (ArgArray starts at offset of 4).
 #if defined(ART_USE_PORTABLE_COMPILER) && (defined(__arm__) || defined(__mips__))
@@ -93,8 +97,8 @@ class ArgArray {
   void BuildArgArray(const ScopedObjectAccess& soa, mirror::Object* receiver, va_list ap)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Set receiver if non-null (method is not static)
-    if (receiver != NULL) {
-      Append(reinterpret_cast<int32_t>(receiver));
+    if (receiver != nullptr) {
+      Append(receiver);
     }
     for (size_t i = 1; i < shorty_len_; ++i) {
       switch (shorty_[i]) {
@@ -112,7 +116,7 @@ class ArgArray {
           break;
         }
         case 'L':
-          Append(reinterpret_cast<int32_t>(soa.Decode<mirror::Object*>(va_arg(ap, jobject))));
+          Append(soa.Decode<mirror::Object*>(va_arg(ap, jobject)));
           break;
         case 'D': {
           JValue value;
@@ -131,8 +135,8 @@ class ArgArray {
   void BuildArgArray(const ScopedObjectAccess& soa, mirror::Object* receiver, jvalue* args)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Set receiver if non-null (method is not static)
-    if (receiver != NULL) {
-      Append(reinterpret_cast<int32_t>(receiver));
+    if (receiver != nullptr) {
+      Append(receiver);
     }
     for (size_t i = 1, args_offset = 0; i < shorty_len_; ++i, ++args_offset) {
       switch (shorty_[i]) {
@@ -153,7 +157,7 @@ class ArgArray {
           Append(args[args_offset].i);
           break;
         case 'L':
-          Append(reinterpret_cast<int32_t>(soa.Decode<mirror::Object*>(args[args_offset].l)));
+          Append(soa.Decode<mirror::Object*>(args[args_offset].l));
           break;
         case 'D':
         case 'J':

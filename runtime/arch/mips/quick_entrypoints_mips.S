@@ -449,7 +449,7 @@ INVOKE_TRAMPOLINE art_quick_invoke_super_trampoline_with_access_check, artInvoke
 INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
 
     /*
-     * Common invocation stub for portable and quick.
+     * Invocation stub for quick code.
      * On entry:
      *   a0 = method pointer
      *   a1 = argument array or NULL for no argument methods
@@ -458,9 +458,6 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
      *   [sp + 16] = JValue* result
      *   [sp + 20] = result type char
      */
-    .type art_portable_invoke_stub, %function
-    .global art_portable_invoke_stub
-art_portable_invoke_stub:
 ENTRY art_quick_invoke_stub
     GENERATE_GLOBAL_POINTER
     sw    $a0, 0($sp)           # save out a0
@@ -490,7 +487,7 @@ ENTRY art_quick_invoke_stub
     lw    $a1, 4($sp)           # copy arg value for a1
     lw    $a2, 8($sp)           # copy arg value for a2
     lw    $a3, 12($sp)          # copy arg value for a3
-    lw    $t9, METHOD_CODE_OFFSET($a0)  # get pointer to the code
+    lw    $t9, METHOD_QUICK_CODE_OFFSET($a0)  # get pointer to the code
     jalr  $t9                   # call the method
     sw    $zero, 0($sp)         # store NULL for method* at bottom of frame
     move  $sp, $fp              # restore the stack
@@ -518,7 +515,6 @@ ENTRY art_quick_invoke_stub
     jr    $ra
     s.s   $f1, 4($t0)           # store other half of floating point result
 END art_quick_invoke_stub
-    .size art_portable_invoke_stub, .-art_portable_invoke_stub
 
     /*
      * Entry from managed code that calls artHandleFillArrayDataFromCode and delivers exception on

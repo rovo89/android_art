@@ -21,7 +21,7 @@
 #include <string>
 #include <vector>
 
-#include "atomic_integer.h"
+#include "atomic.h"
 #include "base/timing_logger.h"
 #include "gc/accounting/atomic_stack.h"
 #include "gc/accounting/card_table.h"
@@ -204,14 +204,14 @@ class Heap {
   void ChangeCollector(CollectorType collector_type);
 
   // The given reference is believed to be to an object in the Java heap, check the soundness of it.
-  void VerifyObjectImpl(const mirror::Object* o);
-  void VerifyObject(const mirror::Object* o) {
+  void VerifyObjectImpl(mirror::Object* o);
+  void VerifyObject(mirror::Object* o) {
     if (o != nullptr && this != nullptr && verify_object_mode_ > kNoHeapVerification) {
       VerifyObjectImpl(o);
     }
   }
   // Check that c.getClass() == c.getClass().getClass().
-  bool VerifyClassClass(const mirror::Class* c) const;
+  bool VerifyClassClass(const mirror::Class* c) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Check sanity of all live references.
   void VerifyHeap() LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
@@ -232,9 +232,9 @@ class Heap {
 
   // Returns true if 'obj' is a live heap object, false otherwise (including for invalid addresses).
   // Requires the heap lock to be held.
-  bool IsLiveObjectLocked(const mirror::Object* obj, bool search_allocation_stack = true,
+  bool IsLiveObjectLocked(mirror::Object* obj, bool search_allocation_stack = true,
                           bool search_live_stack = true, bool sorted = false)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // Returns true if there is any chance that the object (obj) will move.
   bool IsMovableObject(const mirror::Object* obj) const;
@@ -358,7 +358,7 @@ class Heap {
 
   // Freed bytes can be negative in cases where we copy objects from a compacted space to a
   // free-list backed space.
-  void RecordFree(int64_t freed_objects, int64_t freed_bytes);
+  void RecordFree(size_t freed_objects, size_t freed_bytes);
 
   // Must be called if a field of an Object in the heap changes, and before any GC safe-point.
   // The call is not needed if NULL is stored in the field.
@@ -411,16 +411,16 @@ class Heap {
   // consume. For a regular VM this would relate to the -Xmx option and would return -1 if no Xmx
   // were specified. Android apps start with a growth limit (small heap size) which is
   // cleared/extended for large apps.
-  int64_t GetMaxMemory() const {
+  size_t GetMaxMemory() const {
     return growth_limit_;
   }
 
   // Implements java.lang.Runtime.totalMemory, returning the amount of memory consumed by an
   // application.
-  int64_t GetTotalMemory() const;
+  size_t GetTotalMemory() const;
 
   // Implements java.lang.Runtime.freeMemory.
-  int64_t GetFreeMemory() const {
+  size_t GetFreeMemory() const {
     return GetTotalMemory() - num_bytes_allocated_;
   }
 
@@ -550,7 +550,8 @@ class Heap {
   static bool IsCompactingGC(CollectorType collector_type) {
     return collector_type == kCollectorTypeSS || collector_type == kCollectorTypeGSS;
   }
-  bool ShouldAllocLargeObject(mirror::Class* c, size_t byte_count) const;
+  bool ShouldAllocLargeObject(mirror::Class* c, size_t byte_count) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   ALWAYS_INLINE void CheckConcurrentGC(Thread* self, size_t new_num_bytes_allocated,
                                        mirror::Object* obj);
 
@@ -596,8 +597,8 @@ class Heap {
   }
   void EnqueueClearedReferences();
   // Returns true if the reference object has not yet been enqueued.
-  bool IsEnqueuable(const mirror::Object* ref) const;
-  bool IsEnqueued(mirror::Object* ref) const;
+  bool IsEnqueuable(mirror::Object* ref) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool IsEnqueued(mirror::Object* ref) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DelayReferenceReferent(mirror::Class* klass, mirror::Object* obj, RootVisitor mark_visitor,
                               void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -644,7 +645,7 @@ class Heap {
 
   // No thread saftey analysis since we call this everywhere and it is impossible to find a proper
   // lock ordering for it.
-  void VerifyObjectBody(const mirror::Object *obj) NO_THREAD_SAFETY_ANALYSIS;
+  void VerifyObjectBody(mirror::Object *obj) NO_THREAD_SAFETY_ANALYSIS;
 
   static void VerificationCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(GlobalSychronization::heap_bitmap_lock_);
@@ -781,13 +782,13 @@ class Heap {
   size_t total_objects_freed_ever_;
 
   // Number of bytes allocated.  Adjusted after each allocation and free.
-  AtomicInteger num_bytes_allocated_;
+  Atomic<size_t> num_bytes_allocated_;
 
   // Bytes which are allocated and managed by native code but still need to be accounted for.
-  AtomicInteger native_bytes_allocated_;
+  Atomic<size_t> native_bytes_allocated_;
 
   // Data structure GC overhead.
-  AtomicInteger gc_memory_overhead_;
+  Atomic<size_t> gc_memory_overhead_;
 
   // Heap verification flags.
   const bool verify_missing_card_marks_;

@@ -47,7 +47,9 @@
 #if defined(__linux__)
 #include <sys/personality.h>
 #include <sys/utsname.h>
+#if defined(HAVE_ANDROID_OS)
 #include <sys/capability.h>
+#endif
 #endif
 
 namespace art {
