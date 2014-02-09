@@ -57,7 +57,10 @@ static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
   } else if (name == "int java.lang.String.fastIndexOf(int, int)") {
     result->SetI(receiver->AsString()->FastIndexOf(args[0], args[1]));
   } else if (name == "java.lang.Object java.lang.reflect.Array.createMultiArray(java.lang.Class, int[])") {
-    result->SetL(Array::CreateMultiArray(self, reinterpret_cast<Object*>(args[0])->AsClass(), reinterpret_cast<Object*>(args[1])->AsIntArray()));
+    SirtRef<mirror::Class> sirt_class(self, reinterpret_cast<Object*>(args[0])->AsClass());
+    SirtRef<mirror::IntArray> sirt_dimensions(self,
+                                              reinterpret_cast<Object*>(args[1])->AsIntArray());
+    result->SetL(Array::CreateMultiArray(self, sirt_class, sirt_dimensions));
   } else if (name == "java.lang.Object java.lang.Throwable.nativeFillInStackTrace()") {
     ScopedObjectAccessUnchecked soa(self);
     result->SetL(soa.Decode<Object*>(self->CreateInternalStackTrace(soa)));
