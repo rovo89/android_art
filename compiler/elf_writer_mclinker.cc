@@ -265,7 +265,7 @@ void ElfWriterMclinker::AddCompiledCodeInput(const CompiledCode& compiled_code) 
   added_symbols_.Put(&symbol, &symbol);
 
   // Add input to supply code for symbol
-  const std::vector<uint8_t>& code = compiled_code.GetCode();
+  const std::vector<uint8_t>& code = compiled_code.GetPortableCode();
   // TODO: ownership of code_input?
   // TODO: why does IRBuilder::ReadInput take a non-const pointer?
   mcld::Input* code_input = ir_builder_->ReadInput(symbol,
