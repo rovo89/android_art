@@ -93,6 +93,7 @@ void X86Mir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
     RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
     rl_method = LoadValue(rl_method, kCoreReg);
     start_of_method_reg = rl_method.low_reg;
+    store_method_addr_used_ = true;
   } else {
     start_of_method_reg = AllocTemp();
     NewLIR1(kX86StartOfMethod, start_of_method_reg);
@@ -155,6 +156,7 @@ void X86Mir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
     // We can use the saved value.
     RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
     LoadValueDirect(rl_method, rX86_ARG2);
+    store_method_addr_used_ = true;
   } else {
     NewLIR1(kX86StartOfMethod, rX86_ARG2);
   }
@@ -228,9 +230,9 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
 
   if (base_of_code_ != nullptr) {
     // We have been asked to save the address of the method start for later use.
-    NewLIR1(kX86StartOfMethod, rX86_ARG0);
+    setup_method_address_[0] = NewLIR1(kX86StartOfMethod, rX86_ARG0);
     int displacement = SRegOffset(base_of_code_->s_reg_low);
-    StoreBaseDisp(rX86_SP, displacement, rX86_ARG0, kWord);
+    setup_method_address_[1] = StoreBaseDisp(rX86_SP, displacement, rX86_ARG0, kWord);
   }
 
   FreeTemp(rX86_ARG0);

@@ -417,7 +417,7 @@ class Mir2Lir : public Backend {
     bool EvaluateBranch(Instruction::Code opcode, int src1, int src2);
     bool IsInexpensiveConstant(RegLocation rl_src);
     ConditionCode FlipComparisonOrder(ConditionCode before);
-    void InstallLiteralPools();
+    virtual void InstallLiteralPools();
     void InstallSwitchTables();
     void InstallFillArrayData();
     bool VerifyCatchEntries();
@@ -736,6 +736,34 @@ class Mir2Lir : public Backend {
     bool MethodBlockCodeGen(BasicBlock* bb);
     void SpecialMIR2LIR(const InlineMethod& special);
     void MethodMIR2LIR();
+
+    /*
+     * @brief Load the address of the dex method into the register.
+     * @param dex_method_index The index of the method to be invoked.
+     * @param type How the method will be invoked.
+     * @param register that will contain the code address.
+     * @note register will be passed to TargetReg to get physical register.
+     */
+    void LoadCodeAddress(int dex_method_index, InvokeType type,
+                         SpecialTargetRegister symbolic_reg);
+
+    /*
+     * @brief Load the Method* of a dex method into the register.
+     * @param dex_method_index The index of the method to be invoked.
+     * @param type How the method will be invoked.
+     * @param register that will contain the code address.
+     * @note register will be passed to TargetReg to get physical register.
+     */
+    virtual void LoadMethodAddress(int dex_method_index, InvokeType type,
+                                   SpecialTargetRegister symbolic_reg);
+
+    /*
+     * @brief Load the Class* of a Dex Class type into the register.
+     * @param type How the method will be invoked.
+     * @param register that will contain the code address.
+     * @note register will be passed to TargetReg to get physical register.
+     */
+    virtual void LoadClassType(uint32_t type_idx, SpecialTargetRegister symbolic_reg);
 
     // Routines that work for the generic case, but may be overriden by target.
     /*
