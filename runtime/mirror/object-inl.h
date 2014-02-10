@@ -240,7 +240,7 @@ inline size_t Object::SizeOf() {
   return result;
 }
 
-inline uint32_t Object::GetField32(MemberOffset field_offset, bool is_volatile) {
+inline int32_t Object::GetField32(MemberOffset field_offset, bool is_volatile) {
   VerifyObject(this);
   const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset.Int32Value();
   const int32_t* word_addr = reinterpret_cast<const int32_t*>(raw_addr);
@@ -253,13 +253,13 @@ inline uint32_t Object::GetField32(MemberOffset field_offset, bool is_volatile) 
   }
 }
 
-inline void Object::SetField32(MemberOffset field_offset, uint32_t new_value, bool is_volatile,
+inline void Object::SetField32(MemberOffset field_offset, int32_t new_value, bool is_volatile,
                                bool this_is_valid) {
   if (this_is_valid) {
     VerifyObject(this);
   }
   byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
-  uint32_t* word_addr = reinterpret_cast<uint32_t*>(raw_addr);
+  int32_t* word_addr = reinterpret_cast<int32_t*>(raw_addr);
   if (UNLIKELY(is_volatile)) {
     QuasiAtomic::MembarStoreStore();  // Ensure this store occurs after others in the queue.
     *word_addr = new_value;
@@ -269,19 +269,19 @@ inline void Object::SetField32(MemberOffset field_offset, uint32_t new_value, bo
   }
 }
 
-inline bool Object::CasField32(MemberOffset field_offset, uint32_t old_value, uint32_t new_value) {
+inline bool Object::CasField32(MemberOffset field_offset, int32_t old_value, int32_t new_value) {
   VerifyObject(this);
   byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
-  volatile uint32_t* addr = reinterpret_cast<volatile uint32_t*>(raw_addr);
+  volatile int32_t* addr = reinterpret_cast<volatile int32_t*>(raw_addr);
   return __sync_bool_compare_and_swap(addr, old_value, new_value);
 }
 
-inline uint64_t Object::GetField64(MemberOffset field_offset, bool is_volatile) {
+inline int64_t Object::GetField64(MemberOffset field_offset, bool is_volatile) {
   VerifyObject(this);
   const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset.Int32Value();
   const int64_t* addr = reinterpret_cast<const int64_t*>(raw_addr);
   if (UNLIKELY(is_volatile)) {
-    uint64_t result = QuasiAtomic::Read64(addr);
+    int64_t result = QuasiAtomic::Read64(addr);
     QuasiAtomic::MembarLoadLoad();  // Ensure volatile loads don't re-order.
     return result;
   } else {
@@ -289,7 +289,7 @@ inline uint64_t Object::GetField64(MemberOffset field_offset, bool is_volatile) 
   }
 }
 
-inline void Object::SetField64(MemberOffset field_offset, uint64_t new_value, bool is_volatile,
+inline void Object::SetField64(MemberOffset field_offset, int64_t new_value, bool is_volatile,
                                bool this_is_valid) {
   if (this_is_valid) {
     VerifyObject(this);
@@ -309,11 +309,11 @@ inline void Object::SetField64(MemberOffset field_offset, uint64_t new_value, bo
   }
 }
 
-inline bool Object::CasField64(MemberOffset field_offset, uint64_t old_value, uint64_t new_value) {
+inline bool Object::CasField64(MemberOffset field_offset, int64_t old_value, int64_t new_value) {
   VerifyObject(this);
   byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
-  volatile uint64_t* addr = reinterpret_cast<volatile uint64_t*>(raw_addr);
-  return __sync_bool_compare_and_swap(addr, old_value, new_value);
+  volatile int64_t* addr = reinterpret_cast<volatile int64_t*>(raw_addr);
+  return QuasiAtomic::Cas64(old_value, new_value, addr);
 }
 
 template<class T>
@@ -361,7 +361,7 @@ inline void Object::SetFieldObject(MemberOffset field_offset, Object* new_value,
 inline bool Object::CasFieldObject(MemberOffset field_offset, Object* old_value, Object* new_value) {
   VerifyObject(this);
   byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
-  volatile uint32_t* addr = reinterpret_cast<volatile uint32_t*>(raw_addr);
+  volatile int32_t* addr = reinterpret_cast<volatile int32_t*>(raw_addr);
   HeapReference<Object> old_ref(HeapReference<Object>::FromMirrorPtr(old_value));
   HeapReference<Object> new_ref(HeapReference<Object>::FromMirrorPtr(new_value));
   bool success =  __sync_bool_compare_and_swap(addr, old_ref.reference_, new_ref.reference_);
