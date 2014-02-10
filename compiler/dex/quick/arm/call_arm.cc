@@ -130,7 +130,7 @@ void ArmMir2Lir::GenPrintLabel(MIR* mir) {
 MIR* ArmMir2Lir::SpecialIGet(BasicBlock** bb, MIR* mir, const InlineMethod& special) {
   // FastInstance() already checked by DexFileMethodInliner.
   const InlineIGetIPutData& data = special.d.ifield_data;
-  if (!data.method_is_static || data.object_arg != 0) {
+  if (data.method_is_static || data.object_arg != 0) {
     return NULL;  // The object is not "this" and has to be null-checked.
   }
 
@@ -160,7 +160,7 @@ MIR* ArmMir2Lir::SpecialIGet(BasicBlock** bb, MIR* mir, const InlineMethod& spec
 MIR* ArmMir2Lir::SpecialIPut(BasicBlock** bb, MIR* mir, const InlineMethod& special) {
   // FastInstance() already checked by DexFileMethodInliner.
   const InlineIGetIPutData& data = special.d.ifield_data;
-  if (!data.method_is_static || data.object_arg != 0) {
+  if (data.method_is_static || data.object_arg != 0) {
     return NULL;  // The object is not "this" and has to be null-checked.
   }
 
