@@ -90,12 +90,25 @@ public class Main {
         foo.wideSetBar4(0,0,0,sum);
         sum += foo.wideGetBar5(1,2,3,4,5);
         foo.wideSetBar5(0,0,0,0,sum);
-        if (foo.wideGetBar0() == 39488) {
+        long result1 = foo.wideGetBar0();
+        long expected1 = 1234L << 5;
+        sum += foo.wideGetBar0();
+        foo.wideSetBar2i(0,sum);
+        sum += foo.wideGetBar0();
+        foo.wideSetBar3i(0,0,sum);
+        sum += foo.wideGetBar0();
+        foo.wideSetBar4i(0,0,0,sum);
+        sum += foo.wideGetBar0();
+        foo.wideSetBar5i(0,0,0,0,sum);
+        long result2 = foo.wideGetBar0();
+        long expected2 = 1234L << 9;
+        if (result1 == expected1 && result2 == expected2) {
             System.out.println("wideGetterSetterTest passes");
         }
         else {
             System.out.println("wideGetterSetterTest fails: " +
-                                foo.wideGetBar0() + " (expecting 39488)");
+                                "result1: " + result1 + " (expecting " + expected1 + "), " +
+                                "result2: " + result2 + " (expecting " + expected2 + ")");
         }
     }
 
@@ -8372,6 +8385,18 @@ class Foo {
         lbar = a4;
     }
     public void wideSetBar5(long a1, long a2, long a3, long a4, long a5) {
+        lbar = a5;
+    }
+    public void wideSetBar2i(int a1, long a2) {
+      lbar = a2;
+    }
+    public void wideSetBar3i(int a1, int a2, long a3) {
+        lbar = a3;
+    }
+    public void wideSetBar4i(int a1, int a2, int a3, long a4) {
+        lbar = a4;
+    }
+    public void wideSetBar5i(int a1, int a2, int a3, int a4, long a5) {
         lbar = a5;
     }
     public long wideGetBar0() {
