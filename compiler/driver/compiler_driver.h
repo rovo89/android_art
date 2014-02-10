@@ -38,10 +38,15 @@
 
 namespace art {
 
+namespace verifier {
+class MethodVerifier;
+}  // namespace verifier
+
 class AOTCompilationStats;
 class ParallelCompilationManager;
 class DexCompilationUnit;
 class DexFileToMethodInlinerMap;
+class InlineIGetIPutData;
 class OatWriter;
 class TimingLogger;
 class VerificationResults;
@@ -193,6 +198,13 @@ class CompilerDriver {
   bool CanEmbedTypeInCode(const DexFile& dex_file, uint32_t type_idx,
                           bool* is_type_initialized, bool* use_direct_type_ptr,
                           uintptr_t* direct_type_ptr);
+
+  // Can we fast path instance field access in a verified accessor?
+  // If yes, computes field's offset and volatility and whether the method is static or not.
+  static bool ComputeSpecialAccessorInfo(uint32_t field_idx, bool is_put,
+                                         verifier::MethodVerifier* verifier,
+                                         InlineIGetIPutData* result)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Can we fast path instance field access? Computes field's offset and volatility.
   bool ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit, bool is_put,
