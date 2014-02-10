@@ -677,7 +677,7 @@ class CommonTest : public testing::Test {
       if (result && method_inliner_map_ != nullptr) {
         MethodReference ref = verifier->GetMethodReference();
         method_inliner_map_->GetMethodInliner(ref.dex_file)
-            ->AnalyseMethodCode(ref.dex_method_index, verifier->CodeItem());
+            ->AnalyseMethodCode(verifier);
       }
       return result;
     }
