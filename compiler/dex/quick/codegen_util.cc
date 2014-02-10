@@ -1186,4 +1186,37 @@ LIR *Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, int temp_reg, int base_reg,
 void Mir2Lir::AddSlowPath(LIRSlowPath* slowpath) {
   slow_paths_.Insert(slowpath);
 }
+
+void Mir2Lir::LoadCodeAddress(int dex_method_index, InvokeType type, SpecialTargetRegister symbolic_reg) {
+  LIR* data_target = ScanLiteralPool(code_literal_list_, dex_method_index, 0);
+  if (data_target == NULL) {
+    data_target = AddWordData(&code_literal_list_, dex_method_index);
+    data_target->operands[1] = type;
+  }
+  LIR* load_pc_rel = OpPcRelLoad(TargetReg(symbolic_reg), data_target);
+  AppendLIR(load_pc_rel);
+  DCHECK_NE(cu_->instruction_set, kMips) << reinterpret_cast<void*>(data_target);
+}
+
+void Mir2Lir::LoadMethodAddress(int dex_method_index, InvokeType type, SpecialTargetRegister symbolic_reg) {
+  LIR* data_target = ScanLiteralPool(method_literal_list_, dex_method_index, 0);
+  if (data_target == NULL) {
+    data_target = AddWordData(&method_literal_list_, dex_method_index);
+    data_target->operands[1] = type;
+  }
+  LIR* load_pc_rel = OpPcRelLoad(TargetReg(symbolic_reg), data_target);
+  AppendLIR(load_pc_rel);
+  DCHECK_NE(cu_->instruction_set, kMips) << reinterpret_cast<void*>(data_target);
+}
+
+void Mir2Lir::LoadClassType(uint32_t type_idx, SpecialTargetRegister symbolic_reg) {
+  // Use the literal pool and a PC-relative load from a data word.
+  LIR* data_target = ScanLiteralPool(class_literal_list_, type_idx, 0);
+  if (data_target == nullptr) {
+    data_target = AddWordData(&class_literal_list_, type_idx);
+  }
+  LIR* load_pc_rel = OpPcRelLoad(TargetReg(symbolic_reg), data_target);
+  AppendLIR(load_pc_rel);
+}
+
 }  // namespace art

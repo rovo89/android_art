@@ -670,7 +670,7 @@ bool X86Mir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min) {
 bool X86Mir2Lir::GenInlinedPeek(CallInfo* info, OpSize size) {
   RegLocation rl_src_address = info->args[0];  // long address
   rl_src_address.wide = 0;  // ignore high half in info->args[1]
-  RegLocation rl_dest = InlineTarget(info);
+  RegLocation rl_dest = size == kLong ? InlineTargetWide(info) : InlineTarget(info);
   RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   if (size == kLong) {
@@ -780,8 +780,23 @@ bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
 }
 
 LIR* X86Mir2Lir::OpPcRelLoad(int reg, LIR* target) {
-  LOG(FATAL) << "Unexpected use of OpPcRelLoad for x86";
-  return NULL;
+  CHECK(base_of_code_ != nullptr);
+
+  // Address the start of the method
+  RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
+  LoadValueDirectFixed(rl_method, reg);
+  store_method_addr_used_ = true;
+
+  // Load the proper value from the literal area.
+  // We don't know the proper offset for the value, so pick one that will force
+  // 4 byte offset.  We will fix this up in the assembler later to have the right
+  // value.
+  LIR *res = RawLIR(current_dalvik_offset_, kX86Mov32RM, reg, reg, 256, 0, 0, target);
+  res->target = target;
+  res->flags.fixup = kFixupLoad;
+  SetMemRefType(res, true, kLiteral);
+  store_method_addr_used_ = true;
+  return res;
 }
 
 LIR* X86Mir2Lir::OpVldm(int rBase, int count) {

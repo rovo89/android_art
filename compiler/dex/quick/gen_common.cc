@@ -220,13 +220,7 @@ void Mir2Lir::GenNewArray(uint32_t type_idx, RegLocation rl_dest,
                                    &is_type_initialized, &use_direct_type_ptr, &direct_type_ptr)) {
       // The fast path.
       if (!use_direct_type_ptr) {
-        // Use the literal pool and a PC-relative load from a data word.
-        LIR* data_target = ScanLiteralPool(class_literal_list_, type_idx, 0);
-        if (data_target == nullptr) {
-          data_target = AddWordData(&class_literal_list_, type_idx);
-        }
-        LIR* load_pc_rel = OpPcRelLoad(TargetReg(kArg0), data_target);
-        AppendLIR(load_pc_rel);
+        LoadClassType(type_idx, kArg0);
         func_offset = QUICK_ENTRYPOINT_OFFSET(pAllocArrayResolved);
         CallRuntimeHelperRegMethodRegLocation(func_offset, TargetReg(kArg0), rl_src, true);
       } else {
@@ -994,13 +988,7 @@ void Mir2Lir::GenNewInstance(uint32_t type_idx, RegLocation rl_dest) {
                                    &is_type_initialized, &use_direct_type_ptr, &direct_type_ptr)) {
       // The fast path.
       if (!use_direct_type_ptr) {
-        // Use the literal pool and a PC-relative load from a data word.
-        LIR* data_target = ScanLiteralPool(class_literal_list_, type_idx, 0);
-        if (data_target == nullptr) {
-          data_target = AddWordData(&class_literal_list_, type_idx);
-        }
-        LIR* load_pc_rel = OpPcRelLoad(TargetReg(kArg0), data_target);
-        AppendLIR(load_pc_rel);
+        LoadClassType(type_idx, kArg0);
         if (!is_type_initialized) {
           func_offset = QUICK_ENTRYPOINT_OFFSET(pAllocObjectResolved);
           CallRuntimeHelperRegMethod(func_offset, TargetReg(kArg0), true);
