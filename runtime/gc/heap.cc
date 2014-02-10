@@ -81,7 +81,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
            size_t parallel_gc_threads, size_t conc_gc_threads, bool low_memory_mode,
            size_t long_pause_log_threshold, size_t long_gc_log_threshold,
            bool ignore_max_footprint, bool use_tlab, bool verify_pre_gc_heap,
-           bool verify_post_gc_heap)
+           bool verify_post_gc_heap, bool verify_pre_gc_rosalloc,
+           bool verify_post_gc_rosalloc)
     : non_moving_space_(nullptr),
       rosalloc_space_(nullptr),
       dlmalloc_space_(nullptr),
@@ -124,6 +125,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       verify_pre_gc_heap_(verify_pre_gc_heap),
       verify_post_gc_heap_(verify_post_gc_heap),
       verify_mod_union_table_(false),
+      verify_pre_gc_rosalloc_(verify_pre_gc_rosalloc),
+      verify_post_gc_rosalloc_(verify_post_gc_rosalloc),
       last_trim_time_ms_(0),
       allocation_rate_(0),
       /* For GC a lot mode, we limit the allocations stacks to be kGcAlotInterval allocations. This
@@ -1189,6 +1192,8 @@ void Heap::TransitionCollector(CollectorType collector_type) {
   if (collector_type == collector_type_) {
     return;
   }
+  VLOG(heap) << "TransitionCollector: " << static_cast<int>(collector_type_)
+             << " -> " << static_cast<int>(collector_type);
   uint64_t start_time = NanoTime();
   uint32_t before_size  = GetTotalMemory();
   uint32_t before_allocated = num_bytes_allocated_.Load();
@@ -1216,6 +1221,7 @@ void Heap::TransitionCollector(CollectorType collector_type) {
     usleep(1000);
   }
   tl->SuspendAll();
+  PreGcRosAllocVerification(&semi_space_collector_->GetTimings());
   switch (collector_type) {
     case kCollectorTypeSS:
       // Fall-through.
@@ -1265,6 +1271,7 @@ void Heap::TransitionCollector(CollectorType collector_type) {
     }
   }
   ChangeCollector(collector_type);
+  PostGcRosAllocVerification(&semi_space_collector_->GetTimings());
   tl->ResumeAll();
   // Can't call into java code with all threads suspended.
   EnqueueClearedReferences();
@@ -1447,6 +1454,9 @@ void Heap::PreZygoteFork() {
   ChangeCollector(post_zygote_collector_type_);
   // TODO: Delete bump_pointer_space_ and temp_pointer_space_?
   if (semi_space_collector_ != nullptr) {
+    // Temporarily disable rosalloc verification because the zygote
+    // compaction will mess up the rosalloc internal metadata.
+    ScopedDisableRosAllocVerification disable_rosalloc_verif(this);
     ZygoteCompactingCollector zygote_collector(this);
     zygote_collector.BuildBins(non_moving_space_);
     // Create a new bump pointer space which we will compact into.
@@ -2105,6 +2115,32 @@ void Heap::PostGcVerification(collector::GarbageCollector* gc) {
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     collector::MarkSweep* mark_sweep = down_cast<collector::MarkSweep*>(gc);
     mark_sweep->VerifySystemWeaks();
+  }
+}
+
+void Heap::PreGcRosAllocVerification(TimingLogger* timings) {
+  if (verify_pre_gc_rosalloc_) {
+    TimingLogger::ScopedSplit split("PreGcRosAllocVerification", timings);
+    for (const auto& space : continuous_spaces_) {
+      if (space->IsRosAllocSpace()) {
+        VLOG(heap) << "PreGcRosAllocVerification : " << space->GetName();
+        space::RosAllocSpace* rosalloc_space = space->AsRosAllocSpace();
+        rosalloc_space->Verify();
+      }
+    }
+  }
+}
+
+void Heap::PostGcRosAllocVerification(TimingLogger* timings) {
+  if (verify_post_gc_rosalloc_) {
+    TimingLogger::ScopedSplit split("PostGcRosAllocVerification", timings);
+    for (const auto& space : continuous_spaces_) {
+      if (space->IsRosAllocSpace()) {
+        VLOG(heap) << "PostGcRosAllocVerification : " << space->GetName();
+        space::RosAllocSpace* rosalloc_space = space->AsRosAllocSpace();
+        rosalloc_space->Verify();
+      }
+    }
   }
 }
 
