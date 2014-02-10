@@ -269,8 +269,8 @@ void ElfWriterMclinker::AddCompiledCodeInput(const CompiledCode& compiled_code) 
   // TODO: ownership of code_input?
   // TODO: why does IRBuilder::ReadInput take a non-const pointer?
   mcld::Input* code_input = ir_builder_->ReadInput(symbol,
-                                                   const_cast<uint8_t*>(&code[0]),
-                                                   code.size());
+                                                   const_cast<uint8_t*>(&(*code)[0]),
+                                                   code->size());
   CHECK(code_input != NULL);
 }
 
