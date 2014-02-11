@@ -1732,6 +1732,88 @@ void X86Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx,
   StoreValue(rl_dest, rl_result);
 }
 
+void X86Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_known_final,
+                                            bool type_known_abstract, bool use_declaring_class,
+                                            bool can_assume_type_is_in_dex_cache,
+                                            uint32_t type_idx, RegLocation rl_dest,
+                                            RegLocation rl_src) {
+  FlushAllRegs();
+  // May generate a call - use explicit registers.
+  LockCallTemps();
+  LoadCurrMethodDirect(TargetReg(kArg1));  // kArg1 gets current Method*.
+  int class_reg = TargetReg(kArg2);  // kArg2 will hold the Class*.
+  // Reference must end up in kArg0.
+  if (needs_access_check) {
+    // Check we have access to type_idx and if not throw IllegalAccessError,
+    // Caller function returns Class* in kArg0.
+    CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(pInitializeTypeAndVerifyAccess),
+                         type_idx, true);
+    OpRegCopy(class_reg, TargetReg(kRet0));
+    LoadValueDirectFixed(rl_src, TargetReg(kArg0));
+  } else if (use_declaring_class) {
+    LoadValueDirectFixed(rl_src, TargetReg(kArg0));
+    LoadWordDisp(TargetReg(kArg1),
+                 mirror::ArtMethod::DeclaringClassOffset().Int32Value(), class_reg);
+  } else {
+    // Load dex cache entry into class_reg (kArg2).
+    LoadValueDirectFixed(rl_src, TargetReg(kArg0));
+    LoadWordDisp(TargetReg(kArg1),
+                 mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value(), class_reg);
+    int32_t offset_of_type =
+        mirror::Array::DataOffset(sizeof(mirror::Class*)).Int32Value() + (sizeof(mirror::Class*)
+        * type_idx);
+    LoadWordDisp(class_reg, offset_of_type, class_reg);
+    if (!can_assume_type_is_in_dex_cache) {
+      // Need to test presence of type in dex cache at runtime.
+      LIR* hop_branch = OpCmpImmBranch(kCondNe, class_reg, 0, NULL);
+      // Type is not resolved. Call out to helper, which will return resolved type in kRet0/kArg0.
+      CallRuntimeHelperImm(QUICK_ENTRYPOINT_OFFSET(pInitializeType), type_idx, true);
+      OpRegCopy(TargetReg(kArg2), TargetReg(kRet0));  // Align usage with fast path.
+      LoadValueDirectFixed(rl_src, TargetReg(kArg0));  /* Reload Ref. */
+      // Rejoin code paths
+      LIR* hop_target = NewLIR0(kPseudoTargetLabel);
+      hop_branch->target = hop_target;
+    }
+  }
+  /* kArg0 is ref, kArg2 is class. If ref==null, use directly as bool result. */
+  RegLocation rl_result = GetReturn(false);
+
+  // SETcc only works with EAX..EDX.
+  DCHECK_LT(rl_result.low_reg, 4);
+
+  // Is the class NULL?
+  LIR* branch1 = OpCmpImmBranch(kCondEq, TargetReg(kArg0), 0, NULL);
+
+  /* Load object->klass_. */
+  DCHECK_EQ(mirror::Object::ClassOffset().Int32Value(), 0);
+  LoadWordDisp(TargetReg(kArg0),  mirror::Object::ClassOffset().Int32Value(), TargetReg(kArg1));
+  /* kArg0 is ref, kArg1 is ref->klass_, kArg2 is class. */
+  LIR* branchover = nullptr;
+  if (type_known_final) {
+    // Ensure top 3 bytes of result are 0.
+    LoadConstant(rl_result.low_reg, 0);
+    OpRegReg(kOpCmp, TargetReg(kArg1), TargetReg(kArg2));
+    // Set the low byte of the result to 0 or 1 from the compare condition code.
+    NewLIR2(kX86Set8R, rl_result.low_reg, kX86CondEq);
+  } else {
+    if (!type_known_abstract) {
+      LoadConstant(rl_result.low_reg, 1);     // Assume result succeeds.
+      branchover = OpCmpBranch(kCondEq, TargetReg(kArg1), TargetReg(kArg2), NULL);
+    }
+    OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));
+    OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(pInstanceofNonTrivial));
+  }
+  // TODO: only clobber when type isn't final?
+  ClobberCallerSave();
+  /* Branch targets here. */
+  LIR* target = NewLIR0(kPseudoTargetLabel);
+  StoreValue(rl_dest, rl_result);
+  branch1->target = target;
+  if (branchover != nullptr) {
+    branchover->target = target;
+  }
+}
+
 void X86Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
                             RegLocation rl_lhs, RegLocation rl_rhs) {
   OpKind op = kOpBkpt;

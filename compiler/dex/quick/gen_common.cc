@@ -1088,6 +1088,9 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
                                          bool can_assume_type_is_in_dex_cache,
                                          uint32_t type_idx, RegLocation rl_dest,
                                          RegLocation rl_src) {
+  // X86 has its own implementation.
+  DCHECK_NE(cu_->instruction_set, kX86);
+
   FlushAllRegs();
   // May generate a call - use explicit registers
   LockCallTemps();
@@ -1169,15 +1172,10 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
         LoadConstant(rl_result.low_reg, 1);     // assume true
         branchover = OpCmpBranch(kCondEq, TargetReg(kArg1), TargetReg(kArg2), NULL);
       }
-      if (cu_->instruction_set != kX86) {
-        int r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pInstanceofNonTrivial));
-        OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));    // .ne case - arg0 <= class
-        OpReg(kOpBlx, r_tgt);    // .ne case: helper(class, ref->class)
-        FreeTemp(r_tgt);
-      } else {
-        OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));
-        OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(pInstanceofNonTrivial));
-      }
+      int r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pInstanceofNonTrivial));
+      OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));    // .ne case - arg0 <= class
+      OpReg(kOpBlx, r_tgt);    // .ne case: helper(class, ref->class)
+      FreeTemp(r_tgt);
     }
   }
   // TODO: only clobber when type isn't final?
