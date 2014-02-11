@@ -226,7 +226,7 @@ bool OatFile::Setup(std::string* error_msg) {
   }
 
   for (size_t i = 0; i < GetOatHeader().GetDexFileCount(); i++) {
-    size_t dex_file_location_size = *reinterpret_cast<const uint32_t*>(oat);
+    uint32_t dex_file_location_size = *reinterpret_cast<const uint32_t*>(oat);
     if (UNLIKELY(dex_file_location_size == 0U)) {
       *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd with empty location name",
                                 GetLocation().c_str(), i);
