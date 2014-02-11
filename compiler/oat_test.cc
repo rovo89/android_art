@@ -91,10 +91,12 @@ TEST_F(OatTest, WriteRead) {
   verification_results_.reset(new VerificationResults);
   method_inliner_map_.reset(compiler_backend == kQuick ? new DexFileToMethodInlinerMap : nullptr);
   callbacks_.Reset(verification_results_.get(), method_inliner_map_.get());
+  timer_.reset(new CumulativeLogger("Compilation times"));
   compiler_driver_.reset(new CompilerDriver(verification_results_.get(),
                                             method_inliner_map_.get(),
                                             compiler_backend, insn_set,
-                                            insn_features, false, NULL, 2, true));
+                                            insn_features, false, NULL, 2, true, true,
+                                            timer_.get()));
   jobject class_loader = NULL;
   if (kCompile) {
     TimingLogger timings("OatTest::WriteRead", false, false);
