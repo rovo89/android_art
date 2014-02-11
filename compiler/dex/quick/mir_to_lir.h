@@ -1089,6 +1089,11 @@ class Mir2Lir : public Backend {
                                             bool can_assume_type_is_in_dex_cache,
                                             uint32_t type_idx, RegLocation rl_dest,
                                             RegLocation rl_src);
+    /*
+     * @brief Generate the debug_frame FDE information if possible.
+     * @returns pointer to vector containg CFE information, or NULL.
+     */
+    virtual std::vector<uint8_t>* ReturnCallFrameInformation();
 
     /**
      * @brief Used to insert marker that can be used to associate MIR with LIR.
