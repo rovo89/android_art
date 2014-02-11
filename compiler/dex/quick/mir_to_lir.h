@@ -1076,13 +1076,13 @@ class Mir2Lir : public Backend {
 
     void AddSlowPath(LIRSlowPath* slowpath);
 
-  private:
-    void GenInstanceofCallingHelper(bool needs_access_check, bool type_known_final,
-                                    bool type_known_abstract, bool use_declaring_class,
-                                    bool can_assume_type_is_in_dex_cache,
-                                    uint32_t type_idx, RegLocation rl_dest,
-                                    RegLocation rl_src);
+    virtual void GenInstanceofCallingHelper(bool needs_access_check, bool type_known_final,
+                                            bool type_known_abstract, bool use_declaring_class,
+                                            bool can_assume_type_is_in_dex_cache,
+                                            uint32_t type_idx, RegLocation rl_dest,
+                                            RegLocation rl_src);
 
+  private:
     void ClobberBody(RegisterInfo* p);
     void ResetDefBody(RegisterInfo* p) {
       p->def_start = NULL;
