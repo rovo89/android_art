@@ -20,14 +20,45 @@
 #include "base/bit_vector.h"
 #include "compiler_enums.h"
 #include "utils/arena_allocator.h"
+#include "compiler_ir.h"
 
 namespace art {
+
+// Forward declaration
+class MIRGraph;
 
 /*
  * A BitVector implementation that uses Arena allocation.
  */
 class ArenaBitVector : public BitVector {
   public:
+    /**
+     * @class BasicBlockIterator
+     * @brief Helper class to get the BasicBlocks when iterating through the ArenaBitVector.
+     */
+    class BasicBlockIterator {
+      public:
+        explicit BasicBlockIterator(ArenaBitVector* bv, MIRGraph* mir_graph)
+          : mir_graph_(mir_graph),
+            internal_iterator_(bv) {}
+
+        explicit BasicBlockIterator(ArenaBitVector* bv, CompilationUnit* c_unit)
+          : mir_graph_(c_unit->mir_graph.get()),
+            internal_iterator_(bv) {}
+
+        BasicBlock* Next();
+
+        static void* operator new(size_t size, ArenaAllocator* arena) {
+          return arena->Alloc(sizeof(ArenaBitVector::BasicBlockIterator),
+                              ArenaAllocator::kAllocGrowableArray);
+        };
+        static void operator delete(void* p) {}  // Nop.
+
+      private:
+        MIRGraph* const mir_graph_;
+        Iterator internal_iterator_;
+    };
+
     ArenaBitVector(ArenaAllocator* arena, uint32_t start_bits, bool expandable,
                    OatBitMapKind kind = kBitMapMisc);
     ~ArenaBitVector() {}
