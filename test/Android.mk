@@ -50,7 +50,8 @@ TEST_OAT_DIRECTORIES := \
 	ParallelGC \
 	ReferenceMap \
 	StackWalk \
-	ThreadStress
+	ThreadStress \
+	UnsafeTest
 
 # TODO: Enable when the StackWalk2 tests are passing
 #	StackWalk2 \

@@ -16,6 +16,7 @@
 
 #include "gc/accounting/card_table-inl.h"
 #include "jni_internal.h"
+#include "mirror/array.h"
 #include "mirror/object.h"
 #include "mirror/object-inl.h"
 #include "scoped_fast_native_object_access.h"
@@ -153,6 +154,20 @@ static void Unsafe_putOrderedObject(JNIEnv* env, jobject, jobject javaObj, jlong
   obj->SetFieldObject(MemberOffset(offset), newValue, false);
 }
 
+static jint Unsafe_getArrayBaseOffsetForComponentType(JNIEnv* env, jclass, jobject component_class) {
+  ScopedFastNativeObjectAccess soa(env);
+  mirror::Class* component = soa.Decode<mirror::Class*>(component_class);
+  Primitive::Type primitive_type = component->GetPrimitiveType();
+  return mirror::Array::DataOffset(Primitive::ComponentSize(primitive_type)).Int32Value();
+}
+
+static jint Unsafe_getArrayIndexScaleForComponentType(JNIEnv* env, jclass, jobject component_class) {
+  ScopedFastNativeObjectAccess soa(env);
+  mirror::Class* component = soa.Decode<mirror::Class*>(component_class);
+  Primitive::Type primitive_type = component->GetPrimitiveType();
+  return Primitive::ComponentSize(primitive_type);
+}
+
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Unsafe, compareAndSwapInt, "!(Ljava/lang/Object;JII)Z"),
   NATIVE_METHOD(Unsafe, compareAndSwapLong, "!(Ljava/lang/Object;JJJ)Z"),
@@ -172,6 +187,8 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Unsafe, getObject, "!(Ljava/lang/Object;J)Ljava/lang/Object;"),
   NATIVE_METHOD(Unsafe, putObject, "!(Ljava/lang/Object;JLjava/lang/Object;)V"),
   NATIVE_METHOD(Unsafe, putOrderedObject, "!(Ljava/lang/Object;JLjava/lang/Object;)V"),
+  NATIVE_METHOD(Unsafe, getArrayBaseOffsetForComponentType, "!(Ljava/lang/Class;)I"),
+  NATIVE_METHOD(Unsafe, getArrayIndexScaleForComponentType, "!(Ljava/lang/Class;)I"),
 };
 
 void register_sun_misc_Unsafe(JNIEnv* env) {
