@@ -18,7 +18,7 @@
 #define ART_RUNTIME_INTERN_TABLE_H_
 
 #include "base/mutex.h"
-#include "root_visitor.h"
+#include "object_callbacks.h"
 
 #include <map>
 
@@ -55,13 +55,13 @@ class InternTable {
   // Interns a potentially new string in the 'weak' table. (See above.)
   mirror::String* InternWeak(mirror::String* s) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SweepInternTableWeaks(RootVisitor visitor, void* arg);
+  void SweepInternTableWeaks(IsMarkedCallback* callback, void* arg);
 
   bool ContainsWeak(mirror::String* s) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   size_t Size() const;
 
-  void VisitRoots(RootVisitor* visitor, void* arg, bool only_dirty, bool clean_dirty);
+  void VisitRoots(RootCallback* callback, void* arg, bool only_dirty, bool clean_dirty);
 
   void DumpForSigQuit(std::ostream& os) const;
 

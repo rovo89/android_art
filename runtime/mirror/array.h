@@ -18,6 +18,7 @@
 #define ART_RUNTIME_MIRROR_ARRAY_H_
 
 #include "object.h"
+#include "object_callbacks.h"
 #include "gc/heap.h"
 #include "thread.h"
 
@@ -182,7 +183,7 @@ class MANAGED PrimitiveArray : public Array {
     array_class_ = NULL;
   }
 
-  static void VisitRoots(RootVisitor* visitor, void* arg)
+  static void VisitRoots(RootCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:

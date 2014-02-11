@@ -43,15 +43,16 @@ void InternTable::DumpForSigQuit(std::ostream& os) const {
      << weak_interns_.size() << " weak\n";
 }
 
-void InternTable::VisitRoots(RootVisitor* visitor, void* arg,
+void InternTable::VisitRoots(RootCallback* callback, void* arg,
                              bool only_dirty, bool clean_dirty) {
   MutexLock mu(Thread::Current(), intern_table_lock_);
   if (!only_dirty || is_dirty_) {
     for (auto& strong_intern : strong_interns_) {
-      strong_intern.second = down_cast<mirror::String*>(visitor(strong_intern.second, arg));
+      strong_intern.second =
+          down_cast<mirror::String*>(callback(strong_intern.second, arg, 0,
+                                              kRootInternedString));
       DCHECK(strong_intern.second != nullptr);
     }
-
     if (clean_dirty) {
       is_dirty_ = false;
     }
@@ -196,15 +197,15 @@ mirror::String* InternTable::InternStrong(const char* utf8_data) {
 }
 
 mirror::String* InternTable::InternStrong(mirror::String* s) {
-  if (s == NULL) {
-    return NULL;
+  if (s == nullptr) {
+    return nullptr;
   }
   return Insert(s, true);
 }
 
 mirror::String* InternTable::InternWeak(mirror::String* s) {
-  if (s == NULL) {
-    return NULL;
+  if (s == nullptr) {
+    return nullptr;
   }
   return Insert(s, false);
 }
@@ -215,11 +216,11 @@ bool InternTable::ContainsWeak(mirror::String* s) {
   return found == s;
 }
 
-void InternTable::SweepInternTableWeaks(RootVisitor visitor, void* arg) {
+void InternTable::SweepInternTableWeaks(IsMarkedCallback* callback, void* arg) {
   MutexLock mu(Thread::Current(), intern_table_lock_);
   for (auto it = weak_interns_.begin(), end = weak_interns_.end(); it != end;) {
     mirror::Object* object = it->second;
-    mirror::Object* new_object = visitor(object, arg);
+    mirror::Object* new_object = callback(object, arg);
     if (new_object == nullptr) {
       // TODO: use it = weak_interns_.erase(it) when we get a c++11 stl.
       weak_interns_.erase(it++);

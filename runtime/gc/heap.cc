@@ -369,7 +369,7 @@ void Heap::CreateThreadPool() {
   }
 }
 
-void Heap::VisitObjects(ObjectVisitorCallback callback, void* arg) {
+void Heap::VisitObjects(ObjectCallback callback, void* arg) {
   Thread* self = Thread::Current();
   // GCs can move objects, so don't allow this.
   const char* old_cause = self->StartAssertNoThreadSuspension("Visiting objects");
@@ -604,8 +604,8 @@ space::Space* Heap::FindSpaceFromObject(const mirror::Object* obj, bool fail_ok)
 }
 
 struct SoftReferenceArgs {
-  RootVisitor* is_marked_callback_;
-  RootVisitor* recursive_mark_callback_;
+  IsMarkedCallback* is_marked_callback_;
+  MarkObjectCallback* recursive_mark_callback_;
   void* arg_;
 };
 
@@ -617,8 +617,8 @@ mirror::Object* Heap::PreserveSoftReferenceCallback(mirror::Object* obj, void* a
 
 // Process reference class instances and schedule finalizations.
 void Heap::ProcessReferences(TimingLogger& timings, bool clear_soft,
-                             RootVisitor* is_marked_callback,
-                             RootVisitor* recursive_mark_object_callback, void* arg) {
+                             IsMarkedCallback* is_marked_callback,
+                             MarkObjectCallback* recursive_mark_object_callback, void* arg) {
   // Unless we are in the zygote or required to clear soft references with white references,
   // preserve some white referents.
   if (!clear_soft && !Runtime::Current()->IsZygote()) {
@@ -671,13 +671,13 @@ bool Heap::IsEnqueuable(mirror::Object* ref) const {
 // Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been
 // marked, put it on the appropriate list in the heap for later processing.
 void Heap::DelayReferenceReferent(mirror::Class* klass, mirror::Object* obj,
-                                  RootVisitor mark_visitor, void* arg) {
+                                  IsMarkedCallback is_marked_callback, void* arg) {
   DCHECK(klass != nullptr);
   DCHECK(klass->IsReferenceClass());
   DCHECK(obj != nullptr);
   mirror::Object* referent = GetReferenceReferent(obj);
   if (referent != nullptr) {
-    mirror::Object* forward_address = mark_visitor(referent, arg);
+    mirror::Object* forward_address = is_marked_callback(referent, arg);
     // Null means that the object is not currently marked.
     if (forward_address == nullptr) {
       Thread* self = Thread::Current();
@@ -1169,7 +1169,7 @@ class ReferringObjectsFinder {
 
 void Heap::GetReferringObjects(mirror::Object* o, int32_t max_count,
                                std::vector<mirror::Object*>& referring_objects) {
-  // Can't do any GC in this function since this may move classes.
+  // Can't do any GC in this function since this may move the object o.
   Thread* self = Thread::Current();
   auto* old_cause = self->StartAssertNoThreadSuspension("GetReferringObjects");
   ReferringObjectsFinder finder(o, max_count, referring_objects);
@@ -1696,7 +1696,8 @@ void Heap::FinishGC(Thread* self, collector::GcType gc_type) {
   gc_complete_cond_->Broadcast(self);
 }
 
-static mirror::Object* RootMatchesObjectVisitor(mirror::Object* root, void* arg) {
+static mirror::Object* RootMatchesObjectVisitor(mirror::Object* root, void* arg,
+                                                uint32_t /*thread_id*/, RootType /*root_type*/) {
   mirror::Object* obj = reinterpret_cast<mirror::Object*>(arg);
   if (root == obj) {
     LOG(INFO) << "Object " << obj << " is a root";
@@ -1823,7 +1824,8 @@ class VerifyReferenceVisitor {
     return heap_->IsLiveObjectLocked(obj, true, false, true);
   }
 
-  static mirror::Object* VerifyRoots(mirror::Object* root, void* arg) {
+  static mirror::Object* VerifyRoots(mirror::Object* root, void* arg, uint32_t /*thread_id*/,
+                                     RootType /*root_type*/) {
     VerifyReferenceVisitor* visitor = reinterpret_cast<VerifyReferenceVisitor*>(arg);
     (*visitor)(nullptr, root, MemberOffset(0), true);
     return root;
@@ -2041,7 +2043,7 @@ void Heap::ProcessCards(TimingLogger& timings) {
   }
 }
 
-static mirror::Object* IdentityCallback(mirror::Object* obj, void*) {
+static mirror::Object* IdentityRootCallback(mirror::Object* obj, void*, uint32_t, RootType) {
   return obj;
 }
 
@@ -2080,7 +2082,7 @@ void Heap::PreGcVerification(collector::GarbageCollector* gc) {
     ReaderMutexLock reader_lock(self, *Locks::heap_bitmap_lock_);
     for (const auto& table_pair : mod_union_tables_) {
       accounting::ModUnionTable* mod_union_table = table_pair.second;
-      mod_union_table->UpdateAndMarkReferences(IdentityCallback, nullptr);
+      mod_union_table->UpdateAndMarkReferences(IdentityRootCallback, nullptr);
       mod_union_table->Verify();
     }
     thread_list->ResumeAll();

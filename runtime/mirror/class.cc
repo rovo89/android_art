@@ -50,9 +50,10 @@ void Class::ResetClass() {
   java_lang_Class_ = NULL;
 }
 
-void Class::VisitRoots(RootVisitor* visitor, void* arg) {
+void Class::VisitRoots(RootCallback* callback, void* arg) {
   if (java_lang_Class_ != nullptr) {
-    java_lang_Class_ = down_cast<Class*>(visitor(java_lang_Class_, arg));
+    java_lang_Class_ = down_cast<Class*>(
+        callback(java_lang_Class_, arg, 0, kRootStickyClass));
   }
 }
 

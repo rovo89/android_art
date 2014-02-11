@@ -19,8 +19,8 @@
 
 #include "base/macros.h"
 #include "globals.h"
+#include "object_callbacks.h"
 #include "primitive.h"
-#include "root_visitor.h"
 
 #include "jni.h"
 
@@ -270,7 +270,7 @@ class RegType {
 
   virtual ~RegType() {}
 
-  void VisitRoots(RootVisitor* visitor, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void VisitRoots(RootCallback* callback, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  protected:
   RegType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)

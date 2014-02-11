@@ -22,8 +22,8 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "garbage_collector.h"
+#include "object_callbacks.h"
 #include "offsets.h"
-#include "root_visitor.h"
 #include "UniquePtr.h"
 
 namespace art {
@@ -142,7 +142,8 @@ class SemiSpace : public GarbageCollector {
   static void VisitObjectReferencesAndClass(mirror::Object* obj, const Visitor& visitor)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
-  static mirror::Object* MarkRootCallback(mirror::Object* root, void* arg)
+  static mirror::Object* MarkRootCallback(mirror::Object* root, void* arg, uint32_t /*tid*/,
+                                          RootType /*root_type*/)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   static mirror::Object* RecursiveMarkObjectCallback(mirror::Object* root, void* arg)
