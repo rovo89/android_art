@@ -33,11 +33,13 @@ namespace verifier {
 class MethodVerifier;
 }  // namespace verifier
 
+class CompilerOptions;
 class VerifiedMethod;
 
+// Used by CompilerCallbacks to track verification information from the Runtime.
 class VerificationResults {
   public:
-    VerificationResults();
+    explicit VerificationResults(const CompilerOptions* compiler_options);
     ~VerificationResults();
 
     bool ProcessVerifiedMethod(verifier::MethodVerifier* method_verifier)
@@ -50,15 +52,17 @@ class VerificationResults {
     void AddRejectedClass(ClassReference ref) LOCKS_EXCLUDED(rejected_classes_lock_);
     bool IsClassRejected(ClassReference ref) LOCKS_EXCLUDED(rejected_classes_lock_);
 
-    static bool IsCandidateForCompilation(MethodReference& method_ref,
-                                          const uint32_t access_flags);
+    bool IsCandidateForCompilation(MethodReference& method_ref,
+                                   const uint32_t access_flags);
 
   private:
+    const CompilerOptions* compiler_options_;
+
     // Verified methods.
     typedef SafeMap<MethodReference, const VerifiedMethod*,
         MethodReferenceComparator> VerifiedMethodMap;
     ReaderWriterMutex verified_methods_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-    VerifiedMethodMap verified_methods_;
+    VerifiedMethodMap verified_methods_ GUARDED_BY(verified_methods_lock_);
 
     // Rejected classes.
     ReaderWriterMutex rejected_classes_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;

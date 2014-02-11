@@ -24,6 +24,7 @@
 #include <unistd.h>
 
 #include "UniquePtr.h"
+#include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "dex_file-inl.h"
 #include "mirror/art_field-inl.h"
@@ -1201,6 +1202,58 @@ bool IsOatMagic(uint32_t magic) {
   return (memcmp(reinterpret_cast<const byte*>(magic),
                  OatHeader::kOatMagic,
                  sizeof(OatHeader::kOatMagic)) == 0);
+}
+
+bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg) {
+  const std::string command_line(Join(arg_vector, ' '));
+
+  CHECK_GE(arg_vector.size(), 1U) << command_line;
+
+  // Convert the args to char pointers.
+  const char* program = arg_vector[0].c_str();
+  std::vector<char*> args;
+  for (std::vector<std::string>::const_iterator it = arg_vector.begin(); it != arg_vector.end();
+      ++it) {
+    CHECK(*it != nullptr);
+    args.push_back(const_cast<char*>(it->c_str()));
+  }
+  args.push_back(NULL);
+
+  // fork and exec
+  pid_t pid = fork();
+  if (pid == 0) {
+    // no allocation allowed between fork and exec
+
+    // change process groups, so we don't get reaped by ProcessManager
+    setpgid(0, 0);
+
+    execv(program, &args[0]);
+
+    *error_msg = StringPrintf("Failed to execv(%s): %s", command_line.c_str(), strerror(errno));
+    return false;
+  } else {
+    if (pid == -1) {
+      *error_msg = StringPrintf("Failed to execv(%s) because fork failed: %s",
+                                command_line.c_str(), strerror(errno));
+      return false;
+    }
+
+    // wait for subprocess to finish
+    int status;
+    pid_t got_pid = TEMP_FAILURE_RETRY(waitpid(pid, &status, 0));
+    if (got_pid != pid) {
+      *error_msg = StringPrintf("Failed after fork for execv(%s) because waitpid failed: "
+                                "wanted %d, got %d: %s",
+                                command_line.c_str(), pid, got_pid, strerror(errno));
+      return false;
+    }
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+      *error_msg = StringPrintf("Failed execv(%s) because non-0 exit status",
+                                command_line.c_str());
+      return false;
+    }
+  }
+  return true;
 }
 
 }  // namespace art

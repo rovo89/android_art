@@ -269,6 +269,7 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function) {
 
 void ThreadList::SuspendAll() {
   Thread* self = Thread::Current();
+  DCHECK(self != nullptr);
 
   VLOG(threads) << *self << " SuspendAll starting...";
 

@@ -45,6 +45,7 @@ class MethodVerifier;
 }  // namespace verifier
 
 class AOTCompilationStats;
+class CompilerOptions;
 class DexCompilationUnit;
 class DexFileToMethodInlinerMap;
 class InlineIGetIPutData;
@@ -94,7 +95,8 @@ class CompilerDriver {
   // enabled.  "image_classes" lets the compiler know what classes it
   // can assume will be in the image, with NULL implying all available
   // classes.
-  explicit CompilerDriver(VerificationResults* verification_results,
+  explicit CompilerDriver(const CompilerOptions* compiler_options,
+                          VerificationResults* verification_results,
                           DexFileToMethodInlinerMap* method_inliner_map,
                           CompilerBackend::Kind compiler_backend_kind,
                           InstructionSet instruction_set,
@@ -127,6 +129,11 @@ class CompilerDriver {
 
   const InstructionSetFeatures& GetInstructionSetFeatures() const {
     return instruction_set_features_;
+  }
+
+  const CompilerOptions& GetCompilerOptions() const {
+    DCHECK(compiler_options_ != nullptr);
+    return *compiler_options_;
   }
 
   CompilerBackend* GetCompilerBackend() const {
@@ -551,6 +558,7 @@ class CompilerDriver {
   std::vector<const CallPatchInformation*> methods_to_patch_;
   std::vector<const TypePatchInformation*> classes_to_patch_;
 
+  const CompilerOptions* compiler_options_;
   VerificationResults* verification_results_;
   DexFileToMethodInlinerMap* method_inliner_map_;
 

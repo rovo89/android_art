@@ -550,101 +550,41 @@ bool ClassLinker::GenerateOatFile(const char* dex_filename,
   const char* class_path = Runtime::Current()->GetClassPathString().c_str();
 
   gc::Heap* heap = Runtime::Current()->GetHeap();
-  std::string boot_image_option_string("--boot-image=");
-  boot_image_option_string += heap->GetImageSpace()->GetImageFilename();
-  const char* boot_image_option = boot_image_option_string.c_str();
+  std::string boot_image_option("--boot-image=");
+  boot_image_option += heap->GetImageSpace()->GetImageFilename();
 
-  std::string dex_file_option_string("--dex-file=");
-  dex_file_option_string += dex_filename;
-  const char* dex_file_option = dex_file_option_string.c_str();
+  std::string dex_file_option("--dex-file=");
+  dex_file_option += dex_filename;
 
-  std::string oat_fd_option_string("--oat-fd=");
-  StringAppendF(&oat_fd_option_string, "%d", oat_fd);
-  const char* oat_fd_option = oat_fd_option_string.c_str();
+  std::string oat_fd_option("--oat-fd=");
+  StringAppendF(&oat_fd_option, "%d", oat_fd);
 
-  std::string oat_location_option_string("--oat-location=");
-  oat_location_option_string += oat_cache_filename;
-  const char* oat_location_option = oat_location_option_string.c_str();
+  std::string oat_location_option("--oat-location=");
+  oat_location_option += oat_cache_filename;
 
-  std::string oat_compiler_filter_string("-compiler-filter:");
-  Runtime::CompilerFilter filter = Runtime::Current()->GetCompilerFilter();
-  switch (filter) {
-    case Runtime::kInterpretOnly:
-      oat_compiler_filter_string += "interpret-only";
-      break;
-    case Runtime::kSpace:
-      oat_compiler_filter_string += "space";
-      break;
-    case Runtime::kBalanced:
-      oat_compiler_filter_string += "balanced";
-      break;
-    case Runtime::kSpeed:
-      oat_compiler_filter_string += "speed";
-      break;
-    case Runtime::kEverything:
-      oat_compiler_filter_string += "everything";
-      break;
-    default:
-      LOG(FATAL) << "Unexpected case: " << filter;
+  std::vector<std::string> argv;
+  argv.push_back(dex2oat);
+  argv.push_back("--runtime-arg");
+  argv.push_back("-Xms64m");
+  argv.push_back("--runtime-arg");
+  argv.push_back("-Xmx64m");
+  argv.push_back("--runtime-arg");
+  argv.push_back("-classpath");
+  argv.push_back("--runtime-arg");
+  argv.push_back(class_path);
+  if (!kIsTargetBuild) {
+    argv.push_back("--host");
   }
-  const char* oat_compiler_filter_option = oat_compiler_filter_string.c_str();
-
-  // fork and exec dex2oat
-  pid_t pid = fork();
-  if (pid == 0) {
-    // no allocation allowed between fork and exec
-
-    // change process groups, so we don't get reaped by ProcessManager
-    setpgid(0, 0);
-
-    // gLogVerbosity.class_linker = true;
-    VLOG(class_linker) << dex2oat
-                       << " --runtime-arg -Xms64m"
-                       << " --runtime-arg -Xmx64m"
-                       << " --runtime-arg -classpath"
-                       << " --runtime-arg " << class_path
-                       << " --runtime-arg " << oat_compiler_filter_option
-#if !defined(ART_TARGET)
-                       << " --host"
-#endif
-                       << " " << boot_image_option
-                       << " " << dex_file_option
-                       << " " << oat_fd_option
-                       << " " << oat_location_option;
-
-    execl(dex2oat, dex2oat,
-          "--runtime-arg", "-Xms64m",
-          "--runtime-arg", "-Xmx64m",
-          "--runtime-arg", "-classpath",
-          "--runtime-arg", class_path,
-          "--runtime-arg", oat_compiler_filter_option,
-#if !defined(ART_TARGET)
-          "--host",
-#endif
-          boot_image_option,
-          dex_file_option,
-          oat_fd_option,
-          oat_location_option,
-          NULL);
-
-    PLOG(FATAL) << "execl(" << dex2oat << ") failed";
-    return false;
-  } else {
-    // wait for dex2oat to finish
-    int status;
-    pid_t got_pid = TEMP_FAILURE_RETRY(waitpid(pid, &status, 0));
-    if (got_pid != pid) {
-      *error_msg = StringPrintf("Failed to create oat file. Waitpid failed: wanted %d, got %d",
-                                pid, got_pid);
-      return false;
-    }
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-      *error_msg = StringPrintf("Failed to create oat file. %s failed with dex-file '%s'",
-                                dex2oat, dex_filename);
-      return false;
-    }
+  argv.push_back(boot_image_option);
+  argv.push_back(dex_file_option);
+  argv.push_back(oat_fd_option);
+  argv.push_back(oat_location_option);
+  const std::vector<std::string>& compiler_options = Runtime::Current()->GetCompilerOptions();
+  for (size_t i = 0; compiler_options.size(); ++i) {
+    argv.push_back(compiler_options[i].c_str());
   }
-  return true;
+
+  return Exec(argv, error_msg);
 }
 
 const OatFile* ClassLinker::RegisterOatFile(const OatFile* oat_file) {

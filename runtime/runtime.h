@@ -72,26 +72,6 @@ class Runtime {
  public:
   typedef std::vector<std::pair<std::string, const void*> > Options;
 
-  enum CompilerFilter {
-    kInterpretOnly,       // Compile nothing.
-    kSpace,               // Maximize space savings.
-    kBalanced,            // Try to get the best performance return on compilation investment.
-    kSpeed,               // Maximize runtime performance.
-    kEverything           // Force compilation (Note: excludes compilaton of class initializers).
-  };
-
-  // Guide heuristics to determine whether to compile method if profile data not available.
-#if ART_SMALL_MODE
-  static const CompilerFilter kDefaultCompilerFilter = kInterpretOnly;
-#else
-  static const CompilerFilter kDefaultCompilerFilter = kSpeed;
-#endif
-  static const size_t kDefaultHugeMethodThreshold = 10000;
-  static const size_t kDefaultLargeMethodThreshold = 600;
-  static const size_t kDefaultSmallMethodThreshold = 60;
-  static const size_t kDefaultTinyMethodThreshold = 20;
-  static const size_t kDefaultNumDexMethodsThreshold = 900;
-
   class ParsedOptions {
    public:
     // returns null if problem parsing and ignore_unrecognized is false
@@ -140,13 +120,8 @@ class Runtime {
     void (*hook_exit_)(jint status);
     void (*hook_abort_)();
     std::vector<std::string> properties_;
-    CompilerFilter compiler_filter_;
-    size_t huge_method_threshold_;
-    size_t large_method_threshold_;
-    size_t small_method_threshold_;
-    size_t tiny_method_threshold_;
-    size_t num_dex_methods_threshold_;
-    bool sea_ir_mode_;
+    std::vector<std::string> compiler_options_;
+    std::vector<std::string> image_compiler_options_;
     bool profile_;
     std::string profile_output_filename_;
     int profile_period_s_;
@@ -178,42 +153,12 @@ class Runtime {
     return is_explicit_gc_disabled_;
   }
 
-#ifdef ART_SEA_IR_MODE
-  bool IsSeaIRMode() const {
-    return sea_ir_mode_;
-  }
-#endif
-
-  void SetSeaIRMode(bool sea_ir_mode) {
-    sea_ir_mode_ = sea_ir_mode;
+  const std::vector<std::string>& GetCompilerOptions() const {
+    return compiler_options_;
   }
 
-  CompilerFilter GetCompilerFilter() const {
-    return compiler_filter_;
-  }
-
-  void SetCompilerFilter(CompilerFilter compiler_filter) {
-    compiler_filter_ = compiler_filter;
-  }
-
-  size_t GetHugeMethodThreshold() const {
-    return huge_method_threshold_;
-  }
-
-  size_t GetLargeMethodThreshold() const {
-    return large_method_threshold_;
-  }
-
-  size_t GetSmallMethodThreshold() const {
-    return small_method_threshold_;
-  }
-
-  size_t GetTinyMethodThreshold() const {
-    return tiny_method_threshold_;
-  }
-
-  size_t GetNumDexMethodsThreshold() const {
-      return num_dex_methods_threshold_;
+  const std::vector<std::string>& GetImageCompilerOptions() const {
+    return image_compiler_options_;
   }
 
   const std::string& GetHostPrefix() const {
@@ -525,14 +470,8 @@ class Runtime {
   bool is_concurrent_gc_enabled_;
   bool is_explicit_gc_disabled_;
 
-  CompilerFilter compiler_filter_;
-  size_t huge_method_threshold_;
-  size_t large_method_threshold_;
-  size_t small_method_threshold_;
-  size_t tiny_method_threshold_;
-  size_t num_dex_methods_threshold_;
-
-  bool sea_ir_mode_;
+  std::vector<std::string> compiler_options_;
+  std::vector<std::string> image_compiler_options_;
 
   // The host prefix is used during cross compilation. It is removed
   // from the start of host paths such as:

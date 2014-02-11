@@ -28,7 +28,9 @@
 #include "../compiler/compiler_backend.h"
 #include "../compiler/dex/quick/dex_file_to_method_inliner_map.h"
 #include "../compiler/dex/verification_results.h"
+#include "../compiler/driver/compiler_callbacks_impl.h"
 #include "../compiler/driver/compiler_driver.h"
+#include "../compiler/driver/compiler_options.h"
 #include "base/macros.h"
 #include "base/stl_util.h"
 #include "base/stringprintf.h"
@@ -458,11 +460,13 @@ class CommonTest : public testing::Test {
         ? CompilerBackend::kPortable
         : CompilerBackend::kQuick;
 
-    verification_results_.reset(new VerificationResults);
+    compiler_options_.reset(new CompilerOptions);
+    verification_results_.reset(new VerificationResults(compiler_options_.get()));
     method_inliner_map_.reset(new DexFileToMethodInlinerMap);
-    callbacks_.Reset(verification_results_.get(), method_inliner_map_.get());
+    callbacks_.reset(new CompilerCallbacksImpl(verification_results_.get(),
+                                               method_inliner_map_.get()));
     Runtime::Options options;
-    options.push_back(std::make_pair("compilercallbacks", static_cast<CompilerCallbacks*>(&callbacks_)));
+    options.push_back(std::make_pair("compilercallbacks", callbacks_.get()));
     options.push_back(std::make_pair("bootclasspath", &boot_class_path_));
     options.push_back(std::make_pair("-Xcheck:jni", reinterpret_cast<void*>(NULL)));
     options.push_back(std::make_pair(min_heap_string.c_str(), reinterpret_cast<void*>(NULL)));
@@ -472,8 +476,8 @@ class CommonTest : public testing::Test {
       return;
     }
     runtime_.reset(Runtime::Current());
-    // Runtime::Create acquired the mutator_lock_ that is normally given away when we Runtime::Start,
-    // give it away now and then switch to a more managable ScopedObjectAccess.
+    // Runtime::Create acquired the mutator_lock_ that is normally given away when we
+    // Runtime::Start, give it away now and then switch to a more managable ScopedObjectAccess.
     Thread::Current()->TransitionFromRunnableToSuspended(kNative);
     {
       ScopedObjectAccess soa(Thread::Current());
@@ -512,7 +516,8 @@ class CommonTest : public testing::Test {
       }
       class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
       timer_.reset(new CumulativeLogger("Compilation times"));
-      compiler_driver_.reset(new CompilerDriver(verification_results_.get(),
+      compiler_driver_.reset(new CompilerDriver(compiler_options_.get(),
+                                                verification_results_.get(),
                                                 method_inliner_map_.get(),
                                                 compiler_backend, instruction_set,
                                                 instruction_set_features,
@@ -563,9 +568,10 @@ class CommonTest : public testing::Test {
 
     compiler_driver_.reset();
     timer_.reset();
-    callbacks_.Reset(nullptr, nullptr);
+    callbacks_.reset();
     method_inliner_map_.reset();
     verification_results_.reset();
+    compiler_options_.reset();
     STLDeleteElements(&opened_dex_files_);
 
     Runtime::Current()->GetHeap()->VerifyHeap();  // Check for heap corruption after the test
@@ -693,36 +699,6 @@ class CommonTest : public testing::Test {
     image_reservation_.reset();
   }
 
-  class TestCompilerCallbacks : public CompilerCallbacks {
-   public:
-    TestCompilerCallbacks() : verification_results_(nullptr), method_inliner_map_(nullptr) {}
-
-    void Reset(VerificationResults* verification_results,
-               DexFileToMethodInlinerMap* method_inliner_map) {
-        verification_results_ = verification_results;
-        method_inliner_map_ = method_inliner_map;
-    }
-
-    virtual bool MethodVerified(verifier::MethodVerifier* verifier)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-      CHECK(verification_results_);
-      bool result = verification_results_->ProcessVerifiedMethod(verifier);
-      if (result && method_inliner_map_ != nullptr) {
-        MethodReference ref = verifier->GetMethodReference();
-        method_inliner_map_->GetMethodInliner(ref.dex_file)
-            ->AnalyseMethodCode(verifier);
-      }
-      return result;
-    }
-    virtual void ClassRejected(ClassReference ref) {
-      verification_results_->AddRejectedClass(ref);
-    }
-
-   private:
-    VerificationResults* verification_results_;
-    DexFileToMethodInlinerMap* method_inliner_map_;
-  };
-
   std::string android_data_;
   std::string dalvik_cache_;
   const DexFile* java_lang_dex_file_;  // owned by runtime_
@@ -730,9 +706,10 @@ class CommonTest : public testing::Test {
   UniquePtr<Runtime> runtime_;
   // Owned by the runtime
   ClassLinker* class_linker_;
+  UniquePtr<CompilerOptions> compiler_options_;
   UniquePtr<VerificationResults> verification_results_;
   UniquePtr<DexFileToMethodInlinerMap> method_inliner_map_;
-  TestCompilerCallbacks callbacks_;
+  UniquePtr<CompilerCallbacksImpl> callbacks_;
   UniquePtr<CompilerDriver> compiler_driver_;
   UniquePtr<CumulativeLogger> timer_;
 

@@ -89,52 +89,14 @@ static bool GenerateImage(const std::string& image_file_name, std::string* error
     arg_vector.push_back("--host");
   }
 
+  const std::vector<std::string>& compiler_options = Runtime::Current()->GetImageCompilerOptions();
+  for (size_t i = 0; compiler_options.size(); ++i) {
+    arg_vector.push_back(compiler_options[i].c_str());
+  }
+
   std::string command_line(Join(arg_vector, ' '));
   LOG(INFO) << "GenerateImage: " << command_line;
-
-  // Convert the args to char pointers.
-  std::vector<char*> char_args;
-  for (std::vector<std::string>::iterator it = arg_vector.begin(); it != arg_vector.end();
-      ++it) {
-    char_args.push_back(const_cast<char*>(it->c_str()));
-  }
-  char_args.push_back(NULL);
-
-  // fork and exec dex2oat
-  pid_t pid = fork();
-  if (pid == 0) {
-    // no allocation allowed between fork and exec
-
-    // change process groups, so we don't get reaped by ProcessManager
-    setpgid(0, 0);
-
-    execv(dex2oat.c_str(), &char_args[0]);
-
-    PLOG(FATAL) << "execv(" << dex2oat << ") failed";
-    return false;
-  } else {
-    if (pid == -1) {
-      *error_msg = StringPrintf("Failed to generate image '%s' because fork failed: %s",
-                                image_file_name.c_str(), strerror(errno));
-      return false;
-    }
-
-    // wait for dex2oat to finish
-    int status;
-    pid_t got_pid = TEMP_FAILURE_RETRY(waitpid(pid, &status, 0));
-    if (got_pid != pid) {
-      *error_msg = StringPrintf("Failed to generate image '%s' because waitpid failed: "
-                                "wanted %d, got %d: %s",
-                                image_file_name.c_str(), pid, got_pid, strerror(errno));
-      return false;
-    }
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-      *error_msg = StringPrintf("Failed to generate image '%s' because dex2oat failed: %s",
-                                image_file_name.c_str(), command_line.c_str());
-      return false;
-    }
-  }
-  return true;
+  return Exec(arg_vector, error_msg);
 }
 
 ImageSpace* ImageSpace::Create(const char* original_image_file_name) {

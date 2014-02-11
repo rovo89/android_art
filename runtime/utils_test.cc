@@ -349,4 +349,26 @@ TEST_F(UtilsTest, GetDalvikCacheFilenameOrDie) {
   CheckGetDalvikCacheFilenameOrDie("/system/framework/boot.art", "system@framework@boot.art");
 }
 
+TEST_F(UtilsTest, ExecSuccess) {
+  std::vector<std::string> command;
+  if (kIsTargetBuild) {
+    command.push_back("/system/bin/id");
+  } else {
+    command.push_back("/usr/bin/id");
+  }
+  std::string error_msg;
+  EXPECT_TRUE(Exec(command, &error_msg));
+  EXPECT_EQ(0U, error_msg.size()) << error_msg;
+}
+
+// TODO: Disabled due to hang tearing down CommonTest.
+// Renable after splitting into RuntimeTest and CompilerTest.
+TEST_F(UtilsTest, DISABLED_ExecError) {
+  std::vector<std::string> command;
+  command.push_back("bogus");
+  std::string error_msg;
+  EXPECT_FALSE(Exec(command, &error_msg));
+  EXPECT_NE(0U, error_msg.size());
+}
+
 }  // namespace art
