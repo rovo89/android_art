@@ -19,6 +19,7 @@
 #include <signal.h>
 #include <string.h>
 #include <sys/utsname.h>
+#include <inttypes.h>
 
 #include "base/logging.h"
 #include "base/mutex.h"
@@ -185,6 +186,41 @@ struct UContext {
     os << '\n';
     DumpRegister32(os, "gs",  context.gregs[REG_GS]);
     DumpRegister32(os, "ss",  context.gregs[REG_SS]);
+#elif defined(__linux__) && defined(__x86_64__)
+    DumpRegister64(os, "rax", context.gregs[REG_RAX]);
+    DumpRegister64(os, "rbx", context.gregs[REG_RBX]);
+    DumpRegister64(os, "rcx", context.gregs[REG_RCX]);
+    DumpRegister64(os, "rdx", context.gregs[REG_RDX]);
+    os << '\n';
+
+    DumpRegister64(os, "rdi", context.gregs[REG_RDI]);
+    DumpRegister64(os, "rsi", context.gregs[REG_RSI]);
+    DumpRegister64(os, "rbp", context.gregs[REG_RBP]);
+    DumpRegister64(os, "rsp", context.gregs[REG_RSP]);
+    os << '\n';
+
+    DumpRegister64(os, "r8 ", context.gregs[REG_R8]);
+    DumpRegister64(os, "r9 ", context.gregs[REG_R9]);
+    DumpRegister64(os, "r10", context.gregs[REG_R10]);
+    DumpRegister64(os, "r11", context.gregs[REG_R11]);
+    os << '\n';
+
+    DumpRegister64(os, "r12", context.gregs[REG_R12]);
+    DumpRegister64(os, "r13", context.gregs[REG_R13]);
+    DumpRegister64(os, "r14", context.gregs[REG_R14]);
+    DumpRegister64(os, "r15", context.gregs[REG_R15]);
+    os << '\n';
+
+    DumpRegister64(os, "rip", context.gregs[REG_RIP]);
+    os << "   ";
+    DumpRegister32(os, "eflags", context.gregs[REG_EFL]);
+    DumpX86Flags(os, context.gregs[REG_EFL]);
+    os << '\n';
+
+    DumpRegister32(os, "cs",  (context.gregs[REG_CSGSFS]) & 0x0FFFF);
+    DumpRegister32(os, "gs",  (context.gregs[REG_CSGSFS] >> 16) & 0x0FFFF);
+    DumpRegister32(os, "fs",  (context.gregs[REG_CSGSFS] >> 32) & 0x0FFFF);
+    os << '\n';
 #else
     os << "Unknown architecture/word size/OS in ucontext dump";
 #endif
@@ -192,6 +228,10 @@ struct UContext {
 
   void DumpRegister32(std::ostream& os, const char* name, uint32_t value) {
     os << StringPrintf(" %6s: 0x%08x", name, value);
+  }
+
+  void DumpRegister64(std::ostream& os, const char* name, uint64_t value) {
+    os << StringPrintf(" %6s: 0x%016" PRIx64, name, value);
   }
 
   void DumpX86Flags(std::ostream& os, uint32_t flags) {
