@@ -480,12 +480,13 @@ class CommonTest : public testing::Test {
         }
       }
       class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
+      timer_.reset(new CumulativeLogger("Compilation times"));
       compiler_driver_.reset(new CompilerDriver(verification_results_.get(),
                                                 method_inliner_map_.get(),
                                                 compiler_backend, instruction_set,
                                                 instruction_set_features,
                                                 true, new CompilerDriver::DescriptorSet,
-                                                2, true));
+                                                2, true, true, timer_.get()));
     }
     // We typically don't generate an image in unit tests, disable this optimization by default.
     compiler_driver_->SetSupportBootImageFixup(false);
@@ -530,6 +531,7 @@ class CommonTest : public testing::Test {
     (*icu_cleanup_fn)();
 
     compiler_driver_.reset();
+    timer_.reset();
     callbacks_.Reset(nullptr, nullptr);
     method_inliner_map_.reset();
     verification_results_.reset();
@@ -662,7 +664,7 @@ class CommonTest : public testing::Test {
 
   class TestCompilerCallbacks : public CompilerCallbacks {
    public:
-    TestCompilerCallbacks() : verification_results_(nullptr), method_inliner_map_(nullptr) { }
+    TestCompilerCallbacks() : verification_results_(nullptr), method_inliner_map_(nullptr) {}
 
     void Reset(VerificationResults* verification_results,
                DexFileToMethodInlinerMap* method_inliner_map) {
@@ -701,6 +703,7 @@ class CommonTest : public testing::Test {
   UniquePtr<DexFileToMethodInlinerMap> method_inliner_map_;
   TestCompilerCallbacks callbacks_;
   UniquePtr<CompilerDriver> compiler_driver_;
+  UniquePtr<CumulativeLogger> timer_;
 
  private:
   std::vector<const DexFile*> opened_dex_files_;
