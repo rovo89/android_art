@@ -22,8 +22,8 @@
 #include <string>
 #include <vector>
 
+#include "object_callbacks.h"
 #include "locks.h"
-#include "root_visitor.h"
 
 namespace art {
 namespace mirror {
@@ -47,7 +47,7 @@ class ReferenceTable {
 
   void Dump(std::ostream& os) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void VisitRoots(RootVisitor* visitor, void* arg);
+  void VisitRoots(RootCallback* visitor, void* arg, uint32_t tid, RootType root_type);
 
  private:
   typedef std::vector<mirror::Object*> Table;

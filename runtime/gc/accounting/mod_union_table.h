@@ -19,7 +19,7 @@
 
 #include "gc_allocator.h"
 #include "globals.h"
-#include "root_visitor.h"
+#include "object_callbacks.h"
 #include "safe_map.h"
 
 #include <set>
@@ -69,7 +69,7 @@ class ModUnionTable {
   // Update the mod-union table using data stored by ClearCards. There may be multiple ClearCards
   // before a call to update, for example, back-to-back sticky GCs. Also mark references to other
   // spaces which are stored in the mod-union table.
-  virtual void UpdateAndMarkReferences(RootVisitor visitor, void* arg) = 0;
+  virtual void UpdateAndMarkReferences(RootCallback* callback, void* arg) = 0;
 
   // Verification, sanity checks that we don't have clean cards which conflict with out cached data
   // for said cards. Exclusive lock is required since verify sometimes uses
@@ -106,7 +106,7 @@ class ModUnionTableReferenceCache : public ModUnionTable {
   void ClearCards();
 
   // Update table based on cleared cards and mark all references to the other spaces.
-  void UpdateAndMarkReferences(RootVisitor visitor, void* arg)
+  void UpdateAndMarkReferences(RootCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
@@ -142,7 +142,7 @@ class ModUnionTableCardCache : public ModUnionTable {
   void ClearCards();
 
   // Mark all references to the alloc space(s).
-  void UpdateAndMarkReferences(RootVisitor visitor, void* arg)
+  void UpdateAndMarkReferences(RootCallback* callback, void* arg)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

@@ -26,8 +26,8 @@
 #include "dex_file.h"
 #include "gtest/gtest.h"
 #include "jni.h"
-#include "root_visitor.h"
 #include "oat_file.h"
+#include "object_callbacks.h"
 
 namespace art {
 namespace gc {
@@ -235,7 +235,7 @@ class ClassLinker {
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void VisitRoots(RootVisitor* visitor, void* arg, bool only_dirty, bool clean_dirty)
+  void VisitRoots(RootCallback* callback, void* arg, bool only_dirty, bool clean_dirty)
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_, dex_lock_);
 
   mirror::DexCache* FindDexCache(const DexFile& dex_file) const

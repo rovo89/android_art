@@ -280,9 +280,9 @@ int32_t String::CompareTo(String* rhs) {
   return countDiff;
 }
 
-void String::VisitRoots(RootVisitor* visitor, void* arg) {
+void String::VisitRoots(RootCallback* callback, void* arg) {
   if (java_lang_String_ != nullptr) {
-    java_lang_String_ = down_cast<Class*>(visitor(java_lang_String_, arg));
+    java_lang_String_ = down_cast<Class*>(callback(java_lang_String_, arg, 0, kRootStickyClass));
   }
 }
 

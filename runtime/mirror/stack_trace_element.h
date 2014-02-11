@@ -57,7 +57,7 @@ class MANAGED StackTraceElement : public Object {
 
   static void SetClass(Class* java_lang_StackTraceElement);
   static void ResetClass();
-  static void VisitRoots(RootVisitor* visitor, void* arg)
+  static void VisitRoots(RootCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:

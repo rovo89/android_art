@@ -431,12 +431,8 @@ class Hprof {
     Runtime::Current()->VisitRoots(RootVisitor, this, false, false);
     Thread* self = Thread::Current();
     {
-      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-      Runtime::Current()->GetHeap()->FlushAllocStack();
-    }
-    {
       ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-      Runtime::Current()->GetHeap()->GetLiveBitmap()->Walk(HeapBitmapCallback, this);
+      Runtime::Current()->GetHeap()->VisitObjects(VisitObjectCallback, this);
     }
     current_record_.StartNewRecord(body_fp_, HPROF_TAG_HEAP_DUMP_END, HPROF_TIME);
     current_record_.Flush();
@@ -500,22 +496,23 @@ class Hprof {
   }
 
  private:
-  static mirror::Object* RootVisitor(mirror::Object* obj, void* arg)
+  static mirror::Object* RootVisitor(mirror::Object* obj, void* arg, uint32_t thread_id,
+                                     RootType root_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(arg != NULL);
-    reinterpret_cast<Hprof*>(arg)->VisitRoot(obj);
+    reinterpret_cast<Hprof*>(arg)->VisitRoot(obj, thread_id, root_type);
     return obj;
   }
 
-  static void HeapBitmapCallback(mirror::Object* obj, void* arg)
+  static void VisitObjectCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    CHECK(obj != NULL);
-    CHECK(arg != NULL);
-    Hprof* hprof = reinterpret_cast<Hprof*>(arg);
-    hprof->DumpHeapObject(obj);
+    DCHECK(obj != NULL);
+    DCHECK(arg != NULL);
+    reinterpret_cast<Hprof*>(arg)->DumpHeapObject(obj);
   }
 
-  void VisitRoot(const mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void VisitRoot(const mirror::Object* obj, uint32_t thread_id, RootType type)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   int DumpHeapObject(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -1050,10 +1047,7 @@ int Hprof::DumpHeapObject(mirror::Object* obj) {
   return 0;
 }
 
-void Hprof::VisitRoot(const mirror::Object* obj) {
-  uint32_t threadId = 0;  // TODO
-  /*RootType*/ size_t type = 0;  // TODO
-
+void Hprof::VisitRoot(const mirror::Object* obj, uint32_t thread_id, RootType type) {
   static const HprofHeapTag xlate[] = {
     HPROF_ROOT_UNKNOWN,
     HPROF_ROOT_JNI_GLOBAL,
@@ -1071,13 +1065,12 @@ void Hprof::VisitRoot(const mirror::Object* obj) {
     HPROF_ROOT_VM_INTERNAL,
     HPROF_ROOT_JNI_MONITOR,
   };
-
   CHECK_LT(type, sizeof(xlate) / sizeof(HprofHeapTag));
   if (obj == NULL) {
     return;
   }
   gc_scan_state_ = xlate[type];
-  gc_thread_serial_number_ = threadId;
+  gc_thread_serial_number_ = thread_id;
   MarkRootObject(obj, 0);
   gc_scan_state_ = 0;
   gc_thread_serial_number_ = 0;

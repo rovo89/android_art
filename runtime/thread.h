@@ -31,8 +31,8 @@
 #include "globals.h"
 #include "jvalue.h"
 #include "locks.h"
+#include "object_callbacks.h"
 #include "offsets.h"
-#include "root_visitor.h"
 #include "runtime_stats.h"
 #include "stack.h"
 #include "stack_indirect_reference_table.h"
@@ -389,7 +389,7 @@ class PACKED(4) Thread {
   static jobjectArray InternalStackTraceToStackTraceElementArray(JNIEnv* env, jobject internal,
       jobjectArray output_array = NULL, int* stack_depth = NULL);
 
-  void VisitRoots(RootVisitor* visitor, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void VisitRoots(RootCallback* visitor, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void VerifyStack() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -503,7 +503,8 @@ class PACKED(4) Thread {
   // Is the given obj in this thread's stack indirect reference table?
   bool SirtContains(jobject obj) const;
 
-  void SirtVisitRoots(RootVisitor* visitor, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SirtVisitRoots(RootCallback* visitor, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void PushSirt(StackIndirectReferenceTable* sirt) {
     sirt->SetLink(top_sirt_);

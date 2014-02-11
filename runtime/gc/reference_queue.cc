@@ -94,13 +94,14 @@ void ReferenceQueue::Dump(std::ostream& os) const {
   }
 }
 
-void ReferenceQueue::ClearWhiteReferences(ReferenceQueue& cleared_references, RootVisitor visitor,
+void ReferenceQueue::ClearWhiteReferences(ReferenceQueue& cleared_references,
+                                          IsMarkedCallback* preserve_callback,
                                           void* arg) {
   while (!IsEmpty()) {
     mirror::Object* ref = DequeuePendingReference();
     mirror::Object* referent = heap_->GetReferenceReferent(ref);
     if (referent != nullptr) {
-      mirror::Object* forward_address = visitor(referent, arg);
+      mirror::Object* forward_address = preserve_callback(referent, arg);
       if (forward_address == nullptr) {
         // Referent is white, clear it.
         heap_->ClearReferenceReferent(ref);
@@ -108,7 +109,7 @@ void ReferenceQueue::ClearWhiteReferences(ReferenceQueue& cleared_references, Ro
           cleared_references.EnqueuePendingReference(ref);
         }
       } else if (referent != forward_address) {
-        // Object moved, need to updated the referrent.
+        // Object moved, need to updated the referent.
         heap_->SetReferenceReferent(ref, forward_address);
       }
     }
@@ -116,8 +117,9 @@ void ReferenceQueue::ClearWhiteReferences(ReferenceQueue& cleared_references, Ro
 }
 
 void ReferenceQueue::EnqueueFinalizerReferences(ReferenceQueue& cleared_references,
-                                                RootVisitor is_marked_callback,
-                                                RootVisitor recursive_mark_callback, void* arg) {
+                                                IsMarkedCallback is_marked_callback,
+                                                MarkObjectCallback recursive_mark_callback,
+                                                void* arg) {
   while (!IsEmpty()) {
     mirror::Object* ref = DequeuePendingReference();
     mirror::Object* referent = heap_->GetReferenceReferent(ref);
@@ -139,7 +141,7 @@ void ReferenceQueue::EnqueueFinalizerReferences(ReferenceQueue& cleared_referenc
   }
 }
 
-void ReferenceQueue::PreserveSomeSoftReferences(RootVisitor preserve_callback, void* arg) {
+void ReferenceQueue::PreserveSomeSoftReferences(IsMarkedCallback preserve_callback, void* arg) {
   ReferenceQueue cleared(heap_);
   while (!IsEmpty()) {
     mirror::Object* ref = DequeuePendingReference();
@@ -149,7 +151,7 @@ void ReferenceQueue::PreserveSomeSoftReferences(RootVisitor preserve_callback, v
       if (forward_address == nullptr) {
         // Either the reference isn't marked or we don't wish to preserve it.
         cleared.EnqueuePendingReference(ref);
-      } else {
+      } else if (forward_address != referent) {
         heap_->SetReferenceReferent(ref, forward_address);
       }
     }

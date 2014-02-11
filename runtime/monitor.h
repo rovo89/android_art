@@ -26,7 +26,7 @@
 
 #include "atomic.h"
 #include "base/mutex.h"
-#include "root_visitor.h"
+#include "object_callbacks.h"
 #include "sirt_ref.h"
 #include "thread_state.h"
 
@@ -220,7 +220,8 @@ class MonitorList {
 
   void Add(Monitor* m);
 
-  void SweepMonitorList(RootVisitor visitor, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SweepMonitorList(IsMarkedCallback* callback, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DisallowNewMonitors();
   void AllowNewMonitors();
 

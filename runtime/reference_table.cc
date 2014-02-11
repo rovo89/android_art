@@ -231,9 +231,10 @@ void ReferenceTable::Dump(std::ostream& os, const Table& entries) {
   DumpSummaryLine(os, sorted_entries.back(), GetElementCount(sorted_entries.back()), identical, equiv);
 }
 
-void ReferenceTable::VisitRoots(RootVisitor* visitor, void* arg) {
+void ReferenceTable::VisitRoots(RootCallback* visitor, void* arg, uint32_t tid,
+                                RootType root_type) {
   for (auto& ref : entries_) {
-    ref = visitor(ref, arg);
+    ref = visitor(ref, arg, tid, root_type);
   }
 }
 

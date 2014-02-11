@@ -85,17 +85,17 @@ struct AllocRecord {
     return depth;
   }
 
-  void UpdateObjectPointers(RootVisitor* visitor, void* arg)
+  void UpdateObjectPointers(IsMarkedCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (type != nullptr) {
-      type = down_cast<mirror::Class*>(visitor(type, arg));
+      type = down_cast<mirror::Class*>(callback(type, arg));
     }
     for (size_t stack_frame = 0; stack_frame < kMaxAllocRecordStackDepth; ++stack_frame) {
       mirror::ArtMethod*& m = stack[stack_frame].method;
       if (m == nullptr) {
         break;
       }
-      m = down_cast<mirror::ArtMethod*>(visitor(m, arg));
+      m = down_cast<mirror::ArtMethod*>(callback(m, arg));
     }
   }
 };
@@ -3793,7 +3793,7 @@ void Dbg::DumpRecentAllocations() {
   }
 }
 
-void Dbg::UpdateObjectPointers(RootVisitor* visitor, void* arg) {
+void Dbg::UpdateObjectPointers(IsMarkedCallback* visitor, void* arg) {
   {
     MutexLock mu(Thread::Current(), gAllocTrackerLock);
     if (recent_allocation_records_ != nullptr) {

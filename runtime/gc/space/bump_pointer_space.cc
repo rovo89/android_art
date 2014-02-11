@@ -137,7 +137,7 @@ byte* BumpPointerSpace::AllocBlock(size_t bytes) {
   return storage;
 }
 
-void BumpPointerSpace::Walk(ObjectVisitorCallback callback, void* arg) {
+void BumpPointerSpace::Walk(ObjectCallback* callback, void* arg) {
   byte* pos = Begin();
 
   {

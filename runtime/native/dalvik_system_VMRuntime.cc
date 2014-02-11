@@ -181,11 +181,12 @@ static void VMRuntime_concurrentGC(JNIEnv* env, jobject) {
 
 typedef std::map<std::string, mirror::String*> StringTable;
 
-static mirror::Object* PreloadDexCachesStringsVisitor(mirror::Object* root, void* arg)
+static mirror::Object* PreloadDexCachesStringsCallback(mirror::Object* root, void* arg,
+                                                       uint32_t /*thread_id*/,
+                                                       RootType /*root_type*/)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   StringTable& table = *reinterpret_cast<StringTable*>(arg);
   mirror::String* string = const_cast<mirror::Object*>(root)->AsString();
-  // LOG(INFO) << "VMRuntime.preloadDexCaches interned=" << string->ToModifiedUtf8();
   table[string->ToModifiedUtf8()] = string;
   return root;
 }
@@ -404,7 +405,7 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
   // We use a std::map to avoid heap allocating StringObjects to lookup in gDvm.literalStrings
   StringTable strings;
   if (kPreloadDexCachesStrings) {
-    runtime->GetInternTable()->VisitRoots(PreloadDexCachesStringsVisitor, &strings, false, false);
+    runtime->GetInternTable()->VisitRoots(PreloadDexCachesStringsCallback, &strings, false, false);
   }
 
   const std::vector<const DexFile*>& boot_class_path = linker->GetBootClassPath();

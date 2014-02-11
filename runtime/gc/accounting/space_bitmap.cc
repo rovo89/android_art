@@ -44,7 +44,7 @@ std::string SpaceBitmap::Dump() const {
                       reinterpret_cast<void*>(HeapLimit()));
 }
 
-void ObjectSet::Walk(SpaceBitmap::Callback* callback, void* arg) {
+void ObjectSet::Walk(ObjectCallback* callback, void* arg) {
   for (const mirror::Object* obj : contained_) {
     callback(const_cast<mirror::Object*>(obj), arg);
   }
@@ -102,7 +102,7 @@ void SpaceBitmap::CopyFrom(SpaceBitmap* source_bitmap) {
 
 // Visits set bits in address order.  The callback is not permitted to
 // change the bitmap bits or max during the traversal.
-void SpaceBitmap::Walk(SpaceBitmap::Callback* callback, void* arg) {
+void SpaceBitmap::Walk(ObjectCallback* callback, void* arg) {
   CHECK(bitmap_begin_ != NULL);
   CHECK(callback != NULL);
 
@@ -174,12 +174,12 @@ void SpaceBitmap::SweepWalk(const SpaceBitmap& live_bitmap,
   }
 }
 
-static void WalkFieldsInOrder(SpaceBitmap* visited, SpaceBitmap::Callback* callback, mirror::Object* obj,
+static void WalkFieldsInOrder(SpaceBitmap* visited, ObjectCallback* callback, mirror::Object* obj,
                               void* arg);
 
 // Walk instance fields of the given Class. Separate function to allow recursion on the super
 // class.
-static void WalkInstanceFields(SpaceBitmap* visited, SpaceBitmap::Callback* callback, mirror::Object* obj,
+static void WalkInstanceFields(SpaceBitmap* visited, ObjectCallback* callback, mirror::Object* obj,
                                mirror::Class* klass, void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Visit fields of parent classes first.
@@ -204,7 +204,7 @@ static void WalkInstanceFields(SpaceBitmap* visited, SpaceBitmap::Callback* call
 }
 
 // For an unvisited object, visit it then all its children found via fields.
-static void WalkFieldsInOrder(SpaceBitmap* visited, SpaceBitmap::Callback* callback, mirror::Object* obj,
+static void WalkFieldsInOrder(SpaceBitmap* visited, ObjectCallback* callback, mirror::Object* obj,
                               void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (visited->Test(obj)) {
@@ -246,7 +246,7 @@ static void WalkFieldsInOrder(SpaceBitmap* visited, SpaceBitmap::Callback* callb
 
 // Visits set bits with an in order traversal.  The callback is not permitted to change the bitmap
 // bits or max during the traversal.
-void SpaceBitmap::InOrderWalk(SpaceBitmap::Callback* callback, void* arg) {
+void SpaceBitmap::InOrderWalk(ObjectCallback* callback, void* arg) {
   UniquePtr<SpaceBitmap> visited(Create("bitmap for in-order walk",
                                        reinterpret_cast<byte*>(heap_begin_),
                                        IndexToOffset(bitmap_size_ / kWordSize)));
