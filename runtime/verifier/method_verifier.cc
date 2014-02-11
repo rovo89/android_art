@@ -3983,8 +3983,8 @@ void MethodVerifier::Shutdown() {
   verifier::RegTypeCache::ShutDown();
 }
 
-void MethodVerifier::VisitRoots(RootVisitor* visitor, void* arg) {
-  reg_types_.VisitRoots(visitor, arg);
+void MethodVerifier::VisitRoots(RootCallback* callback, void* arg) {
+  reg_types_.VisitRoots(callback, arg);
 }
 
 }  // namespace verifier

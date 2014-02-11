@@ -23,8 +23,8 @@
 #include <string>
 
 #include "base/logging.h"
+#include "object_callbacks.h"
 #include "offsets.h"
-#include "root_visitor.h"
 
 namespace art {
 namespace mirror {
@@ -307,7 +307,7 @@ class IndirectReferenceTable {
     return IrtIterator(table_, Capacity(), Capacity());
   }
 
-  void VisitRoots(RootVisitor* visitor, void* arg);
+  void VisitRoots(RootCallback* callback, void* arg, uint32_t tid, RootType root_type);
 
   uint32_t GetSegmentState() const {
     return segment_state_.all;

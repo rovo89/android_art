@@ -17,10 +17,11 @@
 #ifndef ART_RUNTIME_GC_ACCOUNTING_SPACE_BITMAP_H_
 #define ART_RUNTIME_GC_ACCOUNTING_SPACE_BITMAP_H_
 
-#include "locks.h"
 #include "gc_allocator.h"
 #include "globals.h"
+#include "locks.h"
 #include "mem_map.h"
+#include "object_callbacks.h"
 #include "UniquePtr.h"
 
 #include <limits.h>
@@ -41,8 +42,6 @@ class SpaceBitmap {
  public:
   // Alignment of objects within spaces.
   static const size_t kAlignment = 8;
-
-  typedef void Callback(mirror::Object* obj, void* arg);
 
   typedef void ScanCallback(mirror::Object* obj, void* finger, void* arg);
 
@@ -102,7 +101,7 @@ class SpaceBitmap {
     return index < bitmap_size_ / kWordSize;
   }
 
-  void VisitRange(uintptr_t base, uintptr_t max, Callback* visitor, void* arg) const;
+  void VisitRange(uintptr_t base, uintptr_t max, ObjectCallback* callback, void* arg) const;
 
   class ClearVisitor {
    public:
@@ -129,10 +128,10 @@ class SpaceBitmap {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void Walk(Callback* callback, void* arg)
+  void Walk(ObjectCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  void InOrderWalk(Callback* callback, void* arg)
+  void InOrderWalk(ObjectCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   static void SweepWalk(const SpaceBitmap& live, const SpaceBitmap& mark, uintptr_t base,
@@ -249,7 +248,7 @@ class ObjectSet {
     contained_ = space_set.contained_;
   }
 
-  void Walk(SpaceBitmap::Callback* callback, void* arg)
+  void Walk(ObjectCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
   template <typename Visitor>

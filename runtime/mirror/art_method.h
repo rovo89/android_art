@@ -23,7 +23,7 @@
 #include "locks.h"
 #include "modifiers.h"
 #include "object.h"
-#include "root_visitor.h"
+#include "object_callbacks.h"
 
 namespace art {
 
@@ -404,7 +404,7 @@ class MANAGED ArtMethod : public Object {
 
   static void ResetClass();
 
-  static void VisitRoots(RootVisitor* visitor, void* arg)
+  static void VisitRoots(RootCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  protected:

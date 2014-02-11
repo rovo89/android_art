@@ -795,7 +795,7 @@ class MANAGED Class : public Object {
   // Can't call this SetClass or else gets called instead of Object::SetClass in places.
   static void SetClassClass(Class* java_lang_Class);
   static void ResetClass();
-  static void VisitRoots(RootVisitor* visitor, void* arg)
+  static void VisitRoots(RootCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // When class is verified, set the kAccPreverified flag on each method.

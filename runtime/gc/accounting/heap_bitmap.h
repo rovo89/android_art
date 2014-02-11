@@ -20,6 +20,7 @@
 #include "base/logging.h"
 #include "gc_allocator.h"
 #include "locks.h"
+#include "object_callbacks.h"
 #include "space_bitmap.h"
 
 namespace art {
@@ -83,7 +84,7 @@ class HeapBitmap {
     return NULL;
   }
 
-  void Walk(SpaceBitmap::Callback* callback, void* arg)
+  void Walk(ObjectCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   template <typename Visitor>

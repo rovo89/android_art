@@ -17,7 +17,7 @@
 #ifndef ART_RUNTIME_GC_SPACE_BUMP_POINTER_SPACE_H_
 #define ART_RUNTIME_GC_SPACE_BUMP_POINTER_SPACE_H_
 
-#include "root_visitor.h"
+#include "object_callbacks.h"
 #include "space.h"
 
 namespace art {
@@ -121,7 +121,7 @@ class BumpPointerSpace : public ContinuousMemMapAllocSpace {
   }
 
   // Go through all of the blocks and visit the continuous objects.
-  void Walk(ObjectVisitorCallback callback, void* arg)
+  void Walk(ObjectCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Object alignment within the space.

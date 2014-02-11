@@ -375,7 +375,7 @@ static double ParseDoubleOrDie(const std::string& option, char after_char, doubl
   return value;
 }
 
-void Runtime::SweepSystemWeaks(RootVisitor* visitor, void* arg) {
+void Runtime::SweepSystemWeaks(IsMarkedCallback* visitor, void* arg) {
   GetInternTable()->SweepInternTableWeaks(visitor, arg);
   GetMonitorList()->SweepMonitorList(visitor, arg);
   GetJavaVM()->SweepJniWeakGlobals(visitor, arg);
@@ -1301,66 +1301,69 @@ void Runtime::DetachCurrentThread() {
   return pre_allocated_OutOfMemoryError_;
 }
 
-void Runtime::VisitConcurrentRoots(RootVisitor* visitor, void* arg, bool only_dirty,
+void Runtime::VisitConcurrentRoots(RootCallback* callback, void* arg, bool only_dirty,
                                    bool clean_dirty) {
-  intern_table_->VisitRoots(visitor, arg, only_dirty, clean_dirty);
-  class_linker_->VisitRoots(visitor, arg, only_dirty, clean_dirty);
+  intern_table_->VisitRoots(callback, arg, only_dirty, clean_dirty);
+  class_linker_->VisitRoots(callback, arg, only_dirty, clean_dirty);
 }
 
-void Runtime::VisitNonThreadRoots(RootVisitor* visitor, void* arg) {
+void Runtime::VisitNonThreadRoots(RootCallback* callback, void* arg) {
   // Visit the classes held as static in mirror classes.
-  mirror::ArtField::VisitRoots(visitor, arg);
-  mirror::ArtMethod::VisitRoots(visitor, arg);
-  mirror::Class::VisitRoots(visitor, arg);
-  mirror::StackTraceElement::VisitRoots(visitor, arg);
-  mirror::String::VisitRoots(visitor, arg);
-  mirror::Throwable::VisitRoots(visitor, arg);
+  mirror::ArtField::VisitRoots(callback, arg);
+  mirror::ArtMethod::VisitRoots(callback, arg);
+  mirror::Class::VisitRoots(callback, arg);
+  mirror::StackTraceElement::VisitRoots(callback, arg);
+  mirror::String::VisitRoots(callback, arg);
+  mirror::Throwable::VisitRoots(callback, arg);
   // Visit all the primitive array types classes.
-  mirror::PrimitiveArray<uint8_t>::VisitRoots(visitor, arg);   // BooleanArray
-  mirror::PrimitiveArray<int8_t>::VisitRoots(visitor, arg);    // ByteArray
-  mirror::PrimitiveArray<uint16_t>::VisitRoots(visitor, arg);  // CharArray
-  mirror::PrimitiveArray<double>::VisitRoots(visitor, arg);    // DoubleArray
-  mirror::PrimitiveArray<float>::VisitRoots(visitor, arg);     // FloatArray
-  mirror::PrimitiveArray<int32_t>::VisitRoots(visitor, arg);   // IntArray
-  mirror::PrimitiveArray<int64_t>::VisitRoots(visitor, arg);   // LongArray
-  mirror::PrimitiveArray<int16_t>::VisitRoots(visitor, arg);   // ShortArray
-  java_vm_->VisitRoots(visitor, arg);
+  mirror::PrimitiveArray<uint8_t>::VisitRoots(callback, arg);   // BooleanArray
+  mirror::PrimitiveArray<int8_t>::VisitRoots(callback, arg);    // ByteArray
+  mirror::PrimitiveArray<uint16_t>::VisitRoots(callback, arg);  // CharArray
+  mirror::PrimitiveArray<double>::VisitRoots(callback, arg);    // DoubleArray
+  mirror::PrimitiveArray<float>::VisitRoots(callback, arg);     // FloatArray
+  mirror::PrimitiveArray<int32_t>::VisitRoots(callback, arg);   // IntArray
+  mirror::PrimitiveArray<int64_t>::VisitRoots(callback, arg);   // LongArray
+  mirror::PrimitiveArray<int16_t>::VisitRoots(callback, arg);   // ShortArray
+  java_vm_->VisitRoots(callback, arg);
   if (pre_allocated_OutOfMemoryError_ != nullptr) {
     pre_allocated_OutOfMemoryError_ = down_cast<mirror::Throwable*>(
-        visitor(pre_allocated_OutOfMemoryError_, arg));
+        callback(pre_allocated_OutOfMemoryError_, arg, 0, kRootVMInternal));
     DCHECK(pre_allocated_OutOfMemoryError_ != nullptr);
   }
-  resolution_method_ = down_cast<mirror::ArtMethod*>(visitor(resolution_method_, arg));
+  resolution_method_ = down_cast<mirror::ArtMethod*>(callback(resolution_method_, arg, 0,
+                                                              kRootVMInternal));
   DCHECK(resolution_method_ != nullptr);
   if (HasImtConflictMethod()) {
-    imt_conflict_method_ = down_cast<mirror::ArtMethod*>(visitor(imt_conflict_method_, arg));
+    imt_conflict_method_ = down_cast<mirror::ArtMethod*>(callback(imt_conflict_method_, arg, 0,
+                                                                  kRootVMInternal));
   }
   if (HasDefaultImt()) {
-    default_imt_ = down_cast<mirror::ObjectArray<mirror::ArtMethod>*>(visitor(default_imt_, arg));
+    default_imt_ = down_cast<mirror::ObjectArray<mirror::ArtMethod>*>(callback(default_imt_, arg,
+                                                                               0, kRootVMInternal));
   }
 
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
     if (callee_save_methods_[i] != nullptr) {
       callee_save_methods_[i] = down_cast<mirror::ArtMethod*>(
-          visitor(callee_save_methods_[i], arg));
+          callback(callee_save_methods_[i], arg, 0, kRootVMInternal));
     }
   }
   {
     MutexLock mu(Thread::Current(), method_verifiers_lock_);
     for (verifier::MethodVerifier* verifier : method_verifiers_) {
-      verifier->VisitRoots(visitor, arg);
+      verifier->VisitRoots(callback, arg);
     }
   }
 }
 
-void Runtime::VisitNonConcurrentRoots(RootVisitor* visitor, void* arg) {
-  thread_list_->VisitRoots(visitor, arg);
-  VisitNonThreadRoots(visitor, arg);
+void Runtime::VisitNonConcurrentRoots(RootCallback* callback, void* arg) {
+  thread_list_->VisitRoots(callback, arg);
+  VisitNonThreadRoots(callback, arg);
 }
 
-void Runtime::VisitRoots(RootVisitor* visitor, void* arg, bool only_dirty, bool clean_dirty) {
-  VisitConcurrentRoots(visitor, arg, only_dirty, clean_dirty);
-  VisitNonConcurrentRoots(visitor, arg);
+void Runtime::VisitRoots(RootCallback* callback, void* arg, bool only_dirty, bool clean_dirty) {
+  VisitConcurrentRoots(callback, arg, only_dirty, clean_dirty);
+  VisitNonConcurrentRoots(callback, arg);
 }
 
 mirror::ObjectArray<mirror::ArtMethod>* Runtime::CreateDefaultImt(ClassLinker* cl) {

@@ -19,7 +19,7 @@
 
 #include "class.h"
 #include "gtest/gtest.h"
-#include "root_visitor.h"
+#include "object_callbacks.h"
 
 namespace art {
 
@@ -107,7 +107,7 @@ class MANAGED String : public Object {
 
   static void SetClass(Class* java_lang_String);
   static void ResetClass();
-  static void VisitRoots(RootVisitor* visitor, void* arg)
+  static void VisitRoots(RootCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
