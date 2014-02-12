@@ -607,6 +607,37 @@ class MethodHelper {
     return DexFile::kDexNoIndex;
   }
 
+  // The name_and_signature_idx MUST point to a MethodId with the same name and signature in the
+  // other_dexfile, such as the method index used to resolve this method in the other_dexfile.
+  uint32_t FindDexMethodIndexInOtherDexFile(const DexFile& other_dexfile,
+                                            uint32_t name_and_signature_idx)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    const DexFile& dexfile = GetDexFile();
+    const DexFile::MethodId& mid = dexfile.GetMethodId(method_->GetDexMethodIndex());
+    const DexFile::MethodId& name_and_sig_mid = other_dexfile.GetMethodId(name_and_signature_idx);
+    DCHECK_STREQ(dexfile.GetMethodName(mid), other_dexfile.GetMethodName(name_and_sig_mid));
+    DCHECK_EQ(dexfile.GetMethodSignature(mid), other_dexfile.GetMethodSignature(name_and_sig_mid));
+    if (&dexfile == &other_dexfile) {
+      return method_->GetDexMethodIndex();
+    }
+    const char* mid_declaring_class_descriptor = dexfile.StringByTypeIdx(mid.class_idx_);
+    const DexFile::StringId* other_descriptor =
+        other_dexfile.FindStringId(mid_declaring_class_descriptor);
+    if (other_descriptor != nullptr) {
+      const DexFile::TypeId* other_type_id =
+          other_dexfile.FindTypeId(other_dexfile.GetIndexForStringId(*other_descriptor));
+      if (other_type_id != nullptr) {
+        const DexFile::MethodId* other_mid = other_dexfile.FindMethodId(
+            *other_type_id, other_dexfile.GetStringId(name_and_sig_mid.name_idx_),
+            other_dexfile.GetProtoId(name_and_sig_mid.proto_idx_));
+        if (other_mid != nullptr) {
+          return other_dexfile.GetIndexForMethodId(*other_mid);
+        }
+      }
+    }
+    return DexFile::kDexNoIndex;
+  }
+
  private:
   // Set the method_ field, for proxy methods looking up the interface method via the resolved
   // methods table.
