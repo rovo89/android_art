@@ -207,8 +207,8 @@ class MANAGED ArtMethod : public Object {
   // Find the method that this method overrides
   ArtMethod* FindOverriddenMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result, char result_type)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result,
+              const char* shorty) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   EntryPointFromInterpreter* GetEntryPointFromInterpreter() {
     return GetFieldPtr<EntryPointFromInterpreter*>(

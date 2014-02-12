@@ -220,36 +220,46 @@ mirror::Object* BoxPrimitive(Primitive::Type src_class, const JValue& value) {
   }
 
   jmethodID m = NULL;
+  const char* shorty;
   switch (src_class) {
   case Primitive::kPrimBoolean:
     m = WellKnownClasses::java_lang_Boolean_valueOf;
+    shorty = "LZ";
     break;
   case Primitive::kPrimByte:
     m = WellKnownClasses::java_lang_Byte_valueOf;
+    shorty = "LB";
     break;
   case Primitive::kPrimChar:
     m = WellKnownClasses::java_lang_Character_valueOf;
+    shorty = "LC";
     break;
   case Primitive::kPrimDouble:
     m = WellKnownClasses::java_lang_Double_valueOf;
+    shorty = "LD";
     break;
   case Primitive::kPrimFloat:
     m = WellKnownClasses::java_lang_Float_valueOf;
+    shorty = "LF";
     break;
   case Primitive::kPrimInt:
     m = WellKnownClasses::java_lang_Integer_valueOf;
+    shorty = "LI";
     break;
   case Primitive::kPrimLong:
     m = WellKnownClasses::java_lang_Long_valueOf;
+    shorty = "LJ";
     break;
   case Primitive::kPrimShort:
     m = WellKnownClasses::java_lang_Short_valueOf;
+    shorty = "LS";
     break;
   case Primitive::kPrimVoid:
     // There's no such thing as a void field, and void methods invoked via reflection return null.
-    return NULL;
+    return nullptr;
   default:
     LOG(FATAL) << static_cast<int>(src_class);
+    shorty = nullptr;
   }
 
   ScopedObjectAccessUnchecked soa(Thread::Current());
@@ -257,7 +267,7 @@ mirror::Object* BoxPrimitive(Primitive::Type src_class, const JValue& value) {
     CHECK_EQ(soa.Self()->GetState(), kRunnable);
   }
 
-  ArgArray arg_array(NULL, 0);
+  ArgArray arg_array(nullptr, 0);
   JValue result;
   if (src_class == Primitive::kPrimDouble || src_class == Primitive::kPrimLong) {
     arg_array.AppendWide(value.GetJ());
@@ -266,7 +276,7 @@ mirror::Object* BoxPrimitive(Primitive::Type src_class, const JValue& value) {
   }
 
   soa.DecodeMethod(m)->Invoke(soa.Self(), arg_array.GetArray(), arg_array.GetNumBytes(),
-                              &result, 'L');
+                              &result, shorty);
   return result.GetL();
 }
 

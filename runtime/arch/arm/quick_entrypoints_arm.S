@@ -274,7 +274,7 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
      *   r2 = size of argument array in bytes
      *   r3 = (managed) thread pointer
      *   [sp] = JValue* result
-     *   [sp + 4] = result type char
+     *   [sp + 4] = shorty
      */
 ENTRY art_quick_invoke_stub
     push   {r0, r4, r5, r9, r11, lr}       @ spill regs
