@@ -80,6 +80,14 @@ static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
     Object* obj = reinterpret_cast<Object*>(args[0]);
     Object* newValue = reinterpret_cast<Object*>(args[3]);
     obj->SetFieldObject(MemberOffset((static_cast<uint64_t>(args[2]) << 32) | args[1]), newValue, false);
+  } else if (name == "int sun.misc.Unsafe.getArrayBaseOffsetForComponentType(java.lang.Class)") {
+    mirror::Class* component = reinterpret_cast<Object*>(args[0])->AsClass();
+    Primitive::Type primitive_type = component->GetPrimitiveType();
+    result->SetI(mirror::Array::DataOffset(Primitive::ComponentSize(primitive_type)).Int32Value());
+  } else if (name == "int sun.misc.Unsafe.getArrayIndexScaleForComponentType(java.lang.Class)") {
+    mirror::Class* component = reinterpret_cast<Object*>(args[0])->AsClass();
+    Primitive::Type primitive_type = component->GetPrimitiveType();
+    result->SetI(Primitive::ComponentSize(primitive_type));
   } else {
     LOG(FATAL) << "Attempt to invoke native method in non-started runtime: " << name;
   }

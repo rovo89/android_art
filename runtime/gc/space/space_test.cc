@@ -39,18 +39,21 @@ class SpaceTest : public CommonTest {
     Runtime::Current()->GetHeap()->AddSpace(space);
   }
   void InstallClass(mirror::Object* o, size_t size) NO_THREAD_SAFETY_ANALYSIS {
-    // Note the minimum size, which is the size of a zero-length byte array, is 12.
-    EXPECT_GE(size, static_cast<size_t>(12));
+    // Note the minimum size, which is the size of a zero-length byte array.
+    EXPECT_GE(size, SizeOfZeroLengthByteArray());
     SirtRef<mirror::ClassLoader> null_loader(Thread::Current(), NULL);
     mirror::Class* byte_array_class = Runtime::Current()->GetClassLinker()->FindClass("[B", null_loader);
     EXPECT_TRUE(byte_array_class != NULL);
     o->SetClass(byte_array_class);
     mirror::Array* arr = o->AsArray();
-    // size_t header_size = sizeof(mirror::Object) + 4;
-    size_t header_size = arr->DataOffset(1).Uint32Value();
+    size_t header_size = SizeOfZeroLengthByteArray();
     int32_t length = size - header_size;
     arr->SetLength(length);
     EXPECT_EQ(arr->SizeOf(), size);
+  }
+
+  static size_t SizeOfZeroLengthByteArray() {
+    return mirror::Array::DataOffset(Primitive::ComponentSize(Primitive::kPrimByte)).Uint32Value();
   }
 
   static MallocSpace* CreateDlMallocSpace(const std::string& name, size_t initial_size, size_t growth_limit,
@@ -355,9 +358,10 @@ void SpaceTest::AllocAndFreeListTestBody(CreateSpaceFn create_space) {
   mirror::Object* lots_of_objects[1024];
   for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
     size_t allocation_size = 0;
-    lots_of_objects[i] = space->Alloc(self, 16, &allocation_size);
+    size_t size_of_zero_length_byte_array = SizeOfZeroLengthByteArray();
+    lots_of_objects[i] = space->Alloc(self, size_of_zero_length_byte_array, &allocation_size);
     EXPECT_TRUE(lots_of_objects[i] != nullptr);
-    InstallClass(lots_of_objects[i], 16);
+    InstallClass(lots_of_objects[i], size_of_zero_length_byte_array);
     EXPECT_EQ(allocation_size, space->AllocationSize(lots_of_objects[i]));
   }
 
@@ -436,9 +440,10 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(MallocSpace* space, intptr_t
         alloc_size = object_size;
       } else {
         alloc_size = test_rand(&rand_seed) % static_cast<size_t>(-object_size);
-        // Note the minimum size, which is the size of a zero-length byte array, is 12.
-        if (alloc_size < 12) {
-          alloc_size = 12;
+        // Note the minimum size, which is the size of a zero-length byte array.
+        size_t size_of_zero_length_byte_array = SizeOfZeroLengthByteArray();
+        if (alloc_size < size_of_zero_length_byte_array) {
+          alloc_size = size_of_zero_length_byte_array;
         }
       }
       mirror::Object* object;
@@ -562,6 +567,10 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(MallocSpace* space, intptr_t
 }
 
 void SpaceTest::SizeFootPrintGrowthLimitAndTrimDriver(size_t object_size, CreateSpaceFn create_space) {
+  if (object_size < SizeOfZeroLengthByteArray()) {
+    // Too small for the object layout/model.
+    return;
+  }
   size_t initial_size = 4 * MB;
   size_t growth_limit = 8 * MB;
   size_t capacity = 16 * MB;
