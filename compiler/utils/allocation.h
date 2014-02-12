@@ -26,7 +26,7 @@ class ArenaObject {
  public:
   // Allocate a new ArenaObject of 'size' bytes in the Arena.
   void* operator new(size_t size, ArenaAllocator* allocator) {
-    return allocator->Alloc(size, ArenaAllocator::kAllocMisc);
+    return allocator->Alloc(size, kArenaAllocMisc);
   }
 
   void operator delete(void*, size_t) {
