@@ -2319,10 +2319,10 @@ mirror::Object* Heap::GetReferenceReferent(mirror::Object* reference) {
 void Heap::AddFinalizerReference(Thread* self, mirror::Object* object) {
   ScopedObjectAccess soa(self);
   JValue result;
-  ArgArray arg_array(NULL, 0);
+  ArgArray arg_array("VL", 2);
   arg_array.Append(object);
   soa.DecodeMethod(WellKnownClasses::java_lang_ref_FinalizerReference_add)->Invoke(self,
-      arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'V');
+      arg_array.GetArray(), arg_array.GetNumBytes(), &result, "VL");
 }
 
 void Heap::EnqueueClearedReferences() {
@@ -2333,10 +2333,10 @@ void Heap::EnqueueClearedReferences() {
     if (LIKELY(Runtime::Current()->IsStarted())) {
       ScopedObjectAccess soa(self);
       JValue result;
-      ArgArray arg_array(NULL, 0);
+      ArgArray arg_array("VL", 2);
       arg_array.Append(cleared_references_.GetList());
       soa.DecodeMethod(WellKnownClasses::java_lang_ref_ReferenceQueue_add)->Invoke(soa.Self(),
-          arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'V');
+          arg_array.GetArray(), arg_array.GetNumBytes(), &result, "VL");
     }
     cleared_references_.Clear();
   }
