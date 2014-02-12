@@ -800,11 +800,12 @@ bool Heap::IsValidObjectAddress(const mirror::Object* obj) const {
   return IsAligned<kObjectAlignment>(obj) && IsHeapAddress(obj);
 }
 
+bool Heap::IsNonDiscontinuousSpaceHeapAddress(const mirror::Object* obj) const {
+  return FindContinuousSpaceFromObject(obj, true) != nullptr;
+}
+
 bool Heap::IsHeapAddress(const mirror::Object* obj) const {
-  if (kMovingCollector && bump_pointer_space_ && bump_pointer_space_->HasAddress(obj)) {
-    return true;
-  }
-  // TODO: This probably doesn't work for large objects.
+  // TODO: This might not work for large objects.
   return FindSpaceFromObject(obj, true) != nullptr;
 }
 
