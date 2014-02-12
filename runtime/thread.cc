@@ -1145,14 +1145,13 @@ bool Thread::SirtContains(jobject obj) const {
   return managed_stack_.ShadowFramesContain(sirt_entry);
 }
 
-void Thread::SirtVisitRoots(RootCallback* visitor, void* arg) {
-  uint32_t tid = GetTid();
+void Thread::SirtVisitRoots(RootCallback* visitor, void* arg, uint32_t thread_id) {
   for (StackIndirectReferenceTable* cur = top_sirt_; cur; cur = cur->GetLink()) {
     size_t num_refs = cur->NumberOfReferences();
     for (size_t j = 0; j < num_refs; ++j) {
       mirror::Object* object = cur->GetReference(j);
       if (object != nullptr) {
-        mirror::Object* new_obj = visitor(object, arg, tid, kRootNativeStack);
+        mirror::Object* new_obj = visitor(object, arg, thread_id, kRootNativeStack);
         DCHECK(new_obj != nullptr);
         if (new_obj != object) {
           cur->SetReference(j, new_obj);
@@ -1998,7 +1997,7 @@ void Thread::VisitRoots(RootCallback* visitor, void* arg) {
   }
   jni_env_->locals.VisitRoots(visitor, arg, thread_id, kRootJNILocal);
   jni_env_->monitors.VisitRoots(visitor, arg, thread_id, kRootJNIMonitor);
-  SirtVisitRoots(visitor, arg);
+  SirtVisitRoots(visitor, arg, thread_id);
   // Visit roots on this thread's stack
   Context* context = GetLongJumpContext();
   RootCallbackVisitor visitorToCallback(visitor, arg, thread_id);
@@ -2025,7 +2024,7 @@ static mirror::Object* VerifyRoot(mirror::Object* root, void* arg, uint32_t /*th
 
 void Thread::VerifyStackImpl() {
   UniquePtr<Context> context(Context::Create());
-  RootCallbackVisitor visitorToCallback(VerifyRoot, Runtime::Current()->GetHeap(), GetTid());
+  RootCallbackVisitor visitorToCallback(VerifyRoot, Runtime::Current()->GetHeap(), GetThreadId());
   ReferenceMapVisitor<RootCallbackVisitor> mapper(this, context.get(), visitorToCallback);
   mapper.WalkStack();
 }
