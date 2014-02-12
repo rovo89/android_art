@@ -179,7 +179,7 @@ void* Thread::CreateCallback(void* arg) {
     JValue result;
     ArgArray arg_array(nullptr, 0);
     arg_array.Append(receiver);
-    m->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'V');
+    m->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(), &result, "V");
   }
   // Detach and delete self.
   Runtime::Current()->GetThreadList()->Unregister(self);
@@ -1532,6 +1532,7 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
 
   // Choose an appropriate constructor and set up the arguments.
   const char* signature;
+  const char* shorty;
   SirtRef<mirror::String> msg_string(this, nullptr);
   if (msg != nullptr) {
     // Ensure we remember this and the method over the String allocation.
@@ -1541,14 +1542,18 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
       return;
     }
     if (cause.get() == nullptr) {
+      shorty = "VL";
       signature = "(Ljava/lang/String;)V";
     } else {
+      shorty = "VLL";
       signature = "(Ljava/lang/String;Ljava/lang/Throwable;)V";
     }
   } else {
     if (cause.get() == nullptr) {
+      shorty = "V";
       signature = "()V";
     } else {
+      shorty = "VL";
       signature = "(Ljava/lang/Throwable;)V";
     }
   }
@@ -1572,7 +1577,7 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
                                          throw_location.GetDexPc());
     SetException(gc_safe_throw_location, exception.get());
   } else {
-    ArgArray args("VLL", 3);
+    ArgArray args(shorty, strlen(shorty));
     args.Append(exception.get());
     if (msg != nullptr) {
       args.Append(msg_string.get());
@@ -1581,7 +1586,7 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
       args.Append(cause.get());
     }
     JValue result;
-    exception_init_method->Invoke(this, args.GetArray(), args.GetNumBytes(), &result, 'V');
+    exception_init_method->Invoke(this, args.GetArray(), args.GetNumBytes(), &result, shorty);
     if (LIKELY(!IsExceptionPending())) {
       ThrowLocation gc_safe_throw_location(saved_throw_this.get(), saved_throw_method.get(),
                                            throw_location.GetDexPc());

@@ -35,7 +35,8 @@ namespace art {
 namespace mirror {
 
 extern "C" void art_portable_invoke_stub(ArtMethod*, uint32_t*, uint32_t, Thread*, JValue*, char);
-extern "C" void art_quick_invoke_stub(ArtMethod*, uint32_t*, uint32_t, Thread*, JValue*, char);
+extern "C" void art_quick_invoke_stub(ArtMethod*, uint32_t*, uint32_t, Thread*, JValue*,
+                                      const char*);
 
 // TODO: get global references for these
 Class* ArtMethod::java_lang_reflect_ArtMethod_ = NULL;
@@ -245,10 +246,11 @@ uint32_t ArtMethod::FindCatchBlock(Class* exception_type, uint32_t dex_pc,
 }
 
 void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result,
-                       char result_type) {
+                       const char* shorty) {
   if (kIsDebugBuild) {
     self->AssertThreadSuspensionIsAllowable();
     CHECK_EQ(kRunnable, self->GetState());
+    CHECK_STREQ(MethodHelper(this).GetShorty(), shorty);
   }
 
   // Push a transition back into managed code onto the linked list in thread.
@@ -274,9 +276,9 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
                                                   : GetEntryPointFromPortableCompiledCode());
       }
       if (!IsPortableCompiled()) {
-        (*art_quick_invoke_stub)(this, args, args_size, self, result, result_type);
+        (*art_quick_invoke_stub)(this, args, args_size, self, result, shorty);
       } else {
-        (*art_portable_invoke_stub)(this, args, args_size, self, result, result_type);
+        (*art_portable_invoke_stub)(this, args, args_size, self, result, shorty[0]);
       }
       if (UNLIKELY(reinterpret_cast<intptr_t>(self->GetException(NULL)) == -1)) {
         // Unusual case where we were running LLVM generated code and an

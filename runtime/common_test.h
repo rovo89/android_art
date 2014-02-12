@@ -268,7 +268,7 @@ class CommonTest : public testing::Test {
     MakeExecutable(&code[0], code.size());
   }
 
-  // Create an OatMethod based on pointers (for unit tests)
+  // Create an OatMethod based on pointers (for unit tests).
   OatFile::OatMethod CreateOatMethod(const void* code,
                                      const size_t frame_size_in_bytes,
                                      const uint32_t core_spill_mask,
@@ -276,11 +276,23 @@ class CommonTest : public testing::Test {
                                      const uint8_t* mapping_table,
                                      const uint8_t* vmap_table,
                                      const uint8_t* gc_map) {
-    const byte* base = nullptr;  // Base of data in oat file, ie 0.
-    uint32_t code_offset = PointerToLowMemUInt32(code);
-    uint32_t mapping_table_offset = PointerToLowMemUInt32(mapping_table);
-    uint32_t vmap_table_offset = PointerToLowMemUInt32(vmap_table);
-    uint32_t gc_map_offset = PointerToLowMemUInt32(gc_map);
+    const byte* base;
+    uint32_t code_offset, mapping_table_offset, vmap_table_offset, gc_map_offset;
+    if (mapping_table == nullptr && vmap_table == nullptr && gc_map == nullptr) {
+      base = reinterpret_cast<const byte*>(code);  // Base of data points at code.
+      base -= kPointerSize;  // Move backward so that code_offset != 0.
+      code_offset = kPointerSize;
+      mapping_table_offset = 0;
+      vmap_table_offset = 0;
+      gc_map_offset = 0;
+    } else {
+      // TODO: 64bit support.
+      base = nullptr;  // Base of data in oat file, ie 0.
+      code_offset = PointerToLowMemUInt32(code);
+      mapping_table_offset = PointerToLowMemUInt32(mapping_table);
+      vmap_table_offset = PointerToLowMemUInt32(vmap_table);
+      gc_map_offset = PointerToLowMemUInt32(gc_map);
+    }
     return OatFile::OatMethod(base,
                               code_offset,
                               frame_size_in_bytes,
@@ -470,6 +482,8 @@ class CommonTest : public testing::Test {
       instruction_set = kX86;
 #elif defined(__x86_64__)
       instruction_set = kX86_64;
+      // TODO: x86_64 compilation support.
+      runtime_->SetCompilerFilter(Runtime::kInterpretOnly);
 #endif
 
       for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {

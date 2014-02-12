@@ -134,14 +134,14 @@ class JniInternalTest : public CommonTest {
       arg_array.Append(receiver);
     }
 
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'V');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, "V");
   }
 
   void InvokeIdentityByteMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::ArtMethod* method;
     mirror::Object* receiver;
-    JniInternalTestMakeExecutable(&method, &receiver, is_static, "identity", "(I)I");
+    JniInternalTestMakeExecutable(&method, &receiver, is_static, "identity", "(B)B");
 
     ArgArray arg_array(NULL, 0);
     uint32_t* args = arg_array.GetArray();
@@ -154,22 +154,22 @@ class JniInternalTest : public CommonTest {
 
     arg_array.Append(0U);
     result.SetB(-1);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'B');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, "BB");
     EXPECT_EQ(0, result.GetB());
 
     args[0] = -1;
     result.SetB(0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'B');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, "BB");
     EXPECT_EQ(-1, result.GetB());
 
     args[0] = SCHAR_MAX;
     result.SetB(0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'B');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, "BB");
     EXPECT_EQ(SCHAR_MAX, result.GetB());
 
     args[0] = (SCHAR_MIN << 24) >> 24;
     result.SetB(0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'B');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, "BB");
     EXPECT_EQ(SCHAR_MIN, result.GetB());
   }
 
@@ -190,22 +190,22 @@ class JniInternalTest : public CommonTest {
 
     arg_array.Append(0U);
     result.SetI(-1);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, "II");
     EXPECT_EQ(0, result.GetI());
 
     args[0] = -1;
     result.SetI(0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, "II");
     EXPECT_EQ(-1, result.GetI());
 
     args[0] = INT_MAX;
     result.SetI(0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, "II");
     EXPECT_EQ(INT_MAX, result.GetI());
 
     args[0] = INT_MIN;
     result.SetI(0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, "II");
     EXPECT_EQ(INT_MIN, result.GetI());
   }
 
@@ -228,28 +228,28 @@ class JniInternalTest : public CommonTest {
     value.SetD(0.0);
     arg_array.AppendWide(value.GetJ());
     result.SetD(-1.0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'D');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, "DD");
     EXPECT_EQ(0.0, result.GetD());
 
     value.SetD(-1.0);
     args[0] = value.GetJ();
     args[1] = value.GetJ() >> 32;
     result.SetD(0.0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'D');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, "DD");
     EXPECT_EQ(-1.0, result.GetD());
 
     value.SetD(DBL_MAX);
     args[0] = value.GetJ();
     args[1] = value.GetJ() >> 32;
     result.SetD(0.0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'D');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, "DD");
     EXPECT_EQ(DBL_MAX, result.GetD());
 
     value.SetD(DBL_MIN);
     args[0] = value.GetJ();
     args[1] = value.GetJ() >> 32;
     result.SetD(0.0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'D');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, "DD");
     EXPECT_EQ(DBL_MIN, result.GetD());
   }
 
@@ -271,31 +271,31 @@ class JniInternalTest : public CommonTest {
     arg_array.Append(0U);
     arg_array.Append(0U);
     result.SetI(-1);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, "III");
     EXPECT_EQ(0, result.GetI());
 
     args[0] = 1;
     args[1] = 2;
     result.SetI(0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, "III");
     EXPECT_EQ(3, result.GetI());
 
     args[0] = -2;
     args[1] = 5;
     result.SetI(0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, "III");
     EXPECT_EQ(3, result.GetI());
 
     args[0] = INT_MAX;
     args[1] = INT_MIN;
     result.SetI(1234);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, "III");
     EXPECT_EQ(-1, result.GetI());
 
     args[0] = INT_MAX;
     args[1] = INT_MAX;
     result.SetI(INT_MIN);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, "III");
     EXPECT_EQ(-2, result.GetI());
   }
 
@@ -318,35 +318,40 @@ class JniInternalTest : public CommonTest {
     arg_array.Append(0U);
     arg_array.Append(0U);
     result.SetI(-1);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "IIII");
     EXPECT_EQ(0, result.GetI());
 
     args[0] = 1;
     args[1] = 2;
     args[2] = 3;
     result.SetI(0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "IIII");
     EXPECT_EQ(6, result.GetI());
 
     args[0] = -1;
     args[1] = 2;
     args[2] = -3;
     result.SetI(0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "IIII");
     EXPECT_EQ(-2, result.GetI());
 
     args[0] = INT_MAX;
     args[1] = INT_MIN;
     args[2] = INT_MAX;
     result.SetI(1234);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "IIII");
     EXPECT_EQ(2147483646, result.GetI());
 
     args[0] = INT_MAX;
     args[1] = INT_MAX;
     args[2] = INT_MAX;
     result.SetI(INT_MIN);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "IIII");
     EXPECT_EQ(2147483645, result.GetI());
   }
 
@@ -370,7 +375,8 @@ class JniInternalTest : public CommonTest {
     arg_array.Append(0U);
     arg_array.Append(0U);
     result.SetI(-1);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "IIIII");
     EXPECT_EQ(0, result.GetI());
 
     args[0] = 1;
@@ -378,7 +384,8 @@ class JniInternalTest : public CommonTest {
     args[2] = 3;
     args[3] = 4;
     result.SetI(0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "IIIII");
     EXPECT_EQ(10, result.GetI());
 
     args[0] = -1;
@@ -386,7 +393,8 @@ class JniInternalTest : public CommonTest {
     args[2] = -3;
     args[3] = 4;
     result.SetI(0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "IIIII");
     EXPECT_EQ(2, result.GetI());
 
     args[0] = INT_MAX;
@@ -394,7 +402,8 @@ class JniInternalTest : public CommonTest {
     args[2] = INT_MAX;
     args[3] = INT_MIN;
     result.SetI(1234);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "IIIII");
     EXPECT_EQ(-2, result.GetI());
 
     args[0] = INT_MAX;
@@ -402,7 +411,8 @@ class JniInternalTest : public CommonTest {
     args[2] = INT_MAX;
     args[3] = INT_MAX;
     result.SetI(INT_MIN);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "IIIII");
     EXPECT_EQ(-4, result.GetI());
   }
 
@@ -427,7 +437,8 @@ class JniInternalTest : public CommonTest {
     arg_array.Append(0U);
     arg_array.Append(0U);
     result.SetI(-1.0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "IIIIII");
     EXPECT_EQ(0, result.GetI());
 
     args[0] = 1;
@@ -436,7 +447,8 @@ class JniInternalTest : public CommonTest {
     args[3] = 4;
     args[4] = 5;
     result.SetI(0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "IIIIII");
     EXPECT_EQ(15, result.GetI());
 
     args[0] = -1;
@@ -445,7 +457,8 @@ class JniInternalTest : public CommonTest {
     args[3] = 4;
     args[4] = -5;
     result.SetI(0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "IIIIII");
     EXPECT_EQ(-3, result.GetI());
 
     args[0] = INT_MAX;
@@ -454,7 +467,8 @@ class JniInternalTest : public CommonTest {
     args[3] = INT_MIN;
     args[4] = INT_MAX;
     result.SetI(1234);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "IIIIII");
     EXPECT_EQ(2147483645, result.GetI());
 
     args[0] = INT_MAX;
@@ -463,7 +477,8 @@ class JniInternalTest : public CommonTest {
     args[3] = INT_MAX;
     args[4] = INT_MAX;
     result.SetI(INT_MIN);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'I');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "IIIIII");
     EXPECT_EQ(2147483643, result.GetI());
   }
 
@@ -489,7 +504,8 @@ class JniInternalTest : public CommonTest {
     arg_array.AppendWide(value.GetJ());
     arg_array.AppendWide(value2.GetJ());
     result.SetD(-1.0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'D');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "DDD");
     EXPECT_EQ(0.0, result.GetD());
 
     value.SetD(1.0);
@@ -499,7 +515,8 @@ class JniInternalTest : public CommonTest {
     args[2] = value2.GetJ();
     args[3] = value2.GetJ() >> 32;
     result.SetD(0.0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'D');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "DDD");
     EXPECT_EQ(3.0, result.GetD());
 
     value.SetD(1.0);
@@ -509,7 +526,8 @@ class JniInternalTest : public CommonTest {
     args[2] = value2.GetJ();
     args[3] = value2.GetJ() >> 32;
     result.SetD(0.0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'D');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "DDD");
     EXPECT_EQ(-1.0, result.GetD());
 
     value.SetD(DBL_MAX);
@@ -519,7 +537,8 @@ class JniInternalTest : public CommonTest {
     args[2] = value2.GetJ();
     args[3] = value2.GetJ() >> 32;
     result.SetD(0.0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'D');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "DDD");
     EXPECT_EQ(1.7976931348623157e308, result.GetD());
 
     value.SetD(DBL_MAX);
@@ -529,7 +548,8 @@ class JniInternalTest : public CommonTest {
     args[2] = value2.GetJ();
     args[3] = value2.GetJ() >> 32;
     result.SetD(0.0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'D');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "DDD");
     EXPECT_EQ(INFINITY, result.GetD());
   }
 
@@ -558,7 +578,8 @@ class JniInternalTest : public CommonTest {
     arg_array.AppendWide(value2.GetJ());
     arg_array.AppendWide(value3.GetJ());
     result.SetD(-1.0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'D');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "DDDD");
     EXPECT_EQ(0.0, result.GetD());
 
     value.SetD(1.0);
@@ -571,7 +592,8 @@ class JniInternalTest : public CommonTest {
     args[4] = value3.GetJ();
     args[5] = value3.GetJ() >> 32;
     result.SetD(0.0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'D');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "DDDD");
     EXPECT_EQ(6.0, result.GetD());
 
     value.SetD(1.0);
@@ -584,7 +606,8 @@ class JniInternalTest : public CommonTest {
     args[4] = value3.GetJ();
     args[5] = value3.GetJ() >> 32;
     result.SetD(0.0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'D');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "DDDD");
     EXPECT_EQ(2.0, result.GetD());
   }
 
@@ -616,7 +639,8 @@ class JniInternalTest : public CommonTest {
     arg_array.AppendWide(value3.GetJ());
     arg_array.AppendWide(value4.GetJ());
     result.SetD(-1.0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'D');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "DDDDD");
     EXPECT_EQ(0.0, result.GetD());
 
     value.SetD(1.0);
@@ -632,7 +656,8 @@ class JniInternalTest : public CommonTest {
     args[6] = value4.GetJ();
     args[7] = value4.GetJ() >> 32;
     result.SetD(0.0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'D');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "DDDDD");
     EXPECT_EQ(10.0, result.GetD());
 
     value.SetD(1.0);
@@ -648,7 +673,8 @@ class JniInternalTest : public CommonTest {
     args[6] = value4.GetJ();
     args[7] = value4.GetJ() >> 32;
     result.SetD(0.0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'D');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "DDDDD");
     EXPECT_EQ(-2.0, result.GetD());
   }
 
@@ -683,7 +709,8 @@ class JniInternalTest : public CommonTest {
     arg_array.AppendWide(value4.GetJ());
     arg_array.AppendWide(value5.GetJ());
     result.SetD(-1.0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'D');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "DDDDDD");
     EXPECT_EQ(0.0, result.GetD());
 
     value.SetD(1.0);
@@ -702,7 +729,8 @@ class JniInternalTest : public CommonTest {
     args[8] = value5.GetJ();
     args[9] = value5.GetJ() >> 32;
     result.SetD(0.0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'D');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "DDDDDD");
     EXPECT_EQ(15.0, result.GetD());
 
     value.SetD(1.0);
@@ -721,7 +749,8 @@ class JniInternalTest : public CommonTest {
     args[8] = value5.GetJ();
     args[9] = value5.GetJ() >> 32;
     result.SetD(0.0);
-    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'D');
+    method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result,
+                   "DDDDDD");
     EXPECT_EQ(3.0, result.GetD());
   }
 
@@ -1764,7 +1793,7 @@ TEST_F(JniInternalTest, StaticMainMethod) {
   CHECK(started);
   Thread::Current()->TransitionFromSuspendedToRunnable();
 
-  method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'V');
+  method->Invoke(Thread::Current(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, "VL");
 }
 
 TEST_F(JniInternalTest, StaticNopMethod) {

@@ -251,7 +251,7 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
      *   [sp + 12] = size of argument array in bytes
      *   [sp + 16] = (managed) thread pointer
      *   [sp + 20] = JValue* result
-     *   [sp + 24] = result type char
+     *   [sp + 24] = shorty
      */
 DEFINE_FUNCTION art_quick_invoke_stub
     PUSH ebp                      // save ebp
@@ -281,16 +281,19 @@ DEFINE_FUNCTION art_quick_invoke_stub
     POP ebx                       // pop ebx
     POP ebp                       // pop ebp
     mov 20(%esp), %ecx            // get result pointer
-    cmpl LITERAL(68), 24(%esp)    // test if result type char == 'D'
-    je return_double_quick
-    cmpl LITERAL(70), 24(%esp)    // test if result type char == 'F'
-    je return_float_quick
-    mov %eax, (%ecx)              // store the result
+    mov %eax, (%ecx)              // store the result assuming its a long, int or Object*
     mov %edx, 4(%ecx)             // store the other half of the result
+    mov 24(%esp), %edx            // get the shorty
+    cmpb LITERAL(68), (%edx)      // test if result type char == 'D'
+    je return_double_quick
+    cmpb LITERAL(70), (%edx)      // test if result type char == 'F'
+    je return_float_quick
     ret
 return_double_quick:
-return_float_quick:
     movsd %xmm0, (%ecx)           // store the floating point result
+    ret
+return_float_quick:
+    movss %xmm0, (%ecx)           // store the floating point result
     ret
 END_FUNCTION art_quick_invoke_stub
 
