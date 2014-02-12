@@ -545,15 +545,19 @@ void Mir2Lir::ClobberAllRegs() {
   }
 }
 
+void Mir2Lir::FlushSpecificReg(RegisterInfo* info) {
+  if (info->pair) {
+    FlushRegWide(info->reg, info->partner);
+  } else {
+    FlushReg(info->reg);
+  }
+}
+
 // Make sure nothing is live and dirty
 void Mir2Lir::FlushAllRegsBody(RegisterInfo* info, int num_regs) {
   for (int i = 0; i < num_regs; i++) {
     if (info[i].live && info[i].dirty) {
-      if (info[i].pair) {
-        FlushRegWide(info[i].reg, info[i].partner);
-      } else {
-        FlushReg(info[i].reg);
-      }
+      FlushSpecificReg(&info[i]);
     }
   }
 }
