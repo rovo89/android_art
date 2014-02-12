@@ -295,6 +295,9 @@ class SemiSpace : public GarbageCollector {
   // whole_heap_collection_ once per interval.
   int whole_heap_collection_interval_counter_;
 
+  // How many bytes we avoided dirtying.
+  size_t saved_bytes_;
+
   // Used for the generational mode. The default interval of the whole
   // heap collection. If N, the whole heap collection occurs every N
   // collections.
