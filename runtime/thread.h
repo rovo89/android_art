@@ -829,6 +829,19 @@ class PACKED(4) Thread {
   static const size_t kRosAllocNumOfSizeBrackets = 34;
   void* rosalloc_runs_[kRosAllocNumOfSizeBrackets];
 
+  // Thread-local allocation stack data/routines.
+  mirror::Object** thread_local_alloc_stack_top_;
+  mirror::Object** thread_local_alloc_stack_end_;
+
+  // Push an object onto the allocation stack.
+  bool PushOnThreadLocalAllocationStack(mirror::Object* obj);
+
+  // Set the thread local allocation pointers to the given pointers.
+  void SetThreadLocalAllocationStack(mirror::Object** start, mirror::Object** end);
+
+  // Resets the thread local allocation pointers.
+  void RevokeThreadLocalAllocationStack();
+
  private:
   friend class Dbg;  // For SetStateUnsafe.
   friend class Monitor;
