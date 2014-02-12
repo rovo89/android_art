@@ -456,7 +456,7 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
      *   a2 = size of argument array in bytes
      *   a3 = (managed) thread pointer
      *   [sp + 16] = JValue* result
-     *   [sp + 20] = result type char
+     *   [sp + 20] = shorty
      */
 ENTRY art_quick_invoke_stub
     GENERATE_GLOBAL_POINTER
@@ -502,7 +502,8 @@ ENTRY art_quick_invoke_stub
     addiu $sp, $sp, 16
     .cfi_adjust_cfa_offset -16
     lw    $t0, 16($sp)          # get result pointer
-    lw    $t1, 20($sp)          # get result type char
+    lw    $t1, 20($sp)          # get shorty
+    lb    $t1, 0($t1)           # get result type char
     li    $t2, 68               # put char 'D' into t2
     beq   $t1, $t2, 1f          # branch if result type char == 'D'
     li    $t3, 70               # put char 'F' into t3

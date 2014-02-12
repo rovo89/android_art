@@ -149,6 +149,14 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
 
     /*
      * Quick invocation stub.
+     * On entry:
+     *   [sp] = return address
+     *   rdi = method pointer
+     *   rsi = argument array or NULL for no argument methods
+     *   rdx = size of argument array in bytes
+     *   rcx = (managed) thread pointer
+     *   r8 = JValue* result
+     *   r9 = char* shorty
      */
 DEFINE_FUNCTION art_quick_invoke_stub
     int3

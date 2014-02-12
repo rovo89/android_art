@@ -3152,7 +3152,7 @@ bool ClassLinker::InitializeClass(const SirtRef<mirror::Class>& klass, bool can_
     CHECK(can_init_statics);
     if (LIKELY(Runtime::Current()->IsStarted())) {
       JValue result;
-      clinit->Invoke(self, NULL, 0, &result, 'V');
+      clinit->Invoke(self, NULL, 0, &result, "V");
     } else {
       art::interpreter::EnterInterpreterFromInvoke(self, clinit, NULL, NULL, NULL);
     }

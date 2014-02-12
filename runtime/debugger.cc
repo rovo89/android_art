@@ -3019,7 +3019,7 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   MethodHelper mh(m.get());
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArray(soa, pReq->receiver, reinterpret_cast<jvalue*>(pReq->arg_values));
-  InvokeWithArgArray(soa, m.get(), &arg_array, &pReq->result_value, mh.GetShorty()[0]);
+  InvokeWithArgArray(soa, m.get(), &arg_array, &pReq->result_value, mh.GetShorty());
 
   mirror::Throwable* exception = soa.Self()->GetException(NULL);
   soa.Self()->ClearException();

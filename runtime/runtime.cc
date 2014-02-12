@@ -807,7 +807,7 @@ jobject CreateSystemClassLoader() {
 
   JValue result;
   ArgArray arg_array(nullptr, 0);
-  InvokeWithArgArray(soa, getSystemClassLoader, &arg_array, &result, 'L');
+  InvokeWithArgArray(soa, getSystemClassLoader, &arg_array, &result, "L");
   SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
                                             down_cast<mirror::ClassLoader*>(result.GetL()));
   CHECK(class_loader.get() != nullptr);
@@ -1473,12 +1473,11 @@ mirror::ArtMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_se
     method->SetFpSpillMask(0);
   } else if (instruction_set == kX86_64) {
     uint32_t ref_spills =
-        (1 << art::x86_64::RBP) | (1 << art::x86_64::RSI) | (1 << art::x86_64::RDI) |
-        (1 << art::x86_64::R8)  | (1 << art::x86_64::R9)  | (1 << art::x86_64::R10) |
-        (1 << art::x86_64::R11) | (1 << art::x86_64::R12) | (1 << art::x86_64::R13) |
-        (1 << art::x86_64::R14) | (1 << art::x86_64::R15);
+        (1 << art::x86_64::RBX) | (1 << art::x86_64::RBP) | (1 << art::x86_64::R12) |
+        (1 << art::x86_64::R13) | (1 << art::x86_64::R14) | (1 << art::x86_64::R15);
     uint32_t arg_spills =
-        (1 << art::x86_64::RCX) | (1 << art::x86_64::RDX) | (1 << art::x86_64::RBX);
+        (1 << art::x86_64::RSI) | (1 << art::x86_64::RDX) | (1 << art::x86_64::RCX) |
+        (1 << art::x86_64::R8) | (1 << art::x86_64::R9);
     uint32_t core_spills = ref_spills | (type == kRefsAndArgs ? arg_spills : 0) |
                          (1 << art::x86::kNumberOfCpuRegisters);  // fake return address callee save
     size_t frame_size = RoundUp((__builtin_popcount(core_spills) /* gprs */ +
