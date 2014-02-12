@@ -295,7 +295,11 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86PsrlqRI, kRegImm, IS_BINARY_OP | REG_DEF0_USE0, { 0x66, 0, 0x0F, 0x73, 0, 2, 0, 1 }, "PsrlqRI", "!0r,!1d" },
   { kX86PsllqRI, kRegImm, IS_BINARY_OP | REG_DEF0_USE0, { 0x66, 0, 0x0F, 0x73, 0, 6, 0, 1 }, "PsllqRI", "!0r,!1d" },
   { kX86SqrtsdRR, kRegReg, IS_BINARY_OP | REG_DEF0_USE1, { 0xF2, 0, 0x0F, 0x51, 0, 0, 0, 0 }, "SqrtsdRR", "!0r,!1r" },
-  { kX86FstpdM, kMem, IS_STORE | IS_BINARY_OP | REG_USE0, { 0x0, 0, 0xDD, 0x00, 0, 3, 0, 0 }, "FstpdM", "[!0r,!1d]" },
+
+  { kX86Fild32M, kMem, IS_LOAD | IS_UNARY_OP | REG_USE0, { 0x0, 0, 0xDB, 0x00, 0, 0, 0, 0 }, "Fild32M", "[!0r,!1d]" },
+  { kX86Fild64M, kMem, IS_LOAD | IS_UNARY_OP | REG_USE0, { 0x0, 0, 0xDF, 0x00, 0, 5, 0, 0 }, "Fild64M", "[!0r,!1d]" },
+  { kX86Fstp32M, kMem, IS_STORE | IS_UNARY_OP | REG_USE0, { 0x0, 0, 0xD9, 0x00, 0, 3, 0, 0 }, "FstpdM", "[!0r,!1d]" },
+  { kX86Fstp64M, kMem, IS_STORE | IS_UNARY_OP | REG_USE0, { 0x0, 0, 0xDD, 0x00, 0, 3, 0, 0 }, "FstpdM", "[!0r,!1d]" },
 
   EXT_0F_ENCODING_MAP(Movups,    0x0, 0x10, REG_DEF0),
   { kX86MovupsMR, kMemReg,      IS_STORE | IS_TERTIARY_OP | REG_USE02,  { 0x0, 0, 0x0F, 0x11, 0, 0, 0, 0 }, "MovupsMR", "[!0r+!1d],!2r" },
