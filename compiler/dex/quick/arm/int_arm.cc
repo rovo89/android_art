@@ -357,6 +357,7 @@ void ArmMir2Lir::OpRegCopyWide(int dest_lo, int dest_hi, int src_lo,
     } else {
       // Handle overlap
       if (src_hi == dest_lo) {
+        DCHECK_NE(src_lo, dest_hi);
         OpRegCopy(dest_hi, src_hi);
         OpRegCopy(dest_lo, src_lo);
       } else {
