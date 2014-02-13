@@ -381,7 +381,11 @@ void Heap::VisitObjects(ObjectCallback callback, void* arg) {
   for (mirror::Object** it = allocation_stack_->Begin(), **end = allocation_stack_->End();
       it < end; ++it) {
     mirror::Object* obj = *it;
-    callback(obj, arg);
+    if (obj != nullptr && obj->GetClass() != nullptr) {
+      // Avoid the race condition caused by the object not yet being written into the allocation
+      // stack or the class not yet being written in the object.
+      callback(obj, arg);
+    }
   }
   GetLiveBitmap()->Walk(callback, arg);
   self->EndAssertNoThreadSuspension(old_cause);
