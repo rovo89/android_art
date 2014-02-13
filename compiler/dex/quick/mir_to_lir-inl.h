@@ -98,6 +98,16 @@ inline LIR* Mir2Lir::NewLIR2(int opcode, int dest, int src1) {
   return insn;
 }
 
+inline LIR* Mir2Lir::NewLIR2NoDest(int opcode, int src, int info) {
+  DCHECK(IsPseudoLirOp(opcode) || (GetTargetInstFlags(opcode) & IS_UNARY_OP))
+      << GetTargetInstName(opcode) << " " << opcode << " "
+      << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " "
+      << current_dalvik_offset_;
+  LIR* insn = RawLIR(current_dalvik_offset_, opcode, src, info);
+  AppendLIR(insn);
+  return insn;
+}
+
 inline LIR* Mir2Lir::NewLIR3(int opcode, int dest, int src1, int src2) {
   DCHECK(IsPseudoLirOp(opcode) || (GetTargetInstFlags(opcode) & IS_TERTIARY_OP))
       << GetTargetInstName(opcode) << " " << opcode << " "
