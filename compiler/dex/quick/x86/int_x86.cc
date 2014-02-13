@@ -456,10 +456,20 @@ RegLocation X86Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src,
   RegLocation rl_result = {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed,
                           r2, INVALID_REG, INVALID_SREG, INVALID_SREG};
 
-  // handle 0x80000000 / -1 special case.
-  LIR *minint_branch = 0;
-  if (imm == -1) {
+  // handle div/rem by 1 special case.
+  if (imm == 1) {
     if (is_div) {
+      // x / 1 == x.
+      StoreValue(rl_result, rl_src);
+    } else {
+      // x % 1 == 0.
+      LoadConstantNoClobber(r0, 0);
+      // For this case, return the result in EAX.
+      rl_result.low_reg = r0;
+    }
+  } else if (imm == -1) {  // handle 0x80000000 / -1 special case.
+    if (is_div) {
+      LIR *minint_branch = 0;
       LoadValueDirectFixed(rl_src, r0);
       OpRegImm(kOpCmp, r0, 0x80000000);
       minint_branch = NewLIR2(kX86Jcc8, 0, kX86CondEq);
@@ -479,7 +489,7 @@ RegLocation X86Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src,
     // For this case, return the result in EAX.
     rl_result.low_reg = r0;
   } else {
-    DCHECK(imm <= -2 || imm >= 2);
+    CHECK(imm <= -2 || imm >= 2);
     // Use H.S.Warren's Hacker's Delight Chapter 10 and
     // T,Grablund, P.L.Montogomery's Division by invariant integers using multiplication.
     int magic, shift;
