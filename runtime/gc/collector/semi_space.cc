@@ -150,6 +150,7 @@ void SemiSpace::InitializePhase() {
   immune_begin_ = nullptr;
   immune_end_ = nullptr;
   is_large_object_space_immune_ = false;
+  saved_bytes_ = 0;
   self_ = Thread::Current();
   // Do any pre GC verification.
   timings_.NewSplit("PreGcVerification");
@@ -361,6 +362,9 @@ void SemiSpace::ReclaimPhase() {
   } else {
     mprotect(from_space_->Begin(), from_space_->Capacity(), PROT_READ);
   }
+  if (saved_bytes_ > 0) {
+    VLOG(heap) << "Avoided dirtying " << PrettySize(saved_bytes_);
+  }
 
   if (generational_) {
     // Record the end (top) of the to space so we can distinguish
@@ -398,6 +402,56 @@ bool SemiSpace::MarkLargeObject(const Object* obj) {
     return true;
   }
   return false;
+}
+
+static inline size_t CopyAvoidingDirtyingPages(void* dest, const void* src, size_t size) {
+  if (LIKELY(size <= static_cast<size_t>(kPageSize))) {
+    // We will dirty the current page and somewhere in the middle of the next page. This means
+    // that the next object copied will also dirty that page.
+    // TODO: Worth considering the last object copied? We may end up dirtying one page which is
+    // not necessary per GC.
+    memcpy(dest, src, size);
+    return 0;
+  }
+  size_t saved_bytes = 0;
+  byte* byte_dest = reinterpret_cast<byte*>(dest);
+  if (kIsDebugBuild) {
+    for (size_t i = 0; i < size; ++i) {
+      CHECK_EQ(byte_dest[i], 0U);
+    }
+  }
+  // Process the start of the page. The page must already be dirty, don't bother with checking.
+  const byte* byte_src = reinterpret_cast<const byte*>(src);
+  const byte* limit = byte_src + size;
+  size_t page_remain = AlignUp(byte_dest, kPageSize) - byte_dest;
+  // Copy the bytes until the start of the next page.
+  memcpy(dest, src, page_remain);
+  byte_src += page_remain;
+  byte_dest += page_remain;
+  CHECK_ALIGNED(reinterpret_cast<uintptr_t>(byte_dest), kPageSize);
+  CHECK_ALIGNED(reinterpret_cast<uintptr_t>(byte_dest), sizeof(uintptr_t));
+  CHECK_ALIGNED(reinterpret_cast<uintptr_t>(byte_src), sizeof(uintptr_t));
+  while (byte_src + kPageSize < limit) {
+    bool all_zero = true;
+    uintptr_t* word_dest = reinterpret_cast<uintptr_t*>(byte_dest);
+    const uintptr_t* word_src = reinterpret_cast<const uintptr_t*>(byte_src);
+    for (size_t i = 0; i < kPageSize / sizeof(*word_src); ++i) {
+      // Assumes the destination of the copy is all zeros.
+      if (word_src[i] != 0) {
+        all_zero = false;
+        word_dest[i] = word_src[i];
+      }
+    }
+    if (all_zero) {
+      // Avoided copying into the page since it was all zeros.
+      saved_bytes += kPageSize;
+    }
+    byte_src += kPageSize;
+    byte_dest += kPageSize;
+  }
+  // Handle the part of the page at the end.
+  memcpy(byte_dest, byte_src, limit - byte_src);
+  return saved_bytes;
 }
 
 mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
@@ -458,7 +512,8 @@ mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
   }
   // Copy over the object and add it to the mark stack since we still need to update its
   // references.
-  memcpy(reinterpret_cast<void*>(forward_address), obj, object_size);
+  saved_bytes_ +=
+      CopyAvoidingDirtyingPages(reinterpret_cast<void*>(forward_address), obj, object_size);
   if (to_space_live_bitmap_ != nullptr) {
     to_space_live_bitmap_->Set(forward_address);
   }
