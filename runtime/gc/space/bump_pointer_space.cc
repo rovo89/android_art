@@ -137,6 +137,7 @@ byte* BumpPointerSpace::AllocBlock(size_t bytes) {
 
 void BumpPointerSpace::Walk(ObjectCallback* callback, void* arg) {
   byte* pos = Begin();
+  byte* end = End();
   byte* main_end = pos;
   {
     MutexLock mu(Thread::Current(), block_lock_);
@@ -145,16 +146,29 @@ void BumpPointerSpace::Walk(ObjectCallback* callback, void* arg) {
     if (num_blocks_ == 0) {
       UpdateMainBlock();
     }
-    main_end += main_block_size_;
+    main_end = Begin() + main_block_size_;
+    if (num_blocks_ == 0) {
+      // We don't have any other blocks, this means someone else may be allocating into the main
+      // block. In this case, we don't want to try and visit the other blocks after the main block
+      // since these could actually be part of the main block.
+      end = main_end;
+    }
   }
   // Walk all of the objects in the main block first.
   while (pos < main_end) {
     mirror::Object* obj = reinterpret_cast<mirror::Object*>(pos);
-    callback(obj, arg);
-    pos = reinterpret_cast<byte*>(GetNextObject(obj));
+    if (obj->GetClass() == nullptr) {
+      // There is a race condition where a thread has just allocated an object but not set the
+      // class. We can't know the size of this object, so we don't visit it and exit the function
+      // since there is guaranteed to be not other blocks.
+      return;
+    } else {
+      callback(obj, arg);
+      pos = reinterpret_cast<byte*>(GetNextObject(obj));
+    }
   }
   // Walk the other blocks (currently only TLABs).
-  while (pos < End()) {
+  while (pos < end) {
     BlockHeader* header = reinterpret_cast<BlockHeader*>(pos);
     size_t block_size = header->size_;
     pos += sizeof(BlockHeader);  // Skip the header so that we know where the objects
