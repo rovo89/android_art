@@ -170,6 +170,42 @@ inline mirror::Object* Thread::AllocTlab(size_t bytes) {
   return ret;
 }
 
+inline bool Thread::PushOnThreadLocalAllocationStack(mirror::Object* obj) {
+  DCHECK_LE(thread_local_alloc_stack_top_, thread_local_alloc_stack_end_);
+  if (thread_local_alloc_stack_top_ < thread_local_alloc_stack_end_) {
+    // There's room.
+    DCHECK_LE(reinterpret_cast<byte*>(thread_local_alloc_stack_top_) + sizeof(mirror::Object*),
+              reinterpret_cast<byte*>(thread_local_alloc_stack_end_));
+    DCHECK(*thread_local_alloc_stack_top_ == nullptr);
+    *thread_local_alloc_stack_top_ = obj;
+    ++thread_local_alloc_stack_top_;
+    return true;
+  }
+  return false;
+}
+
+inline void Thread::SetThreadLocalAllocationStack(mirror::Object** start, mirror::Object** end) {
+  DCHECK(Thread::Current() == this) << "Should be called by self";
+  DCHECK(start != nullptr);
+  DCHECK(end != nullptr);
+  DCHECK_ALIGNED(start, sizeof(mirror::Object*));
+  DCHECK_ALIGNED(end, sizeof(mirror::Object*));
+  DCHECK_LT(start, end);
+  thread_local_alloc_stack_end_ = end;
+  thread_local_alloc_stack_top_ = start;
+}
+
+inline void Thread::RevokeThreadLocalAllocationStack() {
+  if (kIsDebugBuild) {
+    // Note: self is not necessarily equal to this thread since thread may be suspended.
+    Thread* self = Thread::Current();
+    DCHECK(this == self || IsSuspended() || GetState() == kWaitingPerformingGc)
+        << GetState() << " thread " << this << " self " << self;
+  }
+  thread_local_alloc_stack_end_ = nullptr;
+  thread_local_alloc_stack_top_ = nullptr;
+}
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_THREAD_INL_H_

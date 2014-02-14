@@ -73,6 +73,41 @@ class AtomicStack {
     return true;
   }
 
+  // Atomically bump the back index by the given number of
+  // slots. Returns false if we overflowed the stack.
+  bool AtomicBumpBack(size_t num_slots, T** start_address, T** end_address) {
+    if (kIsDebugBuild) {
+      debug_is_sorted_ = false;
+    }
+    int32_t index;
+    int32_t new_index;
+    do {
+      index = back_index_;
+      new_index = index + num_slots;
+      if (UNLIKELY(static_cast<size_t>(new_index) >= capacity_)) {
+        // Stack overflow.
+        return false;
+      }
+    } while (!back_index_.CompareAndSwap(index, new_index));
+    *start_address = &begin_[index];
+    *end_address = &begin_[new_index];
+    if (kIsDebugBuild) {
+      // Sanity check that the memory is zero.
+      for (int32_t i = index; i < new_index; ++i) {
+        DCHECK_EQ(begin_[i], static_cast<T>(0)) << "i=" << i << " index=" << index << " new_index=" << new_index;
+      }
+    }
+    return true;
+  }
+
+  void AssertAllZero() {
+    if (kIsDebugBuild) {
+      for (size_t i = 0; i < capacity_; ++i) {
+        DCHECK_EQ(begin_[i], static_cast<T>(0)) << "i=" << i;
+      }
+    }
+  }
+
   void PushBack(const T& value) {
     if (kIsDebugBuild) {
       debug_is_sorted_ = false;

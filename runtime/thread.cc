@@ -963,7 +963,9 @@ Thread::Thread(bool daemon)
       thread_local_start_(nullptr),
       thread_local_pos_(nullptr),
       thread_local_end_(nullptr),
-      thread_local_objects_(0) {
+      thread_local_objects_(0),
+      thread_local_alloc_stack_top_(nullptr),
+      thread_local_alloc_stack_end_(nullptr) {
   CHECK_EQ((sizeof(Thread) % 4), 0U) << sizeof(Thread);
   state_and_flags_.as_struct.flags = 0;
   state_and_flags_.as_struct.state = kNative;
