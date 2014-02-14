@@ -143,7 +143,7 @@ test-art-host-interpreter: test-art-host-oat-interpreter test-art-host-run-test-
 	@echo test-art-host-interpreter PASSED
 
 .PHONY: test-art-host-dependencies
-test-art-host-dependencies: $(ART_HOST_TEST_DEPENDENCIES) $(HOST_OUT_SHARED_LIBRARIES)/libarttest$(ART_HOST_SHLIB_EXTENSION) $(HOST_CORE_DEX_LOCATIONS)
+test-art-host-dependencies: $(ART_HOST_TEST_DEPENDENCIES) $(HOST_OUT_SHARED_LIBRARIES)/libarttest$(ART_HOST_SHLIB_EXTENSION) $(HOST_CORE_DEX_LOCATIONS) $(HOST_OUT_EXECUTABLES)/jasmin
 
 .PHONY: test-art-host-gtest
 test-art-host-gtest: $(ART_HOST_TEST_TARGETS)
@@ -209,7 +209,7 @@ test-art-target: test-art-target-gtest test-art-target-oat test-art-target-run-t
 	@echo test-art-target PASSED
 
 .PHONY: test-art-target-dependencies
-test-art-target-dependencies: $(ART_TARGET_TEST_DEPENDENCIES) $(ART_TEST_OUT)/libarttest.so
+test-art-target-dependencies: $(ART_TARGET_TEST_DEPENDENCIES) $(ART_TEST_OUT)/libarttest.so $(HOST_OUT_EXECUTABLES)/jasmin
 
 .PHONY: test-art-target-sync
 test-art-target-sync: test-art-target-dependencies
