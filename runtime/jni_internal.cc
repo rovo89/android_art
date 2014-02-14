@@ -2029,7 +2029,7 @@ class JNI {
   }
 
   static const jchar* GetStringChars(JNIEnv* env, jstring java_string, jboolean* is_copy) {
-    CHECK_NON_NULL_ARGUMENT(GetStringUTFRegion, java_string);
+    CHECK_NON_NULL_ARGUMENT(GetStringChars, java_string);
     ScopedObjectAccess soa(env);
     String* s = soa.Decode<String*>(java_string);
     CharArray* chars = s->GetCharArray();
@@ -2048,7 +2048,7 @@ class JNI {
   }
 
   static void ReleaseStringChars(JNIEnv* env, jstring java_string, const jchar* chars) {
-    CHECK_NON_NULL_ARGUMENT(GetStringUTFRegion, java_string);
+    CHECK_NON_NULL_ARGUMENT(ReleaseStringChars, java_string);
     delete[] chars;
     ScopedObjectAccess soa(env);
     UnpinPrimitiveArray(soa, soa.Decode<String*>(java_string)->GetCharArray());
