@@ -173,7 +173,8 @@ void Transaction::VisitObjectLogs(RootCallback* callback, void* arg) {
   for (auto it : object_logs_) {
     it.second.VisitRoots(callback, arg);
     mirror::Object* old_root = it.first;
-    mirror::Object* new_root = callback(old_root, arg, 0, kRootUnknown);
+    mirror::Object* new_root = old_root;
+    callback(&new_root, arg, 0, kRootUnknown);
     if (new_root != old_root) {
       moving_roots.push_back(std::make_pair(old_root, new_root));
     }
@@ -201,7 +202,8 @@ void Transaction::VisitArrayLogs(RootCallback* callback, void* arg) {
     if (old_root->IsObjectArray()) {
       it.second.VisitRoots(callback, arg);
     }
-    mirror::Array* new_root = down_cast<mirror::Array*>(callback(old_root, arg, 0, kRootUnknown));
+    mirror::Array* new_root = old_root;
+    callback(reinterpret_cast<mirror::Object**>(&new_root), arg, 0, kRootUnknown);
     if (new_root != old_root) {
       moving_roots.push_back(std::make_pair(old_root, new_root));
     }
@@ -306,8 +308,10 @@ void Transaction::ObjectLog::VisitRoots(RootCallback* callback, void* arg) {
   for (auto it : field_values_) {
     FieldValue& field_value = it.second;
     if (field_value.kind == ObjectLog::kReference) {
-      mirror::Object* obj = reinterpret_cast<mirror::Object*>(static_cast<uintptr_t>(field_value.value));
-      field_value.value = reinterpret_cast<uintptr_t>(callback(obj, arg, 0, kRootUnknown));
+      mirror::Object* obj =
+          reinterpret_cast<mirror::Object*>(static_cast<uintptr_t>(field_value.value));
+      callback(&obj, arg, 0, kRootUnknown);
+      field_value.value = reinterpret_cast<uintptr_t>(obj);
     }
   }
 }
@@ -350,7 +354,7 @@ void Transaction::InternStringLog::Undo(InternTable* intern_table) {
 }
 
 void Transaction::InternStringLog::VisitRoots(RootCallback* callback, void* arg) {
-  str_ = down_cast<mirror::String*>(callback(str_, arg, 0, kRootInternedString));
+  callback(reinterpret_cast<mirror::Object**>(&str_), arg, 0, kRootInternedString);
 }
 
 void Transaction::ArrayLog::LogValue(size_t index, uint64_t value) {
@@ -412,7 +416,8 @@ void Transaction::ArrayLog::UndoArrayWrite(mirror::Array* array, Primitive::Type
 void Transaction::ArrayLog::VisitRoots(RootCallback* callback, void* arg) {
   for (auto& it : array_values_) {
     mirror::Object* obj = reinterpret_cast<mirror::Object*>(static_cast<uintptr_t>(it.second));
-    it.second = reinterpret_cast<uintptr_t>(callback(obj, arg, 0, kRootUnknown));
+    callback(&obj, arg, 0, kRootUnknown);
+    it.second = reinterpret_cast<uintptr_t>(obj);
   }
 }
 

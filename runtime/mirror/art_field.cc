@@ -55,8 +55,8 @@ void ArtField::SetOffset(MemberOffset num_bytes) {
 
 void ArtField::VisitRoots(RootCallback* callback, void* arg) {
   if (java_lang_reflect_ArtField_ != nullptr) {
-    java_lang_reflect_ArtField_ = down_cast<mirror::Class*>(
-        callback(java_lang_reflect_ArtField_, arg, 0, kRootStickyClass));
+    callback(reinterpret_cast<mirror::Object**>(&java_lang_reflect_ArtField_), arg, 0,
+             kRootStickyClass);
   }
 }
 

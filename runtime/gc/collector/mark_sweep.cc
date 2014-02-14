@@ -273,7 +273,7 @@ void MarkSweep::UpdateAndMarkModUnion() {
       TimingLogger::ScopedSplit split(name, &timings_);
       accounting::ModUnionTable* mod_union_table = heap_->FindModUnionTableFromSpace(space);
       CHECK(mod_union_table != nullptr);
-      mod_union_table->UpdateAndMarkReferences(MarkRootCallback, this);
+      mod_union_table->UpdateAndMarkReferences(MarkObjectCallback, this);
     }
   }
 }
@@ -532,20 +532,25 @@ void MarkSweep::MarkRoot(const Object* obj) {
   }
 }
 
-mirror::Object* MarkSweep::MarkRootParallelCallback(mirror::Object* root, void* arg,
-                                                    uint32_t /*thread_id*/, RootType /*root_type*/) {
+void MarkSweep::MarkRootParallelCallback(mirror::Object** root, void* arg, uint32_t /*thread_id*/,
+                                         RootType /*root_type*/) {
   DCHECK(root != NULL);
   DCHECK(arg != NULL);
-  reinterpret_cast<MarkSweep*>(arg)->MarkObjectNonNullParallel(root);
-  return root;
+  reinterpret_cast<MarkSweep*>(arg)->MarkObjectNonNullParallel(*root);
 }
 
-Object* MarkSweep::MarkRootCallback(Object* root, void* arg, uint32_t /*thread_id*/,
-                                    RootType /*root_type*/) {
+void MarkSweep::MarkRootCallback(Object** root, void* arg, uint32_t /*thread_id*/,
+                                 RootType /*root_type*/) {
   DCHECK(root != nullptr);
   DCHECK(arg != nullptr);
-  reinterpret_cast<MarkSweep*>(arg)->MarkObjectNonNull(root);
-  return root;
+  reinterpret_cast<MarkSweep*>(arg)->MarkObjectNonNull(*root);
+}
+
+mirror::Object* MarkSweep::MarkObjectCallback(mirror::Object* object, void* arg) {
+  DCHECK(object != nullptr);
+  DCHECK(arg != nullptr);
+  reinterpret_cast<MarkSweep*>(arg)->MarkObjectNonNull(object);
+  return object;
 }
 
 void MarkSweep::VerifyRootCallback(const Object* root, void* arg, size_t vreg,

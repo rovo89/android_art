@@ -288,7 +288,7 @@ int32_t String::CompareTo(String* rhs) {
 
 void String::VisitRoots(RootCallback* callback, void* arg) {
   if (java_lang_String_ != nullptr) {
-    java_lang_String_ = down_cast<Class*>(callback(java_lang_String_, arg, 0, kRootStickyClass));
+    callback(reinterpret_cast<mirror::Object**>(&java_lang_String_), arg, 0, kRootStickyClass);
   }
 }
 

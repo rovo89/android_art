@@ -46,8 +46,8 @@ enum RootType {
 
 // Returns the new address of the object, returns root if it has not moved. tid and root_type are
 // only used by hprof.
-typedef mirror::Object* (RootCallback)(mirror::Object* root, void* arg, uint32_t thread_id,
-    RootType root_type) __attribute__((warn_unused_result));
+typedef void (RootCallback)(mirror::Object** root, void* arg, uint32_t thread_id,
+    RootType root_type);
 // A callback for visiting an object in the heap.
 typedef void (ObjectCallback)(mirror::Object* obj, void* arg);
 // A callback used for marking an object, returns the new address of the object if the object moved.

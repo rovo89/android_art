@@ -43,8 +43,8 @@ Class* ArtMethod::java_lang_reflect_ArtMethod_ = NULL;
 
 void ArtMethod::VisitRoots(RootCallback* callback, void* arg) {
   if (java_lang_reflect_ArtMethod_ != nullptr) {
-    java_lang_reflect_ArtMethod_ = down_cast<mirror::Class*>(
-        callback(java_lang_reflect_ArtMethod_, arg, 0, kRootStickyClass));
+    callback(reinterpret_cast<mirror::Object**>(&java_lang_reflect_ArtMethod_), arg, 0,
+             kRootStickyClass);
   }
 }
 
