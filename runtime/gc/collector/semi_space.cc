@@ -210,7 +210,10 @@ void SemiSpace::MarkingPhase() {
   // Need to do this before the checkpoint since we don't want any threads to add references to
   // the live stack during the recursive mark.
   timings_.NewSplit("SwapStacks");
-  heap_->SwapStacks();
+  if (kUseThreadLocalAllocationStack) {
+    heap_->RevokeAllThreadLocalAllocationStacks(self_);
+  }
+  heap_->SwapStacks(self_);
   WriterMutexLock mu(self_, *Locks::heap_bitmap_lock_);
   MarkRoots();
   // Mark roots of immune spaces.

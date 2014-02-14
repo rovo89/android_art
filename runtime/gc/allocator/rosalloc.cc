@@ -1560,7 +1560,8 @@ void RosAlloc::RevokeThreadLocalRuns(Thread* thread) {
 void RosAlloc::RevokeAllThreadLocalRuns() {
   // This is called when a mutator thread won't allocate such as at
   // the Zygote creation time or during the GC pause.
-  MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
+  MutexLock mu(Thread::Current(), *Locks::runtime_shutdown_lock_);
+  MutexLock mu2(Thread::Current(), *Locks::thread_list_lock_);
   std::list<Thread*> thread_list = Runtime::Current()->GetThreadList()->GetList();
   for (auto it = thread_list.begin(); it != thread_list.end(); ++it) {
     Thread* t = *it;
