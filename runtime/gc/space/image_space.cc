@@ -286,6 +286,8 @@ OatFile* ImageSpace::OpenOatFile(std::string* error_msg) const {
       down_cast<mirror::String*>(image_header.GetImageRoot(ImageHeader::kOatLocation));
   std::string oat_filename;
   oat_filename += runtime->GetHostPrefix();
+  // Ensure the path ends with a '/'.
+  if (!oat_filename.empty()) oat_filename += "/";
   oat_filename += oat_location->ToModifiedUtf8();
   OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, image_header.GetOatDataBegin(),
                                     !Runtime::Current()->IsCompiler(), error_msg);
