@@ -2509,8 +2509,7 @@ class JNI {
       JniAbortF("NewDirectByteBuffer", "non-zero capacity for nullptr pointer: %" PRId64, capacity);
     }
 
-    // At the moment, the Java side is limited to 32 bits.
-    CHECK_LE(reinterpret_cast<uintptr_t>(address), 0xffffffff);
+    // At the moment, the capacity is limited to 32 bits.
     CHECK_LE(capacity, 0xffffffff);
     jlong address_arg = reinterpret_cast<jlong>(address);
     jint capacity_arg = static_cast<jint>(capacity);

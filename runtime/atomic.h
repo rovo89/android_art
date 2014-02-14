@@ -96,7 +96,7 @@ typedef Atomic<int32_t> AtomicInteger;
 // quasiatomic operations that are performed on partially-overlapping
 // memory.
 class QuasiAtomic {
-#if !defined(__arm__) && !defined(__i386__)
+#if defined(__mips__) && !defined(__LP64__)
   static constexpr bool kNeedSwapMutexes = true;
 #else
   static constexpr bool kNeedSwapMutexes = false;

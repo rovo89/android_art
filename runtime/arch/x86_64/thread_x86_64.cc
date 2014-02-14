@@ -48,6 +48,12 @@ void Thread::InitCpu() {
   CHECK_EQ(self_check, this);
 
   // Sanity check other offsets.
+  CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET),
+           Runtime::GetCalleeSaveMethodOffset(Runtime::kSaveAll));
+  CHECK_EQ(static_cast<size_t>(RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET),
+           Runtime::GetCalleeSaveMethodOffset(Runtime::kRefsOnly));
+  CHECK_EQ(static_cast<size_t>(RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET),
+           Runtime::GetCalleeSaveMethodOffset(Runtime::kRefsAndArgs));
   CHECK_EQ(THREAD_EXCEPTION_OFFSET, OFFSETOF_MEMBER(Thread, exception_));
   CHECK_EQ(THREAD_CARD_TABLE_OFFSET, OFFSETOF_MEMBER(Thread, card_table_));
   CHECK_EQ(THREAD_ID_OFFSET, OFFSETOF_MEMBER(Thread, thin_lock_thread_id_));

@@ -19,6 +19,13 @@
 
 #include "asm_support.h"
 
+// Offset of field Runtime::callee_save_methods_[kSaveAll]
+#define RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET 208
+// Offset of field Runtime::callee_save_methods_[kRefsOnly]
+#define RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET 216
+// Offset of field Runtime::callee_save_methods_[kRefsAndArgs]
+#define RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET 224
+
 // Offset of field Thread::self_ verified in InitCpu
 #define THREAD_SELF_OFFSET 72
 // Offset of field Thread::card_table_ verified in InitCpu
