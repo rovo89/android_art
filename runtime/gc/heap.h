@@ -111,6 +111,9 @@ static constexpr HeapVerificationMode kDesiredHeapVerification = kNoHeapVerifica
 // If true, use rosalloc/RosAllocSpace instead of dlmalloc/DlMallocSpace
 static constexpr bool kUseRosAlloc = true;
 
+// If true, use thread-local allocation stack.
+static constexpr bool kUseThreadLocalAllocationStack = true;
+
 // The process state passed in from the activity manager, used to determine when to do trimming
 // and compaction.
 enum ProcessState {
@@ -665,10 +668,16 @@ class Heap {
       SHARED_LOCKS_REQUIRED(GlobalSychronization::heap_bitmap_lock_);
 
   // Swap the allocation stack with the live stack.
-  void SwapStacks();
+  void SwapStacks(Thread* self);
+
+  // Revoke all the thread-local allocation stacks.
+  void RevokeAllThreadLocalAllocationStacks(Thread* self);
 
   // Clear cards and update the mod union table.
   void ProcessCards(TimingLogger& timings);
+
+  // Push an object onto the allocation stack.
+  void PushOnAllocationStack(Thread* self, mirror::Object* obj);
 
   // All-known continuous spaces, where objects lie within fixed bounds.
   std::vector<space::ContinuousSpace*> continuous_spaces_;

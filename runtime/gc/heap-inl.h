@@ -82,11 +82,7 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
     DCHECK(!Runtime::Current()->HasStatsEnabled());
   }
   if (AllocatorHasAllocationStack(allocator)) {
-    // This is safe to do since the GC will never free objects which are neither in the allocation
-    // stack or the live bitmap.
-    while (!allocation_stack_->AtomicPushBack(obj)) {
-      CollectGarbageInternal(collector::kGcTypeSticky, kGcCauseForAlloc, false);
-    }
+    PushOnAllocationStack(self, obj);
   }
   if (kInstrumented) {
     if (Dbg::IsAllocTrackingEnabled()) {
@@ -109,6 +105,35 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
     self->VerifyStack();
   }
   return obj;
+}
+
+// The size of a thread-local allocation stack in the number of references.
+static constexpr size_t kThreadLocalAllocationStackSize = 128;
+
+inline void Heap::PushOnAllocationStack(Thread* self, mirror::Object* obj) {
+  if (kUseThreadLocalAllocationStack) {
+    bool success = self->PushOnThreadLocalAllocationStack(obj);
+    if (UNLIKELY(!success)) {
+      // Slow path. Allocate a new thread-local allocation stack.
+      mirror::Object** start_address;
+      mirror::Object** end_address;
+      while (!allocation_stack_->AtomicBumpBack(kThreadLocalAllocationStackSize,
+                                                &start_address, &end_address)) {
+        CollectGarbageInternal(collector::kGcTypeSticky, kGcCauseForAlloc, false);
+      }
+      self->SetThreadLocalAllocationStack(start_address, end_address);
+      // Retry on the new thread-local allocation stack.
+      success = self->PushOnThreadLocalAllocationStack(obj);
+      // Must succeed.
+      CHECK(success);
+    }
+  } else {
+    // This is safe to do since the GC will never free objects which are neither in the allocation
+    // stack or the live bitmap.
+    while (!allocation_stack_->AtomicPushBack(obj)) {
+      CollectGarbageInternal(collector::kGcTypeSticky, kGcCauseForAlloc, false);
+    }
+  }
 }
 
 template <bool kInstrumented, typename PreFenceVisitor>

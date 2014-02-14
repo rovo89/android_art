@@ -383,7 +383,8 @@ void Heap::VisitObjects(ObjectCallback callback, void* arg) {
     mirror::Object* obj = *it;
     if (obj != nullptr && obj->GetClass() != nullptr) {
       // Avoid the race condition caused by the object not yet being written into the allocation
-      // stack or the class not yet being written in the object.
+      // stack or the class not yet being written in the object. Or, if kUseThreadLocalAllocationStack,
+      // there can be nulls on the allocation stack.
       callback(obj, arg);
     }
   }
@@ -1533,13 +1534,14 @@ void Heap::MarkAllocStack(accounting::SpaceBitmap* bitmap1,
   mirror::Object** limit = stack->End();
   for (mirror::Object** it = stack->Begin(); it != limit; ++it) {
     const mirror::Object* obj = *it;
-    DCHECK(obj != nullptr);
-    if (bitmap1->HasAddress(obj)) {
-      bitmap1->Set(obj);
-    } else if (bitmap2->HasAddress(obj)) {
-      bitmap2->Set(obj);
-    } else {
-      large_objects->Set(obj);
+    if (!kUseThreadLocalAllocationStack || obj != nullptr) {
+      if (bitmap1->HasAddress(obj)) {
+        bitmap1->Set(obj);
+      } else if (bitmap2->HasAddress(obj)) {
+        bitmap2->Set(obj);
+      } else {
+        large_objects->Set(obj);
+      }
     }
   }
 }
@@ -2004,7 +2006,9 @@ bool Heap::VerifyMissingCardMarks() {
 
   // We can verify objects in the live stack since none of these should reference dead objects.
   for (mirror::Object** it = live_stack_->Begin(); it != live_stack_->End(); ++it) {
-    visitor(*it);
+    if (!kUseThreadLocalAllocationStack || *it != nullptr) {
+      visitor(*it);
+    }
   }
 
   if (visitor.Failed()) {
@@ -2014,8 +2018,28 @@ bool Heap::VerifyMissingCardMarks() {
   return true;
 }
 
-void Heap::SwapStacks() {
+void Heap::SwapStacks(Thread* self) {
+  if (kUseThreadLocalAllocationStack) {
+    live_stack_->AssertAllZero();
+  }
   allocation_stack_.swap(live_stack_);
+}
+
+void Heap::RevokeAllThreadLocalAllocationStacks(Thread* self) {
+  if (!Runtime::Current()->IsStarted()) {
+    // There's no thread list if the runtime hasn't started (eg
+    // dex2oat or a test). Just revoke for self.
+    self->RevokeThreadLocalAllocationStack();
+    return;
+  }
+  // This must be called only during the pause.
+  CHECK(Locks::mutator_lock_->IsExclusiveHeld(self));
+  MutexLock mu(self, *Locks::runtime_shutdown_lock_);
+  MutexLock mu2(self, *Locks::thread_list_lock_);
+  std::list<Thread*> thread_list = Runtime::Current()->GetThreadList()->GetList();
+  for (Thread* t : thread_list) {
+    t->RevokeThreadLocalAllocationStack();
+  }
 }
 
 accounting::ModUnionTable* Heap::FindModUnionTableFromSpace(space::Space* space) {
@@ -2072,12 +2096,12 @@ void Heap::PreGcVerification(collector::GarbageCollector* gc) {
     thread_list->SuspendAll();
     {
       ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-      SwapStacks();
+      SwapStacks(self);
       // Sort the live stack so that we can quickly binary search it later.
       if (!VerifyMissingCardMarks()) {
         LOG(FATAL) << "Pre " << gc->GetName() << " missing card mark verification failed";
       }
-      SwapStacks();
+      SwapStacks(self);
     }
     thread_list->ResumeAll();
   }
