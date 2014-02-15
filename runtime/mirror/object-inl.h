@@ -60,8 +60,8 @@ inline uint32_t Object::GetLockOwnerThreadId() {
   return Monitor::GetLockOwnerThreadId(this);
 }
 
-inline void Object::MonitorEnter(Thread* self) {
-  Monitor::MonitorEnter(self, this);
+inline mirror::Object* Object::MonitorEnter(Thread* self) {
+  return Monitor::MonitorEnter(self, this);
 }
 
 inline bool Object::MonitorExit(Thread* self) {
