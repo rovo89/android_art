@@ -1654,6 +1654,8 @@ void X86Mir2Lir::GenLongLongImm(RegLocation rl_dest, RegLocation rl_src1,
       X86OpCode x86op = GetOpcode(op, rl_dest, true, val_hi);
       NewLIR2(x86op, rl_dest.high_reg, val_hi);
     }
+
+    StoreFinalValueWide(rl_dest, rl_dest);
     return;
   }
 
