@@ -57,7 +57,7 @@ class Monitor {
   static uint32_t GetLockOwnerThreadId(mirror::Object* obj)
       NO_THREAD_SAFETY_ANALYSIS;  // TODO: Reading lock owner without holding lock is racy.
 
-  static void MonitorEnter(Thread* thread, mirror::Object* obj)
+  static mirror::Object* MonitorEnter(Thread* thread, mirror::Object* obj)
       EXCLUSIVE_LOCK_FUNCTION(monitor_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static bool MonitorExit(Thread* thread, mirror::Object* obj)
