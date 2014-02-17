@@ -1551,7 +1551,7 @@ class JNI {
     mirror::Object* o = soa.Decode<mirror::Object*>(java_object);
     mirror::Object* v = soa.Decode<mirror::Object*>(java_value);
     mirror::ArtField* f = soa.DecodeField(fid);
-    f->SetObject(o, v);
+    f->SetObject<false>(o, v);
   }
 
   static void SetStaticObjectField(JNIEnv* env, jclass, jfieldID fid, jobject java_value) {
@@ -1559,7 +1559,7 @@ class JNI {
     ScopedObjectAccess soa(env);
     mirror::Object* v = soa.Decode<mirror::Object*>(java_value);
     mirror::ArtField* f = soa.DecodeField(fid);
-    f->SetObject(f->GetDeclaringClass(), v);
+    f->SetObject<false>(f->GetDeclaringClass(), v);
   }
 
 #define GET_PRIMITIVE_FIELD(fn, instance) \
@@ -1582,13 +1582,13 @@ class JNI {
   ScopedObjectAccess soa(env); \
   mirror::Object* o = soa.Decode<mirror::Object*>(instance); \
   mirror::ArtField* f = soa.DecodeField(fid); \
-  f->Set ##fn(o, value)
+  f->Set ##fn <false>(o, value)
 
 #define SET_STATIC_PRIMITIVE_FIELD(fn, value) \
   CHECK_NON_NULL_ARGUMENT(SetStatic #fn Field, fid); \
   ScopedObjectAccess soa(env); \
   mirror::ArtField* f = soa.DecodeField(fid); \
-  f->Set ##fn(f->GetDeclaringClass(), value)
+  f->Set ##fn <false>(f->GetDeclaringClass(), value)
 
   static jboolean GetBooleanField(JNIEnv* env, jobject obj, jfieldID fid) {
     GET_PRIMITIVE_FIELD(Boolean, obj);
@@ -2085,7 +2085,7 @@ class JNI {
     mirror::ObjectArray<mirror::Object>* array =
         soa.Decode<mirror::ObjectArray<mirror::Object>*>(java_array);
     mirror::Object* value = soa.Decode<mirror::Object*>(java_value);
-    array->Set(index, value);
+    array->Set<false>(index, value);
   }
 
   static jbooleanArray NewBooleanArray(JNIEnv* env, jsize length) {
@@ -2166,7 +2166,7 @@ class JNI {
 
         } else {
           for (jsize i = 0; i < length; ++i) {
-            result->SetWithoutChecks(i, initial_object);
+            result->SetWithoutChecks<false>(i, initial_object);
           }
         }
       }

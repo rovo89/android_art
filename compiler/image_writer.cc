@@ -408,25 +408,25 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
                                                                class_linker->GetDexCaches().size());
   int i = 0;
   for (DexCache* dex_cache : class_linker->GetDexCaches()) {
-    dex_caches->Set(i++, dex_cache);
+    dex_caches->Set<false>(i++, dex_cache);
   }
 
   // build an Object[] of the roots needed to restore the runtime
   SirtRef<ObjectArray<Object> > image_roots(
       self, ObjectArray<Object>::Alloc(self, object_array_class.get(), ImageHeader::kImageRootsMax));
-  image_roots->Set(ImageHeader::kResolutionMethod, runtime->GetResolutionMethod());
-  image_roots->Set(ImageHeader::kImtConflictMethod, runtime->GetImtConflictMethod());
-  image_roots->Set(ImageHeader::kDefaultImt, runtime->GetDefaultImt());
-  image_roots->Set(ImageHeader::kCalleeSaveMethod,
-                   runtime->GetCalleeSaveMethod(Runtime::kSaveAll));
-  image_roots->Set(ImageHeader::kRefsOnlySaveMethod,
-                   runtime->GetCalleeSaveMethod(Runtime::kRefsOnly));
-  image_roots->Set(ImageHeader::kRefsAndArgsSaveMethod,
-                   runtime->GetCalleeSaveMethod(Runtime::kRefsAndArgs));
-  image_roots->Set(ImageHeader::kOatLocation,
-                   String::AllocFromModifiedUtf8(self, oat_file_->GetLocation().c_str()));
-  image_roots->Set(ImageHeader::kDexCaches, dex_caches);
-  image_roots->Set(ImageHeader::kClassRoots, class_linker->GetClassRoots());
+  image_roots->Set<false>(ImageHeader::kResolutionMethod, runtime->GetResolutionMethod());
+  image_roots->Set<false>(ImageHeader::kImtConflictMethod, runtime->GetImtConflictMethod());
+  image_roots->Set<false>(ImageHeader::kDefaultImt, runtime->GetDefaultImt());
+  image_roots->Set<false>(ImageHeader::kCalleeSaveMethod,
+                          runtime->GetCalleeSaveMethod(Runtime::kSaveAll));
+  image_roots->Set<false>(ImageHeader::kRefsOnlySaveMethod,
+                          runtime->GetCalleeSaveMethod(Runtime::kRefsOnly));
+  image_roots->Set<false>(ImageHeader::kRefsAndArgsSaveMethod,
+                          runtime->GetCalleeSaveMethod(Runtime::kRefsAndArgs));
+  image_roots->Set<false>(ImageHeader::kOatLocation,
+                          String::AllocFromModifiedUtf8(self, oat_file_->GetLocation().c_str()));
+  image_roots->Set<false>(ImageHeader::kDexCaches, dex_caches);
+  image_roots->Set<false>(ImageHeader::kClassRoots, class_linker->GetClassRoots());
   for (int i = 0; i < ImageHeader::kImageRootsMax; i++) {
     CHECK(image_roots->Get(i) != NULL);
   }
@@ -663,7 +663,7 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
 void ImageWriter::FixupObjectArray(ObjectArray<Object>* orig, ObjectArray<Object>* copy) {
   for (int32_t i = 0; i < orig->GetLength(); ++i) {
     Object* element = orig->Get(i);
-    copy->SetWithoutChecksAndWriteBarrier(i, GetImageAddress(element));
+    copy->SetWithoutChecksAndWriteBarrier<false>(i, GetImageAddress(element));
   }
 }
 
@@ -693,7 +693,7 @@ void ImageWriter::FixupFields(Object* orig,
       Object* ref = orig->GetFieldObject<Object>(byte_offset, false);
       // Use SetFieldObjectWithoutWriteBarrier to avoid card marking since we are writing to the
       // image.
-      copy->SetFieldObjectWithoutWriteBarrier(byte_offset, GetImageAddress(ref), false);
+      copy->SetFieldObjectWithoutWriteBarrier<false>(byte_offset, GetImageAddress(ref), false);
       ref_offsets &= ~(CLASS_HIGH_BIT >> right_shift);
     }
   } else {
@@ -715,7 +715,7 @@ void ImageWriter::FixupFields(Object* orig,
         Object* ref = orig->GetFieldObject<Object>(field_offset, false);
         // Use SetFieldObjectWithoutWriteBarrier to avoid card marking since we are writing to the
         // image.
-        copy->SetFieldObjectWithoutWriteBarrier(field_offset, GetImageAddress(ref), false);
+        copy->SetFieldObjectWithoutWriteBarrier<false>(field_offset, GetImageAddress(ref), false);
       }
     }
   }
@@ -726,7 +726,7 @@ void ImageWriter::FixupFields(Object* orig,
     Object* ref = orig->GetFieldObject<Object>(field_offset, false);
     // Use SetFieldObjectWithoutWriteBarrier to avoid card marking since we are writing to the
     // image.
-    copy->SetFieldObjectWithoutWriteBarrier(field_offset, GetImageAddress(ref), false);
+    copy->SetFieldObjectWithoutWriteBarrier<false>(field_offset, GetImageAddress(ref), false);
   }
 }
 

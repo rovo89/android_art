@@ -33,6 +33,7 @@ Mutex* Locks::thread_suspend_count_lock_ = NULL;
 Mutex* Locks::trace_lock_ = NULL;
 Mutex* Locks::profiler_lock_ = NULL;
 Mutex* Locks::unexpected_signal_lock_ = NULL;
+Mutex* Locks::intern_table_lock_ = NULL;
 
 void Locks::Init() {
   if (logging_lock_ != NULL) {
@@ -49,6 +50,7 @@ void Locks::Init() {
     DCHECK(trace_lock_ != NULL);
     DCHECK(profiler_lock_ != NULL);
     DCHECK(unexpected_signal_lock_ != NULL);
+    DCHECK(intern_table_lock_ != NULL);
   } else {
     logging_lock_ = new Mutex("logging lock", kLoggingLock, true);
     abort_lock_ = new Mutex("abort lock", kAbortLock, true);
@@ -76,6 +78,8 @@ void Locks::Init() {
     profiler_lock_ = new Mutex("profiler lock", kProfilerLock);
     DCHECK(unexpected_signal_lock_ == NULL);
     unexpected_signal_lock_ = new Mutex("unexpected signal lock", kUnexpectedSignalLock, true);
+    DCHECK(intern_table_lock_ == NULL);
+    intern_table_lock_ = new Mutex("InternTable lock", kInternTableLock);
   }
 }
 

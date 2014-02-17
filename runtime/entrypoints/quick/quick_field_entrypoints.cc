@@ -154,13 +154,15 @@ extern "C" int artSet32StaticFromCode(uint32_t field_idx, uint32_t new_value,
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite,
                                           sizeof(int32_t));
   if (LIKELY(field != NULL)) {
-    field->Set32(field->GetDeclaringClass(), new_value);
+    // Compiled code can't use transactional mode.
+    field->Set32<false>(field->GetDeclaringClass(), new_value);
     return 0;  // success
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   field = FindFieldFromCode<StaticPrimitiveWrite, true>(field_idx, referrer, self, sizeof(int32_t));
   if (LIKELY(field != NULL)) {
-    field->Set32(field->GetDeclaringClass(), new_value);
+    // Compiled code can't use transactional mode.
+    field->Set32<false>(field->GetDeclaringClass(), new_value);
     return 0;  // success
   }
   return -1;  // failure
@@ -172,13 +174,15 @@ extern "C" int artSet64StaticFromCode(uint32_t field_idx, mirror::ArtMethod* ref
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite,
                                           sizeof(int64_t));
   if (LIKELY(field != NULL)) {
-    field->Set64(field->GetDeclaringClass(), new_value);
+    // Compiled code can't use transactional mode.
+    field->Set64<false>(field->GetDeclaringClass(), new_value);
     return 0;  // success
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   field = FindFieldFromCode<StaticPrimitiveWrite, true>(field_idx, referrer, self, sizeof(int64_t));
   if (LIKELY(field != NULL)) {
-    field->Set64(field->GetDeclaringClass(), new_value);
+    // Compiled code can't use transactional mode.
+    field->Set64<false>(field->GetDeclaringClass(), new_value);
     return 0;  // success
   }
   return -1;  // failure
@@ -192,7 +196,8 @@ extern "C" int artSetObjStaticFromCode(uint32_t field_idx, mirror::Object* new_v
                                           sizeof(mirror::HeapReference<mirror::Object>));
   if (LIKELY(field != NULL)) {
     if (LIKELY(!FieldHelper(field).IsPrimitiveType())) {
-      field->SetObj(field->GetDeclaringClass(), new_value);
+      // Compiled code can't use transactional mode.
+      field->SetObj<false>(field->GetDeclaringClass(), new_value);
       return 0;  // success
     }
   }
@@ -200,7 +205,8 @@ extern "C" int artSetObjStaticFromCode(uint32_t field_idx, mirror::Object* new_v
   field = FindFieldFromCode<StaticObjectWrite, true>(field_idx, referrer, self,
                                                      sizeof(mirror::HeapReference<mirror::Object>));
   if (LIKELY(field != NULL)) {
-    field->SetObj(field->GetDeclaringClass(), new_value);
+    // Compiled code can't use transactional mode.
+    field->SetObj<false>(field->GetDeclaringClass(), new_value);
     return 0;  // success
   }
   return -1;  // failure
@@ -213,7 +219,8 @@ extern "C" int artSet32InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite,
                                           sizeof(int32_t));
   if (LIKELY(field != NULL && obj != NULL)) {
-    field->Set32(obj, new_value);
+    // Compiled code can't use transactional mode.
+    field->Set32<false>(obj, new_value);
     return 0;  // success
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
@@ -224,7 +231,8 @@ extern "C" int artSet32InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
       ThrowLocation throw_location = self->GetCurrentLocationForThrow();
       ThrowNullPointerExceptionForFieldAccess(throw_location, field, false);
     } else {
-      field->Set32(obj, new_value);
+      // Compiled code can't use transactional mode.
+      field->Set32<false>(obj, new_value);
       return 0;  // success
     }
   }
@@ -240,7 +248,8 @@ extern "C" int artSet64InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite,
                                           sizeof(int64_t));
   if (LIKELY(field != NULL  && obj != NULL)) {
-    field->Set64(obj, new_value);
+    // Compiled code can't use transactional mode.
+    field->Set64<false>(obj, new_value);
     return 0;  // success
   }
   *sp = callee_save;
@@ -252,7 +261,8 @@ extern "C" int artSet64InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
       ThrowLocation throw_location = self->GetCurrentLocationForThrow();
       ThrowNullPointerExceptionForFieldAccess(throw_location, field, false);
     } else {
-      field->Set64(obj, new_value);
+      // Compiled code can't use transactional mode.
+      field->Set64<false>(obj, new_value);
       return 0;  // success
     }
   }
@@ -267,7 +277,8 @@ extern "C" int artSetObjInstanceFromCode(uint32_t field_idx, mirror::Object* obj
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstanceObjectWrite,
                                           sizeof(mirror::HeapReference<mirror::Object>));
   if (LIKELY(field != NULL && obj != NULL)) {
-    field->SetObj(obj, new_value);
+    // Compiled code can't use transactional mode.
+    field->SetObj<false>(obj, new_value);
     return 0;  // success
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
@@ -278,7 +289,8 @@ extern "C" int artSetObjInstanceFromCode(uint32_t field_idx, mirror::Object* obj
       ThrowLocation throw_location = self->GetCurrentLocationForThrow();
       ThrowNullPointerExceptionForFieldAccess(throw_location, field, false);
     } else {
-      field->SetObj(obj, new_value);
+      // Compiled code can't use transactional mode.
+      field->SetObj<false>(obj, new_value);
       return 0;  // success
     }
   }

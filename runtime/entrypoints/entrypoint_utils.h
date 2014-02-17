@@ -136,6 +136,7 @@ ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCode(uint32_t type_id
     gc::Heap* heap = Runtime::Current()->GetHeap();
     return klass->Alloc<kInstrumented>(self, heap->GetCurrentAllocator());
   }
+  DCHECK(klass != nullptr);
   return klass->Alloc<kInstrumented>(self, allocator_type);
 }
 

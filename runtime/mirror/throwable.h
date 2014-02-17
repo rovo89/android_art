@@ -31,7 +31,13 @@ namespace mirror {
 class MANAGED Throwable : public Object {
  public:
   void SetDetailMessage(String* new_detail_message) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_), new_detail_message, false);
+    if (Runtime::Current()->IsActiveTransaction()) {
+      SetFieldObject<true>(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_), new_detail_message,
+                           false);
+    } else {
+      SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_), new_detail_message,
+                            false);
+    }
   }
   String* GetDetailMessage() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_), false);

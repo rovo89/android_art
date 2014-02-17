@@ -1082,33 +1082,36 @@ void EncodedStaticFieldValueIterator::Next() {
   ptr_ += width;
 }
 
+template<bool kTransactionActive>
 void EncodedStaticFieldValueIterator::ReadValueToField(mirror::ArtField* field) const {
   switch (type_) {
-    case kBoolean: field->SetBoolean(field->GetDeclaringClass(), jval_.z); break;
-    case kByte:    field->SetByte(field->GetDeclaringClass(), jval_.b); break;
-    case kShort:   field->SetShort(field->GetDeclaringClass(), jval_.s); break;
-    case kChar:    field->SetChar(field->GetDeclaringClass(), jval_.c); break;
-    case kInt:     field->SetInt(field->GetDeclaringClass(), jval_.i); break;
-    case kLong:    field->SetLong(field->GetDeclaringClass(), jval_.j); break;
-    case kFloat:   field->SetFloat(field->GetDeclaringClass(), jval_.f); break;
-    case kDouble:  field->SetDouble(field->GetDeclaringClass(), jval_.d); break;
-    case kNull:    field->SetObject(field->GetDeclaringClass(), NULL); break;
+    case kBoolean: field->SetBoolean<kTransactionActive>(field->GetDeclaringClass(), jval_.z); break;
+    case kByte:    field->SetByte<kTransactionActive>(field->GetDeclaringClass(), jval_.b); break;
+    case kShort:   field->SetShort<kTransactionActive>(field->GetDeclaringClass(), jval_.s); break;
+    case kChar:    field->SetChar<kTransactionActive>(field->GetDeclaringClass(), jval_.c); break;
+    case kInt:     field->SetInt<kTransactionActive>(field->GetDeclaringClass(), jval_.i); break;
+    case kLong:    field->SetLong<kTransactionActive>(field->GetDeclaringClass(), jval_.j); break;
+    case kFloat:   field->SetFloat<kTransactionActive>(field->GetDeclaringClass(), jval_.f); break;
+    case kDouble:  field->SetDouble<kTransactionActive>(field->GetDeclaringClass(), jval_.d); break;
+    case kNull:    field->SetObject<kTransactionActive>(field->GetDeclaringClass(), NULL); break;
     case kString: {
       CHECK(!kMovingFields);
       mirror::String* resolved = linker_->ResolveString(dex_file_, jval_.i, *dex_cache_);
-      field->SetObject(field->GetDeclaringClass(), resolved);
+      field->SetObject<kTransactionActive>(field->GetDeclaringClass(), resolved);
       break;
     }
     case kType: {
       CHECK(!kMovingFields);
       mirror::Class* resolved = linker_->ResolveType(dex_file_, jval_.i, *dex_cache_,
                                                      *class_loader_);
-      field->SetObject(field->GetDeclaringClass(), resolved);
+      field->SetObject<kTransactionActive>(field->GetDeclaringClass(), resolved);
       break;
     }
     default: UNIMPLEMENTED(FATAL) << ": type " << type_;
   }
 }
+template void EncodedStaticFieldValueIterator::ReadValueToField<true>(mirror::ArtField* field) const;
+template void EncodedStaticFieldValueIterator::ReadValueToField<false>(mirror::ArtField* field) const;
 
 CatchHandlerIterator::CatchHandlerIterator(const DexFile::CodeItem& code_item, uint32_t address) {
   handler_.address_ = -1;

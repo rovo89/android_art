@@ -183,32 +183,32 @@ static void SetFieldValue(ScopedFastNativeObjectAccess& soa, mirror::Object* o,
   o = sirt_obj.get();
   switch (FieldHelper(f).GetTypeAsPrimitiveType()) {
   case Primitive::kPrimBoolean:
-    f->SetBoolean(o, new_value.GetZ());
+    f->SetBoolean<false>(o, new_value.GetZ());
     break;
   case Primitive::kPrimByte:
-    f->SetByte(o, new_value.GetB());
+    f->SetByte<false>(o, new_value.GetB());
     break;
   case Primitive::kPrimChar:
-    f->SetChar(o, new_value.GetC());
+    f->SetChar<false>(o, new_value.GetC());
     break;
   case Primitive::kPrimDouble:
-    f->SetDouble(o, new_value.GetD());
+    f->SetDouble<false>(o, new_value.GetD());
     break;
   case Primitive::kPrimFloat:
-    f->SetFloat(o, new_value.GetF());
+    f->SetFloat<false>(o, new_value.GetF());
     break;
   case Primitive::kPrimInt:
-    f->SetInt(o, new_value.GetI());
+    f->SetInt<false>(o, new_value.GetI());
     break;
   case Primitive::kPrimLong:
-    f->SetLong(o, new_value.GetJ());
+    f->SetLong<false>(o, new_value.GetJ());
     break;
   case Primitive::kPrimShort:
-    f->SetShort(o, new_value.GetS());
+    f->SetShort<false>(o, new_value.GetS());
     break;
   case Primitive::kPrimNot:
     if (allow_references) {
-      f->SetObject(o, new_value.GetL());
+      f->SetObject<false>(o, new_value.GetL());
       break;
     }
     // Else fall through to report an error.

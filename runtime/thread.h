@@ -591,6 +591,11 @@ class PACKED(4) Thread {
 
   void CreatePeer(const char* name, bool as_daemon, jobject thread_group);
 
+  template<bool kTransactionActive>
+  void InitPeer(ScopedObjectAccess& soa, jboolean thread_is_daemon, jobject thread_group,
+                jobject thread_name, jint thread_priority)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Avoid use, callers should use SetState. Used only by SignalCatcher::HandleSigQuit, ~Thread and
   // Dbg::Disconnected.
   ThreadState SetStateUnsafe(ThreadState new_state) {
