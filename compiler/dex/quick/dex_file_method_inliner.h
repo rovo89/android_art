@@ -150,10 +150,21 @@ class DexFileMethodInliner {
      * Analyse method code to determine if the method is a candidate for inlining.
      * If it is, record its data for later.
      *
-     * @param method_idx the index of the inlining candidate.
-     * @param code_item a previously verified code item of the method.
+     * @param verifier the method verifier holding data about the method to analyse.
+     * @return true if the method is a candidate for inlining, false otherwise.
      */
     bool AnalyseMethodCode(verifier::MethodVerifier* verifier)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(lock_);
+
+    /**
+     * Analyse method code to determine if the method is a candidate for inlining.
+     * If it is, record the inlining data.
+     *
+     * @param verifier the method verifier holding data about the method to analyse.
+     * @param method placeholder for the inline method data.
+     * @return true if the method is a candidate for inlining, false otherwise.
+     */
+    bool AnalyseMethodCode(verifier::MethodVerifier* verifier, InlineMethod* method)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(lock_);
 
     /**
