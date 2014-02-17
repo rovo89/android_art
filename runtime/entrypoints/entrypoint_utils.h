@@ -377,10 +377,11 @@ EXPLICIT_FIND_FIELD_FROM_CODE_TYPED_TEMPLATE_DECL(StaticPrimitiveWrite);
 #undef EXPLICIT_FIND_FIELD_FROM_CODE_TEMPLATE_DECL
 
 template<InvokeType type, bool access_check>
-static inline mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object* this_object,
+static inline mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx,
+                                                    mirror::Object* this_object,
                                                     mirror::ArtMethod* referrer, Thread* self) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  SirtRef<mirror::Object> sirt_this(self, this_object);
+  SirtRef<mirror::Object> sirt_this(self, type == kStatic ? nullptr : this_object);
   mirror::ArtMethod* resolved_method = class_linker->ResolveMethod(method_idx, referrer, type);
   if (UNLIKELY(resolved_method == nullptr)) {
     DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
