@@ -116,10 +116,10 @@ TEST_F(ObjectTest, AllocObjectArray) {
   EXPECT_EQ(2, oa->GetLength());
   EXPECT_TRUE(oa->Get(0) == NULL);
   EXPECT_TRUE(oa->Get(1) == NULL);
-  oa->Set(0, oa.get());
+  oa->Set<false>(0, oa.get());
   EXPECT_TRUE(oa->Get(0) == oa.get());
   EXPECT_TRUE(oa->Get(1) == NULL);
-  oa->Set(1, oa.get());
+  oa->Set<false>(1, oa.get());
   EXPECT_TRUE(oa->Get(0) == oa.get());
   EXPECT_TRUE(oa->Get(1) == oa.get());
 
@@ -235,12 +235,12 @@ TEST_F(ObjectTest, CreateMultiArray) {
 
   SirtRef<Class> c(soa.Self(), class_linker_->FindSystemClass("I"));
   SirtRef<IntArray> dims(soa.Self(), IntArray::Alloc(soa.Self(), 1));
-  dims->Set(0, 1);
+  dims->Set<false>(0, 1);
   Array* multi = Array::CreateMultiArray(soa.Self(), c, dims);
   EXPECT_TRUE(multi->GetClass() == class_linker_->FindSystemClass("[I"));
   EXPECT_EQ(1, multi->GetLength());
 
-  dims->Set(0, -1);
+  dims->Set<false>(0, -1);
   multi = Array::CreateMultiArray(soa.Self(), c, dims);
   EXPECT_TRUE(soa.Self()->IsExceptionPending());
   EXPECT_EQ(PrettyDescriptor(soa.Self()->GetException(NULL)->GetClass()),
@@ -250,8 +250,8 @@ TEST_F(ObjectTest, CreateMultiArray) {
   dims.reset(IntArray::Alloc(soa.Self(), 2));
   for (int i = 1; i < 20; ++i) {
     for (int j = 0; j < 20; ++j) {
-      dims->Set(0, i);
-      dims->Set(1, j);
+      dims->Set<false>(0, i);
+      dims->Set<false>(1, j);
       multi = Array::CreateMultiArray(soa.Self(), c, dims);
       EXPECT_TRUE(multi->GetClass() == class_linker_->FindSystemClass("[[I"));
       EXPECT_EQ(i, multi->GetLength());
@@ -301,10 +301,10 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
   EXPECT_TRUE(s0 != NULL);
 
   SirtRef<CharArray> char_array(soa.Self(), CharArray::Alloc(soa.Self(), 0));
-  field->SetObj(field->GetDeclaringClass(), char_array.get());
+  field->SetObj<false>(field->GetDeclaringClass(), char_array.get());
   EXPECT_EQ(char_array.get(), field->GetObj(klass));
 
-  field->SetObj(field->GetDeclaringClass(), NULL);
+  field->SetObj<false>(field->GetDeclaringClass(), NULL);
   EXPECT_EQ(NULL, field->GetObj(klass));
 
   // TODO: more exhaustive tests of all 6 cases of ArtField::*FromCode
@@ -387,8 +387,8 @@ TEST_F(ObjectTest, StringLength) {
   EXPECT_EQ(string->GetLength(), 7);
   EXPECT_EQ(string->GetUtfLength(), 7);
 
-  string->SetOffset(2);
-  string->SetCount(5);
+  string->SetOffset<false>(2);
+  string->SetCount<false>(5);
   EXPECT_TRUE(string->Equals("droid"));
   EXPECT_EQ(string->GetLength(), 5);
   EXPECT_EQ(string->GetUtfLength(), 5);

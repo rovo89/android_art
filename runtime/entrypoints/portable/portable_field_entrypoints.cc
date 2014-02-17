@@ -30,13 +30,15 @@ extern "C" int32_t art_portable_set32_static_from_code(uint32_t field_idx,
                                StaticPrimitiveWrite,
                                sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
-    field->Set32(field->GetDeclaringClass(), new_value);
+    // Compiled code can't use transactional mode.
+    field->Set32<false>(field->GetDeclaringClass(), new_value);
     return 0;
   }
   field = FindFieldFromCode<StaticPrimitiveWrite, true>(field_idx, referrer, Thread::Current(),
                                                         sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
-    field->Set32(field->GetDeclaringClass(), new_value);
+    // Compiled code can't use transactional mode.
+    field->Set32<false>(field->GetDeclaringClass(), new_value);
     return 0;
   }
   return -1;
@@ -48,13 +50,15 @@ extern "C" int32_t art_portable_set64_static_from_code(uint32_t field_idx,
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
-    field->Set64(field->GetDeclaringClass(), new_value);
+    // Compiled code can't use transactional mode.
+    field->Set64<false>(field->GetDeclaringClass(), new_value);
     return 0;
   }
   field = FindFieldFromCode<StaticPrimitiveWrite, true>(field_idx, referrer, Thread::Current(),
                                                         sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
-    field->Set64(field->GetDeclaringClass(), new_value);
+    // Compiled code can't use transactional mode.
+    field->Set64<false>(field->GetDeclaringClass(), new_value);
     return 0;
   }
   return -1;
@@ -67,13 +71,15 @@ extern "C" int32_t art_portable_set_obj_static_from_code(uint32_t field_idx,
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, StaticObjectWrite,
                                           sizeof(mirror::HeapReference<mirror::Object>));
   if (LIKELY(field != NULL)) {
-    field->SetObj(field->GetDeclaringClass(), new_value);
+    // Compiled code can't use transactional mode.
+    field->SetObj<false>(field->GetDeclaringClass(), new_value);
     return 0;
   }
   field = FindFieldFromCode<StaticObjectWrite, true>(field_idx, referrer, Thread::Current(),
                                                      sizeof(mirror::HeapReference<mirror::Object>));
   if (LIKELY(field != NULL)) {
-    field->SetObj(field->GetDeclaringClass(), new_value);
+    // Compiled code can't use transactional mode.
+    field->SetObj<false>(field->GetDeclaringClass(), new_value);
     return 0;
   }
   return -1;
@@ -131,13 +137,15 @@ extern "C" int32_t art_portable_set32_instance_from_code(uint32_t field_idx,
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
-    field->Set32(obj, new_value);
+    // Compiled code can't use transactional mode.
+    field->Set32<false>(obj, new_value);
     return 0;
   }
   field = FindFieldFromCode<InstancePrimitiveWrite, true>(field_idx, referrer, Thread::Current(),
                                                           sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
-    field->Set32(obj, new_value);
+    // Compiled code can't use transactional mode.
+    field->Set32<false>(obj, new_value);
     return 0;
   }
   return -1;
@@ -149,13 +157,15 @@ extern "C" int32_t art_portable_set64_instance_from_code(uint32_t field_idx,
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
-    field->Set64(obj, new_value);
+    // Compiled code can't use transactional mode.
+    field->Set64<false>(obj, new_value);
     return 0;
   }
   field = FindFieldFromCode<InstancePrimitiveWrite, true>(field_idx, referrer, Thread::Current(),
                                                           sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
-    field->Set64(obj, new_value);
+    // Compiled code can't use transactional mode.
+    field->Set64<false>(obj, new_value);
     return 0;
   }
   return -1;
@@ -169,13 +179,15 @@ extern "C" int32_t art_portable_set_obj_instance_from_code(uint32_t field_idx,
   mirror::ArtField* field = FindFieldFast(field_idx, referrer, InstanceObjectWrite,
                                           sizeof(mirror::HeapReference<mirror::Object>));
   if (LIKELY(field != NULL)) {
-    field->SetObj(obj, new_value);
+    // Compiled code can't use transactional mode.
+    field->SetObj<false>(obj, new_value);
     return 0;
   }
   field = FindFieldFromCode<InstanceObjectWrite, true>(field_idx, referrer, Thread::Current(),
                                                        sizeof(mirror::HeapReference<mirror::Object>));
   if (LIKELY(field != NULL)) {
-    field->SetObj(obj, new_value);
+    // Compiled code can't use transactional mode.
+    field->SetObj<false>(obj, new_value);
     return 0;
   }
   return -1;

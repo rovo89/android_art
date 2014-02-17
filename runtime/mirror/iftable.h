@@ -52,7 +52,7 @@ class MANAGED IfTable : public ObjectArray<Object> {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(new_ma != NULL);
     DCHECK(Get((i * kMax) + kMethodArray) == NULL);
-    Set((i * kMax) + kMethodArray, new_ma);
+    Set<false>((i * kMax) + kMethodArray, new_ma);
   }
 
   size_t Count() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

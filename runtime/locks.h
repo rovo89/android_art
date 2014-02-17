@@ -44,6 +44,8 @@ enum LockLevel {
   kDexFileMethodInlinerLock,
   kDexFileToMethodInlinerMapLock,
   kMarkSweepMarkStackLock,
+  kTransactionLogLock,
+  kInternTableLock,
   kDefaultMutexLevel,
   kMarkSweepLargeObjectLock,
   kPinTableLock,
@@ -162,6 +164,9 @@ class Locks {
   // When declaring any Mutex add DEFAULT_MUTEX_ACQUIRED_AFTER to use annotalysis to check the code
   // doesn't try to hold a higher level Mutex.
   #define DEFAULT_MUTEX_ACQUIRED_AFTER ACQUIRED_AFTER(classlinker_classes_lock_)
+
+  // Guards intern table.
+  static Mutex* intern_table_lock_ ACQUIRED_AFTER(classlinker_classes_lock_);
 
   // Have an exclusive aborting thread.
   static Mutex* abort_lock_ ACQUIRED_AFTER(classlinker_classes_lock_);

@@ -867,55 +867,56 @@ TEST_F(ClassLinkerTest, StaticFields) {
   EXPECT_STREQ(ClassHelper(s0->GetClass()).GetDescriptor(), "Ljava/lang/reflect/ArtField;");
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimBoolean);
   EXPECT_EQ(true, s0->GetBoolean(statics.get()));
-  s0->SetBoolean(statics.get(), false);
+  s0->SetBoolean<false>(statics.get(), false);
 
   mirror::ArtField* s1 = statics->FindStaticField("s1", "B");
   fh.ChangeField(s1);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimByte);
   EXPECT_EQ(5, s1->GetByte(statics.get()));
-  s1->SetByte(statics.get(), 6);
+  s1->SetByte<false>(statics.get(), 6);
 
   mirror::ArtField* s2 = statics->FindStaticField("s2", "C");
   fh.ChangeField(s2);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimChar);
   EXPECT_EQ('a', s2->GetChar(statics.get()));
-  s2->SetChar(statics.get(), 'b');
+  s2->SetChar<false>(statics.get(), 'b');
 
   mirror::ArtField* s3 = statics->FindStaticField("s3", "S");
   fh.ChangeField(s3);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimShort);
   EXPECT_EQ(-536, s3->GetShort(statics.get()));
-  s3->SetShort(statics.get(), -535);
+  s3->SetShort<false>(statics.get(), -535);
 
   mirror::ArtField* s4 = statics->FindStaticField("s4", "I");
   fh.ChangeField(s4);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimInt);
   EXPECT_EQ(2000000000, s4->GetInt(statics.get()));
-  s4->SetInt(statics.get(), 2000000001);
+  s4->SetInt<false>(statics.get(), 2000000001);
 
   mirror::ArtField* s5 = statics->FindStaticField("s5", "J");
   fh.ChangeField(s5);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimLong);
   EXPECT_EQ(0x1234567890abcdefLL, s5->GetLong(statics.get()));
-  s5->SetLong(statics.get(), 0x34567890abcdef12LL);
+  s5->SetLong<false>(statics.get(), 0x34567890abcdef12LL);
 
   mirror::ArtField* s6 = statics->FindStaticField("s6", "F");
   fh.ChangeField(s6);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimFloat);
   EXPECT_EQ(0.5, s6->GetFloat(statics.get()));
-  s6->SetFloat(statics.get(), 0.75);
+  s6->SetFloat<false>(statics.get(), 0.75);
 
   mirror::ArtField* s7 = statics->FindStaticField("s7", "D");
   fh.ChangeField(s7);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimDouble);
   EXPECT_EQ(16777217, s7->GetDouble(statics.get()));
-  s7->SetDouble(statics.get(), 16777219);
+  s7->SetDouble<false>(statics.get(), 16777219);
 
   mirror::ArtField* s8 = statics->FindStaticField("s8", "Ljava/lang/String;");
   fh.ChangeField(s8);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimNot);
   EXPECT_TRUE(s8->GetObject(statics.get())->AsString()->Equals("android"));
-  s8->SetObject(s8->GetDeclaringClass(), mirror::String::AllocFromModifiedUtf8(soa.Self(), "robot"));
+  s8->SetObject<false>(s8->GetDeclaringClass(),
+                       mirror::String::AllocFromModifiedUtf8(soa.Self(), "robot"));
 
   // TODO: Remove EXPECT_FALSE when GCC can handle EXPECT_EQ
   // http://code.google.com/p/googletest/issues/detail?id=322

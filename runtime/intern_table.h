@@ -18,6 +18,7 @@
 #define ART_RUNTIME_INTERN_TABLE_H_
 
 #include "base/mutex.h"
+#include "locks.h"
 #include "object_callbacks.h"
 
 #include <map>
@@ -26,6 +27,7 @@ namespace art {
 namespace mirror {
 class String;
 }  // namespace mirror
+class Transaction;
 
 /**
  * Used to intern strings.
@@ -72,19 +74,38 @@ class InternTable {
   typedef std::multimap<int32_t, mirror::String*> Table;
 
   mirror::String* Insert(mirror::String* s, bool is_strong)
+      LOCKS_EXCLUDED(Locks::intern_table_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::String* Lookup(Table& table, mirror::String* s, uint32_t hash_code)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::String* Insert(Table& table, mirror::String* s, uint32_t hash_code);
-  void Remove(Table& table, const mirror::String* s, uint32_t hash_code);
+  mirror::String* InsertStrong(mirror::String* s, uint32_t hash_code)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
+  mirror::String* InsertWeak(mirror::String* s, uint32_t hash_code)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
+  mirror::String* Insert(Table& table, mirror::String* s, uint32_t hash_code)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
+  void RemoveWeak(mirror::String* s, uint32_t hash_code)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
+  void Remove(Table& table, mirror::String* s, uint32_t hash_code)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
 
-  mutable Mutex intern_table_lock_;
-  bool is_dirty_ GUARDED_BY(intern_table_lock_);
-  bool allow_new_interns_ GUARDED_BY(intern_table_lock_);
-  ConditionVariable new_intern_condition_ GUARDED_BY(intern_table_lock_);
-  Table strong_interns_ GUARDED_BY(intern_table_lock_);
-  Table weak_interns_ GUARDED_BY(intern_table_lock_);
+  // Transaction rollback access.
+  mirror::String* InsertStrongFromTransaction(mirror::String* s, uint32_t hash_code)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
+  mirror::String* InsertWeakFromTransaction(mirror::String* s, uint32_t hash_code)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
+  void RemoveStrongFromTransaction(mirror::String* s, uint32_t hash_code)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
+  void RemoveWeakFromTransaction(mirror::String* s, uint32_t hash_code)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
+  friend class Transaction;
+
+  bool is_dirty_ GUARDED_BY(Locks::intern_table_lock_);
+  bool allow_new_interns_ GUARDED_BY(Locks::intern_table_lock_);
+  ConditionVariable new_intern_condition_ GUARDED_BY(Locks::intern_table_lock_);
+  Table strong_interns_ GUARDED_BY(Locks::intern_table_lock_);
+  Table weak_interns_ GUARDED_BY(Locks::intern_table_lock_);
 };
 
 }  // namespace art

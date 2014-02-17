@@ -662,7 +662,9 @@ void SemiSpace::ScanObject(Object* obj) {
       // Don't need to mark the card since we updating the object address and not changing the
       // actual objects its pointing to. Using SetFieldObjectWithoutWriteBarrier is better in this
       // case since it does not dirty cards and use additional memory.
-      obj->SetFieldObjectWithoutWriteBarrier(offset, new_address, false);
+      // Since we do not change the actual object, we can safely use non-transactional mode. Also
+      // disable check as we could run inside a transaction.
+      obj->SetFieldObjectWithoutWriteBarrier<false, false>(offset, new_address, false);
     }
   }, kMovingClasses);
   mirror::Class* klass = obj->GetClass();

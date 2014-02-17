@@ -136,6 +136,7 @@ LIBART_COMMON_SRC_FILES := \
 	thread_pool.cc \
 	throw_location.cc \
 	trace.cc \
+	transaction.cc \
 	profiler.cc \
 	utf.cc \
 	utils.cc \

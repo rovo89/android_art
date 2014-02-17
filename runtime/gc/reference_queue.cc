@@ -49,12 +49,21 @@ void ReferenceQueue::EnqueuePendingReference(mirror::Object* ref) {
   DCHECK_NE(pending_next_offset.Uint32Value(), 0U);
   if (IsEmpty()) {
     // 1 element cyclic queue, ie: Reference ref = ..; ref.pendingNext = ref;
-    ref->SetFieldObject(pending_next_offset, ref, false);
+    if (Runtime::Current()->IsActiveTransaction()) {
+      ref->SetFieldObject<true>(pending_next_offset, ref, false);
+    } else {
+      ref->SetFieldObject<false>(pending_next_offset, ref, false);
+    }
     list_ = ref;
   } else {
     mirror::Object* head = list_->GetFieldObject<mirror::Object>(pending_next_offset, false);
-    ref->SetFieldObject(pending_next_offset, head, false);
-    list_->SetFieldObject(pending_next_offset, ref, false);
+    if (Runtime::Current()->IsActiveTransaction()) {
+      ref->SetFieldObject<true>(pending_next_offset, head, false);
+      list_->SetFieldObject<true>(pending_next_offset, ref, false);
+    } else {
+      ref->SetFieldObject<false>(pending_next_offset, head, false);
+      list_->SetFieldObject<false>(pending_next_offset, ref, false);
+    }
   }
 }
 
@@ -71,10 +80,18 @@ mirror::Object* ReferenceQueue::DequeuePendingReference() {
     list_ = nullptr;
   } else {
     mirror::Object* next = head->GetFieldObject<mirror::Object>(pending_next_offset, false);
-    list_->SetFieldObject(pending_next_offset, next, false);
+    if (Runtime::Current()->IsActiveTransaction()) {
+      list_->SetFieldObject<true>(pending_next_offset, next, false);
+    } else {
+      list_->SetFieldObject<false>(pending_next_offset, next, false);
+    }
     ref = head;
   }
-  ref->SetFieldObject(pending_next_offset, nullptr, false);
+  if (Runtime::Current()->IsActiveTransaction()) {
+    ref->SetFieldObject<true>(pending_next_offset, nullptr, false);
+  } else {
+    ref->SetFieldObject<false>(pending_next_offset, nullptr, false);
+  }
   return ref;
 }
 
@@ -131,7 +148,11 @@ void ReferenceQueue::EnqueueFinalizerReferences(ReferenceQueue& cleared_referenc
         // If the referent is non-null the reference must queuable.
         DCHECK(heap_->IsEnqueuable(ref));
         // Move the updated referent to the zombie field.
-        ref->SetFieldObject(heap_->GetFinalizerReferenceZombieOffset(), forward_address, false);
+        if (Runtime::Current()->IsActiveTransaction()) {
+          ref->SetFieldObject<true>(heap_->GetFinalizerReferenceZombieOffset(), forward_address, false);
+        } else {
+          ref->SetFieldObject<false>(heap_->GetFinalizerReferenceZombieOffset(), forward_address, false);
+        }
         heap_->ClearReferenceReferent(ref);
         cleared_references.EnqueueReference(ref);
       } else if (referent != forward_address) {
