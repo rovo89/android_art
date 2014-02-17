@@ -46,6 +46,7 @@ namespace gc {
 namespace mirror {
   class ArtMethod;
   class ClassLoader;
+  class Array;
   template<class T> class ObjectArray;
   template<class T> class PrimitiveArray;
   typedef PrimitiveArray<int8_t> ByteArray;
@@ -65,6 +66,7 @@ class MonitorPool;
 class SignalCatcher;
 class ThreadList;
 class Trace;
+class Transaction;
 
 class Runtime {
  public:
@@ -474,6 +476,27 @@ class Runtime {
 
   void StartProfiler(const char *appDir, bool startImmediately = false);
 
+  // Transaction support.
+  bool IsActiveTransaction() const;
+  void EnterTransactionMode(Transaction* transaction);
+  void ExitTransactionMode();
+  void RecordWriteField32(mirror::Object* obj, MemberOffset field_offset, uint32_t value,
+                          bool is_volatile) const;
+  void RecordWriteField64(mirror::Object* obj, MemberOffset field_offset, uint64_t value,
+                          bool is_volatile) const;
+  void RecordWriteFieldReference(mirror::Object* obj, MemberOffset field_offset,
+                                 mirror::Object* value, bool is_volatile) const;
+  void RecordWriteArray(mirror::Array* array, size_t index, uint64_t value) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void RecordStrongStringInsertion(mirror::String* s, uint32_t hash_code) const
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
+  void RecordWeakStringInsertion(mirror::String* s, uint32_t hash_code) const
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
+  void RecordStrongStringRemoval(mirror::String* s, uint32_t hash_code) const
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
+  void RecordWeakStringRemoval(mirror::String* s, uint32_t hash_code) const
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
+
  private:
   static void InitPlatformSignalHandlers();
 
@@ -611,6 +634,9 @@ class Runtime {
 
   // If true, then we dump the GC cumulative timings on shutdown.
   bool dump_gc_performance_on_shutdown_;
+
+  // Transaction used for pre-initializing classes at compilation time.
+  Transaction* preinitialization_transaction;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };

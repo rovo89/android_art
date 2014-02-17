@@ -84,7 +84,11 @@ class ModUnionUpdateObjectReferencesVisitor {
       if (new_ref != ref) {
         // Use SetFieldObjectWithoutWriteBarrier to avoid card mark as an optimization which
         // reduces dirtied pages and improves performance.
-        obj->SetFieldObjectWithoutWriteBarrier(offset, new_ref, true);
+        if (Runtime::Current()->IsActiveTransaction()) {
+          obj->SetFieldObjectWithoutWriteBarrier<true>(offset, new_ref, true);
+        } else {
+          obj->SetFieldObjectWithoutWriteBarrier<false>(offset, new_ref, true);
+        }
       }
     }
   }

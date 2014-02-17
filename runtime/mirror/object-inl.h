@@ -40,7 +40,10 @@ inline void Object::SetClass(Class* new_klass) {
   // new_klass may be NULL prior to class linker initialization.
   // We don't mark the card as this occurs as part of object allocation. Not all objects have
   // backing cards, such as large objects.
-  SetFieldObjectWithoutWriteBarrier(OFFSET_OF_OBJECT_MEMBER(Object, klass_), new_klass, false, false);
+  // We use non transactional version since we can't undo this write. We also disable checking as
+  // we may run in transaction mode here.
+  SetFieldObjectWithoutWriteBarrier<false, false>(OFFSET_OF_OBJECT_MEMBER(Object, klass_),
+                                                  new_klass, false, false);
 }
 
 inline LockWord Object::GetLockWord() {
@@ -48,12 +51,14 @@ inline LockWord Object::GetLockWord() {
 }
 
 inline void Object::SetLockWord(LockWord new_val) {
-  SetField32(OFFSET_OF_OBJECT_MEMBER(Object, monitor_), new_val.GetValue(), true);
+  // Force use of non-transactional mode and do not check.
+  SetField32<false, false>(OFFSET_OF_OBJECT_MEMBER(Object, monitor_), new_val.GetValue(), true);
 }
 
 inline bool Object::CasLockWord(LockWord old_val, LockWord new_val) {
-  return CasField32(OFFSET_OF_OBJECT_MEMBER(Object, monitor_), old_val.GetValue(),
-                    new_val.GetValue());
+  // Force use of non-transactional mode and do not check.
+  return CasField32<false, false>(OFFSET_OF_OBJECT_MEMBER(Object, monitor_), old_val.GetValue(),
+                                  new_val.GetValue());
 }
 
 inline uint32_t Object::GetLockOwnerThreadId() {
@@ -199,6 +204,18 @@ inline LongArray* Object::AsLongArray() {
   return down_cast<LongArray*>(this);
 }
 
+inline FloatArray* Object::AsFloatArray() {
+  DCHECK(GetClass()->IsArrayClass());
+  DCHECK(GetClass()->GetComponentType()->IsPrimitiveFloat());
+  return down_cast<FloatArray*>(this);
+}
+
+inline DoubleArray* Object::AsDoubleArray() {
+  DCHECK(GetClass()->IsArrayClass());
+  DCHECK(GetClass()->GetComponentType()->IsPrimitiveDouble());
+  return down_cast<DoubleArray*>(this);
+}
+
 inline String* Object::AsString() {
   DCHECK(GetClass()->IsStringClass());
   return down_cast<String*>(this);
@@ -253,8 +270,16 @@ inline int32_t Object::GetField32(MemberOffset field_offset, bool is_volatile) {
   }
 }
 
+template<bool kTransactionActive, bool kCheckTransaction>
 inline void Object::SetField32(MemberOffset field_offset, int32_t new_value, bool is_volatile,
                                bool this_is_valid) {
+  if (kCheckTransaction) {
+    DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
+  }
+  if (kTransactionActive) {
+    Runtime::Current()->RecordWriteField32(this, field_offset, GetField32(field_offset, is_volatile),
+                                           is_volatile);
+  }
   if (this_is_valid) {
     VerifyObject(this);
   }
@@ -269,7 +294,14 @@ inline void Object::SetField32(MemberOffset field_offset, int32_t new_value, boo
   }
 }
 
+template<bool kTransactionActive, bool kCheckTransaction>
 inline bool Object::CasField32(MemberOffset field_offset, int32_t old_value, int32_t new_value) {
+  if (kCheckTransaction) {
+    DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
+  }
+  if (kTransactionActive) {
+    Runtime::Current()->RecordWriteField32(this, field_offset, old_value, true);
+  }
   VerifyObject(this);
   byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
   volatile int32_t* addr = reinterpret_cast<volatile int32_t*>(raw_addr);
@@ -289,8 +321,16 @@ inline int64_t Object::GetField64(MemberOffset field_offset, bool is_volatile) {
   }
 }
 
+template<bool kTransactionActive, bool kCheckTransaction>
 inline void Object::SetField64(MemberOffset field_offset, int64_t new_value, bool is_volatile,
                                bool this_is_valid) {
+  if (kCheckTransaction) {
+    DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
+  }
+  if (kTransactionActive) {
+    Runtime::Current()->RecordWriteField64(this, field_offset, GetField64(field_offset, is_volatile),
+                                           is_volatile);
+  }
   if (this_is_valid) {
     VerifyObject(this);
   }
@@ -309,7 +349,14 @@ inline void Object::SetField64(MemberOffset field_offset, int64_t new_value, boo
   }
 }
 
+template<bool kTransactionActive, bool kCheckTransaction>
 inline bool Object::CasField64(MemberOffset field_offset, int64_t old_value, int64_t new_value) {
+  if (kCheckTransaction) {
+    DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
+  }
+  if (kTransactionActive) {
+    Runtime::Current()->RecordWriteField64(this, field_offset, old_value, true);
+  }
   VerifyObject(this);
   byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
   volatile int64_t* addr = reinterpret_cast<volatile int64_t*>(raw_addr);
@@ -331,8 +378,17 @@ inline T* Object::GetFieldObject(MemberOffset field_offset, bool is_volatile) {
   return result;
 }
 
+template<bool kTransactionActive, bool kCheckTransaction>
 inline void Object::SetFieldObjectWithoutWriteBarrier(MemberOffset field_offset, Object* new_value,
                                                       bool is_volatile, bool this_is_valid) {
+  if (kCheckTransaction) {
+    DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
+  }
+  if (kTransactionActive) {
+    Runtime::Current()->RecordWriteFieldReference(this, field_offset,
+                                                  GetFieldObject<Object>(field_offset, is_volatile),
+                                                  true);
+  }
   if (this_is_valid) {
     VerifyObject(this);
   }
@@ -349,16 +405,26 @@ inline void Object::SetFieldObjectWithoutWriteBarrier(MemberOffset field_offset,
   }
 }
 
+template<bool kTransactionActive, bool kCheckTransaction>
 inline void Object::SetFieldObject(MemberOffset field_offset, Object* new_value, bool is_volatile,
                                    bool this_is_valid) {
-  SetFieldObjectWithoutWriteBarrier(field_offset, new_value, is_volatile, this_is_valid);
+  SetFieldObjectWithoutWriteBarrier<kTransactionActive, kCheckTransaction>(field_offset, new_value,
+                                                                           is_volatile,
+                                                                           this_is_valid);
   if (new_value != nullptr) {
     CheckFieldAssignment(field_offset, new_value);
     Runtime::Current()->GetHeap()->WriteBarrierField(this, field_offset, new_value);
   }
 }
 
+template<bool kTransactionActive, bool kCheckTransaction>
 inline bool Object::CasFieldObject(MemberOffset field_offset, Object* old_value, Object* new_value) {
+  if (kCheckTransaction) {
+    DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
+  }
+  if (kTransactionActive) {
+    Runtime::Current()->RecordWriteFieldReference(this, field_offset, old_value, true);
+  }
   VerifyObject(this);
   byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
   volatile int32_t* addr = reinterpret_cast<volatile int32_t*>(raw_addr);

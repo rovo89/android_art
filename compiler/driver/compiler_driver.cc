@@ -49,6 +49,7 @@
 #include "thread.h"
 #include "thread_pool.h"
 #include "trampolines/trampoline_compiler.h"
+#include "transaction.h"
 #include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"
 
@@ -1795,425 +1796,6 @@ void CompilerDriver::VerifyDexFile(jobject class_loader, const DexFile& dex_file
   context.ForAll(0, dex_file.NumClassDefs(), VerifyClass, thread_count_);
 }
 
-static const char* class_initializer_black_list[] = {
-  "Landroid/app/ActivityThread;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Landroid/bluetooth/BluetoothAudioGateway;",  // Calls android.bluetooth.BluetoothAudioGateway.classInitNative().
-  "Landroid/bluetooth/HeadsetBase;",  // Calls android.bluetooth.HeadsetBase.classInitNative().
-  "Landroid/content/res/CompatibilityInfo;",  // Requires android.util.DisplayMetrics -..-> android.os.SystemProperties.native_get_int.
-  "Landroid/content/res/CompatibilityInfo$1;",  // Requires android.util.DisplayMetrics -..-> android.os.SystemProperties.native_get_int.
-  "Landroid/content/UriMatcher;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Landroid/database/CursorWindow;",  // Requires android.util.DisplayMetrics -..-> android.os.SystemProperties.native_get_int.
-  "Landroid/database/sqlite/SQLiteConnection;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Landroid/database/sqlite/SQLiteConnection$Operation;",  // Requires SimpleDateFormat -> java.util.Locale.
-  "Landroid/database/sqlite/SQLiteDatabaseConfiguration;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Landroid/database/sqlite/SQLiteDebug;",  // Calls android.util.Log.isLoggable.
-  "Landroid/database/sqlite/SQLiteOpenHelper;",  // Calls Class.getSimpleName -> Class.isAnonymousClass -> Class.getDex.
-  "Landroid/database/sqlite/SQLiteQueryBuilder;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Landroid/drm/DrmManagerClient;",  // Calls System.loadLibrary.
-  "Landroid/graphics/drawable/AnimatedRotateDrawable;",  // Sub-class of Drawable.
-  "Landroid/graphics/drawable/AnimationDrawable;",  // Sub-class of Drawable.
-  "Landroid/graphics/drawable/BitmapDrawable;",  // Sub-class of Drawable.
-  "Landroid/graphics/drawable/ClipDrawable;",  // Sub-class of Drawable.
-  "Landroid/graphics/drawable/ColorDrawable;",  // Sub-class of Drawable.
-  "Landroid/graphics/drawable/Drawable;",  // Requires android.graphics.Rect.
-  "Landroid/graphics/drawable/DrawableContainer;",  // Sub-class of Drawable.
-  "Landroid/graphics/drawable/GradientDrawable;",  // Sub-class of Drawable.
-  "Landroid/graphics/drawable/LayerDrawable;",  // Sub-class of Drawable.
-  "Landroid/graphics/drawable/NinePatchDrawable;",  // Sub-class of Drawable.
-  "Landroid/graphics/drawable/RotateDrawable;",  // Sub-class of Drawable.
-  "Landroid/graphics/drawable/ScaleDrawable;",  // Sub-class of Drawable.
-  "Landroid/graphics/drawable/ShapeDrawable;",  // Sub-class of Drawable.
-  "Landroid/graphics/drawable/StateListDrawable;",  // Sub-class of Drawable.
-  "Landroid/graphics/drawable/TransitionDrawable;",  // Sub-class of Drawable.
-  "Landroid/graphics/Matrix;",  // Calls android.graphics.Matrix.native_create.
-  "Landroid/graphics/Matrix$1;",  // Requires Matrix.
-  "Landroid/graphics/PixelFormat;",  // Calls android.graphics.PixelFormat.nativeClassInit().
-  "Landroid/graphics/Rect;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Landroid/graphics/SurfaceTexture;",  // Calls android.graphics.SurfaceTexture.nativeClassInit().
-  "Landroid/graphics/Typeface;",  // Calls android.graphics.Typeface.nativeCreate.
-  "Landroid/inputmethodservice/ExtractEditText;",  // Requires android.widget.TextView.
-  "Landroid/media/AmrInputStream;",  // Calls OsConstants.initConstants.
-  "Landroid/media/CamcorderProfile;",  // Calls OsConstants.initConstants.
-  "Landroid/media/CameraProfile;",  // Calls System.loadLibrary.
-  "Landroid/media/DecoderCapabilities;",  // Calls System.loadLibrary.
-  "Landroid/media/EncoderCapabilities;",  // Calls OsConstants.initConstants.
-  "Landroid/media/ExifInterface;",  // Calls OsConstants.initConstants.
-  "Landroid/media/MediaCodec;",  // Calls OsConstants.initConstants.
-  "Landroid/media/MediaCodecList;",  // Calls OsConstants.initConstants.
-  "Landroid/media/MediaCrypto;",  // Calls OsConstants.initConstants.
-  "Landroid/media/MediaDrm;",  // Calls OsConstants.initConstants.
-  "Landroid/media/MediaExtractor;",  // Calls OsConstants.initConstants.
-  "Landroid/media/MediaFile;",  // Requires DecoderCapabilities.
-  "Landroid/media/MediaMetadataRetriever;",  // Calls OsConstants.initConstants.
-  "Landroid/media/MediaMuxer;",  // Calls OsConstants.initConstants.
-  "Landroid/media/MediaPlayer;",  // Calls System.loadLibrary.
-  "Landroid/media/MediaRecorder;",  // Calls System.loadLibrary.
-  "Landroid/media/MediaScanner;",  // Calls System.loadLibrary.
-  "Landroid/media/ResampleInputStream;",  // Calls OsConstants.initConstants.
-  "Landroid/media/SoundPool;",  // Calls OsConstants.initConstants.
-  "Landroid/media/videoeditor/MediaArtistNativeHelper;",  // Calls OsConstants.initConstants.
-  "Landroid/media/videoeditor/VideoEditorProfile;",  // Calls OsConstants.initConstants.
-  "Landroid/mtp/MtpDatabase;",  // Calls OsConstants.initConstants.
-  "Landroid/mtp/MtpDevice;",  // Calls OsConstants.initConstants.
-  "Landroid/mtp/MtpServer;",  // Calls OsConstants.initConstants.
-  "Landroid/net/NetworkInfo;",  // Calls java.util.EnumMap.<init> -> java.lang.Enum.getSharedConstants -> System.identityHashCode.
-  "Landroid/net/Proxy;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Landroid/net/SSLCertificateSocketFactory;",  // Requires javax.net.ssl.HttpsURLConnection.
-  "Landroid/net/Uri$AbstractHierarchicalUri;",  // Requires Uri.
-  "Landroid/net/Uri$HierarchicalUri;",  // Requires Uri.
-  "Landroid/net/Uri$OpaqueUri;",  // Requires Uri.
-  "Landroid/net/Uri$StringUri;",  // Requires Uri.
-  "Landroid/net/Uri;",  // Calls Class.getSimpleName -> Class.isAnonymousClass -> Class.getDex.
-  "Landroid/net/WebAddress;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Landroid/net/wifi/WifiNative;",  // Calls new LocalLog -> new Time -> TimeZone -> Pattern.compile.
-  "Landroid/nfc/NdefRecord;",  // Calls String.getBytes -> java.nio.charset.Charset.
-  "Landroid/opengl/EGL14;",  // Calls android.opengl.EGL14._nativeClassInit.
-  "Landroid/opengl/GLES10;",  // Calls android.opengl.GLES10._nativeClassInit.
-  "Landroid/opengl/GLES10Ext;",  // Calls android.opengl.GLES10Ext._nativeClassInit.
-  "Landroid/opengl/GLES11;",  // Requires GLES10.
-  "Landroid/opengl/GLES11Ext;",  // Calls android.opengl.GLES11Ext._nativeClassInit.
-  "Landroid/opengl/GLES20;",  // Calls android.opengl.GLES20._nativeClassInit.
-  "Landroid/opengl/GLUtils;",  // Calls android.opengl.GLUtils.nativeClassInit.
-  "Landroid/os/Build;",  // Calls -..-> android.os.SystemProperties.native_get.
-  "Landroid/os/Build$VERSION;",  // Requires Build.
-  "Landroid/os/Bundle;",  // Calls android.os.Parcel.obtain -..> Parcel.nativeCreate.
-  "Landroid/os/Debug;",  // Requires android.os.Environment.
-  "Landroid/os/Environment;",  // Calls System.getenv.
-  "Landroid/os/FileUtils;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Landroid/os/StrictMode;",  // Calls android.util.Log.isLoggable.
-  "Landroid/os/StrictMode$VmPolicy;",  // Requires StrictMode.
-  "Landroid/os/Trace;",  // Calls android.os.Trace.nativeGetEnabledTags.
-  "Landroid/os/UEventObserver;",  // Calls Class.getSimpleName -> Class.isAnonymousClass -> Class.getDex.
-  "Landroid/provider/ContactsContract;",  // Calls OsConstants.initConstants.
-  "Landroid/provider/Settings$Global;",  // Calls OsConstants.initConstants.
-  "Landroid/provider/Settings$Secure;",  // Requires android.net.Uri.
-  "Landroid/provider/Settings$System;",  // Requires android.net.Uri.
-  "Landroid/renderscript/RenderScript;",  // Calls System.loadLibrary.
-  "Landroid/server/BluetoothService;",  // Calls android.server.BluetoothService.classInitNative.
-  "Landroid/server/BluetoothEventLoop;",  // Calls android.server.BluetoothEventLoop.classInitNative.
-  "Landroid/telephony/PhoneNumberUtils;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Landroid/telephony/TelephonyManager;",  // Calls OsConstants.initConstants.
-  "Landroid/text/AutoText;",  // Requires android.util.DisplayMetrics -..-> android.os.SystemProperties.native_get_int.
-  "Landroid/text/Layout;",  // Calls com.android.internal.util.ArrayUtils.emptyArray -> System.identityHashCode.
-  "Landroid/text/BoringLayout;",  // Requires Layout.
-  "Landroid/text/DynamicLayout;",  // Requires Layout.
-  "Landroid/text/Html$HtmlParser;",  // Calls -..-> String.toLowerCase -> java.util.Locale.
-  "Landroid/text/StaticLayout;",  // Requires Layout.
-  "Landroid/text/TextUtils;",  // Requires android.util.DisplayMetrics.
-  "Landroid/util/DisplayMetrics;",  // Calls SystemProperties.native_get_int.
-  "Landroid/util/Patterns;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Landroid/view/Choreographer;",  // Calls SystemProperties.native_get_boolean.
-  "Landroid/util/Patterns;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Landroid/view/GLES20Canvas;",  // Calls GLES20Canvas.nIsAvailable().
-  "Landroid/view/GLES20RecordingCanvas;",  // Requires android.view.GLES20Canvas.
-  "Landroid/view/GestureDetector;",  // Calls android.view.GLES20Canvas.nIsAvailable.
-  "Landroid/view/HardwareRenderer$Gl20Renderer;",  // Requires SystemProperties.native_get.
-  "Landroid/view/HardwareRenderer$GlRenderer;",  // Requires SystemProperties.native_get.
-  "Landroid/view/InputEventConsistencyVerifier;",  // Requires android.os.Build.
-  "Landroid/view/Surface;",  // Requires SystemProperties.native_get.
-  "Landroid/view/SurfaceControl;",  // Calls OsConstants.initConstants.
-  "Landroid/view/animation/AlphaAnimation;",  // Requires Animation.
-  "Landroid/view/animation/Animation;",  // Calls SystemProperties.native_get_boolean.
-  "Landroid/view/animation/AnimationSet;",  // Calls OsConstants.initConstants.
-  "Landroid/view/textservice/SpellCheckerSubtype;",  // Calls Class.getDex().
-  "Landroid/webkit/JniUtil;",  // Calls System.loadLibrary.
-  "Landroid/webkit/PluginManager;",  // // Calls OsConstants.initConstants.
-  "Landroid/webkit/WebViewCore;",  // Calls System.loadLibrary.
-  "Landroid/webkit/WebViewFactory;",  // Calls -..-> android.os.SystemProperties.native_get.
-  "Landroid/webkit/WebViewFactory$Preloader;",  // Calls to Class.forName.
-  "Landroid/webkit/WebViewInputDispatcher;",  // Calls Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Landroid/webkit/URLUtil;",  // Calls Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Landroid/widget/AutoCompleteTextView;",  // Requires TextView.
-  "Landroid/widget/Button;",  // Requires TextView.
-  "Landroid/widget/CheckBox;",  // Requires TextView.
-  "Landroid/widget/CheckedTextView;",  // Requires TextView.
-  "Landroid/widget/CompoundButton;",  // Requires TextView.
-  "Landroid/widget/EditText;",  // Requires TextView.
-  "Landroid/widget/NumberPicker;",  // Requires java.util.Locale.
-  "Landroid/widget/ScrollBarDrawable;",  // Sub-class of Drawable.
-  "Landroid/widget/SearchView$SearchAutoComplete;",  // Requires TextView.
-  "Landroid/widget/Switch;",  // Requires TextView.
-  "Landroid/widget/TextView;",  // Calls Paint.<init> -> Paint.native_init.
-  "Lcom/android/i18n/phonenumbers/AsYouTypeFormatter;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Lcom/android/i18n/phonenumbers/MetadataManager;",  // Calls OsConstants.initConstants.
-  "Lcom/android/i18n/phonenumbers/PhoneNumberMatcher;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Lcom/android/i18n/phonenumbers/PhoneNumberUtil;",  // Requires java.util.logging.LogManager.
-  "Lcom/android/i18n/phonenumbers/geocoding/AreaCodeMap;",  // Calls OsConstants.initConstants.
-  "Lcom/android/i18n/phonenumbers/geocoding/PhoneNumberOfflineGeocoder;",  // Calls OsConstants.initConstants.
-  "Lcom/android/internal/os/SamplingProfilerIntegration;",  // Calls SystemProperties.native_get_int.
-  "Lcom/android/internal/policy/impl/PhoneWindow;",  // Calls android.os.Binder.init.
-  "Lcom/android/internal/view/menu/ActionMenuItemView;",  // Requires TextView.
-  "Lcom/android/internal/widget/DialogTitle;",  // Requires TextView.
-  "Lcom/android/org/bouncycastle/asn1/StreamUtil;",  // Calls Runtime.getRuntime().maxMemory().
-  "Lcom/android/org/bouncycastle/asn1/pkcs/MacData;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Lcom/android/org/bouncycastle/asn1/pkcs/RSASSAPSSparams;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Lcom/android/org/bouncycastle/asn1/cms/SignedData;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Lcom/android/org/bouncycastle/asn1/x509/GeneralSubtree;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Lcom/android/org/bouncycastle/asn1/x9/X9ECParameters;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Lcom/android/org/bouncycastle/crypto/digests/OpenSSLDigest$MD5;",  // Requires com.android.org.conscrypt.NativeCrypto.
-  "Lcom/android/org/bouncycastle/crypto/digests/OpenSSLDigest$SHA1;",  // Requires com.android.org.conscrypt.NativeCrypto.
-  "Lcom/android/org/bouncycastle/crypto/digests/OpenSSLDigest$SHA256;",  // Requires com.android.org.conscrypt.NativeCrypto.
-  "Lcom/android/org/bouncycastle/crypto/digests/OpenSSLDigest$SHA384;",  // Requires com.android.org.conscrypt.NativeCrypto.
-  "Lcom/android/org/bouncycastle/crypto/digests/OpenSSLDigest$SHA512;",  // Requires com.android.org.conscrypt.NativeCrypto.
-  "Lcom/android/org/bouncycastle/crypto/engines/RSABlindedEngine;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Lcom/android/org/bouncycastle/crypto/generators/DHKeyGeneratorHelper;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Lcom/android/org/bouncycastle/crypto/generators/DHParametersGenerator;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Lcom/android/org/bouncycastle/crypto/generators/DHParametersHelper;",  // Calls System.getenv -> OsConstants.initConstants.
-  "Lcom/android/org/bouncycastle/crypto/generators/DSAKeyPairGenerator;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Lcom/android/org/bouncycastle/crypto/generators/DSAParametersGenerator;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Lcom/android/org/bouncycastle/crypto/generators/RSAKeyPairGenerator;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Lcom/android/org/bouncycastle/jcajce/provider/asymmetric/dh/KeyPairGeneratorSpi;",  // Calls OsConstants.initConstants.
-  "Lcom/android/org/bouncycastle/jcajce/provider/asymmetric/dsa/KeyPairGeneratorSpi;",  // Calls OsConstants.initConstants.
-  "Lcom/android/org/bouncycastle/jcajce/provider/asymmetric/ec/KeyPairGeneratorSpi$EC;",  // Calls OsConstants.initConstants.
-  "Lcom/android/org/bouncycastle/jcajce/provider/asymmetric/ec/KeyPairGeneratorSpi$ECDH;",  // Calls OsConstants.initConstants.
-  "Lcom/android/org/bouncycastle/jcajce/provider/asymmetric/ec/KeyPairGeneratorSpi$ECDHC;",  // Calls OsConstants.initConstants.
-  "Lcom/android/org/bouncycastle/jcajce/provider/asymmetric/ec/KeyPairGeneratorSpi$ECDSA;",  // Calls OsConstants.initConstants.
-  "Lcom/android/org/bouncycastle/jcajce/provider/asymmetric/ec/KeyPairGeneratorSpi$ECMQV;",  // Calls OsConstants.initConstants.
-  "Lcom/android/org/bouncycastle/jcajce/provider/asymmetric/ec/KeyPairGeneratorSpi;",  // Calls OsConstants.initConstants.
-  "Lcom/android/org/bouncycastle/jcajce/provider/asymmetric/rsa/BCRSAPrivateCrtKey;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Lcom/android/org/bouncycastle/jcajce/provider/asymmetric/rsa/BCRSAPrivateKey;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Lcom/android/org/bouncycastle/jcajce/provider/asymmetric/rsa/KeyPairGeneratorSpi;",  // Calls OsConstants.initConstants.
-  "Lcom/android/org/bouncycastle/jcajce/provider/keystore/pkcs12/PKCS12KeyStoreSpi$BCPKCS12KeyStore;",  // Calls Thread.currentThread.
-  "Lcom/android/org/bouncycastle/jcajce/provider/keystore/pkcs12/PKCS12KeyStoreSpi;",  // Calls Thread.currentThread.
-  "Lcom/android/org/bouncycastle/jce/PKCS10CertificationRequest;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Lcom/android/org/bouncycastle/jce/provider/CertBlacklist;",  // Calls System.getenv -> OsConstants.initConstants.
-  "Lcom/android/org/bouncycastle/jce/provider/JCERSAPrivateCrtKey;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Lcom/android/org/bouncycastle/jce/provider/JCERSAPrivateKey;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Lcom/android/org/bouncycastle/jce/provider/PKIXCertPathValidatorSpi;",  // Calls System.getenv -> OsConstants.initConstants.
-  "Lcom/android/org/bouncycastle/math/ec/ECConstants;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Lcom/android/org/bouncycastle/math/ec/Tnaf;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Lcom/android/org/bouncycastle/util/BigIntegers;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Lcom/android/org/bouncycastle/x509/X509Util;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Lcom/android/org/conscrypt/CipherSuite;",  // Calls OsConstants.initConstants.
-  "Lcom/android/org/conscrypt/FileClientSessionCache$CacheFile;",  // Calls OsConstants.initConstants.
-  "Lcom/android/org/conscrypt/HandshakeIODataStream;",  // Calls OsConstants.initConstants.
-  "Lcom/android/org/conscrypt/Logger;",  // Calls OsConstants.initConstants.
-  "Lcom/android/org/conscrypt/NativeCrypto;",  // Calls native NativeCrypto.clinit().
-  "Lcom/android/org/conscrypt/OpenSSLECKeyPairGenerator;",  // Calls OsConstants.initConstants.
-  "Lcom/android/org/conscrypt/OpenSSLEngine;",  // Requires com.android.org.conscrypt.NativeCrypto.
-  "Lcom/android/org/conscrypt/OpenSSLMac$HmacMD5;",  // Calls native NativeCrypto.clinit().
-  "Lcom/android/org/conscrypt/OpenSSLMac$HmacSHA1;",  // Calls native NativeCrypto.clinit().
-  "Lcom/android/org/conscrypt/OpenSSLMac$HmacSHA256;",  // Calls native NativeCrypto.clinit().
-  "Lcom/android/org/conscrypt/OpenSSLMac$HmacSHA384;",  // Calls native NativeCrypto.clinit().
-  "Lcom/android/org/conscrypt/OpenSSLMac$HmacSHA512;",  // Calls native NativeCrypto.clinit().
-  "Lcom/android/org/conscrypt/OpenSSLMessageDigestJDK$MD5;",  // Requires com.android.org.conscrypt.NativeCrypto.
-  "Lcom/android/org/conscrypt/OpenSSLMessageDigestJDK$SHA1;",  // Requires com.android.org.conscrypt.NativeCrypto.
-  "Lcom/android/org/conscrypt/OpenSSLMessageDigestJDK$SHA256;",  // Requires com.android.org.conscrypt.NativeCrypto.
-  "Lcom/android/org/conscrypt/OpenSSLMessageDigestJDK$SHA384;",  // Requires com.android.org.conscrypt.NativeCrypto.
-  "Lcom/android/org/conscrypt/OpenSSLMessageDigestJDK$SHA512;",  // Requires com.android.org.conscrypt.NativeCrypto.
-  "Lcom/android/org/conscrypt/OpenSSLX509CertPath;",  // Calls OsConstants.initConstants.
-  "Lcom/android/org/conscrypt/OpenSSLX509CertificateFactory;",  // Calls OsConstants.initConstants.
-  "Lcom/android/org/conscrypt/PRF;",  // Calls OsConstants.initConstants.
-  "Lcom/android/org/conscrypt/SSLSessionImpl;",  // Calls OsConstants.initConstants.
-  "Lcom/android/org/conscrypt/TrustedCertificateStore;",  // Calls System.getenv -> OsConstants.initConstants.
-  "Lcom/android/okhttp/ConnectionPool;",  // Calls OsConstants.initConstants.
-  "Lcom/android/okhttp/OkHttpClient;",  // Calls OsConstants.initConstants.
-  "Lcom/android/okhttp/internal/DiskLruCache;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Lcom/android/okhttp/internal/Util;",  // Calls OsConstants.initConstants.
-  "Lcom/android/okhttp/internal/http/HttpsURLConnectionImpl;",  // Calls VMClassLoader.getBootClassPathSize.
-  "Lcom/android/okhttp/internal/spdy/SpdyConnection;",  // Calls OsConstants.initConstants.
-  "Lcom/android/okhttp/internal/spdy/SpdyReader;",  // Calls OsConstants.initConstants.
-  "Lcom/android/okhttp/internal/tls/OkHostnameVerifier;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Lcom/google/android/gles_jni/EGLContextImpl;",  // Calls com.google.android.gles_jni.EGLImpl._nativeClassInit.
-  "Lcom/google/android/gles_jni/EGLImpl;",  // Calls com.google.android.gles_jni.EGLImpl._nativeClassInit.
-  "Lcom/google/android/gles_jni/GLImpl;",  // Calls com.google.android.gles_jni.GLImpl._nativeClassInit.
-  "Lgov/nist/core/GenericObject;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/core/Host;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/core/HostPort;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/core/NameValue;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/core/net/DefaultNetworkLayer;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/Utils;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/address/AddressImpl;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/address/Authority;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/address/GenericURI;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/address/NetObject;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/address/SipUri;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/address/TelephoneNumber;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/address/UserInfo;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/Accept;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/AcceptEncoding;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/AcceptLanguage;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/AddressParametersHeader;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/AlertInfoList;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/AllowEvents;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/AllowEventsList;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/AuthenticationInfo;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/Authorization;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/CSeq;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/CallIdentifier;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/Challenge;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ContactList;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ContentEncoding;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ContentEncodingList;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ContentLanguageList;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ContentType;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/Credentials;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ErrorInfoList;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/Expires;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/From;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/MimeVersion;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/NameMap;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/Priority;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/Protocol;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ProxyAuthenticate;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ProxyAuthenticateList;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ProxyAuthorizationList;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ProxyRequire;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ProxyRequireList;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/RSeq;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/RecordRoute;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ReferTo;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/RequestLine;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/Require;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/RetryAfter;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/SIPETag;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/SIPHeader;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/SIPHeaderNamesCache;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/StatusLine;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/SubscriptionState;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/TimeStamp;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/UserAgent;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/Unsupported;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/Warning;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ViaList;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/extensions/Join;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/extensions/References;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/extensions/Replaces;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ims/PAccessNetworkInfo;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ims/PAssertedIdentity;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ims/PAssertedIdentityList;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ims/PAssociatedURI;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ims/PCalledPartyID;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ims/PChargingVector;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ims/PPreferredIdentity;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ims/PVisitedNetworkIDList;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ims/PathList;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ims/SecurityAgree;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ims/SecurityClient;",  // Calls OsConstants.initConstants.
-  "Lgov/nist/javax/sip/header/ims/ServiceRoute;",  // Calls OsConstants.initConstants.
-  "Ljava/io/Console;",  // Has FileDescriptor(s).
-  "Ljava/io/File;",  // Calls to Random.<init> -> System.currentTimeMillis -> OsConstants.initConstants.
-  "Ljava/io/FileDescriptor;",  // Requires libcore.io.OsConstants.
-  "Ljava/io/ObjectInputStream;",  // Requires java.lang.ClassLoader$SystemClassLoader.
-  "Ljava/io/ObjectStreamClass;",  // Calls to Class.forName -> java.io.FileDescriptor.
-  "Ljava/io/ObjectStreamConstants;",  // Instance of non-image class SerializablePermission.
-  "Ljava/lang/ClassLoader$SystemClassLoader;",  // Calls System.getProperty -> OsConstants.initConstants.
-  "Ljava/lang/HexStringParser;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Ljava/lang/ProcessManager;",  // Calls Thread.currentThread.
-  "Ljava/lang/Runtime;",  // Calls System.getProperty -> OsConstants.initConstants.
-  "Ljava/lang/System;",  // Calls OsConstants.initConstants.
-  "Ljava/math/BigDecimal;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Ljava/math/BigInteger;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Ljava/math/Primality;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Ljava/math/Multiplication;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Ljava/net/InetAddress;",  // Requires libcore.io.OsConstants.
-  "Ljava/net/Inet4Address;",  // Sub-class of InetAddress.
-  "Ljava/net/Inet6Address;",  // Sub-class of InetAddress.
-  "Ljava/net/InetUnixAddress;",  // Sub-class of InetAddress.
-  "Ljava/net/NetworkInterface;",  // Calls to Random.<init> -> System.currentTimeMillis -> OsConstants.initConstants.
-  "Ljava/net/StandardSocketOptions;",  // Call System.identityHashCode.
-  "Ljava/nio/charset/Charset;",  // Calls Charset.getDefaultCharset -> System.getProperty -> OsConstants.initConstants.
-  "Ljava/nio/charset/CharsetICU;",  // Sub-class of Charset.
-  "Ljava/nio/charset/Charsets;",  // Calls Charset.forName.
-  "Ljava/nio/charset/StandardCharsets;",  // Calls OsConstants.initConstants.
-  "Ljava/security/AlgorithmParameterGenerator;",  // Calls OsConstants.initConstants.
-  "Ljava/security/KeyPairGenerator$KeyPairGeneratorImpl;",  // Calls OsConstants.initConstants.
-  "Ljava/security/KeyPairGenerator;",  // Calls OsConstants.initConstants.
-  "Ljava/security/Security;",  // Tries to do disk IO for "security.properties".
-  "Ljava/security/spec/RSAKeyGenParameterSpec;",  // java.math.NativeBN.BN_new()
-  "Ljava/sql/Date;",  // Calls OsConstants.initConstants.
-  "Ljava/sql/DriverManager;",  // Calls OsConstants.initConstants.
-  "Ljava/sql/Time;",  // Calls OsConstants.initConstants.
-  "Ljava/sql/Timestamp;",  // Calls OsConstants.initConstants.
-  "Ljava/util/Date;",  // Calls Date.<init> -> System.currentTimeMillis -> OsConstants.initConstants.
-  "Ljava/util/ListResourceBundle;",  // Calls OsConstants.initConstants.
-  "Ljava/util/Locale;",  // Calls System.getProperty -> OsConstants.initConstants.
-  "Ljava/util/PropertyResourceBundle;",  // Calls OsConstants.initConstants.
-  "Ljava/util/ResourceBundle;",  // Calls OsConstants.initConstants.
-  "Ljava/util/ResourceBundle$MissingBundle;",  // Calls OsConstants.initConstants.
-  "Ljava/util/Scanner;",  // regex.Pattern.compileImpl.
-  "Ljava/util/SimpleTimeZone;",  // Sub-class of TimeZone.
-  "Ljava/util/TimeZone;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Ljava/util/concurrent/ConcurrentHashMap;",  // Calls Runtime.getRuntime().availableProcessors().
-  "Ljava/util/concurrent/ConcurrentHashMap$Segment;",  // Calls Runtime.getRuntime().availableProcessors().
-  "Ljava/util/concurrent/ConcurrentSkipListMap;",  // Calls Random() -> OsConstants.initConstants.
-  "Ljava/util/concurrent/Exchanger;",  // Calls Runtime.getRuntime().availableProcessors().
-  "Ljava/util/concurrent/ForkJoinPool;",  // Makes a thread pool ..-> calls OsConstants.initConstants.
-  "Ljava/util/concurrent/LinkedTransferQueue;",  // Calls Runtime.getRuntime().availableProcessors().
-  "Ljava/util/concurrent/Phaser;",  // Calls Runtime.getRuntime().availableProcessors().
-  "Ljava/util/concurrent/ScheduledThreadPoolExecutor;",  // Calls AtomicLong.VMSupportsCS8()
-  "Ljava/util/concurrent/SynchronousQueue;",  // Calls Runtime.getRuntime().availableProcessors().
-  "Ljava/util/concurrent/atomic/AtomicLong;",  // Calls AtomicLong.VMSupportsCS8()
-  "Ljava/util/logging/LogManager;",  // Calls System.getProperty -> OsConstants.initConstants.
-  "Ljava/util/prefs/AbstractPreferences;",  // Calls OsConstants.initConstants.
-  "Ljava/util/prefs/FilePreferencesImpl;",  // Calls OsConstants.initConstants.
-  "Ljava/util/prefs/FilePreferencesFactoryImpl;",  // Calls OsConstants.initConstants.
-  "Ljava/util/prefs/Preferences;",  // Calls OsConstants.initConstants.
-  "Ljavax/crypto/KeyAgreement;",  // Calls OsConstants.initConstants.
-  "Ljavax/crypto/KeyGenerator;",  // Calls OsConstants.initConstants.
-  "Ljavax/security/cert/X509Certificate;",  // Calls VMClassLoader.getBootClassPathSize.
-  "Ljavax/security/cert/X509Certificate$1;",  // Calls VMClassLoader.getBootClassPathSize.
-  "Ljavax/microedition/khronos/egl/EGL10;",  // Requires EGLContext.
-  "Ljavax/microedition/khronos/egl/EGLContext;",  // Requires com.google.android.gles_jni.EGLImpl.
-  "Ljavax/xml/datatype/DatatypeConstants;",  // Calls OsConstants.initConstants.
-  "Ljavax/xml/datatype/FactoryFinder;",  // Calls OsConstants.initConstants.
-  "Ljavax/xml/namespace/QName;",  // Calls OsConstants.initConstants.
-  "Ljavax/xml/validation/SchemaFactoryFinder;",  // Calls OsConstants.initConstants.
-  "Ljavax/xml/xpath/XPathConstants;",  // Calls OsConstants.initConstants.
-  "Ljavax/xml/xpath/XPathFactoryFinder;",  // Calls OsConstants.initConstants.
-  "Llibcore/icu/LocaleData;",  // Requires java.util.Locale.
-  "Llibcore/icu/TimeZoneNames;",  // Requires java.util.TimeZone.
-  "Llibcore/io/IoUtils;",  // Calls Random.<init> -> System.currentTimeMillis -> FileDescriptor -> OsConstants.initConstants.
-  "Llibcore/io/OsConstants;",  // Platform specific.
-  "Llibcore/net/MimeUtils;",  // Calls libcore.net.MimeUtils.getContentTypesPropertiesStream -> System.getProperty.
-  "Llibcore/reflect/Types;",  // Calls OsConstants.initConstants.
-  "Llibcore/util/ZoneInfo;",  // Sub-class of TimeZone.
-  "Llibcore/util/ZoneInfoDB;",  // Calls System.getenv -> OsConstants.initConstants.
-  "Lorg/apache/commons/logging/LogFactory;",  // Calls System.getProperty.
-  "Lorg/apache/commons/logging/impl/LogFactoryImpl;",  // Calls OsConstants.initConstants.
-  "Lorg/apache/harmony/security/fortress/Services;",  // Calls ClassLoader.getSystemClassLoader -> System.getProperty.
-  "Lorg/apache/harmony/security/provider/cert/X509CertFactoryImpl;",  // Requires java.nio.charsets.Charsets.
-  "Lorg/apache/harmony/security/provider/crypto/RandomBitsSupplier;",  // Requires java.io.File.
-  "Lorg/apache/harmony/security/utils/AlgNameMapper;",  // Requires java.util.Locale.
-  "Lorg/apache/harmony/security/pkcs10/CertificationRequest;",  // Calls Thread.currentThread.
-  "Lorg/apache/harmony/security/pkcs10/CertificationRequestInfo;",  // Calls Thread.currentThread.
-  "Lorg/apache/harmony/security/pkcs7/AuthenticatedAttributes;",  // Calls Thread.currentThread.
-  "Lorg/apache/harmony/security/pkcs7/SignedData;",  // Calls Thread.currentThread.
-  "Lorg/apache/harmony/security/pkcs7/SignerInfo;",  // Calls Thread.currentThread.
-  "Lorg/apache/harmony/security/pkcs8/PrivateKeyInfo;",  // Calls Thread.currentThread.
-  "Lorg/apache/harmony/security/provider/crypto/SHA1PRNG_SecureRandomImpl;",  // Calls OsConstants.initConstants.
-  "Lorg/apache/harmony/security/x501/AttributeTypeAndValue;",  // Calls IntegralToString.convertInt -> Thread.currentThread.
-  "Lorg/apache/harmony/security/x501/DirectoryString;",  // Requires BigInteger.
-  "Lorg/apache/harmony/security/x501/Name;",  // Requires org.apache.harmony.security.x501.AttributeTypeAndValue.
-  "Lorg/apache/harmony/security/x509/AccessDescription;",  // Calls Thread.currentThread.
-  "Lorg/apache/harmony/security/x509/AuthorityKeyIdentifier;",  // Calls Thread.currentThread.
-  "Lorg/apache/harmony/security/x509/CRLDistributionPoints;",  // Calls Thread.currentThread.
-  "Lorg/apache/harmony/security/x509/Certificate;",  // Requires org.apache.harmony.security.x509.TBSCertificate.
-  "Lorg/apache/harmony/security/x509/CertificateIssuer;",  // Calls Thread.currentThread.
-  "Lorg/apache/harmony/security/x509/CertificateList;",  // Calls Thread.currentThread.
-  "Lorg/apache/harmony/security/x509/DistributionPoint;",  // Calls Thread.currentThread.
-  "Lorg/apache/harmony/security/x509/DistributionPointName;",  // Calls Thread.currentThread.
-  "Lorg/apache/harmony/security/x509/EDIPartyName;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Lorg/apache/harmony/security/x509/GeneralName;",  // Requires org.apache.harmony.security.x501.Name.
-  "Lorg/apache/harmony/security/x509/GeneralNames;",  // Requires GeneralName.
-  "Lorg/apache/harmony/security/x509/GeneralSubtree;",  // Calls Thread.currentThread.
-  "Lorg/apache/harmony/security/x509/GeneralSubtrees;",  // Calls Thread.currentThread.
-  "Lorg/apache/harmony/security/x509/InfoAccessSyntax;",  // Calls Thread.currentThread.
-  "Lorg/apache/harmony/security/x509/IssuingDistributionPoint;",  // Calls Thread.currentThread.
-  "Lorg/apache/harmony/security/x509/NameConstraints;",  // Calls Thread.currentThread.
-  "Lorg/apache/harmony/security/x509/TBSCertList$RevokedCertificate;",  // Calls NativeBN.BN_new().
-  "Lorg/apache/harmony/security/x509/TBSCertList;",  // Calls Thread.currentThread.
-  "Lorg/apache/harmony/security/x509/TBSCertificate;",  // Requires org.apache.harmony.security.x501.Name.
-  "Lorg/apache/harmony/security/x509/Time;",  // Calls native ... -> java.math.NativeBN.BN_new().
-  "Lorg/apache/harmony/security/x509/Validity;",  // Requires x509.Time.
-  "Lorg/apache/harmony/security/x509/tsp/TSTInfo;",  // Calls Thread.currentThread.
-  "Lorg/apache/harmony/xml/ExpatParser;",  // Calls native ExpatParser.staticInitialize.
-  "Lorg/apache/harmony/xml/ExpatParser$EntityParser;",  // Calls ExpatParser.staticInitialize.
-  "Lorg/apache/http/conn/params/ConnRouteParams;",  // Requires java.util.Locale.
-  "Lorg/apache/http/conn/ssl/SSLSocketFactory;",  // Calls java.security.Security.getProperty.
-  "Lorg/apache/http/conn/util/InetAddressUtils;",  // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-};
-
 static void InitializeClass(const ParallelCompilationManager* manager, size_t class_def_index)
     LOCKS_EXCLUDED(Locks::mutator_lock_) {
   ATRACE_CALL();
@@ -2251,33 +1833,49 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
         manager->GetClassLinker()->EnsureInitialized(klass, false, true);
         if (!klass->IsInitialized()) {
           // We need to initialize static fields, we only do this for image classes that aren't
-          // black listed or marked with the $NoPreloadHolder.
+          // marked with the $NoPreloadHolder (which implies this should not be initialized early).
           bool can_init_static_fields = manager->GetCompiler()->IsImage() &&
-              manager->GetCompiler()->IsImageClass(descriptor);
+              manager->GetCompiler()->IsImageClass(descriptor) &&
+              !StringPiece(descriptor).ends_with("$NoPreloadHolder;");
           if (can_init_static_fields) {
-            // NoPreloadHolder inner class implies this should not be initialized early.
-            bool is_black_listed = StringPiece(descriptor).ends_with("$NoPreloadHolder;");
-            if (!is_black_listed) {
-              for (size_t i = 0; i < arraysize(class_initializer_black_list); ++i) {
-                if (strcmp(descriptor, class_initializer_black_list[i]) == 0) {
-                  is_black_listed = true;
-                  break;
-                }
+            VLOG(compiler) << "Initializing: " << descriptor;
+            if (strcmp("Ljava/lang/Void;", descriptor) == 0) {
+              // Hand initialize j.l.Void to avoid Dex file operations in un-started runtime.
+              ObjectLock<mirror::Class> lock(soa.Self(), &klass);
+              mirror::ObjectArray<mirror::ArtField>* fields = klass->GetSFields();
+              CHECK_EQ(fields->GetLength(), 1);
+              fields->Get(0)->SetObj<false>(klass.get(),
+                                                     manager->GetClassLinker()->FindPrimitiveClass('V'));
+              klass->SetStatus(mirror::Class::kStatusInitialized, soa.Self());
+            } else {
+              // TODO multithreading support. We should ensure the current compilation thread has
+              // exclusive access to the runtime and the transaction. To achieve this, we could use
+              // a ReaderWriterMutex but we're holding the mutator lock so we fail mutex sanity
+              // checks in Thread::AssertThreadSuspensionIsAllowable.
+              Runtime* const runtime = Runtime::Current();
+              Transaction transaction;
+
+              // Run the class initializer in transaction mode.
+              runtime->EnterTransactionMode(&transaction);
+              const mirror::Class::Status old_status = klass->GetStatus();
+              bool success = manager->GetClassLinker()->EnsureInitialized(klass, true, true);
+              // TODO we detach transaction from runtime to indicate we quit the transactional
+              // mode which prevents the GC from visiting objects modified during the transaction.
+              // Ensure GC is not run so don't access freed objects when aborting transaction.
+              const char* old_casue = soa.Self()->StartAssertNoThreadSuspension("Transaction end");
+              runtime->ExitTransactionMode();
+
+              if (!success) {
+                CHECK(soa.Self()->IsExceptionPending());
+                ThrowLocation throw_location;
+                mirror::Throwable* exception = soa.Self()->GetException(&throw_location);
+                VLOG(compiler) << "Initialization of " << descriptor << " aborted because of "
+                               << exception->Dump();
+                soa.Self()->ClearException();
+                transaction.Abort();
+                CHECK_EQ(old_status, klass->GetStatus()) << "Previous class status not restored";
               }
-            }
-            if (!is_black_listed) {
-              VLOG(compiler) << "Initializing: " << descriptor;
-              if (strcmp("Ljava/lang/Void;", descriptor) == 0) {
-                // Hand initialize j.l.Void to avoid Dex file operations in un-started runtime.
-                ObjectLock<mirror::Class> lock(soa.Self(), &klass);
-                mirror::ObjectArray<mirror::ArtField>* fields = klass->GetSFields();
-                CHECK_EQ(fields->GetLength(), 1);
-                fields->Get(0)->SetObj(klass.get(),
-                                       manager->GetClassLinker()->FindPrimitiveClass('V'));
-                klass->SetStatus(mirror::Class::kStatusInitialized, soa.Self());
-              } else {
-                manager->GetClassLinker()->EnsureInitialized(klass, true, true);
-              }
+              soa.Self()->EndAssertNoThreadSuspension(old_casue);
             }
           }
         }
@@ -2295,18 +1893,20 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
 void CompilerDriver::InitializeClasses(jobject jni_class_loader, const DexFile& dex_file,
                                        ThreadPool& thread_pool, TimingLogger& timings) {
   timings.NewSplit("InitializeNoClinit");
-#ifndef NDEBUG
-  // Sanity check blacklist descriptors.
-  if (IsImage()) {
-    for (size_t i = 0; i < arraysize(class_initializer_black_list); ++i) {
-      const char* descriptor = class_initializer_black_list[i];
-      CHECK(IsValidDescriptor(descriptor)) << descriptor;
-    }
-  }
-#endif
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   ParallelCompilationManager context(class_linker, jni_class_loader, this, &dex_file, thread_pool);
-  context.ForAll(0, dex_file.NumClassDefs(), InitializeClass, thread_count_);
+  size_t thread_count;
+  if (IsImage()) {
+    // TODO: remove this when transactional mode supports multithreading.
+    thread_count = 1U;
+  } else {
+    thread_count = thread_count_;
+  }
+  context.ForAll(0, dex_file.NumClassDefs(), InitializeClass, thread_count);
+  if (IsImage()) {
+    // Prune garbage objects created during aborted transactions.
+    Runtime::Current()->GetHeap()->CollectGarbage(true);
+  }
 }
 
 void CompilerDriver::InitializeClasses(jobject class_loader,

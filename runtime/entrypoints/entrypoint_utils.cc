@@ -162,7 +162,7 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessUnchecked& soa, const char
           CHECK(soa.Self()->IsExceptionPending());
           return zero;
         }
-        soa.Decode<mirror::ObjectArray<mirror::Object>* >(args_jobj)->Set(i, val);
+        soa.Decode<mirror::ObjectArray<mirror::Object>* >(args_jobj)->Set<false>(i, val);
       }
     }
   }

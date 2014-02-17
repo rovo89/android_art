@@ -46,16 +46,26 @@ StackTraceElement* StackTraceElement::Alloc(Thread* self,
   StackTraceElement* trace =
       down_cast<StackTraceElement*>(GetStackTraceElement()->AllocObject(self));
   if (LIKELY(trace != NULL)) {
-    trace->SetFieldObject(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, declaring_class_),
-                          declaring_class.get(), false);
-    trace->SetFieldObject(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, method_name_),
-                          method_name.get(), false);
-    trace->SetFieldObject(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, file_name_),
-                          file_name.get(), false);
-    trace->SetField32(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, line_number_),
-                      line_number, false);
+    if (Runtime::Current()->IsActiveTransaction()) {
+      trace->Init<true>(declaring_class, method_name, file_name, line_number);
+    } else {
+      trace->Init<false>(declaring_class, method_name, file_name, line_number);
+    }
   }
   return trace;
+}
+
+template<bool kTransactionActive>
+void StackTraceElement::Init(SirtRef<String>& declaring_class, SirtRef<String>& method_name,
+                             SirtRef<String>& file_name, int32_t line_number) {
+  SetFieldObject<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, declaring_class_),
+                                     declaring_class.get(), false);
+  SetFieldObject<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, method_name_),
+                                     method_name.get(), false);
+  SetFieldObject<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, file_name_),
+                                     file_name.get(), false);
+  SetField32<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, line_number_),
+                                 line_number, false);
 }
 
 void StackTraceElement::VisitRoots(RootCallback* callback, void* arg) {

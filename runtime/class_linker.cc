@@ -2832,8 +2832,8 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccess& soa, jstring na
       return nullptr;
     }
 
-    interfaces_sfield->SetObject(klass.get(), soa.Decode<mirror::ObjectArray<mirror::Class>*>(interfaces));
-    throws_sfield->SetObject(klass.get(), soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class> >*>(throws));
+    interfaces_sfield->SetObject<false>(klass.get(), soa.Decode<mirror::ObjectArray<mirror::Class>*>(interfaces));
+    throws_sfield->SetObject<false>(klass.get(), soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class> >*>(throws));
     klass->SetStatus(mirror::Class::kStatusInitialized, self);
   }
 
@@ -3144,7 +3144,11 @@ bool ClassLinker::InitializeClass(const SirtRef<mirror::Class>& klass, bool can_
       SafeMap<uint32_t, mirror::ArtField*> field_map;
       ConstructFieldMap(dex_file, *dex_class_def, klass.get(), field_map);
       for (size_t i = 0; it.HasNext(); i++, it.Next()) {
-        it.ReadValueToField(field_map.Get(i));
+        if (Runtime::Current()->IsActiveTransaction()) {
+          it.ReadValueToField<true>(field_map.Get(i));
+        } else {
+          it.ReadValueToField<false>(field_map.Get(i));
+        }
       }
     }
   }
@@ -3530,7 +3534,7 @@ bool ClassLinker::LinkVirtualMethods(const SirtRef<mirror::Class>& klass) {
                                 super_mh.GetDeclaringClassDescriptor());
               return false;
             }
-            vtable->Set(j, local_method);
+            vtable->Set<false>(j, local_method);
             local_method->SetMethodIndex(j);
             break;
           } else {
@@ -3542,7 +3546,7 @@ bool ClassLinker::LinkVirtualMethods(const SirtRef<mirror::Class>& klass) {
       }
       if (j == actual_count) {
         // Not overriding, append.
-        vtable->Set(actual_count, local_method);
+        vtable->Set<false>(actual_count, local_method);
         local_method->SetMethodIndex(actual_count);
         actual_count += 1;
       }
@@ -3576,7 +3580,7 @@ bool ClassLinker::LinkVirtualMethods(const SirtRef<mirror::Class>& klass) {
     }
     for (size_t i = 0; i < num_virtual_methods; ++i) {
       mirror::ArtMethod* virtual_method = klass->GetVirtualMethodDuringLinking(i);
-      vtable->Set(i, virtual_method);
+      vtable->Set<false>(i, virtual_method);
       virtual_method->SetMethodIndex(i & 0xFFFF);
     }
     klass->SetVTable(vtable.get());
@@ -3745,14 +3749,14 @@ bool ClassLinker::LinkInterfaceMethods(const SirtRef<mirror::Class>& klass,
                                       PrettyMethod(interface_method).c_str());
               return false;
             }
-            method_array->Set(j, vtable_method);
+            method_array->Set<false>(j, vtable_method);
             // Place method in imt if entry is empty, place conflict otherwise.
             uint32_t imt_index = interface_method->GetDexMethodIndex() % kImtSize;
             if (imtable->Get(imt_index) == NULL) {
-              imtable->Set(imt_index, vtable_method);
+              imtable->Set<false>(imt_index, vtable_method);
               imtable_changed = true;
             } else {
-              imtable->Set(imt_index, Runtime::Current()->GetImtConflictMethod());
+              imtable->Set<false>(imt_index, Runtime::Current()->GetImtConflictMethod());
             }
             break;
           }
@@ -3777,7 +3781,7 @@ bool ClassLinker::LinkInterfaceMethods(const SirtRef<mirror::Class>& klass,
             // TODO: If a methods move then the miranda_list may hold stale references.
             miranda_list.push_back(miranda_method.get());
           }
-          method_array->Set(j, miranda_method.get());
+          method_array->Set<false>(j, miranda_method.get());
         }
       }
     }
@@ -3787,7 +3791,7 @@ bool ClassLinker::LinkInterfaceMethods(const SirtRef<mirror::Class>& klass,
     mirror::ArtMethod* imt_conflict_method = Runtime::Current()->GetImtConflictMethod();
     for (size_t i = 0; i < kImtSize; i++) {
       if (imtable->Get(i) == NULL) {
-        imtable->Set(i, imt_conflict_method);
+        imtable->Set<false>(i, imt_conflict_method);
       }
     }
     klass->SetImTable(imtable.get());
@@ -3823,7 +3827,7 @@ bool ClassLinker::LinkInterfaceMethods(const SirtRef<mirror::Class>& klass,
       method->SetAccessFlags(method->GetAccessFlags() | kAccMiranda);
       method->SetMethodIndex(0xFFFF & (old_vtable_count + i));
       klass->SetVirtualMethod(old_method_count + i, method);
-      vtable->Set(old_vtable_count + i, method);
+      vtable->Set<false>(old_vtable_count + i, method);
     }
     // TODO: do not assign to the vtable field until it is fully constructed.
     klass->SetVTable(vtable.get());
@@ -3929,7 +3933,7 @@ bool ClassLinker::LinkFields(const SirtRef<mirror::Class>& klass, bool is_static
     }
     grouped_and_sorted_fields.pop_front();
     num_reference_fields++;
-    fields->Set(current_field, field);
+    fields->Set<false>(current_field, field);
     field->SetOffset(field_offset);
     field_offset = MemberOffset(field_offset.Uint32Value() + sizeof(uint32_t));
   }
@@ -3946,7 +3950,7 @@ bool ClassLinker::LinkFields(const SirtRef<mirror::Class>& klass, bool is_static
       if (type == Primitive::kPrimLong || type == Primitive::kPrimDouble) {
         continue;
       }
-      fields->Set(current_field++, field);
+      fields->Set<false>(current_field++, field);
       field->SetOffset(field_offset);
       // drop the consumed field
       grouped_and_sorted_fields.erase(grouped_and_sorted_fields.begin() + i);
@@ -3965,7 +3969,7 @@ bool ClassLinker::LinkFields(const SirtRef<mirror::Class>& klass, bool is_static
     FieldHelper fh(field);
     Primitive::Type type = fh.GetTypeAsPrimitiveType();
     CHECK(type != Primitive::kPrimNot);  // should only be working on primitive types
-    fields->Set(current_field, field);
+    fields->Set<false>(current_field, field);
     field->SetOffset(field_offset);
     field_offset = MemberOffset(field_offset.Uint32Value() +
                                 ((type == Primitive::kPrimLong || type == Primitive::kPrimDouble)
@@ -4418,7 +4422,7 @@ void ClassLinker::SetClassRoot(ClassRoot class_root, mirror::Class* klass) {
 
   DCHECK(class_roots_ != NULL);
   DCHECK(class_roots_->Get(class_root) == NULL);
-  class_roots_->Set(class_root, klass);
+  class_roots_->Set<false>(class_root, klass);
 }
 
 }  // namespace art

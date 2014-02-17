@@ -23,6 +23,7 @@
 #include "cutils/atomic-inline.h"
 #include "object_reference.h"
 #include "offsets.h"
+#include "runtime.h"
 
 namespace art {
 
@@ -130,6 +131,9 @@ class MANAGED Object {
   IntArray* AsIntArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   LongArray* AsLongArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  FloatArray* AsFloatArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  DoubleArray* AsDoubleArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   String* AsString() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Throwable* AsThrowable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -155,12 +159,15 @@ class MANAGED Object {
   // Accessor for Java type fields.
   template<class T> T* GetFieldObject(MemberOffset field_offset, bool is_volatile)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  template<bool kTransactionActive, bool kCheckTransaction = true>
   void SetFieldObjectWithoutWriteBarrier(MemberOffset field_offset, Object* new_value,
                                          bool is_volatile, bool this_is_valid = true)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  template<bool kTransactionActive, bool kCheckTransaction = true>
   void SetFieldObject(MemberOffset field_offset, Object* new_value, bool is_volatile,
                       bool this_is_valid = true)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  template<bool kTransactionActive, bool kCheckTransaction = true>
   bool CasFieldObject(MemberOffset field_offset, Object* old_value, Object* new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -172,27 +179,35 @@ class MANAGED Object {
 
   int32_t GetField32(MemberOffset field_offset, bool is_volatile);
 
+  template<bool kTransactionActive, bool kCheckTransaction = true>
   void SetField32(MemberOffset field_offset, int32_t new_value, bool is_volatile,
                   bool this_is_valid = true);
 
+  template<bool kTransactionActive, bool kCheckTransaction = true>
   bool CasField32(MemberOffset field_offset, int32_t old_value, int32_t new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   int64_t GetField64(MemberOffset field_offset, bool is_volatile);
 
+  template<bool kTransactionActive, bool kCheckTransaction = true>
   void SetField64(MemberOffset field_offset, int64_t new_value, bool is_volatile,
                   bool this_is_valid = true);
 
+  template<bool kTransactionActive, bool kCheckTransaction = true>
   bool CasField64(MemberOffset field_offset, int64_t old_value, int64_t new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  template<typename T>
+  template<bool kTransactionActive, bool kCheckTransaction = true, typename T>
   void SetFieldPtr(MemberOffset field_offset, T new_value, bool is_volatile,
                    bool this_is_valid = true) {
 #ifndef __LP64__
-    SetField32(field_offset, reinterpret_cast<int32_t>(new_value), is_volatile, this_is_valid);
+    SetField32<kTransactionActive, kCheckTransaction>(field_offset,
+                                                      reinterpret_cast<int32_t>(new_value),
+                                                      is_volatile, this_is_valid);
 #else
-    SetField64(field_offset, reinterpret_cast<int64_t>(new_value), is_volatile, this_is_valid);
+    SetField64<kTransactionActive, kCheckTransaction>(field_offset,
+                                                      reinterpret_cast<int64_t>(new_value),
+                                                      is_volatile, this_is_valid);
 #endif
   }
 

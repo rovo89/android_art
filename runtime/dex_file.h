@@ -1142,6 +1142,7 @@ class EncodedStaticFieldValueIterator {
                                   ClassLinker* linker, const DexFile::ClassDef& class_def)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  template<bool kTransactionActive>
   void ReadValueToField(mirror::ArtField* field) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasNext() { return pos_ < array_size_; }

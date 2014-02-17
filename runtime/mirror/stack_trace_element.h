@@ -67,6 +67,11 @@ class MANAGED StackTraceElement : public Object {
   HeapReference<String> method_name_;
   int32_t line_number_;
 
+  template<bool kTransactionActive>
+  void Init(SirtRef<String>& declaring_class, SirtRef<String>& method_name,
+            SirtRef<String>& file_name, int32_t line_number)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   static Class* GetStackTraceElement() {
     DCHECK(java_lang_StackTraceElement_ != NULL);
     return java_lang_StackTraceElement_;

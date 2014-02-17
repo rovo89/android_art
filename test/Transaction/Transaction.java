@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 The Android Open Source Project
+ * Copyright (C) 2014 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,22 +14,24 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_MIRROR_IFTABLE_INL_H_
-#define ART_RUNTIME_MIRROR_IFTABLE_INL_H_
+public class Transaction {
+    static class EmptyStatic {
+    }
 
-#include "iftable.h"
+    static class StaticFieldClass {
+      public static int intField;
+      static {
+        intField = 5;
+      }
+    }
 
-namespace art {
-namespace mirror {
+    static class BlacklistedClass {
+      static {
+        NativeSupport.native_call();
+      }
+    }
 
-inline void IfTable::SetInterface(int32_t i, Class* interface) {
-  DCHECK(interface != NULL);
-  DCHECK(interface->IsInterface());
-  DCHECK(Get((i * kMax) + kInterface) == NULL);
-  Set<false>((i * kMax) + kInterface, interface);
+    static class NativeSupport {
+      public static native void native_call();
+    }
 }
-
-}  // namespace mirror
-}  // namespace art
-
-#endif  // ART_RUNTIME_MIRROR_IFTABLE_INL_H_

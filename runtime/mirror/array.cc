@@ -60,7 +60,8 @@ static Array* RecursiveCreateMultiArray(Thread* self,
         CHECK(self->IsExceptionPending());
         return nullptr;
       }
-      new_array->AsObjectArray<Array>()->Set(i, sub_array);
+      // Use non-transactional mode without check.
+      new_array->AsObjectArray<Array>()->Set<false, false>(i, sub_array);
     }
   }
   return new_array.get();
