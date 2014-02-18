@@ -293,10 +293,10 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
     StoreWordDisp(TargetReg(kSp), 0, TargetReg(kArg0));
   }
 
-  if (cu_->num_ins == 0)
+  if (cu_->num_ins == 0) {
     return;
-  const int num_arg_regs = 3;
-  static SpecialTargetRegister arg_regs[] = {kArg1, kArg2, kArg3};
+  }
+
   int start_vreg = cu_->num_dalvik_registers - cu_->num_ins;
   /*
    * Copy incoming arguments to their proper home locations.
@@ -312,15 +312,17 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
    */
   for (int i = 0; i < cu_->num_ins; i++) {
     PromotionMap* v_map = &promotion_map_[start_vreg + i];
-    if (i < num_arg_regs) {
+    int reg = GetArgMappingToPhysicalReg(i);
+
+    if (reg != INVALID_REG) {
       // If arriving in register
       bool need_flush = true;
       RegLocation* t_loc = &ArgLocs[i];
       if ((v_map->core_location == kLocPhysReg) && !t_loc->fp) {
-        OpRegCopy(v_map->core_reg, TargetReg(arg_regs[i]));
+        OpRegCopy(v_map->core_reg, reg);
         need_flush = false;
       } else if ((v_map->fp_location == kLocPhysReg) && t_loc->fp) {
-        OpRegCopy(v_map->FpReg, TargetReg(arg_regs[i]));
+        OpRegCopy(v_map->FpReg, reg);
         need_flush = false;
       } else {
         need_flush = true;
@@ -350,8 +352,7 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
         }
       }
       if (need_flush) {
-        StoreBaseDisp(TargetReg(kSp), SRegOffset(start_vreg + i),
-                      TargetReg(arg_regs[i]), kWord);
+        StoreBaseDisp(TargetReg(kSp), SRegOffset(start_vreg + i), reg, kWord);
       }
     } else {
       // If arriving in frame & promoted

@@ -92,6 +92,21 @@ int X86Mir2Lir::TargetReg(SpecialTargetRegister reg) {
   return res;
 }
 
+int X86Mir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
+  // For the 32-bit internal ABI, the first 3 arguments are passed in registers.
+  // TODO: This is not 64-bit compliant and depends on new internal ABI.
+  switch (arg_num) {
+    case 0:
+      return rX86_ARG1;
+    case 1:
+      return rX86_ARG2;
+    case 2:
+      return rX86_ARG3;
+    default:
+      return INVALID_REG;
+  }
+}
+
 // Create a double from a pair of singles.
 int X86Mir2Lir::S2d(int low_reg, int high_reg) {
   return X86_S2D(low_reg, high_reg);
