@@ -68,7 +68,7 @@ struct CompilationUnit {
   uint32_t disable_opt;                // opt_control_vector flags.
   uint32_t enable_debug;               // debugControlVector flags.
   bool verbose;
-  CompilerBackend compiler_backend;
+  const CompilerBackend* compiler_backend;
   InstructionSet instruction_set;
 
   const InstructionSetFeatures& GetInstructionSetFeatures() {

@@ -39,12 +39,12 @@
 
 namespace art {
 void CompileOneMethod(CompilerDriver& driver,
-                      const CompilerBackend compilerBackend,
+                      CompilerBackend* compilerBackend,
                       const DexFile::CodeItem* code_item,
                       uint32_t access_flags, InvokeType invoke_type,
                       uint16_t class_def_idx, uint32_t method_idx, jobject class_loader,
                       const DexFile& dex_file,
-                      llvm::LlvmCompilationUnit* llvm_info);
+                      void* llvm_info);
 }
 
 namespace llvm {
@@ -142,7 +142,7 @@ CompileDexMethod(DexCompilationUnit* dex_compilation_unit, InvokeType invoke_typ
   cunit->SetCompilerDriver(compiler_driver_);
   // TODO: consolidate ArtCompileMethods
   CompileOneMethod(*compiler_driver_,
-                   kPortable,
+                   compiler_driver_->GetCompilerBackend(),
                    dex_compilation_unit->GetCodeItem(),
                    dex_compilation_unit->GetAccessFlags(),
                    invoke_type,
