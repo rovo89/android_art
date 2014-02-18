@@ -978,6 +978,10 @@ void X86Mir2Lir::GenMulLong(Instruction::Code, RegLocation rl_dest, RegLocation 
   }
 
   // Nope.  Do it the hard way
+  // Check for V*V.  We can eliminate a multiply in that case, as 2L*1H == 2H*1L.
+  bool is_square = mir_graph_->SRegToVReg(rl_src1.s_reg_low) ==
+                   mir_graph_->SRegToVReg(rl_src2.s_reg_low);
+
   FlushAllRegs();
   LockCallTemps();  // Prepare for explicit register usage.
   rl_src1 = UpdateLocWide(rl_src1);
@@ -995,36 +999,52 @@ void X86Mir2Lir::GenMulLong(Instruction::Code, RegLocation rl_dest, RegLocation 
                  kWord, GetSRegHi(rl_src1.s_reg_low));
   }
 
-  // EAX <- 2H
-  if (src2_in_reg) {
-    NewLIR2(kX86Mov32RR, r0, rl_src2.high_reg);
-  } else {
-    LoadBaseDisp(rX86_SP, SRegOffset(rl_src2.s_reg_low) + HIWORD_OFFSET, r0,
-                 kWord, GetSRegHi(rl_src2.s_reg_low));
-  }
+  if (is_square) {
+    // Take advantage of the fact that the values are the same.
+    // ECX <- ECX * 2L  (1H * 2L)
+    if (src2_in_reg) {
+      NewLIR2(kX86Imul32RR, r1, rl_src2.low_reg);
+    } else {
+      int displacement = SRegOffset(rl_src2.s_reg_low);
+      LIR *m = NewLIR3(kX86Imul32RM, r1, rX86_SP, displacement + LOWORD_OFFSET);
+      AnnotateDalvikRegAccess(m, (displacement + LOWORD_OFFSET) >> 2,
+                              true /* is_load */, true /* is_64bit */);
+    }
 
-  // EAX <- EAX * 1L  (2H * 1L)
-  if (src1_in_reg) {
-    NewLIR2(kX86Imul32RR, r0, rl_src1.low_reg);
+    // ECX <- 2*ECX (2H * 1L) + (1H * 2L)
+    NewLIR2(kX86Add32RR, r1, r1);
   } else {
-    int displacement = SRegOffset(rl_src1.s_reg_low);
-    LIR *m = NewLIR3(kX86Imul32RM, r0, rX86_SP, displacement + LOWORD_OFFSET);
-    AnnotateDalvikRegAccess(m, (displacement + LOWORD_OFFSET) >> 2,
-                            true /* is_load */, true /* is_64bit */);
-  }
+    // EAX <- 2H
+    if (src2_in_reg) {
+      NewLIR2(kX86Mov32RR, r0, rl_src2.high_reg);
+    } else {
+      LoadBaseDisp(rX86_SP, SRegOffset(rl_src2.s_reg_low) + HIWORD_OFFSET, r0,
+                   kWord, GetSRegHi(rl_src2.s_reg_low));
+    }
 
-  // ECX <- ECX * 2L  (1H * 2L)
-  if (src2_in_reg) {
-    NewLIR2(kX86Imul32RR, r1, rl_src2.low_reg);
-  } else {
-    int displacement = SRegOffset(rl_src2.s_reg_low);
-    LIR *m = NewLIR3(kX86Imul32RM, r1, rX86_SP, displacement + LOWORD_OFFSET);
-    AnnotateDalvikRegAccess(m, (displacement + LOWORD_OFFSET) >> 2,
-                            true /* is_load */, true /* is_64bit */);
-  }
+    // EAX <- EAX * 1L  (2H * 1L)
+    if (src1_in_reg) {
+      NewLIR2(kX86Imul32RR, r0, rl_src1.low_reg);
+    } else {
+      int displacement = SRegOffset(rl_src1.s_reg_low);
+      LIR *m = NewLIR3(kX86Imul32RM, r0, rX86_SP, displacement + LOWORD_OFFSET);
+      AnnotateDalvikRegAccess(m, (displacement + LOWORD_OFFSET) >> 2,
+                              true /* is_load */, true /* is_64bit */);
+    }
 
-  // ECX <- ECX + EAX  (2H * 1L) + (1H * 2L)
-  NewLIR2(kX86Add32RR, r1, r0);
+    // ECX <- ECX * 2L  (1H * 2L)
+    if (src2_in_reg) {
+      NewLIR2(kX86Imul32RR, r1, rl_src2.low_reg);
+    } else {
+      int displacement = SRegOffset(rl_src2.s_reg_low);
+      LIR *m = NewLIR3(kX86Imul32RM, r1, rX86_SP, displacement + LOWORD_OFFSET);
+      AnnotateDalvikRegAccess(m, (displacement + LOWORD_OFFSET) >> 2,
+                              true /* is_load */, true /* is_64bit */);
+    }
+
+    // ECX <- ECX + EAX  (2H * 1L) + (1H * 2L)
+    NewLIR2(kX86Add32RR, r1, r0);
+  }
 
   // EAX <- 2L
   if (src2_in_reg) {
