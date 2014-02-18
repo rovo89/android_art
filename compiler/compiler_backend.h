@@ -40,7 +40,7 @@ class CompilerBackend {
     kPortable
   };
 
-  CompilerBackend(int warning)
+  explicit CompilerBackend(int warning)
       : maximum_compilation_time_before_warning_(warning) {}
 
   static CompilerBackend* Create(Kind kind);
@@ -93,4 +93,4 @@ class CompilerBackend {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_DRIVER_COMPILER_BACKEND_H_
+#endif  // ART_COMPILER_COMPILER_BACKEND_H_
