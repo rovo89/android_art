@@ -30,6 +30,7 @@
 #include "base/timing_logger.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
+#include "compiler_backend.h"
 #include "compiler_callbacks.h"
 #include "dex_file-inl.h"
 #include "dex/verification_results.h"
@@ -163,7 +164,7 @@ class Dex2Oat {
  public:
   static bool Create(Dex2Oat** p_dex2oat,
                      Runtime::Options& options,
-                     CompilerBackend compiler_backend,
+                     CompilerBackend::Kind compiler_backend,
                      InstructionSet instruction_set,
                      InstructionSetFeatures instruction_set_features,
                      size_t thread_count)
@@ -286,7 +287,7 @@ class Dex2Oat {
                                                         dump_passes,
                                                         &compiler_phases_timings));
 
-    if (compiler_backend_ == kPortable) {
+    if (compiler_backend_ == CompilerBackend::kPortable) {
       driver->SetBitcodeFileName(bitcode_filename);
     }
 
@@ -365,7 +366,7 @@ class Dex2Oat {
       virtual bool MethodVerified(verifier::MethodVerifier* verifier)
           SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
         bool result = verification_results_->ProcessVerifiedMethod(verifier);
-        if (result && method_inliner_map_ != nullptr) {
+        if (result) {
           MethodReference ref = verifier->GetMethodReference();
           method_inliner_map_->GetMethodInliner(ref.dex_file)
               ->AnalyseMethodCode(verifier);
@@ -381,7 +382,7 @@ class Dex2Oat {
       DexFileToMethodInlinerMap* method_inliner_map_;
   };
 
-  explicit Dex2Oat(CompilerBackend compiler_backend,
+  explicit Dex2Oat(CompilerBackend::Kind compiler_backend,
                    InstructionSet instruction_set,
                    InstructionSetFeatures instruction_set_features,
                    size_t thread_count)
@@ -389,7 +390,7 @@ class Dex2Oat {
         instruction_set_(instruction_set),
         instruction_set_features_(instruction_set_features),
         verification_results_(new VerificationResults),
-        method_inliner_map_(compiler_backend == kQuick ? new DexFileToMethodInlinerMap : nullptr),
+        method_inliner_map_(new DexFileToMethodInlinerMap),
         callbacks_(verification_results_.get(), method_inliner_map_.get()),
         runtime_(nullptr),
         thread_count_(thread_count),
@@ -449,7 +450,7 @@ class Dex2Oat {
     return false;
   }
 
-  const CompilerBackend compiler_backend_;
+  const CompilerBackend::Kind compiler_backend_;
 
   const InstructionSet instruction_set_;
   const InstructionSetFeatures instruction_set_features_;
@@ -688,7 +689,9 @@ static int dex2oat(int argc, char** argv) {
   std::string android_root;
   std::vector<const char*> runtime_args;
   int thread_count = sysconf(_SC_NPROCESSORS_CONF);
-  CompilerBackend compiler_backend = kUsePortableCompiler ? kPortable : kQuick;
+  CompilerBackend::Kind compiler_backend = kUsePortableCompiler
+      ? CompilerBackend::kPortable
+      : CompilerBackend::kQuick;
 
   // Take the default set of instruction features from the build.
   InstructionSetFeatures instruction_set_features =
@@ -788,9 +791,9 @@ static int dex2oat(int argc, char** argv) {
     } else if (option.starts_with("--compiler-backend=")) {
       StringPiece backend_str = option.substr(strlen("--compiler-backend=")).data();
       if (backend_str == "Quick") {
-        compiler_backend = kQuick;
+        compiler_backend = CompilerBackend::kQuick;
       } else if (backend_str == "Portable") {
-        compiler_backend = kPortable;
+        compiler_backend = CompilerBackend::kPortable;
       }
     } else if (option == "--host") {
       is_host = true;

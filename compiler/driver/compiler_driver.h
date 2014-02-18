@@ -26,6 +26,7 @@
 #include "class_reference.h"
 #include "compiled_class.h"
 #include "compiled_method.h"
+#include "compiler_backend.h"
 #include "dex_file.h"
 #include "dex/arena_allocator.h"
 #include "instruction_set.h"
@@ -44,20 +45,14 @@ class MethodVerifier;
 }  // namespace verifier
 
 class AOTCompilationStats;
-class ParallelCompilationManager;
 class DexCompilationUnit;
 class DexFileToMethodInlinerMap;
 class InlineIGetIPutData;
 class OatWriter;
+class ParallelCompilationManager;
 class TimingLogger;
 class VerificationResults;
 class VerifiedMethod;
-
-enum CompilerBackend {
-  kQuick,
-  kPortable,
-  kNoBackend
-};
 
 enum EntryPointCallingConvention {
   // ABI of invocations to a method's interpreter entry point.
@@ -101,7 +96,8 @@ class CompilerDriver {
   // classes.
   explicit CompilerDriver(VerificationResults* verification_results,
                           DexFileToMethodInlinerMap* method_inliner_map,
-                          CompilerBackend compiler_backend, InstructionSet instruction_set,
+                          CompilerBackend::Kind compiler_backend_kind,
+                          InstructionSet instruction_set,
                           InstructionSetFeatures instruction_set_features,
                           bool image, DescriptorSet* image_classes,
                           size_t thread_count, bool dump_stats, bool dump_passes,
@@ -133,8 +129,8 @@ class CompilerDriver {
     return instruction_set_features_;
   }
 
-  CompilerBackend GetCompilerBackend() const {
-    return compiler_backend_;
+  CompilerBackend* GetCompilerBackend() const {
+    return compiler_backend_.get();
   }
 
   // Are we compiling and creating an image file?
@@ -560,7 +556,7 @@ class CompilerDriver {
   VerificationResults* verification_results_;
   DexFileToMethodInlinerMap* method_inliner_map_;
 
-  CompilerBackend compiler_backend_;
+  UniquePtr<CompilerBackend> compiler_backend_;
 
   const InstructionSet instruction_set_;
   const InstructionSetFeatures instruction_set_features_;
@@ -601,31 +597,15 @@ class CompilerDriver {
 
   void* compiler_library_;
 
-  typedef CompiledMethod* (*CompilerFn)(CompilerDriver& driver,
-                                        const DexFile::CodeItem* code_item,
-                                        uint32_t access_flags, InvokeType invoke_type,
-                                        uint32_t class_dex_idx, uint32_t method_idx,
-                                        jobject class_loader, const DexFile& dex_file);
-
   typedef void (*DexToDexCompilerFn)(CompilerDriver& driver,
                                      const DexFile::CodeItem* code_item,
                                      uint32_t access_flags, InvokeType invoke_type,
                                      uint32_t class_dex_idx, uint32_t method_idx,
                                      jobject class_loader, const DexFile& dex_file,
                                      DexToDexCompilationLevel dex_to_dex_compilation_level);
-  CompilerFn compiler_;
-#ifdef ART_SEA_IR_MODE
-  CompilerFn sea_ir_compiler_;
-#endif
-
   DexToDexCompilerFn dex_to_dex_compiler_;
 
   void* compiler_context_;
-
-  typedef CompiledMethod* (*JniCompilerFn)(CompilerDriver& driver,
-                                           uint32_t access_flags, uint32_t method_idx,
-                                           const DexFile& dex_file);
-  JniCompilerFn jni_compiler_;
 
   pthread_key_t tls_key_;
 
