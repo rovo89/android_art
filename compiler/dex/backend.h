@@ -17,10 +17,10 @@
 #ifndef ART_COMPILER_DEX_BACKEND_H_
 #define ART_COMPILER_DEX_BACKEND_H_
 
-#include "compiled_method.h"
-#include "arena_allocator.h"
-
 namespace art {
+
+class ArenaAllocator;
+class CompiledMethod;
 
 class Backend {
   public:
