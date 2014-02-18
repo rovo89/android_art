@@ -23,9 +23,10 @@
 
 namespace art {
 
-void MipsMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
+bool MipsMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
                                  const InlineMethod& special) {
-    // TODO
+  // TODO
+  return false;
 }
 
 /*
@@ -342,6 +343,10 @@ void MipsMir2Lir::GenExitSequence() {
 
   NewLIR0(kPseudoMethodExit);
   UnSpillCoreRegs();
+  OpReg(kOpBx, r_RA);
+}
+
+void MipsMir2Lir::GenSpecialExitSequence() {
   OpReg(kOpBx, r_RA);
 }
 

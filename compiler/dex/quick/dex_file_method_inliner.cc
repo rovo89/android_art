@@ -407,9 +407,7 @@ bool DexFileMethodInliner::GenSpecial(Mir2Lir* backend, uint32_t method_idx) {
     }
     special = it->second;
   }
-  // TODO: Return true only if special implementation is emitted.
-  backend->SpecialMIR2LIR(special);
-  return true;
+  return backend->SpecialMIR2LIR(special);
 }
 
 uint32_t DexFileMethodInliner::FindClassIndex(const DexFile* dex_file, IndexCache* cache,
@@ -596,7 +594,7 @@ bool DexFileMethodInliner::AnalyseConstMethod(const DexFile::CodeItem* code_item
   if (return_opcode == Instruction::RETURN_OBJECT && vB != 0) {
     return false;  // Returning non-null reference constant?
   }
-  result->opcode = kInlineOpConst;
+  result->opcode = kInlineOpNonWideConst;
   result->flags = kInlineSpecial;
   result->d.data = static_cast<uint64_t>(vB);
   return true;

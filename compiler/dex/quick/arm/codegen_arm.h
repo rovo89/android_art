@@ -52,6 +52,7 @@ class ArmMir2Lir : public Mir2Lir {
     int AllocTypedTempPair(bool fp_hint, int reg_class);
     int S2d(int low_reg, int high_reg);
     int TargetReg(SpecialTargetRegister reg);
+    int GetArgMappingToPhysicalReg(int arg_num);
     RegLocation GetReturnAlt();
     RegLocation GetReturnWideAlt();
     RegLocation LocCReturn();
@@ -122,6 +123,7 @@ class ArmMir2Lir : public Mir2Lir {
     void GenDivZeroCheck(int reg_lo, int reg_hi);
     void GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method);
     void GenExitSequence();
+    void GenSpecialExitSequence();
     void GenFillArrayData(DexOffset table_offset, RegLocation rl_src);
     void GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias, bool is_double);
     void GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir);
@@ -136,7 +138,6 @@ class ArmMir2Lir : public Mir2Lir {
     void GenNegFloat(RegLocation rl_dest, RegLocation rl_src);
     void GenPackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
     void GenSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
-    void GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& special);
 
     // Required for target - single operation generators.
     LIR* OpUnconditionalBranch(LIR* target);
@@ -170,7 +171,6 @@ class ArmMir2Lir : public Mir2Lir {
     LIR* LoadBaseDispBody(int rBase, int displacement, int r_dest, int r_dest_hi, OpSize size,
                           int s_reg);
     LIR* StoreBaseDispBody(int rBase, int displacement, int r_src, int r_src_hi, OpSize size);
-    void GenPrintLabel(MIR* mir);
     LIR* OpRegRegRegShift(OpKind op, int r_dest, int r_src1, int r_src2, int shift);
     LIR* OpRegRegShift(OpKind op, int r_dest_src1, int r_src2, int shift);
     static const ArmEncodingMap EncodingMap[kArmLast];
@@ -185,13 +185,6 @@ class ArmMir2Lir : public Mir2Lir {
   private:
     void GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1, int64_t val,
                                   ConditionCode ccode);
-    void LockArg(int in_position, bool wide = false);
-    int LoadArg(int in_position, bool wide = false);
-    void LoadArgDirect(int in_position, RegLocation rl_dest);
-    MIR* GetNextMir(BasicBlock** p_bb, MIR* mir);
-    MIR* SpecialIGet(BasicBlock** bb, MIR* mir, const InlineMethod& special);
-    MIR* SpecialIPut(BasicBlock** bb, MIR* mir, const InlineMethod& special);
-    MIR* SpecialIdentity(MIR* mir, const InlineMethod& special);
     LIR* LoadFPConstantValue(int r_dest, int value);
     void ReplaceFixup(LIR* prev_lir, LIR* orig_lir, LIR* new_lir);
     void InsertFixupBefore(LIR* prev_lir, LIR* orig_lir, LIR* new_lir);
