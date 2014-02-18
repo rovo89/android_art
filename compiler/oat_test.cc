@@ -15,6 +15,7 @@
  */
 
 #include "compiler/oat_writer.h"
+#include "compiler/compiler_backend.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
@@ -84,12 +85,14 @@ TEST_F(OatTest, WriteRead) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
   // TODO: make selectable.
-  CompilerBackend compiler_backend = kUsePortableCompiler ? kPortable : kQuick;
+  CompilerBackend::Kind compiler_backend = kUsePortableCompiler
+      ? CompilerBackend::kPortable
+      : CompilerBackend::kQuick;
   InstructionSet insn_set = kIsTargetBuild ? kThumb2 : kX86;
 
   InstructionSetFeatures insn_features;
   verification_results_.reset(new VerificationResults);
-  method_inliner_map_.reset(compiler_backend == kQuick ? new DexFileToMethodInlinerMap : nullptr);
+  method_inliner_map_.reset(new DexFileToMethodInlinerMap);
   callbacks_.Reset(verification_results_.get(), method_inliner_map_.get());
   timer_.reset(new CumulativeLogger("Compilation times"));
   compiler_driver_.reset(new CompilerDriver(verification_results_.get(),

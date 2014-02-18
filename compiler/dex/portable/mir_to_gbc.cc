@@ -41,6 +41,22 @@ const char kNormalBlock = 'L';
 const char kCatchBlock = 'C';
 
 namespace art {
+namespace llvm {
+::llvm::Module* makeLLVMModuleContents(::llvm::Module* module);
+}
+
+LLVMInfo::LLVMInfo() {
+  // Create context, module, intrinsic helper & ir builder
+  llvm_context_.reset(new ::llvm::LLVMContext());
+  llvm_module_ = new ::llvm::Module("art", *llvm_context_);
+  ::llvm::StructType::create(*llvm_context_, "JavaObject");
+  art::llvm::makeLLVMModuleContents(llvm_module_);
+  intrinsic_helper_.reset(new art::llvm::IntrinsicHelper(*llvm_context_, *llvm_module_));
+  ir_builder_.reset(new art::llvm::IRBuilder(*llvm_context_, *llvm_module_, *intrinsic_helper_));
+}
+
+LLVMInfo::~LLVMInfo() {
+}
 
 ::llvm::BasicBlock* MirConverter::GetLLVMBlock(int id) {
   return id_to_block_map_.Get(id);

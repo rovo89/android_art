@@ -38,15 +38,12 @@
 namespace art {
 
 static CompiledMethod* CompileMethodWithSeaIr(CompilerDriver& compiler,
-                                     const CompilerBackend compiler_backend,
+                                     CompilerBackend* compiler_backend,
                                      const DexFile::CodeItem* code_item,
                                      uint32_t method_access_flags, InvokeType invoke_type,
                                      uint16_t class_def_idx, uint32_t method_idx,
-                                     jobject class_loader, const DexFile& dex_file
-#if defined(ART_USE_PORTABLE_COMPILER)
-                                     , llvm::LlvmCompilationUnit* llvm_compilation_unit
-#endif
-) {
+                                     jobject class_loader, const DexFile& dex_file,
+                                     void* llvm_compilation_unit) {
   LOG(INFO) << "Compiling " << PrettyMethod(method_idx, dex_file) << ".";
   sea_ir::SeaGraph* ir_graph = sea_ir::SeaGraph::GetGraph(dex_file);
   std::string symbol = "dex_" + MangleForJni(PrettyMethod(method_idx, dex_file));
@@ -65,7 +62,7 @@ static CompiledMethod* CompileMethodWithSeaIr(CompilerDriver& compiler,
 }
 
 CompiledMethod* SeaIrCompileOneMethod(CompilerDriver& compiler,
-                                 const CompilerBackend backend,
+                                 CompilerBackend* backend,
                                  const DexFile::CodeItem* code_item,
                                  uint32_t method_access_flags,
                                  InvokeType invoke_type,
@@ -73,13 +70,9 @@ CompiledMethod* SeaIrCompileOneMethod(CompilerDriver& compiler,
                                  uint32_t method_idx,
                                  jobject class_loader,
                                  const DexFile& dex_file,
-                                 llvm::LlvmCompilationUnit* llvm_compilation_unit) {
+                                 void* llvm_compilation_unit) {
   return CompileMethodWithSeaIr(compiler, backend, code_item, method_access_flags, invoke_type,
-      class_def_idx, method_idx, class_loader, dex_file
-#if defined(ART_USE_PORTABLE_COMPILER)
-                       , llvm_compilation_unit
-#endif
-                       );  // NOLINT
+      class_def_idx, method_idx, class_loader, dex_file, llvm_compilation_unit);
 }
 
 extern "C" art::CompiledMethod*
@@ -90,7 +83,7 @@ extern "C" art::CompiledMethod*
                           const art::DexFile& dex_file) {
   // TODO: Check method fingerprint here to determine appropriate backend type.
   //       Until then, use build default
-  art::CompilerBackend backend = compiler.GetCompilerBackend();
+  art::CompilerBackend* backend = compiler.GetCompilerBackend();
   return art::SeaIrCompileOneMethod(compiler, backend, code_item, method_access_flags, invoke_type,
                                class_def_idx, method_idx, class_loader, dex_file,
                                NULL /* use thread llvm_info */);
