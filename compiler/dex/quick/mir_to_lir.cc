@@ -16,11 +16,243 @@
 
 #include "dex/compiler_internals.h"
 #include "dex/dataflow_iterator-inl.h"
+#include "dex/quick/dex_file_method_inliner.h"
 #include "mir_to_lir-inl.h"
 #include "object_utils.h"
 #include "thread-inl.h"
 
 namespace art {
+
+void Mir2Lir::LockArg(int in_position, bool wide) {
+  int reg_arg_low = GetArgMappingToPhysicalReg(in_position);
+  int reg_arg_high = wide ? GetArgMappingToPhysicalReg(in_position + 1) : INVALID_REG;
+
+  if (reg_arg_low != INVALID_REG) {
+    LockTemp(reg_arg_low);
+  }
+  if (reg_arg_high != INVALID_REG && reg_arg_low != reg_arg_high) {
+    LockTemp(reg_arg_high);
+  }
+}
+
+int Mir2Lir::LoadArg(int in_position, bool wide) {
+  int reg_arg_low = GetArgMappingToPhysicalReg(in_position);
+  int reg_arg_high = wide ? GetArgMappingToPhysicalReg(in_position + 1) : INVALID_REG;
+
+  int offset = StackVisitor::GetOutVROffset(in_position);
+  if (cu_->instruction_set == kX86) {
+    /*
+     * When doing a call for x86, it moves the stack pointer in order to push return.
+     * Thus, we add another 4 bytes to figure out the out of caller (in of callee).
+     * TODO: This needs revisited for 64-bit.
+     */
+    offset += sizeof(uint32_t);
+  }
+
+  // If the VR is wide and there is no register for high part, we need to load it.
+  if (wide && reg_arg_high == INVALID_REG) {
+    // If the low part is not in a reg, we allocate a pair. Otherwise, we just load to high reg.
+    if (reg_arg_low == INVALID_REG) {
+      int new_regs = AllocTypedTempPair(false, kAnyReg);
+      DECODE_REG_PAIR(new_regs, reg_arg_low, reg_arg_high);
+      LoadBaseDispWide(TargetReg(kSp), offset, reg_arg_low, reg_arg_high, INVALID_SREG);
+    } else {
+      reg_arg_high = AllocTemp();
+      int offset_high = offset + sizeof(uint32_t);
+      LoadWordDisp(TargetReg(kSp), offset_high, reg_arg_high);
+    }
+  }
+
+  // If the low part is not in a register yet, we need to load it.
+  if (reg_arg_low == INVALID_REG) {
+    reg_arg_low = AllocTemp();
+    LoadWordDisp(TargetReg(kSp), offset, reg_arg_low);
+  }
+
+  if (wide) {
+    return ENCODE_REG_PAIR(reg_arg_low, reg_arg_high);
+  } else {
+    return reg_arg_low;
+  }
+}
+
+void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
+  int offset = StackVisitor::GetOutVROffset(in_position);
+  if (cu_->instruction_set == kX86) {
+    /*
+     * When doing a call for x86, it moves the stack pointer in order to push return.
+     * Thus, we add another 4 bytes to figure out the out of caller (in of callee).
+     * TODO: This needs revisited for 64-bit.
+     */
+    offset += sizeof(uint32_t);
+  }
+
+  if (!rl_dest.wide) {
+    int reg = GetArgMappingToPhysicalReg(in_position);
+    if (reg != INVALID_REG) {
+      OpRegCopy(rl_dest.low_reg, reg);
+    } else {
+      LoadWordDisp(TargetReg(kSp), offset, rl_dest.low_reg);
+    }
+  } else {
+    int reg_arg_low = GetArgMappingToPhysicalReg(in_position);
+    int reg_arg_high = GetArgMappingToPhysicalReg(in_position + 1);
+
+    if (reg_arg_low != INVALID_REG && reg_arg_high != INVALID_REG) {
+      OpRegCopyWide(rl_dest.low_reg, rl_dest.high_reg, reg_arg_low, reg_arg_high);
+    } else if (reg_arg_low != INVALID_REG && reg_arg_high == INVALID_REG) {
+      OpRegCopy(rl_dest.low_reg, reg_arg_low);
+      int offset_high = offset + sizeof(uint32_t);
+      LoadWordDisp(TargetReg(kSp), offset_high, rl_dest.high_reg);
+    } else if (reg_arg_low == INVALID_REG && reg_arg_high != INVALID_REG) {
+      OpRegCopy(rl_dest.high_reg, reg_arg_high);
+      LoadWordDisp(TargetReg(kSp), offset, rl_dest.low_reg);
+    } else {
+      LoadBaseDispWide(TargetReg(kSp), offset, rl_dest.low_reg, rl_dest.high_reg, INVALID_SREG);
+    }
+  }
+}
+
+bool Mir2Lir::GenSpecialIGet(MIR* mir, const InlineMethod& special) {
+  // FastInstance() already checked by DexFileMethodInliner.
+  const InlineIGetIPutData& data = special.d.ifield_data;
+  if (data.method_is_static || data.object_arg != 0) {
+    // The object is not "this" and has to be null-checked.
+    return false;
+  }
+
+  DCHECK_NE(data.op_size, kDouble);  // The inliner doesn't distinguish kDouble, uses kLong.
+  bool wide = (data.op_size == kLong);
+  bool double_or_float = cu_->shorty[0] == 'F' || cu_->shorty[0] == 'D';
+
+  // Point of no return - no aborts after this
+  GenPrintLabel(mir);
+  LockArg(data.object_arg);
+  RegLocation rl_dest = wide ? GetReturnWide(double_or_float) : GetReturn(double_or_float);
+  int reg_obj = LoadArg(data.object_arg);
+  if (wide) {
+    LoadBaseDispWide(reg_obj, data.field_offset, rl_dest.low_reg, rl_dest.high_reg, INVALID_SREG);
+  } else {
+    LoadBaseDisp(reg_obj, data.field_offset, rl_dest.low_reg, kWord, INVALID_SREG);
+  }
+  if (data.is_volatile) {
+    GenMemBarrier(kLoadLoad);
+  }
+  return true;
+}
+
+bool Mir2Lir::GenSpecialIPut(MIR* mir, const InlineMethod& special) {
+  // FastInstance() already checked by DexFileMethodInliner.
+  const InlineIGetIPutData& data = special.d.ifield_data;
+  if (data.method_is_static || data.object_arg != 0) {
+    // The object is not "this" and has to be null-checked.
+    return false;
+  }
+
+  DCHECK_NE(data.op_size, kDouble);  // The inliner doesn't distinguish kDouble, uses kLong.
+  bool wide = (data.op_size == kLong);
+
+  // Point of no return - no aborts after this
+  GenPrintLabel(mir);
+  LockArg(data.object_arg);
+  LockArg(data.src_arg, wide);
+  int reg_obj = LoadArg(data.object_arg);
+  int reg_src = LoadArg(data.src_arg, wide);
+  if (data.is_volatile) {
+    GenMemBarrier(kStoreStore);
+  }
+  if (wide) {
+    int low_reg, high_reg;
+    DECODE_REG_PAIR(reg_src, low_reg, high_reg);
+    StoreBaseDispWide(reg_obj, data.field_offset, low_reg, high_reg);
+  } else {
+    StoreBaseDisp(reg_obj, data.field_offset, reg_src, kWord);
+  }
+  if (data.is_volatile) {
+    GenMemBarrier(kLoadLoad);
+  }
+  if (data.is_object) {
+    MarkGCCard(reg_src, reg_obj);
+  }
+  return true;
+}
+
+bool Mir2Lir::GenSpecialIdentity(MIR* mir, const InlineMethod& special) {
+  const InlineReturnArgData& data = special.d.return_data;
+  DCHECK_NE(data.op_size, kDouble);  // The inliner doesn't distinguish kDouble, uses kLong.
+  bool wide = (data.op_size == kLong);
+  bool double_or_float = cu_->shorty[0] == 'F' || cu_->shorty[0] == 'D';
+
+  // Point of no return - no aborts after this
+  GenPrintLabel(mir);
+  LockArg(data.arg, wide);
+  RegLocation rl_dest = wide ? GetReturnWide(double_or_float) : GetReturn(double_or_float);
+  LoadArgDirect(data.arg, rl_dest);
+  return true;
+}
+
+/*
+ * Special-case code generation for simple non-throwing leaf methods.
+ */
+bool Mir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& special) {
+  DCHECK(special.flags & kInlineSpecial);
+  current_dalvik_offset_ = mir->offset;
+  MIR* return_mir = nullptr;
+  bool successful = false;
+
+  switch (special.opcode) {
+    case kInlineOpNop:
+      successful = true;
+      DCHECK_EQ(mir->dalvikInsn.opcode, Instruction::RETURN_VOID);
+      return_mir = mir;
+      break;
+    case kInlineOpNonWideConst: {
+      successful = true;
+      RegLocation rl_dest = GetReturn(cu_->shorty[0] == 'F');
+      GenPrintLabel(mir);
+      LoadConstant(rl_dest.low_reg, static_cast<int>(special.d.data));
+      return_mir = mir_graph_->GetNextUnconditionalMir(bb, mir);
+      break;
+    }
+    case kInlineOpReturnArg:
+      successful = GenSpecialIdentity(mir, special);
+      return_mir = mir;
+      break;
+    case kInlineOpIGet:
+      successful = GenSpecialIGet(mir, special);
+      return_mir = mir_graph_->GetNextUnconditionalMir(bb, mir);
+      break;
+    case kInlineOpIPut:
+      successful = GenSpecialIPut(mir, special);
+      return_mir = mir_graph_->GetNextUnconditionalMir(bb, mir);
+      break;
+    default:
+      break;
+  }
+
+  if (successful) {
+    // Handle verbosity for return MIR.
+    if (return_mir != nullptr) {
+      current_dalvik_offset_ = return_mir->offset;
+      // Not handling special identity case because it already generated code as part
+      // of the return. The label should have been added before any code was generated.
+      if (special.opcode != kInlineOpReturnArg) {
+        GenPrintLabel(return_mir);
+      }
+    }
+    GenSpecialExitSequence();
+
+    core_spill_mask_ = 0;
+    num_core_spills_ = 0;
+    fp_spill_mask_ = 0;
+    num_fp_spills_ = 0;
+    frame_size_ = 0;
+    core_vmap_table_.clear();
+    fp_vmap_table_.clear();
+  }
+
+  return successful;
+}
 
 /*
  * Target-independent code generation.  Use only high-level
@@ -693,6 +925,14 @@ void Mir2Lir::HandleExtendedMethodMIR(BasicBlock* bb, MIR* mir) {
   }
 }
 
+void Mir2Lir::GenPrintLabel(MIR* mir) {
+  // Mark the beginning of a Dalvik instruction for line tracking.
+  if (cu_->verbose) {
+     char* inst_str = mir_graph_->GetDalvikDisassembly(mir);
+     MarkBoundary(mir->offset, inst_str);
+  }
+}
+
 // Handle the content in each basic block.
 bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
   if (bb->block_type == kDead) return false;
@@ -745,11 +985,8 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
     current_dalvik_offset_ = mir->offset;
     int opcode = mir->dalvikInsn.opcode;
 
-    // Mark the beginning of a Dalvik instruction for line tracking.
-    if (cu_->verbose) {
-       char* inst_str = mir_graph_->GetDalvikDisassembly(mir);
-       MarkBoundary(mir->offset, inst_str);
-    }
+    GenPrintLabel(mir);
+
     // Remember the first LIR for this block.
     if (head_lir == NULL) {
       head_lir = &block_label_list_[bb->id];
@@ -786,7 +1023,7 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
   return false;
 }
 
-void Mir2Lir::SpecialMIR2LIR(const InlineMethod& special) {
+bool Mir2Lir::SpecialMIR2LIR(const InlineMethod& special) {
   cu_->NewTimingSplit("SpecialMIR2LIR");
   // Find the first DalvikByteCode block.
   int num_reachable_blocks = mir_graph_->GetNumReachableBlocks();
@@ -800,7 +1037,7 @@ void Mir2Lir::SpecialMIR2LIR(const InlineMethod& special) {
     }
   }
   if (bb == NULL) {
-    return;
+    return false;
   }
   DCHECK_EQ(bb->start_offset, 0);
   DCHECK(bb->first_mir_insn != NULL);
@@ -813,7 +1050,7 @@ void Mir2Lir::SpecialMIR2LIR(const InlineMethod& special) {
   ResetDefTracking();
   ClobberAllRegs();
 
-  GenSpecialCase(bb, mir, special);
+  return GenSpecialCase(bb, mir, special);
 }
 
 void Mir2Lir::MethodMIR2LIR() {

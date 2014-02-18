@@ -86,6 +86,20 @@ int MipsMir2Lir::TargetReg(SpecialTargetRegister reg) {
   return res;
 }
 
+int MipsMir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
+  // For the 32-bit internal ABI, the first 3 arguments are passed in registers.
+  switch (arg_num) {
+    case 0:
+      return rMIPS_ARG1;
+    case 1:
+      return rMIPS_ARG2;
+    case 2:
+      return rMIPS_ARG3;
+    default:
+      return INVALID_REG;
+  }
+}
+
 // Create a double from a pair of singles.
 int MipsMir2Lir::S2d(int low_reg, int high_reg) {
   return MIPS_S2D(low_reg, high_reg);

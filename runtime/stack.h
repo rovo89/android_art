@@ -654,8 +654,14 @@ class StackVisitor {
     }  else if (reg < num_regs) {
       return locals_start + (reg * sizeof(uint32_t));
     } else {
-      return frame_size + ((reg - num_regs) * sizeof(uint32_t)) + sizeof(uint32_t);  // Dalvik in.
+      // Handle ins.
+      return frame_size + ((reg - num_regs) * sizeof(uint32_t)) + sizeof(StackReference<mirror::ArtMethod>);
     }
+  }
+
+  static int GetOutVROffset(uint16_t out_num) {
+    // According to stack model, the first out is above the Method ptr.
+    return sizeof(StackReference<mirror::ArtMethod>) + (out_num * sizeof(uint32_t));
   }
 
   uintptr_t GetCurrentQuickFramePc() const {
