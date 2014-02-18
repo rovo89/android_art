@@ -33,6 +33,7 @@ namespace mirror {
   class Class;
   class Object;
   template<class T> class ObjectArray;
+  class Reference;
 }  // namespace mirror
 
 class StackVisitor;
@@ -162,10 +163,12 @@ class MarkSweep : public GarbageCollector {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // TODO: enable thread safety analysis when in use by multiple worker threads.
-  template <typename MarkVisitor>
-  void ScanObjectVisit(mirror::Object* obj, const MarkVisitor& visitor)
-      NO_THREAD_SAFETY_ANALYSIS;
+  // No thread safety analysis due to lambdas.
+  template<typename MarkVisitor, typename ReferenceVisitor>
+  void ScanObjectVisit(mirror::Object* obj, const MarkVisitor& visitor,
+                       const ReferenceVisitor& ref_visitor)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+    EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   void SweepSystemWeaks()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
@@ -180,11 +183,11 @@ class MarkSweep : public GarbageCollector {
   void VerifyIsLive(const mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  template <bool kVisitClass, typename Visitor>
-  static void VisitObjectReferences(mirror::Object* obj, const Visitor& visitor)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
   static mirror::Object* MarkObjectCallback(mirror::Object* obj, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
+  static void MarkHeapReferenceCallback(mirror::HeapReference<mirror::Object>* ref, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
@@ -213,6 +216,10 @@ class MarkSweep : public GarbageCollector {
   Barrier& GetBarrier() {
     return *gc_barrier_;
   }
+
+  // Schedules an unmarked object for reference processing.
+  void DelayReferenceReferent(mirror::Class* klass, mirror::Reference* reference)
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
  protected:
   // Returns true if the object has its bit set in the mark bitmap.
@@ -269,32 +276,6 @@ class MarkSweep : public GarbageCollector {
   void VerifyRoot(const mirror::Object* root, size_t vreg, const StackVisitor* visitor)
       NO_THREAD_SAFETY_ANALYSIS;
 
-  template <bool kVisitClass, typename Visitor>
-  static void VisitInstanceFieldsReferences(mirror::Class* klass, mirror::Object* obj,
-                                            const Visitor& visitor)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
-  // Visit the header, static field references, and interface pointers of a class object.
-  template <bool kVisitClass, typename Visitor>
-  static void VisitClassReferences(mirror::Class* klass, mirror::Object* obj,
-                                   const Visitor& visitor)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
-  template <bool kVisitClass, typename Visitor>
-  static void VisitStaticFieldsReferences(mirror::Class* klass, const Visitor& visitor)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
-  template <bool kVisitClass, typename Visitor>
-  static void VisitFieldsReferences(mirror::Object* obj, uint32_t ref_offsets, bool is_static,
-                                    const Visitor& visitor)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
-  // Visit all of the references in an object array.
-  template <typename Visitor>
-  static void VisitObjectArrayReferences(mirror::ObjectArray<mirror::Object>* array,
-                                         const Visitor& visitor)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
   // Push a single reference on a mark stack.
   void PushOnMarkStack(mirror::Object* obj);
 
@@ -302,10 +283,6 @@ class MarkSweep : public GarbageCollector {
   void ScanGrayObjects(bool paused, byte minimum_age)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  // Schedules an unmarked object for reference processing.
-  void DelayReferenceReferent(mirror::Class* klass, mirror::Object* reference)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // Recursively blackens objects on the mark stack.
   void ProcessMarkStack(bool paused)
@@ -315,17 +292,6 @@ class MarkSweep : public GarbageCollector {
   void ProcessMarkStackParallel(size_t thread_count)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  void EnqueueFinalizerReferences(mirror::Object** ref)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  void PreserveSomeSoftReferences(mirror::Object** ref)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  void ClearWhiteReferences(mirror::Object** list)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // Used to get around thread safety annotations. The call is from MarkingPhase and is guarded by
   // IsExclusiveHeld.

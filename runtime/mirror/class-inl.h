@@ -465,6 +465,12 @@ inline Object* Class::AllocNonMovableObject(Thread* self) {
   return Alloc<true>(self, Runtime::Current()->GetHeap()->GetCurrentNonMovingAllocator());
 }
 
+template <bool kVisitClass, typename Visitor>
+inline void Class::VisitReferences(mirror::Class* klass, const Visitor& visitor) {
+  VisitInstanceFieldsReferences<kVisitClass>(klass, visitor);
+  VisitStaticFieldsReferences<kVisitClass>(this, visitor);
+}
+
 }  // namespace mirror
 }  // namespace art
 

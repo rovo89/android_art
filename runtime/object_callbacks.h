@@ -25,6 +25,7 @@
 namespace art {
 namespace mirror {
 class Object;
+template<class MirrorType> class HeapReference;
 }  // namespace mirror
 class StackVisitor;
 
@@ -56,6 +57,9 @@ typedef mirror::Object* (MarkObjectCallback)(mirror::Object* obj, void* arg)
 // A callback for verifying roots.
 typedef void (VerifyRootCallback)(const mirror::Object* root, void* arg, size_t vreg,
     const StackVisitor* visitor);
+
+typedef void (MarkHeapReferenceCallback)(mirror::HeapReference<mirror::Object>* ref, void* arg);
+
 // A callback for testing if an object is marked, returns nullptr if not marked, otherwise the new
 // address the object (if the object didn't move, returns the object input parameter).
 typedef mirror::Object* (IsMarkedCallback)(mirror::Object* object, void* arg)
