@@ -271,6 +271,13 @@ DexFileMethodInliner::~DexFileMethodInliner() {
 }
 
 bool DexFileMethodInliner::AnalyseMethodCode(verifier::MethodVerifier* verifier) {
+  InlineMethod method;
+  bool success = AnalyseMethodCode(verifier, &method);
+  return success && AddInlineMethod(verifier->GetMethodReference().dex_method_index, method);
+}
+
+bool DexFileMethodInliner::AnalyseMethodCode(verifier::MethodVerifier* verifier,
+                                             InlineMethod* method) {
   // We currently support only plain return or 2-instruction methods.
 
   const DexFile::CodeItem* code_item = verifier->CodeItem();
@@ -278,27 +285,22 @@ bool DexFileMethodInliner::AnalyseMethodCode(verifier::MethodVerifier* verifier)
   const Instruction* instruction = Instruction::At(code_item->insns_);
   Instruction::Code opcode = instruction->Opcode();
 
-  InlineMethod method;
-  bool success;
   switch (opcode) {
     case Instruction::RETURN_VOID:
-      method.opcode = kInlineOpNop;
-      method.flags = kInlineSpecial;
-      method.d.data = 0u;
-      success = true;
-      break;
+      method->opcode = kInlineOpNop;
+      method->flags = kInlineSpecial;
+      method->d.data = 0u;
+      return true;
     case Instruction::RETURN:
     case Instruction::RETURN_OBJECT:
     case Instruction::RETURN_WIDE:
-      success = AnalyseReturnMethod(code_item, &method);
-      break;
+      return AnalyseReturnMethod(code_item, method);
     case Instruction::CONST:
     case Instruction::CONST_4:
     case Instruction::CONST_16:
     case Instruction::CONST_HIGH16:
       // TODO: Support wide constants (RETURN_WIDE).
-      success = AnalyseConstMethod(code_item, &method);
-      break;
+      return AnalyseConstMethod(code_item, method);
     case Instruction::IGET:
     case Instruction::IGET_OBJECT:
     case Instruction::IGET_BOOLEAN:
@@ -306,8 +308,7 @@ bool DexFileMethodInliner::AnalyseMethodCode(verifier::MethodVerifier* verifier)
     case Instruction::IGET_CHAR:
     case Instruction::IGET_SHORT:
     case Instruction::IGET_WIDE:
-      success = AnalyseIGetMethod(verifier, &method);
-      break;
+      return AnalyseIGetMethod(verifier, method);
     case Instruction::IPUT:
     case Instruction::IPUT_OBJECT:
     case Instruction::IPUT_BOOLEAN:
@@ -315,13 +316,10 @@ bool DexFileMethodInliner::AnalyseMethodCode(verifier::MethodVerifier* verifier)
     case Instruction::IPUT_CHAR:
     case Instruction::IPUT_SHORT:
     case Instruction::IPUT_WIDE:
-      success = AnalyseIPutMethod(verifier, &method);
-      break;
+      return AnalyseIPutMethod(verifier, method);
     default:
-      success = false;
-      break;
+      return false;
   }
-  return success && AddInlineMethod(verifier->GetMethodReference().dex_method_index, method);
 }
 
 bool DexFileMethodInliner::IsIntrinsic(uint32_t method_index) {
@@ -631,6 +629,11 @@ bool DexFileMethodInliner::AnalyseIGetMethod(verifier::MethodVerifier* verifier,
     return false;  // Not returning the value retrieved by IGET?
   }
 
+  if ((verifier->GetAccessFlags() & kAccStatic) != 0 || object_reg != arg_start) {
+    // TODO: Support inlining IGET on other register than "this".
+    return false;
+  }
+
   if (!CompilerDriver::ComputeSpecialAccessorInfo(field_idx, false, verifier,
                                                   &result->d.ifield_data)) {
     return false;
@@ -643,6 +646,7 @@ bool DexFileMethodInliner::AnalyseIGetMethod(verifier::MethodVerifier* verifier,
   data->is_object = (opcode == Instruction::IGET_OBJECT) ? 1u : 0u;
   data->object_arg = object_reg - arg_start;  // Allow IGET on any register, not just "this".
   data->src_arg = 0;
+  data->method_is_static = (verifier->GetAccessFlags() & kAccStatic) != 0;
   data->reserved = 0;
   return true;
 }
@@ -674,6 +678,11 @@ bool DexFileMethodInliner::AnalyseIPutMethod(verifier::MethodVerifier* verifier,
   DCHECK_GE(src_reg, arg_start);
   DCHECK_LT(size == kLong ? src_reg + 1 : src_reg, code_item->registers_size_);
 
+  if ((verifier->GetAccessFlags() & kAccStatic) != 0 || object_reg != arg_start) {
+    // TODO: Support inlining IPUT on other register than "this".
+    return false;
+  }
+
   if (!CompilerDriver::ComputeSpecialAccessorInfo(field_idx, true, verifier,
                                                   &result->d.ifield_data)) {
     return false;
@@ -686,6 +695,7 @@ bool DexFileMethodInliner::AnalyseIPutMethod(verifier::MethodVerifier* verifier,
   data->is_object = (opcode == Instruction::IPUT_OBJECT) ? 1u : 0u;
   data->object_arg = object_reg - arg_start;  // Allow IPUT on any register, not just "this".
   data->src_arg = src_reg - arg_start;
+  data->method_is_static = (verifier->GetAccessFlags() & kAccStatic) != 0;
   data->reserved = 0;
   return true;
 }

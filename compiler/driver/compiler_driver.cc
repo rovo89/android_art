@@ -938,7 +938,6 @@ bool CompilerDriver::ComputeSpecialAccessorInfo(uint32_t field_idx, bool is_put,
     return false;
   }
   DCHECK_GE(field->GetOffset().Int32Value(), 0);
-  result->method_is_static = method->IsStatic();
   result->field_idx = field_idx;
   result->field_offset = field->GetOffset().Int32Value();
   result->is_volatile = field->IsVolatile();
