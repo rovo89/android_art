@@ -19,7 +19,6 @@
 
 #include <vector>
 #include <llvm/IR/Module.h>
-#include "arena_allocator.h"
 #include "compiler_enums.h"
 #include "dex/quick/mir_to_lir.h"
 #include "dex_instruction.h"
@@ -29,6 +28,7 @@
 #include "llvm/ir_builder.h"
 #include "safe_map.h"
 #include "base/timing_logger.h"
+#include "utils/arena_allocator.h"
 
 namespace art {
 
