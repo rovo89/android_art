@@ -31,7 +31,7 @@ class ElfWriterTest : public CommonTest {
 
 #define EXPECT_ELF_FILE_ADDRESS(ef, expected_value, symbol_name, build_map) \
   do { \
-    void* addr = reinterpret_cast<void*>(ef->FindSymbolAddress(::llvm::ELF::SHT_DYNSYM, \
+    void* addr = reinterpret_cast<void*>(ef->FindSymbolAddress(SHT_DYNSYM, \
                                                                symbol_name, \
                                                                build_map)); \
     EXPECT_NE(nullptr, addr); \

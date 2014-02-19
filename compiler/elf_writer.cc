@@ -36,10 +36,10 @@ ElfWriter::ElfWriter(const CompilerDriver& driver, File* elf_file)
 
 ElfWriter::~ElfWriter() {}
 
-llvm::ELF::Elf32_Addr ElfWriter::GetOatDataAddress(ElfFile* elf_file) {
-  llvm::ELF::Elf32_Addr oatdata_address = elf_file->FindSymbolAddress(llvm::ELF::SHT_DYNSYM,
-                                                                      "oatdata",
-                                                                      false);
+Elf32_Addr ElfWriter::GetOatDataAddress(ElfFile* elf_file) {
+  Elf32_Addr oatdata_address = elf_file->FindSymbolAddress(SHT_DYNSYM,
+                                                           "oatdata",
+                                                           false);
   CHECK_NE(0U, oatdata_address);
   return oatdata_address;
 }

@@ -18,11 +18,10 @@
 
 #include <vector>
 
-#include <llvm/Support/ELF.h>
-
 #include "UniquePtr.h"
 #include "base/logging.h"
 #include "elf_file.h"
+#include "elf_utils.h"
 #include "utils.h"
 
 namespace art {
@@ -65,14 +64,14 @@ bool ElfStripper::Strip(File* file, std::string* error_msg) {
   // - truncate rest of file
   //
 
-  std::vector<llvm::ELF::Elf32_Shdr> section_headers;
-  std::vector<llvm::ELF::Elf32_Word> section_headers_original_indexes;
+  std::vector<Elf32_Shdr> section_headers;
+  std::vector<Elf32_Word> section_headers_original_indexes;
   section_headers.reserve(elf_file->GetSectionHeaderNum());
 
 
-  llvm::ELF::Elf32_Shdr& string_section = elf_file->GetSectionNameStringSection();
-  for (llvm::ELF::Elf32_Word i = 0; i < elf_file->GetSectionHeaderNum(); i++) {
-    llvm::ELF::Elf32_Shdr& sh = elf_file->GetSectionHeader(i);
+  Elf32_Shdr& string_section = elf_file->GetSectionNameStringSection();
+  for (Elf32_Word i = 0; i < elf_file->GetSectionHeaderNum(); i++) {
+    Elf32_Shdr& sh = elf_file->GetSectionHeader(i);
     const char* name = elf_file->GetString(string_section, sh.sh_name);
     if (name == NULL) {
       CHECK_EQ(0U, i);
@@ -92,10 +91,10 @@ bool ElfStripper::Strip(File* file, std::string* error_msg) {
   CHECK_EQ(section_headers.size(), section_headers_original_indexes.size());
 
   // section 0 is the NULL section, sections start at offset of first section
-  llvm::ELF::Elf32_Off offset = elf_file->GetSectionHeader(1).sh_offset;
+  Elf32_Off offset = elf_file->GetSectionHeader(1).sh_offset;
   for (size_t i = 1; i < section_headers.size(); i++) {
-    llvm::ELF::Elf32_Shdr& new_sh = section_headers[i];
-    llvm::ELF::Elf32_Shdr& old_sh = elf_file->GetSectionHeader(section_headers_original_indexes[i]);
+    Elf32_Shdr& new_sh = section_headers[i];
+    Elf32_Shdr& old_sh = elf_file->GetSectionHeader(section_headers_original_indexes[i]);
     CHECK_EQ(new_sh.sh_name, old_sh.sh_name);
     if (old_sh.sh_addralign > 1) {
       offset = RoundUp(offset, old_sh.sh_addralign);
@@ -113,8 +112,8 @@ bool ElfStripper::Strip(File* file, std::string* error_msg) {
     offset += old_sh.sh_size;
   }
 
-  llvm::ELF::Elf32_Off shoff = offset;
-  size_t section_headers_size_in_bytes = section_headers.size() * sizeof(llvm::ELF::Elf32_Shdr);
+  Elf32_Off shoff = offset;
+  size_t section_headers_size_in_bytes = section_headers.size() * sizeof(Elf32_Shdr);
   memcpy(elf_file->Begin() + offset, &section_headers[0], section_headers_size_in_bytes);
   offset += section_headers_size_in_bytes;
 
