@@ -496,6 +496,7 @@ enum ArmOpcode {
   kThumb2LdrdPcRel8,  // ldrd rt, rt2, pc +-/1024.
   kThumb2LdrdI8,     // ldrd rt, rt2, [rn +-/1024].
   kThumb2StrdI8,     // strd rt, rt2, [rn +-/1024].
+  kThumb2BlTramp,    // Thumb2 BL to trampoline
   kArmLast,
 };
 
