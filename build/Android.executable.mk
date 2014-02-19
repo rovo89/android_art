@@ -70,6 +70,7 @@ define build-art-executable
   ifeq ($$(art_target_or_host),target)
     LOCAL_CLANG := $(ART_TARGET_CLANG)
     LOCAL_CFLAGS += $(ART_TARGET_CFLAGS)
+    LOCAL_CFLAGS_x86 += $(ART_TARGET_CFLAGS_x86)
     ifeq ($$(art_ndebug_or_debug),debug)
       LOCAL_CFLAGS += $(ART_TARGET_DEBUG_CFLAGS)
     else
@@ -93,6 +94,10 @@ define build-art-executable
 
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.executable.mk
+
+  ifeq ($$(art_target_or_host),target)
+    LOCAL_MODULE_TARGET_ARCH := $(ART_SUPPORTED_ARCH)
+  endif
 
   ifeq ($$(art_target_or_host),target)
     include $(BUILD_EXECUTABLE)
