@@ -34,7 +34,7 @@ static const uint32_t kAccNative = 0x0100;  // method
 static const uint32_t kAccInterface = 0x0200;  // class, ic
 static const uint32_t kAccAbstract = 0x0400;  // class, method, ic
 static const uint32_t kAccStrict = 0x0800;  // method
-static const uint32_t kAccSynthetic = 0x1000;  // field, method, ic
+static const uint32_t kAccSynthetic = 0x1000;  // class, field, method, ic
 static const uint32_t kAccAnnotation = 0x2000;  // class, ic (1.5)
 static const uint32_t kAccEnum = 0x4000;  // class, field, ic (1.5)
 
