@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_DEX_ARENA_ALLOCATOR_H_
-#define ART_COMPILER_DEX_ARENA_ALLOCATOR_H_
+#ifndef ART_COMPILER_UTILS_ARENA_ALLOCATOR_H_
+#define ART_COMPILER_UTILS_ARENA_ALLOCATOR_H_
 
 #include <stdint.h>
 #include <stddef.h>
 
 #include "base/mutex.h"
-#include "compiler_enums.h"
 #include "mem_map.h"
 
 namespace art {
@@ -155,4 +154,4 @@ struct MemStats {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_DEX_ARENA_ALLOCATOR_H_
+#endif  // ART_COMPILER_UTILS_ARENA_ALLOCATOR_H_
