@@ -381,7 +381,16 @@ class CommonTest : public testing::Test {
       // $ANDROID_ROOT is set on the device, but not on the host.
       // We need to set this so that icu4c can find its locale data.
       std::string root;
-      root += getenv("ANDROID_BUILD_TOP");
+      const char* android_build_top = getenv("ANDROID_BUILD_TOP");
+      if (android_build_top != nullptr) {
+        root += android_build_top;
+      } else {
+        // Not set by build server, so default to current directory
+        char* cwd = getcwd(nullptr, 0);
+        setenv("ANDROID_BUILD_TOP", cwd, 1);
+        root += cwd;
+        free(cwd);
+      }
 #if defined(__linux__)
       root += "/out/host/linux-x86";
 #elif defined(__APPLE__)
@@ -391,6 +400,11 @@ class CommonTest : public testing::Test {
 #endif
       setenv("ANDROID_ROOT", root.c_str(), 1);
       setenv("LD_LIBRARY_PATH", ":", 0);  // Required by java.lang.System.<clinit>.
+
+      // Not set by build server, so default
+      if (getenv("ANDROID_HOST_OUT") == nullptr) {
+        setenv("ANDROID_HOST_OUT", root.c_str(), 1);
+      }
     }
 
     // On target, Cannot use /mnt/sdcard because it is mounted noexec, so use subdir of dalvik-cache
@@ -417,7 +431,7 @@ class CommonTest : public testing::Test {
 
  protected:
   static bool IsHost() {
-    return (getenv("ANDROID_BUILD_TOP") != NULL);
+    return !kIsTargetBuild;
   }
 
   virtual void SetUp() {
