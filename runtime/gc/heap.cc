@@ -1876,10 +1876,14 @@ class VerifyObjectVisitor {
 
 // Must do this with mutators suspended since we are directly accessing the allocation stacks.
 bool Heap::VerifyHeapReferences() {
-  Locks::mutator_lock_->AssertExclusiveHeld(Thread::Current());
+  Thread* self = Thread::Current();
+  Locks::mutator_lock_->AssertExclusiveHeld(self);
   // Lets sort our allocation stacks so that we can efficiently binary search them.
   allocation_stack_->Sort();
   live_stack_->Sort();
+  // Since we sorted the allocation stack content, need to revoke all
+  // thread-local allocation stacks.
+  RevokeAllThreadLocalAllocationStacks(self);
   VerifyObjectVisitor visitor(this);
   // Verify objects in the allocation stack since these will be objects which were:
   // 1. Allocated prior to the GC (pre GC verification).
@@ -1995,10 +1999,14 @@ class VerifyLiveStackReferences {
 };
 
 bool Heap::VerifyMissingCardMarks() {
-  Locks::mutator_lock_->AssertExclusiveHeld(Thread::Current());
+  Thread* self = Thread::Current();
+  Locks::mutator_lock_->AssertExclusiveHeld(self);
 
   // We need to sort the live stack since we binary search it.
   live_stack_->Sort();
+  // Since we sorted the allocation stack content, need to revoke all
+  // thread-local allocation stacks.
+  RevokeAllThreadLocalAllocationStacks(self);
   VerifyLiveStackReferences visitor(this);
   GetLiveBitmap()->Visit(visitor);
 
