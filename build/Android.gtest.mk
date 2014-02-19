@@ -135,6 +135,7 @@ define build-art-test
   ifeq ($$(art_target_or_host),target)
     LOCAL_CLANG := $(ART_TARGET_CLANG)
     LOCAL_CFLAGS += $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)
+    LOCAL_CFLAGS_x86 := $(ART_TARGET_CFLAGS_x86)
     LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libz libcutils
     LOCAL_STATIC_LIBRARIES += libgtest
     LOCAL_MODULE_PATH := $(ART_NATIVETEST_OUT)

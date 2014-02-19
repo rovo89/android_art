@@ -48,9 +48,11 @@ define build-libarttest
   ifeq ($$(art_target_or_host),target)
     LOCAL_CLANG := $(ART_TARGET_CLANG)
     LOCAL_CFLAGS := $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)
+    LOCAL_CFLAGS_x86 := $(ART_TARGET_CFLAGS_x86)
     LOCAL_SHARED_LIBRARIES += libdl libcutils
     LOCAL_STATIC_LIBRARIES := libgtest
     LOCAL_MODULE_PATH := $(ART_TEST_OUT)
+    LOCAL_MODULE_TARGET_ARCH := $(ART_SUPPORTED_ARCH)
     include $(BUILD_SHARED_LIBRARY)
   else # host
     LOCAL_CLANG := $(ART_HOST_CLANG)
