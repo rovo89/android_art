@@ -594,12 +594,12 @@ void Dbg::Disconnected() {
     MutexLock mu(Thread::Current(), *Locks::deoptimization_lock_);
     gDeoptimizationRequests.clear();
   }
-  runtime->GetInstrumentation()->DisableDeoptimization();
   runtime->GetInstrumentation()->RemoveListener(&gDebugInstrumentationListener,
                                                 instrumentation::Instrumentation::kMethodEntered |
                                                 instrumentation::Instrumentation::kMethodExited |
                                                 instrumentation::Instrumentation::kDexPcMoved |
                                                 instrumentation::Instrumentation::kExceptionCaught);
+  runtime->GetInstrumentation()->DisableDeoptimization();
   gDebuggerActive = false;
   gRegistry->Clear();
   gDebuggerConnected = false;

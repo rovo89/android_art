@@ -145,12 +145,10 @@ void Instrumentation::InstallStubsForMethod(mirror::ArtMethod* method) {
 static void InstrumentationInstallStack(Thread* thread, void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   struct InstallStackVisitor : public StackVisitor {
-    InstallStackVisitor(Thread* thread, Context* context, uintptr_t instrumentation_exit_pc,
-                        bool is_deoptimization_enabled)
+    InstallStackVisitor(Thread* thread, Context* context, uintptr_t instrumentation_exit_pc)
         : StackVisitor(thread, context),  instrumentation_stack_(thread->GetInstrumentationStack()),
           existing_instrumentation_frames_count_(instrumentation_stack_->size()),
           instrumentation_exit_pc_(instrumentation_exit_pc),
-          is_deoptimization_enabled_(is_deoptimization_enabled),
           reached_existing_instrumentation_frames_(false), instrumentation_stack_depth_(0),
           last_return_pc_(0) {
     }
@@ -218,7 +216,6 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
     const size_t existing_instrumentation_frames_count_;
     std::vector<uint32_t> dex_pcs_;
     const uintptr_t instrumentation_exit_pc_;
-    const bool is_deoptimization_enabled_;
     bool reached_existing_instrumentation_frames_;
     size_t instrumentation_stack_depth_;
     uintptr_t last_return_pc_;
@@ -232,12 +229,11 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
   Instrumentation* instrumentation = reinterpret_cast<Instrumentation*>(arg);
   UniquePtr<Context> context(Context::Create());
   uintptr_t instrumentation_exit_pc = GetQuickInstrumentationExitPc();
-  InstallStackVisitor visitor(thread, context.get(), instrumentation_exit_pc,
-                              instrumentation->IsDeoptimizationEnabled());
+  InstallStackVisitor visitor(thread, context.get(), instrumentation_exit_pc);
   visitor.WalkStack(true);
   CHECK_EQ(visitor.dex_pcs_.size(), thread->GetInstrumentationStack()->size());
 
-  if (!instrumentation->IsDeoptimizationEnabled()) {
+  if (!instrumentation->ShouldNotifyMethodEnterExitEvents()) {
     // Create method enter events for all methods currently on the thread's stack. We only do this
     // if no debugger is attached to prevent from posting events twice.
     typedef std::deque<InstrumentationStackFrame>::const_reverse_iterator It;
@@ -295,7 +291,7 @@ static void InstrumentationRestoreStack(Thread* thread, void* arg)
             CHECK(m == instrumentation_frame.method_) << PrettyMethod(m);
           }
           SetReturnPc(instrumentation_frame.return_pc_);
-          if (!instrumentation_->IsDeoptimizationEnabled()) {
+          if (!instrumentation_->ShouldNotifyMethodEnterExitEvents()) {
             // Create the method exit events. As the methods didn't really exit the result is 0.
             // We only do this if no debugger is attached to prevent from posting events twice.
             instrumentation_->MethodExitEvent(thread_, instrumentation_frame.this_object_, m,
@@ -586,9 +582,12 @@ bool Instrumentation::IsDeoptimized(mirror::ArtMethod* method) const {
 
 void Instrumentation::EnableDeoptimization() {
   CHECK(deoptimized_methods_.empty());
+  CHECK_EQ(deoptimization_enabled_, false);
+  deoptimization_enabled_ = true;
 }
 
 void Instrumentation::DisableDeoptimization() {
+  CHECK_EQ(deoptimization_enabled_, true);
   // If we deoptimized everything, undo it.
   if (interpreter_stubs_installed_) {
     UndeoptimizeEverything();
@@ -599,10 +598,12 @@ void Instrumentation::DisableDeoptimization() {
     Undeoptimize(*it_begin);
   }
   CHECK(deoptimized_methods_.empty());
+  deoptimization_enabled_ = false;
 }
 
-bool Instrumentation::IsDeoptimizationEnabled() const {
-  return interpreter_stubs_installed_ || !deoptimized_methods_.empty();
+// Indicates if instrumentation should notify method enter/exit events to the listeners.
+bool Instrumentation::ShouldNotifyMethodEnterExitEvents() const {
+  return deoptimization_enabled_ || interpreter_stubs_installed_;
 }
 
 void Instrumentation::DeoptimizeEverything() {

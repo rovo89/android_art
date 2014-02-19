@@ -105,6 +105,7 @@ class Instrumentation {
       have_method_entry_listeners_(false), have_method_exit_listeners_(false),
       have_method_unwind_listeners_(false), have_dex_pc_listeners_(false),
       have_exception_caught_listeners_(false),
+      deoptimization_enabled_(false),
       interpreter_handler_table_(kMainHandlerTable),
       quick_alloc_entry_points_instrumentation_counter_(0) {}
 
@@ -124,7 +125,7 @@ class Instrumentation {
   // Deoptimization.
   void EnableDeoptimization() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DisableDeoptimization() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool IsDeoptimizationEnabled() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool ShouldNotifyMethodEnterExitEvents() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Executes everything with interpreter.
   void DeoptimizeEverything()
@@ -345,6 +346,7 @@ class Instrumentation {
   // only.
   // TODO we need to visit these methods as roots.
   std::set<mirror::ArtMethod*> deoptimized_methods_;
+  bool deoptimization_enabled_;
 
   // Current interpreter handler table. This is updated each time the thread state flags are
   // modified.
