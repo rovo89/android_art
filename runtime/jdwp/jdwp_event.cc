@@ -576,14 +576,6 @@ void JdwpState::SuspendByPolicy(JdwpSuspendPolicy suspend_policy, JDWP::ObjectId
     Dbg::ExecuteMethod(pReq);
 
     pReq->error = ERR_NONE;
-
-    /* clear this before signaling */
-    pReq->invoke_needed = false;
-
-    VLOG(jdwp) << "invoke complete, signaling and self-suspending";
-    Thread* self = Thread::Current();
-    MutexLock mu(self, pReq->lock);
-    pReq->cond.Signal(self);
   }
 }
 
