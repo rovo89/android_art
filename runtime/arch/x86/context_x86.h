@@ -44,12 +44,12 @@ class X86Context : public Context {
   }
 
   virtual uintptr_t* GetGPRAddress(uint32_t reg) {
-    DCHECK_LT(reg, kNumberOfCpuRegisters);
+    DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfCpuRegisters));
     return gprs_[reg];
   }
 
   virtual uintptr_t GetGPR(uint32_t reg) {
-    DCHECK_LT(reg, kNumberOfCpuRegisters);
+    DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfCpuRegisters));
     return *gprs_[reg];
   }
 
