@@ -239,7 +239,7 @@ void SemiSpace::UpdateAndMarkModUnion() {
             space->IsZygoteSpace() ? "UpdateAndMarkZygoteModUnionTable" :
                                      "UpdateAndMarkImageModUnionTable",
                                      &timings_);
-        table->UpdateAndMarkReferences(MarkRootCallback, this);
+        table->UpdateAndMarkReferences(MarkObjectCallback, this);
       } else {
         // If a bump pointer space only collection, the non-moving
         // space is added to the immune space. But the non-moving
@@ -580,11 +580,17 @@ mirror::Object* SemiSpace::RecursiveMarkObjectCallback(mirror::Object* root, voi
   return ret;
 }
 
-Object* SemiSpace::MarkRootCallback(Object* root, void* arg, uint32_t /*thread_id*/,
-                                    RootType /*root_type*/) {
+void SemiSpace::MarkRootCallback(Object** root, void* arg, uint32_t /*thread_id*/,
+                                 RootType /*root_type*/) {
   DCHECK(root != nullptr);
   DCHECK(arg != nullptr);
-  return reinterpret_cast<SemiSpace*>(arg)->MarkObject(root);
+  *root = reinterpret_cast<SemiSpace*>(arg)->MarkObject(*root);
+}
+
+Object* SemiSpace::MarkObjectCallback(Object* object, void* arg) {
+  DCHECK(object != nullptr);
+  DCHECK(arg != nullptr);
+  return reinterpret_cast<SemiSpace*>(arg)->MarkObject(object);
 }
 
 // Marks all objects in the root set.

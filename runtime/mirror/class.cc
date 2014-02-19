@@ -52,8 +52,7 @@ void Class::ResetClass() {
 
 void Class::VisitRoots(RootCallback* callback, void* arg) {
   if (java_lang_Class_ != nullptr) {
-    java_lang_Class_ = down_cast<Class*>(
-        callback(java_lang_Class_, arg, 0, kRootStickyClass));
+    callback(reinterpret_cast<mirror::Object**>(&java_lang_Class_), arg, 0, kRootStickyClass);
   }
 }
 
