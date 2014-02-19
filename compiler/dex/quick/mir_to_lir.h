@@ -22,11 +22,11 @@
 #include "dex/compiler_enums.h"
 #include "dex/compiler_ir.h"
 #include "dex/backend.h"
+#include "dex/growable_array.h"
+#include "dex/arena_allocator.h"
 #include "driver/compiler_driver.h"
 #include "leb128_encoder.h"
 #include "safe_map.h"
-#include "utils/arena_allocator.h"
-#include "utils/growable_array.h"
 
 namespace art {
 
