@@ -295,6 +295,10 @@ struct JdwpState {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SendBufferedRequest(uint32_t type, const std::vector<iovec>& iov);
 
+  void StartProcessingRequest() LOCKS_EXCLUDED(process_request_lock_);
+  void EndProcessingRequest() LOCKS_EXCLUDED(process_request_lock_);
+  void WaitForProcessingRequest() LOCKS_EXCLUDED(process_request_lock_);
+
  public:  // TODO: fix privacy
   const JdwpOptions* options_;
 
@@ -339,6 +343,12 @@ struct JdwpState {
   Mutex event_thread_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   ConditionVariable event_thread_cond_ GUARDED_BY(event_thread_lock_);
   ObjectId event_thread_id_;
+
+  // Used to synchronize request processing and event sending (to avoid sending an event before
+  // sending the reply of a command being processed).
+  Mutex process_request_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  ConditionVariable process_request_cond_ GUARDED_BY(process_request_lock_);
+  bool processing_request_ GUARDED_BY(process_request_lock_);
 
   bool ddm_is_active_;
 

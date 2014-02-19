@@ -1747,6 +1747,44 @@ void JdwpState::ProcessRequest(Request& request, ExpandBuf* pReply) {
   self->TransitionFromRunnableToSuspended(old_state);
 }
 
+/*
+ * Indicates a request is about to be processed. If a thread wants to send an event in the meantime,
+ * it will need to wait until we processed this request (see EndProcessingRequest).
+ */
+void JdwpState::StartProcessingRequest() {
+  Thread* self = Thread::Current();
+  CHECK_EQ(self, GetDebugThread()) << "Requests are only processed by debug thread";
+  MutexLock mu(self, process_request_lock_);
+  CHECK_EQ(processing_request_, false);
+  processing_request_ = true;
+}
+
+/*
+ * Indicates a request has been processed (and we sent its reply). All threads waiting for us (see
+ * WaitForProcessingRequest) are waken up so they can send events again.
+ */
+void JdwpState::EndProcessingRequest() {
+  Thread* self = Thread::Current();
+  CHECK_EQ(self, GetDebugThread()) << "Requests are only processed by debug thread";
+  MutexLock mu(self, process_request_lock_);
+  CHECK_EQ(processing_request_, true);
+  processing_request_ = false;
+  process_request_cond_.Broadcast(self);
+}
+
+/*
+ * Waits for any request being processed so we do not send an event in the meantime.
+ */
+void JdwpState::WaitForProcessingRequest() {
+  Thread* self = Thread::Current();
+  CHECK_NE(self, GetDebugThread()) << "Events should not be posted by debug thread";
+  MutexLock mu(self, process_request_lock_);
+  while (processing_request_) {
+    process_request_cond_.Wait(self);
+  }
+  CHECK_EQ(processing_request_, false);
+}
+
 }  // namespace JDWP
 
 }  // namespace art
