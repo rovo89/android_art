@@ -218,6 +218,9 @@ JdwpState::JdwpState(const JdwpOptions* options)
       event_thread_lock_("JDWP event thread lock"),
       event_thread_cond_("JDWP event thread condition variable", event_thread_lock_),
       event_thread_id_(0),
+      process_request_lock_("JDWP process request lock"),
+      process_request_cond_("JDWP process request condition variable", process_request_lock_),
+      processing_request_(false),
       ddm_is_active_(false),
       should_exit_(false),
       exit_status_(0) {
@@ -383,9 +386,12 @@ bool JdwpState::HandlePacket() {
   JdwpNetStateBase* netStateBase = reinterpret_cast<JdwpNetStateBase*>(netState);
   JDWP::Request request(netStateBase->input_buffer_, netStateBase->input_count_);
 
+  StartProcessingRequest();
   ExpandBuf* pReply = expandBufAlloc();
   ProcessRequest(request, pReply);
   ssize_t cc = netStateBase->WritePacket(pReply);
+  EndProcessingRequest();
+
   if (cc != (ssize_t) expandBufGetLength(pReply)) {
     PLOG(ERROR) << "Failed sending reply to debugger";
     expandBufFree(pReply);
