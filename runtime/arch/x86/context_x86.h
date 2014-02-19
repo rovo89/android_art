@@ -43,8 +43,12 @@ class X86Context : public Context {
     eip_ = new_pc;
   }
 
+  virtual uintptr_t* GetGPRAddress(uint32_t reg) {
+    DCHECK_LT(reg, kNumberOfCpuRegisters);
+    return gprs_[reg];
+  }
+
   virtual uintptr_t GetGPR(uint32_t reg) {
-    const uint32_t kNumberOfCpuRegisters = 8;
     DCHECK_LT(reg, kNumberOfCpuRegisters);
     return *gprs_[reg];
   }

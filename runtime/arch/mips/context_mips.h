@@ -43,6 +43,11 @@ class MipsContext : public Context {
     SetGPR(RA, new_pc);
   }
 
+  virtual uintptr_t* GetGPRAddress(uint32_t reg) {
+    DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfCoreRegisters));
+    return gprs_[reg];
+  }
+
   virtual uintptr_t GetGPR(uint32_t reg) {
     CHECK_LT(reg, static_cast<uint32_t>(kNumberOfCoreRegisters));
     return *gprs_[reg];

@@ -189,6 +189,11 @@ void StackVisitor::SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_val
   }
 }
 
+uintptr_t* StackVisitor::GetGPRAddress(uint32_t reg) const {
+  DCHECK(cur_quick_frame_ != NULL) << "This is a quick frame routine";
+  return context_->GetGPRAddress(reg);
+}
+
 uintptr_t StackVisitor::GetGPR(uint32_t reg) const {
   DCHECK(cur_quick_frame_ != NULL) << "This is a quick frame routine";
   return context_->GetGPR(reg);

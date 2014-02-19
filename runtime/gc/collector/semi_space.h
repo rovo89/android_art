@@ -142,9 +142,12 @@ class SemiSpace : public GarbageCollector {
   static void VisitObjectReferencesAndClass(mirror::Object* obj, const Visitor& visitor)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
-  static mirror::Object* MarkRootCallback(mirror::Object* root, void* arg, uint32_t /*tid*/,
-                                          RootType /*root_type*/)
+  static void MarkRootCallback(mirror::Object** root, void* arg, uint32_t /*tid*/,
+                               RootType /*root_type*/)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+
+  static mirror::Object* MarkObjectCallback(mirror::Object* objecgt, void* arg)
+        EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   static mirror::Object* RecursiveMarkObjectCallback(mirror::Object* root, void* arg)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
