@@ -21,7 +21,7 @@
 #include "dex_instruction.h"
 #include "compiler_ir.h"
 #include "arena_bit_vector.h"
-#include "utils/growable_array.h"
+#include "growable_array.h"
 
 namespace art {
 
