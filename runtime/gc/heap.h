@@ -37,6 +37,7 @@
 #include "reference_queue.h"
 #include "safe_map.h"
 #include "thread_pool.h"
+#include "verify_object.h"
 
 namespace art {
 
@@ -98,15 +99,6 @@ enum AllocatorType {
   kAllocatorTypeNonMoving,  // Special allocator for non moving objects, doesn't have entrypoints.
   kAllocatorTypeLOS,  // Large object space, also doesn't have entrypoints.
 };
-
-// How we want to sanity check the heap's correctness.
-enum HeapVerificationMode {
-  kHeapVerificationNotPermitted,  // Too early in runtime start-up for heap to be verified.
-  kNoHeapVerification,  // Production default.
-  kVerifyAllFast,  // Sanity check all heap accesses with quick(er) tests.
-  kVerifyAll  // Sanity check all heap accesses.
-};
-static constexpr HeapVerificationMode kDesiredHeapVerification = kNoHeapVerification;
 
 // If true, use rosalloc/RosAllocSpace instead of dlmalloc/DlMallocSpace
 static constexpr bool kUseRosAlloc = true;
@@ -208,14 +200,9 @@ class Heap {
   void ChangeCollector(CollectorType collector_type);
 
   // The given reference is believed to be to an object in the Java heap, check the soundness of it.
-  void VerifyObjectImpl(mirror::Object* o);
-  void VerifyObject(mirror::Object* o) {
-    if (o != nullptr && this != nullptr && verify_object_mode_ > kNoHeapVerification) {
-      VerifyObjectImpl(o);
-    }
-  }
-  // Check that c.getClass() == c.getClass().getClass().
-  bool VerifyClassClass(const mirror::Class* c) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  // TODO: NO_THREAD_SAFETY_ANALYSIS since we call this everywhere and it is impossible to find a
+  // proper lock ordering for it.
+  void VerifyObjectBody(mirror::Object* o) NO_THREAD_SAFETY_ANALYSIS;
 
   // Check sanity of all live references.
   void VerifyHeap() LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
@@ -347,21 +334,20 @@ class Heap {
 
   // Enable verification of object references when the runtime is sufficiently initialized.
   void EnableObjectValidation() {
-    verify_object_mode_ = kDesiredHeapVerification;
-    if (verify_object_mode_ > kNoHeapVerification) {
+    verify_object_mode_ = kVerifyObjectSupport;
+    if (verify_object_mode_ > kVerifyObjectModeDisabled) {
       VerifyHeap();
     }
   }
 
   // Disable object reference verification for image writing.
   void DisableObjectValidation() {
-    verify_object_mode_ = kHeapVerificationNotPermitted;
+    verify_object_mode_ = kVerifyObjectModeDisabled;
   }
 
   // Other checks may be performed if we know the heap should be in a sane state.
   bool IsObjectValidationEnabled() const {
-    return kDesiredHeapVerification > kNoHeapVerification &&
-        verify_object_mode_ > kHeapVerificationNotPermitted;
+    return verify_object_mode_ > kVerifyObjectModeDisabled;
   }
 
   // Returns true if low memory mode is enabled.
@@ -665,10 +651,6 @@ class Heap {
       LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
   void RemoveSpace(space::Space* space) LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
-  // No thread saftey analysis since we call this everywhere and it is impossible to find a proper
-  // lock ordering for it.
-  void VerifyObjectBody(mirror::Object *obj) NO_THREAD_SAFETY_ANALYSIS;
-
   static void VerificationCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(GlobalSychronization::heap_bitmap_lock_);
 
@@ -916,7 +898,7 @@ class Heap {
   AtomicInteger total_allocation_time_;
 
   // The current state of heap verification, may be enabled or disabled.
-  HeapVerificationMode verify_object_mode_;
+  VerifyObjectMode verify_object_mode_;
 
   // Compacting GC disable count, prevents compacting GC from running iff > 0.
   size_t disable_moving_gc_count_ GUARDED_BY(gc_complete_lock_);

@@ -2308,7 +2308,7 @@ mirror::Class* ClassLinker::InsertClass(const char* descriptor, mirror::Class* k
       CHECK(klass == existing);
     }
   }
-  Runtime::Current()->GetHeap()->VerifyObject(klass);
+  VerifyObject(klass);
   class_table_.insert(std::make_pair(hash, klass));
   class_table_dirty_ = true;
   return NULL;

@@ -25,13 +25,10 @@
 #include "runtime.h"
 #include "thread_list.h"
 #include "throw_location.h"
+#include "verify_object-inl.h"
 #include "vmap_table.h"
 
 namespace art {
-
-bool ShadowFrame::VerifyReference(const mirror::Object* val) const {
-  return !Runtime::Current()->GetHeap()->IsInTempSpace(val);
-}
 
 mirror::Object* ShadowFrame::GetThisObject() const {
   mirror::ArtMethod* m = GetMethod();

@@ -20,6 +20,7 @@
 #include "scoped_fast_native_object_access.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
+#include "verify_object-inl.h"
 
 namespace art {
 

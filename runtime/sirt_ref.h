@@ -45,8 +45,11 @@ class SirtRef {
     return down_cast<T*>(sirt_.GetReference(0));
   }
 
-  void reset(T* object = nullptr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  // Returns the old reference.
+  T* reset(T* object = nullptr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    T* old_ref = get();
     sirt_.SetReference(0, object);
+    return old_ref;
   }
 
  private:
