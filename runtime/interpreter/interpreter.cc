@@ -69,27 +69,23 @@ static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
   } else if (name == "java.lang.Object java.lang.Throwable.nativeFillInStackTrace()") {
     ScopedObjectAccessUnchecked soa(self);
     result->SetL(soa.Decode<Object*>(self->CreateInternalStackTrace(soa)));
+  } else if (name == "int java.lang.System.identityHashCode(java.lang.Object)") {
+    mirror::Object* obj = reinterpret_cast<Object*>(args[0]);
+    result->SetI((obj != nullptr) ? obj->IdentityHashCode() : 0);
   } else if (name == "boolean java.nio.ByteOrder.isLittleEndian()") {
-    result->SetJ(JNI_TRUE);
+    result->SetZ(JNI_TRUE);
   } else if (name == "boolean sun.misc.Unsafe.compareAndSwapInt(java.lang.Object, long, int, int)") {
     Object* obj = reinterpret_cast<Object*>(args[0]);
     jlong offset = (static_cast<uint64_t>(args[2]) << 32) | args[1];
     jint expectedValue = args[3];
     jint newValue = args[4];
-    byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
-    volatile int32_t* address = reinterpret_cast<volatile int32_t*>(raw_addr);
-    // Check offset is 32bits to fit in MemberOffset.
-    CHECK_GE(offset, static_cast<jlong>(std::numeric_limits<int32_t>::min()));
-    CHECK_LE(offset, static_cast<jlong>(std::numeric_limits<int32_t>::max()));
-    Runtime::Current()->RecordWriteField32(obj, MemberOffset(offset), *address, true);
-    // Note: android_atomic_release_cas() returns 0 on success, not failure.
-    int r = android_atomic_release_cas(expectedValue, newValue, address);
-    result->SetZ(r == 0);
+    bool success = obj->CasField32<true>(MemberOffset(offset), expectedValue, newValue);
+    result->SetZ(success ? JNI_TRUE : JNI_FALSE);
   } else if (name == "void sun.misc.Unsafe.putObject(java.lang.Object, long, java.lang.Object)") {
     Object* obj = reinterpret_cast<Object*>(args[0]);
+    jlong offset = (static_cast<uint64_t>(args[2]) << 32) | args[1];
     Object* newValue = reinterpret_cast<Object*>(args[3]);
-    obj->SetFieldObject<true>(MemberOffset((static_cast<uint64_t>(args[2]) << 32) | args[1]),
-                              newValue, false);
+    obj->SetFieldObject<true>(MemberOffset(offset), newValue, false);
   } else if (name == "int sun.misc.Unsafe.getArrayBaseOffsetForComponentType(java.lang.Class)") {
     mirror::Class* component = reinterpret_cast<Object*>(args[0])->AsClass();
     Primitive::Type primitive_type = component->GetPrimitiveType();
