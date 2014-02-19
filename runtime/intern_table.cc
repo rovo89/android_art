@@ -48,9 +48,8 @@ void InternTable::VisitRoots(RootCallback* callback, void* arg,
   MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
   if (!only_dirty || is_dirty_) {
     for (auto& strong_intern : strong_interns_) {
-      strong_intern.second =
-          down_cast<mirror::String*>(callback(strong_intern.second, arg, 0,
-                                              kRootInternedString));
+      callback(reinterpret_cast<mirror::Object**>(&strong_intern.second), arg, 0,
+               kRootInternedString);
       DCHECK(strong_intern.second != nullptr);
     }
     if (clean_dirty) {

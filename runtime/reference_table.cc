@@ -234,7 +234,7 @@ void ReferenceTable::Dump(std::ostream& os, const Table& entries) {
 void ReferenceTable::VisitRoots(RootCallback* visitor, void* arg, uint32_t tid,
                                 RootType root_type) {
   for (auto& ref : entries_) {
-    ref = visitor(ref, arg, tid, root_type);
+    visitor(&ref, arg, tid, root_type);
   }
 }
 

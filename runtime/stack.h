@@ -565,6 +565,7 @@ class StackVisitor {
   void SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_value, VRegKind kind)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  uintptr_t* GetGPRAddress(uint32_t reg) const;
   uintptr_t GetGPR(uint32_t reg) const;
   void SetGPR(uint32_t reg, uintptr_t value);
 

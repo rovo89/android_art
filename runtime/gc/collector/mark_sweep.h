@@ -180,13 +180,18 @@ class MarkSweep : public GarbageCollector {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  static mirror::Object* MarkRootCallback(mirror::Object* root, void* arg, uint32_t thread_id,
-                                          RootType root_type)
+  static void MarkRootCallback(mirror::Object** root, void* arg, uint32_t thread_id,
+                               RootType root_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  static mirror::Object* MarkRootParallelCallback(mirror::Object* root, void* arg,
-                                                  uint32_t thread_id, RootType root_type);
+  static mirror::Object* MarkObjectCallback(mirror::Object* object, void* arg)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+        EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
+  static void MarkRootParallelCallback(mirror::Object** root, void* arg, uint32_t thread_id,
+                                       RootType root_type)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Marks an object.
   void MarkObject(const mirror::Object* obj)

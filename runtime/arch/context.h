@@ -49,6 +49,9 @@ class Context {
   // Set the program counter value
   virtual void SetPC(uintptr_t new_pc) = 0;
 
+  // Gets the given GPRs address.
+  virtual uintptr_t* GetGPRAddress(uint32_t reg) = 0;
+
   // Read the given GPR
   virtual uintptr_t GetGPR(uint32_t reg) = 0;
 
