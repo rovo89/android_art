@@ -110,7 +110,7 @@ define declare-test-art-oat-targets
 test-art-target-oat-$(1): $(ART_TEST_OUT)/oat-test-dex-$(1).jar test-art-target-sync
 	adb shell touch $(ART_TEST_DIR)/test-art-target-oat-$(1)
 	adb shell rm $(ART_TEST_DIR)/test-art-target-oat-$(1)
-	adb shell sh -c "dalvikvm -XXlib:libartd.so -Ximage:$(ART_TEST_DIR)/core.art -classpath $(ART_TEST_DIR)/oat-test-dex-$(1).jar -Djava.library.path=$(ART_TEST_DIR) $(1) $(2) && touch $(ART_TEST_DIR)/test-art-target-oat-$(1)"
+	adb shell sh -c "/system/bin/dalvikvm -XXlib:libartd.so -Ximage:$(ART_TEST_DIR)/core.art -classpath $(ART_TEST_DIR)/oat-test-dex-$(1).jar -Djava.library.path=$(ART_TEST_DIR) $(1) $(2) && touch $(ART_TEST_DIR)/test-art-target-oat-$(1)"
 	$(hide) (adb pull $(ART_TEST_DIR)/test-art-target-oat-$(1) /tmp/ && echo test-art-target-oat-$(1) PASSED) || (echo test-art-target-oat-$(1) FAILED && exit 1)
 	$(hide) rm /tmp/test-art-target-oat-$(1)
 
@@ -123,7 +123,7 @@ test-art-host-oat-default-$(1): $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).ode
 	ANDROID_DATA=/tmp/android-data/test-art-host-oat-default-$(1) \
 	  ANDROID_ROOT=$(HOST_OUT) \
 	  LD_LIBRARY_PATH=$(HOST_OUT_SHARED_LIBRARIES) \
-	  dalvikvm -XXlib:libartd.so -Ximage:$(shell pwd)/$(HOST_CORE_IMG_OUT) -classpath $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar -Djava.library.path=$(HOST_OUT_SHARED_LIBRARIES) $(1) $(2) \
+	  $(HOST_OUT_EXECUTABLES)/dalvikvm -XXlib:libartd.so -Ximage:$(shell pwd)/$(HOST_CORE_IMG_OUT) -classpath $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar -Djava.library.path=$(HOST_OUT_SHARED_LIBRARIES) $(1) $(2) \
           && echo test-art-host-oat-default-$(1) PASSED || (echo test-art-host-oat-default-$(1) FAILED && exit 1)
 	$(hide) rm -r /tmp/android-data/test-art-host-oat-default-$(1)
 
@@ -133,7 +133,7 @@ test-art-host-oat-interpreter-$(1): $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1)
 	ANDROID_DATA=/tmp/android-data/test-art-host-oat-interpreter-$(1) \
 	  ANDROID_ROOT=$(HOST_OUT) \
 	  LD_LIBRARY_PATH=$(HOST_OUT_SHARED_LIBRARIES) \
-	  dalvikvm -XXlib:libartd.so -Ximage:$(shell pwd)/$(HOST_CORE_IMG_OUT) -Xint -classpath $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar -Djava.library.path=$(HOST_OUT_SHARED_LIBRARIES) $(1) $(2) \
+	  $(HOST_OUT_EXECUTABLES)/dalvikvm -XXlib:libartd.so -Ximage:$(shell pwd)/$(HOST_CORE_IMG_OUT) -Xint -classpath $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar -Djava.library.path=$(HOST_OUT_SHARED_LIBRARIES) $(1) $(2) \
           && echo test-art-host-oat-interpreter-$(1) PASSED || (echo test-art-host-oat-interpreter-$(1) FAILED && exit 1)
 	$(hide) rm -r /tmp/android-data/test-art-host-oat-interpreter-$(1)
 
