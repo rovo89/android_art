@@ -1257,17 +1257,13 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   } else {
     LoadValueDirectFixed(rl_start, reg_start);
   }
-  int r_tgt = (cu_->instruction_set != kX86) ? LoadHelper(QUICK_ENTRYPOINT_OFFSET(pIndexOf)) : 0;
+  int r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pIndexOf));
   GenNullCheck(rl_obj.s_reg_low, reg_ptr, info->opt_flags);
   LIR* launch_pad = RawLIR(0, kPseudoIntrinsicRetry, WrapPointer(info));
   intrinsic_launchpads_.Insert(launch_pad);
   OpCmpImmBranch(kCondGt, reg_char, 0xFFFF, launch_pad);
   // NOTE: not a safepoint
-  if (cu_->instruction_set != kX86) {
-    OpReg(kOpBlx, r_tgt);
-  } else {
-    OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(pIndexOf));
-  }
+  OpReg(kOpBlx, r_tgt);
   LIR* resume_tgt = NewLIR0(kPseudoTargetLabel);
   launch_pad->operands[2] = WrapPointer(resume_tgt);
   // Record that we've already inlined & null checked

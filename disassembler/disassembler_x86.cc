@@ -633,6 +633,9 @@ DISASSEMBLER_ENTRY(cmp,
   case 0x99:
     opcode << "cdq";
     break;
+  case 0xAF:
+    opcode << (prefix[2] == 0x66 ? "scasw" : "scasl");
+    break;
   case 0xB0: case 0xB1: case 0xB2: case 0xB3: case 0xB4: case 0xB5: case 0xB6: case 0xB7:
     opcode << "mov";
     immediate_bytes = 1;
@@ -693,6 +696,7 @@ DISASSEMBLER_ENTRY(cmp,
     has_modrm = true;
     reg_is_opcode = true;
     break;
+  case 0xE3: opcode << "jecxz"; branch_bytes = 1; break;
   case 0xE8: opcode << "call"; branch_bytes = 4; break;
   case 0xE9: opcode << "jmp"; branch_bytes = 4; break;
   case 0xEB: opcode << "jmp"; branch_bytes = 1; break;
