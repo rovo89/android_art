@@ -429,6 +429,10 @@ class Runtime {
     return callee_save_methods_[type];
   }
 
+  static size_t GetCalleeSaveMethodOffset(CalleeSaveType type) {
+    return OFFSETOF_MEMBER(Runtime, callee_save_methods_[type]);
+  }
+
   void SetCalleeSaveMethod(mirror::ArtMethod* method, CalleeSaveType type);
 
   mirror::ArtMethod* CreateCalleeSaveMethod(InstructionSet instruction_set,
