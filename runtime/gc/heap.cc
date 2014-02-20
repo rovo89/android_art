@@ -610,41 +610,44 @@ space::Space* Heap::FindSpaceFromObject(const mirror::Object* obj, bool fail_ok)
 
 struct SoftReferenceArgs {
   IsMarkedCallback* is_marked_callback_;
-  MarkObjectCallback* recursive_mark_callback_;
+  MarkObjectCallback* mark_callback_;
   void* arg_;
 };
 
 mirror::Object* Heap::PreserveSoftReferenceCallback(mirror::Object* obj, void* arg) {
   SoftReferenceArgs* args = reinterpret_cast<SoftReferenceArgs*>(arg);
   // TODO: Not preserve all soft references.
-  return args->recursive_mark_callback_(obj, args->arg_);
+  return args->mark_callback_(obj, args->arg_);
 }
 
 // Process reference class instances and schedule finalizations.
 void Heap::ProcessReferences(TimingLogger& timings, bool clear_soft,
                              IsMarkedCallback* is_marked_callback,
-                             MarkObjectCallback* recursive_mark_object_callback, void* arg) {
+                             MarkObjectCallback* mark_object_callback,
+                             ProcessMarkStackCallback* process_mark_stack_callback, void* arg) {
   // Unless we are in the zygote or required to clear soft references with white references,
   // preserve some white referents.
   if (!clear_soft && !Runtime::Current()->IsZygote()) {
     SoftReferenceArgs soft_reference_args;
     soft_reference_args.is_marked_callback_ = is_marked_callback;
-    soft_reference_args.recursive_mark_callback_ = recursive_mark_object_callback;
+    soft_reference_args.mark_callback_ = mark_object_callback;
     soft_reference_args.arg_ = arg;
     soft_reference_queue_.PreserveSomeSoftReferences(&PreserveSoftReferenceCallback,
                                                      &soft_reference_args);
+    process_mark_stack_callback(arg);
   }
-  timings.StartSplit("ProcessReferences");
+  timings.StartSplit("(Paused)ProcessReferences");
   // Clear all remaining soft and weak references with white referents.
   soft_reference_queue_.ClearWhiteReferences(cleared_references_, is_marked_callback, arg);
   weak_reference_queue_.ClearWhiteReferences(cleared_references_, is_marked_callback, arg);
   timings.EndSplit();
   // Preserve all white objects with finalize methods and schedule them for finalization.
-  timings.StartSplit("EnqueueFinalizerReferences");
+  timings.StartSplit("(Paused)EnqueueFinalizerReferences");
   finalizer_reference_queue_.EnqueueFinalizerReferences(cleared_references_, is_marked_callback,
-                                                        recursive_mark_object_callback, arg);
+                                                        mark_object_callback, arg);
+  process_mark_stack_callback(arg);
   timings.EndSplit();
-  timings.StartSplit("ProcessReferences");
+  timings.StartSplit("(Paused)ProcessReferences");
   // Clear all f-reachable soft and weak references with white referents.
   soft_reference_queue_.ClearWhiteReferences(cleared_references_, is_marked_callback, arg);
   weak_reference_queue_.ClearWhiteReferences(cleared_references_, is_marked_callback, arg);

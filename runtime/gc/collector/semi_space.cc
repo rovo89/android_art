@@ -163,7 +163,7 @@ void SemiSpace::ProcessReferences(Thread* self) {
   TimingLogger::ScopedSplit split("ProcessReferences", &timings_);
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   GetHeap()->ProcessReferences(timings_, clear_soft_references_, &MarkedForwardingAddressCallback,
-                               &RecursiveMarkObjectCallback, this);
+                               &MarkObjectCallback, &ProcessMarkStackCallback, this);
 }
 
 void SemiSpace::MarkingPhase() {
@@ -310,7 +310,7 @@ void SemiSpace::MarkReachableObjects() {
   }
 
   // Recursively process the mark stack.
-  ProcessMarkStack(true);
+  ProcessMarkStack();
 }
 
 void SemiSpace::ReclaimPhase() {
@@ -571,13 +571,15 @@ Object* SemiSpace::MarkObject(Object* obj) {
   return forward_address;
 }
 
-mirror::Object* SemiSpace::RecursiveMarkObjectCallback(mirror::Object* root, void* arg) {
+void SemiSpace::ProcessMarkStackCallback(void* arg) {
+  DCHECK(arg != nullptr);
+  reinterpret_cast<SemiSpace*>(arg)->ProcessMarkStack();
+}
+
+mirror::Object* SemiSpace::MarkObjectCallback(mirror::Object* root, void* arg) {
   DCHECK(root != nullptr);
   DCHECK(arg != nullptr);
-  SemiSpace* semi_space = reinterpret_cast<SemiSpace*>(arg);
-  mirror::Object* ret = semi_space->MarkObject(root);
-  semi_space->ProcessMarkStack(true);
-  return ret;
+  return reinterpret_cast<SemiSpace*>(arg)->MarkObject(root);
 }
 
 void SemiSpace::MarkRootCallback(Object** root, void* arg, uint32_t /*thread_id*/,
@@ -585,12 +587,6 @@ void SemiSpace::MarkRootCallback(Object** root, void* arg, uint32_t /*thread_id*
   DCHECK(root != nullptr);
   DCHECK(arg != nullptr);
   *root = reinterpret_cast<SemiSpace*>(arg)->MarkObject(*root);
-}
-
-Object* SemiSpace::MarkObjectCallback(Object* object, void* arg) {
-  DCHECK(object != nullptr);
-  DCHECK(arg != nullptr);
-  return reinterpret_cast<SemiSpace*>(arg)->MarkObject(object);
 }
 
 // Marks all objects in the root set.
@@ -680,7 +676,7 @@ void SemiSpace::ScanObject(Object* obj) {
 }
 
 // Scan anything that's on the mark stack.
-void SemiSpace::ProcessMarkStack(bool paused) {
+void SemiSpace::ProcessMarkStack() {
   space::MallocSpace* promo_dest_space = NULL;
   accounting::SpaceBitmap* live_bitmap = NULL;
   if (generational_ && !whole_heap_collection_) {
@@ -694,7 +690,7 @@ void SemiSpace::ProcessMarkStack(bool paused) {
     DCHECK(mark_bitmap != nullptr);
     DCHECK_EQ(live_bitmap, mark_bitmap);
   }
-  timings_.StartSplit(paused ? "(paused)ProcessMarkStack" : "ProcessMarkStack");
+  timings_.StartSplit("ProcessMarkStack");
   while (!mark_stack_->IsEmpty()) {
     Object* obj = mark_stack_->PopBack();
     if (generational_ && !whole_heap_collection_ && promo_dest_space->HasAddress(obj)) {
