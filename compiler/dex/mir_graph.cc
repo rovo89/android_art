@@ -14,14 +14,16 @@
  * limitations under the License.
  */
 
+#include "mir_graph.h"
+
+#include <inttypes.h>
+
 #include "base/stl_util.h"
 #include "compiler_internals.h"
 #include "dex_file-inl.h"
-#include "leb128.h"
-#include "mir_graph.h"
-
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/quick/dex_file_method_inliner.h"
+#include "leb128.h"
 
 namespace art {
 

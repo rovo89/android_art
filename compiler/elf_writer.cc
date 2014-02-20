@@ -23,7 +23,6 @@
 #include "driver/compiler_driver.h"
 #include "elf_file.h"
 #include "invoke_type.h"
-#include "llvm/utils_llvm.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/object-inl.h"
 #include "oat.h"
