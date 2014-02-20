@@ -18,24 +18,17 @@
 #define ART_COMPILER_DEX_COMPILER_IR_H_
 
 #include <vector>
-#include <llvm/IR/Module.h>
+
 #include "compiler_enums.h"
 #include "dex/quick/mir_to_lir.h"
 #include "dex_instruction.h"
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
-#include "llvm/intrinsic_helper.h"
-#include "llvm/ir_builder.h"
 #include "safe_map.h"
 #include "base/timing_logger.h"
 #include "utils/arena_allocator.h"
 
 namespace art {
-
-class LLVMInfo;
-namespace llvm {
-class LlvmCompilationUnit;
-}  // namespace llvm
 
 struct ArenaMemBlock;
 class Backend;

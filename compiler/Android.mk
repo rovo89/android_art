@@ -49,7 +49,6 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/quick/x86/int_x86.cc \
 	dex/quick/x86/target_x86.cc \
 	dex/quick/x86/utility_x86.cc \
-	dex/portable/mir_to_gbc.cc \
 	dex/dex_to_dex_compiler.cc \
 	dex/mir_dataflow.cc \
 	dex/mir_optimization.cc \
@@ -64,22 +63,11 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/ssa_transformation.cc \
 	driver/compiler_driver.cc \
 	driver/dex_compilation_unit.cc \
-	jni/portable/jni_compiler.cc \
 	jni/quick/arm/calling_convention_arm.cc \
 	jni/quick/mips/calling_convention_mips.cc \
 	jni/quick/x86/calling_convention_x86.cc \
 	jni/quick/calling_convention.cc \
 	jni/quick/jni_compiler.cc \
-	llvm/compiler_llvm.cc \
-	llvm/gbc_expander.cc \
-	llvm/generated/art_module.cc \
-	llvm/intrinsic_helper.cc \
-	llvm/ir_builder.cc \
-	llvm/llvm_compilation_unit.cc \
-	llvm/md_builder.cc \
-	llvm/runtime_support_builder.cc \
-	llvm/runtime_support_builder_arm.cc \
-	llvm/runtime_support_builder_x86.cc \
 	optimizing/builder.cc \
 	optimizing/nodes.cc \
 	trampolines/trampoline_compiler.cc \
@@ -115,8 +103,22 @@ LIBART_COMPILER_SRC_FILES += \
 endif
 
 LIBART_COMPILER_CFLAGS :=
+
 ifeq ($(ART_USE_PORTABLE_COMPILER),true)
-  LIBART_COMPILER_SRC_FILES += elf_writer_mclinker.cc
+LIBART_COMPILER_SRC_FILES +=
+	dex/portable/mir_to_gbc.cc \
+	elf_writer_mclinker.cc \
+	jni/portable/jni_compiler.cc \
+	llvm/compiler_llvm.cc \
+	llvm/gbc_expander.cc \
+	llvm/generated/art_module.cc \
+	llvm/intrinsic_helper.cc \
+	llvm/ir_builder.cc \
+	llvm/llvm_compilation_unit.cc \
+	llvm/md_builder.cc \
+	llvm/runtime_support_builder.cc \
+	llvm/runtime_support_builder_arm.cc \
+	llvm/runtime_support_builder_x86.cc
   LIBART_COMPILER_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
 endif
 
@@ -197,8 +199,8 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
     endif
     LOCAL_SHARED_LIBRARIES += libart
   endif
-  LOCAL_SHARED_LIBRARIES += libbcc libbcinfo libLLVM
   ifeq ($(ART_USE_PORTABLE_COMPILER),true)
+    LOCAL_SHARED_LIBRARIES += libbcc libbcinfo libLLVM
     LOCAL_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
     ifeq ($$(art_target_or_host),target)
       LOCAL_STATIC_LIBRARIES_arm += libmcldARMInfo libmcldARMTarget
