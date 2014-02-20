@@ -1,14 +1,13 @@
-wimp: wahoo
+wimp: [FinalizerTest message=wahoo, finalized=false]
 gc
-finalizer executed: wahoo
 wimp: null
 finalize
 wimp: null
 sleep
-reborn: wahoo
+reborn: [FinalizerTest message=wahoo, finalized=true]
 wimp: null
 reset reborn
 gc + finalize
 sleep
-reborn: nothing
+reborn: [FinalizerTest message=nothing, finalized=false]
 wimp: null
