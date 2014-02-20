@@ -721,7 +721,8 @@ void DexFile::DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32
   }
 
   if (it.HasNext()) {
-    LOG(ERROR) << "invalid stream - problem with parameter iterator in " << GetLocation();
+    LOG(ERROR) << "invalid stream - problem with parameter iterator in " << GetLocation()
+               << " for method " << PrettyMethod(method_idx, *this);
     return;
   }
 
