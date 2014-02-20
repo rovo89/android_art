@@ -35,10 +35,14 @@ namespace art {
 
 // Visits the arguments as saved to the stack by a Runtime::kRefAndArgs callee save frame.
 class QuickArgumentVisitor {
- public:
-// Offset to first (not the Method*) argument in a Runtime::kRefAndArgs callee save frame.
-// Size of Runtime::kRefAndArgs callee save frame.
-// Size of Method* and register parameters in out stack arguments.
+  // Size of each spilled GPR.
+#ifdef __LP64__
+  static constexpr size_t kBytesPerGprSpillLocation = 8;
+#else
+  static constexpr size_t kBytesPerGprSpillLocation = 4;
+#endif
+  // Number of bytes for each out register in the caller method's frame.
+  static constexpr size_t kBytesStackArgLocation = 4;
 #if defined(__arm__)
   // The callee save frame is pointed to by SP.
   // | argN       |  |
@@ -53,12 +57,19 @@ class QuickArgumentVisitor {
   // | R3         |    arg3
   // | R2         |    arg2
   // | R1         |    arg1
-  // | R0         |
+  // | R0         |    padding
   // | Method*    |  <- sp
-#define QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__R1_OFFSET 8
-#define QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__LR_OFFSET 44
-#define QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__FRAME_SIZE 48
-#define QUICK_STACK_ARG_SKIP 16
+  static constexpr bool kSoftFloatAbi = true;  // This is a soft float ABI.
+  static constexpr size_t kNumGprArgs = 3;  // 3 arguments passed in GPRs.
+  static constexpr size_t kNumFprArgs = 0;  // 0 arguments passed in FPRs.
+  static constexpr size_t kBytesPerFprSpillLocation = 4;  // FPR spill size is 4 bytes.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 0;  // Offset of first FPR arg.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 8;  // Offset of first GPR arg.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 44;  // Offset of return address.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_FrameSize = 48;  // Frame size.
+  static size_t GprIndexToGprOffset(uint32_t gpr_index) {
+    return gpr_index * kBytesPerGprSpillLocation;
+  }
 #elif defined(__mips__)
   // The callee save frame is pointed to by SP.
   // | argN       |  |
@@ -74,10 +85,17 @@ class QuickArgumentVisitor {
   // | A2         |    arg2
   // | A1         |    arg1
   // | A0/Method* |  <- sp
-#define QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__R1_OFFSET 4
-#define QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__LR_OFFSET 60
-#define QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__FRAME_SIZE 64
-#define QUICK_STACK_ARG_SKIP 16
+  static constexpr bool kSoftFloatAbi = true;  // This is a soft float ABI.
+  static constexpr size_t kNumGprArgs = 3;  // 3 arguments passed in GPRs.
+  static constexpr size_t kNumFprArgs = 0;  // 0 arguments passed in FPRs.
+  static constexpr size_t kBytesPerFprSpillLocation = 4;  // FPR spill size is 4 bytes.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 0;  // Offset of first FPR arg.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 4;  // Offset of first GPR arg.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 60;  // Offset of return address.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_FrameSize = 64;  // Frame size.
+  static size_t GprIndexToGprOffset(uint32_t gpr_index) {
+    return gpr_index * kBytesPerGprSpillLocation;
+  }
 #elif defined(__i386__)
   // The callee save frame is pointed to by SP.
   // | argN        |  |
@@ -93,49 +111,96 @@ class QuickArgumentVisitor {
   // | EDX         |    arg2
   // | ECX         |    arg1
   // | EAX/Method* |  <- sp
-#define QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__R1_OFFSET 4
-#define QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__LR_OFFSET 28
-#define QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__FRAME_SIZE 32
-#define QUICK_STACK_ARG_SKIP 16
+  static constexpr bool kSoftFloatAbi = true;  // This is a soft float ABI.
+  static constexpr size_t kNumGprArgs = 3;  // 3 arguments passed in GPRs.
+  static constexpr size_t kNumFprArgs = 0;  // 0 arguments passed in FPRs.
+  static constexpr size_t kBytesPerFprSpillLocation = 8;  // FPR spill size is 8 bytes.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 0;  // Offset of first FPR arg.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 4;  // Offset of first GPR arg.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 28;  // Offset of return address.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_FrameSize = 32;  // Frame size.
+  static size_t GprIndexToGprOffset(uint32_t gpr_index) {
+    return gpr_index * kBytesPerGprSpillLocation;
+  }
 #elif defined(__x86_64__)
-// TODO: implement and check these.
-#define QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__R1_OFFSET 8
-#define QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__LR_OFFSET 56
-#define QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__FRAME_SIZE 64
-#define QUICK_STACK_ARG_SKIP 32
+  // The callee save frame is pointed to by SP.
+  // | argN            |  |
+  // | ...             |  |
+  // | reg. arg spills |  |  Caller's frame
+  // | Method*         | ---
+  // | Return          |
+  // | R15             |    callee save
+  // | R14             |    callee save
+  // | R13             |    callee save
+  // | R12             |    callee save
+  // | R9              |    arg5
+  // | R8              |    arg4
+  // | RSI/R6          |    arg1
+  // | RBP/R5          |    callee save
+  // | RBX/R3          |    callee save
+  // | RDX/R2          |    arg2
+  // | RCX/R1          |    arg3
+  // | XMM7            |    float arg 8
+  // | XMM6            |    float arg 7
+  // | XMM5            |    float arg 6
+  // | XMM4            |    float arg 5
+  // | XMM3            |    float arg 4
+  // | XMM2            |    float arg 3
+  // | XMM1            |    float arg 2
+  // | XMM0            |    float arg 1
+  // | Padding         |
+  // | RDI/Method*     |  <- sp
+  static constexpr bool kSoftFloatAbi = false;  // This is a hard float ABI.
+  static constexpr size_t kNumGprArgs = 5;  // 3 arguments passed in GPRs.
+  static constexpr size_t kNumFprArgs = 8;  // 0 arguments passed in FPRs.
+  static constexpr size_t kBytesPerFprSpillLocation = 8;  // FPR spill size is 8 bytes.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 16;  // Offset of first FPR arg.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 80;  // Offset of first GPR arg.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 168;  // Offset of return address.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_FrameSize = 176;  // Frame size.
+  static size_t GprIndexToGprOffset(uint32_t gpr_index) {
+    switch (gpr_index) {
+      case 0: return (4 * kBytesPerGprSpillLocation);
+      case 1: return (1 * kBytesPerGprSpillLocation);
+      case 2: return (0 * kBytesPerGprSpillLocation);
+      case 3: return (5 * kBytesPerGprSpillLocation);
+      case 4: return (6 * kBytesPerGprSpillLocation);
+      default:
+        LOG(FATAL) << "Unexpected GPR index: " << gpr_index;
+        return 0;
+    }
+  }
 #else
 #error "Unsupported architecture"
-#define QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__R1_OFFSET 0
-#define QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__LR_OFFSET 0
-#define QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__FRAME_SIZE 0
-#define QUICK_STACK_ARG_SKIP 0
 #endif
 
-  static mirror::ArtMethod* GetCallingMethod(mirror::ArtMethod** sp) {
-    byte* previous_sp = reinterpret_cast<byte*>(sp) +
-        QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__FRAME_SIZE;
+ public:
+  static mirror::ArtMethod* GetCallingMethod(mirror::ArtMethod** sp)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK((*sp)->IsCalleeSaveMethod());
+    byte* previous_sp = reinterpret_cast<byte*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_FrameSize;
     return *reinterpret_cast<mirror::ArtMethod**>(previous_sp);
   }
 
-  static uintptr_t GetCallingPc(mirror::ArtMethod** sp) {
-    byte* lr = reinterpret_cast<byte*>(sp) + QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__LR_OFFSET;
+  // For the given quick ref and args quick frame, return the caller's PC.
+  static uintptr_t GetCallingPc(mirror::ArtMethod** sp)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK((*sp)->IsCalleeSaveMethod());
+    byte* lr = reinterpret_cast<byte*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_LrOffset;
     return *reinterpret_cast<uintptr_t*>(lr);
   }
 
   QuickArgumentVisitor(mirror::ArtMethod** sp, bool is_static,
                        const char* shorty, uint32_t shorty_len)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) :
-    is_static_(is_static), shorty_(shorty), shorty_len_(shorty_len),
-    args_in_regs_(ComputeArgsInRegs(is_static, shorty, shorty_len)),
-    num_params_((is_static ? 0 : 1) + shorty_len - 1),  // +1 for this, -1 for return type
-    reg_args_(reinterpret_cast<byte*>(sp) + QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__R1_OFFSET),
-    stack_args_(reinterpret_cast<byte*>(sp) + QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__FRAME_SIZE
-                + QUICK_STACK_ARG_SKIP),
-    cur_args_(reg_args_),
-    cur_arg_index_(0),
-    param_index_(0),
-    is_split_long_or_double_(false) {
-    DCHECK_EQ(static_cast<size_t>(QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__FRAME_SIZE),
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) :
+      is_static_(is_static), shorty_(shorty), shorty_len_(shorty_len),
+      gpr_args_(reinterpret_cast<byte*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset),
+      fpr_args_(reinterpret_cast<byte*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset),
+      stack_args_(reinterpret_cast<byte*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_FrameSize
+                  + StackArgumentStartFromShorty(is_static, shorty, shorty_len)),
+      gpr_index_(0), fpr_index_(0), stack_index_(0), cur_type_(Primitive::kPrimVoid),
+      is_split_long_or_double_(false) {
+    DCHECK_EQ(kQuickCalleeSaveFrame_RefAndArgs_FrameSize,
               Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes());
   }
 
@@ -143,30 +208,38 @@ class QuickArgumentVisitor {
 
   virtual void Visit() = 0;
 
-  Primitive::Type GetParamPrimitiveType() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    size_t index = param_index_;
-    if (is_static_) {
-      index++;  // 0th argument must skip return value at start of the shorty
-    } else if (index == 0) {
-      return Primitive::kPrimNot;
-    }
-    CHECK_LT(index, shorty_len_);
-    return Primitive::GetType(shorty_[index]);
+  Primitive::Type GetParamPrimitiveType() const {
+    return cur_type_;
   }
 
   byte* GetParamAddress() const {
-    return cur_args_ + (cur_arg_index_ * kPointerSize);
+    if (!kSoftFloatAbi) {
+      Primitive::Type type = GetParamPrimitiveType();
+      if (UNLIKELY((type == Primitive::kPrimDouble) || (type == Primitive::kPrimFloat))) {
+        if ((kNumFprArgs != 0) && (fpr_index_ + 1 < kNumFprArgs + 1)) {
+          return fpr_args_ + (fpr_index_ * kBytesPerFprSpillLocation);
+        }
+      }
+    }
+    if (gpr_index_ < kNumGprArgs) {
+      return gpr_args_ + GprIndexToGprOffset(gpr_index_);
+    }
+    return stack_args_ + (stack_index_ * kBytesStackArgLocation);
   }
 
   bool IsSplitLongOrDouble() const {
-    return is_split_long_or_double_;
+    if ((kBytesPerGprSpillLocation == 4) || (kBytesPerFprSpillLocation == 4)) {
+      return is_split_long_or_double_;
+    } else {
+      return false;  // An optimization for when GPR and FPRs are 64bit.
+    }
   }
 
-  bool IsParamAReference() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool IsParamAReference() const {
     return GetParamPrimitiveType() == Primitive::kPrimNot;
   }
 
-  bool IsParamALongOrDouble() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool IsParamALongOrDouble() const {
     Primitive::Type type = GetParamPrimitiveType();
     return type == Primitive::kPrimLong || type == Primitive::kPrimDouble;
   }
@@ -179,51 +252,179 @@ class QuickArgumentVisitor {
   }
 
   void VisitArguments() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    for (cur_arg_index_ = 0;  cur_arg_index_ < args_in_regs_ && param_index_ < num_params_; ) {
-      is_split_long_or_double_ = (cur_arg_index_ == 2) && IsParamALongOrDouble();
+    gpr_index_ = 0;
+    fpr_index_ = 0;
+    stack_index_ = 0;
+    if (!is_static_) {  // Handle this.
+      cur_type_ = Primitive::kPrimNot;
+      is_split_long_or_double_ = false;
       Visit();
-      cur_arg_index_ += (IsParamALongOrDouble() ? 2 : 1);
-      param_index_++;
+      if (kNumGprArgs > 0) {
+        gpr_index_++;
+      } else {
+        stack_index_++;
+      }
     }
-    cur_args_ = stack_args_;
-    cur_arg_index_ = is_split_long_or_double_ ? 1 : 0;
-    is_split_long_or_double_ = false;
-    while (param_index_ < num_params_) {
-      Visit();
-      cur_arg_index_ += (IsParamALongOrDouble() ? 2 : 1);
-      param_index_++;
+    for (uint32_t shorty_index = 1; shorty_index < shorty_len_; ++shorty_index) {
+      cur_type_ = Primitive::GetType(shorty_[shorty_index]);
+      switch (cur_type_) {
+        case Primitive::kPrimNot:
+        case Primitive::kPrimBoolean:
+        case Primitive::kPrimByte:
+        case Primitive::kPrimChar:
+        case Primitive::kPrimShort:
+        case Primitive::kPrimInt:
+          is_split_long_or_double_ = false;
+          Visit();
+          if (gpr_index_ < kNumGprArgs) {
+            gpr_index_++;
+          } else {
+            stack_index_++;
+          }
+          break;
+        case Primitive::kPrimFloat:
+          is_split_long_or_double_ = false;
+          Visit();
+          if (kSoftFloatAbi) {
+            if (gpr_index_ < kNumGprArgs) {
+              gpr_index_++;
+            } else {
+              stack_index_++;
+            }
+          } else {
+            if ((kNumFprArgs != 0) && (fpr_index_ + 1 < kNumFprArgs + 1)) {
+              fpr_index_++;
+            } else {
+              stack_index_++;
+            }
+          }
+          break;
+        case Primitive::kPrimDouble:
+        case Primitive::kPrimLong:
+          if (kSoftFloatAbi || (cur_type_ == Primitive::kPrimLong)) {
+            is_split_long_or_double_ = (kBytesPerGprSpillLocation == 4) &&
+                ((gpr_index_ + 1) == kNumGprArgs);
+            Visit();
+            if (gpr_index_ < kNumGprArgs) {
+              gpr_index_++;
+              if (kBytesPerGprSpillLocation == 4) {
+                if (gpr_index_ < kNumGprArgs) {
+                  gpr_index_++;
+                } else {
+                  stack_index_++;
+                }
+              }
+            } else {
+              if (kBytesStackArgLocation == 4) {
+                stack_index_+= 2;
+              } else {
+                CHECK_EQ(kBytesStackArgLocation, 8U);
+                stack_index_++;
+              }
+            }
+          } else {
+            is_split_long_or_double_ = (kBytesPerFprSpillLocation == 4) &&
+                ((fpr_index_ + 1) == kNumFprArgs);
+            Visit();
+            if ((kNumFprArgs != 0) && (fpr_index_ + 1 < kNumFprArgs + 1)) {
+              fpr_index_++;
+              if (kBytesPerFprSpillLocation == 4) {
+                if ((kNumFprArgs != 0) && (fpr_index_ + 1 < kNumFprArgs + 1)) {
+                  fpr_index_++;
+                } else {
+                  stack_index_++;
+                }
+              }
+            } else {
+              if (kBytesStackArgLocation == 4) {
+                stack_index_+= 2;
+              } else {
+                CHECK_EQ(kBytesStackArgLocation, 8U);
+                stack_index_++;
+              }
+            }
+          }
+          break;
+        default:
+          LOG(FATAL) << "Unexpected type: " << cur_type_ << " in " << shorty_;
+      }
     }
   }
 
  private:
-  static size_t ComputeArgsInRegs(bool is_static, const char* shorty, uint32_t shorty_len)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    size_t args_in_regs = (is_static ? 0 : 1);
-    for (size_t i = 0; i < shorty_len; i++) {
-      char s = shorty[i];
-      if (s == 'J' || s == 'D') {
-        args_in_regs += 2;
-      } else {
-        args_in_regs++;
+  static size_t StackArgumentStartFromShorty(bool is_static, const char* shorty,
+                                             uint32_t shorty_len) {
+    if (kSoftFloatAbi) {
+      CHECK_EQ(kNumFprArgs, 0U);
+      return (kNumGprArgs * kBytesPerGprSpillLocation) + kBytesPerGprSpillLocation /* ArtMethod* */;
+    } else {
+      size_t offset = kBytesPerGprSpillLocation;  // Skip Method*.
+      size_t gprs_seen = 0;
+      size_t fprs_seen = 0;
+      if (!is_static && (gprs_seen < kNumGprArgs)) {
+        gprs_seen++;
+        offset += kBytesStackArgLocation;
       }
-      if (args_in_regs > 3) {
-        args_in_regs = 3;
-        break;
+      for (uint32_t i = 1; i < shorty_len; ++i) {
+        switch (shorty[i]) {
+          case 'Z':
+          case 'B':
+          case 'C':
+          case 'S':
+          case 'I':
+          case 'L':
+            if (gprs_seen < kNumGprArgs) {
+              gprs_seen++;
+              offset += kBytesStackArgLocation;
+            }
+            break;
+          case 'J':
+            if (gprs_seen < kNumGprArgs) {
+              gprs_seen++;
+              offset += 2 * kBytesStackArgLocation;
+              if (kBytesPerGprSpillLocation == 4) {
+                if (gprs_seen < kNumGprArgs) {
+                  gprs_seen++;
+                }
+              }
+            }
+            break;
+          case 'F':
+            if ((kNumFprArgs != 0) && (fprs_seen + 1 < kNumFprArgs + 1)) {
+              fprs_seen++;
+              offset += kBytesStackArgLocation;
+            }
+            break;
+          case 'D':
+            if ((kNumFprArgs != 0) && (fprs_seen + 1 < kNumFprArgs + 1)) {
+              fprs_seen++;
+              offset += 2 * kBytesStackArgLocation;
+              if (kBytesPerFprSpillLocation == 4) {
+                if ((kNumFprArgs != 0) && (fprs_seen + 1 < kNumFprArgs + 1)) {
+                  fprs_seen++;
+                }
+              }
+            }
+            break;
+          default:
+            LOG(FATAL) << "Unexpected shorty character: " << shorty[i] << " in " << shorty;
+        }
       }
+      return offset;
     }
-    return args_in_regs;
   }
 
   const bool is_static_;
   const char* const shorty_;
   const uint32_t shorty_len_;
-  const size_t args_in_regs_;
-  const size_t num_params_;
-  byte* const reg_args_;
-  byte* const stack_args_;
-  byte* cur_args_;
-  size_t cur_arg_index_;
-  size_t param_index_;
+  byte* const gpr_args_;  // Address of GPR arguments in callee save frame.
+  byte* const fpr_args_;  // Address of FPR arguments in callee save frame.
+  byte* const stack_args_;  // Address of stack arguments in caller's frame.
+  uint32_t gpr_index_;  // Index into spilled GPRs.
+  uint32_t fpr_index_;  // Index into spilled FPRs.
+  uint32_t stack_index_;  // Index into arguments on the stack.
+  // The current type of argument during VisitArguments.
+  Primitive::Type cur_type_;
   // Does a 64bit parameter straddle the register and stack arguments?
   bool is_split_long_or_double_;
 };
@@ -231,9 +432,8 @@ class QuickArgumentVisitor {
 // Visits arguments on the stack placing them into the shadow frame.
 class BuildQuickShadowFrameVisitor : public QuickArgumentVisitor {
  public:
-  BuildQuickShadowFrameVisitor(mirror::ArtMethod** sp,
-      bool is_static, const char* shorty,
-       uint32_t shorty_len, ShadowFrame& sf, size_t first_arg_reg) :
+  BuildQuickShadowFrameVisitor(mirror::ArtMethod** sp, bool is_static, const char* shorty,
+                               uint32_t shorty_len, ShadowFrame* sf, size_t first_arg_reg) :
     QuickArgumentVisitor(sp, is_static, shorty, shorty_len), sf_(sf), cur_reg_(first_arg_reg) {}
 
   virtual void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -242,14 +442,14 @@ class BuildQuickShadowFrameVisitor : public QuickArgumentVisitor {
       case Primitive::kPrimLong:  // Fall-through.
       case Primitive::kPrimDouble:
         if (IsSplitLongOrDouble()) {
-          sf_.SetVRegLong(cur_reg_, ReadSplitLongParam());
+          sf_->SetVRegLong(cur_reg_, ReadSplitLongParam());
         } else {
-          sf_.SetVRegLong(cur_reg_, *reinterpret_cast<jlong*>(GetParamAddress()));
+          sf_->SetVRegLong(cur_reg_, *reinterpret_cast<jlong*>(GetParamAddress()));
         }
         ++cur_reg_;
         break;
       case Primitive::kPrimNot:
-        sf_.SetVRegReference(cur_reg_, *reinterpret_cast<mirror::Object**>(GetParamAddress()));
+        sf_->SetVRegReference(cur_reg_, *reinterpret_cast<mirror::Object**>(GetParamAddress()));
         break;
       case Primitive::kPrimBoolean:  // Fall-through.
       case Primitive::kPrimByte:     // Fall-through.
@@ -257,7 +457,7 @@ class BuildQuickShadowFrameVisitor : public QuickArgumentVisitor {
       case Primitive::kPrimShort:    // Fall-through.
       case Primitive::kPrimInt:      // Fall-through.
       case Primitive::kPrimFloat:
-        sf_.SetVReg(cur_reg_, *reinterpret_cast<jint*>(GetParamAddress()));
+        sf_->SetVReg(cur_reg_, *reinterpret_cast<jint*>(GetParamAddress()));
         break;
       case Primitive::kPrimVoid:
         LOG(FATAL) << "UNREACHABLE";
@@ -267,8 +467,8 @@ class BuildQuickShadowFrameVisitor : public QuickArgumentVisitor {
   }
 
  private:
-  ShadowFrame& sf_;
-  size_t cur_reg_;
+  ShadowFrame* const sf_;
+  uint32_t cur_reg_;
 
   DISALLOW_COPY_AND_ASSIGN(BuildQuickShadowFrameVisitor);
 };
@@ -293,8 +493,8 @@ extern "C" uint64_t artQuickToInterpreterBridge(mirror::ArtMethod* method, Threa
                                                   method, 0, memory));
     size_t first_arg_reg = code_item->registers_size_ - code_item->ins_size_;
     BuildQuickShadowFrameVisitor shadow_frame_builder(sp, mh.IsStatic(), mh.GetShorty(),
-                                                 mh.GetShortyLength(),
-                                                 *shadow_frame, first_arg_reg);
+                                                      mh.GetShortyLength(),
+                                                      shadow_frame, first_arg_reg);
     shadow_frame_builder.VisitArguments();
     // Push a transition back into managed code onto the linked list in thread.
     ManagedStack fragment;

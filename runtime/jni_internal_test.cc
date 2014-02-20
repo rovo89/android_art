@@ -127,7 +127,7 @@ class JniInternalTest : public CommonTest {
     mirror::Object* receiver;
     JniInternalTestMakeExecutable(&method, &receiver, is_static, "nop", "()V");
 
-    ArgArray arg_array(NULL, 0);
+    ArgArray arg_array("V", 1);
     JValue result;
 
     if (!is_static) {
@@ -143,7 +143,7 @@ class JniInternalTest : public CommonTest {
     mirror::Object* receiver;
     JniInternalTestMakeExecutable(&method, &receiver, is_static, "identity", "(B)B");
 
-    ArgArray arg_array(NULL, 0);
+    ArgArray arg_array("BB", 2);
     uint32_t* args = arg_array.GetArray();
     JValue result;
 
@@ -179,7 +179,7 @@ class JniInternalTest : public CommonTest {
     mirror::Object* receiver;
     JniInternalTestMakeExecutable(&method, &receiver, is_static, "identity", "(I)I");
 
-    ArgArray arg_array(NULL, 0);
+    ArgArray arg_array("II", 2);
     uint32_t* args = arg_array.GetArray();
     JValue result;
 
@@ -215,7 +215,7 @@ class JniInternalTest : public CommonTest {
     mirror::Object* receiver;
     JniInternalTestMakeExecutable(&method, &receiver, is_static, "identity", "(D)D");
 
-    ArgArray arg_array(NULL, 0);
+    ArgArray arg_array("DD", 2);
     uint32_t* args = arg_array.GetArray();
     JValue value;
     JValue result;
@@ -259,7 +259,7 @@ class JniInternalTest : public CommonTest {
     mirror::Object* receiver;
     JniInternalTestMakeExecutable(&method, &receiver, is_static, "sum", "(II)I");
 
-    ArgArray arg_array(NULL, 0);
+    ArgArray arg_array("III", 3);
     uint32_t* args = arg_array.GetArray();
     JValue result;
 
@@ -305,7 +305,7 @@ class JniInternalTest : public CommonTest {
     mirror::Object* receiver;
     JniInternalTestMakeExecutable(&method, &receiver, is_static, "sum", "(III)I");
 
-    ArgArray arg_array(NULL, 0);
+    ArgArray arg_array("IIII", 4);
     uint32_t* args = arg_array.GetArray();
     JValue result;
 
@@ -361,7 +361,7 @@ class JniInternalTest : public CommonTest {
     mirror::Object* receiver;
     JniInternalTestMakeExecutable(&method, &receiver, is_static, "sum", "(IIII)I");
 
-    ArgArray arg_array(NULL, 0);
+    ArgArray arg_array("IIIII", 5);
     uint32_t* args = arg_array.GetArray();
     JValue result;
 
@@ -422,7 +422,7 @@ class JniInternalTest : public CommonTest {
     mirror::Object* receiver;
     JniInternalTestMakeExecutable(&method, &receiver, is_static, "sum", "(IIIII)I");
 
-    ArgArray arg_array(NULL, 0);
+    ArgArray arg_array("IIIIII", 6);
     uint32_t* args = arg_array.GetArray();
     JValue result;
 
@@ -488,7 +488,7 @@ class JniInternalTest : public CommonTest {
     mirror::Object* receiver;
     JniInternalTestMakeExecutable(&method, &receiver, is_static, "sum", "(DD)D");
 
-    ArgArray arg_array(NULL, 0);
+    ArgArray arg_array("DDD", 3);
     uint32_t* args = arg_array.GetArray();
     JValue value;
     JValue value2;
@@ -559,7 +559,7 @@ class JniInternalTest : public CommonTest {
     mirror::Object* receiver;
     JniInternalTestMakeExecutable(&method, &receiver, is_static, "sum", "(DDD)D");
 
-    ArgArray arg_array(NULL, 0);
+    ArgArray arg_array("DDDD", 4);
     uint32_t* args = arg_array.GetArray();
     JValue value;
     JValue value2;
@@ -617,7 +617,7 @@ class JniInternalTest : public CommonTest {
     mirror::Object* receiver;
     JniInternalTestMakeExecutable(&method, &receiver, is_static, "sum", "(DDDD)D");
 
-    ArgArray arg_array(NULL, 0);
+    ArgArray arg_array("DDDDD", 5);
     uint32_t* args = arg_array.GetArray();
     JValue value;
     JValue value2;
@@ -684,7 +684,7 @@ class JniInternalTest : public CommonTest {
     mirror::Object* receiver;
     JniInternalTestMakeExecutable(&method, &receiver, is_static, "sum", "(DDDDD)D");
 
-    ArgArray arg_array(NULL, 0);
+    ArgArray arg_array("DDDDDD", 6);
     uint32_t* args = arg_array.GetArray();
     JValue value;
     JValue value2;
@@ -1784,7 +1784,7 @@ TEST_F(JniInternalTest, StaticMainMethod) {
   mirror::ArtMethod* method = klass->FindDirectMethod("main", "([Ljava/lang/String;)V");
   ASSERT_TRUE(method != NULL);
 
-  ArgArray arg_array(NULL, 0);
+  ArgArray arg_array("VL", 2);
   arg_array.Append(0U);
   JValue result;
 

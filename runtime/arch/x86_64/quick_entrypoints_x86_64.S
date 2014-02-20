@@ -46,12 +46,63 @@ END_MACRO
      * Runtime::CreateCalleeSaveMethod(kRefsAndArgs)
      */
 MACRO0(SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME)
-    int3
-    int3
+    // R10 := Runtime::Current()
+    movq _ZN3art7Runtime9instance_E@GOTPCREL(%rip), %r10
+    movq (%r10), %r10
+    // Save callee and GPR args, mixed together to agree with core spills bitmap.
+    PUSH r15  // Callee save.
+    PUSH r14  // Callee save.
+    PUSH r13  // Callee save.
+    PUSH r12  // Callee save.
+    PUSH r9   // Arg.
+    PUSH r8   // Arg.
+    PUSH rsi  // Arg.
+    PUSH rbp  // Callee save.
+    PUSH rbx  // Callee save.
+    PUSH rdx  // Arg.
+    PUSH rcx  // Arg.
+    // Create space for FPR args and create 2 slots, 1 of padding and 1 for the ArtMethod*.
+    subq LITERAL(80), %rsp
+    CFI_ADJUST_CFA_OFFSET(80)
+    // R10 := ArtMethod* for ref and args callee save frame method.
+    movq RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
+    // Save FPRs.
+    movq %xmm0, 16(%rsp)
+    movq %xmm1, 24(%rsp)
+    movq %xmm2, 32(%rsp)
+    movq %xmm3, 40(%rsp)
+    movq %xmm4, 48(%rsp)
+    movq %xmm5, 56(%rsp)
+    movq %xmm6, 64(%rsp)
+    movq %xmm7, 72(%rsp)
+    // Store ArtMethod* to bottom of stack.
+    movq %r10, 0(%rsp)
 END_MACRO
 
 MACRO0(RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME)
-    int3
+    // Restore FPRs.
+    movq 16(%rsp), %xmm0
+    movq 24(%rsp), %xmm1
+    movq 32(%rsp), %xmm2
+    movq 40(%rsp), %xmm3
+    movq 48(%rsp), %xmm4
+    movq 56(%rsp), %xmm5
+    movq 64(%rsp), %xmm6
+    movq 72(%rsp), %xmm7
+    addq LITERAL(80), %rsp
+    CFI_ADJUST_CFA_OFFSET(-80)
+    // Save callee and GPR args, mixed together to agree with core spills bitmap.
+    POP rcx
+    POP rdx
+    POP rbx
+    POP rbp
+    POP rsi
+    POP r8
+    POP r9
+    POP r12
+    POP r13
+    POP r14
+    POP r15
 END_MACRO
 
     /*
@@ -147,20 +198,210 @@ INVOKE_TRAMPOLINE art_quick_invoke_direct_trampoline_with_access_check, artInvok
 INVOKE_TRAMPOLINE art_quick_invoke_super_trampoline_with_access_check, artInvokeSuperTrampolineWithAccessCheck
 INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
 
+
+    /*
+     * Helper for quick invocation stub to set up XMM registers. Assumes r10 == shorty,
+     * r11 == arg_array. Clobbers r10, r11 and al. Branches to xmm_setup_finished if it encounters
+     * the end of the shorty.
+     */
+MACRO2(LOOP_OVER_SHORTY_LOADING_XMMS, xmm_reg, finished)
+1: // LOOP
+    movb (%r10), %al              // al := *shorty
+    addq LITERAL(1), %r10         // shorty++
+    cmpb LITERAL(0), %al          // if (al == '\0') goto xmm_setup_finished
+    je VAR(finished, 1)
+    cmpb LITERAL(68), %al         // if (al == 'D') goto FOUND_DOUBLE
+    je 2f
+    cmpb LITERAL(70), %al         // if (al == 'F') goto FOUND_FLOAT
+    je 3f
+    addq LITERAL(4), %r11         // arg_array++
+    //  Handle extra space in arg array taken by a long.
+    cmpb LITERAL(74), %al         // if (al != 'J') goto LOOP
+    jne 1b
+    addq LITERAL(4), %r11         // arg_array++
+    jmp 1b                        // goto LOOP
+2:  // FOUND_DOUBLE
+    movsd (%r11), REG_VAR(xmm_reg, 0)
+    addq LITERAL(8), %r11         // arg_array+=2
+    jmp 4f
+3:  // FOUND_FLOAT
+    movss (%r11), REG_VAR(xmm_reg, 0)
+    addq LITERAL(4), %r11         // arg_array++
+4:
+END_MACRO
+
+    /*
+     * Helper for quick invocation stub to set up GPR registers. Assumes r10 == shorty,
+     * r11 == arg_array. Clobbers r10, r11 and al. Branches to gpr_setup_finished if it encounters
+     * the end of the shorty.
+     */
+MACRO3(LOOP_OVER_SHORTY_LOADING_GPRS, gpr_reg64, gpr_reg32, finished)
+1: // LOOP
+    movb (%r10), %al              // al := *shorty
+    addq LITERAL(1), %r10         // shorty++
+    cmpb LITERAL(0), %al          // if (al == '\0') goto gpr_setup_finished
+    je  VAR(finished, 2)
+    cmpb LITERAL(74), %al         // if (al == 'J') goto FOUND_LONG
+    je 2f
+    cmpb LITERAL(70), %al         // if (al == 'F') goto SKIP_FLOAT
+    je 3f
+    cmpb LITERAL(68), %al         // if (al == 'D') goto SKIP_DOUBLE
+    je 4f
+    movl (%r11), REG_VAR(gpr_reg32, 1)
+    addq LITERAL(4), %r11         // arg_array++
+    jmp 5f
+2:  // FOUND_LONG
+    movq (%r11), REG_VAR(gpr_reg64, 0)
+    addq LITERAL(8), %r11         // arg_array+=2
+    jmp 5f
+3:  // SKIP_FLOAT
+    addq LITERAL(4), %r11         // arg_array++
+    jmp 1b
+4:  // SKIP_DOUBLE
+    addq LITERAL(8), %r11         // arg_array+=2
+    jmp 1b
+5:
+END_MACRO
+
     /*
      * Quick invocation stub.
      * On entry:
      *   [sp] = return address
      *   rdi = method pointer
-     *   rsi = argument array or NULL for no argument methods
+     *   rsi = argument array that must at least contain the this pointer.
      *   rdx = size of argument array in bytes
      *   rcx = (managed) thread pointer
      *   r8 = JValue* result
      *   r9 = char* shorty
      */
 DEFINE_FUNCTION art_quick_invoke_stub
-    int3
-    int3
+    // Set up argument XMM registers.
+    leaq 1(%r9), %r10             // R10 := shorty + 1  ; ie skip return arg character.
+    leaq 4(%rsi), %r11            // R11 := arg_array + 4 ; ie skip this pointer.
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm0, .Lxmm_setup_finished
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm1, .Lxmm_setup_finished
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm2, .Lxmm_setup_finished
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm3, .Lxmm_setup_finished
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm4, .Lxmm_setup_finished
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm5, .Lxmm_setup_finished
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm6, .Lxmm_setup_finished
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm7, .Lxmm_setup_finished
+    .balign 16
+.Lxmm_setup_finished:
+    PUSH rbp                      // Save rbp.
+    PUSH r8                       // Save r8/result*.
+    PUSH r9                       // Save r9/shorty*.
+    mov %rsp, %rbp                // Copy value of stack pointer into base pointer.
+    CFI_DEF_CFA_REGISTER(rbp)
+    movl %edx, %r10d
+    addl LITERAL(64), %edx        // Reserve space for return addr, method*, rbp, r8 and r9 in frame.
+    andl LITERAL(0xFFFFFFF0), %edx    // Align frame size to 16 bytes.
+    subl LITERAL(32), %edx        // Remove space for return address, rbp, r8 and r9.
+    subq %rdx, %rsp               // Reserve stack space for argument array.
+    movq LITERAL(0), (%rsp)       // Store NULL for method*
+    movl %r10d, %ecx              // Place size of args in rcx.
+    movq %rdi, %rax               // RAX := method to be called
+    movq %rsi, %r11               // R11 := arg_array
+    leaq 8(%rsp), %rdi            // Rdi is pointing just above the method* in the stack arguments.
+    // Copy arg array into stack.
+    rep movsb                     // while (rcx--) { *rdi++ = *rsi++ }
+    leaq 1(%r9), %r10             // R10 := shorty + 1  ; ie skip return arg character
+    movq %rax, %rdi               // RDI := method to be called
+    movl (%r11), %esi             // RSI := this pointer
+    addq LITERAL(4), %r11         // arg_array++
+    LOOP_OVER_SHORTY_LOADING_GPRS rdx, edx, .Lgpr_setup_finished
+    LOOP_OVER_SHORTY_LOADING_GPRS rcx, ecx, .Lgpr_setup_finished
+    LOOP_OVER_SHORTY_LOADING_GPRS r8, r8d, .Lgpr_setup_finished
+    LOOP_OVER_SHORTY_LOADING_GPRS r9, r9d, .Lgpr_setup_finished
+.Lgpr_setup_finished:
+    call *METHOD_QUICK_CODE_OFFSET(%rdi) // Call the method.
+    movq %rbp, %rsp               // Restore stack pointer.
+    CFI_DEF_CFA_REGISTER(rsp)
+    POP r9                        // Pop r9 - shorty*.
+    POP r8                        // Pop r8 - result*.
+    POP rbp                       // Pop rbp
+    cmpb LITERAL(68), (%r9)       // Test if result type char == 'D'.
+    je .Lreturn_double_quick
+    cmpb LITERAL(70), (%r9)       // Test if result type char == 'F'.
+    je .Lreturn_float_quick
+    movq %rax, (%r8)              // Store the result assuming its a long, int or Object*
+    ret
+.Lreturn_double_quick:
+    movsd %xmm0, (%r8)           // Store the double floating point result.
+    ret
+.Lreturn_float_quick:
+    movss %xmm0, (%r8)           // Store the floating point result.
+    ret
+END_FUNCTION art_quick_invoke_stub
+
+    /*
+     * Quick invocation stub.
+     * On entry:
+     *   [sp] = return address
+     *   rdi = method pointer
+     *   rsi = argument array or NULL if no arguments.
+     *   rdx = size of argument array in bytes
+     *   rcx = (managed) thread pointer
+     *   r8 = JValue* result
+     *   r9 = char* shorty
+     */
+DEFINE_FUNCTION art_quick_invoke_static_stub
+    // Set up argument XMM registers.
+    leaq 1(%r9), %r10             // R10 := shorty + 1  ; ie skip return arg character
+    movq %rsi, %r11               // R11 := arg_array
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm0, .Lxmm_setup_finished2
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm1, .Lxmm_setup_finished2
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm2, .Lxmm_setup_finished2
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm3, .Lxmm_setup_finished2
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm4, .Lxmm_setup_finished2
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm5, .Lxmm_setup_finished2
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm6, .Lxmm_setup_finished2
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm7, .Lxmm_setup_finished2
+    .balign 16
+.Lxmm_setup_finished2:
+    PUSH rbp                      // Save rbp.
+    PUSH r8                       // Save r8/result*.
+    PUSH r9                       // Save r9/shorty*.
+    mov %rsp, %rbp                // Copy value of stack pointer into base pointer.
+    CFI_DEF_CFA_REGISTER(rbp)
+    movl %edx, %r10d
+    addl LITERAL(64), %edx        // Reserve space for return addr, method*, rbp, r8 and r9 in frame.
+    andl LITERAL(0xFFFFFFF0), %edx    // Align frame size to 16 bytes.
+    subl LITERAL(32), %edx        // Remove space for return address, rbp, r8 and r9.
+    subq %rdx, %rsp               // Reserve stack space for argument array.
+    movq LITERAL(0), (%rsp)       // Store NULL for method*
+    movl %r10d, %ecx              // Place size of args in rcx.
+    movq %rdi, %rax               // RAX := method to be called
+    movq %rsi, %r11               // R11 := arg_array
+    leaq 8(%rsp), %rdi            // Rdi is pointing just above the method* in the stack arguments.
+    // Copy arg array into stack.
+    rep movsb                     // while (rcx--) { *rdi++ = *rsi++ }
+    leaq 1(%r9), %r10             // R10 := shorty + 1  ; ie skip return arg character
+    movq %rax, %rdi               // RDI := method to be called
+    LOOP_OVER_SHORTY_LOADING_GPRS rsi, esi, .Lgpr_setup_finished2
+    LOOP_OVER_SHORTY_LOADING_GPRS rdx, edx, .Lgpr_setup_finished2
+    LOOP_OVER_SHORTY_LOADING_GPRS rcx, ecx, .Lgpr_setup_finished2
+    LOOP_OVER_SHORTY_LOADING_GPRS r8, r8d, .Lgpr_setup_finished2
+    LOOP_OVER_SHORTY_LOADING_GPRS r9, r9d, .Lgpr_setup_finished2
+.Lgpr_setup_finished2:
+    call *METHOD_QUICK_CODE_OFFSET(%rdi) // Call the method.
+    movq %rbp, %rsp               // Restore stack pointer.
+    CFI_DEF_CFA_REGISTER(rsp)
+    POP r9                        // Pop r9 - shorty*.
+    POP r8                        // Pop r8 - result*.
+    POP rbp                       // Pop rbp
+    cmpb LITERAL(68), (%r9)       // Test if result type char == 'D'.
+    je .Lreturn_double_quick2
+    cmpb LITERAL(70), (%r9)       // Test if result type char == 'F'.
+    je .Lreturn_float_quick2
+    movq %rax, (%r8)              // Store the result assuming its a long, int or Object*
+    ret
+.Lreturn_double_quick2:
+    movsd %xmm0, (%r8)           // Store the double floating point result.
+    ret
+.Lreturn_float_quick2:
+    movss %xmm0, (%r8)           // Store the floating point result.
+    ret
 END_FUNCTION art_quick_invoke_stub
 
 MACRO3(NO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
@@ -210,8 +451,11 @@ MACRO0(RETURN_IF_EAX_ZERO)
 END_MACRO
 
 MACRO0(RETURN_OR_DELIVER_PENDING_EXCEPTION)
-    int3
-    int3
+    movq %gs:THREAD_EXCEPTION_OFFSET, %rcx // get exception field
+    testq %rcx, %rcx               // rcx == 0 ?
+    jnz 1f                         // if rcx != 0 goto 1
+    ret                            // return
+1:                                 // deliver exception on current thread
     DELIVER_PENDING_EXCEPTION
 END_MACRO
 
@@ -390,7 +634,22 @@ UNIMPLEMENTED art_quick_proxy_invoke_handler
      */
 UNIMPLEMENTED art_quick_imt_conflict_trampoline
 UNIMPLEMENTED art_quick_resolution_trampoline
-UNIMPLEMENTED art_quick_to_interpreter_bridge
+
+    /*
+     * Called to bridge from the quick to interpreter ABI. On entry the arguments match those
+     * of a quick call:
+     * RDI = method being called / to bridge to.
+     * RSI, RDX, RCX, R8, R9 are arguments to that method.
+     */
+DEFINE_FUNCTION art_quick_to_interpreter_bridge
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME   // Set up frame and save arguments.
+    movq %gs:THREAD_SELF_OFFSET, %rsi      // RSI := Thread::Current()
+    movq %rsp, %rdx                        // RDX := sp
+    call PLT_SYMBOL(artQuickToInterpreterBridge)  // (method, Thread*, SP)
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME  // TODO: no need to restore arguments in this case.
+    movq %rax, %xmm0                   // Place return value also into floating point return value.
+    RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
+END_FUNCTION art_quick_to_interpreter_bridge
 
     /*
      * Routine that intercepts method calls and returns.
