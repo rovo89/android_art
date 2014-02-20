@@ -20,6 +20,7 @@
 #include "base/unix_file/fd_file.h"
 #include "buffered_output_stream.h"
 #include "driver/compiler_driver.h"
+#include "elf_utils.h"
 #include "file_output_stream.h"
 #include "globals.h"
 #include "oat.h"
@@ -117,10 +118,10 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
   uint32_t expected_offset = 0;
 
   // Elf32_Ehdr
-  expected_offset += sizeof(llvm::ELF::Elf32_Ehdr);
+  expected_offset += sizeof(Elf32_Ehdr);
 
   // PHDR
-  uint32_t phdr_alignment = sizeof(llvm::ELF::Elf32_Word);
+  uint32_t phdr_alignment = sizeof(Elf32_Word);
   uint32_t phdr_offset = expected_offset;
   const uint8_t PH_PHDR     = 0;
   const uint8_t PH_LOAD_R__ = 1;
@@ -128,7 +129,7 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
   const uint8_t PH_LOAD_RW_ = 3;
   const uint8_t PH_DYNAMIC  = 4;
   const uint8_t PH_NUM      = 5;
-  uint32_t phdr_size = sizeof(llvm::ELF::Elf32_Phdr) * PH_NUM;
+  uint32_t phdr_size = sizeof(Elf32_Phdr) * PH_NUM;
   expected_offset += phdr_size;
   if (debug) {
     LOG(INFO) << "phdr_offset=" << phdr_offset << std::hex << " " << phdr_offset;
@@ -136,14 +137,14 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
   }
 
   // .dynsym
-  uint32_t dynsym_alignment = sizeof(llvm::ELF::Elf32_Word);
+  uint32_t dynsym_alignment = sizeof(Elf32_Word);
   uint32_t dynsym_offset = expected_offset = RoundUp(expected_offset, dynsym_alignment);
   const uint8_t SYM_UNDEF       = 0;  // aka STN_UNDEF
   const uint8_t SYM_OATDATA     = 1;
   const uint8_t SYM_OATEXEC     = 2;
   const uint8_t SYM_OATLASTWORD = 3;
   const uint8_t SYM_NUM         = 4;
-  uint32_t dynsym_size = sizeof(llvm::ELF::Elf32_Sym) * SYM_NUM;
+  uint32_t dynsym_size = sizeof(Elf32_Sym) * SYM_NUM;
   expected_offset += dynsym_size;
   if (debug) {
     LOG(INFO) << "dynsym_offset=" << dynsym_offset << std::hex << " " << dynsym_offset;
@@ -180,13 +181,13 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
   }
 
   // .hash
-  uint32_t hash_alignment = sizeof(llvm::ELF::Elf32_Word);  // Even for 64-bit
+  uint32_t hash_alignment = sizeof(Elf32_Word);  // Even for 64-bit
   uint32_t hash_offset = expected_offset = RoundUp(expected_offset, hash_alignment);
   const uint8_t HASH_NBUCKET = 0;
   const uint8_t HASH_NCHAIN  = 1;
   const uint8_t HASH_BUCKET0 = 2;
   const uint8_t HASH_NUM     = HASH_BUCKET0 + 1 + SYM_NUM;
-  uint32_t hash_size = sizeof(llvm::ELF::Elf32_Word) * HASH_NUM;
+  uint32_t hash_size = sizeof(Elf32_Word) * HASH_NUM;
   expected_offset += hash_size;
   if (debug) {
     LOG(INFO) << "hash_offset=" << hash_offset << std::hex << " " << hash_offset;
@@ -218,7 +219,7 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
   }
 
   // .dynamic
-  // alignment would naturally be sizeof(llvm::ELF::Elf32_Word), but we want this in a new segment
+  // alignment would naturally be sizeof(Elf32_Word), but we want this in a new segment
   uint32_t dynamic_alignment = kPageSize;
   uint32_t dynamic_offset = expected_offset = RoundUp(expected_offset, dynamic_alignment);
   const uint8_t DH_SONAME = 0;
@@ -229,7 +230,7 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
   const uint8_t DH_STRSZ  = 5;
   const uint8_t DH_NULL   = 6;
   const uint8_t DH_NUM    = 7;
-  uint32_t dynamic_size = sizeof(llvm::ELF::Elf32_Dyn) * DH_NUM;
+  uint32_t dynamic_size = sizeof(Elf32_Dyn) * DH_NUM;
   expected_offset += dynamic_size;
   if (debug) {
     LOG(INFO) << "dynamic_offset=" << dynamic_offset << std::hex << " " << dynamic_offset;
@@ -271,7 +272,7 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
   }
 
   // section headers (after all sections)
-  uint32_t shdr_alignment = sizeof(llvm::ELF::Elf32_Word);
+  uint32_t shdr_alignment = sizeof(Elf32_Word);
   uint32_t shdr_offset = expected_offset = RoundUp(expected_offset, shdr_alignment);
   const uint8_t SH_NULL     = 0;
   const uint8_t SH_DYNSYM   = 1;
@@ -282,7 +283,7 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
   const uint8_t SH_DYNAMIC  = 6;
   const uint8_t SH_SHSTRTAB = 7;
   const uint8_t SH_NUM      = 8;
-  uint32_t shdr_size = sizeof(llvm::ELF::Elf32_Shdr) * SH_NUM;
+  uint32_t shdr_size = sizeof(Elf32_Shdr) * SH_NUM;
   expected_offset += shdr_size;
   if (debug) {
     LOG(INFO) << "shdr_offset=" << shdr_offset << std::hex << " " << shdr_offset;
@@ -292,36 +293,36 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
   // phase 2: initializing data
 
   // Elf32_Ehdr
-  llvm::ELF::Elf32_Ehdr elf_header;
+  Elf32_Ehdr elf_header;
   memset(&elf_header, 0, sizeof(elf_header));
-  elf_header.e_ident[llvm::ELF::EI_MAG0]       = llvm::ELF::ElfMagic[0];
-  elf_header.e_ident[llvm::ELF::EI_MAG1]       = llvm::ELF::ElfMagic[1];
-  elf_header.e_ident[llvm::ELF::EI_MAG2]       = llvm::ELF::ElfMagic[2];
-  elf_header.e_ident[llvm::ELF::EI_MAG3]       = llvm::ELF::ElfMagic[3];
-  elf_header.e_ident[llvm::ELF::EI_CLASS]      = llvm::ELF::ELFCLASS32;
-  elf_header.e_ident[llvm::ELF::EI_DATA]       = llvm::ELF::ELFDATA2LSB;
-  elf_header.e_ident[llvm::ELF::EI_VERSION]    = llvm::ELF::EV_CURRENT;
-  elf_header.e_ident[llvm::ELF::EI_OSABI]      = llvm::ELF::ELFOSABI_LINUX;
-  elf_header.e_ident[llvm::ELF::EI_ABIVERSION] = 0;
-  elf_header.e_type = llvm::ELF::ET_DYN;
+  elf_header.e_ident[EI_MAG0]       = ELFMAG0;
+  elf_header.e_ident[EI_MAG1]       = ELFMAG1;
+  elf_header.e_ident[EI_MAG2]       = ELFMAG2;
+  elf_header.e_ident[EI_MAG3]       = ELFMAG3;
+  elf_header.e_ident[EI_CLASS]      = ELFCLASS32;
+  elf_header.e_ident[EI_DATA]       = ELFDATA2LSB;
+  elf_header.e_ident[EI_VERSION]    = EV_CURRENT;
+  elf_header.e_ident[EI_OSABI]      = ELFOSABI_LINUX;
+  elf_header.e_ident[EI_ABIVERSION] = 0;
+  elf_header.e_type = ET_DYN;
   switch (compiler_driver_->GetInstructionSet()) {
     case kThumb2: {
-      elf_header.e_machine = llvm::ELF::EM_ARM;
-      elf_header.e_flags = llvm::ELF::EF_ARM_EABI_VER5;
+      elf_header.e_machine = EM_ARM;
+      elf_header.e_flags = EF_ARM_EABI_VER5;
       break;
     }
     case kX86: {
-      elf_header.e_machine = llvm::ELF::EM_386;
+      elf_header.e_machine = EM_386;
       elf_header.e_flags = 0;
       break;
     }
     case kMips: {
-      elf_header.e_machine = llvm::ELF::EM_MIPS;
-      elf_header.e_flags = (llvm::ELF::EF_MIPS_NOREORDER |
-                            llvm::ELF::EF_MIPS_PIC       |
-                            llvm::ELF::EF_MIPS_CPIC      |
-                            llvm::ELF::EF_MIPS_ABI_O32   |
-                            llvm::ELF::EF_MIPS_ARCH_32R2);
+      elf_header.e_machine = EM_MIPS;
+      elf_header.e_flags = (EF_MIPS_NOREORDER |
+                            EF_MIPS_PIC       |
+                            EF_MIPS_CPIC      |
+                            EF_MIPS_ABI_O32   |
+                            EF_MIPS_ARCH_32R2);
       break;
     }
     case kArm:
@@ -334,66 +335,66 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
   elf_header.e_entry = 0;
   elf_header.e_phoff = phdr_offset;
   elf_header.e_shoff = shdr_offset;
-  elf_header.e_ehsize = sizeof(llvm::ELF::Elf32_Ehdr);
-  elf_header.e_phentsize = sizeof(llvm::ELF::Elf32_Phdr);
+  elf_header.e_ehsize = sizeof(Elf32_Ehdr);
+  elf_header.e_phentsize = sizeof(Elf32_Phdr);
   elf_header.e_phnum = PH_NUM;
-  elf_header.e_shentsize = sizeof(llvm::ELF::Elf32_Shdr);
+  elf_header.e_shentsize = sizeof(Elf32_Shdr);
   elf_header.e_shnum = SH_NUM;
   elf_header.e_shstrndx = SH_SHSTRTAB;
 
   // PHDR
-  llvm::ELF::Elf32_Phdr program_headers[PH_NUM];
+  Elf32_Phdr program_headers[PH_NUM];
   memset(&program_headers, 0, sizeof(program_headers));
 
-  program_headers[PH_PHDR].p_type    = llvm::ELF::PT_PHDR;
+  program_headers[PH_PHDR].p_type    = PT_PHDR;
   program_headers[PH_PHDR].p_offset  = phdr_offset;
   program_headers[PH_PHDR].p_vaddr   = phdr_offset;
   program_headers[PH_PHDR].p_paddr   = phdr_offset;
   program_headers[PH_PHDR].p_filesz  = sizeof(program_headers);
   program_headers[PH_PHDR].p_memsz   = sizeof(program_headers);
-  program_headers[PH_PHDR].p_flags   = llvm::ELF::PF_R;
+  program_headers[PH_PHDR].p_flags   = PF_R;
   program_headers[PH_PHDR].p_align   = phdr_alignment;
 
-  program_headers[PH_LOAD_R__].p_type    = llvm::ELF::PT_LOAD;
+  program_headers[PH_LOAD_R__].p_type    = PT_LOAD;
   program_headers[PH_LOAD_R__].p_offset  = 0;
   program_headers[PH_LOAD_R__].p_vaddr   = 0;
   program_headers[PH_LOAD_R__].p_paddr   = 0;
   program_headers[PH_LOAD_R__].p_filesz  = oat_data_offset + oat_data_size;
   program_headers[PH_LOAD_R__].p_memsz   = oat_data_offset + oat_data_size;
-  program_headers[PH_LOAD_R__].p_flags   = llvm::ELF::PF_R;
+  program_headers[PH_LOAD_R__].p_flags   = PF_R;
   program_headers[PH_LOAD_R__].p_align   = oat_data_alignment;
 
-  program_headers[PH_LOAD_R_X].p_type    = llvm::ELF::PT_LOAD;
+  program_headers[PH_LOAD_R_X].p_type    = PT_LOAD;
   program_headers[PH_LOAD_R_X].p_offset  = oat_exec_offset;
   program_headers[PH_LOAD_R_X].p_vaddr   = oat_exec_offset;
   program_headers[PH_LOAD_R_X].p_paddr   = oat_exec_offset;
   program_headers[PH_LOAD_R_X].p_filesz  = oat_exec_size;
   program_headers[PH_LOAD_R_X].p_memsz   = oat_exec_size;
-  program_headers[PH_LOAD_R_X].p_flags   = llvm::ELF::PF_R | llvm::ELF::PF_X;
+  program_headers[PH_LOAD_R_X].p_flags   = PF_R | PF_X;
   program_headers[PH_LOAD_R_X].p_align   = oat_exec_alignment;
 
   // TODO: PF_W for DYNAMIC is considered processor specific, do we need it?
-  program_headers[PH_LOAD_RW_].p_type    = llvm::ELF::PT_LOAD;
+  program_headers[PH_LOAD_RW_].p_type    = PT_LOAD;
   program_headers[PH_LOAD_RW_].p_offset  = dynamic_offset;
   program_headers[PH_LOAD_RW_].p_vaddr   = dynamic_offset;
   program_headers[PH_LOAD_RW_].p_paddr   = dynamic_offset;
   program_headers[PH_LOAD_RW_].p_filesz  = dynamic_size;
   program_headers[PH_LOAD_RW_].p_memsz   = dynamic_size;
-  program_headers[PH_LOAD_RW_].p_flags   = llvm::ELF::PF_R | llvm::ELF::PF_W;
+  program_headers[PH_LOAD_RW_].p_flags   = PF_R | PF_W;
   program_headers[PH_LOAD_RW_].p_align   = dynamic_alignment;
 
   // TODO: PF_W for DYNAMIC is considered processor specific, do we need it?
-  program_headers[PH_DYNAMIC].p_type    = llvm::ELF::PT_DYNAMIC;
+  program_headers[PH_DYNAMIC].p_type    = PT_DYNAMIC;
   program_headers[PH_DYNAMIC].p_offset  = dynamic_offset;
   program_headers[PH_DYNAMIC].p_vaddr   = dynamic_offset;
   program_headers[PH_DYNAMIC].p_paddr   = dynamic_offset;
   program_headers[PH_DYNAMIC].p_filesz  = dynamic_size;
   program_headers[PH_DYNAMIC].p_memsz   = dynamic_size;
-  program_headers[PH_DYNAMIC].p_flags   = llvm::ELF::PF_R | llvm::ELF::PF_W;
+  program_headers[PH_DYNAMIC].p_flags   = PF_R | PF_W;
   program_headers[PH_DYNAMIC].p_align   = dynamic_alignment;
 
   // .dynsym
-  llvm::ELF::Elf32_Sym dynsym[SYM_NUM];
+  Elf32_Sym dynsym[SYM_NUM];
   memset(&dynsym, 0, sizeof(dynsym));
 
   dynsym[SYM_UNDEF].st_name  = 0;
@@ -406,28 +407,28 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
   dynsym[SYM_OATDATA].st_name  = dynstr_oatdata_offset;
   dynsym[SYM_OATDATA].st_value = oat_data_offset;
   dynsym[SYM_OATDATA].st_size  = oat_data_size;
-  dynsym[SYM_OATDATA].setBindingAndType(llvm::ELF::STB_GLOBAL, llvm::ELF::STT_OBJECT);
-  dynsym[SYM_OATDATA].st_other = llvm::ELF::STV_DEFAULT;
+  SetBindingAndType(&dynsym[SYM_OATDATA], STB_GLOBAL, STT_OBJECT);
+  dynsym[SYM_OATDATA].st_other = STV_DEFAULT;
   dynsym[SYM_OATDATA].st_shndx = SH_RODATA;
 
   dynsym[SYM_OATEXEC].st_name  = dynstr_oatexec_offset;
   dynsym[SYM_OATEXEC].st_value = oat_exec_offset;
   dynsym[SYM_OATEXEC].st_size  = oat_exec_size;
-  dynsym[SYM_OATEXEC].setBindingAndType(llvm::ELF::STB_GLOBAL, llvm::ELF::STT_OBJECT);
-  dynsym[SYM_OATEXEC].st_other = llvm::ELF::STV_DEFAULT;
+  SetBindingAndType(&dynsym[SYM_OATEXEC], STB_GLOBAL, STT_OBJECT);
+  dynsym[SYM_OATEXEC].st_other = STV_DEFAULT;
   dynsym[SYM_OATEXEC].st_shndx = SH_TEXT;
 
   dynsym[SYM_OATLASTWORD].st_name  = dynstr_oatlastword_offset;
   dynsym[SYM_OATLASTWORD].st_value = oat_exec_offset + oat_exec_size - 4;
   dynsym[SYM_OATLASTWORD].st_size  = 4;
-  dynsym[SYM_OATLASTWORD].setBindingAndType(llvm::ELF::STB_GLOBAL, llvm::ELF::STT_OBJECT);
-  dynsym[SYM_OATLASTWORD].st_other = llvm::ELF::STV_DEFAULT;
+  SetBindingAndType(&dynsym[SYM_OATLASTWORD], STB_GLOBAL, STT_OBJECT);
+  dynsym[SYM_OATLASTWORD].st_other = STV_DEFAULT;
   dynsym[SYM_OATLASTWORD].st_shndx = SH_TEXT;
 
   // .dynstr initialized above as dynstr
 
   // .hash
-  llvm::ELF::Elf32_Word hash[HASH_NUM];  // Note this is Elf32_Word even on 64-bit
+  Elf32_Word hash[HASH_NUM];  // Note this is Elf32_Word even on 64-bit
   hash[HASH_NBUCKET] = 1;
   hash[HASH_NCHAIN]  = SYM_NUM;
   hash[HASH_BUCKET0] = SYM_OATDATA;
@@ -439,38 +440,38 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
   // .rodata and .text content come from oat_contents
 
   // .dynamic
-  llvm::ELF::Elf32_Dyn dynamic_headers[DH_NUM];
+  Elf32_Dyn dynamic_headers[DH_NUM];
   memset(&dynamic_headers, 0, sizeof(dynamic_headers));
 
-  dynamic_headers[DH_SONAME].d_tag = llvm::ELF::DT_SONAME;
+  dynamic_headers[DH_SONAME].d_tag = DT_SONAME;
   dynamic_headers[DH_SONAME].d_un.d_val = dynstr_soname_offset;
 
-  dynamic_headers[DH_HASH].d_tag = llvm::ELF::DT_HASH;
+  dynamic_headers[DH_HASH].d_tag = DT_HASH;
   dynamic_headers[DH_HASH].d_un.d_ptr = hash_offset;
 
-  dynamic_headers[DH_SYMTAB].d_tag = llvm::ELF::DT_SYMTAB;
+  dynamic_headers[DH_SYMTAB].d_tag = DT_SYMTAB;
   dynamic_headers[DH_SYMTAB].d_un.d_ptr = dynsym_offset;
 
-  dynamic_headers[DH_SYMENT].d_tag = llvm::ELF::DT_SYMENT;
-  dynamic_headers[DH_SYMENT].d_un.d_val = sizeof(llvm::ELF::Elf32_Sym);
+  dynamic_headers[DH_SYMENT].d_tag = DT_SYMENT;
+  dynamic_headers[DH_SYMENT].d_un.d_val = sizeof(Elf32_Sym);
 
-  dynamic_headers[DH_STRTAB].d_tag = llvm::ELF::DT_STRTAB;
+  dynamic_headers[DH_STRTAB].d_tag = DT_STRTAB;
   dynamic_headers[DH_STRTAB].d_un.d_ptr = dynstr_offset;
 
-  dynamic_headers[DH_STRSZ].d_tag = llvm::ELF::DT_STRSZ;
+  dynamic_headers[DH_STRSZ].d_tag = DT_STRSZ;
   dynamic_headers[DH_STRSZ].d_un.d_val = dynstr_size;
 
-  dynamic_headers[DH_NULL].d_tag = llvm::ELF::DT_NULL;
+  dynamic_headers[DH_NULL].d_tag = DT_NULL;
   dynamic_headers[DH_NULL].d_un.d_val = 0;
 
   // .shstrtab initialized above as shstrtab
 
   // section headers (after all sections)
-  llvm::ELF::Elf32_Shdr section_headers[SH_NUM];
+  Elf32_Shdr section_headers[SH_NUM];
   memset(&section_headers, 0, sizeof(section_headers));
 
   section_headers[SH_NULL].sh_name      = 0;
-  section_headers[SH_NULL].sh_type      = llvm::ELF::SHT_NULL;
+  section_headers[SH_NULL].sh_type      = SHT_NULL;
   section_headers[SH_NULL].sh_flags     = 0;
   section_headers[SH_NULL].sh_addr      = 0;
   section_headers[SH_NULL].sh_offset    = 0;
@@ -481,19 +482,19 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
   section_headers[SH_NULL].sh_entsize   = 0;
 
   section_headers[SH_DYNSYM].sh_name      = shstrtab_dynsym_offset;
-  section_headers[SH_DYNSYM].sh_type      = llvm::ELF::SHT_DYNSYM;
-  section_headers[SH_DYNSYM].sh_flags     = llvm::ELF::SHF_ALLOC;
+  section_headers[SH_DYNSYM].sh_type      = SHT_DYNSYM;
+  section_headers[SH_DYNSYM].sh_flags     = SHF_ALLOC;
   section_headers[SH_DYNSYM].sh_addr      = dynsym_offset;
   section_headers[SH_DYNSYM].sh_offset    = dynsym_offset;
   section_headers[SH_DYNSYM].sh_size      = dynsym_size;
   section_headers[SH_DYNSYM].sh_link      = SH_DYNSTR;
   section_headers[SH_DYNSYM].sh_info      = 1;  // 1 because we have not STB_LOCAL symbols
   section_headers[SH_DYNSYM].sh_addralign = dynsym_alignment;
-  section_headers[SH_DYNSYM].sh_entsize   = sizeof(llvm::ELF::Elf32_Sym);
+  section_headers[SH_DYNSYM].sh_entsize   = sizeof(Elf32_Sym);
 
   section_headers[SH_DYNSTR].sh_name      = shstrtab_dynstr_offset;
-  section_headers[SH_DYNSTR].sh_type      = llvm::ELF::SHT_STRTAB;
-  section_headers[SH_DYNSTR].sh_flags     = llvm::ELF::SHF_ALLOC;
+  section_headers[SH_DYNSTR].sh_type      = SHT_STRTAB;
+  section_headers[SH_DYNSTR].sh_flags     = SHF_ALLOC;
   section_headers[SH_DYNSTR].sh_addr      = dynstr_offset;
   section_headers[SH_DYNSTR].sh_offset    = dynstr_offset;
   section_headers[SH_DYNSTR].sh_size      = dynstr_size;
@@ -503,19 +504,19 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
   section_headers[SH_DYNSTR].sh_entsize   = 0;
 
   section_headers[SH_HASH].sh_name      = shstrtab_hash_offset;
-  section_headers[SH_HASH].sh_type      = llvm::ELF::SHT_HASH;
-  section_headers[SH_HASH].sh_flags     = llvm::ELF::SHF_ALLOC;
+  section_headers[SH_HASH].sh_type      = SHT_HASH;
+  section_headers[SH_HASH].sh_flags     = SHF_ALLOC;
   section_headers[SH_HASH].sh_addr      = hash_offset;
   section_headers[SH_HASH].sh_offset    = hash_offset;
   section_headers[SH_HASH].sh_size      = hash_size;
   section_headers[SH_HASH].sh_link      = SH_DYNSYM;
   section_headers[SH_HASH].sh_info      = 0;
   section_headers[SH_HASH].sh_addralign = hash_alignment;
-  section_headers[SH_HASH].sh_entsize   = sizeof(llvm::ELF::Elf32_Word);  // This is Elf32_Word even on 64-bit
+  section_headers[SH_HASH].sh_entsize   = sizeof(Elf32_Word);  // This is Elf32_Word even on 64-bit
 
   section_headers[SH_RODATA].sh_name      = shstrtab_rodata_offset;
-  section_headers[SH_RODATA].sh_type      = llvm::ELF::SHT_PROGBITS;
-  section_headers[SH_RODATA].sh_flags     = llvm::ELF::SHF_ALLOC;
+  section_headers[SH_RODATA].sh_type      = SHT_PROGBITS;
+  section_headers[SH_RODATA].sh_flags     = SHF_ALLOC;
   section_headers[SH_RODATA].sh_addr      = oat_data_offset;
   section_headers[SH_RODATA].sh_offset    = oat_data_offset;
   section_headers[SH_RODATA].sh_size      = oat_data_size;
@@ -525,8 +526,8 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
   section_headers[SH_RODATA].sh_entsize   = 0;
 
   section_headers[SH_TEXT].sh_name      = shstrtab_text_offset;
-  section_headers[SH_TEXT].sh_type      = llvm::ELF::SHT_PROGBITS;
-  section_headers[SH_TEXT].sh_flags     = llvm::ELF::SHF_ALLOC | llvm::ELF::SHF_EXECINSTR;
+  section_headers[SH_TEXT].sh_type      = SHT_PROGBITS;
+  section_headers[SH_TEXT].sh_flags     = SHF_ALLOC | SHF_EXECINSTR;
   section_headers[SH_TEXT].sh_addr      = oat_exec_offset;
   section_headers[SH_TEXT].sh_offset    = oat_exec_offset;
   section_headers[SH_TEXT].sh_size      = oat_exec_size;
@@ -537,18 +538,18 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
 
   // TODO: SHF_WRITE for .dynamic is considered processor specific, do we need it?
   section_headers[SH_DYNAMIC].sh_name      = shstrtab_dynamic_offset;
-  section_headers[SH_DYNAMIC].sh_type      = llvm::ELF::SHT_DYNAMIC;
-  section_headers[SH_DYNAMIC].sh_flags     = llvm::ELF::SHF_WRITE | llvm::ELF::SHF_ALLOC;
+  section_headers[SH_DYNAMIC].sh_type      = SHT_DYNAMIC;
+  section_headers[SH_DYNAMIC].sh_flags     = SHF_WRITE | SHF_ALLOC;
   section_headers[SH_DYNAMIC].sh_addr      = dynamic_offset;
   section_headers[SH_DYNAMIC].sh_offset    = dynamic_offset;
   section_headers[SH_DYNAMIC].sh_size      = dynamic_size;
   section_headers[SH_DYNAMIC].sh_link      = SH_DYNSTR;
   section_headers[SH_DYNAMIC].sh_info      = 0;
   section_headers[SH_DYNAMIC].sh_addralign = dynamic_alignment;
-  section_headers[SH_DYNAMIC].sh_entsize   = sizeof(llvm::ELF::Elf32_Dyn);
+  section_headers[SH_DYNAMIC].sh_entsize   = sizeof(Elf32_Dyn);
 
   section_headers[SH_SHSTRTAB].sh_name      = shstrtab_shstrtab_offset;
-  section_headers[SH_SHSTRTAB].sh_type      = llvm::ELF::SHT_STRTAB;
+  section_headers[SH_SHSTRTAB].sh_type      = SHT_STRTAB;
   section_headers[SH_SHSTRTAB].sh_flags     = 0;
   section_headers[SH_SHSTRTAB].sh_addr      = shstrtab_offset;
   section_headers[SH_SHSTRTAB].sh_offset    = shstrtab_offset;
