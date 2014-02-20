@@ -146,11 +146,11 @@ class SemiSpace : public GarbageCollector {
                                RootType /*root_type*/)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
-  static mirror::Object* MarkObjectCallback(mirror::Object* objecgt, void* arg)
-        EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
-  static mirror::Object* RecursiveMarkObjectCallback(mirror::Object* root, void* arg)
+  static mirror::Object* MarkObjectCallback(mirror::Object* root, void* arg)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+
+  static void ProcessMarkStackCallback(void* arg)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
   virtual mirror::Object* MarkNonForwardedObject(mirror::Object* obj)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
@@ -173,10 +173,6 @@ class SemiSpace : public GarbageCollector {
 
   // Returns true if we should sweep the space.
   virtual bool ShouldSweepSpace(space::ContinuousSpace* space) const;
-
-  // Returns how many threads we should use for the current GC phase based on if we are paused,
-  // whether or not we care about pauses.
-  size_t GetThreadCount(bool paused) const;
 
   // Returns true if an object is inside of the immune region (assumed to be marked).
   bool IsImmune(const mirror::Object* obj) const ALWAYS_INLINE {
@@ -237,7 +233,7 @@ class SemiSpace : public GarbageCollector {
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // Recursively blackens objects on the mark stack.
-  void ProcessMarkStack(bool paused)
+  void ProcessMarkStack()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
   void EnqueueFinalizerReferences(mirror::Object** ref)
