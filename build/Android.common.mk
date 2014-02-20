@@ -127,6 +127,8 @@ art_cflags := \
 	-Wall \
 	-Werror \
 	-Wextra \
+	-Wno-sign-promo \
+	-Wno-unused-parameter \
 	-Wstrict-aliasing \
 	-fstrict-aliasing
 

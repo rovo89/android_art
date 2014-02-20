@@ -80,6 +80,9 @@ class CompilerBackend {
   }
 
   virtual bool IsPortable() const { return false; }
+  void SetBitcodeFileName(std::string const& filename) {
+    UNUSED(filename);
+  }
 
   virtual void InitCompilationUnit(CompilationUnit& cu) const = 0;
 

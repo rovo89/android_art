@@ -260,8 +260,6 @@ class CompilerDriver {
                      size_t literal_offset)
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
-  void SetBitcodeFileName(std::string const& filename);
-
   bool GetSupportBootImageFixup() const {
     return support_boot_image_fixup_;
   }

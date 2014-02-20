@@ -287,9 +287,7 @@ class Dex2Oat {
                                                         dump_passes,
                                                         &compiler_phases_timings));
 
-    if (compiler_backend_ == CompilerBackend::kPortable) {
-      driver->SetBitcodeFileName(bitcode_filename);
-    }
+    driver->GetCompilerBackend()->SetBitcodeFileName(bitcode_filename);
 
     driver->CompileAll(class_loader, dex_files, timings);
 
