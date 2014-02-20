@@ -1684,6 +1684,7 @@ static bool NeedsInterpreter(mirror::ArtMethod* method, const void* quick_code,
 }
 
 void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
+  DCHECK(klass->IsInitialized()) << PrettyDescriptor(klass);
   if (klass->NumDirectMethods() == 0) {
     return;  // No direct methods => no static methods.
   }
@@ -3159,9 +3160,6 @@ bool ClassLinker::InitializeClass(const SirtRef<mirror::Class>& klass, bool can_
     }
   }
 
-  // Opportunistically set static method trampolines to their destination.
-  FixupStaticTrampolines(klass.get());
-
   uint64_t t1 = NanoTime();
 
   bool success = true;
@@ -3185,6 +3183,8 @@ bool ClassLinker::InitializeClass(const SirtRef<mirror::Class>& klass, bool can_
         ClassHelper kh(klass.get());
         LOG(INFO) << "Initialized class " << kh.GetDescriptor() << " from " << kh.GetLocation();
       }
+      // Opportunistically set static method trampolines to their destination.
+      FixupStaticTrampolines(klass.get());
     }
   }
   return success;
