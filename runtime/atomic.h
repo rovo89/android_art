@@ -141,7 +141,7 @@ class QuasiAtomic {
   }
 
   static void MembarLoadStore() {
-  #if defined(__arm__)
+  #if defined(__arm__) || defined(__aarch64__)
     __asm__ __volatile__("dmb ish" : : : "memory");
   #elif defined(__i386__) || defined(__x86_64__)
     __asm__ __volatile__("" : : : "memory");
@@ -153,7 +153,7 @@ class QuasiAtomic {
   }
 
   static void MembarLoadLoad() {
-  #if defined(__arm__)
+  #if defined(__arm__) || defined(__aarch64__)
     __asm__ __volatile__("dmb ish" : : : "memory");
   #elif defined(__i386__) || defined(__x86_64__)
     __asm__ __volatile__("" : : : "memory");
@@ -165,7 +165,7 @@ class QuasiAtomic {
   }
 
   static void MembarStoreStore() {
-  #if defined(__arm__)
+  #if defined(__arm__) || defined(__aarch64__)
     __asm__ __volatile__("dmb ishst" : : : "memory");
   #elif defined(__i386__) || defined(__x86_64__)
     __asm__ __volatile__("" : : : "memory");
@@ -177,7 +177,7 @@ class QuasiAtomic {
   }
 
   static void MembarStoreLoad() {
-  #if defined(__arm__)
+  #if defined(__arm__) || defined(__aarch64__)
     __asm__ __volatile__("dmb ish" : : : "memory");
   #elif defined(__i386__) || defined(__x86_64__)
     __asm__ __volatile__("mfence" : : : "memory");
