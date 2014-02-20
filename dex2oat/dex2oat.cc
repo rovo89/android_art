@@ -1043,6 +1043,21 @@ static int dex2oat(int argc, char** argv) {
       }
     }
 
+    const bool kSaveDexInput = false;
+    if (kSaveDexInput) {
+      for (size_t i = 0; i < dex_files.size(); ++i) {
+        const DexFile* dex_file = dex_files[i];
+        std::string tmp_file_name(StringPrintf("/data/local/tmp/dex2oat.%d.%d.dex", getpid(), i));
+        UniquePtr<File> tmp_file(OS::CreateEmptyFile(tmp_file_name.c_str()));
+        if (tmp_file.get() == nullptr) {
+            PLOG(ERROR) << "Failed to open file " << tmp_file_name << ". Try: adb shell chmod 777 /data/local/tmp";
+            continue;
+        }
+        tmp_file->WriteFully(dex_file->Begin(), dex_file->Size());
+        LOG(INFO) << "Wrote input to " << tmp_file_name;
+      }
+    }
+
     // Ensure opened dex files are writable for dex-to-dex transformations.
     for (const auto& dex_file : dex_files) {
       if (!dex_file->EnableWrite()) {
