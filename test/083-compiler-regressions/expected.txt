@@ -9,5 +9,7 @@ identityTest passes
 wideGetterSetterTest passes
 wideIdentityTest passes
 returnConstantTest passes
+LVNTests.testNPE1 passes
+LVNTests.testNPE2 passes
 longDivTest passes
 longModTest passes
