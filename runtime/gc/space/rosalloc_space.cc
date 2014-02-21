@@ -56,10 +56,10 @@ RosAllocSpace* RosAllocSpace::CreateFromMemMap(MemMap* mem_map, const std::strin
     return NULL;
   }
 
-  // Protect memory beyond the initial size.
+  // Protect memory beyond the starting size. MoreCore will add r/w permissions when necessory
   byte* end = mem_map->Begin() + starting_size;
-  if (capacity - initial_size > 0) {
-    CHECK_MEMORY_CALL(mprotect, (end, capacity - initial_size, PROT_NONE), name);
+  if (capacity - starting_size > 0) {
+    CHECK_MEMORY_CALL(mprotect, (end, capacity - starting_size, PROT_NONE), name);
   }
 
   // Everything is set so record in immutable structure and leave
