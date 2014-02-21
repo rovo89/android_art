@@ -474,6 +474,9 @@ class Heap {
   void FlushAllocStack()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
+  // Revoke all the thread-local allocation stacks.
+  void RevokeAllThreadLocalAllocationStacks(Thread* self);
+
   // Mark all the objects in the allocation stack in the specified bitmap.
   void MarkAllocStack(accounting::SpaceBitmap* bitmap1, accounting::SpaceBitmap* bitmap2,
                       accounting::ObjectSet* large_objects, accounting::ObjectStack* stack)
@@ -669,9 +672,6 @@ class Heap {
 
   // Swap the allocation stack with the live stack.
   void SwapStacks(Thread* self);
-
-  // Revoke all the thread-local allocation stacks.
-  void RevokeAllThreadLocalAllocationStacks(Thread* self);
 
   // Clear cards and update the mod union table.
   void ProcessCards(TimingLogger& timings);
