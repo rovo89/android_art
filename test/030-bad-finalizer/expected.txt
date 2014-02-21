@@ -1,7 +1,4 @@
-Constructed object.
-Nulled. Requestion gc.
+About to null reference and request GC.
 Finalizer started and spinning...
 Finalizer done spinning.
 Finalizer sleeping forever now.
-Requesting another GC.
-Requesting another GC.
