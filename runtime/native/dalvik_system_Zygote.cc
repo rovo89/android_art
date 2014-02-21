@@ -217,10 +217,6 @@ static void EnableKeepCapabilities() {
 
 static void DropCapabilitiesBoundingSet() {
   for (int i = 0; prctl(PR_CAPBSET_READ, i, 0, 0, 0) >= 0; i++) {
-    if (i == CAP_NET_RAW) {
-      // Don't break /system/bin/ping
-      continue;
-    }
     int rc = prctl(PR_CAPBSET_DROP, i, 0, 0, 0);
     if (rc == -1) {
       if (errno == EINVAL) {
