@@ -277,6 +277,7 @@ enum X86OpCode {
   kX86Mov32MR, kX86Mov32AR, kX86Mov32TR,
   kX86Mov32RR, kX86Mov32RM, kX86Mov32RA, kX86Mov32RT,
   kX86Mov32RI, kX86Mov32MI, kX86Mov32AI, kX86Mov32TI,
+  kX86Lea32RM,
   kX86Lea32RA,
   // RRC - Register Register ConditionCode - cond_opcode reg1, reg2
   //             - lir operands - 0: reg1, 1: reg2, 2: CC
@@ -384,6 +385,7 @@ enum X86OpCode {
   kX86Jcc8, kX86Jcc32,  // jCC rel8/32; lir operands - 0: rel, 1: CC, target assigned
   kX86Jmp8, kX86Jmp32,  // jmp rel8/32; lir operands - 0: rel, target assigned
   kX86JmpR,             // jmp reg; lir operands - 0: reg
+  kX86Jecxz8,           // jcexz rel8; jump relative if ECX is zero.
   kX86CallR,            // call reg; lir operands - 0: reg
   kX86CallM,            // call [base + disp]; lir operands - 0: base, 1: disp
   kX86CallA,            // call [base + index * scale + disp]
@@ -396,6 +398,7 @@ enum X86OpCode {
   kX86PcRelLoadRA,      // mov reg, [base + index * scale + PC relative displacement]
                         // lir operands - 0: reg, 1: base, 2: index, 3: scale, 4: table
   kX86PcRelAdr,         // mov reg, PC relative displacement; lir operands - 0: reg, 1: table
+  kX86RepneScasw,       // repne scasw
   kX86Last
 };
 
@@ -404,6 +407,7 @@ enum X86EncodingKind {
   kData,                                   // Special case for raw data.
   kNop,                                    // Special case for variable length nop.
   kNullary,                                // Opcode that takes no arguments.
+  kPrefix2Nullary,                         // Opcode that takes no arguments, but 2 prefixes.
   kRegOpcode,                              // Shorter form of R instruction kind (opcode+rd)
   kReg, kMem, kArray,                      // R, M and A instruction kinds.
   kMemReg, kArrayReg, kThreadReg,          // MR, AR and TR instruction kinds.

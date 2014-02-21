@@ -185,6 +185,14 @@ void X86Mir2Lir::SetupTargetResourceMasks(LIR* lir, uint64_t flags) {
   if (flags & REG_USEB) {
     SetupRegMask(&lir->u.m.use_mask, rBX);
   }
+
+  // Fixup hard to describe instruction: Uses rAX, rCX, rDI; sets rDI.
+  if (lir->opcode == kX86RepneScasw) {
+    SetupRegMask(&lir->u.m.use_mask, rAX);
+    SetupRegMask(&lir->u.m.use_mask, rCX);
+    SetupRegMask(&lir->u.m.use_mask, rDI);
+    SetupRegMask(&lir->u.m.def_mask, rDI);
+  }
 }
 
 /* For dumping instructions */
@@ -934,6 +942,176 @@ void X86Mir2Lir::InstallLiteralPools() {
 
   // And do the normal processing.
   Mir2Lir::InstallLiteralPools();
+}
+
+// Offsets within java.lang.String.
+#define STRING_VALUE_OFFSET 8
+#define STRING_COUNT_OFFSET 12
+#define STRING_OFFSET_OFFSET 20
+#define STRING_DATA_OFFSET 12
+
+/*
+ * Fast string.index_of(I) & (II).  Inline check for simple case of char <= 0xffff,
+ * otherwise bails to standard library code.
+ */
+bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
+  ClobberCallerSave();
+  LockCallTemps();  // Using fixed registers
+
+  // EAX: 16 bit character being searched.
+  // ECX: count: number of words to be searched.
+  // EDI: String being searched.
+  // EDX: temporary during execution.
+  // EBX: temporary during execution.
+
+  RegLocation rl_obj = info->args[0];
+  RegLocation rl_char = info->args[1];
+  RegLocation rl_start = info->args[2];
+
+  uint32_t char_value =
+    rl_char.is_const ? mir_graph_->ConstantValue(rl_char.orig_sreg) : 0;
+
+  if (char_value > 0xFFFF) {
+    // We have to punt to the real String.indexOf.
+    return false;
+  }
+
+  // Okay, we are commited to inlining this.
+  RegLocation rl_return = GetReturn(false);
+  RegLocation rl_dest = InlineTarget(info);
+
+  // Is the string non-NULL?
+  LoadValueDirectFixed(rl_obj, rDX);
+  GenNullCheck(rl_obj.s_reg_low, rDX, info->opt_flags);
+
+  // Record that we have inlined & null checked the object.
+  info->opt_flags |= (MIR_INLINED | MIR_IGNORE_NULL_CHECK);
+
+  // Does the character fit in 16 bits?
+  LIR* launch_pad = nullptr;
+  if (rl_char.is_const) {
+    // We need the value in EAX.
+    LoadConstantNoClobber(rAX, char_value);
+  } else {
+    // Character is not a constant; compare at runtime.
+    LoadValueDirectFixed(rl_char, rAX);
+    launch_pad = RawLIR(0, kPseudoIntrinsicRetry, WrapPointer(info));
+    intrinsic_launchpads_.Insert(launch_pad);
+    OpCmpImmBranch(kCondGt, rAX, 0xFFFF, launch_pad);
+  }
+
+  // From here down, we know that we are looking for a char that fits in 16 bits.
+
+  // Character is in EAX.
+  // Object pointer is in EDX.
+
+  // We need to preserve EDI, but have no spare registers, so push it on the stack.
+  // We have to remember that all stack addresses after this are offset by sizeof(EDI).
+  NewLIR1(kX86Push32R, rDI);
+
+  // Compute the number of words to search in to rCX.
+  LoadWordDisp(rDX, STRING_COUNT_OFFSET, rCX);
+  LIR *length_compare = nullptr;
+  int start_value = 0;
+  if (zero_based) {
+    // We have to handle an empty string.  Use special instruction JECXZ.
+    length_compare = NewLIR0(kX86Jecxz8);
+  } else {
+    // We have to offset by the start index.
+    if (rl_start.is_const) {
+      start_value = mir_graph_->ConstantValue(rl_start.orig_sreg);
+      start_value = std::max(start_value, 0);
+
+      // Is the start > count?
+      length_compare = OpCmpImmBranch(kCondLe, rCX, start_value, nullptr);
+
+      if (start_value != 0) {
+        OpRegImm(kOpSub, rCX, start_value);
+      }
+    } else {
+      // Runtime start index.
+      rl_start = UpdateLoc(rl_start);
+      if (rl_start.location == kLocPhysReg) {
+        length_compare = OpCmpBranch(kCondLe, rCX, rl_start.low_reg, nullptr);
+        OpRegReg(kOpSub, rCX, rl_start.low_reg);
+      } else {
+        // Compare to memory to avoid a register load.  Handle pushed EDI.
+        int displacement = SRegOffset(rl_start.s_reg_low) + sizeof(uint32_t);
+        OpRegMem(kOpCmp, rDX, rX86_SP, displacement);
+        length_compare = NewLIR2(kX86Jcc8, 0, kX86CondLe);
+        OpRegMem(kOpSub, rCX, rX86_SP, displacement);
+      }
+    }
+  }
+  DCHECK(length_compare != nullptr);
+
+  // ECX now contains the count in words to be searched.
+
+  // Load the address of the string into EBX.
+  // The string starts at VALUE(String) + 2 * OFFSET(String) + STRING_DATA_OFFSET.
+  LoadWordDisp(rDX, STRING_VALUE_OFFSET, rDI);
+  LoadWordDisp(rDX, STRING_OFFSET_OFFSET, rBX);
+  OpLea(rBX, rDI, rBX, 1, STRING_DATA_OFFSET);
+
+  // Now compute into EDI where the search will start.
+  if (zero_based || rl_start.is_const) {
+    if (start_value == 0) {
+      OpRegCopy(rDI, rBX);
+    } else {
+      NewLIR3(kX86Lea32RM, rDI, rBX, 2 * start_value);
+    }
+  } else {
+    if (rl_start.location == kLocPhysReg) {
+      if (rl_start.low_reg == rDI) {
+        // We have a slight problem here.  We are already using RDI!
+        // Grab the value from the stack.
+        LoadWordDisp(rX86_SP, 0, rDX);
+        OpLea(rDI, rBX, rDX, 1, 0);
+      } else {
+        OpLea(rDI, rBX, rl_start.low_reg, 1, 0);
+      }
+    } else {
+      OpRegCopy(rDI, rBX);
+      // Load the start index from stack, remembering that we pushed EDI.
+      int displacement = SRegOffset(rl_start.s_reg_low) + sizeof(uint32_t);
+      LoadWordDisp(rX86_SP, displacement, rDX);
+      OpLea(rDI, rBX, rDX, 1, 0);
+    }
+  }
+
+  // EDI now contains the start of the string to be searched.
+  // We are all prepared to do the search for the character.
+  NewLIR0(kX86RepneScasw);
+
+  // Did we find a match?
+  LIR* failed_branch = OpCondBranch(kCondNe, nullptr);
+
+  // yes, we matched.  Compute the index of the result.
+  // index = ((curr_ptr - orig_ptr) / 2) - 1.
+  OpRegReg(kOpSub, rDI, rBX);
+  OpRegImm(kOpAsr, rDI, 1);
+  NewLIR3(kX86Lea32RM, rl_return.low_reg, rDI, -1);
+  LIR *all_done = NewLIR1(kX86Jmp8, 0);
+
+  // Failed to match; return -1.
+  LIR *not_found = NewLIR0(kPseudoTargetLabel);
+  length_compare->target = not_found;
+  failed_branch->target = not_found;
+  LoadConstantNoClobber(rl_return.low_reg, -1);
+
+  // And join up at the end.
+  all_done->target = NewLIR0(kPseudoTargetLabel);
+  // Restore EDI from the stack.
+  NewLIR1(kX86Pop32R, rDI);
+
+  // Out of line code returns here.
+  if (launch_pad != nullptr) {
+    LIR *return_point = NewLIR0(kPseudoTargetLabel);
+    launch_pad->operands[2] = WrapPointer(return_point);
+  }
+
+  StoreValue(rl_dest, rl_return);
+  return true;
 }
 
 }  // namespace art
