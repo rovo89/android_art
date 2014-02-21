@@ -53,17 +53,18 @@ class MANAGED Array : public Object {
                                  const SirtRef<IntArray>& dimensions)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   size_t SizeOf() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   int32_t GetLength() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(Array, length_), false);
+    return GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Array, length_), false);
   }
 
   void SetLength(int32_t length) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK_GE(length, 0);
     // We use non transactional version since we can't undo this write. We also disable checking
     // since it would fail during a transaction.
-    SetField32<false, false>(OFFSET_OF_OBJECT_MEMBER(Array, length_), length, false, false);
+    SetField32<false, false, kVerifyNone>(OFFSET_OF_OBJECT_MEMBER(Array, length_), length, false);
   }
 
   static MemberOffset LengthOffset() {
@@ -94,8 +95,10 @@ class MANAGED Array : public Object {
 
   // Returns true if the index is valid. If not, throws an ArrayIndexOutOfBoundsException and
   // returns false.
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool CheckIsValidIndex(int32_t index) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (UNLIKELY(static_cast<uint32_t>(index) >= static_cast<uint32_t>(GetLength()))) {
+    if (UNLIKELY(static_cast<uint32_t>(index) >=
+                 static_cast<uint32_t>(GetLength<kVerifyFlags>()))) {
       ThrowArrayIndexOutOfBoundsException(index);
       return false;
     }

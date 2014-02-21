@@ -31,7 +31,7 @@ static inline void AssignRegister(ShadowFrame* new_shadow_frame, const ShadowFra
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // If both register locations contains the same value, the register probably holds a reference.
   int32_t src_value = shadow_frame.GetVReg(src_reg);
-  mirror::Object* o = shadow_frame.GetVRegReference<false>(src_reg);
+  mirror::Object* o = shadow_frame.GetVRegReference<kVerifyNone>(src_reg);
   if (src_value == reinterpret_cast<intptr_t>(o)) {
     new_shadow_frame->SetVRegReference(dest_reg, o);
   } else {

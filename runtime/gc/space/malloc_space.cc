@@ -111,7 +111,8 @@ mirror::Class* MallocSpace::FindRecentFreedObject(const mirror::Object* obj) {
 }
 
 void MallocSpace::RegisterRecentFree(mirror::Object* ptr) {
-  recent_freed_objects_[recent_free_pos_] = std::make_pair(ptr, ptr->GetClass());
+  // No verification since the object is dead.
+  recent_freed_objects_[recent_free_pos_] = std::make_pair(ptr, ptr->GetClass<kVerifyNone>());
   recent_free_pos_ = (recent_free_pos_ + 1) & kRecentFreeMask;
 }
 
