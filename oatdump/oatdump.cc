@@ -808,6 +808,10 @@ class ImageDumper {
     {
       WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
       heap->FlushAllocStack();
+      // Since FlushAllocStack() above resets the (active) allocation
+      // stack. Need to revoke the thread-local allocation stacks that
+      // point into it.
+      heap->RevokeAllThreadLocalAllocationStacks(self);
     }
     {
       std::ostream* saved_os = os_;
