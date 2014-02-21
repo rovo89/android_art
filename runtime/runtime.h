@@ -36,6 +36,7 @@
 #include "object_callbacks.h"
 #include "runtime_stats.h"
 #include "safe_map.h"
+#include "fault_handler.h"
 
 namespace art {
 
@@ -404,6 +405,18 @@ class Runtime {
     return fault_message_;
   }
 
+  bool ExplicitNullChecks() const {
+    return null_pointer_handler_ == nullptr;
+  }
+
+  bool ExplicitSuspendChecks() const {
+    return suspend_handler_ == nullptr;
+  }
+
+  bool ExplicitStackOverflowChecks() const {
+    return stack_overflow_handler_ == nullptr;
+  }
+
  private:
   static void InitPlatformSignalHandlers();
 
@@ -536,6 +549,9 @@ class Runtime {
 
   // Transaction used for pre-initializing classes at compilation time.
   Transaction* preinitialization_transaction;
+  NullPointerHandler* null_pointer_handler_;
+  SuspensionHandler* suspend_handler_;
+  StackOverflowHandler* stack_overflow_handler_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };

@@ -1298,7 +1298,7 @@ void X86Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
   }
 
   /* null object? */
-  GenNullCheck(rl_array.s_reg_low, rl_array.reg.GetReg(), opt_flags);
+  GenNullCheck(rl_array.reg.GetReg(), opt_flags);
 
   if (!(opt_flags & MIR_IGNORE_RANGE_CHECK)) {
     if (constant_index) {
@@ -1352,7 +1352,7 @@ void X86Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   }
 
   /* null object? */
-  GenNullCheck(rl_array.s_reg_low, rl_array.reg.GetReg(), opt_flags);
+  GenNullCheck(rl_array.reg.GetReg(), opt_flags);
 
   if (!(opt_flags & MIR_IGNORE_RANGE_CHECK)) {
     if (constant_index) {
