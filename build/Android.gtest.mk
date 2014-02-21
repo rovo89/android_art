@@ -17,6 +17,7 @@
 LOCAL_PATH := art
 
 TEST_COMMON_SRC_FILES := \
+	compiler/dex/local_value_numbering_test.cc \
 	compiler/driver/compiler_driver_test.cc \
 	compiler/elf_writer_test.cc \
 	compiler/image_test.cc \
