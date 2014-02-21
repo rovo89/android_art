@@ -1305,6 +1305,7 @@ class CountStackDepthVisitor : public StackVisitor {
   bool skipping_;
 };
 
+template<bool kTransactionActive>
 class BuildInternalStackTraceVisitor : public StackVisitor {
  public:
   explicit BuildInternalStackTraceVisitor(Thread* self, Thread* thread, int skip_depth)
@@ -1328,7 +1329,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
     // Save PC trace in last element of method trace, also places it into the
     // object graph.
     // We are called from native: use non-transactional mode.
-    method_trace->Set<false>(depth, dex_pc_trace);
+    method_trace->Set<kTransactionActive>(depth, dex_pc_trace);
     // Set the Object*s and assert that no thread suspension is now possible.
     const char* last_no_suspend_cause =
         self_->StartAssertNoThreadSuspension("Building internal stack trace");
@@ -1356,14 +1357,8 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
     if (m->IsRuntimeMethod()) {
       return true;  // Ignore runtime frames (in particular callee save).
     }
-    // TODO dedup this code.
-    if (Runtime::Current()->IsActiveTransaction()) {
-      method_trace_->Set<true>(count_, m);
-      dex_pc_trace_->Set<true>(count_, m->IsProxyMethod() ? DexFile::kDexNoIndex : GetDexPc());
-    } else {
-      method_trace_->Set<false>(count_, m);
-      dex_pc_trace_->Set<false>(count_, m->IsProxyMethod() ? DexFile::kDexNoIndex : GetDexPc());
-    }
+    method_trace_->Set<kTransactionActive>(count_, m);
+    dex_pc_trace_->Set<kTransactionActive>(count_, m->IsProxyMethod() ? DexFile::kDexNoIndex : GetDexPc());
     ++count_;
     return true;
   }
@@ -1384,6 +1379,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
   mirror::ObjectArray<mirror::Object>* method_trace_;
 };
 
+template<bool kTransactionActive>
 jobject Thread::CreateInternalStackTrace(const ScopedObjectAccessUnchecked& soa) const {
   // Compute depth of stack
   CountStackDepthVisitor count_visitor(const_cast<Thread*>(this));
@@ -1392,8 +1388,9 @@ jobject Thread::CreateInternalStackTrace(const ScopedObjectAccessUnchecked& soa)
   int32_t skip_depth = count_visitor.GetSkipDepth();
 
   // Build internal stack trace.
-  BuildInternalStackTraceVisitor build_trace_visitor(soa.Self(), const_cast<Thread*>(this),
-                                                     skip_depth);
+  BuildInternalStackTraceVisitor<kTransactionActive> build_trace_visitor(soa.Self(),
+                                                                         const_cast<Thread*>(this),
+                                                                         skip_depth);
   if (!build_trace_visitor.Init(depth)) {
     return nullptr;  // Allocation failed.
   }
@@ -1406,6 +1403,8 @@ jobject Thread::CreateInternalStackTrace(const ScopedObjectAccessUnchecked& soa)
   }
   return soa.AddLocalReference<jobjectArray>(trace);
 }
+template jobject Thread::CreateInternalStackTrace<false>(const ScopedObjectAccessUnchecked& soa) const;
+template jobject Thread::CreateInternalStackTrace<true>(const ScopedObjectAccessUnchecked& soa) const;
 
 jobjectArray Thread::InternalStackTraceToStackTraceElementArray(const ScopedObjectAccess& soa,
     jobject internal, jobjectArray output_array, int* stack_depth) {

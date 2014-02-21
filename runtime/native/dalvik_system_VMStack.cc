@@ -30,7 +30,7 @@ static jobject GetThreadStack(const ScopedFastNativeObjectAccess& soa, jobject p
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   jobject trace = nullptr;
   if (soa.Decode<mirror::Object*>(peer) == soa.Self()->GetPeer()) {
-    trace = soa.Self()->CreateInternalStackTrace(soa);
+    trace = soa.Self()->CreateInternalStackTrace<false>(soa);
   } else {
     // Suspend thread to build stack trace.
     soa.Self()->TransitionFromRunnableToSuspended(kNative);
@@ -39,7 +39,7 @@ static jobject GetThreadStack(const ScopedFastNativeObjectAccess& soa, jobject p
     if (thread != nullptr) {
       // Must be runnable to create returned array.
       CHECK_EQ(soa.Self()->TransitionFromSuspendedToRunnable(), kNative);
-      trace = thread->CreateInternalStackTrace(soa);
+      trace = thread->CreateInternalStackTrace<false>(soa);
       soa.Self()->TransitionFromRunnableToSuspended(kNative);
       // Restart suspended thread.
       Runtime::Current()->GetThreadList()->Resume(thread, false);

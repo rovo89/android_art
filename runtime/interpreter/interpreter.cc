@@ -68,7 +68,7 @@ static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
     result->SetL(Array::CreateMultiArray(self, sirt_class, sirt_dimensions));
   } else if (name == "java.lang.Object java.lang.Throwable.nativeFillInStackTrace()") {
     ScopedObjectAccessUnchecked soa(self);
-    result->SetL(soa.Decode<Object*>(self->CreateInternalStackTrace(soa)));
+    result->SetL(soa.Decode<Object*>(self->CreateInternalStackTrace<true>(soa)));
   } else if (name == "int java.lang.System.identityHashCode(java.lang.Object)") {
     mirror::Object* obj = reinterpret_cast<Object*>(args[0]);
     result->SetI((obj != nullptr) ? obj->IdentityHashCode() : 0);
@@ -96,7 +96,7 @@ static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
     result->SetI(Primitive::ComponentSize(primitive_type));
   } else {
     // Throw an exception so we can abort the transaction and undo every change.
-    ThrowLocation throw_location;
+    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
     self->ThrowNewExceptionF(throw_location, "Ljava/lang/InternalError;",
                              "Attempt to invoke native method in non-started runtime: %s",
                              name.c_str());
