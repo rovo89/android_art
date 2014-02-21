@@ -40,6 +40,8 @@ public class Main {
         wideGetterSetterTest();
         wideIdentityTest();
         returnConstantTest();
+        LVNTests.testNPE1();
+        LVNTests.testNPE2();
         ZeroTests.longDivTest();
         ZeroTests.longModTest();
     }
@@ -8440,6 +8442,52 @@ class Foo {
 
     public long wideIdent5(int a6, int a5, int a4, int a3, int a2, long a1) {
         return a1;
-  }
+    }
+}
 
+class LVNTests {
+    private LVNTests link = null;
+    private int value = 0;
+
+    private void setLink(LVNTests l) {
+        link = l;
+    }
+
+    private static void causeNPE1(LVNTests lhs, LVNTests rhs) {
+        LVNTests link1 = lhs.link;
+        rhs.link = null;
+        LVNTests link2 = lhs.link;
+        int value1 = link1.value;
+        int value2 = link2.value;
+        System.out.println("LVNTests.testNPE1 fails with " + value1 + " and " + value2);
+    }
+
+    public static void testNPE1() {
+        LVNTests t = new LVNTests();
+        t.link = new LVNTests();
+        try {
+          causeNPE1(t, t);
+        } catch (NullPointerException e) {
+          System.out.println("LVNTests.testNPE1 passes");
+        }
+    }
+
+    private static void causeNPE2(LVNTests lhs, LVNTests rhs) {
+      LVNTests link1 = lhs.link;
+      rhs.setLink(null);
+      LVNTests link2 = lhs.link;
+      int value1 = link1.value;
+      int value2 = link2.value;
+      System.out.println("LVNTests.testNPE2 fails with " + value1 + " and " + value2);
+    }
+
+    public static void testNPE2() {
+        LVNTests t = new LVNTests();
+        t.link = new LVNTests();
+        try {
+          causeNPE2(t, t);
+        } catch (NullPointerException e) {
+          System.out.println("LVNTests.testNPE2 passes");
+        }
+    }
 }
