@@ -197,9 +197,6 @@ class CompilerDriver {
                           bool* is_type_initialized, bool* use_direct_type_ptr,
                           uintptr_t* direct_type_ptr);
 
-  void ProcessedInstanceField(bool resolved);
-  void ProcessedStaticField(bool resolved, bool local);
-
   // Can we fast path instance field access in a verified accessor?
   // If yes, computes field's offset and volatility and whether the method is static or not.
   static bool ComputeSpecialAccessorInfo(uint32_t field_idx, bool is_put,

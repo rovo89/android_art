@@ -881,24 +881,6 @@ bool CompilerDriver::CanEmbedTypeInCode(const DexFile& dex_file, uint32_t type_i
   }
 }
 
-void CompilerDriver::ProcessedInstanceField(bool resolved) {
-  if (!resolved) {
-    stats_->UnresolvedInstanceField();
-  } else {
-    stats_->ResolvedInstanceField();
-  }
-}
-
-void CompilerDriver::ProcessedStaticField(bool resolved, bool local) {
-  if (!resolved) {
-    stats_->UnresolvedStaticField();
-  } else if (local) {
-    stats_->ResolvedLocalStaticField();
-  } else {
-    stats_->ResolvedStaticField();
-  }
-}
-
 static mirror::Class* ComputeCompilingMethodsClass(ScopedObjectAccess& soa,
                                                    SirtRef<mirror::DexCache>& dex_cache,
                                                    const DexCompilationUnit* mUnit)
