@@ -175,6 +175,8 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86Mov32AI, kArrayImm,  IS_STORE | IS_QUIN_OP     | REG_USE01,      { 0,             0, 0xC7, 0, 0, 0, 0, 4 }, "Mov32AI", "[!0r+!1r<<!2d+!3d],!4d" },
   { kX86Mov32TI, kThreadImm, IS_STORE | IS_BINARY_OP,                    { THREAD_PREFIX, 0, 0xC7, 0, 0, 0, 0, 4 }, "Mov32TI", "fs:[!0d],!1d" },
 
+  { kX86Lea32RM, kRegMem, IS_TERTIARY_OP | IS_LOAD | REG_DEF0_USE12, { 0, 0, 0x8D, 0, 0, 0, 0, 0 }, "Lea32RM", "!0r,[!1r+!2d]" },
+
   { kX86Lea32RA, kRegArray, IS_QUIN_OP | REG_DEF0_USE12, { 0, 0, 0x8D, 0, 0, 0, 0, 0 }, "Lea32RA", "!0r,[!1r+!2r<<!3d+!4d]" },
 
   { kX86Cmov32RRC, kRegRegCond, IS_TERTIARY_OP | REG_DEF0_USE01 | USES_CCODES, {0, 0, 0x0F, 0x40, 0, 0, 0, 0}, "Cmovcc32RR", "!2c !0r,!1r" },
@@ -354,6 +356,7 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86Jmp8,  kJmp,  IS_UNARY_OP  | IS_BRANCH | NEEDS_FIXUP,               { 0,             0, 0xEB, 0,    0, 0, 0, 0 }, "Jmp8",  "!0t" },
   { kX86Jmp32, kJmp,  IS_UNARY_OP  | IS_BRANCH | NEEDS_FIXUP,               { 0,             0, 0xE9, 0,    0, 0, 0, 0 }, "Jmp32", "!0t" },
   { kX86JmpR,  kJmp,  IS_UNARY_OP  | IS_BRANCH | REG_USE0,                  { 0,             0, 0xFF, 0,    0, 4, 0, 0 }, "JmpR",  "!0r" },
+  { kX86Jecxz8, kJmp, NO_OPERAND   | IS_BRANCH | NEEDS_FIXUP | REG_USEC,    { 0,             0, 0xE3, 0,    0, 0, 0, 0 }, "Jecxz", "!0t" },
   { kX86CallR, kCall, IS_UNARY_OP  | IS_BRANCH | REG_USE0,                  { 0,             0, 0xE8, 0,    0, 0, 0, 0 }, "CallR", "!0r" },
   { kX86CallM, kCall, IS_BINARY_OP | IS_BRANCH | IS_LOAD | REG_USE0,        { 0,             0, 0xFF, 0,    0, 2, 0, 0 }, "CallM", "[!0r+!1d]" },
   { kX86CallA, kCall, IS_QUAD_OP   | IS_BRANCH | IS_LOAD | REG_USE01,       { 0,             0, 0xFF, 0,    0, 2, 0, 0 }, "CallA", "[!0r+!1r<<!2d+!3d]" },
@@ -364,6 +367,7 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86StartOfMethod, kMacro,  IS_UNARY_OP | SETS_CCODES,             { 0, 0, 0,    0, 0, 0, 0, 0 }, "StartOfMethod", "!0r" },
   { kX86PcRelLoadRA,   kPcRel,  IS_LOAD | IS_QUIN_OP | REG_DEF0_USE12, { 0, 0, 0x8B, 0, 0, 0, 0, 0 }, "PcRelLoadRA",   "!0r,[!1r+!2r<<!3d+!4p]" },
   { kX86PcRelAdr,      kPcRel,  IS_LOAD | IS_BINARY_OP | REG_DEF0,     { 0, 0, 0xB8, 0, 0, 0, 0, 4 }, "PcRelAdr",      "!0r,!1d" },
+  { kX86RepneScasw, kPrefix2Nullary, NO_OPERAND | SETS_CCODES,         { 0x66, 0xF2, 0xAF, 0, 0, 0, 0, 0 }, "RepNE ScasW", "" },
 };
 
 static size_t ComputeSize(const X86EncodingMap* entry, int base, int displacement, bool has_sib) {
@@ -407,6 +411,8 @@ int X86Mir2Lir::GetInsnSize(LIR* lir) {
       return lir->operands[0];  // length of nop is sole operand
     case kNullary:
       return 1;  // 1 byte of opcode
+    case kPrefix2Nullary:
+      return 3;  // 1 byte of opcode + 2 prefixes
     case kRegOpcode:  // lir operands - 0: reg
       return ComputeSize(entry, 0, 0, false) - 1;  // substract 1 for modrm
     case kReg:  // lir operands - 0: reg
@@ -489,7 +495,7 @@ int X86Mir2Lir::GetInsnSize(LIR* lir) {
         return 6;  // 2 byte opcode + rel32
       }
     case kJmp:
-      if (lir->opcode == kX86Jmp8) {
+      if (lir->opcode == kX86Jmp8 || lir->opcode == kX86Jecxz8) {
         return 2;  // opcode + rel8
       } else if (lir->opcode == kX86Jmp32) {
         return 5;  // opcode + rel32
@@ -957,6 +963,10 @@ void X86Mir2Lir::EmitJmp(const X86EncodingMap* entry, int rel) {
     code_buffer_.push_back((rel >> 8) & 0xFF);
     code_buffer_.push_back((rel >> 16) & 0xFF);
     code_buffer_.push_back((rel >> 24) & 0xFF);
+  } else if (entry->opcode == kX86Jecxz8) {
+    DCHECK(IS_SIMM8(rel));
+    code_buffer_.push_back(0xE3);
+    code_buffer_.push_back(rel & 0xFF);
   } else {
     DCHECK(entry->opcode == kX86JmpR);
     code_buffer_.push_back(entry->skeleton.opcode);
@@ -1148,6 +1158,17 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
           lir->operands[0] = delta;
           break;
         }
+        case kX86Jecxz8: {
+          LIR *target_lir = lir->target;
+          DCHECK(target_lir != NULL);
+          CodeOffset pc;
+          pc = lir->offset + 2;  // opcode + rel8
+          CodeOffset target = target_lir->offset;
+          int delta = target - pc;
+          lir->operands[0] = delta;
+          DCHECK(IS_SIMM8(delta));
+          break;
+        }
         case kX86Jmp8: {
           LIR *target_lir = lir->target;
           DCHECK(target_lir != NULL);
@@ -1222,6 +1243,14 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
         DCHECK_EQ(0, entry->skeleton.prefix1);
         DCHECK_EQ(0, entry->skeleton.prefix2);
         EmitOpcode(entry);
+        DCHECK_EQ(0, entry->skeleton.modrm_opcode);
+        DCHECK_EQ(0, entry->skeleton.ax_opcode);
+        DCHECK_EQ(0, entry->skeleton.immediate_bytes);
+        break;
+      case kPrefix2Nullary:  // 1 byte of opcode + 2 prefixes.
+        DCHECK_NE(0, entry->skeleton.prefix1);
+        DCHECK_NE(0, entry->skeleton.prefix2);
+        EmitPrefixAndOpcode(entry);
         DCHECK_EQ(0, entry->skeleton.modrm_opcode);
         DCHECK_EQ(0, entry->skeleton.ax_opcode);
         DCHECK_EQ(0, entry->skeleton.immediate_bytes);

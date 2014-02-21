@@ -359,6 +359,15 @@ class X86Mir2Lir : public Mir2Lir {
     void GenConstWide(RegLocation rl_dest, int64_t value);
 
     /*
+     * @brief generate inline code for fast case of Strng.indexOf.
+     * @param info Call parameters
+     * @param zero_based 'true' if the index into the string is 0.
+     * @returns 'true' if the call was inlined, 'false' if a regular call needs to be
+     * generated.
+     */
+    bool GenInlinedIndexOf(CallInfo* info, bool zero_based);
+
+    /*
      * @brief Return the correct x86 opcode for the Dex operation
      * @param op Dex opcode for the operation
      * @param loc Register location of the operand
