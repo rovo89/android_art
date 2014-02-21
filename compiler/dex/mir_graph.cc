@@ -86,7 +86,9 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       forward_branches_(0),
       compiler_temps_(arena, 6, kGrowableArrayMisc),
       num_non_special_compiler_temps_(0),
-      max_available_non_special_compiler_temps_(0) {
+      max_available_non_special_compiler_temps_(0),
+      ifield_annotations_(arena, 0u),
+      sfield_annotations_(arena, 0u) {
   try_block_addr_ = new (arena_) ArenaBitVector(arena_, 0, true /* expandable */);
   max_available_special_compiler_temps_ = std::abs(static_cast<int>(kVRegNonSpecialTempBaseReg))
       - std::abs(static_cast<int>(kVRegTempBaseReg));
