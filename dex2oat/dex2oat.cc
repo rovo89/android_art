@@ -579,7 +579,7 @@ class WatchDog {
     CHECK_GT(kWatchDogTimeoutSeconds, kWatchDogWarningSeconds);
     // TODO: tune the multiplier for GC verification, the following is just to make the timeout
     //       large.
-    int64_t multiplier = gc::kDesiredHeapVerification > gc::kVerifyAllFast ? 100 : 1;
+    int64_t multiplier = kVerifyObjectSupport > kVerifyObjectModeFast ? 100 : 1;
     timespec warning_ts;
     InitTimeSpec(true, CLOCK_REALTIME, multiplier * kWatchDogWarningSeconds * 1000, 0, &warning_ts);
     timespec timeout_ts;

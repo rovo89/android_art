@@ -24,6 +24,7 @@
 #include "ScopedUtfChars.h"
 #include "thread.h"
 #include "thread_list.h"
+#include "verify_object-inl.h"
 
 namespace art {
 

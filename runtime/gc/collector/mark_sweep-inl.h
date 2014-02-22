@@ -30,19 +30,19 @@ namespace collector {
 
 template <typename MarkVisitor>
 inline void MarkSweep::ScanObjectVisit(mirror::Object* obj, const MarkVisitor& visitor) {
-  DCHECK(obj != NULL);
   if (kIsDebugBuild && !IsMarked(obj)) {
     heap_->DumpSpaces();
     LOG(FATAL) << "Scanning unmarked object " << obj;
   }
+  // The GetClass verifies the object, don't need to reverify after.
   mirror::Class* klass = obj->GetClass();
-  DCHECK(klass != NULL);
+  // IsArrayClass verifies klass.
   if (UNLIKELY(klass->IsArrayClass())) {
     if (kCountScannedTypes) {
       ++array_count_;
     }
-    if (klass->IsObjectArrayClass()) {
-      VisitObjectArrayReferences(obj->AsObjectArray<mirror::Object>(), visitor);
+    if (klass->IsObjectArrayClass<kVerifyNone>()) {
+      VisitObjectArrayReferences(obj->AsObjectArray<mirror::Object, kVerifyNone>(), visitor);
     }
   } else if (UNLIKELY(klass == mirror::Class::GetJavaLangClass())) {
     if (kCountScannedTypes) {
@@ -54,7 +54,7 @@ inline void MarkSweep::ScanObjectVisit(mirror::Object* obj, const MarkVisitor& v
       ++other_count_;
     }
     VisitOtherReferences(klass, obj, visitor);
-    if (UNLIKELY(klass->IsReferenceClass())) {
+    if (UNLIKELY(klass->IsReferenceClass<kVerifyNone>())) {
       DelayReferenceReferent(klass, obj);
     }
   }
@@ -65,24 +65,19 @@ inline void MarkSweep::VisitObjectReferences(mirror::Object* obj, const Visitor&
                                              bool visit_class)
     SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
                           Locks::mutator_lock_) {
-  DCHECK(obj != NULL);
-  DCHECK(obj->GetClass() != NULL);
   mirror::Class* klass = obj->GetClass();
-  DCHECK(klass != NULL);
-  if (klass == mirror::Class::GetJavaLangClass()) {
-    DCHECK_EQ(klass->GetClass(), mirror::Class::GetJavaLangClass());
+  if (klass->IsArrayClass()) {
+    if (visit_class) {
+      visitor(obj, klass, mirror::Object::ClassOffset(), false);
+    }
+    if (klass->IsObjectArrayClass<kVerifyNone>()) {
+      VisitObjectArrayReferences(obj->AsObjectArray<mirror::Object, kVerifyNone>(), visitor);
+    }
+  } else if (klass == mirror::Class::GetJavaLangClass()) {
+    DCHECK_EQ(klass->GetClass<kVerifyNone>(), mirror::Class::GetJavaLangClass());
     VisitClassReferences(klass, obj, visitor);
   } else {
-    if (klass->IsArrayClass()) {
-      if (visit_class) {
-        visitor(obj, klass, mirror::Object::ClassOffset(), false);
-      }
-      if (klass->IsObjectArrayClass()) {
-        VisitObjectArrayReferences(obj->AsObjectArray<mirror::Object>(), visitor);
-      }
-    } else {
-      VisitOtherReferences(klass, obj, visitor);
-    }
+    VisitOtherReferences(klass, obj, visitor);
   }
 }
 
@@ -90,9 +85,7 @@ template <typename Visitor>
 inline void MarkSweep::VisitInstanceFieldsReferences(mirror::Class* klass, mirror::Object* obj,
                                                      const Visitor& visitor)
     SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
-  DCHECK(obj != NULL);
-  DCHECK(klass != NULL);
-  VisitFieldsReferences(obj, klass->GetReferenceInstanceOffsets(), false, visitor);
+  VisitFieldsReferences(obj, klass->GetReferenceInstanceOffsets<kVerifyNone>(), false, visitor);
 }
 
 template <typename Visitor>
@@ -100,14 +93,13 @@ inline void MarkSweep::VisitClassReferences(mirror::Class* klass, mirror::Object
                                             const Visitor& visitor)
     SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
   VisitInstanceFieldsReferences(klass, obj, visitor);
-  VisitStaticFieldsReferences(obj->AsClass(), visitor);
+  VisitStaticFieldsReferences(obj->AsClass<kVerifyNone>(), visitor);
 }
 
 template <typename Visitor>
 inline void MarkSweep::VisitStaticFieldsReferences(mirror::Class* klass, const Visitor& visitor)
     SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
-  DCHECK(klass != NULL);
-  VisitFieldsReferences(klass, klass->GetReferenceStaticOffsets(), true, visitor);
+  VisitFieldsReferences(klass, klass->GetReferenceStaticOffsets<kVerifyNone>(), true, visitor);
 }
 
 template <typename Visitor>
@@ -118,7 +110,7 @@ inline void MarkSweep::VisitFieldsReferences(mirror::Object* obj, uint32_t ref_o
     while (ref_offsets != 0) {
       size_t right_shift = CLZ(ref_offsets);
       MemberOffset field_offset = CLASS_OFFSET_FROM_CLZ(right_shift);
-      mirror::Object* ref = obj->GetFieldObject<mirror::Object>(field_offset, false);
+      mirror::Object* ref = obj->GetFieldObject<mirror::Object, kVerifyReads>(field_offset, false);
       visitor(obj, ref, field_offset, is_static);
       ref_offsets &= ~(CLASS_HIGH_BIT >> right_shift);
     }
@@ -127,7 +119,7 @@ inline void MarkSweep::VisitFieldsReferences(mirror::Object* obj, uint32_t ref_o
     // walk up the class inheritance hierarchy and find reference
     // offsets the hard way. In the static case, just consider this
     // class.
-    for (mirror::Class* klass = is_static ? obj->AsClass() : obj->GetClass();
+    for (mirror::Class* klass = is_static ? obj->AsClass<kVerifyNone>() : obj->GetClass<kVerifyNone>();
          klass != nullptr;
          klass = is_static ? nullptr : klass->GetSuperClass()) {
       size_t num_reference_fields = (is_static
@@ -137,7 +129,7 @@ inline void MarkSweep::VisitFieldsReferences(mirror::Object* obj, uint32_t ref_o
         mirror::ArtField* field = (is_static ? klass->GetStaticField(i)
                                              : klass->GetInstanceField(i));
         MemberOffset field_offset = field->GetOffset();
-        mirror::Object* ref = obj->GetFieldObject<mirror::Object>(field_offset, false);
+        mirror::Object* ref = obj->GetFieldObject<mirror::Object, kVerifyReads>(field_offset, false);
         visitor(obj, ref, field_offset, is_static);
       }
     }
