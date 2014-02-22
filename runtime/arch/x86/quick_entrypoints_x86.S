@@ -285,14 +285,14 @@ DEFINE_FUNCTION art_quick_invoke_stub
     mov %edx, 4(%ecx)             // store the other half of the result
     mov 24(%esp), %edx            // get the shorty
     cmpb LITERAL(68), (%edx)      // test if result type char == 'D'
-    je return_double_quick
+    je .Lreturn_double_quick
     cmpb LITERAL(70), (%edx)      // test if result type char == 'F'
-    je return_float_quick
+    je .Lreturn_float_quick
     ret
-return_double_quick:
+.Lreturn_double_quick:
     movsd %xmm0, (%ecx)           // store the floating point result
     ret
-return_float_quick:
+.Lreturn_float_quick:
     movss %xmm0, (%ecx)           // store the floating point result
     ret
 END_FUNCTION art_quick_invoke_stub
@@ -514,32 +514,32 @@ TWO_ARG_DOWNCALL art_quick_handle_fill_data, artHandleFillArrayDataFromCode, RET
 
 DEFINE_FUNCTION art_quick_lock_object
     testl %eax, %eax                      // null check object/eax
-    jz   slow_lock
-retry_lock:
+    jz   .Lslow_lock
+.Lretry_lock:
     movl LOCK_WORD_OFFSET(%eax), %ecx     // ecx := lock word
     test LITERAL(0xC0000000), %ecx        // test the 2 high bits.
-    jne  slow_lock                        // slow path if either of the two high bits are set.
+    jne  .Lslow_lock                      // slow path if either of the two high bits are set.
     movl %fs:THREAD_ID_OFFSET, %edx       // edx := thread id
     test %ecx, %ecx
-    jnz  already_thin                     // lock word contains a thin lock
+    jnz  .Lalready_thin                   // lock word contains a thin lock
     // unlocked case - %edx holds thread id with count of 0
     movl %eax, %ecx                       // remember object in case of retry
     xor  %eax, %eax                       // eax == 0 for comparison with lock word in cmpxchg
     lock cmpxchg  %edx, LOCK_WORD_OFFSET(%ecx)
-    jnz  cmpxchg_fail                     // cmpxchg failed retry
+    jnz  .Lcmpxchg_fail                   // cmpxchg failed retry
     ret
-cmpxchg_fail:
+.Lcmpxchg_fail:
     movl  %ecx, %eax                       // restore eax
-    jmp  retry_lock
-already_thin:
+    jmp  .Lretry_lock
+.Lalready_thin:
     cmpw %ax, %dx                         // do we hold the lock already?
-    jne  slow_lock
+    jne  .Lslow_lock
     addl LITERAL(65536), %eax             // increment recursion count
     test LITERAL(0xC0000000), %eax        // overflowed if either of top two bits are set
-    jne  slow_lock                        // count overflowed so go slow
+    jne  .Lslow_lock                      // count overflowed so go slow
     movl %eax, LOCK_WORD_OFFSET(%ecx)     // update lockword, cmpxchg not necessary as we hold lock
     ret
-slow_lock:
+.Lslow_lock:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     mov %esp, %edx                // remember SP
     SETUP_GOT_NOSAVE              // clobbers EBX
@@ -558,22 +558,22 @@ END_FUNCTION art_quick_lock_object
 
 DEFINE_FUNCTION art_quick_unlock_object
     testl %eax, %eax                      // null check object/eax
-    jz   slow_unlock
+    jz   .Lslow_unlock
     movl LOCK_WORD_OFFSET(%eax), %ecx     // ecx := lock word
     movl %fs:THREAD_ID_OFFSET, %edx       // edx := thread id
     test %ecx, %ecx
-    jb   slow_unlock                      // lock word contains a monitor
+    jb   .Lslow_unlock                    // lock word contains a monitor
     cmpw %cx, %dx                         // does the thread id match?
-    jne  slow_unlock
+    jne  .Lslow_unlock
     cmpl LITERAL(65536), %ecx
-    jae  recursive_thin_unlock
+    jae  .Lrecursive_thin_unlock
     movl LITERAL(0), LOCK_WORD_OFFSET(%eax)
     ret
-recursive_thin_unlock:
+.Lrecursive_thin_unlock:
     subl LITERAL(65536), %ecx
     mov  %ecx, LOCK_WORD_OFFSET(%eax)
     ret
-slow_unlock:
+.Lslow_unlock:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     mov %esp, %edx                // remember SP
     SETUP_GOT_NOSAVE              // clobbers EBX
@@ -651,21 +651,21 @@ END_FUNCTION art_quick_aput_obj_with_bound_check
 
 DEFINE_FUNCTION art_quick_aput_obj
     test %edx, %edx              // store of null
-    jz do_aput_null
+    jz .Ldo_aput_null
     movl CLASS_OFFSET(%eax), %ebx
     movl CLASS_COMPONENT_TYPE_OFFSET(%ebx), %ebx
     cmpl CLASS_OFFSET(%edx), %ebx // value's type == array's component type - trivial assignability
-    jne check_assignability
-do_aput:
+    jne .Lcheck_assignability
+.Ldo_aput:
     movl %edx, OBJECT_ARRAY_DATA_OFFSET(%eax, %ecx, 4)
     movl %fs:THREAD_CARD_TABLE_OFFSET, %edx
     shrl LITERAL(7), %eax
     movb %dl, (%edx, %eax)
     ret
-do_aput_null:
+.Ldo_aput_null:
     movl %edx, OBJECT_ARRAY_DATA_OFFSET(%eax, %ecx, 4)
     ret
-check_assignability:
+.Lcheck_assignability:
     PUSH eax                     // save arguments
     PUSH ecx
     PUSH edx
@@ -679,7 +679,7 @@ check_assignability:
     addl LITERAL(16), %esp       // pop arguments
     CFI_ADJUST_CFA_OFFSET(-16)
     testl %eax, %eax
-    jz   throw_array_store_exception
+    jz   .Lthrow_array_store_exception
     POP  edx
     POP  ecx
     POP  eax
@@ -688,7 +688,7 @@ check_assignability:
     shrl LITERAL(7), %eax
     movb %dl, (%edx, %eax)
     ret
-throw_array_store_exception:
+.Lthrow_array_store_exception:
     POP  edx
     POP  ecx
     POP  eax
@@ -792,14 +792,14 @@ END_FUNCTION art_quick_f2l
 
 DEFINE_FUNCTION art_quick_idivmod
     cmpl LITERAL(0x80000000), %eax
-    je check_arg2  // special case
-args_ok:
+    je .Lcheck_arg2  // special case
+.Largs_ok:
     cdq         // edx:eax = sign extend eax
     idiv %ecx   // (edx,eax) = (edx:eax % ecx, edx:eax / ecx)
     ret
-check_arg2:
+.Lcheck_arg2:
     cmpl LITERAL(-1), %ecx
-    jne args_ok
+    jne .Largs_ok
     xorl %edx, %edx
     ret         // eax already holds min int
 END_FUNCTION art_quick_idivmod
@@ -1308,12 +1308,12 @@ DEFINE_FUNCTION art_quick_string_compareto
      *   edi: pointer to comp string data
      */
     repe cmpsw                    // find nonmatching chars in [%esi] and [%edi], up to length %ecx
-    jne not_equal
+    jne .Lnot_equal
     POP edi                       // pop callee save reg
     POP esi                       // pop callee save reg
     ret
     .balign 16
-not_equal:
+.Lnot_equal:
     movzwl  -2(%esi), %eax        // get last compared char from this string
     movzwl  -2(%edi), %ecx        // get last compared char from comp string
     subl  %ecx, %eax              // return the difference
