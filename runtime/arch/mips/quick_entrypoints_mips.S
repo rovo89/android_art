@@ -336,7 +336,7 @@ END art_quick_deliver_exception
     .extern artThrowNullPointerExceptionFromCode
 ENTRY art_quick_throw_null_pointer_exception
     GENERATE_GLOBAL_POINTER
-art_quick_throw_null_pointer_exception_gp_set:
+.Lart_quick_throw_null_pointer_exception_gp_set:
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     move $a0, rSELF                 # pass Thread::Current
     la   $t9, artThrowNullPointerExceptionFromCode
@@ -363,7 +363,7 @@ END art_quick_throw_div_zero
     .extern artThrowArrayBoundsFromCode
 ENTRY art_quick_throw_array_bounds
     GENERATE_GLOBAL_POINTER
-art_quick_throw_array_bounds_gp_set:
+.Lart_quick_throw_array_bounds_gp_set:
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     move $a2, rSELF                 # pass Thread::Current
     la   $t9, artThrowArrayBoundsFromCode
@@ -537,7 +537,7 @@ END art_quick_handle_fill_data
     .extern artLockObjectFromCode
 ENTRY art_quick_lock_object
     GENERATE_GLOBAL_POINTER
-    beqz    $a0, art_quick_throw_null_pointer_exception_gp_set
+    beqz    $a0, .Lart_quick_throw_null_pointer_exception_gp_set
     nop
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME      # save callee saves in case we block
     move    $a1, rSELF                    # pass Thread::Current
@@ -552,7 +552,7 @@ END art_quick_lock_object
     .extern artUnlockObjectFromCode
 ENTRY art_quick_unlock_object
     GENERATE_GLOBAL_POINTER
-    beqz    $a0, art_quick_throw_null_pointer_exception_gp_set
+    beqz    $a0, .Lart_quick_throw_null_pointer_exception_gp_set
     nop
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case exception allocation triggers GC
     move    $a1, rSELF                # pass Thread::Current
@@ -576,12 +576,12 @@ ENTRY art_quick_check_cast
     sw     $a0, 0($sp)
     jal    artIsAssignableFromCode
     nop
-    beqz   $v0, throw_class_cast_exception
+    beqz   $v0, .Lthrow_class_cast_exception
     lw     $ra, 12($sp)
     jr     $ra
     addiu  $sp, $sp, 16
     .cfi_adjust_cfa_offset -16
-throw_class_cast_exception:
+.Lthrow_class_cast_exception:
     lw     $t9, 8($sp)
     lw     $a1, 4($sp)
     lw     $a0, 0($sp)
@@ -601,35 +601,35 @@ END art_quick_check_cast
      */
 ENTRY art_quick_aput_obj_with_null_and_bound_check
     GENERATE_GLOBAL_POINTER
-    bnez    $a0, art_quick_aput_obj_with_bound_check_gp_set
+    bnez    $a0, .Lart_quick_aput_obj_with_bound_check_gp_set
     nop
-    b art_quick_throw_null_pointer_exception_gp_set
+    b .Lart_quick_throw_null_pointer_exception_gp_set
     nop
 END art_quick_aput_obj_with_null_and_bound_check
 
 ENTRY art_quick_aput_obj_with_bound_check
     GENERATE_GLOBAL_POINTER
-art_quick_aput_obj_with_bound_check_gp_set:
+.Lart_quick_aput_obj_with_bound_check_gp_set:
     lw $t0, ARRAY_LENGTH_OFFSET($a0)
     sltu $t1, $a1, $t0
-    bnez $t1, art_quick_aput_obj_gp_set
+    bnez $t1, .Lart_quick_aput_obj_gp_set
     nop
     move $a0, $a1
-    b art_quick_throw_array_bounds_gp_set
+    b .Lart_quick_throw_array_bounds_gp_set
     move $a1, $t0
 END art_quick_aput_obj_with_bound_check
 
 ENTRY art_quick_aput_obj
     GENERATE_GLOBAL_POINTER
-art_quick_aput_obj_gp_set:
-    beqz $a2, do_aput_null
+.Lart_quick_aput_obj_gp_set:
+    beqz $a2, .Ldo_aput_null
     nop
     lw $t0, CLASS_OFFSET($a0)
     lw $t1, CLASS_OFFSET($a2)
     lw $t0, CLASS_COMPONENT_TYPE_OFFSET($t0)
-    bne $t1, $t0, check_assignability  # value's type == array's component type - trivial assignability
+    bne $t1, $t0, .Lcheck_assignability  # value's type == array's component type - trivial assignability
     nop
-do_aput:
+.Ldo_aput:
     sll $a1, $a1, 2
     add $t0, $a0, $a1
     sw  $a2, OBJECT_ARRAY_DATA_OFFSET($t0)
@@ -639,13 +639,13 @@ do_aput:
     sb  $t0, ($t1)
     jr  $ra
     nop
-do_aput_null:
+.Ldo_aput_null:
     sll $a1, $a1, 2
     add $t0, $a0, $a1
     sw  $a2, OBJECT_ARRAY_DATA_OFFSET($t0)
     jr  $ra
     nop
-check_assignability:
+.Lcheck_assignability:
     addiu  $sp, $sp, -32
     .cfi_adjust_cfa_offset 32
     sw     $ra, 28($sp)
@@ -665,7 +665,7 @@ check_assignability:
     lw     $a0, 0($sp)
     add    $sp, 32
     .cfi_adjust_cfa_offset -32
-    bnez   $v0, do_aput
+    bnez   $v0, .Ldo_aput
     nop
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     move $a1, $a2
