@@ -215,6 +215,13 @@ inline bool ArtMethod::IsImtConflictMethod() {
   DCHECK(!result || IsRuntimeMethod());
   return result;
 }
+
+template<VerifyObjectFlags kVerifyFlags>
+inline void ArtMethod::SetNativeMethod(const void* native_method) {
+  SetFieldPtr<false, true, kVerifyFlags>(
+      OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_jni_), native_method, false);
+}
+
 }  // namespace mirror
 }  // namespace art
 

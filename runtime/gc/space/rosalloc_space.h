@@ -60,7 +60,8 @@ class RosAllocSpace : public MallocSpace {
     // TODO: NO_THREAD_SAFETY_ANALYSIS because SizeOf() requires that mutator_lock is held.
     void* obj_ptr = const_cast<void*>(reinterpret_cast<const void*>(obj));
     // obj is a valid object. Use its class in the header to get the size.
-    size_t size = obj->SizeOf();
+    // Don't use verification since the object may be dead if we are sweeping.
+    size_t size = obj->SizeOf<kVerifyNone>();
     size_t size_by_size = rosalloc_->UsableSize(size);
     if (kIsDebugBuild) {
       size_t size_by_ptr = rosalloc_->UsableSize(obj_ptr);

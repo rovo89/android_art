@@ -28,6 +28,7 @@
 #include "runtime.h"
 #include "thread.h"
 #include "thread-inl.h"
+#include "verify_object-inl.h"
 
 namespace art {
 namespace gc {
@@ -98,12 +99,8 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
   if (AllocatorMayHaveConcurrentGC(allocator) && concurrent_gc_) {
     CheckConcurrentGC(self, new_num_bytes_allocated, obj);
   }
-  if (kIsDebugBuild) {
-    if (kDesiredHeapVerification > kNoHeapVerification) {
-      VerifyObject(obj);
-    }
-    self->VerifyStack();
-  }
+  VerifyObject(obj);
+  self->VerifyStack();
   return obj;
 }
 

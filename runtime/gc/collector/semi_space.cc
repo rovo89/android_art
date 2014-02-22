@@ -666,11 +666,11 @@ void SemiSpace::ScanObject(Object* obj) {
       // case since it does not dirty cards and use additional memory.
       // Since we do not change the actual object, we can safely use non-transactional mode. Also
       // disable check as we could run inside a transaction.
-      obj->SetFieldObjectWithoutWriteBarrier<false, false>(offset, new_address, false);
+      obj->SetFieldObjectWithoutWriteBarrier<false, false, kVerifyNone>(offset, new_address, false);
     }
   }, kMovingClasses);
-  mirror::Class* klass = obj->GetClass();
-  if (UNLIKELY(klass->IsReferenceClass())) {
+  mirror::Class* klass = obj->GetClass<kVerifyNone>();
+  if (UNLIKELY(klass->IsReferenceClass<kVerifyNone>())) {
     DelayReferenceReferent(klass, obj);
   }
 }

@@ -66,6 +66,7 @@
 #include "thread_list.h"
 #include "utils.h"
 #include "verifier/dex_gc_map.h"
+#include "verify_object-inl.h"
 #include "vmap_table.h"
 #include "well_known_classes.h"
 
@@ -1217,8 +1218,8 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
   if (UNLIKELY(result == nullptr)) {
     JniAbortF(nullptr, "use of deleted %s %p", ToStr<IndirectRefKind>(kind).c_str(), obj);
   } else {
-    if (kIsDebugBuild && (result != kInvalidIndirectRefObject)) {
-      Runtime::Current()->GetHeap()->VerifyObject(result);
+    if (result != kInvalidIndirectRefObject) {
+      VerifyObject(result);
     }
   }
   return result;
@@ -2000,9 +2001,7 @@ class RootCallbackVisitor {
 };
 
 void Thread::SetClassLoaderOverride(mirror::ClassLoader* class_loader_override) {
-  if (kIsDebugBuild) {
-    Runtime::Current()->GetHeap()->VerifyObject(class_loader_override);
-  }
+  VerifyObject(class_loader_override);
   class_loader_override_ = class_loader_override;
 }
 
@@ -2037,11 +2036,9 @@ void Thread::VisitRoots(RootCallback* visitor, void* arg) {
   }
 }
 
-static void VerifyRoot(mirror::Object** root, void* arg, uint32_t /*thread_id*/,
-                       RootType /*root_type*/) {
-  DCHECK(root != nullptr);
-  DCHECK(arg != nullptr);
-  reinterpret_cast<gc::Heap*>(arg)->VerifyObject(*root);
+static void VerifyRoot(mirror::Object** root, void* /*arg*/, uint32_t /*thread_id*/,
+                       RootType /*root_type*/) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  VerifyObject(*root);
 }
 
 void Thread::VerifyStackImpl() {

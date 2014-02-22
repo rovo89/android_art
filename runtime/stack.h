@@ -22,7 +22,9 @@
 #include "base/casts.h"
 #include "base/macros.h"
 #include "arch/context.h"
+#include "mirror/object.h"
 #include "mirror/object_reference.h"
+#include "verify_object.h"
 
 #include <stdint.h>
 #include <string>
@@ -213,26 +215,20 @@ class ShadowFrame {
     return *reinterpret_cast<unaligned_double*>(vreg);
   }
 
-  template <bool kChecked = false>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   mirror::Object* GetVRegReference(size_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK_LT(i, NumberOfVRegs());
+    mirror::Object* ref;
     if (HasReferenceArray()) {
-      mirror::Object* ref = References()[i].AsMirrorPtr();
-      if (kChecked) {
-        CHECK(VerifyReference(ref)) << "VReg " << i << "(" << ref
-                                    << ") is in protected space, reference array " << true;
-      }
-      return ref;
+      ref = References()[i].AsMirrorPtr();
     } else {
       const uint32_t* vreg_ptr = &vregs_[i];
-      mirror::Object* ref =
-          reinterpret_cast<const StackReference<mirror::Object>*>(vreg_ptr)->AsMirrorPtr();
-      if (kChecked) {
-        CHECK(VerifyReference(ref)) << "VReg " << i
-            << "(" << ref << ") is in protected space, reference array " << false;
-      }
-      return ref;
+      ref = reinterpret_cast<const StackReference<mirror::Object>*>(vreg_ptr)->AsMirrorPtr();
     }
+    if (kVerifyFlags & kVerifyReads) {
+      VerifyObject(ref);
+    }
+    return ref;
   }
 
   // Get view of vregs as range of consecutive arguments starting at i.
@@ -290,10 +286,12 @@ class ShadowFrame {
     }
   }
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   void SetVRegReference(size_t i, mirror::Object* val) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK_LT(i, NumberOfVRegs());
-    DCHECK(!kMovingCollector || VerifyReference(val))
-        << "VReg " << i << "(" << val << ") is in protected space";
+    if (kVerifyFlags & kVerifyWrites) {
+      VerifyObject(val);
+    }
     uint32_t* vreg = &vregs_[i];
     reinterpret_cast<StackReference<mirror::Object>*>(vreg)->Assign(val);
     if (HasReferenceArray()) {
@@ -373,8 +371,6 @@ class ShadowFrame {
     const uint32_t* vreg_end = &vregs_[NumberOfVRegs()];
     return reinterpret_cast<const StackReference<mirror::Object>*>(vreg_end);
   }
-
-  bool VerifyReference(const mirror::Object* val) const;
 
   StackReference<mirror::Object>* References() {
     return const_cast<StackReference<mirror::Object>*>(const_cast<const ShadowFrame*>(this)->References());
