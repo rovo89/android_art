@@ -44,13 +44,13 @@ ENTRY art_jni_dlsym_lookup_stub
     lw    $a2, 8($sp)
     lw    $a3, 12($sp)
     lw    $ra, 16($sp)
-    beq   $v0, $zero, no_native_code_found
+    beq   $v0, $zero, .Lno_native_code_found
     addiu $sp, $sp, 32          # restore the stack
     .cfi_adjust_cfa_offset -32
     move  $t9, $v0              # put method code result in $t9
     jr    $t9                   # leaf call to method's code
     nop
-no_native_code_found:
+.Lno_native_code_found:
     jr    $ra
     nop
 END art_jni_dlsym_lookup_stub
