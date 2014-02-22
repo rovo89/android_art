@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include "dlmalloc_space.h"
-#include "large_object_space.h"
+#ifndef ART_RUNTIME_GC_SPACE_SPACE_TEST_H_
+#define ART_RUNTIME_GC_SPACE_SPACE_TEST_H_
+
 #include "zygote_space.h"
 
 #include "common_test.h"
@@ -56,16 +57,6 @@ class SpaceTest : public CommonTest {
 
   static size_t SizeOfZeroLengthByteArray() {
     return mirror::Array::DataOffset(Primitive::ComponentSize(Primitive::kPrimByte)).Uint32Value();
-  }
-
-  static MallocSpace* CreateDlMallocSpace(const std::string& name, size_t initial_size, size_t growth_limit,
-                                          size_t capacity, byte* requested_begin) {
-    return DlMallocSpace::Create(name, initial_size, growth_limit, capacity, requested_begin);
-  }
-  static MallocSpace* CreateRosAllocSpace(const std::string& name, size_t initial_size, size_t growth_limit,
-                                          size_t capacity, byte* requested_begin) {
-    return RosAllocSpace::Create(name, initial_size, growth_limit, capacity, requested_begin,
-                                 Runtime::Current()->GetHeap()->IsLowMemoryMode());
   }
 
   typedef MallocSpace* (*CreateSpaceFn)(const std::string& name, size_t initial_size, size_t growth_limit,
@@ -121,13 +112,6 @@ void SpaceTest::InitTestBody(CreateSpaceFn create_space) {
     UniquePtr<Space> space(create_space("test", 8 * MB, 32 * MB, 16 * MB, nullptr));
     EXPECT_TRUE(space.get() == nullptr);
   }
-}
-
-TEST_F(SpaceTest, Init_DlMallocSpace) {
-  InitTestBody(SpaceTest::CreateDlMallocSpace);
-}
-TEST_F(SpaceTest, Init_RosAllocSpace) {
-  InitTestBody(SpaceTest::CreateRosAllocSpace);
 }
 
 // TODO: This test is not very good, we should improve it.
@@ -221,14 +205,6 @@ void SpaceTest::ZygoteSpaceTestBody(CreateSpaceFn create_space) {
   EXPECT_LE(1U * MB, free1);
 }
 
-TEST_F(SpaceTest, ZygoteSpace_DlMallocSpace) {
-  ZygoteSpaceTestBody(SpaceTest::CreateDlMallocSpace);
-}
-
-TEST_F(SpaceTest, ZygoteSpace_RosAllocSpace) {
-  ZygoteSpaceTestBody(SpaceTest::CreateRosAllocSpace);
-}
-
 void SpaceTest::AllocAndFreeTestBody(CreateSpaceFn create_space) {
   size_t dummy = 0;
   MallocSpace* space(create_space("test", 4 * MB, 16 * MB, 16 * MB, nullptr));
@@ -280,74 +256,6 @@ void SpaceTest::AllocAndFreeTestBody(CreateSpaceFn create_space) {
   EXPECT_LE(1U * MB, free1);
 }
 
-TEST_F(SpaceTest, AllocAndFree_DlMallocSpace) {
-  AllocAndFreeTestBody(SpaceTest::CreateDlMallocSpace);
-}
-TEST_F(SpaceTest, AllocAndFree_RosAllocSpace) {
-  AllocAndFreeTestBody(SpaceTest::CreateRosAllocSpace);
-}
-
-TEST_F(SpaceTest, LargeObjectTest) {
-  size_t rand_seed = 0;
-  for (size_t i = 0; i < 2; ++i) {
-    LargeObjectSpace* los = nullptr;
-    if (i == 0) {
-      los = space::LargeObjectMapSpace::Create("large object space");
-    } else {
-      los = space::FreeListSpace::Create("large object space", nullptr, 128 * MB);
-    }
-
-    static const size_t num_allocations = 64;
-    static const size_t max_allocation_size = 0x100000;
-    std::vector<std::pair<mirror::Object*, size_t> > requests;
-
-    for (size_t phase = 0; phase < 2; ++phase) {
-      while (requests.size() < num_allocations) {
-        size_t request_size = test_rand(&rand_seed) % max_allocation_size;
-        size_t allocation_size = 0;
-        mirror::Object* obj = los->Alloc(Thread::Current(), request_size, &allocation_size);
-        ASSERT_TRUE(obj != nullptr);
-        ASSERT_EQ(allocation_size, los->AllocationSize(obj));
-        ASSERT_GE(allocation_size, request_size);
-        // Fill in our magic value.
-        byte magic = (request_size & 0xFF) | 1;
-        memset(obj, magic, request_size);
-        requests.push_back(std::make_pair(obj, request_size));
-      }
-
-      // "Randomly" shuffle the requests.
-      for (size_t k = 0; k < 10; ++k) {
-        for (size_t j = 0; j < requests.size(); ++j) {
-          std::swap(requests[j], requests[test_rand(&rand_seed) % requests.size()]);
-        }
-      }
-
-      // Free 1 / 2 the allocations the first phase, and all the second phase.
-      size_t limit = !phase ? requests.size() / 2 : 0;
-      while (requests.size() > limit) {
-        mirror::Object* obj = requests.back().first;
-        size_t request_size = requests.back().second;
-        requests.pop_back();
-        byte magic = (request_size & 0xFF) | 1;
-        for (size_t k = 0; k < request_size; ++k) {
-          ASSERT_EQ(reinterpret_cast<const byte*>(obj)[k], magic);
-        }
-        ASSERT_GE(los->Free(Thread::Current(), obj), request_size);
-      }
-    }
-
-    size_t bytes_allocated = 0;
-    // Checks that the coalescing works.
-    mirror::Object* obj = los->Alloc(Thread::Current(), 100 * MB, &bytes_allocated);
-    EXPECT_TRUE(obj != nullptr);
-    los->Free(Thread::Current(), obj);
-
-    EXPECT_EQ(0U, los->GetBytesAllocated());
-    EXPECT_EQ(0U, los->GetObjectsAllocated());
-    delete los;
-  }
-}
-
 void SpaceTest::AllocAndFreeListTestBody(CreateSpaceFn create_space) {
   MallocSpace* space(create_space("test", 4 * MB, 16 * MB, 16 * MB, nullptr));
   ASSERT_TRUE(space != nullptr);
@@ -393,13 +301,6 @@ void SpaceTest::AllocAndFreeListTestBody(CreateSpaceFn create_space) {
   for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
     EXPECT_TRUE(lots_of_objects[i] == nullptr);
   }
-}
-
-TEST_F(SpaceTest, AllocAndFreeList_DlMallocSpace) {
-  AllocAndFreeListTestBody(SpaceTest::CreateDlMallocSpace);
-}
-TEST_F(SpaceTest, AllocAndFreeList_RosAllocSpace) {
-  AllocAndFreeListTestBody(SpaceTest::CreateRosAllocSpace);
 }
 
 void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(MallocSpace* space, intptr_t object_size,
@@ -596,38 +497,46 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimDriver(size_t object_size, Create
   SizeFootPrintGrowthLimitAndTrimBody(space, object_size, 3, capacity);
 }
 
-#define TEST_SizeFootPrintGrowthLimitAndTrim(name, size) \
-  TEST_F(SpaceTest, SizeFootPrintGrowthLimitAndTrim_AllocationsOf_##name##_DlMallocSpace) { \
-    SizeFootPrintGrowthLimitAndTrimDriver(size, SpaceTest::CreateDlMallocSpace); \
+#define TEST_SizeFootPrintGrowthLimitAndTrim(name, spaceName, spaceFn, size) \
+  TEST_F(spaceName##Test, SizeFootPrintGrowthLimitAndTrim_AllocationsOf_##name) { \
+    SizeFootPrintGrowthLimitAndTrimDriver(size, spaceFn); \
   } \
-  TEST_F(SpaceTest, SizeFootPrintGrowthLimitAndTrim_RandomAllocationsWithMax_##name##_DlMallocSpace) { \
-    SizeFootPrintGrowthLimitAndTrimDriver(-size, SpaceTest::CreateDlMallocSpace); \
-  } \
-  TEST_F(SpaceTest, SizeFootPrintGrowthLimitAndTrim_AllocationsOf_##name##_RosAllocSpace) { \
-    SizeFootPrintGrowthLimitAndTrimDriver(size, SpaceTest::CreateRosAllocSpace); \
-  } \
-  TEST_F(SpaceTest, SizeFootPrintGrowthLimitAndTrim_RandomAllocationsWithMax_##name##_RosAllocSpace) { \
-    SizeFootPrintGrowthLimitAndTrimDriver(-size, SpaceTest::CreateRosAllocSpace); \
+  TEST_F(spaceName##Test, SizeFootPrintGrowthLimitAndTrim_RandomAllocationsWithMax_##name) { \
+    SizeFootPrintGrowthLimitAndTrimDriver(-size, spaceFn); \
   }
 
-// Each size test is its own test so that we get a fresh heap each time
-TEST_F(SpaceTest, SizeFootPrintGrowthLimitAndTrim_AllocationsOf_12B_DlMallocSpace) {
-  SizeFootPrintGrowthLimitAndTrimDriver(12, SpaceTest::CreateDlMallocSpace);
-}
-TEST_F(SpaceTest, SizeFootPrintGrowthLimitAndTrim_AllocationsOf_12B_RosAllocSpace) {
-  SizeFootPrintGrowthLimitAndTrimDriver(12, SpaceTest::CreateRosAllocSpace);
-}
-TEST_SizeFootPrintGrowthLimitAndTrim(16B, 16)
-TEST_SizeFootPrintGrowthLimitAndTrim(24B, 24)
-TEST_SizeFootPrintGrowthLimitAndTrim(32B, 32)
-TEST_SizeFootPrintGrowthLimitAndTrim(64B, 64)
-TEST_SizeFootPrintGrowthLimitAndTrim(128B, 128)
-TEST_SizeFootPrintGrowthLimitAndTrim(1KB, 1 * KB)
-TEST_SizeFootPrintGrowthLimitAndTrim(4KB, 4 * KB)
-TEST_SizeFootPrintGrowthLimitAndTrim(1MB, 1 * MB)
-TEST_SizeFootPrintGrowthLimitAndTrim(4MB, 4 * MB)
-TEST_SizeFootPrintGrowthLimitAndTrim(8MB, 8 * MB)
+#define TEST_SPACE_CREATE_FN(spaceName, spaceFn) \
+  class spaceName##Test : public SpaceTest { \
+  }; \
+  \
+  TEST_F(spaceName##Test, Init) { \
+    InitTestBody(spaceFn); \
+  } \
+  TEST_F(spaceName##Test, ZygoteSpace) { \
+    ZygoteSpaceTestBody(spaceFn); \
+  } \
+  TEST_F(spaceName##Test, AllocAndFree) { \
+    AllocAndFreeTestBody(spaceFn); \
+  } \
+  TEST_F(spaceName##Test, AllocAndFreeList) { \
+    AllocAndFreeListTestBody(spaceFn); \
+  } \
+  TEST_F(spaceName##Test, SizeFootPrintGrowthLimitAndTrim_AllocationsOf_12B) { \
+    SizeFootPrintGrowthLimitAndTrimDriver(12, spaceFn); \
+  } \
+  TEST_SizeFootPrintGrowthLimitAndTrim(16B, spaceName, spaceFn, 16) \
+  TEST_SizeFootPrintGrowthLimitAndTrim(24B, spaceName, spaceFn, 24) \
+  TEST_SizeFootPrintGrowthLimitAndTrim(32B, spaceName, spaceFn, 32) \
+  TEST_SizeFootPrintGrowthLimitAndTrim(64B, spaceName, spaceFn, 64) \
+  TEST_SizeFootPrintGrowthLimitAndTrim(128B, spaceName, spaceFn, 128) \
+  TEST_SizeFootPrintGrowthLimitAndTrim(1KB, spaceName, spaceFn, 1 * KB) \
+  TEST_SizeFootPrintGrowthLimitAndTrim(4KB, spaceName, spaceFn, 4 * KB) \
+  TEST_SizeFootPrintGrowthLimitAndTrim(1MB, spaceName, spaceFn, 1 * MB) \
+  TEST_SizeFootPrintGrowthLimitAndTrim(4MB, spaceName, spaceFn, 4 * MB) \
+  TEST_SizeFootPrintGrowthLimitAndTrim(8MB, spaceName, spaceFn, 8 * MB)
 
 }  // namespace space
 }  // namespace gc
 }  // namespace art
+
+#endif  // ART_RUNTIME_GC_SPACE_SPACE_TEST_H_
