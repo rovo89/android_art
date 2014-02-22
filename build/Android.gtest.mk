@@ -49,7 +49,9 @@ TEST_COMMON_SRC_FILES := \
 	runtime/exception_test.cc \
 	runtime/gc/accounting/space_bitmap_test.cc \
 	runtime/gc/heap_test.cc \
-	runtime/gc/space/space_test.cc \
+	runtime/gc/space/dlmalloc_space_test.cc \
+	runtime/gc/space/rosalloc_space_test.cc \
+	runtime/gc/space/large_object_space_test.cc \
 	runtime/gtest_test.cc \
 	runtime/indenter_test.cc \
 	runtime/indirect_reference_table_test.cc \
