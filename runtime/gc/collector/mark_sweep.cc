@@ -65,6 +65,7 @@ namespace collector {
 constexpr bool kUseRecursiveMark = false;
 constexpr bool kUseMarkStackPrefetch = true;
 constexpr size_t kSweepArrayChunkFreeSize = 1024;
+constexpr bool kPreCleanCards = true;
 
 // Parallelism options.
 constexpr bool kParallelCardScan = true;
@@ -232,6 +233,25 @@ bool MarkSweep::IsConcurrent() const {
   return is_concurrent_;
 }
 
+void MarkSweep::PreCleanCards() {
+  // Don't do this for non concurrent GCs since they don't have any dirty cards.
+  if (kPreCleanCards && IsConcurrent()) {
+    Thread* self = Thread::Current();
+    CHECK(!Locks::mutator_lock_->IsExclusiveHeld(self));
+    // Process dirty cards and add dirty cards to mod union tables, also ages cards.
+    heap_->ProcessCards(timings_);
+    // Required so that we see aged cards before we start scanning the cards.
+    MarkThreadRoots(self);
+    // TODO: Only mark the dirty roots.
+    MarkNonThreadRoots();
+    MarkConcurrentRoots();
+    // Process the newly aged cards.
+    RecursiveMarkDirtyObjects(false, accounting::CardTable::kCardDirty - 1);
+    // TODO: Empty allocation stack to reduce the number of objects we need to test / mark as live
+    // in the next GC.
+  }
+}
+
 void MarkSweep::MarkingPhase() {
   TimingLogger::ScopedSplit split("MarkingPhase", &timings_);
   Thread* self = Thread::Current();
@@ -263,6 +283,8 @@ void MarkSweep::MarkingPhase() {
   MarkConcurrentRoots();
   UpdateAndMarkModUnion();
   MarkReachableObjects();
+  // Pre-clean dirtied cards to reduce pauses.
+  PreCleanCards();
 }
 
 void MarkSweep::UpdateAndMarkModUnion() {
@@ -313,20 +335,24 @@ void MarkSweep::ReclaimPhase() {
     TimingLogger::ScopedSplit split("UnMarkAllocStack", &timings_);
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
     accounting::ObjectStack* allocation_stack = GetHeap()->allocation_stack_.get();
-    // The allocation stack contains things allocated since the start of the GC. These may have been
-    // marked during this GC meaning they won't be eligible for reclaiming in the next sticky GC.
-    // Remove these objects from the mark bitmaps so that they will be eligible for sticky
-    // collection.
-    // There is a race here which is safely handled. Another thread such as the hprof could
-    // have flushed the alloc stack after we resumed the threads. This is safe however, since
-    // reseting the allocation stack zeros it out with madvise. This means that we will either
-    // read NULLs or attempt to unmark a newly allocated object which will not be marked in the
-    // first place.
-    mirror::Object** end = allocation_stack->End();
-    for (mirror::Object** it = allocation_stack->Begin(); it != end; ++it) {
-      const Object* obj = *it;
-      if (obj != NULL) {
-        UnMarkObjectNonNull(obj);
+    if (!kPreCleanCards) {
+      // The allocation stack contains things allocated since the start of the GC. These may have
+      // been marked during this GC meaning they won't be eligible for reclaiming in the next
+      // sticky GC. Unmark these objects so that they are eligible for reclaiming in the next
+      // sticky GC.
+      // There is a race here which is safely handled. Another thread such as the hprof could
+      // have flushed the alloc stack after we resumed the threads. This is safe however, since
+      // reseting the allocation stack zeros it out with madvise. This means that we will either
+      // read NULLs or attempt to unmark a newly allocated object which will not be marked in the
+      // first place.
+      // We can't do this if we pre-clean cards since we will unmark objects which are no longer on
+      // a dirty card since we aged cards during the pre-cleaning process.
+      mirror::Object** end = allocation_stack->End();
+      for (mirror::Object** it = allocation_stack->Begin(); it != end; ++it) {
+        const Object* obj = *it;
+        if (obj != nullptr) {
+          UnMarkObjectNonNull(obj);
+        }
       }
     }
   }
