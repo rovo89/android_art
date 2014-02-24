@@ -83,6 +83,11 @@ static void usage() {
           "  --output=<file> may be used to send the output to a file.\n"
           "      Example: --output=/tmp/oatdump.txt\n"
           "\n");
+  fprintf(stderr,
+          "  --dump:[raw_mapping_table|raw_gc_map]\n"
+          "    Example: --dump:raw_gc_map\n"
+          "    Default: neither\n"
+          "\n");
   exit(EXIT_FAILURE);
 }
 
@@ -100,10 +105,12 @@ const char* image_roots_descriptions_[] = {
 
 class OatDumper {
  public:
-  explicit OatDumper(const std::string& host_prefix, const OatFile& oat_file)
+  explicit OatDumper(const std::string& host_prefix, const OatFile& oat_file, bool dump_raw_mapping_table, bool dump_raw_gc_map)
     : host_prefix_(host_prefix),
       oat_file_(oat_file),
       oat_dex_files_(oat_file.GetOatDexFiles()),
+      dump_raw_mapping_table_(dump_raw_mapping_table),
+      dump_raw_gc_map_(dump_raw_gc_map),
       disassembler_(Disassembler::Create(oat_file_.GetOatHeader().GetInstructionSet())) {
     AddAllOffsets();
   }
@@ -358,16 +365,14 @@ class OatDumper {
       DumpVmap(indent2_os, oat_method);
       indent2_os << StringPrintf("mapping_table: %p (offset=0x%08x)\n",
                                  oat_method.GetMappingTable(), oat_method.GetMappingTableOffset());
-      const bool kDumpRawMappingTable = false;
-      if (kDumpRawMappingTable) {
+      if (dump_raw_mapping_table_) {
         Indenter indent3_filter(indent2_os.rdbuf(), kIndentChar, kIndentBy1Count);
         std::ostream indent3_os(&indent3_filter);
         DumpMappingTable(indent3_os, oat_method);
       }
       indent2_os << StringPrintf("gc_map: %p (offset=0x%08x)\n",
                                  oat_method.GetNativeGcMap(), oat_method.GetNativeGcMapOffset());
-      const bool kDumpRawGcMap = false;
-      if (kDumpRawGcMap) {
+      if (dump_raw_gc_map_) {
         Indenter indent3_filter(indent2_os.rdbuf(), kIndentChar, kIndentBy1Count);
         std::ostream indent3_os(&indent3_filter);
         DumpGcMap(indent3_os, oat_method, code_item);
@@ -699,6 +704,8 @@ class OatDumper {
   const std::string host_prefix_;
   const OatFile& oat_file_;
   std::vector<const OatFile::OatDexFile*> oat_dex_files_;
+  bool dump_raw_mapping_table_;
+  bool dump_raw_gc_map_;
   std::set<uintptr_t> offsets_;
   UniquePtr<Disassembler> disassembler_;
 };
@@ -707,9 +714,12 @@ class ImageDumper {
  public:
   explicit ImageDumper(std::ostream* os, const std::string& image_filename,
                        const std::string& host_prefix, gc::space::ImageSpace& image_space,
-                       const ImageHeader& image_header)
+                       const ImageHeader& image_header, bool dump_raw_mapping_table,
+                       bool dump_raw_gc_map)
       : os_(os), image_filename_(image_filename), host_prefix_(host_prefix),
-        image_space_(image_space), image_header_(image_header) {}
+        image_space_(image_space), image_header_(image_header),
+        dump_raw_mapping_table_(dump_raw_mapping_table),
+        dump_raw_gc_map_(dump_raw_gc_map) {}
 
   void Dump() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::ostream& os = *os_;
@@ -791,7 +801,8 @@ class ImageDumper {
 
     stats_.oat_file_bytes = oat_file->Size();
 
-    oat_dumper_.reset(new OatDumper(host_prefix_, *oat_file));
+    oat_dumper_.reset(new OatDumper(host_prefix_, *oat_file, dump_raw_mapping_table_,
+        dump_raw_gc_map_));
 
     for (const OatFile::OatDexFile* oat_dex_file : oat_file->GetOatDexFiles()) {
       CHECK(oat_dex_file != NULL);
@@ -1406,6 +1417,8 @@ class ImageDumper {
   const std::string host_prefix_;
   gc::space::ImageSpace& image_space_;
   const ImageHeader& image_header_;
+  bool dump_raw_mapping_table_;
+  bool dump_raw_gc_map_;
 
   DISALLOW_COPY_AND_ASSIGN(ImageDumper);
 };
@@ -1429,6 +1442,8 @@ static int oatdump(int argc, char** argv) {
   UniquePtr<std::string> host_prefix;
   std::ostream* os = &std::cout;
   UniquePtr<std::ofstream> out;
+  bool dump_raw_mapping_table = false;
+  bool dump_raw_gc_map = false;
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
@@ -1440,6 +1455,15 @@ static int oatdump(int argc, char** argv) {
       boot_image_filename = option.substr(strlen("--boot-image=")).data();
     } else if (option.starts_with("--host-prefix=")) {
       host_prefix.reset(new std::string(option.substr(strlen("--host-prefix=")).data()));
+    } else if (option.starts_with("--dump:")) {
+        if (option == "--dump:raw_mapping_table") {
+          dump_raw_mapping_table = true;
+        } else if (option == "--dump:raw_gc_map") {
+          dump_raw_gc_map = true;
+        } else {
+          fprintf(stderr, "Unknown argument %s\n", option.data());
+          usage();
+        }
     } else if (option.starts_with("--output=")) {
       const char* filename = option.substr(strlen("--output=")).data();
       out.reset(new std::ofstream(filename));
@@ -1481,7 +1505,7 @@ static int oatdump(int argc, char** argv) {
       fprintf(stderr, "Failed to open oat file from '%s': %s\n", oat_filename, error_msg.c_str());
       return EXIT_FAILURE;
     }
-    OatDumper oat_dumper(*host_prefix.get(), *oat_file);
+    OatDumper oat_dumper(*host_prefix.get(), *oat_file, dump_raw_mapping_table, dump_raw_gc_map);
     oat_dumper.Dump(*os);
     return EXIT_SUCCESS;
   }
@@ -1533,7 +1557,8 @@ static int oatdump(int argc, char** argv) {
     fprintf(stderr, "Invalid image header %s\n", image_filename);
     return EXIT_FAILURE;
   }
-  ImageDumper image_dumper(os, image_filename, *host_prefix.get(), *image_space, image_header);
+  ImageDumper image_dumper(os, image_filename, *host_prefix.get(), *image_space, image_header,
+    dump_raw_mapping_table, dump_raw_gc_map);
   image_dumper.Dump();
   return EXIT_SUCCESS;
 }
