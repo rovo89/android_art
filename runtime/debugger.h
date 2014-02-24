@@ -417,10 +417,6 @@ class Dbg {
     kMethodEntry    = 0x04,
     kMethodExit     = 0x08,
   };
-  static void PostLocationEvent(mirror::ArtMethod* method, int pcOffset,
-                                mirror::Object* thisPtr, int eventFlags,
-                                const JValue* return_value)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostFieldAccessEvent(mirror::ArtMethod* m, int dex_pc, mirror::Object* this_object,
                                    mirror::ArtField* f)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -439,7 +435,8 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void UpdateDebugger(Thread* thread, mirror::Object* this_object,
-                             mirror::ArtMethod* method, uint32_t new_dex_pc)
+                             mirror::ArtMethod* method, uint32_t new_dex_pc,
+                             int event_flags, const JValue* return_value)
       LOCKS_EXCLUDED(Locks::breakpoint_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -559,6 +556,11 @@ class Dbg {
  private:
   static void DdmBroadcast(bool connect) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostThreadStartOrStop(Thread*, uint32_t)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static void PostLocationEvent(mirror::ArtMethod* method, int pcOffset,
+                                mirror::Object* thisPtr, int eventFlags,
+                                const JValue* return_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static JDWP::ObjectId GetThisObjectIdForEvent(mirror::Object* this_object)

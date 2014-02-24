@@ -145,12 +145,14 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   const Instruction* inst = Instruction::At(code_item->insns_ + dex_pc);
   uint16_t inst_data;
   const void* const* currentHandlersTable;
+  bool notified_method_entry_event = false;
   UPDATE_HANDLER_TABLE();
   if (LIKELY(dex_pc == 0)) {  // We are entering the method as opposed to deoptimizing..
     instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
     if (UNLIKELY(instrumentation->HasMethodEntryListeners())) {
       instrumentation->MethodEnterEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                         shadow_frame.GetMethod(), 0);
+      notified_method_entry_event = true;
     }
   }
 
@@ -2384,16 +2386,29 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     }
   }
 
-  // Create alternative instruction handlers dedicated to instrumentation.
-#define INSTRUMENTATION_INSTRUCTION_HANDLER(o, code, n, f, r, i, a, v)                              \
-  alt_op_##code: {                                                                                  \
-      instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation(); \
-      if (UNLIKELY(instrumentation->HasDexPcListeners())) {                                         \
-        instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),    \
-                                         shadow_frame.GetMethod(), dex_pc);                         \
-      }                                                                                             \
-      UPDATE_HANDLER_TABLE();                                                                       \
-      goto *handlersTable[instrumentation::kMainHandlerTable][Instruction::code];                   \
+// Create alternative instruction handlers dedicated to instrumentation.
+// Return instructions must not call Instrumentation::DexPcMovedEvent since they already call
+// Instrumentation::MethodExited. This is to avoid posting debugger events twice for this location.
+#define INSTRUMENTATION_INSTRUCTION_HANDLER(o, code, n, f, r, i, a, v)                            \
+  alt_op_##code: {                                                                                \
+    if (Instruction::code != Instruction::RETURN_VOID &&                                          \
+        Instruction::code != Instruction::RETURN_VOID_BARRIER &&                                  \
+        Instruction::code != Instruction::RETURN &&                                               \
+        Instruction::code != Instruction::RETURN_WIDE &&                                          \
+        Instruction::code != Instruction::RETURN_OBJECT) {                                        \
+      if (LIKELY(!notified_method_entry_event)) {                                                 \
+        Runtime* runtime = Runtime::Current();                                                    \
+        const instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();  \
+        if (UNLIKELY(instrumentation->HasDexPcListeners())) {                                     \
+          Object* this_object = shadow_frame.GetThisObject(code_item->ins_size_);                 \
+          instrumentation->DexPcMovedEvent(self, this_object, shadow_frame.GetMethod(), dex_pc);  \
+        }                                                                                         \
+      } else {                                                                                    \
+        notified_method_entry_event = false;                                                      \
+      }                                                                                           \
+    }                                                                                             \
+    UPDATE_HANDLER_TABLE();                                                                       \
+    goto *handlersTable[instrumentation::kMainHandlerTable][Instruction::code];                   \
   }
 #include "dex_instruction_list.h"
       DEX_INSTRUCTION_LIST(INSTRUMENTATION_INSTRUCTION_HANDLER)

@@ -139,7 +139,7 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
       // TODO: post location events is a suspension point and native method entry stubs aren't.
       return;
     }
-    Dbg::PostLocationEvent(method, 0, this_object, Dbg::kMethodEntry, nullptr);
+    Dbg::UpdateDebugger(thread, this_object, method, 0, Dbg::kMethodEntry, nullptr);
   }
 
   void MethodExited(Thread* thread, mirror::Object* this_object, mirror::ArtMethod* method,
@@ -149,7 +149,7 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
       // TODO: post location events is a suspension point and native method entry stubs aren't.
       return;
     }
-    Dbg::PostLocationEvent(method, dex_pc, this_object, Dbg::kMethodExit, &return_value);
+    Dbg::UpdateDebugger(thread, this_object, method, dex_pc, Dbg::kMethodExit, &return_value);
   }
 
   void MethodUnwind(Thread* thread, mirror::Object* this_object, mirror::ArtMethod* method,
@@ -163,7 +163,7 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
   void DexPcMoved(Thread* thread, mirror::Object* this_object, mirror::ArtMethod* method,
                   uint32_t new_dex_pc)
       OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Dbg::UpdateDebugger(thread, this_object, method, new_dex_pc);
+    Dbg::UpdateDebugger(thread, this_object, method, new_dex_pc, 0, nullptr);
   }
 
   void FieldRead(Thread* thread, mirror::Object* this_object, mirror::ArtMethod* method,
@@ -2586,12 +2586,11 @@ void Dbg::PostClassPrepare(mirror::Class* c) {
 }
 
 void Dbg::UpdateDebugger(Thread* thread, mirror::Object* this_object,
-                         mirror::ArtMethod* m, uint32_t dex_pc) {
+                         mirror::ArtMethod* m, uint32_t dex_pc,
+                         int event_flags, const JValue* return_value) {
   if (!IsDebuggerActive() || dex_pc == static_cast<uint32_t>(-2) /* fake method exit */) {
     return;
   }
-
-  int event_flags = 0;
 
   if (IsBreakpoint(m, dex_pc)) {
     event_flags |= kBreakpoint;
@@ -2660,7 +2659,7 @@ void Dbg::UpdateDebugger(Thread* thread, mirror::Object* this_object,
   // If there's something interesting going on, see if it matches one
   // of the debugger filters.
   if (event_flags != 0) {
-    Dbg::PostLocationEvent(m, dex_pc, this_object, event_flags, nullptr);
+    Dbg::PostLocationEvent(m, dex_pc, this_object, event_flags, return_value);
   }
 }
 
