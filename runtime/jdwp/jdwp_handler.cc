@@ -1685,6 +1685,12 @@ void JdwpState::ProcessRequest(Request& request, ExpandBuf* pReply) {
   SetWaitForEventThread(0);
 
   /*
+   * We do not want events to be sent while we process a request. Indicate the JDWP thread starts
+   * to process a request so other threads wait for it to finish before sending an event.
+   */
+  StartProcessingRequest();
+
+  /*
    * Tell the VM that we're running and shouldn't be interrupted by GC.
    * Do this after anything that can stall indefinitely.
    */
@@ -1779,8 +1785,14 @@ void JdwpState::WaitForProcessingRequest() {
   Thread* self = Thread::Current();
   CHECK_NE(self, GetDebugThread()) << "Events should not be posted by debug thread";
   MutexLock mu(self, process_request_lock_);
+  bool waited = false;
   while (processing_request_) {
+    VLOG(jdwp) << StringPrintf("wait for processing request");
+    waited = true;
     process_request_cond_.Wait(self);
+  }
+  if (waited) {
+    VLOG(jdwp) << StringPrintf("finished waiting for processing request");
   }
   CHECK_EQ(processing_request_, false);
 }
