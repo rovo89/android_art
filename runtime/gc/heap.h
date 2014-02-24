@@ -207,11 +207,9 @@ class Heap {
   // Check sanity of all live references.
   void VerifyHeap() LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
   bool VerifyHeapReferences()
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
   bool VerifyMissingCardMarks()
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // A weaker test than IsLiveObject or VerifyObject that doesn't require the heap lock,
   // and doesn't abort on error, allowing the caller to report more
@@ -463,7 +461,8 @@ class Heap {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Revoke all the thread-local allocation stacks.
-  void RevokeAllThreadLocalAllocationStacks(Thread* self);
+  void RevokeAllThreadLocalAllocationStacks(Thread* self)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Mark all the objects in the allocation stack in the specified bitmap.
   void MarkAllocStack(accounting::SpaceBitmap* bitmap1, accounting::SpaceBitmap* bitmap2,
