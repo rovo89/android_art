@@ -154,8 +154,9 @@ struct JdwpState {
    * release it in the "clear" call.
    */
   // ObjectId GetWaitForEventThread();
-  void SetWaitForEventThread(ObjectId threadId);
-  void ClearWaitForEventThread();
+  void SetWaitForEventThread(ObjectId threadId)
+      LOCKS_EXCLUDED(event_thread_lock_, process_request_lock_);
+  void ClearWaitForEventThread() LOCKS_EXCLUDED(event_thread_lock);
 
   /*
    * These notify the debug code that something interesting has happened.  This
@@ -346,7 +347,7 @@ struct JdwpState {
 
   // Used to synchronize request processing and event sending (to avoid sending an event before
   // sending the reply of a command being processed).
-  Mutex process_request_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  Mutex process_request_lock_ ACQUIRED_AFTER(event_thread_lock_);
   ConditionVariable process_request_cond_ GUARDED_BY(process_request_lock_);
   bool processing_request_ GUARDED_BY(process_request_lock_);
 
