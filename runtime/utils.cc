@@ -1212,10 +1212,11 @@ bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg) {
   // Convert the args to char pointers.
   const char* program = arg_vector[0].c_str();
   std::vector<char*> args;
-  for (std::vector<std::string>::const_iterator it = arg_vector.begin(); it != arg_vector.end();
-      ++it) {
-    CHECK(*it != nullptr);
-    args.push_back(const_cast<char*>(it->c_str()));
+  for (size_t i = 0; i < arg_vector.size(); ++i) {
+    const std::string& arg = arg_vector[i];
+    char* arg_str = const_cast<char*>(arg.c_str());
+    CHECK(arg_str != nullptr) << i;
+    args.push_back(arg_str);
   }
   args.push_back(NULL);
 
