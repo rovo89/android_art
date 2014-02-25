@@ -18,6 +18,7 @@
 
 #include "class.h"
 #include "class-inl.h"
+#include "class_linker-inl.h"
 #include "common_throws.h"
 #include "dex_file-inl.h"
 #include "gc/accounting/card_table-inl.h"
@@ -85,20 +86,22 @@ Array* Array::CreateMultiArray(Thread* self, const SirtRef<Class>& element_class
     }
   }
 
-  // Generate the full name of the array class.
-  std::string descriptor(num_dimensions, '[');
-  descriptor += ClassHelper(element_class.get()).GetDescriptor();
-
   // Find/generate the array class.
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  SirtRef<mirror::ClassLoader> class_loader(self, element_class->GetClassLoader());
   SirtRef<mirror::Class> array_class(self,
-                                     class_linker->FindClass(descriptor.c_str(), class_loader));
+                                     class_linker->FindArrayClass(self, element_class.get()));
   if (UNLIKELY(array_class.get() == nullptr)) {
     CHECK(self->IsExceptionPending());
     return nullptr;
   }
-  // create the array
+  for (int32_t i = 1; i < dimensions->GetLength(); ++i) {
+    array_class.reset(class_linker->FindArrayClass(self, array_class.get()));
+    if (UNLIKELY(array_class.get() == nullptr)) {
+      CHECK(self->IsExceptionPending());
+      return nullptr;
+    }
+  }
+  // Create the array.
   Array* new_array = RecursiveCreateMultiArray(self, array_class, 0, dimensions);
   if (UNLIKELY(new_array == nullptr)) {
     CHECK(self->IsExceptionPending());

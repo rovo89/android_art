@@ -23,9 +23,39 @@
 #include "mirror/dex_cache.h"
 #include "mirror/iftable.h"
 #include "mirror/object_array.h"
+#include "object_utils.h"
 #include "sirt_ref.h"
 
 namespace art {
+
+inline bool ClassLinker::IsInBootClassPath(const char* descriptor) {
+  DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, boot_class_path_);
+  return pair.second != nullptr;
+}
+
+inline mirror::Class* ClassLinker::FindSystemClass(Thread* self, const char* descriptor) {
+  SirtRef<mirror::ClassLoader> class_loader(self, nullptr);
+  return FindClass(self, descriptor, class_loader);
+}
+
+inline mirror::Class* ClassLinker::FindArrayClass(Thread* self, mirror::Class* element_class) {
+  for (size_t i = 0; i < kFindArrayCacheSize; ++i) {
+    // Read the cached the array class once to avoid races with other threads setting it.
+    mirror::Class* array_class = find_array_class_cache_[i];
+    if (array_class != nullptr && array_class->GetComponentType() == element_class) {
+      return array_class;
+    }
+  }
+  std::string descriptor("[");
+  descriptor += ClassHelper(element_class).GetDescriptor();
+  SirtRef<mirror::ClassLoader> class_loader(self, element_class->GetClassLoader());
+  mirror::Class* array_class = FindClass(self, descriptor.c_str(), class_loader);
+  // Benign races in storing array class and incrementing index.
+  size_t victim_index = find_array_class_cache_next_victim_;
+  find_array_class_cache_[victim_index] = array_class;
+  find_array_class_cache_next_victim_ = (victim_index + 1) % kFindArrayCacheSize;
+  return array_class;
+}
 
 inline mirror::String* ClassLinker::ResolveString(uint32_t string_idx,
                                                   mirror::ArtMethod* referrer) {

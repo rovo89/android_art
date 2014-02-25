@@ -16,7 +16,7 @@
 
 #include <limits.h>
 
-#include "class_linker.h"
+#include "class_linker-inl.h"
 #include "common_throws.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
@@ -57,22 +57,22 @@ static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaEle
                                             jint length) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Class* element_class = soa.Decode<mirror::Class*>(javaElementClass);
-  if (element_class == NULL) {
+  if (UNLIKELY(element_class == nullptr)) {
     ThrowNullPointerException(NULL, "element class == null");
-    return NULL;
+    return nullptr;
   }
-  if (length < 0) {
+  if (UNLIKELY(length < 0)) {
     ThrowNegativeArraySizeException(length);
-    return NULL;
+    return nullptr;
   }
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  std::string descriptor;
-  descriptor += "[";
-  descriptor += ClassHelper(element_class).GetDescriptor();
-  SirtRef<mirror::ClassLoader> class_loader(soa.Self(), nullptr);
-  mirror::Class* array_class = class_linker->FindClass(descriptor.c_str(), class_loader);
+  Runtime* runtime = Runtime::Current();
+  mirror::Class* array_class = runtime->GetClassLinker()->FindArrayClass(soa.Self(), element_class);
+  if (UNLIKELY(array_class == nullptr)) {
+    return nullptr;
+  }
+  gc::AllocatorType allocator = runtime->GetHeap()->GetCurrentNonMovingAllocator();
   mirror::Array* result = mirror::Array::Alloc<true>(soa.Self(), array_class, length,
-                                                     Runtime::Current()->GetHeap()->GetCurrentNonMovingAllocator());
+                                                     allocator);
   return soa.AddLocalReference<jobject>(result);
 }
 

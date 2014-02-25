@@ -1529,7 +1529,7 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
   }
   SirtRef<mirror::ClassLoader> class_loader(this, cl);
   SirtRef<mirror::Class>
-      exception_class(this, runtime->GetClassLinker()->FindClass(exception_class_descriptor,
+      exception_class(this, runtime->GetClassLinker()->FindClass(this, exception_class_descriptor,
                                                                  class_loader));
   if (UNLIKELY(exception_class.get() == nullptr)) {
     CHECK(IsExceptionPending());

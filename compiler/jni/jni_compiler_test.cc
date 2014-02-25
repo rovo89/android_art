@@ -50,7 +50,7 @@ class JniCompilerTest : public CommonTest {
     ScopedObjectAccess soa(Thread::Current());
     SirtRef<mirror::ClassLoader> loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(class_loader));
     // Compile the native method before starting the runtime
-    mirror::Class* c = class_linker_->FindClass("LMyClassNatives;", loader);
+    mirror::Class* c = class_linker_->FindClass(soa.Self(), "LMyClassNatives;", loader);
     mirror::ArtMethod* method;
     if (direct) {
       method = c->FindDirectMethod(method_name, method_sig);

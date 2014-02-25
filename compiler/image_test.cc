@@ -151,7 +151,7 @@ TEST_F(ImageTest, WriteRead) {
   for (size_t i = 0; i < dex->NumClassDefs(); ++i) {
     const DexFile::ClassDef& class_def = dex->GetClassDef(i);
     const char* descriptor = dex->GetClassDescriptor(class_def);
-    mirror::Class* klass = class_linker_->FindSystemClass(descriptor);
+    mirror::Class* klass = class_linker_->FindSystemClass(soa.Self(), descriptor);
     EXPECT_TRUE(klass != nullptr) << descriptor;
     if (image_classes.find(descriptor) != image_classes.end()) {
       // Image classes should be located inside the image.

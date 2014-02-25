@@ -30,7 +30,7 @@ class MethodVerifierTest : public CommonTest {
   void VerifyClass(const std::string& descriptor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ASSERT_TRUE(descriptor != NULL);
-    mirror::Class* klass = class_linker_->FindSystemClass(descriptor.c_str());
+    mirror::Class* klass = class_linker_->FindSystemClass(Thread::Current(), descriptor.c_str());
 
     // Verify the class
     std::string error_msg;

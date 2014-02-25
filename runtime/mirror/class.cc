@@ -72,7 +72,7 @@ void Class::SetStatus(Status new_status, Thread* self) {
             << PrettyClass(this) << " " << old_status << " -> " << new_status;
     }
   }
-  if (new_status == kStatusError) {
+  if (UNLIKELY(new_status == kStatusError)) {
     CHECK_NE(GetStatus(), kStatusError)
         << "Attempt to set as erroneous an already erroneous class " << PrettyClass(this);
 
@@ -95,7 +95,8 @@ void Class::SetStatus(Status new_status, Thread* self) {
     // clear exception to call FindSystemClass
     self->ClearException();
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    Class* eiie_class = class_linker->FindSystemClass("Ljava/lang/ExceptionInInitializerError;");
+    Class* eiie_class = class_linker->FindSystemClass(self,
+                                                      "Ljava/lang/ExceptionInInitializerError;");
     CHECK(!self->IsExceptionPending());
 
     // Only verification errors, not initialization problems, should set a verify error.
