@@ -99,7 +99,7 @@ TEST_F(UtilsTest, PrettyTypeOf) {
   SirtRef<mirror::ShortArray> a(soa.Self(), mirror::ShortArray::Alloc(soa.Self(), 2));
   EXPECT_EQ("short[]", PrettyTypeOf(a.get()));
 
-  mirror::Class* c = class_linker_->FindSystemClass("[Ljava/lang/String;");
+  mirror::Class* c = class_linker_->FindSystemClass(soa.Self(), "[Ljava/lang/String;");
   ASSERT_TRUE(c != NULL);
   mirror::Object* o = mirror::ObjectArray<mirror::String>::Alloc(soa.Self(), c, 0);
   EXPECT_EQ("java.lang.String[]", PrettyTypeOf(o));
@@ -109,7 +109,7 @@ TEST_F(UtilsTest, PrettyTypeOf) {
 TEST_F(UtilsTest, PrettyClass) {
   ScopedObjectAccess soa(Thread::Current());
   EXPECT_EQ("null", PrettyClass(NULL));
-  mirror::Class* c = class_linker_->FindSystemClass("[Ljava/lang/String;");
+  mirror::Class* c = class_linker_->FindSystemClass(soa.Self(), "[Ljava/lang/String;");
   ASSERT_TRUE(c != NULL);
   mirror::Object* o = mirror::ObjectArray<mirror::String>::Alloc(soa.Self(), c, 0);
   EXPECT_EQ("java.lang.Class<java.lang.String[]>", PrettyClass(o->GetClass()));
@@ -118,7 +118,7 @@ TEST_F(UtilsTest, PrettyClass) {
 TEST_F(UtilsTest, PrettyClassAndClassLoader) {
   ScopedObjectAccess soa(Thread::Current());
   EXPECT_EQ("null", PrettyClassAndClassLoader(NULL));
-  mirror::Class* c = class_linker_->FindSystemClass("[Ljava/lang/String;");
+  mirror::Class* c = class_linker_->FindSystemClass(soa.Self(), "[Ljava/lang/String;");
   ASSERT_TRUE(c != NULL);
   mirror::Object* o = mirror::ObjectArray<mirror::String>::Alloc(soa.Self(), c, 0);
   EXPECT_EQ("java.lang.Class<java.lang.String[],null>", PrettyClassAndClassLoader(o->GetClass()));
@@ -128,7 +128,8 @@ TEST_F(UtilsTest, PrettyField) {
   ScopedObjectAccess soa(Thread::Current());
   EXPECT_EQ("null", PrettyField(NULL));
 
-  mirror::Class* java_lang_String = class_linker_->FindSystemClass("Ljava/lang/String;");
+  mirror::Class* java_lang_String = class_linker_->FindSystemClass(soa.Self(),
+                                                                   "Ljava/lang/String;");
 
   mirror::ArtField* f;
   f = java_lang_String->FindDeclaredInstanceField("count", "I");
@@ -197,7 +198,7 @@ TEST_F(UtilsTest, MangleForJni) {
 
 TEST_F(UtilsTest, JniShortName_JniLongName) {
   ScopedObjectAccess soa(Thread::Current());
-  mirror::Class* c = class_linker_->FindSystemClass("Ljava/lang/String;");
+  mirror::Class* c = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/String;");
   ASSERT_TRUE(c != NULL);
   mirror::ArtMethod* m;
 

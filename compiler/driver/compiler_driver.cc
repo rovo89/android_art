@@ -447,13 +447,12 @@ void CompilerDriver::CompileAll(jobject class_loader,
 }
 
 static DexToDexCompilationLevel GetDexToDexCompilationlevel(
-    SirtRef<mirror::ClassLoader>& class_loader, const DexFile& dex_file,
+    Thread* self, SirtRef<mirror::ClassLoader>& class_loader, const DexFile& dex_file,
     const DexFile::ClassDef& class_def) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   const char* descriptor = dex_file.GetClassDescriptor(class_def);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  mirror::Class* klass = class_linker->FindClass(descriptor, class_loader);
+  mirror::Class* klass = class_linker->FindClass(self, descriptor, class_loader);
   if (klass == NULL) {
-    Thread* self = Thread::Current();
     CHECK(self->IsExceptionPending());
     self->ClearException();
     return kDontDexToDexCompile;
@@ -515,7 +514,8 @@ void CompilerDriver::CompileOne(mirror::ArtMethod* method, TimingLogger& timings
     const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_idx);
     SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
                                               soa.Decode<mirror::ClassLoader*>(jclass_loader));
-    dex_to_dex_compilation_level = GetDexToDexCompilationlevel(class_loader, *dex_file, class_def);
+    dex_to_dex_compilation_level = GetDexToDexCompilationlevel(self, class_loader, *dex_file,
+                                                               class_def);
   }
   CompileMethod(code_item, access_flags, invoke_type, class_def_idx, method_idx, jclass_loader,
                 *dex_file, dex_to_dex_compilation_level);
@@ -633,7 +633,7 @@ void CompilerDriver::LoadImageClasses(TimingLogger& timings)
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   for (auto it = image_classes_->begin(), end = image_classes_->end(); it != end;) {
     const std::string& descriptor(*it);
-    SirtRef<mirror::Class> klass(self, class_linker->FindSystemClass(descriptor.c_str()));
+    SirtRef<mirror::Class> klass(self, class_linker->FindSystemClass(self, descriptor.c_str()));
     if (klass.get() == NULL) {
       VLOG(compiler) << "Failed to find class " << descriptor;
       image_classes_->erase(it++);
@@ -648,7 +648,7 @@ void CompilerDriver::LoadImageClasses(TimingLogger& timings)
   // Do this here so that exception classes appear to have been specified image classes.
   std::set<std::pair<uint16_t, const DexFile*> > unresolved_exception_types;
   SirtRef<mirror::Class> java_lang_Throwable(self,
-                                     class_linker->FindSystemClass("Ljava/lang/Throwable;"));
+                                     class_linker->FindSystemClass(self, "Ljava/lang/Throwable;"));
   do {
     unresolved_exception_types.clear();
     class_linker->VisitClasses(ResolveCatchBlockExceptionsClassVisitor,
@@ -1661,7 +1661,8 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
   jobject jclass_loader = manager->GetClassLoader();
   SirtRef<mirror::ClassLoader> class_loader(
       soa.Self(), soa.Decode<mirror::ClassLoader*>(jclass_loader));
-  SirtRef<mirror::Class> klass(soa.Self(), class_linker->FindClass(descriptor, class_loader));
+  SirtRef<mirror::Class> klass(soa.Self(), class_linker->FindClass(soa.Self(), descriptor,
+                                                                   class_loader));
   if (klass.get() == nullptr) {
     CHECK(soa.Self()->IsExceptionPending());
     soa.Self()->ClearException();
@@ -1716,7 +1717,8 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
   SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
                                             soa.Decode<mirror::ClassLoader*>(jclass_loader));
   SirtRef<mirror::Class> klass(soa.Self(),
-                               manager->GetClassLinker()->FindClass(descriptor, class_loader));
+                               manager->GetClassLinker()->FindClass(soa.Self(), descriptor,
+                                                                    class_loader));
 
   if (klass.get() != nullptr && !SkipClass(jclass_loader, dex_file, klass.get())) {
     // Only try to initialize classes that were successfully verified.
@@ -1861,7 +1863,8 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
     ScopedObjectAccess soa(Thread::Current());
     SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
                                               soa.Decode<mirror::ClassLoader*>(jclass_loader));
-    dex_to_dex_compilation_level = GetDexToDexCompilationlevel(class_loader, dex_file, class_def);
+    dex_to_dex_compilation_level = GetDexToDexCompilationlevel(soa.Self(), class_loader, dex_file,
+                                                               class_def);
   }
   ClassDataItemIterator it(dex_file, class_data);
   // Skip fields

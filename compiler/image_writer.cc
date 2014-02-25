@@ -401,7 +401,8 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
   Thread* self = Thread::Current();
-  SirtRef<Class> object_array_class(self, class_linker->FindSystemClass("[Ljava/lang/Object;"));
+  SirtRef<Class> object_array_class(self, class_linker->FindSystemClass(self,
+                                                                        "[Ljava/lang/Object;"));
 
   // build an Object[] of all the DexCaches used in the source_space_
   ObjectArray<Object>* dex_caches = ObjectArray<Object>::Alloc(self, object_array_class.get(),

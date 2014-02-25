@@ -17,7 +17,7 @@
 #ifndef ART_RUNTIME_OBJECT_UTILS_H_
 #define ART_RUNTIME_OBJECT_UTILS_H_
 
-#include "class_linker-inl.h"
+#include "class_linker.h"
 #include "dex_file.h"
 #include "monitor.h"
 #include "mirror/art_field.h"
@@ -158,10 +158,10 @@ class ClassHelper {
     DCHECK(!klass_->IsPrimitive());
     if (klass_->IsArrayClass()) {
       if (idx == 0) {
-        return GetClassLinker()->FindSystemClass("Ljava/lang/Cloneable;");
+        return GetClassLinker()->FindSystemClass(Thread::Current(), "Ljava/lang/Cloneable;");
       } else {
         DCHECK_EQ(1U, idx);
-        return GetClassLinker()->FindSystemClass("Ljava/io/Serializable;");
+        return GetClassLinker()->FindSystemClass(Thread::Current(), "Ljava/io/Serializable;");
       }
     } else if (klass_->IsProxyClass()) {
       return klass_->GetIfTable()->GetInterface(idx);
@@ -251,7 +251,7 @@ class FieldHelper {
   mirror::Class* GetType(bool resolve = true) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t field_index = field_->GetDexFieldIndex();
     if (UNLIKELY(field_->GetDeclaringClass()->IsProxyClass())) {
-      return GetClassLinker()->FindSystemClass(GetTypeDescriptor());
+      return GetClassLinker()->FindSystemClass(Thread::Current(), GetTypeDescriptor());
     }
     const DexFile& dex_file = GetDexFile();
     const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);

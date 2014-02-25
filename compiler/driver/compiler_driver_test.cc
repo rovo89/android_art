@@ -79,9 +79,8 @@ class CompilerDriverTest : public CommonTest {
       const DexFile::ClassDef& class_def = dex_file.GetClassDef(i);
       const char* descriptor = dex_file.GetClassDescriptor(class_def);
       ScopedObjectAccess soa(Thread::Current());
-      Thread* self = Thread::Current();
-      SirtRef<mirror::ClassLoader> loader(self, soa.Decode<mirror::ClassLoader*>(class_loader));
-      mirror::Class* c = class_linker->FindClass(descriptor, loader);
+      SirtRef<mirror::ClassLoader> loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(class_loader));
+      mirror::Class* c = class_linker->FindClass(soa.Self(), descriptor, loader);
       CHECK(c != NULL);
       for (size_t i = 0; i < c->NumDirectMethods(); i++) {
         MakeExecutable(c->GetDirectMethod(i));

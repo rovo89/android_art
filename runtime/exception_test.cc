@@ -39,7 +39,7 @@ class ExceptionTest : public CommonTest {
     ScopedObjectAccess soa(Thread::Current());
     SirtRef<mirror::ClassLoader> class_loader(
         soa.Self(), soa.Decode<mirror::ClassLoader*>(LoadDex("ExceptionHandle")));
-    my_klass_ = class_linker_->FindClass("LExceptionHandle;", class_loader);
+    my_klass_ = class_linker_->FindClass(soa.Self(), "LExceptionHandle;", class_loader);
     ASSERT_TRUE(my_klass_ != NULL);
     SirtRef<mirror::Class> sirt_klass(soa.Self(), my_klass_);
     class_linker_->EnsureInitialized(sirt_klass, true, true);

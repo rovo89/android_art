@@ -41,18 +41,20 @@ class ClassLinkerTest : public CommonTest {
  protected:
   void AssertNonExistentClass(const std::string& descriptor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    EXPECT_TRUE(class_linker_->FindSystemClass(descriptor.c_str()) == NULL);
     Thread* self = Thread::Current();
+    EXPECT_TRUE(class_linker_->FindSystemClass(self, descriptor.c_str()) == NULL);
     EXPECT_TRUE(self->IsExceptionPending());
     mirror::Object* exception = self->GetException(NULL);
     self->ClearException();
-    mirror::Class* exception_class = class_linker_->FindSystemClass("Ljava/lang/NoClassDefFoundError;");
+    mirror::Class* exception_class =
+        class_linker_->FindSystemClass(self, "Ljava/lang/NoClassDefFoundError;");
     EXPECT_TRUE(exception->InstanceOf(exception_class));
   }
 
   void AssertPrimitiveClass(const std::string& descriptor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    AssertPrimitiveClass(descriptor, class_linker_->FindSystemClass(descriptor.c_str()));
+    Thread* self = Thread::Current();
+    AssertPrimitiveClass(descriptor, class_linker_->FindSystemClass(self, descriptor.c_str()));
   }
 
   void AssertPrimitiveClass(const std::string& descriptor, mirror::Class* primitive)
@@ -98,7 +100,7 @@ class ClassLinkerTest : public CommonTest {
     Thread* self = Thread::Current();
     SirtRef<mirror::ClassLoader> loader(self, class_loader);
     SirtRef<mirror::Class> array(self,
-                                 class_linker_->FindClass(array_descriptor.c_str(), loader));
+                                 class_linker_->FindClass(self, array_descriptor.c_str(), loader));
     ClassHelper array_component_ch(array->GetComponentType());
     EXPECT_STREQ(component_type.c_str(), array_component_ch.GetDescriptor());
     EXPECT_EQ(class_loader, array->GetClassLoader());
@@ -115,7 +117,8 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(array->GetClass()->GetSuperClass() != NULL);
     ASSERT_STREQ(array_descriptor.c_str(), kh.GetDescriptor());
     EXPECT_TRUE(array->GetSuperClass() != NULL);
-    EXPECT_EQ(class_linker_->FindSystemClass("Ljava/lang/Object;"), array->GetSuperClass());
+    Thread* self = Thread::Current();
+    EXPECT_EQ(class_linker_->FindSystemClass(self, "Ljava/lang/Object;"), array->GetSuperClass());
     EXPECT_TRUE(array->HasSuperClass());
     ASSERT_TRUE(array->GetComponentType() != NULL);
     kh.ChangeClass(array->GetComponentType());
@@ -147,6 +150,7 @@ class ClassLinkerTest : public CommonTest {
     kh.ChangeClass(array.get());
     kh.ChangeClass(kh.GetDirectInterface(1));
     EXPECT_STREQ(kh.GetDescriptor(), "Ljava/io/Serializable;");
+    EXPECT_EQ(class_linker_->FindArrayClass(self, array->GetComponentType()), array.get());
   }
 
   void AssertMethod(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -300,8 +304,8 @@ class ClassLinkerTest : public CommonTest {
   void AssertDexFileClass(mirror::ClassLoader* class_loader, const std::string& descriptor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ASSERT_TRUE(descriptor != NULL);
-    SirtRef<mirror::Class> klass(Thread::Current(),
-                                 class_linker_->FindSystemClass(descriptor.c_str()));
+    Thread* self = Thread::Current();
+    SirtRef<mirror::Class> klass(self, class_linker_->FindSystemClass(self, descriptor.c_str()));
     ASSERT_TRUE(klass.get() != nullptr);
     EXPECT_STREQ(descriptor.c_str(), ClassHelper(klass.get()).GetDescriptor());
     EXPECT_EQ(class_loader, klass->GetClassLoader());
@@ -359,7 +363,9 @@ struct CheckOffsets {
   std::vector<CheckOffset> offsets;
 
   bool Check() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    mirror::Class* klass = Runtime::Current()->GetClassLinker()->FindSystemClass(class_descriptor.c_str());
+    Thread* self = Thread::Current();
+    mirror::Class* klass =
+        Runtime::Current()->GetClassLinker()->FindSystemClass(self, class_descriptor.c_str());
     CHECK(klass != NULL) << class_descriptor;
 
     bool error = false;
@@ -646,12 +652,12 @@ TEST_F(ClassLinkerTest, FindClassNested) {
   ScopedObjectAccess soa(Thread::Current());
   SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(LoadDex("Nested")));
 
-  mirror::Class* outer = class_linker_->FindClass("LNested;", class_loader);
+  mirror::Class* outer = class_linker_->FindClass(soa.Self(), "LNested;", class_loader);
   ASSERT_TRUE(outer != NULL);
   EXPECT_EQ(0U, outer->NumVirtualMethods());
   EXPECT_EQ(1U, outer->NumDirectMethods());
 
-  mirror::Class* inner = class_linker_->FindClass("LNested$Inner;", class_loader);
+  mirror::Class* inner = class_linker_->FindClass(soa.Self(), "LNested$Inner;", class_loader);
   ASSERT_TRUE(inner != NULL);
   EXPECT_EQ(0U, inner->NumVirtualMethods());
   EXPECT_EQ(1U, inner->NumDirectMethods());
@@ -673,7 +679,7 @@ TEST_F(ClassLinkerTest, FindClass_Primitives) {
 
 TEST_F(ClassLinkerTest, FindClass) {
   ScopedObjectAccess soa(Thread::Current());
-  mirror::Class* JavaLangObject = class_linker_->FindSystemClass("Ljava/lang/Object;");
+  mirror::Class* JavaLangObject = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;");
   ClassHelper kh(JavaLangObject);
   ASSERT_TRUE(JavaLangObject != NULL);
   ASSERT_TRUE(JavaLangObject->GetClass() != NULL);
@@ -710,7 +716,7 @@ TEST_F(ClassLinkerTest, FindClass) {
 
   SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(LoadDex("MyClass")));
   AssertNonExistentClass("LMyClass;");
-  mirror::Class* MyClass = class_linker_->FindClass("LMyClass;", class_loader);
+  mirror::Class* MyClass = class_linker_->FindClass(soa.Self(), "LMyClass;", class_loader);
   kh.ChangeClass(MyClass);
   ASSERT_TRUE(MyClass != NULL);
   ASSERT_TRUE(MyClass->GetClass() != NULL);
@@ -761,7 +767,7 @@ TEST_F(ClassLinkerTest, LibCore) {
 // start of the object
 TEST_F(ClassLinkerTest, ValidateObjectArrayElementsOffset) {
   ScopedObjectAccess soa(Thread::Current());
-  mirror::Class* array_class = class_linker_->FindSystemClass("[Ljava/lang/String;");
+  mirror::Class* array_class = class_linker_->FindSystemClass(soa.Self(), "[Ljava/lang/String;");
   mirror::ObjectArray<mirror::String>* array =
       mirror::ObjectArray<mirror::String>::Alloc(soa.Self(), array_class, 0);
   uintptr_t data_offset =
@@ -777,27 +783,27 @@ TEST_F(ClassLinkerTest, ValidateObjectArrayElementsOffset) {
 TEST_F(ClassLinkerTest, ValidatePrimitiveArrayElementsOffset) {
   ScopedObjectAccess soa(Thread::Current());
   SirtRef<mirror::LongArray> long_array(soa.Self(), mirror::LongArray::Alloc(soa.Self(), 0));
-  EXPECT_EQ(class_linker_->FindSystemClass("[J"), long_array->GetClass());
+  EXPECT_EQ(class_linker_->FindSystemClass(soa.Self(), "[J"), long_array->GetClass());
   uintptr_t data_offset = reinterpret_cast<uintptr_t>(long_array->GetData());
   EXPECT_TRUE(IsAligned<8>(data_offset));  // Longs require 8 byte alignment
 
   SirtRef<mirror::DoubleArray> double_array(soa.Self(), mirror::DoubleArray::Alloc(soa.Self(), 0));
-  EXPECT_EQ(class_linker_->FindSystemClass("[D"), double_array->GetClass());
+  EXPECT_EQ(class_linker_->FindSystemClass(soa.Self(), "[D"), double_array->GetClass());
   data_offset = reinterpret_cast<uintptr_t>(double_array->GetData());
   EXPECT_TRUE(IsAligned<8>(data_offset));  // Doubles require 8 byte alignment
 
   SirtRef<mirror::IntArray> int_array(soa.Self(), mirror::IntArray::Alloc(soa.Self(), 0));
-  EXPECT_EQ(class_linker_->FindSystemClass("[I"), int_array->GetClass());
+  EXPECT_EQ(class_linker_->FindSystemClass(soa.Self(), "[I"), int_array->GetClass());
   data_offset = reinterpret_cast<uintptr_t>(int_array->GetData());
   EXPECT_TRUE(IsAligned<4>(data_offset));  // Ints require 4 byte alignment
 
   SirtRef<mirror::CharArray> char_array(soa.Self(), mirror::CharArray::Alloc(soa.Self(), 0));
-  EXPECT_EQ(class_linker_->FindSystemClass("[C"), char_array->GetClass());
+  EXPECT_EQ(class_linker_->FindSystemClass(soa.Self(), "[C"), char_array->GetClass());
   data_offset = reinterpret_cast<uintptr_t>(char_array->GetData());
   EXPECT_TRUE(IsAligned<2>(data_offset));  // Chars require 2 byte alignment
 
   SirtRef<mirror::ShortArray> short_array(soa.Self(), mirror::ShortArray::Alloc(soa.Self(), 0));
-  EXPECT_EQ(class_linker_->FindSystemClass("[S"), short_array->GetClass());
+  EXPECT_EQ(class_linker_->FindSystemClass(soa.Self(), "[S"), short_array->GetClass());
   data_offset = reinterpret_cast<uintptr_t>(short_array->GetData());
   EXPECT_TRUE(IsAligned<2>(data_offset));  // Shorts require 2 byte alignment
 
@@ -810,28 +816,28 @@ TEST_F(ClassLinkerTest, ValidateBoxedTypes) {
   ScopedObjectAccess soa(Thread::Current());
   SirtRef<mirror::ClassLoader> class_loader(soa.Self(), nullptr);
   mirror::Class* c;
-  c = class_linker_->FindClass("Ljava/lang/Boolean;", class_loader);
+  c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Boolean;", class_loader);
   FieldHelper fh(c->GetIFields()->Get(0));
   EXPECT_STREQ("value", fh.GetName());
-  c = class_linker_->FindClass("Ljava/lang/Byte;", class_loader);
+  c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Byte;", class_loader);
   fh.ChangeField(c->GetIFields()->Get(0));
   EXPECT_STREQ("value", fh.GetName());
-  c = class_linker_->FindClass("Ljava/lang/Character;", class_loader);
+  c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Character;", class_loader);
   fh.ChangeField(c->GetIFields()->Get(0));
   EXPECT_STREQ("value", fh.GetName());
-  c = class_linker_->FindClass("Ljava/lang/Double;", class_loader);
+  c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Double;", class_loader);
   fh.ChangeField(c->GetIFields()->Get(0));
   EXPECT_STREQ("value", fh.GetName());
-  c = class_linker_->FindClass("Ljava/lang/Float;", class_loader);
+  c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Float;", class_loader);
   fh.ChangeField(c->GetIFields()->Get(0));
   EXPECT_STREQ("value", fh.GetName());
-  c = class_linker_->FindClass("Ljava/lang/Integer;", class_loader);
+  c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Integer;", class_loader);
   fh.ChangeField(c->GetIFields()->Get(0));
   EXPECT_STREQ("value", fh.GetName());
-  c = class_linker_->FindClass("Ljava/lang/Long;", class_loader);
+  c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Long;", class_loader);
   fh.ChangeField(c->GetIFields()->Get(0));
   EXPECT_STREQ("value", fh.GetName());
-  c = class_linker_->FindClass("Ljava/lang/Short;", class_loader);
+  c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Short;", class_loader);
   fh.ChangeField(c->GetIFields()->Get(0));
   EXPECT_STREQ("value", fh.GetName());
 }
@@ -840,8 +846,8 @@ TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
   ScopedObjectAccess soa(Thread::Current());
   SirtRef<mirror::ClassLoader> class_loader_1(soa.Self(), soa.Decode<mirror::ClassLoader*>(LoadDex("MyClass")));
   SirtRef<mirror::ClassLoader> class_loader_2(soa.Self(), soa.Decode<mirror::ClassLoader*>(LoadDex("MyClass")));
-  mirror::Class* MyClass_1 = class_linker_->FindClass("LMyClass;", class_loader_1);
-  mirror::Class* MyClass_2 = class_linker_->FindClass("LMyClass;", class_loader_2);
+  mirror::Class* MyClass_1 = class_linker_->FindClass(soa.Self(), "LMyClass;", class_loader_1);
+  mirror::Class* MyClass_2 = class_linker_->FindClass(soa.Self(), "LMyClass;", class_loader_2);
   EXPECT_TRUE(MyClass_1 != NULL);
   EXPECT_TRUE(MyClass_2 != NULL);
   EXPECT_NE(MyClass_1, MyClass_2);
@@ -849,8 +855,10 @@ TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
 
 TEST_F(ClassLinkerTest, StaticFields) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(LoadDex("Statics")));
-  SirtRef<mirror::Class> statics(soa.Self(), class_linker_->FindClass("LStatics;", class_loader));
+  SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
+                                            soa.Decode<mirror::ClassLoader*>(LoadDex("Statics")));
+  SirtRef<mirror::Class> statics(soa.Self(), class_linker_->FindClass(soa.Self(), "LStatics;",
+                                                                      class_loader));
   class_linker_->EnsureInitialized(statics, true, true);
 
   // Static final primitives that are initialized by a compile-time constant
@@ -933,11 +941,11 @@ TEST_F(ClassLinkerTest, StaticFields) {
 TEST_F(ClassLinkerTest, Interfaces) {
   ScopedObjectAccess soa(Thread::Current());
   SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(LoadDex("Interfaces")));
-  mirror::Class* I = class_linker_->FindClass("LInterfaces$I;", class_loader);
-  mirror::Class* J = class_linker_->FindClass("LInterfaces$J;", class_loader);
-  mirror::Class* K = class_linker_->FindClass("LInterfaces$K;", class_loader);
-  mirror::Class* A = class_linker_->FindClass("LInterfaces$A;", class_loader);
-  mirror::Class* B = class_linker_->FindClass("LInterfaces$B;", class_loader);
+  mirror::Class* I = class_linker_->FindClass(soa.Self(), "LInterfaces$I;", class_loader);
+  mirror::Class* J = class_linker_->FindClass(soa.Self(), "LInterfaces$J;", class_loader);
+  mirror::Class* K = class_linker_->FindClass(soa.Self(), "LInterfaces$K;", class_loader);
+  mirror::Class* A = class_linker_->FindClass(soa.Self(), "LInterfaces$A;", class_loader);
+  mirror::Class* B = class_linker_->FindClass(soa.Self(), "LInterfaces$B;", class_loader);
   EXPECT_TRUE(I->IsAssignableFrom(A));
   EXPECT_TRUE(J->IsAssignableFrom(A));
   EXPECT_TRUE(J->IsAssignableFrom(K));
@@ -996,7 +1004,7 @@ TEST_F(ClassLinkerTest, ResolveVerifyAndClinit) {
   SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(jclass_loader));
   const DexFile* dex_file = Runtime::Current()->GetCompileTimeClassPath(jclass_loader)[0];
   CHECK(dex_file != NULL);
-  mirror::Class* klass = class_linker_->FindClass("LStaticsFromCode;", class_loader);
+  mirror::Class* klass = class_linker_->FindClass(soa.Self(), "LStaticsFromCode;", class_loader);
   mirror::ArtMethod* clinit = klass->FindClassInitializer();
   mirror::ArtMethod* getS0 = klass->FindDirectMethod("getS0", "()Ljava/lang/Object;");
   const DexFile::StringId* string_id = dex_file->FindStringId("LStaticsFromCode;");
@@ -1017,32 +1025,32 @@ TEST_F(ClassLinkerTest, FinalizableBit) {
   mirror::Class* c;
 
   // Object has a finalize method, but we know it's empty.
-  c = class_linker_->FindSystemClass("Ljava/lang/Object;");
+  c = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;");
   EXPECT_FALSE(c->IsFinalizable());
 
   // Enum has a finalize method to prevent its subclasses from implementing one.
-  c = class_linker_->FindSystemClass("Ljava/lang/Enum;");
+  c = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Enum;");
   EXPECT_FALSE(c->IsFinalizable());
 
   // RoundingMode is an enum.
-  c = class_linker_->FindSystemClass("Ljava/math/RoundingMode;");
+  c = class_linker_->FindSystemClass(soa.Self(), "Ljava/math/RoundingMode;");
   EXPECT_FALSE(c->IsFinalizable());
 
   // RandomAccessFile extends Object and overrides finalize.
-  c = class_linker_->FindSystemClass("Ljava/io/RandomAccessFile;");
+  c = class_linker_->FindSystemClass(soa.Self(), "Ljava/io/RandomAccessFile;");
   EXPECT_TRUE(c->IsFinalizable());
 
   // FileInputStream is finalizable and extends InputStream which isn't.
-  c = class_linker_->FindSystemClass("Ljava/io/InputStream;");
+  c = class_linker_->FindSystemClass(soa.Self(), "Ljava/io/InputStream;");
   EXPECT_FALSE(c->IsFinalizable());
-  c = class_linker_->FindSystemClass("Ljava/io/FileInputStream;");
+  c = class_linker_->FindSystemClass(soa.Self(), "Ljava/io/FileInputStream;");
   EXPECT_TRUE(c->IsFinalizable());
 
   // ScheduledThreadPoolExecutor doesn't have a finalize method but
   // extends ThreadPoolExecutor which does.
-  c = class_linker_->FindSystemClass("Ljava/util/concurrent/ThreadPoolExecutor;");
+  c = class_linker_->FindSystemClass(soa.Self(), "Ljava/util/concurrent/ThreadPoolExecutor;");
   EXPECT_TRUE(c->IsFinalizable());
-  c = class_linker_->FindSystemClass("Ljava/util/concurrent/ScheduledThreadPoolExecutor;");
+  c = class_linker_->FindSystemClass(soa.Self(), "Ljava/util/concurrent/ScheduledThreadPoolExecutor;");
   EXPECT_TRUE(c->IsFinalizable());
 }
 
