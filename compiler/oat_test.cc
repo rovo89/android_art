@@ -14,20 +14,19 @@
  * limitations under the License.
  */
 
-#include "compiler/oat_writer.h"
+#include "common_compiler_test.h"
 #include "compiler/compiler_backend.h"
+#include "compiler/oat_writer.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
-#include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
 #include "oat_file.h"
 #include "vector_output_stream.h"
 
-#include "common_test.h"
-
 namespace art {
 
-class OatTest : public CommonTest {
+class OatTest : public CommonCompilerTest {
  protected:
   static const bool kCompile = false;  // DISABLED_ due to the time to compile libcore
 
@@ -81,7 +80,7 @@ class OatTest : public CommonTest {
 };
 
 TEST_F(OatTest, WriteRead) {
-  TimingLogger timings("CommonTest::WriteRead", false, false);
+  TimingLogger timings("OatTest::WriteRead", false, false);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
   // TODO: make selectable.

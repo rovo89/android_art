@@ -15,16 +15,17 @@
  */
 
 #include "reg_type.h"
-#include "reg_type_cache-inl.h"
+
+#include <set>
 
 #include "base/casts.h"
-#include "common_test.h"
-#include <set>
+#include "common_runtime_test.h"
+#include "reg_type_cache-inl.h"
 
 namespace art {
 namespace verifier {
 
-class RegTypeTest : public CommonTest {};
+class RegTypeTest : public CommonRuntimeTest {};
 
 TEST_F(RegTypeTest, ConstLoHi) {
   // Tests creating primitive types types.
@@ -335,7 +336,7 @@ TEST_F(RegTypeTest, Primitives) {
 }
 
 
-class RegTypeReferenceTest : public CommonTest {};
+class RegTypeReferenceTest : public CommonRuntimeTest {};
 
 TEST_F(RegTypeReferenceTest, JavalangObjectImprecise) {
   // Tests matching precisions. A reference type that was created precise doesn't

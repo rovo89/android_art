@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "common_test.h"
+#include "common_compiler_test.h"
 #include "sea_ir/types/type_inference_visitor.h"
 #include "sea_ir/ir/sea.h"
 
@@ -31,8 +31,7 @@ class TestInstructionNode:public InstructionNode {
   std::vector<InstructionNode*> producers_;
 };
 
-class TypeInferenceVisitorTest : public art::CommonTest {
-};
+class TypeInferenceVisitorTest : public art::CommonCompilerTest {};
 
 TEST_F(TypeInferenceVisitorTest, MergeIntWithByte) {
   TypeData td;

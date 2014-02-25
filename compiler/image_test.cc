@@ -14,15 +14,16 @@
  * limitations under the License.
  */
 
+#include "image.h"
+
 #include <string>
 #include <vector>
 
-#include "common_test.h"
+#include "common_compiler_test.h"
 #include "compiler/elf_fixup.h"
 #include "compiler/image_writer.h"
 #include "compiler/oat_writer.h"
 #include "gc/space/image_space.h"
-#include "image.h"
 #include "lock_word.h"
 #include "mirror/object-inl.h"
 #include "signal_catcher.h"
@@ -32,11 +33,11 @@
 
 namespace art {
 
-class ImageTest : public CommonTest {
+class ImageTest : public CommonCompilerTest {
  protected:
   virtual void SetUp() {
     ReserveImageSpace();
-    CommonTest::SetUp();
+    CommonCompilerTest::SetUp();
   }
 };
 

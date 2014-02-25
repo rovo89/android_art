@@ -21,7 +21,7 @@
 
 #include "UniquePtr.h"
 #include "class_linker.h"
-#include "common_test.h"
+#include "common_compiler_test.h"
 #include "dex_file.h"
 #include "gc/heap.h"
 #include "mirror/art_method-inl.h"
@@ -33,7 +33,7 @@
 
 namespace art {
 
-class CompilerDriverTest : public CommonTest {
+class CompilerDriverTest : public CommonCompilerTest {
  protected:
   void CompileAll(jobject class_loader) LOCKS_EXCLUDED(Locks::mutator_lock_) {
     TimingLogger timings("CompilerDriverTest::CompileAll", false, false);

@@ -15,7 +15,6 @@
  */
 
 #include "leb128.h"
-#include "leb128_encoder.h"
 
 #include "gtest/gtest.h"
 #include "base/histogram-inl.h"

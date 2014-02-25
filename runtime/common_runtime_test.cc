@@ -19,7 +19,7 @@
 
 int main(int argc, char **argv) {
   art::InitLogging(argv);
-  LOG(INFO) << "Running main() from common_test.cc...";
+  LOG(INFO) << "Running main() from common_runtime_test.cc...";
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

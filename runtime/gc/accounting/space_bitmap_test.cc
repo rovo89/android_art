@@ -16,20 +16,18 @@
 
 #include "space_bitmap.h"
 
-#include "common_test.h"
+#include <stdint.h>
+
+#include "common_runtime_test.h"
 #include "globals.h"
 #include "space_bitmap-inl.h"
 #include "UniquePtr.h"
-
-#include <stdint.h>
 
 namespace art {
 namespace gc {
 namespace accounting {
 
-class SpaceBitmapTest : public CommonTest {
- public:
-};
+class SpaceBitmapTest : public CommonRuntimeTest {};
 
 TEST_F(SpaceBitmapTest, Init) {
   byte* heap_begin = reinterpret_cast<byte*>(0x10000000);

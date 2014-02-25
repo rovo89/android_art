@@ -15,7 +15,7 @@
  */
 
 #include "class_linker.h"
-#include "common_test.h"
+#include "common_compiler_test.h"
 #include "dex_file.h"
 #include "gtest/gtest.h"
 #include "indirect_reference_table.h"
@@ -43,7 +43,7 @@ extern "C" JNIEXPORT jint JNICALL Java_MyClassNatives_sbar(JNIEnv*, jclass, jint
 
 namespace art {
 
-class JniCompilerTest : public CommonTest {
+class JniCompilerTest : public CommonCompilerTest {
  protected:
   void CompileForTest(jobject class_loader, bool direct,
                       const char* method_name, const char* method_sig) {

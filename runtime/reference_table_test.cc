@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-#include "common_test.h"
-
 #include "reference_table.h"
+
+#include "common_runtime_test.h"
 
 namespace art {
 
-class ReferenceTableTest : public CommonTest {
-};
+class ReferenceTableTest : public CommonRuntimeTest {};
 
 TEST_F(ReferenceTableTest, Basics) {
   ScopedObjectAccess soa(Thread::Current());

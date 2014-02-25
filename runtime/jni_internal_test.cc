@@ -20,7 +20,7 @@
 #include <cfloat>
 #include <cmath>
 
-#include "common_test.h"
+#include "common_compiler_test.h"
 #include "invoke_arg_array_builder.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
@@ -31,10 +31,11 @@
 
 namespace art {
 
-class JniInternalTest : public CommonTest {
+// TODO: Convert to CommonRuntimeTest. Currently MakeExecutable is used.
+class JniInternalTest : public CommonCompilerTest {
  protected:
   virtual void SetUp() {
-    CommonTest::SetUp();
+    CommonCompilerTest::SetUp();
 
     vm_ = Runtime::Current()->GetJavaVM();
 
@@ -75,7 +76,7 @@ class JniInternalTest : public CommonTest {
 
   virtual void TearDown() {
     CleanUpJniEnv();
-    CommonTest::TearDown();
+    CommonCompilerTest::TearDown();
   }
 
   jclass GetPrimitiveClass(char descriptor) {
@@ -2070,7 +2071,7 @@ TEST_F(JniInternalTest, DetachCurrentThread) {
 
   jint err = vm_->DetachCurrentThread();
   EXPECT_EQ(JNI_ERR, err);
-  vm_->AttachCurrentThread(&env_, NULL);  // need attached thread for CommonTest::TearDown
+  vm_->AttachCurrentThread(&env_, NULL);  // need attached thread for CommonRuntimeTest::TearDown
 }
 
 }  // namespace art
