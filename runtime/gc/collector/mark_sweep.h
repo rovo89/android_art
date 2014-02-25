@@ -334,6 +334,10 @@ class MarkSweep : public GarbageCollector {
   void ClearWhiteReferences(mirror::Object** list)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
+  // Used to get around thread safety annotations. The call is from MarkingPhase and is guarded by
+  // IsExclusiveHeld.
+  void RevokeAllThreadLocalAllocationStacks(Thread* self) NO_THREAD_SAFETY_ANALYSIS;
+
   // Whether or not we count how many of each type of object were scanned.
   static const bool kCountScannedTypes = false;
 

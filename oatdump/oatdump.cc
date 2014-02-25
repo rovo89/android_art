@@ -49,6 +49,7 @@
 #include "runtime.h"
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"
+#include "thread_list.h"
 #include "verifier/dex_gc_map.h"
 #include "verifier/method_verifier.h"
 #include "vmap_table.h"
@@ -817,12 +818,21 @@ class ImageDumper {
     const std::vector<gc::space::ContinuousSpace*>& spaces = heap->GetContinuousSpaces();
     Thread* self = Thread::Current();
     {
-      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-      heap->FlushAllocStack();
+      {
+        WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+        heap->FlushAllocStack();
+      }
       // Since FlushAllocStack() above resets the (active) allocation
       // stack. Need to revoke the thread-local allocation stacks that
       // point into it.
-      heap->RevokeAllThreadLocalAllocationStacks(self);
+      {
+        self->TransitionFromRunnableToSuspended(kNative);
+        ThreadList* thread_list = Runtime::Current()->GetThreadList();
+        thread_list->SuspendAll();
+        heap->RevokeAllThreadLocalAllocationStacks(self);
+        thread_list->ResumeAll();
+        self->TransitionFromSuspendedToRunnable();
+      }
     }
     {
       std::ostream* saved_os = os_;
@@ -1548,7 +1558,6 @@ static int oatdump(int argc, char** argv) {
   // give it away now and then switch to a more managable ScopedObjectAccess.
   Thread::Current()->TransitionFromRunnableToSuspended(kNative);
   ScopedObjectAccess soa(Thread::Current());
-
   gc::Heap* heap = Runtime::Current()->GetHeap();
   gc::space::ImageSpace* image_space = heap->GetImageSpace();
   CHECK(image_space != NULL);

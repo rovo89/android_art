@@ -210,7 +210,7 @@ bool MarkSweep::HandleDirtyObjectsPhase() {
     // Since SweepArray() above resets the (active) allocation
     // stack. Need to revoke the thread-local allocation stacks that
     // point into it.
-    GetHeap()->RevokeAllThreadLocalAllocationStacks(self);
+    RevokeAllThreadLocalAllocationStacks(self);
   }
 
   timings_.StartSplit("PreSweepingGcVerification");
@@ -252,6 +252,13 @@ void MarkSweep::PreCleanCards() {
   }
 }
 
+void MarkSweep::RevokeAllThreadLocalAllocationStacks(Thread* self) {
+  if (kUseThreadLocalAllocationStack) {
+    Locks::mutator_lock_->AssertExclusiveHeld(self);
+    heap_->RevokeAllThreadLocalAllocationStacks(self);
+  }
+}
+
 void MarkSweep::MarkingPhase() {
   TimingLogger::ScopedSplit split("MarkingPhase", &timings_);
   Thread* self = Thread::Current();
@@ -271,9 +278,7 @@ void MarkSweep::MarkingPhase() {
   if (Locks::mutator_lock_->IsExclusiveHeld(self)) {
     // If we exclusively hold the mutator lock, all threads must be suspended.
     MarkRoots();
-    if (kUseThreadLocalAllocationStack) {
-      heap_->RevokeAllThreadLocalAllocationStacks(self);
-    }
+    RevokeAllThreadLocalAllocationStacks(self);
   } else {
     MarkThreadRoots(self);
     // At this point the live stack should no longer have any mutators which push into it.

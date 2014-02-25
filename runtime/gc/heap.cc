@@ -2010,12 +2010,6 @@ void Heap::SwapStacks(Thread* self) {
 }
 
 void Heap::RevokeAllThreadLocalAllocationStacks(Thread* self) {
-  if (!Runtime::Current()->IsStarted()) {
-    // There's no thread list if the runtime hasn't started (eg
-    // dex2oat or a test). Just revoke for self.
-    self->RevokeThreadLocalAllocationStack();
-    return;
-  }
   // This must be called only during the pause.
   CHECK(Locks::mutator_lock_->IsExclusiveHeld(self));
   MutexLock mu(self, *Locks::runtime_shutdown_lock_);
