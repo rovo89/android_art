@@ -135,6 +135,11 @@ class MarkSweep : public GarbageCollector {
   virtual void UpdateAndMarkModUnion()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Pre clean cards to reduce how much work is needed in the pause.
+  void PreCleanCards()
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Sweeps unmarked objects to complete the garbage collection.
   virtual void Sweep(bool swap_bitmaps) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
