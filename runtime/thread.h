@@ -285,6 +285,7 @@ class PACKED(4) Thread {
   }
 
   void AssertNoPendingException() const;
+  void AssertNoPendingExceptionForNewException(const char* msg) const;
 
   void SetException(const ThrowLocation& throw_location, mirror::Throwable* new_exception)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
