@@ -28,6 +28,7 @@
 #include "sirt_ref.h"
 #include "thread.h"
 #include "UniquePtr.h"
+#include "vmap_table.h"
 
 namespace art {
 
@@ -66,7 +67,7 @@ class ExceptionTest : public CommonTest {
     fake_mapping_data_.PushBackUnsigned(3 - 0);  // offset 3
     fake_mapping_data_.PushBackSigned(3 - 0);    // maps to dex offset 3
 
-    fake_vmap_table_data_.PushBackUnsigned(0);
+    fake_vmap_table_data_.PushBackUnsigned(0 + VmapTable::kEntryAdjustment);
 
     fake_gc_map_.push_back(0);  // 0 bytes to encode references and native pc offsets.
     fake_gc_map_.push_back(0);
