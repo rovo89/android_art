@@ -50,8 +50,8 @@ class CompilerCallbacksImpl : public CompilerCallbacks {
     }
 
   private:
-    VerificationResults* verification_results_;
-    DexFileToMethodInlinerMap* method_inliner_map_;
+    VerificationResults* const verification_results_;
+    DexFileToMethodInlinerMap* const method_inliner_map_;
 };
 
 }  // namespace art

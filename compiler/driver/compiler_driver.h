@@ -558,9 +558,9 @@ class CompilerDriver {
   std::vector<const CallPatchInformation*> methods_to_patch_;
   std::vector<const TypePatchInformation*> classes_to_patch_;
 
-  const CompilerOptions* compiler_options_;
-  VerificationResults* verification_results_;
-  DexFileToMethodInlinerMap* method_inliner_map_;
+  const CompilerOptions* const compiler_options_;
+  VerificationResults* const verification_results_;
+  DexFileToMethodInlinerMap* const method_inliner_map_;
 
   UniquePtr<CompilerBackend> compiler_backend_;
 
