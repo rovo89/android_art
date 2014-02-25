@@ -1005,6 +1005,15 @@ void Thread::AssertNoPendingException() const {
   }
 }
 
+void Thread::AssertNoPendingExceptionForNewException(const char* msg) const {
+  if (UNLIKELY(IsExceptionPending())) {
+    ScopedObjectAccess soa(Thread::Current());
+    mirror::Throwable* exception = GetException(nullptr);
+    LOG(FATAL) << "Throwing new exception " << msg << " with unexpected pending exception: "
+        << exception->Dump();
+  }
+}
+
 static void MonitorExitVisitor(mirror::Object** object, void* arg, uint32_t /*thread_id*/,
                                RootType /*root_type*/)
     NO_THREAD_SAFETY_ANALYSIS {
@@ -1507,7 +1516,8 @@ void Thread::ThrowNewExceptionV(const ThrowLocation& throw_location,
 
 void Thread::ThrowNewException(const ThrowLocation& throw_location, const char* exception_class_descriptor,
                                const char* msg) {
-  AssertNoPendingException();  // Callers should either clear or call ThrowNewWrappedException.
+  // Callers should either clear or call ThrowNewWrappedException.
+  AssertNoPendingExceptionForNewException(msg);
   ThrowNewWrappedException(throw_location, exception_class_descriptor, msg);
 }
 
