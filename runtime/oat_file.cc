@@ -84,6 +84,7 @@ OatFile* OatFile::Open(const std::string& filename,
   // This won't work for portable runtime execution because it doesn't process relocations.
   UniquePtr<File> file(OS::OpenFileForReading(filename.c_str()));
   if (file.get() == NULL) {
+    *error_msg = StringPrintf("Failed to open oat filename for reading: %s", strerror(errno));
     return NULL;
   }
   return OpenElfFile(file.get(), location, requested_base, false, executable, error_msg);

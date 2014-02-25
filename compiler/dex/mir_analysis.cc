@@ -18,6 +18,7 @@
 #include "dataflow_iterator-inl.h"
 #include "dex/quick/dex_file_method_inliner.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
+#include "driver/compiler_options.h"
 
 namespace art {
 
@@ -958,7 +959,7 @@ bool MIRGraph::ComputeSkipCompilation(MethodStats* stats, bool skip_default) {
   }
 
   // Complex, logic-intensive?
-  if ((GetNumDalvikInsns() > Runtime::Current()->GetSmallMethodThreshold()) &&
+  if (cu_->compiler_driver->GetCompilerOptions().IsSmallMethod(GetNumDalvikInsns()) &&
       stats->branch_ratio > 0.3) {
     return false;
   }
@@ -984,7 +985,7 @@ bool MIRGraph::ComputeSkipCompilation(MethodStats* stats, bool skip_default) {
   }
 
   // If significant in size and high proportion of expensive operations, skip.
-  if ((GetNumDalvikInsns() > Runtime::Current()->GetSmallMethodThreshold()) &&
+  if (cu_->compiler_driver->GetCompilerOptions().IsSmallMethod(GetNumDalvikInsns()) &&
       (stats->heavyweight_ratio > 0.3)) {
     return true;
   }
@@ -996,12 +997,14 @@ bool MIRGraph::ComputeSkipCompilation(MethodStats* stats, bool skip_default) {
   * Will eventually want this to be a bit more sophisticated and happen at verification time.
   * Ultimate goal is to drive with profile data.
   */
-bool MIRGraph::SkipCompilation(Runtime::CompilerFilter compiler_filter) {
-  if (compiler_filter == Runtime::kEverything) {
+bool MIRGraph::SkipCompilation() {
+  const CompilerOptions& compiler_options = cu_->compiler_driver->GetCompilerOptions();
+  CompilerOptions::CompilerFilter compiler_filter = compiler_options.GetCompilerFilter();
+  if (compiler_filter == CompilerOptions::kEverything) {
     return false;
   }
 
-  if (compiler_filter == Runtime::kInterpretOnly) {
+  if (compiler_filter == CompilerOptions::kInterpretOnly) {
     LOG(WARNING) << "InterpretOnly should ideally be filtered out prior to parsing.";
     return true;
   }
@@ -1010,17 +1013,17 @@ bool MIRGraph::SkipCompilation(Runtime::CompilerFilter compiler_filter) {
   size_t small_cutoff = 0;
   size_t default_cutoff = 0;
   switch (compiler_filter) {
-    case Runtime::kBalanced:
-      small_cutoff = Runtime::Current()->GetSmallMethodThreshold();
-      default_cutoff = Runtime::Current()->GetLargeMethodThreshold();
+    case CompilerOptions::kBalanced:
+      small_cutoff = compiler_options.GetSmallMethodThreshold();
+      default_cutoff = compiler_options.GetLargeMethodThreshold();
       break;
-    case Runtime::kSpace:
-      small_cutoff = Runtime::Current()->GetTinyMethodThreshold();
-      default_cutoff = Runtime::Current()->GetSmallMethodThreshold();
+    case CompilerOptions::kSpace:
+      small_cutoff = compiler_options.GetTinyMethodThreshold();
+      default_cutoff = compiler_options.GetSmallMethodThreshold();
       break;
-    case Runtime::kSpeed:
-      small_cutoff = Runtime::Current()->GetHugeMethodThreshold();
-      default_cutoff = Runtime::Current()->GetHugeMethodThreshold();
+    case CompilerOptions::kSpeed:
+      small_cutoff = compiler_options.GetHugeMethodThreshold();
+      default_cutoff = compiler_options.GetHugeMethodThreshold();
       break;
     default:
       LOG(FATAL) << "Unexpected compiler_filter_: " << compiler_filter;
@@ -1033,17 +1036,17 @@ bool MIRGraph::SkipCompilation(Runtime::CompilerFilter compiler_filter) {
    * Filter 1: Huge methods are likely to be machine generated, but some aren't.
    * If huge, assume we won't compile, but allow futher analysis to turn it back on.
    */
-  if (GetNumDalvikInsns() > Runtime::Current()->GetHugeMethodThreshold()) {
+  if (compiler_options.IsHugeMethod(GetNumDalvikInsns())) {
     skip_compilation = true;
     // If we're got a huge number of basic blocks, don't bother with further analysis.
-    if (static_cast<size_t>(num_blocks_) > (Runtime::Current()->GetHugeMethodThreshold() / 2)) {
+    if (static_cast<size_t>(num_blocks_) > (compiler_options.GetHugeMethodThreshold() / 2)) {
       return true;
     }
-  } else if (GetNumDalvikInsns() > Runtime::Current()->GetLargeMethodThreshold() &&
+  } else if (compiler_options.IsLargeMethod(GetNumDalvikInsns()) &&
     /* If it's large and contains no branches, it's likely to be machine generated initialization */
       (GetBranchCount() == 0)) {
     return true;
-  } else if (compiler_filter == Runtime::kSpeed) {
+  } else if (compiler_filter == CompilerOptions::kSpeed) {
     // If not huge, compile.
     return false;
   }

@@ -211,7 +211,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
                               class_loader, dex_file);
 
   cu.NewTimingSplit("MIROpt:CheckFilters");
-  if (cu.mir_graph->SkipCompilation(Runtime::Current()->GetCompilerFilter())) {
+  if (cu.mir_graph->SkipCompilation()) {
     return NULL;
   }
 

@@ -372,7 +372,7 @@ class MIRGraph {
    * Examine the graph to determine whether it's worthwile to spend the time compiling
    * this method.
    */
-  bool SkipCompilation(Runtime::CompilerFilter compiler_filter);
+  bool SkipCompilation();
 
   /*
    * Parse dex method and add MIR at current insert point.  Returns id (which is

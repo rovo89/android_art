@@ -19,6 +19,8 @@
 #include "base/stl_util.h"
 #include "base/mutex.h"
 #include "base/mutex-inl.h"
+#include "driver/compiler_driver.h"
+#include "driver/compiler_options.h"
 #include "thread.h"
 #include "thread-inl.h"
 #include "verified_method.h"
@@ -27,8 +29,9 @@
 
 namespace art {
 
-VerificationResults::VerificationResults()
-    : verified_methods_lock_("compiler verified methods lock"),
+VerificationResults::VerificationResults(const CompilerOptions* compiler_options)
+    : compiler_options_(compiler_options),
+      verified_methods_lock_("compiler verified methods lock"),
       verified_methods_(),
       rejected_classes_lock_("compiler rejected classes lock"),
       rejected_classes_() {
@@ -43,6 +46,7 @@ VerificationResults::~VerificationResults() {
 }
 
 bool VerificationResults::ProcessVerifiedMethod(verifier::MethodVerifier* method_verifier) {
+  DCHECK(method_verifier != NULL);
   MethodReference ref = method_verifier->GetMethodReference();
   bool compile = IsCandidateForCompilation(ref, method_verifier->GetAccessFlags());
   // TODO: Check also for virtual/interface invokes when DEX-to-DEX supports devirtualization.
@@ -95,16 +99,18 @@ bool VerificationResults::IsClassRejected(ClassReference ref) {
 bool VerificationResults::IsCandidateForCompilation(MethodReference& method_ref,
                                                     const uint32_t access_flags) {
 #ifdef ART_SEA_IR_MODE
-    bool use_sea = Runtime::Current()->IsSeaIRMode();
-    use_sea = use_sea && (std::string::npos != PrettyMethod(
-                          method_ref.dex_method_index, *(method_ref.dex_file)).find("fibonacci"));
-    if (use_sea) return true;
+  bool use_sea = compiler_options_->GetSeaIrMode();
+  use_sea = use_sea && (std::string::npos != PrettyMethod(
+                        method_ref.dex_method_index, *(method_ref.dex_file)).find("fibonacci"));
+  if (use_sea) {
+    return true;
+  }
 #endif
   // Don't compile class initializers, ever.
   if (((access_flags & kAccConstructor) != 0) && ((access_flags & kAccStatic) != 0)) {
     return false;
   }
-  return (Runtime::Current()->GetCompilerFilter() != Runtime::kInterpretOnly);
+  return (compiler_options_->GetCompilerFilter() != CompilerOptions::kInterpretOnly);
 }
 
 }  // namespace art
