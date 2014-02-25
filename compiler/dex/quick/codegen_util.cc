@@ -25,6 +25,7 @@
 #include "dex/verified_method.h"
 #include "verifier/dex_gc_map.h"
 #include "verifier/method_verifier.h"
+#include "vmap_table.h"
 
 namespace art {
 
@@ -1042,30 +1043,32 @@ void Mir2Lir::Materialize() {
 }
 
 CompiledMethod* Mir2Lir::GetCompiledMethod() {
-  // Combine vmap tables - core regs, then fp regs - into vmap_table
-  std::vector<uint16_t> raw_vmap_table;
-  // Core regs may have been inserted out of order - sort first
-  std::sort(core_vmap_table_.begin(), core_vmap_table_.end());
-  for (size_t i = 0 ; i < core_vmap_table_.size(); ++i) {
-    // Copy, stripping out the phys register sort key
-    raw_vmap_table.push_back(~(-1 << VREG_NUM_WIDTH) & core_vmap_table_[i]);
-  }
-  // If we have a frame, push a marker to take place of lr
+  // Combine vmap tables - core regs, then fp regs - into vmap_table.
+  Leb128EncodingVector vmap_encoder;
   if (frame_size_ > 0) {
-    raw_vmap_table.push_back(INVALID_VREG);
+    // Prefix the encoded data with its size.
+    size_t size = core_vmap_table_.size() + 1 /* marker */ + fp_vmap_table_.size();
+    vmap_encoder.Reserve(size + 1u);  // All values are likely to be one byte in ULEB128 (<128).
+    vmap_encoder.PushBackUnsigned(size);
+    // Core regs may have been inserted out of order - sort first.
+    std::sort(core_vmap_table_.begin(), core_vmap_table_.end());
+    for (size_t i = 0 ; i < core_vmap_table_.size(); ++i) {
+      // Copy, stripping out the phys register sort key.
+      vmap_encoder.PushBackUnsigned(
+          ~(-1 << VREG_NUM_WIDTH) & (core_vmap_table_[i] + VmapTable::kEntryAdjustment));
+    }
+    // Push a marker to take place of lr.
+    vmap_encoder.PushBackUnsigned(VmapTable::kAdjustedFpMarker);
+    // fp regs already sorted.
+    for (uint32_t i = 0; i < fp_vmap_table_.size(); i++) {
+      vmap_encoder.PushBackUnsigned(fp_vmap_table_[i] + VmapTable::kEntryAdjustment);
+    }
   } else {
     DCHECK_EQ(__builtin_popcount(core_spill_mask_), 0);
     DCHECK_EQ(__builtin_popcount(fp_spill_mask_), 0);
-  }
-  // Combine vmap tables - core regs, then fp regs. fp regs already sorted
-  for (uint32_t i = 0; i < fp_vmap_table_.size(); i++) {
-    raw_vmap_table.push_back(fp_vmap_table_[i]);
-  }
-  Leb128EncodingVector vmap_encoder;
-  // Prefix the encoded data with its size.
-  vmap_encoder.PushBackUnsigned(raw_vmap_table.size());
-  for (uint16_t cur : raw_vmap_table) {
-    vmap_encoder.PushBackUnsigned(cur);
+    DCHECK_EQ(core_vmap_table_.size(), 0u);
+    DCHECK_EQ(fp_vmap_table_.size(), 0u);
+    vmap_encoder.PushBackUnsigned(0u);  // Size is 0.
   }
   CompiledMethod* result =
       new CompiledMethod(*cu_->compiler_driver, cu_->instruction_set, code_buffer_, frame_size_,
