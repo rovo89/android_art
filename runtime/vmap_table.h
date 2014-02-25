@@ -25,6 +25,10 @@ namespace art {
 
 class VmapTable {
  public:
+  // For efficient encoding of special values, entries are adjusted by 2.
+  static constexpr uint16_t kEntryAdjustment = 2u;
+  static constexpr uint16_t kAdjustedFpMarker = static_cast<uint16_t>(0xffffu + kEntryAdjustment);
+
   explicit VmapTable(const uint8_t* table) : table_(table) {
   }
 
@@ -33,11 +37,11 @@ class VmapTable {
     const uint8_t* table = table_;
     size_t size = DecodeUnsignedLeb128(&table);
     CHECK_LT(n, size);
-    uint16_t entry = DecodeUnsignedLeb128(&table);
+    uint16_t adjusted_entry = DecodeUnsignedLeb128(&table);
     for (size_t i = 0; i < n; ++i) {
-      entry = DecodeUnsignedLeb128(&table);
+      adjusted_entry = DecodeUnsignedLeb128(&table);
     }
-    return entry;
+    return adjusted_entry - kEntryAdjustment;
   }
 
   size_t Size() const {
@@ -58,16 +62,17 @@ class VmapTable {
     bool is_float = (kind == kFloatVReg) || (kind == kDoubleLoVReg) || (kind == kDoubleHiVReg);
     bool in_floats = false;
     const uint8_t* table = table_;
+    uint16_t adjusted_vreg = vreg + kEntryAdjustment;
     size_t end = DecodeUnsignedLeb128(&table);
     for (size_t i = 0; i < end; ++i) {
       // Stop if we find what we are are looking for.
-      uint16_t entry = DecodeUnsignedLeb128(&table);
-      if ((entry == vreg) && (in_floats == is_float)) {
+      uint16_t adjusted_entry = DecodeUnsignedLeb128(&table);
+      if ((adjusted_entry == adjusted_vreg) && (in_floats == is_float)) {
         *vmap_offset = i;
         return true;
       }
       // 0xffff is the marker for LR (return PC on x86), following it are spilled float registers.
-      if (entry == 0xffff) {
+      if (adjusted_entry == kAdjustedFpMarker) {
         in_floats = true;
       }
     }
@@ -89,7 +94,7 @@ class VmapTable {
     if (UNLIKELY(is_float)) {
       const uint8_t* table = table_;
       DecodeUnsignedLeb128(&table);  // Skip size.
-      while (DecodeUnsignedLeb128(&table) != 0xffff) {
+      while (DecodeUnsignedLeb128(&table) != kAdjustedFpMarker) {
         matches++;
       }
       matches++;
