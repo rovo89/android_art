@@ -19,6 +19,7 @@
 
 #include "utils/allocation.h"
 #include "utils/growable_array.h"
+#include "dex/arena_bit_vector.h"
 
 namespace art {
 
@@ -29,24 +30,65 @@ class HGraphVisitor;
 static const int kDefaultNumberOfBlocks = 8;
 static const int kDefaultNumberOfSuccessors = 2;
 static const int kDefaultNumberOfPredecessors = 2;
+static const int kDefaultNumberOfBackEdges = 1;
 
 // Control-flow graph of a method. Contains a list of basic blocks.
 class HGraph : public ArenaObject {
  public:
   explicit HGraph(ArenaAllocator* arena)
       : arena_(arena),
-        blocks_(arena, kDefaultNumberOfBlocks) { }
+        blocks_(arena, kDefaultNumberOfBlocks),
+        dominator_order_(arena, kDefaultNumberOfBlocks) { }
 
   ArenaAllocator* arena() const { return arena_; }
   const GrowableArray<HBasicBlock*>* blocks() const { return &blocks_; }
 
   void AddBlock(HBasicBlock* block);
+  void BuildDominatorTree();
 
  private:
+  HBasicBlock* FindCommonDominator(HBasicBlock* first, HBasicBlock* second) const;
+  void VisitBlockForDominatorTree(HBasicBlock* block,
+                                  HBasicBlock* predecessor,
+                                  GrowableArray<size_t>* visits);
+  void FindBackEdges(ArenaBitVector* visited) const;
+  void VisitBlockForBackEdges(HBasicBlock* block,
+                              ArenaBitVector* visited,
+                              ArenaBitVector* visiting) const;
+  void RemoveDeadBlocks(const ArenaBitVector& visited) const;
+
+  HBasicBlock* GetEntryBlock() const { return blocks_.Get(0); }
+
   ArenaAllocator* const arena_;
+
+  // List of blocks in insertion order.
   GrowableArray<HBasicBlock*> blocks_;
 
+  // List of blocks to perform a pre-order dominator tree traversal.
+  GrowableArray<HBasicBlock*> dominator_order_;
+
   DISALLOW_COPY_AND_ASSIGN(HGraph);
+};
+
+class HLoopInformation : public ArenaObject {
+ public:
+  HLoopInformation(HBasicBlock* header, HGraph* graph)
+      : header_(header),
+        back_edges_(graph->arena(), kDefaultNumberOfBackEdges) { }
+
+  void AddBackEdge(HBasicBlock* back_edge) {
+    back_edges_.Add(back_edge);
+  }
+
+  int NumberOfBackEdges() const {
+    return back_edges_.Size();
+  }
+
+ private:
+  HBasicBlock* header_;
+  GrowableArray<HBasicBlock*> back_edges_;
+
+  DISALLOW_COPY_AND_ASSIGN(HLoopInformation);
 };
 
 // A block in a method. Contains the list of instructions represented
@@ -60,6 +102,8 @@ class HBasicBlock : public ArenaObject {
         successors_(graph->arena(), kDefaultNumberOfSuccessors),
         first_instruction_(nullptr),
         last_instruction_(nullptr),
+        loop_information_(nullptr),
+        dominator_(nullptr),
         block_id_(-1) { }
 
   const GrowableArray<HBasicBlock*>* predecessors() const {
@@ -70,10 +114,26 @@ class HBasicBlock : public ArenaObject {
     return &successors_;
   }
 
+  void AddBackEdge(HBasicBlock* back_edge) {
+    if (loop_information_ == nullptr) {
+      loop_information_ = new (graph_->arena()) HLoopInformation(this, graph_);
+    }
+    loop_information_->AddBackEdge(back_edge);
+  }
+
   HGraph* graph() const { return graph_; }
 
   int block_id() const { return block_id_; }
   void set_block_id(int id) { block_id_ = id; }
+
+  HBasicBlock* dominator() const { return dominator_; }
+  void set_dominator(HBasicBlock* dominator) { dominator_ = dominator; }
+
+  int NumberOfBackEdges() const {
+    return loop_information_ == nullptr
+        ? 0
+        : loop_information_->NumberOfBackEdges();
+  }
 
   HInstruction* first_instruction() const { return first_instruction_; }
   HInstruction* last_instruction() const { return last_instruction_; }
@@ -81,6 +141,10 @@ class HBasicBlock : public ArenaObject {
   void AddSuccessor(HBasicBlock* block) {
     successors_.Add(block);
     block->predecessors_.Add(this);
+  }
+
+  void RemovePredecessor(HBasicBlock* block) {
+    predecessors_.Delete(block);
   }
 
   void AddInstruction(HInstruction* instruction);
@@ -91,6 +155,8 @@ class HBasicBlock : public ArenaObject {
   GrowableArray<HBasicBlock*> successors_;
   HInstruction* first_instruction_;
   HInstruction* last_instruction_;
+  HLoopInformation* loop_information_;
+  HBasicBlock* dominator_;
   int block_id_;
 
   DISALLOW_COPY_AND_ASSIGN(HBasicBlock);
@@ -99,6 +165,7 @@ class HBasicBlock : public ArenaObject {
 #define FOR_EACH_INSTRUCTION(M)                            \
   M(Exit)                                                  \
   M(Goto)                                                  \
+  M(If)                                                    \
   M(ReturnVoid)                                            \
 
 #define DECLARE_INSTRUCTION(type)                          \
@@ -107,9 +174,7 @@ class HBasicBlock : public ArenaObject {
 
 class HInstruction : public ArenaObject {
  public:
-  explicit HInstruction(HBasicBlock* block)
-      : previous_(nullptr),
-        next_(nullptr) { }
+  HInstruction() : previous_(nullptr), next_(nullptr) { }
   virtual ~HInstruction() { }
 
   HInstruction* next() const { return next_; }
@@ -199,9 +264,7 @@ class EmbeddedArray<T, 0> {
 template<intptr_t N>
 class HTemplateInstruction: public HInstruction {
  public:
-  HTemplateInstruction<N>(HBasicBlock* block)
-      : HInstruction(block),
-        inputs_() { }
+  HTemplateInstruction<N>() : inputs_() { }
   virtual ~HTemplateInstruction() { }
 
   virtual intptr_t InputCount() const { return N; }
@@ -215,7 +278,7 @@ class HTemplateInstruction: public HInstruction {
 // instruction that branches to the exit block.
 class HReturnVoid : public HTemplateInstruction<0> {
  public:
-  explicit HReturnVoid(HBasicBlock* block) : HTemplateInstruction<0>(block) { }
+  HReturnVoid() { }
 
   DECLARE_INSTRUCTION(ReturnVoid)
 
@@ -228,7 +291,7 @@ class HReturnVoid : public HTemplateInstruction<0> {
 // exit block.
 class HExit : public HTemplateInstruction<0> {
  public:
-  explicit HExit(HBasicBlock* block) : HTemplateInstruction<0>(block) { }
+  HExit() { }
 
   DECLARE_INSTRUCTION(Exit)
 
@@ -239,12 +302,25 @@ class HExit : public HTemplateInstruction<0> {
 // Jumps from one block to another.
 class HGoto : public HTemplateInstruction<0> {
  public:
-  explicit HGoto(HBasicBlock* block) : HTemplateInstruction<0>(block) { }
+  HGoto() { }
 
   DECLARE_INSTRUCTION(Goto)
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HGoto);
+};
+
+// Conditional branch. A block ending with an HIf instruction must have
+// two successors.
+// TODO: Make it take an input.
+class HIf : public HTemplateInstruction<0> {
+ public:
+  HIf() { }
+
+  DECLARE_INSTRUCTION(If)
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HIf);
 };
 
 class HGraphVisitor : public ValueObject {
