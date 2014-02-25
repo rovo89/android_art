@@ -20,6 +20,8 @@
 #include "codegen_x86.h"
 #include "dex/compiler_internals.h"
 #include "dex/quick/mir_to_lir-inl.h"
+#include "mirror/array.h"
+#include "mirror/string.h"
 #include "x86_lir.h"
 
 namespace art {
@@ -944,12 +946,6 @@ void X86Mir2Lir::InstallLiteralPools() {
   Mir2Lir::InstallLiteralPools();
 }
 
-// Offsets within java.lang.String.
-#define STRING_VALUE_OFFSET 8
-#define STRING_COUNT_OFFSET 12
-#define STRING_OFFSET_OFFSET 20
-#define STRING_DATA_OFFSET 12
-
 /*
  * Fast string.index_of(I) & (II).  Inline check for simple case of char <= 0xffff,
  * otherwise bails to standard library code.
@@ -1001,6 +997,14 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   }
 
   // From here down, we know that we are looking for a char that fits in 16 bits.
+  // Location of reference to data array within the String object.
+  int value_offset = mirror::String::ValueOffset().Int32Value();
+  // Location of count within the String object.
+  int count_offset = mirror::String::CountOffset().Int32Value();
+  // Starting offset within data array.
+  int offset_offset = mirror::String::OffsetOffset().Int32Value();
+  // Start of char data with array_.
+  int data_offset = mirror::Array::DataOffset(sizeof(uint16_t)).Int32Value();
 
   // Character is in EAX.
   // Object pointer is in EDX.
@@ -1010,7 +1014,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   NewLIR1(kX86Push32R, rDI);
 
   // Compute the number of words to search in to rCX.
-  LoadWordDisp(rDX, STRING_COUNT_OFFSET, rCX);
+  LoadWordDisp(rDX, count_offset, rCX);
   LIR *length_compare = nullptr;
   int start_value = 0;
   if (zero_based) {
@@ -1048,10 +1052,10 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   // ECX now contains the count in words to be searched.
 
   // Load the address of the string into EBX.
-  // The string starts at VALUE(String) + 2 * OFFSET(String) + STRING_DATA_OFFSET.
-  LoadWordDisp(rDX, STRING_VALUE_OFFSET, rDI);
-  LoadWordDisp(rDX, STRING_OFFSET_OFFSET, rBX);
-  OpLea(rBX, rDI, rBX, 1, STRING_DATA_OFFSET);
+  // The string starts at VALUE(String) + 2 * OFFSET(String) + DATA_OFFSET.
+  LoadWordDisp(rDX, value_offset, rDI);
+  LoadWordDisp(rDX, offset_offset, rBX);
+  OpLea(rBX, rDI, rBX, 1, data_offset);
 
   // Now compute into EDI where the search will start.
   if (zero_based || rl_start.is_const) {
