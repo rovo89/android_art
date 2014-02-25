@@ -487,14 +487,14 @@ class Dex2Oat {
     return false;
   }
 
-  const CompilerOptions* compiler_options_;
+  const CompilerOptions* const compiler_options_;
   const CompilerBackend::Kind compiler_backend_;
 
   const InstructionSet instruction_set_;
   const InstructionSetFeatures instruction_set_features_;
 
-  VerificationResults* verification_results_;
-  DexFileToMethodInlinerMap* method_inliner_map_;
+  VerificationResults* const verification_results_;
+  DexFileToMethodInlinerMap* const method_inliner_map_;
   Runtime* runtime_;
   size_t thread_count_;
   uint64_t start_ns_;
