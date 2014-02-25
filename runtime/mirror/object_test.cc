@@ -123,7 +123,8 @@ TEST_F(ObjectTest, AllocObjectArray) {
   EXPECT_TRUE(oa->Get(0) == oa.get());
   EXPECT_TRUE(oa->Get(1) == oa.get());
 
-  Class* aioobe = class_linker_->FindSystemClass("Ljava/lang/ArrayIndexOutOfBoundsException;");
+  Class* aioobe = class_linker_->FindSystemClass(soa.Self(),
+                                                 "Ljava/lang/ArrayIndexOutOfBoundsException;");
 
   EXPECT_TRUE(oa->Get(-1) == NULL);
   EXPECT_TRUE(soa.Self()->IsExceptionPending());
@@ -138,21 +139,23 @@ TEST_F(ObjectTest, AllocObjectArray) {
   ASSERT_TRUE(oa->GetClass() != NULL);
   ClassHelper oa_ch(oa->GetClass());
   ASSERT_EQ(2U, oa_ch.NumDirectInterfaces());
-  EXPECT_EQ(class_linker_->FindSystemClass("Ljava/lang/Cloneable;"), oa_ch.GetDirectInterface(0));
-  EXPECT_EQ(class_linker_->FindSystemClass("Ljava/io/Serializable;"), oa_ch.GetDirectInterface(1));
+  EXPECT_EQ(class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Cloneable;"),
+            oa_ch.GetDirectInterface(0));
+  EXPECT_EQ(class_linker_->FindSystemClass(soa.Self(), "Ljava/io/Serializable;"),
+            oa_ch.GetDirectInterface(1));
 }
 
 TEST_F(ObjectTest, AllocArray) {
   ScopedObjectAccess soa(Thread::Current());
-  Class* c = class_linker_->FindSystemClass("[I");
+  Class* c = class_linker_->FindSystemClass(soa.Self(), "[I");
   SirtRef<Array> a(soa.Self(), Array::Alloc<true>(soa.Self(), c, 1));
   ASSERT_TRUE(c == a->GetClass());
 
-  c = class_linker_->FindSystemClass("[Ljava/lang/Object;");
+  c = class_linker_->FindSystemClass(soa.Self(), "[Ljava/lang/Object;");
   a.reset(Array::Alloc<true>(soa.Self(), c, 1));
   ASSERT_TRUE(c == a->GetClass());
 
-  c = class_linker_->FindSystemClass("[[Ljava/lang/Object;");
+  c = class_linker_->FindSystemClass(soa.Self(), "[[Ljava/lang/Object;");
   a.reset(Array::Alloc<true>(soa.Self(), c, 1));
   ASSERT_TRUE(c == a->GetClass());
 }
@@ -173,7 +176,7 @@ void TestPrimitiveArray(ClassLinker* cl) {
   EXPECT_EQ(T(123), a->Get(0));
   EXPECT_EQ(T(321), a->Get(1));
 
-  Class* aioobe = cl->FindSystemClass("Ljava/lang/ArrayIndexOutOfBoundsException;");
+  Class* aioobe = cl->FindSystemClass(soa.Self(), "Ljava/lang/ArrayIndexOutOfBoundsException;");
 
   EXPECT_EQ(0, a->Get(-1));
   EXPECT_TRUE(soa.Self()->IsExceptionPending());
@@ -214,7 +217,7 @@ TEST_F(ObjectTest, PrimitiveArray_Short_Alloc) {
 TEST_F(ObjectTest, CheckAndAllocArrayFromCode) {
   // pretend we are trying to call 'new char[3]' from String.toCharArray
   ScopedObjectAccess soa(Thread::Current());
-  Class* java_util_Arrays = class_linker_->FindSystemClass("Ljava/util/Arrays;");
+  Class* java_util_Arrays = class_linker_->FindSystemClass(soa.Self(), "Ljava/util/Arrays;");
   ArtMethod* sort = java_util_Arrays->FindDirectMethod("sort", "([I)V");
   const DexFile::StringId* string_id = java_lang_dex_file_->FindStringId("[I");
   ASSERT_TRUE(string_id != NULL);
@@ -233,11 +236,11 @@ TEST_F(ObjectTest, CheckAndAllocArrayFromCode) {
 TEST_F(ObjectTest, CreateMultiArray) {
   ScopedObjectAccess soa(Thread::Current());
 
-  SirtRef<Class> c(soa.Self(), class_linker_->FindSystemClass("I"));
+  SirtRef<Class> c(soa.Self(), class_linker_->FindSystemClass(soa.Self(), "I"));
   SirtRef<IntArray> dims(soa.Self(), IntArray::Alloc(soa.Self(), 1));
   dims->Set<false>(0, 1);
   Array* multi = Array::CreateMultiArray(soa.Self(), c, dims);
-  EXPECT_TRUE(multi->GetClass() == class_linker_->FindSystemClass("[I"));
+  EXPECT_TRUE(multi->GetClass() == class_linker_->FindSystemClass(soa.Self(), "[I"));
   EXPECT_EQ(1, multi->GetLength());
 
   dims->Set<false>(0, -1);
@@ -253,11 +256,11 @@ TEST_F(ObjectTest, CreateMultiArray) {
       dims->Set<false>(0, i);
       dims->Set<false>(1, j);
       multi = Array::CreateMultiArray(soa.Self(), c, dims);
-      EXPECT_TRUE(multi->GetClass() == class_linker_->FindSystemClass("[[I"));
+      EXPECT_TRUE(multi->GetClass() == class_linker_->FindSystemClass(soa.Self(), "[[I"));
       EXPECT_EQ(i, multi->GetLength());
       for (int k = 0; k < i; ++k) {
         Array* outer = multi->AsObjectArray<Array>()->Get(k);
-        EXPECT_TRUE(outer->GetClass() == class_linker_->FindSystemClass("[I"));
+        EXPECT_TRUE(outer->GetClass() == class_linker_->FindSystemClass(soa.Self(), "[I"));
         EXPECT_EQ(j, outer->GetLength());
       }
     }
@@ -272,8 +275,7 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
   CHECK(dex_file != NULL);
 
   SirtRef<mirror::ClassLoader> loader(soa.Self(), soa.Decode<ClassLoader*>(class_loader));
-  Class* klass =
-      class_linker_->FindClass("LStaticsFromCode;", loader);
+  Class* klass = class_linker_->FindClass(soa.Self(), "LStaticsFromCode;", loader);
   ArtMethod* clinit = klass->FindClassInitializer();
   const DexFile::StringId* klass_string_id = dex_file->FindStringId("LStaticsFromCode;");
   ASSERT_TRUE(klass_string_id != NULL);
@@ -404,9 +406,9 @@ TEST_F(ObjectTest, DescriptorCompare) {
   SirtRef<ClassLoader> class_loader_1(soa.Self(), soa.Decode<ClassLoader*>(jclass_loader_1));
   SirtRef<ClassLoader> class_loader_2(soa.Self(), soa.Decode<ClassLoader*>(jclass_loader_2));
 
-  Class* klass1 = linker->FindClass("LProtoCompare;", class_loader_1);
+  Class* klass1 = linker->FindClass(soa.Self(), "LProtoCompare;", class_loader_1);
   ASSERT_TRUE(klass1 != NULL);
-  Class* klass2 = linker->FindClass("LProtoCompare2;", class_loader_2);
+  Class* klass2 = linker->FindClass(soa.Self(), "LProtoCompare2;", class_loader_2);
   ASSERT_TRUE(klass2 != NULL);
 
   ArtMethod* m1_1 = klass1->GetVirtualMethod(0);
@@ -472,8 +474,8 @@ TEST_F(ObjectTest, InstanceOf) {
   jobject jclass_loader = LoadDex("XandY");
   SirtRef<ClassLoader> class_loader(soa.Self(), soa.Decode<ClassLoader*>(jclass_loader));
 
-  Class* X = class_linker_->FindClass("LX;", class_loader);
-  Class* Y = class_linker_->FindClass("LY;", class_loader);
+  Class* X = class_linker_->FindClass(soa.Self(), "LX;", class_loader);
+  Class* Y = class_linker_->FindClass(soa.Self(), "LY;", class_loader);
   ASSERT_TRUE(X != NULL);
   ASSERT_TRUE(Y != NULL);
 
@@ -487,16 +489,16 @@ TEST_F(ObjectTest, InstanceOf) {
   EXPECT_TRUE(y->InstanceOf(X));
   EXPECT_TRUE(y->InstanceOf(Y));
 
-  Class* java_lang_Class = class_linker_->FindSystemClass("Ljava/lang/Class;");
-  Class* Object_array_class = class_linker_->FindSystemClass("[Ljava/lang/Object;");
+  Class* java_lang_Class = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Class;");
+  Class* Object_array_class = class_linker_->FindSystemClass(soa.Self(), "[Ljava/lang/Object;");
 
   EXPECT_FALSE(java_lang_Class->InstanceOf(Object_array_class));
   EXPECT_TRUE(Object_array_class->InstanceOf(java_lang_Class));
 
   // All array classes implement Cloneable and Serializable.
   Object* array = ObjectArray<Object>::Alloc(soa.Self(), Object_array_class, 1);
-  Class* java_lang_Cloneable = class_linker_->FindSystemClass("Ljava/lang/Cloneable;");
-  Class* java_io_Serializable = class_linker_->FindSystemClass("Ljava/io/Serializable;");
+  Class* java_lang_Cloneable = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Cloneable;");
+  Class* java_io_Serializable = class_linker_->FindSystemClass(soa.Self(), "Ljava/io/Serializable;");
   EXPECT_TRUE(array->InstanceOf(java_lang_Cloneable));
   EXPECT_TRUE(array->InstanceOf(java_io_Serializable));
 }
@@ -505,8 +507,8 @@ TEST_F(ObjectTest, IsAssignableFrom) {
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("XandY");
   SirtRef<ClassLoader> class_loader(soa.Self(), soa.Decode<ClassLoader*>(jclass_loader));
-  Class* X = class_linker_->FindClass("LX;", class_loader);
-  Class* Y = class_linker_->FindClass("LY;", class_loader);
+  Class* X = class_linker_->FindClass(soa.Self(), "LX;", class_loader);
+  Class* Y = class_linker_->FindClass(soa.Self(), "LY;", class_loader);
 
   EXPECT_TRUE(X->IsAssignableFrom(X));
   EXPECT_TRUE(X->IsAssignableFrom(Y));
@@ -514,8 +516,8 @@ TEST_F(ObjectTest, IsAssignableFrom) {
   EXPECT_TRUE(Y->IsAssignableFrom(Y));
 
   // class final String implements CharSequence, ..
-  Class* string = class_linker_->FindSystemClass("Ljava/lang/String;");
-  Class* charseq = class_linker_->FindSystemClass("Ljava/lang/CharSequence;");
+  Class* string = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/String;");
+  Class* charseq = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/CharSequence;");
   // Can String be assigned to CharSequence without a cast?
   EXPECT_TRUE(charseq->IsAssignableFrom(string));
   // Can CharSequence be assigned to String without a cast?
@@ -542,36 +544,36 @@ TEST_F(ObjectTest, IsAssignableFromArray) {
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("XandY");
   SirtRef<ClassLoader> class_loader(soa.Self(), soa.Decode<ClassLoader*>(jclass_loader));
-  Class* X = class_linker_->FindClass("LX;", class_loader);
-  Class* Y = class_linker_->FindClass("LY;", class_loader);
+  Class* X = class_linker_->FindClass(soa.Self(), "LX;", class_loader);
+  Class* Y = class_linker_->FindClass(soa.Self(), "LY;", class_loader);
   ASSERT_TRUE(X != NULL);
   ASSERT_TRUE(Y != NULL);
 
-  Class* YA = class_linker_->FindClass("[LY;", class_loader);
-  Class* YAA = class_linker_->FindClass("[[LY;", class_loader);
+  Class* YA = class_linker_->FindClass(soa.Self(), "[LY;", class_loader);
+  Class* YAA = class_linker_->FindClass(soa.Self(), "[[LY;", class_loader);
   ASSERT_TRUE(YA != NULL);
   ASSERT_TRUE(YAA != NULL);
 
-  Class* XAA = class_linker_->FindClass("[[LX;", class_loader);
+  Class* XAA = class_linker_->FindClass(soa.Self(), "[[LX;", class_loader);
   ASSERT_TRUE(XAA != NULL);
 
-  Class* O = class_linker_->FindSystemClass("Ljava/lang/Object;");
-  Class* OA = class_linker_->FindSystemClass("[Ljava/lang/Object;");
-  Class* OAA = class_linker_->FindSystemClass("[[Ljava/lang/Object;");
-  Class* OAAA = class_linker_->FindSystemClass("[[[Ljava/lang/Object;");
+  Class* O = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;");
+  Class* OA = class_linker_->FindSystemClass(soa.Self(), "[Ljava/lang/Object;");
+  Class* OAA = class_linker_->FindSystemClass(soa.Self(), "[[Ljava/lang/Object;");
+  Class* OAAA = class_linker_->FindSystemClass(soa.Self(), "[[[Ljava/lang/Object;");
   ASSERT_TRUE(O != NULL);
   ASSERT_TRUE(OA != NULL);
   ASSERT_TRUE(OAA != NULL);
   ASSERT_TRUE(OAAA != NULL);
 
-  Class* S = class_linker_->FindSystemClass("Ljava/io/Serializable;");
-  Class* SA = class_linker_->FindSystemClass("[Ljava/io/Serializable;");
-  Class* SAA = class_linker_->FindSystemClass("[[Ljava/io/Serializable;");
+  Class* S = class_linker_->FindSystemClass(soa.Self(), "Ljava/io/Serializable;");
+  Class* SA = class_linker_->FindSystemClass(soa.Self(), "[Ljava/io/Serializable;");
+  Class* SAA = class_linker_->FindSystemClass(soa.Self(), "[[Ljava/io/Serializable;");
   ASSERT_TRUE(S != NULL);
   ASSERT_TRUE(SA != NULL);
   ASSERT_TRUE(SAA != NULL);
 
-  Class* IA = class_linker_->FindSystemClass("[I");
+  Class* IA = class_linker_->FindSystemClass(soa.Self(), "[I");
   ASSERT_TRUE(IA != NULL);
 
   EXPECT_TRUE(YAA->IsAssignableFrom(YAA));  // identity
@@ -616,7 +618,7 @@ TEST_F(ObjectTest, FindInstanceField) {
   // TODO: check that s.count == 3.
 
   // Ensure that we handle superclass fields correctly...
-  c = class_linker_->FindSystemClass("Ljava/lang/StringBuilder;");
+  c = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/StringBuilder;");
   ASSERT_TRUE(c != NULL);
   // No StringBuilder.count...
   EXPECT_TRUE(c->FindDeclaredInstanceField("count", "I") == NULL);

@@ -18,6 +18,7 @@
 
 
 #include "base/casts.h"
+#include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
@@ -928,11 +929,7 @@ mirror::Class* RegType::ClassJoin(mirror::Class* s, mirror::Class* t) {
     }
     mirror::Class* common_elem = ClassJoin(s_ct, t_ct);
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    Thread* self = Thread::Current();
-    SirtRef<mirror::ClassLoader> class_loader(self, s->GetClassLoader());
-    std::string descriptor("[");
-    descriptor += ClassHelper(common_elem).GetDescriptor();
-    mirror::Class* array_class = class_linker->FindClass(descriptor.c_str(), class_loader);
+    mirror::Class* array_class = class_linker->FindArrayClass(Thread::Current(), common_elem);
     DCHECK(array_class != NULL);
     return array_class;
   } else {

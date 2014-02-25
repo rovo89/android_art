@@ -289,27 +289,39 @@ static JDWP::JdwpTag BasicTagFromDescriptor(const char* descriptor) {
   return static_cast<JDWP::JdwpTag>(descriptor[0]);
 }
 
-static JDWP::JdwpTag TagFromClass(mirror::Class* c)
+static JDWP::JdwpTag TagFromClass(const ScopedObjectAccessUnchecked& soa, mirror::Class* c)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   CHECK(c != NULL);
   if (c->IsArrayClass()) {
     return JDWP::JT_ARRAY;
   }
-
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   if (c->IsStringClass()) {
     return JDWP::JT_STRING;
-  } else if (c->IsClassClass()) {
-    return JDWP::JT_CLASS_OBJECT;
-  } else if (class_linker->FindSystemClass("Ljava/lang/Thread;")->IsAssignableFrom(c)) {
-    return JDWP::JT_THREAD;
-  } else if (class_linker->FindSystemClass("Ljava/lang/ThreadGroup;")->IsAssignableFrom(c)) {
-    return JDWP::JT_THREAD_GROUP;
-  } else if (class_linker->FindSystemClass("Ljava/lang/ClassLoader;")->IsAssignableFrom(c)) {
-    return JDWP::JT_CLASS_LOADER;
-  } else {
-    return JDWP::JT_OBJECT;
   }
+  if (c->IsClassClass()) {
+    return JDWP::JT_CLASS_OBJECT;
+  }
+  {
+    mirror::Class* thread_class = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_Thread);
+    if (thread_class->IsAssignableFrom(c)) {
+      return JDWP::JT_THREAD;
+    }
+  }
+  {
+    mirror::Class* thread_group_class =
+        soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ThreadGroup);
+    if (thread_group_class->IsAssignableFrom(c)) {
+      return JDWP::JT_THREAD_GROUP;
+    }
+  }
+  {
+    mirror::Class* class_loader_class =
+        soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ClassLoader);
+    if (class_loader_class->IsAssignableFrom(c)) {
+      return JDWP::JT_CLASS_LOADER;
+    }
+  }
+  return JDWP::JT_OBJECT;
 }
 
 /*
@@ -320,9 +332,9 @@ static JDWP::JdwpTag TagFromClass(mirror::Class* c)
  *
  * Null objects are tagged JT_OBJECT.
  */
-static JDWP::JdwpTag TagFromObject(mirror::Object* o)
+static JDWP::JdwpTag TagFromObject(const ScopedObjectAccessUnchecked& soa, mirror::Object* o)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return (o == NULL) ? JDWP::JT_OBJECT : TagFromClass(o->GetClass());
+  return (o == NULL) ? JDWP::JT_OBJECT : TagFromClass(soa, o->GetClass());
 }
 
 static bool IsPrimitiveTag(JDWP::JdwpTag tag) {
@@ -1011,11 +1023,12 @@ JDWP::JdwpError Dbg::GetSourceFile(JDWP::RefTypeId class_id, std::string& result
 }
 
 JDWP::JdwpError Dbg::GetObjectTag(JDWP::ObjectId object_id, uint8_t& tag) {
+  ScopedObjectAccessUnchecked soa(Thread::Current());
   mirror::Object* o = gRegistry->Get<mirror::Object*>(object_id);
   if (o == ObjectRegistry::kInvalidObject) {
     return JDWP::ERR_INVALID_OBJECT;
   }
-  tag = TagFromObject(o);
+  tag = TagFromObject(soa, o);
   return JDWP::ERR_NONE;
 }
 
@@ -1062,7 +1075,7 @@ JDWP::JdwpError Dbg::GetArrayLength(JDWP::ObjectId array_id, int& length) {
 JDWP::JdwpError Dbg::OutputArray(JDWP::ObjectId array_id, int offset, int count, JDWP::ExpandBuf* pReply) {
   JDWP::JdwpError status;
   mirror::Array* a = DecodeArray(array_id, status);
-  if (a == NULL) {
+  if (a == nullptr) {
     return status;
   }
 
@@ -1093,10 +1106,12 @@ JDWP::JdwpError Dbg::OutputArray(JDWP::ObjectId array_id, int offset, int count,
       memcpy(dst, &src[offset * width], count * width);
     }
   } else {
+    ScopedObjectAccessUnchecked soa(Thread::Current());
     mirror::ObjectArray<mirror::Object>* oa = a->AsObjectArray<mirror::Object>();
     for (int i = 0; i < count; ++i) {
       mirror::Object* element = oa->Get(offset + i);
-      JDWP::JdwpTag specific_tag = (element != NULL) ? TagFromObject(element) : tag;
+      JDWP::JdwpTag specific_tag = (element != nullptr) ? TagFromObject(soa, element)
+                                                        : tag;
       expandBufAdd1(pReply, specific_tag);
       expandBufAddObjectId(pReply, gRegistry->Add(element));
     }
@@ -1639,8 +1654,9 @@ void Dbg::OutputJValue(JDWP::JdwpTag tag, const JValue* return_value, JDWP::Expa
       CHECK_EQ(tag, JDWP::JT_VOID);
     }
   } else {
+    ScopedObjectAccessUnchecked soa(Thread::Current());
     mirror::Object* value = return_value->GetL();
-    expandBufAdd1(pReply, TagFromObject(value));
+    expandBufAdd1(pReply, TagFromObject(soa, value));
     expandBufAddObjectId(pReply, gRegistry->Add(value));
   }
 }
@@ -1672,7 +1688,7 @@ JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* p
   if (thread_object == ObjectRegistry::kInvalidObject) {
     return JDWP::ERR_INVALID_OBJECT;
   }
-
+  const char* old_cause = soa.Self()->StartAssertNoThreadSuspension("Debugger: GetThreadGroup");
   // Okay, so it's an object, but is it actually a thread?
   MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread;
@@ -1685,14 +1701,14 @@ JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* p
   if (error != JDWP::ERR_NONE) {
     return error;
   }
-
-  mirror::Class* c = Runtime::Current()->GetClassLinker()->FindSystemClass("Ljava/lang/Thread;");
-  CHECK(c != NULL);
+  mirror::Class* c = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_Thread);
+  CHECK(c != nullptr);
   mirror::ArtField* f = c->FindInstanceField("group", "Ljava/lang/ThreadGroup;");
   CHECK(f != NULL);
   mirror::Object* group = f->GetObject(thread_object);
   CHECK(group != NULL);
   JDWP::ObjectId thread_group_id = gRegistry->Add(group);
+  soa.Self()->EndAssertNoThreadSuspension(old_cause);
 
   expandBufAddObjectId(pReply, thread_group_id);
   return JDWP::ERR_NONE;
@@ -1701,25 +1717,28 @@ JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* p
 std::string Dbg::GetThreadGroupName(JDWP::ObjectId thread_group_id) {
   ScopedObjectAccess soa(Thread::Current());
   mirror::Object* thread_group = gRegistry->Get<mirror::Object*>(thread_group_id);
-  CHECK(thread_group != NULL);
-
-  mirror::Class* c = Runtime::Current()->GetClassLinker()->FindSystemClass("Ljava/lang/ThreadGroup;");
-  CHECK(c != NULL);
+  CHECK(thread_group != nullptr);
+  const char* old_cause = soa.Self()->StartAssertNoThreadSuspension("Debugger: GetThreadGroupName");
+  mirror::Class* c = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ThreadGroup);
+  CHECK(c != nullptr);
   mirror::ArtField* f = c->FindInstanceField("name", "Ljava/lang/String;");
   CHECK(f != NULL);
   mirror::String* s = reinterpret_cast<mirror::String*>(f->GetObject(thread_group));
+  soa.Self()->EndAssertNoThreadSuspension(old_cause);
   return s->ToModifiedUtf8();
 }
 
 JDWP::ObjectId Dbg::GetThreadGroupParent(JDWP::ObjectId thread_group_id) {
+  ScopedObjectAccessUnchecked soa(Thread::Current());
   mirror::Object* thread_group = gRegistry->Get<mirror::Object*>(thread_group_id);
-  CHECK(thread_group != NULL);
-
-  mirror::Class* c = Runtime::Current()->GetClassLinker()->FindSystemClass("Ljava/lang/ThreadGroup;");
-  CHECK(c != NULL);
+  CHECK(thread_group != nullptr);
+  const char* old_cause = soa.Self()->StartAssertNoThreadSuspension("Debugger: GetThreadGroupParent");
+  mirror::Class* c = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ThreadGroup);
+  CHECK(c != nullptr);
   mirror::ArtField* f = c->FindInstanceField("parent", "Ljava/lang/ThreadGroup;");
   CHECK(f != NULL);
   mirror::Object* parent = f->GetObject(thread_group);
+  soa.Self()->EndAssertNoThreadSuspension(old_cause);
   return gRegistry->Add(parent);
 }
 
@@ -2090,13 +2109,13 @@ JDWP::JdwpError Dbg::GetThisObject(JDWP::ObjectId thread_id, JDWP::FrameId frame
   return JDWP::ERR_NONE;
 }
 
-void Dbg::GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int slot, JDWP::JdwpTag tag,
-                        uint8_t* buf, size_t width) {
+void Dbg::GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int slot,
+                        JDWP::JdwpTag tag, uint8_t* buf, size_t width) {
   struct GetLocalVisitor : public StackVisitor {
-    GetLocalVisitor(Thread* thread, Context* context, JDWP::FrameId frame_id, int slot,
-                    JDWP::JdwpTag tag, uint8_t* buf, size_t width)
+    GetLocalVisitor(const ScopedObjectAccessUnchecked& soa, Thread* thread, Context* context,
+                    JDWP::FrameId frame_id, int slot, JDWP::JdwpTag tag, uint8_t* buf, size_t width)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-        : StackVisitor(thread, context), frame_id_(frame_id), slot_(slot), tag_(tag),
+        : StackVisitor(thread, context), soa_(soa), frame_id_(frame_id), slot_(slot), tag_(tag),
           buf_(buf), width_(width) {}
 
     // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
@@ -2175,7 +2194,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int sl
           if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(o)) {
             LOG(FATAL) << "Register " << reg << " expected to hold object: " << o;
           }
-          tag_ = TagFromObject(o);
+          tag_ = TagFromObject(soa_, o);
           JDWP::SetObjectId(buf_+1, gRegistry->Add(o));
         }
         break;
@@ -2208,7 +2227,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int sl
       JDWP::Set1(buf_, tag_);
       return false;
     }
-
+    const ScopedObjectAccessUnchecked& soa_;
     const JDWP::FrameId frame_id_;
     const int slot_;
     JDWP::JdwpTag tag_;
@@ -2224,7 +2243,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int sl
     return;
   }
   UniquePtr<Context> context(Context::Create());
-  GetLocalVisitor visitor(thread, context.get(), frame_id, slot, tag, buf, width);
+  GetLocalVisitor visitor(soa, thread, context.get(), frame_id, slot, tag, buf, width);
   visitor.WalkStack();
 }
 
@@ -3037,7 +3056,7 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
     pReq->result_value.SetJ(0);
   } else if (pReq->result_tag == JDWP::JT_OBJECT) {
     /* if no exception thrown, examine object result more closely */
-    JDWP::JdwpTag new_tag = TagFromObject(pReq->result_value.GetL());
+    JDWP::JdwpTag new_tag = TagFromObject(soa, pReq->result_value.GetL());
     if (new_tag != pReq->result_tag) {
       VLOG(jdwp) << "  JDWP promoted result from " << pReq->result_tag << " to " << new_tag;
       pReq->result_tag = new_tag;

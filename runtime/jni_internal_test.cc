@@ -107,7 +107,8 @@ class JniInternalTest : public CommonTest {
                      class_name);
     }
 
-    mirror::Class* c = class_linker_->FindClass(DotToDescriptor(class_name).c_str(), class_loader);
+    mirror::Class* c = class_linker_->FindClass(self, DotToDescriptor(class_name).c_str(),
+                                                class_loader);
     CHECK(c != NULL);
 
     *method = is_static ? c->FindDirectMethod(method_name, method_signature)
@@ -1778,7 +1779,7 @@ TEST_F(JniInternalTest, StaticMainMethod) {
       class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(jclass_loader));
   CompileDirectMethod(class_loader, "Main", "main", "([Ljava/lang/String;)V");
 
-  mirror::Class* klass = class_linker_->FindClass("LMain;", class_loader);
+  mirror::Class* klass = class_linker_->FindClass(soa.Self(), "LMain;", class_loader);
   ASSERT_TRUE(klass != NULL);
 
   mirror::ArtMethod* method = klass->FindDirectMethod("main", "([Ljava/lang/String;)V");

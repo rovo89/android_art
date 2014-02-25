@@ -418,8 +418,9 @@ class CommonTest : public testing::Test {
   void MakeExecutable(mirror::ClassLoader* class_loader, const char* class_name)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string class_descriptor(DotToDescriptor(class_name));
-    SirtRef<mirror::ClassLoader> loader(Thread::Current(), class_loader);
-    mirror::Class* klass = class_linker_->FindClass(class_descriptor.c_str(), loader);
+    Thread* self = Thread::Current();
+    SirtRef<mirror::ClassLoader> loader(self, class_loader);
+    mirror::Class* klass = class_linker_->FindClass(self, class_descriptor.c_str(), loader);
     CHECK(klass != NULL) << "Class not found " << class_name;
     for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
       MakeExecutable(klass->GetDirectMethod(i));
@@ -632,8 +633,9 @@ class CommonTest : public testing::Test {
   void CompileClass(mirror::ClassLoader* class_loader, const char* class_name)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string class_descriptor(DotToDescriptor(class_name));
-    SirtRef<mirror::ClassLoader> loader(Thread::Current(), class_loader);
-    mirror::Class* klass = class_linker_->FindClass(class_descriptor.c_str(), loader);
+    Thread* self = Thread::Current();
+    SirtRef<mirror::ClassLoader> loader(self, class_loader);
+    mirror::Class* klass = class_linker_->FindClass(self, class_descriptor.c_str(), loader);
     CHECK(klass != NULL) << "Class not found " << class_name;
     for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
       CompileMethod(klass->GetDirectMethod(i));
@@ -656,7 +658,8 @@ class CommonTest : public testing::Test {
                            const char* method_name, const char* signature)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string class_descriptor(DotToDescriptor(class_name));
-    mirror::Class* klass = class_linker_->FindClass(class_descriptor.c_str(), class_loader);
+    Thread* self = Thread::Current();
+    mirror::Class* klass = class_linker_->FindClass(self, class_descriptor.c_str(), class_loader);
     CHECK(klass != NULL) << "Class not found " << class_name;
     mirror::ArtMethod* method = klass->FindDirectMethod(method_name, signature);
     CHECK(method != NULL) << "Direct method not found: "
@@ -668,7 +671,8 @@ class CommonTest : public testing::Test {
                             const char* method_name, const char* signature)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string class_descriptor(DotToDescriptor(class_name));
-    mirror::Class* klass = class_linker_->FindClass(class_descriptor.c_str(), class_loader);
+    Thread* self = Thread::Current();
+    mirror::Class* klass = class_linker_->FindClass(self, class_descriptor.c_str(), class_loader);
     CHECK(klass != NULL) << "Class not found " << class_name;
     mirror::ArtMethod* method = klass->FindVirtualMethod(method_name, signature);
     CHECK(method != NULL) << "Virtual method not found: "

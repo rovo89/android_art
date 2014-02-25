@@ -18,7 +18,7 @@
 #define ART_RUNTIME_ENTRYPOINTS_ENTRYPOINT_UTILS_H_
 
 #include "base/macros.h"
-#include "class_linker.h"
+#include "class_linker-inl.h"
 #include "common_throws.h"
 #include "dex_file.h"
 #include "indirect_reference_table.h"
