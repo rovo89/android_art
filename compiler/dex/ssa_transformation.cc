@@ -248,22 +248,11 @@ bool MIRGraph::ComputeDominanceFrontier(BasicBlock* bb) {
   }
 
   /* Calculate DF_up */
-  ArenaBitVector::Iterator bv_iterator(bb->i_dominated);
-  while (true) {
-    // TUNING: hot call to BitVectorIteratorNext
-    int dominated_idx = bv_iterator.Next();
-    if (dominated_idx == -1) {
-      break;
-    }
-    BasicBlock* dominated_bb = GetBasicBlock(dominated_idx);
-    ArenaBitVector::Iterator df_iterator(dominated_bb->dom_frontier);
-    while (true) {
-      // TUNING: hot call to BitVectorIteratorNext
-      int df_up_idx = df_iterator.Next();
-      if (df_up_idx == -1) {
-        break;
-      }
-      BasicBlock* df_up_block = GetBasicBlock(df_up_idx);
+  ArenaBitVector::BasicBlockIterator it(bb->i_dominated, cu_);
+  for (BasicBlock *dominated_bb = it.Next(); dominated_bb != nullptr; dominated_bb = it.Next()) {
+    ArenaBitVector::BasicBlockIterator inner_it(dominated_bb->dom_frontier, cu_);
+    for (BasicBlock *df_up_block = inner_it.Next(); df_up_block != nullptr;
+         df_up_block = inner_it.Next()) {
       CheckForDominanceFrontier(bb, df_up_block);
     }
   }
