@@ -396,6 +396,9 @@ bool IsZipMagic(uint32_t magic);
 bool IsDexMagic(uint32_t magic);
 bool IsOatMagic(uint32_t magic);
 
+// Wrapper on fork/execv to run a command in a subprocess.
+bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg);
+
 class VoidFunctor {
  public:
   template <typename A>

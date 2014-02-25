@@ -34,7 +34,9 @@
 #include "compiler_callbacks.h"
 #include "dex_file-inl.h"
 #include "dex/verification_results.h"
+#include "driver/compiler_callbacks_impl.h"
 #include "driver/compiler_driver.h"
+#include "driver/compiler_options.h"
 #include "elf_fixup.h"
 #include "elf_stripper.h"
 #include "gc/space/image_space.h"
@@ -54,14 +56,21 @@
 #include "scoped_thread_state_change.h"
 #include "sirt_ref.h"
 #include "vector_output_stream.h"
-#include "verifier/method_verifier.h"
-#include "verifier/method_verifier-inl.h"
 #include "well_known_classes.h"
 #include "zip_archive.h"
 
-#include "dex/quick/dex_file_to_method_inliner_map.h"
-
 namespace art {
+
+static int original_argc;
+static char** original_argv;
+
+static std::string CommandLine() {
+  std::vector<std::string> command;
+  for (int i = 0; i < original_argc; ++i) {
+    command.push_back(original_argv[i]);
+  }
+  return Join(command, ' ');
+}
 
 static void UsageErrorV(const char* fmt, va_list ap) {
   std::string error;
@@ -81,6 +90,8 @@ static void Usage(const char* fmt, ...) {
   va_start(ap, fmt);
   UsageErrorV(fmt, ap);
   va_end(ap);
+
+  UsageError("Command: %s", CommandLine().c_str());
 
   UsageError("Usage: dex2oat [options]...");
   UsageError("");
@@ -147,6 +158,46 @@ static void Usage(const char* fmt, ...) {
   UsageError("      Example: --compiler-backend=Portable");
   UsageError("      Default: Quick");
   UsageError("");
+  UsageError("  --compiler-filter=(interpret-only|space|balanced|speed|everything): select");
+  UsageError("      compiler filter.");
+  UsageError("      Example: --compiler-filter=everything");
+#if ART_SMALL_MODE
+  UsageError("      Default: interpret-only");
+#else
+  UsageError("      Default: speed");
+#endif
+  UsageError("");
+  UsageError("  --huge-method-max=<method-instruction-count>: the threshold size for a huge");
+  UsageError("      method for compiler filter tuning.");
+  UsageError("      Example: --huge-method-max=%d", CompilerOptions::kDefaultHugeMethodThreshold);
+  UsageError("      Default: %d", CompilerOptions::kDefaultHugeMethodThreshold);
+  UsageError("");
+  UsageError("  --huge-method-max=<method-instruction-count>: threshold size for a huge");
+  UsageError("      method for compiler filter tuning.");
+  UsageError("      Example: --huge-method-max=%d", CompilerOptions::kDefaultHugeMethodThreshold);
+  UsageError("      Default: %d", CompilerOptions::kDefaultHugeMethodThreshold);
+  UsageError("");
+  UsageError("  --large-method-max=<method-instruction-count>: threshold size for a large");
+  UsageError("      method for compiler filter tuning.");
+  UsageError("      Example: --large-method-max=%d", CompilerOptions::kDefaultLargeMethodThreshold);
+  UsageError("      Default: %d", CompilerOptions::kDefaultLargeMethodThreshold);
+  UsageError("");
+  UsageError("  --small-method-max=<method-instruction-count>: threshold size for a small");
+  UsageError("      method for compiler filter tuning.");
+  UsageError("      Example: --small-method-max=%d", CompilerOptions::kDefaultSmallMethodThreshold);
+  UsageError("      Default: %d", CompilerOptions::kDefaultSmallMethodThreshold);
+  UsageError("");
+  UsageError("  --tiny-method-max=<method-instruction-count>: threshold size for a tiny");
+  UsageError("      method for compiler filter tuning.");
+  UsageError("      Example: --tiny-method-max=%d", CompilerOptions::kDefaultTinyMethodThreshold);
+  UsageError("      Default: %d", CompilerOptions::kDefaultTinyMethodThreshold);
+  UsageError("");
+  UsageError("  --num-dex-methods=<method-count>: threshold size for a small dex file for");
+  UsageError("      compiler filter tuning. If the input has fewer than this many methods");
+  UsageError("      and the filter is not interpret-only, overrides the filter to use speed");
+  UsageError("      Example: --num-dex-method=%d", CompilerOptions::kDefaultNumDexMethodsThreshold);
+  UsageError("      Default: %d", CompilerOptions::kDefaultNumDexMethodsThreshold);
+  UsageError("");
   UsageError("  --host: used with Portable backend to link against host runtime libraries");
   UsageError("");
   UsageError("  --dump-timing: display a breakdown of where time was spent");
@@ -163,15 +214,25 @@ static void Usage(const char* fmt, ...) {
 class Dex2Oat {
  public:
   static bool Create(Dex2Oat** p_dex2oat,
-                     Runtime::Options& options,
+                     const Runtime::Options& runtime_options,
+                     const CompilerOptions& compiler_options,
                      CompilerBackend::Kind compiler_backend,
                      InstructionSet instruction_set,
                      InstructionSetFeatures instruction_set_features,
+                     VerificationResults* verification_results,
+                     DexFileToMethodInlinerMap* method_inliner_map,
                      size_t thread_count)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_) {
-    UniquePtr<Dex2Oat> dex2oat(new Dex2Oat(compiler_backend, instruction_set,
-                                           instruction_set_features, thread_count));
-    if (!dex2oat->CreateRuntime(options, instruction_set)) {
+    CHECK(verification_results != nullptr);
+    CHECK(method_inliner_map != nullptr);
+    UniquePtr<Dex2Oat> dex2oat(new Dex2Oat(&compiler_options,
+                                           compiler_backend,
+                                           instruction_set,
+                                           instruction_set_features,
+                                           verification_results,
+                                           method_inliner_map,
+                                           thread_count));
+    if (!dex2oat->CreateRuntime(runtime_options, instruction_set)) {
       *p_dex2oat = NULL;
       return false;
     }
@@ -275,8 +336,9 @@ class Dex2Oat {
       Runtime::Current()->SetCompileTimeClassPath(class_loader, class_path_files);
     }
 
-    UniquePtr<CompilerDriver> driver(new CompilerDriver(verification_results_.get(),
-                                                        method_inliner_map_.get(),
+    UniquePtr<CompilerDriver> driver(new CompilerDriver(compiler_options_,
+                                                        verification_results_,
+                                                        method_inliner_map_,
                                                         compiler_backend_,
                                                         instruction_set_,
                                                         instruction_set_features_,
@@ -353,53 +415,30 @@ class Dex2Oat {
   }
 
  private:
-  class Dex2OatCompilerCallbacks : public CompilerCallbacks {
-    public:
-      Dex2OatCompilerCallbacks(VerificationResults* verification_results,
-                               DexFileToMethodInlinerMap* method_inliner_map)
-          : verification_results_(verification_results),
-            method_inliner_map_(method_inliner_map) { }
-      virtual ~Dex2OatCompilerCallbacks() { }
-
-      virtual bool MethodVerified(verifier::MethodVerifier* verifier)
-          SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-        bool result = verification_results_->ProcessVerifiedMethod(verifier);
-        if (result) {
-          MethodReference ref = verifier->GetMethodReference();
-          method_inliner_map_->GetMethodInliner(ref.dex_file)
-              ->AnalyseMethodCode(verifier);
-        }
-        return result;
-      }
-      virtual void ClassRejected(ClassReference ref) {
-        verification_results_->AddRejectedClass(ref);
-      }
-
-    private:
-      VerificationResults* verification_results_;
-      DexFileToMethodInlinerMap* method_inliner_map_;
-  };
-
-  explicit Dex2Oat(CompilerBackend::Kind compiler_backend,
+  explicit Dex2Oat(const CompilerOptions* compiler_options,
+                   CompilerBackend::Kind compiler_backend,
                    InstructionSet instruction_set,
                    InstructionSetFeatures instruction_set_features,
+                   VerificationResults* verification_results,
+                   DexFileToMethodInlinerMap* method_inliner_map,
                    size_t thread_count)
-      : compiler_backend_(compiler_backend),
+      : compiler_options_(compiler_options),
+        compiler_backend_(compiler_backend),
         instruction_set_(instruction_set),
         instruction_set_features_(instruction_set_features),
-        verification_results_(new VerificationResults),
-        method_inliner_map_(new DexFileToMethodInlinerMap),
-        callbacks_(verification_results_.get(), method_inliner_map_.get()),
+        verification_results_(verification_results),
+        method_inliner_map_(method_inliner_map),
         runtime_(nullptr),
         thread_count_(thread_count),
         start_ns_(NanoTime()) {
+    CHECK(compiler_options != nullptr);
+    CHECK(verification_results != nullptr);
+    CHECK(method_inliner_map != nullptr);
   }
 
-  bool CreateRuntime(Runtime::Options& options, InstructionSet instruction_set)
+  bool CreateRuntime(const Runtime::Options& runtime_options, InstructionSet instruction_set)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_) {
-    options.push_back(
-        std::make_pair("compilercallbacks", static_cast<CompilerCallbacks*>(&callbacks_)));
-    if (!Runtime::Create(options, false)) {
+    if (!Runtime::Create(runtime_options, false)) {
       LOG(ERROR) << "Failed to create runtime";
       return false;
     }
@@ -448,14 +487,14 @@ class Dex2Oat {
     return false;
   }
 
+  const CompilerOptions* compiler_options_;
   const CompilerBackend::Kind compiler_backend_;
 
   const InstructionSet instruction_set_;
   const InstructionSetFeatures instruction_set_features_;
 
-  UniquePtr<VerificationResults> verification_results_;
-  UniquePtr<DexFileToMethodInlinerMap> method_inliner_map_;
-  Dex2OatCompilerCallbacks callbacks_;
+  VerificationResults* verification_results_;
+  DexFileToMethodInlinerMap* method_inliner_map_;
   Runtime* runtime_;
   size_t thread_count_;
   uint64_t start_ns_;
@@ -656,6 +695,9 @@ static InstructionSetFeatures ParseFeatureList(std::string str) {
 }
 
 static int dex2oat(int argc, char** argv) {
+  original_argc = argc;
+  original_argv = argv;
+
   TimingLogger timings("compiler", false, false);
   CumulativeLogger compiler_phases_timings("compilation times");
 
@@ -690,6 +732,12 @@ static int dex2oat(int argc, char** argv) {
   CompilerBackend::Kind compiler_backend = kUsePortableCompiler
       ? CompilerBackend::kPortable
       : CompilerBackend::kQuick;
+  const char* compiler_filter_string = NULL;
+  int huge_method_threshold = CompilerOptions::kDefaultHugeMethodThreshold;
+  int large_method_threshold = CompilerOptions::kDefaultLargeMethodThreshold;
+  int small_method_threshold = CompilerOptions::kDefaultSmallMethodThreshold;
+  int tiny_method_threshold = CompilerOptions::kDefaultTinyMethodThreshold;
+  int num_dex_methods_threshold = CompilerOptions::kDefaultNumDexMethodsThreshold;
 
   // Take the default set of instruction features from the build.
   InstructionSetFeatures instruction_set_features =
@@ -713,7 +761,6 @@ static int dex2oat(int argc, char** argv) {
   bool dump_slow_timing = kIsDebugBuild;
   bool watch_dog_enabled = !kIsTargetBuild;
 
-
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
     bool log_options = false;
@@ -729,6 +776,9 @@ static int dex2oat(int argc, char** argv) {
       if (!ParseInt(zip_fd_str, &zip_fd)) {
         Usage("Failed to parse --zip-fd argument '%s' as an integer", zip_fd_str);
       }
+      if (zip_fd < 0) {
+        Usage("--zip-fd passed a negative value %d", zip_fd);
+      }
     } else if (option.starts_with("--zip-location=")) {
       zip_location = option.substr(strlen("--zip-location=")).data();
     } else if (option.starts_with("--oat-file=")) {
@@ -739,6 +789,9 @@ static int dex2oat(int argc, char** argv) {
       const char* oat_fd_str = option.substr(strlen("--oat-fd=")).data();
       if (!ParseInt(oat_fd_str, &oat_fd)) {
         Usage("Failed to parse --oat-fd argument '%s' as an integer", oat_fd_str);
+      }
+      if (oat_fd < 0) {
+        Usage("--oat-fd passed a negative value %d", oat_fd);
       }
     } else if (option == "--watch-dog") {
       watch_dog_enabled = true;
@@ -792,6 +845,48 @@ static int dex2oat(int argc, char** argv) {
         compiler_backend = CompilerBackend::kQuick;
       } else if (backend_str == "Portable") {
         compiler_backend = CompilerBackend::kPortable;
+      }
+    } else if (option.starts_with("--compiler-filter=")) {
+      compiler_filter_string = option.substr(strlen("--compiler-filter=")).data();
+    } else if (option.starts_with("--huge-method-max=")) {
+      const char* threshold = option.substr(strlen("--huge-method-max=")).data();
+      if (!ParseInt(threshold, &huge_method_threshold)) {
+        Usage("Failed to parse --huge-method-max '%s' as an integer", threshold);
+      }
+      if (huge_method_threshold < 0) {
+        Usage("--huge-method-max passed a negative value %s", huge_method_threshold);
+      }
+    } else if (option.starts_with("--large-method-max=")) {
+      const char* threshold = option.substr(strlen("--large-method-max=")).data();
+      if (!ParseInt(threshold, &large_method_threshold)) {
+        Usage("Failed to parse --large-method-max '%s' as an integer", threshold);
+      }
+      if (large_method_threshold < 0) {
+        Usage("--large-method-max passed a negative value %s", large_method_threshold);
+      }
+    } else if (option.starts_with("--small-method-max=")) {
+      const char* threshold = option.substr(strlen("--small-method-max=")).data();
+      if (!ParseInt(threshold, &small_method_threshold)) {
+        Usage("Failed to parse --small-method-max '%s' as an integer", threshold);
+      }
+      if (small_method_threshold < 0) {
+        Usage("--small-method-max passed a negative value %s", small_method_threshold);
+      }
+    } else if (option.starts_with("--tiny-method-max=")) {
+      const char* threshold = option.substr(strlen("--tiny-method-max=")).data();
+      if (!ParseInt(threshold, &tiny_method_threshold)) {
+        Usage("Failed to parse --tiny-method-max '%s' as an integer", threshold);
+      }
+      if (tiny_method_threshold < 0) {
+        Usage("--tiny-method-max passed a negative value %s", tiny_method_threshold);
+      }
+    } else if (option.starts_with("--num-dex-methods=")) {
+      const char* threshold = option.substr(strlen("--num-dex-methods=")).data();
+      if (!ParseInt(threshold, &num_dex_methods_threshold)) {
+        Usage("Failed to parse --num-dex-methods '%s' as an integer", threshold);
+      }
+      if (num_dex_methods_threshold < 0) {
+        Usage("--num-dex-methods passed a negative value %s", num_dex_methods_threshold);
       }
     } else if (option == "--host") {
       is_host = true;
@@ -915,6 +1010,44 @@ static int dex2oat(int argc, char** argv) {
     oat_unstripped += oat_filename;
   }
 
+  if (compiler_filter_string == NULL) {
+    if (image) {
+      compiler_filter_string = "everything";
+    } else {
+#if ART_SMALL_MODE
+      compiler_filter_string = "interpret-only";
+#else
+      compiler_filter_string = "speed";
+#endif
+    }
+  }
+  CHECK(compiler_filter_string != nullptr);
+  CompilerOptions::CompilerFilter compiler_filter = CompilerOptions::kDefaultCompilerFilter;
+  if (strcmp(compiler_filter_string, "interpret-only") == 0) {
+    compiler_filter = CompilerOptions::kInterpretOnly;
+  } else if (strcmp(compiler_filter_string, "space") == 0) {
+    compiler_filter = CompilerOptions::kSpace;
+  } else if (strcmp(compiler_filter_string, "balanced") == 0) {
+    compiler_filter = CompilerOptions::kBalanced;
+  } else if (strcmp(compiler_filter_string, "speed") == 0) {
+    compiler_filter = CompilerOptions::kSpeed;
+  } else if (strcmp(compiler_filter_string, "everything") == 0) {
+    compiler_filter = CompilerOptions::kEverything;
+  } else {
+    Usage("Unknown --compiler-filter value %s", compiler_filter_string);
+  }
+
+  CompilerOptions compiler_options(compiler_filter,
+                                   huge_method_threshold,
+                                   large_method_threshold,
+                                   small_method_threshold,
+                                   tiny_method_threshold,
+                                   num_dex_methods_threshold
+#ifdef ART_SEA_IR_MODE
+                                   , compiler_options.sea_ir_ = true;
+#endif
+                                   );  // NOLINT(whitespace/parens)
+
   // Done with usage checks, enable watchdog if requested
   WatchDog watch_dog(watch_dog_enabled);
 
@@ -940,22 +1073,9 @@ static int dex2oat(int argc, char** argv) {
   }
 
   timings.StartSplit("dex2oat Setup");
-  LOG(INFO) << "dex2oat: " << oat_location;
+  LOG(INFO) << "dex2oat: " << CommandLine();
 
-  if (image) {
-    bool has_compiler_filter = false;
-    for (const char* r : runtime_args) {
-      if (strncmp(r, "-compiler-filter:", 17) == 0) {
-        has_compiler_filter = true;
-        break;
-      }
-    }
-    if (!has_compiler_filter) {
-      runtime_args.push_back("-compiler-filter:everything");
-    }
-  }
-
-  Runtime::Options options;
+  Runtime::Options runtime_options;
   std::vector<const DexFile*> boot_class_path;
   if (boot_image_option.empty()) {
     size_t failure_count = OpenDexFiles(dex_filenames, dex_locations, boot_class_path);
@@ -963,24 +1083,33 @@ static int dex2oat(int argc, char** argv) {
       LOG(ERROR) << "Failed to open some dex files: " << failure_count;
       return EXIT_FAILURE;
     }
-    options.push_back(std::make_pair("bootclasspath", &boot_class_path));
+    runtime_options.push_back(std::make_pair("bootclasspath", &boot_class_path));
   } else {
-    options.push_back(std::make_pair(boot_image_option.c_str(), reinterpret_cast<void*>(NULL)));
+    runtime_options.push_back(std::make_pair(boot_image_option.c_str(),
+                                             reinterpret_cast<void*>(NULL)));
   }
   if (host_prefix.get() != NULL) {
-    options.push_back(std::make_pair("host-prefix", host_prefix->c_str()));
+    runtime_options.push_back(std::make_pair("host-prefix", host_prefix->c_str()));
   }
   for (size_t i = 0; i < runtime_args.size(); i++) {
-    options.push_back(std::make_pair(runtime_args[i], reinterpret_cast<void*>(NULL)));
+    runtime_options.push_back(std::make_pair(runtime_args[i], reinterpret_cast<void*>(NULL)));
   }
 
-#ifdef ART_SEA_IR_MODE
-  options.push_back(std::make_pair("-sea_ir", reinterpret_cast<void*>(NULL)));
-#endif
+  VerificationResults verification_results(&compiler_options);
+  DexFileToMethodInlinerMap method_inliner_map;
+  CompilerCallbacksImpl callbacks(&verification_results, &method_inliner_map);
+  runtime_options.push_back(std::make_pair("compilercallbacks", &callbacks));
 
   Dex2Oat* p_dex2oat;
-  if (!Dex2Oat::Create(&p_dex2oat, options, compiler_backend, instruction_set,
-      instruction_set_features, thread_count)) {
+  if (!Dex2Oat::Create(&p_dex2oat,
+                       runtime_options,
+                       compiler_options,
+                       compiler_backend,
+                       instruction_set,
+                       instruction_set_features,
+                       &verification_results,
+                       &method_inliner_map,
+                       thread_count)) {
     LOG(ERROR) << "Failed to create dex2oat";
     return EXIT_FAILURE;
   }
@@ -1050,7 +1179,8 @@ static int dex2oat(int argc, char** argv) {
         std::string tmp_file_name(StringPrintf("/data/local/tmp/dex2oat.%d.%zd.dex", getpid(), i));
         UniquePtr<File> tmp_file(OS::CreateEmptyFile(tmp_file_name.c_str()));
         if (tmp_file.get() == nullptr) {
-            PLOG(ERROR) << "Failed to open file " << tmp_file_name << ". Try: adb shell chmod 777 /data/local/tmp";
+            PLOG(ERROR) << "Failed to open file " << tmp_file_name
+                        << ". Try: adb shell chmod 777 /data/local/tmp";
             continue;
         }
         tmp_file->WriteFully(dex_file->Begin(), dex_file->Size());
@@ -1070,15 +1200,15 @@ static int dex2oat(int argc, char** argv) {
    * If we're not in interpret-only mode, go ahead and compile small applications. Don't
    * bother to check if we're doing the image.
    */
-  if (!image && (Runtime::Current()->GetCompilerFilter() != Runtime::kInterpretOnly)) {
+  if (!image && (compiler_options.GetCompilerFilter() != CompilerOptions::kInterpretOnly)) {
     size_t num_methods = 0;
     for (size_t i = 0; i != dex_files.size(); ++i) {
       const DexFile* dex_file = dex_files[i];
       CHECK(dex_file != NULL);
       num_methods += dex_file->NumMethodIds();
     }
-    if (num_methods <= Runtime::Current()->GetNumDexMethodsThreshold()) {
-      Runtime::Current()->SetCompilerFilter(Runtime::kSpeed);
+    if (num_methods <= compiler_options.GetNumDexMethodsThreshold()) {
+      compiler_options.SetCompilerFilter(CompilerOptions::kSpeed);
       VLOG(compiler) << "Below method threshold, compiling anyways";
     }
   }
@@ -1222,13 +1352,13 @@ static int dex2oat(int argc, char** argv) {
 
   // Everything was successfully written, do an explicit exit here to avoid running Runtime
   // destructors that take time (bug 10645725) unless we're a debug build or running on valgrind.
-  if (!kIsDebugBuild || (RUNNING_ON_VALGRIND == 0)) {
+  if (!kIsDebugBuild && (RUNNING_ON_VALGRIND == 0)) {
     dex2oat->LogCompletionTime();
     exit(EXIT_SUCCESS);
   }
 
   return EXIT_SUCCESS;
-}
+}  // NOLINT(readability/fn_size)
 }  // namespace art
 
 int main(int argc, char** argv) {
