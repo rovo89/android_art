@@ -599,20 +599,24 @@ void Dbg::Disconnected() {
   runtime->GetThreadList()->SuspendAll();
   Thread* self = Thread::Current();
   ThreadState old_state = self->SetStateUnsafe(kRunnable);
-  {
-    // Since we're going to disable deoptimization, we clear the deoptimization requests queue.
-    // This prevent us from having any pending deoptimization request when the debugger attaches to
-    // us again while no event has been requested yet.
-    MutexLock mu(Thread::Current(), *Locks::deoptimization_lock_);
-    gDeoptimizationRequests.clear();
+
+  // Debugger may not be active at this point.
+  if (gDebuggerActive) {
+    {
+      // Since we're going to disable deoptimization, we clear the deoptimization requests queue.
+      // This prevents us from having any pending deoptimization request when the debugger attaches
+      // to us again while no event has been requested yet.
+      MutexLock mu(Thread::Current(), *Locks::deoptimization_lock_);
+      gDeoptimizationRequests.clear();
+    }
+    runtime->GetInstrumentation()->RemoveListener(&gDebugInstrumentationListener,
+                                                  instrumentation::Instrumentation::kMethodEntered |
+                                                  instrumentation::Instrumentation::kMethodExited |
+                                                  instrumentation::Instrumentation::kDexPcMoved |
+                                                  instrumentation::Instrumentation::kExceptionCaught);
+    runtime->GetInstrumentation()->DisableDeoptimization();
+    gDebuggerActive = false;
   }
-  runtime->GetInstrumentation()->RemoveListener(&gDebugInstrumentationListener,
-                                                instrumentation::Instrumentation::kMethodEntered |
-                                                instrumentation::Instrumentation::kMethodExited |
-                                                instrumentation::Instrumentation::kDexPcMoved |
-                                                instrumentation::Instrumentation::kExceptionCaught);
-  runtime->GetInstrumentation()->DisableDeoptimization();
-  gDebuggerActive = false;
   gRegistry->Clear();
   gDebuggerConnected = false;
   CHECK_EQ(self->SetStateUnsafe(old_state), kRunnable);
