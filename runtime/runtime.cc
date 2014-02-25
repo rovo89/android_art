@@ -77,13 +77,6 @@ Runtime::Runtime()
       is_zygote_(false),
       is_concurrent_gc_enabled_(true),
       is_explicit_gc_disabled_(false),
-      compiler_filter_(kSpeed),
-      huge_method_threshold_(0),
-      large_method_threshold_(0),
-      small_method_threshold_(0),
-      tiny_method_threshold_(0),
-      num_dex_methods_threshold_(0),
-      sea_ir_mode_(false),
       default_stack_size_(0),
       heap_(nullptr),
       max_spins_before_thin_lock_inflation_(Monitor::kDefaultMaxSpinsBeforeThinLockInflation),
@@ -452,14 +445,6 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->hook_exit_ = exit;
   parsed->hook_abort_ = NULL;  // We don't call abort(3) by default; see Runtime::Abort.
 
-  parsed->compiler_filter_ = Runtime::kDefaultCompilerFilter;
-  parsed->huge_method_threshold_ = Runtime::kDefaultHugeMethodThreshold;
-  parsed->large_method_threshold_ = Runtime::kDefaultLargeMethodThreshold;
-  parsed->small_method_threshold_ = Runtime::kDefaultSmallMethodThreshold;
-  parsed->tiny_method_threshold_ = Runtime::kDefaultTinyMethodThreshold;
-  parsed->num_dex_methods_threshold_ = Runtime::kDefaultNumDexMethodsThreshold;
-
-  parsed->sea_ir_mode_ = false;
 //  gLogVerbosity.class_linker = true;  // TODO: don't check this in!
 //  gLogVerbosity.compiler = true;  // TODO: don't check this in!
 //  gLogVerbosity.verifier = true;  // TODO: don't check this in!
@@ -721,28 +706,22 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     } else if (StartsWith(option, "-Xprofile-backoff:")) {
       parsed->profile_backoff_coefficient_ = ParseDoubleOrDie(
           option, ':', 1.0, 10.0, ignore_unrecognized, parsed->profile_backoff_coefficient_);
-    } else if (option == "-compiler-filter:interpret-only") {
-      parsed->compiler_filter_ = kInterpretOnly;
-    } else if (option == "-compiler-filter:space") {
-      parsed->compiler_filter_ = kSpace;
-    } else if (option == "-compiler-filter:balanced") {
-      parsed->compiler_filter_ = kBalanced;
-    } else if (option == "-compiler-filter:speed") {
-      parsed->compiler_filter_ = kSpeed;
-    } else if (option == "-compiler-filter:everything") {
-      parsed->compiler_filter_ = kEverything;
-    } else if (option == "-sea_ir") {
-      parsed->sea_ir_mode_ = true;
-    } else if (StartsWith(option, "-huge-method-max:")) {
-      parsed->huge_method_threshold_ = ParseIntegerOrDie(option, ':');
-    } else if (StartsWith(option, "-large-method-max:")) {
-      parsed->large_method_threshold_ = ParseIntegerOrDie(option, ':');
-    } else if (StartsWith(option, "-small-method-max:")) {
-      parsed->small_method_threshold_ = ParseIntegerOrDie(option, ':');
-    } else if (StartsWith(option, "-tiny-method-max:")) {
-      parsed->tiny_method_threshold_ = ParseIntegerOrDie(option, ':');
-    } else if (StartsWith(option, "-num-dex-methods-max:")) {
-      parsed->num_dex_methods_threshold_ = ParseIntegerOrDie(option, ':');
+    } else if (option == "-Xcompiler-option") {
+      i++;
+      if (i == options.size()) {
+        // TODO: usage
+        LOG(FATAL) << "Missing required compiler option for " << option;
+        return NULL;
+      }
+      parsed->compiler_options_.push_back(options[i].first);
+    } else if (option == "-Ximage-compiler-option") {
+      i++;
+      if (i == options.size()) {
+        // TODO: usage
+        LOG(FATAL) << "Missing required compiler option for " << option;
+        return NULL;
+      }
+      parsed->image_compiler_options_.push_back(options[i].first);
     } else {
       if (!ignore_unrecognized) {
         // TODO: print usage via vfprintf
@@ -988,14 +967,6 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   is_zygote_ = options->is_zygote_;
   is_explicit_gc_disabled_ = options->is_explicit_gc_disabled_;
 
-  compiler_filter_ = options->compiler_filter_;
-  huge_method_threshold_ = options->huge_method_threshold_;
-  large_method_threshold_ = options->large_method_threshold_;
-  small_method_threshold_ = options->small_method_threshold_;
-  tiny_method_threshold_ = options->tiny_method_threshold_;
-  num_dex_methods_threshold_ = options->num_dex_methods_threshold_;
-
-  sea_ir_mode_ = options->sea_ir_mode_;
   vfprintf_ = options->hook_vfprintf_;
   exit_ = options->hook_exit_;
   abort_ = options->hook_abort_;
