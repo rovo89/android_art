@@ -16,9 +16,6 @@
 
 #include "image_space.h"
 
-#include <sys/types.h>
-#include <sys/wait.h>
-
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "gc/accounting/space_bitmap-inl.h"
