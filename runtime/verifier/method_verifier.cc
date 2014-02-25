@@ -3129,14 +3129,15 @@ mirror::ArtMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction* inst
     this_class = actual_arg_type.GetClass();
   } else {
     const std::string& descriptor(actual_arg_type.GetDescriptor());
+    Thread* self = Thread::Current();
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    this_class = class_linker->FindClass(descriptor.c_str(), *class_loader_);
+    this_class = class_linker->FindClass(self, descriptor.c_str(), *class_loader_);
     if (this_class == NULL) {
       Thread* self = Thread::Current();
       self->ClearException();
       // Look for a system class
       SirtRef<mirror::ClassLoader> null_class_loader(self, nullptr);
-      this_class = class_linker->FindClass(descriptor.c_str(), null_class_loader);
+      this_class = class_linker->FindClass(self, descriptor.c_str(), null_class_loader);
     }
   }
   if (this_class == NULL) {
@@ -3638,7 +3639,7 @@ static mirror::ArtField* FindInstanceFieldWithOffset(mirror::Class* klass, uint3
 // Returns the access field of a quick field access (iget/iput-quick) or NULL
 // if it cannot be found.
 mirror::ArtField* MethodVerifier::GetQuickFieldAccess(const Instruction* inst,
-                                                   RegisterLine* reg_line) {
+                                                      RegisterLine* reg_line) {
   DCHECK(inst->Opcode() == Instruction::IGET_QUICK ||
          inst->Opcode() == Instruction::IGET_WIDE_QUICK ||
          inst->Opcode() == Instruction::IGET_OBJECT_QUICK ||
@@ -3654,12 +3655,12 @@ mirror::ArtField* MethodVerifier::GetQuickFieldAccess(const Instruction* inst,
     const std::string& descriptor(object_type.GetDescriptor());
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     Thread* self = Thread::Current();
-    object_class = class_linker->FindClass(descriptor.c_str(), *class_loader_);
+    object_class = class_linker->FindClass(self, descriptor.c_str(), *class_loader_);
     if (object_class == NULL) {
       self->ClearException();
       // Look for a system class
       SirtRef<mirror::ClassLoader> null_class_loader(self, nullptr);
-      object_class = class_linker->FindClass(descriptor.c_str(), null_class_loader);
+      object_class = class_linker->FindClass(self, descriptor.c_str(), null_class_loader);
     }
   }
   if (object_class == NULL) {

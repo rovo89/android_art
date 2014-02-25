@@ -72,10 +72,17 @@ class ClassLinker {
 
   // Finds a class by its descriptor, loading it if necessary.
   // If class_loader is null, searches boot_class_path_.
-  mirror::Class* FindClass(const char* descriptor, const SirtRef<mirror::ClassLoader>& class_loader)
+  mirror::Class* FindClass(Thread* self, const char* descriptor,
+                           const SirtRef<mirror::ClassLoader>& class_loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::Class* FindSystemClass(const char* descriptor)
+  // Finds a class by its descriptor using the "system" class loader, ie by searching the
+  // boot_class_path_.
+  mirror::Class* FindSystemClass(Thread* self, const char* descriptor)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Finds the array class given for the element class.
+  mirror::Class* FindArrayClass(Thread* self, mirror::Class* element_class)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Reutrns true if the class linker is initialized.
@@ -378,7 +385,7 @@ class ClassLinker {
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void FinishInit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void FinishInit(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // For early bootstrapping by Init
   mirror::Class* AllocClass(Thread* self, mirror::Class* java_lang_Class, size_t class_size)
@@ -399,7 +406,7 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 
-  mirror::Class* CreateArrayClass(const char* descriptor,
+  mirror::Class* CreateArrayClass(Thread* self, const char* descriptor,
                                   const SirtRef<mirror::ClassLoader>& class_loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -449,12 +456,12 @@ class ClassLinker {
   bool ValidateSuperClassDescriptors(const SirtRef<mirror::Class>& klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsSameDescriptorInDifferentClassContexts(const char* descriptor,
+  bool IsSameDescriptorInDifferentClassContexts(Thread* self, const char* descriptor,
                                                 SirtRef<mirror::ClassLoader>& class_loader1,
                                                 SirtRef<mirror::ClassLoader>& class_loader2)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsSameMethodSignatureInDifferentClassContexts(mirror::ArtMethod* method,
+  bool IsSameMethodSignatureInDifferentClassContexts(Thread* self, mirror::ArtMethod* method,
                                                      mirror::Class* klass1,
                                                      mirror::Class* klass2)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -617,7 +624,14 @@ class ClassLinker {
     return descriptor;
   }
 
+  // The interface table used by all arrays.
   mirror::IfTable* array_iftable_;
+
+  // A cache of the last FindArrayClass results. The cache serves to avoid creating array class
+  // descriptors for the sake of performing FindClass.
+  static constexpr size_t kFindArrayCacheSize = 16;
+  mirror::Class* find_array_class_cache_[kFindArrayCacheSize];
+  size_t find_array_class_cache_next_victim_;
 
   bool init_done_;
   bool dex_caches_dirty_ GUARDED_BY(dex_lock_);

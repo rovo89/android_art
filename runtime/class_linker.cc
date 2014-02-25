@@ -176,17 +176,19 @@ ClassLinker::ClassLinker(InternTable* intern_table)
     : dex_lock_("ClassLinker dex lock", kDefaultMutexLevel),
       dex_cache_image_class_lookup_required_(false),
       failed_dex_cache_class_lookups_(0),
-      class_roots_(NULL),
-      array_iftable_(NULL),
+      class_roots_(nullptr),
+      array_iftable_(nullptr),
+      find_array_class_cache_next_victim_(0),
       init_done_(false),
       dex_caches_dirty_(false),
       class_table_dirty_(false),
       intern_table_(intern_table),
-      portable_resolution_trampoline_(NULL),
-      quick_resolution_trampoline_(NULL),
-      portable_imt_conflict_trampoline_(NULL),
-      quick_imt_conflict_trampoline_(NULL) {
+      portable_resolution_trampoline_(nullptr),
+      quick_resolution_trampoline_(nullptr),
+      portable_imt_conflict_trampoline_(nullptr),
+      quick_imt_conflict_trampoline_(nullptr) {
   CHECK_EQ(arraysize(class_roots_descriptors_), size_t(kClassRootsMax));
+  memset(find_array_class_cache_, 0, kFindArrayCacheSize * sizeof(mirror::Class*));
 }
 
 void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class_path) {
@@ -335,54 +337,54 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
 
   // Object, String and DexCache need to be rerun through FindSystemClass to finish init
   java_lang_Object->SetStatus(mirror::Class::kStatusNotReady, self);
-  mirror::Class* Object_class = FindSystemClass("Ljava/lang/Object;");
+  mirror::Class* Object_class = FindSystemClass(self, "Ljava/lang/Object;");
   CHECK_EQ(java_lang_Object.get(), Object_class);
   CHECK_EQ(java_lang_Object->GetObjectSize(), sizeof(mirror::Object));
   java_lang_String->SetStatus(mirror::Class::kStatusNotReady, self);
-  mirror::Class* String_class = FindSystemClass("Ljava/lang/String;");
+  mirror::Class* String_class = FindSystemClass(self, "Ljava/lang/String;");
   CHECK_EQ(java_lang_String.get(), String_class);
   CHECK_EQ(java_lang_String->GetObjectSize(), sizeof(mirror::String));
   java_lang_DexCache->SetStatus(mirror::Class::kStatusNotReady, self);
-  mirror::Class* DexCache_class = FindSystemClass("Ljava/lang/DexCache;");
+  mirror::Class* DexCache_class = FindSystemClass(self, "Ljava/lang/DexCache;");
   CHECK_EQ(java_lang_String.get(), String_class);
   CHECK_EQ(java_lang_DexCache.get(), DexCache_class);
   CHECK_EQ(java_lang_DexCache->GetObjectSize(), sizeof(mirror::DexCache));
 
   // Setup the primitive array type classes - can't be done until Object has a vtable.
-  SetClassRoot(kBooleanArrayClass, FindSystemClass("[Z"));
+  SetClassRoot(kBooleanArrayClass, FindSystemClass(self, "[Z"));
   mirror::BooleanArray::SetArrayClass(GetClassRoot(kBooleanArrayClass));
 
-  SetClassRoot(kByteArrayClass, FindSystemClass("[B"));
+  SetClassRoot(kByteArrayClass, FindSystemClass(self, "[B"));
   mirror::ByteArray::SetArrayClass(GetClassRoot(kByteArrayClass));
 
-  mirror::Class* found_char_array_class = FindSystemClass("[C");
+  mirror::Class* found_char_array_class = FindSystemClass(self, "[C");
   CHECK_EQ(char_array_class.get(), found_char_array_class);
 
-  SetClassRoot(kShortArrayClass, FindSystemClass("[S"));
+  SetClassRoot(kShortArrayClass, FindSystemClass(self, "[S"));
   mirror::ShortArray::SetArrayClass(GetClassRoot(kShortArrayClass));
 
-  mirror::Class* found_int_array_class = FindSystemClass("[I");
+  mirror::Class* found_int_array_class = FindSystemClass(self, "[I");
   CHECK_EQ(int_array_class.get(), found_int_array_class);
 
-  SetClassRoot(kLongArrayClass, FindSystemClass("[J"));
+  SetClassRoot(kLongArrayClass, FindSystemClass(self, "[J"));
   mirror::LongArray::SetArrayClass(GetClassRoot(kLongArrayClass));
 
-  SetClassRoot(kFloatArrayClass, FindSystemClass("[F"));
+  SetClassRoot(kFloatArrayClass, FindSystemClass(self, "[F"));
   mirror::FloatArray::SetArrayClass(GetClassRoot(kFloatArrayClass));
 
-  SetClassRoot(kDoubleArrayClass, FindSystemClass("[D"));
+  SetClassRoot(kDoubleArrayClass, FindSystemClass(self, "[D"));
   mirror::DoubleArray::SetArrayClass(GetClassRoot(kDoubleArrayClass));
 
-  mirror::Class* found_class_array_class = FindSystemClass("[Ljava/lang/Class;");
+  mirror::Class* found_class_array_class = FindSystemClass(self, "[Ljava/lang/Class;");
   CHECK_EQ(class_array_class.get(), found_class_array_class);
 
-  mirror::Class* found_object_array_class = FindSystemClass("[Ljava/lang/Object;");
+  mirror::Class* found_object_array_class = FindSystemClass(self, "[Ljava/lang/Object;");
   CHECK_EQ(object_array_class.get(), found_object_array_class);
 
   // Setup the single, global copy of "iftable".
-  mirror::Class* java_lang_Cloneable = FindSystemClass("Ljava/lang/Cloneable;");
+  mirror::Class* java_lang_Cloneable = FindSystemClass(self, "Ljava/lang/Cloneable;");
   CHECK(java_lang_Cloneable != NULL);
-  mirror::Class* java_io_Serializable = FindSystemClass("Ljava/io/Serializable;");
+  mirror::Class* java_io_Serializable = FindSystemClass(self, "Ljava/io/Serializable;");
   CHECK(java_io_Serializable != NULL);
   // We assume that Cloneable/Serializable don't have superinterfaces -- normally we'd have to
   // crawl up and explicitly list all of the supers as well.
@@ -398,73 +400,73 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   CHECK_EQ(java_io_Serializable, kh.GetDirectInterface(1));
   // Run Class, ArtField, and ArtMethod through FindSystemClass. This initializes their
   // dex_cache_ fields and register them in class_table_.
-  mirror::Class* Class_class = FindSystemClass("Ljava/lang/Class;");
+  mirror::Class* Class_class = FindSystemClass(self, "Ljava/lang/Class;");
   CHECK_EQ(java_lang_Class.get(), Class_class);
 
   java_lang_reflect_ArtMethod->SetStatus(mirror::Class::kStatusNotReady, self);
-  mirror::Class* Art_method_class = FindSystemClass("Ljava/lang/reflect/ArtMethod;");
+  mirror::Class* Art_method_class = FindSystemClass(self, "Ljava/lang/reflect/ArtMethod;");
   CHECK_EQ(java_lang_reflect_ArtMethod.get(), Art_method_class);
 
   java_lang_reflect_ArtField->SetStatus(mirror::Class::kStatusNotReady, self);
-  mirror::Class* Art_field_class = FindSystemClass("Ljava/lang/reflect/ArtField;");
+  mirror::Class* Art_field_class = FindSystemClass(self, "Ljava/lang/reflect/ArtField;");
   CHECK_EQ(java_lang_reflect_ArtField.get(), Art_field_class);
 
-  mirror::Class* String_array_class = FindSystemClass(class_roots_descriptors_[kJavaLangStringArrayClass]);
+  mirror::Class* String_array_class = FindSystemClass(self, class_roots_descriptors_[kJavaLangStringArrayClass]);
   CHECK_EQ(object_array_string.get(), String_array_class);
 
   mirror::Class* Art_method_array_class =
-      FindSystemClass(class_roots_descriptors_[kJavaLangReflectArtMethodArrayClass]);
+      FindSystemClass(self, class_roots_descriptors_[kJavaLangReflectArtMethodArrayClass]);
   CHECK_EQ(object_array_art_method.get(), Art_method_array_class);
 
   mirror::Class* Art_field_array_class =
-      FindSystemClass(class_roots_descriptors_[kJavaLangReflectArtFieldArrayClass]);
+      FindSystemClass(self, class_roots_descriptors_[kJavaLangReflectArtFieldArrayClass]);
   CHECK_EQ(object_array_art_field.get(), Art_field_array_class);
 
   // End of special init trickery, subsequent classes may be loaded via FindSystemClass.
 
   // Create java.lang.reflect.Proxy root.
-  mirror::Class* java_lang_reflect_Proxy = FindSystemClass("Ljava/lang/reflect/Proxy;");
+  mirror::Class* java_lang_reflect_Proxy = FindSystemClass(self, "Ljava/lang/reflect/Proxy;");
   SetClassRoot(kJavaLangReflectProxy, java_lang_reflect_Proxy);
 
   // java.lang.ref classes need to be specially flagged, but otherwise are normal classes
-  mirror::Class* java_lang_ref_Reference = FindSystemClass("Ljava/lang/ref/Reference;");
+  mirror::Class* java_lang_ref_Reference = FindSystemClass(self, "Ljava/lang/ref/Reference;");
   SetClassRoot(kJavaLangRefReference, java_lang_ref_Reference);
-  mirror::Class* java_lang_ref_FinalizerReference = FindSystemClass("Ljava/lang/ref/FinalizerReference;");
+  mirror::Class* java_lang_ref_FinalizerReference = FindSystemClass(self, "Ljava/lang/ref/FinalizerReference;");
   java_lang_ref_FinalizerReference->SetAccessFlags(
       java_lang_ref_FinalizerReference->GetAccessFlags() |
           kAccClassIsReference | kAccClassIsFinalizerReference);
-  mirror::Class* java_lang_ref_PhantomReference = FindSystemClass("Ljava/lang/ref/PhantomReference;");
+  mirror::Class* java_lang_ref_PhantomReference = FindSystemClass(self, "Ljava/lang/ref/PhantomReference;");
   java_lang_ref_PhantomReference->SetAccessFlags(
       java_lang_ref_PhantomReference->GetAccessFlags() |
           kAccClassIsReference | kAccClassIsPhantomReference);
-  mirror::Class* java_lang_ref_SoftReference = FindSystemClass("Ljava/lang/ref/SoftReference;");
+  mirror::Class* java_lang_ref_SoftReference = FindSystemClass(self, "Ljava/lang/ref/SoftReference;");
   java_lang_ref_SoftReference->SetAccessFlags(
       java_lang_ref_SoftReference->GetAccessFlags() | kAccClassIsReference);
-  mirror::Class* java_lang_ref_WeakReference = FindSystemClass("Ljava/lang/ref/WeakReference;");
+  mirror::Class* java_lang_ref_WeakReference = FindSystemClass(self, "Ljava/lang/ref/WeakReference;");
   java_lang_ref_WeakReference->SetAccessFlags(
       java_lang_ref_WeakReference->GetAccessFlags() |
           kAccClassIsReference | kAccClassIsWeakReference);
 
   // Setup the ClassLoader, verifying the object_size_.
-  mirror::Class* java_lang_ClassLoader = FindSystemClass("Ljava/lang/ClassLoader;");
+  mirror::Class* java_lang_ClassLoader = FindSystemClass(self, "Ljava/lang/ClassLoader;");
   CHECK_EQ(java_lang_ClassLoader->GetObjectSize(), sizeof(mirror::ClassLoader));
   SetClassRoot(kJavaLangClassLoader, java_lang_ClassLoader);
 
   // Set up java.lang.Throwable, java.lang.ClassNotFoundException, and
   // java.lang.StackTraceElement as a convenience.
-  SetClassRoot(kJavaLangThrowable, FindSystemClass("Ljava/lang/Throwable;"));
+  SetClassRoot(kJavaLangThrowable, FindSystemClass(self, "Ljava/lang/Throwable;"));
   mirror::Throwable::SetClass(GetClassRoot(kJavaLangThrowable));
-  SetClassRoot(kJavaLangClassNotFoundException, FindSystemClass("Ljava/lang/ClassNotFoundException;"));
-  SetClassRoot(kJavaLangStackTraceElement, FindSystemClass("Ljava/lang/StackTraceElement;"));
-  SetClassRoot(kJavaLangStackTraceElementArrayClass, FindSystemClass("[Ljava/lang/StackTraceElement;"));
+  SetClassRoot(kJavaLangClassNotFoundException, FindSystemClass(self, "Ljava/lang/ClassNotFoundException;"));
+  SetClassRoot(kJavaLangStackTraceElement, FindSystemClass(self, "Ljava/lang/StackTraceElement;"));
+  SetClassRoot(kJavaLangStackTraceElementArrayClass, FindSystemClass(self, "[Ljava/lang/StackTraceElement;"));
   mirror::StackTraceElement::SetClass(GetClassRoot(kJavaLangStackTraceElement));
 
-  FinishInit();
+  FinishInit(self);
 
   VLOG(startup) << "ClassLinker::InitFromCompiler exiting";
 }
 
-void ClassLinker::FinishInit() {
+void ClassLinker::FinishInit(Thread* self) {
   VLOG(startup) << "ClassLinker::FinishInit entering";
 
   // Let the heap know some key offsets into java.lang.ref instances
@@ -473,7 +475,7 @@ void ClassLinker::FinishInit() {
   // fully initialized
   mirror::Class* java_lang_ref_Reference = GetClassRoot(kJavaLangRefReference);
   mirror::Class* java_lang_ref_FinalizerReference =
-      FindSystemClass("Ljava/lang/ref/FinalizerReference;");
+      FindSystemClass(self, "Ljava/lang/ref/FinalizerReference;");
 
   mirror::ArtField* pendingNext = java_lang_ref_Reference->GetInstanceField(0);
   FieldHelper fh(pendingNext);
@@ -1111,7 +1113,7 @@ void ClassLinker::InitFromImage() {
   mirror::Throwable::SetClass(GetClassRoot(kJavaLangThrowable));
   mirror::StackTraceElement::SetClass(GetClassRoot(kJavaLangStackTraceElement));
 
-  FinishInit();
+  FinishInit(self);
 
   VLOG(startup) << "ClassLinker::InitFromImage exiting";
 }
@@ -1150,6 +1152,13 @@ void ClassLinker::VisitRoots(RootCallback* callback, void* arg, bool only_dirty,
   }
   callback(reinterpret_cast<mirror::Object**>(&array_iftable_), arg, 0, kRootVMInternal);
   DCHECK(array_iftable_ != nullptr);
+  for (size_t i = 0; i < kFindArrayCacheSize; ++i) {
+    if (find_array_class_cache_[i] != nullptr) {
+      callback(reinterpret_cast<mirror::Object**>(&find_array_class_cache_[i]), arg, 0,
+               kRootVMInternal);
+      DCHECK(find_array_class_cache_[i] != nullptr);
+    }
+  }
 }
 
 void ClassLinker::VisitClasses(ClassVisitor* visitor, void* arg) {
@@ -1307,21 +1316,10 @@ static mirror::Class* EnsureResolved(Thread* self, mirror::Class* klass)
   return klass;
 }
 
-bool ClassLinker::IsInBootClassPath(const char* descriptor) {
-  DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, boot_class_path_);
-  return pair.second != NULL;
-}
-
-mirror::Class* ClassLinker::FindSystemClass(const char* descriptor) {
-  SirtRef<mirror::ClassLoader> class_loader(Thread::Current(), nullptr);
-  return FindClass(descriptor, class_loader);
-}
-
-mirror::Class* ClassLinker::FindClass(const char* descriptor,
+mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
                                       const SirtRef<mirror::ClassLoader>& class_loader) {
   DCHECK_NE(*descriptor, '\0') << "descriptor is empty string";
-  Thread* self = Thread::Current();
-  DCHECK(self != NULL);
+  DCHECK(self != nullptr);
   self->AssertNoPendingException();
   if (descriptor[1] == '\0') {
     // only the descriptors of primitive types should be 1 character long, also avoid class lookup
@@ -1335,7 +1333,7 @@ mirror::Class* ClassLinker::FindClass(const char* descriptor,
   }
   // Class is not yet loaded.
   if (descriptor[0] == '[') {
-    return CreateArrayClass(descriptor, class_loader);
+    return CreateArrayClass(self, descriptor, class_loader);
   } else if (class_loader.get() == nullptr) {
     DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, boot_class_path_);
     if (pair.second != NULL) {
@@ -1346,7 +1344,7 @@ mirror::Class* ClassLinker::FindClass(const char* descriptor,
     // First try the boot class path, we check the descriptor first to avoid an unnecessary
     // throw of a NoClassDefFoundError.
     if (IsInBootClassPath(descriptor)) {
-      mirror::Class* system_class = FindSystemClass(descriptor);
+      mirror::Class* system_class = FindSystemClass(self, descriptor);
       CHECK(system_class != NULL);
       return system_class;
     }
@@ -1365,7 +1363,7 @@ mirror::Class* ClassLinker::FindClass(const char* descriptor,
     }
 
   } else {
-    ScopedObjectAccessUnchecked soa(self->GetJniEnv());
+    ScopedObjectAccessUnchecked soa(self);
     ScopedLocalRef<jobject> class_loader_object(soa.Env(),
                                                 soa.AddLocalReference<jobject>(class_loader.get()));
     std::string class_name_string(DescriptorToDot(descriptor));
@@ -1382,7 +1380,7 @@ mirror::Class* ClassLinker::FindClass(const char* descriptor,
                                                WellKnownClasses::java_lang_ClassLoader_loadClass,
                                                class_name_object.get()));
     }
-    if (soa.Self()->IsExceptionPending()) {
+    if (self->IsExceptionPending()) {
       // If the ClassLoader threw, pass that exception up.
       return NULL;
     } else if (result.get() == NULL) {
@@ -2133,12 +2131,11 @@ mirror::Class* ClassLinker::InitializePrimitiveClass(mirror::Class* primitive_cl
 // array class; that always comes from the base element class.
 //
 // Returns NULL with an exception raised on failure.
-mirror::Class* ClassLinker::CreateArrayClass(const char* descriptor,
+mirror::Class* ClassLinker::CreateArrayClass(Thread* self, const char* descriptor,
                                              const SirtRef<mirror::ClassLoader>& class_loader) {
   // Identify the underlying component type
   CHECK_EQ('[', descriptor[0]);
-  Thread* self = Thread::Current();
-  SirtRef<mirror::Class> component_type(self, FindClass(descriptor + 1, class_loader));
+  SirtRef<mirror::Class> component_type(self, FindClass(self, descriptor + 1, class_loader));
   if (component_type.get() == nullptr) {
     DCHECK(self->IsExceptionPending());
     return nullptr;
@@ -3242,7 +3239,7 @@ bool ClassLinker::ValidateSuperClassDescriptors(const SirtRef<mirror::Class>& kl
     for (int i = super->GetVTable()->GetLength() - 1; i >= 0; --i) {
       mirror::ArtMethod* method = klass->GetVTable()->Get(i);
       if (method != super->GetVTable()->Get(i) &&
-          !IsSameMethodSignatureInDifferentClassContexts(method, super.get(), klass.get())) {
+          !IsSameMethodSignatureInDifferentClassContexts(self, method, super.get(), klass.get())) {
         ThrowLinkageError(klass.get(), "Class %s method %s resolves differently in superclass %s",
                           PrettyDescriptor(klass.get()).c_str(), PrettyMethod(method).c_str(),
                           PrettyDescriptor(super.get()).c_str());
@@ -3255,7 +3252,7 @@ bool ClassLinker::ValidateSuperClassDescriptors(const SirtRef<mirror::Class>& kl
     if (klass->GetClassLoader() != interface->GetClassLoader()) {
       for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
         mirror::ArtMethod* method = klass->GetIfTable()->GetMethodArray(i)->Get(j);
-        if (!IsSameMethodSignatureInDifferentClassContexts(method, interface.get(),
+        if (!IsSameMethodSignatureInDifferentClassContexts(self, method, interface.get(),
                                                            method->GetDeclaringClass())) {
           ThrowLinkageError(klass.get(), "Class %s method %s resolves differently in interface %s",
                             PrettyDescriptor(method->GetDeclaringClass()).c_str(),
@@ -3271,13 +3268,13 @@ bool ClassLinker::ValidateSuperClassDescriptors(const SirtRef<mirror::Class>& kl
 
 // Returns true if classes referenced by the signature of the method are the
 // same classes in klass1 as they are in klass2.
-bool ClassLinker::IsSameMethodSignatureInDifferentClassContexts(mirror::ArtMethod* method,
+bool ClassLinker::IsSameMethodSignatureInDifferentClassContexts(Thread* self,
+                                                                mirror::ArtMethod* method,
                                                                 mirror::Class* klass1,
                                                                 mirror::Class* klass2) {
   if (klass1 == klass2) {
     return true;
   }
-  Thread* self = Thread::Current();
   CHECK(klass1 != nullptr);
   CHECK(klass2 != nullptr);
   SirtRef<mirror::ClassLoader> loader1(self, klass1->GetClassLoader());
@@ -3292,7 +3289,7 @@ bool ClassLinker::IsSameMethodSignatureInDifferentClassContexts(mirror::ArtMetho
     }
     if (descriptor[0] == 'L' || descriptor[0] == '[') {
       // Found a non-primitive type.
-      if (!IsSameDescriptorInDifferentClassContexts(descriptor, loader1, loader2)) {
+      if (!IsSameDescriptorInDifferentClassContexts(self, descriptor, loader1, loader2)) {
         return false;
       }
     }
@@ -3300,7 +3297,7 @@ bool ClassLinker::IsSameMethodSignatureInDifferentClassContexts(mirror::ArtMetho
   // Check the return type
   const char* descriptor = dex_file.GetReturnTypeDescriptor(proto_id);
   if (descriptor[0] == 'L' || descriptor[0] == '[') {
-    if (!IsSameDescriptorInDifferentClassContexts(descriptor, loader1, loader2)) {
+    if (!IsSameDescriptorInDifferentClassContexts(self, descriptor, loader1, loader2)) {
       return false;
     }
   }
@@ -3308,16 +3305,15 @@ bool ClassLinker::IsSameMethodSignatureInDifferentClassContexts(mirror::ArtMetho
 }
 
 // Returns true if the descriptor resolves to the same class in the context of loader1 and loader2.
-bool ClassLinker::IsSameDescriptorInDifferentClassContexts(const char* descriptor,
+bool ClassLinker::IsSameDescriptorInDifferentClassContexts(Thread* self, const char* descriptor,
                                                            SirtRef<mirror::ClassLoader>& loader1,
                                                            SirtRef<mirror::ClassLoader>& loader2) {
   CHECK(descriptor != nullptr);
-  Thread* self = Thread::Current();
-  SirtRef<mirror::Class> found1(self, FindClass(descriptor, loader1));
+  SirtRef<mirror::Class> found1(self, FindClass(self, descriptor, loader1));
   if (found1.get() == nullptr) {
     self->ClearException();
   }
-  mirror::Class* found2 = FindClass(descriptor, loader2);
+  mirror::Class* found2 = FindClass(self, descriptor, loader2);
   if (found2 == nullptr) {
     self->ClearException();
   }
@@ -4117,22 +4113,22 @@ mirror::Class* ClassLinker::ResolveType(const DexFile& dex_file, uint16_t type_i
   DCHECK(dex_cache.get() != NULL);
   mirror::Class* resolved = dex_cache->GetResolvedType(type_idx);
   if (resolved == NULL) {
+    Thread* self = Thread::Current();
     const char* descriptor = dex_file.StringByTypeIdx(type_idx);
-    resolved = FindClass(descriptor, class_loader);
+    resolved = FindClass(self, descriptor, class_loader);
     if (resolved != NULL) {
       // TODO: we used to throw here if resolved's class loader was not the
       //       boot class loader. This was to permit different classes with the
       //       same name to be loaded simultaneously by different loaders
       dex_cache->SetResolvedType(type_idx, resolved);
     } else {
-      Thread* self = Thread::Current();
       CHECK(self->IsExceptionPending())
           << "Expected pending exception for failed resolution of: " << descriptor;
       // Convert a ClassNotFoundException to a NoClassDefFoundError.
       SirtRef<mirror::Throwable> cause(self, self->GetException(NULL));
       if (cause->InstanceOf(GetClassRoot(kJavaLangClassNotFoundException))) {
         DCHECK(resolved == NULL);  // No SirtRef needed to preserve resolved.
-        Thread::Current()->ClearException();
+        self->ClearException();
         ThrowNoClassDefFoundError("Failed resolution of: %s", descriptor);
         self->GetException(NULL)->SetCause(cause.get());
       }

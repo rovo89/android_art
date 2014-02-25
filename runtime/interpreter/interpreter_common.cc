@@ -280,7 +280,7 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     std::string descriptor(DotToDescriptor(shadow_frame->GetVRegReference(arg_offset)->AsString()->ToModifiedUtf8().c_str()));
 
     SirtRef<ClassLoader> class_loader(self, nullptr);  // shadow_frame.GetMethod()->GetDeclaringClass()->GetClassLoader();
-    Class* found = Runtime::Current()->GetClassLinker()->FindClass(descriptor.c_str(),
+    Class* found = Runtime::Current()->GetClassLinker()->FindClass(self, descriptor.c_str(),
                                                                    class_loader);
     CHECK(found != NULL) << "Class.forName failed in un-started runtime for class: "
         << PrettyDescriptor(descriptor);
@@ -289,7 +289,7 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     SirtRef<ClassLoader> class_loader(self, down_cast<mirror::ClassLoader*>(shadow_frame->GetVRegReference(arg_offset)));
     std::string descriptor(DotToDescriptor(shadow_frame->GetVRegReference(arg_offset + 1)->AsString()->ToModifiedUtf8().c_str()));
 
-    Class* found = Runtime::Current()->GetClassLinker()->FindClass(descriptor.c_str(),
+    Class* found = Runtime::Current()->GetClassLinker()->FindClass(self, descriptor.c_str(),
                                                                    class_loader);
     result->SetL(found);
   } else if (name == "java.lang.Object java.lang.Class.newInstance()") {

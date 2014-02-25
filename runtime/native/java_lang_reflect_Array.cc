@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "class_linker.h"
+#include "class_linker-inl.h"
 #include "common_throws.h"
 #include "dex_file-inl.h"
 #include "jni_internal.h"
@@ -50,12 +50,8 @@ static jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementCl
     ThrowNegativeArraySizeException(length);
     return NULL;
   }
-  std::string descriptor("[");
-  descriptor += ClassHelper(element_class).GetDescriptor();
-
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  SirtRef<mirror::ClassLoader> class_loader(soa.Self(), element_class->GetClassLoader());
-  mirror::Class* array_class = class_linker->FindClass(descriptor.c_str(), class_loader);
+  mirror::Class* array_class = class_linker->FindArrayClass(soa.Self(), element_class);
   if (UNLIKELY(array_class == NULL)) {
     CHECK(soa.Self()->IsExceptionPending());
     return NULL;

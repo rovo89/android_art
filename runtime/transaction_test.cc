@@ -29,7 +29,7 @@ class TransactionTest : public CommonTest {
 TEST_F(TransactionTest, Object_class) {
   ScopedObjectAccess soa(Thread::Current());
   SirtRef<mirror::Class> sirt_klass(soa.Self(),
-                                    class_linker_->FindSystemClass("Ljava/lang/Object;"));
+                                    class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;"));
   ASSERT_TRUE(sirt_klass.get() != nullptr);
 
   Transaction transaction;
@@ -47,7 +47,8 @@ TEST_F(TransactionTest, Object_class) {
 TEST_F(TransactionTest, Object_monitor) {
   ScopedObjectAccess soa(Thread::Current());
   SirtRef<mirror::Class> sirt_klass(soa.Self(),
-                                    class_linker_->FindSystemClass("Ljava/lang/Object;"));
+                                    class_linker_->FindSystemClass(soa.Self(),
+                                                                   "Ljava/lang/Object;"));
   ASSERT_TRUE(sirt_klass.get() != nullptr);
   SirtRef<mirror::Object> sirt_obj(soa.Self(), sirt_klass->AllocObject(soa.Self()));
   ASSERT_TRUE(sirt_obj.get() != nullptr);
@@ -74,7 +75,8 @@ TEST_F(TransactionTest, Object_monitor) {
 TEST_F(TransactionTest, Array_length) {
   ScopedObjectAccess soa(Thread::Current());
   SirtRef<mirror::Class> sirt_klass(soa.Self(),
-                                    class_linker_->FindSystemClass("[Ljava/lang/Object;"));
+                                    class_linker_->FindSystemClass(soa.Self(),
+                                                                   "[Ljava/lang/Object;"));
   ASSERT_TRUE(sirt_klass.get() != nullptr);
 
   constexpr int32_t kArraySize = 2;
@@ -101,7 +103,8 @@ TEST_F(TransactionTest, StaticFieldsTest) {
   ASSERT_TRUE(class_loader.get() != nullptr);
 
   SirtRef<mirror::Class> sirt_klass(soa.Self(),
-                                    class_linker_->FindClass("LStaticFieldsTest;", class_loader));
+                                    class_linker_->FindClass(soa.Self(), "LStaticFieldsTest;",
+                                                             class_loader));
   ASSERT_TRUE(sirt_klass.get() != nullptr);
   class_linker_->EnsureInitialized(sirt_klass, true, true);
   ASSERT_TRUE(sirt_klass->IsInitialized());
@@ -147,13 +150,16 @@ TEST_F(TransactionTest, StaticFieldsTest) {
   ASSERT_EQ(FieldHelper(doubleField).GetTypeAsPrimitiveType(), Primitive::kPrimDouble);
   ASSERT_EQ(doubleField->GetDouble(sirt_klass.get()), static_cast<double>(0.0));
 
-  mirror::ArtField* objectField = sirt_klass->FindDeclaredStaticField("objectField", "Ljava/lang/Object;");
+  mirror::ArtField* objectField = sirt_klass->FindDeclaredStaticField("objectField",
+                                                                      "Ljava/lang/Object;");
   ASSERT_TRUE(objectField != nullptr);
   ASSERT_EQ(FieldHelper(objectField).GetTypeAsPrimitiveType(), Primitive::kPrimNot);
   ASSERT_EQ(objectField->GetObject(sirt_klass.get()), nullptr);
 
   // Create a java.lang.Object instance to set objectField.
-  SirtRef<mirror::Class> object_klass(soa.Self(), class_linker_->FindSystemClass("Ljava/lang/Object;"));
+  SirtRef<mirror::Class> object_klass(soa.Self(),
+                                      class_linker_->FindSystemClass(soa.Self(),
+                                                                     "Ljava/lang/Object;"));
   ASSERT_TRUE(object_klass.get() != nullptr);
   SirtRef<mirror::Object> sirt_obj(soa.Self(), sirt_klass->AllocObject(soa.Self()));
   ASSERT_TRUE(sirt_obj.get() != nullptr);
@@ -193,7 +199,8 @@ TEST_F(TransactionTest, InstanceFieldsTest) {
   ASSERT_TRUE(class_loader.get() != nullptr);
 
   SirtRef<mirror::Class> sirt_klass(soa.Self(),
-                                    class_linker_->FindClass("LInstanceFieldsTest;", class_loader));
+                                    class_linker_->FindClass(soa.Self(), "LInstanceFieldsTest;",
+                                                             class_loader));
   ASSERT_TRUE(sirt_klass.get() != nullptr);
   class_linker_->EnsureInitialized(sirt_klass, true, true);
   ASSERT_TRUE(sirt_klass->IsInitialized());
@@ -243,13 +250,16 @@ TEST_F(TransactionTest, InstanceFieldsTest) {
   ASSERT_EQ(FieldHelper(doubleField).GetTypeAsPrimitiveType(), Primitive::kPrimDouble);
   ASSERT_EQ(doubleField->GetDouble(sirt_instance.get()), static_cast<double>(0.0));
 
-  mirror::ArtField* objectField = sirt_klass->FindDeclaredInstanceField("objectField", "Ljava/lang/Object;");
+  mirror::ArtField* objectField = sirt_klass->FindDeclaredInstanceField("objectField",
+                                                                        "Ljava/lang/Object;");
   ASSERT_TRUE(objectField != nullptr);
   ASSERT_EQ(FieldHelper(objectField).GetTypeAsPrimitiveType(), Primitive::kPrimNot);
   ASSERT_EQ(objectField->GetObject(sirt_instance.get()), nullptr);
 
   // Create a java.lang.Object instance to set objectField.
-  SirtRef<mirror::Class> object_klass(soa.Self(), class_linker_->FindSystemClass("Ljava/lang/Object;"));
+  SirtRef<mirror::Class> object_klass(soa.Self(),
+                                      class_linker_->FindSystemClass(soa.Self(),
+                                                                     "Ljava/lang/Object;"));
   ASSERT_TRUE(object_klass.get() != nullptr);
   SirtRef<mirror::Object> sirt_obj(soa.Self(), sirt_klass->AllocObject(soa.Self()));
   ASSERT_TRUE(sirt_obj.get() != nullptr);
@@ -290,7 +300,8 @@ TEST_F(TransactionTest, StaticArrayFieldsTest) {
   ASSERT_TRUE(class_loader.get() != nullptr);
 
   SirtRef<mirror::Class> sirt_klass(soa.Self(),
-                                    class_linker_->FindClass("LStaticArrayFieldsTest;", class_loader));
+                                    class_linker_->FindClass(soa.Self(), "LStaticArrayFieldsTest;",
+                                                             class_loader));
   ASSERT_TRUE(sirt_klass.get() != nullptr);
   class_linker_->EnsureInitialized(sirt_klass, true, true);
   ASSERT_TRUE(sirt_klass->IsInitialized());
@@ -352,15 +363,19 @@ TEST_F(TransactionTest, StaticArrayFieldsTest) {
   ASSERT_EQ(doubleArray->GetLength(), 1);
   ASSERT_EQ(doubleArray->GetWithoutChecks(0), static_cast<double>(0.0f));
 
-  mirror::ArtField* objectArrayField = sirt_klass->FindDeclaredStaticField("objectArrayField", "[Ljava/lang/Object;");
+  mirror::ArtField* objectArrayField = sirt_klass->FindDeclaredStaticField("objectArrayField",
+                                                                           "[Ljava/lang/Object;");
   ASSERT_TRUE(objectArrayField != nullptr);
-  mirror::ObjectArray<mirror::Object>* objectArray = objectArrayField->GetObject(sirt_klass.get())->AsObjectArray<mirror::Object>();
+  mirror::ObjectArray<mirror::Object>* objectArray =
+      objectArrayField->GetObject(sirt_klass.get())->AsObjectArray<mirror::Object>();
   ASSERT_TRUE(objectArray != nullptr);
   ASSERT_EQ(objectArray->GetLength(), 1);
   ASSERT_EQ(objectArray->GetWithoutChecks(0), nullptr);
 
   // Create a java.lang.Object instance to set objectField.
-  SirtRef<mirror::Class> object_klass(soa.Self(), class_linker_->FindSystemClass("Ljava/lang/Object;"));
+  SirtRef<mirror::Class> object_klass(soa.Self(),
+                                      class_linker_->FindSystemClass(soa.Self(),
+                                                                     "Ljava/lang/Object;"));
   ASSERT_TRUE(object_klass.get() != nullptr);
   SirtRef<mirror::Object> sirt_obj(soa.Self(), sirt_klass->AllocObject(soa.Self()));
   ASSERT_TRUE(sirt_obj.get() != nullptr);
@@ -400,7 +415,9 @@ TEST_F(TransactionTest, EmptyClass) {
   ASSERT_TRUE(class_loader.get() != nullptr);
 
   SirtRef<mirror::Class> sirt_klass(soa.Self(),
-                                    class_linker_->FindClass("LTransaction$EmptyStatic;", class_loader));
+                                    class_linker_->FindClass(soa.Self(),
+                                                             "LTransaction$EmptyStatic;",
+                                                             class_loader));
   ASSERT_TRUE(sirt_klass.get() != nullptr);
   class_linker_->VerifyClass(sirt_klass);
   ASSERT_TRUE(sirt_klass->IsVerified());
@@ -419,7 +436,9 @@ TEST_F(TransactionTest, StaticFieldClass) {
   ASSERT_TRUE(class_loader.get() != nullptr);
 
   SirtRef<mirror::Class> sirt_klass(soa.Self(),
-                                    class_linker_->FindClass("LTransaction$StaticFieldClass;", class_loader));
+                                    class_linker_->FindClass(soa.Self(),
+                                                             "LTransaction$StaticFieldClass;",
+                                                             class_loader));
   ASSERT_TRUE(sirt_klass.get() != nullptr);
   class_linker_->VerifyClass(sirt_klass);
   ASSERT_TRUE(sirt_klass->IsVerified());
@@ -441,22 +460,25 @@ TEST_F(TransactionTest, BlacklistedClass) {
   // Load and verify java.lang.ExceptionInInitializerError and java.lang.InternalError which will
   // be thrown by class initialization due to native call.
   SirtRef<mirror::Class> sirt_klass(soa.Self(),
-                                    class_linker_->FindSystemClass("Ljava/lang/ExceptionInInitializerError;"));
+                                    class_linker_->FindSystemClass(soa.Self(),
+                                                                   "Ljava/lang/ExceptionInInitializerError;"));
   ASSERT_TRUE(sirt_klass.get() != nullptr);
   class_linker_->VerifyClass(sirt_klass);
   ASSERT_TRUE(sirt_klass->IsVerified());
-  sirt_klass.reset(class_linker_->FindSystemClass("Ljava/lang/InternalError;"));
+  sirt_klass.reset(class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/InternalError;"));
   ASSERT_TRUE(sirt_klass.get() != nullptr);
   class_linker_->VerifyClass(sirt_klass);
   ASSERT_TRUE(sirt_klass->IsVerified());
 
   // Load and verify Transaction$NativeSupport used in class initialization.
-  sirt_klass.reset(class_linker_->FindClass("LTransaction$NativeSupport;", class_loader));
+  sirt_klass.reset(class_linker_->FindClass(soa.Self(), "LTransaction$NativeSupport;",
+                                            class_loader));
   ASSERT_TRUE(sirt_klass.get() != nullptr);
   class_linker_->VerifyClass(sirt_klass);
   ASSERT_TRUE(sirt_klass->IsVerified());
 
-  sirt_klass.reset(class_linker_->FindClass("LTransaction$BlacklistedClass;", class_loader));
+  sirt_klass.reset(class_linker_->FindClass(soa.Self(), "LTransaction$BlacklistedClass;",
+                                            class_loader));
   ASSERT_TRUE(sirt_klass.get() != nullptr);
   class_linker_->VerifyClass(sirt_klass);
   ASSERT_TRUE(sirt_klass->IsVerified());

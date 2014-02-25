@@ -17,6 +17,7 @@
 #include "reg_type_cache-inl.h"
 
 #include "base/casts.h"
+#include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
@@ -140,10 +141,11 @@ mirror::Class* RegTypeCache::ResolveClass(const char* descriptor, mirror::ClassL
   // Class was not found, must create new type.
   // Try resolving class
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  SirtRef<mirror::ClassLoader> class_loader(Thread::Current(), loader);
+  Thread* self = Thread::Current();
+  SirtRef<mirror::ClassLoader> class_loader(self, loader);
   mirror::Class* klass = NULL;
   if (can_load_classes_) {
-    klass = class_linker->FindClass(descriptor, class_loader);
+    klass = class_linker->FindClass(self, descriptor, class_loader);
   } else {
     klass = class_linker->LookupClass(descriptor, loader);
     if (klass != NULL && !klass->IsLoaded()) {
@@ -277,7 +279,8 @@ Type* RegTypeCache::CreatePrimitiveTypeInstance(const std::string& descriptor) {
   mirror::Class* klass = NULL;
   // Try loading the class from linker.
   if (!descriptor.empty()) {
-    klass = art::Runtime::Current()->GetClassLinker()->FindSystemClass(descriptor.c_str());
+    klass = art::Runtime::Current()->GetClassLinker()->FindSystemClass(Thread::Current(),
+                                                                       descriptor.c_str());
   }
   Type* entry = Type::CreateInstance(klass, descriptor, RegTypeCache::primitive_count_);
   RegTypeCache::primitive_count_++;
