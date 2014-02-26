@@ -517,6 +517,12 @@ mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
   // references.
   saved_bytes_ +=
       CopyAvoidingDirtyingPages(reinterpret_cast<void*>(forward_address), obj, object_size);
+  if (kUseBrooksPointer) {
+    obj->AssertSelfBrooksPointer();
+    DCHECK_EQ(forward_address->GetBrooksPointer(), obj);
+    forward_address->SetBrooksPointer(forward_address);
+    forward_address->AssertSelfBrooksPointer();
+  }
   if (to_space_live_bitmap_ != nullptr) {
     to_space_live_bitmap_->Set(forward_address);
   }
@@ -529,6 +535,12 @@ mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
 // the to-space and have their forward address updated. Objects which have been newly marked are
 // pushed on the mark stack.
 Object* SemiSpace::MarkObject(Object* obj) {
+  if (kUseBrooksPointer) {
+    // Verify all the objects have the correct forward pointer installed.
+    if (obj != nullptr) {
+      obj->AssertSelfBrooksPointer();
+    }
+  }
   Object* forward_address = obj;
   if (obj != nullptr && !IsImmune(obj)) {
     if (from_space_->HasAddress(obj)) {
