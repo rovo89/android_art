@@ -53,8 +53,6 @@ void StickyMarkSweep::MarkReachableObjects() {
   // TODO: Not put these objects in the mark stack in the first place.
   mark_stack_->Reset();
   RecursiveMarkDirtyObjects(false, accounting::CardTable::kCardDirty - 1);
-  // Pre clean dirtied cards to reduce pauses.
-  PreCleanCards();
 }
 
 void StickyMarkSweep::Sweep(bool swap_bitmaps) {
