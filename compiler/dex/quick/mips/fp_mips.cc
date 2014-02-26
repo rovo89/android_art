@@ -64,7 +64,7 @@ void MipsMir2Lir::GenArithOpFloat(Instruction::Code opcode,
   rl_src1 = LoadValue(rl_src1, kFPReg);
   rl_src2 = LoadValue(rl_src2, kFPReg);
   rl_result = EvalLoc(rl_dest, kFPReg, true);
-  NewLIR3(op, rl_result.reg.GetReg(), rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
+  NewLIR3(op, rl_result.low_reg, rl_src1.low_reg, rl_src2.low_reg);
   StoreValue(rl_dest, rl_result);
 }
 
@@ -111,8 +111,8 @@ void MipsMir2Lir::GenArithOpDouble(Instruction::Code opcode,
   rl_result = EvalLoc(rl_dest, kFPReg, true);
   DCHECK(rl_dest.wide);
   DCHECK(rl_result.wide);
-  NewLIR3(op, S2d(rl_result.reg.GetReg(), rl_result.reg.GetHighReg()), S2d(rl_src1.reg.GetReg(), rl_src1.reg.GetHighReg()),
-          S2d(rl_src2.reg.GetReg(), rl_src2.reg.GetHighReg()));
+  NewLIR3(op, S2d(rl_result.low_reg, rl_result.high_reg), S2d(rl_src1.low_reg, rl_src1.high_reg),
+          S2d(rl_src2.low_reg, rl_src2.high_reg));
   StoreValueWide(rl_dest, rl_result);
 }
 
@@ -157,18 +157,18 @@ void MipsMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
   }
   if (rl_src.wide) {
     rl_src = LoadValueWide(rl_src, kFPReg);
-    src_reg = S2d(rl_src.reg.GetReg(), rl_src.reg.GetHighReg());
+    src_reg = S2d(rl_src.low_reg, rl_src.high_reg);
   } else {
     rl_src = LoadValue(rl_src, kFPReg);
-    src_reg = rl_src.reg.GetReg();
+    src_reg = rl_src.low_reg;
   }
   if (rl_dest.wide) {
     rl_result = EvalLoc(rl_dest, kFPReg, true);
-    NewLIR2(op, S2d(rl_result.reg.GetReg(), rl_result.reg.GetHighReg()), src_reg);
+    NewLIR2(op, S2d(rl_result.low_reg, rl_result.high_reg), src_reg);
     StoreValueWide(rl_dest, rl_result);
   } else {
     rl_result = EvalLoc(rl_dest, kFPReg, true);
-    NewLIR2(op, rl_result.reg.GetReg(), src_reg);
+    NewLIR2(op, rl_result.low_reg, src_reg);
     StoreValue(rl_dest, rl_result);
   }
 }
@@ -221,7 +221,7 @@ void MipsMir2Lir::GenNegFloat(RegLocation rl_dest, RegLocation rl_src) {
   RegLocation rl_result;
   rl_src = LoadValue(rl_src, kCoreReg);
   rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  OpRegRegImm(kOpAdd, rl_result.reg.GetReg(), rl_src.reg.GetReg(), 0x80000000);
+  OpRegRegImm(kOpAdd, rl_result.low_reg, rl_src.low_reg, 0x80000000);
   StoreValue(rl_dest, rl_result);
 }
 
@@ -229,8 +229,8 @@ void MipsMir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src) {
   RegLocation rl_result;
   rl_src = LoadValueWide(rl_src, kCoreReg);
   rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  OpRegRegImm(kOpAdd, rl_result.reg.GetHighReg(), rl_src.reg.GetHighReg(), 0x80000000);
-  OpRegCopy(rl_result.reg.GetReg(), rl_src.reg.GetReg());
+  OpRegRegImm(kOpAdd, rl_result.high_reg, rl_src.high_reg, 0x80000000);
+  OpRegCopy(rl_result.low_reg, rl_src.low_reg);
   StoreValueWide(rl_dest, rl_result);
 }
 

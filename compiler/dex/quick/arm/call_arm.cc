@@ -79,7 +79,7 @@ void ArmMir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
   LIR* target = NewLIR0(kPseudoTargetLabel);
   // Load next key/disp
   NewLIR2(kThumb2LdmiaWB, rBase, (1 << r_key) | (1 << r_disp));
-  OpRegReg(kOpCmp, r_key, rl_src.reg.GetReg());
+  OpRegReg(kOpCmp, r_key, rl_src.low_reg);
   // Go if match. NOTE: No instruction set switch here - must stay Thumb2
   OpIT(kCondEq, "");
   LIR* switch_branch = NewLIR1(kThumb2AddPCR, r_disp);
@@ -115,10 +115,10 @@ void ArmMir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
   int keyReg;
   // Remove the bias, if necessary
   if (low_key == 0) {
-    keyReg = rl_src.reg.GetReg();
+    keyReg = rl_src.low_reg;
   } else {
     keyReg = AllocTemp();
-    OpRegRegImm(kOpSub, keyReg, rl_src.reg.GetReg(), low_key);
+    OpRegRegImm(kOpSub, keyReg, rl_src.low_reg, low_key);
   }
   // Bounds check - if < 0 or >= size continue following switch
   OpRegImm(kOpCmp, keyReg, size-1);
@@ -293,7 +293,7 @@ void ArmMir2Lir::GenMoveException(RegLocation rl_dest) {
   int ex_offset = Thread::ExceptionOffset().Int32Value();
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   int reset_reg = AllocTemp();
-  LoadWordDisp(rARM_SELF, ex_offset, rl_result.reg.GetReg());
+  LoadWordDisp(rARM_SELF, ex_offset, rl_result.low_reg);
   LoadConstant(reset_reg, 0);
   StoreWordDisp(rARM_SELF, ex_offset, reset_reg);
   FreeTemp(reset_reg);
