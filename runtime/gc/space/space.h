@@ -115,35 +115,24 @@ class Space {
   virtual bool IsDlMallocSpace() const {
     return false;
   }
-  virtual DlMallocSpace* AsDlMallocSpace() {
-    LOG(FATAL) << "Unreachable";
-    return nullptr;
-  }
+  virtual DlMallocSpace* AsDlMallocSpace();
+
   virtual bool IsRosAllocSpace() const {
     return false;
   }
-  virtual RosAllocSpace* AsRosAllocSpace() {
-    LOG(FATAL) << "Unreachable";
-    return nullptr;
-  }
+  virtual RosAllocSpace* AsRosAllocSpace();
 
-  // Is this the space allocated into by the Zygote and no-longer in use?
+  // Is this the space allocated into by the Zygote and no-longer in use for allocation?
   bool IsZygoteSpace() const {
     return GetType() == kSpaceTypeZygoteSpace;
   }
-  virtual ZygoteSpace* AsZygoteSpace() {
-    LOG(FATAL) << "Unreachable";
-    return nullptr;
-  }
+  virtual ZygoteSpace* AsZygoteSpace();
 
   // Is this space a bump pointer space?
   bool IsBumpPointerSpace() const {
     return GetType() == kSpaceTypeBumpPointerSpace;
   }
-  virtual BumpPointerSpace* AsBumpPointerSpace() {
-    LOG(FATAL) << "Unreachable";
-    return nullptr;
-  }
+  virtual BumpPointerSpace* AsBumpPointerSpace();
 
   // Does this space hold large objects and implement the large object space abstraction?
   bool IsLargeObjectSpace() const {
@@ -164,18 +153,12 @@ class Space {
   virtual bool IsAllocSpace() const {
     return false;
   }
-  virtual AllocSpace* AsAllocSpace() {
-    LOG(FATAL) << "Unimplemented";
-    return nullptr;
-  }
+  virtual AllocSpace* AsAllocSpace();
 
   virtual bool IsContinuousMemMapAllocSpace() const {
     return false;
   }
-  virtual ContinuousMemMapAllocSpace* AsContinuousMemMapAllocSpace() {
-    LOG(FATAL) << "Unimplemented";
-    return nullptr;
-  }
+  virtual ContinuousMemMapAllocSpace* AsContinuousMemMapAllocSpace();
 
   virtual ~Space() {}
 
@@ -220,10 +203,11 @@ class AllocSpace {
   // Allocate num_bytes without allowing growth. If the allocation
   // succeeds, the output parameter bytes_allocated will be set to the
   // actually allocated bytes which is >= num_bytes.
-  virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated) = 0;
+  virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
+                                size_t* usable_size) = 0;
 
   // Return the storage space required by obj.
-  virtual size_t AllocationSize(mirror::Object* obj) = 0;
+  virtual size_t AllocationSize(mirror::Object* obj, size_t* usable_size) = 0;
 
   // Returns how many bytes were freed.
   virtual size_t Free(Thread* self, mirror::Object* ptr) = 0;
@@ -231,15 +215,13 @@ class AllocSpace {
   // Returns how many bytes were freed.
   virtual size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) = 0;
 
-  // Revoke any sort of thread-local buffers that are used to speed up
-  // allocations for the given thread, if the alloc space
-  // implementation uses any. No-op by default.
-  virtual void RevokeThreadLocalBuffers(Thread* /*thread*/) {}
+  // Revoke any sort of thread-local buffers that are used to speed up allocations for the given
+  // thread, if the alloc space implementation uses any.
+  virtual void RevokeThreadLocalBuffers(Thread* thread) = 0;
 
-  // Revoke any sort of thread-local buffers that are used to speed up
-  // allocations for all the threads, if the alloc space
-  // implementation uses any. No-op by default.
-  virtual void RevokeAllThreadLocalBuffers() {}
+  // Revoke any sort of thread-local buffers that are used to speed up allocations for all the
+  // threads, if the alloc space implementation uses any.
+  virtual void RevokeAllThreadLocalBuffers() = 0;
 
  protected:
   AllocSpace() {}
@@ -393,17 +375,17 @@ class MemMapSpace : public ContinuousSpace {
 // Used by the heap compaction interface to enable copying from one type of alloc space to another.
 class ContinuousMemMapAllocSpace : public MemMapSpace, public AllocSpace {
  public:
-  virtual bool IsAllocSpace() const {
+  bool IsAllocSpace() const OVERRIDE {
     return true;
   }
-  virtual AllocSpace* AsAllocSpace() {
+  AllocSpace* AsAllocSpace() OVERRIDE {
     return this;
   }
 
-  virtual bool IsContinuousMemMapAllocSpace() const {
+  bool IsContinuousMemMapAllocSpace() const OVERRIDE {
     return true;
   }
-  virtual ContinuousMemMapAllocSpace* AsContinuousMemMapAllocSpace() {
+  ContinuousMemMapAllocSpace* AsContinuousMemMapAllocSpace() {
     return this;
   }
 
@@ -414,22 +396,19 @@ class ContinuousMemMapAllocSpace : public MemMapSpace, public AllocSpace {
   // Swap the live and mark bitmaps of this space. This is used by the GC for concurrent sweeping.
   void SwapBitmaps();
 
-  virtual void Clear() {
-    LOG(FATAL) << "Unimplemented";
-  }
+  // Free all memory associated with this space.
+  virtual void Clear() = 0;
 
-  virtual accounting::SpaceBitmap* GetLiveBitmap() const {
+  accounting::SpaceBitmap* GetLiveBitmap() const {
     return live_bitmap_.get();
   }
-  virtual accounting::SpaceBitmap* GetMarkBitmap() const {
+
+  accounting::SpaceBitmap* GetMarkBitmap() const {
     return mark_bitmap_.get();
   }
 
-  virtual void Sweep(bool swap_bitmaps, size_t* freed_objects, size_t* freed_bytes);
-  virtual accounting::SpaceBitmap::SweepCallback* GetSweepCallback() {
-    LOG(FATAL) << "Unimplemented";
-    return nullptr;
-  }
+  void Sweep(bool swap_bitmaps, size_t* freed_objects, size_t* freed_bytes);
+  virtual accounting::SpaceBitmap::SweepCallback* GetSweepCallback() = 0;
 
  protected:
   UniquePtr<accounting::SpaceBitmap> live_bitmap_;

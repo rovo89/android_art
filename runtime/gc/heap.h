@@ -151,18 +151,24 @@ class Heap {
   ~Heap();
 
   // Allocates and initializes storage for an object instance.
-  template <bool kInstrumented>
-  mirror::Object* AllocObject(Thread* self, mirror::Class* klass, size_t num_bytes)
+  template <bool kInstrumented, typename PreFenceVisitor = VoidFunctor>
+  mirror::Object* AllocObject(Thread* self, mirror::Class* klass, size_t num_bytes,
+                              const PreFenceVisitor& pre_fence_visitor = VoidFunctor())
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return AllocObjectWithAllocator<kInstrumented, true>(self, klass, num_bytes,
-                                                         GetCurrentAllocator());
+                                                         GetCurrentAllocator(),
+                                                         pre_fence_visitor);
   }
-  template <bool kInstrumented>
-  mirror::Object* AllocNonMovableObject(Thread* self, mirror::Class* klass, size_t num_bytes)
+
+  template <bool kInstrumented, typename PreFenceVisitor = VoidFunctor>
+  mirror::Object* AllocNonMovableObject(Thread* self, mirror::Class* klass, size_t num_bytes,
+                                        const PreFenceVisitor& pre_fence_visitor = VoidFunctor())
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return AllocObjectWithAllocator<kInstrumented, true>(self, klass, num_bytes,
-                                                         GetCurrentNonMovingAllocator());
+                                                         GetCurrentNonMovingAllocator(),
+                                                         pre_fence_visitor);
   }
+
   template <bool kInstrumented, bool kCheckLargeObject, typename PreFenceVisitor = VoidFunctor>
   ALWAYS_INLINE mirror::Object* AllocObjectWithAllocator(
       Thread* self, mirror::Class* klass, size_t byte_count, AllocatorType allocator,
@@ -570,7 +576,8 @@ class Heap {
   // Handles Allocate()'s slow allocation path with GC involved after
   // an initial allocation attempt failed.
   mirror::Object* AllocateInternalWithGc(Thread* self, AllocatorType allocator, size_t num_bytes,
-                                         size_t* bytes_allocated, mirror::Class** klass)
+                                         size_t* bytes_allocated, size_t* usable_size,
+                                         mirror::Class** klass)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -583,7 +590,8 @@ class Heap {
   // that the switch statement is constant optimized in the entrypoints.
   template <const bool kInstrumented, const bool kGrow>
   ALWAYS_INLINE mirror::Object* TryToAllocate(Thread* self, AllocatorType allocator_type,
-                                              size_t alloc_size, size_t* bytes_allocated)
+                                              size_t alloc_size, size_t* bytes_allocated,
+                                              size_t* usable_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void ThrowOutOfMemoryError(Thread* self, size_t byte_count, bool large_object_allocation)

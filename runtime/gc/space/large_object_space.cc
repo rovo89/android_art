@@ -57,7 +57,7 @@ LargeObjectMapSpace* LargeObjectMapSpace::Create(const std::string& name) {
 }
 
 mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes,
-                                           size_t* bytes_allocated) {
+                                           size_t* bytes_allocated, size_t* usable_size) {
   std::string error_msg;
   MemMap* mem_map = MemMap::MapAnonymous("large object space allocation", NULL, num_bytes,
                                          PROT_READ | PROT_WRITE, true, &error_msg);
@@ -72,6 +72,9 @@ mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes,
   size_t allocation_size = mem_map->Size();
   DCHECK(bytes_allocated != NULL);
   *bytes_allocated = allocation_size;
+  if (usable_size != nullptr) {
+    *usable_size = allocation_size;
+  }
   num_bytes_allocated_ += allocation_size;
   total_bytes_allocated_ += allocation_size;
   ++num_objects_allocated_;
@@ -92,9 +95,9 @@ size_t LargeObjectMapSpace::Free(Thread* self, mirror::Object* ptr) {
   return allocation_size;
 }
 
-size_t LargeObjectMapSpace::AllocationSize(mirror::Object* obj) {
+size_t LargeObjectMapSpace::AllocationSize(mirror::Object* obj, size_t* usable_size) {
   MutexLock mu(Thread::Current(), lock_);
-  MemMaps::iterator found = mem_maps_.find(obj);
+  auto found = mem_maps_.find(obj);
   CHECK(found != mem_maps_.end()) << "Attempted to get size of a large object which is not live";
   return found->second->Size();
 }
@@ -112,7 +115,7 @@ size_t LargeObjectSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object*
 
 void LargeObjectMapSpace::Walk(DlMallocSpace::WalkCallback callback, void* arg) {
   MutexLock mu(Thread::Current(), lock_);
-  for (MemMaps::iterator it = mem_maps_.begin(); it != mem_maps_.end(); ++it) {
+  for (auto it = mem_maps_.begin(); it != mem_maps_.end(); ++it) {
     MemMap* mem_map = it->second;
     callback(mem_map->Begin(), mem_map->End(), mem_map->Size(), arg);
     callback(NULL, NULL, 0, arg);
@@ -244,14 +247,19 @@ bool FreeListSpace::Contains(const mirror::Object* obj) const {
   return mem_map_->HasAddress(obj);
 }
 
-size_t FreeListSpace::AllocationSize(mirror::Object* obj) {
+size_t FreeListSpace::AllocationSize(mirror::Object* obj, size_t* usable_size) {
   AllocationHeader* header = GetAllocationHeader(obj);
   DCHECK(Contains(obj));
   DCHECK(!header->IsFree());
-  return header->AllocationSize();
+  size_t alloc_size = header->AllocationSize();
+  if (usable_size != nullptr) {
+    *usable_size = alloc_size - sizeof(AllocationHeader);
+  }
+  return alloc_size;
 }
 
-mirror::Object* FreeListSpace::Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated) {
+mirror::Object* FreeListSpace::Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
+                                     size_t* usable_size) {
   MutexLock mu(self, lock_);
   size_t allocation_size = RoundUp(num_bytes + sizeof(AllocationHeader), kAlignment);
   AllocationHeader temp;
@@ -280,13 +288,15 @@ mirror::Object* FreeListSpace::Alloc(Thread* self, size_t num_bytes, size_t* byt
       new_header = reinterpret_cast<AllocationHeader*>(end_ - free_end_);
       free_end_ -= allocation_size;
     } else {
-      return NULL;
+      return nullptr;
     }
   }
 
-  DCHECK(bytes_allocated != NULL);
+  DCHECK(bytes_allocated != nullptr);
   *bytes_allocated = allocation_size;
-
+  if (usable_size != nullptr) {
+    *usable_size = allocation_size - sizeof(AllocationHeader);
+  }
   // Need to do these inside of the lock.
   ++num_objects_allocated_;
   ++total_objects_allocated_;

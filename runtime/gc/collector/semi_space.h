@@ -275,7 +275,7 @@ class SemiSpace : public GarbageCollector {
   // When true, the generational mode (promotion and the bump pointer
   // space only collection) is enabled. TODO: move these to a new file
   // as a new garbage collector?
-  bool generational_;
+  const bool generational_;
 
   // Used for the generational mode. the end/top of the bump
   // pointer space at the end of the last collection.

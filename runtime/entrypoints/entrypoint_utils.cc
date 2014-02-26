@@ -87,7 +87,8 @@ mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::ArtMethod* 
   gc::Heap* heap = Runtime::Current()->GetHeap();
   // Use the current allocator type in case CheckFilledNewArrayAlloc caused us to suspend and then
   // the heap switched the allocator type while we were suspended.
-  return mirror::Array::Alloc<false>(self, klass, component_count, heap->GetCurrentAllocator());
+  return mirror::Array::Alloc<false>(self, klass, component_count, klass->GetComponentSize(),
+                                     heap->GetCurrentAllocator());
 }
 
 // Helper function to allocate array for FILLED_NEW_ARRAY.
@@ -103,7 +104,8 @@ mirror::Array* CheckAndAllocArrayFromCodeInstrumented(uint32_t type_idx, mirror:
   gc::Heap* heap = Runtime::Current()->GetHeap();
   // Use the current allocator type in case CheckFilledNewArrayAlloc caused us to suspend and then
   // the heap switched the allocator type while we were suspended.
-  return mirror::Array::Alloc<true>(self, klass, component_count, heap->GetCurrentAllocator());
+  return mirror::Array::Alloc<true>(self, klass, component_count, klass->GetComponentSize(),
+                                    heap->GetCurrentAllocator());
 }
 
 void ThrowStackOverflowError(Thread* self) {
