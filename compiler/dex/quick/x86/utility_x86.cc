@@ -514,7 +514,7 @@ LIR* X86Mir2Lir::LoadConstantWide(int r_dest_lo, int r_dest_hi, int64_t value) {
         // We don't know the proper offset for the value, so pick one that will force
         // 4 byte offset.  We will fix this up in the assembler later to have the right
         // value.
-        res = LoadBaseDisp(rl_method.reg.GetReg(), 256 /* bogus */, r_dest_lo, kDouble, INVALID_SREG);
+        res = LoadBaseDisp(rl_method.low_reg, 256 /* bogus */, r_dest_lo, kDouble, INVALID_SREG);
         res->target = data_target;
         res->flags.fixup = kFixupLoad;
         SetMemRefType(res, true, kLiteral);
@@ -714,7 +714,7 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(int rBase, int r_index, int scale,
       opcode = is_array ? kX86Mov8AR : kX86Mov8MR;
       break;
     default:
-      LOG(FATAL) << "Bad case in StoreBaseIndexedDispBody";
+      LOG(FATAL) << "Bad case in LoadBaseIndexedDispBody";
   }
 
   if (!is_array) {
