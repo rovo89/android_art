@@ -22,7 +22,6 @@
 #include "compiler_ir.h"
 #include "arena_bit_vector.h"
 #include "utils/growable_array.h"
-#include "reg_storage.h"
 
 namespace art {
 
@@ -166,7 +165,7 @@ enum OatMethodAttributes {
 
 #define INVALID_SREG (-1)
 #define INVALID_VREG (0xFFFFU)
-#define INVALID_REG (0x7F)
+#define INVALID_REG (0xFF)
 #define INVALID_OFFSET (0xDEADF00FU)
 
 #define MIR_IGNORE_NULL_CHECK           (1 << kMIRIgnoreNullCheck)
@@ -329,8 +328,9 @@ struct RegLocation {
   unsigned ref:1;       // Something GC cares about.
   unsigned high_word:1;  // High word of pair?
   unsigned home:1;      // Does this represent the home location?
-  VectorLengthType vec_len:3;  // TODO: remove.  Is this value in a vector register, and how big is it?
-  RegStorage reg;       // Encoded physical registers.
+  VectorLengthType vec_len:3;  // Is this value in a vector register, and how big is it?
+  uint8_t low_reg;      // First physical register.
+  uint8_t high_reg;     // 2nd physical register (if wide).
   int16_t s_reg_low;    // SSA name for low Dalvik word.
   int16_t orig_sreg;    // TODO: remove after Bitcode gen complete
                         // and consolidate usage w/ s_reg_low.
@@ -361,7 +361,7 @@ struct CallInfo {
 
 
 const RegLocation bad_loc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0, kVectorNotUsed,
-                             RegStorage(RegStorage::kInvalid), INVALID_SREG, INVALID_SREG};
+                             INVALID_REG, INVALID_REG, INVALID_SREG, INVALID_SREG};
 
 class MIRGraph {
  public:
