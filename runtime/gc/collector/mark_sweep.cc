@@ -62,30 +62,30 @@ namespace gc {
 namespace collector {
 
 // Performance options.
-constexpr bool kUseRecursiveMark = false;
-constexpr bool kUseMarkStackPrefetch = true;
-constexpr size_t kSweepArrayChunkFreeSize = 1024;
-constexpr bool kPreCleanCards = true;
+static constexpr bool kUseRecursiveMark = false;
+static constexpr bool kUseMarkStackPrefetch = true;
+static constexpr size_t kSweepArrayChunkFreeSize = 1024;
+static constexpr bool kPreCleanCards = true;
 
 // Parallelism options.
-constexpr bool kParallelCardScan = true;
-constexpr bool kParallelRecursiveMark = true;
+static constexpr bool kParallelCardScan = true;
+static constexpr bool kParallelRecursiveMark = true;
 // Don't attempt to parallelize mark stack processing unless the mark stack is at least n
 // elements. This is temporary until we reduce the overhead caused by allocating tasks, etc.. Not
 // having this can add overhead in ProcessReferences since we may end up doing many calls of
 // ProcessMarkStack with very small mark stacks.
-constexpr size_t kMinimumParallelMarkStackSize = 128;
-constexpr bool kParallelProcessMarkStack = true;
+static constexpr size_t kMinimumParallelMarkStackSize = 128;
+static constexpr bool kParallelProcessMarkStack = true;
 
 // Profiling and information flags.
-constexpr bool kCountClassesMarked = false;
-constexpr bool kProfileLargeObjects = false;
-constexpr bool kMeasureOverhead = false;
-constexpr bool kCountTasks = false;
-constexpr bool kCountJavaLangRefs = false;
+static constexpr bool kCountClassesMarked = false;
+static constexpr bool kProfileLargeObjects = false;
+static constexpr bool kMeasureOverhead = false;
+static constexpr bool kCountTasks = false;
+static constexpr bool kCountJavaLangRefs = false;
 
 // Turn off kCheckLocks when profiling the GC since it slows the GC down by up to 40%.
-constexpr bool kCheckLocks = kDebugLocking;
+static constexpr bool kCheckLocks = kDebugLocking;
 
 void MarkSweep::ImmuneSpace(space::ContinuousSpace* space) {
   // Bind live to mark bitmap if necessary.
@@ -240,7 +240,18 @@ void MarkSweep::PreCleanCards() {
     CHECK(!Locks::mutator_lock_->IsExclusiveHeld(self));
     // Process dirty cards and add dirty cards to mod union tables, also ages cards.
     heap_->ProcessCards(timings_);
-    // Required so that we see aged cards before we start scanning the cards.
+    // The checkpoint root marking is required to avoid a race condition which occurs if the
+    // following happens during a reference write:
+    // 1. mutator dirties the card (write barrier)
+    // 2. GC ages the card (the above ProcessCards call)
+    // 3. GC scans the object (the RecursiveMarkDirtyObjects call below)
+    // 4. mutator writes the value (corresponding to the write barrier in 1.)
+    // This causes the GC to age the card but not necessarily mark the reference which the mutator
+    // wrote into the object stored in the card.
+    // Having the checkpoint fixes this issue since it ensures that the card mark and the
+    // reference write are visible to the GC before the card is scanned (this is due to locks being
+    // acquired / released in the checkpoint code).
+    // The other roots are also marked to help reduce the pause.
     MarkThreadRoots(self);
     // TODO: Only mark the dirty roots.
     MarkNonThreadRoots();
