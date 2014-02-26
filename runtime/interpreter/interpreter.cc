@@ -372,22 +372,12 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
   void* memory = alloca(ShadowFrame::ComputeSize(num_regs));
   ShadowFrame* shadow_frame(ShadowFrame::Create(num_regs, last_shadow_frame, method, 0, memory));
   self->PushShadowFrame(shadow_frame);
-  self->EndAssertNoThreadSuspension(old_cause);
 
   size_t cur_reg = num_regs - num_ins;
   if (!method->IsStatic()) {
     CHECK(receiver != NULL);
     shadow_frame->SetVRegReference(cur_reg, receiver);
     ++cur_reg;
-  } else if (UNLIKELY(!method->GetDeclaringClass()->IsInitializing())) {
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    SirtRef<mirror::Class> sirt_c(self, method->GetDeclaringClass());
-    if (UNLIKELY(!class_linker->EnsureInitialized(sirt_c, true, true))) {
-      CHECK(self->IsExceptionPending());
-      self->PopShadowFrame();
-      return;
-    }
-    CHECK(sirt_c->IsInitializing());
   }
   const char* shorty = mh.GetShorty();
   for (size_t shorty_pos = 0, arg_pos = 0; cur_reg < num_regs; ++shorty_pos, ++arg_pos, cur_reg++) {
@@ -410,6 +400,17 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
         break;
     }
   }
+  self->EndAssertNoThreadSuspension(old_cause);
+  // Do this after populating the shadow frame in case EnsureInitialized causes a GC.
+  if (method->IsStatic() && UNLIKELY(!method->GetDeclaringClass()->IsInitializing())) {
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    SirtRef<mirror::Class> sirt_c(self, method->GetDeclaringClass());
+    if (UNLIKELY(!class_linker->EnsureInitialized(sirt_c, true, true))) {
+      CHECK(self->IsExceptionPending());
+      self->PopShadowFrame();
+      return;
+    }
+  }
   if (LIKELY(!method->IsNative())) {
     JValue r = Execute(self, mh, code_item, *shadow_frame, JValue());
     if (result != NULL) {
@@ -418,6 +419,9 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
   } else {
     // We don't expect to be asked to interpret native code (which is entered via a JNI compiler
     // generated stub) except during testing and image writing.
+    // Update args to be the args in the shadow frame since the input ones could hold stale
+    // references pointers due to moving GC.
+    args = shadow_frame->GetVRegArgs(method->IsStatic() ? 0 : 1);
     if (!Runtime::Current()->IsStarted()) {
       UnstartedRuntimeJni(self, method, receiver, args, result);
     } else {
