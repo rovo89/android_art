@@ -4,6 +4,7 @@ b2487514 passes
 b5884080 passes
 largeFrame passes
 largeFrameFloat passes
+mulBy1Test passes
 getterSetterTest passes
 identityTest passes
 wideGetterSetterTest passes
