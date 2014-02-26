@@ -48,9 +48,8 @@ class X86Mir2Lir : public Mir2Lir {
     // Required for target - register utilities.
     bool IsFpReg(int reg);
     bool SameRegType(int reg1, int reg2);
-    // TODO: for consistency, make this return a RegStorage as well?
     int AllocTypedTemp(bool fp_hint, int reg_class);
-    RegStorage AllocTypedTempWide(bool fp_hint, int reg_class);
+    int AllocTypedTempPair(bool fp_hint, int reg_class);
     int S2d(int low_reg, int high_reg);
     int TargetReg(SpecialTargetRegister reg);
     int GetArgMappingToPhysicalReg(int arg_num);
