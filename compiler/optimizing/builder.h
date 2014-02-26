@@ -18,6 +18,7 @@
 #define ART_COMPILER_OPTIMIZING_BUILDER_H_
 
 #include "utils/allocation.h"
+#include "utils/growable_array.h"
 
 namespace art {
 
@@ -30,6 +31,7 @@ class HGraphBuilder : public ValueObject {
  public:
   explicit HGraphBuilder(ArenaAllocator* arena)
       : arena_(arena),
+        branch_targets_(arena, 0),
         entry_block_(nullptr),
         exit_block_(nullptr),
         current_block_(nullptr),
@@ -41,9 +43,21 @@ class HGraphBuilder : public ValueObject {
   // Analyzes the dex instruction and adds HInstruction to the graph
   // to execute that instruction. Returns whether the instruction can
   // be handled.
-  bool AnalyzeDexInstruction(const Instruction& instruction);
+  bool AnalyzeDexInstruction(const Instruction& instruction, int32_t dex_offset);
+
+  // Finds all instructions that start a new block, and populates branch_targets_ with
+  // the newly created blocks.
+  void ComputeBranchTargets(const uint16_t* start, const uint16_t* end);
+  void MaybeUpdateCurrentBlock(size_t index);
+  HBasicBlock* FindBlockStartingAt(int32_t index) const;
 
   ArenaAllocator* const arena_;
+
+  // A list of the size of the dex code holding block information for
+  // the method. If an entry contains a block, then the dex instruction
+  // starting at that entry is the first instruction of a new block.
+  GrowableArray<HBasicBlock*> branch_targets_;
+
   HBasicBlock* entry_block_;
   HBasicBlock* exit_block_;
   HBasicBlock* current_block_;

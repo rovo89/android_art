@@ -34,6 +34,24 @@ class HPrettyPrinter : public HGraphVisitor {
   virtual void VisitBasicBlock(HBasicBlock* block) {
     PrintString("BasicBlock ");
     PrintInt(block->block_id());
+    const GrowableArray<HBasicBlock*>* blocks = block->predecessors();
+    if (!blocks->IsEmpty()) {
+      PrintString(", pred: ");
+      for (size_t i = 0; i < blocks->Size() -1; i++) {
+        PrintInt(blocks->Get(i)->block_id());
+        PrintString(", ");
+      }
+      PrintInt(blocks->Peek()->block_id());
+    }
+    blocks = block->successors();
+    if (!blocks->IsEmpty()) {
+      PrintString(", succ: ");
+      for (size_t i = 0; i < blocks->Size() - 1; i++) {
+        PrintInt(blocks->Get(i)->block_id());
+        PrintString(", ");
+      }
+      PrintInt(blocks->Peek()->block_id());
+    }
     PrintNewLine();
     HGraphVisitor::VisitBasicBlock(block);
   }
