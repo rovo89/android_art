@@ -16,11 +16,11 @@
 
 #include "dex_method_iterator.h"
 
-#include "common_test.h"
+#include "common_runtime_test.h"
 
 namespace art {
 
-class DexMethodIteratorTest : public CommonTest {
+class DexMethodIteratorTest : public CommonRuntimeTest {
  public:
   const DexFile* OpenDexFile(const std::string& partial_filename) {
     std::string dfn = GetDexFileName(partial_filename);

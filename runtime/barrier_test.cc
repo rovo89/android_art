@@ -19,7 +19,7 @@
 #include <string>
 
 #include "atomic.h"
-#include "common_test.h"
+#include "common_runtime_test.h"
 #include "mirror/object_array-inl.h"
 #include "thread_pool.h"
 #include "UniquePtr.h"
@@ -56,7 +56,7 @@ class CheckWaitTask : public Task {
   AtomicInteger* const count3_;
 };
 
-class BarrierTest : public CommonTest {
+class BarrierTest : public CommonRuntimeTest {
  public:
   static int32_t num_threads;
 };

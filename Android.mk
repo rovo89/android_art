@@ -111,9 +111,9 @@ include $(art_build_path)/Android.gtest.mk
 
 # The ART_*_TEST_DEPENDENCIES definitions:
 # - depend on Android.oattest.mk above for ART_TEST_*_DEX_FILES
-# - depend on Android.gtest.mk above for ART_*_TEST_EXECUTABLES
-ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_DEPENDENCIES)   $(ART_HOST_TEST_EXECUTABLES)   $(ART_TEST_HOST_DEX_FILES)   $(HOST_CORE_IMG_OUT)
-ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_DEPENDENCIES) $(ART_TARGET_TEST_EXECUTABLES) $(ART_TEST_TARGET_DEX_FILES) $(TARGET_CORE_IMG_OUT)
+# - depend on Android.gtest.mk above for ART_*_GTEST_EXECUTABLES
+ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_DEPENDENCIES)   $(ART_HOST_GTEST_EXECUTABLES)   $(ART_TEST_HOST_DEX_FILES)   $(HOST_CORE_IMG_OUT)
+ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_DEPENDENCIES) $(ART_TARGET_GTEST_EXECUTABLES) $(ART_TEST_TARGET_DEX_FILES) $(TARGET_CORE_IMG_OUT)
 
 include $(art_build_path)/Android.libarttest.mk
 
@@ -150,12 +150,12 @@ test-art-host-interpreter: test-art-host-oat-interpreter test-art-host-run-test-
 test-art-host-dependencies: $(ART_HOST_TEST_DEPENDENCIES) $(HOST_OUT_SHARED_LIBRARIES)/libarttest$(ART_HOST_SHLIB_EXTENSION) $(HOST_CORE_DEX_LOCATIONS)
 
 .PHONY: test-art-host-gtest
-test-art-host-gtest: $(ART_HOST_TEST_TARGETS)
+test-art-host-gtest: $(ART_HOST_GTEST_TARGETS)
 	@echo test-art-host-gtest PASSED
 
 # "mm valgrind-test-art-host-gtest" to build and run the host gtests under valgrind.
 .PHONY: valgrind-test-art-host-gtest
-valgrind-test-art-host-gtest: $(ART_HOST_VALGRIND_TEST_TARGETS)
+valgrind-test-art-host-gtest: $(ART_HOST_VALGRIND_GTEST_TARGETS)
 	@echo valgrind-test-art-host-gtest PASSED
 
 .PHONY: test-art-host-oat-default
@@ -222,7 +222,7 @@ test-art-target-sync: test-art-target-dependencies
 	adb shell mkdir -p $(ART_TEST_DIR)
 
 .PHONY: test-art-target-gtest
-test-art-target-gtest: $(ART_TARGET_TEST_TARGETS)
+test-art-target-gtest: $(ART_TARGET_GTEST_TARGETS)
 
 .PHONY: test-art-target-oat
 test-art-target-oat: $(ART_TEST_TARGET_OAT_TARGETS)
@@ -299,10 +299,10 @@ oat-target-sync: oat-target
 build-art: build-art-host build-art-target
 
 .PHONY: build-art-host
-build-art-host:   $(ART_HOST_EXECUTABLES)   $(ART_HOST_TEST_EXECUTABLES)   $(HOST_CORE_IMG_OUT)   $(HOST_OUT)/lib/libjavacore.so
+build-art-host:   $(ART_HOST_EXECUTABLES)   $(ART_HOST_GTEST_EXECUTABLES)   $(HOST_CORE_IMG_OUT)   $(HOST_OUT)/lib/libjavacore.so
 
 .PHONY: build-art-target
-build-art-target: $(ART_TARGET_EXECUTABLES) $(ART_TARGET_TEST_EXECUTABLES) $(TARGET_CORE_IMG_OUT) $(TARGET_OUT)/lib/libjavacore.so
+build-art-target: $(ART_TARGET_EXECUTABLES) $(ART_TARGET_GTEST_EXECUTABLES) $(TARGET_CORE_IMG_OUT) $(TARGET_OUT)/lib/libjavacore.so
 
 ########################################################################
 # oatdump targets

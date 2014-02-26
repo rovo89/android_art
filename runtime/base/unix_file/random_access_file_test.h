@@ -21,8 +21,7 @@
 
 #include <string>
 
-#include "common_test.h"
-#include "gtest/gtest.h"
+#include "common_runtime_test.h"
 #include "UniquePtr.h"
 
 namespace unix_file {
@@ -37,7 +36,7 @@ class RandomAccessFileTest : public testing::Test {
   virtual RandomAccessFile* MakeTestFile() = 0;
 
   virtual void SetUp() {
-    art::CommonTest::SetEnvironmentVariables(android_data_);
+    art::CommonRuntimeTest::SetEnvironmentVariables(android_data_);
   }
 
   std::string GetTmpPath(const std::string& name) {

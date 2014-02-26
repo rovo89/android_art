@@ -14,15 +14,14 @@
  * limitations under the License.
  */
 
-#include "common_test.h"
-
 #include "indirect_reference_table.h"
+
+#include "common_runtime_test.h"
 #include "mirror/object-inl.h"
 
 namespace art {
 
-class IndirectReferenceTableTest : public CommonTest {
-};
+class IndirectReferenceTableTest : public CommonRuntimeTest {};
 
 static void CheckDump(IndirectReferenceTable* irt, size_t num_objects, size_t num_unique)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

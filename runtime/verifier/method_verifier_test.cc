@@ -14,18 +14,19 @@
  * limitations under the License.
  */
 
+#include "method_verifier.h"
+
 #include <stdio.h>
 
 #include "UniquePtr.h"
 #include "class_linker.h"
-#include "common_test.h"
+#include "common_runtime_test.h"
 #include "dex_file.h"
-#include "method_verifier.h"
 
 namespace art {
 namespace verifier {
 
-class MethodVerifierTest : public CommonTest {
+class MethodVerifierTest : public CommonRuntimeTest {
  protected:
   void VerifyClass(const std::string& descriptor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
