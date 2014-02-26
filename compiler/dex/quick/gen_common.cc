@@ -381,20 +381,14 @@ class StaticFieldSlowPath : public Mir2Lir::LIRSlowPath {
   const int r_base_;
 };
 
-void Mir2Lir::GenSput(uint32_t field_idx, RegLocation rl_src, bool is_long_or_double,
+void Mir2Lir::GenSput(MIR* mir, RegLocation rl_src, bool is_long_or_double,
                       bool is_object) {
-  int field_offset;
-  int storage_index;
-  bool is_volatile;
-  bool is_referrers_class;
-  bool is_initialized;
-  bool fast_path = cu_->compiler_driver->ComputeStaticFieldInfo(
-      field_idx, mir_graph_->GetCurrentDexCompilationUnit(), true,
-      &field_offset, &storage_index, &is_referrers_class, &is_volatile, &is_initialized);
-  if (fast_path && !SLOW_FIELD_PATH) {
-    DCHECK_GE(field_offset, 0);
+  const MirSFieldLoweringInfo& field_info = mir_graph_->GetSFieldLoweringInfo(mir);
+  cu_->compiler_driver->ProcessedStaticField(field_info.FastPut(), field_info.IsReferrersClass());
+  if (field_info.FastPut() && !SLOW_FIELD_PATH) {
+    DCHECK_GE(field_info.FieldOffset().Int32Value(), 0);
     int r_base;
-    if (is_referrers_class) {
+    if (field_info.IsReferrersClass()) {
       // Fast path, static storage base is this method's class
       RegLocation rl_method  = LoadCurrMethod();
       r_base = AllocTemp();
@@ -407,7 +401,7 @@ void Mir2Lir::GenSput(uint32_t field_idx, RegLocation rl_src, bool is_long_or_do
       // Medium path, static storage base in a different class which requires checks that the other
       // class is initialized.
       // TODO: remove initialized check now that we are initializing classes in the compiler driver.
-      DCHECK_GE(storage_index, 0);
+      DCHECK_NE(field_info.StorageIndex(), DexFile::kDexNoIndex);
       // May do runtime call so everything to home locations.
       FlushAllRegs();
       // Using fixed register to sync with possible call to runtime support.
@@ -420,9 +414,9 @@ void Mir2Lir::GenSput(uint32_t field_idx, RegLocation rl_src, bool is_long_or_do
                    mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
                    r_base);
       LoadWordDisp(r_base, mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
-                   sizeof(int32_t*) * storage_index, r_base);
+                   sizeof(int32_t*) * field_info.StorageIndex(), r_base);
       // r_base now points at static storage (Class*) or NULL if the type is not yet resolved.
-      if (!is_initialized) {
+      if (!field_info.IsInitialized()) {
         // Check if r_base is NULL or a not yet initialized class.
 
         // The slow path is invoked if the r_base is NULL or the class pointed
@@ -437,7 +431,7 @@ void Mir2Lir::GenSput(uint32_t field_idx, RegLocation rl_src, bool is_long_or_do
 
         AddSlowPath(new (arena_) StaticFieldSlowPath(this,
                                                      unresolved_branch, uninit_branch, cont,
-                                                     storage_index, r_base));
+                                                     field_info.StorageIndex(), r_base));
 
         FreeTemp(r_tmp);
       }
@@ -449,16 +443,16 @@ void Mir2Lir::GenSput(uint32_t field_idx, RegLocation rl_src, bool is_long_or_do
     } else {
       rl_src = LoadValue(rl_src, kAnyReg);
     }
-    if (is_volatile) {
+    if (field_info.IsVolatile()) {
       GenMemBarrier(kStoreStore);
     }
     if (is_long_or_double) {
-      StoreBaseDispWide(r_base, field_offset, rl_src.low_reg,
+      StoreBaseDispWide(r_base, field_info.FieldOffset().Int32Value(), rl_src.low_reg,
                         rl_src.high_reg);
     } else {
-      StoreWordDisp(r_base, field_offset, rl_src.low_reg);
+      StoreWordDisp(r_base, field_info.FieldOffset().Int32Value(), rl_src.low_reg);
     }
-    if (is_volatile) {
+    if (field_info.IsVolatile()) {
       GenMemBarrier(kStoreLoad);
     }
     if (is_object && !mir_graph_->IsConstantNullRef(rl_src)) {
@@ -471,24 +465,18 @@ void Mir2Lir::GenSput(uint32_t field_idx, RegLocation rl_src, bool is_long_or_do
         is_long_or_double ? QUICK_ENTRYPOINT_OFFSET(pSet64Static)
                           : (is_object ? QUICK_ENTRYPOINT_OFFSET(pSetObjStatic)
                                        : QUICK_ENTRYPOINT_OFFSET(pSet32Static));
-    CallRuntimeHelperImmRegLocation(setter_offset, field_idx, rl_src, true);
+    CallRuntimeHelperImmRegLocation(setter_offset, field_info.FieldIndex(), rl_src, true);
   }
 }
 
-void Mir2Lir::GenSget(uint32_t field_idx, RegLocation rl_dest,
+void Mir2Lir::GenSget(MIR* mir, RegLocation rl_dest,
                       bool is_long_or_double, bool is_object) {
-  int field_offset;
-  int storage_index;
-  bool is_volatile;
-  bool is_referrers_class;
-  bool is_initialized;
-  bool fast_path = cu_->compiler_driver->ComputeStaticFieldInfo(
-      field_idx, mir_graph_->GetCurrentDexCompilationUnit(), false,
-      &field_offset, &storage_index, &is_referrers_class, &is_volatile, &is_initialized);
-  if (fast_path && !SLOW_FIELD_PATH) {
-    DCHECK_GE(field_offset, 0);
+  const MirSFieldLoweringInfo& field_info = mir_graph_->GetSFieldLoweringInfo(mir);
+  cu_->compiler_driver->ProcessedStaticField(field_info.FastGet(), field_info.IsReferrersClass());
+  if (field_info.FastGet() && !SLOW_FIELD_PATH) {
+    DCHECK_GE(field_info.FieldOffset().Int32Value(), 0);
     int r_base;
-    if (is_referrers_class) {
+    if (field_info.IsReferrersClass()) {
       // Fast path, static storage base is this method's class
       RegLocation rl_method  = LoadCurrMethod();
       r_base = AllocTemp();
@@ -497,7 +485,7 @@ void Mir2Lir::GenSget(uint32_t field_idx, RegLocation rl_dest,
     } else {
       // Medium path, static storage base in a different class which requires checks that the other
       // class is initialized
-      DCHECK_GE(storage_index, 0);
+      DCHECK_NE(field_info.StorageIndex(), DexFile::kDexNoIndex);
       // May do runtime call so everything to home locations.
       FlushAllRegs();
       // Using fixed register to sync with possible call to runtime support.
@@ -510,9 +498,9 @@ void Mir2Lir::GenSget(uint32_t field_idx, RegLocation rl_dest,
                    mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
                    r_base);
       LoadWordDisp(r_base, mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
-                   sizeof(int32_t*) * storage_index, r_base);
+                   sizeof(int32_t*) * field_info.StorageIndex(), r_base);
       // r_base now points at static storage (Class*) or NULL if the type is not yet resolved.
-      if (!is_initialized) {
+      if (!field_info.IsInitialized()) {
         // Check if r_base is NULL or a not yet initialized class.
 
         // The slow path is invoked if the r_base is NULL or the class pointed
@@ -527,7 +515,7 @@ void Mir2Lir::GenSget(uint32_t field_idx, RegLocation rl_dest,
 
         AddSlowPath(new (arena_) StaticFieldSlowPath(this,
                                                      unresolved_branch, uninit_branch, cont,
-                                                     storage_index, r_base));
+                                                     field_info.StorageIndex(), r_base));
 
         FreeTemp(r_tmp);
       }
@@ -535,14 +523,14 @@ void Mir2Lir::GenSget(uint32_t field_idx, RegLocation rl_dest,
     }
     // r_base now holds static storage base
     RegLocation rl_result = EvalLoc(rl_dest, kAnyReg, true);
-    if (is_volatile) {
+    if (field_info.IsVolatile()) {
       GenMemBarrier(kLoadLoad);
     }
     if (is_long_or_double) {
-      LoadBaseDispWide(r_base, field_offset, rl_result.low_reg,
+      LoadBaseDispWide(r_base, field_info.FieldOffset().Int32Value(), rl_result.low_reg,
                        rl_result.high_reg, INVALID_SREG);
     } else {
-      LoadWordDisp(r_base, field_offset, rl_result.low_reg);
+      LoadWordDisp(r_base, field_info.FieldOffset().Int32Value(), rl_result.low_reg);
     }
     FreeTemp(r_base);
     if (is_long_or_double) {
@@ -556,7 +544,7 @@ void Mir2Lir::GenSget(uint32_t field_idx, RegLocation rl_dest,
         is_long_or_double ? QUICK_ENTRYPOINT_OFFSET(pGet64Static)
                           :(is_object ? QUICK_ENTRYPOINT_OFFSET(pGetObjStatic)
                                       : QUICK_ENTRYPOINT_OFFSET(pGet32Static));
-    CallRuntimeHelperImm(getterOffset, field_idx, true);
+    CallRuntimeHelperImm(getterOffset, field_info.FieldIndex(), true);
     if (is_long_or_double) {
       RegLocation rl_result = GetReturnWide(rl_dest.fp);
       StoreValueWide(rl_dest, rl_result);
@@ -698,18 +686,15 @@ void Mir2Lir::HandleThrowLaunchPads() {
   }
 }
 
-void Mir2Lir::GenIGet(uint32_t field_idx, int opt_flags, OpSize size,
+void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size,
                       RegLocation rl_dest, RegLocation rl_obj, bool is_long_or_double,
                       bool is_object) {
-  int field_offset;
-  bool is_volatile;
-
-  bool fast_path = FastInstance(field_idx, false, &field_offset, &is_volatile);
-
-  if (fast_path && !SLOW_FIELD_PATH) {
+  const MirIFieldLoweringInfo& field_info = mir_graph_->GetIFieldLoweringInfo(mir);
+  cu_->compiler_driver->ProcessedInstanceField(field_info.FastGet());
+  if (field_info.FastGet() && !SLOW_FIELD_PATH) {
     RegLocation rl_result;
     RegisterClass reg_class = oat_reg_class_by_size(size);
-    DCHECK_GE(field_offset, 0);
+    DCHECK_GE(field_info.FieldOffset().Int32Value(), 0);
     rl_obj = LoadValue(rl_obj, kCoreReg);
     if (is_long_or_double) {
       DCHECK(rl_dest.wide);
@@ -717,17 +702,17 @@ void Mir2Lir::GenIGet(uint32_t field_idx, int opt_flags, OpSize size,
       if (cu_->instruction_set == kX86) {
         rl_result = EvalLoc(rl_dest, reg_class, true);
         GenNullCheck(rl_obj.s_reg_low, rl_obj.low_reg, opt_flags);
-        LoadBaseDispWide(rl_obj.low_reg, field_offset, rl_result.low_reg,
+        LoadBaseDispWide(rl_obj.low_reg, field_info.FieldOffset().Int32Value(), rl_result.low_reg,
                          rl_result.high_reg, rl_obj.s_reg_low);
-        if (is_volatile) {
+        if (field_info.IsVolatile()) {
           GenMemBarrier(kLoadLoad);
         }
       } else {
         int reg_ptr = AllocTemp();
-        OpRegRegImm(kOpAdd, reg_ptr, rl_obj.low_reg, field_offset);
+        OpRegRegImm(kOpAdd, reg_ptr, rl_obj.low_reg, field_info.FieldOffset().Int32Value());
         rl_result = EvalLoc(rl_dest, reg_class, true);
         LoadBaseDispWide(reg_ptr, 0, rl_result.low_reg, rl_result.high_reg, INVALID_SREG);
-        if (is_volatile) {
+        if (field_info.IsVolatile()) {
           GenMemBarrier(kLoadLoad);
         }
         FreeTemp(reg_ptr);
@@ -736,9 +721,9 @@ void Mir2Lir::GenIGet(uint32_t field_idx, int opt_flags, OpSize size,
     } else {
       rl_result = EvalLoc(rl_dest, reg_class, true);
       GenNullCheck(rl_obj.s_reg_low, rl_obj.low_reg, opt_flags);
-      LoadBaseDisp(rl_obj.low_reg, field_offset, rl_result.low_reg,
+      LoadBaseDisp(rl_obj.low_reg, field_info.FieldOffset().Int32Value(), rl_result.low_reg,
                    kWord, rl_obj.s_reg_low);
-      if (is_volatile) {
+      if (field_info.IsVolatile()) {
         GenMemBarrier(kLoadLoad);
       }
       StoreValue(rl_dest, rl_result);
@@ -748,7 +733,7 @@ void Mir2Lir::GenIGet(uint32_t field_idx, int opt_flags, OpSize size,
         is_long_or_double ? QUICK_ENTRYPOINT_OFFSET(pGet64Instance)
                           : (is_object ? QUICK_ENTRYPOINT_OFFSET(pGetObjInstance)
                                        : QUICK_ENTRYPOINT_OFFSET(pGet32Instance));
-    CallRuntimeHelperImmRegLocation(getterOffset, field_idx, rl_obj, true);
+    CallRuntimeHelperImmRegLocation(getterOffset, field_info.FieldIndex(), rl_obj, true);
     if (is_long_or_double) {
       RegLocation rl_result = GetReturnWide(rl_dest.fp);
       StoreValueWide(rl_dest, rl_result);
@@ -759,39 +744,37 @@ void Mir2Lir::GenIGet(uint32_t field_idx, int opt_flags, OpSize size,
   }
 }
 
-void Mir2Lir::GenIPut(uint32_t field_idx, int opt_flags, OpSize size,
+void Mir2Lir::GenIPut(MIR* mir, int opt_flags, OpSize size,
                       RegLocation rl_src, RegLocation rl_obj, bool is_long_or_double,
                       bool is_object) {
-  int field_offset;
-  bool is_volatile;
-
-  bool fast_path = FastInstance(field_idx, true, &field_offset, &is_volatile);
-  if (fast_path && !SLOW_FIELD_PATH) {
+  const MirIFieldLoweringInfo& field_info = mir_graph_->GetIFieldLoweringInfo(mir);
+  cu_->compiler_driver->ProcessedInstanceField(field_info.FastPut());
+  if (field_info.FastPut() && !SLOW_FIELD_PATH) {
     RegisterClass reg_class = oat_reg_class_by_size(size);
-    DCHECK_GE(field_offset, 0);
+    DCHECK_GE(field_info.FieldOffset().Int32Value(), 0);
     rl_obj = LoadValue(rl_obj, kCoreReg);
     if (is_long_or_double) {
       int reg_ptr;
       rl_src = LoadValueWide(rl_src, kAnyReg);
       GenNullCheck(rl_obj.s_reg_low, rl_obj.low_reg, opt_flags);
       reg_ptr = AllocTemp();
-      OpRegRegImm(kOpAdd, reg_ptr, rl_obj.low_reg, field_offset);
-      if (is_volatile) {
+      OpRegRegImm(kOpAdd, reg_ptr, rl_obj.low_reg, field_info.FieldOffset().Int32Value());
+      if (field_info.IsVolatile()) {
         GenMemBarrier(kStoreStore);
       }
       StoreBaseDispWide(reg_ptr, 0, rl_src.low_reg, rl_src.high_reg);
-      if (is_volatile) {
+      if (field_info.IsVolatile()) {
         GenMemBarrier(kLoadLoad);
       }
       FreeTemp(reg_ptr);
     } else {
       rl_src = LoadValue(rl_src, reg_class);
       GenNullCheck(rl_obj.s_reg_low, rl_obj.low_reg, opt_flags);
-      if (is_volatile) {
+      if (field_info.IsVolatile()) {
         GenMemBarrier(kStoreStore);
       }
-      StoreBaseDisp(rl_obj.low_reg, field_offset, rl_src.low_reg, kWord);
-      if (is_volatile) {
+      StoreBaseDisp(rl_obj.low_reg, field_info.FieldOffset().Int32Value(), rl_src.low_reg, kWord);
+      if (field_info.IsVolatile()) {
         GenMemBarrier(kLoadLoad);
       }
       if (is_object && !mir_graph_->IsConstantNullRef(rl_src)) {
@@ -803,7 +786,8 @@ void Mir2Lir::GenIPut(uint32_t field_idx, int opt_flags, OpSize size,
         is_long_or_double ? QUICK_ENTRYPOINT_OFFSET(pSet64Instance)
                           : (is_object ? QUICK_ENTRYPOINT_OFFSET(pSetObjInstance)
                                        : QUICK_ENTRYPOINT_OFFSET(pSet32Instance));
-    CallRuntimeHelperImmRegLocationRegLocation(setter_offset, field_idx, rl_obj, rl_src, true);
+    CallRuntimeHelperImmRegLocationRegLocation(setter_offset, field_info.FieldIndex(),
+                                               rl_obj, rl_src, true);
   }
 }
 

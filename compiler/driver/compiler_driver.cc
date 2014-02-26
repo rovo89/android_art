@@ -26,6 +26,7 @@
 #include "base/timing_logger.h"
 #include "class_linker.h"
 #include "compiler_backend.h"
+#include "compiler_driver-inl.h"
 #include "dex_compilation_unit.h"
 #include "dex_file-inl.h"
 #include "dex/verification_results.h"
@@ -901,6 +902,24 @@ bool CompilerDriver::CanEmbedTypeInCode(const DexFile& dex_file, uint32_t type_i
   }
 }
 
+void CompilerDriver::ProcessedInstanceField(bool resolved) {
+  if (!resolved) {
+    stats_->UnresolvedInstanceField();
+  } else {
+    stats_->ResolvedInstanceField();
+  }
+}
+
+void CompilerDriver::ProcessedStaticField(bool resolved, bool local) {
+  if (!resolved) {
+    stats_->UnresolvedStaticField();
+  } else if (local) {
+    stats_->ResolvedLocalStaticField();
+  } else {
+    stats_->ResolvedStaticField();
+  }
+}
+
 static mirror::Class* ComputeCompilingMethodsClass(ScopedObjectAccess& soa,
                                                    SirtRef<mirror::DexCache>& dex_cache,
                                                    const DexCompilationUnit* mUnit)
@@ -916,15 +935,6 @@ static mirror::Class* ComputeCompilingMethodsClass(ScopedObjectAccess& soa,
       mUnit->GetDexFile()->GetMethodId(mUnit->GetDexMethodIndex());
   return mUnit->GetClassLinker()->ResolveType(*mUnit->GetDexFile(), referrer_method_id.class_idx_,
                                               dex_cache, class_loader);
-}
-
-static mirror::ArtField* ComputeFieldReferencedFromCompilingMethod(
-    ScopedObjectAccess& soa, const DexCompilationUnit* mUnit, uint32_t field_idx, bool is_static)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  SirtRef<mirror::DexCache> dex_cache(soa.Self(), mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile()));
-  SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
-  return mUnit->GetClassLinker()->ResolveField(*mUnit->GetDexFile(), field_idx, dex_cache,
-                                               class_loader, is_static);
 }
 
 static mirror::ArtMethod* ComputeMethodReferencedFromCompilingMethod(ScopedObjectAccess& soa,
@@ -962,117 +972,80 @@ bool CompilerDriver::ComputeSpecialAccessorInfo(uint32_t field_idx, bool is_put,
 }
 
 bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit,
-                                              bool is_put, int* field_offset, bool* is_volatile) {
+                                              bool is_put, MemberOffset* field_offset,
+                                              bool* is_volatile) {
   ScopedObjectAccess soa(Thread::Current());
-  // Conservative defaults.
-  *field_offset = -1;
-  *is_volatile = true;
-  // Try to resolve field and ignore if an Incompatible Class Change Error (ie is static).
-  mirror::ArtField* resolved_field =
-      ComputeFieldReferencedFromCompilingMethod(soa, mUnit, field_idx, false);
-  if (resolved_field != NULL && !resolved_field->IsStatic()) {
-    SirtRef<mirror::DexCache> dex_cache(soa.Self(),
-                                        resolved_field->GetDeclaringClass()->GetDexCache());
-    mirror::Class* referrer_class =
-        ComputeCompilingMethodsClass(soa, dex_cache, mUnit);
-    if (referrer_class != NULL) {
-      mirror::Class* fields_class = resolved_field->GetDeclaringClass();
-      bool access_ok = referrer_class->CanAccessResolvedField(fields_class, resolved_field,
-                                                              dex_cache.get(), field_idx);
-      bool is_write_to_final_from_wrong_class = is_put && resolved_field->IsFinal() &&
-          fields_class != referrer_class;
-      if (access_ok && !is_write_to_final_from_wrong_class) {
-        *field_offset = resolved_field->GetOffset().Int32Value();
-        *is_volatile = resolved_field->IsVolatile();
-        stats_->ResolvedInstanceField();
-        return true;  // Fast path.
-      }
-    }
+  // Try to resolve the field and compiling method's class.
+  mirror::ArtField* resolved_field;
+  mirror::Class* referrer_class;
+  mirror::DexCache* dex_cache;
+  {
+    SirtRef<mirror::DexCache> dex_cache_sirt(soa.Self(),
+        mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile()));
+    SirtRef<mirror::ClassLoader> class_loader_sirt(soa.Self(),
+        soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
+    SirtRef<mirror::ArtField> resolved_field_sirt(soa.Self(),
+        ResolveField(soa, dex_cache_sirt, class_loader_sirt, mUnit, field_idx, false));
+    referrer_class = (resolved_field_sirt.get() != nullptr)
+        ? ResolveCompilingMethodsClass(soa, dex_cache_sirt, class_loader_sirt, mUnit) : nullptr;
+    resolved_field = resolved_field_sirt.get();
+    dex_cache = dex_cache_sirt.get();
   }
-  // Clean up any exception left by field/type resolution
-  if (soa.Self()->IsExceptionPending()) {
-    soa.Self()->ClearException();
+  bool result = false;
+  if (resolved_field != nullptr && referrer_class != nullptr) {
+    *is_volatile = IsFieldVolatile(resolved_field);
+    std::pair<bool, bool> fast_path = IsFastInstanceField(
+        dex_cache, referrer_class, resolved_field, field_idx, field_offset);
+    result = is_put ? fast_path.second : fast_path.first;
   }
-  stats_->UnresolvedInstanceField();
-  return false;  // Incomplete knowledge needs slow path.
+  if (!result) {
+    // Conservative defaults.
+    *is_volatile = true;
+    *field_offset = MemberOffset(static_cast<size_t>(-1));
+  }
+  ProcessedInstanceField(result);
+  return result;
 }
 
 bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit,
-                                            bool is_put, int* field_offset, int* storage_index,
-                                            bool* is_referrers_class, bool* is_volatile,
-                                            bool* is_initialized) {
+                                            bool is_put, MemberOffset* field_offset,
+                                            uint32_t* storage_index, bool* is_referrers_class,
+                                            bool* is_volatile, bool* is_initialized) {
   ScopedObjectAccess soa(Thread::Current());
-  // Conservative defaults.
-  *field_offset = -1;
-  *storage_index = -1;
-  *is_referrers_class = false;
-  *is_volatile = true;
-  *is_initialized = false;
-  // Try to resolve field and ignore if an Incompatible Class Change Error (ie isn't static).
-  mirror::ArtField* resolved_field =
-      ComputeFieldReferencedFromCompilingMethod(soa, mUnit, field_idx, true);
-  if (resolved_field != NULL && resolved_field->IsStatic()) {
-    SirtRef<mirror::DexCache> dex_cache(soa.Self(), resolved_field->GetDeclaringClass()->GetDexCache());
-    mirror::Class* referrer_class =
-        ComputeCompilingMethodsClass(soa, dex_cache, mUnit);
-    if (referrer_class != NULL) {
-      mirror::Class* fields_class = resolved_field->GetDeclaringClass();
-      if (fields_class == referrer_class) {
-        *is_referrers_class = true;  // implies no worrying about class initialization
-        *is_initialized = true;
-        *field_offset = resolved_field->GetOffset().Int32Value();
-        *is_volatile = resolved_field->IsVolatile();
-        stats_->ResolvedLocalStaticField();
-        return true;  // fast path
-      } else {
-        bool access_ok = referrer_class->CanAccessResolvedField(fields_class, resolved_field,
-                                                                dex_cache.get(), field_idx);
-        bool is_write_to_final_from_wrong_class = is_put && resolved_field->IsFinal();
-        if (access_ok && !is_write_to_final_from_wrong_class) {
-          // We have the resolved field, we must make it into a index for the referrer
-          // in its static storage (which may fail if it doesn't have a slot for it)
-          // TODO: for images we can elide the static storage base null check
-          // if we know there's a non-null entry in the image
-          mirror::DexCache* dex_cache = mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile());
-          if (fields_class->GetDexCache() == dex_cache) {
-            // common case where the dex cache of both the referrer and the field are the same,
-            // no need to search the dex file
-            *storage_index = fields_class->GetDexTypeIndex();
-            *field_offset = resolved_field->GetOffset().Int32Value();
-            *is_volatile = resolved_field->IsVolatile();
-            *is_initialized = fields_class->IsInitialized() &&
-                CanAssumeTypeIsPresentInDexCache(*mUnit->GetDexFile(), *storage_index);
-            stats_->ResolvedStaticField();
-            return true;
-          }
-          // Search dex file for localized ssb index, may fail if field's class is a parent
-          // of the class mentioned in the dex file and there is no dex cache entry.
-          const DexFile::StringId* string_id =
-              mUnit->GetDexFile()->FindStringId(FieldHelper(resolved_field).GetDeclaringClassDescriptor());
-          if (string_id != NULL) {
-            const DexFile::TypeId* type_id =
-               mUnit->GetDexFile()->FindTypeId(mUnit->GetDexFile()->GetIndexForStringId(*string_id));
-            if (type_id != NULL) {
-              // medium path, needs check of static storage base being initialized
-              *storage_index = mUnit->GetDexFile()->GetIndexForTypeId(*type_id);
-              *field_offset = resolved_field->GetOffset().Int32Value();
-              *is_volatile = resolved_field->IsVolatile();
-              *is_initialized = fields_class->IsInitialized() &&
-                  CanAssumeTypeIsPresentInDexCache(*mUnit->GetDexFile(), *storage_index);
-              stats_->ResolvedStaticField();
-              return true;
-            }
-          }
-        }
-      }
-    }
+  // Try to resolve the field and compiling method's class.
+  mirror::ArtField* resolved_field;
+  mirror::Class* referrer_class;
+  mirror::DexCache* dex_cache;
+  {
+    SirtRef<mirror::DexCache> dex_cache_sirt(soa.Self(),
+        mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile()));
+    SirtRef<mirror::ClassLoader> class_loader_sirt(soa.Self(),
+        soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
+    SirtRef<mirror::ArtField> resolved_field_sirt(soa.Self(),
+        ResolveField(soa, dex_cache_sirt, class_loader_sirt, mUnit, field_idx, true));
+    referrer_class = (resolved_field_sirt.get() != nullptr)
+        ? ResolveCompilingMethodsClass(soa, dex_cache_sirt, class_loader_sirt, mUnit) : nullptr;
+    resolved_field = resolved_field_sirt.get();
+    dex_cache = dex_cache_sirt.get();
   }
-  // Clean up any exception left by field/type resolution
-  if (soa.Self()->IsExceptionPending()) {
-    soa.Self()->ClearException();
+  bool result = false;
+  if (resolved_field != nullptr && referrer_class != nullptr) {
+    *is_volatile = IsFieldVolatile(resolved_field);
+    std::pair<bool, bool> fast_path = IsFastStaticField(
+        dex_cache, referrer_class, resolved_field, field_idx, field_offset,
+        storage_index, is_referrers_class, is_initialized);
+    result = is_put ? fast_path.second : fast_path.first;
   }
-  stats_->UnresolvedStaticField();
-  return false;  // Incomplete knowledge needs slow path.
+  if (!result) {
+    // Conservative defaults.
+    *is_volatile = true;
+    *field_offset = MemberOffset(static_cast<size_t>(-1));
+    *storage_index = -1;
+    *is_referrers_class = false;
+    *is_initialized = false;
+  }
+  ProcessedStaticField(result, *is_referrers_class);
+  return result;
 }
 
 void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType sharp_type,

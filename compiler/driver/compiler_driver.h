@@ -51,6 +51,7 @@ class DexFileToMethodInlinerMap;
 struct InlineIGetIPutData;
 class OatWriter;
 class ParallelCompilationManager;
+class ScopedObjectAccess;
 class TimingLogger;
 class VerificationResults;
 class VerifiedMethod;
@@ -203,6 +204,53 @@ class CompilerDriver {
                           bool* is_type_initialized, bool* use_direct_type_ptr,
                           uintptr_t* direct_type_ptr);
 
+  // Get the DexCache for the
+  mirror::DexCache* GetDexCache(const DexCompilationUnit* mUnit)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  mirror::ClassLoader* GetClassLoader(ScopedObjectAccess& soa, const DexCompilationUnit* mUnit)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Resolve compiling method's class. Returns nullptr on failure.
+  mirror::Class* ResolveCompilingMethodsClass(
+      ScopedObjectAccess& soa, const SirtRef<mirror::DexCache>& dex_cache,
+      const SirtRef<mirror::ClassLoader>& class_loader, const DexCompilationUnit* mUnit)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Resolve a field. Returns nullptr on failure, including incompatible class change.
+  // NOTE: Unlike ClassLinker's ResolveField(), this method enforces is_static.
+  mirror::ArtField* ResolveField(
+      ScopedObjectAccess& soa, const SirtRef<mirror::DexCache>& dex_cache,
+      const SirtRef<mirror::ClassLoader>& class_loader, const DexCompilationUnit* mUnit,
+      uint32_t field_idx, bool is_static)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Get declaration location of a resolved field.
+  void GetResolvedFieldDexFileLocation(
+      mirror::ArtField* resolved_field, const DexFile** declaring_dex_file,
+      uint16_t* declaring_class_idx, uint16_t* declaring_field_idx)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  bool IsFieldVolatile(mirror::ArtField* field) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Can we fast-path an IGET/IPUT access to an instance field? If yes, compute the field offset.
+  std::pair<bool, bool> IsFastInstanceField(
+      mirror::DexCache* dex_cache, mirror::Class* referrer_class,
+      mirror::ArtField* resolved_field, uint16_t field_idx, MemberOffset* field_offset)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Can we fast-path an SGET/SPUT access to a static field? If yes, compute the field offset,
+  // the type index of the declaring class in the referrer's dex file and whether the declaring
+  // class is the referrer's class or at least can be assumed to be initialized.
+  std::pair<bool, bool> IsFastStaticField(
+      mirror::DexCache* dex_cache, mirror::Class* referrer_class,
+      mirror::ArtField* resolved_field, uint16_t field_idx, MemberOffset* field_offset,
+      uint32_t* storage_index, bool* is_referrers_class, bool* is_initialized)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void ProcessedInstanceField(bool resolved);
+  void ProcessedStaticField(bool resolved, bool local);
+
   // Can we fast path instance field access in a verified accessor?
   // If yes, computes field's offset and volatility and whether the method is static or not.
   static bool ComputeSpecialAccessorInfo(uint32_t field_idx, bool is_put,
@@ -212,13 +260,13 @@ class CompilerDriver {
 
   // Can we fast path instance field access? Computes field's offset and volatility.
   bool ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit, bool is_put,
-                                int* field_offset, bool* is_volatile)
+                                MemberOffset* field_offset, bool* is_volatile)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Can we fastpath static field access? Computes field's offset, volatility and whether the
   // field is within the referrer (which can avoid checking class initialization).
   bool ComputeStaticFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit, bool is_put,
-                              int* field_offset, int* storage_index,
+                              MemberOffset* field_offset, uint32_t* storage_index,
                               bool* is_referrers_class, bool* is_volatile, bool* is_initialized)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
