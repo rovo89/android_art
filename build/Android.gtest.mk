@@ -24,6 +24,7 @@ TEST_COMMON_SRC_FILES := \
 	compiler/jni/jni_compiler_test.cc \
 	compiler/leb128_encoder_test.cc \
 	compiler/oat_test.cc \
+	compiler/optimizing/dominator_test.cc \
 	compiler/optimizing/pretty_printer_test.cc \
 	compiler/output_stream_test.cc \
 	compiler/utils/arena_allocator_test.cc \

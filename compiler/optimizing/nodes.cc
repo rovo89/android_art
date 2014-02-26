@@ -24,6 +24,103 @@ void HGraph::AddBlock(HBasicBlock* block) {
   blocks_.Add(block);
 }
 
+void HGraph::FindBackEdges(ArenaBitVector* visited) const {
+  ArenaBitVector visiting(arena_, blocks_.Size(), false);
+  VisitBlockForBackEdges(GetEntryBlock(), visited, &visiting);
+}
+
+void HGraph::RemoveDeadBlocks(const ArenaBitVector& visited) const {
+  for (size_t i = 0; i < blocks_.Size(); i++) {
+    if (!visited.IsBitSet(i)) {
+      HBasicBlock* block = blocks_.Get(i);
+      for (size_t j = 0; j < block->successors()->Size(); j++) {
+        block->successors()->Get(j)->RemovePredecessor(block);
+      }
+    }
+  }
+}
+
+void HGraph::VisitBlockForBackEdges(HBasicBlock* block,
+                                    ArenaBitVector* visited,
+                                    ArenaBitVector* visiting) const {
+  int id = block->block_id();
+  if (visited->IsBitSet(id)) return;
+
+  visited->SetBit(id);
+  visiting->SetBit(id);
+  for (size_t i = 0; i < block->successors()->Size(); i++) {
+    HBasicBlock* successor = block->successors()->Get(i);
+    if (visiting->IsBitSet(successor->block_id())) {
+      successor->AddBackEdge(block);
+    } else {
+      VisitBlockForBackEdges(successor, visited, visiting);
+    }
+  }
+  visiting->ClearBit(id);
+}
+
+void HGraph::BuildDominatorTree() {
+  ArenaBitVector visited(arena_, blocks_.Size(), false);
+
+  // (1) Find the back edges in the graph doing a DFS traversal.
+  FindBackEdges(&visited);
+
+  // (2) Remove blocks not visited during the initial DFS.
+  //     Step (3) requires dead blocks to be removed from the
+  //     predecessors list of live blocks.
+  RemoveDeadBlocks(visited);
+
+  // (3) Compute the immediate dominator of each block. We visit
+  //     the successors of a block only when all its forward branches
+  //     have been processed.
+  GrowableArray<size_t> visits(arena_, blocks_.Size());
+  visits.SetSize(blocks_.Size());
+  HBasicBlock* entry = GetEntryBlock();
+  dominator_order_.Add(entry);
+  for (size_t i = 0; i < entry->successors()->Size(); i++) {
+    VisitBlockForDominatorTree(entry->successors()->Get(i), entry, &visits);
+  }
+}
+
+HBasicBlock* HGraph::FindCommonDominator(HBasicBlock* first, HBasicBlock* second) const {
+  ArenaBitVector visited(arena_, blocks_.Size(), false);
+  // Walk the dominator tree of the first block and mark the visited blocks.
+  while (first != nullptr) {
+    visited.SetBit(first->block_id());
+    first = first->dominator();
+  }
+  // Walk the dominator tree of the second block until a marked block is found.
+  while (second != nullptr) {
+    if (visited.IsBitSet(second->block_id())) {
+      return second;
+    }
+    second = second->dominator();
+  }
+  LOG(ERROR) << "Could not find common dominator";
+  return nullptr;
+}
+
+void HGraph::VisitBlockForDominatorTree(HBasicBlock* block,
+                                        HBasicBlock* predecessor,
+                                        GrowableArray<size_t>* visits) {
+  if (block->dominator() == nullptr) {
+    block->set_dominator(predecessor);
+  } else {
+    block->set_dominator(FindCommonDominator(block->dominator(), predecessor));
+  }
+
+  visits->Increment(block->block_id());
+  // Once all the forward edges have been visited, we know the immediate
+  // dominator of the block. We can then start visiting its successors.
+  if (visits->Get(block->block_id()) ==
+      block->predecessors()->Size() - block->NumberOfBackEdges()) {
+    dominator_order_.Add(block);
+    for (size_t i = 0; i < block->successors()->Size(); i++) {
+      VisitBlockForDominatorTree(block->successors()->Get(i), block, visits);
+    }
+  }
+}
+
 void HBasicBlock::AddInstruction(HInstruction* instruction) {
   if (first_instruction_ == nullptr) {
     DCHECK(last_instruction_ == nullptr);

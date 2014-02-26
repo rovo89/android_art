@@ -161,6 +161,18 @@ class GrowableArray {
 
     size_t Size() const { return num_used_; }
 
+    bool IsEmpty() const { return num_used_ == 0; }
+
+    T Pop() {
+      DCHECK_GE(num_used_, (size_t)0);
+      return elem_list_[--num_used_];
+    }
+
+    T Peek() const {
+      DCHECK_GE(num_used_, (size_t)0);
+      return elem_list_[num_used_ - 1];
+    }
+
     void SetSize(size_t new_size) {
       Resize(new_size);
       num_used_ = new_size;
