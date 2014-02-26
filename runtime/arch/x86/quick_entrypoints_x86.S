@@ -1307,8 +1307,10 @@ DEFINE_FUNCTION art_quick_string_compareto
      *   esi: pointer to this string data
      *   edi: pointer to comp string data
      */
+    jecxz .Lkeep_length
     repe cmpsw                    // find nonmatching chars in [%esi] and [%edi], up to length %ecx
     jne .Lnot_equal
+.Lkeep_length:
     POP edi                       // pop callee save reg
     POP esi                       // pop callee save reg
     ret
