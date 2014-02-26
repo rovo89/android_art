@@ -39,15 +39,15 @@ class ElfFile {
 
   // Load segments into memory based on PT_LOAD program headers
 
-  File& GetFile() const {
+  const File& GetFile() const {
     return *file_;
   }
 
-  byte* Begin() {
+  byte* Begin() const {
     return map_->Begin();
   }
 
-  byte* End() {
+  byte* End() const {
     return map_->End();
   }
 
@@ -55,24 +55,24 @@ class ElfFile {
     return map_->Size();
   }
 
-  Elf32_Ehdr& GetHeader();
+  Elf32_Ehdr& GetHeader() const;
 
-  Elf32_Word GetProgramHeaderNum();
-  Elf32_Phdr& GetProgramHeader(Elf32_Word);
-  Elf32_Phdr* FindProgamHeaderByType(Elf32_Word type);
+  Elf32_Word GetProgramHeaderNum() const;
+  Elf32_Phdr& GetProgramHeader(Elf32_Word) const;
+  Elf32_Phdr* FindProgamHeaderByType(Elf32_Word type) const;
 
-  Elf32_Word GetSectionHeaderNum();
-  Elf32_Shdr& GetSectionHeader(Elf32_Word);
-  Elf32_Shdr* FindSectionByType(Elf32_Word type);
+  Elf32_Word GetSectionHeaderNum() const;
+  Elf32_Shdr& GetSectionHeader(Elf32_Word) const;
+  Elf32_Shdr* FindSectionByType(Elf32_Word type) const;
 
-  Elf32_Shdr& GetSectionNameStringSection();
+  Elf32_Shdr& GetSectionNameStringSection() const;
 
   // Find .dynsym using .hash for more efficient lookup than FindSymbolAddress.
-  byte* FindDynamicSymbolAddress(const std::string& symbol_name);
+  const byte* FindDynamicSymbolAddress(const std::string& symbol_name) const;
 
   static bool IsSymbolSectionType(Elf32_Word section_type);
-  Elf32_Word GetSymbolNum(Elf32_Shdr&);
-  Elf32_Sym& GetSymbol(Elf32_Word section_type, Elf32_Word i);
+  Elf32_Word GetSymbolNum(Elf32_Shdr&) const;
+  Elf32_Sym& GetSymbol(Elf32_Word section_type, Elf32_Word i) const;
 
   // Find symbol in specified table, returning NULL if it is not found.
   //
@@ -83,73 +83,77 @@ class ElfFile {
   // should be set unless only a small number of symbols will be
   // looked up.
   Elf32_Sym* FindSymbolByName(Elf32_Word section_type,
-                                           const std::string& symbol_name,
-                                           bool build_map);
+                              const std::string& symbol_name,
+                              bool build_map);
 
   // Find address of symbol in specified table, returning 0 if it is
   // not found. See FindSymbolByName for an explanation of build_map.
   Elf32_Addr FindSymbolAddress(Elf32_Word section_type,
-                                            const std::string& symbol_name,
-                                            bool build_map);
+                               const std::string& symbol_name,
+                               bool build_map);
 
   // Lookup a string given string section and offset. Returns NULL for
   // special 0 offset.
-  const char* GetString(Elf32_Shdr&, Elf32_Word);
+  const char* GetString(Elf32_Shdr&, Elf32_Word) const;
 
   // Lookup a string by section type. Returns NULL for special 0 offset.
-  const char* GetString(Elf32_Word section_type, Elf32_Word);
+  const char* GetString(Elf32_Word section_type, Elf32_Word) const;
 
-  Elf32_Word GetDynamicNum();
-  Elf32_Dyn& GetDynamic(Elf32_Word);
-  Elf32_Word FindDynamicValueByType(Elf32_Sword type);
+  Elf32_Word GetDynamicNum() const;
+  Elf32_Dyn& GetDynamic(Elf32_Word) const;
+  Elf32_Word FindDynamicValueByType(Elf32_Sword type) const;
 
-  Elf32_Word GetRelNum(Elf32_Shdr&);
-  Elf32_Rel& GetRel(Elf32_Shdr&, Elf32_Word);
+  Elf32_Word GetRelNum(Elf32_Shdr&) const;
+  Elf32_Rel& GetRel(Elf32_Shdr&, Elf32_Word) const;
 
-  Elf32_Word GetRelaNum(Elf32_Shdr&);
-  Elf32_Rela& GetRela(Elf32_Shdr&, Elf32_Word);
+  Elf32_Word GetRelaNum(Elf32_Shdr&) const;
+  Elf32_Rela& GetRela(Elf32_Shdr&, Elf32_Word) const;
 
   // Returns the expected size when the file is loaded at runtime
-  size_t GetLoadedSize();
+  size_t GetLoadedSize() const;
 
   // Load segments into memory based on PT_LOAD program headers.
   // executable is true at run time, false at compile time.
   bool Load(bool executable, std::string* error_msg);
 
  private:
-  ElfFile();
+  ElfFile(File* file, bool writable, bool program_header_only);
 
-  bool Setup(File* file, bool writable, bool program_header_only, std::string* error_msg);
+  bool Setup(std::string* error_msg);
 
   bool SetMap(MemMap* map, std::string* error_msg);
 
-  byte* GetProgramHeadersStart();
-  byte* GetSectionHeadersStart();
-  Elf32_Phdr& GetDynamicProgramHeader();
-  Elf32_Dyn* GetDynamicSectionStart();
-  Elf32_Sym* GetSymbolSectionStart(Elf32_Word section_type);
-  const char* GetStringSectionStart(Elf32_Word section_type);
-  Elf32_Rel* GetRelSectionStart(Elf32_Shdr&);
-  Elf32_Rela* GetRelaSectionStart(Elf32_Shdr&);
-  Elf32_Word* GetHashSectionStart();
-  Elf32_Word GetHashBucketNum();
-  Elf32_Word GetHashChainNum();
-  Elf32_Word GetHashBucket(size_t i);
-  Elf32_Word GetHashChain(size_t i);
+  byte* GetProgramHeadersStart() const;
+  byte* GetSectionHeadersStart() const;
+  Elf32_Phdr& GetDynamicProgramHeader() const;
+  Elf32_Dyn* GetDynamicSectionStart() const;
+  Elf32_Sym* GetSymbolSectionStart(Elf32_Word section_type) const;
+  const char* GetStringSectionStart(Elf32_Word section_type) const;
+  Elf32_Rel* GetRelSectionStart(Elf32_Shdr&) const;
+  Elf32_Rela* GetRelaSectionStart(Elf32_Shdr&) const;
+  Elf32_Word* GetHashSectionStart() const;
+  Elf32_Word GetHashBucketNum() const;
+  Elf32_Word GetHashChainNum() const;
+  Elf32_Word GetHashBucket(size_t i) const;
+  Elf32_Word GetHashChain(size_t i) const;
 
   typedef std::map<std::string, Elf32_Sym*> SymbolTable;
   SymbolTable** GetSymbolTable(Elf32_Word section_type);
 
-  File* file_;
-  bool writable_;
-  bool program_header_only_;
+  bool ValidPointer(const byte* start) const;
 
-  // ELF header mapping. If program_header_only_ is false, will actually point to the entire elf file.
+  const File* const file_;
+  const bool writable_;
+  const bool program_header_only_;
+
+  // ELF header mapping. If program_header_only_ is false, will
+  // actually point to the entire elf file.
   UniquePtr<MemMap> map_;
   Elf32_Ehdr* header_;
   std::vector<MemMap*> segments_;
 
-  // Pointer to start of first PT_LOAD program segment after Load() when program_header_only_ is true.
+  // Pointer to start of first PT_LOAD program segment after Load()
+  // when program_header_only_ is true.
   byte* base_address_;
 
   // The program header should always available but use GetProgramHeadersStart() to be sure.
@@ -161,8 +165,8 @@ class ElfFile {
   Elf32_Dyn* dynamic_section_start_;
   Elf32_Sym* symtab_section_start_;
   Elf32_Sym* dynsym_section_start_;
-  const char* strtab_section_start_;
-  const char* dynstr_section_start_;
+  char* strtab_section_start_;
+  char* dynstr_section_start_;
   Elf32_Word* hash_section_start_;
 
   SymbolTable* symtab_symbol_table_;
