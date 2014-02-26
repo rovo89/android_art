@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include "compiler_internals.h"
-#include "dex_file-inl.h"
+#include "arena_allocator.h"
+#include "arena_bit_vector.h"
 
 namespace art {
 
@@ -43,15 +43,5 @@ class ArenaBitVectorAllocator : public Allocator {
 ArenaBitVector::ArenaBitVector(ArenaAllocator* arena, unsigned int start_bits,
                                bool expandable, OatBitMapKind kind)
   :  BitVector(start_bits, expandable, new (arena) ArenaBitVectorAllocator(arena)), kind_(kind) {}
-
-BasicBlock* ArenaBitVector::BasicBlockIterator::Next() {
-    int idx = internal_iterator_.Next();
-
-    if (idx == -1) {
-      return nullptr;
-    }
-
-    return mir_graph_->GetBasicBlock(idx);
-}
 
 }  // namespace art

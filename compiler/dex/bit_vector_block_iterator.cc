@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 The Android Open Source Project
+ * Copyright (C) 2014 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,19 @@
  * limitations under the License.
  */
 
-#include "gtest/gtest.h"
-#include "utils/arena_allocator.h"
-#include "utils/arena_bit_vector.h"
+#include "bit_vector_block_iterator.h"
+#include "mir_graph.h"
 
 namespace art {
 
-TEST(ArenaAllocator, Test) {
-  ArenaPool pool;
-  ArenaAllocator arena(&pool);
-  ArenaBitVector bv(&arena, 10, true);
-  bv.SetBit(5);
-  EXPECT_EQ(1U, bv.GetStorageSize());
-  bv.SetBit(35);
-  EXPECT_EQ(2U, bv.GetStorageSize());
+BasicBlock* BitVectorBlockIterator::Next() {
+  int idx = internal_iterator_.Next();
+
+  if (idx == -1) {
+    return nullptr;
+  }
+
+  return mir_graph_->GetBasicBlock(idx);
 }
 
 }  // namespace art
