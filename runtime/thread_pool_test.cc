@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
+#include "thread_pool.h"
 
 #include <string>
 
 #include "atomic.h"
-#include "common_test.h"
-#include "thread_pool.h"
+#include "common_runtime_test.h"
 
 namespace art {
 
@@ -49,7 +49,7 @@ class CountTask : public Task {
   const bool verbose_;
 };
 
-class ThreadPoolTest : public CommonTest {
+class ThreadPoolTest : public CommonRuntimeTest {
  public:
   static int32_t num_threads;
 };

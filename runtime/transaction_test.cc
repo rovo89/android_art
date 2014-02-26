@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-#include "common_test.h"
+#include "transaction.h"
+
+#include "common_runtime_test.h"
 #include "invoke_arg_array_builder.h"
 #include "mirror/array-inl.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
-#include "transaction.h"
 
 namespace art {
 
-class TransactionTest : public CommonTest {
-};
+class TransactionTest : public CommonRuntimeTest {};
 
 TEST_F(TransactionTest, Object_class) {
   ScopedObjectAccess soa(Thread::Current());

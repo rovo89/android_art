@@ -112,6 +112,88 @@ static inline uint32_t SignedLeb128Size(int32_t data) {
   return (x * 37) >> 8;
 }
 
+static inline uint8_t* EncodeUnsignedLeb128(uint8_t* dest, uint32_t value) {
+  uint8_t out = value & 0x7f;
+  value >>= 7;
+  while (value != 0) {
+    *dest++ = out | 0x80;
+    out = value & 0x7f;
+    value >>= 7;
+  }
+  *dest++ = out;
+  return dest;
+}
+
+static inline uint8_t* EncodeSignedLeb128(uint8_t* dest, int32_t value) {
+  uint32_t extra_bits = static_cast<uint32_t>(value ^ (value >> 31)) >> 6;
+  uint8_t out = value & 0x7f;
+  while (extra_bits != 0u) {
+    *dest++ = out | 0x80;
+    value >>= 7;
+    out = value & 0x7f;
+    extra_bits >>= 7;
+  }
+  *dest++ = out;
+  return dest;
+}
+
+// An encoder with an API similar to vector<uint32_t> where the data is captured in ULEB128 format.
+class Leb128EncodingVector {
+ public:
+  Leb128EncodingVector() {
+  }
+
+  void Reserve(uint32_t size) {
+    data_.reserve(size);
+  }
+
+  void PushBackUnsigned(uint32_t value) {
+    uint8_t out = value & 0x7f;
+    value >>= 7;
+    while (value != 0) {
+      data_.push_back(out | 0x80);
+      out = value & 0x7f;
+      value >>= 7;
+    }
+    data_.push_back(out);
+  }
+
+  template<typename It>
+  void InsertBackUnsigned(It cur, It end) {
+    for (; cur != end; ++cur) {
+      PushBackUnsigned(*cur);
+    }
+  }
+
+  void PushBackSigned(int32_t value) {
+    uint32_t extra_bits = static_cast<uint32_t>(value ^ (value >> 31)) >> 6;
+    uint8_t out = value & 0x7f;
+    while (extra_bits != 0u) {
+      data_.push_back(out | 0x80);
+      value >>= 7;
+      out = value & 0x7f;
+      extra_bits >>= 7;
+    }
+    data_.push_back(out);
+  }
+
+  template<typename It>
+  void InsertBackSigned(It cur, It end) {
+    for (; cur != end; ++cur) {
+      PushBackSigned(*cur);
+    }
+  }
+
+  const std::vector<uint8_t>& GetData() const {
+    return data_;
+  }
+
+ private:
+  std::vector<uint8_t> data_;
+
+  DISALLOW_COPY_AND_ASSIGN(Leb128EncodingVector);
+};
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_LEB128_H_

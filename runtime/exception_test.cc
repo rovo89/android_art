@@ -15,10 +15,10 @@
  */
 
 #include "class_linker.h"
-#include "common_test.h"
+#include "common_runtime_test.h"
 #include "dex_file.h"
 #include "gtest/gtest.h"
-#include "leb128_encoder.h"
+#include "leb128.h"
 #include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
@@ -32,10 +32,10 @@
 
 namespace art {
 
-class ExceptionTest : public CommonTest {
+class ExceptionTest : public CommonRuntimeTest {
  protected:
   virtual void SetUp() {
-    CommonTest::SetUp();
+    CommonRuntimeTest::SetUp();
 
     ScopedObjectAccess soa(Thread::Current());
     SirtRef<mirror::ClassLoader> class_loader(
@@ -77,7 +77,7 @@ class ExceptionTest : public CommonTest {
     method_f_ = my_klass_->FindVirtualMethod("f", "()I");
     ASSERT_TRUE(method_f_ != NULL);
     method_f_->SetFrameSizeInBytes(kStackAlignment);
-    method_f_->SetEntryPointFromQuickCompiledCode(CompiledMethod::CodePointer(&fake_code_[sizeof(code_size)], kThumb2));
+    method_f_->SetEntryPointFromQuickCompiledCode(&fake_code_[sizeof(code_size)]);
     method_f_->SetMappingTable(&fake_mapping_data_.GetData()[0]);
     method_f_->SetVmapTable(&fake_vmap_table_data_.GetData()[0]);
     method_f_->SetNativeGcMap(&fake_gc_map_[0]);
@@ -85,7 +85,7 @@ class ExceptionTest : public CommonTest {
     method_g_ = my_klass_->FindVirtualMethod("g", "(I)V");
     ASSERT_TRUE(method_g_ != NULL);
     method_g_->SetFrameSizeInBytes(kStackAlignment);
-    method_g_->SetEntryPointFromQuickCompiledCode(CompiledMethod::CodePointer(&fake_code_[sizeof(code_size)], kThumb2));
+    method_g_->SetEntryPointFromQuickCompiledCode(&fake_code_[sizeof(code_size)]);
     method_g_->SetMappingTable(&fake_mapping_data_.GetData()[0]);
     method_g_->SetVmapTable(&fake_vmap_table_data_.GetData()[0]);
     method_g_->SetNativeGcMap(&fake_gc_map_[0]);

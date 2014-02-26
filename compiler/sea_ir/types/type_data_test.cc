@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-#include "common_test.h"
+#include "common_compiler_test.h"
 #include "sea_ir/types/types.h"
 
 namespace sea_ir {
 
-class TypeDataTest : public art::CommonTest {
-};
+class TypeDataTest : public art::CommonCompilerTest {};
 
 TEST_F(TypeDataTest, Basics) {
   TypeData td;

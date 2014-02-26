@@ -23,7 +23,7 @@
 #include "dex/compiler_ir.h"
 #include "dex/backend.h"
 #include "driver/compiler_driver.h"
-#include "leb128_encoder.h"
+#include "leb128.h"
 #include "safe_map.h"
 #include "utils/arena_allocator.h"
 #include "utils/growable_array.h"
