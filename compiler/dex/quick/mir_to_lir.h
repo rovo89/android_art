@@ -56,6 +56,7 @@ typedef uint32_t CodeOffset;         // Native code offset in bytes.
 #define NO_OPERAND           (1ULL << kNoOperand)
 #define REG_DEF0             (1ULL << kRegDef0)
 #define REG_DEF1             (1ULL << kRegDef1)
+#define REG_DEF2             (1ULL << kRegDef2)
 #define REG_DEFA             (1ULL << kRegDefA)
 #define REG_DEFD             (1ULL << kRegDefD)
 #define REG_DEF_FPCS_LIST0   (1ULL << kRegDefFPCSList0)
@@ -953,7 +954,16 @@ class Mir2Lir : public Backend {
      */
     virtual void GenSelect(BasicBlock* bb, MIR* mir) = 0;
 
+    /**
+     * @brief Used to generate a memory barrier in an architecture specific way.
+     * @details The last generated LIR will be considered for use as barrier. Namely,
+     * if the last LIR can be updated in a way where it will serve the semantics of
+     * barrier, then it will be used as such. Otherwise, a new LIR will be generated
+     * that can keep the semantics.
+     * @param barrier_kind The kind of memory barrier to generate.
+     */
     virtual void GenMemBarrier(MemBarrierKind barrier_kind) = 0;
+
     virtual void GenMoveException(RegLocation rl_dest) = 0;
     virtual void GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
                                                RegLocation rl_result, int lit, int first_bit,

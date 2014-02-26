@@ -138,7 +138,10 @@ bool Mir2Lir::GenSpecialIGet(MIR* mir, const InlineMethod& special) {
     LoadBaseDisp(reg_obj, data.field_offset, rl_dest.reg.GetReg(), kWord, INVALID_SREG);
   }
   if (data.is_volatile) {
+    // Without context sensitive analysis, we must issue the most conservative barriers.
+    // In this case, either a load or store may follow so we issue both barriers.
     GenMemBarrier(kLoadLoad);
+    GenMemBarrier(kLoadStore);
   }
   return true;
 }
@@ -160,6 +163,7 @@ bool Mir2Lir::GenSpecialIPut(MIR* mir, const InlineMethod& special) {
   int reg_obj = LoadArg(data.object_arg);
   int reg_src = LoadArg(data.src_arg, wide);
   if (data.is_volatile) {
+    // There might have been a store before this volatile one so insert StoreStore barrier.
     GenMemBarrier(kStoreStore);
   }
   if (wide) {
@@ -170,7 +174,8 @@ bool Mir2Lir::GenSpecialIPut(MIR* mir, const InlineMethod& special) {
     StoreBaseDisp(reg_obj, data.field_offset, reg_src, kWord);
   }
   if (data.is_volatile) {
-    GenMemBarrier(kLoadLoad);
+    // A load might follow the volatile store so insert a StoreLoad barrier.
+    GenMemBarrier(kStoreLoad);
   }
   if (data.op_variant == InlineMethodAnalyser::IPutVariant(Instruction::IPUT_OBJECT)) {
     MarkGCCard(reg_src, reg_obj);

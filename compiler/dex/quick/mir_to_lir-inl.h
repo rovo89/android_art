@@ -192,6 +192,10 @@ inline void Mir2Lir::SetupResourceMasks(LIR* lir) {
     SetupRegMask(&lir->u.m.def_mask, lir->operands[1]);
   }
 
+  if (flags & REG_DEF2) {
+    SetupRegMask(&lir->u.m.def_mask, lir->operands[2]);
+  }
+
   if (flags & REG_USE0) {
     SetupRegMask(&lir->u.m.use_mask, lir->operands[0]);
   }

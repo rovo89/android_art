@@ -1356,18 +1356,27 @@ bool Mir2Lir::GenInlinedUnsafeGet(CallInfo* info,
   RegLocation rl_src_offset = info->args[2];  // long low
   rl_src_offset.wide = 0;  // ignore high half in info->args[3]
   RegLocation rl_dest = is_long ? InlineTargetWide(info) : InlineTarget(info);  // result reg
-  if (is_volatile) {
-    GenMemBarrier(kLoadLoad);
-  }
+
   RegLocation rl_object = LoadValue(rl_src_obj, kCoreReg);
   RegLocation rl_offset = LoadValue(rl_src_offset, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   if (is_long) {
     OpRegReg(kOpAdd, rl_object.reg.GetReg(), rl_offset.reg.GetReg());
     LoadBaseDispWide(rl_object.reg.GetReg(), 0, rl_result.reg.GetReg(), rl_result.reg.GetHighReg(), INVALID_SREG);
-    StoreValueWide(rl_dest, rl_result);
   } else {
     LoadBaseIndexed(rl_object.reg.GetReg(), rl_offset.reg.GetReg(), rl_result.reg.GetReg(), 0, kWord);
+  }
+
+  if (is_volatile) {
+    // Without context sensitive analysis, we must issue the most conservative barriers.
+    // In this case, either a load or store may follow so we issue both barriers.
+    GenMemBarrier(kLoadLoad);
+    GenMemBarrier(kLoadStore);
+  }
+
+  if (is_long) {
+    StoreValueWide(rl_dest, rl_result);
+  } else {
     StoreValue(rl_dest, rl_result);
   }
   return true;
@@ -1385,6 +1394,7 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
   rl_src_offset.wide = 0;  // ignore high half in info->args[3]
   RegLocation rl_src_value = info->args[4];  // value to store
   if (is_volatile || is_ordered) {
+    // There might have been a store before this volatile one so insert StoreStore barrier.
     GenMemBarrier(kStoreStore);
   }
   RegLocation rl_object = LoadValue(rl_src_obj, kCoreReg);
@@ -1401,7 +1411,9 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
 
   // Free up the temp early, to ensure x86 doesn't run out of temporaries in MarkGCCard.
   FreeTemp(rl_offset.reg.GetReg());
+
   if (is_volatile) {
+    // A load might follow the volatile store so insert a StoreLoad barrier.
     GenMemBarrier(kStoreLoad);
   }
   if (is_object) {

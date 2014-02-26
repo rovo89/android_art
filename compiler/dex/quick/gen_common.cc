@@ -479,6 +479,7 @@ void Mir2Lir::GenSput(MIR* mir, RegLocation rl_src, bool is_long_or_double,
       rl_src = LoadValue(rl_src, kAnyReg);
     }
     if (field_info.IsVolatile()) {
+      // There might have been a store before this volatile one so insert StoreStore barrier.
       GenMemBarrier(kStoreStore);
     }
     if (is_long_or_double) {
@@ -488,6 +489,7 @@ void Mir2Lir::GenSput(MIR* mir, RegLocation rl_src, bool is_long_or_double,
       StoreWordDisp(r_base, field_info.FieldOffset().Int32Value(), rl_src.reg.GetReg());
     }
     if (field_info.IsVolatile()) {
+      // A load might follow the volatile store so insert a StoreLoad barrier.
       GenMemBarrier(kStoreLoad);
     }
     if (is_object && !mir_graph_->IsConstantNullRef(rl_src)) {
@@ -559,9 +561,7 @@ void Mir2Lir::GenSget(MIR* mir, RegLocation rl_dest,
     }
     // r_base now holds static storage base
     RegLocation rl_result = EvalLoc(rl_dest, kAnyReg, true);
-    if (field_info.IsVolatile()) {
-      GenMemBarrier(kLoadLoad);
-    }
+
     if (is_long_or_double) {
       LoadBaseDispWide(r_base, field_info.FieldOffset().Int32Value(), rl_result.reg.GetReg(),
                        rl_result.reg.GetHighReg(), INVALID_SREG);
@@ -569,6 +569,14 @@ void Mir2Lir::GenSget(MIR* mir, RegLocation rl_dest,
       LoadWordDisp(r_base, field_info.FieldOffset().Int32Value(), rl_result.reg.GetReg());
     }
     FreeTemp(r_base);
+
+    if (field_info.IsVolatile()) {
+      // Without context sensitive analysis, we must issue the most conservative barriers.
+      // In this case, either a load or store may follow so we issue both barriers.
+      GenMemBarrier(kLoadLoad);
+      GenMemBarrier(kLoadStore);
+    }
+
     if (is_long_or_double) {
       StoreValueWide(rl_dest, rl_result);
     } else {
@@ -716,7 +724,10 @@ void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size,
                          rl_result.reg.GetHighReg(), rl_obj.s_reg_low);
         MarkPossibleNullPointerException(opt_flags);
         if (field_info.IsVolatile()) {
+          // Without context sensitive analysis, we must issue the most conservative barriers.
+          // In this case, either a load or store may follow so we issue both barriers.
           GenMemBarrier(kLoadLoad);
+          GenMemBarrier(kLoadStore);
         }
       } else {
         int reg_ptr = AllocTemp();
@@ -725,7 +736,10 @@ void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size,
         LoadBaseDispWide(reg_ptr, 0, rl_result.reg.GetReg(), rl_result.reg.GetHighReg(),
                          INVALID_SREG);
         if (field_info.IsVolatile()) {
+          // Without context sensitive analysis, we must issue the most conservative barriers.
+          // In this case, either a load or store may follow so we issue both barriers.
           GenMemBarrier(kLoadLoad);
+          GenMemBarrier(kLoadStore);
         }
         FreeTemp(reg_ptr);
       }
@@ -737,7 +751,10 @@ void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size,
                    rl_result.reg.GetReg(), kWord, rl_obj.s_reg_low);
       MarkPossibleNullPointerException(opt_flags);
       if (field_info.IsVolatile()) {
+        // Without context sensitive analysis, we must issue the most conservative barriers.
+        // In this case, either a load or store may follow so we issue both barriers.
         GenMemBarrier(kLoadLoad);
+        GenMemBarrier(kLoadStore);
       }
       StoreValue(rl_dest, rl_result);
     }
@@ -773,25 +790,29 @@ void Mir2Lir::GenIPut(MIR* mir, int opt_flags, OpSize size,
       reg_ptr = AllocTemp();
       OpRegRegImm(kOpAdd, reg_ptr, rl_obj.reg.GetReg(), field_info.FieldOffset().Int32Value());
       if (field_info.IsVolatile()) {
+        // There might have been a store before this volatile one so insert StoreStore barrier.
         GenMemBarrier(kStoreStore);
       }
       StoreBaseDispWide(reg_ptr, 0, rl_src.reg.GetReg(), rl_src.reg.GetHighReg());
       MarkPossibleNullPointerException(opt_flags);
       if (field_info.IsVolatile()) {
-        GenMemBarrier(kLoadLoad);
+        // A load might follow the volatile store so insert a StoreLoad barrier.
+        GenMemBarrier(kStoreLoad);
       }
       FreeTemp(reg_ptr);
     } else {
       rl_src = LoadValue(rl_src, reg_class);
       GenNullCheck(rl_obj.reg.GetReg(), opt_flags);
       if (field_info.IsVolatile()) {
+        // There might have been a store before this volatile one so insert StoreStore barrier.
         GenMemBarrier(kStoreStore);
       }
       StoreBaseDisp(rl_obj.reg.GetReg(), field_info.FieldOffset().Int32Value(),
         rl_src.reg.GetReg(), kWord);
       MarkPossibleNullPointerException(opt_flags);
       if (field_info.IsVolatile()) {
-        GenMemBarrier(kLoadLoad);
+        // A load might follow the volatile store so insert a StoreLoad barrier.
+        GenMemBarrier(kStoreLoad);
       }
       if (is_object && !mir_graph_->IsConstantNullRef(rl_src)) {
         MarkGCCard(rl_src.reg.GetReg(), rl_obj.reg.GetReg());
