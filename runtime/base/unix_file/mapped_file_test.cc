@@ -30,7 +30,7 @@ class MappedFileTest : public RandomAccessFileTest {
   }
 
   void SetUp() {
-    art::CommonTest::SetEnvironmentVariables(android_data_);
+    art::CommonRuntimeTest::SetEnvironmentVariables(android_data_);
 
     good_path_ = GetTmpPath("some-file.txt");
     int fd = TEMP_FAILURE_RETRY(open(good_path_.c_str(), O_CREAT|O_RDWR, 0666));

@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-#include "common_test.h"
-
-#include "oat.h"
 #include "elf_file.h"
+
+#include "common_compiler_test.h"
+#include "oat.h"
 
 namespace art {
 
-class ElfWriterTest : public CommonTest {
+class ElfWriterTest : public CommonCompilerTest {
  protected:
   virtual void SetUp() {
     ReserveImageSpace();
-    CommonTest::SetUp();
+    CommonCompilerTest::SetUp();
   }
 };
 

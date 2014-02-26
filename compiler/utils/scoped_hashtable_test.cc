@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include "common_test.h"
-#include "utils/scoped_hashtable.h"
+#include "scoped_hashtable.h"
+
+#include "common_runtime_test.h"
 
 using utils::ScopedHashtable;
 
@@ -27,8 +28,7 @@ class Value {
   int value_;
 };
 
-class ScopedHashtableTest : public CommonTest {
-};
+class ScopedHashtableTest : public testing::Test {};
 
 TEST_F(ScopedHashtableTest, Basics) {
   ScopedHashtable<int, Value*> sht;

@@ -16,13 +16,13 @@
 
 #include "intern_table.h"
 
-#include "common_test.h"
+#include "common_runtime_test.h"
 #include "mirror/object.h"
 #include "sirt_ref.h"
 
 namespace art {
 
-class InternTableTest : public CommonTest {};
+class InternTableTest : public CommonRuntimeTest {};
 
 TEST_F(InternTableTest, Intern) {
   ScopedObjectAccess soa(Thread::Current());

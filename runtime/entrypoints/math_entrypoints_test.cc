@@ -16,12 +16,13 @@
 
 #include "math_entrypoints.h"
 
-#include "common_test.h"
 #include <limits>
+
+#include "common_runtime_test.h"
 
 namespace art {
 
-class MathEntrypointsTest : public CommonTest {};
+class MathEntrypointsTest : public CommonRuntimeTest {};
 
 TEST_F(MathEntrypointsTest, DoubleToLong) {
   EXPECT_EQ(std::numeric_limits<int64_t>::max(), art_d2l(1.85e19));

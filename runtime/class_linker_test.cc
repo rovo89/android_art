@@ -20,7 +20,7 @@
 
 #include "UniquePtr.h"
 #include "class_linker-inl.h"
-#include "common_test.h"
+#include "common_runtime_test.h"
 #include "dex_file.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "gc/heap.h"
@@ -37,7 +37,7 @@
 
 namespace art {
 
-class ClassLinkerTest : public CommonTest {
+class ClassLinkerTest : public CommonRuntimeTest {
  protected:
   void AssertNonExistentClass(const std::string& descriptor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -339,7 +339,7 @@ class ClassLinkerTest : public CommonTest {
     mirror::DexCache* dex_cache = class_linker_->FindDexCache(*dex);
     mirror::ObjectArray<mirror::ArtMethod>* resolved_methods = dex_cache->GetResolvedMethods();
     for (size_t i = 0; i < static_cast<size_t>(resolved_methods->GetLength()); i++) {
-      EXPECT_TRUE(resolved_methods->Get(i) != NULL);
+      EXPECT_TRUE(resolved_methods->Get(i) != NULL) << dex->GetLocation() << " i=" << i;
     }
   }
 
