@@ -92,6 +92,38 @@ inline void Object::Wait(Thread* self, int64_t ms, int32_t ns) {
   Monitor::Wait(self, this, ms, ns, true, kTimedWaiting);
 }
 
+inline Object* Object::GetBrooksPointer() {
+#ifdef USE_BROOKS_POINTER
+  DCHECK(kUseBrooksPointer);
+  return GetFieldObject<Object, kVerifyNone>(OFFSET_OF_OBJECT_MEMBER(Object, x_brooks_ptr_), false);
+#else
+  LOG(FATAL) << "Unreachable";
+  return nullptr;
+#endif
+}
+
+inline void Object::SetBrooksPointer(Object* brooks_pointer) {
+#ifdef USE_BROOKS_POINTER
+  DCHECK(kUseBrooksPointer);
+  // We don't mark the card as this occurs as part of object allocation. Not all objects have
+  // backing cards, such as large objects.
+  SetFieldObjectWithoutWriteBarrier<false, false, kVerifyNone>(
+      OFFSET_OF_OBJECT_MEMBER(Object, x_brooks_ptr_), brooks_pointer, false);
+#else
+  LOG(FATAL) << "Unreachable";
+#endif
+}
+
+inline void Object::AssertSelfBrooksPointer() const {
+#ifdef USE_BROOKS_POINTER
+  DCHECK(kUseBrooksPointer);
+  Object* obj = const_cast<Object*>(this);
+  DCHECK_EQ(obj, obj->GetBrooksPointer());
+#else
+  LOG(FATAL) << "Unreachable";
+#endif
+}
+
 template<VerifyObjectFlags kVerifyFlags>
 inline bool Object::VerifierInstanceOf(Class* klass) {
   DCHECK(klass != NULL);

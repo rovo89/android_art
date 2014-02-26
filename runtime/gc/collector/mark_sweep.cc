@@ -450,6 +450,12 @@ mirror::Object* MarkSweep::MarkObjectCallback(mirror::Object* obj, void* arg) {
 
 inline void MarkSweep::UnMarkObjectNonNull(const Object* obj) {
   DCHECK(!IsImmune(obj));
+
+  if (kUseBrooksPointer) {
+    // Verify all the objects have the correct Brooks pointer installed.
+    obj->AssertSelfBrooksPointer();
+  }
+
   // Try to take advantage of locality of references within a space, failing this find the space
   // the hard way.
   accounting::SpaceBitmap* object_bitmap = current_mark_bitmap_;
@@ -469,6 +475,11 @@ inline void MarkSweep::UnMarkObjectNonNull(const Object* obj) {
 
 inline void MarkSweep::MarkObjectNonNull(const Object* obj) {
   DCHECK(obj != NULL);
+
+  if (kUseBrooksPointer) {
+    // Verify all the objects have the correct Brooks pointer installed.
+    obj->AssertSelfBrooksPointer();
+  }
 
   if (IsImmune(obj)) {
     DCHECK(IsMarked(obj));
@@ -531,6 +542,11 @@ bool MarkSweep::MarkLargeObject(const Object* obj, bool set) {
 
 inline bool MarkSweep::MarkObjectParallel(const Object* obj) {
   DCHECK(obj != NULL);
+
+  if (kUseBrooksPointer) {
+    // Verify all the objects have the correct Brooks pointer installed.
+    obj->AssertSelfBrooksPointer();
+  }
 
   if (IsImmune(obj)) {
     DCHECK(IsMarked(obj));
