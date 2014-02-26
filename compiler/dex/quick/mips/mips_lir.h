@@ -141,16 +141,6 @@ namespace art {
 #define rMIPS_LR INVALID_REG
 #define rMIPS_PC INVALID_REG
 
-// RegisterLocation templates return values (r_V0, or r_V0/r_V1).
-#define MIPS_LOC_C_RETURN {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed, r_V0, INVALID_REG, \
-                           INVALID_SREG, INVALID_SREG}
-#define MIPS_LOC_C_RETURN_FLOAT {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed, r_FRESULT0, \
-                                 INVALID_REG, INVALID_SREG, INVALID_SREG}
-#define MIPS_LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed, r_RESULT0, \
-                                r_RESULT1, INVALID_SREG, INVALID_SREG}
-#define MIPS_LOC_C_RETURN_DOUBLE {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed, r_FRESULT0, \
-                                  r_FRESULT1, INVALID_SREG, INVALID_SREG}
-
 enum MipsResourceEncodingPos {
   kMipsGPReg0   = 0,
   kMipsRegSP    = 29,
@@ -278,6 +268,20 @@ enum MipsNativeRegisterPool {
 #define rMIPS_RET1 r_RESULT1
 #define rMIPS_INVOKE_TGT r_T9
 #define rMIPS_COUNT INVALID_REG
+
+// RegisterLocation templates return values (r_V0, or r_V0/r_V1).
+const RegLocation mips_loc_c_return
+    {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed,
+     RegStorage(RegStorage::k32BitSolo, r_V0), INVALID_SREG, INVALID_SREG};
+const RegLocation mips_loc_c_return_wide
+    {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed,
+     RegStorage(RegStorage::k64BitPair, r_V0, r_V1), INVALID_SREG, INVALID_SREG};
+const RegLocation mips_loc_c_return_float
+    {kLocPhysReg, 0, 0, 0, 1, 0, 0, 0, 1, kVectorNotUsed,
+     RegStorage(RegStorage::k32BitSolo, r_F0), INVALID_SREG, INVALID_SREG};
+const RegLocation mips_loc_c_return_double
+    {kLocPhysReg, 1, 0, 0, 1, 0, 0, 0, 1, kVectorNotUsed,
+     RegStorage(RegStorage::k64BitPair, r_F0, r_F1), INVALID_SREG, INVALID_SREG};
 
 enum MipsShiftEncodings {
   kMipsLsl = 0x0,

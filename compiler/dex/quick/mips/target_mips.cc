@@ -40,23 +40,19 @@ static int fp_temps[] = {r_F0, r_F1, r_F2, r_F3, r_F4, r_F5, r_F6, r_F7,
                          r_F8, r_F9, r_F10, r_F11, r_F12, r_F13, r_F14, r_F15};
 
 RegLocation MipsMir2Lir::LocCReturn() {
-  RegLocation res = MIPS_LOC_C_RETURN;
-  return res;
+  return mips_loc_c_return;
 }
 
 RegLocation MipsMir2Lir::LocCReturnWide() {
-  RegLocation res = MIPS_LOC_C_RETURN_WIDE;
-  return res;
+  return mips_loc_c_return_wide;
 }
 
 RegLocation MipsMir2Lir::LocCReturnFloat() {
-  RegLocation res = MIPS_LOC_C_RETURN_FLOAT;
-  return res;
+  return mips_loc_c_return_float;
 }
 
 RegLocation MipsMir2Lir::LocCReturnDouble() {
-  RegLocation res = MIPS_LOC_C_RETURN_DOUBLE;
-  return res;
+  return mips_loc_c_return_double;
 }
 
 // Return a target-dependent special register.
@@ -441,27 +437,20 @@ void MipsMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
 #endif
 }
 
-/*
- * Alloc a pair of core registers, or a double.  Low reg in low byte,
- * high reg in next byte.
- */
-int MipsMir2Lir::AllocTypedTempPair(bool fp_hint,
-                  int reg_class) {
+// Alloc a pair of core registers, or a double.
+RegStorage MipsMir2Lir::AllocTypedTempWide(bool fp_hint, int reg_class) {
   int high_reg;
   int low_reg;
-  int res = 0;
 
   if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg)) {
     low_reg = AllocTempDouble();
     high_reg = low_reg + 1;
-    res = (low_reg & 0xff) | ((high_reg & 0xff) << 8);
-    return res;
+    return RegStorage(RegStorage::k64BitPair, low_reg, high_reg);
   }
 
   low_reg = AllocTemp();
   high_reg = AllocTemp();
-  res = (low_reg & 0xff) | ((high_reg & 0xff) << 8);
-  return res;
+  return RegStorage(RegStorage::k64BitPair, low_reg, high_reg);
 }
 
 int MipsMir2Lir::AllocTypedTemp(bool fp_hint, int reg_class) {
@@ -505,11 +494,11 @@ void MipsMir2Lir::CompilerInitializeRegAlloc() {
 }
 
 void MipsMir2Lir::FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free) {
-  if ((rl_free.low_reg != rl_keep.low_reg) && (rl_free.low_reg != rl_keep.high_reg) &&
-    (rl_free.high_reg != rl_keep.low_reg) && (rl_free.high_reg != rl_keep.high_reg)) {
+  if ((rl_free.reg.GetReg() != rl_keep.reg.GetReg()) && (rl_free.reg.GetReg() != rl_keep.reg.GetHighReg()) &&
+    (rl_free.reg.GetHighReg() != rl_keep.reg.GetReg()) && (rl_free.reg.GetHighReg() != rl_keep.reg.GetHighReg())) {
     // No overlap, free both
-    FreeTemp(rl_free.low_reg);
-    FreeTemp(rl_free.high_reg);
+    FreeTemp(rl_free.reg.GetReg());
+    FreeTemp(rl_free.reg.GetHighReg());
   }
 }
 /*
