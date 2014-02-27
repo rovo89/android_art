@@ -45,9 +45,9 @@ RosAllocSpace::RosAllocSpace(const std::string& name, MemMap* mem_map,
 }
 
 RosAllocSpace* RosAllocSpace::CreateFromMemMap(MemMap* mem_map, const std::string& name,
-                                            size_t starting_size, size_t initial_size,
-                                            size_t growth_limit, size_t capacity,
-                                            bool low_memory_mode) {
+                                               size_t starting_size, size_t initial_size,
+                                               size_t growth_limit, size_t capacity,
+                                               bool low_memory_mode) {
   DCHECK(mem_map != nullptr);
   allocator::RosAlloc* rosalloc = CreateRosAlloc(mem_map->Begin(), starting_size, initial_size,
                                                  low_memory_mode);
@@ -73,8 +73,8 @@ RosAllocSpace* RosAllocSpace::CreateFromMemMap(MemMap* mem_map, const std::strin
 }
 
 RosAllocSpace* RosAllocSpace::Create(const std::string& name, size_t initial_size,
-                                  size_t growth_limit, size_t capacity, byte* requested_begin,
-                                  bool low_memory_mode) {
+                                     size_t growth_limit, size_t capacity, byte* requested_begin,
+                                     bool low_memory_mode) {
   uint64_t start_time = 0;
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     start_time = NanoTime();
