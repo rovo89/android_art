@@ -98,6 +98,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       long_gc_log_threshold_(long_gc_log_threshold),
       ignore_max_footprint_(ignore_max_footprint),
       have_zygote_space_(false),
+      large_object_threshold_(std::numeric_limits<size_t>::max()),  // Starts out disabled.
       soft_reference_queue_(this),
       weak_reference_queue_(this),
       finalizer_reference_queue_(this),
@@ -159,11 +160,16 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   }
   // If we aren't the zygote, switch to the default non zygote allocator. This may update the
   // entrypoints.
-  if (!Runtime::Current()->IsZygote() || !kMovingCollector) {
+  if (!Runtime::Current()->IsZygote()) {
     ChangeCollector(post_zygote_collector_type_);
+    large_object_threshold_ = kDefaultLargeObjectThreshold;
   } else {
-    // We are the zygote, use bump pointer allocation + semi space collector.
-    ChangeCollector(kCollectorTypeSS);
+    if (kMovingCollector) {
+      // We are the zygote, use bump pointer allocation + semi space collector.
+      ChangeCollector(kCollectorTypeSS);
+    } else {
+      ChangeCollector(post_zygote_collector_type_);
+    }
   }
 
   live_bitmap_.reset(new accounting::HeapBitmap(this));
@@ -1485,15 +1491,13 @@ void Heap::PreZygoteFork() {
   main_space_->SetFootprintLimit(main_space_->Capacity());
   AddSpace(main_space_);
   have_zygote_space_ = true;
+  // Enable large object space allocations.
+  large_object_threshold_ = kDefaultLargeObjectThreshold;
   // Create the zygote space mod union table.
   accounting::ModUnionTable* mod_union_table =
       new accounting::ModUnionTableCardCache("zygote space mod-union table", this, zygote_space);
   CHECK(mod_union_table != nullptr) << "Failed to create zygote space mod-union table";
   AddModUnionTable(mod_union_table);
-  // Reset the cumulative loggers since we now have a few additional timing phases.
-  for (const auto& collector : garbage_collectors_) {
-    collector->ResetCumulativeStatistics();
-  }
   // Can't use RosAlloc for non moving space due to thread local buffers.
   // TODO: Non limited space for non-movable objects?
   MemMap* mem_map = post_zygote_non_moving_space_mem_map_.release();
@@ -2049,7 +2053,8 @@ void Heap::ProcessCards(TimingLogger& timings) {
       TimingLogger::ScopedSplit split("AllocSpaceClearCards", &timings);
       // No mod union table for the AllocSpace. Age the cards so that the GC knows that these cards
       // were dirty before the GC started.
-      // TODO: Don't need to use atomic.
+      // TODO: Need to use atomic for the case where aged(cleaning thread) -> dirty(other thread)
+      // -> clean(cleaning thread).
       // The races are we either end up with: Aged card, unaged card. Since we have the checkpoint
       // roots and then we scan / update mod union tables after. We will always scan either card.
       // If we end up with the non aged card, we scan it it in the pause.
