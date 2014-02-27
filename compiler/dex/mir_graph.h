@@ -684,6 +684,11 @@ class MIRGraph {
     return opcode >= static_cast<int>(kMirOpFirst);
   }
 
+  // Is this vreg in the in set?
+  bool IsInVReg(int vreg) {
+    return (vreg >= cu_->num_regs);
+  }
+
   void DumpCheckStats();
   MIR* FindMoveResult(BasicBlock* bb, MIR* mir);
   int SRegToVReg(int ssa_reg) const;
@@ -917,6 +922,7 @@ class MIRGraph {
   size_t num_non_special_compiler_temps_;
   size_t max_available_non_special_compiler_temps_;
   size_t max_available_special_compiler_temps_;
+  bool punt_to_interpreter_;                    // Difficult or not worthwhile - just interpret.
 
   friend class LocalValueNumberingTest;
 };
