@@ -285,7 +285,7 @@ class CommonCompilerTest : public CommonRuntimeTest {
 #elif defined(__x86_64__)
       instruction_set = kX86_64;
       // TODO: x86_64 compilation support.
-      compiler_options_->SetCompilerFilter(Runtime::kInterpretOnly);
+      compiler_options_->SetCompilerFilter(CompilerOptions::kInterpretOnly);
 #endif
 
       for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {

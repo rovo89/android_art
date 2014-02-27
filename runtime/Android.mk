@@ -332,7 +332,7 @@ define build-libart
   ifeq ($$(art_target_or_host),target)
     LOCAL_SRC_FILES := $(LIBART_TARGET_SRC_FILES)
     $(foreach arch,$(ART_SUPPORTED_ARCH),
-      LOCAL_SRC_FILES_$(arch) := $$(LIBART_TARGET_SRC_FILES_$(arch))))
+      LOCAL_SRC_FILES_$(arch) := $$(LIBART_TARGET_SRC_FILES_$(arch)))
   else # host
     LOCAL_SRC_FILES := $(LIBART_HOST_SRC_FILES)
     LOCAL_IS_HOST_MODULE := true
@@ -352,7 +352,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   LOCAL_CFLAGS := $(LIBART_CFLAGS)
   LOCAL_LDFLAGS := $(LIBART_LDFLAGS)
   $(foreach arch,$(ART_SUPPORTED_ARCH),
-    LOCAL_LDFLAGS_$(arch) := $$(LIBART_TARGET_LDFLAGS_$(arch))))
+    LOCAL_LDFLAGS_$(arch) := $$(LIBART_TARGET_LDFLAGS_$(arch)))
 
   ifeq ($$(art_target_or_host),target)
     LOCAL_CLANG := $(ART_TARGET_CLANG)
