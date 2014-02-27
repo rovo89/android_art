@@ -1185,27 +1185,47 @@ mirror::DexCache* ClassLinker::AllocDexCache(Thread* self, const DexFile& dex_fi
   return dex_cache.get();
 }
 
+// Used to initialize a class in the allocation code path to ensure it is guarded by a StoreStore
+// fence.
+class InitializeClassVisitor {
+ public:
+  explicit InitializeClassVisitor(uint32_t class_size) : class_size_(class_size) {
+  }
+
+  void operator()(mirror::Object* obj, size_t usable_size) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK_LE(class_size_, usable_size);
+    // Avoid AsClass as object is not yet in live bitmap or allocation stack.
+    mirror::Class* klass = down_cast<mirror::Class*>(obj);
+    // DCHECK(klass->IsClass());
+    klass->SetClassSize(class_size_);
+    klass->SetPrimitiveType(Primitive::kPrimNot);  // Default to not being primitive.
+    klass->SetDexClassDefIndex(DexFile::kDexNoIndex16);  // Default to no valid class def index.
+    klass->SetDexTypeIndex(DexFile::kDexNoIndex16);  // Default to no valid type index.
+  }
+
+ private:
+  const uint32_t class_size_;
+
+  DISALLOW_COPY_AND_ASSIGN(InitializeClassVisitor);
+};
+
 mirror::Class* ClassLinker::AllocClass(Thread* self, mirror::Class* java_lang_Class,
-                                       size_t class_size) {
+                                       uint32_t class_size) {
   DCHECK_GE(class_size, sizeof(mirror::Class));
   gc::Heap* heap = Runtime::Current()->GetHeap();
+  InitializeClassVisitor visitor(class_size);
   mirror::Object* k =
-      kMovingClasses ?
-          heap->AllocObject<true>(self, java_lang_Class, class_size) :
-          heap->AllocNonMovableObject<true>(self, java_lang_Class, class_size);
-  if (UNLIKELY(k == NULL)) {
+      kMovingClasses ? heap->AllocObject<true>(self, java_lang_Class, class_size, visitor)
+                     : heap->AllocNonMovableObject<true>(self, java_lang_Class, class_size, visitor);
+  if (UNLIKELY(k == nullptr)) {
     CHECK(self->IsExceptionPending());  // OOME.
-    return NULL;
+    return nullptr;
   }
-  mirror::Class* klass = k->AsClass();
-  klass->SetPrimitiveType(Primitive::kPrimNot);  // Default to not being primitive.
-  klass->SetClassSize(class_size);
-  klass->SetDexClassDefIndex(DexFile::kDexNoIndex16);  // Default to no valid class def index.
-  klass->SetDexTypeIndex(DexFile::kDexNoIndex16);  // Default to no valid type index.
-  return klass;
+  return k->AsClass();
 }
 
-mirror::Class* ClassLinker::AllocClass(Thread* self, size_t class_size) {
+mirror::Class* ClassLinker::AllocClass(Thread* self, uint32_t class_size) {
   return AllocClass(self, GetClassRoot(kJavaLangClass), class_size);
 }
 
@@ -1419,7 +1439,7 @@ mirror::Class* ClassLinker::DefineClass(const char* descriptor,
 }
 
 // Precomputes size that will be needed for Class, matching LinkStaticFields
-size_t ClassLinker::SizeOfClass(const DexFile& dex_file,
+uint32_t ClassLinker::SizeOfClass(const DexFile& dex_file,
                                 const DexFile::ClassDef& dex_class_def) {
   const byte* class_data = dex_file.GetClassData(dex_class_def);
   size_t num_ref = 0;
@@ -1440,7 +1460,7 @@ size_t ClassLinker::SizeOfClass(const DexFile& dex_file,
     }
   }
   // start with generic class data
-  size_t size = sizeof(mirror::Class);
+  uint32_t size = sizeof(mirror::Class);
   // follow with reference fields which must be contiguous at start
   size += (num_ref * sizeof(uint32_t));
   // if there are 64-bit fields to add, make sure they are aligned

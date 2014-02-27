@@ -58,19 +58,6 @@ BumpPointerSpace::BumpPointerSpace(const std::string& name, MemMap* mem_map)
       num_blocks_(0) {
 }
 
-mirror::Object* BumpPointerSpace::Alloc(Thread*, size_t num_bytes, size_t* bytes_allocated) {
-  num_bytes = RoundUp(num_bytes, kAlignment);
-  mirror::Object* ret = AllocNonvirtual(num_bytes);
-  if (LIKELY(ret != nullptr)) {
-    *bytes_allocated = num_bytes;
-  }
-  return ret;
-}
-
-size_t BumpPointerSpace::AllocationSize(mirror::Object* obj) {
-  return AllocationSizeNonvirtual(obj);
-}
-
 void BumpPointerSpace::Clear() {
   // Release the pages back to the operating system.
   CHECK_NE(madvise(Begin(), Limit() - Begin(), MADV_DONTNEED), -1) << "madvise failed";
@@ -185,8 +172,9 @@ void BumpPointerSpace::Walk(ObjectCallback* callback, void* arg) {
   }
 }
 
-bool BumpPointerSpace::IsEmpty() const {
-  return Begin() == End();
+accounting::SpaceBitmap::SweepCallback* BumpPointerSpace::GetSweepCallback() {
+  LOG(FATAL) << "Unimplemented";
+  return nullptr;
 }
 
 uint64_t BumpPointerSpace::GetBytesAllocated() {

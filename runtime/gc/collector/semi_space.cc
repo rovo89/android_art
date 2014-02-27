@@ -133,13 +133,15 @@ SemiSpace::SemiSpace(Heap* heap, bool generational, const std::string& name_pref
       immune_end_(nullptr),
       is_large_object_space_immune_(false),
       to_space_(nullptr),
+      to_space_live_bitmap_(nullptr),
       from_space_(nullptr),
       self_(nullptr),
       generational_(generational),
       last_gc_to_space_end_(nullptr),
       bytes_promoted_(0),
       whole_heap_collection_(true),
-      whole_heap_collection_interval_counter_(0) {
+      whole_heap_collection_interval_counter_(0),
+      saved_bytes_(0) {
 }
 
 void SemiSpace::InitializePhase() {
@@ -263,7 +265,7 @@ class SemiSpaceScanObjectVisitor {
     semi_space_->ScanObject(obj);
   }
  private:
-  SemiSpace* semi_space_;
+  SemiSpace* const semi_space_;
 };
 
 void SemiSpace::MarkReachableObjects() {
@@ -467,10 +469,10 @@ mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
     // of an old generation.)
     size_t bytes_promoted;
     space::MallocSpace* promo_dest_space = GetHeap()->GetPrimaryFreeListSpace();
-    forward_address = promo_dest_space->Alloc(self_, object_size, &bytes_promoted);
+    forward_address = promo_dest_space->Alloc(self_, object_size, &bytes_promoted, nullptr);
     if (forward_address == nullptr) {
       // If out of space, fall back to the to-space.
-      forward_address = to_space_->Alloc(self_, object_size, &bytes_allocated);
+      forward_address = to_space_->Alloc(self_, object_size, &bytes_allocated, nullptr);
     } else {
       GetHeap()->num_bytes_allocated_.FetchAndAdd(bytes_promoted);
       bytes_promoted_ += bytes_promoted;
@@ -511,7 +513,7 @@ mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
     DCHECK(forward_address != nullptr);
   } else {
     // If it's allocated after the last GC (younger), copy it to the to-space.
-    forward_address = to_space_->Alloc(self_, object_size, &bytes_allocated);
+    forward_address = to_space_->Alloc(self_, object_size, &bytes_allocated, nullptr);
   }
   // Copy over the object and add it to the mark stack since we still need to update its
   // references.

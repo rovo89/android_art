@@ -25,15 +25,15 @@
 #include "thread.h"
 #include "thread_list.h"
 #include "utils.h"
-
-#include <valgrind.h>
-#include <memcheck/memcheck.h>
+#include "valgrind_malloc_space-inl.h"
 
 namespace art {
 namespace gc {
 namespace space {
 
-static const bool kPrefetchDuringDlMallocFreeList = true;
+static constexpr bool kPrefetchDuringDlMallocFreeList = true;
+
+template class ValgrindMallocSpace<DlMallocSpace, void*>;
 
 DlMallocSpace::DlMallocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin,
                              byte* end, byte* limit, size_t growth_limit)
@@ -119,11 +119,8 @@ void* DlMallocSpace::CreateMspace(void* begin, size_t morecore_start, size_t ini
   return msp;
 }
 
-mirror::Object* DlMallocSpace::Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated) {
-  return AllocNonvirtual(self, num_bytes, bytes_allocated);
-}
-
-mirror::Object* DlMallocSpace::AllocWithGrowth(Thread* self, size_t num_bytes, size_t* bytes_allocated) {
+mirror::Object* DlMallocSpace::AllocWithGrowth(Thread* self, size_t num_bytes,
+                                               size_t* bytes_allocated, size_t* usable_size) {
   mirror::Object* result;
   {
     MutexLock mu(self, lock_);
@@ -131,7 +128,7 @@ mirror::Object* DlMallocSpace::AllocWithGrowth(Thread* self, size_t num_bytes, s
     size_t max_allowed = Capacity();
     mspace_set_footprint_limit(mspace_, max_allowed);
     // Try the allocation.
-    result = AllocWithoutGrowthLocked(self, num_bytes, bytes_allocated);
+    result = AllocWithoutGrowthLocked(self, num_bytes, bytes_allocated, usable_size);
     // Shrink back down as small as possible.
     size_t footprint = mspace_footprint(mspace_);
     mspace_set_footprint_limit(mspace_, footprint);
@@ -145,7 +142,8 @@ mirror::Object* DlMallocSpace::AllocWithGrowth(Thread* self, size_t num_bytes, s
   return result;
 }
 
-MallocSpace* DlMallocSpace::CreateInstance(const std::string& name, MemMap* mem_map, void* allocator, byte* begin, byte* end,
+MallocSpace* DlMallocSpace::CreateInstance(const std::string& name, MemMap* mem_map,
+                                           void* allocator, byte* begin, byte* end,
                                            byte* limit, size_t growth_limit) {
   return new DlMallocSpace(name, mem_map, allocator, begin, end, limit, growth_limit);
 }
@@ -156,7 +154,7 @@ size_t DlMallocSpace::Free(Thread* self, mirror::Object* ptr) {
     CHECK(ptr != NULL);
     CHECK(Contains(ptr)) << "Free (" << ptr << ") not in bounds of heap " << *this;
   }
-  const size_t bytes_freed = AllocationSizeNonvirtual(ptr);
+  const size_t bytes_freed = AllocationSizeNonvirtual(ptr, nullptr);
   if (kRecentFreeCount > 0) {
     RegisterRecentFree(ptr);
   }
@@ -176,7 +174,7 @@ size_t DlMallocSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** p
       // The head of chunk for the allocation is sizeof(size_t) behind the allocation.
       __builtin_prefetch(reinterpret_cast<char*>(ptrs[i + look_ahead]) - sizeof(size_t));
     }
-    bytes_freed += AllocationSizeNonvirtual(ptr);
+    bytes_freed += AllocationSizeNonvirtual(ptr, nullptr);
   }
 
   if (kRecentFreeCount > 0) {
@@ -226,10 +224,6 @@ extern "C" void* art_heap_morecore(void* mspace, intptr_t increment) {
     CHECK(dlmalloc_space != nullptr) << "Couldn't find DlmMallocSpace with mspace=" << mspace;
   }
   return dlmalloc_space->MoreCore(increment);
-}
-
-size_t DlMallocSpace::AllocationSize(mirror::Object* obj) {
-  return AllocationSizeNonvirtual(obj);
 }
 
 size_t DlMallocSpace::Trim() {

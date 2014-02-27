@@ -23,6 +23,19 @@ namespace art {
 namespace gc {
 namespace space {
 
+inline mirror::Object* BumpPointerSpace::Alloc(Thread*, size_t num_bytes, size_t* bytes_allocated,
+                                               size_t* usable_size) {
+  num_bytes = RoundUp(num_bytes, kAlignment);
+  mirror::Object* ret = AllocNonvirtual(num_bytes);
+  if (LIKELY(ret != nullptr)) {
+    *bytes_allocated = num_bytes;
+    if (usable_size != nullptr) {
+      *usable_size = num_bytes;
+    }
+  }
+  return ret;
+}
+
 inline mirror::Object* BumpPointerSpace::AllocNonvirtualWithoutAccounting(size_t num_bytes) {
   DCHECK(IsAligned<kAlignment>(num_bytes));
   byte* old_end;
@@ -47,6 +60,15 @@ inline mirror::Object* BumpPointerSpace::AllocNonvirtual(size_t num_bytes) {
     bytes_allocated_.FetchAndAdd(num_bytes);
   }
   return ret;
+}
+
+inline size_t BumpPointerSpace::AllocationSizeNonvirtual(mirror::Object* obj, size_t* usable_size)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  size_t num_bytes = obj->SizeOf();
+  if (usable_size != nullptr) {
+    *usable_size = RoundUp(num_bytes, kAlignment);
+  }
+  return num_bytes;
 }
 
 }  // namespace space

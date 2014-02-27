@@ -45,9 +45,10 @@ void LargeObjectSpaceTest::LargeObjectTest() {
       while (requests.size() < num_allocations) {
         size_t request_size = test_rand(&rand_seed) % max_allocation_size;
         size_t allocation_size = 0;
-        mirror::Object* obj = los->Alloc(Thread::Current(), request_size, &allocation_size);
+        mirror::Object* obj = los->Alloc(Thread::Current(), request_size, &allocation_size,
+                                         nullptr);
         ASSERT_TRUE(obj != nullptr);
-        ASSERT_EQ(allocation_size, los->AllocationSize(obj));
+        ASSERT_EQ(allocation_size, los->AllocationSize(obj, nullptr));
         ASSERT_GE(allocation_size, request_size);
         // Fill in our magic value.
         byte magic = (request_size & 0xFF) | 1;
@@ -78,7 +79,7 @@ void LargeObjectSpaceTest::LargeObjectTest() {
 
     size_t bytes_allocated = 0;
     // Checks that the coalescing works.
-    mirror::Object* obj = los->Alloc(Thread::Current(), 100 * MB, &bytes_allocated);
+    mirror::Object* obj = los->Alloc(Thread::Current(), 100 * MB, &bytes_allocated, nullptr);
     EXPECT_TRUE(obj != nullptr);
     los->Free(Thread::Current(), obj);
 

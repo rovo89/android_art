@@ -17,7 +17,6 @@
 #ifndef ART_RUNTIME_GC_SPACE_DLMALLOC_SPACE_H_
 #define ART_RUNTIME_GC_SPACE_DLMALLOC_SPACE_H_
 
-#include "gc/allocator/dlmalloc.h"
 #include "malloc_space.h"
 #include "space.h"
 
@@ -30,7 +29,8 @@ namespace collector {
 
 namespace space {
 
-// An alloc space is a space where objects may be allocated and garbage collected.
+// An alloc space is a space where objects may be allocated and garbage collected. Not final as may
+// be overridden by a ValgrindMallocSpace.
 class DlMallocSpace : public MallocSpace {
  public:
   // Create a DlMallocSpace from an existing mem_map.
@@ -45,21 +45,39 @@ class DlMallocSpace : public MallocSpace {
   static DlMallocSpace* Create(const std::string& name, size_t initial_size, size_t growth_limit,
                                size_t capacity, byte* requested_begin);
 
-  virtual mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes,
-                                          size_t* bytes_allocated) LOCKS_EXCLUDED(lock_);
-  virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated);
-  virtual size_t AllocationSize(mirror::Object* obj);
-  virtual size_t Free(Thread* self, mirror::Object* ptr)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  virtual size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  mirror::Object* AllocNonvirtual(Thread* self, size_t num_bytes, size_t* bytes_allocated);
-
-  size_t AllocationSizeNonvirtual(mirror::Object* obj) {
-    void* obj_ptr = const_cast<void*>(reinterpret_cast<const void*>(obj));
-    return mspace_usable_size(obj_ptr) + kChunkOverhead;
+  // Virtual to allow ValgrindMallocSpace to intercept.
+  virtual mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes, size_t* bytes_allocated,
+                                          size_t* usable_size) OVERRIDE LOCKS_EXCLUDED(lock_);
+  // Virtual to allow ValgrindMallocSpace to intercept.
+  virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
+                        size_t* usable_size) OVERRIDE LOCKS_EXCLUDED(lock_) {
+    return AllocNonvirtual(self, num_bytes, bytes_allocated, usable_size);
   }
+  // Virtual to allow ValgrindMallocSpace to intercept.
+  virtual size_t AllocationSize(mirror::Object* obj, size_t* usable_size) OVERRIDE {
+    return AllocationSizeNonvirtual(obj, usable_size);
+  }
+  // Virtual to allow ValgrindMallocSpace to intercept.
+  virtual size_t Free(Thread* self, mirror::Object* ptr) OVERRIDE
+      LOCKS_EXCLUDED(lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  // Virtual to allow ValgrindMallocSpace to intercept.
+  virtual size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) OVERRIDE
+      LOCKS_EXCLUDED(lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // DlMallocSpaces don't have thread local state.
+  void RevokeThreadLocalBuffers(art::Thread*) OVERRIDE {
+  }
+  void RevokeAllThreadLocalBuffers() OVERRIDE {
+  }
+
+  // Faster non-virtual allocation path.
+  mirror::Object* AllocNonvirtual(Thread* self, size_t num_bytes, size_t* bytes_allocated,
+                                  size_t* usable_size) LOCKS_EXCLUDED(lock_);
+
+  // Faster non-virtual allocation size path.
+  size_t AllocationSizeNonvirtual(mirror::Object* obj, size_t* usable_size);
 
 #ifndef NDEBUG
   // Override only in the debug build.
@@ -70,39 +88,37 @@ class DlMallocSpace : public MallocSpace {
     return mspace_;
   }
 
-  size_t Trim();
+  size_t Trim() OVERRIDE;
 
   // Perform a mspace_inspect_all which calls back for each allocation chunk. The chunk may not be
   // in use, indicated by num_bytes equaling zero.
-  void Walk(WalkCallback callback, void* arg) LOCKS_EXCLUDED(lock_);
+  void Walk(WalkCallback callback, void* arg) OVERRIDE LOCKS_EXCLUDED(lock_);
 
   // Returns the number of bytes that the space has currently obtained from the system. This is
   // greater or equal to the amount of live data in the space.
-  size_t GetFootprint();
+  size_t GetFootprint() OVERRIDE;
 
   // Returns the number of bytes that the heap is allowed to obtain from the system via MoreCore.
-  size_t GetFootprintLimit();
+  size_t GetFootprintLimit() OVERRIDE;
 
   // Set the maximum number of bytes that the heap is allowed to obtain from the system via
   // MoreCore. Note this is used to stop the mspace growing beyond the limit to Capacity. When
   // allocations fail we GC before increasing the footprint limit and allowing the mspace to grow.
-  void SetFootprintLimit(size_t limit);
+  void SetFootprintLimit(size_t limit) OVERRIDE;
 
   MallocSpace* CreateInstance(const std::string& name, MemMap* mem_map, void* allocator,
                               byte* begin, byte* end, byte* limit, size_t growth_limit);
 
-  uint64_t GetBytesAllocated();
-  uint64_t GetObjectsAllocated();
+  uint64_t GetBytesAllocated() OVERRIDE;
+  uint64_t GetObjectsAllocated() OVERRIDE;
 
-  // Returns the class of a recently freed object.
-  mirror::Class* FindRecentFreedObject(const mirror::Object* obj);
+  void Clear() OVERRIDE;
 
-  virtual void Clear();
-
-  virtual bool IsDlMallocSpace() const {
+  bool IsDlMallocSpace() const OVERRIDE {
     return true;
   }
-  virtual DlMallocSpace* AsDlMallocSpace() {
+
+  DlMallocSpace* AsDlMallocSpace() OVERRIDE {
     return this;
   }
 
@@ -111,10 +127,12 @@ class DlMallocSpace : public MallocSpace {
                 byte* limit, size_t growth_limit);
 
  private:
-  mirror::Object* AllocWithoutGrowthLocked(Thread* self, size_t num_bytes, size_t* bytes_allocated)
+  mirror::Object* AllocWithoutGrowthLocked(Thread* self, size_t num_bytes, size_t* bytes_allocated,
+                                           size_t* usable_size)
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
-  void* CreateAllocator(void* base, size_t morecore_start, size_t initial_size, bool /*low_memory_mode*/) {
+  void* CreateAllocator(void* base, size_t morecore_start, size_t initial_size,
+                        bool /*low_memory_mode*/) OVERRIDE {
     return CreateMspace(base, morecore_start, initial_size);
   }
   static void* CreateMspace(void* base, size_t morecore_start, size_t initial_size);
@@ -122,11 +140,11 @@ class DlMallocSpace : public MallocSpace {
   // The boundary tag overhead.
   static const size_t kChunkOverhead = kWordSize;
 
-  // Underlying malloc space
+  // Underlying malloc space.
   void* const mspace_;
 
-  // A mspace pointer used for allocation. Equals to what mspace_
-  // points to or nullptr after InvalidateAllocator() is called.
+  // An mspace pointer used for allocation. Equals  mspace_ or nullptr after InvalidateAllocator()
+  // is called.
   void* mspace_for_alloc_;
 
   friend class collector::MarkSweep;

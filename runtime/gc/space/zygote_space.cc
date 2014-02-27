@@ -57,6 +57,10 @@ ZygoteSpace* ZygoteSpace::Create(const std::string& name, MemMap* mem_map,
   return zygote_space;
 }
 
+void ZygoteSpace::Clear() {
+  LOG(FATAL) << "Unimplemented";
+}
+
 ZygoteSpace::ZygoteSpace(const std::string& name, MemMap* mem_map, size_t objects_allocated)
     : ContinuousMemMapAllocSpace(name, mem_map, mem_map->Begin(), mem_map->End(), mem_map->End(),
                                  kGcRetentionPolicyFullCollect),
@@ -69,6 +73,27 @@ void ZygoteSpace::Dump(std::ostream& os) const {
       << ",end=" << reinterpret_cast<void*>(End())
       << ",size=" << PrettySize(Size())
       << ",name=\"" << GetName() << "\"]";
+}
+
+mirror::Object* ZygoteSpace::Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
+                                   size_t* usable_size) {
+  LOG(FATAL) << "Unimplemented";
+  return nullptr;
+}
+
+size_t ZygoteSpace::AllocationSize(mirror::Object* obj, size_t* usable_size) {
+  LOG(FATAL) << "Unimplemented";
+  return 0;
+}
+
+size_t ZygoteSpace::Free(Thread* self, mirror::Object* ptr) {
+  LOG(FATAL) << "Unimplemented";
+  return 0;
+}
+
+size_t ZygoteSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) {
+  LOG(FATAL) << "Unimplemented";
+  return 0;
 }
 
 void ZygoteSpace::SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg) {
