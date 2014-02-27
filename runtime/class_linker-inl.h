@@ -46,6 +46,7 @@ inline mirror::Class* ClassLinker::FindArrayClass(Thread* self, mirror::Class* e
       return array_class;
     }
   }
+  DCHECK(!element_class->IsPrimitiveVoid());
   std::string descriptor("[");
   descriptor += ClassHelper(element_class).GetDescriptor();
   SirtRef<mirror::ClassLoader> class_loader(self, element_class->GetClassLoader());
