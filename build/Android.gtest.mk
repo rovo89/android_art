@@ -36,8 +36,12 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
 	runtime/exception_test.cc \
 	runtime/gc/accounting/space_bitmap_test.cc \
 	runtime/gc/heap_test.cc \
-	runtime/gc/space/dlmalloc_space_test.cc \
-	runtime/gc/space/rosalloc_space_test.cc \
+	runtime/gc/space/dlmalloc_space_base_test.cc \
+	runtime/gc/space/dlmalloc_space_static_test.cc \
+	runtime/gc/space/dlmalloc_space_random_test.cc \
+	runtime/gc/space/rosalloc_space_base_test.cc \
+	runtime/gc/space/rosalloc_space_static_test.cc \
+	runtime/gc/space/rosalloc_space_random_test.cc \
 	runtime/gc/space/large_object_space_test.cc \
 	runtime/gtest_test.cc \
 	runtime/indenter_test.cc \

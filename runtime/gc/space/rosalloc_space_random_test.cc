@@ -15,18 +15,18 @@
  */
 
 #include "space_test.h"
-#include "dlmalloc_space.h"
 
 namespace art {
 namespace gc {
 namespace space {
 
-MallocSpace* CreateDlMallocSpace(const std::string& name, size_t initial_size, size_t growth_limit,
+MallocSpace* CreateRosAllocSpace(const std::string& name, size_t initial_size, size_t growth_limit,
                                  size_t capacity, byte* requested_begin) {
-  return DlMallocSpace::Create(name, initial_size, growth_limit, capacity, requested_begin);
+  return RosAllocSpace::Create(name, initial_size, growth_limit, capacity, requested_begin,
+                               Runtime::Current()->GetHeap()->IsLowMemoryMode());
 }
 
-TEST_SPACE_CREATE_FN(DlMallocSpace, CreateDlMallocSpace)
+TEST_SPACE_CREATE_FN_RANDOM(RosAllocSpace, CreateRosAllocSpace)
 
 
 }  // namespace space
