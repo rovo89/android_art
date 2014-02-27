@@ -290,14 +290,14 @@ bool ElfFile::SetMap(MemMap* map, std::string* error_msg) {
 
   if (!program_header_only_) {
     if (header_->e_phoff >= Size()) {
-      *error_msg = StringPrintf("Failed to find e_phoff value %d less than %d in %s",
+      *error_msg = StringPrintf("Failed to find e_phoff value %d less than %zd in %s",
                                 header_->e_phoff,
                                 Size(),
                                 file_->GetPath().c_str());
       return false;
     }
     if (header_->e_shoff >= Size()) {
-      *error_msg = StringPrintf("Failed to find e_shoff value %d less than %d in %s",
+      *error_msg = StringPrintf("Failed to find e_shoff value %d less than %zd in %s",
                                 header_->e_shoff,
                                 Size(),
                                 file_->GetPath().c_str());
