@@ -1007,6 +1007,8 @@ ENTRY art_quick_resolution_trampoline
     DELIVER_PENDING_EXCEPTION
 END art_quick_resolution_trampoline
 
+UNIMPLEMENTED art_quick_generic_jni_trampoline
+
     .extern artQuickToInterpreterBridge
 ENTRY art_quick_to_interpreter_bridge
     GENERATE_GLOBAL_POINTER

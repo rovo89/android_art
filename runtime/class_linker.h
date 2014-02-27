@@ -351,6 +351,10 @@ class ClassLinker {
     return portable_resolution_trampoline_;
   }
 
+  const void* GetQuickGenericJniTrampoline() const {
+      return quick_generic_jni_trampoline_;
+    }
+
   const void* GetQuickResolutionTrampoline() const {
     return quick_resolution_trampoline_;
   }
@@ -643,6 +647,7 @@ class ClassLinker {
   const void* quick_resolution_trampoline_;
   const void* portable_imt_conflict_trampoline_;
   const void* quick_imt_conflict_trampoline_;
+  const void* quick_generic_jni_trampoline_;
 
   friend class ImageWriter;  // for GetClassRoots
   FRIEND_TEST(ClassLinkerTest, ClassRootDescriptors);

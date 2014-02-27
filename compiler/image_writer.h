@@ -41,8 +41,8 @@ class ImageWriter {
       : compiler_driver_(compiler_driver), oat_file_(NULL), image_end_(0), image_begin_(NULL),
         oat_data_begin_(NULL), interpreter_to_interpreter_bridge_offset_(0),
         interpreter_to_compiled_code_bridge_offset_(0), portable_imt_conflict_trampoline_offset_(0),
-        portable_resolution_trampoline_offset_(0), quick_imt_conflict_trampoline_offset_(0),
-        quick_resolution_trampoline_offset_(0) {}
+        portable_resolution_trampoline_offset_(0), quick_generic_jni_trampoline_offset_(0),
+        quick_imt_conflict_trampoline_offset_(0), quick_resolution_trampoline_offset_(0) {}
 
   ~ImageWriter() {}
 
@@ -195,6 +195,7 @@ class ImageWriter {
   uint32_t portable_imt_conflict_trampoline_offset_;
   uint32_t portable_resolution_trampoline_offset_;
   uint32_t portable_to_interpreter_bridge_offset_;
+  uint32_t quick_generic_jni_trampoline_offset_;
   uint32_t quick_imt_conflict_trampoline_offset_;
   uint32_t quick_resolution_trampoline_offset_;
   uint32_t quick_to_interpreter_bridge_offset_;

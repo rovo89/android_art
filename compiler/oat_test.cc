@@ -175,7 +175,7 @@ TEST_F(OatTest, WriteRead) {
 TEST_F(OatTest, OatHeaderSizeCheck) {
   // If this test is failing and you have to update these constants,
   // it is time to update OatHeader::kOatVersion
-  EXPECT_EQ(76U, sizeof(OatHeader));
+  EXPECT_EQ(80U, sizeof(OatHeader));
   EXPECT_EQ(28U, sizeof(OatMethodOffsets));
 }
 

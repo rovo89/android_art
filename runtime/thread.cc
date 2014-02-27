@@ -1752,6 +1752,7 @@ static const EntryPointInfo gThreadEntryPointInfo[] = {
   QUICK_ENTRY_POINT_INFO(pThrowNoSuchMethod),
   QUICK_ENTRY_POINT_INFO(pThrowNullPointer),
   QUICK_ENTRY_POINT_INFO(pThrowStackOverflow),
+  QUICK_ENTRY_POINT_INFO(pQuickGenericJniTrampoline),
 };
 #undef QUICK_ENTRY_POINT_INFO
 
