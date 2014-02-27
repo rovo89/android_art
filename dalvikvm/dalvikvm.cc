@@ -152,15 +152,7 @@ static int dalvikvm(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  // Make sure they provided a class name.
-  if (arg_idx == argc) {
-    fprintf(stderr, "Class name required\n");
-    return EXIT_FAILURE;
-  }
-
-  // insert additional internal options here
-
-  if (curr_opt >= option_count) {
+  if (curr_opt > option_count) {
     fprintf(stderr, "curr_opt(%d) >= option_count(%d)\n", curr_opt, option_count);
     abort();
     return EXIT_FAILURE;
@@ -184,6 +176,14 @@ static int dalvikvm(int argc, char** argv) {
   JNIEnv* env = NULL;
   if (JNI_CreateJavaVM(&vm, &env, &init_args) != JNI_OK) {
     fprintf(stderr, "Failed to initialize runtime (check log for details)\n");
+    return EXIT_FAILURE;
+  }
+
+  // Make sure they provided a class name. We do this after
+  // JNI_CreateJavaVM so that things like "-help" have the opportunity
+  // to emit a usage statement.
+  if (arg_idx == argc) {
+    fprintf(stderr, "Class name required\n");
     return EXIT_FAILURE;
   }
 
