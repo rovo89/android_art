@@ -54,10 +54,10 @@ namespace art {
 namespace gc {
 namespace allocator {
 
-// A Runs-of-slots memory allocator.
+// A runs-of-slots memory allocator.
 class RosAlloc {
  private:
-  // Rerepresents a run of free pages.
+  // Represents a run of free pages.
   class FreePageRun {
    public:
     byte magic_num_;  // The magic number used for debugging only.

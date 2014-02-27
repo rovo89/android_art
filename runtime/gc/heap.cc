@@ -952,6 +952,7 @@ void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
 
 mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocator,
                                              size_t alloc_size, size_t* bytes_allocated,
+                                             size_t* usable_size,
                                              mirror::Class** klass) {
   mirror::Object* ptr = nullptr;
   bool was_default_allocator = allocator == GetCurrentAllocator();
@@ -968,7 +969,7 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
       return nullptr;
     }
     // A GC was in progress and we blocked, retry allocation now that memory has been freed.
-    ptr = TryToAllocate<true, false>(self, allocator, alloc_size, bytes_allocated);
+    ptr = TryToAllocate<true, false>(self, allocator, alloc_size, bytes_allocated, usable_size);
   }
 
   // Loop through our different Gc types and try to Gc until we get enough free memory.
@@ -985,13 +986,13 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
     }
     if (gc_ran) {
       // Did we free sufficient memory for the allocation to succeed?
-      ptr = TryToAllocate<true, false>(self, allocator, alloc_size, bytes_allocated);
+      ptr = TryToAllocate<true, false>(self, allocator, alloc_size, bytes_allocated, usable_size);
     }
   }
   // Allocations have failed after GCs;  this is an exceptional state.
   if (ptr == nullptr) {
     // Try harder, growing the heap if necessary.
-    ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated);
+    ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated, usable_size);
   }
   if (ptr == nullptr) {
     // Most allocations should have succeeded by now, so the heap is really full, really fragmented,
@@ -1008,7 +1009,7 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
       *klass = sirt_klass.get();
       return nullptr;
     }
-    ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated);
+    ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated, usable_size);
     if (ptr == nullptr) {
       ThrowOutOfMemoryError(self, alloc_size, false);
     }
@@ -1318,9 +1319,10 @@ void Heap::ChangeCollector(CollectorType collector_type) {
 }
 
 // Special compacting collector which uses sub-optimal bin packing to reduce zygote space size.
-class ZygoteCompactingCollector : public collector::SemiSpace {
+class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
  public:
-  explicit ZygoteCompactingCollector(gc::Heap* heap) : SemiSpace(heap, "zygote collector") {
+  explicit ZygoteCompactingCollector(gc::Heap* heap) : SemiSpace(heap, "zygote collector"),
+      bin_live_bitmap_(nullptr), bin_mark_bitmap_(nullptr) {
   }
 
   void BuildBins(space::ContinuousSpace* space) {
@@ -1382,7 +1384,7 @@ class ZygoteCompactingCollector : public collector::SemiSpace {
       // No available space in the bins, place it in the target space instead (grows the zygote
       // space).
       size_t bytes_allocated;
-      forward_address = to_space_->Alloc(self_, object_size, &bytes_allocated);
+      forward_address = to_space_->Alloc(self_, object_size, &bytes_allocated, nullptr);
       if (to_space_live_bitmap_ != nullptr) {
         to_space_live_bitmap_->Set(forward_address);
       } else {

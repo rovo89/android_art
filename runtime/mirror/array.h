@@ -28,25 +28,13 @@ namespace mirror {
 
 class MANAGED Array : public Object {
  public:
-  // A convenience for code that doesn't know the component size, and doesn't want to have to work
-  // it out itself.
+  // Allocates an array with the given properties, if fill_usable is true the array will be of at
+  // least component_count size, however, if there's usable space at the end of the allocation the
+  // array will fill it.
   template <bool kIsInstrumented>
   static Array* Alloc(Thread* self, Class* array_class, int32_t component_count,
-                      gc::AllocatorType allocator_type)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  template <bool kIsInstrumented>
-  static Array* Alloc(Thread* self, Class* array_class, int32_t component_count,
-                      size_t component_size, gc::AllocatorType allocator_type)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  template <bool kIsInstrumented>
-  static Array* Alloc(Thread* self, Class* array_class, int32_t component_count)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  template <bool kIsInstrumented>
-  static Array* Alloc(Thread* self, Class* array_class, int32_t component_count,
-                      size_t component_size)
+                      size_t component_size, gc::AllocatorType allocator_type,
+                      bool fill_usable = false)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static Array* CreateMultiArray(Thread* self, const SirtRef<Class>& element_class,

@@ -32,20 +32,20 @@ namespace space {
 // Abstraction implemented by all large object spaces.
 class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
  public:
-  virtual SpaceType GetType() const {
+  SpaceType GetType() const OVERRIDE {
     return kSpaceTypeLargeObjectSpace;
   }
 
-  virtual void SwapBitmaps();
-  virtual void CopyLiveToMarked();
+  void SwapBitmaps();
+  void CopyLiveToMarked();
   virtual void Walk(DlMallocSpace::WalkCallback, void* arg) = 0;
   virtual ~LargeObjectSpace() {}
 
-  uint64_t GetBytesAllocated() {
+  uint64_t GetBytesAllocated() OVERRIDE {
     return num_bytes_allocated_;
   }
 
-  uint64_t GetObjectsAllocated() {
+  uint64_t GetObjectsAllocated() OVERRIDE {
     return num_objects_allocated_;
   }
 
@@ -57,17 +57,23 @@ class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
     return total_objects_allocated_;
   }
 
-  size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs);
+  size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) OVERRIDE;
 
-  virtual bool IsAllocSpace() const {
+  // LargeObjectSpaces don't have thread local state.
+  void RevokeThreadLocalBuffers(art::Thread*) OVERRIDE {
+  }
+  void RevokeAllThreadLocalBuffers() OVERRIDE {
+  }
+
+  bool IsAllocSpace() const OVERRIDE {
     return true;
   }
 
-  virtual AllocSpace* AsAllocSpace() {
+  AllocSpace* AsAllocSpace() OVERRIDE {
     return this;
   }
 
-  virtual void Sweep(bool swap_bitmaps, size_t* freed_objects, size_t* freed_bytes);
+  void Sweep(bool swap_bitmaps, size_t* freed_objects, size_t* freed_bytes);
 
  protected:
   explicit LargeObjectSpace(const std::string& name);
@@ -85,17 +91,18 @@ class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
 };
 
 // A discontinuous large object space implemented by individual mmap/munmap calls.
-class LargeObjectMapSpace : public LargeObjectSpace {
+class LargeObjectMapSpace FINAL : public LargeObjectSpace {
  public:
   // Creates a large object space. Allocations into the large object space use memory maps instead
   // of malloc.
   static LargeObjectMapSpace* Create(const std::string& name);
 
   // Return the storage space required by obj.
-  size_t AllocationSize(mirror::Object* obj);
-  mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated);
+  size_t AllocationSize(mirror::Object* obj, size_t* usable_size);
+  mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
+                        size_t* usable_size);
   size_t Free(Thread* self, mirror::Object* ptr);
-  void Walk(DlMallocSpace::WalkCallback, void* arg) LOCKS_EXCLUDED(lock_);
+  void Walk(DlMallocSpace::WalkCallback, void* arg) OVERRIDE LOCKS_EXCLUDED(lock_);
   // TODO: disabling thread safety analysis as this may be called when we already hold lock_.
   bool Contains(const mirror::Object* obj) const NO_THREAD_SAFETY_ANALYSIS;
 
@@ -113,16 +120,18 @@ class LargeObjectMapSpace : public LargeObjectSpace {
 };
 
 // A continuous large object space with a free-list to handle holes.
-class FreeListSpace : public LargeObjectSpace {
+class FreeListSpace FINAL : public LargeObjectSpace {
  public:
   virtual ~FreeListSpace();
   static FreeListSpace* Create(const std::string& name, byte* requested_begin, size_t capacity);
 
-  size_t AllocationSize(mirror::Object* obj) EXCLUSIVE_LOCKS_REQUIRED(lock_);
-  mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated);
-  size_t Free(Thread* self, mirror::Object* obj);
-  bool Contains(const mirror::Object* obj) const;
-  void Walk(DlMallocSpace::WalkCallback callback, void* arg) LOCKS_EXCLUDED(lock_);
+  size_t AllocationSize(mirror::Object* obj, size_t* usable_size) OVERRIDE
+      EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
+                        size_t* usable_size) OVERRIDE;
+  size_t Free(Thread* self, mirror::Object* obj) OVERRIDE;
+  bool Contains(const mirror::Object* obj) const OVERRIDE;
+  void Walk(DlMallocSpace::WalkCallback callback, void* arg) OVERRIDE LOCKS_EXCLUDED(lock_);
 
   // Address at which the space begins.
   byte* Begin() const {

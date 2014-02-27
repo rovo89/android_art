@@ -86,7 +86,10 @@ TEST_F(TransactionTest, Array_length) {
 
   // Allocate an array during transaction.
   SirtRef<mirror::Array> sirt_obj(soa.Self(),
-                                  mirror::Array::Alloc<false>(soa.Self(), sirt_klass.get(), kArraySize));
+                                  mirror::Array::Alloc<false>(soa.Self(), sirt_klass.get(),
+                                                              kArraySize,
+                                                              sirt_klass->GetComponentSize(),
+                                                              Runtime::Current()->GetHeap()->GetCurrentAllocator()));
   ASSERT_TRUE(sirt_obj.get() != nullptr);
   ASSERT_EQ(sirt_obj->GetClass(), sirt_klass.get());
   Runtime::Current()->ExitTransactionMode();

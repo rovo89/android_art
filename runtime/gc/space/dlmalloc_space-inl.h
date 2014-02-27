@@ -18,6 +18,7 @@
 #define ART_RUNTIME_GC_SPACE_DLMALLOC_SPACE_INL_H_
 
 #include "dlmalloc_space.h"
+#include "gc/allocator/dlmalloc.h"
 #include "thread.h"
 
 namespace art {
@@ -25,11 +26,12 @@ namespace gc {
 namespace space {
 
 inline mirror::Object* DlMallocSpace::AllocNonvirtual(Thread* self, size_t num_bytes,
-                                                      size_t* bytes_allocated) {
+                                                      size_t* bytes_allocated,
+                                                      size_t* usable_size) {
   mirror::Object* obj;
   {
     MutexLock mu(self, lock_);
-    obj = AllocWithoutGrowthLocked(self, num_bytes, bytes_allocated);
+    obj = AllocWithoutGrowthLocked(self, num_bytes, bytes_allocated, usable_size);
   }
   if (LIKELY(obj != NULL)) {
     // Zero freshly allocated memory, done while not holding the space's lock.
@@ -38,15 +40,25 @@ inline mirror::Object* DlMallocSpace::AllocNonvirtual(Thread* self, size_t num_b
   return obj;
 }
 
+inline size_t DlMallocSpace::AllocationSizeNonvirtual(mirror::Object* obj, size_t* usable_size) {
+  void* obj_ptr = const_cast<void*>(reinterpret_cast<const void*>(obj));
+  size_t size = mspace_usable_size(obj_ptr);
+  if (usable_size != nullptr) {
+    *usable_size = size;
+  }
+  return size + kChunkOverhead;
+}
+
 inline mirror::Object* DlMallocSpace::AllocWithoutGrowthLocked(Thread* /*self*/, size_t num_bytes,
-                                                               size_t* bytes_allocated) {
+                                                               size_t* bytes_allocated,
+                                                               size_t* usable_size) {
   mirror::Object* result = reinterpret_cast<mirror::Object*>(mspace_malloc(mspace_for_alloc_, num_bytes));
   if (LIKELY(result != NULL)) {
     if (kDebugSpaces) {
       CHECK(Contains(result)) << "Allocation (" << reinterpret_cast<void*>(result)
             << ") not in bounds of allocation space " << *this;
     }
-    size_t allocation_size = AllocationSizeNonvirtual(result);
+    size_t allocation_size = AllocationSizeNonvirtual(result, usable_size);
     DCHECK(bytes_allocated != NULL);
     *bytes_allocated = allocation_size;
   }

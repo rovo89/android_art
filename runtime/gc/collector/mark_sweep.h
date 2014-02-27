@@ -64,16 +64,18 @@ class MarkSweep : public GarbageCollector {
 
   ~MarkSweep() {}
 
-  virtual void InitializePhase();
-  virtual bool IsConcurrent() const;
-  virtual bool HandleDirtyObjectsPhase() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
-  virtual void MarkingPhase() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  virtual void ReclaimPhase() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  virtual void FinishPhase() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual void InitializePhase() OVERRIDE;
+  virtual void MarkingPhase() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual bool HandleDirtyObjectsPhase() OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual void ReclaimPhase() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual void FinishPhase() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   virtual void MarkReachableObjects()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-  virtual GcType GetGcType() const {
+
+  virtual bool IsConcurrent() const OVERRIDE;
+
+  virtual GcType GetGcType() const OVERRIDE {
     return kGcTypeFull;
   }
 
@@ -131,7 +133,7 @@ class MarkSweep : public GarbageCollector {
   void ProcessReferences(Thread* self)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Update and mark references from immune spaces.
+  // Update and mark references from immune spaces. Virtual as overridden by StickyMarkSweep.
   virtual void UpdateAndMarkModUnion()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -140,7 +142,8 @@ class MarkSweep : public GarbageCollector {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Sweeps unmarked objects to complete the garbage collection.
+  // Sweeps unmarked objects to complete the garbage collection. Virtual as by default it sweeps
+  // all allocation spaces. Partial and sticky GCs want to just sweep a subset of the heap.
   virtual void Sweep(bool swap_bitmaps) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Sweeps unmarked objects to complete the garbage collection.
@@ -232,7 +235,7 @@ class MarkSweep : public GarbageCollector {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Mark the vm thread roots.
-  virtual void MarkThreadRoots(Thread* self)
+  void MarkThreadRoots(Thread* self)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
