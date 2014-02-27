@@ -29,12 +29,13 @@ namespace collector {
 
 namespace space {
 
-// A bump pointer space is a space where objects may be allocated and garbage collected.
-class BumpPointerSpace : public ContinuousMemMapAllocSpace {
+// A bump pointer space allocates by incrementing a pointer, it doesn't provide a free
+// implementation as its intended to be evacuated.
+class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
  public:
   typedef void(*WalkCallback)(void *start, void *end, size_t num_bytes, void* callback_arg);
 
-  SpaceType GetType() const {
+  SpaceType GetType() const OVERRIDE {
     return kSpaceTypeBumpPointerSpace;
   }
 
@@ -44,25 +45,28 @@ class BumpPointerSpace : public ContinuousMemMapAllocSpace {
   static BumpPointerSpace* Create(const std::string& name, size_t capacity, byte* requested_begin);
 
   // Allocate num_bytes, returns nullptr if the space is full.
-  virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated);
+  mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
+                        size_t* usable_size) OVERRIDE;
   mirror::Object* AllocNonvirtual(size_t num_bytes);
   mirror::Object* AllocNonvirtualWithoutAccounting(size_t num_bytes);
 
   // Return the storage space required by obj.
-  virtual size_t AllocationSize(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  size_t AllocationSize(mirror::Object* obj, size_t* usable_size) OVERRIDE
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return AllocationSizeNonvirtual(obj, usable_size);
+  }
 
   // NOPS unless we support free lists.
-  virtual size_t Free(Thread*, mirror::Object*) {
-    return 0;
-  }
-  virtual size_t FreeList(Thread*, size_t, mirror::Object**) {
+  size_t Free(Thread*, mirror::Object*) OVERRIDE {
     return 0;
   }
 
-  size_t AllocationSizeNonvirtual(mirror::Object* obj)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return obj->SizeOf();
+  size_t FreeList(Thread*, size_t, mirror::Object**) OVERRIDE {
+    return 0;
   }
+
+  size_t AllocationSizeNonvirtual(mirror::Object* obj, size_t* usable_size)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Removes the fork time growth limit on capacity, allowing the application to allocate up to the
   // maximum reserved size of the heap.
@@ -80,16 +84,16 @@ class BumpPointerSpace : public ContinuousMemMapAllocSpace {
     return GetMemMap()->Size();
   }
 
-  accounting::SpaceBitmap* GetLiveBitmap() const {
+  accounting::SpaceBitmap* GetLiveBitmap() const OVERRIDE {
     return nullptr;
   }
 
-  accounting::SpaceBitmap* GetMarkBitmap() const {
+  accounting::SpaceBitmap* GetMarkBitmap() const OVERRIDE {
     return nullptr;
   }
 
   // Clear the memory and reset the pointer to the start of the space.
-  void Clear() LOCKS_EXCLUDED(block_lock_);
+  void Clear() OVERRIDE LOCKS_EXCLUDED(block_lock_);
 
   void Dump(std::ostream& os) const;
 
@@ -99,7 +103,10 @@ class BumpPointerSpace : public ContinuousMemMapAllocSpace {
 
   uint64_t GetBytesAllocated() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   uint64_t GetObjectsAllocated() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool IsEmpty() const;
+  bool IsEmpty() const {
+    return Begin() == End();
+  }
+
 
   bool Contains(const mirror::Object* obj) const {
     const byte* byte_obj = reinterpret_cast<const byte*>(obj);
@@ -116,13 +123,15 @@ class BumpPointerSpace : public ContinuousMemMapAllocSpace {
   // Allocate a new TLAB, returns false if the allocation failed.
   bool AllocNewTlab(Thread* self, size_t bytes);
 
-  virtual BumpPointerSpace* AsBumpPointerSpace() {
+  BumpPointerSpace* AsBumpPointerSpace() OVERRIDE {
     return this;
   }
 
   // Go through all of the blocks and visit the continuous objects.
   void Walk(ObjectCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  accounting::SpaceBitmap::SweepCallback* GetSweepCallback() OVERRIDE;
 
   // Object alignment within the space.
   static constexpr size_t kAlignment = 8;

@@ -27,6 +27,10 @@
 namespace art {
 namespace mirror {
 
+static inline size_t HeaderSize(size_t component_size) {
+  return sizeof(Object) + (component_size == sizeof(int64_t) ? 8 : 4);
+}
+
 template<VerifyObjectFlags kVerifyFlags>
 inline size_t Array::SizeOf() {
   // This is safe from overflow because the array was already allocated, so we know it's sane.
@@ -34,7 +38,7 @@ inline size_t Array::SizeOf() {
   // Don't need to check this since we already check this in GetClass.
   int32_t component_count =
       GetLength<static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis)>();
-  size_t header_size = sizeof(Object) + (component_size == sizeof(int64_t) ? 8 : 4);
+  size_t header_size = HeaderSize(component_size);
   size_t data_size = component_count * component_size;
   return header_size + data_size;
 }
@@ -46,7 +50,7 @@ static inline size_t ComputeArraySize(Thread* self, Class* array_class, int32_t 
   DCHECK_GE(component_count, 0);
   DCHECK(array_class->IsArrayClass());
 
-  size_t header_size = sizeof(Object) + (component_size == sizeof(int64_t) ? 8 : 4);
+  size_t header_size = HeaderSize(component_size);
   size_t data_size = component_count * component_size;
   size_t size = header_size + data_size;
 
@@ -61,13 +65,16 @@ static inline size_t ComputeArraySize(Thread* self, Class* array_class, int32_t 
   return size;
 }
 
-// Used for setting the array length in the allocation code path to ensure it is guarded by a CAS.
+// Used for setting the array length in the allocation code path to ensure it is guarded by a
+// StoreStore fence.
 class SetLengthVisitor {
  public:
   explicit SetLengthVisitor(int32_t length) : length_(length) {
   }
 
-  void operator()(Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void operator()(Object* obj, size_t usable_size) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    UNUSED(usable_size);
     // Avoid AsArray as object is not yet in live bitmap or allocation stack.
     Array* array = down_cast<Array*>(obj);
     // DCHECK(array->IsArrayInstance());
@@ -76,41 +83,64 @@ class SetLengthVisitor {
 
  private:
   const int32_t length_;
+
+  DISALLOW_COPY_AND_ASSIGN(SetLengthVisitor);
+};
+
+// Similar to SetLengthVisitor, used for setting the array length to fill the usable size of an
+// array.
+class SetLengthToUsableSizeVisitor {
+ public:
+  SetLengthToUsableSizeVisitor(size_t header_size, size_t component_size) :
+      header_size_(header_size), component_size_(component_size) {
+  }
+
+  void operator()(Object* obj, size_t usable_size) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // Avoid AsArray as object is not yet in live bitmap or allocation stack.
+    Array* array = down_cast<Array*>(obj);
+    uint32_t length = (usable_size - header_size_) / component_size_;
+    // DCHECK(array->IsArrayInstance());
+    array->SetLength(length);
+  }
+
+ private:
+  const size_t header_size_;
+  const size_t component_size_;
+
+  DISALLOW_COPY_AND_ASSIGN(SetLengthToUsableSizeVisitor);
 };
 
 template <bool kIsInstrumented>
 inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count,
-                           size_t component_size, gc::AllocatorType allocator_type) {
+                           size_t component_size, gc::AllocatorType allocator_type,
+                           bool fill_usable) {
+  DCHECK(allocator_type != gc::kAllocatorTypeLOS);
   size_t size = ComputeArraySize(self, array_class, component_count, component_size);
   if (UNLIKELY(size == 0)) {
     return nullptr;
   }
   gc::Heap* heap = Runtime::Current()->GetHeap();
-  SetLengthVisitor visitor(component_count);
-  DCHECK(allocator_type != gc::kAllocatorTypeLOS);
-  return down_cast<Array*>(
-      heap->AllocObjectWithAllocator<kIsInstrumented, true>(self, array_class, size,
-                                                            allocator_type, visitor));
-}
-
-template <bool kIsInstrumented>
-inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count,
-                           gc::AllocatorType allocator_type) {
-  DCHECK(array_class->IsArrayClass());
-  return Alloc<kIsInstrumented>(self, array_class, component_count, array_class->GetComponentSize(),
-                                allocator_type);
-}
-template <bool kIsInstrumented>
-inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count) {
-  return Alloc<kIsInstrumented>(self, array_class, component_count,
-               Runtime::Current()->GetHeap()->GetCurrentAllocator());
-}
-
-template <bool kIsInstrumented>
-inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count,
-                           size_t component_size) {
-  return Alloc<kIsInstrumented>(self, array_class, component_count, component_size,
-               Runtime::Current()->GetHeap()->GetCurrentAllocator());
+  Array* result;
+  if (!fill_usable) {
+    SetLengthVisitor visitor(component_count);
+    result = down_cast<Array*>(
+        heap->AllocObjectWithAllocator<kIsInstrumented, true>(self, array_class, size,
+                                                              allocator_type, visitor));
+  } else {
+    SetLengthToUsableSizeVisitor visitor(HeaderSize(component_size), component_size);
+    result = down_cast<Array*>(
+        heap->AllocObjectWithAllocator<kIsInstrumented, true>(self, array_class, size,
+                                                              allocator_type, visitor));
+  }
+  if (kIsDebugBuild && result != nullptr && Runtime::Current()->IsStarted()) {
+    if (!fill_usable) {
+      CHECK_EQ(result->SizeOf(), size);
+    } else {
+      CHECK_GE(result->SizeOf(), size);
+    }
+  }
+  return result;
 }
 
 template<class T>
@@ -133,9 +163,17 @@ static inline void ArrayBackwardCopy(T* d, const T* s, int32_t count) {
   }
 }
 
+template<typename T>
+inline PrimitiveArray<T>* PrimitiveArray<T>::Alloc(Thread* self, size_t length) {
+  DCHECK(array_class_ != NULL);
+  Array* raw_array = Array::Alloc<true>(self, array_class_, length, sizeof(T),
+                                        Runtime::Current()->GetHeap()->GetCurrentAllocator());
+  return down_cast<PrimitiveArray<T>*>(raw_array);
+}
+
 template<class T>
-void PrimitiveArray<T>::Memmove(int32_t dst_pos, PrimitiveArray<T>* src, int32_t src_pos,
-                                int32_t count) {
+inline void PrimitiveArray<T>::Memmove(int32_t dst_pos, PrimitiveArray<T>* src, int32_t src_pos,
+                                       int32_t count) {
   if (UNLIKELY(count == 0)) {
     return;
   }
@@ -192,8 +230,8 @@ static inline void ArrayForwardCopy(T* d, const T* s, int32_t count) {
 
 
 template<class T>
-void PrimitiveArray<T>::Memcpy(int32_t dst_pos, PrimitiveArray<T>* src, int32_t src_pos,
-                               int32_t count) {
+inline void PrimitiveArray<T>::Memcpy(int32_t dst_pos, PrimitiveArray<T>* src, int32_t src_pos,
+                                      int32_t count) {
   if (UNLIKELY(count == 0)) {
     return;
   }

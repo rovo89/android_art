@@ -30,7 +30,8 @@ namespace collector {
 
 namespace space {
 
-// An alloc space is a space where objects may be allocated and garbage collected.
+// An alloc space implemented using a runs-of-slots memory allocator. Not final as may be
+// overridden by a ValgrindMallocSpace.
 class RosAllocSpace : public MallocSpace {
  public:
   // Create a RosAllocSpace with the requested sizes. The requested
@@ -44,53 +45,46 @@ class RosAllocSpace : public MallocSpace {
                                          size_t growth_limit, size_t capacity,
                                          bool low_memory_mode);
 
-  virtual mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes,
-                                          size_t* bytes_allocated) LOCKS_EXCLUDED(lock_);
-  virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated);
-  virtual size_t AllocationSize(mirror::Object* obj);
-  virtual size_t Free(Thread* self, mirror::Object* ptr)
+  mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes, size_t* bytes_allocated,
+                                  size_t* usable_size) OVERRIDE LOCKS_EXCLUDED(lock_);
+  mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
+                        size_t* usable_size) OVERRIDE {
+    return AllocNonvirtual(self, num_bytes, bytes_allocated, usable_size);
+  }
+  size_t AllocationSize(mirror::Object* obj, size_t* usable_size) OVERRIDE {
+    return AllocationSizeNonvirtual(obj, usable_size);
+  }
+  size_t Free(Thread* self, mirror::Object* ptr) OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  virtual size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs)
+  size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::Object* AllocNonvirtual(Thread* self, size_t num_bytes, size_t* bytes_allocated);
-
-  size_t AllocationSizeNonvirtual(mirror::Object* obj)
-      NO_THREAD_SAFETY_ANALYSIS {
-    // TODO: NO_THREAD_SAFETY_ANALYSIS because SizeOf() requires that mutator_lock is held.
-    void* obj_ptr = const_cast<void*>(reinterpret_cast<const void*>(obj));
-    // obj is a valid object. Use its class in the header to get the size.
-    // Don't use verification since the object may be dead if we are sweeping.
-    size_t size = obj->SizeOf<kVerifyNone>();
-    size_t size_by_size = rosalloc_->UsableSize(size);
-    if (kIsDebugBuild) {
-      size_t size_by_ptr = rosalloc_->UsableSize(obj_ptr);
-      if (size_by_size != size_by_ptr) {
-        LOG(INFO) << "Found a bad sized obj of size " << size
-                  << " at " << std::hex << reinterpret_cast<intptr_t>(obj_ptr) << std::dec
-                  << " size_by_size=" << size_by_size << " size_by_ptr=" << size_by_ptr;
-      }
-      DCHECK_EQ(size_by_size, size_by_ptr);
-    }
-    return size_by_size;
+  mirror::Object* AllocNonvirtual(Thread* self, size_t num_bytes, size_t* bytes_allocated,
+                                  size_t* usable_size) {
+    // RosAlloc zeroes memory internally.
+    return AllocCommon(self, num_bytes, bytes_allocated, usable_size);
   }
 
-  art::gc::allocator::RosAlloc* GetRosAlloc() {
+  // TODO: NO_THREAD_SAFETY_ANALYSIS because SizeOf() requires that mutator_lock is held.
+  size_t AllocationSizeNonvirtual(mirror::Object* obj, size_t* usable_size)
+      NO_THREAD_SAFETY_ANALYSIS;
+
+  allocator::RosAlloc* GetRosAlloc() const {
     return rosalloc_;
   }
 
-  size_t Trim();
-  void Walk(WalkCallback callback, void* arg) LOCKS_EXCLUDED(lock_);
-  size_t GetFootprint();
-  size_t GetFootprintLimit();
-  void SetFootprintLimit(size_t limit);
+  size_t Trim() OVERRIDE;
+  void Walk(WalkCallback callback, void* arg) OVERRIDE LOCKS_EXCLUDED(lock_);
+  size_t GetFootprint() OVERRIDE;
+  size_t GetFootprintLimit() OVERRIDE;
+  void SetFootprintLimit(size_t limit) OVERRIDE;
 
-  virtual void Clear();
+  void Clear() OVERRIDE;
   MallocSpace* CreateInstance(const std::string& name, MemMap* mem_map, void* allocator,
                               byte* begin, byte* end, byte* limit, size_t growth_limit);
 
-  uint64_t GetBytesAllocated();
-  uint64_t GetObjectsAllocated();
+  uint64_t GetBytesAllocated() OVERRIDE;
+  uint64_t GetObjectsAllocated() OVERRIDE;
 
   void RevokeThreadLocalBuffers(Thread* thread);
   void RevokeAllThreadLocalBuffers();
@@ -98,10 +92,11 @@ class RosAllocSpace : public MallocSpace {
   // Returns the class of a recently freed object.
   mirror::Class* FindRecentFreedObject(const mirror::Object* obj);
 
-  virtual bool IsRosAllocSpace() const {
+  bool IsRosAllocSpace() const OVERRIDE {
     return true;
   }
-  virtual RosAllocSpace* AsRosAllocSpace() {
+
+  RosAllocSpace* AsRosAllocSpace() OVERRIDE {
     return this;
   }
 
@@ -114,9 +109,11 @@ class RosAllocSpace : public MallocSpace {
                 byte* begin, byte* end, byte* limit, size_t growth_limit);
 
  private:
-  mirror::Object* AllocWithoutGrowthLocked(Thread* self, size_t num_bytes, size_t* bytes_allocated);
+  mirror::Object* AllocCommon(Thread* self, size_t num_bytes, size_t* bytes_allocated,
+                              size_t* usable_size);
 
-  void* CreateAllocator(void* base, size_t morecore_start, size_t initial_size, bool low_memory_mode) {
+  void* CreateAllocator(void* base, size_t morecore_start, size_t initial_size,
+                        bool low_memory_mode) OVERRIDE {
     return CreateRosAlloc(base, morecore_start, initial_size, low_memory_mode);
   }
   static allocator::RosAlloc* CreateRosAlloc(void* base, size_t morecore_start, size_t initial_size,
@@ -127,11 +124,11 @@ class RosAllocSpace : public MallocSpace {
       LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_, Locks::thread_list_lock_);
 
   // Underlying rosalloc.
-  art::gc::allocator::RosAlloc* const rosalloc_;
+  allocator::RosAlloc* const rosalloc_;
 
-  // A rosalloc pointer used for allocation. Equals to what rosalloc_
-  // points to or nullptr after InvalidateAllocator() is called.
-  art::gc::allocator::RosAlloc* rosalloc_for_alloc_;
+  // The rosalloc pointer used for allocation. Equal to rosalloc_ or nullptr after
+  // InvalidateAllocator() is called.
+  allocator::RosAlloc* rosalloc_for_alloc_;
 
   friend class collector::MarkSweep;
 

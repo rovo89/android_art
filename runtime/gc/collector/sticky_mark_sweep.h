@@ -25,9 +25,9 @@ namespace art {
 namespace gc {
 namespace collector {
 
-class StickyMarkSweep : public PartialMarkSweep {
+class StickyMarkSweep FINAL : public PartialMarkSweep {
  public:
-  GcType GetGcType() const {
+  GcType GetGcType() const OVERRIDE {
     return kGcTypeSticky;
   }
 
@@ -37,21 +37,17 @@ class StickyMarkSweep : public PartialMarkSweep {
  protected:
   // Bind the live bits to the mark bits of bitmaps for all spaces, all spaces other than the
   // alloc space will be marked as immune.
-  void BindBitmaps() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void BindBitmaps() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void MarkReachableObjects()
+  void MarkReachableObjects() OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  virtual void MarkThreadRoots(Thread* self)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
-  void Sweep(bool swap_bitmaps) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  void Sweep(bool swap_bitmaps) OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Don't need to do anything special here since we scan all the cards which may have references
   // to the newly allocated objects.
-  virtual void UpdateAndMarkModUnion() { }
+  void UpdateAndMarkModUnion() OVERRIDE { }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(StickyMarkSweep);

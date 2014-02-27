@@ -52,13 +52,15 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
     return kSpaceTypeMallocSpace;
   }
 
-  // Allocate num_bytes without allowing the underlying space to grow.
-  virtual mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes,
-                                          size_t* bytes_allocated) = 0;
   // Allocate num_bytes allowing the underlying space to grow.
-  virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated) = 0;
-  // Return the storage space required by obj.
-  virtual size_t AllocationSize(mirror::Object* obj) = 0;
+  virtual mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes,
+                                          size_t* bytes_allocated, size_t* usable_size) = 0;
+  // Allocate num_bytes without allowing the underlying space to grow.
+  virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
+                                size_t* usable_size) = 0;
+  // Return the storage space required by obj. If usable_size isn't nullptr then it is set to the
+  // amount of the storage space that may be used by obj.
+  virtual size_t AllocationSize(mirror::Object* obj, size_t* usable_size) = 0;
   virtual size_t Free(Thread* self, mirror::Object* ptr)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
   virtual size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs)
@@ -132,9 +134,8 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
   static MemMap* CreateMemMap(const std::string& name, size_t starting_size, size_t* initial_size,
                               size_t* growth_limit, size_t* capacity, byte* requested_begin);
 
-  // When true the low memory mode argument specifies that the heap
-  // wishes the created allocator to be more aggressive in releasing
-  // unused pages.
+  // When true the low memory mode argument specifies that the heap wishes the created allocator to
+  // be more aggressive in releasing unused pages.
   virtual void* CreateAllocator(void* base, size_t morecore_start, size_t initial_size,
                                 bool low_memory_mode) = 0;
 
@@ -171,82 +172,6 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   DISALLOW_COPY_AND_ASSIGN(MallocSpace);
-};
-
-// Number of bytes to use as a red zone (rdz). A red zone of this size will be placed before and
-// after each allocation. 8 bytes provides long/double alignment.
-static constexpr size_t kValgrindRedZoneBytes = 8;
-
-// A specialization of DlMallocSpace/RosAllocSpace that provides information to valgrind wrt allocations.
-template <typename BaseMallocSpaceType, typename AllocatorType>
-class ValgrindMallocSpace : public BaseMallocSpaceType {
- public:
-  virtual mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes, size_t* bytes_allocated) {
-    void* obj_with_rdz = BaseMallocSpaceType::AllocWithGrowth(self, num_bytes + 2 * kValgrindRedZoneBytes,
-                                                              bytes_allocated);
-    if (obj_with_rdz == NULL) {
-      return NULL;
-    }
-    mirror::Object* result = reinterpret_cast<mirror::Object*>(
-        reinterpret_cast<byte*>(obj_with_rdz) + kValgrindRedZoneBytes);
-    // Make redzones as no access.
-    VALGRIND_MAKE_MEM_NOACCESS(obj_with_rdz, kValgrindRedZoneBytes);
-    VALGRIND_MAKE_MEM_NOACCESS(reinterpret_cast<byte*>(result) + num_bytes, kValgrindRedZoneBytes);
-    return result;
-  }
-
-  virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated) {
-    void* obj_with_rdz = BaseMallocSpaceType::Alloc(self, num_bytes + 2 * kValgrindRedZoneBytes,
-                                                    bytes_allocated);
-    if (obj_with_rdz == NULL) {
-     return NULL;
-    }
-    mirror::Object* result = reinterpret_cast<mirror::Object*>(
-        reinterpret_cast<byte*>(obj_with_rdz) + kValgrindRedZoneBytes);
-    // Make redzones as no access.
-    VALGRIND_MAKE_MEM_NOACCESS(obj_with_rdz, kValgrindRedZoneBytes);
-    VALGRIND_MAKE_MEM_NOACCESS(reinterpret_cast<byte*>(result) + num_bytes, kValgrindRedZoneBytes);
-    return result;
-  }
-
-  virtual size_t AllocationSize(mirror::Object* obj) {
-    size_t result = BaseMallocSpaceType::AllocationSize(reinterpret_cast<mirror::Object*>(
-        reinterpret_cast<byte*>(obj) - kValgrindRedZoneBytes));
-    return result - 2 * kValgrindRedZoneBytes;
-  }
-
-  virtual size_t Free(Thread* self, mirror::Object* ptr)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    void* obj_after_rdz = reinterpret_cast<void*>(ptr);
-    void* obj_with_rdz = reinterpret_cast<byte*>(obj_after_rdz) - kValgrindRedZoneBytes;
-    // Make redzones undefined.
-    size_t allocation_size = BaseMallocSpaceType::AllocationSize(
-        reinterpret_cast<mirror::Object*>(obj_with_rdz));
-    VALGRIND_MAKE_MEM_UNDEFINED(obj_with_rdz, allocation_size);
-    size_t freed = BaseMallocSpaceType::Free(self, reinterpret_cast<mirror::Object*>(obj_with_rdz));
-    return freed - 2 * kValgrindRedZoneBytes;
-  }
-
-  virtual size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    size_t freed = 0;
-    for (size_t i = 0; i < num_ptrs; i++) {
-      freed += Free(self, ptrs[i]);
-    }
-    return freed;
-  }
-
-  ValgrindMallocSpace(const std::string& name, MemMap* mem_map, AllocatorType allocator, byte* begin,
-                      byte* end, byte* limit, size_t growth_limit, size_t initial_size) :
-      BaseMallocSpaceType(name, mem_map, allocator, begin, end, limit, growth_limit) {
-    VALGRIND_MAKE_MEM_UNDEFINED(mem_map->Begin() + initial_size, mem_map->Size() - initial_size);
-  }
-
-  virtual ~ValgrindMallocSpace() {
-  }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(ValgrindMallocSpace);
 };
 
 }  // namespace space

@@ -388,13 +388,13 @@ class ClassLinker {
   void FinishInit(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // For early bootstrapping by Init
-  mirror::Class* AllocClass(Thread* self, mirror::Class* java_lang_Class, size_t class_size)
+  mirror::Class* AllocClass(Thread* self, mirror::Class* java_lang_Class, uint32_t class_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Alloc* convenience functions to avoid needing to pass in mirror::Class*
   // values that are known to the ClassLinker such as
   // kObjectArrayClass and kJavaLangString etc.
-  mirror::Class* AllocClass(Thread* self, size_t class_size)
+  mirror::Class* AllocClass(Thread* self, uint32_t class_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   mirror::DexCache* AllocDexCache(Thread* self, const DexFile& dex_file)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -419,7 +419,7 @@ class ClassLinker {
                          mirror::Class* c, SafeMap<uint32_t, mirror::ArtField*>& field_map)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  size_t SizeOfClass(const DexFile& dex_file,
+  uint32_t SizeOfClass(const DexFile& dex_file,
                      const DexFile::ClassDef& dex_class_def);
 
   void LoadClass(const DexFile& dex_file,
