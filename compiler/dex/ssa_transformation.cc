@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "bit_vector_block_iterator.h"
 #include "compiler_internals.h"
 #include "dataflow_iterator-inl.h"
 
@@ -248,9 +249,9 @@ bool MIRGraph::ComputeDominanceFrontier(BasicBlock* bb) {
   }
 
   /* Calculate DF_up */
-  ArenaBitVector::BasicBlockIterator it(bb->i_dominated, cu_);
+  BitVectorBlockIterator it(bb->i_dominated, cu_);
   for (BasicBlock *dominated_bb = it.Next(); dominated_bb != nullptr; dominated_bb = it.Next()) {
-    ArenaBitVector::BasicBlockIterator inner_it(dominated_bb->dom_frontier, cu_);
+    BitVectorBlockIterator inner_it(dominated_bb->dom_frontier, cu_);
     for (BasicBlock *df_up_block = inner_it.Next(); df_up_block != nullptr;
          df_up_block = inner_it.Next()) {
       CheckForDominanceFrontier(bb, df_up_block);
