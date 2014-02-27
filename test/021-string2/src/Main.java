@@ -36,6 +36,10 @@ public class Main {
         Assert.assertTrue(test1.compareTo(test2) > 0);
         Assert.assertTrue(test2.compareTo(test1) < 0);
 
+        Assert.assertEquals("".compareTo(""), 0);
+        Assert.assertTrue(test.compareTo("") > 0);
+        Assert.assertTrue("".compareTo(test) < 0);
+
         /* compare string with a nonzero offset, in left/right side */
         Assert.assertEquals(test.compareTo(sub), 0);
         Assert.assertEquals(sub.compareTo(test), 0);
