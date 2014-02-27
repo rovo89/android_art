@@ -26,7 +26,6 @@
 #include "base/logging.h"
 #include "base/mutex.h"
 #include "base/stl_util.h"
-#include "base/stringpiece.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "gc/accounting/card_table-inl.h"
