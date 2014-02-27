@@ -74,7 +74,7 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
     obj->AssertSelfBrooksPointer();
   }
   pre_fence_visitor(obj, usable_size);
-  if (kIsDebugBuild && klass != nullptr && Runtime::Current()->IsStarted()) {
+  if (kIsDebugBuild && Runtime::Current()->IsStarted()) {
     CHECK_LE(obj->SizeOf(), usable_size);
   }
   const size_t new_num_bytes_allocated =
