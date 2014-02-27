@@ -18,8 +18,8 @@
 #define ART_COMPILER_OPTIMIZING_NODES_H_
 
 #include "utils/allocation.h"
+#include "utils/arena_bit_vector.h"
 #include "utils/growable_array.h"
-#include "dex/arena_bit_vector.h"
 
 namespace art {
 
