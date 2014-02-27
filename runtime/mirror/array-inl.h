@@ -91,20 +91,26 @@ class SetLengthVisitor {
 // array.
 class SetLengthToUsableSizeVisitor {
  public:
-  SetLengthToUsableSizeVisitor(size_t header_size, size_t component_size) :
-      header_size_(header_size), component_size_(component_size) {
+  SetLengthToUsableSizeVisitor(int32_t min_length, size_t header_size, size_t component_size) :
+      minimum_length_(min_length), header_size_(header_size), component_size_(component_size) {
   }
 
   void operator()(Object* obj, size_t usable_size) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Avoid AsArray as object is not yet in live bitmap or allocation stack.
     Array* array = down_cast<Array*>(obj);
-    uint32_t length = (usable_size - header_size_) / component_size_;
     // DCHECK(array->IsArrayInstance());
+    int32_t length = (usable_size - header_size_) / component_size_;
+    DCHECK_GE(length, minimum_length_);
+    byte* old_end = reinterpret_cast<byte*>(array->GetRawData(component_size_, minimum_length_));
+    byte* new_end = reinterpret_cast<byte*>(array->GetRawData(component_size_, length));
+    // Ensure space beyond original allocation is zeroed.
+    memset(old_end, 0, new_end - old_end);
     array->SetLength(length);
   }
 
  private:
+  const int32_t minimum_length_;
   const size_t header_size_;
   const size_t component_size_;
 
@@ -128,12 +134,14 @@ inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_c
         heap->AllocObjectWithAllocator<kIsInstrumented, true>(self, array_class, size,
                                                               allocator_type, visitor));
   } else {
-    SetLengthToUsableSizeVisitor visitor(HeaderSize(component_size), component_size);
+    SetLengthToUsableSizeVisitor visitor(component_count, HeaderSize(component_size),
+                                         component_size);
     result = down_cast<Array*>(
         heap->AllocObjectWithAllocator<kIsInstrumented, true>(self, array_class, size,
                                                               allocator_type, visitor));
   }
   if (kIsDebugBuild && result != nullptr && Runtime::Current()->IsStarted()) {
+    CHECK_EQ(array_class->GetComponentSize(), component_size);
     if (!fill_usable) {
       CHECK_EQ(result->SizeOf(), size);
     } else {

@@ -40,7 +40,7 @@ inline mirror::Class* ClassLinker::FindSystemClass(Thread* self, const char* des
 
 inline mirror::Class* ClassLinker::FindArrayClass(Thread* self, mirror::Class* element_class) {
   for (size_t i = 0; i < kFindArrayCacheSize; ++i) {
-    // Read the cached the array class once to avoid races with other threads setting it.
+    // Read the cached array class once to avoid races with other threads setting it.
     mirror::Class* array_class = find_array_class_cache_[i];
     if (array_class != nullptr && array_class->GetComponentType() == element_class) {
       return array_class;
