@@ -86,7 +86,8 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       forward_branches_(0),
       compiler_temps_(arena, 6, kGrowableArrayMisc),
       num_non_special_compiler_temps_(0),
-      max_available_non_special_compiler_temps_(0) {
+      max_available_non_special_compiler_temps_(0),
+      punt_to_interpreter_(false) {
   try_block_addr_ = new (arena_) ArenaBitVector(arena_, 0, true /* expandable */);
   max_available_special_compiler_temps_ = std::abs(static_cast<int>(kVRegNonSpecialTempBaseReg))
       - std::abs(static_cast<int>(kVRegTempBaseReg));
@@ -610,6 +611,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
     }
 
     int flags = Instruction::FlagsOf(insn->dalvikInsn.opcode);
+    int verify_flags = Instruction::VerifyFlagsOf(insn->dalvikInsn.opcode);
 
     uint64_t df_flags = oat_data_flow_attributes_[insn->dalvikInsn.opcode];
 
@@ -675,6 +677,19 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
                                   code_ptr, code_end);
     } else if (flags & Instruction::kSwitch) {
       cur_block = ProcessCanSwitch(cur_block, insn, current_offset_, width, flags);
+    }
+    if (verify_flags & Instruction::kVerifyVarArgRange) {
+      /*
+       * The Quick backend's runtime model includes a gap between a method's
+       * argument ("in") vregs and the rest of its vregs.  Handling a range instruction
+       * which spans the gap is somewhat complicated, and should not happen
+       * in normal usage of dx.  Punt to the interpreter.
+       */
+      int first_reg_in_range = insn->dalvikInsn.vC;
+      int last_reg_in_range = first_reg_in_range + insn->dalvikInsn.vA - 1;
+      if (IsInVReg(first_reg_in_range) != IsInVReg(last_reg_in_range)) {
+        punt_to_interpreter_ = true;
+      }
     }
     current_offset_ += width;
     BasicBlock *next_block = FindBlock(current_offset_, /* split */ false, /* create */

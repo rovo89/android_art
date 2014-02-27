@@ -1004,6 +1004,11 @@ bool MIRGraph::SkipCompilation() {
     return false;
   }
 
+  // Contains a pattern we don't want to compile?
+  if (punt_to_interpreter_) {
+    return true;
+  }
+
   if (compiler_filter == CompilerOptions::kInterpretOnly) {
     LOG(WARNING) << "InterpretOnly should ideally be filtered out prior to parsing.";
     return true;

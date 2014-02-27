@@ -422,6 +422,11 @@ class Instruction {
     return kInstructionFlags[opcode];
   }
 
+  // Return the verify flags for the given opcode.
+  static int VerifyFlagsOf(Code opcode) {
+    return kInstructionVerifyFlags[opcode];
+  }
+
   // Returns true if this instruction is a branch.
   bool IsBranch() const {
     return (kInstructionFlags[Opcode()] & kBranch) != 0;
