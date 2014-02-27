@@ -1550,6 +1550,9 @@ void ArmAssembler::LoadRef(ManagedRegister mdest, ManagedRegister base,
   CHECK(dst.IsCoreRegister() && dst.IsCoreRegister()) << dst;
   LoadFromOffset(kLoadWord, dst.AsCoreRegister(),
                  base.AsArm().AsCoreRegister(), offs.Int32Value());
+  if (kPoisonHeapReferences) {
+    rsb(dst.AsCoreRegister(), dst.AsCoreRegister(), ShifterOperand(0));
+  }
 }
 
 void ArmAssembler::LoadRef(ManagedRegister mdest, FrameOffset  src) {

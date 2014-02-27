@@ -1553,6 +1553,9 @@ void X86Assembler::LoadRef(ManagedRegister mdest, ManagedRegister base,
   X86ManagedRegister dest = mdest.AsX86();
   CHECK(dest.IsCpuRegister() && dest.IsCpuRegister());
   movl(dest.AsCpuRegister(), Address(base.AsX86().AsCpuRegister(), offs));
+  if (kPoisonHeapReferences) {
+    negl(dest.AsCpuRegister());
+  }
 }
 
 void X86Assembler::LoadRawPtr(ManagedRegister mdest, ManagedRegister base,
