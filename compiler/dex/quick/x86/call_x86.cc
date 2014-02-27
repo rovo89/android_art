@@ -40,7 +40,7 @@ void X86Mir2Lir::GenSparseSwitch(MIR* mir, DexOffset table_offset,
     int key = keys[i];
     BasicBlock* case_block =
         mir_graph_->FindBlock(current_dalvik_offset_ + targets[i]);
-    OpCmpImmBranch(kCondEq, rl_src.low_reg, key,
+    OpCmpImmBranch(kCondEq, rl_src.reg.GetReg(), key,
                    &block_label_list_[case_block->id]);
   }
 }
@@ -87,7 +87,7 @@ void X86Mir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
     // We can use the saved value.
     RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
     rl_method = LoadValue(rl_method, kCoreReg);
-    start_of_method_reg = rl_method.low_reg;
+    start_of_method_reg = rl_method.reg.GetReg();
     store_method_addr_used_ = true;
   } else {
     start_of_method_reg = AllocTemp();
@@ -97,10 +97,10 @@ void X86Mir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
   int keyReg;
   // Remove the bias, if necessary
   if (low_key == 0) {
-    keyReg = rl_src.low_reg;
+    keyReg = rl_src.reg.GetReg();
   } else {
     keyReg = AllocTemp();
-    OpRegRegImm(kOpSub, keyReg, rl_src.low_reg, low_key);
+    OpRegRegImm(kOpSub, keyReg, rl_src.reg.GetReg(), low_key);
   }
   // Bounds check - if < 0 or >= size continue following switch
   OpRegImm(kOpCmp, keyReg, size-1);
@@ -164,7 +164,7 @@ void X86Mir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
 void X86Mir2Lir::GenMoveException(RegLocation rl_dest) {
   int ex_offset = Thread::ExceptionOffset().Int32Value();
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  NewLIR2(kX86Mov32RT, rl_result.low_reg, ex_offset);
+  NewLIR2(kX86Mov32RT, rl_result.reg.GetReg(), ex_offset);
   NewLIR2(kX86Mov32TI, ex_offset, 0);
   StoreValue(rl_dest, rl_result);
 }

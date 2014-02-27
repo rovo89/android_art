@@ -126,13 +126,6 @@ namespace art {
 /* Mask to strip off fp flags */
 #define X86_FP_REG_MASK 0xF
 
-// RegisterLocation templates return values (rAX, rAX/rDX or XMM0).
-//                               location,     wide, defined, const, fp, core, ref, high_word, home, vec_len, low_reg, high_reg,     s_reg_low
-#define X86_LOC_C_RETURN             {kLocPhysReg, 0,    0,       0,     0,  0,    0,   0,        1,    kVectorNotUsed, rAX,    INVALID_REG, INVALID_SREG, INVALID_SREG}
-#define X86_LOC_C_RETURN_WIDE        {kLocPhysReg, 1,    0,       0,     0,  0,    0,   0,        1,    kVectorNotUsed, rAX,    rDX,         INVALID_SREG, INVALID_SREG}
-#define X86_LOC_C_RETURN_FLOAT       {kLocPhysReg, 0,    0,       0,     1,  0,    0,   0,        1,    kVectorLength4, fr0,    INVALID_REG, INVALID_SREG, INVALID_SREG}
-#define X86_LOC_C_RETURN_DOUBLE      {kLocPhysReg, 1,    0,       0,     1,  0,    0,   0,        1,    kVectorLength8, fr0,    fr0,         INVALID_SREG, INVALID_SREG}
-
 enum X86ResourceEncodingPos {
   kX86GPReg0   = 0,
   kX86RegSP    = 4,
@@ -210,6 +203,22 @@ enum X86NativeRegisterPool {
 #define rX86_SELF INVALID_REG
 #define rX86_COUNT rCX
 #define rX86_PC INVALID_REG
+
+// RegisterLocation templates return values (r_V0, or r_V0/r_V1).
+const RegLocation x86_loc_c_return
+    {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed,
+     RegStorage(RegStorage::k32BitSolo, rAX), INVALID_SREG, INVALID_SREG};
+const RegLocation x86_loc_c_return_wide
+    {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed,
+     RegStorage(RegStorage::k64BitPair, rAX, rDX), INVALID_SREG, INVALID_SREG};
+// TODO: update to use k32BitVector (must encode in 7 bits, including fp flag).
+const RegLocation x86_loc_c_return_float
+    {kLocPhysReg, 0, 0, 0, 1, 0, 0, 0, 1, kVectorLength4,
+     RegStorage(RegStorage::k32BitSolo, fr0), INVALID_SREG, INVALID_SREG};
+// TODO: update to use k64BitVector (must encode in 7 bits, including fp flag).
+const RegLocation x86_loc_c_return_double
+    {kLocPhysReg, 1, 0, 0, 1, 0, 0, 0, 1, kVectorLength8,
+     RegStorage(RegStorage::k64BitPair, fr0, fr0), INVALID_SREG, INVALID_SREG};
 
 /*
  * The following enum defines the list of supported X86 instructions by the

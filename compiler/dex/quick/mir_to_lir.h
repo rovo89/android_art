@@ -21,6 +21,7 @@
 #include "compiled_method.h"
 #include "dex/compiler_enums.h"
 #include "dex/compiler_ir.h"
+#include "dex/reg_storage.h"
 #include "dex/backend.h"
 #include "driver/compiler_driver.h"
 #include "leb128.h"
@@ -812,7 +813,7 @@ class Mir2Lir : public Backend {
     virtual bool IsFpReg(int reg) = 0;
     virtual bool SameRegType(int reg1, int reg2) = 0;
     virtual int AllocTypedTemp(bool fp_hint, int reg_class) = 0;
-    virtual int AllocTypedTempPair(bool fp_hint, int reg_class) = 0;
+    virtual RegStorage AllocTypedTempWide(bool fp_hint, int reg_class) = 0;
     virtual int S2d(int low_reg, int high_reg) = 0;
     virtual int TargetReg(SpecialTargetRegister reg) = 0;
     virtual int GetArgMappingToPhysicalReg(int arg_num) = 0;

@@ -379,16 +379,14 @@ void MIRGraph::DumpRegLocTable(RegLocation* table, int count) {
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu_->cg.get());
   if (cg != NULL) {
     for (int i = 0; i < count; i++) {
-      LOG(INFO) << StringPrintf("Loc[%02d] : %s, %c %c %c %c %c %c %c%d %c%d S%d",
+      LOG(INFO) << StringPrintf("Loc[%02d] : %s, %c %c %c %c %c %c 0x%04x S%d",
           table[i].orig_sreg, storage_name[table[i].location],
           table[i].wide ? 'W' : 'N', table[i].defined ? 'D' : 'U',
           table[i].fp ? 'F' : table[i].ref ? 'R' :'C',
           table[i].is_const ? 'c' : 'n',
           table[i].high_word ? 'H' : 'L', table[i].home ? 'h' : 't',
-          cg->IsFpReg(table[i].low_reg) ? 's' : 'r',
-          table[i].low_reg & cg->FpRegMask(),
-          cg->IsFpReg(table[i].high_reg) ? 's' : 'r',
-          table[i].high_reg & cg->FpRegMask(), table[i].s_reg_low);
+          table[i].reg.GetRawBits(),
+          table[i].s_reg_low);
     }
   } else {
     // Either pre-regalloc or Portable.
@@ -404,9 +402,9 @@ void MIRGraph::DumpRegLocTable(RegLocation* table, int count) {
   }
 }
 
-static const RegLocation fresh_loc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
-                                     kVectorNotUsed, INVALID_REG, INVALID_REG, INVALID_SREG,
-                                     INVALID_SREG};
+// FIXME - will likely need to revisit all uses of this.
+static const RegLocation fresh_loc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0, kVectorNotUsed,
+                                      RegStorage(), INVALID_SREG, INVALID_SREG};
 
 void MIRGraph::InitRegLocations() {
   /* Allocate the location map */

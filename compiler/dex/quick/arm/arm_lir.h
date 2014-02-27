@@ -117,14 +117,6 @@ namespace art {
 // Mask to strip off fp flags.
 #define ARM_FP_REG_MASK (ARM_FP_REG_OFFSET-1)
 
-// RegisterLocation templates return values (r0, or r0/r1).
-#define ARM_LOC_C_RETURN {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed, r0, INVALID_REG, \
-                          INVALID_SREG, INVALID_SREG}
-#define ARM_LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed, r0, r1, \
-                               INVALID_SREG, INVALID_SREG}
-#define ARM_LOC_C_RETURN_FLOAT  ARM_LOC_C_RETURN
-#define ARM_LOC_C_RETURN_DOUBLE  ARM_LOC_C_RETURN_WIDE
-
 enum ArmResourceEncodingPos {
   kArmGPReg0   = 0,
   kArmRegSP    = 13,
@@ -224,6 +216,20 @@ enum ArmNativeRegisterPool {
 #define rARM_RET1 r1
 #define rARM_INVOKE_TGT rARM_LR
 #define rARM_COUNT INVALID_REG
+
+// RegisterLocation templates return values (r0, or r0/r1).
+const RegLocation arm_loc_c_return
+    {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed,
+     RegStorage(RegStorage::k32BitSolo, r0), INVALID_SREG, INVALID_SREG};
+const RegLocation arm_loc_c_return_wide
+    {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed,
+     RegStorage(RegStorage::k64BitPair, r0, r1), INVALID_SREG, INVALID_SREG};
+const RegLocation arm_loc_c_return_float
+    {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed,
+     RegStorage(RegStorage::k32BitSolo, r0), INVALID_SREG, INVALID_SREG};
+const RegLocation arm_loc_c_return_double
+    {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, kVectorNotUsed,
+     RegStorage(RegStorage::k64BitPair, r0, r1), INVALID_SREG, INVALID_SREG};
 
 enum ArmShiftEncodings {
   kArmLsl = 0x0,
