@@ -22,7 +22,6 @@
 #include <ziparchive/zip_archive.h>
 
 #include "base/logging.h"
-#include "base/stringpiece.h"
 #include "base/unix_file/random_access_file.h"
 #include "globals.h"
 #include "mem_map.h"
