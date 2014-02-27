@@ -61,7 +61,8 @@ namespace gc {
 namespace collector {
 
 static constexpr bool kProtectFromSpace = true;
-static constexpr bool kResetFromSpace = true;
+static constexpr bool kClearFromSpace = true;
+static constexpr bool kStoreStackTraces = false;
 
 // TODO: Unduplicate logic.
 void SemiSpace::ImmuneSpace(space::ContinuousSpace* space) {
@@ -169,6 +170,19 @@ void SemiSpace::ProcessReferences(Thread* self) {
 }
 
 void SemiSpace::MarkingPhase() {
+  if (kStoreStackTraces) {
+    Locks::mutator_lock_->AssertExclusiveHeld(self_);
+    // Store the stack traces into the runtime fault string in case we get a heap corruption
+    // related crash later.
+    ThreadState old_state = self_->SetStateUnsafe(kRunnable);
+    std::ostringstream oss;
+    Runtime* runtime = Runtime::Current();
+    runtime->GetThreadList()->DumpForSigQuit(oss);
+    runtime->GetThreadList()->DumpNativeStacks(oss);
+    runtime->SetFaultMessage(oss.str());
+    CHECK_EQ(self_->SetStateUnsafe(old_state), kRunnable);
+  }
+
   if (generational_) {
     if (gc_cause_ == kGcCauseExplicit || gc_cause_ == kGcCauseForNativeAlloc ||
         clear_soft_references_) {
@@ -353,19 +367,17 @@ void SemiSpace::ReclaimPhase() {
     TimingLogger::ScopedSplit split("UnBindBitmaps", &timings_);
     GetHeap()->UnBindBitmaps();
   }
-  // Release the memory used by the from space.
-  if (kResetFromSpace) {
-    // Clearing from space.
+  if (kClearFromSpace) {
+    // Release the memory used by the from space.
     from_space_->Clear();
   }
+  from_space_->Reset();
   // Protect the from space.
-  VLOG(heap)
-      << "mprotect region " << reinterpret_cast<void*>(from_space_->Begin()) << " - "
-      << reinterpret_cast<void*>(from_space_->Limit());
+  VLOG(heap) << "Protecting space " << *from_space_;
   if (kProtectFromSpace) {
-    mprotect(from_space_->Begin(), from_space_->Capacity(), PROT_NONE);
+    from_space_->GetMemMap()->Protect(PROT_NONE);
   } else {
-    mprotect(from_space_->Begin(), from_space_->Capacity(), PROT_READ);
+    from_space_->GetMemMap()->Protect(PROT_READ);
   }
   if (saved_bytes_ > 0) {
     VLOG(heap) << "Avoided dirtying " << PrettySize(saved_bytes_);

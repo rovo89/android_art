@@ -80,6 +80,7 @@ class RosAllocSpace : public MallocSpace {
   void SetFootprintLimit(size_t limit) OVERRIDE;
 
   void Clear() OVERRIDE;
+  void Reset() OVERRIDE;
   MallocSpace* CreateInstance(const std::string& name, MemMap* mem_map, void* allocator,
                               byte* begin, byte* end, byte* limit, size_t growth_limit);
 

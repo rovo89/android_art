@@ -304,10 +304,13 @@ void RosAllocSpace::RevokeAllThreadLocalBuffers() {
 }
 
 void RosAllocSpace::Clear() {
-  // TODO: Delete and create new mspace here.
   madvise(GetMemMap()->Begin(), GetMemMap()->Size(), MADV_DONTNEED);
   GetLiveBitmap()->Clear();
   GetMarkBitmap()->Clear();
+}
+
+void RosAllocSpace::Reset() {
+  // TODO: Delete and create new mspace here.
 }
 
 }  // namespace space

@@ -318,6 +318,91 @@ void Heap::ChangeAllocator(AllocatorType allocator) {
   }
 }
 
+std::string Heap::SafeGetClassDescriptor(mirror::Class* klass) {
+  if (!IsValidContinuousSpaceObjectAddress(klass)) {
+    return StringPrintf("<non heap address klass %p>", klass);
+  }
+  mirror::Class* component_type = klass->GetComponentType<kVerifyNone>();
+  if (IsValidContinuousSpaceObjectAddress(component_type) && klass->IsArrayClass<kVerifyNone>()) {
+    std::string result("[");
+    result += SafeGetClassDescriptor(component_type);
+    return result;
+  } else if (UNLIKELY(klass->IsPrimitive<kVerifyNone>())) {
+    return Primitive::Descriptor(klass->GetPrimitiveType<kVerifyNone>());
+  } else if (UNLIKELY(klass->IsProxyClass())) {
+    return Runtime::Current()->GetClassLinker()->GetDescriptorForProxy(klass);
+  } else {
+    mirror::DexCache* dex_cache = klass->GetDexCache();
+    if (!IsValidContinuousSpaceObjectAddress(dex_cache)) {
+      return StringPrintf("<non heap address dex_cache %p>", dex_cache);
+    }
+    const DexFile* dex_file = dex_cache->GetDexFile();
+    uint16_t class_def_idx = klass->GetDexClassDefIndex();
+    if (class_def_idx == DexFile::kDexNoIndex16) {
+      return "<class def not found>";
+    }
+    const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_idx);
+    const DexFile::TypeId& type_id = dex_file->GetTypeId(class_def.class_idx_);
+    return dex_file->GetTypeDescriptor(type_id);
+  }
+}
+
+std::string Heap::SafePrettyTypeOf(mirror::Object* obj) {
+  if (obj == nullptr) {
+    return "null";
+  }
+  mirror::Class* klass = obj->GetClass<kVerifyNone>();
+  if (klass == nullptr) {
+    return "(class=null)";
+  }
+  std::string result(SafeGetClassDescriptor(klass));
+  if (obj->IsClass()) {
+    result += "<" + SafeGetClassDescriptor(obj->AsClass()) + ">";
+  }
+  return result;
+}
+
+void Heap::DumpObject(std::ostream& stream, mirror::Object* obj) {
+  if (obj == nullptr) {
+    stream << "(obj=null)";
+    return;
+  }
+  if (IsAligned<kObjectAlignment>(obj)) {
+    space::Space* space = nullptr;
+    // Don't use find space since it only finds spaces which actually contain objects instead of
+    // spaces which may contain objects (e.g. cleared bump pointer spaces).
+    for (const auto& cur_space : continuous_spaces_) {
+      if (cur_space->HasAddress(obj)) {
+        space = cur_space;
+        break;
+      }
+    }
+    if (space == nullptr) {
+      if (allocator_mem_map_.get() == nullptr || !allocator_mem_map_->HasAddress(obj)) {
+        stream << "obj " << obj << " not a valid heap address";
+        return;
+      } else if (allocator_mem_map_.get() != nullptr) {
+        allocator_mem_map_->Protect(PROT_READ | PROT_WRITE);
+      }
+    }
+    // Unprotect all the spaces.
+    for (const auto& space : continuous_spaces_) {
+      mprotect(space->Begin(), space->Capacity(), PROT_READ | PROT_WRITE);
+    }
+    stream << "Object " << obj;
+    if (space != nullptr) {
+      stream << " in space " << *space;
+    }
+    mirror::Class* klass = obj->GetClass();
+    stream << "\nclass=" << klass;
+    if (klass != nullptr) {
+      stream << " type= " << SafePrettyTypeOf(obj);
+    }
+    // Re-protect the address we faulted on.
+    mprotect(AlignDown(obj, kPageSize), kPageSize, PROT_NONE);
+  }
+}
+
 bool Heap::IsCompilingBoot() const {
   for (const auto& space : continuous_spaces_) {
     if (space->IsImageSpace() || space->IsZygoteSpace()) {
@@ -809,16 +894,23 @@ bool Heap::IsValidObjectAddress(const mirror::Object* obj) const {
   if (obj == nullptr) {
     return true;
   }
-  return IsAligned<kObjectAlignment>(obj) && IsHeapAddress(obj);
+  return IsAligned<kObjectAlignment>(obj) && FindSpaceFromObject(obj, true) != nullptr;
 }
 
 bool Heap::IsNonDiscontinuousSpaceHeapAddress(const mirror::Object* obj) const {
   return FindContinuousSpaceFromObject(obj, true) != nullptr;
 }
 
-bool Heap::IsHeapAddress(const mirror::Object* obj) const {
-  // TODO: This might not work for large objects.
-  return FindSpaceFromObject(obj, true) != nullptr;
+bool Heap::IsValidContinuousSpaceObjectAddress(const mirror::Object* obj) const {
+  if (obj == nullptr || !IsAligned<kObjectAlignment>(obj)) {
+    return false;
+  }
+  for (const auto& space : continuous_spaces_) {
+    if (space->HasAddress(obj)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 bool Heap::IsLiveObjectLocked(mirror::Object* obj, bool search_allocation_stack,
@@ -1539,6 +1631,7 @@ void Heap::MarkAllocStack(accounting::SpaceBitmap* bitmap1,
 void Heap::SwapSemiSpaces() {
   // Swap the spaces so we allocate into the space which we just evacuated.
   std::swap(bump_pointer_space_, temp_space_);
+  bump_pointer_space_->Clear();
 }
 
 void Heap::Compact(space::ContinuousMemMapAllocSpace* target_space,
@@ -1616,7 +1709,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
     CHECK(temp_space_->IsEmpty());
     semi_space_collector_->SetFromSpace(bump_pointer_space_);
     semi_space_collector_->SetToSpace(temp_space_);
-    mprotect(temp_space_->Begin(), temp_space_->Capacity(), PROT_READ | PROT_WRITE);
+    temp_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
     collector = semi_space_collector_;
     gc_type = collector::kGcTypeFull;
   } else if (current_allocator_ == kAllocatorTypeRosAlloc ||

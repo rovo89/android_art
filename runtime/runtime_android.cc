@@ -14,12 +14,58 @@
  * limitations under the License.
  */
 
-#include "runtime.h"
+#include <signal.h>
+#include <string.h>
+#include <sys/utsname.h>
+#include <inttypes.h>
+
+#include "base/logging.h"
+#include "base/mutex.h"
+#include "base/stringprintf.h"
+#include "thread-inl.h"
+#include "utils.h"
 
 namespace art {
 
+struct sigaction old_action;
+void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_context) {
+  static bool handlingUnexpectedSignal = false;
+  if (handlingUnexpectedSignal) {
+    LogMessageData data(__FILE__, __LINE__, INTERNAL_FATAL, -1);
+    LogMessage::LogLine(data, "HandleUnexpectedSignal reentered\n");
+    _exit(1);
+  }
+  handlingUnexpectedSignal = true;
+  gAborting++;  // set before taking any locks
+  MutexLock mu(Thread::Current(), *Locks::unexpected_signal_lock_);
+
+  Runtime* runtime = Runtime::Current();
+  if (runtime != nullptr) {
+    // Print this out first in case DumpObject faults.
+    LOG(INTERNAL_FATAL) << "Fault message: " << runtime->GetFaultMessage();
+    gc::Heap* heap = runtime->GetHeap();
+    if (heap != nullptr && info != nullptr) {
+      LOG(INTERNAL_FATAL) << "Dump heap object at fault address: ";
+      heap->DumpObject(LOG(INTERNAL_FATAL), reinterpret_cast<mirror::Object*>(info->si_addr));
+    }
+  }
+  // Run the old signal handler.
+  old_action.sa_sigaction(signal_number, info, raw_context);
+}
+
 void Runtime::InitPlatformSignalHandlers() {
-  // On a device, debuggerd will give us a stack trace. Nothing to do here.
+  // On the host, we don't have debuggerd to dump a stack for us when something unexpected happens.
+  struct sigaction action;
+  memset(&action, 0, sizeof(action));
+  sigemptyset(&action.sa_mask);
+  action.sa_sigaction = HandleUnexpectedSignal;
+  // Use the three-argument sa_sigaction handler.
+  action.sa_flags |= SA_SIGINFO;
+  // Use the alternate signal stack so we can catch stack overflows.
+  action.sa_flags |= SA_ONSTACK;
+  int rc = 0;
+  rc += sigaction(SIGSEGV, &action, &old_action);
+  CHECK_EQ(rc, 0);
 }
 
 }  // namespace art
