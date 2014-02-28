@@ -43,6 +43,13 @@ class HGraph : public ArenaObject {
   ArenaAllocator* arena() const { return arena_; }
   const GrowableArray<HBasicBlock*>* blocks() const { return &blocks_; }
 
+  HBasicBlock* entry_block() const { return entry_block_; }
+  HBasicBlock* exit_block() const { return exit_block_; }
+
+  void set_entry_block(HBasicBlock* block) { entry_block_ = block; }
+  void set_exit_block(HBasicBlock* block) { exit_block_ = block; }
+
+
   void AddBlock(HBasicBlock* block);
   void BuildDominatorTree();
 
@@ -57,8 +64,6 @@ class HGraph : public ArenaObject {
                               ArenaBitVector* visiting) const;
   void RemoveDeadBlocks(const ArenaBitVector& visited) const;
 
-  HBasicBlock* GetEntryBlock() const { return blocks_.Get(0); }
-
   ArenaAllocator* const arena_;
 
   // List of blocks in insertion order.
@@ -66,6 +71,9 @@ class HGraph : public ArenaObject {
 
   // List of blocks to perform a pre-order dominator tree traversal.
   GrowableArray<HBasicBlock*> dominator_order_;
+
+  HBasicBlock* entry_block_;
+  HBasicBlock* exit_block_;
 
   DISALLOW_COPY_AND_ASSIGN(HGraph);
 };
@@ -174,11 +182,14 @@ class HBasicBlock : public ArenaObject {
 
 class HInstruction : public ArenaObject {
  public:
-  HInstruction() : previous_(nullptr), next_(nullptr) { }
+  HInstruction() : previous_(nullptr), next_(nullptr), block_(nullptr) { }
   virtual ~HInstruction() { }
 
   HInstruction* next() const { return next_; }
   HInstruction* previous() const { return previous_; }
+
+  HBasicBlock* block() const { return block_; }
+  void set_block(HBasicBlock* block) { block_ = block; }
 
   virtual intptr_t InputCount() const  = 0;
   virtual HInstruction* InputAt(intptr_t i) const = 0;
@@ -189,6 +200,7 @@ class HInstruction : public ArenaObject {
  private:
   HInstruction* previous_;
   HInstruction* next_;
+  HBasicBlock* block_;
 
   friend class HBasicBlock;
 
@@ -304,6 +316,10 @@ class HGoto : public HTemplateInstruction<0> {
  public:
   HGoto() { }
 
+  HBasicBlock* GetSuccessor() const {
+    return block()->successors()->Get(0);
+  }
+
   DECLARE_INSTRUCTION(Goto)
 
  private:
@@ -332,6 +348,8 @@ class HGraphVisitor : public ValueObject {
   virtual void VisitBasicBlock(HBasicBlock* block);
 
   void VisitInsertionOrder();
+
+  HGraph* graph() const { return graph_; }
 
   // Visit functions for instruction classes.
 #define DECLARE_VISIT_INSTRUCTION(name)                                        \

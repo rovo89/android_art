@@ -26,7 +26,7 @@ void HGraph::AddBlock(HBasicBlock* block) {
 
 void HGraph::FindBackEdges(ArenaBitVector* visited) const {
   ArenaBitVector visiting(arena_, blocks_.Size(), false);
-  VisitBlockForBackEdges(GetEntryBlock(), visited, &visiting);
+  VisitBlockForBackEdges(entry_block_, visited, &visiting);
 }
 
 void HGraph::RemoveDeadBlocks(const ArenaBitVector& visited) const {
@@ -75,10 +75,9 @@ void HGraph::BuildDominatorTree() {
   //     have been processed.
   GrowableArray<size_t> visits(arena_, blocks_.Size());
   visits.SetSize(blocks_.Size());
-  HBasicBlock* entry = GetEntryBlock();
-  dominator_order_.Add(entry);
-  for (size_t i = 0; i < entry->successors()->Size(); i++) {
-    VisitBlockForDominatorTree(entry->successors()->Get(i), entry, &visits);
+  dominator_order_.Add(entry_block_);
+  for (size_t i = 0; i < entry_block_->successors()->Size(); i++) {
+    VisitBlockForDominatorTree(entry_block_->successors()->Get(i), entry_block_, &visits);
   }
 }
 
@@ -122,6 +121,7 @@ void HGraph::VisitBlockForDominatorTree(HBasicBlock* block,
 }
 
 void HBasicBlock::AddInstruction(HInstruction* instruction) {
+  instruction->set_block(this);
   if (first_instruction_ == nullptr) {
     DCHECK(last_instruction_ == nullptr);
     first_instruction_ = last_instruction_ = instruction;
