@@ -499,18 +499,21 @@ LIR* ArmMir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src1, int value) {
         else
           opcode = (neg) ? kThumbAddRRI3 : kThumbSubRRI3;
         return NewLIR3(opcode, r_dest, r_src1, abs_value);
-      } else if ((abs_value & 0x3ff) == abs_value) {
-        if (op == kOpAdd)
-          opcode = (neg) ? kThumb2SubRRI12 : kThumb2AddRRI12;
-        else
-          opcode = (neg) ? kThumb2AddRRI12 : kThumb2SubRRI12;
-        return NewLIR3(opcode, r_dest, r_src1, abs_value);
       }
       if (mod_imm < 0) {
         mod_imm = ModifiedImmediate(-value);
         if (mod_imm >= 0) {
           op = (op == kOpAdd) ? kOpSub : kOpAdd;
         }
+      }
+      if (mod_imm < 0 && (abs_value & 0x3ff) == abs_value) {
+        // This is deliberately used only if modified immediate encoding is inadequate since
+        // we sometimes actually use the flags for small values but not necessarily low regs.
+        if (op == kOpAdd)
+          opcode = (neg) ? kThumb2SubRRI12 : kThumb2AddRRI12;
+        else
+          opcode = (neg) ? kThumb2AddRRI12 : kThumb2SubRRI12;
+        return NewLIR3(opcode, r_dest, r_src1, abs_value);
       }
       if (op == kOpSub) {
         opcode = kThumb2SubRRI8M;
