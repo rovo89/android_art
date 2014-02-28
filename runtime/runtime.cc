@@ -335,8 +335,6 @@ jobject CreateSystemClassLoader() {
 bool Runtime::Start() {
   VLOG(startup) << "Runtime::Start entering";
 
-  CHECK(host_prefix_.empty()) << host_prefix_;
-
   // Restore main thread state to kNative as expected by native code.
   Thread* self = Thread::Current();
   self->TransitionFromRunnableToSuspended(kNative);
@@ -477,7 +475,6 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
 
   Monitor::Init(options->lock_profiling_threshold_, options->hook_is_sensitive_thread_);
 
-  host_prefix_ = options->host_prefix_;
   boot_class_path_string_ = options->boot_class_path_string_;
   class_path_string_ = options->class_path_string_;
   properties_ = options->properties_;

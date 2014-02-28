@@ -824,13 +824,11 @@ bool ClassLinker::VerifyOatFileChecksums(const OatFile* oat_file,
 
   if (!image_check) {
     ScopedObjectAccess soa(Thread::Current());
-    mirror::String* oat_location = image_header.GetImageRoot(ImageHeader::kOatLocation)->AsString();
-    std::string image_file(oat_location->ToModifiedUtf8());
-    *error_msg = StringPrintf("oat file '%s' mismatch (0x%x, %d) with '%s' (0x%x, %" PRIdPTR ")",
+    *error_msg = StringPrintf("oat file '%s' mismatch (0x%x, %d) with (0x%x, %" PRIdPTR ")",
                               oat_file->GetLocation().c_str(),
                               oat_file->GetOatHeader().GetImageFileLocationOatChecksum(),
                               oat_file->GetOatHeader().GetImageFileLocationOatDataBegin(),
-                              image_file.c_str(), image_oat_checksum, image_oat_data_begin);
+                              image_oat_checksum, image_oat_data_begin);
   }
   if (!dex_check) {
     *error_msg = StringPrintf("oat file '%s' mismatch (0x%x) with '%s' (0x%x)",

@@ -115,7 +115,7 @@ test-art-target-oat-$(1): $(ART_TEST_OUT)/oat-test-dex-$(1).jar test-art-target-
 	$(hide) rm /tmp/test-art-target-oat-$(1)
 
 $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).odex: $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar $(HOST_CORE_IMG_OUT) | $(DEX2OAT)
-	$(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --boot-image=$(HOST_CORE_IMG_OUT) --dex-file=$(PWD)/$$< --oat-file=$(PWD)/$$@ --instruction-set=$(HOST_ARCH) --host --host-prefix="" --android-root=$(HOST_OUT)
+	$(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --boot-image=$(HOST_CORE_IMG_OUT) --dex-file=$(PWD)/$$< --oat-file=$(PWD)/$$@ --instruction-set=$(HOST_ARCH) --host --android-root=$(HOST_OUT)
 
 .PHONY: test-art-host-oat-default-$(1)
 test-art-host-oat-default-$(1): $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).odex test-art-host-dependencies

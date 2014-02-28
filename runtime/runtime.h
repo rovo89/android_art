@@ -100,11 +100,6 @@ class Runtime {
     return image_compiler_options_;
   }
 
-  const std::string& GetHostPrefix() const {
-    DCHECK(!IsStarted());
-    return host_prefix_;
-  }
-
   // Starts a runtime, which may cause threads to be started and code to run.
   bool Start() UNLOCK_FUNCTION(Locks::mutator_lock_);
 
@@ -418,18 +413,6 @@ class Runtime {
 
   std::vector<std::string> compiler_options_;
   std::vector<std::string> image_compiler_options_;
-
-  // The host prefix is used during cross compilation. It is removed
-  // from the start of host paths such as:
-  //    $ANDROID_PRODUCT_OUT/system/framework/boot.oat
-  // to produce target paths such as
-  //    /system/framework/boot.oat
-  // Similarly it is prepended to target paths to arrive back at a
-  // host past. In both cases this is necessary because image and oat
-  // files embedded expect paths of dependent files (an image points
-  // to an oat file and an oat files to one or more dex files). These
-  // files contain the expected target path.
-  std::string host_prefix_;
 
   std::string boot_class_path_string_;
   std::string class_path_string_;
