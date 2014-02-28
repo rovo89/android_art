@@ -1232,8 +1232,8 @@ bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg) {
 
     execv(program, &args[0]);
 
-    PLOG(FATAL) << "Failed to execv(" << command_line << ")";
-    return false;
+    PLOG(ERROR) << "Failed to execv(" << command_line << ")";
+    exit(1);
   } else {
     if (pid == -1) {
       *error_msg = StringPrintf("Failed to execv(%s) because fork failed: %s",
