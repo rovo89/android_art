@@ -135,10 +135,11 @@ class QuickBackend : public CompilerBackend {
   }
 
   bool WriteElf(art::File* file,
-                OatWriter& oat_writer,
+                OatWriter* oat_writer,
                 const std::vector<const art::DexFile*>& dex_files,
                 const std::string& android_root,
                 bool is_host, const CompilerDriver& driver) const
+    OVERRIDE
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return art::ElfWriterQuick::Create(file, oat_writer, dex_files, android_root, is_host, driver);
   }
@@ -249,11 +250,12 @@ class LLVMBackend : public CompilerBackend {
   }
 
   bool WriteElf(art::File* file,
-                OatWriter& oat_writer,
+                OatWriter* oat_writer,
                 const std::vector<const art::DexFile*>& dex_files,
                 const std::string& android_root,
                 bool is_host, const CompilerDriver& driver) const
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      OVERRIDE
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return art::ElfWriterMclinker::Create(
         file, oat_writer, dex_files, android_root, is_host, driver);
   }
@@ -271,15 +273,17 @@ class LLVMBackend : public CompilerBackend {
         (1 << kSuppressExceptionEdges);
   }
 
-  bool isPortable() const { return true; }
+  bool IsPortable() const OVERRIDE {
+    return true;
+  }
 
-  void SetBitcodeFileName(std::string const& filename) {
-    typedef void (*SetBitcodeFileNameFn)(CompilerDriver&, std::string const&);
+  void SetBitcodeFileName(const CompilerDriver& driver, const std::string& filename) {
+    typedef void (*SetBitcodeFileNameFn)(const CompilerDriver&, const std::string&);
 
     SetBitcodeFileNameFn set_bitcode_file_name =
       reinterpret_cast<SetBitcodeFileNameFn>(compilerLLVMSetBitcodeFileName);
 
-    set_bitcode_file_name(*this, filename);
+    set_bitcode_file_name(driver, filename);
   }
 
  private:

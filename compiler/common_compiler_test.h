@@ -353,7 +353,7 @@ class CommonCompilerTest : public CommonRuntimeTest {
     CHECK(method != nullptr);
     TimingLogger timings("CommonTest::CompileMethod", false, false);
     timings.StartSplit("CompileOne");
-    compiler_driver_->CompileOne(method, timings);
+    compiler_driver_->CompileOne(method, &timings);
     MakeExecutable(method);
     timings.EndSplit();
   }

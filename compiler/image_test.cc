@@ -49,15 +49,15 @@ TEST_F(ImageTest, WriteRead) {
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
       TimingLogger timings("ImageTest::WriteRead", false, false);
       timings.StartSplit("CompileAll");
-#if defined(ART_USE_PORTABLE_COMPILER)
-      // TODO: we disable this for portable so the test executes in a reasonable amount of time.
-      //       We shouldn't need to do this.
-      runtime_->SetCompilerFilter(Runtime::kInterpretOnly);
-#endif
+      if (kUsePortableCompiler) {
+        // TODO: we disable this for portable so the test executes in a reasonable amount of time.
+        //       We shouldn't need to do this.
+        compiler_options_->SetCompilerFilter(CompilerOptions::kInterpretOnly);
+      }
       for (const DexFile* dex_file : class_linker->GetBootClassPath()) {
         dex_file->EnableWrite();
       }
-      compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), timings);
+      compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), &timings);
 
       ScopedObjectAccess soa(Thread::Current());
       OatWriter oat_writer(class_linker->GetBootClassPath(),
@@ -65,7 +65,7 @@ TEST_F(ImageTest, WriteRead) {
       bool success = compiler_driver_->WriteElf(GetTestAndroidRoot(),
                                                 !kIsTargetBuild,
                                                 class_linker->GetBootClassPath(),
-                                                oat_writer,
+                                                &oat_writer,
                                                 tmp_elf.GetFile());
       ASSERT_TRUE(success);
       timings.EndSplit();

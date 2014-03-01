@@ -128,7 +128,7 @@ void CompilationUnit::EndTiming() {
   }
 }
 
-static CompiledMethod* CompileMethod(CompilerDriver& compiler,
+static CompiledMethod* CompileMethod(CompilerDriver& driver,
                                      CompilerBackend* compiler_backend,
                                      const DexFile::CodeItem* code_item,
                                      uint32_t access_flags, InvokeType invoke_type,
@@ -143,11 +143,11 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
   }
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  CompilationUnit cu(&compiler.GetArenaPool());
+  CompilationUnit cu(driver.GetArenaPool());
 
-  cu.compiler_driver = &compiler;
+  cu.compiler_driver = &driver;
   cu.class_linker = class_linker;
-  cu.instruction_set = compiler.GetInstructionSet();
+  cu.instruction_set = driver.GetInstructionSet();
   cu.compiler_backend = compiler_backend;
   DCHECK((cu.instruction_set == kThumb2) ||
          (cu.instruction_set == kX86) ||
@@ -216,8 +216,8 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
   }
 
   /* Create the pass driver and launch it */
-  PassDriver driver(&cu);
-  driver.Launch();
+  PassDriver pass_driver(&cu);
+  pass_driver.Launch();
 
   if (cu.enable_debug & (1 << kDebugDumpCheckStats)) {
     cu.mir_graph->DumpCheckStats();
@@ -257,9 +257,9 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
   }
 
   cu.EndTiming();
-  compiler.GetTimingsLogger().Start();
-  compiler.GetTimingsLogger().AddLogger(cu.timings);
-  compiler.GetTimingsLogger().End();
+  driver.GetTimingsLogger()->Start();
+  driver.GetTimingsLogger()->AddLogger(cu.timings);
+  driver.GetTimingsLogger()->End();
   return result;
 }
 

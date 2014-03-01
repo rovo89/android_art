@@ -229,7 +229,7 @@ size_t OatWriter::InitOatClasses(size_t offset) {
       oat_classes_.push_back(oat_class);
       offset += oat_class->SizeOf();
     }
-    oat_dex_files_[i]->UpdateChecksum(*oat_header_);
+    oat_dex_files_[i]->UpdateChecksum(oat_header_);
   }
   return offset;
 }
@@ -293,7 +293,7 @@ size_t OatWriter::InitOatCodeDexFile(size_t offset,
        class_def_index++, (*oat_class_index)++) {
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
     offset = InitOatCodeClassDef(offset, *oat_class_index, class_def_index, dex_file, class_def);
-    oat_classes_[*oat_class_index]->UpdateChecksum(*oat_header_);
+    oat_classes_[*oat_class_index]->UpdateChecksum(oat_header_);
   }
   return offset;
 }
@@ -499,42 +499,42 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
 }
 
 #define DCHECK_OFFSET() \
-  DCHECK_EQ(static_cast<off_t>(file_offset + relative_offset), out.Seek(0, kSeekCurrent)) \
+  DCHECK_EQ(static_cast<off_t>(file_offset + relative_offset), out->Seek(0, kSeekCurrent)) \
     << "file_offset=" << file_offset << " relative_offset=" << relative_offset
 
 #define DCHECK_OFFSET_() \
-  DCHECK_EQ(static_cast<off_t>(file_offset + offset_), out.Seek(0, kSeekCurrent)) \
+  DCHECK_EQ(static_cast<off_t>(file_offset + offset_), out->Seek(0, kSeekCurrent)) \
     << "file_offset=" << file_offset << " offset_=" << offset_
 
-bool OatWriter::Write(OutputStream& out) {
-  const size_t file_offset = out.Seek(0, kSeekCurrent);
+bool OatWriter::Write(OutputStream* out) {
+  const size_t file_offset = out->Seek(0, kSeekCurrent);
 
-  if (!out.WriteFully(oat_header_, sizeof(*oat_header_))) {
-    PLOG(ERROR) << "Failed to write oat header to " << out.GetLocation();
+  if (!out->WriteFully(oat_header_, sizeof(*oat_header_))) {
+    PLOG(ERROR) << "Failed to write oat header to " << out->GetLocation();
     return false;
   }
   size_oat_header_ += sizeof(*oat_header_);
 
-  if (!out.WriteFully(image_file_location_.data(), image_file_location_.size())) {
-    PLOG(ERROR) << "Failed to write oat header image file location to " << out.GetLocation();
+  if (!out->WriteFully(image_file_location_.data(), image_file_location_.size())) {
+    PLOG(ERROR) << "Failed to write oat header image file location to " << out->GetLocation();
     return false;
   }
   size_oat_header_image_file_location_ += image_file_location_.size();
 
   if (!WriteTables(out, file_offset)) {
-    LOG(ERROR) << "Failed to write oat tables to " << out.GetLocation();
+    LOG(ERROR) << "Failed to write oat tables to " << out->GetLocation();
     return false;
   }
 
   size_t relative_offset = WriteCode(out, file_offset);
   if (relative_offset == 0) {
-    LOG(ERROR) << "Failed to write oat code to " << out.GetLocation();
+    LOG(ERROR) << "Failed to write oat code to " << out->GetLocation();
     return false;
   }
 
   relative_offset = WriteCodeDexFiles(out, file_offset, relative_offset);
   if (relative_offset == 0) {
-    LOG(ERROR) << "Failed to write oat code for dex files to " << out.GetLocation();
+    LOG(ERROR) << "Failed to write oat code for dex files to " << out->GetLocation();
     return false;
   }
 
@@ -577,26 +577,26 @@ bool OatWriter::Write(OutputStream& out) {
     #undef DO_STAT
 
     VLOG(compiler) << "size_total=" << PrettySize(size_total) << " (" << size_total << "B)"; \
-    CHECK_EQ(file_offset + size_total, static_cast<uint32_t>(out.Seek(0, kSeekCurrent)));
+    CHECK_EQ(file_offset + size_total, static_cast<uint32_t>(out->Seek(0, kSeekCurrent)));
     CHECK_EQ(size_, size_total);
   }
 
-  CHECK_EQ(file_offset + size_, static_cast<uint32_t>(out.Seek(0, kSeekCurrent)));
+  CHECK_EQ(file_offset + size_, static_cast<uint32_t>(out->Seek(0, kSeekCurrent)));
   CHECK_EQ(size_, relative_offset);
 
   return true;
 }
 
-bool OatWriter::WriteTables(OutputStream& out, const size_t file_offset) {
+bool OatWriter::WriteTables(OutputStream* out, const size_t file_offset) {
   for (size_t i = 0; i != oat_dex_files_.size(); ++i) {
     if (!oat_dex_files_[i]->Write(this, out, file_offset)) {
-      PLOG(ERROR) << "Failed to write oat dex information to " << out.GetLocation();
+      PLOG(ERROR) << "Failed to write oat dex information to " << out->GetLocation();
       return false;
     }
   }
   for (size_t i = 0; i != oat_dex_files_.size(); ++i) {
     uint32_t expected_offset = file_offset + oat_dex_files_[i]->dex_file_offset_;
-    off_t actual_offset = out.Seek(expected_offset, kSeekSet);
+    off_t actual_offset = out->Seek(expected_offset, kSeekSet);
     if (static_cast<uint32_t>(actual_offset) != expected_offset) {
       const DexFile* dex_file = (*dex_files_)[i];
       PLOG(ERROR) << "Failed to seek to dex file section. Actual: " << actual_offset
@@ -604,29 +604,29 @@ bool OatWriter::WriteTables(OutputStream& out, const size_t file_offset) {
       return false;
     }
     const DexFile* dex_file = (*dex_files_)[i];
-    if (!out.WriteFully(&dex_file->GetHeader(), dex_file->GetHeader().file_size_)) {
+    if (!out->WriteFully(&dex_file->GetHeader(), dex_file->GetHeader().file_size_)) {
       PLOG(ERROR) << "Failed to write dex file " << dex_file->GetLocation()
-                  << " to " << out.GetLocation();
+                  << " to " << out->GetLocation();
       return false;
     }
     size_dex_file_ += dex_file->GetHeader().file_size_;
   }
   for (size_t i = 0; i != oat_classes_.size(); ++i) {
     if (!oat_classes_[i]->Write(this, out, file_offset)) {
-      PLOG(ERROR) << "Failed to write oat methods information to " << out.GetLocation();
+      PLOG(ERROR) << "Failed to write oat methods information to " << out->GetLocation();
       return false;
     }
   }
   return true;
 }
 
-size_t OatWriter::WriteCode(OutputStream& out, const size_t file_offset) {
+size_t OatWriter::WriteCode(OutputStream* out, const size_t file_offset) {
   size_t relative_offset = oat_header_->GetExecutableOffset();
-  off_t new_offset = out.Seek(size_executable_offset_alignment_, kSeekCurrent);
+  off_t new_offset = out->Seek(size_executable_offset_alignment_, kSeekCurrent);
   size_t expected_file_offset = file_offset + relative_offset;
   if (static_cast<uint32_t>(new_offset) != expected_file_offset) {
     PLOG(ERROR) << "Failed to seek to oat code section. Actual: " << new_offset
-                << " Expected: " << expected_file_offset << " File: " << out.GetLocation();
+                << " Expected: " << expected_file_offset << " File: " << out->GetLocation();
     return 0;
   }
   DCHECK_OFFSET();
@@ -637,10 +637,10 @@ size_t OatWriter::WriteCode(OutputStream& out, const size_t file_offset) {
       do { \
         uint32_t aligned_offset = CompiledCode::AlignCode(relative_offset, instruction_set); \
         uint32_t alignment_padding = aligned_offset - relative_offset; \
-        out.Seek(alignment_padding, kSeekCurrent); \
+        out->Seek(alignment_padding, kSeekCurrent); \
         size_trampoline_alignment_ += alignment_padding; \
-        if (!out.WriteFully(&(*field)[0], field->size())) { \
-          PLOG(ERROR) << "Failed to write " # field " to " << out.GetLocation(); \
+        if (!out->WriteFully(&(*field)[0], field->size())) { \
+          PLOG(ERROR) << "Failed to write " # field " to " << out->GetLocation(); \
           return false; \
         } \
         size_ ## field += field->size(); \
@@ -662,7 +662,7 @@ size_t OatWriter::WriteCode(OutputStream& out, const size_t file_offset) {
   return relative_offset;
 }
 
-size_t OatWriter::WriteCodeDexFiles(OutputStream& out,
+size_t OatWriter::WriteCodeDexFiles(OutputStream* out,
                                     const size_t file_offset,
                                     size_t relative_offset) {
   size_t oat_class_index = 0;
@@ -678,7 +678,7 @@ size_t OatWriter::WriteCodeDexFiles(OutputStream& out,
   return relative_offset;
 }
 
-size_t OatWriter::WriteCodeDexFile(OutputStream& out, const size_t file_offset,
+size_t OatWriter::WriteCodeDexFile(OutputStream* out, const size_t file_offset,
                                    size_t relative_offset, size_t* oat_class_index,
                                    const DexFile& dex_file) {
   for (size_t class_def_index = 0; class_def_index < dex_file.NumClassDefs();
@@ -694,12 +694,12 @@ size_t OatWriter::WriteCodeDexFile(OutputStream& out, const size_t file_offset,
 }
 
 void OatWriter::ReportWriteFailure(const char* what, uint32_t method_idx,
-                                   const DexFile& dex_file, OutputStream& out) const {
+                                   const DexFile& dex_file, const OutputStream& out) const {
   PLOG(ERROR) << "Failed to write " << what << " for " << PrettyMethod(method_idx, dex_file)
       << " to " << out.GetLocation();
 }
 
-size_t OatWriter::WriteCodeClassDef(OutputStream& out,
+size_t OatWriter::WriteCodeClassDef(OutputStream* out,
                                     const size_t file_offset,
                                     size_t relative_offset,
                                     size_t oat_class_index,
@@ -747,7 +747,7 @@ size_t OatWriter::WriteCodeClassDef(OutputStream& out,
   return relative_offset;
 }
 
-size_t OatWriter::WriteCodeMethod(OutputStream& out, const size_t file_offset,
+size_t OatWriter::WriteCodeMethod(OutputStream* out, const size_t file_offset,
                                   size_t relative_offset, size_t oat_class_index,
                                   size_t class_def_method_index, size_t* method_offsets_index,
                                   bool is_static, uint32_t method_idx, const DexFile& dex_file) {
@@ -763,12 +763,12 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, const size_t file_offset,
       uint32_t aligned_offset = compiled_method->AlignCode(relative_offset);
       uint32_t aligned_code_delta = aligned_offset - relative_offset;
       if (aligned_code_delta != 0) {
-        off_t new_offset = out.Seek(aligned_code_delta, kSeekCurrent);
+        off_t new_offset = out->Seek(aligned_code_delta, kSeekCurrent);
         size_code_alignment_ += aligned_code_delta;
         uint32_t expected_offset = file_offset + aligned_offset;
         if (static_cast<uint32_t>(new_offset) != expected_offset) {
           PLOG(ERROR) << "Failed to seek to align oat code. Actual: " << new_offset
-              << " Expected: " << expected_offset << " File: " << out.GetLocation();
+              << " Expected: " << expected_offset << " File: " << out->GetLocation();
           return 0;
         }
         relative_offset += aligned_code_delta;
@@ -787,15 +787,15 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, const size_t file_offset,
               << PrettyMethod(method_idx, dex_file);
       } else {
         DCHECK(code_offset == method_offsets.code_offset_) << PrettyMethod(method_idx, dex_file);
-        if (!out.WriteFully(&code_size, sizeof(code_size))) {
-          ReportWriteFailure("method code size", method_idx, dex_file, out);
+        if (!out->WriteFully(&code_size, sizeof(code_size))) {
+          ReportWriteFailure("method code size", method_idx, dex_file, *out);
           return 0;
         }
         size_code_size_ += sizeof(code_size);
         relative_offset += sizeof(code_size);
         DCHECK_OFFSET();
-        if (!out.WriteFully(&(*quick_code)[0], code_size)) {
-          ReportWriteFailure("method code", method_idx, dex_file, out);
+        if (!out->WriteFully(&(*quick_code)[0], code_size)) {
+          ReportWriteFailure("method code", method_idx, dex_file, *out);
           return 0;
         }
         size_code_ += code_size;
@@ -818,8 +818,8 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, const size_t file_offset,
       DCHECK((mapping_table_size == 0 && method_offsets.mapping_table_offset_ == 0)
           || relative_offset == method_offsets.mapping_table_offset_)
           << PrettyMethod(method_idx, dex_file);
-      if (!out.WriteFully(&mapping_table[0], mapping_table_size)) {
-        ReportWriteFailure("mapping table", method_idx, dex_file, out);
+      if (!out->WriteFully(&mapping_table[0], mapping_table_size)) {
+        ReportWriteFailure("mapping table", method_idx, dex_file, *out);
         return 0;
       }
       size_mapping_table_ += mapping_table_size;
@@ -842,8 +842,8 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, const size_t file_offset,
       DCHECK((vmap_table_size == 0 && method_offsets.vmap_table_offset_ == 0)
           || relative_offset == method_offsets.vmap_table_offset_)
           << PrettyMethod(method_idx, dex_file);
-      if (!out.WriteFully(&vmap_table[0], vmap_table_size)) {
-        ReportWriteFailure("vmap table", method_idx, dex_file, out);
+      if (!out->WriteFully(&vmap_table[0], vmap_table_size)) {
+        ReportWriteFailure("vmap table", method_idx, dex_file, *out);
         return 0;
       }
       size_vmap_table_ += vmap_table_size;
@@ -866,8 +866,8 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, const size_t file_offset,
       DCHECK((gc_map_size == 0 && method_offsets.gc_map_offset_ == 0)
           || relative_offset == method_offsets.gc_map_offset_)
           << PrettyMethod(method_idx, dex_file);
-      if (!out.WriteFully(&gc_map[0], gc_map_size)) {
-        ReportWriteFailure("GC map", method_idx, dex_file, out);
+      if (!out->WriteFully(&gc_map[0], gc_map_size)) {
+        ReportWriteFailure("GC map", method_idx, dex_file, *out);
         return 0;
       }
       size_gc_map_ += gc_map_size;
@@ -897,42 +897,42 @@ size_t OatWriter::OatDexFile::SizeOf() const {
           + (sizeof(methods_offsets_[0]) * methods_offsets_.size());
 }
 
-void OatWriter::OatDexFile::UpdateChecksum(OatHeader& oat_header) const {
-  oat_header.UpdateChecksum(&dex_file_location_size_, sizeof(dex_file_location_size_));
-  oat_header.UpdateChecksum(dex_file_location_data_, dex_file_location_size_);
-  oat_header.UpdateChecksum(&dex_file_location_checksum_, sizeof(dex_file_location_checksum_));
-  oat_header.UpdateChecksum(&dex_file_offset_, sizeof(dex_file_offset_));
-  oat_header.UpdateChecksum(&methods_offsets_[0],
+void OatWriter::OatDexFile::UpdateChecksum(OatHeader* oat_header) const {
+  oat_header->UpdateChecksum(&dex_file_location_size_, sizeof(dex_file_location_size_));
+  oat_header->UpdateChecksum(dex_file_location_data_, dex_file_location_size_);
+  oat_header->UpdateChecksum(&dex_file_location_checksum_, sizeof(dex_file_location_checksum_));
+  oat_header->UpdateChecksum(&dex_file_offset_, sizeof(dex_file_offset_));
+  oat_header->UpdateChecksum(&methods_offsets_[0],
                             sizeof(methods_offsets_[0]) * methods_offsets_.size());
 }
 
 bool OatWriter::OatDexFile::Write(OatWriter* oat_writer,
-                                  OutputStream& out,
+                                  OutputStream* out,
                                   const size_t file_offset) const {
   DCHECK_OFFSET_();
-  if (!out.WriteFully(&dex_file_location_size_, sizeof(dex_file_location_size_))) {
-    PLOG(ERROR) << "Failed to write dex file location length to " << out.GetLocation();
+  if (!out->WriteFully(&dex_file_location_size_, sizeof(dex_file_location_size_))) {
+    PLOG(ERROR) << "Failed to write dex file location length to " << out->GetLocation();
     return false;
   }
   oat_writer->size_oat_dex_file_location_size_ += sizeof(dex_file_location_size_);
-  if (!out.WriteFully(dex_file_location_data_, dex_file_location_size_)) {
-    PLOG(ERROR) << "Failed to write dex file location data to " << out.GetLocation();
+  if (!out->WriteFully(dex_file_location_data_, dex_file_location_size_)) {
+    PLOG(ERROR) << "Failed to write dex file location data to " << out->GetLocation();
     return false;
   }
   oat_writer->size_oat_dex_file_location_data_ += dex_file_location_size_;
-  if (!out.WriteFully(&dex_file_location_checksum_, sizeof(dex_file_location_checksum_))) {
-    PLOG(ERROR) << "Failed to write dex file location checksum to " << out.GetLocation();
+  if (!out->WriteFully(&dex_file_location_checksum_, sizeof(dex_file_location_checksum_))) {
+    PLOG(ERROR) << "Failed to write dex file location checksum to " << out->GetLocation();
     return false;
   }
   oat_writer->size_oat_dex_file_location_checksum_ += sizeof(dex_file_location_checksum_);
-  if (!out.WriteFully(&dex_file_offset_, sizeof(dex_file_offset_))) {
-    PLOG(ERROR) << "Failed to write dex file offset to " << out.GetLocation();
+  if (!out->WriteFully(&dex_file_offset_, sizeof(dex_file_offset_))) {
+    PLOG(ERROR) << "Failed to write dex file offset to " << out->GetLocation();
     return false;
   }
   oat_writer->size_oat_dex_file_offset_ += sizeof(dex_file_offset_);
-  if (!out.WriteFully(&methods_offsets_[0],
+  if (!out->WriteFully(&methods_offsets_[0],
                       sizeof(methods_offsets_[0]) * methods_offsets_.size())) {
-    PLOG(ERROR) << "Failed to write methods offsets to " << out.GetLocation();
+    PLOG(ERROR) << "Failed to write methods offsets to " << out->GetLocation();
     return false;
   }
   oat_writer->size_oat_dex_file_methods_offsets_ +=
@@ -1020,48 +1020,48 @@ size_t OatWriter::OatClass::SizeOf() const {
           + (sizeof(method_offsets_[0]) * method_offsets_.size());
 }
 
-void OatWriter::OatClass::UpdateChecksum(OatHeader& oat_header) const {
-  oat_header.UpdateChecksum(&status_, sizeof(status_));
-  oat_header.UpdateChecksum(&type_, sizeof(type_));
+void OatWriter::OatClass::UpdateChecksum(OatHeader* oat_header) const {
+  oat_header->UpdateChecksum(&status_, sizeof(status_));
+  oat_header->UpdateChecksum(&type_, sizeof(type_));
   if (method_bitmap_size_ != 0) {
     CHECK_EQ(kOatClassSomeCompiled, type_);
-    oat_header.UpdateChecksum(&method_bitmap_size_, sizeof(method_bitmap_size_));
-    oat_header.UpdateChecksum(method_bitmap_->GetRawStorage(), method_bitmap_size_);
+    oat_header->UpdateChecksum(&method_bitmap_size_, sizeof(method_bitmap_size_));
+    oat_header->UpdateChecksum(method_bitmap_->GetRawStorage(), method_bitmap_size_);
   }
-  oat_header.UpdateChecksum(&method_offsets_[0],
-                            sizeof(method_offsets_[0]) * method_offsets_.size());
+  oat_header->UpdateChecksum(&method_offsets_[0],
+                             sizeof(method_offsets_[0]) * method_offsets_.size());
 }
 
 bool OatWriter::OatClass::Write(OatWriter* oat_writer,
-                                OutputStream& out,
+                                OutputStream* out,
                                 const size_t file_offset) const {
   DCHECK_OFFSET_();
-  if (!out.WriteFully(&status_, sizeof(status_))) {
-    PLOG(ERROR) << "Failed to write class status to " << out.GetLocation();
+  if (!out->WriteFully(&status_, sizeof(status_))) {
+    PLOG(ERROR) << "Failed to write class status to " << out->GetLocation();
     return false;
   }
   oat_writer->size_oat_class_status_ += sizeof(status_);
-  if (!out.WriteFully(&type_, sizeof(type_))) {
-    PLOG(ERROR) << "Failed to write oat class type to " << out.GetLocation();
+  if (!out->WriteFully(&type_, sizeof(type_))) {
+    PLOG(ERROR) << "Failed to write oat class type to " << out->GetLocation();
     return false;
   }
   oat_writer->size_oat_class_type_ += sizeof(type_);
   if (method_bitmap_size_ != 0) {
     CHECK_EQ(kOatClassSomeCompiled, type_);
-    if (!out.WriteFully(&method_bitmap_size_, sizeof(method_bitmap_size_))) {
-      PLOG(ERROR) << "Failed to write method bitmap size to " << out.GetLocation();
+    if (!out->WriteFully(&method_bitmap_size_, sizeof(method_bitmap_size_))) {
+      PLOG(ERROR) << "Failed to write method bitmap size to " << out->GetLocation();
       return false;
     }
     oat_writer->size_oat_class_method_bitmaps_ += sizeof(method_bitmap_size_);
-    if (!out.WriteFully(method_bitmap_->GetRawStorage(), method_bitmap_size_)) {
-      PLOG(ERROR) << "Failed to write method bitmap to " << out.GetLocation();
+    if (!out->WriteFully(method_bitmap_->GetRawStorage(), method_bitmap_size_)) {
+      PLOG(ERROR) << "Failed to write method bitmap to " << out->GetLocation();
       return false;
     }
     oat_writer->size_oat_class_method_bitmaps_ += method_bitmap_size_;
   }
-  if (!out.WriteFully(&method_offsets_[0],
+  if (!out->WriteFully(&method_offsets_[0],
                       sizeof(method_offsets_[0]) * method_offsets_.size())) {
-    PLOG(ERROR) << "Failed to write method offsets to " << out.GetLocation();
+    PLOG(ERROR) << "Failed to write method offsets to " << out->GetLocation();
     return false;
   }
   oat_writer->size_oat_class_method_offsets_ += sizeof(method_offsets_[0]) * method_offsets_.size();

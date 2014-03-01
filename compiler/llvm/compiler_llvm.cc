@@ -175,16 +175,16 @@ CompileNativeMethod(DexCompilationUnit* dex_compilation_unit) {
 }  // namespace llvm
 }  // namespace art
 
-inline static art::llvm::CompilerLLVM* ContextOf(art::CompilerDriver& driver) {
+static art::llvm::CompilerLLVM* ContextOf(art::CompilerDriver& driver) {
   void *compiler_context = driver.GetCompilerContext();
   CHECK(compiler_context != NULL);
   return reinterpret_cast<art::llvm::CompilerLLVM*>(compiler_context);
 }
 
-inline static const art::llvm::CompilerLLVM* ContextOf(const art::CompilerDriver& driver) {
+static art::llvm::CompilerLLVM* ContextOf(const art::CompilerDriver& driver) {
   void *compiler_context = driver.GetCompilerContext();
   CHECK(compiler_context != NULL);
-  return reinterpret_cast<const art::llvm::CompilerLLVM*>(compiler_context);
+  return reinterpret_cast<art::llvm::CompilerLLVM*>(compiler_context);
 }
 
 extern "C" void ArtInitCompilerContext(art::CompilerDriver& driver) {
@@ -233,7 +233,7 @@ extern "C" art::CompiledMethod* ArtLLVMJniCompileMethod(art::CompilerDriver& dri
   return result;
 }
 
-extern "C" void compilerLLVMSetBitcodeFileName(art::CompilerDriver& driver,
-                                               std::string const& filename) {
+extern "C" void compilerLLVMSetBitcodeFileName(const art::CompilerDriver& driver,
+                                               const std::string& filename) {
   ContextOf(driver)->SetBitcodeFileName(filename);
 }

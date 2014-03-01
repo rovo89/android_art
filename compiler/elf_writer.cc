@@ -30,12 +30,7 @@
 
 namespace art {
 
-ElfWriter::ElfWriter(const CompilerDriver& driver, File* elf_file)
-  : compiler_driver_(&driver), elf_file_(elf_file) {}
-
-ElfWriter::~ElfWriter() {}
-
-Elf32_Addr ElfWriter::GetOatDataAddress(ElfFile* elf_file) {
+uint32_t ElfWriter::GetOatDataAddress(ElfFile* elf_file) {
   Elf32_Addr oatdata_address = elf_file->FindSymbolAddress(SHT_DYNSYM,
                                                            "oatdata",
                                                            false);

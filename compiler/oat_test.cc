@@ -105,7 +105,7 @@ TEST_F(OatTest, WriteRead) {
   jobject class_loader = NULL;
   if (kCompile) {
     TimingLogger timings("OatTest::WriteRead", false, false);
-    compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), timings);
+    compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), &timings);
   }
 
   ScopedObjectAccess soa(Thread::Current());
@@ -119,12 +119,12 @@ TEST_F(OatTest, WriteRead) {
   bool success = compiler_driver_->WriteElf(GetTestAndroidRoot(),
                                             !kIsTargetBuild,
                                             class_linker->GetBootClassPath(),
-                                            oat_writer,
+                                            &oat_writer,
                                             tmp.GetFile());
   ASSERT_TRUE(success);
 
   if (kCompile) {  // OatWriter strips the code, regenerate to compare
-    compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), timings);
+    compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), &timings);
   }
   std::string error_msg;
   UniquePtr<OatFile> oat_file(OatFile::Open(tmp.GetFilename(), tmp.GetFilename(), NULL, false,
