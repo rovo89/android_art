@@ -305,7 +305,15 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
                       << "Thread: " << tid << " \"" << thread_name << "\"\n"
                       << "Registers:\n" << Dumpable<UContext>(thread_context) << "\n"
                       << "Backtrace:\n" << Dumpable<Backtrace>(thread_backtrace);
-
+  Runtime* runtime = Runtime::Current();
+  if (runtime != nullptr) {
+    gc::Heap* heap = runtime->GetHeap();
+    LOG(INTERNAL_FATAL) << "Fault message: " << runtime->GetFaultMessage();
+    if (heap != nullptr && info != nullptr) {
+      LOG(INTERNAL_FATAL) << "Dump heap object at fault address: ";
+      heap->DumpObject(LOG(INTERNAL_FATAL), reinterpret_cast<mirror::Object*>(info->si_addr));
+    }
+  }
   if (getenv("debug_db_uid") != NULL || getenv("art_wait_for_gdb_on_crash") != NULL) {
     LOG(INTERNAL_FATAL) << "********************************************************\n"
                         << "* Process " << getpid() << " thread " << tid << " \"" << thread_name << "\""

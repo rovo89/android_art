@@ -92,8 +92,11 @@ class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
     return nullptr;
   }
 
-  // Clear the memory and reset the pointer to the start of the space.
-  void Clear() OVERRIDE LOCKS_EXCLUDED(block_lock_);
+  // Madvise the memory back to the OS.
+  void Clear() OVERRIDE;
+
+  // Reset the pointer to the start of the space.
+  void Reset() OVERRIDE LOCKS_EXCLUDED(block_lock_);
 
   void Dump(std::ostream& os) const;
 

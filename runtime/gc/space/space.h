@@ -399,6 +399,9 @@ class ContinuousMemMapAllocSpace : public MemMapSpace, public AllocSpace {
   // Free all memory associated with this space.
   virtual void Clear() = 0;
 
+  // Reset the space back to an empty space.
+  virtual void Reset() = 0;
+
   accounting::SpaceBitmap* GetLiveBitmap() const {
     return live_bitmap_.get();
   }

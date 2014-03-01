@@ -281,10 +281,13 @@ uint64_t DlMallocSpace::GetObjectsAllocated() {
 }
 
 void DlMallocSpace::Clear() {
-  // TODO: Delete and create new mspace here.
   madvise(GetMemMap()->Begin(), GetMemMap()->Size(), MADV_DONTNEED);
   GetLiveBitmap()->Clear();
   GetMarkBitmap()->Clear();
+}
+
+void DlMallocSpace::Reset() {
+  // TODO: Delete and create new mspace here.
 }
 
 #ifndef NDEBUG
