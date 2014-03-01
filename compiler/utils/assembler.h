@@ -282,7 +282,9 @@ class AssemblerBuffer {
   byte* cursor_;
   byte* limit_;
   AssemblerFixup* fixup_;
+#ifndef NDEBUG
   bool fixups_processed_;
+#endif
 
   // Head of linked list of slow paths
   SlowPath* slow_path_;

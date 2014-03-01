@@ -48,7 +48,7 @@ class AOTCompilationStats;
 class CompilerOptions;
 class DexCompilationUnit;
 class DexFileToMethodInlinerMap;
-class InlineIGetIPutData;
+struct InlineIGetIPutData;
 class OatWriter;
 class ParallelCompilationManager;
 class TimingLogger;

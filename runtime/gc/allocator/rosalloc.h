@@ -439,9 +439,6 @@ class RosAlloc {
   hash_set<Run*, hash_run, eq_run> full_runs_[kNumOfSizeBrackets];
   // The set of free pages.
   std::set<FreePageRun*> free_page_runs_ GUARDED_BY(lock_);
-  // The free page run whose end address is the end of the memory
-  // region that's managed by this allocator, if any.
-  FreePageRun* last_free_page_run_;
   // The current runs where the allocations are first attempted for
   // the size brackes that do not use thread-local
   // runs. current_runs_[i] is guarded by size_bracket_locks_[i].

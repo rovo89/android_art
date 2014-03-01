@@ -60,7 +60,7 @@ class ClassLinker;
 class CompilerCallbacks;
 class DexFile;
 class InternTable;
-struct JavaVMExt;
+class JavaVMExt;
 class MonitorList;
 class MonitorPool;
 class SignalCatcher;
