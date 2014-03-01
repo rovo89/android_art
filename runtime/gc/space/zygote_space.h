@@ -71,7 +71,8 @@ class ZygoteSpace FINAL : public ContinuousMemMapAllocSpace {
     return objects_allocated_;
   }
 
-  void Clear();
+  void Clear() OVERRIDE;
+  void Reset() OVERRIDE;
 
  protected:
   virtual accounting::SpaceBitmap::SweepCallback* GetSweepCallback() {

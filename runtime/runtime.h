@@ -446,6 +446,13 @@ class Runtime {
   void RecordWeakStringRemoval(mirror::String* s, uint32_t hash_code) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
 
+  void SetFaultMessage(const std::string& message);
+  // Only read by the signal handler, NO_THREAD_SAFETY_ANALYSIS to prevent lock order violations
+  // with the unexpected_signal_lock_.
+  const std::string& GetFaultMessage() NO_THREAD_SAFETY_ANALYSIS {
+    return fault_message_;
+  }
+
  private:
   static void InitPlatformSignalHandlers();
 
@@ -519,6 +526,10 @@ class Runtime {
   mirror::ArtMethod* imt_conflict_method_;
 
   mirror::ObjectArray<mirror::ArtMethod>* default_imt_;
+
+  // Fault message, printed when we get a SIGSEGV.
+  Mutex fault_message_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  std::string fault_message_ GUARDED_BY(fault_message_lock_);
 
   // Method verifier set, used so that we can update their GC roots.
   Mutex method_verifiers_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;

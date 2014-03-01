@@ -61,6 +61,9 @@ BumpPointerSpace::BumpPointerSpace(const std::string& name, MemMap* mem_map)
 void BumpPointerSpace::Clear() {
   // Release the pages back to the operating system.
   CHECK_NE(madvise(Begin(), Limit() - Begin(), MADV_DONTNEED), -1) << "madvise failed";
+}
+
+void BumpPointerSpace::Reset() {
   // Reset the end of the space back to the beginning, we move the end forward as we allocate
   // objects.
   SetEnd(Begin());
@@ -75,8 +78,9 @@ void BumpPointerSpace::Clear() {
 }
 
 void BumpPointerSpace::Dump(std::ostream& os) const {
-  os << reinterpret_cast<void*>(Begin()) << "-" << reinterpret_cast<void*>(End()) << " - "
-     << reinterpret_cast<void*>(Limit());
+  os << GetName() << " "
+      << reinterpret_cast<void*>(Begin()) << "-" << reinterpret_cast<void*>(End()) << " - "
+      << reinterpret_cast<void*>(Limit());
 }
 
 mirror::Object* BumpPointerSpace::GetNextObject(mirror::Object* obj) {
