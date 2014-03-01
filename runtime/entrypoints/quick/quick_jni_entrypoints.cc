@@ -92,6 +92,7 @@ extern mirror::Object* JniMethodEndWithReference(jobject result, uint32_t saved_
     }
     CheckReferenceResult(o, self);
   }
+  VerifyObject(o);
   return o;
 }
 
@@ -109,6 +110,7 @@ extern mirror::Object* JniMethodEndWithReferenceSynchronized(jobject result,
     }
     CheckReferenceResult(o, self);
   }
+  VerifyObject(o);
   return o;
 }
 
