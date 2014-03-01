@@ -31,7 +31,7 @@ namespace verifier {
 class MethodVerifier;
 }  // namespace verifier
 
-class CallInfo;
+struct CallInfo;
 class Mir2Lir;
 
 enum InlineMethodOpcode : uint16_t {
@@ -61,6 +61,7 @@ enum InlineMethodOpcode : uint16_t {
   kInlineOpIGet,
   kInlineOpIPut,
 };
+std::ostream& operator<<(std::ostream& os, const InlineMethodOpcode& rhs);
 
 enum InlineMethodFlags : uint16_t {
   kNoInlineMethodFlags = 0x0000,
@@ -78,13 +79,13 @@ enum IntrinsicFlags {
 
   // kIntrinsicIsEmptyOrLength
   kIntrinsicFlagLength  = kIntrinsicFlagNone,
-  kIntrinsicFlagIsEmpty = 1,
+  kIntrinsicFlagIsEmpty = kIntrinsicFlagMin,
 
   // kIntrinsicIndexOf
-  kIntrinsicFlagBase0 = 1,
+  kIntrinsicFlagBase0 = kIntrinsicFlagMin,
 
   // kIntrinsicUnsafeGet, kIntrinsicUnsafePut, kIntrinsicUnsafeCas
-  kIntrinsicFlagIsLong     = 1,
+  kIntrinsicFlagIsLong     = kIntrinsicFlagMin,
   // kIntrinsicUnsafeGet, kIntrinsicUnsafePut
   kIntrinsicFlagIsVolatile = 2,
   // kIntrinsicUnsafePut, kIntrinsicUnsafeCas
@@ -187,7 +188,6 @@ class DexFileMethodInliner {
      */
     bool GenSpecial(Mir2Lir* backend, uint32_t method_idx);
 
-  private:
     /**
      * To avoid multiple lookups of a class by its descriptor, we cache its
      * type index in the IndexCache. These are the indexes into the IndexCache
@@ -311,6 +311,7 @@ class DexFileMethodInliner {
       kProtoCacheLast
     };
 
+  private:
     /**
      * The maximum number of method parameters we support in the ProtoDef.
      */

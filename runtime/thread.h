@@ -67,7 +67,7 @@ class Closure;
 class Context;
 struct DebugInvokeReq;
 class DexFile;
-struct JavaVMExt;
+class JavaVMExt;
 struct JNIEnvExt;
 class Monitor;
 class Runtime;

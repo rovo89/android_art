@@ -74,7 +74,6 @@ LIBART_COMMON_SRC_FILES := \
 	intern_table.cc \
 	interpreter/interpreter.cc \
 	interpreter/interpreter_common.cc \
-	interpreter/interpreter_goto_table_impl.cc \
 	interpreter/interpreter_switch_impl.cc \
 	jdwp/jdwp_event.cc \
 	jdwp/jdwp_expand_buf.cc \
@@ -184,6 +183,10 @@ LIBART_COMMON_SRC_FILES += \
 	entrypoints/quick/quick_thread_entrypoints.cc \
 	entrypoints/quick/quick_throw_entrypoints.cc \
 	entrypoints/quick/quick_trampoline_entrypoints.cc
+
+# Source files that only compile with GCC.
+LIBART_GCC_ONLY_SRC_FILES := \
+	interpreter/interpreter_goto_table_impl.cc
 
 LIBART_LDFLAGS := -Wl,--no-fatal-warnings
 
@@ -300,6 +303,7 @@ endif
 
 # $(1): target or host
 # $(2): ndebug or debug
+# 3(3): true or false for LOCAL_CLANG
 define build-libart
   ifneq ($(1),target)
     ifneq ($(1),host)
@@ -311,9 +315,15 @@ define build-libart
       $$(error expected ndebug or debug for argument 2, received $(2))
     endif
   endif
+  ifneq ($(3),true)
+    ifneq ($(3),false)
+      $$(error expected true or false for argument 3, received $(3))
+    endif
+  endif
 
   art_target_or_host := $(1)
   art_ndebug_or_debug := $(2)
+  art_clang := $(3)
 
   include $(CLEAR_VARS)
   ifeq ($$(art_target_or_host),target)
@@ -354,11 +364,14 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   $(foreach arch,$(ART_SUPPORTED_ARCH),
     LOCAL_LDFLAGS_$(arch) := $$(LIBART_TARGET_LDFLAGS_$(arch)))
 
+  ifeq ($$(art_clang),false)
+    LOCAL_SRC_FILES += $(LIBART_GCC_ONLY_SRC_FILES)
+  else
+    LOCAL_CLANG := true
+  endif
   ifeq ($$(art_target_or_host),target)
-    LOCAL_CLANG := $(ART_TARGET_CLANG)
     LOCAL_CFLAGS += $(ART_TARGET_CFLAGS)
   else # host
-    LOCAL_CLANG := $(ART_HOST_CLANG)
     LOCAL_CFLAGS += $(ART_HOST_CFLAGS)
   endif
   ifeq ($$(art_ndebug_or_debug),debug)
@@ -389,7 +402,14 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
       LOCAL_LDLIBS += -lrt
     endif
   endif
-  include $(LLVM_GEN_INTRINSICS_MK)
+  ifeq ($(ART_USE_PORTABLE_COMPILER),true)
+    include $(LLVM_GEN_INTRINSICS_MK)
+    ifeq ($$(art_target_or_host),target)
+      include $(LLVM_DEVICE_BUILD_MK)
+    else # host
+      include $(LLVM_HOST_BUILD_MK)
+    endif
+  endif
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
 
@@ -398,27 +418,25 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   endif
 
   ifeq ($$(art_target_or_host),target)
-    include $(LLVM_DEVICE_BUILD_MK)
     include $(BUILD_SHARED_LIBRARY)
   else # host
-    include $(LLVM_HOST_BUILD_MK)
     include $(BUILD_HOST_SHARED_LIBRARY)
   endif
 endef
 
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
-  $(eval $(call build-libart,target,ndebug))
+  $(eval $(call build-libart,target,ndebug,$(ART_TARGET_CLANG)))
 endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
-  $(eval $(call build-libart,target,debug))
+  $(eval $(call build-libart,target,debug,$(ART_TARGET_CLANG)))
 endif
 
 # We always build dex2oat and dependencies, even if the host build is otherwise disabled, since they are used to cross compile for the target.
 ifeq ($(WITH_HOST_DALVIK),true)
   ifeq ($(ART_BUILD_NDEBUG),true)
-    $(eval $(call build-libart,host,ndebug))
+    $(eval $(call build-libart,host,ndebug,$(ART_HOST_CLANG)))
   endif
   ifeq ($(ART_BUILD_DEBUG),true)
-    $(eval $(call build-libart,host,debug))
+    $(eval $(call build-libart,host,debug,$(ART_HOST_CLANG)))
   endif
 endif
