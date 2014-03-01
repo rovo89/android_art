@@ -135,6 +135,10 @@ class Heap {
   // Used so that we don't overflow the allocation time atomic integer.
   static constexpr size_t kTimeAdjust = 1024;
 
+  // How long we wait after a GC to perform a heap trim (nanoseconds).
+  static constexpr uint64_t kHeapTrimWait = MsToNs(5000);
+  static constexpr uint64_t kHeapTransitionWait = MsToNs(5000);
+
   // Create a heap with the requested sizes. The possible empty
   // image_file_names names specify Spaces to load based on
   // ImageWriter output.
@@ -437,8 +441,12 @@ class Heap {
 
   void DumpForSigQuit(std::ostream& os);
 
+
+  // Do a pending heap transition or trim.
+  void DoPendingTransitionOrTrim() LOCKS_EXCLUDED(heap_trim_request_lock_);
+
   // Trim the managed and native heaps by releasing unused memory back to the OS.
-  void Trim();
+  void Trim() LOCKS_EXCLUDED(heap_trim_request_lock_);
 
   void RevokeThreadLocalBuffers(Thread* thread);
   void RevokeAllThreadLocalBuffers();
@@ -639,7 +647,9 @@ class Heap {
   collector::GcType WaitForGcToCompleteLocked(Thread* self)
       EXCLUSIVE_LOCKS_REQUIRED(gc_complete_lock_);
 
-  void RequestHeapTrim() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
+  void RequestHeapTransition(CollectorType desired_collector_type, uint64_t delta_time)
+      LOCKS_EXCLUDED(heap_trim_request_lock_);
+  void RequestHeapTrim(uint64_t delta_time) LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
   void RequestConcurrentGC(Thread* self) LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
   bool IsGCRequestPending() const;
 
@@ -680,6 +690,10 @@ class Heap {
 
   // Clear cards and update the mod union table.
   void ProcessCards(TimingLogger& timings);
+
+  // Signal the heap trim daemon that there is something to do, either a heap transition or heap
+  // trim.
+  void SignalHeapTrimDaemon(Thread* self);
 
   // Push an object onto the allocation stack.
   void PushOnAllocationStack(Thread* self, mirror::Object* obj);
@@ -733,6 +747,17 @@ class Heap {
   CollectorType post_zygote_collector_type_;
   // Which collector we will use when the app is notified of a transition to background.
   CollectorType background_collector_type_;
+  // Desired collector type, heap trimming daemon transitions the heap if it is != collector_type_.
+  CollectorType desired_collector_type_;
+
+  // Lock which guards heap trim requests.
+  Mutex* heap_trim_request_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  // When we want to perform the next heap trim (nano seconds).
+  uint64_t heap_trim_target_time_ GUARDED_BY(heap_trim_request_lock_);
+  // When we want to perform the next heap transition (nano seconds).
+  uint64_t heap_transition_target_time_ GUARDED_BY(heap_trim_request_lock_);
+  // If we have a heap trim request pending.
+  bool heap_trim_request_pending_ GUARDED_BY(heap_trim_request_lock_);
 
   // How many GC threads we may use for paused parts of garbage collection.
   const size_t parallel_gc_threads_;
@@ -853,9 +878,6 @@ class Heap {
 
   // Parallel GC data structures.
   UniquePtr<ThreadPool> thread_pool_;
-
-  // The last time a heap trim occurred.
-  uint64_t last_trim_time_ms_;
 
   // The nanosecond time at which the last GC ended.
   uint64_t last_gc_time_ns_;
