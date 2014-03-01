@@ -113,6 +113,7 @@ class DlMallocSpace : public MallocSpace {
   uint64_t GetObjectsAllocated() OVERRIDE;
 
   void Clear() OVERRIDE;
+  void Reset() OVERRIDE;
 
   bool IsDlMallocSpace() const OVERRIDE {
     return true;

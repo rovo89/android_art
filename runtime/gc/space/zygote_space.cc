@@ -61,6 +61,10 @@ void ZygoteSpace::Clear() {
   LOG(FATAL) << "Unimplemented";
 }
 
+void ZygoteSpace::Reset() {
+  LOG(FATAL) << "Unimplemented";
+}
+
 ZygoteSpace::ZygoteSpace(const std::string& name, MemMap* mem_map, size_t objects_allocated)
     : ContinuousMemMapAllocSpace(name, mem_map, mem_map->Begin(), mem_map->End(), mem_map->End(),
                                  kGcRetentionPolicyFullCollect),
