@@ -17,11 +17,18 @@
 #ifndef ART_COMPILER_DEX_PORTABLE_MIR_TO_GBC_H_
 #define ART_COMPILER_DEX_PORTABLE_MIR_TO_GBC_H_
 
+#include <llvm/ADT/ArrayRef.h>
+#include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Module.h>
+
 #include "invoke_type.h"
 #include "compiled_method.h"
 #include "dex/compiler_enums.h"
 #include "dex/compiler_ir.h"
 #include "dex/backend.h"
+#include "llvm/intrinsic_helper.h"
 #include "llvm/llvm_compilation_unit.h"
 #include "safe_map.h"
 

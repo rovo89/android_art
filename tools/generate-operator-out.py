@@ -23,7 +23,7 @@ import string
 import sys
 
 
-_ENUM_START_RE = re.compile(r'\benum\b\s+(\S+)\s+\{')
+_ENUM_START_RE = re.compile(r'\benum\b\s+(\S+)\s+:?.*\{')
 _ENUM_VALUE_RE = re.compile(r'([A-Za-z0-9_]+)(.*)')
 _ENUM_END_RE = re.compile(r'^\s*\};$')
 _ENUMS = {}

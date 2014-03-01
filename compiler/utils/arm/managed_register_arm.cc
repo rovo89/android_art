@@ -21,16 +21,6 @@
 namespace art {
 namespace arm {
 
-// We need all registers for caching of locals.
-// Register R9 .. R15 are reserved.
-static const int kNumberOfAvailableCoreRegisters = (R8 - R0) + 1;
-static const int kNumberOfAvailableSRegisters = kNumberOfSRegisters;
-static const int kNumberOfAvailableDRegisters = kNumberOfDRegisters;
-static const int kNumberOfAvailableOverlappingDRegisters =
-    kNumberOfOverlappingDRegisters;
-static const int kNumberOfAvailableRegisterPairs = kNumberOfRegisterPairs;
-
-
 // Returns true if this managed-register overlaps the other managed-register.
 bool ArmManagedRegister::Overlaps(const ArmManagedRegister& other) const {
   if (IsNoRegister() || other.IsNoRegister()) return false;

@@ -30,6 +30,7 @@
 #include "dex/compiler_internals.h"
 #include "dex/dataflow_iterator-inl.h"
 #include "dex/frontend.h"
+#include "llvm/ir_builder.h"
 #include "llvm/llvm_compilation_unit.h"
 #include "llvm/utils_llvm.h"
 #include "mir_to_gbc.h"
