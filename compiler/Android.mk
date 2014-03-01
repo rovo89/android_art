@@ -106,7 +106,7 @@ endif
 LIBART_COMPILER_CFLAGS :=
 
 ifeq ($(ART_USE_PORTABLE_COMPILER),true)
-LIBART_COMPILER_SRC_FILES +=
+LIBART_COMPILER_SRC_FILES += \
 	dex/portable/mir_to_gbc.cc \
 	elf_writer_mclinker.cc \
 	jni/portable/jni_compiler.cc \
@@ -120,11 +120,12 @@ LIBART_COMPILER_SRC_FILES +=
 	llvm/runtime_support_builder.cc \
 	llvm/runtime_support_builder_arm.cc \
 	llvm/runtime_support_builder_x86.cc
-  LIBART_COMPILER_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
+LIBART_COMPILER_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
 endif
 
 LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES := \
-	dex/compiler_enums.h
+	dex/compiler_enums.h \
+	dex/quick/dex_file_method_inliner.h
 
 # $(1): target or host
 # $(2): ndebug or debug
@@ -211,12 +212,15 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
       ifeq ($(TARGET_ARCH),arm64)
          $$(info TODOAArch64: $$(LOCAL_PATH)/Android.mk Add Arm64 specific MCLinker libraries)
       endif # TARGET_ARCH != arm64
+      include $(LLVM_DEVICE_BUILD_MK)
     else # host
       LOCAL_STATIC_LIBRARIES += libmcldARMInfo libmcldARMTarget
       LOCAL_STATIC_LIBRARIES += libmcldX86Info libmcldX86Target
       LOCAL_STATIC_LIBRARIES += libmcldMipsInfo libmcldMipsTarget
+      include $(LLVM_HOST_BUILD_MK)
     endif
     LOCAL_STATIC_LIBRARIES += libmcldCore libmcldObject libmcldADT libmcldFragment libmcldTarget libmcldCodeGen libmcldLDVariant libmcldMC libmcldSupport libmcldLD
+    include $(LLVM_GEN_INTRINSICS_MK)
   endif
 
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime
@@ -228,13 +232,9 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
   ifeq ($$(art_target_or_host),target)
     LOCAL_SHARED_LIBRARIES += libcutils
-    include $(LLVM_GEN_INTRINSICS_MK)
-    include $(LLVM_DEVICE_BUILD_MK)
     include $(BUILD_SHARED_LIBRARY)
   else # host
     LOCAL_STATIC_LIBRARIES += libcutils
-    include $(LLVM_GEN_INTRINSICS_MK)
-    include $(LLVM_HOST_BUILD_MK)
     include $(BUILD_HOST_SHARED_LIBRARY)
   endif
 

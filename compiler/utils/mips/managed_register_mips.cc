@@ -21,17 +21,6 @@
 namespace art {
 namespace mips {
 
-// These core registers are never available for allocation.
-static const Register kReservedCoreRegistersArray[] = { S0, S1 };
-
-// We need all registers for caching.
-static const int kNumberOfAvailableCoreRegisters = (S7 - T0) + 1;
-static const int kNumberOfAvailableFRegisters = kNumberOfFRegisters;
-static const int kNumberOfAvailableDRegisters = kNumberOfDRegisters;
-static const int kNumberOfAvailableOverlappingDRegisters =
-    kNumberOfOverlappingDRegisters;
-static const int kNumberOfAvailableRegisterPairs = kNumberOfRegisterPairs;
-
 bool MipsManagedRegister::Overlaps(const MipsManagedRegister& other) const {
   if (IsNoRegister() || other.IsNoRegister()) return false;
   CHECK(IsValidManagedRegister());

@@ -42,6 +42,8 @@ class ArenaBitVectorAllocator : public Allocator {
 
 ArenaBitVector::ArenaBitVector(ArenaAllocator* arena, unsigned int start_bits,
                                bool expandable, OatBitMapKind kind)
-  :  BitVector(start_bits, expandable, new (arena) ArenaBitVectorAllocator(arena)), kind_(kind) {}
+  :  BitVector(start_bits, expandable, new (arena) ArenaBitVectorAllocator(arena)), kind_(kind) {
+  UNUSED(kind_);
+}
 
 }  // namespace art

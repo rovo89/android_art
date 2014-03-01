@@ -105,7 +105,7 @@ class LLVMInfo {
     UniquePtr<art::llvm::IRBuilder> ir_builder_;
 };
 
-struct CompiledMethod;
+class CompiledMethod;
 class CompilerDriver;
 
 }  // namespace art

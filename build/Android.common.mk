@@ -91,10 +91,12 @@ LLVM_ROOT_PATH := external/llvm
 # Don't fail a dalvik minimal host build.
 -include $(LLVM_ROOT_PATH)/llvm.mk
 
-# Clang build.
-# ART_TARGET_CLANG := true
+# Clang build support.
+ART_TARGET_CLANG := false
 ifeq ($(HOST_OS),darwin)
-ART_HOST_CLANG := true
+  ART_HOST_CLANG := true
+else
+  ART_HOST_CLANG := false
 endif
 
 # directory used for dalvik-cache on device

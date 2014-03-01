@@ -21,19 +21,6 @@
 namespace art {
 namespace x86 {
 
-// These cpu registers are never available for allocation.
-static const Register kReservedCpuRegistersArray[] = { ESP };
-
-
-// We reduce the number of available registers for allocation in debug-code
-// mode in order to increase register pressure.
-
-// We need all registers for caching.
-static const int kNumberOfAvailableCpuRegisters = kNumberOfCpuRegisters;
-static const int kNumberOfAvailableXmmRegisters = kNumberOfXmmRegisters;
-static const int kNumberOfAvailableRegisterPairs = kNumberOfRegisterPairs;
-
-
 // Define register pairs.
 // This list must be kept in sync with the RegisterPair enum.
 #define REGISTER_PAIR_LIST(P) \
