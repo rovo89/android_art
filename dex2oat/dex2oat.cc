@@ -349,9 +349,9 @@ class Dex2Oat {
                                                         dump_passes,
                                                         &compiler_phases_timings));
 
-    driver->GetCompilerBackend()->SetBitcodeFileName(bitcode_filename);
+    driver->GetCompilerBackend()->SetBitcodeFileName(*driver.get(), bitcode_filename);
 
-    driver->CompileAll(class_loader, dex_files, timings);
+    driver->CompileAll(class_loader, dex_files, &timings);
 
     timings.NewSplit("dex2oat OatWriter");
     std::string image_file_location;
@@ -377,7 +377,7 @@ class Dex2Oat {
                          &timings);
 
     TimingLogger::ScopedSplit split("Writing ELF", &timings);
-    if (!driver->WriteElf(android_root, is_host, dex_files, oat_writer, oat_file)) {
+    if (!driver->WriteElf(android_root, is_host, dex_files, &oat_writer, oat_file)) {
       LOG(ERROR) << "Failed to write ELF file " << oat_file->GetPath();
       return NULL;
     }
@@ -1302,7 +1302,7 @@ static int dex2oat(int argc, char** argv) {
       LOG(INFO) << Dumpable<TimingLogger>(timings);
     }
     if (dump_passes) {
-      LOG(INFO) << Dumpable<CumulativeLogger>(compiler.get()->GetTimingsLogger());
+      LOG(INFO) << Dumpable<CumulativeLogger>(*compiler.get()->GetTimingsLogger());
     }
     return EXIT_SUCCESS;
   }

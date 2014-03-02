@@ -78,7 +78,7 @@ class OatWriter {
     return size_;
   }
 
-  bool Write(OutputStream& out);
+  bool Write(OutputStream* out);
 
   ~OatWriter();
 
@@ -105,28 +105,28 @@ class OatWriter {
                            bool is_native, InvokeType type, uint32_t method_idx, const DexFile&)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool WriteTables(OutputStream& out, const size_t file_offset);
-  size_t WriteCode(OutputStream& out, const size_t file_offset);
-  size_t WriteCodeDexFiles(OutputStream& out, const size_t file_offset, size_t relative_offset);
-  size_t WriteCodeDexFile(OutputStream& out, const size_t file_offset, size_t relative_offset,
+  bool WriteTables(OutputStream* out, const size_t file_offset);
+  size_t WriteCode(OutputStream* out, const size_t file_offset);
+  size_t WriteCodeDexFiles(OutputStream* out, const size_t file_offset, size_t relative_offset);
+  size_t WriteCodeDexFile(OutputStream* out, const size_t file_offset, size_t relative_offset,
                           size_t* oat_class_index, const DexFile& dex_file);
-  size_t WriteCodeClassDef(OutputStream& out, const size_t file_offset, size_t relative_offset,
+  size_t WriteCodeClassDef(OutputStream* out, const size_t file_offset, size_t relative_offset,
                            size_t oat_class_index, const DexFile& dex_file,
                            const DexFile::ClassDef& class_def);
-  size_t WriteCodeMethod(OutputStream& out, const size_t file_offset, size_t relative_offset,
+  size_t WriteCodeMethod(OutputStream* out, const size_t file_offset, size_t relative_offset,
                          size_t oat_class_index, size_t class_def_method_index,
                          size_t* method_offsets_index, bool is_static, uint32_t method_idx,
                          const DexFile& dex_file);
 
   void ReportWriteFailure(const char* what, uint32_t method_idx, const DexFile& dex_file,
-                          OutputStream& out) const;
+                          const OutputStream& out) const;
 
   class OatDexFile {
    public:
     explicit OatDexFile(size_t offset, const DexFile& dex_file);
     size_t SizeOf() const;
-    void UpdateChecksum(OatHeader& oat_header) const;
-    bool Write(OatWriter* oat_writer, OutputStream& out, const size_t file_offset) const;
+    void UpdateChecksum(OatHeader* oat_header) const;
+    bool Write(OatWriter* oat_writer, OutputStream* out, const size_t file_offset) const;
 
     // Offset of start of OatDexFile from beginning of OatHeader. It is
     // used to validate file position when writing.
@@ -153,8 +153,8 @@ class OatWriter {
     size_t GetOatMethodOffsetsOffsetFromOatHeader(size_t class_def_method_index_) const;
     size_t GetOatMethodOffsetsOffsetFromOatClass(size_t class_def_method_index_) const;
     size_t SizeOf() const;
-    void UpdateChecksum(OatHeader& oat_header) const;
-    bool Write(OatWriter* oat_writer, OutputStream& out, const size_t file_offset) const;
+    void UpdateChecksum(OatHeader* oat_header) const;
+    bool Write(OatWriter* oat_writer, OutputStream* out, const size_t file_offset) const;
 
     CompiledMethod* GetCompiledMethod(size_t class_def_method_index) const {
       DCHECK(compiled_methods_ != NULL);

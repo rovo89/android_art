@@ -40,7 +40,7 @@ class CompilerDriverTest : public CommonCompilerTest {
     timings.StartSplit("CompileAll");
     compiler_driver_->CompileAll(class_loader,
                                  Runtime::Current()->GetCompileTimeClassPath(class_loader),
-                                 timings);
+                                 &timings);
     MakeAllExecutable(class_loader);
     timings.EndSplit();
   }
