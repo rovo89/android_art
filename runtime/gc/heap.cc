@@ -45,6 +45,7 @@
 #include "gc/space/rosalloc_space-inl.h"
 #include "gc/space/space-inl.h"
 #include "gc/space/zygote_space.h"
+#include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "heap-inl.h"
 #include "image.h"
 #include "invoke_arg_array_builder.h"
@@ -64,8 +65,6 @@
 #include "well_known_classes.h"
 
 namespace art {
-
-extern void SetQuickAllocEntryPointsAllocator(gc::AllocatorType allocator);
 
 namespace gc {
 
@@ -308,11 +307,12 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
 }
 
 void Heap::ChangeAllocator(AllocatorType allocator) {
-  // These two allocators are only used internally and don't have any entrypoints.
-  DCHECK_NE(allocator, kAllocatorTypeLOS);
-  DCHECK_NE(allocator, kAllocatorTypeNonMoving);
   if (current_allocator_ != allocator) {
+    // These two allocators are only used internally and don't have any entrypoints.
+    CHECK_NE(allocator, kAllocatorTypeLOS);
+    CHECK_NE(allocator, kAllocatorTypeNonMoving);
     current_allocator_ = allocator;
+    MutexLock mu(nullptr, *Locks::runtime_shutdown_lock_);
     SetQuickAllocEntryPointsAllocator(current_allocator_);
     Runtime::Current()->GetInstrumentation()->ResetQuickAllocEntryPoints();
   }

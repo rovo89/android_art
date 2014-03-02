@@ -16,6 +16,7 @@
 
 #include "entrypoints/interpreter/interpreter_entrypoints.h"
 #include "entrypoints/portable/portable_entrypoints.h"
+#include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "entrypoints/math_entrypoints.h"
@@ -129,8 +130,6 @@ extern "C" void art_quick_throw_stack_overflow(void*);
 
 // Generic JNI downcall
 extern "C" void art_quick_generic_jni_trampoline(mirror::ArtMethod*);
-
-extern void ResetQuickAllocEntryPoints(QuickEntryPoints* qpoints);
 
 void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
                      PortableEntryPoints* ppoints, QuickEntryPoints* qpoints) {
