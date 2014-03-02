@@ -378,6 +378,27 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
       uint32_t thumb_offset = compiled_method->CodeDelta();
       quick_code_offset = offset + sizeof(code_size) + thumb_offset;
 
+      std::vector<uint8_t>* cfi_info = compiler_driver_->GetCallFrameInformation();
+      if (cfi_info != nullptr) {
+      // Copy in the FDE, if present
+      const std::vector<uint8_t>* fde = compiled_method->GetCFIInfo();
+        if (fde != nullptr) {
+          // Copy the information into cfi_info and then fix the address in the new copy.
+          int cur_offset = cfi_info->size();
+          cfi_info->insert(cfi_info->end(), fde->begin(), fde->end());
+
+          // Set the 'initial_location' field to address the start of the method.
+          uint32_t new_value = quick_code_offset - oat_header_->GetExecutableOffset();
+          uint32_t offset_to_update = cur_offset + 2*sizeof(uint32_t);
+          (*cfi_info)[offset_to_update+0] = new_value;
+          (*cfi_info)[offset_to_update+1] = new_value >> 8;
+          (*cfi_info)[offset_to_update+2] = new_value >> 16;
+          (*cfi_info)[offset_to_update+3] = new_value >> 24;
+          method_info_.push_back(DebugInfo(PrettyMethod(class_def_method_index, dex_file, false),
+                                           new_value, new_value + code_size));
+        }
+      }
+
       // Deduplicate code arrays
       SafeMap<const std::vector<uint8_t>*, uint32_t>::iterator code_iter =
           code_offsets_.find(quick_code);

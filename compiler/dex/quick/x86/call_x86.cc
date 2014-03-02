@@ -198,7 +198,7 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
   LockTemp(rX86_ARG2);
 
   /* Build frame, return address already on stack */
-  OpRegImm(kOpSub, rX86_SP, frame_size_ - 4);
+  stack_decrement_ = OpRegImm(kOpSub, rX86_SP, frame_size_ - 4);
 
   /*
    * We can safely skip the stack overflow check if we're
@@ -246,7 +246,7 @@ void X86Mir2Lir::GenExitSequence() {
   NewLIR0(kPseudoMethodExit);
   UnSpillCoreRegs();
   /* Remove frame except for return address */
-  OpRegImm(kOpAdd, rX86_SP, frame_size_ - 4);
+  stack_increment_ = OpRegImm(kOpAdd, rX86_SP, frame_size_ - 4);
   NewLIR0(kX86Ret);
 }
 

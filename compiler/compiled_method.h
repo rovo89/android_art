@@ -110,7 +110,8 @@ class CompiledMethod : public CompiledCode {
                  const uint32_t fp_spill_mask,
                  const std::vector<uint8_t>& mapping_table,
                  const std::vector<uint8_t>& vmap_table,
-                 const std::vector<uint8_t>& native_gc_map);
+                 const std::vector<uint8_t>& native_gc_map,
+                 const std::vector<uint8_t>* cfi_info);
 
   // Constructs a CompiledMethod for the QuickJniCompiler.
   CompiledMethod(CompilerDriver& driver,
@@ -157,6 +158,10 @@ class CompiledMethod : public CompiledCode {
     return *gc_map_;
   }
 
+  const std::vector<uint8_t>* GetCFIInfo() const {
+    return cfi_info_;
+  }
+
  private:
   // For quick code, the size of the activation used by the code.
   const size_t frame_size_in_bytes_;
@@ -172,6 +177,8 @@ class CompiledMethod : public CompiledCode {
   // For quick code, a map keyed by native PC indices to bitmaps describing what dalvik registers
   // are live. For portable code, the key is a dalvik PC.
   std::vector<uint8_t>* gc_map_;
+  // For quick code, a FDE entry for the debug_frame section.
+  std::vector<uint8_t>* cfi_info_;
 };
 
 }  // namespace art

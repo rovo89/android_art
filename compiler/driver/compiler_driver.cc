@@ -31,6 +31,7 @@
 #include "dex/verification_results.h"
 #include "dex/verified_method.h"
 #include "dex/quick/dex_file_method_inliner.h"
+#include "driver/compiler_options.h"
 #include "jni_internal.h"
 #include "object_utils.h"
 #include "runtime.h"
@@ -323,10 +324,12 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
       compiler_enable_auto_elf_loading_(NULL),
       compiler_get_method_code_addr_(NULL),
       support_boot_image_fixup_(instruction_set != kMips),
+      cfi_info_(nullptr),
       dedupe_code_("dedupe code"),
       dedupe_mapping_table_("dedupe mapping table"),
       dedupe_vmap_table_("dedupe vmap table"),
-      dedupe_gc_map_("dedupe gc map") {
+      dedupe_gc_map_("dedupe gc map"),
+      dedupe_cfi_info_("dedupe cfi info") {
   DCHECK(compiler_options_ != nullptr);
   DCHECK(verification_results_ != nullptr);
   DCHECK(method_inliner_map_ != nullptr);
@@ -340,6 +343,11 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
   CHECK(!Runtime::Current()->IsStarted());
   if (!image_) {
     CHECK(image_classes_.get() == NULL);
+  }
+
+  // Are we generating CFI information?
+  if (compiler_options->GetGenerateGDBInformation()) {
+    cfi_info_.reset(compiler_backend_->GetCallFrameInformationInitialization(*this));
   }
 }
 
@@ -357,6 +365,13 @@ std::vector<uint8_t>* CompilerDriver::DeduplicateVMapTable(const std::vector<uin
 
 std::vector<uint8_t>* CompilerDriver::DeduplicateGCMap(const std::vector<uint8_t>& code) {
   return dedupe_gc_map_.Add(Thread::Current(), code);
+}
+
+std::vector<uint8_t>* CompilerDriver::DeduplicateCFIInfo(const std::vector<uint8_t>* cfi_info) {
+  if (cfi_info == nullptr) {
+    return nullptr;
+  }
+  return dedupe_cfi_info_.Add(Thread::Current(), *cfi_info);
 }
 
 CompilerDriver::~CompilerDriver() {
