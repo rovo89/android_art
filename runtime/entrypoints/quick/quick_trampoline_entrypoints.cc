@@ -817,4 +817,13 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
   return code;
 }
 
+extern "C" const void* artQuickGenericJniTrampoline(mirror::ArtMethod* called,
+                                                    mirror::Object* receiver,
+                                                    Thread* thread, mirror::ArtMethod** sp)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  LOG(FATAL) << "artQuickGenericJniTrampoline not implemented: "
+      << PrettyMethod(called);
+  return NULL;
+}
+
 }  // namespace art

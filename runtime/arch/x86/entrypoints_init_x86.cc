@@ -109,6 +109,9 @@ extern "C" void art_quick_throw_no_such_method(int32_t method_idx);
 extern "C" void art_quick_throw_null_pointer_exception();
 extern "C" void art_quick_throw_stack_overflow(void*);
 
+// Generic JNI downcall
+extern "C" void art_quick_generic_jni_trampoline(mirror::ArtMethod*);
+
 extern void ResetQuickAllocEntryPoints(QuickEntryPoints* qpoints);
 
 void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
@@ -164,6 +167,7 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pJniMethodEndSynchronized = JniMethodEndSynchronized;
   qpoints->pJniMethodEndWithReference = JniMethodEndWithReference;
   qpoints->pJniMethodEndWithReferenceSynchronized = JniMethodEndWithReferenceSynchronized;
+  qpoints->pQuickGenericJniTrampoline = art_quick_generic_jni_trampoline;
 
   // Locks
   qpoints->pLockObject = art_quick_lock_object;
