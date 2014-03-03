@@ -374,21 +374,21 @@ LIR* Mir2Lir::AddWideData(LIR* *constant_list_p, int val_lo, int val_hi) {
   return AddWordData(constant_list_p, val_lo);
 }
 
-static void PushWord(std::vector<uint8_t>&buf, int data) {
+static void Push32(std::vector<uint8_t>&buf, int data) {
   buf.push_back(data & 0xff);
   buf.push_back((data >> 8) & 0xff);
   buf.push_back((data >> 16) & 0xff);
   buf.push_back((data >> 24) & 0xff);
 }
 
-// Push 8 bytes on 64-bit systems; 4 on 32-bit systems.
-static void PushPointer(std::vector<uint8_t>&buf, void const* pointer) {
-  uintptr_t data = reinterpret_cast<uintptr_t>(pointer);
-  if (sizeof(void*) == sizeof(uint64_t)) {
-    PushWord(buf, (data >> (sizeof(void*) * 4)) & 0xFFFFFFFF);
-    PushWord(buf, data & 0xFFFFFFFF);
+// Push 8 bytes on 64-bit target systems; 4 on 32-bit target systems.
+static void PushPointer(std::vector<uint8_t>&buf, const void* pointer, bool target64) {
+  uint64_t data = reinterpret_cast<uintptr_t>(pointer);
+  if (target64) {
+    Push32(buf, data & 0xFFFFFFFF);
+    Push32(buf, (data >> 32) & 0xFFFFFFFF);
   } else {
-    PushWord(buf, data);
+    Push32(buf, static_cast<uint32_t>(data));
   }
 }
 
@@ -403,7 +403,7 @@ void Mir2Lir::InstallLiteralPools() {
   AlignBuffer(code_buffer_, data_offset_);
   LIR* data_lir = literal_list_;
   while (data_lir != NULL) {
-    PushWord(code_buffer_, data_lir->operands[0]);
+    Push32(code_buffer_, data_lir->operands[0]);
     data_lir = NEXT_LIR(data_lir);
   }
   // Push code and method literals, record offsets for the compiler to patch.
@@ -419,7 +419,7 @@ void Mir2Lir::InstallLiteralPools() {
                                        code_buffer_.size());
     const DexFile::MethodId& id = cu_->dex_file->GetMethodId(target);
     // unique value based on target to ensure code deduplication works
-    PushPointer(code_buffer_, &id);
+    PushPointer(code_buffer_, &id, cu_->target64);
     data_lir = NEXT_LIR(data_lir);
   }
   data_lir = method_literal_list_;
@@ -434,7 +434,7 @@ void Mir2Lir::InstallLiteralPools() {
                                          code_buffer_.size());
     const DexFile::MethodId& id = cu_->dex_file->GetMethodId(target);
     // unique value based on target to ensure code deduplication works
-    PushPointer(code_buffer_, &id);
+    PushPointer(code_buffer_, &id, cu_->target64);
     data_lir = NEXT_LIR(data_lir);
   }
   // Push class literals.
@@ -448,7 +448,7 @@ void Mir2Lir::InstallLiteralPools() {
                                         code_buffer_.size());
     const DexFile::TypeId& id = cu_->dex_file->GetTypeId(target);
     // unique value based on target to ensure code deduplication works
-    PushPointer(code_buffer_, &id);
+    PushPointer(code_buffer_, &id, cu_->target64);
     data_lir = NEXT_LIR(data_lir);
   }
 }
@@ -492,8 +492,8 @@ void Mir2Lir::InstallSwitchTables() {
                     << std::hex << keys[elems] << ", disp: 0x"
                     << std::hex << disp;
         }
-        PushWord(code_buffer_, keys[elems]);
-        PushWord(code_buffer_,
+        Push32(code_buffer_, keys[elems]);
+        Push32(code_buffer_,
           tab_rec->targets[elems]->offset - bx_offset);
       }
     } else {
@@ -505,7 +505,7 @@ void Mir2Lir::InstallSwitchTables() {
           LOG(INFO) << "  Case[" << elems << "] disp: 0x"
                     << std::hex << disp;
         }
-        PushWord(code_buffer_, tab_rec->targets[elems]->offset - bx_offset);
+        Push32(code_buffer_, tab_rec->targets[elems]->offset - bx_offset);
       }
     }
   }

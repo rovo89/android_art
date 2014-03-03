@@ -104,6 +104,8 @@ bool ImageWriter::Write(const std::string& image_filename,
   portable_to_interpreter_bridge_offset_ =
       oat_file_->GetOatHeader().GetPortableToInterpreterBridgeOffset();
 
+  quick_generic_jni_trampoline_offset_ =
+      oat_file_->GetOatHeader().GetQuickGenericJniTrampolineOffset();
   quick_imt_conflict_trampoline_offset_ =
       oat_file_->GetOatHeader().GetQuickImtConflictTrampolineOffset();
   quick_resolution_trampoline_offset_ =
@@ -638,7 +640,12 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
       if (quick_code != nullptr) {
         copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(quick_code);
       } else {
-        copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(GetOatAddress(quick_resolution_trampoline_offset_));
+        if (orig->IsNative() && !orig->IsStatic()) {
+          // non-static native method missing compiled code, use generic JNI version
+          copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(GetOatAddress(quick_generic_jni_trampoline_offset_));
+        } else {
+          copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(GetOatAddress(quick_resolution_trampoline_offset_));
+        }
       }
       const byte* portable_code = GetOatAddress(orig->GetPortableOatCodeOffset());
       if (portable_code != nullptr) {
@@ -807,6 +814,12 @@ void ImageWriter::PatchOatCodeAndMethods() {
       uintptr_t value = quick_code - patch_location + patch->RelativeOffset();
       SetPatchLocation(patch, value);
     } else {
+      // generic JNI, not interpreter bridge from GetQuickOatCodeFor().
+      if (target->IsNative() &&
+          quick_code == reinterpret_cast<uintptr_t>(GetQuickToInterpreterBridge())) {
+        code_offset = quick_generic_jni_trampoline_offset_;
+      }
+
       SetPatchLocation(patch, PointerToLowMemUInt32(GetOatAddress(code_offset)));
     }
   }
@@ -845,7 +858,7 @@ void ImageWriter::SetPatchLocation(const CompilerDriver::PatchInformation* patch
     if (patch->IsCall()) {
       const CompilerDriver::CallPatchInformation* cpatch = patch->AsCall();
       const DexFile::MethodId& id = cpatch->GetDexFile().GetMethodId(cpatch->GetTargetMethodIdx());
-      uintptr_t expected = reinterpret_cast<uintptr_t>(&id);
+      uint32_t expected = reinterpret_cast<uintptr_t>(&id) & 0xFFFFFFFF;
       uint32_t actual = *patch_location;
       CHECK(actual == expected || actual == value) << std::hex
           << "actual=" << actual
@@ -855,7 +868,7 @@ void ImageWriter::SetPatchLocation(const CompilerDriver::PatchInformation* patch
     if (patch->IsType()) {
       const CompilerDriver::TypePatchInformation* tpatch = patch->AsType();
       const DexFile::TypeId& id = tpatch->GetDexFile().GetTypeId(tpatch->GetTargetTypeIdx());
-      uintptr_t expected = reinterpret_cast<uintptr_t>(&id);
+      uint32_t expected = reinterpret_cast<uintptr_t>(&id) & 0xFFFFFFFF;
       uint32_t actual = *patch_location;
       CHECK(actual == expected || actual == value) << std::hex
           << "actual=" << actual

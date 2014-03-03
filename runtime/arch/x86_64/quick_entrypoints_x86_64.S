@@ -635,6 +635,12 @@ UNIMPLEMENTED art_quick_proxy_invoke_handler
 UNIMPLEMENTED art_quick_imt_conflict_trampoline
 UNIMPLEMENTED art_quick_resolution_trampoline
 
+
+    /*
+     * Called to do a generic JNI down-call
+     */
+UNIMPLEMENTED art_quick_generic_jni_trampoline
+
     /*
      * Called to bridge from the quick to interpreter ABI. On entry the arguments match those
      * of a quick call:
