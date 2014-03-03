@@ -85,7 +85,8 @@ void ArmMir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
   LIR* switch_branch = NewLIR1(kThumb2AddPCR, r_disp);
   tab_rec->anchor = switch_branch;
   // Needs to use setflags encoding here
-  NewLIR3(kThumb2SubsRRI12, r_idx, r_idx, 1);
+  OpRegRegImm(kOpSub, r_idx, r_idx, 1);  // For value == 1, this should set flags.
+  DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
   OpCondBranch(kCondNe, target);
 }
 
