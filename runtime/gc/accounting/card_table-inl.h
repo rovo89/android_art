@@ -154,26 +154,30 @@ inline void CardTable::ModifyCardsAtomic(byte* scan_begin, byte* scan_end, const
   // Now we have the words, we can process words in parallel.
   uintptr_t* word_cur = reinterpret_cast<uintptr_t*>(card_cur);
   uintptr_t* word_end = reinterpret_cast<uintptr_t*>(card_end);
-  uintptr_t expected_word;
-  uintptr_t new_word;
+  union {
+    uintptr_t expected_word;
+    uint8_t expected_bytes[sizeof(uintptr_t)];
+  };
+  union {
+    uintptr_t new_word;
+    uint8_t new_bytes[sizeof(uintptr_t)];
+  };
 
   // TODO: Parallelize.
   while (word_cur < word_end) {
-    while ((expected_word = *word_cur) != 0) {
-      new_word =
-          (visitor((expected_word >> 0) & 0xFF) << 0) |
-          (visitor((expected_word >> 8) & 0xFF) << 8) |
-          (visitor((expected_word >> 16) & 0xFF) << 16) |
-          (visitor((expected_word >> 24) & 0xFF) << 24);
-      if (new_word == expected_word) {
-        // No need to do a cas.
+    while (true) {
+      expected_word = *word_cur;
+      if (LIKELY(expected_word == 0)) {
         break;
+      }
+      for (size_t i = 0; i < sizeof(uintptr_t); ++i) {
+        new_bytes[i] = visitor(expected_bytes[i]);
       }
       if (LIKELY(android_atomic_cas(expected_word, new_word,
                                     reinterpret_cast<int32_t*>(word_cur)) == 0)) {
         for (size_t i = 0; i < sizeof(uintptr_t); ++i) {
-          const byte expected_byte = (expected_word >> (8 * i)) & 0xFF;
-          const byte new_byte = (new_word >> (8 * i)) & 0xFF;
+          const byte expected_byte = expected_bytes[i];
+          const byte new_byte = new_bytes[i];
           if (expected_byte != new_byte) {
             modified(reinterpret_cast<byte*>(word_cur) + i, expected_byte, new_byte);
           }
