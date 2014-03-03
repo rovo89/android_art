@@ -199,7 +199,8 @@ bool LlvmCompilationUnit::MaterializeToRawOStream(::llvm::raw_ostream& out_strea
   std::string target_triple;
   std::string target_cpu;
   std::string target_attr;
-  CompilerDriver::InstructionSetToLLVMTarget(GetInstructionSet(), target_triple, target_cpu, target_attr);
+  CompilerDriver::InstructionSetToLLVMTarget(GetInstructionSet(), &target_triple, &target_cpu,
+                                             &target_attr);
 
   std::string errmsg;
   const ::llvm::Target* target =

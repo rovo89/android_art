@@ -70,7 +70,7 @@ class CompilerLLVM {
     return insn_set_;
   }
 
-  void SetBitcodeFileName(std::string const& filename) {
+  void SetBitcodeFileName(const std::string& filename) {
     bitcode_filename_ = filename;
   }
 

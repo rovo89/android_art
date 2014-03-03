@@ -64,7 +64,7 @@ struct CompilationUnit {
   const CompilerBackend* compiler_backend;
   InstructionSet instruction_set;
 
-  const InstructionSetFeatures& GetInstructionSetFeatures() {
+  InstructionSetFeatures GetInstructionSetFeatures() {
     return compiler_driver->GetInstructionSetFeatures();
   }
   // TODO: much of this info available elsewhere.  Go to the original source?

@@ -441,11 +441,11 @@ const std::vector<uint8_t>* CompilerDriver::CreateQuickToInterpreterBridge() con
 
 void CompilerDriver::CompileAll(jobject class_loader,
                                 const std::vector<const DexFile*>& dex_files,
-                                TimingLogger& timings) {
+                                TimingLogger* timings) {
   DCHECK(!Runtime::Current()->IsStarted());
   UniquePtr<ThreadPool> thread_pool(new ThreadPool("Compiler driver thread pool", thread_count_ - 1));
-  PreCompile(class_loader, dex_files, *thread_pool.get(), timings);
-  Compile(class_loader, dex_files, *thread_pool.get(), timings);
+  PreCompile(class_loader, dex_files, thread_pool.get(), timings);
+  Compile(class_loader, dex_files, thread_pool.get(), timings);
   if (dump_stats_) {
     stats_->Dump();
   }
@@ -483,7 +483,7 @@ static DexToDexCompilationLevel GetDexToDexCompilationlevel(
   }
 }
 
-void CompilerDriver::CompileOne(mirror::ArtMethod* method, TimingLogger& timings) {
+void CompilerDriver::CompileOne(mirror::ArtMethod* method, TimingLogger* timings) {
   DCHECK(!Runtime::Current()->IsStarted());
   Thread* self = Thread::Current();
   jobject jclass_loader;
@@ -510,7 +510,7 @@ void CompilerDriver::CompileOne(mirror::ArtMethod* method, TimingLogger& timings
   dex_files.push_back(dex_file);
 
   UniquePtr<ThreadPool> thread_pool(new ThreadPool("Compiler driver thread pool", 0U));
-  PreCompile(jclass_loader, dex_files, *thread_pool.get(), timings);
+  PreCompile(jclass_loader, dex_files, thread_pool.get(), timings);
 
   // Can we run DEX-to-DEX compiler on this class ?
   DexToDexCompilationLevel dex_to_dex_compilation_level = kDontDexToDexCompile;
@@ -531,7 +531,7 @@ void CompilerDriver::CompileOne(mirror::ArtMethod* method, TimingLogger& timings
 }
 
 void CompilerDriver::Resolve(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                             ThreadPool& thread_pool, TimingLogger& timings) {
+                             ThreadPool* thread_pool, TimingLogger* timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
@@ -540,7 +540,7 @@ void CompilerDriver::Resolve(jobject class_loader, const std::vector<const DexFi
 }
 
 void CompilerDriver::PreCompile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                                ThreadPool& thread_pool, TimingLogger& timings) {
+                                ThreadPool* thread_pool, TimingLogger* timings) {
   LoadImageClasses(timings);
 
   Resolve(class_loader, dex_files, thread_pool, timings);
@@ -625,13 +625,13 @@ static bool RecordImageClassesVisitor(mirror::Class* klass, void* arg)
 }
 
 // Make a list of descriptors for classes to include in the image
-void CompilerDriver::LoadImageClasses(TimingLogger& timings)
+void CompilerDriver::LoadImageClasses(TimingLogger* timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_) {
   if (!IsImage()) {
     return;
   }
 
-  timings.NewSplit("LoadImageClasses");
+  timings->NewSplit("LoadImageClasses");
   // Make a first class to load all classes explicitly listed in the file
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
@@ -713,9 +713,9 @@ void CompilerDriver::FindClinitImageClassesCallback(mirror::Object* object, void
   MaybeAddToImageClasses(object->GetClass(), compiler_driver->image_classes_.get());
 }
 
-void CompilerDriver::UpdateImageClasses(TimingLogger& timings) {
+void CompilerDriver::UpdateImageClasses(TimingLogger* timings) {
   if (IsImage()) {
-    timings.NewSplit("UpdateImageClasses");
+    timings->NewSplit("UpdateImageClasses");
 
     // Update image_classes_ with classes for objects created by <clinit> methods.
     Thread* self = Thread::Current();
@@ -1368,13 +1368,13 @@ class ParallelCompilationManager {
                              jobject class_loader,
                              CompilerDriver* compiler,
                              const DexFile* dex_file,
-                             ThreadPool& thread_pool)
+                             ThreadPool* thread_pool)
     : index_(0),
       class_linker_(class_linker),
       class_loader_(class_loader),
       compiler_(compiler),
       dex_file_(dex_file),
-      thread_pool_(&thread_pool) {}
+      thread_pool_(thread_pool) {}
 
   ClassLinker* GetClassLinker() const {
     CHECK(class_linker_ != NULL);
@@ -1628,7 +1628,7 @@ static void ResolveType(const ParallelCompilationManager* manager, size_t type_i
 }
 
 void CompilerDriver::ResolveDexFile(jobject class_loader, const DexFile& dex_file,
-                                    ThreadPool& thread_pool, TimingLogger& timings) {
+                                    ThreadPool* thread_pool, TimingLogger* timings) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
   // TODO: we could resolve strings here, although the string table is largely filled with class
@@ -1638,16 +1638,16 @@ void CompilerDriver::ResolveDexFile(jobject class_loader, const DexFile& dex_fil
   if (IsImage()) {
     // For images we resolve all types, such as array, whereas for applications just those with
     // classdefs are resolved by ResolveClassFieldsAndMethods.
-    timings.NewSplit("Resolve Types");
+    timings->NewSplit("Resolve Types");
     context.ForAll(0, dex_file.NumTypeIds(), ResolveType, thread_count_);
   }
 
-  timings.NewSplit("Resolve MethodsAndFields");
+  timings->NewSplit("Resolve MethodsAndFields");
   context.ForAll(0, dex_file.NumClassDefs(), ResolveClassFieldsAndMethods, thread_count_);
 }
 
 void CompilerDriver::Verify(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                            ThreadPool& thread_pool, TimingLogger& timings) {
+                            ThreadPool* thread_pool, TimingLogger* timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
@@ -1702,8 +1702,8 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
 }
 
 void CompilerDriver::VerifyDexFile(jobject class_loader, const DexFile& dex_file,
-                                   ThreadPool& thread_pool, TimingLogger& timings) {
-  timings.NewSplit("Verify Dex File");
+                                   ThreadPool* thread_pool, TimingLogger* timings) {
+  timings->NewSplit("Verify Dex File");
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   ParallelCompilationManager context(class_linker, class_loader, this, &dex_file, thread_pool);
   context.ForAll(0, dex_file.NumClassDefs(), VerifyClass, thread_count_);
@@ -1805,8 +1805,8 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
 }
 
 void CompilerDriver::InitializeClasses(jobject jni_class_loader, const DexFile& dex_file,
-                                       ThreadPool& thread_pool, TimingLogger& timings) {
-  timings.NewSplit("InitializeNoClinit");
+                                       ThreadPool* thread_pool, TimingLogger* timings) {
+  timings->NewSplit("InitializeNoClinit");
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   ParallelCompilationManager context(class_linker, jni_class_loader, this, &dex_file, thread_pool);
   size_t thread_count;
@@ -1825,7 +1825,7 @@ void CompilerDriver::InitializeClasses(jobject jni_class_loader, const DexFile& 
 
 void CompilerDriver::InitializeClasses(jobject class_loader,
                                        const std::vector<const DexFile*>& dex_files,
-                                       ThreadPool& thread_pool, TimingLogger& timings) {
+                                       ThreadPool* thread_pool, TimingLogger* timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
@@ -1834,7 +1834,7 @@ void CompilerDriver::InitializeClasses(jobject class_loader,
 }
 
 void CompilerDriver::Compile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                       ThreadPool& thread_pool, TimingLogger& timings) {
+                             ThreadPool* thread_pool, TimingLogger* timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
@@ -1916,8 +1916,8 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
 }
 
 void CompilerDriver::CompileDexFile(jobject class_loader, const DexFile& dex_file,
-                                    ThreadPool& thread_pool, TimingLogger& timings) {
-  timings.NewSplit("Compile Dex File");
+                                    ThreadPool* thread_pool, TimingLogger* timings) {
+  timings->NewSplit("Compile Dex File");
   ParallelCompilationManager context(Runtime::Current()->GetClassLinker(), class_loader, this,
                                      &dex_file, thread_pool);
   context.ForAll(0, dex_file.NumClassDefs(), CompilerDriver::CompileClass, thread_count_);
@@ -2037,38 +2037,38 @@ bool CompilerDriver::RequiresConstructorBarrier(Thread* self, const DexFile* dex
 bool CompilerDriver::WriteElf(const std::string& android_root,
                               bool is_host,
                               const std::vector<const art::DexFile*>& dex_files,
-                              OatWriter& oat_writer,
+                              OatWriter* oat_writer,
                               art::File* file)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return compiler_backend_->WriteElf(file, oat_writer, dex_files, android_root, is_host, *this);
 }
 void CompilerDriver::InstructionSetToLLVMTarget(InstructionSet instruction_set,
-                                                std::string& target_triple,
-                                                std::string& target_cpu,
-                                                std::string& target_attr) {
+                                                std::string* target_triple,
+                                                std::string* target_cpu,
+                                                std::string* target_attr) {
   switch (instruction_set) {
     case kThumb2:
-      target_triple = "thumb-none-linux-gnueabi";
-      target_cpu = "cortex-a9";
-      target_attr = "+thumb2,+neon,+neonfp,+vfp3,+db";
+      *target_triple = "thumb-none-linux-gnueabi";
+      *target_cpu = "cortex-a9";
+      *target_attr = "+thumb2,+neon,+neonfp,+vfp3,+db";
       break;
 
     case kArm:
-      target_triple = "armv7-none-linux-gnueabi";
+      *target_triple = "armv7-none-linux-gnueabi";
       // TODO: Fix for Nexus S.
-      target_cpu = "cortex-a9";
+      *target_cpu = "cortex-a9";
       // TODO: Fix for Xoom.
-      target_attr = "+v7,+neon,+neonfp,+vfp3,+db";
+      *target_attr = "+v7,+neon,+neonfp,+vfp3,+db";
       break;
 
     case kX86:
-      target_triple = "i386-pc-linux-gnu";
-      target_attr = "";
+      *target_triple = "i386-pc-linux-gnu";
+      *target_attr = "";
       break;
 
     case kMips:
-      target_triple = "mipsel-unknown-linux";
-      target_attr = "mips32r2";
+      *target_triple = "mipsel-unknown-linux";
+      *target_attr = "mips32r2";
       break;
 
     default:

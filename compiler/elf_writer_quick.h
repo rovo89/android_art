@@ -21,11 +21,11 @@
 
 namespace art {
 
-class ElfWriterQuick : public ElfWriter {
+class ElfWriterQuick FINAL : public ElfWriter {
  public:
   // Write an ELF file. Returns true on success, false on failure.
   static bool Create(File* file,
-                     OatWriter& oat_writer,
+                     OatWriter* oat_writer,
                      const std::vector<const DexFile*>& dex_files,
                      const std::string& android_root,
                      bool is_host,
@@ -33,15 +33,17 @@ class ElfWriterQuick : public ElfWriter {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  protected:
-  virtual bool Write(OatWriter& oat_writer,
-                     const std::vector<const DexFile*>& dex_files,
-                     const std::string& android_root,
-                     bool is_host)
+  bool Write(OatWriter* oat_writer,
+             const std::vector<const DexFile*>& dex_files,
+             const std::string& android_root,
+             bool is_host)
+      OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
-  ElfWriterQuick(const CompilerDriver& driver, File* elf_file);
-  ~ElfWriterQuick();
+  ElfWriterQuick(const CompilerDriver& driver, File* elf_file)
+    : ElfWriter(driver, elf_file) {}
+  ~ElfWriterQuick() {}
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(ElfWriterQuick);
 };
