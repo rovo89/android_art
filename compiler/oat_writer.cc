@@ -506,15 +506,8 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
     method->SetCoreSpillMask(core_spill_mask);
     method->SetFpSpillMask(fp_spill_mask);
     method->SetOatMappingTableOffset(mapping_table_offset);
-    // Don't overwrite static method trampoline
-    if (!method->IsStatic() || method->IsConstructor() ||
-        method->GetDeclaringClass()->IsInitialized()) {
-      // TODO: record portable code offsets: method->SetPortableOatCodeOffset(portable_code_offset);
-      method->SetQuickOatCodeOffset(quick_code_offset);
-    } else {
-      method->SetEntryPointFromPortableCompiledCode(nullptr);
-      method->SetEntryPointFromQuickCompiledCode(nullptr);
-    }
+    // Portable code offsets are set by ElfWriterMclinker::FixupCompiledCodeOffset after linking.
+    method->SetQuickOatCodeOffset(quick_code_offset);
     method->SetOatVmapTableOffset(vmap_table_offset);
     method->SetOatNativeGcMapOffset(gc_map_offset);
   }

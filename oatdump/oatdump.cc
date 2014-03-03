@@ -126,8 +126,36 @@ class OatDumper {
     os << "DEX FILE COUNT:\n";
     os << oat_header.GetDexFileCount() << "\n\n";
 
-    os << "EXECUTABLE OFFSET:\n";
-    os << StringPrintf("0x%08x\n\n", oat_header.GetExecutableOffset());
+#define DUMP_OAT_HEADER_OFFSET(label, offset) \
+    os << label " OFFSET:\n"; \
+    os << StringPrintf("0x%08x", oat_header.offset()); \
+    if (oat_header.offset() != 0) { \
+      os << StringPrintf(" (%p)", oat_file_.Begin() + oat_header.offset()); \
+    } \
+    os << StringPrintf("\n\n");
+
+    DUMP_OAT_HEADER_OFFSET("EXECUTABLE", GetExecutableOffset);
+    DUMP_OAT_HEADER_OFFSET("INTERPRETER TO INTERPRETER BRIDGE",
+                           GetInterpreterToInterpreterBridgeOffset);
+    DUMP_OAT_HEADER_OFFSET("INTERPRETER TO COMPILED CODE BRIDGE",
+                           GetInterpreterToCompiledCodeBridgeOffset);
+    DUMP_OAT_HEADER_OFFSET("JNI DLSYM LOOKUP",
+                           GetJniDlsymLookupOffset);
+    DUMP_OAT_HEADER_OFFSET("PORTABLE IMT CONFLICT TRAMPOLINE",
+                           GetPortableImtConflictTrampolineOffset);
+    DUMP_OAT_HEADER_OFFSET("PORTABLE RESOLUTION TRAMPOLINE",
+                           GetPortableResolutionTrampolineOffset);
+    DUMP_OAT_HEADER_OFFSET("PORTABLE TO INTERPRETER BRIDGE",
+                           GetPortableToInterpreterBridgeOffset);
+    DUMP_OAT_HEADER_OFFSET("QUICK GENERIC JNI TRAMPOLINE",
+                           GetQuickGenericJniTrampolineOffset);
+    DUMP_OAT_HEADER_OFFSET("QUICK IMT CONFLICT TRAMPOLINE",
+                           GetQuickImtConflictTrampolineOffset);
+    DUMP_OAT_HEADER_OFFSET("QUICK RESOLUTION TRAMPOLINE",
+                           GetQuickResolutionTrampolineOffset);
+    DUMP_OAT_HEADER_OFFSET("QUICK TO INTERPRETER BRIDGE",
+                           GetQuickToInterpreterBridgeOffset);
+#undef DUMP_OAT_HEADER_OFFSET
 
     os << "IMAGE FILE LOCATION OAT CHECKSUM:\n";
     os << StringPrintf("0x%08x\n\n", oat_header.GetImageFileLocationOatChecksum());
@@ -214,7 +242,9 @@ class OatDumper {
         continue;
       }
       offsets_.insert(reinterpret_cast<uintptr_t>(&dex_file->GetHeader()));
-      for (size_t class_def_index = 0; class_def_index < dex_file->NumClassDefs(); class_def_index++) {
+      for (size_t class_def_index = 0;
+           class_def_index < dex_file->NumClassDefs();
+           class_def_index++) {
         const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
         UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file->GetOatClass(class_def_index));
         const byte* class_data = dex_file->GetClassData(class_def);
@@ -264,7 +294,9 @@ class OatDumper {
       os << "NOT FOUND: " << error_msg << "\n\n";
       return;
     }
-    for (size_t class_def_index = 0; class_def_index < dex_file->NumClassDefs(); class_def_index++) {
+    for (size_t class_def_index = 0;
+         class_def_index < dex_file->NumClassDefs();
+         class_def_index++) {
       const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
       const char* descriptor = dex_file->GetClassDescriptor(class_def);
       UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file.GetOatClass(class_def_index));
@@ -389,8 +421,9 @@ class OatDumper {
         SirtRef<mirror::DexCache> dex_cache(
             soa.Self(), runtime->GetClassLinker()->FindDexCache(dex_file));
         SirtRef<mirror::ClassLoader> class_loader(soa.Self(), nullptr);
-        verifier::MethodVerifier verifier(&dex_file, &dex_cache, &class_loader, &class_def, code_item,
-                                          dex_method_idx, nullptr, method_access_flags, true, true);
+        verifier::MethodVerifier verifier(&dex_file, &dex_cache, &class_loader, &class_def,
+                                          code_item, dex_method_idx, nullptr, method_access_flags,
+                                          true, true);
         verifier.Verify();
         DumpCode(indent2_os, &verifier, oat_method, code_item);
       } else {
@@ -654,7 +687,8 @@ class OatDumper {
                     uint32_t method_access_flags) {
     if ((method_access_flags & kAccNative) == 0) {
       ScopedObjectAccess soa(Thread::Current());
-      SirtRef<mirror::DexCache> dex_cache(soa.Self(), Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file));
+      SirtRef<mirror::DexCache> dex_cache(
+          soa.Self(), Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file));
       SirtRef<mirror::ClassLoader> class_loader(soa.Self(), nullptr);
       verifier::MethodVerifier::VerifyMethodAndDump(os, dex_method_idx, dex_file, dex_cache,
                                                     class_loader, &class_def, code_item, NULL,
@@ -701,12 +735,10 @@ class OatDumper {
 
 class ImageDumper {
  public:
-  explicit ImageDumper(std::ostream* os, const std::string& image_filename,
-                       gc::space::ImageSpace& image_space,
+  explicit ImageDumper(std::ostream* os, gc::space::ImageSpace& image_space,
                        const ImageHeader& image_header, bool dump_raw_mapping_table,
                        bool dump_raw_gc_map)
-      : os_(os), image_filename_(image_filename),
-        image_space_(image_space), image_header_(image_header),
+      : os_(os), image_space_(image_space), image_header_(image_header),
         dump_raw_mapping_table_(dump_raw_mapping_table),
         dump_raw_gc_map_(dump_raw_gc_map) {}
 
@@ -772,7 +804,8 @@ class ImageDumper {
     os << "\n";
 
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    std::string oat_location = ImageHeader::GetOatLocationFromImageLocation(image_filename_);
+    std::string image_filename = image_space_.GetImageFilename();
+    std::string oat_location = ImageHeader::GetOatLocationFromImageLocation(image_filename);
     os << "OAT LOCATION: " << oat_location;
     os << "\n";
     std::string error_msg;
@@ -836,17 +869,12 @@ class ImageDumper {
       os_ = saved_os;
     }
     os << "STATS:\n" << std::flush;
-    UniquePtr<File> file(OS::OpenFileForReading(image_filename_.c_str()));
+    UniquePtr<File> file(OS::OpenFileForReading(image_filename.c_str()));
     if (file.get() == NULL) {
-      std::string cache_location(GetDalvikCacheFilenameOrDie(image_filename_.c_str()));
-      file.reset(OS::OpenFileForReading(cache_location.c_str()));
-      if (file.get() == NULL) {
-          LOG(WARNING) << "Failed to find image in " << image_filename_
-                       << " and " << cache_location;
-      }
+      LOG(WARNING) << "Failed to find image in " << image_filename;
     }
     if (file.get() != NULL) {
-        stats_.file_bytes = file->GetLength();
+      stats_.file_bytes = file->GetLength();
     }
     size_t header_bytes = sizeof(ImageHeader);
     stats_.header_bytes = header_bytes;
@@ -1027,7 +1055,8 @@ class ImageDumper {
           indent_os << StringPrintf("%d to %zd: ", i, i + run);
           i = i + run;
         }
-        mirror::Class* value_class = value == NULL ? obj_class->GetComponentType() : value->GetClass();
+        mirror::Class* value_class =
+            (value == NULL) ? obj_class->GetComponentType() : value->GetClass();
         PrettyObjectValue(indent_os, value_class, value);
       }
     } else if (obj->IsClass()) {
@@ -1063,10 +1092,6 @@ class ImageDumper {
         DCHECK(method->GetNativeGcMap() == NULL) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
       } else {
-        // TODO: we check there is a GC map here, we may not have a GC map if the code is pointing
-        //       to the quick/portable to interpreter bridge.
-        CHECK(method->GetNativeGcMap() != NULL) << PrettyMethod(method);
-
         const DexFile::CodeItem* code_item = MethodHelper(method).GetCodeItem();
         size_t dex_instruction_bytes = code_item->insns_size_in_code_units_ * 2;
         state->stats_.dex_instruction_bytes += dex_instruction_bytes;
@@ -1363,12 +1388,18 @@ class ImageDumper {
                          "large_initializer_code_bytes = %8zd (%2.0f%% of oat file bytes)\n"
                          "large_method_code_bytes      = %8zd (%2.0f%% of oat file bytes)\n\n",
                          oat_file_bytes,
-                         managed_code_bytes, PercentOfOatBytes(managed_code_bytes),
-                         managed_to_native_code_bytes, PercentOfOatBytes(managed_to_native_code_bytes),
-                         native_to_managed_code_bytes, PercentOfOatBytes(native_to_managed_code_bytes),
-                         class_initializer_code_bytes, PercentOfOatBytes(class_initializer_code_bytes),
-                         large_initializer_code_bytes, PercentOfOatBytes(large_initializer_code_bytes),
-                         large_method_code_bytes, PercentOfOatBytes(large_method_code_bytes))
+                         managed_code_bytes,
+                         PercentOfOatBytes(managed_code_bytes),
+                         managed_to_native_code_bytes,
+                         PercentOfOatBytes(managed_to_native_code_bytes),
+                         native_to_managed_code_bytes,
+                         PercentOfOatBytes(native_to_managed_code_bytes),
+                         class_initializer_code_bytes,
+                         PercentOfOatBytes(class_initializer_code_bytes),
+                         large_initializer_code_bytes,
+                         PercentOfOatBytes(large_initializer_code_bytes),
+                         large_method_code_bytes,
+                         PercentOfOatBytes(large_method_code_bytes))
             << "DexFile sizes:\n";
       for (const std::pair<std::string, size_t>& oat_dex_file_size : oat_dex_file_sizes) {
         os << StringPrintf("%s = %zd (%2.0f%% of oat file bytes)\n",
@@ -1386,7 +1417,8 @@ class ImageDumper {
 
       os << StringPrintf("dex_instruction_bytes = %zd\n", dex_instruction_bytes)
          << StringPrintf("managed_code_bytes expansion = %.2f (ignoring deduplication %.2f)\n\n",
-                         static_cast<double>(managed_code_bytes) / static_cast<double>(dex_instruction_bytes),
+                         static_cast<double>(managed_code_bytes) /
+                             static_cast<double>(dex_instruction_bytes),
                          static_cast<double>(managed_code_bytes_ignoring_deduplication) /
                              static_cast<double>(dex_instruction_bytes))
          << std::flush;
@@ -1406,7 +1438,6 @@ class ImageDumper {
   };
   UniquePtr<OatDumper> oat_dumper_;
   std::ostream* os_;
-  const std::string image_filename_;
   gc::space::ImageSpace& image_space_;
   const ImageHeader& image_header_;
   bool dump_raw_mapping_table_;
@@ -1497,6 +1528,7 @@ static int oatdump(int argc, char** argv) {
   std::string boot_oat_option;
 
   // We are more like a compiler than a run-time. We don't want to execute code.
+  // TODO: Replace with NoopCompilerCallbacks.
   struct OatDumpCompilerCallbacks : CompilerCallbacks {
     virtual bool MethodVerified(verifier::MethodVerifier* /*verifier*/) { return true; }
     virtual void ClassRejected(ClassReference /*ref*/) { }
@@ -1532,8 +1564,8 @@ static int oatdump(int argc, char** argv) {
     fprintf(stderr, "Invalid image header %s\n", image_filename);
     return EXIT_FAILURE;
   }
-  ImageDumper image_dumper(os, image_filename, *image_space, image_header,
-    dump_raw_mapping_table, dump_raw_gc_map);
+  ImageDumper image_dumper(os, *image_space, image_header,
+                           dump_raw_mapping_table, dump_raw_gc_map);
   image_dumper.Dump();
   return EXIT_SUCCESS;
 }

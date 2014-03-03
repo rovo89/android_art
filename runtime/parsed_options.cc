@@ -186,10 +186,12 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
   profile_clock_source_ = kDefaultProfilerClockSource;
 
   for (size_t i = 0; i < options.size(); ++i) {
-    const std::string option(options[i].first);
     if (true && options[0].first == "-Xzygote") {
-      LOG(INFO) << "option[" << i << "]=" << option;
+      LOG(INFO) << "option[" << i << "]=" << options[i].first;
     }
+  }
+  for (size_t i = 0; i < options.size(); ++i) {
+    const std::string option(options[i].first);
     if (StartsWith(option, "-help")) {
       Usage(nullptr);
       return false;
