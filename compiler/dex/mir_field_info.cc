@@ -79,7 +79,10 @@ void MirSFieldLoweringInfo::Resolve(CompilerDriver* compiler_driver,
     DCHECK_NE(count, 0u);
     for (auto it = field_infos, end = field_infos + count; it != end; ++it) {
       MirSFieldLoweringInfo unresolved(it->field_idx_);
-      DCHECK_EQ(memcmp(&unresolved, &*it, sizeof(*it)), 0);
+      // In 64-bit builds, there's padding after storage_index_, don't include it in memcmp.
+      size_t size = OFFSETOF_MEMBER(MirSFieldLoweringInfo, storage_index_) +
+          sizeof(it->storage_index_);
+      DCHECK_EQ(memcmp(&unresolved, &*it, size), 0);
     }
   }
 
