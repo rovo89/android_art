@@ -219,7 +219,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
       LOCAL_STATIC_LIBRARIES += libmcldMipsInfo libmcldMipsTarget
       include $(LLVM_HOST_BUILD_MK)
     endif
-    LOCAL_STATIC_LIBRARIES += libmcldCore libmcldObject libmcldADT libmcldFragment libmcldTarget libmcldCodeGen libmcldLDVariant libmcldMC libmcldSupport libmcldLD
+    LOCAL_STATIC_LIBRARIES += libmcldCore libmcldObject libmcldADT libmcldFragment libmcldTarget libmcldCodeGen libmcldLDVariant libmcldMC libmcldSupport libmcldLD libmcldScript
     include $(LLVM_GEN_INTRINSICS_MK)
   endif
 
