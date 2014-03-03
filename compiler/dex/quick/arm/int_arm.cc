@@ -753,7 +753,8 @@ LIR* ArmMir2Lir::OpTestSuspend(LIR* target) {
 // Decrement register and branch on condition
 LIR* ArmMir2Lir::OpDecAndBranch(ConditionCode c_code, int reg, LIR* target) {
   // Combine sub & test using sub setflags encoding here
-  NewLIR3(kThumb2SubsRRI12, reg, reg, 1);
+  OpRegRegImm(kOpSub, reg, reg, 1);  // For value == 1, this should set flags.
+  DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
   return OpCondBranch(c_code, target);
 }
 
