@@ -20,6 +20,8 @@
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "compiler_ir.h"
+#include "mir_field_info.h"
+#include "invoke_type.h"
 #include "utils/arena_bit_vector.h"
 #include "utils/growable_array.h"
 
@@ -258,6 +260,12 @@ struct MIR {
     MIR* throw_insn;
     // Fused cmp branch condition.
     ConditionCode ccode;
+    // IGET/IPUT lowering info index, points to MIRGraph::ifield_lowering_infos_. Due to limit on
+    // the number of code points (64K) and size of IGET/IPUT insn (2), this will never exceed 32K.
+    uint32_t ifield_lowering_info;
+    // SGET/SPUT lowering info index, points to MIRGraph::sfield_lowering_infos_. Due to limit on
+    // the number of code points (64K) and size of SGET/SPUT insn (2), this will never exceed 32K.
+    uint32_t sfield_lowering_info;
   } meta;
 };
 
@@ -465,6 +473,18 @@ class MIRGraph {
    * @param suffix does the filename require a suffix or not (default = nullptr).
    */
   void DumpCFG(const char* dir_prefix, bool all_blocks, const char* suffix = nullptr);
+
+  void DoCacheFieldLoweringInfo();
+
+  const MirIFieldLoweringInfo& GetIFieldLoweringInfo(MIR* mir) {
+    DCHECK_LT(mir->meta.ifield_lowering_info, ifield_lowering_infos_.Size());
+    return ifield_lowering_infos_.GetRawStorage()[mir->meta.ifield_lowering_info];
+  }
+
+  const MirSFieldLoweringInfo& GetSFieldLoweringInfo(MIR* mir) {
+    DCHECK_LT(mir->meta.sfield_lowering_info, sfield_lowering_infos_.Size());
+    return sfield_lowering_infos_.GetRawStorage()[mir->meta.sfield_lowering_info];
+  }
 
   void InitRegLocations();
 
@@ -923,6 +943,8 @@ class MIRGraph {
   size_t max_available_non_special_compiler_temps_;
   size_t max_available_special_compiler_temps_;
   bool punt_to_interpreter_;                    // Difficult or not worthwhile - just interpret.
+  GrowableArray<MirIFieldLoweringInfo> ifield_lowering_infos_;
+  GrowableArray<MirSFieldLoweringInfo> sfield_lowering_infos_;
 
   friend class LocalValueNumberingTest;
 };

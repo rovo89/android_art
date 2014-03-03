@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "dex_file.h"
 #include "dex_file-inl.h"
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
@@ -1602,7 +1603,7 @@ llvm::Value* GBCExpanderPass::Expand_HLIGet(llvm::CallInst& call_inst,
 
   llvm::Value* field_value;
 
-  int field_offset;
+  art::MemberOffset field_offset(0u);
   bool is_volatile;
   bool is_fast_path = driver_->ComputeInstanceFieldInfo(
     field_idx, dex_compilation_unit_, false, &field_offset, &is_volatile);
@@ -1633,12 +1634,12 @@ llvm::Value* GBCExpanderPass::Expand_HLIGet(llvm::CallInst& call_inst,
       field_value = irb_.CreateBitCast(field_value, irb_.getJType(field_jty));
     }
   } else {
-    DCHECK_GE(field_offset, 0);
+    DCHECK_GE(field_offset.Int32Value(), 0);
 
     llvm::PointerType* field_type =
       irb_.getJType(field_jty)->getPointerTo();
 
-    llvm::ConstantInt* field_offset_value = irb_.getPtrEquivInt(field_offset);
+    llvm::ConstantInt* field_offset_value = irb_.getPtrEquivInt(field_offset.Int32Value());
 
     llvm::Value* field_addr =
       irb_.CreatePtrDisp(object_addr, field_offset_value, field_type);
@@ -1664,7 +1665,7 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
 
   EmitGuard_NullPointerException(dex_pc, object_addr, opt_flags);
 
-  int field_offset;
+  art::MemberOffset field_offset(0u);
   bool is_volatile;
   bool is_fast_path = driver_->ComputeInstanceFieldInfo(
     field_idx, dex_compilation_unit_, true, &field_offset, &is_volatile);
@@ -1698,7 +1699,7 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
     EmitGuard_ExceptionLandingPad(dex_pc);
 
   } else {
-    DCHECK_GE(field_offset, 0);
+    DCHECK_GE(field_offset.Int32Value(), 0);
 
     if (is_volatile) {
       irb_.CreateMemoryBarrier(art::kStoreStore);
@@ -1707,7 +1708,7 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
     llvm::PointerType* field_type =
       irb_.getJType(field_jty)->getPointerTo();
 
-    llvm::Value* field_offset_value = irb_.getPtrEquivInt(field_offset);
+    llvm::Value* field_offset_value = irb_.getPtrEquivInt(field_offset.Int32Value());
 
     llvm::Value* field_addr =
       irb_.CreatePtrDisp(object_addr, field_offset_value, field_type);
@@ -1875,8 +1876,8 @@ llvm::Value* GBCExpanderPass::Expand_HLSget(llvm::CallInst& call_inst,
   uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
   uint32_t field_idx = LV2UInt(call_inst.getArgOperand(0));
 
-  int field_offset;
-  int ssb_index;
+  art::MemberOffset field_offset(0u);
+  uint32_t ssb_index;
   bool is_referrers_class;
   bool is_volatile;
   bool is_initialized;
@@ -1913,7 +1914,7 @@ llvm::Value* GBCExpanderPass::Expand_HLSget(llvm::CallInst& call_inst,
       static_field_value = irb_.CreateBitCast(static_field_value, irb_.getJType(field_jty));
     }
   } else {
-    DCHECK_GE(field_offset, 0);
+    DCHECK_GE(field_offset.Int32Value(), 0);
 
     llvm::Value* static_storage_addr = NULL;
 
@@ -1929,11 +1930,11 @@ llvm::Value* GBCExpanderPass::Expand_HLSget(llvm::CallInst& call_inst,
     } else {
       // Medium path, static storage base in a different class which
       // requires checks that the other class is initialized
-      DCHECK_GE(ssb_index, 0);
+      DCHECK_NE(ssb_index, art::DexFile::kDexNoIndex);
       static_storage_addr = EmitLoadStaticStorage(dex_pc, ssb_index);
     }
 
-    llvm::Value* static_field_offset_value = irb_.getPtrEquivInt(field_offset);
+    llvm::Value* static_field_offset_value = irb_.getPtrEquivInt(field_offset.Int32Value());
 
     llvm::Value* static_field_addr =
       irb_.CreatePtrDisp(static_storage_addr, static_field_offset_value,
@@ -1960,8 +1961,8 @@ void GBCExpanderPass::Expand_HLSput(llvm::CallInst& call_inst,
     new_value = irb_.CreateBitCast(new_value, irb_.getJType(field_jty));
   }
 
-  int field_offset;
-  int ssb_index;
+  art::MemberOffset field_offset(0u);
+  uint32_t ssb_index;
   bool is_referrers_class;
   bool is_volatile;
   bool is_initialized;
@@ -1999,7 +2000,7 @@ void GBCExpanderPass::Expand_HLSput(llvm::CallInst& call_inst,
     EmitGuard_ExceptionLandingPad(dex_pc);
 
   } else {
-    DCHECK_GE(field_offset, 0);
+    DCHECK_GE(field_offset.Int32Value(), 0);
 
     llvm::Value* static_storage_addr = NULL;
 
@@ -2015,7 +2016,7 @@ void GBCExpanderPass::Expand_HLSput(llvm::CallInst& call_inst,
     } else {
       // Medium path, static storage base in a different class which
       // requires checks that the other class is initialized
-      DCHECK_GE(ssb_index, 0);
+      DCHECK_NE(ssb_index, art::DexFile::kDexNoIndex);
       static_storage_addr = EmitLoadStaticStorage(dex_pc, ssb_index);
     }
 
@@ -2023,7 +2024,7 @@ void GBCExpanderPass::Expand_HLSput(llvm::CallInst& call_inst,
       irb_.CreateMemoryBarrier(art::kStoreStore);
     }
 
-    llvm::Value* static_field_offset_value = irb_.getPtrEquivInt(field_offset);
+    llvm::Value* static_field_offset_value = irb_.getPtrEquivInt(field_offset.Int32Value());
 
     llvm::Value* static_field_addr =
       irb_.CreatePtrDisp(static_storage_addr, static_field_offset_value,
