@@ -207,10 +207,11 @@ size_t MIRGraph::GetNumAvailableNonSpecialCompilerTemps() {
   }
 }
 
+
+// FIXME - will probably need to revisit all uses of this, as type not defined.
 static const RegLocation temp_loc = {kLocCompilerTemp,
-                                     0, 1 /*defined*/, 0, 0, 0, 0, 0, 1 /*home*/,
-                                     kVectorNotUsed, INVALID_REG, INVALID_REG, INVALID_SREG,
-                                     INVALID_SREG};
+                                     0, 1 /*defined*/, 0, 0, 0, 0, 0, 1 /*home*/, kVectorNotUsed,
+                                     RegStorage(), INVALID_SREG, INVALID_SREG};
 
 CompilerTemp* MIRGraph::GetNewCompilerTemp(CompilerTempType ct_type, bool wide) {
   // There is a limit to the number of non-special temps so check to make sure it wasn't exceeded.

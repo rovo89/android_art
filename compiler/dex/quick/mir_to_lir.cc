@@ -53,8 +53,9 @@ int Mir2Lir::LoadArg(int in_position, bool wide) {
   if (wide && reg_arg_high == INVALID_REG) {
     // If the low part is not in a reg, we allocate a pair. Otherwise, we just load to high reg.
     if (reg_arg_low == INVALID_REG) {
-      int new_regs = AllocTypedTempPair(false, kAnyReg);
-      DECODE_REG_PAIR(new_regs, reg_arg_low, reg_arg_high);
+      RegStorage new_regs = AllocTypedTempWide(false, kAnyReg);
+      reg_arg_low = new_regs.GetReg();
+      reg_arg_high = new_regs.GetHighReg();
       LoadBaseDispWide(TargetReg(kSp), offset, reg_arg_low, reg_arg_high, INVALID_SREG);
     } else {
       reg_arg_high = AllocTemp();
@@ -70,6 +71,7 @@ int Mir2Lir::LoadArg(int in_position, bool wide) {
   }
 
   if (wide) {
+    // TODO: replace w/ RegStorage.
     return ENCODE_REG_PAIR(reg_arg_low, reg_arg_high);
   } else {
     return reg_arg_low;
@@ -90,25 +92,25 @@ void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
   if (!rl_dest.wide) {
     int reg = GetArgMappingToPhysicalReg(in_position);
     if (reg != INVALID_REG) {
-      OpRegCopy(rl_dest.low_reg, reg);
+      OpRegCopy(rl_dest.reg.GetReg(), reg);
     } else {
-      LoadWordDisp(TargetReg(kSp), offset, rl_dest.low_reg);
+      LoadWordDisp(TargetReg(kSp), offset, rl_dest.reg.GetReg());
     }
   } else {
     int reg_arg_low = GetArgMappingToPhysicalReg(in_position);
     int reg_arg_high = GetArgMappingToPhysicalReg(in_position + 1);
 
     if (reg_arg_low != INVALID_REG && reg_arg_high != INVALID_REG) {
-      OpRegCopyWide(rl_dest.low_reg, rl_dest.high_reg, reg_arg_low, reg_arg_high);
+      OpRegCopyWide(rl_dest.reg.GetReg(), rl_dest.reg.GetHighReg(), reg_arg_low, reg_arg_high);
     } else if (reg_arg_low != INVALID_REG && reg_arg_high == INVALID_REG) {
-      OpRegCopy(rl_dest.low_reg, reg_arg_low);
+      OpRegCopy(rl_dest.reg.GetReg(), reg_arg_low);
       int offset_high = offset + sizeof(uint32_t);
-      LoadWordDisp(TargetReg(kSp), offset_high, rl_dest.high_reg);
+      LoadWordDisp(TargetReg(kSp), offset_high, rl_dest.reg.GetHighReg());
     } else if (reg_arg_low == INVALID_REG && reg_arg_high != INVALID_REG) {
-      OpRegCopy(rl_dest.high_reg, reg_arg_high);
-      LoadWordDisp(TargetReg(kSp), offset, rl_dest.low_reg);
+      OpRegCopy(rl_dest.reg.GetHighReg(), reg_arg_high);
+      LoadWordDisp(TargetReg(kSp), offset, rl_dest.reg.GetReg());
     } else {
-      LoadBaseDispWide(TargetReg(kSp), offset, rl_dest.low_reg, rl_dest.high_reg, INVALID_SREG);
+      LoadBaseDispWide(TargetReg(kSp), offset, rl_dest.reg.GetReg(), rl_dest.reg.GetHighReg(), INVALID_SREG);
     }
   }
 }
@@ -131,9 +133,9 @@ bool Mir2Lir::GenSpecialIGet(MIR* mir, const InlineMethod& special) {
   RegLocation rl_dest = wide ? GetReturnWide(double_or_float) : GetReturn(double_or_float);
   int reg_obj = LoadArg(data.object_arg);
   if (wide) {
-    LoadBaseDispWide(reg_obj, data.field_offset, rl_dest.low_reg, rl_dest.high_reg, INVALID_SREG);
+    LoadBaseDispWide(reg_obj, data.field_offset, rl_dest.reg.GetReg(), rl_dest.reg.GetHighReg(), INVALID_SREG);
   } else {
-    LoadBaseDisp(reg_obj, data.field_offset, rl_dest.low_reg, kWord, INVALID_SREG);
+    LoadBaseDisp(reg_obj, data.field_offset, rl_dest.reg.GetReg(), kWord, INVALID_SREG);
   }
   if (data.is_volatile) {
     GenMemBarrier(kLoadLoad);
@@ -210,7 +212,7 @@ bool Mir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& speci
       successful = true;
       RegLocation rl_dest = GetReturn(cu_->shorty[0] == 'F');
       GenPrintLabel(mir);
-      LoadConstant(rl_dest.low_reg, static_cast<int>(special.d.data));
+      LoadConstant(rl_dest.reg.GetReg(), static_cast<int>(special.d.data));
       return_mir = mir_graph_->GetNextUnconditionalMir(bb, mir);
       break;
     }
@@ -371,19 +373,19 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::CONST_4:
     case Instruction::CONST_16:
       rl_result = EvalLoc(rl_dest, kAnyReg, true);
-      LoadConstantNoClobber(rl_result.low_reg, vB);
+      LoadConstantNoClobber(rl_result.reg.GetReg(), vB);
       StoreValue(rl_dest, rl_result);
       if (vB == 0) {
-        Workaround7250540(rl_dest, rl_result.low_reg);
+        Workaround7250540(rl_dest, rl_result.reg.GetReg());
       }
       break;
 
     case Instruction::CONST_HIGH16:
       rl_result = EvalLoc(rl_dest, kAnyReg, true);
-      LoadConstantNoClobber(rl_result.low_reg, vB << 16);
+      LoadConstantNoClobber(rl_result.reg.GetReg(), vB << 16);
       StoreValue(rl_dest, rl_result);
       if (vB == 0) {
-        Workaround7250540(rl_dest, rl_result.low_reg);
+        Workaround7250540(rl_dest, rl_result.reg.GetReg());
       }
       break;
 
@@ -398,7 +400,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
 
     case Instruction::CONST_WIDE_HIGH16:
       rl_result = EvalLoc(rl_dest, kAnyReg, true);
-      LoadConstantWide(rl_result.low_reg, rl_result.high_reg,
+      LoadConstantWide(rl_result.reg.GetReg(), rl_result.reg.GetHighReg(),
                            static_cast<int64_t>(vB) << 48);
       StoreValueWide(rl_dest, rl_result);
       break;
@@ -431,9 +433,9 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       int len_offset;
       len_offset = mirror::Array::LengthOffset().Int32Value();
       rl_src[0] = LoadValue(rl_src[0], kCoreReg);
-      GenNullCheck(rl_src[0].s_reg_low, rl_src[0].low_reg, opt_flags);
+      GenNullCheck(rl_src[0].s_reg_low, rl_src[0].reg.GetReg(), opt_flags);
       rl_result = EvalLoc(rl_dest, kCoreReg, true);
-      LoadWordDisp(rl_src[0].low_reg, len_offset, rl_result.low_reg);
+      LoadWordDisp(rl_src[0].reg.GetReg(), len_offset, rl_result.reg.GetReg());
       StoreValue(rl_dest, rl_result);
       break;
 

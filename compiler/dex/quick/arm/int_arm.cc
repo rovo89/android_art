@@ -90,10 +90,10 @@ void ArmMir2Lir::GenCmpLong(RegLocation rl_dest, RegLocation rl_src1,
   rl_src2 = LoadValueWide(rl_src2, kCoreReg);
   int t_reg = AllocTemp();
   LoadConstant(t_reg, -1);
-  OpRegReg(kOpCmp, rl_src1.high_reg, rl_src2.high_reg);
+  OpRegReg(kOpCmp, rl_src1.reg.GetHighReg(), rl_src2.reg.GetHighReg());
   LIR* branch1 = OpCondBranch(kCondLt, NULL);
   LIR* branch2 = OpCondBranch(kCondGt, NULL);
-  OpRegRegReg(kOpSub, t_reg, rl_src1.low_reg, rl_src2.low_reg);
+  OpRegRegReg(kOpSub, t_reg, rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
   LIR* branch3 = OpCondBranch(kCondEq, NULL);
 
   OpIT(kCondHi, "E");
@@ -107,7 +107,7 @@ void ArmMir2Lir::GenCmpLong(RegLocation rl_dest, RegLocation rl_src1,
   target1 = NewLIR0(kPseudoTargetLabel);
 
   RegLocation rl_temp = LocCReturn();  // Just using as template, will change
-  rl_temp.low_reg = t_reg;
+  rl_temp.reg.SetReg(t_reg);
   StoreValue(rl_dest, rl_temp);
   FreeTemp(t_reg);
 
@@ -125,8 +125,8 @@ void ArmMir2Lir::GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1,
   LIR* taken = &block_label_list_[bb->taken];
   LIR* not_taken = &block_label_list_[bb->fall_through];
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
-  int32_t low_reg = rl_src1.low_reg;
-  int32_t high_reg = rl_src1.high_reg;
+  int32_t low_reg = rl_src1.reg.GetReg();
+  int32_t high_reg = rl_src1.reg.GetHighReg();
 
   if (val == 0 && (ccode == kCondEq || ccode == kCondNe)) {
     int t_reg = AllocTemp();
@@ -178,15 +178,15 @@ void ArmMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
     int false_val = mir->dalvikInsn.vC;
     rl_result = EvalLoc(rl_dest, kCoreReg, true);
     if ((true_val == 1) && (false_val == 0)) {
-      OpRegRegImm(kOpRsub, rl_result.low_reg, rl_src.low_reg, 1);
+      OpRegRegImm(kOpRsub, rl_result.reg.GetReg(), rl_src.reg.GetReg(), 1);
       OpIT(kCondUlt, "");
-      LoadConstant(rl_result.low_reg, 0);
+      LoadConstant(rl_result.reg.GetReg(), 0);
       GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
     } else if (InexpensiveConstantInt(true_val) && InexpensiveConstantInt(false_val)) {
-      OpRegImm(kOpCmp, rl_src.low_reg, 0);
+      OpRegImm(kOpCmp, rl_src.reg.GetReg(), 0);
       OpIT(kCondEq, "E");
-      LoadConstant(rl_result.low_reg, true_val);
-      LoadConstant(rl_result.low_reg, false_val);
+      LoadConstant(rl_result.reg.GetReg(), true_val);
+      LoadConstant(rl_result.reg.GetReg(), false_val);
       GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
     } else {
       // Unlikely case - could be tuned.
@@ -194,10 +194,10 @@ void ArmMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
       int t_reg2 = AllocTemp();
       LoadConstant(t_reg1, true_val);
       LoadConstant(t_reg2, false_val);
-      OpRegImm(kOpCmp, rl_src.low_reg, 0);
+      OpRegImm(kOpCmp, rl_src.reg.GetReg(), 0);
       OpIT(kCondEq, "E");
-      OpRegCopy(rl_result.low_reg, t_reg1);
-      OpRegCopy(rl_result.low_reg, t_reg2);
+      OpRegCopy(rl_result.reg.GetReg(), t_reg1);
+      OpRegCopy(rl_result.reg.GetReg(), t_reg2);
       GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
     }
   } else {
@@ -207,17 +207,17 @@ void ArmMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
     rl_true = LoadValue(rl_true, kCoreReg);
     rl_false = LoadValue(rl_false, kCoreReg);
     rl_result = EvalLoc(rl_dest, kCoreReg, true);
-    OpRegImm(kOpCmp, rl_src.low_reg, 0);
-    if (rl_result.low_reg == rl_true.low_reg) {  // Is the "true" case already in place?
+    OpRegImm(kOpCmp, rl_src.reg.GetReg(), 0);
+    if (rl_result.reg.GetReg() == rl_true.reg.GetReg()) {  // Is the "true" case already in place?
       OpIT(kCondNe, "");
-      OpRegCopy(rl_result.low_reg, rl_false.low_reg);
-    } else if (rl_result.low_reg == rl_false.low_reg) {  // False case in place?
+      OpRegCopy(rl_result.reg.GetReg(), rl_false.reg.GetReg());
+    } else if (rl_result.reg.GetReg() == rl_false.reg.GetReg()) {  // False case in place?
       OpIT(kCondEq, "");
-      OpRegCopy(rl_result.low_reg, rl_true.low_reg);
+      OpRegCopy(rl_result.reg.GetReg(), rl_true.reg.GetReg());
     } else {  // Normal - select between the two.
       OpIT(kCondEq, "E");
-      OpRegCopy(rl_result.low_reg, rl_true.low_reg);
-      OpRegCopy(rl_result.low_reg, rl_false.low_reg);
+      OpRegCopy(rl_result.reg.GetReg(), rl_true.reg.GetReg());
+      OpRegCopy(rl_result.reg.GetReg(), rl_false.reg.GetReg());
     }
     GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
   }
@@ -247,7 +247,7 @@ void ArmMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
   LIR* not_taken = &block_label_list_[bb->fall_through];
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
   rl_src2 = LoadValueWide(rl_src2, kCoreReg);
-  OpRegReg(kOpCmp, rl_src1.high_reg, rl_src2.high_reg);
+  OpRegReg(kOpCmp, rl_src1.reg.GetHighReg(), rl_src2.reg.GetHighReg());
   switch (ccode) {
     case kCondEq:
       OpCondBranch(kCondNe, not_taken);
@@ -278,7 +278,7 @@ void ArmMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
     default:
       LOG(FATAL) << "Unexpected ccode: " << ccode;
   }
-  OpRegReg(kOpCmp, rl_src1.low_reg, rl_src2.low_reg);
+  OpRegReg(kOpCmp, rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
   OpCondBranch(ccode, taken);
 }
 
@@ -415,21 +415,21 @@ bool ArmMir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   int r_hi = AllocTemp();
   int r_lo = AllocTemp();
-  NewLIR4(kThumb2Smull, r_lo, r_hi, r_magic, rl_src.low_reg);
+  NewLIR4(kThumb2Smull, r_lo, r_hi, r_magic, rl_src.reg.GetReg());
   switch (pattern) {
     case Divide3:
-      OpRegRegRegShift(kOpSub, rl_result.low_reg, r_hi,
-               rl_src.low_reg, EncodeShift(kArmAsr, 31));
+      OpRegRegRegShift(kOpSub, rl_result.reg.GetReg(), r_hi,
+               rl_src.reg.GetReg(), EncodeShift(kArmAsr, 31));
       break;
     case Divide5:
-      OpRegRegImm(kOpAsr, r_lo, rl_src.low_reg, 31);
-      OpRegRegRegShift(kOpRsub, rl_result.low_reg, r_lo, r_hi,
+      OpRegRegImm(kOpAsr, r_lo, rl_src.reg.GetReg(), 31);
+      OpRegRegRegShift(kOpRsub, rl_result.reg.GetReg(), r_lo, r_hi,
                EncodeShift(kArmAsr, magic_table[lit].shift));
       break;
     case Divide7:
-      OpRegReg(kOpAdd, r_hi, rl_src.low_reg);
-      OpRegRegImm(kOpAsr, r_lo, rl_src.low_reg, 31);
-      OpRegRegRegShift(kOpRsub, rl_result.low_reg, r_lo, r_hi,
+      OpRegReg(kOpAdd, r_hi, rl_src.reg.GetReg());
+      OpRegRegImm(kOpAsr, r_lo, rl_src.reg.GetReg(), 31);
+      OpRegRegRegShift(kOpRsub, rl_result.reg.GetReg(), r_lo, r_hi,
                EncodeShift(kArmAsr, magic_table[lit].shift));
       break;
     default:
@@ -476,7 +476,7 @@ RegLocation ArmMir2Lir::GenDivRem(RegLocation rl_dest, int reg1, int reg2,
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   if (is_div) {
     // Simple case, use sdiv instruction.
-    OpRegRegReg(kOpDiv, rl_result.low_reg, reg1, reg2);
+    OpRegRegReg(kOpDiv, rl_result.reg.GetReg(), reg1, reg2);
   } else {
     // Remainder case, use the following code:
     // temp = reg1 / reg2      - integer division
@@ -486,7 +486,7 @@ RegLocation ArmMir2Lir::GenDivRem(RegLocation rl_dest, int reg1, int reg2,
     int temp = AllocTemp();
     OpRegRegReg(kOpDiv, temp, reg1, reg2);
     OpRegReg(kOpMul, temp, reg2);
-    OpRegRegReg(kOpSub, rl_result.low_reg, reg1, temp);
+    OpRegRegReg(kOpSub, rl_result.reg.GetReg(), reg1, temp);
     FreeTemp(temp);
   }
 
@@ -501,10 +501,10 @@ bool ArmMir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min) {
   rl_src2 = LoadValue(rl_src2, kCoreReg);
   RegLocation rl_dest = InlineTarget(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  OpRegReg(kOpCmp, rl_src1.low_reg, rl_src2.low_reg);
+  OpRegReg(kOpCmp, rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
   OpIT((is_min) ? kCondGt : kCondLt, "E");
-  OpRegReg(kOpMov, rl_result.low_reg, rl_src2.low_reg);
-  OpRegReg(kOpMov, rl_result.low_reg, rl_src1.low_reg);
+  OpRegReg(kOpMov, rl_result.reg.GetReg(), rl_src2.reg.GetReg());
+  OpRegReg(kOpMov, rl_result.reg.GetReg(), rl_src1.reg.GetReg());
   GenBarrier();
   StoreValue(rl_dest, rl_result);
   return true;
@@ -518,18 +518,18 @@ bool ArmMir2Lir::GenInlinedPeek(CallInfo* info, OpSize size) {
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   if (size == kLong) {
     // Fake unaligned LDRD by two unaligned LDR instructions on ARMv7 with SCTLR.A set to 0.
-    if (rl_address.low_reg != rl_result.low_reg) {
-      LoadBaseDisp(rl_address.low_reg, 0, rl_result.low_reg, kWord, INVALID_SREG);
-      LoadBaseDisp(rl_address.low_reg, 4, rl_result.high_reg, kWord, INVALID_SREG);
+    if (rl_address.reg.GetReg() != rl_result.reg.GetReg()) {
+      LoadBaseDisp(rl_address.reg.GetReg(), 0, rl_result.reg.GetReg(), kWord, INVALID_SREG);
+      LoadBaseDisp(rl_address.reg.GetReg(), 4, rl_result.reg.GetHighReg(), kWord, INVALID_SREG);
     } else {
-      LoadBaseDisp(rl_address.low_reg, 4, rl_result.high_reg, kWord, INVALID_SREG);
-      LoadBaseDisp(rl_address.low_reg, 0, rl_result.low_reg, kWord, INVALID_SREG);
+      LoadBaseDisp(rl_address.reg.GetReg(), 4, rl_result.reg.GetHighReg(), kWord, INVALID_SREG);
+      LoadBaseDisp(rl_address.reg.GetReg(), 0, rl_result.reg.GetReg(), kWord, INVALID_SREG);
     }
     StoreValueWide(rl_dest, rl_result);
   } else {
     DCHECK(size == kSignedByte || size == kSignedHalf || size == kWord);
     // Unaligned load with LDR and LDRSH is allowed on ARMv7 with SCTLR.A set to 0.
-    LoadBaseDisp(rl_address.low_reg, 0, rl_result.low_reg, size, INVALID_SREG);
+    LoadBaseDisp(rl_address.reg.GetReg(), 0, rl_result.reg.GetReg(), size, INVALID_SREG);
     StoreValue(rl_dest, rl_result);
   }
   return true;
@@ -543,13 +543,13 @@ bool ArmMir2Lir::GenInlinedPoke(CallInfo* info, OpSize size) {
   if (size == kLong) {
     // Fake unaligned STRD by two unaligned STR instructions on ARMv7 with SCTLR.A set to 0.
     RegLocation rl_value = LoadValueWide(rl_src_value, kCoreReg);
-    StoreBaseDisp(rl_address.low_reg, 0, rl_value.low_reg, kWord);
-    StoreBaseDisp(rl_address.low_reg, 4, rl_value.high_reg, kWord);
+    StoreBaseDisp(rl_address.reg.GetReg(), 0, rl_value.reg.GetReg(), kWord);
+    StoreBaseDisp(rl_address.reg.GetReg(), 4, rl_value.reg.GetHighReg(), kWord);
   } else {
     DCHECK(size == kSignedByte || size == kSignedHalf || size == kWord);
     // Unaligned store with STR and STRSH is allowed on ARMv7 with SCTLR.A set to 0.
     RegLocation rl_value = LoadValue(rl_src_value, kCoreReg);
-    StoreBaseDisp(rl_address.low_reg, 0, rl_value.low_reg, size);
+    StoreBaseDisp(rl_address.reg.GetReg(), 0, rl_value.reg.GetReg(), size);
   }
   return true;
 }
@@ -589,24 +589,24 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   bool load_early = true;
   if (is_long) {
     bool expected_is_core_reg =
-        rl_src_expected.location == kLocPhysReg && !IsFpReg(rl_src_expected.low_reg);
+        rl_src_expected.location == kLocPhysReg && !IsFpReg(rl_src_expected.reg.GetReg());
     bool new_value_is_core_reg =
-        rl_src_new_value.location == kLocPhysReg && !IsFpReg(rl_src_new_value.low_reg);
-    bool expected_is_good_reg = expected_is_core_reg && !IsTemp(rl_src_expected.low_reg);
-    bool new_value_is_good_reg = new_value_is_core_reg && !IsTemp(rl_src_new_value.low_reg);
+        rl_src_new_value.location == kLocPhysReg && !IsFpReg(rl_src_new_value.reg.GetReg());
+    bool expected_is_good_reg = expected_is_core_reg && !IsTemp(rl_src_expected.reg.GetReg());
+    bool new_value_is_good_reg = new_value_is_core_reg && !IsTemp(rl_src_new_value.reg.GetReg());
 
     if (!expected_is_good_reg && !new_value_is_good_reg) {
       // None of expected/new_value is non-temp reg, need to load both late
       load_early = false;
       // Make sure they are not in the temp regs and the load will not be skipped.
       if (expected_is_core_reg) {
-        FlushRegWide(rl_src_expected.low_reg, rl_src_expected.high_reg);
+        FlushRegWide(rl_src_expected.reg.GetReg(), rl_src_expected.reg.GetHighReg());
         ClobberSReg(rl_src_expected.s_reg_low);
         ClobberSReg(GetSRegHi(rl_src_expected.s_reg_low));
         rl_src_expected.location = kLocDalvikFrame;
       }
       if (new_value_is_core_reg) {
-        FlushRegWide(rl_src_new_value.low_reg, rl_src_new_value.high_reg);
+        FlushRegWide(rl_src_new_value.reg.GetReg(), rl_src_new_value.reg.GetHighReg());
         ClobberSReg(rl_src_new_value.s_reg_low);
         ClobberSReg(GetSRegHi(rl_src_new_value.s_reg_low));
         rl_src_new_value.location = kLocDalvikFrame;
@@ -627,19 +627,19 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
 
   if (is_object && !mir_graph_->IsConstantNullRef(rl_new_value)) {
     // Mark card for object assuming new value is stored.
-    MarkGCCard(rl_new_value.low_reg, rl_object.low_reg);
+    MarkGCCard(rl_new_value.reg.GetReg(), rl_object.reg.GetReg());
   }
 
   RegLocation rl_offset = LoadValue(rl_src_offset, kCoreReg);
 
   int r_ptr = rARM_LR;
-  OpRegRegReg(kOpAdd, r_ptr, rl_object.low_reg, rl_offset.low_reg);
+  OpRegRegReg(kOpAdd, r_ptr, rl_object.reg.GetReg(), rl_offset.reg.GetReg());
 
   // Free now unneeded rl_object and rl_offset to give more temps.
   ClobberSReg(rl_object.s_reg_low);
-  FreeTemp(rl_object.low_reg);
+  FreeTemp(rl_object.reg.GetReg());
   ClobberSReg(rl_offset.s_reg_low);
-  FreeTemp(rl_offset.low_reg);
+  FreeTemp(rl_offset.reg.GetReg());
 
   RegLocation rl_expected;
   if (!is_long) {
@@ -647,8 +647,11 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   } else if (load_early) {
     rl_expected = LoadValueWide(rl_src_expected, kCoreReg);
   } else {
-    rl_new_value.low_reg = rl_expected.low_reg = AllocTemp();
-    rl_new_value.high_reg = rl_expected.high_reg = AllocTemp();
+    // NOTE: partially defined rl_expected & rl_new_value - but we just want the regs.
+    int low_reg = AllocTemp();
+    int high_reg = AllocTemp();
+    rl_new_value.reg = RegStorage(RegStorage::k64BitPair, low_reg, high_reg);
+    rl_expected = rl_new_value;
   }
 
   // do {
@@ -662,13 +665,13 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   if (is_long) {
     int r_tmp_high = AllocTemp();
     if (!load_early) {
-      LoadValueDirectWide(rl_src_expected, rl_expected.low_reg, rl_expected.high_reg);
+      LoadValueDirectWide(rl_src_expected, rl_expected.reg.GetReg(), rl_expected.reg.GetHighReg());
     }
     NewLIR3(kThumb2Ldrexd, r_tmp, r_tmp_high, r_ptr);
-    OpRegReg(kOpSub, r_tmp, rl_expected.low_reg);
-    OpRegReg(kOpSub, r_tmp_high, rl_expected.high_reg);
+    OpRegReg(kOpSub, r_tmp, rl_expected.reg.GetReg());
+    OpRegReg(kOpSub, r_tmp_high, rl_expected.reg.GetHighReg());
     if (!load_early) {
-      LoadValueDirectWide(rl_src_new_value, rl_new_value.low_reg, rl_new_value.high_reg);
+      LoadValueDirectWide(rl_src_new_value, rl_new_value.reg.GetReg(), rl_new_value.reg.GetHighReg());
     }
     // Make sure we use ORR that sets the ccode
     if (ARM_LOWREG(r_tmp) && ARM_LOWREG(r_tmp_high)) {
@@ -680,14 +683,14 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
 
     DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
     OpIT(kCondEq, "T");
-    NewLIR4(kThumb2Strexd /* eq */, r_tmp, rl_new_value.low_reg, rl_new_value.high_reg, r_ptr);
+    NewLIR4(kThumb2Strexd /* eq */, r_tmp, rl_new_value.reg.GetReg(), rl_new_value.reg.GetHighReg(), r_ptr);
 
   } else {
     NewLIR3(kThumb2Ldrex, r_tmp, r_ptr, 0);
-    OpRegReg(kOpSub, r_tmp, rl_expected.low_reg);
+    OpRegReg(kOpSub, r_tmp, rl_expected.reg.GetReg());
     DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
     OpIT(kCondEq, "T");
-    NewLIR4(kThumb2Strex /* eq */, r_tmp, rl_new_value.low_reg, r_ptr, 0);
+    NewLIR4(kThumb2Strex /* eq */, r_tmp, rl_new_value.reg.GetReg(), r_ptr, 0);
   }
 
   // Still one conditional left from OpIT(kCondEq, "T") from either branch
@@ -695,16 +698,16 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   OpCondBranch(kCondEq, target);
 
   if (!load_early) {
-    FreeTemp(rl_expected.low_reg);  // Now unneeded.
-    FreeTemp(rl_expected.high_reg);  // Now unneeded.
+    FreeTemp(rl_expected.reg.GetReg());  // Now unneeded.
+    FreeTemp(rl_expected.reg.GetHighReg());  // Now unneeded.
   }
 
   // result := (tmp1 != 0) ? 0 : 1;
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  OpRegRegImm(kOpRsub, rl_result.low_reg, r_tmp, 1);
+  OpRegRegImm(kOpRsub, rl_result.reg.GetReg(), r_tmp, 1);
   DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
   OpIT(kCondUlt, "");
-  LoadConstant(rl_result.low_reg, 0); /* cc */
+  LoadConstant(rl_result.reg.GetReg(), 0); /* cc */
   FreeTemp(r_tmp);  // Now unneeded.
 
   StoreValue(rl_dest, rl_result);
@@ -730,10 +733,10 @@ LIR* ArmMir2Lir::OpVstm(int rBase, int count) {
 void ArmMir2Lir::GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
                                                RegLocation rl_result, int lit,
                                                int first_bit, int second_bit) {
-  OpRegRegRegShift(kOpAdd, rl_result.low_reg, rl_src.low_reg, rl_src.low_reg,
+  OpRegRegRegShift(kOpAdd, rl_result.reg.GetReg(), rl_src.reg.GetReg(), rl_src.reg.GetReg(),
                    EncodeShift(kArmLsl, second_bit - first_bit));
   if (first_bit != 0) {
-    OpRegRegImm(kOpLsl, rl_result.low_reg, rl_result.low_reg, first_bit);
+    OpRegRegImm(kOpLsl, rl_result.reg.GetReg(), rl_result.reg.GetReg(), first_bit);
   }
 }
 
@@ -783,14 +786,14 @@ void ArmMir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
   int z_reg = AllocTemp();
   LoadConstantNoClobber(z_reg, 0);
   // Check for destructive overlap
-  if (rl_result.low_reg == rl_src.high_reg) {
+  if (rl_result.reg.GetReg() == rl_src.reg.GetHighReg()) {
     int t_reg = AllocTemp();
-    OpRegRegReg(kOpSub, rl_result.low_reg, z_reg, rl_src.low_reg);
-    OpRegRegReg(kOpSbc, rl_result.high_reg, z_reg, t_reg);
+    OpRegRegReg(kOpSub, rl_result.reg.GetReg(), z_reg, rl_src.reg.GetReg());
+    OpRegRegReg(kOpSbc, rl_result.reg.GetHighReg(), z_reg, t_reg);
     FreeTemp(t_reg);
   } else {
-    OpRegRegReg(kOpSub, rl_result.low_reg, z_reg, rl_src.low_reg);
-    OpRegRegReg(kOpSbc, rl_result.high_reg, z_reg, rl_src.high_reg);
+    OpRegRegReg(kOpSub, rl_result.reg.GetReg(), z_reg, rl_src.reg.GetReg());
+    OpRegRegReg(kOpSbc, rl_result.reg.GetHighReg(), z_reg, rl_src.reg.GetHighReg());
   }
   FreeTemp(z_reg);
   StoreValueWide(rl_dest, rl_result);
@@ -828,41 +831,41 @@ void ArmMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
     bool special_case = true;
     // If operands are the same, or any pair has been promoted we're not the special case.
     if ((rl_src1.s_reg_low == rl_src2.s_reg_low) ||
-        (!IsTemp(rl_src1.low_reg) && !IsTemp(rl_src1.high_reg)) ||
-        (!IsTemp(rl_src2.low_reg) && !IsTemp(rl_src2.high_reg))) {
+        (!IsTemp(rl_src1.reg.GetReg()) && !IsTemp(rl_src1.reg.GetHighReg())) ||
+        (!IsTemp(rl_src2.reg.GetReg()) && !IsTemp(rl_src2.reg.GetHighReg()))) {
       special_case = false;
     }
     // Tuning: if rl_dest has been promoted and is *not* either operand, could use directly.
     int res_lo = AllocTemp();
     int res_hi;
-    if (rl_src1.low_reg == rl_src2.low_reg) {
+    if (rl_src1.reg.GetReg() == rl_src2.reg.GetReg()) {
       res_hi = AllocTemp();
-      NewLIR3(kThumb2MulRRR, tmp1, rl_src1.low_reg, rl_src1.high_reg);
-      NewLIR4(kThumb2Umull, res_lo, res_hi, rl_src1.low_reg, rl_src1.low_reg);
+      NewLIR3(kThumb2MulRRR, tmp1, rl_src1.reg.GetReg(), rl_src1.reg.GetHighReg());
+      NewLIR4(kThumb2Umull, res_lo, res_hi, rl_src1.reg.GetReg(), rl_src1.reg.GetReg());
       OpRegRegRegShift(kOpAdd, res_hi, res_hi, tmp1, EncodeShift(kArmLsl, 1));
     } else {
       // In the special case, all temps are now allocated
-      NewLIR3(kThumb2MulRRR, tmp1, rl_src2.low_reg, rl_src1.high_reg);
+      NewLIR3(kThumb2MulRRR, tmp1, rl_src2.reg.GetReg(), rl_src1.reg.GetHighReg());
       if (special_case) {
-        DCHECK_NE(rl_src1.low_reg, rl_src2.low_reg);
-        DCHECK_NE(rl_src1.high_reg, rl_src2.high_reg);
-        FreeTemp(rl_src1.high_reg);
+        DCHECK_NE(rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
+        DCHECK_NE(rl_src1.reg.GetHighReg(), rl_src2.reg.GetHighReg());
+        FreeTemp(rl_src1.reg.GetHighReg());
       }
       res_hi = AllocTemp();
 
-      NewLIR4(kThumb2Umull, res_lo, res_hi, rl_src2.low_reg, rl_src1.low_reg);
-      NewLIR4(kThumb2Mla, tmp1, rl_src1.low_reg, rl_src2.high_reg, tmp1);
+      NewLIR4(kThumb2Umull, res_lo, res_hi, rl_src2.reg.GetReg(), rl_src1.reg.GetReg());
+      NewLIR4(kThumb2Mla, tmp1, rl_src1.reg.GetReg(), rl_src2.reg.GetHighReg(), tmp1);
       NewLIR4(kThumb2AddRRR, res_hi, tmp1, res_hi, 0);
       if (special_case) {
-        FreeTemp(rl_src1.low_reg);
-        Clobber(rl_src1.low_reg);
-        Clobber(rl_src1.high_reg);
+        FreeTemp(rl_src1.reg.GetReg());
+        Clobber(rl_src1.reg.GetReg());
+        Clobber(rl_src1.reg.GetHighReg());
       }
     }
     FreeTemp(tmp1);
     rl_result = GetReturnWide(false);  // Just using as a template.
-    rl_result.low_reg = res_lo;
-    rl_result.high_reg = res_hi;
+    rl_result.reg.SetReg(res_lo);
+    rl_result.reg.SetHighReg(res_hi);
     StoreValueWide(rl_dest, rl_result);
     // Now, restore lr to its non-temp status.
     Clobber(rARM_LR);
@@ -921,25 +924,25 @@ void ArmMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
   }
 
   /* null object? */
-  GenNullCheck(rl_array.s_reg_low, rl_array.low_reg, opt_flags);
+  GenNullCheck(rl_array.s_reg_low, rl_array.reg.GetReg(), opt_flags);
 
   bool needs_range_check = (!(opt_flags & MIR_IGNORE_RANGE_CHECK));
   int reg_len = INVALID_REG;
   if (needs_range_check) {
     reg_len = AllocTemp();
     /* Get len */
-    LoadWordDisp(rl_array.low_reg, len_offset, reg_len);
+    LoadWordDisp(rl_array.reg.GetReg(), len_offset, reg_len);
   }
   if (rl_dest.wide || rl_dest.fp || constant_index) {
     int reg_ptr;
     if (constant_index) {
-      reg_ptr = rl_array.low_reg;  // NOTE: must not alter reg_ptr in constant case.
+      reg_ptr = rl_array.reg.GetReg();  // NOTE: must not alter reg_ptr in constant case.
     } else {
       // No special indexed operation, lea + load w/ displacement
       reg_ptr = AllocTemp();
-      OpRegRegRegShift(kOpAdd, reg_ptr, rl_array.low_reg, rl_index.low_reg,
+      OpRegRegRegShift(kOpAdd, reg_ptr, rl_array.reg.GetReg(), rl_index.reg.GetReg(),
                        EncodeShift(kArmLsl, scale));
-      FreeTemp(rl_index.low_reg);
+      FreeTemp(rl_index.reg.GetReg());
     }
     rl_result = EvalLoc(rl_dest, reg_class, true);
 
@@ -947,18 +950,18 @@ void ArmMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
       if (constant_index) {
         GenImmedCheck(kCondLs, reg_len, mir_graph_->ConstantValue(rl_index), kThrowConstantArrayBounds);
       } else {
-        GenRegRegCheck(kCondLs, reg_len, rl_index.low_reg, kThrowArrayBounds);
+        GenRegRegCheck(kCondLs, reg_len, rl_index.reg.GetReg(), kThrowArrayBounds);
       }
       FreeTemp(reg_len);
     }
     if (rl_dest.wide) {
-      LoadBaseDispWide(reg_ptr, data_offset, rl_result.low_reg, rl_result.high_reg, INVALID_SREG);
+      LoadBaseDispWide(reg_ptr, data_offset, rl_result.reg.GetReg(), rl_result.reg.GetHighReg(), INVALID_SREG);
       if (!constant_index) {
         FreeTemp(reg_ptr);
       }
       StoreValueWide(rl_dest, rl_result);
     } else {
-      LoadBaseDisp(reg_ptr, data_offset, rl_result.low_reg, size, INVALID_SREG);
+      LoadBaseDisp(reg_ptr, data_offset, rl_result.reg.GetReg(), size, INVALID_SREG);
       if (!constant_index) {
         FreeTemp(reg_ptr);
       }
@@ -967,15 +970,15 @@ void ArmMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
   } else {
     // Offset base, then use indexed load
     int reg_ptr = AllocTemp();
-    OpRegRegImm(kOpAdd, reg_ptr, rl_array.low_reg, data_offset);
-    FreeTemp(rl_array.low_reg);
+    OpRegRegImm(kOpAdd, reg_ptr, rl_array.reg.GetReg(), data_offset);
+    FreeTemp(rl_array.reg.GetReg());
     rl_result = EvalLoc(rl_dest, reg_class, true);
 
     if (needs_range_check) {
-      GenRegRegCheck(kCondUge, rl_index.low_reg, reg_len, kThrowArrayBounds);
+      GenRegRegCheck(kCondUge, rl_index.reg.GetReg(), reg_len, kThrowArrayBounds);
       FreeTemp(reg_len);
     }
-    LoadBaseIndexed(reg_ptr, rl_index.low_reg, rl_result.low_reg, scale, size);
+    LoadBaseIndexed(reg_ptr, rl_index.reg.GetReg(), rl_result.reg.GetReg(), scale, size);
     FreeTemp(reg_ptr);
     StoreValue(rl_dest, rl_result);
   }
@@ -1011,17 +1014,17 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   int reg_ptr;
   bool allocated_reg_ptr_temp = false;
   if (constant_index) {
-    reg_ptr = rl_array.low_reg;
-  } else if (IsTemp(rl_array.low_reg) && !card_mark) {
-    Clobber(rl_array.low_reg);
-    reg_ptr = rl_array.low_reg;
+    reg_ptr = rl_array.reg.GetReg();
+  } else if (IsTemp(rl_array.reg.GetReg()) && !card_mark) {
+    Clobber(rl_array.reg.GetReg());
+    reg_ptr = rl_array.reg.GetReg();
   } else {
     allocated_reg_ptr_temp = true;
     reg_ptr = AllocTemp();
   }
 
   /* null object? */
-  GenNullCheck(rl_array.s_reg_low, rl_array.low_reg, opt_flags);
+  GenNullCheck(rl_array.s_reg_low, rl_array.reg.GetReg(), opt_flags);
 
   bool needs_range_check = (!(opt_flags & MIR_IGNORE_RANGE_CHECK));
   int reg_len = INVALID_REG;
@@ -1029,7 +1032,7 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     reg_len = AllocTemp();
     // NOTE: max live temps(4) here.
     /* Get len */
-    LoadWordDisp(rl_array.low_reg, len_offset, reg_len);
+    LoadWordDisp(rl_array.reg.GetReg(), len_offset, reg_len);
   }
   /* at this point, reg_ptr points to array, 2 live temps */
   if (rl_src.wide || rl_src.fp || constant_index) {
@@ -1039,39 +1042,39 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
       rl_src = LoadValue(rl_src, reg_class);
     }
     if (!constant_index) {
-      OpRegRegRegShift(kOpAdd, reg_ptr, rl_array.low_reg, rl_index.low_reg,
+      OpRegRegRegShift(kOpAdd, reg_ptr, rl_array.reg.GetReg(), rl_index.reg.GetReg(),
                        EncodeShift(kArmLsl, scale));
     }
     if (needs_range_check) {
       if (constant_index) {
         GenImmedCheck(kCondLs, reg_len, mir_graph_->ConstantValue(rl_index), kThrowConstantArrayBounds);
       } else {
-        GenRegRegCheck(kCondLs, reg_len, rl_index.low_reg, kThrowArrayBounds);
+        GenRegRegCheck(kCondLs, reg_len, rl_index.reg.GetReg(), kThrowArrayBounds);
       }
       FreeTemp(reg_len);
     }
 
     if (rl_src.wide) {
-      StoreBaseDispWide(reg_ptr, data_offset, rl_src.low_reg, rl_src.high_reg);
+      StoreBaseDispWide(reg_ptr, data_offset, rl_src.reg.GetReg(), rl_src.reg.GetHighReg());
     } else {
-      StoreBaseDisp(reg_ptr, data_offset, rl_src.low_reg, size);
+      StoreBaseDisp(reg_ptr, data_offset, rl_src.reg.GetReg(), size);
     }
   } else {
     /* reg_ptr -> array data */
-    OpRegRegImm(kOpAdd, reg_ptr, rl_array.low_reg, data_offset);
+    OpRegRegImm(kOpAdd, reg_ptr, rl_array.reg.GetReg(), data_offset);
     rl_src = LoadValue(rl_src, reg_class);
     if (needs_range_check) {
-      GenRegRegCheck(kCondUge, rl_index.low_reg, reg_len, kThrowArrayBounds);
+      GenRegRegCheck(kCondUge, rl_index.reg.GetReg(), reg_len, kThrowArrayBounds);
       FreeTemp(reg_len);
     }
-    StoreBaseIndexed(reg_ptr, rl_index.low_reg, rl_src.low_reg,
+    StoreBaseIndexed(reg_ptr, rl_index.reg.GetReg(), rl_src.reg.GetReg(),
                      scale, size);
   }
   if (allocated_reg_ptr_temp) {
     FreeTemp(reg_ptr);
   }
   if (card_mark) {
-    MarkGCCard(rl_src.low_reg, rl_array.low_reg);
+    MarkGCCard(rl_src.reg.GetReg(), rl_array.reg.GetReg());
   }
 }
 
@@ -1094,53 +1097,53 @@ void ArmMir2Lir::GenShiftImmOpLong(Instruction::Code opcode,
     case Instruction::SHL_LONG:
     case Instruction::SHL_LONG_2ADDR:
       if (shift_amount == 1) {
-        OpRegRegReg(kOpAdd, rl_result.low_reg, rl_src.low_reg, rl_src.low_reg);
-        OpRegRegReg(kOpAdc, rl_result.high_reg, rl_src.high_reg, rl_src.high_reg);
+        OpRegRegReg(kOpAdd, rl_result.reg.GetReg(), rl_src.reg.GetReg(), rl_src.reg.GetReg());
+        OpRegRegReg(kOpAdc, rl_result.reg.GetHighReg(), rl_src.reg.GetHighReg(), rl_src.reg.GetHighReg());
       } else if (shift_amount == 32) {
-        OpRegCopy(rl_result.high_reg, rl_src.low_reg);
-        LoadConstant(rl_result.low_reg, 0);
+        OpRegCopy(rl_result.reg.GetHighReg(), rl_src.reg.GetReg());
+        LoadConstant(rl_result.reg.GetReg(), 0);
       } else if (shift_amount > 31) {
-        OpRegRegImm(kOpLsl, rl_result.high_reg, rl_src.low_reg, shift_amount - 32);
-        LoadConstant(rl_result.low_reg, 0);
+        OpRegRegImm(kOpLsl, rl_result.reg.GetHighReg(), rl_src.reg.GetReg(), shift_amount - 32);
+        LoadConstant(rl_result.reg.GetReg(), 0);
       } else {
-        OpRegRegImm(kOpLsl, rl_result.high_reg, rl_src.high_reg, shift_amount);
-        OpRegRegRegShift(kOpOr, rl_result.high_reg, rl_result.high_reg, rl_src.low_reg,
+        OpRegRegImm(kOpLsl, rl_result.reg.GetHighReg(), rl_src.reg.GetHighReg(), shift_amount);
+        OpRegRegRegShift(kOpOr, rl_result.reg.GetHighReg(), rl_result.reg.GetHighReg(), rl_src.reg.GetReg(),
                          EncodeShift(kArmLsr, 32 - shift_amount));
-        OpRegRegImm(kOpLsl, rl_result.low_reg, rl_src.low_reg, shift_amount);
+        OpRegRegImm(kOpLsl, rl_result.reg.GetReg(), rl_src.reg.GetReg(), shift_amount);
       }
       break;
     case Instruction::SHR_LONG:
     case Instruction::SHR_LONG_2ADDR:
       if (shift_amount == 32) {
-        OpRegCopy(rl_result.low_reg, rl_src.high_reg);
-        OpRegRegImm(kOpAsr, rl_result.high_reg, rl_src.high_reg, 31);
+        OpRegCopy(rl_result.reg.GetReg(), rl_src.reg.GetHighReg());
+        OpRegRegImm(kOpAsr, rl_result.reg.GetHighReg(), rl_src.reg.GetHighReg(), 31);
       } else if (shift_amount > 31) {
-        OpRegRegImm(kOpAsr, rl_result.low_reg, rl_src.high_reg, shift_amount - 32);
-        OpRegRegImm(kOpAsr, rl_result.high_reg, rl_src.high_reg, 31);
+        OpRegRegImm(kOpAsr, rl_result.reg.GetReg(), rl_src.reg.GetHighReg(), shift_amount - 32);
+        OpRegRegImm(kOpAsr, rl_result.reg.GetHighReg(), rl_src.reg.GetHighReg(), 31);
       } else {
         int t_reg = AllocTemp();
-        OpRegRegImm(kOpLsr, t_reg, rl_src.low_reg, shift_amount);
-        OpRegRegRegShift(kOpOr, rl_result.low_reg, t_reg, rl_src.high_reg,
+        OpRegRegImm(kOpLsr, t_reg, rl_src.reg.GetReg(), shift_amount);
+        OpRegRegRegShift(kOpOr, rl_result.reg.GetReg(), t_reg, rl_src.reg.GetHighReg(),
                          EncodeShift(kArmLsl, 32 - shift_amount));
         FreeTemp(t_reg);
-        OpRegRegImm(kOpAsr, rl_result.high_reg, rl_src.high_reg, shift_amount);
+        OpRegRegImm(kOpAsr, rl_result.reg.GetHighReg(), rl_src.reg.GetHighReg(), shift_amount);
       }
       break;
     case Instruction::USHR_LONG:
     case Instruction::USHR_LONG_2ADDR:
       if (shift_amount == 32) {
-        OpRegCopy(rl_result.low_reg, rl_src.high_reg);
-        LoadConstant(rl_result.high_reg, 0);
+        OpRegCopy(rl_result.reg.GetReg(), rl_src.reg.GetHighReg());
+        LoadConstant(rl_result.reg.GetHighReg(), 0);
       } else if (shift_amount > 31) {
-        OpRegRegImm(kOpLsr, rl_result.low_reg, rl_src.high_reg, shift_amount - 32);
-        LoadConstant(rl_result.high_reg, 0);
+        OpRegRegImm(kOpLsr, rl_result.reg.GetReg(), rl_src.reg.GetHighReg(), shift_amount - 32);
+        LoadConstant(rl_result.reg.GetHighReg(), 0);
       } else {
         int t_reg = AllocTemp();
-        OpRegRegImm(kOpLsr, t_reg, rl_src.low_reg, shift_amount);
-        OpRegRegRegShift(kOpOr, rl_result.low_reg, t_reg, rl_src.high_reg,
+        OpRegRegImm(kOpLsr, t_reg, rl_src.reg.GetReg(), shift_amount);
+        OpRegRegRegShift(kOpOr, rl_result.reg.GetReg(), t_reg, rl_src.reg.GetHighReg(),
                          EncodeShift(kArmLsl, 32 - shift_amount));
         FreeTemp(t_reg);
-        OpRegRegImm(kOpLsr, rl_result.high_reg, rl_src.high_reg, shift_amount);
+        OpRegRegImm(kOpLsr, rl_result.reg.GetHighReg(), rl_src.reg.GetHighReg(), shift_amount);
       }
       break;
     default:
@@ -1195,36 +1198,36 @@ void ArmMir2Lir::GenArithImmOpLong(Instruction::Code opcode,
   switch (opcode) {
     case Instruction::ADD_LONG:
     case Instruction::ADD_LONG_2ADDR:
-      NewLIR3(kThumb2AddRRI8M, rl_result.low_reg, rl_src1.low_reg, mod_imm_lo);
-      NewLIR3(kThumb2AdcRRI8M, rl_result.high_reg, rl_src1.high_reg, mod_imm_hi);
+      NewLIR3(kThumb2AddRRI8M, rl_result.reg.GetReg(), rl_src1.reg.GetReg(), mod_imm_lo);
+      NewLIR3(kThumb2AdcRRI8M, rl_result.reg.GetHighReg(), rl_src1.reg.GetHighReg(), mod_imm_hi);
       break;
     case Instruction::OR_LONG:
     case Instruction::OR_LONG_2ADDR:
-      if ((val_lo != 0) || (rl_result.low_reg != rl_src1.low_reg)) {
-        OpRegRegImm(kOpOr, rl_result.low_reg, rl_src1.low_reg, val_lo);
+      if ((val_lo != 0) || (rl_result.reg.GetReg() != rl_src1.reg.GetReg())) {
+        OpRegRegImm(kOpOr, rl_result.reg.GetReg(), rl_src1.reg.GetReg(), val_lo);
       }
-      if ((val_hi != 0) || (rl_result.high_reg != rl_src1.high_reg)) {
-        OpRegRegImm(kOpOr, rl_result.high_reg, rl_src1.high_reg, val_hi);
+      if ((val_hi != 0) || (rl_result.reg.GetHighReg() != rl_src1.reg.GetHighReg())) {
+        OpRegRegImm(kOpOr, rl_result.reg.GetHighReg(), rl_src1.reg.GetHighReg(), val_hi);
       }
       break;
     case Instruction::XOR_LONG:
     case Instruction::XOR_LONG_2ADDR:
-      OpRegRegImm(kOpXor, rl_result.low_reg, rl_src1.low_reg, val_lo);
-      OpRegRegImm(kOpXor, rl_result.high_reg, rl_src1.high_reg, val_hi);
+      OpRegRegImm(kOpXor, rl_result.reg.GetReg(), rl_src1.reg.GetReg(), val_lo);
+      OpRegRegImm(kOpXor, rl_result.reg.GetHighReg(), rl_src1.reg.GetHighReg(), val_hi);
       break;
     case Instruction::AND_LONG:
     case Instruction::AND_LONG_2ADDR:
-      if ((val_lo != 0xffffffff) || (rl_result.low_reg != rl_src1.low_reg)) {
-        OpRegRegImm(kOpAnd, rl_result.low_reg, rl_src1.low_reg, val_lo);
+      if ((val_lo != 0xffffffff) || (rl_result.reg.GetReg() != rl_src1.reg.GetReg())) {
+        OpRegRegImm(kOpAnd, rl_result.reg.GetReg(), rl_src1.reg.GetReg(), val_lo);
       }
-      if ((val_hi != 0xffffffff) || (rl_result.high_reg != rl_src1.high_reg)) {
-        OpRegRegImm(kOpAnd, rl_result.high_reg, rl_src1.high_reg, val_hi);
+      if ((val_hi != 0xffffffff) || (rl_result.reg.GetHighReg() != rl_src1.reg.GetHighReg())) {
+        OpRegRegImm(kOpAnd, rl_result.reg.GetHighReg(), rl_src1.reg.GetHighReg(), val_hi);
       }
       break;
     case Instruction::SUB_LONG_2ADDR:
     case Instruction::SUB_LONG:
-      NewLIR3(kThumb2SubRRI8M, rl_result.low_reg, rl_src1.low_reg, mod_imm_lo);
-      NewLIR3(kThumb2SbcRRI8M, rl_result.high_reg, rl_src1.high_reg, mod_imm_hi);
+      NewLIR3(kThumb2SubRRI8M, rl_result.reg.GetReg(), rl_src1.reg.GetReg(), mod_imm_lo);
+      NewLIR3(kThumb2SbcRRI8M, rl_result.reg.GetHighReg(), rl_src1.reg.GetHighReg(), mod_imm_hi);
       break;
     default:
       LOG(FATAL) << "Unexpected opcode " << opcode;

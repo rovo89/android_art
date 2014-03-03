@@ -37,23 +37,19 @@ static int fp_temps[] = {fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7,
                         fr8, fr9, fr10, fr11, fr12, fr13, fr14, fr15};
 
 RegLocation ArmMir2Lir::LocCReturn() {
-  RegLocation res = ARM_LOC_C_RETURN;
-  return res;
+  return arm_loc_c_return;
 }
 
 RegLocation ArmMir2Lir::LocCReturnWide() {
-  RegLocation res = ARM_LOC_C_RETURN_WIDE;
-  return res;
+  return arm_loc_c_return_wide;
 }
 
 RegLocation ArmMir2Lir::LocCReturnFloat() {
-  RegLocation res = ARM_LOC_C_RETURN_FLOAT;
-  return res;
+  return arm_loc_c_return_float;
 }
 
 RegLocation ArmMir2Lir::LocCReturnDouble() {
-  RegLocation res = ARM_LOC_C_RETURN_DOUBLE;
-  return res;
+  return arm_loc_c_return_double;
 }
 
 // Return a target-dependent special register.
@@ -530,14 +526,10 @@ Mir2Lir* ArmCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
   return new ArmMir2Lir(cu, mir_graph, arena);
 }
 
-/*
- * Alloc a pair of core registers, or a double.  Low reg in low byte,
- * high reg in next byte.
- */
-int ArmMir2Lir::AllocTypedTempPair(bool fp_hint, int reg_class) {
+// Alloc a pair of core registers, or a double.
+RegStorage ArmMir2Lir::AllocTypedTempWide(bool fp_hint, int reg_class) {
   int high_reg;
   int low_reg;
-  int res = 0;
 
   if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg)) {
     low_reg = AllocTempDouble();
@@ -546,8 +538,7 @@ int ArmMir2Lir::AllocTypedTempPair(bool fp_hint, int reg_class) {
     low_reg = AllocTemp();
     high_reg = AllocTemp();
   }
-  res = (low_reg & 0xff) | ((high_reg & 0xff) << 8);
-  return res;
+  return RegStorage(RegStorage::k64BitPair, low_reg, high_reg);
 }
 
 int ArmMir2Lir::AllocTypedTemp(bool fp_hint, int reg_class) {
@@ -594,11 +585,11 @@ void ArmMir2Lir::CompilerInitializeRegAlloc() {
 
 void ArmMir2Lir::FreeRegLocTemps(RegLocation rl_keep,
                      RegLocation rl_free) {
-  if ((rl_free.low_reg != rl_keep.low_reg) && (rl_free.low_reg != rl_keep.high_reg) &&
-    (rl_free.high_reg != rl_keep.low_reg) && (rl_free.high_reg != rl_keep.high_reg)) {
+  if ((rl_free.reg.GetReg() != rl_keep.reg.GetReg()) && (rl_free.reg.GetReg() != rl_keep.reg.GetHighReg()) &&
+    (rl_free.reg.GetHighReg() != rl_keep.reg.GetReg()) && (rl_free.reg.GetHighReg() != rl_keep.reg.GetHighReg())) {
     // No overlap, free both
-    FreeTemp(rl_free.low_reg);
-    FreeTemp(rl_free.high_reg);
+    FreeTemp(rl_free.reg.GetReg());
+    FreeTemp(rl_free.reg.GetHighReg());
   }
 }
 /*
@@ -697,19 +688,19 @@ void ArmMir2Lir::ClobberCallerSave() {
 
 RegLocation ArmMir2Lir::GetReturnWideAlt() {
   RegLocation res = LocCReturnWide();
-  res.low_reg = r2;
-  res.high_reg = r3;
+  res.reg.SetReg(r2);
+  res.reg.SetHighReg(r3);
   Clobber(r2);
   Clobber(r3);
   MarkInUse(r2);
   MarkInUse(r3);
-  MarkPair(res.low_reg, res.high_reg);
+  MarkPair(res.reg.GetReg(), res.reg.GetHighReg());
   return res;
 }
 
 RegLocation ArmMir2Lir::GetReturnAlt() {
   RegLocation res = LocCReturn();
-  res.low_reg = r1;
+  res.reg.SetReg(r1);
   Clobber(r1);
   MarkInUse(r1);
   return res;
