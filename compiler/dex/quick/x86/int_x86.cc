@@ -923,7 +923,6 @@ void X86Mir2Lir::GenMulLong(Instruction::Code, RegLocation rl_dest, RegLocation 
       StoreValueWide(rl_dest, rl_result);
       return;
     } else if (val == 1) {
-      rl_src1 = EvalLocWide(rl_src1, kCoreReg, true);
       StoreValueWide(rl_dest, rl_src1);
       return;
     } else if (val == 2) {
