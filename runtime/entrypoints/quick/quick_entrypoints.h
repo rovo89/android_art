@@ -87,6 +87,7 @@ struct PACKED(4) QuickEntryPoints {
   mirror::Object* (*pJniMethodEndWithReference)(jobject result, uint32_t cookie, Thread* self);
   mirror::Object* (*pJniMethodEndWithReferenceSynchronized)(jobject result, uint32_t cookie,
                                                     jobject locked, Thread* self);
+  void (*pQuickGenericJniTrampoline)(mirror::ArtMethod*);
 
   // Locks
   void (*pLockObject)(void*);

@@ -203,8 +203,11 @@ class CommonCompilerTest : public CommonRuntimeTest {
       method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
     } else {
       // No code? You must mean to go into the interpreter.
-      const void* method_code = kUsePortableCompiler ? GetPortableToInterpreterBridge()
-                                                     : GetQuickToInterpreterBridge();
+      // Or the generic JNI...
+      const void* method_code = method->IsNative() ? GetQuickGenericJniTrampoline()
+                                                   : (kUsePortableCompiler
+                                                        ? GetPortableToInterpreterBridge()
+                                                        : GetQuickToInterpreterBridge());
       OatFile::OatMethod oat_method = CreateOatMethod(method_code,
                                                       kStackAlignment,
                                                       0,

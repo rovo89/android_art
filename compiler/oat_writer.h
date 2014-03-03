@@ -243,6 +243,7 @@ class OatWriter {
   UniquePtr<const std::vector<uint8_t> > portable_imt_conflict_trampoline_;
   UniquePtr<const std::vector<uint8_t> > portable_resolution_trampoline_;
   UniquePtr<const std::vector<uint8_t> > portable_to_interpreter_bridge_;
+  UniquePtr<const std::vector<uint8_t> > quick_generic_jni_trampoline_;
   UniquePtr<const std::vector<uint8_t> > quick_imt_conflict_trampoline_;
   UniquePtr<const std::vector<uint8_t> > quick_resolution_trampoline_;
   UniquePtr<const std::vector<uint8_t> > quick_to_interpreter_bridge_;
@@ -259,6 +260,7 @@ class OatWriter {
   uint32_t size_portable_imt_conflict_trampoline_;
   uint32_t size_portable_resolution_trampoline_;
   uint32_t size_portable_to_interpreter_bridge_;
+  uint32_t size_quick_generic_jni_trampoline_;
   uint32_t size_quick_imt_conflict_trampoline_;
   uint32_t size_quick_resolution_trampoline_;
   uint32_t size_quick_to_interpreter_bridge_;

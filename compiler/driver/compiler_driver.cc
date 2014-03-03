@@ -440,6 +440,11 @@ const std::vector<uint8_t>* CompilerDriver::CreatePortableToInterpreterBridge() 
                           PORTABLE_ENTRYPOINT_OFFSET(pPortableToInterpreterBridge));
 }
 
+const std::vector<uint8_t>* CompilerDriver::CreateQuickGenericJniTrampoline() const {
+  return CreateTrampoline(instruction_set_, kQuickAbi,
+                          QUICK_ENTRYPOINT_OFFSET(pQuickGenericJniTrampoline));
+}
+
 const std::vector<uint8_t>* CompilerDriver::CreateQuickImtConflictTrampoline() const {
   return CreateTrampoline(instruction_set_, kQuickAbi,
                           QUICK_ENTRYPOINT_OFFSET(pQuickImtConflictTrampoline));
@@ -1920,8 +1925,12 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
   uint64_t start_ns = NanoTime();
 
   if ((access_flags & kAccNative) != 0) {
+#if defined(__x86_64__)
+    // leaving this empty will trigger the generic JNI version
+#else
     compiled_method = compiler_backend_->JniCompile(*this, access_flags, method_idx, dex_file);
     CHECK(compiled_method != NULL);
+#endif
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {
     MethodReference method_ref(&dex_file, method_idx);
