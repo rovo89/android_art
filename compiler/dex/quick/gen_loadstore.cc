@@ -240,6 +240,8 @@ void Mir2Lir::StoreValueWide(RegLocation rl_dest, RegLocation rl_src) {
   DCHECK_EQ(IsFpReg(rl_src.low_reg), IsFpReg(rl_src.high_reg));
   DCHECK(rl_dest.wide);
   DCHECK(rl_src.wide);
+  rl_src = UpdateLocWide(rl_src);
+  rl_dest = UpdateLocWide(rl_dest);
   if (rl_src.location == kLocPhysReg) {
     if (IsLive(rl_src.low_reg) ||
         IsLive(rl_src.high_reg) ||
