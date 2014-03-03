@@ -302,6 +302,18 @@ class X86Mir2Lir : public Mir2Lir {
      */
     void InstallLiteralPools();
 
+    /*
+     * @brief Generate the debug_frame CFI information.
+     * @returns pointer to vector containing CFE information
+     */
+    static std::vector<uint8_t>* ReturnCommonCallFrameInformation();
+
+    /*
+     * @brief Generate the debug_frame FDE information.
+     * @returns pointer to vector containing CFE information
+     */
+    std::vector<uint8_t>* ReturnCallFrameInformation();
+
   private:
     void EmitPrefix(const X86EncodingMap* entry);
     void EmitOpcode(const X86EncodingMap* entry);
@@ -549,6 +561,12 @@ class X86Mir2Lir : public Mir2Lir {
 
     // Instructions needing patching with PC relative code addresses.
     GrowableArray<LIR*> call_method_insns_;
+
+    // Prologue decrement of stack pointer.
+    LIR* stack_decrement_;
+
+    // Epilogue increment of stack pointer.
+    LIR* stack_increment_;
 };
 
 }  // namespace art

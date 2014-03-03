@@ -493,6 +493,15 @@ class CompilerDriver {
   std::vector<uint8_t>* DeduplicateMappingTable(const std::vector<uint8_t>& code);
   std::vector<uint8_t>* DeduplicateVMapTable(const std::vector<uint8_t>& code);
   std::vector<uint8_t>* DeduplicateGCMap(const std::vector<uint8_t>& code);
+  std::vector<uint8_t>* DeduplicateCFIInfo(const std::vector<uint8_t>* cfi_info);
+
+  /*
+   * @brief return the pointer to the Call Frame Information.
+   * @return pointer to call frame information for this compilation.
+   */
+  std::vector<uint8_t>* GetCallFrameInformation() const {
+    return cfi_info_.get();
+  }
 
  private:
   // Compute constant code and method pointers when possible
@@ -625,6 +634,9 @@ class CompilerDriver {
 
   bool support_boot_image_fixup_;
 
+  // Call Frame Information, which might be generated to help stack tracebacks.
+  UniquePtr<std::vector<uint8_t> > cfi_info_;
+
   // DeDuplication data structures, these own the corresponding byte arrays.
   class DedupeHashFunc {
    public:
@@ -663,6 +675,7 @@ class CompilerDriver {
   DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_mapping_table_;
   DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_vmap_table_;
   DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_gc_map_;
+  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_cfi_info_;
 
   DISALLOW_COPY_AND_ASSIGN(CompilerDriver);
 };
