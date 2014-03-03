@@ -172,19 +172,33 @@ void ArmMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
   RegLocation rl_src = mir_graph_->GetSrc(mir, 0);
   RegLocation rl_dest = mir_graph_->GetDest(mir);
   rl_src = LoadValue(rl_src, kCoreReg);
+  ConditionCode ccode = mir->meta.ccode;
   if (mir->ssa_rep->num_uses == 1) {
     // CONST case
     int true_val = mir->dalvikInsn.vB;
     int false_val = mir->dalvikInsn.vC;
     rl_result = EvalLoc(rl_dest, kCoreReg, true);
-    if ((true_val == 1) && (false_val == 0)) {
-      OpRegRegImm(kOpRsub, rl_result.reg.GetReg(), rl_src.reg.GetReg(), 1);
-      OpIT(kCondUlt, "");
-      LoadConstant(rl_result.reg.GetReg(), 0);
+    // Change kCondNe to kCondEq for the special cases below.
+    if (ccode == kCondNe) {
+      ccode = kCondEq;
+      std::swap(true_val, false_val);
+    }
+    bool cheap_false_val = InexpensiveConstantInt(false_val);
+    if (cheap_false_val && ccode == kCondEq && (true_val == 0 || true_val == -1)) {
+      OpRegRegImm(kOpSub, rl_result.reg.GetReg(), rl_src.reg.GetReg(), -true_val);
+      DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
+      OpIT(true_val == 0 ? kCondNe : kCondUge, "");
+      LoadConstant(rl_result.reg.GetReg(), false_val);
       GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
-    } else if (InexpensiveConstantInt(true_val) && InexpensiveConstantInt(false_val)) {
+    } else if (cheap_false_val && ccode == kCondEq && true_val == 1) {
+      OpRegRegImm(kOpRsub, rl_result.reg.GetReg(), rl_src.reg.GetReg(), 1);
+      DCHECK(last_lir_insn_->u.m.def_mask & ENCODE_CCODE);
+      OpIT(kCondLs, "");
+      LoadConstant(rl_result.reg.GetReg(), false_val);
+      GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
+    } else if (cheap_false_val && InexpensiveConstantInt(true_val)) {
       OpRegImm(kOpCmp, rl_src.reg.GetReg(), 0);
-      OpIT(kCondEq, "E");
+      OpIT(ccode, "E");
       LoadConstant(rl_result.reg.GetReg(), true_val);
       LoadConstant(rl_result.reg.GetReg(), false_val);
       GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
@@ -195,7 +209,7 @@ void ArmMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
       LoadConstant(t_reg1, true_val);
       LoadConstant(t_reg2, false_val);
       OpRegImm(kOpCmp, rl_src.reg.GetReg(), 0);
-      OpIT(kCondEq, "E");
+      OpIT(ccode, "E");
       OpRegCopy(rl_result.reg.GetReg(), t_reg1);
       OpRegCopy(rl_result.reg.GetReg(), t_reg2);
       GenBarrier();  // Add a scheduling barrier to keep the IT shadow intact
@@ -209,13 +223,13 @@ void ArmMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
     rl_result = EvalLoc(rl_dest, kCoreReg, true);
     OpRegImm(kOpCmp, rl_src.reg.GetReg(), 0);
     if (rl_result.reg.GetReg() == rl_true.reg.GetReg()) {  // Is the "true" case already in place?
-      OpIT(kCondNe, "");
+      OpIT(NegateComparison(ccode), "");
       OpRegCopy(rl_result.reg.GetReg(), rl_false.reg.GetReg());
     } else if (rl_result.reg.GetReg() == rl_false.reg.GetReg()) {  // False case in place?
-      OpIT(kCondEq, "");
+      OpIT(ccode, "");
       OpRegCopy(rl_result.reg.GetReg(), rl_true.reg.GetReg());
     } else {  // Normal - select between the two.
-      OpIT(kCondEq, "E");
+      OpIT(ccode, "E");
       OpRegCopy(rl_result.reg.GetReg(), rl_true.reg.GetReg());
       OpRegCopy(rl_result.reg.GetReg(), rl_false.reg.GetReg());
     }

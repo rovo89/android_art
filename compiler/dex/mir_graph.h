@@ -259,7 +259,7 @@ struct MIR {
     BasicBlockId* phi_incoming;
     // Establish link from check instruction (kMirOpCheck) to the actual throwing instruction.
     MIR* throw_insn;
-    // Fused cmp branch condition.
+    // Branch condition for fused cmp or select.
     ConditionCode ccode;
     // IGET/IPUT lowering info index, points to MIRGraph::ifield_lowering_infos_. Due to limit on
     // the number of code points (64K) and size of IGET/IPUT insn (2), this will never exceed 32K.
