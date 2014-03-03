@@ -1063,7 +1063,7 @@ void ElfFile::GdbJITSupport() {
   for (uint32_t i = 0; i < segments_.size(); i++) {
     if (segments_[i]->GetProtect() & PROT_EXEC) {
       // We found the .text section.
-      text_start_addr = reinterpret_cast<uint32_t>(segments_[i]->Begin());
+      text_start_addr = PointerToLowMemUInt32(segments_[i]->Begin());
       break;
     }
   }
