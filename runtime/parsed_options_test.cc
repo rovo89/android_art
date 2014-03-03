@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-#include "runtime.h"
+#include "parsed_options.h"
 
 #include "UniquePtr.h"
 #include "common_runtime_test.h"
 
 namespace art {
 
-class RuntimeTest : public CommonRuntimeTest {};
+class ParsedOptionsTest : public CommonRuntimeTest {};
 
-TEST_F(RuntimeTest, ParsedOptions) {
+TEST_F(ParsedOptionsTest, ParsedOptions) {
   void* test_vfprintf = reinterpret_cast<void*>(0xa);
   void* test_abort = reinterpret_cast<void*>(0xb);
   void* test_exit = reinterpret_cast<void*>(0xc);
@@ -54,7 +54,7 @@ TEST_F(RuntimeTest, ParsedOptions) {
   options.push_back(std::make_pair("vfprintf", test_vfprintf));
   options.push_back(std::make_pair("abort", test_abort));
   options.push_back(std::make_pair("exit", test_exit));
-  UniquePtr<Runtime::ParsedOptions> parsed(Runtime::ParsedOptions::Create(options, false));
+  UniquePtr<ParsedOptions> parsed(ParsedOptions::Create(options, false));
   ASSERT_TRUE(parsed.get() != NULL);
 
   EXPECT_EQ(lib_core, parsed->boot_class_path_string_);
