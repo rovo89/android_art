@@ -539,43 +539,63 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimDriver(size_t object_size, Create
   SizeFootPrintGrowthLimitAndTrimBody(space, object_size, 3, capacity);
 }
 
-#define TEST_SizeFootPrintGrowthLimitAndTrim(name, spaceName, spaceFn, size) \
-  TEST_F(spaceName##Test, SizeFootPrintGrowthLimitAndTrim_AllocationsOf_##name) { \
+#define TEST_SizeFootPrintGrowthLimitAndTrimStatic(name, spaceName, spaceFn, size) \
+  TEST_F(spaceName##StaticTest, SizeFootPrintGrowthLimitAndTrim_AllocationsOf_##name) { \
     SizeFootPrintGrowthLimitAndTrimDriver(size, spaceFn); \
-  } \
-  TEST_F(spaceName##Test, SizeFootPrintGrowthLimitAndTrim_RandomAllocationsWithMax_##name) { \
+  }
+
+#define TEST_SizeFootPrintGrowthLimitAndTrimRandom(name, spaceName, spaceFn, size) \
+  TEST_F(spaceName##RandomTest, SizeFootPrintGrowthLimitAndTrim_RandomAllocationsWithMax_##name) { \
     SizeFootPrintGrowthLimitAndTrimDriver(-size, spaceFn); \
   }
 
-#define TEST_SPACE_CREATE_FN(spaceName, spaceFn) \
-  class spaceName##Test : public SpaceTest { \
+#define TEST_SPACE_CREATE_FN_BASE(spaceName, spaceFn) \
+  class spaceName##BaseTest : public SpaceTest { \
   }; \
   \
-  TEST_F(spaceName##Test, Init) { \
+  TEST_F(spaceName##BaseTest, Init) { \
     InitTestBody(spaceFn); \
   } \
-  TEST_F(spaceName##Test, ZygoteSpace) { \
+  TEST_F(spaceName##BaseTest, ZygoteSpace) { \
     ZygoteSpaceTestBody(spaceFn); \
   } \
-  TEST_F(spaceName##Test, AllocAndFree) { \
+  TEST_F(spaceName##BaseTest, AllocAndFree) { \
     AllocAndFreeTestBody(spaceFn); \
   } \
-  TEST_F(spaceName##Test, AllocAndFreeList) { \
+  TEST_F(spaceName##BaseTest, AllocAndFreeList) { \
     AllocAndFreeListTestBody(spaceFn); \
-  } \
-  TEST_F(spaceName##Test, SizeFootPrintGrowthLimitAndTrim_AllocationsOf_12B) { \
-    SizeFootPrintGrowthLimitAndTrimDriver(12, spaceFn); \
-  } \
-  TEST_SizeFootPrintGrowthLimitAndTrim(16B, spaceName, spaceFn, 16) \
-  TEST_SizeFootPrintGrowthLimitAndTrim(24B, spaceName, spaceFn, 24) \
-  TEST_SizeFootPrintGrowthLimitAndTrim(32B, spaceName, spaceFn, 32) \
-  TEST_SizeFootPrintGrowthLimitAndTrim(64B, spaceName, spaceFn, 64) \
-  TEST_SizeFootPrintGrowthLimitAndTrim(128B, spaceName, spaceFn, 128) \
-  TEST_SizeFootPrintGrowthLimitAndTrim(1KB, spaceName, spaceFn, 1 * KB) \
-  TEST_SizeFootPrintGrowthLimitAndTrim(4KB, spaceName, spaceFn, 4 * KB) \
-  TEST_SizeFootPrintGrowthLimitAndTrim(1MB, spaceName, spaceFn, 1 * MB) \
-  TEST_SizeFootPrintGrowthLimitAndTrim(4MB, spaceName, spaceFn, 4 * MB) \
-  TEST_SizeFootPrintGrowthLimitAndTrim(8MB, spaceName, spaceFn, 8 * MB)
+  }
+
+#define TEST_SPACE_CREATE_FN_STATIC(spaceName, spaceFn) \
+  class spaceName##StaticTest : public SpaceTest { \
+  }; \
+  \
+  TEST_SizeFootPrintGrowthLimitAndTrimStatic(12B, spaceName, spaceFn, 12) \
+  TEST_SizeFootPrintGrowthLimitAndTrimStatic(16B, spaceName, spaceFn, 16) \
+  TEST_SizeFootPrintGrowthLimitAndTrimStatic(24B, spaceName, spaceFn, 24) \
+  TEST_SizeFootPrintGrowthLimitAndTrimStatic(32B, spaceName, spaceFn, 32) \
+  TEST_SizeFootPrintGrowthLimitAndTrimStatic(64B, spaceName, spaceFn, 64) \
+  TEST_SizeFootPrintGrowthLimitAndTrimStatic(128B, spaceName, spaceFn, 128) \
+  TEST_SizeFootPrintGrowthLimitAndTrimStatic(1KB, spaceName, spaceFn, 1 * KB) \
+  TEST_SizeFootPrintGrowthLimitAndTrimStatic(4KB, spaceName, spaceFn, 4 * KB) \
+  TEST_SizeFootPrintGrowthLimitAndTrimStatic(1MB, spaceName, spaceFn, 1 * MB) \
+  TEST_SizeFootPrintGrowthLimitAndTrimStatic(4MB, spaceName, spaceFn, 4 * MB) \
+  TEST_SizeFootPrintGrowthLimitAndTrimStatic(8MB, spaceName, spaceFn, 8 * MB)
+
+#define TEST_SPACE_CREATE_FN_RANDOM(spaceName, spaceFn) \
+  class spaceName##RandomTest : public SpaceTest { \
+  }; \
+  \
+  TEST_SizeFootPrintGrowthLimitAndTrimRandom(16B, spaceName, spaceFn, 16) \
+  TEST_SizeFootPrintGrowthLimitAndTrimRandom(24B, spaceName, spaceFn, 24) \
+  TEST_SizeFootPrintGrowthLimitAndTrimRandom(32B, spaceName, spaceFn, 32) \
+  TEST_SizeFootPrintGrowthLimitAndTrimRandom(64B, spaceName, spaceFn, 64) \
+  TEST_SizeFootPrintGrowthLimitAndTrimRandom(128B, spaceName, spaceFn, 128) \
+  TEST_SizeFootPrintGrowthLimitAndTrimRandom(1KB, spaceName, spaceFn, 1 * KB) \
+  TEST_SizeFootPrintGrowthLimitAndTrimRandom(4KB, spaceName, spaceFn, 4 * KB) \
+  TEST_SizeFootPrintGrowthLimitAndTrimRandom(1MB, spaceName, spaceFn, 1 * MB) \
+  TEST_SizeFootPrintGrowthLimitAndTrimRandom(4MB, spaceName, spaceFn, 4 * MB) \
+  TEST_SizeFootPrintGrowthLimitAndTrimRandom(8MB, spaceName, spaceFn, 8 * MB)
 
 }  // namespace space
 }  // namespace gc
