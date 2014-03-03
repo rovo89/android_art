@@ -44,7 +44,7 @@ class LocalValueNumberingTest : public testing::Test {
 
     Instruction::Code opcode;
     int64_t value;
-    uint32_t field_annotation;
+    uint32_t field_info;
     size_t num_uses;
     int32_t uses[kMaxSsaUses];
     size_t num_defs;
@@ -55,28 +55,41 @@ class LocalValueNumberingTest : public testing::Test {
     { opcode, value, 0u, 0, { }, 1, { reg } }
 #define DEF_CONST_WIDE(opcode, reg, value) \
     { opcode, value, 0u, 0, { }, 2, { reg, reg + 1 } }
-#define DEF_IGET(opcode, reg, obj, field_annotation) \
-    { opcode, 0u, field_annotation, 1, { obj }, 1, { reg } }
-#define DEF_IGET_WIDE(opcode, reg, obj, field_annotation) \
-    { opcode, 0u, field_annotation, 1, { obj }, 2, { reg, reg + 1 } }
-#define DEF_IPUT(opcode, reg, obj, field_annotation) \
-    { opcode, 0u, field_annotation, 2, { reg, obj }, 0, { } }
-#define DEF_IPUT_WIDE(opcode, reg, obj, field_annotation) \
-    { opcode, 0u, field_annotation, 3, { reg, reg + 1, obj }, 0, { } }
-#define DEF_SGET(opcode, reg, field_annotation) \
-    { opcode, 0u, field_annotation, 0, { }, 1, { reg } }
-#define DEF_SGET_WIDE(opcode, reg, field_annotation) \
-    { opcode, 0u, field_annotation, 0, { }, 2, { reg, reg + 1 } }
-#define DEF_SPUT(opcode, reg, field_annotation) \
-    { opcode, 0u, field_annotation, 1, { reg }, 0, { } }
-#define DEF_SPUT_WIDE(opcode, reg, field_annotation) \
-    { opcode, 0u, field_annotation, 2, { reg, reg + 1 }, 0, { } }
+#define DEF_IGET(opcode, reg, obj, field_info) \
+    { opcode, 0u, field_info, 1, { obj }, 1, { reg } }
+#define DEF_IGET_WIDE(opcode, reg, obj, field_info) \
+    { opcode, 0u, field_info, 1, { obj }, 2, { reg, reg + 1 } }
+#define DEF_IPUT(opcode, reg, obj, field_info) \
+    { opcode, 0u, field_info, 2, { reg, obj }, 0, { } }
+#define DEF_IPUT_WIDE(opcode, reg, obj, field_info) \
+    { opcode, 0u, field_info, 3, { reg, reg + 1, obj }, 0, { } }
+#define DEF_SGET(opcode, reg, field_info) \
+    { opcode, 0u, field_info, 0, { }, 1, { reg } }
+#define DEF_SGET_WIDE(opcode, reg, field_info) \
+    { opcode, 0u, field_info, 0, { }, 2, { reg, reg + 1 } }
+#define DEF_SPUT(opcode, reg, field_info) \
+    { opcode, 0u, field_info, 1, { reg }, 0, { } }
+#define DEF_SPUT_WIDE(opcode, reg, field_info) \
+    { opcode, 0u, field_info, 2, { reg, reg + 1 }, 0, { } }
 #define DEF_INVOKE1(opcode, reg) \
     { opcode, 0u, 0u, 1, { reg }, 0, { } }
 #define DEF_UNIQUE_REF(opcode, reg) \
     { opcode, 0u, 0u, 0, { }, 1, { reg } }  // CONST_CLASS, CONST_STRING, NEW_ARRAY, ...
 
   void DoPrepareIFields(const IFieldDef* defs, size_t count) {
+    cu_.mir_graph->ifield_lowering_infos_.Reset();
+    cu_.mir_graph->ifield_lowering_infos_.Resize(count);
+    for (size_t i = 0u; i != count; ++i) {
+      const IFieldDef* def = &defs[i];
+      MirIFieldLoweringInfo field_info(def->field_idx);
+      if (def->declaring_dex_file != 0u) {
+        field_info.declaring_dex_file_ = reinterpret_cast<const DexFile*>(def->declaring_dex_file);
+        field_info.declaring_field_idx_ = def->declaring_field_idx;
+        field_info.flags_ = 0u |  // Without kFlagIsStatic.
+            (def->is_volatile ? MirIFieldLoweringInfo::kFlagIsVolatile : 0u);
+      }
+      cu_.mir_graph->ifield_lowering_infos_.Insert(field_info);
+    }
   }
 
   template <size_t count>
@@ -85,6 +98,19 @@ class LocalValueNumberingTest : public testing::Test {
   }
 
   void DoPrepareSFields(const SFieldDef* defs, size_t count) {
+    cu_.mir_graph->sfield_lowering_infos_.Reset();
+    cu_.mir_graph->sfield_lowering_infos_.Resize(count);
+    for (size_t i = 0u; i != count; ++i) {
+      const SFieldDef* def = &defs[i];
+      MirSFieldLoweringInfo field_info(def->field_idx);
+      if (def->declaring_dex_file != 0u) {
+        field_info.declaring_dex_file_ = reinterpret_cast<const DexFile*>(def->declaring_dex_file);
+        field_info.declaring_field_idx_ = def->declaring_field_idx;
+        field_info.flags_ = MirSFieldLoweringInfo::kFlagIsStatic |
+            (def->is_volatile ? MirSFieldLoweringInfo::kFlagIsVolatile : 0u);
+      }
+      cu_.mir_graph->sfield_lowering_infos_.Insert(field_info);
+    }
   }
 
   template <size_t count>
@@ -102,6 +128,13 @@ class LocalValueNumberingTest : public testing::Test {
       mir->dalvikInsn.opcode = def->opcode;
       mir->dalvikInsn.vB = static_cast<int32_t>(def->value);
       mir->dalvikInsn.vB_wide = def->value;
+      if (def->opcode >= Instruction::IGET && def->opcode <= Instruction::IPUT_SHORT) {
+        ASSERT_LT(def->field_info, cu_.mir_graph->ifield_lowering_infos_.Size());
+        mir->meta.ifield_lowering_info = def->field_info;
+      } else if (def->opcode >= Instruction::SGET && def->opcode <= Instruction::SPUT_SHORT) {
+        ASSERT_LT(def->field_info, cu_.mir_graph->sfield_lowering_infos_.Size());
+        mir->meta.sfield_lowering_info = def->field_info;
+      }
       mir->ssa_rep = &ssa_reps_[i];
       mir->ssa_rep->num_uses = def->num_uses;
       mir->ssa_rep->uses = const_cast<int32_t*>(def->uses);  // Not modified by LVN.
@@ -146,7 +179,6 @@ class LocalValueNumberingTest : public testing::Test {
   LocalValueNumbering lvn_;
 };
 
-#if 0  // TODO: re-enable when LVN is handling memory igets.
 TEST_F(LocalValueNumberingTest, TestIGetIGetInvokeIGet) {
   static const IFieldDef ifields[] = {
       { 1u, 1u, 1u, false }
@@ -169,7 +201,6 @@ TEST_F(LocalValueNumberingTest, TestIGetIGetInvokeIGet) {
   EXPECT_EQ(mirs_[2].optimization_flags, 0u);
   EXPECT_EQ(mirs_[3].optimization_flags, MIR_IGNORE_NULL_CHECK);
 }
-#endif
 
 TEST_F(LocalValueNumberingTest, TestIGetIPutIGetIGetIGet) {
   static const IFieldDef ifields[] = {
@@ -197,7 +228,6 @@ TEST_F(LocalValueNumberingTest, TestIGetIPutIGetIGetIGet) {
   EXPECT_EQ(mirs_[4].optimization_flags, 0u);
 }
 
-#if 0  // TODO: re-enable when LVN is handling memory igets.
 TEST_F(LocalValueNumberingTest, TestUniquePreserve1) {
   static const IFieldDef ifields[] = {
       { 1u, 1u, 1u, false },
@@ -218,9 +248,7 @@ TEST_F(LocalValueNumberingTest, TestUniquePreserve1) {
   EXPECT_EQ(mirs_[2].optimization_flags, 0u);
   EXPECT_EQ(mirs_[3].optimization_flags, MIR_IGNORE_NULL_CHECK);
 }
-#endif
 
-#if 0  // TODO: re-enable when LVN is handling memory igets.
 TEST_F(LocalValueNumberingTest, TestUniquePreserve2) {
   static const IFieldDef ifields[] = {
       { 1u, 1u, 1u, false },
@@ -241,9 +269,7 @@ TEST_F(LocalValueNumberingTest, TestUniquePreserve2) {
   EXPECT_EQ(mirs_[2].optimization_flags, MIR_IGNORE_NULL_CHECK);
   EXPECT_EQ(mirs_[3].optimization_flags, MIR_IGNORE_NULL_CHECK);
 }
-#endif
 
-#if 0  // TODO: re-enable when LVN is handling memory igets.
 TEST_F(LocalValueNumberingTest, TestUniquePreserveAndEscape) {
   static const IFieldDef ifields[] = {
       { 1u, 1u, 1u, false },
@@ -267,7 +293,6 @@ TEST_F(LocalValueNumberingTest, TestUniquePreserveAndEscape) {
   EXPECT_EQ(mirs_[3].optimization_flags, MIR_IGNORE_NULL_CHECK);
   EXPECT_EQ(mirs_[5].optimization_flags, MIR_IGNORE_NULL_CHECK);
 }
-#endif
 
 TEST_F(LocalValueNumberingTest, TestVolatile) {
   static const IFieldDef ifields[] = {

@@ -91,6 +91,7 @@ void PassDriver::CreatePasses() {
    *   - This is not yet an issue: no current pass would require it.
    */
   static const Pass* const passes[] = {
+      GetPassInstance<CacheFieldLoweringInfo>(),
       GetPassInstance<CodeLayout>(),
       GetPassInstance<SSATransformation>(),
       GetPassInstance<ConstantPropagation>(),

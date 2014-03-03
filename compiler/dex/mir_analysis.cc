@@ -14,11 +14,15 @@
  * limitations under the License.
  */
 
+#include <algorithm>
 #include "compiler_internals.h"
 #include "dataflow_iterator-inl.h"
+#include "dex_instruction.h"
+#include "dex_instruction-inl.h"
 #include "dex/quick/dex_file_method_inliner.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "driver/compiler_options.h"
+#include "UniquePtr.h"
 
 namespace art {
 
@@ -1088,6 +1092,111 @@ bool MIRGraph::SkipCompilation() {
   }
 
   return ComputeSkipCompilation(&stats, skip_compilation);
+}
+
+void MIRGraph::DoCacheFieldLoweringInfo() {
+  // Try to use stack-allocated array, resort to heap if we exceed the initial size.
+  static constexpr size_t kInitialSize = 32;
+  uint16_t stack_idxs[kInitialSize];
+  UniquePtr<uint16_t[]> allocated_idxs;
+  uint16_t* field_idxs = stack_idxs;
+  size_t size = kInitialSize;
+
+  // Find IGET/IPUT/SGET/SPUT insns, store IGET/IPUT fields at the beginning, SGET/SPUT at the end.
+  size_t ifield_pos = 0u;
+  size_t sfield_pos = size;
+  AllNodesIterator iter(this);
+  for (BasicBlock* bb = iter.Next(); bb != nullptr; bb = iter.Next()) {
+    if (bb->block_type != kDalvikByteCode) {
+      continue;
+    }
+    for (MIR* mir = bb->first_mir_insn; mir != nullptr; mir = mir->next) {
+      if (mir->dalvikInsn.opcode >= Instruction::IGET &&
+          mir->dalvikInsn.opcode <= Instruction::SPUT_SHORT) {
+        bool need_alloc = false;
+        const Instruction* insn = Instruction::At(current_code_item_->insns_ + mir->offset);
+        uint16_t field_idx;
+        // Get field index and try to find it among existing indexes. If found, it's usually among
+        // the last few added, so we'll start the search from ifield_pos/sfield_pos. Though this
+        // is a linear search, it actually performs much better than map based approach.
+        if (mir->dalvikInsn.opcode <= Instruction::IPUT_SHORT) {
+          field_idx = insn->VRegC_22c();
+          size_t i = ifield_pos;
+          while (i != 0u && field_idxs[i - 1] != field_idx) {
+            --i;
+          }
+          if (i != 0u) {
+            mir->meta.ifield_lowering_info = i - 1;
+          } else {
+            mir->meta.ifield_lowering_info = ifield_pos;
+            if (UNLIKELY(ifield_pos == sfield_pos)) {
+              need_alloc = true;
+            } else {
+              field_idxs[ifield_pos++] = field_idx;
+            }
+          }
+        } else {
+          field_idx = insn->VRegB_21c();
+          size_t i = sfield_pos;
+          while (i != size && field_idxs[i] != field_idx) {
+            ++i;
+          }
+          if (i != size) {
+            mir->meta.sfield_lowering_info = size - i - 1u;
+          } else {
+            mir->meta.sfield_lowering_info = size - sfield_pos;
+            if (UNLIKELY(ifield_pos == sfield_pos)) {
+              need_alloc = true;
+            } else {
+              field_idxs[--sfield_pos] = field_idx;
+            }
+          }
+        }
+        if (UNLIKELY(need_alloc)) {
+          DCHECK(field_idxs == stack_idxs);
+          // All IGET/IPUT/SGET/SPUT instructions take 2 code units and there must also be a RETURN.
+          uint32_t max_refs = (current_code_item_->insns_size_in_code_units_ - 1u) / 2u;
+          allocated_idxs.reset(new uint16_t[max_refs]);
+          field_idxs = allocated_idxs.get();
+          size_t sfield_count = size - sfield_pos;
+          sfield_pos = max_refs - sfield_count;
+          size = max_refs;
+          memcpy(field_idxs, stack_idxs, ifield_pos * sizeof(field_idxs[0]));
+          memcpy(field_idxs + sfield_pos, stack_idxs + ifield_pos,
+                 sfield_count * sizeof(field_idxs[0]));
+          if (mir->dalvikInsn.opcode <= Instruction::IPUT_SHORT) {
+            field_idxs[ifield_pos++] = field_idx;
+          } else {
+            field_idxs[--sfield_pos] = field_idx;
+          }
+        }
+        DCHECK_LE(ifield_pos, sfield_pos);
+      }
+    }
+  }
+
+  if (ifield_pos != 0u) {
+    // Resolve instance field infos.
+    DCHECK_EQ(ifield_lowering_infos_.Size(), 0u);
+    ifield_lowering_infos_.Resize(ifield_pos);
+    for (size_t pos = 0u; pos != ifield_pos; ++pos) {
+      ifield_lowering_infos_.Insert(MirIFieldLoweringInfo(field_idxs[pos]));
+    }
+    MirIFieldLoweringInfo::Resolve(cu_->compiler_driver, GetCurrentDexCompilationUnit(),
+                                ifield_lowering_infos_.GetRawStorage(), ifield_pos);
+  }
+
+  if (sfield_pos != size) {
+    // Resolve static field infos.
+    DCHECK_EQ(sfield_lowering_infos_.Size(), 0u);
+    sfield_lowering_infos_.Resize(size - sfield_pos);
+    for (size_t pos = size; pos != sfield_pos;) {
+      --pos;
+      sfield_lowering_infos_.Insert(MirSFieldLoweringInfo(field_idxs[pos]));
+    }
+    MirSFieldLoweringInfo::Resolve(cu_->compiler_driver, GetCurrentDexCompilationUnit(),
+                                sfield_lowering_infos_.GetRawStorage(), size - sfield_pos);
+  }
 }
 
 }  // namespace art
