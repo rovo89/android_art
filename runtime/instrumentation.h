@@ -192,6 +192,10 @@ class Instrumentation {
     return interpret_only_;
   }
 
+  bool IsForcedInterpretOnly() const {
+    return forced_interpret_only_;
+  }
+
   bool ShouldPortableCodeDeoptimize() const {
     return instrumentation_stubs_installed_;
   }
