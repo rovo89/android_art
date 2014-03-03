@@ -115,11 +115,7 @@ static const uint16_t kTraceVersionDualClock      = 3;
 static const uint16_t kTraceRecordSizeSingleClock = 10;  // using v2
 static const uint16_t kTraceRecordSizeDualClock   = 14;  // using v3 with two timestamps
 
-#if defined(HAVE_POSIX_CLOCKS)
-ProfilerClockSource Trace::default_clock_source_ = kProfilerClockSourceDual;
-#else
-ProfilerClockSource Trace::default_clock_source_ = kProfilerClockSourceWall;
-#endif
+ProfilerClockSource Trace::default_clock_source_ = kDefaultProfilerClockSource;
 
 Trace* volatile Trace::the_trace_ = NULL;
 pthread_t Trace::sampling_pthread_ = 0U;

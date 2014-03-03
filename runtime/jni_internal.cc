@@ -40,6 +40,7 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/throwable.h"
 #include "object_utils.h"
+#include "parsed_options.h"
 #include "runtime.h"
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"
@@ -104,7 +105,8 @@ static void CheckMethodArguments(mirror::ArtMethod* m, uint32_t* args)
       mirror::Object* argument = reinterpret_cast<mirror::Object*>(args[i + offset]);
       if (argument != nullptr && !argument->InstanceOf(param_type)) {
         LOG(ERROR) << "JNI ERROR (app bug): attempt to pass an instance of "
-                   << PrettyTypeOf(argument) << " as argument " << (i + 1) << " to " << PrettyMethod(m);
+                   << PrettyTypeOf(argument) << " as argument " << (i + 1)
+                   << " to " << PrettyMethod(m);
         ++error_count;
       }
     } else if (param_type->IsPrimitiveLong() || param_type->IsPrimitiveDouble()) {
@@ -114,7 +116,8 @@ static void CheckMethodArguments(mirror::ArtMethod* m, uint32_t* args)
   if (error_count > 0) {
     // TODO: pass the JNI function name (such as "CallVoidMethodV") through so we can call JniAbort
     // with an argument.
-    JniAbortF(nullptr, "bad arguments passed to %s (see above for details)", PrettyMethod(m).c_str());
+    JniAbortF(nullptr, "bad arguments passed to %s (see above for details)",
+              PrettyMethod(m).c_str());
   }
 }
 
@@ -294,8 +297,8 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
     SirtRef<mirror::Throwable> cause(soa.Self(), soa.Self()->GetException(&throw_location));
     soa.Self()->ClearException();
     soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchFieldError;",
-                                   "no type \"%s\" found and so no field \"%s\" could be found in class "
-                                   "\"%s\" or its superclasses", sig, name,
+                                   "no type \"%s\" found and so no field \"%s\" "
+                                   "could be found in class \"%s\" or its superclasses", sig, name,
                                    ClassHelper(c.get()).GetDescriptor());
     soa.Self()->GetException(nullptr)->SetCause(cause.get());
     return nullptr;
@@ -782,7 +785,8 @@ class JNI {
       old_throw_dex_pc = old_throw_location.GetDexPc();
       soa.Self()->ClearException();
     }
-    ScopedLocalRef<jthrowable> exception(env, soa.AddLocalReference<jthrowable>(old_exception.get()));
+    ScopedLocalRef<jthrowable> exception(env,
+                                         soa.AddLocalReference<jthrowable>(old_exception.get()));
     ScopedLocalRef<jclass> exception_class(env, env->GetObjectClass(exception.get()));
     jmethodID mid = env->GetMethodID(exception_class.get(), "printStackTrace", "()V");
     if (mid == nullptr) {
@@ -905,7 +909,8 @@ class JNI {
       return JNI_TRUE;
     } else {
       ScopedObjectAccess soa(env);
-      return (soa.Decode<mirror::Object*>(obj1) == soa.Decode<mirror::Object*>(obj2)) ? JNI_TRUE : JNI_FALSE;
+      return (soa.Decode<mirror::Object*>(obj1) == soa.Decode<mirror::Object*>(obj2))
+              ? JNI_TRUE : JNI_FALSE;
     }
   }
 
@@ -2334,7 +2339,8 @@ class JNI {
   static void SetBooleanArrayRegion(JNIEnv* env, jbooleanArray array, jsize start, jsize length,
                                     const jboolean* buf) {
     ScopedObjectAccess soa(env);
-    SetPrimitiveArrayRegion<jbooleanArray, jboolean, mirror::BooleanArray>(soa, array, start, length, buf);
+    SetPrimitiveArrayRegion<jbooleanArray, jboolean, mirror::BooleanArray>(soa, array, start,
+                                                                           length, buf);
   }
 
   static void SetByteArrayRegion(JNIEnv* env, jbyteArray array, jsize start, jsize length,
@@ -2352,13 +2358,15 @@ class JNI {
   static void SetDoubleArrayRegion(JNIEnv* env, jdoubleArray array, jsize start, jsize length,
                                    const jdouble* buf) {
     ScopedObjectAccess soa(env);
-    SetPrimitiveArrayRegion<jdoubleArray, jdouble, mirror::DoubleArray>(soa, array, start, length, buf);
+    SetPrimitiveArrayRegion<jdoubleArray, jdouble, mirror::DoubleArray>(soa, array, start, length,
+                                                                        buf);
   }
 
   static void SetFloatArrayRegion(JNIEnv* env, jfloatArray array, jsize start, jsize length,
                                   const jfloat* buf) {
     ScopedObjectAccess soa(env);
-    SetPrimitiveArrayRegion<jfloatArray, jfloat, mirror::FloatArray>(soa, array, start, length, buf);
+    SetPrimitiveArrayRegion<jfloatArray, jfloat, mirror::FloatArray>(soa, array, start, length,
+                                                                     buf);
   }
 
   static void SetIntArrayRegion(JNIEnv* env, jintArray array, jsize start, jsize length,
@@ -2556,7 +2564,8 @@ class JNI {
         ScopedObjectAccess soa(env);
         if (soa.Decode<mirror::Object*>(java_object) ==
             reinterpret_cast<mirror::Object*>(java_object)) {
-          if (soa.Env()->locals.ContainsDirectPointer(reinterpret_cast<mirror::Object*>(java_object))) {
+          mirror::Object* object = reinterpret_cast<mirror::Object*>(java_object);
+          if (soa.Env()->locals.ContainsDirectPointer(object)) {
             return JNILocalRefType;
           }
         }
@@ -3086,7 +3095,7 @@ const JNIInvokeInterface gJniInvokeInterface = {
   JII::AttachCurrentThreadAsDaemon
 };
 
-JavaVMExt::JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options)
+JavaVMExt::JavaVMExt(Runtime* runtime, ParsedOptions* options)
     : runtime(runtime),
       check_jni_abort_hook(nullptr),
       check_jni_abort_hook_data(nullptr),

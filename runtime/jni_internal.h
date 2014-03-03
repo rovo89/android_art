@@ -46,6 +46,7 @@ namespace mirror {
 class ArgArray;
 union JValue;
 class Libraries;
+class ParsedOptions;
 class ScopedObjectAccess;
 class Thread;
 
@@ -64,7 +65,7 @@ int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobj
 
 class JavaVMExt : public JavaVM {
  public:
-  JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options);
+  JavaVMExt(Runtime* runtime, ParsedOptions* options);
   ~JavaVMExt();
 
   /**
