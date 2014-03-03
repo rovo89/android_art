@@ -72,67 +72,6 @@ class Runtime {
  public:
   typedef std::vector<std::pair<std::string, const void*> > Options;
 
-  class ParsedOptions {
-   public:
-    // returns null if problem parsing and ignore_unrecognized is false
-    static ParsedOptions* Create(const Options& options, bool ignore_unrecognized);
-
-    const std::vector<const DexFile*>* boot_class_path_;
-    std::string boot_class_path_string_;
-    std::string class_path_string_;
-    std::string host_prefix_;
-    std::string image_;
-    bool check_jni_;
-    std::string jni_trace_;
-    CompilerCallbacks* compiler_callbacks_;
-    bool is_zygote_;
-    bool interpreter_only_;
-    bool is_explicit_gc_disabled_;
-    bool use_tlab_;
-    bool verify_pre_gc_heap_;
-    bool verify_post_gc_heap_;
-    bool verify_pre_gc_rosalloc_;
-    bool verify_post_gc_rosalloc_;
-    size_t long_pause_log_threshold_;
-    size_t long_gc_log_threshold_;
-    bool dump_gc_performance_on_shutdown_;
-    bool ignore_max_footprint_;
-    size_t heap_initial_size_;
-    size_t heap_maximum_size_;
-    size_t heap_growth_limit_;
-    size_t heap_min_free_;
-    size_t heap_max_free_;
-    double heap_target_utilization_;
-    size_t parallel_gc_threads_;
-    size_t conc_gc_threads_;
-    gc::CollectorType collector_type_;
-    gc::CollectorType background_collector_type_;
-    size_t stack_size_;
-    size_t max_spins_before_thin_lock_inflation_;
-    bool low_memory_mode_;
-    size_t lock_profiling_threshold_;
-    std::string stack_trace_file_;
-    bool method_trace_;
-    std::string method_trace_file_;
-    size_t method_trace_file_size_;
-    bool (*hook_is_sensitive_thread_)();
-    jint (*hook_vfprintf_)(FILE* stream, const char* format, va_list ap);
-    void (*hook_exit_)(jint status);
-    void (*hook_abort_)();
-    std::vector<std::string> properties_;
-    std::vector<std::string> compiler_options_;
-    std::vector<std::string> image_compiler_options_;
-    bool profile_;
-    std::string profile_output_filename_;
-    int profile_period_s_;
-    int profile_duration_s_;
-    int profile_interval_us_;
-    double profile_backoff_coefficient_;
-
-   private:
-    ParsedOptions() {}
-  };
-
   // Creates and initializes a new runtime.
   static bool Create(const Options& options, bool ignore_unrecognized)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_);
@@ -279,7 +218,7 @@ class Runtime {
     return thread_list_;
   }
 
-  const char* GetVersion() const {
+  static const char* GetVersion() {
     return "2.0.0";
   }
 
@@ -566,9 +505,9 @@ class Runtime {
   // Runtime profile support.
   bool profile_;
   std::string profile_output_filename_;
-  uint32_t profile_period_s_;                  // Generate profile every n seconds.
-  uint32_t profile_duration_s_;                // Run profile for n seconds.
-  uint32_t profile_interval_us_;                // Microseconds between samples.
+  uint32_t profile_period_s_;           // Generate profile every n seconds.
+  uint32_t profile_duration_s_;         // Run profile for n seconds.
+  uint32_t profile_interval_us_;        // Microseconds between samples.
   double profile_backoff_coefficient_;  // Coefficient to exponential backoff.
 
   bool method_trace_;

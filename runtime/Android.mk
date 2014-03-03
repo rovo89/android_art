@@ -124,6 +124,7 @@ LIBART_COMMON_SRC_FILES := \
 	oat_file.cc \
 	offsets.cc \
 	os_linux.cc \
+	parsed_options.cc \
 	primitive.cc \
 	reference_table.cc \
 	reflection.cc \
