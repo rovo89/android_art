@@ -29,13 +29,8 @@
 
 namespace art {
 
-ElfWriterQuick::ElfWriterQuick(const CompilerDriver& driver, File* elf_file)
-  : ElfWriter(driver, elf_file) {}
-
-ElfWriterQuick::~ElfWriterQuick() {}
-
 bool ElfWriterQuick::Create(File* elf_file,
-                            OatWriter& oat_writer,
+                            OatWriter* oat_writer,
                             const std::vector<const DexFile*>& dex_files,
                             const std::string& android_root,
                             bool is_host,
@@ -44,7 +39,7 @@ bool ElfWriterQuick::Create(File* elf_file,
   return elf_writer.Write(oat_writer, dex_files, android_root, is_host);
 }
 
-bool ElfWriterQuick::Write(OatWriter& oat_writer,
+bool ElfWriterQuick::Write(OatWriter* oat_writer,
                            const std::vector<const DexFile*>& dex_files_unused,
                            const std::string& android_root_unused,
                            bool is_host_unused) {
@@ -197,7 +192,7 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
   // .rodata
   uint32_t oat_data_alignment = kPageSize;
   uint32_t oat_data_offset = expected_offset = RoundUp(expected_offset, oat_data_alignment);
-  const OatHeader& oat_header = oat_writer.GetOatHeader();
+  const OatHeader& oat_header = oat_writer->GetOatHeader();
   CHECK(oat_header.IsValid());
   uint32_t oat_data_size = oat_header.GetExecutableOffset();
   expected_offset += oat_data_size;
@@ -210,9 +205,9 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
   uint32_t oat_exec_alignment = kPageSize;
   CHECK_ALIGNED(expected_offset, kPageSize);
   uint32_t oat_exec_offset = expected_offset = RoundUp(expected_offset, oat_exec_alignment);
-  uint32_t oat_exec_size = oat_writer.GetSize() - oat_data_size;
+  uint32_t oat_exec_size = oat_writer->GetSize() - oat_data_size;
   expected_offset += oat_exec_size;
-  CHECK_EQ(oat_data_offset + oat_writer.GetSize(), expected_offset);
+  CHECK_EQ(oat_data_offset + oat_writer->GetSize(), expected_offset);
   if (debug) {
     LOG(INFO) << "oat_exec_offset=" << oat_exec_offset << std::hex << " " << oat_exec_offset;
     LOG(INFO) << "oat_exec_size=" << oat_exec_size << std::hex << " " << oat_exec_size;
@@ -622,13 +617,13 @@ bool ElfWriterQuick::Write(OatWriter& oat_writer,
     return false;
   }
   BufferedOutputStream output_stream(new FileOutputStream(elf_file_));
-  if (!oat_writer.Write(output_stream)) {
+  if (!oat_writer->Write(&output_stream)) {
     PLOG(ERROR) << "Failed to write .rodata and .text for " << elf_file_->GetPath();
     return false;
   }
 
   // .dynamic
-  DCHECK_LE(oat_data_offset + oat_writer.GetSize(), dynamic_offset);
+  DCHECK_LE(oat_data_offset + oat_writer->GetSize(), dynamic_offset);
   if (static_cast<off_t>(dynamic_offset) != lseek(elf_file_->Fd(), dynamic_offset, SEEK_SET)) {
     PLOG(ERROR) << "Failed to seek to .dynamic offset " << dynamic_offset
                 << " for " << elf_file_->GetPath();

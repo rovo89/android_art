@@ -40,8 +40,9 @@ class CompilerBackend {
     kPortable
   };
 
-  explicit CompilerBackend(int warning)
-      : maximum_compilation_time_before_warning_(warning) {}
+  explicit CompilerBackend(uint64_t warning)
+      : maximum_compilation_time_before_warning_(warning) {
+  }
 
   static CompilerBackend* Create(Kind kind);
 
@@ -49,7 +50,7 @@ class CompilerBackend {
 
   virtual void UnInit(CompilerDriver& driver) const = 0;
 
-  virtual CompiledMethod* Compile(CompilerDriver& compiler,
+  virtual CompiledMethod* Compile(CompilerDriver& driver,
                                   const DexFile::CodeItem* code_item,
                                   uint32_t access_flags,
                                   InvokeType invoke_type,
@@ -66,7 +67,7 @@ class CompilerBackend {
   virtual uintptr_t GetEntryPointOf(mirror::ArtMethod* method) const = 0;
 
   virtual bool WriteElf(art::File* file,
-                        OatWriter& oat_writer,
+                        OatWriter* oat_writer,
                         const std::vector<const art::DexFile*>& dex_files,
                         const std::string& android_root,
                         bool is_host, const CompilerDriver& driver) const
@@ -79,8 +80,12 @@ class CompilerBackend {
     return maximum_compilation_time_before_warning_;
   }
 
-  virtual bool IsPortable() const { return false; }
-  void SetBitcodeFileName(std::string const& filename) {
+  virtual bool IsPortable() const {
+    return false;
+  }
+
+  void SetBitcodeFileName(const CompilerDriver& driver, const std::string& filename) {
+    UNUSED(driver);
     UNUSED(filename);
   }
 
@@ -89,7 +94,7 @@ class CompilerBackend {
   virtual ~CompilerBackend() {}
 
  private:
-  uint64_t maximum_compilation_time_before_warning_;
+  const uint64_t maximum_compilation_time_before_warning_;
 
   DISALLOW_COPY_AND_ASSIGN(CompilerBackend);
 };
