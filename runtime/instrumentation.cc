@@ -23,6 +23,7 @@
 #include "class_linker.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
+#include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "interpreter/interpreter.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
@@ -40,8 +41,6 @@
 #include "thread_list.h"
 
 namespace art {
-
-extern void SetQuickAllocEntryPointsInstrumented(bool instrumented);
 
 namespace instrumentation {
 
@@ -466,10 +465,13 @@ void Instrumentation::InstrumentQuickAllocEntryPoints() {
       quick_alloc_entry_points_instrumentation_counter_.FetchAndAdd(1) == 0;
   if (enable_instrumentation) {
     // Instrumentation wasn't enabled so enable it.
-    SetQuickAllocEntryPointsInstrumented(true);
     ThreadList* tl = Runtime::Current()->GetThreadList();
     tl->SuspendAll();
-    ResetQuickAllocEntryPoints();
+    {
+      MutexLock mu(Thread::Current(), *Locks::runtime_shutdown_lock_);
+      SetQuickAllocEntryPointsInstrumented(true);
+      ResetQuickAllocEntryPoints();
+    }
     tl->ResumeAll();
   }
 }
@@ -481,10 +483,13 @@ void Instrumentation::UninstrumentQuickAllocEntryPoints() {
   const bool disable_instrumentation =
       quick_alloc_entry_points_instrumentation_counter_.FetchAndSub(1) == 1;
   if (disable_instrumentation) {
-    SetQuickAllocEntryPointsInstrumented(false);
     ThreadList* tl = Runtime::Current()->GetThreadList();
     tl->SuspendAll();
-    ResetQuickAllocEntryPoints();
+    {
+      MutexLock mu(Thread::Current(), *Locks::runtime_shutdown_lock_);
+      SetQuickAllocEntryPointsInstrumented(false);
+      ResetQuickAllocEntryPoints();
+    }
     tl->ResumeAll();
   }
 }
