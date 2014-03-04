@@ -18,6 +18,7 @@
 #define ART_RUNTIME_COMPILER_CALLBACKS_H_
 
 #include "class_reference.h"
+#include "locks.h"
 
 namespace art {
 
