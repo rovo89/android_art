@@ -197,13 +197,16 @@ class Heap {
   void RegisterNativeFree(JNIEnv* env, int bytes);
 
   // Change the allocator, updates entrypoints.
-  void ChangeAllocator(AllocatorType allocator);
+  void ChangeAllocator(AllocatorType allocator)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
 
   // Transition the garbage collector during runtime, may copy objects from one space to another.
   void TransitionCollector(CollectorType collector_type);
 
   // Change the collector to be one of the possible options (MS, CMS, SS).
-  void ChangeCollector(CollectorType collector_type);
+  void ChangeCollector(CollectorType collector_type)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // The given reference is believed to be to an object in the Java heap, check the soundness of it.
   // TODO: NO_THREAD_SAFETY_ANALYSIS since we call this everywhere and it is impossible to find a
@@ -465,7 +468,8 @@ class Heap {
 
   // Revoke all the thread-local allocation stacks.
   void RevokeAllThreadLocalAllocationStacks(Thread* self)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_, Locks::thread_list_lock_);
 
   // Mark all the objects in the allocation stack in the specified bitmap.
   void MarkAllocStack(accounting::SpaceBitmap* bitmap1, accounting::SpaceBitmap* bitmap2,
