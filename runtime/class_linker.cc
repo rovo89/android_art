@@ -178,8 +178,8 @@ ClassLinker::ClassLinker(InternTable* intern_table)
       array_iftable_(nullptr),
       find_array_class_cache_next_victim_(0),
       init_done_(false),
-      dex_caches_dirty_(false),
-      class_table_dirty_(false),
+      log_new_dex_caches_roots_(false),
+      log_new_class_table_roots_(false),
       intern_table_(intern_table),
       portable_resolution_trampoline_(nullptr),
       quick_resolution_trampoline_(nullptr),
@@ -1059,31 +1059,60 @@ void ClassLinker::InitFromImage() {
 // Keep in sync with InitCallback. Anything we visit, we need to
 // reinit references to when reinitializing a ClassLinker from a
 // mapped image.
-void ClassLinker::VisitRoots(RootCallback* callback, void* arg, bool only_dirty, bool clean_dirty) {
+void ClassLinker::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags) {
   callback(reinterpret_cast<mirror::Object**>(&class_roots_), arg, 0, kRootVMInternal);
   Thread* self = Thread::Current();
   {
     ReaderMutexLock mu(self, dex_lock_);
-    if (!only_dirty || dex_caches_dirty_) {
+    if ((flags & kVisitRootFlagAllRoots) != 0) {
       for (mirror::DexCache*& dex_cache : dex_caches_) {
         callback(reinterpret_cast<mirror::Object**>(&dex_cache), arg, 0, kRootVMInternal);
-        DCHECK(dex_cache != nullptr);
       }
-      if (clean_dirty) {
-        dex_caches_dirty_ = false;
+    } else if ((flags & kVisitRootFlagNewRoots) != 0) {
+      for (size_t index : new_dex_cache_roots_) {
+        callback(reinterpret_cast<mirror::Object**>(&dex_caches_[index]), arg, 0, kRootVMInternal);
       }
+    }
+    if ((flags & kVisitRootFlagClearRootLog) != 0) {
+      new_dex_cache_roots_.clear();
+    }
+    if ((flags & kVisitRootFlagStartLoggingNewRoots) != 0) {
+      log_new_dex_caches_roots_ = true;
+    } else if ((flags & kVisitRootFlagStopLoggingNewRoots) != 0) {
+      log_new_dex_caches_roots_ = false;
     }
   }
   {
     WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
-    if (!only_dirty || class_table_dirty_) {
+    if ((flags & kVisitRootFlagAllRoots) != 0) {
       for (std::pair<const size_t, mirror::Class*>& it : class_table_) {
         callback(reinterpret_cast<mirror::Object**>(&it.second), arg, 0, kRootStickyClass);
-        DCHECK(it.second != nullptr);
       }
-      if (clean_dirty) {
-        class_table_dirty_ = false;
+    } else if ((flags & kVisitRootFlagNewRoots) != 0) {
+      for (auto& pair : new_class_roots_) {
+        mirror::Object* old_ref = pair.second;
+        callback(reinterpret_cast<mirror::Object**>(&pair.second), arg, 0, kRootStickyClass);
+        if (UNLIKELY(pair.second != old_ref)) {
+          // Uh ohes, GC moved a root in the log. Need to search the class_table and update the
+          // corresponding object. This is slow, but luckily for us, this may only happen with a
+          // concurrent moving GC.
+          for (auto it = class_table_.lower_bound(pair.first), end = class_table_.end();
+              it != end && it->first == pair.first; ++it) {
+            // If the class stored matches the old class, update it to the new value.
+            if (old_ref == it->second) {
+              it->second = pair.second;
+            }
+          }
+        }
       }
+    }
+    if ((flags & kVisitRootFlagClearRootLog) != 0) {
+      new_class_roots_.clear();
+    }
+    if ((flags & kVisitRootFlagStartLoggingNewRoots) != 0) {
+      log_new_class_table_roots_ = true;
+    } else if ((flags & kVisitRootFlagStopLoggingNewRoots) != 0) {
+      log_new_class_table_roots_ = false;
     }
     // We deliberately ignore the class roots in the image since we
     // handle image roots by using the MS/CMS rescanning of dirty cards.
@@ -1094,7 +1123,6 @@ void ClassLinker::VisitRoots(RootCallback* callback, void* arg, bool only_dirty,
     if (find_array_class_cache_[i] != nullptr) {
       callback(reinterpret_cast<mirror::Object**>(&find_array_class_cache_[i]), arg, 0,
                kRootVMInternal);
-      DCHECK(find_array_class_cache_[i] != nullptr);
     }
   }
 }
@@ -1998,7 +2026,10 @@ void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file,
       << dex_cache->GetLocation()->ToModifiedUtf8() << " " << dex_file.GetLocation();
   dex_caches_.push_back(dex_cache.get());
   dex_cache->SetDexFile(&dex_file);
-  dex_caches_dirty_ = true;
+  if (log_new_dex_caches_roots_) {
+    // TODO: This is not safe if we can remove dex caches.
+    new_dex_cache_roots_.push_back(dex_caches_.size() - 1);
+  }
 }
 
 void ClassLinker::RegisterDexFile(const DexFile& dex_file) {
@@ -2275,7 +2306,9 @@ mirror::Class* ClassLinker::InsertClass(const char* descriptor, mirror::Class* k
   }
   VerifyObject(klass);
   class_table_.insert(std::make_pair(hash, klass));
-  class_table_dirty_ = true;
+  if (log_new_class_table_roots_) {
+    new_class_roots_.push_back(std::make_pair(hash, klass));
+  }
   return NULL;
 }
 
@@ -2384,11 +2417,13 @@ void ClassLinker::MoveImageClassesToClassTable() {
               << PrettyClassAndClassLoader(klass);
         } else {
           class_table_.insert(std::make_pair(hash, klass));
+          if (log_new_class_table_roots_) {
+            new_class_roots_.push_back(std::make_pair(hash, klass));
+          }
         }
       }
     }
   }
-  class_table_dirty_ = true;
   dex_cache_image_class_lookup_required_ = false;
   self->EndAssertNoThreadSuspension(old_no_suspend_cause);
 }

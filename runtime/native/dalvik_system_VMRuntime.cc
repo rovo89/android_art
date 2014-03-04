@@ -31,6 +31,7 @@
 #include "mirror/dex_cache-inl.h"
 #include "mirror/object-inl.h"
 #include "object_utils.h"
+#include "runtime.h"
 #include "scoped_fast_native_object_access.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
@@ -222,8 +223,7 @@ static void PreloadDexCachesStringsCallback(mirror::Object** root, void* arg,
 }
 
 // Based on ClassLinker::ResolveString.
-static void PreloadDexCachesResolveString(SirtRef<mirror::DexCache>& dex_cache,
-                                          uint32_t string_idx,
+static void PreloadDexCachesResolveString(SirtRef<mirror::DexCache>& dex_cache, uint32_t string_idx,
                                           StringTable& strings)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::String* string = dex_cache->GetResolvedString(string_idx);
@@ -435,7 +435,8 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
   // We use a std::map to avoid heap allocating StringObjects to lookup in gDvm.literalStrings
   StringTable strings;
   if (kPreloadDexCachesStrings) {
-    runtime->GetInternTable()->VisitRoots(PreloadDexCachesStringsCallback, &strings, false, false);
+    runtime->GetInternTable()->VisitRoots(PreloadDexCachesStringsCallback, &strings,
+                                          kVisitRootFlagAllRoots);
   }
 
   const std::vector<const DexFile*>& boot_class_path = linker->GetBootClassPath();

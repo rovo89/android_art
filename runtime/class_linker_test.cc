@@ -334,7 +334,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
       const char* descriptor = dex->GetTypeDescriptor(type_id);
       AssertDexFileClass(class_loader, descriptor);
     }
-    class_linker_->VisitRoots(TestRootVisitor, NULL, false, false);
+    class_linker_->VisitRoots(TestRootVisitor, NULL, kVisitRootFlagAllRoots);
     // Verify the dex cache has resolution methods in all resolved method slots
     mirror::DexCache* dex_cache = class_linker_->FindDexCache(*dex);
     mirror::ObjectArray<mirror::ArtMethod>* resolved_methods = dex_cache->GetResolvedMethods();

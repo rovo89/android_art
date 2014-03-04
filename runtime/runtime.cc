@@ -797,18 +797,9 @@ void Runtime::DetachCurrentThread() {
   return pre_allocated_OutOfMemoryError_;
 }
 
-void Runtime::VisitConcurrentRoots(RootCallback* callback, void* arg, bool only_dirty,
-                                   bool clean_dirty) {
-  intern_table_->VisitRoots(callback, arg, only_dirty, clean_dirty);
-  class_linker_->VisitRoots(callback, arg, only_dirty, clean_dirty);
-  // TODO: is it the right place ?
-  if (preinitialization_transaction != nullptr) {
-    preinitialization_transaction->VisitRoots(callback, arg);
-  }
-}
-
-void Runtime::VisitNonThreadRoots(RootCallback* callback, void* arg) {
-  // Visit the classes held as static in mirror classes.
+void Runtime::VisitConstantRoots(RootCallback* callback, void* arg) {
+  // Visit the classes held as static in mirror classes, these can be visited concurrently and only
+  // need to be visited once since they never change.
   mirror::ArtField::VisitRoots(callback, arg);
   mirror::ArtMethod::VisitRoots(callback, arg);
   mirror::Class::VisitRoots(callback, arg);
@@ -824,6 +815,18 @@ void Runtime::VisitNonThreadRoots(RootCallback* callback, void* arg) {
   mirror::PrimitiveArray<int32_t>::VisitRoots(callback, arg);   // IntArray
   mirror::PrimitiveArray<int64_t>::VisitRoots(callback, arg);   // LongArray
   mirror::PrimitiveArray<int16_t>::VisitRoots(callback, arg);   // ShortArray
+}
+
+void Runtime::VisitConcurrentRoots(RootCallback* callback, void* arg, VisitRootFlags flags) {
+  intern_table_->VisitRoots(callback, arg, flags);
+  class_linker_->VisitRoots(callback, arg, flags);
+  if ((flags & kVisitRootFlagNewRoots) == 0) {
+    // Guaranteed to have no new roots in the constant roots.
+    VisitConstantRoots(callback, arg);
+  }
+}
+
+void Runtime::VisitNonThreadRoots(RootCallback* callback, void* arg) {
   java_vm_->VisitRoots(callback, arg);
   if (pre_allocated_OutOfMemoryError_ != nullptr) {
     callback(reinterpret_cast<mirror::Object**>(&pre_allocated_OutOfMemoryError_), arg, 0,
@@ -838,7 +841,6 @@ void Runtime::VisitNonThreadRoots(RootCallback* callback, void* arg) {
   if (HasDefaultImt()) {
     callback(reinterpret_cast<mirror::Object**>(&default_imt_), arg, 0, kRootVMInternal);
   }
-
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
     if (callee_save_methods_[i] != nullptr) {
       callback(reinterpret_cast<mirror::Object**>(&callee_save_methods_[i]), arg, 0,
@@ -851,6 +853,9 @@ void Runtime::VisitNonThreadRoots(RootCallback* callback, void* arg) {
       verifier->VisitRoots(callback, arg);
     }
   }
+  if (preinitialization_transaction != nullptr) {
+    preinitialization_transaction->VisitRoots(callback, arg);
+  }
 }
 
 void Runtime::VisitNonConcurrentRoots(RootCallback* callback, void* arg) {
@@ -858,8 +863,8 @@ void Runtime::VisitNonConcurrentRoots(RootCallback* callback, void* arg) {
   VisitNonThreadRoots(callback, arg);
 }
 
-void Runtime::VisitRoots(RootCallback* callback, void* arg, bool only_dirty, bool clean_dirty) {
-  VisitConcurrentRoots(callback, arg, only_dirty, clean_dirty);
+void Runtime::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags) {
+  VisitConcurrentRoots(callback, arg, flags);
   VisitNonConcurrentRoots(callback, arg);
 }
 

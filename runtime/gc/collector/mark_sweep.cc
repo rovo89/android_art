@@ -86,6 +86,7 @@ static constexpr bool kCountJavaLangRefs = false;
 
 // Turn off kCheckLocks when profiling the GC since it slows the GC down by up to 40%.
 static constexpr bool kCheckLocks = kDebugLocking;
+static constexpr bool kVerifyRoots = kIsDebugBuild;
 
 void MarkSweep::ImmuneSpace(space::ContinuousSpace* space) {
   // Bind live to mark bitmap if necessary.
@@ -255,7 +256,8 @@ void MarkSweep::PreCleanCards() {
     MarkThreadRoots(self);
     // TODO: Only mark the dirty roots.
     MarkNonThreadRoots();
-    MarkConcurrentRoots();
+    MarkConcurrentRoots(
+        static_cast<VisitRootFlags>(kVisitRootFlagClearRootLog | kVisitRootFlagNewRoots));
     // Process the newly aged cards.
     RecursiveMarkDirtyObjects(false, accounting::CardTable::kCardDirty - 1);
     // TODO: Empty allocation stack to reduce the number of objects we need to test / mark as live
@@ -286,17 +288,8 @@ void MarkSweep::MarkingPhase() {
   heap_->SwapStacks(self);
 
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-  if (Locks::mutator_lock_->IsExclusiveHeld(self)) {
-    // If we exclusively hold the mutator lock, all threads must be suspended.
-    MarkRoots();
-    RevokeAllThreadLocalAllocationStacks(self);
-  } else {
-    MarkThreadRoots(self);
-    // At this point the live stack should no longer have any mutators which push into it.
-    MarkNonThreadRoots();
-  }
+  MarkRoots(self);
   live_stack_freeze_size_ = heap_->GetLiveStack()->Size();
-  MarkConcurrentRoots();
   UpdateAndMarkModUnion();
   MarkReachableObjects();
   // Pre-clean dirtied cards to reduce pauses.
@@ -583,15 +576,14 @@ inline void MarkSweep::MarkObject(const Object* obj) {
   }
 }
 
-void MarkSweep::MarkRoot(const Object* obj) {
-  if (obj != NULL) {
-    MarkObjectNonNull(obj);
-  }
-}
-
 void MarkSweep::MarkRootParallelCallback(mirror::Object** root, void* arg, uint32_t /*thread_id*/,
                                          RootType /*root_type*/) {
   reinterpret_cast<MarkSweep*>(arg)->MarkObjectNonNullParallel(*root);
+}
+
+void MarkSweep::VerifyRootMarked(Object** root, void* arg, uint32_t /*thread_id*/,
+                                 RootType /*root_type*/) {
+  CHECK(reinterpret_cast<MarkSweep*>(arg)->IsMarked(*root));
 }
 
 void MarkSweep::MarkRootCallback(Object** root, void* arg, uint32_t /*thread_id*/,
@@ -621,11 +613,20 @@ void MarkSweep::VerifyRoots() {
   Runtime::Current()->GetThreadList()->VerifyRoots(VerifyRootCallback, this);
 }
 
-// Marks all objects in the root set.
-void MarkSweep::MarkRoots() {
-  timings_.StartSplit("MarkRoots");
-  Runtime::Current()->VisitNonConcurrentRoots(MarkRootCallback, this);
-  timings_.EndSplit();
+void MarkSweep::MarkRoots(Thread* self) {
+  if (Locks::mutator_lock_->IsExclusiveHeld(self)) {
+    // If we exclusively hold the mutator lock, all threads must be suspended.
+    timings_.StartSplit("MarkRoots");
+    Runtime::Current()->VisitRoots(MarkRootCallback, this);
+    timings_.EndSplit();
+    RevokeAllThreadLocalAllocationStacks(self);
+  } else {
+    MarkThreadRoots(self);
+    // At this point the live stack should no longer have any mutators which push into it.
+    MarkNonThreadRoots();
+    MarkConcurrentRoots(
+        static_cast<VisitRootFlags>(kVisitRootFlagAllRoots | kVisitRootFlagStartLoggingNewRoots));
+  }
 }
 
 void MarkSweep::MarkNonThreadRoots() {
@@ -634,10 +635,10 @@ void MarkSweep::MarkNonThreadRoots() {
   timings_.EndSplit();
 }
 
-void MarkSweep::MarkConcurrentRoots() {
+void MarkSweep::MarkConcurrentRoots(VisitRootFlags flags) {
   timings_.StartSplit("MarkConcurrentRoots");
   // Visit all runtime roots and clear dirty flags.
-  Runtime::Current()->VisitConcurrentRoots(MarkRootCallback, this, false, true);
+  Runtime::Current()->VisitConcurrentRoots(MarkRootCallback, this, flags);
   timings_.EndSplit();
 }
 
@@ -1003,9 +1004,18 @@ void MarkSweep::RecursiveMarkDirtyObjects(bool paused, byte minimum_age) {
 }
 
 void MarkSweep::ReMarkRoots() {
+  Locks::mutator_lock_->AssertExclusiveHeld(Thread::Current());
   timings_.StartSplit("(Paused)ReMarkRoots");
-  Runtime::Current()->VisitRoots(MarkRootCallback, this, true, true);
+  Runtime::Current()->VisitRoots(
+      MarkRootCallback, this, static_cast<VisitRootFlags>(kVisitRootFlagNewRoots |
+                                                          kVisitRootFlagStopLoggingNewRoots |
+                                                          kVisitRootFlagClearRootLog));
   timings_.EndSplit();
+  if (kVerifyRoots) {
+    timings_.StartSplit("(Paused)VerifyRoots");
+    Runtime::Current()->VisitRoots(VerifyRootMarked, this);
+    timings_.EndSplit();
+  }
 }
 
 void MarkSweep::SweepSystemWeaks() {
