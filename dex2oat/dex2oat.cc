@@ -133,12 +133,7 @@ static void Usage(const char* fmt, ...) {
   UsageError("");
   UsageError("  --boot-image=<file.art>: provide the image file for the boot class path.");
   UsageError("      Example: --boot-image=/system/framework/boot.art");
-  UsageError("      Default: <host-prefix>/system/framework/boot.art");
-  UsageError("");
-  UsageError("  --host-prefix=<path>: used to translate host paths to target paths during");
-  UsageError("      cross compilation.");
-  UsageError("      Example: --host-prefix=out/target/product/crespo");
-  UsageError("      Default: $ANDROID_PRODUCT_OUT");
+  UsageError("      Default: $ANDROID_ROOT/system/framework/boot.art");
   UsageError("");
   UsageError("  --android-root=<path>: used to locate libraries for portable linking.");
   UsageError("      Example: --android-root=out/host/linux-x86");
@@ -306,7 +301,6 @@ class Dex2Oat {
   }
 
   const CompilerDriver* CreateOatFile(const std::string& boot_image_option,
-                                      const std::string* host_prefix,
                                       const std::string& android_root,
                                       bool is_host,
                                       const std::vector<const DexFile*>& dex_files,
@@ -364,9 +358,6 @@ class Dex2Oat {
       image_file_location_oat_data_begin =
           reinterpret_cast<uintptr_t>(image_space->GetImageHeader().GetOatDataBegin());
       image_file_location = image_space->GetImageFilename();
-      if (host_prefix != NULL && StartsWith(image_file_location, host_prefix->c_str())) {
-        image_file_location = image_file_location.substr(host_prefix->size());
-      }
     }
 
     OatWriter oat_writer(dex_files,
@@ -725,7 +716,6 @@ static int dex2oat(int argc, char** argv) {
   std::string image_filename;
   std::string boot_image_filename;
   uintptr_t image_base = 0;
-  UniquePtr<std::string> host_prefix;
   std::string android_root;
   std::vector<const char*> runtime_args;
   int thread_count = sysconf(_SC_NPROCESSORS_CONF);
@@ -826,8 +816,6 @@ static int dex2oat(int argc, char** argv) {
       }
     } else if (option.starts_with("--boot-image=")) {
       boot_image_filename = option.substr(strlen("--boot-image=")).data();
-    } else if (option.starts_with("--host-prefix=")) {
-      host_prefix.reset(new std::string(option.substr(strlen("--host-prefix=")).data()));
     } else if (option.starts_with("--android-root=")) {
       android_root = option.substr(strlen("--android-root=")).data();
     } else if (option.starts_with("--instruction-set=")) {
@@ -934,13 +922,6 @@ static int dex2oat(int argc, char** argv) {
     Usage("--oat-fd should not be used with --image");
   }
 
-  if (host_prefix.get() == NULL) {
-    const char* android_product_out = getenv("ANDROID_PRODUCT_OUT");
-    if (android_product_out != NULL) {
-        host_prefix.reset(new std::string(android_product_out));
-    }
-  }
-
   if (android_root.empty()) {
     const char* android_root_env_var = getenv("ANDROID_ROOT");
     if (android_root_env_var == NULL) {
@@ -951,12 +932,7 @@ static int dex2oat(int argc, char** argv) {
 
   bool image = (!image_filename.empty());
   if (!image && boot_image_filename.empty()) {
-    if (host_prefix.get() == NULL) {
-      boot_image_filename += GetAndroidRoot();
-    } else {
-      boot_image_filename += *host_prefix.get();
-      boot_image_filename += "/system";
-    }
+    boot_image_filename += GetAndroidRoot();
     boot_image_filename += "/framework/boot.art";
   }
   std::string boot_image_option;
@@ -1094,9 +1070,6 @@ static int dex2oat(int argc, char** argv) {
     runtime_options.push_back(std::make_pair(boot_image_option.c_str(),
                                              reinterpret_cast<void*>(NULL)));
   }
-  if (host_prefix.get() != NULL) {
-    runtime_options.push_back(std::make_pair("host-prefix", host_prefix->c_str()));
-  }
   for (size_t i = 0; i < runtime_args.size(); i++) {
     runtime_options.push_back(std::make_pair(runtime_args[i], reinterpret_cast<void*>(NULL)));
   }
@@ -1220,7 +1193,6 @@ static int dex2oat(int argc, char** argv) {
   }
 
   UniquePtr<const CompilerDriver> compiler(dex2oat->CreateOatFile(boot_image_option,
-                                                                  host_prefix.get(),
                                                                   android_root,
                                                                   is_host,
                                                                   dex_files,

@@ -19,6 +19,7 @@
 
 #include <dirent.h>
 #include <dlfcn.h>
+#include <stdlib.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -59,6 +60,14 @@ class ScratchFile {
     filename_ = getenv("ANDROID_DATA");
     filename_ += "/TmpFile-XXXXXX";
     int fd = mkstemp(&filename_[0]);
+    CHECK_NE(-1, fd);
+    file_.reset(new File(fd, GetFilename()));
+  }
+
+  ScratchFile(const ScratchFile& other, const char* suffix) {
+    filename_ = other.GetFilename();
+    filename_ += suffix;
+    int fd = open(filename_.c_str(), O_RDWR | O_CREAT, 0666);
     CHECK_NE(-1, fd);
     file_.reset(new File(fd, GetFilename()));
   }

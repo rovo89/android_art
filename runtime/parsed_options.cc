@@ -427,8 +427,6 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
         return false;
       }
       hook_abort_ = reinterpret_cast<void(*)()>(const_cast<void*>(hook));
-    } else if (option == "host-prefix") {
-      host_prefix_ = reinterpret_cast<const char*>(options[i].second);
     } else if (option == "-Xmethod-trace") {
       method_trace_ = true;
     } else if (StartsWith(option, "-Xmethod-trace-file:")) {
