@@ -18,6 +18,7 @@
 #define ART_RUNTIME_CLASS_REFERENCE_H_
 
 #include <stdint.h>
+#include <utility>
 
 namespace art {
 
