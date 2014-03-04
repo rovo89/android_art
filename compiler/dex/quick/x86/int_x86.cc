@@ -190,6 +190,7 @@ void X86Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
   RegLocation rl_src = mir_graph_->GetSrc(mir, 0);
   RegLocation rl_dest = mir_graph_->GetDest(mir);
   rl_src = LoadValue(rl_src, kCoreReg);
+  ConditionCode ccode = mir->meta.ccode;
 
   // The kMirOpSelect has two variants, one for constants and one for moves.
   const bool is_constant_case = (mir->ssa_rep->num_uses == 1);
@@ -200,6 +201,8 @@ void X86Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
     rl_result = EvalLoc(rl_dest, kCoreReg, true);
 
     /*
+     * For ccode == kCondEq:
+     *
      * 1) When the true case is zero and result_reg is not same as src_reg:
      *     xor result_reg, result_reg
      *     cmp $0, src_reg
@@ -212,9 +215,9 @@ void X86Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
      *     cmovz result_reg, t1
      * 3) All other cases (we do compare first to set eflags):
      *     cmp $0, src_reg
-     *     mov result_reg, $true_case
-     *     mov t1, $false_case
-     *     cmovnz result_reg, t1
+     *     mov result_reg, $false_case
+     *     mov t1, $true_case
+     *     cmovz result_reg, t1
      */
     const bool result_reg_same_as_src = (rl_src.location == kLocPhysReg && rl_src.reg.GetReg() == rl_result.reg.GetReg());
     const bool true_zero_case = (true_val == 0 && false_val != 0 && !result_reg_same_as_src);
@@ -230,15 +233,15 @@ void X86Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
     }
 
     if (catch_all_case) {
-      OpRegImm(kOpMov, rl_result.reg.GetReg(), true_val);
+      OpRegImm(kOpMov, rl_result.reg.GetReg(), false_val);
     }
 
     if (true_zero_case || false_zero_case || catch_all_case) {
-      int immediateForTemp = false_zero_case ? true_val : false_val;
+      ConditionCode cc = true_zero_case ? NegateComparison(ccode) : ccode;
+      int immediateForTemp = true_zero_case ? false_val : true_val;
       int temp1_reg = AllocTemp();
       OpRegImm(kOpMov, temp1_reg, immediateForTemp);
 
-      ConditionCode cc = false_zero_case ? kCondEq : kCondNe;
       OpCondRegReg(kOpCmov, cc, rl_result.reg.GetReg(), temp1_reg);
 
       FreeTemp(temp1_reg);
@@ -251,6 +254,8 @@ void X86Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
     rl_result = EvalLoc(rl_dest, kCoreReg, true);
 
     /*
+     * For ccode == kCondEq:
+     *
      * 1) When true case is already in place:
      *     cmp $0, src_reg
      *     cmovnz result_reg, false_reg
@@ -259,20 +264,20 @@ void X86Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
      *     cmovz result_reg, true_reg
      * 3) When neither cases are in place:
      *     cmp $0, src_reg
-     *     mov result_reg, true_reg
-     *     cmovnz result_reg, false_reg
+     *     mov result_reg, false_reg
+     *     cmovz result_reg, true_reg
      */
 
     // kMirOpSelect is generated just for conditional cases when comparison is done with zero.
     OpRegImm(kOpCmp, rl_src.reg.GetReg(), 0);
 
     if (rl_result.reg.GetReg() == rl_true.reg.GetReg()) {
-      OpCondRegReg(kOpCmov, kCondNe, rl_result.reg.GetReg(), rl_false.reg.GetReg());
+      OpCondRegReg(kOpCmov, NegateComparison(ccode), rl_result.reg.GetReg(), rl_false.reg.GetReg());
     } else if (rl_result.reg.GetReg() == rl_false.reg.GetReg()) {
-      OpCondRegReg(kOpCmov, kCondEq, rl_result.reg.GetReg(), rl_true.reg.GetReg());
+      OpCondRegReg(kOpCmov, ccode, rl_result.reg.GetReg(), rl_true.reg.GetReg());
     } else {
-      OpRegCopy(rl_result.reg.GetReg(), rl_true.reg.GetReg());
-      OpCondRegReg(kOpCmov, kCondNe, rl_result.reg.GetReg(), rl_false.reg.GetReg());
+      OpRegCopy(rl_result.reg.GetReg(), rl_false.reg.GetReg());
+      OpCondRegReg(kOpCmov, ccode, rl_result.reg.GetReg(), rl_true.reg.GetReg());
     }
   }
 

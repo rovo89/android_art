@@ -425,6 +425,7 @@ class Mir2Lir : public Backend {
     bool EvaluateBranch(Instruction::Code opcode, int src1, int src2);
     bool IsInexpensiveConstant(RegLocation rl_src);
     ConditionCode FlipComparisonOrder(ConditionCode before);
+    ConditionCode NegateComparison(ConditionCode before);
     virtual void InstallLiteralPools();
     void InstallSwitchTables();
     void InstallFillArrayData();
