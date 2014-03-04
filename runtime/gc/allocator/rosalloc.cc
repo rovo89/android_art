@@ -40,15 +40,17 @@ size_t RosAlloc::bulkFreeBitMapOffsets[kNumOfSizeBrackets];
 size_t RosAlloc::threadLocalFreeBitMapOffsets[kNumOfSizeBrackets];
 bool RosAlloc::initialized_ = false;
 
-RosAlloc::RosAlloc(void* base, size_t capacity,
+RosAlloc::RosAlloc(void* base, size_t capacity, size_t max_capacity,
                    PageReleaseMode page_release_mode, size_t page_release_size_threshold)
     : base_(reinterpret_cast<byte*>(base)), footprint_(capacity),
-      capacity_(capacity),
+      capacity_(capacity), max_capacity_(max_capacity),
       lock_("rosalloc global lock", kRosAllocGlobalLock),
       bulk_free_lock_("rosalloc bulk free lock", kRosAllocBulkFreeLock),
       page_release_mode_(page_release_mode),
       page_release_size_threshold_(page_release_size_threshold) {
   DCHECK(RoundUp(capacity, kPageSize) == capacity);
+  DCHECK(RoundUp(max_capacity, kPageSize) == max_capacity);
+  CHECK_LE(capacity, max_capacity);
   CHECK(IsAligned<kPageSize>(page_release_size_threshold_));
   if (!initialized_) {
     Initialize();
@@ -56,16 +58,24 @@ RosAlloc::RosAlloc(void* base, size_t capacity,
   VLOG(heap) << "RosAlloc base="
              << std::hex << (intptr_t)base_ << ", end="
              << std::hex << (intptr_t)(base_ + capacity_)
-             << ", capacity=" << std::dec << capacity_;
+             << ", capacity=" << std::dec << capacity_
+             << ", max_capacity=" << std::dec << max_capacity_;
   memset(current_runs_, 0, sizeof(current_runs_));
   for (size_t i = 0; i < kNumOfSizeBrackets; i++) {
     size_bracket_locks_[i] = new Mutex("an rosalloc size bracket lock",
                                        kRosAllocBracketLock);
   }
-  size_t num_of_pages = capacity_ / kPageSize;
-  page_map_.resize(num_of_pages);
+  DCHECK_EQ(footprint_, capacity_);
+  size_t num_of_pages = footprint_ / kPageSize;
+  size_t max_num_of_pages = max_capacity_ / kPageSize;
+  std::string error_msg;
+  page_map_mem_map_.reset(MemMap::MapAnonymous("rosalloc page map", NULL, RoundUp(max_num_of_pages, kPageSize),
+                                               PROT_READ | PROT_WRITE, false, &error_msg));
+  CHECK(page_map_mem_map_.get() != NULL) << "Couldn't allocate the page map : " << error_msg;
+  page_map_ = page_map_mem_map_->Begin();
+  page_map_size_ = num_of_pages;
+  max_page_map_size_ = max_num_of_pages;
   free_page_run_size_map_.resize(num_of_pages);
-
   FreePageRun* free_pages = reinterpret_cast<FreePageRun*>(base_);
   if (kIsDebugBuild) {
     free_pages->magic_num_ = kMagicNumFree;
@@ -149,9 +159,10 @@ void* RosAlloc::AllocPages(Thread* self, size_t num_pages, byte page_map_type) {
       DCHECK_EQ(increment % kPageSize, static_cast<size_t>(0));
       size_t new_footprint = footprint_ + increment;
       size_t new_num_of_pages = new_footprint / kPageSize;
-      DCHECK_LT(page_map_.size(), new_num_of_pages);
+      DCHECK_LT(page_map_size_, new_num_of_pages);
       DCHECK_LT(free_page_run_size_map_.size(), new_num_of_pages);
-      page_map_.resize(new_num_of_pages);
+      page_map_size_ = new_num_of_pages;
+      DCHECK_LE(page_map_size_, max_page_map_size_);
       free_page_run_size_map_.resize(new_num_of_pages);
       art_heap_rosalloc_morecore(this, increment);
       if (last_free_page_run_size > 0) {
@@ -265,7 +276,7 @@ void* RosAlloc::AllocPages(Thread* self, size_t num_pages, byte page_map_type) {
 void RosAlloc::FreePages(Thread* self, void* ptr) {
   lock_.AssertHeld(self);
   size_t pm_idx = ToPageMapIndex(ptr);
-  DCHECK(pm_idx < page_map_.size());
+  DCHECK(pm_idx < page_map_size_);
   byte pm_type = page_map_[pm_idx];
   DCHECK(pm_type == kPageMapRun || pm_type == kPageMapLargeObject);
   byte pm_part_type;
@@ -287,7 +298,7 @@ void RosAlloc::FreePages(Thread* self, void* ptr) {
   size_t num_pages = 1;
   page_map_[pm_idx] = kPageMapEmpty;
   size_t idx = pm_idx + 1;
-  size_t end = page_map_.size();
+  size_t end = page_map_size_;
   while (idx < end && page_map_[idx] == pm_part_type) {
     page_map_[idx] = kPageMapEmpty;
     num_pages++;
@@ -315,7 +326,7 @@ void RosAlloc::FreePages(Thread* self, void* ptr) {
       LOG(INFO) << "RosAlloc::FreePages() : trying to coalesce a free page run 0x"
                 << std::hex << reinterpret_cast<uintptr_t>(fpr) << " [" << std::dec << pm_idx << "] -0x"
                 << std::hex << reinterpret_cast<uintptr_t>(fpr->End(this)) << " [" << std::dec
-                << (fpr->End(this) == End() ? page_map_.size() : ToPageMapIndex(fpr->End(this))) << "]";
+                << (fpr->End(this) == End() ? page_map_size_ : ToPageMapIndex(fpr->End(this))) << "]";
     }
     auto higher_it = free_page_runs_.upper_bound(fpr);
     if (higher_it != free_page_runs_.end()) {
@@ -326,7 +337,7 @@ void RosAlloc::FreePages(Thread* self, void* ptr) {
           LOG(INFO) << "RosAlloc::FreePages() : trying to coalesce with a higher free page run 0x"
                     << std::hex << reinterpret_cast<uintptr_t>(h) << " [" << std::dec << ToPageMapIndex(h) << "] -0x"
                     << std::hex << reinterpret_cast<uintptr_t>(h->End(this)) << " [" << std::dec
-                    << (h->End(this) == End() ? page_map_.size() : ToPageMapIndex(h->End(this))) << "]";
+                    << (h->End(this) == End() ? page_map_size_ : ToPageMapIndex(h->End(this))) << "]";
         }
         if (fpr->End(this) == h->Begin()) {
           if (kTraceRosAlloc) {
@@ -364,7 +375,7 @@ void RosAlloc::FreePages(Thread* self, void* ptr) {
           LOG(INFO) << "RosAlloc::FreePages() : trying to coalesce with a lower free page run 0x"
                     << std::hex << reinterpret_cast<uintptr_t>(l) << " [" << std::dec << ToPageMapIndex(l) << "] -0x"
                     << std::hex << reinterpret_cast<uintptr_t>(l->End(this)) << " [" << std::dec
-                    << (l->End(this) == End() ? page_map_.size() : ToPageMapIndex(l->End(this))) << "]";
+                    << (l->End(this) == End() ? page_map_size_ : ToPageMapIndex(l->End(this))) << "]";
         }
         if (l->End(this) == fpr->Begin()) {
           if (kTraceRosAlloc) {
@@ -450,7 +461,7 @@ void RosAlloc::FreeInternal(Thread* self, void* ptr) {
   Run* run = NULL;
   {
     MutexLock mu(self, lock_);
-    DCHECK(pm_idx < page_map_.size());
+    DCHECK(pm_idx < page_map_size_);
     byte page_map_entry = page_map_[pm_idx];
     if (kTraceRosAlloc) {
       LOG(INFO) << "RosAlloc::FreeInternal() : " << std::hex << ptr << ", pm_idx=" << std::dec << pm_idx
@@ -1050,6 +1061,12 @@ void RosAlloc::Run::InspectAllSlots(void (*handler)(void* start, void* end, size
   }
 }
 
+// If true, read the page map entries in BulkFree() without using the
+// lock for better performance, assuming that the existence of an
+// allocated chunk/pointer being freed in BulkFree() guarantees that
+// the page map entry won't change. Disabled for now.
+static constexpr bool kReadPageMapEntryWithoutLockInBulkFree = false;
+
 void RosAlloc::BulkFree(Thread* self, void** ptrs, size_t num_ptrs) {
   if (false) {
     // Used only to test Free() as GC uses only BulkFree().
@@ -1068,17 +1085,58 @@ void RosAlloc::BulkFree(Thread* self, void** ptrs, size_t num_ptrs) {
 #else
   hash_set<Run*, hash_run, eq_run> runs;
 #endif
-  {
-    for (size_t i = 0; i < num_ptrs; i++) {
-      void* ptr = ptrs[i];
-      ptrs[i] = NULL;
-      DCHECK(base_ <= ptr && ptr < base_ + footprint_);
-      size_t pm_idx = RoundDownToPageMapIndex(ptr);
+  for (size_t i = 0; i < num_ptrs; i++) {
+    void* ptr = ptrs[i];
+    ptrs[i] = NULL;
+    DCHECK(base_ <= ptr && ptr < base_ + footprint_);
+    size_t pm_idx = RoundDownToPageMapIndex(ptr);
+    Run* run = NULL;
+    if (kReadPageMapEntryWithoutLockInBulkFree) {
+      // Read the page map entries without locking the lock.
+      byte page_map_entry = page_map_[pm_idx];
+      if (kTraceRosAlloc) {
+        LOG(INFO) << "RosAlloc::BulkFree() : " << std::hex << ptr << ", pm_idx="
+                  << std::dec << pm_idx
+                  << ", page_map_entry=" << static_cast<int>(page_map_entry);
+      }
+      if (LIKELY(page_map_entry == kPageMapRun)) {
+        run = reinterpret_cast<Run*>(base_ + pm_idx * kPageSize);
+        DCHECK(run->magic_num_ == kMagicNum);
+      } else if (LIKELY(page_map_entry == kPageMapRunPart)) {
+        size_t pi = pm_idx;
+        DCHECK(page_map_[pi] == kPageMapRun || page_map_[pi] == kPageMapRunPart);
+        // Find the beginning of the run.
+        while (page_map_[pi] != kPageMapRun) {
+          pi--;
+          DCHECK(pi < capacity_ / kPageSize);
+        }
+        DCHECK(page_map_[pi] == kPageMapRun);
+        run = reinterpret_cast<Run*>(base_ + pi * kPageSize);
+        DCHECK(run->magic_num_ == kMagicNum);
+      } else if (page_map_entry == kPageMapLargeObject) {
+        MutexLock mu(self, lock_);
+        FreePages(self, ptr);
+        continue;
+      } else {
+        LOG(FATAL) << "Unreachable - page map type: " << page_map_entry;
+      }
+      DCHECK(run != NULL);
+      // Set the bit in the bulk free bit map.
+      run->MarkBulkFreeBitMap(ptr);
+#ifdef HAVE_ANDROID_OS
+      if (!run->to_be_bulk_freed_) {
+        run->to_be_bulk_freed_ = true;
+        runs.push_back(run);
+      }
+#else
+      runs.insert(run);
+#endif
+    } else {
+      // Read the page map entries with a lock.
       bool free_from_run = false;
-      Run* run = NULL;
       {
         MutexLock mu(self, lock_);
-        DCHECK(pm_idx < page_map_.size());
+        DCHECK(pm_idx < page_map_size_);
         byte page_map_entry = page_map_[pm_idx];
         if (kTraceRosAlloc) {
           LOG(INFO) << "RosAlloc::BulkFree() : " << std::hex << ptr << ", pm_idx="
@@ -1243,7 +1301,7 @@ std::string RosAlloc::DumpPageMap() {
   std::ostringstream stream;
   stream << "RosAlloc PageMap: " << std::endl;
   lock_.AssertHeld(Thread::Current());
-  size_t end = page_map_.size();
+  size_t end = page_map_size_;
   FreePageRun* curr_fpr = NULL;
   size_t curr_fpr_size = 0;
   size_t remaining_curr_fpr_size = 0;
@@ -1340,7 +1398,7 @@ size_t RosAlloc::UsableSize(void* ptr) {
   case kPageMapLargeObject: {
     size_t num_pages = 1;
     size_t idx = pm_idx + 1;
-    size_t end = page_map_.size();
+    size_t end = page_map_size_;
     while (idx < end && page_map_[idx] == kPageMapLargeObjectPart) {
       num_pages++;
       idx++;
@@ -1390,9 +1448,21 @@ bool RosAlloc::Trim() {
     size_t new_footprint = footprint_ - decrement;
     DCHECK_EQ(new_footprint % kPageSize, static_cast<size_t>(0));
     size_t new_num_of_pages = new_footprint / kPageSize;
-    DCHECK_GE(page_map_.size(), new_num_of_pages);
-    page_map_.resize(new_num_of_pages);
-    DCHECK_EQ(page_map_.size(), new_num_of_pages);
+    DCHECK_GE(page_map_size_, new_num_of_pages);
+    // Zero out the tail of the page map.
+    byte* zero_begin = page_map_ + new_num_of_pages;
+    byte* madvise_begin = AlignUp(zero_begin, kPageSize);
+    DCHECK_LE(madvise_begin, page_map_mem_map_->End());
+    size_t madvise_size = page_map_mem_map_->End() - madvise_begin;
+    if (madvise_size > 0) {
+      DCHECK_ALIGNED(madvise_begin, kPageSize);
+      DCHECK_EQ(RoundUp(madvise_size, kPageSize), madvise_size);
+      CHECK_EQ(madvise(madvise_begin, madvise_size, MADV_DONTNEED), 0);
+    }
+    if (madvise_begin - zero_begin) {
+      memset(zero_begin, 0, madvise_begin - zero_begin);
+    }
+    page_map_size_ = new_num_of_pages;
     free_page_run_size_map_.resize(new_num_of_pages);
     DCHECK_EQ(free_page_run_size_map_.size(), new_num_of_pages);
     art_heap_rosalloc_morecore(this, -(static_cast<intptr_t>(decrement)));
@@ -1415,7 +1485,7 @@ void RosAlloc::InspectAll(void (*handler)(void* start, void* end, size_t used_by
     return;
   }
   MutexLock mu(Thread::Current(), lock_);
-  size_t pm_end = page_map_.size();
+  size_t pm_end = page_map_size_;
   size_t i = 0;
   while (i < pm_end) {
     byte pm = page_map_[i];
@@ -1508,6 +1578,7 @@ void RosAlloc::SetFootprintLimit(size_t new_capacity) {
   DCHECK_EQ(RoundUp(new_capacity, kPageSize), new_capacity);
   // Only growing is supported here. But Trim() is supported.
   if (capacity_ < new_capacity) {
+    CHECK_LE(new_capacity, max_capacity_);
     capacity_ = new_capacity;
     VLOG(heap) << "new capacity=" << capacity_;
   }
@@ -1688,7 +1759,7 @@ void RosAlloc::Verify() {
   std::vector<Run*> runs;
   {
     MutexLock mu(self, lock_);
-    size_t pm_end = page_map_.size();
+    size_t pm_end = page_map_size_;
     size_t i = 0;
     while (i < pm_end) {
       byte pm = page_map_[i];
