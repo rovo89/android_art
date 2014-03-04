@@ -28,6 +28,7 @@
 namespace art {
 
 static constexpr bool kDumpHeapObjectOnSigsevg = false;
+static constexpr bool kUseSignalHandler = false;
 
 struct sigaction old_action;
 void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_context) {
@@ -56,18 +57,19 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
 }
 
 void Runtime::InitPlatformSignalHandlers() {
-  // On the host, we don't have debuggerd to dump a stack for us when something unexpected happens.
-  struct sigaction action;
-  memset(&action, 0, sizeof(action));
-  sigemptyset(&action.sa_mask);
-  action.sa_sigaction = HandleUnexpectedSignal;
-  // Use the three-argument sa_sigaction handler.
-  action.sa_flags |= SA_SIGINFO;
-  // Use the alternate signal stack so we can catch stack overflows.
-  action.sa_flags |= SA_ONSTACK;
-  int rc = 0;
-  rc += sigaction(SIGSEGV, &action, &old_action);
-  CHECK_EQ(rc, 0);
+  if (kUseSignalHandler) {
+    struct sigaction action;
+    memset(&action, 0, sizeof(action));
+    sigemptyset(&action.sa_mask);
+    action.sa_sigaction = HandleUnexpectedSignal;
+    // Use the three-argument sa_sigaction handler.
+    action.sa_flags |= SA_SIGINFO;
+    // Use the alternate signal stack so we can catch stack overflows.
+    action.sa_flags |= SA_ONSTACK;
+    int rc = 0;
+    rc += sigaction(SIGSEGV, &action, &old_action);
+    CHECK_EQ(rc, 0);
+  }
 }
 
 }  // namespace art
