@@ -42,7 +42,9 @@ class ImageTest : public CommonCompilerTest {
 };
 
 TEST_F(ImageTest, WriteRead) {
-  ScratchFile tmp_elf;
+  // Create a root tmp file, to be the base of the .art and .oat temporary files.
+  ScratchFile tmp;
+  ScratchFile tmp_elf(tmp, "oat");
   {
     {
       jobject class_loader = NULL;
@@ -75,7 +77,7 @@ TEST_F(ImageTest, WriteRead) {
   UniquePtr<File> tmp_oat(OS::OpenFileReadWrite(tmp_elf.GetFilename().c_str()));
   ASSERT_TRUE(tmp_oat.get() != NULL);
 
-  ScratchFile tmp_image;
+  ScratchFile tmp_image(tmp, "art");
   const uintptr_t requested_image_base = ART_BASE_ADDRESS;
   {
     ImageWriter writer(*compiler_driver_.get());

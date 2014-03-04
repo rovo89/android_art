@@ -93,7 +93,6 @@ export ANDROID_DATA="$DEX_LOCATION"
 export ANDROID_ROOT="${ANDROID_HOST_OUT}"
 export LD_LIBRARY_PATH="${ANDROID_ROOT}/lib"
 export DYLD_LIBRARY_PATH="${ANDROID_ROOT}/lib"
-unset ANDROID_PRODUCT_OUT # avoid defaulting dex2oat --host-prefix to target output
 
 exe="${ANDROID_ROOT}/bin/dalvikvm"
 

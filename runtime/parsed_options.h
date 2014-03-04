@@ -32,7 +32,6 @@ class ParsedOptions {
   const std::vector<const DexFile*>* boot_class_path_;
   std::string boot_class_path_string_;
   std::string class_path_string_;
-  std::string host_prefix_;
   std::string image_;
   bool check_jni_;
   std::string jni_trace_;
