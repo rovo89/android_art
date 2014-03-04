@@ -276,11 +276,13 @@ class MANAGED Class : public Object {
   // Computes the name, then sets the cached value.
   String* ComputeName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsProxyClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Read access flags without using getter as whether something is a proxy can be check in
     // any loaded state
     // TODO: switch to a check if the super class is java.lang.reflect.Proxy?
-    uint32_t access_flags = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), false);
+    uint32_t access_flags = GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_),
+                                                     false);
     return (access_flags & kAccClassIsProxy) != 0;
   }
 
@@ -567,6 +569,7 @@ class MANAGED Class : public Object {
 
   void DumpClass(std::ostream& os, int flags) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetDexCache(DexCache* new_dex_cache) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
