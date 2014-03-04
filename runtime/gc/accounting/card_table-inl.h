@@ -154,6 +154,7 @@ inline void CardTable::ModifyCardsAtomic(byte* scan_begin, byte* scan_end, const
   // Now we have the words, we can process words in parallel.
   uintptr_t* word_cur = reinterpret_cast<uintptr_t*>(card_cur);
   uintptr_t* word_end = reinterpret_cast<uintptr_t*>(card_end);
+  // TODO: This is not big endian safe.
   union {
     uintptr_t expected_word;
     uint8_t expected_bytes[sizeof(uintptr_t)];
