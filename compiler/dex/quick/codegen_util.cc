@@ -967,6 +967,22 @@ ConditionCode Mir2Lir::FlipComparisonOrder(ConditionCode before) {
   return res;
 }
 
+ConditionCode Mir2Lir::NegateComparison(ConditionCode before) {
+  ConditionCode res;
+  switch (before) {
+    case kCondEq: res = kCondNe; break;
+    case kCondNe: res = kCondEq; break;
+    case kCondLt: res = kCondGe; break;
+    case kCondGt: res = kCondLe; break;
+    case kCondLe: res = kCondGt; break;
+    case kCondGe: res = kCondLt; break;
+    default:
+      res = static_cast<ConditionCode>(0);
+      LOG(FATAL) << "Unexpected ccode " << before;
+  }
+  return res;
+}
+
 // TODO: move to mir_to_lir.cc
 Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
     : Backend(arena),

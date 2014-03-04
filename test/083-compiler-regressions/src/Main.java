@@ -45,6 +45,7 @@ public class Main {
         LVNTests.testNPE2();
         ZeroTests.longDivTest();
         ZeroTests.longModTest();
+        MirOpSelectTests.testIfCcz();
     }
 
     public static void returnConstantTest() {
@@ -8502,6 +8503,117 @@ class LVNTests {
           causeNPE2(t, t);
         } catch (NullPointerException e) {
           System.out.println("LVNTests.testNPE2 passes");
+        }
+    }
+}
+
+class MirOpSelectTests {
+    private static int ifEqzThen0Else1(int i) { return (i == 0) ? 0 : 1; }
+    private static int ifEqzThen0Else8(int i) { return (i == 0) ? 0 : 8; }
+    private static int ifEqzThen1Else5(int i) { return (i == 0) ? 1 : 5; }
+    private static int ifEqzThenMinus1Else3(int i) { return (i == 0) ? -1 : 3; }
+    private static int ifEqzThen11Else23(int i) { return (i == 0) ? 11 : 23; }
+    private static int ifEqzThen54321Else87654321(int i) { return (i == 0) ? 54321 : 87654321; }
+    private static int ifNezThen0Else1(int i) { return (i != 0) ? 0 : 1; }
+    private static int ifNezThen0Else8(int i) { return (i != 0) ? 0 : 8; }
+    private static int ifNezThen1Else5(int i) { return (i != 0) ? 1 : 5; }
+    private static int ifNezThenMinus1Else3(int i) { return (i != 0) ? -1 : 3; }
+    private static int ifNezThen11Else23(int i) { return (i != 0) ? 11 : 23; }
+    private static int ifNezThen54321Else87654321(int i) { return (i != 0) ? 54321 : 87654321; }
+    private static int ifLtzThen3Else5(int i) { return (i < 0) ? 3 : 5; }
+    private static int ifGezThen7Else4(int i) { return (i >= 0) ? 7 : 4; }
+    private static int ifGtzThen2Else9(int i) { return (i > 0) ? 2 : 9; }
+    private static int ifLezThen8Else0(int i) { return (i <= 0) ? 8 : 0; }
+
+    private static int ifEqz(int src, int thn, int els) { return (src == 0) ? thn : els; }
+    private static int ifNez(int src, int thn, int els) { return (src != 0) ? thn : els; }
+    private static int ifLtz(int src, int thn, int els) { return (src < 0) ? thn : els; }
+    private static int ifGez(int src, int thn, int els) { return (src >= 0) ? thn : els; }
+    private static int ifGtz(int src, int thn, int els) { return (src > 0) ? thn : els; }
+    private static int ifLez(int src, int thn, int els) { return (src <= 0) ? thn : els; }
+
+    public static void testIfCcz() {
+        int[] results = new int[] {
+            ifEqzThen0Else1(-1), 1,
+            ifEqzThen0Else1(0), 0,
+            ifEqzThen0Else1(1), 1,
+            ifEqzThen0Else8(-1), 8,
+            ifEqzThen0Else8(0), 0,
+            ifEqzThen0Else8(1), 8,
+            ifEqzThen1Else5(-1), 5,
+            ifEqzThen1Else5(0), 1,
+            ifEqzThen1Else5(1), 5,
+            ifEqzThenMinus1Else3(-1), 3,
+            ifEqzThenMinus1Else3(0), -1,
+            ifEqzThenMinus1Else3(1), 3,
+            ifEqzThen11Else23(-1), 23,
+            ifEqzThen11Else23(0), 11,
+            ifEqzThen11Else23(1), 23,
+            ifEqzThen54321Else87654321(-1), 87654321,
+            ifEqzThen54321Else87654321(0), 54321,
+            ifEqzThen54321Else87654321(1), 87654321,
+            ifNezThen0Else1(-1), 0,
+            ifNezThen0Else1(0), 1,
+            ifNezThen0Else1(1), 0,
+            ifNezThen0Else8(-1), 0,
+            ifNezThen0Else8(0), 8,
+            ifNezThen0Else8(1), 0,
+            ifNezThen1Else5(-1), 1,
+            ifNezThen1Else5(0), 5,
+            ifNezThen1Else5(1), 1,
+            ifNezThenMinus1Else3(-1), -1,
+            ifNezThenMinus1Else3(0), 3,
+            ifNezThenMinus1Else3(1), -1,
+            ifNezThen11Else23(-1), 11,
+            ifNezThen11Else23(0), 23,
+            ifNezThen11Else23(1), 11,
+            ifNezThen54321Else87654321(-1), 54321,
+            ifNezThen54321Else87654321(0), 87654321,
+            ifNezThen54321Else87654321(1), 54321,
+            ifLtzThen3Else5(-1), 3,
+            ifLtzThen3Else5(0), 5,
+            ifLtzThen3Else5(1), 5,
+            ifGezThen7Else4(-1), 4,
+            ifGezThen7Else4(0), 7,
+            ifGezThen7Else4(1), 7,
+            ifGtzThen2Else9(-1), 9,
+            ifGtzThen2Else9(0), 9,
+            ifGtzThen2Else9(1), 2,
+            ifLezThen8Else0(-1), 8,
+            ifLezThen8Else0(0), 8,
+            ifLezThen8Else0(1), 0,
+            ifEqz(-1, 101, 201), 201,
+            ifEqz(0, 102, 202), 102,
+            ifEqz(1, 103, 203), 203,
+            ifNez(-1, 104, 204), 104,
+            ifNez(0, 105, 205), 205,
+            ifNez(1, 106, 206), 106,
+            ifLtz(-1, 107, 207), 107,
+            ifLtz(0, 108, 208), 208,
+            ifLtz(1, 109, 209), 209,
+            ifGez(-1, 110, 210), 210,
+            ifGez(0, 111, 211), 111,
+            ifGez(1, 112, 212), 112,
+            ifGtz(-1, 113, 213), 213,
+            ifGtz(0, 114, 214), 214,
+            ifGtz(1, 115, 215), 115,
+            ifLez(-1, 116, 216), 116,
+            ifLez(0, 117, 217), 117,
+            ifLez(1, 118, 218), 218,
+        };
+
+        boolean success = true;
+        StringBuilder fails = new StringBuilder();
+        for (int i = 0; i != results.length; i += 2) {
+            if (results[i] != results[i + 1]) {
+                success = false;
+                fails.append("\n  #" + (i / 2) + ": " + results[i] + " != " + results[i + 1]);
+            }
+        }
+        if (success) {
+            System.out.println("testIfCcz passes");
+        } else {
+            System.out.println("testIfCcz fails for" + fails.toString());
         }
     }
 }
