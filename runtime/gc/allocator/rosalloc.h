@@ -27,6 +27,8 @@
 #include "base/mutex.h"
 #include "base/logging.h"
 #include "globals.h"
+#include "mem_map.h"
+#include "UniquePtr.h"
 #include "utils.h"
 
 // A boilerplate to use hash_map/hash_set both on host and device.
@@ -51,6 +53,7 @@ using __gnu_cxx::hash_set;
 #endif  // HAVE_ANDROID_OS
 
 namespace art {
+
 namespace gc {
 namespace allocator {
 
@@ -428,8 +431,12 @@ class RosAlloc {
   size_t footprint_;
 
   // The maximum footprint. The address, base_ + capacity_, indicates
-  // the end of the memory region that's managed by this allocator.
+  // the end of the memory region that's currently managed by this allocator.
   size_t capacity_;
+
+  // The maximum capacity. The address, base_ + max_capacity_, indicates
+  // the end of the memory region that's ever managed by this allocator.
+  size_t max_capacity_;
 
   // The run sets that hold the runs whose slots are not all
   // full. non_full_runs_[i] is guarded by size_bracket_locks_[i].
@@ -454,7 +461,11 @@ class RosAlloc {
     kPageMapLargeObjectPart = 4,  // The non-beginning part of a large object.
   };
   // The table that indicates what pages are currently used for.
-  std::vector<byte> page_map_ GUARDED_BY(lock_);
+  byte* page_map_;  // No GUARDED_BY(lock_) for kReadPageMapEntryWithoutLockInBulkFree.
+  size_t page_map_size_;
+  size_t max_page_map_size_;
+  UniquePtr<MemMap> page_map_mem_map_;
+
   // The table that indicates the size of free page runs. These sizes
   // are stored here to avoid storing in the free page header and
   // release backing pages.
@@ -501,7 +512,7 @@ class RosAlloc {
   void* AllocLargeObject(Thread* self, size_t size, size_t* bytes_allocated) LOCKS_EXCLUDED(lock_);
 
  public:
-  RosAlloc(void* base, size_t capacity,
+  RosAlloc(void* base, size_t capacity, size_t max_capacity,
            PageReleaseMode page_release_mode,
            size_t page_release_size_threshold = kDefaultPageReleaseSizeThreshold);
   void* Alloc(Thread* self, size_t size, size_t* bytes_allocated)

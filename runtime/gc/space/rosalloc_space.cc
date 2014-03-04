@@ -50,7 +50,7 @@ RosAllocSpace* RosAllocSpace::CreateFromMemMap(MemMap* mem_map, const std::strin
                                                bool low_memory_mode) {
   DCHECK(mem_map != nullptr);
   allocator::RosAlloc* rosalloc = CreateRosAlloc(mem_map->Begin(), starting_size, initial_size,
-                                                 low_memory_mode);
+                                                 capacity, low_memory_mode);
   if (rosalloc == NULL) {
     LOG(ERROR) << "Failed to initialize rosalloc for alloc space (" << name << ")";
     return NULL;
@@ -109,14 +109,14 @@ RosAllocSpace* RosAllocSpace::Create(const std::string& name, size_t initial_siz
 }
 
 allocator::RosAlloc* RosAllocSpace::CreateRosAlloc(void* begin, size_t morecore_start, size_t initial_size,
-                                                   bool low_memory_mode) {
+                                                   size_t maximum_size, bool low_memory_mode) {
   // clear errno to allow PLOG on error
   errno = 0;
   // create rosalloc using our backing storage starting at begin and
   // with a footprint of morecore_start. When morecore_start bytes of
   // memory is exhaused morecore will be called.
   allocator::RosAlloc* rosalloc = new art::gc::allocator::RosAlloc(
-      begin, morecore_start,
+      begin, morecore_start, maximum_size,
       low_memory_mode ?
           art::gc::allocator::RosAlloc::kPageReleaseModeAll :
           art::gc::allocator::RosAlloc::kPageReleaseModeSizeAndEnd);
