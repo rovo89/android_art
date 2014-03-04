@@ -976,6 +976,19 @@ void ElfFile::GdbJITSupport() {
     return;
   }
 
+  // This is not needed if we have no .text segment.
+  uint32_t text_start_addr = 0;
+  for (uint32_t i = 0; i < segments_.size(); i++) {
+    if (segments_[i]->GetProtect() & PROT_EXEC) {
+      // We found the .text section.
+      text_start_addr = PointerToLowMemUInt32(segments_[i]->Begin());
+      break;
+    }
+  }
+  if (text_start_addr == 0U) {
+    return;
+  }
+
   // Okay, we are good enough.  Fake up an ELF image and tell GDB about it.
   // We need some extra space for the debug and string sections, the ELF header, and the
   // section header.
@@ -1059,16 +1072,6 @@ void ElfFile::GdbJITSupport() {
 
   // We now need to update the addresses for debug_info and debug_frame to get to the
   // correct offset within the .text section.
-  uint32_t text_start_addr = 0;
-  for (uint32_t i = 0; i < segments_.size(); i++) {
-    if (segments_[i]->GetProtect() & PROT_EXEC) {
-      // We found the .text section.
-      text_start_addr = PointerToLowMemUInt32(segments_[i]->Begin());
-      break;
-    }
-  }
-  DCHECK_NE(text_start_addr, 0U);
-
   byte *p = jit_elf_image_+debug_offsets[8];
   byte *end = p + all.GetSectionHeader(8).sh_size;
 
