@@ -14,3 +14,4 @@ LVNTests.testNPE1 passes
 LVNTests.testNPE2 passes
 longDivTest passes
 longModTest passes
+testIfCcz passes
