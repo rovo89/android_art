@@ -193,7 +193,7 @@ ZygoteSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
   UniquePtr<MemMap> mem_map(GetMemMap()->RemapAtEnd(end_, alloc_space_name,
                                                     PROT_READ | PROT_WRITE, &error_msg));
   CHECK(mem_map.get() != nullptr) << error_msg;
-  void* allocator = CreateAllocator(end_, starting_size, initial_size, low_memory_mode);
+  void* allocator = CreateAllocator(end_, starting_size, initial_size, capacity, low_memory_mode);
   // Protect memory beyond the initial size.
   byte* end = mem_map->Begin() + starting_size;
   if (capacity - initial_size > 0) {
