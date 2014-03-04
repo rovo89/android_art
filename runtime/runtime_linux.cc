@@ -29,6 +29,8 @@
 
 namespace art {
 
+static constexpr bool kDumpHeapObjectOnSigsevg = false;
+
 struct Backtrace {
   void Dump(std::ostream& os) {
     DumpNativeStack(os, GetTid(), "\t", true);
@@ -309,7 +311,7 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
   if (runtime != nullptr) {
     gc::Heap* heap = runtime->GetHeap();
     LOG(INTERNAL_FATAL) << "Fault message: " << runtime->GetFaultMessage();
-    if (heap != nullptr && info != nullptr) {
+    if (kDumpHeapObjectOnSigsevg && heap != nullptr && info != nullptr) {
       LOG(INTERNAL_FATAL) << "Dump heap object at fault address: ";
       heap->DumpObject(LOG(INTERNAL_FATAL), reinterpret_cast<mirror::Object*>(info->si_addr));
     }
