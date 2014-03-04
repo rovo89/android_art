@@ -36,6 +36,7 @@ namespace mirror {
 
 class StackVisitor;
 class Thread;
+enum VisitRootFlags : uint8_t;
 
 namespace gc {
 
@@ -85,8 +86,8 @@ class MarkSweep : public GarbageCollector {
   // Find the default mark bitmap.
   void FindDefaultMarkBitmap();
 
-  // Marks the root set at the start of a garbage collection.
-  void MarkRoots()
+  // Marks all objects in the root set at the start of a garbage collection.
+  void MarkRoots(Thread* self)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -94,7 +95,7 @@ class MarkSweep : public GarbageCollector {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void MarkConcurrentRoots()
+  void MarkConcurrentRoots(VisitRootFlags flags)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -193,6 +194,11 @@ class MarkSweep : public GarbageCollector {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
+  static void VerifyRootMarked(mirror::Object** root, void* arg, uint32_t /*thread_id*/,
+                               RootType /*root_type*/)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
   static void ProcessMarkStackPausedCallback(void* arg)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
@@ -202,10 +208,6 @@ class MarkSweep : public GarbageCollector {
 
   // Marks an object.
   void MarkObject(const mirror::Object* obj)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
-  void MarkRoot(const mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 

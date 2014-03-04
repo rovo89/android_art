@@ -24,6 +24,9 @@
 #include <map>
 
 namespace art {
+
+enum VisitRootFlags : uint8_t;
+
 namespace mirror {
 class String;
 }  // namespace mirror
@@ -63,7 +66,7 @@ class InternTable {
 
   size_t Size() const;
 
-  void VisitRoots(RootCallback* callback, void* arg, bool only_dirty, bool clean_dirty);
+  void VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags);
 
   void DumpForSigQuit(std::ostream& os) const;
 
@@ -77,34 +80,34 @@ class InternTable {
       LOCKS_EXCLUDED(Locks::intern_table_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::String* Lookup(Table& table, mirror::String* s, uint32_t hash_code)
+  mirror::String* Lookup(Table& table, mirror::String* s, int32_t hash_code)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::String* InsertStrong(mirror::String* s, uint32_t hash_code)
+  mirror::String* InsertStrong(mirror::String* s, int32_t hash_code)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  mirror::String* InsertWeak(mirror::String* s, uint32_t hash_code)
+  mirror::String* InsertWeak(mirror::String* s, int32_t hash_code)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  mirror::String* Insert(Table& table, mirror::String* s, uint32_t hash_code)
+  void RemoveWeak(mirror::String* s, int32_t hash_code)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  void RemoveWeak(mirror::String* s, uint32_t hash_code)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  void Remove(Table& table, mirror::String* s, uint32_t hash_code)
+  void Remove(Table& table, mirror::String* s, int32_t hash_code)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
 
   // Transaction rollback access.
-  mirror::String* InsertStrongFromTransaction(mirror::String* s, uint32_t hash_code)
+  mirror::String* InsertStrongFromTransaction(mirror::String* s, int32_t hash_code)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  mirror::String* InsertWeakFromTransaction(mirror::String* s, uint32_t hash_code)
+  mirror::String* InsertWeakFromTransaction(mirror::String* s, int32_t hash_code)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  void RemoveStrongFromTransaction(mirror::String* s, uint32_t hash_code)
+  void RemoveStrongFromTransaction(mirror::String* s, int32_t hash_code)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  void RemoveWeakFromTransaction(mirror::String* s, uint32_t hash_code)
+  void RemoveWeakFromTransaction(mirror::String* s, int32_t hash_code)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
   friend class Transaction;
 
-  bool is_dirty_ GUARDED_BY(Locks::intern_table_lock_);
+  bool log_new_roots_ GUARDED_BY(Locks::intern_table_lock_);
   bool allow_new_interns_ GUARDED_BY(Locks::intern_table_lock_);
   ConditionVariable new_intern_condition_ GUARDED_BY(Locks::intern_table_lock_);
   Table strong_interns_ GUARDED_BY(Locks::intern_table_lock_);
+  std::vector<std::pair<int32_t, mirror::String*> > new_strong_intern_roots_
+      GUARDED_BY(Locks::intern_table_lock_);
   Table weak_interns_ GUARDED_BY(Locks::intern_table_lock_);
 };
 
