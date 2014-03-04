@@ -49,8 +49,9 @@ inline ClassLoader* Class::GetClassLoader() {
   return GetFieldObject<ClassLoader>(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), false);
 }
 
+template<VerifyObjectFlags kVerifyFlags>
 inline DexCache* Class::GetDexCache() {
-  return GetFieldObject<DexCache>(OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_), false);
+  return GetFieldObject<DexCache, kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_), false);
 }
 
 inline ObjectArray<ArtMethod>* Class::GetDirectMethods() {

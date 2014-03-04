@@ -329,10 +329,10 @@ std::string Heap::SafeGetClassDescriptor(mirror::Class* klass) {
     return result;
   } else if (UNLIKELY(klass->IsPrimitive<kVerifyNone>())) {
     return Primitive::Descriptor(klass->GetPrimitiveType<kVerifyNone>());
-  } else if (UNLIKELY(klass->IsProxyClass())) {
+  } else if (UNLIKELY(klass->IsProxyClass<kVerifyNone>())) {
     return Runtime::Current()->GetClassLinker()->GetDescriptorForProxy(klass);
   } else {
-    mirror::DexCache* dex_cache = klass->GetDexCache();
+    mirror::DexCache* dex_cache = klass->GetDexCache<kVerifyNone>();
     if (!IsValidContinuousSpaceObjectAddress(dex_cache)) {
       return StringPrintf("<non heap address dex_cache %p>", dex_cache);
     }
@@ -357,7 +357,7 @@ std::string Heap::SafePrettyTypeOf(mirror::Object* obj) {
   }
   std::string result(SafeGetClassDescriptor(klass));
   if (obj->IsClass()) {
-    result += "<" + SafeGetClassDescriptor(obj->AsClass()) + ">";
+    result += "<" + SafeGetClassDescriptor(obj->AsClass<kVerifyNone>()) + ">";
   }
   return result;
 }
@@ -393,7 +393,7 @@ void Heap::DumpObject(std::ostream& stream, mirror::Object* obj) {
     if (space != nullptr) {
       stream << " in space " << *space;
     }
-    mirror::Class* klass = obj->GetClass();
+    mirror::Class* klass = obj->GetClass<kVerifyNone>();
     stream << "\nclass=" << klass;
     if (klass != nullptr) {
       stream << " type= " << SafePrettyTypeOf(obj);
