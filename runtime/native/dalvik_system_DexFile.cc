@@ -285,7 +285,7 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
           ScopedObjectAccess soa(env);
           LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
               << " has out-of-date oat checksum compared to "
-              << image_header.GetImageRoot(ImageHeader::kOatLocation)->AsString()->ToModifiedUtf8();
+              << oat_file->GetLocation();
         }
         return JNI_TRUE;
       }
@@ -295,7 +295,7 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
           ScopedObjectAccess soa(env);
           LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
               << " has out-of-date oat begin compared to "
-              << image_header.GetImageRoot(ImageHeader::kOatLocation)->AsString()->ToModifiedUtf8();
+              << oat_file->GetLocation();
         }
         return JNI_TRUE;
       }

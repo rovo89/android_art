@@ -86,7 +86,7 @@ class ImageSpace : public MemMapSpace {
   static ImageSpace* Init(const char* image, bool validate_oat_file, std::string* error_msg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  OatFile* OpenOatFile(std::string* error_msg) const
+  OatFile* OpenOatFile(const char* image, std::string* error_msg) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool ValidateOatFile(std::string* error_msg) const

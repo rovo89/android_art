@@ -96,6 +96,7 @@ include $(art_path)/dex2oat/Android.mk
 include $(art_path)/disassembler/Android.mk
 include $(art_path)/oatdump/Android.mk
 include $(art_path)/dalvikvm/Android.mk
+include $(art_path)/tools/Android.mk
 include $(art_build_path)/Android.oat.mk
 
 # ART_HOST_DEPENDENCIES depends on Android.executable.mk above for ART_HOST_EXECUTABLES
@@ -272,7 +273,7 @@ oat-target-$(1): $$(OUT_OAT_FILE)
 
 $$(OUT_OAT_FILE): $(PRODUCT_OUT)/$(1) $(DEFAULT_DEX_PREOPT_BUILT_IMAGE) $(DEX2OAT_DEPENDENCY)
 	@mkdir -p $$(dir $$@)
-	$(DEX2OAT) --runtime-arg -Xms64m --runtime-arg -Xmx64m --boot-image=$(DEFAULT_DEX_PREOPT_BUILT_IMAGE) --dex-file=$(PRODUCT_OUT)/$(1) --dex-location=/$(1) --oat-file=$$@ --host-prefix=$(PRODUCT_OUT) --instruction-set=$(TARGET_ARCH) --instruction-set-features=$(TARGET_INSTRUCTION_SET_FEATURES) --android-root=$(PRODUCT_OUT)/system
+	$(DEX2OAT) --runtime-arg -Xms64m --runtime-arg -Xmx64m --boot-image=$(DEFAULT_DEX_PREOPT_BUILT_IMAGE) --dex-file=$(PRODUCT_OUT)/$(1) --dex-location=/$(1) --oat-file=$$@ --instruction-set=$(TARGET_ARCH) --instruction-set-features=$(TARGET_INSTRUCTION_SET_FEATURES) --android-root=$(PRODUCT_OUT)/system
 
 endif
 
@@ -305,6 +306,14 @@ build-art-host:   $(ART_HOST_EXECUTABLES)   $(ART_HOST_GTEST_EXECUTABLES)   $(HO
 build-art-target: $(ART_TARGET_EXECUTABLES) $(ART_TARGET_GTEST_EXECUTABLES) $(TARGET_CORE_IMG_OUT) $(TARGET_OUT)/lib/libjavacore.so
 
 ########################################################################
+# "m art-host" for just building the files needed to run the art script
+.PHONY: art-host
+art-host:   $(HOST_OUT_EXECUTABLES)/art $(HOST_OUT)/bin/dalvikvm $(HOST_OUT)/lib/libart.so $(HOST_OUT)/bin/dex2oat $(HOST_OUT_JAVA_LIBRARIES)/core.art $(HOST_OUT)/lib/libjavacore.so
+
+.PHONY: art-host-debug
+art-host-debug:   art-host $(HOST_OUT)/lib/libartd.so $(HOST_OUT)/bin/dex2oatd
+
+########################################################################
 # oatdump targets
 
 ART_DUMP_OAT_PATH ?= $(OUT_DIR)
@@ -323,7 +332,7 @@ dump-oat-core: dump-oat-core-host dump-oat-core-target
 .PHONY: dump-oat-core-host
 ifeq ($(ART_BUILD_HOST),true)
 dump-oat-core-host: $(HOST_CORE_IMG_OUT) $(OATDUMP)
-	$(OATDUMP) --image=$(HOST_CORE_IMG_OUT) --output=$(ART_DUMP_OAT_PATH)/core.host.oatdump.txt --host-prefix=""
+	$(OATDUMP) --image=$(HOST_CORE_IMG_OUT) --output=$(ART_DUMP_OAT_PATH)/core.host.oatdump.txt
 	@echo Output in $(ART_DUMP_OAT_PATH)/core.host.oatdump.txt
 endif
 
@@ -337,7 +346,7 @@ endif
 .PHONY: dump-oat-boot
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
 dump-oat-boot: $(DEFAULT_DEX_PREOPT_BUILT_IMAGE) $(OATDUMP)
-	$(OATDUMP) --image=$(DEFAULT_DEX_PREOPT_BUILT_IMAGE) --output=$(ART_DUMP_OAT_PATH)/boot.oatdump.txt --host-prefix=$(DEXPREOPT_PRODUCT_DIR_FULL_PATH)
+	$(OATDUMP) --image=$(DEFAULT_DEX_PREOPT_BUILT_IMAGE) --output=$(ART_DUMP_OAT_PATH)/boot.oatdump.txt
 	@echo Output in $(ART_DUMP_OAT_PATH)/boot.oatdump.txt
 endif
 
