@@ -25,6 +25,7 @@ namespace art {
 
 class HBasicBlock;
 class HInstruction;
+class HIntConstant;
 class HGraphVisitor;
 
 static const int kDefaultNumberOfBlocks = 8;
@@ -38,7 +39,8 @@ class HGraph : public ArenaObject {
   explicit HGraph(ArenaAllocator* arena)
       : arena_(arena),
         blocks_(arena, kDefaultNumberOfBlocks),
-        dominator_order_(arena, kDefaultNumberOfBlocks) { }
+        dominator_order_(arena, kDefaultNumberOfBlocks),
+        current_instruction_id_(0) { }
 
   ArenaAllocator* arena() const { return arena_; }
   const GrowableArray<HBasicBlock*>* blocks() const { return &blocks_; }
@@ -49,9 +51,12 @@ class HGraph : public ArenaObject {
   void set_entry_block(HBasicBlock* block) { entry_block_ = block; }
   void set_exit_block(HBasicBlock* block) { exit_block_ = block; }
 
-
   void AddBlock(HBasicBlock* block);
   void BuildDominatorTree();
+
+  int GetNextInstructionId() {
+    return current_instruction_id_++;
+  }
 
  private:
   HBasicBlock* FindCommonDominator(HBasicBlock* first, HBasicBlock* second) const;
@@ -74,6 +79,9 @@ class HGraph : public ArenaObject {
 
   HBasicBlock* entry_block_;
   HBasicBlock* exit_block_;
+
+  // The current id to assign to a newly added instruction. See HInstruction.id_.
+  int current_instruction_id_;
 
   DISALLOW_COPY_AND_ASSIGN(HGraph);
 };
@@ -171,18 +179,38 @@ class HBasicBlock : public ArenaObject {
 };
 
 #define FOR_EACH_INSTRUCTION(M)                            \
+  M(Equal)                                                 \
   M(Exit)                                                  \
   M(Goto)                                                  \
   M(If)                                                    \
+  M(IntConstant)                                           \
+  M(LoadLocal)                                             \
+  M(Local)                                                 \
   M(ReturnVoid)                                            \
+  M(StoreLocal)                                            \
 
 #define DECLARE_INSTRUCTION(type)                          \
   virtual void Accept(HGraphVisitor* visitor);             \
   virtual const char* DebugName() const { return #type; }  \
 
+class HUseListNode : public ArenaObject {
+ public:
+  HUseListNode(HInstruction* instruction, HUseListNode* tail)
+      : instruction_(instruction), tail_(tail) { }
+
+  HUseListNode* tail() const { return tail_; }
+  HInstruction* instruction() const { return instruction_; }
+
+ private:
+  HInstruction* const instruction_;
+  HUseListNode* const tail_;
+
+  DISALLOW_COPY_AND_ASSIGN(HUseListNode);
+};
+
 class HInstruction : public ArenaObject {
  public:
-  HInstruction() : previous_(nullptr), next_(nullptr), block_(nullptr) { }
+  HInstruction() : previous_(nullptr), next_(nullptr), block_(nullptr), id_(-1), uses_(nullptr) { }
   virtual ~HInstruction() { }
 
   HInstruction* next() const { return next_; }
@@ -197,14 +225,69 @@ class HInstruction : public ArenaObject {
   virtual void Accept(HGraphVisitor* visitor) = 0;
   virtual const char* DebugName() const = 0;
 
+  void AddUse(HInstruction* user) {
+    uses_ = new (block_->graph()->arena()) HUseListNode(user, uses_);
+  }
+
+  HUseListNode* uses() const { return uses_; }
+
+  bool HasUses() const { return uses_ != nullptr; }
+
+  int id() const { return id_; }
+  void set_id(int id) { id_ = id; }
+
  private:
   HInstruction* previous_;
   HInstruction* next_;
   HBasicBlock* block_;
 
+  // An instruction gets an id when it is added to the graph.
+  // It reflects creation order. A negative id means the instruction
+  // has not beed added to the graph.
+  int id_;
+
+  HUseListNode* uses_;
+
   friend class HBasicBlock;
 
   DISALLOW_COPY_AND_ASSIGN(HInstruction);
+};
+
+class HUseIterator : public ValueObject {
+ public:
+  explicit HUseIterator(HInstruction* instruction) : current_(instruction->uses()) { }
+
+  bool Done() const { return current_ == nullptr; }
+
+  void Advance() {
+    DCHECK(!Done());
+    current_ = current_->tail();
+  }
+
+  HInstruction* Current() const {
+    DCHECK(!Done());
+    return current_->instruction();
+  }
+
+ private:
+  HUseListNode* current_;
+
+  friend class HValue;
+};
+
+class HInputIterator : public ValueObject {
+ public:
+  explicit HInputIterator(HInstruction* instruction) : instruction_(instruction), index_(0) { }
+
+  bool Done() const { return index_ == instruction_->InputCount(); }
+  HInstruction* Current() const { return instruction_->InputAt(index_); }
+  void Advance() { index_++; }
+
+ private:
+  HInstruction* instruction_;
+  int index_;
+
+  DISALLOW_COPY_AND_ASSIGN(HInputIterator);
 };
 
 class HInstructionIterator : public ValueObject {
@@ -214,9 +297,9 @@ class HInstructionIterator : public ValueObject {
     next_ = Done() ? nullptr : instruction_->next();
   }
 
-  inline bool Done() const { return instruction_ == nullptr; }
-  inline HInstruction* Current() { return instruction_; }
-  inline void Advance() {
+  bool Done() const { return instruction_ == nullptr; }
+  HInstruction* Current() const { return instruction_; }
+  void Advance() {
     instruction_ = next_;
     next_ = Done() ? nullptr : instruction_->next();
   }
@@ -236,12 +319,12 @@ class EmbeddedArray {
   intptr_t length() const { return N; }
 
   const T& operator[](intptr_t i) const {
-    ASSERT(i < length());
+    DCHECK_LT(i, length());
     return elements_[i];
   }
 
   T& operator[](intptr_t i) {
-    ASSERT(i < length());
+    DCHECK_LT(i, length());
     return elements_[i];
   }
 
@@ -281,6 +364,11 @@ class HTemplateInstruction: public HInstruction {
 
   virtual intptr_t InputCount() const { return N; }
   virtual HInstruction* InputAt(intptr_t i) const { return inputs_[i]; }
+
+ protected:
+  void SetRawInputAt(intptr_t i, HInstruction* instruction) {
+    inputs_[i] = instruction;
+  }
 
  private:
   EmbeddedArray<HInstruction*, N> inputs_;
@@ -328,15 +416,86 @@ class HGoto : public HTemplateInstruction<0> {
 
 // Conditional branch. A block ending with an HIf instruction must have
 // two successors.
-// TODO: Make it take an input.
-class HIf : public HTemplateInstruction<0> {
+class HIf : public HTemplateInstruction<1> {
  public:
-  HIf() { }
+  explicit HIf(HInstruction* input) {
+    SetRawInputAt(0, input);
+  }
 
   DECLARE_INSTRUCTION(If)
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HIf);
+};
+
+// Instruction to check if two inputs are equal to each other.
+class HEqual : public HTemplateInstruction<2> {
+ public:
+  HEqual(HInstruction* first, HInstruction* second) {
+    SetRawInputAt(0, first);
+    SetRawInputAt(1, second);
+  }
+
+  DECLARE_INSTRUCTION(Equal)
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HEqual);
+};
+
+// A local in the graph. Corresponds to a Dex register.
+class HLocal : public HTemplateInstruction<0> {
+ public:
+  explicit HLocal(uint16_t reg_number) : reg_number_(reg_number) { }
+
+  DECLARE_INSTRUCTION(Local)
+
+ private:
+  // The register number in Dex.
+  uint16_t reg_number_;
+
+  DISALLOW_COPY_AND_ASSIGN(HLocal);
+};
+
+// Load a given local. The local is an input of this instruction.
+class HLoadLocal : public HTemplateInstruction<1> {
+ public:
+  explicit HLoadLocal(HLocal* local) {
+    SetRawInputAt(0, local);
+  }
+
+  DECLARE_INSTRUCTION(LoadLocal)
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HLoadLocal);
+};
+
+// Store a value in a given local. This instruction has two inputs: the value
+// and the local.
+class HStoreLocal : public HTemplateInstruction<2> {
+ public:
+  HStoreLocal(HLocal* local, HInstruction* value) {
+    SetRawInputAt(0, local);
+    SetRawInputAt(1, value);
+  }
+
+  DECLARE_INSTRUCTION(StoreLocal)
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HStoreLocal);
+};
+
+// Constants of the type int. Those can be from Dex instructions, or
+// synthesized (for example with the if-eqz instruction).
+class HIntConstant : public HTemplateInstruction<0> {
+ public:
+  explicit HIntConstant(int32_t value) : value_(value) { }
+
+  DECLARE_INSTRUCTION(IntConstant)
+
+ private:
+  const int32_t value_;
+
+  DISALLOW_COPY_AND_ASSIGN(HIntConstant);
 };
 
 class HGraphVisitor : public ValueObject {

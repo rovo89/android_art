@@ -16,8 +16,10 @@
 
 #include "base/stringprintf.h"
 #include "builder.h"
+#include "dex_file.h"
 #include "dex_instruction.h"
 #include "nodes.h"
+#include "optimizing_unit_test.h"
 #include "pretty_printer.h"
 #include "utils/arena_allocator.h"
 
@@ -52,7 +54,9 @@ class StringPrettyPrinter : public HPrettyPrinter {
   }
 
   virtual void VisitGoto(HGoto* gota) {
-    str_ += "  Goto ";
+    PrintString("  ");
+    PrintInt(gota->id());
+    PrintString(": Goto ");
     PrintInt(current_block_->successors()->Get(0)->block_id());
     PrintNewLine();
   }
@@ -64,12 +68,12 @@ class StringPrettyPrinter : public HPrettyPrinter {
   DISALLOW_COPY_AND_ASSIGN(StringPrettyPrinter);
 };
 
-
-static void TestCode(const uint16_t* data, int length, const char* expected) {
+static void TestCode(const uint16_t* data, const char* expected) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraphBuilder builder(&allocator);
-  HGraph* graph = builder.BuildGraph(data, data + length);
+  const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
+  HGraph* graph = builder.BuildGraph(*item);
   ASSERT_NE(graph, nullptr);
   StringPrettyPrinter printer(graph);
   printer.VisitInsertionOrder();
@@ -77,182 +81,207 @@ static void TestCode(const uint16_t* data, int length, const char* expected) {
 }
 
 TEST(PrettyPrinterTest, ReturnVoid) {
-  const uint16_t data[] = { Instruction::RETURN_VOID };
+  const uint16_t data[] = ZERO_REGISTER_CODE_ITEM(
+      Instruction::RETURN_VOID);
 
   const char* expected =
       "BasicBlock 0, succ: 1\n"
-      "  Goto 1\n"
+      "  2: Goto 1\n"
       "BasicBlock 1, pred: 0, succ: 2\n"
-      "  ReturnVoid\n"
+      "  0: ReturnVoid\n"
       "BasicBlock 2, pred: 1\n"
-      "  Exit\n";
+      "  1: Exit\n";
 
-  TestCode(data, sizeof(data) / sizeof(uint16_t), expected);
+  TestCode(data, expected);
 }
 
 TEST(PrettyPrinterTest, CFG1) {
   const char* expected =
     "BasicBlock 0, succ: 1\n"
-    "  Goto 1\n"
+    "  3: Goto 1\n"
     "BasicBlock 1, pred: 0, succ: 2\n"
-    "  Goto 2\n"
+    "  0: Goto 2\n"
     "BasicBlock 2, pred: 1, succ: 3\n"
-    "  ReturnVoid\n"
+    "  1: ReturnVoid\n"
     "BasicBlock 3, pred: 2\n"
-    "  Exit\n";
+    "  2: Exit\n";
 
-  const uint16_t data[] = {
-    Instruction::GOTO | 0x100,
-    Instruction::RETURN_VOID
-  };
+  const uint16_t data[] =
+    ZERO_REGISTER_CODE_ITEM(
+      Instruction::GOTO | 0x100,
+      Instruction::RETURN_VOID);
 
-  TestCode(data, sizeof(data) / sizeof(uint16_t), expected);
+  TestCode(data, expected);
 }
 
 TEST(PrettyPrinterTest, CFG2) {
   const char* expected =
     "BasicBlock 0, succ: 1\n"
-    "  Goto 1\n"
+    "  4: Goto 1\n"
     "BasicBlock 1, pred: 0, succ: 2\n"
-    "  Goto 2\n"
+    "  0: Goto 2\n"
     "BasicBlock 2, pred: 1, succ: 3\n"
-    "  Goto 3\n"
+    "  1: Goto 3\n"
     "BasicBlock 3, pred: 2, succ: 4\n"
-    "  ReturnVoid\n"
+    "  2: ReturnVoid\n"
     "BasicBlock 4, pred: 3\n"
-    "  Exit\n";
+    "  3: Exit\n";
 
-  const uint16_t data[] = {
+  const uint16_t data[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::GOTO | 0x100,
     Instruction::GOTO | 0x100,
-    Instruction::RETURN_VOID
-  };
+    Instruction::RETURN_VOID);
 
-  TestCode(data, sizeof(data) / sizeof(uint16_t), expected);
+  TestCode(data, expected);
 }
 
 TEST(PrettyPrinterTest, CFG3) {
   const char* expected =
     "BasicBlock 0, succ: 1\n"
-    "  Goto 1\n"
+    "  4: Goto 1\n"
     "BasicBlock 1, pred: 0, succ: 3\n"
-    "  Goto 3\n"
+    "  0: Goto 3\n"
     "BasicBlock 2, pred: 3, succ: 4\n"
-    "  ReturnVoid\n"
+    "  1: ReturnVoid\n"
     "BasicBlock 3, pred: 1, succ: 2\n"
-    "  Goto 2\n"
+    "  2: Goto 2\n"
     "BasicBlock 4, pred: 2\n"
-    "  Exit\n";
+    "  3: Exit\n";
 
-  const uint16_t data1[] = {
+  const uint16_t data1[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::GOTO | 0x200,
     Instruction::RETURN_VOID,
-    Instruction::GOTO | 0xFF00
-  };
+    Instruction::GOTO | 0xFF00);
 
-  TestCode(data1, sizeof(data1) / sizeof(uint16_t), expected);
+  TestCode(data1, expected);
 
-  const uint16_t data2[] = {
+  const uint16_t data2[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::GOTO_16, 3,
     Instruction::RETURN_VOID,
-    Instruction::GOTO_16, 0xFFFF
-  };
+    Instruction::GOTO_16, 0xFFFF);
 
-  TestCode(data2, sizeof(data2) / sizeof(uint16_t), expected);
+  TestCode(data2, expected);
 
-  const uint16_t data3[] = {
+  const uint16_t data3[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::GOTO_32, 4, 0,
     Instruction::RETURN_VOID,
-    Instruction::GOTO_32, 0xFFFF, 0xFFFF
-  };
+    Instruction::GOTO_32, 0xFFFF, 0xFFFF);
 
-  TestCode(data3, sizeof(data3) / sizeof(uint16_t), expected);
+  TestCode(data3, expected);
 }
 
 TEST(PrettyPrinterTest, CFG4) {
   const char* expected =
     "BasicBlock 0, succ: 1\n"
-    "  Goto 1\n"
+    "  2: Goto 1\n"
     "BasicBlock 1, pred: 0, 1, succ: 1\n"
-    "  Goto 1\n"
+    "  0: Goto 1\n"
     "BasicBlock 2\n"
-    "  Exit\n";
+    "  1: Exit\n";
 
-  const uint16_t data1[] = {
+  const uint16_t data1[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::NOP,
-    Instruction::GOTO | 0xFF00
-  };
+    Instruction::GOTO | 0xFF00);
 
-  TestCode(data1, sizeof(data1) / sizeof(uint16_t), expected);
+  TestCode(data1, expected);
 
-  const uint16_t data2[] = {
-    Instruction::GOTO_32, 0, 0
-  };
+  const uint16_t data2[] = ZERO_REGISTER_CODE_ITEM(
+    Instruction::GOTO_32, 0, 0);
 
-  TestCode(data2, sizeof(data2) / sizeof(uint16_t), expected);
+  TestCode(data2, expected);
 }
 
 TEST(PrettyPrinterTest, CFG5) {
   const char* expected =
     "BasicBlock 0, succ: 1\n"
-    "  Goto 1\n"
+    "  3: Goto 1\n"
     "BasicBlock 1, pred: 0, 2, succ: 3\n"
-    "  ReturnVoid\n"
+    "  0: ReturnVoid\n"
     "BasicBlock 2, succ: 1\n"
-    "  Goto 1\n"
+    "  1: Goto 1\n"
     "BasicBlock 3, pred: 1\n"
-    "  Exit\n";
+    "  2: Exit\n";
 
-  const uint16_t data[] = {
+  const uint16_t data[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::RETURN_VOID,
     Instruction::GOTO | 0x100,
-    Instruction::GOTO | 0xFE00
-  };
+    Instruction::GOTO | 0xFE00);
 
-  TestCode(data, sizeof(data) / sizeof(uint16_t), expected);
+  TestCode(data, expected);
 }
 
-TEST(OptimizerTest, CFG6) {
+TEST(PrettyPrinterTest, CFG6) {
   const char* expected =
     "BasicBlock 0, succ: 1\n"
-    "  Goto 1\n"
+    "  0: Local [4, 3, 2]\n"
+    "  1: IntConstant [2]\n"
+    "  10: Goto 1\n"
     "BasicBlock 1, pred: 0, succ: 3, 2\n"
-    "  If\n"
+    "  2: StoreLocal(0, 1)\n"
+    "  3: LoadLocal(0) [5]\n"
+    "  4: LoadLocal(0) [5]\n"
+    "  5: Equal(3, 4) [6]\n"
+    "  6: If(5)\n"
     "BasicBlock 2, pred: 1, succ: 3\n"
-    "  Goto 3\n"
+    "  7: Goto 3\n"
     "BasicBlock 3, pred: 1, 2, succ: 4\n"
-    "  ReturnVoid\n"
+    "  8: ReturnVoid\n"
     "BasicBlock 4, pred: 3\n"
-    "  Exit\n";
+    "  9: Exit\n";
 
-  const uint16_t data[] = {
+  const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
+    Instruction::CONST_4 | 0 | 0,
     Instruction::IF_EQ, 3,
     Instruction::GOTO | 0x100,
-    Instruction::RETURN_VOID
-  };
+    Instruction::RETURN_VOID);
 
-  TestCode(data, sizeof(data) / sizeof(uint16_t), expected);
+  TestCode(data, expected);
 }
 
-TEST(OptimizerTest, CFG7) {
+TEST(PrettyPrinterTest, CFG7) {
   const char* expected =
     "BasicBlock 0, succ: 1\n"
-    "  Goto 1\n"
+    "  0: Local [4, 3, 2]\n"
+    "  1: IntConstant [2]\n"
+    "  10: Goto 1\n"
     "BasicBlock 1, pred: 0, succ: 3, 2\n"
-    "  If\n"
+    "  2: StoreLocal(0, 1)\n"
+    "  3: LoadLocal(0) [5]\n"
+    "  4: LoadLocal(0) [5]\n"
+    "  5: Equal(3, 4) [6]\n"
+    "  6: If(5)\n"
     "BasicBlock 2, pred: 1, 3, succ: 3\n"
-    "  Goto 3\n"
+    "  7: Goto 3\n"
     "BasicBlock 3, pred: 1, 2, succ: 2\n"
-    "  Goto 2\n"
+    "  8: Goto 2\n"
     "BasicBlock 4\n"
-    "  Exit\n";
+    "  9: Exit\n";
 
-  const uint16_t data[] = {
+  const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
+    Instruction::CONST_4 | 0 | 0,
     Instruction::IF_EQ, 3,
     Instruction::GOTO | 0x100,
-    Instruction::GOTO | 0xFF00
-  };
+    Instruction::GOTO | 0xFF00);
 
-  TestCode(data, sizeof(data) / sizeof(uint16_t), expected);
+  TestCode(data, expected);
+}
+
+TEST(PrettyPrinterTest, IntConstant) {
+  const char* expected =
+    "BasicBlock 0, succ: 1\n"
+    "  0: Local [2]\n"
+    "  1: IntConstant [2]\n"
+    "  5: Goto 1\n"
+    "BasicBlock 1, pred: 0, succ: 2\n"
+    "  2: StoreLocal(0, 1)\n"
+    "  3: ReturnVoid\n"
+    "BasicBlock 2, pred: 1\n"
+    "  4: Exit\n";
+
+  const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
+    Instruction::CONST_4 | 0 | 0,
+    Instruction::RETURN_VOID);
+
+  TestCode(data, expected);
 }
 }  // namespace art

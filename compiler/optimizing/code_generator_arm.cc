@@ -57,6 +57,26 @@ void CodeGeneratorARM::VisitIf(HIf* if_instr) {
   LOG(FATAL) << "UNIMPLEMENTED";
 }
 
+void CodeGeneratorARM::VisitEqual(HEqual* equal) {
+  LOG(FATAL) << "UNIMPLEMENTED";
+}
+
+void CodeGeneratorARM::VisitLocal(HLocal* local) {
+  LOG(FATAL) << "UNIMPLEMENTED";
+}
+
+void CodeGeneratorARM::VisitLoadLocal(HLoadLocal* local) {
+  LOG(FATAL) << "UNIMPLEMENTED";
+}
+
+void CodeGeneratorARM::VisitStoreLocal(HStoreLocal* local) {
+  LOG(FATAL) << "UNIMPLEMENTED";
+}
+
+void CodeGeneratorARM::VisitIntConstant(HIntConstant* constant) {
+  LOG(FATAL) << "UNIMPLEMENTED";
+}
+
 void CodeGeneratorARM::VisitReturnVoid(HReturnVoid* ret) {
   GenerateFrameExit();
 }
