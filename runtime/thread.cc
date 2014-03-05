@@ -864,7 +864,8 @@ void Thread::DumpStack(std::ostream& os) const {
     // If we're currently in native code, dump that stack before dumping the managed stack.
     if (dump_for_abort || ShouldShowNativeStack(this)) {
       DumpKernelStack(os, GetTid(), "  kernel: ", false);
-      DumpNativeStack(os, GetTid(), "  native: ", false);
+      SirtRef<mirror::ArtMethod> method_ref(Thread::Current(), GetCurrentMethod(nullptr));
+      DumpNativeStack(os, GetTid(), "  native: ", false, method_ref.get());
     }
     UniquePtr<Context> context(Context::Create());
     StackDumpVisitor dumper(os, const_cast<Thread*>(this), context.get(), !throwing_OutOfMemoryError_);
