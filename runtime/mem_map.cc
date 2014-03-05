@@ -110,7 +110,7 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* addr, size_t byte_count, in
   if (actual == MAP_FAILED) {
     std::string maps;
     ReadFileToString("/proc/self/maps", &maps);
-    *error_msg = StringPrintf("anonymous mmap(%p, %zd, %x, %x, %d, 0) failed\n%s",
+    *error_msg = StringPrintf("anonymous mmap(%p, %zd, 0x%x, 0x%x, %d, 0) failed\n%s",
                               addr, page_aligned_byte_count, prot, flags, fd.get(),
                               maps.c_str());
     return nullptr;
@@ -151,7 +151,8 @@ MemMap* MemMap::MapFileAtAddress(byte* addr, size_t byte_count, int prot, int fl
     std::string strerr(strerror(errno));
     std::string maps;
     ReadFileToString("/proc/self/maps", &maps);
-    *error_msg = StringPrintf("mmap(%p, %zd, %x, %x, %d, %" PRId64 ") of file '%s' failed: %s\n%s",
+    *error_msg = StringPrintf("mmap(%p, %zd, 0x%x, 0x%x, %d, %" PRId64
+                              ") of file '%s' failed: %s\n%s",
                               page_aligned_addr, page_aligned_byte_count, prot, flags, fd,
                               static_cast<int64_t>(page_aligned_offset), filename, strerr.c_str(),
                               maps.c_str());
@@ -247,7 +248,7 @@ MemMap* MemMap::RemapAtEnd(byte* new_end, const char* tail_name, int tail_prot,
   if (actual == MAP_FAILED) {
     std::string maps;
     ReadFileToString("/proc/self/maps", &maps);
-    *error_msg = StringPrintf("anonymous mmap(%p, %zd, %x, %x, %d, 0) failed\n%s",
+    *error_msg = StringPrintf("anonymous mmap(%p, %zd, 0x%x, 0x%x, %d, 0) failed\n%s",
                               tail_base_begin, tail_base_size, tail_prot, flags, fd.get(),
                               maps.c_str());
     return nullptr;
@@ -272,7 +273,7 @@ bool MemMap::Protect(int prot) {
 }
 
 std::ostream& operator<<(std::ostream& os, const MemMap& mem_map) {
-  os << StringPrintf("[MemMap: %s prot=%x %p-%p]",
+  os << StringPrintf("[MemMap: %s prot=0x%x %p-%p]",
                      mem_map.GetName().c_str(), mem_map.GetProtect(),
                      mem_map.BaseBegin(), mem_map.BaseEnd());
   return os;
