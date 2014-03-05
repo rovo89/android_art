@@ -22,6 +22,9 @@ namespace art {
 namespace arm {
 class ArmManagedRegister;
 }
+namespace arm64 {
+class Arm64ManagedRegister;
+}
 namespace mips {
 class MipsManagedRegister;
 }
@@ -42,6 +45,7 @@ class ManagedRegister {
   }
 
   arm::ArmManagedRegister AsArm() const;
+  arm64::Arm64ManagedRegister AsArm64() const;
   mips::MipsManagedRegister AsMips() const;
   x86::X86ManagedRegister AsX86() const;
 
