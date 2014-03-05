@@ -38,6 +38,7 @@ class ZipEntry {
  public:
   bool ExtractToFile(File& file, std::string* error_msg);
   MemMap* ExtractToMemMap(const char* entry_filename, std::string* error_msg);
+  virtual ~ZipEntry();
 
   uint32_t GetUncompressedLength();
   uint32_t GetCrc32();

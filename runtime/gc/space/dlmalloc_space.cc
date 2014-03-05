@@ -43,9 +43,8 @@ DlMallocSpace::DlMallocSpace(const std::string& name, MemMap* mem_map, void* msp
 }
 
 DlMallocSpace* DlMallocSpace::CreateFromMemMap(MemMap* mem_map, const std::string& name,
-                                               size_t starting_size,
-                                               size_t initial_size, size_t growth_limit,
-                                               size_t capacity) {
+                                               size_t starting_size, size_t initial_size,
+                                               size_t growth_limit, size_t capacity) {
   DCHECK(mem_map != nullptr);
   void* mspace = CreateMspace(mem_map->Begin(), starting_size, initial_size);
   if (mspace == nullptr) {
@@ -133,12 +132,12 @@ mirror::Object* DlMallocSpace::AllocWithGrowth(Thread* self, size_t num_bytes,
     size_t footprint = mspace_footprint(mspace_);
     mspace_set_footprint_limit(mspace_, footprint);
   }
-  if (result != NULL) {
+  if (result != nullptr) {
     // Zero freshly allocated memory, done while not holding the space's lock.
     memset(result, 0, num_bytes);
+    // Check that the result is contained in the space.
+    CHECK(!kDebugSpaces || Contains(result));
   }
-  // Return the new allocation or NULL.
-  CHECK(!kDebugSpaces || result == NULL || Contains(result));
   return result;
 }
 
@@ -151,7 +150,7 @@ MallocSpace* DlMallocSpace::CreateInstance(const std::string& name, MemMap* mem_
 size_t DlMallocSpace::Free(Thread* self, mirror::Object* ptr) {
   MutexLock mu(self, lock_);
   if (kDebugSpaces) {
-    CHECK(ptr != NULL);
+    CHECK(ptr != nullptr);
     CHECK(Contains(ptr)) << "Free (" << ptr << ") not in bounds of heap " << *this;
   }
   const size_t bytes_freed = AllocationSizeNonvirtual(ptr, nullptr);

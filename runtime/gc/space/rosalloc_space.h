@@ -105,6 +105,8 @@ class RosAllocSpace : public MallocSpace {
     rosalloc_->Verify();
   }
 
+  virtual ~RosAllocSpace();
+
  protected:
   RosAllocSpace(const std::string& name, MemMap* mem_map, allocator::RosAlloc* rosalloc,
                 byte* begin, byte* end, byte* limit, size_t growth_limit);
@@ -126,10 +128,6 @@ class RosAllocSpace : public MallocSpace {
 
   // Underlying rosalloc.
   allocator::RosAlloc* const rosalloc_;
-
-  // The rosalloc pointer used for allocation. Equal to rosalloc_ or nullptr after
-  // InvalidateAllocator() is called.
-  allocator::RosAlloc* rosalloc_for_alloc_;
 
   friend class collector::MarkSweep;
 

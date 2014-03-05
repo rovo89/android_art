@@ -68,6 +68,9 @@ class ThreadList;
 class Trace;
 class Transaction;
 
+// Not all combinations of flags are valid. You may not visit all roots as well as the new roots
+// (no logical reason to do this). You also may not start logging new roots and stop logging new
+// roots (also no logical reason to do this).
 enum VisitRootFlags : uint8_t {
   kVisitRootFlagAllRoots = 0x1,
   kVisitRootFlagNewRoots = 0x2,

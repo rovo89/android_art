@@ -296,6 +296,10 @@ class Instrumentation {
     interpreter_handler_table_ = IsActive() ? kAlternativeHandlerTable : kMainHandlerTable;
   }
 
+  // No thread safety analysis to get around SetQuickAllocEntryPointsInstrumented requiring
+  // exclusive access to mutator lock which you can't get if the runtime isn't started.
+  void SetEntrypointsInstrumented(bool instrumented) NO_THREAD_SAFETY_ANALYSIS;
+
   void MethodEnterEventImpl(Thread* thread, mirror::Object* this_object,
                             mirror::ArtMethod* method, uint32_t dex_pc) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
