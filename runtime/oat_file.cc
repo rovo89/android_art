@@ -403,17 +403,21 @@ const OatFile::OatClass* OatFile::OatDexFile::GetOatClass(uint16_t class_def_ind
   OatClassType type = static_cast<OatClassType>(*reinterpret_cast<const uint16_t*>(type_pointer));
   CHECK_LT(type, kOatClassMax);
 
-  const byte* bitmap_pointer = type_pointer + sizeof(int16_t);
-  CHECK_LT(bitmap_pointer, oat_file_->End()) << oat_file_->GetLocation();
-  uint32_t bitmap_size = 0;
-  if (type == kOatClassSomeCompiled) {
-    bitmap_size = static_cast<uint32_t>(*reinterpret_cast<const uint32_t*>(bitmap_pointer));
-    bitmap_pointer += sizeof(bitmap_size);
-    CHECK_LT(bitmap_pointer, oat_file_->End()) << oat_file_->GetLocation();
-  }
+  const byte* after_type_pointer = type_pointer + sizeof(int16_t);
+  CHECK_LE(after_type_pointer, oat_file_->End()) << oat_file_->GetLocation();
 
-  const byte* methods_pointer = bitmap_pointer + bitmap_size;
-  CHECK_LT(methods_pointer, oat_file_->End()) << oat_file_->GetLocation();
+  uint32_t bitmap_size = 0;
+  const byte* bitmap_pointer = nullptr;
+  const byte* methods_pointer = nullptr;
+  if (type == kOatClassSomeCompiled) {
+    bitmap_size = static_cast<uint32_t>(*reinterpret_cast<const uint32_t*>(after_type_pointer));
+    bitmap_pointer = after_type_pointer + sizeof(bitmap_size);
+    CHECK_LE(bitmap_pointer, oat_file_->End()) << oat_file_->GetLocation();
+    methods_pointer = bitmap_pointer + bitmap_size;
+  } else {
+    methods_pointer = after_type_pointer;
+  }
+  CHECK_LE(methods_pointer, oat_file_->End()) << oat_file_->GetLocation();
 
   return new OatClass(oat_file_,
                       status,
@@ -431,19 +435,23 @@ OatFile::OatClass::OatClass(const OatFile* oat_file,
                             const OatMethodOffsets* methods_pointer)
     : oat_file_(oat_file), status_(status), type_(type),
       bitmap_(NULL), methods_pointer_(methods_pointer) {
+    CHECK(methods_pointer != nullptr);
     switch (type_) {
       case kOatClassAllCompiled: {
         CHECK_EQ(0U, bitmap_size);
+        CHECK(bitmap_pointer == nullptr);
         break;
       }
       case kOatClassSomeCompiled: {
         CHECK_NE(0U, bitmap_size);
+        CHECK(bitmap_pointer != nullptr);
         bitmap_ = new BitVector(0, false, Allocator::GetNoopAllocator(), bitmap_size,
                                 const_cast<uint32_t*>(bitmap_pointer));
         break;
       }
       case kOatClassNoneCompiled: {
         CHECK_EQ(0U, bitmap_size);
+        CHECK(bitmap_pointer == nullptr);
         methods_pointer_ = NULL;
         break;
       }
