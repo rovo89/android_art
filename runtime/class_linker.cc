@@ -581,7 +581,7 @@ bool ClassLinker::GenerateOatFile(const char* dex_filename,
   argv.push_back(oat_fd_option);
   argv.push_back(oat_location_option);
   const std::vector<std::string>& compiler_options = Runtime::Current()->GetCompilerOptions();
-  for (size_t i = 0; compiler_options.size(); ++i) {
+  for (size_t i = 0; i < compiler_options.size(); ++i) {
     argv.push_back(compiler_options[i].c_str());
   }
 

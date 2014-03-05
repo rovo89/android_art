@@ -1166,12 +1166,11 @@ static int dex2oat(int argc, char** argv) {
         LOG(INFO) << "Wrote input to " << tmp_file_name;
       }
     }
-
-    // Ensure opened dex files are writable for dex-to-dex transformations.
-    for (const auto& dex_file : dex_files) {
-      if (!dex_file->EnableWrite()) {
-        PLOG(ERROR) << "Failed to make .dex file writeable '" << dex_file->GetLocation() << "'\n";
-      }
+  }
+  // Ensure opened dex files are writable for dex-to-dex transformations.
+  for (const auto& dex_file : dex_files) {
+    if (!dex_file->EnableWrite()) {
+      PLOG(ERROR) << "Failed to make .dex file writeable '" << dex_file->GetLocation() << "'\n";
     }
   }
 
