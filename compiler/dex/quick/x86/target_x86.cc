@@ -948,7 +948,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
 
   RegLocation rl_obj = info->args[0];
   RegLocation rl_char = info->args[1];
-  RegLocation rl_start = info->args[2];
+  RegLocation rl_start;  // Note: only present in III flavor or IndexOf.
 
   uint32_t char_value =
     rl_char.is_const ? mir_graph_->ConstantValue(rl_char.orig_sreg) : 0;
@@ -1007,6 +1007,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
     // We have to handle an empty string.  Use special instruction JECXZ.
     length_compare = NewLIR0(kX86Jecxz8);
   } else {
+    rl_start = info->args[2];
     // We have to offset by the start index.
     if (rl_start.is_const) {
       start_value = mir_graph_->ConstantValue(rl_start.orig_sreg);

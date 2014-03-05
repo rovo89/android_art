@@ -1251,12 +1251,12 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
 
   RegLocation rl_obj = info->args[0];
   RegLocation rl_char = info->args[1];
-  RegLocation rl_start = info->args[2];
   LoadValueDirectFixed(rl_obj, reg_ptr);
   LoadValueDirectFixed(rl_char, reg_char);
   if (zero_based) {
     LoadConstant(reg_start, 0);
   } else {
+    RegLocation rl_start = info->args[2];     // 3rd arg only present in III flavor of IndexOf.
     LoadValueDirectFixed(rl_start, reg_start);
   }
   int r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pIndexOf));
