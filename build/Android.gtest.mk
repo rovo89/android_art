@@ -75,6 +75,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
 	compiler/utils/arena_allocator_test.cc \
 	compiler/utils/dedupe_set_test.cc \
 	compiler/utils/arm/managed_register_arm_test.cc \
+	compiler/utils/arm64/managed_register_arm64_test.cc \
 	compiler/utils/x86/managed_register_x86_test.cc \
 
 ifeq ($(ART_SEA_IR_MODE),true)
