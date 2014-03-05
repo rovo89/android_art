@@ -115,6 +115,8 @@ ImageSpace* ImageSpace::Create(const char* original_image_file_name) {
     space::ImageSpace* image_space = ImageSpace::Init(image_file_name.c_str(), true, &error_msg);
     if (image_space != nullptr) {
       return image_space;
+    } else {
+      LOG(WARNING) << error_msg;
     }
   }
   CHECK(GenerateImage(image_file_name, &error_msg))
