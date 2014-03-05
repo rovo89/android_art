@@ -619,7 +619,7 @@ void SemiSpace::MarkRootCallback(Object** root, void* arg, uint32_t /*thread_id*
 void SemiSpace::MarkRoots() {
   timings_.StartSplit("MarkRoots");
   // TODO: Visit up image roots as well?
-  Runtime::Current()->VisitRoots(MarkRootCallback, this, false, true);
+  Runtime::Current()->VisitRoots(MarkRootCallback, this);
   timings_.EndSplit();
 }
 

@@ -28,7 +28,7 @@
 namespace art {
 
 InternTable::InternTable()
-    : is_dirty_(false), allow_new_interns_(true),
+    : log_new_roots_(false), allow_new_interns_(true),
       new_intern_condition_("New intern condition", *Locks::intern_table_lock_) {
 }
 
@@ -43,23 +43,45 @@ void InternTable::DumpForSigQuit(std::ostream& os) const {
      << weak_interns_.size() << " weak\n";
 }
 
-void InternTable::VisitRoots(RootCallback* callback, void* arg,
-                             bool only_dirty, bool clean_dirty) {
+void InternTable::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags) {
   MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
-  if (!only_dirty || is_dirty_) {
+  if ((flags & kVisitRootFlagAllRoots) != 0) {
     for (auto& strong_intern : strong_interns_) {
       callback(reinterpret_cast<mirror::Object**>(&strong_intern.second), arg, 0,
                kRootInternedString);
       DCHECK(strong_intern.second != nullptr);
     }
-    if (clean_dirty) {
-      is_dirty_ = false;
-    }
+  } else if ((flags & kVisitRootFlagNewRoots) != 0) {
+    for (auto& pair : new_strong_intern_roots_) {
+       mirror::String* old_ref = pair.second;
+       callback(reinterpret_cast<mirror::Object**>(&pair.second), arg, 0, kRootInternedString);
+       if (UNLIKELY(pair.second != old_ref)) {
+         // Uh ohes, GC moved a root in the log. Need to search the strong interns and update the
+         // corresponding object. This is slow, but luckily for us, this may only happen with a
+         // concurrent moving GC.
+         for (auto it = strong_interns_.lower_bound(pair.first), end = strong_interns_.end();
+             it != end && it->first == pair.first; ++it) {
+           // If the class stored matches the old class, update it to the new value.
+           if (old_ref == it->second) {
+             it->second = pair.second;
+           }
+         }
+       }
+     }
+  }
+
+  if ((flags & kVisitRootFlagClearRootLog) != 0) {
+    new_strong_intern_roots_.clear();
+  }
+  if ((flags & kVisitRootFlagStartLoggingNewRoots) != 0) {
+    log_new_roots_ = true;
+  } else if ((flags & kVisitRootFlagStopLoggingNewRoots) != 0) {
+    log_new_roots_ = false;
   }
   // Note: we deliberately don't visit the weak_interns_ table and the immutable image roots.
 }
 
-mirror::String* InternTable::Lookup(Table& table, mirror::String* s, uint32_t hash_code) {
+mirror::String* InternTable::Lookup(Table& table, mirror::String* s, int32_t hash_code) {
   Locks::intern_table_lock_->AssertHeld(Thread::Current());
   for (auto it = table.find(hash_code), end = table.end(); it != end; ++it) {
     mirror::String* existing_string = it->second;
@@ -70,29 +92,28 @@ mirror::String* InternTable::Lookup(Table& table, mirror::String* s, uint32_t ha
   return NULL;
 }
 
-mirror::String* InternTable::InsertStrong(mirror::String* s, uint32_t hash_code) {
+mirror::String* InternTable::InsertStrong(mirror::String* s, int32_t hash_code) {
   Runtime* runtime = Runtime::Current();
   if (runtime->IsActiveTransaction()) {
     runtime->RecordStrongStringInsertion(s, hash_code);
   }
-  return Insert(strong_interns_, s, hash_code);
+  if (log_new_roots_) {
+    new_strong_intern_roots_.push_back(std::make_pair(hash_code, s));
+  }
+  strong_interns_.insert(std::make_pair(hash_code, s));
+  return s;
 }
 
-mirror::String* InternTable::InsertWeak(mirror::String* s, uint32_t hash_code) {
+mirror::String* InternTable::InsertWeak(mirror::String* s, int32_t hash_code) {
   Runtime* runtime = Runtime::Current();
   if (runtime->IsActiveTransaction()) {
     runtime->RecordWeakStringInsertion(s, hash_code);
   }
-  return Insert(weak_interns_, s, hash_code);
-}
-
-mirror::String* InternTable::Insert(Table& table, mirror::String* s, uint32_t hash_code) {
-  Locks::intern_table_lock_->AssertHeld(Thread::Current());
-  table.insert(std::make_pair(hash_code, s));
+  weak_interns_.insert(std::make_pair(hash_code, s));
   return s;
 }
 
-void InternTable::RemoveWeak(mirror::String* s, uint32_t hash_code) {
+void InternTable::RemoveWeak(mirror::String* s, int32_t hash_code) {
   Runtime* runtime = Runtime::Current();
   if (runtime->IsActiveTransaction()) {
     runtime->RecordWeakStringRemoval(s, hash_code);
@@ -100,8 +121,7 @@ void InternTable::RemoveWeak(mirror::String* s, uint32_t hash_code) {
   Remove(weak_interns_, s, hash_code);
 }
 
-void InternTable::Remove(Table& table, mirror::String* s, uint32_t hash_code) {
-  Locks::intern_table_lock_->AssertHeld(Thread::Current());
+void InternTable::Remove(Table& table, mirror::String* s, int32_t hash_code) {
   for (auto it = table.find(hash_code), end = table.end(); it != end; ++it) {
     if (it->second == s) {
       table.erase(it);
@@ -111,19 +131,19 @@ void InternTable::Remove(Table& table, mirror::String* s, uint32_t hash_code) {
 }
 
 // Insert/remove methods used to undo changes made during an aborted transaction.
-mirror::String* InternTable::InsertStrongFromTransaction(mirror::String* s, uint32_t hash_code) {
+mirror::String* InternTable::InsertStrongFromTransaction(mirror::String* s, int32_t hash_code) {
   DCHECK(!Runtime::Current()->IsActiveTransaction());
   return InsertStrong(s, hash_code);
 }
-mirror::String* InternTable::InsertWeakFromTransaction(mirror::String* s, uint32_t hash_code) {
+mirror::String* InternTable::InsertWeakFromTransaction(mirror::String* s, int32_t hash_code) {
   DCHECK(!Runtime::Current()->IsActiveTransaction());
   return InsertWeak(s, hash_code);
 }
-void InternTable::RemoveStrongFromTransaction(mirror::String* s, uint32_t hash_code) {
+void InternTable::RemoveStrongFromTransaction(mirror::String* s, int32_t hash_code) {
   DCHECK(!Runtime::Current()->IsActiveTransaction());
   Remove(strong_interns_, s, hash_code);
 }
-void InternTable::RemoveWeakFromTransaction(mirror::String* s, uint32_t hash_code) {
+void InternTable::RemoveWeakFromTransaction(mirror::String* s, int32_t hash_code) {
   DCHECK(!Runtime::Current()->IsActiveTransaction());
   Remove(weak_interns_, s, hash_code);
 }
@@ -183,9 +203,6 @@ mirror::String* InternTable::Insert(mirror::String* s, bool is_strong) {
     if (strong != NULL) {
       return strong;
     }
-
-    // Mark as dirty so that we rescan the roots.
-    is_dirty_ = true;
 
     // Check the image for a match.
     mirror::String* image = LookupStringFromImage(s);

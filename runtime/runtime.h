@@ -68,6 +68,14 @@ class ThreadList;
 class Trace;
 class Transaction;
 
+enum VisitRootFlags : uint8_t {
+  kVisitRootFlagAllRoots = 0x1,
+  kVisitRootFlagNewRoots = 0x2,
+  kVisitRootFlagStartLoggingNewRoots = 0x4,
+  kVisitRootFlagStopLoggingNewRoots = 0x8,
+  kVisitRootFlagClearRootLog = 0x10,
+};
+
 class Runtime {
  public:
   typedef std::vector<std::pair<std::string, const void*> > Options;
@@ -222,11 +230,12 @@ class Runtime {
 
   // Visit all the roots. If only_dirty is true then non-dirty roots won't be visited. If
   // clean_dirty is true then dirty roots will be marked as non-dirty after visiting.
-  void VisitRoots(RootCallback* visitor, void* arg, bool only_dirty, bool clean_dirty)
+  void VisitRoots(RootCallback* visitor, void* arg, VisitRootFlags flags = kVisitRootFlagAllRoots)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Visit all of the roots we can do safely do concurrently.
-  void VisitConcurrentRoots(RootCallback* visitor, void* arg, bool only_dirty, bool clean_dirty)
+  void VisitConcurrentRoots(RootCallback* visitor, void* arg,
+                            VisitRootFlags flags = kVisitRootFlagAllRoots)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Visit all of the non thread roots, we can do this with mutators unpaused.
@@ -240,6 +249,11 @@ class Runtime {
   // Sweep system weaks, the system weak is deleted if the visitor return nullptr. Otherwise, the
   // system weak is updated to be the visitor's returned value.
   void SweepSystemWeaks(IsMarkedCallback* visitor, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Constant roots are the roots which never change after the runtime is initialized, they only
+  // need to be visited once per GC cycle.
+  void VisitConstantRoots(RootCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns a special method that calls into a trampoline for runtime method resolution

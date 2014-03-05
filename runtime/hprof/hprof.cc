@@ -428,7 +428,7 @@ class Hprof {
       LOCKS_EXCLUDED(Locks::heap_bitmap_lock_) {
     // Walk the roots and the heap.
     current_record_.StartNewRecord(body_fp_, HPROF_TAG_HEAP_DUMP_SEGMENT, HPROF_TIME);
-    Runtime::Current()->VisitRoots(RootVisitor, this, false, false);
+    Runtime::Current()->VisitRoots(RootVisitor, this);
     Thread* self = Thread::Current();
     {
       ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
