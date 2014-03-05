@@ -33,7 +33,7 @@ cd "${progdir}"
 progdir=`pwd`
 prog="${progdir}"/`basename "${prog}"`
 test_dir="test-$$"
-tmp_dir="/tmp/${test_dir}"
+tmp_dir="/tmp/$USER/${test_dir}"
 
 export JAVA="java"
 export JAVAC="javac -g"
@@ -165,6 +165,7 @@ while true; do
         break
     fi
 done
+mkdir -p $tmp_dir
 
 if [ ! "$runtime" = "jvm" ]; then
   run_args="${run_args} --lib $lib"
@@ -356,7 +357,7 @@ if [ "$good" == "yes" ]; then
     cd "$oldwd"
     rm -rf "$tmp_dir"
     if [ "$target_mode" = "yes" -a "$build_exit" = "0" ]; then
-        adb shell rm -r $DEX_LOCATION
+        adb shell rm -rf $DEX_LOCATION
     fi
     exit 0
 fi
