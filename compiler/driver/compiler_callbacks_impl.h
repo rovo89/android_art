@@ -23,7 +23,7 @@
 
 namespace art {
 
-class CompilerCallbacksImpl : public CompilerCallbacks {
+class CompilerCallbacksImpl FINAL : public CompilerCallbacks {
   public:
     CompilerCallbacksImpl(VerificationResults* verification_results,
                           DexFileToMethodInlinerMap* method_inliner_map)
@@ -33,10 +33,10 @@ class CompilerCallbacksImpl : public CompilerCallbacks {
       CHECK(method_inliner_map != nullptr);
     }
 
-    virtual ~CompilerCallbacksImpl() { }
+    ~CompilerCallbacksImpl() { }
 
-    virtual bool MethodVerified(verifier::MethodVerifier* verifier)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    bool MethodVerified(verifier::MethodVerifier* verifier)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE {
       bool result = verification_results_->ProcessVerifiedMethod(verifier);
       if (result) {
         MethodReference ref = verifier->GetMethodReference();
@@ -45,7 +45,7 @@ class CompilerCallbacksImpl : public CompilerCallbacks {
       }
       return result;
     }
-    virtual void ClassRejected(ClassReference ref) {
+    void ClassRejected(ClassReference ref) OVERRIDE {
       verification_results_->AddRejectedClass(ref);
     }
 

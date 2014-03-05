@@ -31,7 +31,6 @@
 #include "base/stringprintf.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
-#include "compiler_callbacks.h"
 #include "dex_file-inl.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "gc/heap.h"
@@ -39,6 +38,7 @@
 #include "instruction_set.h"
 #include "interpreter/interpreter.h"
 #include "mirror/class_loader.h"
+#include "noop_compiler_callbacks.h"
 #include "oat_file.h"
 #include "object_utils.h"
 #include "os.h"
@@ -92,16 +92,6 @@ class ScratchFile {
  private:
   std::string filename_;
   UniquePtr<File> file_;
-};
-
-class NoopCompilerCallbacks : public CompilerCallbacks {
- public:
-  NoopCompilerCallbacks() {}
-  virtual ~NoopCompilerCallbacks() {}
-  virtual bool MethodVerified(verifier::MethodVerifier* verifier) {
-    return true;
-  }
-  virtual void ClassRejected(ClassReference ref) {}
 };
 
 class CommonRuntimeTest : public testing::Test {
