@@ -316,13 +316,13 @@ class Assembler {
   static Assembler* Create(InstructionSet instruction_set);
 
   // Emit slow paths queued during assembly
-  void EmitSlowPaths() { buffer_.EmitSlowPaths(this); }
+  virtual void EmitSlowPaths() { buffer_.EmitSlowPaths(this); }
 
   // Size of generated code
-  size_t CodeSize() const { return buffer_.Size(); }
+  virtual size_t CodeSize() const { return buffer_.Size(); }
 
   // Copy instructions out of assembly buffer into the given region of memory
-  void FinalizeInstructions(const MemoryRegion& region) {
+  virtual void FinalizeInstructions(const MemoryRegion& region) {
     buffer_.FinalizeInstructions(region);
   }
 

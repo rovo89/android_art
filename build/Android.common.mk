@@ -119,6 +119,7 @@ ART_C_INCLUDES := \
 	external/gtest/include \
 	external/valgrind/main/include \
 	external/valgrind/main \
+	external/vixl/src \
 	external/zlib \
 	frameworks/compile/mclinker/include
 
