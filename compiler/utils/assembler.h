@@ -326,6 +326,9 @@ class Assembler {
     buffer_.FinalizeInstructions(region);
   }
 
+  // TODO: Implement with disassembler.
+  virtual void Comment(const char* format, ...) { }
+
   // Emit code that will create an activation on the stack
   virtual void BuildFrame(size_t frame_size, ManagedRegister method_reg,
                           const std::vector<ManagedRegister>& callee_save_regs,
