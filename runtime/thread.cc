@@ -1709,6 +1709,7 @@ static const EntryPointInfo gThreadEntryPointInfo[] = {
   QUICK_ENTRY_POINT_INFO(pJniMethodEndSynchronized),
   QUICK_ENTRY_POINT_INFO(pJniMethodEndWithReference),
   QUICK_ENTRY_POINT_INFO(pJniMethodEndWithReferenceSynchronized),
+  QUICK_ENTRY_POINT_INFO(pQuickGenericJniTrampoline),
   QUICK_ENTRY_POINT_INFO(pLockObject),
   QUICK_ENTRY_POINT_INFO(pUnlockObject),
   QUICK_ENTRY_POINT_INFO(pCmpgDouble),
@@ -1751,7 +1752,6 @@ static const EntryPointInfo gThreadEntryPointInfo[] = {
   QUICK_ENTRY_POINT_INFO(pThrowNoSuchMethod),
   QUICK_ENTRY_POINT_INFO(pThrowNullPointer),
   QUICK_ENTRY_POINT_INFO(pThrowStackOverflow),
-  QUICK_ENTRY_POINT_INFO(pQuickGenericJniTrampoline),
 };
 #undef QUICK_ENTRY_POINT_INFO
 
