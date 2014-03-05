@@ -1049,7 +1049,7 @@ static std::string CleanMapName(const backtrace_map_t* map) {
   if (last_slash == std::string::npos) {
     return map->name;
   }
-  return map->name.substr(last_slash);
+  return map->name.substr(last_slash + 1);
 }
 
 void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix, bool include_count) {
