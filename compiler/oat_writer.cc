@@ -1014,6 +1014,7 @@ OatWriter::OatClass::OatClass(size_t offset,
 }
 
 OatWriter::OatClass::~OatClass() {
+  delete method_bitmap_;
   delete compiled_methods_;
 }
 
