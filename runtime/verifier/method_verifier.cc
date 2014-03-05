@@ -2529,7 +2529,6 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
 
     // Special instructions.
     case Instruction::RETURN_VOID_BARRIER:
-      DCHECK(Runtime::Current()->IsStarted()) << PrettyMethod(dex_method_idx_, *dex_file_);
       if (!IsConstructor() || IsStatic()) {
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "return-void-barrier not expected";
       }
