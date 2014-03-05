@@ -29,6 +29,8 @@ HGraph* HGraphBuilder::BuildGraph(const uint16_t* code_ptr, const uint16_t* code
   entry_block_->AddInstruction(new (arena_) HGoto());
   exit_block_ = new (arena_) HBasicBlock(graph_);
   exit_block_->AddInstruction(new (arena_) HExit());
+  graph_->set_entry_block(entry_block_);
+  graph_->set_exit_block(exit_block_);
 
   // To avoid splitting blocks, we compute ahead of time the instructions that
   // start a new block, and create these blocks.
