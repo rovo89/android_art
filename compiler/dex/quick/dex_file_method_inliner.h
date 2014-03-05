@@ -67,7 +67,7 @@ class DexFileMethodInliner {
     /**
      * Check whether a particular method index corresponds to an intrinsic function.
      */
-    bool IsIntrinsic(uint32_t method_index) LOCKS_EXCLUDED(lock_);
+    bool IsIntrinsic(uint32_t method_index, InlineMethod* intrinsic) LOCKS_EXCLUDED(lock_);
 
     /**
      * Generate code for an intrinsic function invocation.
