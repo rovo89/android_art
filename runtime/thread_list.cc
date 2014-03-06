@@ -193,10 +193,10 @@ static void ThreadSuspendSleep(Thread* self, useconds_t* delay_us, useconds_t* t
 
 size_t ThreadList::RunCheckpoint(Closure* checkpoint_function) {
   Thread* self = Thread::Current();
-  if (kIsDebugBuild) {
-    Locks::mutator_lock_->AssertNotExclusiveHeld(self);
-    Locks::thread_list_lock_->AssertNotHeld(self);
-    Locks::thread_suspend_count_lock_->AssertNotHeld(self);
+  Locks::mutator_lock_->AssertNotExclusiveHeld(self);
+  Locks::thread_list_lock_->AssertNotHeld(self);
+  Locks::thread_suspend_count_lock_->AssertNotHeld(self);
+  if (kDebugLocking) {
     CHECK_NE(self->GetState(), kRunnable);
   }
 
@@ -273,26 +273,24 @@ void ThreadList::SuspendAll() {
 
   VLOG(threads) << *self << " SuspendAll starting...";
 
-  if (kIsDebugBuild) {
-    Locks::mutator_lock_->AssertNotHeld(self);
-    Locks::thread_list_lock_->AssertNotHeld(self);
-    Locks::thread_suspend_count_lock_->AssertNotHeld(self);
+  Locks::mutator_lock_->AssertNotHeld(self);
+  Locks::thread_list_lock_->AssertNotHeld(self);
+  Locks::thread_suspend_count_lock_->AssertNotHeld(self);
+  if (kDebugLocking) {
     CHECK_NE(self->GetState(), kRunnable);
   }
   {
     MutexLock mu(self, *Locks::thread_list_lock_);
-    {
-      MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
-      // Update global suspend all state for attaching threads.
-      ++suspend_all_count_;
-      // Increment everybody's suspend count (except our own).
-      for (const auto& thread : list_) {
-        if (thread == self) {
-          continue;
-        }
-        VLOG(threads) << "requesting thread suspend: " << *thread;
-        thread->ModifySuspendCount(self, +1, false);
+    MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
+    // Update global suspend all state for attaching threads.
+    ++suspend_all_count_;
+    // Increment everybody's suspend count (except our own).
+    for (const auto& thread : list_) {
+      if (thread == self) {
+        continue;
       }
+      VLOG(threads) << "requesting thread suspend: " << *thread;
+      thread->ModifySuspendCount(self, +1, false);
     }
   }
 
@@ -306,8 +304,10 @@ void ThreadList::SuspendAll() {
   Locks::mutator_lock_->ExclusiveLock(self);
 #endif
 
-  // Debug check that all threads are suspended.
-  AssertThreadsAreSuspended(self, self);
+  if (kDebugLocking) {
+    // Debug check that all threads are suspended.
+    AssertThreadsAreSuspended(self, self);
+  }
 
   VLOG(threads) << *self << " SuspendAll complete";
 }
@@ -317,8 +317,10 @@ void ThreadList::ResumeAll() {
 
   VLOG(threads) << *self << " ResumeAll starting";
 
-  // Debug check that all threads are suspended.
-  AssertThreadsAreSuspended(self, self);
+  if (kDebugLocking) {
+    // Debug check that all threads are suspended.
+    AssertThreadsAreSuspended(self, self);
+  }
 
   Locks::mutator_lock_->ExclusiveUnlock(self);
   {

@@ -318,6 +318,16 @@ void Heap::ChangeAllocator(AllocatorType allocator) {
   }
 }
 
+void Heap::DisableCompaction() {
+  if (IsCompactingGC(post_zygote_collector_type_)) {
+    post_zygote_collector_type_ = kCollectorTypeCMS;
+  }
+  if (IsCompactingGC(background_collector_type_)) {
+    background_collector_type_ = post_zygote_collector_type_;
+  }
+  TransitionCollector(post_zygote_collector_type_);
+}
+
 std::string Heap::SafeGetClassDescriptor(mirror::Class* klass) {
   if (!IsValidContinuousSpaceObjectAddress(klass)) {
     return StringPrintf("<non heap address klass %p>", klass);
