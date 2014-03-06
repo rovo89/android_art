@@ -139,7 +139,7 @@ static void Usage(const char* fmt, ...) {
   UsageError("      Example: --android-root=out/host/linux-x86");
   UsageError("      Default: $ANDROID_ROOT");
   UsageError("");
-  UsageError("  --instruction-set=(arm|mips|x86): compile for a particular instruction");
+  UsageError("  --instruction-set=(arm|mips|x86|x86_64): compile for a particular instruction");
   UsageError("      set.");
   UsageError("      Example: --instruction-set=x86");
   UsageError("      Default: arm");
@@ -992,7 +992,10 @@ static int dex2oat(int argc, char** argv) {
   }
 
   if (compiler_filter_string == NULL) {
-    if (image) {
+    if (instruction_set == kX86_64) {
+      // TODO: currently x86-64 is only interpreted.
+      compiler_filter_string = "interpret-only";
+    } else if (image) {
       compiler_filter_string = "speed";
     } else {
 #if ART_SMALL_MODE

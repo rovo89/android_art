@@ -100,6 +100,23 @@ static const std::vector<uint8_t>* CreateTrampoline(ThreadOffset offset) {
 }
 }  // namespace x86
 
+namespace x86_64 {
+static const std::vector<uint8_t>* CreateTrampoline(ThreadOffset offset) {
+  UniquePtr<x86::X86Assembler> assembler(static_cast<x86::X86Assembler*>(Assembler::Create(kX86_64)));
+
+  // All x86 trampolines call via the Thread* held in gs.
+  __ gs()->jmp(x86::Address::Absolute(offset, true));
+  __ int3();
+
+  size_t cs = assembler->CodeSize();
+  UniquePtr<std::vector<uint8_t> > entry_stub(new std::vector<uint8_t>(cs));
+  MemoryRegion code(&(*entry_stub)[0], entry_stub->size());
+  assembler->FinalizeInstructions(code);
+
+  return entry_stub.release();
+}
+}  // namespace x86_64
+
 const std::vector<uint8_t>* CreateTrampoline(InstructionSet isa, EntryPointCallingConvention abi,
                                              ThreadOffset offset) {
   switch (isa) {
@@ -110,6 +127,8 @@ const std::vector<uint8_t>* CreateTrampoline(InstructionSet isa, EntryPointCalli
       return mips::CreateTrampoline(abi, offset);
     case kX86:
       return x86::CreateTrampoline(offset);
+    case kX86_64:
+      return x86_64::CreateTrampoline(offset);
     default:
       LOG(FATAL) << "Unknown InstructionSet: " << isa;
       return NULL;
