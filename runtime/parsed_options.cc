@@ -288,13 +288,13 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
         return false;
       }
     } else if (StartsWith(option, "-XX:LongPauseLogThreshold=")) {
-      size_t value;
+      unsigned int value;
       if (!ParseUnsignedInteger(option, '=', &value)) {
         return false;
       }
       long_pause_log_threshold_ = MsToNs(value);
     } else if (StartsWith(option, "-XX:LongGCLogThreshold=")) {
-      size_t value;
+      unsigned int value;
       if (!ParseUnsignedInteger(option, '=', &value)) {
         return false;
       }
