@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_MIRROR_OBJECT_REFERENCE_H_
 #define ART_RUNTIME_MIRROR_OBJECT_REFERENCE_H_
 
+#include "globals.h"
 #include "locks.h"
 
 namespace art {
@@ -74,7 +75,7 @@ class MANAGED ObjectReference {
 
 // References between objects within the managed heap.
 template<class MirrorType>
-class MANAGED HeapReference : public ObjectReference<false, MirrorType> {
+class MANAGED HeapReference : public ObjectReference<kPoisonHeapReferences, MirrorType> {
  public:
   static HeapReference<MirrorType> FromMirrorPtr(MirrorType* mirror_ptr)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -82,7 +83,7 @@ class MANAGED HeapReference : public ObjectReference<false, MirrorType> {
   }
  private:
   HeapReference<MirrorType>(MirrorType* mirror_ptr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : ObjectReference<false, MirrorType>(mirror_ptr) {}
+      : ObjectReference<kPoisonHeapReferences, MirrorType>(mirror_ptr) {}
 };
 
 }  // namespace mirror
