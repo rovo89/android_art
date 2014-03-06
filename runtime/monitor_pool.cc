@@ -22,7 +22,8 @@
 
 namespace art {
 
-MonitorPool::MonitorPool() : allocated_ids_lock_("allocated monitor ids lock") {
+MonitorPool::MonitorPool() : allocated_ids_lock_("allocated monitor ids lock",
+                                                 LockLevel::kMonitorPoolLock) {
 }
 
 Monitor* MonitorPool::LookupMonitorFromTable(MonitorId mon_id) {
