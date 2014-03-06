@@ -328,7 +328,9 @@ jobject Java_MyClassNatives_fooIOO(JNIEnv* env, jobject thisObj, jint x, jobject
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
   gJava_MyClassNatives_fooIOO_calls++;
   ScopedObjectAccess soa(Thread::Current());
-  EXPECT_EQ(3U, Thread::Current()->NumStackReferences());
+  size_t null_args = (y == nullptr ? 1 : 0) + (z == nullptr ? 1 : 0);
+  EXPECT_TRUE(3U == Thread::Current()->NumStackReferences() ||
+              (3U - null_args) == Thread::Current()->NumStackReferences());
   switch (x) {
     case 1:
       return y;
@@ -434,7 +436,9 @@ jobject Java_MyClassNatives_fooSIOO(JNIEnv* env, jclass klass, jint x, jobject y
   EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
   gJava_MyClassNatives_fooSIOO_calls++;
   ScopedObjectAccess soa(Thread::Current());
-  EXPECT_EQ(3U, Thread::Current()->NumStackReferences());
+  size_t null_args = (y == nullptr ? 1 : 0) + (z == nullptr ? 1 : 0);
+  EXPECT_TRUE(3U == Thread::Current()->NumStackReferences() ||
+              (3U - null_args) == Thread::Current()->NumStackReferences());
   switch (x) {
     case 1:
       return y;
@@ -487,7 +491,9 @@ jobject Java_MyClassNatives_fooSSIOO(JNIEnv* env, jclass klass, jint x, jobject 
   EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
   gJava_MyClassNatives_fooSSIOO_calls++;
   ScopedObjectAccess soa(Thread::Current());
-  EXPECT_EQ(3U, Thread::Current()->NumStackReferences());
+  size_t null_args = (y == nullptr ? 1 : 0) + (z == nullptr ? 1 : 0);
+  EXPECT_TRUE(3U == Thread::Current()->NumStackReferences() ||
+              (3U - null_args) == Thread::Current()->NumStackReferences());
   switch (x) {
     case 1:
       return y;
