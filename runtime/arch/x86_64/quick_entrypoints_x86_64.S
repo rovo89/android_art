@@ -105,7 +105,7 @@ MACRO0(RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME)
     movq 72(%rsp), %xmm7
     addq LITERAL(80), %rsp
     CFI_ADJUST_CFA_OFFSET(-80)
-    // Save callee and GPR args, mixed together to agree with core spills bitmap.
+    // Restore callee and GPR args, mixed together to agree with core spills bitmap.
     POP rcx
     POP rdx
     POP rbx
@@ -652,9 +652,23 @@ UNIMPLEMENTED art_quick_proxy_invoke_handler
      * Called to resolve an imt conflict.
      */
 UNIMPLEMENTED art_quick_imt_conflict_trampoline
-UNIMPLEMENTED art_quick_resolution_trampoline
 
-/* Proposed Generic JNI setup
+DEFINE_FUNCTION art_quick_resolution_trampoline
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    movq %gs:THREAD_SELF_OFFSET, %rdx
+    movq %rsp, %rcx
+    call PLT_SYMBOL(artQuickResolutionTrampoline) // (called, receiver, Thread*, SP)
+    movq %rax, %r10               // Remember returned code pointer in R10.
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    testq %r10, %r10              // If code pointer is NULL goto deliver pending exception.
+    jz 1f
+    jmp *%r10                     // Tail call into method.
+1:
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    DELIVER_PENDING_EXCEPTION
+END_FUNCTION art_quick_resolution_trampoline
+
+/* Generic JNI frame layout:
  *
  * #-------------------#
  * |                   |
@@ -712,7 +726,6 @@ UNIMPLEMENTED art_quick_resolution_trampoline
      */
 DEFINE_FUNCTION art_quick_generic_jni_trampoline
     // Save callee and GPR args, mixed together to agree with core spills bitmap.
-    // Save callee and GPR args, mixed together to agree with core spills bitmap.
     PUSH r15  // Callee save.
     PUSH r14  // Callee save.
     PUSH r13  // Callee save.
@@ -760,7 +773,7 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     //  gs:...   rbp      <= where they are
     movq %gs:THREAD_SELF_OFFSET, %rdi
     movq %rbp, %rsi
-    call PLT_SYMBOL(artQuickGenericJniTrampoline)
+    call PLT_SYMBOL(artQuickGenericJniTrampoline)  // (Thread*, sp)
     test %rax, %rax                 // check whether code pointer is NULL, also indicates exception
     jz 1f
     // pop from the register-passing alloca

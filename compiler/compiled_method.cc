@@ -88,7 +88,8 @@ uint32_t CompiledCode::AlignCode(uint32_t offset, InstructionSet instruction_set
       return RoundUp(offset, kArmAlignment);
     case kMips:
       return RoundUp(offset, kMipsAlignment);
-    case kX86:
+    case kX86:  // Fall-through.
+    case kX86_64:
       return RoundUp(offset, kX86Alignment);
     default:
       LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;
