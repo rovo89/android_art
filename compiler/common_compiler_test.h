@@ -204,19 +204,31 @@ class CommonCompilerTest : public CommonRuntimeTest {
     } else {
       // No code? You must mean to go into the interpreter.
       // Or the generic JNI...
-      const void* method_code = method->IsNative() ? GetQuickGenericJniTrampoline()
-                                                   : (kUsePortableCompiler
-                                                        ? GetPortableToInterpreterBridge()
-                                                        : GetQuickToInterpreterBridge());
-      OatFile::OatMethod oat_method = CreateOatMethod(method_code,
-                                                      kStackAlignment,
-                                                      0,
-                                                      0,
-                                                      nullptr,
-                                                      nullptr,
-                                                      nullptr);
-      oat_method.LinkMethod(method);
-      method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterBridge);
+      if (!method->IsNative()) {
+        const void* method_code = kUsePortableCompiler ? GetPortableToInterpreterBridge()
+                                                       : GetQuickToInterpreterBridge();
+        OatFile::OatMethod oat_method = CreateOatMethod(method_code,
+                                                        kStackAlignment,
+                                                        0,
+                                                        0,
+                                                        nullptr,
+                                                        nullptr,
+                                                        nullptr);
+        oat_method.LinkMethod(method);
+        method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterBridge);
+      } else {
+        const void* method_code = GetQuickGenericJniTrampoline();
+        mirror::ArtMethod* callee_save_method = runtime_->GetCalleeSaveMethod(Runtime::kRefsAndArgs);
+        OatFile::OatMethod oat_method = CreateOatMethod(method_code,
+                                                        callee_save_method->GetFrameSizeInBytes(),
+                                                        callee_save_method->GetCoreSpillMask(),
+                                                        callee_save_method->GetFpSpillMask(),
+                                                        nullptr,
+                                                        nullptr,
+                                                        nullptr);
+        oat_method.LinkMethod(method);
+        method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
+      }
     }
     // Create bridges to transition between different kinds of compiled bridge.
     if (method->GetEntryPointFromPortableCompiledCode() == nullptr) {

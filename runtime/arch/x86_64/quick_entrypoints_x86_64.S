@@ -23,8 +23,22 @@
      * Runtime::CreateCalleeSaveMethod(kSaveAll)
      */
 MACRO0(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME)
-    int3
-    int3
+    // R10 := Runtime::Current()
+    movq _ZN3art7Runtime9instance_E@GOTPCREL(%rip), %r10
+    movq (%r10), %r10
+    // Save callee and GPR args, mixed together to agree with core spills bitmap.
+    PUSH r15  // Callee save.
+    PUSH r14  // Callee save.
+    PUSH r13  // Callee save.
+    PUSH r12  // Callee save.
+    PUSH rbp  // Callee save.
+    PUSH rbx  // Callee save.
+    subq LITERAL(8), %rsp  // Space for Method* (also aligns the frame).
+    CFI_ADJUST_CFA_OFFSET(8)
+    // R10 := ArtMethod* for ref and args callee save frame method.
+    movq RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
+    // Store ArtMethod* to bottom of stack.
+    movq %r10, 0(%rsp)
 END_MACRO
 
     /*
@@ -54,13 +68,13 @@ MACRO0(SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME)
     PUSH r14  // Callee save.
     PUSH r13  // Callee save.
     PUSH r12  // Callee save.
-    PUSH r9   // Arg.
-    PUSH r8   // Arg.
-    PUSH rsi  // Arg.
+    PUSH r9   // Quick arg 5.
+    PUSH r8   // Quick arg 4.
+    PUSH rsi  // Quick arg 1.
     PUSH rbp  // Callee save.
     PUSH rbx  // Callee save.
-    PUSH rdx  // Arg.
-    PUSH rcx  // Arg.
+    PUSH rdx  // Quick arg 2.
+    PUSH rcx  // Quick arg 3.
     // Create space for FPR args and create 2 slots, 1 of padding and 1 for the ArtMethod*.
     subq LITERAL(80), %rsp
     CFI_ADJUST_CFA_OFFSET(80)
@@ -105,13 +119,18 @@ MACRO0(RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME)
     POP r15
 END_MACRO
 
+
     /*
      * Macro that set calls through to artDeliverPendingExceptionFromCode, where the pending
      * exception is Thread::Current()->exception_.
      */
 MACRO0(DELIVER_PENDING_EXCEPTION)
-    int3
-    int3
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME         // save callee saves for throw
+    // (Thread*, SP) setup
+    movq %gs:THREAD_SELF_OFFSET, %rdi
+    movq %rsp, %rsi
+    call PLT_SYMBOL(artDeliverPendingExceptionFromCode)  // artDeliverPendingExceptionFromCode(Thread*, SP)
+    int3                                     // unreached
 END_MACRO
 
 MACRO2(NO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
@@ -635,11 +654,188 @@ UNIMPLEMENTED art_quick_proxy_invoke_handler
 UNIMPLEMENTED art_quick_imt_conflict_trampoline
 UNIMPLEMENTED art_quick_resolution_trampoline
 
-
+/* Proposed Generic JNI setup
+ *
+ * #-------------------#
+ * |                   |
+ * | caller method...  |
+ * #-------------------#    <--- SP on entry
+ * | Return            |
+ * | R15               |    callee save
+ * | R14               |    callee save
+ * | R13               |    callee save
+ * | R12               |    callee save
+ * | R9                |    arg5
+ * | R8                |    arg4
+ * | RSI/R6            |    arg1
+ * | RBP/R5            |    callee save
+ * | RBX/R3            |    callee save
+ * | RDX/R2            |    arg2
+ * | RCX/R1            |    arg3
+ * | XMM7              |    float arg 8
+ * | XMM6              |    float arg 7
+ * | XMM5              |    float arg 6
+ * | XMM4              |    float arg 5
+ * | XMM3              |    float arg 4
+ * | XMM2              |    float arg 3
+ * | XMM1              |    float arg 2
+ * | XMM0              |    float arg 1
+ * | Padding           |
+ * | RDI/Method*       |  <- sp
+ * #-------------------#
+ * | local ref cookie  | // 4B
+ * |   padding         | // 4B
+ * #----------#--------#
+ * |          |      | |
+ * | Temp/    | SIRT | |    Scratch frame is 4k
+ * | Scratch  |      v |
+ * | Frame    #--------|
+ * |                   |
+ * |          #--------|
+ * |          |      ^ |
+ * |          | JNI  | |
+ * |          | Stack| |
+ * #----------#--------#    <--- SP on native call (needs alignment?)
+ * |                   |
+ * | Stack for Regs    |    The trampoline assembly will pop these values
+ * |                   |    into registers for native call
+ * #---------#---------#
+ * |         | sp*     |
+ * | Tramp.  #---------#
+ * | args    | thread  |
+ * | Tramp.  #---------#
+ * |         | method  |
+ * #-------------------#    <--- SP on artQuickGenericJniTrampoline
+ */
     /*
      * Called to do a generic JNI down-call
      */
-UNIMPLEMENTED art_quick_generic_jni_trampoline
+DEFINE_FUNCTION art_quick_generic_jni_trampoline
+    // Save callee and GPR args, mixed together to agree with core spills bitmap.
+    // Save callee and GPR args, mixed together to agree with core spills bitmap.
+    PUSH r15  // Callee save.
+    PUSH r14  // Callee save.
+    PUSH r13  // Callee save.
+    PUSH r12  // Callee save.
+    PUSH r9   // Quick arg 5.
+    PUSH r8   // Quick arg 4.
+    PUSH rsi  // Quick arg 1.
+    PUSH rbp  // Callee save.
+    PUSH rbx  // Callee save.
+    PUSH rdx  // Quick arg 2.
+    PUSH rcx  // Quick arg 3.
+    // Create space for FPR args and create 2 slots, 1 of padding and 1 for the ArtMethod*.
+    subq LITERAL(80), %rsp
+    CFI_ADJUST_CFA_OFFSET(80)
+    // Save FPRs.
+    movq %xmm0, 16(%rsp)
+    movq %xmm1, 24(%rsp)
+    movq %xmm2, 32(%rsp)
+    movq %xmm3, 40(%rsp)
+    movq %xmm4, 48(%rsp)
+    movq %xmm5, 56(%rsp)
+    movq %xmm6, 64(%rsp)
+    movq %xmm7, 72(%rsp)
+    // Store native ArtMethod* to bottom of stack.
+    movq %rdi, 0(%rsp)
+    movq %rsp, %rbp                 // save SP at callee-save frame
+    CFI_DEF_CFA_REGISTER(rbp)
+    //
+    // reserve a lot of space
+    //
+    //      4    local state ref
+    //      4    padding
+    //   4196    4k scratch space, enough for 2x 256 8-byte parameters (TODO: SIRT overhead?)
+    //     16    SIRT member fields ?
+    // +  112    14x 8-byte stack-2-register space
+    // ------
+    //   4332
+    // 16-byte aligned: 4336
+    // Note: 14x8 = 7*16, so the stack stays aligned for the native call...
+    //       Also means: the padding is somewhere in the middle
+    subq LITERAL(4336), %rsp
+    // prepare for artQuickGenericJniTrampoline call
+    // (Thread*,  SP)
+    //    rdi    rsi      <= C calling convention
+    //  gs:...   rbp      <= where they are
+    movq %gs:THREAD_SELF_OFFSET, %rdi
+    movq %rbp, %rsi
+    call PLT_SYMBOL(artQuickGenericJniTrampoline)
+    test %rax, %rax                 // check whether code pointer is NULL, also indicates exception
+    jz 1f
+    // pop from the register-passing alloca
+    // what's the right layout?
+    popq %rdi
+    popq %rsi
+    popq %rdx
+    popq %rcx
+    popq %r8
+    popq %r9
+    // TODO: skip floating point if unused, some flag.
+    movq 0(%rsp), %xmm0
+    movq 8(%rsp), %xmm1
+    movq 16(%rsp), %xmm2
+    movq 24(%rsp), %xmm3
+    movq 32(%rsp), %xmm4
+    movq 40(%rsp), %xmm5
+    movq 48(%rsp), %xmm6
+    movq 56(%rsp), %xmm7
+    addq LITERAL(64), %rsp          // floating-point done
+    // native call
+    call *%rax                      // Q: is the stack aligned 16B with or without the return addr?
+    // result sign extension is handled in C code
+    // prepare for artQuickGenericJniEndTrampoline call
+    // (Thread*,  SP, result, result_f)
+    //   rdi      rsi   rdx   rcx       <= C calling convention
+    //  gs:...    rbp   rax   xmm0      <= where they are
+    movq %gs:THREAD_SELF_OFFSET, %rdi
+    movq %rbp, %rsi
+    movq %rax, %rdx
+    movq %xmm0, %rcx
+    call PLT_SYMBOL(artQuickGenericJniEndTrampoline)
+    // tear down the alloca already
+    movq %rbp, %rsp
+    CFI_DEF_CFA_REGISTER(rsp)
+    // Exceptions possible.
+    // TODO: use cmpq, needs direct encoding because of gas bug
+    movq %gs:THREAD_EXCEPTION_OFFSET, %rbx
+    test %rbx, %rbx
+    jnz 2f
+    // Tear down the callee-save frame
+    // Load FPRs.
+    // movq %xmm0, 16(%rsp)         // doesn't make sense!!!
+    movq 24(%rsp), %xmm1            // neither does this!!!
+    movq 32(%rsp), %xmm2
+    movq 40(%rsp), %xmm3
+    movq 48(%rsp), %xmm4
+    movq 56(%rsp), %xmm5
+    movq 64(%rsp), %xmm6
+    movq 72(%rsp), %xmm7
+    // was 80 bytes
+    addq LITERAL(80), %rsp
+    CFI_ADJUST_CFA_OFFSET(-80)
+    // Save callee and GPR args, mixed together to agree with core spills bitmap.
+    POP rcx  // Arg.
+    POP rdx  // Arg.
+    POP rbx  // Callee save.
+    POP rbp  // Callee save.
+    POP rsi  // Arg.
+    POP r8   // Arg.
+    POP r9   // Arg.
+    POP r12  // Callee save.
+    POP r13  // Callee save.
+    POP r14  // Callee save.
+    POP r15  // Callee save.
+    // store into fpr, for when it's a fpr return...
+    movq %rax, %xmm0
+    ret
+1:
+    // tear down the _whole_ scratch space, assumes SIRT is empty, cookie not valid etc.
+    movq %rbp, %rsp
+    CFI_DEF_CFA_REGISTER(rsp)
+2:  RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    DELIVER_PENDING_EXCEPTION
+END_FUNCTION art_quick_generic_jni_trampoline
 
     /*
      * Called to bridge from the quick to interpreter ABI. On entry the arguments match those

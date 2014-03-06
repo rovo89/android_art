@@ -320,8 +320,7 @@ class PACKED(4) Thread {
 
   ThrowLocation GetCurrentLocationForThrow() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetTopOfStack(void* stack, uintptr_t pc) {
-    mirror::ArtMethod** top_method = reinterpret_cast<mirror::ArtMethod**>(stack);
+  void SetTopOfStack(mirror::ArtMethod** top_method, uintptr_t pc) {
     managed_stack_.SetTopQuickFrame(top_method);
     managed_stack_.SetTopQuickFramePc(pc);
   }
