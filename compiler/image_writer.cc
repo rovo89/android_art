@@ -816,12 +816,14 @@ void ImageWriter::PatchOatCodeAndMethods() {
       uintptr_t value = quick_code - patch_location + patch->RelativeOffset();
       SetPatchLocation(patch, value);
     } else {
-      // generic JNI, not interpreter bridge from GetQuickOatCodeFor().
-      if (target->IsNative() &&
-          quick_code == reinterpret_cast<uintptr_t>(GetQuickToInterpreterBridge())) {
-        code_offset = quick_generic_jni_trampoline_offset_;
+      if (quick_code == reinterpret_cast<uintptr_t>(GetQuickToInterpreterBridge())) {
+        if (target->IsNative()) {
+          // generic JNI, not interpreter bridge from GetQuickOatCodeFor().
+          code_offset = quick_generic_jni_trampoline_offset_;
+        } else {
+          code_offset = quick_to_interpreter_bridge_offset_;
+        }
       }
-
       SetPatchLocation(patch, PointerToLowMemUInt32(GetOatAddress(code_offset)));
     }
   }
