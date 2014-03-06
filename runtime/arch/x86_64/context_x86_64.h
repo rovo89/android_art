@@ -59,9 +59,9 @@ class X86_64Context : public Context {
   virtual void DoLongJump();
 
  private:
-  // Pointers to register locations, floating point registers are all caller save. Values are
-  // initialized to NULL or the special registers below.
+  // Pointers to register locations. Values are initialized to NULL or the special registers below.
   uintptr_t* gprs_[kNumberOfCpuRegisters];
+  uint64_t* fprs_[kNumberOfFloatRegisters];
   // Hold values for rsp and rip if they are not located within a stack frame. RIP is somewhat
   // special in that it cannot be encoded normally as a register operand to an instruction (except
   // in 64bit addressing modes).

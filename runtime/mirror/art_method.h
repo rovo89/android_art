@@ -360,7 +360,7 @@ class MANAGED ArtMethod : public Object {
   }
 
   const void* GetNativeMethod() {
-    return reinterpret_cast<const void*>(GetField32(NativeMethodOffset(), false));
+    return GetFieldPtr<const void*>(NativeMethodOffset(), false);
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>

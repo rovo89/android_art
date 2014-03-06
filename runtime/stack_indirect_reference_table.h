@@ -33,15 +33,22 @@ class Thread;
 class StackIndirectReferenceTable {
  public:
   explicit StackIndirectReferenceTable(mirror::Object* object) :
-      number_of_references_(1), link_(NULL) {
+      link_(NULL), number_of_references_(1) {
     references_[0].Assign(object);
   }
 
   ~StackIndirectReferenceTable() {}
 
   // Number of references contained within this SIRT
-  size_t NumberOfReferences() const {
+  uint32_t NumberOfReferences() const {
     return number_of_references_;
+  }
+
+  // Returns the size of a StackIndirectReferenceTable containing num_references sirts.
+  static size_t SizeOf(uint32_t num_references) {
+    size_t header_size = OFFSETOF_MEMBER(StackIndirectReferenceTable, references_);
+    size_t data_size = sizeof(StackReference<mirror::Object>) * num_references;
+    return header_size + data_size;
   }
 
   // Link to previous SIRT or NULL
@@ -52,6 +59,12 @@ class StackIndirectReferenceTable {
   void SetLink(StackIndirectReferenceTable* sirt) {
     DCHECK_NE(this, sirt);
     link_ = sirt;
+  }
+
+  // Sets the number_of_references_ field for constructing tables out of raw memory. Warning: will
+  // not resize anything.
+  void SetNumberOfReferences(uint32_t num_references) {
+    number_of_references_ = num_references;
   }
 
   mirror::Object* GetReference(size_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -74,7 +87,7 @@ class StackIndirectReferenceTable {
   }
 
   // Offset of length within SIRT, used by generated code
-  static size_t NumberOfReferencesOffset() {
+  static uint32_t NumberOfReferencesOffset() {
     return OFFSETOF_MEMBER(StackIndirectReferenceTable, number_of_references_);
   }
 
@@ -86,8 +99,8 @@ class StackIndirectReferenceTable {
  private:
   StackIndirectReferenceTable() {}
 
-  size_t number_of_references_;
   StackIndirectReferenceTable* link_;
+  uint32_t number_of_references_;
 
   // number_of_references_ are available if this is allocated and filled in by jni_compiler.
   StackReference<mirror::Object> references_[1];

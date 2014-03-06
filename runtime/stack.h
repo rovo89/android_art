@@ -532,7 +532,7 @@ class StackVisitor {
     DCHECK(GetMethod() != nullptr);
     byte* save_addr =
         reinterpret_cast<byte*>(cur_quick_frame_) + frame_size - ((num + 1) * kPointerSize);
-#if defined(__i386__)
+#if defined(__i386__) || defined(__x86_64__)
     save_addr -= kPointerSize;  // account for return address
 #endif
     return reinterpret_cast<uintptr_t*>(save_addr);

@@ -106,7 +106,7 @@ size_t JniCallingConvention::ReferenceCount() const {
 }
 
 FrameOffset JniCallingConvention::SavedLocalReferenceCookieOffset() const {
-  size_t start_of_sirt = SirtLinkOffset().Int32Value() +  kPointerSize;
+  size_t start_of_sirt = SirtNumRefsOffset().Int32Value() +  kPointerSize;
   size_t references_size = kPointerSize * ReferenceCount();  // size excluding header
   return FrameOffset(start_of_sirt + references_size);
 }
@@ -158,11 +158,11 @@ bool JniCallingConvention::IsCurrentParamAReference() {
 // position
 FrameOffset JniCallingConvention::CurrentParamSirtEntryOffset() {
   CHECK(IsCurrentParamAReference());
-  CHECK_GT(SirtLinkOffset(), SirtNumRefsOffset());
+  CHECK_LT(SirtLinkOffset(), SirtNumRefsOffset());
   // Address of 1st SIRT entry
-  int result = SirtLinkOffset().Int32Value() + kPointerSize;
+  int result = SirtNumRefsOffset().Int32Value() + kPointerSize;
   result += itr_refs_ * kPointerSize;
-  CHECK_GT(result, SirtLinkOffset().Int32Value());
+  CHECK_GT(result, SirtNumRefsOffset().Int32Value());
   return FrameOffset(result);
 }
 
