@@ -111,7 +111,8 @@ Assembler* Assembler::Create(InstructionSet instruction_set) {
       return new arm64::Arm64Assembler();
     case kMips:
       return new mips::MipsAssembler();
-    case kX86:
+    case kX86:  // Fall-through.
+    case kX86_64:
       return new x86::X86Assembler();
     default:
       LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;

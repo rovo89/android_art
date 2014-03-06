@@ -1210,6 +1210,13 @@ X86Assembler* X86Assembler::fs() {
   return this;
 }
 
+X86Assembler* X86Assembler::gs() {
+  // TODO: fs is a prefix and not an instruction
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x65);
+  return this;
+}
+
 void X86Assembler::AddImmediate(Register reg, const Immediate& imm) {
   int value = imm.value();
   if (value > 0) {
