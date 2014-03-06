@@ -65,6 +65,7 @@ enum FloatRegister {
   XMM13 = 13,
   XMM14 = 14,
   XMM15 = 15,
+  kNumberOfFloatRegisters = 16
 };
 std::ostream& operator<<(std::ostream& os, const FloatRegister& rhs);
 

@@ -19,4 +19,50 @@
     /*
      * Jni dlsym lookup stub.
      */
-UNIMPLEMENTED art_jni_dlsym_lookup_stub
+DEFINE_FUNCTION art_jni_dlsym_lookup_stub
+    // Save callee and GPR args, mixed together to agree with core spills bitmap.
+    PUSH r9   // Arg.
+    PUSH r8   // Arg.
+    PUSH rdi  //
+    PUSH rsi  // Arg.
+    PUSH rdx  // Arg.
+    PUSH rcx  // Arg.
+    // Create space for FPR args, plus padding for alignment
+    subq LITERAL(72), %rsp
+    CFI_ADJUST_CFA_OFFSET(72)
+    // Save FPRs.
+    movq %xmm0, 0(%rsp)
+    movq %xmm1, 8(%rsp)
+    movq %xmm2, 16(%rsp)
+    movq %xmm3, 24(%rsp)
+    movq %xmm4, 32(%rsp)
+    movq %xmm5, 40(%rsp)
+    movq %xmm6, 48(%rsp)
+    movq %xmm7, 56(%rsp)
+    // prepare call
+    movq %gs:THREAD_SELF_OFFSET, %rsi      // RSI := Thread::Current()
+    // call
+    call PLT_SYMBOL(artFindNativeMethod)  // (Thread*)
+    // restore arguments
+    movq 0(%rsp), %xmm0
+    movq 8(%rsp), %xmm1
+    movq 16(%rsp), %xmm2
+    movq 24(%rsp), %xmm3
+    movq 32(%rsp), %xmm4
+    movq 40(%rsp), %xmm5
+    movq 48(%rsp), %xmm6
+    movq 56(%rsp), %xmm7
+    addq LITERAL(72), %rsp
+    CFI_ADJUST_CFA_OFFSET(-72)
+    POP rcx  // Arg.
+    POP rdx  // Arg.
+    POP rsi  // Arg.
+    POP rdi  //
+    POP r8   // Arg.
+    POP r9   // Arg.
+    testq %rax, %rax         // check if returned method code is null
+    jz .Lno_native_code_found     // if null, jump to return to handle
+    jmp *%rax                     // otherwise, tail call to intended method
+.Lno_native_code_found:
+    ret
+END_FUNCTION art_jni_dlsym_lookup_stub
