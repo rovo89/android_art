@@ -46,6 +46,7 @@ enum LockLevel {
   kMarkSweepMarkStackLock,
   kTransactionLogLock,
   kInternTableLock,
+  kMonitorPoolLock,
   kDefaultMutexLevel,
   kMarkSweepLargeObjectLock,
   kPinTableLock,
