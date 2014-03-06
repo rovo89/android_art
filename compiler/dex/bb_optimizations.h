@@ -28,14 +28,14 @@ namespace art {
  */
 class CodeLayout : public Pass {
  public:
-  CodeLayout():Pass("CodeLayout", "2_post_layout_cfg") {
+  CodeLayout() : Pass("CodeLayout", "2_post_layout_cfg") {
   }
 
-  void Start(CompilationUnit *cUnit) const {
+  void Start(CompilationUnit* cUnit) const {
     cUnit->mir_graph->VerifyDataflow();
   }
 
-  bool WalkBasicBlocks(CompilationUnit *cUnit, BasicBlock *bb) const;
+  bool WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const;
 };
 
 /**
@@ -44,16 +44,16 @@ class CodeLayout : public Pass {
  */
 class SSATransformation : public Pass {
  public:
-  SSATransformation():Pass("SSATransformation", kPreOrderDFSTraversal, "3_post_ssa_cfg") {
+  SSATransformation() : Pass("SSATransformation", kPreOrderDFSTraversal, "3_post_ssa_cfg") {
   }
 
-  bool WalkBasicBlocks(CompilationUnit *cUnit, BasicBlock *bb) const;
+  bool WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const;
 
-  void Start(CompilationUnit *cUnit) const {
+  void Start(CompilationUnit* cUnit) const {
     cUnit->mir_graph->InitializeSSATransformation();
   }
 
-  void End(CompilationUnit *cUnit) const;
+  void End(CompilationUnit* cUnit) const;
 };
 
 /**
@@ -62,12 +62,12 @@ class SSATransformation : public Pass {
  */
 class ConstantPropagation : public Pass {
  public:
-  ConstantPropagation():Pass("ConstantPropagation") {
+  ConstantPropagation() : Pass("ConstantPropagation") {
   }
 
-  bool WalkBasicBlocks(CompilationUnit *cUnit, BasicBlock *bb) const;
+  bool WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const;
 
-  void Start(CompilationUnit *cUnit) const {
+  void Start(CompilationUnit* cUnit) const {
     cUnit->mir_graph->InitializeConstantPropagation();
   }
 };
@@ -78,10 +78,10 @@ class ConstantPropagation : public Pass {
  */
 class InitRegLocations : public Pass {
  public:
-  InitRegLocations():Pass("InitRegLocation") {
+  InitRegLocations() : Pass("InitRegLocation", kNoNodes) {
   }
 
-  void Start(CompilationUnit *cUnit) const {
+  void Start(CompilationUnit* cUnit) const {
     cUnit->mir_graph->InitRegLocations();
   }
 };
@@ -92,12 +92,12 @@ class InitRegLocations : public Pass {
  */
 class MethodUseCount : public Pass {
  public:
-  MethodUseCount():Pass("UseCount") {
+  MethodUseCount() : Pass("UseCount") {
   }
 
-  bool WalkBasicBlocks(CompilationUnit *cUnit, BasicBlock *bb) const;
+  bool WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const;
 
-  bool Gate(const CompilationUnit *cUnit) const;
+  bool Gate(const CompilationUnit* cUnit) const;
 };
 
 /**
@@ -106,12 +106,12 @@ class MethodUseCount : public Pass {
  */
 class NullCheckEliminationAndTypeInferenceInit : public Pass {
  public:
-  NullCheckEliminationAndTypeInferenceInit():Pass("NCE_TypeInferenceInit") {
+  NullCheckEliminationAndTypeInferenceInit() : Pass("NCE_TypeInferenceInit") {
   }
 
-  bool WalkBasicBlocks(CompilationUnit *cUnit, BasicBlock *bb) const;
+  bool WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const;
 
-  bool Gate(const CompilationUnit *cUnit) const;
+  bool Gate(const CompilationUnit* cUnit) const;
 };
 
 /**
@@ -120,10 +120,11 @@ class NullCheckEliminationAndTypeInferenceInit : public Pass {
  */
 class NullCheckEliminationAndTypeInference : public Pass {
  public:
-  NullCheckEliminationAndTypeInference():Pass("NCE_TypeInference", kRepeatingPreOrderDFSTraversal, "4_post_nce_cfg") {
+  NullCheckEliminationAndTypeInference()
+    : Pass("NCE_TypeInference", kRepeatingPreOrderDFSTraversal, "4_post_nce_cfg") {
   }
 
-  bool WalkBasicBlocks(CompilationUnit *cUnit, BasicBlock *bb) const {
+  bool WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const {
     return cUnit->mir_graph->EliminateNullChecksAndInferTypes(bb);
   }
 };
@@ -134,14 +135,14 @@ class NullCheckEliminationAndTypeInference : public Pass {
  */
 class BBCombine : public Pass {
  public:
-  BBCombine():Pass("BBCombine", kPreOrderDFSTraversal, "5_post_bbcombine_cfg") {
+  BBCombine() : Pass("BBCombine", kPreOrderDFSTraversal, "5_post_bbcombine_cfg") {
   }
 
-  bool Gate(const CompilationUnit *cUnit) const {
+  bool Gate(const CompilationUnit* cUnit) const {
     return ((cUnit->disable_opt & (1 << kSuppressExceptionEdges)) != 0);
   }
 
-  bool WalkBasicBlocks(CompilationUnit *cUnit, BasicBlock *bb) const;
+  bool WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const;
 };
 
 /**
@@ -150,14 +151,14 @@ class BBCombine : public Pass {
  */
 class BBOptimizations : public Pass {
  public:
-  BBOptimizations():Pass("BBOptimizations", "5_post_bbo_cfg") {
+  BBOptimizations() : Pass("BBOptimizations", kNoNodes, "5_post_bbo_cfg") {
   }
 
-  bool Gate(const CompilationUnit *cUnit) const {
+  bool Gate(const CompilationUnit* cUnit) const {
     return ((cUnit->disable_opt & (1 << kBBOpt)) == 0);
   }
 
-  void Start(CompilationUnit *cUnit) const;
+  void Start(CompilationUnit* cUnit) const;
 };
 
 }  // namespace art

@@ -107,7 +107,7 @@ inline BasicBlock* AllNodesIterator::Next(bool had_change) {
   // Find the next BasicBlock.
   while (keep_looking == true) {
     // Get next BasicBlock.
-    res = all_nodes_iterator_->Next();
+    res = all_nodes_iterator_.Next();
 
     // Are we done or is the BasicBlock not hidden?
     if ((res == NULL) || (res->hidden == false)) {
