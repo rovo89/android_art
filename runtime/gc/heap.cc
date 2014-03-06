@@ -152,7 +152,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       total_allocation_time_(0),
       verify_object_mode_(kVerifyObjectModeDisabled),
       disable_moving_gc_count_(0),
-      running_on_valgrind_(RUNNING_ON_VALGRIND),
+      running_on_valgrind_(RUNNING_ON_VALGRIND > 0),
       use_tlab_(use_tlab) {
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() entering";

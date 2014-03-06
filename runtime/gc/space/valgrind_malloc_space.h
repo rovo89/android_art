@@ -43,6 +43,9 @@ class ValgrindMallocSpace FINAL : public BaseMallocSpaceType {
   size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void RegisterRecentFree(mirror::Object* ptr) OVERRIDE {
+  }
+
   ValgrindMallocSpace(const std::string& name, MemMap* mem_map, AllocatorType allocator,
                       byte* begin, byte* end, byte* limit, size_t growth_limit,
                       size_t initial_size);

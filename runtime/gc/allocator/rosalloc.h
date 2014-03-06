@@ -515,6 +515,7 @@ class RosAlloc {
   RosAlloc(void* base, size_t capacity, size_t max_capacity,
            PageReleaseMode page_release_mode,
            size_t page_release_size_threshold = kDefaultPageReleaseSizeThreshold);
+  ~RosAlloc();
   void* Alloc(Thread* self, size_t size, size_t* bytes_allocated)
       LOCKS_EXCLUDED(lock_);
   void Free(Thread* self, void* ptr)

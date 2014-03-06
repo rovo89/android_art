@@ -139,7 +139,7 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
   virtual void* CreateAllocator(void* base, size_t morecore_start, size_t initial_size,
                                 size_t maximum_size, bool low_memory_mode) = 0;
 
-  void RegisterRecentFree(mirror::Object* ptr)
+  virtual void RegisterRecentFree(mirror::Object* ptr)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
 

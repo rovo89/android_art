@@ -93,6 +93,12 @@ RosAlloc::RosAlloc(void* base, size_t capacity, size_t max_capacity,
   }
 }
 
+RosAlloc::~RosAlloc() {
+  for (size_t i = 0; i < kNumOfSizeBrackets; i++) {
+    delete size_bracket_locks_[i];
+  }
+}
+
 void* RosAlloc::AllocPages(Thread* self, size_t num_pages, byte page_map_type) {
   lock_.AssertHeld(self);
   DCHECK(page_map_type == kPageMapRun || page_map_type == kPageMapLargeObject);

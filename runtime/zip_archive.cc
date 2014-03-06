@@ -38,6 +38,9 @@ uint32_t ZipEntry::GetCrc32() {
   return zip_entry_->crc32;
 }
 
+ZipEntry::~ZipEntry() {
+  delete zip_entry_;
+}
 
 bool ZipEntry::ExtractToFile(File& file, std::string* error_msg) {
   const int32_t error = ExtractEntryToFile(handle_, zip_entry_, file.Fd());
