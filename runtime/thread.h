@@ -24,13 +24,13 @@
 #include <string>
 
 #include "base/macros.h"
+#include "base/mutex.h"
 #include "entrypoints/interpreter/interpreter_entrypoints.h"
 #include "entrypoints/jni/jni_entrypoints.h"
 #include "entrypoints/portable/portable_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "globals.h"
 #include "jvalue.h"
-#include "locks.h"
 #include "object_callbacks.h"
 #include "offsets.h"
 #include "runtime_stats.h"

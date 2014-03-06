@@ -84,7 +84,6 @@ LIBART_COMMON_SRC_FILES := \
 	jdwp/object_registry.cc \
 	jni_internal.cc \
 	jobject_comparator.cc \
-	locks.cc \
 	mem_map.cc \
 	memory_region.cc \
 	mirror/art_field.cc \
@@ -289,7 +288,6 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
 	invoke_type.h \
 	jdwp/jdwp.h \
 	jdwp/jdwp_constants.h \
-	locks.h \
 	lock_word.h \
 	mirror/class.h \
 	oat.h \
@@ -425,14 +423,8 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   endif
 endef
 
-ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
-  $(eval $(call build-libart,target,ndebug,$(ART_TARGET_CLANG)))
-endif
-ifeq ($(ART_BUILD_TARGET_DEBUG),true)
-  $(eval $(call build-libart,target,debug,$(ART_TARGET_CLANG)))
-endif
-
-# We always build dex2oat and dependencies, even if the host build is otherwise disabled, since they are used to cross compile for the target.
+# We always build dex2oat and dependencies, even if the host build is otherwise disabled, since
+# they are used to cross compile for the target.
 ifeq ($(WITH_HOST_DALVIK),true)
   ifeq ($(ART_BUILD_NDEBUG),true)
     $(eval $(call build-libart,host,ndebug,$(ART_HOST_CLANG)))
@@ -440,4 +432,11 @@ ifeq ($(WITH_HOST_DALVIK),true)
   ifeq ($(ART_BUILD_DEBUG),true)
     $(eval $(call build-libart,host,debug,$(ART_HOST_CLANG)))
   endif
+endif
+
+ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
+  $(eval $(call build-libart,target,ndebug,$(ART_TARGET_CLANG)))
+endif
+ifeq ($(ART_BUILD_TARGET_DEBUG),true)
+  $(eval $(call build-libart,target,debug,$(ART_TARGET_CLANG)))
 endif

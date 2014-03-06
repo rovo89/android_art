@@ -146,9 +146,10 @@ inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
     if (UNLIKELY(!done)) {
       // Failed to transition to Runnable. Release shared mutator_lock_ access and try again.
       Locks::mutator_lock_->SharedUnlock(this);
+    } else {
+      return static_cast<ThreadState>(old_state);
     }
-  } while (UNLIKELY(!done));
-  return static_cast<ThreadState>(old_state);
+  } while (true);
 }
 
 inline void Thread::VerifyStack() {

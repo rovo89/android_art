@@ -146,9 +146,6 @@ class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
   byte* AllocBlock(size_t bytes) EXCLUSIVE_LOCKS_REQUIRED(block_lock_);
   void RevokeThreadLocalBuffersLocked(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(block_lock_);
 
-  mirror::Object* AllocWithoutGrowthLocked(size_t num_bytes, size_t* bytes_allocated)
-      EXCLUSIVE_LOCKS_REQUIRED(lock_);
-
   // The main block is an unbounded block where objects go when there are no other blocks. This
   // enables us to maintain tightly packed objects when you are not using thread local buffers for
   // allocation. The main block starts at the space Begin().

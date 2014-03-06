@@ -19,7 +19,6 @@
 
 #include "base/logging.h"
 #include "gc_allocator.h"
-#include "locks.h"
 #include "object_callbacks.h"
 #include "space_bitmap.h"
 
