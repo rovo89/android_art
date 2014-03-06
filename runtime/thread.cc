@@ -1196,7 +1196,7 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
   // The "kinds" below are sorted by the frequency we expect to encounter them.
   if (kind == kLocal) {
     IndirectReferenceTable& locals = jni_env_->locals;
-    result = const_cast<mirror::Object*>(locals.Get(ref));
+    result = locals.Get(ref);
   } else if (kind == kSirtOrInvalid) {
     // TODO: make stack indirect reference table lookup more efficient.
     // Check if this is a local reference in the SIRT.

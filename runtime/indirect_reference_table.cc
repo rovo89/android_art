@@ -21,6 +21,7 @@
 #include "scoped_thread_state_change.h"
 #include "thread.h"
 #include "utils.h"
+#include "verify_object-inl.h"
 
 #include <cstdlib>
 
@@ -81,8 +82,7 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, mirror::Object* obj) {
   size_t topIndex = segment_state_.parts.topIndex;
 
   CHECK(obj != NULL);
-  // TODO: stronger sanity check on the object (such as in heap)
-  DCHECK_ALIGNED(reinterpret_cast<uintptr_t>(obj), 8);
+  VerifyObject(obj);
   DCHECK(table_ != NULL);
   DCHECK_LE(alloc_entries_, max_entries_);
   DCHECK_GE(segment_state_.parts.numHoles, prevState.parts.numHoles);

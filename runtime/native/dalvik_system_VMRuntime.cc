@@ -177,6 +177,8 @@ static void VMRuntime_setTargetSdkVersionNative(JNIEnv* env, jobject, jint targe
           << targetSdkVersion << "...";
 
       vm->work_around_app_jni_bugs = true;
+      LOG(WARNING) << "Permenantly disabling heap compaction due to jni workarounds";
+      Runtime::Current()->GetHeap()->DisableCompaction();
     }
   }
 }
