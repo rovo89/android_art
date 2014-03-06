@@ -147,7 +147,13 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
 
   compiler_callbacks_ = nullptr;
   is_zygote_ = false;
-  interpreter_only_ = false;
+  if (kPoisonHeapReferences) {
+    // kPoisonHeapReferences currently works only with the interpreter only.
+    // TODO: make it work with the compiler.
+    interpreter_only_ = true;
+  } else {
+    interpreter_only_ = false;
+  }
   is_explicit_gc_disabled_ = false;
 
   long_pause_log_threshold_ = gc::Heap::kDefaultLongPauseLogThreshold;
