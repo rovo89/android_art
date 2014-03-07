@@ -90,6 +90,8 @@ class ArenaAllocatorStatsImpl {
   size_t num_allocations_;
   // TODO: Use std::array<size_t, kNumArenaAllocKinds> from C++11 when we upgrade the STL.
   size_t alloc_stats_[kNumArenaAllocKinds];  // Bytes used by various allocation kinds.
+
+  static const char* kAllocNames[kNumArenaAllocKinds];
 };
 
 typedef ArenaAllocatorStatsImpl<kArenaAllocatorCountAllocations> ArenaAllocatorStats;
