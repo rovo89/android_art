@@ -206,6 +206,10 @@ bool MarkSweep::HandleDirtyObjectsPhase() {
     // This second sweep makes sure that we don't have any objects in the live stack which point to
     // freed objects. These cause problems since their references may be previously freed objects.
     SweepArray(GetHeap()->allocation_stack_.get(), false);
+    // Since SweepArray() above resets the (active) allocation
+    // stack. Need to revoke the thread-local allocation stacks that
+    // point into it.
+    GetHeap()->RevokeAllThreadLocalAllocationStacks(self);
   }
 
   timings_.StartSplit("PreSweepingGcVerification");
@@ -241,12 +245,15 @@ void MarkSweep::MarkingPhase() {
   // Need to do this before the checkpoint since we don't want any threads to add references to
   // the live stack during the recursive mark.
   timings_.NewSplit("SwapStacks");
-  heap_->SwapStacks();
+  heap_->SwapStacks(self);
 
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   if (Locks::mutator_lock_->IsExclusiveHeld(self)) {
     // If we exclusively hold the mutator lock, all threads must be suspended.
     MarkRoots();
+    if (kUseThreadLocalAllocationStack) {
+      heap_->RevokeAllThreadLocalAllocationStacks(self);
+    }
   } else {
     MarkThreadRoots(self);
     // At this point the live stack should no longer have any mutators which push into it.
@@ -995,6 +1002,9 @@ class CheckpointMarkThreadRoots : public Closure {
         << thread->GetState() << " thread " << thread << " self " << self;
     thread->VisitRoots(MarkSweep::MarkRootParallelCallback, mark_sweep_);
     ATRACE_END();
+    if (kUseThreadLocalAllocationStack) {
+      thread->RevokeThreadLocalAllocationStack();
+    }
     mark_sweep_->GetBarrier().Pass(self);
   }
 
@@ -1062,6 +1072,9 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
     Object** out = objects;
     for (size_t i = 0; i < count; ++i) {
       Object* obj = objects[i];
+      if (kUseThreadLocalAllocationStack && obj == nullptr) {
+        continue;
+      }
       if (space->HasAddress(obj)) {
         // This object is in the space, remove it from the array and add it to the sweep buffer
         // if needed.
@@ -1100,6 +1113,9 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
   for (size_t i = 0; i < count; ++i) {
     Object* obj = objects[i];
     // Handle large objects.
+    if (kUseThreadLocalAllocationStack && obj == nullptr) {
+      continue;
+    }
     if (!large_mark_objects->Test(obj)) {
       ++freed_large_objects;
       freed_large_object_bytes += large_object_space->Free(self, obj);
