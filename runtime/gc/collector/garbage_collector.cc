@@ -151,10 +151,11 @@ void GarbageCollector::SwapBitmaps() {
          space->GetGcRetentionPolicy() == space::kGcRetentionPolicyFullCollect)) {
       accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
       accounting::SpaceBitmap* mark_bitmap = space->GetMarkBitmap();
-      if (live_bitmap != mark_bitmap) {
+      if (live_bitmap != nullptr && live_bitmap != mark_bitmap) {
         heap_->GetLiveBitmap()->ReplaceBitmap(live_bitmap, mark_bitmap);
         heap_->GetMarkBitmap()->ReplaceBitmap(mark_bitmap, live_bitmap);
-        space->AsMallocSpace()->SwapBitmaps();
+        CHECK(space->IsContinuousMemMapAllocSpace());
+        space->AsContinuousMemMapAllocSpace()->SwapBitmaps();
       }
     }
   }
