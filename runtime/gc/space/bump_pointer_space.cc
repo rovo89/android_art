@@ -44,9 +44,8 @@ BumpPointerSpace::BumpPointerSpace(const std::string& name, byte* begin, byte* l
       growth_end_(limit),
       objects_allocated_(0), bytes_allocated_(0),
       block_lock_("Block lock"),
+      main_block_size_(0),
       num_blocks_(0) {
-  CHECK_GE(Capacity(), sizeof(BlockHeader));
-  end_ += sizeof(BlockHeader);
 }
 
 BumpPointerSpace::BumpPointerSpace(const std::string& name, MemMap* mem_map)
@@ -55,9 +54,8 @@ BumpPointerSpace::BumpPointerSpace(const std::string& name, MemMap* mem_map)
       growth_end_(mem_map->End()),
       objects_allocated_(0), bytes_allocated_(0),
       block_lock_("Block lock"),
+      main_block_size_(0),
       num_blocks_(0) {
-  CHECK_GE(Capacity(), sizeof(BlockHeader));
-  end_ += sizeof(BlockHeader);
 }
 
 mirror::Object* BumpPointerSpace::Alloc(Thread*, size_t num_bytes, size_t* bytes_allocated) {
@@ -78,13 +76,14 @@ void BumpPointerSpace::Clear() {
   CHECK_NE(madvise(Begin(), Limit() - Begin(), MADV_DONTNEED), -1) << "madvise failed";
   // Reset the end of the space back to the beginning, we move the end forward as we allocate
   // objects.
-  SetEnd(Begin() + sizeof(BlockHeader));
+  SetEnd(Begin());
   objects_allocated_ = 0;
   bytes_allocated_ = 0;
   growth_end_ = Limit();
   {
     MutexLock mu(Thread::Current(), block_lock_);
     num_blocks_ = 0;
+    main_block_size_ = 0;
   }
 }
 
@@ -115,9 +114,8 @@ void BumpPointerSpace::RevokeAllThreadLocalBuffers() {
 }
 
 void BumpPointerSpace::UpdateMainBlock() {
-  BlockHeader* header = reinterpret_cast<BlockHeader*>(Begin());
-  header->size_ = Size() - sizeof(BlockHeader);
   DCHECK_EQ(num_blocks_, 0U);
+  main_block_size_ = Size();
 }
 
 // Returns the start of the storage.
@@ -139,7 +137,7 @@ byte* BumpPointerSpace::AllocBlock(size_t bytes) {
 
 void BumpPointerSpace::Walk(ObjectCallback* callback, void* arg) {
   byte* pos = Begin();
-
+  byte* main_end = pos;
   {
     MutexLock mu(Thread::Current(), block_lock_);
     // If we have 0 blocks then we need to update the main header since we have bump pointer style
@@ -147,8 +145,15 @@ void BumpPointerSpace::Walk(ObjectCallback* callback, void* arg) {
     if (num_blocks_ == 0) {
       UpdateMainBlock();
     }
+    main_end += main_block_size_;
   }
-
+  // Walk all of the objects in the main block first.
+  while (pos < main_end) {
+    mirror::Object* obj = reinterpret_cast<mirror::Object*>(pos);
+    callback(obj, arg);
+    pos = reinterpret_cast<byte*>(GetNextObject(obj));
+  }
+  // Walk the other blocks (currently only TLABs).
   while (pos < End()) {
     BlockHeader* header = reinterpret_cast<BlockHeader*>(pos);
     size_t block_size = header->size_;
@@ -167,7 +172,7 @@ void BumpPointerSpace::Walk(ObjectCallback* callback, void* arg) {
 }
 
 bool BumpPointerSpace::IsEmpty() const {
-  return Size() == sizeof(BlockHeader);
+  return Begin() == End();
 }
 
 uint64_t BumpPointerSpace::GetBytesAllocated() {

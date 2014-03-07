@@ -139,15 +139,16 @@ class BumpPointerSpace : public ContinuousMemMapAllocSpace {
 
   // The main block is an unbounded block where objects go when there are no other blocks. This
   // enables us to maintain tightly packed objects when you are not using thread local buffers for
-  // allocation.
-  // The main block is also the block which starts at address 0.
+  // allocation. The main block starts at the space Begin().
   void UpdateMainBlock() EXCLUSIVE_LOCKS_REQUIRED(block_lock_);
 
   byte* growth_end_;
   AtomicInteger objects_allocated_;  // Accumulated from revoked thread local regions.
   AtomicInteger bytes_allocated_;  // Accumulated from revoked thread local regions.
   Mutex block_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-
+  // The objects at the start of the space are stored in the main block. The main block doesn't
+  // have a header, this lets us walk empty spaces which are mprotected.
+  size_t main_block_size_ GUARDED_BY(block_lock_);
   // The number of blocks in the space, if it is 0 then the space has one long continuous block
   // which doesn't have an updated header.
   size_t num_blocks_ GUARDED_BY(block_lock_);
