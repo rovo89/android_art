@@ -100,7 +100,7 @@ class MirFieldInfo {
 class MirIFieldLoweringInfo : public MirFieldInfo {
  public:
   // For each requested instance field retrieve the field's declaring location (dex file, class
-  // index and field index) and volatility and compute the whether we can fast path the access
+  // index and field index) and volatility and compute whether we can fast path the access
   // with IGET/IPUT. For fast path fields, retrieve the field offset.
   static void Resolve(CompilerDriver* compiler_driver, const DexCompilationUnit* mUnit,
                       MirIFieldLoweringInfo* field_infos, size_t count)
@@ -143,7 +143,7 @@ class MirIFieldLoweringInfo : public MirFieldInfo {
 class MirSFieldLoweringInfo : public MirFieldInfo {
  public:
   // For each requested static field retrieve the field's declaring location (dex file, class
-  // index and field index) and volatility and compute the whether we can fast path the access with
+  // index and field index) and volatility and compute whether we can fast path the access with
   // IGET/IPUT. For fast path fields (at least for IGET), retrieve the information needed for
   // the field access, i.e. the field offset, whether the field is in the same class as the
   // method being compiled, whether the declaring class can be safely assumed to be initialized
