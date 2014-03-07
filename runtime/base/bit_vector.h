@@ -46,7 +46,9 @@ class BitVector {
           DCHECK_EQ(bit_size_, p_bits_->GetStorageSize() * sizeof(uint32_t) * 8);
           DCHECK_EQ(bit_storage_, p_bits_->GetRawStorage());
 
-          if (UNLIKELY(bit_index_ >= bit_size_)) return -1;
+          if (UNLIKELY(bit_index_ >= bit_size_)) {
+            return -1;
+          }
 
           uint32_t word_index = bit_index_ / 32;
           uint32_t word = bit_storage_[word_index];
@@ -89,7 +91,7 @@ class BitVector {
               bool expandable,
               Allocator* allocator,
               uint32_t storage_size = 0,
-              uint32_t* storage = NULL);
+              uint32_t* storage = nullptr);
 
     virtual ~BitVector();
 
@@ -98,17 +100,24 @@ class BitVector {
     bool IsBitSet(uint32_t num) const;
     void ClearAllBits();
     void SetInitialBits(uint32_t num_bits);
-    void Copy(BitVector* src) {
-      memcpy(storage_, src->GetRawStorage(), sizeof(uint32_t) * storage_size_);
-    }
+
+    void Copy(const BitVector* src);
     void Intersect(const BitVector* src2);
     void Union(const BitVector* src);
+    void Subtract(const BitVector* src);
     // Are we equal to another bit vector?  Note: expandability attributes must also match.
     bool Equal(const BitVector* src) {
       return (storage_size_ == src->GetStorageSize()) &&
         (expandable_ == src->IsExpandable()) &&
         (memcmp(storage_, src->GetRawStorage(), storage_size_ * sizeof(uint32_t)) == 0);
     }
+
+    /**
+     * @brief Are all the bits set the same?
+     * @details expandability and size can differ as long as the same bits are set.
+     */
+    bool SameBitsSet(const BitVector *src);
+
     uint32_t NumSetBits() const;
     uint32_t NumSetBits(uint32_t num) const;
 
@@ -120,6 +129,11 @@ class BitVector {
     uint32_t* GetRawStorage() { return storage_; }
     const uint32_t* GetRawStorage() const { return storage_; }
     size_t GetSizeOf() const { return storage_size_ * sizeof(uint32_t); }
+
+    /**
+     * @return the highest bit set, -1 if none are set
+     */
+    int GetHighestBitSet() const;
 
   private:
     Allocator* const allocator_;
