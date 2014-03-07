@@ -46,7 +46,8 @@ extern "C" void* artFindNativeMethod() {
   }
 }
 
-static void WorkAroundJniBugsForJobject(intptr_t* arg_ptr) {
+static void WorkAroundJniBugsForJobject(intptr_t* arg_ptr)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   intptr_t value = *arg_ptr;
   mirror::Object** value_as_jni_rep = reinterpret_cast<mirror::Object**>(value);
   mirror::Object* value_as_work_around_rep = value_as_jni_rep != NULL ? *value_as_jni_rep : NULL;

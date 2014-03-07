@@ -226,10 +226,16 @@ class Heap {
   // A weaker test than IsLiveObject or VerifyObject that doesn't require the heap lock,
   // and doesn't abort on error, allowing the caller to report more
   // meaningful diagnostics.
-  bool IsValidObjectAddress(const mirror::Object* obj) const;
+  bool IsValidObjectAddress(const mirror::Object* obj) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns true if the address passed in is a heap address, doesn't need to be aligned.
-  bool IsHeapAddress(const mirror::Object* obj) const;
+  bool IsHeapAddress(const mirror::Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Faster alternative to IsHeapAddress since finding if an object is in the large object space is
+  // very slow.
+  bool IsNonDiscontinuousSpaceHeapAddress(const mirror::Object* obj) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns true if 'obj' is a live heap object, false otherwise (including for invalid addresses).
   // Requires the heap lock to be held.
