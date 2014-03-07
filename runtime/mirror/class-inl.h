@@ -41,7 +41,7 @@ inline uint32_t Class::GetObjectSize() {
 inline Class* Class::GetSuperClass() {
   // Can only get super class for loaded classes (hack for when runtime is
   // initializing)
-  DCHECK(IsLoaded() || !Runtime::Current()->IsStarted()) << IsLoaded();
+  DCHECK(IsLoaded() || IsErroneous() || !Runtime::Current()->IsStarted()) << IsLoaded();
   return GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(Class, super_class_), false);
 }
 

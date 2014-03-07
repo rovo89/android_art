@@ -37,6 +37,7 @@ public class Main {
     public static void main(String[] args) {
         checkExceptions();
         checkTiming();
+        checkStaticMethodInvokeAfterFailedClinit();
     }
 
     public static void sleep(int msec) {
@@ -126,6 +127,35 @@ public class Main {
 
             /* use a method that shouldn't be accessible yet */
             SlowInit.printMsg("MethodThread message");
+        }
+    }
+
+    static void checkStaticMethodInvokeAfterFailedClinit() {
+        System.out.println("checkStaticMethodInvokeAfterFailedClinit START");
+
+        // Call static method to cause implicit clinit.
+        try {
+            ClassWithThrowingClinit.staticMethod();
+            System.out.println("checkStaticMethodInvokeAfterFailedClinit FAILED"
+                               + " due to missing ExceptionInInitializerError");
+        } catch (ExceptionInInitializerError expected) {
+        }
+
+        // Call again to make sure we still get the expected error.
+        try {
+            ClassWithThrowingClinit.staticMethod();
+            System.out.println("checkStaticMethodInvokeAfterFailedClinit FAILED"
+                               + " due to missing NoClassDefFoundError");
+        } catch (NoClassDefFoundError expected) {
+        }
+        System.out.println("checkStaticMethodInvokeAfterFailedClinit PASSED");
+    }
+
+    static class ClassWithThrowingClinit {
+        static {
+            throwDuringClinit();
+        }
+        static void staticMethod() {
         }
     }
 }
