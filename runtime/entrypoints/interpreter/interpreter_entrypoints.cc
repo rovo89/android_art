@@ -48,11 +48,11 @@ extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& m
   if (kUsePortableCompiler) {
     ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
     arg_array.BuildArgArrayFromFrame(shadow_frame, arg_offset);
-    method->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(), result, mh.GetShorty()[0]);
+    method->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(), result, mh.GetShorty());
   } else {
     method->Invoke(self, shadow_frame->GetVRegArgs(arg_offset),
                    (shadow_frame->NumberOfVRegs() - arg_offset) * sizeof(uint32_t),
-                   result, mh.GetShorty()[0]);
+                   result, mh.GetShorty());
   }
 }
 

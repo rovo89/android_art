@@ -139,13 +139,13 @@ static void CheckMethodArguments(ArtMethod* m, uint32_t* args)
 }
 
 void InvokeWithArgArray(const ScopedObjectAccess& soa, ArtMethod* method,
-                        ArgArray* arg_array, JValue* result, char result_type)
+                        ArgArray* arg_array, JValue* result, const char* shorty)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   uint32_t* args = arg_array->GetArray();
   if (UNLIKELY(soa.Env()->check_jni)) {
     CheckMethodArguments(method, args);
   }
-  method->Invoke(soa.Self(), args, arg_array->GetNumBytes(), result, result_type);
+  method->Invoke(soa.Self(), args, arg_array->GetNumBytes(), result, shorty);
 }
 
 static JValue InvokeWithVarArgs(const ScopedObjectAccess& soa, jobject obj,
@@ -157,7 +157,7 @@ static JValue InvokeWithVarArgs(const ScopedObjectAccess& soa, jobject obj,
   JValue result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArray(soa, receiver, args);
-  InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty()[0]);
+  InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty());
   return result;
 }
 
@@ -175,7 +175,7 @@ static JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccess& soa,
   JValue result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArray(soa, receiver, args);
-  InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty()[0]);
+  InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty());
   return result;
 }
 
@@ -188,7 +188,7 @@ static JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccess& soa,
   JValue result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArray(soa, receiver, args);
-  InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty()[0]);
+  InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty());
   return result;
 }
 
@@ -637,7 +637,7 @@ JValue InvokeWithJValues(const ScopedObjectAccess& soa, jobject obj, jmethodID m
   JValue result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArray(soa, receiver, args);
-  InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty()[0]);
+  InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty());
   return result;
 }
 
@@ -2437,8 +2437,10 @@ class JNI {
         m = c->FindVirtualMethod(name, sig);
       }
       if (m == NULL) {
+        c->DumpClass(LOG(ERROR), mirror::Class::kDumpClassFullDetail);
         LOG(return_errors ? ERROR : FATAL) << "Failed to register native method "
-            << PrettyDescriptor(c) << "." << name << sig;
+            << PrettyDescriptor(c) << "." << name << sig << " in "
+            << c->GetDexCache()->GetLocation()->ToModifiedUtf8();
         ThrowNoSuchMethodError(soa, c, name, sig, "static or non-static");
         return JNI_ERR;
       } else if (!m->IsNative()) {
