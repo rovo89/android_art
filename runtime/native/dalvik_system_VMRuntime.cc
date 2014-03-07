@@ -206,12 +206,11 @@ static void VMRuntime_updateProcessState(JNIEnv* env, jobject, jint process_stat
 }
 
 static void VMRuntime_trimHeap(JNIEnv*, jobject) {
-  Runtime::Current()->GetHeap()->Trim();
+  Runtime::Current()->GetHeap()->DoPendingTransitionOrTrim();
 }
 
 static void VMRuntime_concurrentGC(JNIEnv* env, jobject) {
-  Thread* self = ThreadForEnv(env);
-  Runtime::Current()->GetHeap()->ConcurrentGC(self);
+  Runtime::Current()->GetHeap()->ConcurrentGC(ThreadForEnv(env));
 }
 
 typedef std::map<std::string, mirror::String*> StringTable;
