@@ -384,31 +384,15 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
         if (cu->instruction_set != kX86) {
           cg->LoadConstant(cg->TargetReg(kInvokeTgt), direct_code);
         }
-      } else {
+      } else if (cu->instruction_set != kX86) {
         CHECK_EQ(cu->dex_file, target_method.dex_file);
-        LIR* data_target = cg->ScanLiteralPool(cg->code_literal_list_,
-                                               target_method.dex_method_index, 0);
-        if (data_target == NULL) {
-          data_target = cg->AddWordData(&cg->code_literal_list_, target_method.dex_method_index);
-          data_target->operands[1] = type;
-        }
-        LIR* load_pc_rel = cg->OpPcRelLoad(cg->TargetReg(kInvokeTgt), data_target);
-        cg->AppendLIR(load_pc_rel);
-        DCHECK_EQ(cu->instruction_set, kThumb2) << reinterpret_cast<void*>(data_target);
+        cg->LoadCodeAddress(target_method.dex_method_index, type, kInvokeTgt);
       }
       if (direct_method != static_cast<unsigned int>(-1)) {
         cg->LoadConstant(cg->TargetReg(kArg0), direct_method);
       } else {
         CHECK_EQ(cu->dex_file, target_method.dex_file);
-        LIR* data_target = cg->ScanLiteralPool(cg->method_literal_list_,
-                                               target_method.dex_method_index, 0);
-        if (data_target == NULL) {
-          data_target = cg->AddWordData(&cg->method_literal_list_, target_method.dex_method_index);
-          data_target->operands[1] = type;
-        }
-        LIR* load_pc_rel = cg->OpPcRelLoad(cg->TargetReg(kArg0), data_target);
-        cg->AppendLIR(load_pc_rel);
-        DCHECK_EQ(cu->instruction_set, kThumb2) << reinterpret_cast<void*>(data_target);
+        cg->LoadMethodAddress(target_method.dex_method_index, type, kArg0);
       }
       break;
     default:
@@ -427,18 +411,10 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       if (direct_code != 0) {
         if (direct_code != static_cast<unsigned int>(-1)) {
           cg->LoadConstant(cg->TargetReg(kInvokeTgt), direct_code);
-        } else {
+        } else if (cu->instruction_set != kX86) {
           CHECK_EQ(cu->dex_file, target_method.dex_file);
           CHECK_LT(target_method.dex_method_index, target_method.dex_file->NumMethodIds());
-          LIR* data_target = cg->ScanLiteralPool(cg->code_literal_list_,
-                                                 target_method.dex_method_index, 0);
-          if (data_target == NULL) {
-            data_target = cg->AddWordData(&cg->code_literal_list_, target_method.dex_method_index);
-            data_target->operands[1] = type;
-          }
-          LIR* load_pc_rel = cg->OpPcRelLoad(cg->TargetReg(kInvokeTgt), data_target);
-          cg->AppendLIR(load_pc_rel);
-          DCHECK_EQ(cu->instruction_set, kThumb2) << reinterpret_cast<void*>(data_target);
+          cg->LoadCodeAddress(target_method.dex_method_index, type, kInvokeTgt);
         }
       }
       break;
@@ -1111,7 +1087,7 @@ bool Mir2Lir::GenInlinedReverseBytes(CallInfo* info, OpSize size) {
     return false;
   }
   RegLocation rl_src_i = info->args[0];
-  RegLocation rl_dest = InlineTarget(info);  // result reg
+  RegLocation rl_dest = (size == kLong) ? InlineTargetWide(info) : InlineTarget(info);  // result reg
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   if (size == kLong) {
     RegLocation rl_i = LoadValueWide(rl_src_i, kCoreReg);
@@ -1325,7 +1301,7 @@ bool Mir2Lir::GenInlinedUnsafeGet(CallInfo* info,
   RegLocation rl_src_obj = info->args[1];  // Object
   RegLocation rl_src_offset = info->args[2];  // long low
   rl_src_offset.wide = 0;  // ignore high half in info->args[3]
-  RegLocation rl_dest = InlineTarget(info);  // result reg
+  RegLocation rl_dest = is_long ? InlineTargetWide(info) : InlineTarget(info);  // result reg
   if (is_volatile) {
     GenMemBarrier(kLoadLoad);
   }
@@ -1453,8 +1429,15 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
     call_inst = OpReg(kOpBlx, TargetReg(kInvokeTgt));
   } else {
     if (fast_path) {
-      call_inst = OpMem(kOpBlx, TargetReg(kArg0),
-                        mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value());
+      if (direct_code == static_cast<unsigned int>(-1)) {
+        // We can have the linker fixup a call relative.
+        call_inst =
+          reinterpret_cast<X86Mir2Lir*>(this)->CallWithLinkerFixup(
+              target_method.dex_method_index, info->type);
+      } else {
+        call_inst = OpMem(kOpBlx, TargetReg(kArg0),
+                          mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value());
+      }
     } else {
       ThreadOffset trampoline(-1);
       switch (info->type) {

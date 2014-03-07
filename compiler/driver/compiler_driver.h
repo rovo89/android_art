@@ -238,6 +238,15 @@ class CompilerDriver {
                     InvokeType target_invoke_type,
                     size_t literal_offset)
       LOCKS_EXCLUDED(compiled_methods_lock_);
+  void AddRelativeCodePatch(const DexFile* dex_file,
+                            uint16_t referrer_class_def_idx,
+                            uint32_t referrer_method_idx,
+                            InvokeType referrer_invoke_type,
+                            uint32_t target_method_idx,
+                            InvokeType target_invoke_type,
+                            size_t literal_offset,
+                            int32_t pc_relative_offset)
+      LOCKS_EXCLUDED(compiled_methods_lock_);
   void AddMethodPatch(const DexFile* dex_file,
                       uint16_t referrer_class_def_idx,
                       uint32_t referrer_method_idx,
@@ -362,8 +371,14 @@ class CompilerDriver {
     bool IsCall() const {
       return true;
     }
+    virtual bool IsRelative() const {
+      return false;
+    }
+    virtual int RelativeOffset() const {
+      return 0;
+    }
 
-   private:
+   protected:
     CallPatchInformation(const DexFile* dex_file,
                          uint16_t referrer_class_def_idx,
                          uint32_t referrer_method_idx,
@@ -378,12 +393,43 @@ class CompilerDriver {
           target_invoke_type_(target_invoke_type) {
     }
 
+   private:
     const InvokeType referrer_invoke_type_;
     const uint32_t target_method_idx_;
     const InvokeType target_invoke_type_;
 
     friend class CompilerDriver;
     DISALLOW_COPY_AND_ASSIGN(CallPatchInformation);
+  };
+
+  class RelativeCallPatchInformation : public CallPatchInformation {
+   public:
+    bool IsRelative() const {
+      return true;
+    }
+    int RelativeOffset() const {
+      return offset_;
+    }
+
+   private:
+    RelativeCallPatchInformation(const DexFile* dex_file,
+                                 uint16_t referrer_class_def_idx,
+                                 uint32_t referrer_method_idx,
+                                 InvokeType referrer_invoke_type,
+                                 uint32_t target_method_idx,
+                                 InvokeType target_invoke_type,
+                                 size_t literal_offset,
+                                 int32_t pc_relative_offset)
+        : CallPatchInformation(dex_file, referrer_class_def_idx,
+                           referrer_method_idx, referrer_invoke_type,
+                           target_method_idx, target_invoke_type, literal_offset),
+          offset_(pc_relative_offset) {
+    }
+
+    const int offset_;
+
+    friend class CompilerDriver;
+    DISALLOW_COPY_AND_ASSIGN(RelativeCallPatchInformation);
   };
 
   class TypePatchInformation : public PatchInformation {

@@ -785,7 +785,19 @@ void ImageWriter::PatchOatCodeAndMethods() {
     uintptr_t quick_code = reinterpret_cast<uintptr_t>(class_linker->GetQuickOatCodeFor(target));
     uintptr_t code_base = reinterpret_cast<uintptr_t>(&oat_file_->GetOatHeader());
     uintptr_t code_offset = quick_code - code_base;
-    SetPatchLocation(patch, PointerToLowMemUInt32(GetOatAddress(code_offset)));
+    if (patch->IsRelative()) {
+      // value to patch is relative to the location being patched
+      const void* quick_oat_code =
+        class_linker->GetQuickOatCodeFor(patch->GetDexFile(),
+                                         patch->GetReferrerClassDefIdx(),
+                                         patch->GetReferrerMethodIdx());
+      uintptr_t base = reinterpret_cast<uintptr_t>(quick_oat_code);
+      uintptr_t patch_location = base + patch->GetLiteralOffset();
+      uintptr_t value = quick_code - patch_location + patch->RelativeOffset();
+      SetPatchLocation(patch, value);
+    } else {
+      SetPatchLocation(patch, PointerToLowMemUInt32(GetOatAddress(code_offset)));
+    }
   }
 
   const CallPatches& methods_to_patch = compiler_driver_.GetMethodsToPatch();

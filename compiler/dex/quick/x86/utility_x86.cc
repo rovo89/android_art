@@ -518,8 +518,7 @@ LIR* X86Mir2Lir::LoadConstantWide(int r_dest_lo, int r_dest_hi, int64_t value) {
         res->target = data_target;
         res->flags.fixup = kFixupLoad;
         SetMemRefType(res, true, kLiteral);
-        // Redo after we assign target to ensure size is correct.
-        SetupResourceMasks(res);
+        store_method_addr_used_ = true;
       } else {
         if (val_lo == 0) {
           res = NewLIR2(kX86XorpsRR, r_dest_lo, r_dest_lo);
@@ -860,6 +859,7 @@ void X86Mir2Lir::AnalyzeMIR(int opcode, BasicBlock * bb, MIR *mir) {
     case Instruction::REM_DOUBLE_2ADDR:
       AnalyzeFPInstruction(opcode, bb, mir);
       break;
+
     // Packed switches and array fills need a pointer to the base of the method.
     case Instruction::FILL_ARRAY_DATA:
     case Instruction::PACKED_SWITCH:

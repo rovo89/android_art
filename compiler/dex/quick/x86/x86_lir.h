@@ -387,6 +387,7 @@ enum X86OpCode {
   kX86CallA,            // call [base + index * scale + disp]
                         // lir operands - 0: base, 1: index, 2: scale, 3: disp
   kX86CallT,            // call fs:[disp]; fs: is equal to Thread::Current(); lir operands - 0: disp
+  kX86CallI,            // call <relative> - 0: disp; Used for core.oat linking only
   kX86Ret,              // ret; no lir operands
   kX86StartOfMethod,    // call 0; pop reg; sub reg, # - generate start of method into reg
                         // lir operands - 0: reg
