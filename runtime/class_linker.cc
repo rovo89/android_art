@@ -649,15 +649,9 @@ bool ClassLinker::GenerateOatFile(const char* dex_filename,
 
 const OatFile* ClassLinker::RegisterOatFile(const OatFile* oat_file) {
   WriterMutexLock mu(Thread::Current(), dex_lock_);
-  for (size_t i = 0; i < oat_files_.size(); ++i) {
-    if (UNLIKELY(oat_file->GetLocation() == oat_files_[i]->GetLocation())) {
-      VLOG(class_linker) << "Attempt to register oat file that's already registered: "
-          << oat_file->GetLocation();
-      for (size_t j = i; j < oat_files_.size(); ++j) {
-        CHECK_NE(oat_file, oat_files_[j]) << "Attempt to re-register dex file.";
-      }
-      delete oat_file;
-      return oat_files_[i];
+  if (kIsDebugBuild) {
+    for (size_t i = 0; i < oat_files_.size(); ++i) {
+      CHECK_NE(oat_file, oat_files_[i]) << oat_file->GetLocation();
     }
   }
   VLOG(class_linker) << "Registering " << oat_file->GetLocation();
@@ -825,20 +819,6 @@ const DexFile* ClassLinker::FindOrCreateOatFileForDexLocation(const char* dex_lo
   VLOG(class_linker) << "Failed to find dex file '" << dex_location << "' in oat location '"
       << oat_location << "': " << *error_msg;
   error_msg->clear();
-
-  {
-    // We might have registered an outdated OatFile in FindDexFileInOatLocation().
-    // Get rid of it as its MAP_PRIVATE mapping may not reflect changes we're about to do.
-    WriterMutexLock mu(Thread::Current(), dex_lock_);
-    for (size_t i = 0; i < oat_files_.size(); ++i) {
-      if (oat_location == oat_files_[i]->GetLocation()) {
-        VLOG(class_linker) << "De-registering old OatFile: " << oat_location;
-        delete oat_files_[i];
-        oat_files_.erase(oat_files_.begin() + i);
-        break;
-      }
-    }
-  }
 
   // Generate the output oat file for the dex file
   VLOG(class_linker) << "Generating oat file " << oat_location << " for " << dex_location;
