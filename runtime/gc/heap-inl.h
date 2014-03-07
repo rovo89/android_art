@@ -24,8 +24,8 @@
 #include "gc/space/dlmalloc_space-inl.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/rosalloc_space-inl.h"
-#include "object_utils.h"
 #include "runtime.h"
+#include "sirt_ref-inl.h"
 #include "thread.h"
 #include "thread-inl.h"
 #include "verify_object-inl.h"
@@ -37,7 +37,9 @@ template <bool kInstrumented, bool kCheckLargeObject, typename PreFenceVisitor>
 inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Class* klass,
                                                       size_t byte_count, AllocatorType allocator,
                                                       const PreFenceVisitor& pre_fence_visitor) {
-  DebugCheckPreconditionsForAllocObject(klass, byte_count);
+  if (kIsDebugBuild) {
+    CheckPreconditionsForAllocObject(klass, byte_count);
+  }
   // Since allocation can cause a GC which will need to SuspendAll, make sure all allocations are
   // done in the runnable state where suspension is expected.
   DCHECK_EQ(self->GetState(), kRunnable);
@@ -224,13 +226,6 @@ inline mirror::Object* Heap::TryToAllocate(Thread* self, AllocatorType allocator
     }
   }
   return ret;
-}
-
-inline void Heap::DebugCheckPreconditionsForAllocObject(mirror::Class* c, size_t byte_count) {
-  DCHECK(c == NULL || (c->IsClassClass() && byte_count >= sizeof(mirror::Class)) ||
-         (c->IsVariableSize() || c->GetObjectSize() == byte_count) ||
-         strlen(ClassHelper(c).GetDescriptor()) == 0);
-  DCHECK_GE(byte_count, sizeof(mirror::Object));
 }
 
 inline Heap::AllocationTimer::AllocationTimer(Heap* heap, mirror::Object** allocated_obj_ptr)

@@ -30,7 +30,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/throwable.h"
 #include "object_utils.h"
-#include "sirt_ref.h"
+#include "sirt_ref-inl.h"
 #include "thread.h"
 
 namespace art {

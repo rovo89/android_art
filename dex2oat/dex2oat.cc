@@ -54,7 +54,6 @@
 #include "runtime.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
-#include "sirt_ref.h"
 #include "vector_output_stream.h"
 #include "well_known_classes.h"
 #include "zip_archive.h"
