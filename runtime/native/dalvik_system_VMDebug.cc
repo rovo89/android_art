@@ -233,14 +233,19 @@ static void VMDebug_infopoint(JNIEnv*, jclass, jint id) {
 static jlong VMDebug_countInstancesOfClass(JNIEnv* env, jclass, jclass javaClass,
                                            jboolean countAssignable) {
   ScopedObjectAccess soa(env);
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  // We only want reachable instances, so do a GC. This also ensures that the alloc stack
+  // is empty, so the live bitmap is the only place we need to look. Need to do GC before decoding
+  // any jobjects.
+  heap->CollectGarbage(false);
   mirror::Class* c = soa.Decode<mirror::Class*>(javaClass);
-  if (c == NULL) {
+  if (c == nullptr) {
     return 0;
   }
   std::vector<mirror::Class*> classes;
   classes.push_back(c);
   uint64_t count = 0;
-  Runtime::Current()->GetHeap()->CountInstances(classes, countAssignable, &count);
+  heap->CountInstances(classes, countAssignable, &count);
   return count;
 }
 

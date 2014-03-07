@@ -452,6 +452,10 @@ class Dbg {
   static jbyteArray GetRecentAllocations() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void DumpRecentAllocations();
 
+  // Updates the stored direct object pointers (called from SweepSystemWeaks).
+  static void UpdateObjectPointers(RootVisitor* visitor, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   enum HpifWhen {
     HPIF_WHEN_NEVER = 0,
     HPIF_WHEN_NOW = 1,
@@ -475,6 +479,9 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void DdmSendHeapSegments(bool native)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static void AllowNewObjectRegistryObjects() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static void DisallowNewObjectRegistryObjects() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   static void DdmBroadcast(bool connect) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

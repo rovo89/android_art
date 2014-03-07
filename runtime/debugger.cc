@@ -63,6 +63,9 @@ struct AllocRecordStackTraceElement {
   mirror::ArtMethod* method;
   uint32_t dex_pc;
 
+  AllocRecordStackTraceElement() : method(nullptr), dex_pc(0) {
+  }
+
   int32_t LineNumber() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return MethodHelper(method).GetLineNumFromDexPC(dex_pc);
   }
@@ -80,6 +83,20 @@ struct AllocRecord {
       ++depth;
     }
     return depth;
+  }
+
+  void UpdateObjectPointers(RootVisitor* visitor, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (type != nullptr) {
+      type = down_cast<mirror::Class*>(visitor(type, arg));
+    }
+    for (size_t stack_frame = 0; stack_frame < kMaxAllocRecordStackDepth; ++stack_frame) {
+      mirror::ArtMethod*& m = stack[stack_frame].method;
+      if (m == nullptr) {
+        break;
+      }
+      m = down_cast<mirror::ArtMethod*>(visitor(m, arg));
+    }
   }
 };
 
@@ -775,6 +792,8 @@ JDWP::JdwpError Dbg::GetContendedMonitor(JDWP::ObjectId thread_id, JDWP::ObjectI
 JDWP::JdwpError Dbg::GetInstanceCounts(const std::vector<JDWP::RefTypeId>& class_ids,
                                        std::vector<uint64_t>& counts)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  heap->CollectGarbage(false);
   std::vector<mirror::Class*> classes;
   counts.clear();
   for (size_t i = 0; i < class_ids.size(); ++i) {
@@ -786,19 +805,20 @@ JDWP::JdwpError Dbg::GetInstanceCounts(const std::vector<JDWP::RefTypeId>& class
     classes.push_back(c);
     counts.push_back(0);
   }
-
-  Runtime::Current()->GetHeap()->CountInstances(classes, false, &counts[0]);
+  heap->CountInstances(classes, false, &counts[0]);
   return JDWP::ERR_NONE;
 }
 
 JDWP::JdwpError Dbg::GetInstances(JDWP::RefTypeId class_id, int32_t max_count, std::vector<JDWP::ObjectId>& instances)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  // We only want reachable instances, so do a GC.
+  heap->CollectGarbage(false);
   JDWP::JdwpError status;
   mirror::Class* c = DecodeClass(class_id, status);
-  if (c == NULL) {
+  if (c == nullptr) {
     return status;
   }
-
   std::vector<mirror::Object*> raw_instances;
   Runtime::Current()->GetHeap()->GetInstances(c, max_count, raw_instances);
   for (size_t i = 0; i < raw_instances.size(); ++i) {
@@ -810,13 +830,14 @@ JDWP::JdwpError Dbg::GetInstances(JDWP::RefTypeId class_id, int32_t max_count, s
 JDWP::JdwpError Dbg::GetReferringObjects(JDWP::ObjectId object_id, int32_t max_count,
                                          std::vector<JDWP::ObjectId>& referring_objects)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  heap->CollectGarbage(false);
   mirror::Object* o = gRegistry->Get<mirror::Object*>(object_id);
   if (o == NULL || o == ObjectRegistry::kInvalidObject) {
     return JDWP::ERR_INVALID_OBJECT;
   }
-
   std::vector<mirror::Object*> raw_instances;
-  Runtime::Current()->GetHeap()->GetReferringObjects(o, max_count, raw_instances);
+  heap->GetReferringObjects(o, max_count, raw_instances);
   for (size_t i = 0; i < raw_instances.size(); ++i) {
     referring_objects.push_back(gRegistry->Add(raw_instances[i]));
   }
@@ -3769,6 +3790,37 @@ void Dbg::DumpRecentAllocations() {
     }
 
     i = (i + 1) & (gAllocRecordMax-1);
+  }
+}
+
+void Dbg::UpdateObjectPointers(RootVisitor* visitor, void* arg) {
+  {
+    MutexLock mu(Thread::Current(), gAllocTrackerLock);
+    if (recent_allocation_records_ != nullptr) {
+      size_t i = HeadIndex();
+      size_t count = gAllocRecordCount;
+      while (count--) {
+        AllocRecord* record = &recent_allocation_records_[i];
+        DCHECK(record != nullptr);
+        record->UpdateObjectPointers(visitor, arg);
+        i = (i + 1) & (gAllocRecordMax - 1);
+      }
+    }
+  }
+  if (gRegistry != nullptr) {
+    gRegistry->UpdateObjectPointers(visitor, arg);
+  }
+}
+
+void Dbg::AllowNewObjectRegistryObjects() {
+  if (gRegistry != nullptr) {
+    gRegistry->AllowNewObjects();
+  }
+}
+
+void Dbg::DisallowNewObjectRegistryObjects() {
+  if (gRegistry != nullptr) {
+    gRegistry->DisallowNewObjects();
   }
 }
 
