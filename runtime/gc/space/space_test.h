@@ -33,24 +33,60 @@ namespace space {
 
 class SpaceTest : public CommonRuntimeTest {
  public:
+  jobject byte_array_class_;
+
+  SpaceTest() : byte_array_class_(nullptr) {
+  }
+
   void AddSpace(ContinuousSpace* space) {
     // For RosAlloc, revoke the thread local runs before moving onto a
     // new alloc space.
     Runtime::Current()->GetHeap()->RevokeAllThreadLocalBuffers();
     Runtime::Current()->GetHeap()->AddSpace(space);
   }
-  void InstallClass(SirtRef<mirror::Object>& o, size_t size)
+
+  mirror::Class* GetByteArrayClass(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SirtRef<mirror::ClassLoader> null_loader(self, nullptr);
+    if (byte_array_class_ == nullptr) {
+      mirror::Class* byte_array_class =
+          Runtime::Current()->GetClassLinker()->FindClass(self, "[B", null_loader);
+      EXPECT_TRUE(byte_array_class != nullptr);
+      byte_array_class_ = self->GetJniEnv()->NewLocalRef(byte_array_class);
+      EXPECT_TRUE(byte_array_class_ != nullptr);
+    }
+    return reinterpret_cast<mirror::Class*>(self->DecodeJObject(byte_array_class_));
+  }
+
+  mirror::Object* Alloc(space::MallocSpace* alloc_space, Thread* self, size_t bytes,
+                        size_t* bytes_allocated, size_t* usable_size)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SirtRef<mirror::Class> byte_array_class(self, GetByteArrayClass(self));
+    mirror::Object* obj = alloc_space->Alloc(self, bytes, bytes_allocated, usable_size);
+    if (obj != nullptr) {
+      InstallClass(obj, byte_array_class.get(), bytes);
+    }
+    return obj;
+  }
+
+  mirror::Object* AllocWithGrowth(space::MallocSpace* alloc_space, Thread* self, size_t bytes,
+                                  size_t* bytes_allocated, size_t* usable_size)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SirtRef<mirror::Class> byte_array_class(self, GetByteArrayClass(self));
+    mirror::Object* obj = alloc_space->AllocWithGrowth(self, bytes, bytes_allocated, usable_size);
+    if (obj != nullptr) {
+      InstallClass(obj, byte_array_class.get(), bytes);
+    }
+    return obj;
+  }
+
+  void InstallClass(mirror::Object* o, mirror::Class* byte_array_class, size_t size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Note the minimum size, which is the size of a zero-length byte array.
     EXPECT_GE(size, SizeOfZeroLengthByteArray());
-    Thread* self = Thread::Current();
-    SirtRef<mirror::ClassLoader> null_loader(self, nullptr);
-    mirror::Class* byte_array_class = Runtime::Current()->GetClassLinker()->FindClass(self, "[B",
-                                                                                      null_loader);
     EXPECT_TRUE(byte_array_class != nullptr);
     o->SetClass(byte_array_class);
     if (kUseBrooksPointer) {
-      o->SetBrooksPointer(o.get());
+      o->SetBrooksPointer(o);
     }
     mirror::Array* arr = o->AsArray<kVerifyNone>();
     size_t header_size = SizeOfZeroLengthByteArray();
@@ -134,27 +170,25 @@ void SpaceTest::ZygoteSpaceTestBody(CreateSpaceFn create_space) {
 
   // Succeeds, fits without adjusting the footprint limit.
   size_t ptr1_bytes_allocated, ptr1_usable_size;
-  SirtRef<mirror::Object> ptr1(self, space->Alloc(self, 1 * MB, &ptr1_bytes_allocated,
-                                                  &ptr1_usable_size));
+  SirtRef<mirror::Object> ptr1(self, Alloc(space, self, 1 * MB, &ptr1_bytes_allocated,
+                                           &ptr1_usable_size));
   EXPECT_TRUE(ptr1.get() != nullptr);
   EXPECT_LE(1U * MB, ptr1_bytes_allocated);
   EXPECT_LE(1U * MB, ptr1_usable_size);
   EXPECT_LE(ptr1_usable_size, ptr1_bytes_allocated);
-  InstallClass(ptr1, 1 * MB);
 
   // Fails, requires a higher footprint limit.
-  mirror::Object* ptr2 = space->Alloc(self, 8 * MB, &dummy, nullptr);
+  mirror::Object* ptr2 = Alloc(space, self, 8 * MB, &dummy, nullptr);
   EXPECT_TRUE(ptr2 == nullptr);
 
   // Succeeds, adjusts the footprint.
   size_t ptr3_bytes_allocated, ptr3_usable_size;
-  SirtRef<mirror::Object> ptr3(self, space->AllocWithGrowth(self, 8 * MB, &ptr3_bytes_allocated,
-                                                            &ptr3_usable_size));
+  SirtRef<mirror::Object> ptr3(self, AllocWithGrowth(space, self, 8 * MB, &ptr3_bytes_allocated,
+                                                     &ptr3_usable_size));
   EXPECT_TRUE(ptr3.get() != nullptr);
   EXPECT_LE(8U * MB, ptr3_bytes_allocated);
   EXPECT_LE(8U * MB, ptr3_usable_size);
   EXPECT_LE(ptr3_usable_size, ptr3_bytes_allocated);
-  InstallClass(ptr3, 8 * MB);
 
   // Fails, requires a higher footprint limit.
   mirror::Object* ptr4 = space->Alloc(self, 8 * MB, &dummy, nullptr);
@@ -172,13 +206,12 @@ void SpaceTest::ZygoteSpaceTestBody(CreateSpaceFn create_space) {
 
   // Succeeds, now that memory has been freed.
   size_t ptr6_bytes_allocated, ptr6_usable_size;
-  SirtRef<mirror::Object> ptr6(self, space->AllocWithGrowth(self, 9 * MB, &ptr6_bytes_allocated,
-                                                            &ptr6_usable_size));
+  SirtRef<mirror::Object> ptr6(self, AllocWithGrowth(space, self, 9 * MB, &ptr6_bytes_allocated,
+                                                     &ptr6_usable_size));
   EXPECT_TRUE(ptr6.get() != nullptr);
   EXPECT_LE(9U * MB, ptr6_bytes_allocated);
   EXPECT_LE(9U * MB, ptr6_usable_size);
   EXPECT_LE(ptr6_usable_size, ptr6_bytes_allocated);
-  InstallClass(ptr6, 9 * MB);
 
   // Final clean up.
   size_t free1 = space->AllocationSize(ptr1.get(), nullptr);
@@ -202,24 +235,22 @@ void SpaceTest::ZygoteSpaceTestBody(CreateSpaceFn create_space) {
   AddSpace(space);
 
   // Succeeds, fits without adjusting the footprint limit.
-  ptr1.reset(space->Alloc(self, 1 * MB, &ptr1_bytes_allocated, &ptr1_usable_size));
+  ptr1.reset(Alloc(space, self, 1 * MB, &ptr1_bytes_allocated, &ptr1_usable_size));
   EXPECT_TRUE(ptr1.get() != nullptr);
   EXPECT_LE(1U * MB, ptr1_bytes_allocated);
   EXPECT_LE(1U * MB, ptr1_usable_size);
   EXPECT_LE(ptr1_usable_size, ptr1_bytes_allocated);
-  InstallClass(ptr1, 1 * MB);
 
   // Fails, requires a higher footprint limit.
-  ptr2 = space->Alloc(self, 8 * MB, &dummy, nullptr);
+  ptr2 = Alloc(space, self, 8 * MB, &dummy, nullptr);
   EXPECT_TRUE(ptr2 == nullptr);
 
   // Succeeds, adjusts the footprint.
-  ptr3.reset(space->AllocWithGrowth(self, 2 * MB, &ptr3_bytes_allocated, &ptr3_usable_size));
+  ptr3.reset(AllocWithGrowth(space, self, 2 * MB, &ptr3_bytes_allocated, &ptr3_usable_size));
   EXPECT_TRUE(ptr3.get() != nullptr);
   EXPECT_LE(2U * MB, ptr3_bytes_allocated);
   EXPECT_LE(2U * MB, ptr3_usable_size);
   EXPECT_LE(ptr3_usable_size, ptr3_bytes_allocated);
-  InstallClass(ptr3, 2 * MB);
   space->Free(self, ptr3.reset(nullptr));
 
   // Final clean up.
@@ -240,34 +271,32 @@ void SpaceTest::AllocAndFreeTestBody(CreateSpaceFn create_space) {
 
   // Succeeds, fits without adjusting the footprint limit.
   size_t ptr1_bytes_allocated, ptr1_usable_size;
-  SirtRef<mirror::Object> ptr1(self, space->Alloc(self, 1 * MB, &ptr1_bytes_allocated,
-                                                  &ptr1_usable_size));
+  SirtRef<mirror::Object> ptr1(self, Alloc(space, self, 1 * MB, &ptr1_bytes_allocated,
+                                           &ptr1_usable_size));
   EXPECT_TRUE(ptr1.get() != nullptr);
   EXPECT_LE(1U * MB, ptr1_bytes_allocated);
   EXPECT_LE(1U * MB, ptr1_usable_size);
   EXPECT_LE(ptr1_usable_size, ptr1_bytes_allocated);
-  InstallClass(ptr1, 1 * MB);
 
   // Fails, requires a higher footprint limit.
-  mirror::Object* ptr2 = space->Alloc(self, 8 * MB, &dummy, nullptr);
+  mirror::Object* ptr2 = Alloc(space, self, 8 * MB, &dummy, nullptr);
   EXPECT_TRUE(ptr2 == nullptr);
 
   // Succeeds, adjusts the footprint.
   size_t ptr3_bytes_allocated, ptr3_usable_size;
-  SirtRef<mirror::Object> ptr3(self, space->AllocWithGrowth(self, 8 * MB, &ptr3_bytes_allocated,
-                                                            &ptr3_usable_size));
+  SirtRef<mirror::Object> ptr3(self, AllocWithGrowth(space, self, 8 * MB, &ptr3_bytes_allocated,
+                                                     &ptr3_usable_size));
   EXPECT_TRUE(ptr3.get() != nullptr);
   EXPECT_LE(8U * MB, ptr3_bytes_allocated);
   EXPECT_LE(8U * MB, ptr3_usable_size);
   EXPECT_LE(ptr3_usable_size, ptr3_bytes_allocated);
-  InstallClass(ptr3, 8 * MB);
 
   // Fails, requires a higher footprint limit.
-  mirror::Object* ptr4 = space->Alloc(self, 8 * MB, &dummy, nullptr);
+  mirror::Object* ptr4 = Alloc(space, self, 8 * MB, &dummy, nullptr);
   EXPECT_TRUE(ptr4 == nullptr);
 
   // Also fails, requires a higher allowed footprint.
-  mirror::Object* ptr5 = space->AllocWithGrowth(self, 8 * MB, &dummy, nullptr);
+  mirror::Object* ptr5 = AllocWithGrowth(space, self, 8 * MB, &dummy, nullptr);
   EXPECT_TRUE(ptr5 == nullptr);
 
   // Release some memory.
@@ -278,13 +307,12 @@ void SpaceTest::AllocAndFreeTestBody(CreateSpaceFn create_space) {
 
   // Succeeds, now that memory has been freed.
   size_t ptr6_bytes_allocated, ptr6_usable_size;
-  SirtRef<mirror::Object> ptr6(self, space->AllocWithGrowth(self, 9 * MB, &ptr6_bytes_allocated,
-                                                            &ptr6_usable_size));
+  SirtRef<mirror::Object> ptr6(self, AllocWithGrowth(space, self, 9 * MB, &ptr6_bytes_allocated,
+                                                     &ptr6_usable_size));
   EXPECT_TRUE(ptr6.get() != nullptr);
   EXPECT_LE(9U * MB, ptr6_bytes_allocated);
   EXPECT_LE(9U * MB, ptr6_usable_size);
   EXPECT_LE(ptr6_usable_size, ptr6_bytes_allocated);
-  InstallClass(ptr6, 9 * MB);
 
   // Final clean up.
   size_t free1 = space->AllocationSize(ptr1.get(), nullptr);
@@ -306,11 +334,10 @@ void SpaceTest::AllocAndFreeListTestBody(CreateSpaceFn create_space) {
   for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
     size_t allocation_size, usable_size;
     size_t size_of_zero_length_byte_array = SizeOfZeroLengthByteArray();
-    lots_of_objects[i] = space->Alloc(self, size_of_zero_length_byte_array, &allocation_size,
-                                      &usable_size);
+    lots_of_objects[i] = Alloc(space, self, size_of_zero_length_byte_array, &allocation_size,
+                               &usable_size);
     EXPECT_TRUE(lots_of_objects[i] != nullptr);
     SirtRef<mirror::Object> obj(self, lots_of_objects[i]);
-    InstallClass(obj, size_of_zero_length_byte_array);
     lots_of_objects[i] = obj.get();
     size_t computed_usable_size;
     EXPECT_EQ(allocation_size, space->AllocationSize(lots_of_objects[i], &computed_usable_size));
@@ -326,10 +353,9 @@ void SpaceTest::AllocAndFreeListTestBody(CreateSpaceFn create_space) {
   // Succeeds, fits by adjusting the max allowed footprint.
   for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
     size_t allocation_size, usable_size;
-    lots_of_objects[i] = space->AllocWithGrowth(self, 1024, &allocation_size, &usable_size);
+    lots_of_objects[i] = AllocWithGrowth(space, self, 1024, &allocation_size, &usable_size);
     EXPECT_TRUE(lots_of_objects[i] != nullptr);
     SirtRef<mirror::Object> obj(self, lots_of_objects[i]);
-    InstallClass(obj, 1024);
     lots_of_objects[i] = obj.get();
     size_t computed_usable_size;
     EXPECT_EQ(allocation_size, space->AllocationSize(lots_of_objects[i], &computed_usable_size));
@@ -394,14 +420,13 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(MallocSpace* space, intptr_t
       SirtRef<mirror::Object> object(self, nullptr);
       size_t bytes_allocated = 0;
       if (round <= 1) {
-        object.reset(space->Alloc(self, alloc_size, &bytes_allocated, nullptr));
+        object.reset(Alloc(space, self, alloc_size, &bytes_allocated, nullptr));
       } else {
-        object.reset(space->AllocWithGrowth(self, alloc_size, &bytes_allocated, nullptr));
+        object.reset(AllocWithGrowth(space, self, alloc_size, &bytes_allocated, nullptr));
       }
       footprint = space->GetFootprint();
       EXPECT_GE(space->Size(), footprint);  // invariant
       if (object.get() != nullptr) {  // allocation succeeded
-        InstallClass(object, alloc_size);
         lots_of_objects[i] = object.get();
         size_t allocation_size = space->AllocationSize(object.get(), nullptr);
         EXPECT_EQ(bytes_allocated, allocation_size);
@@ -487,13 +512,12 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(MallocSpace* space, intptr_t
   size_t three_quarters_space = (growth_limit / 2) + (growth_limit / 4);
   size_t bytes_allocated = 0;
   if (round <= 1) {
-    large_object.reset(space->Alloc(self, three_quarters_space, &bytes_allocated, nullptr));
+    large_object.reset(Alloc(space, self, three_quarters_space, &bytes_allocated, nullptr));
   } else {
-    large_object.reset(space->AllocWithGrowth(self, three_quarters_space, &bytes_allocated,
-                                              nullptr));
+    large_object.reset(AllocWithGrowth(space, self, three_quarters_space, &bytes_allocated,
+                                       nullptr));
   }
   EXPECT_TRUE(large_object.get() != nullptr);
-  InstallClass(large_object, three_quarters_space);
 
   // Sanity check footprint
   footprint = space->GetFootprint();
