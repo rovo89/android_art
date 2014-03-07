@@ -179,11 +179,11 @@ void MarkSweep::ProcessReferences(Thread* self) {
   TimingLogger::ScopedSplit split("ProcessReferences", &timings_);
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   GetHeap()->ProcessReferences(timings_, clear_soft_references_, &IsMarkedCallback,
-                               &RecursiveMarkObjectCallback, this);
+                               &MarkObjectCallback, &ProcessMarkStackPausedCallback, this);
 }
 
 bool MarkSweep::HandleDirtyObjectsPhase() {
-  TimingLogger::ScopedSplit split("HandleDirtyObjectsPhase", &timings_);
+  TimingLogger::ScopedSplit split("(Paused)HandleDirtyObjectsPhase", &timings_);
   Thread* self = Thread::Current();
   Locks::mutator_lock_->AssertExclusiveHeld(self);
 
@@ -400,10 +400,9 @@ inline void MarkSweep::MarkObjectNonNullParallel(const Object* obj) {
   }
 }
 
-mirror::Object* MarkSweep::RecursiveMarkObjectCallback(mirror::Object* obj, void* arg) {
+mirror::Object* MarkSweep::MarkObjectCallback(mirror::Object* obj, void* arg) {
   MarkSweep* mark_sweep = reinterpret_cast<MarkSweep*>(arg);
   mark_sweep->MarkObject(obj);
-  mark_sweep->ProcessMarkStack(true);
   return obj;
 }
 
@@ -544,13 +543,6 @@ void MarkSweep::MarkRootCallback(Object** root, void* arg, uint32_t /*thread_id*
   DCHECK(root != nullptr);
   DCHECK(arg != nullptr);
   reinterpret_cast<MarkSweep*>(arg)->MarkObjectNonNull(*root);
-}
-
-mirror::Object* MarkSweep::MarkObjectCallback(mirror::Object* object, void* arg) {
-  DCHECK(object != nullptr);
-  DCHECK(arg != nullptr);
-  reinterpret_cast<MarkSweep*>(arg)->MarkObjectNonNull(object);
-  return object;
 }
 
 void MarkSweep::VerifyRootCallback(const Object* root, void* arg, size_t vreg,
@@ -957,7 +949,7 @@ void MarkSweep::RecursiveMarkDirtyObjects(bool paused, byte minimum_age) {
 }
 
 void MarkSweep::ReMarkRoots() {
-  timings_.StartSplit("ReMarkRoots");
+  timings_.StartSplit("(Paused)ReMarkRoots");
   Runtime::Current()->VisitRoots(MarkRootCallback, this, true, true);
   timings_.EndSplit();
 }
@@ -1208,6 +1200,11 @@ void MarkSweep::ScanObject(Object* obj) {
   ScanObjectVisit(obj, visitor);
 }
 
+void MarkSweep::ProcessMarkStackPausedCallback(void* arg) {
+  DCHECK(arg != nullptr);
+  reinterpret_cast<MarkSweep*>(arg)->ProcessMarkStack(true);
+}
+
 void MarkSweep::ProcessMarkStackParallel(size_t thread_count) {
   Thread* self = Thread::Current();
   ThreadPool* thread_pool = GetHeap()->GetThreadPool();
@@ -1231,7 +1228,7 @@ void MarkSweep::ProcessMarkStackParallel(size_t thread_count) {
 
 // Scan anything that's on the mark stack.
 void MarkSweep::ProcessMarkStack(bool paused) {
-  timings_.StartSplit("ProcessMarkStack");
+  timings_.StartSplit(paused ? "(Paused)ProcessMarkStack" : "ProcessMarkStack");
   size_t thread_count = GetThreadCount(paused);
   if (kParallelProcessMarkStack && thread_count > 1 &&
       mark_stack_->Size() >= kMinimumParallelMarkStackSize) {
