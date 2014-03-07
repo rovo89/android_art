@@ -28,7 +28,6 @@
 #include "compiled_method.h"
 #include "compiler_backend.h"
 #include "dex_file.h"
-#include "dex/arena_allocator.h"
 #include "instruction_set.h"
 #include "invoke_type.h"
 #include "method_reference.h"
@@ -36,6 +35,7 @@
 #include "runtime.h"
 #include "safe_map.h"
 #include "thread_pool.h"
+#include "utils/arena_allocator.h"
 #include "utils/dedupe_set.h"
 
 namespace art {

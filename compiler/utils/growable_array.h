@@ -14,17 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_DEX_GROWABLE_ARRAY_H_
-#define ART_COMPILER_DEX_GROWABLE_ARRAY_H_
+#ifndef ART_COMPILER_UTILS_GROWABLE_ARRAY_H_
+#define ART_COMPILER_UTILS_GROWABLE_ARRAY_H_
 
 #include <stdint.h>
 #include <stddef.h>
-#include "compiler_enums.h"
 #include "arena_allocator.h"
 
 namespace art {
-
-struct CompilationUnit;
 
 // Type of growable list for memory tuning.
 enum OatListKind {
@@ -109,7 +106,20 @@ class GrowableArray {
         Resize(num_used_ + 1);
       }
       elem_list_[num_used_++] = elem;
-    };
+    }
+
+    void InsertAt(size_t index, T elem) {
+      DCHECK(index <= Size());
+      Insert(elem);
+      for (size_t i = Size() - 1; i > index; --i) {
+        elem_list_[i] = elem_list_[i - 1];
+      }
+      elem_list_[index] = elem;
+    }
+
+    void Add(T elem) {
+      Insert(elem);
+    }
 
     T Get(size_t index) const {
       DCHECK_LT(index, num_used_);
@@ -173,4 +183,4 @@ class GrowableArray {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_DEX_GROWABLE_ARRAY_H_
+#endif  // ART_COMPILER_UTILS_GROWABLE_ARRAY_H_
