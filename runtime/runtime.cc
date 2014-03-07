@@ -1333,26 +1333,23 @@ void Runtime::VisitNonThreadRoots(RootCallback* callback, void* arg) {
   mirror::PrimitiveArray<int16_t>::VisitRoots(callback, arg);   // ShortArray
   java_vm_->VisitRoots(callback, arg);
   if (pre_allocated_OutOfMemoryError_ != nullptr) {
-    pre_allocated_OutOfMemoryError_ = down_cast<mirror::Throwable*>(
-        callback(pre_allocated_OutOfMemoryError_, arg, 0, kRootVMInternal));
+    callback(reinterpret_cast<mirror::Object**>(&pre_allocated_OutOfMemoryError_), arg, 0,
+             kRootVMInternal);
     DCHECK(pre_allocated_OutOfMemoryError_ != nullptr);
   }
-  resolution_method_ = down_cast<mirror::ArtMethod*>(callback(resolution_method_, arg, 0,
-                                                              kRootVMInternal));
+  callback(reinterpret_cast<mirror::Object**>(&resolution_method_), arg, 0, kRootVMInternal);
   DCHECK(resolution_method_ != nullptr);
   if (HasImtConflictMethod()) {
-    imt_conflict_method_ = down_cast<mirror::ArtMethod*>(callback(imt_conflict_method_, arg, 0,
-                                                                  kRootVMInternal));
+    callback(reinterpret_cast<mirror::Object**>(&imt_conflict_method_), arg, 0, kRootVMInternal);
   }
   if (HasDefaultImt()) {
-    default_imt_ = down_cast<mirror::ObjectArray<mirror::ArtMethod>*>(callback(default_imt_, arg,
-                                                                               0, kRootVMInternal));
+    callback(reinterpret_cast<mirror::Object**>(&default_imt_), arg, 0, kRootVMInternal);
   }
 
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
     if (callee_save_methods_[i] != nullptr) {
-      callee_save_methods_[i] = down_cast<mirror::ArtMethod*>(
-          callback(callee_save_methods_[i], arg, 0, kRootVMInternal));
+      callback(reinterpret_cast<mirror::Object**>(&callee_save_methods_[i]), arg, 0,
+               kRootVMInternal);
     }
   }
   {

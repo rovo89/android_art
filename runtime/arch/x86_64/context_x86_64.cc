@@ -26,7 +26,7 @@ namespace x86_64 {
 static const uintptr_t gZero = 0;
 
 void X86_64Context::Reset() {
-  for (int i = 0; i < kNumberOfCpuRegisters; i++) {
+  for (size_t i = 0; i < kNumberOfCpuRegisters; i++) {
     gprs_[i] = NULL;
   }
   gprs_[RSP] = &rsp_;

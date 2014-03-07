@@ -1703,13 +1703,12 @@ void Heap::FinishGC(Thread* self, collector::GcType gc_type) {
   gc_complete_cond_->Broadcast(self);
 }
 
-static mirror::Object* RootMatchesObjectVisitor(mirror::Object* root, void* arg,
-                                                uint32_t /*thread_id*/, RootType /*root_type*/) {
+static void RootMatchesObjectVisitor(mirror::Object** root, void* arg, uint32_t /*thread_id*/,
+                                     RootType /*root_type*/) {
   mirror::Object* obj = reinterpret_cast<mirror::Object*>(arg);
-  if (root == obj) {
+  if (*root == obj) {
     LOG(INFO) << "Object " << obj << " is a root";
   }
-  return root;
 }
 
 class ScanVisitor {
@@ -1831,11 +1830,10 @@ class VerifyReferenceVisitor {
     return heap_->IsLiveObjectLocked(obj, true, false, true);
   }
 
-  static mirror::Object* VerifyRoots(mirror::Object* root, void* arg, uint32_t /*thread_id*/,
-                                     RootType /*root_type*/) {
+  static void VerifyRoots(mirror::Object** root, void* arg, uint32_t /*thread_id*/,
+                          RootType /*root_type*/) {
     VerifyReferenceVisitor* visitor = reinterpret_cast<VerifyReferenceVisitor*>(arg);
-    (*visitor)(nullptr, root, MemberOffset(0), true);
-    return root;
+    (*visitor)(nullptr, *root, MemberOffset(0), true);
   }
 
  private:
@@ -2072,7 +2070,7 @@ void Heap::ProcessCards(TimingLogger& timings) {
   }
 }
 
-static mirror::Object* IdentityRootCallback(mirror::Object* obj, void*, uint32_t, RootType) {
+static mirror::Object* IdentityMarkObjectCallback(mirror::Object* obj, void*) {
   return obj;
 }
 
@@ -2111,7 +2109,7 @@ void Heap::PreGcVerification(collector::GarbageCollector* gc) {
     ReaderMutexLock reader_lock(self, *Locks::heap_bitmap_lock_);
     for (const auto& table_pair : mod_union_tables_) {
       accounting::ModUnionTable* mod_union_table = table_pair.second;
-      mod_union_table->UpdateAndMarkReferences(IdentityRootCallback, nullptr);
+      mod_union_table->UpdateAndMarkReferences(IdentityMarkObjectCallback, nullptr);
       mod_union_table->Verify();
     }
     thread_list->ResumeAll();

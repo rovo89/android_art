@@ -783,11 +783,10 @@ class VerifyRootWrapperArg {
   void* const arg_;
 };
 
-static mirror::Object* VerifyRootWrapperCallback(mirror::Object* root, void* arg,
-                                                 uint32_t /*thread_id*/, RootType /*root_type*/) {
+static void VerifyRootWrapperCallback(mirror::Object** root, void* arg, uint32_t /*thread_id*/,
+                                      RootType /*root_type*/) {
   VerifyRootWrapperArg* wrapperArg = reinterpret_cast<VerifyRootWrapperArg*>(arg);
-  wrapperArg->callback_(root, wrapperArg->arg_, 0, NULL);
-  return root;
+  wrapperArg->callback_(*root, wrapperArg->arg_, 0, NULL);
 }
 
 void ThreadList::VerifyRoots(VerifyRootCallback* callback, void* arg) const {

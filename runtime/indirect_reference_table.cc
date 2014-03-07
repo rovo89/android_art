@@ -312,7 +312,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
 void IndirectReferenceTable::VisitRoots(RootCallback* callback, void* arg, uint32_t tid,
                                         RootType root_type) {
   for (auto ref : *this) {
-    *ref = callback(const_cast<mirror::Object*>(*ref), arg, tid, root_type);
+    callback(ref, arg, tid, root_type);
     DCHECK(*ref != nullptr);
   }
 }

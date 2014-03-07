@@ -496,12 +496,12 @@ class Hprof {
   }
 
  private:
-  static mirror::Object* RootVisitor(mirror::Object* obj, void* arg, uint32_t thread_id,
-                                     RootType root_type)
+  static void RootVisitor(mirror::Object** obj, void* arg, uint32_t thread_id, RootType root_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(arg != NULL);
-    reinterpret_cast<Hprof*>(arg)->VisitRoot(obj, thread_id, root_type);
-    return obj;
+    DCHECK(arg != nullptr);
+    DCHECK(obj != nullptr);
+    DCHECK(*obj != nullptr);
+    reinterpret_cast<Hprof*>(arg)->VisitRoot(*obj, thread_id, root_type);
   }
 
   static void VisitObjectCallback(mirror::Object* obj, void* arg)

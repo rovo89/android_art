@@ -1004,19 +1004,18 @@ void Thread::AssertNoPendingException() const {
   }
 }
 
-static mirror::Object* MonitorExitVisitor(mirror::Object* object, void* arg, uint32_t /*thread_id*/,
-                                          RootType /*root_type*/)
+static void MonitorExitVisitor(mirror::Object** object, void* arg, uint32_t /*thread_id*/,
+                               RootType /*root_type*/)
     NO_THREAD_SAFETY_ANALYSIS {
   Thread* self = reinterpret_cast<Thread*>(arg);
-  mirror::Object* entered_monitor = object;
+  mirror::Object* entered_monitor = *object;
   if (self->HoldsLock(entered_monitor)) {
     LOG(WARNING) << "Calling MonitorExit on object "
-                 << object << " (" << PrettyTypeOf(object) << ")"
+                 << object << " (" << PrettyTypeOf(entered_monitor) << ")"
                  << " left locked by native thread "
                  << *Thread::Current() << " which is detaching";
     entered_monitor->MonitorExit(self);
   }
-  return object;
 }
 
 void Thread::Destroy() {
@@ -1167,10 +1166,10 @@ void Thread::SirtVisitRoots(RootCallback* visitor, void* arg, uint32_t thread_id
     for (size_t j = 0; j < num_refs; ++j) {
       mirror::Object* object = cur->GetReference(j);
       if (object != nullptr) {
-        mirror::Object* new_obj = visitor(object, arg, thread_id, kRootNativeStack);
-        DCHECK(new_obj != nullptr);
-        if (new_obj != object) {
-          cur->SetReference(j, new_obj);
+        mirror::Object* old_obj = object;
+        visitor(&object, arg, thread_id, kRootNativeStack);
+        if (old_obj != object) {
+          cur->SetReference(j, object);
         }
       }
     }
@@ -1888,7 +1887,8 @@ class ReferenceMapVisitor : public StackVisitor {
         for (size_t reg = 0; reg < num_regs; ++reg) {
           mirror::Object* ref = shadow_frame->GetVRegReference(reg);
           if (ref != nullptr) {
-            mirror::Object* new_ref = visitor_(ref, reg, this);
+            mirror::Object* new_ref = ref;
+            visitor_(&new_ref, reg, this);
             if (new_ref != ref) {
              shadow_frame->SetVRegReference(reg, new_ref);
             }
@@ -1908,7 +1908,8 @@ class ReferenceMapVisitor : public StackVisitor {
           if (TestBitmap(reg, reg_bitmap)) {
             mirror::Object* ref = shadow_frame->GetVRegReference(reg);
             if (ref != nullptr) {
-              mirror::Object* new_ref = visitor_(ref, reg, this);
+              mirror::Object* new_ref = ref;
+              visitor_(&new_ref, reg, this);
               if (new_ref != ref) {
                shadow_frame->SetVRegReference(reg, new_ref);
               }
@@ -1944,21 +1945,22 @@ class ReferenceMapVisitor : public StackVisitor {
               uint32_t vmap_offset;
               if (vmap_table.IsInContext(reg, kReferenceVReg, &vmap_offset)) {
                 int vmap_reg = vmap_table.ComputeRegister(core_spills, vmap_offset, kReferenceVReg);
-                mirror::Object* ref = reinterpret_cast<mirror::Object*>(GetGPR(vmap_reg));
-                if (ref != nullptr) {
-                  mirror::Object* new_ref = visitor_(ref, reg, this);
-                  if (ref != new_ref) {
-                    SetGPR(vmap_reg, reinterpret_cast<uintptr_t>(new_ref));
-                  }
+                // This is sound as spilled GPRs will be word sized (ie 32 or 64bit).
+                mirror::Object** ref_addr = reinterpret_cast<mirror::Object**>(GetGPRAddress(vmap_reg));
+                if (*ref_addr != nullptr) {
+                  visitor_(ref_addr, reg, this);
                 }
               } else {
-                uintptr_t* reg_addr = reinterpret_cast<uintptr_t*>(
-                    GetVRegAddr(cur_quick_frame, code_item, core_spills, fp_spills, frame_size, reg));
-                mirror::Object* ref = reinterpret_cast<mirror::Object*>(*reg_addr);
+                StackReference<mirror::Object>* ref_addr =
+                    reinterpret_cast<StackReference<mirror::Object>*>(
+                        GetVRegAddr(cur_quick_frame, code_item, core_spills, fp_spills, frame_size,
+                                    reg));
+                mirror::Object* ref = ref_addr->AsMirrorPtr();
                 if (ref != nullptr) {
-                  mirror::Object* new_ref = visitor_(ref, reg, this);
+                  mirror::Object* new_ref = ref;
+                  visitor_(&new_ref, reg, this);
                   if (ref != new_ref) {
-                    *reg_addr = reinterpret_cast<uintptr_t>(new_ref);
+                    ref_addr->Assign(new_ref);
                   }
                 }
               }
@@ -1971,8 +1973,8 @@ class ReferenceMapVisitor : public StackVisitor {
   }
 
  private:
-  static bool TestBitmap(int reg, const uint8_t* reg_vector) {
-    return ((reg_vector[reg / 8] >> (reg % 8)) & 0x01) != 0;
+  static bool TestBitmap(size_t reg, const uint8_t* reg_vector) {
+    return ((reg_vector[reg / kBitsPerByte] >> (reg % kBitsPerByte)) & 0x01) != 0;
   }
 
   // Visitor for when we visit a root.
@@ -1987,8 +1989,8 @@ class RootCallbackVisitor {
   RootCallbackVisitor(RootCallback* callback, void* arg, uint32_t tid)
      : callback_(callback), arg_(arg), tid_(tid) {}
 
-  mirror::Object* operator()(mirror::Object* obj, size_t, const StackVisitor*) const {
-    return callback_(obj, arg_, tid_, kRootJavaFrame);
+  void operator()(mirror::Object** obj, size_t, const StackVisitor*) const {
+    callback_(obj, arg_, tid_, kRootJavaFrame);
   }
 
  private:
@@ -2007,17 +2009,15 @@ void Thread::SetClassLoaderOverride(mirror::ClassLoader* class_loader_override) 
 void Thread::VisitRoots(RootCallback* visitor, void* arg) {
   uint32_t thread_id = GetThreadId();
   if (opeer_ != nullptr) {
-    opeer_ = visitor(opeer_, arg, thread_id, kRootThreadObject);
+    visitor(&opeer_, arg, thread_id, kRootThreadObject);
   }
   if (exception_ != nullptr) {
-    exception_ = down_cast<mirror::Throwable*>(visitor(exception_, arg, thread_id,
-                                                       kRootNativeStack));
+    visitor(reinterpret_cast<mirror::Object**>(&exception_), arg, thread_id, kRootNativeStack);
   }
   throw_location_.VisitRoots(visitor, arg);
   if (class_loader_override_ != nullptr) {
-    class_loader_override_ =
-        down_cast<mirror::ClassLoader*>(visitor(class_loader_override_, arg, thread_id,
-                                                kRootNativeStack));
+    visitor(reinterpret_cast<mirror::Object**>(&class_loader_override_), arg, thread_id,
+            kRootNativeStack);
   }
   jni_env_->locals.VisitRoots(visitor, arg, thread_id, kRootJNILocal);
   jni_env_->monitors.VisitRoots(visitor, arg, thread_id, kRootJNIMonitor);
@@ -2030,20 +2030,18 @@ void Thread::VisitRoots(RootCallback* visitor, void* arg) {
   ReleaseLongJumpContext(context);
   for (instrumentation::InstrumentationStackFrame& frame : *GetInstrumentationStack()) {
     if (frame.this_object_ != nullptr) {
-      frame.this_object_ = visitor(frame.this_object_, arg, thread_id, kRootJavaFrame);
+      visitor(&frame.this_object_, arg, thread_id, kRootJavaFrame);
     }
     DCHECK(frame.method_ != nullptr);
-    frame.method_ = down_cast<mirror::ArtMethod*>(visitor(frame.method_, arg, thread_id,
-                                                          kRootJavaFrame));
+    visitor(reinterpret_cast<mirror::Object**>(&frame.method_), arg, thread_id, kRootJavaFrame);
   }
 }
 
-static mirror::Object* VerifyRoot(mirror::Object* root, void* arg, uint32_t /*thread_id*/,
-                                  RootType /*root_type*/) {
+static void VerifyRoot(mirror::Object** root, void* arg, uint32_t /*thread_id*/,
+                       RootType /*root_type*/) {
   DCHECK(root != nullptr);
   DCHECK(arg != nullptr);
-  reinterpret_cast<gc::Heap*>(arg)->VerifyObject(root);
-  return root;
+  reinterpret_cast<gc::Heap*>(arg)->VerifyObject(*root);
 }
 
 void Thread::VerifyStackImpl() {
