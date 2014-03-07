@@ -684,6 +684,9 @@ void MipsAssembler::LoadRef(ManagedRegister mdest, ManagedRegister base,
   CHECK(dest.IsCoreRegister() && dest.IsCoreRegister());
   LoadFromOffset(kLoadWord, dest.AsCoreRegister(),
                  base.AsMips().AsCoreRegister(), offs.Int32Value());
+  if (kPoisonHeapReferences) {
+    Subu(dest.AsCoreRegister(), ZERO, dest.AsCoreRegister());
+  }
 }
 
 void MipsAssembler::LoadRawPtr(ManagedRegister mdest, ManagedRegister base,
