@@ -220,7 +220,7 @@ extern "C" void* art_heap_rosalloc_morecore(allocator::RosAlloc* rosalloc, intpt
   return rosalloc_space->MoreCore(increment);
 }
 
-size_t RosAllocSpace::AllocationSize(const mirror::Object* obj) {
+size_t RosAllocSpace::AllocationSize(mirror::Object* obj) {
   return AllocationSizeNonvirtual(obj);
 }
 

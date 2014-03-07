@@ -55,7 +55,7 @@ MemMap* ZipEntry::ExtractToMemMap(const char* entry_filename, std::string* error
   name += entry_filename;
   UniquePtr<MemMap> map(MemMap::MapAnonymous(name.c_str(),
                                              NULL, GetUncompressedLength(),
-                                             PROT_READ | PROT_WRITE, error_msg));
+                                             PROT_READ | PROT_WRITE, false, error_msg));
   if (map.get() == nullptr) {
     DCHECK(!error_msg->empty());
     return nullptr;

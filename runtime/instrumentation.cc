@@ -18,7 +18,7 @@
 
 #include <sys/uio.h>
 
-#include "atomic_integer.h"
+#include "atomic.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "debugger.h"
@@ -68,10 +68,21 @@ bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
   return true;
 }
 
-static void UpdateEntrypoints(mirror::ArtMethod* method, const void* code) {
-  method->SetEntryPointFromCompiledCode(code);
+static void UpdateEntrypoints(mirror::ArtMethod* method, const void* quick_code,
+                              const void* portable_code, bool have_portable_code)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  method->SetEntryPointFromPortableCompiledCode(portable_code);
+  method->SetEntryPointFromQuickCompiledCode(quick_code);
+  bool portable_enabled = method->IsPortableCompiled();
+  if (have_portable_code && !portable_enabled) {
+    method->SetIsPortableCompiled();
+  } else if (portable_enabled) {
+    method->ClearIsPortableCompiled();
+  }
   if (!method->IsResolutionMethod()) {
-    if (code == GetCompiledCodeToInterpreterBridge()) {
+    if (quick_code == GetQuickToInterpreterBridge()) {
+      DCHECK(portable_code == GetPortableToInterpreterBridge());
+      DCHECK(!method->IsNative()) << PrettyMethod(method);
       method->SetEntryPointFromInterpreter(art::interpreter::artInterpreterToInterpreterBridge);
     } else {
       method->SetEntryPointFromInterpreter(art::artInterpreterToCompiledCodeBridge);
@@ -84,37 +95,47 @@ void Instrumentation::InstallStubsForMethod(mirror::ArtMethod* method) {
     // Do not change stubs for these methods.
     return;
   }
-  const void* new_code;
+  const void* new_portable_code;
+  const void* new_quick_code;
   bool uninstall = !entry_exit_stubs_installed_ && !interpreter_stubs_installed_;
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   bool is_class_initialized = method->GetDeclaringClass()->IsInitialized();
+  bool have_portable_code = false;
   if (uninstall) {
     if ((forced_interpret_only_ || IsDeoptimized(method)) && !method->IsNative()) {
-      new_code = GetCompiledCodeToInterpreterBridge();
+      new_portable_code = GetPortableToInterpreterBridge();
+      new_quick_code = GetQuickToInterpreterBridge();
     } else if (is_class_initialized || !method->IsStatic() || method->IsConstructor()) {
-      new_code = class_linker->GetOatCodeFor(method);
+      new_portable_code = class_linker->GetPortableOatCodeFor(method, &have_portable_code);
+      new_quick_code = class_linker->GetQuickOatCodeFor(method);
     } else {
-      new_code = GetResolutionTrampoline(class_linker);
+      new_portable_code = GetPortableResolutionTrampoline(class_linker);
+      new_quick_code = GetQuickResolutionTrampoline(class_linker);
     }
   } else {  // !uninstall
     if ((interpreter_stubs_installed_ || IsDeoptimized(method)) && !method->IsNative()) {
-      new_code = GetCompiledCodeToInterpreterBridge();
+      new_portable_code = GetPortableToInterpreterBridge();
+      new_quick_code = GetQuickToInterpreterBridge();
     } else {
       // Do not overwrite resolution trampoline. When the trampoline initializes the method's
       // class, all its static methods code will be set to the instrumentation entry point.
       // For more details, see ClassLinker::FixupStaticTrampolines.
       if (is_class_initialized || !method->IsStatic() || method->IsConstructor()) {
         // Do not overwrite interpreter to prevent from posting method entry/exit events twice.
-        new_code = class_linker->GetOatCodeFor(method);
-        if (entry_exit_stubs_installed_ && new_code != GetCompiledCodeToInterpreterBridge()) {
-          new_code = GetQuickInstrumentationEntryPoint();
+        new_portable_code = class_linker->GetPortableOatCodeFor(method, &have_portable_code);
+        new_quick_code = class_linker->GetQuickOatCodeFor(method);
+        if (entry_exit_stubs_installed_ && new_quick_code != GetQuickToInterpreterBridge()) {
+          DCHECK(new_portable_code != GetPortableToInterpreterBridge());
+          new_portable_code = GetPortableToInterpreterBridge();
+          new_quick_code = GetQuickInstrumentationEntryPoint();
         }
       } else {
-        new_code = GetResolutionTrampoline(class_linker);
+        new_portable_code = GetPortableResolutionTrampoline(class_linker);
+        new_quick_code = GetQuickResolutionTrampoline(class_linker);
       }
     }
   }
-  UpdateEntrypoints(method, new_code);
+  UpdateEntrypoints(method, new_quick_code, new_portable_code, have_portable_code);
 }
 
 // Places the instrumentation exit pc as the return PC for every quick frame. This also allows
@@ -470,23 +491,38 @@ void Instrumentation::ResetQuickAllocEntryPoints() {
   }
 }
 
-void Instrumentation::UpdateMethodsCode(mirror::ArtMethod* method, const void* code) const {
-  const void* new_code;
+void Instrumentation::UpdateMethodsCode(mirror::ArtMethod* method, const void* quick_code,
+                                        const void* portable_code, bool have_portable_code) const {
+  const void* new_portable_code;
+  const void* new_quick_code;
+  bool new_have_portable_code;
   if (LIKELY(!instrumentation_stubs_installed_)) {
-    new_code = code;
+    new_portable_code = portable_code;
+    new_quick_code = quick_code;
+    new_have_portable_code = have_portable_code;
   } else {
     if ((interpreter_stubs_installed_ || IsDeoptimized(method)) && !method->IsNative()) {
-      new_code = GetCompiledCodeToInterpreterBridge();
-    } else if (code == GetResolutionTrampoline(Runtime::Current()->GetClassLinker()) ||
-               code == GetCompiledCodeToInterpreterBridge()) {
-      new_code = code;
+      new_portable_code = GetPortableToInterpreterBridge();
+      new_quick_code = GetQuickToInterpreterBridge();
+      new_have_portable_code = false;
+    } else if (quick_code == GetQuickResolutionTrampoline(Runtime::Current()->GetClassLinker()) ||
+               quick_code == GetQuickToInterpreterBridge()) {
+      DCHECK((portable_code == GetPortableResolutionTrampoline(Runtime::Current()->GetClassLinker())) ||
+             (portable_code == GetPortableToInterpreterBridge()));
+      new_portable_code = portable_code;
+      new_quick_code = quick_code;
+      new_have_portable_code = have_portable_code;
     } else if (entry_exit_stubs_installed_) {
-      new_code = GetQuickInstrumentationEntryPoint();
+      new_quick_code = GetQuickInstrumentationEntryPoint();
+      new_portable_code = GetPortableToInterpreterBridge();
+      new_have_portable_code = false;
     } else {
-      new_code = code;
+      new_portable_code = portable_code;
+      new_quick_code = quick_code;
+      new_have_portable_code = have_portable_code;
     }
   }
-  UpdateEntrypoints(method, new_code);
+  UpdateEntrypoints(method, new_quick_code, new_portable_code, new_have_portable_code);
 }
 
 void Instrumentation::Deoptimize(mirror::ArtMethod* method) {
@@ -499,7 +535,8 @@ void Instrumentation::Deoptimize(mirror::ArtMethod* method) {
   CHECK(!already_deoptimized) << "Method " << PrettyMethod(method) << " is already deoptimized";
 
   if (!interpreter_stubs_installed_) {
-    UpdateEntrypoints(method, GetCompiledCodeToInterpreterBridge());
+    UpdateEntrypoints(method, GetQuickToInterpreterBridge(), GetPortableToInterpreterBridge(),
+                      false);
 
     // Install instrumentation exit stub and instrumentation frames. We may already have installed
     // these previously so it will only cover the newly created frames.
@@ -522,10 +559,15 @@ void Instrumentation::Undeoptimize(mirror::ArtMethod* method) {
   if (!interpreter_stubs_installed_) {
     // Restore its code or resolution trampoline.
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    if (method->IsStatic() && !method->IsConstructor() && !method->GetDeclaringClass()->IsInitialized()) {
-      UpdateEntrypoints(method, GetResolutionTrampoline(class_linker));
+    if (method->IsStatic() && !method->IsConstructor() &&
+        !method->GetDeclaringClass()->IsInitialized()) {
+      UpdateEntrypoints(method, GetQuickResolutionTrampoline(class_linker),
+                        GetPortableResolutionTrampoline(class_linker), false);
     } else {
-      UpdateEntrypoints(method, class_linker->GetOatCodeFor(method));
+      bool have_portable_code = false;
+      const void* quick_code = class_linker->GetQuickOatCodeFor(method);
+      const void* portable_code = class_linker->GetPortableOatCodeFor(method, &have_portable_code);
+      UpdateEntrypoints(method, quick_code, portable_code, have_portable_code);
     }
 
     // If there is no deoptimized method left, we can restore the stack of each thread.
@@ -582,21 +624,21 @@ void Instrumentation::DisableMethodTracing() {
   ConfigureStubs(false, false);
 }
 
-const void* Instrumentation::GetQuickCodeFor(const mirror::ArtMethod* method) const {
+const void* Instrumentation::GetQuickCodeFor(mirror::ArtMethod* method) const {
   Runtime* runtime = Runtime::Current();
   if (LIKELY(!instrumentation_stubs_installed_)) {
-    const void* code = method->GetEntryPointFromCompiledCode();
+    const void* code = method->GetEntryPointFromQuickCompiledCode();
     DCHECK(code != NULL);
     if (LIKELY(code != GetQuickResolutionTrampoline(runtime->GetClassLinker()) &&
                code != GetQuickToInterpreterBridge())) {
       return code;
     }
   }
-  return runtime->GetClassLinker()->GetOatCodeFor(method);
+  return runtime->GetClassLinker()->GetQuickOatCodeFor(method);
 }
 
 void Instrumentation::MethodEnterEventImpl(Thread* thread, mirror::Object* this_object,
-                                           const mirror::ArtMethod* method,
+                                           mirror::ArtMethod* method,
                                            uint32_t dex_pc) const {
   auto it = method_entry_listeners_.begin();
   bool is_end = (it == method_entry_listeners_.end());
@@ -610,7 +652,7 @@ void Instrumentation::MethodEnterEventImpl(Thread* thread, mirror::Object* this_
 }
 
 void Instrumentation::MethodExitEventImpl(Thread* thread, mirror::Object* this_object,
-                                          const mirror::ArtMethod* method,
+                                          mirror::ArtMethod* method,
                                           uint32_t dex_pc, const JValue& return_value) const {
   auto it = method_exit_listeners_.begin();
   bool is_end = (it == method_exit_listeners_.end());
@@ -624,7 +666,7 @@ void Instrumentation::MethodExitEventImpl(Thread* thread, mirror::Object* this_o
 }
 
 void Instrumentation::MethodUnwindEvent(Thread* thread, mirror::Object* this_object,
-                                        const mirror::ArtMethod* method,
+                                        mirror::ArtMethod* method,
                                         uint32_t dex_pc) const {
   if (have_method_unwind_listeners_) {
     for (InstrumentationListener* listener : method_unwind_listeners_) {
@@ -634,7 +676,7 @@ void Instrumentation::MethodUnwindEvent(Thread* thread, mirror::Object* this_obj
 }
 
 void Instrumentation::DexPcMovedEventImpl(Thread* thread, mirror::Object* this_object,
-                                          const mirror::ArtMethod* method,
+                                          mirror::ArtMethod* method,
                                           uint32_t dex_pc) const {
   // TODO: STL copy-on-write collection? The copy below is due to the debug listener having an
   // action where it can remove itself as a listener and break the iterator. The copy only works

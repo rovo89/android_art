@@ -42,7 +42,7 @@ class Monitor;
  *
  *  |33|222222222211111111110000000000|
  *  |10|987654321098765432109876543210|
- *  |01| Monitor* >> kStateSize       |
+ *  |01| MonitorId                    |
  *
  * When the lock word is in hash state and its bits are formatted as follows:
  *

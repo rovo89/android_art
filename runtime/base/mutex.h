@@ -23,7 +23,7 @@
 #include <iosfwd>
 #include <string>
 
-#include "atomic_integer.h"
+#include "atomic.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "globals.h"

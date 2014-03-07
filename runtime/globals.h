@@ -36,7 +36,7 @@ static constexpr size_t kPointerSize = sizeof(void*);
 static constexpr size_t kBitsPerByte = 8;
 static constexpr size_t kBitsPerByteLog2 = 3;
 static constexpr int kBitsPerWord = kWordSize * kBitsPerByte;
-static constexpr size_t kWordHighBitMask = 1 << (kBitsPerWord - 1);
+static constexpr size_t kWordHighBitMask = static_cast<size_t>(1) << (kBitsPerWord - 1);
 
 // Required stack alignment
 static constexpr size_t kStackAlignment = 16;

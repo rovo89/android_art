@@ -126,7 +126,7 @@ LlvmCompilationUnit* CompilerLLVM::AllocateCompilationUnit() {
   MutexLock GUARD(Thread::Current(), next_cunit_id_lock_);
   LlvmCompilationUnit* cunit = new LlvmCompilationUnit(this, next_cunit_id_++);
   if (!bitcode_filename_.empty()) {
-    cunit->SetBitcodeFileName(StringPrintf("%s-%zu",
+    cunit->SetBitcodeFileName(StringPrintf("%s-%u",
                                            bitcode_filename_.c_str(),
                                            cunit->GetCompilationUnitId()));
   }

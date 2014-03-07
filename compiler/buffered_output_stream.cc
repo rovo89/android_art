@@ -23,7 +23,7 @@ namespace art {
 BufferedOutputStream::BufferedOutputStream(OutputStream* out)
     : OutputStream(out->GetLocation()), out_(out), used_(0) {}
 
-bool BufferedOutputStream::WriteFully(const void* buffer, int64_t byte_count) {
+bool BufferedOutputStream::WriteFully(const void* buffer, size_t byte_count) {
   if (byte_count > kBufferSize) {
     Flush();
     return out_->WriteFully(buffer, byte_count);

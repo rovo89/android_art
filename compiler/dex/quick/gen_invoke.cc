@@ -453,7 +453,7 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       if (cu->instruction_set != kX86) {
         if (direct_code == 0) {
           cg->LoadWordDisp(cg->TargetReg(kArg0),
-                           mirror::ArtMethod::GetEntryPointFromCompiledCodeOffset().Int32Value(),
+                           mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value(),
                            cg->TargetReg(kInvokeTgt));
         }
         break;
@@ -506,7 +506,7 @@ static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
     case 4:  // Get the compiled code address [uses kArg0, sets kInvokeTgt]
       if (cu->instruction_set != kX86) {
         cg->LoadWordDisp(cg->TargetReg(kArg0),
-                         mirror::ArtMethod::GetEntryPointFromCompiledCodeOffset().Int32Value(),
+                         mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value(),
                          cg->TargetReg(kInvokeTgt));
         break;
       }
@@ -561,7 +561,7 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
     case 5:  // Get the compiled code address [use kArg0, set kInvokeTgt]
       if (cu->instruction_set != kX86) {
         cg->LoadWordDisp(cg->TargetReg(kArg0),
-                         mirror::ArtMethod::GetEntryPointFromCompiledCodeOffset().Int32Value(),
+                         mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value(),
                          cg->TargetReg(kInvokeTgt));
         break;
       }
@@ -1437,7 +1437,7 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
   } else {
     if (fast_path) {
       call_inst = OpMem(kOpBlx, TargetReg(kArg0),
-                        mirror::ArtMethod::GetEntryPointFromCompiledCodeOffset().Int32Value());
+                        mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value());
     } else {
       ThreadOffset trampoline(-1);
       switch (info->type) {

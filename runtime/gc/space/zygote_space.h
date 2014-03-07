@@ -54,7 +54,7 @@ class ZygoteSpace : public ContinuousMemMapAllocSpace {
     LOG(FATAL) << "Unimplemented";
     return nullptr;
   }
-  virtual size_t AllocationSize(const mirror::Object* obj) {
+  virtual size_t AllocationSize(mirror::Object* obj) {
     LOG(FATAL) << "Unimplemented";
     return 0;
   }

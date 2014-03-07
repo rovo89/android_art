@@ -61,8 +61,8 @@ class FdFile : public RandomAccessFile {
     return file_path_;
   }
   void DisableAutoClose();
-  bool ReadFully(void* buffer, int64_t byte_count);
-  bool WriteFully(const void* buffer, int64_t byte_count);
+  bool ReadFully(void* buffer, size_t byte_count);
+  bool WriteFully(const void* buffer, size_t byte_count);
 
  private:
   int fd_;

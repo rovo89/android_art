@@ -58,9 +58,11 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
   // Allocate num_bytes allowing the underlying space to grow.
   virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated) = 0;
   // Return the storage space required by obj.
-  virtual size_t AllocationSize(const mirror::Object* obj) = 0;
-  virtual size_t Free(Thread* self, mirror::Object* ptr) = 0;
-  virtual size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) = 0;
+  virtual size_t AllocationSize(mirror::Object* obj) = 0;
+  virtual size_t Free(Thread* self, mirror::Object* ptr)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
+  virtual size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
 
 #ifndef NDEBUG
   virtual void CheckMoreCoreForPrecondition() {}  // to be overridden in the debug build.
@@ -136,7 +138,9 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
   virtual void* CreateAllocator(void* base, size_t morecore_start, size_t initial_size,
                                 bool low_memory_mode) = 0;
 
-  void RegisterRecentFree(mirror::Object* ptr) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  void RegisterRecentFree(mirror::Object* ptr)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   virtual accounting::SpaceBitmap::SweepCallback* GetSweepCallback() {
     return &SweepCallback;
@@ -163,7 +167,8 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
   size_t growth_limit_;
 
  private:
-  static void SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg);
+  static void SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   DISALLOW_COPY_AND_ASSIGN(MallocSpace);
 };
@@ -204,13 +209,14 @@ class ValgrindMallocSpace : public BaseMallocSpaceType {
     return result;
   }
 
-  virtual size_t AllocationSize(const mirror::Object* obj) {
-    size_t result = BaseMallocSpaceType::AllocationSize(reinterpret_cast<const mirror::Object*>(
-        reinterpret_cast<const byte*>(obj) - kValgrindRedZoneBytes));
+  virtual size_t AllocationSize(mirror::Object* obj) {
+    size_t result = BaseMallocSpaceType::AllocationSize(reinterpret_cast<mirror::Object*>(
+        reinterpret_cast<byte*>(obj) - kValgrindRedZoneBytes));
     return result - 2 * kValgrindRedZoneBytes;
   }
 
-  virtual size_t Free(Thread* self, mirror::Object* ptr) {
+  virtual size_t Free(Thread* self, mirror::Object* ptr)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     void* obj_after_rdz = reinterpret_cast<void*>(ptr);
     void* obj_with_rdz = reinterpret_cast<byte*>(obj_after_rdz) - kValgrindRedZoneBytes;
     // Make redzones undefined.
@@ -221,7 +227,8 @@ class ValgrindMallocSpace : public BaseMallocSpaceType {
     return freed - 2 * kValgrindRedZoneBytes;
   }
 
-  virtual size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) {
+  virtual size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     size_t freed = 0;
     for (size_t i = 0; i < num_ptrs; i++) {
       freed += Free(self, ptrs[i]);

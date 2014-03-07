@@ -356,7 +356,7 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
     DCHECK_LT(shorty_pos + 1, mh.GetShortyLength());
     switch (shorty[shorty_pos + 1]) {
       case 'L': {
-        Object* o = reinterpret_cast<Object*>(args[arg_pos]);
+        Object* o = reinterpret_cast<StackReference<Object>*>(&args[arg_pos])->AsMirrorPtr();
         shadow_frame->SetVRegReference(cur_reg, o);
         break;
       }

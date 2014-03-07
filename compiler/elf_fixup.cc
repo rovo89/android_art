@@ -177,7 +177,7 @@ bool ElfFixup::FixupDynamic(ElfFile& elf_file, uintptr_t base_address) {
     if (elf_dyn_needs_fixup) {
       uint32_t d_ptr = elf_dyn.d_un.d_ptr;
       if (DEBUG_FIXUP) {
-        LOG(INFO) << StringPrintf("In %s moving Elf32_Dyn[%d] from 0x%08x to 0x%08x",
+        LOG(INFO) << StringPrintf("In %s moving Elf32_Dyn[%d] from 0x%08x to 0x%08" PRIxPTR,
                                   elf_file.GetFile().GetPath().c_str(), i,
                                   d_ptr, d_ptr + base_address);
       }
@@ -196,7 +196,7 @@ bool ElfFixup::FixupSectionHeaders(ElfFile& elf_file, uintptr_t base_address) {
       continue;
     }
     if (DEBUG_FIXUP) {
-      LOG(INFO) << StringPrintf("In %s moving Elf32_Shdr[%d] from 0x%08x to 0x%08x",
+      LOG(INFO) << StringPrintf("In %s moving Elf32_Shdr[%d] from 0x%08x to 0x%08" PRIxPTR,
                                 elf_file.GetFile().GetPath().c_str(), i,
                                 sh.sh_addr, sh.sh_addr + base_address);
     }
@@ -213,7 +213,7 @@ bool ElfFixup::FixupProgramHeaders(ElfFile& elf_file, uintptr_t base_address) {
     CHECK((ph.p_align == 0) || (0 == ((ph.p_vaddr - ph.p_offset) & (ph.p_align - 1))))
             << elf_file.GetFile().GetPath() << " i=" << i;
     if (DEBUG_FIXUP) {
-      LOG(INFO) << StringPrintf("In %s moving Elf32_Phdr[%d] from 0x%08x to 0x%08x",
+      LOG(INFO) << StringPrintf("In %s moving Elf32_Phdr[%d] from 0x%08x to 0x%08" PRIxPTR,
                                 elf_file.GetFile().GetPath().c_str(), i,
                                 ph.p_vaddr, ph.p_vaddr + base_address);
     }
@@ -238,7 +238,7 @@ bool ElfFixup::FixupSymbols(ElfFile& elf_file, uintptr_t base_address, bool dyna
     ::llvm::ELF::Elf32_Sym& symbol = elf_file.GetSymbol(section_type, i);
     if (symbol.st_value != 0) {
       if (DEBUG_FIXUP) {
-        LOG(INFO) << StringPrintf("In %s moving Elf32_Sym[%d] from 0x%08x to 0x%08x",
+        LOG(INFO) << StringPrintf("In %s moving Elf32_Sym[%d] from 0x%08x to 0x%08" PRIxPTR,
                                   elf_file.GetFile().GetPath().c_str(), i,
                                   symbol.st_value, symbol.st_value + base_address);
       }
@@ -255,7 +255,7 @@ bool ElfFixup::FixupRelocations(ElfFile& elf_file, uintptr_t base_address) {
       for (uint32_t i = 0; i < elf_file.GetRelNum(sh); i++) {
         llvm::ELF::Elf32_Rel& rel = elf_file.GetRel(sh, i);
         if (DEBUG_FIXUP) {
-          LOG(INFO) << StringPrintf("In %s moving Elf32_Rel[%d] from 0x%08x to 0x%08x",
+          LOG(INFO) << StringPrintf("In %s moving Elf32_Rel[%d] from 0x%08x to 0x%08" PRIxPTR,
                                     elf_file.GetFile().GetPath().c_str(), i,
                                     rel.r_offset, rel.r_offset + base_address);
         }
@@ -265,7 +265,7 @@ bool ElfFixup::FixupRelocations(ElfFile& elf_file, uintptr_t base_address) {
       for (uint32_t i = 0; i < elf_file.GetRelaNum(sh); i++) {
         llvm::ELF::Elf32_Rela& rela = elf_file.GetRela(sh, i);
         if (DEBUG_FIXUP) {
-          LOG(INFO) << StringPrintf("In %s moving Elf32_Rela[%d] from 0x%08x to 0x%08x",
+          LOG(INFO) << StringPrintf("In %s moving Elf32_Rela[%d] from 0x%08x to 0x%08" PRIxPTR,
                                     elf_file.GetFile().GetPath().c_str(), i,
                                     rela.r_offset, rela.r_offset + base_address);
         }

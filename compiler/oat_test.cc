@@ -39,29 +39,42 @@ class OatTest : public CommonTest {
                                                             method->GetDexMethodIndex()));
 
     if (compiled_method == NULL) {
-      EXPECT_TRUE(oat_method.GetCode() == NULL) << PrettyMethod(method) << " "
-                                                << oat_method.GetCode();
-#if !defined(ART_USE_PORTABLE_COMPILER)
-      EXPECT_EQ(oat_method.GetFrameSizeInBytes(), kCompile ? kStackAlignment : 0);
+      EXPECT_TRUE(oat_method.GetQuickCode() == NULL) << PrettyMethod(method) << " "
+                                                     << oat_method.GetQuickCode();
+      EXPECT_TRUE(oat_method.GetPortableCode() == NULL) << PrettyMethod(method) << " "
+                                                        << oat_method.GetPortableCode();
+      EXPECT_EQ(oat_method.GetFrameSizeInBytes(), 0U);
       EXPECT_EQ(oat_method.GetCoreSpillMask(), 0U);
       EXPECT_EQ(oat_method.GetFpSpillMask(), 0U);
-#endif
     } else {
-      const void* oat_code = oat_method.GetCode();
-      EXPECT_TRUE(oat_code != NULL) << PrettyMethod(method);
-      uintptr_t oat_code_aligned = RoundDown(reinterpret_cast<uintptr_t>(oat_code), 2);
-      oat_code = reinterpret_cast<const void*>(oat_code_aligned);
-
-      const std::vector<uint8_t>& code = compiled_method->GetCode();
-      size_t code_size = code.size() * sizeof(code[0]);
-      EXPECT_EQ(0, memcmp(oat_code, &code[0], code_size))
-          << PrettyMethod(method) << " " << code_size;
-      CHECK_EQ(0, memcmp(oat_code, &code[0], code_size));
-#if !defined(ART_USE_PORTABLE_COMPILER)
-      EXPECT_EQ(oat_method.GetFrameSizeInBytes(), compiled_method->GetFrameSizeInBytes());
-      EXPECT_EQ(oat_method.GetCoreSpillMask(), compiled_method->GetCoreSpillMask());
-      EXPECT_EQ(oat_method.GetFpSpillMask(), compiled_method->GetFpSpillMask());
-#endif
+      const void* quick_oat_code = oat_method.GetQuickCode();
+      if (quick_oat_code != nullptr) {
+        EXPECT_EQ(oat_method.GetFrameSizeInBytes(), compiled_method->GetFrameSizeInBytes());
+        EXPECT_EQ(oat_method.GetCoreSpillMask(), compiled_method->GetCoreSpillMask());
+        EXPECT_EQ(oat_method.GetFpSpillMask(), compiled_method->GetFpSpillMask());
+        uintptr_t oat_code_aligned = RoundDown(reinterpret_cast<uintptr_t>(quick_oat_code), 2);
+        quick_oat_code = reinterpret_cast<const void*>(oat_code_aligned);
+        const std::vector<uint8_t>* quick_code = compiled_method->GetQuickCode();
+        EXPECT_TRUE(quick_code != nullptr);
+        size_t code_size = quick_code->size() * sizeof(quick_code[0]);
+        EXPECT_EQ(0, memcmp(quick_oat_code, &quick_code[0], code_size))
+            << PrettyMethod(method) << " " << code_size;
+        CHECK_EQ(0, memcmp(quick_oat_code, &quick_code[0], code_size));
+      } else {
+        const void* portable_oat_code = oat_method.GetPortableCode();
+        EXPECT_TRUE(portable_oat_code != nullptr) << PrettyMethod(method);
+        EXPECT_EQ(oat_method.GetFrameSizeInBytes(), 0U);
+        EXPECT_EQ(oat_method.GetCoreSpillMask(), 0U);
+        EXPECT_EQ(oat_method.GetFpSpillMask(), 0U);
+        uintptr_t oat_code_aligned = RoundDown(reinterpret_cast<uintptr_t>(portable_oat_code), 2);
+        portable_oat_code = reinterpret_cast<const void*>(oat_code_aligned);
+        const std::vector<uint8_t>* portable_code = compiled_method->GetPortableCode();
+        EXPECT_TRUE(portable_code != nullptr);
+        size_t code_size = portable_code->size() * sizeof(portable_code[0]);
+        EXPECT_EQ(0, memcmp(quick_oat_code, &portable_code[0], code_size))
+            << PrettyMethod(method) << " " << code_size;
+        CHECK_EQ(0, memcmp(quick_oat_code, &portable_code[0], code_size));
+      }
     }
   }
 };
@@ -70,12 +83,8 @@ TEST_F(OatTest, WriteRead) {
   TimingLogger timings("CommonTest::WriteRead", false, false);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
-  // TODO: make selectable
-#if defined(ART_USE_PORTABLE_COMPILER)
-  CompilerBackend compiler_backend = kPortable;
-#else
-  CompilerBackend compiler_backend = kQuick;
-#endif
+  // TODO: make selectable.
+  CompilerBackend compiler_backend = kUsePortableCompiler ? kPortable : kQuick;
   InstructionSet insn_set = kIsTargetBuild ? kThumb2 : kX86;
 
   InstructionSetFeatures insn_features;

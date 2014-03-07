@@ -89,7 +89,7 @@ class BuildStackTraceVisitor : public StackVisitor {
   explicit BuildStackTraceVisitor(Thread* thread) : StackVisitor(thread, NULL),
       method_trace_(Trace::AllocStackTrace()) {}
 
-  bool VisitFrame() {
+  bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::ArtMethod* m = GetMethod();
     // Ignore runtime frames (in particular callee save).
     if (!m->IsRuntimeMethod()) {
@@ -133,9 +133,9 @@ static TraceAction DecodeTraceAction(uint32_t tmid) {
   return static_cast<TraceAction>(tmid & kTraceMethodActionMask);
 }
 
-static uint32_t EncodeTraceMethodAndAction(const mirror::ArtMethod* method,
+static uint32_t EncodeTraceMethodAndAction(mirror::ArtMethod* method,
                                            TraceAction action) {
-  uint32_t tmid = reinterpret_cast<uint32_t>(method) | action;
+  uint32_t tmid = PointerToLowMemUInt32(method) | action;
   DCHECK_EQ(method, DecodeTraceMethodId(tmid));
   return tmid;
 }
@@ -298,7 +298,7 @@ void Trace::CompareAndUpdateStackTrace(Thread* thread,
 
 void* Trace::RunSamplingThread(void* arg) {
   Runtime* runtime = Runtime::Current();
-  int interval_us = reinterpret_cast<int>(arg);
+  intptr_t interval_us = reinterpret_cast<intptr_t>(arg);
   CHECK_GE(interval_us, 0);
   CHECK(runtime->AttachCurrentThread("Sampling Profiler", true, runtime->GetSystemThreadGroup(),
                                      !runtime->IsCompiler()));
@@ -508,7 +508,7 @@ void Trace::FinishTracing() {
   } else {
     os << StringPrintf("clock=wall\n");
   }
-  os << StringPrintf("elapsed-time-usec=%llu\n", elapsed);
+  os << StringPrintf("elapsed-time-usec=%" PRIu64 "\n", elapsed);
   size_t num_records = (final_offset - kTraceHeaderLength) / GetRecordSize(clock_source_);
   os << StringPrintf("num-method-calls=%zd\n", num_records);
   os << StringPrintf("clock-call-overhead-nsec=%d\n", clock_overhead_ns);
@@ -548,13 +548,13 @@ void Trace::FinishTracing() {
 }
 
 void Trace::DexPcMoved(Thread* thread, mirror::Object* this_object,
-                       const mirror::ArtMethod* method, uint32_t new_dex_pc) {
+                       mirror::ArtMethod* method, uint32_t new_dex_pc) {
   // We're not recorded to listen to this kind of event, so complain.
   LOG(ERROR) << "Unexpected dex PC event in tracing " << PrettyMethod(method) << " " << new_dex_pc;
 };
 
 void Trace::MethodEntered(Thread* thread, mirror::Object* this_object,
-                          const mirror::ArtMethod* method, uint32_t dex_pc) {
+                          mirror::ArtMethod* method, uint32_t dex_pc) {
   uint32_t thread_clock_diff = 0;
   uint32_t wall_clock_diff = 0;
   ReadClocks(thread, &thread_clock_diff, &wall_clock_diff);
@@ -563,7 +563,7 @@ void Trace::MethodEntered(Thread* thread, mirror::Object* this_object,
 }
 
 void Trace::MethodExited(Thread* thread, mirror::Object* this_object,
-                         const mirror::ArtMethod* method, uint32_t dex_pc,
+                         mirror::ArtMethod* method, uint32_t dex_pc,
                          const JValue& return_value) {
   UNUSED(return_value);
   uint32_t thread_clock_diff = 0;
@@ -574,7 +574,7 @@ void Trace::MethodExited(Thread* thread, mirror::Object* this_object,
 }
 
 void Trace::MethodUnwind(Thread* thread, mirror::Object* this_object,
-                         const mirror::ArtMethod* method, uint32_t dex_pc) {
+                         mirror::ArtMethod* method, uint32_t dex_pc) {
   uint32_t thread_clock_diff = 0;
   uint32_t wall_clock_diff = 0;
   ReadClocks(thread, &thread_clock_diff, &wall_clock_diff);
@@ -605,7 +605,7 @@ void Trace::ReadClocks(Thread* thread, uint32_t* thread_clock_diff, uint32_t* wa
   }
 }
 
-void Trace::LogMethodTraceEvent(Thread* thread, const mirror::ArtMethod* method,
+void Trace::LogMethodTraceEvent(Thread* thread, mirror::ArtMethod* method,
                                 instrumentation::Instrumentation::InstrumentationEvent event,
                                 uint32_t thread_clock_diff, uint32_t wall_clock_diff) {
   // Advance cur_offset_ atomically.

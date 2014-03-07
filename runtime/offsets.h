@@ -22,7 +22,7 @@
 
 namespace art {
 
-// Allow the meaning of offsets to be strongly typed
+// Allow the meaning of offsets to be strongly typed.
 class Offset {
  public:
   explicit Offset(size_t val) : val_(val) {}
@@ -37,7 +37,7 @@ class Offset {
 };
 std::ostream& operator<<(std::ostream& os, const Offset& offs);
 
-// Offsets relative to the current frame
+// Offsets relative to the current frame.
 class FrameOffset : public Offset {
  public:
   explicit FrameOffset(size_t val) : Offset(val) {}
@@ -45,13 +45,13 @@ class FrameOffset : public Offset {
   bool operator<(FrameOffset other) const { return val_ < other.val_; }
 };
 
-// Offsets relative to the current running thread
+// Offsets relative to the current running thread.
 class ThreadOffset : public Offset {
  public:
   explicit ThreadOffset(size_t val) : Offset(val) {}
 };
 
-// Offsets relative to an object
+// Offsets relative to an object.
 class MemberOffset : public Offset {
  public:
   explicit MemberOffset(size_t val) : Offset(val) {}

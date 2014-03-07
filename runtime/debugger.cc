@@ -101,7 +101,7 @@ class DebugInstrumentationListener : public instrumentation::InstrumentationList
   virtual ~DebugInstrumentationListener() {}
 
   virtual void MethodEntered(Thread* thread, mirror::Object* this_object,
-                             const mirror::ArtMethod* method, uint32_t dex_pc)
+                             mirror::ArtMethod* method, uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (method->IsNative()) {
       // TODO: post location events is a suspension point and native method entry stubs aren't.
@@ -111,7 +111,7 @@ class DebugInstrumentationListener : public instrumentation::InstrumentationList
   }
 
   virtual void MethodExited(Thread* thread, mirror::Object* this_object,
-                            const mirror::ArtMethod* method,
+                            mirror::ArtMethod* method,
                             uint32_t dex_pc, const JValue& return_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (method->IsNative()) {
@@ -122,7 +122,7 @@ class DebugInstrumentationListener : public instrumentation::InstrumentationList
   }
 
   virtual void MethodUnwind(Thread* thread, mirror::Object* this_object,
-                            const mirror::ArtMethod* method, uint32_t dex_pc)
+                            mirror::ArtMethod* method, uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // We're not recorded to listen to this kind of event, so complain.
     LOG(ERROR) << "Unexpected method unwind event in debugger " << PrettyMethod(method)
@@ -130,7 +130,7 @@ class DebugInstrumentationListener : public instrumentation::InstrumentationList
   }
 
   virtual void DexPcMoved(Thread* thread, mirror::Object* this_object,
-                          const mirror::ArtMethod* method, uint32_t new_dex_pc)
+                          mirror::ArtMethod* method, uint32_t new_dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Dbg::UpdateDebugger(thread, this_object, method, new_dex_pc);
   }
@@ -303,7 +303,7 @@ static JDWP::JdwpTag TagFromClass(mirror::Class* c)
  *
  * Null objects are tagged JT_OBJECT.
  */
-static JDWP::JdwpTag TagFromObject(const mirror::Object* o)
+static JDWP::JdwpTag TagFromObject(mirror::Object* o)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return (o == NULL) ? JDWP::JT_OBJECT : TagFromClass(o->GetClass());
 }
@@ -1054,16 +1054,16 @@ JDWP::JdwpError Dbg::OutputArray(JDWP::ObjectId array_id, int offset, int count,
     size_t width = GetTagWidth(tag);
     uint8_t* dst = expandBufAddSpace(pReply, count * width);
     if (width == 8) {
-      const uint64_t* src8 = reinterpret_cast<uint64_t*>(a->GetRawData(sizeof(uint64_t)));
+      const uint64_t* src8 = reinterpret_cast<uint64_t*>(a->GetRawData(sizeof(uint64_t), 0));
       for (int i = 0; i < count; ++i) JDWP::Write8BE(&dst, src8[offset + i]);
     } else if (width == 4) {
-      const uint32_t* src4 = reinterpret_cast<uint32_t*>(a->GetRawData(sizeof(uint32_t)));
+      const uint32_t* src4 = reinterpret_cast<uint32_t*>(a->GetRawData(sizeof(uint32_t), 0));
       for (int i = 0; i < count; ++i) JDWP::Write4BE(&dst, src4[offset + i]);
     } else if (width == 2) {
-      const uint16_t* src2 = reinterpret_cast<uint16_t*>(a->GetRawData(sizeof(uint16_t)));
+      const uint16_t* src2 = reinterpret_cast<uint16_t*>(a->GetRawData(sizeof(uint16_t), 0));
       for (int i = 0; i < count; ++i) JDWP::Write2BE(&dst, src2[offset + i]);
     } else {
-      const uint8_t* src = reinterpret_cast<uint8_t*>(a->GetRawData(sizeof(uint8_t)));
+      const uint8_t* src = reinterpret_cast<uint8_t*>(a->GetRawData(sizeof(uint8_t), 0));
       memcpy(dst, &src[offset * width], count * width);
     }
   } else {
@@ -1079,10 +1079,13 @@ JDWP::JdwpError Dbg::OutputArray(JDWP::ObjectId array_id, int offset, int count,
   return JDWP::ERR_NONE;
 }
 
-template <typename T> void CopyArrayData(mirror::Array* a, JDWP::Request& src, int offset, int count) {
+template <typename T>
+static void CopyArrayData(mirror::Array* a, JDWP::Request& src, int offset, int count)
+    NO_THREAD_SAFETY_ANALYSIS {
+  // TODO: fix when annotalysis correctly handles non-member functions.
   DCHECK(a->GetClass()->IsPrimitiveArray());
 
-  T* dst = &(reinterpret_cast<T*>(a->GetRawData(sizeof(T)))[offset * sizeof(T)]);
+  T* dst = reinterpret_cast<T*>(a->GetRawData(sizeof(T), offset));
   for (int i = 0; i < count; ++i) {
     *dst++ = src.ReadValue(sizeof(T));
   }
@@ -1926,7 +1929,7 @@ JDWP::JdwpError Dbg::GetThreadFrames(JDWP::ObjectId thread_id, size_t start_fram
         JDWP::FrameId frame_id(GetFrameId());
         JDWP::JdwpLocation location;
         SetLocation(location, GetMethod(), GetDexPc());
-        VLOG(jdwp) << StringPrintf("    Frame %3zd: id=%3lld ", depth_, frame_id) << location;
+        VLOG(jdwp) << StringPrintf("    Frame %3zd: id=%3" PRIu64 " ", depth_, frame_id) << location;
         expandBufAdd8BE(buf_, frame_id);
         expandBufAddLocation(buf_, location);
       }
@@ -2283,7 +2286,7 @@ void Dbg::SetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int sl
   visitor.WalkStack();
 }
 
-void Dbg::PostLocationEvent(const mirror::ArtMethod* m, int dex_pc, mirror::Object* this_object,
+void Dbg::PostLocationEvent(mirror::ArtMethod* m, int dex_pc, mirror::Object* this_object,
                             int event_flags, const JValue* return_value) {
   mirror::Class* c = m->GetDeclaringClass();
 
@@ -2338,7 +2341,7 @@ void Dbg::PostClassPrepare(mirror::Class* c) {
 }
 
 void Dbg::UpdateDebugger(Thread* thread, mirror::Object* this_object,
-                         const mirror::ArtMethod* m, uint32_t dex_pc) {
+                         mirror::ArtMethod* m, uint32_t dex_pc) {
   if (!IsDebuggerActive() || dex_pc == static_cast<uint32_t>(-2) /* fake method exit */) {
     return;
   }
@@ -2630,7 +2633,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
       if (!m->IsRuntimeMethod()) {
         ++single_step_control_->stack_depth;
         if (single_step_control_->method == NULL) {
-          const mirror::DexCache* dex_cache = m->GetDeclaringClass()->GetDexCache();
+          mirror::DexCache* dex_cache = m->GetDeclaringClass()->GetDexCache();
           single_step_control_->method = m;
           *line_number_ = -1;
           if (dex_cache != NULL) {
@@ -2699,7 +2702,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
     uint32_t last_pc;
   };
   single_step_control->dex_pcs.clear();
-  const mirror::ArtMethod* m = single_step_control->method;
+  mirror::ArtMethod* m = single_step_control->method;
   if (!m->IsNative()) {
     DebugCallbackContext context(single_step_control, line_number);
     MethodHelper mh(m);
@@ -3062,7 +3065,7 @@ bool Dbg::DdmHandlePacket(JDWP::Request& request, uint8_t** pReplyBuf, int* pRep
   // Run through and find all chunks.  [Currently just find the first.]
   ScopedByteArrayRO contents(env, dataArray.get());
   if (length != request_length) {
-    LOG(WARNING) << StringPrintf("bad chunk found (len=%u pktLen=%d)", length, request_length);
+    LOG(WARNING) << StringPrintf("bad chunk found (len=%u pktLen=%zd)", length, request_length);
     return false;
   }
 
@@ -3454,7 +3457,7 @@ class HeapChunkContext {
             Flush();
         }
     }
-    const mirror::Object* obj = reinterpret_cast<const mirror::Object*>(start);
+    mirror::Object* obj = reinterpret_cast<mirror::Object*>(start);
 
     // Determine the type of this chunk.
     // OLD-TODO: if context.merge, see if this chunk is different from the last chunk.
@@ -3497,8 +3500,8 @@ class HeapChunkContext {
     *p_++ = length - 1;
   }
 
-  uint8_t ExamineObject(const mirror::Object* o, bool is_native_heap)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+  uint8_t ExamineObject(mirror::Object* o, bool is_native_heap)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     if (o == NULL) {
       return HPSG_STATE(SOLIDITY_FREE, 0);
     }
@@ -3751,7 +3754,7 @@ void Dbg::DumpRecentAllocations() {
               << PrettyClass(record->type);
 
     for (size_t stack_frame = 0; stack_frame < kMaxAllocRecordStackDepth; ++stack_frame) {
-      const mirror::ArtMethod* m = record->stack[stack_frame].method;
+      mirror::ArtMethod* m = record->stack[stack_frame].method;
       if (m == NULL) {
         break;
       }

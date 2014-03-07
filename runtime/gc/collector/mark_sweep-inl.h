@@ -118,7 +118,7 @@ inline void MarkSweep::VisitFieldsReferences(mirror::Object* obj, uint32_t ref_o
     while (ref_offsets != 0) {
       size_t right_shift = CLZ(ref_offsets);
       MemberOffset field_offset = CLASS_OFFSET_FROM_CLZ(right_shift);
-      mirror::Object* ref = obj->GetFieldObject<mirror::Object*>(field_offset, false);
+      mirror::Object* ref = obj->GetFieldObject<mirror::Object>(field_offset, false);
       visitor(obj, ref, field_offset, is_static);
       ref_offsets &= ~(CLASS_HIGH_BIT >> right_shift);
     }
@@ -127,17 +127,17 @@ inline void MarkSweep::VisitFieldsReferences(mirror::Object* obj, uint32_t ref_o
     // walk up the class inheritance hierarchy and find reference
     // offsets the hard way. In the static case, just consider this
     // class.
-    for (const mirror::Class* klass = is_static ? obj->AsClass() : obj->GetClass();
-         klass != NULL;
-         klass = is_static ? NULL : klass->GetSuperClass()) {
+    for (mirror::Class* klass = is_static ? obj->AsClass() : obj->GetClass();
+         klass != nullptr;
+         klass = is_static ? nullptr : klass->GetSuperClass()) {
       size_t num_reference_fields = (is_static
                                      ? klass->NumReferenceStaticFields()
                                      : klass->NumReferenceInstanceFields());
       for (size_t i = 0; i < num_reference_fields; ++i) {
         mirror::ArtField* field = (is_static ? klass->GetStaticField(i)
-                                   : klass->GetInstanceField(i));
+                                             : klass->GetInstanceField(i));
         MemberOffset field_offset = field->GetOffset();
-        mirror::Object* ref = obj->GetFieldObject<mirror::Object*>(field_offset, false);
+        mirror::Object* ref = obj->GetFieldObject<mirror::Object>(field_offset, false);
         visitor(obj, ref, field_offset, is_static);
       }
     }
@@ -150,7 +150,7 @@ inline void MarkSweep::VisitObjectArrayReferences(mirror::ObjectArray<mirror::Ob
   const size_t length = static_cast<size_t>(array->GetLength());
   for (size_t i = 0; i < length; ++i) {
     mirror::Object* element = array->GetWithoutChecks(static_cast<int32_t>(i));
-    const size_t width = sizeof(mirror::Object*);
+    const size_t width = sizeof(mirror::HeapReference<mirror::Object>);
     MemberOffset offset(i * width + mirror::Array::DataOffset(width).Int32Value());
     visitor(array, element, offset, false);
   }

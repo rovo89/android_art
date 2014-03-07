@@ -25,7 +25,7 @@ namespace art {
 
 FileOutputStream::FileOutputStream(File* file) : OutputStream(file->GetPath()), file_(file) {}
 
-bool FileOutputStream::WriteFully(const void* buffer, int64_t byte_count) {
+bool FileOutputStream::WriteFully(const void* buffer, size_t byte_count) {
   return file_->WriteFully(buffer, byte_count);
 }
 

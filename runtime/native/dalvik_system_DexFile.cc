@@ -290,7 +290,7 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
         return JNI_TRUE;
       }
       if (oat_file->GetOatHeader().GetImageFileLocationOatDataBegin()
-          != reinterpret_cast<uint32_t>(image_header.GetOatDataBegin())) {
+          != reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin())) {
         if (kDebugLogging) {
           ScopedObjectAccess soa(env);
           LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location

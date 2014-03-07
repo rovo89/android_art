@@ -29,23 +29,19 @@
 namespace art {
 namespace mirror {
 
-const CharArray* String::GetCharArray() const {
-  return GetFieldObject<const CharArray*>(ValueOffset(), false);
-}
-
 CharArray* String::GetCharArray() {
-  return GetFieldObject<CharArray*>(ValueOffset(), false);
+  return GetFieldObject<CharArray>(ValueOffset(), false);
 }
 
 void String::ComputeHashCode() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   SetHashCode(ComputeUtf16Hash(GetCharArray(), GetOffset(), GetLength()));
 }
 
-int32_t String::GetUtfLength() const {
+int32_t String::GetUtfLength() {
   return CountUtf8Bytes(GetCharArray()->GetData() + GetOffset(), GetLength());
 }
 
-int32_t String::FastIndexOf(int32_t ch, int32_t start) const {
+int32_t String::FastIndexOf(int32_t ch, int32_t start) {
   int32_t count = GetLength();
   if (start < 0) {
     start = 0;
@@ -97,13 +93,13 @@ int32_t String::GetHashCode() {
   return result;
 }
 
-int32_t String::GetLength() const {
+int32_t String::GetLength() {
   int32_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(String, count_), false);
   DCHECK(result >= 0 && result <= GetCharArray()->GetLength());
   return result;
 }
 
-uint16_t String::CharAt(int32_t index) const {
+uint16_t String::CharAt(int32_t index) {
   // TODO: do we need this? Equals is the only caller, and could
   // bounds check itself.
   DCHECK_GE(count_, 0);  // ensures the unsigned comparison is safe.
@@ -179,7 +175,7 @@ String* String::Alloc(Thread* self, const SirtRef<CharArray>& array) {
   return string;
 }
 
-bool String::Equals(const String* that) const {
+bool String::Equals(String* that) {
   if (this == that) {
     // Quick reference equality test
     return true;
@@ -201,7 +197,7 @@ bool String::Equals(const String* that) const {
   }
 }
 
-bool String::Equals(const uint16_t* that_chars, int32_t that_offset, int32_t that_length) const {
+bool String::Equals(const uint16_t* that_chars, int32_t that_offset, int32_t that_length) {
   if (this->GetLength() != that_length) {
     return false;
   } else {
@@ -214,7 +210,7 @@ bool String::Equals(const uint16_t* that_chars, int32_t that_offset, int32_t tha
   }
 }
 
-bool String::Equals(const char* modified_utf8) const {
+bool String::Equals(const char* modified_utf8) {
   for (int32_t i = 0; i < GetLength(); ++i) {
     uint16_t ch = GetUtf16FromUtf8(&modified_utf8);
     if (ch == '\0' || ch != CharAt(i)) {
@@ -224,7 +220,7 @@ bool String::Equals(const char* modified_utf8) const {
   return *modified_utf8 == '\0';
 }
 
-bool String::Equals(const StringPiece& modified_utf8) const {
+bool String::Equals(const StringPiece& modified_utf8) {
   const char* p = modified_utf8.data();
   for (int32_t i = 0; i < GetLength(); ++i) {
     uint16_t ch = GetUtf16FromUtf8(&p);
@@ -236,7 +232,7 @@ bool String::Equals(const StringPiece& modified_utf8) const {
 }
 
 // Create a modified UTF-8 encoded std::string from a java/lang/String object.
-std::string String::ToModifiedUtf8() const {
+std::string String::ToModifiedUtf8() {
   const uint16_t* chars = GetCharArray()->GetData() + GetOffset();
   size_t byte_count = GetUtfLength();
   std::string result(byte_count, static_cast<char>(0));
@@ -259,9 +255,9 @@ static uint32_t MemCmp16(const uint16_t* s0, const uint16_t* s1, size_t count) {
 }
 #endif
 
-int32_t String::CompareTo(String* rhs) const {
+int32_t String::CompareTo(String* rhs) {
   // Quick test for comparison of a string with itself.
-  const String* lhs = this;
+  String* lhs = this;
   if (lhs == rhs) {
     return 0;
   }

@@ -556,12 +556,15 @@ static DexToDexCompilationLevel GetDexToDexCompilationlevel(
   }
 }
 
-void CompilerDriver::CompileOne(const mirror::ArtMethod* method, TimingLogger& timings) {
+void CompilerDriver::CompileOne(mirror::ArtMethod* method, TimingLogger& timings) {
   DCHECK(!Runtime::Current()->IsStarted());
   Thread* self = Thread::Current();
   jobject jclass_loader;
   const DexFile* dex_file;
   uint16_t class_def_idx;
+  uint32_t method_idx = method->GetDexMethodIndex();
+  uint32_t access_flags = method->GetAccessFlags();
+  InvokeType invoke_type = method->GetInvokeType();
   {
     ScopedObjectAccessUnchecked soa(self);
     ScopedLocalRef<jobject>
@@ -573,6 +576,7 @@ void CompilerDriver::CompileOne(const mirror::ArtMethod* method, TimingLogger& t
     dex_file = &mh.GetDexFile();
     class_def_idx = mh.GetClassDefIndex();
   }
+  const DexFile::CodeItem* code_item = dex_file->GetCodeItem(method->GetCodeItemOffset());
   self->TransitionFromRunnableToSuspended(kNative);
 
   std::vector<const DexFile*> dex_files;
@@ -581,8 +585,6 @@ void CompilerDriver::CompileOne(const mirror::ArtMethod* method, TimingLogger& t
   UniquePtr<ThreadPool> thread_pool(new ThreadPool("Compiler driver thread pool", 0U));
   PreCompile(jclass_loader, dex_files, *thread_pool.get(), timings);
 
-  uint32_t method_idx = method->GetDexMethodIndex();
-  const DexFile::CodeItem* code_item = dex_file->GetCodeItem(method->GetCodeItemOffset());
   // Can we run DEX-to-DEX compiler on this class ?
   DexToDexCompilationLevel dex_to_dex_compilation_level = kDontDexToDexCompile;
   {
@@ -592,8 +594,8 @@ void CompilerDriver::CompileOne(const mirror::ArtMethod* method, TimingLogger& t
                                               soa.Decode<mirror::ClassLoader*>(jclass_loader));
     dex_to_dex_compilation_level = GetDexToDexCompilationlevel(class_loader, *dex_file, class_def);
   }
-  CompileMethod(code_item, method->GetAccessFlags(), method->GetInvokeType(),
-                class_def_idx, method_idx, jclass_loader, *dex_file, dex_to_dex_compilation_level);
+  CompileMethod(code_item, access_flags, invoke_type, class_def_idx, method_idx, jclass_loader,
+                *dex_file, dex_to_dex_compilation_level);
 
   self->GetJniEnv()->DeleteGlobalRef(jclass_loader);
 
@@ -1009,7 +1011,7 @@ bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompi
     if (referrer_class != NULL) {
       mirror::Class* fields_class = resolved_field->GetDeclaringClass();
       bool access_ok = referrer_class->CanAccessResolvedField(fields_class, resolved_field,
-                                                              *dex_cache, field_idx);
+                                                              dex_cache.get(), field_idx);
       bool is_write_to_final_from_wrong_class = is_put && resolved_field->IsFinal() &&
           fields_class != referrer_class;
       if (access_ok && !is_write_to_final_from_wrong_class) {
@@ -1056,7 +1058,7 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
         return true;  // fast path
       } else {
         bool access_ok = referrer_class->CanAccessResolvedField(fields_class, resolved_field,
-                                                                *dex_cache, field_idx);
+                                                                dex_cache.get(), field_idx);
         bool is_write_to_final_from_wrong_class = is_put && resolved_field->IsFinal();
         if (access_ok && !is_write_to_final_from_wrong_class) {
           // We have the resolved field, we must make it into a index for the referrer
@@ -1198,13 +1200,23 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
         CHECK(!method->IsAbstract());
         *type = sharp_type;
         *direct_method = reinterpret_cast<uintptr_t>(method);
-        *direct_code = reinterpret_cast<uintptr_t>(method->GetEntryPointFromCompiledCode());
+        if (compiler_backend_ == kQuick) {
+          *direct_code = reinterpret_cast<uintptr_t>(method->GetEntryPointFromQuickCompiledCode());
+        } else {
+          CHECK_EQ(compiler_backend_, kPortable);
+          *direct_code = reinterpret_cast<uintptr_t>(method->GetEntryPointFromPortableCompiledCode());
+        }
         target_method->dex_file = method->GetDeclaringClass()->GetDexCache()->GetDexFile();
         target_method->dex_method_index = method->GetDexMethodIndex();
       } else if (!must_use_direct_pointers) {
         // Set the code and rely on the dex cache for the method.
         *type = sharp_type;
-        *direct_code = reinterpret_cast<uintptr_t>(method->GetEntryPointFromCompiledCode());
+        if (compiler_backend_ == kQuick) {
+          *direct_code = reinterpret_cast<uintptr_t>(method->GetEntryPointFromQuickCompiledCode());
+        } else {
+          CHECK_EQ(compiler_backend_, kPortable);
+          *direct_code = reinterpret_cast<uintptr_t>(method->GetEntryPointFromPortableCompiledCode());
+        }
       } else {
         // Direct pointers were required but none were available.
         VLOG(compiler) << "Dex cache devirtualization failed for: " << PrettyMethod(method);
@@ -1239,8 +1251,8 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
     bool icce = resolved_method->CheckIncompatibleClassChange(*invoke_type);
     if (referrer_class != NULL && !icce) {
       mirror::Class* methods_class = resolved_method->GetDeclaringClass();
-      if (referrer_class->CanAccessResolvedMethod(methods_class, resolved_method,
-                                                  *dex_cache, target_method->dex_method_index)) {
+      if (referrer_class->CanAccessResolvedMethod(methods_class, resolved_method, dex_cache.get(),
+                                                  target_method->dex_method_index)) {
         const bool enableFinalBasedSharpening = enable_devirtualization;
         // Sharpen a virtual call into a direct call when the target is known not to have been
         // overridden (ie is final).

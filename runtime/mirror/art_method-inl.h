@@ -27,8 +27,9 @@
 namespace art {
 namespace mirror {
 
-inline Class* ArtMethod::GetDeclaringClass() const {
-  Class* result = GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, declaring_class_), false);
+inline Class* ArtMethod::GetDeclaringClass() {
+  Class* result = GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, declaring_class_),
+                                        false);
   DCHECK(result != NULL) << this;
   DCHECK(result->IsIdxLoaded() || result->IsErroneous()) << this;
   return result;
@@ -38,44 +39,44 @@ inline void ArtMethod::SetDeclaringClass(Class *new_declaring_class) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(ArtMethod, declaring_class_), new_declaring_class, false);
 }
 
-inline uint32_t ArtMethod::GetAccessFlags() const {
+inline uint32_t ArtMethod::GetAccessFlags() {
   DCHECK(GetDeclaringClass()->IsIdxLoaded() || GetDeclaringClass()->IsErroneous());
   return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, access_flags_), false);
 }
 
-inline uint16_t ArtMethod::GetMethodIndex() const {
+inline uint16_t ArtMethod::GetMethodIndex() {
   DCHECK(GetDeclaringClass()->IsResolved() || GetDeclaringClass()->IsErroneous());
   return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, method_index_), false);
 }
 
-inline uint32_t ArtMethod::GetDexMethodIndex() const {
+inline uint32_t ArtMethod::GetDexMethodIndex() {
 #ifdef ART_SEA_IR_MODE
   // TODO: Re-add this check for (PORTABLE + SMALL + ) SEA IR when PORTABLE IS fixed!
   // DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
 #else
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
 #endif
-  return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, method_dex_index_), false);
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_method_index_), false);
 }
 
-inline ObjectArray<String>* ArtMethod::GetDexCacheStrings() const {
-  return GetFieldObject<ObjectArray<String>*>(
+inline ObjectArray<String>* ArtMethod::GetDexCacheStrings() {
+  return GetFieldObject<ObjectArray<String> >(
       OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_strings_), false);
 }
 
-inline ObjectArray<ArtMethod>* ArtMethod::GetDexCacheResolvedMethods() const {
-  return GetFieldObject<ObjectArray<ArtMethod>*>(
+inline ObjectArray<ArtMethod>* ArtMethod::GetDexCacheResolvedMethods() {
+  return GetFieldObject<ObjectArray<ArtMethod> >(
       OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_methods_), false);
 }
 
-inline ObjectArray<Class>* ArtMethod::GetDexCacheResolvedTypes() const {
-  return GetFieldObject<ObjectArray<Class>*>(
+inline ObjectArray<Class>* ArtMethod::GetDexCacheResolvedTypes() {
+  return GetFieldObject<ObjectArray<Class> >(
       OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_types_), false);
 }
 
-inline uint32_t ArtMethod::GetCodeSize() const {
+inline uint32_t ArtMethod::GetCodeSize() {
   DCHECK(!IsRuntimeMethod() && !IsProxyMethod()) << PrettyMethod(this);
-  uintptr_t code = reinterpret_cast<uintptr_t>(GetEntryPointFromCompiledCode());
+  uintptr_t code = reinterpret_cast<uintptr_t>(GetEntryPointFromQuickCompiledCode());
   if (code == 0) {
     return 0;
   }
@@ -106,7 +107,7 @@ inline bool ArtMethod::CheckIncompatibleClassChange(InvokeType type) {
   }
 }
 
-inline void ArtMethod::AssertPcIsWithinCode(uintptr_t pc) const {
+inline void ArtMethod::AssertPcIsWithinQuickCode(uintptr_t pc) {
   if (!kIsDebugBuild) {
     return;
   }
@@ -116,34 +117,44 @@ inline void ArtMethod::AssertPcIsWithinCode(uintptr_t pc) const {
   if (pc == GetQuickInstrumentationExitPc()) {
     return;
   }
-  const void* code = GetEntryPointFromCompiledCode();
-  if (code == GetCompiledCodeToInterpreterBridge() || code == GetQuickInstrumentationEntryPoint()) {
+  const void* code = GetEntryPointFromQuickCompiledCode();
+  if (code == GetQuickToInterpreterBridge() || code == GetQuickInstrumentationEntryPoint()) {
     return;
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  if (code == GetResolutionTrampoline(class_linker)) {
+  if (code == GetQuickResolutionTrampoline(class_linker)) {
     return;
   }
-  DCHECK(IsWithinCode(pc))
+  DCHECK(IsWithinQuickCode(pc))
       << PrettyMethod(this)
       << " pc=" << std::hex << pc
       << " code=" << code
       << " size=" << GetCodeSize();
 }
 
-inline uint32_t ArtMethod::GetOatCodeOffset() const {
+inline uint32_t ArtMethod::GetQuickOatCodeOffset() {
   DCHECK(!Runtime::Current()->IsStarted());
-  return reinterpret_cast<uint32_t>(GetEntryPointFromCompiledCode());
+  return PointerToLowMemUInt32(GetEntryPointFromQuickCompiledCode());
 }
 
-inline void ArtMethod::SetOatCodeOffset(uint32_t code_offset) {
+inline uint32_t ArtMethod::GetPortableOatCodeOffset() {
   DCHECK(!Runtime::Current()->IsStarted());
-  SetEntryPointFromCompiledCode(reinterpret_cast<void*>(code_offset));
+  return PointerToLowMemUInt32(GetEntryPointFromPortableCompiledCode());
 }
 
-inline uint32_t ArtMethod::GetOatMappingTableOffset() const {
+inline void ArtMethod::SetQuickOatCodeOffset(uint32_t code_offset) {
   DCHECK(!Runtime::Current()->IsStarted());
-  return reinterpret_cast<uint32_t>(GetMappingTable());
+  SetEntryPointFromQuickCompiledCode(reinterpret_cast<void*>(code_offset));
+}
+
+inline void ArtMethod::SetPortableOatCodeOffset(uint32_t code_offset) {
+  DCHECK(!Runtime::Current()->IsStarted());
+  SetEntryPointFromPortableCompiledCode(reinterpret_cast<void*>(code_offset));
+}
+
+inline uint32_t ArtMethod::GetOatMappingTableOffset() {
+  DCHECK(!Runtime::Current()->IsStarted());
+  return PointerToLowMemUInt32(GetMappingTable());
 }
 
 inline void ArtMethod::SetOatMappingTableOffset(uint32_t mapping_table_offset) {
@@ -151,9 +162,9 @@ inline void ArtMethod::SetOatMappingTableOffset(uint32_t mapping_table_offset) {
   SetMappingTable(reinterpret_cast<const uint8_t*>(mapping_table_offset));
 }
 
-inline uint32_t ArtMethod::GetOatVmapTableOffset() const {
+inline uint32_t ArtMethod::GetOatVmapTableOffset() {
   DCHECK(!Runtime::Current()->IsStarted());
-  return reinterpret_cast<uint32_t>(GetVmapTable());
+  return PointerToLowMemUInt32(GetVmapTable());
 }
 
 inline void ArtMethod::SetOatVmapTableOffset(uint32_t vmap_table_offset) {
@@ -166,16 +177,16 @@ inline void ArtMethod::SetOatNativeGcMapOffset(uint32_t gc_map_offset) {
   SetNativeGcMap(reinterpret_cast<uint8_t*>(gc_map_offset));
 }
 
-inline uint32_t ArtMethod::GetOatNativeGcMapOffset() const {
+inline uint32_t ArtMethod::GetOatNativeGcMapOffset() {
   DCHECK(!Runtime::Current()->IsStarted());
-  return reinterpret_cast<uint32_t>(GetNativeGcMap());
+  return PointerToLowMemUInt32(GetNativeGcMap());
 }
 
-inline bool ArtMethod::IsRuntimeMethod() const {
+inline bool ArtMethod::IsRuntimeMethod() {
   return GetDexMethodIndex() == DexFile::kDexNoIndex;
 }
 
-inline bool ArtMethod::IsCalleeSaveMethod() const {
+inline bool ArtMethod::IsCalleeSaveMethod() {
   if (!IsRuntimeMethod()) {
     return false;
   }
@@ -190,14 +201,14 @@ inline bool ArtMethod::IsCalleeSaveMethod() const {
   return result;
 }
 
-inline bool ArtMethod::IsResolutionMethod() const {
+inline bool ArtMethod::IsResolutionMethod() {
   bool result = this == Runtime::Current()->GetResolutionMethod();
   // Check that if we do think it is phony it looks like the resolution method.
   DCHECK(!result || IsRuntimeMethod());
   return result;
 }
 
-inline bool ArtMethod::IsImtConflictMethod() const {
+inline bool ArtMethod::IsImtConflictMethod() {
   bool result = this == Runtime::Current()->GetImtConflictMethod();
   // Check that if we do think it is phony it looks like the imt conflict method.
   DCHECK(!result || IsRuntimeMethod());

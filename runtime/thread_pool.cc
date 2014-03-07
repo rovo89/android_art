@@ -31,7 +31,7 @@ ThreadPoolWorker::ThreadPoolWorker(ThreadPool* thread_pool, const std::string& n
       name_(name) {
   std::string error_msg;
   stack_.reset(MemMap::MapAnonymous(name.c_str(), nullptr, stack_size, PROT_READ | PROT_WRITE,
-                                    &error_msg));
+                                    false, &error_msg));
   CHECK(stack_.get() != nullptr) << error_msg;
   const char* reason = "new thread pool worker thread";
   pthread_attr_t attr;

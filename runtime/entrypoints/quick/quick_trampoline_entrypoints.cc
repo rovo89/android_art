@@ -97,6 +97,12 @@ class QuickArgumentVisitor {
 #define QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__LR_OFFSET 28
 #define QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__FRAME_SIZE 32
 #define QUICK_STACK_ARG_SKIP 16
+#elif defined(__x86_64__)
+// TODO: implement and check these.
+#define QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__R1_OFFSET 8
+#define QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__LR_OFFSET 56
+#define QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__FRAME_SIZE 64
+#define QUICK_STACK_ARG_SKIP 32
 #else
 #error "Unsupported architecture"
 #define QUICK_CALLEE_SAVE_FRAME__REF_AND_ARGS__R1_OFFSET 0
@@ -567,15 +573,15 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
     SirtRef<mirror::Class> called_class(soa.Self(), called->GetDeclaringClass());
     linker->EnsureInitialized(called_class, true, true);
     if (LIKELY(called_class->IsInitialized())) {
-      code = called->GetEntryPointFromCompiledCode();
+      code = called->GetEntryPointFromQuickCompiledCode();
     } else if (called_class->IsInitializing()) {
       if (invoke_type == kStatic) {
         // Class is still initializing, go to oat and grab code (trampoline must be left in place
         // until class is initialized to stop races between threads).
-        code = linker->GetOatCodeFor(called);
+        code = linker->GetQuickOatCodeFor(called);
       } else {
         // No trampoline for non-static methods.
-        code = called->GetEntryPointFromCompiledCode();
+        code = called->GetEntryPointFromQuickCompiledCode();
       }
     } else {
       DCHECK(called_class->IsErroneous());

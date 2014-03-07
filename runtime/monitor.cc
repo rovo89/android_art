@@ -79,7 +79,7 @@ void Monitor::Init(uint32_t lock_profiling_threshold, bool (*is_sensitive_thread
   is_sensitive_thread_hook_ = is_sensitive_thread_hook;
 }
 
-Monitor::Monitor(Thread* owner, mirror::Object* obj, int32_t hash_code)
+Monitor::Monitor(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code)
     : monitor_lock_("a monitor lock", kMonitorLock),
       monitor_contenders_("monitor contenders", monitor_lock_),
       num_waiters_(0),
@@ -89,10 +89,11 @@ Monitor::Monitor(Thread* owner, mirror::Object* obj, int32_t hash_code)
       wait_set_(NULL),
       hash_code_(hash_code),
       locking_method_(NULL),
-      locking_dex_pc_(0) {
+      locking_dex_pc_(0),
+      monitor_id_(MonitorPool::CreateMonitorId(self, this)) {
   // We should only inflate a lock if the owner is ourselves or suspended. This avoids a race
   // with the owner unlocking the thin-lock.
-  CHECK(owner == nullptr || owner == Thread::Current() || owner->IsSuspended());
+  CHECK(owner == nullptr || owner == self || owner->IsSuspended());
   // The identity hash code is set for the life time of the monitor.
 }
 
@@ -145,6 +146,7 @@ bool Monitor::Install(Thread* self) {
 }
 
 Monitor::~Monitor() {
+  MonitorPool::ReleaseMonitorId(monitor_id_);
   // Deflated monitors have a null object.
 }
 
@@ -219,7 +221,7 @@ void Monitor::Lock(Thread* self) {
     // Contended.
     const bool log_contention = (lock_profiling_threshold_ != 0);
     uint64_t wait_start_ms = log_contention ? 0 : MilliTime();
-    const mirror::ArtMethod* owners_method = locking_method_;
+    mirror::ArtMethod* owners_method = locking_method_;
     uint32_t owners_dex_pc = locking_dex_pc_;
     monitor_lock_.Unlock(self);  // Let go of locks in order.
     {
@@ -411,7 +413,7 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns,
   if (ms < 0 || ns < 0 || ns > 999999) {
     ThrowLocation throw_location = self->GetCurrentLocationForThrow();
     self->ThrowNewExceptionF(throw_location, "Ljava/lang/IllegalArgumentException;",
-                             "timeout arguments out of range: ms=%lld ns=%d", ms, ns);
+                             "timeout arguments out of range: ms=%" PRId64 " ns=%d", ms, ns);
     monitor_lock_.Unlock(self);
     return;
   }
@@ -430,7 +432,7 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns,
   int prev_lock_count = lock_count_;
   lock_count_ = 0;
   owner_ = NULL;
-  const mirror::ArtMethod* saved_method = locking_method_;
+  mirror::ArtMethod* saved_method = locking_method_;
   locking_method_ = NULL;
   uintptr_t saved_dex_pc = locking_dex_pc_;
   locking_dex_pc_ = 0;
@@ -611,7 +613,7 @@ void Monitor::Inflate(Thread* self, Thread* owner, mirror::Object* obj, int32_t 
   DCHECK(self != NULL);
   DCHECK(obj != NULL);
   // Allocate and acquire a new monitor.
-  UniquePtr<Monitor> m(new Monitor(owner, obj, hash_code));
+  UniquePtr<Monitor> m(new Monitor(self, owner, obj, hash_code));
   if (m->Install(self)) {
     VLOG(monitor) << "monitor: thread " << owner->GetThreadId()
                     << " created monitor " << m.get() << " for object " << obj;
@@ -1008,7 +1010,7 @@ bool Monitor::IsLocked() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return owner_ != nullptr;
 }
 
-void Monitor::TranslateLocation(const mirror::ArtMethod* method, uint32_t dex_pc,
+void Monitor::TranslateLocation(mirror::ArtMethod* method, uint32_t dex_pc,
                                 const char** source_file, uint32_t* line_number) const {
   // If method is null, location is unknown
   if (method == NULL) {

@@ -103,11 +103,11 @@ Array* Array::CreateMultiArray(Thread* self, Class* element_class, IntArray* dim
   return new_array;
 }
 
-void Array::ThrowArrayIndexOutOfBoundsException(int32_t index) const {
+void Array::ThrowArrayIndexOutOfBoundsException(int32_t index) {
   art::ThrowArrayIndexOutOfBoundsException(index, GetLength());
 }
 
-void Array::ThrowArrayStoreException(Object* object) const {
+void Array::ThrowArrayStoreException(Object* object) {
   art::ThrowArrayStoreException(object->GetClass(), this->GetClass());
 }
 

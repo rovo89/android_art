@@ -52,8 +52,7 @@ void ReferenceQueue::EnqueuePendingReference(mirror::Object* ref) {
     ref->SetFieldObject(pending_next_offset, ref, false);
     list_ = ref;
   } else {
-    mirror::Object* head =
-        list_->GetFieldObject<mirror::Object*>(pending_next_offset, false);
+    mirror::Object* head = list_->GetFieldObject<mirror::Object>(pending_next_offset, false);
     ref->SetFieldObject(pending_next_offset, head, false);
     list_->SetFieldObject(pending_next_offset, ref, false);
   }
@@ -62,7 +61,7 @@ void ReferenceQueue::EnqueuePendingReference(mirror::Object* ref) {
 mirror::Object* ReferenceQueue::DequeuePendingReference() {
   DCHECK(!IsEmpty());
   MemberOffset pending_next_offset = heap_->GetReferencePendingNextOffset();
-  mirror::Object* head = list_->GetFieldObject<mirror::Object*>(pending_next_offset, false);
+  mirror::Object* head = list_->GetFieldObject<mirror::Object>(pending_next_offset, false);
   DCHECK(head != nullptr);
   mirror::Object* ref;
   // Note: the following code is thread-safe because it is only called from ProcessReferences which
@@ -71,7 +70,7 @@ mirror::Object* ReferenceQueue::DequeuePendingReference() {
     ref = list_;
     list_ = nullptr;
   } else {
-    mirror::Object* next = head->GetFieldObject<mirror::Object*>(pending_next_offset, false);
+    mirror::Object* next = head->GetFieldObject<mirror::Object>(pending_next_offset, false);
     list_->SetFieldObject(pending_next_offset, next, false);
     ref = head;
   }
@@ -84,11 +83,11 @@ void ReferenceQueue::Dump(std::ostream& os) const {
   os << "Reference starting at list_=" << list_ << "\n";
   while (cur != nullptr) {
     mirror::Object* pending_next =
-        cur->GetFieldObject<mirror::Object*>(heap_->GetReferencePendingNextOffset(), false);
+        cur->GetFieldObject<mirror::Object>(heap_->GetReferencePendingNextOffset(), false);
     os << "PendingNext=" << pending_next;
     if (cur->GetClass()->IsFinalizerReferenceClass()) {
       os << " Zombie=" <<
-          cur->GetFieldObject<mirror::Object*>(heap_->GetFinalizerReferenceZombieOffset(), false);
+          cur->GetFieldObject<mirror::Object>(heap_->GetFinalizerReferenceZombieOffset(), false);
     }
     os << "\n";
     cur = pending_next;

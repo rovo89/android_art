@@ -48,6 +48,7 @@
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
 #include "thread.h"
+#include "utils.h"
 #include "UniquePtr.h"
 #include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"
@@ -262,11 +263,6 @@ static InstructionSetFeatures ParseFeatureList(std::string str) {
 
 class CommonTest : public testing::Test {
  public:
-  static void MakeExecutable(const mirror::ByteArray* code_array) {
-    CHECK(code_array != NULL);
-    MakeExecutable(code_array->GetData(), code_array->GetLength());
-  }
-
   static void MakeExecutable(const std::vector<uint8_t>& code) {
     CHECK_NE(code.size(), 0U);
     MakeExecutable(&code[0], code.size());
@@ -280,31 +276,39 @@ class CommonTest : public testing::Test {
                                      const uint8_t* mapping_table,
                                      const uint8_t* vmap_table,
                                      const uint8_t* gc_map) {
-      return OatFile::OatMethod(NULL,
-                                reinterpret_cast<uint32_t>(code),
-                                frame_size_in_bytes,
-                                core_spill_mask,
-                                fp_spill_mask,
-                                reinterpret_cast<uint32_t>(mapping_table),
-                                reinterpret_cast<uint32_t>(vmap_table),
-                                reinterpret_cast<uint32_t>(gc_map));
+    const byte* base = nullptr;  // Base of data in oat file, ie 0.
+    uint32_t code_offset = PointerToLowMemUInt32(code);
+    uint32_t mapping_table_offset = PointerToLowMemUInt32(mapping_table);
+    uint32_t vmap_table_offset = PointerToLowMemUInt32(vmap_table);
+    uint32_t gc_map_offset = PointerToLowMemUInt32(gc_map);
+    return OatFile::OatMethod(base,
+                              code_offset,
+                              frame_size_in_bytes,
+                              core_spill_mask,
+                              fp_spill_mask,
+                              mapping_table_offset,
+                              vmap_table_offset,
+                              gc_map_offset);
   }
 
   void MakeExecutable(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    CHECK(method != NULL);
+    CHECK(method != nullptr);
 
-    const CompiledMethod* compiled_method = NULL;
+    const CompiledMethod* compiled_method = nullptr;
     if (!method->IsAbstract()) {
-      const mirror::DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
+      mirror::DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
       const DexFile& dex_file = *dex_cache->GetDexFile();
       compiled_method =
           compiler_driver_->GetCompiledMethod(MethodReference(&dex_file,
                                                               method->GetDexMethodIndex()));
     }
-    if (compiled_method != NULL) {
-      const std::vector<uint8_t>& code = compiled_method->GetCode();
-      MakeExecutable(code);
-      const void* method_code = CompiledMethod::CodePointer(&code[0],
+    if (compiled_method != nullptr) {
+      const std::vector<uint8_t>* code = compiled_method->GetQuickCode();
+      if (code == nullptr) {
+        code = compiled_method->GetPortableCode();
+      }
+      MakeExecutable(*code);
+      const void* method_code = CompiledMethod::CodePointer(&(*code)[0],
                                                             compiled_method->GetInstructionSet());
       LOG(INFO) << "MakeExecutable " << PrettyMethod(method) << " code=" << method_code;
       OatFile::OatMethod oat_method = CreateOatMethod(method_code,
@@ -317,9 +321,9 @@ class CommonTest : public testing::Test {
       oat_method.LinkMethod(method);
       method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
     } else {
-      const void* method_code;
       // No code? You must mean to go into the interpreter.
-      method_code = GetCompiledCodeToInterpreterBridge();
+      const void* method_code = kUsePortableCompiler ? GetPortableToInterpreterBridge()
+                                                     : GetQuickToInterpreterBridge();
       OatFile::OatMethod oat_method = CreateOatMethod(method_code,
                                                       kStackAlignment,
                                                       0,
@@ -329,6 +333,14 @@ class CommonTest : public testing::Test {
                                                       NULL);
       oat_method.LinkMethod(method);
       method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterBridge);
+    }
+    // Create bridges to transition between different kinds of compiled bridge.
+    if (method->GetEntryPointFromPortableCompiledCode() == nullptr) {
+      method->SetEntryPointFromPortableCompiledCode(GetPortableToQuickBridge());
+    } else {
+      CHECK(method->GetEntryPointFromQuickCompiledCode() == nullptr);
+      method->SetEntryPointFromQuickCompiledCode(GetQuickToPortableBridge());
+      method->SetIsPortableCompiled();
     }
   }
 
@@ -415,11 +427,7 @@ class CommonTest : public testing::Test {
     std::string max_heap_string(StringPrintf("-Xmx%zdm", gc::Heap::kDefaultMaximumSize / MB));
 
     // TODO: make selectable
-#if defined(ART_USE_PORTABLE_COMPILER)
-    CompilerBackend compiler_backend = kPortable;
-#else
-    CompilerBackend compiler_backend = kQuick;
-#endif
+    CompilerBackend compiler_backend = kUsePortableCompiler ? kPortable : kQuick;
 
     verification_results_.reset(new VerificationResults);
     method_inliner_map_.reset(compiler_backend == kQuick ? new DexFileToMethodInlinerMap : nullptr);
@@ -460,6 +468,8 @@ class CommonTest : public testing::Test {
       instruction_set = kMips;
 #elif defined(__i386__)
       instruction_set = kX86;
+#elif defined(__x86_64__)
+      instruction_set = kX86_64;
 #endif
 
       for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
@@ -640,7 +650,9 @@ class CommonTest : public testing::Test {
     image_reservation_.reset(MemMap::MapAnonymous("image reservation",
                                                   reinterpret_cast<byte*>(ART_BASE_ADDRESS),
                                                   (size_t)100 * 1024 * 1024,  // 100MB
-                                                  PROT_NONE, &error_msg));
+                                                  PROT_NONE,
+                                                  false /* no need for 4gb flag with fixed mmap*/,
+                                                  &error_msg));
     CHECK(image_reservation_.get() != nullptr) << error_msg;
   }
 
@@ -733,11 +745,12 @@ class CheckJniAbortCatcher {
 // MCLinker link LLVM ELF output because we no longer just have code
 // blobs in memory. We'll need to dlopen to load and relocate
 // temporary output to resurrect these tests.
-#if defined(ART_USE_PORTABLE_COMPILER)
-#define TEST_DISABLED_FOR_PORTABLE() printf("WARNING: TEST DISABLED FOR PORTABLE\n"); return
-#else
-#define TEST_DISABLED_FOR_PORTABLE()
-#endif
+#define TEST_DISABLED_FOR_PORTABLE() \
+  if (kUsePortableCompiler) { \
+    printf("WARNING: TEST DISABLED FOR PORTABLE\n"); \
+    return; \
+  }
+
 }  // namespace art
 
 namespace std {

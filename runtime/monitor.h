@@ -24,7 +24,7 @@
 #include <list>
 #include <vector>
 
-#include "atomic_integer.h"
+#include "atomic.h"
 #include "base/mutex.h"
 #include "root_visitor.h"
 #include "sirt_ref.h"
@@ -39,6 +39,8 @@ namespace mirror {
 class LockWord;
 class Thread;
 class StackVisitor;
+
+typedef uint32_t MonitorId;
 
 class Monitor {
  public:
@@ -108,6 +110,10 @@ class Monitor {
     return hash_code_.Load() != 0;
   }
 
+  MonitorId GetMonitorId() const {
+    return monitor_id_;
+  }
+
   static void InflateThinLocked(Thread* self, SirtRef<mirror::Object>& obj, LockWord lock_word,
                                 uint32_t hash_code) NO_THREAD_SAFETY_ANALYSIS;
 
@@ -115,7 +121,7 @@ class Monitor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
-  explicit Monitor(Thread* owner, mirror::Object* obj, int32_t hash_code)
+  explicit Monitor(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Install the monitor into its object, may fail if another thread installs a different monitor
@@ -162,7 +168,7 @@ class Monitor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Translates the provided method and pc into its declaring class' source file and line number.
-  void TranslateLocation(const mirror::ArtMethod* method, uint32_t pc,
+  void TranslateLocation(mirror::ArtMethod* method, uint32_t pc,
                          const char** source_file, uint32_t* line_number) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -195,8 +201,11 @@ class Monitor {
   // Method and dex pc where the lock owner acquired the lock, used when lock
   // sampling is enabled. locking_method_ may be null if the lock is currently
   // unlocked, or if the lock is acquired by the system when the stack is empty.
-  const mirror::ArtMethod* locking_method_ GUARDED_BY(monitor_lock_);
+  mirror::ArtMethod* locking_method_ GUARDED_BY(monitor_lock_);
   uint32_t locking_dex_pc_ GUARDED_BY(monitor_lock_);
+
+  // The denser encoded version of this monitor as stored in the lock word.
+  MonitorId monitor_id_;
 
   friend class MonitorInfo;
   friend class MonitorList;

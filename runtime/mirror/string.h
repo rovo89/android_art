@@ -44,24 +44,23 @@ class MANAGED String : public Object {
     return OFFSET_OF_OBJECT_MEMBER(String, offset_);
   }
 
-  const CharArray* GetCharArray() const;
-  CharArray* GetCharArray();
+  CharArray* GetCharArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  int32_t GetOffset() const {
+  int32_t GetOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     int32_t result = GetField32(OffsetOffset(), false);
     DCHECK_LE(0, result);
     return result;
   }
 
-  int32_t GetLength() const;
+  int32_t GetLength() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   int32_t GetHashCode() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void ComputeHashCode() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  int32_t GetUtfLength() const;
+  int32_t GetUtfLength() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  uint16_t CharAt(int32_t index) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  uint16_t CharAt(int32_t index) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   String* Intern() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -78,29 +77,28 @@ class MANAGED String : public Object {
                                        const char* utf8_data_in)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool Equals(const char* modified_utf8) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool Equals(const char* modified_utf8) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // TODO: do we need this overload? give it a more intention-revealing name.
-  bool Equals(const StringPiece& modified_utf8) const
+  bool Equals(const StringPiece& modified_utf8)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool Equals(const String* that) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool Equals(String* that) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Compare UTF-16 code point values not in a locale-sensitive manner
   int Compare(int32_t utf16_length, const char* utf8_data_in);
 
   // TODO: do we need this overload? give it a more intention-revealing name.
   bool Equals(const uint16_t* that_chars, int32_t that_offset,
-              int32_t that_length) const
+              int32_t that_length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Create a modified UTF-8 encoded std::string from a java/lang/String object.
-  std::string ToModifiedUtf8() const;
+  std::string ToModifiedUtf8() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  int32_t FastIndexOf(int32_t ch, int32_t start) const;
+  int32_t FastIndexOf(int32_t ch, int32_t start) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  int32_t CompareTo(String* other) const;
+  int32_t CompareTo(String* other) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static Class* GetJavaLangString() {
     DCHECK(java_lang_String_ != NULL);
@@ -123,7 +121,7 @@ class MANAGED String : public Object {
     SetField32(OFFSET_OF_OBJECT_MEMBER(String, count_), new_count, false);
   }
 
-  void SetOffset(int32_t new_offset) {
+  void SetOffset(int32_t new_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK_LE(0, new_offset);
     DCHECK_GE(GetLength(), new_offset);
     SetField32(OFFSET_OF_OBJECT_MEMBER(String, offset_), new_offset, false);
@@ -138,7 +136,7 @@ class MANAGED String : public Object {
   void SetArray(CharArray* new_array) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
-  CharArray* array_;
+  HeapReference<CharArray> array_;
 
   int32_t count_;
 
@@ -155,8 +153,8 @@ class MANAGED String : public Object {
 
 class MANAGED StringClass : public Class {
  private:
-  CharArray* ASCII_;
-  Object* CASE_INSENSITIVE_ORDER_;
+  HeapReference<CharArray> ASCII_;
+  HeapReference<Object> CASE_INSENSITIVE_ORDER_;
   uint32_t REPLACEMENT_CHAR_;
   int64_t serialVersionUID_;
   friend struct art::StringClassOffsets;  // for verifying offset information

@@ -218,7 +218,7 @@ static inline bool DoIGetQuick(ShadowFrame& shadow_frame, const Instruction* ins
       shadow_frame.SetVRegLong(vregA, static_cast<int64_t>(obj->GetField64(field_offset, is_volatile)));
       break;
     case Primitive::kPrimNot:
-      shadow_frame.SetVRegReference(vregA, obj->GetFieldObject<mirror::Object*>(field_offset, is_volatile));
+      shadow_frame.SetVRegReference(vregA, obj->GetFieldObject<mirror::Object>(field_offset, is_volatile));
       break;
     default:
       LOG(FATAL) << "Unreachable: " << field_type;
@@ -529,10 +529,10 @@ static inline void TraceExecution(const ShadowFrame& shadow_frame, const Instruc
     oss << PrettyMethod(shadow_frame.GetMethod())
         << StringPrintf("\n0x%x: ", dex_pc)
         << inst->DumpString(&mh.GetDexFile()) << "\n";
-    for (size_t i = 0; i < shadow_frame.NumberOfVRegs(); ++i) {
+    for (uint32_t i = 0; i < shadow_frame.NumberOfVRegs(); ++i) {
       uint32_t raw_value = shadow_frame.GetVReg(i);
       Object* ref_value = shadow_frame.GetVRegReference(i);
-      oss << StringPrintf(" vreg%d=0x%08X", i, raw_value);
+      oss << StringPrintf(" vreg%u=0x%08X", i, raw_value);
       if (ref_value != NULL) {
         if (ref_value->GetClass()->IsStringClass() &&
             ref_value->AsString()->GetCharArray() != NULL) {

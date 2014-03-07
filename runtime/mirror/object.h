@@ -21,6 +21,7 @@
 #include "base/logging.h"
 #include "base/macros.h"
 #include "cutils/atomic-inline.h"
+#include "object_reference.h"
 #include "offsets.h"
 
 namespace art {
@@ -51,17 +52,13 @@ typedef PrimitiveArray<int16_t> ShortArray;
 class String;
 class Throwable;
 
-// Classes shared with the managed side of the world need to be packed so that they don't have
-// extra platform specific padding.
-#define MANAGED PACKED(4)
-
 // Fields within mirror objects aren't accessed directly so that the appropriate amount of
 // handshaking is done with GC (for example, read and write barriers). This macro is used to
 // compute an offset for the Set/Get methods defined in Object that can safely access fields.
 #define OFFSET_OF_OBJECT_MEMBER(type, field) \
     MemberOffset(OFFSETOF_MEMBER(type, field))
 
-const bool kCheckFieldAssignments = false;
+constexpr bool kCheckFieldAssignments = false;
 
 // C++ mirror of java.lang.Object
 class MANAGED Object {
@@ -70,19 +67,17 @@ class MANAGED Object {
     return OFFSET_OF_OBJECT_MEMBER(Object, klass_);
   }
 
-  Class* GetClass() const;
+  Class* GetClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetClass(Class* new_klass);
+  void SetClass(Class* new_klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // The verifier treats all interfaces as java.lang.Object and relies on runtime checks in
   // invoke-interface to detect incompatible interface types.
-  bool VerifierInstanceOf(const Class* klass) const
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool VerifierInstanceOf(Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool InstanceOf(const Class* klass) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool InstanceOf(Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  size_t SizeOf() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  size_t SizeOf() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Object* Clone(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -92,9 +87,9 @@ class MANAGED Object {
     return OFFSET_OF_OBJECT_MEMBER(Object, monitor_);
   }
 
-  LockWord GetLockWord() const;
+  LockWord GetLockWord();
   void SetLockWord(LockWord new_val);
-  bool CasLockWord(LockWord old_val, LockWord new_val);
+  bool CasLockWord(LockWord old_val, LockWord new_val) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   uint32_t GetLockOwnerThreadId();
 
   void MonitorEnter(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
@@ -111,111 +106,113 @@ class MANAGED Object {
 
   void Wait(Thread* self, int64_t timeout, int32_t nanos) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsClass() const;
+  bool IsClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Class* AsClass();
+  Class* AsClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  const Class* AsClass() const;
-
-  bool IsObjectArray() const;
+  bool IsObjectArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<class T>
-  ObjectArray<T>* AsObjectArray();
+  ObjectArray<T>* AsObjectArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  template<class T>
-  const ObjectArray<T>* AsObjectArray() const;
+  bool IsArrayInstance() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsArrayInstance() const;
+  Array* AsArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Array* AsArray();
+  BooleanArray* AsBooleanArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ByteArray* AsByteArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ByteArray* AsByteSizedArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  const Array* AsArray() const;
+  CharArray* AsCharArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ShortArray* AsShortArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ShortArray* AsShortSizedArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  BooleanArray* AsBooleanArray();
-  ByteArray* AsByteArray();
-  CharArray* AsCharArray();
-  ShortArray* AsShortArray();
-  IntArray* AsIntArray();
-  LongArray* AsLongArray();
+  IntArray* AsIntArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  LongArray* AsLongArray() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  String* AsString();
+  String* AsString() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Throwable* AsThrowable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsArtMethod() const;
+  bool IsArtMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  ArtMethod* AsArtMethod();
+  ArtMethod* AsArtMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  const ArtMethod* AsArtMethod() const;
-
-  bool IsArtField() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool IsArtField() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ArtField* AsArtField() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  const ArtField* AsArtField() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool IsReferenceInstance() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsReferenceInstance() const;
+  bool IsWeakReferenceInstance() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsWeakReferenceInstance() const;
+  bool IsSoftReferenceInstance() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsSoftReferenceInstance() const;
+  bool IsFinalizerReferenceInstance() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsFinalizerReferenceInstance() const;
+  bool IsPhantomReferenceInstance() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsPhantomReferenceInstance() const;
+  // Accessor for Java type fields.
+  template<class T> T* GetFieldObject(MemberOffset field_offset, bool is_volatile)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetFieldObjectWithoutWriteBarrier(MemberOffset field_offset, Object* new_value,
+                                         bool is_volatile, bool this_is_valid = true)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetFieldObject(MemberOffset field_offset, Object* new_value, bool is_volatile,
+                      bool this_is_valid = true)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool CasFieldObject(MemberOffset field_offset, Object* old_value, Object* new_value)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Accessors for Java type fields
-  template<class T>
-  T GetFieldObject(MemberOffset field_offset, bool is_volatile) const {
-    T result = reinterpret_cast<T>(GetField32(field_offset, is_volatile));
-    VerifyObject(result);
-    return result;
-  }
-
-  void SetFieldObject(MemberOffset field_offset, const Object* new_value, bool is_volatile,
-                      bool this_is_valid = true) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    VerifyObject(new_value);
-    SetField32(field_offset, reinterpret_cast<uint32_t>(new_value), is_volatile, this_is_valid);
-    if (new_value != NULL) {
-      CheckFieldAssignment(field_offset, new_value);
-      WriteBarrierField(this, field_offset, new_value);
-    }
-  }
-
-  Object** GetFieldObjectAddr(MemberOffset field_offset) ALWAYS_INLINE {
+  HeapReference<Object>* GetFieldObjectReferenceAddr(MemberOffset field_offset) ALWAYS_INLINE {
     VerifyObject(this);
-    return reinterpret_cast<Object**>(reinterpret_cast<byte*>(this) + field_offset.Int32Value());
+    return reinterpret_cast<HeapReference<Object>*>(reinterpret_cast<byte*>(this) +
+        field_offset.Int32Value());
   }
 
-  uint32_t GetField32(MemberOffset field_offset, bool is_volatile) const;
+  uint32_t GetField32(MemberOffset field_offset, bool is_volatile);
 
   void SetField32(MemberOffset field_offset, uint32_t new_value, bool is_volatile,
                   bool this_is_valid = true);
 
-  bool CasField32(MemberOffset field_offset, uint32_t old_value, uint32_t new_value);
+  bool CasField32(MemberOffset field_offset, uint32_t old_value, uint32_t new_value)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  uint64_t GetField64(MemberOffset field_offset, bool is_volatile) const;
+  uint64_t GetField64(MemberOffset field_offset, bool is_volatile);
 
-  void SetField64(MemberOffset field_offset, uint64_t new_value, bool is_volatile);
+  void SetField64(MemberOffset field_offset, uint64_t new_value, bool is_volatile,
+                  bool this_is_valid = true);
+
+  bool CasField64(MemberOffset field_offset, uint64_t old_value, uint64_t new_value)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<typename T>
-  void SetFieldPtr(MemberOffset field_offset, T new_value, bool is_volatile, bool this_is_valid = true) {
+  void SetFieldPtr(MemberOffset field_offset, T new_value, bool is_volatile,
+                   bool this_is_valid = true) {
+#ifndef __LP64__
     SetField32(field_offset, reinterpret_cast<uint32_t>(new_value), is_volatile, this_is_valid);
+#else
+    SetField64(field_offset, reinterpret_cast<uint64_t>(new_value), is_volatile, this_is_valid);
+#endif
   }
 
  protected:
   // Accessors for non-Java type fields
   template<class T>
-  T GetFieldPtr(MemberOffset field_offset, bool is_volatile) const {
+  T GetFieldPtr(MemberOffset field_offset, bool is_volatile) {
+#ifndef __LP64__
     return reinterpret_cast<T>(GetField32(field_offset, is_volatile));
+#else
+    return reinterpret_cast<T>(GetField64(field_offset, is_volatile));
+#endif
   }
 
  private:
-  static void VerifyObject(const Object* obj) ALWAYS_INLINE;
+  static void VerifyObject(Object* obj) ALWAYS_INLINE;
   // Verify the type correctness of stores to fields.
-  void CheckFieldAssignmentImpl(MemberOffset field_offset, const Object* new_value)
+  void CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void CheckFieldAssignment(MemberOffset field_offset, const Object* new_value)
+  void CheckFieldAssignment(MemberOffset field_offset, Object* new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (kCheckFieldAssignments) {
       CheckFieldAssignmentImpl(field_offset, new_value);
@@ -225,11 +222,9 @@ class MANAGED Object {
   // Generate an identity hash code.
   static int32_t GenerateIdentityHashCode();
 
-  // Write barrier called post update to a reference bearing field.
-  static void WriteBarrierField(const Object* dst, MemberOffset offset, const Object* new_value);
-
-  Class* klass_;
-
+  // The Class representing the type of the object.
+  HeapReference<Class> klass_;
+  // Monitor and hash code information.
   uint32_t monitor_;
 
   friend class art::ImageWriter;
