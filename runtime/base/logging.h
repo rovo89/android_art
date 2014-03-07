@@ -208,24 +208,6 @@ class LogMessage {
   DISALLOW_COPY_AND_ASSIGN(LogMessage);
 };
 
-// Prints a hex dump in this format:
-//
-// 01234560: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff  0123456789abcdef
-// 01234568: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff  0123456789abcdef
-class HexDump {
- public:
-  HexDump(const void* address, size_t byte_count, bool show_actual_addresses = false);
-  void Dump(std::ostream& os) const;
-
- private:
-  const void* address_;
-  size_t byte_count_;
-  bool show_actual_addresses_;
-
-  DISALLOW_COPY_AND_ASSIGN(HexDump);
-};
-std::ostream& operator<<(std::ostream& os, const HexDump& rhs);
-
 // A convenience to allow any class with a "Dump(std::ostream& os)" member function
 // but without an operator<< to be used as if it had an operator<<. Use like this:
 //
