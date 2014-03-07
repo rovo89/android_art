@@ -245,7 +245,7 @@ CompilerTemp* MIRGraph::GetNewCompilerTemp(CompilerTempType ct_type, bool wide) 
   }
 
   CompilerTemp *compiler_temp = static_cast<CompilerTemp *>(arena_->Alloc(sizeof(CompilerTemp),
-                                                            ArenaAllocator::kAllocRegAlloc));
+                                                            kArenaAllocRegAlloc));
 
   // Create the type of temp requested. Special temps need special handling because
   // they have a specific virtual register assignment.
@@ -313,7 +313,7 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
   bool use_lvn = bb->use_lvn;
   UniquePtr<LocalValueNumbering> local_valnum;
   if (use_lvn) {
-    local_valnum.reset(new LocalValueNumbering(cu_));
+    local_valnum.reset(LocalValueNumbering::Create(cu_));
   }
   while (bb != NULL) {
     for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
@@ -479,7 +479,7 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
                 DCHECK_EQ(SelectKind(if_true), kSelectMove);
                 DCHECK_EQ(SelectKind(if_false), kSelectMove);
                 int* src_ssa =
-                    static_cast<int*>(arena_->Alloc(sizeof(int) * 3, ArenaAllocator::kAllocDFInfo));
+                    static_cast<int*>(arena_->Alloc(sizeof(int) * 3, kArenaAllocDFInfo));
                 src_ssa[0] = mir->ssa_rep->uses[0];
                 src_ssa[1] = if_true->ssa_rep->uses[0];
                 src_ssa[2] = if_false->ssa_rep->uses[0];
@@ -488,14 +488,14 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
               }
               mir->ssa_rep->num_defs = 1;
               mir->ssa_rep->defs =
-                  static_cast<int*>(arena_->Alloc(sizeof(int) * 1, ArenaAllocator::kAllocDFInfo));
+                  static_cast<int*>(arena_->Alloc(sizeof(int) * 1, kArenaAllocDFInfo));
               mir->ssa_rep->fp_def =
-                  static_cast<bool*>(arena_->Alloc(sizeof(bool) * 1, ArenaAllocator::kAllocDFInfo));
+                  static_cast<bool*>(arena_->Alloc(sizeof(bool) * 1, kArenaAllocDFInfo));
               mir->ssa_rep->fp_def[0] = if_true->ssa_rep->fp_def[0];
               // Match type of uses to def.
               mir->ssa_rep->fp_use =
                   static_cast<bool*>(arena_->Alloc(sizeof(bool) * mir->ssa_rep->num_uses,
-                                                   ArenaAllocator::kAllocDFInfo));
+                                                   kArenaAllocDFInfo));
               for (int i = 0; i < mir->ssa_rep->num_uses; i++) {
                 mir->ssa_rep->fp_use[i] = mir->ssa_rep->fp_def[0];
               }
@@ -878,7 +878,7 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
 
 void MIRGraph::DumpCheckStats() {
   Checkstats* stats =
-      static_cast<Checkstats*>(arena_->Alloc(sizeof(Checkstats), ArenaAllocator::kAllocDFInfo));
+      static_cast<Checkstats*>(arena_->Alloc(sizeof(Checkstats), kArenaAllocDFInfo));
   checkstats_ = stats;
   AllNodesIterator iter(this);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {

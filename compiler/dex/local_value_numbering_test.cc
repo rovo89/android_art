@@ -120,7 +120,7 @@ class LocalValueNumberingTest : public testing::Test {
 
   void DoPrepareMIRs(const MIRDef* defs, size_t count) {
     mir_count_ = count;
-    mirs_ = reinterpret_cast<MIR*>(cu_.arena.Alloc(sizeof(MIR) * count, ArenaAllocator::kAllocMIR));
+    mirs_ = reinterpret_cast<MIR*>(cu_.arena.Alloc(sizeof(MIR) * count, kArenaAllocMIR));
     ssa_reps_.resize(count);
     for (size_t i = 0u; i != count; ++i) {
       const MIRDef* def = &defs[i];
@@ -162,11 +162,16 @@ class LocalValueNumberingTest : public testing::Test {
   void PerformLVN() {
     value_names_.resize(mir_count_);
     for (size_t i = 0; i != mir_count_; ++i) {
-      value_names_[i] =  lvn_.GetValueNumber(&mirs_[i]);
+      value_names_[i] =  lvn_->GetValueNumber(&mirs_[i]);
     }
   }
 
-  LocalValueNumberingTest() : pool_(), cu_(&pool_), mir_count_(0u), mirs_(nullptr), lvn_(&cu_) {
+  LocalValueNumberingTest()
+      : pool_(),
+        cu_(&pool_),
+        mir_count_(0u),
+        mirs_(nullptr),
+        lvn_(LocalValueNumbering::Create(&cu_)) {
     cu_.mir_graph.reset(new MIRGraph(&cu_, &cu_.arena));
   }
 
@@ -176,7 +181,7 @@ class LocalValueNumberingTest : public testing::Test {
   MIR* mirs_;
   std::vector<SSARepresentation> ssa_reps_;
   std::vector<uint16_t> value_names_;
-  LocalValueNumbering lvn_;
+  UniquePtr<LocalValueNumbering> lvn_;
 };
 
 TEST_F(LocalValueNumberingTest, TestIGetIGetInvokeIGet) {

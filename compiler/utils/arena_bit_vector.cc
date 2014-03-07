@@ -25,13 +25,13 @@ class ArenaBitVectorAllocator : public Allocator {
   ~ArenaBitVectorAllocator() {}
 
   virtual void* Alloc(size_t size) {
-    return arena_->Alloc(size, ArenaAllocator::kAllocGrowableBitMap);
+    return arena_->Alloc(size, kArenaAllocGrowableBitMap);
   }
 
   virtual void Free(void*) {}  // Nop.
 
   static void* operator new(size_t size, ArenaAllocator* arena) {
-    return arena->Alloc(sizeof(ArenaBitVectorAllocator), ArenaAllocator::kAllocGrowableBitMap);
+    return arena->Alloc(sizeof(ArenaBitVectorAllocator), kArenaAllocGrowableBitMap);
   }
   static void operator delete(void* p) {}  // Nop.
 

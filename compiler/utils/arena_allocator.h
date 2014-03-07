@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include "base/macros.h"
 #include "base/mutex.h"
 #include "mem_map.h"
 
@@ -28,6 +29,70 @@ namespace art {
 class Arena;
 class ArenaPool;
 class ArenaAllocator;
+class ArenaStack;
+class ScopedArenaAllocator;
+class MemStats;
+
+static constexpr bool kArenaAllocatorCountAllocations = false;
+
+// Type of allocation for memory tuning.
+enum ArenaAllocKind {
+  kArenaAllocMisc,
+  kArenaAllocBB,
+  kArenaAllocLIR,
+  kArenaAllocMIR,
+  kArenaAllocDFInfo,
+  kArenaAllocGrowableArray,
+  kArenaAllocGrowableBitMap,
+  kArenaAllocDalvikToSSAMap,
+  kArenaAllocDebugInfo,
+  kArenaAllocSuccessor,
+  kArenaAllocRegAlloc,
+  kArenaAllocData,
+  kArenaAllocPredecessors,
+  kArenaAllocSTL,
+  kNumArenaAllocKinds
+};
+
+template <bool kCount>
+class ArenaAllocatorStatsImpl;
+
+template <>
+class ArenaAllocatorStatsImpl<false> {
+ public:
+  ArenaAllocatorStatsImpl() = default;
+  ArenaAllocatorStatsImpl(const ArenaAllocatorStatsImpl& other) = default;
+  ArenaAllocatorStatsImpl& operator = (const ArenaAllocatorStatsImpl& other) = delete;
+
+  void Copy(const ArenaAllocatorStatsImpl& other) { UNUSED(other); }
+  void RecordAlloc(size_t bytes, ArenaAllocKind kind) { UNUSED(bytes); UNUSED(kind); }
+  size_t NumAllocations() const { return 0u; }
+  size_t BytesAllocated() const { return 0u; }
+  void Dump(std::ostream& os, const Arena* first, ssize_t lost_bytes_adjustment) const {
+    UNUSED(os); UNUSED(first); UNUSED(lost_bytes_adjustment);
+  }
+};
+
+template <bool kCount>
+class ArenaAllocatorStatsImpl {
+ public:
+  ArenaAllocatorStatsImpl();
+  ArenaAllocatorStatsImpl(const ArenaAllocatorStatsImpl& other) = default;
+  ArenaAllocatorStatsImpl& operator = (const ArenaAllocatorStatsImpl& other) = delete;
+
+  void Copy(const ArenaAllocatorStatsImpl& other);
+  void RecordAlloc(size_t bytes, ArenaAllocKind kind);
+  size_t NumAllocations() const;
+  size_t BytesAllocated() const;
+  void Dump(std::ostream& os, const Arena* first, ssize_t lost_bytes_adjustment) const;
+
+ private:
+  size_t num_allocations_;
+  // TODO: Use std::array<size_t, kNumArenaAllocKinds> from C++11 when we upgrade the STL.
+  size_t alloc_stats_[kNumArenaAllocKinds];  // Bytes used by various allocation kinds.
+};
+
+typedef ArenaAllocatorStatsImpl<kArenaAllocatorCountAllocations> ArenaAllocatorStats;
 
 class Arena {
  public:
@@ -59,6 +124,9 @@ class Arena {
   Arena* next_;
   friend class ArenaPool;
   friend class ArenaAllocator;
+  friend class ArenaStack;
+  friend class ScopedArenaAllocator;
+  template <bool kCount> friend class ArenaAllocatorStatsImpl;
   DISALLOW_COPY_AND_ASSIGN(Arena);
 };
 
@@ -67,7 +135,7 @@ class ArenaPool {
   ArenaPool();
   ~ArenaPool();
   Arena* AllocArena(size_t size);
-  void FreeArena(Arena* arena);
+  void FreeArenaChain(Arena* first);
 
  private:
   Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
@@ -75,28 +143,8 @@ class ArenaPool {
   DISALLOW_COPY_AND_ASSIGN(ArenaPool);
 };
 
-class ArenaAllocator {
+class ArenaAllocator : private ArenaAllocatorStats {
  public:
-  // Type of allocation for memory tuning.
-  enum ArenaAllocKind {
-    kAllocMisc,
-    kAllocBB,
-    kAllocLIR,
-    kAllocMIR,
-    kAllocDFInfo,
-    kAllocGrowableArray,
-    kAllocGrowableBitMap,
-    kAllocDalvikToSSAMap,
-    kAllocDebugInfo,
-    kAllocSuccessor,
-    kAllocRegAlloc,
-    kAllocData,
-    kAllocPredecessors,
-    kNumAllocKinds
-  };
-
-  static constexpr bool kCountAllocations = false;
-
   explicit ArenaAllocator(ArenaPool* pool);
   ~ArenaAllocator();
 
@@ -113,10 +161,7 @@ class ArenaAllocator {
         return nullptr;
       }
     }
-    if (kCountAllocations) {
-      alloc_stats_[kind] += bytes;
-      ++num_allocations_;
-    }
+    ArenaAllocatorStats::RecordAlloc(bytes, kind);
     uint8_t* ret = ptr_;
     ptr_ += bytes;
     return ret;
@@ -125,7 +170,7 @@ class ArenaAllocator {
   void* AllocValgrind(size_t bytes, ArenaAllocKind kind);
   void ObtainNewArenaForAllocation(size_t allocation_size);
   size_t BytesAllocated() const;
-  void DumpMemStats(std::ostream& os) const;
+  MemStats GetMemStats() const;
 
  private:
   void UpdateBytesAllocated();
@@ -135,21 +180,22 @@ class ArenaAllocator {
   uint8_t* end_;
   uint8_t* ptr_;
   Arena* arena_head_;
-  size_t num_allocations_;
-  size_t alloc_stats_[kNumAllocKinds];  // Bytes used by various allocation kinds.
   bool running_on_valgrind_;
 
   DISALLOW_COPY_AND_ASSIGN(ArenaAllocator);
 };  // ArenaAllocator
 
-struct MemStats {
-   public:
-     void Dump(std::ostream& os) const {
-       arena_.DumpMemStats(os);
-     }
-     explicit MemStats(const ArenaAllocator &arena) : arena_(arena) {}
-  private:
-    const ArenaAllocator &arena_;
+class MemStats {
+ public:
+  MemStats(const char* name, const ArenaAllocatorStats* stats, const Arena* first_arena,
+           ssize_t lost_bytes_adjustment = 0);
+  void Dump(std::ostream& os) const;
+
+ private:
+  const char* const name_;
+  const ArenaAllocatorStats* const stats_;
+  const Arena* const first_arena_;
+  const ssize_t lost_bytes_adjustment_;
 };  // MemStats
 
 }  // namespace art

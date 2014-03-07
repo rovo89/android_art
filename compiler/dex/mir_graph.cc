@@ -411,7 +411,7 @@ BasicBlock* MIRGraph::ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, DexOffs
                                       /* create */ true, /* immed_pred_block_p */ &cur_block);
     SuccessorBlockInfo *successor_block_info =
         static_cast<SuccessorBlockInfo*>(arena_->Alloc(sizeof(SuccessorBlockInfo),
-                                                       ArenaAllocator::kAllocSuccessor));
+                                                       kArenaAllocSuccessor));
     successor_block_info->block = case_block->id;
     successor_block_info->key =
         (insn->dalvikInsn.opcode == Instruction::PACKED_SWITCH) ?
@@ -459,7 +459,7 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
         catches_.insert(catch_block->start_offset);
       }
       SuccessorBlockInfo *successor_block_info = reinterpret_cast<SuccessorBlockInfo*>
-          (arena_->Alloc(sizeof(SuccessorBlockInfo), ArenaAllocator::kAllocSuccessor));
+          (arena_->Alloc(sizeof(SuccessorBlockInfo), kArenaAllocSuccessor));
       successor_block_info->block = catch_block->id;
       successor_block_info->key = iterator.GetHandlerTypeIndex();
       cur_block->successor_blocks->Insert(successor_block_info);
@@ -518,7 +518,7 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
   new_block->start_offset = insn->offset;
   cur_block->fall_through = new_block->id;
   new_block->predecessors->Insert(cur_block->id);
-  MIR* new_insn = static_cast<MIR*>(arena_->Alloc(sizeof(MIR), ArenaAllocator::kAllocMIR));
+  MIR* new_insn = static_cast<MIR*>(arena_->Alloc(sizeof(MIR), kArenaAllocMIR));
   *new_insn = *insn;
   insn->dalvikInsn.opcode =
       static_cast<Instruction::Code>(kMirOpCheck);
@@ -602,7 +602,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
 
   /* Parse all instructions and put them into containing basic blocks */
   while (code_ptr < code_end) {
-    MIR *insn = static_cast<MIR *>(arena_->Alloc(sizeof(MIR), ArenaAllocator::kAllocMIR));
+    MIR *insn = static_cast<MIR *>(arena_->Alloc(sizeof(MIR), kArenaAllocMIR));
     insn->offset = current_offset_;
     insn->m_unit_index = current_method_;
     int width = ParseInsn(code_ptr, &insn->dalvikInsn);
@@ -1042,7 +1042,7 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
     str.append("]--optimized away");
   }
   int length = str.length() + 1;
-  ret = static_cast<char*>(arena_->Alloc(length, ArenaAllocator::kAllocDFInfo));
+  ret = static_cast<char*>(arena_->Alloc(length, kArenaAllocDFInfo));
   strncpy(ret, str.c_str(), length);
   return ret;
 }
@@ -1157,7 +1157,7 @@ void MIRGraph::DumpMIRGraph() {
 CallInfo* MIRGraph::NewMemCallInfo(BasicBlock* bb, MIR* mir, InvokeType type,
                                   bool is_range) {
   CallInfo* info = static_cast<CallInfo*>(arena_->Alloc(sizeof(CallInfo),
-                                                        ArenaAllocator::kAllocMisc));
+                                                        kArenaAllocMisc));
   MIR* move_result_mir = FindMoveResult(bb, mir);
   if (move_result_mir == NULL) {
     info->result.location = kLocInvalid;
@@ -1167,7 +1167,7 @@ CallInfo* MIRGraph::NewMemCallInfo(BasicBlock* bb, MIR* mir, InvokeType type,
   }
   info->num_arg_words = mir->ssa_rep->num_uses;
   info->args = (info->num_arg_words == 0) ? NULL : static_cast<RegLocation*>
-      (arena_->Alloc(sizeof(RegLocation) * info->num_arg_words, ArenaAllocator::kAllocMisc));
+      (arena_->Alloc(sizeof(RegLocation) * info->num_arg_words, kArenaAllocMisc));
   for (int i = 0; i < info->num_arg_words; i++) {
     info->args[i] = GetRawSrc(mir, i);
   }
@@ -1182,7 +1182,7 @@ CallInfo* MIRGraph::NewMemCallInfo(BasicBlock* bb, MIR* mir, InvokeType type,
 // Allocate a new basic block.
 BasicBlock* MIRGraph::NewMemBB(BBType block_type, int block_id) {
   BasicBlock* bb = static_cast<BasicBlock*>(arena_->Alloc(sizeof(BasicBlock),
-                                                          ArenaAllocator::kAllocBB));
+                                                          kArenaAllocBB));
   bb->block_type = block_type;
   bb->id = block_id;
   // TUNING: better estimate of the exit block predecessors?
@@ -1196,7 +1196,7 @@ BasicBlock* MIRGraph::NewMemBB(BBType block_type, int block_id) {
 
 void MIRGraph::InitializeConstantPropagation() {
   is_constant_v_ = new (arena_) ArenaBitVector(arena_, GetNumSSARegs(), false);
-  constant_values_ = static_cast<int*>(arena_->Alloc(sizeof(int) * GetNumSSARegs(), ArenaAllocator::kAllocDFInfo));
+  constant_values_ = static_cast<int*>(arena_->Alloc(sizeof(int) * GetNumSSARegs(), kArenaAllocDFInfo));
 }
 
 void MIRGraph::InitializeMethodUses() {

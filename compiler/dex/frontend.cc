@@ -98,6 +98,7 @@ CompilationUnit::CompilationUnit(ArenaPool* pool)
     num_regs(0),
     compiler_flip_match(false),
     arena(pool),
+    arena_stack(pool),
     mir_graph(NULL),
     cg(NULL),
     timings("QuickCompiler", true, false) {
@@ -247,9 +248,12 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   }
 
   if (cu.enable_debug & (1 << kDebugShowMemoryUsage)) {
-    if (cu.arena.BytesAllocated() > (5 * 1024 *1024)) {
-      MemStats mem_stats(cu.arena);
-      LOG(INFO) << PrettyMethod(method_idx, dex_file) << " " << Dumpable<MemStats>(mem_stats);
+    if (cu.arena.BytesAllocated() > (1 * 1024 *1024) ||
+        cu.arena_stack.PeakBytesAllocated() > 256 * 1024) {
+      MemStats mem_stats(cu.arena.GetMemStats());
+      MemStats peak_stats(cu.arena_stack.GetPeakStats());
+      LOG(INFO) << PrettyMethod(method_idx, dex_file) << " " << Dumpable<MemStats>(mem_stats)
+          << Dumpable<MemStats>(peak_stats);
     }
   }
 
