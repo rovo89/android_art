@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "method_verifier.h"
+#include "method_verifier-inl.h"
 
 #include <iostream>
 
@@ -40,6 +40,7 @@
 #include "register_line-inl.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
+#include "sirt_ref-inl.h"
 #include "verifier/dex_gc_map.h"
 
 namespace art {

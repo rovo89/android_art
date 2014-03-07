@@ -24,6 +24,7 @@
 #include "object_utils.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
+#include "verify_object-inl.h"
 
 namespace art {
 

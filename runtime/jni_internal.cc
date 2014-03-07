@@ -2537,11 +2537,13 @@ class JNI {
     IndirectRef ref = reinterpret_cast<IndirectRef>(java_object);
     IndirectRefKind kind = GetIndirectRefKind(ref);
     switch (kind) {
-    case kLocal:
+    case kLocal: {
+      ScopedObjectAccess soa(env);
       if (static_cast<JNIEnvExt*>(env)->locals.Get(ref) != kInvalidIndirectRefObject) {
         return JNILocalRefType;
       }
       return JNIInvalidRefType;
+    }
     case kGlobal:
       return JNIGlobalRefType;
     case kWeakGlobal:
@@ -3192,7 +3194,11 @@ mirror::Object* JavaVMExt::DecodeWeakGlobal(Thread* self, IndirectRef ref) {
   while (UNLIKELY(!allow_new_weak_globals_)) {
     weak_globals_add_condition_.WaitHoldingLocks(self);
   }
-  return const_cast<mirror::Object*>(weak_globals_.Get(ref));
+  mirror::Object* obj = weak_globals_.Get(ref);
+  if (obj != kClearedJniWeakGlobal) {
+    VerifyObject(obj);
+  }
+  return obj;
 }
 
 void JavaVMExt::DumpReferenceTables(std::ostream& os) {

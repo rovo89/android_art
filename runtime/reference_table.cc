@@ -40,6 +40,7 @@ ReferenceTable::~ReferenceTable() {
 
 void ReferenceTable::Add(mirror::Object* obj) {
   DCHECK(obj != NULL);
+  VerifyObject(obj);
   if (entries_.size() >= max_size_) {
     LOG(FATAL) << "ReferenceTable '" << name_ << "' "
                << "overflowed (" << max_size_ << " entries)";

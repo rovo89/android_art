@@ -25,6 +25,7 @@
 #include "mirror/dex_cache.h"
 #include "mirror/art_field-inl.h"
 #include "scoped_thread_state_change.h"
+#include "sirt_ref-inl.h"
 
 namespace art {
 

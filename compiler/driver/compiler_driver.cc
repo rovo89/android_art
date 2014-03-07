@@ -49,6 +49,7 @@
 #include "mirror/throwable.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
+#include "sirt_ref-inl.h"
 #include "thread.h"
 #include "thread_pool.h"
 #include "trampolines/trampoline_compiler.h"
