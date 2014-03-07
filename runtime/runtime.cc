@@ -765,12 +765,6 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     parsed->image_ += GetAndroidRoot();
     parsed->image_ += "/framework/boot.art";
   }
-  if (!kIsTargetBuild && parsed->host_prefix_.empty()) {
-    const char* build_top = getenv("ANDROID_BUILD_TOP");
-    if (build_top != NULL) {
-      parsed->host_prefix_ = build_top;
-    }
-  }
   if (parsed->heap_growth_limit_ == 0) {
     parsed->heap_growth_limit_ = parsed->heap_maximum_size_;
   }
@@ -840,7 +834,7 @@ jobject CreateSystemClassLoader() {
 bool Runtime::Start() {
   VLOG(startup) << "Runtime::Start entering";
 
-  CHECK(!kIsTargetBuild || host_prefix_.empty()) << host_prefix_;
+  CHECK(host_prefix_.empty()) << host_prefix_;
 
   // Restore main thread state to kNative as expected by native code.
   Thread* self = Thread::Current();
