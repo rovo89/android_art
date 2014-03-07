@@ -355,4 +355,13 @@ void IndirectReferenceTable::Dump(std::ostream& os) const {
   ReferenceTable::Dump(os, entries);
 }
 
+mirror::Object* IndirectReferenceTable::Get(IndirectRef iref) const {
+  if (!GetChecked(iref)) {
+    return kInvalidIndirectRefObject;
+  }
+  mirror::Object* obj = table_[ExtractIndex(iref)];;
+  VerifyObject(obj);
+  return obj;
+}
+
 }  // namespace art

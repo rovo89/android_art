@@ -17,7 +17,6 @@
 #ifndef ART_RUNTIME_MIRROR_CLASS_H_
 #define ART_RUNTIME_MIRROR_CLASS_H_
 
-#include "gc/heap.h"
 #include "invoke_type.h"
 #include "modifiers.h"
 #include "object.h"

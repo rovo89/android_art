@@ -30,6 +30,7 @@
 #include "mirror/dex_cache-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
+#include "sirt_ref-inl.h"
 
 namespace art {
 

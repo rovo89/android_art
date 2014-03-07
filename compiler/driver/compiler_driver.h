@@ -52,6 +52,7 @@ struct InlineIGetIPutData;
 class OatWriter;
 class ParallelCompilationManager;
 class ScopedObjectAccess;
+template<class T> class SirtRef;
 class TimingLogger;
 class VerificationResults;
 class VerifiedMethod;

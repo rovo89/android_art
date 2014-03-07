@@ -28,7 +28,7 @@
 #include "mirror/string.h"
 
 #include "runtime.h"
-#include "sirt_ref.h"
+#include "sirt_ref-inl.h"
 
 #include <string>
 

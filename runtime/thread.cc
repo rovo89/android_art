@@ -1203,9 +1203,11 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
     if (LIKELY(SirtContains(obj))) {
       // Read from SIRT.
       result = reinterpret_cast<StackReference<mirror::Object>*>(obj)->AsMirrorPtr();
+      VerifyObject(result);
     } else if (Runtime::Current()->GetJavaVM()->work_around_app_jni_bugs) {
       // Assume an invalid local reference is actually a direct pointer.
       result = reinterpret_cast<mirror::Object*>(obj);
+      VerifyObject(result);
     } else {
       result = kInvalidIndirectRefObject;
     }
@@ -1225,10 +1227,6 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
 
   if (UNLIKELY(result == nullptr)) {
     JniAbortF(nullptr, "use of deleted %s %p", ToStr<IndirectRefKind>(kind).c_str(), obj);
-  } else {
-    if (result != kInvalidIndirectRefObject) {
-      VerifyObject(result);
-    }
   }
   return result;
 }

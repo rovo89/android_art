@@ -267,12 +267,7 @@ class IndirectReferenceTable {
    *
    * Returns kInvalidIndirectRefObject if iref is invalid.
    */
-  mirror::Object* Get(IndirectRef iref) const {
-    if (!GetChecked(iref)) {
-      return kInvalidIndirectRefObject;
-    }
-    return table_[ExtractIndex(iref)];
-  }
+  mirror::Object* Get(IndirectRef iref) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // TODO: remove when we remove work_around_app_jni_bugs support.
   bool ContainsDirectPointer(mirror::Object* direct_pointer) const;

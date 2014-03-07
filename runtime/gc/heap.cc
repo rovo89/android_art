@@ -2708,5 +2708,12 @@ void Heap::AddModUnionTable(accounting::ModUnionTable* mod_union_table) {
   mod_union_tables_.Put(mod_union_table->GetSpace(), mod_union_table);
 }
 
+void Heap::CheckPreconditionsForAllocObject(mirror::Class* c, size_t byte_count) {
+  CHECK(c == NULL || (c->IsClassClass() && byte_count >= sizeof(mirror::Class)) ||
+        (c->IsVariableSize() || c->GetObjectSize() == byte_count) ||
+        strlen(ClassHelper(c).GetDescriptor()) == 0);
+  CHECK_GE(byte_count, sizeof(mirror::Object));
+}
+
 }  // namespace gc
 }  // namespace art

@@ -18,10 +18,10 @@
 #define ART_RUNTIME_MIRROR_STACK_TRACE_ELEMENT_H_
 
 #include "object.h"
-#include "sirt_ref.h"
 
 namespace art {
 
+template<class T> class SirtRef;
 struct StackTraceElementOffsets;
 
 namespace mirror {
