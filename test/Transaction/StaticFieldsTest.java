@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 The Android Open Source Project
+ * Copyright (C) 2014 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,22 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_MIRROR_IFTABLE_INL_H_
-#define ART_RUNTIME_MIRROR_IFTABLE_INL_H_
-
-#include "iftable.h"
-
-namespace art {
-namespace mirror {
-
-inline void IfTable::SetInterface(int32_t i, Class* interface) {
-  DCHECK(interface != NULL);
-  DCHECK(interface->IsInterface());
-  DCHECK(Get((i * kMax) + kInterface) == NULL);
-  Set<false>((i * kMax) + kInterface, interface);
+public class StaticFieldsTest {
+    public static boolean booleanField;
+    public static byte    byteField;
+    public static char    charField;
+    public static short   shortField;
+    public static int     intField;
+    public static long    longField;
+    public static float   floatField;
+    public static double  doubleField;
+    public static Object  objectField;
 }
-
-}  // namespace mirror
-}  // namespace art
-
-#endif  // ART_RUNTIME_MIRROR_IFTABLE_INL_H_

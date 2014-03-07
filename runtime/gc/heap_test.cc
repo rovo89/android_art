@@ -50,7 +50,7 @@ TEST_F(HeapTest, GarbageCollectClassLinkerInit) {
       for (size_t j = 0; j < 2048; ++j) {
         mirror::String* string = mirror::String::AllocFromModifiedUtf8(soa.Self(), "hello, world!");
         // SIRT operator -> deferences the SIRT before running the method.
-        array->Set(j, string);
+        array->Set<false>(j, string);
       }
     }
   }

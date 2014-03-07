@@ -65,12 +65,12 @@ namespace interpreter {
 
 // External references to both interpreter implementations.
 
-template<bool do_access_check>
+template<bool do_access_check, bool transaction_active>
 extern JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh,
                                 const DexFile::CodeItem* code_item,
                                 ShadowFrame& shadow_frame, JValue result_register);
 
-template<bool do_access_check>
+template<bool do_access_check, bool transaction_active>
 extern JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh,
                               const DexFile::CodeItem* code_item,
                               ShadowFrame& shadow_frame, JValue result_register);
@@ -82,6 +82,9 @@ static inline void DoMonitorEnter(Thread* self, Object* ref) NO_THREAD_SAFETY_AN
 static inline void DoMonitorExit(Thread* self, Object* ref) NO_THREAD_SAFETY_ANALYSIS {
   ref->MonitorExit(self);
 }
+
+void RecordArrayElementsInTransaction(mirror::Array* array, int32_t count)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Invokes the given method. This is part of the invocation support and is used by DoInvoke and
 // DoInvokeVirtualQuick functions.
@@ -228,7 +231,7 @@ static inline bool DoIGetQuick(ShadowFrame& shadow_frame, const Instruction* ins
 
 // Handles iput-XXX and sput-XXX instructions.
 // Returns true on success, otherwise throws an exception and returns false.
-template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check>
+template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check, bool transaction_active>
 static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
                               const Instruction* inst, uint16_t inst_data) {
   bool do_assignability_check = do_access_check;
@@ -254,22 +257,22 @@ static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
   uint32_t vregA = is_static ? inst->VRegA_21c(inst_data) : inst->VRegA_22c(inst_data);
   switch (field_type) {
     case Primitive::kPrimBoolean:
-      f->SetBoolean(obj, shadow_frame.GetVReg(vregA));
+      f->SetBoolean<transaction_active>(obj, shadow_frame.GetVReg(vregA));
       break;
     case Primitive::kPrimByte:
-      f->SetByte(obj, shadow_frame.GetVReg(vregA));
+      f->SetByte<transaction_active>(obj, shadow_frame.GetVReg(vregA));
       break;
     case Primitive::kPrimChar:
-      f->SetChar(obj, shadow_frame.GetVReg(vregA));
+      f->SetChar<transaction_active>(obj, shadow_frame.GetVReg(vregA));
       break;
     case Primitive::kPrimShort:
-      f->SetShort(obj, shadow_frame.GetVReg(vregA));
+      f->SetShort<transaction_active>(obj, shadow_frame.GetVReg(vregA));
       break;
     case Primitive::kPrimInt:
-      f->SetInt(obj, shadow_frame.GetVReg(vregA));
+      f->SetInt<transaction_active>(obj, shadow_frame.GetVReg(vregA));
       break;
     case Primitive::kPrimLong:
-      f->SetLong(obj, shadow_frame.GetVRegLong(vregA));
+      f->SetLong<transaction_active>(obj, shadow_frame.GetVRegLong(vregA));
       break;
     case Primitive::kPrimNot: {
       Object* reg = shadow_frame.GetVRegReference(vregA);
@@ -286,7 +289,7 @@ static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
           return false;
         }
       }
-      f->SetObj(obj, reg);
+      f->SetObj<transaction_active>(obj, reg);
       break;
     }
     default:
@@ -297,7 +300,7 @@ static inline bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
 
 // Handles iput-quick, iput-wide-quick and iput-object-quick instructions.
 // Returns true on success, otherwise throws an exception and returns false.
-template<Primitive::Type field_type>
+template<Primitive::Type field_type, bool transaction_active>
 static inline bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data) {
   Object* obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
   if (UNLIKELY(obj == nullptr)) {
@@ -311,13 +314,15 @@ static inline bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instructio
   const uint32_t vregA = inst->VRegA_22c(inst_data);
   switch (field_type) {
     case Primitive::kPrimInt:
-      obj->SetField32(field_offset, shadow_frame.GetVReg(vregA), is_volatile);
+      obj->SetField32<transaction_active>(field_offset, shadow_frame.GetVReg(vregA), is_volatile);
       break;
     case Primitive::kPrimLong:
-      obj->SetField64(field_offset, shadow_frame.GetVRegLong(vregA), is_volatile);
+      obj->SetField64<transaction_active>(field_offset, shadow_frame.GetVRegLong(vregA),
+                                          is_volatile);
       break;
     case Primitive::kPrimNot:
-      obj->SetFieldObject(field_offset, shadow_frame.GetVRegReference(vregA), is_volatile);
+      obj->SetFieldObject<transaction_active>(field_offset, shadow_frame.GetVRegReference(vregA),
+                                              is_volatile);
       break;
     default:
       LOG(FATAL) << "Unreachable: " << field_type;
@@ -416,7 +421,7 @@ static inline bool DoLongRemainder(ShadowFrame& shadow_frame, size_t result_reg,
 
 // Handles filled-new-array and filled-new-array-range instructions.
 // Returns true on success, otherwise throws an exception and returns false.
-template <bool is_range, bool do_access_check>
+template <bool is_range, bool do_access_check, bool transaction_active>
 bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
                       Thread* self, JValue* result);
 
@@ -604,14 +609,16 @@ EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticObjectRead, Primitive::kPrimNot);
 #undef EXPLICIT_DO_FIELD_GET_TEMPLATE_DECL
 
 // Explicitly instantiate all DoFieldPut functions.
-#define EXPLICIT_DO_FIELD_PUT_TEMPLATE_DECL(_find_type, _field_type, _do_check)                      \
+#define EXPLICIT_DO_FIELD_PUT_TEMPLATE_DECL(_find_type, _field_type, _do_check, _transaction_active)                      \
   template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE                                 \
-  bool DoFieldPut<_find_type, _field_type, _do_check>(Thread* self, const ShadowFrame& shadow_frame, \
-                                                      const Instruction* inst, uint16_t inst_data)
+  bool DoFieldPut<_find_type, _field_type, _do_check, _transaction_active>(Thread* self, const ShadowFrame& shadow_frame, \
+                                                                           const Instruction* inst, uint16_t inst_data)
 
 #define EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(_find_type, _field_type)  \
-    EXPLICIT_DO_FIELD_PUT_TEMPLATE_DECL(_find_type, _field_type, false);  \
-    EXPLICIT_DO_FIELD_PUT_TEMPLATE_DECL(_find_type, _field_type, true);
+    EXPLICIT_DO_FIELD_PUT_TEMPLATE_DECL(_find_type, _field_type, false, false);  \
+    EXPLICIT_DO_FIELD_PUT_TEMPLATE_DECL(_find_type, _field_type, true, false);  \
+    EXPLICIT_DO_FIELD_PUT_TEMPLATE_DECL(_find_type, _field_type, false, true);  \
+    EXPLICIT_DO_FIELD_PUT_TEMPLATE_DECL(_find_type, _field_type, true, true);
 
 // iput-XXX
 EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(InstancePrimitiveWrite, Primitive::kPrimBoolean);
@@ -657,14 +664,20 @@ EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL(Primitive::kPrimNot);    // iget-object-qui
 #undef EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL
 
 // Explicitly instantiate all DoIPutQuick functions.
-#define EXPLICIT_DO_IPUT_QUICK_TEMPLATE_DECL(_field_type)                                  \
-  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE                       \
-  bool DoIPutQuick<_field_type>(const ShadowFrame& shadow_frame, const Instruction* inst,  \
-                                uint16_t inst_data)
+#define EXPLICIT_DO_IPUT_QUICK_TEMPLATE_DECL(_field_type, _transaction_active)        \
+  template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE                  \
+  bool DoIPutQuick<_field_type, _transaction_active>(const ShadowFrame& shadow_frame, \
+                                                     const Instruction* inst,         \
+                                                     uint16_t inst_data)
 
-EXPLICIT_DO_IPUT_QUICK_TEMPLATE_DECL(Primitive::kPrimInt);    // iget-quick.
-EXPLICIT_DO_IPUT_QUICK_TEMPLATE_DECL(Primitive::kPrimLong);   // iget-wide-quick.
-EXPLICIT_DO_IPUT_QUICK_TEMPLATE_DECL(Primitive::kPrimNot);    // iget-object-quick.
+#define EXPLICIT_DO_IPUT_QUICK_ALL_TEMPLATE_DECL(_field_type)   \
+  EXPLICIT_DO_IPUT_QUICK_TEMPLATE_DECL(_field_type, false);     \
+  EXPLICIT_DO_IPUT_QUICK_TEMPLATE_DECL(_field_type, true);
+
+EXPLICIT_DO_IPUT_QUICK_ALL_TEMPLATE_DECL(Primitive::kPrimInt);    // iget-quick.
+EXPLICIT_DO_IPUT_QUICK_ALL_TEMPLATE_DECL(Primitive::kPrimLong);   // iget-wide-quick.
+EXPLICIT_DO_IPUT_QUICK_ALL_TEMPLATE_DECL(Primitive::kPrimNot);    // iget-object-quick.
+#undef EXPLICIT_DO_IPUT_QUICK_ALL_TEMPLATE_DECL
 #undef EXPLICIT_DO_IPUT_QUICK_TEMPLATE_DECL
 
 }  // namespace interpreter

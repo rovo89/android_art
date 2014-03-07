@@ -15,6 +15,7 @@
  */
 
 #include "interpreter_common.h"
+#include <limits>
 
 namespace art {
 namespace interpreter {
@@ -23,6 +24,10 @@ namespace interpreter {
 static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
                                 Object* receiver, uint32_t* args, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  DCHECK(Runtime::Current()->IsActiveTransaction()) << "Calling native method "
+                                                    << PrettyMethod(method)
+                                                    << " in unstarted runtime should only happen"
+                                                    << " in a transaction";
   std::string name(PrettyMethod(method));
   if (name == "java.lang.ClassLoader dalvik.system.VMStack.getCallingClassLoader()") {
     result->SetL(NULL);
@@ -73,13 +78,18 @@ static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
     jint newValue = args[4];
     byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
     volatile int32_t* address = reinterpret_cast<volatile int32_t*>(raw_addr);
+    // Check offset is 32bits to fit in MemberOffset.
+    CHECK_GE(offset, static_cast<jlong>(std::numeric_limits<int32_t>::min()));
+    CHECK_LE(offset, static_cast<jlong>(std::numeric_limits<int32_t>::max()));
+    Runtime::Current()->RecordWriteField32(obj, MemberOffset(offset), *address, true);
     // Note: android_atomic_release_cas() returns 0 on success, not failure.
     int r = android_atomic_release_cas(expectedValue, newValue, address);
     result->SetZ(r == 0);
   } else if (name == "void sun.misc.Unsafe.putObject(java.lang.Object, long, java.lang.Object)") {
     Object* obj = reinterpret_cast<Object*>(args[0]);
     Object* newValue = reinterpret_cast<Object*>(args[3]);
-    obj->SetFieldObject(MemberOffset((static_cast<uint64_t>(args[2]) << 32) | args[1]), newValue, false);
+    obj->SetFieldObject<true>(MemberOffset((static_cast<uint64_t>(args[2]) << 32) | args[1]),
+                              newValue, false);
   } else if (name == "int sun.misc.Unsafe.getArrayBaseOffsetForComponentType(java.lang.Class)") {
     mirror::Class* component = reinterpret_cast<Object*>(args[0])->AsClass();
     Primitive::Type primitive_type = component->GetPrimitiveType();
@@ -89,7 +99,11 @@ static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
     Primitive::Type primitive_type = component->GetPrimitiveType();
     result->SetI(Primitive::ComponentSize(primitive_type));
   } else {
-    LOG(FATAL) << "Attempt to invoke native method in non-started runtime: " << name;
+    // Throw an exception so we can abort the transaction and undo every change.
+    ThrowLocation throw_location;
+    self->ThrowNewExceptionF(throw_location, "Ljava/lang/InternalError;",
+                             "Attempt to invoke native method in non-started runtime: %s",
+                             name.c_str());
   }
 }
 
@@ -293,21 +307,38 @@ static inline JValue Execute(Thread* self, MethodHelper& mh, const DexFile::Code
   DCHECK(!shadow_frame.GetMethod()->IsAbstract());
   DCHECK(!shadow_frame.GetMethod()->IsNative());
 
+  bool transaction_active = Runtime::Current()->IsActiveTransaction();
   if (LIKELY(shadow_frame.GetMethod()->IsPreverified())) {
     // Enter the "without access check" interpreter.
     if (kInterpreterImplKind == kSwitchImpl) {
-      return ExecuteSwitchImpl<false>(self, mh, code_item, shadow_frame, result_register);
+      if (transaction_active) {
+        return ExecuteSwitchImpl<false, true>(self, mh, code_item, shadow_frame, result_register);
+      } else {
+        return ExecuteSwitchImpl<false, false>(self, mh, code_item, shadow_frame, result_register);
+      }
     } else {
       DCHECK_EQ(kInterpreterImplKind, kComputedGotoImplKind);
-      return ExecuteGotoImpl<false>(self, mh, code_item, shadow_frame, result_register);
+      if (transaction_active) {
+        return ExecuteGotoImpl<false, true>(self, mh, code_item, shadow_frame, result_register);
+      } else {
+        return ExecuteGotoImpl<false, false>(self, mh, code_item, shadow_frame, result_register);
+      }
     }
   } else {
     // Enter the "with access check" interpreter.
     if (kInterpreterImplKind == kSwitchImpl) {
-      return ExecuteSwitchImpl<true>(self, mh, code_item, shadow_frame, result_register);
+      if (transaction_active) {
+        return ExecuteSwitchImpl<true, true>(self, mh, code_item, shadow_frame, result_register);
+      } else {
+        return ExecuteSwitchImpl<true, false>(self, mh, code_item, shadow_frame, result_register);
+      }
     } else {
       DCHECK_EQ(kInterpreterImplKind, kComputedGotoImplKind);
-      return ExecuteGotoImpl<true>(self, mh, code_item, shadow_frame, result_register);
+      if (transaction_active) {
+        return ExecuteGotoImpl<true, true>(self, mh, code_item, shadow_frame, result_register);
+      } else {
+        return ExecuteGotoImpl<true, false>(self, mh, code_item, shadow_frame, result_register);
+      }
     }
   }
 }

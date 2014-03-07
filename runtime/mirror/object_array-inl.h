@@ -72,26 +72,39 @@ inline bool ObjectArray<T>::CheckAssignable(T* object) {
 
 template<class T>
 inline void ObjectArray<T>::Set(int32_t i, T* object) {
+  if (Runtime::Current()->IsActiveTransaction()) {
+    Set<true>(i, object);
+  } else {
+    Set<false>(i, object);
+  }
+}
+
+template<class T>
+template<bool kTransactionActive, bool kCheckTransaction>
+inline void ObjectArray<T>::Set(int32_t i, T* object) {
   if (LIKELY(CheckIsValidIndex(i) && CheckAssignable(object))) {
-    SetFieldObject(OffsetOfElement(i), object, false);
+    SetFieldObject<kTransactionActive, kCheckTransaction>(OffsetOfElement(i), object, false);
   } else {
     DCHECK(Thread::Current()->IsExceptionPending());
   }
 }
 
 template<class T>
+template<bool kTransactionActive, bool kCheckTransaction>
 inline void ObjectArray<T>::SetWithoutChecks(int32_t i, T* object) {
   DCHECK(CheckIsValidIndex(i));
   DCHECK(CheckAssignable(object));
-  SetFieldObject(OffsetOfElement(i), object, false);
+  SetFieldObject<kTransactionActive, kCheckTransaction>(OffsetOfElement(i), object, false);
 }
 
 template<class T>
+template<bool kTransactionActive, bool kCheckTransaction>
 inline void ObjectArray<T>::SetWithoutChecksAndWriteBarrier(int32_t i, T* object) {
   DCHECK(CheckIsValidIndex(i));
   // TODO:  enable this check. It fails when writing the image in ImageWriter::FixupObjectArray.
   // DCHECK(CheckAssignable(object));
-  SetFieldObjectWithoutWriteBarrier(OffsetOfElement(i), object, false);
+  SetFieldObjectWithoutWriteBarrier<kTransactionActive, kCheckTransaction>(OffsetOfElement(i),
+                                                                           object, false);
 }
 
 template<class T>
@@ -164,15 +177,15 @@ inline void ObjectArray<T>::AssignableCheckingMemcpy(int32_t dst_pos, ObjectArra
     o = src->GetWithoutChecks(src_pos + i);
     if (o == nullptr) {
       // Null is always assignable.
-      SetWithoutChecks(dst_pos + i, nullptr);
+      SetWithoutChecks<false>(dst_pos + i, nullptr);
     } else {
       // TODO: use the underlying class reference to avoid uncompression when not necessary.
       Class* o_class = o->GetClass();
       if (LIKELY(lastAssignableElementClass == o_class)) {
-        SetWithoutChecks(dst_pos + i, o);
+        SetWithoutChecks<false>(dst_pos + i, o);
       } else if (LIKELY(dst_class->IsAssignableFrom(o_class))) {
         lastAssignableElementClass = o_class;
-        SetWithoutChecks(dst_pos + i, o);
+        SetWithoutChecks<false>(dst_pos + i, o);
       } else {
         // Can't put this element into the array, break to perform write-barrier and throw
         // exception.

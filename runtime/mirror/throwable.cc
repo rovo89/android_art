@@ -38,7 +38,11 @@ void Throwable::SetCause(Throwable* cause) {
   Throwable* current_cause = GetFieldObject<Throwable>(OFFSET_OF_OBJECT_MEMBER(Throwable, cause_),
                                                        false);
   CHECK(current_cause == NULL || current_cause == this);
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Throwable, cause_), cause, false);
+  if (Runtime::Current()->IsActiveTransaction()) {
+    SetFieldObject<true>(OFFSET_OF_OBJECT_MEMBER(Throwable, cause_), cause, false);
+  } else {
+    SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Throwable, cause_), cause, false);
+  }
 }
 
 bool Throwable::IsCheckedException() {

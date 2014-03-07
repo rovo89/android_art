@@ -36,6 +36,7 @@ TEST_DEX_DIRECTORIES := \
 	StaticLeafMethods \
 	Statics \
 	StaticsFromCode \
+	Transaction \
 	XandY
 
 # subdirectories of which are used with test-art-target-oat

@@ -90,6 +90,7 @@ class MANAGED DexCache : public Object {
 
   void SetResolvedString(uint32_t string_idx, String* resolved)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // TODO default transaction support.
     GetStrings()->Set(string_idx, resolved);
   }
 
@@ -99,6 +100,7 @@ class MANAGED DexCache : public Object {
 
   void SetResolvedType(uint32_t type_idx, Class* resolved)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // TODO default transaction support.
     GetResolvedTypes()->Set(type_idx, resolved);
   }
 
@@ -140,7 +142,7 @@ class MANAGED DexCache : public Object {
   }
 
   void SetDexFile(const DexFile* dex_file) {
-    return SetFieldPtr(OFFSET_OF_OBJECT_MEMBER(DexCache, dex_file_), dex_file, false);
+    return SetFieldPtr<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, dex_file_), dex_file, false);
   }
 
  private:
