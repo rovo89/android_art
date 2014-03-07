@@ -1277,56 +1277,6 @@ DEFINE_FUNCTION art_quick_deoptimize
 END_FUNCTION art_quick_deoptimize
 
     /*
-     * String's indexOf.
-     *
-     * On entry:
-     *    eax:   string object (known non-null)
-     *    ecx:   char to match (known <= 0xFFFF)
-     *    edx:   Starting offset in string data
-     */
-DEFINE_FUNCTION art_quick_indexof
-    PUSH edi                      // push callee save reg
-    mov STRING_COUNT_OFFSET(%eax), %ebx
-    mov STRING_VALUE_OFFSET(%eax), %edi
-    mov STRING_OFFSET_OFFSET(%eax), %eax
-    testl %edx, %edx              // check if start < 0
-    jl   clamp_min
-clamp_done:
-    cmpl %ebx, %edx               // check if start >= count
-    jge  not_found
-    lea  STRING_DATA_OFFSET(%edi, %eax, 2), %edi  // build a pointer to the start of string data
-    mov  %edi, %eax               // save a copy in eax to later compute result
-    lea  (%edi, %edx, 2), %edi    // build pointer to start of data to compare
-    subl  %edx, %ebx              // compute iteration count
-    /*
-     * At this point we have:
-     *   eax: original start of string data
-     *   ecx: char to compare
-     *   ebx: length to compare
-     *   edi: start of data to test
-     */
-    mov  %eax, %edx
-    mov  %ecx, %eax               // put char to match in %eax
-    mov  %ebx, %ecx               // put length to compare in %ecx
-    repne scasw                   // find %ax, starting at [%edi], up to length %ecx
-    jne  not_found
-    subl %edx, %edi
-    sar  LITERAL(1), %edi
-    decl %edi                     // index = ((curr_ptr - orig_ptr) / 2) - 1
-    mov  %edi, %eax
-    POP edi                       // pop callee save reg
-    ret
-    .balign 16
-not_found:
-    mov  LITERAL(-1), %eax        // return -1 (not found)
-    POP edi                       // pop callee save reg
-    ret
-clamp_min:
-    xor  %edx, %edx               // clamp start to 0
-    jmp  clamp_done
-END_FUNCTION art_quick_indexof
-
-    /*
      * String's compareTo.
      *
      * On entry:
