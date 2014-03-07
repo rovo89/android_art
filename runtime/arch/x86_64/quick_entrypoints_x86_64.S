@@ -766,7 +766,11 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     // 16-byte aligned: 4336
     // Note: 14x8 = 7*16, so the stack stays aligned for the native call...
     //       Also means: the padding is somewhere in the middle
-    subq LITERAL(4336), %rsp
+    //
+    //
+    // New test: use 5K and release
+    // 5k = 5120
+    subq LITERAL(5120), %rsp
     // prepare for artQuickGenericJniTrampoline call
     // (Thread*,  SP)
     //    rdi    rsi      <= C calling convention
@@ -774,9 +778,13 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movq %gs:THREAD_SELF_OFFSET, %rdi
     movq %rbp, %rsi
     call PLT_SYMBOL(artQuickGenericJniTrampoline)  // (Thread*, sp)
-    test %rax, %rax                 // check whether code pointer is NULL, also indicates exception
-    jz 1f
-    // pop from the register-passing alloca
+    test %rax, %rax                 // check whether error (negative value)
+    js 1f
+    // release part of the alloca
+    addq %rax, %rsp
+    // get the code pointer
+    popq %rax
+    // pop from the register-passing alloca region
     // what's the right layout?
     popq %rdi
     popq %rsi
