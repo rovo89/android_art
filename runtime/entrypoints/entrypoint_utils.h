@@ -311,8 +311,8 @@ static inline mirror::ArtField* FindFieldFromCode(uint32_t field_idx, const mirr
       return nullptr;
     }
     mirror::Class* referring_class = referrer->GetDeclaringClass();
-    if (UNLIKELY(!referring_class->CanAccessResolvedField<true>(fields_class, resolved_field,
-                                                                field_idx))) {
+    if (UNLIKELY(!referring_class->CheckResolvedFieldAccess(fields_class, resolved_field,
+                                                            field_idx))) {
       DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
       return nullptr;  // Failure.
     }
@@ -402,8 +402,8 @@ static inline mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror:
     mirror::Class* methods_class = resolved_method->GetDeclaringClass();
     mirror::Class* referring_class = referrer->GetDeclaringClass();
     bool can_access_resolved_method =
-        referring_class->CanAccessResolvedMethod<true, type>(methods_class, resolved_method,
-                                                             method_idx);
+        referring_class->CheckResolvedMethodAccess<type>(methods_class, resolved_method,
+                                                         method_idx);
     if (UNLIKELY(!can_access_resolved_method)) {
       DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
       return nullptr;  // Failure.
