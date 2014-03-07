@@ -503,7 +503,7 @@ class PACKED(4) Thread {
   // Is the given obj in this thread's stack indirect reference table?
   bool SirtContains(jobject obj) const;
 
-  void SirtVisitRoots(RootCallback* visitor, void* arg)
+  void SirtVisitRoots(RootCallback* visitor, void* arg, uint32_t thread_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void PushSirt(StackIndirectReferenceTable* sirt) {
