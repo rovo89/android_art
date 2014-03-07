@@ -92,7 +92,6 @@ include $(art_path)/dex2oat/Android.mk
 include $(art_path)/disassembler/Android.mk
 include $(art_path)/oatdump/Android.mk
 include $(art_path)/dalvikvm/Android.mk
-include $(art_path)/tools/Android.mk
 include $(art_build_path)/Android.oat.mk
 
 # ART_HOST_DEPENDENCIES depends on Android.executable.mk above for ART_HOST_EXECUTABLES
@@ -300,12 +299,6 @@ build-art-host:   $(ART_HOST_EXECUTABLES)   $(ART_HOST_TEST_EXECUTABLES)   $(HOS
 
 .PHONY: build-art-target
 build-art-target: $(ART_TARGET_EXECUTABLES) $(ART_TARGET_TEST_EXECUTABLES) $(TARGET_CORE_IMG_OUT) $(TARGET_OUT)/lib/libjavacore.so
-
-.PHONY: art-host
-art-host:   $(HOST_OUT_EXECUTABLES)/art $(HOST_OUT)/bin/dalvikvm $(HOST_OUT)/lib/libart.so $(HOST_OUT)/bin/dex2oat $(HOST_OUT_JAVA_LIBRARIES)/core.art $(HOST_OUT)/lib/libjavacore.so
-
-.PHONY: art-host-debug
-art-host-debug:   art-host $(HOST_OUT)/lib/libartd.so $(HOST_OUT)/bin/dex2oatd
 
 ########################################################################
 # oatdump targets
