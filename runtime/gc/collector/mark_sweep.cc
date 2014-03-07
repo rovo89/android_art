@@ -1347,9 +1347,6 @@ void MarkSweep::FinishPhase() {
   timings_.NewSplit("PostGcVerification");
   heap->PostGcVerification(this);
 
-  timings_.NewSplit("RequestHeapTrim");
-  heap->RequestHeapTrim();
-
   // Update the cumulative statistics
   total_freed_objects_ += GetFreedObjects() + GetFreedLargeObjects();
   total_freed_bytes_ += GetFreedBytes() + GetFreedLargeObjectBytes();
