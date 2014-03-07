@@ -24,20 +24,23 @@
 namespace art {
 
 void Mir2Lir::LockArg(int in_position, bool wide) {
-  int reg_arg_low = GetArgMappingToPhysicalReg(in_position);
-  int reg_arg_high = wide ? GetArgMappingToPhysicalReg(in_position + 1) : INVALID_REG;
+  RegStorage reg_arg_low = GetArgMappingToPhysicalReg(in_position);
+  RegStorage reg_arg_high = wide ? GetArgMappingToPhysicalReg(in_position + 1) :
+      RegStorage::InvalidReg();
 
-  if (reg_arg_low != INVALID_REG) {
+  if (reg_arg_low.Valid()) {
     LockTemp(reg_arg_low);
   }
-  if (reg_arg_high != INVALID_REG && reg_arg_low != reg_arg_high) {
+  if (reg_arg_high.Valid() && reg_arg_low != reg_arg_high) {
     LockTemp(reg_arg_high);
   }
 }
 
-int Mir2Lir::LoadArg(int in_position, bool wide) {
-  int reg_arg_low = GetArgMappingToPhysicalReg(in_position);
-  int reg_arg_high = wide ? GetArgMappingToPhysicalReg(in_position + 1) : INVALID_REG;
+// TODO: needs revisit for 64-bit.
+RegStorage Mir2Lir::LoadArg(int in_position, bool wide) {
+  RegStorage reg_arg_low = GetArgMappingToPhysicalReg(in_position);
+  RegStorage reg_arg_high = wide ? GetArgMappingToPhysicalReg(in_position + 1) :
+      RegStorage::InvalidReg();
 
   int offset = StackVisitor::GetOutVROffset(in_position);
   if (cu_->instruction_set == kX86) {
@@ -50,13 +53,13 @@ int Mir2Lir::LoadArg(int in_position, bool wide) {
   }
 
   // If the VR is wide and there is no register for high part, we need to load it.
-  if (wide && reg_arg_high == INVALID_REG) {
+  if (wide && !reg_arg_high.Valid()) {
     // If the low part is not in a reg, we allocate a pair. Otherwise, we just load to high reg.
-    if (reg_arg_low == INVALID_REG) {
+    if (!reg_arg_low.Valid()) {
       RegStorage new_regs = AllocTypedTempWide(false, kAnyReg);
-      reg_arg_low = new_regs.GetReg();
-      reg_arg_high = new_regs.GetHighReg();
-      LoadBaseDispWide(TargetReg(kSp), offset, reg_arg_low, reg_arg_high, INVALID_SREG);
+      reg_arg_low = new_regs.GetLow();
+      reg_arg_high = new_regs.GetHigh();
+      LoadBaseDispWide(TargetReg(kSp), offset, new_regs, INVALID_SREG);
     } else {
       reg_arg_high = AllocTemp();
       int offset_high = offset + sizeof(uint32_t);
@@ -65,14 +68,13 @@ int Mir2Lir::LoadArg(int in_position, bool wide) {
   }
 
   // If the low part is not in a register yet, we need to load it.
-  if (reg_arg_low == INVALID_REG) {
+  if (!reg_arg_low.Valid()) {
     reg_arg_low = AllocTemp();
     LoadWordDisp(TargetReg(kSp), offset, reg_arg_low);
   }
 
   if (wide) {
-    // TODO: replace w/ RegStorage.
-    return ENCODE_REG_PAIR(reg_arg_low, reg_arg_high);
+    return RegStorage::MakeRegPair(reg_arg_low, reg_arg_high);
   } else {
     return reg_arg_low;
   }
@@ -90,27 +92,27 @@ void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
   }
 
   if (!rl_dest.wide) {
-    int reg = GetArgMappingToPhysicalReg(in_position);
-    if (reg != INVALID_REG) {
-      OpRegCopy(rl_dest.reg.GetReg(), reg);
+    RegStorage reg = GetArgMappingToPhysicalReg(in_position);
+    if (reg.Valid()) {
+      OpRegCopy(rl_dest.reg, reg);
     } else {
-      LoadWordDisp(TargetReg(kSp), offset, rl_dest.reg.GetReg());
+      LoadWordDisp(TargetReg(kSp), offset, rl_dest.reg);
     }
   } else {
-    int reg_arg_low = GetArgMappingToPhysicalReg(in_position);
-    int reg_arg_high = GetArgMappingToPhysicalReg(in_position + 1);
+    RegStorage reg_arg_low = GetArgMappingToPhysicalReg(in_position);
+    RegStorage reg_arg_high = GetArgMappingToPhysicalReg(in_position + 1);
 
-    if (reg_arg_low != INVALID_REG && reg_arg_high != INVALID_REG) {
-      OpRegCopyWide(rl_dest.reg.GetReg(), rl_dest.reg.GetHighReg(), reg_arg_low, reg_arg_high);
-    } else if (reg_arg_low != INVALID_REG && reg_arg_high == INVALID_REG) {
-      OpRegCopy(rl_dest.reg.GetReg(), reg_arg_low);
+    if (reg_arg_low.Valid() && reg_arg_high.Valid()) {
+      OpRegCopyWide(rl_dest.reg, RegStorage::MakeRegPair(reg_arg_low, reg_arg_high));
+    } else if (reg_arg_low.Valid() && !reg_arg_high.Valid()) {
+      OpRegCopy(rl_dest.reg, reg_arg_low);
       int offset_high = offset + sizeof(uint32_t);
-      LoadWordDisp(TargetReg(kSp), offset_high, rl_dest.reg.GetHighReg());
-    } else if (reg_arg_low == INVALID_REG && reg_arg_high != INVALID_REG) {
-      OpRegCopy(rl_dest.reg.GetHighReg(), reg_arg_high);
-      LoadWordDisp(TargetReg(kSp), offset, rl_dest.reg.GetReg());
+      LoadWordDisp(TargetReg(kSp), offset_high, rl_dest.reg.GetHigh());
+    } else if (!reg_arg_low.Valid() && reg_arg_high.Valid()) {
+      OpRegCopy(rl_dest.reg.GetHigh(), reg_arg_high);
+      LoadWordDisp(TargetReg(kSp), offset, rl_dest.reg.GetLow());
     } else {
-      LoadBaseDispWide(TargetReg(kSp), offset, rl_dest.reg.GetReg(), rl_dest.reg.GetHighReg(), INVALID_SREG);
+      LoadBaseDispWide(TargetReg(kSp), offset, rl_dest.reg, INVALID_SREG);
     }
   }
 }
@@ -131,11 +133,11 @@ bool Mir2Lir::GenSpecialIGet(MIR* mir, const InlineMethod& special) {
   GenPrintLabel(mir);
   LockArg(data.object_arg);
   RegLocation rl_dest = wide ? GetReturnWide(double_or_float) : GetReturn(double_or_float);
-  int reg_obj = LoadArg(data.object_arg);
+  RegStorage reg_obj = LoadArg(data.object_arg);
   if (wide) {
-    LoadBaseDispWide(reg_obj, data.field_offset, rl_dest.reg.GetReg(), rl_dest.reg.GetHighReg(), INVALID_SREG);
+    LoadBaseDispWide(reg_obj, data.field_offset, rl_dest.reg, INVALID_SREG);
   } else {
-    LoadBaseDisp(reg_obj, data.field_offset, rl_dest.reg.GetReg(), kWord, INVALID_SREG);
+    LoadWordDisp(reg_obj, data.field_offset, rl_dest.reg);
   }
   if (data.is_volatile) {
     // Without context sensitive analysis, we must issue the most conservative barriers.
@@ -160,16 +162,14 @@ bool Mir2Lir::GenSpecialIPut(MIR* mir, const InlineMethod& special) {
   GenPrintLabel(mir);
   LockArg(data.object_arg);
   LockArg(data.src_arg, wide);
-  int reg_obj = LoadArg(data.object_arg);
-  int reg_src = LoadArg(data.src_arg, wide);
+  RegStorage reg_obj = LoadArg(data.object_arg);
+  RegStorage reg_src = LoadArg(data.src_arg, wide);
   if (data.is_volatile) {
     // There might have been a store before this volatile one so insert StoreStore barrier.
     GenMemBarrier(kStoreStore);
   }
   if (wide) {
-    int low_reg, high_reg;
-    DECODE_REG_PAIR(reg_src, low_reg, high_reg);
-    StoreBaseDispWide(reg_obj, data.field_offset, low_reg, high_reg);
+    StoreBaseDispWide(reg_obj, data.field_offset, reg_src);
   } else {
     StoreBaseDisp(reg_obj, data.field_offset, reg_src, kWord);
   }
@@ -216,7 +216,7 @@ bool Mir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& speci
       successful = true;
       RegLocation rl_dest = GetReturn(cu_->shorty[0] == 'F');
       GenPrintLabel(mir);
-      LoadConstant(rl_dest.reg.GetReg(), static_cast<int>(special.d.data));
+      LoadConstant(rl_dest.reg, static_cast<int>(special.d.data));
       return_mir = bb->GetNextUnconditionalMir(mir_graph_, mir);
       break;
     }
@@ -384,19 +384,19 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::CONST_4:
     case Instruction::CONST_16:
       rl_result = EvalLoc(rl_dest, kAnyReg, true);
-      LoadConstantNoClobber(rl_result.reg.GetReg(), vB);
+      LoadConstantNoClobber(rl_result.reg, vB);
       StoreValue(rl_dest, rl_result);
       if (vB == 0) {
-        Workaround7250540(rl_dest, rl_result.reg.GetReg());
+        Workaround7250540(rl_dest, rl_result.reg);
       }
       break;
 
     case Instruction::CONST_HIGH16:
       rl_result = EvalLoc(rl_dest, kAnyReg, true);
-      LoadConstantNoClobber(rl_result.reg.GetReg(), vB << 16);
+      LoadConstantNoClobber(rl_result.reg, vB << 16);
       StoreValue(rl_dest, rl_result);
       if (vB == 0) {
-        Workaround7250540(rl_dest, rl_result.reg.GetReg());
+        Workaround7250540(rl_dest, rl_result.reg);
       }
       break;
 
@@ -411,8 +411,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
 
     case Instruction::CONST_WIDE_HIGH16:
       rl_result = EvalLoc(rl_dest, kAnyReg, true);
-      LoadConstantWide(rl_result.reg.GetReg(), rl_result.reg.GetHighReg(),
-                           static_cast<int64_t>(vB) << 48);
+      LoadConstantWide(rl_result.reg, static_cast<int64_t>(vB) << 48);
       StoreValueWide(rl_dest, rl_result);
       break;
 
@@ -444,9 +443,9 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       int len_offset;
       len_offset = mirror::Array::LengthOffset().Int32Value();
       rl_src[0] = LoadValue(rl_src[0], kCoreReg);
-      GenNullCheck(rl_src[0].reg.GetReg(), opt_flags);
+      GenNullCheck(rl_src[0].reg, opt_flags);
       rl_result = EvalLoc(rl_dest, kCoreReg, true);
-      LoadWordDisp(rl_src[0].reg.GetReg(), len_offset, rl_result.reg.GetReg());
+      LoadWordDisp(rl_src[0].reg, len_offset, rl_result.reg);
       StoreValue(rl_dest, rl_result);
       break;
 

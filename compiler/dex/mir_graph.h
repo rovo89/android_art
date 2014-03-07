@@ -175,7 +175,6 @@ enum OatMethodAttributes {
 
 #define INVALID_SREG (-1)
 #define INVALID_VREG (0xFFFFU)
-#define INVALID_REG (0x7F)
 #define INVALID_OFFSET (0xDEADF00FU)
 
 #define MIR_IGNORE_NULL_CHECK           (1 << kMIRIgnoreNullCheck)

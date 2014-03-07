@@ -432,12 +432,12 @@ const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
  * Long conditional branch
  * -----------------------
  *      bne  rs,rt,hop
- *      bal  .+8   ; r_RA <- anchor
- *      lui  r_AT, ((target-anchor) >> 16)
+ *      bal  .+8   ; rRA <- anchor
+ *      lui  rAT, ((target-anchor) >> 16)
  * anchor:
- *      ori  r_AT, r_AT, ((target-anchor) & 0xffff)
- *      addu r_AT, r_AT, r_RA
- *      jr   r_AT
+ *      ori  rAT, rAT, ((target-anchor) & 0xffff)
+ *      addu rAT, rAT, rRA
+ *      jr   rAT
  * hop:
  *
  * Orig unconditional branch
@@ -446,12 +446,12 @@ const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
  *
  * Long unconditional branch
  * -----------------------
- *      bal  .+8   ; r_RA <- anchor
- *      lui  r_AT, ((target-anchor) >> 16)
+ *      bal  .+8   ; rRA <- anchor
+ *      lui  rAT, ((target-anchor) >> 16)
  * anchor:
- *      ori  r_AT, r_AT, ((target-anchor) & 0xffff)
- *      addu r_AT, r_AT, r_RA
- *      jr   r_AT
+ *      ori  rAT, rAT, ((target-anchor) & 0xffff)
+ *      addu rAT, rAT, rRA
+ *      jr   rAT
  *
  *
  * NOTE: An out-of-range bal isn't supported because it should
@@ -489,16 +489,16 @@ void MipsMir2Lir::ConvertShortToLongBranch(LIR* lir) {
   LIR* curr_pc = RawLIR(dalvik_offset, kMipsCurrPC);
   InsertLIRBefore(lir, curr_pc);
   LIR* anchor = RawLIR(dalvik_offset, kPseudoTargetLabel);
-  LIR* delta_hi = RawLIR(dalvik_offset, kMipsDeltaHi, r_AT, 0, WrapPointer(anchor), 0, 0,
+  LIR* delta_hi = RawLIR(dalvik_offset, kMipsDeltaHi, rAT, 0, WrapPointer(anchor), 0, 0,
                          lir->target);
   InsertLIRBefore(lir, delta_hi);
   InsertLIRBefore(lir, anchor);
-  LIR* delta_lo = RawLIR(dalvik_offset, kMipsDeltaLo, r_AT, 0, WrapPointer(anchor), 0, 0,
+  LIR* delta_lo = RawLIR(dalvik_offset, kMipsDeltaLo, rAT, 0, WrapPointer(anchor), 0, 0,
                          lir->target);
   InsertLIRBefore(lir, delta_lo);
-  LIR* addu = RawLIR(dalvik_offset, kMipsAddu, r_AT, r_AT, r_RA);
+  LIR* addu = RawLIR(dalvik_offset, kMipsAddu, rAT, rAT, rRA);
   InsertLIRBefore(lir, addu);
-  LIR* jr = RawLIR(dalvik_offset, kMipsJr, r_AT);
+  LIR* jr = RawLIR(dalvik_offset, kMipsJr, rAT);
   InsertLIRBefore(lir, jr);
   if (!unconditional) {
     InsertLIRBefore(lir, hop_target);
@@ -559,7 +559,7 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(CodeOffset start_addr) {
           InsertLIRBefore(lir, new_delta_lo);
           LIR *new_addu =
               RawLIR(lir->dalvik_offset, kMipsAddu,
-                     lir->operands[0], lir->operands[0], r_RA);
+                     lir->operands[0], lir->operands[0], rRA);
           InsertLIRBefore(lir, new_addu);
           NopLIR(lir);
           res = kRetryAll;

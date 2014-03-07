@@ -31,11 +31,11 @@ namespace art {
  *
  * The test loop will look something like:
  *
- *   adr   rBase, <table>
+ *   adr   r_base, <table>
  *   ldr   r_val, [rARM_SP, v_reg_off]
  *   mov   r_idx, #table_size
  * lp:
- *   ldmia rBase!, {r_key, r_disp}
+ *   ldmia r_base!, {r_key, r_disp}
  *   sub   r_idx, #1
  *   cmp   r_val, r_key
  *   ifeq
@@ -60,29 +60,29 @@ void ArmMir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
 
   // Get the switch value
   rl_src = LoadValue(rl_src, kCoreReg);
-  int rBase = AllocTemp();
+  RegStorage r_base = AllocTemp();
   /* Allocate key and disp temps */
-  int r_key = AllocTemp();
-  int r_disp = AllocTemp();
+  RegStorage r_key = AllocTemp();
+  RegStorage r_disp = AllocTemp();
   // Make sure r_key's register number is less than r_disp's number for ldmia
-  if (r_key > r_disp) {
-    int tmp = r_disp;
+  if (r_key.GetReg() > r_disp.GetReg()) {
+    RegStorage tmp = r_disp;
     r_disp = r_key;
     r_key = tmp;
   }
   // Materialize a pointer to the switch table
-  NewLIR3(kThumb2Adr, rBase, 0, WrapPointer(tab_rec));
+  NewLIR3(kThumb2Adr, r_base.GetReg(), 0, WrapPointer(tab_rec));
   // Set up r_idx
-  int r_idx = AllocTemp();
+  RegStorage r_idx = AllocTemp();
   LoadConstant(r_idx, size);
   // Establish loop branch target
   LIR* target = NewLIR0(kPseudoTargetLabel);
   // Load next key/disp
-  NewLIR2(kThumb2LdmiaWB, rBase, (1 << r_key) | (1 << r_disp));
-  OpRegReg(kOpCmp, r_key, rl_src.reg.GetReg());
+  NewLIR2(kThumb2LdmiaWB, r_base.GetReg(), (1 << r_key.GetReg()) | (1 << r_disp.GetReg()));
+  OpRegReg(kOpCmp, r_key, rl_src.reg);
   // Go if match. NOTE: No instruction set switch here - must stay Thumb2
   OpIT(kCondEq, "");
-  LIR* switch_branch = NewLIR1(kThumb2AddPCR, r_disp);
+  LIR* switch_branch = NewLIR1(kThumb2AddPCR, r_disp.GetReg());
   tab_rec->anchor = switch_branch;
   // Needs to use setflags encoding here
   OpRegRegImm(kOpSub, r_idx, r_idx, 1);  // For value == 1, this should set flags.
@@ -109,28 +109,28 @@ void ArmMir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
 
   // Get the switch value
   rl_src = LoadValue(rl_src, kCoreReg);
-  int table_base = AllocTemp();
+  RegStorage table_base = AllocTemp();
   // Materialize a pointer to the switch table
-  NewLIR3(kThumb2Adr, table_base, 0, WrapPointer(tab_rec));
+  NewLIR3(kThumb2Adr, table_base.GetReg(), 0, WrapPointer(tab_rec));
   int low_key = s4FromSwitchData(&table[2]);
-  int keyReg;
+  RegStorage keyReg;
   // Remove the bias, if necessary
   if (low_key == 0) {
-    keyReg = rl_src.reg.GetReg();
+    keyReg = rl_src.reg;
   } else {
     keyReg = AllocTemp();
-    OpRegRegImm(kOpSub, keyReg, rl_src.reg.GetReg(), low_key);
+    OpRegRegImm(kOpSub, keyReg, rl_src.reg, low_key);
   }
   // Bounds check - if < 0 or >= size continue following switch
   OpRegImm(kOpCmp, keyReg, size-1);
   LIR* branch_over = OpCondBranch(kCondHi, NULL);
 
   // Load the displacement from the switch table
-  int disp_reg = AllocTemp();
+  RegStorage disp_reg = AllocTemp();
   LoadBaseIndexed(table_base, keyReg, disp_reg, 2, kWord);
 
   // ..and go! NOTE: No instruction set switch here - must stay Thumb2
-  LIR* switch_branch = NewLIR1(kThumb2AddPCR, disp_reg);
+  LIR* switch_branch = NewLIR1(kThumb2AddPCR, disp_reg.GetReg());
   tab_rec->anchor = switch_branch;
 
   /* branch_over target here */
@@ -163,13 +163,13 @@ void ArmMir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
 
   // Making a call - use explicit registers
   FlushAllRegs();   /* Everything to home location */
-  LoadValueDirectFixed(rl_src, r0);
-  LoadWordDisp(rARM_SELF, QUICK_ENTRYPOINT_OFFSET(pHandleFillArrayData).Int32Value(),
-               rARM_LR);
+  LoadValueDirectFixed(rl_src, rs_r0);
+  LoadWordDisp(rs_rARM_SELF, QUICK_ENTRYPOINT_OFFSET(pHandleFillArrayData).Int32Value(),
+               rs_rARM_LR);
   // Materialize a pointer to the fill data image
   NewLIR3(kThumb2Adr, r1, 0, WrapPointer(tab_rec));
   ClobberCallerSave();
-  LIR* call_inst = OpReg(kOpBlx, rARM_LR);
+  LIR* call_inst = OpReg(kOpBlx, rs_rARM_LR);
   MarkSafepointPC(call_inst);
 }
 
@@ -179,7 +179,7 @@ void ArmMir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
  */
 void ArmMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
   FlushAllRegs();
-  LoadValueDirectFixed(rl_src, r0);  // Get obj
+  LoadValueDirectFixed(rl_src, rs_r0);  // Get obj
   LockCallTemps();  // Prepare for explicit register usage
   constexpr bool kArchVariantHasGoodBranchPredictor = false;  // TODO: true if cortex-A15.
   if (kArchVariantHasGoodBranchPredictor) {
@@ -188,13 +188,13 @@ void ArmMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
       null_check_branch = nullptr;  // No null check.
     } else {
       // If the null-check fails its handled by the slow-path to reduce exception related meta-data.
-      null_check_branch = OpCmpImmBranch(kCondEq, r0, 0, NULL);
+      null_check_branch = OpCmpImmBranch(kCondEq, rs_r0, 0, NULL);
     }
-    LoadWordDisp(rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), r2);
+    LoadWordDisp(rs_rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), rs_r2);
     NewLIR3(kThumb2Ldrex, r1, r0, mirror::Object::MonitorOffset().Int32Value() >> 2);
-    LIR* not_unlocked_branch = OpCmpImmBranch(kCondNe, r1, 0, NULL);
+    LIR* not_unlocked_branch = OpCmpImmBranch(kCondNe, rs_r1, 0, NULL);
     NewLIR4(kThumb2Strex, r1, r2, r0, mirror::Object::MonitorOffset().Int32Value() >> 2);
-    LIR* lock_success_branch = OpCmpImmBranch(kCondEq, r1, 0, NULL);
+    LIR* lock_success_branch = OpCmpImmBranch(kCondEq, rs_r1, 0, NULL);
 
 
     LIR* slow_path_target = NewLIR0(kPseudoTargetLabel);
@@ -204,9 +204,9 @@ void ArmMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
     }
     // TODO: move to a slow path.
     // Go expensive route - artLockObjectFromCode(obj);
-    LoadWordDisp(rARM_SELF, QUICK_ENTRYPOINT_OFFSET(pLockObject).Int32Value(), rARM_LR);
+    LoadWordDisp(rs_rARM_SELF, QUICK_ENTRYPOINT_OFFSET(pLockObject).Int32Value(), rs_rARM_LR);
     ClobberCallerSave();
-    LIR* call_inst = OpReg(kOpBlx, rARM_LR);
+    LIR* call_inst = OpReg(kOpBlx, rs_rARM_LR);
     MarkSafepointPC(call_inst);
 
     LIR* success_target = NewLIR0(kPseudoTargetLabel);
@@ -214,19 +214,19 @@ void ArmMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
     GenMemBarrier(kLoadLoad);
   } else {
     // Explicit null-check as slow-path is entered using an IT.
-    GenNullCheck(r0, opt_flags);
-    LoadWordDisp(rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), r2);
+    GenNullCheck(rs_r0, opt_flags);
+    LoadWordDisp(rs_rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), rs_r2);
     MarkPossibleNullPointerException(opt_flags);
     NewLIR3(kThumb2Ldrex, r1, r0, mirror::Object::MonitorOffset().Int32Value() >> 2);
-    OpRegImm(kOpCmp, r1, 0);
+    OpRegImm(kOpCmp, rs_r1, 0);
     OpIT(kCondEq, "");
     NewLIR4(kThumb2Strex/*eq*/, r1, r2, r0, mirror::Object::MonitorOffset().Int32Value() >> 2);
-    OpRegImm(kOpCmp, r1, 0);
+    OpRegImm(kOpCmp, rs_r1, 0);
     OpIT(kCondNe, "T");
     // Go expensive route - artLockObjectFromCode(self, obj);
-    LoadWordDisp/*ne*/(rARM_SELF, QUICK_ENTRYPOINT_OFFSET(pLockObject).Int32Value(), rARM_LR);
+    LoadWordDisp/*ne*/(rs_rARM_SELF, QUICK_ENTRYPOINT_OFFSET(pLockObject).Int32Value(), rs_rARM_LR);
     ClobberCallerSave();
-    LIR* call_inst = OpReg(kOpBlx/*ne*/, rARM_LR);
+    LIR* call_inst = OpReg(kOpBlx/*ne*/, rs_rARM_LR);
     MarkSafepointPC(call_inst);
     GenMemBarrier(kLoadLoad);
   }
@@ -239,22 +239,22 @@ void ArmMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
  */
 void ArmMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
   FlushAllRegs();
-  LoadValueDirectFixed(rl_src, r0);  // Get obj
+  LoadValueDirectFixed(rl_src, rs_r0);  // Get obj
   LockCallTemps();  // Prepare for explicit register usage
   LIR* null_check_branch;
-  LoadWordDisp(rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), r2);
+  LoadWordDisp(rs_rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), rs_r2);
   constexpr bool kArchVariantHasGoodBranchPredictor = false;  // TODO: true if cortex-A15.
   if (kArchVariantHasGoodBranchPredictor) {
     if ((opt_flags & MIR_IGNORE_NULL_CHECK) && !(cu_->disable_opt & (1 << kNullCheckElimination))) {
       null_check_branch = nullptr;  // No null check.
     } else {
       // If the null-check fails its handled by the slow-path to reduce exception related meta-data.
-      null_check_branch = OpCmpImmBranch(kCondEq, r0, 0, NULL);
+      null_check_branch = OpCmpImmBranch(kCondEq, rs_r0, 0, NULL);
     }
-    LoadWordDisp(r0, mirror::Object::MonitorOffset().Int32Value(), r1);
-    LoadConstantNoClobber(r3, 0);
-    LIR* slow_unlock_branch = OpCmpBranch(kCondNe, r1, r2, NULL);
-    StoreWordDisp(r0, mirror::Object::MonitorOffset().Int32Value(), r3);
+    LoadWordDisp(rs_r0, mirror::Object::MonitorOffset().Int32Value(), rs_r1);
+    LoadConstantNoClobber(rs_r3, 0);
+    LIR* slow_unlock_branch = OpCmpBranch(kCondNe, rs_r1, rs_r2, NULL);
+    StoreWordDisp(rs_r0, mirror::Object::MonitorOffset().Int32Value(), rs_r3);
     LIR* unlock_success_branch = OpUnconditionalBranch(NULL);
 
     LIR* slow_path_target = NewLIR0(kPseudoTargetLabel);
@@ -264,9 +264,9 @@ void ArmMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
     }
     // TODO: move to a slow path.
     // Go expensive route - artUnlockObjectFromCode(obj);
-    LoadWordDisp(rARM_SELF, QUICK_ENTRYPOINT_OFFSET(pUnlockObject).Int32Value(), rARM_LR);
+    LoadWordDisp(rs_rARM_SELF, QUICK_ENTRYPOINT_OFFSET(pUnlockObject).Int32Value(), rs_rARM_LR);
     ClobberCallerSave();
-    LIR* call_inst = OpReg(kOpBlx, rARM_LR);
+    LIR* call_inst = OpReg(kOpBlx, rs_rARM_LR);
     MarkSafepointPC(call_inst);
 
     LIR* success_target = NewLIR0(kPseudoTargetLabel);
@@ -274,19 +274,20 @@ void ArmMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
     GenMemBarrier(kStoreLoad);
   } else {
     // Explicit null-check as slow-path is entered using an IT.
-    GenNullCheck(r0, opt_flags);
-    LoadWordDisp(r0, mirror::Object::MonitorOffset().Int32Value(), r1);  // Get lock
+    GenNullCheck(rs_r0, opt_flags);
+    LoadWordDisp(rs_r0, mirror::Object::MonitorOffset().Int32Value(), rs_r1);  // Get lock
     MarkPossibleNullPointerException(opt_flags);
-    LoadWordDisp(rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), r2);
-    LoadConstantNoClobber(r3, 0);
+    LoadWordDisp(rs_rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), rs_r2);
+    LoadConstantNoClobber(rs_r3, 0);
     // Is lock unheld on lock or held by us (==thread_id) on unlock?
-    OpRegReg(kOpCmp, r1, r2);
+    OpRegReg(kOpCmp, rs_r1, rs_r2);
     OpIT(kCondEq, "EE");
-    StoreWordDisp/*eq*/(r0, mirror::Object::MonitorOffset().Int32Value(), r3);
+    StoreWordDisp/*eq*/(rs_r0, mirror::Object::MonitorOffset().Int32Value(), rs_r3);
     // Go expensive route - UnlockObjectFromCode(obj);
-    LoadWordDisp/*ne*/(rARM_SELF, QUICK_ENTRYPOINT_OFFSET(pUnlockObject).Int32Value(), rARM_LR);
+    LoadWordDisp/*ne*/(rs_rARM_SELF, QUICK_ENTRYPOINT_OFFSET(pUnlockObject).Int32Value(),
+                       rs_rARM_LR);
     ClobberCallerSave();
-    LIR* call_inst = OpReg(kOpBlx/*ne*/, rARM_LR);
+    LIR* call_inst = OpReg(kOpBlx/*ne*/, rs_rARM_LR);
     MarkSafepointPC(call_inst);
     GenMemBarrier(kStoreLoad);
   }
@@ -295,10 +296,10 @@ void ArmMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
 void ArmMir2Lir::GenMoveException(RegLocation rl_dest) {
   int ex_offset = Thread::ExceptionOffset().Int32Value();
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  int reset_reg = AllocTemp();
-  LoadWordDisp(rARM_SELF, ex_offset, rl_result.reg.GetReg());
+  RegStorage reset_reg = AllocTemp();
+  LoadWordDisp(rs_rARM_SELF, ex_offset, rl_result.reg);
   LoadConstant(reset_reg, 0);
-  StoreWordDisp(rARM_SELF, ex_offset, reset_reg);
+  StoreWordDisp(rs_rARM_SELF, ex_offset, reset_reg);
   FreeTemp(reset_reg);
   StoreValue(rl_dest, rl_result);
 }
@@ -306,14 +307,13 @@ void ArmMir2Lir::GenMoveException(RegLocation rl_dest) {
 /*
  * Mark garbage collection card. Skip if the value we're storing is null.
  */
-void ArmMir2Lir::MarkGCCard(int val_reg, int tgt_addr_reg) {
-  int reg_card_base = AllocTemp();
-  int reg_card_no = AllocTemp();
+void ArmMir2Lir::MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) {
+  RegStorage reg_card_base = AllocTemp();
+  RegStorage reg_card_no = AllocTemp();
   LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, NULL);
-  LoadWordDisp(rARM_SELF, Thread::CardTableOffset().Int32Value(), reg_card_base);
+  LoadWordDisp(rs_rARM_SELF, Thread::CardTableOffset().Int32Value(), reg_card_base);
   OpRegRegImm(kOpLsr, reg_card_no, tgt_addr_reg, gc::accounting::CardTable::kCardShift);
-  StoreBaseIndexed(reg_card_base, reg_card_no, reg_card_base, 0,
-                   kUnsignedByte);
+  StoreBaseIndexed(reg_card_base, reg_card_no, reg_card_base, 0, kUnsignedByte);
   LIR* target = NewLIR0(kPseudoTargetLabel);
   branch_over->target = target;
   FreeTemp(reg_card_base);
@@ -344,7 +344,7 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
   if (!skip_overflow_check) {
     if (Runtime::Current()->ExplicitStackOverflowChecks()) {
       /* Load stack limit */
-      LoadWordDisp(rARM_SELF, Thread::StackEndOffset().Int32Value(), r12);
+      LoadWordDisp(rs_rARM_SELF, Thread::StackEndOffset().Int32Value(), rs_r12);
     }
   }
   /* Spill core callee saves */
@@ -374,14 +374,14 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
           m2l_->ResetDefTracking();
           GenerateTargetLabel();
           if (restore_lr_) {
-            m2l_->LoadWordDisp(kArmRegSP, sp_displace_ - 4, kArmRegLR);
+            m2l_->LoadWordDisp(rs_rARM_SP, sp_displace_ - 4, rs_rARM_LR);
           }
-          m2l_->OpRegImm(kOpAdd, kArmRegSP, sp_displace_);
+          m2l_->OpRegImm(kOpAdd, rs_rARM_SP, sp_displace_);
           m2l_->ClobberCallerSave();
           ThreadOffset func_offset = QUICK_ENTRYPOINT_OFFSET(pThrowStackOverflow);
           // Load the entrypoint directly into the pc instead of doing a load + branch. Assumes
           // codegen and target are in thumb2 mode.
-          m2l_->LoadWordDisp(rARM_SELF, func_offset.Int32Value(), rARM_PC);
+          m2l_->LoadWordDisp(rs_rARM_SELF, func_offset.Int32Value(), rs_rARM_PC);
         }
 
        private:
@@ -389,29 +389,29 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
         const size_t sp_displace_;
       };
       if (static_cast<size_t>(frame_size_) > Thread::kStackOverflowReservedUsableBytes) {
-        OpRegRegImm(kOpSub, rARM_LR, rARM_SP, frame_size_without_spills);
-        LIR* branch = OpCmpBranch(kCondUlt, rARM_LR, r12, nullptr);
+        OpRegRegImm(kOpSub, rs_rARM_LR, rs_rARM_SP, frame_size_without_spills);
+        LIR* branch = OpCmpBranch(kCondUlt, rs_rARM_LR, rs_r12, nullptr);
         // Need to restore LR since we used it as a temp.
         AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch, true,
                                                      frame_size_without_spills));
-        OpRegCopy(rARM_SP, rARM_LR);     // Establish stack
+        OpRegCopy(rs_rARM_SP, rs_rARM_LR);     // Establish stack
       } else {
         // If the frame is small enough we are guaranteed to have enough space that remains to
         // handle signals on the user stack.
-        OpRegRegImm(kOpSub, rARM_SP, rARM_SP, frame_size_without_spills);
-        LIR* branch = OpCmpBranch(kCondUlt, rARM_SP, r12, nullptr);
+        OpRegRegImm(kOpSub, rs_rARM_SP, rs_rARM_SP, frame_size_without_spills);
+        LIR* branch = OpCmpBranch(kCondUlt, rs_rARM_SP, rs_r12, nullptr);
         AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch, false, frame_size_));
       }
     } else {
       // Implicit stack overflow check.
       // Generate a load from [sp, #-framesize].  If this is in the stack
       // redzone we will get a segmentation fault.
-      OpRegImm(kOpSub, rARM_SP, frame_size_without_spills);
-      LoadWordDisp(rARM_SP, 0, rARM_LR);
+      OpRegImm(kOpSub, rs_rARM_SP, frame_size_without_spills);
+      LoadWordDisp(rs_rARM_SP, 0, rs_rARM_LR);
       MarkPossibleStackOverflowException();
     }
   } else {
-    OpRegImm(kOpSub, rARM_SP, frame_size_without_spills);
+    OpRegImm(kOpSub, rs_rARM_SP, frame_size_without_spills);
   }
 
   FlushIns(ArgLocs, rl_method);
@@ -432,7 +432,7 @@ void ArmMir2Lir::GenExitSequence() {
   LockTemp(r1);
 
   NewLIR0(kPseudoMethodExit);
-  OpRegImm(kOpAdd, rARM_SP, frame_size_ - (spill_count * 4));
+  OpRegImm(kOpAdd, rs_rARM_SP, frame_size_ - (spill_count * 4));
   /* Need to restore any FP callee saves? */
   if (num_fp_spills_) {
     NewLIR1(kThumb2VPopCS, num_fp_spills_);
