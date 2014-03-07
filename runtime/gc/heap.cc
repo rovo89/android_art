@@ -90,6 +90,11 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       collector_type_(kCollectorTypeNone),
       post_zygote_collector_type_(post_zygote_collector_type),
       background_collector_type_(background_collector_type),
+      desired_collector_type_(collector_type_),
+      heap_trim_request_lock_(nullptr),
+      heap_trim_target_time_(0),
+      heap_transition_target_time_(0),
+      heap_trim_request_pending_(false),
       parallel_gc_threads_(parallel_gc_threads),
       conc_gc_threads_(conc_gc_threads),
       low_memory_mode_(low_memory_mode),
@@ -127,7 +132,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       verify_mod_union_table_(false),
       verify_pre_gc_rosalloc_(verify_pre_gc_rosalloc),
       verify_post_gc_rosalloc_(verify_post_gc_rosalloc),
-      last_trim_time_ms_(0),
       allocation_rate_(0),
       /* For GC a lot mode, we limit the allocations stacks to be kGcAlotInterval allocations. This
        * causes a lot of GC since we do a GC for alloc whenever the stack is full. When heap
@@ -160,16 +164,17 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   // If we aren't the zygote, switch to the default non zygote allocator. This may update the
   // entrypoints.
   if (!Runtime::Current()->IsZygote()) {
-    ChangeCollector(post_zygote_collector_type_);
+    desired_collector_type_ = post_zygote_collector_type_;
     large_object_threshold_ = kDefaultLargeObjectThreshold;
   } else {
     if (kMovingCollector) {
       // We are the zygote, use bump pointer allocation + semi space collector.
-      ChangeCollector(kCollectorTypeSS);
+      desired_collector_type_ = kCollectorTypeSS;
     } else {
-      ChangeCollector(post_zygote_collector_type_);
+      desired_collector_type_ = post_zygote_collector_type_;
     }
   }
+  ChangeCollector(desired_collector_type_);
 
   live_bitmap_.reset(new accounting::HeapBitmap(this));
   mark_bitmap_.reset(new accounting::HeapBitmap(this));
@@ -274,7 +279,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   gc_complete_lock_ = new Mutex("GC complete lock");
   gc_complete_cond_.reset(new ConditionVariable("GC complete condition variable",
                                                 *gc_complete_lock_));
-  last_gc_time_ns_ = NanoTime();
+  heap_trim_request_lock_ = new Mutex("Heap trim request lock");
   last_gc_size_ = GetBytesAllocated();
 
   if (ignore_max_footprint_) {
@@ -452,12 +457,12 @@ void Heap::UpdateProcessState(ProcessState process_state) {
   if (process_state_ != process_state) {
     process_state_ = process_state;
     if (process_state_ == kProcessStateJankPerceptible) {
-      TransitionCollector(post_zygote_collector_type_);
+      // Transition back to foreground right away to prevent jank.
+      RequestHeapTransition(post_zygote_collector_type_, 0);
     } else {
-      TransitionCollector(background_collector_type_);
+      // Don't delay for debug builds since we may want to stress test the GC.
+      RequestHeapTransition(background_collector_type_, kIsDebugBuild ? 0 : kHeapTransitionWait);
     }
-  } else {
-    CollectGarbageInternal(collector::kGcTypeFull, kGcCauseBackground, false);
   }
 }
 
@@ -854,8 +859,39 @@ void Heap::ThrowOutOfMemoryError(Thread* self, size_t byte_count, bool large_obj
   self->ThrowOutOfMemoryError(oss.str().c_str());
 }
 
+void Heap::DoPendingTransitionOrTrim() {
+  Thread* self = Thread::Current();
+  CollectorType desired_collector_type;
+  // Wait until we reach the desired transition time.
+  while (true) {
+    uint64_t wait_time;
+    {
+      MutexLock mu(self, *heap_trim_request_lock_);
+      desired_collector_type = desired_collector_type_;
+      uint64_t current_time = NanoTime();
+      if (current_time >= heap_transition_target_time_) {
+        break;
+      }
+      wait_time = heap_transition_target_time_ - current_time;
+    }
+    ScopedThreadStateChange tsc(self, kSleeping);
+    usleep(wait_time / 1000);  // Usleep takes microseconds.
+  }
+  // Transition the heap if the desired collector type is nto the same as the current collector type.
+  TransitionCollector(desired_collector_type);
+  // Do a heap trim if it is needed.
+  Trim();
+}
+
 void Heap::Trim() {
   Thread* self = Thread::Current();
+  {
+    MutexLock mu(self, *heap_trim_request_lock_);
+    if (!heap_trim_request_pending_ || NanoTime() < heap_trim_target_time_) {
+      return;
+    }
+    heap_trim_request_pending_ = false;
+  }
   {
     // Need to do this before acquiring the locks since we don't want to get suspended while
     // holding any locks.
@@ -1741,6 +1777,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   collector->Run(gc_cause, clear_soft_references);
   total_objects_freed_ever_ += collector->GetFreedObjects();
   total_bytes_freed_ever_ += collector->GetFreedBytes();
+  RequestHeapTrim(Heap::kHeapTrimWait);
   // Enqueue cleared references.
   EnqueueClearedReferences();
   // Grow the heap so that we know when to perform the next GC.
@@ -2503,7 +2540,20 @@ void Heap::ConcurrentGC(Thread* self) {
   }
 }
 
-void Heap::RequestHeapTrim() {
+void Heap::RequestHeapTransition(CollectorType desired_collector_type, uint64_t delta_time) {
+  Thread* self = Thread::Current();
+  {
+    MutexLock mu(self, *heap_trim_request_lock_);
+    if (desired_collector_type_ == desired_collector_type) {
+      return;
+    }
+    heap_transition_target_time_ = std::max(heap_transition_target_time_, NanoTime() + delta_time);
+    desired_collector_type_ = desired_collector_type;
+  }
+  SignalHeapTrimDaemon(self);
+}
+
+void Heap::RequestHeapTrim(uint64_t delta_time) {
   // GC completed and now we must decide whether to request a heap trim (advising pages back to the
   // kernel) or not. Issuing a request will also cause trimming of the libc heap. As a trim scans
   // a space it will hold its lock and can become a cause of jank.
@@ -2516,11 +2566,6 @@ void Heap::RequestHeapTrim() {
   // to utilization (which is probably inversely proportional to how much benefit we can expect).
   // We could try mincore(2) but that's only a measure of how many pages we haven't given away,
   // not how much use we're making of those pages.
-  uint64_t ms_time = MilliTime();
-  // Don't bother trimming the alloc space if a heap trim occurred in the last two seconds.
-  if (ms_time - last_trim_time_ms_ < 2 * 1000) {
-    return;
-  }
 
   Thread* self = Thread::Current();
   Runtime* runtime = Runtime::Current();
@@ -2531,17 +2576,25 @@ void Heap::RequestHeapTrim() {
     return;
   }
 
-  last_trim_time_ms_ = ms_time;
-
-  // Trim only if we do not currently care about pause times.
+  // Request a heap trim only if we do not currently care about pause times.
   if (!CareAboutPauseTimes()) {
-    JNIEnv* env = self->GetJniEnv();
-    DCHECK(WellKnownClasses::java_lang_Daemons != NULL);
-    DCHECK(WellKnownClasses::java_lang_Daemons_requestHeapTrim != NULL);
-    env->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons,
-                              WellKnownClasses::java_lang_Daemons_requestHeapTrim);
-    CHECK(!env->ExceptionCheck());
+    {
+      MutexLock mu(self, *heap_trim_request_lock_);
+      heap_trim_target_time_ = std::max(heap_trim_target_time_, NanoTime() + delta_time);
+      heap_trim_request_pending_ = true;
+    }
+    // Notify the daemon thread which will actually do the heap trim.
+    SignalHeapTrimDaemon(self);
   }
+}
+
+void Heap::SignalHeapTrimDaemon(Thread* self) {
+  JNIEnv* env = self->GetJniEnv();
+  DCHECK(WellKnownClasses::java_lang_Daemons != nullptr);
+  DCHECK(WellKnownClasses::java_lang_Daemons_requestHeapTrim != nullptr);
+  env->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons,
+                            WellKnownClasses::java_lang_Daemons_requestHeapTrim);
+  CHECK(!env->ExceptionCheck());
 }
 
 void Heap::RevokeThreadLocalBuffers(Thread* thread) {
