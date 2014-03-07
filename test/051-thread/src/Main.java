@@ -21,50 +21,36 @@ import java.util.ArrayList;
  */
 public class Main {
     public static void main(String[] args) throws Exception {
-        System.out.println("Initializing System.out...");
-
-        MyThread[] threads = new MyThread[512];
-        for (int i = 0; i < 512; i++) {
-            threads[i] = new MyThread();
-        }
-
-        for (MyThread thread : threads) {
-            thread.start();
-        }
-        for (MyThread thread : threads) {
-            thread.join();
-        }
-
-        System.out.println("Thread count: " + MyThread.mCount);
-
-        go();
+        System.out.println("thread test starting");
+        testThreadCapacity();
+        testThreadDaemons();
+        testSleepZero();
         System.out.println("thread test done");
-    }
-
-    public static void go() {
-        Thread t = new Thread(null, new ThreadTestSub(), "Thready", 7168);
-
-        t.setDaemon(false);
-
-        System.out.print("Starting thread '" + t.getName() + "'\n");
-        t.start();
-
-        try {
-            t.join();
-        } catch (InterruptedException ex) {
-            ex.printStackTrace();
-        }
-
-        System.out.print("Thread starter returning\n");
     }
 
     /*
      * Simple thread capacity test.
      */
-    static class MyThread extends Thread {
+    private static void testThreadCapacity() throws Exception {
+        TestCapacityThread[] threads = new TestCapacityThread[512];
+        for (int i = 0; i < 512; i++) {
+            threads[i] = new TestCapacityThread();
+        }
+
+        for (TestCapacityThread thread : threads) {
+            thread.start();
+        }
+        for (TestCapacityThread thread : threads) {
+            thread.join();
+        }
+
+        System.out.println("testThreadCapacity thread count: " + TestCapacityThread.mCount);
+    }
+
+    private static class TestCapacityThread extends Thread {
         static int mCount = 0;
         public void run() {
-            synchronized (MyThread.class) {
+            synchronized (TestCapacityThread.class) {
                 ++mCount;
             }
             try {
@@ -73,29 +59,57 @@ public class Main {
             }
         }
     }
-}
 
-class ThreadTestSub implements Runnable {
-    public void run() {
-        System.out.print("@ Thread running\n");
+    private static void testThreadDaemons() {
+        Thread t = new Thread(null, new TestDaemonThread(), "TestDaemonThread", 7168);
+
+        t.setDaemon(false);
+
+        System.out.print("testThreadDaemons starting thread '" + t.getName() + "'\n");
+        t.start();
 
         try {
-            Thread.currentThread().setDaemon(true);
-            System.out.print("@ FAILED: setDaemon() succeeded\n");
-        } catch (IllegalThreadStateException itse) {
-            System.out.print("@ Got expected setDaemon exception\n");
+            t.join();
+        } catch (InterruptedException ex) {
+            ex.printStackTrace();
         }
 
-        //if (true)
-        //    throw new NullPointerException();
+        System.out.print("testThreadDaemons finished\n");
+    }
+
+    private static class TestDaemonThread implements Runnable {
+        public void run() {
+            System.out.print("testThreadDaemons @ Thread running\n");
+
+            try {
+                Thread.currentThread().setDaemon(true);
+                System.out.print("testThreadDaemons @ FAILED: setDaemon() succeeded\n");
+            } catch (IllegalThreadStateException itse) {
+                System.out.print("testThreadDaemons @ Got expected setDaemon exception\n");
+            }
+
+            try {
+                Thread.sleep(2000);
+            }
+            catch (InterruptedException ie) {
+                System.out.print("testThreadDaemons @ Interrupted!\n");
+            }
+            finally {
+                System.out.print("testThreadDaemons @ Thread bailing\n");
+            }
+        }
+    }
+
+    private static void testSleepZero() throws Exception {
+        Thread.currentThread().interrupt();
         try {
-            Thread.sleep(2000);
+            Thread.sleep(0);
+            throw new AssertionError("unreachable");
+        } catch (InterruptedException e) {
+            if (Thread.currentThread().isInterrupted()) {
+                throw new AssertionError("thread is interrupted");
+            }
         }
-        catch (InterruptedException ie) {
-            System.out.print("@ Interrupted!\n");
-        }
-        finally {
-            System.out.print("@ Thread bailing\n");
-        }
+        System.out.print("testSleepZero finished\n");
     }
 }
