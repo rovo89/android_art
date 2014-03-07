@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_COMPILER_BACKEND_H_
-#define ART_COMPILER_COMPILER_BACKEND_H_
+#ifndef ART_COMPILER_COMPILER_H_
+#define ART_COMPILER_COMPILER_H_
 
 #include "dex_file.h"
 #include "os.h"
@@ -33,18 +33,19 @@ namespace mirror {
   class ArtMethod;
 }
 
-class CompilerBackend {
+class Compiler {
  public:
   enum Kind {
     kQuick,
+    kOptimizing,
     kPortable
   };
 
-  explicit CompilerBackend(uint64_t warning)
+  explicit Compiler(uint64_t warning)
       : maximum_compilation_time_before_warning_(warning) {
   }
 
-  static CompilerBackend* Create(Kind kind);
+  static Compiler* Create(Kind kind);
 
   virtual void Init(CompilerDriver& driver) const = 0;
 
@@ -58,6 +59,15 @@ class CompilerBackend {
                                   uint32_t method_idx,
                                   jobject class_loader,
                                   const DexFile& dex_file) const = 0;
+
+  static CompiledMethod* TryCompileWithSeaIR(art::CompilerDriver& driver,
+                                             const art::DexFile::CodeItem* code_item,
+                                             uint32_t access_flags,
+                                             art::InvokeType invoke_type,
+                                             uint16_t class_def_idx,
+                                             uint32_t method_idx,
+                                             jobject class_loader,
+                                             const art::DexFile& dex_file);
 
   virtual CompiledMethod* JniCompile(CompilerDriver& driver,
                                      uint32_t access_flags,
@@ -91,7 +101,7 @@ class CompilerBackend {
 
   virtual void InitCompilationUnit(CompilationUnit& cu) const = 0;
 
-  virtual ~CompilerBackend() {}
+  virtual ~Compiler() {}
 
   /*
    * @brief Generate and return Dwarf CFI initialization, if supported by the
@@ -109,9 +119,9 @@ class CompilerBackend {
  private:
   const uint64_t maximum_compilation_time_before_warning_;
 
-  DISALLOW_COPY_AND_ASSIGN(CompilerBackend);
+  DISALLOW_COPY_AND_ASSIGN(Compiler);
 };
 
 }  // namespace art
 
-#endif  // ART_COMPILER_COMPILER_BACKEND_H_
+#endif  // ART_COMPILER_COMPILER_H_

@@ -15,7 +15,7 @@
  */
 
 #include "common_compiler_test.h"
-#include "compiler/compiler_backend.h"
+#include "compiler/compiler.h"
 #include "compiler/oat_writer.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
@@ -84,9 +84,9 @@ TEST_F(OatTest, WriteRead) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
   // TODO: make selectable.
-  CompilerBackend::Kind compiler_backend = kUsePortableCompiler
-      ? CompilerBackend::kPortable
-      : CompilerBackend::kQuick;
+  Compiler::Kind compiler_kind = kUsePortableCompiler
+      ? Compiler::kPortable
+      : Compiler::kQuick;
   InstructionSet insn_set = kIsTargetBuild ? kThumb2 : kX86;
 
   InstructionSetFeatures insn_features;
@@ -99,7 +99,7 @@ TEST_F(OatTest, WriteRead) {
   compiler_driver_.reset(new CompilerDriver(compiler_options_.get(),
                                             verification_results_.get(),
                                             method_inliner_map_.get(),
-                                            compiler_backend, insn_set,
+                                            compiler_kind, insn_set,
                                             insn_features, false, NULL, 2, true, true,
                                             timer_.get()));
   jobject class_loader = NULL;
