@@ -649,7 +649,19 @@ class Mir2Lir : public Backend {
     void SpecialMIR2LIR(const InlineMethod& special);
     void MethodMIR2LIR();
 
-
+    // Routines that work for the generic case, but may be overriden by target.
+    /*
+     * @brief Compare memory to immediate, and branch if condition true.
+     * @param cond The condition code that when true will branch to the target.
+     * @param temp_reg A temporary register that can be used if compare to memory is not
+     * supported by the architecture.
+     * @param base_reg The register holding the base address.
+     * @param offset The offset from the base.
+     * @param check_value The immediate to compare to.
+     * @returns The branch instruction that was generated.
+     */
+    virtual LIR* OpCmpMemImmBranch(ConditionCode cond, int temp_reg, int base_reg,
+                                   int offset, int check_value, LIR* target);
 
     // Required for target - codegen helpers.
     virtual bool SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div,
