@@ -650,9 +650,22 @@ void Monitor::InflateThinLocked(Thread* self, SirtRef<mirror::Object>& obj, Lock
   }
 }
 
+// Fool annotalysis into thinking that the lock on obj is acquired.
+static mirror::Object* FakeLock(mirror::Object* obj)
+    EXCLUSIVE_LOCK_FUNCTION(obj) NO_THREAD_SAFETY_ANALYSIS {
+  return obj;
+}
+
+// Fool annotalysis into thinking that the lock on obj is release.
+static mirror::Object* FakeUnlock(mirror::Object* obj)
+    UNLOCK_FUNCTION(obj) NO_THREAD_SAFETY_ANALYSIS {
+  return obj;
+}
+
 mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
   DCHECK(self != NULL);
   DCHECK(obj != NULL);
+  obj = FakeLock(obj);
   uint32_t thread_id = self->GetThreadId();
   size_t contention_count = 0;
   SirtRef<mirror::Object> sirt_obj(self, obj);
@@ -698,24 +711,22 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
         mon->Lock(self);
         return sirt_obj.get();  // Success!
       }
-      case LockWord::kHashCode: {
+      case LockWord::kHashCode:
         // Inflate with the existing hashcode.
         Inflate(self, nullptr, sirt_obj.get(), lock_word.GetHashCode());
-        break;
-      }
+        continue;  // Start from the beginning.
       default: {
         LOG(FATAL) << "Invalid monitor state " << lock_word.GetState();
         return sirt_obj.get();
       }
     }
   }
-  return sirt_obj.get();
 }
 
 bool Monitor::MonitorExit(Thread* self, mirror::Object* obj) {
   DCHECK(self != NULL);
   DCHECK(obj != NULL);
-
+  obj = FakeUnlock(obj);
   LockWord lock_word = obj->GetLockWord();
   SirtRef<mirror::Object> sirt_obj(self, obj);
   switch (lock_word.GetState()) {

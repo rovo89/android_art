@@ -20,8 +20,9 @@
 namespace art {
 
 extern "C" void art_portable_lock_object_from_code(mirror::Object* obj, Thread* thread)
-    EXCLUSIVE_LOCK_FUNCTION(monitor_lock_) {
-  DCHECK(obj != NULL);        // Assumed to have been checked before entry.
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+    NO_THREAD_SAFETY_ANALYSIS /* EXCLUSIVE_LOCK_FUNCTION(Monitor::monitor_lock_) */ {
+  DCHECK(obj != nullptr);        // Assumed to have been checked before entry.
   obj->MonitorEnter(thread);  // May block.
   DCHECK(thread->HoldsLock(obj));
   // Only possible exception is NPE and is handled before entry.
@@ -29,8 +30,9 @@ extern "C" void art_portable_lock_object_from_code(mirror::Object* obj, Thread* 
 }
 
 extern "C" void art_portable_unlock_object_from_code(mirror::Object* obj, Thread* thread)
-    UNLOCK_FUNCTION(monitor_lock_) {
-  DCHECK(obj != NULL);  // Assumed to have been checked before entry.
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+    NO_THREAD_SAFETY_ANALYSIS /* UNLOCK_FUNCTION(Monitor::monitor_lock_) */ {
+  DCHECK(obj != nullptr);  // Assumed to have been checked before entry.
   // MonitorExit may throw exception.
   obj->MonitorExit(thread);
 }

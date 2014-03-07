@@ -75,7 +75,7 @@ class SpaceTest : public CommonRuntimeTest {
   void SizeFootPrintGrowthLimitAndTrimDriver(size_t object_size, CreateSpaceFn create_space);
 };
 
-static size_t test_rand(size_t* seed) {
+static inline size_t test_rand(size_t* seed) {
   *seed = *seed * 1103515245 + 12345;
   return *seed;
 }

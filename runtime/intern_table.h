@@ -17,11 +17,10 @@
 #ifndef ART_RUNTIME_INTERN_TABLE_H_
 #define ART_RUNTIME_INTERN_TABLE_H_
 
-#include "base/mutex.h"
-#include "locks.h"
-#include "object_callbacks.h"
-
 #include <map>
+
+#include "base/mutex.h"
+#include "object_callbacks.h"
 
 namespace art {
 

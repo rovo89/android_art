@@ -18,7 +18,6 @@
 #define ART_RUNTIME_BARRIER_H_
 
 #include "base/mutex.h"
-#include "locks.h"
 #include "UniquePtr.h"
 
 namespace art {

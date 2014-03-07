@@ -29,7 +29,6 @@
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/throwable.h"
-#include "locks.h"
 #include "object_utils.h"
 #include "sirt_ref.h"
 #include "thread.h"
@@ -642,8 +641,7 @@ static inline mirror::String* ResolveStringFromCode(mirror::ArtMethod* referrer,
 }
 
 static inline void UnlockJniSynchronizedMethod(jobject locked, Thread* self)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-    UNLOCK_FUNCTION(monitor_lock_) {
+    NO_THREAD_SAFETY_ANALYSIS /* SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) */ {
   // Save any pending exception over monitor exit call.
   mirror::Throwable* saved_exception = NULL;
   ThrowLocation saved_throw_location;

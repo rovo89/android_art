@@ -2466,8 +2466,7 @@ class JNI {
     return JNI_OK;
   }
 
-  static jint MonitorEnter(JNIEnv* env, jobject java_object)
-      EXCLUSIVE_LOCK_FUNCTION(monitor_lock_) {
+  static jint MonitorEnter(JNIEnv* env, jobject java_object) NO_THREAD_SAFETY_ANALYSIS {
     CHECK_NON_NULL_ARGUMENT(MonitorEnter, java_object);
     ScopedObjectAccess soa(env);
     mirror::Object* o = soa.Decode<mirror::Object*>(java_object);
@@ -2479,8 +2478,7 @@ class JNI {
     return JNI_OK;
   }
 
-  static jint MonitorExit(JNIEnv* env, jobject java_object)
-      UNLOCK_FUNCTION(monitor_lock_) {
+  static jint MonitorExit(JNIEnv* env, jobject java_object) NO_THREAD_SAFETY_ANALYSIS {
     CHECK_NON_NULL_ARGUMENT(MonitorExit, java_object);
     ScopedObjectAccess soa(env);
     mirror::Object* o = soa.Decode<mirror::Object*>(java_object);

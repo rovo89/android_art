@@ -173,21 +173,23 @@ $(error Required DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES is not set)
 endif
 ART_TARGET_CFLAGS += -DART_DEFAULT_INSTRUCTION_SET_FEATURES=$(DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES)
 
-# Enable thread-safety for GCC 4.6 on the target but not for GCC 4.7 where this feature was removed.
+# Enable thread-safety for GCC 4.6, and clang, but not for GCC 4.7 or later where this feature was
+# removed. Warn when -Wthread-safety is not used.
 ifneq ($(filter 4.6 4.6.%, $(TARGET_GCC_VERSION)),)
   ART_TARGET_CFLAGS += -Wthread-safety
 else
-  # Warn if not using GCC 4.6 for target builds when not doing a top-level or 'mma' build.
-  ifneq ($(ONE_SHOT_MAKEFILE),)
-    # Enable target GCC 4.6 with: export TARGET_GCC_VERSION_EXP=4.6
-    $(info Using target GCC $(TARGET_GCC_VERSION) disables thread-safety checks.)
+  ifeq ($(ART_TARGET_CLANG),true)
+    ART_TARGET_CFLAGS += -Wthread-safety
+  else
+    # Warn if -Wthread-safety is not suport and not doing a top-level or 'mma' build.
+    ifneq ($(ONE_SHOT_MAKEFILE),)
+      # Enable target GCC 4.6 with: export TARGET_GCC_VERSION_EXP=4.6
+      $(info Using target GCC $(TARGET_GCC_VERSION) disables thread-safety checks.)
+    endif
   endif
 endif
-# We build with GCC 4.6 on the host.
+# We compile with GCC 4.6 or clang on the host, both of which support -Wthread-safety.
 ART_HOST_CFLAGS += -Wthread-safety
-
-# Make host builds easier to debug and profile by not omitting the frame pointer.
-ART_HOST_CFLAGS += -fno-omit-frame-pointer
 
 # To use oprofile_android --callgraph, uncomment this and recompile with "mmm art -B -j16"
 # ART_TARGET_CFLAGS += -fno-omit-frame-pointer -marm -mapcs

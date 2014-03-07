@@ -27,7 +27,6 @@
 #include "atomic.h"
 #include "base/mutex.h"
 #include "object_callbacks.h"
-#include "sirt_ref.h"
 #include "thread_state.h"
 
 namespace art {
@@ -37,6 +36,7 @@ namespace mirror {
   class Object;
 }  // namespace mirror
 class LockWord;
+template<class T> class SirtRef;
 class Thread;
 class StackVisitor;
 
@@ -58,11 +58,11 @@ class Monitor {
       NO_THREAD_SAFETY_ANALYSIS;  // TODO: Reading lock owner without holding lock is racy.
 
   static mirror::Object* MonitorEnter(Thread* thread, mirror::Object* obj)
-      EXCLUSIVE_LOCK_FUNCTION(monitor_lock_)
+      EXCLUSIVE_LOCK_FUNCTION(obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static bool MonitorExit(Thread* thread, mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      UNLOCK_FUNCTION(monitor_lock_);
+      UNLOCK_FUNCTION(obj);
 
   static void Notify(Thread* self, mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -178,6 +178,7 @@ class Monitor {
   static uint32_t lock_profiling_threshold_;
 
   Mutex monitor_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+
   ConditionVariable monitor_contenders_ GUARDED_BY(monitor_lock_);
 
   // Number of people waiting on the condition.
