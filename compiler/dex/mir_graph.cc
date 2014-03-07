@@ -881,6 +881,23 @@ void MIRGraph::InsertMIRAfter(BasicBlock* bb, MIR* current_mir, MIR* new_mir) {
   }
 }
 
+MIR* MIRGraph::GetNextUnconditionalMir(BasicBlock* bb, MIR* current) {
+  MIR* next_mir = nullptr;
+
+  if (current != nullptr) {
+    next_mir = current->next;
+  }
+
+  if (next_mir == nullptr) {
+    // Only look for next MIR that follows unconditionally.
+    if ((bb->taken == NullBasicBlockId) && (bb->fall_through != NullBasicBlockId)) {
+      next_mir = GetBasicBlock(bb->fall_through)->first_mir_insn;
+    }
+  }
+
+  return next_mir;
+}
+
 char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
   DecodedInstruction insn = mir->dalvikInsn;
   std::string str;

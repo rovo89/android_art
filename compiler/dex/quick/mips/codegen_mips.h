@@ -52,6 +52,7 @@ class MipsMir2Lir : public Mir2Lir {
     int AllocTypedTempPair(bool fp_hint, int reg_class);
     int S2d(int low_reg, int high_reg);
     int TargetReg(SpecialTargetRegister reg);
+    int GetArgMappingToPhysicalReg(int arg_num);
     RegLocation GetReturnAlt();
     RegLocation GetReturnWideAlt();
     RegLocation LocCReturn();
@@ -121,6 +122,7 @@ class MipsMir2Lir : public Mir2Lir {
     void GenDivZeroCheck(int reg_lo, int reg_hi);
     void GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method);
     void GenExitSequence();
+    void GenSpecialExitSequence();
     void GenFillArrayData(uint32_t table_offset, RegLocation rl_src);
     void GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias, bool is_double);
     void GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir);
@@ -133,7 +135,7 @@ class MipsMir2Lir : public Mir2Lir {
     void GenNegFloat(RegLocation rl_dest, RegLocation rl_src);
     void GenPackedSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src);
     void GenSparseSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src);
-    void GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& special);
+    bool GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& special);
 
     // Required for target - single operation generators.
     LIR* OpUnconditionalBranch(LIR* target);

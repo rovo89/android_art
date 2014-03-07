@@ -57,7 +57,7 @@ enum InlineMethodOpcode : uint16_t {
 
   kInlineOpNop,
   kInlineOpReturnArg,
-  kInlineOpConst,
+  kInlineOpNonWideConst,
   kInlineOpIGet,
   kInlineOpIPut,
 };

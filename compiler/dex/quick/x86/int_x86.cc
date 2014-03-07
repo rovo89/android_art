@@ -167,7 +167,14 @@ void X86Mir2Lir::OpRegCopyWide(int dest_lo, int dest_hi,
       NewLIR2(kX86MovdrxRR, dest_hi, src_lo);
     } else {
       // Handle overlap
-      if (src_hi == dest_lo) {
+      if (src_hi == dest_lo && src_lo == dest_hi) {
+        // Deal with cycles.
+        int temp_reg = AllocTemp();
+        OpRegCopy(temp_reg, dest_hi);
+        OpRegCopy(dest_hi, dest_lo);
+        OpRegCopy(dest_lo, temp_reg);
+        FreeTemp(temp_reg);
+      } else if (src_hi == dest_lo) {
         OpRegCopy(dest_hi, src_hi);
         OpRegCopy(dest_lo, src_lo);
       } else {
