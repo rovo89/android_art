@@ -1200,7 +1200,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
     if (no_guarantee_of_dex_cache_entry) {
       // See if the method is also declared in this dex cache.
       uint32_t dex_method_idx = MethodHelper(method).FindDexMethodIndexInOtherDexFile(
-          *target_method->dex_file);
+          *target_method->dex_file, target_method->dex_method_index);
       if (dex_method_idx != DexFile::kDexNoIndex) {
         target_method->dex_method_index = dex_method_idx;
       } else {
