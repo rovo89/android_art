@@ -358,7 +358,7 @@ LIR* Mir2Lir::ScanLiteralPoolWide(LIR* data_target, int val_lo, int val_hi) {
 LIR* Mir2Lir::AddWordData(LIR* *constant_list_p, int value) {
   /* Add the constant to the literal pool */
   if (constant_list_p) {
-    LIR* new_value = static_cast<LIR*>(arena_->Alloc(sizeof(LIR), ArenaAllocator::kAllocData));
+    LIR* new_value = static_cast<LIR*>(arena_->Alloc(sizeof(LIR), kArenaAllocData));
     new_value->operands[0] = value;
     new_value->next = *constant_list_p;
     *constant_list_p = new_value;
@@ -829,7 +829,7 @@ LIR* Mir2Lir::InsertCaseLabel(DexOffset vaddr, int keyVal) {
   LIR* res = boundary_lir;
   if (cu_->verbose) {
     // Only pay the expense if we're pretty-printing.
-    LIR* new_label = static_cast<LIR*>(arena_->Alloc(sizeof(LIR), ArenaAllocator::kAllocLIR));
+    LIR* new_label = static_cast<LIR*>(arena_->Alloc(sizeof(LIR), kArenaAllocLIR));
     new_label->dalvik_offset = vaddr;
     new_label->opcode = kPseudoCaseLabel;
     new_label->operands[0] = keyVal;

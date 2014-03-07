@@ -44,7 +44,7 @@ class BitVectorBlockIterator {
     BasicBlock* Next();
 
     void* operator new(size_t size, ArenaAllocator* arena) {
-      return arena->Alloc(size, ArenaAllocator::kAllocGrowableArray);
+      return arena->Alloc(size, kArenaAllocGrowableArray);
     };
     void operator delete(void* p) {}  // Nop.
 
