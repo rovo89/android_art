@@ -672,10 +672,24 @@ DISASSEMBLER_ENTRY(cmp,
     has_modrm = true;
     reg_is_opcode = true;
     break;
+  case 0xDB:
+    static const char* db_opcodes[] = {"fildl", "unknown-db", "unknown-db", "unknown-db", "unknown-db", "unknown-db", "unknown-db", "unknown-db"};
+    modrm_opcodes = db_opcodes;
+    load = true;
+    has_modrm = true;
+    reg_is_opcode = true;
+    break;
   case 0xDD:
     static const char* dd_opcodes[] = {"fldl", "fisttp", "fstl", "fstpl", "frstor", "unknown-dd", "fnsave", "fnstsw"};
     modrm_opcodes = dd_opcodes;
     store = true;
+    has_modrm = true;
+    reg_is_opcode = true;
+    break;
+  case 0xDF:
+    static const char* df_opcodes[] = {"fild", "unknown-df", "unknown-df", "unknown-df", "unknown-df", "fildll", "unknown-df", "unknown-df"};
+    modrm_opcodes = df_opcodes;
+    load = true;
     has_modrm = true;
     reg_is_opcode = true;
     break;

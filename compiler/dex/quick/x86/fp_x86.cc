@@ -130,6 +130,70 @@ void X86Mir2Lir::GenArithOpDouble(Instruction::Code opcode,
   StoreValueWide(rl_dest, rl_result);
 }
 
+void X86Mir2Lir::GenLongToFP(RegLocation rl_dest, RegLocation rl_src, bool is_double) {
+  // Compute offsets to the source and destination VRs on stack
+  int src_v_reg_offset = SRegOffset(rl_src.s_reg_low);
+  int dest_v_reg_offset = SRegOffset(rl_dest.s_reg_low);
+
+  // Update the in-register state of source.
+  rl_src = UpdateLocWide(rl_src);
+
+  // If the source is in physical register, then put it in its location on stack.
+  if (rl_src.location == kLocPhysReg) {
+    RegisterInfo* lo_info = GetRegInfo(rl_src.low_reg);
+
+    if (lo_info != nullptr && lo_info->is_temp) {
+      // Calling FlushSpecificReg because it will only write back VR if it is dirty.
+      FlushSpecificReg(lo_info);
+    } else {
+      // It must have been register promoted if it is not a temp but is still in physical
+      // register. Since we need it to be in memory to convert, we place it there now.
+      StoreBaseDispWide(TargetReg(kSp), src_v_reg_offset, rl_src.low_reg, rl_src.high_reg);
+    }
+  }
+
+  // Push the source virtual register onto the x87 stack.
+  LIR *fild64 = NewLIR2NoDest(kX86Fild64M, TargetReg(kSp), src_v_reg_offset + LOWORD_OFFSET);
+  AnnotateDalvikRegAccess(fild64, (src_v_reg_offset + LOWORD_OFFSET) >> 2,
+      true /* is_load */, true /* is64bit */);
+
+  // Now pop off x87 stack and store it in the destination VR's stack location.
+  int opcode = is_double ? kX86Fstp64M : kX86Fstp32M;
+  int displacement = is_double ? dest_v_reg_offset + LOWORD_OFFSET : dest_v_reg_offset;
+  LIR *fstp = NewLIR2NoDest(opcode, TargetReg(kSp), displacement);
+  AnnotateDalvikRegAccess(fstp, displacement >> 2, false /* is_load */, is_double);
+
+  /*
+   * The result is in a physical register if it was in a temp or was register
+   * promoted. For that reason it is enough to check if it is in physical
+   * register. If it is, then we must do all of the bookkeeping necessary to
+   * invalidate temp (if needed) and load in promoted register (if needed).
+   * If the result's location is in memory, then we do not need to do anything
+   * more since the fstp has already placed the correct value in memory.
+   */
+  RegLocation rl_result = is_double ? UpdateLocWide(rl_dest) : UpdateLoc(rl_dest);
+  if (rl_result.location == kLocPhysReg) {
+    /*
+     * We already know that the result is in a physical register but do not know if it is the
+     * right class. So we call EvalLoc(Wide) first which will ensure that it will get moved to the
+     * correct register class.
+     */
+    if (is_double) {
+      rl_result = EvalLocWide(rl_dest, kFPReg, true);
+
+      LoadBaseDispWide(TargetReg(kSp), dest_v_reg_offset, rl_result.low_reg, rl_result.high_reg, INVALID_SREG);
+
+      StoreValueWide(rl_dest, rl_result);
+    } else {
+      rl_result = EvalLoc(rl_dest, kFPReg, true);
+
+      LoadWordDisp(TargetReg(kSp), dest_v_reg_offset, rl_result.low_reg);
+
+      StoreValue(rl_dest, rl_result);
+    }
+  }
+}
+
 void X86Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
                                RegLocation rl_src) {
   RegisterClass rcSrc = kFPReg;
@@ -198,11 +262,10 @@ void X86Mir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
       return;
     }
     case Instruction::LONG_TO_DOUBLE:
-      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pL2d), rl_dest, rl_src);
+      GenLongToFP(rl_dest, rl_src, true /* is_double */);
       return;
     case Instruction::LONG_TO_FLOAT:
-      // TODO: inline by using memory as a 64-bit source. Be careful about promoted registers.
-      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pL2f), rl_dest, rl_src);
+      GenLongToFP(rl_dest, rl_src, false /* is_double */);
       return;
     case Instruction::FLOAT_TO_LONG:
       GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pF2l), rl_dest, rl_src);
