@@ -190,8 +190,8 @@ class ArmMir2Lir : public Mir2Lir {
     RegLocation LoadArg(RegLocation loc);
     void LockLiveArgs(MIR* mir);
     MIR* GetNextMir(BasicBlock** p_bb, MIR* mir);
-    MIR* SpecialIGet(BasicBlock** bb, MIR* mir, OpSize size, bool long_or_double, bool is_object);
-    MIR* SpecialIPut(BasicBlock** bb, MIR* mir, OpSize size, bool long_or_double, bool is_object);
+    MIR* SpecialIGet(BasicBlock** bb, MIR* mir, const InlineMethod& special);
+    MIR* SpecialIPut(BasicBlock** bb, MIR* mir, const InlineMethod& special);
     MIR* SpecialIdentity(MIR* mir);
     LIR* LoadFPConstantValue(int r_dest, int value);
     void ReplaceFixup(LIR* prev_lir, LIR* orig_lir, LIR* new_lir);
