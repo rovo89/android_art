@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include "compiler_internals.h"
-#include "dex_file-inl.h"
 #include "arena_allocator.h"
 #include "base/logging.h"
 #include "base/mutex.h"

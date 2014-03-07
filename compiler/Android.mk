@@ -21,7 +21,6 @@ include art/build/Android.common.mk
 LIBART_COMPILER_SRC_FILES := \
 	compiled_method.cc \
 	dex/local_value_numbering.cc \
-	dex/arena_allocator.cc \
 	dex/arena_bit_vector.cc \
 	dex/quick/arm/assemble_arm.cc \
 	dex/quick/arm/call_arm.cc \
@@ -81,7 +80,10 @@ LIBART_COMPILER_SRC_FILES := \
 	llvm/runtime_support_builder.cc \
 	llvm/runtime_support_builder_arm.cc \
 	llvm/runtime_support_builder_x86.cc \
+	optimizing/builder.cc \
+	optimizing/nodes.cc \
 	trampolines/trampoline_compiler.cc \
+	utils/arena_allocator.cc \
 	utils/arm/assembler_arm.cc \
 	utils/arm/managed_register_arm.cc \
 	utils/assembler.cc \
