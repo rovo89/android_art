@@ -820,84 +820,492 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
   return code;
 }
 
-// Visits arguments on the stack placing them into a region lower down the stack for the benefit
-// of transitioning into native code.
-class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
+
+
+/*
+ * This class uses a couple of observations to unite the different calling conventions through
+ * a few constants.
+ *
+ * 1) Number of registers used for passing is normally even, so counting down has no penalty for
+ *    possible alignment.
+ * 2) Known 64b architectures store 8B units on the stack, both for integral and floating point
+ *    types, so using uintptr_t is OK. Also means that we can use kRegistersNeededX to denote
+ *    when we have to split things
+ * 3) The only soft-float, Arm, is 32b, so no widening needs to be taken into account for floats
+ *    and we can use Int handling directly.
+ * 4) Only 64b architectures widen, and their stack is aligned 8B anyways, so no padding code
+ *    necessary when widening. Also, widening of Ints will take place implicitly, and the
+ *    extension should be compatible with Aarch64, which mandates copying the available bits
+ *    into LSB and leaving the rest unspecified.
+ * 5) Aligning longs and doubles is necessary on arm only, and it's the same in registers and on
+ *    the stack.
+ * 6) There is only little endian.
+ *
+ *
+ * Actual work is supposed to be done in a delegate of the template type. The interface is as
+ * follows:
+ *
+ * void PushGpr(uintptr_t):   Add a value for the next GPR
+ *
+ * void PushFpr4(float):      Add a value for the next FPR of size 32b. Is only called if we need
+ *                            padding, that is, think the architecture is 32b and aligns 64b.
+ *
+ * void PushFpr8(uint64_t):   Push a double. We _will_ call this on 32b, it's the callee's job to
+ *                            split this if necessary. The current state will have aligned, if
+ *                            necessary.
+ *
+ * void PushStack(uintptr_t): Push a value to the stack.
+ *
+ * uintptr_t PushSirt(mirror::Object* ref): Add a reference to the Sirt. Is guaranteed != nullptr.
+ *                                          Must return the jobject, that is, the reference to the
+ *                                          entry in the Sirt.
+ *
+ */
+template <class T> class BuildGenericJniFrameStateMachine {
+ public:
 #if defined(__arm__)
   // TODO: These are all dummy values!
-  static constexpr bool kNativeSoftFloatAbi = false;  // This is a hard float ABI.
-  static constexpr size_t kNumNativeGprArgs = 3;  // 3 arguments passed in GPRs.
+  static constexpr bool kNativeSoftFloatAbi = true;
+  static constexpr size_t kNumNativeGprArgs = 4;  // 4 arguments passed in GPRs, r0-r3
   static constexpr size_t kNumNativeFprArgs = 0;  // 0 arguments passed in FPRs.
-
-  static constexpr size_t kGprStackOffset = 4336;
-  static constexpr size_t kFprStackOffset = 4336 - 6*8;
-  static constexpr size_t kCallStackStackOffset = 4336 - 112;
 
   static constexpr size_t kRegistersNeededForLong = 2;
   static constexpr size_t kRegistersNeededForDouble = 2;
+  static constexpr bool kMultiRegistersAligned = true;
+  static constexpr bool kMultiRegistersWidened = false;
+  static constexpr bool kAlignLongOnStack = true;
+  static constexpr bool kAlignDoubleOnStack = true;
 #elif defined(__mips__)
   // TODO: These are all dummy values!
   static constexpr bool kNativeSoftFloatAbi = true;  // This is a hard float ABI.
   static constexpr size_t kNumNativeGprArgs = 0;  // 6 arguments passed in GPRs.
   static constexpr size_t kNumNativeFprArgs = 0;  // 8 arguments passed in FPRs.
 
-  // update these
-  static constexpr size_t kGprStackOffset = 4336;
-  static constexpr size_t kFprStackOffset = 4336 - 6*8;
-  static constexpr size_t kCallStackStackOffset = 4336 - 112;
-
   static constexpr size_t kRegistersNeededForLong = 2;
   static constexpr size_t kRegistersNeededForDouble = 2;
+  static constexpr bool kMultiRegistersAligned = true;
+  static constexpr bool kMultiRegistersWidened = true;
+  static constexpr bool kAlignLongOnStack = false;
+  static constexpr bool kAlignDoubleOnStack = false;
 #elif defined(__i386__)
   // TODO: Check these!
-  static constexpr bool kNativeSoftFloatAbi = true;  // This is a soft float ABI.
+  static constexpr bool kNativeSoftFloatAbi = false;  // Not using int registers for fp
   static constexpr size_t kNumNativeGprArgs = 0;  // 6 arguments passed in GPRs.
   static constexpr size_t kNumNativeFprArgs = 0;  // 8 arguments passed in FPRs.
 
-  // update these
-  static constexpr size_t kGprStackOffset = 4336;
-  static constexpr size_t kFprStackOffset = 4336 - 6*8;
-  static constexpr size_t kCallStackStackOffset = 4336 - 112;
-
   static constexpr size_t kRegistersNeededForLong = 2;
   static constexpr size_t kRegistersNeededForDouble = 2;
+  static constexpr bool kMultiRegistersAligned = false;       // x86 not using regs, anyways
+  static constexpr bool kMultiRegistersWidened = false;
+  static constexpr bool kAlignLongOnStack = false;
+  static constexpr bool kAlignDoubleOnStack = false;
 #elif defined(__x86_64__)
   static constexpr bool kNativeSoftFloatAbi = false;  // This is a hard float ABI.
   static constexpr size_t kNumNativeGprArgs = 6;  // 6 arguments passed in GPRs.
   static constexpr size_t kNumNativeFprArgs = 8;  // 8 arguments passed in FPRs.
 
-  static constexpr size_t kGprStackOffset = 4336;
-  static constexpr size_t kFprStackOffset = 4336 - 6*8;
-  static constexpr size_t kCallStackStackOffset = 4336 - 112;
-
   static constexpr size_t kRegistersNeededForLong = 1;
   static constexpr size_t kRegistersNeededForDouble = 1;
+  static constexpr bool kMultiRegistersAligned = false;
+  static constexpr bool kMultiRegistersWidened = true;
+  static constexpr bool kAlignLongOnStack = false;
+  static constexpr bool kAlignDoubleOnStack = false;
 #else
 #error "Unsupported architecture"
 #endif
 
+ public:
+  explicit BuildGenericJniFrameStateMachine(T* delegate) : gpr_index_(kNumNativeGprArgs),
+                                                           fpr_index_(kNumNativeFprArgs),
+                                                           stack_entries_(0),
+                                                           delegate_(delegate) {
+    // For register alignment, we want to assume that counters (gpr_index_, fpr_index_) are even iff
+    // the next register is even; counting down is just to make the compiler happy...
+    CHECK_EQ(kNumNativeGprArgs % 2, 0U);
+    CHECK_EQ(kNumNativeFprArgs % 2, 0U);
+  }
 
+  virtual ~BuildGenericJniFrameStateMachine() {}
+
+  bool HavePointerGpr() {
+    return gpr_index_ > 0;
+  }
+
+  void AdvancePointer(void* val) {
+    if (HavePointerGpr()) {
+      gpr_index_--;
+      PushGpr(reinterpret_cast<uintptr_t>(val));
+    } else {
+      stack_entries_++;         // TODO: have a field for pointer length as multiple of 32b
+      PushStack(reinterpret_cast<uintptr_t>(val));
+      gpr_index_ = 0;
+    }
+  }
+
+
+  bool HaveSirtGpr() {
+    return gpr_index_ > 0;
+  }
+
+  void AdvanceSirt(mirror::Object* ptr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    uintptr_t sirtRef;
+    if (ptr != nullptr) {
+      sirtRef = PushSirt(ptr);
+    } else {
+      sirtRef = reinterpret_cast<uintptr_t>(nullptr);
+    }
+    if (HaveSirtGpr()) {
+      gpr_index_--;
+      PushGpr(sirtRef);
+    } else {
+      stack_entries_++;
+      PushStack(sirtRef);
+      gpr_index_ = 0;
+    }
+  }
+
+
+  bool HaveIntGpr() {
+    return gpr_index_ > 0;
+  }
+
+  void AdvanceInt(uint32_t val) {
+    if (HaveIntGpr()) {
+      gpr_index_--;
+      PushGpr(val);
+    } else {
+      stack_entries_++;
+      PushStack(val);
+      gpr_index_ = 0;
+    }
+  }
+
+
+  bool HaveLongGpr() {
+    return gpr_index_ >= kRegistersNeededForLong + (LongGprNeedsPadding() ? 1 : 0);
+  }
+
+  bool LongGprNeedsPadding() {
+    return kRegistersNeededForLong > 1 &&     // only pad when using multiple registers
+        kAlignLongOnStack &&                  // and when it needs alignment
+        (gpr_index_ & 1) == 1;                // counter is odd, see constructor
+  }
+
+  bool LongStackNeedsPadding() {
+    return kRegistersNeededForLong > 1 &&     // only pad when using multiple registers
+        kAlignLongOnStack &&                  // and when it needs 8B alignment
+        (stack_entries_ & 1) == 1;            // counter is odd
+  }
+
+  void AdvanceLong(uint64_t val) {
+    if (HaveLongGpr()) {
+      if (LongGprNeedsPadding()) {
+        PushGpr(0);
+        gpr_index_--;
+      }
+      if (kRegistersNeededForLong == 1) {
+        PushGpr(static_cast<uintptr_t>(val));
+      } else {
+        PushGpr(static_cast<uintptr_t>(val & 0xFFFFFFFF));
+        PushGpr(static_cast<uintptr_t>((val >> 32) & 0xFFFFFFFF));
+      }
+      gpr_index_ -= kRegistersNeededForLong;
+    } else {
+      if (LongStackNeedsPadding()) {
+        PushStack(0);
+        stack_entries_++;
+      }
+      if (kRegistersNeededForLong == 1) {
+        PushStack(static_cast<uintptr_t>(val));
+        stack_entries_++;
+      } else {
+        PushStack(static_cast<uintptr_t>(val & 0xFFFFFFFF));
+        PushStack(static_cast<uintptr_t>((val >> 32) & 0xFFFFFFFF));
+        stack_entries_ += 2;
+      }
+      gpr_index_ = 0;
+    }
+  }
+
+
+  bool HaveFloatFpr() {
+    return fpr_index_ > 0;
+  }
+
+  // TODO: please review this bit representation retrieving.
+  template <typename U, typename V> V convert(U in) {
+    CHECK_LE(sizeof(U), sizeof(V));
+    union { U u; V v; } tmp;
+    tmp.u = in;
+    return tmp.v;
+  }
+
+  void AdvanceFloat(float val) {
+    if (kNativeSoftFloatAbi) {
+      AdvanceInt(convert<float, uint32_t>(val));
+    } else {
+      if (HaveFloatFpr()) {
+        fpr_index_--;
+        if (kRegistersNeededForDouble == 1) {
+          if (kMultiRegistersWidened) {
+            PushFpr8(convert<double, uint64_t>(val));
+          } else {
+            // No widening, just use the bits.
+            PushFpr8(convert<float, uint64_t>(val));
+          }
+        } else {
+          PushFpr4(val);
+        }
+      } else {
+        stack_entries_++;
+        if (kRegistersNeededForDouble == 1 && kMultiRegistersWidened) {
+          // Need to widen before storing: Note the "double" in the template instantiation.
+          PushStack(convert<double, uintptr_t>(val));
+        } else {
+          PushStack(convert<float, uintptr_t>(val));
+        }
+        fpr_index_ = 0;
+      }
+    }
+  }
+
+
+  bool HaveDoubleFpr() {
+    return fpr_index_ >= kRegistersNeededForDouble + (DoubleFprNeedsPadding() ? 1 : 0);
+  }
+
+  bool DoubleFprNeedsPadding() {
+    return kRegistersNeededForDouble > 1 &&     // only pad when using multiple registers
+        kAlignDoubleOnStack &&                  // and when it needs alignment
+        (fpr_index_ & 1) == 1;                  // counter is odd, see constructor
+  }
+
+  bool DoubleStackNeedsPadding() {
+    return kRegistersNeededForDouble > 1 &&     // only pad when using multiple registers
+        kAlignDoubleOnStack &&                  // and when it needs 8B alignment
+        (stack_entries_ & 1) == 1;              // counter is odd
+  }
+
+  void AdvanceDouble(uint64_t val) {
+    if (kNativeSoftFloatAbi) {
+      AdvanceLong(val);
+    } else {
+      if (HaveDoubleFpr()) {
+        if (DoubleFprNeedsPadding()) {
+          PushFpr4(0);
+          fpr_index_--;
+        }
+        PushFpr8(val);
+        fpr_index_ -= kRegistersNeededForDouble;
+      } else {
+        if (DoubleStackNeedsPadding()) {
+          PushStack(0);
+          stack_entries_++;
+        }
+        if (kRegistersNeededForDouble == 1) {
+          PushStack(static_cast<uintptr_t>(val));
+          stack_entries_++;
+        } else {
+          PushStack(static_cast<uintptr_t>(val & 0xFFFFFFFF));
+          PushStack(static_cast<uintptr_t>((val >> 32) & 0xFFFFFFFF));
+          stack_entries_ += 2;
+        }
+        fpr_index_ = 0;
+      }
+    }
+  }
+
+  uint32_t getStackEntries() {
+    return stack_entries_;
+  }
+
+  uint32_t getNumberOfUsedGprs() {
+    return kNumNativeGprArgs - gpr_index_;
+  }
+
+  uint32_t getNumberOfUsedFprs() {
+    return kNumNativeFprArgs - fpr_index_;
+  }
+
+ private:
+  void PushGpr(uintptr_t val) {
+    delegate_->PushGpr(val);
+  }
+  void PushFpr4(float val) {
+    delegate_->PushFpr4(val);
+  }
+  void PushFpr8(uint64_t val) {
+    delegate_->PushFpr8(val);
+  }
+  void PushStack(uintptr_t val) {
+    delegate_->PushStack(val);
+  }
+  uintptr_t PushSirt(mirror::Object* ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return delegate_->PushSirt(ref);
+  }
+
+  uint32_t gpr_index_;      // Number of free GPRs
+  uint32_t fpr_index_;      // Number of free FPRs
+  uint32_t stack_entries_;  // Stack entries are in multiples of 32b, as floats are usually not
+                            // extended
+  T* delegate_;             // What Push implementation gets called
+};
+
+class ComputeGenericJniFrameSize FINAL {
+ public:
+  ComputeGenericJniFrameSize() : num_sirt_references_(0), num_stack_entries_(0) {}
+
+  // (negative) offset from SP to top of Sirt.
+  uint32_t GetSirtOffset() {
+    return 8;
+  }
+
+  uint32_t GetFirstSirtEntryOffset() {
+    return GetSirtOffset() + sizeof(StackReference<mirror::Object>);
+  }
+
+  uint32_t GetNumSirtReferences() {
+    return num_sirt_references_;
+  }
+
+  uint32_t GetStackSize() {
+    return num_stack_entries_ * sizeof(uintptr_t);
+  }
+
+  void ComputeLayout(bool is_static, const char* shorty, uint32_t shorty_len, void* sp,
+                     StackReference<mirror::Object>** start_sirt, StackIndirectReferenceTable** table,
+                     uint32_t* sirt_entries, uintptr_t** start_stack, uintptr_t** start_gpr,
+                     uint32_t** start_fpr, void** code_return, size_t* overall_size)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    ComputeAll(is_static, shorty, shorty_len);
+
+    uint8_t* sp8 = reinterpret_cast<uint8_t*>(sp);
+    *start_sirt = reinterpret_cast<StackReference<mirror::Object>*>(sp8-GetFirstSirtEntryOffset());
+
+    // Add padding entries if necessary for alignment.
+    if (sizeof(uintptr_t) < sizeof(uint64_t)) {
+      uint32_t size = sizeof(uintptr_t) * num_sirt_references_;
+      uint32_t rem = size % 8;
+      if (rem != 0) {
+        DCHECK_EQ(rem, 4U);
+        num_sirt_references_++;
+      }
+    }
+    *sirt_entries = num_sirt_references_;
+    size_t sirt_size = StackIndirectReferenceTable::SizeOf(num_sirt_references_);
+    sp8 -= GetSirtOffset() + sirt_size;
+    *table = reinterpret_cast<StackIndirectReferenceTable*>(sp8);
+
+    sp8 -= GetStackSize();
+    // Now align the call stack under the Sirt. This aligns by 16.
+    uintptr_t mask = ~0x0F;
+    sp8 = reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(sp8) & mask);
+    *start_stack = reinterpret_cast<uintptr_t*>(sp8);
+
+    // put fprs and gprs below
+    // Assumption is OK right now, as we have soft-float arm
+    size_t fregs = BuildGenericJniFrameStateMachine<ComputeGenericJniFrameSize>::kNumNativeFprArgs;
+    sp8 -= fregs * sizeof(uintptr_t);
+    *start_fpr = reinterpret_cast<uint32_t*>(sp8);
+    size_t iregs = BuildGenericJniFrameStateMachine<ComputeGenericJniFrameSize>::kNumNativeGprArgs;
+    sp8 -= iregs * sizeof(uintptr_t);
+    *start_gpr = reinterpret_cast<uintptr_t*>(sp8);
+
+    // reserve space for the code pointer
+    sp8 -= sizeof(void*);
+    *code_return = reinterpret_cast<void*>(sp8);
+
+    *overall_size = reinterpret_cast<uint8_t*>(sp) - sp8;
+  }
+
+  void ComputeSirtOffset() { }  // nothing to do, static right now
+
+  void ComputeAll(bool is_static, const char* shorty, uint32_t shorty_len)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    BuildGenericJniFrameStateMachine<ComputeGenericJniFrameSize> sm(this);
+
+    // JNIEnv
+    sm.AdvancePointer(nullptr);
+
+    // Class object or this as first argument
+    sm.AdvanceSirt(reinterpret_cast<mirror::Object*>(0x12345678));
+
+    for (uint32_t i = 1; i < shorty_len; ++i) {
+      Primitive::Type cur_type_ = Primitive::GetType(shorty[i]);
+      switch (cur_type_) {
+        case Primitive::kPrimNot:
+          sm.AdvanceSirt(reinterpret_cast<mirror::Object*>(0x12345678));
+          break;
+
+        case Primitive::kPrimBoolean:
+        case Primitive::kPrimByte:
+        case Primitive::kPrimChar:
+        case Primitive::kPrimShort:
+        case Primitive::kPrimInt:
+          sm.AdvanceInt(0);
+          break;
+        case Primitive::kPrimFloat:
+          sm.AdvanceFloat(0);
+          break;
+        case Primitive::kPrimDouble:
+          sm.AdvanceDouble(0);
+          break;
+        case Primitive::kPrimLong:
+          sm.AdvanceLong(0);
+          break;
+        default:
+          LOG(FATAL) << "Unexpected type: " << cur_type_ << " in " << shorty;
+      }
+    }
+
+    num_stack_entries_ = sm.getStackEntries();
+  }
+
+  void PushGpr(uintptr_t /* val */) {
+    // not optimizing registers, yet
+  }
+
+  void PushFpr4(float /* val */) {
+    // not optimizing registers, yet
+  }
+
+  void PushFpr8(uint64_t /* val */) {
+    // not optimizing registers, yet
+  }
+
+  void PushStack(uintptr_t /* val */) {
+    // counting is already done in the superclass
+  }
+
+  uintptr_t PushSirt(mirror::Object* /* ptr */) {
+    num_sirt_references_++;
+    return reinterpret_cast<uintptr_t>(nullptr);
+  }
+
+ private:
+  uint32_t num_sirt_references_;
+  uint32_t num_stack_entries_;
+};
+
+// Visits arguments on the stack placing them into a region lower down the stack for the benefit
+// of transitioning into native code.
+class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
  public:
   BuildGenericJniFrameVisitor(mirror::ArtMethod** sp, bool is_static, const char* shorty,
                               uint32_t shorty_len, Thread* self) :
-      QuickArgumentVisitor(sp, is_static, shorty, shorty_len) {
-    // size of cookie plus padding
-    uint8_t* sp8 = reinterpret_cast<uint8_t*>(sp);
-    top_of_sirt_ =  sp8 - 8;
-    cur_sirt_entry_ = reinterpret_cast<StackReference<mirror::Object>*>(top_of_sirt_) - 1;
+      QuickArgumentVisitor(sp, is_static, shorty, shorty_len), sm_(this) {
+    ComputeGenericJniFrameSize fsc;
+    fsc.ComputeLayout(is_static, shorty, shorty_len, sp, &cur_sirt_entry_, &sirt_,
+                      &sirt_expected_refs_, &cur_stack_arg_, &cur_gpr_reg_, &cur_fpr_reg_,
+                      &code_return_, &alloca_used_size_);
     sirt_number_of_references_ = 0;
-    gpr_index_ = kNumNativeGprArgs;
-    fpr_index_ = kNumNativeFprArgs;
-
-    cur_gpr_reg_ = reinterpret_cast<uintptr_t*>(sp8 - kGprStackOffset);
-    cur_fpr_reg_ = reinterpret_cast<uint32_t*>(sp8 - kFprStackOffset);
-    cur_stack_arg_ = reinterpret_cast<uintptr_t*>(sp8 - kCallStackStackOffset);
+    top_of_sirt_ = cur_sirt_entry_;
 
     // jni environment is always first argument
-    PushPointer(self->GetJniEnv());
+    sm_.AdvancePointer(self->GetJniEnv());
 
     if (is_static) {
-      PushArgumentInSirt((*sp)->GetDeclaringClass());
+      sm_.AdvanceSirt((*sp)->GetDeclaringClass());
     }
   }
 
@@ -911,7 +1319,7 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
         } else {
           long_arg = *reinterpret_cast<jlong*>(GetParamAddress());
         }
-        PushLongArgument(long_arg);
+        sm_.AdvanceLong(long_arg);
         break;
       }
       case Primitive::kPrimDouble: {
@@ -922,24 +1330,24 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
         } else {
           double_arg = *reinterpret_cast<uint64_t*>(GetParamAddress());
         }
-        PushDoubleArgument(double_arg);
+        sm_.AdvanceDouble(double_arg);
         break;
       }
       case Primitive::kPrimNot: {
         StackReference<mirror::Object>* stack_ref =
             reinterpret_cast<StackReference<mirror::Object>*>(GetParamAddress());
-        PushArgumentInSirt(stack_ref->AsMirrorPtr());
+        sm_.AdvanceSirt(stack_ref->AsMirrorPtr());
         break;
       }
       case Primitive::kPrimFloat:
-        PushFloatArgument(*reinterpret_cast<int32_t*>(GetParamAddress()));
+        sm_.AdvanceFloat(*reinterpret_cast<float*>(GetParamAddress()));
         break;
       case Primitive::kPrimBoolean:  // Fall-through.
       case Primitive::kPrimByte:     // Fall-through.
       case Primitive::kPrimChar:     // Fall-through.
       case Primitive::kPrimShort:    // Fall-through.
       case Primitive::kPrimInt:      // Fall-through.
-        PushIntArgument(*reinterpret_cast<jint*>(GetParamAddress()));
+        sm_.AdvanceInt(*reinterpret_cast<jint*>(GetParamAddress()));
         break;
       case Primitive::kPrimVoid:
         LOG(FATAL) << "UNREACHABLE";
@@ -948,149 +1356,87 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
   }
 
   void FinalizeSirt(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (!IsAligned<8>(StackIndirectReferenceTable::SizeOf(sirt_number_of_references_))) {
-      sirt_number_of_references_++;
+    // Initialize padding entries.
+    while (sirt_number_of_references_ < sirt_expected_refs_) {
       *cur_sirt_entry_ = StackReference<mirror::Object>();
       cur_sirt_entry_--;
+      sirt_number_of_references_++;
     }
-    CHECK(IsAligned<8>(StackIndirectReferenceTable::SizeOf(sirt_number_of_references_)));
-    StackIndirectReferenceTable* sirt = reinterpret_cast<StackIndirectReferenceTable*>(
-        top_of_sirt_ - StackIndirectReferenceTable::SizeOf(sirt_number_of_references_));
+    sirt_->SetNumberOfReferences(sirt_expected_refs_);
 
-    sirt->SetNumberOfReferences(sirt_number_of_references_);
-    self->PushSirt(sirt);
+    // Install Sirt.
+    self->PushSirt(sirt_);
   }
 
   jobject GetFirstSirtEntry() {
-    return reinterpret_cast<jobject>(reinterpret_cast<StackReference<mirror::Object>*>(top_of_sirt_) - 1);
+    return reinterpret_cast<jobject>(top_of_sirt_);
+  }
+
+  void PushGpr(uintptr_t val) {
+    *cur_gpr_reg_ = val;
+    cur_gpr_reg_++;
+  }
+
+  void PushFpr4(float val) {
+    *cur_fpr_reg_ = val;
+    cur_fpr_reg_++;
+  }
+
+  void PushFpr8(uint64_t val) {
+    uint64_t* tmp = reinterpret_cast<uint64_t*>(cur_fpr_reg_);
+    *tmp = val;
+    cur_fpr_reg_ += 2;
+  }
+
+  void PushStack(uintptr_t val) {
+    *cur_stack_arg_ = val;
+    cur_stack_arg_++;
+  }
+
+  uintptr_t PushSirt(mirror::Object* ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    *cur_sirt_entry_ = StackReference<mirror::Object>::FromMirrorPtr(ref);
+    uintptr_t tmp = reinterpret_cast<uintptr_t>(cur_sirt_entry_);
+    cur_sirt_entry_--;
+    sirt_number_of_references_++;
+    return tmp;
+  }
+
+  // Size of the part of the alloca that we actually need.
+  size_t GetAllocaUsedSize() {
+    return alloca_used_size_;
+  }
+
+  void* GetCodeReturn() {
+    return code_return_;
   }
 
  private:
-  void PushArgumentInSirt(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // Do something to push into the SIRT.
-    uintptr_t sirt_or_null;
-    if (obj != nullptr) {
-      sirt_number_of_references_++;
-      *cur_sirt_entry_ = StackReference<mirror::Object>::FromMirrorPtr(obj);
-      sirt_or_null = reinterpret_cast<uintptr_t>(cur_sirt_entry_);
-      cur_sirt_entry_--;
-    } else {
-      sirt_or_null = reinterpret_cast<uintptr_t>(nullptr);
-    }
-    // Push the GPR or stack arg.
-    if (gpr_index_ > 0) {
-      *cur_gpr_reg_ = sirt_or_null;
-      cur_gpr_reg_++;
-      gpr_index_--;
-    } else {
-      *cur_stack_arg_ = sirt_or_null;
-      cur_stack_arg_++;
-    }
-  }
-
-  void PushPointer(void* val) {
-    if (gpr_index_ > 0) {
-      *cur_gpr_reg_ = reinterpret_cast<uintptr_t>(val);
-      cur_gpr_reg_++;
-      gpr_index_--;
-    } else {
-      *cur_stack_arg_ = reinterpret_cast<uintptr_t>(val);
-      cur_stack_arg_++;
-    }
-  }
-
-  void PushIntArgument(jint val) {
-    if (gpr_index_ > 0) {
-      *cur_gpr_reg_ = val;
-      cur_gpr_reg_++;
-      gpr_index_--;
-    } else {
-      *cur_stack_arg_ = val;
-      cur_stack_arg_++;
-    }
-  }
-
-  void PushLongArgument(jlong val) {
-    // This is an ugly hack for the following problem:
-    //  Assume odd number of 32b registers. Then having exactly kRegsNeeded left needs to spill!
-    if (gpr_index_ >= kRegistersNeededForLong + (kNumNativeGprArgs % kRegistersNeededForLong)) {
-      if (kRegistersNeededForLong > 1 && ((kNumNativeGprArgs - gpr_index_) & 1) == 1) {
-        // Pad.
-        gpr_index_--;
-        cur_gpr_reg_++;
-      }
-      uint64_t* tmp = reinterpret_cast<uint64_t*>(cur_gpr_reg_);
-      *tmp = val;
-      cur_gpr_reg_ += kRegistersNeededForLong;
-      gpr_index_ -= kRegistersNeededForLong;
-    } else {
-      uint64_t* tmp = reinterpret_cast<uint64_t*>(cur_stack_arg_);
-      *tmp = val;
-      cur_stack_arg_ += kRegistersNeededForLong;
-
-      gpr_index_ = 0;                   // can't use GPRs anymore
-    }
-  }
-
-  void PushFloatArgument(int32_t val) {
-    if (kNativeSoftFloatAbi) {
-      PushIntArgument(val);
-    } else {
-      if (fpr_index_ > 0) {
-        *cur_fpr_reg_ = val;
-        cur_fpr_reg_++;
-        if (kRegistersNeededForDouble == 1) {
-          // will pop 64 bits from the stack
-          // TODO: extend/clear bits???
-          cur_fpr_reg_++;
-        }
-        fpr_index_--;
-      } else {
-        // TODO: Check ABI for floats.
-        *cur_stack_arg_ = val;
-        cur_stack_arg_++;
-      }
-    }
-  }
-
-  void PushDoubleArgument(uint64_t val) {
-    // See PushLongArgument for explanation
-    if (fpr_index_ >= kRegistersNeededForDouble + (kNumNativeFprArgs % kRegistersNeededForDouble)) {
-      if (kRegistersNeededForDouble > 1 && ((kNumNativeFprArgs - fpr_index_) & 1) == 1) {
-        // Pad.
-        fpr_index_--;
-        cur_fpr_reg_++;
-      }
-      uint64_t* tmp = reinterpret_cast<uint64_t*>(cur_fpr_reg_);
-      *tmp = val;
-      // TODO: the whole thing doesn't make sense if we take uint32_t*...
-      cur_fpr_reg_ += 2;        // kRegistersNeededForDouble;
-      fpr_index_ -= kRegistersNeededForDouble;
-    } else {
-      if (!IsAligned<8>(cur_stack_arg_)) {
-        cur_stack_arg_++;  // Pad.
-      }
-      uint64_t* tmp = reinterpret_cast<uint64_t*>(cur_stack_arg_);
-      *tmp = val;
-      cur_stack_arg_ += kRegistersNeededForDouble;
-
-      fpr_index_ = 0;                   // can't use FPRs anymore
-    }
-  }
-
   uint32_t sirt_number_of_references_;
   StackReference<mirror::Object>* cur_sirt_entry_;
-  uint32_t gpr_index_;           // should be uint, but gives error because on some archs no regs
+  StackIndirectReferenceTable* sirt_;
+  uint32_t sirt_expected_refs_;
   uintptr_t* cur_gpr_reg_;
-  uint32_t fpr_index_;           //                      ----- # -----
   uint32_t* cur_fpr_reg_;
   uintptr_t* cur_stack_arg_;
-  uint8_t* top_of_sirt_;
+  StackReference<mirror::Object>* top_of_sirt_;
+  void* code_return_;
+  size_t alloca_used_size_;
+
+  BuildGenericJniFrameStateMachine<BuildGenericJniFrameVisitor> sm_;
 
   DISALLOW_COPY_AND_ASSIGN(BuildGenericJniFrameVisitor);
 };
 
-extern "C" const void* artQuickGenericJniTrampoline(Thread* self, mirror::ArtMethod** sp)
+/*
+ * Initializes an alloca region assumed to be directly below sp for a native call:
+ * Create a Sirt and call stack and fill a mini stack with values to be pushed to registers.
+ * The final element on the stack is a pointer to the native code.
+ *
+ * The return of this function denotes:
+ * 1) How many bytes of the alloca can be released, if the value is non-negative.
+ * 2) An error, if the value is negative.
+ */
+extern "C" ssize_t artQuickGenericJniTrampoline(Thread* self, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   uint32_t* sp32 = reinterpret_cast<uint32_t*>(sp);
   mirror::ArtMethod* called = *sp;
@@ -1098,6 +1444,7 @@ extern "C" const void* artQuickGenericJniTrampoline(Thread* self, mirror::ArtMet
 
   // run the visitor
   MethodHelper mh(called);
+
   BuildGenericJniFrameVisitor visitor(sp, called->IsStatic(), mh.GetShorty(), mh.GetShortyLength(),
                                       self);
   visitor.VisitArguments();
@@ -1110,10 +1457,10 @@ extern "C" const void* artQuickGenericJniTrampoline(Thread* self, mirror::ArtMet
   uint32_t cookie;
   if (called->IsSynchronized()) {
     cookie = JniMethodStartSynchronized(visitor.GetFirstSirtEntry(), self);
-    // TODO: error checking.
     if (self->IsExceptionPending()) {
       self->PopSirt();
-      return nullptr;
+      // A negative value denotes an error.
+      return -1;
     }
   } else {
     cookie = JniMethodStart(self);
@@ -1127,7 +1474,12 @@ extern "C" const void* artQuickGenericJniTrampoline(Thread* self, mirror::ArtMet
     LOG(FATAL) << "Finding native code not implemented yet.";
   }
 
-  return nativeCode;
+  uintptr_t* code_pointer = reinterpret_cast<uintptr_t*>(visitor.GetCodeReturn());
+  size_t window_size = visitor.GetAllocaUsedSize();
+  *code_pointer = reinterpret_cast<uintptr_t>(nativeCode);
+
+  // 5K reserved, window_size used.
+  return 5*1024 - window_size;
 }
 
 /*
@@ -1141,27 +1493,30 @@ extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self, mirror::ArtMet
   mirror::ArtMethod* called = *sp;
   uint32_t cookie = *(sp32-1);
 
-  // TODO: synchronized.
   MethodHelper mh(called);
   char return_shorty_char = mh.GetShorty()[0];
 
   if (return_shorty_char == 'L') {
     // the only special ending call
     if (called->IsSynchronized()) {
-      BuildGenericJniFrameVisitor visitor(sp, called->IsStatic(), mh.GetShorty(),
-                                          mh.GetShortyLength(), self);
-      return reinterpret_cast<uint64_t>(JniMethodEndWithReferenceSynchronized(result.l, cookie,
-                                                                              visitor.GetFirstSirtEntry(),
+      ComputeGenericJniFrameSize fsc;
+      fsc.ComputeSirtOffset();
+      uint32_t offset = fsc.GetFirstSirtEntryOffset();
+      jobject tmp = reinterpret_cast<jobject>(reinterpret_cast<uint8_t*>(sp)-offset);
+
+      return reinterpret_cast<uint64_t>(JniMethodEndWithReferenceSynchronized(result.l, cookie, tmp,
                                                                               self));
     } else {
       return reinterpret_cast<uint64_t>(JniMethodEndWithReference(result.l, cookie, self));
     }
   } else {
     if (called->IsSynchronized()) {
-      // run the visitor
-      BuildGenericJniFrameVisitor visitor(sp, called->IsStatic(), mh.GetShorty(),
-                                          mh.GetShortyLength(), self);
-      JniMethodEndSynchronized(cookie, visitor.GetFirstSirtEntry(), self);
+      ComputeGenericJniFrameSize fsc;
+      fsc.ComputeSirtOffset();
+      uint32_t offset = fsc.GetFirstSirtEntryOffset();
+      jobject tmp = reinterpret_cast<jobject>(reinterpret_cast<uint8_t*>(sp)-offset);
+
+      JniMethodEndSynchronized(cookie, tmp, self);
     } else {
       JniMethodEnd(cookie, self);
     }
