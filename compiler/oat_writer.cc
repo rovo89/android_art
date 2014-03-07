@@ -33,6 +33,7 @@
 #include "output_stream.h"
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"
+#include "sirt_ref-inl.h"
 #include "verifier/method_verifier.h"
 
 namespace art {

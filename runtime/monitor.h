@@ -31,6 +31,8 @@
 
 namespace art {
 
+template<class T> class SirtRef;
+
 namespace mirror {
   class ArtMethod;
   class Object;

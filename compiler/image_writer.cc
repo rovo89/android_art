@@ -50,7 +50,7 @@
 #include "object_utils.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
-#include "sirt_ref.h"
+#include "sirt_ref-inl.h"
 #include "UniquePtr.h"
 #include "utils.h"
 

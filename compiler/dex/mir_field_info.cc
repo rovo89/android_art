@@ -24,7 +24,7 @@
 #include "mirror/class_loader.h"  // Only to allow casts in SirtRef<ClassLoader>.
 #include "mirror/dex_cache.h"     // Only to allow casts in SirtRef<DexCache>.
 #include "scoped_thread_state_change.h"
-#include "sirt_ref.h"
+#include "sirt_ref-inl.h"
 
 namespace art {
 
