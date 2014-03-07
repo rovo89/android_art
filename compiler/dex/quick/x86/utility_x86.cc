@@ -211,6 +211,110 @@ LIR* X86Mir2Lir::OpRegReg(OpKind op, int r_dest_src1, int r_src2) {
     return NewLIR2(opcode, r_dest_src1, r_src2);
 }
 
+LIR* X86Mir2Lir::OpMovRegMem(int r_dest, int r_base, int offset, MoveType move_type) {
+  DCHECK(!(X86_FPREG(r_base)));
+
+  X86OpCode opcode = kX86Nop;
+  switch (move_type) {
+    case kMov8GP:
+      CHECK(!X86_FPREG(r_dest));
+      opcode = kX86Mov8RM;
+      break;
+    case kMov16GP:
+      CHECK(!X86_FPREG(r_dest));
+      opcode = kX86Mov16RM;
+      break;
+    case kMov32GP:
+      CHECK(!X86_FPREG(r_dest));
+      opcode = kX86Mov32RM;
+      break;
+    case kMov32FP:
+      CHECK(X86_FPREG(r_dest));
+      opcode = kX86MovssRM;
+      break;
+    case kMov64FP:
+      CHECK(X86_FPREG(r_dest));
+      opcode = kX86MovsdRM;
+      break;
+    case kMovU128FP:
+      CHECK(X86_FPREG(r_dest));
+      opcode = kX86MovupsRM;
+      break;
+    case kMovA128FP:
+      CHECK(X86_FPREG(r_dest));
+      opcode = kX86MovapsRM;
+      break;
+    case kMovLo128FP:
+      CHECK(X86_FPREG(r_dest));
+      opcode = kX86MovlpsRM;
+      break;
+    case kMovHi128FP:
+      CHECK(X86_FPREG(r_dest));
+      opcode = kX86MovhpsRM;
+      break;
+    case kMov64GP:
+    case kMovLo64FP:
+    case kMovHi64FP:
+    default:
+      LOG(FATAL) << "Bad case in OpMovRegMem";
+      break;
+  }
+
+  return NewLIR3(opcode, r_dest, r_base, offset);
+}
+
+LIR* X86Mir2Lir::OpMovMemReg(int r_base, int offset, int r_src, MoveType move_type) {
+  DCHECK(!(X86_FPREG(r_base)));
+
+  X86OpCode opcode = kX86Nop;
+  switch (move_type) {
+    case kMov8GP:
+      CHECK(!X86_FPREG(r_src));
+      opcode = kX86Mov8MR;
+      break;
+    case kMov16GP:
+      CHECK(!X86_FPREG(r_src));
+      opcode = kX86Mov16MR;
+      break;
+    case kMov32GP:
+      CHECK(!X86_FPREG(r_src));
+      opcode = kX86Mov32MR;
+      break;
+    case kMov32FP:
+      CHECK(X86_FPREG(r_src));
+      opcode = kX86MovssMR;
+      break;
+    case kMov64FP:
+      CHECK(X86_FPREG(r_src));
+      opcode = kX86MovsdMR;
+      break;
+    case kMovU128FP:
+      CHECK(X86_FPREG(r_src));
+      opcode = kX86MovupsMR;
+      break;
+    case kMovA128FP:
+      CHECK(X86_FPREG(r_src));
+      opcode = kX86MovapsMR;
+      break;
+    case kMovLo128FP:
+      CHECK(X86_FPREG(r_src));
+      opcode = kX86MovlpsMR;
+      break;
+    case kMovHi128FP:
+      CHECK(X86_FPREG(r_src));
+      opcode = kX86MovhpsMR;
+      break;
+    case kMov64GP:
+    case kMovLo64FP:
+    case kMovHi64FP:
+    default:
+      LOG(FATAL) << "Bad case in OpMovMemReg";
+      break;
+  }
+
+  return NewLIR3(opcode, r_base, offset, r_src);
+}
+
 LIR* X86Mir2Lir::OpCondRegReg(OpKind op, ConditionCode cc, int r_dest, int r_src) {
   // The only conditional reg to reg operation supported is Cmov
   DCHECK_EQ(op, kOpCmov);
