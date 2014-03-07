@@ -15,6 +15,8 @@
  */
 
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Some finalizer tests.
@@ -31,18 +33,19 @@ public class Main {
         }
     }
 
-    public static WeakReference makeRef() {
+    public static WeakReference<FinalizerTest> makeRef() {
         /*
          * Make ft in another thread, so there is no danger of
          * a conservative reference leaking onto the main thread's
          * stack.
          */
 
-        final WeakReference[] wimp = new WeakReference[1];
+        final List<WeakReference<FinalizerTest>> wimp =
+                new ArrayList<WeakReference<FinalizerTest>>();
         Thread t = new Thread() {
                 public void run() {
                     FinalizerTest ft = new FinalizerTest("wahoo");
-                    wimp[0] = new WeakReference(ft);
+                    wimp.add(new WeakReference<FinalizerTest>(ft));
                     ft = null;
                 }
             };
@@ -55,10 +58,10 @@ public class Main {
             throw new RuntimeException(ie);
         }
 
-        return wimp[0];
+        return wimp.get(0);
     }
 
-    public static String wimpString(final WeakReference wimp) {
+    public static String wimpString(final WeakReference<FinalizerTest> wimp) {
         /*
          * Do the work in another thread, so there is no danger of a
          * conservative reference to ft leaking onto the main thread's
@@ -68,7 +71,7 @@ public class Main {
         final String[] s = new String[1];
         Thread t = new Thread() {
                 public void run() {
-                    Object ref = wimp.get();
+                    FinalizerTest ref = wimp.get();
                     if (ref != null) {
                         s[0] = ref.toString();
                     }
@@ -87,7 +90,7 @@ public class Main {
     }
 
     public static void main(String[] args) {
-        WeakReference wimp = makeRef();
+        WeakReference<FinalizerTest> wimp = makeRef();
 
         System.out.println("wimp: " + wimpString(wimp));
 
@@ -117,5 +120,27 @@ public class Main {
 
         System.out.println("reborn: " + FinalizerTest.mReborn);
         System.out.println("wimp: " + wimpString(wimp));
+    }
+
+    public static class FinalizerTest {
+        public static FinalizerTest mNothing = new FinalizerTest("nothing");
+        public static FinalizerTest mReborn = mNothing;
+
+        private final String message;
+        private boolean finalized = false;
+
+        public FinalizerTest(String message) {
+            this.message = message;
+        }
+
+        public String toString() {
+            return "[FinalizerTest message=" + message +
+                    ", finalized=" + finalized + "]";
+        }
+
+        protected void finalize() {
+            finalized = true;
+            mReborn = this;
+        }
     }
 }
