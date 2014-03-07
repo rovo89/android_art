@@ -650,7 +650,7 @@ void Monitor::InflateThinLocked(Thread* self, SirtRef<mirror::Object>& obj, Lock
   }
 }
 
-void Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
+mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
   DCHECK(self != NULL);
   DCHECK(obj != NULL);
   uint32_t thread_id = self->GetThreadId();
@@ -663,7 +663,7 @@ void Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
         LockWord thin_locked(LockWord::FromThinLockId(thread_id, 0));
         if (sirt_obj->CasLockWord(lock_word, thin_locked)) {
           QuasiAtomic::MembarLoadLoad();
-          return;  // Success!
+          return sirt_obj.get();  // Success!
         }
         continue;  // Go again.
       }
@@ -675,7 +675,7 @@ void Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
           if (LIKELY(new_count <= LockWord::kThinLockMaxCount)) {
             LockWord thin_locked(LockWord::FromThinLockId(thread_id, new_count));
             sirt_obj->SetLockWord(thin_locked);
-            return;  // Success!
+            return sirt_obj.get();  // Success!
           } else {
             // We'd overflow the recursion count, so inflate the monitor.
             InflateThinLocked(self, sirt_obj, lock_word, 0);
@@ -696,7 +696,7 @@ void Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
       case LockWord::kFatLocked: {
         Monitor* mon = lock_word.FatLockMonitor();
         mon->Lock(self);
-        return;  // Success!
+        return sirt_obj.get();  // Success!
       }
       case LockWord::kHashCode: {
         // Inflate with the existing hashcode.
@@ -705,10 +705,11 @@ void Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
       }
       default: {
         LOG(FATAL) << "Invalid monitor state " << lock_word.GetState();
-        return;
+        return sirt_obj.get();
       }
     }
   }
+  return sirt_obj.get();
 }
 
 bool Monitor::MonitorExit(Thread* self, mirror::Object* obj) {

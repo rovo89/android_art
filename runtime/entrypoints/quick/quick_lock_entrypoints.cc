@@ -30,10 +30,8 @@ extern "C" int artLockObjectFromCode(mirror::Object* obj, Thread* self, mirror::
     return -1;  // Failure.
   } else {
     if (kIsDebugBuild) {
-      // GC may move the obj, need Sirt for the following DCHECKs.
-      SirtRef<mirror::Object> sirt_obj(self, obj);
-      obj->MonitorEnter(self);  // May block
-      CHECK(self->HoldsLock(sirt_obj.get()));
+      obj = obj->MonitorEnter(self);  // May block
+      CHECK(self->HoldsLock(obj));
       CHECK(!self->IsExceptionPending());
     } else {
       obj->MonitorEnter(self);  // May block
