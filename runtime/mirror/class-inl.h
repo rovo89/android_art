@@ -205,13 +205,13 @@ inline bool Class::IsAssignableFromArray(const Class* src) const {
 
 template <bool throw_on_failure, bool use_referrers_cache>
 inline bool Class::ResolvedFieldAccessTest(Class* access_to, ArtField* field,
-                                           uint32_t field_idx, DexCache* dex_cache) {
+                                           uint32_t field_idx, const DexCache* dex_cache) {
   DCHECK_EQ(use_referrers_cache, dex_cache == nullptr);
   if (UNLIKELY(!this->CanAccess(access_to))) {
     // The referrer class can't access the field's declaring class but may still be able
     // to access the field if the FieldId specifies an accessible subclass of the declaring
     // class rather than the declaring class itself.
-    DexCache* referrer_dex_cache = use_referrers_cache ? this->GetDexCache() : dex_cache;
+    const DexCache* referrer_dex_cache = use_referrers_cache ? this->GetDexCache() : dex_cache;
     uint32_t class_idx = referrer_dex_cache->GetDexFile()->GetFieldId(field_idx).class_idx_;
     // The referenced class has already been resolved with the field, get it from the dex cache.
     Class* dex_access_to = referrer_dex_cache->GetResolvedType(class_idx);
@@ -236,14 +236,14 @@ inline bool Class::ResolvedFieldAccessTest(Class* access_to, ArtField* field,
 
 template <bool throw_on_failure, bool use_referrers_cache, InvokeType throw_invoke_type>
 inline bool Class::ResolvedMethodAccessTest(Class* access_to, ArtMethod* method,
-                                            uint32_t method_idx, DexCache* dex_cache) {
+                                            uint32_t method_idx, const DexCache* dex_cache) {
   COMPILE_ASSERT(throw_on_failure || throw_invoke_type == kStatic, non_default_throw_invoke_type);
   DCHECK_EQ(use_referrers_cache, dex_cache == nullptr);
   if (UNLIKELY(!this->CanAccess(access_to))) {
     // The referrer class can't access the method's declaring class but may still be able
     // to access the method if the MethodId specifies an accessible subclass of the declaring
     // class rather than the declaring class itself.
-    DexCache* referrer_dex_cache = use_referrers_cache ? this->GetDexCache() : dex_cache;
+    const DexCache* referrer_dex_cache = use_referrers_cache ? this->GetDexCache() : dex_cache;
     uint32_t class_idx = referrer_dex_cache->GetDexFile()->GetMethodId(method_idx).class_idx_;
     // The referenced class has already been resolved with the method, get it from the dex cache.
     Class* dex_access_to = referrer_dex_cache->GetResolvedType(class_idx);
@@ -268,7 +268,7 @@ inline bool Class::ResolvedMethodAccessTest(Class* access_to, ArtMethod* method,
 }
 
 inline bool Class::CanAccessResolvedField(Class* access_to, ArtField* field,
-                                          DexCache& dex_cache, uint32_t field_idx) {
+                                          const DexCache& dex_cache, uint32_t field_idx) {
   return ResolvedFieldAccessTest<false, false>(access_to, field, field_idx, &dex_cache);
 }
 
@@ -278,7 +278,7 @@ inline bool Class::CheckResolvedFieldAccess(Class* access_to, ArtField* field,
 }
 
 inline bool Class::CanAccessResolvedMethod(Class* access_to, ArtMethod* method,
-                                           DexCache& dex_cache, uint32_t method_idx) {
+                                           const DexCache& dex_cache, uint32_t method_idx) {
   return ResolvedMethodAccessTest<false, false, kStatic>(access_to, method, method_idx, &dex_cache);
 }
 
