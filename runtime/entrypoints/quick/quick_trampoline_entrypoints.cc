@@ -907,7 +907,7 @@ template <class T> class BuildGenericJniFrameStateMachine {
   static constexpr size_t kRegistersNeededForLong = 1;
   static constexpr size_t kRegistersNeededForDouble = 1;
   static constexpr bool kMultiRegistersAligned = false;
-  static constexpr bool kMultiRegistersWidened = true;
+  static constexpr bool kMultiRegistersWidened = false;
   static constexpr bool kAlignLongOnStack = false;
   static constexpr bool kAlignDoubleOnStack = false;
 #else

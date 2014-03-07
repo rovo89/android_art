@@ -795,4 +795,476 @@ TEST_F(JniCompilerTest, UpcallArgumentTypeChecking_Static) {
   check_jni_abort_catcher.Check("bad arguments passed to void MyClassNatives.staticMethodThatShouldTakeClass(int, java.lang.Class)");
 }
 
+jfloat Java_MyClassNatives_checkFloats(JNIEnv* env, jobject thisObj, jfloat f1, jfloat f2) {
+  EXPECT_EQ(kNative, Thread::Current()->GetState());
+  EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
+  EXPECT_TRUE(thisObj != NULL);
+  EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
+  ScopedObjectAccess soa(Thread::Current());
+  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
+  return f1 - f2;  // non-commutative operator
+}
+
+TEST_F(JniCompilerTest, CompileAndRunFloatFloatMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
+  SetUpForTest(false, "checkFloats", "(FF)F",
+               reinterpret_cast<void*>(&Java_MyClassNatives_checkFloats));
+
+  jfloat result = env_->CallNonvirtualFloatMethod(jobj_, jklass_, jmethod_,
+                                                    99.0F, 10.0F);
+  EXPECT_EQ(99.0F - 10.0F, result);
+  jfloat a = 3.14159F;
+  jfloat b = 0.69314F;
+  result = env_->CallNonvirtualFloatMethod(jobj_, jklass_, jmethod_, a, b);
+  EXPECT_EQ(a - b, result);
+}
+
+void Java_MyClassNatives_checkParameterAlign(JNIEnv* env, jobject thisObj, jint i1, jlong l1) {
+  /*EXPECT_EQ(kNative, Thread::Current()->GetState());
+  EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
+  EXPECT_TRUE(thisObj != NULL);
+  EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
+  ScopedObjectAccess soa(Thread::Current());
+  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());*/
+  EXPECT_EQ(i1, 1234);
+  EXPECT_EQ(l1, 5678);
+}
+
+TEST_F(JniCompilerTest, CheckParameterAlign) {
+  TEST_DISABLED_FOR_PORTABLE();
+  SetUpForTest(false, "checkParameterAlign", "(IJ)V",
+               reinterpret_cast<void*>(&Java_MyClassNatives_checkParameterAlign));
+
+  env_->CallNonvirtualVoidMethod(jobj_, jklass_, jmethod_, 1234, 5678LLU);
+}
+
+void Java_MyClassNatives_maxParamNumber(JNIEnv* env, jobject thisObj,
+    jobject o0, jobject o1, jobject o2, jobject o3, jobject o4, jobject o5, jobject o6, jobject o7,
+    jobject o8, jobject o9, jobject o10, jobject o11, jobject o12, jobject o13, jobject o14, jobject o15,
+    jobject o16, jobject o17, jobject o18, jobject o19, jobject o20, jobject o21, jobject o22, jobject o23,
+    jobject o24, jobject o25, jobject o26, jobject o27, jobject o28, jobject o29, jobject o30, jobject o31,
+    jobject o32, jobject o33, jobject o34, jobject o35, jobject o36, jobject o37, jobject o38, jobject o39,
+    jobject o40, jobject o41, jobject o42, jobject o43, jobject o44, jobject o45, jobject o46, jobject o47,
+    jobject o48, jobject o49, jobject o50, jobject o51, jobject o52, jobject o53, jobject o54, jobject o55,
+    jobject o56, jobject o57, jobject o58, jobject o59, jobject o60, jobject o61, jobject o62, jobject o63,
+    jobject o64, jobject o65, jobject o66, jobject o67, jobject o68, jobject o69, jobject o70, jobject o71,
+    jobject o72, jobject o73, jobject o74, jobject o75, jobject o76, jobject o77, jobject o78, jobject o79,
+    jobject o80, jobject o81, jobject o82, jobject o83, jobject o84, jobject o85, jobject o86, jobject o87,
+    jobject o88, jobject o89, jobject o90, jobject o91, jobject o92, jobject o93, jobject o94, jobject o95,
+    jobject o96, jobject o97, jobject o98, jobject o99, jobject o100, jobject o101, jobject o102, jobject o103,
+    jobject o104, jobject o105, jobject o106, jobject o107, jobject o108, jobject o109, jobject o110, jobject o111,
+    jobject o112, jobject o113, jobject o114, jobject o115, jobject o116, jobject o117, jobject o118, jobject o119,
+    jobject o120, jobject o121, jobject o122, jobject o123, jobject o124, jobject o125, jobject o126, jobject o127,
+    jobject o128, jobject o129, jobject o130, jobject o131, jobject o132, jobject o133, jobject o134, jobject o135,
+    jobject o136, jobject o137, jobject o138, jobject o139, jobject o140, jobject o141, jobject o142, jobject o143,
+    jobject o144, jobject o145, jobject o146, jobject o147, jobject o148, jobject o149, jobject o150, jobject o151,
+    jobject o152, jobject o153, jobject o154, jobject o155, jobject o156, jobject o157, jobject o158, jobject o159,
+    jobject o160, jobject o161, jobject o162, jobject o163, jobject o164, jobject o165, jobject o166, jobject o167,
+    jobject o168, jobject o169, jobject o170, jobject o171, jobject o172, jobject o173, jobject o174, jobject o175,
+    jobject o176, jobject o177, jobject o178, jobject o179, jobject o180, jobject o181, jobject o182, jobject o183,
+    jobject o184, jobject o185, jobject o186, jobject o187, jobject o188, jobject o189, jobject o190, jobject o191,
+    jobject o192, jobject o193, jobject o194, jobject o195, jobject o196, jobject o197, jobject o198, jobject o199,
+    jobject o200, jobject o201, jobject o202, jobject o203, jobject o204, jobject o205, jobject o206, jobject o207,
+    jobject o208, jobject o209, jobject o210, jobject o211, jobject o212, jobject o213, jobject o214, jobject o215,
+    jobject o216, jobject o217, jobject o218, jobject o219, jobject o220, jobject o221, jobject o222, jobject o223,
+    jobject o224, jobject o225, jobject o226, jobject o227, jobject o228, jobject o229, jobject o230, jobject o231,
+    jobject o232, jobject o233, jobject o234, jobject o235, jobject o236, jobject o237, jobject o238, jobject o239,
+    jobject o240, jobject o241, jobject o242, jobject o243, jobject o244, jobject o245, jobject o246, jobject o247,
+    jobject o248, jobject o249, jobject o250, jobject o251, jobject o252, jobject o253) {
+  EXPECT_EQ(kNative, Thread::Current()->GetState());
+  EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
+  EXPECT_TRUE(thisObj != NULL);
+  EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
+  ScopedObjectAccess soa(Thread::Current());
+  EXPECT_GE(255U, Thread::Current()->NumStackReferences());
+
+  // two tests possible
+  if (o0 == nullptr) {
+    // 1) everything is null
+    EXPECT_TRUE(o0 == nullptr && o1 == nullptr && o2 == nullptr && o3 == nullptr && o4 == nullptr
+        && o5 == nullptr && o6 == nullptr && o7 == nullptr && o8 == nullptr && o9 == nullptr
+        && o10 == nullptr && o11 == nullptr && o12 == nullptr && o13 == nullptr && o14 == nullptr
+        && o15 == nullptr && o16 == nullptr && o17 == nullptr && o18 == nullptr && o19 == nullptr
+        && o20 == nullptr && o21 == nullptr && o22 == nullptr && o23 == nullptr && o24 == nullptr
+        && o25 == nullptr && o26 == nullptr && o27 == nullptr && o28 == nullptr && o29 == nullptr
+        && o30 == nullptr && o31 == nullptr && o32 == nullptr && o33 == nullptr && o34 == nullptr
+        && o35 == nullptr && o36 == nullptr && o37 == nullptr && o38 == nullptr && o39 == nullptr
+        && o40 == nullptr && o41 == nullptr && o42 == nullptr && o43 == nullptr && o44 == nullptr
+        && o45 == nullptr && o46 == nullptr && o47 == nullptr && o48 == nullptr && o49 == nullptr
+        && o50 == nullptr && o51 == nullptr && o52 == nullptr && o53 == nullptr && o54 == nullptr
+        && o55 == nullptr && o56 == nullptr && o57 == nullptr && o58 == nullptr && o59 == nullptr
+        && o60 == nullptr && o61 == nullptr && o62 == nullptr && o63 == nullptr && o64 == nullptr
+        && o65 == nullptr && o66 == nullptr && o67 == nullptr && o68 == nullptr && o69 == nullptr
+        && o70 == nullptr && o71 == nullptr && o72 == nullptr && o73 == nullptr && o74 == nullptr
+        && o75 == nullptr && o76 == nullptr && o77 == nullptr && o78 == nullptr && o79 == nullptr
+        && o80 == nullptr && o81 == nullptr && o82 == nullptr && o83 == nullptr && o84 == nullptr
+        && o85 == nullptr && o86 == nullptr && o87 == nullptr && o88 == nullptr && o89 == nullptr
+        && o90 == nullptr && o91 == nullptr && o92 == nullptr && o93 == nullptr && o94 == nullptr
+        && o95 == nullptr && o96 == nullptr && o97 == nullptr && o98 == nullptr && o99 == nullptr
+        && o100 == nullptr && o101 == nullptr && o102 == nullptr && o103 == nullptr && o104 == nullptr
+        && o105 == nullptr && o106 == nullptr && o107 == nullptr && o108 == nullptr && o109 == nullptr
+        && o110 == nullptr && o111 == nullptr && o112 == nullptr && o113 == nullptr && o114 == nullptr
+        && o115 == nullptr && o116 == nullptr && o117 == nullptr && o118 == nullptr && o119 == nullptr
+        && o120 == nullptr && o121 == nullptr && o122 == nullptr && o123 == nullptr && o124 == nullptr
+        && o125 == nullptr && o126 == nullptr && o127 == nullptr && o128 == nullptr && o129 == nullptr
+        && o130 == nullptr && o131 == nullptr && o132 == nullptr && o133 == nullptr && o134 == nullptr
+        && o135 == nullptr && o136 == nullptr && o137 == nullptr && o138 == nullptr && o139 == nullptr
+        && o140 == nullptr && o141 == nullptr && o142 == nullptr && o143 == nullptr && o144 == nullptr
+        && o145 == nullptr && o146 == nullptr && o147 == nullptr && o148 == nullptr && o149 == nullptr
+        && o150 == nullptr && o151 == nullptr && o152 == nullptr && o153 == nullptr && o154 == nullptr
+        && o155 == nullptr && o156 == nullptr && o157 == nullptr && o158 == nullptr && o159 == nullptr
+        && o160 == nullptr && o161 == nullptr && o162 == nullptr && o163 == nullptr && o164 == nullptr
+        && o165 == nullptr && o166 == nullptr && o167 == nullptr && o168 == nullptr && o169 == nullptr
+        && o170 == nullptr && o171 == nullptr && o172 == nullptr && o173 == nullptr && o174 == nullptr
+        && o175 == nullptr && o176 == nullptr && o177 == nullptr && o178 == nullptr && o179 == nullptr
+        && o180 == nullptr && o181 == nullptr && o182 == nullptr && o183 == nullptr && o184 == nullptr
+        && o185 == nullptr && o186 == nullptr && o187 == nullptr && o188 == nullptr && o189 == nullptr
+        && o190 == nullptr && o191 == nullptr && o192 == nullptr && o193 == nullptr && o194 == nullptr
+        && o195 == nullptr && o196 == nullptr && o197 == nullptr && o198 == nullptr && o199 == nullptr
+        && o200 == nullptr && o201 == nullptr && o202 == nullptr && o203 == nullptr && o204 == nullptr
+        && o205 == nullptr && o206 == nullptr && o207 == nullptr && o208 == nullptr && o209 == nullptr
+        && o210 == nullptr && o211 == nullptr && o212 == nullptr && o213 == nullptr && o214 == nullptr
+        && o215 == nullptr && o216 == nullptr && o217 == nullptr && o218 == nullptr && o219 == nullptr
+        && o220 == nullptr && o221 == nullptr && o222 == nullptr && o223 == nullptr && o224 == nullptr
+        && o225 == nullptr && o226 == nullptr && o227 == nullptr && o228 == nullptr && o229 == nullptr
+        && o230 == nullptr && o231 == nullptr && o232 == nullptr && o233 == nullptr && o234 == nullptr
+        && o235 == nullptr && o236 == nullptr && o237 == nullptr && o238 == nullptr && o239 == nullptr
+        && o240 == nullptr && o241 == nullptr && o242 == nullptr && o243 == nullptr && o244 == nullptr
+        && o245 == nullptr && o246 == nullptr && o247 == nullptr && o248 == nullptr && o249 == nullptr
+        && o250 == nullptr && o251 == nullptr && o252 == nullptr && o253 == nullptr);
+  } else {
+    EXPECT_EQ(0, env->GetArrayLength(reinterpret_cast<jarray>(o0)));
+    EXPECT_EQ(1, env->GetArrayLength(reinterpret_cast<jarray>(o1)));
+    EXPECT_EQ(2, env->GetArrayLength(reinterpret_cast<jarray>(o2)));
+    EXPECT_EQ(3, env->GetArrayLength(reinterpret_cast<jarray>(o3)));
+    EXPECT_EQ(4, env->GetArrayLength(reinterpret_cast<jarray>(o4)));
+    EXPECT_EQ(5, env->GetArrayLength(reinterpret_cast<jarray>(o5)));
+    EXPECT_EQ(6, env->GetArrayLength(reinterpret_cast<jarray>(o6)));
+    EXPECT_EQ(7, env->GetArrayLength(reinterpret_cast<jarray>(o7)));
+    EXPECT_EQ(8, env->GetArrayLength(reinterpret_cast<jarray>(o8)));
+    EXPECT_EQ(9, env->GetArrayLength(reinterpret_cast<jarray>(o9)));
+    EXPECT_EQ(10, env->GetArrayLength(reinterpret_cast<jarray>(o10)));
+    EXPECT_EQ(11, env->GetArrayLength(reinterpret_cast<jarray>(o11)));
+    EXPECT_EQ(12, env->GetArrayLength(reinterpret_cast<jarray>(o12)));
+    EXPECT_EQ(13, env->GetArrayLength(reinterpret_cast<jarray>(o13)));
+    EXPECT_EQ(14, env->GetArrayLength(reinterpret_cast<jarray>(o14)));
+    EXPECT_EQ(15, env->GetArrayLength(reinterpret_cast<jarray>(o15)));
+    EXPECT_EQ(16, env->GetArrayLength(reinterpret_cast<jarray>(o16)));
+    EXPECT_EQ(17, env->GetArrayLength(reinterpret_cast<jarray>(o17)));
+    EXPECT_EQ(18, env->GetArrayLength(reinterpret_cast<jarray>(o18)));
+    EXPECT_EQ(19, env->GetArrayLength(reinterpret_cast<jarray>(o19)));
+    EXPECT_EQ(20, env->GetArrayLength(reinterpret_cast<jarray>(o20)));
+    EXPECT_EQ(21, env->GetArrayLength(reinterpret_cast<jarray>(o21)));
+    EXPECT_EQ(22, env->GetArrayLength(reinterpret_cast<jarray>(o22)));
+    EXPECT_EQ(23, env->GetArrayLength(reinterpret_cast<jarray>(o23)));
+    EXPECT_EQ(24, env->GetArrayLength(reinterpret_cast<jarray>(o24)));
+    EXPECT_EQ(25, env->GetArrayLength(reinterpret_cast<jarray>(o25)));
+    EXPECT_EQ(26, env->GetArrayLength(reinterpret_cast<jarray>(o26)));
+    EXPECT_EQ(27, env->GetArrayLength(reinterpret_cast<jarray>(o27)));
+    EXPECT_EQ(28, env->GetArrayLength(reinterpret_cast<jarray>(o28)));
+    EXPECT_EQ(29, env->GetArrayLength(reinterpret_cast<jarray>(o29)));
+    EXPECT_EQ(30, env->GetArrayLength(reinterpret_cast<jarray>(o30)));
+    EXPECT_EQ(31, env->GetArrayLength(reinterpret_cast<jarray>(o31)));
+    EXPECT_EQ(32, env->GetArrayLength(reinterpret_cast<jarray>(o32)));
+    EXPECT_EQ(33, env->GetArrayLength(reinterpret_cast<jarray>(o33)));
+    EXPECT_EQ(34, env->GetArrayLength(reinterpret_cast<jarray>(o34)));
+    EXPECT_EQ(35, env->GetArrayLength(reinterpret_cast<jarray>(o35)));
+    EXPECT_EQ(36, env->GetArrayLength(reinterpret_cast<jarray>(o36)));
+    EXPECT_EQ(37, env->GetArrayLength(reinterpret_cast<jarray>(o37)));
+    EXPECT_EQ(38, env->GetArrayLength(reinterpret_cast<jarray>(o38)));
+    EXPECT_EQ(39, env->GetArrayLength(reinterpret_cast<jarray>(o39)));
+    EXPECT_EQ(40, env->GetArrayLength(reinterpret_cast<jarray>(o40)));
+    EXPECT_EQ(41, env->GetArrayLength(reinterpret_cast<jarray>(o41)));
+    EXPECT_EQ(42, env->GetArrayLength(reinterpret_cast<jarray>(o42)));
+    EXPECT_EQ(43, env->GetArrayLength(reinterpret_cast<jarray>(o43)));
+    EXPECT_EQ(44, env->GetArrayLength(reinterpret_cast<jarray>(o44)));
+    EXPECT_EQ(45, env->GetArrayLength(reinterpret_cast<jarray>(o45)));
+    EXPECT_EQ(46, env->GetArrayLength(reinterpret_cast<jarray>(o46)));
+    EXPECT_EQ(47, env->GetArrayLength(reinterpret_cast<jarray>(o47)));
+    EXPECT_EQ(48, env->GetArrayLength(reinterpret_cast<jarray>(o48)));
+    EXPECT_EQ(49, env->GetArrayLength(reinterpret_cast<jarray>(o49)));
+    EXPECT_EQ(50, env->GetArrayLength(reinterpret_cast<jarray>(o50)));
+    EXPECT_EQ(51, env->GetArrayLength(reinterpret_cast<jarray>(o51)));
+    EXPECT_EQ(52, env->GetArrayLength(reinterpret_cast<jarray>(o52)));
+    EXPECT_EQ(53, env->GetArrayLength(reinterpret_cast<jarray>(o53)));
+    EXPECT_EQ(54, env->GetArrayLength(reinterpret_cast<jarray>(o54)));
+    EXPECT_EQ(55, env->GetArrayLength(reinterpret_cast<jarray>(o55)));
+    EXPECT_EQ(56, env->GetArrayLength(reinterpret_cast<jarray>(o56)));
+    EXPECT_EQ(57, env->GetArrayLength(reinterpret_cast<jarray>(o57)));
+    EXPECT_EQ(58, env->GetArrayLength(reinterpret_cast<jarray>(o58)));
+    EXPECT_EQ(59, env->GetArrayLength(reinterpret_cast<jarray>(o59)));
+    EXPECT_EQ(60, env->GetArrayLength(reinterpret_cast<jarray>(o60)));
+    EXPECT_EQ(61, env->GetArrayLength(reinterpret_cast<jarray>(o61)));
+    EXPECT_EQ(62, env->GetArrayLength(reinterpret_cast<jarray>(o62)));
+    EXPECT_EQ(63, env->GetArrayLength(reinterpret_cast<jarray>(o63)));
+    EXPECT_EQ(64, env->GetArrayLength(reinterpret_cast<jarray>(o64)));
+    EXPECT_EQ(65, env->GetArrayLength(reinterpret_cast<jarray>(o65)));
+    EXPECT_EQ(66, env->GetArrayLength(reinterpret_cast<jarray>(o66)));
+    EXPECT_EQ(67, env->GetArrayLength(reinterpret_cast<jarray>(o67)));
+    EXPECT_EQ(68, env->GetArrayLength(reinterpret_cast<jarray>(o68)));
+    EXPECT_EQ(69, env->GetArrayLength(reinterpret_cast<jarray>(o69)));
+    EXPECT_EQ(70, env->GetArrayLength(reinterpret_cast<jarray>(o70)));
+    EXPECT_EQ(71, env->GetArrayLength(reinterpret_cast<jarray>(o71)));
+    EXPECT_EQ(72, env->GetArrayLength(reinterpret_cast<jarray>(o72)));
+    EXPECT_EQ(73, env->GetArrayLength(reinterpret_cast<jarray>(o73)));
+    EXPECT_EQ(74, env->GetArrayLength(reinterpret_cast<jarray>(o74)));
+    EXPECT_EQ(75, env->GetArrayLength(reinterpret_cast<jarray>(o75)));
+    EXPECT_EQ(76, env->GetArrayLength(reinterpret_cast<jarray>(o76)));
+    EXPECT_EQ(77, env->GetArrayLength(reinterpret_cast<jarray>(o77)));
+    EXPECT_EQ(78, env->GetArrayLength(reinterpret_cast<jarray>(o78)));
+    EXPECT_EQ(79, env->GetArrayLength(reinterpret_cast<jarray>(o79)));
+    EXPECT_EQ(80, env->GetArrayLength(reinterpret_cast<jarray>(o80)));
+    EXPECT_EQ(81, env->GetArrayLength(reinterpret_cast<jarray>(o81)));
+    EXPECT_EQ(82, env->GetArrayLength(reinterpret_cast<jarray>(o82)));
+    EXPECT_EQ(83, env->GetArrayLength(reinterpret_cast<jarray>(o83)));
+    EXPECT_EQ(84, env->GetArrayLength(reinterpret_cast<jarray>(o84)));
+    EXPECT_EQ(85, env->GetArrayLength(reinterpret_cast<jarray>(o85)));
+    EXPECT_EQ(86, env->GetArrayLength(reinterpret_cast<jarray>(o86)));
+    EXPECT_EQ(87, env->GetArrayLength(reinterpret_cast<jarray>(o87)));
+    EXPECT_EQ(88, env->GetArrayLength(reinterpret_cast<jarray>(o88)));
+    EXPECT_EQ(89, env->GetArrayLength(reinterpret_cast<jarray>(o89)));
+    EXPECT_EQ(90, env->GetArrayLength(reinterpret_cast<jarray>(o90)));
+    EXPECT_EQ(91, env->GetArrayLength(reinterpret_cast<jarray>(o91)));
+    EXPECT_EQ(92, env->GetArrayLength(reinterpret_cast<jarray>(o92)));
+    EXPECT_EQ(93, env->GetArrayLength(reinterpret_cast<jarray>(o93)));
+    EXPECT_EQ(94, env->GetArrayLength(reinterpret_cast<jarray>(o94)));
+    EXPECT_EQ(95, env->GetArrayLength(reinterpret_cast<jarray>(o95)));
+    EXPECT_EQ(96, env->GetArrayLength(reinterpret_cast<jarray>(o96)));
+    EXPECT_EQ(97, env->GetArrayLength(reinterpret_cast<jarray>(o97)));
+    EXPECT_EQ(98, env->GetArrayLength(reinterpret_cast<jarray>(o98)));
+    EXPECT_EQ(99, env->GetArrayLength(reinterpret_cast<jarray>(o99)));
+    EXPECT_EQ(100, env->GetArrayLength(reinterpret_cast<jarray>(o100)));
+    EXPECT_EQ(101, env->GetArrayLength(reinterpret_cast<jarray>(o101)));
+    EXPECT_EQ(102, env->GetArrayLength(reinterpret_cast<jarray>(o102)));
+    EXPECT_EQ(103, env->GetArrayLength(reinterpret_cast<jarray>(o103)));
+    EXPECT_EQ(104, env->GetArrayLength(reinterpret_cast<jarray>(o104)));
+    EXPECT_EQ(105, env->GetArrayLength(reinterpret_cast<jarray>(o105)));
+    EXPECT_EQ(106, env->GetArrayLength(reinterpret_cast<jarray>(o106)));
+    EXPECT_EQ(107, env->GetArrayLength(reinterpret_cast<jarray>(o107)));
+    EXPECT_EQ(108, env->GetArrayLength(reinterpret_cast<jarray>(o108)));
+    EXPECT_EQ(109, env->GetArrayLength(reinterpret_cast<jarray>(o109)));
+    EXPECT_EQ(110, env->GetArrayLength(reinterpret_cast<jarray>(o110)));
+    EXPECT_EQ(111, env->GetArrayLength(reinterpret_cast<jarray>(o111)));
+    EXPECT_EQ(112, env->GetArrayLength(reinterpret_cast<jarray>(o112)));
+    EXPECT_EQ(113, env->GetArrayLength(reinterpret_cast<jarray>(o113)));
+    EXPECT_EQ(114, env->GetArrayLength(reinterpret_cast<jarray>(o114)));
+    EXPECT_EQ(115, env->GetArrayLength(reinterpret_cast<jarray>(o115)));
+    EXPECT_EQ(116, env->GetArrayLength(reinterpret_cast<jarray>(o116)));
+    EXPECT_EQ(117, env->GetArrayLength(reinterpret_cast<jarray>(o117)));
+    EXPECT_EQ(118, env->GetArrayLength(reinterpret_cast<jarray>(o118)));
+    EXPECT_EQ(119, env->GetArrayLength(reinterpret_cast<jarray>(o119)));
+    EXPECT_EQ(120, env->GetArrayLength(reinterpret_cast<jarray>(o120)));
+    EXPECT_EQ(121, env->GetArrayLength(reinterpret_cast<jarray>(o121)));
+    EXPECT_EQ(122, env->GetArrayLength(reinterpret_cast<jarray>(o122)));
+    EXPECT_EQ(123, env->GetArrayLength(reinterpret_cast<jarray>(o123)));
+    EXPECT_EQ(124, env->GetArrayLength(reinterpret_cast<jarray>(o124)));
+    EXPECT_EQ(125, env->GetArrayLength(reinterpret_cast<jarray>(o125)));
+    EXPECT_EQ(126, env->GetArrayLength(reinterpret_cast<jarray>(o126)));
+    EXPECT_EQ(127, env->GetArrayLength(reinterpret_cast<jarray>(o127)));
+    EXPECT_EQ(128, env->GetArrayLength(reinterpret_cast<jarray>(o128)));
+    EXPECT_EQ(129, env->GetArrayLength(reinterpret_cast<jarray>(o129)));
+    EXPECT_EQ(130, env->GetArrayLength(reinterpret_cast<jarray>(o130)));
+    EXPECT_EQ(131, env->GetArrayLength(reinterpret_cast<jarray>(o131)));
+    EXPECT_EQ(132, env->GetArrayLength(reinterpret_cast<jarray>(o132)));
+    EXPECT_EQ(133, env->GetArrayLength(reinterpret_cast<jarray>(o133)));
+    EXPECT_EQ(134, env->GetArrayLength(reinterpret_cast<jarray>(o134)));
+    EXPECT_EQ(135, env->GetArrayLength(reinterpret_cast<jarray>(o135)));
+    EXPECT_EQ(136, env->GetArrayLength(reinterpret_cast<jarray>(o136)));
+    EXPECT_EQ(137, env->GetArrayLength(reinterpret_cast<jarray>(o137)));
+    EXPECT_EQ(138, env->GetArrayLength(reinterpret_cast<jarray>(o138)));
+    EXPECT_EQ(139, env->GetArrayLength(reinterpret_cast<jarray>(o139)));
+    EXPECT_EQ(140, env->GetArrayLength(reinterpret_cast<jarray>(o140)));
+    EXPECT_EQ(141, env->GetArrayLength(reinterpret_cast<jarray>(o141)));
+    EXPECT_EQ(142, env->GetArrayLength(reinterpret_cast<jarray>(o142)));
+    EXPECT_EQ(143, env->GetArrayLength(reinterpret_cast<jarray>(o143)));
+    EXPECT_EQ(144, env->GetArrayLength(reinterpret_cast<jarray>(o144)));
+    EXPECT_EQ(145, env->GetArrayLength(reinterpret_cast<jarray>(o145)));
+    EXPECT_EQ(146, env->GetArrayLength(reinterpret_cast<jarray>(o146)));
+    EXPECT_EQ(147, env->GetArrayLength(reinterpret_cast<jarray>(o147)));
+    EXPECT_EQ(148, env->GetArrayLength(reinterpret_cast<jarray>(o148)));
+    EXPECT_EQ(149, env->GetArrayLength(reinterpret_cast<jarray>(o149)));
+    EXPECT_EQ(150, env->GetArrayLength(reinterpret_cast<jarray>(o150)));
+    EXPECT_EQ(151, env->GetArrayLength(reinterpret_cast<jarray>(o151)));
+    EXPECT_EQ(152, env->GetArrayLength(reinterpret_cast<jarray>(o152)));
+    EXPECT_EQ(153, env->GetArrayLength(reinterpret_cast<jarray>(o153)));
+    EXPECT_EQ(154, env->GetArrayLength(reinterpret_cast<jarray>(o154)));
+    EXPECT_EQ(155, env->GetArrayLength(reinterpret_cast<jarray>(o155)));
+    EXPECT_EQ(156, env->GetArrayLength(reinterpret_cast<jarray>(o156)));
+    EXPECT_EQ(157, env->GetArrayLength(reinterpret_cast<jarray>(o157)));
+    EXPECT_EQ(158, env->GetArrayLength(reinterpret_cast<jarray>(o158)));
+    EXPECT_EQ(159, env->GetArrayLength(reinterpret_cast<jarray>(o159)));
+    EXPECT_EQ(160, env->GetArrayLength(reinterpret_cast<jarray>(o160)));
+    EXPECT_EQ(161, env->GetArrayLength(reinterpret_cast<jarray>(o161)));
+    EXPECT_EQ(162, env->GetArrayLength(reinterpret_cast<jarray>(o162)));
+    EXPECT_EQ(163, env->GetArrayLength(reinterpret_cast<jarray>(o163)));
+    EXPECT_EQ(164, env->GetArrayLength(reinterpret_cast<jarray>(o164)));
+    EXPECT_EQ(165, env->GetArrayLength(reinterpret_cast<jarray>(o165)));
+    EXPECT_EQ(166, env->GetArrayLength(reinterpret_cast<jarray>(o166)));
+    EXPECT_EQ(167, env->GetArrayLength(reinterpret_cast<jarray>(o167)));
+    EXPECT_EQ(168, env->GetArrayLength(reinterpret_cast<jarray>(o168)));
+    EXPECT_EQ(169, env->GetArrayLength(reinterpret_cast<jarray>(o169)));
+    EXPECT_EQ(170, env->GetArrayLength(reinterpret_cast<jarray>(o170)));
+    EXPECT_EQ(171, env->GetArrayLength(reinterpret_cast<jarray>(o171)));
+    EXPECT_EQ(172, env->GetArrayLength(reinterpret_cast<jarray>(o172)));
+    EXPECT_EQ(173, env->GetArrayLength(reinterpret_cast<jarray>(o173)));
+    EXPECT_EQ(174, env->GetArrayLength(reinterpret_cast<jarray>(o174)));
+    EXPECT_EQ(175, env->GetArrayLength(reinterpret_cast<jarray>(o175)));
+    EXPECT_EQ(176, env->GetArrayLength(reinterpret_cast<jarray>(o176)));
+    EXPECT_EQ(177, env->GetArrayLength(reinterpret_cast<jarray>(o177)));
+    EXPECT_EQ(178, env->GetArrayLength(reinterpret_cast<jarray>(o178)));
+    EXPECT_EQ(179, env->GetArrayLength(reinterpret_cast<jarray>(o179)));
+    EXPECT_EQ(180, env->GetArrayLength(reinterpret_cast<jarray>(o180)));
+    EXPECT_EQ(181, env->GetArrayLength(reinterpret_cast<jarray>(o181)));
+    EXPECT_EQ(182, env->GetArrayLength(reinterpret_cast<jarray>(o182)));
+    EXPECT_EQ(183, env->GetArrayLength(reinterpret_cast<jarray>(o183)));
+    EXPECT_EQ(184, env->GetArrayLength(reinterpret_cast<jarray>(o184)));
+    EXPECT_EQ(185, env->GetArrayLength(reinterpret_cast<jarray>(o185)));
+    EXPECT_EQ(186, env->GetArrayLength(reinterpret_cast<jarray>(o186)));
+    EXPECT_EQ(187, env->GetArrayLength(reinterpret_cast<jarray>(o187)));
+    EXPECT_EQ(188, env->GetArrayLength(reinterpret_cast<jarray>(o188)));
+    EXPECT_EQ(189, env->GetArrayLength(reinterpret_cast<jarray>(o189)));
+    EXPECT_EQ(190, env->GetArrayLength(reinterpret_cast<jarray>(o190)));
+    EXPECT_EQ(191, env->GetArrayLength(reinterpret_cast<jarray>(o191)));
+    EXPECT_EQ(192, env->GetArrayLength(reinterpret_cast<jarray>(o192)));
+    EXPECT_EQ(193, env->GetArrayLength(reinterpret_cast<jarray>(o193)));
+    EXPECT_EQ(194, env->GetArrayLength(reinterpret_cast<jarray>(o194)));
+    EXPECT_EQ(195, env->GetArrayLength(reinterpret_cast<jarray>(o195)));
+    EXPECT_EQ(196, env->GetArrayLength(reinterpret_cast<jarray>(o196)));
+    EXPECT_EQ(197, env->GetArrayLength(reinterpret_cast<jarray>(o197)));
+    EXPECT_EQ(198, env->GetArrayLength(reinterpret_cast<jarray>(o198)));
+    EXPECT_EQ(199, env->GetArrayLength(reinterpret_cast<jarray>(o199)));
+    EXPECT_EQ(200, env->GetArrayLength(reinterpret_cast<jarray>(o200)));
+    EXPECT_EQ(201, env->GetArrayLength(reinterpret_cast<jarray>(o201)));
+    EXPECT_EQ(202, env->GetArrayLength(reinterpret_cast<jarray>(o202)));
+    EXPECT_EQ(203, env->GetArrayLength(reinterpret_cast<jarray>(o203)));
+    EXPECT_EQ(204, env->GetArrayLength(reinterpret_cast<jarray>(o204)));
+    EXPECT_EQ(205, env->GetArrayLength(reinterpret_cast<jarray>(o205)));
+    EXPECT_EQ(206, env->GetArrayLength(reinterpret_cast<jarray>(o206)));
+    EXPECT_EQ(207, env->GetArrayLength(reinterpret_cast<jarray>(o207)));
+    EXPECT_EQ(208, env->GetArrayLength(reinterpret_cast<jarray>(o208)));
+    EXPECT_EQ(209, env->GetArrayLength(reinterpret_cast<jarray>(o209)));
+    EXPECT_EQ(210, env->GetArrayLength(reinterpret_cast<jarray>(o210)));
+    EXPECT_EQ(211, env->GetArrayLength(reinterpret_cast<jarray>(o211)));
+    EXPECT_EQ(212, env->GetArrayLength(reinterpret_cast<jarray>(o212)));
+    EXPECT_EQ(213, env->GetArrayLength(reinterpret_cast<jarray>(o213)));
+    EXPECT_EQ(214, env->GetArrayLength(reinterpret_cast<jarray>(o214)));
+    EXPECT_EQ(215, env->GetArrayLength(reinterpret_cast<jarray>(o215)));
+    EXPECT_EQ(216, env->GetArrayLength(reinterpret_cast<jarray>(o216)));
+    EXPECT_EQ(217, env->GetArrayLength(reinterpret_cast<jarray>(o217)));
+    EXPECT_EQ(218, env->GetArrayLength(reinterpret_cast<jarray>(o218)));
+    EXPECT_EQ(219, env->GetArrayLength(reinterpret_cast<jarray>(o219)));
+    EXPECT_EQ(220, env->GetArrayLength(reinterpret_cast<jarray>(o220)));
+    EXPECT_EQ(221, env->GetArrayLength(reinterpret_cast<jarray>(o221)));
+    EXPECT_EQ(222, env->GetArrayLength(reinterpret_cast<jarray>(o222)));
+    EXPECT_EQ(223, env->GetArrayLength(reinterpret_cast<jarray>(o223)));
+    EXPECT_EQ(224, env->GetArrayLength(reinterpret_cast<jarray>(o224)));
+    EXPECT_EQ(225, env->GetArrayLength(reinterpret_cast<jarray>(o225)));
+    EXPECT_EQ(226, env->GetArrayLength(reinterpret_cast<jarray>(o226)));
+    EXPECT_EQ(227, env->GetArrayLength(reinterpret_cast<jarray>(o227)));
+    EXPECT_EQ(228, env->GetArrayLength(reinterpret_cast<jarray>(o228)));
+    EXPECT_EQ(229, env->GetArrayLength(reinterpret_cast<jarray>(o229)));
+    EXPECT_EQ(230, env->GetArrayLength(reinterpret_cast<jarray>(o230)));
+    EXPECT_EQ(231, env->GetArrayLength(reinterpret_cast<jarray>(o231)));
+    EXPECT_EQ(232, env->GetArrayLength(reinterpret_cast<jarray>(o232)));
+    EXPECT_EQ(233, env->GetArrayLength(reinterpret_cast<jarray>(o233)));
+    EXPECT_EQ(234, env->GetArrayLength(reinterpret_cast<jarray>(o234)));
+    EXPECT_EQ(235, env->GetArrayLength(reinterpret_cast<jarray>(o235)));
+    EXPECT_EQ(236, env->GetArrayLength(reinterpret_cast<jarray>(o236)));
+    EXPECT_EQ(237, env->GetArrayLength(reinterpret_cast<jarray>(o237)));
+    EXPECT_EQ(238, env->GetArrayLength(reinterpret_cast<jarray>(o238)));
+    EXPECT_EQ(239, env->GetArrayLength(reinterpret_cast<jarray>(o239)));
+    EXPECT_EQ(240, env->GetArrayLength(reinterpret_cast<jarray>(o240)));
+    EXPECT_EQ(241, env->GetArrayLength(reinterpret_cast<jarray>(o241)));
+    EXPECT_EQ(242, env->GetArrayLength(reinterpret_cast<jarray>(o242)));
+    EXPECT_EQ(243, env->GetArrayLength(reinterpret_cast<jarray>(o243)));
+    EXPECT_EQ(244, env->GetArrayLength(reinterpret_cast<jarray>(o244)));
+    EXPECT_EQ(245, env->GetArrayLength(reinterpret_cast<jarray>(o245)));
+    EXPECT_EQ(246, env->GetArrayLength(reinterpret_cast<jarray>(o246)));
+    EXPECT_EQ(247, env->GetArrayLength(reinterpret_cast<jarray>(o247)));
+    EXPECT_EQ(248, env->GetArrayLength(reinterpret_cast<jarray>(o248)));
+    EXPECT_EQ(249, env->GetArrayLength(reinterpret_cast<jarray>(o249)));
+    EXPECT_EQ(250, env->GetArrayLength(reinterpret_cast<jarray>(o250)));
+    EXPECT_EQ(251, env->GetArrayLength(reinterpret_cast<jarray>(o251)));
+    EXPECT_EQ(252, env->GetArrayLength(reinterpret_cast<jarray>(o252)));
+    EXPECT_EQ(253, env->GetArrayLength(reinterpret_cast<jarray>(o253)));
+  }
+}
+
+const char* longSig =
+    "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;"
+    "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)V";
+
+TEST_F(JniCompilerTest, MaxParamNumber) {
+  TEST_DISABLED_FOR_PORTABLE();
+  SetUpForTest(false, "maxParamNumber", longSig,
+               reinterpret_cast<void*>(&Java_MyClassNatives_maxParamNumber));
+
+  jvalue args[254];
+
+  // First test: test with all arguments null.
+  for (int i = 0; i < 254; ++i) {
+    args[i].l = nullptr;
+  }
+
+  env_->CallNonvirtualVoidMethodA(jobj_, jklass_, jmethod_, args);
+
+  // Second test: test with int[] objects with increasing lengths
+  for (int i = 0; i < 254; ++i) {
+    jintArray tmp = env_->NewIntArray(i);
+    args[i].l = tmp;
+    EXPECT_NE(args[i].l, nullptr);
+  }
+
+  env_->CallNonvirtualVoidMethodA(jobj_, jklass_, jmethod_, args);
+}
+
 }  // namespace art
