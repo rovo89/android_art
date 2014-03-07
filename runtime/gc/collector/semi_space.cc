@@ -67,7 +67,8 @@ static constexpr bool kResetFromSpace = true;
 void SemiSpace::ImmuneSpace(space::ContinuousSpace* space) {
   // Bind live to mark bitmap if necessary.
   if (space->GetLiveBitmap() != space->GetMarkBitmap()) {
-    BindLiveToMarkBitmap(space);
+    CHECK(space->IsContinuousMemMapAllocSpace());
+    space->AsContinuousMemMapAllocSpace()->BindLiveToMarkBitmap();
   }
   // Add the space to the immune region.
   if (immune_begin_ == nullptr) {
@@ -98,12 +99,13 @@ void SemiSpace::ImmuneSpace(space::ContinuousSpace* space) {
 
 void SemiSpace::BindBitmaps() {
   timings_.StartSplit("BindBitmaps");
-  WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
+  WriterMutexLock mu(self_, *Locks::heap_bitmap_lock_);
   // Mark all of the spaces we never collect as immune.
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     if (space->GetLiveBitmap() != nullptr) {
       if (space == to_space_) {
-        BindLiveToMarkBitmap(to_space_);
+        CHECK(to_space_->IsContinuousMemMapAllocSpace());
+        to_space_->AsContinuousMemMapAllocSpace()->BindLiveToMarkBitmap();
       } else if (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyNeverCollect
                  || space->GetGcRetentionPolicy() == space::kGcRetentionPolicyFullCollect
                  // Add the main free list space and the non-moving
@@ -179,8 +181,7 @@ void SemiSpace::MarkingPhase() {
       VLOG(heap) << "Bump pointer space only collection";
     }
   }
-  Thread* self = Thread::Current();
-  Locks::mutator_lock_->AssertExclusiveHeld(self);
+  Locks::mutator_lock_->AssertExclusiveHeld(self_);
   TimingLogger::ScopedSplit split("MarkingPhase", &timings_);
   // Need to do this with mutators paused so that somebody doesn't accidentally allocate into the
   // wrong space.
@@ -208,7 +209,7 @@ void SemiSpace::MarkingPhase() {
   // the live stack during the recursive mark.
   timings_.NewSplit("SwapStacks");
   heap_->SwapStacks();
-  WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+  WriterMutexLock mu(self_, *Locks::heap_bitmap_lock_);
   MarkRoots();
   // Mark roots of immune spaces.
   UpdateAndMarkModUnion();
@@ -309,10 +310,9 @@ void SemiSpace::MarkReachableObjects() {
 
 void SemiSpace::ReclaimPhase() {
   TimingLogger::ScopedSplit split("ReclaimPhase", &timings_);
-  Thread* self = Thread::Current();
-  ProcessReferences(self);
+  ProcessReferences(self_);
   {
-    ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
+    ReaderMutexLock mu(self_, *Locks::heap_bitmap_lock_);
     SweepSystemWeaks();
   }
   // Record freed memory.
@@ -333,7 +333,7 @@ void SemiSpace::ReclaimPhase() {
   timings_.EndSplit();
 
   {
-    WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+    WriterMutexLock mu(self_, *Locks::heap_bitmap_lock_);
     // Reclaim unmarked objects.
     Sweep(false);
     // Swap the live and mark bitmaps for each space which we modified space. This is an
@@ -343,7 +343,8 @@ void SemiSpace::ReclaimPhase() {
     SwapBitmaps();
     timings_.EndSplit();
     // Unbind the live and mark bitmaps.
-    UnBindBitmaps();
+    TimingLogger::ScopedSplit split("UnBindBitmaps", &timings_);
+    GetHeap()->UnBindBitmaps();
   }
   // Release the memory used by the from space.
   if (kResetFromSpace) {
@@ -534,14 +535,6 @@ void SemiSpace::MarkRoots() {
   timings_.EndSplit();
 }
 
-void SemiSpace::BindLiveToMarkBitmap(space::ContinuousSpace* space) {
-  CHECK(space->IsMallocSpace());
-  space::MallocSpace* alloc_space = space->AsMallocSpace();
-  accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
-  accounting::SpaceBitmap* mark_bitmap = alloc_space->BindLiveToMarkBitmap();
-  GetHeap()->GetMarkBitmap()->ReplaceBitmap(mark_bitmap, live_bitmap);
-}
-
 mirror::Object* SemiSpace::MarkedForwardingAddressCallback(Object* object, void* arg) {
   return reinterpret_cast<SemiSpace*>(arg)->GetMarkedForwardAddress(object);
 }
@@ -552,7 +545,7 @@ void SemiSpace::SweepSystemWeaks() {
   timings_.EndSplit();
 }
 
-bool SemiSpace::ShouldSweepSpace(space::MallocSpace* space) const {
+bool SemiSpace::ShouldSweepSpace(space::ContinuousSpace* space) const {
   return space != from_space_ && space != to_space_ && !IsImmuneSpace(space);
 }
 
@@ -560,16 +553,16 @@ void SemiSpace::Sweep(bool swap_bitmaps) {
   DCHECK(mark_stack_->IsEmpty());
   TimingLogger::ScopedSplit("Sweep", &timings_);
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
-    if (space->IsMallocSpace()) {
-      space::MallocSpace* malloc_space = space->AsMallocSpace();
-      if (!ShouldSweepSpace(malloc_space)) {
+    if (space->IsContinuousMemMapAllocSpace()) {
+      space::ContinuousMemMapAllocSpace* alloc_space = space->AsContinuousMemMapAllocSpace();
+      if (!ShouldSweepSpace(alloc_space)) {
         continue;
       }
       TimingLogger::ScopedSplit split(
-          malloc_space->IsZygoteSpace() ? "SweepZygoteSpace" : "SweepAllocSpace", &timings_);
+          alloc_space->IsZygoteSpace() ? "SweepZygoteSpace" : "SweepAllocSpace", &timings_);
       size_t freed_objects = 0;
       size_t freed_bytes = 0;
-      malloc_space->Sweep(swap_bitmaps, &freed_objects, &freed_bytes);
+      alloc_space->Sweep(swap_bitmaps, &freed_objects, &freed_bytes);
       heap_->RecordFree(freed_objects, freed_bytes);
       freed_objects_.FetchAndAdd(freed_objects);
       freed_bytes_.FetchAndAdd(freed_bytes);
@@ -664,20 +657,6 @@ inline Object* SemiSpace::GetMarkedForwardAddress(mirror::Object* obj) const
   return heap_->GetMarkBitmap()->Test(obj) ? obj : nullptr;
 }
 
-void SemiSpace::UnBindBitmaps() {
-  TimingLogger::ScopedSplit split("UnBindBitmaps", &timings_);
-  for (const auto& space : GetHeap()->GetContinuousSpaces()) {
-    if (space->IsMallocSpace()) {
-      space::MallocSpace* alloc_space = space->AsMallocSpace();
-      if (alloc_space->HasBoundBitmaps()) {
-        alloc_space->UnBindBitmaps();
-        heap_->GetMarkBitmap()->ReplaceBitmap(alloc_space->GetLiveBitmap(),
-                                              alloc_space->GetMarkBitmap());
-      }
-    }
-  }
-}
-
 void SemiSpace::SetToSpace(space::ContinuousMemMapAllocSpace* to_space) {
   DCHECK(to_space != nullptr);
   to_space_ = to_space;
@@ -690,7 +669,6 @@ void SemiSpace::SetFromSpace(space::ContinuousMemMapAllocSpace* from_space) {
 
 void SemiSpace::FinishPhase() {
   TimingLogger::ScopedSplit split("FinishPhase", &timings_);
-  // Can't enqueue references if we hold the mutator lock.
   Heap* heap = GetHeap();
   timings_.NewSplit("PostGcVerification");
   heap->PostGcVerification(this);
