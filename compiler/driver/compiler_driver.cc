@@ -25,6 +25,7 @@
 #include "base/stl_util.h"
 #include "base/timing_logger.h"
 #include "class_linker.h"
+#include "compiler_backend.h"
 #include "dex_compilation_unit.h"
 #include "dex_file-inl.h"
 #include "dex/verification_results.h"
@@ -52,12 +53,6 @@
 #include "transaction.h"
 #include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"
-
-#if defined(ART_USE_PORTABLE_COMPILER)
-#include "elf_writer_mclinker.h"
-#else
-#include "elf_writer_quick.h"
-#endif
 
 namespace art {
 
@@ -288,28 +283,6 @@ class AOTCompilationStats {
   DISALLOW_COPY_AND_ASSIGN(AOTCompilationStats);
 };
 
-extern "C" void ArtInitCompilerContext(art::CompilerDriver& driver);
-extern "C" void ArtInitQuickCompilerContext(art::CompilerDriver& driver);
-
-extern "C" void ArtUnInitCompilerContext(art::CompilerDriver& driver);
-extern "C" void ArtUnInitQuickCompilerContext(art::CompilerDriver& driver);
-
-extern "C" art::CompiledMethod* ArtCompileMethod(art::CompilerDriver& driver,
-                                                 const art::DexFile::CodeItem* code_item,
-                                                 uint32_t access_flags,
-                                                 art::InvokeType invoke_type,
-                                                 uint16_t class_def_idx,
-                                                 uint32_t method_idx,
-                                                 jobject class_loader,
-                                                 const art::DexFile& dex_file);
-extern "C" art::CompiledMethod* ArtQuickCompileMethod(art::CompilerDriver& compiler,
-                                                      const art::DexFile::CodeItem* code_item,
-                                                      uint32_t access_flags,
-                                                      art::InvokeType invoke_type,
-                                                      uint16_t class_def_idx,
-                                                      uint32_t method_idx,
-                                                      jobject class_loader,
-                                                      const art::DexFile& dex_file);
 
 extern "C" art::CompiledMethod* ArtCompileDEX(art::CompilerDriver& compiler,
                                               const art::DexFile::CodeItem* code_item,
@@ -319,36 +292,20 @@ extern "C" art::CompiledMethod* ArtCompileDEX(art::CompilerDriver& compiler,
                                               uint32_t method_idx,
                                               jobject class_loader,
                                               const art::DexFile& dex_file);
-#ifdef ART_SEA_IR_MODE
-extern "C" art::CompiledMethod* SeaIrCompileMethod(art::CompilerDriver& compiler,
-                                                   const art::DexFile::CodeItem* code_item,
-                                                   uint32_t access_flags,
-                                                   art::InvokeType invoke_type,
-                                                   uint16_t class_def_idx,
-                                                   uint32_t method_idx,
-                                                   jobject class_loader,
-                                                   const art::DexFile& dex_file);
-#endif
-extern "C" art::CompiledMethod* ArtLLVMJniCompileMethod(art::CompilerDriver& driver,
-                                                        uint32_t access_flags, uint32_t method_idx,
-                                                        const art::DexFile& dex_file);
-
-extern "C" art::CompiledMethod* ArtQuickJniCompileMethod(art::CompilerDriver& compiler,
-                                                         uint32_t access_flags, uint32_t method_idx,
-                                                         const art::DexFile& dex_file);
 
 extern "C" void compilerLLVMSetBitcodeFileName(art::CompilerDriver& driver,
                                                std::string const& filename);
 
 CompilerDriver::CompilerDriver(VerificationResults* verification_results,
                                DexFileToMethodInlinerMap* method_inliner_map,
-                               CompilerBackend compiler_backend, InstructionSet instruction_set,
+                               CompilerBackend::Kind compiler_backend_kind,
+                               InstructionSet instruction_set,
                                InstructionSetFeatures instruction_set_features,
                                bool image, DescriptorSet* image_classes, size_t thread_count,
                                bool dump_stats, bool dump_passes, CumulativeLogger* timer)
     : verification_results_(verification_results),
       method_inliner_map_(method_inliner_map),
-      compiler_backend_(compiler_backend),
+      compiler_backend_(CompilerBackend::Create(compiler_backend_kind)),
       instruction_set_(instruction_set),
       instruction_set_features_(instruction_set_features),
       freezing_constructor_lock_("freezing constructor lock"),
@@ -363,9 +320,7 @@ CompilerDriver::CompilerDriver(VerificationResults* verification_results,
       dump_passes_(dump_passes),
       timings_logger_(timer),
       compiler_library_(NULL),
-      compiler_(NULL),
       compiler_context_(NULL),
-      jni_compiler_(NULL),
       compiler_enable_auto_elf_loading_(NULL),
       compiler_get_method_code_addr_(NULL),
       support_boot_image_fixup_(instruction_set != kMips),
@@ -376,34 +331,9 @@ CompilerDriver::CompilerDriver(VerificationResults* verification_results,
 
   CHECK_PTHREAD_CALL(pthread_key_create, (&tls_key_, NULL), "compiler tls key");
 
-  // TODO: more work needed to combine initializations and allow per-method backend selection
-  typedef void (*InitCompilerContextFn)(CompilerDriver&);
-  InitCompilerContextFn init_compiler_context;
-  if (compiler_backend_ == kPortable) {
-    // Initialize compiler_context_
-    init_compiler_context = reinterpret_cast<void (*)(CompilerDriver&)>(ArtInitCompilerContext);
-    compiler_ = reinterpret_cast<CompilerFn>(ArtCompileMethod);
-  } else {
-    init_compiler_context = reinterpret_cast<void (*)(CompilerDriver&)>(ArtInitQuickCompilerContext);
-    compiler_ = reinterpret_cast<CompilerFn>(ArtQuickCompileMethod);
-  }
-
   dex_to_dex_compiler_ = reinterpret_cast<DexToDexCompilerFn>(ArtCompileDEX);
 
-#ifdef ART_SEA_IR_MODE
-  sea_ir_compiler_ = NULL;
-  if (Runtime::Current()->IsSeaIRMode()) {
-    sea_ir_compiler_ = reinterpret_cast<CompilerFn>(SeaIrCompileMethod);
-  }
-#endif
-
-  init_compiler_context(*this);
-
-  if (compiler_backend_ == kPortable) {
-    jni_compiler_ = reinterpret_cast<JniCompilerFn>(ArtLLVMJniCompileMethod);
-  } else {
-    jni_compiler_ = reinterpret_cast<JniCompilerFn>(ArtQuickJniCompileMethod);
-  }
+  compiler_backend_->Init(*this);
 
   CHECK(!Runtime::Current()->IsStarted());
   if (!image_) {
@@ -450,16 +380,7 @@ CompilerDriver::~CompilerDriver() {
     STLDeleteElements(&classes_to_patch_);
   }
   CHECK_PTHREAD_CALL(pthread_key_delete, (tls_key_), "delete tls key");
-  typedef void (*UninitCompilerContextFn)(CompilerDriver&);
-  UninitCompilerContextFn uninit_compiler_context;
-  // Uninitialize compiler_context_
-  // TODO: rework to combine initialization/uninitialization
-  if (compiler_backend_ == kPortable) {
-    uninit_compiler_context = reinterpret_cast<void (*)(CompilerDriver&)>(ArtUnInitCompilerContext);
-  } else {
-    uninit_compiler_context = reinterpret_cast<void (*)(CompilerDriver&)>(ArtUnInitQuickCompilerContext);
-  }
-  uninit_compiler_context(*this);
+  compiler_backend_->UnInit(*this);
 }
 
 CompilerTls* CompilerDriver::GetTls() {
@@ -1154,7 +1075,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
   *direct_method = 0;
   bool use_dex_cache = false;
   const bool compiling_boot = Runtime::Current()->GetHeap()->IsCompilingBoot();
-  if (compiler_backend_ == kPortable) {
+  if (compiler_backend_->IsPortable()) {
     if (sharp_type != kStatic && sharp_type != kDirect) {
       return;
     }
@@ -1231,23 +1152,13 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
         CHECK(!method->IsAbstract());
         *type = sharp_type;
         *direct_method = reinterpret_cast<uintptr_t>(method);
-        if (compiler_backend_ == kQuick) {
-          *direct_code = reinterpret_cast<uintptr_t>(method->GetEntryPointFromQuickCompiledCode());
-        } else {
-          CHECK_EQ(compiler_backend_, kPortable);
-          *direct_code = reinterpret_cast<uintptr_t>(method->GetEntryPointFromPortableCompiledCode());
-        }
+        *direct_code = compiler_backend_->GetEntryPointOf(method);
         target_method->dex_file = method->GetDeclaringClass()->GetDexCache()->GetDexFile();
         target_method->dex_method_index = method->GetDexMethodIndex();
       } else if (!must_use_direct_pointers) {
         // Set the code and rely on the dex cache for the method.
         *type = sharp_type;
-        if (compiler_backend_ == kQuick) {
-          *direct_code = reinterpret_cast<uintptr_t>(method->GetEntryPointFromQuickCompiledCode());
-        } else {
-          CHECK_EQ(compiler_backend_, kPortable);
-          *direct_code = reinterpret_cast<uintptr_t>(method->GetEntryPointFromPortableCompiledCode());
-        }
+        *direct_code = compiler_backend_->GetEntryPointOf(method);
       } else {
         // Direct pointers were required but none were available.
         VLOG(compiler) << "Dex cache devirtualization failed for: " << PrettyMethod(method);
@@ -2017,7 +1928,7 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
   uint64_t start_ns = NanoTime();
 
   if ((access_flags & kAccNative) != 0) {
-    compiled_method = (*jni_compiler_)(*this, access_flags, method_idx, dex_file);
+    compiled_method = compiler_backend_->JniCompile(*this, access_flags, method_idx, dex_file);
     CHECK(compiled_method != NULL);
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {
@@ -2025,19 +1936,10 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
     bool compile = VerificationResults::IsCandidateForCompilation(method_ref, access_flags);
 
     if (compile) {
-      CompilerFn compiler = compiler_;
-#ifdef ART_SEA_IR_MODE
-      bool use_sea = Runtime::Current()->IsSeaIRMode();
-      use_sea = use_sea &&
-          (std::string::npos != PrettyMethod(method_idx, dex_file).find("fibonacci"));
-      if (use_sea) {
-        compiler = sea_ir_compiler_;
-        LOG(INFO) << "Using SEA IR to compile..." << std::endl;
-      }
-#endif
       // NOTE: if compiler declines to compile this method, it will return NULL.
-      compiled_method = (*compiler)(*this, code_item, access_flags, invoke_type, class_def_idx,
-                                    method_idx, class_loader, dex_file);
+      compiled_method = compiler_backend_->Compile(
+          *this, code_item, access_flags, invoke_type, class_def_idx,
+          method_idx, class_loader, dex_file);
     } else if (dex_to_dex_compilation_level != kDontDexToDexCompile) {
       // TODO: add a mode to disable DEX-to-DEX compilation ?
       (*dex_to_dex_compiler_)(*this, code_item, access_flags,
@@ -2047,12 +1949,7 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
     }
   }
   uint64_t duration_ns = NanoTime() - start_ns;
-#ifdef ART_USE_PORTABLE_COMPILER
-  const uint64_t kWarnMilliSeconds = 1000;
-#else
-  const uint64_t kWarnMilliSeconds = 100;
-#endif
-  if (duration_ns > MsToNs(kWarnMilliSeconds)) {
+  if (duration_ns > MsToNs(compiler_backend_->GetMaximumCompilationTimeBeforeWarning())) {
     LOG(WARNING) << "Compilation of " << PrettyMethod(method_idx, dex_file)
                  << " took " << PrettyDuration(duration_ns);
   }
@@ -2149,11 +2046,7 @@ bool CompilerDriver::WriteElf(const std::string& android_root,
                               OatWriter& oat_writer,
                               art::File* file)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-#if defined(ART_USE_PORTABLE_COMPILER)
-  return art::ElfWriterMclinker::Create(file, oat_writer, dex_files, android_root, is_host, *this);
-#else
-  return art::ElfWriterQuick::Create(file, oat_writer, dex_files, android_root, is_host, *this);
-#endif
+  return compiler_backend_->WriteElf(file, oat_writer, dex_files, android_root, is_host, *this);
 }
 void CompilerDriver::InstructionSetToLLVMTarget(InstructionSet instruction_set,
                                                 std::string& target_triple,
