@@ -1006,7 +1006,7 @@ bool CompilerDriver::ComputeSpecialAccessorInfo(uint32_t field_idx, bool is_put,
   uint32_t method_idx = verifier->GetMethodReference().dex_method_index;
   mirror::ArtMethod* method = dex_cache->GetResolvedMethod(method_idx);
   mirror::ArtField* field = dex_cache->GetResolvedField(field_idx);
-  if (method == nullptr || field == nullptr) {
+  if (method == nullptr || field == nullptr || field->IsStatic()) {
     return false;
   }
   mirror::Class* method_class = method->GetDeclaringClass();
