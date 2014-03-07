@@ -27,6 +27,7 @@
 #include <cstdlib>
 #include <limits>
 #include <vector>
+#include <fcntl.h>
 
 #include "arch/arm/registers_arm.h"
 #include "arch/mips/registers_mips.h"
@@ -68,6 +69,10 @@
 #include "well_known_classes.h"
 
 #include "JniConstants.h"  // Last to avoid LOG redefinition in ics-mr1-plus-art.
+
+#ifdef HAVE_ANDROID_OS
+#include "cutils/properties.h"
+#endif
 
 namespace art {
 
@@ -370,7 +375,12 @@ bool Runtime::Start() {
 
   if (profile_) {
     // User has asked for a profile using -Xprofile
-    StartProfiler(profile_output_filename_.c_str(), true);
+    // Create the profile file if it doesn't exist.
+    int fd = open(profile_output_filename_.c_str(), O_RDWR|O_CREAT|O_EXCL, 0660);
+    if (fd >= 0) {
+      close(fd);
+    }
+    StartProfiler(profile_output_filename_.c_str(), "", true);
   }
 
   return true;
@@ -1055,10 +1065,10 @@ void Runtime::RemoveMethodVerifier(verifier::MethodVerifier* verifier) {
   method_verifiers_.erase(it);
 }
 
-void Runtime::StartProfiler(const char *appDir, bool startImmediately) {
+void Runtime::StartProfiler(const char* appDir, const char* procName, bool startImmediately) {
   BackgroundMethodSamplingProfiler::Start(profile_period_s_, profile_duration_s_, appDir,
-                                          profile_interval_us_, profile_backoff_coefficient_,
-                                          startImmediately);
+      procName, profile_interval_us_,
+      profile_backoff_coefficient_, startImmediately);
 }
 
 // Transaction support.
@@ -1136,4 +1146,7 @@ void Runtime::SetFaultMessage(const std::string& message) {
   fault_message_ = message;
 }
 
+void Runtime::UpdateProfilerState(int state) {
+  LOG(DEBUG) << "Profiler state updated to " << state;
+}
 }  // namespace art

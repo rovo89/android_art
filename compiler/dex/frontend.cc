@@ -17,6 +17,7 @@
 #include "compiler_backend.h"
 #include "compiler_internals.h"
 #include "driver/compiler_driver.h"
+#include "driver/compiler_options.h"
 #include "dataflow_iterator-inl.h"
 #include "leb128.h"
 #include "mirror/object.h"
@@ -25,7 +26,7 @@
 #include "backend.h"
 #include "base/logging.h"
 #include "base/timing_logger.h"
-
+#include "driver/compiler_options.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 
 namespace art {
@@ -209,13 +210,26 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
     cu.mir_graph->EnableOpcodeCounting();
   }
 
+  const CompilerOptions& compiler_options = cu.compiler_driver->GetCompilerOptions();
+  CompilerOptions::CompilerFilter compiler_filter = compiler_options.GetCompilerFilter();
+
+  // Check early if we should skip this compilation if using the profiled filter.
+  if (cu.compiler_driver->ProfilePresent()) {
+    std::string methodname = PrettyMethod(method_idx, dex_file);
+    if (cu.mir_graph->SkipCompilation(methodname)) {
+      return NULL;
+    }
+  }
+
   /* Build the raw MIR graph */
   cu.mir_graph->InlineMethod(code_item, access_flags, invoke_type, class_def_idx, method_idx,
                               class_loader, dex_file);
 
   cu.NewTimingSplit("MIROpt:CheckFilters");
-  if (cu.mir_graph->SkipCompilation()) {
-    return NULL;
+  if (compiler_filter != CompilerOptions::kInterpretOnly) {
+    if (cu.mir_graph->SkipCompilation()) {
+      return NULL;
+    }
   }
 
   /* Create the pass driver and launch it */

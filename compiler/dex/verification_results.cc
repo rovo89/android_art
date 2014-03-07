@@ -110,7 +110,7 @@ bool VerificationResults::IsCandidateForCompilation(MethodReference& method_ref,
   if (((access_flags & kAccConstructor) != 0) && ((access_flags & kAccStatic) != 0)) {
     return false;
   }
-  return (compiler_options_->GetCompilerFilter() != CompilerOptions::kInterpretOnly);
+  return true;
 }
 
 }  // namespace art
