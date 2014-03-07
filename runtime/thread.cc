@@ -1410,8 +1410,8 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
     mirror::ArtMethod* method = down_cast<mirror::ArtMethod*>(method_trace->Get(i));
     MethodHelper mh(method);
     int32_t line_number;
-    SirtRef<mirror::String> class_name_object(soa.Self(), NULL);
-    SirtRef<mirror::String> source_name_object(soa.Self(), NULL);
+    SirtRef<mirror::String> class_name_object(soa.Self(), nullptr);
+    SirtRef<mirror::String> source_name_object(soa.Self(), nullptr);
     if (method->IsProxyMethod()) {
       line_number = -1;
       class_name_object.reset(method->GetDeclaringClass()->GetName());
@@ -1423,16 +1423,18 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
       // Allocate element, potentially triggering GC
       // TODO: reuse class_name_object via Class::name_?
       const char* descriptor = mh.GetDeclaringClassDescriptor();
-      CHECK(descriptor != NULL);
+      CHECK(descriptor != nullptr);
       std::string class_name(PrettyDescriptor(descriptor));
       class_name_object.reset(mirror::String::AllocFromModifiedUtf8(soa.Self(), class_name.c_str()));
-      if (class_name_object.get() == NULL) {
-        return NULL;
+      if (class_name_object.get() == nullptr) {
+        return nullptr;
       }
       const char* source_file = mh.GetDeclaringClassSourceFile();
-      source_name_object.reset(mirror::String::AllocFromModifiedUtf8(soa.Self(), source_file));
-      if (source_name_object.get() == NULL) {
-        return NULL;
+      if (source_file != nullptr) {
+        source_name_object.reset(mirror::String::AllocFromModifiedUtf8(soa.Self(), source_file));
+        if (source_name_object.get() == nullptr) {
+          return nullptr;
+        }
       }
     }
     const char* method_name = mh.GetName();
@@ -1858,7 +1860,7 @@ class ReferenceMapVisitor : public StackVisitor {
         // Java method.
         // Portable path use DexGcMap and store in Method.native_gc_map_.
         const uint8_t* gc_map = m->GetNativeGcMap();
-        CHECK(gc_map != NULL) << PrettyMethod(m);
+        CHECK(gc_map != nullptr) << PrettyMethod(m);
         verifier::DexPcToReferenceMap dex_gc_map(gc_map);
         uint32_t dex_pc = GetDexPc();
         const uint8_t* reg_bitmap = dex_gc_map.FindBitMap(dex_pc);
