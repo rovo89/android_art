@@ -34,14 +34,14 @@ public class InternedString {
 
     private static void testDeadInternedString() {
         WeakReference<String> strRef = makeWeakString();
-        System.gc();
+        Runtime.getRuntime().gc();
         // "blahblah" should disappear from the intern list
         Main.assertTrue(strRef.get() == null);
     }
 
     private static void testImmortalInternedString() {
         WeakReference strRef = new WeakReference<String>(CONST.intern());
-        System.gc();
+        Runtime.getRuntime().gc();
         // Class constant string should be entered to the interned table when
         // loaded
         Main.assertTrue(CONST == CONST.intern());
@@ -53,7 +53,7 @@ public class InternedString {
         strRef = new WeakReference<String>(s.intern());
         // Kill s, otherwise the string object is still accessible from root set
         s = "";
-        System.gc();
+        Runtime.getRuntime().gc();
         Main.assertTrue(strRef.get() == CONST);
     }
 }

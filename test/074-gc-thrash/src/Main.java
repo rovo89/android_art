@@ -232,7 +232,7 @@ class Deep extends Thread {
         for (int i = 0; i < MAX_DEPTH; i++)
             strong[i] = null;
 
-        System.gc();
+        Runtime.getRuntime().gc();
 
         for (int i = 0; i < MAX_DEPTH; i++) {
             if (weak[i].get() != null) {

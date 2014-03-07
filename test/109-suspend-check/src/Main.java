@@ -28,7 +28,7 @@ public class Main {
         doWhileLoop.start();
         garbage.start();
         for (int i = 0; i < TEST_TIME; i++) {
-          System.gc();
+          Runtime.getRuntime().gc();
           System.out.println(".");
           sleep(1000);
         }

@@ -26,7 +26,7 @@ public class Main {
         main.run();
 
         /* run through the heap to see if we trashed something */
-        System.gc();
+        Runtime.getRuntime().gc();
 
         System.out.println("Done!");
     }
