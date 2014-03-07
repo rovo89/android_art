@@ -566,19 +566,12 @@ static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArra
   return pid;
 }
 
-static jint Zygote_nativeForkAndSpecialize_new(JNIEnv* env, jclass, jint uid, jint gid, jintArray gids,
+static jint Zygote_nativeForkAndSpecialize(JNIEnv* env, jclass, jint uid, jint gid, jintArray gids,
                                            jint debug_flags, jobjectArray rlimits,
                                            jint mount_external, jstring se_info, jstring se_name,
                                            jintArray fdsToClose) {
   return ForkAndSpecializeCommon(env, uid, gid, gids, debug_flags, rlimits, 0, 0, mount_external,
                                  se_info, se_name, false, fdsToClose);
-}
-
-static jint Zygote_nativeForkAndSpecialize(JNIEnv* env, jclass, jint uid, jint gid, jintArray gids,
-                                           jint debug_flags, jobjectArray rlimits,
-                                           jint mount_external, jstring se_info, jstring se_name) {
-  return ForkAndSpecializeCommon(env, uid, gid, gids, debug_flags, rlimits, 0, 0, mount_external,
-                                 se_info, se_name, false, NULL);
 }
 
 static jint Zygote_nativeForkSystemServer(JNIEnv* env, jclass, uid_t uid, gid_t gid, jintArray gids,
@@ -605,8 +598,7 @@ static jint Zygote_nativeForkSystemServer(JNIEnv* env, jclass, uid_t uid, gid_t 
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Zygote, nativeForkAndSpecialize_new, "(II[II[[IILjava/lang/String;Ljava/lang/String;[I)I"),
-  NATIVE_METHOD(Zygote, nativeForkAndSpecialize, "(II[II[[IILjava/lang/String;Ljava/lang/String;)I"),
+  NATIVE_METHOD(Zygote, nativeForkAndSpecialize, "(II[II[[IILjava/lang/String;Ljava/lang/String;[I)I"),
   NATIVE_METHOD(Zygote, nativeForkSystemServer, "(II[II[[IJJ)I"),
 };
 
