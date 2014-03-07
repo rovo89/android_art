@@ -368,20 +368,59 @@ include $(art_build_path)/Android.cpplint.mk
 .PHONY: use-art
 use-art:
 	adb root && sleep 3
+	adb shell stop
 	adb shell setprop persist.sys.dalvik.vm.lib.1 libart.so
-	adb reboot
+	adb shell start
 
 .PHONY: use-artd
 use-artd:
 	adb root && sleep 3
+	adb shell stop
 	adb shell setprop persist.sys.dalvik.vm.lib.1 libartd.so
-	adb reboot
+	adb shell start
 
 .PHONY: use-dalvik
 use-dalvik:
 	adb root && sleep 3
+	adb shell stop
 	adb shell setprop persist.sys.dalvik.vm.lib.1 libdvm.so
-	adb reboot
+	adb shell start
+
+.PHONY: use-art-full
+use-art-full:
+	adb root && sleep 3
+	adb shell stop
+	adb shell rm $(ART_DALVIK_CACHE_DIR)/*.dex
+	adb shell rm $(ART_DALVIK_CACHE_DIR)/*.oat
+	adb shell rm $(ART_DALVIK_CACHE_DIR)/*.art
+	adb shell setprop dalvik.vm.dex2oat-flags ""
+	adb shell setprop dalvik.vm.image-dex2oat-flags ""
+	adb shell setprop persist.sys.dalvik.vm.lib.1 libart.so
+	adb shell start
+
+.PHONY: use-art-smart
+use-art-smart:
+	adb root && sleep 3
+	adb shell stop
+	adb shell rm $(ART_DALVIK_CACHE_DIR)/*.dex
+	adb shell rm $(ART_DALVIK_CACHE_DIR)/*.oat
+	adb shell rm $(ART_DALVIK_CACHE_DIR)/*.art
+	adb shell setprop dalvik.vm.dex2oat-flags "--compiler-filter=interpret-only"
+	adb shell setprop dalvik.vm.image-dex2oat-flags ""
+	adb shell setprop persist.sys.dalvik.vm.lib.1 libart.so
+	adb shell start
+
+.PHONY: use-art-interpret-only
+use-art-interpret-only:
+	adb root && sleep 3
+	adb shell stop
+	adb shell rm $(ART_DALVIK_CACHE_DIR)/*.dex
+	adb shell rm $(ART_DALVIK_CACHE_DIR)/*.oat
+	adb shell rm $(ART_DALVIK_CACHE_DIR)/*.art
+	adb shell setprop dalvik.vm.dex2oat-flags "--compiler-filter=interpret-only"
+	adb shell setprop dalvik.vm.image-dex2oat-flags "--compiler-filter=interpret-only"
+	adb shell setprop persist.sys.dalvik.vm.lib.1 libart.so
+	adb shell start
 
 ########################################################################
 
