@@ -575,7 +575,8 @@ class Heap {
   bool ShouldAllocLargeObject(mirror::Class* c, size_t byte_count) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   ALWAYS_INLINE void CheckConcurrentGC(Thread* self, size_t new_num_bytes_allocated,
-                                       mirror::Object* obj);
+                                       mirror::Object** obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // We don't force this to be inlined since it is a slow path.
   template <bool kInstrumented, typename PreFenceVisitor>
