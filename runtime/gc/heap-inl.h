@@ -107,7 +107,7 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
   // optimized out. And for the other allocators, AllocatorMayHaveConcurrentGC is a constant since
   // the allocator_type should be constant propagated.
   if (AllocatorMayHaveConcurrentGC(allocator) && concurrent_gc_) {
-    CheckConcurrentGC(self, new_num_bytes_allocated, obj);
+    CheckConcurrentGC(self, new_num_bytes_allocated, &obj);
   }
   VerifyObject(obj);
   self->VerifyStack();
@@ -280,11 +280,13 @@ inline bool Heap::IsOutOfMemoryOnAllocation(AllocatorType allocator_type, size_t
 }
 
 inline void Heap::CheckConcurrentGC(Thread* self, size_t new_num_bytes_allocated,
-                                    mirror::Object* obj) {
+                                    mirror::Object** obj) {
   if (UNLIKELY(new_num_bytes_allocated >= concurrent_start_bytes_)) {
     // The SirtRef is necessary since the calls in RequestConcurrentGC are a safepoint.
-    SirtRef<mirror::Object> ref(self, obj);
+    SirtRef<mirror::Object> ref(self, *obj);
     RequestConcurrentGC(self);
+    // Restore obj in case it moved.
+    *obj = ref.get();
   }
 }
 
