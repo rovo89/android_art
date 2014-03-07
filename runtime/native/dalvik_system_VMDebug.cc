@@ -234,9 +234,8 @@ static jlong VMDebug_countInstancesOfClass(JNIEnv* env, jclass, jclass javaClass
                                            jboolean countAssignable) {
   ScopedObjectAccess soa(env);
   gc::Heap* heap = Runtime::Current()->GetHeap();
-  // We only want reachable instances, so do a GC. This also ensures that the alloc stack
-  // is empty, so the live bitmap is the only place we need to look. Need to do GC before decoding
-  // any jobjects.
+  // We only want reachable instances, so do a GC. Heap::VisitObjects visits all of the heap
+  // objects in the all spaces and the allocation stack.
   heap->CollectGarbage(false);
   mirror::Class* c = soa.Decode<mirror::Class*>(javaClass);
   if (c == nullptr) {

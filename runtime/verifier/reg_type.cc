@@ -969,9 +969,9 @@ void RegType::CheckInvariants() const {
   }
 }
 
-void RegType::VisitRoots(RootVisitor* visitor, void* arg) {
+void RegType::VisitRoots(RootCallback* callback, void* arg) {
   if (klass_ != nullptr) {
-    klass_ = down_cast<mirror::Class*>(visitor(klass_, arg));
+    klass_ = down_cast<mirror::Class*>(callback(klass_, arg, 0, kRootUnknown));
   }
 }
 

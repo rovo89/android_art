@@ -573,9 +573,9 @@ void RegTypeCache::Dump(std::ostream& os) {
   }
 }
 
-void RegTypeCache::VisitRoots(RootVisitor* visitor, void* arg) {
+void RegTypeCache::VisitRoots(RootCallback* callback, void* arg) {
   for (RegType* entry : entries_) {
-    entry->VisitRoots(visitor, arg);
+    entry->VisitRoots(callback, arg);
   }
 }
 

@@ -93,9 +93,10 @@ void Throwable::ResetClass() {
   java_lang_Throwable_ = NULL;
 }
 
-void Throwable::VisitRoots(RootVisitor* visitor, void* arg) {
+void Throwable::VisitRoots(RootCallback* callback, void* arg) {
   if (java_lang_Throwable_ != nullptr) {
-    java_lang_Throwable_ = down_cast<Class*>(visitor(java_lang_Throwable_, arg));
+    java_lang_Throwable_ = down_cast<Class*>(callback(java_lang_Throwable_, arg, 0,
+                                                      kRootStickyClass));
   }
 }
 

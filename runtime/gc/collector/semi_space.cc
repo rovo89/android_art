@@ -513,7 +513,7 @@ Object* SemiSpace::MarkObject(Object* obj) {
   return forward_address;
 }
 
-Object* SemiSpace::RecursiveMarkObjectCallback(Object* root, void* arg) {
+mirror::Object* SemiSpace::RecursiveMarkObjectCallback(mirror::Object* root, void* arg) {
   DCHECK(root != nullptr);
   DCHECK(arg != nullptr);
   SemiSpace* semi_space = reinterpret_cast<SemiSpace*>(arg);
@@ -522,7 +522,8 @@ Object* SemiSpace::RecursiveMarkObjectCallback(Object* root, void* arg) {
   return ret;
 }
 
-Object* SemiSpace::MarkRootCallback(Object* root, void* arg) {
+Object* SemiSpace::MarkRootCallback(Object* root, void* arg, uint32_t /*thread_id*/,
+                                    RootType /*root_type*/) {
   DCHECK(root != nullptr);
   DCHECK(arg != nullptr);
   return reinterpret_cast<SemiSpace*>(arg)->MarkObject(root);
@@ -536,7 +537,7 @@ void SemiSpace::MarkRoots() {
   timings_.EndSplit();
 }
 
-mirror::Object* SemiSpace::MarkedForwardingAddressCallback(Object* object, void* arg) {
+mirror::Object* SemiSpace::MarkedForwardingAddressCallback(mirror::Object* object, void* arg) {
   return reinterpret_cast<SemiSpace*>(arg)->GetMarkedForwardAddress(object);
 }
 

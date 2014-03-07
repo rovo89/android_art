@@ -29,7 +29,7 @@
 #include "jdwp/jdwp.h"
 #include "jni.h"
 #include "jvalue.h"
-#include "root_visitor.h"
+#include "object_callbacks.h"
 #include "thread_state.h"
 
 namespace art {
@@ -453,7 +453,7 @@ class Dbg {
   static void DumpRecentAllocations();
 
   // Updates the stored direct object pointers (called from SweepSystemWeaks).
-  static void UpdateObjectPointers(RootVisitor* visitor, void* arg)
+  static void UpdateObjectPointers(IsMarkedCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   enum HpifWhen {

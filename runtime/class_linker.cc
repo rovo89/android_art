@@ -1119,14 +1119,15 @@ void ClassLinker::InitFromImage() {
 // Keep in sync with InitCallback. Anything we visit, we need to
 // reinit references to when reinitializing a ClassLinker from a
 // mapped image.
-void ClassLinker::VisitRoots(RootVisitor* visitor, void* arg, bool only_dirty, bool clean_dirty) {
-  class_roots_ = down_cast<mirror::ObjectArray<mirror::Class>*>(visitor(class_roots_, arg));
+void ClassLinker::VisitRoots(RootCallback* callback, void* arg, bool only_dirty, bool clean_dirty) {
+  class_roots_ = down_cast<mirror::ObjectArray<mirror::Class>*>(
+      callback(class_roots_, arg, 0, kRootVMInternal));
   Thread* self = Thread::Current();
   {
     ReaderMutexLock mu(self, dex_lock_);
     if (!only_dirty || dex_caches_dirty_) {
       for (mirror::DexCache*& dex_cache : dex_caches_) {
-        dex_cache = down_cast<mirror::DexCache*>(visitor(dex_cache, arg));
+        dex_cache = down_cast<mirror::DexCache*>(callback(dex_cache, arg, 0, kRootVMInternal));
         DCHECK(dex_cache != nullptr);
       }
       if (clean_dirty) {
@@ -1139,7 +1140,7 @@ void ClassLinker::VisitRoots(RootVisitor* visitor, void* arg, bool only_dirty, b
     WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
     if (!only_dirty || class_table_dirty_) {
       for (std::pair<const size_t, mirror::Class*>& it : class_table_) {
-        it.second = down_cast<mirror::Class*>(visitor(it.second, arg));
+        it.second = down_cast<mirror::Class*>(callback(it.second, arg, 0, kRootStickyClass));
         DCHECK(it.second != nullptr);
       }
       if (clean_dirty) {
@@ -1151,7 +1152,8 @@ void ClassLinker::VisitRoots(RootVisitor* visitor, void* arg, bool only_dirty, b
     // handle image roots by using the MS/CMS rescanning of dirty cards.
   }
 
-  array_iftable_ = reinterpret_cast<mirror::IfTable*>(visitor(array_iftable_, arg));
+  array_iftable_ = reinterpret_cast<mirror::IfTable*>(callback(array_iftable_, arg, 0,
+                                                               kRootVMInternal));
   DCHECK(array_iftable_ != nullptr);
 }
 

@@ -32,9 +32,9 @@
 #include "gtest/gtest.h"
 #include "jni.h"
 #include "locks.h"
+#include "object_callbacks.h"
 #include "offsets.h"
 #include "reference_queue.h"
-#include "root_visitor.h"
 #include "safe_map.h"
 #include "thread_pool.h"
 
@@ -183,7 +183,7 @@ class Heap {
   }
 
   // Visit all of the live objects in the heap.
-  void VisitObjects(ObjectVisitorCallback callback, void* arg)
+  void VisitObjects(ObjectCallback callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   void SwapSemiSpaces() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -328,8 +328,9 @@ class Heap {
     return finalizer_reference_zombie_offset_;
   }
   static mirror::Object* PreserveSoftReferenceCallback(mirror::Object* obj, void* arg);
-  void ProcessReferences(TimingLogger& timings, bool clear_soft, RootVisitor* is_marked_callback,
-                         RootVisitor* recursive_mark_object_callback, void* arg)
+  void ProcessReferences(TimingLogger& timings, bool clear_soft,
+                         IsMarkedCallback* is_marked_callback,
+                         MarkObjectCallback* recursive_mark_object_callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
@@ -605,8 +606,9 @@ class Heap {
   // Returns true if the reference object has not yet been enqueued.
   bool IsEnqueuable(mirror::Object* ref) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsEnqueued(mirror::Object* ref) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void DelayReferenceReferent(mirror::Class* klass, mirror::Object* obj, RootVisitor mark_visitor,
-                              void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void DelayReferenceReferent(mirror::Class* klass, mirror::Object* obj,
+                              IsMarkedCallback is_marked_callback, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Run the finalizers.
   void RunFinalization(JNIEnv* env);

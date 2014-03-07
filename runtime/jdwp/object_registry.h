@@ -26,7 +26,7 @@
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
-#include "root_visitor.h"
+#include "object_callbacks.h"
 #include "safe_map.h"
 
 namespace art {
@@ -85,7 +85,7 @@ class ObjectRegistry {
   jobject GetJObject(JDWP::ObjectId id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Visit, objects are treated as system weaks.
-  void UpdateObjectPointers(RootVisitor visitor, void* arg)
+  void UpdateObjectPointers(IsMarkedCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // We have allow / disallow functionality since we use system weak sweeping logic to update moved

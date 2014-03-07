@@ -72,12 +72,10 @@ void HeapBitmap::RemoveDiscontinuousObjectSet(ObjectSet* set) {
   discontinuous_space_sets_.erase(it);
 }
 
-void HeapBitmap::Walk(SpaceBitmap::Callback* callback, void* arg) {
+void HeapBitmap::Walk(ObjectCallback* callback, void* arg) {
   for (const auto& bitmap : continuous_space_bitmaps_) {
     bitmap->Walk(callback, arg);
   }
-
-  DCHECK(!discontinuous_space_sets_.empty());
   for (const auto& space_set : discontinuous_space_sets_) {
     space_set->Walk(callback, arg);
   }

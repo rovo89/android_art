@@ -17,8 +17,8 @@
 #ifndef ART_RUNTIME_THROW_LOCATION_H_
 #define ART_RUNTIME_THROW_LOCATION_H_
 
+#include "object_callbacks.h"
 #include "base/macros.h"
-#include "root_visitor.h"
 
 #include <stdint.h>
 #include <string>
@@ -62,7 +62,7 @@ class PACKED(4) ThrowLocation {
 
   std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void VisitRoots(RootVisitor* visitor, void* arg);
+  void VisitRoots(RootCallback* visitor, void* arg);
 
  private:
   // The 'this' reference of the throwing method.
