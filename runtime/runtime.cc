@@ -1486,12 +1486,18 @@ mirror::ArtMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_se
         (1 << art::x86_64::RSI) | (1 << art::x86_64::RDX) | (1 << art::x86_64::RCX) |
         (1 << art::x86_64::R8) | (1 << art::x86_64::R9);
     uint32_t core_spills = ref_spills | (type == kRefsAndArgs ? arg_spills : 0) |
-                         (1 << art::x86::kNumberOfCpuRegisters);  // fake return address callee save
+                         (1 << art::x86_64::kNumberOfCpuRegisters);  // fake return address callee save
+    uint32_t fp_arg_spills =
+        (1 << art::x86_64::XMM0) | (1 << art::x86_64::XMM1) | (1 << art::x86_64::XMM2) |
+        (1 << art::x86_64::XMM3) | (1 << art::x86_64::XMM4) | (1 << art::x86_64::XMM5) |
+        (1 << art::x86_64::XMM6) | (1 << art::x86_64::XMM7);
+    uint32_t fp_spills = (type == kRefsAndArgs ? fp_arg_spills : 0);
     size_t frame_size = RoundUp((__builtin_popcount(core_spills) /* gprs */ +
+                                 __builtin_popcount(fp_spills) /* fprs */ +
                                  1 /* Method* */) * kPointerSize, kStackAlignment);
     method->SetFrameSizeInBytes(frame_size);
     method->SetCoreSpillMask(core_spills);
-    method->SetFpSpillMask(0);
+    method->SetFpSpillMask(fp_spills);
   } else {
     UNIMPLEMENTED(FATAL) << instruction_set;
   }
