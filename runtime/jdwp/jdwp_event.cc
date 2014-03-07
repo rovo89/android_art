@@ -689,6 +689,11 @@ void JdwpState::EventFinish(ExpandBuf* pReq) {
   Set1(buf+9, kJdwpEventCommandSet);
   Set1(buf+10, kJdwpCompositeCommand);
 
+  // Prevents from interleaving commands and events. Otherwise we could end up in sending an event
+  // before sending the reply of the command being processed and would lead to bad synchronization
+  // between the debugger and the debuggee.
+  WaitForProcessingRequest();
+
   SendRequest(pReq);
 
   expandBufFree(pReq);
