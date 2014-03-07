@@ -189,6 +189,24 @@ class X86Mir2Lir : public Mir2Lir {
      */
     void GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx,
                             RegLocation rl_dest, RegLocation rl_src);
+    /*
+     *
+     * @brief Implement Set up instanceof a class with x86 specific code.
+     * @param needs_access_check 'true' if we must check the access.
+     * @param type_known_final 'true' if the type is known to be a final class.
+     * @param type_known_abstract 'true' if the type is known to be an abstract class.
+     * @param use_declaring_class 'true' if the type can be loaded off the current Method*.
+     * @param can_assume_type_is_in_dex_cache 'true' if the type is known to be in the cache.
+     * @param type_idx Type index to use if use_declaring_class is 'false'.
+     * @param rl_dest Result to be set to 0 or 1.
+     * @param rl_src Object to be tested.
+     */
+    void GenInstanceofCallingHelper(bool needs_access_check, bool type_known_final,
+                                    bool type_known_abstract, bool use_declaring_class,
+                                    bool can_assume_type_is_in_dex_cache,
+                                    uint32_t type_idx, RegLocation rl_dest,
+                                    RegLocation rl_src);
+
     // Single operation generators.
     LIR* OpUnconditionalBranch(LIR* target);
     LIR* OpCmpBranch(ConditionCode cond, int src1, int src2, LIR* target);
