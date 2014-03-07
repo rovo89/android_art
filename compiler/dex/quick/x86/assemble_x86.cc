@@ -863,6 +863,20 @@ void X86Mir2Lir::EmitShiftRegCl(const X86EncodingMap* entry, uint8_t reg, uint8_
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
+void X86Mir2Lir::EmitShiftMemCl(const X86EncodingMap* entry, uint8_t base,
+                                int displacement, uint8_t cl) {
+  DCHECK_EQ(cl, static_cast<uint8_t>(rCX));
+  EmitPrefix(entry);
+  code_buffer_.push_back(entry->skeleton.opcode);
+  DCHECK_NE(0x0F, entry->skeleton.opcode);
+  DCHECK_EQ(0, entry->skeleton.extra_opcode1);
+  DCHECK_EQ(0, entry->skeleton.extra_opcode2);
+  DCHECK_LT(base, 8);
+  EmitModrmDisp(entry->skeleton.modrm_opcode, base, displacement);
+  DCHECK_EQ(0, entry->skeleton.ax_opcode);
+  DCHECK_EQ(0, entry->skeleton.immediate_bytes);
+}
+
 void X86Mir2Lir::EmitRegCond(const X86EncodingMap* entry, uint8_t reg, uint8_t condition) {
   if (entry->skeleton.prefix1 != 0) {
     code_buffer_.push_back(entry->skeleton.prefix1);
@@ -1229,6 +1243,9 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
         break;
       case kShiftRegCl:  // lir operands - 0: reg, 1: cl
         EmitShiftRegCl(entry, lir->operands[0], lir->operands[1]);
+        break;
+      case kShiftMemCl:  // lir operands - 0: base, 1:displacement, 2: cl
+        EmitShiftMemCl(entry, lir->operands[0], lir->operands[1], lir->operands[2]);
         break;
       case kRegCond:  // lir operands - 0: reg, 1: condition
         EmitRegCond(entry, lir->operands[0], lir->operands[1]);
