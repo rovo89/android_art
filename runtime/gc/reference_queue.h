@@ -26,7 +26,6 @@
 #include "globals.h"
 #include "gtest/gtest.h"
 #include "jni.h"
-#include "locks.h"
 #include "object_callbacks.h"
 #include "offsets.h"
 #include "thread_pool.h"

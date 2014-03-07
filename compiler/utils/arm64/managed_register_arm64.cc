@@ -27,10 +27,10 @@ namespace arm64 {
 //  * [W0, W15]
 //  * [D0, D31]
 //  * [S0, S31]
-static const int kNumberOfAvailableCoreRegisters = (X15 - X0) + 1;
-static const int kNumberOfAvailableWRegisters = (W15 - W0) + 1;
-static const int kNumberOfAvailableDRegisters = kNumberOfDRegisters;
-static const int kNumberOfAvailableSRegisters = kNumberOfSRegisters;
+// static const int kNumberOfAvailableCoreRegisters = (X15 - X0) + 1;
+// static const int kNumberOfAvailableWRegisters = (W15 - W0) + 1;
+// static const int kNumberOfAvailableDRegisters = kNumberOfDRegisters;
+// static const int kNumberOfAvailableSRegisters = kNumberOfSRegisters;
 
 // Returns true if this managed-register overlaps the other managed-register.
 // GP Register Bank:

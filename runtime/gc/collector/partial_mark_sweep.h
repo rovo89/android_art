@@ -17,7 +17,6 @@
 #ifndef ART_RUNTIME_GC_COLLECTOR_PARTIAL_MARK_SWEEP_H_
 #define ART_RUNTIME_GC_COLLECTOR_PARTIAL_MARK_SWEEP_H_
 
-#include "locks.h"
 #include "mark_sweep.h"
 
 namespace art {

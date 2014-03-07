@@ -114,7 +114,7 @@ class MarkSweep : public GarbageCollector {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsImmuneSpace(const space::ContinuousSpace* space) const;
+  bool IsImmuneSpace(const space::ContinuousSpace* space) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Bind the live bits to the mark bits of bitmaps for spaces that are never collected, ie
@@ -152,6 +152,7 @@ class MarkSweep : public GarbageCollector {
 
   // Sweep only pointers within an array. WARNING: Trashes objects.
   void SweepArray(accounting::ObjectStack* allocation_stack_, bool swap_bitmaps)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Blackens an object.

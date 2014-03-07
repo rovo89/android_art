@@ -21,7 +21,8 @@
 namespace art {
 
 extern "C" int artLockObjectFromCode(mirror::Object* obj, Thread* self, mirror::ArtMethod** sp)
-    EXCLUSIVE_LOCK_FUNCTION(monitor_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+    NO_THREAD_SAFETY_ANALYSIS /* EXCLUSIVE_LOCK_FUNCTION(Monitor::monitor_lock_) */ {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   if (UNLIKELY(obj == NULL)) {
     ThrowLocation throw_location(self->GetCurrentLocationForThrow());
@@ -42,7 +43,8 @@ extern "C" int artLockObjectFromCode(mirror::Object* obj, Thread* self, mirror::
 }
 
 extern "C" int artUnlockObjectFromCode(mirror::Object* obj, Thread* self, mirror::ArtMethod** sp)
-    UNLOCK_FUNCTION(monitor_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+    NO_THREAD_SAFETY_ANALYSIS /* UNLOCK_FUNCTION(Monitor::monitor_lock_) */ {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   if (UNLIKELY(obj == NULL)) {
     ThrowLocation throw_location(self->GetCurrentLocationForThrow());

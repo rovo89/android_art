@@ -22,15 +22,14 @@
 #include <string>
 #include <vector>
 
+#include "barrier.h"
 #include "base/macros.h"
+#include "base/mutex.h"
 #include "globals.h"
 #include "instrumentation.h"
 #include "os.h"
 #include "safe_map.h"
-#include "base/mutex.h"
-#include "locks.h"
 #include "UniquePtr.h"
-#include "barrier.h"
 
 namespace art {
 

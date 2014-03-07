@@ -22,8 +22,8 @@
 #include <string>
 #include <vector>
 
+#include "base/mutex.h"
 #include "object_callbacks.h"
-#include "locks.h"
 
 namespace art {
 namespace mirror {

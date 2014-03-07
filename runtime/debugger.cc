@@ -184,14 +184,14 @@ static Dbg::HpsgWhat gDdmHpsgWhat;
 static Dbg::HpsgWhen gDdmNhsgWhen = Dbg::HPSG_WHEN_NEVER;
 static Dbg::HpsgWhat gDdmNhsgWhat;
 
-static ObjectRegistry* gRegistry = NULL;
+static ObjectRegistry* gRegistry = nullptr;
 
 // Recent allocation tracking.
-static Mutex gAllocTrackerLock DEFAULT_MUTEX_ACQUIRED_AFTER("AllocTracker lock");
-AllocRecord* Dbg::recent_allocation_records_ PT_GUARDED_BY(gAllocTrackerLock) = NULL;  // TODO: CircularBuffer<AllocRecord>
-static size_t gAllocRecordMax GUARDED_BY(gAllocTrackerLock) = 0;
-static size_t gAllocRecordHead GUARDED_BY(gAllocTrackerLock) = 0;
-static size_t gAllocRecordCount GUARDED_BY(gAllocTrackerLock) = 0;
+Mutex* Dbg::alloc_tracker_lock_ = nullptr;
+AllocRecord* Dbg::recent_allocation_records_ = nullptr;  // TODO: CircularBuffer<AllocRecord>
+size_t Dbg::alloc_record_max_ = 0;
+size_t Dbg::alloc_record_head_ = 0;
+size_t Dbg::alloc_record_count_ = 0;
 
 // Deoptimization support.
 struct MethodInstrumentationRequest {
@@ -468,9 +468,10 @@ void Dbg::StartJdwp() {
     return;
   }
 
-  CHECK(gRegistry == NULL);
+  CHECK(gRegistry == nullptr);
   gRegistry = new ObjectRegistry;
 
+  alloc_tracker_lock_ = new Mutex("AllocTracker lock");
   // Init JDWP if the debugger is enabled. This may connect out to a
   // debugger, passively listen for a debugger, or block waiting for a
   // debugger.
@@ -496,9 +497,11 @@ void Dbg::StopJdwp() {
   // Prevent the JDWP thread from processing JDWP incoming packets after we close the connection.
   Disposed();
   delete gJdwpState;
-  gJdwpState = NULL;
+  gJdwpState = nullptr;
   delete gRegistry;
-  gRegistry = NULL;
+  gRegistry = nullptr;
+  delete alloc_tracker_lock_;
+  alloc_tracker_lock_ = nullptr;
 }
 
 void Dbg::GcDidFinish() {
@@ -3695,15 +3698,15 @@ static size_t GetAllocTrackerMax() {
 }
 
 void Dbg::SetAllocTrackingEnabled(bool enabled) {
-  MutexLock mu(Thread::Current(), gAllocTrackerLock);
+  MutexLock mu(Thread::Current(), *alloc_tracker_lock_);
   if (enabled) {
     if (recent_allocation_records_ == NULL) {
-      gAllocRecordMax = GetAllocTrackerMax();
-      LOG(INFO) << "Enabling alloc tracker (" << gAllocRecordMax << " entries of "
+      alloc_record_max_ = GetAllocTrackerMax();
+      LOG(INFO) << "Enabling alloc tracker (" << alloc_record_max_ << " entries of "
                 << kMaxAllocRecordStackDepth << " frames, taking "
-                << PrettySize(sizeof(AllocRecord) * gAllocRecordMax) << ")";
-      gAllocRecordHead = gAllocRecordCount = 0;
-      recent_allocation_records_ = new AllocRecord[gAllocRecordMax];
+                << PrettySize(sizeof(AllocRecord) * alloc_record_max_) << ")";
+      alloc_record_head_ = alloc_record_count_ = 0;
+      recent_allocation_records_ = new AllocRecord[alloc_record_max_];
       CHECK(recent_allocation_records_ != NULL);
     }
     Runtime::Current()->GetInstrumentation()->InstrumentQuickAllocEntryPoints();
@@ -3750,18 +3753,18 @@ void Dbg::RecordAllocation(mirror::Class* type, size_t byte_count) {
   Thread* self = Thread::Current();
   CHECK(self != NULL);
 
-  MutexLock mu(self, gAllocTrackerLock);
+  MutexLock mu(self, *alloc_tracker_lock_);
   if (recent_allocation_records_ == NULL) {
     return;
   }
 
   // Advance and clip.
-  if (++gAllocRecordHead == gAllocRecordMax) {
-    gAllocRecordHead = 0;
+  if (++alloc_record_head_ == alloc_record_max_) {
+    alloc_record_head_ = 0;
   }
 
   // Fill in the basics.
-  AllocRecord* record = &recent_allocation_records_[gAllocRecordHead];
+  AllocRecord* record = &recent_allocation_records_[alloc_record_head_];
   record->type = type;
   record->byte_count = byte_count;
   record->thin_lock_id = self->GetThreadId();
@@ -3770,8 +3773,8 @@ void Dbg::RecordAllocation(mirror::Class* type, size_t byte_count) {
   AllocRecordStackVisitor visitor(self, record);
   visitor.WalkStack();
 
-  if (gAllocRecordCount < gAllocRecordMax) {
-    ++gAllocRecordCount;
+  if (alloc_record_count_ < alloc_record_max_) {
+    ++alloc_record_count_;
   }
 }
 
@@ -3783,13 +3786,14 @@ void Dbg::RecordAllocation(mirror::Class* type, size_t byte_count) {
 //
 // We need to handle underflow in our circular buffer, so we add
 // gAllocRecordMax and then mask it back down.
-static inline int HeadIndex() EXCLUSIVE_LOCKS_REQUIRED(gAllocTrackerLock) {
-  return (gAllocRecordHead+1 + gAllocRecordMax - gAllocRecordCount) & (gAllocRecordMax-1);
+size_t Dbg::HeadIndex() {
+  return (Dbg::alloc_record_head_ + 1 + Dbg::alloc_record_max_ - Dbg::alloc_record_count_) &
+      (Dbg::alloc_record_max_ - 1);
 }
 
 void Dbg::DumpRecentAllocations() {
   ScopedObjectAccess soa(Thread::Current());
-  MutexLock mu(soa.Self(), gAllocTrackerLock);
+  MutexLock mu(soa.Self(), *alloc_tracker_lock_);
   if (recent_allocation_records_ == NULL) {
     LOG(INFO) << "Not recording tracked allocations";
     return;
@@ -3798,9 +3802,9 @@ void Dbg::DumpRecentAllocations() {
   // "i" is the head of the list.  We want to start at the end of the
   // list and move forward to the tail.
   size_t i = HeadIndex();
-  size_t count = gAllocRecordCount;
+  size_t count = alloc_record_count_;
 
-  LOG(INFO) << "Tracked allocations, (head=" << gAllocRecordHead << " count=" << count << ")";
+  LOG(INFO) << "Tracked allocations, (head=" << alloc_record_head_ << " count=" << count << ")";
   while (count--) {
     AllocRecord* record = &recent_allocation_records_[i];
 
@@ -3820,22 +3824,20 @@ void Dbg::DumpRecentAllocations() {
       usleep(40000);
     }
 
-    i = (i + 1) & (gAllocRecordMax-1);
+    i = (i + 1) & (alloc_record_max_ - 1);
   }
 }
 
 void Dbg::UpdateObjectPointers(IsMarkedCallback* visitor, void* arg) {
-  {
-    MutexLock mu(Thread::Current(), gAllocTrackerLock);
-    if (recent_allocation_records_ != nullptr) {
-      size_t i = HeadIndex();
-      size_t count = gAllocRecordCount;
-      while (count--) {
-        AllocRecord* record = &recent_allocation_records_[i];
-        DCHECK(record != nullptr);
-        record->UpdateObjectPointers(visitor, arg);
-        i = (i + 1) & (gAllocRecordMax - 1);
-      }
+  if (recent_allocation_records_ != nullptr) {
+    MutexLock mu(Thread::Current(), *alloc_tracker_lock_);
+    size_t i = HeadIndex();
+    size_t count = alloc_record_count_;
+    while (count--) {
+      AllocRecord* record = &recent_allocation_records_[i];
+      DCHECK(record != nullptr);
+      record->UpdateObjectPointers(visitor, arg);
+      i = (i + 1) & (alloc_record_max_ - 1);
     }
   }
   if (gRegistry != nullptr) {
@@ -3941,7 +3943,7 @@ jbyteArray Dbg::GetRecentAllocations() {
   Thread* self = Thread::Current();
   std::vector<uint8_t> bytes;
   {
-    MutexLock mu(self, gAllocTrackerLock);
+    MutexLock mu(self, *alloc_tracker_lock_);
     //
     // Part 1: generate string tables.
     //
@@ -3949,7 +3951,7 @@ jbyteArray Dbg::GetRecentAllocations() {
     StringTable method_names;
     StringTable filenames;
 
-    int count = gAllocRecordCount;
+    int count = alloc_record_count_;
     int idx = HeadIndex();
     while (count--) {
       AllocRecord* record = &recent_allocation_records_[idx];
@@ -3967,10 +3969,10 @@ jbyteArray Dbg::GetRecentAllocations() {
         }
       }
 
-      idx = (idx + 1) & (gAllocRecordMax-1);
+      idx = (idx + 1) & (alloc_record_max_ - 1);
     }
 
-    LOG(INFO) << "allocation records: " << gAllocRecordCount;
+    LOG(INFO) << "allocation records: " << alloc_record_count_;
 
     //
     // Part 2: Generate the output and store it in the buffer.
@@ -3991,14 +3993,14 @@ jbyteArray Dbg::GetRecentAllocations() {
     // (2b) number of class name strings
     // (2b) number of method name strings
     // (2b) number of source file name strings
-    JDWP::Append2BE(bytes, gAllocRecordCount);
+    JDWP::Append2BE(bytes, alloc_record_count_);
     size_t string_table_offset = bytes.size();
     JDWP::Append4BE(bytes, 0);  // We'll patch this later...
     JDWP::Append2BE(bytes, class_names.Size());
     JDWP::Append2BE(bytes, method_names.Size());
     JDWP::Append2BE(bytes, filenames.Size());
 
-    count = gAllocRecordCount;
+    count = alloc_record_count_;
     idx = HeadIndex();
     while (count--) {
       // For each entry:
@@ -4032,7 +4034,7 @@ jbyteArray Dbg::GetRecentAllocations() {
         JDWP::Append2BE(bytes, record->stack[stack_frame].LineNumber());
       }
 
-      idx = (idx + 1) & (gAllocRecordMax-1);
+      idx = (idx + 1) & (alloc_record_max_ - 1);
     }
 
     // (xb) class name strings

@@ -175,7 +175,6 @@ class CheckReferenceVisitor {
   }
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
-  // TODO: Fixme when anotatalysis works with visitors.
   void operator()(Object* obj, Object* ref,
                   const MemberOffset& /* offset */, bool /* is_static */) const
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {

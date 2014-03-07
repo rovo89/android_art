@@ -18,10 +18,10 @@
 #define ART_RUNTIME_GC_COLLECTOR_GARBAGE_COLLECTOR_H_
 
 #include "base/histogram.h"
+#include "base/mutex.h"
 #include "base/timing_logger.h"
 #include "gc/gc_cause.h"
 #include "gc_type.h"
-#include "locks.h"
 #include <stdint.h>
 #include <vector>
 

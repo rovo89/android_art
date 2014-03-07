@@ -17,9 +17,9 @@
 #ifndef ART_RUNTIME_GC_ACCOUNTING_SPACE_BITMAP_H_
 #define ART_RUNTIME_GC_ACCOUNTING_SPACE_BITMAP_H_
 
+#include "base/mutex.h"
 #include "gc_allocator.h"
 #include "globals.h"
-#include "locks.h"
 #include "mem_map.h"
 #include "object_callbacks.h"
 #include "UniquePtr.h"
@@ -248,8 +248,7 @@ class ObjectSet {
     contained_ = space_set.contained_;
   }
 
-  void Walk(ObjectCallback* callback, void* arg)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
+  void Walk(ObjectCallback* callback, void* arg) SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   template <typename Visitor>
   void Visit(const Visitor& visitor) NO_THREAD_SAFETY_ANALYSIS {

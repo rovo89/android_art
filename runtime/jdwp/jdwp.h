@@ -31,11 +31,13 @@
 struct iovec;
 
 namespace art {
-  union JValue;
+
+union JValue;
+class Thread;
+
 namespace mirror {
   class ArtMethod;
 }  // namespace mirror
-class Thread;
 
 namespace JDWP {
 
@@ -156,7 +158,7 @@ struct JdwpState {
   // ObjectId GetWaitForEventThread();
   void SetWaitForEventThread(ObjectId threadId)
       LOCKS_EXCLUDED(event_thread_lock_, process_request_lock_);
-  void ClearWaitForEventThread() LOCKS_EXCLUDED(event_thread_lock);
+  void ClearWaitForEventThread() LOCKS_EXCLUDED(event_thread_lock_);
 
   /*
    * These notify the debug code that something interesting has happened.  This
@@ -334,6 +336,7 @@ struct JdwpState {
 
   // Linked list of events requested by the debugger (breakpoints, class prep, etc).
   Mutex event_list_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+
   JdwpEvent* event_list_ GUARDED_BY(event_list_lock_);
   size_t event_list_size_ GUARDED_BY(event_list_lock_);  // Number of elements in event_list_.
   size_t full_deoptimization_requests_ GUARDED_BY(event_list_lock_);  // Number of events requiring

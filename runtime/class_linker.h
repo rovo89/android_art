@@ -260,7 +260,7 @@ class ClassLinker {
   bool GenerateOatFile(const char* dex_filename,
                        int oat_fd,
                        const char* oat_cache_filename,
-                       std::string* error_msg);
+                       std::string* error_msg)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   const OatFile* FindOatFileFromOatLocation(const std::string& location,
@@ -519,7 +519,7 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const OatFile* FindOpenedOatFileFromDexLocation(const char* dex_location,
                                                   const uint32_t* const dex_location_checksum)
-      LOCKS_EXCLUDED(dex_lock);
+      LOCKS_EXCLUDED(dex_lock_);
   const OatFile* FindOpenedOatFileFromOatLocation(const std::string& oat_location)
       LOCKS_EXCLUDED(dex_lock_);
   const DexFile* FindDexFileInOatLocation(const char* dex_location,

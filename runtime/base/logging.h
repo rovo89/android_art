@@ -192,7 +192,7 @@ class LogMessage {
     : data_(new LogMessageData(file, line, severity, error)) {
   }
 
-  ~LogMessage() LOCKS_EXCLUDED(Locks::logging_lock_);
+  ~LogMessage();  // TODO: enable LOCKS_EXCLUDED(Locks::logging_lock_).
 
   std::ostream& stream() {
     return data_->buffer;
@@ -231,32 +231,6 @@ class Dumpable {
 
 template<typename T>
 std::ostream& operator<<(std::ostream& os, const Dumpable<T>& rhs) {
-  rhs.Dump(os);
-  return os;
-}
-
-template<typename T>
-class MutatorLockedDumpable {
- public:
-  explicit MutatorLockedDumpable(T& value)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) : value_(value) {
-  }
-
-  void Dump(std::ostream& os) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    value_.Dump(os);
-  }
-
- private:
-  T& value_;
-
-  DISALLOW_COPY_AND_ASSIGN(MutatorLockedDumpable);
-};
-
-template<typename T>
-std::ostream& operator<<(std::ostream& os, const MutatorLockedDumpable<T>& rhs)
-// TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) however annotalysis
-//       currently fails for this.
-    NO_THREAD_SAFETY_ANALYSIS {
   rhs.Dump(os);
   return os;
 }

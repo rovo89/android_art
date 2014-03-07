@@ -29,6 +29,30 @@
 
 namespace art {
 
+Mutex* Locks::abort_lock_ = nullptr;
+Mutex* Locks::breakpoint_lock_ = nullptr;
+Mutex* Locks::deoptimization_lock_ = nullptr;
+ReaderWriterMutex* Locks::classlinker_classes_lock_ = nullptr;
+ReaderWriterMutex* Locks::heap_bitmap_lock_ = nullptr;
+Mutex* Locks::logging_lock_ = nullptr;
+ReaderWriterMutex* Locks::mutator_lock_ = nullptr;
+Mutex* Locks::runtime_shutdown_lock_ = nullptr;
+Mutex* Locks::thread_list_lock_ = nullptr;
+Mutex* Locks::thread_suspend_count_lock_ = nullptr;
+Mutex* Locks::trace_lock_ = nullptr;
+Mutex* Locks::profiler_lock_ = nullptr;
+Mutex* Locks::unexpected_signal_lock_ = nullptr;
+Mutex* Locks::intern_table_lock_ = nullptr;
+
+struct AllMutexData {
+  // A guard for all_mutexes_ that's not a mutex (Mutexes must CAS to acquire and busy wait).
+  Atomic<const BaseMutex*> all_mutexes_guard;
+  // All created mutexes guarded by all_mutexes_guard_.
+  std::set<BaseMutex*>* all_mutexes;
+  AllMutexData() : all_mutexes(NULL) {}
+};
+static struct AllMutexData gAllMutexData[kAllMutexDataSize];
+
 #if ART_USE_FUTEXES
 static bool ComputeRelativeTimeSpec(timespec* result_ts, const timespec& lhs, const timespec& rhs) {
   const int32_t one_sec = 1000 * 1000 * 1000;  // one second in nanoseconds.
@@ -44,15 +68,6 @@ static bool ComputeRelativeTimeSpec(timespec* result_ts, const timespec& lhs, co
   return result_ts->tv_sec < 0;
 }
 #endif
-
-struct AllMutexData {
-  // A guard for all_mutexes_ that's not a mutex (Mutexes must CAS to acquire and busy wait).
-  Atomic<const BaseMutex*> all_mutexes_guard;
-  // All created mutexes guarded by all_mutexes_guard_.
-  std::set<BaseMutex*>* all_mutexes;
-  AllMutexData() : all_mutexes(NULL) {}
-};
-static struct AllMutexData gAllMutexData[kAllMutexDataSize];
 
 class ScopedAllMutexesLock {
  public:
@@ -791,5 +806,54 @@ void ConditionVariable::TimedWait(Thread* self, int64_t ms, int32_t ns) {
 #endif
   guard_.recursion_count_ = old_recursion_count;
 }
+
+void Locks::Init() {
+  if (logging_lock_ != nullptr) {
+    // Already initialized.
+    DCHECK(abort_lock_ != nullptr);
+    DCHECK(breakpoint_lock_ != nullptr);
+    DCHECK(deoptimization_lock_ != nullptr);
+    DCHECK(classlinker_classes_lock_ != nullptr);
+    DCHECK(heap_bitmap_lock_ != nullptr);
+    DCHECK(logging_lock_ != nullptr);
+    DCHECK(mutator_lock_ != nullptr);
+    DCHECK(thread_list_lock_ != nullptr);
+    DCHECK(thread_suspend_count_lock_ != nullptr);
+    DCHECK(trace_lock_ != nullptr);
+    DCHECK(profiler_lock_ != nullptr);
+    DCHECK(unexpected_signal_lock_ != nullptr);
+    DCHECK(intern_table_lock_ != nullptr);
+  } else {
+    logging_lock_ = new Mutex("logging lock", kLoggingLock, true);
+    abort_lock_ = new Mutex("abort lock", kAbortLock, true);
+
+    DCHECK(breakpoint_lock_ == nullptr);
+    breakpoint_lock_ = new Mutex("breakpoint lock", kBreakpointLock);
+    DCHECK(deoptimization_lock_ == nullptr);
+    deoptimization_lock_ = new Mutex("deoptimization lock", kDeoptimizationLock);
+    DCHECK(classlinker_classes_lock_ == nullptr);
+    classlinker_classes_lock_ = new ReaderWriterMutex("ClassLinker classes lock",
+                                                      kClassLinkerClassesLock);
+    DCHECK(heap_bitmap_lock_ == nullptr);
+    heap_bitmap_lock_ = new ReaderWriterMutex("heap bitmap lock", kHeapBitmapLock);
+    DCHECK(mutator_lock_ == nullptr);
+    mutator_lock_ = new ReaderWriterMutex("mutator lock", kMutatorLock);
+    DCHECK(runtime_shutdown_lock_ == nullptr);
+    runtime_shutdown_lock_ = new Mutex("runtime shutdown lock", kRuntimeShutdownLock);
+    DCHECK(thread_list_lock_ == nullptr);
+    thread_list_lock_ = new Mutex("thread list lock", kThreadListLock);
+    DCHECK(thread_suspend_count_lock_ == nullptr);
+    thread_suspend_count_lock_ = new Mutex("thread suspend count lock", kThreadSuspendCountLock);
+    DCHECK(trace_lock_ == nullptr);
+    trace_lock_ = new Mutex("trace lock", kTraceLock);
+    DCHECK(profiler_lock_ == nullptr);
+    profiler_lock_ = new Mutex("profiler lock", kProfilerLock);
+    DCHECK(unexpected_signal_lock_ == nullptr);
+    unexpected_signal_lock_ = new Mutex("unexpected signal lock", kUnexpectedSignalLock, true);
+    DCHECK(intern_table_lock_ == nullptr);
+    intern_table_lock_ = new Mutex("InternTable lock", kInternTableLock);
+  }
+}
+
 
 }  // namespace art

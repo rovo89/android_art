@@ -17,8 +17,8 @@
 #ifndef ART_RUNTIME_MIRROR_OBJECT_REFERENCE_H_
 #define ART_RUNTIME_MIRROR_OBJECT_REFERENCE_H_
 
+#include "base/mutex.h"
 #include "globals.h"
-#include "locks.h"
 
 namespace art {
 namespace mirror {
