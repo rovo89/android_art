@@ -678,13 +678,14 @@ void SemiSpace::DelayReferenceReferent(mirror::Class* klass, Object* obj) {
   heap_->DelayReferenceReferent(klass, obj, MarkedForwardingAddressCallback, this);
 }
 
-// Visit all of the references of an object and update.
-void SemiSpace::ScanObject(Object* obj) {
-  DCHECK(obj != NULL);
-  DCHECK(!from_space_->HasAddress(obj)) << "Scanning object " << obj << " in from space";
-  MarkSweep::VisitObjectReferences(obj, [this](Object* obj, Object* ref, const MemberOffset& offset,
-     bool /* is_static */) ALWAYS_INLINE_LAMBDA NO_THREAD_SAFETY_ANALYSIS {
-    mirror::Object* new_address = MarkObject(ref);
+class SemiSpaceMarkObjectVisitor {
+ public:
+  explicit SemiSpaceMarkObjectVisitor(SemiSpace* semi_space) : semi_space_(semi_space) {
+  }
+
+  void operator()(Object* obj, Object* ref, const MemberOffset& offset, bool /* is_static */)
+      const ALWAYS_INLINE NO_THREAD_SAFETY_ANALYSIS /* EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) */ {
+    mirror::Object* new_address = semi_space_->MarkObject(ref);
     if (new_address != ref) {
       DCHECK(new_address != nullptr);
       // Don't need to mark the card since we updating the object address and not changing the
@@ -694,7 +695,17 @@ void SemiSpace::ScanObject(Object* obj) {
       // disable check as we could run inside a transaction.
       obj->SetFieldObjectWithoutWriteBarrier<false, false, kVerifyNone>(offset, new_address, false);
     }
-  }, kMovingClasses);
+  }
+ private:
+  SemiSpace* const semi_space_;
+};
+
+// Visit all of the references of an object and update.
+void SemiSpace::ScanObject(Object* obj) {
+  DCHECK(obj != NULL);
+  DCHECK(!from_space_->HasAddress(obj)) << "Scanning object " << obj << " in from space";
+  SemiSpaceMarkObjectVisitor visitor(this);
+  MarkSweep::VisitObjectReferences(obj, visitor, kMovingClasses);
   mirror::Class* klass = obj->GetClass<kVerifyNone>();
   if (UNLIKELY(klass->IsReferenceClass<kVerifyNone>())) {
     DelayReferenceReferent(klass, obj);

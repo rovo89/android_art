@@ -151,7 +151,8 @@ void ThreadList::AssertThreadsAreSuspended(Thread* self, Thread* ignore1, Thread
 
 #if HAVE_TIMED_RWLOCK
 // Attempt to rectify locks so that we dump thread list with required locks before exiting.
-static void UnsafeLogFatalForThreadSuspendAllTimeout(Thread* self) NO_THREAD_SAFETY_ANALYSIS {
+static void UnsafeLogFatalForThreadSuspendAllTimeout(Thread* self) NO_THREAD_SAFETY_ANALYSIS __attribute__((noreturn));
+static void UnsafeLogFatalForThreadSuspendAllTimeout(Thread* self) {
   Runtime* runtime = Runtime::Current();
   std::ostringstream ss;
   ss << "Thread suspend timeout\n";
@@ -159,6 +160,7 @@ static void UnsafeLogFatalForThreadSuspendAllTimeout(Thread* self) NO_THREAD_SAF
   ss << "\n";
   runtime->GetThreadList()->DumpLocked(ss);
   LOG(FATAL) << ss.str();
+  exit(0);
 }
 #endif
 
@@ -297,7 +299,7 @@ void ThreadList::SuspendAll() {
   // Block on the mutator lock until all Runnable threads release their share of access.
 #if HAVE_TIMED_RWLOCK
   // Timeout if we wait more than 30 seconds.
-  if (UNLIKELY(!Locks::mutator_lock_->ExclusiveLockWithTimeout(self, 30 * 1000, 0))) {
+  if (!Locks::mutator_lock_->ExclusiveLockWithTimeout(self, 30 * 1000, 0)) {
     UnsafeLogFatalForThreadSuspendAllTimeout(self);
   }
 #else

@@ -391,7 +391,7 @@ class Dbg {
       LOCKS_EXCLUDED(Locks::deoptimization_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void DisableFullDeoptimization()
-      EXCLUSIVE_LOCKS_REQUIRED(event_list_lock_)
+      LOCKS_EXCLUDED(Locks::deoptimization_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Manage deoptimization after updating JDWP events list. This must be done while all mutator
@@ -448,8 +448,11 @@ class Dbg {
   static void RecordAllocation(mirror::Class* type, size_t byte_count)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void SetAllocTrackingEnabled(bool enabled);
-  static inline bool IsAllocTrackingEnabled() { return recent_allocation_records_ != NULL; }
+  static bool IsAllocTrackingEnabled() {
+    return recent_allocation_records_ != nullptr;
+  }
   static jbyteArray GetRecentAllocations() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static size_t HeadIndex() EXCLUSIVE_LOCKS_REQUIRED(alloc_tracker_lock_);
   static void DumpRecentAllocations();
 
   // Updates the stored direct object pointers (called from SweepSystemWeaks).
@@ -488,7 +491,14 @@ class Dbg {
   static void PostThreadStartOrStop(Thread*, uint32_t)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static AllocRecord* recent_allocation_records_;
+  static Mutex* alloc_tracker_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+
+  static AllocRecord* recent_allocation_records_ PT_GUARDED_BY(alloc_tracker_lock_);
+  static size_t alloc_record_max_ GUARDED_BY(alloc_tracker_lock_);
+  static size_t alloc_record_head_ GUARDED_BY(alloc_tracker_lock_);
+  static size_t alloc_record_count_ GUARDED_BY(alloc_tracker_lock_);
+
+  DISALLOW_COPY_AND_ASSIGN(Dbg);
 };
 
 #define CHUNK_TYPE(_name) \

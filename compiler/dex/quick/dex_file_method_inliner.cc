@@ -18,7 +18,6 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "base/mutex-inl.h"
-#include "locks.h"
 #include "thread.h"
 #include "thread-inl.h"
 #include "dex/mir_graph.h"

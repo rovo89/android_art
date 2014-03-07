@@ -178,48 +178,40 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 
 template<typename T> void UNUSED(const T&) {}
 
-#if defined(__SUPPORT_TS_ANNOTATION__)
-
-#define ACQUIRED_AFTER(...) __attribute__ ((acquired_after(__VA_ARGS__)))
-#define ACQUIRED_BEFORE(...) __attribute__ ((acquired_before(__VA_ARGS__)))
-#define EXCLUSIVE_LOCK_FUNCTION(...) __attribute__ ((exclusive_lock(__VA_ARGS__)))
-#define EXCLUSIVE_LOCKS_REQUIRED(...) __attribute__ ((exclusive_locks_required(__VA_ARGS__)))
-#define EXCLUSIVE_TRYLOCK_FUNCTION(...) __attribute__ ((exclusive_trylock(__VA_ARGS__)))
-#define GUARDED_BY(x) __attribute__ ((guarded_by(x)))
-#define GUARDED_VAR __attribute__ ((guarded))
-#define LOCKABLE __attribute__ ((lockable))
-#define LOCK_RETURNED(x) __attribute__ ((lock_returned(x)))
-#define LOCKS_EXCLUDED(...) __attribute__ ((locks_excluded(__VA_ARGS__)))
-#define NO_THREAD_SAFETY_ANALYSIS __attribute__ ((no_thread_safety_analysis))
-#define PT_GUARDED_BY(x) __attribute__ ((point_to_guarded_by(x)))
-#define PT_GUARDED_VAR __attribute__ ((point_to_guarded))
-#define SCOPED_LOCKABLE __attribute__ ((scoped_lockable))
-#define SHARED_LOCK_FUNCTION(...) __attribute__ ((shared_lock(__VA_ARGS__)))
-#define SHARED_LOCKS_REQUIRED(...) __attribute__ ((shared_locks_required(__VA_ARGS__)))
-#define SHARED_TRYLOCK_FUNCTION(...) __attribute__ ((shared_trylock(__VA_ARGS__)))
-#define UNLOCK_FUNCTION(...) __attribute__ ((unlock(__VA_ARGS__)))
-
+// Annotalysis thread-safety analysis support.
+#if defined(__SUPPORT_TS_ANNOTATION__) || defined(__clang__)
+#define THREAD_ANNOTATION_ATTRIBUTE__(x)   __attribute__((x))
 #else
+#define THREAD_ANNOTATION_ATTRIBUTE__(x)   // no-op
+#endif
 
-#define ACQUIRED_AFTER(...)
-#define ACQUIRED_BEFORE(...)
-#define EXCLUSIVE_LOCK_FUNCTION(...)
-#define EXCLUSIVE_LOCKS_REQUIRED(...)
-#define EXCLUSIVE_TRYLOCK_FUNCTION(...)
-#define GUARDED_BY(x)
-#define GUARDED_VAR
-#define LOCKABLE
-#define LOCK_RETURNED(x)
-#define LOCKS_EXCLUDED(...)
-#define NO_THREAD_SAFETY_ANALYSIS
+#define ACQUIRED_AFTER(...) THREAD_ANNOTATION_ATTRIBUTE__(acquired_after(__VA_ARGS__))
+#define ACQUIRED_BEFORE(...) THREAD_ANNOTATION_ATTRIBUTE__(acquired_before(__VA_ARGS__))
+#define EXCLUSIVE_LOCKS_REQUIRED(...) THREAD_ANNOTATION_ATTRIBUTE__(exclusive_locks_required(__VA_ARGS__))
+#define GUARDED_BY(x) THREAD_ANNOTATION_ATTRIBUTE__(guarded_by(x))
+#define GUARDED_VAR THREAD_ANNOTATION_ATTRIBUTE__(guarded)
+#define LOCKABLE THREAD_ANNOTATION_ATTRIBUTE__(lockable)
+#define LOCK_RETURNED(x) THREAD_ANNOTATION_ATTRIBUTE__(lock_returned(x))
+#define LOCKS_EXCLUDED(...) THREAD_ANNOTATION_ATTRIBUTE__(locks_excluded(__VA_ARGS__))
+#define NO_THREAD_SAFETY_ANALYSIS THREAD_ANNOTATION_ATTRIBUTE__(no_thread_safety_analysis)
 #define PT_GUARDED_BY(x)
-#define PT_GUARDED_VAR
-#define SCOPED_LOCKABLE
-#define SHARED_LOCK_FUNCTION(...)
-#define SHARED_LOCKS_REQUIRED(...)
-#define SHARED_TRYLOCK_FUNCTION(...)
-#define UNLOCK_FUNCTION(...)
+// THREAD_ANNOTATION_ATTRIBUTE__(point_to_guarded_by(x))
+#define PT_GUARDED_VAR THREAD_ANNOTATION_ATTRIBUTE__(point_to_guarded)
+#define SCOPED_LOCKABLE THREAD_ANNOTATION_ATTRIBUTE__(scoped_lockable)
+#define SHARED_LOCKS_REQUIRED(...) THREAD_ANNOTATION_ATTRIBUTE__(shared_locks_required(__VA_ARGS__))
 
-#endif  // defined(__SUPPORT_TS_ANNOTATION__)
+#if defined(__clang__)
+#define EXCLUSIVE_LOCK_FUNCTION(...) THREAD_ANNOTATION_ATTRIBUTE__(exclusive_lock_function(__VA_ARGS__))
+#define EXCLUSIVE_TRYLOCK_FUNCTION(...) THREAD_ANNOTATION_ATTRIBUTE__(exclusive_trylock_function(__VA_ARGS__))
+#define SHARED_LOCK_FUNCTION(...) THREAD_ANNOTATION_ATTRIBUTE__(shared_lock_function(__VA_ARGS__))
+#define SHARED_TRYLOCK_FUNCTION(...) THREAD_ANNOTATION_ATTRIBUTE__(shared_trylock_function(__VA_ARGS__))
+#define UNLOCK_FUNCTION(...) THREAD_ANNOTATION_ATTRIBUTE__(unlock_function(__VA_ARGS__))
+#else
+#define EXCLUSIVE_LOCK_FUNCTION(...) THREAD_ANNOTATION_ATTRIBUTE__(exclusive_lock(__VA_ARGS__))
+#define EXCLUSIVE_TRYLOCK_FUNCTION(...) THREAD_ANNOTATION_ATTRIBUTE__(exclusive_trylock(__VA_ARGS__))
+#define SHARED_LOCK_FUNCTION(...) THREAD_ANNOTATION_ATTRIBUTE__(shared_lock(__VA_ARGS__))
+#define SHARED_TRYLOCK_FUNCTION(...) THREAD_ANNOTATION_ATTRIBUTE__(shared_trylock(__VA_ARGS__))
+#define UNLOCK_FUNCTION(...) THREAD_ANNOTATION_ATTRIBUTE__(unlock(__VA_ARGS__))
+#endif
 
 #endif  // ART_RUNTIME_BASE_MACROS_H_

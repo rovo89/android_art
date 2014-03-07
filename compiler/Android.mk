@@ -260,12 +260,6 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
 
 endef
 
-ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
-  $(eval $(call build-libart-compiler,target,ndebug))
-endif
-ifeq ($(ART_BUILD_TARGET_DEBUG),true)
-  $(eval $(call build-libart-compiler,target,debug))
-endif
 ifeq ($(WITH_HOST_DALVIK),true)
   # We always build dex2oat and dependencies, even if the host build is otherwise disabled, since they are used to cross compile for the target.
   ifeq ($(ART_BUILD_NDEBUG),true)
@@ -274,6 +268,12 @@ ifeq ($(WITH_HOST_DALVIK),true)
   ifeq ($(ART_BUILD_DEBUG),true)
     $(eval $(call build-libart-compiler,host,debug))
   endif
+endif
+ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
+  $(eval $(call build-libart-compiler,target,ndebug))
+endif
+ifeq ($(ART_BUILD_TARGET_DEBUG),true)
+  $(eval $(call build-libart-compiler,target,debug))
 endif
 
 # Rule to build /system/lib/libcompiler_rt.a

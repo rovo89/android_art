@@ -21,6 +21,7 @@
 #include "base/logging.h"
 #include "base/macros.h"
 #include "cutils/atomic-inline.h"
+#include "monitor.h"
 #include "object_reference.h"
 #include "offsets.h"
 #include "runtime.h"
@@ -30,7 +31,6 @@ namespace art {
 
 class ImageWriter;
 class LockWord;
-class Monitor;
 struct ObjectOffsets;
 class Thread;
 template <typename T> class SirtRef;
@@ -64,7 +64,7 @@ class Throwable;
 static constexpr bool kCheckFieldAssignments = false;
 
 // C++ mirror of java.lang.Object
-class MANAGED Object {
+class MANAGED LOCKABLE Object {
  public:
   static MemberOffset ClassOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Object, klass_);
@@ -104,9 +104,9 @@ class MANAGED Object {
   uint32_t GetLockOwnerThreadId();
 
   mirror::Object* MonitorEnter(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      EXCLUSIVE_LOCK_FUNCTION(monitor_lock_);
+      EXCLUSIVE_LOCK_FUNCTION();
   bool MonitorExit(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      UNLOCK_FUNCTION(monitor_lock_);
+      UNLOCK_FUNCTION();
   void Notify(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void NotifyAll(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void Wait(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

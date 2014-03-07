@@ -23,7 +23,6 @@
 #include "safe_map.h"
 #include "dex/compiler_enums.h"
 #include "dex_file.h"
-#include "locks.h"
 
 namespace art {
 

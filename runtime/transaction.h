@@ -19,10 +19,9 @@
 
 #include "base/macros.h"
 #include "base/mutex.h"
-#include "locks.h"
+#include "object_callbacks.h"
 #include "offsets.h"
 #include "primitive.h"
-#include "object_callbacks.h"
 #include "safe_map.h"
 
 #include <list>

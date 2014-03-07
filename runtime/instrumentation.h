@@ -19,7 +19,7 @@
 
 #include "atomic.h"
 #include "base/macros.h"
-#include "locks.h"
+#include "base/mutex.h"
 
 #include <stdint.h>
 #include <set>
