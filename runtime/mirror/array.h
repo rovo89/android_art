@@ -47,7 +47,8 @@ class MANAGED Array : public Object {
                       size_t component_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static Array* CreateMultiArray(Thread* self, Class* element_class, IntArray* dimensions)
+  static Array* CreateMultiArray(Thread* self, const SirtRef<Class>& element_class,
+                                 const SirtRef<IntArray>& dimensions)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   size_t SizeOf() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

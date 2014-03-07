@@ -29,14 +29,16 @@ namespace art {
 static jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementClass, jobject javaDimArray) {
   ScopedFastNativeObjectAccess soa(env);
   DCHECK(javaElementClass != NULL);
-  mirror::Class* element_class = soa.Decode<mirror::Class*>(javaElementClass);
+  SirtRef<mirror::Class> element_class(soa.Self(), soa.Decode<mirror::Class*>(javaElementClass));
   DCHECK(element_class->IsClass());
   DCHECK(javaDimArray != NULL);
   mirror::Object* dimensions_obj = soa.Decode<mirror::Object*>(javaDimArray);
   DCHECK(dimensions_obj->IsArrayInstance());
   DCHECK_STREQ(ClassHelper(dimensions_obj->GetClass()).GetDescriptor(), "[I");
-  mirror::IntArray* dimensions_array = down_cast<mirror::IntArray*>(dimensions_obj);
-  mirror::Array* new_array = mirror::Array::CreateMultiArray(soa.Self(), element_class, dimensions_array);
+  SirtRef<mirror::IntArray> dimensions_array(soa.Self(),
+                                             down_cast<mirror::IntArray*>(dimensions_obj));
+  mirror::Array* new_array = mirror::Array::CreateMultiArray(soa.Self(), element_class,
+                                                             dimensions_array);
   return soa.AddLocalReference<jobject>(new_array);
 }
 

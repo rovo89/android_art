@@ -236,12 +236,12 @@ TEST_F(ObjectTest, CreateMultiArray) {
   SirtRef<Class> c(soa.Self(), class_linker_->FindSystemClass("I"));
   SirtRef<IntArray> dims(soa.Self(), IntArray::Alloc(soa.Self(), 1));
   dims->Set(0, 1);
-  Array* multi = Array::CreateMultiArray(soa.Self(), c.get(), dims.get());
+  Array* multi = Array::CreateMultiArray(soa.Self(), c, dims);
   EXPECT_TRUE(multi->GetClass() == class_linker_->FindSystemClass("[I"));
   EXPECT_EQ(1, multi->GetLength());
 
   dims->Set(0, -1);
-  multi = Array::CreateMultiArray(soa.Self(), c.get(), dims.get());
+  multi = Array::CreateMultiArray(soa.Self(), c, dims);
   EXPECT_TRUE(soa.Self()->IsExceptionPending());
   EXPECT_EQ(PrettyDescriptor(soa.Self()->GetException(NULL)->GetClass()),
             "java.lang.NegativeArraySizeException");
@@ -252,7 +252,7 @@ TEST_F(ObjectTest, CreateMultiArray) {
     for (int j = 0; j < 20; ++j) {
       dims->Set(0, i);
       dims->Set(1, j);
-      multi = Array::CreateMultiArray(soa.Self(), c.get(), dims.get());
+      multi = Array::CreateMultiArray(soa.Self(), c, dims);
       EXPECT_TRUE(multi->GetClass() == class_linker_->FindSystemClass("[[I"));
       EXPECT_EQ(i, multi->GetLength());
       for (int k = 0; k < i; ++k) {
