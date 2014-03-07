@@ -177,7 +177,9 @@ class QuickBackend : public CompilerBackend {
 #ifdef ART_USE_PORTABLE_COMPILER
 
 extern "C" void ArtInitCompilerContext(art::CompilerDriver& driver);
+
 extern "C" void ArtUnInitCompilerContext(art::CompilerDriver& driver);
+
 extern "C" art::CompiledMethod* ArtCompileMethod(art::CompilerDriver& driver,
                                                  const art::DexFile::CodeItem* code_item,
                                                  uint32_t access_flags,
@@ -186,9 +188,13 @@ extern "C" art::CompiledMethod* ArtCompileMethod(art::CompilerDriver& driver,
                                                  uint32_t method_idx,
                                                  jobject class_loader,
                                                  const art::DexFile& dex_file);
+
 extern "C" art::CompiledMethod* ArtLLVMJniCompileMethod(art::CompilerDriver& driver,
                                                         uint32_t access_flags, uint32_t method_idx,
                                                         const art::DexFile& dex_file);
+
+extern "C" void compilerLLVMSetBitcodeFileName(art::CompilerDriver& driver,
+                                               std::string const& filename);
 
 
 class LLVMBackend : public CompilerBackend {
@@ -266,6 +272,15 @@ class LLVMBackend : public CompilerBackend {
   }
 
   bool isPortable() const { return true; }
+
+  void SetBitcodeFileName(std::string const& filename) {
+    typedef void (*SetBitcodeFileNameFn)(CompilerDriver&, std::string const&);
+
+    SetBitcodeFileNameFn set_bitcode_file_name =
+      reinterpret_cast<SetBitcodeFileNameFn>(compilerLLVMSetBitcodeFileName);
+
+    set_bitcode_file_name(*this, filename);
+  }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(LLVMBackend);

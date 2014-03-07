@@ -293,9 +293,6 @@ extern "C" art::CompiledMethod* ArtCompileDEX(art::CompilerDriver& compiler,
                                               jobject class_loader,
                                               const art::DexFile& dex_file);
 
-extern "C" void compilerLLVMSetBitcodeFileName(art::CompilerDriver& driver,
-                                               std::string const& filename);
-
 CompilerDriver::CompilerDriver(VerificationResults* verification_results,
                                DexFileToMethodInlinerMap* method_inliner_map,
                                CompilerBackend::Kind compiler_backend_kind,
@@ -2016,16 +2013,6 @@ CompiledMethod* CompilerDriver::GetCompiledMethod(MethodReference ref) const {
   CHECK(it->second != NULL);
   return it->second;
 }
-
-void CompilerDriver::SetBitcodeFileName(std::string const& filename) {
-  typedef void (*SetBitcodeFileNameFn)(CompilerDriver&, std::string const&);
-
-  SetBitcodeFileNameFn set_bitcode_file_name =
-    reinterpret_cast<SetBitcodeFileNameFn>(compilerLLVMSetBitcodeFileName);
-
-  set_bitcode_file_name(*this, filename);
-}
-
 
 void CompilerDriver::AddRequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
                                                    uint16_t class_def_index) {
