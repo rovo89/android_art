@@ -157,8 +157,7 @@ void X86Mir2Lir::OpRegCopyWide(int dest_lo, int dest_hi,
       NewLIR2(kX86MovdxrRR, dest_lo, src_lo);
       dest_hi = AllocTempDouble();
       NewLIR2(kX86MovdxrRR, dest_hi, src_hi);
-      NewLIR2(kX86PsllqRI, dest_hi, 32);
-      NewLIR2(kX86OrpsRR, dest_lo, dest_hi);
+      NewLIR2(kX86PunpckldqRR, dest_lo, dest_hi);
       FreeTemp(dest_hi);
     }
   } else {
