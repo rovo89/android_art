@@ -33,7 +33,7 @@ MACRO0(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME)
     PUSH r12  // Callee save.
     PUSH rbp  // Callee save.
     PUSH rbx  // Callee save.
-    subq LITERAL(8), %rsp  // Space for Method* (also aligns the frame).
+    subq MACRO_LITERAL(8), %rsp  // Space for Method* (also aligns the frame).
     CFI_ADJUST_CFA_OFFSET(8)
     // R10 := ArtMethod* for ref and args callee save frame method.
     movq RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
@@ -76,7 +76,7 @@ MACRO0(SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME)
     PUSH rdx  // Quick arg 2.
     PUSH rcx  // Quick arg 3.
     // Create space for FPR args and create 2 slots, 1 of padding and 1 for the ArtMethod*.
-    subq LITERAL(80), %rsp
+    subq MACRO_LITERAL(80), %rsp
     CFI_ADJUST_CFA_OFFSET(80)
     // R10 := ArtMethod* for ref and args callee save frame method.
     movq RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
@@ -103,7 +103,7 @@ MACRO0(RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME)
     movq 56(%rsp), %xmm5
     movq 64(%rsp), %xmm6
     movq 72(%rsp), %xmm7
-    addq LITERAL(80), %rsp
+    addq MACRO_LITERAL(80), %rsp
     CFI_ADJUST_CFA_OFFSET(-80)
     // Restore callee and GPR args, mixed together to agree with core spills bitmap.
     POP rcx
@@ -226,26 +226,26 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
 MACRO2(LOOP_OVER_SHORTY_LOADING_XMMS, xmm_reg, finished)
 1: // LOOP
     movb (%r10), %al              // al := *shorty
-    addq LITERAL(1), %r10         // shorty++
-    cmpb LITERAL(0), %al          // if (al == '\0') goto xmm_setup_finished
+    addq MACRO_LITERAL(1), %r10   // shorty++
+    cmpb MACRO_LITERAL(0), %al    // if (al == '\0') goto xmm_setup_finished
     je VAR(finished, 1)
-    cmpb LITERAL(68), %al         // if (al == 'D') goto FOUND_DOUBLE
+    cmpb MACRO_LITERAL(68), %al   // if (al == 'D') goto FOUND_DOUBLE
     je 2f
-    cmpb LITERAL(70), %al         // if (al == 'F') goto FOUND_FLOAT
+    cmpb MACRO_LITERAL(70), %al   // if (al == 'F') goto FOUND_FLOAT
     je 3f
-    addq LITERAL(4), %r11         // arg_array++
+    addq MACRO_LITERAL(4), %r11   // arg_array++
     //  Handle extra space in arg array taken by a long.
-    cmpb LITERAL(74), %al         // if (al != 'J') goto LOOP
+    cmpb MACRO_LITERAL(74), %al   // if (al != 'J') goto LOOP
     jne 1b
-    addq LITERAL(4), %r11         // arg_array++
+    addq MACRO_LITERAL(4), %r11   // arg_array++
     jmp 1b                        // goto LOOP
 2:  // FOUND_DOUBLE
     movsd (%r11), REG_VAR(xmm_reg, 0)
-    addq LITERAL(8), %r11         // arg_array+=2
+    addq MACRO_LITERAL(8), %r11   // arg_array+=2
     jmp 4f
 3:  // FOUND_FLOAT
     movss (%r11), REG_VAR(xmm_reg, 0)
-    addq LITERAL(4), %r11         // arg_array++
+    addq MACRO_LITERAL(4), %r11   // arg_array++
 4:
 END_MACRO
 
@@ -257,27 +257,27 @@ END_MACRO
 MACRO3(LOOP_OVER_SHORTY_LOADING_GPRS, gpr_reg64, gpr_reg32, finished)
 1: // LOOP
     movb (%r10), %al              // al := *shorty
-    addq LITERAL(1), %r10         // shorty++
-    cmpb LITERAL(0), %al          // if (al == '\0') goto gpr_setup_finished
+    addq MACRO_LITERAL(1), %r10   // shorty++
+    cmpb MACRO_LITERAL(0), %al    // if (al == '\0') goto gpr_setup_finished
     je  VAR(finished, 2)
-    cmpb LITERAL(74), %al         // if (al == 'J') goto FOUND_LONG
+    cmpb MACRO_LITERAL(74), %al   // if (al == 'J') goto FOUND_LONG
     je 2f
-    cmpb LITERAL(70), %al         // if (al == 'F') goto SKIP_FLOAT
+    cmpb MACRO_LITERAL(70), %al   // if (al == 'F') goto SKIP_FLOAT
     je 3f
-    cmpb LITERAL(68), %al         // if (al == 'D') goto SKIP_DOUBLE
+    cmpb MACRO_LITERAL(68), %al   // if (al == 'D') goto SKIP_DOUBLE
     je 4f
     movl (%r11), REG_VAR(gpr_reg32, 1)
-    addq LITERAL(4), %r11         // arg_array++
+    addq MACRO_LITERAL(4), %r11   // arg_array++
     jmp 5f
 2:  // FOUND_LONG
     movq (%r11), REG_VAR(gpr_reg64, 0)
-    addq LITERAL(8), %r11         // arg_array+=2
+    addq MACRO_LITERAL(8), %r11   // arg_array+=2
     jmp 5f
 3:  // SKIP_FLOAT
-    addq LITERAL(4), %r11         // arg_array++
+    addq MACRO_LITERAL(4), %r11   // arg_array++
     jmp 1b
 4:  // SKIP_DOUBLE
-    addq LITERAL(8), %r11         // arg_array+=2
+    addq MACRO_LITERAL(8), %r11   // arg_array+=2
     jmp 1b
 5:
 END_MACRO
