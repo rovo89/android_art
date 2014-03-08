@@ -23,6 +23,7 @@ class CompilerOptions {
  public:
   enum CompilerFilter {
     kInterpretOnly,       // Compile nothing.
+    kProfiled,            // Compile based on profile.
     kSpace,               // Maximize space savings.
     kBalanced,            // Try to get the best performance return on compilation investment.
     kSpeed,               // Maximize runtime performance.
@@ -30,7 +31,11 @@ class CompilerOptions {
   };
 
   // Guide heuristics to determine whether to compile method if profile data not available.
+#if ART_SMALL_MODE
+  static const CompilerFilter kDefaultCompilerFilter = kProfiled;
+#else
   static const CompilerFilter kDefaultCompilerFilter = kSpeed;
+#endif
   static const size_t kDefaultHugeMethodThreshold = 10000;
   static const size_t kDefaultLargeMethodThreshold = 600;
   static const size_t kDefaultSmallMethodThreshold = 60;

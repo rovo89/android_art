@@ -15,6 +15,7 @@
  */
 
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "base/logging.h"
 #include "class_linker.h"
@@ -35,6 +36,10 @@
 #include "ScopedUtfChars.h"
 #include "toStringArray.h"
 #include "zip_archive.h"
+
+#ifdef HAVE_ANDROID_OS
+#include "cutils/properties.h"
+#endif
 
 namespace art {
 
@@ -193,7 +198,40 @@ static jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jlong cookie) 
   return toStringArray(env, class_names);
 }
 
-static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename) {
+// Copy a profile file
+static void CopyProfileFile(const char* oldfile, const char* newfile) {
+  int fd = open(oldfile, O_RDONLY);
+  if (fd < 0) {
+    // If we can't open the file show the uid:gid of the this process to allow
+    // diagnosis of the problem.
+    LOG(ERROR) << "Failed to open profile file " << oldfile<< ".  My uid:gid is "
+      << getuid() << ":" << getgid();
+    return;
+  }
+
+  // Create the copy with rw------- (only accessible by system)
+  int fd2 = open(newfile, O_WRONLY|O_CREAT|O_TRUNC, 0600);
+  if (fd2 < 0) {
+    // If we can't open the file show the uid:gid of the this process to allow
+    // diagnosis of the problem.
+    LOG(ERROR) << "Failed to create/write prev profile file " << newfile << ".  My uid:gid is "
+      << getuid() << ":" << getgid();
+    return;
+  }
+  char buf[4096];
+  while (true) {
+    int n = read(fd, buf, sizeof(buf));
+    if (n <= 0) {
+      break;
+    }
+    write(fd2, buf, n);
+  }
+  close(fd);
+  close(fd2);
+}
+
+static jboolean DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring javaFilename,
+    jstring javaPkgname, jboolean defer) {
   const bool kVerboseLogging = false;  // Spammy logging.
   const bool kDebugLogging = true;  // Logging useful for debugging.
 
@@ -218,6 +256,97 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
         LOG(INFO) << "DexFile_isDexOptNeeded ignoring boot class path file: " << filename.c_str();
       }
       return JNI_FALSE;
+    }
+  }
+
+  // Check the profile file.  We need to rerun dex2oat if the profile has changed significantly
+  // since the last time, or it's new.
+  // If the 'defer' argument is true then this will be retried later.  In this case we
+  // need to make sure that the profile file copy is not made so that we will get the
+  // same result second time.
+  if (javaPkgname != NULL) {
+    ScopedUtfChars pkgname(env, javaPkgname);
+    std::string profile_file = GetDalvikCacheOrDie(GetAndroidData()) + std::string("/profiles/") +
+    pkgname.c_str();
+
+    std::string profile_cache_dir = GetDalvikCacheOrDie(GetAndroidData()) + "/profile-cache";
+
+    // Make the profile cache if it doesn't exist.
+    mkdir(profile_cache_dir.c_str(), 0700);
+
+    // The previous profile file (a copy of the profile the last time this was run) is
+    // in the dalvik-cache directory because this is owned by system.  The profiles
+    // directory is owned by install so system cannot write files in there.
+    std::string prev_profile_file = profile_cache_dir + std::string("/") + pkgname.c_str();
+
+    struct stat profstat, prevstat;
+    int e1 = stat(profile_file.c_str(), &profstat);
+    int e2 = stat(prev_profile_file.c_str(), &prevstat);
+
+    if (e1 < 0) {
+      // No profile file, need to run dex2oat
+      if (kDebugLogging) {
+        LOG(INFO) << "DexFile_isDexOptNeeded profile file " << profile_file << " doesn't exist";
+      }
+      return JNI_TRUE;
+    }
+    if (e2 == 0) {
+      // There is a previous profile file.  Check if the profile has changed significantly.
+      // Let's use the file size as a proxy for significance.  If the new profile is 10%
+      // different in size than the the old profile then we run dex2oat.
+      double newsize = profstat.st_size;
+      double oldsize = prevstat.st_size;
+      bool need_profile = false;
+
+      double ratio = 0;     // If the old file was empty and the new one not
+      if (oldsize > 0 && newsize > 0) {
+        ratio = newsize / oldsize;
+      } else if (oldsize == 0 && newsize > 0) {
+        need_profile = true;
+      } else if (oldsize > 0 && newsize == 0) {
+        // Unlikely to happen, but cover all the bases.
+        need_profile = true;
+      }
+
+      double significant_difference = 10.0;
+#ifdef HAVE_ANDROID_OS
+      // Switch off profiler if the dalvik.vm.profiler property has value 0.
+      char buf[PROP_VALUE_MAX];
+      property_get("dalvik.vm.profiler.dex2oat.threshold", buf, "10.0");
+      significant_difference = strtod(buf, nullptr);
+
+      // Something reasonable?
+      if (significant_difference < 1.0 || significant_difference > 90.0) {
+        significant_difference = 10.0;
+      }
+#endif      // The percentage difference that we consider as being significant.
+      double diff_hwm = 1.0 + significant_difference/10.0;
+      double diff_lwm = 1.0 - significant_difference/10.0;
+
+      if (ratio > diff_hwm || ratio < diff_lwm) {
+        need_profile = true;
+      }
+
+      if (need_profile) {
+        if (kDebugLogging) {
+          LOG(INFO) << "DexFile_isDexOptNeeded size of new profile file " << profile_file <<
+          " is significantly different from old profile file " << prev_profile_file << " (new: " <<
+          newsize << ", old: " << oldsize << ", ratio: " << ratio << ")";
+        }
+        if (!defer) {
+          CopyProfileFile(profile_file.c_str(), prev_profile_file.c_str());
+        }
+        return JNI_TRUE;
+      }
+    } else {
+      // Previous profile does not exist.  Make a copy of the current one.
+      if (kDebugLogging) {
+        LOG(INFO) << "DexFile_isDexOptNeeded previous profile doesn't exist: " << prev_profile_file;
+      }
+      if (!defer) {
+        CopyProfileFile(profile_file.c_str(), prev_profile_file.c_str());
+      }
+      return JNI_TRUE;
     }
   }
 
@@ -329,11 +458,18 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
   return JNI_FALSE;
 }
 
+// public API, NULL pkgname
+static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass c, jstring javaFilename) {
+  return DexFile_isDexOptNeededInternal(env, c, javaFilename, NULL, false);
+}
+
+
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(DexFile, closeDexFile, "(J)V"),
   NATIVE_METHOD(DexFile, defineClassNative, "(Ljava/lang/String;Ljava/lang/ClassLoader;J)Ljava/lang/Class;"),
   NATIVE_METHOD(DexFile, getClassNameList, "(J)[Ljava/lang/String;"),
   NATIVE_METHOD(DexFile, isDexOptNeeded, "(Ljava/lang/String;)Z"),
+  NATIVE_METHOD(DexFile, isDexOptNeededInternal, "(Ljava/lang/String;Ljava/lang/String;Z)Z"),
   NATIVE_METHOD(DexFile, openDexFileNative, "(Ljava/lang/String;Ljava/lang/String;I)J"),
 };
 

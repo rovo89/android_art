@@ -54,10 +54,12 @@ class ProfileSampleResults {
 
   void Put(mirror::ArtMethod* method);
   uint32_t Write(std::ostream &os);
+  void ReadPrevious(int fd);
   void Clear();
   uint32_t GetNumSamples() { return num_samples_; }
   void NullMethod() { ++num_null_methods_; }
   void BootMethod() { ++num_boot_methods_; }
+
  private:
   uint32_t Hash(mirror::ArtMethod* method);
   static constexpr int kHashSize = 17;
@@ -68,6 +70,19 @@ class ProfileSampleResults {
 
   typedef std::map<mirror::ArtMethod*, uint32_t> Map;   // Map of method vs its count.
   Map *table[kHashSize];
+
+  struct PreviousValue {
+    PreviousValue() : count_(0), method_size_(0) {}
+    PreviousValue(uint32_t count, uint32_t method_size) : count_(count), method_size_(method_size) {}
+    uint32_t count_;
+    uint32_t method_size_;
+  };
+
+  typedef std::map<std::string, PreviousValue> PreviousProfile;
+  PreviousProfile previous_;
+  uint32_t previous_num_samples_;
+  uint32_t previous_num_null_methods_;     // Number of samples where can don't know the method.
+  uint32_t previous_num_boot_methods_;     // Number of samples in the boot path.
 };
 
 //
@@ -87,7 +102,8 @@ class ProfileSampleResults {
 
 class BackgroundMethodSamplingProfiler {
  public:
-  static void Start(int period, int duration, std::string profile_filename, int interval_us,
+  static void Start(int period, int duration, const std::string& profile_filename,
+                    const std::string& procName, int interval_us,
                     double backoff_coefficient, bool startImmediately)
   LOCKS_EXCLUDED(Locks::mutator_lock_,
                  Locks::thread_list_lock_,
@@ -104,8 +120,10 @@ class BackgroundMethodSamplingProfiler {
   }
 
  private:
-  explicit BackgroundMethodSamplingProfiler(int period, int duration, std::string profile_filename,
-                 double backoff_coefficient, int interval_us, bool startImmediately);
+  explicit BackgroundMethodSamplingProfiler(int period, int duration,
+                                            const std::string& profile_filename,
+                                            const std::string& process_name,
+                                            double backoff_coefficient, int interval_us, bool startImmediately);
 
   // The sampling interval in microseconds is passed as an argument.
   static void* RunProfilerThread(void* arg) LOCKS_EXCLUDED(Locks::profiler_lock_);
@@ -129,6 +147,9 @@ class BackgroundMethodSamplingProfiler {
 
   // File to write profile data out to.  Cannot be empty if we are profiling.
   std::string profile_file_name_;
+
+  // Process name.
+  std::string process_name_;
 
   // Number of seconds between profile runs.
   uint32_t period_s_;
