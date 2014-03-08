@@ -30,11 +30,11 @@
 namespace art {
 
 VerificationResults::VerificationResults(const CompilerOptions* compiler_options)
-    : verified_methods_lock_("compiler verified methods lock"),
+    : compiler_options_(compiler_options),
+      verified_methods_lock_("compiler verified methods lock"),
       verified_methods_(),
       rejected_classes_lock_("compiler rejected classes lock"),
       rejected_classes_() {
-  UNUSED(compiler_options);
 }
 
 VerificationResults::~VerificationResults() {

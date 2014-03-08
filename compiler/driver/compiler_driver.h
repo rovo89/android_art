@@ -564,11 +564,8 @@ class CompilerDriver {
   class ProfileData {
    public:
     ProfileData() : count_(0), method_size_(0), percent_(0) {}
-    ProfileData(const std::string& method_name, uint32_t count, uint32_t method_size, double percent) :
+    ProfileData(std::string method_name, uint32_t count, uint32_t method_size, double percent) :
       method_name_(method_name), count_(count), method_size_(method_size), percent_(percent) {
-      // TODO: currently method_size_ and count_ are unused.
-      UNUSED(method_size_);
-      UNUSED(count_);
     }
 
     bool IsAbove(double v) const { return percent_ >= v; }
