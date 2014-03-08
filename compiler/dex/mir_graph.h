@@ -939,6 +939,8 @@ class MIRGraph {
   size_t max_available_special_compiler_temps_;
   GrowableArray<IFieldAnnotation> ifield_annotations_;
   GrowableArray<SFieldAnnotation> sfield_annotations_;
+
+  friend class LocalValueNumberingTest;
 };
 
 }  // namespace art

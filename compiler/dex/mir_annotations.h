@@ -108,6 +108,8 @@ class IFieldAnnotation {
   uint16_t declaring_class_idx_;
   // The field index in the dex file that defines field, 0 if unresolved.
   uint16_t declaring_field_idx_;
+
+  friend class LocalValueNumberingTest;
 };
 
 class SFieldAnnotation {
@@ -208,6 +210,8 @@ class SFieldAnnotation {
   uint16_t declaring_class_idx_;
   // The field index in the dex file that defines field, 0 if unresolved.
   uint16_t declaring_field_idx_;
+
+  friend class LocalValueNumberingTest;
 };
 
 }  // namespace art
