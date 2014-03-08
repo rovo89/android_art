@@ -116,7 +116,7 @@ void PassDriver::HandlePassFlag(CompilationUnit* c_unit, const Pass* pass) {
 }
 
 void PassDriver::DispatchPass(CompilationUnit* c_unit, const Pass* curPass) {
-  LOG(DEBUG) << "Dispatching " << curPass->GetName();
+  VLOG(compiler) << "Dispatching " << curPass->GetName();
 
   DataFlowAnalysisMode mode = curPass->GetTraversal();
 
@@ -145,7 +145,7 @@ void PassDriver::DispatchPass(CompilationUnit* c_unit, const Pass* curPass) {
     case kNoNodes:
       break;
     default:
-      LOG(DEBUG) << "Iterator mode not handled in dispatcher: " << mode;
+      LOG(FATAL) << "Iterator mode not handled in dispatcher: " << mode;
       break;
   }
 }
