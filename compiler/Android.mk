@@ -50,6 +50,7 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/quick/x86/target_x86.cc \
 	dex/quick/x86/utility_x86.cc \
 	dex/dex_to_dex_compiler.cc \
+	dex/mir_annotations.cc \
 	dex/mir_dataflow.cc \
 	dex/mir_optimization.cc \
 	dex/pass_driver.cc \

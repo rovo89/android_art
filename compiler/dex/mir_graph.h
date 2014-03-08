@@ -22,6 +22,8 @@
 #include "compiler_ir.h"
 #include "arena_bit_vector.h"
 #include "utils/growable_array.h"
+#include "invoke_type.h"
+#include "mir_annotations.h"
 
 namespace art {
 
@@ -258,6 +260,12 @@ struct MIR {
     MIR* throw_insn;
     // Fused cmp branch condition.
     ConditionCode ccode;
+    // IGET/IPUT annotation index, points to MIRGraph::ifield_annotations_. Due to limit on the
+    // number of code points (64K) and size of IGET/IPUT insn (2), this will never exceed 32K.
+    uint32_t ifield_annotation;
+    // SGET/SPUT annotation index, points to MIRGraph::sfield_annotations_. Due to limit on the
+    // number of code points (64K) and size of SGET/SPUT insn (2), this will never exceed 32K.
+    uint32_t sfield_annotation;
   } meta;
 };
 
@@ -465,6 +473,18 @@ class MIRGraph {
    * @param suffix does the filename require a suffix or not (default = nullptr).
    */
   void DumpCFG(const char* dir_prefix, bool all_blocks, const char* suffix = nullptr);
+
+  void DoAnnotateUsedFields();
+
+  const IFieldAnnotation& GetIFieldAnnotation(MIR* mir) {
+    DCHECK_LT(mir->meta.ifield_annotation, ifield_annotations_.Size());
+    return ifield_annotations_.GetRawStorage()[mir->meta.ifield_annotation];
+  }
+
+  const SFieldAnnotation& GetSFieldAnnotation(MIR* mir) {
+    DCHECK_LT(mir->meta.sfield_annotation, sfield_annotations_.Size());
+    return sfield_annotations_.GetRawStorage()[mir->meta.sfield_annotation];
+  }
 
   void InitRegLocations();
 
@@ -917,6 +937,8 @@ class MIRGraph {
   size_t num_non_special_compiler_temps_;
   size_t max_available_non_special_compiler_temps_;
   size_t max_available_special_compiler_temps_;
+  GrowableArray<IFieldAnnotation> ifield_annotations_;
+  GrowableArray<SFieldAnnotation> sfield_annotations_;
 };
 
 }  // namespace art
