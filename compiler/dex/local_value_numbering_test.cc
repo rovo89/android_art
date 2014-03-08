@@ -77,18 +77,6 @@ class LocalValueNumberingTest : public testing::Test {
     { opcode, 0u, 0u, 0, { }, 1, { reg } }  // CONST_CLASS, CONST_STRING, NEW_ARRAY, ...
 
   void DoPrepareIFields(const IFieldDef* defs, size_t count) {
-    cu_.mir_graph->ifield_annotations_.Reset();
-    cu_.mir_graph->ifield_annotations_.Resize(count);
-    for (size_t i = 0u; i != count; ++i) {
-      const IFieldDef* def = &defs[i];
-      IFieldAnnotation annotation(def->field_idx);
-      if (def->declaring_dex_file != 0u) {
-        annotation.declaring_dex_file_ = reinterpret_cast<const DexFile*>(def->declaring_dex_file);
-        annotation.declaring_field_idx_ = def->declaring_field_idx;
-        annotation.is_volatile_ = def->is_volatile ? 1u : 0u;
-      }
-      cu_.mir_graph->ifield_annotations_.Insert(annotation);
-    }
   }
 
   template <size_t count>
@@ -97,18 +85,6 @@ class LocalValueNumberingTest : public testing::Test {
   }
 
   void DoPrepareSFields(const SFieldDef* defs, size_t count) {
-    cu_.mir_graph->sfield_annotations_.Reset();
-    cu_.mir_graph->sfield_annotations_.Resize(count);
-    for (size_t i = 0u; i != count; ++i) {
-      const SFieldDef* def = &defs[i];
-      SFieldAnnotation annotation(def->field_idx);
-      if (def->declaring_dex_file != 0u) {
-        annotation.declaring_dex_file_ = reinterpret_cast<const DexFile*>(def->declaring_dex_file);
-        annotation.declaring_field_idx_ = def->declaring_field_idx;
-        annotation.is_volatile_ = def->is_volatile ? 1u : 0u;
-      }
-      cu_.mir_graph->sfield_annotations_.Insert(annotation);
-    }
   }
 
   template <size_t count>
@@ -126,13 +102,6 @@ class LocalValueNumberingTest : public testing::Test {
       mir->dalvikInsn.opcode = def->opcode;
       mir->dalvikInsn.vB = static_cast<int32_t>(def->value);
       mir->dalvikInsn.vB_wide = def->value;
-      if (def->opcode >= Instruction::IGET && def->opcode <= Instruction::IPUT_SHORT) {
-        ASSERT_LT(def->field_annotation, cu_.mir_graph->ifield_annotations_.Size());
-        mir->meta.ifield_annotation = def->field_annotation;
-      } else if (def->opcode >= Instruction::SGET && def->opcode <= Instruction::SPUT_SHORT) {
-        ASSERT_LT(def->field_annotation, cu_.mir_graph->sfield_annotations_.Size());
-        mir->meta.sfield_annotation = def->field_annotation;
-      }
       mir->ssa_rep = &ssa_reps_[i];
       mir->ssa_rep->num_uses = def->num_uses;
       mir->ssa_rep->uses = const_cast<int32_t*>(def->uses);  // Not modified by LVN.
@@ -177,6 +146,7 @@ class LocalValueNumberingTest : public testing::Test {
   LocalValueNumbering lvn_;
 };
 
+#if 0  // TODO: re-enable when LVN is handling memory igets.
 TEST_F(LocalValueNumberingTest, TestIGetIGetInvokeIGet) {
   static const IFieldDef ifields[] = {
       { 1u, 1u, 1u, false }
@@ -199,6 +169,7 @@ TEST_F(LocalValueNumberingTest, TestIGetIGetInvokeIGet) {
   EXPECT_EQ(mirs_[2].optimization_flags, 0u);
   EXPECT_EQ(mirs_[3].optimization_flags, MIR_IGNORE_NULL_CHECK);
 }
+#endif
 
 TEST_F(LocalValueNumberingTest, TestIGetIPutIGetIGetIGet) {
   static const IFieldDef ifields[] = {
@@ -226,6 +197,7 @@ TEST_F(LocalValueNumberingTest, TestIGetIPutIGetIGetIGet) {
   EXPECT_EQ(mirs_[4].optimization_flags, 0u);
 }
 
+#if 0  // TODO: re-enable when LVN is handling memory igets.
 TEST_F(LocalValueNumberingTest, TestUniquePreserve1) {
   static const IFieldDef ifields[] = {
       { 1u, 1u, 1u, false },
@@ -246,7 +218,9 @@ TEST_F(LocalValueNumberingTest, TestUniquePreserve1) {
   EXPECT_EQ(mirs_[2].optimization_flags, 0u);
   EXPECT_EQ(mirs_[3].optimization_flags, MIR_IGNORE_NULL_CHECK);
 }
+#endif
 
+#if 0  // TODO: re-enable when LVN is handling memory igets.
 TEST_F(LocalValueNumberingTest, TestUniquePreserve2) {
   static const IFieldDef ifields[] = {
       { 1u, 1u, 1u, false },
@@ -267,7 +241,9 @@ TEST_F(LocalValueNumberingTest, TestUniquePreserve2) {
   EXPECT_EQ(mirs_[2].optimization_flags, MIR_IGNORE_NULL_CHECK);
   EXPECT_EQ(mirs_[3].optimization_flags, MIR_IGNORE_NULL_CHECK);
 }
+#endif
 
+#if 0  // TODO: re-enable when LVN is handling memory igets.
 TEST_F(LocalValueNumberingTest, TestUniquePreserveAndEscape) {
   static const IFieldDef ifields[] = {
       { 1u, 1u, 1u, false },
@@ -291,6 +267,7 @@ TEST_F(LocalValueNumberingTest, TestUniquePreserveAndEscape) {
   EXPECT_EQ(mirs_[3].optimization_flags, MIR_IGNORE_NULL_CHECK);
   EXPECT_EQ(mirs_[5].optimization_flags, MIR_IGNORE_NULL_CHECK);
 }
+#endif
 
 TEST_F(LocalValueNumberingTest, TestVolatile) {
   static const IFieldDef ifields[] = {
