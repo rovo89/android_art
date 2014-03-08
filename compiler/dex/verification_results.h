@@ -56,6 +56,8 @@ class VerificationResults {
                                    const uint32_t access_flags);
 
   private:
+    const CompilerOptions* compiler_options_;
+
     // Verified methods.
     typedef SafeMap<MethodReference, const VerifiedMethod*,
         MethodReferenceComparator> VerifiedMethodMap;
