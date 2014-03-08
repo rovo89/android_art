@@ -144,12 +144,6 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
     return NULL;
   }
 
-  const CompilerOptions& compiler_options = driver.GetCompilerOptions();
-  CompilerOptions::CompilerFilter compiler_filter = compiler_options.GetCompilerFilter();
-  if (compiler_filter == CompilerOptions::kInterpretOnly) {
-    return nullptr;
-  }
-
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   CompilationUnit cu(driver.GetArenaPool());
 
@@ -215,6 +209,9 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   if (kCompilerDebugFlags & (1 << kDebugCountOpcodes)) {
     cu.mir_graph->EnableOpcodeCounting();
   }
+
+  const CompilerOptions& compiler_options = cu.compiler_driver->GetCompilerOptions();
+  CompilerOptions::CompilerFilter compiler_filter = compiler_options.GetCompilerFilter();
 
   // Check early if we should skip this compilation if using the profiled filter.
   if (cu.compiler_driver->ProfilePresent()) {
