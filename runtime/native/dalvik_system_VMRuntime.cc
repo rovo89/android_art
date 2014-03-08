@@ -203,6 +203,7 @@ static void VMRuntime_registerNativeFree(JNIEnv* env, jobject, jint bytes) {
 
 static void VMRuntime_updateProcessState(JNIEnv* env, jobject, jint process_state) {
   Runtime::Current()->GetHeap()->UpdateProcessState(static_cast<gc::ProcessState>(process_state));
+  Runtime::Current()->UpdateProfilerState(process_state);
 }
 
 static void VMRuntime_trimHeap(JNIEnv*, jobject) {
@@ -511,13 +512,16 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
  * process name.  We use this information to start up the sampling profiler for
  * for ART.
  */
-static void VMRuntime_registerAppInfo(JNIEnv* env, jclass, jstring appDir, jstring procName) {
+static void VMRuntime_registerAppInfo(JNIEnv* env, jclass, jstring pkgName, jstring appDir, jstring procName) {
+  const char *pkgNameChars = env->GetStringUTFChars(pkgName, NULL);
   const char *appDirChars = env->GetStringUTFChars(appDir, NULL);
   const char *procNameChars = env->GetStringUTFChars(procName, NULL);
-  std::string profileFile = std::string(appDirChars) + "/art-profile-" + std::string(procNameChars);
-  Runtime::Current()->StartProfiler(profileFile.c_str());
+
+  std::string profileFile = StringPrintf("/data/dalvik-cache/profiles/%s", pkgNameChars);
+  Runtime::Current()->StartProfiler(profileFile.c_str(), procNameChars);
   env->ReleaseStringUTFChars(appDir, appDirChars);
   env->ReleaseStringUTFChars(procName, procNameChars);
+  env->ReleaseStringUTFChars(pkgName, pkgNameChars);
 }
 
 static JNINativeMethod gMethods[] = {
@@ -542,7 +546,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, vmVersion, "()Ljava/lang/String;"),
   NATIVE_METHOD(VMRuntime, vmLibrary, "()Ljava/lang/String;"),
   NATIVE_METHOD(VMRuntime, preloadDexCaches, "()V"),
-  NATIVE_METHOD(VMRuntime, registerAppInfo, "(Ljava/lang/String;Ljava/lang/String;)V"),
+  NATIVE_METHOD(VMRuntime, registerAppInfo, "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V"),
 };
 
 void register_dalvik_system_VMRuntime(JNIEnv* env) {
