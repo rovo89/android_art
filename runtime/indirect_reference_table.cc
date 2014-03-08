@@ -360,7 +360,9 @@ mirror::Object* IndirectReferenceTable::Get(IndirectRef iref) const {
     return kInvalidIndirectRefObject;
   }
   mirror::Object* obj = table_[ExtractIndex(iref)];;
-  VerifyObject(obj);
+  if (obj != kClearedJniWeakGlobal) {
+    VerifyObject(obj);
+  }
   return obj;
 }
 
