@@ -173,6 +173,10 @@ define build-art-test
       # Mac OS complains about unresolved symbols if you don't include this.
       LOCAL_WHOLE_STATIC_LIBRARIES := libgtest_host
     endif
+    ifneq ($(BUILD_HOST_64bit),)
+      # 64bit Linux complains about unresolved symbols if you don't include this.
+      LOCAL_WHOLE_STATIC_LIBRARIES := libgtest_host
+    endif
     include $(BUILD_HOST_EXECUTABLE)
     art_gtest_exe := $(HOST_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
     ART_HOST_GTEST_EXECUTABLES += $$(art_gtest_exe)
