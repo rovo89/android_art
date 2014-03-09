@@ -320,6 +320,15 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
   self->PopManagedStackFragment(fragment);
 }
 
+#ifndef NDEBUG
+size_t ArtMethod::GetSirtOffsetInBytes() {
+  CHECK(IsNative());
+  // TODO: support Sirt access from generic JNI trampoline.
+  CHECK_NE(GetEntryPointFromQuickCompiledCode(), GetQuickGenericJniTrampoline());
+  return kPointerSize;
+}
+#endif
+
 bool ArtMethod::IsRegistered() {
   void* native_method =
       GetFieldPtr<void*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_jni_), false);
