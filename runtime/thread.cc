@@ -1829,11 +1829,11 @@ Context* Thread::GetLongJumpContext() {
   return result;
 }
 
-struct CurrentMethodVisitor : public StackVisitor {
+struct CurrentMethodVisitor FINAL : public StackVisitor {
   CurrentMethodVisitor(Thread* thread, Context* context)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(thread, context), this_object_(nullptr), method_(nullptr), dex_pc_(0) {}
-  virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::ArtMethod* m = GetMethod();
     if (m->IsRuntimeMethod()) {
       // Continue if this is a runtime method.
