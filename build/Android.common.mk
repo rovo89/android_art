@@ -91,14 +91,13 @@ LLVM_ROOT_PATH := external/llvm
 # Don't fail a dalvik minimal host build.
 -include $(LLVM_ROOT_PATH)/llvm.mk
 
-# Clang build support. By default, host builds use clang for better warnings.
+# Clang build support.
 # Target builds use GCC by default.
-# TODO: work out why arm64 target builds need GCC on the host.
 ART_TARGET_CLANG := false
-ifneq ($(TARGET_ARCH),arm64)
+ART_HOST_CLANG := false
+ifneq ($(WITHOUT_CLANG),true)
+  # By default, host builds use clang for better warnings.
   ART_HOST_CLANG := true
-else
-  ART_HOST_CLANG := false
 endif
 
 # directory used for dalvik-cache on device
@@ -158,7 +157,7 @@ art_debug_cflags := \
 	-DDYNAMIC_ANNOTATIONS_ENABLED=1 \
 	-UNDEBUG
 
-ART_HOST_CFLAGS := $(art_cflags) -DANDROID_SMP=1 -DART_BASE_ADDRESS=$(LIBART_IMG_HOST_BASE_ADDRESS) 
+ART_HOST_CFLAGS := $(art_cflags) -DANDROID_SMP=1 -DART_BASE_ADDRESS=$(LIBART_IMG_HOST_BASE_ADDRESS)
 ART_HOST_CFLAGS += -DART_DEFAULT_INSTRUCTION_SET_FEATURES=default
 
 ART_TARGET_CFLAGS := $(art_cflags) -DART_TARGET -DART_BASE_ADDRESS=$(LIBART_IMG_TARGET_BASE_ADDRESS)
