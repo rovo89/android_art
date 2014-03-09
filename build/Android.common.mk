@@ -93,11 +93,7 @@ LLVM_ROOT_PATH := external/llvm
 
 # Clang build support.
 ART_TARGET_CLANG := false
-ifeq ($(HOST_OS),darwin)
-  ART_HOST_CLANG := true
-else
-  ART_HOST_CLANG := false
-endif
+ART_HOST_CLANG := true
 
 # directory used for dalvik-cache on device
 ART_DALVIK_CACHE_DIR := /data/dalvik-cache
