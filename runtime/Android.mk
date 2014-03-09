@@ -302,7 +302,7 @@ endif
 
 # $(1): target or host
 # $(2): ndebug or debug
-# 3(3): true or false for LOCAL_CLANG
+# $(3): true or false for LOCAL_CLANG
 define build-libart
   ifneq ($(1),target)
     ifneq ($(1),host)
