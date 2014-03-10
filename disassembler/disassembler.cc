@@ -20,6 +20,7 @@
 
 #include "base/logging.h"
 #include "disassembler_arm.h"
+#include "disassembler_arm64.h"
 #include "disassembler_mips.h"
 #include "disassembler_x86.h"
 
@@ -28,6 +29,8 @@ namespace art {
 Disassembler* Disassembler::Create(InstructionSet instruction_set) {
   if (instruction_set == kArm || instruction_set == kThumb2) {
     return new arm::DisassemblerArm();
+  } else if (instruction_set == kArm64) {
+    return new arm64::DisassemblerArm64();
   } else if (instruction_set == kMips) {
     return new mips::DisassemblerMips();
   } else if (instruction_set == kX86) {
