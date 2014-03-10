@@ -136,7 +136,7 @@ void ArmMir2Lir::GenConversion(Instruction::Code opcode,
       op = kThumb2VcvtFd;
       break;
     case Instruction::INT_TO_DOUBLE:
-      op = kThumb2VcvtID;
+      op = kThumb2VcvtF64S32;
       break;
     case Instruction::DOUBLE_TO_INT:
       op = kThumb2VcvtDI;
