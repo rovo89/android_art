@@ -16,6 +16,8 @@
 
 #include "elf_stripper.h"
 
+#include <unistd.h>
+#include <sys/types.h>
 #include <vector>
 
 #include "UniquePtr.h"
