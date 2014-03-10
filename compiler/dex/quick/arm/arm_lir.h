@@ -333,8 +333,7 @@ enum ArmOpcode {
   kThumb2Vdivs,      // vdiv vd, vn, vm [111011101000] rn[19..16] rd[15-12] [10100000] rm[3..0].
   kThumb2Vdivd,      // vdiv vd, vn, vm [111011101000] rn[19..16] rd[15-12] [10110000] rm[3..0].
   kThumb2VmlaF64,    // vmla.F64 vd, vn, vm [111011100000] vn[19..16] vd[15..12] [10110000] vm[3..0].
-  kThumb2VcvtIF,     // vcvt.F32 vd, vm [1110111010111000] vd[15..12] [10101100] vm[3..0].
-  kThumb2VcvtID,     // vcvt.F64 vd, vm [1110111010111000] vd[15..12] [10111100] vm[3..0].
+  kThumb2VcvtIF,     // vcvt.F32.S32 vd, vm [1110111010111000] vd[15..12] [10101100] vm[3..0].
   kThumb2VcvtFI,     // vcvt.S32.F32 vd, vm [1110111010111101] vd[15..12] [10101100] vm[3..0].
   kThumb2VcvtDI,     // vcvt.S32.F32 vd, vm [1110111010111101] vd[15..12] [10111100] vm[3..0].
   kThumb2VcvtFd,     // vcvt.F64.F32 vd, vm [1110111010110111] vd[15..12] [10101100] vm[3..0].
