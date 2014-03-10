@@ -71,7 +71,7 @@ static void DumpStat(size_t x, size_t y, const char* str) {
   LOG(INFO) << Percentage(x, y) << "% of " << str << " for " << (x + y) << " cases";
 }
 
-class AOTCompilationStats {
+class CompilerDriver::AOTCompilationStats {
  public:
   AOTCompilationStats()
       : stats_lock_("AOT compilation statistics lock"),
@@ -240,6 +240,30 @@ class AOTCompilationStats {
     DCHECK_LE(type, kMaxInvokeType);
     STATS_LOCK();
     direct_methods_to_boot_[type]++;
+  }
+
+  void ProcessedInvoke(InvokeType type, int flags) {
+    STATS_LOCK();
+    if (flags == 0) {
+      unresolved_methods_[type]++;
+    } else {
+      DCHECK_NE((flags & kFlagMethodResolved), 0);
+      resolved_methods_[type]++;
+      if ((flags & kFlagVirtualMadeDirect) != 0) {
+        virtual_made_direct_[type]++;
+        if ((flags & kFlagPreciseTypeDevirtualization) != 0) {
+          type_based_devirtualization_++;
+        }
+      } else {
+        DCHECK_EQ((flags & kFlagPreciseTypeDevirtualization), 0);
+      }
+      if ((flags & kFlagDirectCallToBoot) != 0) {
+        direct_calls_to_boot_[type]++;
+      }
+      if ((flags & kFlagDirectMethodToBoot) != 0) {
+        direct_methods_to_boot_[type]++;
+      }
+    }
   }
 
   // A check-cast could be eliminated due to verifier type analysis.
@@ -933,32 +957,8 @@ void CompilerDriver::ProcessedStaticField(bool resolved, bool local) {
   }
 }
 
-static mirror::Class* ComputeCompilingMethodsClass(ScopedObjectAccess& soa,
-                                                   SirtRef<mirror::DexCache>& dex_cache,
-                                                   const DexCompilationUnit* mUnit)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  // The passed dex_cache is a hint, sanity check before asking the class linker that will take a
-  // lock.
-  if (dex_cache->GetDexFile() != mUnit->GetDexFile()) {
-    dex_cache.reset(mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile()));
-  }
-  SirtRef<mirror::ClassLoader>
-      class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
-  const DexFile::MethodId& referrer_method_id =
-      mUnit->GetDexFile()->GetMethodId(mUnit->GetDexMethodIndex());
-  return mUnit->GetClassLinker()->ResolveType(*mUnit->GetDexFile(), referrer_method_id.class_idx_,
-                                              dex_cache, class_loader);
-}
-
-static mirror::ArtMethod* ComputeMethodReferencedFromCompilingMethod(ScopedObjectAccess& soa,
-                                                                     const DexCompilationUnit* mUnit,
-                                                                     uint32_t method_idx,
-                                                                     InvokeType type)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  SirtRef<mirror::DexCache> dex_cache(soa.Self(), mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile()));
-  SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
-  return mUnit->GetClassLinker()->ResolveMethod(*mUnit->GetDexFile(), method_idx, dex_cache,
-                                                class_loader, NULL, type);
+void CompilerDriver::ProcessedInvoke(InvokeType invoke_type, int flags) {
+  stats_->ProcessedInvoke(invoke_type, flags);
 }
 
 bool CompilerDriver::ComputeSpecialAccessorInfo(uint32_t field_idx, bool is_put,
@@ -1065,7 +1065,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
                                                    bool no_guarantee_of_dex_cache_entry,
                                                    mirror::Class* referrer_class,
                                                    mirror::ArtMethod* method,
-                                                   bool update_stats,
+                                                   int* stats_flags,
                                                    MethodReference* target_method,
                                                    uintptr_t* direct_code,
                                                    uintptr_t* direct_method) {
@@ -1103,9 +1103,8 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
       }
     }
   }
-  if (update_stats && method_code_in_boot) {
-    stats_->DirectCallsToBoot(*type);
-    stats_->DirectMethodsToBoot(*type);
+  if (method_code_in_boot) {
+    *stats_flags |= kFlagDirectCallToBoot | kFlagDirectMethodToBoot;
   }
   if (!use_dex_cache && compiling_boot) {
     MethodHelper mh(method);
@@ -1174,110 +1173,63 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
                                        InvokeType* invoke_type, MethodReference* target_method,
                                        int* vtable_idx, uintptr_t* direct_code,
                                        uintptr_t* direct_method) {
+  InvokeType orig_invoke_type = *invoke_type;
+  int stats_flags = 0;
   ScopedObjectAccess soa(Thread::Current());
-  *vtable_idx = -1;
-  *direct_code = 0;
-  *direct_method = 0;
-  mirror::ArtMethod* resolved_method =
-      ComputeMethodReferencedFromCompilingMethod(soa, mUnit, target_method->dex_method_index,
-                                                 *invoke_type);
-  if (resolved_method != NULL) {
-    if (*invoke_type == kVirtual || *invoke_type == kSuper) {
-      *vtable_idx = resolved_method->GetMethodIndex();
-    } else if (*invoke_type == kInterface) {
-      *vtable_idx = resolved_method->GetDexMethodIndex();
-    }
-    // Don't try to fast-path if we don't understand the caller's class or this appears to be an
-    // Incompatible Class Change Error.
-    SirtRef<mirror::DexCache> dex_cache(soa.Self(), resolved_method->GetDeclaringClass()->GetDexCache());
-    mirror::Class* referrer_class =
-        ComputeCompilingMethodsClass(soa, dex_cache, mUnit);
-    bool icce = resolved_method->CheckIncompatibleClassChange(*invoke_type);
-    if (referrer_class != NULL && !icce) {
-      mirror::Class* methods_class = resolved_method->GetDeclaringClass();
-      if (referrer_class->CanAccessResolvedMethod(methods_class, resolved_method, dex_cache.get(),
-                                                  target_method->dex_method_index)) {
-        const bool enableFinalBasedSharpening = enable_devirtualization;
-        // Sharpen a virtual call into a direct call when the target is known not to have been
-        // overridden (ie is final).
-        bool can_sharpen_virtual_based_on_type =
-            (*invoke_type == kVirtual) && (resolved_method->IsFinal() || methods_class->IsFinal());
-        // For invoke-super, ensure the vtable index will be correct to dispatch in the vtable of
-        // the super class.
-        bool can_sharpen_super_based_on_type = (*invoke_type == kSuper) &&
-            (referrer_class != methods_class) && referrer_class->IsSubClass(methods_class) &&
-            resolved_method->GetMethodIndex() < methods_class->GetVTable()->GetLength() &&
-            (methods_class->GetVTable()->Get(resolved_method->GetMethodIndex()) == resolved_method);
+  // Try to resolve the method and compiling method's class.
+  mirror::ArtMethod* resolved_method;
+  mirror::Class* referrer_class;
+  SirtRef<mirror::DexCache> dex_cache(soa.Self(),
+      mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile()));
+  SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
+      soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
+  {
+    uint32_t method_idx = target_method->dex_method_index;
+    SirtRef<mirror::ArtMethod> resolved_method_sirt(soa.Self(),
+        ResolveMethod(soa, dex_cache, class_loader, mUnit, method_idx, orig_invoke_type));
+    referrer_class = (resolved_method_sirt.get() != nullptr)
+        ? ResolveCompilingMethodsClass(soa, dex_cache, class_loader, mUnit) : nullptr;
+    resolved_method = resolved_method_sirt.get();
+  }
+  bool result = false;
+  if (resolved_method != nullptr) {
+    *vtable_idx = GetResolvedMethodVTableIndex(resolved_method, orig_invoke_type);
 
-        if (enableFinalBasedSharpening && (can_sharpen_virtual_based_on_type ||
-                                            can_sharpen_super_based_on_type)) {
-          // Sharpen a virtual call into a direct call. The method_idx is into the DexCache
-          // associated with target_method->dex_file.
-          CHECK(target_method->dex_file == mUnit->GetDexFile());
-          DCHECK(dex_cache.get() == mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile()));
-          CHECK(dex_cache->GetResolvedMethod(target_method->dex_method_index) ==
-                resolved_method) << PrettyMethod(resolved_method);
-          InvokeType orig_invoke_type = *invoke_type;
-          GetCodeAndMethodForDirectCall(invoke_type, kDirect, false, referrer_class, resolved_method,
-                                        update_stats, target_method, direct_code, direct_method);
-          if (update_stats && (*invoke_type == kDirect)) {
-            stats_->ResolvedMethod(orig_invoke_type);
-            stats_->VirtualMadeDirect(orig_invoke_type);
-          }
-          DCHECK_NE(*invoke_type, kSuper) << PrettyMethod(resolved_method);
-          return true;
-        }
-        const bool enableVerifierBasedSharpening = enable_devirtualization;
-        if (enableVerifierBasedSharpening && (*invoke_type == kVirtual ||
-                                              *invoke_type == kInterface)) {
-          // Did the verifier record a more precise invoke target based on its type information?
-          DCHECK(mUnit->GetVerifiedMethod() != nullptr);
-          const MethodReference* devirt_map_target =
-              mUnit->GetVerifiedMethod()->GetDevirtTarget(dex_pc);
-          if (devirt_map_target != NULL) {
-            SirtRef<mirror::DexCache> target_dex_cache(soa.Self(), mUnit->GetClassLinker()->FindDexCache(*devirt_map_target->dex_file));
-            SirtRef<mirror::ClassLoader> class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
-            mirror::ArtMethod* called_method =
-                mUnit->GetClassLinker()->ResolveMethod(*devirt_map_target->dex_file,
-                                                       devirt_map_target->dex_method_index,
-                                                       target_dex_cache, class_loader, NULL,
-                                                       kVirtual);
-            CHECK(called_method != NULL);
-            CHECK(!called_method->IsAbstract());
-            InvokeType orig_invoke_type = *invoke_type;
-            GetCodeAndMethodForDirectCall(invoke_type, kDirect, true, referrer_class, called_method,
-                                          update_stats, target_method, direct_code, direct_method);
-            if (update_stats && (*invoke_type == kDirect)) {
-              stats_->ResolvedMethod(orig_invoke_type);
-              stats_->VirtualMadeDirect(orig_invoke_type);
-              stats_->PreciseTypeDevirtualization();
-            }
-            DCHECK_NE(*invoke_type, kSuper);
-            return true;
-          }
-        }
-        if (*invoke_type == kSuper) {
-          // Unsharpened super calls are suspicious so go slow-path.
-        } else {
-          // Sharpening failed so generate a regular resolved method dispatch.
-          if (update_stats) {
-            stats_->ResolvedMethod(*invoke_type);
-          }
-          GetCodeAndMethodForDirectCall(invoke_type, *invoke_type, false, referrer_class, resolved_method,
-                                        update_stats, target_method, direct_code, direct_method);
-          return true;
-        }
+    if (enable_devirtualization) {
+      DCHECK(mUnit->GetVerifiedMethod() != nullptr);
+      const MethodReference* devirt_target = mUnit->GetVerifiedMethod()->GetDevirtTarget(dex_pc);
+
+      stats_flags = IsFastInvoke(
+          soa, dex_cache, class_loader, mUnit, referrer_class, resolved_method,
+          invoke_type, target_method, devirt_target, direct_code, direct_method);
+      result = stats_flags != 0;
+    } else {
+      // Devirtualization not enabled. Inline IsFastInvoke(), dropping the devirtualization parts.
+      if (UNLIKELY(referrer_class == nullptr) ||
+          UNLIKELY(!referrer_class->CanAccessResolvedMethod(resolved_method->GetDeclaringClass(),
+                                                            resolved_method, dex_cache.get(),
+                                                            target_method->dex_method_index)) ||
+          *invoke_type == kSuper) {
+        // Slow path. (Without devirtualization, all super calls go slow path as well.)
+      } else {
+        // Sharpening failed so generate a regular resolved method dispatch.
+        stats_flags = kFlagMethodResolved;
+        GetCodeAndMethodForDirectCall(invoke_type, *invoke_type, false, referrer_class, resolved_method,
+                                      &stats_flags, target_method, direct_code, direct_method);
+        result = true;
       }
     }
   }
-  // Clean up any exception left by method/invoke_type resolution
-  if (soa.Self()->IsExceptionPending()) {
-      soa.Self()->ClearException();
+  if (!result) {
+    // Conservative defaults.
+    *vtable_idx = -1;
+    *direct_code = 0u;
+    *direct_method = 0u;
   }
   if (update_stats) {
-    stats_->UnresolvedMethod(*invoke_type);
+    ProcessedInvoke(orig_invoke_type, stats_flags);
   }
-  return false;  // Incomplete knowledge needs slow path.
+  return result;
 }
 
 const VerifiedMethod* CompilerDriver::GetVerifiedMethod(const DexFile* dex_file,
@@ -1296,7 +1248,6 @@ bool CompilerDriver::IsSafeCast(const DexCompilationUnit* mUnit, uint32_t dex_pc
   }
   return result;
 }
-
 
 void CompilerDriver::AddCodePatch(const DexFile* dex_file,
                                   uint16_t referrer_class_def_idx,

@@ -51,6 +51,7 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/dex_to_dex_compiler.cc \
 	dex/mir_dataflow.cc \
 	dex/mir_field_info.cc \
+	dex/mir_method_info.cc \
 	dex/mir_optimization.cc \
 	dex/pass_driver.cc \
 	dex/bb_optimizations.cc \

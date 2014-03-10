@@ -19,6 +19,7 @@
 #include "dataflow_iterator-inl.h"
 #include "dex_instruction.h"
 #include "dex_instruction-inl.h"
+#include "dex/verified_method.h"
 #include "dex/quick/dex_file_method_inliner.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "driver/compiler_options.h"
@@ -1166,6 +1167,121 @@ void MIRGraph::DoCacheFieldLoweringInfo() {
     MirSFieldLoweringInfo::Resolve(cu_->compiler_driver, GetCurrentDexCompilationUnit(),
                                 sfield_lowering_infos_.GetRawStorage(), max_refs - sfield_pos);
   }
+}
+
+void MIRGraph::DoCacheMethodLoweringInfo() {
+  static constexpr uint16_t invoke_types[] = { kVirtual, kSuper, kDirect, kStatic, kInterface };
+
+  // Embed the map value in the entry to avoid extra padding in 64-bit builds.
+  struct MapEntry {
+    // Map key: target_method_idx, invoke_type, devirt_target. Ordered to avoid padding.
+    const MethodReference* devirt_target;
+    uint16_t target_method_idx;
+    uint16_t invoke_type;
+    // Map value.
+    uint32_t lowering_info_index;
+  };
+
+  // Sort INVOKEs by method index, then by opcode, then by devirtualization target.
+  struct MapEntryComparator {
+    bool operator()(const MapEntry& lhs, const MapEntry& rhs) const {
+      if (lhs.target_method_idx != rhs.target_method_idx) {
+        return lhs.target_method_idx < rhs.target_method_idx;
+      }
+      if (lhs.invoke_type != rhs.invoke_type) {
+        return lhs.invoke_type < rhs.invoke_type;
+      }
+      if (lhs.devirt_target != rhs.devirt_target) {
+        if (lhs.devirt_target == nullptr) {
+          return true;
+        }
+        if (rhs.devirt_target == nullptr) {
+          return false;
+        }
+        return devirt_cmp(*lhs.devirt_target, *rhs.devirt_target);
+      }
+      return false;
+    }
+    MethodReferenceComparator devirt_cmp;
+  };
+
+  // Map invoke key (see MapEntry) to lowering info index.
+  typedef std::set<MapEntry, MapEntryComparator, ScopedArenaAllocatorAdapter<MapEntry> > InvokeMap;
+
+  ScopedArenaAllocator allocator(&cu_->arena_stack);
+
+  // All INVOKE instructions take 3 code units and there must also be a RETURN.
+  uint32_t max_refs = (current_code_item_->insns_size_in_code_units_ - 1u) / 3u;
+
+  // The invoke_map and sequential entries are essentially equivalent to Boost.MultiIndex's
+  // multi_index_container with one ordered index and one sequential index.
+  InvokeMap invoke_map(MapEntryComparator(), allocator.Adapter());
+  const MapEntry** sequential_entries = reinterpret_cast<const MapEntry**>(
+      allocator.Alloc(max_refs * sizeof(sequential_entries[0]), kArenaAllocMisc));
+
+  // Find INVOKE insns and their devirtualization targets.
+  AllNodesIterator iter(this);
+  for (BasicBlock* bb = iter.Next(); bb != nullptr; bb = iter.Next()) {
+    if (bb->block_type != kDalvikByteCode) {
+      continue;
+    }
+    for (MIR* mir = bb->first_mir_insn; mir != nullptr; mir = mir->next) {
+      if (mir->dalvikInsn.opcode >= Instruction::INVOKE_VIRTUAL &&
+          mir->dalvikInsn.opcode <= Instruction::INVOKE_INTERFACE_RANGE &&
+          mir->dalvikInsn.opcode != Instruction::RETURN_VOID_BARRIER) {
+        // Decode target method index and invoke type.
+        const Instruction* insn = Instruction::At(current_code_item_->insns_ + mir->offset);
+        uint16_t target_method_idx;
+        uint16_t invoke_type_idx;
+        if (mir->dalvikInsn.opcode <= Instruction::INVOKE_INTERFACE) {
+          target_method_idx = insn->VRegB_35c();
+          invoke_type_idx = mir->dalvikInsn.opcode - Instruction::INVOKE_VIRTUAL;
+        } else {
+          target_method_idx = insn->VRegB_3rc();
+          invoke_type_idx = mir->dalvikInsn.opcode - Instruction::INVOKE_VIRTUAL_RANGE;
+        }
+
+        // Find devirtualization target.
+        // TODO: The devirt map is ordered by the dex pc here. Is there a way to get INVOKEs
+        // ordered by dex pc as well? That would allow us to keep an iterator to devirt targets
+        // and increment it as needed instead of making O(log n) lookups.
+        const VerifiedMethod* verified_method = GetCurrentDexCompilationUnit()->GetVerifiedMethod();
+        const MethodReference* devirt_target = verified_method->GetDevirtTarget(mir->offset);
+
+        // Try to insert a new entry. If the insertion fails, we will have found an old one.
+        MapEntry entry = {
+            devirt_target,
+            target_method_idx,
+            invoke_types[invoke_type_idx],
+            static_cast<uint32_t>(invoke_map.size())
+        };
+        auto it = invoke_map.insert(entry).first;  // Iterator to either the old or the new entry.
+        mir->meta.method_lowering_info = it->lowering_info_index;
+        // If we didn't actually insert, this will just overwrite an existing value with the same.
+        sequential_entries[it->lowering_info_index] = &*it;
+      }
+    }
+  }
+
+  if (invoke_map.empty()) {
+    return;
+  }
+
+  // Prepare unique method infos, set method info indexes for their MIRs.
+  DCHECK_EQ(method_lowering_infos_.Size(), 0u);
+  const size_t count = invoke_map.size();
+  method_lowering_infos_.Resize(count);
+  for (size_t pos = 0u; pos != count; ++pos) {
+    const MapEntry* entry = sequential_entries[pos];
+    MirMethodLoweringInfo method_info(entry->target_method_idx,
+                                      static_cast<InvokeType>(entry->invoke_type));
+    if (entry->devirt_target != nullptr) {
+      method_info.SetDevirtualizationTarget(*entry->devirt_target);
+    }
+    method_lowering_infos_.Insert(method_info);
+  }
+  MirMethodLoweringInfo::Resolve(cu_->compiler_driver, GetCurrentDexCompilationUnit(),
+                                 method_lowering_infos_.GetRawStorage(), count);
 }
 
 bool MIRGraph::SkipCompilation(const std::string& methodname) {
