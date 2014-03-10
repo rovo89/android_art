@@ -56,7 +56,16 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
     return nullptr;
   }
 
-  mirror::Object* receiver = c->AllocNonMovableObject(soa.Self());
+  bool movable = true;
+  if (!kMovingMethods && c->IsArtMethodClass()) {
+    movable = false;
+  } else if (!kMovingFields && c->IsArtFieldClass()) {
+    movable = false;
+  } else if (!kMovingClasses && c->IsClassClass()) {
+    movable = false;
+  }
+  mirror::Object* receiver =
+      movable ? c->AllocObject(soa.Self()) : c->AllocNonMovableObject(soa.Self());
   if (receiver == nullptr) {
     return nullptr;
   }
