@@ -64,6 +64,12 @@ void GarbageCollector::ResetCumulativeStatistics() {
   total_freed_bytes_ = 0;
 }
 
+void GarbageCollector::RevokeAllThreadLocalBuffers() {
+  timings_.StartSplit("(Paused)RevokeAllThreadLocalBuffers");
+  GetHeap()->RevokeAllThreadLocalBuffers();
+  timings_.EndSplit();
+}
+
 void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   Thread* self = Thread::Current();
@@ -89,14 +95,14 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
     // current collector / allocator during process state updates.
     if (Locks::mutator_lock_->IsExclusiveHeld(self)) {
       // PreGcRosAllocVerification() is called in Heap::TransitionCollector().
-      GetHeap()->RevokeAllThreadLocalBuffers();
+      RevokeAllThreadLocalBuffers();
       MarkingPhase();
       ReclaimPhase();
       // PostGcRosAllocVerification() is called in Heap::TransitionCollector().
     } else {
       thread_list->SuspendAll();
       GetHeap()->PreGcRosAllocVerification(&timings_);
-      GetHeap()->RevokeAllThreadLocalBuffers();
+      RevokeAllThreadLocalBuffers();
       MarkingPhase();
       ReclaimPhase();
       GetHeap()->PostGcRosAllocVerification(&timings_);
@@ -121,7 +127,7 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
       GetHeap()->PreGcRosAllocVerification(&timings_);
       done = HandleDirtyObjectsPhase();
       if (done) {
-        GetHeap()->RevokeAllThreadLocalBuffers();
+        RevokeAllThreadLocalBuffers();
       }
       GetHeap()->PostGcRosAllocVerification(&timings_);
       ATRACE_END();
