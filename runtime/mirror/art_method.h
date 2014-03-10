@@ -342,13 +342,9 @@ class MANAGED ArtMethod : public Object {
     return GetFrameSizeInBytes() - kPointerSize;
   }
 
-#ifndef NDEBUG
-  size_t GetSirtOffsetInBytes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-#else
   size_t GetSirtOffsetInBytes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return kPointerSize;
   }
-#endif
 
   bool IsRegistered();
 
