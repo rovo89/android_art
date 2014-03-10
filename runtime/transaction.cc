@@ -157,7 +157,6 @@ void Transaction::UndoInternStringTableModifications() {
 }
 
 void Transaction::VisitRoots(RootCallback* callback, void* arg) {
-  LOG(INFO) << "Transaction::VisitRoots";
   MutexLock mu(Thread::Current(), log_lock_);
   VisitObjectLogs(callback, arg);
   VisitArrayLogs(callback, arg);
@@ -310,8 +309,10 @@ void Transaction::ObjectLog::VisitRoots(RootCallback* callback, void* arg) {
     if (field_value.kind == ObjectLog::kReference) {
       mirror::Object* obj =
           reinterpret_cast<mirror::Object*>(static_cast<uintptr_t>(field_value.value));
-      callback(&obj, arg, 0, kRootUnknown);
-      field_value.value = reinterpret_cast<uintptr_t>(obj);
+      if (obj != nullptr) {
+        callback(&obj, arg, 0, kRootUnknown);
+        field_value.value = reinterpret_cast<uintptr_t>(obj);
+      }
     }
   }
 }
