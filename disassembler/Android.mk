@@ -21,6 +21,7 @@ include art/build/Android.common.mk
 LIBART_DISASSEMBLER_SRC_FILES := \
 	disassembler.cc \
 	disassembler_arm.cc \
+	disassembler_arm64.cc \
 	disassembler_mips.cc \
 	disassembler_x86.cc
 
@@ -89,10 +90,10 @@ define build-libart-disassembler
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
   ifeq ($$(art_target_or_host),target)
-    LOCAL_SHARED_LIBRARIES += libcutils
+    LOCAL_SHARED_LIBRARIES += libcutils libvixl
     include $(BUILD_SHARED_LIBRARY)
   else # host
-    LOCAL_STATIC_LIBRARIES += libcutils
+    LOCAL_STATIC_LIBRARIES += libcutils libvixl
     include $(BUILD_HOST_SHARED_LIBRARY)
   endif
 endef
