@@ -37,6 +37,20 @@ class CacheFieldLoweringInfo : public Pass {
 };
 
 /**
+ * @class CacheMethodLoweringInfo
+ * @brief Cache the lowering info for methods called by INVOKEs.
+ */
+class CacheMethodLoweringInfo : public Pass {
+ public:
+  CacheMethodLoweringInfo() : Pass("CacheMethodLoweringInfo", kNoNodes) {
+  }
+
+  void Start(CompilationUnit* cUnit) const {
+    cUnit->mir_graph->DoCacheMethodLoweringInfo();
+  }
+};
+
+/**
  * @class CodeLayout
  * @brief Perform the code layout pass.
  */
