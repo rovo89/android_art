@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_BUILDER_H_
 #define ART_COMPILER_OPTIMIZING_BUILDER_H_
 
+#include "dex_file.h"
 #include "utils/allocation.h"
 #include "utils/growable_array.h"
 
@@ -26,18 +27,23 @@ class ArenaAllocator;
 class Instruction;
 class HBasicBlock;
 class HGraph;
+class HIntConstant;
+class HInstruction;
+class HLocal;
 
 class HGraphBuilder : public ValueObject {
  public:
   explicit HGraphBuilder(ArenaAllocator* arena)
       : arena_(arena),
         branch_targets_(arena, 0),
+        locals_(arena, 0),
         entry_block_(nullptr),
         exit_block_(nullptr),
         current_block_(nullptr),
-        graph_(nullptr) { }
+        graph_(nullptr),
+        constant0_(nullptr) { }
 
-  HGraph* BuildGraph(const uint16_t* start, const uint16_t* end);
+  HGraph* BuildGraph(const DexFile::CodeItem& code);
 
  private:
   // Analyzes the dex instruction and adds HInstruction to the graph
@@ -51,6 +57,13 @@ class HGraphBuilder : public ValueObject {
   void MaybeUpdateCurrentBlock(size_t index);
   HBasicBlock* FindBlockStartingAt(int32_t index) const;
 
+  HIntConstant* GetConstant0();
+  HIntConstant* GetConstant(int constant);
+  void InitializeLocals(int count);
+  HLocal* GetLocalAt(int register_index) const;
+  void UpdateLocal(int register_index, HInstruction* instruction) const;
+  HInstruction* LoadLocal(int register_index) const;
+
   ArenaAllocator* const arena_;
 
   // A list of the size of the dex code holding block information for
@@ -58,10 +71,14 @@ class HGraphBuilder : public ValueObject {
   // starting at that entry is the first instruction of a new block.
   GrowableArray<HBasicBlock*> branch_targets_;
 
+  GrowableArray<HLocal*> locals_;
+
   HBasicBlock* entry_block_;
   HBasicBlock* exit_block_;
   HBasicBlock* current_block_;
   HGraph* graph_;
+
+  HIntConstant* constant0_;
 
   DISALLOW_COPY_AND_ASSIGN(HGraphBuilder);
 };
