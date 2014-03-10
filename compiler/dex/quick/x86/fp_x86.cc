@@ -183,13 +183,13 @@ void X86Mir2Lir::GenLongToFP(RegLocation rl_dest, RegLocation rl_src, bool is_do
 
       LoadBaseDispWide(TargetReg(kSp), dest_v_reg_offset, rl_result.reg.GetReg(), rl_result.reg.GetHighReg(), INVALID_SREG);
 
-      StoreValueWide(rl_dest, rl_result);
+      StoreFinalValueWide(rl_dest, rl_result);
     } else {
       rl_result = EvalLoc(rl_dest, kFPReg, true);
 
       LoadWordDisp(TargetReg(kSp), dest_v_reg_offset, rl_result.reg.GetReg());
 
-      StoreValue(rl_dest, rl_result);
+      StoreFinalValue(rl_dest, rl_result);
     }
   }
 }
