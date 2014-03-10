@@ -49,12 +49,12 @@ static int32_t EncodeImmSingle(int32_t value) {
  */
 static int32_t EncodeImmDouble(int64_t value) {
   int32_t res;
-  int32_t bit_a = (value & 0x8000000000000000ll) >> 63;
-  int32_t not_bit_b = (value & 0x4000000000000000ll) >> 62;
-  int32_t bit_b = (value & 0x2000000000000000ll) >> 61;
-  int32_t b_smear = (value & 0x3fc0000000000000ll) >> 54;
-  int32_t slice =  (value & 0x003f000000000000ll) >> 48;
-  uint64_t zeroes = (value & 0x0000ffffffffffffll);
+  int32_t bit_a = (value & INT64_C(0x8000000000000000)) >> 63;
+  int32_t not_bit_b = (value & INT64_C(0x4000000000000000)) >> 62;
+  int32_t bit_b = (value & INT64_C(0x2000000000000000)) >> 61;
+  int32_t b_smear = (value & INT64_C(0x3fc0000000000000)) >> 54;
+  int32_t slice =  (value & INT64_C(0x003f000000000000)) >> 48;
+  uint64_t zeroes = (value & INT64_C(0x0000ffffffffffff));
   if (zeroes != 0ull)
     return -1;
   if (bit_b) {

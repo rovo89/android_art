@@ -17,6 +17,8 @@
 #ifndef ART_COMPILER_DEX_MIR_GRAPH_H_
 #define ART_COMPILER_DEX_MIR_GRAPH_H_
 
+#include <stdint.h>
+
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "compiler_ir.h"
@@ -99,40 +101,40 @@ enum DataFlowAttributePos {
   kDoLVN,                // Worth computing local value numbers.
 };
 
-#define DF_NOP                  0ULL
-#define DF_UA                   (1ULL << kUA)
-#define DF_UB                   (1ULL << kUB)
-#define DF_UC                   (1ULL << kUC)
-#define DF_A_WIDE               (1ULL << kAWide)
-#define DF_B_WIDE               (1ULL << kBWide)
-#define DF_C_WIDE               (1ULL << kCWide)
-#define DF_DA                   (1ULL << kDA)
-#define DF_IS_MOVE              (1ULL << kIsMove)
-#define DF_SETS_CONST           (1ULL << kSetsConst)
-#define DF_FORMAT_35C           (1ULL << kFormat35c)
-#define DF_FORMAT_3RC           (1ULL << kFormat3rc)
-#define DF_NULL_CHK_0           (1ULL << kNullCheckSrc0)
-#define DF_NULL_CHK_1           (1ULL << kNullCheckSrc1)
-#define DF_NULL_CHK_2           (1ULL << kNullCheckSrc2)
-#define DF_NULL_CHK_OUT0        (1ULL << kNullCheckOut0)
-#define DF_NON_NULL_DST         (1ULL << kDstNonNull)
-#define DF_NON_NULL_RET         (1ULL << kRetNonNull)
-#define DF_NULL_TRANSFER_0      (1ULL << kNullTransferSrc0)
-#define DF_NULL_TRANSFER_N      (1ULL << kNullTransferSrcN)
-#define DF_RANGE_CHK_1          (1ULL << kRangeCheckSrc1)
-#define DF_RANGE_CHK_2          (1ULL << kRangeCheckSrc2)
-#define DF_RANGE_CHK_3          (1ULL << kRangeCheckSrc3)
-#define DF_FP_A                 (1ULL << kFPA)
-#define DF_FP_B                 (1ULL << kFPB)
-#define DF_FP_C                 (1ULL << kFPC)
-#define DF_CORE_A               (1ULL << kCoreA)
-#define DF_CORE_B               (1ULL << kCoreB)
-#define DF_CORE_C               (1ULL << kCoreC)
-#define DF_REF_A                (1ULL << kRefA)
-#define DF_REF_B                (1ULL << kRefB)
-#define DF_REF_C                (1ULL << kRefC)
-#define DF_UMS                  (1ULL << kUsesMethodStar)
-#define DF_LVN                  (1ULL << kDoLVN)
+#define DF_NOP                  UINT64_C(0)
+#define DF_UA                   (UINT64_C(1) << kUA)
+#define DF_UB                   (UINT64_C(1) << kUB)
+#define DF_UC                   (UINT64_C(1) << kUC)
+#define DF_A_WIDE               (UINT64_C(1) << kAWide)
+#define DF_B_WIDE               (UINT64_C(1) << kBWide)
+#define DF_C_WIDE               (UINT64_C(1) << kCWide)
+#define DF_DA                   (UINT64_C(1) << kDA)
+#define DF_IS_MOVE              (UINT64_C(1) << kIsMove)
+#define DF_SETS_CONST           (UINT64_C(1) << kSetsConst)
+#define DF_FORMAT_35C           (UINT64_C(1) << kFormat35c)
+#define DF_FORMAT_3RC           (UINT64_C(1) << kFormat3rc)
+#define DF_NULL_CHK_0           (UINT64_C(1) << kNullCheckSrc0)
+#define DF_NULL_CHK_1           (UINT64_C(1) << kNullCheckSrc1)
+#define DF_NULL_CHK_2           (UINT64_C(1) << kNullCheckSrc2)
+#define DF_NULL_CHK_OUT0        (UINT64_C(1) << kNullCheckOut0)
+#define DF_NON_NULL_DST         (UINT64_C(1) << kDstNonNull)
+#define DF_NON_NULL_RET         (UINT64_C(1) << kRetNonNull)
+#define DF_NULL_TRANSFER_0      (UINT64_C(1) << kNullTransferSrc0)
+#define DF_NULL_TRANSFER_N      (UINT64_C(1) << kNullTransferSrcN)
+#define DF_RANGE_CHK_1          (UINT64_C(1) << kRangeCheckSrc1)
+#define DF_RANGE_CHK_2          (UINT64_C(1) << kRangeCheckSrc2)
+#define DF_RANGE_CHK_3          (UINT64_C(1) << kRangeCheckSrc3)
+#define DF_FP_A                 (UINT64_C(1) << kFPA)
+#define DF_FP_B                 (UINT64_C(1) << kFPB)
+#define DF_FP_C                 (UINT64_C(1) << kFPC)
+#define DF_CORE_A               (UINT64_C(1) << kCoreA)
+#define DF_CORE_B               (UINT64_C(1) << kCoreB)
+#define DF_CORE_C               (UINT64_C(1) << kCoreC)
+#define DF_REF_A                (UINT64_C(1) << kRefA)
+#define DF_REF_B                (UINT64_C(1) << kRefB)
+#define DF_REF_C                (UINT64_C(1) << kRefC)
+#define DF_UMS                  (UINT64_C(1) << kUsesMethodStar)
+#define DF_LVN                  (UINT64_C(1) << kDoLVN)
 
 #define DF_HAS_USES             (DF_UA | DF_UB | DF_UC)
 

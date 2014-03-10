@@ -151,7 +151,7 @@ void ArmMir2Lir::GenConversion(Instruction::Code opcode,
 
       NewLIR2(kThumb2VcvtF64S32, tmp1 | ARM_FP_DOUBLE, (src_reg & ~ARM_FP_DOUBLE) + 1);
       NewLIR2(kThumb2VcvtF64U32, S2d(rl_result.reg.GetReg(), rl_result.reg.GetHighReg()), (src_reg & ~ARM_FP_DOUBLE));
-      LoadConstantWide(tmp2, tmp2 + 1, 0x41f0000000000000LL);
+      LoadConstantWide(tmp2, tmp2 + 1, INT64_C(0x41f0000000000000));
       NewLIR3(kThumb2VmlaF64, S2d(rl_result.reg.GetReg(), rl_result.reg.GetHighReg()), tmp1 | ARM_FP_DOUBLE,
               tmp2 | ARM_FP_DOUBLE);
       FreeTemp(tmp1);
@@ -173,7 +173,7 @@ void ArmMir2Lir::GenConversion(Instruction::Code opcode,
       // Long to double.
       NewLIR2(kThumb2VcvtF64S32, high_val | ARM_FP_DOUBLE, (src_reg & ~ARM_FP_DOUBLE) + 1);
       NewLIR2(kThumb2VcvtF64U32, low_val | ARM_FP_DOUBLE, (src_reg & ~ARM_FP_DOUBLE));
-      LoadConstantWide(const_val, const_val + 1, 0x41f0000000000000LL);
+      LoadConstantWide(const_val, const_val + 1, INT64_C(0x41f0000000000000));
       NewLIR3(kThumb2VmlaF64, low_val | ARM_FP_DOUBLE, high_val | ARM_FP_DOUBLE,
           const_val | ARM_FP_DOUBLE);
       // Double to float.

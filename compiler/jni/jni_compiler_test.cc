@@ -252,8 +252,8 @@ TEST_F(JniCompilerTest, CompileAndRunLongLongMethod) {
                reinterpret_cast<void*>(&Java_MyClassNatives_fooJJ));
 
   EXPECT_EQ(0, gJava_MyClassNatives_fooJJ_calls);
-  jlong a = 0x1234567890ABCDEFll;
-  jlong b = 0xFEDCBA0987654321ll;
+  jlong a = INT64_C(0x1234567890ABCDEF);
+  jlong b = INT64_C(0xFEDCBA0987654321);
   jlong result = env_->CallNonvirtualLongMethod(jobj_, jklass_, jmethod_, a, b);
   EXPECT_EQ(a - b, result);
   EXPECT_EQ(1, gJava_MyClassNatives_fooJJ_calls);
@@ -681,7 +681,7 @@ TEST_F(JniCompilerTest, JavaLangSystemArrayCopy) {
 jboolean my_casi(JNIEnv* env, jobject unsafe, jobject obj, jlong offset, jint expected, jint newval) {
   EXPECT_TRUE(env->IsSameObject(JniCompilerTest::jobj_, unsafe));
   EXPECT_TRUE(env->IsSameObject(JniCompilerTest::jobj_, obj));
-  EXPECT_EQ(0x12345678ABCDEF88ll, offset);
+  EXPECT_EQ(INT64_C(0x12345678ABCDEF88), offset);
   EXPECT_EQ(static_cast<jint>(0xCAFEF00D), expected);
   EXPECT_EQ(static_cast<jint>(0xEBADF00D), newval);
   return JNI_TRUE;
@@ -691,7 +691,8 @@ TEST_F(JniCompilerTest, CompareAndSwapInt) {
   TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(false, "compareAndSwapInt", "(Ljava/lang/Object;JII)Z",
                reinterpret_cast<void*>(&my_casi));
-  jboolean result = env_->CallBooleanMethod(jobj_, jmethod_, jobj_, 0x12345678ABCDEF88ll, 0xCAFEF00D, 0xEBADF00D);
+  jboolean result = env_->CallBooleanMethod(jobj_, jmethod_, jobj_, INT64_C(0x12345678ABCDEF88),
+                                            0xCAFEF00D, 0xEBADF00D);
   EXPECT_EQ(result, JNI_TRUE);
 }
 
@@ -709,7 +710,7 @@ TEST_F(JniCompilerTest, GetText) {
   SetUpForTest(true, "getText", "(JLjava/lang/Object;JLjava/lang/Object;)I",
                reinterpret_cast<void*>(&my_gettext));
   jint result = env_->CallStaticIntMethod(jklass_, jmethod_, 0x12345678ABCDEF88ll, jobj_,
-                                          0x7FEDCBA987654321ll, jobj_);
+                                          INT64_C(0x7FEDCBA987654321), jobj_);
   EXPECT_EQ(result, 42);
 }
 
@@ -827,7 +828,7 @@ void Java_MyClassNatives_checkParameterAlign(JNIEnv* env, jobject thisObj, jint 
   ScopedObjectAccess soa(Thread::Current());
   EXPECT_EQ(1U, Thread::Current()->NumStackReferences());*/
   EXPECT_EQ(i1, 1234);
-  EXPECT_EQ(l1, 5678);
+  EXPECT_EQ(l1, INT64_C(0x12345678ABCDEF0));
 }
 
 TEST_F(JniCompilerTest, CheckParameterAlign) {
@@ -835,7 +836,7 @@ TEST_F(JniCompilerTest, CheckParameterAlign) {
   SetUpForTest(false, "checkParameterAlign", "(IJ)V",
                reinterpret_cast<void*>(&Java_MyClassNatives_checkParameterAlign));
 
-  env_->CallNonvirtualVoidMethod(jobj_, jklass_, jmethod_, 1234, 5678LLU);
+  env_->CallNonvirtualVoidMethod(jobj_, jklass_, jmethod_, 1234, INT64_C(0x12345678ABCDEF0));
 }
 
 void Java_MyClassNatives_maxParamNumber(JNIEnv* env, jobject thisObj,
