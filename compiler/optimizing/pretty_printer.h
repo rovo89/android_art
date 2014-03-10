@@ -27,7 +27,35 @@ class HPrettyPrinter : public HGraphVisitor {
 
   virtual void VisitInstruction(HInstruction* instruction) {
     PrintString("  ");
+    PrintInt(instruction->id());
+    PrintString(": ");
     PrintString(instruction->DebugName());
+    if (instruction->InputCount() != 0) {
+      PrintString("(");
+      bool first = true;
+      for (HInputIterator it(instruction); !it.Done(); it.Advance()) {
+        if (first) {
+          first = false;
+        } else {
+          PrintString(", ");
+        }
+        PrintInt(it.Current()->id());
+      }
+      PrintString(")");
+    }
+    if (instruction->HasUses()) {
+      PrintString(" [");
+      bool first = true;
+      for (HUseIterator it(instruction); !it.Done(); it.Advance()) {
+        if (first) {
+          first = false;
+        } else {
+          PrintString(", ");
+        }
+        PrintInt(it.Current()->id());
+      }
+      PrintString("]");
+    }
     PrintNewLine();
   }
 
