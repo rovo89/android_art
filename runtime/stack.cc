@@ -280,10 +280,12 @@ void StackVisitor::SanityCheckFrame() const {
       // Frame sanity.
       size_t frame_size = method->GetFrameSizeInBytes();
       CHECK_NE(frame_size, 0u);
-      // A rough guess at an upper size we expect to see for a frame. The 256 is
-      // a dex register limit. The 16 incorporates callee save spills and
-      // outgoing argument set up.
-      const size_t kMaxExpectedFrameSize = 256 * sizeof(word) + 16;
+      // A rough guess at an upper size we expect to see for a frame.
+      // 256 registers
+      // 2 words Sirt overhead
+      // 3+3 register spills
+      // TODO: this seems architecture specific for the case of JNI frames.
+      const size_t kMaxExpectedFrameSize = (256 + 2 + 3 + 3) * sizeof(word);
       CHECK_LE(frame_size, kMaxExpectedFrameSize);
       size_t return_pc_offset = method->GetReturnPcOffsetInBytes();
       CHECK_LT(return_pc_offset, frame_size);
