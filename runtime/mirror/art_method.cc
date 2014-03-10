@@ -360,10 +360,5 @@ void ArtMethod::UnregisterNative(Thread* self) {
   RegisterNative(self, GetJniDlsymLookupStub(), false);
 }
 
-void ArtMethod::SetNativeMethod(const void* native_method) {
-  SetFieldPtr<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_jni_),
-                     native_method, false);
-}
-
 }  // namespace mirror
 }  // namespace art

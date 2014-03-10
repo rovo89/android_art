@@ -214,40 +214,48 @@ class MANAGED ArtMethod : public Object {
   void Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result,
               const char* shorty) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   EntryPointFromInterpreter* GetEntryPointFromInterpreter() {
-    return GetFieldPtr<EntryPointFromInterpreter*>(
+    return GetFieldPtr<EntryPointFromInterpreter*, kVerifyFlags>(
                OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_interpreter_), false);
   }
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   void SetEntryPointFromInterpreter(EntryPointFromInterpreter* entry_point_from_interpreter) {
-    SetFieldPtr<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_interpreter_),
-                       entry_point_from_interpreter, false);
+    SetFieldPtr<false, true, kVerifyFlags>(
+        OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_interpreter_),
+        entry_point_from_interpreter, false);
   }
 
   static MemberOffset EntryPointFromPortableCompiledCodeOffset() {
     return MemberOffset(OFFSETOF_MEMBER(ArtMethod, entry_point_from_portable_compiled_code_));
   }
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   const void* GetEntryPointFromPortableCompiledCode() {
-    return GetFieldPtr<const void*>(EntryPointFromPortableCompiledCodeOffset(), false);
+    return GetFieldPtr<const void*, kVerifyFlags>(
+        EntryPointFromPortableCompiledCodeOffset(), false);
   }
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   void SetEntryPointFromPortableCompiledCode(const void* entry_point_from_portable_compiled_code) {
-    SetFieldPtr<false>(EntryPointFromPortableCompiledCodeOffset(),
-                       entry_point_from_portable_compiled_code, false);
+    SetFieldPtr<false, true, kVerifyFlags>(
+        EntryPointFromPortableCompiledCodeOffset(), entry_point_from_portable_compiled_code, false);
   }
 
   static MemberOffset EntryPointFromQuickCompiledCodeOffset() {
     return MemberOffset(OFFSETOF_MEMBER(ArtMethod, entry_point_from_quick_compiled_code_));
   }
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   const void* GetEntryPointFromQuickCompiledCode() {
-    return GetFieldPtr<const void*>(EntryPointFromQuickCompiledCodeOffset(), false);
+    return GetFieldPtr<const void*, kVerifyFlags>(EntryPointFromQuickCompiledCodeOffset(), false);
   }
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   void SetEntryPointFromQuickCompiledCode(const void* entry_point_from_quick_compiled_code) {
-    SetFieldPtr<false>(EntryPointFromQuickCompiledCodeOffset(),
-                       entry_point_from_quick_compiled_code, false);
+    SetFieldPtr<false, true, kVerifyFlags>(
+        EntryPointFromQuickCompiledCodeOffset(), entry_point_from_quick_compiled_code, false);
   }
 
 
@@ -279,9 +287,10 @@ class MANAGED ArtMethod : public Object {
         false);
   }
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   void SetMappingTable(const uint8_t* mapping_table) {
-    SetFieldPtr<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_mapping_table_),
-                       mapping_table, false);
+    SetFieldPtr<false, true, kVerifyFlags>(
+        OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_mapping_table_), mapping_table, false);
   }
 
   uint32_t GetOatMappingTableOffset();
@@ -294,8 +303,10 @@ class MANAGED ArtMethod : public Object {
         false);
   }
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   void SetVmapTable(const uint8_t* vmap_table) {
-    SetFieldPtr<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_vmap_table_), vmap_table, false);
+    SetFieldPtr<false, true, kVerifyFlags>(
+        OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_vmap_table_), vmap_table, false);
   }
 
   uint32_t GetOatVmapTableOffset();
@@ -305,8 +316,10 @@ class MANAGED ArtMethod : public Object {
   const uint8_t* GetNativeGcMap() {
     return GetFieldPtr<uint8_t*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, gc_map_), false);
   }
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   void SetNativeGcMap(const uint8_t* data) {
-    SetFieldPtr<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, gc_map_), data, false);
+    SetFieldPtr<false, true, kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, gc_map_), data,
+                                           false);
   }
 
   // When building the oat need a convenient place to stuff the offset of the native GC map.
@@ -350,6 +363,7 @@ class MANAGED ArtMethod : public Object {
     return reinterpret_cast<const void*>(GetField32(NativeMethodOffset(), false));
   }
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   void SetNativeMethod(const void*);
 
   static MemberOffset GetMethodIndexOffset() {

@@ -21,6 +21,7 @@
 #include "jni_internal.h"
 #include "thread-inl.h"
 #include "mirror/art_method.h"
+#include "verify_object.h"
 
 namespace art {
 
@@ -79,9 +80,7 @@ class ScopedFastNativeObjectAccess {
       return NULL;
     }
 
-    if (kIsDebugBuild) {
-      Runtime::Current()->GetHeap()->VerifyObject(obj);
-    }
+    VerifyObject(obj);
 
     DCHECK_NE((reinterpret_cast<uintptr_t>(obj) & 0xffff0000), 0xebad0000);
 

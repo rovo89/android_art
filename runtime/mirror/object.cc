@@ -141,10 +141,9 @@ int32_t Object::IdentityHashCode() const {
 
 void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_value) {
   Class* c = GetClass();
-  if (Runtime::Current()->GetClassLinker() == NULL ||
-      !Runtime::Current()->IsStarted() ||
-      !Runtime::Current()->GetHeap()->IsObjectValidationEnabled() ||
-      !c->IsResolved()) {
+  Runtime* runtime = Runtime::Current();
+  if (runtime->GetClassLinker() == nullptr || !runtime->IsStarted() ||
+      !runtime->GetHeap()->IsObjectValidationEnabled() || !c->IsResolved()) {
     return;
   }
   for (Class* cur = c; cur != NULL; cur = cur->GetSuperClass()) {

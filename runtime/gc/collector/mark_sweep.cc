@@ -533,15 +533,11 @@ void MarkSweep::MarkRoot(const Object* obj) {
 
 void MarkSweep::MarkRootParallelCallback(mirror::Object** root, void* arg, uint32_t /*thread_id*/,
                                          RootType /*root_type*/) {
-  DCHECK(root != NULL);
-  DCHECK(arg != NULL);
   reinterpret_cast<MarkSweep*>(arg)->MarkObjectNonNullParallel(*root);
 }
 
 void MarkSweep::MarkRootCallback(Object** root, void* arg, uint32_t /*thread_id*/,
                                  RootType /*root_type*/) {
-  DCHECK(root != nullptr);
-  DCHECK(arg != nullptr);
   reinterpret_cast<MarkSweep*>(arg)->MarkObjectNonNull(*root);
 }
 
