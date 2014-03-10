@@ -89,7 +89,8 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       max_available_non_special_compiler_temps_(0),
       punt_to_interpreter_(false),
       ifield_lowering_infos_(arena, 0u),
-      sfield_lowering_infos_(arena, 0u) {
+      sfield_lowering_infos_(arena, 0u),
+      method_lowering_infos_(arena, 0u) {
   try_block_addr_ = new (arena_) ArenaBitVector(arena_, 0, true /* expandable */);
   max_available_special_compiler_temps_ = std::abs(static_cast<int>(kVRegNonSpecialTempBaseReg))
       - std::abs(static_cast<int>(kVRegTempBaseReg));
@@ -1176,6 +1177,7 @@ CallInfo* MIRGraph::NewMemCallInfo(BasicBlock* bb, MIR* mir, InvokeType type,
   info->is_range = is_range;
   info->index = mir->dalvikInsn.vB;
   info->offset = mir->offset;
+  info->mir = mir;
   return info;
 }
 
