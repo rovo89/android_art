@@ -993,7 +993,7 @@ static int dex2oat(int argc, char** argv) {
 
   if (compiler_filter_string == NULL) {
     if (image) {
-      compiler_filter_string = "speed";
+      compiler_filter_string = "everything";
     } else {
 #if ART_SMALL_MODE
       compiler_filter_string = "interpret-only";
