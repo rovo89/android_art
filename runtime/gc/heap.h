@@ -487,6 +487,9 @@ class Heap {
   // Assumes there is only one image space.
   space::ImageSpace* GetImageSpace() const;
 
+  // Permenantly disable compaction.
+  void DisableCompaction();
+
   space::DlMallocSpace* GetDlMallocSpace() const {
     return dlmalloc_space_;
   }
