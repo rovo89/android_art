@@ -44,4 +44,14 @@ ArenaBitVector::ArenaBitVector(ArenaAllocator* arena, unsigned int start_bits,
                                bool expandable, OatBitMapKind kind)
   :  BitVector(start_bits, expandable, new (arena) ArenaBitVectorAllocator(arena)), kind_(kind) {}
 
+BasicBlock* ArenaBitVector::BasicBlockIterator::Next() {
+    int idx = internal_iterator_.Next();
+
+    if (idx == -1) {
+      return nullptr;
+    }
+
+    return mir_graph_->GetBasicBlock(idx);
+}
+
 }  // namespace art
