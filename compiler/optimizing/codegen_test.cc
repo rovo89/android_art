@@ -17,9 +17,11 @@
 #include "builder.h"
 #include "code_generator.h"
 #include "common_compiler_test.h"
+#include "dex_file.h"
 #include "dex_instruction.h"
 #include "instruction_set.h"
 #include "nodes.h"
+#include "optimizing_unit_test.h"
 
 #include "gtest/gtest.h"
 
@@ -43,11 +45,12 @@ class ExecutableMemoryAllocator : public CodeAllocator {
   DISALLOW_COPY_AND_ASSIGN(ExecutableMemoryAllocator);
 };
 
-static void TestCode(const uint16_t* data, int length) {
+static void TestCode(const uint16_t* data) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
   HGraphBuilder builder(&arena);
-  HGraph* graph = builder.BuildGraph(data, data + length);
+  const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
+  HGraph* graph = builder.BuildGraph(*item);
   ASSERT_NE(graph, nullptr);
   ExecutableMemoryAllocator allocator;
   CHECK(CodeGenerator::CompileGraph(graph, kX86, &allocator));
@@ -62,63 +65,57 @@ static void TestCode(const uint16_t* data, int length) {
 }
 
 TEST(CodegenTest, ReturnVoid) {
-  const uint16_t data[] = { Instruction::RETURN_VOID };
-  TestCode(data, sizeof(data) / sizeof(uint16_t));
+  const uint16_t data[] = ZERO_REGISTER_CODE_ITEM(Instruction::RETURN_VOID);
+  TestCode(data);
 }
 
 TEST(PrettyPrinterTest, CFG1) {
-  const uint16_t data[] = {
+  const uint16_t data[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::GOTO | 0x100,
-    Instruction::RETURN_VOID
-  };
+    Instruction::RETURN_VOID);
 
-  TestCode(data, sizeof(data) / sizeof(uint16_t));
+  TestCode(data);
 }
 
 TEST(PrettyPrinterTest, CFG2) {
-  const uint16_t data[] = {
+  const uint16_t data[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::GOTO | 0x100,
     Instruction::GOTO | 0x100,
-    Instruction::RETURN_VOID
-  };
+    Instruction::RETURN_VOID);
 
-  TestCode(data, sizeof(data) / sizeof(uint16_t));
+  TestCode(data);
 }
 
 TEST(PrettyPrinterTest, CFG3) {
-  const uint16_t data1[] = {
+  const uint16_t data1[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::GOTO | 0x200,
     Instruction::RETURN_VOID,
-    Instruction::GOTO | 0xFF00
-  };
+    Instruction::GOTO | 0xFF00);
 
-  TestCode(data1, sizeof(data1) / sizeof(uint16_t));
+  TestCode(data1);
 
-  const uint16_t data2[] = {
+  const uint16_t data2[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::GOTO_16, 3,
     Instruction::RETURN_VOID,
-    Instruction::GOTO_16, 0xFFFF
-  };
+    Instruction::GOTO_16, 0xFFFF);
 
-  TestCode(data2, sizeof(data2) / sizeof(uint16_t));
+  TestCode(data2);
 
-  const uint16_t data3[] = {
+  const uint16_t data3[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::GOTO_32, 4, 0,
     Instruction::RETURN_VOID,
-    Instruction::GOTO_32, 0xFFFF, 0xFFFF
-  };
+    Instruction::GOTO_32, 0xFFFF, 0xFFFF);
 
-  TestCode(data3, sizeof(data3) / sizeof(uint16_t));
+  TestCode(data3);
 }
 
 TEST(PrettyPrinterTest, CFG4) {
-  const uint16_t data[] = {
+  const uint16_t data[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::RETURN_VOID,
     Instruction::GOTO | 0x100,
-    Instruction::GOTO | 0xFE00
-  };
+    Instruction::GOTO | 0xFE00);
 
-  TestCode(data, sizeof(data) / sizeof(uint16_t));
+  TestCode(data);
 }
 
 }  // namespace art
