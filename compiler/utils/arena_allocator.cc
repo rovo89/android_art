@@ -31,7 +31,8 @@ static constexpr bool kUseMemSet = true && kUseMemMap;
 static constexpr size_t kValgrindRedZoneBytes = 8;
 constexpr size_t Arena::kDefaultSize;
 
-static const char* alloc_names[kNumArenaAllocKinds] = {
+template <bool kCount>
+const char* ArenaAllocatorStatsImpl<kCount>::kAllocNames[kNumArenaAllocKinds] = {
   "Misc       ",
   "BasicBlock ",
   "LIR        ",
@@ -94,14 +95,14 @@ void ArenaAllocatorStatsImpl<kCount>::Dump(std::ostream& os, const Arena* first,
   const size_t bytes_allocated = BytesAllocated();
   os << " MEM: used: " << bytes_allocated << ", allocated: " << malloc_bytes
      << ", lost: " << lost_bytes << "\n";
-  size_t num_allocations = ArenaAllocatorStats::NumAllocations();
+  size_t num_allocations = NumAllocations();
   if (num_allocations != 0) {
     os << "Number of arenas allocated: " << num_arenas << ", Number of allocations: "
        << num_allocations << ", avg size: " << bytes_allocated / num_allocations << "\n";
   }
   os << "===== Allocation by kind\n";
   for (int i = 0; i < kNumArenaAllocKinds; i++) {
-      os << alloc_names[i] << std::setw(10) << alloc_stats_[i] << "\n";
+      os << kAllocNames[i] << std::setw(10) << alloc_stats_[i] << "\n";
   }
 }
 
