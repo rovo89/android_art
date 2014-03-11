@@ -56,8 +56,8 @@ class MappingTable {
       // We must have dex to pc entries or else the loop will go beyond the end of the table.
       DCHECK_GT(total_size, pc_to_dex_size);
       for (uint32_t i = 0; i < pc_to_dex_size; ++i) {
-        DecodeUnsignedLeb128(&table);  // Move ptr past native PC.
-        DecodeUnsignedLeb128(&table);  // Move ptr past dex PC.
+        DecodeUnsignedLeb128(&table);  // Move ptr past native PC delta.
+        DecodeSignedLeb128(&table);  // Move ptr past dex PC delta.
       }
     }
     return table;
