@@ -208,21 +208,21 @@ void DexCompiler::CompileInstanceFieldAccess(Instruction* inst,
     return;
   }
   uint32_t field_idx = inst->VRegC_22c();
-  int field_offset;
+  MemberOffset field_offset(0u);
   bool is_volatile;
   bool fast_path = driver_.ComputeInstanceFieldInfo(field_idx, &unit_, is_put,
                                                     &field_offset, &is_volatile);
-  if (fast_path && !is_volatile && IsUint(16, field_offset)) {
+  if (fast_path && !is_volatile && IsUint(16, field_offset.Int32Value())) {
     VLOG(compiler) << "Quickening " << Instruction::Name(inst->Opcode())
                    << " to " << Instruction::Name(new_opcode)
                    << " by replacing field index " << field_idx
-                   << " by field offset " << field_offset
+                   << " by field offset " << field_offset.Int32Value()
                    << " at dex pc " << StringPrintf("0x%x", dex_pc) << " in method "
                    << PrettyMethod(unit_.GetDexMethodIndex(), GetDexFile(), true);
     // We are modifying 4 consecutive bytes.
     inst->SetOpcode(new_opcode);
     // Replace field index by field offset.
-    inst->SetVRegC_22c(static_cast<uint16_t>(field_offset));
+    inst->SetVRegC_22c(static_cast<uint16_t>(field_offset.Int32Value()));
   }
 }
 

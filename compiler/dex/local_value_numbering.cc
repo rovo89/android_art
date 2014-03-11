@@ -16,6 +16,7 @@
 
 #include "local_value_numbering.h"
 
+#include "mir_field_info.h"
 #include "mir_graph.h"
 
 namespace art {
@@ -534,16 +535,24 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::IGET_BYTE:
     case Instruction::IGET_CHAR:
     case Instruction::IGET_SHORT: {
+        uint16_t type = opcode - Instruction::IGET;
         uint16_t base = GetOperandValue(mir->ssa_rep->uses[0]);
         HandleNullCheck(mir, base);
+        const MirFieldInfo& field_info = cu_->mir_graph->GetIFieldLoweringInfo(mir);
         uint16_t memory_version;
         uint16_t field_id;
-        // TODO: all gets treated as volatile.
-        // Volatile fields always get a new memory version; field id is irrelevant.
-        // Unresolved fields are always marked as volatile and handled the same way here.
-        field_id = 0u;
-        memory_version = next_memory_version_;
-        ++next_memory_version_;
+        if (!field_info.IsResolved() || field_info.IsVolatile()) {
+          // Volatile fields always get a new memory version; field id is irrelevant.
+          // Unresolved fields may be volatile, so handle them as such to be safe.
+          field_id = 0u;
+          memory_version = next_memory_version_;
+          ++next_memory_version_;
+        } else {
+          DCHECK(field_info.IsResolved());
+          field_id = GetFieldId(field_info.DeclaringDexFile(), field_info.DeclaringFieldIndex());
+          memory_version = std::max(unresolved_ifield_version_[type],
+                                    GetMemoryVersion(base, field_id, type));
+        }
         if (opcode == Instruction::IGET_WIDE) {
           res = LookupValue(Instruction::IGET_WIDE, base, field_id, memory_version);
           SetOperandValueWide(mir->ssa_rep->defs[0], res);
@@ -567,10 +576,18 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
         int base_reg = (opcode == Instruction::IPUT_WIDE) ? 2 : 1;
         uint16_t base = GetOperandValue(mir->ssa_rep->uses[base_reg]);
         HandleNullCheck(mir, base);
-        // TODO: all puts treated as unresolved.
-        // Unresolved fields always alias with everything of the same type.
-        unresolved_ifield_version_[type] = next_memory_version_;
-        ++next_memory_version_;
+        const MirFieldInfo& field_info = cu_->mir_graph->GetIFieldLoweringInfo(mir);
+        if (!field_info.IsResolved()) {
+          // Unresolved fields always alias with everything of the same type.
+          unresolved_ifield_version_[type] = next_memory_version_;
+          ++next_memory_version_;
+        } else if (field_info.IsVolatile()) {
+          // Nothing to do, resolved volatile fields always get a new memory version anyway and
+          // can't alias with resolved non-volatile fields.
+        } else {
+          AdvanceMemoryVersion(base, GetFieldId(field_info.DeclaringDexFile(),
+                                                field_info.DeclaringFieldIndex()), type);
+        }
       }
       break;
 
@@ -581,14 +598,22 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::SGET_BYTE:
     case Instruction::SGET_CHAR:
     case Instruction::SGET_SHORT: {
+        uint16_t type = opcode - Instruction::SGET;
+        const MirFieldInfo& field_info = cu_->mir_graph->GetSFieldLoweringInfo(mir);
         uint16_t memory_version;
         uint16_t field_id;
-        // TODO: all gets treated as volatile.
-        // Volatile fields always get a new memory version; field id is irrelevant.
-        // Unresolved fields are always marked as volatile and handled the same way here.
-        field_id = 0u;
-        memory_version = next_memory_version_;
-        ++next_memory_version_;
+        if (!field_info.IsResolved() || field_info.IsVolatile()) {
+          // Volatile fields always get a new memory version; field id is irrelevant.
+          // Unresolved fields may be volatile, so handle them as such to be safe.
+          field_id = 0u;
+          memory_version = next_memory_version_;
+          ++next_memory_version_;
+        } else {
+          DCHECK(field_info.IsResolved());
+          field_id = GetFieldId(field_info.DeclaringDexFile(), field_info.DeclaringFieldIndex());
+          memory_version = std::max(unresolved_sfield_version_[type],
+                                    GetMemoryVersion(NO_VALUE, field_id, type));
+        }
         if (opcode == Instruction::SGET_WIDE) {
           res = LookupValue(Instruction::SGET_WIDE, NO_VALUE, field_id, memory_version);
           SetOperandValueWide(mir->ssa_rep->defs[0], res);
@@ -609,10 +634,18 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::SPUT_CHAR:
     case Instruction::SPUT_SHORT: {
         uint16_t type = opcode - Instruction::SPUT;
-        // TODO: all puts treated as unresolved.
-        // Unresolved fields always alias with everything of the same type.
-        unresolved_sfield_version_[type] = next_memory_version_;
-        ++next_memory_version_;
+        const MirFieldInfo& field_info = cu_->mir_graph->GetSFieldLoweringInfo(mir);
+        if (!field_info.IsResolved()) {
+          // Unresolved fields always alias with everything of the same type.
+          unresolved_sfield_version_[type] = next_memory_version_;
+          ++next_memory_version_;
+        } else if (field_info.IsVolatile()) {
+          // Nothing to do, resolved volatile fields always get a new memory version anyway and
+          // can't alias with resolved non-volatile fields.
+        } else {
+          AdvanceMemoryVersion(NO_VALUE, GetFieldId(field_info.DeclaringDexFile(),
+                                                    field_info.DeclaringFieldIndex()), type);
+        }
       }
       break;
   }
