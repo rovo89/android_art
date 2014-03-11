@@ -756,21 +756,25 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
   RememberForGcArgumentVisitor visitor(sp, invoke_type == kStatic, shorty, shorty_len, &soa);
   visitor.VisitArguments();
   thread->EndAssertNoThreadSuspension(old_cause);
+  bool virtual_or_interface = invoke_type == kVirtual || invoke_type == kInterface;
   // Resolve method filling in dex cache.
   if (called->IsRuntimeMethod()) {
+    SirtRef<mirror::Object> sirt_receiver(soa.Self(), virtual_or_interface ? receiver : nullptr);
     called = linker->ResolveMethod(dex_method_idx, caller, invoke_type);
+    receiver = sirt_receiver.get();
   }
   const void* code = NULL;
   if (LIKELY(!thread->IsExceptionPending())) {
     // Incompatible class change should have been handled in resolve method.
     CHECK(!called->CheckIncompatibleClassChange(invoke_type));
-    // Refine called method based on receiver.
-    if (invoke_type == kVirtual) {
-      called = receiver->GetClass()->FindVirtualMethodForVirtual(called);
-    } else if (invoke_type == kInterface) {
-      called = receiver->GetClass()->FindVirtualMethodForInterface(called);
-    }
-    if ((invoke_type == kVirtual) || (invoke_type == kInterface)) {
+    if (virtual_or_interface) {
+      // Refine called method based on receiver.
+      CHECK(receiver != nullptr) << invoke_type;
+      if (invoke_type == kVirtual) {
+        called = receiver->GetClass()->FindVirtualMethodForVirtual(called);
+      } else {
+        called = receiver->GetClass()->FindVirtualMethodForInterface(called);
+      }
       // We came here because of sharpening. Ensure the dex cache is up-to-date on the method index
       // of the sharpened method.
       if (called->GetDexCacheResolvedMethods() == caller->GetDexCacheResolvedMethods()) {
