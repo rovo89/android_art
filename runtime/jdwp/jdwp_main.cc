@@ -386,10 +386,14 @@ bool JdwpState::HandlePacket() {
   JdwpNetStateBase* netStateBase = reinterpret_cast<JdwpNetStateBase*>(netState);
   JDWP::Request request(netStateBase->input_buffer_, netStateBase->input_count_);
 
-  StartProcessingRequest();
   ExpandBuf* pReply = expandBufAlloc();
   ProcessRequest(request, pReply);
   ssize_t cc = netStateBase->WritePacket(pReply);
+
+  /*
+   * We processed this request and sent its reply. Notify other threads waiting for us they can now
+   * send events.
+   */
   EndProcessingRequest();
 
   if (cc != (ssize_t) expandBufGetLength(pReply)) {
