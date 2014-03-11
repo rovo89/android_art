@@ -122,6 +122,7 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
       : ScopedThreadStateChange(ThreadForEnv(env), kRunnable),
         env_(down_cast<JNIEnvExt*>(env)), vm_(env_->vm) {
     self_->VerifyStack();
+    Locks::mutator_lock_->AssertSharedHeld(self_);
   }
 
   explicit ScopedObjectAccessUnchecked(Thread* self)
@@ -130,6 +131,7 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
         env_(down_cast<JNIEnvExt*>(self->GetJniEnv())),
         vm_(env_ != NULL ? env_->vm : NULL) {
     self_->VerifyStack();
+    Locks::mutator_lock_->AssertSharedHeld(self_);
   }
 
   // Used when we want a scoped JNI thread state but have no thread/JNIEnv. Consequently doesn't
@@ -139,6 +141,7 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
 
   // Here purely to force inlining.
   ~ScopedObjectAccessUnchecked() ALWAYS_INLINE {
+    Locks::mutator_lock_->AssertSharedHeld(self_);
   }
 
   JNIEnvExt* Env() const {
@@ -250,14 +253,12 @@ class ScopedObjectAccess : public ScopedObjectAccessUnchecked {
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCK_FUNCTION(Locks::mutator_lock_) ALWAYS_INLINE
       : ScopedObjectAccessUnchecked(env) {
-    Locks::mutator_lock_->AssertSharedHeld(Self());
   }
 
   explicit ScopedObjectAccess(Thread* self)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCK_FUNCTION(Locks::mutator_lock_)
       : ScopedObjectAccessUnchecked(self) {
-    Locks::mutator_lock_->AssertSharedHeld(Self());
   }
 
   ~ScopedObjectAccess() UNLOCK_FUNCTION(Locks::mutator_lock_) ALWAYS_INLINE {

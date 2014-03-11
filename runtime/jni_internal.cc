@@ -27,7 +27,7 @@
 #include "base/mutex.h"
 #include "base/stl_util.h"
 #include "base/stringpiece.h"
-#include "class_linker.h"
+#include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "interpreter/interpreter.h"
@@ -284,7 +284,7 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   if (sig[1] != '\0') {
     SirtRef<mirror::ClassLoader> class_loader(soa.Self(), c->GetClassLoader());
-    field_type = class_linker->FindClass(sig, class_loader);
+    field_type = class_linker->FindClass(soa.Self(), sig, class_loader);
   } else {
     field_type = class_linker->FindPrimitiveClass(*sig);
   }
@@ -651,9 +651,9 @@ class JNI {
     mirror::Class* c = nullptr;
     if (runtime->IsStarted()) {
       SirtRef<mirror::ClassLoader> class_loader(soa.Self(), GetClassLoader(soa));
-      c = class_linker->FindClass(descriptor.c_str(), class_loader);
+      c = class_linker->FindClass(soa.Self(), descriptor.c_str(), class_loader);
     } else {
-      c = class_linker->FindSystemClass(descriptor.c_str());
+      c = class_linker->FindSystemClass(soa.Self(), descriptor.c_str());
     }
     return soa.AddLocalReference<jclass>(c);
   }
@@ -2140,13 +2140,8 @@ class JNI {
                   PrettyDescriptor(element_class).c_str());
         return nullptr;
       }
-      std::string descriptor("[");
-      descriptor += ClassHelper(element_class).GetDescriptor();
-
-      // Find the class.
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-      SirtRef<mirror::ClassLoader> class_loader(soa.Self(), element_class->GetClassLoader());
-      array_class = class_linker->FindClass(descriptor.c_str(), class_loader);
+      array_class = class_linker->FindArrayClass(soa.Self(), element_class);
       if (UNLIKELY(array_class == nullptr)) {
         return nullptr;
       }

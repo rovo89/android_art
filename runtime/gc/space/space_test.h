@@ -43,8 +43,9 @@ class SpaceTest : public CommonTest {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Note the minimum size, which is the size of a zero-length byte array.
     EXPECT_GE(size, SizeOfZeroLengthByteArray());
-    SirtRef<mirror::ClassLoader> null_loader(Thread::Current(), nullptr);
-    mirror::Class* byte_array_class = Runtime::Current()->GetClassLinker()->FindClass("[B",
+    Thread* self = Thread::Current();
+    SirtRef<mirror::ClassLoader> null_loader(self, nullptr);
+    mirror::Class* byte_array_class = Runtime::Current()->GetClassLinker()->FindClass(self, "[B",
                                                                                       null_loader);
     EXPECT_TRUE(byte_array_class != nullptr);
     o->SetClass(byte_array_class);

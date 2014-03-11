@@ -43,7 +43,8 @@ static mirror::Class* DecodeClass(const ScopedFastNativeObjectAccess& soa, jobje
 }
 
 // "name" is in "binary name" format, e.g. "dalvik.system.Debug$1".
-static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean initialize, jobject javaLoader) {
+static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean initialize,
+                                 jobject javaLoader) {
   ScopedObjectAccess soa(env);
   ScopedUtfChars name(env, javaName);
   if (name.c_str() == nullptr) {
@@ -64,7 +65,8 @@ static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean
   SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
                                             soa.Decode<mirror::ClassLoader*>(javaLoader));
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  SirtRef<mirror::Class> c(soa.Self(), class_linker->FindClass(descriptor.c_str(), class_loader));
+  SirtRef<mirror::Class> c(soa.Self(), class_linker->FindClass(soa.Self(), descriptor.c_str(),
+                                                               class_loader));
   if (c.get() == nullptr) {
     ScopedLocalRef<jthrowable> cause(env, env->ExceptionOccurred());
     env->ExceptionClear();
