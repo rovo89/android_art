@@ -16,6 +16,9 @@
 
 #include "elf_file.h"
 
+#include <sys/types.h>
+#include <unistd.h>
+
 #include "base/logging.h"
 #include "base/stl_util.h"
 #include "utils.h"
