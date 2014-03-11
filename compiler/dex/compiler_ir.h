@@ -25,6 +25,7 @@
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
 #include "safe_map.h"
+#include "utils/scoped_arena_allocator.h"
 #include "base/timing_logger.h"
 #include "utils/arena_allocator.h"
 
@@ -82,6 +83,7 @@ struct CompilationUnit {
 
   // TODO: move memory management to mir_graph, or just switch to using standard containers.
   ArenaAllocator arena;
+  ArenaStack arena_stack;  // Arenas for ScopedArenaAllocator.
 
   UniquePtr<MIRGraph> mir_graph;   // MIR container.
   UniquePtr<Backend> cg;           // Target-specific codegen.

@@ -86,6 +86,7 @@ LIBART_COMPILER_SRC_FILES := \
 	utils/mips/managed_register_mips.cc \
 	utils/x86/assembler_x86.cc \
 	utils/x86/managed_register_x86.cc \
+	utils/scoped_arena_allocator.cc \
 	buffered_output_stream.cc \
 	compiler_backend.cc \
 	elf_fixup.cc \

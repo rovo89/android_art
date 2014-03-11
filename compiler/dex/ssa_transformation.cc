@@ -144,7 +144,7 @@ void MIRGraph::ComputeDefBlockMatrix() {
   /* Allocate num_dalvik_registers bit vector pointers */
   def_block_matrix_ = static_cast<ArenaBitVector**>
       (arena_->Alloc(sizeof(ArenaBitVector *) * num_registers,
-                     ArenaAllocator::kAllocDFInfo));
+                     kArenaAllocDFInfo));
   int i;
 
   /* Initialize num_register vectors with num_blocks bits each */
@@ -384,7 +384,7 @@ void MIRGraph::ComputeDominators() {
   /* Initalize & Clear i_dom_list */
   if (i_dom_list_ == NULL) {
     i_dom_list_ = static_cast<int*>(arena_->Alloc(sizeof(int) * num_reachable_blocks,
-                                                  ArenaAllocator::kAllocDFInfo));
+                                                  kArenaAllocDFInfo));
   }
   for (int i = 0; i < num_reachable_blocks; i++) {
     i_dom_list_[i] = NOTVISITED;
@@ -565,7 +565,7 @@ void MIRGraph::InsertPhiNodes() {
         continue;
       }
       MIR *phi =
-          static_cast<MIR*>(arena_->Alloc(sizeof(MIR), ArenaAllocator::kAllocDFInfo));
+          static_cast<MIR*>(arena_->Alloc(sizeof(MIR), kArenaAllocDFInfo));
       phi->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpPhi);
       phi->dalvikInsn.vA = dalvik_reg;
       phi->offset = phi_bb->start_offset;
@@ -593,13 +593,13 @@ bool MIRGraph::InsertPhiNodeOperands(BasicBlock* bb) {
     size_t num_uses = bb->predecessors->Size();
     mir->ssa_rep->num_uses = num_uses;
     int* uses = static_cast<int*>(arena_->Alloc(sizeof(int) * num_uses,
-                                                ArenaAllocator::kAllocDFInfo));
+                                                kArenaAllocDFInfo));
     mir->ssa_rep->uses = uses;
     mir->ssa_rep->fp_use =
-        static_cast<bool*>(arena_->Alloc(sizeof(bool) * num_uses, ArenaAllocator::kAllocDFInfo));
+        static_cast<bool*>(arena_->Alloc(sizeof(bool) * num_uses, kArenaAllocDFInfo));
     BasicBlockId* incoming =
         static_cast<BasicBlockId*>(arena_->Alloc(sizeof(BasicBlockId) * num_uses,
-                                                 ArenaAllocator::kAllocDFInfo));
+                                                 kArenaAllocDFInfo));
     mir->meta.phi_incoming = incoming;
     int idx = 0;
     while (true) {
@@ -629,7 +629,7 @@ void MIRGraph::DoDFSPreOrderSSARename(BasicBlock* block) {
 
   /* Save SSA map snapshot */
   int* saved_ssa_map =
-      static_cast<int*>(arena_->Alloc(map_size, ArenaAllocator::kAllocDalvikToSSAMap));
+      static_cast<int*>(arena_->Alloc(map_size, kArenaAllocDalvikToSSAMap));
   memcpy(saved_ssa_map, vreg_to_ssa_map_, map_size);
 
   if (block->fall_through != NullBasicBlockId) {

@@ -18,6 +18,8 @@
 #define ART_COMPILER_DEX_LOCAL_VALUE_NUMBERING_H_
 
 #include "compiler_internals.h"
+#include "UniquePtr.h"
+#include "utils/scoped_arena_allocator.h"
 
 #define NO_VALUE 0xffff
 #define ARRAY_REF 0xfffe
@@ -73,28 +75,26 @@ class LocalValueNumbering {
   };
 
   // Key is s_reg, value is value name.
-  typedef SafeMap<uint16_t, uint16_t> SregValueMap;
+  typedef SafeMap<uint16_t, uint16_t, std::less<uint16_t>,
+      ScopedArenaAllocatorAdapter<std::pair<uint16_t, uint16_t> > > SregValueMap;
   // Key is concatenation of opcode, operand1, operand2 and modifier, value is value name.
-  typedef SafeMap<uint64_t, uint16_t> ValueMap;
+  typedef SafeMap<uint64_t, uint16_t, std::less<uint64_t>,
+      ScopedArenaAllocatorAdapter<std::pair<uint64_t, uint16_t> > > ValueMap;
   // Key represents a memory address, value is generation.
-  typedef SafeMap<MemoryVersionKey, uint16_t, MemoryVersionKeyComparator> MemoryVersionMap;
+  typedef SafeMap<MemoryVersionKey, uint16_t, MemoryVersionKeyComparator,
+      ScopedArenaAllocatorAdapter<std::pair<MemoryVersionKey, uint16_t> > > MemoryVersionMap;
   // Maps field key to field id for resolved fields.
-  typedef SafeMap<FieldReference, uint32_t, FieldReferenceComparator> FieldIndexMap;
+  typedef SafeMap<FieldReference, uint32_t, FieldReferenceComparator,
+      ScopedArenaAllocatorAdapter<std::pair<FieldReference, uint16_t> > > FieldIndexMap;
+  // A set of value names.
+  typedef std::set<uint16_t, std::less<uint16_t>,
+      ScopedArenaAllocatorAdapter<uint16_t> > ValueNameSet;
 
  public:
-  explicit LocalValueNumbering(CompilationUnit* cu)
-      : cu_(cu),
-        sreg_value_map_(),
-        sreg_wide_value_map_(),
-        value_map_(),
-        next_memory_version_(1u),
-        global_memory_version_(0u),
-        memory_version_map_(),
-        field_index_map_(),
-        non_aliasing_refs_(),
-        null_checked_() {
-    std::fill_n(unresolved_sfield_version_, kFieldTypeCount, 0u);
-    std::fill_n(unresolved_ifield_version_, kFieldTypeCount, 0u);
+  static LocalValueNumbering* Create(CompilationUnit* cu) {
+    UniquePtr<ScopedArenaAllocator> allocator(ScopedArenaAllocator::Create(&cu->arena_stack));
+    void* addr = allocator->Alloc(sizeof(LocalValueNumbering), kArenaAllocMisc);
+    return new(addr) LocalValueNumbering(cu, allocator.release());
   }
 
   static uint64_t BuildKey(uint16_t op, uint16_t operand1, uint16_t operand2, uint16_t modifier) {
@@ -167,7 +167,26 @@ class LocalValueNumbering {
 
   uint16_t GetValueNumber(MIR* mir);
 
+  // Allow delete-expression to destroy a LocalValueNumbering object without deallocation.
+  static void operator delete(void* ptr) { UNUSED(ptr); }
+
  private:
+  LocalValueNumbering(CompilationUnit* cu, ScopedArenaAllocator* allocator)
+      : cu_(cu),
+        allocator_(allocator),
+        sreg_value_map_(std::less<uint16_t>(), allocator->Adapter()),
+        sreg_wide_value_map_(std::less<uint16_t>(), allocator->Adapter()),
+        value_map_(std::less<uint64_t>(), allocator->Adapter()),
+        next_memory_version_(1u),
+        global_memory_version_(0u),
+        memory_version_map_(MemoryVersionKeyComparator(), allocator->Adapter()),
+        field_index_map_(FieldReferenceComparator(), allocator->Adapter()),
+        non_aliasing_refs_(std::less<uint16_t>(), allocator->Adapter()),
+        null_checked_(std::less<uint16_t>(), allocator->Adapter()) {
+    std::fill_n(unresolved_sfield_version_, kFieldTypeCount, 0u);
+    std::fill_n(unresolved_ifield_version_, kFieldTypeCount, 0u);
+  }
+
   uint16_t GetFieldId(const DexFile* dex_file, uint16_t field_idx);
   void AdvanceGlobalMemory();
   uint16_t GetMemoryVersion(uint16_t base, uint16_t field, uint16_t type);
@@ -179,6 +198,7 @@ class LocalValueNumbering {
   void HandlePutObject(MIR* mir);
 
   CompilationUnit* const cu_;
+  UniquePtr<ScopedArenaAllocator> allocator_;
   SregValueMap sreg_value_map_;
   SregValueMap sreg_wide_value_map_;
   ValueMap value_map_;
@@ -189,8 +209,10 @@ class LocalValueNumbering {
   MemoryVersionMap memory_version_map_;
   FieldIndexMap field_index_map_;
   // Value names of references to objects that cannot be reached through a different value name.
-  std::set<uint16_t> non_aliasing_refs_;
-  std::set<uint16_t> null_checked_;
+  ValueNameSet non_aliasing_refs_;
+  ValueNameSet null_checked_;
+
+  DISALLOW_COPY_AND_ASSIGN(LocalValueNumbering);
 };
 
 }  // namespace art

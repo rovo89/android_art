@@ -457,7 +457,7 @@ class MIRGraph {
 
   void EnableOpcodeCounting() {
     opcode_count_ = static_cast<int*>(arena_->Alloc(kNumPackedOpcodes * sizeof(int),
-                                                    ArenaAllocator::kAllocMisc));
+                                                    kArenaAllocMisc));
   }
 
   void ShowOpcodeStats();

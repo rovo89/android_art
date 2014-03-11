@@ -907,7 +907,7 @@ void Mir2Lir::DoPromotion() {
   const int promotion_threshold = 1;
   // Allocate the promotion map - one entry for each Dalvik vReg or compiler temp
   promotion_map_ = static_cast<PromotionMap*>
-      (arena_->Alloc(num_regs * sizeof(promotion_map_[0]), ArenaAllocator::kAllocRegAlloc));
+      (arena_->Alloc(num_regs * sizeof(promotion_map_[0]), kArenaAllocRegAlloc));
 
   // Allow target code to add any special registers
   AdjustSpillMask();
@@ -925,10 +925,10 @@ void Mir2Lir::DoPromotion() {
    */
   RefCounts *core_regs =
       static_cast<RefCounts*>(arena_->Alloc(sizeof(RefCounts) * num_regs,
-                                            ArenaAllocator::kAllocRegAlloc));
+                                            kArenaAllocRegAlloc));
   RefCounts *FpRegs =
       static_cast<RefCounts *>(arena_->Alloc(sizeof(RefCounts) * num_regs * 2,
-                                             ArenaAllocator::kAllocRegAlloc));
+                                             kArenaAllocRegAlloc));
   // Set ssa names for original Dalvik registers
   for (int i = 0; i < dalvik_regs; i++) {
     core_regs[i].s_reg = FpRegs[i].s_reg = i;
