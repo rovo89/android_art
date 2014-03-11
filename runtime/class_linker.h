@@ -51,6 +51,8 @@ template<class T> class SirtRef;
 
 typedef bool (ClassVisitor)(mirror::Class* c, void* arg);
 
+enum VisitRootFlags : uint8_t;
+
 class ClassLinker {
  public:
   // Interface method table size. Increasing this value reduces the chance of two interface methods
@@ -242,7 +244,7 @@ class ClassLinker {
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void VisitRoots(RootCallback* callback, void* arg, bool only_dirty, bool clean_dirty)
+  void VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags)
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_, dex_lock_);
 
   mirror::DexCache* FindDexCache(const DexFile& dex_file) const
@@ -542,6 +544,7 @@ class ClassLinker {
   std::vector<const DexFile*> boot_class_path_;
 
   mutable ReaderWriterMutex dex_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  std::vector<size_t> new_dex_cache_roots_ GUARDED_BY(dex_lock_);;
   std::vector<mirror::DexCache*> dex_caches_ GUARDED_BY(dex_lock_);
   std::vector<const OatFile*> oat_files_ GUARDED_BY(dex_lock_);
 
@@ -551,6 +554,7 @@ class ClassLinker {
   // Class::descriptor_ and Class::class_loader_.
   typedef std::multimap<size_t, mirror::Class*> Table;
   Table class_table_ GUARDED_BY(Locks::classlinker_classes_lock_);
+  std::vector<std::pair<size_t, mirror::Class*> > new_class_roots_;
 
   // Do we need to search dex caches to find image classes?
   bool dex_cache_image_class_lookup_required_;
@@ -638,8 +642,8 @@ class ClassLinker {
   size_t find_array_class_cache_next_victim_;
 
   bool init_done_;
-  bool dex_caches_dirty_ GUARDED_BY(dex_lock_);
-  bool class_table_dirty_ GUARDED_BY(Locks::classlinker_classes_lock_);
+  bool log_new_dex_caches_roots_ GUARDED_BY(dex_lock_);
+  bool log_new_class_table_roots_ GUARDED_BY(Locks::classlinker_classes_lock_);
 
   InternTable* intern_table_;
 

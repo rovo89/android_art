@@ -1899,11 +1899,11 @@ class VerifyReferenceVisitor {
 
       // Search to see if any of the roots reference our object.
       void* arg = const_cast<void*>(reinterpret_cast<const void*>(obj));
-      Runtime::Current()->VisitRoots(&RootMatchesObjectVisitor, arg, false, false);
+      Runtime::Current()->VisitRoots(&RootMatchesObjectVisitor, arg);
 
       // Search to see if any of the roots reference our reference.
       arg = const_cast<void*>(reinterpret_cast<const void*>(ref));
-      Runtime::Current()->VisitRoots(&RootMatchesObjectVisitor, arg, false, false);
+      Runtime::Current()->VisitRoots(&RootMatchesObjectVisitor, arg);
     } else {
       LOG(ERROR) << "Root " << ref << " is dead with type " << PrettyTypeOf(ref);
     }
@@ -1975,7 +1975,7 @@ bool Heap::VerifyHeapReferences() {
   // pointing to dead objects if they are not reachable.
   VisitObjects(VerifyObjectVisitor::VisitCallback, &visitor);
   // Verify the roots:
-  Runtime::Current()->VisitRoots(VerifyReferenceVisitor::VerifyRoots, &visitor, false, false);
+  Runtime::Current()->VisitRoots(VerifyReferenceVisitor::VerifyRoots, &visitor);
   if (visitor.Failed()) {
     // Dump mod-union tables.
     for (const auto& table_pair : mod_union_tables_) {
