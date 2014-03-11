@@ -202,6 +202,13 @@ struct FpRegister {
     uint32_t N = (instr >> extra_at_bit) & 1;
     r = (size != 0 ? ((N << 4) | Vn) : ((Vn << 1) | N));
   }
+  explicit FpRegister(uint32_t instr, uint16_t at_bit, uint16_t extra_at_bit,
+                      uint32_t forced_size) {
+    size = forced_size;
+    uint32_t Vn = (instr >> at_bit) & 0xF;
+    uint32_t N = (instr >> extra_at_bit) & 1;
+    r = (size != 0 ? ((N << 4) | Vn) : ((Vn << 1) | N));
+  }
   FpRegister(const FpRegister& other, uint32_t offset)
       : size(other.size), r(other.r + offset) {}
 
@@ -752,6 +759,85 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             }
           } else if ((op3 >> 4) == 2 && op4 == 0) {     // 10xxxx, op = 0
             // fp data processing
+            if ((op3 & 0xB) == 0) {  // 100x00
+              // VMLA, VMLS
+              // |1111|1100|0|0|00|0000|1111|110|0|0|0 |0|0|0000|
+              // |5  2|1  8|7|6|54|3  0|5  2|1 9|8|7|6 |5|4|3  0|
+              // |----|----|-|-|--|----|----|---|-|-|- |-|-|----|
+              // |3322|2222|2|2|22|1111|1111|110|0|0|0 |0|0|0000|
+              // |1  8|7  4|3|2|10|9  6|5  2|1 9|8|7|6 |5|4|3  0|
+              // |----|----|-|-|--|----|----|---|-|-|- |-|-|----|
+              // |1110|1110|0|D|00| Vn | Vd |101|S|N|op|M|0| Vm |
+              uint32_t op = (instr >> 6) & 1;
+              FpRegister d(instr, 12, 22);
+              FpRegister n(instr, 16, 7);
+              FpRegister m(instr, 0, 5);
+              opcode << (op == 0 ? "vmla" : "vmls");
+              args << d << ", " << n << ", " << m;
+            } else if ((op3 & 0xB) == 0xB) {  // 101x11
+              uint32_t Q = (instr >> 6) & 1;
+              if (Q == 1) {
+                // VCVT (floating-point conversion)
+                // |1111|1100|0|0|00|0000|1111|110|0|0 |0|0|0|0000|
+                // |5  2|1  8|7|6|54|3  0|5  2|1 9|8|7 |6|5|4|3  0|
+                // |----|----|-|-|--|----|----|---|-|- |-|-|-|----|
+                // |3322|2222|2|2|22|1111|1111|110|0|0 |0|0|0|0000|
+                // |1  8|7  4|3|2|10|9  6|5  2|1 9|8|7 |6|5|4|3  0|
+                // |----|----|-|-|--|----|----|---|-|- |-|-|-|----|
+                // |1110|1110|1|D|11|op5 | Vd |101|S|op|1|M|0| Vm |
+                uint32_t op5 = (instr >> 16) & 0xF;
+                uint32_t S = (instr >> 8) & 1;
+                uint32_t op = (instr >> 7) & 1;
+                // Register types in these instructions relies on the combination of op5 and S.
+                FpRegister Dd(instr, 12, 22, 1);
+                FpRegister Sd(instr, 12, 22, 0);
+                FpRegister Dm(instr, 0, 5, 1);
+                FpRegister Sm(instr, 0, 5, 0);
+                if (op5 == 0xD) {
+                  if (S == 1) {
+                    // vcvt{r}.s32.f64
+                    opcode << "vcvt" << (op == 0 ? "r" : "") << ".s32.f64";
+                    args << Sd << ", " << Dm;
+                  } else {
+                    // vcvt{r}.s32.f32
+                    opcode << "vcvt" << (op == 0 ? "r" : "") << ".s32.f32";
+                    args << Sd << ", " << Sm;
+                  }
+                } else if (op5 == 0xC) {
+                  if (S == 1) {
+                    // vcvt{r}.u32.f64
+                    opcode << "vcvt" << (op == 0 ? "r" : "") << ".u32.f64";
+                    args << Sd << ", " << Dm;
+                  } else {
+                    // vcvt{r}.u32.f32
+                    opcode << "vcvt" << (op == 0 ? "r" : "") << ".u32.f32";
+                    args << Sd << ", " << Sm;
+                  }
+                } else if (op5 == 0x8) {
+                  if (S == 1) {
+                    // vcvt.f64.<Tm>
+                    opcode << "vcvt.f64." << (op == 0 ? "u" : "s") << "32";
+                    args << Dd << ", " << Sm;
+                  } else {
+                    // vcvt.f32.<Tm>
+                    opcode << "vcvt.f32." << (op == 0 ? "u" : "s") << "32";
+                    args << Sd << ", " << Sm;
+                  }
+                } else if (op5 == 0x7) {
+                  if (op == 1) {
+                    if (S == 1) {
+                      // vcvt.f64.f32
+                      opcode << "vcvt.f64.f32";
+                      args << Dd << ", " << Sm;
+                    } else {
+                      // vcvt.f32.f64
+                      opcode << "vcvt.f32.f64";
+                      args << Sd << ", " << Dm;
+                    }
+                  }
+                }
+              }
+            }
           } else if ((op3 >> 4) == 2 && op4 == 1) {     // 10xxxx, op = 1
             if (coproc == 10 && (op3 & 0xE) == 0) {
               // VMOV (between ARM core register and single-precision register)
