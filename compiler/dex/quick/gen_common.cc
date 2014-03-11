@@ -128,12 +128,12 @@ void Mir2Lir::GenCompareAndBranch(Instruction::Code opcode, RegLocation rl_src1,
     if ((rl_temp.location == kLocDalvikFrame) &&
         InexpensiveConstantInt(mir_graph_->ConstantValue(rl_src2))) {
       // OK - convert this to a compare immediate and branch
-      OpCmpImmBranch(cond, rl_src1.low_reg, mir_graph_->ConstantValue(rl_src2), taken);
+      OpCmpImmBranch(cond, rl_src1.reg.GetReg(), mir_graph_->ConstantValue(rl_src2), taken);
       return;
     }
   }
   rl_src2 = LoadValue(rl_src2, kCoreReg);
-  OpCmpBranch(cond, rl_src1.low_reg, rl_src2.low_reg, taken);
+  OpCmpBranch(cond, rl_src1.reg.GetReg(), rl_src2.reg.GetReg(), taken);
 }
 
 void Mir2Lir::GenCompareZeroAndBranch(Instruction::Code opcode, RegLocation rl_src, LIR* taken,
@@ -163,17 +163,17 @@ void Mir2Lir::GenCompareZeroAndBranch(Instruction::Code opcode, RegLocation rl_s
       cond = static_cast<ConditionCode>(0);
       LOG(FATAL) << "Unexpected opcode " << opcode;
   }
-  OpCmpImmBranch(cond, rl_src.low_reg, 0, taken);
+  OpCmpImmBranch(cond, rl_src.reg.GetReg(), 0, taken);
 }
 
 void Mir2Lir::GenIntToLong(RegLocation rl_dest, RegLocation rl_src) {
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   if (rl_src.location == kLocPhysReg) {
-    OpRegCopy(rl_result.low_reg, rl_src.low_reg);
+    OpRegCopy(rl_result.reg.GetReg(), rl_src.reg.GetReg());
   } else {
-    LoadValueDirect(rl_src, rl_result.low_reg);
+    LoadValueDirect(rl_src, rl_result.reg.GetReg());
   }
-  OpRegRegImm(kOpAsr, rl_result.high_reg, rl_result.low_reg, 31);
+  OpRegRegImm(kOpAsr, rl_result.reg.GetHighReg(), rl_result.reg.GetReg(), 31);
   StoreValueWide(rl_dest, rl_result);
 }
 
@@ -195,7 +195,7 @@ void Mir2Lir::GenIntNarrowing(Instruction::Code opcode, RegLocation rl_dest,
     default:
       LOG(ERROR) << "Bad int conversion type";
   }
-  OpRegReg(op, rl_result.low_reg, rl_src.low_reg);
+  OpRegReg(op, rl_result.reg.GetReg(), rl_src.reg.GetReg());
   StoreValue(rl_dest, rl_result);
 }
 
@@ -290,7 +290,7 @@ void Mir2Lir::GenFilledNewArray(CallInfo* info) {
       RegLocation loc = UpdateLoc(info->args[i]);
       if (loc.location == kLocPhysReg) {
         StoreBaseDisp(TargetReg(kSp), SRegOffset(loc.s_reg_low),
-                      loc.low_reg, kWord);
+                      loc.reg.GetReg(), kWord);
       }
     }
     /*
@@ -341,10 +341,10 @@ void Mir2Lir::GenFilledNewArray(CallInfo* info) {
       RegLocation rl_arg = LoadValue(info->args[i], kCoreReg);
       StoreBaseDisp(TargetReg(kRet0),
                     mirror::Array::DataOffset(component_size).Int32Value() +
-                    i * 4, rl_arg.low_reg, kWord);
+                    i * 4, rl_arg.reg.GetReg(), kWord);
       // If the LoadValue caused a temp to be allocated, free it
-      if (IsTemp(rl_arg.low_reg)) {
-        FreeTemp(rl_arg.low_reg);
+      if (IsTemp(rl_arg.reg.GetReg())) {
+        FreeTemp(rl_arg.reg.GetReg());
       }
     }
   }
@@ -398,10 +398,10 @@ void Mir2Lir::GenSput(uint32_t field_idx, RegLocation rl_src, bool is_long_or_do
       // Fast path, static storage base is this method's class
       RegLocation rl_method  = LoadCurrMethod();
       r_base = AllocTemp();
-      LoadWordDisp(rl_method.low_reg,
+      LoadWordDisp(rl_method.reg.GetReg(),
                    mirror::ArtMethod::DeclaringClassOffset().Int32Value(), r_base);
-      if (IsTemp(rl_method.low_reg)) {
-        FreeTemp(rl_method.low_reg);
+      if (IsTemp(rl_method.reg.GetReg())) {
+        FreeTemp(rl_method.reg.GetReg());
       }
     } else {
       // Medium path, static storage base in a different class which requires checks that the other
@@ -453,16 +453,16 @@ void Mir2Lir::GenSput(uint32_t field_idx, RegLocation rl_src, bool is_long_or_do
       GenMemBarrier(kStoreStore);
     }
     if (is_long_or_double) {
-      StoreBaseDispWide(r_base, field_offset, rl_src.low_reg,
-                        rl_src.high_reg);
+      StoreBaseDispWide(r_base, field_offset, rl_src.reg.GetReg(),
+                        rl_src.reg.GetHighReg());
     } else {
-      StoreWordDisp(r_base, field_offset, rl_src.low_reg);
+      StoreWordDisp(r_base, field_offset, rl_src.reg.GetReg());
     }
     if (is_volatile) {
       GenMemBarrier(kStoreLoad);
     }
     if (is_object && !mir_graph_->IsConstantNullRef(rl_src)) {
-      MarkGCCard(rl_src.low_reg, r_base);
+      MarkGCCard(rl_src.reg.GetReg(), r_base);
     }
     FreeTemp(r_base);
   } else {
@@ -492,7 +492,7 @@ void Mir2Lir::GenSget(uint32_t field_idx, RegLocation rl_dest,
       // Fast path, static storage base is this method's class
       RegLocation rl_method  = LoadCurrMethod();
       r_base = AllocTemp();
-      LoadWordDisp(rl_method.low_reg,
+      LoadWordDisp(rl_method.reg.GetReg(),
                    mirror::ArtMethod::DeclaringClassOffset().Int32Value(), r_base);
     } else {
       // Medium path, static storage base in a different class which requires checks that the other
@@ -539,10 +539,10 @@ void Mir2Lir::GenSget(uint32_t field_idx, RegLocation rl_dest,
       GenMemBarrier(kLoadLoad);
     }
     if (is_long_or_double) {
-      LoadBaseDispWide(r_base, field_offset, rl_result.low_reg,
-                       rl_result.high_reg, INVALID_SREG);
+      LoadBaseDispWide(r_base, field_offset, rl_result.reg.GetReg(),
+                       rl_result.reg.GetHighReg(), INVALID_SREG);
     } else {
-      LoadWordDisp(r_base, field_offset, rl_result.low_reg);
+      LoadWordDisp(r_base, field_offset, rl_result.reg.GetReg());
     }
     FreeTemp(r_base);
     if (is_long_or_double) {
@@ -713,20 +713,20 @@ void Mir2Lir::GenIGet(uint32_t field_idx, int opt_flags, OpSize size,
     rl_obj = LoadValue(rl_obj, kCoreReg);
     if (is_long_or_double) {
       DCHECK(rl_dest.wide);
-      GenNullCheck(rl_obj.s_reg_low, rl_obj.low_reg, opt_flags);
+      GenNullCheck(rl_obj.s_reg_low, rl_obj.reg.GetReg(), opt_flags);
       if (cu_->instruction_set == kX86) {
         rl_result = EvalLoc(rl_dest, reg_class, true);
-        GenNullCheck(rl_obj.s_reg_low, rl_obj.low_reg, opt_flags);
-        LoadBaseDispWide(rl_obj.low_reg, field_offset, rl_result.low_reg,
-                         rl_result.high_reg, rl_obj.s_reg_low);
+        GenNullCheck(rl_obj.s_reg_low, rl_obj.reg.GetReg(), opt_flags);
+        LoadBaseDispWide(rl_obj.reg.GetReg(), field_offset, rl_result.reg.GetReg(),
+                         rl_result.reg.GetHighReg(), rl_obj.s_reg_low);
         if (is_volatile) {
           GenMemBarrier(kLoadLoad);
         }
       } else {
         int reg_ptr = AllocTemp();
-        OpRegRegImm(kOpAdd, reg_ptr, rl_obj.low_reg, field_offset);
+        OpRegRegImm(kOpAdd, reg_ptr, rl_obj.reg.GetReg(), field_offset);
         rl_result = EvalLoc(rl_dest, reg_class, true);
-        LoadBaseDispWide(reg_ptr, 0, rl_result.low_reg, rl_result.high_reg, INVALID_SREG);
+        LoadBaseDispWide(reg_ptr, 0, rl_result.reg.GetReg(), rl_result.reg.GetHighReg(), INVALID_SREG);
         if (is_volatile) {
           GenMemBarrier(kLoadLoad);
         }
@@ -735,8 +735,8 @@ void Mir2Lir::GenIGet(uint32_t field_idx, int opt_flags, OpSize size,
       StoreValueWide(rl_dest, rl_result);
     } else {
       rl_result = EvalLoc(rl_dest, reg_class, true);
-      GenNullCheck(rl_obj.s_reg_low, rl_obj.low_reg, opt_flags);
-      LoadBaseDisp(rl_obj.low_reg, field_offset, rl_result.low_reg,
+      GenNullCheck(rl_obj.s_reg_low, rl_obj.reg.GetReg(), opt_flags);
+      LoadBaseDisp(rl_obj.reg.GetReg(), field_offset, rl_result.reg.GetReg(),
                    kWord, rl_obj.s_reg_low);
       if (is_volatile) {
         GenMemBarrier(kLoadLoad);
@@ -773,29 +773,29 @@ void Mir2Lir::GenIPut(uint32_t field_idx, int opt_flags, OpSize size,
     if (is_long_or_double) {
       int reg_ptr;
       rl_src = LoadValueWide(rl_src, kAnyReg);
-      GenNullCheck(rl_obj.s_reg_low, rl_obj.low_reg, opt_flags);
+      GenNullCheck(rl_obj.s_reg_low, rl_obj.reg.GetReg(), opt_flags);
       reg_ptr = AllocTemp();
-      OpRegRegImm(kOpAdd, reg_ptr, rl_obj.low_reg, field_offset);
+      OpRegRegImm(kOpAdd, reg_ptr, rl_obj.reg.GetReg(), field_offset);
       if (is_volatile) {
         GenMemBarrier(kStoreStore);
       }
-      StoreBaseDispWide(reg_ptr, 0, rl_src.low_reg, rl_src.high_reg);
+      StoreBaseDispWide(reg_ptr, 0, rl_src.reg.GetReg(), rl_src.reg.GetHighReg());
       if (is_volatile) {
         GenMemBarrier(kLoadLoad);
       }
       FreeTemp(reg_ptr);
     } else {
       rl_src = LoadValue(rl_src, reg_class);
-      GenNullCheck(rl_obj.s_reg_low, rl_obj.low_reg, opt_flags);
+      GenNullCheck(rl_obj.s_reg_low, rl_obj.reg.GetReg(), opt_flags);
       if (is_volatile) {
         GenMemBarrier(kStoreStore);
       }
-      StoreBaseDisp(rl_obj.low_reg, field_offset, rl_src.low_reg, kWord);
+      StoreBaseDisp(rl_obj.reg.GetReg(), field_offset, rl_src.reg.GetReg(), kWord);
       if (is_volatile) {
         GenMemBarrier(kLoadLoad);
       }
       if (is_object && !mir_graph_->IsConstantNullRef(rl_src)) {
-        MarkGCCard(rl_src.low_reg, rl_obj.low_reg);
+        MarkGCCard(rl_src.reg.GetReg(), rl_obj.reg.GetReg());
       }
     }
   } else {
@@ -829,23 +829,23 @@ void Mir2Lir::GenConstClass(uint32_t type_idx, RegLocation rl_dest) {
     // Call out to helper which resolves type and verifies access.
     // Resolved type returned in kRet0.
     CallRuntimeHelperImmReg(QUICK_ENTRYPOINT_OFFSET(pInitializeTypeAndVerifyAccess),
-                            type_idx, rl_method.low_reg, true);
+                            type_idx, rl_method.reg.GetReg(), true);
     RegLocation rl_result = GetReturn(false);
     StoreValue(rl_dest, rl_result);
   } else {
     // We're don't need access checks, load type from dex cache
     int32_t dex_cache_offset =
         mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value();
-    LoadWordDisp(rl_method.low_reg, dex_cache_offset, res_reg);
+    LoadWordDisp(rl_method.reg.GetReg(), dex_cache_offset, res_reg);
     int32_t offset_of_type =
         mirror::Array::DataOffset(sizeof(mirror::Class*)).Int32Value() + (sizeof(mirror::Class*)
                           * type_idx);
-    LoadWordDisp(res_reg, offset_of_type, rl_result.low_reg);
+    LoadWordDisp(res_reg, offset_of_type, rl_result.reg.GetReg());
     if (!cu_->compiler_driver->CanAssumeTypeIsPresentInDexCache(*cu_->dex_file,
         type_idx) || SLOW_TYPE_PATH) {
       // Slow path, at runtime test if type is null and if so initialize
       FlushAllRegs();
-      LIR* branch = OpCmpImmBranch(kCondEq, rl_result.low_reg, 0, NULL);
+      LIR* branch = OpCmpImmBranch(kCondEq, rl_result.reg.GetReg(), 0, NULL);
       LIR* cont = NewLIR0(kPseudoTargetLabel);
 
       // Object to generate the slow path for class resolution.
@@ -861,8 +861,8 @@ void Mir2Lir::GenConstClass(uint32_t type_idx, RegLocation rl_dest) {
           GenerateTargetLabel();
 
           m2l_->CallRuntimeHelperImmReg(QUICK_ENTRYPOINT_OFFSET(pInitializeType), type_idx_,
-                                        rl_method_.low_reg, true);
-          m2l_->OpRegCopy(rl_result_.low_reg,  m2l_->TargetReg(kRet0));
+                                        rl_method_.reg.GetReg(), true);
+          m2l_->OpRegCopy(rl_result_.reg.GetReg(),  m2l_->TargetReg(kRet0));
 
           m2l_->OpUnconditionalBranch(cont_);
         }
@@ -900,8 +900,8 @@ void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
     int r_method;
     if (rl_method.location == kLocPhysReg) {
       // A temp would conflict with register use below.
-      DCHECK(!IsTemp(rl_method.low_reg));
-      r_method = rl_method.low_reg;
+      DCHECK(!IsTemp(rl_method.reg.GetReg()));
+      r_method = rl_method.reg.GetReg();
     } else {
       r_method = TargetReg(kArg2);
       LoadCurrMethodDirect(r_method);
@@ -960,9 +960,9 @@ void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
     RegLocation rl_method = LoadCurrMethod();
     int res_reg = AllocTemp();
     RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-    LoadWordDisp(rl_method.low_reg,
+    LoadWordDisp(rl_method.reg.GetReg(),
                  mirror::ArtMethod::DexCacheStringsOffset().Int32Value(), res_reg);
-    LoadWordDisp(res_reg, offset_of_string, rl_result.low_reg);
+    LoadWordDisp(res_reg, offset_of_string, rl_result.reg.GetReg());
     StoreValue(rl_dest, rl_result);
   }
 }
@@ -1035,12 +1035,12 @@ void Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx, Re
 
   RegLocation object = LoadValue(rl_src, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  int result_reg = rl_result.low_reg;
-  if (result_reg == object.low_reg) {
+  int result_reg = rl_result.reg.GetReg();
+  if (result_reg == object.reg.GetReg()) {
     result_reg = AllocTypedTemp(false, kCoreReg);
   }
   LoadConstant(result_reg, 0);     // assume false
-  LIR* null_branchover = OpCmpImmBranch(kCondEq, object.low_reg, 0, NULL);
+  LIR* null_branchover = OpCmpImmBranch(kCondEq, object.reg.GetReg(), 0, NULL);
 
   int check_class = AllocTypedTemp(false, kCoreReg);
   int object_class = AllocTypedTemp(false, kCoreReg);
@@ -1049,11 +1049,11 @@ void Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx, Re
   if (use_declaring_class) {
     LoadWordDisp(check_class, mirror::ArtMethod::DeclaringClassOffset().Int32Value(),
                  check_class);
-    LoadWordDisp(object.low_reg,  mirror::Object::ClassOffset().Int32Value(), object_class);
+    LoadWordDisp(object.reg.GetReg(),  mirror::Object::ClassOffset().Int32Value(), object_class);
   } else {
     LoadWordDisp(check_class, mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value(),
                  check_class);
-    LoadWordDisp(object.low_reg,  mirror::Object::ClassOffset().Int32Value(), object_class);
+    LoadWordDisp(object.reg.GetReg(),  mirror::Object::ClassOffset().Int32Value(), object_class);
     int32_t offset_of_type =
       mirror::Array::DataOffset(sizeof(mirror::Class*)).Int32Value() +
       (sizeof(mirror::Class*) * type_idx);
@@ -1077,7 +1077,7 @@ void Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx, Re
   FreeTemp(object_class);
   FreeTemp(check_class);
   if (IsTemp(result_reg)) {
-    OpRegCopy(rl_result.low_reg, result_reg);
+    OpRegCopy(rl_result.reg.GetReg(), result_reg);
     FreeTemp(result_reg);
   }
   StoreValue(rl_dest, rl_result);
@@ -1133,7 +1133,7 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
   RegLocation rl_result = GetReturn(false);
   if (cu_->instruction_set == kMips) {
     // On MIPS rArg0 != rl_result, place false in result if branch is taken.
-    LoadConstant(rl_result.low_reg, 0);
+    LoadConstant(rl_result.reg.GetReg(), 0);
   }
   LIR* branch1 = OpCmpImmBranch(kCondEq, TargetReg(kArg0), 0, NULL);
 
@@ -1147,12 +1147,12 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
     if (cu_->instruction_set == kThumb2) {
       OpRegReg(kOpCmp, TargetReg(kArg1), TargetReg(kArg2));  // Same?
       OpIT(kCondEq, "E");   // if-convert the test
-      LoadConstant(rl_result.low_reg, 1);     // .eq case - load true
-      LoadConstant(rl_result.low_reg, 0);     // .ne case - load false
+      LoadConstant(rl_result.reg.GetReg(), 1);     // .eq case - load true
+      LoadConstant(rl_result.reg.GetReg(), 0);     // .ne case - load false
     } else {
-      LoadConstant(rl_result.low_reg, 0);     // ne case - load false
+      LoadConstant(rl_result.reg.GetReg(), 0);     // ne case - load false
       branchover = OpCmpBranch(kCondNe, TargetReg(kArg1), TargetReg(kArg2), NULL);
-      LoadConstant(rl_result.low_reg, 1);     // eq case - load true
+      LoadConstant(rl_result.reg.GetReg(), 1);     // eq case - load true
     }
   } else {
     if (cu_->instruction_set == kThumb2) {
@@ -1169,7 +1169,7 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
     } else {
       if (!type_known_abstract) {
         /* Uses branchovers */
-        LoadConstant(rl_result.low_reg, 1);     // assume true
+        LoadConstant(rl_result.reg.GetReg(), 1);     // assume true
         branchover = OpCmpBranch(kCondEq, TargetReg(kArg1), TargetReg(kArg2), NULL);
       }
       int r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pInstanceofNonTrivial));
@@ -1355,16 +1355,16 @@ void Mir2Lir::GenLong3Addr(OpKind first_op, OpKind second_op, RegLocation rl_des
   rl_src2 = LoadValueWide(rl_src2, kCoreReg);
   rl_result = EvalLoc(rl_dest, kCoreReg, true);
   // The longs may overlap - use intermediate temp if so
-  if ((rl_result.low_reg == rl_src1.high_reg) || (rl_result.low_reg == rl_src2.high_reg)) {
+  if ((rl_result.reg.GetReg() == rl_src1.reg.GetHighReg()) || (rl_result.reg.GetReg() == rl_src2.reg.GetHighReg())) {
     int t_reg = AllocTemp();
-    OpRegRegReg(first_op, t_reg, rl_src1.low_reg, rl_src2.low_reg);
-    OpRegRegReg(second_op, rl_result.high_reg, rl_src1.high_reg, rl_src2.high_reg);
-    OpRegCopy(rl_result.low_reg, t_reg);
+    OpRegRegReg(first_op, t_reg, rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
+    OpRegRegReg(second_op, rl_result.reg.GetHighReg(), rl_src1.reg.GetHighReg(), rl_src2.reg.GetHighReg());
+    OpRegCopy(rl_result.reg.GetReg(), t_reg);
     FreeTemp(t_reg);
   } else {
-    OpRegRegReg(first_op, rl_result.low_reg, rl_src1.low_reg, rl_src2.low_reg);
-    OpRegRegReg(second_op, rl_result.high_reg, rl_src1.high_reg,
-                rl_src2.high_reg);
+    OpRegRegReg(first_op, rl_result.reg.GetReg(), rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
+    OpRegRegReg(second_op, rl_result.reg.GetHighReg(), rl_src1.reg.GetHighReg(),
+                rl_src2.reg.GetHighReg());
   }
   /*
    * NOTE: If rl_dest refers to a frame variable in a large frame, the
@@ -1487,22 +1487,22 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
     if (unary) {
       rl_src1 = LoadValue(rl_src1, kCoreReg);
       rl_result = EvalLoc(rl_dest, kCoreReg, true);
-      OpRegReg(op, rl_result.low_reg, rl_src1.low_reg);
+      OpRegReg(op, rl_result.reg.GetReg(), rl_src1.reg.GetReg());
     } else {
       if (shift_op) {
         int t_reg = INVALID_REG;
         rl_src2 = LoadValue(rl_src2, kCoreReg);
         t_reg = AllocTemp();
-        OpRegRegImm(kOpAnd, t_reg, rl_src2.low_reg, 31);
+        OpRegRegImm(kOpAnd, t_reg, rl_src2.reg.GetReg(), 31);
         rl_src1 = LoadValue(rl_src1, kCoreReg);
         rl_result = EvalLoc(rl_dest, kCoreReg, true);
-        OpRegRegReg(op, rl_result.low_reg, rl_src1.low_reg, t_reg);
+        OpRegRegReg(op, rl_result.reg.GetReg(), rl_src1.reg.GetReg(), t_reg);
         FreeTemp(t_reg);
       } else {
         rl_src1 = LoadValue(rl_src1, kCoreReg);
         rl_src2 = LoadValue(rl_src2, kCoreReg);
         rl_result = EvalLoc(rl_dest, kCoreReg, true);
-        OpRegRegReg(op, rl_result.low_reg, rl_src1.low_reg, rl_src2.low_reg);
+        OpRegRegReg(op, rl_result.reg.GetReg(), rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
       }
     }
     StoreValue(rl_dest, rl_result);
@@ -1512,9 +1512,9 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
       rl_src1 = LoadValue(rl_src1, kCoreReg);
       rl_src2 = LoadValue(rl_src2, kCoreReg);
       if (check_zero) {
-          GenImmedCheck(kCondEq, rl_src2.low_reg, 0, kThrowDivZero);
+          GenImmedCheck(kCondEq, rl_src2.reg.GetReg(), 0, kThrowDivZero);
       }
-      rl_result = GenDivRem(rl_dest, rl_src1.low_reg, rl_src2.low_reg, op == kOpDiv);
+      rl_result = GenDivRem(rl_dest, rl_src1.reg.GetReg(), rl_src2.reg.GetReg(), op == kOpDiv);
       done = true;
     } else if (cu_->instruction_set == kThumb2) {
       if (cu_->GetInstructionSetFeatures().HasDivideInstruction()) {
@@ -1523,9 +1523,9 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
         rl_src1 = LoadValue(rl_src1, kCoreReg);
         rl_src2 = LoadValue(rl_src2, kCoreReg);
         if (check_zero) {
-            GenImmedCheck(kCondEq, rl_src2.low_reg, 0, kThrowDivZero);
+            GenImmedCheck(kCondEq, rl_src2.reg.GetReg(), 0, kThrowDivZero);
         }
-        rl_result = GenDivRem(rl_dest, rl_src1.low_reg, rl_src2.low_reg, op == kOpDiv);
+        rl_result = GenDivRem(rl_dest, rl_src1.reg.GetReg(), rl_src2.reg.GetReg(), op == kOpDiv);
         done = true;
       }
     }
@@ -1585,29 +1585,29 @@ bool Mir2Lir::HandleEasyDivRem(Instruction::Code dalvik_opcode, bool is_div,
     int t_reg = AllocTemp();
     if (lit == 2) {
       // Division by 2 is by far the most common division by constant.
-      OpRegRegImm(kOpLsr, t_reg, rl_src.low_reg, 32 - k);
-      OpRegRegReg(kOpAdd, t_reg, t_reg, rl_src.low_reg);
-      OpRegRegImm(kOpAsr, rl_result.low_reg, t_reg, k);
+      OpRegRegImm(kOpLsr, t_reg, rl_src.reg.GetReg(), 32 - k);
+      OpRegRegReg(kOpAdd, t_reg, t_reg, rl_src.reg.GetReg());
+      OpRegRegImm(kOpAsr, rl_result.reg.GetReg(), t_reg, k);
     } else {
-      OpRegRegImm(kOpAsr, t_reg, rl_src.low_reg, 31);
+      OpRegRegImm(kOpAsr, t_reg, rl_src.reg.GetReg(), 31);
       OpRegRegImm(kOpLsr, t_reg, t_reg, 32 - k);
-      OpRegRegReg(kOpAdd, t_reg, t_reg, rl_src.low_reg);
-      OpRegRegImm(kOpAsr, rl_result.low_reg, t_reg, k);
+      OpRegRegReg(kOpAdd, t_reg, t_reg, rl_src.reg.GetReg());
+      OpRegRegImm(kOpAsr, rl_result.reg.GetReg(), t_reg, k);
     }
   } else {
     int t_reg1 = AllocTemp();
     int t_reg2 = AllocTemp();
     if (lit == 2) {
-      OpRegRegImm(kOpLsr, t_reg1, rl_src.low_reg, 32 - k);
-      OpRegRegReg(kOpAdd, t_reg2, t_reg1, rl_src.low_reg);
+      OpRegRegImm(kOpLsr, t_reg1, rl_src.reg.GetReg(), 32 - k);
+      OpRegRegReg(kOpAdd, t_reg2, t_reg1, rl_src.reg.GetReg());
       OpRegRegImm(kOpAnd, t_reg2, t_reg2, lit -1);
-      OpRegRegReg(kOpSub, rl_result.low_reg, t_reg2, t_reg1);
+      OpRegRegReg(kOpSub, rl_result.reg.GetReg(), t_reg2, t_reg1);
     } else {
-      OpRegRegImm(kOpAsr, t_reg1, rl_src.low_reg, 31);
+      OpRegRegImm(kOpAsr, t_reg1, rl_src.reg.GetReg(), 31);
       OpRegRegImm(kOpLsr, t_reg1, t_reg1, 32 - k);
-      OpRegRegReg(kOpAdd, t_reg2, t_reg1, rl_src.low_reg);
+      OpRegRegReg(kOpAdd, t_reg2, t_reg1, rl_src.reg.GetReg());
       OpRegRegImm(kOpAnd, t_reg2, t_reg2, lit - 1);
-      OpRegRegReg(kOpSub, rl_result.low_reg, t_reg2, t_reg1);
+      OpRegRegReg(kOpSub, rl_result.reg.GetReg(), t_reg2, t_reg1);
     }
   }
   StoreValue(rl_dest, rl_result);
@@ -1637,7 +1637,7 @@ bool Mir2Lir::HandleEasyMultiply(RegLocation rl_src, RegLocation rl_dest, int li
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   if (power_of_two) {
     // Shift.
-    OpRegRegImm(kOpLsl, rl_result.low_reg, rl_src.low_reg, LowestSetBit(lit));
+    OpRegRegImm(kOpLsl, rl_result.reg.GetReg(), rl_src.reg.GetReg(), LowestSetBit(lit));
   } else if (pop_count_le2) {
     // Shift and add and shift.
     int first_bit = LowestSetBit(lit);
@@ -1648,8 +1648,8 @@ bool Mir2Lir::HandleEasyMultiply(RegLocation rl_src, RegLocation rl_dest, int li
     DCHECK(power_of_two_minus_one);
     // TUNING: rsb dst, src, src lsl#LowestSetBit(lit + 1)
     int t_reg = AllocTemp();
-    OpRegRegImm(kOpLsl, t_reg, rl_src.low_reg, LowestSetBit(lit + 1));
-    OpRegRegReg(kOpSub, rl_result.low_reg, t_reg, rl_src.low_reg);
+    OpRegRegImm(kOpLsl, t_reg, rl_src.reg.GetReg(), LowestSetBit(lit + 1));
+    OpRegRegReg(kOpSub, rl_result.reg.GetReg(), t_reg, rl_src.reg.GetReg());
   }
   StoreValue(rl_dest, rl_result);
   return true;
@@ -1668,10 +1668,10 @@ void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, Re
       rl_src = LoadValue(rl_src, kCoreReg);
       rl_result = EvalLoc(rl_dest, kCoreReg, true);
       if (cu_->instruction_set == kThumb2) {
-        OpRegRegImm(kOpRsub, rl_result.low_reg, rl_src.low_reg, lit);
+        OpRegRegImm(kOpRsub, rl_result.reg.GetReg(), rl_src.reg.GetReg(), lit);
       } else {
-        OpRegReg(kOpNeg, rl_result.low_reg, rl_src.low_reg);
-        OpRegImm(kOpAdd, rl_result.low_reg, lit);
+        OpRegReg(kOpNeg, rl_result.reg.GetReg(), rl_src.reg.GetReg());
+        OpRegImm(kOpAdd, rl_result.reg.GetReg(), lit);
       }
       StoreValue(rl_dest, rl_result);
       return;
@@ -1764,7 +1764,7 @@ void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, Re
       bool done = false;
       if (cu_->instruction_set == kMips) {
         rl_src = LoadValue(rl_src, kCoreReg);
-        rl_result = GenDivRemLit(rl_dest, rl_src.low_reg, lit, is_div);
+        rl_result = GenDivRemLit(rl_dest, rl_src.reg.GetReg(), lit, is_div);
         done = true;
       } else if (cu_->instruction_set == kX86) {
         rl_result = GenDivRemLit(rl_dest, rl_src, lit, is_div);
@@ -1774,7 +1774,7 @@ void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, Re
           // Use ARM SDIV instruction for division.  For remainder we also need to
           // calculate using a MUL and subtract.
           rl_src = LoadValue(rl_src, kCoreReg);
-          rl_result = GenDivRemLit(rl_dest, rl_src.low_reg, lit, is_div);
+          rl_result = GenDivRemLit(rl_dest, rl_src.reg.GetReg(), lit, is_div);
           done = true;
         }
       }
@@ -1800,9 +1800,9 @@ void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, Re
   rl_result = EvalLoc(rl_dest, kCoreReg, true);
   // Avoid shifts by literal 0 - no support in Thumb.  Change to copy.
   if (shift_op && (lit == 0)) {
-    OpRegCopy(rl_result.low_reg, rl_src.low_reg);
+    OpRegCopy(rl_result.reg.GetReg(), rl_src.reg.GetReg());
   } else {
-    OpRegRegImm(op, rl_result.low_reg, rl_src.low_reg, lit);
+    OpRegRegImm(op, rl_result.reg.GetReg(), rl_src.reg.GetReg(), lit);
   }
   StoreValue(rl_dest, rl_result);
 }
@@ -1822,15 +1822,15 @@ void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
       rl_src2 = LoadValueWide(rl_src2, kCoreReg);
       rl_result = EvalLoc(rl_dest, kCoreReg, true);
       // Check for destructive overlap
-      if (rl_result.low_reg == rl_src2.high_reg) {
+      if (rl_result.reg.GetReg() == rl_src2.reg.GetHighReg()) {
         int t_reg = AllocTemp();
-        OpRegCopy(t_reg, rl_src2.high_reg);
-        OpRegReg(kOpMvn, rl_result.low_reg, rl_src2.low_reg);
-        OpRegReg(kOpMvn, rl_result.high_reg, t_reg);
+        OpRegCopy(t_reg, rl_src2.reg.GetHighReg());
+        OpRegReg(kOpMvn, rl_result.reg.GetReg(), rl_src2.reg.GetReg());
+        OpRegReg(kOpMvn, rl_result.reg.GetHighReg(), t_reg);
         FreeTemp(t_reg);
       } else {
-        OpRegReg(kOpMvn, rl_result.low_reg, rl_src2.low_reg);
-        OpRegReg(kOpMvn, rl_result.high_reg, rl_src2.high_reg);
+        OpRegReg(kOpMvn, rl_result.reg.GetReg(), rl_src2.reg.GetReg());
+        OpRegReg(kOpMvn, rl_result.reg.GetHighReg(), rl_src2.reg.GetHighReg());
       }
       StoreValueWide(rl_dest, rl_result);
       return;
@@ -2003,7 +2003,7 @@ void Mir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
 /* Generic code for generating a wide constant into a VR. */
 void Mir2Lir::GenConstWide(RegLocation rl_dest, int64_t value) {
   RegLocation rl_result = EvalLoc(rl_dest, kAnyReg, true);
-  LoadConstantWide(rl_result.low_reg, rl_result.high_reg, value);
+  LoadConstantWide(rl_result.reg.GetReg(), rl_result.reg.GetHighReg(), value);
   StoreValueWide(rl_dest, rl_result);
 }
 

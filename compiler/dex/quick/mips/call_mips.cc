@@ -114,7 +114,7 @@ void MipsMir2Lir::GenSparseSwitch(MIR* mir, DexOffset table_offset,
   LIR* exit_branch = OpCmpBranch(kCondEq, rBase, rEnd, NULL);
   LoadWordDisp(rBase, 0, r_key);
   OpRegImm(kOpAdd, rBase, 8);
-  OpCmpBranch(kCondNe, rl_src.low_reg, r_key, loop_label);
+  OpCmpBranch(kCondNe, rl_src.reg.GetReg(), r_key, loop_label);
   int r_disp = AllocTemp();
   LoadWordDisp(rBase, -4, r_disp);
   OpRegRegReg(kOpAdd, r_RA, r_RA, r_disp);
@@ -162,7 +162,7 @@ void MipsMir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
   bool large_bias = false;
   int r_key;
   if (low_key == 0) {
-    r_key = rl_src.low_reg;
+    r_key = rl_src.reg.GetReg();
   } else if ((low_key & 0xffff) != low_key) {
     r_key = AllocTemp();
     LoadConstant(r_key, low_key);
@@ -179,9 +179,9 @@ void MipsMir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
     NewLIR0(kMipsNop);
   } else {
     if (large_bias) {
-      OpRegRegReg(kOpSub, r_key, rl_src.low_reg, r_key);
+      OpRegRegReg(kOpSub, r_key, rl_src.reg.GetReg(), r_key);
     } else {
-      OpRegRegImm(kOpSub, r_key, rl_src.low_reg, low_key);
+      OpRegRegImm(kOpSub, r_key, rl_src.reg.GetReg(), low_key);
     }
   }
   GenBarrier();  // Scheduling barrier
@@ -263,7 +263,7 @@ void MipsMir2Lir::GenMoveException(RegLocation rl_dest) {
   int ex_offset = Thread::ExceptionOffset().Int32Value();
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   int reset_reg = AllocTemp();
-  LoadWordDisp(rMIPS_SELF, ex_offset, rl_result.low_reg);
+  LoadWordDisp(rMIPS_SELF, ex_offset, rl_result.reg.GetReg());
   LoadConstant(reset_reg, 0);
   StoreWordDisp(rMIPS_SELF, ex_offset, reset_reg);
   FreeTemp(reset_reg);
