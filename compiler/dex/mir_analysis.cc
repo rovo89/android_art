@@ -999,7 +999,6 @@ bool MIRGraph::ComputeSkipCompilation(MethodStats* stats, bool skip_default) {
 
  /*
   * Will eventually want this to be a bit more sophisticated and happen at verification time.
-  * Ultimate goal is to drive with profile data.
   */
 bool MIRGraph::SkipCompilation() {
   const CompilerOptions& compiler_options = cu_->compiler_driver->GetCompilerOptions();
@@ -1013,8 +1012,7 @@ bool MIRGraph::SkipCompilation() {
     return true;
   }
 
-  if (compiler_filter == CompilerOptions::kInterpretOnly) {
-    LOG(WARNING) << "InterpretOnly should ideally be filtered out prior to parsing.";
+  if (compiler_filter == CompilerOptions::kInterpretOnly || compiler_filter == CompilerOptions::kProfiled) {
     return true;
   }
 
@@ -1168,6 +1166,10 @@ void MIRGraph::DoCacheFieldLoweringInfo() {
     MirSFieldLoweringInfo::Resolve(cu_->compiler_driver, GetCurrentDexCompilationUnit(),
                                 sfield_lowering_infos_.GetRawStorage(), max_refs - sfield_pos);
   }
+}
+
+bool MIRGraph::SkipCompilation(const std::string& methodname) {
+  return cu_->compiler_driver->SkipCompilation(methodname);
 }
 
 }  // namespace art

@@ -17,6 +17,7 @@
 #include "profiler.h"
 
 #include <sys/uio.h>
+#include <sys/file.h>
 
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
@@ -170,6 +171,7 @@ void* BackgroundMethodSamplingProfiler::RunProfilerThread(void* arg) {
 
     SampleCheckpoint check_point(profiler);
 
+    size_t valid_samples = 0;
     while (now_us < end_us) {
       if (ShuttingDown(self)) {
         break;
@@ -180,7 +182,15 @@ void* BackgroundMethodSamplingProfiler::RunProfilerThread(void* arg) {
       ThreadList* thread_list = runtime->GetThreadList();
 
       profiler->profiler_barrier_->Init(self, 0);
-      size_t barrier_count = thread_list->RunCheckpoint(&check_point);
+      size_t barrier_count = thread_list->RunCheckpointOnRunnableThreads(&check_point);
+
+      // All threads are suspended, nothing to do.
+      if (barrier_count == 0) {
+        now_us = MicroTime();
+        continue;
+      }
+
+      valid_samples += barrier_count;
 
       ThreadState old_state = self->SetState(kWaitingForCheckPointsToRun);
 
@@ -206,7 +216,7 @@ void* BackgroundMethodSamplingProfiler::RunProfilerThread(void* arg) {
       now_us = MicroTime();
     }
 
-    if (!ShuttingDown(self)) {
+    if (valid_samples > 0 && !ShuttingDown(self)) {
       // After the profile has been taken, write it out.
       ScopedObjectAccess soa(self);   // Acquire the mutator lock.
       uint32_t size = profiler->WriteProfile();
@@ -221,39 +231,65 @@ void* BackgroundMethodSamplingProfiler::RunProfilerThread(void* arg) {
 
 // Write out the profile file if we are generating a profile.
 uint32_t BackgroundMethodSamplingProfiler::WriteProfile() {
-  UniquePtr<File> profile_file;
-  Runtime* runtime = Runtime::Current();
-  std::string classpath = runtime->GetClassPathString();
-  size_t colon = classpath.find(':');
-  if (colon != std::string::npos) {
-    // More than one file in the classpath.  Possible?
-    classpath = classpath.substr(0, colon);
-  }
-
-  std::replace(classpath.begin(), classpath.end(), '/', '@');
   std::string full_name = profile_file_name_;
-  if (classpath != "") {
-    full_name = StringPrintf("%s-%s", profile_file_name_.c_str(), classpath.c_str());
-  }
   LOG(DEBUG) << "Saving profile to " << full_name;
 
-  profile_file.reset(OS::CreateEmptyFile(full_name.c_str()));
-  if (profile_file.get() == nullptr) {
-    // Failed to open the profile file, ignore.
-    LOG(INFO) << "Failed to op file";
+  int fd = open(full_name.c_str(), O_RDWR);
+  if (fd < 0) {
+    // Open failed.
+    LOG(ERROR) << "Failed to open profile file " << full_name;
     return 0;
   }
+
+  // Lock the file for exclusive access.  This will block if another process is using
+  // the file.
+  int err = flock(fd, LOCK_EX);
+  if (err < 0) {
+    LOG(ERROR) << "Failed to lock profile file " << full_name;
+    return 0;
+  }
+
+  // Read the previous profile.
+  profile_table_.ReadPrevious(fd);
+
+  // Move back to the start of the file.
+  lseek(fd, 0, SEEK_SET);
+
+  // Format the profile output and write to the file.
   std::ostringstream os;
   uint32_t num_methods = DumpProfile(os);
   std::string data(os.str());
-  profile_file->WriteFully(data.c_str(), data.length());
-  profile_file->Close();
+  const char *p = data.c_str();
+  size_t length = data.length();
+  size_t full_length = length;
+  do {
+    int n = ::write(fd, p, length);
+    p += n;
+    length -= n;
+  } while (length > 0);
+
+  // Truncate the file to the new length.
+  ftruncate(fd, full_length);
+
+  // Now unlock the file, allowing another process in.
+  err = flock(fd, LOCK_UN);
+  if (err < 0) {
+    LOG(ERROR) << "Failed to unlock profile file " << full_name;
+  }
+
+  // Done, close the file.
+  ::close(fd);
+
+  // Clean the profile for the next time.
+  CleanProfile();
+
   return num_methods;
 }
 
 // Start a profile thread with the user-supplied arguments.
 void BackgroundMethodSamplingProfiler::Start(int period, int duration,
-                  std::string profile_file_name, int interval_us,
+                  const std::string& profile_file_name, const std::string& procName,
+                  int interval_us,
                   double backoff_coefficient, bool startImmediately) {
   Thread* self = Thread::Current();
   {
@@ -266,12 +302,14 @@ void BackgroundMethodSamplingProfiler::Start(int period, int duration,
 
   // Only on target...
 #ifdef HAVE_ANDROID_OS
-  // Switch off profiler if the dalvik.vm.profiler property has value 0.
-  char buf[PROP_VALUE_MAX];
-  property_get("dalvik.vm.profiler", buf, "0");
-  if (strcmp(buf, "0") == 0) {
-    LOG(INFO) << "Profiler disabled.  To enable setprop dalvik.vm.profiler 1";
-    return;
+  if (!startImmediately) {
+    // Switch off profiler if the dalvik.vm.profiler property has value 0.
+    char buf[PROP_VALUE_MAX];
+    property_get("dalvik.vm.profiler", buf, "0");
+    if (strcmp(buf, "0") == 0) {
+      LOG(INFO) << "Profiler disabled.  To enable setprop dalvik.vm.profiler 1";
+      return;
+    }
   }
 #endif
 
@@ -281,6 +319,7 @@ void BackgroundMethodSamplingProfiler::Start(int period, int duration,
   {
     MutexLock mu(self, *Locks::profiler_lock_);
     profiler_ = new BackgroundMethodSamplingProfiler(period, duration, profile_file_name,
+                                      procName,
                                       backoff_coefficient,
                                       interval_us, startImmediately);
 
@@ -323,9 +362,10 @@ void BackgroundMethodSamplingProfiler::Shutdown() {
 }
 
 BackgroundMethodSamplingProfiler::BackgroundMethodSamplingProfiler(int period, int duration,
-                   std::string profile_file_name,
+                   const std::string& profile_file_name,
+                   const std::string& process_name,
                    double backoff_coefficient, int interval_us, bool startImmediately)
-    : profile_file_name_(profile_file_name),
+    : profile_file_name_(profile_file_name), process_name_(process_name),
       period_s_(period), start_immediately_(startImmediately),
       interval_us_(interval_us), backoff_factor_(1.0),
       backoff_coefficient_(backoff_coefficient), duration_s_(duration),
@@ -423,9 +463,13 @@ void ProfileSampleResults::Put(mirror::ArtMethod* method) {
   lock_.Unlock(Thread::Current());
 }
 
-// Write the profile table to the output stream.
+// Write the profile table to the output stream.  Also merge with the previous profile.
 uint32_t ProfileSampleResults::Write(std::ostream &os) {
   ScopedObjectAccess soa(Thread::Current());
+  num_samples_ += previous_num_samples_;
+  num_null_methods_ += previous_num_null_methods_;
+  num_boot_methods_ += previous_num_boot_methods_;
+
   LOG(DEBUG) << "Profile: " << num_samples_ << "/" << num_null_methods_ << "/" << num_boot_methods_;
   os << num_samples_ << "/" << num_null_methods_ << "/" << num_boot_methods_ << "\n";
   uint32_t num_methods = 0;
@@ -433,13 +477,34 @@ uint32_t ProfileSampleResults::Write(std::ostream &os) {
     Map *map = table[i];
     if (map != nullptr) {
       for (const auto &meth_iter : *map) {
-         mirror::ArtMethod *method = meth_iter.first;
-         std::string method_name = PrettyMethod(method);
-         uint32_t method_size = method->GetCodeSize();
-         os << StringPrintf("%s/%u/%u\n",  method_name.c_str(), meth_iter.second, method_size);
-         ++num_methods;
-       }
+        mirror::ArtMethod *method = meth_iter.first;
+        std::string method_name = PrettyMethod(method);
+
+        MethodHelper mh(method);
+        const DexFile::CodeItem* codeitem = mh.GetCodeItem();
+        uint32_t method_size = 0;
+        if (codeitem != nullptr) {
+          method_size = codeitem->insns_size_in_code_units_;
+        }
+        uint32_t count = meth_iter.second;
+
+        // Merge this profile entry with one from a previous run (if present).  Also
+        // remove the previous entry.
+        PreviousProfile::iterator pi = previous_.find(method_name);
+        if (pi != previous_.end()) {
+          count += pi->second.count_;
+          previous_.erase(pi);
+        }
+        os << StringPrintf("%s/%u/%u\n",  method_name.c_str(), count, method_size);
+        ++num_methods;
+      }
     }
+  }
+
+  // Now we write out the remaining previous methods.
+  for (PreviousProfile::iterator pi = previous_.begin(); pi != previous_.end(); ++pi) {
+    os << StringPrintf("%s/%u/%u\n",  pi->first.c_str(), pi->second.count_, pi->second.method_size_);
+    ++num_methods;
   }
   return num_methods;
 }
@@ -452,11 +517,67 @@ void ProfileSampleResults::Clear() {
      delete table[i];
      table[i] = nullptr;
   }
+  previous_.clear();
 }
 
 uint32_t ProfileSampleResults::Hash(mirror::ArtMethod* method) {
   return (PointerToLowMemUInt32(method) >> 3) % kHashSize;
 }
 
+// Read a single line into the given string.  Returns true if everything OK, false
+// on EOF or error.
+static bool ReadProfileLine(int fd, std::string& line) {
+  char buf[4];
+  line.clear();
+  while (true) {
+    int n = read(fd, buf, 1);     // TODO: could speed this up but is it worth it?
+    if (n != 1) {
+      return false;
+    }
+    if (buf[0] == '\n') {
+      break;
+    }
+    line += buf[0];
+  }
+  return true;
+}
+
+void ProfileSampleResults::ReadPrevious(int fd) {
+  // Reset counters.
+  previous_num_samples_ = previous_num_null_methods_ = previous_num_boot_methods_ = 0;
+
+  std::string line;
+
+  // The first line contains summary information.
+  if (!ReadProfileLine(fd, line)) {
+    return;
+  }
+  std::vector<std::string> summary_info;
+  Split(line, '/', summary_info);
+  if (summary_info.size() != 3) {
+    // Bad summary info.  It should be count/nullcount/bootcount
+    return;
+  }
+  previous_num_samples_ = atoi(summary_info[0].c_str());
+  previous_num_null_methods_ = atoi(summary_info[1].c_str());
+  previous_num_boot_methods_ = atoi(summary_info[2].c_str());
+
+  // Now read each line until the end of file.  Each line consists of 3 fields separated by /
+  while (true) {
+    if (!ReadProfileLine(fd, line)) {
+      break;
+    }
+    std::vector<std::string> info;
+    Split(line, '/', info);
+    if (info.size() != 3) {
+      // Malformed.
+      break;
+    }
+    std::string methodname = info[0];
+    uint32_t count = atoi(info[1].c_str());
+    uint32_t size = atoi(info[2].c_str());
+    previous_[methodname] = PreviousValue(count, size);
+  }
+}
 }  // namespace art
 
