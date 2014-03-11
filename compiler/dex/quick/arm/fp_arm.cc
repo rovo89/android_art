@@ -162,9 +162,30 @@ void ArmMir2Lir::GenConversion(Instruction::Code opcode,
     case Instruction::FLOAT_TO_LONG:
       GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pF2l), rl_dest, rl_src);
       return;
-    case Instruction::LONG_TO_FLOAT:
-      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pL2f), rl_dest, rl_src);
+    case Instruction::LONG_TO_FLOAT: {
+      rl_src = LoadValueWide(rl_src, kFPReg);
+      src_reg = S2d(rl_src.reg.GetReg(), rl_src.reg.GetHighReg());
+      rl_result = EvalLoc(rl_dest, kFPReg, true);
+      // Allocate temp registers.
+      int high_val = AllocTempDouble();
+      int low_val = AllocTempDouble();
+      int const_val = AllocTempDouble();
+      // Long to double.
+      NewLIR2(kThumb2VcvtF64S32, high_val | ARM_FP_DOUBLE, (src_reg & ~ARM_FP_DOUBLE) + 1);
+      NewLIR2(kThumb2VcvtF64U32, low_val | ARM_FP_DOUBLE, (src_reg & ~ARM_FP_DOUBLE));
+      LoadConstantWide(const_val, const_val + 1, 0x41f0000000000000LL);
+      NewLIR3(kThumb2VmlaF64, low_val | ARM_FP_DOUBLE, high_val | ARM_FP_DOUBLE,
+          const_val | ARM_FP_DOUBLE);
+      // Double to float.
+      NewLIR2(kThumb2VcvtDF, rl_result.reg.GetReg(), low_val | ARM_FP_DOUBLE);
+      // Free temp registers.
+      FreeTemp(high_val);
+      FreeTemp(low_val);
+      FreeTemp(const_val);
+      // Store result.
+      StoreValue(rl_dest, rl_result);
       return;
+    }
     case Instruction::DOUBLE_TO_LONG:
       GenConversionCall(QUICK_ENTRYPOINT_OFFSET(pD2l), rl_dest, rl_src);
       return;
