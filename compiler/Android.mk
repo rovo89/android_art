@@ -70,6 +70,9 @@ LIBART_COMPILER_SRC_FILES := \
 	jni/quick/calling_convention.cc \
 	jni/quick/jni_compiler.cc \
 	optimizing/builder.cc \
+	optimizing/code_generator.cc \
+	optimizing/code_generator_arm.cc \
+	optimizing/code_generator_x86.cc \
 	optimizing/nodes.cc \
 	trampolines/trampoline_compiler.cc \
 	utils/arena_allocator.cc \
