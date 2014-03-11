@@ -155,7 +155,7 @@ static jstring VMRuntime_classPath(JNIEnv* env, jobject) {
 }
 
 static jstring VMRuntime_vmVersion(JNIEnv* env, jobject) {
-  return env->NewStringUTF(Runtime::Current()->GetVersion());
+  return env->NewStringUTF(Runtime::GetVersion());
 }
 
 static jstring VMRuntime_vmLibrary(JNIEnv* env, jobject) {

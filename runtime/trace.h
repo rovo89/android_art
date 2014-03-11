@@ -42,6 +42,12 @@ enum ProfilerClockSource {
   kProfilerClockSourceDual,  // Both wall and thread CPU clocks.
 };
 
+#if defined(HAVE_POSIX_CLOCKS)
+const ProfilerClockSource kDefaultProfilerClockSource = kProfilerClockSourceDual;
+#else
+const ProfilerClockSource kDefaultProfilerClockSource = kProfilerClockSourceWall;
+#endif
+
 enum TracingMode {
   kTracingInactive,
   kMethodTracingActive,
