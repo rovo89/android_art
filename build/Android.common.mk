@@ -95,7 +95,7 @@ LLVM_ROOT_PATH := external/llvm
 # Target builds use GCC by default.
 ART_TARGET_CLANG := false
 ART_HOST_CLANG := false
-ifneq ($(WITHOUT_CLANG),true)
+ifneq ($(WITHOUT_HOST_CLANG),true)
   # By default, host builds use clang for better warnings.
   ART_HOST_CLANG := true
 endif
