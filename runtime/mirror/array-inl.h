@@ -141,6 +141,7 @@ inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_c
                                                               allocator_type, visitor));
   }
   if (kIsDebugBuild && result != nullptr && Runtime::Current()->IsStarted()) {
+    array_class = result->GetClass();  // In case the array class moved.
     CHECK_EQ(array_class->GetComponentSize(), component_size);
     if (!fill_usable) {
       CHECK_EQ(result->SizeOf(), size);
