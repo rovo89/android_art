@@ -94,7 +94,7 @@ RosAllocSpace* RosAllocSpace::Create(const std::string& name, size_t initial_siz
   // Note: making this value large means that large allocations are unlikely to succeed as rosalloc
   // will ask for this memory from sys_alloc which will fail as the footprint (this value plus the
   // size of the large allocation) will be greater than the footprint limit.
-  size_t starting_size = kPageSize;
+  size_t starting_size = Heap::kDefaultStartingSize;
   MemMap* mem_map = CreateMemMap(name, starting_size, &initial_size, &growth_limit, &capacity,
                                  requested_begin);
   if (mem_map == NULL) {
