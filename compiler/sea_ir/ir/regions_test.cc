@@ -14,15 +14,14 @@
  * limitations under the License.
  */
 
-#include "common_test.h"
+#include "common_compiler_test.h"
 #include "sea_ir/ir/sea.h"
 
 using utils::ScopedHashtable;
 
 namespace sea_ir {
 
-class RegionsTest : public art::CommonTest {
-};
+class RegionsTest : public art::CommonCompilerTest {};
 
 TEST_F(RegionsTest, Basics) {
   sea_ir::SeaGraph sg(*java_lang_dex_file_);

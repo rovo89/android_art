@@ -22,12 +22,12 @@
 #include <zlib.h>
 
 #include "UniquePtr.h"
-#include "common_test.h"
+#include "common_runtime_test.h"
 #include "os.h"
 
 namespace art {
 
-class ZipArchiveTest : public CommonTest {};
+class ZipArchiveTest : public CommonRuntimeTest {};
 
 TEST_F(ZipArchiveTest, FindAndExtract) {
   std::string error_msg;

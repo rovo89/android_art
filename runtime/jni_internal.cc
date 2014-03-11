@@ -263,7 +263,7 @@ static mirror::ClassLoader* GetClassLoader(const ScopedObjectAccess& soa)
   // See if the override ClassLoader is set for gtests.
   class_loader = soa.Self()->GetClassLoaderOverride();
   if (class_loader != nullptr) {
-    // If so, CommonTest should have set UseCompileTimeClassPath.
+    // If so, CommonCompilerTest should have set UseCompileTimeClassPath.
     CHECK(Runtime::Current()->UseCompileTimeClassPath());
     return class_loader;
   }

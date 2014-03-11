@@ -14,20 +14,21 @@
  * limitations under the License.
  */
 
-#include "class_linker.h"
-#include "common_test.h"
 #include "dex_cache.h"
+
+#include <stdio.h>
+
+#include "class_linker.h"
+#include "common_runtime_test.h"
 #include "gc/heap.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 #include "sirt_ref.h"
 
-#include <stdio.h>
-
 namespace art {
 namespace mirror {
 
-class DexCacheTest : public CommonTest {};
+class DexCacheTest : public CommonRuntimeTest {};
 
 TEST_F(DexCacheTest, Open) {
   ScopedObjectAccess soa(Thread::Current());

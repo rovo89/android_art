@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "common_test.h"
+#include "common_runtime_test.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "mirror/class-inl.h"
@@ -25,7 +25,7 @@
 namespace art {
 namespace gc {
 
-class HeapTest : public CommonTest {};
+class HeapTest : public CommonRuntimeTest {};
 
 TEST_F(HeapTest, ClearGrowthLimit) {
   Heap* heap = Runtime::Current()->GetHeap();

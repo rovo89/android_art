@@ -25,7 +25,7 @@
 #include "class-inl.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
-#include "common_test.h"
+#include "common_runtime_test.h"
 #include "dex_file.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "gc/accounting/card_table-inl.h"
@@ -40,7 +40,7 @@
 namespace art {
 namespace mirror {
 
-class ObjectTest : public CommonTest {
+class ObjectTest : public CommonRuntimeTest {
  protected:
   void AssertString(int32_t expected_utf16_length,
                     const char* utf8_in,

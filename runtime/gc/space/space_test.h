@@ -19,19 +19,19 @@
 
 #include "zygote_space.h"
 
-#include "common_test.h"
+#include <stdint.h>
+
+#include "common_runtime_test.h"
 #include "globals.h"
 #include "UniquePtr.h"
 #include "mirror/array-inl.h"
 #include "mirror/object-inl.h"
 
-#include <stdint.h>
-
 namespace art {
 namespace gc {
 namespace space {
 
-class SpaceTest : public CommonTest {
+class SpaceTest : public CommonRuntimeTest {
  public:
   void AddSpace(ContinuousSpace* space) {
     // For RosAlloc, revoke the thread local runs before moving onto a

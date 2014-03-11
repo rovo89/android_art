@@ -1232,7 +1232,7 @@ bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg) {
 
     execv(program, &args[0]);
 
-    *error_msg = StringPrintf("Failed to execv(%s): %s", command_line.c_str(), strerror(errno));
+    PLOG(FATAL) << "Failed to execv(" << command_line << ")";
     return false;
   } else {
     if (pid == -1) {

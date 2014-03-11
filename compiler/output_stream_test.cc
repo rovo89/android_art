@@ -14,15 +14,16 @@
  * limitations under the License.
  */
 
-#include "base/logging.h"
-#include "buffered_output_stream.h"
-#include "common_test.h"
 #include "file_output_stream.h"
 #include "vector_output_stream.h"
 
+#include "base/logging.h"
+#include "buffered_output_stream.h"
+#include "common_runtime_test.h"
+
 namespace art {
 
-class OutputStreamTest : public CommonTest {
+class OutputStreamTest : public CommonRuntimeTest {
  protected:
   void CheckOffset(off_t expected) {
     off_t actual = output_stream_->Seek(0, kSeekCurrent);

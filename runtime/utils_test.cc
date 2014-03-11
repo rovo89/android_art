@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-#include "common_test.h"
+#include "utils.h"
+
+#include "common_runtime_test.h"
 #include "mirror/array.h"
 #include "mirror/array-inl.h"
 #include "mirror/object-inl.h"
@@ -22,15 +24,13 @@
 #include "mirror/string.h"
 #include "scoped_thread_state_change.h"
 #include "sirt_ref.h"
-#include "utils.h"
 
 namespace art {
 
 std::string PrettyArguments(const char* signature);
 std::string PrettyReturnType(const char* signature);
 
-class UtilsTest : public CommonTest {
-};
+class UtilsTest : public CommonRuntimeTest {};
 
 TEST_F(UtilsTest, PrettyDescriptor_ArrayReferences) {
   EXPECT_EQ("java.lang.Class[]", PrettyDescriptor("[Ljava/lang/Class;"));
@@ -362,9 +362,7 @@ TEST_F(UtilsTest, ExecSuccess) {
   EXPECT_EQ(0U, error_msg.size()) << error_msg;
 }
 
-// TODO: Disabled due to hang tearing down CommonTest.
-// Renable after splitting into RuntimeTest and CompilerTest.
-TEST_F(UtilsTest, DISABLED_ExecError) {
+TEST_F(UtilsTest, ExecError) {
   std::vector<std::string> command;
   command.push_back("bogus");
   std::string error_msg;
