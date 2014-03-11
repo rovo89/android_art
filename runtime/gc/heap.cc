@@ -161,9 +161,10 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() entering";
   }
+  const bool is_zygote = Runtime::Current()->IsZygote();
   // If we aren't the zygote, switch to the default non zygote allocator. This may update the
   // entrypoints.
-  if (!Runtime::Current()->IsZygote()) {
+  if (!is_zygote) {
     desired_collector_type_ = post_zygote_collector_type_;
     large_object_threshold_ = kDefaultLargeObjectThreshold;
   } else {
@@ -192,15 +193,44 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       requested_alloc_space_begin = AlignUp(oat_file_end_addr, kPageSize);
     }
   }
-  const char* name = Runtime::Current()->IsZygote() ? "zygote space" : "alloc space";
+  MemMap* malloc_space_mem_map = nullptr;
+  const char* malloc_space_name = is_zygote ? "zygote space" : "alloc space";
+  if (is_zygote) {
+    // Allocate a single mem map that is split into the malloc space
+    // and the post zygote non-moving space to put them adjacent.
+    size_t post_zygote_non_moving_space_size = 64 * MB;
+    size_t non_moving_spaces_size = capacity + post_zygote_non_moving_space_size;
+    std::string error_str;
+    malloc_space_mem_map = MemMap::MapAnonymous(malloc_space_name, requested_alloc_space_begin,
+                                                non_moving_spaces_size, PROT_READ | PROT_WRITE,
+                                                true, &error_str);
+    CHECK(malloc_space_mem_map != nullptr) << error_str;
+    post_zygote_non_moving_space_mem_map_.reset(malloc_space_mem_map->RemapAtEnd(
+        malloc_space_mem_map->Begin() + capacity, "post zygote non-moving space",
+        PROT_READ | PROT_WRITE, &error_str));
+    CHECK(post_zygote_non_moving_space_mem_map_.get() != nullptr) << error_str;
+    VLOG(heap) << "malloc space mem map : " << malloc_space_mem_map;
+    VLOG(heap) << "post zygote non-moving space mem map : "
+               << post_zygote_non_moving_space_mem_map_.get();
+  } else {
+    // Allocate a mem map for the malloc space.
+    std::string error_str;
+    malloc_space_mem_map = MemMap::MapAnonymous(malloc_space_name, requested_alloc_space_begin,
+                                                capacity, PROT_READ | PROT_WRITE, true, &error_str);
+    CHECK(malloc_space_mem_map != nullptr) << error_str;
+    VLOG(heap) << "malloc space mem map : " << malloc_space_mem_map;
+  }
+  CHECK(malloc_space_mem_map != nullptr);
   space::MallocSpace* malloc_space;
   if (kUseRosAlloc) {
-    malloc_space = space::RosAllocSpace::Create(name, initial_size, growth_limit, capacity,
-                                                requested_alloc_space_begin, low_memory_mode_);
+    malloc_space = space::RosAllocSpace::CreateFromMemMap(malloc_space_mem_map, malloc_space_name,
+                                                          kDefaultStartingSize, initial_size,
+                                                          growth_limit, capacity, low_memory_mode_);
     CHECK(malloc_space != nullptr) << "Failed to create rosalloc space";
   } else {
-    malloc_space = space::DlMallocSpace::Create(name, initial_size, growth_limit, capacity,
-                                                requested_alloc_space_begin);
+    malloc_space = space::DlMallocSpace::CreateFromMemMap(malloc_space_mem_map, malloc_space_name,
+                                                          kDefaultStartingSize, initial_size,
+                                                          growth_limit, capacity);
     CHECK(malloc_space != nullptr) << "Failed to create dlmalloc space";
   }
   VLOG(heap) << "malloc_space : " << malloc_space;
@@ -240,12 +270,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   // Relies on the spaces being sorted.
   byte* heap_begin = continuous_spaces_.front()->Begin();
   byte* heap_end = continuous_spaces_.back()->Limit();
-  if (Runtime::Current()->IsZygote()) {
-    std::string error_str;
-    post_zygote_non_moving_space_mem_map_.reset(
-        MemMap::MapAnonymous("post zygote non-moving space", nullptr, 64 * MB,
-                             PROT_READ | PROT_WRITE, true, &error_str));
-    CHECK(post_zygote_non_moving_space_mem_map_.get() != nullptr) << error_str;
+  if (is_zygote) {
+    CHECK(post_zygote_non_moving_space_mem_map_.get() != nullptr);
     heap_begin = std::min(post_zygote_non_moving_space_mem_map_->Begin(), heap_begin);
     heap_end = std::max(post_zygote_non_moving_space_mem_map_->End(), heap_end);
   }
@@ -1370,17 +1396,18 @@ void Heap::TransitionCollector(CollectorType collector_type) {
         // TODO: Use mem-map from temp space?
         MemMap* mem_map = allocator_mem_map_.release();
         CHECK(mem_map != nullptr);
+        size_t starting_size = kDefaultStartingSize;
         size_t initial_size = kDefaultInitialSize;
         mprotect(mem_map->Begin(), initial_size, PROT_READ | PROT_WRITE);
         CHECK(main_space_ == nullptr);
         if (kUseRosAlloc) {
           main_space_ =
-              space::RosAllocSpace::CreateFromMemMap(mem_map, "alloc space", kPageSize,
+              space::RosAllocSpace::CreateFromMemMap(mem_map, "alloc space", starting_size,
                                                      initial_size, mem_map->Size(),
                                                      mem_map->Size(), low_memory_mode_);
         } else {
           main_space_ =
-              space::DlMallocSpace::CreateFromMemMap(mem_map, "alloc space", kPageSize,
+              space::DlMallocSpace::CreateFromMemMap(mem_map, "alloc space", starting_size,
                                                      initial_size, mem_map->Size(),
                                                      mem_map->Size());
         }
