@@ -265,6 +265,7 @@ void BitVector::SetInitialBits(uint32_t num_bits) {
   uint32_t rem_num_bits = num_bits & 0x1f;
   if (rem_num_bits != 0) {
     storage_[idx] = (1 << rem_num_bits) - 1;
+    ++idx;
   }
 
   // Now set the upper ones to 0.
