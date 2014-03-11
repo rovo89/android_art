@@ -195,6 +195,28 @@ static SelectInstructionKind SelectKind(MIR* mir) {
   }
 }
 
+static constexpr ConditionCode kIfCcZConditionCodes[] = {
+    kCondEq, kCondNe, kCondLt, kCondGe, kCondGt, kCondLe
+};
+
+COMPILE_ASSERT(arraysize(kIfCcZConditionCodes) == Instruction::IF_LEZ - Instruction::IF_EQZ + 1,
+               if_ccz_ccodes_size1);
+
+static constexpr bool IsInstructionIfCcZ(Instruction::Code opcode) {
+  return Instruction::IF_EQZ <= opcode && opcode <= Instruction::IF_LEZ;
+}
+
+static constexpr ConditionCode ConditionCodeForIfCcZ(Instruction::Code opcode) {
+  return kIfCcZConditionCodes[opcode - Instruction::IF_EQZ];
+}
+
+COMPILE_ASSERT(ConditionCodeForIfCcZ(Instruction::IF_EQZ) == kCondEq, check_if_eqz_ccode);
+COMPILE_ASSERT(ConditionCodeForIfCcZ(Instruction::IF_NEZ) == kCondNe, check_if_nez_ccode);
+COMPILE_ASSERT(ConditionCodeForIfCcZ(Instruction::IF_LTZ) == kCondLt, check_if_ltz_ccode);
+COMPILE_ASSERT(ConditionCodeForIfCcZ(Instruction::IF_GEZ) == kCondGe, check_if_gez_ccode);
+COMPILE_ASSERT(ConditionCodeForIfCcZ(Instruction::IF_GTZ) == kCondGt, check_if_gtz_ccode);
+COMPILE_ASSERT(ConditionCodeForIfCcZ(Instruction::IF_LEZ) == kCondLe, check_if_lez_ccode);
+
 int MIRGraph::GetSSAUseCount(int s_reg) {
   return raw_use_counts_.Get(s_reg);
 }
@@ -313,35 +335,11 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
           }
           if (mir->next != NULL) {
             MIR* mir_next = mir->next;
-            Instruction::Code br_opcode = mir_next->dalvikInsn.opcode;
-            ConditionCode ccode = kCondNv;
-            switch (br_opcode) {
-              case Instruction::IF_EQZ:
-                ccode = kCondEq;
-                break;
-              case Instruction::IF_NEZ:
-                ccode = kCondNe;
-                break;
-              case Instruction::IF_LTZ:
-                ccode = kCondLt;
-                break;
-              case Instruction::IF_GEZ:
-                ccode = kCondGe;
-                break;
-              case Instruction::IF_GTZ:
-                ccode = kCondGt;
-                break;
-              case Instruction::IF_LEZ:
-                ccode = kCondLe;
-                break;
-              default:
-                break;
-            }
             // Make sure result of cmp is used by next insn and nowhere else
-            if ((ccode != kCondNv) &&
+            if (IsInstructionIfCcZ(mir->next->dalvikInsn.opcode) &&
                 (mir->ssa_rep->defs[0] == mir_next->ssa_rep->uses[0]) &&
                 (GetSSAUseCount(mir->ssa_rep->defs[0]) == 1)) {
-              mir_next->meta.ccode = ccode;
+              mir_next->meta.ccode = ConditionCodeForIfCcZ(mir_next->dalvikInsn.opcode);
               switch (opcode) {
                 case Instruction::CMPL_FLOAT:
                   mir_next->dalvikInsn.opcode =
@@ -409,8 +407,7 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
       // TUNING: expand to support IF_xx compare & branches
       if (!cu_->compiler_backend->IsPortable() &&
           (cu_->instruction_set == kThumb2 || cu_->instruction_set == kX86) &&
-          ((mir->dalvikInsn.opcode == Instruction::IF_EQZ) ||
-          (mir->dalvikInsn.opcode == Instruction::IF_NEZ))) {
+          IsInstructionIfCcZ(mir->dalvikInsn.opcode)) {
         BasicBlock* ft = GetBasicBlock(bb->fall_through);
         DCHECK(ft != NULL);
         BasicBlock* ft_ft = GetBasicBlock(ft->fall_through);
@@ -457,12 +454,7 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
                * NOTE: not updating other dataflow info (no longer used at this point).
                * If this changes, need to update i_dom, etc. here (and in CombineBlocks).
                */
-              if (opcode == Instruction::IF_NEZ) {
-                // Normalize.
-                MIR* tmp_mir = if_true;
-                if_true = if_false;
-                if_false = tmp_mir;
-              }
+              mir->meta.ccode = ConditionCodeForIfCcZ(mir->dalvikInsn.opcode);
               mir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpSelect);
               bool const_form = (SelectKind(if_true) == kSelectConst);
               if ((SelectKind(if_true) == kSelectMove)) {
