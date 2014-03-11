@@ -83,6 +83,9 @@ static CompiledMethod* TryCompileWithSeaIR(art::CompilerDriver& compiler,
 }
 
 
+// Hack for CFI CIE initialization
+extern std::vector<uint8_t>* X86CFIInitialization();
+
 class QuickBackend : public CompilerBackend {
  public:
   QuickBackend() : CompilerBackend(100) {}
@@ -166,10 +169,26 @@ class QuickBackend : public CompilerBackend {
       bool set_max = cu->mir_graph->SetMaxAvailableNonSpecialCompilerTemps(max_temps);
       CHECK(set_max);
     }
-    return mir_to_lir;;
+    return mir_to_lir;
   }
 
   void InitCompilationUnit(CompilationUnit& cu) const {}
+
+  /*
+   * @brief Generate and return Dwarf CFI initialization, if supported by the
+   * backend.
+   * @param driver CompilerDriver for this compile.
+   * @returns nullptr if not supported by backend or a vector of bytes for CFI DWARF
+   * information.
+   * @note This is used for backtrace information in generated code.
+   */
+  std::vector<uint8_t>* GetCallFrameInformationInitialization(const CompilerDriver& driver) const
+      OVERRIDE {
+    if (driver.GetInstructionSet() == kX86) {
+      return X86CFIInitialization();
+    }
+    return nullptr;
+  }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(QuickBackend);

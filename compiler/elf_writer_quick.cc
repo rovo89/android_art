@@ -98,6 +98,7 @@ bool ElfWriterQuick::Write(OatWriter* oat_writer,
   // | .rodata\0               |
   // | .text\0                 |
   // | .shstrtab\0             |
+  // | .debug_frame\0          |
   // +-------------------------+
   // | Elf32_Shdr NULL         |
   // | Elf32_Shdr .dynsym      |
@@ -107,6 +108,9 @@ bool ElfWriterQuick::Write(OatWriter* oat_writer,
   // | Elf32_Shdr .rodata      |
   // | Elf32_Shdr .dynamic     |
   // | Elf32_Shdr .shstrtab    |
+  // | Elf32_Shdr .debug_info  |  (Optional)
+  // | Elf32_Shdr .debug_abbrev|  (Optional)
+  // | Elf32_Shdr .debug_frame |  (Optional)
   // +-------------------------+
 
   // phase 1: computing offsets
@@ -259,11 +263,69 @@ bool ElfWriterQuick::Write(OatWriter* oat_writer,
   uint32_t shstrtab_shstrtab_offset = shstrtab.size();
   shstrtab += ".shstrtab";
   shstrtab += '\0';
+  uint32_t shstrtab_debug_info_offset = shstrtab.size();
+  shstrtab += ".debug_info";
+  shstrtab += '\0';
+  uint32_t shstrtab_debug_abbrev_offset = shstrtab.size();
+  shstrtab += ".debug_abbrev";
+  shstrtab += '\0';
+  uint32_t shstrtab_debug_str_offset = shstrtab.size();
+  shstrtab += ".debug_str";
+  shstrtab += '\0';
+  uint32_t shstrtab_debug_frame_offset = shstrtab.size();
+  shstrtab += ".debug_frame";
+  shstrtab += '\0';
   uint32_t shstrtab_size = shstrtab.size();
   expected_offset += shstrtab_size;
   if (debug) {
     LOG(INFO) << "shstrtab_offset=" << shstrtab_offset << std::hex << " " << shstrtab_offset;
     LOG(INFO) << "shstrtab_size=" << shstrtab_size << std::hex << " " << shstrtab_size;
+  }
+
+  // Create debug informatin, if we have it.
+  bool generateDebugInformation = compiler_driver_->GetCallFrameInformation() != nullptr;
+  std::vector<uint8_t> dbg_info;
+  std::vector<uint8_t> dbg_abbrev;
+  std::vector<uint8_t> dbg_str;
+  if (generateDebugInformation) {
+    FillInCFIInformation(oat_writer, &dbg_info, &dbg_abbrev, &dbg_str);
+  }
+
+  uint32_t shdbg_info_alignment = 1;
+  uint32_t shdbg_info_offset = expected_offset;
+  uint32_t shdbg_info_size = dbg_info.size();
+  expected_offset += shdbg_info_size;
+  if (debug) {
+    LOG(INFO) << "shdbg_info_offset=" << shdbg_info_offset << std::hex << " " << shdbg_info_offset;
+    LOG(INFO) << "shdbg_info_size=" << shdbg_info_size << std::hex << " " << shdbg_info_size;
+  }
+
+  uint32_t shdbg_abbrev_alignment = 1;
+  uint32_t shdbg_abbrev_offset = expected_offset;
+  uint32_t shdbg_abbrev_size = dbg_abbrev.size();
+  expected_offset += shdbg_abbrev_size;
+  if (debug) {
+    LOG(INFO) << "shdbg_abbrev_offset=" << shdbg_abbrev_offset << std::hex << " " << shdbg_abbrev_offset;
+    LOG(INFO) << "shdbg_abbrev_size=" << shdbg_abbrev_size << std::hex << " " << shdbg_abbrev_size;
+  }
+
+  uint32_t shdbg_frm_alignment = 4;
+  uint32_t shdbg_frm_offset = expected_offset = RoundUp(expected_offset, shdbg_frm_alignment);
+  uint32_t shdbg_frm_size =
+    generateDebugInformation ? compiler_driver_->GetCallFrameInformation()->size() : 0;
+  expected_offset += shdbg_frm_size;
+  if (debug) {
+    LOG(INFO) << "shdbg_frm_offset=" << shdbg_frm_offset << std::hex << " " << shdbg_frm_offset;
+    LOG(INFO) << "shdbg_frm_size=" << shdbg_frm_size << std::hex << " " << shdbg_frm_size;
+  }
+
+  uint32_t shdbg_str_alignment = 1;
+  uint32_t shdbg_str_offset = expected_offset;
+  uint32_t shdbg_str_size = dbg_str.size();
+  expected_offset += shdbg_str_size;
+  if (debug) {
+    LOG(INFO) << "shdbg_str_offset=" << shdbg_str_offset << std::hex << " " << shdbg_str_offset;
+    LOG(INFO) << "shdbg_str_size=" << shdbg_str_size << std::hex << " " << shdbg_str_size;
   }
 
   // section headers (after all sections)
@@ -277,7 +339,11 @@ bool ElfWriterQuick::Write(OatWriter* oat_writer,
   const uint8_t SH_TEXT     = 5;
   const uint8_t SH_DYNAMIC  = 6;
   const uint8_t SH_SHSTRTAB = 7;
-  const uint8_t SH_NUM      = 8;
+  const uint8_t SH_DBG_INFO = 8;
+  const uint8_t SH_DBG_ABRV = 9;
+  const uint8_t SH_DBG_FRM  = 10;
+  const uint8_t SH_DBG_STR  = 11;
+  const uint8_t SH_NUM      = generateDebugInformation ? 12 : 8;
   uint32_t shdr_size = sizeof(Elf32_Shdr) * SH_NUM;
   expected_offset += shdr_size;
   if (debug) {
@@ -554,6 +620,52 @@ bool ElfWriterQuick::Write(OatWriter* oat_writer,
   section_headers[SH_SHSTRTAB].sh_addralign = shstrtab_alignment;
   section_headers[SH_SHSTRTAB].sh_entsize   = 0;
 
+  if (generateDebugInformation) {
+    section_headers[SH_DBG_INFO].sh_name      = shstrtab_debug_info_offset;
+    section_headers[SH_DBG_INFO].sh_type      = SHT_PROGBITS;
+    section_headers[SH_DBG_INFO].sh_flags     = 0;
+    section_headers[SH_DBG_INFO].sh_addr      = 0;
+    section_headers[SH_DBG_INFO].sh_offset    = shdbg_info_offset;
+    section_headers[SH_DBG_INFO].sh_size      = shdbg_info_size;
+    section_headers[SH_DBG_INFO].sh_link      = 0;
+    section_headers[SH_DBG_INFO].sh_info      = 0;
+    section_headers[SH_DBG_INFO].sh_addralign = shdbg_info_alignment;
+    section_headers[SH_DBG_INFO].sh_entsize   = 0;
+
+    section_headers[SH_DBG_ABRV].sh_name      = shstrtab_debug_abbrev_offset;
+    section_headers[SH_DBG_ABRV].sh_type      = SHT_PROGBITS;
+    section_headers[SH_DBG_ABRV].sh_flags     = 0;
+    section_headers[SH_DBG_ABRV].sh_addr      = 0;
+    section_headers[SH_DBG_ABRV].sh_offset    = shdbg_abbrev_offset;
+    section_headers[SH_DBG_ABRV].sh_size      = shdbg_abbrev_size;
+    section_headers[SH_DBG_ABRV].sh_link      = 0;
+    section_headers[SH_DBG_ABRV].sh_info      = 0;
+    section_headers[SH_DBG_ABRV].sh_addralign = shdbg_abbrev_alignment;
+    section_headers[SH_DBG_ABRV].sh_entsize   = 0;
+
+    section_headers[SH_DBG_FRM].sh_name      = shstrtab_debug_frame_offset;
+    section_headers[SH_DBG_FRM].sh_type      = SHT_PROGBITS;
+    section_headers[SH_DBG_FRM].sh_flags     = 0;
+    section_headers[SH_DBG_FRM].sh_addr      = 0;
+    section_headers[SH_DBG_FRM].sh_offset    = shdbg_frm_offset;
+    section_headers[SH_DBG_FRM].sh_size      = shdbg_frm_size;
+    section_headers[SH_DBG_FRM].sh_link      = 0;
+    section_headers[SH_DBG_FRM].sh_info      = 0;
+    section_headers[SH_DBG_FRM].sh_addralign = shdbg_frm_alignment;
+    section_headers[SH_DBG_FRM].sh_entsize   = 0;
+
+    section_headers[SH_DBG_STR].sh_name      = shstrtab_debug_str_offset;
+    section_headers[SH_DBG_STR].sh_type      = SHT_PROGBITS;
+    section_headers[SH_DBG_STR].sh_flags     = 0;
+    section_headers[SH_DBG_STR].sh_addr      = 0;
+    section_headers[SH_DBG_STR].sh_offset    = shdbg_str_offset;
+    section_headers[SH_DBG_STR].sh_size      = shdbg_str_size;
+    section_headers[SH_DBG_STR].sh_link      = 0;
+    section_headers[SH_DBG_STR].sh_info      = 0;
+    section_headers[SH_DBG_STR].sh_addralign = shdbg_str_alignment;
+    section_headers[SH_DBG_STR].sh_entsize   = 0;
+  }
+
   // phase 3: writing file
 
   // Elf32_Ehdr
@@ -646,8 +758,62 @@ bool ElfWriterQuick::Write(OatWriter* oat_writer,
     return false;
   }
 
+  if (generateDebugInformation) {
+    // .debug_info
+    DCHECK_LE(shstrtab_offset + shstrtab_size, shdbg_info_offset);
+    if (static_cast<off_t>(shdbg_info_offset) != lseek(elf_file_->Fd(), shdbg_info_offset, SEEK_SET)) {
+      PLOG(ERROR) << "Failed to seek to .shdbg_info offset " << shdbg_info_offset
+                  << " for " << elf_file_->GetPath();
+      return false;
+    }
+    if (!elf_file_->WriteFully(&dbg_info[0], shdbg_info_size)) {
+      PLOG(ERROR) << "Failed to write .debug_info for " << elf_file_->GetPath();
+      return false;
+    }
+
+    // .debug_abbrev
+    DCHECK_LE(shdbg_info_offset + shdbg_info_size, shdbg_abbrev_offset);
+    if (static_cast<off_t>(shdbg_abbrev_offset) != lseek(elf_file_->Fd(), shdbg_abbrev_offset, SEEK_SET)) {
+      PLOG(ERROR) << "Failed to seek to .shdbg_abbrev offset " << shdbg_abbrev_offset
+                  << " for " << elf_file_->GetPath();
+      return false;
+    }
+    if (!elf_file_->WriteFully(&dbg_abbrev[0], shdbg_abbrev_size)) {
+      PLOG(ERROR) << "Failed to write .debug_abbrev for " << elf_file_->GetPath();
+      return false;
+    }
+
+    // .debug_frame
+    DCHECK_LE(shdbg_abbrev_offset + shdbg_abbrev_size, shdbg_frm_offset);
+    if (static_cast<off_t>(shdbg_frm_offset) != lseek(elf_file_->Fd(), shdbg_frm_offset, SEEK_SET)) {
+      PLOG(ERROR) << "Failed to seek to .shdbg_frm offset " << shdbg_frm_offset
+                  << " for " << elf_file_->GetPath();
+      return false;
+    }
+    if (!elf_file_->WriteFully(&((*compiler_driver_->GetCallFrameInformation())[0]), shdbg_frm_size)) {
+      PLOG(ERROR) << "Failed to write .debug_frame for " << elf_file_->GetPath();
+      return false;
+    }
+
+    // .debug_str
+    DCHECK_LE(shdbg_frm_offset + shdbg_frm_size, shdbg_str_offset);
+    if (static_cast<off_t>(shdbg_str_offset) != lseek(elf_file_->Fd(), shdbg_str_offset, SEEK_SET)) {
+      PLOG(ERROR) << "Failed to seek to .shdbg_str offset " << shdbg_str_offset
+                  << " for " << elf_file_->GetPath();
+      return false;
+    }
+    if (!elf_file_->WriteFully(&dbg_str[0], shdbg_str_size)) {
+      PLOG(ERROR) << "Failed to write .debug_frame for " << elf_file_->GetPath();
+      return false;
+    }
+  }
+
   // section headers (after all sections)
-  DCHECK_LE(shstrtab_offset + shstrtab_size, shdr_offset);
+  if (generateDebugInformation) {
+    DCHECK_LE(shdbg_str_offset + shdbg_str_size, shdr_offset);
+  } else {
+    DCHECK_LE(shstrtab_offset + shstrtab_size, shdr_offset);
+  }
   if (static_cast<off_t>(shdr_offset) != lseek(elf_file_->Fd(), shdr_offset, SEEK_SET)) {
     PLOG(ERROR) << "Failed to seek to ELF section headers offset " << shdr_offset
                 << " for " << elf_file_->GetPath();
@@ -660,6 +826,164 @@ bool ElfWriterQuick::Write(OatWriter* oat_writer,
 
   VLOG(compiler) << "ELF file written successfully: " << elf_file_->GetPath();
   return true;
+}  // NOLINT(readability/fn_size)
+
+static void UpdateWord(std::vector<uint8_t>*buf, int offset, int data) {
+  (*buf)[offset+0] = data;
+  (*buf)[offset+1] = data >> 8;
+  (*buf)[offset+2] = data >> 16;
+  (*buf)[offset+3] = data >> 24;
+}
+
+static void PushWord(std::vector<uint8_t>*buf, int data) {
+  buf->push_back(data & 0xff);
+  buf->push_back((data >> 8) & 0xff);
+  buf->push_back((data >> 16) & 0xff);
+  buf->push_back((data >> 24) & 0xff);
+}
+
+static void PushHalf(std::vector<uint8_t>*buf, int data) {
+  buf->push_back(data & 0xff);
+  buf->push_back((data >> 8) & 0xff);
+}
+
+// DWARF constants needed to generate CFI information.
+enum {
+  // Tag encodings.
+  DW_TAG_compile_unit = 0x11,
+  DW_TAG_subprogram = 0X2e,
+
+  // Attribute encodings.
+  DW_AT_name = 0x03,
+  DW_AT_low_pc = 0x11,
+  DW_AT_high_pc = 0x12,
+  DW_AT_language = 0x13,
+
+  // Constant encoding.
+  DW_CHILDREN_no = 0x00,
+  DW_CHILDREN_yes = 0x01,
+
+  // Attribute form encodings.
+  DW_FORM_addr = 0x01,
+  DW_FORM_data1 = 0x0b,
+  DW_FORM_strp = 0x0e,
+
+  // Language encoding.
+  DW_LANG_Java = 0x000b
+};
+
+void ElfWriterQuick::FillInCFIInformation(OatWriter* oat_writer,
+                                          std::vector<uint8_t>* dbg_info,
+                                          std::vector<uint8_t>* dbg_abbrev,
+                                          std::vector<uint8_t>* dbg_str) {
+  // Create the debug_abbrev section with boilerplate information.
+  // We only care about low_pc and high_pc right now for the compilation
+  // unit and methods.
+
+  // Tag 1: Compilation unit: DW_TAG_compile_unit.
+  dbg_abbrev->push_back(1);
+  dbg_abbrev->push_back(DW_TAG_compile_unit);
+
+  // There are children (the methods).
+  dbg_abbrev->push_back(DW_CHILDREN_yes);
+
+  // DW_LANG_Java DW_FORM_data1.
+  dbg_abbrev->push_back(DW_AT_language);
+  dbg_abbrev->push_back(DW_FORM_data1);
+
+  // DW_AT_low_pc DW_FORM_addr.
+  dbg_abbrev->push_back(DW_AT_low_pc);
+  dbg_abbrev->push_back(DW_FORM_addr);
+
+  // DW_AT_high_pc DW_FORM_addr.
+  dbg_abbrev->push_back(DW_AT_high_pc);
+  dbg_abbrev->push_back(DW_FORM_addr);
+
+  // End of DW_TAG_compile_unit.
+  PushHalf(dbg_abbrev, 0);
+
+  // Tag 2: Compilation unit: DW_TAG_subprogram.
+  dbg_abbrev->push_back(2);
+  dbg_abbrev->push_back(DW_TAG_subprogram);
+
+  // There are no children.
+  dbg_abbrev->push_back(DW_CHILDREN_no);
+
+  // Name of the method.
+  dbg_abbrev->push_back(DW_AT_name);
+  dbg_abbrev->push_back(DW_FORM_strp);
+
+  // DW_AT_low_pc DW_FORM_addr.
+  dbg_abbrev->push_back(DW_AT_low_pc);
+  dbg_abbrev->push_back(DW_FORM_addr);
+
+  // DW_AT_high_pc DW_FORM_addr.
+  dbg_abbrev->push_back(DW_AT_high_pc);
+  dbg_abbrev->push_back(DW_FORM_addr);
+
+  // End of DW_TAG_subprogram.
+  PushHalf(dbg_abbrev, 0);
+
+  // Start the debug_info section with the header information
+  // 'unit_length' will be filled in later.
+  PushWord(dbg_info, 0);
+
+  // 'version' - 3.
+  PushHalf(dbg_info, 3);
+
+  // Offset into .debug_abbrev section (always 0).
+  PushWord(dbg_info, 0);
+
+  // Address size: 4.
+  dbg_info->push_back(4);
+
+  // Start the description for the compilation unit.
+  // This uses tag 1.
+  dbg_info->push_back(1);
+
+  // The language is Java.
+  dbg_info->push_back(DW_LANG_Java);
+
+  // Leave space for low_pc and high_pc.
+  int low_pc_offset = dbg_info->size();
+  PushWord(dbg_info, 0);
+  PushWord(dbg_info, 0);
+
+  // Walk through the information in the method table, and enter into dbg_info.
+  const std::vector<OatWriter::DebugInfo>& dbg = oat_writer->GetCFIMethodInfo();
+  uint32_t low_pc = 0xFFFFFFFFU;
+  uint32_t high_pc = 0;
+
+  for (uint32_t i = 0; i < dbg.size(); i++) {
+    const OatWriter::DebugInfo& info = dbg[i];
+    if (info.low_pc_ < low_pc) {
+      low_pc = info.low_pc_;
+    }
+    if (info.high_pc_ > high_pc) {
+      high_pc = info.high_pc_;
+    }
+
+    // Start a new TAG: subroutine (2).
+    dbg_info->push_back(2);
+
+    // Enter the name into the string table (and NUL terminate).
+    uint32_t str_offset = dbg_str->size();
+    dbg_str->insert(dbg_str->end(), info.method_name_.begin(), info.method_name_.end());
+    dbg_str->push_back('\0');
+
+    // Enter name, low_pc, high_pc.
+    PushWord(dbg_info, str_offset);
+    PushWord(dbg_info, info.low_pc_);
+    PushWord(dbg_info, info.high_pc_);
+  }
+
+  // One byte terminator
+  dbg_info->push_back(0);
+
+  // We have now walked all the methods.  Fill in lengths and low/high PCs.
+  UpdateWord(dbg_info, 0, dbg_info->size() - 4);
+  UpdateWord(dbg_info, low_pc_offset, low_pc);
+  UpdateWord(dbg_info, low_pc_offset + 4, high_pc);
 }
 
 }  // namespace art

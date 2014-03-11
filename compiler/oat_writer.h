@@ -82,6 +82,19 @@ class OatWriter {
 
   ~OatWriter();
 
+  struct DebugInfo {
+    DebugInfo(const std::string& method_name, uint32_t low_pc, uint32_t high_pc)
+      : method_name_(method_name), low_pc_(low_pc), high_pc_(high_pc) {
+    }
+    std::string method_name_;
+    uint32_t    low_pc_;
+    uint32_t    high_pc_;
+  };
+
+  const std::vector<DebugInfo>& GetCFIMethodInfo() const {
+    return method_info_;
+  }
+
  private:
   size_t InitOatHeader();
   size_t InitOatDexFiles(size_t offset);
@@ -204,6 +217,8 @@ class OatWriter {
    private:
     DISALLOW_COPY_AND_ASSIGN(OatClass);
   };
+
+  std::vector<DebugInfo> method_info_;
 
   const CompilerDriver* const compiler_driver_;
 

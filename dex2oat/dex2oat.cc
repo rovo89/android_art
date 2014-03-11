@@ -760,6 +760,7 @@ static int dex2oat(int argc, char** argv) {
   bool dump_passes = false;
   bool dump_slow_timing = kIsDebugBuild;
   bool watch_dog_enabled = !kIsTargetBuild;
+  bool generate_gdb_information = kIsDebugBuild;
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
@@ -797,6 +798,10 @@ static int dex2oat(int argc, char** argv) {
       watch_dog_enabled = true;
     } else if (option == "--no-watch-dog") {
       watch_dog_enabled = false;
+    } else if (option == "--gen-gdb-info") {
+      generate_gdb_information = true;
+    } else if (option == "--no-gen-gdb-info") {
+      generate_gdb_information = false;
     } else if (option.starts_with("-j")) {
       const char* thread_count_str = option.substr(strlen("-j")).data();
       if (!ParseInt(thread_count_str, &thread_count)) {
@@ -1042,7 +1047,8 @@ static int dex2oat(int argc, char** argv) {
                                    large_method_threshold,
                                    small_method_threshold,
                                    tiny_method_threshold,
-                                   num_dex_methods_threshold
+                                   num_dex_methods_threshold,
+                                   generate_gdb_information
 #ifdef ART_SEA_IR_MODE
                                    , compiler_options.sea_ir_ = true;
 #endif
