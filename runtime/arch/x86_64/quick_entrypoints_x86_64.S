@@ -778,8 +778,8 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movq %gs:THREAD_SELF_OFFSET, %rdi
     movq %rbp, %rsi
     call PLT_SYMBOL(artQuickGenericJniTrampoline)  // (Thread*, sp)
-    test %rax, %rax                 // check whether error (negative value)
-    js 1f
+    test %rax, %rax                 // Check for error, negative value.
+    js .Lentry_error
     // release part of the alloca
     addq %rax, %rsp
     // get the code pointer
@@ -803,7 +803,7 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movq 56(%rsp), %xmm7
     addq LITERAL(64), %rsp          // floating-point done
     // native call
-    call *%rax                      // Q: is the stack aligned 16B with or without the return addr?
+    call *%rax                      // Stack should be aligned 16B without the return addr?
     // result sign extension is handled in C code
     // prepare for artQuickGenericJniEndTrampoline call
     // (Thread*,  SP, result, result_f)
@@ -814,15 +814,18 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movq %rax, %rdx
     movq %xmm0, %rcx
     call PLT_SYMBOL(artQuickGenericJniEndTrampoline)
-    // tear down the alloca already
+
+    // Tear down the alloca.
     movq %rbp, %rsp
     CFI_DEF_CFA_REGISTER(rsp)
-    // Exceptions possible.
+
+    // Pending exceptions possible.
     // TODO: use cmpq, needs direct encoding because of gas bug
-    movq %gs:THREAD_EXCEPTION_OFFSET, %rbx
-    test %rbx, %rbx
-    jnz 2f
-    // Tear down the callee-save frame
+    movq %gs:THREAD_EXCEPTION_OFFSET, %rcx
+    test %rcx, %rcx
+    jnz .Lexception_in_native
+
+    // Tear down the callee-save frame.
     // Load FPRs.
     // movq %xmm0, 16(%rsp)         // doesn't make sense!!!
     movq 24(%rsp), %xmm1            // neither does this!!!
@@ -850,11 +853,13 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     // store into fpr, for when it's a fpr return...
     movq %rax, %xmm0
     ret
-1:
-    // tear down the _whole_ scratch space, assumes SIRT is empty, cookie not valid etc.
+.Lentry_error:
     movq %rbp, %rsp
-    CFI_DEF_CFA_REGISTER(rsp)
-2:  RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
+.Lexception_in_native:
+    CFI_REL_OFFSET(rsp,176)
+    // TODO: the SIRT contains the this pointer which is used by the debugger for exception
+    //       delivery.
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     DELIVER_PENDING_EXCEPTION
 END_FUNCTION art_quick_generic_jni_trampoline
 

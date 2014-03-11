@@ -1363,7 +1363,7 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
       sirt_number_of_references_++;
     }
     sirt_->SetNumberOfReferences(sirt_expected_refs_);
-
+    DCHECK_NE(sirt_expected_refs_, 0U);
     // Install Sirt.
     self->PushSirt(sirt_);
   }
@@ -1453,6 +1453,8 @@ extern "C" ssize_t artQuickGenericJniTrampoline(Thread* self, mirror::ArtMethod*
   // fix up managed-stack things in Thread
   self->SetTopOfStack(sp, 0);
 
+  self->VerifyStack();
+
   // start JNI, save the cookie
   uint32_t cookie;
   if (called->IsSynchronized()) {
@@ -1465,7 +1467,7 @@ extern "C" ssize_t artQuickGenericJniTrampoline(Thread* self, mirror::ArtMethod*
   } else {
     cookie = JniMethodStart(self);
   }
-  *(sp32-1) = cookie;
+  *(sp32 - 1) = cookie;
 
   // retrieve native code
   const void* nativeCode = called->GetNativeMethod();
@@ -1479,7 +1481,7 @@ extern "C" ssize_t artQuickGenericJniTrampoline(Thread* self, mirror::ArtMethod*
   *code_pointer = reinterpret_cast<uintptr_t>(nativeCode);
 
   // 5K reserved, window_size used.
-  return 5*1024 - window_size;
+  return (5 * KB) - window_size;
 }
 
 /*
@@ -1491,7 +1493,7 @@ extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self, mirror::ArtMet
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   uint32_t* sp32 = reinterpret_cast<uint32_t*>(sp);
   mirror::ArtMethod* called = *sp;
-  uint32_t cookie = *(sp32-1);
+  uint32_t cookie = *(sp32 - 1);
 
   MethodHelper mh(called);
   char return_shorty_char = mh.GetShorty()[0];
@@ -1502,7 +1504,7 @@ extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self, mirror::ArtMet
       ComputeGenericJniFrameSize fsc;
       fsc.ComputeSirtOffset();
       uint32_t offset = fsc.GetFirstSirtEntryOffset();
-      jobject tmp = reinterpret_cast<jobject>(reinterpret_cast<uint8_t*>(sp)-offset);
+      jobject tmp = reinterpret_cast<jobject>(reinterpret_cast<uint8_t*>(sp) - offset);
 
       return reinterpret_cast<uint64_t>(JniMethodEndWithReferenceSynchronized(result.l, cookie, tmp,
                                                                               self));
@@ -1514,7 +1516,7 @@ extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self, mirror::ArtMet
       ComputeGenericJniFrameSize fsc;
       fsc.ComputeSirtOffset();
       uint32_t offset = fsc.GetFirstSirtEntryOffset();
-      jobject tmp = reinterpret_cast<jobject>(reinterpret_cast<uint8_t*>(sp)-offset);
+      jobject tmp = reinterpret_cast<jobject>(reinterpret_cast<uint8_t*>(sp) - offset);
 
       JniMethodEndSynchronized(cookie, tmp, self);
     } else {
