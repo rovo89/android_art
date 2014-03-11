@@ -451,7 +451,6 @@ enum ArmOpcode {
   kThumb2MovImm16LST,  // Special purpose version for switch table use.
   kThumb2MovImm16HST,  // Special purpose version for switch table use.
   kThumb2LdmiaWB,    // ldmia  [111010011001[ rn[19..16] mask[15..0].
-  kThumb2SubsRRI12,  // setflags encoding.
   kThumb2OrrRRRs,    // orrs [111010100101] rn[19..16] [0000] rd[11..8] [0000] rm[3..0].
   kThumb2Push1,      // t3 encoding of push.
   kThumb2Pop1,       // t3 encoding of pop.
