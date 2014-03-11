@@ -24,6 +24,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "runtime.h"
+#include "sirt_ref-inl.h"
 #include "thread.h"
 #include "thread_list.h"
 #include "utils.h"

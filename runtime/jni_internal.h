@@ -25,7 +25,6 @@
 #include "object_callbacks.h"
 #include "reference_table.h"
 #include "runtime.h"
-#include "sirt_ref.h"
 
 #include <iosfwd>
 #include <string>
@@ -48,6 +47,7 @@ union JValue;
 class Libraries;
 class ParsedOptions;
 class ScopedObjectAccess;
+template<class T> class SirtRef;
 class Thread;
 
 void JniAbortF(const char* jni_function_name, const char* fmt, ...)
@@ -101,7 +101,8 @@ class JavaVMExt : public JavaVM {
   void DeleteWeakGlobalRef(Thread* self, jweak obj)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SweepJniWeakGlobals(IsMarkedCallback* callback, void* arg);
-  mirror::Object* DecodeWeakGlobal(Thread* self, IndirectRef ref);
+  mirror::Object* DecodeWeakGlobal(Thread* self, IndirectRef ref)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Runtime* runtime;
 

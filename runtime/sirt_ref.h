@@ -28,13 +28,8 @@ namespace art {
 template<class T>
 class SirtRef {
  public:
-  SirtRef(Thread* self, T* object) : self_(self), sirt_(object) {
-    self_->PushSirt(&sirt_);
-  }
-  ~SirtRef() {
-    StackIndirectReferenceTable* top_sirt = self_->PopSirt();
-    DCHECK_EQ(top_sirt, &sirt_);
-  }
+  SirtRef(Thread* self, T* object);
+  ~SirtRef();
 
   T& operator*() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *get();
@@ -47,11 +42,7 @@ class SirtRef {
   }
 
   // Returns the old reference.
-  T* reset(T* object = nullptr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    T* old_ref = get();
-    sirt_.SetReference(0, object);
-    return old_ref;
-  }
+  T* reset(T* object = nullptr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   Thread* const self_;

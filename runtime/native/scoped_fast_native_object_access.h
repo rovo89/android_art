@@ -80,8 +80,6 @@ class ScopedFastNativeObjectAccess {
       return NULL;
     }
 
-    VerifyObject(obj);
-
     DCHECK_NE((reinterpret_cast<uintptr_t>(obj) & 0xffff0000), 0xebad0000);
 
     IndirectReferenceTable& locals = Env()->locals;

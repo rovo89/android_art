@@ -33,12 +33,12 @@
 #include "reg_type_cache-inl.h"
 #include "register_line.h"
 #include "safe_map.h"
-#include "sirt_ref.h"
 #include "UniquePtr.h"
 
 namespace art {
 
 struct ReferenceMap2Visitor;
+template<class T> class SirtRef;
 
 namespace verifier {
 

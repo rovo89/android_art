@@ -21,6 +21,7 @@
 #include "method_verifier.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache.h"
+#include "sirt_ref-inl.h"
 
 namespace art {
 namespace verifier {
