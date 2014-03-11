@@ -50,11 +50,13 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
   }
   mirror::Object* obj;
   AllocationTimer alloc_timer(this, &obj);
-  size_t bytes_allocated;
-  obj = TryToAllocate<kInstrumented, false>(self, allocator, byte_count, &bytes_allocated);
+  size_t bytes_allocated, usable_size;
+  obj = TryToAllocate<kInstrumented, false>(self, allocator, byte_count, &bytes_allocated,
+                                            &usable_size);
   if (UNLIKELY(obj == nullptr)) {
     bool is_current_allocator = allocator == GetCurrentAllocator();
-    obj = AllocateInternalWithGc(self, allocator, byte_count, &bytes_allocated, &klass);
+    obj = AllocateInternalWithGc(self, allocator, byte_count, &bytes_allocated, &usable_size,
+                                 &klass);
     if (obj == nullptr) {
       bool after_is_current_allocator = allocator == GetCurrentAllocator();
       if (is_current_allocator && !after_is_current_allocator) {
@@ -64,13 +66,17 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
       return nullptr;
     }
   }
+  DCHECK_GT(bytes_allocated, 0u);
+  DCHECK_GT(usable_size, 0u);
   obj->SetClass(klass);
   if (kUseBrooksPointer) {
     obj->SetBrooksPointer(obj);
     obj->AssertSelfBrooksPointer();
   }
-  pre_fence_visitor(obj);
-  DCHECK_GT(bytes_allocated, 0u);
+  pre_fence_visitor(obj, usable_size);
+  if (kIsDebugBuild && klass != nullptr && Runtime::Current()->IsStarted()) {
+    CHECK_LE(obj->SizeOf(), usable_size);
+  }
   const size_t new_num_bytes_allocated =
       static_cast<size_t>(num_bytes_allocated_.FetchAndAdd(bytes_allocated)) + bytes_allocated;
   // TODO: Deprecate.
@@ -148,7 +154,8 @@ inline mirror::Object* Heap::AllocLargeObject(Thread* self, mirror::Class* klass
 
 template <const bool kInstrumented, const bool kGrow>
 inline mirror::Object* Heap::TryToAllocate(Thread* self, AllocatorType allocator_type,
-                                           size_t alloc_size, size_t* bytes_allocated) {
+                                           size_t alloc_size, size_t* bytes_allocated,
+                                           size_t* usable_size) {
   if (UNLIKELY(IsOutOfMemoryOnAllocation<kGrow>(allocator_type, alloc_size))) {
     return nullptr;
   }
@@ -160,35 +167,36 @@ inline mirror::Object* Heap::TryToAllocate(Thread* self, AllocatorType allocator
       ret = bump_pointer_space_->AllocNonvirtual(alloc_size);
       if (LIKELY(ret != nullptr)) {
         *bytes_allocated = alloc_size;
+        *usable_size = alloc_size;
       }
       break;
     }
     case kAllocatorTypeRosAlloc: {
       if (kInstrumented && UNLIKELY(running_on_valgrind_)) {
         // If running on valgrind, we should be using the instrumented path.
-        ret = rosalloc_space_->Alloc(self, alloc_size, bytes_allocated);
+        ret = rosalloc_space_->Alloc(self, alloc_size, bytes_allocated, usable_size);
       } else {
         DCHECK(!running_on_valgrind_);
-        ret = rosalloc_space_->AllocNonvirtual(self, alloc_size, bytes_allocated);
+        ret = rosalloc_space_->AllocNonvirtual(self, alloc_size, bytes_allocated, usable_size);
       }
       break;
     }
     case kAllocatorTypeDlMalloc: {
       if (kInstrumented && UNLIKELY(running_on_valgrind_)) {
         // If running on valgrind, we should be using the instrumented path.
-        ret = dlmalloc_space_->Alloc(self, alloc_size, bytes_allocated);
+        ret = dlmalloc_space_->Alloc(self, alloc_size, bytes_allocated, usable_size);
       } else {
         DCHECK(!running_on_valgrind_);
-        ret = dlmalloc_space_->AllocNonvirtual(self, alloc_size, bytes_allocated);
+        ret = dlmalloc_space_->AllocNonvirtual(self, alloc_size, bytes_allocated, usable_size);
       }
       break;
     }
     case kAllocatorTypeNonMoving: {
-      ret = non_moving_space_->Alloc(self, alloc_size, bytes_allocated);
+      ret = non_moving_space_->Alloc(self, alloc_size, bytes_allocated, usable_size);
       break;
     }
     case kAllocatorTypeLOS: {
-      ret = large_object_space_->Alloc(self, alloc_size, bytes_allocated);
+      ret = large_object_space_->Alloc(self, alloc_size, bytes_allocated, usable_size);
       // Note that the bump pointer spaces aren't necessarily next to
       // the other continuous spaces like the non-moving alloc space or
       // the zygote space.

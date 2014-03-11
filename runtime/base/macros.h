@@ -21,6 +21,15 @@
 
 #define GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
 
+// C++11 final and override keywords that were introduced in GCC version 4.7.
+#if GCC_VERSION >= 40700
+#define OVERRIDE override
+#define FINAL final
+#else
+#define OVERRIDE
+#define FINAL
+#endif
+
 // The COMPILE_ASSERT macro can be used to verify that a compile time
 // expression is true. For example, you could use it to verify the
 // size of a static array:

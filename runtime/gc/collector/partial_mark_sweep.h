@@ -26,7 +26,8 @@ namespace collector {
 
 class PartialMarkSweep : public MarkSweep {
  public:
-  virtual GcType GetGcType() const {
+  // Virtual as overridden by StickyMarkSweep.
+  virtual GcType GetGcType() const OVERRIDE {
     return kGcTypePartial;
   }
 
@@ -35,8 +36,9 @@ class PartialMarkSweep : public MarkSweep {
 
  protected:
   // Bind the live bits to the mark bits of bitmaps for spaces that aren't collected for partial
-  // collections, ie the Zygote space. Also mark this space is immune.
-  virtual void BindBitmaps() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  // collections, ie the Zygote space. Also mark this space is immune. Virtual as overridden by
+  // StickyMarkSweep.
+  virtual void BindBitmaps() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(PartialMarkSweep);

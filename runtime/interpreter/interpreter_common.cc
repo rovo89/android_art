@@ -197,7 +197,8 @@ bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
     }
     return false;
   }
-  Object* newArray = Array::Alloc<true>(self, arrayClass, length);
+  Object* newArray = Array::Alloc<true>(self, arrayClass, length, arrayClass->GetComponentSize(),
+                                        Runtime::Current()->GetHeap()->GetCurrentAllocator());
   if (UNLIKELY(newArray == NULL)) {
     DCHECK(self->IsExceptionPending());
     return false;

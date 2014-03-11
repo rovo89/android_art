@@ -72,7 +72,7 @@ static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaEle
   }
   gc::AllocatorType allocator = runtime->GetHeap()->GetCurrentNonMovingAllocator();
   mirror::Array* result = mirror::Array::Alloc<true>(soa.Self(), array_class, length,
-                                                     allocator);
+                                                     array_class->GetComponentSize(), allocator);
   return soa.AddLocalReference<jobject>(result);
 }
 

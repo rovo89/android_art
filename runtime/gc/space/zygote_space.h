@@ -30,7 +30,7 @@ class SpaceBitmap;
 namespace space {
 
 // An zygote space is a space which you cannot allocate into or free from.
-class ZygoteSpace : public ContinuousMemMapAllocSpace {
+class ZygoteSpace FINAL : public ContinuousMemMapAllocSpace {
  public:
   // Returns the remaining storage in the out_map field.
   static ZygoteSpace* Create(const std::string& name, MemMap* mem_map,
@@ -39,39 +39,39 @@ class ZygoteSpace : public ContinuousMemMapAllocSpace {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void Dump(std::ostream& os) const;
-  virtual SpaceType GetType() const {
+
+  SpaceType GetType() const OVERRIDE {
     return kSpaceTypeZygoteSpace;
   }
-  virtual ZygoteSpace* AsZygoteSpace() {
+
+  ZygoteSpace* AsZygoteSpace() OVERRIDE {
     return this;
   }
-  virtual mirror::Object* AllocWithGrowth(Thread* /*self*/, size_t /*num_bytes*/,
-                                          size_t* /*bytes_allocated*/) {
-    LOG(FATAL) << "Unimplemented";
-    return nullptr;
+
+  mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
+                        size_t* usable_size) OVERRIDE;
+
+  size_t AllocationSize(mirror::Object* obj, size_t* usable_size) OVERRIDE;
+
+  size_t Free(Thread* self, mirror::Object* ptr) OVERRIDE;
+
+  size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) OVERRIDE;
+
+  // ZygoteSpaces don't have thread local state.
+  void RevokeThreadLocalBuffers(art::Thread*) OVERRIDE {
   }
-  virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated) {
-    LOG(FATAL) << "Unimplemented";
-    return nullptr;
+  void RevokeAllThreadLocalBuffers() OVERRIDE {
   }
-  virtual size_t AllocationSize(mirror::Object* obj) {
-    LOG(FATAL) << "Unimplemented";
-    return 0;
-  }
-  virtual size_t Free(Thread* self, mirror::Object* ptr) {
-    LOG(FATAL) << "Unimplemented";
-    return 0;
-  }
-  virtual size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) {
-    LOG(FATAL) << "Unimplemented";
-    return 0;
-  }
-  virtual uint64_t GetBytesAllocated() {
+
+  uint64_t GetBytesAllocated() {
     return Size();
   }
-  virtual uint64_t GetObjectsAllocated() {
+
+  uint64_t GetObjectsAllocated() {
     return objects_allocated_;
   }
+
+  void Clear();
 
  protected:
   virtual accounting::SpaceBitmap::SweepCallback* GetSweepCallback() {

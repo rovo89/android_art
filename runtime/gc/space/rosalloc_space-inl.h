@@ -25,20 +25,32 @@ namespace art {
 namespace gc {
 namespace space {
 
-inline mirror::Object* RosAllocSpace::AllocNonvirtual(Thread* self, size_t num_bytes,
-                                                      size_t* bytes_allocated) {
-  mirror::Object* obj;
-  obj = AllocWithoutGrowthLocked(self, num_bytes, bytes_allocated);
-  // RosAlloc zeroes memory internally.
-  return obj;
+inline size_t RosAllocSpace::AllocationSizeNonvirtual(mirror::Object* obj, size_t* usable_size) {
+  void* obj_ptr = const_cast<void*>(reinterpret_cast<const void*>(obj));
+  // obj is a valid object. Use its class in the header to get the size.
+  // Don't use verification since the object may be dead if we are sweeping.
+  size_t size = obj->SizeOf<kVerifyNone>();
+  size_t size_by_size = rosalloc_->UsableSize(size);
+  if (kIsDebugBuild) {
+    size_t size_by_ptr = rosalloc_->UsableSize(obj_ptr);
+    if (size_by_size != size_by_ptr) {
+      LOG(INFO) << "Found a bad sized obj of size " << size
+                << " at " << std::hex << reinterpret_cast<intptr_t>(obj_ptr) << std::dec
+                << " size_by_size=" << size_by_size << " size_by_ptr=" << size_by_ptr;
+    }
+    DCHECK_EQ(size_by_size, size_by_ptr);
+  }
+  if (usable_size != nullptr) {
+    *usable_size = size_by_size;
+  }
+  return size_by_size;
 }
 
-inline mirror::Object* RosAllocSpace::AllocWithoutGrowthLocked(Thread* self, size_t num_bytes,
-                                                               size_t* bytes_allocated) {
+inline mirror::Object* RosAllocSpace::AllocCommon(Thread* self, size_t num_bytes,
+                                                  size_t* bytes_allocated, size_t* usable_size) {
   size_t rosalloc_size = 0;
   mirror::Object* result = reinterpret_cast<mirror::Object*>(
-      rosalloc_for_alloc_->Alloc(self, num_bytes,
-                                 &rosalloc_size));
+      rosalloc_for_alloc_->Alloc(self, num_bytes, &rosalloc_size));
   if (LIKELY(result != NULL)) {
     if (kDebugSpaces) {
       CHECK(Contains(result)) << "Allocation (" << reinterpret_cast<void*>(result)
@@ -46,6 +58,10 @@ inline mirror::Object* RosAllocSpace::AllocWithoutGrowthLocked(Thread* self, siz
     }
     DCHECK(bytes_allocated != NULL);
     *bytes_allocated = rosalloc_size;
+    DCHECK_EQ(rosalloc_size, rosalloc_->UsableSize(result));
+    if (usable_size != nullptr) {
+      *usable_size = rosalloc_size;
+    }
   }
   return result;
 }
