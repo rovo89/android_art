@@ -91,11 +91,14 @@ TEST_F(OatTest, WriteRead) {
   InstructionSet insn_set = kIsTargetBuild ? kThumb2 : kX86;
 
   InstructionSetFeatures insn_features;
-  verification_results_.reset(new VerificationResults);
+  compiler_options_.reset(new CompilerOptions);
+  verification_results_.reset(new VerificationResults(compiler_options_.get()));
   method_inliner_map_.reset(new DexFileToMethodInlinerMap);
-  callbacks_.Reset(verification_results_.get(), method_inliner_map_.get());
+  callbacks_.reset(new CompilerCallbacksImpl(verification_results_.get(),
+                                             method_inliner_map_.get()));
   timer_.reset(new CumulativeLogger("Compilation times"));
-  compiler_driver_.reset(new CompilerDriver(verification_results_.get(),
+  compiler_driver_.reset(new CompilerDriver(compiler_options_.get(),
+                                            verification_results_.get(),
                                             method_inliner_map_.get(),
                                             compiler_backend, insn_set,
                                             insn_features, false, NULL, 2, true, true,

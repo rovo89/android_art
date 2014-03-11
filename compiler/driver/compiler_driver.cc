@@ -293,14 +293,16 @@ extern "C" art::CompiledMethod* ArtCompileDEX(art::CompilerDriver& compiler,
                                               jobject class_loader,
                                               const art::DexFile& dex_file);
 
-CompilerDriver::CompilerDriver(VerificationResults* verification_results,
+CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
+                               VerificationResults* verification_results,
                                DexFileToMethodInlinerMap* method_inliner_map,
                                CompilerBackend::Kind compiler_backend_kind,
                                InstructionSet instruction_set,
                                InstructionSetFeatures instruction_set_features,
                                bool image, DescriptorSet* image_classes, size_t thread_count,
                                bool dump_stats, bool dump_passes, CumulativeLogger* timer)
-    : verification_results_(verification_results),
+    : compiler_options_(compiler_options),
+      verification_results_(verification_results),
       method_inliner_map_(method_inliner_map),
       compiler_backend_(CompilerBackend::Create(compiler_backend_kind)),
       instruction_set_(instruction_set),
@@ -325,6 +327,9 @@ CompilerDriver::CompilerDriver(VerificationResults* verification_results,
       dedupe_mapping_table_("dedupe mapping table"),
       dedupe_vmap_table_("dedupe vmap table"),
       dedupe_gc_map_("dedupe gc map") {
+  DCHECK(compiler_options_ != nullptr);
+  DCHECK(verification_results_ != nullptr);
+  DCHECK(method_inliner_map_ != nullptr);
 
   CHECK_PTHREAD_CALL(pthread_key_create, (&tls_key_, NULL), "compiler tls key");
 
@@ -1932,7 +1937,7 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {
     MethodReference method_ref(&dex_file, method_idx);
-    bool compile = VerificationResults::IsCandidateForCompilation(method_ref, access_flags);
+    bool compile = verification_results_->IsCandidateForCompilation(method_ref, access_flags);
 
     if (compile) {
       // NOTE: if compiler declines to compile this method, it will return NULL.
