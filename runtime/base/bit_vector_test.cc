@@ -119,4 +119,23 @@ TEST(BitVector, NoopAllocator) {
   EXPECT_EQ(4U, bv.NumSetBits(63));
 }
 
+TEST(BitVector, SetInitialBits) {
+  const uint32_t kWords = 2;
+
+  uint32_t bits[kWords];
+  memset(bits, 0, sizeof(bits));
+
+  BitVector bv(0U, false, Allocator::GetNoopAllocator(), kWords, bits);
+  bv.SetInitialBits(0u);
+  EXPECT_EQ(0u, bv.NumSetBits());
+  bv.SetInitialBits(1u);
+  EXPECT_EQ(1u, bv.NumSetBits());
+  bv.SetInitialBits(32u);
+  EXPECT_EQ(32u, bv.NumSetBits());
+  bv.SetInitialBits(63u);
+  EXPECT_EQ(63u, bv.NumSetBits());
+  bv.SetInitialBits(64u);
+  EXPECT_EQ(64u, bv.NumSetBits());
+}
+
 }  // namespace art
