@@ -573,33 +573,32 @@ static int NextInvokeInsnSP(CompilationUnit* cu, CallInfo* info, ThreadOffset tr
 static int NextStaticCallInsnSP(CompilationUnit* cu, CallInfo* info,
                                 int state,
                                 const MethodReference& target_method,
-                                uint32_t method_idx,
-                                uintptr_t unused, uintptr_t unused2,
-                                InvokeType unused3) {
+                                uint32_t unused, uintptr_t unused2,
+                                uintptr_t unused3, InvokeType unused4) {
   ThreadOffset trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeStaticTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
 
 static int NextDirectCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
                                 const MethodReference& target_method,
-                                uint32_t method_idx, uintptr_t unused,
-                                uintptr_t unused2, InvokeType unused3) {
+                                uint32_t unused, uintptr_t unused2,
+                                uintptr_t unused3, InvokeType unused4) {
   ThreadOffset trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeDirectTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
 
 static int NextSuperCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
                                const MethodReference& target_method,
-                               uint32_t method_idx, uintptr_t unused,
-                               uintptr_t unused2, InvokeType unused3) {
+                               uint32_t unused, uintptr_t unused2,
+                               uintptr_t unused3, InvokeType unused4) {
   ThreadOffset trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeSuperTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
 
 static int NextVCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
                            const MethodReference& target_method,
-                           uint32_t method_idx, uintptr_t unused,
-                           uintptr_t unused2, InvokeType unused3) {
+                           uint32_t unused, uintptr_t unused2,
+                           uintptr_t unused3, InvokeType unused4) {
   ThreadOffset trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeVirtualTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
@@ -607,9 +606,8 @@ static int NextVCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
 static int NextInterfaceCallInsnWithAccessCheck(CompilationUnit* cu,
                                                 CallInfo* info, int state,
                                                 const MethodReference& target_method,
-                                                uint32_t unused,
-                                                uintptr_t unused2, uintptr_t unused3,
-                                                InvokeType unused4) {
+                                                uint32_t unused, uintptr_t unused2,
+                                                uintptr_t unused3, InvokeType unused4) {
   ThreadOffset trampoline = QUICK_ENTRYPOINT_OFFSET(pInvokeInterfaceTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
@@ -1400,7 +1398,6 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
       return;
     }
   }
-  InvokeType original_type = info->type;  // avoiding mutation by ComputeInvokeInfo
   int call_state = 0;
   LIR* null_ck;
   LIR** p_null_ck = NULL;
@@ -1409,19 +1406,12 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
   // Explicit register usage
   LockCallTemps();
 
-  DexCompilationUnit* cUnit = mir_graph_->GetCurrentDexCompilationUnit();
-  MethodReference target_method(cUnit->GetDexFile(), info->index);
-  int vtable_idx;
-  uintptr_t direct_code;
-  uintptr_t direct_method;
+  const MirMethodLoweringInfo& method_info = mir_graph_->GetMethodLoweringInfo(info->mir);
+  cu_->compiler_driver->ProcessedInvoke(method_info.GetInvokeType(), method_info.StatsFlags());
+  InvokeType original_type = static_cast<InvokeType>(method_info.GetInvokeType());
+  info->type = static_cast<InvokeType>(method_info.GetSharpType());
+  bool fast_path = method_info.FastPath();
   bool skip_this;
-  bool fast_path =
-      cu_->compiler_driver->ComputeInvokeInfo(mir_graph_->GetCurrentDexCompilationUnit(),
-                                              current_dalvik_offset_,
-                                              true, true,
-                                              &info->type, &target_method,
-                                              &vtable_idx,
-                                              &direct_code, &direct_method) && !SLOW_INVOKE_PATH;
   if (info->type == kInterface) {
     next_call_insn = fast_path ? NextInterfaceCallInsn : NextInterfaceCallInsnWithAccessCheck;
     skip_this = fast_path;
@@ -1443,29 +1433,29 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
     next_call_insn = fast_path ? NextVCallInsn : NextVCallInsnSP;
     skip_this = fast_path;
   }
+  MethodReference target_method = method_info.GetTargetMethod();
   if (!info->is_range) {
     call_state = GenDalvikArgsNoRange(info, call_state, p_null_ck,
-                                      next_call_insn, target_method,
-                                      vtable_idx, direct_code, direct_method,
+                                      next_call_insn, target_method, method_info.VTableIndex(),
+                                      method_info.DirectCode(), method_info.DirectMethod(),
                                       original_type, skip_this);
   } else {
     call_state = GenDalvikArgsRange(info, call_state, p_null_ck,
-                                    next_call_insn, target_method, vtable_idx,
-                                    direct_code, direct_method, original_type,
-                                    skip_this);
+                                    next_call_insn, target_method, method_info.VTableIndex(),
+                                    method_info.DirectCode(), method_info.DirectMethod(),
+                                    original_type, skip_this);
   }
   // Finish up any of the call sequence not interleaved in arg loading
   while (call_state >= 0) {
-    call_state = next_call_insn(cu_, info, call_state, target_method,
-                                vtable_idx, direct_code, direct_method,
-                                original_type);
+    call_state = next_call_insn(cu_, info, call_state, target_method, method_info.VTableIndex(),
+                                method_info.DirectCode(), method_info.DirectMethod(), original_type);
   }
   LIR* call_inst;
   if (cu_->instruction_set != kX86) {
     call_inst = OpReg(kOpBlx, TargetReg(kInvokeTgt));
   } else {
     if (fast_path) {
-      if (direct_code == static_cast<unsigned int>(-1)) {
+      if (method_info.DirectCode() == static_cast<uintptr_t>(-1)) {
         // We can have the linker fixup a call relative.
         call_inst =
           reinterpret_cast<X86Mir2Lir*>(this)->CallWithLinkerFixup(
