@@ -1200,8 +1200,12 @@ void X86Mir2Lir::GenLongArith(RegLocation rl_dest, RegLocation rl_src1,
     // We need at least one of them to be a temporary.
     if (!(IsTemp(rl_src2.reg.GetReg()) && IsTemp(rl_src2.reg.GetHighReg()))) {
       rl_src1 = ForceTempWide(rl_src1);
+      GenLongRegOrMemOp(rl_src1, rl_src2, op);
+    } else {
+      GenLongRegOrMemOp(rl_src2, rl_src1, op);
+      StoreFinalValueWide(rl_dest, rl_src2);
+      return;
     }
-    GenLongRegOrMemOp(rl_src1, rl_src2, op);
   } else {
     // Need LHS to be the temp.
     rl_src1 = ForceTempWide(rl_src1);
