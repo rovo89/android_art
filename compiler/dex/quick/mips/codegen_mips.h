@@ -49,7 +49,7 @@ class MipsMir2Lir : public Mir2Lir {
     bool IsFpReg(int reg);
     bool SameRegType(int reg1, int reg2);
     int AllocTypedTemp(bool fp_hint, int reg_class);
-    RegStorage AllocTypedTempWide(bool fp_hint, int reg_class);
+    int AllocTypedTempPair(bool fp_hint, int reg_class);
     int S2d(int low_reg, int high_reg);
     int TargetReg(SpecialTargetRegister reg);
     int GetArgMappingToPhysicalReg(int arg_num);
