@@ -80,9 +80,19 @@ static void UpdateEntrypoints(mirror::ArtMethod* method, const void* quick_code,
     method->ClearIsPortableCompiled();
   }
   if (!method->IsResolutionMethod()) {
-    if (quick_code == GetQuickToInterpreterBridge()) {
-      DCHECK(portable_code == GetPortableToInterpreterBridge());
+    if (quick_code == GetQuickToInterpreterBridge() ||
+        (quick_code == GetQuickResolutionTrampoline(Runtime::Current()->GetClassLinker()) &&
+         Runtime::Current()->GetInstrumentation()->IsForcedInterpretOnly()
+         && !method->IsNative() && !method->IsProxyMethod())) {
+      if (kIsDebugBuild) {
+        if (quick_code == GetQuickToInterpreterBridge()) {
+          DCHECK(portable_code == GetPortableToInterpreterBridge());
+        } else if (quick_code == GetQuickResolutionTrampoline(Runtime::Current()->GetClassLinker())) {
+          DCHECK(portable_code == GetPortableResolutionTrampoline(Runtime::Current()->GetClassLinker()));
+        }
+      }
       DCHECK(!method->IsNative()) << PrettyMethod(method);
+      DCHECK(!method->IsProxyMethod()) << PrettyMethod(method);
       method->SetEntryPointFromInterpreter(art::interpreter::artInterpreterToInterpreterBridge);
     } else {
       method->SetEntryPointFromInterpreter(art::artInterpreterToCompiledCodeBridge);

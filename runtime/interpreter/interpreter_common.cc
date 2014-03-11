@@ -155,6 +155,11 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
     if (kIsDebugBuild && method->GetEntryPointFromInterpreter() == nullptr) {
       LOG(FATAL) << "Attempt to invoke non-executable method: " << PrettyMethod(method);
     }
+    if (kIsDebugBuild && Runtime::Current()->GetInstrumentation()->IsForcedInterpretOnly() &&
+        !method->IsNative() && !method->IsProxyMethod() &&
+        method->GetEntryPointFromInterpreter() == artInterpreterToCompiledCodeBridge) {
+      LOG(FATAL) << "Attempt to call compiled code when -Xint: " << PrettyMethod(method);
+    }
     (method->GetEntryPointFromInterpreter())(self, mh, code_item, new_shadow_frame, result);
   } else {
     UnstartedRuntimeInvoke(self, mh, code_item, new_shadow_frame, result, first_dest_reg);
