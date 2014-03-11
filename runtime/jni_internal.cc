@@ -3194,11 +3194,7 @@ mirror::Object* JavaVMExt::DecodeWeakGlobal(Thread* self, IndirectRef ref) {
   while (UNLIKELY(!allow_new_weak_globals_)) {
     weak_globals_add_condition_.WaitHoldingLocks(self);
   }
-  mirror::Object* obj = weak_globals_.Get(ref);
-  if (obj != kClearedJniWeakGlobal) {
-    VerifyObject(obj);
-  }
-  return obj;
+  return weak_globals_.Get(ref);
 }
 
 void JavaVMExt::DumpReferenceTables(std::ostream& os) {
