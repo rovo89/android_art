@@ -127,6 +127,8 @@ class GarbageCollector {
   // Called after the GC is finished. Done without mutators paused.
   virtual void FinishPhase() = 0;
 
+  void RevokeAllThreadLocalBuffers();
+
   static constexpr size_t kPauseBucketSize = 500;
   static constexpr size_t kPauseBucketCount = 32;
 
