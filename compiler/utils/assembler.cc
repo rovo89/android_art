@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "arm/assembler_arm.h"
+#include "arm64/assembler_arm64.h"
 #include "mips/assembler_mips.h"
 #include "x86/assembler_x86.h"
 #include "globals.h"
@@ -106,6 +107,8 @@ Assembler* Assembler::Create(InstructionSet instruction_set) {
     case kArm:
     case kThumb2:
       return new arm::ArmAssembler();
+    case kArm64:
+      return new arm64::Arm64Assembler();
     case kMips:
       return new mips::MipsAssembler();
     case kX86:

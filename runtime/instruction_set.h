@@ -27,6 +27,7 @@ namespace art {
 enum InstructionSet {
   kNone,
   kArm,
+  kArm64,
   kThumb2,
   kX86,
   kX86_64,
