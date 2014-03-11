@@ -468,7 +468,8 @@ std::string PrettySize(int64_t byte_count) {
       break;
     }
   }
-  return StringPrintf("%s%" PRId64 "%s", negative_str, byte_count / kBytesPerUnit[i], kUnitStrings[i]);
+  return StringPrintf("%s%" PRId64 "%s",
+                      negative_str, byte_count / kBytesPerUnit[i], kUnitStrings[i]);
 }
 
 std::string PrettyDuration(uint64_t nano_duration) {
@@ -1080,7 +1081,9 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix, bool inclu
       os << it->func_name;
     } else {
       if (current_method != nullptr && current_method->IsWithinQuickCode(it->pc)) {
-        os << JniLongName(current_method) << "+" << (it->pc - current_method->GetQuickOatCodeOffset());
+        const void* start_of_code = current_method->GetEntryPointFromQuickCompiledCode();
+        os << JniLongName(current_method) << "+"
+           << (it->pc - reinterpret_cast<uintptr_t>(start_of_code));
       } else {
         os << "???";
       }
@@ -1119,7 +1122,8 @@ void DumpKernelStack(std::ostream& os, pid_t tid, const char* prefix, bool inclu
   // which looking at the source appears to be the kernel's way of saying "that's all, folks!".
   kernel_stack_frames.pop_back();
   for (size_t i = 0; i < kernel_stack_frames.size(); ++i) {
-    // Turn "[<ffffffff8109156d>] futex_wait_queue_me+0xcd/0x110" into "futex_wait_queue_me+0xcd/0x110".
+    // Turn "[<ffffffff8109156d>] futex_wait_queue_me+0xcd/0x110"
+    // into "futex_wait_queue_me+0xcd/0x110".
     const char* text = kernel_stack_frames[i].c_str();
     const char* close_bracket = strchr(text, ']');
     if (close_bracket != NULL) {
