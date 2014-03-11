@@ -38,6 +38,7 @@
 #include "mirror/string.h"
 #include "object_utils.h"
 #include "os.h"
+#include "scoped_thread_state_change.h"
 #include "utf-inl.h"
 
 #if !defined(HAVE_POSIX_CLOCKS)
@@ -1052,7 +1053,12 @@ static std::string CleanMapName(const backtrace_map_t* map) {
   return map->name.substr(last_slash + 1);
 }
 
-void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix, bool include_count) {
+void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix, bool include_count,
+    mirror::ArtMethod* current_method) {
+  // We may be called from contexts where current_method is not null, so we must assert this.
+  if (current_method != nullptr) {
+    Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
+  }
   UniquePtr<Backtrace> backtrace(Backtrace::Create(BACKTRACE_CURRENT_PROCESS, tid));
   if (!backtrace->Unwind(0)) {
     os << prefix << "(backtrace::Unwind failed for thread " << tid << ")\n";
@@ -1073,7 +1079,11 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix, bool inclu
     if (!it->func_name.empty()) {
       os << it->func_name;
     } else {
-      os << "???";
+      if (current_method != nullptr && current_method->IsWithinQuickCode(it->pc)) {
+        os << JniLongName(current_method) << "+" << (it->pc - current_method->GetQuickOatCodeOffset());
+      } else {
+        os << "???";
+      }
     }
     if (it->func_offset != 0) {
       os << "+" << it->func_offset;
