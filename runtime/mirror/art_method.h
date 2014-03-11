@@ -20,7 +20,6 @@
 #include "class.h"
 #include "dex_file.h"
 #include "invoke_type.h"
-#include "locks.h"
 #include "modifiers.h"
 #include "object.h"
 #include "object_callbacks.h"

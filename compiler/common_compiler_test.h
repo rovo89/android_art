@@ -35,9 +35,9 @@ namespace art {
 // A signal handler called when have an illegal instruction.  We record the fact in
 // a global boolean and then increment the PC in the signal context to return to
 // the next instruction.  We know the instruction is an sdiv (4 bytes long).
-static void baddivideinst(int signo, siginfo *si, void *data) {
-  (void)signo;
-  (void)si;
+static inline void baddivideinst(int signo, siginfo *si, void *data) {
+  UNUSED(signo);
+  UNUSED(si);
   struct ucontext *uc = (struct ucontext *)data;
   struct sigcontext *sc = &uc->uc_mcontext;
   sc->arm_r0 = 0;     // set R0 to #0 to signal error
@@ -56,7 +56,7 @@ static void baddivideinst(int signo, siginfo *si, void *data) {
 
 extern "C" bool CheckForARMSDIVInstruction();
 
-static InstructionSetFeatures GuessInstructionFeatures() {
+static inline InstructionSetFeatures GuessInstructionFeatures() {
   InstructionSetFeatures f;
 
   // Uncomment this for processing of /proc/cpuinfo.
@@ -107,7 +107,7 @@ static InstructionSetFeatures GuessInstructionFeatures() {
 // Given a set of instruction features from the build, parse it.  The
 // input 'str' is a comma separated list of feature names.  Parse it and
 // return the InstructionSetFeatures object.
-static InstructionSetFeatures ParseFeatureList(std::string str) {
+static inline InstructionSetFeatures ParseFeatureList(std::string str) {
   InstructionSetFeatures result;
   typedef std::vector<std::string> FeatureList;
   FeatureList features;

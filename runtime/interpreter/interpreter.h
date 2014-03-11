@@ -17,8 +17,8 @@
 #ifndef ART_RUNTIME_INTERPRETER_INTERPRETER_H_
 #define ART_RUNTIME_INTERPRETER_INTERPRETER_H_
 
+#include "base/mutex.h"
 #include "dex_file.h"
-#include "locks.h"
 
 namespace art {
 namespace mirror {

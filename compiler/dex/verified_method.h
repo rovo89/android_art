@@ -19,6 +19,7 @@
 
 #include <vector>
 
+#include "base/mutex.h"
 #include "method_reference.h"
 #include "safe_map.h"
 

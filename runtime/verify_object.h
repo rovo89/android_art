@@ -17,9 +17,9 @@
 #ifndef ART_RUNTIME_VERIFY_OBJECT_H_
 #define ART_RUNTIME_VERIFY_OBJECT_H_
 
-#include "locks.h"
-
 #include <stdint.h>
+
+#include "base/macros.h"
 
 namespace art {
 
@@ -52,10 +52,10 @@ static constexpr VerifyObjectFlags kDefaultVerifyFlags = kVerifyNone;
 static constexpr VerifyObjectMode kVerifyObjectSupport =
     kDefaultVerifyFlags != 0 ? kVerifyObjectModeFast : kVerifyObjectModeDisabled;
 
-ALWAYS_INLINE inline void VerifyObject(mirror::Object* obj) NO_THREAD_SAFETY_ANALYSIS;
+void VerifyObject(mirror::Object* obj) ALWAYS_INLINE NO_THREAD_SAFETY_ANALYSIS;
 
 // Check that c.getClass() == c.getClass().getClass().
-ALWAYS_INLINE inline bool VerifyClassClass(mirror::Class* c) NO_THREAD_SAFETY_ANALYSIS;
+bool VerifyClassClass(mirror::Class* c) ALWAYS_INLINE NO_THREAD_SAFETY_ANALYSIS;
 
 }  // namespace art
 

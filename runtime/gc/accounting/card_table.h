@@ -17,8 +17,8 @@
 #ifndef ART_RUNTIME_GC_ACCOUNTING_CARD_TABLE_H_
 #define ART_RUNTIME_GC_ACCOUNTING_CARD_TABLE_H_
 
+#include "base/mutex.h"
 #include "globals.h"
-#include "locks.h"
 #include "mem_map.h"
 #include "UniquePtr.h"
 

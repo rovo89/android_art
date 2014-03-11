@@ -18,6 +18,7 @@
 #define ART_RUNTIME_UTF_H_
 
 #include "base/macros.h"
+#include "base/mutex.h"
 
 #include <stddef.h>
 #include <stdint.h>

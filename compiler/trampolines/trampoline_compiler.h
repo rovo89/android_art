@@ -20,7 +20,6 @@
 #include <stdint.h>
 #include <vector>
 
-#include "locks.h"
 #include "driver/compiler_driver.h"
 
 namespace art {

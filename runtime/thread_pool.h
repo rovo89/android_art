@@ -23,7 +23,6 @@
 #include "barrier.h"
 #include "base/mutex.h"
 #include "closure.h"
-#include "locks.h"
 #include "mem_map.h"
 
 namespace art {

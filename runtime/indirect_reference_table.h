@@ -23,6 +23,7 @@
 #include <string>
 
 #include "base/logging.h"
+#include "base/mutex.h"
 #include "object_callbacks.h"
 #include "offsets.h"
 

@@ -31,7 +31,6 @@
 #include "globals.h"
 #include "gtest/gtest.h"
 #include "jni.h"
-#include "locks.h"
 #include "object_callbacks.h"
 #include "offsets.h"
 #include "reference_queue.h"
@@ -684,7 +683,7 @@ class Heap {
   void RemoveSpace(space::Space* space) LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
   static void VerificationCallback(mirror::Object* obj, void* arg)
-      SHARED_LOCKS_REQUIRED(GlobalSychronization::heap_bitmap_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Swap the allocation stack with the live stack.
   void SwapStacks(Thread* self);

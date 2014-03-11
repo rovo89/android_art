@@ -20,6 +20,7 @@
 #include "base/casts.h"
 #include "base/logging.h"
 #include "base/macros.h"
+#include "stack_indirect_reference_table.h"
 #include "thread.h"
 
 namespace art {

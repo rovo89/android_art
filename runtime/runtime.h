@@ -33,7 +33,6 @@
 #include "instruction_set.h"
 #include "instrumentation.h"
 #include "jobject_comparator.h"
-#include "locks.h"
 #include "object_callbacks.h"
 #include "runtime_stats.h"
 #include "safe_map.h"
@@ -471,7 +470,7 @@ class Runtime {
   std::string fault_message_ GUARDED_BY(fault_message_lock_);
 
   // Method verifier set, used so that we can update their GC roots.
-  Mutex method_verifiers_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  Mutex method_verifier_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::set<verifier::MethodVerifier*> method_verifiers_;
 
   // A non-zero value indicates that a thread has been created but not yet initialized. Guarded by
