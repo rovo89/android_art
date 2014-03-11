@@ -184,7 +184,8 @@ ClassLinker::ClassLinker(InternTable* intern_table)
       portable_resolution_trampoline_(nullptr),
       quick_resolution_trampoline_(nullptr),
       portable_imt_conflict_trampoline_(nullptr),
-      quick_imt_conflict_trampoline_(nullptr) {
+      quick_imt_conflict_trampoline_(nullptr),
+      quick_generic_jni_trampoline_(nullptr) {
   CHECK_EQ(arraysize(class_roots_descriptors_), size_t(kClassRootsMax));
   memset(find_array_class_cache_, 0, kFindArrayCacheSize * sizeof(mirror::Class*));
 }
@@ -987,6 +988,7 @@ void ClassLinker::InitFromImage() {
   quick_resolution_trampoline_ = oat_file.GetOatHeader().GetQuickResolutionTrampoline();
   portable_imt_conflict_trampoline_ = oat_file.GetOatHeader().GetPortableImtConflictTrampoline();
   quick_imt_conflict_trampoline_ = oat_file.GetOatHeader().GetQuickImtConflictTrampoline();
+  quick_generic_jni_trampoline_ = oat_file.GetOatHeader().GetQuickGenericJniTrampoline();
   mirror::Object* dex_caches_object = space->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
   mirror::ObjectArray<mirror::DexCache>* dex_caches =
       dex_caches_object->AsObjectArray<mirror::DexCache>();
@@ -1623,7 +1625,8 @@ static bool NeedsInterpreter(mirror::ArtMethod* method, const void* quick_code,
                              const void* portable_code) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if ((quick_code == nullptr) && (portable_code == nullptr)) {
     // No code: need interpreter.
-    DCHECK(!method->IsNative());
+    // May return true for native code, in the case of generic JNI
+    // DCHECK(!method->IsNative());
     return true;
   }
 #ifdef ART_SEA_IR_MODE
@@ -1678,8 +1681,14 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
     bool have_portable_code = false;
     if (enter_interpreter) {
       // Use interpreter entry point.
+
+      // check whether the method is native, in which case it's generic JNI
       portable_code = GetPortableToInterpreterBridge();
-      quick_code = GetQuickToInterpreterBridge();
+      if (quick_code == nullptr && portable_code == nullptr && method->IsNative()) {
+        quick_code = GetQuickGenericJniTrampoline();
+      } else {
+        quick_code = GetQuickToInterpreterBridge();
+      }
     } else {
       if (portable_code == nullptr) {
         portable_code = GetPortableToQuickBridge();

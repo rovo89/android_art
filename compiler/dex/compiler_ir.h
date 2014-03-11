@@ -63,6 +63,7 @@ struct CompilationUnit {
   bool verbose;
   const CompilerBackend* compiler_backend;
   InstructionSet instruction_set;
+  bool target64;
 
   InstructionSetFeatures GetInstructionSetFeatures() {
     return compiler_driver->GetInstructionSetFeatures();

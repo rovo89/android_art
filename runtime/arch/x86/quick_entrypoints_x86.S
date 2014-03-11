@@ -1170,6 +1170,11 @@ DEFINE_FUNCTION art_quick_resolution_trampoline
     DELIVER_PENDING_EXCEPTION
 END_FUNCTION art_quick_resolution_trampoline
 
+DEFINE_FUNCTION art_quick_generic_jni_trampoline
+    int3
+    int3
+END_FUNCTION art_quick_generic_jni_trampoline
+
 DEFINE_FUNCTION art_quick_to_interpreter_bridge
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME   // save frame
     mov %esp, %edx                // remember SP

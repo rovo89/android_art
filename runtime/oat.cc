@@ -22,7 +22,7 @@
 namespace art {
 
 const uint8_t OatHeader::kOatMagic[] = { 'o', 'a', 't', '\n' };
-const uint8_t OatHeader::kOatVersion[] = { '0', '1', '5', '\0' };
+const uint8_t OatHeader::kOatVersion[] = { '0', '1', '6', '\0' };
 
 OatHeader::OatHeader() {
   memset(this, 0, sizeof(*this));
@@ -67,6 +67,7 @@ OatHeader::OatHeader(InstructionSet instruction_set,
   portable_imt_conflict_trampoline_offset_ = 0;
   portable_resolution_trampoline_offset_ = 0;
   portable_to_interpreter_bridge_offset_ = 0;
+  quick_generic_jni_trampoline_offset_ = 0;
   quick_imt_conflict_trampoline_offset_ = 0;
   quick_resolution_trampoline_offset_ = 0;
   quick_to_interpreter_bridge_offset_ = 0;
@@ -239,18 +240,37 @@ void OatHeader::SetPortableToInterpreterBridgeOffset(uint32_t offset) {
   UpdateChecksum(&portable_to_interpreter_bridge_offset_, sizeof(offset));
 }
 
+const void* OatHeader::GetQuickGenericJniTrampoline() const {
+  return reinterpret_cast<const uint8_t*>(this) + GetQuickGenericJniTrampolineOffset();
+}
+
+uint32_t OatHeader::GetQuickGenericJniTrampolineOffset() const {
+  DCHECK(IsValid());
+  CHECK_GE(quick_generic_jni_trampoline_offset_, portable_to_interpreter_bridge_offset_);
+  return quick_generic_jni_trampoline_offset_;
+}
+
+void OatHeader::SetQuickGenericJniTrampolineOffset(uint32_t offset) {
+  CHECK(offset == 0 || offset >= portable_to_interpreter_bridge_offset_);
+  DCHECK(IsValid());
+  DCHECK_EQ(quick_generic_jni_trampoline_offset_, 0U) << offset;
+
+  quick_generic_jni_trampoline_offset_ = offset;
+  UpdateChecksum(&quick_generic_jni_trampoline_offset_, sizeof(offset));
+}
+
 const void* OatHeader::GetQuickImtConflictTrampoline() const {
   return reinterpret_cast<const uint8_t*>(this) + GetQuickImtConflictTrampolineOffset();
 }
 
 uint32_t OatHeader::GetQuickImtConflictTrampolineOffset() const {
   DCHECK(IsValid());
-  CHECK_GE(quick_imt_conflict_trampoline_offset_, portable_to_interpreter_bridge_offset_);
+  CHECK_GE(quick_imt_conflict_trampoline_offset_, quick_generic_jni_trampoline_offset_);
   return quick_imt_conflict_trampoline_offset_;
 }
 
 void OatHeader::SetQuickImtConflictTrampolineOffset(uint32_t offset) {
-  CHECK(offset == 0 || offset >= portable_to_interpreter_bridge_offset_);
+  CHECK(offset == 0 || offset >= quick_generic_jni_trampoline_offset_);
   DCHECK(IsValid());
   DCHECK_EQ(quick_imt_conflict_trampoline_offset_, 0U) << offset;
 

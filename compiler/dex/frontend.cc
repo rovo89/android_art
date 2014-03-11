@@ -148,7 +148,9 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   cu.compiler_driver = &driver;
   cu.class_linker = class_linker;
   cu.instruction_set = driver.GetInstructionSet();
+  cu.target64 = cu.instruction_set == kX86_64;
   cu.compiler_backend = compiler_backend;
+  // TODO: x86_64 is not yet implemented.
   DCHECK((cu.instruction_set == kThumb2) ||
          (cu.instruction_set == kX86) ||
          (cu.instruction_set == kMips));
