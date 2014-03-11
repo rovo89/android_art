@@ -136,11 +136,11 @@ uint64_t MilliTime() {
 #if defined(HAVE_POSIX_CLOCKS)
   timespec now;
   clock_gettime(CLOCK_MONOTONIC, &now);
-  return static_cast<uint64_t>(now.tv_sec) * 1000LL + now.tv_nsec / 1000000LL;
+  return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000) + now.tv_nsec / UINT64_C(1000000);
 #else
   timeval now;
   gettimeofday(&now, NULL);
-  return static_cast<uint64_t>(now.tv_sec) * 1000LL + now.tv_usec / 1000LL;
+  return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000) + now.tv_usec / UINT64_C(1000);
 #endif
 }
 
@@ -148,11 +148,11 @@ uint64_t MicroTime() {
 #if defined(HAVE_POSIX_CLOCKS)
   timespec now;
   clock_gettime(CLOCK_MONOTONIC, &now);
-  return static_cast<uint64_t>(now.tv_sec) * 1000000LL + now.tv_nsec / 1000LL;
+  return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000) + now.tv_nsec / UINT64_C(1000);
 #else
   timeval now;
   gettimeofday(&now, NULL);
-  return static_cast<uint64_t>(now.tv_sec) * 1000000LL + now.tv_usec;
+  return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000) + now.tv_usec;
 #endif
 }
 
@@ -160,11 +160,11 @@ uint64_t NanoTime() {
 #if defined(HAVE_POSIX_CLOCKS)
   timespec now;
   clock_gettime(CLOCK_MONOTONIC, &now);
-  return static_cast<uint64_t>(now.tv_sec) * 1000000000LL + now.tv_nsec;
+  return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000000) + now.tv_nsec;
 #else
   timeval now;
   gettimeofday(&now, NULL);
-  return static_cast<uint64_t>(now.tv_sec) * 1000000000LL + now.tv_usec * 1000LL;
+  return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000000) + now.tv_usec * UINT64_C(1000);
 #endif
 }
 
@@ -172,7 +172,7 @@ uint64_t ThreadCpuNanoTime() {
 #if defined(HAVE_POSIX_CLOCKS)
   timespec now;
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now);
-  return static_cast<uint64_t>(now.tv_sec) * 1000000000LL + now.tv_nsec;
+  return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000000) + now.tv_nsec;
 #else
   UNIMPLEMENTED(WARNING);
   return -1;

@@ -918,7 +918,7 @@ TEST_F(ClassLinkerTest, StaticFields) {
   fh.ChangeField(s5);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimLong);
   EXPECT_EQ(0x1234567890abcdefLL, s5->GetLong(statics.get()));
-  s5->SetLong<false>(statics.get(), 0x34567890abcdef12LL);
+  s5->SetLong<false>(statics.get(), INT64_C(0x34567890abcdef12));
 
   mirror::ArtField* s6 = statics->FindStaticField("s6", "F");
   fh.ChangeField(s6);
@@ -946,7 +946,7 @@ TEST_F(ClassLinkerTest, StaticFields) {
   EXPECT_EQ('b', s2->GetChar(statics.get()));
   EXPECT_EQ(-535, s3->GetShort(statics.get()));
   EXPECT_EQ(2000000001, s4->GetInt(statics.get()));
-  EXPECT_EQ(0x34567890abcdef12LL, s5->GetLong(statics.get()));
+  EXPECT_EQ(INT64_C(0x34567890abcdef12), s5->GetLong(statics.get()));
   EXPECT_EQ(0.75, s6->GetFloat(statics.get()));
   EXPECT_EQ(16777219, s7->GetDouble(statics.get()));
   EXPECT_TRUE(s8->GetObject(statics.get())->AsString()->Equals("robot"));
