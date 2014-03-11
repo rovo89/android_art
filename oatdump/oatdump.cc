@@ -26,7 +26,6 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
-#include "compiler_callbacks.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
 #include "disassembler.h"
@@ -43,6 +42,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
+#include "noop_compiler_callbacks.h"
 #include "oat.h"
 #include "object_utils.h"
 #include "os.h"
@@ -1528,13 +1528,8 @@ static int oatdump(int argc, char** argv) {
   std::string boot_oat_option;
 
   // We are more like a compiler than a run-time. We don't want to execute code.
-  // TODO: Replace with NoopCompilerCallbacks.
-  struct OatDumpCompilerCallbacks : CompilerCallbacks {
-    virtual bool MethodVerified(verifier::MethodVerifier* /*verifier*/) { return true; }
-    virtual void ClassRejected(ClassReference /*ref*/) { }
-  } callbacks;
-  options.push_back(std::make_pair("compilercallbacks",
-                                   static_cast<CompilerCallbacks*>(&callbacks)));
+  NoopCompilerCallbacks callbacks;
+  options.push_back(std::make_pair("compilercallbacks", &callbacks));
 
   if (boot_image_filename != NULL) {
     boot_image_option += "-Ximage:";
