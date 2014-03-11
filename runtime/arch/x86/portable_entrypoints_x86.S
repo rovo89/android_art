@@ -52,16 +52,16 @@ DEFINE_FUNCTION art_portable_invoke_stub
     POP ebp                       // pop ebp
     mov 20(%esp), %ecx            // get result pointer
     cmpl LITERAL(68), 24(%esp)    // test if result type char == 'D'
-    je return_double_portable
+    je .Lreturn_double_portable
     cmpl LITERAL(70), 24(%esp)    // test if result type char == 'F'
-    je return_float_portable
+    je .Lreturn_float_portable
     mov %eax, (%ecx)              // store the result
     mov %edx, 4(%ecx)             // store the other half of the result
     ret
-return_double_portable:
+.Lreturn_double_portable:
     fstpl (%ecx)                  // store the floating point result as double
     ret
-return_float_portable:
+.Lreturn_float_portable:
     fstps (%ecx)                  // store the floating point result as float
     ret
 END_FUNCTION art_portable_invoke_stub
@@ -109,9 +109,9 @@ DEFINE_FUNCTION art_portable_resolution_trampoline
   CFI_RESTORE(%ebp)
   CFI_DEF_CFA(%esp, 4)
   testl %eax, %eax
-  jz  resolve_fail
+  jz  .Lresolve_fail
   jmp * %eax
-resolve_fail:                     // Resolution failed, return with exception pending.
+.Lresolve_fail:                   // Resolution failed, return with exception pending.
   ret
 END_FUNCTION art_portable_resolution_trampoline
 
