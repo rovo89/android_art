@@ -88,6 +88,7 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       num_non_special_compiler_temps_(0),
       max_available_non_special_compiler_temps_(0),
       punt_to_interpreter_(false),
+      merged_df_flags_(0u),
       ifield_lowering_infos_(arena, 0u),
       sfield_lowering_infos_(arena, 0u),
       method_lowering_infos_(arena, 0u) {
@@ -598,8 +599,10 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
   entry_block_->fall_through = cur_block->id;
   cur_block->predecessors->Insert(entry_block_->id);
 
-    /* Identify code range in try blocks and set up the empty catch blocks */
+  /* Identify code range in try blocks and set up the empty catch blocks */
   ProcessTryCatchBlocks();
+
+  uint64_t merged_df_flags = 0u;
 
   /* Parse all instructions and put them into containing basic blocks */
   while (code_ptr < code_end) {
@@ -617,6 +620,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
     int verify_flags = Instruction::VerifyFlagsOf(insn->dalvikInsn.opcode);
 
     uint64_t df_flags = oat_data_flow_attributes_[insn->dalvikInsn.opcode];
+    merged_df_flags |= df_flags;
 
     if (df_flags & DF_HAS_DEFS) {
       def_count_ += (df_flags & DF_A_WIDE) ? 2 : 1;
@@ -715,6 +719,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
       cur_block = next_block;
     }
   }
+  merged_df_flags_ = merged_df_flags;
 
   if (cu_->enable_debug & (1 << kDebugDumpCFG)) {
     DumpCFG("/sdcard/1_post_parse_cfg/", true);
