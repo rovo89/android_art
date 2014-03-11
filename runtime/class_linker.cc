@@ -1747,7 +1747,7 @@ static void LinkCode(const SirtRef<mirror::ArtMethod>& method, const OatFile::Oa
   bool enter_interpreter = NeedsInterpreter(method.get(),
                                             method->GetEntryPointFromQuickCompiledCode(),
                                             method->GetEntryPointFromPortableCompiledCode());
-  if (enter_interpreter) {
+  if (enter_interpreter && !method->IsNative()) {
     method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterBridge);
   } else {
     method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
@@ -1767,9 +1767,14 @@ static void LinkCode(const SirtRef<mirror::ArtMethod>& method, const OatFile::Oa
     method->SetEntryPointFromQuickCompiledCode(GetQuickResolutionTrampoline(runtime->GetClassLinker()));
     method->SetEntryPointFromPortableCompiledCode(GetPortableResolutionTrampoline(runtime->GetClassLinker()));
   } else if (enter_interpreter) {
-    // Set entry point from compiled code if there's no code or in interpreter only mode.
-    method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
-    method->SetEntryPointFromPortableCompiledCode(GetPortableToInterpreterBridge());
+    if (!method->IsNative()) {
+      // Set entry point from compiled code if there's no code or in interpreter only mode.
+      method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
+      method->SetEntryPointFromPortableCompiledCode(GetPortableToInterpreterBridge());
+    } else {
+      method->SetEntryPointFromQuickCompiledCode(GetQuickGenericJniTrampoline());
+      method->SetEntryPointFromPortableCompiledCode(GetPortableToQuickBridge());
+    }
   } else if (method->GetEntryPointFromPortableCompiledCode() != nullptr) {
     DCHECK(method->GetEntryPointFromQuickCompiledCode() == nullptr);
     have_portable_code = true;

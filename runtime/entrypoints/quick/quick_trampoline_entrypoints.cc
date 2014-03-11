@@ -57,9 +57,9 @@ class QuickArgumentVisitor {
   // | R1         |    arg1
   // | R0         |    padding
   // | Method*    |  <- sp
-  static constexpr bool kSoftFloatAbi = true;  // This is a soft float ABI.
-  static constexpr size_t kNumGprArgs = 3;  // 3 arguments passed in GPRs.
-  static constexpr size_t kNumFprArgs = 0;  // 0 arguments passed in FPRs.
+  static constexpr bool kQuickSoftFloatAbi = true;  // This is a soft float ABI.
+  static constexpr size_t kNumQuickGprArgs = 3;  // 3 arguments passed in GPRs.
+  static constexpr size_t kNumQuickFprArgs = 0;  // 0 arguments passed in FPRs.
   static constexpr size_t kBytesPerFprSpillLocation = 4;  // FPR spill size is 4 bytes.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 0;  // Offset of first FPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 8;  // Offset of first GPR arg.
@@ -83,9 +83,9 @@ class QuickArgumentVisitor {
   // | A2         |    arg2
   // | A1         |    arg1
   // | A0/Method* |  <- sp
-  static constexpr bool kSoftFloatAbi = true;  // This is a soft float ABI.
-  static constexpr size_t kNumGprArgs = 3;  // 3 arguments passed in GPRs.
-  static constexpr size_t kNumFprArgs = 0;  // 0 arguments passed in FPRs.
+  static constexpr bool kQuickSoftFloatAbi = true;  // This is a soft float ABI.
+  static constexpr size_t kNumQuickGprArgs = 3;  // 3 arguments passed in GPRs.
+  static constexpr size_t kNumQuickFprArgs = 0;  // 0 arguments passed in FPRs.
   static constexpr size_t kBytesPerFprSpillLocation = 4;  // FPR spill size is 4 bytes.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 0;  // Offset of first FPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 4;  // Offset of first GPR arg.
@@ -109,9 +109,9 @@ class QuickArgumentVisitor {
   // | EDX         |    arg2
   // | ECX         |    arg1
   // | EAX/Method* |  <- sp
-  static constexpr bool kSoftFloatAbi = true;  // This is a soft float ABI.
-  static constexpr size_t kNumGprArgs = 3;  // 3 arguments passed in GPRs.
-  static constexpr size_t kNumFprArgs = 0;  // 0 arguments passed in FPRs.
+  static constexpr bool kQuickSoftFloatAbi = true;  // This is a soft float ABI.
+  static constexpr size_t kNumQuickGprArgs = 3;  // 3 arguments passed in GPRs.
+  static constexpr size_t kNumQuickFprArgs = 0;  // 0 arguments passed in FPRs.
   static constexpr size_t kBytesPerFprSpillLocation = 8;  // FPR spill size is 8 bytes.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 0;  // Offset of first FPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 4;  // Offset of first GPR arg.
@@ -148,9 +148,9 @@ class QuickArgumentVisitor {
   // | XMM0            |    float arg 1
   // | Padding         |
   // | RDI/Method*     |  <- sp
-  static constexpr bool kSoftFloatAbi = false;  // This is a hard float ABI.
-  static constexpr size_t kNumGprArgs = 5;  // 3 arguments passed in GPRs.
-  static constexpr size_t kNumFprArgs = 8;  // 0 arguments passed in FPRs.
+  static constexpr bool kQuickSoftFloatAbi = false;  // This is a hard float ABI.
+  static constexpr size_t kNumQuickGprArgs = 5;  // 3 arguments passed in GPRs.
+  static constexpr size_t kNumQuickFprArgs = 8;  // 0 arguments passed in FPRs.
   static constexpr size_t kBytesPerFprSpillLocation = 8;  // FPR spill size is 8 bytes.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 16;  // Offset of first FPR arg.
   static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 80;  // Offset of first GPR arg.
@@ -211,15 +211,15 @@ class QuickArgumentVisitor {
   }
 
   byte* GetParamAddress() const {
-    if (!kSoftFloatAbi) {
+    if (!kQuickSoftFloatAbi) {
       Primitive::Type type = GetParamPrimitiveType();
       if (UNLIKELY((type == Primitive::kPrimDouble) || (type == Primitive::kPrimFloat))) {
-        if ((kNumFprArgs != 0) && (fpr_index_ + 1 < kNumFprArgs + 1)) {
+        if ((kNumQuickFprArgs != 0) && (fpr_index_ + 1 < kNumQuickFprArgs + 1)) {
           return fpr_args_ + (fpr_index_ * kBytesPerFprSpillLocation);
         }
       }
     }
-    if (gpr_index_ < kNumGprArgs) {
+    if (gpr_index_ < kNumQuickGprArgs) {
       return gpr_args_ + GprIndexToGprOffset(gpr_index_);
     }
     return stack_args_ + (stack_index_ * kBytesStackArgLocation);
@@ -257,7 +257,7 @@ class QuickArgumentVisitor {
       cur_type_ = Primitive::kPrimNot;
       is_split_long_or_double_ = false;
       Visit();
-      if (kNumGprArgs > 0) {
+      if (kNumQuickGprArgs > 0) {
         gpr_index_++;
       } else {
         stack_index_++;
@@ -274,7 +274,7 @@ class QuickArgumentVisitor {
         case Primitive::kPrimInt:
           is_split_long_or_double_ = false;
           Visit();
-          if (gpr_index_ < kNumGprArgs) {
+          if (gpr_index_ < kNumQuickGprArgs) {
             gpr_index_++;
           } else {
             stack_index_++;
@@ -283,14 +283,14 @@ class QuickArgumentVisitor {
         case Primitive::kPrimFloat:
           is_split_long_or_double_ = false;
           Visit();
-          if (kSoftFloatAbi) {
-            if (gpr_index_ < kNumGprArgs) {
+          if (kQuickSoftFloatAbi) {
+            if (gpr_index_ < kNumQuickGprArgs) {
               gpr_index_++;
             } else {
               stack_index_++;
             }
           } else {
-            if ((kNumFprArgs != 0) && (fpr_index_ + 1 < kNumFprArgs + 1)) {
+            if ((kNumQuickFprArgs != 0) && (fpr_index_ + 1 < kNumQuickFprArgs + 1)) {
               fpr_index_++;
             } else {
               stack_index_++;
@@ -299,14 +299,14 @@ class QuickArgumentVisitor {
           break;
         case Primitive::kPrimDouble:
         case Primitive::kPrimLong:
-          if (kSoftFloatAbi || (cur_type_ == Primitive::kPrimLong)) {
+          if (kQuickSoftFloatAbi || (cur_type_ == Primitive::kPrimLong)) {
             is_split_long_or_double_ = (kBytesPerGprSpillLocation == 4) &&
-                ((gpr_index_ + 1) == kNumGprArgs);
+                ((gpr_index_ + 1) == kNumQuickGprArgs);
             Visit();
-            if (gpr_index_ < kNumGprArgs) {
+            if (gpr_index_ < kNumQuickGprArgs) {
               gpr_index_++;
               if (kBytesPerGprSpillLocation == 4) {
-                if (gpr_index_ < kNumGprArgs) {
+                if (gpr_index_ < kNumQuickGprArgs) {
                   gpr_index_++;
                 } else {
                   stack_index_++;
@@ -322,12 +322,12 @@ class QuickArgumentVisitor {
             }
           } else {
             is_split_long_or_double_ = (kBytesPerFprSpillLocation == 4) &&
-                ((fpr_index_ + 1) == kNumFprArgs);
+                ((fpr_index_ + 1) == kNumQuickFprArgs);
             Visit();
-            if ((kNumFprArgs != 0) && (fpr_index_ + 1 < kNumFprArgs + 1)) {
+            if ((kNumQuickFprArgs != 0) && (fpr_index_ + 1 < kNumQuickFprArgs + 1)) {
               fpr_index_++;
               if (kBytesPerFprSpillLocation == 4) {
-                if ((kNumFprArgs != 0) && (fpr_index_ + 1 < kNumFprArgs + 1)) {
+                if ((kNumQuickFprArgs != 0) && (fpr_index_ + 1 < kNumQuickFprArgs + 1)) {
                   fpr_index_++;
                 } else {
                   stack_index_++;
@@ -352,14 +352,14 @@ class QuickArgumentVisitor {
  private:
   static size_t StackArgumentStartFromShorty(bool is_static, const char* shorty,
                                              uint32_t shorty_len) {
-    if (kSoftFloatAbi) {
-      CHECK_EQ(kNumFprArgs, 0U);
-      return (kNumGprArgs * kBytesPerGprSpillLocation) + kBytesPerGprSpillLocation /* ArtMethod* */;
+    if (kQuickSoftFloatAbi) {
+      CHECK_EQ(kNumQuickFprArgs, 0U);
+      return (kNumQuickGprArgs * kBytesPerGprSpillLocation) + kBytesPerGprSpillLocation /* ArtMethod* */;
     } else {
       size_t offset = kBytesPerGprSpillLocation;  // Skip Method*.
       size_t gprs_seen = 0;
       size_t fprs_seen = 0;
-      if (!is_static && (gprs_seen < kNumGprArgs)) {
+      if (!is_static && (gprs_seen < kNumQuickGprArgs)) {
         gprs_seen++;
         offset += kBytesStackArgLocation;
       }
@@ -371,34 +371,34 @@ class QuickArgumentVisitor {
           case 'S':
           case 'I':
           case 'L':
-            if (gprs_seen < kNumGprArgs) {
+            if (gprs_seen < kNumQuickGprArgs) {
               gprs_seen++;
               offset += kBytesStackArgLocation;
             }
             break;
           case 'J':
-            if (gprs_seen < kNumGprArgs) {
+            if (gprs_seen < kNumQuickGprArgs) {
               gprs_seen++;
               offset += 2 * kBytesStackArgLocation;
               if (kBytesPerGprSpillLocation == 4) {
-                if (gprs_seen < kNumGprArgs) {
+                if (gprs_seen < kNumQuickGprArgs) {
                   gprs_seen++;
                 }
               }
             }
             break;
           case 'F':
-            if ((kNumFprArgs != 0) && (fprs_seen + 1 < kNumFprArgs + 1)) {
+            if ((kNumQuickFprArgs != 0) && (fprs_seen + 1 < kNumQuickFprArgs + 1)) {
               fprs_seen++;
               offset += kBytesStackArgLocation;
             }
             break;
           case 'D':
-            if ((kNumFprArgs != 0) && (fprs_seen + 1 < kNumFprArgs + 1)) {
+            if ((kNumQuickFprArgs != 0) && (fprs_seen + 1 < kNumQuickFprArgs + 1)) {
               fprs_seen++;
               offset += 2 * kBytesStackArgLocation;
               if (kBytesPerFprSpillLocation == 4) {
-                if ((kNumFprArgs != 0) && (fprs_seen + 1 < kNumFprArgs + 1)) {
+                if ((kNumQuickFprArgs != 0) && (fprs_seen + 1 < kNumQuickFprArgs + 1)) {
                   fprs_seen++;
                 }
               }
@@ -428,13 +428,13 @@ class QuickArgumentVisitor {
 };
 
 // Visits arguments on the stack placing them into the shadow frame.
-class BuildQuickShadowFrameVisitor : public QuickArgumentVisitor {
+class BuildQuickShadowFrameVisitor FINAL : public QuickArgumentVisitor {
  public:
   BuildQuickShadowFrameVisitor(mirror::ArtMethod** sp, bool is_static, const char* shorty,
                                uint32_t shorty_len, ShadowFrame* sf, size_t first_arg_reg) :
     QuickArgumentVisitor(sp, is_static, shorty, shorty_len), sf_(sf), cur_reg_(first_arg_reg) {}
 
-  virtual void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE {
     Primitive::Type type = GetParamPrimitiveType();
     switch (type) {
       case Primitive::kPrimLong:  // Fall-through.
@@ -525,14 +525,14 @@ extern "C" uint64_t artQuickToInterpreterBridge(mirror::ArtMethod* method, Threa
 
 // Visits arguments on the stack placing them into the args vector, Object* arguments are converted
 // to jobjects.
-class BuildQuickArgumentVisitor : public QuickArgumentVisitor {
+class BuildQuickArgumentVisitor FINAL : public QuickArgumentVisitor {
  public:
   BuildQuickArgumentVisitor(mirror::ArtMethod** sp, bool is_static, const char* shorty,
                             uint32_t shorty_len, ScopedObjectAccessUnchecked* soa,
                             std::vector<jvalue>* args) :
     QuickArgumentVisitor(sp, is_static, shorty, shorty_len), soa_(soa), args_(args) {}
 
-  virtual void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE {
     jvalue val;
     Primitive::Type type = GetParamPrimitiveType();
     switch (type) {
@@ -638,13 +638,13 @@ extern "C" uint64_t artQuickProxyInvokeHandler(mirror::ArtMethod* proxy_method,
 
 // Read object references held in arguments from quick frames and place in a JNI local references,
 // so they don't get garbage collected.
-class RememberForGcArgumentVisitor : public QuickArgumentVisitor {
+class RememberForGcArgumentVisitor FINAL : public QuickArgumentVisitor {
  public:
   RememberForGcArgumentVisitor(mirror::ArtMethod** sp, bool is_static, const char* shorty,
                                uint32_t shorty_len, ScopedObjectAccessUnchecked* soa) :
     QuickArgumentVisitor(sp, is_static, shorty, shorty_len), soa_(soa) {}
 
-  virtual void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE {
     if (IsParamAReference()) {
       StackReference<mirror::Object>* stack_ref =
           reinterpret_cast<StackReference<mirror::Object>*>(GetParamAddress());
@@ -671,14 +671,14 @@ class RememberForGcArgumentVisitor : public QuickArgumentVisitor {
 // Lazily resolve a method for quick. Called by stub code.
 extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
                                                     mirror::Object* receiver,
-                                                    Thread* thread, mirror::ArtMethod** sp)
+                                                    Thread* self, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  FinishCalleeSaveFrameSetup(thread, sp, Runtime::kRefsAndArgs);
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);
   // Start new JNI local reference state
-  JNIEnvExt* env = thread->GetJniEnv();
+  JNIEnvExt* env = self->GetJniEnv();
   ScopedObjectAccessUnchecked soa(env);
   ScopedJniEnvLocalRefState env_state(env);
-  const char* old_cause = thread->StartAssertNoThreadSuspension("Quick method resolution set up");
+  const char* old_cause = self->StartAssertNoThreadSuspension("Quick method resolution set up");
 
   // Compute details about the called method (avoid GCs)
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
@@ -757,7 +757,7 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
       dex_file->GetMethodShorty(dex_file->GetMethodId(dex_method_idx), &shorty_len);
   RememberForGcArgumentVisitor visitor(sp, invoke_type == kStatic, shorty, shorty_len, &soa);
   visitor.VisitArguments();
-  thread->EndAssertNoThreadSuspension(old_cause);
+  self->EndAssertNoThreadSuspension(old_cause);
   bool virtual_or_interface = invoke_type == kVirtual || invoke_type == kInterface;
   // Resolve method filling in dex cache.
   if (called->IsRuntimeMethod()) {
@@ -766,7 +766,7 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
     receiver = sirt_receiver.get();
   }
   const void* code = NULL;
-  if (LIKELY(!thread->IsExceptionPending())) {
+  if (LIKELY(!self->IsExceptionPending())) {
     // Incompatible class change should have been handled in resolve method.
     CHECK(!called->CheckIncompatibleClassChange(invoke_type))
         << PrettyMethod(called) << " " << invoke_type;
@@ -812,7 +812,7 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
       DCHECK(called_class->IsErroneous());
     }
   }
-  CHECK_EQ(code == NULL, thread->IsExceptionPending());
+  CHECK_EQ(code == NULL, self->IsExceptionPending());
   // Fixup any locally saved objects may have moved during a GC.
   visitor.FixupReferences();
   // Place called method in callee-save frame to be placed as first argument to quick method.
@@ -820,13 +820,375 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
   return code;
 }
 
-extern "C" const void* artQuickGenericJniTrampoline(mirror::ArtMethod* called,
-                                                    mirror::Object* receiver,
-                                                    Thread* thread, mirror::ArtMethod** sp)
+// Visits arguments on the stack placing them into a region lower down the stack for the benefit
+// of transitioning into native code.
+class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
+#if defined(__arm__)
+  // TODO: These are all dummy values!
+  static constexpr bool kNativeSoftFloatAbi = false;  // This is a hard float ABI.
+  static constexpr size_t kNumNativeGprArgs = 3;  // 3 arguments passed in GPRs.
+  static constexpr size_t kNumNativeFprArgs = 0;  // 0 arguments passed in FPRs.
+
+  static constexpr size_t kGprStackOffset = 4336;
+  static constexpr size_t kFprStackOffset = 4336 - 6*8;
+  static constexpr size_t kCallStackStackOffset = 4336 - 112;
+
+  static constexpr size_t kRegistersNeededForLong = 2;
+  static constexpr size_t kRegistersNeededForDouble = 2;
+#elif defined(__mips__)
+  // TODO: These are all dummy values!
+  static constexpr bool kNativeSoftFloatAbi = true;  // This is a hard float ABI.
+  static constexpr size_t kNumNativeGprArgs = 0;  // 6 arguments passed in GPRs.
+  static constexpr size_t kNumNativeFprArgs = 0;  // 8 arguments passed in FPRs.
+
+  // update these
+  static constexpr size_t kGprStackOffset = 4336;
+  static constexpr size_t kFprStackOffset = 4336 - 6*8;
+  static constexpr size_t kCallStackStackOffset = 4336 - 112;
+
+  static constexpr size_t kRegistersNeededForLong = 2;
+  static constexpr size_t kRegistersNeededForDouble = 2;
+#elif defined(__i386__)
+  // TODO: Check these!
+  static constexpr bool kNativeSoftFloatAbi = true;  // This is a soft float ABI.
+  static constexpr size_t kNumNativeGprArgs = 0;  // 6 arguments passed in GPRs.
+  static constexpr size_t kNumNativeFprArgs = 0;  // 8 arguments passed in FPRs.
+
+  // update these
+  static constexpr size_t kGprStackOffset = 4336;
+  static constexpr size_t kFprStackOffset = 4336 - 6*8;
+  static constexpr size_t kCallStackStackOffset = 4336 - 112;
+
+  static constexpr size_t kRegistersNeededForLong = 2;
+  static constexpr size_t kRegistersNeededForDouble = 2;
+#elif defined(__x86_64__)
+  static constexpr bool kNativeSoftFloatAbi = false;  // This is a hard float ABI.
+  static constexpr size_t kNumNativeGprArgs = 6;  // 6 arguments passed in GPRs.
+  static constexpr size_t kNumNativeFprArgs = 8;  // 8 arguments passed in FPRs.
+
+  static constexpr size_t kGprStackOffset = 4336;
+  static constexpr size_t kFprStackOffset = 4336 - 6*8;
+  static constexpr size_t kCallStackStackOffset = 4336 - 112;
+
+  static constexpr size_t kRegistersNeededForLong = 1;
+  static constexpr size_t kRegistersNeededForDouble = 1;
+#else
+#error "Unsupported architecture"
+#endif
+
+
+ public:
+  BuildGenericJniFrameVisitor(mirror::ArtMethod** sp, bool is_static, const char* shorty,
+                              uint32_t shorty_len, Thread* self) :
+      QuickArgumentVisitor(sp, is_static, shorty, shorty_len) {
+    // size of cookie plus padding
+    uint8_t* sp8 = reinterpret_cast<uint8_t*>(sp);
+    top_of_sirt_ =  sp8 - 8;
+    cur_sirt_entry_ = reinterpret_cast<StackReference<mirror::Object>*>(top_of_sirt_) - 1;
+    sirt_number_of_references_ = 0;
+    gpr_index_ = kNumNativeGprArgs;
+    fpr_index_ = kNumNativeFprArgs;
+
+    cur_gpr_reg_ = reinterpret_cast<uintptr_t*>(sp8 - kGprStackOffset);
+    cur_fpr_reg_ = reinterpret_cast<uint32_t*>(sp8 - kFprStackOffset);
+    cur_stack_arg_ = reinterpret_cast<uintptr_t*>(sp8 - kCallStackStackOffset);
+
+    // jni environment is always first argument
+    PushPointer(self->GetJniEnv());
+
+    if (is_static) {
+      PushArgumentInSirt((*sp)->GetDeclaringClass());
+    }
+  }
+
+  void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE {
+    Primitive::Type type = GetParamPrimitiveType();
+    switch (type) {
+      case Primitive::kPrimLong: {
+        jlong long_arg;
+        if (IsSplitLongOrDouble()) {
+          long_arg = ReadSplitLongParam();
+        } else {
+          long_arg = *reinterpret_cast<jlong*>(GetParamAddress());
+        }
+        PushLongArgument(long_arg);
+        break;
+      }
+      case Primitive::kPrimDouble: {
+        uint64_t double_arg;
+        if (IsSplitLongOrDouble()) {
+          // Read into union so that we don't case to a double.
+          double_arg = ReadSplitLongParam();
+        } else {
+          double_arg = *reinterpret_cast<uint64_t*>(GetParamAddress());
+        }
+        PushDoubleArgument(double_arg);
+        break;
+      }
+      case Primitive::kPrimNot: {
+        StackReference<mirror::Object>* stack_ref =
+            reinterpret_cast<StackReference<mirror::Object>*>(GetParamAddress());
+        PushArgumentInSirt(stack_ref->AsMirrorPtr());
+        break;
+      }
+      case Primitive::kPrimFloat:
+        PushFloatArgument(*reinterpret_cast<int32_t*>(GetParamAddress()));
+        break;
+      case Primitive::kPrimBoolean:  // Fall-through.
+      case Primitive::kPrimByte:     // Fall-through.
+      case Primitive::kPrimChar:     // Fall-through.
+      case Primitive::kPrimShort:    // Fall-through.
+      case Primitive::kPrimInt:      // Fall-through.
+        PushIntArgument(*reinterpret_cast<jint*>(GetParamAddress()));
+        break;
+      case Primitive::kPrimVoid:
+        LOG(FATAL) << "UNREACHABLE";
+        break;
+    }
+  }
+
+  void FinalizeSirt(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (!IsAligned<8>(StackIndirectReferenceTable::SizeOf(sirt_number_of_references_))) {
+      sirt_number_of_references_++;
+      *cur_sirt_entry_ = StackReference<mirror::Object>();
+      cur_sirt_entry_--;
+    }
+    CHECK(IsAligned<8>(StackIndirectReferenceTable::SizeOf(sirt_number_of_references_)));
+    StackIndirectReferenceTable* sirt = reinterpret_cast<StackIndirectReferenceTable*>(
+        top_of_sirt_ - StackIndirectReferenceTable::SizeOf(sirt_number_of_references_));
+
+    sirt->SetNumberOfReferences(sirt_number_of_references_);
+    self->PushSirt(sirt);
+  }
+
+  jobject GetFirstSirtEntry() {
+    return reinterpret_cast<jobject>(reinterpret_cast<StackReference<mirror::Object>*>(top_of_sirt_) - 1);
+  }
+
+ private:
+  void PushArgumentInSirt(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // Do something to push into the SIRT.
+    uintptr_t sirt_or_null;
+    if (obj != nullptr) {
+      sirt_number_of_references_++;
+      *cur_sirt_entry_ = StackReference<mirror::Object>::FromMirrorPtr(obj);
+      sirt_or_null = reinterpret_cast<uintptr_t>(cur_sirt_entry_);
+      cur_sirt_entry_--;
+    } else {
+      sirt_or_null = reinterpret_cast<uintptr_t>(nullptr);
+    }
+    // Push the GPR or stack arg.
+    if (gpr_index_ > 0) {
+      *cur_gpr_reg_ = sirt_or_null;
+      cur_gpr_reg_++;
+      gpr_index_--;
+    } else {
+      *cur_stack_arg_ = sirt_or_null;
+      cur_stack_arg_++;
+    }
+  }
+
+  void PushPointer(void* val) {
+    if (gpr_index_ > 0) {
+      *cur_gpr_reg_ = reinterpret_cast<uintptr_t>(val);
+      cur_gpr_reg_++;
+      gpr_index_--;
+    } else {
+      *cur_stack_arg_ = reinterpret_cast<uintptr_t>(val);
+      cur_stack_arg_++;
+    }
+  }
+
+  void PushIntArgument(jint val) {
+    if (gpr_index_ > 0) {
+      *cur_gpr_reg_ = val;
+      cur_gpr_reg_++;
+      gpr_index_--;
+    } else {
+      *cur_stack_arg_ = val;
+      cur_stack_arg_++;
+    }
+  }
+
+  void PushLongArgument(jlong val) {
+    // This is an ugly hack for the following problem:
+    //  Assume odd number of 32b registers. Then having exactly kRegsNeeded left needs to spill!
+    if (gpr_index_ >= kRegistersNeededForLong + (kNumNativeGprArgs % kRegistersNeededForLong)) {
+      if (kRegistersNeededForLong > 1 && ((kNumNativeGprArgs - gpr_index_) & 1) == 1) {
+        // Pad.
+        gpr_index_--;
+        cur_gpr_reg_++;
+      }
+      uint64_t* tmp = reinterpret_cast<uint64_t*>(cur_gpr_reg_);
+      *tmp = val;
+      cur_gpr_reg_ += kRegistersNeededForLong;
+      gpr_index_ -= kRegistersNeededForLong;
+    } else {
+      uint64_t* tmp = reinterpret_cast<uint64_t*>(cur_stack_arg_);
+      *tmp = val;
+      cur_stack_arg_ += kRegistersNeededForLong;
+
+      gpr_index_ = 0;                   // can't use GPRs anymore
+    }
+  }
+
+  void PushFloatArgument(int32_t val) {
+    if (kNativeSoftFloatAbi) {
+      PushIntArgument(val);
+    } else {
+      if (fpr_index_ > 0) {
+        *cur_fpr_reg_ = val;
+        cur_fpr_reg_++;
+        if (kRegistersNeededForDouble == 1) {
+          // will pop 64 bits from the stack
+          // TODO: extend/clear bits???
+          cur_fpr_reg_++;
+        }
+        fpr_index_--;
+      } else {
+        // TODO: Check ABI for floats.
+        *cur_stack_arg_ = val;
+        cur_stack_arg_++;
+      }
+    }
+  }
+
+  void PushDoubleArgument(uint64_t val) {
+    // See PushLongArgument for explanation
+    if (fpr_index_ >= kRegistersNeededForDouble + (kNumNativeFprArgs % kRegistersNeededForDouble)) {
+      if (kRegistersNeededForDouble > 1 && ((kNumNativeFprArgs - fpr_index_) & 1) == 1) {
+        // Pad.
+        fpr_index_--;
+        cur_fpr_reg_++;
+      }
+      uint64_t* tmp = reinterpret_cast<uint64_t*>(cur_fpr_reg_);
+      *tmp = val;
+      // TODO: the whole thing doesn't make sense if we take uint32_t*...
+      cur_fpr_reg_ += 2;        // kRegistersNeededForDouble;
+      fpr_index_ -= kRegistersNeededForDouble;
+    } else {
+      if (!IsAligned<8>(cur_stack_arg_)) {
+        cur_stack_arg_++;  // Pad.
+      }
+      uint64_t* tmp = reinterpret_cast<uint64_t*>(cur_stack_arg_);
+      *tmp = val;
+      cur_stack_arg_ += kRegistersNeededForDouble;
+
+      fpr_index_ = 0;                   // can't use FPRs anymore
+    }
+  }
+
+  uint32_t sirt_number_of_references_;
+  StackReference<mirror::Object>* cur_sirt_entry_;
+  uint32_t gpr_index_;           // should be uint, but gives error because on some archs no regs
+  uintptr_t* cur_gpr_reg_;
+  uint32_t fpr_index_;           //                      ----- # -----
+  uint32_t* cur_fpr_reg_;
+  uintptr_t* cur_stack_arg_;
+  uint8_t* top_of_sirt_;
+
+  DISALLOW_COPY_AND_ASSIGN(BuildGenericJniFrameVisitor);
+};
+
+extern "C" const void* artQuickGenericJniTrampoline(Thread* self, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  LOG(FATAL) << "artQuickGenericJniTrampoline not implemented: "
-      << PrettyMethod(called);
-  return NULL;
+  uint32_t* sp32 = reinterpret_cast<uint32_t*>(sp);
+  mirror::ArtMethod* called = *sp;
+  DCHECK(called->IsNative());
+
+  // run the visitor
+  MethodHelper mh(called);
+  BuildGenericJniFrameVisitor visitor(sp, called->IsStatic(), mh.GetShorty(), mh.GetShortyLength(),
+                                      self);
+  visitor.VisitArguments();
+  visitor.FinalizeSirt(self);
+
+  // fix up managed-stack things in Thread
+  self->SetTopOfStack(sp, 0);
+
+  // start JNI, save the cookie
+  uint32_t cookie;
+  if (called->IsSynchronized()) {
+    cookie = JniMethodStartSynchronized(visitor.GetFirstSirtEntry(), self);
+    // TODO: error checking.
+    if (self->IsExceptionPending()) {
+      self->PopSirt();
+      return nullptr;
+    }
+  } else {
+    cookie = JniMethodStart(self);
+  }
+  *(sp32-1) = cookie;
+
+  // retrieve native code
+  const void* nativeCode = called->GetNativeMethod();
+  if (nativeCode == nullptr) {
+    // TODO: is this really an error, or do we need to try to find native code?
+    LOG(FATAL) << "Finding native code not implemented yet.";
+  }
+
+  return nativeCode;
+}
+
+/*
+ * Is called after the native JNI code. Responsible for cleanup (SIRT, saved state) and
+ * unlocking.
+ */
+extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self, mirror::ArtMethod** sp,
+                                                    jvalue result, uint64_t result_f)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  uint32_t* sp32 = reinterpret_cast<uint32_t*>(sp);
+  mirror::ArtMethod* called = *sp;
+  uint32_t cookie = *(sp32-1);
+
+  // TODO: synchronized.
+  MethodHelper mh(called);
+  char return_shorty_char = mh.GetShorty()[0];
+
+  if (return_shorty_char == 'L') {
+    // the only special ending call
+    if (called->IsSynchronized()) {
+      BuildGenericJniFrameVisitor visitor(sp, called->IsStatic(), mh.GetShorty(),
+                                          mh.GetShortyLength(), self);
+      return reinterpret_cast<uint64_t>(JniMethodEndWithReferenceSynchronized(result.l, cookie,
+                                                                              visitor.GetFirstSirtEntry(),
+                                                                              self));
+    } else {
+      return reinterpret_cast<uint64_t>(JniMethodEndWithReference(result.l, cookie, self));
+    }
+  } else {
+    if (called->IsSynchronized()) {
+      // run the visitor
+      BuildGenericJniFrameVisitor visitor(sp, called->IsStatic(), mh.GetShorty(),
+                                          mh.GetShortyLength(), self);
+      JniMethodEndSynchronized(cookie, visitor.GetFirstSirtEntry(), self);
+    } else {
+      JniMethodEnd(cookie, self);
+    }
+
+    switch (return_shorty_char) {
+      case 'F':  // Fall-through.
+      case 'D':
+        return result_f;
+      case 'Z':
+        return result.z;
+      case 'B':
+        return result.b;
+      case 'C':
+        return result.c;
+      case 'S':
+        return result.s;
+      case 'I':
+        return result.i;
+      case 'J':
+        return result.j;
+      case 'V':
+        return 0;
+      default:
+        LOG(FATAL) << "Unexpected return shorty character " << return_shorty_char;
+        return 0;
+    }
+  }
 }
 
 }  // namespace art
