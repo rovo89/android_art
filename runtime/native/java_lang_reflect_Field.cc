@@ -30,7 +30,7 @@ namespace art {
 static bool GetFieldValue(const ScopedFastNativeObjectAccess& soa, mirror::Object* o,
                           mirror::ArtField* f, JValue& value, bool allow_references)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  DCHECK_EQ(value.GetJ(), 0LL);
+  DCHECK_EQ(value.GetJ(), INT64_C(0));
   CHECK(!kMovingFields);
   SirtRef<mirror::Object> sirt_obj(soa.Self(), o);
   SirtRef<mirror::Class> sirt_klass(soa.Self(), f->GetDeclaringClass());
