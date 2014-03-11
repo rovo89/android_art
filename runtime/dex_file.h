@@ -22,7 +22,6 @@
 
 #include "base/logging.h"
 #include "base/mutex.h"
-#include "base/stringpiece.h"
 #include "globals.h"
 #include "invoke_type.h"
 #include "jni.h"

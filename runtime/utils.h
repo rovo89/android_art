@@ -23,7 +23,6 @@
 #include <vector>
 
 #include "base/logging.h"
-#include "base/stringpiece.h"
 #include "base/stringprintf.h"
 #include "globals.h"
 #include "primitive.h"

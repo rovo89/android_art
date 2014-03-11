@@ -20,7 +20,6 @@
 
 #include "base/logging.h"
 #include "base/mutex-inl.h"
-#include "base/stringpiece.h"
 #include "class_linker.h"
 #include "compiler_callbacks.h"
 #include "dex_file-inl.h"

@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_GC_ACCOUNTING_ATOMIC_STACK_H_
 #define ART_RUNTIME_GC_ACCOUNTING_ATOMIC_STACK_H_
 
+#include <algorithm>
 #include <string>
 
 #include "atomic.h"
@@ -94,7 +95,8 @@ class AtomicStack {
     if (kIsDebugBuild) {
       // Sanity check that the memory is zero.
       for (int32_t i = index; i < new_index; ++i) {
-        DCHECK_EQ(begin_[i], static_cast<T>(0)) << "i=" << i << " index=" << index << " new_index=" << new_index;
+        DCHECK_EQ(begin_[i], static_cast<T>(0))
+            << "i=" << i << " index=" << index << " new_index=" << new_index;
       }
     }
     return true;
