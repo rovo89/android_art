@@ -377,6 +377,11 @@ bool ElfWriterQuick::Write(OatWriter* oat_writer,
       elf_header.e_flags = 0;
       break;
     }
+    case kX86_64: {
+      elf_header.e_machine = EM_X86_64;
+      elf_header.e_flags = 0;
+      break;
+    }
     case kMips: {
       elf_header.e_machine = EM_MIPS;
       elf_header.e_flags = (EF_MIPS_NOREORDER |

@@ -192,15 +192,21 @@ class Address : public Operand {
     }
   }
 
-  static Address Absolute(uword addr) {
+  static Address Absolute(uword addr, bool has_rip = false) {
     Address result;
-    result.SetModRM(0, EBP);
-    result.SetDisp32(addr);
+    if (has_rip) {
+      result.SetModRM(0, ESP);
+      result.SetSIB(TIMES_1, ESP, EBP);
+      result.SetDisp32(addr);
+    } else {
+      result.SetModRM(0, EBP);
+      result.SetDisp32(addr);
+    }
     return result;
   }
 
-  static Address Absolute(ThreadOffset addr) {
-    return Absolute(addr.Int32Value());
+  static Address Absolute(ThreadOffset addr, bool has_rip = false) {
+    return Absolute(addr.Int32Value(), has_rip);
   }
 
  private:
@@ -210,9 +216,9 @@ class Address : public Operand {
 };
 
 
-class X86Assembler : public Assembler {
+class X86Assembler FINAL : public Assembler {
  public:
-  X86Assembler() {}
+  explicit X86Assembler() {}
   virtual ~X86Assembler() {}
 
   /*
@@ -427,6 +433,7 @@ class X86Assembler : public Assembler {
   void mfence();
 
   X86Assembler* fs();
+  X86Assembler* gs();
 
   //
   // Macros for High-level operations.
