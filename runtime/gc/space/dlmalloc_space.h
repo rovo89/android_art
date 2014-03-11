@@ -133,7 +133,7 @@ class DlMallocSpace : public MallocSpace {
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   void* CreateAllocator(void* base, size_t morecore_start, size_t initial_size,
-                        bool /*low_memory_mode*/) OVERRIDE {
+                        size_t /*maximum_size*/, bool /*low_memory_mode*/) OVERRIDE {
     return CreateMspace(base, morecore_start, initial_size);
   }
   static void* CreateMspace(void* base, size_t morecore_start, size_t initial_size);
