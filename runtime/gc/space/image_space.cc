@@ -223,7 +223,7 @@ ImageSpace* ImageSpace::Init(const char* image_file_name, bool validate_oat_file
     space->VerifyImageAllocations();
   }
 
-  space->oat_file_.reset(space->OpenOatFile(error_msg));
+  space->oat_file_.reset(space->OpenOatFile(image_file_name, error_msg));
   if (space->oat_file_.get() == nullptr) {
     DCHECK(!error_msg->empty());
     return nullptr;
@@ -241,16 +241,10 @@ ImageSpace* ImageSpace::Init(const char* image_file_name, bool validate_oat_file
   return space.release();
 }
 
-OatFile* ImageSpace::OpenOatFile(std::string* error_msg) const {
-  const Runtime* runtime = Runtime::Current();
+OatFile* ImageSpace::OpenOatFile(const char* image_path, std::string* error_msg) const {
   const ImageHeader& image_header = GetImageHeader();
-  // Grab location but don't use Object::AsString as we haven't yet initialized the roots to
-  // check the down cast
-  mirror::String* oat_location =
-      down_cast<mirror::String*>(image_header.GetImageRoot(ImageHeader::kOatLocation));
-  std::string oat_filename;
-  oat_filename += runtime->GetHostPrefix();
-  oat_filename += oat_location->ToModifiedUtf8();
+  std::string oat_filename = ImageHeader::GetOatLocationFromImageLocation(image_path);
+
   OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, image_header.GetOatDataBegin(),
                                     !Runtime::Current()->IsCompiler(), error_msg);
   if (oat_file == NULL) {

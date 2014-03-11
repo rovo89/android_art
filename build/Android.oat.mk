@@ -54,7 +54,7 @@ $(TARGET_CORE_IMG_OUT): $(TARGET_CORE_DEX_FILES) $(DEX2OAT_DEPENDENCY)
 	$(hide) $(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --image-classes=$(PRELOADED_CLASSES) $(addprefix \
 		--dex-file=,$(TARGET_CORE_DEX_FILES)) $(addprefix --dex-location=,$(TARGET_CORE_DEX_LOCATIONS)) --oat-file=$(TARGET_CORE_OAT_OUT) \
 		--oat-location=$(TARGET_CORE_OAT) --image=$(TARGET_CORE_IMG_OUT) --base=$(LIBART_IMG_TARGET_BASE_ADDRESS) \
-		--instruction-set=$(TARGET_ARCH) --instruction-set-features=$(TARGET_INSTRUCTION_SET_FEATURES) --host-prefix=$(PRODUCT_OUT) --android-root=$(PRODUCT_OUT)/system
+		--instruction-set=$(TARGET_ARCH) --instruction-set-features=$(TARGET_INSTRUCTION_SET_FEATURES) --android-root=$(PRODUCT_OUT)/system
 
 $(HOST_CORE_OAT_OUT): $(HOST_CORE_IMG_OUT)
 

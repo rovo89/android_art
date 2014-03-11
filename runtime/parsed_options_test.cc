@@ -50,7 +50,6 @@ TEST_F(ParsedOptionsTest, ParsedOptions) {
   options.push_back(std::make_pair("-Dfoo=bar", null));
   options.push_back(std::make_pair("-Dbaz=qux", null));
   options.push_back(std::make_pair("-verbose:gc,class,jni", null));
-  options.push_back(std::make_pair("host-prefix", "host_prefix"));
   options.push_back(std::make_pair("vfprintf", test_vfprintf));
   options.push_back(std::make_pair("abort", test_abort));
   options.push_back(std::make_pair("exit", test_exit));
@@ -65,7 +64,6 @@ TEST_F(ParsedOptionsTest, ParsedOptions) {
   EXPECT_EQ(4 * KB, parsed->heap_maximum_size_);
   EXPECT_EQ(1 * MB, parsed->stack_size_);
   EXPECT_EQ(0.75, parsed->heap_target_utilization_);
-  EXPECT_EQ("host_prefix", parsed->host_prefix_);
   EXPECT_TRUE(test_vfprintf == parsed->hook_vfprintf_);
   EXPECT_TRUE(test_exit == parsed->hook_exit_);
   EXPECT_TRUE(test_abort == parsed->hook_abort_);

@@ -426,8 +426,6 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
                           runtime->GetCalleeSaveMethod(Runtime::kRefsOnly));
   image_roots->Set<false>(ImageHeader::kRefsAndArgsSaveMethod,
                           runtime->GetCalleeSaveMethod(Runtime::kRefsAndArgs));
-  image_roots->Set<false>(ImageHeader::kOatLocation,
-                          String::AllocFromModifiedUtf8(self, oat_file_->GetLocation().c_str()));
   image_roots->Set<false>(ImageHeader::kDexCaches, dex_caches);
   image_roots->Set<false>(ImageHeader::kClassRoots, class_linker->GetClassRoots());
   for (int i = 0; i < ImageHeader::kImageRootsMax; i++) {

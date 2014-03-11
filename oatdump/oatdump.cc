@@ -59,7 +59,7 @@ namespace art {
 static void usage() {
   fprintf(stderr,
           "Usage: oatdump [options] ...\n"
-          "    Example: oatdump --image=$ANDROID_PRODUCT_OUT/system/framework/boot.art --host-prefix=$ANDROID_PRODUCT_OUT\n"
+          "    Example: oatdump --image=$ANDROID_PRODUCT_OUT/system/framework/boot.art\n"
           "    Example: adb shell oatdump --image=/system/framework/boot.art\n"
           "\n");
   fprintf(stderr,
@@ -73,12 +73,6 @@ static void usage() {
   fprintf(stderr,
           "  --boot-image=<file.art>: provide the image file for the boot class path.\n"
           "      Example: --boot-image=/system/framework/boot.art\n"
-          "\n");
-  fprintf(stderr,
-          "  --host-prefix may be used to translate host paths to target paths during\n"
-          "      cross compilation.\n"
-          "      Example: --host-prefix=out/target/product/crespo\n"
-          "      Default: $ANDROID_PRODUCT_OUT\n"
           "\n");
   fprintf(stderr,
           "  --output=<file> may be used to send the output to a file.\n"
@@ -99,16 +93,14 @@ const char* image_roots_descriptions_[] = {
   "kCalleeSaveMethod",
   "kRefsOnlySaveMethod",
   "kRefsAndArgsSaveMethod",
-  "kOatLocation",
   "kDexCaches",
   "kClassRoots",
 };
 
 class OatDumper {
  public:
-  explicit OatDumper(const std::string& host_prefix, const OatFile& oat_file, bool dump_raw_mapping_table, bool dump_raw_gc_map)
-    : host_prefix_(host_prefix),
-      oat_file_(oat_file),
+  explicit OatDumper(const OatFile& oat_file, bool dump_raw_mapping_table, bool dump_raw_gc_map)
+    : oat_file_(oat_file),
       oat_dex_files_(oat_file.GetOatDexFiles()),
       dump_raw_mapping_table_(dump_raw_mapping_table),
       dump_raw_gc_map_(dump_raw_gc_map),
@@ -146,9 +138,6 @@ class OatDumper {
     os << "IMAGE FILE LOCATION:\n";
     const std::string image_file_location(oat_header.GetImageFileLocation());
     os << image_file_location;
-    if (!image_file_location.empty() && !host_prefix_.empty()) {
-      os << " (" << host_prefix_ << image_file_location << ")";
-    }
     os << "\n\n";
 
     os << "BEGIN:\n";
@@ -702,7 +691,6 @@ class OatDumper {
     }
   }
 
-  const std::string host_prefix_;
   const OatFile& oat_file_;
   std::vector<const OatFile::OatDexFile*> oat_dex_files_;
   bool dump_raw_mapping_table_;
@@ -714,10 +702,10 @@ class OatDumper {
 class ImageDumper {
  public:
   explicit ImageDumper(std::ostream* os, const std::string& image_filename,
-                       const std::string& host_prefix, gc::space::ImageSpace& image_space,
+                       gc::space::ImageSpace& image_space,
                        const ImageHeader& image_header, bool dump_raw_mapping_table,
                        bool dump_raw_gc_map)
-      : os_(os), image_filename_(image_filename), host_prefix_(host_prefix),
+      : os_(os), image_filename_(image_filename),
         image_space_(image_space), image_header_(image_header),
         dump_raw_mapping_table_(dump_raw_mapping_table),
         dump_raw_gc_map_(dump_raw_gc_map) {}
@@ -784,13 +772,8 @@ class ImageDumper {
     os << "\n";
 
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    mirror::Object* oat_location_object = image_header_.GetImageRoot(ImageHeader::kOatLocation);
-    std::string oat_location(oat_location_object->AsString()->ToModifiedUtf8());
+    std::string oat_location = ImageHeader::GetOatLocationFromImageLocation(image_filename_);
     os << "OAT LOCATION: " << oat_location;
-    if (!host_prefix_.empty()) {
-      oat_location = host_prefix_ + oat_location;
-      os << " (" << oat_location << ")";
-    }
     os << "\n";
     std::string error_msg;
     const OatFile* oat_file = class_linker->FindOatFileFromOatLocation(oat_location, &error_msg);
@@ -802,7 +785,7 @@ class ImageDumper {
 
     stats_.oat_file_bytes = oat_file->Size();
 
-    oat_dumper_.reset(new OatDumper(host_prefix_, *oat_file, dump_raw_mapping_table_,
+    oat_dumper_.reset(new OatDumper(*oat_file, dump_raw_mapping_table_,
         dump_raw_gc_map_));
 
     for (const OatFile::OatDexFile* oat_dex_file : oat_file->GetOatDexFiles()) {
@@ -1424,7 +1407,6 @@ class ImageDumper {
   UniquePtr<OatDumper> oat_dumper_;
   std::ostream* os_;
   const std::string image_filename_;
-  const std::string host_prefix_;
   gc::space::ImageSpace& image_space_;
   const ImageHeader& image_header_;
   bool dump_raw_mapping_table_;
@@ -1449,7 +1431,6 @@ static int oatdump(int argc, char** argv) {
   const char* image_filename = NULL;
   const char* boot_image_filename = NULL;
   std::string elf_filename_prefix;
-  UniquePtr<std::string> host_prefix;
   std::ostream* os = &std::cout;
   UniquePtr<std::ofstream> out;
   bool dump_raw_mapping_table = false;
@@ -1463,8 +1444,6 @@ static int oatdump(int argc, char** argv) {
       image_filename = option.substr(strlen("--image=")).data();
     } else if (option.starts_with("--boot-image=")) {
       boot_image_filename = option.substr(strlen("--boot-image=")).data();
-    } else if (option.starts_with("--host-prefix=")) {
-      host_prefix.reset(new std::string(option.substr(strlen("--host-prefix=")).data()));
     } else if (option.starts_with("--dump:")) {
         if (option == "--dump:raw_mapping_table") {
           dump_raw_mapping_table = true;
@@ -1498,15 +1477,6 @@ static int oatdump(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  if (host_prefix.get() == NULL) {
-    const char* android_product_out = getenv("ANDROID_PRODUCT_OUT");
-    if (android_product_out != NULL) {
-        host_prefix.reset(new std::string(android_product_out));
-    } else {
-        host_prefix.reset(new std::string(""));
-    }
-  }
-
   if (oat_filename != NULL) {
     std::string error_msg;
     OatFile* oat_file =
@@ -1515,7 +1485,7 @@ static int oatdump(int argc, char** argv) {
       fprintf(stderr, "Failed to open oat file from '%s': %s\n", oat_filename, error_msg.c_str());
       return EXIT_FAILURE;
     }
-    OatDumper oat_dumper(*host_prefix.get(), *oat_file, dump_raw_mapping_table, dump_raw_gc_map);
+    OatDumper oat_dumper(*oat_file, dump_raw_mapping_table, dump_raw_gc_map);
     oat_dumper.Dump(*os);
     return EXIT_SUCCESS;
   }
@@ -1545,10 +1515,6 @@ static int oatdump(int argc, char** argv) {
     options.push_back(std::make_pair(image_option.c_str(), reinterpret_cast<void*>(NULL)));
   }
 
-  if (!host_prefix->empty()) {
-    options.push_back(std::make_pair("host-prefix", host_prefix->c_str()));
-  }
-
   if (!Runtime::Create(options, false)) {
     fprintf(stderr, "Failed to create runtime\n");
     return EXIT_FAILURE;
@@ -1566,7 +1532,7 @@ static int oatdump(int argc, char** argv) {
     fprintf(stderr, "Invalid image header %s\n", image_filename);
     return EXIT_FAILURE;
   }
-  ImageDumper image_dumper(os, image_filename, *host_prefix.get(), *image_space, image_header,
+  ImageDumper image_dumper(os, image_filename, *image_space, image_header,
     dump_raw_mapping_table, dump_raw_gc_map);
   image_dumper.Dump();
   return EXIT_SUCCESS;
