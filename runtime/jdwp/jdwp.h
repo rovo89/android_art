@@ -96,9 +96,9 @@ struct JdwpOptions {
 };
 
 struct JdwpEvent;
-struct JdwpNetStateBase;
+class JdwpNetStateBase;
 struct ModBasket;
-struct Request;
+class Request;
 
 /*
  * State for JDWP functions.

@@ -515,11 +515,11 @@ static inline uint32_t FindNextInstructionFollowingException(Thread* self,
   return found_dex_pc;
 }
 
-static void UnexpectedOpcode(const Instruction* inst, MethodHelper& mh)
-  __attribute__((cold, noreturn, noinline));
+static inline void UnexpectedOpcode(const Instruction* inst, MethodHelper& mh)
+  __attribute__((cold, noreturn))
+  SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-static void UnexpectedOpcode(const Instruction* inst, MethodHelper& mh)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static inline void UnexpectedOpcode(const Instruction* inst, MethodHelper& mh) {
   LOG(FATAL) << "Unexpected instruction: " << inst->DumpString(&mh.GetDexFile());
   exit(0);  // Unreachable, keep GCC happy.
 }

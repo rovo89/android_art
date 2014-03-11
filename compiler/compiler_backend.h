@@ -23,7 +23,7 @@
 namespace art {
 
 class Backend;
-class CompilationUnit;
+struct CompilationUnit;
 class CompilerDriver;
 class CompiledMethod;
 class MIRGraph;

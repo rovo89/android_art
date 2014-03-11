@@ -90,13 +90,9 @@ define build-libart-disassembler
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
   ifeq ($$(art_target_or_host),target)
     LOCAL_SHARED_LIBRARIES += libcutils
-    include $(LLVM_GEN_INTRINSICS_MK)
-    include $(LLVM_DEVICE_BUILD_MK)
     include $(BUILD_SHARED_LIBRARY)
   else # host
     LOCAL_STATIC_LIBRARIES += libcutils
-    include $(LLVM_GEN_INTRINSICS_MK)
-    include $(LLVM_HOST_BUILD_MK)
     include $(BUILD_HOST_SHARED_LIBRARY)
   endif
 endef

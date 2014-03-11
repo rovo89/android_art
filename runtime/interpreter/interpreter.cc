@@ -286,11 +286,39 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
 }
 
 enum InterpreterImplKind {
-  kSwitchImpl,            // switch-based interpreter implementation.
-  kComputedGotoImplKind   // computed-goto-based interpreter implementation.
+  kSwitchImpl,            // Switch-based interpreter implementation.
+  kComputedGotoImplKind   // Computed-goto-based interpreter implementation.
 };
 
-static const InterpreterImplKind kInterpreterImplKind = kComputedGotoImplKind;
+#if !defined(__clang__)
+static constexpr InterpreterImplKind kInterpreterImplKind = kComputedGotoImplKind;
+#else
+// Clang 3.4 fails to build the goto interpreter implementation.
+static constexpr InterpreterImplKind kInterpreterImplKind = kSwitchImpl;
+template<bool do_access_check, bool transaction_active>
+JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
+                       ShadowFrame& shadow_frame, JValue result_register) {
+  LOG(FATAL) << "UNREACHABLE";
+  exit(0);
+}
+// Explicit definitions of ExecuteGotoImpl.
+template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+JValue ExecuteGotoImpl<true, false>(Thread* self, MethodHelper& mh,
+                                    const DexFile::CodeItem* code_item,
+                                    ShadowFrame& shadow_frame, JValue result_register);
+template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+JValue ExecuteGotoImpl<false, false>(Thread* self, MethodHelper& mh,
+                                     const DexFile::CodeItem* code_item,
+                                     ShadowFrame& shadow_frame, JValue result_register);
+template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+JValue ExecuteGotoImpl<true, true>(Thread* self, MethodHelper& mh,
+                                    const DexFile::CodeItem* code_item,
+                                    ShadowFrame& shadow_frame, JValue result_register);
+template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+JValue ExecuteGotoImpl<false, true>(Thread* self, MethodHelper& mh,
+                                     const DexFile::CodeItem* code_item,
+                                     ShadowFrame& shadow_frame, JValue result_register);
+#endif
 
 static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
                       ShadowFrame& shadow_frame, JValue result_register)
