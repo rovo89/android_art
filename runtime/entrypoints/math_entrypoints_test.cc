@@ -27,25 +27,25 @@ class MathEntrypointsTest : public CommonRuntimeTest {};
 TEST_F(MathEntrypointsTest, DoubleToLong) {
   EXPECT_EQ(std::numeric_limits<int64_t>::max(), art_d2l(1.85e19));
   EXPECT_EQ(std::numeric_limits<int64_t>::min(), art_d2l(-1.85e19));
-  EXPECT_EQ(0LL, art_d2l(0));
-  EXPECT_EQ(1LL, art_d2l(1.0));
-  EXPECT_EQ(10LL, art_d2l(10.0));
-  EXPECT_EQ(100LL, art_d2l(100.0));
-  EXPECT_EQ(-1LL, art_d2l(-1.0));
-  EXPECT_EQ(-10LL, art_d2l(-10.0));
-  EXPECT_EQ(-100LL, art_d2l(-100.0));
+  EXPECT_EQ(INT64_C(0), art_d2l(0));
+  EXPECT_EQ(INT64_C(1), art_d2l(1.0));
+  EXPECT_EQ(INT64_C(10), art_d2l(10.0));
+  EXPECT_EQ(INT64_C(100), art_d2l(100.0));
+  EXPECT_EQ(INT64_C(-1), art_d2l(-1.0));
+  EXPECT_EQ(INT64_C(-10), art_d2l(-10.0));
+  EXPECT_EQ(INT64_C(-100), art_d2l(-100.0));
 }
 
 TEST_F(MathEntrypointsTest, FloatToLong) {
   EXPECT_EQ(std::numeric_limits<int64_t>::max(), art_f2l(1.85e19));
   EXPECT_EQ(std::numeric_limits<int64_t>::min(), art_f2l(-1.85e19));
-  EXPECT_EQ(0LL, art_f2l(0));
-  EXPECT_EQ(1LL, art_f2l(1.0));
-  EXPECT_EQ(10LL, art_f2l(10.0));
-  EXPECT_EQ(100LL, art_f2l(100.0));
-  EXPECT_EQ(-1LL, art_f2l(-1.0));
-  EXPECT_EQ(-10LL, art_f2l(-10.0));
-  EXPECT_EQ(-100LL, art_f2l(-100.0));
+  EXPECT_EQ(INT64_C(0), art_f2l(0));
+  EXPECT_EQ(INT64_C(1), art_f2l(1.0));
+  EXPECT_EQ(INT64_C(10), art_f2l(10.0));
+  EXPECT_EQ(INT64_C(100), art_f2l(100.0));
+  EXPECT_EQ(INT64_C(-1), art_f2l(-1.0));
+  EXPECT_EQ(INT64_C(-10), art_f2l(-10.0));
+  EXPECT_EQ(INT64_C(-100), art_f2l(-100.0));
 }
 
 TEST_F(MathEntrypointsTest, DoubleToInt) {
