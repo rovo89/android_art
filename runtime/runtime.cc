@@ -91,6 +91,8 @@ Runtime::Runtime()
       resolution_method_(nullptr),
       imt_conflict_method_(nullptr),
       default_imt_(nullptr),
+      fault_message_lock_("Fault message lock"),
+      fault_message_(""),
       method_verifiers_lock_("Method verifiers lock"),
       threads_being_born_(0),
       shutdown_cond_(new ConditionVariable("Runtime shutdown", *Locks::runtime_shutdown_lock_)),
@@ -1597,5 +1599,10 @@ void Runtime::RecordWeakStringRemoval(mirror::String* s, uint32_t hash_code) con
   DCHECK(IsCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction->RecordWeakStringRemoval(s, hash_code);
+}
+
+void Runtime::SetFaultMessage(const std::string& message) {
+  MutexLock mu(Thread::Current(), fault_message_lock_);
+  fault_message_ = message;
 }
 }  // namespace art

@@ -223,9 +223,6 @@ class Heap {
   bool IsValidObjectAddress(const mirror::Object* obj) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Returns true if the address passed in is a heap address, doesn't need to be aligned.
-  bool IsHeapAddress(const mirror::Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   // Faster alternative to IsHeapAddress since finding if an object is in the large object space is
   // very slow.
   bool IsNonDiscontinuousSpaceHeapAddress(const mirror::Object* obj) const
@@ -519,6 +516,12 @@ class Heap {
 
   void DumpSpaces(std::ostream& stream = LOG(INFO));
 
+  // Dump object should only be used by the signal handler.
+  void DumpObject(std::ostream& stream, mirror::Object* obj) NO_THREAD_SAFETY_ANALYSIS;
+  // Safe version of pretty type of which check to make sure objects are heap addresses.
+  std::string SafeGetClassDescriptor(mirror::Class* klass) NO_THREAD_SAFETY_ANALYSIS;
+  std::string SafePrettyTypeOf(mirror::Object* obj) NO_THREAD_SAFETY_ANALYSIS;
+
   // GC performance measuring
   void DumpGcPerformanceInfo(std::ostream& os);
 
@@ -599,6 +602,10 @@ class Heap {
 
   template <bool kGrow>
   bool IsOutOfMemoryOnAllocation(AllocatorType allocator_type, size_t alloc_size);
+
+  // Returns true if the address passed in is within the address range of a continuous space.
+  bool IsValidContinuousSpaceObjectAddress(const mirror::Object* obj) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Pushes a list of cleared references out to the managed heap.
   void SetReferenceReferent(mirror::Object* reference, mirror::Object* referent)

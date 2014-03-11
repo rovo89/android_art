@@ -42,6 +42,12 @@
 
 namespace art {
 
+namespace gc {
+namespace collector {
+class SemiSpace;
+}  // namespace collector
+}  // namespace gc
+
 namespace mirror {
   class ArtMethod;
   class Array;
@@ -851,6 +857,7 @@ class PACKED(4) Thread {
 
  private:
   friend class Dbg;  // For SetStateUnsafe.
+  friend class gc::collector::SemiSpace;  // For getting stack traces.
   friend class Monitor;
   friend class MonitorInfo;
   friend class Runtime;  // For CreatePeer.
