@@ -35,6 +35,7 @@ public class Main {
         b5884080Test();
         largeFrameTest();
         largeFrameTestFloat();
+        mulBy1Test();
         getterSetterTest();
         identityTest();
         wideGetterSetterTest();
@@ -158,6 +159,19 @@ public class Main {
         else {
             System.out.println("getterSetterTest fails: " + foo.getBar0() +
                                " (expecting 39892)");
+        }
+    }
+
+    static void mulBy1Test() {
+        long res;
+        long j = 1;
+        res = 1 * j + j;
+        if (res == 2L) {
+            System.out.println("mulBy1Test passes");
+        }
+        else {
+            System.out.println("mulBy1Test fails: " + res +
+                               " (expecting 2)");
         }
     }
 
