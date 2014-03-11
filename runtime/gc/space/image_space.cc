@@ -87,7 +87,7 @@ static bool GenerateImage(const std::string& image_file_name, std::string* error
   }
 
   const std::vector<std::string>& compiler_options = Runtime::Current()->GetImageCompilerOptions();
-  for (size_t i = 0; compiler_options.size(); ++i) {
+  for (size_t i = 0; i < compiler_options.size(); ++i) {
     arg_vector.push_back(compiler_options[i].c_str());
   }
 

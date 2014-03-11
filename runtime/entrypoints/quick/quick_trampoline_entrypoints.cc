@@ -485,9 +485,11 @@ extern "C" uint64_t artQuickToInterpreterBridge(mirror::ArtMethod* method, Threa
     ThrowAbstractMethodError(method);
     return 0;
   } else {
+    DCHECK(!method->IsNative()) << PrettyMethod(method);
     const char* old_cause = self->StartAssertNoThreadSuspension("Building interpreter shadow frame");
     MethodHelper mh(method);
     const DexFile::CodeItem* code_item = mh.GetCodeItem();
+    DCHECK(code_item != nullptr) << PrettyMethod(method);
     uint16_t num_regs = code_item->registers_size_;
     void* memory = alloca(ShadowFrame::ComputeSize(num_regs));
     ShadowFrame* shadow_frame(ShadowFrame::Create(num_regs, NULL,  // No last shadow coming from quick.
@@ -507,7 +509,7 @@ extern "C" uint64_t artQuickToInterpreterBridge(mirror::ArtMethod* method, Threa
       // Ensure static method's class is initialized.
       SirtRef<mirror::Class> sirt_c(self, method->GetDeclaringClass());
       if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(sirt_c, true, true)) {
-        DCHECK(Thread::Current()->IsExceptionPending());
+        DCHECK(Thread::Current()->IsExceptionPending()) << PrettyMethod(method);
         self->PopManagedStackFragment(fragment);
         return 0;
       }
@@ -766,7 +768,8 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
   const void* code = NULL;
   if (LIKELY(!thread->IsExceptionPending())) {
     // Incompatible class change should have been handled in resolve method.
-    CHECK(!called->CheckIncompatibleClassChange(invoke_type));
+    CHECK(!called->CheckIncompatibleClassChange(invoke_type))
+        << PrettyMethod(called) << " " << invoke_type;
     if (virtual_or_interface) {
       // Refine called method based on receiver.
       CHECK(receiver != nullptr) << invoke_type;
