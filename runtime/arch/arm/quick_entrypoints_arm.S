@@ -351,31 +351,31 @@ END art_quick_handle_fill_data
      */
     .extern artLockObjectFromCode
 ENTRY art_quick_lock_object
-    cbz    r0, slow_lock
-retry_lock:
+    cbz    r0, .Lslow_lock
+.Lretry_lock:
     ldr    r2, [r9, #THREAD_ID_OFFSET]
     ldrex  r1, [r0, #LOCK_WORD_OFFSET]
-    cbnz   r1, not_unlocked           @ already thin locked
+    cbnz   r1, .Lnot_unlocked         @ already thin locked
     @ unlocked case - r2 holds thread id with count of 0
     strex  r3, r2, [r0, #LOCK_WORD_OFFSET]
-    cbnz   r3, strex_fail             @ store failed, retry
+    cbnz   r3, .Lstrex_fail           @ store failed, retry
     dmb    ish                        @ full (LoadLoad) memory barrier
     bx lr
-strex_fail:
-    b retry_lock                      @ unlikely forward branch, need to reload and recheck r1/r2
-not_unlocked:
+.Lstrex_fail:
+    b .Lretry_lock                    @ unlikely forward branch, need to reload and recheck r1/r2
+.Lnot_unlocked:
     lsr    r3, r1, 30
-    cbnz   r3, slow_lock              @ if either of the top two bits are set, go slow path
+    cbnz   r3, .Lslow_lock            @ if either of the top two bits are set, go slow path
     eor    r2, r1, r2                 @ lock_word.ThreadId() ^ self->ThreadId()
     uxth   r2, r2                     @ zero top 16 bits
-    cbnz   r2, slow_lock              @ lock word and self thread id's match -> recursive lock
+    cbnz   r2, .Lslow_lock            @ lock word and self thread id's match -> recursive lock
                                       @ else contention, go to slow path
     add    r2, r1, #65536             @ increment count in lock word placing in r2 for storing
     lsr    r1, r2, 30                 @ if either of the top two bits are set, we overflowed.
-    cbnz   r1, slow_lock              @ if we overflow the count go slow path
+    cbnz   r1, .Lslow_lock            @ if we overflow the count go slow path
     str    r2, [r0, #LOCK_WORD_OFFSET] @ no need for strex as we hold the lock
     bx lr
-slow_lock:
+.Lslow_lock:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case we block
     mov    r1, r9                     @ pass Thread::Current
     mov    r2, sp                     @ pass SP
@@ -391,25 +391,25 @@ END art_quick_lock_object
      */
     .extern artUnlockObjectFromCode
 ENTRY art_quick_unlock_object
-    cbz    r0, slow_unlock
+    cbz    r0, .Lslow_unlock
     ldr    r1, [r0, #LOCK_WORD_OFFSET]
     lsr    r2, r1, 30
-    cbnz   r2, slow_unlock            @ if either of the top two bits are set, go slow path
+    cbnz   r2, .Lslow_unlock          @ if either of the top two bits are set, go slow path
     ldr    r2, [r9, #THREAD_ID_OFFSET]
     eor    r3, r1, r2                 @ lock_word.ThreadId() ^ self->ThreadId()
     uxth   r3, r3                     @ zero top 16 bits
-    cbnz   r3, slow_unlock            @ do lock word and self thread id's match?
+    cbnz   r3, .Lslow_unlock          @ do lock word and self thread id's match?
     cmp    r1, #65536
-    bpl    recursive_thin_unlock
+    bpl    .Lrecursive_thin_unlock
     @ transition to unlocked, r3 holds 0
     str    r3, [r0, #LOCK_WORD_OFFSET]
     dmb    ish                        @ full (StoreLoad) memory barrier
     bx     lr
-recursive_thin_unlock:
+.Lrecursive_thin_unlock:
     sub    r1, r1, #65536
     str    r1, [r0, #LOCK_WORD_OFFSET]
     bx     lr
-slow_unlock:
+.Lslow_unlock:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case exception allocation triggers GC
     mov    r1, r9                     @ pass Thread::Current
     mov    r2, sp                     @ pass SP
@@ -435,11 +435,11 @@ ENTRY art_quick_check_cast
     .pad #4
     .cfi_adjust_cfa_offset 4
     bl artIsAssignableFromCode
-    cbz    r0, throw_class_cast_exception
+    cbz    r0, .Lthrow_class_cast_exception
     add sp, #4
     .cfi_adjust_cfa_offset -4
     pop {r0-r1, pc}
-throw_class_cast_exception:
+.Lthrow_class_cast_exception:
     add sp, #4
     .cfi_adjust_cfa_offset -4
     pop {r0-r1, lr}
@@ -473,29 +473,29 @@ ENTRY art_quick_aput_obj_with_bound_check
 END art_quick_aput_obj_with_bound_check
 
 ENTRY art_quick_aput_obj
-    cbz r2, do_aput_null
+    cbz r2, .Ldo_aput_null
     ldr r3, [r0, #CLASS_OFFSET]
     ldr ip, [r2, #CLASS_OFFSET]
     ldr r3, [r3, #CLASS_COMPONENT_TYPE_OFFSET]
     cmp r3, ip  @ value's type == array's component type - trivial assignability
-    bne check_assignability
-do_aput:
+    bne .Lcheck_assignability
+.Ldo_aput:
     add r3, r0, #OBJECT_ARRAY_DATA_OFFSET
     str r2, [r3, r1, lsl #2]
     ldr r3, [r9, #THREAD_CARD_TABLE_OFFSET]
     lsr r0, r0, #7
     strb r3, [r3, r0]
     blx lr
-do_aput_null:
+.Ldo_aput_null:
     add r3, r0, #OBJECT_ARRAY_DATA_OFFSET
     str r2, [r3, r1, lsl #2]
     blx lr
-check_assignability:
-    push {r0-r2, lr}                 @ save arguments
+.Lcheck_assignability:
+    push {r0-r2, lr}             @ save arguments
     mov r1, ip
     mov r0, r3
     bl artIsAssignableFromCode
-    cbz r0, throw_array_store_exception
+    cbz r0, .Lthrow_array_store_exception
     pop {r0-r2, lr}
     add r3, r0, #OBJECT_ARRAY_DATA_OFFSET
     str r2, [r3, r1, lsl #2]
@@ -503,7 +503,7 @@ check_assignability:
     lsr r0, r0, #7
     strb r3, [r3, r0]
     blx lr
-throw_array_store_exception:
+.Lthrow_array_store_exception:
     pop {r0-r2, lr}
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     mov r1, r2
@@ -1181,55 +1181,55 @@ ENTRY art_quick_indexof
      */
 
     subs  r2, #4
-    blt   indexof_remainder
+    blt   .Lindexof_remainder
 
-indexof_loop4:
+.Lindexof_loop4:
     ldrh  r3, [r0, #2]!
     ldrh  r4, [r0, #2]!
     ldrh  r10, [r0, #2]!
     ldrh  r11, [r0, #2]!
     cmp   r3, r1
-    beq   match_0
+    beq   .Lmatch_0
     cmp   r4, r1
-    beq   match_1
+    beq   .Lmatch_1
     cmp   r10, r1
-    beq   match_2
+    beq   .Lmatch_2
     cmp   r11, r1
-    beq   match_3
+    beq   .Lmatch_3
     subs  r2, #4
-    bge   indexof_loop4
+    bge   .Lindexof_loop4
 
-indexof_remainder:
-    adds    r2, #4
-    beq     indexof_nomatch
+.Lindexof_remainder:
+    adds  r2, #4
+    beq   .Lindexof_nomatch
 
-indexof_loop1:
+.Lindexof_loop1:
     ldrh  r3, [r0, #2]!
     cmp   r3, r1
-    beq   match_3
+    beq   .Lmatch_3
     subs  r2, #1
-    bne   indexof_loop1
+    bne   .Lindexof_loop1
 
-indexof_nomatch:
+.Lindexof_nomatch:
     mov   r0, #-1
     pop {r4, r10-r11, pc}
 
-match_0:
+.Lmatch_0:
     sub   r0, #6
     sub   r0, r12
     asr   r0, r0, #1
     pop {r4, r10-r11, pc}
-match_1:
+.Lmatch_1:
     sub   r0, #4
     sub   r0, r12
     asr   r0, r0, #1
     pop {r4, r10-r11, pc}
-match_2:
+.Lmatch_2:
     sub   r0, #2
     sub   r0, r12
     asr   r0, r0, #1
     pop {r4, r10-r11, pc}
-match_3:
+.Lmatch_3:
     sub   r0, r12
     asr   r0, r0, #1
     pop {r4, r10-r11, pc}
@@ -1308,7 +1308,7 @@ ENTRY art_quick_string_compareto
       */
 
     subs  r10, #2
-    blt   do_remainder2
+    blt   .Ldo_remainder2
 
       /*
        * Unroll the first two checks so we can quickly catch early mismatch
@@ -1322,13 +1322,13 @@ ENTRY art_quick_string_compareto
     subs  r0, r3, r4
     it    eq
     subseq  r0, r7, r8
-    bne   done
+    bne   .Ldone
     cmp   r10, #28
-    bgt   do_memcmp16
+    bgt   .Ldo_memcmp16
     subs  r10, #3
-    blt   do_remainder
+    blt   .Ldo_remainder
 
-loopback_triple:
+.Lloopback_triple:
     ldrh  r3, [r2, #2]!
     ldrh  r4, [r1, #2]!
     ldrh  r7, [r2, #2]!
@@ -1340,34 +1340,34 @@ loopback_triple:
     subseq  r0, r7, r8
     it    eq
     subseq  r0, r9, r12
-    bne   done
+    bne   .Ldone
     subs  r10, #3
-    bge   loopback_triple
+    bge   .Lloopback_triple
 
-do_remainder:
+.Ldo_remainder:
     adds  r10, #3
-    beq   returnDiff
+    beq   .Lreturn_diff
 
-loopback_single:
+.Lloopback_single:
     ldrh  r3, [r2, #2]!
     ldrh  r4, [r1, #2]!
     subs  r0, r3, r4
-    bne   done
+    bne   .Ldone
     subs  r10, #1
-    bne     loopback_single
+    bne   .Lloopback_single
 
-returnDiff:
+.Lreturn_diff:
     mov   r0, r11
     pop   {r4, r7-r12, pc}
 
-do_remainder2:
+.Ldo_remainder2:
     adds  r10, #2
-    bne   loopback_single
+    bne   .Lloopback_single
     mov   r0, r11
     pop   {r4, r7-r12, pc}
 
     /* Long string case */
-do_memcmp16:
+.Ldo_memcmp16:
     mov   r7, r11
     add   r0, r2, #2
     add   r1, r1, #2
@@ -1376,6 +1376,6 @@ do_memcmp16:
     cmp   r0, #0
     it    eq
     moveq r0, r7
-done:
+.Ldone:
     pop   {r4, r7-r12, pc}
 END art_quick_string_compareto
