@@ -233,6 +233,11 @@ bool Mir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& speci
   }
 
   if (successful) {
+    if (kIsDebugBuild) {
+      // Clear unreachable catch entries.
+      mir_graph_->catches_.clear();
+    }
+
     // Handle verbosity for return MIR.
     if (return_mir != nullptr) {
       current_dalvik_offset_ = return_mir->offset;
