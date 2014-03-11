@@ -40,6 +40,7 @@
 #include "debugger.h"
 #include "dex_file-inl.h"
 #include "entrypoints/entrypoint_utils.h"
+#include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "gc_map.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/heap.h"
@@ -108,8 +109,6 @@ void Thread::InitTlsEntryPoints() {
   InitEntryPoints(&interpreter_entrypoints_, &jni_entrypoints_, &portable_entrypoints_,
                   &quick_entrypoints_);
 }
-
-void ResetQuickAllocEntryPoints(QuickEntryPoints* qpoints);
 
 void Thread::ResetQuickAllocEntryPointsForThread() {
   ResetQuickAllocEntryPoints(&quick_entrypoints_);

@@ -15,6 +15,7 @@
  */
 
 #include "entrypoints/portable/portable_entrypoints.h"
+#include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "entrypoints/entrypoint_utils.h"
 
