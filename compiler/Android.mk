@@ -21,7 +21,6 @@ include art/build/Android.common.mk
 LIBART_COMPILER_SRC_FILES := \
 	compiled_method.cc \
 	dex/local_value_numbering.cc \
-	dex/arena_bit_vector.cc \
 	dex/quick/arm/assemble_arm.cc \
 	dex/quick/arm/call_arm.cc \
 	dex/quick/arm/fp_arm.cc \
@@ -54,6 +53,7 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/mir_optimization.cc \
 	dex/pass_driver.cc \
 	dex/bb_optimizations.cc \
+	dex/bit_vector_block_iterator.cc \
 	dex/frontend.cc \
 	dex/mir_graph.cc \
 	dex/mir_analysis.cc \
@@ -72,6 +72,7 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/nodes.cc \
 	trampolines/trampoline_compiler.cc \
 	utils/arena_allocator.cc \
+	utils/arena_bit_vector.cc \
 	utils/arm/assembler_arm.cc \
 	utils/arm/managed_register_arm.cc \
 	utils/assembler.cc \
