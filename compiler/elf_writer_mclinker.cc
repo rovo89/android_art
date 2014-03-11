@@ -16,6 +16,7 @@
 
 #include "elf_writer_mclinker.h"
 
+#include <llvm/Support/ELF.h>
 #include <llvm/Support/TargetSelect.h>
 
 #include <mcld/Environment.h>
@@ -32,7 +33,6 @@
 #include "class_linker.h"
 #include "dex_method_iterator.h"
 #include "driver/compiler_driver.h"
-#include "elf_file.h"
 #include "globals.h"
 #include "mirror/art_method.h"
 #include "mirror/art_method-inl.h"
@@ -44,12 +44,14 @@
 namespace art {
 
 ElfWriterMclinker::ElfWriterMclinker(const CompilerDriver& driver, File* elf_file)
-  : ElfWriter(driver, elf_file), oat_input_(NULL) {}
+  : ElfWriter(driver, elf_file), oat_input_(nullptr) {
+}
 
-ElfWriterMclinker::~ElfWriterMclinker() {}
+ElfWriterMclinker::~ElfWriterMclinker() {
+}
 
 bool ElfWriterMclinker::Create(File* elf_file,
-                               OatWriter& oat_writer,
+                               OatWriter* oat_writer,
                                const std::vector<const DexFile*>& dex_files,
                                const std::string& android_root,
                                bool is_host,
@@ -58,29 +60,29 @@ bool ElfWriterMclinker::Create(File* elf_file,
   return elf_writer.Write(oat_writer, dex_files, android_root, is_host);
 }
 
-bool ElfWriterMclinker::Write(OatWriter& oat_writer,
+bool ElfWriterMclinker::Write(OatWriter* oat_writer,
                               const std::vector<const DexFile*>& dex_files,
                               const std::string& android_root,
                               bool is_host) {
   std::vector<uint8_t> oat_contents;
-  oat_contents.reserve(oat_writer.GetSize());
+  oat_contents.reserve(oat_writer->GetSize());
   VectorOutputStream output_stream("oat contents", oat_contents);
-  CHECK(oat_writer.Write(output_stream));
-  CHECK_EQ(oat_writer.GetSize(), oat_contents.size());
+  CHECK(oat_writer->Write(&output_stream));
+  CHECK_EQ(oat_writer->GetSize(), oat_contents.size());
 
   Init();
   AddOatInput(oat_contents);
-#if defined(ART_USE_PORTABLE_COMPILER)
-  AddMethodInputs(dex_files);
-  AddRuntimeInputs(android_root, is_host);
-#endif
+  if (kUsePortableCompiler) {
+    AddMethodInputs(dex_files);
+    AddRuntimeInputs(android_root, is_host);
+  }
   if (!Link()) {
     return false;
   }
   oat_contents.clear();
-#if defined(ART_USE_PORTABLE_COMPILER)
-  FixupOatMethodOffsets(dex_files);
-#endif
+  if (kUsePortableCompiler) {
+    FixupOatMethodOffsets(dex_files);
+  }
   return true;
 }
 
@@ -100,9 +102,9 @@ void ElfWriterMclinker::Init() {
   std::string target_cpu;
   std::string target_attr;
   CompilerDriver::InstructionSetToLLVMTarget(compiler_driver_->GetInstructionSet(),
-                                             target_triple,
-                                             target_cpu,
-                                             target_attr);
+                                             &target_triple,
+                                             &target_cpu,
+                                             &target_attr);
 
   // Based on mclinker's llvm-mcld.cpp main() and LinkerTest
   //
@@ -236,7 +238,6 @@ void ElfWriterMclinker::AddOatInput(std::vector<uint8_t>& oat_contents) {
                          text_section);
 }
 
-#if defined(ART_USE_PORTABLE_COMPILER)
 void ElfWriterMclinker::AddMethodInputs(const std::vector<const DexFile*>& dex_files) {
   DCHECK(oat_input_ != NULL);
 
@@ -320,7 +321,6 @@ void ElfWriterMclinker::AddRuntimeInputs(const std::string& android_root, bool i
   mcld::Input* libm_lib_input_input = ir_builder_->ReadInput(libm_lib, libm_lib);
   CHECK(libm_lib_input_input != NULL);
 }
-#endif
 
 bool ElfWriterMclinker::Link() {
   // link inputs
@@ -345,7 +345,6 @@ bool ElfWriterMclinker::Link() {
   return true;
 }
 
-#if defined(ART_USE_PORTABLE_COMPILER)
 void ElfWriterMclinker::FixupOatMethodOffsets(const std::vector<const DexFile*>& dex_files) {
   std::string error_msg;
   UniquePtr<ElfFile> elf_file(ElfFile::Open(elf_file_, true, false, &error_msg));
@@ -409,6 +408,5 @@ uint32_t ElfWriterMclinker::FixupCompiledCodeOffset(ElfFile& elf_file,
   }
   return compiled_code_offset;
 }
-#endif
 
 }  // namespace art
