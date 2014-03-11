@@ -133,6 +133,11 @@ void ImageSpace::VerifyImageAllocations() {
     mirror::Object* obj = reinterpret_cast<mirror::Object*>(current);
     CHECK(live_bitmap_->Test(obj));
     CHECK(obj->GetClass() != nullptr) << "Image object at address " << obj << " has null class";
+    if (kUseBrooksPointer) {
+      CHECK(obj->GetBrooksPointer() == obj)
+          << "Bad Brooks pointer: obj=" << reinterpret_cast<void*>(obj)
+          << " brooks_ptr=" << reinterpret_cast<void*>(obj->GetBrooksPointer());
+    }
     current += RoundUp(obj->SizeOf(), kObjectAlignment);
   }
 }

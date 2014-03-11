@@ -19,6 +19,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "brooks_pointer.h"
 
 namespace art {
 
@@ -91,6 +92,12 @@ static constexpr bool kMovingMethods = false;
 // If true, the quick compiler embeds class pointers in the compiled
 // code, if possible.
 static constexpr bool kEmbedClassInCode = true;
+
+#ifdef USE_BROOKS_POINTER
+static constexpr bool kUseBrooksPointer = true;
+#else
+static constexpr bool kUseBrooksPointer = false;
+#endif
 
 }  // namespace art
 
