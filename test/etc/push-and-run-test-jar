@@ -131,7 +131,7 @@ fi
 
 if [ "$GDB" = "y" ]; then
     gdb="gdbserver :5039"
-    gdbargs="--args $exe"
+    gdbargs="$exe"
 fi
 
 if [ "$INTERPRETER" = "y" ]; then

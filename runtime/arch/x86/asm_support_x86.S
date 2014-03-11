@@ -104,6 +104,9 @@ MACRO1(DEFINE_FUNCTION, c_name)
     ALIGN_FUNCTION_ENTRY
 VAR(c_name, 0):
     CFI_STARTPROC
+    // TODO: we reset the CFA state here. It'd be better to use ".cfi_startproc simple" above but
+    // clang 3.4 doesn't support this.
+    CFI_DEF_CFA(esp, 4)
 END_MACRO
 
 MACRO1(END_FUNCTION, c_name)
