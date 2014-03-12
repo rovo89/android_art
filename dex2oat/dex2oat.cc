@@ -738,8 +738,12 @@ static int dex2oat(int argc, char** argv) {
 
 #if defined(__arm__)
   InstructionSet instruction_set = kThumb2;
+#elif defined(__aarch64__)
+  InstructionSet instruction_set = kArm64;
 #elif defined(__i386__)
   InstructionSet instruction_set = kX86;
+#elif defined(__x86_64__)
+  InstructionSet instruction_set = kX86_64;
 #elif defined(__mips__)
   InstructionSet instruction_set = kMips;
 #else
