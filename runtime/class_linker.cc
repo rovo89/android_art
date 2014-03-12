@@ -1597,7 +1597,10 @@ const void* ClassLinker::GetQuickOatCodeFor(mirror::ArtMethod* method) {
   }
   const void* result = GetOatMethodFor(method).GetQuickCode();
   if (result == nullptr) {
-    if (method->IsPortableCompiled()) {
+    if (method->IsNative()) {
+      // No code and native? Use generic trampoline.
+      result = GetQuickGenericJniTrampoline();
+    } else if (method->IsPortableCompiled()) {
       // No code? Do we expect portable code?
       result = GetQuickToPortableBridge();
     } else {
@@ -1707,12 +1710,12 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
     bool have_portable_code = false;
     if (enter_interpreter) {
       // Use interpreter entry point.
-
-      // check whether the method is native, in which case it's generic JNI
-      portable_code = GetPortableToInterpreterBridge();
+      // Check whether the method is native, in which case it's generic JNI.
       if (quick_code == nullptr && portable_code == nullptr && method->IsNative()) {
         quick_code = GetQuickGenericJniTrampoline();
+        portable_code = GetPortableToQuickBridge();
       } else {
+        portable_code = GetPortableToInterpreterBridge();
         quick_code = GetQuickToInterpreterBridge();
       }
     } else {

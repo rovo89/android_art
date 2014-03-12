@@ -639,14 +639,17 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
           (!orig->IsStatic() || orig->IsConstructor() || orig->GetDeclaringClass()->IsInitialized())) {
         // We have code for a non-static or initialized method, just use the code.
         copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(quick_code);
-      } else if (quick_code == nullptr && orig->IsNative() && !orig->IsStatic()) {
-        // Non-static native method missing compiled code, use generic JNI version.
+      } else if (quick_code == nullptr && orig->IsNative() &&
+          (!orig->IsStatic() || orig->GetDeclaringClass()->IsInitialized())) {
+        // Non-static or initialized native method missing compiled code, use generic JNI version.
         copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(GetOatAddress(quick_generic_jni_trampoline_offset_));
       } else if (quick_code == nullptr && !orig->IsNative()) {
         // We don't have code at all for a non-native method, use the interpreter.
         copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(GetOatAddress(quick_to_interpreter_bridge_offset_));
       } else {
-        // We have code for a static method, but need to go through the resolution stub for class initialization.
+        CHECK(!orig->GetDeclaringClass()->IsInitialized());
+        // We have code for a static method, but need to go through the resolution stub for class
+        // initialization.
         copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(GetOatAddress(quick_resolution_trampoline_offset_));
       }
       const byte* portable_code = GetOatAddress(orig->GetPortableOatCodeOffset());

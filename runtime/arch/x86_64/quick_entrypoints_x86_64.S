@@ -421,7 +421,7 @@ DEFINE_FUNCTION art_quick_invoke_static_stub
 .Lreturn_float_quick2:
     movss %xmm0, (%r8)           // Store the floating point result.
     ret
-END_FUNCTION art_quick_invoke_stub
+END_FUNCTION art_quick_invoke_static_stub
 
 MACRO3(NO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name, 0)
@@ -659,6 +659,7 @@ DEFINE_FUNCTION art_quick_resolution_trampoline
     movq %rsp, %rcx
     call PLT_SYMBOL(artQuickResolutionTrampoline) // (called, receiver, Thread*, SP)
     movq %rax, %r10               // Remember returned code pointer in R10.
+    movq (%rsp), %rdi             // Load called method into RDI.
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     testq %r10, %r10              // If code pointer is NULL goto deliver pending exception.
     jz 1f
