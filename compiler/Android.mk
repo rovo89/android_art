@@ -132,8 +132,7 @@ LIBART_COMPILER_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
 endif
 
 LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES := \
-	dex/compiler_enums.h \
-	dex/quick/dex_file_method_inliner.h
+	dex/compiler_enums.h
 
 # $(1): target or host
 # $(2): ndebug or debug

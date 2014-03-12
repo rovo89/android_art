@@ -287,13 +287,6 @@ class CompilerDriver {
   void ProcessedStaticField(bool resolved, bool local);
   void ProcessedInvoke(InvokeType invoke_type, int flags);
 
-  // Can we fast path instance field access in a verified accessor?
-  // If yes, computes field's offset and volatility and whether the method is static or not.
-  static bool ComputeSpecialAccessorInfo(uint32_t field_idx, bool is_put,
-                                         verifier::MethodVerifier* verifier,
-                                         InlineIGetIPutData* result)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   // Can we fast path instance field access? Computes field's offset and volatility.
   bool ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit, bool is_put,
                                 MemberOffset* field_offset, bool* is_volatile)
