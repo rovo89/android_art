@@ -757,20 +757,20 @@ static ArtMethod* GetTargetMethod(const CompilerDriver::CallPatchInformation* pa
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Thread* self = Thread::Current();
-  SirtRef<mirror::DexCache> dex_cache(self, class_linker->FindDexCache(patch->GetDexFile()));
+  SirtRef<mirror::DexCache> dex_cache(self, class_linker->FindDexCache(*patch->GetTargetDexFile()));
   SirtRef<mirror::ClassLoader> class_loader(self, nullptr);
-  ArtMethod* method = class_linker->ResolveMethod(patch->GetDexFile(),
+  ArtMethod* method = class_linker->ResolveMethod(*patch->GetTargetDexFile(),
                                                   patch->GetTargetMethodIdx(),
                                                   dex_cache,
                                                   class_loader,
                                                   NULL,
                                                   patch->GetTargetInvokeType());
   CHECK(method != NULL)
-    << patch->GetDexFile().GetLocation() << " " << patch->GetTargetMethodIdx();
+    << patch->GetTargetDexFile()->GetLocation() << " " << patch->GetTargetMethodIdx();
   CHECK(!method->IsRuntimeMethod())
-    << patch->GetDexFile().GetLocation() << " " << patch->GetTargetMethodIdx();
+    << patch->GetTargetDexFile()->GetLocation() << " " << patch->GetTargetMethodIdx();
   CHECK(dex_cache->GetResolvedMethods()->Get(patch->GetTargetMethodIdx()) == method)
-    << patch->GetDexFile().GetLocation() << " " << patch->GetReferrerMethodIdx() << " "
+    << patch->GetTargetDexFile()->GetLocation() << " " << patch->GetReferrerMethodIdx() << " "
     << PrettyMethod(dex_cache->GetResolvedMethods()->Get(patch->GetTargetMethodIdx())) << " "
     << PrettyMethod(method);
   return method;
@@ -864,7 +864,7 @@ void ImageWriter::SetPatchLocation(const CompilerDriver::PatchInformation* patch
   if (kIsDebugBuild) {
     if (patch->IsCall()) {
       const CompilerDriver::CallPatchInformation* cpatch = patch->AsCall();
-      const DexFile::MethodId& id = cpatch->GetDexFile().GetMethodId(cpatch->GetTargetMethodIdx());
+      const DexFile::MethodId& id = cpatch->GetTargetDexFile()->GetMethodId(cpatch->GetTargetMethodIdx());
       uint32_t expected = reinterpret_cast<uintptr_t>(&id) & 0xFFFFFFFF;
       uint32_t actual = *patch_location;
       CHECK(actual == expected || actual == value) << std::hex

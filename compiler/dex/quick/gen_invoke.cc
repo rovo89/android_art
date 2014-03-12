@@ -386,14 +386,12 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
           cg->LoadConstant(cg->TargetReg(kInvokeTgt), direct_code);
         }
       } else if (cu->instruction_set != kX86) {
-        CHECK_EQ(cu->dex_file, target_method.dex_file);
-        cg->LoadCodeAddress(target_method.dex_method_index, type, kInvokeTgt);
+        cg->LoadCodeAddress(target_method, type, kInvokeTgt);
       }
       if (direct_method != static_cast<unsigned int>(-1)) {
         cg->LoadConstant(cg->TargetReg(kArg0), direct_method);
       } else {
-        CHECK_EQ(cu->dex_file, target_method.dex_file);
-        cg->LoadMethodAddress(target_method.dex_method_index, type, kArg0);
+        cg->LoadMethodAddress(target_method, type, kArg0);
       }
       break;
     default:
@@ -413,9 +411,8 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
         if (direct_code != static_cast<unsigned int>(-1)) {
           cg->LoadConstant(cg->TargetReg(kInvokeTgt), direct_code);
         } else if (cu->instruction_set != kX86) {
-          CHECK_EQ(cu->dex_file, target_method.dex_file);
           CHECK_LT(target_method.dex_method_index, target_method.dex_file->NumMethodIds());
-          cg->LoadCodeAddress(target_method.dex_method_index, type, kInvokeTgt);
+          cg->LoadCodeAddress(target_method, type, kInvokeTgt);
         }
       }
       break;
@@ -508,7 +505,6 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
 
   switch (state) {
     case 0:  // Set target method index in case of conflict [set kHiddenArg, kHiddenFpArg (x86)]
-      CHECK_EQ(cu->dex_file, target_method.dex_file);
       CHECK_LT(target_method.dex_method_index, target_method.dex_file->NumMethodIds());
       cg->LoadConstant(cg->TargetReg(kHiddenArg), target_method.dex_method_index);
       if (cu->instruction_set == kX86) {
@@ -1457,8 +1453,7 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
       if (method_info.DirectCode() == static_cast<uintptr_t>(-1)) {
         // We can have the linker fixup a call relative.
         call_inst =
-          reinterpret_cast<X86Mir2Lir*>(this)->CallWithLinkerFixup(
-              target_method.dex_method_index, info->type);
+          reinterpret_cast<X86Mir2Lir*>(this)->CallWithLinkerFixup(target_method, info->type);
       } else {
         call_inst = OpMem(kOpBlx, TargetReg(kArg0),
                           mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value());
