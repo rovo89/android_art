@@ -25,7 +25,7 @@
     .global \name
     .balign 16
 \name:
-    .cfi_startproc
+    .cfi_startproc simple
 .endm
 
 .macro END name
