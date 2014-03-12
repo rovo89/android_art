@@ -711,6 +711,13 @@ END_FUNCTION art_quick_resolution_trampoline
  * |                   |
  * | caller method...  |
  * #-------------------#    <--- SP on entry
+ *
+ *          |
+ *          V
+ *
+ * #-------------------#
+ * | caller method...  |
+ * #-------------------#
  * | Return            |
  * | R15               |    callee save
  * | R14               |    callee save
@@ -734,22 +741,7 @@ END_FUNCTION art_quick_resolution_trampoline
  * | Padding           |
  * | RDI/Method*       |  <- sp
  * #-------------------#
- * | local ref cookie  | // 4B
- * |   padding         | // 4B
- * #----------#--------#
- * |          |      | |
- * | Temp/    | SIRT | |    Scratch frame is 4k
- * | Scratch  |      v |
- * | Frame    #--------|
- * |                   |
- * |          #--------|
- * |          |      ^ |
- * |          | JNI  | |
- * |          | Stack| |
- * #----------#--------#    <--- SP on native call (needs alignment?)
- * |                   |
- * | Stack for Regs    |    The trampoline assembly will pop these values
- * |                   |    into registers for native call
+ * | Scratch Alloca    |    5K scratch space
  * #---------#---------#
  * |         | sp*     |
  * | Tramp.  #---------#
@@ -757,6 +749,35 @@ END_FUNCTION art_quick_resolution_trampoline
  * | Tramp.  #---------#
  * |         | method  |
  * #-------------------#    <--- SP on artQuickGenericJniTrampoline
+ *
+ *           |
+ *           v              artQuickGenericJniTrampoline
+ *
+ * #-------------------#
+ * | caller method...  |
+ * #-------------------#
+ * | Return            |
+ * | Callee-Save Data  |
+ * #-------------------#
+ * | SIRT              |
+ * #-------------------#
+ * | Method*           |    <--- (1)
+ * #-------------------#
+ * | local ref cookie  | // 4B
+ * | SIRT size         | // 4B   TODO: roll into call stack alignment?
+ * #-------------------#
+ * | JNI Call Stack    |
+ * #-------------------#    <--- SP on native call
+ * |                   |
+ * | Stack for Regs    |    The trampoline assembly will pop these values
+ * |                   |    into registers for native call
+ * #-------------------#
+ * | Native code ptr   |
+ * #-------------------#
+ * | Free scratch      |
+ * #-------------------#
+ * | Ptr to (1)        |    <--- RSP
+ * #-------------------#
  */
     /*
      * Called to do a generic JNI down-call
@@ -789,7 +810,8 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     // Store native ArtMethod* to bottom of stack.
     movq %rdi, 0(%rsp)
     movq %rsp, %rbp                 // save SP at callee-save frame
-    CFI_DEF_CFA_REGISTER(rbp)
+    movq %rsp, %rbx
+    CFI_DEF_CFA_REGISTER(rbx)
     //
     // reserve a lot of space
     //
@@ -815,12 +837,19 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movq %gs:THREAD_SELF_OFFSET, %rdi
     movq %rbp, %rsi
     call PLT_SYMBOL(artQuickGenericJniTrampoline)  // (Thread*, sp)
-    test %rax, %rax                 // Check for error, negative value.
+
+    // At the bottom of the alloca we now have the name pointer to the method=bottom of callee-save
+    // get the adjusted frame pointer
+    popq %rbp
+
+    // Check for error, negative value.
+    test %rax, %rax
     js .Lentry_error
-    // release part of the alloca
+
+    // release part of the alloca, get the code pointer
     addq %rax, %rsp
-    // get the code pointer
     popq %rax
+
     // pop from the register-passing alloca region
     // what's the right layout?
     popq %rdi
@@ -853,7 +882,7 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     call PLT_SYMBOL(artQuickGenericJniEndTrampoline)
 
     // Tear down the alloca.
-    movq %rbp, %rsp
+    movq %rbx, %rsp
     CFI_DEF_CFA_REGISTER(rsp)
 
     // Pending exceptions possible.
@@ -891,12 +920,35 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movq %rax, %xmm0
     ret
 .Lentry_error:
-    movq %rbp, %rsp
+    movq %rbx, %rsp
+    CFI_DEF_CFA_REGISTER(rsp)
 .Lexception_in_native:
-    CFI_REL_OFFSET(rsp,176)
     // TODO: the SIRT contains the this pointer which is used by the debugger for exception
     //       delivery.
-    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    movq %xmm0, 16(%rsp)         // doesn't make sense!!!
+    movq 24(%rsp), %xmm1            // neither does this!!!
+    movq 32(%rsp), %xmm2
+    movq 40(%rsp), %xmm3
+    movq 48(%rsp), %xmm4
+    movq 56(%rsp), %xmm5
+    movq 64(%rsp), %xmm6
+    movq 72(%rsp), %xmm7
+    // was 80 bytes
+    addq LITERAL(80), %rsp
+    CFI_ADJUST_CFA_OFFSET(-80)
+    // Save callee and GPR args, mixed together to agree with core spills bitmap.
+    POP rcx  // Arg.
+    POP rdx  // Arg.
+    POP rbx  // Callee save.
+    POP rbp  // Callee save.
+    POP rsi  // Arg.
+    POP r8   // Arg.
+    POP r9   // Arg.
+    POP r12  // Callee save.
+    POP r13  // Callee save.
+    POP r14  // Callee save.
+    POP r15  // Callee save.
+
     DELIVER_PENDING_EXCEPTION
 END_FUNCTION art_quick_generic_jni_trampoline
 

@@ -364,7 +364,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
   OatClass* oat_class = oat_classes_[oat_class_index];
   CompiledMethod* compiled_method = oat_class->GetCompiledMethod(class_def_method_index);
 
-  if (compiled_method != NULL) {
+  if (compiled_method != nullptr) {
     const std::vector<uint8_t>* portable_code = compiled_method->GetPortableCode();
     const std::vector<uint8_t>* quick_code = compiled_method->GetQuickCode();
     if (portable_code != nullptr) {
@@ -495,6 +495,33 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
 
 
   if (compiler_driver_->IsImage()) {
+    // Derive frame size and spill masks for native methods without code:
+    // These are generic JNI methods...
+    if (is_native && compiled_method == nullptr) {
+      // Compute Sirt size as putting _every_ reference into it, even null ones.
+      uint32_t s_len;
+      const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx), &s_len);
+      DCHECK(shorty != nullptr);
+      uint32_t refs = 1;    // Native method always has "this" or class.
+      for (uint32_t i = 1; i < s_len; ++i) {
+        if (shorty[i] == 'L') {
+          refs++;
+        }
+      }
+      size_t sirt_size = StackIndirectReferenceTable::GetAlignedSirtSize(refs);
+
+      // Get the generic spill masks and base frame size.
+      mirror::ArtMethod* callee_save_method =
+          Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs);
+
+      frame_size_in_bytes = callee_save_method->GetFrameSizeInBytes() + sirt_size;
+      core_spill_mask = callee_save_method->GetCoreSpillMask();
+      fp_spill_mask = callee_save_method->GetFpSpillMask();
+      mapping_table_offset = 0;
+      vmap_table_offset = 0;
+      gc_map_offset = 0;
+    }
+
     ClassLinker* linker = Runtime::Current()->GetClassLinker();
     // Unchecked as we hold mutator_lock_ on entry.
     ScopedObjectAccessUnchecked soa(Thread::Current());

@@ -219,8 +219,15 @@ class CommonCompilerTest : public CommonRuntimeTest {
       } else {
         const void* method_code = GetQuickGenericJniTrampoline();
         mirror::ArtMethod* callee_save_method = runtime_->GetCalleeSaveMethod(Runtime::kRefsAndArgs);
+
+        // Compute Sirt size, as Sirt goes into frame
+        MethodHelper mh(method);
+        uint32_t sirt_refs = mh.GetNumberOfReferenceArgsWithoutReceiver() + 1;
+        uint32_t sirt_size = StackIndirectReferenceTable::SizeOf(sirt_refs);
+
         OatFile::OatMethod oat_method = CreateOatMethod(method_code,
-                                                        callee_save_method->GetFrameSizeInBytes(),
+                                                        callee_save_method->GetFrameSizeInBytes() +
+                                                            sirt_size,
                                                         callee_save_method->GetCoreSpillMask(),
                                                         callee_save_method->GetFpSpillMask(),
                                                         nullptr,

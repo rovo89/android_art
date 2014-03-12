@@ -108,17 +108,11 @@ mirror::Object* StackVisitor::GetThisObject() const {
     return NULL;
   } else if (m->IsNative()) {
     if (cur_quick_frame_ != NULL) {
-      if (m->GetEntryPointFromQuickCompiledCode() == GetQuickGenericJniTrampoline()) {
-        UNIMPLEMENTED(ERROR) << "Failed to determine this object of native method: "
-            << PrettyMethod(m);
-        return nullptr;
-      } else {
-        StackIndirectReferenceTable* sirt =
-            reinterpret_cast<StackIndirectReferenceTable*>(
-                reinterpret_cast<char*>(cur_quick_frame_) +
-                m->GetSirtOffsetInBytes());
-        return sirt->GetReference(0);
-      }
+      StackIndirectReferenceTable* sirt =
+          reinterpret_cast<StackIndirectReferenceTable*>(
+              reinterpret_cast<char*>(cur_quick_frame_) +
+              m->GetSirtOffsetInBytes());
+      return sirt->GetReference(0);
     } else {
       return cur_shadow_frame_->GetVRegReference(0);
     }
