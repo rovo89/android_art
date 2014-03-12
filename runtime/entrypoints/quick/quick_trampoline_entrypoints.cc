@@ -856,9 +856,10 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
  *
  * void PushStack(uintptr_t): Push a value to the stack.
  *
- * uintptr_t PushSirt(mirror::Object* ref): Add a reference to the Sirt. Is guaranteed != nullptr.
+ * uintptr_t PushSirt(mirror::Object* ref): Add a reference to the Sirt. This _will_ have nullptr,
+ *                                          as this might be important for null initialization.
  *                                          Must return the jobject, that is, the reference to the
- *                                          entry in the Sirt.
+ *                                          entry in the Sirt (nullptr if necessary).
  *
  */
 template <class T> class BuildGenericJniFrameStateMachine {
@@ -948,12 +949,7 @@ template <class T> class BuildGenericJniFrameStateMachine {
   }
 
   void AdvanceSirt(mirror::Object* ptr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    uintptr_t sirtRef;
-    if (ptr != nullptr) {
-      sirtRef = PushSirt(ptr);
-    } else {
-      sirtRef = reinterpret_cast<uintptr_t>(nullptr);
-    }
+    uintptr_t sirtRef = PushSirt(ptr);
     if (HaveSirtGpr()) {
       gpr_index_--;
       PushGpr(sirtRef);
@@ -1155,49 +1151,49 @@ class ComputeGenericJniFrameSize FINAL {
  public:
   ComputeGenericJniFrameSize() : num_sirt_references_(0), num_stack_entries_(0) {}
 
-  // (negative) offset from SP to top of Sirt.
-  uint32_t GetSirtOffset() {
-    return 8;
-  }
-
-  uint32_t GetFirstSirtEntryOffset() {
-    return GetSirtOffset() + sizeof(StackReference<mirror::Object>);
-  }
-
-  uint32_t GetNumSirtReferences() {
-    return num_sirt_references_;
-  }
-
   uint32_t GetStackSize() {
     return num_stack_entries_ * sizeof(uintptr_t);
   }
 
-  void ComputeLayout(bool is_static, const char* shorty, uint32_t shorty_len, void* sp,
-                     StackReference<mirror::Object>** start_sirt, StackIndirectReferenceTable** table,
-                     uint32_t* sirt_entries, uintptr_t** start_stack, uintptr_t** start_gpr,
-                     uint32_t** start_fpr, void** code_return, size_t* overall_size)
+  // WARNING: After this, *sp won't be pointing to the method anymore!
+  void ComputeLayout(mirror::ArtMethod*** m, bool is_static, const char* shorty, uint32_t shorty_len,
+                     void* sp, StackIndirectReferenceTable** table, uint32_t* sirt_entries,
+                     uintptr_t** start_stack, uintptr_t** start_gpr, uint32_t** start_fpr,
+                     void** code_return, size_t* overall_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ComputeAll(is_static, shorty, shorty_len);
 
+    mirror::ArtMethod* method = **m;
+
     uint8_t* sp8 = reinterpret_cast<uint8_t*>(sp);
-    *start_sirt = reinterpret_cast<StackReference<mirror::Object>*>(sp8-GetFirstSirtEntryOffset());
 
-    // Add padding entries if necessary for alignment.
-    if (sizeof(uintptr_t) < sizeof(uint64_t)) {
-      uint32_t size = sizeof(uintptr_t) * num_sirt_references_;
-      uint32_t rem = size % 8;
-      if (rem != 0) {
-        DCHECK_EQ(rem, 4U);
-        num_sirt_references_++;
-      }
-    }
+    // First, fix up the layout of the callee-save frame.
+    // We have to squeeze in the Sirt, and relocate the method pointer.
+
+    // "Free" the slot for the method.
+    sp8 += kPointerSize;
+
+    // Add the Sirt.
     *sirt_entries = num_sirt_references_;
-    size_t sirt_size = StackIndirectReferenceTable::SizeOf(num_sirt_references_);
-    sp8 -= GetSirtOffset() + sirt_size;
+    size_t sirt_size = StackIndirectReferenceTable::GetAlignedSirtSize(num_sirt_references_);
+    sp8 -= sirt_size;
     *table = reinterpret_cast<StackIndirectReferenceTable*>(sp8);
+    (*table)->SetNumberOfReferences(num_sirt_references_);
 
+    // Add a slot for the method pointer, and fill it. Fix the pointer-pointer given to us.
+    sp8 -= kPointerSize;
+    uint8_t* method_pointer = sp8;
+    *(reinterpret_cast<mirror::ArtMethod**>(method_pointer)) = method;
+    *m = reinterpret_cast<mirror::ArtMethod**>(method_pointer);
+
+    // Reference cookie and padding
+    sp8 -= 8;
+    // Store Sirt size
+    *reinterpret_cast<uint32_t*>(sp8) = static_cast<uint32_t>(sirt_size & 0xFFFFFFFF);
+
+    // Next comes the native call stack.
     sp8 -= GetStackSize();
-    // Now align the call stack under the Sirt. This aligns by 16.
+    // Now align the call stack below. This aligns by 16, as AArch64 seems to require.
     uintptr_t mask = ~0x0F;
     sp8 = reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(sp8) & mask);
     *start_stack = reinterpret_cast<uintptr_t*>(sp8);
@@ -1212,10 +1208,14 @@ class ComputeGenericJniFrameSize FINAL {
     *start_gpr = reinterpret_cast<uintptr_t*>(sp8);
 
     // reserve space for the code pointer
-    sp8 -= sizeof(void*);
+    sp8 -= kPointerSize;
     *code_return = reinterpret_cast<void*>(sp8);
 
     *overall_size = reinterpret_cast<uint8_t*>(sp) - sp8;
+
+    // The new SP is stored at the end of the alloca, so it can be immediately popped
+    sp8 = reinterpret_cast<uint8_t*>(sp) - 5 * KB;
+    *(reinterpret_cast<uint8_t**>(sp8)) = method_pointer;
   }
 
   void ComputeSirtOffset() { }  // nothing to do, static right now
@@ -1291,21 +1291,21 @@ class ComputeGenericJniFrameSize FINAL {
 // of transitioning into native code.
 class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
  public:
-  BuildGenericJniFrameVisitor(mirror::ArtMethod** sp, bool is_static, const char* shorty,
+  BuildGenericJniFrameVisitor(mirror::ArtMethod*** sp, bool is_static, const char* shorty,
                               uint32_t shorty_len, Thread* self) :
-      QuickArgumentVisitor(sp, is_static, shorty, shorty_len), sm_(this) {
+      QuickArgumentVisitor(*sp, is_static, shorty, shorty_len), sm_(this) {
     ComputeGenericJniFrameSize fsc;
-    fsc.ComputeLayout(is_static, shorty, shorty_len, sp, &cur_sirt_entry_, &sirt_,
-                      &sirt_expected_refs_, &cur_stack_arg_, &cur_gpr_reg_, &cur_fpr_reg_,
-                      &code_return_, &alloca_used_size_);
+    fsc.ComputeLayout(sp, is_static, shorty, shorty_len, *sp, &sirt_, &sirt_expected_refs_,
+                      &cur_stack_arg_, &cur_gpr_reg_, &cur_fpr_reg_, &code_return_,
+                      &alloca_used_size_);
     sirt_number_of_references_ = 0;
-    top_of_sirt_ = cur_sirt_entry_;
+    cur_sirt_entry_ = reinterpret_cast<StackReference<mirror::Object>*>(GetFirstSirtEntry());
 
     // jni environment is always first argument
     sm_.AdvancePointer(self->GetJniEnv());
 
     if (is_static) {
-      sm_.AdvanceSirt((*sp)->GetDeclaringClass());
+      sm_.AdvanceSirt((**sp)->GetDeclaringClass());
     }
   }
 
@@ -1359,7 +1359,7 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
     // Initialize padding entries.
     while (sirt_number_of_references_ < sirt_expected_refs_) {
       *cur_sirt_entry_ = StackReference<mirror::Object>();
-      cur_sirt_entry_--;
+      cur_sirt_entry_++;
       sirt_number_of_references_++;
     }
     sirt_->SetNumberOfReferences(sirt_expected_refs_);
@@ -1368,8 +1368,8 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
     self->PushSirt(sirt_);
   }
 
-  jobject GetFirstSirtEntry() {
-    return reinterpret_cast<jobject>(top_of_sirt_);
+  jobject GetFirstSirtEntry() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return reinterpret_cast<jobject>(sirt_->GetStackReference(0));
   }
 
   void PushGpr(uintptr_t val) {
@@ -1394,9 +1394,15 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
   }
 
   uintptr_t PushSirt(mirror::Object* ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    *cur_sirt_entry_ = StackReference<mirror::Object>::FromMirrorPtr(ref);
-    uintptr_t tmp = reinterpret_cast<uintptr_t>(cur_sirt_entry_);
-    cur_sirt_entry_--;
+    uintptr_t tmp;
+    if (ref == nullptr) {
+      *cur_sirt_entry_ = StackReference<mirror::Object>();
+      tmp = reinterpret_cast<uintptr_t>(nullptr);
+    } else {
+      *cur_sirt_entry_ = StackReference<mirror::Object>::FromMirrorPtr(ref);
+      tmp = reinterpret_cast<uintptr_t>(cur_sirt_entry_);
+    }
+    cur_sirt_entry_++;
     sirt_number_of_references_++;
     return tmp;
   }
@@ -1418,7 +1424,7 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
   uintptr_t* cur_gpr_reg_;
   uint32_t* cur_fpr_reg_;
   uintptr_t* cur_stack_arg_;
-  StackReference<mirror::Object>* top_of_sirt_;
+  // StackReference<mirror::Object>* top_of_sirt_;
   void* code_return_;
   size_t alloca_used_size_;
 
@@ -1432,20 +1438,22 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
  * Create a Sirt and call stack and fill a mini stack with values to be pushed to registers.
  * The final element on the stack is a pointer to the native code.
  *
+ * On entry, the stack has a standard callee-save frame above sp, and an alloca below it.
+ * We need to fix this, as the Sirt needs to go into the callee-save frame.
+ *
  * The return of this function denotes:
  * 1) How many bytes of the alloca can be released, if the value is non-negative.
  * 2) An error, if the value is negative.
  */
 extern "C" ssize_t artQuickGenericJniTrampoline(Thread* self, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  uint32_t* sp32 = reinterpret_cast<uint32_t*>(sp);
   mirror::ArtMethod* called = *sp;
-  DCHECK(called->IsNative());
+  DCHECK(called->IsNative()) << PrettyMethod(called, true);
 
   // run the visitor
   MethodHelper mh(called);
 
-  BuildGenericJniFrameVisitor visitor(sp, called->IsStatic(), mh.GetShorty(), mh.GetShortyLength(),
+  BuildGenericJniFrameVisitor visitor(&sp, called->IsStatic(), mh.GetShorty(), mh.GetShortyLength(),
                                       self);
   visitor.VisitArguments();
   visitor.FinalizeSirt(self);
@@ -1462,11 +1470,14 @@ extern "C" ssize_t artQuickGenericJniTrampoline(Thread* self, mirror::ArtMethod*
     if (self->IsExceptionPending()) {
       self->PopSirt();
       // A negative value denotes an error.
+      // TODO: Do we still need to fix the stack pointer? I think so. Then it's necessary to push
+      //       that value!
       return -1;
     }
   } else {
     cookie = JniMethodStart(self);
   }
+  uint32_t* sp32 = reinterpret_cast<uint32_t*>(sp);
   *(sp32 - 1) = cookie;
 
   // retrieve native code
@@ -1480,8 +1491,8 @@ extern "C" ssize_t artQuickGenericJniTrampoline(Thread* self, mirror::ArtMethod*
   size_t window_size = visitor.GetAllocaUsedSize();
   *code_pointer = reinterpret_cast<uintptr_t>(nativeCode);
 
-  // 5K reserved, window_size used.
-  return (5 * KB) - window_size;
+  // 5K reserved, window_size + frame pointer used.
+  return (5 * KB) - window_size - kPointerSize;
 }
 
 /*
@@ -1501,10 +1512,10 @@ extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self, mirror::ArtMet
   if (return_shorty_char == 'L') {
     // the only special ending call
     if (called->IsSynchronized()) {
-      ComputeGenericJniFrameSize fsc;
-      fsc.ComputeSirtOffset();
-      uint32_t offset = fsc.GetFirstSirtEntryOffset();
-      jobject tmp = reinterpret_cast<jobject>(reinterpret_cast<uint8_t*>(sp) - offset);
+      StackIndirectReferenceTable* table =
+          reinterpret_cast<StackIndirectReferenceTable*>(
+              reinterpret_cast<uint8_t*>(sp) + kPointerSize);
+      jobject tmp = reinterpret_cast<jobject>(table->GetStackReference(0));
 
       return reinterpret_cast<uint64_t>(JniMethodEndWithReferenceSynchronized(result.l, cookie, tmp,
                                                                               self));
@@ -1513,10 +1524,10 @@ extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self, mirror::ArtMet
     }
   } else {
     if (called->IsSynchronized()) {
-      ComputeGenericJniFrameSize fsc;
-      fsc.ComputeSirtOffset();
-      uint32_t offset = fsc.GetFirstSirtEntryOffset();
-      jobject tmp = reinterpret_cast<jobject>(reinterpret_cast<uint8_t*>(sp) - offset);
+      StackIndirectReferenceTable* table =
+          reinterpret_cast<StackIndirectReferenceTable*>(
+              reinterpret_cast<uint8_t*>(sp) + kPointerSize);
+      jobject tmp = reinterpret_cast<jobject>(table->GetStackReference(0));
 
       JniMethodEndSynchronized(cookie, tmp, self);
     } else {
