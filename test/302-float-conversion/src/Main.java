@@ -19,6 +19,11 @@ public class Main {
     static volatile double negInfinity = Double.NEGATIVE_INFINITY;
 
     public static void main(String args[]) {
+        test1();
+        test2();
+    }
+
+    public static void test1() {
 
         long sumInf = 0;
         long sumRes = 0;
@@ -35,9 +40,19 @@ public class Main {
         }
 
         if (sumRes == NUM_ITERATIONS / 2) {
-            System.out.println("Result is as expected");
+            System.out.println("Iteration Result is as expected");
         } else {
             System.out.println("Conversions failed over " + NUM_ITERATIONS + " iterations");
         }
     }
+
+    public static void test2() {
+        long a = 1L;
+        long b = 2L;
+
+        float inter3 = a;
+        float inter4 = b;
+        System.out.println("inter4:" + inter4);
+    }
+
 }

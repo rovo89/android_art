@@ -130,12 +130,14 @@ enum X86ResourceEncodingPos {
   kX86GPReg0   = 0,
   kX86RegSP    = 4,
   kX86FPReg0   = 16,  // xmm0 .. xmm7/xmm15.
-  kX86FPRegEnd   = 32,
-  kX86RegEnd   = kX86FPRegEnd,
+  kX86FPRegEnd = 32,
+  kX86FPStack  = 33,
+  kX86RegEnd   = kX86FPStack,
 };
 
 #define ENCODE_X86_REG_LIST(N)      (static_cast<uint64_t>(N))
 #define ENCODE_X86_REG_SP           (1ULL << kX86RegSP)
+#define ENCODE_X86_FP_STACK         (1ULL << kX86FPStack)
 
 enum X86NativeRegisterPool {
   r0     = 0,
