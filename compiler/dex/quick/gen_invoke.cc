@@ -687,7 +687,6 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
                                     vtable_idx, direct_code, direct_method, type);
       }
       StoreBaseDisp(TargetReg(kSp), (next_use + 1) * 4, reg, kWord);
-      StoreBaseDisp(TargetReg(kSp), 16 /* (3+1)*4 */, reg, kWord);
       call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                                   direct_code, direct_method, type);
       next_use++;
