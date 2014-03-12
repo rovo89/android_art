@@ -86,6 +86,8 @@ uint32_t CompiledCode::AlignCode(uint32_t offset, InstructionSet instruction_set
     case kArm:
     case kThumb2:
       return RoundUp(offset, kArmAlignment);
+    case kArm64:
+      return RoundUp(offset, kArm64Alignment);
     case kMips:
       return RoundUp(offset, kMipsAlignment);
     case kX86:  // Fall-through.
@@ -100,6 +102,7 @@ uint32_t CompiledCode::AlignCode(uint32_t offset, InstructionSet instruction_set
 size_t CompiledCode::CodeDelta() const {
   switch (instruction_set_) {
     case kArm:
+    case kArm64:
     case kMips:
     case kX86:
       return 0;
@@ -117,6 +120,7 @@ const void* CompiledCode::CodePointer(const void* code_pointer,
                                       InstructionSet instruction_set) {
   switch (instruction_set) {
     case kArm:
+    case kArm64:
     case kMips:
     case kX86:
       return code_pointer;

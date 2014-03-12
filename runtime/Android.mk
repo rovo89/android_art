@@ -212,6 +212,16 @@ LIBART_TARGET_SRC_FILES_arm := \
 	arch/arm/thread_arm.cc \
 	arch/arm/fault_handler_arm.cc
 
+LIBART_TARGET_SRC_FILES_arm64 := \
+	arch/arm64/context_arm64.cc \
+	arch/arm64/entrypoints_init_arm64.cc \
+	arch/arm64/jni_entrypoints_arm64.S \
+	arch/arm64/portable_entrypoints_arm64.S \
+	arch/arm64/quick_entrypoints_arm64.S \
+	arch/arm64/thread_arm64.cc \
+	monitor_pool.cc \
+	arch/arm64/fault_handler_arm64.cc
+
 LIBART_TARGET_SRC_FILES_x86 := \
 	arch/x86/context_x86.cc \
 	arch/x86/entrypoints_init_x86.cc \
@@ -241,13 +251,9 @@ LIBART_TARGET_SRC_FILES_mips := \
 	arch/mips/thread_mips.cc \
 	arch/mips/fault_handler_mips.cc
 
-ifeq ($(TARGET_ARCH),arm64)
-$(info TODOArm64: $(LOCAL_PATH)/Android.mk Add Arm64 specific runtime files)
-else
 ifeq ($(TARGET_ARCH),mips64)
 $(info TODOMips64: $(LOCAL_PATH)/Android.mk Add mips64 specific runtime files)
 endif # TARGET_ARCH != mips64
-endif # TARGET_ARCH != arm64
 
 ifeq (,$(filter $(TARGET_ARCH),$(ART_SUPPORTED_ARCH)))
 $(warning unsupported TARGET_ARCH=$(TARGET_ARCH))

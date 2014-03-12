@@ -49,6 +49,10 @@ static constexpr size_t kObjectAlignment = 8;
 // but ARM ELF requires 8..
 static constexpr size_t kArmAlignment = 8;
 
+// ARM64 instruction alignment. AArch64 require code to be 4-byte aligned.
+// AArch64 ELF requires at least 4.
+static constexpr size_t kArm64Alignment = 4;
+
 // MIPS instruction alignment.  MIPS processors require code to be 4-byte aligned.
 // TODO: Can this be 4?
 static constexpr size_t kMipsAlignment = 8;

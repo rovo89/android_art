@@ -300,6 +300,10 @@ class CommonCompilerTest : public CommonRuntimeTest {
       // for ARM, do a runtime check to make sure that the features we are passed from
       // the build match the features we actually determine at runtime.
       ASSERT_EQ(instruction_set_features, runtime_features);
+#elif defined(__aarch64__)
+      instruction_set = kArm64;
+      // TODO: arm64 compilation support.
+      compiler_options_->SetCompilerFilter(CompilerOptions::kInterpretOnly);
 #elif defined(__mips__)
       instruction_set = kMips;
 #elif defined(__i386__)

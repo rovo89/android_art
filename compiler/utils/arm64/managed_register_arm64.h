@@ -24,7 +24,7 @@
 namespace art {
 namespace arm64 {
 
-const int kNumberOfCoreRegIds = kNumberOfCoreRegisters;
+const int kNumberOfCoreRegIds = 32;
 const int kNumberOfWRegIds = kNumberOfWRegisters;
 const int kNumberOfDRegIds = kNumberOfDRegisters;
 const int kNumberOfSRegIds = kNumberOfSRegisters;
