@@ -25,7 +25,9 @@
     .global \name
     .balign 16
 \name:
-    .cfi_startproc simple
+    .cfi_startproc
+     /* Ensure we get a sane starting CFA. */
+    .cfi_def_cfa $sp,0
 .endm
 
 .macro END name
