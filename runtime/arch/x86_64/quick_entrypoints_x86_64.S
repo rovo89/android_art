@@ -646,7 +646,43 @@ UNIMPLEMENTED art_quick_set_obj_static
 UNIMPLEMENTED art_quick_get32_static
 UNIMPLEMENTED art_quick_get64_static
 UNIMPLEMENTED art_quick_get_obj_static
-UNIMPLEMENTED art_quick_proxy_invoke_handler
+
+DEFINE_FUNCTION art_quick_proxy_invoke_handler
+    // Save callee and GPR args, mixed together to agree with core spills bitmap of ref. and args
+    // callee save frame.
+    PUSH r15  // Callee save.
+    PUSH r14  // Callee save.
+    PUSH r13  // Callee save.
+    PUSH r12  // Callee save.
+    PUSH r9   // Quick arg 5.
+    PUSH r8   // Quick arg 4.
+    PUSH rsi  // Quick arg 1.
+    PUSH rbp  // Callee save.
+    PUSH rbx  // Callee save.
+    PUSH rdx  // Quick arg 2.
+    PUSH rcx  // Quick arg 3.
+    // Create space for FPR args and create 2 slots, 1 of padding and 1 for the ArtMethod*.
+    subq LITERAL(80), %rsp
+    CFI_ADJUST_CFA_OFFSET(80)
+    // Save FPRs.
+    movq %xmm0, 16(%rsp)
+    movq %xmm1, 24(%rsp)
+    movq %xmm2, 32(%rsp)
+    movq %xmm3, 40(%rsp)
+    movq %xmm4, 48(%rsp)
+    movq %xmm5, 56(%rsp)
+    movq %xmm6, 64(%rsp)
+    movq %xmm7, 72(%rsp)
+    // Store proxy method to bottom of stack.
+    movq %rdi, 0(%rsp)
+    movq %gs:THREAD_SELF_OFFSET, %rdx  // Pass Thread::Current().
+    movq %rsp, %rcx                    // Pass SP.
+    call PLT_SYMBOL(artQuickProxyInvokeHandler) // (proxy method, receiver, Thread*, SP)
+    movq %rax, %xmm0                   // Copy return value in case of float returns.
+    addq LITERAL(168), %rsp            // Pop arguments.
+    CFI_ADJUST_CFA_OFFSET(-168)
+    RETURN_OR_DELIVER_PENDING_EXCEPTION
+END_FUNCTION art_quick_proxy_invoke_handler
 
     /*
      * Called to resolve an imt conflict.
