@@ -218,6 +218,7 @@ inline mirror::Object* Heap::TryToAllocate(Thread* self, AllocatorType allocator
       ret = self->AllocTlab(alloc_size);
       DCHECK(ret != nullptr);
       *bytes_allocated = alloc_size;
+      *usable_size = alloc_size;
       break;
     }
     default: {

@@ -120,6 +120,7 @@ class Heap {
   // Primitive arrays larger than this size are put in the large object space.
   static constexpr size_t kDefaultLargeObjectThreshold = 3 * kPageSize;
 
+  static constexpr size_t kDefaultStartingSize = kPageSize;
   static constexpr size_t kDefaultInitialSize = 2 * MB;
   static constexpr size_t kDefaultMaximumSize = 32 * MB;
   static constexpr size_t kDefaultMaxFree = 2 * MB;
