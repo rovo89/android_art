@@ -135,9 +135,10 @@ class Heap {
   // Used so that we don't overflow the allocation time atomic integer.
   static constexpr size_t kTimeAdjust = 1024;
 
-  // How long we wait after a GC to perform a heap trim (nanoseconds).
+  // How often we allow heap trimming to happen (nanoseconds).
   static constexpr uint64_t kHeapTrimWait = MsToNs(5000);
-  static constexpr uint64_t kHeapTransitionWait = MsToNs(5000);
+  // How long we wait after a transition request to perform a collector transition (nanoseconds).
+  static constexpr uint64_t kCollectorTransitionWait = MsToNs(5000);
 
   // Create a heap with the requested sizes. The possible empty
   // image_file_names names specify Spaces to load based on
@@ -648,9 +649,9 @@ class Heap {
   collector::GcType WaitForGcToCompleteLocked(Thread* self)
       EXCLUSIVE_LOCKS_REQUIRED(gc_complete_lock_);
 
-  void RequestHeapTransition(CollectorType desired_collector_type, uint64_t delta_time)
+  void RequestCollectorTransition(CollectorType desired_collector_type, uint64_t delta_time)
       LOCKS_EXCLUDED(heap_trim_request_lock_);
-  void RequestHeapTrim(uint64_t delta_time) LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
+  void RequestHeapTrim() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
   void RequestConcurrentGC(Thread* self) LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
   bool IsGCRequestPending() const;
 
@@ -754,7 +755,7 @@ class Heap {
   // Lock which guards heap trim requests.
   Mutex* heap_trim_request_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   // When we want to perform the next heap trim (nano seconds).
-  uint64_t heap_trim_target_time_ GUARDED_BY(heap_trim_request_lock_);
+  uint64_t last_trim_time_ GUARDED_BY(heap_trim_request_lock_);
   // When we want to perform the next heap transition (nano seconds).
   uint64_t heap_transition_target_time_ GUARDED_BY(heap_trim_request_lock_);
   // If we have a heap trim request pending.
