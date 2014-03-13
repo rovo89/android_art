@@ -120,6 +120,39 @@ TEST_F(MemMapTest, MapAnonymousEmpty32bit) {
 }
 #endif
 
+TEST_F(MemMapTest, MapAnonymousExactAddr) {
+  std::string error_msg;
+  // Map at an address that should work, which should succeed.
+  UniquePtr<MemMap> map0(MemMap::MapAnonymous("MapAnonymous0",
+                                              reinterpret_cast<byte*>(ART_BASE_ADDRESS),
+                                              kPageSize,
+                                              PROT_READ | PROT_WRITE,
+                                              false,
+                                              &error_msg));
+  ASSERT_TRUE(map0.get() != nullptr) << error_msg;
+  ASSERT_TRUE(error_msg.empty());
+  ASSERT_TRUE(map0->BaseBegin() == reinterpret_cast<void*>(ART_BASE_ADDRESS));
+  // Map at an unspecified address, which should succeed.
+  UniquePtr<MemMap> map1(MemMap::MapAnonymous("MapAnonymous1",
+                                              nullptr,
+                                              kPageSize,
+                                              PROT_READ | PROT_WRITE,
+                                              false,
+                                              &error_msg));
+  ASSERT_TRUE(map1.get() != nullptr) << error_msg;
+  ASSERT_TRUE(error_msg.empty());
+  ASSERT_TRUE(map1->BaseBegin() != nullptr);
+  // Attempt to map at the same address, which should fail.
+  UniquePtr<MemMap> map2(MemMap::MapAnonymous("MapAnonymous2",
+                                              reinterpret_cast<byte*>(map1->BaseBegin()),
+                                              kPageSize,
+                                              PROT_READ | PROT_WRITE,
+                                              false,
+                                              &error_msg));
+  ASSERT_TRUE(map2.get() == nullptr) << error_msg;
+  ASSERT_TRUE(!error_msg.empty());
+}
+
 TEST_F(MemMapTest, RemapAtEnd) {
   RemapAtEndTest(false);
 }
