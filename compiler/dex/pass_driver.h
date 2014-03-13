@@ -73,7 +73,8 @@ class PassDriver {
    */
   void DispatchPass(CompilationUnit* c_unit, const Pass* pass);
 
-  void PrintPassNames() const;
+  static void PrintPassNames();
+  static void CreateDefaultPassList(const std::string& disable_passes);
 
   const Pass* GetPass(const char* name) const;
 
