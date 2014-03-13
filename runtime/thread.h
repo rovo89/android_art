@@ -95,7 +95,13 @@ enum ThreadFlag {
 class PACKED(4) Thread {
  public:
   // Space to throw a StackOverflowError in.
-  static const size_t kStackOverflowReservedBytes = 16 * KB;
+#if !defined(NDEBUG) && defined(__clang__)
+  // TODO: debug clang builds have large switch based interpreter frames that require more stack
+  // space to handle stack overflow exceptions.
+  static constexpr size_t kStackOverflowReservedBytes = 18 * KB;
+#else
+  static constexpr size_t kStackOverflowReservedBytes = 16 * KB;
+#endif
 
   // Creates a new native thread corresponding to the given managed peer.
   // Used to implement Thread.start.
