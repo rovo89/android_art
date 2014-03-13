@@ -535,11 +535,11 @@ class Mir2Lir : public Backend {
     RegisterInfo* GetRegInfo(int reg);
 
     // Shared by all targets - implemented in gen_common.cc.
+    void AddIntrinsicLaunchpad(CallInfo* info, LIR* branch, LIR* resume = nullptr);
     bool HandleEasyDivRem(Instruction::Code dalvik_opcode, bool is_div,
                           RegLocation rl_src, RegLocation rl_dest, int lit);
     bool HandleEasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit);
     void HandleSuspendLaunchPads();
-    void HandleIntrinsicLaunchPads();
     void HandleThrowLaunchPads();
     void HandleSlowPaths();
     void GenBarrier();
@@ -637,6 +637,7 @@ class Mir2Lir : public Backend {
                                                             RegLocation arg2,
                                                             bool safepoint_pc);
     void GenInvoke(CallInfo* info);
+    void GenInvokeNoInline(CallInfo* info);
     void FlushIns(RegLocation* ArgLocs, RegLocation rl_method);
     int GenDalvikArgsNoRange(CallInfo* info, int call_state, LIR** pcrLabel,
                              NextCallInsn next_call_insn,
@@ -1196,7 +1197,6 @@ class Mir2Lir : public Backend {
     GrowableArray<FillArrayData*> fill_array_data_;
     GrowableArray<LIR*> throw_launchpads_;
     GrowableArray<LIR*> suspend_launchpads_;
-    GrowableArray<LIR*> intrinsic_launchpads_;
     GrowableArray<RegisterInfo*> tempreg_info_;
     GrowableArray<RegisterInfo*> reginfo_map_;
     GrowableArray<void*> pointer_storage_;

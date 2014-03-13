@@ -1088,8 +1088,6 @@ void Mir2Lir::MethodMIR2LIR() {
   HandleSuspendLaunchPads();
 
   HandleThrowLaunchPads();
-
-  HandleIntrinsicLaunchPads();
 }
 
 //
@@ -1097,10 +1095,10 @@ void Mir2Lir::MethodMIR2LIR() {
 //
 
 LIR* Mir2Lir::LIRSlowPath::GenerateTargetLabel() {
-  LIR* target = m2l_->RawLIR(current_dex_pc_, kPseudoTargetLabel);
-  m2l_->AppendLIR(target);
-  fromfast_->target = target;
   m2l_->SetCurrentDexPc(current_dex_pc_);
+  LIR* target = m2l_->NewLIR0(kPseudoTargetLabel);
+  fromfast_->target = target;
   return target;
 }
+
 }  // namespace art
