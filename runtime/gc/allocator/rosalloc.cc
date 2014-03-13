@@ -48,8 +48,8 @@ RosAlloc::RosAlloc(void* base, size_t capacity, size_t max_capacity,
       bulk_free_lock_("rosalloc bulk free lock", kRosAllocBulkFreeLock),
       page_release_mode_(page_release_mode),
       page_release_size_threshold_(page_release_size_threshold) {
-  DCHECK(RoundUp(capacity, kPageSize) == capacity);
-  DCHECK(RoundUp(max_capacity, kPageSize) == max_capacity);
+  DCHECK_EQ(RoundUp(capacity, kPageSize), capacity);
+  DCHECK_EQ(RoundUp(max_capacity, kPageSize), max_capacity);
   CHECK_LE(capacity, max_capacity);
   CHECK(IsAligned<kPageSize>(page_release_size_threshold_));
   if (!initialized_) {
@@ -151,7 +151,7 @@ void* RosAlloc::AllocPages(Thread* self, size_t num_pages, byte page_map_type) {
     if (it != free_page_runs_.rend() && (last_free_page_run = *it)->End(this) == base_ + footprint_) {
       // There is a free page run at the end.
       DCHECK(last_free_page_run->IsFree());
-      DCHECK(page_map_[ToPageMapIndex(last_free_page_run)] == kPageMapEmpty);
+      DCHECK_EQ(page_map_[ToPageMapIndex(last_free_page_run)], kPageMapEmpty);
       last_free_page_run_size = last_free_page_run->ByteSize(this);
     } else {
       // There is no free page run at the end.
@@ -176,7 +176,7 @@ void* RosAlloc::AllocPages(Thread* self, size_t num_pages, byte page_map_type) {
         DCHECK_EQ(last_free_page_run_size, last_free_page_run->ByteSize(this));
         last_free_page_run->SetByteSize(this, last_free_page_run_size + increment);
         DCHECK_EQ(last_free_page_run->ByteSize(this) % kPageSize, static_cast<size_t>(0));
-        DCHECK(last_free_page_run->End(this) == base_ + new_footprint);
+        DCHECK_EQ(last_free_page_run->End(this), base_ + new_footprint);
       } else {
         // Otherwise, insert a new free page run at the end.
         FreePageRun* new_free_page_run = reinterpret_cast<FreePageRun*>(base_ + footprint_);
@@ -186,7 +186,7 @@ void* RosAlloc::AllocPages(Thread* self, size_t num_pages, byte page_map_type) {
         new_free_page_run->SetByteSize(this, increment);
         DCHECK_EQ(new_free_page_run->ByteSize(this) % kPageSize, static_cast<size_t>(0));
         free_page_runs_.insert(new_free_page_run);
-        DCHECK(*free_page_runs_.rbegin() == new_free_page_run);
+        DCHECK_EQ(*free_page_runs_.rbegin(), new_free_page_run);
         if (kTraceRosAlloc) {
           LOG(INFO) << "RosAlloc::AlloPages() : Grew the heap by inserting run 0x"
                     << std::hex << reinterpret_cast<intptr_t>(new_free_page_run)
@@ -240,7 +240,7 @@ void* RosAlloc::AllocPages(Thread* self, size_t num_pages, byte page_map_type) {
     // Update the page map.
     size_t page_map_idx = ToPageMapIndex(res);
     for (size_t i = 0; i < num_pages; i++) {
-      DCHECK(page_map_[page_map_idx + i] == kPageMapEmpty);
+      DCHECK_EQ(page_map_[page_map_idx + i], kPageMapEmpty);
     }
     switch (page_map_type) {
     case kPageMapRun:
@@ -282,7 +282,7 @@ void* RosAlloc::AllocPages(Thread* self, size_t num_pages, byte page_map_type) {
 void RosAlloc::FreePages(Thread* self, void* ptr) {
   lock_.AssertHeld(self);
   size_t pm_idx = ToPageMapIndex(ptr);
-  DCHECK(pm_idx < page_map_size_);
+  DCHECK_LT(pm_idx, page_map_size_);
   byte pm_type = page_map_[pm_idx];
   DCHECK(pm_type == kPageMapRun || pm_type == kPageMapLargeObject);
   byte pm_part_type;
@@ -425,7 +425,7 @@ void RosAlloc::FreePages(Thread* self, void* ptr) {
 }
 
 void* RosAlloc::AllocLargeObject(Thread* self, size_t size, size_t* bytes_allocated) {
-  DCHECK(size > kLargeSizeThreshold);
+  DCHECK_GT(size, kLargeSizeThreshold);
   size_t num_pages = RoundUp(size, kPageSize) / kPageSize;
   void* r;
   {
@@ -461,13 +461,14 @@ void* RosAlloc::AllocLargeObject(Thread* self, size_t size, size_t* bytes_alloca
 }
 
 void RosAlloc::FreeInternal(Thread* self, void* ptr) {
-  DCHECK(base_ <= ptr && ptr < base_ + footprint_);
+  DCHECK_LE(base_, ptr);
+  DCHECK_LT(ptr, base_ + footprint_);
   size_t pm_idx = RoundDownToPageMapIndex(ptr);
   bool free_from_run = false;
   Run* run = NULL;
   {
     MutexLock mu(self, lock_);
-    DCHECK(pm_idx < page_map_size_);
+    DCHECK_LT(pm_idx, page_map_size_);
     byte page_map_entry = page_map_[pm_idx];
     if (kTraceRosAlloc) {
       LOG(INFO) << "RosAlloc::FreeInternal() : " << std::hex << ptr << ", pm_idx=" << std::dec << pm_idx
@@ -491,11 +492,11 @@ void RosAlloc::FreeInternal(Thread* self, void* ptr) {
         // Find the beginning of the run.
         while (page_map_[pi] != kPageMapRun) {
           pi--;
-          DCHECK(pi < capacity_ / kPageSize);
+          DCHECK_LT(pi, capacity_ / kPageSize);
         }
-        DCHECK(page_map_[pi] == kPageMapRun);
+        DCHECK_EQ(page_map_[pi], kPageMapRun);
         run = reinterpret_cast<Run*>(base_ + pi * kPageSize);
-        DCHECK(run->magic_num_ == kMagicNum);
+        DCHECK_EQ(run->magic_num_, kMagicNum);
         break;
       }
       default:
@@ -551,13 +552,13 @@ RosAlloc::Run* RosAlloc::RefillRun(Thread* self, size_t idx) {
 }
 
 void* RosAlloc::AllocFromRun(Thread* self, size_t size, size_t* bytes_allocated) {
-  DCHECK(size <= kLargeSizeThreshold);
+  DCHECK_LE(size, kLargeSizeThreshold);
   size_t bracket_size;
   size_t idx = SizeToIndexAndBracketSize(size, &bracket_size);
   DCHECK_EQ(idx, SizeToIndex(size));
   DCHECK_EQ(bracket_size, IndexToBracketSize(idx));
   DCHECK_EQ(bracket_size, bracketSizes[idx]);
-  DCHECK(size <= bracket_size);
+  DCHECK_LE(size, bracket_size);
   DCHECK(size > 512 || bracket_size - size < 16);
 
   void* slot_addr;
@@ -693,8 +694,9 @@ void* RosAlloc::AllocFromRun(Thread* self, size_t size, size_t* bytes_allocated)
 }
 
 void RosAlloc::FreeFromRun(Thread* self, void* ptr, Run* run) {
-  DCHECK(run->magic_num_ == kMagicNum);
-  DCHECK(run < ptr && ptr < run->End());
+  DCHECK_EQ(run->magic_num_, kMagicNum);
+  DCHECK_LT(run, ptr);
+  DCHECK_LT(ptr, run->End());
   size_t idx = run->size_bracket_idx_;
   MutexLock mu(self, *size_bracket_locks_[idx]);
   bool run_was_full = false;
@@ -858,11 +860,11 @@ inline void RosAlloc::Run::FreeSlot(void* ptr) {
       - (reinterpret_cast<byte*>(this) + headerSizes[idx]);
   DCHECK_EQ(offset_from_slot_base % bracketSizes[idx], static_cast<size_t>(0));
   size_t slot_idx = offset_from_slot_base / bracketSizes[idx];
-  DCHECK(slot_idx < numOfSlots[idx]);
+  DCHECK_LT(slot_idx, numOfSlots[idx]);
   size_t vec_idx = slot_idx / 32;
   if (kIsDebugBuild) {
     size_t num_vec = RoundUp(numOfSlots[idx], 32) / 32;
-    DCHECK(vec_idx < num_vec);
+    DCHECK_LT(vec_idx, num_vec);
   }
   size_t vec_off = slot_idx % 32;
   uint32_t* vec = &alloc_bit_map_[vec_idx];
@@ -960,11 +962,11 @@ inline void RosAlloc::Run::MarkFreeBitMapShared(void* ptr, uint32_t* free_bit_ma
       - (reinterpret_cast<byte*>(this) + headerSizes[idx]);
   DCHECK_EQ(offset_from_slot_base % bracketSizes[idx], static_cast<size_t>(0));
   size_t slot_idx = offset_from_slot_base / bracketSizes[idx];
-  DCHECK(slot_idx < numOfSlots[idx]);
+  DCHECK_LT(slot_idx, numOfSlots[idx]);
   size_t vec_idx = slot_idx / 32;
   if (kIsDebugBuild) {
     size_t num_vec = RoundUp(numOfSlots[idx], 32) / 32;
-    DCHECK(vec_idx < num_vec);
+    DCHECK_LT(vec_idx, num_vec);
   }
   size_t vec_off = slot_idx % 32;
   uint32_t* vec = &free_bit_map_base[vec_idx];
@@ -997,11 +999,13 @@ inline bool RosAlloc::Run::IsFull() {
   size_t num_vec = RoundUp(num_slots, 32) / 32;
   size_t slots = 0;
   for (size_t v = 0; v < num_vec; v++, slots += 32) {
-    DCHECK(num_slots >= slots);
+    DCHECK_GE(num_slots, slots);
     uint32_t vec = alloc_bit_map_[v];
     uint32_t mask = (num_slots - slots >= 32) ? static_cast<uint32_t>(-1)
         : (1 << (num_slots - slots)) - 1;
-    DCHECK(num_slots - slots >= 32 ? mask == static_cast<uint32_t>(-1) : true);
+    if ((num_slots - slots) >= 32) {
+      DCHECK_EQ(mask, static_cast<uint32_t>(-1));
+    }
     if (vec != mask) {
       return false;
     }
@@ -1052,7 +1056,7 @@ void RosAlloc::Run::InspectAllSlots(void (*handler)(void* start, void* end, size
   size_t num_vec = RoundUp(num_slots, 32) / 32;
   size_t slots = 0;
   for (size_t v = 0; v < num_vec; v++, slots += 32) {
-    DCHECK(num_slots >= slots);
+    DCHECK_GE(num_slots, slots);
     uint32_t vec = alloc_bit_map_[v];
     size_t end = std::min(num_slots - slots, static_cast<size_t>(32));
     for (size_t i = 0; i < end; ++i) {
@@ -1094,7 +1098,8 @@ void RosAlloc::BulkFree(Thread* self, void** ptrs, size_t num_ptrs) {
   for (size_t i = 0; i < num_ptrs; i++) {
     void* ptr = ptrs[i];
     ptrs[i] = NULL;
-    DCHECK(base_ <= ptr && ptr < base_ + footprint_);
+    DCHECK_LE(base_, ptr);
+    DCHECK_LT(ptr, base_ + footprint_);
     size_t pm_idx = RoundDownToPageMapIndex(ptr);
     Run* run = NULL;
     if (kReadPageMapEntryWithoutLockInBulkFree) {
@@ -1107,18 +1112,18 @@ void RosAlloc::BulkFree(Thread* self, void** ptrs, size_t num_ptrs) {
       }
       if (LIKELY(page_map_entry == kPageMapRun)) {
         run = reinterpret_cast<Run*>(base_ + pm_idx * kPageSize);
-        DCHECK(run->magic_num_ == kMagicNum);
+        DCHECK_EQ(run->magic_num_, kMagicNum);
       } else if (LIKELY(page_map_entry == kPageMapRunPart)) {
         size_t pi = pm_idx;
         DCHECK(page_map_[pi] == kPageMapRun || page_map_[pi] == kPageMapRunPart);
         // Find the beginning of the run.
         while (page_map_[pi] != kPageMapRun) {
           pi--;
-          DCHECK(pi < capacity_ / kPageSize);
+          DCHECK_LT(pi, capacity_ / kPageSize);
         }
-        DCHECK(page_map_[pi] == kPageMapRun);
+        DCHECK_EQ(page_map_[pi], kPageMapRun);
         run = reinterpret_cast<Run*>(base_ + pi * kPageSize);
-        DCHECK(run->magic_num_ == kMagicNum);
+        DCHECK_EQ(run->magic_num_, kMagicNum);
       } else if (page_map_entry == kPageMapLargeObject) {
         MutexLock mu(self, lock_);
         FreePages(self, ptr);
@@ -1142,7 +1147,7 @@ void RosAlloc::BulkFree(Thread* self, void** ptrs, size_t num_ptrs) {
       bool free_from_run = false;
       {
         MutexLock mu(self, lock_);
-        DCHECK(pm_idx < page_map_size_);
+        DCHECK_LT(pm_idx, page_map_size_);
         byte page_map_entry = page_map_[pm_idx];
         if (kTraceRosAlloc) {
           LOG(INFO) << "RosAlloc::BulkFree() : " << std::hex << ptr << ", pm_idx="
@@ -1152,7 +1157,7 @@ void RosAlloc::BulkFree(Thread* self, void** ptrs, size_t num_ptrs) {
         if (LIKELY(page_map_entry == kPageMapRun)) {
           free_from_run = true;
           run = reinterpret_cast<Run*>(base_ + pm_idx * kPageSize);
-          DCHECK(run->magic_num_ == kMagicNum);
+          DCHECK_EQ(run->magic_num_, kMagicNum);
         } else if (LIKELY(page_map_entry == kPageMapRunPart)) {
           free_from_run = true;
           size_t pi = pm_idx;
@@ -1160,11 +1165,11 @@ void RosAlloc::BulkFree(Thread* self, void** ptrs, size_t num_ptrs) {
           // Find the beginning of the run.
           while (page_map_[pi] != kPageMapRun) {
             pi--;
-            DCHECK(pi < capacity_ / kPageSize);
+            DCHECK_LT(pi, capacity_ / kPageSize);
           }
-          DCHECK(page_map_[pi] == kPageMapRun);
+          DCHECK_EQ(page_map_[pi], kPageMapRun);
           run = reinterpret_cast<Run*>(base_ + pi * kPageSize);
-          DCHECK(run->magic_num_ == kMagicNum);
+          DCHECK_EQ(run->magic_num_, kMagicNum);
         } else if (page_map_entry == kPageMapLargeObject) {
           FreePages(self, ptr);
         } else {
@@ -1393,7 +1398,8 @@ std::string RosAlloc::DumpPageMap() {
 }
 
 size_t RosAlloc::UsableSize(void* ptr) {
-  DCHECK(base_ <= ptr && ptr < base_ + footprint_);
+  DCHECK_LE(base_, ptr);
+  DCHECK_LT(ptr, base_ + footprint_);
   size_t pm_idx = RoundDownToPageMapIndex(ptr);
   MutexLock mu(Thread::Current(), lock_);
   switch (page_map_[pm_idx]) {
@@ -1420,11 +1426,11 @@ size_t RosAlloc::UsableSize(void* ptr) {
     // Find the beginning of the run.
     while (page_map_[pm_idx] != kPageMapRun) {
       pm_idx--;
-      DCHECK(pm_idx < capacity_ / kPageSize);
+      DCHECK_LT(pm_idx, capacity_ / kPageSize);
     }
-    DCHECK(page_map_[pm_idx] == kPageMapRun);
+    DCHECK_EQ(page_map_[pm_idx], kPageMapRun);
     Run* run = reinterpret_cast<Run*>(base_ + pm_idx * kPageSize);
-    DCHECK(run->magic_num_ == kMagicNum);
+    DCHECK_EQ(run->magic_num_, kMagicNum);
     size_t idx = run->size_bracket_idx_;
     size_t offset_from_slot_base = reinterpret_cast<byte*>(ptr)
         - (reinterpret_cast<byte*>(run) + headerSizes[idx]);
@@ -1446,7 +1452,7 @@ bool RosAlloc::Trim() {
   if (it != free_page_runs_.rend() && (last_free_page_run = *it)->End(this) == base_ + footprint_) {
     // Remove the last free page run, if any.
     DCHECK(last_free_page_run->IsFree());
-    DCHECK(page_map_[ToPageMapIndex(last_free_page_run)] == kPageMapEmpty);
+    DCHECK_EQ(page_map_[ToPageMapIndex(last_free_page_run)], kPageMapEmpty);
     DCHECK_EQ(last_free_page_run->ByteSize(this) % kPageSize, static_cast<size_t>(0));
     DCHECK_EQ(last_free_page_run->End(this), base_ + footprint_);
     free_page_runs_.erase(last_free_page_run);
@@ -1547,7 +1553,7 @@ void RosAlloc::InspectAll(void (*handler)(void* start, void* end, size_t used_by
       case kPageMapRun: {
         // The start of a run.
         Run* run = reinterpret_cast<Run*>(base_ + i * kPageSize);
-        DCHECK(run->magic_num_ == kMagicNum);
+        DCHECK_EQ(run->magic_num_, kMagicNum);
         run->InspectAllSlots(handler, arg);
         size_t num_pages = numOfPages[run->size_bracket_idx_];
         if (kIsDebugBuild) {
@@ -1656,7 +1662,7 @@ void RosAlloc::Initialize() {
     } else if (i == kNumOfSizeBrackets - 2) {
       bracketSizes[i] = 1 * KB;
     } else {
-      DCHECK(i == kNumOfSizeBrackets - 1);
+      DCHECK_EQ(i, kNumOfSizeBrackets - 1);
       bracketSizes[i] = 2 * KB;
     }
     if (kTraceRosAlloc) {
@@ -1674,10 +1680,10 @@ void RosAlloc::Initialize() {
     } else if (i < 32) {
       numOfPages[i] = 8;
     } else if (i == 32) {
-      DCHECK(i = kNumOfSizeBrackets - 2);
+      DCHECK_EQ(i, kNumOfSizeBrackets - 2);
       numOfPages[i] = 16;
     } else {
-      DCHECK(i = kNumOfSizeBrackets - 1);
+      DCHECK_EQ(i, kNumOfSizeBrackets - 1);
       numOfPages[i] = 32;
     }
     if (kTraceRosAlloc) {
@@ -1726,7 +1732,7 @@ void RosAlloc::Initialize() {
     DCHECK(num_of_slots > 0 && header_size > 0 && bulk_free_bit_map_offset > 0);
     // Add the padding for the alignment remainder.
     header_size += run_size % bracket_size;
-    DCHECK(header_size + num_of_slots * bracket_size == run_size);
+    DCHECK_EQ(header_size + num_of_slots * bracket_size, run_size);
     numOfSlots[i] = num_of_slots;
     headerSizes[i] = header_size;
     bulkFreeBitMapOffsets[i] = bulk_free_bit_map_offset;
@@ -1773,7 +1779,7 @@ void RosAlloc::Verify() {
         case kPageMapEmpty: {
           // The start of a free page run.
           FreePageRun* fpr = reinterpret_cast<FreePageRun*>(base_ + i * kPageSize);
-          DCHECK(fpr->magic_num_ == kMagicNumFree) << "Bad magic number : " << fpr->magic_num_;
+          DCHECK_EQ(fpr->magic_num_, kMagicNumFree);
           CHECK(free_page_runs_.find(fpr) != free_page_runs_.end())
               << "An empty page must belong to the free page run set";
           size_t fpr_size = fpr->ByteSize(this);
@@ -1805,7 +1811,7 @@ void RosAlloc::Verify() {
           void* start = base_ + i * kPageSize;
           mirror::Object* obj = reinterpret_cast<mirror::Object*>(start);
           size_t obj_size = obj->SizeOf();
-          CHECK(obj_size > kLargeSizeThreshold)
+          CHECK_GT(obj_size, kLargeSizeThreshold)
               << "A rosalloc large object size must be > " << kLargeSizeThreshold;
           CHECK_EQ(num_pages, RoundUp(obj_size, kPageSize) / kPageSize)
               << "A rosalloc large object size " << obj_size
@@ -1822,9 +1828,9 @@ void RosAlloc::Verify() {
         case kPageMapRun: {
           // The start of a run.
           Run* run = reinterpret_cast<Run*>(base_ + i * kPageSize);
-          DCHECK(run->magic_num_ == kMagicNum) << "Bad magic number" << run->magic_num_;
+          DCHECK_EQ(run->magic_num_, kMagicNum);
           size_t idx = run->size_bracket_idx_;
-          CHECK(idx < kNumOfSizeBrackets) << "Out of range size bracket index : " << idx;
+          CHECK_LT(idx, kNumOfSizeBrackets) << "Out of range size bracket index : " << idx;
           size_t num_pages = numOfPages[idx];
           CHECK_GT(num_pages, static_cast<uintptr_t>(0))
               << "Run size must be > 0 : " << num_pages;
@@ -1858,9 +1864,9 @@ void RosAlloc::Verify() {
 }
 
 void RosAlloc::Run::Verify(Thread* self, RosAlloc* rosalloc) {
-  DCHECK(magic_num_ == kMagicNum) << "Bad magic number : " << Dump();
+  DCHECK_EQ(magic_num_, kMagicNum) << "Bad magic number : " << Dump();
   size_t idx = size_bracket_idx_;
-  CHECK(idx < kNumOfSizeBrackets) << "Out of range size bracket index : " << Dump();
+  CHECK_LT(idx, kNumOfSizeBrackets) << "Out of range size bracket index : " << Dump();
   byte* slot_base = reinterpret_cast<byte*>(this) + headerSizes[idx];
   size_t num_slots = numOfSlots[idx];
   size_t bracket_size = IndexToBracketSize(idx);
@@ -1951,7 +1957,7 @@ void RosAlloc::Run::Verify(Thread* self, RosAlloc* rosalloc) {
   size_t num_vec = RoundUp(num_slots, 32) / 32;
   size_t slots = 0;
   for (size_t v = 0; v < num_vec; v++, slots += 32) {
-    DCHECK(num_slots >= slots) << "Out of bounds";
+    DCHECK_GE(num_slots, slots) << "Out of bounds";
     uint32_t vec = alloc_bit_map_[v];
     uint32_t thread_local_free_vec = ThreadLocalFreeBitMap()[v];
     size_t end = std::min(num_slots - slots, static_cast<size_t>(32));
