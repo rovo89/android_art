@@ -220,8 +220,11 @@ class Dbg {
   static JDWP::JdwpError GetOwnedMonitors(JDWP::ObjectId thread_id,
                                           std::vector<JDWP::ObjectId>& monitors,
                                           std::vector<uint32_t>& stack_depths)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError GetContendedMonitor(JDWP::ObjectId thread_id, JDWP::ObjectId& contended_monitor)
+  static JDWP::JdwpError GetContendedMonitor(JDWP::ObjectId thread_id,
+                                             JDWP::ObjectId& contended_monitor)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   //
@@ -301,7 +304,8 @@ class Dbg {
   static JDWP::JdwpError GetThreadName(JDWP::ObjectId thread_id, std::string& name)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::thread_list_lock_);
-  static JDWP::JdwpError GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* pReply);
+  static JDWP::JdwpError GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* pReply)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_);
   static std::string GetThreadGroupName(JDWP::ObjectId thread_group_id);
   static JDWP::ObjectId GetThreadGroupParent(JDWP::ObjectId thread_group_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -310,8 +314,14 @@ class Dbg {
   static JDWP::ObjectId GetMainThreadGroupId();
 
   static JDWP::JdwpThreadStatus ToJdwpThreadStatus(ThreadState state);
-  static JDWP::JdwpError GetThreadStatus(JDWP::ObjectId thread_id, JDWP::JdwpThreadStatus* pThreadStatus, JDWP::JdwpSuspendStatus* pSuspendStatus);
-  static JDWP::JdwpError GetThreadDebugSuspendCount(JDWP::ObjectId thread_id, JDWP::ExpandBuf* pReply);
+  static JDWP::JdwpError GetThreadStatus(JDWP::ObjectId thread_id,
+                                         JDWP::JdwpThreadStatus* pThreadStatus,
+                                         JDWP::JdwpSuspendStatus* pSuspendStatus)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_);
+  static JDWP::JdwpError GetThreadDebugSuspendCount(JDWP::ObjectId thread_id,
+                                                    JDWP::ExpandBuf* pReply)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_);
   // static void WaitForSuspend(JDWP::ObjectId thread_id);
 
   // Fills 'thread_ids' with the threads in the given thread group. If thread_group_id == 0,
@@ -321,9 +331,11 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void GetChildThreadGroups(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& child_thread_group_ids);
 
-  static JDWP::JdwpError GetThreadFrameCount(JDWP::ObjectId thread_id, size_t& result);
+  static JDWP::JdwpError GetThreadFrameCount(JDWP::ObjectId thread_id, size_t& result)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_);
   static JDWP::JdwpError GetThreadFrames(JDWP::ObjectId thread_id, size_t start_frame,
                                          size_t frame_count, JDWP::ExpandBuf* buf)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static JDWP::ObjectId GetThreadSelfId()
@@ -350,12 +362,15 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int slot,
                             JDWP::JdwpTag tag, uint8_t* buf, size_t expectedLen)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void SetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int slot,
                             JDWP::JdwpTag tag, uint64_t value, size_t width)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static JDWP::JdwpError Interrupt(JDWP::ObjectId thread_id);
+  static JDWP::JdwpError Interrupt(JDWP::ObjectId thread_id)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_);
 
   /*
    * Debugger notification
@@ -413,6 +428,7 @@ class Dbg {
                                        JDWP::JdwpStepDepth depth)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void UnconfigureStep(JDWP::ObjectId thread_id)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static JDWP::JdwpError InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId object_id,
@@ -431,7 +447,8 @@ class Dbg {
    */
   static void DdmSendThreadNotification(Thread* t, uint32_t type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void DdmSetThreadNotification(bool enable);
+  static void DdmSetThreadNotification(bool enable)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_);
   static bool DdmHandlePacket(JDWP::Request& request, uint8_t** pReplyBuf, int* pReplyLen);
   static void DdmConnected() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void DdmDisconnected() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -446,17 +463,21 @@ class Dbg {
    * Recent allocation tracking support.
    */
   static void RecordAllocation(mirror::Class* type, size_t byte_count)
+      LOCKS_EXCLUDED(alloc_tracker_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void SetAllocTrackingEnabled(bool enabled);
+  static void SetAllocTrackingEnabled(bool enabled) LOCKS_EXCLUDED(alloc_tracker_lock_);
   static bool IsAllocTrackingEnabled() {
     return recent_allocation_records_ != nullptr;
   }
-  static jbyteArray GetRecentAllocations() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static jbyteArray GetRecentAllocations()
+      LOCKS_EXCLUDED(alloc_tracker_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static size_t HeadIndex() EXCLUSIVE_LOCKS_REQUIRED(alloc_tracker_lock_);
-  static void DumpRecentAllocations();
+  static void DumpRecentAllocations() LOCKS_EXCLUDED(alloc_tracker_lock_);
 
   // Updates the stored direct object pointers (called from SweepSystemWeaks).
   static void UpdateObjectPointers(IsMarkedCallback* callback, void* arg)
+      LOCKS_EXCLUDED(alloc_tracker_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   enum HpifWhen {
