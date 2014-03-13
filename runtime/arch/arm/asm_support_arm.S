@@ -42,7 +42,7 @@
     /* Cache alignment for function entry */
     .balign 16
 \name:
-    .cfi_startproc
+    .cfi_startproc simple
     .fnstart
 .endm
 
