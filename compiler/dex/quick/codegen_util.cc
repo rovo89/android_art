@@ -997,7 +997,6 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       fill_array_data_(arena, 4, kGrowableArrayFillArrayData),
       throw_launchpads_(arena, 2048, kGrowableArrayThrowLaunchPads),
       suspend_launchpads_(arena, 4, kGrowableArraySuspendLaunchPads),
-      intrinsic_launchpads_(arena, 2048, kGrowableArrayMisc),
       tempreg_info_(arena, 20, kGrowableArrayMisc),
       reginfo_map_(arena, 64, kGrowableArrayMisc),
       pointer_storage_(arena, 128, kGrowableArrayMisc),
