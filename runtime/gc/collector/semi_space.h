@@ -18,10 +18,10 @@
 #define ART_RUNTIME_GC_COLLECTOR_SEMI_SPACE_H_
 
 #include "atomic.h"
-#include "barrier.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "garbage_collector.h"
+#include "immune_region.h"
 #include "object_callbacks.h"
 #include "offsets.h"
 #include "UniquePtr.h"
@@ -104,12 +104,6 @@ class SemiSpace : public GarbageCollector {
   void MarkRoots()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
-  // Make a space immune, immune spaces have all live objects marked - that is the mark and
-  // live bitmaps are bound together.
-  void ImmuneSpace(space::ContinuousSpace* space)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   // Bind the live bits to the mark bits of bitmaps for spaces that are never collected, ie
   // the image. Mark that portion of the heap as immune.
   virtual void BindBitmaps() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -173,13 +167,6 @@ class SemiSpace : public GarbageCollector {
 
   // Returns true if we should sweep the space.
   virtual bool ShouldSweepSpace(space::ContinuousSpace* space) const;
-
-  // Returns true if an object is inside of the immune region (assumed to be marked).
-  bool IsImmune(const mirror::Object* obj) const ALWAYS_INLINE {
-    return obj >= immune_begin_ && obj < immune_end_;
-  }
-
-  bool IsImmuneSpace(const space::ContinuousSpace* space) const;
 
   static void VerifyRootCallback(const mirror::Object* root, void* arg, size_t vreg,
                                  const StackVisitor *visitor);
@@ -257,9 +244,8 @@ class SemiSpace : public GarbageCollector {
   // object.
   accounting::ObjectStack* mark_stack_;
 
-  // Immune range, every object inside the immune range is assumed to be marked.
-  mirror::Object* immune_begin_;
-  mirror::Object* immune_end_;
+  // Immune region, every object inside the immune region is assumed to be marked.
+  ImmuneRegion immune_region_;
 
   // If true, the large object space is immune.
   bool is_large_object_space_immune_;

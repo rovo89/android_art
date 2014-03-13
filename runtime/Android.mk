@@ -52,6 +52,7 @@ LIBART_COMMON_SRC_FILES := \
 	gc/accounting/mod_union_table.cc \
 	gc/accounting/space_bitmap.cc \
 	gc/collector/garbage_collector.cc \
+	gc/collector/immune_region.cc \
 	gc/collector/mark_sweep.cc \
 	gc/collector/partial_mark_sweep.cc \
 	gc/collector/semi_space.cc \
