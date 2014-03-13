@@ -125,6 +125,7 @@ LIBART_COMMON_SRC_FILES := \
 	os_linux.cc \
 	parsed_options.cc \
 	primitive.cc \
+	quick/inline_method_analyser.cc \
 	reference_table.cc \
 	reflection.cc \
 	runtime.cc \
@@ -291,6 +292,7 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
 	lock_word.h \
 	mirror/class.h \
 	oat.h \
+	quick/inline_method_analyser.h \
 	thread.h \
 	thread_state.h \
 	verifier/method_verifier.h
