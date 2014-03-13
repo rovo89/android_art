@@ -75,6 +75,7 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/code_generator_arm.cc \
 	optimizing/code_generator_x86.cc \
 	optimizing/nodes.cc \
+	optimizing/optimizing_compiler.cc \
 	trampolines/trampoline_compiler.cc \
 	utils/arena_allocator.cc \
 	utils/arena_bit_vector.cc \
@@ -89,7 +90,8 @@ LIBART_COMPILER_SRC_FILES := \
 	utils/x86/managed_register_x86.cc \
 	utils/scoped_arena_allocator.cc \
 	buffered_output_stream.cc \
-	compiler_backend.cc \
+	compilers.cc \
+	compiler.cc \
 	elf_fixup.cc \
 	elf_stripper.cc \
 	elf_writer.cc \
@@ -210,7 +212,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
     LOCAL_SHARED_LIBRARIES += libart
   endif
   ifeq ($(ART_USE_PORTABLE_COMPILER),true)
-    LOCAL_SHARED_LIBRARIES += libbcc libbcinfo libLLVM
+    LOCAL_SHARED_LIBRARIES += libLLVM
     LOCAL_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
     ifeq ($$(art_target_or_host),target)
       LOCAL_STATIC_LIBRARIES_arm += libmcldARMInfo libmcldARMTarget
