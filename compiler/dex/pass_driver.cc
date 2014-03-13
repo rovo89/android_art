@@ -82,31 +82,48 @@ void PassDriver::InsertPass(const Pass* new_pass) {
   pass_list_.push_back(new_pass);
 }
 
-void PassDriver::CreatePasses() {
-  /*
-   * Create the pass list. These passes are immutable and are shared across the threads.
-   *
-   * Advantage is that there will be no race conditions here.
-   * Disadvantage is the passes can't change their internal states depending on CompilationUnit:
-   *   - This is not yet an issue: no current pass would require it.
-   */
-  static const Pass* const passes[] = {
-      GetPassInstance<CacheFieldLoweringInfo>(),
-      GetPassInstance<CacheMethodLoweringInfo>(),
-      GetPassInstance<CodeLayout>(),
-      GetPassInstance<SSATransformation>(),
-      GetPassInstance<ConstantPropagation>(),
-      GetPassInstance<InitRegLocations>(),
-      GetPassInstance<MethodUseCount>(),
-      GetPassInstance<NullCheckEliminationAndTypeInferenceInit>(),
-      GetPassInstance<NullCheckEliminationAndTypeInference>(),
-      GetPassInstance<BBCombine>(),
-      GetPassInstance<BBOptimizations>(),
-  };
+/*
+ * Create the pass list. These passes are immutable and are shared across the threads.
+ *
+ * Advantage is that there will be no race conditions here.
+ * Disadvantage is the passes can't change their internal states depending on CompilationUnit:
+ *   - This is not yet an issue: no current pass would require it.
+ */
+static const Pass* const gPasses[] = {
+  GetPassInstance<CacheFieldLoweringInfo>(),
+  GetPassInstance<CacheMethodLoweringInfo>(),
+  GetPassInstance<CodeLayout>(),
+  GetPassInstance<SSATransformation>(),
+  GetPassInstance<ConstantPropagation>(),
+  GetPassInstance<InitRegLocations>(),
+  GetPassInstance<MethodUseCount>(),
+  GetPassInstance<NullCheckEliminationAndTypeInferenceInit>(),
+  GetPassInstance<NullCheckEliminationAndTypeInference>(),
+  GetPassInstance<BBCombine>(),
+  GetPassInstance<BBOptimizations>(),
+};
 
+// The default pass list is used by CreatePasses to initialize pass_list_.
+static std::vector<const Pass*> gDefaultPassList(gPasses, gPasses + arraysize(gPasses));
+
+void PassDriver::CreateDefaultPassList(const std::string& disable_passes) {
+  // Insert each pass from gPasses into gDefaultPassList.
+  gDefaultPassList.clear();
+  gDefaultPassList.reserve(arraysize(gPasses));
+  for (const Pass* pass : gPasses) {
+    // Check if we should disable this pass.
+    if (disable_passes.find(pass->GetName()) != std::string::npos) {
+      LOG(INFO) << "Skipping " << pass->GetName();
+    } else {
+      gDefaultPassList.push_back(pass);
+    }
+  }
+}
+
+void PassDriver::CreatePasses() {
   // Insert each pass into the list via the InsertPass method.
-  pass_list_.reserve(arraysize(passes));
-  for (const Pass* pass : passes) {
+  pass_list_.reserve(gDefaultPassList.size());
+  for (const Pass* pass : gDefaultPassList) {
     InsertPass(pass);
   }
 }
@@ -221,10 +238,10 @@ void PassDriver::Launch() {
   }
 }
 
-void PassDriver::PrintPassNames() const {
+void PassDriver::PrintPassNames() {
   LOG(INFO) << "Loop Passes are:";
 
-  for (const Pass* cur_pass : pass_list_) {
+  for (const Pass* cur_pass : gPasses) {
     LOG(INFO) << "\t-" << cur_pass->GetName();
   }
 }
