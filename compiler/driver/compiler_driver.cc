@@ -26,7 +26,7 @@
 #include "base/stl_util.h"
 #include "base/timing_logger.h"
 #include "class_linker.h"
-#include "compiler_backend.h"
+#include "compiler.h"
 #include "compiler_driver-inl.h"
 #include "dex_compilation_unit.h"
 #include "dex_file-inl.h"
@@ -324,7 +324,7 @@ extern "C" art::CompiledMethod* ArtCompileDEX(art::CompilerDriver& compiler,
 CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
                                VerificationResults* verification_results,
                                DexFileToMethodInlinerMap* method_inliner_map,
-                               CompilerBackend::Kind compiler_backend_kind,
+                               Compiler::Kind compiler_kind,
                                InstructionSet instruction_set,
                                InstructionSetFeatures instruction_set_features,
                                bool image, DescriptorSet* image_classes, size_t thread_count,
@@ -333,7 +333,7 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
     : profile_ok_(false), compiler_options_(compiler_options),
       verification_results_(verification_results),
       method_inliner_map_(method_inliner_map),
-      compiler_backend_(CompilerBackend::Create(compiler_backend_kind)),
+      compiler_(Compiler::Create(compiler_kind)),
       instruction_set_(instruction_set),
       instruction_set_features_(instruction_set_features),
       freezing_constructor_lock_("freezing constructor lock"),
@@ -371,7 +371,7 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
 
   dex_to_dex_compiler_ = reinterpret_cast<DexToDexCompilerFn>(ArtCompileDEX);
 
-  compiler_backend_->Init(*this);
+  compiler_->Init(*this);
 
   CHECK(!Runtime::Current()->IsStarted());
   if (!image_) {
@@ -380,7 +380,7 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
 
   // Are we generating CFI information?
   if (compiler_options->GetGenerateGDBInformation()) {
-    cfi_info_.reset(compiler_backend_->GetCallFrameInformationInitialization(*this));
+    cfi_info_.reset(compiler_->GetCallFrameInformationInitialization(*this));
   }
 }
 
@@ -430,7 +430,7 @@ CompilerDriver::~CompilerDriver() {
     STLDeleteElements(&classes_to_patch_);
   }
   CHECK_PTHREAD_CALL(pthread_key_delete, (tls_key_), "delete tls key");
-  compiler_backend_->UnInit(*this);
+  compiler_->UnInit(*this);
 }
 
 CompilerTls* CompilerDriver::GetTls() {
@@ -1077,7 +1077,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
   *direct_method = 0;
   bool use_dex_cache = false;
   const bool compiling_boot = Runtime::Current()->GetHeap()->IsCompilingBoot();
-  if (compiler_backend_->IsPortable()) {
+  if (compiler_->IsPortable()) {
     if (sharp_type != kStatic && sharp_type != kDirect) {
       return;
     }
@@ -1153,13 +1153,13 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
         CHECK(!method->IsAbstract());
         *type = sharp_type;
         *direct_method = reinterpret_cast<uintptr_t>(method);
-        *direct_code = compiler_backend_->GetEntryPointOf(method);
+        *direct_code = compiler_->GetEntryPointOf(method);
         target_method->dex_file = method->GetDeclaringClass()->GetDexCache()->GetDexFile();
         target_method->dex_method_index = method->GetDexMethodIndex();
       } else if (!must_use_direct_pointers) {
         // Set the code and rely on the dex cache for the method.
         *type = sharp_type;
-        *direct_code = compiler_backend_->GetEntryPointOf(method);
+        *direct_code = compiler_->GetEntryPointOf(method);
       } else {
         // Direct pointers were required but none were available.
         VLOG(compiler) << "Dex cache devirtualization failed for: " << PrettyMethod(method);
@@ -1887,7 +1887,7 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
 #if defined(__x86_64__)
     // leaving this empty will trigger the generic JNI version
 #else
-    compiled_method = compiler_backend_->JniCompile(*this, access_flags, method_idx, dex_file);
+    compiled_method = compiler_->JniCompile(*this, access_flags, method_idx, dex_file);
     CHECK(compiled_method != NULL);
 #endif
   } else if ((access_flags & kAccAbstract) != 0) {
@@ -1896,7 +1896,7 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
     bool compile = verification_results_->IsCandidateForCompilation(method_ref, access_flags);
     if (compile) {
       // NOTE: if compiler declines to compile this method, it will return NULL.
-      compiled_method = compiler_backend_->Compile(
+      compiled_method = compiler_->Compile(
           *this, code_item, access_flags, invoke_type, class_def_idx,
           method_idx, class_loader, dex_file);
     } else if (dex_to_dex_compilation_level != kDontDexToDexCompile) {
@@ -1908,7 +1908,7 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
     }
   }
   uint64_t duration_ns = NanoTime() - start_ns;
-  if (duration_ns > MsToNs(compiler_backend_->GetMaximumCompilationTimeBeforeWarning())) {
+  if (duration_ns > MsToNs(compiler_->GetMaximumCompilationTimeBeforeWarning())) {
     LOG(WARNING) << "Compilation of " << PrettyMethod(method_idx, dex_file)
                  << " took " << PrettyDuration(duration_ns);
   }
@@ -1995,7 +1995,7 @@ bool CompilerDriver::WriteElf(const std::string& android_root,
                               OatWriter* oat_writer,
                               art::File* file)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return compiler_backend_->WriteElf(file, oat_writer, dex_files, android_root, is_host, *this);
+  return compiler_->WriteElf(file, oat_writer, dex_files, android_root, is_host, *this);
 }
 void CompilerDriver::InstructionSetToLLVMTarget(InstructionSet instruction_set,
                                                 std::string* target_triple,

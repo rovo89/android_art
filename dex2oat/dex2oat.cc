@@ -30,7 +30,7 @@
 #include "base/timing_logger.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
-#include "compiler_backend.h"
+#include "compiler.h"
 #include "compiler_callbacks.h"
 #include "dex_file-inl.h"
 #include "dex/verification_results.h"
@@ -147,7 +147,7 @@ static void Usage(const char* fmt, ...) {
   UsageError("      Example: --instruction-set-features=div");
   UsageError("      Default: default");
   UsageError("");
-  UsageError("  --compiler-backend=(Quick|QuickGBC|Portable): select compiler backend");
+  UsageError("  --compiler-backend=(Quick|Optimizing|Portable): select compiler backend");
   UsageError("      set.");
   UsageError("      Example: --compiler-backend=Portable");
   UsageError("      Default: Quick");
@@ -212,7 +212,7 @@ class Dex2Oat {
   static bool Create(Dex2Oat** p_dex2oat,
                      const Runtime::Options& runtime_options,
                      const CompilerOptions& compiler_options,
-                     CompilerBackend::Kind compiler_backend,
+                     Compiler::Kind compiler_kind,
                      InstructionSet instruction_set,
                      InstructionSetFeatures instruction_set_features,
                      VerificationResults* verification_results,
@@ -222,7 +222,7 @@ class Dex2Oat {
     CHECK(verification_results != nullptr);
     CHECK(method_inliner_map != nullptr);
     UniquePtr<Dex2Oat> dex2oat(new Dex2Oat(&compiler_options,
-                                           compiler_backend,
+                                           compiler_kind,
                                            instruction_set,
                                            instruction_set_features,
                                            verification_results,
@@ -335,7 +335,7 @@ class Dex2Oat {
     UniquePtr<CompilerDriver> driver(new CompilerDriver(compiler_options_,
                                                         verification_results_,
                                                         method_inliner_map_,
-                                                        compiler_backend_,
+                                                        compiler_kind_,
                                                         instruction_set_,
                                                         instruction_set_features_,
                                                         image,
@@ -346,7 +346,7 @@ class Dex2Oat {
                                                         &compiler_phases_timings,
                                                         profile_file));
 
-    driver->GetCompilerBackend()->SetBitcodeFileName(*driver.get(), bitcode_filename);
+    driver->GetCompiler()->SetBitcodeFileName(*driver.get(), bitcode_filename);
 
     driver->CompileAll(class_loader, dex_files, &timings);
 
@@ -410,14 +410,14 @@ class Dex2Oat {
 
  private:
   explicit Dex2Oat(const CompilerOptions* compiler_options,
-                   CompilerBackend::Kind compiler_backend,
+                   Compiler::Kind compiler_kind,
                    InstructionSet instruction_set,
                    InstructionSetFeatures instruction_set_features,
                    VerificationResults* verification_results,
                    DexFileToMethodInlinerMap* method_inliner_map,
                    size_t thread_count)
       : compiler_options_(compiler_options),
-        compiler_backend_(compiler_backend),
+        compiler_kind_(compiler_kind),
         instruction_set_(instruction_set),
         instruction_set_features_(instruction_set_features),
         verification_results_(verification_results),
@@ -482,7 +482,7 @@ class Dex2Oat {
   }
 
   const CompilerOptions* const compiler_options_;
-  const CompilerBackend::Kind compiler_backend_;
+  const Compiler::Kind compiler_kind_;
 
   const InstructionSet instruction_set_;
   const InstructionSetFeatures instruction_set_features_;
@@ -722,9 +722,9 @@ static int dex2oat(int argc, char** argv) {
   std::string android_root;
   std::vector<const char*> runtime_args;
   int thread_count = sysconf(_SC_NPROCESSORS_CONF);
-  CompilerBackend::Kind compiler_backend = kUsePortableCompiler
-      ? CompilerBackend::kPortable
-      : CompilerBackend::kQuick;
+  Compiler::Kind compiler_kind = kUsePortableCompiler
+      ? Compiler::kPortable
+      : Compiler::kQuick;
   const char* compiler_filter_string = NULL;
   int huge_method_threshold = CompilerOptions::kDefaultHugeMethodThreshold;
   int large_method_threshold = CompilerOptions::kDefaultLargeMethodThreshold;
@@ -844,9 +844,11 @@ static int dex2oat(int argc, char** argv) {
     } else if (option.starts_with("--compiler-backend=")) {
       StringPiece backend_str = option.substr(strlen("--compiler-backend=")).data();
       if (backend_str == "Quick") {
-        compiler_backend = CompilerBackend::kQuick;
+        compiler_kind = Compiler::kQuick;
+      } else if (backend_str == "Optimizing") {
+        compiler_kind = Compiler::kOptimizing;
       } else if (backend_str == "Portable") {
-        compiler_backend = CompilerBackend::kPortable;
+        compiler_kind = Compiler::kPortable;
       }
     } else if (option.starts_with("--compiler-filter=")) {
       compiler_filter_string = option.substr(strlen("--compiler-filter=")).data();
@@ -1101,7 +1103,7 @@ static int dex2oat(int argc, char** argv) {
   if (!Dex2Oat::Create(&p_dex2oat,
                        runtime_options,
                        compiler_options,
-                       compiler_backend,
+                       compiler_kind,
                        instruction_set,
                        instruction_set_features,
                        &verification_results,

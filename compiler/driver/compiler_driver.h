@@ -26,7 +26,7 @@
 #include "class_reference.h"
 #include "compiled_class.h"
 #include "compiled_method.h"
-#include "compiler_backend.h"
+#include "compiler.h"
 #include "dex_file.h"
 #include "instruction_set.h"
 #include "invoke_type.h"
@@ -99,7 +99,7 @@ class CompilerDriver {
   explicit CompilerDriver(const CompilerOptions* compiler_options,
                           VerificationResults* verification_results,
                           DexFileToMethodInlinerMap* method_inliner_map,
-                          CompilerBackend::Kind compiler_backend_kind,
+                          Compiler::Kind compiler_kind,
                           InstructionSet instruction_set,
                           InstructionSetFeatures instruction_set_features,
                           bool image, DescriptorSet* image_classes,
@@ -137,8 +137,8 @@ class CompilerDriver {
     return *compiler_options_;
   }
 
-  CompilerBackend* GetCompilerBackend() const {
-    return compiler_backend_.get();
+  Compiler* GetCompiler() const {
+    return compiler_.get();
   }
 
   bool ProfilePresent() const {
@@ -708,7 +708,7 @@ class CompilerDriver {
   VerificationResults* const verification_results_;
   DexFileToMethodInlinerMap* const method_inliner_map_;
 
-  UniquePtr<CompilerBackend> compiler_backend_;
+  UniquePtr<Compiler> compiler_;
 
   const InstructionSet instruction_set_;
   const InstructionSetFeatures instruction_set_features_;
