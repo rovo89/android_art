@@ -95,10 +95,9 @@ enum ThreadFlag {
 class PACKED(4) Thread {
  public:
   // Space to throw a StackOverflowError in.
-#if !defined(NDEBUG) && defined(__clang__)
-  // TODO: debug clang builds have large switch based interpreter frames that require more stack
-  // space to handle stack overflow exceptions.
-  static constexpr size_t kStackOverflowReservedBytes = 18 * KB;
+#if __LP64__
+  // TODO: shrink reserved space, in particular for 64bit.
+  static constexpr size_t kStackOverflowReservedBytes = 24 * KB;
 #else
   static constexpr size_t kStackOverflowReservedBytes = 16 * KB;
 #endif
