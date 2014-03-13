@@ -102,10 +102,11 @@ void Mir2Lir::CallRuntimeHelperReg(ThreadOffset helper_offset, int arg0, bool sa
 void Mir2Lir::CallRuntimeHelperRegLocation(ThreadOffset helper_offset, RegLocation arg0,
                                            bool safepoint_pc) {
   int r_tgt = CallHelperSetup(helper_offset);
-  if (arg0.wide == 0) {
-    LoadValueDirectFixed(arg0, TargetReg(kArg0));
+  if (arg0.wide) {
+    LoadValueDirectWideFixed(arg0, arg0.fp ? TargetReg(kFArg0) : TargetReg(kArg0),
+        arg0.fp ? TargetReg(kFArg1) : TargetReg(kArg1));
   } else {
-    LoadValueDirectWideFixed(arg0, TargetReg(kArg0), TargetReg(kArg1));
+    LoadValueDirectFixed(arg0, arg0.fp ? TargetReg(kFArg0) : TargetReg(kArg0));
   }
   ClobberCallerSave();
   CallHelper(r_tgt, helper_offset, safepoint_pc);
