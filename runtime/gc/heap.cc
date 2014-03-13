@@ -92,7 +92,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       background_collector_type_(background_collector_type),
       desired_collector_type_(collector_type_),
       heap_trim_request_lock_(nullptr),
-      heap_trim_target_time_(0),
+      last_trim_time_(0),
       heap_transition_target_time_(0),
       heap_trim_request_pending_(false),
       parallel_gc_threads_(parallel_gc_threads),
@@ -484,10 +484,11 @@ void Heap::UpdateProcessState(ProcessState process_state) {
     process_state_ = process_state;
     if (process_state_ == kProcessStateJankPerceptible) {
       // Transition back to foreground right away to prevent jank.
-      RequestHeapTransition(post_zygote_collector_type_, 0);
+      RequestCollectorTransition(post_zygote_collector_type_, 0);
     } else {
       // Don't delay for debug builds since we may want to stress test the GC.
-      RequestHeapTransition(background_collector_type_, kIsDebugBuild ? 0 : kHeapTransitionWait);
+      RequestCollectorTransition(background_collector_type_, kIsDebugBuild ? 0 :
+          kCollectorTransitionWait);
     }
   }
 }
@@ -903,7 +904,8 @@ void Heap::DoPendingTransitionOrTrim() {
     ScopedThreadStateChange tsc(self, kSleeping);
     usleep(wait_time / 1000);  // Usleep takes microseconds.
   }
-  // Transition the heap if the desired collector type is nto the same as the current collector type.
+  // Transition the collector if the desired collector type is not the same as the current
+  // collector type.
   TransitionCollector(desired_collector_type);
   // Do a heap trim if it is needed.
   Trim();
@@ -913,9 +915,10 @@ void Heap::Trim() {
   Thread* self = Thread::Current();
   {
     MutexLock mu(self, *heap_trim_request_lock_);
-    if (!heap_trim_request_pending_ || NanoTime() < heap_trim_target_time_) {
+    if (!heap_trim_request_pending_ || last_trim_time_ + kHeapTrimWait >= NanoTime()) {
       return;
     }
+    last_trim_time_ = NanoTime();
     heap_trim_request_pending_ = false;
   }
   {
@@ -1804,7 +1807,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   collector->Run(gc_cause, clear_soft_references);
   total_objects_freed_ever_ += collector->GetFreedObjects();
   total_bytes_freed_ever_ += collector->GetFreedBytes();
-  RequestHeapTrim(Heap::kHeapTrimWait);
+  RequestHeapTrim();
   // Enqueue cleared references.
   EnqueueClearedReferences();
   // Grow the heap so that we know when to perform the next GC.
@@ -2567,7 +2570,7 @@ void Heap::ConcurrentGC(Thread* self) {
   }
 }
 
-void Heap::RequestHeapTransition(CollectorType desired_collector_type, uint64_t delta_time) {
+void Heap::RequestCollectorTransition(CollectorType desired_collector_type, uint64_t delta_time) {
   Thread* self = Thread::Current();
   {
     MutexLock mu(self, *heap_trim_request_lock_);
@@ -2580,7 +2583,7 @@ void Heap::RequestHeapTransition(CollectorType desired_collector_type, uint64_t 
   SignalHeapTrimDaemon(self);
 }
 
-void Heap::RequestHeapTrim(uint64_t delta_time) {
+void Heap::RequestHeapTrim() {
   // GC completed and now we must decide whether to request a heap trim (advising pages back to the
   // kernel) or not. Issuing a request will also cause trimming of the libc heap. As a trim scans
   // a space it will hold its lock and can become a cause of jank.
@@ -2607,7 +2610,11 @@ void Heap::RequestHeapTrim(uint64_t delta_time) {
   if (!CareAboutPauseTimes()) {
     {
       MutexLock mu(self, *heap_trim_request_lock_);
-      heap_trim_target_time_ = std::max(heap_trim_target_time_, NanoTime() + delta_time);
+      if (last_trim_time_ + kHeapTrimWait >= NanoTime()) {
+        // We have done a heap trim in the last kHeapTrimWait nanosecs, don't request another one
+        // just yet.
+        return;
+      }
       heap_trim_request_pending_ = true;
     }
     // Notify the daemon thread which will actually do the heap trim.
