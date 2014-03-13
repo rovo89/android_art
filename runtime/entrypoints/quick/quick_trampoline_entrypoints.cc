@@ -434,38 +434,7 @@ class BuildQuickShadowFrameVisitor FINAL : public QuickArgumentVisitor {
                                uint32_t shorty_len, ShadowFrame* sf, size_t first_arg_reg) :
     QuickArgumentVisitor(sp, is_static, shorty, shorty_len), sf_(sf), cur_reg_(first_arg_reg) {}
 
-  void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE {
-    Primitive::Type type = GetParamPrimitiveType();
-    switch (type) {
-      case Primitive::kPrimLong:  // Fall-through.
-      case Primitive::kPrimDouble:
-        if (IsSplitLongOrDouble()) {
-          sf_->SetVRegLong(cur_reg_, ReadSplitLongParam());
-        } else {
-          sf_->SetVRegLong(cur_reg_, *reinterpret_cast<jlong*>(GetParamAddress()));
-        }
-        ++cur_reg_;
-        break;
-      case Primitive::kPrimNot: {
-          StackReference<mirror::Object>* stack_ref =
-              reinterpret_cast<StackReference<mirror::Object>*>(GetParamAddress());
-          sf_->SetVRegReference(cur_reg_, stack_ref->AsMirrorPtr());
-        }
-        break;
-      case Primitive::kPrimBoolean:  // Fall-through.
-      case Primitive::kPrimByte:     // Fall-through.
-      case Primitive::kPrimChar:     // Fall-through.
-      case Primitive::kPrimShort:    // Fall-through.
-      case Primitive::kPrimInt:      // Fall-through.
-      case Primitive::kPrimFloat:
-        sf_->SetVReg(cur_reg_, *reinterpret_cast<jint*>(GetParamAddress()));
-        break;
-      case Primitive::kPrimVoid:
-        LOG(FATAL) << "UNREACHABLE";
-        break;
-    }
-    ++cur_reg_;
-  }
+  void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
 
  private:
   ShadowFrame* const sf_;
@@ -473,6 +442,39 @@ class BuildQuickShadowFrameVisitor FINAL : public QuickArgumentVisitor {
 
   DISALLOW_COPY_AND_ASSIGN(BuildQuickShadowFrameVisitor);
 };
+
+void BuildQuickShadowFrameVisitor::Visit()  {
+  Primitive::Type type = GetParamPrimitiveType();
+  switch (type) {
+    case Primitive::kPrimLong:  // Fall-through.
+    case Primitive::kPrimDouble:
+      if (IsSplitLongOrDouble()) {
+        sf_->SetVRegLong(cur_reg_, ReadSplitLongParam());
+      } else {
+        sf_->SetVRegLong(cur_reg_, *reinterpret_cast<jlong*>(GetParamAddress()));
+      }
+      ++cur_reg_;
+      break;
+    case Primitive::kPrimNot: {
+        StackReference<mirror::Object>* stack_ref =
+            reinterpret_cast<StackReference<mirror::Object>*>(GetParamAddress());
+        sf_->SetVRegReference(cur_reg_, stack_ref->AsMirrorPtr());
+      }
+      break;
+    case Primitive::kPrimBoolean:  // Fall-through.
+    case Primitive::kPrimByte:     // Fall-through.
+    case Primitive::kPrimChar:     // Fall-through.
+    case Primitive::kPrimShort:    // Fall-through.
+    case Primitive::kPrimInt:      // Fall-through.
+    case Primitive::kPrimFloat:
+      sf_->SetVReg(cur_reg_, *reinterpret_cast<jint*>(GetParamAddress()));
+      break;
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "UNREACHABLE";
+      break;
+  }
+  ++cur_reg_;
+}
 
 extern "C" uint64_t artQuickToInterpreterBridge(mirror::ArtMethod* method, Thread* self,
                                                 mirror::ArtMethod** sp)
@@ -532,55 +534,60 @@ class BuildQuickArgumentVisitor FINAL : public QuickArgumentVisitor {
                             std::vector<jvalue>* args) :
     QuickArgumentVisitor(sp, is_static, shorty, shorty_len), soa_(soa), args_(args) {}
 
-  void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE {
-    jvalue val;
-    Primitive::Type type = GetParamPrimitiveType();
-    switch (type) {
-      case Primitive::kPrimNot: {
-        StackReference<mirror::Object>* stack_ref =
-            reinterpret_cast<StackReference<mirror::Object>*>(GetParamAddress());
-        val.l = soa_->AddLocalReference<jobject>(stack_ref->AsMirrorPtr());
-        references_.push_back(std::make_pair(val.l, stack_ref));
-        break;
-      }
-      case Primitive::kPrimLong:  // Fall-through.
-      case Primitive::kPrimDouble:
-        if (IsSplitLongOrDouble()) {
-          val.j = ReadSplitLongParam();
-        } else {
-          val.j = *reinterpret_cast<jlong*>(GetParamAddress());
-        }
-        break;
-      case Primitive::kPrimBoolean:  // Fall-through.
-      case Primitive::kPrimByte:     // Fall-through.
-      case Primitive::kPrimChar:     // Fall-through.
-      case Primitive::kPrimShort:    // Fall-through.
-      case Primitive::kPrimInt:      // Fall-through.
-      case Primitive::kPrimFloat:
-        val.i = *reinterpret_cast<jint*>(GetParamAddress());
-        break;
-      case Primitive::kPrimVoid:
-        LOG(FATAL) << "UNREACHABLE";
-        val.j = 0;
-        break;
-    }
-    args_->push_back(val);
-  }
+  void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
 
-  void FixupReferences() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // Fixup any references which may have changed.
-    for (const auto& pair : references_) {
-      pair.second->Assign(soa_->Decode<mirror::Object*>(pair.first));
-    }
-  }
+  void FixupReferences() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
-  ScopedObjectAccessUnchecked* soa_;
-  std::vector<jvalue>* args_;
+  ScopedObjectAccessUnchecked* const soa_;
+  std::vector<jvalue>* const args_;
   // References which we must update when exiting in case the GC moved the objects.
   std::vector<std::pair<jobject, StackReference<mirror::Object>*> > references_;
+
   DISALLOW_COPY_AND_ASSIGN(BuildQuickArgumentVisitor);
 };
+
+void BuildQuickArgumentVisitor::Visit() {
+  jvalue val;
+  Primitive::Type type = GetParamPrimitiveType();
+  switch (type) {
+    case Primitive::kPrimNot: {
+      StackReference<mirror::Object>* stack_ref =
+          reinterpret_cast<StackReference<mirror::Object>*>(GetParamAddress());
+      val.l = soa_->AddLocalReference<jobject>(stack_ref->AsMirrorPtr());
+      references_.push_back(std::make_pair(val.l, stack_ref));
+      break;
+    }
+    case Primitive::kPrimLong:  // Fall-through.
+    case Primitive::kPrimDouble:
+      if (IsSplitLongOrDouble()) {
+        val.j = ReadSplitLongParam();
+      } else {
+        val.j = *reinterpret_cast<jlong*>(GetParamAddress());
+      }
+      break;
+    case Primitive::kPrimBoolean:  // Fall-through.
+    case Primitive::kPrimByte:     // Fall-through.
+    case Primitive::kPrimChar:     // Fall-through.
+    case Primitive::kPrimShort:    // Fall-through.
+    case Primitive::kPrimInt:      // Fall-through.
+    case Primitive::kPrimFloat:
+      val.i = *reinterpret_cast<jint*>(GetParamAddress());
+      break;
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "UNREACHABLE";
+      val.j = 0;
+      break;
+  }
+  args_->push_back(val);
+}
+
+void BuildQuickArgumentVisitor::FixupReferences() {
+  // Fixup any references which may have changed.
+  for (const auto& pair : references_) {
+    pair.second->Assign(soa_->Decode<mirror::Object*>(pair.first));
+  }
+}
 
 // Handler for invocation on proxy methods. On entry a frame will exist for the proxy object method
 // which is responsible for recording callee save registers. We explicitly place into jobjects the
@@ -644,29 +651,34 @@ class RememberForGcArgumentVisitor FINAL : public QuickArgumentVisitor {
                                uint32_t shorty_len, ScopedObjectAccessUnchecked* soa) :
     QuickArgumentVisitor(sp, is_static, shorty, shorty_len), soa_(soa) {}
 
-  void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE {
-    if (IsParamAReference()) {
-      StackReference<mirror::Object>* stack_ref =
-          reinterpret_cast<StackReference<mirror::Object>*>(GetParamAddress());
-      jobject reference =
-          soa_->AddLocalReference<jobject>(stack_ref->AsMirrorPtr());
-      references_.push_back(std::make_pair(reference, stack_ref));
-    }
-  }
+  void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
 
-  void FixupReferences() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // Fixup any references which may have changed.
-    for (const auto& pair : references_) {
-      pair.second->Assign(soa_->Decode<mirror::Object*>(pair.first));
-    }
-  }
+  void FixupReferences() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
-  ScopedObjectAccessUnchecked* soa_;
+  ScopedObjectAccessUnchecked* const soa_;
   // References which we must update when exiting in case the GC moved the objects.
   std::vector<std::pair<jobject, StackReference<mirror::Object>*> > references_;
   DISALLOW_COPY_AND_ASSIGN(RememberForGcArgumentVisitor);
 };
+
+void RememberForGcArgumentVisitor::Visit() {
+  if (IsParamAReference()) {
+    StackReference<mirror::Object>* stack_ref =
+        reinterpret_cast<StackReference<mirror::Object>*>(GetParamAddress());
+    jobject reference =
+        soa_->AddLocalReference<jobject>(stack_ref->AsMirrorPtr());
+    references_.push_back(std::make_pair(reference, stack_ref));
+  }
+}
+
+void RememberForGcArgumentVisitor::FixupReferences() {
+  // Fixup any references which may have changed.
+  for (const auto& pair : references_) {
+    pair.second->Assign(soa_->Decode<mirror::Object*>(pair.first));
+  }
+}
+
 
 // Lazily resolve a method for quick. Called by stub code.
 extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
@@ -1309,64 +1321,9 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
     }
   }
 
-  void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE {
-    Primitive::Type type = GetParamPrimitiveType();
-    switch (type) {
-      case Primitive::kPrimLong: {
-        jlong long_arg;
-        if (IsSplitLongOrDouble()) {
-          long_arg = ReadSplitLongParam();
-        } else {
-          long_arg = *reinterpret_cast<jlong*>(GetParamAddress());
-        }
-        sm_.AdvanceLong(long_arg);
-        break;
-      }
-      case Primitive::kPrimDouble: {
-        uint64_t double_arg;
-        if (IsSplitLongOrDouble()) {
-          // Read into union so that we don't case to a double.
-          double_arg = ReadSplitLongParam();
-        } else {
-          double_arg = *reinterpret_cast<uint64_t*>(GetParamAddress());
-        }
-        sm_.AdvanceDouble(double_arg);
-        break;
-      }
-      case Primitive::kPrimNot: {
-        StackReference<mirror::Object>* stack_ref =
-            reinterpret_cast<StackReference<mirror::Object>*>(GetParamAddress());
-        sm_.AdvanceSirt(stack_ref->AsMirrorPtr());
-        break;
-      }
-      case Primitive::kPrimFloat:
-        sm_.AdvanceFloat(*reinterpret_cast<float*>(GetParamAddress()));
-        break;
-      case Primitive::kPrimBoolean:  // Fall-through.
-      case Primitive::kPrimByte:     // Fall-through.
-      case Primitive::kPrimChar:     // Fall-through.
-      case Primitive::kPrimShort:    // Fall-through.
-      case Primitive::kPrimInt:      // Fall-through.
-        sm_.AdvanceInt(*reinterpret_cast<jint*>(GetParamAddress()));
-        break;
-      case Primitive::kPrimVoid:
-        LOG(FATAL) << "UNREACHABLE";
-        break;
-    }
-  }
+  void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
 
-  void FinalizeSirt(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // Initialize padding entries.
-    while (sirt_number_of_references_ < sirt_expected_refs_) {
-      *cur_sirt_entry_ = StackReference<mirror::Object>();
-      cur_sirt_entry_++;
-      sirt_number_of_references_++;
-    }
-    sirt_->SetNumberOfReferences(sirt_expected_refs_);
-    DCHECK_NE(sirt_expected_refs_, 0U);
-    // Install Sirt.
-    self->PushSirt(sirt_);
-  }
+  void FinalizeSirt(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   jobject GetFirstSirtEntry() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return reinterpret_cast<jobject>(sirt_->GetStackReference(0));
@@ -1432,6 +1389,65 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
 
   DISALLOW_COPY_AND_ASSIGN(BuildGenericJniFrameVisitor);
 };
+
+void BuildGenericJniFrameVisitor::Visit() {
+  Primitive::Type type = GetParamPrimitiveType();
+  switch (type) {
+    case Primitive::kPrimLong: {
+      jlong long_arg;
+      if (IsSplitLongOrDouble()) {
+        long_arg = ReadSplitLongParam();
+      } else {
+        long_arg = *reinterpret_cast<jlong*>(GetParamAddress());
+      }
+      sm_.AdvanceLong(long_arg);
+      break;
+    }
+    case Primitive::kPrimDouble: {
+      uint64_t double_arg;
+      if (IsSplitLongOrDouble()) {
+        // Read into union so that we don't case to a double.
+        double_arg = ReadSplitLongParam();
+      } else {
+        double_arg = *reinterpret_cast<uint64_t*>(GetParamAddress());
+      }
+      sm_.AdvanceDouble(double_arg);
+      break;
+    }
+    case Primitive::kPrimNot: {
+      StackReference<mirror::Object>* stack_ref =
+          reinterpret_cast<StackReference<mirror::Object>*>(GetParamAddress());
+      sm_.AdvanceSirt(stack_ref->AsMirrorPtr());
+      break;
+    }
+    case Primitive::kPrimFloat:
+      sm_.AdvanceFloat(*reinterpret_cast<float*>(GetParamAddress()));
+      break;
+    case Primitive::kPrimBoolean:  // Fall-through.
+    case Primitive::kPrimByte:     // Fall-through.
+    case Primitive::kPrimChar:     // Fall-through.
+    case Primitive::kPrimShort:    // Fall-through.
+    case Primitive::kPrimInt:      // Fall-through.
+      sm_.AdvanceInt(*reinterpret_cast<jint*>(GetParamAddress()));
+      break;
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "UNREACHABLE";
+      break;
+  }
+}
+
+void BuildGenericJniFrameVisitor::FinalizeSirt(Thread* self) {
+  // Initialize padding entries.
+  while (sirt_number_of_references_ < sirt_expected_refs_) {
+    *cur_sirt_entry_ = StackReference<mirror::Object>();
+    cur_sirt_entry_++;
+    sirt_number_of_references_++;
+  }
+  sirt_->SetNumberOfReferences(sirt_expected_refs_);
+  DCHECK_NE(sirt_expected_refs_, 0U);
+  // Install Sirt.
+  self->PushSirt(sirt_);
+}
 
 /*
  * Initializes an alloca region assumed to be directly below sp for a native call:
