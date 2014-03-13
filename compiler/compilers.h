@@ -25,9 +25,9 @@ class QuickCompiler : public Compiler {
  public:
   QuickCompiler() : Compiler(100) {}
 
-  void Init(CompilerDriver& driver) const;
+  void Init(CompilerDriver& driver) const OVERRIDE;
 
-  void UnInit(CompilerDriver& driver) const;
+  void UnInit(CompilerDriver& driver) const OVERRIDE;
 
   CompiledMethod* Compile(CompilerDriver& driver,
                           const DexFile::CodeItem* code_item,
@@ -36,14 +36,14 @@ class QuickCompiler : public Compiler {
                           uint16_t class_def_idx,
                           uint32_t method_idx,
                           jobject class_loader,
-                          const DexFile& dex_file) const;
+                          const DexFile& dex_file) const OVERRIDE;
 
   CompiledMethod* JniCompile(CompilerDriver& driver,
                              uint32_t access_flags,
                              uint32_t method_idx,
-                             const DexFile& dex_file) const;
+                             const DexFile& dex_file) const OVERRIDE;
 
-  uintptr_t GetEntryPointOf(mirror::ArtMethod* method) const;
+  uintptr_t GetEntryPointOf(mirror::ArtMethod* method) const OVERRIDE;
 
   bool WriteElf(art::File* file,
                 OatWriter* oat_writer,
@@ -53,9 +53,9 @@ class QuickCompiler : public Compiler {
     OVERRIDE
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Backend* GetCodeGenerator(CompilationUnit* cu, void* compilation_unit) const;
+  Backend* GetCodeGenerator(CompilationUnit* cu, void* compilation_unit) const OVERRIDE;
 
-  void InitCompilationUnit(CompilationUnit& cu) const {}
+  void InitCompilationUnit(CompilationUnit& cu) const OVERRIDE {}
 
   /*
    * @brief Generate and return Dwarf CFI initialization, if supported by the
@@ -83,7 +83,7 @@ class OptimizingCompiler : public QuickCompiler {
                           uint16_t class_def_idx,
                           uint32_t method_idx,
                           jobject class_loader,
-                          const DexFile& dex_file) const;
+                          const DexFile& dex_file) const OVERRIDE;
 
   CompiledMethod* TryCompile(CompilerDriver& driver,
                              const DexFile::CodeItem* code_item,
