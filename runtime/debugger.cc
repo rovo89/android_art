@@ -1025,6 +1025,9 @@ JDWP::JdwpError Dbg::GetSourceFile(JDWP::RefTypeId class_id, std::string& result
   if (c == NULL) {
     return status;
   }
+  if (c->IsProxyClass()) {
+    return JDWP::ERR_ABSENT_INFORMATION;
+  }
   result = ClassHelper(c).GetSourceFile();
   return JDWP::ERR_NONE;
 }
