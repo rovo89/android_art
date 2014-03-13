@@ -1097,8 +1097,6 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
   if (target_method->dex_file == method->GetDeclaringClass()->GetDexCache()->GetDexFile()) {
     target_method->dex_method_index = method->GetDexMethodIndex();
   } else {
-    // TODO: support patching from one dex file to another in the boot image.
-    use_dex_cache = use_dex_cache || compiling_boot;
     if (no_guarantee_of_dex_cache_entry) {
       // See if the method is also declared in this dex cache.
       uint32_t dex_method_idx = MethodHelper(method).FindDexMethodIndexInOtherDexFile(
@@ -1106,6 +1104,10 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
       if (dex_method_idx != DexFile::kDexNoIndex) {
         target_method->dex_method_index = dex_method_idx;
       } else {
+        if (compiling_boot) {
+          target_method->dex_method_index = method->GetDexMethodIndex();
+          target_method->dex_file = method->GetDeclaringClass()->GetDexCache()->GetDexFile();
+        }
         must_use_direct_pointers = true;
       }
     }
@@ -1231,6 +1233,7 @@ void CompilerDriver::AddCodePatch(const DexFile* dex_file,
                                   uint32_t referrer_method_idx,
                                   InvokeType referrer_invoke_type,
                                   uint32_t target_method_idx,
+                                  const DexFile* target_dex_file,
                                   InvokeType target_invoke_type,
                                   size_t literal_offset) {
   MutexLock mu(Thread::Current(), compiled_methods_lock_);
@@ -1239,6 +1242,7 @@ void CompilerDriver::AddCodePatch(const DexFile* dex_file,
                                                     referrer_method_idx,
                                                     referrer_invoke_type,
                                                     target_method_idx,
+                                                    target_dex_file,
                                                     target_invoke_type,
                                                     literal_offset));
 }
@@ -1247,6 +1251,7 @@ void CompilerDriver::AddRelativeCodePatch(const DexFile* dex_file,
                                           uint32_t referrer_method_idx,
                                           InvokeType referrer_invoke_type,
                                           uint32_t target_method_idx,
+                                          const DexFile* target_dex_file,
                                           InvokeType target_invoke_type,
                                           size_t literal_offset,
                                           int32_t pc_relative_offset) {
@@ -1256,6 +1261,7 @@ void CompilerDriver::AddRelativeCodePatch(const DexFile* dex_file,
                                                             referrer_method_idx,
                                                             referrer_invoke_type,
                                                             target_method_idx,
+                                                            target_dex_file,
                                                             target_invoke_type,
                                                             literal_offset,
                                                             pc_relative_offset));
@@ -1265,6 +1271,7 @@ void CompilerDriver::AddMethodPatch(const DexFile* dex_file,
                                     uint32_t referrer_method_idx,
                                     InvokeType referrer_invoke_type,
                                     uint32_t target_method_idx,
+                                    const DexFile* target_dex_file,
                                     InvokeType target_invoke_type,
                                     size_t literal_offset) {
   MutexLock mu(Thread::Current(), compiled_methods_lock_);
@@ -1273,6 +1280,7 @@ void CompilerDriver::AddMethodPatch(const DexFile* dex_file,
                                                        referrer_method_idx,
                                                        referrer_invoke_type,
                                                        target_method_idx,
+                                                       target_dex_file,
                                                        target_invoke_type,
                                                        literal_offset));
 }
