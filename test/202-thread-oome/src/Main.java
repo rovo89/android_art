@@ -16,7 +16,7 @@
 
 public class Main {
   public static void main(String[] args) throws Exception {
-    Thread t = new Thread(null, new Runnable() { public void run() {} }, "", 3*1024*1024*1024);
+    Thread t = new Thread(null, new Runnable() { public void run() {} }, "", 3L*1024*1024*1024);
     try {
       t.start();
     } catch (OutOfMemoryError expected) {
