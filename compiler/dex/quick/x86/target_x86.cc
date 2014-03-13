@@ -1028,7 +1028,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
       } else {
         // Compare to memory to avoid a register load.  Handle pushed EDI.
         int displacement = SRegOffset(rl_start.s_reg_low) + sizeof(uint32_t);
-        OpRegMem(kOpCmp, rDX, rX86_SP, displacement);
+        OpRegMem(kOpCmp, rCX, rX86_SP, displacement);
         length_compare = NewLIR2(kX86Jcc8, 0, kX86CondLe);
         OpRegMem(kOpSub, rCX, rX86_SP, displacement);
       }
