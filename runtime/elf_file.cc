@@ -978,7 +978,11 @@ void ElfFile::GdbJITSupport() {
       !check_section_name(all, 11, ".debug_str")) {
     return;
   }
-
+#ifdef __LP64__
+  if (true) {
+    return;  // No ELF debug support in 64bit.
+  }
+#endif
   // This is not needed if we have no .text segment.
   uint32_t text_start_addr = 0;
   for (uint32_t i = 0; i < segments_.size(); i++) {
