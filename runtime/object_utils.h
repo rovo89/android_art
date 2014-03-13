@@ -394,6 +394,20 @@ class MethodHelper {
     return shorty_len_;
   }
 
+  // Counts the number of references in the parameter list of the corresponding method.
+  // Note: Thus does _not_ include "this" for non-static methods.
+  uint32_t GetNumberOfReferenceArgsWithoutReceiver() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    const char* shorty = GetShorty();
+    uint32_t refs = 0;
+    for (uint32_t i = 1; i < shorty_len_ ; ++i) {
+      if (shorty[i] == 'L') {
+        refs++;
+      }
+    }
+
+    return refs;
+  }
+
   const Signature GetSignature() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile& dex_file = GetDexFile();
     uint32_t dex_method_idx = method_->GetDexMethodIndex();

@@ -39,7 +39,7 @@ class StackIndirectReferenceTable {
 
   ~StackIndirectReferenceTable() {}
 
-  // Number of references contained within this SIRT
+  // Number of references contained within this SIRT.
   uint32_t NumberOfReferences() const {
     return number_of_references_;
   }
@@ -51,7 +51,13 @@ class StackIndirectReferenceTable {
     return header_size + data_size;
   }
 
-  // Link to previous SIRT or NULL
+  // Get the size of the SIRT for the number of entries, with padding added for potential alignment.
+  static size_t GetAlignedSirtSize(uint32_t num_references) {
+    size_t sirt_size = SizeOf(num_references);
+    return RoundUp(sirt_size, 8);
+  }
+
+  // Link to previous SIRT or NULL.
   StackIndirectReferenceTable* GetLink() const {
     return link_;
   }
@@ -70,6 +76,12 @@ class StackIndirectReferenceTable {
   mirror::Object* GetReference(size_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK_LT(i, number_of_references_);
     return references_[i].AsMirrorPtr();
+  }
+
+  StackReference<mirror::Object>* GetStackReference(size_t i)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK_LT(i, number_of_references_);
+    return &references_[i];
   }
 
   void SetReference(size_t i, mirror::Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
