@@ -36,15 +36,7 @@ class CompilerCallbacksImpl FINAL : public CompilerCallbacks {
     ~CompilerCallbacksImpl() { }
 
     bool MethodVerified(verifier::MethodVerifier* verifier)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE {
-      bool result = verification_results_->ProcessVerifiedMethod(verifier);
-      if (result) {
-        MethodReference ref = verifier->GetMethodReference();
-        method_inliner_map_->GetMethodInliner(ref.dex_file)
-            ->AnalyseMethodCode(verifier);
-      }
-      return result;
-    }
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
     void ClassRejected(ClassReference ref) OVERRIDE {
       verification_results_->AddRejectedClass(ref);
     }
@@ -53,6 +45,16 @@ class CompilerCallbacksImpl FINAL : public CompilerCallbacks {
     VerificationResults* const verification_results_;
     DexFileToMethodInlinerMap* const method_inliner_map_;
 };
+
+inline bool CompilerCallbacksImpl::MethodVerified(verifier::MethodVerifier* verifier) {
+  bool result = verification_results_->ProcessVerifiedMethod(verifier);
+  if (result) {
+    MethodReference ref = verifier->GetMethodReference();
+    method_inliner_map_->GetMethodInliner(ref.dex_file)
+        ->AnalyseMethodCode(verifier);
+  }
+  return result;
+}
 
 }  // namespace art
 
