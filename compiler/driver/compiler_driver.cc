@@ -961,29 +961,6 @@ void CompilerDriver::ProcessedInvoke(InvokeType invoke_type, int flags) {
   stats_->ProcessedInvoke(invoke_type, flags);
 }
 
-bool CompilerDriver::ComputeSpecialAccessorInfo(uint32_t field_idx, bool is_put,
-                                                verifier::MethodVerifier* verifier,
-                                                InlineIGetIPutData* result) {
-  mirror::DexCache* dex_cache = verifier->GetDexCache();
-  uint32_t method_idx = verifier->GetMethodReference().dex_method_index;
-  mirror::ArtMethod* method = dex_cache->GetResolvedMethod(method_idx);
-  mirror::ArtField* field = dex_cache->GetResolvedField(field_idx);
-  if (method == nullptr || field == nullptr || field->IsStatic()) {
-    return false;
-  }
-  mirror::Class* method_class = method->GetDeclaringClass();
-  mirror::Class* field_class = field->GetDeclaringClass();
-  if (!method_class->CanAccessResolvedField(field_class, field, dex_cache, field_idx) ||
-      (is_put && field->IsFinal() && method_class != field_class)) {
-    return false;
-  }
-  DCHECK_GE(field->GetOffset().Int32Value(), 0);
-  result->field_idx = field_idx;
-  result->field_offset = field->GetOffset().Int32Value();
-  result->is_volatile = field->IsVolatile();
-  return true;
-}
-
 bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit,
                                               bool is_put, MemberOffset* field_offset,
                                               bool* is_volatile) {

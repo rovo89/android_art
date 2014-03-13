@@ -123,8 +123,8 @@ bool Mir2Lir::GenSpecialIGet(MIR* mir, const InlineMethod& special) {
     return false;
   }
 
-  DCHECK_NE(data.op_size, kDouble);  // The inliner doesn't distinguish kDouble, uses kLong.
-  bool wide = (data.op_size == kLong);
+  bool wide = (data.op_variant == InlineMethodAnalyser::IGetVariant(Instruction::IGET_WIDE));
+  // The inliner doesn't distinguish kDouble or kFloat, use shorty.
   bool double_or_float = cu_->shorty[0] == 'F' || cu_->shorty[0] == 'D';
 
   // Point of no return - no aborts after this
@@ -151,8 +151,7 @@ bool Mir2Lir::GenSpecialIPut(MIR* mir, const InlineMethod& special) {
     return false;
   }
 
-  DCHECK_NE(data.op_size, kDouble);  // The inliner doesn't distinguish kDouble, uses kLong.
-  bool wide = (data.op_size == kLong);
+  bool wide = (data.op_variant == InlineMethodAnalyser::IPutVariant(Instruction::IPUT_WIDE));
 
   // Point of no return - no aborts after this
   GenPrintLabel(mir);
@@ -173,7 +172,7 @@ bool Mir2Lir::GenSpecialIPut(MIR* mir, const InlineMethod& special) {
   if (data.is_volatile) {
     GenMemBarrier(kLoadLoad);
   }
-  if (data.is_object) {
+  if (data.op_variant == InlineMethodAnalyser::IPutVariant(Instruction::IPUT_OBJECT)) {
     MarkGCCard(reg_src, reg_obj);
   }
   return true;
@@ -181,8 +180,8 @@ bool Mir2Lir::GenSpecialIPut(MIR* mir, const InlineMethod& special) {
 
 bool Mir2Lir::GenSpecialIdentity(MIR* mir, const InlineMethod& special) {
   const InlineReturnArgData& data = special.d.return_data;
-  DCHECK_NE(data.op_size, kDouble);  // The inliner doesn't distinguish kDouble, uses kLong.
-  bool wide = (data.op_size == kLong);
+  bool wide = (data.is_wide != 0u);
+  // The inliner doesn't distinguish kDouble or kFloat, use shorty.
   bool double_or_float = cu_->shorty[0] == 'F' || cu_->shorty[0] == 'D';
 
   // Point of no return - no aborts after this
