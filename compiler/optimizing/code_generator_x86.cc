@@ -26,6 +26,10 @@ namespace x86 {
 void CodeGeneratorX86::GenerateFrameEntry() {
   __ pushl(EBP);
   __ movl(EBP, ESP);
+
+  if (frame_size_ != 0) {
+    __ subl(ESP, Immediate(frame_size_));
+  }
 }
 
 void CodeGeneratorX86::GenerateFrameExit() {
@@ -37,13 +41,34 @@ void CodeGeneratorX86::Bind(Label* label) {
   __ Bind(label);
 }
 
+void CodeGeneratorX86::Push(HInstruction* instruction, Location location) {
+  __ pushl(location.reg<Register>());
+}
+
+void CodeGeneratorX86::Move(HInstruction* instruction, Location location) {
+  HIntConstant* constant = instruction->AsIntConstant();
+  if (constant != nullptr) {
+    __ movl(location.reg<Register>(), Immediate(constant->value()));
+  } else {
+    __ popl(location.reg<Register>());
+  }
+}
+
+void LocationsBuilderX86::VisitGoto(HGoto* got) {
+  got->set_locations(nullptr);
+}
+
 void CodeGeneratorX86::VisitGoto(HGoto* got) {
   HBasicBlock* successor = got->GetSuccessor();
   if (graph()->exit_block() == successor) {
     GenerateFrameExit();
-  } else if (!GoesToNextBlock(got)) {
+  } else if (!GoesToNextBlock(got->block(), successor)) {
     __ jmp(GetLabelOf(successor));
   }
+}
+
+void LocationsBuilderX86::VisitExit(HExit* exit) {
+  exit->set_locations(nullptr);
 }
 
 void CodeGeneratorX86::VisitExit(HExit* exit) {
@@ -53,31 +78,96 @@ void CodeGeneratorX86::VisitExit(HExit* exit) {
   }
 }
 
+void LocationsBuilderX86::VisitIf(HIf* if_instr) {
+  LocationSummary* locations = new (graph()->arena()) LocationSummary(if_instr);
+  locations->SetInAt(0, Location(EAX));
+  if_instr->set_locations(locations);
+}
+
 void CodeGeneratorX86::VisitIf(HIf* if_instr) {
-  LOG(FATAL) << "UNIMPLEMENTED";
+  // TODO: Generate the input as a condition, instead of materializing in a register.
+  __ cmpl(if_instr->locations()->InAt(0).reg<Register>(), Immediate(0));
+  __ j(kEqual, GetLabelOf(if_instr->IfFalseSuccessor()));
+  if (!GoesToNextBlock(if_instr->block(), if_instr->IfTrueSuccessor())) {
+    __ jmp(GetLabelOf(if_instr->IfTrueSuccessor()));
+  }
+}
+
+void LocationsBuilderX86::VisitLocal(HLocal* local) {
+  local->set_locations(nullptr);
 }
 
 void CodeGeneratorX86::VisitLocal(HLocal* local) {
-  LOG(FATAL) << "UNIMPLEMENTED";
+  DCHECK_EQ(local->block(), graph()->entry_block());
+  frame_size_ += kWordSize;
 }
 
-void CodeGeneratorX86::VisitLoadLocal(HLoadLocal* local) {
-  LOG(FATAL) << "UNIMPLEMENTED";
+void LocationsBuilderX86::VisitLoadLocal(HLoadLocal* local) {
+  LocationSummary* locations = new (graph()->arena()) LocationSummary(local);
+  locations->SetOut(Location(EAX));
+  local->set_locations(locations);
 }
 
-void CodeGeneratorX86::VisitStoreLocal(HStoreLocal* local) {
-  LOG(FATAL) << "UNIMPLEMENTED";
+static int32_t GetStackSlot(HLocal* local) {
+  // We are currently using EBP to access locals, so the offset must be negative.
+  return (local->reg_number() + 1) * -kWordSize;
+}
+
+void CodeGeneratorX86::VisitLoadLocal(HLoadLocal* load) {
+  __ movl(load->locations()->Out().reg<Register>(),
+          Address(EBP, GetStackSlot(load->GetLocal())));
+}
+
+void LocationsBuilderX86::VisitStoreLocal(HStoreLocal* local) {
+  LocationSummary* locations = new (graph()->arena()) LocationSummary(local);
+  locations->SetInAt(1, Location(EAX));
+  local->set_locations(locations);
+}
+
+void CodeGeneratorX86::VisitStoreLocal(HStoreLocal* store) {
+  __ movl(Address(EBP, GetStackSlot(store->GetLocal())),
+          store->locations()->InAt(1).reg<Register>());
+}
+
+void LocationsBuilderX86::VisitEqual(HEqual* equal) {
+  LocationSummary* locations = new (graph()->arena()) LocationSummary(equal);
+  locations->SetInAt(0, Location(EAX));
+  locations->SetInAt(1, Location(ECX));
+  locations->SetOut(Location(EAX));
+  equal->set_locations(locations);
 }
 
 void CodeGeneratorX86::VisitEqual(HEqual* equal) {
-  LOG(FATAL) << "UNIMPLEMENTED";
+  __ cmpl(equal->locations()->InAt(0).reg<Register>(),
+          equal->locations()->InAt(1).reg<Register>());
+  __ setb(kEqual, equal->locations()->Out().reg<Register>());
+}
+
+void LocationsBuilderX86::VisitIntConstant(HIntConstant* constant) {
+  constant->set_locations(nullptr);
 }
 
 void CodeGeneratorX86::VisitIntConstant(HIntConstant* constant) {
-  LOG(FATAL) << "UNIMPLEMENTED";
+  // Will be generated at use site.
+}
+
+void LocationsBuilderX86::VisitReturnVoid(HReturnVoid* ret) {
+  ret->set_locations(nullptr);
 }
 
 void CodeGeneratorX86::VisitReturnVoid(HReturnVoid* ret) {
+  GenerateFrameExit();
+  __ ret();
+}
+
+void LocationsBuilderX86::VisitReturn(HReturn* ret) {
+  LocationSummary* locations = new (graph()->arena()) LocationSummary(ret);
+  locations->SetInAt(0, Location(EAX));
+  ret->set_locations(locations);
+}
+
+void CodeGeneratorX86::VisitReturn(HReturn* ret) {
+  DCHECK_EQ(ret->locations()->InAt(0).reg<Register>(), EAX);
   GenerateFrameExit();
   __ ret();
 }
