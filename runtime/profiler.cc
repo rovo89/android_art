@@ -163,7 +163,7 @@ void* BackgroundMethodSamplingProfiler::RunProfilerThread(void* arg) {
 
 
     uint64_t start_us = MicroTime();
-    uint64_t end_us = start_us + profiler->duration_s_ * 1000000LL;
+    uint64_t end_us = start_us + profiler->duration_s_ * UINT64_C(1000000);
     uint64_t now_us = start_us;
 
     LOG(DEBUG) << "Starting profiling run now for " << PrettyDuration((end_us - start_us) * 1000);

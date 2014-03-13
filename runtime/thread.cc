@@ -518,7 +518,7 @@ uint64_t Thread::GetCpuMicroTime() const {
   pthread_getcpuclockid(pthread_self_, &cpu_clock_id);
   timespec now;
   clock_gettime(cpu_clock_id, &now);
-  return static_cast<uint64_t>(now.tv_sec) * 1000000LL + now.tv_nsec / 1000LL;
+  return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000) + now.tv_nsec / UINT64_C(1000);
 #else
   UNIMPLEMENTED(WARNING);
   return -1;
