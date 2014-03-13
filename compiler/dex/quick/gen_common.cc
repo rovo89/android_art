@@ -581,24 +581,6 @@ void Mir2Lir::HandleSuspendLaunchPads() {
   }
 }
 
-void Mir2Lir::HandleIntrinsicLaunchPads() {
-  int num_elems = intrinsic_launchpads_.Size();
-  for (int i = 0; i < num_elems; i++) {
-    ResetRegPool();
-    ResetDefTracking();
-    LIR* lab = intrinsic_launchpads_.Get(i);
-    CallInfo* info = reinterpret_cast<CallInfo*>(UnwrapPointer(lab->operands[0]));
-    current_dalvik_offset_ = info->offset;
-    AppendLIR(lab);
-    // NOTE: GenInvoke handles MarkSafepointPC
-    GenInvoke(info);
-    LIR* resume_lab = reinterpret_cast<LIR*>(UnwrapPointer(lab->operands[2]));
-    if (resume_lab != NULL) {
-      OpUnconditionalBranch(resume_lab);
-    }
-  }
-}
-
 void Mir2Lir::HandleThrowLaunchPads() {
   int num_elems = throw_launchpads_.Size();
   for (int i = 0; i < num_elems; i++) {
