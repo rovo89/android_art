@@ -26,4 +26,7 @@
 #define ONE_REGISTER_CODE_ITEM(...)                                        \
     { 1, 0, 0, 0, 0, 0, NUM_INSTRUCTIONS(__VA_ARGS__), 0, __VA_ARGS__ }
 
+#define TWO_REGISTERS_CODE_ITEM(...)                                       \
+    { 2, 0, 0, 0, 0, 0, NUM_INSTRUCTIONS(__VA_ARGS__), 0, __VA_ARGS__ }
+
 #endif  // ART_COMPILER_OPTIMIZING_OPTIMIZING_UNIT_TEST_H_

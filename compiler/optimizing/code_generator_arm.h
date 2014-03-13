@@ -27,10 +27,25 @@ class Label;
 
 namespace arm {
 
+class LocationsBuilderARM : public HGraphVisitor {
+ public:
+  explicit LocationsBuilderARM(HGraph* graph) : HGraphVisitor(graph) { }
+
+#define DECLARE_VISIT_INSTRUCTION(name)     \
+  virtual void Visit##name(H##name* instr);
+
+  FOR_EACH_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
+
+#undef DECLARE_VISIT_INSTRUCTION
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(LocationsBuilderARM);
+};
+
 class CodeGeneratorARM : public CodeGenerator {
  public:
   CodeGeneratorARM(Assembler* assembler, HGraph* graph)
-      : CodeGenerator(assembler, graph) { }
+      : CodeGenerator(assembler, graph), location_builder_(graph) { }
 
   // Visit functions for instruction classes.
 #define DECLARE_VISIT_INSTRUCTION(name)     \
@@ -40,10 +55,19 @@ class CodeGeneratorARM : public CodeGenerator {
 
 #undef DECLARE_VISIT_INSTRUCTION
 
+ protected:
+  virtual void GenerateFrameEntry() OVERRIDE;
+  virtual void GenerateFrameExit() OVERRIDE;
+  virtual void Bind(Label* label) OVERRIDE;
+  virtual void Move(HInstruction* instruction, Location location) OVERRIDE;
+  virtual void Push(HInstruction* instruction, Location location) OVERRIDE;
+
+  virtual HGraphVisitor* GetLocationBuilder() OVERRIDE {
+    return &location_builder_;
+  }
+
  private:
-  virtual void GenerateFrameEntry();
-  virtual void GenerateFrameExit();
-  virtual void Bind(Label* label);
+  LocationsBuilderARM location_builder_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorARM);
 };

@@ -27,6 +27,7 @@ class HBasicBlock;
 class HInstruction;
 class HIntConstant;
 class HGraphVisitor;
+class LocationSummary;
 
 static const int kDefaultNumberOfBlocks = 8;
 static const int kDefaultNumberOfSuccessors = 2;
@@ -186,12 +187,18 @@ class HBasicBlock : public ArenaObject {
   M(IntConstant)                                           \
   M(LoadLocal)                                             \
   M(Local)                                                 \
+  M(Return)                                                \
   M(ReturnVoid)                                            \
   M(StoreLocal)                                            \
+
+#define FORWARD_DECLARATION(type) class H##type;
+FOR_EACH_INSTRUCTION(FORWARD_DECLARATION)
+#undef FORWARD_DECLARATION
 
 #define DECLARE_INSTRUCTION(type)                          \
   virtual void Accept(HGraphVisitor* visitor);             \
   virtual const char* DebugName() const { return #type; }  \
+  virtual H##type* As##type() { return this; }             \
 
 class HUseListNode : public ArenaObject {
  public:
@@ -210,7 +217,14 @@ class HUseListNode : public ArenaObject {
 
 class HInstruction : public ArenaObject {
  public:
-  HInstruction() : previous_(nullptr), next_(nullptr), block_(nullptr), id_(-1), uses_(nullptr) { }
+  HInstruction()
+      : previous_(nullptr),
+        next_(nullptr),
+        block_(nullptr),
+        id_(-1),
+        uses_(nullptr),
+        locations_(nullptr) { }
+
   virtual ~HInstruction() { }
 
   HInstruction* next() const { return next_; }
@@ -236,6 +250,15 @@ class HInstruction : public ArenaObject {
   int id() const { return id_; }
   void set_id(int id) { id_ = id; }
 
+  LocationSummary* locations() const { return locations_; }
+  void set_locations(LocationSummary* locations) { locations_ = locations; }
+
+#define INSTRUCTION_TYPE_CHECK(type)                                           \
+  virtual H##type* As##type() { return nullptr; }
+
+  FOR_EACH_INSTRUCTION(INSTRUCTION_TYPE_CHECK)
+#undef INSTRUCTION_TYPE_CHECK
+
  private:
   HInstruction* previous_;
   HInstruction* next_;
@@ -247,6 +270,9 @@ class HInstruction : public ArenaObject {
   int id_;
 
   HUseListNode* uses_;
+
+  // Set by the code generator.
+  LocationSummary* locations_;
 
   friend class HBasicBlock;
 
@@ -386,6 +412,20 @@ class HReturnVoid : public HTemplateInstruction<0> {
   DISALLOW_COPY_AND_ASSIGN(HReturnVoid);
 };
 
+// Represents dex's RETURN opcodes. A HReturn is a control flow
+// instruction that branches to the exit block.
+class HReturn : public HTemplateInstruction<1> {
+ public:
+  explicit HReturn(HInstruction* value) {
+    SetRawInputAt(0, value);
+  }
+
+  DECLARE_INSTRUCTION(Return)
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HReturn);
+};
+
 // The exit instruction is the only instruction of the exit block.
 // Instructions aborting the method (HTrow and HReturn) must branch to the
 // exit block.
@@ -422,6 +462,14 @@ class HIf : public HTemplateInstruction<1> {
     SetRawInputAt(0, input);
   }
 
+  HBasicBlock* IfTrueSuccessor() const {
+    return block()->successors()->Get(0);
+  }
+
+  HBasicBlock* IfFalseSuccessor() const {
+    return block()->successors()->Get(1);
+  }
+
   DECLARE_INSTRUCTION(If)
 
  private:
@@ -449,9 +497,11 @@ class HLocal : public HTemplateInstruction<0> {
 
   DECLARE_INSTRUCTION(Local)
 
+  uint16_t reg_number() const { return reg_number_; }
+
  private:
-  // The register number in Dex.
-  uint16_t reg_number_;
+  // The Dex register number.
+  const uint16_t reg_number_;
 
   DISALLOW_COPY_AND_ASSIGN(HLocal);
 };
@@ -462,6 +512,8 @@ class HLoadLocal : public HTemplateInstruction<1> {
   explicit HLoadLocal(HLocal* local) {
     SetRawInputAt(0, local);
   }
+
+  HLocal* GetLocal() const { return reinterpret_cast<HLocal*>(InputAt(0)); }
 
   DECLARE_INSTRUCTION(LoadLocal)
 
@@ -478,6 +530,8 @@ class HStoreLocal : public HTemplateInstruction<2> {
     SetRawInputAt(1, value);
   }
 
+  HLocal* GetLocal() const { return reinterpret_cast<HLocal*>(InputAt(0)); }
+
   DECLARE_INSTRUCTION(StoreLocal)
 
  private:
@@ -489,6 +543,8 @@ class HStoreLocal : public HTemplateInstruction<2> {
 class HIntConstant : public HTemplateInstruction<0> {
  public:
   explicit HIntConstant(int32_t value) : value_(value) { }
+
+  int32_t value() const { return value_; }
 
   DECLARE_INSTRUCTION(IntConstant)
 

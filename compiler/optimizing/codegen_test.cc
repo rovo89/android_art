@@ -45,7 +45,7 @@ class ExecutableMemoryAllocator : public CodeAllocator {
   DISALLOW_COPY_AND_ASSIGN(ExecutableMemoryAllocator);
 };
 
-static void TestCode(const uint16_t* data) {
+static void TestCode(const uint16_t* data, bool has_result = false, int32_t expected = 0) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
   HGraphBuilder builder(&arena);
@@ -54,14 +54,17 @@ static void TestCode(const uint16_t* data) {
   ASSERT_NE(graph, nullptr);
   ExecutableMemoryAllocator allocator;
   CHECK(CodeGenerator::CompileGraph(graph, kX86, &allocator));
-  typedef void (*fptr)();
+  typedef int32_t (*fptr)();
 #if defined(__i386__)
-  reinterpret_cast<fptr>(allocator.memory())();
+  int32_t result = reinterpret_cast<fptr>(allocator.memory())();
 #endif
   CHECK(CodeGenerator::CompileGraph(graph, kArm, &allocator));
 #if defined(__arm__)
-  reinterpret_cast<fptr>(allocator.memory())();
+  int32_t result = reinterpret_cast<fptr>(allocator.memory())();
 #endif
+  if (has_result) {
+    CHECK_EQ(result, expected);
+  }
 }
 
 TEST(CodegenTest, ReturnVoid) {
@@ -69,7 +72,7 @@ TEST(CodegenTest, ReturnVoid) {
   TestCode(data);
 }
 
-TEST(PrettyPrinterTest, CFG1) {
+TEST(CodegenTest, CFG1) {
   const uint16_t data[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::GOTO | 0x100,
     Instruction::RETURN_VOID);
@@ -77,7 +80,7 @@ TEST(PrettyPrinterTest, CFG1) {
   TestCode(data);
 }
 
-TEST(PrettyPrinterTest, CFG2) {
+TEST(CodegenTest, CFG2) {
   const uint16_t data[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::GOTO | 0x100,
     Instruction::GOTO | 0x100,
@@ -86,7 +89,7 @@ TEST(PrettyPrinterTest, CFG2) {
   TestCode(data);
 }
 
-TEST(PrettyPrinterTest, CFG3) {
+TEST(CodegenTest, CFG3) {
   const uint16_t data1[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::GOTO | 0x200,
     Instruction::RETURN_VOID,
@@ -109,13 +112,79 @@ TEST(PrettyPrinterTest, CFG3) {
   TestCode(data3);
 }
 
-TEST(PrettyPrinterTest, CFG4) {
+TEST(CodegenTest, CFG4) {
   const uint16_t data[] = ZERO_REGISTER_CODE_ITEM(
     Instruction::RETURN_VOID,
     Instruction::GOTO | 0x100,
     Instruction::GOTO | 0xFE00);
 
   TestCode(data);
+}
+
+TEST(CodegenTest, CFG5) {
+  const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
+    Instruction::CONST_4 | 0 | 0,
+    Instruction::IF_EQ, 3,
+    Instruction::GOTO | 0x100,
+    Instruction::RETURN_VOID);
+
+  TestCode(data);
+}
+
+TEST(CodegenTest, IntConstant) {
+  const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
+    Instruction::CONST_4 | 0 | 0,
+    Instruction::RETURN_VOID);
+
+  TestCode(data);
+}
+
+TEST(CodegenTest, Return1) {
+  const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
+    Instruction::CONST_4 | 0 | 0,
+    Instruction::RETURN | 0);
+
+  TestCode(data, true, 0);
+}
+
+TEST(CodegenTest, Return2) {
+  const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
+    Instruction::CONST_4 | 0 | 0,
+    Instruction::CONST_4 | 0 | 1 << 8,
+    Instruction::RETURN | 1 << 8);
+
+  TestCode(data, true, 0);
+}
+
+TEST(CodegenTest, Return3) {
+  const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
+    Instruction::CONST_4 | 0 | 0,
+    Instruction::CONST_4 | 1 << 8 | 1 << 12,
+    Instruction::RETURN | 1 << 8);
+
+  TestCode(data, true, 1);
+}
+
+TEST(CodegenTest, ReturnIf1) {
+  const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
+    Instruction::CONST_4 | 0 | 0,
+    Instruction::CONST_4 | 1 << 8 | 1 << 12,
+    Instruction::IF_EQ, 3,
+    Instruction::RETURN | 0 << 8,
+    Instruction::RETURN | 1 << 8);
+
+  TestCode(data, true, 1);
+}
+
+TEST(CodegenTest, ReturnIf2) {
+  const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
+    Instruction::CONST_4 | 0 | 0,
+    Instruction::CONST_4 | 1 << 8 | 1 << 12,
+    Instruction::IF_EQ | 0 << 4 | 1 << 8, 3,
+    Instruction::RETURN | 0 << 8,
+    Instruction::RETURN | 1 << 8);
+
+  TestCode(data, true, 0);
 }
 
 }  // namespace art
