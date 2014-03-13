@@ -15,6 +15,9 @@
  */
 
 #include "parsed_options.h"
+#ifdef HAVE_ANDROID_OS
+#include "cutils/properties.h"
+#endif
 
 #include "debugger.h"
 #include "monitor.h"
@@ -190,6 +193,36 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
   profile_interval_us_ = 500;       // Microseconds.
   profile_backoff_coefficient_ = 2.0;
   profile_clock_source_ = kDefaultProfilerClockSource;
+
+  // Default to explicit checks.  Switch off with -implicit-checks:.
+  // or setprop dalvik.vm.implicit_checks check1,check2,...
+#ifdef HAVE_ANDROID_OS
+  {
+    char buf[PROP_VALUE_MAX];
+    property_get("dalvik.vm.implicit_checks", buf, "none");
+    std::string checks(buf);
+    std::vector<std::string> checkvec;
+    Split(checks, ',', checkvec);
+    for (auto& str : checkvec) {
+      std::string val = Trim(str);
+      if (val == "none") {
+        explicit_checks_ = kExplicitNullCheck | kExplicitSuspendCheck |
+            kExplicitStackOverflowCheck;
+      } else if (val == "null") {
+        explicit_checks_ &= ~kExplicitNullCheck;
+      } else if (val == "suspend") {
+        explicit_checks_ &= ~kExplicitSuspendCheck;
+      } else if (val == "stack") {
+        explicit_checks_ &= ~kExplicitStackOverflowCheck;
+      } else if (val == "all") {
+        explicit_checks_ = 0;
+      }
+    }
+  }
+#else
+  explicit_checks_ = kExplicitNullCheck | kExplicitSuspendCheck |
+    kExplicitStackOverflowCheck;
+#endif
 
   for (size_t i = 0; i < options.size(); ++i) {
     if (true && options[0].first == "-Xzygote") {
@@ -470,6 +503,54 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
       if (!ParseDouble(option, ':', 1.0, 10.0, &profile_backoff_coefficient_)) {
         return false;
       }
+    } else if (StartsWith(option, "-implicit-checks:")) {
+      std::string checks;
+      if (!ParseStringAfterChar(option, ':', &checks)) {
+        return false;
+      }
+      std::vector<std::string> checkvec;
+      Split(checks, ',', checkvec);
+      for (auto& str : checkvec) {
+        std::string val = Trim(str);
+        if (val == "none") {
+          explicit_checks_ = kExplicitNullCheck | kExplicitSuspendCheck |
+            kExplicitStackOverflowCheck;
+        } else if (val == "null") {
+          explicit_checks_ &= ~kExplicitNullCheck;
+        } else if (val == "suspend") {
+          explicit_checks_ &= ~kExplicitSuspendCheck;
+        } else if (val == "stack") {
+          explicit_checks_ &= ~kExplicitStackOverflowCheck;
+        } else if (val == "all") {
+          explicit_checks_ = 0;
+        } else {
+            return false;
+        }
+      }
+    } else if (StartsWith(option, "-explicit-checks:")) {
+      std::string checks;
+      if (!ParseStringAfterChar(option, ':', &checks)) {
+        return false;
+      }
+      std::vector<std::string> checkvec;
+      Split(checks, ',', checkvec);
+      for (auto& str : checkvec) {
+        std::string val = Trim(str);
+        if (val == "none") {
+          explicit_checks_ = 0;
+        } else if (val == "null") {
+          explicit_checks_ |= kExplicitNullCheck;
+        } else if (val == "suspend") {
+          explicit_checks_ |= kExplicitSuspendCheck;
+        } else if (val == "stack") {
+          explicit_checks_ |= kExplicitStackOverflowCheck;
+        } else if (val == "all") {
+          explicit_checks_ = kExplicitNullCheck | kExplicitSuspendCheck |
+            kExplicitStackOverflowCheck;
+        } else {
+          return false;
+        }
+      }
     } else if (option == "-Xcompiler-option") {
       i++;
       if (i == options.size()) {
@@ -488,6 +569,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
                StartsWith(option, "-da:") ||
                StartsWith(option, "-enableassertions:") ||
                StartsWith(option, "-disableassertions:") ||
+               (option == "--runtime-arg") ||
                (option == "-esa") ||
                (option == "-dsa") ||
                (option == "-enablesystemassertions") ||

@@ -433,6 +433,10 @@ class PACKED(4) Thread {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, state_and_flags_));
   }
 
+  static ThreadOffset ThreadSuspendTriggerOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, suspend_trigger_));
+  }
+
   // Size of stack less any space reserved for stack overflow
   size_t GetStackSize() const {
     return stack_size_ - (stack_end_ - stack_begin_);
@@ -824,6 +828,10 @@ class PACKED(4) Thread {
   PortableEntryPoints portable_entrypoints_;
   QuickEntryPoints quick_entrypoints_;
 
+  // Setting this to 0 will trigger a SEGV and thus a suspend check.  It is normally
+  // set to the address of itself.
+  uintptr_t* suspend_trigger_;
+
   // How many times has our pthread key's destructor been called?
   uint32_t thread_exit_check_count_;
 
@@ -837,6 +845,20 @@ class PACKED(4) Thread {
   // Doesn't check that there is room.
   mirror::Object* AllocTlab(size_t bytes);
   void SetTlab(byte* start, byte* end);
+
+  // Remove the suspend trigger for this thread by making the suspend_trigger_ TLS value
+  // equal to a valid pointer.
+  // TODO: does this need to atomic?  I don't think so.
+  void RemoveSuspendTrigger() {
+    suspend_trigger_ = reinterpret_cast<uintptr_t*>(&suspend_trigger_);
+  }
+
+  // Trigger a suspend check by making the suspend_trigger_ TLS value an invalid pointer.
+  // The next time a suspend check is done, it will load from the value at this address
+  // and trigger a SIGSEGV.
+  void TriggerSuspend() {
+    suspend_trigger_ = nullptr;
+  }
 
   // Thread-local rosalloc runs. There are 34 size brackets in rosalloc
   // runs (RosAlloc::kNumOfSizeBrackets). We can't refer to the

@@ -139,6 +139,7 @@ LIBART_COMMON_SRC_FILES := \
 	trace.cc \
 	transaction.cc \
 	profiler.cc \
+	fault_handler.cc \
 	utf.cc \
 	utils.cc \
 	verifier/dex_gc_map.cc \
@@ -207,7 +208,8 @@ LIBART_TARGET_SRC_FILES_arm := \
 	arch/arm/portable_entrypoints_arm.S \
 	arch/arm/quick_entrypoints_arm.S \
 	arch/arm/arm_sdiv.S \
-	arch/arm/thread_arm.cc
+	arch/arm/thread_arm.cc \
+	arch/arm/fault_handler_arm.cc
 
 LIBART_TARGET_SRC_FILES_x86 := \
 	arch/x86/context_x86.cc \
@@ -215,7 +217,8 @@ LIBART_TARGET_SRC_FILES_x86 := \
 	arch/x86/jni_entrypoints_x86.S \
 	arch/x86/portable_entrypoints_x86.S \
 	arch/x86/quick_entrypoints_x86.S \
-	arch/x86/thread_x86.cc
+	arch/x86/thread_x86.cc \
+	arch/x86/fault_handler_x86.cc
 
 LIBART_TARGET_SRC_FILES_x86_64 := \
 	arch/x86_64/context_x86_64.cc \
@@ -224,7 +227,8 @@ LIBART_TARGET_SRC_FILES_x86_64 := \
 	arch/x86_64/portable_entrypoints_x86_64.S \
 	arch/x86_64/quick_entrypoints_x86_64.S \
 	arch/x86_64/thread_x86_64.cc \
-	monitor_pool.cc
+	monitor_pool.cc \
+	arch/x86_64/fault_handler_x86_64.cc
 
 
 LIBART_TARGET_SRC_FILES_mips := \
@@ -233,7 +237,8 @@ LIBART_TARGET_SRC_FILES_mips := \
 	arch/mips/jni_entrypoints_mips.S \
 	arch/mips/portable_entrypoints_mips.S \
 	arch/mips/quick_entrypoints_mips.S \
-	arch/mips/thread_mips.cc
+	arch/mips/thread_mips.cc \
+	arch/mips/fault_mhandlerarm.cc
 
 ifeq ($(TARGET_ARCH),arm64)
 $(info TODOArm64: $(LOCAL_PATH)/Android.mk Add Arm64 specific runtime files)
@@ -263,6 +268,7 @@ LIBART_HOST_SRC_FILES += \
 	arch/x86_64/portable_entrypoints_x86_64.S \
 	arch/x86_64/quick_entrypoints_x86_64.S \
 	arch/x86_64/thread_x86_64.cc \
+	arch/x86_64/fault_handler_x86_64.cc \
 	monitor_pool.cc
 else
 LIBART_HOST_SRC_FILES += \
@@ -271,6 +277,7 @@ LIBART_HOST_SRC_FILES += \
 	arch/x86/jni_entrypoints_x86.S \
 	arch/x86/portable_entrypoints_x86.S \
 	arch/x86/quick_entrypoints_x86.S \
+	arch/x86/fault_handler_x86.cc \
 	arch/x86/thread_x86.cc
 endif
 else # HOST_ARCH != x86
