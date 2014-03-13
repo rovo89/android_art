@@ -222,7 +222,8 @@ static bool IsBreakpoint(const mirror::ArtMethod* m, uint32_t dex_pc)
   return false;
 }
 
-static bool IsSuspendedForDebugger(ScopedObjectAccessUnchecked& soa, Thread* thread) {
+static bool IsSuspendedForDebugger(ScopedObjectAccessUnchecked& soa, Thread* thread)
+    LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_) {
   MutexLock mu(soa.Self(), *Locks::thread_suspend_count_lock_);
   // A thread may be suspended for GC; in this code, we really want to know whether
   // there's a debugger suspension active.
@@ -743,8 +744,7 @@ JDWP::JdwpError Dbg::GetMonitorInfo(JDWP::ObjectId object_id, JDWP::ExpandBuf* r
 
 JDWP::JdwpError Dbg::GetOwnedMonitors(JDWP::ObjectId thread_id,
                                       std::vector<JDWP::ObjectId>& monitors,
-                                      std::vector<uint32_t>& stack_depths)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+                                      std::vector<uint32_t>& stack_depths) {
   ScopedObjectAccessUnchecked soa(Thread::Current());
   MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread;
@@ -793,8 +793,8 @@ JDWP::JdwpError Dbg::GetOwnedMonitors(JDWP::ObjectId thread_id,
   return JDWP::ERR_NONE;
 }
 
-JDWP::JdwpError Dbg::GetContendedMonitor(JDWP::ObjectId thread_id, JDWP::ObjectId& contended_monitor)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+JDWP::JdwpError Dbg::GetContendedMonitor(JDWP::ObjectId thread_id,
+                                         JDWP::ObjectId& contended_monitor) {
   ScopedObjectAccessUnchecked soa(Thread::Current());
   MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread;
@@ -1705,22 +1705,19 @@ JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* p
   if (error == JDWP::ERR_THREAD_NOT_ALIVE) {
     // Zombie threads are in the null group.
     expandBufAddObjectId(pReply, JDWP::ObjectId(0));
-    return JDWP::ERR_NONE;
+    error = JDWP::ERR_NONE;
+  } else if (error == JDWP::ERR_NONE) {
+    mirror::Class* c = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_Thread);
+    CHECK(c != nullptr);
+    mirror::ArtField* f = c->FindInstanceField("group", "Ljava/lang/ThreadGroup;");
+    CHECK(f != NULL);
+    mirror::Object* group = f->GetObject(thread_object);
+    CHECK(group != NULL);
+    JDWP::ObjectId thread_group_id = gRegistry->Add(group);
+    expandBufAddObjectId(pReply, thread_group_id);
   }
-  if (error != JDWP::ERR_NONE) {
-    return error;
-  }
-  mirror::Class* c = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_Thread);
-  CHECK(c != nullptr);
-  mirror::ArtField* f = c->FindInstanceField("group", "Ljava/lang/ThreadGroup;");
-  CHECK(f != NULL);
-  mirror::Object* group = f->GetObject(thread_object);
-  CHECK(group != NULL);
-  JDWP::ObjectId thread_group_id = gRegistry->Add(group);
   soa.Self()->EndAssertNoThreadSuspension(old_cause);
-
-  expandBufAddObjectId(pReply, thread_group_id);
-  return JDWP::ERR_NONE;
+  return error;
 }
 
 std::string Dbg::GetThreadGroupName(JDWP::ObjectId thread_group_id) {
@@ -1798,7 +1795,8 @@ JDWP::JdwpThreadStatus Dbg::ToJdwpThreadStatus(ThreadState state) {
   return JDWP::TS_ZOMBIE;
 }
 
-JDWP::JdwpError Dbg::GetThreadStatus(JDWP::ObjectId thread_id, JDWP::JdwpThreadStatus* pThreadStatus, JDWP::JdwpSuspendStatus* pSuspendStatus) {
+JDWP::JdwpError Dbg::GetThreadStatus(JDWP::ObjectId thread_id, JDWP::JdwpThreadStatus* pThreadStatus,
+                                     JDWP::JdwpSuspendStatus* pSuspendStatus) {
   ScopedObjectAccess soa(Thread::Current());
 
   *pSuspendStatus = JDWP::SUSPEND_STATUS_NOT_SUSPENDED;
@@ -2607,6 +2605,7 @@ void Dbg::UnwatchLocation(const JDWP::JdwpLocation* location) {
 class ScopedThreadSuspension {
  public:
   ScopedThreadSuspension(Thread* self, JDWP::ObjectId thread_id)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) :
       thread_(NULL),
       error_(JDWP::ERR_NONE),
