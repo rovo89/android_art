@@ -727,6 +727,13 @@ int ArmMir2Lir::LoadHelper(ThreadOffset offset) {
   return rARM_LR;
 }
 
+LIR* ArmMir2Lir::CheckSuspendUsingLoad() {
+  int tmp = r0;
+  LoadWordDisp(rARM_SELF, Thread::ThreadSuspendTriggerOffset().Int32Value(), tmp);
+  LIR* load2 = LoadWordDisp(tmp, 0, tmp);
+  return load2;
+}
+
 uint64_t ArmMir2Lir::GetTargetInstFlags(int opcode) {
   DCHECK(!IsPseudoLirOp(opcode));
   return ArmMir2Lir::EncodingMap[opcode].flags;

@@ -123,7 +123,10 @@ Runtime::Runtime()
       system_thread_group_(nullptr),
       system_class_loader_(nullptr),
       dump_gc_performance_on_shutdown_(false),
-      preinitialization_transaction(nullptr) {
+      preinitialization_transaction(nullptr),
+      null_pointer_handler_(nullptr),
+      suspend_handler_(nullptr),
+      stack_overflow_handler_(nullptr) {
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
     callee_save_methods_[i] = nullptr;
   }
@@ -170,6 +173,10 @@ Runtime::~Runtime() {
   // TODO: acquire a static mutex on Runtime to avoid racing.
   CHECK(instance_ == nullptr || instance_ == this);
   instance_ = nullptr;
+
+  delete null_pointer_handler_;
+  delete suspend_handler_;
+  delete stack_overflow_handler_;
 }
 
 struct AbortState {
@@ -513,6 +520,27 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
 
   if (options->interpreter_only_) {
     GetInstrumentation()->ForceInterpretOnly();
+  }
+
+  if (options->explicit_checks_ != (ParsedOptions::kExplicitSuspendCheck |
+        ParsedOptions::kExplicitNullCheck |
+        ParsedOptions::kExplicitStackOverflowCheck)) {
+    // Initialize the fault manager.
+    fault_manager.Init();
+
+    // These need to be in a specific order.  The null point check must be
+    // the last in the list.
+    if ((options->explicit_checks_ & ParsedOptions::kExplicitSuspendCheck) == 0) {
+      suspend_handler_ = new SuspensionHandler(&fault_manager);
+    }
+
+    if ((options->explicit_checks_ & ParsedOptions::kExplicitStackOverflowCheck) == 0) {
+      stack_overflow_handler_ = new StackOverflowHandler(&fault_manager);
+    }
+
+    if ((options->explicit_checks_ & ParsedOptions::kExplicitNullCheck) == 0) {
+      null_pointer_handler_ = new NullPointerHandler(&fault_manager);
+    }
   }
 
   heap_ = new gc::Heap(options->heap_initial_size_,

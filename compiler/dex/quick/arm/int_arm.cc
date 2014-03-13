@@ -938,7 +938,7 @@ void ArmMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
   }
 
   /* null object? */
-  GenNullCheck(rl_array.s_reg_low, rl_array.reg.GetReg(), opt_flags);
+  GenNullCheck(rl_array.reg.GetReg(), opt_flags);
 
   bool needs_range_check = (!(opt_flags & MIR_IGNORE_RANGE_CHECK));
   int reg_len = INVALID_REG;
@@ -946,6 +946,9 @@ void ArmMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
     reg_len = AllocTemp();
     /* Get len */
     LoadWordDisp(rl_array.reg.GetReg(), len_offset, reg_len);
+    MarkPossibleNullPointerException(opt_flags);
+  } else {
+    ForceImplicitNullCheck(rl_array.reg.GetReg(), opt_flags);
   }
   if (rl_dest.wide || rl_dest.fp || constant_index) {
     int reg_ptr;
@@ -969,13 +972,16 @@ void ArmMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
       FreeTemp(reg_len);
     }
     if (rl_dest.wide) {
-      LoadBaseDispWide(reg_ptr, data_offset, rl_result.reg.GetReg(), rl_result.reg.GetHighReg(), INVALID_SREG);
+      LoadBaseDispWide(reg_ptr, data_offset, rl_result.reg.GetReg(), rl_result.reg.GetHighReg(),
+        INVALID_SREG);
+      MarkPossibleNullPointerException(opt_flags);
       if (!constant_index) {
         FreeTemp(reg_ptr);
       }
       StoreValueWide(rl_dest, rl_result);
     } else {
       LoadBaseDisp(reg_ptr, data_offset, rl_result.reg.GetReg(), size, INVALID_SREG);
+      MarkPossibleNullPointerException(opt_flags);
       if (!constant_index) {
         FreeTemp(reg_ptr);
       }
@@ -993,6 +999,7 @@ void ArmMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
       FreeTemp(reg_len);
     }
     LoadBaseIndexed(reg_ptr, rl_index.reg.GetReg(), rl_result.reg.GetReg(), scale, size);
+    MarkPossibleNullPointerException(opt_flags);
     FreeTemp(reg_ptr);
     StoreValue(rl_dest, rl_result);
   }
@@ -1038,7 +1045,7 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   }
 
   /* null object? */
-  GenNullCheck(rl_array.s_reg_low, rl_array.reg.GetReg(), opt_flags);
+  GenNullCheck(rl_array.reg.GetReg(), opt_flags);
 
   bool needs_range_check = (!(opt_flags & MIR_IGNORE_RANGE_CHECK));
   int reg_len = INVALID_REG;
@@ -1047,6 +1054,9 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     // NOTE: max live temps(4) here.
     /* Get len */
     LoadWordDisp(rl_array.reg.GetReg(), len_offset, reg_len);
+    MarkPossibleNullPointerException(opt_flags);
+  } else {
+    ForceImplicitNullCheck(rl_array.reg.GetReg(), opt_flags);
   }
   /* at this point, reg_ptr points to array, 2 live temps */
   if (rl_src.wide || rl_src.fp || constant_index) {
@@ -1073,6 +1083,7 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     } else {
       StoreBaseDisp(reg_ptr, data_offset, rl_src.reg.GetReg(), size);
     }
+    MarkPossibleNullPointerException(opt_flags);
   } else {
     /* reg_ptr -> array data */
     OpRegRegImm(kOpAdd, reg_ptr, rl_array.reg.GetReg(), data_offset);
@@ -1083,6 +1094,7 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     }
     StoreBaseIndexed(reg_ptr, rl_index.reg.GetReg(), rl_src.reg.GetReg(),
                      scale, size);
+    MarkPossibleNullPointerException(opt_flags);
   }
   if (allocated_reg_ptr_temp) {
     FreeTemp(reg_ptr);

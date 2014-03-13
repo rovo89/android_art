@@ -302,6 +302,7 @@ void Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm) {
   SetUpAlternateSignalStack();
   InitCpu();
   InitTlsEntryPoints();
+  RemoveSuspendTrigger();
   InitCardTable();
   InitTid();
   // Set pthread_self_ ahead of pthread_setspecific, that makes Thread::Current function, this
@@ -576,6 +577,7 @@ void Thread::ModifySuspendCount(Thread* self, int delta, bool for_debugger) {
     AtomicClearFlag(kSuspendRequest);
   } else {
     AtomicSetFlag(kSuspendRequest);
+    TriggerSuspend();
   }
 }
 
@@ -643,6 +645,7 @@ bool Thread::RequestCheckpoint(Closure* function) {
     checkpoint_functions_[available_checkpoint] = nullptr;
   } else {
     CHECK_EQ(ReadFlag(kCheckpointRequest), true);
+    TriggerSuspend();
   }
   return succeeded == 0;
 }
@@ -1774,6 +1777,7 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset, size_t size_of_
   // DO_THREAD_OFFSET(top_of_managed_stack_);
   // DO_THREAD_OFFSET(top_of_managed_stack_pc_);
   DO_THREAD_OFFSET(top_sirt_);
+  DO_THREAD_OFFSET(suspend_trigger_);
 #undef DO_THREAD_OFFSET
 
   size_t entry_point_count = arraysize(gThreadEntryPointInfo);

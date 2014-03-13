@@ -546,7 +546,10 @@ class Mir2Lir : public Backend {
     LIR* GenCheck(ConditionCode c_code, ThrowKind kind);
     LIR* GenImmedCheck(ConditionCode c_code, int reg, int imm_val,
                        ThrowKind kind);
-    LIR* GenNullCheck(int s_reg, int m_reg, int opt_flags);
+    LIR* GenNullCheck(int m_reg, int opt_flags);
+    void MarkPossibleNullPointerException(int opt_flags);
+    void MarkPossibleStackOverflowException();
+    void ForceImplicitNullCheck(int reg, int opt_flags);
     LIR* GenRegRegCheck(ConditionCode c_code, int reg1, int reg2,
                         ThrowKind kind);
     void GenCompareAndBranch(Instruction::Code opcode, RegLocation rl_src1,
@@ -796,6 +799,7 @@ class Mir2Lir : public Backend {
     virtual bool SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div,
                                     RegLocation rl_src, RegLocation rl_dest, int lit) = 0;
     virtual int LoadHelper(ThreadOffset offset) = 0;
+    virtual LIR* CheckSuspendUsingLoad() = 0;
     virtual LIR* LoadBaseDisp(int rBase, int displacement, int r_dest, OpSize size, int s_reg) = 0;
     virtual LIR* LoadBaseDispWide(int rBase, int displacement, int r_dest_lo, int r_dest_hi,
                                   int s_reg) = 0;

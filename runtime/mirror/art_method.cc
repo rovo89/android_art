@@ -157,7 +157,7 @@ uintptr_t ArtMethod::NativePcOffset(const uintptr_t pc) {
   return pc - reinterpret_cast<uintptr_t>(code);
 }
 
-uint32_t ArtMethod::ToDexPc(const uintptr_t pc) {
+uint32_t ArtMethod::ToDexPc(const uintptr_t pc, bool abort_on_failure) {
   if (IsPortableCompiled()) {
     // Portable doesn't use the machine pc, we just use dex pc instead.
     return static_cast<uint32_t>(pc);
@@ -183,9 +183,11 @@ uint32_t ArtMethod::ToDexPc(const uintptr_t pc) {
       return cur.DexPc();
     }
   }
-  LOG(FATAL) << "Failed to find Dex offset for PC offset " << reinterpret_cast<void*>(sought_offset)
-                     << "(PC " << reinterpret_cast<void*>(pc) << ", code=" << code
-                     << ") in " << PrettyMethod(this);
+  if (abort_on_failure) {
+      LOG(FATAL) << "Failed to find Dex offset for PC offset " << reinterpret_cast<void*>(sought_offset)
+             << "(PC " << reinterpret_cast<void*>(pc) << ", code=" << code
+             << ") in " << PrettyMethod(this);
+  }
   return DexFile::kDexNoIndex;
 }
 
