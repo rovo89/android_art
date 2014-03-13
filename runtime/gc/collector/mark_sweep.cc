@@ -88,51 +88,13 @@ static constexpr bool kCountJavaLangRefs = false;
 static constexpr bool kCheckLocks = kDebugLocking;
 static constexpr bool kVerifyRoots = kIsDebugBuild;
 
-void MarkSweep::ImmuneSpace(space::ContinuousSpace* space) {
-  // Bind live to mark bitmap if necessary.
-  if (space->GetLiveBitmap() != space->GetMarkBitmap()) {
-    CHECK(space->IsContinuousMemMapAllocSpace());
-    space->AsContinuousMemMapAllocSpace()->BindLiveToMarkBitmap();
-  }
-
-  // Add the space to the immune region.
-  // TODO: Use space limits instead of current end_ since the end_ can be changed by dlmalloc
-  // callbacks.
-  if (immune_begin_ == NULL) {
-    DCHECK(immune_end_ == NULL);
-    SetImmuneRange(reinterpret_cast<Object*>(space->Begin()),
-                   reinterpret_cast<Object*>(space->End()));
-  } else {
-    const space::ContinuousSpace* prev_space = nullptr;
-    // Find out if the previous space is immune.
-    for (const space::ContinuousSpace* cur_space : GetHeap()->GetContinuousSpaces()) {
-      if (cur_space == space) {
-        break;
-      }
-      prev_space = cur_space;
-    }
-    // If previous space was immune, then extend the immune region. Relies on continuous spaces
-    // being sorted by Heap::AddContinuousSpace.
-    if (prev_space != nullptr && IsImmuneSpace(prev_space)) {
-      immune_begin_ = std::min(reinterpret_cast<Object*>(space->Begin()), immune_begin_);
-      immune_end_ = std::max(reinterpret_cast<Object*>(space->End()), immune_end_);
-    }
-  }
-}
-
-bool MarkSweep::IsImmuneSpace(const space::ContinuousSpace* space) const {
-  return
-      immune_begin_ <= reinterpret_cast<Object*>(space->Begin()) &&
-      immune_end_ >= reinterpret_cast<Object*>(space->End());
-}
-
 void MarkSweep::BindBitmaps() {
   timings_.StartSplit("BindBitmaps");
   WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
   // Mark all of the spaces we never collect as immune.
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     if (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyNeverCollect) {
-      ImmuneSpace(space);
+      CHECK(immune_region_.AddContinuousSpace(space)) << "Failed to add space " << *space;
     }
   }
   timings_.EndSplit();
@@ -144,8 +106,6 @@ MarkSweep::MarkSweep(Heap* heap, bool is_concurrent, const std::string& name_pre
                        (is_concurrent ? "concurrent mark sweep": "mark sweep")),
       current_mark_bitmap_(NULL),
       mark_stack_(NULL),
-      immune_begin_(NULL),
-      immune_end_(NULL),
       live_stack_freeze_size_(0),
       gc_barrier_(new Barrier(0)),
       large_object_lock_("mark sweep large object lock", kMarkSweepLargeObjectLock),
@@ -158,7 +118,7 @@ void MarkSweep::InitializePhase() {
   TimingLogger::ScopedSplit split("InitializePhase", &timings_);
   mark_stack_ = heap_->mark_stack_.get();
   DCHECK(mark_stack_ != nullptr);
-  SetImmuneRange(nullptr, nullptr);
+  immune_region_.Reset();
   class_count_ = 0;
   array_count_ = 0;
   other_count_ = 0;
@@ -298,7 +258,7 @@ void MarkSweep::MarkingPhase() {
 
 void MarkSweep::UpdateAndMarkModUnion() {
   for (const auto& space : heap_->GetContinuousSpaces()) {
-    if (IsImmuneSpace(space)) {
+    if (immune_region_.ContainsSpace(space)) {
       const char* name = space->IsZygoteSpace() ? "UpdateAndMarkZygoteModUnionTable" :
           "UpdateAndMarkImageModUnionTable";
       TimingLogger::ScopedSplit split(name, &timings_);
@@ -385,11 +345,6 @@ void MarkSweep::ReclaimPhase() {
   }
 }
 
-void MarkSweep::SetImmuneRange(Object* begin, Object* end) {
-  immune_begin_ = begin;
-  immune_end_ = end;
-}
-
 void MarkSweep::FindDefaultMarkBitmap() {
   TimingLogger::ScopedSplit split("FindDefaultMarkBitmap", &timings_);
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
@@ -442,7 +397,7 @@ mirror::Object* MarkSweep::MarkObjectCallback(mirror::Object* obj, void* arg) {
 }
 
 inline void MarkSweep::UnMarkObjectNonNull(const Object* obj) {
-  DCHECK(!IsImmune(obj));
+  DCHECK(!immune_region_.ContainsObject(obj));
 
   if (kUseBrooksPointer) {
     // Verify all the objects have the correct Brooks pointer installed.
@@ -474,7 +429,7 @@ inline void MarkSweep::MarkObjectNonNull(const Object* obj) {
     obj->AssertSelfBrooksPointer();
   }
 
-  if (IsImmune(obj)) {
+  if (immune_region_.ContainsObject(obj)) {
     DCHECK(IsMarked(obj));
     return;
   }
@@ -541,7 +496,7 @@ inline bool MarkSweep::MarkObjectParallel(const Object* obj) {
     obj->AssertSelfBrooksPointer();
   }
 
-  if (IsImmune(obj)) {
+  if (immune_region_.ContainsObject(obj)) {
     DCHECK(IsMarked(obj));
     return false;
   }
@@ -1109,7 +1064,8 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
   std::vector<space::ContinuousSpace*> sweep_spaces;
   space::ContinuousSpace* non_moving_space = nullptr;
   for (space::ContinuousSpace* space : heap_->GetContinuousSpaces()) {
-    if (space->IsAllocSpace() && !IsImmuneSpace(space) && space->GetLiveBitmap() != nullptr) {
+    if (space->IsAllocSpace() && !immune_region_.ContainsSpace(space) &&
+        space->GetLiveBitmap() != nullptr) {
       if (space == heap_->GetNonMovingSpace()) {
         non_moving_space = space;
       } else {
@@ -1330,7 +1286,7 @@ void MarkSweep::ProcessMarkStack(bool paused) {
 
 inline bool MarkSweep::IsMarked(const Object* object) const
     SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
-  if (IsImmune(object)) {
+  if (immune_region_.ContainsObject(object)) {
     return true;
   }
   DCHECK(current_mark_bitmap_ != NULL);
