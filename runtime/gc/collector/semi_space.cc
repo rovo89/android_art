@@ -64,40 +64,6 @@ static constexpr bool kProtectFromSpace = true;
 static constexpr bool kClearFromSpace = true;
 static constexpr bool kStoreStackTraces = false;
 
-// TODO: Unduplicate logic.
-void SemiSpace::ImmuneSpace(space::ContinuousSpace* space) {
-  // Bind live to mark bitmap if necessary.
-  if (space->GetLiveBitmap() != space->GetMarkBitmap()) {
-    CHECK(space->IsContinuousMemMapAllocSpace());
-    space->AsContinuousMemMapAllocSpace()->BindLiveToMarkBitmap();
-  }
-  // Add the space to the immune region.
-  if (immune_begin_ == nullptr) {
-    DCHECK(immune_end_ == nullptr);
-    immune_begin_ = reinterpret_cast<Object*>(space->Begin());
-    immune_end_ = reinterpret_cast<Object*>(space->End());
-  } else {
-    const space::ContinuousSpace* prev_space = nullptr;
-    // Find out if the previous space is immune.
-    for (space::ContinuousSpace* cur_space : GetHeap()->GetContinuousSpaces()) {
-      if (cur_space == space) {
-        break;
-      }
-      prev_space = cur_space;
-    }
-    // If previous space was immune, then extend the immune region. Relies on continuous spaces
-    // being sorted by Heap::AddContinuousSpace.
-    if (prev_space != nullptr && IsImmuneSpace(prev_space)) {
-      immune_begin_ = std::min(reinterpret_cast<Object*>(space->Begin()), immune_begin_);
-      // Use Limit() instead of End() because otherwise if the
-      // generational mode is enabled, the alloc space might expand
-      // due to promotion and the sense of immunity may change in the
-      // middle of a GC.
-      immune_end_ = std::max(reinterpret_cast<Object*>(space->Limit()), immune_end_);
-    }
-  }
-}
-
 void SemiSpace::BindBitmaps() {
   timings_.StartSplit("BindBitmaps");
   WriterMutexLock mu(self_, *Locks::heap_bitmap_lock_);
@@ -115,7 +81,7 @@ void SemiSpace::BindBitmaps() {
                  || (generational_ && !whole_heap_collection_ &&
                      (space == GetHeap()->GetNonMovingSpace() ||
                       space == GetHeap()->GetPrimaryFreeListSpace()))) {
-        ImmuneSpace(space);
+        CHECK(immune_region_.AddContinuousSpace(space)) << "Failed to add space " << *space;
       }
     }
   }
@@ -130,8 +96,6 @@ SemiSpace::SemiSpace(Heap* heap, bool generational, const std::string& name_pref
     : GarbageCollector(heap,
                        name_prefix + (name_prefix.empty() ? "" : " ") + "marksweep + semispace"),
       mark_stack_(nullptr),
-      immune_begin_(nullptr),
-      immune_end_(nullptr),
       is_large_object_space_immune_(false),
       to_space_(nullptr),
       to_space_live_bitmap_(nullptr),
@@ -150,8 +114,7 @@ void SemiSpace::InitializePhase() {
   TimingLogger::ScopedSplit split("InitializePhase", &timings_);
   mark_stack_ = heap_->mark_stack_.get();
   DCHECK(mark_stack_ != nullptr);
-  immune_begin_ = nullptr;
-  immune_end_ = nullptr;
+  immune_region_.Reset();
   is_large_object_space_immune_ = false;
   saved_bytes_ = 0;
   self_ = Thread::Current();
@@ -238,16 +201,10 @@ void SemiSpace::MarkingPhase() {
   MarkReachableObjects();
 }
 
-bool SemiSpace::IsImmuneSpace(const space::ContinuousSpace* space) const {
-  return
-    immune_begin_ <= reinterpret_cast<Object*>(space->Begin()) &&
-    immune_end_ >= reinterpret_cast<Object*>(space->End());
-}
-
 void SemiSpace::UpdateAndMarkModUnion() {
   for (auto& space : heap_->GetContinuousSpaces()) {
     // If the space is immune then we need to mark the references to other spaces.
-    if (IsImmuneSpace(space)) {
+    if (immune_region_.ContainsSpace(space)) {
       accounting::ModUnionTable* table = heap_->FindModUnionTableFromSpace(space);
       if (table != nullptr) {
         // TODO: Improve naming.
@@ -295,7 +252,8 @@ void SemiSpace::MarkReachableObjects() {
     // enabled,) then we need to scan its live bitmap as roots
     // (including the objects on the live stack which have just marked
     // in the live bitmap above in MarkAllocStackAsLive().)
-    if (IsImmuneSpace(space) && heap_->FindModUnionTableFromSpace(space) == nullptr) {
+    if (immune_region_.ContainsSpace(space) &&
+        heap_->FindModUnionTableFromSpace(space) == nullptr) {
       DCHECK(generational_ && !whole_heap_collection_ &&
              (space == GetHeap()->GetNonMovingSpace() || space == GetHeap()->GetPrimaryFreeListSpace()));
       accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
@@ -556,7 +514,7 @@ Object* SemiSpace::MarkObject(Object* obj) {
     }
   }
   Object* forward_address = obj;
-  if (obj != nullptr && !IsImmune(obj)) {
+  if (obj != nullptr && !immune_region_.ContainsObject(obj)) {
     if (from_space_->HasAddress(obj)) {
       forward_address = GetForwardingAddressInFromSpace(obj);
       // If the object has already been moved, return the new forward address.
@@ -634,7 +592,7 @@ void SemiSpace::SweepSystemWeaks() {
 }
 
 bool SemiSpace::ShouldSweepSpace(space::ContinuousSpace* space) const {
-  return space != from_space_ && space != to_space_ && !IsImmuneSpace(space);
+  return space != from_space_ && space != to_space_ && !immune_region_.ContainsSpace(space);
 }
 
 void SemiSpace::Sweep(bool swap_bitmaps) {
@@ -744,7 +702,7 @@ void SemiSpace::ProcessMarkStack() {
 inline Object* SemiSpace::GetMarkedForwardAddress(mirror::Object* obj) const
     SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
   // All immune objects are assumed marked.
-  if (IsImmune(obj)) {
+  if (immune_region_.ContainsObject(obj)) {
     return obj;
   }
   if (from_space_->HasAddress(obj)) {

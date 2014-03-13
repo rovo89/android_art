@@ -22,6 +22,7 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "garbage_collector.h"
+#include "immune_region.h"
 #include "object_callbacks.h"
 #include "offsets.h"
 #include "UniquePtr.h"
@@ -108,15 +109,6 @@ class MarkSweep : public GarbageCollector {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Make a space immune, immune spaces have all live objects marked - that is the mark and
-  // live bitmaps are bound together.
-  void ImmuneSpace(space::ContinuousSpace* space)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  bool IsImmuneSpace(const space::ContinuousSpace* space) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   // Bind the live bits to the mark bits of bitmaps for spaces that are never collected, ie
   // the image. Mark that portion of the heap as immune.
   virtual void BindBitmaps() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -164,9 +156,6 @@ class MarkSweep : public GarbageCollector {
   template <typename MarkVisitor>
   void ScanObjectVisit(mirror::Object* obj, const MarkVisitor& visitor)
       NO_THREAD_SAFETY_ANALYSIS;
-
-  // Everything inside the immune range is assumed to be marked.
-  void SetImmuneRange(mirror::Object* begin, mirror::Object* end);
 
   void SweepSystemWeaks()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
@@ -266,11 +255,6 @@ class MarkSweep : public GarbageCollector {
   // whether or not we care about pauses.
   size_t GetThreadCount(bool paused) const;
 
-  // Returns true if an object is inside of the immune region (assumed to be marked).
-  bool IsImmune(const mirror::Object* obj) const ALWAYS_INLINE {
-    return obj >= immune_begin_ && obj < immune_end_;
-  }
-
   static void VerifyRootCallback(const mirror::Object* root, void* arg, size_t vreg,
                                  const StackVisitor *visitor);
 
@@ -354,8 +338,7 @@ class MarkSweep : public GarbageCollector {
   accounting::ObjectStack* mark_stack_;
 
   // Immune range, every object inside the immune range is assumed to be marked.
-  mirror::Object* immune_begin_;
-  mirror::Object* immune_end_;
+  ImmuneRegion immune_region_;
 
   // Parallel finger.
   AtomicInteger atomic_finger_;
