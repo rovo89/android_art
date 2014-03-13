@@ -17,7 +17,7 @@
 #ifndef ART_COMPILER_COMMON_COMPILER_TEST_H_
 #define ART_COMPILER_COMMON_COMPILER_TEST_H_
 
-#include "compiler_backend.h"
+#include "compiler.h"
 #include "compiler_callbacks.h"
 #include "common_runtime_test.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
@@ -319,13 +319,13 @@ class CommonCompilerTest : public CommonRuntimeTest {
       }
 
       // TODO: make selectable
-      CompilerBackend::Kind compiler_backend
-          = (kUsePortableCompiler) ? CompilerBackend::kPortable : CompilerBackend::kQuick;
+      Compiler::Kind compiler_kind
+          = (kUsePortableCompiler) ? Compiler::kPortable : Compiler::kQuick;
       timer_.reset(new CumulativeLogger("Compilation times"));
       compiler_driver_.reset(new CompilerDriver(compiler_options_.get(),
                                                 verification_results_.get(),
                                                 method_inliner_map_.get(),
-                                                compiler_backend, instruction_set,
+                                                compiler_kind, instruction_set,
                                                 instruction_set_features,
                                                 true, new CompilerDriver::DescriptorSet,
                                                 2, true, true, timer_.get()));

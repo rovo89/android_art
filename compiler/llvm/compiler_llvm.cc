@@ -39,7 +39,7 @@
 
 namespace art {
 void CompileOneMethod(CompilerDriver& driver,
-                      CompilerBackend* compilerBackend,
+                      Compiler* compiler,
                       const DexFile::CodeItem* code_item,
                       uint32_t access_flags, InvokeType invoke_type,
                       uint16_t class_def_idx, uint32_t method_idx, jobject class_loader,
@@ -142,7 +142,7 @@ CompileDexMethod(DexCompilationUnit* dex_compilation_unit, InvokeType invoke_typ
   cunit->SetCompilerDriver(compiler_driver_);
   // TODO: consolidate ArtCompileMethods
   CompileOneMethod(*compiler_driver_,
-                   compiler_driver_->GetCompilerBackend(),
+                   compiler_driver_->GetCompiler(),
                    dex_compilation_unit->GetCodeItem(),
                    dex_compilation_unit->GetAccessFlags(),
                    invoke_type,
