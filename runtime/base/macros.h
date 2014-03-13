@@ -22,7 +22,7 @@
 #define GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
 
 // C++11 final and override keywords that were introduced in GCC version 4.7.
-#if GCC_VERSION >= 40700
+#if defined(__clang__) || GCC_VERSION >= 40700
 #define OVERRIDE override
 #define FINAL final
 #else
