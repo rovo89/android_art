@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "compiler_backend.h"
+#include "compiler.h"
 #include "compiler_internals.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
@@ -23,7 +23,6 @@
 #include "mirror/object.h"
 #include "pass_driver.h"
 #include "runtime.h"
-#include "backend.h"
 #include "base/logging.h"
 #include "base/timing_logger.h"
 #include "driver/compiler_options.h"
@@ -90,7 +89,7 @@ CompilationUnit::CompilationUnit(ArenaPool* pool)
     disable_opt(0),
     enable_debug(0),
     verbose(false),
-    compiler_backend(NULL),
+    compiler(NULL),
     instruction_set(kNone),
     num_dalvik_registers(0),
     insns(NULL),
@@ -131,7 +130,7 @@ void CompilationUnit::EndTiming() {
 }
 
 static CompiledMethod* CompileMethod(CompilerDriver& driver,
-                                     CompilerBackend* compiler_backend,
+                                     Compiler* compiler,
                                      const DexFile::CodeItem* code_item,
                                      uint32_t access_flags, InvokeType invoke_type,
                                      uint16_t class_def_idx, uint32_t method_idx,
@@ -157,7 +156,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   cu.class_linker = class_linker;
   cu.instruction_set = driver.GetInstructionSet();
   cu.target64 = cu.instruction_set == kX86_64;
-  cu.compiler_backend = compiler_backend;
+  cu.compiler = compiler;
   // TODO: x86_64 is not yet implemented.
   DCHECK((cu.instruction_set == kThumb2) ||
          (cu.instruction_set == kX86) ||
@@ -184,7 +183,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
    * MIR and backend flags?  Need command-line setting as well.
    */
 
-  compiler_backend->InitCompilationUnit(cu);
+  compiler->InitCompilationUnit(cu);
 
   if (cu.instruction_set == kMips) {
     // Disable some optimizations for mips for now
@@ -209,7 +208,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
    * The reason we do this is that optimizations on the MIR graph may need to get information
    * that is only available if a CG exists.
    */
-  cu.cg.reset(compiler_backend->GetCodeGenerator(&cu, llvm_compilation_unit));
+  cu.cg.reset(compiler->GetCodeGenerator(&cu, llvm_compilation_unit));
 
   /* Gathering opcode stats? */
   if (kCompilerDebugFlags & (1 << kDebugCountOpcodes)) {
@@ -286,8 +285,8 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   return result;
 }
 
-CompiledMethod* CompileOneMethod(CompilerDriver& compiler,
-                                 CompilerBackend* backend,
+CompiledMethod* CompileOneMethod(CompilerDriver& driver,
+                                 Compiler* compiler,
                                  const DexFile::CodeItem* code_item,
                                  uint32_t access_flags,
                                  InvokeType invoke_type,
@@ -296,21 +295,21 @@ CompiledMethod* CompileOneMethod(CompilerDriver& compiler,
                                  jobject class_loader,
                                  const DexFile& dex_file,
                                  void* compilation_unit) {
-  return CompileMethod(compiler, backend, code_item, access_flags, invoke_type, class_def_idx,
+  return CompileMethod(driver, compiler, code_item, access_flags, invoke_type, class_def_idx,
                        method_idx, class_loader, dex_file, compilation_unit);
 }
 
 }  // namespace art
 
 extern "C" art::CompiledMethod*
-    ArtQuickCompileMethod(art::CompilerDriver& compiler,
+    ArtQuickCompileMethod(art::CompilerDriver& driver,
                           const art::DexFile::CodeItem* code_item,
                           uint32_t access_flags, art::InvokeType invoke_type,
                           uint16_t class_def_idx, uint32_t method_idx, jobject class_loader,
                           const art::DexFile& dex_file) {
   // TODO: check method fingerprint here to determine appropriate backend type.  Until then, use build default
-  art::CompilerBackend* backend = compiler.GetCompilerBackend();
-  return art::CompileOneMethod(compiler, backend, code_item, access_flags, invoke_type,
+  art::Compiler* compiler = driver.GetCompiler();
+  return art::CompileOneMethod(driver, compiler, code_item, access_flags, invoke_type,
                                class_def_idx, method_idx, class_loader, dex_file,
                                NULL /* use thread llvm_info */);
 }
