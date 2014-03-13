@@ -21,6 +21,7 @@
 
 #include "dlmalloc_space.h"
 #include "image_space.h"
+#include "large_object_space.h"
 
 namespace art {
 namespace gc {

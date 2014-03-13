@@ -39,7 +39,7 @@ void PartialMarkSweep::BindBitmaps() {
   for (const auto& space : GetHeap()->GetContinuousSpaces()) {
     if (space->GetGcRetentionPolicy() == space::kGcRetentionPolicyFullCollect) {
       CHECK(space->IsZygoteSpace());
-      ImmuneSpace(space);
+      CHECK(immune_region_.AddContinuousSpace(space)) << "Failed to add space " << *space;
     }
   }
 }
