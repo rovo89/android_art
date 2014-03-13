@@ -316,6 +316,7 @@ class CompilerDriver {
                     uint32_t referrer_method_idx,
                     InvokeType referrer_invoke_type,
                     uint32_t target_method_idx,
+                    const DexFile* target_dex_file,
                     InvokeType target_invoke_type,
                     size_t literal_offset)
       LOCKS_EXCLUDED(compiled_methods_lock_);
@@ -324,6 +325,7 @@ class CompilerDriver {
                             uint32_t referrer_method_idx,
                             InvokeType referrer_invoke_type,
                             uint32_t target_method_idx,
+                            const DexFile* target_dex_file,
                             InvokeType target_invoke_type,
                             size_t literal_offset,
                             int32_t pc_relative_offset)
@@ -333,6 +335,7 @@ class CompilerDriver {
                       uint32_t referrer_method_idx,
                       InvokeType referrer_invoke_type,
                       uint32_t target_method_idx,
+                      const DexFile* target_dex_file,
                       InvokeType target_invoke_type,
                       size_t literal_offset)
       LOCKS_EXCLUDED(compiled_methods_lock_);
@@ -449,6 +452,9 @@ class CompilerDriver {
     uint32_t GetTargetMethodIdx() const {
       return target_method_idx_;
     }
+    const DexFile* GetTargetDexFile() const {
+      return target_dex_file_;
+    }
     InvokeType GetTargetInvokeType() const {
       return target_invoke_type_;
     }
@@ -472,18 +478,21 @@ class CompilerDriver {
                          uint32_t referrer_method_idx,
                          InvokeType referrer_invoke_type,
                          uint32_t target_method_idx,
+                         const DexFile* target_dex_file,
                          InvokeType target_invoke_type,
                          size_t literal_offset)
         : PatchInformation(dex_file, referrer_class_def_idx,
                            referrer_method_idx, literal_offset),
           referrer_invoke_type_(referrer_invoke_type),
           target_method_idx_(target_method_idx),
+          target_dex_file_(target_dex_file),
           target_invoke_type_(target_invoke_type) {
     }
 
    private:
     const InvokeType referrer_invoke_type_;
     const uint32_t target_method_idx_;
+    const DexFile* target_dex_file_;
     const InvokeType target_invoke_type_;
 
     friend class CompilerDriver;
@@ -505,12 +514,13 @@ class CompilerDriver {
                                  uint32_t referrer_method_idx,
                                  InvokeType referrer_invoke_type,
                                  uint32_t target_method_idx,
+                                 const DexFile* target_dex_file,
                                  InvokeType target_invoke_type,
                                  size_t literal_offset,
                                  int32_t pc_relative_offset)
         : CallPatchInformation(dex_file, referrer_class_def_idx,
-                           referrer_method_idx, referrer_invoke_type,
-                           target_method_idx, target_invoke_type, literal_offset),
+                           referrer_method_idx, referrer_invoke_type, target_method_idx,
+                           target_dex_file, target_invoke_type, literal_offset),
           offset_(pc_relative_offset) {
     }
 
