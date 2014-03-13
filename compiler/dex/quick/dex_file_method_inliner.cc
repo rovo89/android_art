@@ -564,7 +564,7 @@ bool DexFileMethodInliner::GenInlineConst(MIRGraph* mir_graph, BasicBlock* bb, M
   insn->dalvikInsn.opcode = Instruction::CONST;
   insn->dalvikInsn.vA = move_result->dalvikInsn.vA;
   insn->dalvikInsn.vB = method.d.data;
-  mir_graph->InsertMIRAfter(bb, move_result, insn);
+  bb->InsertMIRAfter(move_result, insn);
   return true;
 }
 
@@ -603,7 +603,7 @@ bool DexFileMethodInliner::GenInlineReturnArg(MIRGraph* mir_graph, BasicBlock* b
   insn->dalvikInsn.opcode = opcode;
   insn->dalvikInsn.vA = move_result->dalvikInsn.vA;
   insn->dalvikInsn.vB = arg;
-  mir_graph->InsertMIRAfter(bb, move_result, insn);
+  bb->InsertMIRAfter(move_result, insn);
   return true;
 }
 
@@ -650,7 +650,7 @@ bool DexFileMethodInliner::GenInlineIGet(MIRGraph* mir_graph, BasicBlock* bb, MI
   DCHECK_EQ(data.field_offset, mir_graph->GetIFieldLoweringInfo(insn).FieldOffset().Uint32Value());
   DCHECK_EQ(data.is_volatile, mir_graph->GetIFieldLoweringInfo(insn).IsVolatile() ? 1u : 0u);
 
-  mir_graph->InsertMIRAfter(bb, move_result, insn);
+  bb->InsertMIRAfter(move_result, insn);
   return true;
 }
 
@@ -688,7 +688,7 @@ bool DexFileMethodInliner::GenInlineIPut(MIRGraph* mir_graph, BasicBlock* bb, MI
   DCHECK_EQ(data.field_offset, mir_graph->GetIFieldLoweringInfo(insn).FieldOffset().Uint32Value());
   DCHECK_EQ(data.is_volatile, mir_graph->GetIFieldLoweringInfo(insn).IsVolatile() ? 1u : 0u);
 
-  mir_graph->InsertMIRAfter(bb, invoke, insn);
+  bb->InsertMIRAfter(invoke, insn);
   return true;
 }
 

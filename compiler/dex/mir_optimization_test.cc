@@ -163,7 +163,7 @@ class ClassInitCheckEliminationTest : public testing::Test {
       mir->dalvikInsn.opcode = def->opcode;
       ASSERT_LT(def->bbid, cu_.mir_graph->block_list_.Size());
       BasicBlock* bb = cu_.mir_graph->block_list_.Get(def->bbid);
-      cu_.mir_graph->AppendMIR(bb, mir);
+      bb->AppendMIR(mir);
       if (def->opcode >= Instruction::SGET && def->opcode <= Instruction::SPUT_SHORT) {
         ASSERT_LT(def->field_or_method_info, cu_.mir_graph->sfield_lowering_infos_.Size());
         mir->meta.sfield_lowering_info = def->field_or_method_info;

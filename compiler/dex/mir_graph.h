@@ -308,6 +308,20 @@ struct BasicBlock {
   ArenaBitVector* dom_frontier;     // Dominance frontier.
   GrowableArray<BasicBlockId>* predecessors;
   GrowableArray<SuccessorBlockInfo*>* successor_blocks;
+
+  void AppendMIR(MIR* mir);
+  void PrependMIR(MIR* mir);
+  void InsertMIRAfter(MIR* current_mir, MIR* new_mir);
+
+  /**
+   * @brief Used to obtain the next MIR that follows unconditionally.
+   * @details The implementation does not guarantee that a MIR does not
+   * follow even if this method returns nullptr.
+   * @param mir_graph the MIRGraph.
+   * @param current The MIR for which to find an unconditional follower.
+   * @return Returns the following MIR if one can be found.
+   */
+  MIR* GetNextUnconditionalMir(MIRGraph* mir_graph, MIR* current);
 };
 
 /*
@@ -785,20 +799,6 @@ class MIRGraph {
   bool SetWide(int index);
   bool SetHigh(int index, bool is_high);
   bool SetHigh(int index);
-
-  void AppendMIR(BasicBlock* bb, MIR* mir);
-  void PrependMIR(BasicBlock* bb, MIR* mir);
-  void InsertMIRAfter(BasicBlock* bb, MIR* current_mir, MIR* new_mir);
-
-  /**
-   * @brief Used to obtain the next MIR that follows unconditionally.
-   * @details The implementation does not guarantee that a MIR does not
-   * follow even if this method returns nullptr.
-   * @param bb The basic block of "current" MIR.
-   * @param current The MIR for which to find an unconditional follower.
-   * @return Returns the following MIR if one can be found.
-   */
-  MIR* GetNextUnconditionalMir(BasicBlock* bb, MIR* current);
 
   char* GetDalvikDisassembly(const MIR* mir);
   void ReplaceSpecialChars(std::string& str);
