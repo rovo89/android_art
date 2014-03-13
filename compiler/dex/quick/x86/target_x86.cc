@@ -965,21 +965,17 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   // Is the string non-NULL?
   LoadValueDirectFixed(rl_obj, rDX);
   GenNullCheck(rl_obj.s_reg_low, rDX, info->opt_flags);
-
-  // Record that we have inlined & null checked the object.
-  info->opt_flags |= (MIR_INLINED | MIR_IGNORE_NULL_CHECK);
+  info->opt_flags |= MIR_IGNORE_NULL_CHECK;  // Record that we've null checked.
 
   // Does the character fit in 16 bits?
-  LIR* launch_pad = nullptr;
+  LIR* launchpad_branch = nullptr;
   if (rl_char.is_const) {
     // We need the value in EAX.
     LoadConstantNoClobber(rAX, char_value);
   } else {
     // Character is not a constant; compare at runtime.
     LoadValueDirectFixed(rl_char, rAX);
-    launch_pad = RawLIR(0, kPseudoIntrinsicRetry, WrapPointer(info));
-    intrinsic_launchpads_.Insert(launch_pad);
-    OpCmpImmBranch(kCondGt, rAX, 0xFFFF, launch_pad);
+    launchpad_branch = OpCmpImmBranch(kCondGt, rAX, 0xFFFF, nullptr);
   }
 
   // From here down, we know that we are looking for a char that fits in 16 bits.
@@ -1096,9 +1092,9 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   NewLIR1(kX86Pop32R, rDI);
 
   // Out of line code returns here.
-  if (launch_pad != nullptr) {
+  if (launchpad_branch != nullptr) {
     LIR *return_point = NewLIR0(kPseudoTargetLabel);
-    launch_pad->operands[2] = WrapPointer(return_point);
+    AddIntrinsicLaunchpad(info, launchpad_branch, return_point);
   }
 
   StoreValue(rl_dest, rl_return);

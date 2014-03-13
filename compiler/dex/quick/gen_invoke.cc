@@ -34,6 +34,32 @@ namespace art {
  * and "op" calls may be used here.
  */
 
+void Mir2Lir::AddIntrinsicLaunchpad(CallInfo* info, LIR* branch, LIR* resume) {
+  class IntrinsicLaunchpadPath : public Mir2Lir::LIRSlowPath {
+   public:
+    IntrinsicLaunchpadPath(Mir2Lir* m2l, CallInfo* info, LIR* branch, LIR* resume = nullptr)
+        : LIRSlowPath(m2l, info->offset, branch, resume), info_(info) {
+    }
+
+    void Compile() {
+      m2l_->ResetRegPool();
+      m2l_->ResetDefTracking();
+      LIR* label = GenerateTargetLabel();
+      label->opcode = kPseudoIntrinsicRetry;
+      // NOTE: GenInvokeNoInline() handles MarkSafepointPC.
+      m2l_->GenInvokeNoInline(info_);
+      if (cont_ != nullptr) {
+        m2l_->OpUnconditionalBranch(cont_);
+      }
+    }
+
+   private:
+    CallInfo* const info_;
+  };
+
+  AddSlowPath(new (arena_) IntrinsicLaunchpadPath(this, info, branch, resume));
+}
+
 /*
  * To save scheduling time, helper calls are broken into two parts: generation of
  * the helper target address, and the actuall call to the helper.  Because x86
@@ -984,7 +1010,7 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
   int reg_max;
   GenNullCheck(rl_obj.s_reg_low, rl_obj.reg.GetReg(), info->opt_flags);
   bool range_check = (!(info->opt_flags & MIR_IGNORE_RANGE_CHECK));
-  LIR* launch_pad = NULL;
+  LIR* range_check_branch = nullptr;
   int reg_off = INVALID_REG;
   int reg_ptr = INVALID_REG;
   if (cu_->instruction_set != kX86) {
@@ -998,25 +1024,22 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
     LoadWordDisp(rl_obj.reg.GetReg(), value_offset, reg_ptr);
     if (range_check) {
       // Set up a launch pad to allow retry in case of bounds violation */
-      launch_pad = RawLIR(0, kPseudoIntrinsicRetry, WrapPointer(info));
-      intrinsic_launchpads_.Insert(launch_pad);
       OpRegReg(kOpCmp, rl_idx.reg.GetReg(), reg_max);
       FreeTemp(reg_max);
-      OpCondBranch(kCondUge, launch_pad);
+      range_check_branch = OpCondBranch(kCondUge, nullptr);
     }
     OpRegImm(kOpAdd, reg_ptr, data_offset);
   } else {
     if (range_check) {
       // On x86, we can compare to memory directly
       // Set up a launch pad to allow retry in case of bounds violation */
-      launch_pad = RawLIR(0, kPseudoIntrinsicRetry, WrapPointer(info));
-      intrinsic_launchpads_.Insert(launch_pad);
       if (rl_idx.is_const) {
-        OpCmpMemImmBranch(kCondUlt, INVALID_REG, rl_obj.reg.GetReg(), count_offset,
-                          mir_graph_->ConstantValue(rl_idx.orig_sreg), launch_pad);
+        range_check_branch = OpCmpMemImmBranch(
+            kCondUlt, INVALID_REG, rl_obj.reg.GetReg(), count_offset,
+            mir_graph_->ConstantValue(rl_idx.orig_sreg), nullptr);
       } else {
         OpRegMem(kOpCmp, rl_idx.reg.GetReg(), rl_obj.reg.GetReg(), count_offset);
-        OpCondBranch(kCondUge, launch_pad);
+        range_check_branch = OpCondBranch(kCondUge, nullptr);
       }
     }
     reg_off = AllocTemp();
@@ -1045,10 +1068,10 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
   FreeTemp(reg_ptr);
   StoreValue(rl_dest, rl_result);
   if (range_check) {
-    launch_pad->operands[2] = 0;  // no resumption
+    DCHECK(range_check_branch != nullptr);
+    info->opt_flags |= MIR_IGNORE_NULL_CHECK;  // Record that we've already null checked.
+    AddIntrinsicLaunchpad(info, range_check_branch);
   }
-  // Record that we've already inlined & null checked
-  info->opt_flags |= (MIR_INLINED | MIR_IGNORE_NULL_CHECK);
   return true;
 }
 
@@ -1232,7 +1255,7 @@ bool Mir2Lir::GenInlinedDoubleCvt(CallInfo* info) {
 }
 
 /*
- * Fast string.index_of(I) & (II).  Tests for simple case of char <= 0xffff,
+ * Fast String.indexOf(I) & (II).  Tests for simple case of char <= 0xFFFF,
  * otherwise bails to standard library code.
  */
 bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
@@ -1240,14 +1263,19 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
     // TODO - add Mips implementation
     return false;
   }
+  RegLocation rl_obj = info->args[0];
+  RegLocation rl_char = info->args[1];
+  if (rl_char.is_const && (mir_graph_->ConstantValue(rl_char) & ~0xFFFF) != 0) {
+    // Code point beyond 0xFFFF. Punt to the real String.indexOf().
+    return false;
+  }
+
   ClobberCallerSave();
   LockCallTemps();  // Using fixed registers
   int reg_ptr = TargetReg(kArg0);
   int reg_char = TargetReg(kArg1);
   int reg_start = TargetReg(kArg2);
 
-  RegLocation rl_obj = info->args[0];
-  RegLocation rl_char = info->args[1];
   LoadValueDirectFixed(rl_obj, reg_ptr);
   LoadValueDirectFixed(rl_char, reg_char);
   if (zero_based) {
@@ -1258,15 +1286,20 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   }
   int r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pIndexOf));
   GenNullCheck(rl_obj.s_reg_low, reg_ptr, info->opt_flags);
-  LIR* launch_pad = RawLIR(0, kPseudoIntrinsicRetry, WrapPointer(info));
-  intrinsic_launchpads_.Insert(launch_pad);
-  OpCmpImmBranch(kCondGt, reg_char, 0xFFFF, launch_pad);
+  LIR* high_code_point_branch =
+      rl_char.is_const ? nullptr : OpCmpImmBranch(kCondGt, reg_char, 0xFFFF, nullptr);
   // NOTE: not a safepoint
   OpReg(kOpBlx, r_tgt);
-  LIR* resume_tgt = NewLIR0(kPseudoTargetLabel);
-  launch_pad->operands[2] = WrapPointer(resume_tgt);
-  // Record that we've already inlined & null checked
-  info->opt_flags |= (MIR_INLINED | MIR_IGNORE_NULL_CHECK);
+  if (!rl_char.is_const) {
+    // Add the slow path for code points beyond 0xFFFF.
+    DCHECK(high_code_point_branch != nullptr);
+    LIR* resume_tgt = NewLIR0(kPseudoTargetLabel);
+    info->opt_flags |= MIR_IGNORE_NULL_CHECK;  // Record that we've null checked.
+    AddIntrinsicLaunchpad(info, high_code_point_branch, resume_tgt);
+  } else {
+    DCHECK_EQ(mir_graph_->ConstantValue(rl_char) & ~0xFFFF, 0);
+    DCHECK(high_code_point_branch == nullptr);
+  }
   RegLocation rl_return = GetReturn(false);
   RegLocation rl_dest = InlineTarget(info);
   StoreValue(rl_dest, rl_return);
@@ -1291,19 +1324,16 @@ bool Mir2Lir::GenInlinedStringCompareTo(CallInfo* info) {
   int r_tgt = (cu_->instruction_set != kX86) ?
       LoadHelper(QUICK_ENTRYPOINT_OFFSET(pStringCompareTo)) : 0;
   GenNullCheck(rl_this.s_reg_low, reg_this, info->opt_flags);
+  info->opt_flags |= MIR_IGNORE_NULL_CHECK;  // Record that we've null checked.
   // TUNING: check if rl_cmp.s_reg_low is already null checked
-  LIR* launch_pad = RawLIR(0, kPseudoIntrinsicRetry, WrapPointer(info));
-  intrinsic_launchpads_.Insert(launch_pad);
-  OpCmpImmBranch(kCondEq, reg_cmp, 0, launch_pad);
+  LIR* cmp_null_check_branch = OpCmpImmBranch(kCondEq, reg_cmp, 0, nullptr);
+  AddIntrinsicLaunchpad(info, cmp_null_check_branch);
   // NOTE: not a safepoint
   if (cu_->instruction_set != kX86) {
     OpReg(kOpBlx, r_tgt);
   } else {
     OpThreadMem(kOpBlx, QUICK_ENTRYPOINT_OFFSET(pStringCompareTo));
   }
-  launch_pad->operands[2] = 0;  // No return possible
-  // Record that we've already inlined & null checked
-  info->opt_flags |= (MIR_INLINED | MIR_IGNORE_NULL_CHECK);
   RegLocation rl_return = GetReturn(false);
   RegLocation rl_dest = InlineTarget(info);
   StoreValue(rl_dest, rl_return);
@@ -1390,13 +1420,15 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
 }
 
 void Mir2Lir::GenInvoke(CallInfo* info) {
-  if (!(info->opt_flags & MIR_INLINED)) {
-    DCHECK(cu_->compiler_driver->GetMethodInlinerMap() != nullptr);
-    if (cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file)
-        ->GenIntrinsic(this, info)) {
-      return;
-    }
+  DCHECK(cu_->compiler_driver->GetMethodInlinerMap() != nullptr);
+  if (cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file)
+      ->GenIntrinsic(this, info)) {
+    return;
   }
+  GenInvokeNoInline(info);
+}
+
+void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
   int call_state = 0;
   LIR* null_ck;
   LIR** p_null_ck = NULL;
