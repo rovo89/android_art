@@ -92,7 +92,6 @@ bool QuickCompiler::WriteElf(art::File* file,
                             const std::vector<const art::DexFile*>& dex_files,
                             const std::string& android_root,
                             bool is_host, const CompilerDriver& driver) const
-  OVERRIDE
   SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return art::ElfWriterQuick::Create(file, oat_writer, dex_files, android_root, is_host, driver);
 }
@@ -123,8 +122,7 @@ Backend* QuickCompiler::GetCodeGenerator(CompilationUnit* cu, void* compilation_
 }
 
 std::vector<uint8_t>* QuickCompiler::GetCallFrameInformationInitialization(
-    const CompilerDriver& driver) const
-    OVERRIDE {
+    const CompilerDriver& driver) const {
   if (driver.GetInstructionSet() == kX86) {
     return X86CFIInitialization();
   }
