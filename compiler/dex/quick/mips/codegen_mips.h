@@ -30,6 +30,7 @@ class MipsMir2Lir : public Mir2Lir {
     bool SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div, RegLocation rl_src,
                                     RegLocation rl_dest, int lit);
     int LoadHelper(ThreadOffset offset);
+    LIR* CheckSuspendUsingLoad() OVERRIDE;
     LIR* LoadBaseDisp(int rBase, int displacement, int r_dest, OpSize size, int s_reg);
     LIR* LoadBaseDispWide(int rBase, int displacement, int r_dest_lo, int r_dest_hi,
                                   int s_reg);

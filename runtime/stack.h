@@ -520,7 +520,7 @@ class StackVisitor {
     return cur_shadow_frame_ != nullptr;
   }
 
-  uint32_t GetDexPc() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  uint32_t GetDexPc(bool abort_on_failure = true) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::Object* GetThisObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

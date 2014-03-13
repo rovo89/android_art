@@ -753,6 +753,7 @@ void ThreadList::Register(Thread* self) {
   self->debug_suspend_count_ = debug_suspend_all_count_;
   if (self->suspend_count_ > 0) {
     self->AtomicSetFlag(kSuspendRequest);
+    self->TriggerSuspend();
   }
   CHECK(!Contains(self));
   list_.push_back(self);

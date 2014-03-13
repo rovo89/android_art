@@ -512,6 +512,14 @@ int MipsMir2Lir::LoadHelper(ThreadOffset offset) {
   return r_T9;
 }
 
+LIR* MipsMir2Lir::CheckSuspendUsingLoad() {
+  int tmp = AllocTemp();
+  LoadWordDisp(rMIPS_SELF, Thread::ThreadSuspendTriggerOffset().Int32Value(), tmp);
+  LIR *inst = LoadWordDisp(tmp, 0, tmp);
+  FreeTemp(tmp);
+  return inst;
+}
+
 void MipsMir2Lir::SpillCoreRegs() {
   if (num_core_spills_ == 0) {
     return;

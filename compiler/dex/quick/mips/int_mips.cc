@@ -471,7 +471,7 @@ void MipsMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
   }
 
   /* null object? */
-  GenNullCheck(rl_array.s_reg_low, rl_array.reg.GetReg(), opt_flags);
+  GenNullCheck(rl_array.reg.GetReg(), opt_flags);
 
   int reg_ptr = AllocTemp();
   bool needs_range_check = (!(opt_flags & MIR_IGNORE_RANGE_CHECK));
@@ -548,7 +548,7 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   }
 
   /* null object? */
-  GenNullCheck(rl_array.s_reg_low, rl_array.reg.GetReg(), opt_flags);
+  GenNullCheck(rl_array.reg.GetReg(), opt_flags);
 
   bool needs_range_check = (!(opt_flags & MIR_IGNORE_RANGE_CHECK));
   int reg_len = INVALID_REG;

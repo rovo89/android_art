@@ -489,10 +489,11 @@ static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
       break;
     }
     case 1:  // Is "this" null? [use kArg1]
-      cg->GenNullCheck(info->args[0].s_reg_low, cg->TargetReg(kArg1), info->opt_flags);
+      cg->GenNullCheck(cg->TargetReg(kArg1), info->opt_flags);
       // get this->klass_ [use kArg1, set kInvokeTgt]
       cg->LoadWordDisp(cg->TargetReg(kArg1), mirror::Object::ClassOffset().Int32Value(),
                        cg->TargetReg(kInvokeTgt));
+      cg->MarkPossibleNullPointerException(info->opt_flags);
       break;
     case 2:  // Get this->klass_->vtable [usr kInvokeTgt, set kInvokeTgt]
       cg->LoadWordDisp(cg->TargetReg(kInvokeTgt), mirror::Class::VTableOffset().Int32Value(),
@@ -543,10 +544,11 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
       break;
     }
     case 2:  // Is "this" null? [use kArg1]
-      cg->GenNullCheck(info->args[0].s_reg_low, cg->TargetReg(kArg1), info->opt_flags);
+      cg->GenNullCheck(cg->TargetReg(kArg1), info->opt_flags);
       // Get this->klass_ [use kArg1, set kInvokeTgt]
       cg->LoadWordDisp(cg->TargetReg(kArg1), mirror::Object::ClassOffset().Int32Value(),
                        cg->TargetReg(kInvokeTgt));
+      cg->MarkPossibleNullPointerException(info->opt_flags);
       break;
     case 3:  // Get this->klass_->imtable [use kInvokeTgt, set kInvokeTgt]
       cg->LoadWordDisp(cg->TargetReg(kInvokeTgt), mirror::Class::ImTableOffset().Int32Value(),
@@ -753,7 +755,7 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
                            type, skip_this);
 
   if (pcrLabel) {
-    *pcrLabel = GenNullCheck(info->args[0].s_reg_low, TargetReg(kArg1), info->opt_flags);
+    *pcrLabel = GenNullCheck(TargetReg(kArg1), info->opt_flags);
   }
   return call_state;
 }
@@ -957,7 +959,7 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
   call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                            direct_code, direct_method, type);
   if (pcrLabel) {
-    *pcrLabel = GenNullCheck(info->args[0].s_reg_low, TargetReg(kArg1), info->opt_flags);
+    *pcrLabel = GenNullCheck(TargetReg(kArg1), info->opt_flags);
   }
   return call_state;
 }
@@ -1004,7 +1006,7 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
     rl_idx = LoadValue(rl_idx, kCoreReg);
   }
   int reg_max;
-  GenNullCheck(rl_obj.s_reg_low, rl_obj.reg.GetReg(), info->opt_flags);
+  GenNullCheck(rl_obj.reg.GetReg(), info->opt_flags);
   bool range_check = (!(info->opt_flags & MIR_IGNORE_RANGE_CHECK));
   LIR* range_check_branch = nullptr;
   int reg_off = INVALID_REG;
@@ -1015,8 +1017,10 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
     if (range_check) {
       reg_max = AllocTemp();
       LoadWordDisp(rl_obj.reg.GetReg(), count_offset, reg_max);
+      MarkPossibleNullPointerException(info->opt_flags);
     }
     LoadWordDisp(rl_obj.reg.GetReg(), offset_offset, reg_off);
+    MarkPossibleNullPointerException(info->opt_flags);
     LoadWordDisp(rl_obj.reg.GetReg(), value_offset, reg_ptr);
     if (range_check) {
       // Set up a launch pad to allow retry in case of bounds violation */
@@ -1082,8 +1086,10 @@ bool Mir2Lir::GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty) {
   rl_obj = LoadValue(rl_obj, kCoreReg);
   RegLocation rl_dest = InlineTarget(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  GenNullCheck(rl_obj.s_reg_low, rl_obj.reg.GetReg(), info->opt_flags);
-  LoadWordDisp(rl_obj.reg.GetReg(), mirror::String::CountOffset().Int32Value(), rl_result.reg.GetReg());
+  GenNullCheck(rl_obj.reg.GetReg(), info->opt_flags);
+  LoadWordDisp(rl_obj.reg.GetReg(), mirror::String::CountOffset().Int32Value(),
+               rl_result.reg.GetReg());
+  MarkPossibleNullPointerException(info->opt_flags);
   if (is_empty) {
     // dst = (dst == 0);
     if (cu_->instruction_set == kThumb2) {
@@ -1281,7 +1287,7 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
     LoadValueDirectFixed(rl_start, reg_start);
   }
   int r_tgt = LoadHelper(QUICK_ENTRYPOINT_OFFSET(pIndexOf));
-  GenNullCheck(rl_obj.s_reg_low, reg_ptr, info->opt_flags);
+  GenNullCheck(reg_ptr, info->opt_flags);
   LIR* high_code_point_branch =
       rl_char.is_const ? nullptr : OpCmpImmBranch(kCondGt, reg_char, 0xFFFF, nullptr);
   // NOTE: not a safepoint
@@ -1319,7 +1325,7 @@ bool Mir2Lir::GenInlinedStringCompareTo(CallInfo* info) {
   LoadValueDirectFixed(rl_cmp, reg_cmp);
   int r_tgt = (cu_->instruction_set != kX86) ?
       LoadHelper(QUICK_ENTRYPOINT_OFFSET(pStringCompareTo)) : 0;
-  GenNullCheck(rl_this.s_reg_low, reg_this, info->opt_flags);
+  GenNullCheck(reg_this, info->opt_flags);
   info->opt_flags |= MIR_IGNORE_NULL_CHECK;  // Record that we've null checked.
   // TUNING: check if rl_cmp.s_reg_low is already null checked
   LIR* cmp_null_check_branch = OpCmpImmBranch(kCondEq, reg_cmp, 0, nullptr);
