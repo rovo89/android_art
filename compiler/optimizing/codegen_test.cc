@@ -57,14 +57,17 @@ static void TestCode(const uint16_t* data, bool has_result = false, int32_t expe
   typedef int32_t (*fptr)();
 #if defined(__i386__)
   int32_t result = reinterpret_cast<fptr>(allocator.memory())();
+  if (has_result) {
+    CHECK_EQ(result, expected);
+  }
 #endif
   CHECK(CodeGenerator::CompileGraph(graph, kArm, &allocator));
 #if defined(__arm__)
   int32_t result = reinterpret_cast<fptr>(allocator.memory())();
-#endif
   if (has_result) {
     CHECK_EQ(result, expected);
   }
+#endif
 }
 
 TEST(CodegenTest, ReturnVoid) {
