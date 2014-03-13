@@ -76,7 +76,7 @@ class ExceptionTest : public CommonRuntimeTest {
 
     method_f_ = my_klass_->FindVirtualMethod("f", "()I");
     ASSERT_TRUE(method_f_ != NULL);
-    method_f_->SetFrameSizeInBytes(kStackAlignment);
+    method_f_->SetFrameSizeInBytes(4 * kPointerSize);
     method_f_->SetEntryPointFromQuickCompiledCode(&fake_code_[sizeof(code_size)]);
     method_f_->SetMappingTable(&fake_mapping_data_.GetData()[0]);
     method_f_->SetVmapTable(&fake_vmap_table_data_.GetData()[0]);
@@ -84,7 +84,7 @@ class ExceptionTest : public CommonRuntimeTest {
 
     method_g_ = my_klass_->FindVirtualMethod("g", "(I)V");
     ASSERT_TRUE(method_g_ != NULL);
-    method_g_->SetFrameSizeInBytes(kStackAlignment);
+    method_g_->SetFrameSizeInBytes(4 * kPointerSize);
     method_g_->SetEntryPointFromQuickCompiledCode(&fake_code_[sizeof(code_size)]);
     method_g_->SetMappingTable(&fake_mapping_data_.GetData()[0]);
     method_g_->SetVmapTable(&fake_vmap_table_data_.GetData()[0]);
@@ -151,7 +151,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
 
   std::vector<uintptr_t> fake_stack;
   ASSERT_EQ(kStackAlignment, 16U);
-  ASSERT_EQ(sizeof(uintptr_t), sizeof(uint32_t));
+  // ASSERT_EQ(sizeof(uintptr_t), sizeof(uint32_t));
 
   if (!kUsePortableCompiler) {
     // Create two fake stack frames with mapping data created in SetUp. We map offset 3 in the code

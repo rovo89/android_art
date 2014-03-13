@@ -24,11 +24,18 @@
 
 namespace art {
 
+#if defined(__LP64__)
+#define ZEROPREFIX "00000000"
+#else
+#define ZEROPREFIX
+#endif
+
 TEST(HexDump, OneLine) {
   const char* test_text = "0123456789abcdef";
   std::ostringstream oss;
   oss << HexDump(test_text, strlen(test_text), false, "");
   EXPECT_STREQ(oss.str().c_str(),
+               ZEROPREFIX
                "00000000: 30 31 32 33 34 35 36 37 38 39 61 62 63 64 65 66  0123456789abcdef");
 }
 
@@ -37,7 +44,9 @@ TEST(HexDump, MultiLine) {
   std::ostringstream oss;
   oss << HexDump(test_text, strlen(test_text), false, "");
   EXPECT_STREQ(oss.str().c_str(),
+               ZEROPREFIX
                "00000000: 30 31 32 33 34 35 36 37 38 39 61 62 63 64 65 66  0123456789abcdef\n"
+               ZEROPREFIX
                "00000010: 30 31 32 33 34 35 36 37 38 39 41 42 43 44 45 46  0123456789ABCDEF");
 }
 
@@ -56,7 +65,7 @@ TEST(HexDump, Prefix) {
   std::ostringstream oss;
   oss << HexDump(test_text, strlen(test_text), false, "test prefix: ");
   EXPECT_STREQ(oss.str().c_str(),
-               "test prefix: 00000000: 30 31 32 33 34 35 36 37 38 39 61 62 63 64 65 66  "
+               "test prefix: " ZEROPREFIX "00000000: 30 31 32 33 34 35 36 37 38 39 61 62 63 64 65 66  "
                "0123456789abcdef");
 }
 
