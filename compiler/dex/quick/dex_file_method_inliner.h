@@ -23,6 +23,7 @@
 #include "safe_map.h"
 #include "dex/compiler_enums.h"
 #include "dex_file.h"
+#include "quick/inline_method_analyser.h"
 
 namespace art {
 
@@ -32,102 +33,6 @@ class MethodVerifier;
 
 struct CallInfo;
 class Mir2Lir;
-
-enum InlineMethodOpcode : uint16_t {
-  kIntrinsicDoubleCvt,
-  kIntrinsicFloatCvt,
-  kIntrinsicReverseBytes,
-  kIntrinsicAbsInt,
-  kIntrinsicAbsLong,
-  kIntrinsicAbsFloat,
-  kIntrinsicAbsDouble,
-  kIntrinsicMinMaxInt,
-  kIntrinsicSqrt,
-  kIntrinsicCharAt,
-  kIntrinsicCompareTo,
-  kIntrinsicIsEmptyOrLength,
-  kIntrinsicIndexOf,
-  kIntrinsicCurrentThread,
-  kIntrinsicPeek,
-  kIntrinsicPoke,
-  kIntrinsicCas,
-  kIntrinsicUnsafeGet,
-  kIntrinsicUnsafePut,
-
-  kInlineOpNop,
-  kInlineOpReturnArg,
-  kInlineOpNonWideConst,
-  kInlineOpIGet,
-  kInlineOpIPut,
-};
-std::ostream& operator<<(std::ostream& os, const InlineMethodOpcode& rhs);
-
-enum InlineMethodFlags : uint16_t {
-  kNoInlineMethodFlags = 0x0000,
-  kInlineIntrinsic     = 0x0001,
-  kInlineSpecial       = 0x0002,
-};
-
-// IntrinsicFlags are stored in InlineMethod::d::raw_data
-enum IntrinsicFlags {
-  kIntrinsicFlagNone = 0,
-
-  // kIntrinsicMinMaxInt
-  kIntrinsicFlagMax = kIntrinsicFlagNone,
-  kIntrinsicFlagMin = 1,
-
-  // kIntrinsicIsEmptyOrLength
-  kIntrinsicFlagLength  = kIntrinsicFlagNone,
-  kIntrinsicFlagIsEmpty = kIntrinsicFlagMin,
-
-  // kIntrinsicIndexOf
-  kIntrinsicFlagBase0 = kIntrinsicFlagMin,
-
-  // kIntrinsicUnsafeGet, kIntrinsicUnsafePut, kIntrinsicUnsafeCas
-  kIntrinsicFlagIsLong     = kIntrinsicFlagMin,
-  // kIntrinsicUnsafeGet, kIntrinsicUnsafePut
-  kIntrinsicFlagIsVolatile = 2,
-  // kIntrinsicUnsafePut, kIntrinsicUnsafeCas
-  kIntrinsicFlagIsObject   = 4,
-  // kIntrinsicUnsafePut
-  kIntrinsicFlagIsOrdered  = 8,
-};
-
-// Check that OpSize fits into 3 bits (at least the values the inliner uses).
-COMPILE_ASSERT(kWord < 8 && kLong < 8 && kSingle < 8 && kDouble < 8 && kUnsignedHalf < 8 &&
-               kSignedHalf < 8 && kUnsignedByte < 8 && kSignedByte < 8, op_size_field_too_narrow);
-
-struct InlineIGetIPutData {
-  uint16_t op_size : 3;  // OpSize
-  uint16_t is_object : 1;
-  uint16_t object_arg : 4;
-  uint16_t src_arg : 4;  // iput only
-  uint16_t method_is_static : 1;
-  uint16_t reserved : 3;
-  uint16_t field_idx;
-  uint32_t is_volatile : 1;
-  uint32_t field_offset : 31;
-};
-COMPILE_ASSERT(sizeof(InlineIGetIPutData) == sizeof(uint64_t), InvalidSizeOfInlineIGetIPutData);
-
-struct InlineReturnArgData {
-  uint16_t arg;
-  uint16_t op_size : 3;  // OpSize
-  uint16_t is_object : 1;
-  uint16_t reserved : 12;
-  uint32_t reserved2;
-};
-COMPILE_ASSERT(sizeof(InlineReturnArgData) == sizeof(uint64_t), InvalidSizeOfInlineReturnArgData);
-
-struct InlineMethod {
-  InlineMethodOpcode opcode;
-  InlineMethodFlags flags;
-  union {
-    uint64_t data;
-    InlineIGetIPutData ifield_data;
-    InlineReturnArgData return_data;
-  } d;
-};
 
 /**
  * Handles inlining of methods from a particular DexFile.
@@ -154,17 +59,6 @@ class DexFileMethodInliner {
      * @return true if the method is a candidate for inlining, false otherwise.
      */
     bool AnalyseMethodCode(verifier::MethodVerifier* verifier)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(lock_);
-
-    /**
-     * Analyse method code to determine if the method is a candidate for inlining.
-     * If it is, record the inlining data.
-     *
-     * @param verifier the method verifier holding data about the method to analyse.
-     * @param method placeholder for the inline method data.
-     * @return true if the method is a candidate for inlining, false otherwise.
-     */
-    bool AnalyseMethodCode(verifier::MethodVerifier* verifier, InlineMethod* method)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(lock_);
 
     /**
@@ -391,13 +285,6 @@ class DexFileMethodInliner {
     friend class DexFileToMethodInlinerMap;
 
     bool AddInlineMethod(int32_t method_idx, const InlineMethod& method) LOCKS_EXCLUDED(lock_);
-
-    static bool AnalyseReturnMethod(const DexFile::CodeItem* code_item, InlineMethod* result);
-    static bool AnalyseConstMethod(const DexFile::CodeItem* code_item, InlineMethod* result);
-    static bool AnalyseIGetMethod(verifier::MethodVerifier* verifier, InlineMethod* result)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-    static bool AnalyseIPutMethod(verifier::MethodVerifier* verifier, InlineMethod* result)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
     ReaderWriterMutex lock_;
     /*
