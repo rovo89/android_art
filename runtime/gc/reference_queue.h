@@ -31,6 +31,10 @@
 #include "thread_pool.h"
 
 namespace art {
+namespace mirror {
+class Reference;
+}  // namespace mirror
+
 namespace gc {
 
 class Heap;
@@ -40,18 +44,18 @@ class Heap;
 // java.lang.ref.Reference objects.
 class ReferenceQueue {
  public:
-  explicit ReferenceQueue(Heap* heap);
+  explicit ReferenceQueue();
   // Enqueue a reference if is not already enqueued. Thread safe to call from multiple threads
   // since it uses a lock to avoid a race between checking for the references presence and adding
   // it.
-  void AtomicEnqueueIfNotEnqueued(Thread* self, mirror::Object* ref)
+  void AtomicEnqueueIfNotEnqueued(Thread* self, mirror::Reference* ref)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(lock_);
   // Enqueue a reference, unlike EnqueuePendingReference, enqueue reference checks that the
   // reference IsEnqueueable. Not thread safe, used when mutators are paused to minimize lock
   // overhead.
-  void EnqueueReference(mirror::Object* ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void EnqueuePendingReference(mirror::Object* ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::Object* DequeuePendingReference() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void EnqueueReference(mirror::Reference* ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void EnqueuePendingReference(mirror::Reference* ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::Reference* DequeuePendingReference() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Enqueues finalizer references with white referents.  White referents are blackened, moved to the
   // zombie field, and the referent field is cleared.
   void EnqueueFinalizerReferences(ReferenceQueue& cleared_references,
@@ -76,7 +80,7 @@ class ReferenceQueue {
   void Clear() {
     list_ = nullptr;
   }
-  mirror::Object* GetList() {
+  mirror::Reference* GetList() {
     return list_;
   }
 
@@ -84,10 +88,8 @@ class ReferenceQueue {
   // Lock, used for parallel GC reference enqueuing. It allows for multiple threads simultaneously
   // calling AtomicEnqueueIfNotEnqueued.
   Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  // The heap contains the reference offsets.
-  Heap* const heap_;
   // The actual reference list. Not a root since it will be nullptr when the GC is not running.
-  mirror::Object* list_;
+  mirror::Reference* list_;
 };
 
 }  // namespace gc

@@ -41,6 +41,7 @@ class ArtField;
 class ArtMethod;
 class Array;
 class Class;
+class FinalizerReference;
 template<class T> class ObjectArray;
 template<class T> class PrimitiveArray;
 typedef PrimitiveArray<uint8_t> BooleanArray;
@@ -51,6 +52,7 @@ typedef PrimitiveArray<float> FloatArray;
 typedef PrimitiveArray<int32_t> IntArray;
 typedef PrimitiveArray<int64_t> LongArray;
 typedef PrimitiveArray<int16_t> ShortArray;
+class Reference;
 class String;
 class Throwable;
 
@@ -170,11 +172,15 @@ class MANAGED LOCKABLE Object {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsReferenceInstance() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  Reference* AsReference() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsWeakReferenceInstance() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsSoftReferenceInstance() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsFinalizerReferenceInstance() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  FinalizerReference* AsFinalizerReference() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsPhantomReferenceInstance() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
