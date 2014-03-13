@@ -1735,7 +1735,7 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
 }
 
 static void LinkCode(const SirtRef<mirror::ArtMethod>& method, const OatFile::OatClass* oat_class,
-                     uint32_t method_index)
+                     const DexFile& dex_file, uint32_t dex_method_index, uint32_t method_index)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Method shouldn't have already been linked.
   DCHECK(method->GetEntryPointFromQuickCompiledCode() == nullptr);
@@ -1790,6 +1790,38 @@ static void LinkCode(const SirtRef<mirror::ArtMethod>& method, const OatFile::Oa
   if (method->IsNative()) {
     // Unregistering restores the dlsym lookup stub.
     method->UnregisterNative(Thread::Current());
+
+    if (enter_interpreter) {
+      // We have a native method here without code. Then it should have either the GenericJni
+      // trampoline as entrypoint (non-static), or the Resolution trampoline (static).
+      DCHECK(method->GetEntryPointFromQuickCompiledCode() ==
+          GetQuickResolutionTrampoline(runtime->GetClassLinker())
+          ||
+          method->GetEntryPointFromQuickCompiledCode() == GetQuickGenericJniTrampoline());
+
+      DCHECK_EQ(method->GetFrameSizeInBytes<false>(), 0U);
+
+      // Fix up method metadata if necessary.
+      if (method->GetFrameSizeInBytes<false>() == 0) {
+        uint32_t s_len;
+        const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(dex_method_index), &s_len);
+        uint32_t refs = 1;    // Native method always has "this" or class.
+        for (uint32_t i = 1; i < s_len; ++i) {
+          if (shorty[i] == 'L') {
+            refs++;
+          }
+        }
+        size_t sirt_size = StackIndirectReferenceTable::GetAlignedSirtSize(refs);
+
+        // Get the generic spill masks and base frame size.
+        mirror::ArtMethod* callee_save_method =
+            Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs);
+
+        method->SetFrameSizeInBytes(callee_save_method->GetFrameSizeInBytes() + sirt_size);
+        method->SetCoreSpillMask(callee_save_method->GetCoreSpillMask());
+        method->SetFpSpillMask(callee_save_method->GetFpSpillMask());
+      }
+    }
   }
 
   // Allow instrumentation its chance to hijack code.
@@ -1902,7 +1934,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
     }
     klass->SetDirectMethod(i, method.get());
     if (oat_class.get() != NULL) {
-      LinkCode(method, oat_class.get(), class_def_method_index);
+      LinkCode(method, oat_class.get(), dex_file, it.GetMemberIndex(), class_def_method_index);
     }
     method->SetMethodIndex(class_def_method_index);
     class_def_method_index++;
@@ -1916,7 +1948,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
     klass->SetVirtualMethod(i, method.get());
     DCHECK_EQ(class_def_method_index, it.NumDirectMethods() + i);
     if (oat_class.get() != NULL) {
-      LinkCode(method, oat_class.get(), class_def_method_index);
+      LinkCode(method, oat_class.get(), dex_file, it.GetMemberIndex(), class_def_method_index);
     }
     class_def_method_index++;
   }

@@ -325,10 +325,13 @@ class MANAGED ArtMethod : public Object {
   void SetOatNativeGcMapOffset(uint32_t gc_map_offset);
   uint32_t GetOatNativeGcMapOffset();
 
+  template <bool kCheckFrameSize = true>
   uint32_t GetFrameSizeInBytes() {
     uint32_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, quick_frame_size_in_bytes_),
                                  false);
-    DCHECK_LE(static_cast<size_t>(kStackAlignment), result);
+    if (kCheckFrameSize) {
+      DCHECK_LE(static_cast<size_t>(kStackAlignment), result);
+    }
     return result;
   }
 
