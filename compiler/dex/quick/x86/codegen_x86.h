@@ -274,12 +274,12 @@ class X86Mir2Lir : public Mir2Lir {
 
     /*
      * @brief Load the Method* of a dex method into the register.
-     * @param dex_method_index The index of the method to be invoked.
+     * @param target_method The MethodReference of the method to be invoked.
      * @param type How the method will be invoked.
      * @param register that will contain the code address.
      * @note register will be passed to TargetReg to get physical register.
      */
-    void LoadMethodAddress(int dex_method_index, InvokeType type,
+    void LoadMethodAddress(const MethodReference& target_method, InvokeType type,
                            SpecialTargetRegister symbolic_reg);
 
     /*
@@ -292,11 +292,11 @@ class X86Mir2Lir : public Mir2Lir {
 
     /*
      * @brief Generate a relative call to the method that will be patched at link time.
-     * @param dex_method_index The index of the method to be invoked.
+     * @param target_method The MethodReference of the method to be invoked.
      * @param type How the method will be invoked.
      * @returns Call instruction
      */
-    LIR * CallWithLinkerFixup(int dex_method_index, InvokeType type);
+    LIR * CallWithLinkerFixup(const MethodReference& target_method, InvokeType type);
 
     /*
      * @brief Handle x86 specific literals
