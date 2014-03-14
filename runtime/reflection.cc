@@ -99,7 +99,7 @@ class ArgArray {
     AppendWide(jv.j);
   }
 
-  void BuildArgArray(const ScopedObjectAccess& soa, mirror::Object* receiver, va_list ap)
+  void BuildArgArrayFromVarArgs(const ScopedObjectAccess& soa, mirror::Object* receiver, va_list ap)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Set receiver if non-null (method is not static)
     if (receiver != nullptr) {
@@ -134,8 +134,8 @@ class ArgArray {
     }
   }
 
-  void BuildArgArray(const ScopedObjectAccessUnchecked& soa, mirror::Object* receiver,
-                     jvalue* args)
+  void BuildArgArrayFromJValues(const ScopedObjectAccessUnchecked& soa, mirror::Object* receiver,
+                                jvalue* args)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Set receiver if non-null (method is not static)
     if (receiver != nullptr) {
@@ -216,8 +216,8 @@ class ArgArray {
                      PrettyDescriptor(found_descriptor.as_string()).c_str()).c_str());
   }
 
-  bool BuildArgArray(const ScopedObjectAccess& soa, mirror::Object* receiver,
-                     mirror::ObjectArray<mirror::Object>* args, MethodHelper& mh)
+  bool BuildArgArrayFromObjectArray(const ScopedObjectAccess& soa, mirror::Object* receiver,
+                                    mirror::ObjectArray<mirror::Object>* args, MethodHelper& mh)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile::TypeList* classes = mh.GetParameterTypeList();
     // Set receiver if non-null (method is not static)
@@ -413,7 +413,7 @@ JValue InvokeWithVarArgs(const ScopedObjectAccess& soa, jobject obj, jmethodID m
   MethodHelper mh(method);
   JValue result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
-  arg_array.BuildArgArray(soa, receiver, args);
+  arg_array.BuildArgArrayFromVarArgs(soa, receiver, args);
   InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty());
   return result;
 }
@@ -424,7 +424,7 @@ JValue InvokeWithJValues(const ScopedObjectAccessUnchecked& soa, mirror::Object*
   MethodHelper mh(method);
   JValue result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
-  arg_array.BuildArgArray(soa, receiver, args);
+  arg_array.BuildArgArrayFromJValues(soa, receiver, args);
   InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty());
   return result;
 }
@@ -435,7 +435,7 @@ JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccess& soa,
   MethodHelper mh(method);
   JValue result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
-  arg_array.BuildArgArray(soa, receiver, args);
+  arg_array.BuildArgArrayFromJValues(soa, receiver, args);
   InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty());
   return result;
 }
@@ -447,7 +447,7 @@ JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccess& soa,
   MethodHelper mh(method);
   JValue result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
-  arg_array.BuildArgArray(soa, receiver, args);
+  arg_array.BuildArgArrayFromVarArgs(soa, receiver, args);
   InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty());
   return result;
 }
@@ -503,7 +503,7 @@ jobject InvokeMethod(const ScopedObjectAccess& soa, jobject javaMethod,
   // Invoke the method.
   JValue result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
-  if (!arg_array.BuildArgArray(soa, receiver, objects, mh)) {
+  if (!arg_array.BuildArgArrayFromObjectArray(soa, receiver, objects, mh)) {
     CHECK(soa.Self()->IsExceptionPending());
     return nullptr;
   }
