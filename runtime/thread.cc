@@ -1559,7 +1559,6 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
 
   // Choose an appropriate constructor and set up the arguments.
   const char* signature;
-  const char* shorty;
   ScopedLocalRef<jstring> msg_string(GetJniEnv(), nullptr);
   if (msg != nullptr) {
     // Ensure we remember this and the method over the String allocation.
@@ -1570,18 +1569,14 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
       return;
     }
     if (cause.get() == nullptr) {
-      shorty = "VL";
       signature = "(Ljava/lang/String;)V";
     } else {
-      shorty = "VLL";
       signature = "(Ljava/lang/String;Ljava/lang/Throwable;)V";
     }
   } else {
     if (cause.get() == nullptr) {
-      shorty = "V";
       signature = "()V";
     } else {
-      shorty = "VL";
       signature = "(Ljava/lang/Throwable;)V";
     }
   }
