@@ -44,6 +44,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache.h"
+#include "mirror/reference-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array.h"
 #include "mirror/object_array-inl.h"
@@ -1189,9 +1190,7 @@ void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
 // the heap for later processing.
 void MarkSweep::DelayReferenceReferent(mirror::Class* klass, Object* obj) {
   DCHECK(klass != nullptr);
-  DCHECK(klass->IsReferenceClass());
-  DCHECK(obj != NULL);
-  heap_->DelayReferenceReferent(klass, obj, IsMarkedCallback, this);
+  heap_->DelayReferenceReferent(klass, obj->AsReference(), IsMarkedCallback, this);
 }
 
 class MarkObjectVisitor {

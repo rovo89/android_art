@@ -312,26 +312,6 @@ class Heap {
     return discontinuous_spaces_;
   }
 
-  void SetReferenceOffsets(MemberOffset reference_referent_offset,
-                           MemberOffset reference_queue_offset,
-                           MemberOffset reference_queueNext_offset,
-                           MemberOffset reference_pendingNext_offset,
-                           MemberOffset finalizer_reference_zombie_offset);
-  MemberOffset GetReferenceReferentOffset() const {
-    return reference_referent_offset_;
-  }
-  MemberOffset GetReferenceQueueOffset() const {
-    return reference_queue_offset_;
-  }
-  MemberOffset GetReferenceQueueNextOffset() const {
-    return reference_queueNext_offset_;
-  }
-  MemberOffset GetReferencePendingNextOffset() const {
-    return reference_pendingNext_offset_;
-  }
-  MemberOffset GetFinalizerReferenceZombieOffset() const {
-    return finalizer_reference_zombie_offset_;
-  }
   static mirror::Object* PreserveSoftReferenceCallback(mirror::Object* obj, void* arg);
   void ProcessReferences(TimingLogger& timings, bool clear_soft,
                          IsMarkedCallback* is_marked_callback,
@@ -624,20 +604,9 @@ class Heap {
   bool IsValidContinuousSpaceObjectAddress(const mirror::Object* obj) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Pushes a list of cleared references out to the managed heap.
-  void SetReferenceReferent(mirror::Object* reference, mirror::Object* referent)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::Object* GetReferenceReferent(mirror::Object* reference)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void ClearReferenceReferent(mirror::Object* reference)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    SetReferenceReferent(reference, nullptr);
-  }
   void EnqueueClearedReferences();
   // Returns true if the reference object has not yet been enqueued.
-  bool IsEnqueuable(mirror::Object* ref) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool IsEnqueued(mirror::Object* ref) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void DelayReferenceReferent(mirror::Class* klass, mirror::Object* obj,
+  void DelayReferenceReferent(mirror::Class* klass, mirror::Reference* ref,
                               IsMarkedCallback is_marked_callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -917,17 +886,6 @@ class Heap {
   space::BumpPointerSpace* bump_pointer_space_;
   // Temp space is the space which the semispace collector copies to.
   space::BumpPointerSpace* temp_space_;
-
-  // offset of java.lang.ref.Reference.referent
-  MemberOffset reference_referent_offset_;
-  // offset of java.lang.ref.Reference.queue
-  MemberOffset reference_queue_offset_;
-  // offset of java.lang.ref.Reference.queueNext
-  MemberOffset reference_queueNext_offset_;
-  // offset of java.lang.ref.Reference.pendingNext
-  MemberOffset reference_pendingNext_offset_;
-  // offset of java.lang.ref.FinalizerReference.zombie
-  MemberOffset finalizer_reference_zombie_offset_;
 
   // Minimum free guarantees that you always have at least min_free_ free bytes after growing for
   // utilization, regardless of target utilization ratio.

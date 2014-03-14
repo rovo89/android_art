@@ -32,6 +32,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/proxy.h"
+#include "mirror/reference.h"
 #include "mirror/stack_trace_element.h"
 #include "sirt_ref.h"
 
@@ -624,6 +625,25 @@ struct DexCacheOffsets : public CheckOffsets<mirror::DexCache> {
   };
 };
 
+struct ReferenceOffsets : public CheckOffsets<mirror::Reference> {
+  ReferenceOffsets() : CheckOffsets<mirror::Reference>(false, "Ljava/lang/ref/Reference;") {
+    // alphabetical references
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Reference, pending_next_),  "pendingNext"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Reference, queue_),         "queue"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Reference, queue_next_),    "queueNext"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Reference, referent_),      "referent"));
+  };
+};
+
+struct FinalizerReferenceOffsets : public CheckOffsets<mirror::FinalizerReference> {
+  FinalizerReferenceOffsets() : CheckOffsets<mirror::FinalizerReference>(false, "Ljava/lang/ref/FinalizerReference;") {
+    // alphabetical references
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::FinalizerReference, next_),   "next"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::FinalizerReference, prev_),   "prev"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::FinalizerReference, zombie_), "zombie"));
+  };
+};
+
 // C++ fields must exactly match the fields in the Java classes. If this fails,
 // reorder the fields in the C++ class. Managed class fields are ordered by
 // ClassLinker::LinkFields.
@@ -639,6 +659,8 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(ClassLoaderOffsets().Check());
   EXPECT_TRUE(ProxyOffsets().Check());
   EXPECT_TRUE(DexCacheOffsets().Check());
+  EXPECT_TRUE(ReferenceOffsets().Check());
+  EXPECT_TRUE(FinalizerReferenceOffsets().Check());
 
   EXPECT_TRUE(ClassClassOffsets().Check());
   EXPECT_TRUE(StringClassOffsets().Check());
