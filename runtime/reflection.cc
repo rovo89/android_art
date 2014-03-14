@@ -231,7 +231,7 @@ class ArgArray {
             mh.GetClassFromTypeIdx(classes->GetTypeItem(args_offset).type_idx_);
         if (UNLIKELY(arg == nullptr || !arg->InstanceOf(dst_class))) {
           ThrowIllegalArgumentException(nullptr,
-              StringPrintf("method %s argument %d has type %s, got %s",
+              StringPrintf("method %s argument %zd has type %s, got %s",
                   PrettyMethod(mh.GetMethod(), false).c_str(),
                   args_offset + 1,  // Humans don't count from 0.
                   PrettyDescriptor(dst_class).c_str(),
@@ -259,7 +259,7 @@ class ArgArray {
               ThrowIllegalPrimitiveArgumentException(expected, src_descriptor); \
             } else { \
               ThrowIllegalArgumentException(nullptr, \
-                  StringPrintf("method %s argument %d has type %s, got %s", \
+                  StringPrintf("method %s argument %zd has type %s, got %s", \
                       PrettyMethod(mh.GetMethod(), false).c_str(), \
                       args_offset + 1, \
                       expected, \
