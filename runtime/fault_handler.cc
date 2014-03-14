@@ -53,7 +53,9 @@ void FaultManager::Init() {
   action.sa_sigaction = art_fault_handler;
   sigemptyset(&action.sa_mask);
   action.sa_flags = SA_SIGINFO | SA_ONSTACK;
+#if !defined(__mips__)
   action.sa_restorer = nullptr;
+#endif
   sigaction(SIGSEGV, &action, &oldaction_);
 }
 
