@@ -16,7 +16,7 @@
 
 #include "reflection.h"
 
-#include <cmath>
+#include <limits.h>
 
 #include "common_compiler_test.h"
 #include "mirror/art_method-inl.h"

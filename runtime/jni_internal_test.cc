@@ -16,17 +16,9 @@
 
 #include "jni_internal.h"
 
-#include <limits.h>
-#include <cfloat>
-#include <cmath>
-
 #include "common_compiler_test.h"
 #include "mirror/art_method-inl.h"
-#include "mirror/class-inl.h"
-#include "mirror/object_array-inl.h"
-#include "mirror/object-inl.h"
 #include "ScopedLocalRef.h"
-#include "sirt_ref.h"
 
 namespace art {
 
