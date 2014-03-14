@@ -201,7 +201,7 @@ ImageSpace* ImageSpace::Init(const char* image_file_name, bool validate_oat_file
   UniquePtr<MemMap> map(MemMap::MapFileAtAddress(image_header.GetImageBegin(),
                                                  image_header.GetImageSize(),
                                                  PROT_READ | PROT_WRITE,
-                                                 MAP_PRIVATE | MAP_FIXED,
+                                                 MAP_PRIVATE,
                                                  file->Fd(),
                                                  0,
                                                  false,
