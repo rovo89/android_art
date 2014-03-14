@@ -1498,7 +1498,11 @@ extern "C" ssize_t artQuickGenericJniTrampoline(Thread* self, mirror::ArtMethod*
   // Retrieve the stored native code.
   const void* nativeCode = called->GetNativeMethod();
 
-  // Check whether it's the stub to retrieve the native code, we should call that directly.
+  // There are two cases for the content of nativeCode:
+  // 1) Pointer to the native function.
+  // 2) Pointer to the trampoline for native code binding.
+  // In the second case, we need to execute the binding and continue with the actual native function
+  // pointer.
   DCHECK(nativeCode != nullptr);
   if (nativeCode == GetJniDlsymLookupStub()) {
     nativeCode = artFindNativeMethod();
