@@ -191,6 +191,11 @@ void X86Mir2Lir::SetupTargetResourceMasks(LIR* lir, uint64_t flags) {
     SetupRegMask(&lir->u.m.use_mask, rDI);
     SetupRegMask(&lir->u.m.def_mask, rDI);
   }
+
+  if (flags & USE_FP_STACK) {
+    lir->u.m.use_mask |= ENCODE_X86_FP_STACK;
+    lir->u.m.def_mask |= ENCODE_X86_FP_STACK;
+  }
 }
 
 /* For dumping instructions */
