@@ -21,13 +21,13 @@
 #include "entrypoints/entrypoint_utils.h"
 #include "gc/accounting/card_table-inl.h"
 #include "interpreter/interpreter.h"
-#include "invoke_arg_array_builder.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "object_utils.h"
 #include "runtime.h"
+#include "scoped_thread_state_change.h"
 
 namespace art {
 

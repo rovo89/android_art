@@ -17,7 +17,6 @@
 #include "transaction.h"
 
 #include "common_runtime_test.h"
-#include "invoke_arg_array_builder.h"
 #include "mirror/array-inl.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"

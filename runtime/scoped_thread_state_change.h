@@ -171,28 +171,7 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
 
     DCHECK_NE((reinterpret_cast<uintptr_t>(obj) & 0xffff0000), 0xebad0000);
 
-    IndirectReferenceTable& locals = Env()->locals;
-
-    uint32_t cookie = Env()->local_ref_cookie;
-    IndirectRef ref = locals.Add(cookie, obj);
-
-#if 0  // TODO: fix this to understand PushLocalFrame, so we can turn it on.
-    if (Env()->check_jni) {
-      size_t entry_count = locals.Capacity();
-      if (entry_count > 16) {
-        LOG(WARNING) << "Warning: more than 16 JNI local references: "
-                     << entry_count << " (most recent was a " << PrettyTypeOf(obj) << ")\n"
-                     << Dumpable<IndirectReferenceTable>(locals);
-        // TODO: LOG(FATAL) in a later release?
-      }
-    }
-#endif
-    if (Vm()->work_around_app_jni_bugs) {
-      // Hand out direct pointers to support broken old apps.
-      return reinterpret_cast<T>(obj);
-    }
-
-    return reinterpret_cast<T>(ref);
+    return Env()->AddLocalReference<T>(obj, Vm()->work_around_app_jni_bugs);
   }
 
   template<typename T>

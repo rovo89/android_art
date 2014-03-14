@@ -42,7 +42,6 @@
 #include "image.h"
 #include "instrumentation.h"
 #include "intern_table.h"
-#include "invoke_arg_array_builder.h"
 #include "jni_internal.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
@@ -54,6 +53,7 @@
 #include "monitor.h"
 #include "parsed_options.h"
 #include "oat_file.h"
+#include "reflection.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
 #include "signal_catcher.h"
@@ -316,9 +316,7 @@ jobject CreateSystemClassLoader() {
       class_loader_class->FindDirectMethod("getSystemClassLoader", "()Ljava/lang/ClassLoader;");
   CHECK(getSystemClassLoader != NULL);
 
-  JValue result;
-  ArgArray arg_array(nullptr, 0);
-  InvokeWithArgArray(soa, getSystemClassLoader, &arg_array, &result, "L");
+  JValue result = InvokeWithJValues(soa, nullptr, soa.EncodeMethod(getSystemClassLoader), nullptr);
   SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
                                             down_cast<mirror::ClassLoader*>(result.GetL()));
   CHECK(class_loader.get() != nullptr);

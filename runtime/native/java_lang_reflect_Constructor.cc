@@ -22,7 +22,7 @@
 #include "mirror/object-inl.h"
 #include "object_utils.h"
 #include "reflection.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_fast_native_object_access.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -35,8 +35,7 @@ namespace art {
  * with an interface, array, or primitive class.
  */
 static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectArray javaArgs) {
-  // TODO: ScopedFastNativeObjectAccess
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   jobject art_method = soa.Env()->GetObjectField(
       javaMethod, WellKnownClasses::java_lang_reflect_AbstractMethod_artMethod);
 

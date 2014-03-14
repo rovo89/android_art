@@ -201,7 +201,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
 
   jobject internal = thread->CreateInternalStackTrace(soa);
   ASSERT_TRUE(internal != NULL);
-  jobjectArray ste_array = Thread::InternalStackTraceToStackTraceElementArray(env, internal);
+  jobjectArray ste_array = Thread::InternalStackTraceToStackTraceElementArray(soa, internal);
   ASSERT_TRUE(ste_array != NULL);
   mirror::ObjectArray<mirror::StackTraceElement>* trace_array =
       soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>*>(ste_array);
