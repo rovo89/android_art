@@ -504,13 +504,6 @@ void ClassLinker::FinishInit(Thread* self) {
   CHECK_STREQ(fh.GetName(), "zombie");
   CHECK_STREQ(fh.GetTypeDescriptor(), "Ljava/lang/Object;");
 
-  gc::Heap* heap = Runtime::Current()->GetHeap();
-  heap->SetReferenceOffsets(referent->GetOffset(),
-                            queue->GetOffset(),
-                            queueNext->GetOffset(),
-                            pendingNext->GetOffset(),
-                            zombie->GetOffset());
-
   // ensure all class_roots_ are initialized
   for (size_t i = 0; i < kClassRootsMax; i++) {
     ClassRoot class_root = static_cast<ClassRoot>(i);

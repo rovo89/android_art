@@ -27,6 +27,7 @@
 #include "lock_word-inl.h"
 #include "monitor.h"
 #include "runtime.h"
+#include "reference.h"
 #include "throwable.h"
 
 namespace art {
@@ -197,6 +198,12 @@ inline bool Object::IsReferenceInstance() {
 }
 
 template<VerifyObjectFlags kVerifyFlags>
+inline Reference* Object::AsReference() {
+  DCHECK(IsReferenceInstance<kVerifyFlags>());
+  return down_cast<Reference*>(this);
+}
+
+template<VerifyObjectFlags kVerifyFlags>
 inline Array* Object::AsArray() {
   DCHECK(IsArrayInstance<kVerifyFlags>());
   return down_cast<Array*>(this);
@@ -311,6 +318,12 @@ inline bool Object::IsSoftReferenceInstance() {
 template<VerifyObjectFlags kVerifyFlags>
 inline bool Object::IsFinalizerReferenceInstance() {
   return GetClass<kVerifyFlags>()->IsFinalizerReferenceClass();
+}
+
+template<VerifyObjectFlags kVerifyFlags>
+inline FinalizerReference* Object::AsFinalizerReference() {
+  DCHECK(IsFinalizerReferenceInstance<kVerifyFlags>());
+  return down_cast<FinalizerReference*>(this);
 }
 
 template<VerifyObjectFlags kVerifyFlags>
