@@ -20,91 +20,84 @@
 #include "heap.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
+#include "mirror/reference-inl.h"
 
 namespace art {
 namespace gc {
 
-ReferenceQueue::ReferenceQueue(Heap* heap)
+ReferenceQueue::ReferenceQueue()
     : lock_("reference queue lock"),
-      heap_(heap),
       list_(nullptr) {
 }
 
-void ReferenceQueue::AtomicEnqueueIfNotEnqueued(Thread* self, mirror::Object* ref) {
+void ReferenceQueue::AtomicEnqueueIfNotEnqueued(Thread* self, mirror::Reference* ref) {
   DCHECK(ref != NULL);
   MutexLock mu(self, lock_);
-  if (!heap_->IsEnqueued(ref)) {
+  if (!ref->IsEnqueued()) {
     EnqueuePendingReference(ref);
   }
 }
 
-void ReferenceQueue::EnqueueReference(mirror::Object* ref) {
-  CHECK(heap_->IsEnqueuable(ref));
+void ReferenceQueue::EnqueueReference(mirror::Reference* ref) {
+  CHECK(ref->IsEnqueuable());
   EnqueuePendingReference(ref);
 }
 
-void ReferenceQueue::EnqueuePendingReference(mirror::Object* ref) {
+void ReferenceQueue::EnqueuePendingReference(mirror::Reference* ref) {
   DCHECK(ref != NULL);
-  MemberOffset pending_next_offset = heap_->GetReferencePendingNextOffset();
-  DCHECK_NE(pending_next_offset.Uint32Value(), 0U);
   if (IsEmpty()) {
     // 1 element cyclic queue, ie: Reference ref = ..; ref.pendingNext = ref;
-    if (Runtime::Current()->IsActiveTransaction()) {
-      ref->SetFieldObject<true>(pending_next_offset, ref, false);
-    } else {
-      ref->SetFieldObject<false>(pending_next_offset, ref, false);
-    }
     list_ = ref;
   } else {
-    mirror::Object* head = list_->GetFieldObject<mirror::Object>(pending_next_offset, false);
+    mirror::Reference* head = list_->GetPendingNext();
     if (Runtime::Current()->IsActiveTransaction()) {
-      ref->SetFieldObject<true>(pending_next_offset, head, false);
-      list_->SetFieldObject<true>(pending_next_offset, ref, false);
+      ref->SetPendingNext<true>(head);
     } else {
-      ref->SetFieldObject<false>(pending_next_offset, head, false);
-      list_->SetFieldObject<false>(pending_next_offset, ref, false);
+      ref->SetPendingNext<false>(head);
     }
+  }
+  if (Runtime::Current()->IsActiveTransaction()) {
+    list_->SetPendingNext<true>(ref);
+  } else {
+    list_->SetPendingNext<false>(ref);
   }
 }
 
-mirror::Object* ReferenceQueue::DequeuePendingReference() {
+mirror::Reference* ReferenceQueue::DequeuePendingReference() {
   DCHECK(!IsEmpty());
-  MemberOffset pending_next_offset = heap_->GetReferencePendingNextOffset();
-  mirror::Object* head = list_->GetFieldObject<mirror::Object>(pending_next_offset, false);
+  mirror::Reference* head = list_->GetPendingNext();
   DCHECK(head != nullptr);
-  mirror::Object* ref;
+  mirror::Reference* ref;
   // Note: the following code is thread-safe because it is only called from ProcessReferences which
   // is single threaded.
   if (list_ == head) {
     ref = list_;
     list_ = nullptr;
   } else {
-    mirror::Object* next = head->GetFieldObject<mirror::Object>(pending_next_offset, false);
+    mirror::Reference* next = head->GetPendingNext();
     if (Runtime::Current()->IsActiveTransaction()) {
-      list_->SetFieldObject<true>(pending_next_offset, next, false);
+      list_->SetPendingNext<true>(next);
     } else {
-      list_->SetFieldObject<false>(pending_next_offset, next, false);
+      list_->SetPendingNext<false>(next);
     }
     ref = head;
   }
   if (Runtime::Current()->IsActiveTransaction()) {
-    ref->SetFieldObject<true>(pending_next_offset, nullptr, false);
+    ref->SetPendingNext<true>(nullptr);
   } else {
-    ref->SetFieldObject<false>(pending_next_offset, nullptr, false);
+    ref->SetPendingNext<false>(nullptr);
   }
   return ref;
 }
 
 void ReferenceQueue::Dump(std::ostream& os) const {
-  mirror::Object* cur = list_;
+  mirror::Reference* cur = list_;
   os << "Reference starting at list_=" << list_ << "\n";
   while (cur != nullptr) {
-    mirror::Object* pending_next =
-        cur->GetFieldObject<mirror::Object>(heap_->GetReferencePendingNextOffset(), false);
+    mirror::Reference* pending_next = cur->GetPendingNext();
     os << "PendingNext=" << pending_next;
-    if (cur->GetClass()->IsFinalizerReferenceClass()) {
-      os << " Zombie=" <<
-          cur->GetFieldObject<mirror::Object>(heap_->GetFinalizerReferenceZombieOffset(), false);
+    if (cur->IsFinalizerReferenceInstance()) {
+      os << " Zombie=" << cur->AsFinalizerReference()->GetZombie();
     }
     os << "\n";
     cur = pending_next;
@@ -115,19 +108,23 @@ void ReferenceQueue::ClearWhiteReferences(ReferenceQueue& cleared_references,
                                           IsMarkedCallback* preserve_callback,
                                           void* arg) {
   while (!IsEmpty()) {
-    mirror::Object* ref = DequeuePendingReference();
-    mirror::Object* referent = heap_->GetReferenceReferent(ref);
+    mirror::Reference* ref = DequeuePendingReference();
+    mirror::Object* referent = ref->GetReferent();
     if (referent != nullptr) {
       mirror::Object* forward_address = preserve_callback(referent, arg);
       if (forward_address == nullptr) {
         // Referent is white, clear it.
-        heap_->ClearReferenceReferent(ref);
-        if (heap_->IsEnqueuable(ref)) {
+        if (Runtime::Current()->IsActiveTransaction()) {
+          ref->ClearReferent<true>();
+        } else {
+          ref->ClearReferent<false>();
+        }
+        if (ref->IsEnqueuable()) {
           cleared_references.EnqueuePendingReference(ref);
         }
       } else if (referent != forward_address) {
         // Object moved, need to updated the referent.
-        heap_->SetReferenceReferent(ref, forward_address);
+        ref->SetReferent<false>(forward_address);
       }
     }
   }
@@ -138,42 +135,43 @@ void ReferenceQueue::EnqueueFinalizerReferences(ReferenceQueue& cleared_referenc
                                                 MarkObjectCallback recursive_mark_callback,
                                                 void* arg) {
   while (!IsEmpty()) {
-    mirror::Object* ref = DequeuePendingReference();
-    mirror::Object* referent = heap_->GetReferenceReferent(ref);
+    mirror::FinalizerReference* ref = DequeuePendingReference()->AsFinalizerReference();
+    mirror::Object* referent = ref->GetReferent();
     if (referent != nullptr) {
       mirror::Object* forward_address = is_marked_callback(referent, arg);
       // If the referent isn't marked, mark it and update the
       if (forward_address == nullptr) {
         forward_address = recursive_mark_callback(referent, arg);
         // If the referent is non-null the reference must queuable.
-        DCHECK(heap_->IsEnqueuable(ref));
+        DCHECK(ref->IsEnqueuable());
         // Move the updated referent to the zombie field.
         if (Runtime::Current()->IsActiveTransaction()) {
-          ref->SetFieldObject<true>(heap_->GetFinalizerReferenceZombieOffset(), forward_address, false);
+          ref->SetZombie<true>(forward_address);
+          ref->ClearReferent<true>();
         } else {
-          ref->SetFieldObject<false>(heap_->GetFinalizerReferenceZombieOffset(), forward_address, false);
+          ref->SetZombie<false>(forward_address);
+          ref->ClearReferent<false>();
         }
-        heap_->ClearReferenceReferent(ref);
         cleared_references.EnqueueReference(ref);
       } else if (referent != forward_address) {
-        heap_->SetReferenceReferent(ref, forward_address);
+        ref->SetReferent<false>(forward_address);
       }
     }
   }
 }
 
 void ReferenceQueue::PreserveSomeSoftReferences(IsMarkedCallback preserve_callback, void* arg) {
-  ReferenceQueue cleared(heap_);
+  ReferenceQueue cleared;
   while (!IsEmpty()) {
-    mirror::Object* ref = DequeuePendingReference();
-    mirror::Object* referent = heap_->GetReferenceReferent(ref);
+    mirror::Reference* ref = DequeuePendingReference();
+    mirror::Object* referent = ref->GetReferent();
     if (referent != nullptr) {
       mirror::Object* forward_address = preserve_callback(referent, arg);
       if (forward_address == nullptr) {
         // Either the reference isn't marked or we don't wish to preserve it.
         cleared.EnqueuePendingReference(ref);
       } else if (forward_address != referent) {
-        heap_->SetReferenceReferent(ref, forward_address);
+        ref->SetReferent<false>(forward_address);
       }
     }
   }

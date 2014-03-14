@@ -54,6 +54,7 @@
 #include "mirror/object.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
+#include "mirror/reference-inl.h"
 #include "object_utils.h"
 #include "os.h"
 #include "runtime.h"
@@ -103,11 +104,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       ignore_max_footprint_(ignore_max_footprint),
       have_zygote_space_(false),
       large_object_threshold_(std::numeric_limits<size_t>::max()),  // Starts out disabled.
-      soft_reference_queue_(this),
-      weak_reference_queue_(this),
-      finalizer_reference_queue_(this),
-      phantom_reference_queue_(this),
-      cleared_references_(this),
       collector_type_running_(kCollectorTypeNone),
       last_gc_type_(collector::kGcTypeNone),
       next_gc_type_(collector::kGcTypePartial),
@@ -144,11 +140,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       current_non_moving_allocator_(kAllocatorTypeNonMoving),
       bump_pointer_space_(nullptr),
       temp_space_(nullptr),
-      reference_referent_offset_(0),
-      reference_queue_offset_(0),
-      reference_queueNext_offset_(0),
-      reference_pendingNext_offset_(0),
-      finalizer_reference_zombie_offset_(0),
       min_free_(min_free),
       max_free_(max_free),
       target_utilization_(target_utilization),
@@ -792,29 +783,12 @@ void Heap::ProcessReferences(TimingLogger& timings, bool clear_soft,
   timings.EndSplit();
 }
 
-bool Heap::IsEnqueued(mirror::Object* ref) const {
-  // Since the references are stored as cyclic lists it means that once enqueued, the pending next
-  // will always be non-null.
-  return ref->GetFieldObject<mirror::Object>(GetReferencePendingNextOffset(), false) != nullptr;
-}
-
-bool Heap::IsEnqueuable(mirror::Object* ref) const {
-  DCHECK(ref != nullptr);
-  const mirror::Object* queue =
-      ref->GetFieldObject<mirror::Object>(GetReferenceQueueOffset(), false);
-  const mirror::Object* queue_next =
-      ref->GetFieldObject<mirror::Object>(GetReferenceQueueNextOffset(), false);
-  return queue != nullptr && queue_next == nullptr;
-}
-
 // Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been
 // marked, put it on the appropriate list in the heap for later processing.
-void Heap::DelayReferenceReferent(mirror::Class* klass, mirror::Object* obj,
+void Heap::DelayReferenceReferent(mirror::Class* klass, mirror::Reference* ref,
                                   IsMarkedCallback is_marked_callback, void* arg) {
-  DCHECK(klass != nullptr);
-  DCHECK(klass->IsReferenceClass());
-  DCHECK(obj != nullptr);
-  mirror::Object* referent = GetReferenceReferent(obj);
+  DCHECK_EQ(klass, ref->GetClass());
+  mirror::Object* referent = ref->GetReferent();
   if (referent != nullptr) {
     mirror::Object* forward_address = is_marked_callback(referent, arg);
     // Null means that the object is not currently marked.
@@ -824,20 +798,20 @@ void Heap::DelayReferenceReferent(mirror::Class* klass, mirror::Object* obj,
       // We need to check that the references haven't already been enqueued since we can end up
       // scanning the same reference multiple times due to dirty cards.
       if (klass->IsSoftReferenceClass()) {
-        soft_reference_queue_.AtomicEnqueueIfNotEnqueued(self, obj);
+        soft_reference_queue_.AtomicEnqueueIfNotEnqueued(self, ref);
       } else if (klass->IsWeakReferenceClass()) {
-        weak_reference_queue_.AtomicEnqueueIfNotEnqueued(self, obj);
+        weak_reference_queue_.AtomicEnqueueIfNotEnqueued(self, ref);
       } else if (klass->IsFinalizerReferenceClass()) {
-        finalizer_reference_queue_.AtomicEnqueueIfNotEnqueued(self, obj);
+        finalizer_reference_queue_.AtomicEnqueueIfNotEnqueued(self, ref);
       } else if (klass->IsPhantomReferenceClass()) {
-        phantom_reference_queue_.AtomicEnqueueIfNotEnqueued(self, obj);
+        phantom_reference_queue_.AtomicEnqueueIfNotEnqueued(self, ref);
       } else {
         LOG(FATAL) << "Invalid reference type " << PrettyClass(klass) << " " << std::hex
                    << klass->GetAccessFlags();
       }
     } else if (referent != forward_address) {
       // Referent is already marked and we need to update it.
-      SetReferenceReferent(obj, forward_address);
+      ref->SetReferent<false>(forward_address);
     }
   }
 }
@@ -2013,8 +1987,9 @@ class VerifyObjectVisitor {
     VerifyReferenceVisitor visitor(heap_);
     // The class doesn't count as a reference but we should verify it anyways.
     collector::MarkSweep::VisitObjectReferences(obj, visitor, true);
-    if (obj->GetClass()->IsReferenceClass()) {
-      visitor(obj, heap_->GetReferenceReferent(obj), MemberOffset(0), false);
+    if (obj->IsReferenceInstance()) {
+      mirror::Reference* ref = obj->AsReference();
+      visitor(obj, ref->GetReferent(), mirror::Reference::ReferentOffset(), false);
     }
     failed_ = failed_ || visitor.Failed();
   }
@@ -2474,35 +2449,6 @@ void Heap::GrowForUtilization(collector::GcType gc_type, uint64_t gc_duration) {
 void Heap::ClearGrowthLimit() {
   growth_limit_ = capacity_;
   non_moving_space_->ClearGrowthLimit();
-}
-
-void Heap::SetReferenceOffsets(MemberOffset reference_referent_offset,
-                               MemberOffset reference_queue_offset,
-                               MemberOffset reference_queueNext_offset,
-                               MemberOffset reference_pendingNext_offset,
-                               MemberOffset finalizer_reference_zombie_offset) {
-  reference_referent_offset_ = reference_referent_offset;
-  reference_queue_offset_ = reference_queue_offset;
-  reference_queueNext_offset_ = reference_queueNext_offset;
-  reference_pendingNext_offset_ = reference_pendingNext_offset;
-  finalizer_reference_zombie_offset_ = finalizer_reference_zombie_offset;
-  CHECK_NE(reference_referent_offset_.Uint32Value(), 0U);
-  CHECK_NE(reference_queue_offset_.Uint32Value(), 0U);
-  CHECK_NE(reference_queueNext_offset_.Uint32Value(), 0U);
-  CHECK_NE(reference_pendingNext_offset_.Uint32Value(), 0U);
-  CHECK_NE(finalizer_reference_zombie_offset_.Uint32Value(), 0U);
-}
-
-void Heap::SetReferenceReferent(mirror::Object* reference, mirror::Object* referent) {
-  DCHECK(reference != NULL);
-  DCHECK_NE(reference_referent_offset_.Uint32Value(), 0U);
-  reference->SetFieldObject<false, false>(reference_referent_offset_, referent, true);
-}
-
-mirror::Object* Heap::GetReferenceReferent(mirror::Object* reference) {
-  DCHECK(reference != NULL);
-  DCHECK_NE(reference_referent_offset_.Uint32Value(), 0U);
-  return reference->GetFieldObject<mirror::Object>(reference_referent_offset_, true);
 }
 
 void Heap::AddFinalizerReference(Thread* self, mirror::Object* object) {
