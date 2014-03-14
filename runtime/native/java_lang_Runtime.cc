@@ -92,12 +92,12 @@ static jlong Runtime_freeMemory(JNIEnv*, jclass) {
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Runtime, freeMemory, "()J"),
+  NATIVE_METHOD(Runtime, freeMemory, "!()J"),
   NATIVE_METHOD(Runtime, gc, "()V"),
-  NATIVE_METHOD(Runtime, maxMemory, "()J"),
+  NATIVE_METHOD(Runtime, maxMemory, "!()J"),
   NATIVE_METHOD(Runtime, nativeExit, "(I)V"),
   NATIVE_METHOD(Runtime, nativeLoad, "(Ljava/lang/String;Ljava/lang/ClassLoader;Ljava/lang/String;)Ljava/lang/String;"),
-  NATIVE_METHOD(Runtime, totalMemory, "()J"),
+  NATIVE_METHOD(Runtime, totalMemory, "!()J"),
 };
 
 void register_java_lang_Runtime(JNIEnv* env) {

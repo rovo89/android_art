@@ -29,7 +29,7 @@
 #include "jni_internal.h"
 #include "mirror/class.h"
 #include "ScopedUtfChars.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_fast_native_object_access.h"
 #include "toStringArray.h"
 #include "trace.h"
 
@@ -153,12 +153,12 @@ static void VMDebug_resetInstructionCount(JNIEnv* env, jclass) {
 }
 
 static void VMDebug_printLoadedClasses(JNIEnv* env, jclass, jint flags) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   return Runtime::Current()->GetClassLinker()->DumpAllClasses(flags);
 }
 
 static jint VMDebug_getLoadedClassCount(JNIEnv* env, jclass) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   return Runtime::Current()->GetClassLinker()->NumLoadedClasses();
 }
 
@@ -318,14 +318,14 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMDebug, getAllocCount, "(I)I"),
   NATIVE_METHOD(VMDebug, getHeapSpaceStats, "([J)V"),
   NATIVE_METHOD(VMDebug, getInstructionCount, "([I)V"),
-  NATIVE_METHOD(VMDebug, getLoadedClassCount, "()I"),
+  NATIVE_METHOD(VMDebug, getLoadedClassCount, "!()I"),
   NATIVE_METHOD(VMDebug, getVmFeatureList, "()[Ljava/lang/String;"),
   NATIVE_METHOD(VMDebug, infopoint, "(I)V"),
-  NATIVE_METHOD(VMDebug, isDebuggerConnected, "()Z"),
-  NATIVE_METHOD(VMDebug, isDebuggingEnabled, "()Z"),
+  NATIVE_METHOD(VMDebug, isDebuggerConnected, "!()Z"),
+  NATIVE_METHOD(VMDebug, isDebuggingEnabled, "!()Z"),
   NATIVE_METHOD(VMDebug, getMethodTracingMode, "()I"),
-  NATIVE_METHOD(VMDebug, lastDebuggerActivity, "()J"),
-  NATIVE_METHOD(VMDebug, printLoadedClasses, "(I)V"),
+  NATIVE_METHOD(VMDebug, lastDebuggerActivity, "!()J"),
+  NATIVE_METHOD(VMDebug, printLoadedClasses, "!(I)V"),
   NATIVE_METHOD(VMDebug, resetAllocCount, "(I)V"),
   NATIVE_METHOD(VMDebug, resetInstructionCount, "()V"),
   NATIVE_METHOD(VMDebug, startAllocCounting, "()V"),
@@ -338,7 +338,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMDebug, stopEmulatorTracing, "()V"),
   NATIVE_METHOD(VMDebug, stopInstructionCounting, "()V"),
   NATIVE_METHOD(VMDebug, stopMethodTracing, "()V"),
-  NATIVE_METHOD(VMDebug, threadCpuTimeNanos, "()J"),
+  NATIVE_METHOD(VMDebug, threadCpuTimeNanos, "!()J"),
 };
 
 void register_dalvik_system_VMDebug(JNIEnv* env) {

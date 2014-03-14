@@ -28,7 +28,6 @@
 #include "gc/accounting/card_table-inl.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
-#include "invoke_arg_array_builder.h"
 #include "jdwp/object_registry.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
@@ -39,6 +38,7 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/throwable.h"
 #include "object_utils.h"
+#include "reflection.h"
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
@@ -3052,10 +3052,8 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
 
   CHECK_EQ(sizeof(jvalue), sizeof(uint64_t));
 
-  MethodHelper mh(m.get());
-  ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
-  arg_array.BuildArgArray(soa, pReq->receiver, reinterpret_cast<jvalue*>(pReq->arg_values));
-  InvokeWithArgArray(soa, m.get(), &arg_array, &pReq->result_value, mh.GetShorty());
+  pReq->result_value = InvokeWithJValues(soa, pReq->receiver, soa.EncodeMethod(pReq->method),
+                                         reinterpret_cast<jvalue*>(pReq->arg_values));
 
   mirror::Throwable* exception = soa.Self()->GetException(NULL);
   soa.Self()->ClearException();

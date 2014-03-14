@@ -90,7 +90,7 @@ static bool CheckReceiver(const ScopedFastNativeObjectAccess& soa, jobject j_rcv
 
   class_or_rcvr = soa.Decode<mirror::Object*>(j_rcvr);
   mirror::Class* declaringClass = f->GetDeclaringClass();
-  if (!VerifyObjectInClass(class_or_rcvr, declaringClass)) {
+  if (!VerifyObjectIsClass(class_or_rcvr, declaringClass)) {
     return false;
   }
   return true;

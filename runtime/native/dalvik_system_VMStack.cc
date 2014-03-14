@@ -26,42 +26,43 @@
 
 namespace art {
 
-static jobject GetThreadStack(JNIEnv* env, jobject peer) {
-  {
-    ScopedObjectAccess soa(env);
-    if (soa.Decode<mirror::Object*>(peer) == soa.Self()->GetPeer()) {
-      return soa.Self()->CreateInternalStackTrace(soa);
-    }
-  }
-  // Suspend thread to build stack trace.
-  bool timed_out;
-  Thread* thread = ThreadList::SuspendThreadByPeer(peer, true, false, &timed_out);
-  if (thread != NULL) {
-    jobject trace;
-    {
-      ScopedObjectAccess soa(env);
-      trace = thread->CreateInternalStackTrace(soa);
-    }
-    // Restart suspended thread.
-    Runtime::Current()->GetThreadList()->Resume(thread, false);
-    return trace;
+static jobject GetThreadStack(const ScopedFastNativeObjectAccess& soa, jobject peer)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  jobject trace = nullptr;
+  if (soa.Decode<mirror::Object*>(peer) == soa.Self()->GetPeer()) {
+    trace = soa.Self()->CreateInternalStackTrace(soa);
   } else {
-    if (timed_out) {
-      LOG(ERROR) << "Trying to get thread's stack failed as the thread failed to suspend within a "
-          "generous timeout.";
+    // Suspend thread to build stack trace.
+    soa.Self()->TransitionFromRunnableToSuspended(kNative);
+    bool timed_out;
+    Thread* thread = ThreadList::SuspendThreadByPeer(peer, true, false, &timed_out);
+    if (thread != nullptr) {
+      // Must be runnable to create returned array.
+      CHECK_EQ(soa.Self()->TransitionFromSuspendedToRunnable(), kNative);
+      trace = thread->CreateInternalStackTrace(soa);
+      soa.Self()->TransitionFromRunnableToSuspended(kNative);
+      // Restart suspended thread.
+      Runtime::Current()->GetThreadList()->Resume(thread, false);
+    } else {
+      if (timed_out) {
+        LOG(ERROR) << "Trying to get thread's stack failed as the thread failed to suspend within a "
+            "generous timeout.";
+      }
     }
-    return NULL;
+    CHECK_EQ(soa.Self()->TransitionFromSuspendedToRunnable(), kNative);
   }
+  return trace;
 }
 
 static jint VMStack_fillStackTraceElements(JNIEnv* env, jclass, jobject javaThread,
                                            jobjectArray javaSteArray) {
-  jobject trace = GetThreadStack(env, javaThread);
-  if (trace == NULL) {
+  ScopedFastNativeObjectAccess soa(env);
+  jobject trace = GetThreadStack(soa, javaThread);
+  if (trace == nullptr) {
     return 0;
   }
   int32_t depth;
-  Thread::InternalStackTraceToStackTraceElementArray(env, trace, javaSteArray, &depth);
+  Thread::InternalStackTraceToStackTraceElementArray(soa, trace, javaSteArray, &depth);
   return depth;
 }
 
@@ -111,19 +112,20 @@ static jclass VMStack_getStackClass2(JNIEnv* env, jclass) {
 }
 
 static jobjectArray VMStack_getThreadStackTrace(JNIEnv* env, jclass, jobject javaThread) {
-  jobject trace = GetThreadStack(env, javaThread);
-  if (trace == NULL) {
-    return NULL;
+  ScopedFastNativeObjectAccess soa(env);
+  jobject trace = GetThreadStack(soa, javaThread);
+  if (trace == nullptr) {
+    return nullptr;
   }
-  return Thread::InternalStackTraceToStackTraceElementArray(env, trace);
+  return Thread::InternalStackTraceToStackTraceElementArray(soa, trace);
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(VMStack, fillStackTraceElements, "(Ljava/lang/Thread;[Ljava/lang/StackTraceElement;)I"),
+  NATIVE_METHOD(VMStack, fillStackTraceElements, "!(Ljava/lang/Thread;[Ljava/lang/StackTraceElement;)I"),
   NATIVE_METHOD(VMStack, getCallingClassLoader, "!()Ljava/lang/ClassLoader;"),
   NATIVE_METHOD(VMStack, getClosestUserClassLoader, "!(Ljava/lang/ClassLoader;Ljava/lang/ClassLoader;)Ljava/lang/ClassLoader;"),
   NATIVE_METHOD(VMStack, getStackClass2, "!()Ljava/lang/Class;"),
-  NATIVE_METHOD(VMStack, getThreadStackTrace, "(Ljava/lang/Thread;)[Ljava/lang/StackTraceElement;"),
+  NATIVE_METHOD(VMStack, getThreadStackTrace, "!(Ljava/lang/Thread;)[Ljava/lang/StackTraceElement;"),
 };
 
 void register_dalvik_system_VMStack(JNIEnv* env) {

@@ -15,26 +15,27 @@
  */
 
 #include "jni_internal.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_fast_native_object_access.h"
 #include "thread.h"
 
 namespace art {
 
 static jobject Throwable_nativeFillInStackTrace(JNIEnv* env, jclass) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   return soa.Self()->CreateInternalStackTrace(soa);
 }
 
 static jobjectArray Throwable_nativeGetStackTrace(JNIEnv* env, jclass, jobject javaStackState) {
-  if (javaStackState == NULL) {
-      return NULL;
+  if (javaStackState == nullptr) {
+      return nullptr;
   }
-  return Thread::InternalStackTraceToStackTraceElementArray(env, javaStackState);
+  ScopedFastNativeObjectAccess soa(env);
+  return Thread::InternalStackTraceToStackTraceElementArray(soa, javaStackState);
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Throwable, nativeFillInStackTrace, "()Ljava/lang/Object;"),
-  NATIVE_METHOD(Throwable, nativeGetStackTrace, "(Ljava/lang/Object;)[Ljava/lang/StackTraceElement;"),
+  NATIVE_METHOD(Throwable, nativeFillInStackTrace, "!()Ljava/lang/Object;"),
+  NATIVE_METHOD(Throwable, nativeGetStackTrace, "!(Ljava/lang/Object;)[Ljava/lang/StackTraceElement;"),
 };
 
 void register_java_lang_Throwable(JNIEnv* env) {

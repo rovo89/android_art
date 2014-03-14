@@ -19,14 +19,14 @@
 #include "mirror/class_loader.h"
 #include "mirror/object_array.h"
 #include "mirror/string.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_fast_native_object_access.h"
 #include "verify_object-inl.h"
 
 namespace art {
 
 static jclass Proxy_generateProxy(JNIEnv* env, jclass, jstring name, jobjectArray interfaces,
                                   jobject loader, jobjectArray methods, jobjectArray throws) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   mirror::Class* result = class_linker->CreateProxyClass(soa, name, interfaces, loader, methods,
                                                          throws);
@@ -34,7 +34,7 @@ static jclass Proxy_generateProxy(JNIEnv* env, jclass, jstring name, jobjectArra
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Proxy, generateProxy, "(Ljava/lang/String;[Ljava/lang/Class;Ljava/lang/ClassLoader;[Ljava/lang/reflect/ArtMethod;[[Ljava/lang/Class;)Ljava/lang/Class;"),
+  NATIVE_METHOD(Proxy, generateProxy, "!(Ljava/lang/String;[Ljava/lang/Class;Ljava/lang/ClassLoader;[Ljava/lang/reflect/ArtMethod;[[Ljava/lang/Class;)Ljava/lang/Class;"),
 };
 
 void register_java_lang_reflect_Proxy(JNIEnv* env) {

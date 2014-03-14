@@ -45,7 +45,7 @@ static mirror::Class* DecodeClass(const ScopedFastNativeObjectAccess& soa, jobje
 // "name" is in "binary name" format, e.g. "dalvik.system.Debug$1".
 static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean initialize,
                                  jobject javaLoader) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   ScopedUtfChars name(env, javaName);
   if (name.c_str() == nullptr) {
     return nullptr;
@@ -96,7 +96,7 @@ static jobjectArray Class_getProxyInterfaces(JNIEnv* env, jobject javaThis) {
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Class, classForName, "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;"),
+  NATIVE_METHOD(Class, classForName, "!(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;"),
   NATIVE_METHOD(Class, getNameNative, "!()Ljava/lang/String;"),
   NATIVE_METHOD(Class, getProxyInterfaces, "!()[Ljava/lang/Class;"),
 };

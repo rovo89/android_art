@@ -591,7 +591,7 @@ jint Java_MyClassNatives_nativeUpCall(JNIEnv* env, jobject thisObj, jint i) {
 
     // Build stack trace
     jobject internal = Thread::Current()->CreateInternalStackTrace(soa);
-    jobjectArray ste_array = Thread::InternalStackTraceToStackTraceElementArray(env, internal);
+    jobjectArray ste_array = Thread::InternalStackTraceToStackTraceElementArray(soa, internal);
     mirror::ObjectArray<mirror::StackTraceElement>* trace_array =
         soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>*>(ste_array);
     EXPECT_TRUE(trace_array != NULL);
