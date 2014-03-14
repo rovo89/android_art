@@ -238,7 +238,7 @@ LIBART_TARGET_SRC_FILES_mips := \
 	arch/mips/portable_entrypoints_mips.S \
 	arch/mips/quick_entrypoints_mips.S \
 	arch/mips/thread_mips.cc \
-	arch/mips/fault_mhandlerarm.cc
+	arch/mips/fault_handler_mips.cc
 
 ifeq ($(TARGET_ARCH),arm64)
 $(info TODOArm64: $(LOCAL_PATH)/Android.mk Add Arm64 specific runtime files)
