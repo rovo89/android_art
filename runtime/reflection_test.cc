@@ -16,6 +16,7 @@
 
 #include "reflection.h"
 
+#include <float.h>
 #include <limits.h>
 
 #include "common_compiler_test.h"
