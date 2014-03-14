@@ -214,8 +214,9 @@ void ArmMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
     GenMemBarrier(kLoadLoad);
   } else {
     // Explicit null-check as slow-path is entered using an IT.
-    GenNullCheck(rl_src.s_reg_low, r0, opt_flags);
+    GenNullCheck(r0, opt_flags);
     LoadWordDisp(rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), r2);
+    MarkPossibleNullPointerException(opt_flags);
     NewLIR3(kThumb2Ldrex, r1, r0, mirror::Object::MonitorOffset().Int32Value() >> 2);
     OpRegImm(kOpCmp, r1, 0);
     OpIT(kCondEq, "");
@@ -273,8 +274,9 @@ void ArmMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
     GenMemBarrier(kStoreLoad);
   } else {
     // Explicit null-check as slow-path is entered using an IT.
-    GenNullCheck(rl_src.s_reg_low, r0, opt_flags);
+    GenNullCheck(r0, opt_flags);
     LoadWordDisp(r0, mirror::Object::MonitorOffset().Int32Value(), r1);  // Get lock
+    MarkPossibleNullPointerException(opt_flags);
     LoadWordDisp(rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), r2);
     LoadConstantNoClobber(r3, 0);
     // Is lock unheld on lock or held by us (==thread_id) on unlock?
@@ -340,8 +342,10 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
                             Thread::kStackOverflowReservedBytes));
   NewLIR0(kPseudoMethodEntry);
   if (!skip_overflow_check) {
-    /* Load stack limit */
-    LoadWordDisp(rARM_SELF, Thread::StackEndOffset().Int32Value(), r12);
+    if (Runtime::Current()->ExplicitStackOverflowChecks()) {
+      /* Load stack limit */
+      LoadWordDisp(rARM_SELF, Thread::StackEndOffset().Int32Value(), r12);
+    }
   }
   /* Spill core callee saves */
   NewLIR1(kThumb2Push, core_spill_mask_);
@@ -355,9 +359,20 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
     NewLIR1(kThumb2VPushCS, num_fp_spills_);
   }
   if (!skip_overflow_check) {
-    OpRegRegImm(kOpSub, rARM_LR, rARM_SP, frame_size_ - (spill_count * 4));
-    GenRegRegCheck(kCondUlt, rARM_LR, r12, kThrowStackOverflow);
-    OpRegCopy(rARM_SP, rARM_LR);     // Establish stack
+    if (Runtime::Current()->ExplicitStackOverflowChecks()) {
+      OpRegRegImm(kOpSub, rARM_LR, rARM_SP, frame_size_ - (spill_count * 4));
+      GenRegRegCheck(kCondUlt, rARM_LR, r12, kThrowStackOverflow);
+      OpRegCopy(rARM_SP, rARM_LR);     // Establish stack
+    } else {
+      // Implicit stack overflow check.
+      // Generate a load from [sp, #-framesize].  If this is in the stack
+      // redzone we will get a segmentation fault.
+      uint32_t full_frame_size = frame_size_ - (spill_count * 4);
+
+      OpRegImm(kOpSub, rARM_SP, full_frame_size);
+      LoadWordDisp(rARM_SP, 0, rARM_LR);
+      MarkPossibleStackOverflowException();
+    }
   } else {
     OpRegImm(kOpSub, rARM_SP, frame_size_ - (spill_count * 4));
   }
