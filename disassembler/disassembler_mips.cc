@@ -257,9 +257,6 @@ static void DumpMips(std::ostream& os, const uint8_t* instr_ptr) {
   os << StringPrintf("%p: %08x\t%-7s ", instr_ptr, instruction, opcode.c_str()) << args.str() << '\n';
 }
 
-DisassemblerMips::DisassemblerMips() {
-}
-
 size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* begin) {
   DumpMips(os, begin);
   return 4;
