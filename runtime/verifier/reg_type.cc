@@ -777,7 +777,7 @@ int32_t ConstantType::ConstantValueHi() const {
 }
 
 static const RegType& SelectNonConstant(const RegType& a, const RegType& b) {
-  return a.IsConstant() ? b : a;
+  return a.IsConstantTypes() ? b : a;
 }
 
 const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_types) const {
