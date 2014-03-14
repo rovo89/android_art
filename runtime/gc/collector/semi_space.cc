@@ -44,6 +44,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache.h"
+#include "mirror/reference-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array.h"
 #include "mirror/object_array-inl.h"
@@ -633,7 +634,7 @@ void SemiSpace::SweepLargeObjects(bool swap_bitmaps) {
 // Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been
 // marked, put it on the appropriate list in the heap for later processing.
 void SemiSpace::DelayReferenceReferent(mirror::Class* klass, Object* obj) {
-  heap_->DelayReferenceReferent(klass, obj, MarkedForwardingAddressCallback, this);
+  heap_->DelayReferenceReferent(klass, obj->AsReference(), MarkedForwardingAddressCallback, this);
 }
 
 class SemiSpaceMarkObjectVisitor {
