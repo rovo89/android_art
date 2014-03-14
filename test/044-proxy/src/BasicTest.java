@@ -270,6 +270,20 @@ class MyInvocationHandler implements InvocationHandler {
           }
         }
 
+        if (method.getDeclaringClass() == Trace.class) {
+          if (method.getName().equals("getTrace")) {
+            StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+            for (int i = 0; i < stackTrace.length; i++) {
+                StackTraceElement ste = stackTrace[i];
+                if (ste.getMethodName().equals("getTrace")) {
+                  System.out.println(ste.getClassName() + "." + ste.getMethodName() + " " +
+                                     ste.getFileName() + ":" + ste.getLineNumber());
+                }
+            }
+            return null;
+          }
+        }
+
         System.out.println("Invoke " + method);
         if (args == null || args.length == 0) {
             System.out.println(" (no args)");
