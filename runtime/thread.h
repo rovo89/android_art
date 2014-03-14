@@ -398,8 +398,9 @@ class PACKED(4) Thread {
   // StackTraceElement[]. If output_array is NULL, a new array is created, otherwise as many
   // frames as will fit are written into the given array. If stack_depth is non-NULL, it's updated
   // with the number of valid frames in the returned array.
-  static jobjectArray InternalStackTraceToStackTraceElementArray(JNIEnv* env, jobject internal,
-      jobjectArray output_array = NULL, int* stack_depth = NULL);
+  static jobjectArray InternalStackTraceToStackTraceElementArray(const ScopedObjectAccess& soa,
+      jobject internal, jobjectArray output_array = nullptr, int* stack_depth = nullptr)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void VisitRoots(RootCallback* visitor, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

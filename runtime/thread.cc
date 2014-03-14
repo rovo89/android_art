@@ -45,7 +45,6 @@
 #include "gc/accounting/card_table-inl.h"
 #include "gc/heap.h"
 #include "gc/space/space.h"
-#include "invoke_arg_array_builder.h"
 #include "jni_internal.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
@@ -174,12 +173,7 @@ void* Thread::CreateCallback(void* arg) {
     // Invoke the 'run' method of our java.lang.Thread.
     mirror::Object* receiver = self->opeer_;
     jmethodID mid = WellKnownClasses::java_lang_Thread_run;
-    mirror::ArtMethod* m =
-        receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(soa.DecodeMethod(mid));
-    JValue result;
-    ArgArray arg_array(nullptr, 0);
-    arg_array.Append(receiver);
-    m->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(), &result, "V");
+    InvokeVirtualOrInterfaceWithJValues(soa, receiver, mid, nullptr);
   }
   // Detach and delete self.
   Runtime::Current()->GetThreadList()->Unregister(self);
@@ -1413,10 +1407,8 @@ jobject Thread::CreateInternalStackTrace(const ScopedObjectAccessUnchecked& soa)
   return soa.AddLocalReference<jobjectArray>(trace);
 }
 
-jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, jobject internal,
-    jobjectArray output_array, int* stack_depth) {
-  // Transition into runnable state to work on Object*/Array*
-  ScopedObjectAccess soa(env);
+jobjectArray Thread::InternalStackTraceToStackTraceElementArray(const ScopedObjectAccess& soa,
+    jobject internal, jobjectArray output_array, int* stack_depth) {
   // Decode the internal stack trace into the depth, method trace and PC trace
   int32_t depth = soa.Decode<mirror::ObjectArray<mirror::Object>*>(internal)->GetLength() - 1;
 
@@ -1526,11 +1518,12 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
                                       const char* exception_class_descriptor,
                                       const char* msg) {
   DCHECK_EQ(this, Thread::Current());
+  ScopedObjectAccessUnchecked soa(this);
   // Ensure we don't forget arguments over object allocation.
   SirtRef<mirror::Object> saved_throw_this(this, throw_location.GetThis());
   SirtRef<mirror::ArtMethod> saved_throw_method(this, throw_location.GetMethod());
   // Ignore the cause throw location. TODO: should we report this as a re-throw?
-  SirtRef<mirror::Throwable> cause(this, GetException(nullptr));
+  ScopedLocalRef<jobject> cause(GetJniEnv(), soa.AddLocalReference<jobject>(GetException(nullptr)));
   ClearException();
   Runtime* runtime = Runtime::Current();
 
@@ -1567,10 +1560,11 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
   // Choose an appropriate constructor and set up the arguments.
   const char* signature;
   const char* shorty;
-  SirtRef<mirror::String> msg_string(this, nullptr);
+  ScopedLocalRef<jstring> msg_string(GetJniEnv(), nullptr);
   if (msg != nullptr) {
     // Ensure we remember this and the method over the String allocation.
-    msg_string.reset(mirror::String::AllocFromModifiedUtf8(this, msg));
+    msg_string.reset(
+        soa.AddLocalReference<jstring>(mirror::String::AllocFromModifiedUtf8(this, msg)));
     if (UNLIKELY(msg_string.get() == nullptr)) {
       CHECK(IsExceptionPending());  // OOME.
       return;
@@ -1602,25 +1596,27 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
     // case in the compiler. We won't be able to invoke the constructor of the exception, so set
     // the exception fields directly.
     if (msg != nullptr) {
-      exception->SetDetailMessage(msg_string.get());
+      exception->SetDetailMessage(down_cast<mirror::String*>(DecodeJObject(msg_string.get())));
     }
     if (cause.get() != nullptr) {
-      exception->SetCause(cause.get());
+      exception->SetCause(down_cast<mirror::Throwable*>(DecodeJObject(cause.get())));
     }
     ThrowLocation gc_safe_throw_location(saved_throw_this.get(), saved_throw_method.get(),
                                          throw_location.GetDexPc());
     SetException(gc_safe_throw_location, exception.get());
   } else {
-    ArgArray args(shorty, strlen(shorty));
-    args.Append(exception.get());
+    jvalue jv_args[2];
+    size_t i = 0;
+
     if (msg != nullptr) {
-      args.Append(msg_string.get());
+      jv_args[i].l = msg_string.get();
+      ++i;
     }
     if (cause.get() != nullptr) {
-      args.Append(cause.get());
+      jv_args[i].l = cause.get();
+      ++i;
     }
-    JValue result;
-    exception_init_method->Invoke(this, args.GetArray(), args.GetNumBytes(), &result, shorty);
+    InvokeWithJValues(soa, exception.get(), soa.EncodeMethod(exception_init_method), jv_args);
     if (LIKELY(!IsExceptionPending())) {
       ThrowLocation gc_safe_throw_location(saved_throw_this.get(), saved_throw_method.get(),
                                            throw_location.GetDexPc());

@@ -17,22 +17,19 @@
 #ifndef ART_RUNTIME_NATIVE_SCOPED_FAST_NATIVE_OBJECT_ACCESS_H_
 #define ART_RUNTIME_NATIVE_SCOPED_FAST_NATIVE_OBJECT_ACCESS_H_
 
-#include "base/casts.h"
-#include "jni_internal.h"
-#include "thread-inl.h"
 #include "mirror/art_method.h"
-#include "verify_object.h"
+#include "scoped_thread_state_change.h"
 
 namespace art {
 
 // Variant of ScopedObjectAccess that does no runnable transitions. Should only be used by "fast"
 // JNI methods.
-class ScopedFastNativeObjectAccess {
+class ScopedFastNativeObjectAccess : public ScopedObjectAccess {
  public:
   explicit ScopedFastNativeObjectAccess(JNIEnv* env)
     LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
     SHARED_LOCK_FUNCTION(Locks::mutator_lock_) ALWAYS_INLINE
-     : env_(down_cast<JNIEnvExt*>(env)), self_(ThreadForEnv(env)) {
+     : ScopedObjectAccess(env) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK((*Self()->GetManagedStack()->GetTopQuickFrame())->IsFastNative());
     // Don't work with raw objects in non-runnable states.
@@ -42,57 +39,8 @@ class ScopedFastNativeObjectAccess {
   ~ScopedFastNativeObjectAccess() UNLOCK_FUNCTION(Locks::mutator_lock_) ALWAYS_INLINE {
   }
 
-  Thread* Self() const {
-    return self_;
-  }
-
-  JNIEnvExt* Env() const {
-    return env_;
-  }
-
-  template<typename T>
-  T Decode(jobject obj) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Locks::mutator_lock_->AssertSharedHeld(Self());
-    // Don't work with raw objects in non-runnable states.
-    DCHECK_EQ(Self()->GetState(), kRunnable);
-    return down_cast<T>(Self()->DecodeJObject(obj));
-  }
-
-  mirror::ArtField* DecodeField(jfieldID fid) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Locks::mutator_lock_->AssertSharedHeld(Self());
-    // Don't work with raw objects in non-runnable states.
-    DCHECK_EQ(Self()->GetState(), kRunnable);
-    return reinterpret_cast<mirror::ArtField*>(fid);
-  }
-
-  /*
-   * Variant of ScopedObjectAccessUnched::AddLocalReference that without JNI work arounds
-   * or check JNI that should be being used by fast native methods.
-   */
-  template<typename T>
-  T AddLocalReference(mirror::Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Locks::mutator_lock_->AssertSharedHeld(Self());
-    // Don't work with raw objects in non-runnable states.
-    DCHECK_EQ(Self()->GetState(), kRunnable);
-    if (obj == NULL) {
-      return NULL;
-    }
-
-    DCHECK_NE((reinterpret_cast<uintptr_t>(obj) & 0xffff0000), 0xebad0000);
-
-    IndirectReferenceTable& locals = Env()->locals;
-
-    uint32_t cookie = Env()->local_ref_cookie;
-    IndirectRef ref = locals.Add(cookie, obj);
-
-    return reinterpret_cast<T>(ref);
-  }
-
  private:
-  JNIEnvExt* const env_;
-  Thread* const self_;
+  DISALLOW_COPY_AND_ASSIGN(ScopedFastNativeObjectAccess);
 };
 
 }  // namespace art

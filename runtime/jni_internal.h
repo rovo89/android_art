@@ -42,7 +42,6 @@ namespace mirror {
   class ArtMethod;
   class ClassLoader;
 }  // namespace mirror
-class ArgArray;
 union JValue;
 class Libraries;
 class ParsedOptions;
@@ -54,12 +53,6 @@ void JniAbortF(const char* jni_function_name, const char* fmt, ...)
     __attribute__((__format__(__printf__, 2, 3)));
 void RegisterNativeMethods(JNIEnv* env, const char* jni_class_name, const JNINativeMethod* methods,
                            jint method_count);
-
-JValue InvokeWithJValues(const ScopedObjectAccess&, jobject obj, jmethodID mid, jvalue* args)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-void InvokeWithArgArray(const ScopedObjectAccess& soa, mirror::ArtMethod* method,
-                        ArgArray *arg_array, JValue* result, const char* shorty)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobject cause);
 
@@ -155,6 +148,10 @@ struct JNIEnvExt : public JNIEnv {
   void PushFrame(int capacity);
   void PopFrame();
 
+  template<typename T>
+  T AddLocalReference(mirror::Object* obj, bool jni_work_arounds)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   static Offset SegmentStateOffset();
 
   static Offset LocalRefCookieOffset() {
@@ -218,8 +215,29 @@ class ScopedJniEnvLocalRefState {
   DISALLOW_COPY_AND_ASSIGN(ScopedJniEnvLocalRefState);
 };
 
+template<typename T>
+inline T JNIEnvExt::AddLocalReference(mirror::Object* obj, bool jni_work_arounds) {
+  IndirectRef ref = locals.Add(local_ref_cookie, obj);
+
+  // TODO: fix this to understand PushLocalFrame, so we can turn it on.
+  if (false) {
+    if (check_jni) {
+      size_t entry_count = locals.Capacity();
+      if (entry_count > 16) {
+        locals.Dump(LOG(WARNING) << "Warning: more than 16 JNI local references: "
+            << entry_count << " (most recent was a " << PrettyTypeOf(obj) << ")\n");
+        // TODO: LOG(FATAL) in a later release?
+      }
+    }
+  }
+
+  if (jni_work_arounds) {
+    return reinterpret_cast<T>(obj);
+  }
+  return reinterpret_cast<T>(ref);
+}
+
 }  // namespace art
 
 std::ostream& operator<<(std::ostream& os, const jobjectRefType& rhs);
-
 #endif  // ART_RUNTIME_JNI_INTERNAL_H_

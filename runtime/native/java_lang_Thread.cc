@@ -38,7 +38,7 @@ static jboolean Thread_interrupted(JNIEnv* env, jclass) {
 }
 
 static jboolean Thread_isInterrupted(JNIEnv* env, jobject java_thread) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread = Thread::FromManagedThread(soa, java_thread);
   return (thread != NULL) ? thread->IsInterrupted() : JNI_FALSE;
@@ -170,8 +170,8 @@ static void Thread_yield(JNIEnv*, jobject) {
 
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Thread, currentThread, "!()Ljava/lang/Thread;"),
-  NATIVE_METHOD(Thread, interrupted, "()Z"),
-  NATIVE_METHOD(Thread, isInterrupted, "()Z"),
+  NATIVE_METHOD(Thread, interrupted, "!()Z"),
+  NATIVE_METHOD(Thread, isInterrupted, "!()Z"),
   NATIVE_METHOD(Thread, nativeCreate, "(Ljava/lang/Thread;JZ)V"),
   NATIVE_METHOD(Thread, nativeGetStatus, "(Z)I"),
   NATIVE_METHOD(Thread, nativeHoldsLock, "(Ljava/lang/Object;)Z"),
