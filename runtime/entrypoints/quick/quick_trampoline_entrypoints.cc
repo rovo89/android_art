@@ -1040,7 +1040,6 @@ template <class T> class BuildGenericJniFrameStateMachine {
     return fpr_index_ > 0;
   }
 
-  // TODO: please review this bit representation retrieving.
   template <typename U, typename V> V convert(U in) {
     CHECK_LE(sizeof(U), sizeof(V));
     union { U u; V v; } tmp;
@@ -1449,6 +1448,8 @@ void BuildGenericJniFrameVisitor::FinalizeSirt(Thread* self) {
   self->PushSirt(sirt_);
 }
 
+extern "C" void* artFindNativeMethod();
+
 /*
  * Initializes an alloca region assumed to be directly below sp for a native call:
  * Create a Sirt and call stack and fill a mini stack with values to be pushed to registers.
@@ -1479,15 +1480,13 @@ extern "C" ssize_t artQuickGenericJniTrampoline(Thread* self, mirror::ArtMethod*
 
   self->VerifyStack();
 
-  // start JNI, save the cookie
+  // Start JNI, save the cookie.
   uint32_t cookie;
   if (called->IsSynchronized()) {
     cookie = JniMethodStartSynchronized(visitor.GetFirstSirtEntry(), self);
     if (self->IsExceptionPending()) {
       self->PopSirt();
       // A negative value denotes an error.
-      // TODO: Do we still need to fix the stack pointer? I think so. Then it's necessary to push
-      //       that value!
       return -1;
     }
   } else {
@@ -1496,18 +1495,27 @@ extern "C" ssize_t artQuickGenericJniTrampoline(Thread* self, mirror::ArtMethod*
   uint32_t* sp32 = reinterpret_cast<uint32_t*>(sp);
   *(sp32 - 1) = cookie;
 
-  // retrieve native code
+  // Retrieve the stored native code.
   const void* nativeCode = called->GetNativeMethod();
-  if (nativeCode == nullptr) {
-    // TODO: is this really an error, or do we need to try to find native code?
-    LOG(FATAL) << "Finding native code not implemented yet.";
+
+  // Check whether it's the stub to retrieve the native code, we should call that directly.
+  DCHECK(nativeCode != nullptr);
+  if (nativeCode == GetJniDlsymLookupStub()) {
+    nativeCode = artFindNativeMethod();
+
+    if (nativeCode == nullptr) {
+      DCHECK(self->IsExceptionPending());    // There should be an exception pending now.
+      return -1;
+    }
+    // Note that the native code pointer will be automatically set by artFindNativeMethod().
   }
 
+  // Store the native code pointer in the stack at the right location.
   uintptr_t* code_pointer = reinterpret_cast<uintptr_t*>(visitor.GetCodeReturn());
-  size_t window_size = visitor.GetAllocaUsedSize();
   *code_pointer = reinterpret_cast<uintptr_t>(nativeCode);
 
   // 5K reserved, window_size + frame pointer used.
+  size_t window_size = visitor.GetAllocaUsedSize();
   return (5 * KB) - window_size - kPointerSize;
 }
 
