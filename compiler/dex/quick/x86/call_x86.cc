@@ -224,15 +224,15 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
   LockTemp(rX86_ARG2);
 
   /* Build frame, return address already on stack */
+  // TODO: 64 bit.
   OpRegImm(kOpSub, rX86_SP, frame_size_ - 4);
 
   /*
    * We can safely skip the stack overflow check if we're
    * a leaf *and* our frame size < fudge factor.
    */
-  bool skip_overflow_check = (mir_graph_->MethodIsLeaf() &&
-                (static_cast<size_t>(frame_size_) <
-                Thread::kStackOverflowReservedBytes));
+  const bool skip_overflow_check = (mir_graph_->MethodIsLeaf() &&
+      (static_cast<size_t>(frame_size_) < Thread::kStackOverflowReservedBytes));
   NewLIR0(kPseudoMethodEntry);
   /* Spill core callee saves */
   SpillCoreRegs();

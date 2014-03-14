@@ -16,6 +16,7 @@
 
 #include "dex/compiler_ir.h"
 #include "dex/compiler_internals.h"
+#include "dex/quick/arm/arm_lir.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "mirror/array.h"
@@ -544,7 +545,9 @@ void Mir2Lir::HandleThrowLaunchPads() {
     ThreadOffset func_offset(-1);
     int v1 = lab->operands[2];
     int v2 = lab->operands[3];
-    bool target_x86 = (cu_->instruction_set == kX86);
+    const bool target_x86 = cu_->instruction_set == kX86;
+    const bool target_arm = cu_->instruction_set == kArm || cu_->instruction_set == kThumb2;
+    const bool target_mips = cu_->instruction_set == kMips;
     switch (lab->operands[0]) {
       case kThrowNullPointer:
         func_offset = QUICK_ENTRYPOINT_OFFSET(pThrowNullPointer);
@@ -602,21 +605,40 @@ void Mir2Lir::HandleThrowLaunchPads() {
         func_offset =
           QUICK_ENTRYPOINT_OFFSET(pThrowNoSuchMethod);
         break;
-      case kThrowStackOverflow:
+      case kThrowStackOverflow: {
         func_offset = QUICK_ENTRYPOINT_OFFSET(pThrowStackOverflow);
         // Restore stack alignment
+        int r_tgt = 0;
+        const int spill_size = (num_core_spills_ + num_fp_spills_) * 4;
         if (target_x86) {
-          OpRegImm(kOpAdd, TargetReg(kSp), frame_size_);
+          // - 4 to leave link register on stack.
+          OpRegImm(kOpAdd, TargetReg(kSp), frame_size_ - 4);
+          ClobberCalleeSave();
+        } else if (target_arm) {
+          r_tgt = r12;
+          LoadWordDisp(TargetReg(kSp), spill_size - 4, TargetReg(kLr));
+          OpRegImm(kOpAdd, TargetReg(kSp), spill_size);
+          ClobberCalleeSave();
+          LoadWordDisp(rARM_SELF, func_offset.Int32Value(), r_tgt);
         } else {
-          OpRegImm(kOpAdd, TargetReg(kSp), (num_core_spills_ + num_fp_spills_) * 4);
+          DCHECK(target_mips);
+          DCHECK_EQ(num_fp_spills_, 0);  // FP spills currently don't happen on mips.
+          // LR is offset 0 since we push in reverse order.
+          LoadWordDisp(TargetReg(kSp), 0, TargetReg(kLr));
+          OpRegImm(kOpAdd, TargetReg(kSp), spill_size);
+          ClobberCalleeSave();
+          r_tgt = CallHelperSetup(func_offset);  // Doesn't clobber LR.
+          DCHECK_NE(r_tgt, TargetReg(kLr));
         }
-        break;
+        CallHelper(r_tgt, func_offset, false /* MarkSafepointPC */, false /* UseLink */);
+        continue;
+      }
       default:
         LOG(FATAL) << "Unexpected throw kind: " << lab->operands[0];
     }
     ClobberCalleeSave();
     int r_tgt = CallHelperSetup(func_offset);
-    CallHelper(r_tgt, func_offset, true /* MarkSafepointPC */);
+    CallHelper(r_tgt, func_offset, true /* MarkSafepointPC */, true /* UseLink */);
   }
 }
 

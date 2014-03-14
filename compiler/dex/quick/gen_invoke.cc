@@ -33,7 +33,7 @@ namespace art {
 
 /*
  * To save scheduling time, helper calls are broken into two parts: generation of
- * the helper target address, and the actuall call to the helper.  Because x86
+ * the helper target address, and the actual call to the helper.  Because x86
  * has a memory call operation, part 1 is a NOP for x86.  For other targets,
  * load arguments between the two parts.
  */
@@ -42,12 +42,13 @@ int Mir2Lir::CallHelperSetup(ThreadOffset helper_offset) {
 }
 
 /* NOTE: if r_tgt is a temp, it will be freed following use */
-LIR* Mir2Lir::CallHelper(int r_tgt, ThreadOffset helper_offset, bool safepoint_pc) {
+LIR* Mir2Lir::CallHelper(int r_tgt, ThreadOffset helper_offset, bool safepoint_pc, bool use_link) {
   LIR* call_inst;
+  OpKind op = use_link ? kOpBlx : kOpBx;
   if (cu_->instruction_set == kX86) {
-    call_inst = OpThreadMem(kOpBlx, helper_offset);
+    call_inst = OpThreadMem(op, helper_offset);
   } else {
-    call_inst = OpReg(kOpBlx, r_tgt);
+    call_inst = OpReg(op, r_tgt);
     FreeTemp(r_tgt);
   }
   if (safepoint_pc) {

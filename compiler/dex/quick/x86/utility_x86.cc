@@ -296,6 +296,7 @@ LIR* X86Mir2Lir::OpThreadMem(OpKind op, ThreadOffset thread_offset) {
   X86OpCode opcode = kX86Bkpt;
   switch (op) {
     case kOpBlx: opcode = kX86CallT;  break;
+    case kOpBx: opcode = kX86JmpT;  break;
     default:
       LOG(FATAL) << "Bad opcode: " << op;
       break;

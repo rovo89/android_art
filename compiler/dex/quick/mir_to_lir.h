@@ -432,7 +432,7 @@ class Mir2Lir : public Backend {
 
     // Shared by all targets - implemented in gen_invoke.cc.
     int CallHelperSetup(ThreadOffset helper_offset);
-    LIR* CallHelper(int r_tgt, ThreadOffset helper_offset, bool safepoint_pc);
+    LIR* CallHelper(int r_tgt, ThreadOffset helper_offset, bool safepoint_pc, bool use_link = true);
     void CallRuntimeHelperImm(ThreadOffset helper_offset, int arg0, bool safepoint_pc);
     void CallRuntimeHelperReg(ThreadOffset helper_offset, int arg0, bool safepoint_pc);
     void CallRuntimeHelperRegLocation(ThreadOffset helper_offset, RegLocation arg0,

@@ -319,6 +319,7 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86Jmp8,  kJmp,  IS_UNARY_OP  | IS_BRANCH | NEEDS_FIXUP,               { 0,             0, 0xEB, 0,    0, 0, 0, 0 }, "Jmp8",  "!0t" },
   { kX86Jmp32, kJmp,  IS_UNARY_OP  | IS_BRANCH | NEEDS_FIXUP,               { 0,             0, 0xE9, 0,    0, 0, 0, 0 }, "Jmp32", "!0t" },
   { kX86JmpR,  kJmp,  IS_UNARY_OP  | IS_BRANCH | REG_USE0,                  { 0,             0, 0xFF, 0,    0, 4, 0, 0 }, "JmpR",  "!0r" },
+  { kX86JmpT,  kJmp,  IS_UNARY_OP  | IS_BRANCH | IS_LOAD,                   { THREAD_PREFIX, 0, 0xFF, 0,    0, 4, 0, 0 }, "JmpT",  "fs:[!0d]" },
   { kX86CallR, kCall, IS_UNARY_OP  | IS_BRANCH | REG_USE0,                  { 0,             0, 0xE8, 0,    0, 0, 0, 0 }, "CallR", "!0r" },
   { kX86CallM, kCall, IS_BINARY_OP | IS_BRANCH | IS_LOAD | REG_USE0,        { 0,             0, 0xFF, 0,    0, 2, 0, 0 }, "CallM", "[!0r+!1d]" },
   { kX86CallA, kCall, IS_QUAD_OP   | IS_BRANCH | IS_LOAD | REG_USE01,       { 0,             0, 0xFF, 0,    0, 2, 0, 0 }, "CallA", "[!0r+!1r<<!2d+!3d]" },
@@ -451,6 +452,8 @@ int X86Mir2Lir::GetInsnSize(LIR* lir) {
         return 2;  // opcode + rel8
       } else if (lir->opcode == kX86Jmp32) {
         return 5;  // opcode + rel32
+      } else if (lir->opcode == kX86JmpT) {
+        return ComputeSize(entry, 0, 0x12345678, false);  // displacement size is always 32bit
       } else {
         DCHECK(lir->opcode == kX86JmpR);
         return 2;  // opcode + modrm
@@ -1349,7 +1352,13 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(uintptr_t start_addr) {
         EmitRegCond(entry, lir->operands[0], lir->operands[1]);
         break;
       case kJmp:  // lir operands - 0: rel
-        EmitJmp(entry, lir->operands[0]);
+        if (entry->opcode == kX86JmpT) {
+          // This works since the instruction format for jmp and call is basically the same and
+          // EmitCallThread loads opcode info.
+          EmitCallThread(entry, lir->operands[0]);
+        } else {
+          EmitJmp(entry, lir->operands[0]);
+        }
         break;
       case kJcc:  // lir operands - 0: rel, 1: CC, target assigned
         EmitJcc(entry, lir->operands[0], lir->operands[1]);

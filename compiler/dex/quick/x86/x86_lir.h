@@ -362,6 +362,7 @@ enum X86OpCode {
   kX86Jcc8, kX86Jcc32,  // jCC rel8/32; lir operands - 0: rel, 1: CC, target assigned
   kX86Jmp8, kX86Jmp32,  // jmp rel8/32; lir operands - 0: rel, target assigned
   kX86JmpR,             // jmp reg; lir operands - 0: reg
+  kX86JmpT,             // jmp fs:[disp]; fs: is equal to Thread::Current(); lir operands - 0: disp
   kX86CallR,            // call reg; lir operands - 0: reg
   kX86CallM,            // call [base + disp]; lir operands - 0: base, 1: disp
   kX86CallA,            // call [base + index * scale + disp]

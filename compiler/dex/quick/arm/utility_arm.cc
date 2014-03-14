@@ -223,6 +223,9 @@ LIR* ArmMir2Lir::OpReg(OpKind op, int r_dest_src) {
     case kOpBlx:
       opcode = kThumbBlxR;
       break;
+    case kOpBx:
+      opcode = kThumbBx;
+      break;
     default:
       LOG(FATAL) << "Bad opcode " << op;
   }
