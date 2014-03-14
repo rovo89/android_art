@@ -835,7 +835,7 @@ bool ElfFile::Load(bool executable, std::string* error_msg) {
     if ((program_header.p_flags & PF_R) != 0) {
       prot |= PROT_READ;
     }
-    int flags = MAP_FIXED;
+    int flags = 0;
     if (writable_) {
       prot |= PROT_WRITE;
       flags |= MAP_SHARED;
@@ -853,7 +853,7 @@ bool ElfFile::Load(bool executable, std::string* error_msg) {
                                                        program_header.p_memsz,
                                                        prot, flags, file_->Fd(),
                                                        program_header.p_offset,
-                                                       true,
+                                                       true,  // implies MAP_FIXED
                                                        file_->GetPath().c_str(),
                                                        error_msg));
     if (segment.get() == nullptr) {
