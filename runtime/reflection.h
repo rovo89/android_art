@@ -28,7 +28,10 @@ namespace mirror {
   class Object;
 }  // namespace mirror
 union JValue;
+class MethodHelper;
 class ScopedObjectAccess;
+class ScopedObjectAccessUnchecked;
+class ShadowFrame;
 class ThrowLocation;
 
 mirror::Object* BoxPrimitive(Primitive::Type src_class, const JValue& value)
@@ -48,10 +51,30 @@ bool ConvertPrimitiveValue(const ThrowLocation* throw_location, bool unbox_for_r
                            const JValue& src, JValue& dst)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-jobject InvokeMethod(const ScopedObjectAccess& soa, jobject method, jobject receiver, jobject args)
+JValue InvokeWithVarArgs(const ScopedObjectAccess& soa, jobject obj, jmethodID mid, va_list args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-bool VerifyObjectInClass(mirror::Object* o, mirror::Class* c)
+JValue InvokeWithJValues(const ScopedObjectAccessUnchecked& soa, mirror::Object* receiver,
+                         jmethodID mid, jvalue* args)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccess& soa,
+                                           mirror::Object* receiver, jmethodID mid, jvalue* args)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccess& soa,
+                                           jobject obj, jmethodID mid, va_list args)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+void InvokeWithShadowFrame(Thread* self, ShadowFrame* shadow_frame, uint16_t arg_offset,
+                           MethodHelper& mh, JValue* result)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+jobject InvokeMethod(const ScopedObjectAccess& soa, jobject method, jobject receiver,
+                     jobject args)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+bool VerifyObjectIsClass(mirror::Object* o, mirror::Class* c)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 }  // namespace art

@@ -18,7 +18,7 @@
 #include "base/mutex.h"
 #include "debugger.h"
 #include "jni_internal.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_fast_native_object_access.h"
 #include "ScopedLocalRef.h"
 #include "ScopedPrimitiveArray.h"
 #include "stack.h"
@@ -31,7 +31,7 @@ static void DdmVmInternal_enableRecentAllocations(JNIEnv*, jclass, jboolean enab
 }
 
 static jbyteArray DdmVmInternal_getRecentAllocations(JNIEnv* env, jclass) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   return Dbg::GetRecentAllocations();
 }
 
@@ -46,24 +46,24 @@ static jboolean DdmVmInternal_getRecentAllocationStatus(JNIEnv*, jclass) {
 static jobjectArray DdmVmInternal_getStackTraceById(JNIEnv* env, jclass, jint thin_lock_id) {
   // Suspend thread to build stack trace.
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
+  jobjectArray trace = nullptr;
   bool timed_out;
   Thread* thread = thread_list->SuspendThreadByThreadId(thin_lock_id, false, &timed_out);
   if (thread != NULL) {
-    jobject trace;
     {
       ScopedObjectAccess soa(env);
-      trace = thread->CreateInternalStackTrace(soa);
+      jobject internal_trace = thread->CreateInternalStackTrace(soa);
+      trace = Thread::InternalStackTraceToStackTraceElementArray(soa, internal_trace);
     }
     // Restart suspended thread.
     thread_list->Resume(thread, false);
-    return Thread::InternalStackTraceToStackTraceElementArray(env, trace);
   } else {
     if (timed_out) {
       LOG(ERROR) << "Trying to get thread's stack by id failed as the thread failed to suspend "
           "within a generous timeout.";
     }
-    return NULL;
   }
+  return trace;
 }
 
 static void ThreadCountCallback(Thread*, void* context) {
@@ -136,7 +136,7 @@ static jbyteArray DdmVmInternal_getThreadStats(JNIEnv* env, jclass) {
 }
 
 static jint DdmVmInternal_heapInfoNotify(JNIEnv* env, jclass, jint when) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   return Dbg::DdmHandleHpifChunk(static_cast<Dbg::HpifWhen>(when));
 }
 
@@ -150,11 +150,11 @@ static void DdmVmInternal_threadNotify(JNIEnv*, jclass, jboolean enable) {
 
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(DdmVmInternal, enableRecentAllocations, "(Z)V"),
-  NATIVE_METHOD(DdmVmInternal, getRecentAllocations, "()[B"),
-  NATIVE_METHOD(DdmVmInternal, getRecentAllocationStatus, "()Z"),
+  NATIVE_METHOD(DdmVmInternal, getRecentAllocations, "!()[B"),
+  NATIVE_METHOD(DdmVmInternal, getRecentAllocationStatus, "!()Z"),
   NATIVE_METHOD(DdmVmInternal, getStackTraceById, "(I)[Ljava/lang/StackTraceElement;"),
   NATIVE_METHOD(DdmVmInternal, getThreadStats, "()[B"),
-  NATIVE_METHOD(DdmVmInternal, heapInfoNotify, "(I)Z"),
+  NATIVE_METHOD(DdmVmInternal, heapInfoNotify, "!(I)Z"),
   NATIVE_METHOD(DdmVmInternal, heapSegmentNotify, "(IIZ)Z"),
   NATIVE_METHOD(DdmVmInternal, threadNotify, "(Z)V"),
 };

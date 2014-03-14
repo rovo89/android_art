@@ -16,10 +16,10 @@
 
 #include "class_linker.h"
 #include "interpreter/interpreter.h"
-#include "invoke_arg_array_builder.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/object-inl.h"
 #include "object_utils.h"
+#include "reflection.h"
 #include "runtime.h"
 #include "stack.h"
 
@@ -46,9 +46,7 @@ extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& m
   }
   uint16_t arg_offset = (code_item == NULL) ? 0 : code_item->registers_size_ - code_item->ins_size_;
   if (kUsePortableCompiler) {
-    ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
-    arg_array.BuildArgArrayFromFrame(shadow_frame, arg_offset);
-    method->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(), result, mh.GetShorty());
+    InvokeWithShadowFrame(self, shadow_frame, arg_offset, mh, result);
   } else {
     method->Invoke(self, shadow_frame->GetVRegArgs(arg_offset),
                    (shadow_frame->NumberOfVRegs() - arg_offset) * sizeof(uint32_t),

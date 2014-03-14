@@ -18,14 +18,14 @@
 #include "jni_internal.h"
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_fast_native_object_access.h"
 #include "ScopedUtfChars.h"
 #include "zip_archive.h"
 
 namespace art {
 
 static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoader, jstring javaName) {
-  ScopedObjectAccess soa(env);
+  ScopedFastNativeObjectAccess soa(env);
   mirror::ClassLoader* loader = soa.Decode<mirror::ClassLoader*>(javaLoader);
   ScopedUtfChars name(env, javaName);
   if (name.c_str() == NULL) {
@@ -89,9 +89,9 @@ static jstring VMClassLoader_getBootClassPathResource(JNIEnv* env, jclass, jstri
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(VMClassLoader, findLoadedClass, "(Ljava/lang/ClassLoader;Ljava/lang/String;)Ljava/lang/Class;"),
+  NATIVE_METHOD(VMClassLoader, findLoadedClass, "!(Ljava/lang/ClassLoader;Ljava/lang/String;)Ljava/lang/Class;"),
   NATIVE_METHOD(VMClassLoader, getBootClassPathResource, "(Ljava/lang/String;I)Ljava/lang/String;"),
-  NATIVE_METHOD(VMClassLoader, getBootClassPathSize, "()I"),
+  NATIVE_METHOD(VMClassLoader, getBootClassPathSize, "!()I"),
 };
 
 void register_java_lang_VMClassLoader(JNIEnv* env) {
