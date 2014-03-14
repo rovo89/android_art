@@ -19,17 +19,46 @@
  */
 public class Main {
     public static void main(String args[]) {
+        testSelfRecursion();
+        testMutualRecursion();
+        System.out.println("SOE test done");
+    }
+
+    private static void testSelfRecursion() {
         try {
             stackOverflowTestSub(0.0, 0.0, 0.0);
         }
         catch (StackOverflowError soe) {
-            System.out.println("caught SOE");
+            System.out.println("caught SOE in testSelfRecursion");
         }
-        System.out.println("SOE test done");
     }
 
-    private static void stackOverflowTestSub(double pad1, double pad2,
-            double pad3) {
+    private static void stackOverflowTestSub(double pad1, double pad2, double pad3) {
         stackOverflowTestSub(pad1, pad2, pad3);
+    }
+
+    private static void testMutualRecursion() {
+        try {
+            foo(0.0, 0.0, 0.0);
+        }
+        catch (StackOverflowError soe) {
+            System.out.println("caught SOE in testMutualRecursion");
+        }
+    }
+
+    private static void foo(double pad1, double pad2, double pad3) {
+        bar(pad1, pad2, pad3);
+    }
+
+    private static void bar(double pad1, double pad2, double pad3) {
+        baz(pad1, pad2, pad3);
+    }
+
+    private static void baz(double pad1, double pad2, double pad3) {
+        qux(pad1, pad2, pad3);
+    }
+
+    private static void qux(double pad1, double pad2, double pad3) {
+        foo(pad1, pad2, pad3);
     }
 }
