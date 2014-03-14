@@ -341,7 +341,7 @@ class MethodHelper {
     shorty_ = nullptr;
   }
 
-  const mirror::ArtMethod* GetMethod() const {
+  mirror::ArtMethod* GetMethod() const {
     return method_;
   }
 
