@@ -25,14 +25,14 @@
 namespace art {
 namespace arm64 {
 
-class DisassemblerArm64 : public Disassembler {
+class DisassemblerArm64 FINAL : public Disassembler {
  public:
   DisassemblerArm64() {
     decoder.AppendVisitor(&disasm);
   }
 
-  size_t Dump(std::ostream& os, const uint8_t* begin);
-  void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end);
+  size_t Dump(std::ostream& os, const uint8_t* begin) OVERRIDE;
+  void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end) OVERRIDE;
 
  private:
   vixl::Decoder decoder;

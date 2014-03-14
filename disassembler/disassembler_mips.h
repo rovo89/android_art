@@ -24,11 +24,13 @@
 namespace art {
 namespace mips {
 
-class DisassemblerMips : public Disassembler {
+class DisassemblerMips FINAL : public Disassembler {
  public:
-  DisassemblerMips();
-  virtual size_t Dump(std::ostream& os, const uint8_t* begin);
-  virtual void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end);
+  DisassemblerMips() {
+  }
+
+  size_t Dump(std::ostream& os, const uint8_t* begin) OVERRIDE;
+  void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end) OVERRIDE;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(DisassemblerMips);

@@ -24,12 +24,13 @@
 namespace art {
 namespace arm {
 
-class DisassemblerArm : public Disassembler {
+class DisassemblerArm FINAL : public Disassembler {
  public:
-  DisassemblerArm();
+  DisassemblerArm() {
+  }
 
-  virtual size_t Dump(std::ostream& os, const uint8_t* begin);
-  virtual void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end);
+  size_t Dump(std::ostream& os, const uint8_t* begin) OVERRIDE;
+  void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end) OVERRIDE;
 
  private:
   void DumpArm(std::ostream& os, const uint8_t* instr);

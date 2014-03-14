@@ -25,8 +25,6 @@
 namespace art {
 namespace x86 {
 
-DisassemblerX86::DisassemblerX86() {}
-
 size_t DisassemblerX86::Dump(std::ostream& os, const uint8_t* begin) {
   return DumpInstruction(os, begin);
 }
@@ -41,16 +39,21 @@ void DisassemblerX86::Dump(std::ostream& os, const uint8_t* begin, const uint8_t
 static const char* gReg8Names[]  = { "al", "cl", "dl", "bl", "ah", "ch", "dh", "bh" };
 static const char* gReg16Names[] = { "ax", "cx", "dx", "bx", "sp", "bp", "si", "di" };
 static const char* gReg32Names[] = { "eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi" };
+static const char* gReg64Names[] = {
+  "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi",
+  "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
+};
 
-static void DumpReg0(std::ostream& os, uint8_t /*rex*/, size_t reg,
+static void DumpReg0(std::ostream& os, uint8_t rex, size_t reg,
                      bool byte_operand, uint8_t size_override) {
-  DCHECK_LT(reg, 8u);
-  // TODO: combine rex into size
-  size_t size = byte_operand ? 1 : (size_override == 0x66 ? 2 : 4);
+  DCHECK_LT(reg, (rex == 0) ? 8u : 16u);
+  bool rex_w = (rex & 0b1000) != 0;
+  size_t size = byte_operand ? 1 : (size_override == 0x66 ? 2 : (rex_w ? 8 :4));
   switch (size) {
     case 1: os << gReg8Names[reg]; break;
     case 2: os << gReg16Names[reg]; break;
     case 4: os << gReg32Names[reg]; break;
+    case 8: os << gReg64Names[reg]; break;
     default: LOG(FATAL) << "unexpected size " << size;
   }
 }
@@ -59,7 +62,8 @@ enum RegFile { GPR, MMX, SSE };
 
 static void DumpReg(std::ostream& os, uint8_t rex, uint8_t reg,
                     bool byte_operand, uint8_t size_override, RegFile reg_file) {
-  size_t reg_num = reg;  // TODO: combine with REX.R on 64bit
+  bool rex_r = (rex & 0b0100) != 0;
+  size_t reg_num = rex_r ? (reg + 8) : reg;
   if (reg_file == GPR) {
     DumpReg0(os, rex, reg_num, byte_operand, size_override);
   } else if (reg_file == SSE) {
@@ -70,12 +74,14 @@ static void DumpReg(std::ostream& os, uint8_t rex, uint8_t reg,
 }
 
 static void DumpBaseReg(std::ostream& os, uint8_t rex, uint8_t reg) {
-  size_t reg_num = reg;  // TODO: combine with REX.B on 64bit
+  bool rex_b = (rex & 0b0001) != 0;
+  size_t reg_num = rex_b ? (reg + 8) : reg;
   DumpReg0(os, rex, reg_num, false, 0);
 }
 
 static void DumpIndexReg(std::ostream& os, uint8_t rex, uint8_t reg) {
-  int reg_num = reg;  // TODO: combine with REX.X on 64bit
+  bool rex_x = (rex & 0b0010) != 0;
+  uint8_t reg_num = rex_x ? (reg + 8) : reg;
   DumpReg0(os, rex, reg_num, false, 0);
 }
 
@@ -138,7 +144,7 @@ size_t DisassemblerX86::DumpInstruction(std::ostream& os, const uint8_t* instr) 
       instr++;
     }
   } while (have_prefixes);
-  uint8_t rex = (*instr >= 0x40 && *instr <= 0x4F) ? *instr : 0;
+  uint8_t rex = (supports_rex_ && (*instr >= 0x40) && (*instr <= 0x4F)) ? *instr : 0;
   bool has_modrm = false;
   bool reg_is_opcode = false;
   size_t immediate_bytes = 0;
