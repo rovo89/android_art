@@ -22,6 +22,7 @@
 #include <paths.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <sys/resource.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
