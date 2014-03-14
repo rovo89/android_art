@@ -720,7 +720,8 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
                 if (Rn.r == 15 && U == 1) {
                   intptr_t lit_adr = reinterpret_cast<intptr_t>(instr_ptr);
                   lit_adr = RoundDown(lit_adr, 4) + 4 + (imm8 << 2);
-                  args << StringPrintf("  ; 0x%" PRIx64, *reinterpret_cast<int64_t*>(lit_adr));
+                  typedef const int64_t unaligned_int64_t __attribute__ ((aligned (2)));
+                  args << StringPrintf("  ; 0x%" PRIx64, *reinterpret_cast<unaligned_int64_t*>(lit_adr));
                 }
               } else if (Rn.r == 13 && W == 1 && U == L) {  // VPUSH/VPOP
                 opcode << (L == 1 ? "vpop" : "vpush");
