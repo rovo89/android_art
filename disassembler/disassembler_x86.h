@@ -22,14 +22,20 @@
 namespace art {
 namespace x86 {
 
-class DisassemblerX86 : public Disassembler {
+class DisassemblerX86 FINAL : public Disassembler {
  public:
-  DisassemblerX86();
+  explicit DisassemblerX86(bool supports_rex) : supports_rex_(supports_rex) {
+  }
 
-  virtual size_t Dump(std::ostream& os, const uint8_t* begin);
-  virtual void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end);
+  size_t Dump(std::ostream& os, const uint8_t* begin) OVERRIDE;
+  void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end) OVERRIDE;
+
  private:
   size_t DumpInstruction(std::ostream& os, const uint8_t* instr);
+
+  const bool supports_rex_;
+
+  DISALLOW_COPY_AND_ASSIGN(DisassemblerX86);
 };
 
 }  // namespace x86

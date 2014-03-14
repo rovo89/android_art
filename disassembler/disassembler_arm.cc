@@ -27,9 +27,6 @@
 namespace art {
 namespace arm {
 
-DisassemblerArm::DisassemblerArm() {
-}
-
 size_t DisassemblerArm::Dump(std::ostream& os, const uint8_t* begin) {
   if ((reinterpret_cast<intptr_t>(begin) & 1) == 0) {
     DumpArm(os, begin);

@@ -34,7 +34,9 @@ Disassembler* Disassembler::Create(InstructionSet instruction_set) {
   } else if (instruction_set == kMips) {
     return new mips::DisassemblerMips();
   } else if (instruction_set == kX86) {
-    return new x86::DisassemblerX86();
+    return new x86::DisassemblerX86(false);
+  } else if (instruction_set == kX86_64) {
+    return new x86::DisassemblerX86(true);
   } else {
     UNIMPLEMENTED(FATAL) << "no disassembler for " << instruction_set;
     return NULL;
