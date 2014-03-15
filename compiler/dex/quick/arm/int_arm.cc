@@ -816,7 +816,12 @@ void ArmMir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
 void ArmMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
                             RegLocation rl_src1, RegLocation rl_src2) {
     /*
-     * To pull off inline multiply, we have a worst-case requirement of 8 temporary
+     * tmp1     = src1.hi * src2.lo;  // src1.hi is no longer needed
+     * dest     = src1.lo * src2.lo;
+     * tmp1    += src1.lo * src2.hi;
+     * dest.hi += tmp1;
+     *
+     * To pull off inline multiply, we have a worst-case requirement of 7 temporary
      * registers.  Normally for Arm, we get 5.  We can get to 6 by including
      * lr in the temp set.  The only problematic case is all operands and result are
      * distinct, and none have been promoted.  In that case, we can succeed by aggressively
@@ -833,57 +838,85 @@ void ArmMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
       StoreValueWide(rl_dest, rl_result);
       return;
     }
+
+    rl_src1 = LoadValueWide(rl_src1, kCoreReg);
+    rl_src2 = LoadValueWide(rl_src2, kCoreReg);
+
+    int reg_status = 0;
+    int res_lo = INVALID_REG;
+    int res_hi = INVALID_REG;
+    bool dest_promoted = rl_dest.location == kLocPhysReg && !rl_dest.reg.IsInvalid() &&
+        !IsTemp(rl_dest.reg.GetReg()) && !IsTemp(rl_dest.reg.GetHighReg());
+    bool src1_promoted = !IsTemp(rl_src1.reg.GetReg()) && !IsTemp(rl_src1.reg.GetHighReg());
+    bool src2_promoted = !IsTemp(rl_src2.reg.GetReg()) && !IsTemp(rl_src2.reg.GetHighReg());
+    // Check if rl_dest is *not* either operand and we have enough temp registers.
+    if ((rl_dest.s_reg_low != rl_src1.s_reg_low && rl_dest.s_reg_low != rl_src2.s_reg_low) &&
+        (dest_promoted || src1_promoted || src2_promoted)) {
+      // In this case, we do not need to manually allocate temp registers for result.
+      rl_result = EvalLoc(rl_dest, kCoreReg, true);
+      res_lo = rl_result.reg.GetReg();
+      res_hi = rl_result.reg.GetHighReg();
+    } else {
+      res_lo = AllocTemp();
+      if ((rl_src1.s_reg_low == rl_src2.s_reg_low) || src1_promoted || src2_promoted) {
+        // In this case, we have enough temp registers to be allocated for result.
+        res_hi = AllocTemp();
+        reg_status = 1;
+      } else {
+        // In this case, all temps are now allocated.
+        // res_hi will be allocated after we can free src1_hi.
+        reg_status = 2;
+      }
+    }
+
     // Temporarily add LR to the temp pool, and assign it to tmp1
     MarkTemp(rARM_LR);
     FreeTemp(rARM_LR);
     int tmp1 = rARM_LR;
     LockTemp(rARM_LR);
 
-    rl_src1 = LoadValueWide(rl_src1, kCoreReg);
-    rl_src2 = LoadValueWide(rl_src2, kCoreReg);
-
-    bool special_case = true;
-    // If operands are the same, or any pair has been promoted we're not the special case.
-    if ((rl_src1.s_reg_low == rl_src2.s_reg_low) ||
-        (!IsTemp(rl_src1.reg.GetReg()) && !IsTemp(rl_src1.reg.GetHighReg())) ||
-        (!IsTemp(rl_src2.reg.GetReg()) && !IsTemp(rl_src2.reg.GetHighReg()))) {
-      special_case = false;
-    }
-    // Tuning: if rl_dest has been promoted and is *not* either operand, could use directly.
-    int res_lo = AllocTemp();
-    int res_hi;
     if (rl_src1.reg.GetReg() == rl_src2.reg.GetReg()) {
-      res_hi = AllocTemp();
+      DCHECK_NE(res_hi, INVALID_REG);
+      DCHECK_NE(res_lo, INVALID_REG);
       NewLIR3(kThumb2MulRRR, tmp1, rl_src1.reg.GetReg(), rl_src1.reg.GetHighReg());
       NewLIR4(kThumb2Umull, res_lo, res_hi, rl_src1.reg.GetReg(), rl_src1.reg.GetReg());
       OpRegRegRegShift(kOpAdd, res_hi, res_hi, tmp1, EncodeShift(kArmLsl, 1));
     } else {
-      // In the special case, all temps are now allocated
       NewLIR3(kThumb2MulRRR, tmp1, rl_src2.reg.GetReg(), rl_src1.reg.GetHighReg());
-      if (special_case) {
+      if (reg_status == 2) {
+        DCHECK_EQ(res_hi, INVALID_REG);
         DCHECK_NE(rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
         DCHECK_NE(rl_src1.reg.GetHighReg(), rl_src2.reg.GetHighReg());
         FreeTemp(rl_src1.reg.GetHighReg());
+        res_hi = AllocTemp();
       }
-      res_hi = AllocTemp();
-
+      DCHECK_NE(res_hi, INVALID_REG);
+      DCHECK_NE(res_lo, INVALID_REG);
       NewLIR4(kThumb2Umull, res_lo, res_hi, rl_src2.reg.GetReg(), rl_src1.reg.GetReg());
       NewLIR4(kThumb2Mla, tmp1, rl_src1.reg.GetReg(), rl_src2.reg.GetHighReg(), tmp1);
       NewLIR4(kThumb2AddRRR, res_hi, tmp1, res_hi, 0);
-      if (special_case) {
+      if (reg_status == 2) {
+        // Clobber rl_src1 since it was corrupted.
         FreeTemp(rl_src1.reg.GetReg());
         Clobber(rl_src1.reg.GetReg());
         Clobber(rl_src1.reg.GetHighReg());
       }
     }
-    FreeTemp(tmp1);
-    rl_result = GetReturnWide(false);  // Just using as a template.
-    rl_result.reg.SetReg(res_lo);
-    rl_result.reg.SetHighReg(res_hi);
-    StoreValueWide(rl_dest, rl_result);
+
     // Now, restore lr to its non-temp status.
+    FreeTemp(tmp1);
     Clobber(rARM_LR);
     UnmarkTemp(rARM_LR);
+
+    if (reg_status != 0) {
+      // We had manually allocated registers for rl_result.
+      // Now construct a RegLocation.
+      rl_result = GetReturnWide(false);  // Just using as a template.
+      rl_result.reg.SetReg(res_lo);
+      rl_result.reg.SetHighReg(res_hi);
+    }
+
+    StoreValueWide(rl_dest, rl_result);
 }
 
 void ArmMir2Lir::GenAddLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
