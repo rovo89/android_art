@@ -29,7 +29,7 @@
 namespace art {
 namespace arm64 {
 
-  constexpr unsigned int kCalleeSavedRegsSize = 20;
+constexpr unsigned int kCalleeSavedRegsSize = 20;
 
 }  // arm64
 }  // art

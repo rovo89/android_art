@@ -2829,7 +2829,7 @@ JNIEnvExt::JNIEnvExt(Thread* self, JavaVMExt* vm)
       local_ref_cookie(IRT_FIRST_SEGMENT),
       locals(kLocalsInitial, kLocalsMax, kLocal),
       check_jni(false),
-      critical(false),
+      critical(0),
       monitors("monitors", kMonitorsInitial, kMonitorsMax) {
   functions = unchecked_functions = &gJniNativeInterface;
   if (vm->check_jni) {

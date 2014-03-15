@@ -46,8 +46,8 @@ std::ostream& operator<<(std::ostream& os, const RegisterPair& reg);
 const int kNumberOfCpuRegIds = kNumberOfCpuRegisters;
 const int kNumberOfCpuAllocIds = kNumberOfCpuRegisters;
 
-const int kNumberOfXmmRegIds = kNumberOfXmmRegisters;
-const int kNumberOfXmmAllocIds = kNumberOfXmmRegisters;
+const int kNumberOfXmmRegIds = kNumberOfFloatRegisters;
+const int kNumberOfXmmAllocIds = kNumberOfFloatRegisters;
 
 const int kNumberOfX87RegIds = kNumberOfX87Registers;
 const int kNumberOfX87AllocIds = kNumberOfX87Registers;
@@ -87,20 +87,14 @@ const int kNumberOfAllocIds = kNumberOfCpuAllocIds + kNumberOfXmmAllocIds +
 // There is a one-to-one mapping between ManagedRegister and register id.
 class X86_64ManagedRegister : public ManagedRegister {
  public:
-  ByteRegister AsByteRegister() const {
+  CpuRegister AsCpuRegister() const {
     CHECK(IsCpuRegister());
-    CHECK_LT(AsCpuRegister(), RSP);  // RSP, RBP, ESI and RDI cannot be encoded as byte registers.
-    return static_cast<ByteRegister>(id_);
-  }
-
-  Register AsCpuRegister() const {
-    CHECK(IsCpuRegister());
-    return static_cast<Register>(id_);
+    return CpuRegister(static_cast<Register>(id_));
   }
 
   XmmRegister AsXmmRegister() const {
     CHECK(IsXmmRegister());
-    return static_cast<XmmRegister>(id_ - kNumberOfCpuRegIds);
+    return XmmRegister(static_cast<FloatRegister>(id_ - kNumberOfCpuRegIds));
   }
 
   X87Register AsX87Register() const {
@@ -109,13 +103,13 @@ class X86_64ManagedRegister : public ManagedRegister {
                                     (kNumberOfCpuRegIds + kNumberOfXmmRegIds));
   }
 
-  Register AsRegisterPairLow() const {
+  CpuRegister AsRegisterPairLow() const {
     CHECK(IsRegisterPair());
     // Appropriate mapping of register ids allows to use AllocIdLow().
     return FromRegId(AllocIdLow()).AsCpuRegister();
   }
 
-  Register AsRegisterPairHigh() const {
+  CpuRegister AsRegisterPairHigh() const {
     CHECK(IsRegisterPair());
     // Appropriate mapping of register ids allows to use AllocIdHigh().
     return FromRegId(AllocIdHigh()).AsCpuRegister();
@@ -157,8 +151,7 @@ class X86_64ManagedRegister : public ManagedRegister {
     return FromRegId(r);
   }
 
-  static X86_64ManagedRegister FromXmmRegister(XmmRegister r) {
-    CHECK_NE(r, kNoXmmRegister);
+  static X86_64ManagedRegister FromXmmRegister(FloatRegister r) {
     return FromRegId(r + kNumberOfCpuRegIds);
   }
 

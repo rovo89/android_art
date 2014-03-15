@@ -39,7 +39,7 @@ ManagedRegister X86_64JniCallingConvention::ReturnScratchRegister() const {
 
 static ManagedRegister ReturnRegisterForShorty(const char* shorty, bool jni) {
   if (shorty[0] == 'F' || shorty[0] == 'D') {
-    return X86_64ManagedRegister::FromXmmRegister(_XMM0);
+    return X86_64ManagedRegister::FromXmmRegister(XMM0);
   } else if (shorty[0] == 'J') {
     return X86_64ManagedRegister::FromCpuRegister(RAX);
   } else if (shorty[0] == 'V') {
@@ -89,7 +89,7 @@ ManagedRegister X86_64ManagedRuntimeCallingConvention::CurrentParamRegister() {
   } else if (itr_float_and_doubles_ < 8) {
     // First eight float parameters are passed via XMM0..XMM7
     res = X86_64ManagedRegister::FromXmmRegister(
-                                 static_cast<XmmRegister>(_XMM0 + itr_float_and_doubles_));
+                                 static_cast<FloatRegister>(XMM0 + itr_float_and_doubles_));
   }
   return res;
 }
@@ -171,15 +171,15 @@ ManagedRegister X86_64JniCallingConvention::CurrentParamRegister() {
   } else if (itr_float_and_doubles_ < 8) {
     // First eight float parameters are passed via XMM0..XMM7
     res = X86_64ManagedRegister::FromXmmRegister(
-                                 static_cast<XmmRegister>(_XMM0 + itr_float_and_doubles_));
+                                 static_cast<FloatRegister>(XMM0 + itr_float_and_doubles_));
   }
   return res;
 }
 
 FrameOffset X86_64JniCallingConvention::CurrentParamStackOffset() {
   size_t offset = itr_args_
-                  - std::min(8U, itr_float_and_doubles_)               // Float arguments passed through Xmm0..Xmm7
-                  - std::min(6U, itr_args_ - itr_float_and_doubles_);  // Integer arguments passed through GPR
+      - std::min(8U, itr_float_and_doubles_)               // Float arguments passed through Xmm0..Xmm7
+      - std::min(6U, itr_args_ - itr_float_and_doubles_);  // Integer arguments passed through GPR
   return FrameOffset(displacement_.Int32Value() - OutArgSize() + (offset * kPointerSize));
 }
 

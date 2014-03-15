@@ -50,6 +50,7 @@ class FrameOffset : public Offset {
 };
 
 // Offsets relative to the current running thread.
+template<size_t pointer_size>
 class ThreadOffset : public Offset {
  public:
   explicit ThreadOffset(size_t val) : Offset(val) {}

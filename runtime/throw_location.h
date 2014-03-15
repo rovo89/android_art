@@ -41,7 +41,16 @@ class PACKED(4) ThrowLocation {
                 uint32_t throw_dex_pc) :
       this_object_(throw_this_object),
       method_(throw_method),
-      dex_pc_(throw_dex_pc) {}
+      dex_pc_(throw_dex_pc)
+#ifdef __LP64__
+      , pad_(0)
+#endif
+
+  {
+#ifdef __LP64__
+    UNUSED(pad_);
+#endif
+  }
 
   mirror::Object* GetThis() const {
     return this_object_;
@@ -72,6 +81,10 @@ class PACKED(4) ThrowLocation {
   mirror::ArtMethod* method_;
   // The instruction within the throwing method.
   uint32_t dex_pc_;
+  // Ensure 8byte alignment on 64bit.
+#ifdef __LP64__
+  uint32_t pad_;
+#endif
 };
 
 }  // namespace art

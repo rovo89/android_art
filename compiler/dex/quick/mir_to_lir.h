@@ -601,7 +601,7 @@ class Mir2Lir : public Backend {
                           RegLocation rl_src, int lit);
     void GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
                         RegLocation rl_src1, RegLocation rl_src2);
-    void GenConversionCall(ThreadOffset func_offset, RegLocation rl_dest,
+    void GenConversionCall(ThreadOffset<4> func_offset, RegLocation rl_dest,
                            RegLocation rl_src);
     void GenSuspendTest(int opt_flags);
     void GenSuspendTestAndBranch(int opt_flags, LIR* target);
@@ -612,43 +612,44 @@ class Mir2Lir : public Backend {
                        RegLocation rl_src1, RegLocation rl_src2);
 
     // Shared by all targets - implemented in gen_invoke.cc.
-    LIR* CallHelper(RegStorage r_tgt, ThreadOffset helper_offset, bool safepoint_pc,
+    LIR* CallHelper(RegStorage r_tgt, ThreadOffset<4> helper_offset, bool safepoint_pc,
                     bool use_link = true);
-    RegStorage CallHelperSetup(ThreadOffset helper_offset);
-    void CallRuntimeHelperImm(ThreadOffset helper_offset, int arg0, bool safepoint_pc);
-    void CallRuntimeHelperReg(ThreadOffset helper_offset, RegStorage arg0, bool safepoint_pc);
-    void CallRuntimeHelperRegLocation(ThreadOffset helper_offset, RegLocation arg0,
+    RegStorage CallHelperSetup(ThreadOffset<4> helper_offset);
+    void CallRuntimeHelperImm(ThreadOffset<4> helper_offset, int arg0, bool safepoint_pc);
+    void CallRuntimeHelperReg(ThreadOffset<4> helper_offset, RegStorage arg0, bool safepoint_pc);
+    void CallRuntimeHelperRegLocation(ThreadOffset<4> helper_offset, RegLocation arg0,
                                       bool safepoint_pc);
-    void CallRuntimeHelperImmImm(ThreadOffset helper_offset, int arg0, int arg1,
+    void CallRuntimeHelperImmImm(ThreadOffset<4> helper_offset, int arg0, int arg1,
                                  bool safepoint_pc);
-    void CallRuntimeHelperImmRegLocation(ThreadOffset helper_offset, int arg0,
+    void CallRuntimeHelperImmRegLocation(ThreadOffset<4> helper_offset, int arg0,
                                          RegLocation arg1, bool safepoint_pc);
-    void CallRuntimeHelperRegLocationImm(ThreadOffset helper_offset, RegLocation arg0,
+    void CallRuntimeHelperRegLocationImm(ThreadOffset<4> helper_offset, RegLocation arg0,
                                          int arg1, bool safepoint_pc);
-    void CallRuntimeHelperImmReg(ThreadOffset helper_offset, int arg0, RegStorage arg1,
+    void CallRuntimeHelperImmReg(ThreadOffset<4> helper_offset, int arg0, RegStorage arg1,
                                  bool safepoint_pc);
-    void CallRuntimeHelperRegImm(ThreadOffset helper_offset, RegStorage arg0, int arg1,
+    void CallRuntimeHelperRegImm(ThreadOffset<4> helper_offset, RegStorage arg0, int arg1,
                                  bool safepoint_pc);
-    void CallRuntimeHelperImmMethod(ThreadOffset helper_offset, int arg0,
+    void CallRuntimeHelperImmMethod(ThreadOffset<4> helper_offset, int arg0,
                                     bool safepoint_pc);
-    void CallRuntimeHelperRegMethod(ThreadOffset helper_offset, RegStorage arg0, bool safepoint_pc);
-    void CallRuntimeHelperRegMethodRegLocation(ThreadOffset helper_offset, RegStorage arg0,
+    void CallRuntimeHelperRegMethod(ThreadOffset<4> helper_offset, RegStorage arg0,
+                                    bool safepoint_pc);
+    void CallRuntimeHelperRegMethodRegLocation(ThreadOffset<4> helper_offset, RegStorage arg0,
                                                RegLocation arg2, bool safepoint_pc);
-    void CallRuntimeHelperRegLocationRegLocation(ThreadOffset helper_offset,
+    void CallRuntimeHelperRegLocationRegLocation(ThreadOffset<4> helper_offset,
                                                  RegLocation arg0, RegLocation arg1,
                                                  bool safepoint_pc);
-    void CallRuntimeHelperRegReg(ThreadOffset helper_offset, RegStorage arg0, RegStorage arg1,
+    void CallRuntimeHelperRegReg(ThreadOffset<4> helper_offset, RegStorage arg0, RegStorage arg1,
                                  bool safepoint_pc);
-    void CallRuntimeHelperRegRegImm(ThreadOffset helper_offset, RegStorage arg0, RegStorage arg1,
+    void CallRuntimeHelperRegRegImm(ThreadOffset<4> helper_offset, RegStorage arg0, RegStorage arg1,
                                     int arg2, bool safepoint_pc);
-    void CallRuntimeHelperImmMethodRegLocation(ThreadOffset helper_offset, int arg0,
+    void CallRuntimeHelperImmMethodRegLocation(ThreadOffset<4> helper_offset, int arg0,
                                                RegLocation arg2, bool safepoint_pc);
-    void CallRuntimeHelperImmMethodImm(ThreadOffset helper_offset, int arg0, int arg2,
+    void CallRuntimeHelperImmMethodImm(ThreadOffset<4> helper_offset, int arg0, int arg2,
                                        bool safepoint_pc);
-    void CallRuntimeHelperImmRegLocationRegLocation(ThreadOffset helper_offset,
+    void CallRuntimeHelperImmRegLocationRegLocation(ThreadOffset<4> helper_offset,
                                                     int arg0, RegLocation arg1, RegLocation arg2,
                                                     bool safepoint_pc);
-    void CallRuntimeHelperRegLocationRegLocationRegLocation(ThreadOffset helper_offset,
+    void CallRuntimeHelperRegLocationRegLocationRegLocation(ThreadOffset<4> helper_offset,
                                                             RegLocation arg0, RegLocation arg1,
                                                             RegLocation arg2,
                                                             bool safepoint_pc);
@@ -670,7 +671,8 @@ class Mir2Lir : public Backend {
 
     /**
      * @brief Used to determine the register location of destination.
-     * @details This is needed during generation of inline intrinsics because it finds destination of return,
+     * @details This is needed during generation of inline intrinsics because it finds destination
+     *  of return,
      * either the physical register or the target of move-result.
      * @param info Information about the invoke.
      * @return Returns the destination location.
@@ -731,7 +733,8 @@ class Mir2Lir : public Backend {
      * @brief Used to do the final store in a wide destination as per bytecode semantics.
      * @see StoreValue
      * @param rl_dest The destination dalvik register location.
-     * @param rl_src The source register location. Can be either physical register or dalvik register.
+     * @param rl_src The source register location. Can be either physical register or dalvik
+     *  register.
      */
     void StoreValueWide(RegLocation rl_dest, RegLocation rl_src);
 
@@ -812,7 +815,7 @@ class Mir2Lir : public Backend {
     virtual bool SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div,
                                     RegLocation rl_src, RegLocation rl_dest, int lit) = 0;
     virtual LIR* CheckSuspendUsingLoad() = 0;
-    virtual RegStorage LoadHelper(ThreadOffset offset) = 0;
+    virtual RegStorage LoadHelper(ThreadOffset<4> offset) = 0;
     virtual LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest, OpSize size,
                               int s_reg) = 0;
     virtual LIR* LoadBaseDispWide(RegStorage r_base, int displacement, RegStorage r_dest,
@@ -948,7 +951,8 @@ class Mir2Lir : public Backend {
 
     /**
      * @brief Used for generating code that throws ArithmeticException if both registers are zero.
-     * @details This is used for generating DivideByZero checks when divisor is held in two separate registers.
+     * @details This is used for generating DivideByZero checks when divisor is held in two
+     *  separate registers.
      * @param reg_lo The register holding the lower 32-bits.
      * @param reg_hi The register holding the upper 32-bits.
      */
@@ -1047,13 +1051,13 @@ class Mir2Lir : public Backend {
     virtual LIR* OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1,
                              RegStorage r_src2) = 0;
     virtual LIR* OpTestSuspend(LIR* target) = 0;
-    virtual LIR* OpThreadMem(OpKind op, ThreadOffset thread_offset) = 0;
+    virtual LIR* OpThreadMem(OpKind op, ThreadOffset<4> thread_offset) = 0;
     virtual LIR* OpVldm(RegStorage r_base, int count) = 0;
     virtual LIR* OpVstm(RegStorage r_base, int count) = 0;
     virtual void OpLea(RegStorage r_base, RegStorage reg1, RegStorage reg2, int scale,
                        int offset) = 0;
     virtual void OpRegCopyWide(RegStorage dest, RegStorage src) = 0;
-    virtual void OpTlsCmp(ThreadOffset offset, int val) = 0;
+    virtual void OpTlsCmp(ThreadOffset<4> offset, int val) = 0;
     virtual bool InexpensiveConstantInt(int32_t value) = 0;
     virtual bool InexpensiveConstantFloat(int32_t value) = 0;
     virtual bool InexpensiveConstantLong(int64_t value) = 0;

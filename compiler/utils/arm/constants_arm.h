@@ -242,22 +242,22 @@ class Instr {
   }
 
   // Get the raw instruction bits.
-  inline int32_t InstructionBits() const {
+  int32_t InstructionBits() const {
     return *reinterpret_cast<const int32_t*>(this);
   }
 
   // Set the raw instruction bits to value.
-  inline void SetInstructionBits(int32_t value) {
+  void SetInstructionBits(int32_t value) {
     *reinterpret_cast<int32_t*>(this) = value;
   }
 
   // Read one particular bit out of the instruction bits.
-  inline int Bit(int nr) const {
+  int Bit(int nr) const {
     return (InstructionBits() >> nr) & 1;
   }
 
   // Read a bit field out of the instruction bits.
-  inline int Bits(int shift, int count) const {
+  int Bits(int shift, int count) const {
     return (InstructionBits() >> shift) & ((1 << count) - 1);
   }
 
@@ -265,80 +265,80 @@ class Instr {
   // Accessors for the different named fields used in the ARM encoding.
   // The naming of these accessor corresponds to figure A3-1.
   // Generally applicable fields
-  inline Condition ConditionField() const {
+  Condition ConditionField() const {
     return static_cast<Condition>(Bits(kConditionShift, kConditionBits));
   }
-  inline int TypeField() const { return Bits(kTypeShift, kTypeBits); }
+  int TypeField() const { return Bits(kTypeShift, kTypeBits); }
 
-  inline Register RnField() const { return static_cast<Register>(
+  Register RnField() const { return static_cast<Register>(
                                         Bits(kRnShift, kRnBits)); }
-  inline Register RdField() const { return static_cast<Register>(
+  Register RdField() const { return static_cast<Register>(
                                         Bits(kRdShift, kRdBits)); }
 
   // Fields used in Data processing instructions
-  inline Opcode OpcodeField() const {
+  Opcode OpcodeField() const {
     return static_cast<Opcode>(Bits(kOpcodeShift, kOpcodeBits));
   }
-  inline int SField() const { return Bits(kSShift, kSBits); }
+  int SField() const { return Bits(kSShift, kSBits); }
   // with register
-  inline Register RmField() const {
+  Register RmField() const {
     return static_cast<Register>(Bits(kRmShift, kRmBits));
   }
-  inline Shift ShiftField() const { return static_cast<Shift>(
+  Shift ShiftField() const { return static_cast<Shift>(
                                         Bits(kShiftShift, kShiftBits)); }
-  inline int RegShiftField() const { return Bit(4); }
-  inline Register RsField() const {
+  int RegShiftField() const { return Bit(4); }
+  Register RsField() const {
     return static_cast<Register>(Bits(kRsShift, kRsBits));
   }
-  inline int ShiftAmountField() const { return Bits(kShiftImmShift,
+  int ShiftAmountField() const { return Bits(kShiftImmShift,
                                                     kShiftImmBits); }
   // with immediate
-  inline int RotateField() const { return Bits(kRotateShift, kRotateBits); }
-  inline int Immed8Field() const { return Bits(kImmed8Shift, kImmed8Bits); }
+  int RotateField() const { return Bits(kRotateShift, kRotateBits); }
+  int Immed8Field() const { return Bits(kImmed8Shift, kImmed8Bits); }
 
   // Fields used in Load/Store instructions
-  inline int PUField() const { return Bits(23, 2); }
-  inline int  BField() const { return Bit(22); }
-  inline int  WField() const { return Bit(21); }
-  inline int  LField() const { return Bit(20); }
+  int PUField() const { return Bits(23, 2); }
+  int  BField() const { return Bit(22); }
+  int  WField() const { return Bit(21); }
+  int  LField() const { return Bit(20); }
   // with register uses same fields as Data processing instructions above
   // with immediate
-  inline int Offset12Field() const { return Bits(kOffset12Shift,
+  int Offset12Field() const { return Bits(kOffset12Shift,
                                                  kOffset12Bits); }
   // multiple
-  inline int RlistField() const { return Bits(0, 16); }
+  int RlistField() const { return Bits(0, 16); }
   // extra loads and stores
-  inline int SignField() const { return Bit(6); }
-  inline int HField() const { return Bit(5); }
-  inline int ImmedHField() const { return Bits(8, 4); }
-  inline int ImmedLField() const { return Bits(0, 4); }
+  int SignField() const { return Bit(6); }
+  int HField() const { return Bit(5); }
+  int ImmedHField() const { return Bits(8, 4); }
+  int ImmedLField() const { return Bits(0, 4); }
 
   // Fields used in Branch instructions
-  inline int LinkField() const { return Bits(kLinkShift, kLinkBits); }
-  inline int SImmed24Field() const { return ((InstructionBits() << 8) >> 8); }
+  int LinkField() const { return Bits(kLinkShift, kLinkBits); }
+  int SImmed24Field() const { return ((InstructionBits() << 8) >> 8); }
 
   // Fields used in Supervisor Call instructions
-  inline uint32_t SvcField() const { return Bits(0, 24); }
+  uint32_t SvcField() const { return Bits(0, 24); }
 
   // Field used in Breakpoint instruction
-  inline uint16_t BkptField() const {
+  uint16_t BkptField() const {
     return ((Bits(8, 12) << 4) | Bits(0, 4));
   }
 
   // Field used in 16-bit immediate move instructions
-  inline uint16_t MovwField() const {
+  uint16_t MovwField() const {
     return ((Bits(16, 4) << 12) | Bits(0, 12));
   }
 
   // Field used in VFP float immediate move instruction
-  inline float ImmFloatField() const {
+  float ImmFloatField() const {
     uint32_t imm32 = (Bit(19) << 31) | (((1 << 5) - Bit(18)) << 25) |
                      (Bits(16, 2) << 23) | (Bits(0, 4) << 19);
     return bit_cast<float, uint32_t>(imm32);
   }
 
   // Field used in VFP double immediate move instruction
-  inline double ImmDoubleField() const {
+  double ImmDoubleField() const {
     uint64_t imm64 = (Bit(19)*(1LL << 63)) | (((1LL << 8) - Bit(18)) << 54) |
                      (Bits(16, 2)*(1LL << 52)) | (Bits(0, 4)*(1LL << 48));
     return bit_cast<double, uint64_t>(imm64);
@@ -347,7 +347,7 @@ class Instr {
   // Test for data processing instructions of type 0 or 1.
   // See "ARM Architecture Reference Manual ARMv7-A and ARMv7-R edition",
   // section A5.1 "ARM instruction set encoding".
-  inline bool IsDataProcessing() const {
+  bool IsDataProcessing() const {
     CHECK_NE(ConditionField(), kSpecialCondition);
     CHECK_EQ(Bits(26, 2), 0);  // Type 0 or 1.
     return ((Bits(20, 5) & 0x19) != 0x10) &&
@@ -359,47 +359,47 @@ class Instr {
   // Tests for special encodings of type 0 instructions (extra loads and stores,
   // as well as multiplications, synchronization primitives, and miscellaneous).
   // Can only be called for a type 0 or 1 instruction.
-  inline bool IsMiscellaneous() const {
+  bool IsMiscellaneous() const {
     CHECK_EQ(Bits(26, 2), 0);  // Type 0 or 1.
     return ((Bit(25) == 0) && ((Bits(20, 5) & 0x19) == 0x10) && (Bit(7) == 0));
   }
-  inline bool IsMultiplyOrSyncPrimitive() const {
+  bool IsMultiplyOrSyncPrimitive() const {
     CHECK_EQ(Bits(26, 2), 0);  // Type 0 or 1.
     return ((Bit(25) == 0) && (Bits(4, 4) == 9));
   }
 
   // Test for Supervisor Call instruction.
-  inline bool IsSvc() const {
+  bool IsSvc() const {
     return ((InstructionBits() & 0xff000000) == 0xef000000);
   }
 
   // Test for Breakpoint instruction.
-  inline bool IsBkpt() const {
+  bool IsBkpt() const {
     return ((InstructionBits() & 0xfff000f0) == 0xe1200070);
   }
 
   // VFP register fields.
-  inline SRegister SnField() const {
+  SRegister SnField() const {
     return static_cast<SRegister>((Bits(kRnShift, kRnBits) << 1) + Bit(7));
   }
-  inline SRegister SdField() const {
+  SRegister SdField() const {
     return static_cast<SRegister>((Bits(kRdShift, kRdBits) << 1) + Bit(22));
   }
-  inline SRegister SmField() const {
+  SRegister SmField() const {
     return static_cast<SRegister>((Bits(kRmShift, kRmBits) << 1) + Bit(5));
   }
-  inline DRegister DnField() const {
+  DRegister DnField() const {
     return static_cast<DRegister>(Bits(kRnShift, kRnBits) + (Bit(7) << 4));
   }
-  inline DRegister DdField() const {
+  DRegister DdField() const {
     return static_cast<DRegister>(Bits(kRdShift, kRdBits) + (Bit(22) << 4));
   }
-  inline DRegister DmField() const {
+  DRegister DmField() const {
     return static_cast<DRegister>(Bits(kRmShift, kRmBits) + (Bit(5) << 4));
   }
 
   // Test for VFP data processing or single transfer instructions of type 7.
-  inline bool IsVFPDataProcessingOrSingleTransfer() const {
+  bool IsVFPDataProcessingOrSingleTransfer() const {
     CHECK_NE(ConditionField(), kSpecialCondition);
     CHECK_EQ(TypeField(), 7);
     return ((Bit(24) == 0) && (Bits(9, 3) == 5));
@@ -408,7 +408,7 @@ class Instr {
   }
 
   // Test for VFP 64-bit transfer instructions of type 6.
-  inline bool IsVFPDoubleTransfer() const {
+  bool IsVFPDoubleTransfer() const {
     CHECK_NE(ConditionField(), kSpecialCondition);
     CHECK_EQ(TypeField(), 6);
     return ((Bits(21, 4) == 2) && (Bits(9, 3) == 5) &&
@@ -416,20 +416,20 @@ class Instr {
   }
 
   // Test for VFP load and store instructions of type 6.
-  inline bool IsVFPLoadStore() const {
+  bool IsVFPLoadStore() const {
     CHECK_NE(ConditionField(), kSpecialCondition);
     CHECK_EQ(TypeField(), 6);
     return ((Bits(20, 5) & 0x12) == 0x10) && (Bits(9, 3) == 5);
   }
 
   // Special accessors that test for existence of a value.
-  inline bool HasS() const { return SField() == 1; }
-  inline bool HasB() const { return BField() == 1; }
-  inline bool HasW() const { return WField() == 1; }
-  inline bool HasL() const { return LField() == 1; }
-  inline bool HasSign() const { return SignField() == 1; }
-  inline bool HasH() const { return HField() == 1; }
-  inline bool HasLink() const { return LinkField() == 1; }
+  bool HasS() const { return SField() == 1; }
+  bool HasB() const { return BField() == 1; }
+  bool HasW() const { return WField() == 1; }
+  bool HasL() const { return LField() == 1; }
+  bool HasSign() const { return SignField() == 1; }
+  bool HasH() const { return HField() == 1; }
+  bool HasLink() const { return LinkField() == 1; }
 
   // Instructions are read out of a code stream. The only way to get a
   // reference to an instruction is to convert a pointer. There is no way

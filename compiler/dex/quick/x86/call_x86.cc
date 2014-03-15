@@ -156,12 +156,12 @@ void X86Mir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
   }
   NewLIR2(kX86PcRelAdr, rX86_ARG1, WrapPointer(tab_rec));
   NewLIR2(kX86Add32RR, rX86_ARG1, rX86_ARG2);
-  CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(pHandleFillArrayData), rs_rX86_ARG0,
+  CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(4, pHandleFillArrayData), rs_rX86_ARG0,
                           rs_rX86_ARG1, true);
 }
 
 void X86Mir2Lir::GenMoveException(RegLocation rl_dest) {
-  int ex_offset = Thread::ExceptionOffset().Int32Value();
+  int ex_offset = Thread::ExceptionOffset<4>().Int32Value();
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   NewLIR2(kX86Mov32RT, rl_result.reg.GetReg(), ex_offset);
   NewLIR2(kX86Mov32TI, ex_offset, 0);
@@ -175,7 +175,7 @@ void X86Mir2Lir::MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) {
   RegStorage reg_card_base = AllocTemp();
   RegStorage reg_card_no = AllocTemp();
   LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, NULL);
-  NewLIR2(kX86Mov32RT, reg_card_base.GetReg(), Thread::CardTableOffset().Int32Value());
+  NewLIR2(kX86Mov32RT, reg_card_base.GetReg(), Thread::CardTableOffset<4>().Int32Value());
   OpRegRegImm(kOpLsr, reg_card_no, tgt_addr_reg, gc::accounting::CardTable::kCardShift);
   StoreBaseIndexed(reg_card_base, reg_card_no, reg_card_base, 0, kUnsignedByte);
   LIR* target = NewLIR0(kPseudoTargetLabel);
@@ -222,7 +222,7 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
         GenerateTargetLabel();
         m2l_->OpRegImm(kOpAdd, rs_rX86_SP, sp_displace_);
         m2l_->ClobberCallerSave();
-        ThreadOffset func_offset = QUICK_ENTRYPOINT_OFFSET(pThrowStackOverflow);
+        ThreadOffset<4> func_offset = QUICK_ENTRYPOINT_OFFSET(4, pThrowStackOverflow);
         // Assumes codegen and target are in thumb2 mode.
         m2l_->CallHelper(RegStorage::InvalidReg(), func_offset, false /* MarkSafepointPC */,
                          false /* UseLink */);
@@ -240,7 +240,7 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
     // in case a signal comes in that's not using an alternate signal stack and the large frame may
     // have moved us outside of the reserved area at the end of the stack.
     // cmp rX86_SP, fs:[stack_end_]; jcc throw_launchpad
-    OpRegThreadMem(kOpCmp, rX86_SP, Thread::StackEndOffset());
+    OpRegThreadMem(kOpCmp, rX86_SP, Thread::StackEndOffset<4>());
     LIR* branch = OpCondBranch(kCondUlt, nullptr);
     AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch, frame_size_ - 4));
   }

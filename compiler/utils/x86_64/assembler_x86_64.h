@@ -80,25 +80,30 @@ class Operand {
     return value;
   }
 
-  bool IsRegister(Register reg) const {
+  bool IsRegister(CpuRegister reg) const {
+    CHECK(!reg.NeedsRex()) << "TODO: rex support:" << reg;
     return ((encoding_[0] & 0xF8) == 0xC0)  // Addressing mode is register only.
-        && ((encoding_[0] & 0x07) == reg);  // Register codes match.
+        && ((encoding_[0] & 0x07) == reg.LowBits());  // Register codes match.
   }
 
  protected:
   // Operand can be sub classed (e.g: Address).
   Operand() : length_(0) { }
 
-  void SetModRM(int mod, Register rm) {
+  void SetModRM(int mod, CpuRegister rm) {
     CHECK_EQ(mod & ~3, 0);
-    encoding_[0] = (mod << 6) | rm;
+    CHECK(!rm.NeedsRex());
+    encoding_[0] = (mod << 6) | static_cast<uint8_t>(rm.AsRegister());
     length_ = 1;
   }
 
-  void SetSIB(ScaleFactor scale, Register index, Register base) {
+  void SetSIB(ScaleFactor scale, CpuRegister index, CpuRegister base) {
+    CHECK(!index.NeedsRex()) << "TODO: rex support: " << index;
+    CHECK(!base.NeedsRex()) << "TODO: rex support: " << base;
     CHECK_EQ(length_, 1);
     CHECK_EQ(scale & ~3, 0);
-    encoding_[1] = (scale << 6) | (index << 3) | base;
+    encoding_[1] = (scale << 6) | (static_cast<uint8_t>(index.AsRegister()) << 3) |
+        static_cast<uint8_t>(base.AsRegister());
     length_ = 2;
   }
 
@@ -117,9 +122,8 @@ class Operand {
  private:
   byte length_;
   byte encoding_[6];
-  byte padding_;
 
-  explicit Operand(Register reg) { SetModRM(3, reg); }
+  explicit Operand(CpuRegister reg) { SetModRM(3, reg); }
 
   // Get the operand encoding byte at the given index.
   uint8_t encoding_at(int index) const {
@@ -136,77 +140,85 @@ class Operand {
 
 class Address : public Operand {
  public:
-  Address(Register base, int32_t disp) {
+  Address(CpuRegister base, int32_t disp) {
     Init(base, disp);
   }
 
-  Address(Register base, Offset disp) {
+  Address(CpuRegister base, Offset disp) {
     Init(base, disp.Int32Value());
   }
 
-  Address(Register base, FrameOffset disp) {
-    CHECK_EQ(base, RSP);
-    Init(RSP, disp.Int32Value());
+  Address(CpuRegister base, FrameOffset disp) {
+    CHECK_EQ(base.AsRegister(), RSP);
+    Init(CpuRegister(RSP), disp.Int32Value());
   }
 
-  Address(Register base, MemberOffset disp) {
+  Address(CpuRegister base, MemberOffset disp) {
     Init(base, disp.Int32Value());
   }
 
-  void Init(Register base, int32_t disp) {
-    if (disp == 0 && base != RBP) {
+  void Init(CpuRegister base, int32_t disp) {
+    if (disp == 0 && base.AsRegister() != RBP) {
       SetModRM(0, base);
-      if (base == RSP) SetSIB(TIMES_1, RSP, base);
+      if (base.AsRegister() == RSP) {
+        SetSIB(TIMES_1, CpuRegister(RSP), base);
+      }
     } else if (disp >= -128 && disp <= 127) {
       SetModRM(1, base);
-      if (base == RSP) SetSIB(TIMES_1, RSP, base);
+      if (base.AsRegister() == RSP) {
+        SetSIB(TIMES_1, CpuRegister(RSP), base);
+      }
       SetDisp8(disp);
     } else {
       SetModRM(2, base);
-      if (base == RSP) SetSIB(TIMES_1, RSP, base);
+      if (base.AsRegister() == RSP) {
+        SetSIB(TIMES_1, CpuRegister(RSP), base);
+      }
       SetDisp32(disp);
     }
   }
 
 
-  Address(Register index, ScaleFactor scale, int32_t disp) {
-    CHECK_NE(index, RSP);  // Illegal addressing mode.
-    SetModRM(0, RSP);
-    SetSIB(scale, index, RBP);
+  Address(CpuRegister index, ScaleFactor scale, int32_t disp) {
+    CHECK_NE(index.AsRegister(), RSP);  // Illegal addressing mode.
+    SetModRM(0, CpuRegister(RSP));
+    SetSIB(scale, index, CpuRegister(RBP));
     SetDisp32(disp);
   }
 
-  Address(Register base, Register index, ScaleFactor scale, int32_t disp) {
-    CHECK_NE(index, RSP);  // Illegal addressing mode.
-    if (disp == 0 && base != RBP) {
-      SetModRM(0, RSP);
+  Address(CpuRegister base, CpuRegister index, ScaleFactor scale, int32_t disp) {
+    CHECK_NE(index.AsRegister(), RSP);  // Illegal addressing mode.
+    if (disp == 0 && base.AsRegister() != RBP) {
+      SetModRM(0, CpuRegister(RSP));
       SetSIB(scale, index, base);
     } else if (disp >= -128 && disp <= 127) {
-      SetModRM(1, RSP);
+      SetModRM(1, CpuRegister(RSP));
       SetSIB(scale, index, base);
       SetDisp8(disp);
     } else {
-      SetModRM(2, RSP);
+      SetModRM(2, CpuRegister(RSP));
       SetSIB(scale, index, base);
       SetDisp32(disp);
     }
   }
 
-  static Address Absolute(uword addr, bool has_rip = false) {
+  // If no_rip is true then the Absolute address isn't RIP relative.
+  static Address Absolute(uword addr, bool no_rip = false) {
     Address result;
-    if (has_rip) {
-      result.SetModRM(0, RSP);
-      result.SetSIB(TIMES_1, RSP, RBP);
+    if (no_rip) {
+      result.SetModRM(0, CpuRegister(RSP));
+      result.SetSIB(TIMES_1, CpuRegister(RSP), CpuRegister(RBP));
       result.SetDisp32(addr);
     } else {
-      result.SetModRM(0, RBP);
+      result.SetModRM(0, CpuRegister(RBP));
       result.SetDisp32(addr);
     }
     return result;
   }
 
-  static Address Absolute(ThreadOffset addr, bool has_rip = false) {
-    return Absolute(addr.Int32Value(), has_rip);
+  // If no_rip is true then the Absolute address isn't RIP relative.
+  static Address Absolute(ThreadOffset<8> addr, bool no_rip = false) {
+    return Absolute(addr.Int32Value(), no_rip);
   }
 
  private:
@@ -216,7 +228,7 @@ class Address : public Operand {
 };
 
 
-class X86_64Assembler : public Assembler {
+class X86_64Assembler FINAL : public Assembler {
  public:
   X86_64Assembler() {}
   virtual ~X86_64Assembler() {}
@@ -224,56 +236,51 @@ class X86_64Assembler : public Assembler {
   /*
    * Emit Machine Instructions.
    */
-  void call(Register reg);
+  void call(CpuRegister reg);
   void call(const Address& address);
   void call(Label* label);
 
-  void pushq(Register reg);
+  void pushq(CpuRegister reg);
   void pushq(const Address& address);
   void pushq(const Immediate& imm);
 
-  void popq(Register reg);
+  void popq(CpuRegister reg);
   void popq(const Address& address);
 
-  void movq(Register dst, const Immediate& src);
-  void movl(Register dst, const Immediate& src);
-  void movq(Register dst, Register src);
-  void movl(Register dst, Register src);
+  void movq(CpuRegister dst, const Immediate& src);
+  void movl(CpuRegister dst, const Immediate& src);
+  void movq(CpuRegister dst, CpuRegister src);
+  void movl(CpuRegister dst, CpuRegister src);
 
-  void movq(Register dst, const Address& src);
-  void movl(Register dst, const Address& src);
-  void movq(const Address& dst, Register src);
-  void movl(const Address& dst, Register src);
+  void movq(CpuRegister dst, const Address& src);
+  void movl(CpuRegister dst, const Address& src);
+  void movq(const Address& dst, CpuRegister src);
+  void movl(const Address& dst, CpuRegister src);
   void movl(const Address& dst, const Immediate& imm);
-  void movl(const Address& dst, Label* lbl);
 
-  void movzxb(Register dst, ByteRegister src);
-  void movzxb(Register dst, const Address& src);
-  void movsxb(Register dst, ByteRegister src);
-  void movsxb(Register dst, const Address& src);
-  void movb(Register dst, const Address& src);
-  void movb(const Address& dst, ByteRegister src);
+  void movzxb(CpuRegister dst, CpuRegister src);
+  void movzxb(CpuRegister dst, const Address& src);
+  void movsxb(CpuRegister dst, CpuRegister src);
+  void movsxb(CpuRegister dst, const Address& src);
+  void movb(CpuRegister dst, const Address& src);
+  void movb(const Address& dst, CpuRegister src);
   void movb(const Address& dst, const Immediate& imm);
 
-  void movzxw(Register dst, Register src);
-  void movzxw(Register dst, const Address& src);
-  void movsxw(Register dst, Register src);
-  void movsxw(Register dst, const Address& src);
-  void movw(Register dst, const Address& src);
-  void movw(const Address& dst, Register src);
+  void movzxw(CpuRegister dst, CpuRegister src);
+  void movzxw(CpuRegister dst, const Address& src);
+  void movsxw(CpuRegister dst, CpuRegister src);
+  void movsxw(CpuRegister dst, const Address& src);
+  void movw(CpuRegister dst, const Address& src);
+  void movw(const Address& dst, CpuRegister src);
 
-  void leaq(Register dst, const Address& src);
-
-  void cmovl(Condition condition, Register dst, Register src);
-
-  void setb(Condition condition, Register dst);
+  void leaq(CpuRegister dst, const Address& src);
 
   void movss(XmmRegister dst, const Address& src);
   void movss(const Address& dst, XmmRegister src);
   void movss(XmmRegister dst, XmmRegister src);
 
-  void movd(XmmRegister dst, Register src);
-  void movd(Register dst, XmmRegister src);
+  void movd(XmmRegister dst, CpuRegister src);
+  void movd(CpuRegister dst, XmmRegister src);
 
   void addss(XmmRegister dst, XmmRegister src);
   void addss(XmmRegister dst, const Address& src);
@@ -297,17 +304,17 @@ class X86_64Assembler : public Assembler {
   void divsd(XmmRegister dst, XmmRegister src);
   void divsd(XmmRegister dst, const Address& src);
 
-  void cvtsi2ss(XmmRegister dst, Register src);
-  void cvtsi2sd(XmmRegister dst, Register src);
+  void cvtsi2ss(XmmRegister dst, CpuRegister src);
+  void cvtsi2sd(XmmRegister dst, CpuRegister src);
 
-  void cvtss2si(Register dst, XmmRegister src);
+  void cvtss2si(CpuRegister dst, XmmRegister src);
   void cvtss2sd(XmmRegister dst, XmmRegister src);
 
-  void cvtsd2si(Register dst, XmmRegister src);
+  void cvtsd2si(CpuRegister dst, XmmRegister src);
   void cvtsd2ss(XmmRegister dst, XmmRegister src);
 
-  void cvttss2si(Register dst, XmmRegister src);
-  void cvttsd2si(Register dst, XmmRegister src);
+  void cvttss2si(CpuRegister dst, XmmRegister src);
+  void cvttsd2si(CpuRegister dst, XmmRegister src);
 
   void cvtdq2pd(XmmRegister dst, XmmRegister src);
 
@@ -344,77 +351,62 @@ class X86_64Assembler : public Assembler {
   void fcos();
   void fptan();
 
-  void xchgl(Register dst, Register src);
-  void xchgl(Register reg, const Address& address);
+  void xchgl(CpuRegister dst, CpuRegister src);
+  void xchgl(CpuRegister reg, const Address& address);
 
-  void cmpl(Register reg, const Immediate& imm);
-  void cmpl(Register reg0, Register reg1);
-  void cmpl(Register reg, const Address& address);
+  void cmpl(CpuRegister reg, const Immediate& imm);
+  void cmpl(CpuRegister reg0, CpuRegister reg1);
+  void cmpl(CpuRegister reg, const Address& address);
 
-  void cmpl(const Address& address, Register reg);
+  void cmpl(const Address& address, CpuRegister reg);
   void cmpl(const Address& address, const Immediate& imm);
 
-  void testl(Register reg1, Register reg2);
-  void testl(Register reg, const Immediate& imm);
+  void testl(CpuRegister reg1, CpuRegister reg2);
+  void testl(CpuRegister reg, const Immediate& imm);
 
-  void andl(Register dst, const Immediate& imm);
-  void andl(Register dst, Register src);
+  void andl(CpuRegister dst, const Immediate& imm);
+  void andl(CpuRegister dst, CpuRegister src);
 
-  void orl(Register dst, const Immediate& imm);
-  void orl(Register dst, Register src);
+  void orl(CpuRegister dst, const Immediate& imm);
+  void orl(CpuRegister dst, CpuRegister src);
 
-  void xorl(Register dst, Register src);
+  void xorl(CpuRegister dst, CpuRegister src);
 
-  void addl(Register dst, Register src);
-  void addq(Register reg, const Immediate& imm);
-  void addl(Register reg, const Immediate& imm);
-  void addl(Register reg, const Address& address);
+  void addl(CpuRegister dst, CpuRegister src);
+  void addq(CpuRegister reg, const Immediate& imm);
+  void addl(CpuRegister reg, const Immediate& imm);
+  void addl(CpuRegister reg, const Address& address);
 
-  void addl(const Address& address, Register reg);
+  void addl(const Address& address, CpuRegister reg);
   void addl(const Address& address, const Immediate& imm);
 
-  void adcl(Register dst, Register src);
-  void adcl(Register reg, const Immediate& imm);
-  void adcl(Register dst, const Address& address);
-
-  void subl(Register dst, Register src);
-  void subl(Register reg, const Immediate& imm);
-  void subl(Register reg, const Address& address);
+  void subl(CpuRegister dst, CpuRegister src);
+  void subl(CpuRegister reg, const Immediate& imm);
+  void subl(CpuRegister reg, const Address& address);
 
   void cdq();
 
-  void idivl(Register reg);
+  void idivl(CpuRegister reg);
 
-  void imull(Register dst, Register src);
-  void imull(Register reg, const Immediate& imm);
-  void imull(Register reg, const Address& address);
+  void imull(CpuRegister dst, CpuRegister src);
+  void imull(CpuRegister reg, const Immediate& imm);
+  void imull(CpuRegister reg, const Address& address);
 
-  void imull(Register reg);
+  void imull(CpuRegister reg);
   void imull(const Address& address);
 
-  void mull(Register reg);
+  void mull(CpuRegister reg);
   void mull(const Address& address);
 
-  void sbbl(Register dst, Register src);
-  void sbbl(Register reg, const Immediate& imm);
-  void sbbl(Register reg, const Address& address);
+  void shll(CpuRegister reg, const Immediate& imm);
+  void shll(CpuRegister operand, CpuRegister shifter);
+  void shrl(CpuRegister reg, const Immediate& imm);
+  void shrl(CpuRegister operand, CpuRegister shifter);
+  void sarl(CpuRegister reg, const Immediate& imm);
+  void sarl(CpuRegister operand, CpuRegister shifter);
 
-  void incl(Register reg);
-  void incl(const Address& address);
-
-  void decl(Register reg);
-  void decl(const Address& address);
-
-  void shll(Register reg, const Immediate& imm);
-  void shll(Register operand, Register shifter);
-  void shrl(Register reg, const Immediate& imm);
-  void shrl(Register operand, Register shifter);
-  void sarl(Register reg, const Immediate& imm);
-  void sarl(Register operand, Register shifter);
-  void shld(Register dst, Register src);
-
-  void negl(Register reg);
-  void notl(Register reg);
+  void negl(CpuRegister reg);
+  void notl(CpuRegister reg);
 
   void enter(const Immediate& imm);
   void leave();
@@ -428,12 +420,12 @@ class X86_64Assembler : public Assembler {
 
   void j(Condition condition, Label* label);
 
-  void jmp(Register reg);
+  void jmp(CpuRegister reg);
   void jmp(const Address& address);
   void jmp(Label* label);
 
   X86_64Assembler* lock();
-  void cmpxchgl(const Address& address, Register reg);
+  void cmpxchgl(const Address& address, CpuRegister reg);
 
   void mfence();
 
@@ -443,7 +435,7 @@ class X86_64Assembler : public Assembler {
   // Macros for High-level operations.
   //
 
-  void AddImmediate(Register reg, const Immediate& imm);
+  void AddImmediate(CpuRegister reg, const Immediate& imm);
 
   void LoadDoubleConstant(XmmRegister dst, double value);
 
@@ -452,7 +444,7 @@ class X86_64Assembler : public Assembler {
 
   void DoubleAbs(XmmRegister reg);
 
-  void LockCmpxchgl(const Address& address, Register reg) {
+  void LockCmpxchgl(const Address& address, CpuRegister reg) {
     lock()->cmpxchgl(address, reg);
   }
 
@@ -468,109 +460,99 @@ class X86_64Assembler : public Assembler {
   //
 
   // Emit code that will create an activation on the stack
-  virtual void BuildFrame(size_t frame_size, ManagedRegister method_reg,
-                          const std::vector<ManagedRegister>& callee_save_regs,
-                          const ManagedRegisterEntrySpills& entry_spills);
+  void BuildFrame(size_t frame_size, ManagedRegister method_reg,
+                  const std::vector<ManagedRegister>& callee_save_regs,
+                  const ManagedRegisterEntrySpills& entry_spills) OVERRIDE;
 
   // Emit code that will remove an activation from the stack
-  virtual void RemoveFrame(size_t frame_size,
-                           const std::vector<ManagedRegister>& callee_save_regs);
+  void RemoveFrame(size_t frame_size, const std::vector<ManagedRegister>& callee_save_regs)
+      OVERRIDE;
 
-  virtual void IncreaseFrameSize(size_t adjust);
-  virtual void DecreaseFrameSize(size_t adjust);
+  void IncreaseFrameSize(size_t adjust) OVERRIDE;
+  void DecreaseFrameSize(size_t adjust) OVERRIDE;
 
   // Store routines
-  virtual void Store(FrameOffset offs, ManagedRegister src, size_t size);
-  virtual void StoreRef(FrameOffset dest, ManagedRegister src);
-  virtual void StoreRawPtr(FrameOffset dest, ManagedRegister src);
+  void Store(FrameOffset offs, ManagedRegister src, size_t size) OVERRIDE;
+  void StoreRef(FrameOffset dest, ManagedRegister src) OVERRIDE;
+  void StoreRawPtr(FrameOffset dest, ManagedRegister src) OVERRIDE;
 
-  virtual void StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
-                                     ManagedRegister scratch);
+  void StoreImmediateToFrame(FrameOffset dest, uint32_t imm, ManagedRegister scratch) OVERRIDE;
 
-  virtual void StoreImmediateToThread(ThreadOffset dest, uint32_t imm,
-                                      ManagedRegister scratch);
+  void StoreImmediateToThread64(ThreadOffset<8> dest, uint32_t imm, ManagedRegister scratch)
+      OVERRIDE;
 
-  virtual void StoreStackOffsetToThread(ThreadOffset thr_offs,
-                                        FrameOffset fr_offs,
-                                        ManagedRegister scratch);
+  void StoreStackOffsetToThread64(ThreadOffset<8> thr_offs, FrameOffset fr_offs,
+                                  ManagedRegister scratch) OVERRIDE;
 
-  virtual void StoreStackPointerToThread(ThreadOffset thr_offs);
+  void StoreStackPointerToThread64(ThreadOffset<8> thr_offs) OVERRIDE;
 
-  void StoreLabelToThread(ThreadOffset thr_offs, Label* lbl);
-
-  virtual void StoreSpanning(FrameOffset dest, ManagedRegister src,
-                             FrameOffset in_off, ManagedRegister scratch);
+  void StoreSpanning(FrameOffset dest, ManagedRegister src, FrameOffset in_off,
+                     ManagedRegister scratch) OVERRIDE;
 
   // Load routines
-  virtual void Load(ManagedRegister dest, FrameOffset src, size_t size);
+  void Load(ManagedRegister dest, FrameOffset src, size_t size) OVERRIDE;
 
-  virtual void Load(ManagedRegister dest, ThreadOffset src, size_t size);
+  void LoadFromThread64(ManagedRegister dest, ThreadOffset<8> src, size_t size) OVERRIDE;
 
-  virtual void LoadRef(ManagedRegister dest, FrameOffset  src);
+  void LoadRef(ManagedRegister dest, FrameOffset  src) OVERRIDE;
 
-  virtual void LoadRef(ManagedRegister dest, ManagedRegister base,
-                       MemberOffset offs);
+  void LoadRef(ManagedRegister dest, ManagedRegister base, MemberOffset offs) OVERRIDE;
 
-  virtual void LoadRawPtr(ManagedRegister dest, ManagedRegister base,
-                          Offset offs);
+  void LoadRawPtr(ManagedRegister dest, ManagedRegister base, Offset offs) OVERRIDE;
 
-  virtual void LoadRawPtrFromThread(ManagedRegister dest,
-                                    ThreadOffset offs);
+  void LoadRawPtrFromThread64(ManagedRegister dest, ThreadOffset<8> offs) OVERRIDE;
 
   // Copying routines
-  virtual void Move(ManagedRegister dest, ManagedRegister src, size_t size);
+  void Move(ManagedRegister dest, ManagedRegister src, size_t size);
 
-  virtual void CopyRawPtrFromThread(FrameOffset fr_offs, ThreadOffset thr_offs,
-                                    ManagedRegister scratch);
+  void CopyRawPtrFromThread64(FrameOffset fr_offs, ThreadOffset<8> thr_offs,
+                              ManagedRegister scratch) OVERRIDE;
 
-  virtual void CopyRawPtrToThread(ThreadOffset thr_offs, FrameOffset fr_offs,
-                                  ManagedRegister scratch);
+  void CopyRawPtrToThread64(ThreadOffset<8> thr_offs, FrameOffset fr_offs, ManagedRegister scratch)
+      OVERRIDE;
 
-  virtual void CopyRef(FrameOffset dest, FrameOffset src,
-                       ManagedRegister scratch);
+  void CopyRef(FrameOffset dest, FrameOffset src, ManagedRegister scratch) OVERRIDE;
 
-  virtual void Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch, size_t size);
+  void Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch, size_t size) OVERRIDE;
 
-  virtual void Copy(FrameOffset dest, ManagedRegister src_base, Offset src_offset,
-                    ManagedRegister scratch, size_t size);
+  void Copy(FrameOffset dest, ManagedRegister src_base, Offset src_offset, ManagedRegister scratch,
+            size_t size) OVERRIDE;
 
-  virtual void Copy(ManagedRegister dest_base, Offset dest_offset, FrameOffset src,
-                    ManagedRegister scratch, size_t size);
+  void Copy(ManagedRegister dest_base, Offset dest_offset, FrameOffset src, ManagedRegister scratch,
+            size_t size) OVERRIDE;
 
-  virtual void Copy(FrameOffset dest, FrameOffset src_base, Offset src_offset,
-                    ManagedRegister scratch, size_t size);
+  void Copy(FrameOffset dest, FrameOffset src_base, Offset src_offset, ManagedRegister scratch,
+            size_t size) OVERRIDE;
 
-  virtual void Copy(ManagedRegister dest, Offset dest_offset,
-                    ManagedRegister src, Offset src_offset,
-                    ManagedRegister scratch, size_t size);
+  void Copy(ManagedRegister dest, Offset dest_offset, ManagedRegister src, Offset src_offset,
+            ManagedRegister scratch, size_t size) OVERRIDE;
 
-  virtual void Copy(FrameOffset dest, Offset dest_offset, FrameOffset src, Offset src_offset,
-                    ManagedRegister scratch, size_t size);
+  void Copy(FrameOffset dest, Offset dest_offset, FrameOffset src, Offset src_offset,
+            ManagedRegister scratch, size_t size) OVERRIDE;
 
-  virtual void MemoryBarrier(ManagedRegister);
+  void MemoryBarrier(ManagedRegister) OVERRIDE;
 
   // Sign extension
-  virtual void SignExtend(ManagedRegister mreg, size_t size);
+  void SignExtend(ManagedRegister mreg, size_t size) OVERRIDE;
 
   // Zero extension
-  virtual void ZeroExtend(ManagedRegister mreg, size_t size);
+  void ZeroExtend(ManagedRegister mreg, size_t size) OVERRIDE;
 
   // Exploit fast access in managed code to Thread::Current()
-  virtual void GetCurrentThread(ManagedRegister tr);
-  virtual void GetCurrentThread(FrameOffset dest_offset,
-                                ManagedRegister scratch);
+  void GetCurrentThread(ManagedRegister tr) OVERRIDE;
+  void GetCurrentThread(FrameOffset dest_offset, ManagedRegister scratch) OVERRIDE;
 
   // Set up out_reg to hold a Object** into the SIRT, or to be NULL if the
   // value is null and null_allowed. in_reg holds a possibly stale reference
   // that can be used to avoid loading the SIRT entry to see if the value is
   // NULL.
-  virtual void CreateSirtEntry(ManagedRegister out_reg, FrameOffset sirt_offset,
-                               ManagedRegister in_reg, bool null_allowed);
+  void CreateSirtEntry(ManagedRegister out_reg, FrameOffset sirt_offset, ManagedRegister in_reg,
+                       bool null_allowed) OVERRIDE;
 
   // Set up out_off to hold a Object** into the SIRT, or to be NULL if the
   // value is null and null_allowed.
-  virtual void CreateSirtEntry(FrameOffset out_off, FrameOffset sirt_offset,
-                               ManagedRegister scratch, bool null_allowed);
+  void CreateSirtEntry(FrameOffset out_off, FrameOffset sirt_offset, ManagedRegister scratch,
+                       bool null_allowed) OVERRIDE;
 
   // src holds a SIRT entry (Object**) load this into dst
   virtual void LoadReferenceFromSirt(ManagedRegister dst,
@@ -578,40 +560,57 @@ class X86_64Assembler : public Assembler {
 
   // Heap::VerifyObject on src. In some cases (such as a reference to this) we
   // know that src may not be null.
-  virtual void VerifyObject(ManagedRegister src, bool could_be_null);
-  virtual void VerifyObject(FrameOffset src, bool could_be_null);
+  void VerifyObject(ManagedRegister src, bool could_be_null) OVERRIDE;
+  void VerifyObject(FrameOffset src, bool could_be_null) OVERRIDE;
 
   // Call to address held at [base+offset]
-  virtual void Call(ManagedRegister base, Offset offset,
-                    ManagedRegister scratch);
-  virtual void Call(FrameOffset base, Offset offset,
-                    ManagedRegister scratch);
-  virtual void Call(ThreadOffset offset, ManagedRegister scratch);
+  void Call(ManagedRegister base, Offset offset, ManagedRegister scratch) OVERRIDE;
+  void Call(FrameOffset base, Offset offset, ManagedRegister scratch) OVERRIDE;
+  void CallFromThread64(ThreadOffset<8> offset, ManagedRegister scratch) OVERRIDE;
 
   // Generate code to check if Thread::Current()->exception_ is non-null
   // and branch to a ExceptionSlowPath if it is.
-  virtual void ExceptionPoll(ManagedRegister scratch, size_t stack_adjust);
+  void ExceptionPoll(ManagedRegister scratch, size_t stack_adjust) OVERRIDE;
 
  private:
-  inline void EmitUint8(uint8_t value);
-  inline void EmitInt32(int32_t value);
-  inline void EmitRegisterOperand(int rm, int reg);
-  inline void EmitXmmRegisterOperand(int rm, XmmRegister reg);
-  inline void EmitFixup(AssemblerFixup* fixup);
-  inline void EmitOperandSizeOverride();
+  void EmitUint8(uint8_t value);
+  void EmitInt32(int32_t value);
+  void EmitRegisterOperand(uint8_t rm, uint8_t reg);
+  void EmitXmmRegisterOperand(uint8_t rm, XmmRegister reg);
+  void EmitFixup(AssemblerFixup* fixup);
+  void EmitOperandSizeOverride();
 
-  void EmitOperand(int rm, const Operand& operand);
+  void EmitOperand(uint8_t rm, const Operand& operand);
   void EmitImmediate(const Immediate& imm);
-  void EmitComplex(int rm, const Operand& operand, const Immediate& immediate);
+  void EmitComplex(uint8_t rm, const Operand& operand, const Immediate& immediate);
   void EmitLabel(Label* label, int instruction_size);
   void EmitLabelLink(Label* label);
   void EmitNearLabelLink(Label* label);
 
-  void EmitGenericShift(int rm, Register reg, const Immediate& imm);
-  void EmitGenericShift(int rm, Register operand, Register shifter);
-  void rex(Register &dst, Register &src, size_t size = 4);
-  void rex_reg(Register &dst, size_t size = 4);
-  void rex_rm(Register &src, size_t size = 4);
+  void EmitGenericShift(int rm, CpuRegister reg, const Immediate& imm);
+  void EmitGenericShift(int rm, CpuRegister operand, CpuRegister shifter);
+
+  // If any input is not false, output the necessary rex prefix.
+  void EmitOptionalRex(bool force, bool w, bool r, bool x, bool b);
+
+  // Emit a rex prefix byte if necessary for reg. ie if reg is a register in the range R8 to R15.
+  void EmitOptionalRex32(CpuRegister reg);
+  void EmitOptionalRex32(CpuRegister dst, CpuRegister src);
+  void EmitOptionalRex32(XmmRegister dst, XmmRegister src);
+  void EmitOptionalRex32(CpuRegister dst, XmmRegister src);
+  void EmitOptionalRex32(XmmRegister dst, CpuRegister src);
+  void EmitOptionalRex32(const Operand& operand);
+  void EmitOptionalRex32(CpuRegister dst, const Operand& operand);
+  void EmitOptionalRex32(XmmRegister dst, const Operand& operand);
+
+  // Emit a REX.W prefix plus necessary register bit encodings.
+  void EmitRex64(CpuRegister reg);
+  void EmitRex64(CpuRegister dst, CpuRegister src);
+  void EmitRex64(CpuRegister dst, const Operand& operand);
+
+  // Emit a REX prefix to normalize byte registers plus necessary register bit encodings.
+  void EmitOptionalByteRegNormalizingRex32(CpuRegister dst, CpuRegister src);
+  void EmitOptionalByteRegNormalizingRex32(CpuRegister dst, const Operand& operand);
 
   DISALLOW_COPY_AND_ASSIGN(X86_64Assembler);
 };
@@ -624,14 +623,14 @@ inline void X86_64Assembler::EmitInt32(int32_t value) {
   buffer_.Emit<int32_t>(value);
 }
 
-inline void X86_64Assembler::EmitRegisterOperand(int rm, int reg) {
+inline void X86_64Assembler::EmitRegisterOperand(uint8_t rm, uint8_t reg) {
   CHECK_GE(rm, 0);
   CHECK_LT(rm, 8);
   buffer_.Emit<uint8_t>(0xC0 + (rm << 3) + reg);
 }
 
-inline void X86_64Assembler::EmitXmmRegisterOperand(int rm, XmmRegister reg) {
-  EmitRegisterOperand(rm, static_cast<Register>(reg));
+inline void X86_64Assembler::EmitXmmRegisterOperand(uint8_t rm, XmmRegister reg) {
+  EmitRegisterOperand(rm, static_cast<uint8_t>(reg.AsFloatRegister()));
 }
 
 inline void X86_64Assembler::EmitFixup(AssemblerFixup* fixup) {
@@ -641,15 +640,6 @@ inline void X86_64Assembler::EmitFixup(AssemblerFixup* fixup) {
 inline void X86_64Assembler::EmitOperandSizeOverride() {
   EmitUint8(0x66);
 }
-
-// Slowpath entered when Thread::Current()->_exception is non-null
-class X86ExceptionSlowPath : public SlowPath {
- public:
-  explicit X86ExceptionSlowPath(size_t stack_adjust) : stack_adjust_(stack_adjust) {}
-  virtual void Emit(Assembler *sp_asm);
- private:
-  const size_t stack_adjust_;
-};
 
 }  // namespace x86_64
 }  // namespace art

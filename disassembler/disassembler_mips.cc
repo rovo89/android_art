@@ -237,7 +237,7 @@ static void DumpMips(std::ostream& os, const uint8_t* instr_ptr) {
               args << StringPrintf("%+d(r%d)", offset, rs);
               if (rs == 17) {
                 args << "  ; ";
-                Thread::DumpThreadOffset(args, offset, 4);
+                Thread::DumpThreadOffset<4>(args, offset);
               }
             }
             break;

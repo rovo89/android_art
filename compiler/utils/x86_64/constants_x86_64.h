@@ -27,30 +27,37 @@
 namespace art {
 namespace x86_64 {
 
-enum ByteRegister {
-  AL = 0,
-  CL = 1,
-  DL = 2,
-  BL = 3,
-  AH = 4,
-  CH = 5,
-  DH = 6,
-  BH = 7,
-  kNoByteRegister = -1  // Signals an illegal register.
+class CpuRegister {
+ public:
+  explicit CpuRegister(Register r) : reg_(r) {}
+  Register AsRegister() const {
+    return reg_;
+  }
+  uint8_t LowBits() const {
+    return reg_ & 7;
+  }
+  bool NeedsRex() const {
+    return reg_ > 7;
+  }
+ private:
+  const Register reg_;
 };
+std::ostream& operator<<(std::ostream& os, const CpuRegister& reg);
 
-
-enum XmmRegister {
-  _XMM0 = 0,
-  _XMM1 = 1,
-  _XMM2 = 2,
-  _XMM3 = 3,
-  _XMM4 = 4,
-  _XMM5 = 5,
-  _XMM6 = 6,
-  _XMM7 = 7,
-  kNumberOfXmmRegisters = 8,
-  kNoXmmRegister = -1  // Signals an illegal register.
+class XmmRegister {
+ public:
+  explicit XmmRegister(FloatRegister r) : reg_(r) {}
+  FloatRegister AsFloatRegister() const {
+    return reg_;
+  }
+  uint8_t LowBits() const {
+    return reg_ & 7;
+  }
+  bool NeedsRex() const {
+    return reg_ > 7;
+  }
+ private:
+  const FloatRegister reg_;
 };
 std::ostream& operator<<(std::ostream& os, const XmmRegister& reg);
 

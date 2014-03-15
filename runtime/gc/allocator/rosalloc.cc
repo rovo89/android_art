@@ -565,7 +565,7 @@ void* RosAlloc::AllocFromRun(Thread* self, size_t size, size_t* bytes_allocated)
 
   if (LIKELY(idx <= kMaxThreadLocalSizeBracketIdx)) {
     // Use a thread-local run.
-    Run* thread_local_run = reinterpret_cast<Run*>(self->rosalloc_runs_[idx]);
+    Run* thread_local_run = reinterpret_cast<Run*>(self->GetRosAllocRun(idx));
     if (UNLIKELY(thread_local_run == NULL)) {
       MutexLock mu(self, *size_bracket_locks_[idx]);
       thread_local_run = RefillRun(self, idx);
@@ -575,7 +575,7 @@ void* RosAlloc::AllocFromRun(Thread* self, size_t size, size_t* bytes_allocated)
       DCHECK(non_full_runs_[idx].find(thread_local_run) == non_full_runs_[idx].end());
       DCHECK(full_runs_[idx].find(thread_local_run) == full_runs_[idx].end());
       thread_local_run->is_thread_local_ = 1;
-      self->rosalloc_runs_[idx] = thread_local_run;
+      self->SetRosAllocRun(idx, thread_local_run);
       DCHECK(!thread_local_run->IsFull());
     }
 
@@ -600,7 +600,7 @@ void* RosAlloc::AllocFromRun(Thread* self, size_t size, size_t* bytes_allocated)
       } else {
         // No slots got freed. Try to refill the thread-local run.
         DCHECK(thread_local_run->IsFull());
-        self->rosalloc_runs_[idx] = NULL;
+        self->SetRosAllocRun(idx, nullptr);
         thread_local_run->is_thread_local_ = 0;
         if (kIsDebugBuild) {
           full_runs_[idx].insert(thread_local_run);
@@ -619,7 +619,7 @@ void* RosAlloc::AllocFromRun(Thread* self, size_t size, size_t* bytes_allocated)
         DCHECK(non_full_runs_[idx].find(thread_local_run) == non_full_runs_[idx].end());
         DCHECK(full_runs_[idx].find(thread_local_run) == full_runs_[idx].end());
         thread_local_run->is_thread_local_ = 1;
-        self->rosalloc_runs_[idx] = thread_local_run;
+        self->SetRosAllocRun(idx, thread_local_run);
         DCHECK(!thread_local_run->IsFull());
       }
 
@@ -1602,11 +1602,11 @@ void RosAlloc::RevokeThreadLocalRuns(Thread* thread) {
   WriterMutexLock wmu(self, bulk_free_lock_);
   for (size_t idx = 0; idx < kNumOfSizeBrackets; idx++) {
     MutexLock mu(self, *size_bracket_locks_[idx]);
-    Run* thread_local_run = reinterpret_cast<Run*>(thread->rosalloc_runs_[idx]);
+    Run* thread_local_run = reinterpret_cast<Run*>(thread->GetRosAllocRun(idx));
     if (thread_local_run != NULL) {
       DCHECK_EQ(thread_local_run->magic_num_, kMagicNum);
       DCHECK_NE(thread_local_run->is_thread_local_, 0);
-      thread->rosalloc_runs_[idx] = NULL;
+      thread->SetRosAllocRun(idx, nullptr);
       // Note the thread local run may not be full here.
       bool dont_care;
       thread_local_run->MergeThreadLocalFreeBitMapToAllocBitMap(&dont_care);
@@ -1659,7 +1659,7 @@ void RosAlloc::AssertThreadLocalRunsAreRevoked(Thread* thread) {
     WriterMutexLock wmu(self, bulk_free_lock_);
     for (size_t idx = 0; idx < kNumOfSizeBrackets; idx++) {
       MutexLock mu(self, *size_bracket_locks_[idx]);
-      Run* thread_local_run = reinterpret_cast<Run*>(thread->rosalloc_runs_[idx]);
+      Run* thread_local_run = reinterpret_cast<Run*>(thread->GetRosAllocRun(idx));
       DCHECK(thread_local_run == nullptr);
     }
   }
@@ -1924,7 +1924,7 @@ void RosAlloc::Run::Verify(Thread* self, RosAlloc* rosalloc) {
       Thread* thread = *it;
       for (size_t i = 0; i < kNumOfSizeBrackets; i++) {
         MutexLock mu(self, *rosalloc->size_bracket_locks_[i]);
-        Run* thread_local_run = reinterpret_cast<Run*>(thread->rosalloc_runs_[i]);
+        Run* thread_local_run = reinterpret_cast<Run*>(thread->GetRosAllocRun(i));
         if (thread_local_run == this) {
           CHECK(!owner_found)
               << "A thread local run has more than one owner thread " << Dump();
