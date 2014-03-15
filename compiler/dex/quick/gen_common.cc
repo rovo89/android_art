@@ -1947,12 +1947,6 @@ void Mir2Lir::GenConversionCall(ThreadOffset func_offset,
    * functions
    */
   FlushAllRegs();   /* Send everything to home location */
-  if (rl_src.wide) {
-    LoadValueDirectWideFixed(rl_src, rl_src.fp ? TargetReg(kFArg0) : TargetReg(kArg0),
-                             rl_src.fp ? TargetReg(kFArg1) : TargetReg(kArg1));
-  } else {
-    LoadValueDirectFixed(rl_src, rl_src.fp ? TargetReg(kFArg0) : TargetReg(kArg0));
-  }
   CallRuntimeHelperRegLocation(func_offset, rl_src, false);
   if (rl_dest.wide) {
     RegLocation rl_result;
