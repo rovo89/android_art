@@ -1254,9 +1254,9 @@ static void SetLocation(JDWP::JdwpLocation& location, mirror::ArtMethod* m, uint
   } else {
     mirror::Class* c = m->GetDeclaringClass();
     location.type_tag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
-    location.class_id = gRegistry->Add(c);
+    location.class_id = gRegistry->AddRefType(c);
     location.method_id = ToMethodId(m);
-    location.dex_pc = dex_pc;
+    location.dex_pc = (m->IsNative() || m->IsProxyMethod()) ? static_cast<uint64_t>(-1) : dex_pc;
   }
 }
 
@@ -1293,6 +1293,12 @@ static uint32_t MangleAccessFlags(uint32_t accessFlags) {
 static uint16_t MangleSlot(uint16_t slot, mirror::ArtMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+  if (code_item == nullptr) {
+    // We should not get here for a method without code (native, proxy or abstract). Log it and
+    // return the slot as is since all registers are arguments.
+    LOG(WARNING) << "Trying to mangle slot for method without code " << PrettyMethod(m);
+    return slot;
+  }
   uint16_t ins_size = code_item->ins_size_;
   uint16_t locals_size = code_item->registers_size_ - ins_size;
   if (slot >= locals_size) {
@@ -1309,6 +1315,12 @@ static uint16_t MangleSlot(uint16_t slot, mirror::ArtMethod* m)
 static uint16_t DemangleSlot(uint16_t slot, mirror::ArtMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+  if (code_item == nullptr) {
+    // We should not get here for a method without code (native, proxy or abstract). Log it and
+    // return the slot as is since all registers are arguments.
+    LOG(WARNING) << "Trying to demangle slot for method without code " << PrettyMethod(m);
+    return slot;
+  }
   uint16_t ins_size = code_item->ins_size_;
   uint16_t locals_size = code_item->registers_size_ - ins_size;
   if (slot < ins_size) {
@@ -1405,14 +1417,16 @@ void Dbg::OutputLineTable(JDWP::RefTypeId, JDWP::MethodId method_id, JDWP::Expan
   };
   mirror::ArtMethod* m = FromMethodId(method_id);
   MethodHelper mh(m);
+  const DexFile::CodeItem* code_item = mh.GetCodeItem();
   uint64_t start, end;
-  if (m->IsNative()) {
+  if (code_item == nullptr) {
+    DCHECK(m->IsNative() || m->IsProxyMethod());
     start = -1;
     end = -1;
   } else {
     start = 0;
     // Return the index of the last instruction
-    end = mh.GetCodeItem()->insns_size_in_code_units_ - 1;
+    end = code_item->insns_size_in_code_units_ - 1;
   }
 
   expandBufAdd8BE(pReply, start);
@@ -1426,8 +1440,10 @@ void Dbg::OutputLineTable(JDWP::RefTypeId, JDWP::MethodId method_id, JDWP::Expan
   context.numItems = 0;
   context.pReply = pReply;
 
-  mh.GetDexFile().DecodeDebugInfo(mh.GetCodeItem(), m->IsStatic(), m->GetDexMethodIndex(),
-                                  DebugCallbackContext::Callback, NULL, &context);
+  if (code_item != nullptr) {
+    mh.GetDexFile().DecodeDebugInfo(code_item, m->IsStatic(), m->GetDexMethodIndex(),
+                                    DebugCallbackContext::Callback, NULL, &context);
+  }
 
   JDWP::Set4BE(expandBufGetBuffer(pReply) + numLinesOffset, context.numItems);
 }
@@ -1461,7 +1477,6 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId method_id, bool wi
   };
   mirror::ArtMethod* m = FromMethodId(method_id);
   MethodHelper mh(m);
-  const DexFile::CodeItem* code_item = mh.GetCodeItem();
 
   // arg_count considers doubles and longs to take 2 units.
   // variable_count considers everything to take 1 unit.
@@ -1478,8 +1493,11 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId method_id, bool wi
   context.variable_count = 0;
   context.with_generic = with_generic;
 
-  mh.GetDexFile().DecodeDebugInfo(code_item, m->IsStatic(), m->GetDexMethodIndex(), NULL,
-                                  DebugCallbackContext::Callback, &context);
+  const DexFile::CodeItem* code_item = mh.GetCodeItem();
+  if (code_item != nullptr) {
+    mh.GetDexFile().DecodeDebugInfo(code_item, m->IsStatic(), m->GetDexMethodIndex(), NULL,
+                                    DebugCallbackContext::Callback, &context);
+  }
 
   JDWP::Set4BE(expandBufGetBuffer(pReply) + variable_count_offset, context.variable_count);
 }
@@ -2119,14 +2137,14 @@ JDWP::JdwpError Dbg::GetThisObject(JDWP::ObjectId thread_id, JDWP::FrameId frame
   return JDWP::ERR_NONE;
 }
 
-void Dbg::GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int slot,
-                        JDWP::JdwpTag tag, uint8_t* buf, size_t width) {
+JDWP::JdwpError Dbg::GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int slot,
+                                   JDWP::JdwpTag tag, uint8_t* buf, size_t width) {
   struct GetLocalVisitor : public StackVisitor {
     GetLocalVisitor(const ScopedObjectAccessUnchecked& soa, Thread* thread, Context* context,
                     JDWP::FrameId frame_id, int slot, JDWP::JdwpTag tag, uint8_t* buf, size_t width)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
         : StackVisitor(thread, context), soa_(soa), frame_id_(frame_id), slot_(slot), tag_(tag),
-          buf_(buf), width_(width) {}
+          buf_(buf), width_(width), error_(JDWP::ERR_NONE) {}
 
     // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
     // annotalysis.
@@ -2135,7 +2153,13 @@ void Dbg::GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int sl
         return true;  // Not our frame, carry on.
       }
       // TODO: check that the tag is compatible with the actual type of the slot!
+      // TODO: check slot is valid for this method or return INVALID_SLOT error.
       mirror::ArtMethod* m = GetMethod();
+      if (m->IsNative()) {
+        // We can't read local value from native method.
+        error_ = JDWP::ERR_OPAQUE_FRAME;
+        return false;
+      }
       uint16_t reg = DemangleSlot(slot_, m);
 
       switch (tag_) {
@@ -2243,6 +2267,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int sl
     JDWP::JdwpTag tag_;
     uint8_t* const buf_;
     const size_t width_;
+    JDWP::JdwpError error_;
   };
 
   ScopedObjectAccessUnchecked soa(Thread::Current());
@@ -2250,22 +2275,25 @@ void Dbg::GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int sl
   Thread* thread;
   JDWP::JdwpError error = DecodeThread(soa, thread_id, thread);
   if (error != JDWP::ERR_NONE) {
-    return;
+    return error;
   }
+  // TODO check thread is suspended by the debugger ?
   UniquePtr<Context> context(Context::Create());
   GetLocalVisitor visitor(soa, thread, context.get(), frame_id, slot, tag, buf, width);
   visitor.WalkStack();
+  return visitor.error_;
 }
 
-void Dbg::SetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int slot, JDWP::JdwpTag tag,
-                        uint64_t value, size_t width) {
+JDWP::JdwpError Dbg::SetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int slot,
+                                   JDWP::JdwpTag tag, uint64_t value, size_t width) {
   struct SetLocalVisitor : public StackVisitor {
     SetLocalVisitor(Thread* thread, Context* context,
                     JDWP::FrameId frame_id, int slot, JDWP::JdwpTag tag, uint64_t value,
                     size_t width)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
         : StackVisitor(thread, context),
-          frame_id_(frame_id), slot_(slot), tag_(tag), value_(value), width_(width) {}
+          frame_id_(frame_id), slot_(slot), tag_(tag), value_(value), width_(width),
+          error_(JDWP::ERR_NONE) {}
 
     // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
     // annotalysis.
@@ -2274,7 +2302,13 @@ void Dbg::SetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int sl
         return true;  // Not our frame, carry on.
       }
       // TODO: check that the tag is compatible with the actual type of the slot!
+      // TODO: check slot is valid for this method or return INVALID_SLOT error.
       mirror::ArtMethod* m = GetMethod();
+      if (m->IsNative()) {
+        // We can't read local value from native method.
+        error_ = JDWP::ERR_OPAQUE_FRAME;
+        return false;
+      }
       uint16_t reg = DemangleSlot(slot_, m);
 
       switch (tag_) {
@@ -2330,6 +2364,7 @@ void Dbg::SetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int sl
     const JDWP::JdwpTag tag_;
     const uint64_t value_;
     const size_t width_;
+    JDWP::JdwpError error_;
   };
 
   ScopedObjectAccessUnchecked soa(Thread::Current());
@@ -2337,22 +2372,19 @@ void Dbg::SetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int sl
   Thread* thread;
   JDWP::JdwpError error = DecodeThread(soa, thread_id, thread);
   if (error != JDWP::ERR_NONE) {
-    return;
+    return error;
   }
+  // TODO check thread is suspended by the debugger ?
   UniquePtr<Context> context(Context::Create());
   SetLocalVisitor visitor(thread, context.get(), frame_id, slot, tag, value, width);
   visitor.WalkStack();
+  return visitor.error_;
 }
 
 void Dbg::PostLocationEvent(mirror::ArtMethod* m, int dex_pc, mirror::Object* this_object,
                             int event_flags, const JValue* return_value) {
-  mirror::Class* c = m->GetDeclaringClass();
-
   JDWP::JdwpLocation location;
-  location.type_tag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
-  location.class_id = gRegistry->AddRefType(c);
-  location.method_id = ToMethodId(m);
-  location.dex_pc = m->IsNative() ? -1 : dex_pc;
+  SetLocation(location, m, dex_pc);
 
   // If 'this_object' isn't already in the registry, we know that we're not looking for it,
   // so there's no point adding it to the registry and burning through ids.
