@@ -1869,7 +1869,7 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
   uint64_t start_ns = NanoTime();
 
   if ((access_flags & kAccNative) != 0) {
-    // Are we only interpreting only and have support for generic JNI down calls?
+    // Are we interpreting only and have support for generic JNI down calls?
     if ((compiler_options_->GetCompilerFilter() == CompilerOptions::kInterpretOnly) &&
         (instruction_set_ == kX86_64)) {
       // Leaving this empty will trigger the generic JNI version
