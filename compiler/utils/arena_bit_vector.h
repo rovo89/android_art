@@ -19,6 +19,7 @@
 
 #include "base/bit_vector.h"
 #include "utils/arena_allocator.h"
+#include "utils/scoped_arena_allocator.h"
 
 namespace art {
 
@@ -38,6 +39,7 @@ enum OatBitMapKind {
   kBitMapRegisterV,
   kBitMapTempSSARegisterV,
   kBitMapNullCheck,
+  kBitMapClInitCheck,
   kBitMapTmpBlockV,
   kBitMapPredecessors,
   kNumBitMapKinds
@@ -52,9 +54,14 @@ class ArenaBitVector : public BitVector {
   public:
     ArenaBitVector(ArenaAllocator* arena, uint32_t start_bits, bool expandable,
                    OatBitMapKind kind = kBitMapMisc);
+    ArenaBitVector(ScopedArenaAllocator* arena, uint32_t start_bits, bool expandable,
+                   OatBitMapKind kind = kBitMapMisc);
     ~ArenaBitVector() {}
 
   static void* operator new(size_t size, ArenaAllocator* arena) {
+     return arena->Alloc(sizeof(ArenaBitVector), kArenaAllocGrowableBitMap);
+  }
+  static void* operator new(size_t size, ScopedArenaAllocator* arena) {
      return arena->Alloc(sizeof(ArenaBitVector), kArenaAllocGrowableBitMap);
   }
   static void operator delete(void* p) {}  // Nop.

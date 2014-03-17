@@ -63,9 +63,11 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       dom_post_order_traversal_(NULL),
       i_dom_list_(NULL),
       def_block_matrix_(NULL),
-      temp_block_v_(NULL),
       temp_dalvik_register_v_(NULL),
-      temp_ssa_register_v_(NULL),
+      temp_scoped_alloc_(),
+      temp_insn_data_(nullptr),
+      temp_bit_vector_size_(0u),
+      temp_bit_vector_(nullptr),
       block_list_(arena, 100, kGrowableArrayBlockList),
       try_block_addr_(NULL),
       entry_block_(NULL),
@@ -1237,17 +1239,6 @@ void MIRGraph::InitializeSSATransformation() {
   /* Rename register names by local defs and phi nodes */
   ClearAllVisitedFlags();
   DoDFSPreOrderSSARename(GetEntryBlock());
-
-  /*
-   * Shared temp bit vector used by each block to count the number of defs
-   * from all the predecessor blocks.
-   */
-  temp_ssa_register_v_ =
-    new (arena_) ArenaBitVector(arena_, GetNumSSARegs(), false, kBitMapTempSSARegisterV);
-}
-
-void MIRGraph::CheckSSARegisterVector() {
-  DCHECK(temp_ssa_register_v_ != nullptr);
 }
 
 }  // namespace art
