@@ -74,27 +74,6 @@ bool MethodUseCount::WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) con
 }
 
 /*
- * Null Check Elimination and Type Inference Initialization pass implementation start.
- */
-
-bool NullCheckEliminationAndTypeInferenceInit::Gate(const CompilationUnit* cUnit) const {
-  // First check the ssa register vector
-  cUnit->mir_graph->CheckSSARegisterVector();
-
-  // Did we disable the pass?
-  bool performInit = ((cUnit->disable_opt & (1 << kNullCheckElimination)) == 0);
-
-  return performInit;
-}
-
-bool NullCheckEliminationAndTypeInferenceInit::WalkBasicBlocks(CompilationUnit* cUnit,
-                                                               BasicBlock* bb) const {
-  cUnit->mir_graph->NullCheckEliminationInit(bb);
-  // No need of repeating, so just return false.
-  return false;
-}
-
-/*
  * BasicBlock Combine pass implementation start.
  */
 bool BBCombine::WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const {

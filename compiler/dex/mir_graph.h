@@ -182,6 +182,7 @@ enum OatMethodAttributes {
 #define MIR_NULL_CHECK_ONLY             (1 << kMIRNullCheckOnly)
 #define MIR_IGNORE_RANGE_CHECK          (1 << kMIRIgnoreRangeCheck)
 #define MIR_RANGE_CHECK_ONLY            (1 << kMIRRangeCheckOnly)
+#define MIR_IGNORE_CLINIT_CHECK         (1 << kMIRIgnoreClInitCheck)
 #define MIR_INLINED                     (1 << kMIRInlined)
 #define MIR_INLINED_PRED                (1 << kMIRInlinedPred)
 #define MIR_CALLEE                      (1 << kMIRCallee)
@@ -224,7 +225,7 @@ struct BasicBlockDataFlow {
   ArenaBitVector* live_in_v;
   ArenaBitVector* phi_v;
   int32_t* vreg_to_ssa_map;
-  ArenaBitVector* ending_null_check_v;
+  ArenaBitVector* ending_check_v;  // For null check and class init check elimination.
 };
 
 /*
@@ -493,6 +494,10 @@ class MIRGraph {
     return (merged_df_flags_ & (DF_IFIELD | DF_SFIELD)) != 0u;
   }
 
+  bool HasStaticFieldAccess() const {
+    return (merged_df_flags_ & DF_SFIELD) != 0u;
+  }
+
   bool HasInvokes() const {
     // NOTE: These formats include the rare filled-new-array/range.
     return (merged_df_flags_ & (DF_FORMAT_35C | DF_FORMAT_3RC)) != 0u;
@@ -745,7 +750,12 @@ class MIRGraph {
   int SRegToVReg(int ssa_reg) const;
   void VerifyDataflow();
   void CheckForDominanceFrontier(BasicBlock* dom_bb, const BasicBlock* succ_bb);
+  void EliminateNullChecksAndInferTypesStart();
   bool EliminateNullChecksAndInferTypes(BasicBlock *bb);
+  void EliminateNullChecksAndInferTypesEnd();
+  bool EliminateClassInitChecksGate();
+  bool EliminateClassInitChecks(BasicBlock* bb);
+  void EliminateClassInitChecksEnd();
   /*
    * Type inference handling helpers.  Because Dalvik's bytecode is not fully typed,
    * we have to do some work to figure out the sreg type.  For some operations it is
@@ -834,17 +844,6 @@ class MIRGraph {
    * @param bb the BasicBlock
    */
   void CountUses(struct BasicBlock* bb);
-
-  /**
-   * @brief Initialize the data structures with Null Check data
-   * @param bb the considered BasicBlock
-   */
-  void NullCheckEliminationInit(BasicBlock* bb);
-
-  /**
-   * @brief Check if the temporary ssa register vector is allocated
-   */
-  void CheckSSARegisterVector();
 
   /**
    * @brief Combine BasicBlocks
@@ -943,9 +942,11 @@ class MIRGraph {
   GrowableArray<BasicBlockId>* dom_post_order_traversal_;
   int* i_dom_list_;
   ArenaBitVector** def_block_matrix_;    // num_dalvik_register x num_blocks.
-  ArenaBitVector* temp_block_v_;
   ArenaBitVector* temp_dalvik_register_v_;
-  ArenaBitVector* temp_ssa_register_v_;  // num_ssa_regs.
+  UniquePtr<ScopedArenaAllocator> temp_scoped_alloc_;
+  uint16_t* temp_insn_data_;
+  uint32_t temp_bit_vector_size_;
+  ArenaBitVector* temp_bit_vector_;
   static const int kInvalidEntry = -1;
   GrowableArray<BasicBlock*> block_list_;
   ArenaBitVector* try_block_addr_;
@@ -979,6 +980,7 @@ class MIRGraph {
   GrowableArray<MirSFieldLoweringInfo> sfield_lowering_infos_;
   GrowableArray<MirMethodLoweringInfo> method_lowering_infos_;
 
+  friend class ClassInitCheckEliminationTest;
   friend class LocalValueNumberingTest;
 };
 

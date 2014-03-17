@@ -545,13 +545,6 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
   return true;
 }
 
-void MIRGraph::NullCheckEliminationInit(struct BasicBlock* bb) {
-  if (bb->data_flow_info != NULL) {
-    bb->data_flow_info->ending_null_check_v =
-        new (arena_) ArenaBitVector(arena_, GetNumSSARegs(), false, kBitMapNullCheck);
-  }
-}
-
 /* Collect stats on number of checks removed */
 void MIRGraph::CountChecks(struct BasicBlock* bb) {
   if (bb->data_flow_info != NULL) {
@@ -690,6 +683,23 @@ void MIRGraph::CombineBlocks(struct BasicBlock* bb) {
   }
 }
 
+void MIRGraph::EliminateNullChecksAndInferTypesStart() {
+  if ((cu_->disable_opt & (1 << kNullCheckElimination)) == 0) {
+    if (kIsDebugBuild) {
+      AllNodesIterator iter(this);
+      for (BasicBlock* bb = iter.Next(); bb != nullptr; bb = iter.Next()) {
+        CHECK(bb->data_flow_info == nullptr || bb->data_flow_info->ending_check_v == nullptr);
+      }
+    }
+
+    DCHECK(temp_scoped_alloc_.get() == nullptr);
+    temp_scoped_alloc_.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
+    temp_bit_vector_size_ = GetNumSSARegs();
+    temp_bit_vector_ = new (temp_scoped_alloc_.get()) ArenaBitVector(
+        temp_scoped_alloc_.get(), temp_bit_vector_size_, false, kBitMapTempSSARegisterV);
+  }
+}
+
 /*
  * Eliminate unnecessary null checks for a basic block.   Also, while we're doing
  * an iterative walk go ahead and perform type and size inference.
@@ -699,6 +709,7 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
   bool infer_changed = false;
   bool do_nce = ((cu_->disable_opt & (1 << kNullCheckElimination)) == 0);
 
+  ArenaBitVector* ssa_regs_to_check = temp_bit_vector_;
   if (do_nce) {
     /*
      * Set initial state.  Be conservative with catch
@@ -706,20 +717,22 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
      * status (except for "this").
      */
     if ((bb->block_type == kEntryBlock) | bb->catch_entry) {
-      temp_ssa_register_v_->ClearAllBits();
+      ssa_regs_to_check->ClearAllBits();
       // Assume all ins are objects.
       for (uint16_t in_reg = cu_->num_dalvik_registers - cu_->num_ins;
            in_reg < cu_->num_dalvik_registers; in_reg++) {
-        temp_ssa_register_v_->SetBit(in_reg);
+        ssa_regs_to_check->SetBit(in_reg);
       }
       if ((cu_->access_flags & kAccStatic) == 0) {
         // If non-static method, mark "this" as non-null
         int this_reg = cu_->num_dalvik_registers - cu_->num_ins;
-        temp_ssa_register_v_->ClearBit(this_reg);
+        ssa_regs_to_check->ClearBit(this_reg);
       }
     } else if (bb->predecessors->Size() == 1) {
       BasicBlock* pred_bb = GetBasicBlock(bb->predecessors->Get(0));
-      temp_ssa_register_v_->Copy(pred_bb->data_flow_info->ending_null_check_v);
+      // pred_bb must have already been processed at least once.
+      DCHECK(pred_bb->data_flow_info->ending_check_v != nullptr);
+      ssa_regs_to_check->Copy(pred_bb->data_flow_info->ending_check_v);
       if (pred_bb->block_type == kDalvikByteCode) {
         // Check to see if predecessor had an explicit null-check.
         MIR* last_insn = pred_bb->last_mir_insn;
@@ -728,13 +741,13 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
           if (pred_bb->fall_through == bb->id) {
             // The fall-through of a block following a IF_EQZ, set the vA of the IF_EQZ to show that
             // it can't be null.
-            temp_ssa_register_v_->ClearBit(last_insn->ssa_rep->uses[0]);
+            ssa_regs_to_check->ClearBit(last_insn->ssa_rep->uses[0]);
           }
         } else if (last_opcode == Instruction::IF_NEZ) {
           if (pred_bb->taken == bb->id) {
             // The taken block following a IF_NEZ, set the vA of the IF_NEZ to show that it can't be
             // null.
-            temp_ssa_register_v_->ClearBit(last_insn->ssa_rep->uses[0]);
+            ssa_regs_to_check->ClearBit(last_insn->ssa_rep->uses[0]);
           }
         }
       }
@@ -742,19 +755,25 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
       // Starting state is union of all incoming arcs
       GrowableArray<BasicBlockId>::Iterator iter(bb->predecessors);
       BasicBlock* pred_bb = GetBasicBlock(iter.Next());
-      DCHECK(pred_bb != NULL);
-      temp_ssa_register_v_->Copy(pred_bb->data_flow_info->ending_null_check_v);
+      CHECK(pred_bb != NULL);
+      while (pred_bb->data_flow_info->ending_check_v == nullptr) {
+        pred_bb = GetBasicBlock(iter.Next());
+        // At least one predecessor must have been processed before this bb.
+        DCHECK(pred_bb != nullptr);
+        DCHECK(pred_bb->data_flow_info != nullptr);
+      }
+      ssa_regs_to_check->Copy(pred_bb->data_flow_info->ending_check_v);
       while (true) {
         pred_bb = GetBasicBlock(iter.Next());
         if (!pred_bb) break;
-        if ((pred_bb->data_flow_info == NULL) ||
-            (pred_bb->data_flow_info->ending_null_check_v == NULL)) {
+        DCHECK(pred_bb->data_flow_info != nullptr);
+        if (pred_bb->data_flow_info->ending_check_v == nullptr) {
           continue;
         }
-        temp_ssa_register_v_->Union(pred_bb->data_flow_info->ending_null_check_v);
+        ssa_regs_to_check->Union(pred_bb->data_flow_info->ending_check_v);
       }
     }
-    // At this point, temp_ssa_register_v_ shows which sregs have an object definition with
+    // At this point, ssa_regs_to_check shows which sregs have an object definition with
     // no intervening uses.
   }
 
@@ -783,14 +802,14 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
         src_idx = 0;
       }
       int src_sreg = mir->ssa_rep->uses[src_idx];
-      if (!temp_ssa_register_v_->IsBitSet(src_sreg)) {
+      if (!ssa_regs_to_check->IsBitSet(src_sreg)) {
         // Eliminate the null check.
         mir->optimization_flags |= MIR_IGNORE_NULL_CHECK;
       } else {
         // Do the null check.
         mir->optimization_flags &= ~MIR_IGNORE_NULL_CHECK;
         // Mark s_reg as null-checked
-        temp_ssa_register_v_->ClearBit(src_sreg);
+        ssa_regs_to_check->ClearBit(src_sreg);
       }
     }
 
@@ -806,13 +825,13 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
      */
     if (((df_attributes & (DF_DA | DF_REF_A)) == (DF_DA | DF_REF_A)) ||
         (df_attributes & DF_SETS_CONST))  {
-      temp_ssa_register_v_->SetBit(mir->ssa_rep->defs[0]);
+      ssa_regs_to_check->SetBit(mir->ssa_rep->defs[0]);
     }
 
     // Now, remove mark from all object definitions we know are non-null.
     if (df_attributes & DF_NON_NULL_DST) {
       // Mark target of NEW* as non-null
-      temp_ssa_register_v_->ClearBit(mir->ssa_rep->defs[0]);
+      ssa_regs_to_check->ClearBit(mir->ssa_rep->defs[0]);
     }
 
     // Mark non-null returns from invoke-style NEW*
@@ -822,7 +841,7 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
       if (next_mir &&
           next_mir->dalvikInsn.opcode == Instruction::MOVE_RESULT_OBJECT) {
         // Mark as null checked
-        temp_ssa_register_v_->ClearBit(next_mir->ssa_rep->defs[0]);
+        ssa_regs_to_check->ClearBit(next_mir->ssa_rep->defs[0]);
       } else {
         if (next_mir) {
           LOG(WARNING) << "Unexpected opcode following new: " << next_mir->dalvikInsn.opcode;
@@ -837,7 +856,7 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
             // First non-pseudo should be MOVE_RESULT_OBJECT
             if (tmir->dalvikInsn.opcode == Instruction::MOVE_RESULT_OBJECT) {
               // Mark as null checked
-              temp_ssa_register_v_->ClearBit(tmir->ssa_rep->defs[0]);
+              ssa_regs_to_check->ClearBit(tmir->ssa_rep->defs[0]);
             } else {
               LOG(WARNING) << "Unexpected op after new: " << tmir->dalvikInsn.opcode;
             }
@@ -858,22 +877,240 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
           mir->ssa_rep->num_uses;
       bool needs_null_check = false;
       for (int i = 0; i < operands; i++) {
-        needs_null_check |= temp_ssa_register_v_->IsBitSet(mir->ssa_rep->uses[i]);
+        needs_null_check |= ssa_regs_to_check->IsBitSet(mir->ssa_rep->uses[i]);
       }
       if (needs_null_check) {
-        temp_ssa_register_v_->SetBit(tgt_sreg);
+        ssa_regs_to_check->SetBit(tgt_sreg);
       } else {
-        temp_ssa_register_v_->ClearBit(tgt_sreg);
+        ssa_regs_to_check->ClearBit(tgt_sreg);
       }
     }
   }
 
   // Did anything change?
-  bool nce_changed = do_nce && !temp_ssa_register_v_->Equal(bb->data_flow_info->ending_null_check_v);
-  if (nce_changed) {
-    bb->data_flow_info->ending_null_check_v->Copy(temp_ssa_register_v_);
+  bool nce_changed = false;
+  if (do_nce) {
+    if (bb->data_flow_info->ending_check_v == nullptr) {
+      DCHECK(temp_scoped_alloc_.get() != nullptr);
+      bb->data_flow_info->ending_check_v = new (temp_scoped_alloc_.get()) ArenaBitVector(
+          temp_scoped_alloc_.get(), temp_bit_vector_size_, false, kBitMapNullCheck);
+      nce_changed = ssa_regs_to_check->GetHighestBitSet() != -1;
+      bb->data_flow_info->ending_check_v->Copy(ssa_regs_to_check);
+    } else if (!ssa_regs_to_check->Equal(bb->data_flow_info->ending_check_v)) {
+      nce_changed = true;
+      bb->data_flow_info->ending_check_v->Copy(ssa_regs_to_check);
+    }
   }
   return infer_changed | nce_changed;
+}
+
+void MIRGraph::EliminateNullChecksAndInferTypesEnd() {
+  if ((cu_->disable_opt & (1 << kNullCheckElimination)) == 0) {
+    // Clean up temporaries.
+    temp_bit_vector_size_ = 0u;
+    temp_bit_vector_ = nullptr;
+    AllNodesIterator iter(this);
+    for (BasicBlock* bb = iter.Next(); bb != nullptr; bb = iter.Next()) {
+      if (bb->data_flow_info != nullptr) {
+        bb->data_flow_info->ending_check_v = nullptr;
+      }
+    }
+    DCHECK(temp_scoped_alloc_.get() != nullptr);
+    temp_scoped_alloc_.reset();
+  }
+}
+
+bool MIRGraph::EliminateClassInitChecksGate() {
+  if ((cu_->disable_opt & (1 << kClassInitCheckElimination)) != 0 ||
+      !cu_->mir_graph->HasStaticFieldAccess()) {
+    return false;
+  }
+
+  if (kIsDebugBuild) {
+    AllNodesIterator iter(this);
+    for (BasicBlock* bb = iter.Next(); bb != nullptr; bb = iter.Next()) {
+      CHECK(bb->data_flow_info == nullptr || bb->data_flow_info->ending_check_v == nullptr);
+    }
+  }
+
+  DCHECK(temp_scoped_alloc_.get() == nullptr);
+  temp_scoped_alloc_.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
+
+  // Each insn we use here has at least 2 code units, offset/2 will be a unique index.
+  const size_t end = (cu_->code_item->insns_size_in_code_units_ + 1u) / 2u;
+  temp_insn_data_ = static_cast<uint16_t*>(
+      temp_scoped_alloc_->Alloc(end * sizeof(*temp_insn_data_), kArenaAllocGrowableArray));
+
+  uint32_t unique_class_count = 0u;
+  {
+    // Get unique_class_count and store indexes in temp_insn_data_ using a map on a nested
+    // ScopedArenaAllocator.
+
+    // Embed the map value in the entry to save space.
+    struct MapEntry {
+      // Map key: the class identified by the declaring dex file and type index.
+      const DexFile* declaring_dex_file;
+      uint16_t declaring_class_idx;
+      // Map value: index into bit vectors of classes requiring initialization checks.
+      uint16_t index;
+    };
+    struct MapEntryComparator {
+      bool operator()(const MapEntry& lhs, const MapEntry& rhs) const {
+        if (lhs.declaring_class_idx != rhs.declaring_class_idx) {
+          return lhs.declaring_class_idx < rhs.declaring_class_idx;
+        }
+        return lhs.declaring_dex_file < rhs.declaring_dex_file;
+      }
+    };
+
+    typedef std::set<MapEntry, MapEntryComparator, ScopedArenaAllocatorAdapter<MapEntry> >
+        ClassToIndexMap;
+
+    ScopedArenaAllocator allocator(&cu_->arena_stack);
+    ClassToIndexMap class_to_index_map(MapEntryComparator(), allocator.Adapter());
+
+    // First, find all SGET/SPUTs that may need class initialization checks, record INVOKE_STATICs.
+    AllNodesIterator iter(this);
+    for (BasicBlock* bb = iter.Next(); bb != nullptr; bb = iter.Next()) {
+      for (MIR* mir = bb->first_mir_insn; mir != nullptr; mir = mir->next) {
+        DCHECK(bb->data_flow_info != nullptr);
+        if (mir->dalvikInsn.opcode >= Instruction::SGET &&
+            mir->dalvikInsn.opcode <= Instruction::SPUT_SHORT) {
+          const MirSFieldLoweringInfo& field_info = GetSFieldLoweringInfo(mir);
+          uint16_t index = 0xffffu;
+          if (field_info.IsResolved() && !field_info.IsInitialized()) {
+            DCHECK_LT(class_to_index_map.size(), 0xffffu);
+            MapEntry entry = {
+                field_info.DeclaringDexFile(),
+                field_info.DeclaringClassIndex(),
+                static_cast<uint16_t>(class_to_index_map.size())
+            };
+            index = class_to_index_map.insert(entry).first->index;
+          }
+          // Using offset/2 for index into temp_insn_data_.
+          temp_insn_data_[mir->offset / 2u] = index;
+        }
+      }
+    }
+    unique_class_count = static_cast<uint32_t>(class_to_index_map.size());
+  }
+
+  if (unique_class_count == 0u) {
+    // All SGET/SPUTs refer to initialized classes. Nothing to do.
+    temp_insn_data_ = nullptr;
+    temp_scoped_alloc_.reset();
+    return false;
+  }
+
+  temp_bit_vector_size_ = unique_class_count;
+  temp_bit_vector_ = new (temp_scoped_alloc_.get()) ArenaBitVector(
+      temp_scoped_alloc_.get(), temp_bit_vector_size_, false, kBitMapClInitCheck);
+  DCHECK_GT(temp_bit_vector_size_, 0u);
+  return true;
+}
+
+/*
+ * Eliminate unnecessary class initialization checks for a basic block.
+ */
+bool MIRGraph::EliminateClassInitChecks(BasicBlock* bb) {
+  DCHECK_EQ((cu_->disable_opt & (1 << kClassInitCheckElimination)), 0u);
+  if (bb->data_flow_info == NULL) {
+    return false;
+  }
+
+  /*
+   * Set initial state.  Be conservative with catch
+   * blocks and start with no assumptions about class init check status.
+   */
+  ArenaBitVector* classes_to_check = temp_bit_vector_;
+  DCHECK(classes_to_check != nullptr);
+  if ((bb->block_type == kEntryBlock) | bb->catch_entry) {
+    classes_to_check->SetInitialBits(temp_bit_vector_size_);
+  } else if (bb->predecessors->Size() == 1) {
+    BasicBlock* pred_bb = GetBasicBlock(bb->predecessors->Get(0));
+    // pred_bb must have already been processed at least once.
+    DCHECK(pred_bb != nullptr);
+    DCHECK(pred_bb->data_flow_info != nullptr);
+    DCHECK(pred_bb->data_flow_info->ending_check_v != nullptr);
+    classes_to_check->Copy(pred_bb->data_flow_info->ending_check_v);
+  } else {
+    // Starting state is union of all incoming arcs
+    GrowableArray<BasicBlockId>::Iterator iter(bb->predecessors);
+    BasicBlock* pred_bb = GetBasicBlock(iter.Next());
+    DCHECK(pred_bb != NULL);
+    DCHECK(pred_bb->data_flow_info != NULL);
+    while (pred_bb->data_flow_info->ending_check_v == nullptr) {
+      pred_bb = GetBasicBlock(iter.Next());
+      // At least one predecessor must have been processed before this bb.
+      DCHECK(pred_bb != nullptr);
+      DCHECK(pred_bb->data_flow_info != nullptr);
+    }
+    classes_to_check->Copy(pred_bb->data_flow_info->ending_check_v);
+    while (true) {
+      pred_bb = GetBasicBlock(iter.Next());
+      if (!pred_bb) break;
+      DCHECK(pred_bb->data_flow_info != nullptr);
+      if (pred_bb->data_flow_info->ending_check_v == nullptr) {
+        continue;
+      }
+      classes_to_check->Union(pred_bb->data_flow_info->ending_check_v);
+    }
+  }
+  // At this point, classes_to_check shows which classes need clinit checks.
+
+  // Walk through the instruction in the block, updating as necessary
+  for (MIR* mir = bb->first_mir_insn; mir != nullptr; mir = mir->next) {
+    if (mir->dalvikInsn.opcode >= Instruction::SGET &&
+        mir->dalvikInsn.opcode <= Instruction::SPUT_SHORT) {
+      uint16_t index = temp_insn_data_[mir->offset / 2u];
+      if (index != 0xffffu) {
+        if (mir->dalvikInsn.opcode >= Instruction::SGET &&
+            mir->dalvikInsn.opcode <= Instruction::SPUT_SHORT) {
+          if (!classes_to_check->IsBitSet(index)) {
+            // Eliminate the class init check.
+            mir->optimization_flags |= MIR_IGNORE_CLINIT_CHECK;
+          } else {
+            // Do the class init check.
+            mir->optimization_flags &= ~MIR_IGNORE_CLINIT_CHECK;
+          }
+        }
+        // Mark the class as initialized.
+        classes_to_check->ClearBit(index);
+      }
+    }
+  }
+
+  // Did anything change?
+  bool changed = false;
+  if (bb->data_flow_info->ending_check_v == nullptr) {
+    DCHECK(temp_scoped_alloc_.get() != nullptr);
+    DCHECK(bb->data_flow_info != nullptr);
+    bb->data_flow_info->ending_check_v = new (temp_scoped_alloc_.get()) ArenaBitVector(
+        temp_scoped_alloc_.get(), temp_bit_vector_size_, false, kBitMapClInitCheck);
+    changed = classes_to_check->GetHighestBitSet() != -1;
+    bb->data_flow_info->ending_check_v->Copy(classes_to_check);
+  } else if (!classes_to_check->Equal(bb->data_flow_info->ending_check_v)) {
+    changed = true;
+    bb->data_flow_info->ending_check_v->Copy(classes_to_check);
+  }
+  return changed;
+}
+
+void MIRGraph::EliminateClassInitChecksEnd() {
+  // Clean up temporaries.
+  temp_bit_vector_size_ = 0u;
+  temp_bit_vector_ = nullptr;
+  AllNodesIterator iter(this);
+  for (BasicBlock* bb = iter.Next(); bb != nullptr; bb = iter.Next()) {
+    if (bb->data_flow_info != nullptr) {
+      bb->data_flow_info->ending_check_v = nullptr;
+    }
+  }
+
+  DCHECK(temp_insn_data_ != nullptr);
+  temp_insn_data_ = nullptr;
+  DCHECK(temp_scoped_alloc_.get() != nullptr);
+  temp_scoped_alloc_.reset();
 }
 
 void MIRGraph::DumpCheckStats() {
