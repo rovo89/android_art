@@ -46,6 +46,10 @@ static std::ostream& operator<<(
   return os;
 }
 
+#if defined(__LP64__) && !defined(__x86_64__)
+MemMap::next_mem_pos_ = kPageSize * 2;   // first page to check for low-mem extent
+#endif
+
 static bool CheckMapRequest(byte* expected_ptr, void* actual_ptr, size_t byte_count,
                             std::ostringstream* error_msg) {
   // Handled first by caller for more specific error messages.
@@ -117,7 +121,56 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* expected, size_t byte_count
   ScopedFd fd(-1);
   int flags = MAP_PRIVATE | MAP_ANONYMOUS;
 #endif
-#ifdef __LP64__
+
+  // TODO:
+  // A page allocator would be a useful abstraction here, as
+  // 1) It is doubtful that MAP_32BIT on x86_64 is doing the right job for us
+  // 2) The linear scheme, even with simple saving of the last known position, is very crude
+#if defined(__LP64__) && !defined(__x86_64__)
+  // MAP_32BIT only available on x86_64.
+  void* actual = MAP_FAILED;
+  std::string strerr;
+  if (low_4gb && expected == nullptr) {
+    flags |= MAP_FIXED;
+
+    for (uintptr_t ptr = next_mem_pos; ptr < 4 * GB; ptr += kPageSize) {
+      uintptr_t tail_ptr;
+
+      // Check pages are free.
+      bool safe = true;
+      for (tail_ptr = ptr; tail_ptr < ptr + page_aligned_byte_count; tail_ptr += kPageSize) {
+        if (msync(reinterpret_cast<void*>(tail_ptr), kPageSize, 0) == 0) {
+          safe = false;
+          break;
+        } else {
+          DCHECK_EQ(errno, ENOMEM);
+        }
+      }
+
+      next_mem_pos_ = tail_ptr;  // update early, as we break out when we found and mapped a region
+
+      if (safe == true) {
+        actual = mmap(reinterpret_cast<void*>(ptr), page_aligned_byte_count, prot, flags, fd.get(),
+                      0);
+        if (actual != MAP_FAILED) {
+          break;
+        }
+      } else {
+        // Skip over last page.
+        ptr = tail_ptr;
+      }
+    }
+
+    if (actual == MAP_FAILED) {
+      strerr = "Could not find contiguous low-memory space.";
+    }
+  } else {
+    actual = mmap(expected, page_aligned_byte_count, prot, flags, fd.get(), 0);
+    strerr = strerror(errno);
+  }
+
+#else
+#ifdef __x86_64__
   if (low_4gb) {
     flags |= MAP_32BIT;
   }
@@ -125,6 +178,8 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* expected, size_t byte_count
 
   void* actual = mmap(expected, page_aligned_byte_count, prot, flags, fd.get(), 0);
   std::string strerr(strerror(errno));
+#endif
+
   if (actual == MAP_FAILED) {
     std::string maps;
     ReadFileToString("/proc/self/maps", &maps);
@@ -250,7 +305,7 @@ MemMap* MemMap::RemapAtEnd(byte* new_end, const char* tail_name, int tail_prot,
   std::string debug_friendly_name("dalvik-");
   debug_friendly_name += tail_name;
   ScopedFd fd(ashmem_create_region(debug_friendly_name.c_str(), tail_base_size));
-  int flags = MAP_PRIVATE;
+  int flags = MAP_PRIVATE | MAP_FIXED;
   if (fd.get() == -1) {
     *error_msg = StringPrintf("ashmem_create_region failed for '%s': %s",
                               tail_name, strerror(errno));

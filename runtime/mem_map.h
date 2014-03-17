@@ -116,6 +116,10 @@ class MemMap {
   size_t base_size_;  // Length of mapping. May be changed by RemapAtEnd (ie Zygote).
   int prot_;  // Protection of the map.
 
+#if defined(__LP64__) && !defined(__x86_64__)
+  static uintptr_t next_mem_pos_;   // next memory location to check for low_4g extent
+#endif
+
   friend class MemMapTest;  // To allow access to base_begin_ and base_size_.
 };
 std::ostream& operator<<(std::ostream& os, const MemMap& mem_map);
