@@ -3905,6 +3905,7 @@ const RegType& MethodVerifier::GetDeclaringClass() {
 
 std::vector<int32_t> MethodVerifier::DescribeVRegs(uint32_t dex_pc) {
   RegisterLine* line = reg_table_.GetLine(dex_pc);
+  DCHECK(line != nullptr) << "No register line at DEX pc " << StringPrintf("0x%x", dex_pc);
   std::vector<int32_t> result;
   for (size_t i = 0; i < line->NumRegs(); ++i) {
     const RegType& type = line->GetRegisterType(i);
