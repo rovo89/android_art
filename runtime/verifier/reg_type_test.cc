@@ -335,7 +335,6 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_FALSE(double_reg_type.IsNonZeroReferenceTypes());
 }
 
-
 class RegTypeReferenceTest : public CommonRuntimeTest {};
 
 TEST_F(RegTypeReferenceTest, JavalangObjectImprecise) {
@@ -472,6 +471,144 @@ TEST_F(RegTypeReferenceTest, Merging) {
   EXPECT_EQ(ref_type_1.GetId(), *((++merged_ids.begin())));
 }
 
+TEST_F(RegTypeReferenceTest, MergingFloat) {
+  // Testing merging logic with float and float constants.
+  ScopedObjectAccess soa(Thread::Current());
+  RegTypeCache cache_new(true);
+
+  constexpr int32_t kTestConstantValue = 10;
+  const RegType& float_type = cache_new.Float();
+  const RegType& precise_cst = cache_new.FromCat1Const(kTestConstantValue, true);
+  const RegType& imprecise_cst = cache_new.FromCat1Const(kTestConstantValue, false);
+  {
+    // float MERGE precise cst => float.
+    const RegType& merged = float_type.Merge(precise_cst, &cache_new);
+    EXPECT_TRUE(merged.IsFloat());
+  }
+  {
+    // precise cst MERGE float => float.
+    const RegType& merged = precise_cst.Merge(float_type, &cache_new);
+    EXPECT_TRUE(merged.IsFloat());
+  }
+  {
+    // float MERGE imprecise cst => float.
+    const RegType& merged = float_type.Merge(imprecise_cst, &cache_new);
+    EXPECT_TRUE(merged.IsFloat());
+  }
+  {
+    // imprecise cst MERGE float => float.
+    const RegType& merged = imprecise_cst.Merge(float_type, &cache_new);
+    EXPECT_TRUE(merged.IsFloat());
+  }
+}
+
+TEST_F(RegTypeReferenceTest, MergingLong) {
+  // Testing merging logic with long and long constants.
+  ScopedObjectAccess soa(Thread::Current());
+  RegTypeCache cache_new(true);
+
+  constexpr int32_t kTestConstantValue = 10;
+  const RegType& long_lo_type = cache_new.LongLo();
+  const RegType& long_hi_type = cache_new.LongHi();
+  const RegType& precise_cst_lo = cache_new.FromCat2ConstLo(kTestConstantValue, true);
+  const RegType& imprecise_cst_lo = cache_new.FromCat2ConstLo(kTestConstantValue, false);
+  const RegType& precise_cst_hi = cache_new.FromCat2ConstHi(kTestConstantValue, true);
+  const RegType& imprecise_cst_hi = cache_new.FromCat2ConstHi(kTestConstantValue, false);
+  {
+    // lo MERGE precise cst lo => lo.
+    const RegType& merged = long_lo_type.Merge(precise_cst_lo, &cache_new);
+    EXPECT_TRUE(merged.IsLongLo());
+  }
+  {
+    // precise cst lo MERGE lo => lo.
+    const RegType& merged = precise_cst_lo.Merge(long_lo_type, &cache_new);
+    EXPECT_TRUE(merged.IsLongLo());
+  }
+  {
+    // lo MERGE imprecise cst lo => lo.
+    const RegType& merged = long_lo_type.Merge(imprecise_cst_lo, &cache_new);
+    EXPECT_TRUE(merged.IsLongLo());
+  }
+  {
+    // imprecise cst lo MERGE lo => lo.
+    const RegType& merged = imprecise_cst_lo.Merge(long_lo_type, &cache_new);
+    EXPECT_TRUE(merged.IsLongLo());
+  }
+  {
+    // hi MERGE precise cst hi => hi.
+    const RegType& merged = long_hi_type.Merge(precise_cst_hi, &cache_new);
+    EXPECT_TRUE(merged.IsLongHi());
+  }
+  {
+    // precise cst hi MERGE hi => hi.
+    const RegType& merged = precise_cst_hi.Merge(long_hi_type, &cache_new);
+    EXPECT_TRUE(merged.IsLongHi());
+  }
+  {
+    // hi MERGE imprecise cst hi => hi.
+    const RegType& merged = long_hi_type.Merge(imprecise_cst_hi, &cache_new);
+    EXPECT_TRUE(merged.IsLongHi());
+  }
+  {
+    // imprecise cst hi MERGE hi => hi.
+    const RegType& merged = imprecise_cst_hi.Merge(long_hi_type, &cache_new);
+    EXPECT_TRUE(merged.IsLongHi());
+  }
+}
+
+TEST_F(RegTypeReferenceTest, MergingDouble) {
+  // Testing merging logic with double and double constants.
+  ScopedObjectAccess soa(Thread::Current());
+  RegTypeCache cache_new(true);
+
+  constexpr int32_t kTestConstantValue = 10;
+  const RegType& double_lo_type = cache_new.DoubleLo();
+  const RegType& double_hi_type = cache_new.DoubleHi();
+  const RegType& precise_cst_lo = cache_new.FromCat2ConstLo(kTestConstantValue, true);
+  const RegType& imprecise_cst_lo = cache_new.FromCat2ConstLo(kTestConstantValue, false);
+  const RegType& precise_cst_hi = cache_new.FromCat2ConstHi(kTestConstantValue, true);
+  const RegType& imprecise_cst_hi = cache_new.FromCat2ConstHi(kTestConstantValue, false);
+  {
+    // lo MERGE precise cst lo => lo.
+    const RegType& merged = double_lo_type.Merge(precise_cst_lo, &cache_new);
+    EXPECT_TRUE(merged.IsDoubleLo());
+  }
+  {
+    // precise cst lo MERGE lo => lo.
+    const RegType& merged = precise_cst_lo.Merge(double_lo_type, &cache_new);
+    EXPECT_TRUE(merged.IsDoubleLo());
+  }
+  {
+    // lo MERGE imprecise cst lo => lo.
+    const RegType& merged = double_lo_type.Merge(imprecise_cst_lo, &cache_new);
+    EXPECT_TRUE(merged.IsDoubleLo());
+  }
+  {
+    // imprecise cst lo MERGE lo => lo.
+    const RegType& merged = imprecise_cst_lo.Merge(double_lo_type, &cache_new);
+    EXPECT_TRUE(merged.IsDoubleLo());
+  }
+  {
+    // hi MERGE precise cst hi => hi.
+    const RegType& merged = double_hi_type.Merge(precise_cst_hi, &cache_new);
+    EXPECT_TRUE(merged.IsDoubleHi());
+  }
+  {
+    // precise cst hi MERGE hi => hi.
+    const RegType& merged = precise_cst_hi.Merge(double_hi_type, &cache_new);
+    EXPECT_TRUE(merged.IsDoubleHi());
+  }
+  {
+    // hi MERGE imprecise cst hi => hi.
+    const RegType& merged = double_hi_type.Merge(imprecise_cst_hi, &cache_new);
+    EXPECT_TRUE(merged.IsDoubleHi());
+  }
+  {
+    // imprecise cst hi MERGE hi => hi.
+    const RegType& merged = imprecise_cst_hi.Merge(double_hi_type, &cache_new);
+    EXPECT_TRUE(merged.IsDoubleHi());
+  }
+}
 
 TEST_F(RegTypeTest, ConstPrecision) {
   // Tests creating primitive types types.
