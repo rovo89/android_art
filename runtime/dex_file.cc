@@ -837,6 +837,7 @@ void DexFile::DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32
 void DexFile::DecodeDebugInfo(const CodeItem* code_item, bool is_static, uint32_t method_idx,
                               DexDebugNewPositionCb position_cb, DexDebugNewLocalCb local_cb,
                               void* context) const {
+  DCHECK(code_item != nullptr);
   const byte* stream = GetDebugInfoStream(code_item);
   UniquePtr<LocalInfo[]> local_in_reg(local_cb != NULL ?
                                       new LocalInfo[code_item->registers_size_] :
