@@ -203,6 +203,7 @@ class MirSFieldLoweringInfo : public MirFieldInfo {
   // -1 if the field is unresolved or there's no appropriate TypeId in that dex file.
   uint32_t storage_index_;
 
+  friend class ClassInitCheckEliminationTest;
   friend class LocalValueNumberingTest;
 };
 
