@@ -47,7 +47,7 @@ static std::ostream& operator<<(
 }
 
 #if defined(__LP64__) && !defined(__x86_64__)
-MemMap::next_mem_pos_ = kPageSize * 2;   // first page to check for low-mem extent
+uintptr_t MemMap::next_mem_pos_ = kPageSize * 2;   // first page to check for low-mem extent
 #endif
 
 static bool CheckMapRequest(byte* expected_ptr, void* actual_ptr, size_t byte_count,
@@ -133,7 +133,7 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* expected, size_t byte_count
   if (low_4gb && expected == nullptr) {
     flags |= MAP_FIXED;
 
-    for (uintptr_t ptr = next_mem_pos; ptr < 4 * GB; ptr += kPageSize) {
+    for (uintptr_t ptr = next_mem_pos_; ptr < 4 * GB; ptr += kPageSize) {
       uintptr_t tail_ptr;
 
       // Check pages are free.
