@@ -137,20 +137,6 @@ class MethodUseCount : public Pass {
 };
 
 /**
- * @class NullCheckEliminationAndTypeInferenceInit
- * @brief Null check elimination and type inference initialization step.
- */
-class NullCheckEliminationAndTypeInferenceInit : public Pass {
- public:
-  NullCheckEliminationAndTypeInferenceInit() : Pass("NCE_TypeInferenceInit") {
-  }
-
-  bool WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const;
-
-  bool Gate(const CompilationUnit* cUnit) const;
-};
-
-/**
  * @class NullCheckEliminationAndTypeInference
  * @brief Null check elimination and type inference.
  */
@@ -160,8 +146,34 @@ class NullCheckEliminationAndTypeInference : public Pass {
     : Pass("NCE_TypeInference", kRepeatingPreOrderDFSTraversal, "4_post_nce_cfg") {
   }
 
+  void Start(CompilationUnit* cUnit) const {
+    cUnit->mir_graph->EliminateNullChecksAndInferTypesStart();
+  }
+
   bool WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const {
     return cUnit->mir_graph->EliminateNullChecksAndInferTypes(bb);
+  }
+
+  void End(CompilationUnit* cUnit) const {
+    cUnit->mir_graph->EliminateNullChecksAndInferTypesEnd();
+  }
+};
+
+class ClassInitCheckElimination : public Pass {
+ public:
+  ClassInitCheckElimination() : Pass("ClInitCheckElimination", kRepeatingPreOrderDFSTraversal) {
+  }
+
+  bool Gate(const CompilationUnit* cUnit) const {
+    return cUnit->mir_graph->EliminateClassInitChecksGate();
+  }
+
+  bool WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const {
+    return cUnit->mir_graph->EliminateClassInitChecks(bb);
+  }
+
+  void End(CompilationUnit* cUnit) const {
+    cUnit->mir_graph->EliminateClassInitChecksEnd();
   }
 };
 

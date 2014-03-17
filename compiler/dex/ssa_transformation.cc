@@ -373,7 +373,6 @@ bool MIRGraph::SetDominators(BasicBlock* bb) {
 /* Compute dominators, immediate dominator, and dominance fronter */
 void MIRGraph::ComputeDominators() {
   int num_reachable_blocks = num_reachable_blocks_;
-  int num_total_blocks = GetBasicBlockListCount();
 
   /* Initialize domination-related data structures */
   PreOrderDfsIterator iter(this);
@@ -405,12 +404,6 @@ void MIRGraph::ComputeDominators() {
   GetEntryBlock()->dominators->ClearAllBits();
   GetEntryBlock()->dominators->SetBit(GetEntryBlock()->id);
 
-  if (temp_block_v_ == NULL) {
-    temp_block_v_ = new (arena_) ArenaBitVector(arena_, num_total_blocks,
-                                                false /* expandable */, kBitMapTmpBlockV);
-  } else {
-    temp_block_v_->ClearAllBits();
-  }
   GetEntryBlock()->i_dom = 0;
 
   PreOrderDfsIterator iter3(this);

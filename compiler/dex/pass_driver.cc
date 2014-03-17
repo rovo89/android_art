@@ -97,8 +97,8 @@ static const Pass* const gPasses[] = {
   GetPassInstance<ConstantPropagation>(),
   GetPassInstance<InitRegLocations>(),
   GetPassInstance<MethodUseCount>(),
-  GetPassInstance<NullCheckEliminationAndTypeInferenceInit>(),
   GetPassInstance<NullCheckEliminationAndTypeInference>(),
+  GetPassInstance<ClassInitCheckElimination>(),
   GetPassInstance<BBCombine>(),
   GetPassInstance<BBOptimizations>(),
 };

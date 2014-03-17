@@ -449,7 +449,8 @@ void Mir2Lir::GenSput(MIR* mir, RegLocation rl_src, bool is_long_or_double,
       LoadWordDisp(r_base, mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
                    sizeof(int32_t*) * field_info.StorageIndex(), r_base);
       // r_base now points at static storage (Class*) or NULL if the type is not yet resolved.
-      if (!field_info.IsInitialized()) {
+      if (!field_info.IsInitialized() &&
+          (mir->optimization_flags & MIR_IGNORE_CLINIT_CHECK) == 0) {
         // Check if r_base is NULL or a not yet initialized class.
 
         // The slow path is invoked if the r_base is NULL or the class pointed
@@ -533,7 +534,8 @@ void Mir2Lir::GenSget(MIR* mir, RegLocation rl_dest,
       LoadWordDisp(r_base, mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
                    sizeof(int32_t*) * field_info.StorageIndex(), r_base);
       // r_base now points at static storage (Class*) or NULL if the type is not yet resolved.
-      if (!field_info.IsInitialized()) {
+      if (!field_info.IsInitialized() &&
+          (mir->optimization_flags & MIR_IGNORE_CLINIT_CHECK) == 0) {
         // Check if r_base is NULL or a not yet initialized class.
 
         // The slow path is invoked if the r_base is NULL or the class pointed
