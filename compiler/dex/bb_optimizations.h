@@ -59,6 +59,34 @@ class CacheMethodLoweringInfo : public Pass {
 };
 
 /**
+ * @class CallInlining
+ * @brief Perform method inlining pass.
+ */
+class CallInlining : public Pass {
+ public:
+  CallInlining() : Pass("CallInlining") {
+  }
+
+  bool Gate(const CompilationUnit* cUnit) const {
+    return cUnit->mir_graph->InlineCallsGate();
+  }
+
+  void Start(CompilationUnit* cUnit) const {
+    cUnit->mir_graph->InlineCallsStart();
+  }
+
+  bool WalkBasicBlocks(CompilationUnit* cUnit, BasicBlock* bb) const {
+    cUnit->mir_graph->InlineCalls(bb);
+    // No need of repeating, so just return false.
+    return false;
+  }
+
+  void End(CompilationUnit* cUnit) const {
+    cUnit->mir_graph->InlineCallsEnd();
+  }
+};
+
+/**
  * @class CodeLayout
  * @brief Perform the code layout pass.
  */

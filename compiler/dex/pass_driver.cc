@@ -92,6 +92,7 @@ void PassDriver::InsertPass(const Pass* new_pass) {
 static const Pass* const gPasses[] = {
   GetPassInstance<CacheFieldLoweringInfo>(),
   GetPassInstance<CacheMethodLoweringInfo>(),
+  GetPassInstance<CallInlining>(),
   GetPassInstance<CodeLayout>(),
   GetPassInstance<SSATransformation>(),
   GetPassInstance<ConstantPropagation>(),

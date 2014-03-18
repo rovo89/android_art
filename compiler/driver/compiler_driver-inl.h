@@ -289,6 +289,16 @@ inline int CompilerDriver::IsFastInvoke(
   return stats_flags;
 }
 
+inline bool CompilerDriver::NeedsClassInitialization(mirror::Class* referrer_class,
+                                                     mirror::ArtMethod* resolved_method) {
+  if (!resolved_method->IsStatic()) {
+    return false;
+  }
+  mirror::Class* methods_class = resolved_method->GetDeclaringClass();
+  // NOTE: Unlike in IsFastStaticField(), we don't check CanAssumeTypeIsPresentInDexCache() here.
+  return methods_class != referrer_class && !methods_class->IsInitialized();
+}
+
 }  // namespace art
 
 #endif  // ART_COMPILER_DRIVER_COMPILER_DRIVER_INL_H_
