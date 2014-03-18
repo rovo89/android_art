@@ -522,6 +522,8 @@ class MIRGraph {
     return method_lowering_infos_.GetRawStorage()[mir->meta.method_lowering_info];
   }
 
+  void ComputeInlineIFieldLoweringInfo(uint16_t field_idx, MIR* invoke, MIR* iget_or_iput);
+
   void InitRegLocations();
 
   void RemapRegLocations();
@@ -810,6 +812,11 @@ class MIRGraph {
   MIR* AdvanceMIR(BasicBlock** p_bb, MIR* mir);
   BasicBlock* NextDominatedBlock(BasicBlock* bb);
   bool LayoutBlocks(BasicBlock* bb);
+
+  bool InlineCallsGate();
+  void InlineCallsStart();
+  void InlineCalls(BasicBlock* bb);
+  void InlineCallsEnd();
 
   /**
    * @brief Perform the initial preparation for the Method Uses.
