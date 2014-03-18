@@ -16,7 +16,7 @@
 
 ART_CPPLINT := art/tools/cpplint.py
 ART_CPPLINT_FILTER := --filter=-whitespace/line_length,-build/include,-readability/function,-readability/streams,-readability/todo,-runtime/references,-runtime/sizeof,-runtime/threadsafe_fn,-runtime/printf
-ART_CPPLINT_SRC := $(shell find art -name *.h -o -name *$(ART_CPP_EXTENSION) | grep -v art/compiler/llvm/generated/)
+ART_CPPLINT_SRC := $(shell find art -name "*.h" -o -name "*$(ART_CPP_EXTENSION)" | grep -v art/compiler/llvm/generated/)
 
 # "mm cpplint-art" to verify we aren't regressing
 .PHONY: cpplint-art
