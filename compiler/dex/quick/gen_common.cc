@@ -666,12 +666,12 @@ void Mir2Lir::HandleThrowLaunchPads() {
         if (target_x86) {
           // - 4 to leave link register on stack.
           OpRegImm(kOpAdd, TargetReg(kSp), frame_size_ - 4);
-          ClobberCalleeSave();
+          ClobberCallerSave();
         } else if (target_arm) {
           r_tgt = r12;
           LoadWordDisp(TargetReg(kSp), spill_size - 4, TargetReg(kLr));
           OpRegImm(kOpAdd, TargetReg(kSp), spill_size);
-          ClobberCalleeSave();
+          ClobberCallerSave();
           LoadWordDisp(rARM_SELF, func_offset.Int32Value(), r_tgt);
         } else {
           DCHECK(target_mips);
@@ -679,7 +679,7 @@ void Mir2Lir::HandleThrowLaunchPads() {
           // LR is offset 0 since we push in reverse order.
           LoadWordDisp(TargetReg(kSp), 0, TargetReg(kLr));
           OpRegImm(kOpAdd, TargetReg(kSp), spill_size);
-          ClobberCalleeSave();
+          ClobberCallerSave();
           r_tgt = CallHelperSetup(func_offset);  // Doesn't clobber LR.
           DCHECK_NE(r_tgt, TargetReg(kLr));
         }
