@@ -283,6 +283,10 @@ class CompilerDriver {
       uintptr_t* direct_code, uintptr_t* direct_method)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Does invokation of the resolved method need class initialization?
+  bool NeedsClassInitialization(mirror::Class* referrer_class, mirror::ArtMethod* resolved_method)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   void ProcessedInstanceField(bool resolved);
   void ProcessedStaticField(bool resolved, bool local);
   void ProcessedInvoke(InvokeType invoke_type, int flags);
