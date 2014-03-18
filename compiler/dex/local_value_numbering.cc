@@ -196,8 +196,10 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
       // Intentional fall-through.
     case Instruction::INVOKE_STATIC:
     case Instruction::INVOKE_STATIC_RANGE:
-      AdvanceGlobalMemory();
-      MakeArgsAliasing(mir);
+      if ((mir->optimization_flags & MIR_INLINED) == 0) {
+        AdvanceGlobalMemory();
+        MakeArgsAliasing(mir);
+      }
       break;
 
     case Instruction::MOVE_RESULT:
@@ -213,13 +215,17 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::CONST_STRING_JUMBO:
     case Instruction::CONST_CLASS:
     case Instruction::NEW_ARRAY:
-      // 1 result, treat as unique each time, use result s_reg - will be unique.
-      res = MarkNonAliasingNonNull(mir);
+      if ((mir->optimization_flags & MIR_INLINED) == 0) {
+        // 1 result, treat as unique each time, use result s_reg - will be unique.
+        res = MarkNonAliasingNonNull(mir);
+      }
       break;
     case Instruction::MOVE_RESULT_WIDE:
-      // 1 wide result, treat as unique each time, use result s_reg - will be unique.
-      res = GetOperandValueWide(mir->ssa_rep->defs[0]);
-      SetOperandValueWide(mir->ssa_rep->defs[0], res);
+      if ((mir->optimization_flags & MIR_INLINED) == 0) {
+        // 1 wide result, treat as unique each time, use result s_reg - will be unique.
+        res = GetOperandValueWide(mir->ssa_rep->defs[0]);
+        SetOperandValueWide(mir->ssa_rep->defs[0], res);
+      }
       break;
 
     case kMirOpPhi:

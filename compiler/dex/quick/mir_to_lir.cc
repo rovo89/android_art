@@ -346,15 +346,17 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       break;
 
     case Instruction::MOVE_RESULT_WIDE:
-      if (opt_flags & MIR_INLINED)
+      if ((opt_flags & MIR_INLINED) != 0) {
         break;  // Nop - combined w/ previous invoke.
+      }
       StoreValueWide(rl_dest, GetReturnWide(rl_dest.fp));
       break;
 
     case Instruction::MOVE_RESULT:
     case Instruction::MOVE_RESULT_OBJECT:
-      if (opt_flags & MIR_INLINED)
+      if ((opt_flags & MIR_INLINED) != 0) {
         break;  // Nop - combined w/ previous invoke.
+      }
       StoreValue(rl_dest, GetReturn(rl_dest.fp));
       break;
 
