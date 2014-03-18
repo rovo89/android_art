@@ -33,6 +33,7 @@
 #include "gc/accounting/heap_bitmap-inl.h"
 #include "gc/accounting/mod_union_table.h"
 #include "gc/accounting/mod_union_table-inl.h"
+#include "gc/accounting/remembered_set.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/collector/mark_sweep-inl.h"
 #include "gc/collector/partial_mark_sweep.h"
@@ -161,7 +162,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   } else {
     if (kMovingCollector) {
       // We are the zygote, use bump pointer allocation + semi space collector.
-      desired_collector_type_ = kCollectorTypeSS;
+      bool generational = post_zygote_collector_type_ == kCollectorTypeGSS;
+      desired_collector_type_ = generational ? kCollectorTypeGSS : kCollectorTypeSS;
     } else {
       desired_collector_type_ = post_zygote_collector_type_;
     }
@@ -278,6 +280,13 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       new accounting::ModUnionTableCardCache("Image mod-union table", this, GetImageSpace());
   CHECK(mod_union_table != nullptr) << "Failed to create image mod-union table";
   AddModUnionTable(mod_union_table);
+
+  if (collector::SemiSpace::kUseRememberedSet) {
+    accounting::RememberedSet* non_moving_space_rem_set =
+        new accounting::RememberedSet("Non-moving space remembered set", this, non_moving_space_);
+    CHECK(non_moving_space_rem_set != nullptr) << "Failed to create non-moving space remembered set";
+    AddRememberedSet(non_moving_space_rem_set);
+  }
 
   // TODO: Count objects in the image space here.
   num_bytes_allocated_ = 0;
@@ -1469,7 +1478,7 @@ void Heap::ChangeCollector(CollectorType collector_type) {
 // Special compacting collector which uses sub-optimal bin packing to reduce zygote space size.
 class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
  public:
-  explicit ZygoteCompactingCollector(gc::Heap* heap) : SemiSpace(heap, "zygote collector"),
+  explicit ZygoteCompactingCollector(gc::Heap* heap) : SemiSpace(heap, false, "zygote collector"),
       bin_live_bitmap_(nullptr), bin_mark_bitmap_(nullptr) {
   }
 
@@ -1618,6 +1627,16 @@ void Heap::PreZygoteFork() {
   // Remove the old space before creating the zygote space since creating the zygote space sets
   // the old alloc space's bitmaps to nullptr.
   RemoveSpace(old_alloc_space);
+  if (collector::SemiSpace::kUseRememberedSet) {
+    // Sanity bound check.
+    FindRememberedSetFromSpace(old_alloc_space)->AssertAllDirtyCardsAreWithinSpace();
+    // Remove the remembered set for the now zygote space (the old
+    // non-moving space). Note now that we have compacted objects into
+    // the zygote space, the data in the remembered set is no longer
+    // needed. The zygote space will instead have a mod-union table
+    // from this point on.
+    RemoveRememberedSet(old_alloc_space);
+  }
   space::ZygoteSpace* zygote_space = old_alloc_space->CreateZygoteSpace("alloc space",
                                                                         low_memory_mode_,
                                                                         &main_space_);
@@ -1640,6 +1659,13 @@ void Heap::PreZygoteFork() {
       new accounting::ModUnionTableCardCache("zygote space mod-union table", this, zygote_space);
   CHECK(mod_union_table != nullptr) << "Failed to create zygote space mod-union table";
   AddModUnionTable(mod_union_table);
+  if (collector::SemiSpace::kUseRememberedSet) {
+    // Add a new remembered set for the new main space.
+    accounting::RememberedSet* main_space_rem_set =
+        new accounting::RememberedSet("Main space remembered set", this, main_space_);
+    CHECK(main_space_rem_set != nullptr) << "Failed to create main space remembered set";
+    AddRememberedSet(main_space_rem_set);
+  }
   // Can't use RosAlloc for non moving space due to thread local buffers.
   // TODO: Non limited space for non-movable objects?
   MemMap* mem_map = post_zygote_non_moving_space_mem_map_.release();
@@ -1650,6 +1676,15 @@ void Heap::PreZygoteFork() {
   CHECK(new_non_moving_space != nullptr) << "Failed to create new non-moving space";
   new_non_moving_space->SetFootprintLimit(new_non_moving_space->Capacity());
   non_moving_space_ = new_non_moving_space;
+  if (collector::SemiSpace::kUseRememberedSet) {
+    // Add a new remembered set for the post-zygote non-moving space.
+    accounting::RememberedSet* post_zygote_non_moving_space_rem_set =
+        new accounting::RememberedSet("Post-zygote non-moving space remembered set", this,
+                                      non_moving_space_);
+    CHECK(post_zygote_non_moving_space_rem_set != nullptr)
+        << "Failed to create post-zygote non-moving space remembered set";
+    AddRememberedSet(post_zygote_non_moving_space_rem_set);
+  }
 }
 
 void Heap::FlushAllocStack() {
@@ -2034,6 +2069,11 @@ bool Heap::VerifyHeapReferences() {
       accounting::ModUnionTable* mod_union_table = table_pair.second;
       mod_union_table->Dump(LOG(ERROR) << mod_union_table->GetName() << ": ");
     }
+    // Dump remembered sets.
+    for (const auto& table_pair : remembered_sets_) {
+      accounting::RememberedSet* remembered_set = table_pair.second;
+      remembered_set->Dump(LOG(ERROR) << remembered_set->GetName() << ": ");
+    }
     DumpSpaces();
     return false;
   }
@@ -2185,15 +2225,29 @@ accounting::ModUnionTable* Heap::FindModUnionTableFromSpace(space::Space* space)
   return it->second;
 }
 
-void Heap::ProcessCards(TimingLogger& timings) {
+accounting::RememberedSet* Heap::FindRememberedSetFromSpace(space::Space* space) {
+  auto it = remembered_sets_.find(space);
+  if (it == remembered_sets_.end()) {
+    return nullptr;
+  }
+  return it->second;
+}
+
+void Heap::ProcessCards(TimingLogger& timings, bool use_rem_sets) {
   // Clear cards and keep track of cards cleared in the mod-union table.
   for (const auto& space : continuous_spaces_) {
     accounting::ModUnionTable* table = FindModUnionTableFromSpace(space);
+    accounting::RememberedSet* rem_set = FindRememberedSetFromSpace(space);
     if (table != nullptr) {
       const char* name = space->IsZygoteSpace() ? "ZygoteModUnionClearCards" :
           "ImageModUnionClearCards";
       TimingLogger::ScopedSplit split(name, &timings);
       table->ClearCards();
+    } else if (use_rem_sets && rem_set != nullptr) {
+      DCHECK(collector::SemiSpace::kUseRememberedSet && collector_type_ == kCollectorTypeGSS)
+          << static_cast<int>(collector_type_);
+      TimingLogger::ScopedSplit split("AllocSpaceRemSetClearCards", &timings);
+      rem_set->ClearCards();
     } else if (space->GetType() != space::kSpaceTypeBumpPointerSpace) {
       TimingLogger::ScopedSplit split("AllocSpaceClearCards", &timings);
       // No mod union table for the AllocSpace. Age the cards so that the GC knows that these cards
@@ -2692,6 +2746,23 @@ void Heap::CheckPreconditionsForAllocObject(mirror::Class* c, size_t byte_count)
         (c->IsVariableSize() || c->GetObjectSize() == byte_count) ||
         strlen(ClassHelper(c).GetDescriptor()) == 0);
   CHECK_GE(byte_count, sizeof(mirror::Object));
+}
+
+void Heap::AddRememberedSet(accounting::RememberedSet* remembered_set) {
+  CHECK(remembered_set != nullptr);
+  space::Space* space = remembered_set->GetSpace();
+  CHECK(space != nullptr);
+  CHECK(remembered_sets_.find(space) == remembered_sets_.end());
+  remembered_sets_.Put(space, remembered_set);
+  CHECK(remembered_sets_.find(space) != remembered_sets_.end());
+}
+
+void Heap::RemoveRememberedSet(space::Space* space) {
+  CHECK(space != nullptr);
+  auto it = remembered_sets_.find(space);
+  CHECK(it != remembered_sets_.end());
+  remembered_sets_.erase(it);
+  CHECK(remembered_sets_.find(space) == remembered_sets_.end());
 }
 
 }  // namespace gc

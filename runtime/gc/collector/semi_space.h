@@ -63,6 +63,9 @@ namespace collector {
 
 class SemiSpace : public GarbageCollector {
  public:
+  // If true, use remembered sets in the generational mode.
+  static constexpr bool kUseRememberedSet = true;
+
   explicit SemiSpace(Heap* heap, bool generational = false,
                      const std::string& name_prefix = "");
 
@@ -99,6 +102,9 @@ class SemiSpace : public GarbageCollector {
 
   void ScanObject(mirror::Object* obj)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+
+  void VerifyNoFromSpaceReferences(mirror::Object* obj)
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // Marks the root set at the start of a garbage collection.
   void MarkRoots()
