@@ -56,6 +56,7 @@ namespace accounting {
   class HeapBitmap;
   class ModUnionTable;
   class ObjectSet;
+  class RememberedSet;
 }  // namespace accounting
 
 namespace collector {
@@ -541,6 +542,10 @@ class Heap {
   accounting::ModUnionTable* FindModUnionTableFromSpace(space::Space* space);
   void AddModUnionTable(accounting::ModUnionTable* mod_union_table);
 
+  accounting::RememberedSet* FindRememberedSetFromSpace(space::Space* space);
+  void AddRememberedSet(accounting::RememberedSet* remembered_set);
+  void RemoveRememberedSet(space::Space* space);
+
   bool IsCompilingBoot() const;
   bool HasImageSpace() const;
 
@@ -660,7 +665,7 @@ class Heap {
   void SwapStacks(Thread* self);
 
   // Clear cards and update the mod union table.
-  void ProcessCards(TimingLogger& timings);
+  void ProcessCards(TimingLogger& timings, bool use_rem_sets);
 
   // Signal the heap trim daemon that there is something to do, either a heap transition or heap
   // trim.
@@ -700,6 +705,9 @@ class Heap {
 
   // A mod-union table remembers all of the references from the it's space to other spaces.
   SafeMap<space::Space*, accounting::ModUnionTable*> mod_union_tables_;
+
+  // A remembered set remembers all of the references from the it's space to the target space.
+  SafeMap<space::Space*, accounting::RememberedSet*> remembered_sets_;
 
   // Keep the free list allocator mem map lying around when we transition to background so that we
   // don't have to worry about virtual address space fragmentation.

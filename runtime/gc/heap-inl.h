@@ -20,6 +20,8 @@
 #include "heap.h"
 
 #include "debugger.h"
+#include "gc/accounting/card_table-inl.h"
+#include "gc/collector/semi_space.h"
 #include "gc/space/bump_pointer_space-inl.h"
 #include "gc/space/dlmalloc_space-inl.h"
 #include "gc/space/large_object_space.h"
@@ -74,6 +76,18 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
   if (kUseBrooksPointer) {
     obj->SetBrooksPointer(obj);
     obj->AssertSelfBrooksPointer();
+  }
+  if (collector::SemiSpace::kUseRememberedSet && UNLIKELY(allocator == kAllocatorTypeNonMoving)) {
+    // (Note this if statement will be constant folded away for the
+    // fast-path quick entry points.) Because SetClass() has no write
+    // barrier, if a non-moving space allocation, we need a write
+    // barrier as the class pointer may point to the bump pointer
+    // space (where the class pointer is an "old-to-young" reference,
+    // though rare) under the GSS collector with the remembered set
+    // enabled. We don't need this for kAllocatorTypeRosAlloc/DlMalloc
+    // cases because we don't directly allocate into the main alloc
+    // space (besides promotions) under the SS/GSS collector.
+    WriteBarrierField(obj, mirror::Object::ClassOffset(), klass);
   }
   pre_fence_visitor(obj, usable_size);
   if (kIsDebugBuild && Runtime::Current()->IsStarted()) {

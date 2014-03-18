@@ -27,6 +27,7 @@
 #include "base/timing_logger.h"
 #include "gc/accounting/heap_bitmap.h"
 #include "gc/accounting/mod_union_table.h"
+#include "gc/accounting/remembered_set.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/heap.h"
 #include "gc/space/bump_pointer_space.h"
@@ -182,7 +183,7 @@ void SemiSpace::MarkingPhase() {
   // Assume the cleared space is already empty.
   BindBitmaps();
   // Process dirty cards and add dirty cards to mod-union tables.
-  heap_->ProcessCards(timings_);
+  heap_->ProcessCards(timings_, kUseRememberedSet && generational_);
   // Clear the whole card table since we can not get any additional dirty cards during the
   // paused GC. This saves memory but only works for pause the world collectors.
   timings_.NewSplit("ClearCardTable");
@@ -214,13 +215,29 @@ void SemiSpace::UpdateAndMarkModUnion() {
                                      "UpdateAndMarkImageModUnionTable",
                                      &timings_);
         table->UpdateAndMarkReferences(MarkObjectCallback, this);
+      } else if (heap_->FindRememberedSetFromSpace(space) != nullptr) {
+        DCHECK(kUseRememberedSet);
+        // If a bump pointer space only collection, the non-moving
+        // space is added to the immune space. The non-moving space
+        // doesn't have a mod union table, but has a remembered
+        // set. Its dirty cards will be scanned later in
+        // MarkReachableObjects().
+        DCHECK(generational_ && !whole_heap_collection_ &&
+               (space == heap_->GetNonMovingSpace() || space == heap_->GetPrimaryFreeListSpace()))
+            << "Space " << space->GetName() << " "
+            << "generational_=" << generational_ << " "
+            << "whole_heap_collection_=" << whole_heap_collection_ << " ";
       } else {
+        DCHECK(!kUseRememberedSet);
         // If a bump pointer space only collection, the non-moving
         // space is added to the immune space. But the non-moving
         // space doesn't have a mod union table. Instead, its live
         // bitmap will be scanned later in MarkReachableObjects().
         DCHECK(generational_ && !whole_heap_collection_ &&
-               (space == heap_->GetNonMovingSpace() || space == heap_->GetPrimaryFreeListSpace()));
+               (space == heap_->GetNonMovingSpace() || space == heap_->GetPrimaryFreeListSpace()))
+            << "Space " << space->GetName() << " "
+            << "generational_=" << generational_ << " "
+            << "whole_heap_collection_=" << whole_heap_collection_ << " ";
       }
     }
   }
@@ -240,6 +257,42 @@ class SemiSpaceScanObjectVisitor {
   SemiSpace* const semi_space_;
 };
 
+// Used to verify that there's no references to the from-space.
+class SemiSpaceVerifyNoFromSpaceReferencesVisitor {
+ public:
+  explicit SemiSpaceVerifyNoFromSpaceReferencesVisitor(space::ContinuousMemMapAllocSpace* from_space) :
+      from_space_(from_space) {}
+
+  void operator()(Object* obj, Object* ref, const MemberOffset& offset, bool /* is_static */)
+      const ALWAYS_INLINE {
+    if (from_space_->HasAddress(ref)) {
+      Runtime::Current()->GetHeap()->DumpObject(LOG(INFO), obj);
+    }
+    DCHECK(!from_space_->HasAddress(ref));
+  }
+ private:
+  space::ContinuousMemMapAllocSpace* from_space_;
+};
+
+void SemiSpace::VerifyNoFromSpaceReferences(Object* obj) {
+  DCHECK(obj != NULL);
+  DCHECK(!from_space_->HasAddress(obj)) << "Scanning object " << obj << " in from space";
+  SemiSpaceVerifyNoFromSpaceReferencesVisitor visitor(from_space_);
+  MarkSweep::VisitObjectReferences(obj, visitor, kMovingClasses);
+}
+
+class SemiSpaceVerifyNoFromSpaceReferencesObjectVisitor {
+ public:
+  explicit SemiSpaceVerifyNoFromSpaceReferencesObjectVisitor(SemiSpace* ss) : semi_space_(ss) {}
+  void operator()(Object* obj) const
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
+    DCHECK(obj != nullptr);
+    semi_space_->VerifyNoFromSpaceReferences(obj);
+  }
+ private:
+  SemiSpace* const semi_space_;
+};
+
 void SemiSpace::MarkReachableObjects() {
   timings_.StartSplit("MarkStackAsLive");
   accounting::ObjectStack* live_stack = heap_->GetLiveStack();
@@ -250,18 +303,36 @@ void SemiSpace::MarkReachableObjects() {
   for (auto& space : heap_->GetContinuousSpaces()) {
     // If the space is immune and has no mod union table (the
     // non-moving space when the bump pointer space only collection is
-    // enabled,) then we need to scan its live bitmap as roots
+    // enabled,) then we need to scan its live bitmap or dirty cards as roots
     // (including the objects on the live stack which have just marked
     // in the live bitmap above in MarkAllocStackAsLive().)
     if (immune_region_.ContainsSpace(space) &&
         heap_->FindModUnionTableFromSpace(space) == nullptr) {
       DCHECK(generational_ && !whole_heap_collection_ &&
              (space == GetHeap()->GetNonMovingSpace() || space == GetHeap()->GetPrimaryFreeListSpace()));
-      accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
-      SemiSpaceScanObjectVisitor visitor(this);
-      live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(space->Begin()),
-                                    reinterpret_cast<uintptr_t>(space->End()),
-                                    visitor);
+      accounting::RememberedSet* rem_set = heap_->FindRememberedSetFromSpace(space);
+      if (kUseRememberedSet) {
+        DCHECK(rem_set != nullptr);
+        rem_set->UpdateAndMarkReferences(MarkObjectCallback, from_space_, this);
+        if (kIsDebugBuild) {
+          // Verify that there are no from-space references that
+          // remain in the space, that is, the remembered set (and the
+          // card table) didn't miss any from-space references in the
+          // space.
+          accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
+          SemiSpaceVerifyNoFromSpaceReferencesObjectVisitor visitor(this);
+          live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(space->Begin()),
+                                        reinterpret_cast<uintptr_t>(space->End()),
+                                        visitor);
+        }
+      } else {
+        DCHECK(rem_set == nullptr);
+        accounting::SpaceBitmap* live_bitmap = space->GetLiveBitmap();
+        SemiSpaceScanObjectVisitor visitor(this);
+        live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(space->Begin()),
+                                      reinterpret_cast<uintptr_t>(space->End()),
+                                      visitor);
+      }
     }
   }
 
@@ -447,6 +518,10 @@ mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
     } else {
       GetHeap()->num_bytes_allocated_.FetchAndAdd(bytes_promoted);
       bytes_promoted_ += bytes_promoted;
+      // Dirty the card at the destionation as it may contain
+      // references (including the class pointer) to the bump pointer
+      // space.
+      GetHeap()->WriteBarrierEveryFieldOf(forward_address);
       // Handle the bitmaps marking.
       accounting::SpaceBitmap* live_bitmap = promo_dest_space->GetLiveBitmap();
       DCHECK(live_bitmap != nullptr);

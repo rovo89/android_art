@@ -56,9 +56,14 @@ bool ImmuneRegion::AddContinuousSpace(space::ContinuousSpace* space) {
 }
 
 bool ImmuneRegion::ContainsSpace(const space::ContinuousSpace* space) const {
-  return
+  bool contains =
       begin_ <= reinterpret_cast<mirror::Object*>(space->Begin()) &&
       end_ >= reinterpret_cast<mirror::Object*>(space->Limit());
+  if (kIsDebugBuild && contains) {
+    // A bump pointer space shoult not be in the immune region.
+    DCHECK(space->GetType() != space::kSpaceTypeBumpPointerSpace);
+  }
+  return contains;
 }
 
 }  // namespace collector

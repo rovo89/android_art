@@ -201,7 +201,7 @@ void MarkSweep::PreCleanCards() {
     Thread* self = Thread::Current();
     CHECK(!Locks::mutator_lock_->IsExclusiveHeld(self));
     // Process dirty cards and add dirty cards to mod union tables, also ages cards.
-    heap_->ProcessCards(timings_);
+    heap_->ProcessCards(timings_, false);
     // The checkpoint root marking is required to avoid a race condition which occurs if the
     // following happens during a reference write:
     // 1. mutator dirties the card (write barrier)
@@ -241,7 +241,7 @@ void MarkSweep::MarkingPhase() {
   FindDefaultMarkBitmap();
 
   // Process dirty cards and add dirty cards to mod union tables.
-  heap_->ProcessCards(timings_);
+  heap_->ProcessCards(timings_, false);
 
   // Need to do this before the checkpoint since we don't want any threads to add references to
   // the live stack during the recursive mark.
