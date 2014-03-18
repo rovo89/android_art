@@ -27,7 +27,7 @@ class HPrettyPrinter : public HGraphVisitor {
 
   virtual void VisitInstruction(HInstruction* instruction) {
     PrintString("  ");
-    PrintInt(instruction->id());
+    PrintInt(instruction->GetId());
     PrintString(": ");
     PrintString(instruction->DebugName());
     if (instruction->InputCount() != 0) {
@@ -39,7 +39,7 @@ class HPrettyPrinter : public HGraphVisitor {
         } else {
           PrintString(", ");
         }
-        PrintInt(it.Current()->id());
+        PrintInt(it.Current()->GetId());
       }
       PrintString(")");
     }
@@ -52,7 +52,7 @@ class HPrettyPrinter : public HGraphVisitor {
         } else {
           PrintString(", ");
         }
-        PrintInt(it.Current()->id());
+        PrintInt(it.Current()->GetId());
       }
       PrintString("]");
     }
@@ -61,24 +61,24 @@ class HPrettyPrinter : public HGraphVisitor {
 
   virtual void VisitBasicBlock(HBasicBlock* block) {
     PrintString("BasicBlock ");
-    PrintInt(block->block_id());
-    const GrowableArray<HBasicBlock*>* blocks = block->predecessors();
+    PrintInt(block->GetBlockId());
+    const GrowableArray<HBasicBlock*>* blocks = block->GetPredecessors();
     if (!blocks->IsEmpty()) {
       PrintString(", pred: ");
       for (size_t i = 0; i < blocks->Size() -1; i++) {
-        PrintInt(blocks->Get(i)->block_id());
+        PrintInt(blocks->Get(i)->GetBlockId());
         PrintString(", ");
       }
-      PrintInt(blocks->Peek()->block_id());
+      PrintInt(blocks->Peek()->GetBlockId());
     }
-    blocks = block->successors();
+    blocks = block->GetSuccessors();
     if (!blocks->IsEmpty()) {
       PrintString(", succ: ");
       for (size_t i = 0; i < blocks->Size() - 1; i++) {
-        PrintInt(blocks->Get(i)->block_id());
+        PrintInt(blocks->Get(i)->GetBlockId());
         PrintString(", ");
       }
-      PrintInt(blocks->Peek()->block_id());
+      PrintInt(blocks->Peek()->GetBlockId());
     }
     PrintNewLine();
     HGraphVisitor::VisitBasicBlock(block);

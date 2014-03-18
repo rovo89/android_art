@@ -55,9 +55,9 @@ class StringPrettyPrinter : public HPrettyPrinter {
 
   virtual void VisitGoto(HGoto* gota) {
     PrintString("  ");
-    PrintInt(gota->id());
+    PrintInt(gota->GetId());
     PrintString(": Goto ");
-    PrintInt(current_block_->successors()->Get(0)->block_id());
+    PrintInt(current_block_->GetSuccessors()->Get(0)->GetBlockId());
     PrintNewLine();
   }
 

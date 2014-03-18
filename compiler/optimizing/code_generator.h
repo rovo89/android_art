@@ -79,7 +79,7 @@ class Location : public ValueObject {
 class LocationSummary : public ArenaObject {
  public:
   explicit LocationSummary(HInstruction* instruction)
-      : inputs(instruction->block()->graph()->arena(), instruction->InputCount()) {
+      : inputs(instruction->GetBlock()->GetGraph()->GetArena(), instruction->InputCount()) {
     inputs.SetSize(instruction->InputCount());
     for (int i = 0; i < instruction->InputCount(); i++) {
       inputs.Put(i, Location());
@@ -107,36 +107,19 @@ class LocationSummary : public ArenaObject {
   DISALLOW_COPY_AND_ASSIGN(LocationSummary);
 };
 
-class CodeGenerator : public HGraphVisitor {
+class CodeGenerator : public ArenaObject {
  public:
   // Compiles the graph to executable instructions. Returns whether the compilation
   // succeeded.
-  static bool CompileGraph(HGraph* graph, InstructionSet instruction_set, CodeAllocator* allocator);
+  void Compile(CodeAllocator* allocator);
+  static CodeGenerator* Create(ArenaAllocator* allocator,
+                               HGraph* graph,
+                               InstructionSet instruction_set);
 
-  Assembler* assembler() const { return assembler_; }
-
-  // Visit functions for instruction classes.
-#define DECLARE_VISIT_INSTRUCTION(name)     \
-  virtual void Visit##name(H##name* instr) = 0;
-
-  FOR_EACH_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
-
-#undef DECLARE_VISIT_INSTRUCTION
-
- protected:
-  CodeGenerator(Assembler* assembler, HGraph* graph)
-      : HGraphVisitor(graph),
-        frame_size_(0),
-        assembler_(assembler),
-        block_labels_(graph->arena(), 0) {
-    block_labels_.SetSize(graph->blocks()->Size());
-  }
+  HGraph* GetGraph() const { return graph_; }
 
   Label* GetLabelOf(HBasicBlock* block) const;
   bool GoesToNextBlock(HBasicBlock* current, HBasicBlock* next) const;
-
-  // Frame size required for this method.
-  uint32_t frame_size_;
 
   virtual void GenerateFrameEntry() = 0;
   virtual void GenerateFrameExit() = 0;
@@ -144,14 +127,34 @@ class CodeGenerator : public HGraphVisitor {
   virtual void Move(HInstruction* instruction, Location location) = 0;
   virtual void Push(HInstruction* instruction, Location location) = 0;
   virtual HGraphVisitor* GetLocationBuilder() = 0;
+  virtual HGraphVisitor* GetInstructionVisitor() = 0;
+  virtual Assembler* GetAssembler() = 0;
+
+  uint32_t GetFrameSize() const { return frame_size_; }
+  void SetFrameSize(uint32_t size) { frame_size_ = size; }
+
+  void BuildMappingTable(std::vector<uint8_t>* vector) const { }
+  void BuildVMapTable(std::vector<uint8_t>* vector) const { }
+  void BuildNativeGCMap(std::vector<uint8_t>* vector) const { }
+
+ protected:
+  explicit CodeGenerator(HGraph* graph)
+      : frame_size_(0),
+        graph_(graph),
+        block_labels_(graph->GetArena(), 0) {
+    block_labels_.SetSize(graph->GetBlocks()->Size());
+  }
+  ~CodeGenerator() { }
 
  private:
   void InitLocations(HInstruction* instruction);
-  void Compile(CodeAllocator* allocator);
   void CompileBlock(HBasicBlock* block);
   void CompileEntryBlock();
 
-  Assembler* const assembler_;
+  // Frame size required for this method.
+  uint32_t frame_size_;
+
+  HGraph* const graph_;
 
   // Labels for each block that will be compiled.
   GrowableArray<Label> block_labels_;
