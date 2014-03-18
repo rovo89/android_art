@@ -138,7 +138,6 @@ namespace art {
 #define r_FRESULT1 r_F1
 
 // Regs not used for Mips.
-#define rMIPS_LR INVALID_REG
 #define rMIPS_PC INVALID_REG
 
 // RegisterLocation templates return values (r_V0, or r_V0/r_V1).
@@ -278,6 +277,7 @@ enum MipsNativeRegisterPool {
 #define rMIPS_RET1 r_RESULT1
 #define rMIPS_INVOKE_TGT r_T9
 #define rMIPS_COUNT INVALID_REG
+#define rMIPS_LR r_RA
 
 enum MipsShiftEncodings {
   kMipsLsl = 0x0,
