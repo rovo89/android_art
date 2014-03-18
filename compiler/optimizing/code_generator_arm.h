@@ -19,6 +19,7 @@
 
 #include "code_generator.h"
 #include "nodes.h"
+#include "utils/arm/assembler_arm.h"
 
 namespace art {
 
@@ -42,18 +43,36 @@ class LocationsBuilderARM : public HGraphVisitor {
   DISALLOW_COPY_AND_ASSIGN(LocationsBuilderARM);
 };
 
-class CodeGeneratorARM : public CodeGenerator {
+class InstructionCodeGeneratorARM : public HGraphVisitor {
  public:
-  CodeGeneratorARM(Assembler* assembler, HGraph* graph)
-      : CodeGenerator(assembler, graph), location_builder_(graph) { }
+  explicit InstructionCodeGeneratorARM(HGraph* graph, CodeGenerator* codegen)
+      : HGraphVisitor(graph),
+        assembler_(codegen->GetAssembler()),
+        codegen_(codegen) { }
 
-  // Visit functions for instruction classes.
 #define DECLARE_VISIT_INSTRUCTION(name)     \
   virtual void Visit##name(H##name* instr);
 
   FOR_EACH_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
 
 #undef DECLARE_VISIT_INSTRUCTION
+
+  Assembler* GetAssembler() const { return assembler_; }
+
+ private:
+  Assembler* const assembler_;
+  CodeGenerator* const codegen_;
+
+  DISALLOW_COPY_AND_ASSIGN(InstructionCodeGeneratorARM);
+};
+
+class CodeGeneratorARM : public CodeGenerator {
+ public:
+  explicit CodeGeneratorARM(HGraph* graph)
+      : CodeGenerator(graph),
+        location_builder_(graph),
+        instruction_visitor_(graph, this) { }
+  virtual ~CodeGeneratorARM() { }
 
  protected:
   virtual void GenerateFrameEntry() OVERRIDE;
@@ -66,8 +85,19 @@ class CodeGeneratorARM : public CodeGenerator {
     return &location_builder_;
   }
 
+  virtual HGraphVisitor* GetInstructionVisitor() OVERRIDE {
+    return &instruction_visitor_;
+  }
+
+  virtual Assembler* GetAssembler() OVERRIDE {
+    return &assembler_;
+  }
+
  private:
   LocationsBuilderARM location_builder_;
+  InstructionCodeGeneratorARM instruction_visitor_;
+  ArmAssembler assembler_;
+
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorARM);
 };

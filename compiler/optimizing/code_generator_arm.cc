@@ -18,7 +18,7 @@
 #include "utils/assembler.h"
 #include "utils/arm/assembler_arm.h"
 
-#define __ reinterpret_cast<ArmAssembler*>(assembler())->
+#define __ reinterpret_cast<ArmAssembler*>(GetAssembler())->
 
 namespace art {
 namespace arm {
@@ -26,8 +26,8 @@ namespace arm {
 void CodeGeneratorARM::GenerateFrameEntry() {
   __ PushList((1 << FP) | (1 << LR));
   __ mov(FP, ShifterOperand(SP));
-  if (frame_size_ != 0) {
-    __ AddConstant(SP, -frame_size_);
+  if (GetFrameSize() != 0) {
+    __ AddConstant(SP, -GetFrameSize());
   }
 }
 
@@ -47,30 +47,30 @@ void CodeGeneratorARM::Push(HInstruction* instruction, Location location) {
 void CodeGeneratorARM::Move(HInstruction* instruction, Location location) {
   HIntConstant* constant = instruction->AsIntConstant();
   if (constant != nullptr) {
-    __ LoadImmediate(location.reg<Register>(), constant->value());
+    __ LoadImmediate(location.reg<Register>(), constant->GetValue());
   } else {
     __ Pop(location.reg<Register>());
   }
 }
 
 void LocationsBuilderARM::VisitGoto(HGoto* got) {
-  got->set_locations(nullptr);
+  got->SetLocations(nullptr);
 }
 
-void CodeGeneratorARM::VisitGoto(HGoto* got) {
+void InstructionCodeGeneratorARM::VisitGoto(HGoto* got) {
   HBasicBlock* successor = got->GetSuccessor();
-  if (graph()->exit_block() == successor) {
-    GenerateFrameExit();
-  } else if (!GoesToNextBlock(got->block(), successor)) {
-    __ b(GetLabelOf(successor));
+  if (GetGraph()->GetExitBlock() == successor) {
+    codegen_->GenerateFrameExit();
+  } else if (!codegen_->GoesToNextBlock(got->GetBlock(), successor)) {
+    __ b(codegen_->GetLabelOf(successor));
   }
 }
 
 void LocationsBuilderARM::VisitExit(HExit* exit) {
-  exit->set_locations(nullptr);
+  exit->SetLocations(nullptr);
 }
 
-void CodeGeneratorARM::VisitExit(HExit* exit) {
+void InstructionCodeGeneratorARM::VisitExit(HExit* exit) {
   if (kIsDebugBuild) {
     __ Comment("Unreachable");
     __ bkpt(0);
@@ -78,30 +78,30 @@ void CodeGeneratorARM::VisitExit(HExit* exit) {
 }
 
 void LocationsBuilderARM::VisitIf(HIf* if_instr) {
-  LocationSummary* locations = new (graph()->arena()) LocationSummary(if_instr);
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(if_instr);
   locations->SetInAt(0, Location(R0));
-  if_instr->set_locations(locations);
+  if_instr->SetLocations(locations);
 }
 
-void CodeGeneratorARM::VisitIf(HIf* if_instr) {
+void InstructionCodeGeneratorARM::VisitIf(HIf* if_instr) {
   // TODO: Generate the input as a condition, instead of materializing in a register.
-  __ cmp(if_instr->locations()->InAt(0).reg<Register>(), ShifterOperand(0));
-  __ b(GetLabelOf(if_instr->IfFalseSuccessor()), EQ);
-  if (!GoesToNextBlock(if_instr->block(), if_instr->IfTrueSuccessor())) {
-    __ b(GetLabelOf(if_instr->IfTrueSuccessor()));
+  __ cmp(if_instr->GetLocations()->InAt(0).reg<Register>(), ShifterOperand(0));
+  __ b(codegen_->GetLabelOf(if_instr->IfFalseSuccessor()), EQ);
+  if (!codegen_->GoesToNextBlock(if_instr->GetBlock(), if_instr->IfTrueSuccessor())) {
+    __ b(codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
   }
 }
 
 void LocationsBuilderARM::VisitEqual(HEqual* equal) {
-  LocationSummary* locations = new (graph()->arena()) LocationSummary(equal);
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(equal);
   locations->SetInAt(0, Location(R0));
   locations->SetInAt(1, Location(R1));
   locations->SetOut(Location(R0));
-  equal->set_locations(locations);
+  equal->SetLocations(locations);
 }
 
-void CodeGeneratorARM::VisitEqual(HEqual* equal) {
-  LocationSummary* locations = equal->locations();
+void InstructionCodeGeneratorARM::VisitEqual(HEqual* equal) {
+  LocationSummary* locations = equal->GetLocations();
   __ teq(locations->InAt(0).reg<Register>(),
          ShifterOperand(locations->InAt(1).reg<Register>()));
   __ mov(locations->Out().reg<Register>(), ShifterOperand(1), EQ);
@@ -109,68 +109,68 @@ void CodeGeneratorARM::VisitEqual(HEqual* equal) {
 }
 
 void LocationsBuilderARM::VisitLocal(HLocal* local) {
-  local->set_locations(nullptr);
+  local->SetLocations(nullptr);
 }
 
-void CodeGeneratorARM::VisitLocal(HLocal* local) {
-  DCHECK_EQ(local->block(), graph()->entry_block());
-  frame_size_ += kWordSize;
+void InstructionCodeGeneratorARM::VisitLocal(HLocal* local) {
+  DCHECK_EQ(local->GetBlock(), GetGraph()->GetEntryBlock());
+  codegen_->SetFrameSize(codegen_->GetFrameSize() + kWordSize);
 }
 
 void LocationsBuilderARM::VisitLoadLocal(HLoadLocal* load) {
-  LocationSummary* locations = new (graph()->arena()) LocationSummary(load);
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load);
   locations->SetOut(Location(R0));
-  load->set_locations(locations);
+  load->SetLocations(locations);
 }
 
 static int32_t GetStackSlot(HLocal* local) {
   // We are currently using FP to access locals, so the offset must be negative.
-  return (local->reg_number() + 1) * -kWordSize;
+  return (local->GetRegNumber() + 1) * -kWordSize;
 }
 
-void CodeGeneratorARM::VisitLoadLocal(HLoadLocal* load) {
-  LocationSummary* locations = load->locations();
+void InstructionCodeGeneratorARM::VisitLoadLocal(HLoadLocal* load) {
+  LocationSummary* locations = load->GetLocations();
   __ LoadFromOffset(kLoadWord, locations->Out().reg<Register>(),
                     FP, GetStackSlot(load->GetLocal()));
 }
 
 void LocationsBuilderARM::VisitStoreLocal(HStoreLocal* store) {
-  LocationSummary* locations = new (graph()->arena()) LocationSummary(store);
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(store);
   locations->SetInAt(1, Location(R0));
-  store->set_locations(locations);
+  store->SetLocations(locations);
 }
 
-void CodeGeneratorARM::VisitStoreLocal(HStoreLocal* store) {
-  LocationSummary* locations = store->locations();
+void InstructionCodeGeneratorARM::VisitStoreLocal(HStoreLocal* store) {
+  LocationSummary* locations = store->GetLocations();
   __ StoreToOffset(kStoreWord, locations->InAt(1).reg<Register>(),
                    FP, GetStackSlot(store->GetLocal()));
 }
 
 void LocationsBuilderARM::VisitIntConstant(HIntConstant* constant) {
-  constant->set_locations(nullptr);
+  constant->SetLocations(nullptr);
 }
 
-void CodeGeneratorARM::VisitIntConstant(HIntConstant* constant) {
+void InstructionCodeGeneratorARM::VisitIntConstant(HIntConstant* constant) {
   // Will be generated at use site.
 }
 
 void LocationsBuilderARM::VisitReturnVoid(HReturnVoid* ret) {
-  ret->set_locations(nullptr);
+  ret->SetLocations(nullptr);
 }
 
-void CodeGeneratorARM::VisitReturnVoid(HReturnVoid* ret) {
-  GenerateFrameExit();
+void InstructionCodeGeneratorARM::VisitReturnVoid(HReturnVoid* ret) {
+  codegen_->GenerateFrameExit();
 }
 
 void LocationsBuilderARM::VisitReturn(HReturn* ret) {
-  LocationSummary* locations = new (graph()->arena()) LocationSummary(ret);
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(ret);
   locations->SetInAt(0, Location(R0));
-  ret->set_locations(locations);
+  ret->SetLocations(locations);
 }
 
-void CodeGeneratorARM::VisitReturn(HReturn* ret) {
-  DCHECK_EQ(ret->locations()->InAt(0).reg<Register>(), R0);
-  GenerateFrameExit();
+void InstructionCodeGeneratorARM::VisitReturn(HReturn* ret) {
+  DCHECK_EQ(ret->GetLocations()->InAt(0).reg<Register>(), R0);
+  codegen_->GenerateFrameExit();
 }
 
 }  // namespace arm
