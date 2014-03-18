@@ -19,38 +19,36 @@
 #include "code_generator_arm.h"
 #include "code_generator_x86.h"
 #include "utils/assembler.h"
-#include "utils/arm/assembler_arm.h"
-#include "utils/mips/assembler_mips.h"
-#include "utils/x86/assembler_x86.h"
 
 namespace art {
 
 void CodeGenerator::Compile(CodeAllocator* allocator) {
-  const GrowableArray<HBasicBlock*>* blocks = graph()->blocks();
-  DCHECK(blocks->Get(0) == graph()->entry_block());
-  DCHECK(GoesToNextBlock(graph()->entry_block(), blocks->Get(1)));
+  const GrowableArray<HBasicBlock*>* blocks = GetGraph()->GetBlocks();
+  DCHECK(blocks->Get(0) == GetGraph()->GetEntryBlock());
+  DCHECK(GoesToNextBlock(GetGraph()->GetEntryBlock(), blocks->Get(1)));
   CompileEntryBlock();
   for (size_t i = 1; i < blocks->Size(); i++) {
     CompileBlock(blocks->Get(i));
   }
-  size_t code_size = assembler_->CodeSize();
+  size_t code_size = GetAssembler()->CodeSize();
   uint8_t* buffer = allocator->Allocate(code_size);
   MemoryRegion code(buffer, code_size);
-  assembler_->FinalizeInstructions(code);
+  GetAssembler()->FinalizeInstructions(code);
 }
 
 void CodeGenerator::CompileEntryBlock() {
   HGraphVisitor* location_builder = GetLocationBuilder();
+  HGraphVisitor* instruction_visitor = GetInstructionVisitor();
   // The entry block contains all locals for this method. By visiting the entry block,
   // we're computing the required frame size.
-  for (HInstructionIterator it(graph()->entry_block()); !it.Done(); it.Advance()) {
+  for (HInstructionIterator it(GetGraph()->GetEntryBlock()); !it.Done(); it.Advance()) {
     HInstruction* current = it.Current();
     // Instructions in the entry block should not generate code.
     if (kIsDebugBuild) {
       current->Accept(location_builder);
-      DCHECK(current->locations() == nullptr);
+      DCHECK(current->GetLocations() == nullptr);
     }
-    current->Accept(this);
+    current->Accept(instruction_visitor);
   }
   GenerateFrameEntry();
 }
@@ -58,6 +56,7 @@ void CodeGenerator::CompileEntryBlock() {
 void CodeGenerator::CompileBlock(HBasicBlock* block) {
   Bind(GetLabelOf(block));
   HGraphVisitor* location_builder = GetLocationBuilder();
+  HGraphVisitor* instruction_visitor = GetInstructionVisitor();
   for (HInstructionIterator it(block); !it.Done(); it.Advance()) {
     // For each instruction, we emulate a stack-based machine, where the inputs are popped from
     // the runtime stack, and the result is pushed on the stack. We currently can do this because
@@ -66,17 +65,17 @@ void CodeGenerator::CompileBlock(HBasicBlock* block) {
     HInstruction* current = it.Current();
     current->Accept(location_builder);
     InitLocations(current);
-    current->Accept(this);
-    if (current->locations() != nullptr && current->locations()->Out().IsValid()) {
-      Push(current, current->locations()->Out());
+    current->Accept(instruction_visitor);
+    if (current->GetLocations() != nullptr && current->GetLocations()->Out().IsValid()) {
+      Push(current, current->GetLocations()->Out());
     }
   }
 }
 
 void CodeGenerator::InitLocations(HInstruction* instruction) {
-  if (instruction->locations() == nullptr) return;
+  if (instruction->GetLocations() == nullptr) return;
   for (int i = 0; i < instruction->InputCount(); i++) {
-    Location location = instruction->locations()->InAt(i);
+    Location location = instruction->GetLocations()->InAt(i);
     if (location.IsValid()) {
       // Move the input to the desired location.
       Move(instruction->InputAt(i), location);
@@ -86,32 +85,28 @@ void CodeGenerator::InitLocations(HInstruction* instruction) {
 
 bool CodeGenerator::GoesToNextBlock(HBasicBlock* current, HBasicBlock* next) const {
   // We currently iterate over the block in insertion order.
-  return current->block_id() + 1 == next->block_id();
+  return current->GetBlockId() + 1 == next->GetBlockId();
 }
 
 Label* CodeGenerator::GetLabelOf(HBasicBlock* block) const {
-  return block_labels_.GetRawStorage() + block->block_id();
+  return block_labels_.GetRawStorage() + block->GetBlockId();
 }
 
-bool CodeGenerator::CompileGraph(HGraph* graph,
-                                 InstructionSet instruction_set,
-                                 CodeAllocator* allocator) {
+CodeGenerator* CodeGenerator::Create(ArenaAllocator* allocator,
+                                     HGraph* graph,
+                                     InstructionSet instruction_set) {
   switch (instruction_set) {
     case kArm:
     case kThumb2: {
-      arm::ArmAssembler assembler;
-      arm::CodeGeneratorARM(&assembler, graph).Compile(allocator);
-      return true;
+      return new (allocator) arm::CodeGeneratorARM(graph);
     }
     case kMips:
-      return false;
+      return nullptr;
     case kX86: {
-      x86::X86Assembler assembler;
-      x86::CodeGeneratorX86(&assembler, graph).Compile(allocator);
-      return true;
+      return new (allocator) x86::CodeGeneratorX86(graph);
     }
     default:
-      return false;
+      return nullptr;
   }
 }
 

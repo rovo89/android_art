@@ -19,6 +19,7 @@
 
 #include "code_generator.h"
 #include "nodes.h"
+#include "utils/x86/assembler_x86.h"
 
 namespace art {
 
@@ -42,10 +43,12 @@ class LocationsBuilderX86 : public HGraphVisitor {
   DISALLOW_COPY_AND_ASSIGN(LocationsBuilderX86);
 };
 
-class CodeGeneratorX86 : public CodeGenerator {
+class InstructionCodeGeneratorX86 : public HGraphVisitor {
  public:
-  CodeGeneratorX86(Assembler* assembler, HGraph* graph)
-      : CodeGenerator(assembler, graph), location_builder_(graph) { }
+  explicit InstructionCodeGeneratorX86(HGraph* graph, CodeGenerator* codegen)
+      : HGraphVisitor(graph),
+        assembler_(codegen->GetAssembler()),
+        codegen_(codegen) { }
 
 #define DECLARE_VISIT_INSTRUCTION(name)     \
   virtual void Visit##name(H##name* instr);
@@ -53,6 +56,23 @@ class CodeGeneratorX86 : public CodeGenerator {
   FOR_EACH_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
 
 #undef DECLARE_VISIT_INSTRUCTION
+
+  Assembler* GetAssembler() const { return assembler_; }
+
+ private:
+  Assembler* const assembler_;
+  CodeGenerator* const codegen_;
+
+  DISALLOW_COPY_AND_ASSIGN(InstructionCodeGeneratorX86);
+};
+
+class CodeGeneratorX86 : public CodeGenerator {
+ public:
+  explicit CodeGeneratorX86(HGraph* graph)
+      : CodeGenerator(graph),
+        location_builder_(graph),
+        instruction_visitor_(graph, this) { }
+  virtual ~CodeGeneratorX86() { }
 
  protected:
   virtual void GenerateFrameEntry() OVERRIDE;
@@ -65,8 +85,18 @@ class CodeGeneratorX86 : public CodeGenerator {
     return &location_builder_;
   }
 
+  virtual HGraphVisitor* GetInstructionVisitor() OVERRIDE {
+    return &instruction_visitor_;
+  }
+
+  virtual X86Assembler* GetAssembler() OVERRIDE {
+    return &assembler_;
+  }
+
  private:
   LocationsBuilderX86 location_builder_;
+  InstructionCodeGeneratorX86 instruction_visitor_;
+  X86Assembler assembler_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorX86);
 };

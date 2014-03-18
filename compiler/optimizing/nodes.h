@@ -43,14 +43,14 @@ class HGraph : public ArenaObject {
         dominator_order_(arena, kDefaultNumberOfBlocks),
         current_instruction_id_(0) { }
 
-  ArenaAllocator* arena() const { return arena_; }
-  const GrowableArray<HBasicBlock*>* blocks() const { return &blocks_; }
+  ArenaAllocator* GetArena() const { return arena_; }
+  const GrowableArray<HBasicBlock*>* GetBlocks() const { return &blocks_; }
 
-  HBasicBlock* entry_block() const { return entry_block_; }
-  HBasicBlock* exit_block() const { return exit_block_; }
+  HBasicBlock* GetEntryBlock() const { return entry_block_; }
+  HBasicBlock* GetExitBlock() const { return exit_block_; }
 
-  void set_entry_block(HBasicBlock* block) { entry_block_ = block; }
-  void set_exit_block(HBasicBlock* block) { exit_block_ = block; }
+  void SetEntryBlock(HBasicBlock* block) { entry_block_ = block; }
+  void SetExitBlock(HBasicBlock* block) { exit_block_ = block; }
 
   void AddBlock(HBasicBlock* block);
   void BuildDominatorTree();
@@ -91,7 +91,7 @@ class HLoopInformation : public ArenaObject {
  public:
   HLoopInformation(HBasicBlock* header, HGraph* graph)
       : header_(header),
-        back_edges_(graph->arena(), kDefaultNumberOfBackEdges) { }
+        back_edges_(graph->GetArena(), kDefaultNumberOfBackEdges) { }
 
   void AddBackEdge(HBasicBlock* back_edge) {
     back_edges_.Add(back_edge);
@@ -115,36 +115,36 @@ class HBasicBlock : public ArenaObject {
  public:
   explicit HBasicBlock(HGraph* graph)
       : graph_(graph),
-        predecessors_(graph->arena(), kDefaultNumberOfPredecessors),
-        successors_(graph->arena(), kDefaultNumberOfSuccessors),
+        predecessors_(graph->GetArena(), kDefaultNumberOfPredecessors),
+        successors_(graph->GetArena(), kDefaultNumberOfSuccessors),
         first_instruction_(nullptr),
         last_instruction_(nullptr),
         loop_information_(nullptr),
         dominator_(nullptr),
         block_id_(-1) { }
 
-  const GrowableArray<HBasicBlock*>* predecessors() const {
+  const GrowableArray<HBasicBlock*>* GetPredecessors() const {
     return &predecessors_;
   }
 
-  const GrowableArray<HBasicBlock*>* successors() const {
+  const GrowableArray<HBasicBlock*>* GetSuccessors() const {
     return &successors_;
   }
 
   void AddBackEdge(HBasicBlock* back_edge) {
     if (loop_information_ == nullptr) {
-      loop_information_ = new (graph_->arena()) HLoopInformation(this, graph_);
+      loop_information_ = new (graph_->GetArena()) HLoopInformation(this, graph_);
     }
     loop_information_->AddBackEdge(back_edge);
   }
 
-  HGraph* graph() const { return graph_; }
+  HGraph* GetGraph() const { return graph_; }
 
-  int block_id() const { return block_id_; }
-  void set_block_id(int id) { block_id_ = id; }
+  int GetBlockId() const { return block_id_; }
+  void SetBlockId(int id) { block_id_ = id; }
 
-  HBasicBlock* dominator() const { return dominator_; }
-  void set_dominator(HBasicBlock* dominator) { dominator_ = dominator; }
+  HBasicBlock* GetDominator() const { return dominator_; }
+  void SetDominator(HBasicBlock* dominator) { dominator_ = dominator; }
 
   int NumberOfBackEdges() const {
     return loop_information_ == nullptr
@@ -152,8 +152,8 @@ class HBasicBlock : public ArenaObject {
         : loop_information_->NumberOfBackEdges();
   }
 
-  HInstruction* first_instruction() const { return first_instruction_; }
-  HInstruction* last_instruction() const { return last_instruction_; }
+  HInstruction* GetFirstInstruction() const { return first_instruction_; }
+  HInstruction* GetLastInstruction() const { return last_instruction_; }
 
   void AddSuccessor(HBasicBlock* block) {
     successors_.Add(block);
@@ -205,8 +205,8 @@ class HUseListNode : public ArenaObject {
   HUseListNode(HInstruction* instruction, HUseListNode* tail)
       : instruction_(instruction), tail_(tail) { }
 
-  HUseListNode* tail() const { return tail_; }
-  HInstruction* instruction() const { return instruction_; }
+  HUseListNode* GetTail() const { return tail_; }
+  HInstruction* GetInstruction() const { return instruction_; }
 
  private:
   HInstruction* const instruction_;
@@ -227,11 +227,11 @@ class HInstruction : public ArenaObject {
 
   virtual ~HInstruction() { }
 
-  HInstruction* next() const { return next_; }
-  HInstruction* previous() const { return previous_; }
+  HInstruction* GetNext() const { return next_; }
+  HInstruction* GetPrevious() const { return previous_; }
 
-  HBasicBlock* block() const { return block_; }
-  void set_block(HBasicBlock* block) { block_ = block; }
+  HBasicBlock* GetBlock() const { return block_; }
+  void SetBlock(HBasicBlock* block) { block_ = block; }
 
   virtual intptr_t InputCount() const  = 0;
   virtual HInstruction* InputAt(intptr_t i) const = 0;
@@ -240,18 +240,18 @@ class HInstruction : public ArenaObject {
   virtual const char* DebugName() const = 0;
 
   void AddUse(HInstruction* user) {
-    uses_ = new (block_->graph()->arena()) HUseListNode(user, uses_);
+    uses_ = new (block_->GetGraph()->GetArena()) HUseListNode(user, uses_);
   }
 
-  HUseListNode* uses() const { return uses_; }
+  HUseListNode* GetUses() const { return uses_; }
 
   bool HasUses() const { return uses_ != nullptr; }
 
-  int id() const { return id_; }
-  void set_id(int id) { id_ = id; }
+  int GetId() const { return id_; }
+  void SetId(int id) { id_ = id; }
 
-  LocationSummary* locations() const { return locations_; }
-  void set_locations(LocationSummary* locations) { locations_ = locations; }
+  LocationSummary* GetLocations() const { return locations_; }
+  void SetLocations(LocationSummary* locations) { locations_ = locations; }
 
 #define INSTRUCTION_TYPE_CHECK(type)                                           \
   virtual H##type* As##type() { return nullptr; }
@@ -281,18 +281,18 @@ class HInstruction : public ArenaObject {
 
 class HUseIterator : public ValueObject {
  public:
-  explicit HUseIterator(HInstruction* instruction) : current_(instruction->uses()) { }
+  explicit HUseIterator(HInstruction* instruction) : current_(instruction->GetUses()) { }
 
   bool Done() const { return current_ == nullptr; }
 
   void Advance() {
     DCHECK(!Done());
-    current_ = current_->tail();
+    current_ = current_->GetTail();
   }
 
   HInstruction* Current() const {
     DCHECK(!Done());
-    return current_->instruction();
+    return current_->GetInstruction();
   }
 
  private:
@@ -319,15 +319,15 @@ class HInputIterator : public ValueObject {
 class HInstructionIterator : public ValueObject {
  public:
   explicit HInstructionIterator(HBasicBlock* block)
-      : instruction_(block->first_instruction()) {
-    next_ = Done() ? nullptr : instruction_->next();
+      : instruction_(block->GetFirstInstruction()) {
+    next_ = Done() ? nullptr : instruction_->GetNext();
   }
 
   bool Done() const { return instruction_ == nullptr; }
   HInstruction* Current() const { return instruction_; }
   void Advance() {
     instruction_ = next_;
-    next_ = Done() ? nullptr : instruction_->next();
+    next_ = Done() ? nullptr : instruction_->GetNext();
   }
 
  private:
@@ -342,15 +342,15 @@ class EmbeddedArray {
  public:
   EmbeddedArray() : elements_() { }
 
-  intptr_t length() const { return N; }
+  intptr_t GetLength() const { return N; }
 
   const T& operator[](intptr_t i) const {
-    DCHECK_LT(i, length());
+    DCHECK_LT(i, GetLength());
     return elements_[i];
   }
 
   T& operator[](intptr_t i) {
-    DCHECK_LT(i, length());
+    DCHECK_LT(i, GetLength());
     return elements_[i];
   }
 
@@ -445,7 +445,7 @@ class HGoto : public HTemplateInstruction<0> {
   HGoto() { }
 
   HBasicBlock* GetSuccessor() const {
-    return block()->successors()->Get(0);
+    return GetBlock()->GetSuccessors()->Get(0);
   }
 
   DECLARE_INSTRUCTION(Goto)
@@ -463,11 +463,11 @@ class HIf : public HTemplateInstruction<1> {
   }
 
   HBasicBlock* IfTrueSuccessor() const {
-    return block()->successors()->Get(0);
+    return GetBlock()->GetSuccessors()->Get(0);
   }
 
   HBasicBlock* IfFalseSuccessor() const {
-    return block()->successors()->Get(1);
+    return GetBlock()->GetSuccessors()->Get(1);
   }
 
   DECLARE_INSTRUCTION(If)
@@ -497,7 +497,7 @@ class HLocal : public HTemplateInstruction<0> {
 
   DECLARE_INSTRUCTION(Local)
 
-  uint16_t reg_number() const { return reg_number_; }
+  uint16_t GetRegNumber() const { return reg_number_; }
 
  private:
   // The Dex register number.
@@ -544,7 +544,7 @@ class HIntConstant : public HTemplateInstruction<0> {
  public:
   explicit HIntConstant(int32_t value) : value_(value) { }
 
-  int32_t value() const { return value_; }
+  int32_t GetValue() const { return value_; }
 
   DECLARE_INSTRUCTION(IntConstant)
 
@@ -564,7 +564,7 @@ class HGraphVisitor : public ValueObject {
 
   void VisitInsertionOrder();
 
-  HGraph* graph() const { return graph_; }
+  HGraph* GetGraph() const { return graph_; }
 
   // Visit functions for instruction classes.
 #define DECLARE_VISIT_INSTRUCTION(name)                                        \

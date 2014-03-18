@@ -27,22 +27,24 @@
 
 namespace art {
 
-class ExecutableMemoryAllocator : public CodeAllocator {
+class InternalCodeAllocator : public CodeAllocator {
  public:
-  ExecutableMemoryAllocator() { }
+  InternalCodeAllocator() { }
 
   virtual uint8_t* Allocate(size_t size) {
+    size_ = size;
     memory_.reset(new uint8_t[size]);
-    CommonCompilerTest::MakeExecutable(memory_.get(), size);
     return memory_.get();
   }
 
-  uint8_t* memory() const { return memory_.get(); }
+  size_t GetSize() const { return size_; }
+  uint8_t* GetMemory() const { return memory_.get(); }
 
  private:
+  size_t size_;
   UniquePtr<uint8_t[]> memory_;
 
-  DISALLOW_COPY_AND_ASSIGN(ExecutableMemoryAllocator);
+  DISALLOW_COPY_AND_ASSIGN(InternalCodeAllocator);
 };
 
 static void TestCode(const uint16_t* data, bool has_result = false, int32_t expected = 0) {
@@ -52,18 +54,22 @@ static void TestCode(const uint16_t* data, bool has_result = false, int32_t expe
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
   HGraph* graph = builder.BuildGraph(*item);
   ASSERT_NE(graph, nullptr);
-  ExecutableMemoryAllocator allocator;
-  CHECK(CodeGenerator::CompileGraph(graph, kX86, &allocator));
+  InternalCodeAllocator allocator;
+  CodeGenerator* codegen = CodeGenerator::Create(&arena, graph, kX86);
+  codegen->Compile(&allocator);
   typedef int32_t (*fptr)();
 #if defined(__i386__)
-  int32_t result = reinterpret_cast<fptr>(allocator.memory())();
+  CommonCompilerTest::MakeExecutable(allocator.GetMemory(), allocator.GetSize());
+  int32_t result = reinterpret_cast<fptr>(allocator.GetMemory())();
   if (has_result) {
     CHECK_EQ(result, expected);
   }
 #endif
-  CHECK(CodeGenerator::CompileGraph(graph, kArm, &allocator));
+  codegen = CodeGenerator::Create(&arena, graph, kArm);
+  codegen->Compile(&allocator);
 #if defined(__arm__)
-  int32_t result = reinterpret_cast<fptr>(allocator.memory())();
+  CommonCompilerTest::MakeExecutable(allocator.GetMemory(), allocator.GetSize());
+  int32_t result = reinterpret_cast<fptr>(allocator.GetMemory())();
   if (has_result) {
     CHECK_EQ(result, expected);
   }

@@ -56,8 +56,8 @@ HGraph* HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
   entry_block_ = new (arena_) HBasicBlock(graph_);
   graph_->AddBlock(entry_block_);
   exit_block_ = new (arena_) HBasicBlock(graph_);
-  graph_->set_entry_block(entry_block_);
-  graph_->set_exit_block(exit_block_);
+  graph_->SetEntryBlock(entry_block_);
+  graph_->SetExitBlock(exit_block_);
 
   InitializeLocals(code_item.registers_size_);
 
@@ -162,7 +162,7 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
       HInstruction* first = LoadLocal(instruction.VRegA());
       HInstruction* second = LoadLocal(instruction.VRegB());
       current_block_->AddInstruction(new (arena_) HEqual(first, second));
-      current_block_->AddInstruction(new (arena_) HIf(current_block_->last_instruction()));
+      current_block_->AddInstruction(new (arena_) HIf(current_block_->GetLastInstruction()));
       HBasicBlock* target = FindBlockStartingAt(instruction.GetTargetOffset() + dex_offset);
       DCHECK(target != nullptr);
       current_block_->AddSuccessor(target);
@@ -243,7 +243,7 @@ void HGraphBuilder::UpdateLocal(int register_index, HInstruction* instruction) c
 HInstruction* HGraphBuilder::LoadLocal(int register_index) const {
   HLocal* local = GetLocalAt(register_index);
   current_block_->AddInstruction(new (arena_) HLoadLocal(local));
-  return current_block_->last_instruction();
+  return current_block_->GetLastInstruction();
 }
 
 }  // namespace art
