@@ -1,2 +1,3 @@
-caught SOE
+caught SOE in testSelfRecursion
+caught SOE in testMutualRecursion
 SOE test done
