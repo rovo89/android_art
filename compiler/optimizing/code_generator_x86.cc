@@ -18,18 +18,28 @@
 #include "utils/assembler.h"
 #include "utils/x86/assembler_x86.h"
 
+#include "mirror/array.h"
+#include "mirror/art_method.h"
+
 #define __ reinterpret_cast<X86Assembler*>(GetAssembler())->
 
 namespace art {
 namespace x86 {
 
 void CodeGeneratorX86::GenerateFrameEntry() {
+  // Create a fake register to mimic Quick.
+  static const int kFakeReturnRegister = 8;
+  core_spill_mask_ |= (1 << kFakeReturnRegister);
+  // We're currently always using EBP, which is callee-saved in Quick.
+  core_spill_mask_ |= (1 << EBP);
+
   __ pushl(EBP);
   __ movl(EBP, ESP);
-
-  if (GetFrameSize() != 0) {
-    __ subl(ESP, Immediate(GetFrameSize()));
-  }
+  // Add the current ART method to the frame size, the return pc, and EBP.
+  SetFrameSize(RoundUp(GetFrameSize() + 3 * kWordSize, kStackAlignment));
+  // The PC and EBP have already been pushed on the stack.
+  __ subl(ESP, Immediate(GetFrameSize() - 2 * kWordSize));
+  __ movl(Address(ESP, 0), EAX);
 }
 
 void CodeGeneratorX86::GenerateFrameExit() {
@@ -43,6 +53,10 @@ void CodeGeneratorX86::Bind(Label* label) {
 
 void CodeGeneratorX86::Push(HInstruction* instruction, Location location) {
   __ pushl(location.reg<Register>());
+}
+
+void InstructionCodeGeneratorX86::LoadCurrentMethod(Register reg) {
+  __ movl(reg, Address(ESP, 0));
 }
 
 void CodeGeneratorX86::Move(HInstruction* instruction, Location location) {
@@ -110,7 +124,8 @@ void LocationsBuilderX86::VisitLoadLocal(HLoadLocal* local) {
 
 static int32_t GetStackSlot(HLocal* local) {
   // We are currently using EBP to access locals, so the offset must be negative.
-  return (local->GetRegNumber() + 1) * -kWordSize;
+  // +1 for going backwards, +1 for the method pointer.
+  return (local->GetRegNumber() + 2) * -kWordSize;
 }
 
 void InstructionCodeGeneratorX86::VisitLoadLocal(HLoadLocal* load) {
@@ -170,6 +185,37 @@ void InstructionCodeGeneratorX86::VisitReturn(HReturn* ret) {
   DCHECK_EQ(ret->GetLocations()->InAt(0).reg<Register>(), EAX);
   codegen_->GenerateFrameExit();
   __ ret();
+}
+
+void LocationsBuilderX86::VisitInvokeStatic(HInvokeStatic* invoke) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(invoke);
+  CHECK_EQ(invoke->InputCount(), 0);
+  locations->AddTemp(Location(EAX));
+  invoke->SetLocations(locations);
+}
+
+void InstructionCodeGeneratorX86::VisitInvokeStatic(HInvokeStatic* invoke) {
+  Register temp = invoke->GetLocations()->GetTemp(0).reg<Register>();
+  size_t index_in_cache = mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
+      invoke->GetIndexInDexCache() * kWordSize;
+
+  // TODO: Implement all kinds of calls:
+  // 1) boot -> boot
+  // 2) app -> boot
+  // 3) app -> app
+  //
+  // Currently we implement the app -> app logic, which looks up in the resolve cache.
+
+  // temp = method;
+  LoadCurrentMethod(temp);
+  // temp = temp->dex_cache_resolved_methods_;
+  __ movl(temp, Address(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value()));
+  // temp = temp[index_in_cache]
+  __ movl(temp, Address(temp, index_in_cache));
+  // (temp + offset_of_quick_compiled_code)()
+  __ call(Address(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value()));
+
+  codegen_->RecordPcInfo(invoke->GetDexPc());
 }
 
 }  // namespace x86

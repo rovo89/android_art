@@ -227,6 +227,7 @@ class X86Assembler FINAL : public Assembler {
   void call(Register reg);
   void call(const Address& address);
   void call(Label* label);
+  void call(const ExternalLabel& label);
 
   void pushl(Register reg);
   void pushl(const Address& address);

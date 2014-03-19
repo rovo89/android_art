@@ -185,6 +185,7 @@ class HBasicBlock : public ArenaObject {
   M(Goto)                                                  \
   M(If)                                                    \
   M(IntConstant)                                           \
+  M(InvokeStatic)                                          \
   M(LoadLocal)                                             \
   M(Local)                                                 \
   M(Return)                                                \
@@ -552,6 +553,42 @@ class HIntConstant : public HTemplateInstruction<0> {
   const int32_t value_;
 
   DISALLOW_COPY_AND_ASSIGN(HIntConstant);
+};
+
+class HInvoke : public HInstruction {
+ public:
+  HInvoke(ArenaAllocator* arena, uint32_t number_of_arguments, int32_t dex_pc)
+    : inputs_(arena, number_of_arguments),
+      dex_pc_(dex_pc) {
+    inputs_.SetSize(number_of_arguments);
+  }
+
+  virtual intptr_t InputCount() const { return inputs_.Size(); }
+  virtual HInstruction* InputAt(intptr_t i) const { return inputs_.Get(i); }
+
+  int32_t GetDexPc() const { return dex_pc_; }
+
+ protected:
+  GrowableArray<HInstruction*> inputs_;
+  const int32_t dex_pc_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HInvoke);
+};
+
+class HInvokeStatic : public HInvoke {
+ public:
+  HInvokeStatic(ArenaAllocator* arena, uint32_t number_of_arguments, int32_t dex_pc, int32_t index_in_dex_cache)
+      : HInvoke(arena, number_of_arguments, dex_pc), index_in_dex_cache_(index_in_dex_cache) { }
+
+  uint32_t GetIndexInDexCache() const { return index_in_dex_cache_; }
+
+  DECLARE_INSTRUCTION(InvokeStatic)
+
+ private:
+  uint32_t index_in_dex_cache_;
+
+  DISALLOW_COPY_AND_ASSIGN(HInvokeStatic);
 };
 
 class HGraphVisitor : public ValueObject {

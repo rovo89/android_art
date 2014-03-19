@@ -57,6 +57,8 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
 
 #undef DECLARE_VISIT_INSTRUCTION
 
+  void LoadCurrentMethod(Register reg);
+
   Assembler* GetAssembler() const { return assembler_; }
 
  private:

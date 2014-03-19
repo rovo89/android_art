@@ -232,7 +232,7 @@ test-art-target-oat: $(ART_TEST_TARGET_OAT_TARGETS)
 define declare-test-art-target-run-test
 .PHONY: test-art-target-run-test-$(1)
 test-art-target-run-test-$(1): test-art-target-sync $(DX) $(HOST_OUT_EXECUTABLES)/jasmin
-	DX=$(abspath $(DX)) JASMIN=$(abspath $(HOST_OUT_EXECUTABLES)/jasmin) art/test/run-test $(1)
+	DX=$(abspath $(DX)) JASMIN=$(abspath $(HOST_OUT_EXECUTABLES)/jasmin) art/test/run-test $(DALVIKVM_FLAGS) $(1)
 	@echo test-art-target-run-test-$(1) PASSED
 
 TEST_ART_TARGET_RUN_TEST_TARGETS += test-art-target-run-test-$(1)

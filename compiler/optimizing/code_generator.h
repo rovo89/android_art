@@ -38,6 +38,11 @@ class CodeAllocator {
   DISALLOW_COPY_AND_ASSIGN(CodeAllocator);
 };
 
+struct PcInfo {
+  uint32_t dex_pc;
+  uintptr_t native_pc;
+};
+
 /**
  * A Location is an abstraction over the potential location
  * of an instruction. It could be in register or stack.
@@ -81,7 +86,8 @@ class Location : public ValueObject {
 class LocationSummary : public ArenaObject {
  public:
   explicit LocationSummary(HInstruction* instruction)
-      : inputs(instruction->GetBlock()->GetGraph()->GetArena(), instruction->InputCount()) {
+      : inputs(instruction->GetBlock()->GetGraph()->GetArena(), instruction->InputCount()),
+        temps(instruction->GetBlock()->GetGraph()->GetArena(), 0) {
     inputs.SetSize(instruction->InputCount());
     for (int i = 0; i < instruction->InputCount(); i++) {
       inputs.Put(i, Location());
@@ -100,10 +106,19 @@ class LocationSummary : public ArenaObject {
     output = Location(location);
   }
 
+  void AddTemp(Location location) {
+    temps.Add(location);
+  }
+
+  Location GetTemp(uint32_t at) const {
+    return temps.Get(at);
+  }
+
   Location Out() const { return output; }
 
  private:
   GrowableArray<Location> inputs;
+  GrowableArray<Location> temps;
   Location output;
 
   DISALLOW_COPY_AND_ASSIGN(LocationSummary);
@@ -134,9 +149,17 @@ class CodeGenerator : public ArenaObject {
 
   uint32_t GetFrameSize() const { return frame_size_; }
   void SetFrameSize(uint32_t size) { frame_size_ = size; }
+  uint32_t GetCoreSpillMask() const { return core_spill_mask_; }
 
-  void BuildMappingTable(std::vector<uint8_t>* vector) const { }
-  void BuildVMapTable(std::vector<uint8_t>* vector) const { }
+  void RecordPcInfo(uint32_t dex_pc) {
+    struct PcInfo pc_info;
+    pc_info.dex_pc = dex_pc;
+    pc_info.native_pc = GetAssembler()->CodeSize();
+    pc_infos_.Add(pc_info);
+  }
+
+  void BuildMappingTable(std::vector<uint8_t>* vector) const;
+  void BuildVMapTable(std::vector<uint8_t>* vector) const;
   void BuildNativeGCMap(
       std::vector<uint8_t>* vector, const DexCompilationUnit& dex_compilation_unit) const;
 
@@ -144,23 +167,26 @@ class CodeGenerator : public ArenaObject {
   explicit CodeGenerator(HGraph* graph)
       : frame_size_(0),
         graph_(graph),
-        block_labels_(graph->GetArena(), 0) {
+        block_labels_(graph->GetArena(), 0),
+        pc_infos_(graph->GetArena(), 32) {
     block_labels_.SetSize(graph->GetBlocks()->Size());
   }
   ~CodeGenerator() { }
+
+  // Frame size required for this method.
+  uint32_t frame_size_;
+  uint32_t core_spill_mask_;
 
  private:
   void InitLocations(HInstruction* instruction);
   void CompileBlock(HBasicBlock* block);
   void CompileEntryBlock();
 
-  // Frame size required for this method.
-  uint32_t frame_size_;
-
   HGraph* const graph_;
 
   // Labels for each block that will be compiled.
   GrowableArray<Label> block_labels_;
+  GrowableArray<PcInfo> pc_infos_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGenerator);
 };
