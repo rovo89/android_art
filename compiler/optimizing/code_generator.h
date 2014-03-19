@@ -25,6 +25,8 @@
 
 namespace art {
 
+class DexCompilationUnit;
+
 class CodeAllocator {
  public:
   CodeAllocator() { }
@@ -135,7 +137,8 @@ class CodeGenerator : public ArenaObject {
 
   void BuildMappingTable(std::vector<uint8_t>* vector) const { }
   void BuildVMapTable(std::vector<uint8_t>* vector) const { }
-  void BuildNativeGCMap(std::vector<uint8_t>* vector) const { }
+  void BuildNativeGCMap(
+      std::vector<uint8_t>* vector, const DexCompilationUnit& dex_compilation_unit) const;
 
  protected:
   explicit CodeGenerator(HGraph* graph)
