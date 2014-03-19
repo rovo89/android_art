@@ -18,7 +18,11 @@
 
 #include "code_generator_arm.h"
 #include "code_generator_x86.h"
+#include "dex/verified_method.h"
+#include "driver/dex_compilation_unit.h"
+#include "gc_map_builder.h"
 #include "utils/assembler.h"
+#include "verifier/dex_gc_map.h"
 
 namespace art {
 
@@ -109,5 +113,15 @@ CodeGenerator* CodeGenerator::Create(ArenaAllocator* allocator,
       return nullptr;
   }
 }
+
+void CodeGenerator::BuildNativeGCMap(
+    std::vector<uint8_t>* data, const DexCompilationUnit& dex_compilation_unit) const {
+  const std::vector<uint8_t>& gc_map_raw =
+      dex_compilation_unit.GetVerifiedMethod()->GetDexGcMap();
+  verifier::DexPcToReferenceMap dex_gc_map(&(gc_map_raw)[0]);
+
+  GcMapBuilder builder(data, 0, 0, dex_gc_map.RegWidth());
+}
+
 
 }  // namespace art

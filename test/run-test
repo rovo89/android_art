@@ -93,6 +93,11 @@ while true; do
         image="$1"
         run_args="${run_args} --image $image"
         shift
+    elif [ "x$1" = "x-Xcompiler-option" ]; then
+        shift
+        option="$1"
+        run_args="${run_args} -Xcompiler-option $option"
+        shift
     elif [ "x$1" = "x--debug" ]; then
         run_args="${run_args} --debug"
         shift
@@ -221,21 +226,22 @@ if [ "$usage" = "yes" ]; then
         echo '  Omitting the test name or specifying "-" will use the' \
              "current directory."
         echo "  Runtime Options:"
-        echo "    -O             Run non-debug rather than debug build (off by default)."
-        echo "    --debug        Wait for a debugger to attach."
-        echo "    --gdb          Run under gdb; incompatible with some tests."
-        echo "    --build-only   Build test files only (off by default)."
-        echo "    --interpreter  Enable interpreter only mode (off by default)."
-        echo "    --no-verify    Turn off verification (on by default)."
-        echo "    --no-optimize  Turn off optimization (on by default)."
-        echo "    --no-precise   Turn off precise GC (on by default)."
-        echo "    --zygote       Spawn the process from the Zygote." \
+        echo "    -O                   Run non-debug rather than debug build (off by default)."
+        echo "    -Xcompiler-option    Pass an option to the compiler."
+        echo "    --debug              Wait for a debugger to attach."
+        echo "    --gdb                Run under gdb; incompatible with some tests."
+        echo "    --build-only         Build test files only (off by default)."
+        echo "    --interpreter        Enable interpreter only mode (off by default)."
+        echo "    --no-verify          Turn off verification (on by default)."
+        echo "    --no-optimize        Turn off optimization (on by default)."
+        echo "    --no-precise         Turn off precise GC (on by default)."
+        echo "    --zygote             Spawn the process from the Zygote." \
              "If used, then the"
-        echo "                   other runtime options are ignored."
-        echo "    --host         Use the host-mode virtual machine."
-        echo "    --invoke-with  Pass --invoke-with option to runtime."
-        echo "    --dalvik       Use Dalvik (off by default)."
-        echo "    --jvm          Use a host-local RI virtual machine."
+        echo "                         other runtime options are ignored."
+        echo "    --host               Use the host-mode virtual machine."
+        echo "    --invoke-with        Pass --invoke-with option to runtime."
+        echo "    --dalvik             Use Dalvik (off by default)."
+        echo "    --jvm                Use a host-local RI virtual machine."
         echo "    --output-path [path] Location where to store the build" \
              "files."
     ) 1>&2

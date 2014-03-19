@@ -174,14 +174,14 @@ test-art-host-oat: test-art-host-oat-default test-art-host-oat-interpreter
 define declare-test-art-host-run-test
 .PHONY: test-art-host-run-test-default-$(1)
 test-art-host-run-test-default-$(1): test-art-host-dependencies $(DX) $(HOST_OUT_EXECUTABLES)/jasmin
-	DX=$(abspath $(DX)) JASMIN=$(abspath $(HOST_OUT_EXECUTABLES)/jasmin) art/test/run-test --host $(1)
+	DX=$(abspath $(DX)) JASMIN=$(abspath $(HOST_OUT_EXECUTABLES)/jasmin) art/test/run-test $(DALVIKVM_FLAGS) --host $(1)
 	@echo test-art-host-run-test-default-$(1) PASSED
 
 TEST_ART_HOST_RUN_TEST_DEFAULT_TARGETS += test-art-host-run-test-default-$(1)
 
 .PHONY: test-art-host-run-test-interpreter-$(1)
 test-art-host-run-test-interpreter-$(1): test-art-host-dependencies $(DX) $(HOST_OUT_EXECUTABLES)/jasmin
-	DX=$(abspath $(DX)) JASMIN=$(abspath $(HOST_OUT_EXECUTABLES)/jasmin) art/test/run-test --host --interpreter $(1)
+	DX=$(abspath $(DX)) JASMIN=$(abspath $(HOST_OUT_EXECUTABLES)/jasmin) art/test/run-test $(DALVIKVM_FLAGS) --host --interpreter $(1)
 	@echo test-art-host-run-test-interpreter-$(1) PASSED
 
 TEST_ART_HOST_RUN_TEST_INTERPRETER_TARGETS += test-art-host-run-test-interpreter-$(1)
