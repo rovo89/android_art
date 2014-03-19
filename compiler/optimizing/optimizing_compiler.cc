@@ -20,6 +20,7 @@
 #include "code_generator.h"
 #include "compilers.h"
 #include "driver/compiler_driver.h"
+#include "driver/dex_compilation_unit.h"
 #include "nodes.h"
 #include "utils/arena_allocator.h"
 
@@ -34,12 +35,12 @@ class CodeVectorAllocator FINAL : public CodeAllocator {
 
   virtual uint8_t* Allocate(size_t size) {
     size_ = size;
-    memory_.reserve(size);
+    memory_.resize(size);
     return &memory_[0];
   }
 
   size_t GetSize() const { return size_; }
-  std::vector<uint8_t>* GetMemory() { return &memory_; }
+  const std::vector<uint8_t>& GetMemory() const { return memory_; }
 
  private:
   std::vector<uint8_t> memory_;
@@ -57,6 +58,10 @@ CompiledMethod* OptimizingCompiler::TryCompile(CompilerDriver& driver,
                                                uint32_t method_idx,
                                                jobject class_loader,
                                                const DexFile& dex_file) const {
+  DexCompilationUnit dex_compilation_unit(
+    nullptr, class_loader, art::Runtime::Current()->GetClassLinker(), dex_file, code_item,
+    class_def_idx, method_idx, access_flags, driver.GetVerifiedMethod(&dex_file, method_idx));
+
   ArenaPool pool;
   ArenaAllocator arena(&pool);
   HGraphBuilder builder(&arena);
@@ -79,11 +84,11 @@ CompiledMethod* OptimizingCompiler::TryCompile(CompilerDriver& driver,
   std::vector<uint8_t> vmap_table;
   codegen->BuildVMapTable(&vmap_table);
   std::vector<uint8_t> gc_map;
-  codegen->BuildNativeGCMap(&gc_map);
+  codegen->BuildNativeGCMap(&gc_map, dex_compilation_unit);
 
   return new CompiledMethod(driver,
                             instruction_set,
-                            *allocator.GetMemory(),
+                            allocator.GetMemory(),
                             codegen->GetFrameSize(),
                             0, /* GPR spill mask, unused */
                             0, /* FPR spill mask, unused */
