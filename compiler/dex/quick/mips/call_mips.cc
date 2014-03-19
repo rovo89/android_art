@@ -317,12 +317,36 @@ void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) 
   SpillCoreRegs();
   /* NOTE: promotion of FP regs currently unsupported, thus no FP spill */
   DCHECK_EQ(num_fp_spills_, 0);
+  const int frame_sub = frame_size_ - spill_count * 4;
   if (!skip_overflow_check) {
-    OpRegRegImm(kOpSub, new_sp, rMIPS_SP, frame_size_ - (spill_count * 4));
-    GenRegRegCheck(kCondUlt, new_sp, check_reg, kThrowStackOverflow);
+    class StackOverflowSlowPath : public LIRSlowPath {
+     public:
+      StackOverflowSlowPath(Mir2Lir* m2l, LIR* branch, size_t sp_displace)
+          : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch, nullptr), sp_displace_(sp_displace) {
+      }
+      void Compile() OVERRIDE {
+        m2l_->ResetRegPool();
+        m2l_->ResetDefTracking();
+        GenerateTargetLabel();
+        // LR is offset 0 since we push in reverse order.
+        m2l_->LoadWordDisp(kMipsRegSP, 0, kMipsRegLR);
+        m2l_->OpRegImm(kOpAdd, kMipsRegSP, sp_displace_);
+        m2l_->ClobberCallerSave();
+        ThreadOffset func_offset = QUICK_ENTRYPOINT_OFFSET(pThrowStackOverflow);
+        int r_tgt = m2l_->CallHelperSetup(func_offset);  // Doesn't clobber LR.
+        m2l_->CallHelper(r_tgt, func_offset, false /* MarkSafepointPC */, false /* UseLink */);
+      }
+
+     private:
+      const size_t sp_displace_;
+    };
+    OpRegRegImm(kOpSub, new_sp, rMIPS_SP, frame_sub);
+    LIR* branch = OpCmpBranch(kCondUlt, new_sp, check_reg, nullptr);
+    AddSlowPath(new(arena_)StackOverflowSlowPath(this, branch, spill_count * 4));
+    // TODO: avoid copy for small frame sizes.
     OpRegCopy(rMIPS_SP, new_sp);     // Establish stack
   } else {
-    OpRegImm(kOpSub, rMIPS_SP, frame_size_ - (spill_count * 4));
+    OpRegImm(kOpSub, rMIPS_SP, frame_sub);
   }
 
   FlushIns(ArgLocs, rl_method);
