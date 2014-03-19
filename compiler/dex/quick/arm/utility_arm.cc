@@ -923,7 +923,13 @@ LIR* ArmMir2Lir::LoadBaseDispBody(int rBase, int displacement, int r_dest,
     } else {
       int reg_offset = AllocTemp();
       LoadConstant(reg_offset, encoded_disp);
-      load = LoadBaseIndexed(rBase, reg_offset, r_dest, 0, size);
+      if (ARM_FPREG(r_dest)) {
+        // No index ops - must use a long sequence.  Turn the offset into a direct pointer.
+        OpRegReg(kOpAdd, reg_offset, rBase);
+        load = LoadBaseDispBody(reg_offset, 0, r_dest, r_dest_hi, size, s_reg);
+      } else {
+        load = LoadBaseIndexed(rBase, reg_offset, r_dest, 0, size);
+      }
       FreeTemp(reg_offset);
     }
   }
@@ -1037,7 +1043,13 @@ LIR* ArmMir2Lir::StoreBaseDispBody(int rBase, int displacement,
     } else {
       int r_scratch = AllocTemp();
       LoadConstant(r_scratch, encoded_disp);
-      store = StoreBaseIndexed(rBase, r_scratch, r_src, 0, size);
+      if (ARM_FPREG(r_src)) {
+        // No index ops - must use a long sequence.  Turn the offset into a direct pointer.
+        OpRegReg(kOpAdd, r_scratch, rBase);
+        store = StoreBaseDispBody(r_scratch, 0, r_src, r_src_hi, size);
+      } else {
+        store = StoreBaseIndexed(rBase, r_scratch, r_src, 0, size);
+      }
       FreeTemp(r_scratch);
     }
   }
