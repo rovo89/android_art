@@ -17,6 +17,7 @@ OPTIMIZE="y"
 INVOKE_WITH=""
 DEV_MODE="n"
 QUIET="n"
+COMPILER_OPTIONS=""
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
@@ -64,6 +65,11 @@ while true; do
         shift
     elif [ "x$1" = "x--no-optimize" ]; then
         OPTIMIZE="n"
+        shift
+    elif [ "x$1" = "x-Xcompiler-option" ]; then
+        shift
+        option="$1"
+        COMPILER_OPTIONS="${COMPILER_OPTIONS} -Xcompiler-option $option"
         shift
     elif [ "x$1" = "x--" ]; then
         shift
@@ -121,4 +127,4 @@ if [ "$DEV_MODE" = "y" ]; then
 fi
 
 cd $ANDROID_BUILD_TOP
-$INVOKE_WITH $gdb $exe $gdbargs -XXlib:$LIB $JNI_OPTS $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar Main "$@"
+$INVOKE_WITH $gdb $exe $gdbargs -XXlib:$LIB $JNI_OPTS $COMPILER_OPTIONS $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar Main "$@"
