@@ -101,6 +101,12 @@ class PACKED(4) Thread {
 #else
   static constexpr size_t kStackOverflowReservedBytes = 16 * KB;
 #endif
+  // How much of the reserved bytes is reserved for incoming signals.
+  static constexpr size_t kStackOverflowSignalReservedBytes = 2 * KB;
+  // How much of the reserved bytes we may temporarily use during stack overflow checks as an
+  // optimization.
+  static constexpr size_t kStackOverflowReservedUsableBytes =
+      kStackOverflowReservedBytes - kStackOverflowSignalReservedBytes;
 
   // Creates a new native thread corresponding to the given managed peer.
   // Used to implement Thread.start.
