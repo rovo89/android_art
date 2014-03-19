@@ -398,6 +398,7 @@ enum X86OpCode {
   kX86JmpR,             // jmp reg; lir operands - 0: reg
   kX86Jecxz8,           // jcexz rel8; jump relative if ECX is zero.
   kX86JmpT,             // jmp fs:[disp]; fs: is equal to Thread::Current(); lir operands - 0: disp
+
   kX86CallR,            // call reg; lir operands - 0: reg
   kX86CallM,            // call [base + disp]; lir operands - 0: base, 1: disp
   kX86CallA,            // call [base + index * scale + disp]
