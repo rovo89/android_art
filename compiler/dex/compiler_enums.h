@@ -328,7 +328,6 @@ enum ThrowKind {
   kThrowArrayBounds,
   kThrowConstantArrayBounds,
   kThrowNoSuchMethod,
-  kThrowStackOverflow,
 };
 
 enum DividePattern {
