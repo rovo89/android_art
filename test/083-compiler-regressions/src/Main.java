@@ -46,6 +46,7 @@ public class Main {
         ZeroTests.longDivTest();
         ZeroTests.longModTest();
         MirOpSelectTests.testIfCcz();
+        ManyFloatArgs();
     }
 
     public static void returnConstantTest() {
@@ -276,6 +277,303 @@ public class Main {
         }
     }
 
+    static double TooManyArgs(
+          long l00,
+          long l01,
+          long l02,
+          long l03,
+          long l04,
+          long l05,
+          long l06,
+          long l07,
+          long l08,
+          long l09,
+          long l10,
+          long l11,
+          long l12,
+          long l13,
+          long l14,
+          long l15,
+          long l16,
+          long l17,
+          long l18,
+          long l19,
+          long l20,
+          long l21,
+          long l22,
+          long l23,
+          long l24,
+          long l25,
+          long l26,
+          long l27,
+          long l28,
+          long l29,
+          long l30,
+          long l31,
+          long l32,
+          long l33,
+          long l34,
+          long l35,
+          long l36,
+          long l37,
+          long l38,
+          long l39,
+          long l40,
+          long l41,
+          long l42,
+          long l43,
+          long l44,
+          long l45,
+          long l46,
+          long l47,
+          long l48,
+          long l49,
+          long ll00,
+          long ll01,
+          long ll02,
+          long ll03,
+          long ll04,
+          long ll05,
+          long ll06,
+          long ll07,
+          long ll08,
+          long ll09,
+          long ll10,
+          long ll11,
+          long ll12,
+          long ll13,
+          long ll14,
+          long ll15,
+          long ll16,
+          long ll17,
+          long ll18,
+          long ll19,
+          double d01,
+          double d02,
+          double d03,
+          double d04,
+          double d05,
+          double d06,
+          double d07,
+          double d08,
+          double d09,
+          double d10,
+          double d11,
+          double d12,
+          double d13,
+          double d14,
+          double d15,
+          double d16,
+          double d17,
+          double d18,
+          double d19,
+          double d20,
+          double d21,
+          double d22,
+          double d23,
+          double d24,
+          double d25,
+          double d26,
+          double d27,
+          double d28,
+          double d29,
+          double d30,
+          double d31,
+          double d32,
+          double d33,
+          double d34,
+          double d35,
+          double d36,
+          double d37,
+          double d38,
+          double d39,
+          double d40,
+          double d41,
+          double d42,
+          double d43,
+          double d44,
+          double d45,
+          double d46,
+          double d47,
+          double d48,
+          double d49) {
+        double res = 0.0;
+        double t01 = d49;
+        double t02 = 02.0 + t01;
+        double t03 = 03.0 + t02;
+        double t04 = 04.0 + t03;
+        double t05 = 05.0 + t04;
+        double t06 = 06.0 + t05;
+        double t07 = 07.0 + t06;
+        double t08 = 08.0 + t07;
+        double t09 = 09.0 + t08;
+        double t10 = 10.0 + t09;
+        double t11 = 11.0 + t10;
+        double t12 = 12.0 + t11;
+        double t13 = 13.0 + t12;
+        double t14 = 14.0 + t13;
+        double t15 = 15.0 + t14;
+        double t16 = 16.0 + t15;
+        double t17 = 17.0 + t16;
+        double t18 = 18.0 + t17;
+        double t19 = 19.0 + t18;
+        double t20 = 20.0 + t19;
+        double t21 = 21.0 + t20;
+        double t22 = 22.0 + t21;
+        double t23 = 23.0 + t22;
+        double t24 = 24.0 + t23;
+        double t25 = 25.0 + t24;
+        double t26 = 26.0 + t25;
+        double t27 = 27.0 + t26;
+        double t28 = 28.0 + t27;
+        double t29 = 29.0 + t28;
+        double t30 = 30.0 + t29;
+        double t31 = 31.0 + t30;
+        double t32 = 32.0 + t31;
+        double t33 = 33.0 + t32;
+        double t34 = 34.0 + t33;
+        double t35 = 35.0 + t34;
+        double t36 = 36.0 + t35;
+        double t37 = 37.0 + t36;
+        double t38 = 38.0 + t37;
+        double t39 = 39.0 + t38;
+        double t40 = 40.0 + t39;
+        double tt02 = 02.0 + t40;
+        double tt03 = 03.0 + tt02;
+        double tt04 = 04.0 + tt03;
+        double tt05 = 05.0 + tt04;
+        double tt06 = 06.0 + tt05;
+        double tt07 = 07.0 + tt06;
+        double tt08 = 08.0 + tt07;
+        double tt09 = 09.0 + tt08;
+        double tt10 = 10.0 + tt09;
+        double tt11 = 11.0 + tt10;
+        double tt12 = 12.0 + tt11;
+        double tt13 = 13.0 + tt12;
+        double tt14 = 14.0 + tt13;
+        double tt15 = 15.0 + tt14;
+        double tt16 = 16.0 + tt15;
+        double tt17 = 17.0 + tt16;
+        double tt18 = 18.0 + tt17;
+        double tt19 = 19.0 + tt18;
+        double tt20 = 20.0 + tt19;
+        double tt21 = 21.0 + tt20;
+        double tt22 = 22.0 + tt21;
+        double tt23 = 23.0 + tt22;
+        double tt24 = 24.0 + tt23;
+        double tt25 = 25.0 + tt24;
+        double tt26 = 26.0 + tt25;
+        double tt27 = 27.0 + tt26;
+        double tt28 = 28.0 + tt27;
+        double tt29 = 29.0 + tt28;
+        double tt30 = 30.0 + tt29;
+        double tt31 = 31.0 + tt30;
+        double tt32 = 32.0 + tt31;
+        double tt33 = 33.0 + tt32;
+        double tt34 = 34.0 + tt33;
+        double tt35 = 35.0 + tt34;
+        double tt36 = 36.0 + tt35;
+        double tt37 = 37.0 + tt36;
+        double tt38 = 38.0 + tt37;
+        double tt39 = 39.0 + tt38;
+        double tt40 = 40.0 + tt39;
+        double ttt02 = 02.0 + tt40;
+        double ttt03 = 03.0 + ttt02;
+        double ttt04 = 04.0 + ttt03;
+        double ttt05 = 05.0 + ttt04;
+        double ttt06 = 06.0 + ttt05;
+        double ttt07 = 07.0 + ttt06;
+        double ttt08 = 08.0 + ttt07;
+        double ttt09 = 09.0 + ttt08;
+        double ttt10 = 10.0 + ttt09;
+        double ttt11 = 11.0 + ttt10;
+        double ttt12 = 12.0 + ttt11;
+        double ttt13 = 13.0 + ttt12;
+        double ttt14 = 14.0 + ttt13;
+        double ttt15 = 15.0 + ttt14;
+        double ttt16 = 16.0 + ttt15;
+        double ttt17 = 17.0 + ttt16;
+        double ttt18 = 18.0 + ttt17;
+        double ttt19 = 19.0 + ttt18;
+        double ttt20 = 20.0 + ttt19;
+        double ttt21 = 21.0 + ttt20;
+        double ttt22 = 22.0 + ttt21;
+        double ttt23 = 23.0 + ttt22;
+        double ttt24 = 24.0 + ttt23;
+        double ttt25 = 25.0 + ttt24;
+        double ttt26 = 26.0 + ttt25;
+        double ttt27 = 27.0 + ttt26;
+        double ttt28 = 28.0 + ttt27;
+        double ttt29 = 29.0 + ttt28;
+        double ttt30 = 30.0 + ttt29;
+        double ttt31 = 31.0 + ttt30;
+      // Repeatedly use some doubles from the middle of the pack to trigger promotion from frame-passed args.
+      for (int i = 0; i < 100; i++) {
+         res += d40;
+         res += d41;
+         res += d42;
+         res += d43;
+         res += d44;
+         res += d45;
+         res += d46;
+         res += d47;
+         res += d48;
+      }
+      for (int i = 0; i < 100; i++) {
+         res += d40;
+         res += d41;
+         res += d42;
+         res += d43;
+         res += d44;
+         res += d45;
+         res += d46;
+         res += d47;
+         res += d48;
+      }
+      for (int i = 0; i < 100; i++) {
+         res += d40;
+         res += d41;
+         res += d42;
+         res += d43;
+         res += d44;
+         res += d45;
+         res += d46;
+         res += d47;
+         res += d48;
+      }
+      for (int i = 0; i < 100; i++) {
+         res += d40;
+         res += d41;
+         res += d42;
+         res += d43;
+         res += d44;
+         res += d45;
+         res += d46;
+         res += d47;
+         res += d48;
+      }
+      return res + tt40;
+   }
+
+    public static void ManyFloatArgs() {
+        double res = TooManyArgs(
+                                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+                                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+                                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+                                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+                                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+                                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+                                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+                                 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
+                                 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0,
+                                 24.0, 25.0, 26.0, 27.0, 28.0, 29.0, 30.0, 31.0, 32.0, 33.0, 34.0,
+                                 35.0, 36.0, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49);
+       if ((long)res == 160087) {
+           System.out.println("ManyFloatArgs passes");
+       } else {
+           System.out.println("ManyFloatArgs fails, expected 30600, got: " + res);
+       }
+    }
     static long largeFrame() {
         int i0 = 0;
         long l0 = 0;
