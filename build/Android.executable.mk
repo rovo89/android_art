@@ -97,6 +97,8 @@ define build-art-executable
 
   ifeq ($$(art_target_or_host),target)
     LOCAL_MODULE_TARGET_ARCH := $(ART_SUPPORTED_ARCH)
+    #HACK: force 32-bit until 64-bit dex2oat can handle 32-bit
+    LOCAL_32_BIT_ONLY := true
   endif
 
   ifeq ($$(art_target_or_host),target)
