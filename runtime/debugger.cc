@@ -721,13 +721,14 @@ JDWP::JdwpError Dbg::GetMonitorInfo(JDWP::ObjectId object_id, JDWP::ExpandBuf* r
 
   // Ensure all threads are suspended while we read objects' lock words.
   Thread* self = Thread::Current();
-  Locks::mutator_lock_->SharedUnlock(self);
-  Locks::mutator_lock_->ExclusiveLock(self);
+  CHECK_EQ(self->GetState(), kRunnable);
+  self->TransitionFromRunnableToSuspended(kSuspended);
+  Runtime::Current()->GetThreadList()->SuspendAll();
 
   MonitorInfo monitor_info(o);
 
-  Locks::mutator_lock_->ExclusiveUnlock(self);
-  Locks::mutator_lock_->SharedLock(self);
+  Runtime::Current()->GetThreadList()->ResumeAll();
+  self->TransitionFromSuspendedToRunnable();
 
   if (monitor_info.owner_ != NULL) {
     expandBufAddObjectId(reply, gRegistry->Add(monitor_info.owner_->GetPeer()));
