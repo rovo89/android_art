@@ -2050,8 +2050,16 @@ void X86Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
           // We can optimize by moving to result and using memory operands.
           if (rl_rhs.location != kLocPhysReg) {
             // Force LHS into result.
-            rl_result = EvalLoc(rl_dest, kCoreReg, true);
-            LoadValueDirect(rl_lhs, rl_result.reg.GetReg());
+            // We should be careful with order here
+            // If rl_dest and rl_lhs points to the same VR we should load first
+            // If the are different we should find a register first for dest
+            if (mir_graph_->SRegToVReg(rl_dest.s_reg_low) == mir_graph_->SRegToVReg(rl_lhs.s_reg_low)) {
+              rl_lhs = LoadValue(rl_lhs, kCoreReg);
+              rl_result = EvalLoc(rl_dest, kCoreReg, true);
+            } else {
+              rl_result = EvalLoc(rl_dest, kCoreReg, true);
+              LoadValueDirect(rl_lhs, rl_result.reg.GetReg());
+            }
             OpRegMem(op, rl_result.reg.GetReg(), rl_rhs);
           } else if (rl_lhs.location != kLocPhysReg) {
             // RHS is in a register; LHS is in memory.
