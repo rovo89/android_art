@@ -353,7 +353,7 @@ class Heap {
 
   // Freed bytes can be negative in cases where we copy objects from a compacted space to a
   // free-list backed space.
-  void RecordFree(size_t freed_objects, size_t freed_bytes);
+  void RecordFree(ssize_t freed_objects, ssize_t freed_bytes);
 
   // Must be called if a field of an Object in the heap changes, and before any GC safe-point.
   // The call is not needed if NULL is stored in the field.

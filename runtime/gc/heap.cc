@@ -1101,8 +1101,12 @@ void Heap::VerifyHeap() {
   GetLiveBitmap()->Walk(Heap::VerificationCallback, this);
 }
 
-void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
-  DCHECK_LE(freed_bytes, num_bytes_allocated_.Load());
+void Heap::RecordFree(ssize_t freed_objects, ssize_t freed_bytes) {
+  // Use signed comparison since freed bytes can be negative when background compaction foreground
+  // transitions occurs. This is caused by the moving objects from a bump pointer space to a
+  // free list backed space typically increasing memory footprint due to padding and binning.
+  DCHECK_LE(freed_bytes, static_cast<ssize_t>(num_bytes_allocated_.Load()));
+  DCHECK_GE(freed_objects, 0);
   num_bytes_allocated_.FetchAndSub(freed_bytes);
   if (Runtime::Current()->HasStatsEnabled()) {
     RuntimeStats* thread_stats = Thread::Current()->GetStats();
