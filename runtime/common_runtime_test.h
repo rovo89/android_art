@@ -341,6 +341,13 @@ class CheckJniAbortCatcher {
     return; \
   }
 
+// TODO: When heap reference poisoning works with the compiler, get rid of this.
+#define TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING() \
+  if (kPoisonHeapReferences) { \
+    printf("WARNING: TEST DISABLED FOR HEAP REFERENCE POISONING\n"); \
+    return; \
+  }
+
 }  // namespace art
 
 namespace std {
