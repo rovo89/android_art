@@ -1208,10 +1208,7 @@ bool Mir2Lir::GenInlinedAbsFloat(CallInfo* info) {
   rl_src = LoadValue(rl_src, kCoreReg);
   RegLocation rl_dest = InlineTarget(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  int signMask = AllocTemp();
-  LoadConstant(signMask, 0x7fffffff);
-  OpRegRegReg(kOpAnd, rl_result.reg.GetReg(), rl_src.reg.GetReg(), signMask);
-  FreeTemp(signMask);
+  OpRegRegImm(kOpAnd, rl_result.reg.GetReg(), rl_src.reg.GetReg(), 0x7fffffff);
   StoreValue(rl_dest, rl_result);
   return true;
 }
@@ -1226,12 +1223,7 @@ bool Mir2Lir::GenInlinedAbsDouble(CallInfo* info) {
   RegLocation rl_dest = InlineTargetWide(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   OpRegCopyWide(rl_result.reg.GetReg(), rl_result.reg.GetHighReg(), rl_src.reg.GetReg(), rl_src.reg.GetHighReg());
-  FreeTemp(rl_src.reg.GetReg());
-  FreeTemp(rl_src.reg.GetHighReg());
-  int signMask = AllocTemp();
-  LoadConstant(signMask, 0x7fffffff);
-  OpRegReg(kOpAnd, rl_result.reg.GetHighReg(), signMask);
-  FreeTemp(signMask);
+  OpRegImm(kOpAnd, rl_result.reg.GetHighReg(), 0x7fffffff);
   StoreValueWide(rl_dest, rl_result);
   return true;
 }
