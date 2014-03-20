@@ -60,7 +60,7 @@ DlMallocSpace* DlMallocSpace::CreateFromMemMap(MemMap* mem_map, const std::strin
 
   // Everything is set so record in immutable structure and leave
   byte* begin = mem_map->Begin();
-  if (RUNNING_ON_VALGRIND > 0) {
+  if (Runtime::Current()->GetHeap()->RunningOnValgrind()) {
     return new ValgrindMallocSpace<DlMallocSpace, void*>(
         name, mem_map, mspace, begin, end, begin + capacity, growth_limit, initial_size);
   } else {
